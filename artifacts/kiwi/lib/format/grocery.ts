@@ -1108,3 +1108,67 @@ export function composeGroceryLine(
   const need = needText.trim();
   return need ? `${packName} (${need})` : packName;
 }
+
+// ── Row 8 Block 2 — the pack the row RENDERS, as numbers for an order line ──
+//
+// ARCHITECTURE RULING (chat-Claude, September 19, 2026, Hans un-objected): the
+// pack-count arithmetic lives on the phone and is NOT ported to the server. The
+// phone contributes the numbers it already renders; the server owns the
+// Instacart contract. What the shopper reads on screen is what gets ordered.
+//
+// So this reads the SAME primitives composePackName renders with —
+// packLeadingQuantity → packsToCoverNeed — and nothing else, and returns a
+// NUMBER OF PACKS, never the displayed total. The server multiplies packCount
+// by the row's stored per-pack size (instacartPayload.ts, rule 1): "1 can
+// (14.5 oz)" shown as "3 cans (14.5 oz)" is packCount 3 × 1 can; "1.5 lb pack"
+// shown as "3 lb pack" is packCount 2 × 1.5 lb. Sending the on-screen total
+// would multiply twice.
+//
+// Null means "the phone has no derived pack for this row" and the caller OMITS
+// packCount — the server's own precedence (override → stored pack → need →
+// 1 each) is better informed than a guessed 1. The cases, each mirroring the
+// branch composePackName takes for the same row:
+//   • a pantry staple (BUG-171) renders no pack → null;
+//   • a QUANTITY override (BUG-240) is the user's stated buy, shown verbatim
+//     and NOT a derivation → null, and the server's rule 2 orders exactly that
+//     number. ⚠️ It is not sent as packCount: the server's per-pack size for
+//     an overridden row IS the override (`purchaseQuantityOverride ??
+//     purchaseQuantity`), so packCount = override would order override²;
+//     the server's own fixture sends override rows with no packCount;
+//   • a LABEL-only override keeps the derived, scaled count on screen → the
+//     derived packs, as for a plain row;
+//   • no stored pack (Rule 3) → null; the server orders the need;
+//   • the need and the pack cannot be related (packsToCoverNeed rule 4) → null.
+//
+// `packSizeText` is the display's parenthetical, parens included ("(14.5 oz)"),
+// which is the shape the server's fixture carries and appends to its pack line.
+
+export interface RenderedPack {
+  /** Number of packs — an integer ≥ 1, NEVER the displayed total. */
+  packCount: number;
+  /** The parenthetical size off the stored display, parens included. */
+  packSizeText?: string;
+}
+
+export function renderedPack(
+  purchaseDisplay: string | null | undefined,
+  needAmount: string | number | null | undefined,
+  needUnit: string | null | undefined,
+  purchaseUnit: string | null | undefined,
+  isPantryStaple?: boolean,
+  override?: PurchaseOverride,
+): RenderedPack | null {
+  if (isPantryStaple) return null;
+  const ovrQty = override?.quantity;
+  if (ovrQty !== undefined && ovrQty !== null) return null;
+  if (!purchaseDisplay) return null;
+  const need = resolveNeed(needAmount);
+  const packQuantity = packLeadingQuantity(purchaseDisplay);
+  if (need === null || packQuantity === null) return null;
+  const nUnit = (needUnit ?? "").trim().toLowerCase();
+  const pUnit = (purchaseUnit ?? "").trim().toLowerCase();
+  const packs = packsToCoverNeed(need, packQuantity, nUnit, pUnit, purchaseDisplay);
+  if (packs === null) return null;
+  const size = /\([^)]+\)/.exec(purchaseDisplay);
+  return size ? { packCount: packs, packSizeText: size[0] } : { packCount: packs };
+}

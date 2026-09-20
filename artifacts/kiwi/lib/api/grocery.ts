@@ -180,6 +180,16 @@ const GetGroceryListResponseSchema = z.object({
   // WS7-7-A B5 — true when this read reconciled the list to plan changes.
   // Optional for forward-compat with any pre-B5 server.
   reconciled: z.boolean().optional(),
+  // Row 8 Block 1 (R7b) — the retailer flag rides the detail read so the
+  // screen can gate the Instacart CTA without a second request. Optional so
+  // a server without it (or a demo stub) reads as "off". The list's own
+  // instacartLink* columns also arrive (GroceryListWireSchema is
+  // .passthrough()) but the client does not display them.
+  retailers: z
+    .object({
+      instacart: z.object({ enabled: z.boolean() }).optional(),
+    })
+    .optional(),
 });
 
 type GroceryListItemWire = z.infer<typeof GroceryListItemWireSchema>;
@@ -257,6 +267,8 @@ export interface GetGroceryListResult {
   list: GroceryList;
   // WS7-7-A B5 — drives the transient "updating to match plan changes" banner.
   reconciled: boolean;
+  // Row 8 Block 2 — true → the Instacart CTA; false → "coming soon".
+  instacartEnabled: boolean;
 }
 
 export async function getGroceryList(
@@ -265,7 +277,74 @@ export async function getGroceryList(
   const body = await apiClient(`/grocery-lists/${encodeURIComponent(listId)}`, {
     schema: GetGroceryListResponseSchema,
   });
-  return { list: normalizeList(body.list), reconciled: body.reconciled ?? false };
+  return {
+    list: normalizeList(body.list),
+    reconciled: body.reconciled ?? false,
+    instacartEnabled: body.retailers?.instacart?.enabled ?? false,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Row 8 Block 2 — POST /grocery-lists/:id/instacart-link
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * The link-out call. `items` is the screen's R1 selection with the phone's
+ * pack numbers (lib/instacartOrder.ts); the server composes the Instacart
+ * shopping-list payload, persists the link on the list and hands back the
+ * URL. Throw mode — the caller maps the ApiError to copy
+ * (instacartErrorCopy): 403 retailer_disabled · 503 retailer_not_configured ·
+ * 502 retailer_error · 504 retailer_timeout · 429 (10/min per user) ·
+ * 400 no_items · 404.
+ *
+ * `skipped` / `unmappedUnits` are diagnostics: logged, never shown.
+ */
+export interface InstacartLinkResult {
+  url: string;
+  expiresAt: string;
+  itemCount: number;
+  skipped: Array<{ groceryListItemId: string; reason: string }>;
+  unmappedUnits: Array<{ groceryListItemId: string; unit: string }>;
+}
+
+const InstacartLinkResponseSchema = z
+  .object({
+    url: z.string().min(1),
+    expiresAt: z.string(),
+    itemCount: z.number(),
+    skipped: z
+      .array(z.object({ groceryListItemId: z.string(), reason: z.string() }).passthrough())
+      .optional(),
+    unmappedUnits: z
+      .array(z.object({ groceryListItemId: z.string(), unit: z.string() }).passthrough())
+      .optional(),
+  })
+  .passthrough();
+
+export async function createInstacartLink(
+  listId: string,
+  items: Array<{
+    groceryListItemId: string;
+    packCount?: number;
+    packUnit?: string;
+    packSizeText?: string;
+  }>,
+): Promise<InstacartLinkResult> {
+  const body = await apiClient(
+    `/grocery-lists/${encodeURIComponent(listId)}/instacart-link`,
+    {
+      method: "POST",
+      body: { items },
+      schema: InstacartLinkResponseSchema,
+    },
+  );
+  return {
+    url: body.url,
+    expiresAt: body.expiresAt,
+    itemCount: body.itemCount,
+    skipped: body.skipped ?? [],
+    unmappedUnits: body.unmappedUnits ?? [],
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────

@@ -10,6 +10,7 @@ import { afterEach, beforeEach, test } from "node:test";
 import * as SecureStore from "expo-secure-store";
 
 import {
+  createInstacartLink,
   getGroceryList,
   lookupGroceryItemCandidates,
   updateGroceryListStatus,
@@ -17,7 +18,7 @@ import {
   deleteGroceryListItem,
   restoreGroceryListItem,
 } from "../grocery";
-import { ApiNetworkError, ApiSchemaError } from "../errors";
+import { ApiError, ApiNetworkError, ApiSchemaError } from "../errors";
 import { __resetForTests as resetAuthBridge } from "../auth-bridge";
 
 const TOKEN_KEY = "kiwi_authToken";
@@ -157,6 +158,65 @@ test("getGroceryList defaults reconciled to false when the server omits it", asy
   nextResponse = () => mockJson({ list: wireList({}) });
   const { reconciled } = await getGroceryList("list-1");
   assert.equal(reconciled, false);
+});
+
+// ── Row 8 Block 2 — the retailer flag and the link-out call ──────────────────
+
+test("getGroceryList reads retailers.instacart.enabled and tolerates the instacartLink* columns", async () => {
+  nextResponse = () =>
+    mockJson({
+      list: wireList({
+        instacartLinkUrl: "https://customers.dev.instacart.tools/store/shopping_lists/1",
+        instacartLinkedAt: "2026-09-19T00:00:00.000Z",
+        instacartLinkExpiresAt: "2026-10-19T00:00:00.000Z",
+      }),
+      reconciled: false,
+      retailers: { instacart: { enabled: true } },
+    });
+  const { instacartEnabled } = await getGroceryList("list-1");
+  assert.equal(instacartEnabled, true);
+});
+
+test("getGroceryList reads the flag off (false) and defaults to false when the server omits retailers", async () => {
+  nextResponse = () =>
+    mockJson({ list: wireList({}), retailers: { instacart: { enabled: false } } });
+  assert.equal((await getGroceryList("list-1")).instacartEnabled, false);
+  nextResponse = () => mockJson({ list: wireList({}) });
+  assert.equal((await getGroceryList("list-1")).instacartEnabled, false);
+});
+
+test("createInstacartLink POSTs /grocery-lists/:id/instacart-link with { items } only (no retailerKey) and returns the link", async () => {
+  nextResponse = () =>
+    mockJson({
+      url: "https://customers.dev.instacart.tools/store/shopping_lists/1?retailer_key=x",
+      expiresAt: "2026-10-19T00:00:00.000Z",
+      itemCount: 2,
+      skipped: [{ groceryListItemId: "item-9", reason: "deleted" }],
+      unmappedUnits: [{ groceryListItemId: "item-2", unit: "pinch" }],
+    });
+  const items = [
+    { groceryListItemId: "item-1", packCount: 2, packUnit: "can", packSizeText: "(14.5 oz)" },
+    { groceryListItemId: "item-2" },
+  ];
+  const res = await createInstacartLink("list-1", items);
+  assert.equal(lastMethod, "POST");
+  assert.ok(lastUrl?.endsWith("/grocery-lists/list-1/instacart-link"), `url: ${lastUrl}`);
+  assert.deepEqual(lastBody, { items });
+  assert.equal(res.url, "https://customers.dev.instacart.tools/store/shopping_lists/1?retailer_key=x");
+  assert.equal(res.itemCount, 2);
+  assert.deepEqual(res.skipped, [{ groceryListItemId: "item-9", reason: "deleted" }]);
+  assert.deepEqual(res.unmappedUnits, [{ groceryListItemId: "item-2", unit: "pinch" }]);
+});
+
+test("createInstacartLink throws a typed ApiError carrying the server's status and body (the screen maps it to copy)", async () => {
+  nextResponse = () => mockJson({ error: "retailer_disabled" }, 403);
+  await assert.rejects(
+    () => createInstacartLink("list-1", [{ groceryListItemId: "item-1" }]),
+    (err: unknown) =>
+      err instanceof ApiError &&
+      err.status === 403 &&
+      (err.body as { error: string }).error === "retailer_disabled",
+  );
 });
 
 test("getGroceryList still rejects an unknown status value (enum stays strict)", async () => {
