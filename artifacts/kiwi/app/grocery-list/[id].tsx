@@ -1008,6 +1008,29 @@ export default function GroceryListDetail() {
         // the "tap on qty during keyboard dismiss is eaten" bug.
         keyboardShouldPersistTaps="handled"
       >
+        {/* Row 8 Block 3 — the Instacart order block is the FIRST thing in the
+            scroll (Hans's device ruling: "prominent and available at the top
+            of the page"). Block 2 had it at the bottom, above "Mark Shopping
+            Done ✓". In-scroll, not a fixed band above the progress meter: the
+            meter is pinned for the store posture (visible while shopping a
+            long list), and ordering is a before-shopping action — pinning a
+            46 px pill + expectation line for the whole shop would spend the
+            list's real estate on the one thing the shopper is no longer
+            doing. Same panel, same two states (flag → CTA, else the coming-
+            soon line), same expectation line; the error line flows in-scroll
+            instead of resizing a fixed strip. Not shown in the completed
+            state: everything is checked, so the R1 selection would be empty.
+            The "Kiwi needs a few specifics" banner sits directly under it, so
+            its "before they can be ordered" line reads next to the CTA. */}
+        {list.status !== "completed" && (
+          <InstacartOrderPanel
+            enabled={instacartEnabled}
+            busy={instacartBusy}
+            error={instacartError}
+            onPress={handleShopOnInstacart}
+          />
+        )}
+
         {unresolvedItems.length > 0 && (
           <View style={s.ambiguousBanner}>
             <View style={s.ambiguousIcon}>
@@ -1259,20 +1282,10 @@ export default function GroceryListDetail() {
           </View>
         ) : (
           <View style={s.markDoneWrap}>
-            {/* Row 8 Block 2 — the Instacart order block sits ABOVE "Mark
-                Shopping Done ✓" in the same in-scroll action area (not the
-                header, not a floating bar). Stacked, not side by side: the
-                pill hugs its label (~200 px) and the secondary button is
-                full-width, so a row would crowd both at phone width. The
-                server flag decides CTA vs the coming-soon line inside. Not
-                shown in the completed state: everything is checked, so the
-                R1 selection would be empty. */}
-            <InstacartOrderPanel
-              enabled={instacartEnabled}
-              busy={instacartBusy}
-              error={instacartError}
-              onPress={handleShopOnInstacart}
-            />
+            {/* Row 8 Block 2 put the Instacart order block here, above this
+                button; Block 3 moved it to the top of the scroll (see the
+                first child of the ScrollView). Only "Mark Shopping Done ✓"
+                lives here now. */}
             <Button
               label="Mark Shopping Done ✓"
               variant="secondary"
@@ -2063,8 +2076,6 @@ const s = StyleSheet.create({
   },
   markDoneWrap: {
     marginTop: Spacing[4],
-    // Row 8 Block 2 — the Instacart block stacks above the button.
-    gap: Spacing[4],
   },
   completionWrap: {
     marginTop: Spacing[4],
