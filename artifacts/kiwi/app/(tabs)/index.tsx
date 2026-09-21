@@ -47,9 +47,11 @@ import { homeSectionOrder } from "@/lib/home/homeSections";
 import { shouldOfferAddOwnMeals } from "@/lib/home/makeLaneOptions";
 import { buildRailItems } from "@/lib/home/rail";
 import { generateGroceryListForPlan } from "@/lib/api/grocery";
+import type { GroceryListListItem } from "@/lib/api/groceries";
 import type { HomePayload } from "@/lib/api/home";
 import { patchUiState } from "@/lib/auth";
 import { dispatchGenerateResult } from "@/lib/groceryHandoff";
+import { dispatchOrderOnline } from "@/lib/orderOnline";
 import { buildCookSessionParams } from "@/lib/cooking/cookSession";
 import { Colors, Spacing } from "@/constants/tokens";
 
@@ -294,15 +296,35 @@ export default function HomeTab() {
     router.push({ pathname: "/prep-cook", params: { id: stripPlanId } });
   };
 
-  // D-WS9-158 — the Order Online STUB, byte-matching Plan Review's copy. It
-  // ships styled as a full peer cell because 2e styles for the destination
-  // state; the Instacart work makes it function later.
-  // ⚠️ This is the STUB. "Grocery List" above is the working navigation — never
-  // conflate them (D-WS9-133).
-  const handleStripOrderOnline = () =>
-    Alert.alert(
-      "Coming soon — you'll be able to send this list to a grocery service.",
+  // D-WS9-158 — RETIRED (Row 8 Block 3, the twin of Plan Review's cell). This
+  // was the Order Online STUB behind a "Coming soon" Alert; it is now the entry
+  // to the ordering surface: has-list → the plan's grocery list (the Instacart
+  // CTA sits at its top); no-list → confirm, then handleStripGroceryList
+  // unchanged. Here the plan IS the active plan, so Home's own payload
+  // (activePlan.groceryListId) is the authoritative read; the cached Groceries
+  // index is the fallback. Decision + copy in lib/orderOnline.ts (tested).
+  // D-WS9-133 amended: "Grocery List" and "Order Online" share a destination
+  // by design (view/edit vs go-shop intent).
+  const handleStripOrderOnline = () => {
+    if (!stripPlanId || isGeneratingList) return;
+    const groceryIndex = queryClient
+      .getQueriesData<GroceryListListItem[]>({ queryKey: ["groceries", "list"] })
+      .flatMap(([, rows]) => rows ?? []);
+    dispatchOrderOnline(
+      stripPlanId,
+      { home: homeQuery.data, groceryIndex },
+      {
+        navigate: (listId) =>
+          router.push({ pathname: "/grocery-list/[id]", params: { id: listId } }),
+        confirm: (spec) =>
+          Alert.alert(spec.title, spec.body, [
+            { text: spec.cancelLabel, style: "cancel" },
+            { text: spec.confirmLabel, onPress: spec.onConfirm },
+          ]),
+        generate: () => void handleStripGroceryList(),
+      },
     );
+  };
 
   // ⚠️ WS9-2 2c Commit 7 §7.5 — the Grocery list / Prep & Cook utility row is
   // GONE from Home, and with it this screen's handleGroceryPress /

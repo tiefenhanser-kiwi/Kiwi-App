@@ -38,7 +38,10 @@ import { ApiError } from "@/lib/api/errors";
 import { buildDayStrip } from "@/lib/domain";
 import { formatMacro } from "@/lib/format/macros";
 import { generateGroceryListForPlan } from "@/lib/api/grocery";
+import type { GroceryListListItem } from "@/lib/api/groceries";
+import type { HomePayload } from "@/lib/api/home";
 import { dispatchGenerateResult } from "@/lib/groceryHandoff";
+import { dispatchOrderOnline } from "@/lib/orderOnline";
 import {
   mealDetailToRow,
   planDetailToReviewPlan,
@@ -308,6 +311,42 @@ export default function PlanReviewScreen() {
     } finally {
       setIsGeneratingList(false);
     }
+  };
+
+  // Row 8 Block 3 — "Order Online" is the entry to the ordering surface (the
+  // D-WS9-158 "Coming soon" stub is retired). Has-list → straight to the list,
+  // where the Instacart CTA now sits at the top. No-list → ask first, then run
+  // handleGroceryListPress UNCHANGED ("Generating…" shows on the Grocery List
+  // cell for tonight; the loading-state redesign is post-submission). The
+  // decision + copy live in lib/orderOnline.ts (tested; this file is not).
+  //
+  // The list-existence read is cache-only, no network on the tap: Home's
+  // activePlan.groceryListId, then every cached Groceries-index page matched
+  // on mealPlanInstanceId. Unknown → the confirm, and the existing flow's
+  // 409 → navigate still lands on the list. See lib/orderOnline.ts for why
+  // that degradation is safe.
+  const handleOrderOnlinePress = () => {
+    if (isGeneratingList) return;
+    const groceryIndex = queryClient
+      .getQueriesData<GroceryListListItem[]>({ queryKey: ["groceries", "list"] })
+      .flatMap(([, rows]) => rows ?? []);
+    dispatchOrderOnline(
+      planId,
+      {
+        home: queryClient.getQueryData<HomePayload>(["home", "payload"]),
+        groceryIndex,
+      },
+      {
+        navigate: (listId) =>
+          router.push({ pathname: "/grocery-list/[id]", params: { id: listId } }),
+        confirm: (spec) =>
+          Alert.alert(spec.title, spec.body, [
+            { text: spec.cancelLabel, style: "cancel" },
+            { text: spec.confirmLabel, onPress: spec.onConfirm },
+          ]),
+        generate: () => void handleGroceryListPress(),
+      },
+    );
   };
 
   // BUG-104 / BUG-112 — optimism moved into the query cache (planWrite) and the
@@ -757,11 +796,18 @@ export default function PlanReviewScreen() {
             </View>
             <View style={s.actionRow}>
               <View style={s.actionCol}>
-                {/* D-WS9-158 — a stub that no-ops behind an Alert. Ruled: style
-                    it as a full peer cell, because 2e styles for the destination
-                    state (the Instacart work makes it function later).
-                    ⚠️ This is the STUB. "Grocery List" above is the working
-                    navigation — never conflate them (D-WS9-133). */}
+                {/* D-WS9-158 — RETIRED (Row 8 Block 3). This cell was a stub
+                    behind a "Coming soon" Alert, styled as a full peer cell so
+                    the destination state was ready; the Instacart work (row 8)
+                    now makes it function. It is Kiwi's entry to ordering and
+                    lands on the plan's grocery list (has-list → open; no-list
+                    → confirm, then the same generate flow as "Grocery List").
+                    D-WS9-133 amended: "Grocery List" and "Order Online" now
+                    SHARE a destination by design — view/edit intent vs go-shop
+                    intent — and a vendor-selection page is deferred until
+                    there is a second vendor. Not Instacart-branded: the
+                    compliance CTA lives where the hand-off happens (the list);
+                    this is Kiwi's own navigation. */}
                 {/* Item 3 — "Get Groceries Online" → "Order Online".
                     ⚠️ There is no separate accessibility label to change:
                     Button exposes no accessibilityLabel prop, so the accessible
@@ -781,11 +827,7 @@ export default function PlanReviewScreen() {
                       color={Colors.terracotta[400]}
                     />
                   }
-                  onPress={() => {
-                    Alert.alert(
-                      "Coming soon — you'll be able to send this list to a grocery service.",
-                    );
-                  }}
+                  onPress={handleOrderOnlinePress}
                 />
               </View>
               <View style={s.actionCol}>
