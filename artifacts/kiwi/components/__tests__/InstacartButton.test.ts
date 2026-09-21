@@ -99,7 +99,16 @@ test("the referenced logo asset exists in the repo and is an svg root", () => {
   if (abs.endsWith(".svg")) {
     const body = readFileSync(abs, "utf8");
     assert.match(body, /<svg[\s>]/, "the .svg asset must be a real svg document (Metro runs image-size on it)");
-    assert.match(body, /width="\d+"/, "the svg root must declare a width (image-size reads it)");
+    // Row 8 Block 3 — image-size (1.2.1, what Metro runs) sizes an svg from
+    // width/height attributes OR, when absent, from viewBox. Instacart's
+    // official file is viewBox-only ("0 0 42.3 52.9" → 42×53), so Block 2's
+    // `width="\d+"` assertion over-claimed the requirement and went red on the
+    // real mark. Either is enough for the bundle to build.
+    assert.match(
+      body,
+      /\s(?:width=['"][0-9.]+(?:px)?['"]|viewBox=['"][0-9.\s-]+['"])/,
+      "the svg root must be sizable (width attr or viewBox — image-size reads either)",
+    );
   }
 });
 
