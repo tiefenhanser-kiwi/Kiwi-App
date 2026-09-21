@@ -113,3 +113,14 @@ test("Grocery screen: InstacartOrderPanel mounted once, first in the scroll, not
   assert.doesNotMatch(markDoneWrap, /<InstacartOrderPanel/);
   assert.match(markDoneWrap, /label="Mark Shopping Done ✓"/);
 });
+
+test("Part D: the panel reads list.items and its Add is the row's own opt-in — ONE staple opt-in path on the screen", () => {
+  const mount = grocery.slice(grocery.indexOf("<InstacartOrderPanel"), grocery.indexOf("/>", grocery.indexOf("<InstacartOrderPanel")));
+  assert.match(mount, /items=\{list\.items\}/, "the count line reads the same rows the tap sends from");
+  assert.match(mount, /onAddStaple=\{handleStapleOptIn\}/);
+  // Lifted, not duplicated: exactly one opt-in mutation call, inside handleStapleOptIn,
+  // and handleItemTap delegates to it.
+  assert.equal(grocery.match(/toggleGroceryStapleSelection\(listId, item\.id, true\)/g)?.length, 1);
+  assert.match(grocery, /const handleStapleOptIn = \(item: GroceryListItem\) => \{[\s\S]*?toggleGroceryStapleSelection\(listId, item\.id, true\)/);
+  assert.match(grocery, /if \(item\.isUniversalStaple && !\(item\.stapleOptedIn \?\? false\)\) \{\s*handleStapleOptIn\(item\);\s*return;\s*\}/);
+});

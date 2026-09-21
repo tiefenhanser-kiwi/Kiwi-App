@@ -88,6 +88,63 @@ export function instacartItemsForList(items: GroceryListItem[]): InstacartLinkIt
   return selectInstacartRows(items).map(instacartItemForRow);
 }
 
+// ── The count line (Row 8 Block 3 Part D) ────────────────────────────────
+//
+// Hans, September 21: "Kiwi should be sending everything, and if it won't
+// send everything it should tell the user it didn't" — and, shown a bare
+// count, "are we able to list what isn't sent? that's better than the user
+// thinking 'which 6?'". Ruled: say the count, and let the staples fragment
+// expand into the actual rows with an Add.
+//
+// Computed from the SAME selection the button sends (selectInstacartRows),
+// never re-derived: the number on screen is the number on the wire. The
+// held-back set is R1's complement among the unchecked rows — universal
+// staples not opted in — so a checked-off staple is neither sent nor "not
+// included"; it is simply done.
+
+/** The unchecked universal staples R1 leaves home (BUG-171's rule at the button). */
+export function heldBackStaples(items: GroceryListItem[]): GroceryListItem[] {
+  return items.filter(
+    (it) => !it.isCompleted && it.isUniversalStaple && it.stapleOptedIn !== true,
+  );
+}
+
+/** The name the list already shows for a row. Name ONLY — a staple has no
+ *  pack line (BUG-171), and this never composes one. */
+export function stapleDisplayName(item: GroceryListItem): string {
+  return item.userResolvedTo ?? item.name;
+}
+
+export interface InstacartCountSummary {
+  /** Rows the tap would send — `selectInstacartRows(items).length`. */
+  sendCount: number;
+  /** The staples the tap leaves home, in list order. */
+  heldBack: GroceryListItem[];
+  /** "Sends 54 items" / "Sends 1 item". Plain text. */
+  sendsText: string;
+  /** "6 pantry staples not included" / "1 pantry staple not included"; null at 0. */
+  staplesText: string | null;
+  /** The whole line as read aloud: sendsText, then " · " + staplesText when present. */
+  line: string;
+}
+
+export function instacartCountSummary(items: GroceryListItem[]): InstacartCountSummary {
+  const sendCount = selectInstacartRows(items).length;
+  const heldBack = heldBackStaples(items);
+  const sendsText = `Sends ${sendCount} ${sendCount === 1 ? "item" : "items"}`;
+  const staplesText =
+    heldBack.length > 0
+      ? `${heldBack.length} pantry ${heldBack.length === 1 ? "staple" : "staples"} not included`
+      : null;
+  return {
+    sendCount,
+    heldBack,
+    sendsText,
+    staplesText,
+    line: staplesText ? `${sendsText} · ${staplesText}` : sendsText,
+  };
+}
+
 // ── Copy ─────────────────────────────────────────────────────────────────
 //
 // COPY COMPLIANCE (Instacart): never "free delivery", never "partner" /

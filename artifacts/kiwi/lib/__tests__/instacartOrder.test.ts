@@ -22,42 +22,22 @@ import {
   INSTACART_NO_ITEMS_COPY,
   INSTACART_RATE_LIMIT_COPY,
   INSTACART_UNREACHABLE_COPY,
+  heldBackStaples,
+  instacartCountSummary,
   instacartErrorCopy,
   instacartItemForRow,
   instacartItemsForList,
   selectInstacartRows,
+  stapleDisplayName,
 } from "@/lib/instacartOrder";
 import type { GroceryListItem } from "@/lib/types";
-
-function row(over: Partial<GroceryListItem> & { id: string }): GroceryListItem {
-  return {
-    name: over.id,
-    quantity: "1",
-    quantityAmount: "1",
-    quantityUnit: "each",
-    sectionKey: "produce",
-    isUniversalStaple: false,
-    stapleOptedIn: false,
-    isRecurringItem: false,
-    isAmbiguous: false,
-    isOptional: false,
-    isCompleted: false,
-    ...over,
-  };
-}
+import { NOT_OPTED_STAPLES, measuredList, row } from "./fixtures/instacartMeasuredList";
 
 // ── The measured list: 60 rows, all unchecked, 7 universal staples of which
-//    ONE is opted in. 54 go; the six not-opted-in staples stay home. ─────────
-const NOT_OPTED_STAPLES = ["kosher salt", "black pepper", "olive oil", "all-purpose flour", "sugar", "soy sauce"];
-const MEASURED_LIST: GroceryListItem[] = [
-  ...NOT_OPTED_STAPLES.map((name) =>
-    row({ id: `staple-${name}`, name, isUniversalStaple: true, stapleOptedIn: false, purchaseUnit: "container", purchaseDisplay: "1 container (26 oz)" }),
-  ),
-  row({ id: "staple-butter", name: "butter", isUniversalStaple: true, stapleOptedIn: true, purchaseUnit: "lb", purchaseDisplay: "1 lb" }),
-  ...Array.from({ length: 53 }, (_, i) =>
-    row({ id: `r${String(i + 1).padStart(2, "0")}`, name: `item ${i + 1}` }),
-  ),
-];
+//    ONE is opted in. 54 go; the six not-opted-in staples stay home.
+//    (Block 3 Part D: the fixture moved to ./fixtures so the panel test
+//    renders the count line off the same rows.) ────────────────────────────
+const MEASURED_LIST: GroceryListItem[] = measuredList();
 
 describe("R1 — the selection", () => {
   it("the 60-row measured list sends exactly 54; the six left out are the not-opted-in universal staples", () => {
@@ -258,5 +238,66 @@ describe("the copy map", () => {
       assert.ok(!/\b(minutes?|hours?|fast|same-day|today)\b/.test(l), c);
       assert.ok(!/instacart (store|delivers|delivery)/.test(l), c);
     }
+  });
+});
+
+// ── Row 8 Block 3 Part D — the count line ───────────────────────────────────
+// Computed from the SAME R1 selection the tap sends; the staples fragment is
+// its complement among the unchecked rows.
+describe("the count line", () => {
+  it("the measured list reads exactly 'Sends 54 items · 6 pantry staples not included'", () => {
+    const s = instacartCountSummary(MEASURED_LIST);
+    assert.equal(s.line, "Sends 54 items · 6 pantry staples not included");
+    assert.equal(s.sendsText, "Sends 54 items");
+    assert.equal(s.staplesText, "6 pantry staples not included");
+    assert.equal(s.sendCount, selectInstacartRows(MEASURED_LIST).length);
+    assert.deepEqual(
+      s.heldBack.map((r) => r.id),
+      NOT_OPTED_STAPLES.map((n) => `staple-${n}`),
+    );
+    assert.deepEqual(heldBackStaples(MEASURED_LIST), s.heldBack);
+  });
+
+  it("every staple opted in → no fragment: 'Sends 60 items'", () => {
+    const all = MEASURED_LIST.map((r) => (r.isUniversalStaple ? { ...r, stapleOptedIn: true } : r));
+    const s = instacartCountSummary(all);
+    assert.equal(s.line, "Sends 60 items");
+    assert.equal(s.staplesText, null);
+    assert.equal(s.heldBack.length, 0);
+  });
+
+  it("checking a row off → N −1; the staples count does not move", () => {
+    const checked = MEASURED_LIST.map((r) => (r.id === "r01" ? { ...r, isCompleted: true } : r));
+    assert.equal(instacartCountSummary(checked).line, "Sends 53 items · 6 pantry staples not included");
+  });
+
+  it("opting a staple in → N +1, M −1, that staple leaves heldBack", () => {
+    const opted = MEASURED_LIST.map((r) =>
+      r.id === "staple-olive oil" ? { ...r, stapleOptedIn: true } : r,
+    );
+    const s = instacartCountSummary(opted);
+    assert.equal(s.line, "Sends 55 items · 5 pantry staples not included");
+    assert.ok(!s.heldBack.some((r) => r.id === "staple-olive oil"));
+  });
+
+  it("a checked-off staple is neither sent nor 'not included'", () => {
+    const done = MEASURED_LIST.map((r) =>
+      r.id === "staple-sugar" ? { ...r, isCompleted: true } : r,
+    );
+    assert.equal(instacartCountSummary(done).line, "Sends 54 items · 5 pantry staples not included");
+  });
+
+  it("singulars: '1 item', '1 pantry staple'", () => {
+    const items = [row({ id: "a" }), row({ id: "s", isUniversalStaple: true })];
+    assert.equal(instacartCountSummary(items).line, "Sends 1 item · 1 pantry staple not included");
+    assert.equal(instacartCountSummary([row({ id: "a" })]).line, "Sends 1 item");
+    assert.equal(instacartCountSummary([]).line, "Sends 0 items");
+  });
+
+  it("stapleDisplayName is the list's own name (userResolvedTo ?? name), never a pack line", () => {
+    const plain = row({ id: "s1", name: "olive oil", isUniversalStaple: true, purchaseUnit: "bottle", purchaseDisplay: "1 bottle (16.9 fl oz)" });
+    assert.equal(stapleDisplayName(plain), "olive oil");
+    assert.equal(stapleDisplayName({ ...plain, userResolvedTo: "extra-virgin olive oil" }), "extra-virgin olive oil");
+    assert.doesNotMatch(stapleDisplayName(plain), /bottle|oz|\(/);
   });
 });

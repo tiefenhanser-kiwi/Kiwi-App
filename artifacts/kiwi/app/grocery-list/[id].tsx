@@ -407,6 +407,24 @@ export default function GroceryListDetail() {
     );
   };
 
+  // Staple's first tap = opt in for this trip; don't strike. Optimistic local
+  // flip, then persist (§12.7); revert + surface on failure. Row 8 Block 3
+  // Part D LIFTED this out of handleItemTap (it was inline there) so the
+  // Instacart panel's "Add" on a held-back staple runs the SAME path as the
+  // row's own "+" — one mutation path, not a second copy.
+  const handleStapleOptIn = (item: GroceryListItem) => {
+    applyItemPatch(item.id, { stapleOptedIn: true });
+    if (isDemo) return;
+    toggleGroceryStapleSelection(listId, item.id, true).catch((err) => {
+      console.warn("[grocery-list] staple opt-in failed", err);
+      applyItemPatch(item.id, { stapleOptedIn: false });
+      Alert.alert(
+        "Couldn't update item",
+        "Something went wrong. Please try again.",
+      );
+    });
+  };
+
   const handleItemTap = (item: GroceryListItem) => {
     // Tapping anywhere on the row while a quantity edit is open should
     // commit + exit edit (matches the ambient "tap-out to confirm"
@@ -416,18 +434,7 @@ export default function GroceryListDetail() {
       return;
     }
     if (item.isUniversalStaple && !(item.stapleOptedIn ?? false)) {
-      // Staple's first tap = opt in for this trip; don't strike. Optimistic
-      // local flip, then persist (§12.7); revert + surface on failure.
-      applyItemPatch(item.id, { stapleOptedIn: true });
-      if (isDemo) return;
-      toggleGroceryStapleSelection(listId, item.id, true).catch((err) => {
-        console.warn("[grocery-list] staple opt-in failed", err);
-        applyItemPatch(item.id, { stapleOptedIn: false });
-        Alert.alert(
-          "Couldn't update item",
-          "Something went wrong. Please try again.",
-        );
-      });
+      handleStapleOptIn(item);
       return;
     }
     // Standard complete-toggle (incl. already-opted-in staples).
@@ -1028,6 +1035,10 @@ export default function GroceryListDetail() {
             busy={instacartBusy}
             error={instacartError}
             onPress={handleShopOnInstacart}
+            // Part D — the count line reads the same list.items the tap
+            // sends from; Add on a held-back staple is the row's own opt-in.
+            items={list.items}
+            onAddStaple={handleStapleOptIn}
           />
         )}
 
