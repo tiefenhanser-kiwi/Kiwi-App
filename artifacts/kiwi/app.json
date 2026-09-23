@@ -26,6 +26,17 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "Allow Kiwi to access your camera to import recipe images.",
         "NSPhotoLibraryUsageDescription": "Allow Kiwi to access your photos to import recipe images."
+      },
+      "privacyManifests": {
+        "NSPrivacyTracking": false,
+        "NSPrivacyTrackingDomains": [],
+        "NSPrivacyCollectedDataTypes": [],
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": ["CA92.1"]
+          }
+        ]
       }
     },
     "android": {
@@ -55,7 +66,12 @@
           "microphonePermission": false
         }
       ],
-      "expo-notifications"
+      [
+        "expo-notifications",
+        {
+          "mode": "production"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
