@@ -15,7 +15,9 @@
     },
     "ios": {
       "supportsTablet": false,
+      "bundleIdentifier": "com.kitchenwizard.kiwi",
       "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "Allow Kiwi to access your camera to import recipe images.",
         "NSPhotoLibraryUsageDescription": "Allow Kiwi to access your photos to import recipe images."
       }
@@ -34,7 +36,7 @@
       [
         "expo-router",
         {
-          "origin": "https://replit.com/"
+          "origin": "https://kitchenwizard.ai"
         }
       ],
       "expo-font",
