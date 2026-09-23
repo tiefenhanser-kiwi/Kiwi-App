@@ -54,7 +54,8 @@
           "cameraPermission": "Allow Kiwi to access your camera to import recipe images.",
           "microphonePermission": false
         }
-      ]
+      ],
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true,
