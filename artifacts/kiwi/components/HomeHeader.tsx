@@ -16,7 +16,6 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AvatarChip } from "@/components/AvatarChip";
-import { TrialBadge } from "@/components/TrialBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import { Colors, Spacing, Typography } from "@/constants/tokens";
 
@@ -56,8 +55,11 @@ export function HomeHeader() {
           accessibilityLabel="Kiwi"
         />
         <View style={styles.right}>
-          {/* Badge sits LEFT of the chip (spec §5.1). Self-hides when not trialing. */}
-          <TrialBadge />
+          {/* D-WS9-258 — the trial badge is removed for the first binary. It
+              was the only always-on billing surface in the app: a pill reading
+              "14-day trial · N days left", and "Trial expired — Upgrade →"
+              tapping through to /upgrade. Stripe's lane re-adds it here,
+              LEFT of the chip (spec §5.1). */}
           <AvatarChip
             initials={initials}
             onPress={() => router.push("/(tabs)/profile")}

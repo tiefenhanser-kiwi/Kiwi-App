@@ -1,19 +1,22 @@
 import React from "react";
-import { Alert, Image, StyleSheet, Text, View } from "react-native";
+import { Image, Linking, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 
 import { Button } from "@/components/Button";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { PRIVACY_URL, TERMS_URL } from "@/lib/legal";
 
-// TODO(WS9): wire ToS + Privacy Policy links to real legal pages
-// when those screens exist. For WS5, both fire a "coming soon" alert.
-function showLegalStub() {
-  Alert.alert(
-    "Coming soon — Terms of Service and Privacy Policy.",
-    "We're still drafting these. They'll be live before launch.",
-  );
+// D-WS9-099 — the WS5 "coming soon" Alert is REMOVED, not restyled. Both
+// pages are live (lib/legal.ts) and a store submission has to link to them.
+// The rejection is handled the way grocery-list/[id].tsx handles the
+// Instacart link's: a device with no browser is a warn, not a crash, and the
+// user is not shown a dead end they cannot act on.
+function openLegal(url: string): void {
+  Linking.openURL(url).catch((err: unknown) => {
+    console.warn("[welcome] legal openURL rejected", err);
+  });
 }
 
 type FeatherName = React.ComponentProps<typeof Feather>["name"];
@@ -95,11 +98,11 @@ export default function Welcome() {
         />
         <Text style={styles.legalLine}>
           By continuing you agree to our{" "}
-          <Text style={styles.legalLink} onPress={showLegalStub}>
+          <Text style={styles.legalLink} onPress={() => openLegal(TERMS_URL)}>
             Terms of Service
           </Text>
           {" "}and{" "}
-          <Text style={styles.legalLink} onPress={showLegalStub}>
+          <Text style={styles.legalLink} onPress={() => openLegal(PRIVACY_URL)}>
             Privacy Policy
           </Text>
           .

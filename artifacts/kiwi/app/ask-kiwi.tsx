@@ -56,7 +56,10 @@ export default function AskKiwiScreen() {
               },
             });
           }}
-          routeToUpgrade={() => router.push("/upgrade")}
+          // D-WS9-258 — no paywall in the first binary; Stripe's lane re-adds
+          // the lock and its route. The seam stays so the 402 branch keeps
+          // suppressing the navigate-to-draft; only the destination is gone.
+          routeToUpgrade={() => {}}
         />
       </KeyboardAwareScrollViewCompat>
     </View>

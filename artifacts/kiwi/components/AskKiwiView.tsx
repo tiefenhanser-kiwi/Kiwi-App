@@ -18,8 +18,9 @@ const PLACEHOLDER =
   "e.g. Chicken piccata with a side arugula salad and lemon vinaigrette";
 const SUBTITLE =
   "Describe the meal in your own words — Kiwi will turn it into a meal with dishes, ingredients, and steps you can review and edit.";
+// D-WS9-258 — the "Premium · " prefix is gone; nothing here costs.
 const HELPER =
-  "Premium · Kiwi reads your description and drafts a full meal. You can change anything before saving.";
+  "Kiwi reads your description and drafts a full meal. You can change anything before saving.";
 
 export interface AskKiwiViewProps {
   text: string;

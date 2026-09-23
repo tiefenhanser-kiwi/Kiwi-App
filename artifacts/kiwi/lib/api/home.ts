@@ -56,6 +56,17 @@ export const HomePayloadSchema = z.object({
   // here rather than silently showing or hiding the CTA.
   playlistCtaTappedAt: z.string().nullable(),
   hasMeals: z.boolean(),
+  // Store-prep lane — the Instacart flag, read by Plan Review's "Order Online"
+  // gate (lib/orderOnline.ts showOrderOnline) out of this cached payload.
+  //
+  // ⚠️ OPTIONAL, unlike the two fields above, and deliberately so: a NEW
+  // REQUIRED field on this schema breaks the whole Home tab until the server
+  // deploys, and the app ships to the stores before the server does. Absent
+  // parses, and absent reads as "hidden" — the safe direction for a cell that
+  // must not appear on a build with no retailer wired.
+  retailers: z
+    .object({ instacart: z.object({ enabled: z.boolean() }) })
+    .optional(),
 });
 export type HomePayload = z.infer<typeof HomePayloadSchema>;
 

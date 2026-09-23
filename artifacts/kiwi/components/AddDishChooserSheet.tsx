@@ -56,7 +56,11 @@ export function AddDishChooserSheet({
         </View>
 
         <View style={s.body}>
-          {/* Ask Kiwi first (dish-side Mode A — premium, gated server-side). */}
+          {/* Ask Kiwi first (dish-side Mode A). D-WS9-258 — the "Premium"
+              lock pill is removed; nothing in the first binary is purchasable,
+              so nothing may be labelled as requiring a purchase. Same removal
+              BUG-291 already made on the Ask-Kiwi import card. No entitlement
+              gate, subscriptionService.can call or server check changed. */}
           <Pressable
             onPress={() => navigateAfterClose("/ask-kiwi-dish")}
             style={({ pressed }) => [s.askCard, pressed && { opacity: 0.85 }]}
@@ -68,14 +72,6 @@ export function AddDishChooserSheet({
             <View style={{ flex: 1 }}>
               <View style={s.askTitleRow}>
                 <Text style={s.cardTitle}>Ask Kiwi for a dish</Text>
-                <View style={s.premiumPill}>
-                  <Feather
-                    name="lock"
-                    size={10}
-                    color={Colors.terracotta[700]}
-                  />
-                  <Text style={s.premiumPillText}>Premium</Text>
-                </View>
               </View>
               <Text style={s.cardSubtitle}>
                 Describe a dish and Kiwi drafts the ingredients and steps

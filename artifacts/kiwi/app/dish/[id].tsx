@@ -1,7 +1,6 @@
 import React from "react";
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -104,16 +103,6 @@ function DishDetailContent({ dish }: { dish: DishDetail }) {
     });
   };
 
-  const onCompost = () => {
-    // D-WS9-006 / BUG-008 Case 3 — library dish delete is net-new backend (no
-    // DELETE /me/dishes/:id, no compostedAt), assigned to Block 3f. Until then a
-    // SINGLE informational alert: no confirm-then-fake-success double-alert, and
-    // no router.back() — the dish is NOT gone, so the screen must not imply the
-    // delete worked (the affordance stays; only the false navigation goes).
-    console.log("[dish-detail] compost tapped", { dishId: dish.id });
-    Alert.alert("Coming soon — you'll be able to delete this dish.");
-  };
-
   const macrosAllZero =
     dish.calories === 0 &&
     dish.protein === 0 &&
@@ -157,12 +146,18 @@ function DishDetailContent({ dish }: { dish: DishDetail }) {
           <Button label="Cook Now" variant="primary" onPress={onCookNow} />
         </View>
 
+        {/* D-WS9-006 / BUG-008 case 3 — the library-context "Compost" button is
+            REMOVED, not restyled (D-WS9-099). It needs net-new backend that does
+            not exist: there is no DELETE /me/dishes/:id and no compostedAt on
+            Dish. Until this lane it opened a single informational alert reading
+            "Coming soon — you'll be able to delete this dish", which is the
+            definition of a work-in-progress feel on a screen a tester opens.
+            BUG-008 case 3 STAYS OPEN; the affordance comes back with the route.
+            Removal is one-line-reversible; a dead button seen by a tester is
+            not. Edit keeps the row to itself. */}
         <View style={s.actionRow}>
           <View style={{ flex: 1 }}>
             <Button label="Edit" variant="ghost" onPress={onEdit} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Button label="Compost" variant="ghost" onPress={onCompost} />
           </View>
         </View>
 

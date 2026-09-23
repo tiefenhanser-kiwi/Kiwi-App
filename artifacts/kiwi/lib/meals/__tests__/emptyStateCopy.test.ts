@@ -19,10 +19,14 @@ test("mealsEmptyCopy: featured copy acknowledges seeding state", () => {
   assert.match(copy, /still growing/);
 });
 
-test("mealsEmptyCopy: top_rated copy acknowledges transient empty", () => {
+// Store-prep lane — the copy no longer invokes "the Kiwi community": on a
+// store build there is not one yet. The chip is still named and the user is
+// still told what to do, which is what this test is for.
+test("mealsEmptyCopy: top_rated copy names the chip and offers the next step", () => {
   const copy = mealsEmptyCopy("top_rated");
   assert.match(copy, /top-rated/i);
-  assert.match(copy, /community/);
+  assert.match(copy, /\+ Add Meal/);
+  assert.doesNotMatch(copy, /community/i);
 });
 
 test("mealsEmptyCopy: hosting copy acknowledges seeding state", () => {

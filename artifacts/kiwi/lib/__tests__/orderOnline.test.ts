@@ -15,6 +15,7 @@ import {
   decideOrderOnline,
   dispatchOrderOnline,
   resolveKnownGroceryListId,
+  showOrderOnline,
   type OrderOnlineConfirmSpec,
 } from "../orderOnline";
 
@@ -136,4 +137,38 @@ test("copy constants are what the screens render", () => {
   );
   assert.equal(ORDER_ONLINE_CONFIRM_CANCEL, "Not now");
   assert.equal(ORDER_ONLINE_CONFIRM_CREATE, "Create list");
+});
+
+// ── The gate (store-prep lane, Hans September 22) ──────────────────────────
+// With the Instacart flag off, NOTHING Instacart-shaped renders. Plan Review
+// is app/** and outside this glob, so the decision lives here as a pure
+// function and this is where it is pinned.
+test("showOrderOnline: only an explicit server true shows the cell", () => {
+  assert.equal(showOrderOnline({ retailers: { instacart: { enabled: true } } }), true);
+  assert.equal(showOrderOnline({ retailers: { instacart: { enabled: false } } }), false);
+});
+
+test("showOrderOnline: every UNKNOWN shape hides it", () => {
+  // undefined = the payload has not been fetched yet.
+  assert.equal(showOrderOnline(undefined), false);
+  // null = no cached entry.
+  assert.equal(showOrderOnline(null), false);
+  // A server that predates the field — which is the whole reason `retailers`
+  // is OPTIONAL on HomePayloadSchema. The app ships before the server deploys.
+  assert.equal(showOrderOnline({}), false);
+  assert.equal(showOrderOnline({ retailers: null }), false);
+  assert.equal(showOrderOnline({ retailers: {} }), false);
+  assert.equal(showOrderOnline({ retailers: { instacart: {} } }), false);
+});
+
+test("showOrderOnline: nothing truthy-but-not-true opens the gate", () => {
+  // === true, not a truthiness check: a string "false" out of a hand-edited
+  // settings row must not read as on.
+  for (const enabled of ["true", 1, "yes", {}] as unknown[]) {
+    assert.equal(
+      showOrderOnline({ retailers: { instacart: { enabled } } } as never),
+      false,
+      String(enabled),
+    );
+  }
 });

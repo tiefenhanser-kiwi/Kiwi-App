@@ -36,7 +36,6 @@ import { TeachingArc } from "@/components/TeachingArc";
 import { TellKiwiCard } from "@/components/TellKiwiCard";
 import { FeaturedPlanCard } from "@/components/FeaturedPlanCard";
 import { useApp } from "@/contexts/AppContext";
-import { useAuth } from "@/contexts/AuthContext";
 import { useHomePayload } from "@/hooks/useHomePayload";
 import { useHomeRail } from "@/hooks/useHomeRail";
 import { usePlans } from "@/hooks/usePlans";
@@ -58,17 +57,10 @@ import { Colors, Spacing } from "@/constants/tokens";
 export default function HomeTab() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { user } = useAuth();
   const { useTemplateAsPlan, setPlanActiveThisWeek } = useApp();
 
-  // Paywall: an expired/lapsed subscription routes the MAKE-lane actions to
-  // upgrade (preserved from the pre-3a home; grocery/prep/cook stay ungated as
-  // before). Trialing/active pass through.
-  const isLocked = useMemo(() => {
-    const status = user?.subscription?.status;
-    if (!status) return false;
-    return status !== "trialing" && status !== "active";
-  }, [user?.subscription?.status]);
+  // D-WS9-258 — no paywall in the first binary; Stripe's lane re-adds the lock
+  // and its route.
 
   // GET /home drives the hero/tonight state + the first-run arc gate.
   const homeQuery = useHomePayload();
@@ -149,26 +141,19 @@ export default function HomeTab() {
   // is gone (Part B) — its handler, its route param and its server route.
   const [tellText, setTellText] = useState("");
   const handleTellSubmit = () => {
-    if (isLocked) return router.push("/upgrade");
     // Free text → the wizard in text mode (PRD §6). The text rides along as a
     // param so it survives the navigation (the screen seeds its box from it).
     router.push({ pathname: "/tellkiwi", params: { text: tellText.trim() } });
   };
   // Have Kiwi use my preferences → the wizard in preferences mode, which
   // hydrates from stored preferences on mount (D-WS9-014 pt 1 / D-WS7-035).
-  const handleUsePreferences = () =>
-    router.push(isLocked ? "/upgrade" : "/wizard");
+  const handleUsePreferences = () => router.push("/wizard");
   // §4.5's third option — D-WS9-247: "Set up my Playlist" → the Playlist tab
   // (the fifth tab, D-WS9-237), the route meal-builder's after-save hop
   // already uses. It USED to push /meal-builder with an arrival toast
   // ("Anytime: Recipes → Meals → Add Meal."); the toast is gone — a tab
   // landing is its own confirmation — and the Playlist's empty state is the
   // teaching surface now (Hans: "it's perfect as is").
-  //
-  // ⚠️ DELIBERATELY NOT PAYWALLED. The two actions above route to /upgrade when
-  // locked because they trigger AI GENERATION. Building a playlist is not
-  // generation — gating it here would tell a lapsed user they cannot list
-  // meals they own.
   //
   // D-WS9-247 amendment — the tap is the second half of the gate. Hide the
   // card NOW (setQueryData on the payload this screen reads, so the user
@@ -256,10 +241,6 @@ export default function HomeTab() {
   // loose buttons in a row that pointed at nothing in particular. The card is
   // now explicitly a panel FOR THE PLAN, so plan-level is exactly what belongs.
   //
-  // ⚠️ DELIBERATELY NOT PAYWALLED, matching the pre-existing rule at the top of
-  // this file: isLocked routes the MAKE-lane actions to /upgrade because they
-  // trigger AI generation; grocery / prep / cook have always stayed ungated.
-
   // §27.2 — the SAME request path and the SAME shared result mapper Plan Review
   // uses (generateGroceryListForPlan → dispatchGenerateResult). The six-outcome
   // error ladder lives in lib/groceryHandoff.ts and is tested there; re-inlining

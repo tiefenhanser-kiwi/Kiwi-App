@@ -60,7 +60,13 @@ for (const [name, src, generateFlow] of [
   ["Home", home, "handleStripGroceryList"],
 ] as const) {
   test(`${name}: the handler dispatches through lib/orderOnline with the existing generate flow as its sink`, () => {
-    assert.match(src, /import \{ dispatchOrderOnline \} from "@\/lib\/orderOnline";/);
+    // Store-prep lane — Plan Review now also imports showOrderOnline for the
+    // flag gate, so the import is matched by NAME rather than by the exact
+    // one-symbol clause.
+    assert.match(
+      src,
+      /import \{[^}]*\bdispatchOrderOnline\b[^}]*\} from "@\/lib\/orderOnline";/,
+    );
     const handler = src.match(
       name === "Home"
         ? /const handleStripOrderOnline = \(\) => \{[\s\S]*?\n  \};/
@@ -83,6 +89,37 @@ for (const [name, src, generateFlow] of [
     assert.match(body, /pathname: "\/grocery-list\/\[id\]", params: \{ id: listId \}/);
   });
 }
+
+// Store-prep lane (Hans, September 22) — with the Instacart flag off, nothing
+// Instacart-shaped renders. On Plan Review that is this gate. The cell and its
+// handler are otherwise untouched; only their visibility became conditional.
+test("Plan Review: the Order Online cell is gated on the server flag", () => {
+  assert.match(
+    plan,
+    /import \{[^}]*\bshowOrderOnline\b[^}]*\} from "@\/lib\/orderOnline";/,
+    "the decision comes from the tested pure function, not an inline expression",
+  );
+  assert.match(
+    plan,
+    /const orderOnlineVisible = showOrderOnline\(/,
+    "one gate, named",
+  );
+  assert.match(
+    plan,
+    /showOrderOnline\(\s*queryClient\.getQueryData<HomePayload>\(\["home", "payload"\]\),\s*\)/,
+    "read out of the cached home payload — no network on render",
+  );
+  assert.match(
+    plan,
+    /\{orderOnlineVisible \? \(\s*<Button\s+label="Order Online"/,
+    "the cell renders only when the flag is on",
+  );
+  // The Grocery List cell is NOT gated: it is the plan's own list, not a
+  // retailer surface, and with no retailer it is how the user reaches the list.
+  // (Its label is the isGeneratingList ternary, hence the loose match.)
+  assert.match(plan, /"Generating…" : "Grocery List"/);
+  assert.doesNotMatch(plan, /orderOnlineVisible \? \([\s\S]{0,300}"Grocery List"/);
+});
 
 test("Home: the This-Week card's Order Online cell still points at the (now wired) handler", () => {
   assert.match(home, /onOrderOnline=\{handleStripOrderOnline\}/);

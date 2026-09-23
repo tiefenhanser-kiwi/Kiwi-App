@@ -5,7 +5,6 @@ import { Feather } from "@expo/vector-icons";
 import { InstacartButton } from "@/components/InstacartButton";
 import { Colors, Radius, Spacing, Typography } from "@/constants/tokens";
 import {
-  INSTACART_COMING_SOON_COPY,
   INSTACART_EXPECTATION_COPY,
   instacartCountSummary,
   stapleDisplayName,
@@ -22,9 +21,19 @@ import type { GroceryListItem } from "@/lib/types";
 // NO button — is one of the things this block must pin.
 //
 // The flag is the SERVER's (`retailers.instacart.enabled` on the detail GET),
-// so approval flips a row instead of forcing an App Store resubmission. The
-// off state is D-WS9-099's stub condition, modified: a dead affordance is
-// removed, not restyled, so there is no disabled button here — just the line.
+// so approval flips a row instead of forcing an App Store resubmission.
+//
+// ⚠️ THE OFF STATE RENDERS NOTHING AT ALL (Hans, September 22). Block 2 shipped
+// a quiet non-interactive line — "Online grocery ordering is coming soon." —
+// on his own September 13 ask for a friendly stub. He WITHDREW that ask for the
+// store build: with the flag off, nothing Instacart-shaped renders anywhere, on
+// this screen or on Plan Review. The reasoning is D-WS9-099's, applied one step
+// further than Block 2 applied it: a dead affordance is removed, not restyled,
+// and a LINE promising a feature is the same work-in-progress signal a disabled
+// button is. The list is already reachable through the plan's "Grocery List"
+// button and the Home card. When Instacart approves, the flag flips and both
+// the CTA here and the cell on Plan Review appear with NO app update — which is
+// exactly Block 2's design, unchanged.
 //
 // ── The count line (Part D, Hans-ruled September 21) ─────────────────────
 // "Sends 54 items · 6 pantry staples not included", computed by
@@ -76,13 +85,7 @@ export function InstacartOrderPanel({
     if (heldBackCount === 0) setStaplesOpen(false);
   }, [heldBackCount]);
 
-  if (!enabled) {
-    return (
-      <View style={s.wrap} testID="instacart-coming-soon">
-        <Text style={s.quiet}>{INSTACART_COMING_SOON_COPY}</Text>
-      </View>
-    );
-  }
+  if (!enabled) return null;
   const showStaples = staplesOpen && heldBackCount > 0;
   return (
     <View style={s.wrap}>

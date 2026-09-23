@@ -11,7 +11,6 @@ import {
 import { useRouter } from "expo-router";
 
 import { AddDishChooserSheet } from "@/components/AddDishChooserSheet";
-import { AddDishToMealSheet } from "@/components/AddDishToMealSheet";
 import { AddMealToPlanSheet } from "@/components/AddMealToPlanSheet";
 import { DishRow } from "@/components/DishRow";
 import {
@@ -103,11 +102,6 @@ export default function MealsTab() {
   const [addToPlanFor, setAddToPlanFor] = useState<{
     mealId: string;
     mealTitle: string;
-  } | null>(null);
-
-  const [addDishToMealFor, setAddDishToMealFor] = useState<{
-    dishId: string;
-    dishName: string;
   } | null>(null);
 
   // WS7-6 G3 Scope A — surface #3 "+ Add Dish" now opens a create-mode chooser
@@ -205,26 +199,12 @@ export default function MealsTab() {
             });
         }}
       />
-      <AddDishToMealSheet
-        visible={addDishToMealFor !== null}
-        dishId={addDishToMealFor?.dishId ?? ""}
-        dishName={addDishToMealFor?.dishName}
-        onClose={() => setAddDishToMealFor(null)}
-        onPickExistingMeal={(meal) => {
-          // WS9-2 2a Commit B — the add-dish-to-existing-meal write is still
-          // stubbed (Gate A found no safe path — see Block 2a report). Replaced
-          // the stale, now-false "Coming in WS7" string (WS7 has closed, and it
-          // leaked an internal codename) with user-facing copy.
-          console.log("[recipes-tab] add-dish-to-meal", {
-            dishId: addDishToMealFor?.dishId,
-            mealId: meal.id,
-          });
-          Alert.alert(
-            "Coming soon — you'll be able to add this dish to an existing meal.",
-          );
-          setAddDishToMealFor(null);
-        }}
-      />
+      {/* D-WS9-099 — AddDishToMealSheet is GONE. Its meal pick ended in an
+          Alert reading "Coming soon — you'll be able to add this dish to an
+          existing meal": WS9-2 2a Commit B found no safe write path and left
+          the affordance mounted. The sheet had exactly one consumer (this
+          file), so the component file went with it, along with DishRow's
+          "Add to Meal" button and its onAddToMeal prop. */}
       <AddDishChooserSheet
         visible={addDishOpen}
         onClose={() => setAddDishOpen(false)}
@@ -396,9 +376,6 @@ export default function MealsTab() {
                 dish={item}
                 onPress={() => handleOpenDish(item.id)}
                 onCookNow={handleCookDish}
-                onAddToMeal={(dishId, dishName) =>
-                  setAddDishToMealFor({ dishId, dishName })
-                }
                 sortKey={dishSortKey}
               />
             )}

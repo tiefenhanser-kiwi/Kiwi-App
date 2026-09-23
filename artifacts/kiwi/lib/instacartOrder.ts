@@ -157,8 +157,21 @@ export function instacartCountSummary(items: GroceryListItem[]): InstacartCountS
 export const INSTACART_EXPECTATION_COPY =
   "Opens Instacart. Matching can take a moment — check the list before you order.";
 
-/** Where the CTA would be when the server flag is off (D-WS9-099's stub, server-flagged). */
-export const INSTACART_COMING_SOON_COPY = "Online grocery ordering is coming soon.";
+/**
+ * The line for a 403 retailer_disabled / 503 retailer_not_configured.
+ *
+ * Hans, September 22 — this used to be INSTACART_COMING_SOON_COPY, "Online
+ * grocery ordering is coming soon.", and it did two jobs: the flag-off render
+ * AND this error. The flag-off render is GONE (InstacartOrderPanel returns
+ * null; nothing Instacart-shaped exists when the flag is off), so the only job
+ * left is the error — which is now reachable ONLY as a race: the client gates
+ * the CTA on a cached flag, and the row could flip off between the cache and
+ * the tap. "Coming soon" is the wrong thing to tell someone who just tapped a
+ * button that was there a second ago, and the first binary ships no
+ * coming-soon copy at all.
+ */
+export const INSTACART_UNAVAILABLE_COPY =
+  "Online grocery ordering isn't available right now.";
 
 export const INSTACART_UNREACHABLE_COPY =
   "Couldn't reach Instacart just now. Try again in a moment.";
@@ -171,7 +184,7 @@ export const INSTACART_GENERIC_COPY = "Something went wrong. Please try again.";
 
 /**
  * The line the screen renders for a failed link call, by status and body.
- *   403 retailer_disabled / 503 retailer_not_configured → coming soon
+ *   403 retailer_disabled / 503 retailer_not_configured → not available
  *   502 retailer_error / 504 retailer_timeout → Instacart unreachable
  *   429 → rate limited
  *   400 no_items → nothing to send
@@ -182,7 +195,7 @@ export function instacartErrorCopy(err: unknown): string {
     switch (err.status) {
       case 403:
       case 503:
-        return INSTACART_COMING_SOON_COPY;
+        return INSTACART_UNAVAILABLE_COPY;
       case 502:
       case 504:
         return INSTACART_UNREACHABLE_COPY;

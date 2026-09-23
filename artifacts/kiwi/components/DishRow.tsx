@@ -12,7 +12,6 @@ type Props = {
   dish: DishListItem;
   onPress: () => void;
   onCookNow: (dishId: string) => void;
-  onAddToMeal: (dishId: string, dishName: string) => void;
   /** Optional: sort-aware secondary line. DishListItem doesn't carry
    *  cook-stat fields today (D-WS7-048 extended) so the cook-stat sorts
    *  surface no secondary line rather than render misleading numbers. */
@@ -41,7 +40,6 @@ export function DishRow({
   dish,
   onPress,
   onCookNow,
-  onAddToMeal,
   sortKey,
 }: Props) {
   const sortLine = useMemo(
@@ -96,15 +94,13 @@ export function DishRow({
         >
           <Text style={styles.cookNowText}>Cook Now</Text>
         </Pressable>
-        <Pressable
-          onPress={() => onAddToMeal(dish.id, dish.title)}
-          style={({ pressed }) => [
-            styles.addToMealBtn,
-            pressed && { opacity: 0.85 },
-          ]}
-        >
-          <Text style={styles.addToMealText}>Add to Meal</Text>
-        </Pressable>
+        {/* D-WS9-099 — the "Add to Meal" button is REMOVED. It opened
+            AddDishToMealSheet, whose meal pick ended in an Alert reading
+            "Coming soon — you'll be able to add this dish to an existing
+            meal": WS9-2 2a Commit B found no safe write path and left the
+            affordance in place. A button that cannot do its job is removed,
+            not restyled. The sheet component went with it (it had exactly one
+            consumer). */}
       </View>
     </View>
   );
@@ -163,19 +159,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cookNowText: {
-    fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[0],
-    fontWeight: Typography.fontWeight.semibold,
-    fontFamily: Typography.face.sans[600],
-  },
-  addToMealBtn: {
-    backgroundColor: Colors.terracotta[400],
-    paddingHorizontal: Spacing[2],
-    paddingVertical: 8,
-    borderRadius: Radius.md,
-    alignItems: "center",
-  },
-  addToMealText: {
     fontSize: Typography.fontSize.xs,
     color: Colors.neutral[0],
     fontWeight: Typography.fontWeight.semibold,

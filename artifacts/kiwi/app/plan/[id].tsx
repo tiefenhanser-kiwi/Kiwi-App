@@ -41,7 +41,7 @@ import { generateGroceryListForPlan } from "@/lib/api/grocery";
 import type { GroceryListListItem } from "@/lib/api/groceries";
 import type { HomePayload } from "@/lib/api/home";
 import { dispatchGenerateResult } from "@/lib/groceryHandoff";
-import { dispatchOrderOnline } from "@/lib/orderOnline";
+import { dispatchOrderOnline, showOrderOnline } from "@/lib/orderOnline";
 import {
   mealDetailToRow,
   planDetailToReviewPlan,
@@ -325,6 +325,15 @@ export default function PlanReviewScreen() {
   // on mealPlanInstanceId. Unknown → the confirm, and the existing flow's
   // 409 → navigate still lands on the list. See lib/orderOnline.ts for why
   // that degradation is safe.
+  // Store-prep lane (Hans, September 22) — the cell renders ONLY when the
+  // server says a retailer is wired. Read out of the SAME cached home payload
+  // the handler below already reads for activePlan; no network on render, and
+  // unknown/absent hides (the decision is showOrderOnline, tested — this file
+  // is app/** and outside the glob).
+  const orderOnlineVisible = showOrderOnline(
+    queryClient.getQueryData<HomePayload>(["home", "payload"]),
+  );
+
   const handleOrderOnlinePress = () => {
     if (isGeneratingList) return;
     const groceryIndex = queryClient
@@ -815,20 +824,27 @@ export default function PlanReviewScreen() {
                     `label` changes what a screen reader announces too. Adding
                     the prop would mean editing components/Button.tsx, which is
                     out of scope for this pass. */}
-                <Button
-                  label="Order Online"
-                  variant="secondary"
-                  size="sm"
-                  style={s.panelCell}
-                  iconLeft={
-                    <Feather
-                      name="shopping-cart"
-                      size={PANEL_ICON_SIZE}
-                      color={Colors.terracotta[400]}
-                    />
-                  }
-                  onPress={handleOrderOnlinePress}
-                />
+                {/* Hans, September 22 — with the Instacart flag off, NOTHING
+                    Instacart-shaped renders, here or on the grocery screen.
+                    The flag flips server-side, so approval brings this cell
+                    back with no app update. "Grocery List" is untouched and
+                    still reaches the list. */}
+                {orderOnlineVisible ? (
+                  <Button
+                    label="Order Online"
+                    variant="secondary"
+                    size="sm"
+                    style={s.panelCell}
+                    iconLeft={
+                      <Feather
+                        name="shopping-cart"
+                        size={PANEL_ICON_SIZE}
+                        color={Colors.terracotta[400]}
+                      />
+                    }
+                    onPress={handleOrderOnlinePress}
+                  />
+                ) : null}
               </View>
               <View style={s.actionCol}>
                 <Button

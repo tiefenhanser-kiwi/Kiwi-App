@@ -9,8 +9,9 @@ const COPY: Record<MealFilterKey, string> = {
     "Your meals show up here. Add one with + Add Meal, or browse Featured to get started.",
   featured:
     "No featured meals yet — Kiwi's catalog is still growing. Add your own with + Add Meal, or check My Meals.",
-  top_rated:
-    "No top-rated meals yet — favorites show up here as the Kiwi community starts cooking. Add your own with + Add Meal.",
+  // Store-prep lane — "as the Kiwi community starts cooking" described a
+  // community that does not exist yet on a store build with no users.
+  top_rated: "No top-rated meals yet. Add your own with + Add Meal.",
   hosting:
     "No hosting & events meals yet — Kiwi's hosting catalog is still growing. Add your own with + Add Meal.",
 };

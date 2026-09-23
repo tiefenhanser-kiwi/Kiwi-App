@@ -16,7 +16,7 @@ import { describe, it } from "node:test";
 import { ApiError, ApiNetworkError } from "@/lib/api/errors";
 import { renderedPack } from "@/lib/format/grocery";
 import {
-  INSTACART_COMING_SOON_COPY,
+  INSTACART_UNAVAILABLE_COPY,
   INSTACART_EXPECTATION_COPY,
   INSTACART_GENERIC_COPY,
   INSTACART_NO_ITEMS_COPY,
@@ -207,9 +207,12 @@ describe("packUnit is the row's pack unit as the server sees it", () => {
 describe("the copy map", () => {
   const api = (status: number, body: unknown) => new ApiError("x", { status, body });
 
-  it("403 retailer_disabled and 503 retailer_not_configured → coming soon", () => {
-    assert.equal(instacartErrorCopy(api(403, { error: "retailer_disabled" })), INSTACART_COMING_SOON_COPY);
-    assert.equal(instacartErrorCopy(api(503, { error: "retailer_not_configured" })), INSTACART_COMING_SOON_COPY);
+  // Store-prep lane — this line used to BE the coming-soon copy, doing double
+  // duty as the flag-off render. The flag-off render is gone (the panel returns
+  // null), so all that is left is this error, reachable only as a cache race.
+  it("403 retailer_disabled and 503 retailer_not_configured → not available", () => {
+    assert.equal(instacartErrorCopy(api(403, { error: "retailer_disabled" })), INSTACART_UNAVAILABLE_COPY);
+    assert.equal(instacartErrorCopy(api(503, { error: "retailer_not_configured" })), INSTACART_UNAVAILABLE_COPY);
   });
   it("502 retailer_error and 504 retailer_timeout → unreachable", () => {
     assert.equal(instacartErrorCopy(api(502, { error: "retailer_error" })), INSTACART_UNREACHABLE_COPY);
@@ -226,17 +229,20 @@ describe("the copy map", () => {
     assert.equal(instacartErrorCopy(api(404, { error: "list_not_found" })), INSTACART_GENERIC_COPY);
     assert.equal(instacartErrorCopy(new ApiNetworkError("fetch failed")), INSTACART_GENERIC_COPY);
     assert.equal(instacartErrorCopy(new Error("boom")), INSTACART_GENERIC_COPY);
-    for (const c of [INSTACART_COMING_SOON_COPY, INSTACART_UNREACHABLE_COPY, INSTACART_RATE_LIMIT_COPY, INSTACART_NO_ITEMS_COPY, INSTACART_GENERIC_COPY]) {
+    for (const c of [INSTACART_UNAVAILABLE_COPY, INSTACART_UNREACHABLE_COPY, INSTACART_RATE_LIMIT_COPY, INSTACART_NO_ITEMS_COPY, INSTACART_GENERIC_COPY]) {
       assert.ok(!/retailer_|no_items|list_not_found/.test(c), c);
     }
   });
-  it("copy compliance: no 'free delivery', no 'partner', no store/delivery positioning, no speed claim", () => {
-    for (const c of [INSTACART_EXPECTATION_COPY, INSTACART_COMING_SOON_COPY, INSTACART_UNREACHABLE_COPY, INSTACART_RATE_LIMIT_COPY, INSTACART_NO_ITEMS_COPY]) {
+  // Store-prep lane — "no coming soon" joins the compliance set: the first
+  // binary ships no copy promising a feature it does not have (D-WS9-099).
+  it("copy compliance: no 'free delivery', no 'partner', no store/delivery positioning, no speed claim, no 'coming soon'", () => {
+    for (const c of [INSTACART_EXPECTATION_COPY, INSTACART_UNAVAILABLE_COPY, INSTACART_UNREACHABLE_COPY, INSTACART_RATE_LIMIT_COPY, INSTACART_NO_ITEMS_COPY]) {
       const l = c.toLowerCase();
       assert.ok(!l.includes("free delivery"), c);
       assert.ok(!l.includes("partner"), c);
       assert.ok(!/\b(minutes?|hours?|fast|same-day|today)\b/.test(l), c);
       assert.ok(!/instacart (store|delivers|delivery)/.test(l), c);
+      assert.ok(!l.includes("coming soon"), c);
     }
   });
 });

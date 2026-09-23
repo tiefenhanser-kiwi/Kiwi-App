@@ -354,7 +354,9 @@ export async function getPrepWeek(
     if (err instanceof UpgradeRequiredError) {
       return {
         kind: "upgrade_required",
-        message: err.userFacingMessage ?? "Prep the Week is a Premium feature",
+        // D-WS9-258 — no Premium naming in the first binary.
+        message:
+          err.userFacingMessage ?? "Prep the Week isn't available right now.",
       };
     }
     throw err;

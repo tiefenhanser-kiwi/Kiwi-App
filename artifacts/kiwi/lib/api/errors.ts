@@ -64,12 +64,17 @@ export class UnauthenticatedError extends ApiError {
 }
 
 /**
- * 402 — entitlement gate. Per-call signal (no session cascade); consumers
- * catch this and route to the upgrade modal.
+ * 402 — entitlement gate. Per-call signal (no session cascade).
+ *
+ * D-WS9-258 — the DEFAULT message no longer says "Upgrade required": the first
+ * binary has no billing and may not name a purchase. The class, the status
+ * mapping and every consumer branch stay — they are the seam Stripe's lane
+ * re-words — and the server's own userFacingMessage still wins when present.
+ * Unreachable today: subscriptionService.can() returns allowed unconditionally.
  */
 export class UpgradeRequiredError extends ApiError {
   constructor(details: ApiErrorDetails) {
-    super(details.userFacingMessage ?? "Upgrade required", details);
+    super(details.userFacingMessage ?? "This isn't available right now.", details);
     this.name = "UpgradeRequiredError";
   }
 }

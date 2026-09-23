@@ -8,7 +8,6 @@
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
@@ -46,13 +45,16 @@ export interface DishChooserSheetProps {
    *  of meal-builder internals — WS9 plans to revisit these sheet
    *  create-modes for reuse/extraction, and this keeps that clean. */
   onAddEmptyDish: () => void;
-  /** Ask Kiwi (dish-side Mode A). WS7-6 G2: the Meal Builder mount passes this
-   *  to navigate to the dish "Ask Kiwi" screen. When absent (a future reuse
-   *  that hasn't wired it), the card falls back to an alert.
-   *  WS7-6 G3 Scope C: no longer takes a prompt — the Ask Kiwi card is now a
-   *  navigation target (the user types on the dedicated ask-kiwi-dish screen),
-   *  not an inline text field embedded in the scrollable list. */
-  onAskKiwi?: () => void;
+  /** Ask Kiwi (dish-side Mode A) — navigates to the dish "Ask Kiwi" screen.
+   *  WS7-6 G3 Scope C: takes no prompt; the user types on the dedicated
+   *  ask-kiwi-dish screen rather than in a field embedded in this list.
+   *
+   *  D-WS9-099 — REQUIRED as of the store-prep lane. It was optional, with an
+   *  Alert fallback ("Ask Kiwi isn't available here yet") for "a future reuse
+   *  that hasn't wired it". There is exactly one mount (meal-builder.tsx) and
+   *  it has always passed the prop, so the branch was unreachable — a dead
+   *  stub the type system can forbid instead. */
+  onAskKiwi: () => void;
 }
 
 export interface DishChooserSheetViewProps extends DishChooserSheetProps {
@@ -98,22 +100,13 @@ export function DishChooserSheetView({
     onClose();
   };
 
-  // WS7-6 G2 — Ask Kiwi is LIVE when the parent passes onAskKiwi (the Meal
-  // Builder mount does). The Alert is a defensive fallback for any future
-  // mount that reuses this sheet without wiring the dish-side Mode A.
-  // WS7-6 G3 Scope C — Ask Kiwi now NAVIGATES (the user types on the dedicated
+  // WS7-6 G3 Scope C — Ask Kiwi NAVIGATES (the user types on the dedicated
   // screen); no inline prompt is collected here, so the embedded TextInput that
-  // caused the runaway list-scroll is gone.
+  // caused the runaway list-scroll is gone. D-WS9-099 — the "not available
+  // here yet" Alert fallback is gone with the optional prop.
   const handleSubmitAsk = () => {
     Keyboard.dismiss();
-    if (onAskKiwi) {
-      onAskKiwi();
-    } else {
-      Alert.alert(
-        "Ask Kiwi isn't available here yet",
-        "Kiwi will draft a dish from your description once this surface wires it up.",
-      );
-    }
+    onAskKiwi();
   };
 
   const handleSubmitSimpleDish = (name: string) => {
@@ -268,7 +261,8 @@ export function DishChooserHeader({
 
   return (
     <View>
-      {/* Section 1: Ask Kiwi (dish-side Mode A — premium, gated server-side).
+      {/* Section 1: Ask Kiwi (dish-side Mode A). D-WS9-258 — the "Premium"
+          lock pill is removed; see AddDishChooserSheet for the reasoning.
           WS7-6 G3 Scope C: a NAVIGATION card, not an inline text field. The
           pre-G3 multiline TextInput lived inside this header — which is the
           FlatList's ListHeaderComponent, i.e. INSIDE the scroll surface — so
@@ -283,10 +277,6 @@ export function DishChooserHeader({
       >
         <View style={s.askHeader}>
           <Text style={s.sectionTitle}>Ask Kiwi for a dish</Text>
-          <View style={s.premiumPill}>
-            <Feather name="lock" size={10} color={Colors.terracotta[700]} />
-            <Text style={s.premiumPillText}>Premium</Text>
-          </View>
         </View>
         <Text style={s.sectionSubtitle}>
           Describe a dish and Kiwi drafts the ingredients and steps

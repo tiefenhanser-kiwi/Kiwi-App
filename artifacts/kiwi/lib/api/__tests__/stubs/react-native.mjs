@@ -53,6 +53,33 @@ export const Alert = {
   },
 };
 
+// Store-prep lane — Linking, for the welcome + Profile legal links and the
+// Instacart hand-off. Records every openURL call and resolves by default; a
+// test can make it reject (the no-browser device) with __setLinkingFailure.
+// A stub that always resolved would let a missing .catch() ship as an
+// unhandled rejection, which is the exact failure the real screens guard.
+let __linkingCalls = [];
+let __linkingFailure = null;
+export function __getLinkingCalls() {
+  return [...__linkingCalls];
+}
+export function __resetLinking() {
+  __linkingCalls = [];
+  __linkingFailure = null;
+}
+export function __setLinkingFailure(err) {
+  __linkingFailure = err;
+}
+export const Linking = {
+  openURL(url) {
+    __linkingCalls.push(url);
+    return __linkingFailure ? Promise.reject(__linkingFailure) : Promise.resolve(true);
+  },
+  canOpenURL() {
+    return Promise.resolve(true);
+  },
+};
+
 export const Platform = {
   OS: "ios",
   select(spec) {

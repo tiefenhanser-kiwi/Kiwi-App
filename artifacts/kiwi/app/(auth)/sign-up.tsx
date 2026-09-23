@@ -18,7 +18,6 @@ import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollV
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubmitCooldown } from "@/hooks/useSubmitCooldown";
 import { authErrorPresentation } from "@/lib/authErrorCopy";
-import { TRIAL_LENGTH_DAYS } from "@/lib/domain";
 import { isValidPhone } from "@/lib/phone";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
@@ -240,9 +239,9 @@ export default function SignUpPage() {
         ) : (
           <Button onPress={handleSubmit} label="Create account" disabled={cooldown.active} />
         )}
-        <Text style={styles.trustSignal}>
-          {`${TRIAL_LENGTH_DAYS}-day free trial · no credit card needed`}
-        </Text>
+        {/* D-WS9-258 — the "14-day free trial · no credit card needed"
+            line is removed: the first binary has no billing, so it may not
+            promise a trial that ends in a purchase. Stripe lane re-adds it. */}
       </KeyboardAwareScrollViewCompat>
     </View>
   );
@@ -328,11 +327,4 @@ const styles = StyleSheet.create({
     fontFamily: Typography.face.sans[500],
   },
   buttonLoading: { alignItems: "center", padding: Spacing[3] },
-  trustSignal: {
-    fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[700],
-    textAlign: "center",
-    marginTop: -Spacing[1],
-    fontFamily: Typography.face.sans[400],
-  },
 });

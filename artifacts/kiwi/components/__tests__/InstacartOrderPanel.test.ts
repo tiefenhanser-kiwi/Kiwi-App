@@ -17,7 +17,6 @@ import TestRenderer, { act } from "react-test-renderer";
 
 import { InstacartOrderPanel } from "../InstacartOrderPanel";
 import {
-  INSTACART_COMING_SOON_COPY,
   INSTACART_EXPECTATION_COPY,
   INSTACART_UNREACHABLE_COPY,
 } from "@/lib/instacartOrder";
@@ -69,16 +68,16 @@ function render(props: Partial<PanelProps> & Pick<PanelProps, "enabled" | "busy"
 const byTestId = (id: string) => (n: Node) => n.props?.testID === id;
 const isPressable = (n: Node) => n.type === "rn-pressable";
 
-test("flag false: the coming-soon line, no button, nothing pressable", () => {
+// Hans, September 22 — the flag-off state renders NOTHING. Block 2 shipped a
+// quiet line ("Online grocery ordering is coming soon.") on his September 13
+// ask for a friendly stub; he withdrew that ask for the store build. This is
+// the assertion that pins it: not "no button", but no tree at all.
+test("flag false: the panel renders NOTHING — no line, no button, no node", () => {
   const tree = render({ enabled: false, busy: false, error: null, onPress: () => {} });
-  assert.deepEqual(gatherText(tree), [INSTACART_COMING_SOON_COPY]);
-  assert.equal(findAll(tree, isPressable).length, 0);
-  assert.equal(findAll(tree, byTestId("instacart-cta")).length, 0);
-  assert.equal(findAll(tree, byTestId("instacart-coming-soon")).length, 1);
-  assert.equal(INSTACART_COMING_SOON_COPY, "Online grocery ordering is coming soon.");
+  assert.equal(tree, null, "the off state must not render a node");
 });
 
-test("flag true: the CTA with the expectation line under it; no coming-soon line", () => {
+test("flag true: the CTA with the expectation line under it", () => {
   let presses = 0;
   const tree = render({ enabled: true, busy: false, error: null, onPress: () => void presses++ });
   const cta = findAll(tree, byTestId("instacart-cta"));
@@ -86,7 +85,6 @@ test("flag true: the CTA with the expectation line under it; no coming-soon line
   (cta[0].props?.onPress as () => void)();
   assert.equal(presses, 1);
   assert.deepEqual(gatherText(tree), ["Shop on Instacart", "Sends 0 items", INSTACART_EXPECTATION_COPY]);
-  assert.equal(findAll(tree, byTestId("instacart-coming-soon")).length, 0);
   assert.equal(
     INSTACART_EXPECTATION_COPY,
     "Opens Instacart. Matching can take a moment — check the list before you order.",
@@ -230,8 +228,7 @@ test("Part D: singulars — '1 item', '1 pantry staple'", () => {
   assert.equal(textOf(tree, "instacart-count"), "Sends 1 item · 1 pantry staple not included");
 });
 
-test("Part D: coming-soon state renders no count", () => {
+test("Part D: the off state renders no count either — it renders nothing", () => {
   const tree = render({ enabled: false, busy: false, error: null, onPress: () => {}, items: measuredList() });
-  assert.deepEqual(gatherText(tree), [INSTACART_COMING_SOON_COPY]);
-  assert.equal(findAll(tree, byTestId("instacart-count")).length, 0);
+  assert.equal(tree, null);
 });

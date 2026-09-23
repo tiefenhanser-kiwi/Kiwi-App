@@ -2,6 +2,7 @@ import React, { useRef, useState } from "react";
 import {
   Alert,
   Keyboard,
+  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -18,7 +19,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { ApiError } from "@/lib/api/errors";
-import { formatSubscriptionState, subscriptionInfoFromAuth } from "@/lib/domain";
+import { PRIVACY_URL, TERMS_URL } from "@/lib/legal";
 
 type EditableField = "name" | "email" | "phone";
 
@@ -58,15 +59,12 @@ export default function ProfileTab() {
 
   // The auth cache is the source of truth for account fields — the profile
   // mutators field-merge their PATCH result into ['auth','me'], so these
-  // re-derive automatically once a save lands. WS9-2 BUG-072 — subscription now
-  // reads the real DB-backed user.subscription (via subscriptionInfoFromAuth)
-  // instead of the getCurrentSubscription() stub's fixed 14-days-remaining.
+  // re-derive automatically once a save lands.
   const user = auth.user;
   const displayName = user ? `${user.firstName} ${user.lastName}`.trim() : "";
   const displayEmail = user?.email ?? "";
   const displayPhone = user?.phone ?? "";
 
-  const subscription = subscriptionInfoFromAuth(user?.subscription);
   const [editingField, setEditingField] = useState<EditableField | null>(null);
   // BUG-236: the synchronously-readable mirror of `editingField`. State alone
   // cannot guard `handleCommitEdit` — see the comment there. Every write to
@@ -401,26 +399,35 @@ export default function ProfileTab() {
           onPress={handlePreferences}
         />
 
-        {/* Section D: Account & Subscription (PRD §14.7) */}
+        {/* Section D: Account (PRD §14.7). D-WS9-258 — the card was "Account &
+            Subscription" and carried the trial state plus "Upgrade for
+            unlimited Kitchen Wizard plans and AI-powered features". Nothing in
+            the first binary takes money, so nothing in it promises a purchase.
+            Stripe lane re-adds both lines. The destination is unchanged. */}
         <Pressable
           onPress={handleAccountAndSubscription}
           style={({ pressed }) => [s.card, pressed && { opacity: 0.85 }]}
         >
           <View style={s.cardHeaderRow}>
-            <Text style={s.cardTitle}>Account & Subscription</Text>
+            <Text style={s.cardTitle}>Account</Text>
             <Feather
               name="chevron-right"
               size={18}
               color={Colors.neutral[600]}
             />
           </View>
-          <Text style={s.subscriptionState}>
-            {formatSubscriptionState(subscription)}
-          </Text>
           <Text style={s.subscriptionHint}>
-            Upgrade for unlimited Kitchen Wizard plans and AI-powered features
+            Your details, password, and deleting your account
           </Text>
         </Pressable>
+
+        {/* Section D2: Legal. Apple and Google both expect these reachable
+            from inside the app, not only from the pre-signup welcome screen. */}
+        <View style={s.card}>
+          <Text style={s.cardTitle}>Legal</Text>
+          <LegalRow label="Terms of Service" onPress={() => openLegal(TERMS_URL)} />
+          <LegalRow label="Privacy Policy" onPress={() => openLegal(PRIVACY_URL)} />
+        </View>
 
         {/* Section E: Log Out (standalone) */}
         <Pressable
@@ -510,6 +517,28 @@ function EditableRow({
           <Feather name="edit-2" size={14} color={Colors.neutral[600]} />
         </View>
       )}
+    </Pressable>
+  );
+}
+
+// D-WS9-099 / store prep — the legal pages open in the browser. Rejection is
+// handled the way grocery-list/[id].tsx handles the Instacart link's: a device
+// with no browser is a warn, not a crash.
+function openLegal(url: string): void {
+  Linking.openURL(url).catch((err: unknown) => {
+    console.warn("[profile] legal openURL rejected", err);
+  });
+}
+
+function LegalRow({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      style={({ pressed }) => [s.legalRow, pressed && { opacity: 0.85 }]}
+    >
+      <Text style={s.legalRowLabel}>{label}</Text>
+      <Feather name="external-link" size={16} color={Colors.neutral[600]} />
     </Pressable>
   );
 }
@@ -743,6 +772,19 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.neutral[300],
     padding: Spacing[3],
+  },
+  legalRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    // 44 pt is the Apple minimum touch target; these are the smallest rows on
+    // the screen and the only ones that leave the app.
+    minHeight: 44,
+  },
+  legalRowLabel: {
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[800],
+    fontFamily: Typography.face.sans[400],
   },
   navCardTitle: {
     fontSize: Typography.fontSize.md,

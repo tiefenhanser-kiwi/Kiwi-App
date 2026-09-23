@@ -58,7 +58,11 @@ export const BULK_STATUS_WRITING = "Kiwi is writing this one…";
 export const BULK_STATUS_SAVED = "saved ✓";
 export const BULK_STATUS_FAILED = "failed";
 export const BULK_RETRY = "Retry";
-export const BULK_UPGRADE_MESSAGE = "Asking Kiwi for meals needs an upgrade.";
+// D-WS9-258 — the copy no longer names an upgrade the binary cannot sell. The
+// CONSTANT and its 402 branch stay: they are the seam Stripe's lane re-words.
+// Unreachable today — subscriptionService.can() returns allowed unconditionally.
+export const BULK_UPGRADE_MESSAGE =
+  "Kiwi couldn't draft this one. Please try again.";
 
 export type BulkBoxStatus = "idle" | "waiting" | "writing" | "saved" | "failed";
 

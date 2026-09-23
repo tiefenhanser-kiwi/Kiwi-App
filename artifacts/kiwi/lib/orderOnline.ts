@@ -82,6 +82,34 @@ export function resolveKnownGroceryListId(
   return row?.id ?? null;
 }
 
+// ── The gate (store-prep lane, Hans September 22) ──────────────────────────
+// With the Instacart flag OFF, NOTHING Instacart-shaped renders — not the CTA
+// on the grocery screen (InstacartOrderPanel returns null) and not this cell on
+// Plan Review. "Order Online" is the entry to ordering; with no retailer wired
+// there is nothing to enter, and the plan's "Grocery List" cell already reaches
+// the list. When Instacart approves, the flag flips and the cell appears with
+// no app update.
+//
+// It lives HERE, as a pure function, because Plan Review is app/** and outside
+// the test glob (D-WS9-164) — the same reason decideOrderOnline does.
+//
+// UNKNOWN IS HIDDEN. The home payload may be absent (not yet fetched, or the
+// server predates the field, which is why the phone's Zod schema has
+// `retailers` OPTIONAL). Hiding on unknown is the safe direction: a cell that
+// appears late is a cell the user never saw, while a cell that appears on a
+// build with no retailer is the thing Hans withdrew.
+
+/** The slice of Home's payload the gate reads. Structural, like the pointer
+ *  above, so this module keeps no type dependency on the API schemas. */
+export interface HomeRetailerFlags {
+  retailers?: { instacart?: { enabled?: boolean } } | null;
+}
+
+/** Pure decision: show Plan Review's "Order Online" cell at all? */
+export function showOrderOnline(home: HomeRetailerFlags | undefined | null): boolean {
+  return home?.retailers?.instacart?.enabled === true;
+}
+
 export type OrderOnlineAction =
   | { kind: "navigate"; listId: string }
   | { kind: "confirm" };

@@ -213,9 +213,10 @@ export function SwapMealSheet({
       });
     }, 150);
   };
+  // D-WS9-258 — no paywall in the first binary; Stripe's lane re-adds the lock
+  // and its route. The sheet still closes, which is what the caller relies on.
   const handleAskUpgrade = () => {
     onClose();
-    setTimeout(() => router.push("/upgrade"), 150);
   };
 
   return (

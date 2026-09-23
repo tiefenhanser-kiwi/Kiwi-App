@@ -307,14 +307,17 @@ export function PrepWeekScreen({
     );
   }
 
-  // ── Upgrade required (402): gentle + recoverable, NOT a hard paywall ─────────
+  // ── 402: gentle + recoverable, NOT a hard paywall ───────────────────────────
+  // D-WS9-258 — the heading read "Prep the Week is a Premium feature". The
+  // branch stays (it is the Stripe seam and the server may emit 402 again);
+  // the copy no longer names a tier the binary cannot sell. Unreachable today.
   if (outcome.kind === "upgrade_required") {
     return (
       <View style={s.bg}>
         <Header showBack title={headerTitle} onBack={onExit} />
         <View style={s.center}>
           <View style={s.upgradeCard}>
-            <Text style={s.upgradeHeading}>Prep the Week is a Premium feature</Text>
+            <Text style={s.upgradeHeading}>Prep the Week isn't available right now</Text>
             <Text style={s.upgradeBody}>{outcome.message}</Text>
             <Button label="Maybe later" variant="secondary" onPress={onExit} />
           </View>

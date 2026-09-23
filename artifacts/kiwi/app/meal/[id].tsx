@@ -454,13 +454,13 @@ function MealDetailContent({
       );
       return;
     }
-    // D-WS9-006 / BUG-008 Case 3 — library (My Recipes) meal delete is net-new
-    // backend (no DELETE /me/meals/:id, no Meal.compostedAt), assigned to Block
-    // 3f. Until then a SINGLE informational alert: no confirm-then-fake-success
-    // double-alert, and no router.back() — the meal is NOT gone, so the screen
-    // must not imply the delete worked. The inPlanContext branch above is the
-    // real path (removeMealFromPlan + route back to the plan) and is untouched.
-    Alert.alert("Coming soon — you'll be able to delete this meal.");
+    // D-WS9-006 / BUG-008 case 3 — there IS no library-context delete. It needs
+    // net-new backend that does not exist (no DELETE /me/meals/:id, no
+    // Meal.compostedAt). Until this lane the library path opened an alert
+    // reading "Coming soon — you'll be able to delete this meal"; D-WS9-099
+    // says a dead stub is REMOVED, not restyled, so the BUTTON is now rendered
+    // only in plan context and this function is only ever reached there.
+    // BUG-008 case 3 stays open; the affordance returns with the route.
   };
 
   const difficultyLabel =
@@ -574,13 +574,20 @@ function MealDetailContent({
             }
           />
         </View>
+        {/* D-WS9-006 / BUG-008 case 3 — the delete button renders ONLY in plan
+            context, where it is the real path (the confirm above →
+            removeMealFromPlan → back to Plan Review, UNTOUCHED by this lane).
+            In library context it used to open a "coming soon" alert; that stub
+            is removed with the button rather than restyled (D-WS9-099). */}
         <View style={s.actionRow}>
           <View style={{ flex: 1 }}>
             <Button label="Edit" variant="ghost" onPress={onEdit} />
           </View>
-          <View style={{ flex: 1 }}>
-            <Button label={Copy.delete} variant="ghost" onPress={onCompost} />
-          </View>
+          {inPlanContext && (
+            <View style={{ flex: 1 }}>
+              <Button label={Copy.delete} variant="ghost" onPress={onCompost} />
+            </View>
+          )}
         </View>
 
         {/* Per-serving macros */}

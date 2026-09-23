@@ -142,7 +142,6 @@ function RootLayoutNav() {
       <Stack.Screen name="ask-kiwi" />
       <Stack.Screen name="grocery-list/[id]" />
       <Stack.Screen name="prep-cook" />
-      <Stack.Screen name="upgrade" options={{ presentation: "modal" }} />
       <Stack.Screen name="preferences" />
       <Stack.Screen name="manage-account" />
       <Stack.Screen name="deactivate-account" />

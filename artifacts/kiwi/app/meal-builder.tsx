@@ -1118,7 +1118,9 @@ export default function MealBuilderScreen() {
             <PlaylistBulkIntake
               deps={{ parseMeal, saveMeal, addToPlaylist }}
               onRunningChange={setBulkRunning}
-              onUpgradeRequired={() => router.push("/upgrade")}
+              // D-WS9-258 — no paywall in the first binary; Stripe's lane
+              // re-adds the lock and its route.
+              onUpgradeRequired={() => {}}
               onFinished={(saved) => {
                 stageImportReview(saved);
                 queryClient.invalidateQueries({ queryKey: PLAYLIST_QUERY_KEY });

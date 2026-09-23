@@ -86,7 +86,10 @@ export default function AskKiwiDishScreen() {
             params: { draftJson },
           });
         },
-        routeToUpgrade: () => router.push("/upgrade"),
+        // D-WS9-258 — no paywall in the first binary; Stripe's lane re-adds
+        // the lock and its route. The seam stays (the 402 branch must still
+        // not navigate to a draft); only the destination is gone.
+        routeToUpgrade: () => {},
       },
     );
 
@@ -134,7 +137,7 @@ export default function AskKiwiDishScreen() {
           title="Ask Kiwi for a dish"
           subtitle="Describe one dish in your own words — Kiwi will turn it into ingredients and steps you can review and edit."
           placeholder="e.g. Roasted broccoli with garlic and lemon"
-          helperText="Premium · Kiwi reads your description and drafts a single dish. You can change anything before saving."
+          helperText="Kiwi reads your description and drafts a single dish. You can change anything before saving."
           submitLabel="Ask Kiwi for a dish"
         />
       </KeyboardAwareScrollViewCompat>

@@ -267,7 +267,9 @@ export interface GetGroceryListResult {
   list: GroceryList;
   // WS7-7-A B5 — drives the transient "updating to match plan changes" banner.
   reconciled: boolean;
-  // Row 8 Block 2 — true → the Instacart CTA; false → "coming soon".
+  // Row 8 Block 2 — true → the Instacart CTA. Hans, September 22: false now
+  // renders NOTHING (InstacartOrderPanel returns null), not the old
+  // "coming soon" line.
   instacartEnabled: boolean;
 }
 
