@@ -16,20 +16,37 @@ import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollV
 import { useApp } from "@/contexts/AppContext";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
-const CONFIRM_PHRASE = "deactivate";
+// D-WS9-257 — replaces app/deactivate-account.tsx.
+//
+// Same shape as that screen (warning card, type-the-word confirm, a button
+// disabled until it matches) because the shape was right. What changed is that
+// every line is now TRUE of the server.
+//
+// The old screen promised "All your saved meals, dishes, plans, and preferences
+// will be removed" while POST /me/deactivate flipped accountStatus to 'paused'
+// and removed NOTHING — no anonymization, no deletion job, no restore path a
+// user could reach, and a 30-day session JWT that kept authenticating. Apple
+// 5.1.1(v) asks an app that creates accounts to DELETE them, and says in terms
+// that offering to "temporarily deactivate or disable" is insufficient.
+//
+// Every bullet below is checkable against DELETE /me in routes/me.ts. There is
+// no mention of support, email, six months, Stripe or reactivation, because
+// none of those exists: there is no admin to restore from and no Stripe
+// customer to retain. The de-identified line is not a hedge — the route really
+// does keep llm_call_logs rows with userId nulled, and saying so is better than
+// a blanket "everything is deleted" that is a shade untrue.
+const CONFIRM_PHRASE = "delete";
 
 const WARNING_BULLETS = [
-  "You'll be logged out immediately",
-  "All your saved meals, dishes, plans, and preferences will be removed",
-  "Activity history (de-identified) is retained for analytics",
-  "Your subscription cancels in Stripe automatically",
-  "Within 6 months, you can email support to reactivate",
-  "After 6 months, the account is permanently deleted",
+  "You'll be signed out on this device right away",
+  "Your account, saved meals, dishes, plans, grocery lists and preferences are permanently deleted",
+  "This can't be undone",
+  "De-identified usage records (which features ran and what they cost) are kept",
 ];
 
-export default function DeactivateAccount() {
+export default function DeleteAccount() {
   const router = useRouter();
-  const { deactivateAccount } = useApp();
+  const { deleteAccount } = useApp();
 
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -37,26 +54,27 @@ export default function DeactivateAccount() {
 
   const isConfirmed = input.trim().toLowerCase() === CONFIRM_PHRASE;
 
-  // The mutator soft-deletes the account server-side then drops the local
-  // session (logout). On success the user lands back on the welcome screen.
-  const handleConfirmDeactivate = async () => {
+  // The mutator sends DELETE /me, then clears the session AND every cached
+  // query before this screen navigates — so nothing of the deleted account is
+  // left in memory for whoever signs in next on this device.
+  const handleConfirmDelete = async () => {
     Keyboard.dismiss();
     if (!isConfirmed || busy) return;
 
     setError(null);
     setBusy(true);
     try {
-      await deactivateAccount();
+      await deleteAccount();
       router.replace("/(auth)/welcome");
     } catch {
-      setError("Couldn't deactivate your account. Please try again.");
+      setError("Couldn't delete your account. Please try again.");
       setBusy(false);
     }
   };
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
-      <Header showBack title="Deactivate account" />
+      <Header showBack title="Delete account" />
       <KeyboardAwareScrollViewCompat
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -69,7 +87,7 @@ export default function DeactivateAccount() {
               color={Colors.terracotta[600]}
             />
             <Text style={s.warningHeading}>
-              This will deactivate your account
+              This will delete your account
             </Text>
           </View>
           <View style={s.bulletList}>
@@ -83,7 +101,7 @@ export default function DeactivateAccount() {
         </View>
 
         <View style={s.frictionCard}>
-          <Text style={s.frictionHeading}>Type 'deactivate' to confirm</Text>
+          <Text style={s.frictionHeading}>Type 'delete' to confirm</Text>
           <TextInput
             value={input}
             onChangeText={setInput}
@@ -103,11 +121,11 @@ export default function DeactivateAccount() {
 
         <View style={s.footer}>
           <Button
-            label="Deactivate account"
+            label="Delete my account"
             variant="primary"
             loading={busy}
             disabled={!isConfirmed || busy}
-            onPress={handleConfirmDeactivate}
+            onPress={handleConfirmDelete}
           />
           {error && <Text style={s.errorText}>{error}</Text>}
           <Pressable

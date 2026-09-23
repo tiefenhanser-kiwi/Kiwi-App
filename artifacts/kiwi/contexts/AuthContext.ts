@@ -258,7 +258,19 @@ export function AuthProvider({
       await logoutRequest();
     }
     await clearToken();
-    queryClient.removeQueries({ queryKey: ["auth"] });
+    // D-WS9-257 — CLEAR EVERYTHING, not just ["auth"].
+    //
+    // removeQueries({ queryKey: ["auth"] }) dropped the session but left the
+    // plans, meals, home and grocery caches sitting in memory. Sign out, hand
+    // the phone over, sign in as someone else, and the previous account's rows
+    // render from cache until each query refetches. That was a standing carried
+    // item; deletion made it unacceptable rather than untidy — a deleted user's
+    // rows must not survive anywhere, including in memory on the device they
+    // were deleted from.
+    //
+    // clear() is what a fresh launch looks like. Nothing pre-auth reads a
+    // cached query, so there is nothing to preserve.
+    queryClient.clear();
     setToken(null);
     setError(null);
   }, [token, queryClient]);
@@ -275,7 +287,12 @@ export function AuthProvider({
       }
       await queryClient.cancelQueries();
       await clearToken();
-      queryClient.removeQueries({ queryKey: ["auth"] });
+      // D-WS9-257 — the same clear as logout() above, for the same reason.
+      // This function's whole contract is "mirrors logout() minus
+      // logoutRequest()", so leaving the narrow removeQueries here would break
+      // that invariant AND leave the identical cross-account cache leak on the
+      // expiry path, which is the one a user does not choose.
+      queryClient.clear();
       setToken(null);
       setError(message);
     },

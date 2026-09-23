@@ -7,13 +7,13 @@
 // template, which predated that file. Divergences resolved in the Phase 2
 // clarifier (items 1-8): no `weeklyPacing`, nullable fields use `.nullable()`,
 // `{ preferences }` / `{ user }` response envelopes, `verify-change` path,
-// `requestEmailChange` takes only `newEmail`, `deactivate` takes no body,
-// `reactivate` is public + returns an authToken, and `patchProfile`'s
-// response omits `subscription` (separate ProfileUserSchema).
+// `requestEmailChange` takes only `newEmail`, and `patchProfile`'s response
+// omits `subscription` (separate ProfileUserSchema). D-WS9-257 — the
+// `deactivate` / `reactivate` pair is gone; `deleteMe` replaces both.
 
 import { z } from "zod";
 
-import { MeUserSchema, storeToken } from "../auth";
+import { MeUserSchema } from "../auth";
 import { DIAL_LEVELS } from "../domain";
 import type { User } from "../types";
 import { apiClient } from "./client";
@@ -119,10 +119,6 @@ const VerifyEmailChangeSchema = z.object({
   success: z.boolean(),
   email: z.string(),
 });
-const ReactivateResponseSchema = z.object({
-  user: MeUserSchema,
-  authToken: z.string(),
-});
 const FavoritesSchema = z.object({ favorites: z.array(z.string()) });
 const AddFavoriteSchema = z.object({
   favorite: z.object({
@@ -223,33 +219,33 @@ export async function verifyEmailChange(
   });
 }
 
-// ── Deactivate / reactivate ────────────────────────────────────────────────
-
-/** POST /me/deactivate — auth-only, no body. Idempotent server-side. */
-export async function deactivateAccount(): Promise<void> {
-  await apiClient("/me/deactivate", {
-    method: "POST",
-    schema: SuccessSchema,
-  });
-}
+// ── Delete account (D-WS9-257) ─────────────────────────────────────────────
+//
+// Replaces deactivateAccount / reactivateAccount. The pause/reactivate pair is
+// gone from the server too (POST /me/deactivate and /me/reactivate are 404s
+// now), so there is nothing left for them to call.
 
 /**
- * POST /me/reactivate — public endpoint; takes credentials, returns a fresh
- * authToken. Persists the token via expo-secure-store (same path as login)
- * so callers don't have to handle token storage themselves.
+ * DELETE /me — permanent, in one server transaction.
+ *
+ * The confirm word is part of the WIRE contract, not just the screen's
+ * friction: the server refuses anything but { confirm: "delete" } with a 400
+ * confirm_required, so a request that could be sent by accident is not a
+ * confirmation. The screen makes the user type it; this sends it.
+ *
+ * 204 with no body, hence z.void() — apiClient parses an empty body as
+ * undefined for exactly this.
+ *
+ * ⚠️ This does NOT clear the session or the caches. AppContext's deleteAccount
+ * does, in that order, because clearing them is a client-state concern and
+ * both must happen even though only one of them is about auth.
  */
-export async function reactivateAccount(input: {
-  email: string;
-  password: string;
-}): Promise<{ user: User; authToken: string }> {
-  const body = await apiClient("/me/reactivate", {
-    method: "POST",
-    body: input,
-    auth: false,
-    schema: ReactivateResponseSchema,
+export async function deleteMe(): Promise<void> {
+  await apiClient("/me", {
+    method: "DELETE",
+    body: { confirm: "delete" },
+    schema: z.void(),
   });
-  await storeToken(body.authToken);
-  return { user: body.user as User, authToken: body.authToken };
 }
 
 // ── Favorites ──────────────────────────────────────────────────────────────

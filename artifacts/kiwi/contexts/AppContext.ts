@@ -232,7 +232,8 @@ interface AppState {
   completeOnboarding: () => Promise<void>;
   /** PRD §14.9.4 — initiate account deactivation. Real soft-delete +
    *  Stripe cancellation lands in WS7. */
-  deactivateAccount: () => Promise<void>;
+  /** D-WS9-257 — DELETE /me, then clear the session and every cache. */
+  deleteAccount: () => Promise<void>;
   /** WS7-4-B c8 — Use Plan flow (PRD §9.2.5). Copy a Featured / Top-Rated /
    *  Hosting / owner-private Template into a new MealPlanInstance owned by
    *  the current user, with optimizationNotes carried over and useCount
@@ -1001,10 +1002,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
-  const deactivateAccount = async (): Promise<void> => {
-    await meAPI.deactivateAccount();
-    // Server soft-deletes (accountStatus → paused). Drop the local session
-    // so the user lands back on the welcome screen.
+  // D-WS9-257 — replaces deactivateAccount. The server deletes for real now
+  // (DELETE /me, one transaction), so the client must leave nothing behind
+  // either.
+  //
+  // ORDER MATTERS. The server call goes FIRST and is allowed to throw: on a
+  // failure the session is kept and the screen surfaces its error, because
+  // signing someone out of an account that still exists would be the worst of
+  // both outcomes. Only a 204 reaches the teardown.
+  //
+  // logout() clears the token AND, as of this lane, every cached query — the
+  // plans, meals, home and grocery caches it used to leave in memory. For a
+  // deleted account that is not tidiness: those rows must not be renderable by
+  // whoever signs in next on this device. (logout() also fires
+  // logoutRequest(), which will 401 on the now-dead token; that is harmless —
+  // it is a best-effort server-side session drop and its failure is swallowed
+  // there, exactly as it is when a token has already expired.)
+  const deleteAccount = async (): Promise<void> => {
+    await meAPI.deleteMe();
     await logout();
   };
 
@@ -1304,7 +1319,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     updateUserPreferences,
     updateMarketingConsent,
     completeOnboarding,
-    deactivateAccount,
+    deleteAccount,
     useTemplateAsPlan,
     copyPlan,
     compostPlan,

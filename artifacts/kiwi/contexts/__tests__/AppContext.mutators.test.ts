@@ -1,7 +1,8 @@
 // WS7-2 Block B Commit 3 — AppContext profile/account mutator wire-ups.
 //
 // Covers updateUserName / updateUserPhone / updateUserPreferences /
-// deactivateAccount now that they call the real /me/* endpoints. Mounts the
+// deleteAccount (D-WS9-257, which replaced deactivateAccount) now that they
+// call the real /me/* endpoints. Mounts the
 // full QueryClient → AuthProvider → AppProvider tree and drives the mutators
 // through a mocked `fetch` (same harness style as AuthContext.test.ts —
 // mocking fetch rather than the lib/api/me module avoids ESM module-mock
@@ -513,26 +514,98 @@ test("completeOnboarding PATCHes onboardingComplete and merges into the cache", 
   assert.notEqual(cached.subscription, undefined);
 });
 
-test("deactivateAccount calls /me/deactivate then logs the session out", async () => {
+// ── D-WS9-257 — deleteAccount ─────────────────────────────────────────────
+
+test("deleteAccount: 204 → session cleared AND every cache cleared", async () => {
   const qc = await mountAuthed();
   assert.equal(auth!.isAuthenticated, true);
 
-  let deactivated = false;
-  route("POST", "/me/deactivate", () => {
-    deactivated = true;
-    return mockJson({ success: true });
+  // Rows from OTHER caches, the ones logout() used to leave in memory. This is
+  // the half of the fix that is not about auth: hand the phone over, sign in as
+  // someone else, and the deleted account's plans would render from cache.
+  qc.setQueryData(["plans", "list"], [{ id: "p1", name: "Hans's week" }]);
+  qc.setQueryData(["home", "payload"], { hasMeals: true });
+  qc.setQueryData(["groceries", "list", 1], [{ id: "gl1" }]);
+
+  let method: string | null = null;
+  let body: unknown = null;
+  route("DELETE", "/me", () => {
+    method = "DELETE";
+    // A 204 MUST carry a null body — the Response constructor rejects "".
+    return new Response(null, { status: 204 });
   });
   route("POST", "/auth/logout", () => new Response("", { status: 200 }));
 
+  // Capture the request body the mutator sends — the confirm word is part of
+  // the wire contract, not just the screen's friction.
+  const realFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((url: string, init?: RequestInit) => {
+    if ((init?.method ?? "GET").toUpperCase() === "DELETE" && String(url).endsWith("/me")) {
+      body = init?.body ? JSON.parse(String(init.body)) : null;
+    }
+    return realFetch(url as never, init as never);
+  }) as unknown as typeof fetch;
+
   await act(async () => {
-    await app!.deactivateAccount();
+    await app!.deleteAccount();
     await settle();
   });
 
-  assert.equal(deactivated, true, "POST /me/deactivate was called");
-  // logout() flushed the auth cache + token.
+  assert.equal(method, "DELETE", "DELETE /me was called");
+  assert.deepEqual(body, { confirm: "delete" }, "the confirm word rides the body");
+  assert.equal(auth!.token, null, "the session token is gone");
   assert.equal(qc.getQueryData(["auth", "me"]), undefined);
+  // The claim this test exists for.
+  assert.equal(qc.getQueryData(["plans", "list"]), undefined, "plans cache cleared");
+  assert.equal(qc.getQueryData(["home", "payload"]), undefined, "home cache cleared");
+  assert.equal(qc.getQueryData(["groceries", "list", 1]), undefined, "grocery cache cleared");
+  // NOT "the cache has zero entries": the tree is still mounted, so active
+  // observers re-register their queries immediately after clear() — as empty
+  // entries with no data. The claim that matters is that no DATA survived.
+  assert.deepEqual(
+    qc.getQueryCache().getAll().filter((q) => q.state.data !== undefined).map((q) => q.queryKey),
+    [],
+    "no cached DATA survived the delete",
+  );
+});
+
+test("deleteAccount: a non-204 surfaces the error and KEEPS the session", async () => {
+  const qc = await mountAuthed();
+  route("DELETE", "/me", () => mockJson({ error: "confirm_required" }, 400));
+  route("POST", "/auth/logout", () => new Response("", { status: 200 }));
+
+  let threw = false;
+  await act(async () => {
+    try {
+      await app!.deleteAccount();
+    } catch {
+      threw = true;
+    }
+    await settle();
+  });
+
+  assert.equal(threw, true, "the screen must see the failure to show its error line");
+  // Signing someone out of an account that still exists is the worst outcome.
+  assert.equal(auth!.token, "test-token", "the session survives a failed delete");
+  assert.notEqual(qc.getQueryData(["auth", "me"]), undefined, "the user is still cached");
+});
+
+test("logout: clears every cache too, not just [\"auth\"]", async () => {
+  const qc = await mountAuthed();
+  qc.setQueryData(["plans", "list"], [{ id: "p1" }]);
+  route("POST", "/auth/logout", () => new Response("", { status: 200 }));
+
+  await act(async () => {
+    await auth!.logout();
+    await settle();
+  });
+
   assert.equal(auth!.token, null);
+  assert.deepEqual(
+    qc.getQueryCache().getAll().filter((q) => q.state.data !== undefined).map((q) => q.queryKey),
+    [],
+    "the plans cache went with the session (see the note in the delete test)",
+  );
 });
 
 // ── WS7-4-B c8 — useTemplateAsPlan ────────────────────────────────────────

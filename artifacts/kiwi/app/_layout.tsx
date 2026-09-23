@@ -144,7 +144,9 @@ function RootLayoutNav() {
       <Stack.Screen name="prep-cook" />
       <Stack.Screen name="preferences" />
       <Stack.Screen name="manage-account" />
-      <Stack.Screen name="deactivate-account" />
+      {/* D-WS9-257 — "deactivate-account" became "delete-account": the
+          pause/reactivate half-feature is gone and DELETE /me is real. */}
+      <Stack.Screen name="delete-account" />
       <Stack.Screen name="verify-email" />
     </Stack>
   );

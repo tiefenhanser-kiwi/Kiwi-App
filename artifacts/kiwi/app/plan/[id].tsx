@@ -1567,7 +1567,7 @@ const s = StyleSheet.create({
   },
   // BUG-092 — the demoted Compost affordance. Follows the app's existing
   // quiet-link shape (app/wizard.tsx cancelLink + cancelText, and the same
-  // pattern in deactivate-account / tellkiwi / dish-builder): a Pressable that
+  // pattern in delete-account / tellkiwi / dish-builder): a Pressable that
   // supplies the tap padding wrapping a small, muted Text.
   //
   // ⚠️ neutral[700], NOT the neutral[600] some of those precedents use.
