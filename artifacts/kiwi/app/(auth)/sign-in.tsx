@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 
 import { Button } from "@/components/Button";
+import { PasswordField } from "@/components/PasswordField";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubmitCooldown } from "@/hooks/useSubmitCooldown";
 import { authErrorPresentation } from "@/lib/authErrorCopy";
@@ -57,12 +58,11 @@ export default function SignInPage() {
           style={styles.input}
           editable={!submitting}
         />
-        <TextInput
+        <PasswordField
           value={password}
           onChangeText={setPassword}
           placeholder="Password"
           placeholderTextColor={Palette.text.placeholder}
-          secureTextEntry
           autoComplete="password"
           style={styles.input}
           editable={!submitting}

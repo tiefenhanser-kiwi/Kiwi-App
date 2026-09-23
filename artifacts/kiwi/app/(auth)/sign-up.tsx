@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 
 import { Button } from "@/components/Button";
+import { PasswordField } from "@/components/PasswordField";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubmitCooldown } from "@/hooks/useSubmitCooldown";
@@ -190,13 +191,12 @@ export default function SignUpPage() {
           style={styles.input}
           editable={!submitting}
         />
-        <TextInput
+        <PasswordField
           ref={passwordRef}
           value={password}
           onChangeText={setPassword}
           placeholder="Password (min 8 characters)"
           placeholderTextColor={Palette.text.placeholder}
-          secureTextEntry
           autoComplete="new-password"
           returnKeyType="next"
           blurOnSubmit={false}

@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 
 import { Button } from "@/components/Button";
+import { PasswordField } from "@/components/PasswordField";
 import { useToast } from "@/contexts/ToastProvider";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { ApiError, ApiNetworkError } from "@/lib/api/errors";
@@ -131,22 +132,20 @@ export default function ResetPasswordPage() {
         <Text style={styles.hint}>
           Choose a new password for your Kiwi account. At least 8 characters.
         </Text>
-        <TextInput
+        <PasswordField
           value={password}
           onChangeText={setPassword}
           placeholder="New password"
           placeholderTextColor={Palette.text.placeholder}
-          secureTextEntry
           autoComplete="new-password"
           style={styles.input}
           editable={!submitting}
         />
-        <TextInput
+        <PasswordField
           value={confirm}
           onChangeText={setConfirm}
           placeholder="Confirm new password"
           placeholderTextColor={Palette.text.placeholder}
-          secureTextEntry
           autoComplete="new-password"
           style={styles.input}
           editable={!submitting}

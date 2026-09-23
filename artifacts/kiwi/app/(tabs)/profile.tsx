@@ -15,6 +15,7 @@ import { useRouter } from "expo-router";
 import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { PasswordField } from "@/components/PasswordField";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
@@ -345,7 +346,7 @@ export default function ProfileTab() {
           <View style={s.card}>
             <Text style={s.cardTitle}>Change password</Text>
             <View style={s.pwForm}>
-              <PasswordField
+              <PasswordRow
                 label="Current password"
                 value={currentPw}
                 onChangeText={setCurrentPw}
@@ -353,7 +354,7 @@ export default function ProfileTab() {
                 autoComplete="password"
                 textContentType="password"
               />
-              <PasswordField
+              <PasswordRow
                 label="New password"
                 value={newPw}
                 onChangeText={setNewPw}
@@ -361,7 +362,7 @@ export default function ProfileTab() {
                 autoComplete="new-password"
                 textContentType="newPassword"
               />
-              <PasswordField
+              <PasswordRow
                 label="Confirm new password"
                 value={confirmPw}
                 onChangeText={setConfirmPw}
@@ -581,7 +582,10 @@ function NavCard({
  * intent. sign-in.tsx and sign-up.tsx already hint every credential field they
  * own; these three were the only unhinted ones left in the client.
  */
-function PasswordField({
+// The labelled row wrapper. Renamed from PasswordField when the store-prep
+// lane added the shared components/PasswordField (the input itself, with the
+// show/hide toggle) that this row now renders.
+function PasswordRow({
   label,
   value,
   onChangeText,
@@ -599,12 +603,11 @@ function PasswordField({
   return (
     <View style={s.pwField}>
       <Text style={s.pwLabel}>{label}</Text>
-      <TextInput
+      <PasswordField
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor={Palette.text.placeholder}
-        secureTextEntry
         autoCapitalize="none"
         autoCorrect={false}
         autoComplete={autoComplete}
