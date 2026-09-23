@@ -8,6 +8,12 @@
     "scheme": "kiwi",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "updates": {
+      "url": "https://u.expo.dev/76d74056-14ab-4840-b0ba-1caec7f51b59"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "splash": {
       "image": "./assets/images/splash-icon-1024.png",
       "resizeMode": "contain",
