@@ -7,11 +7,16 @@
 // touches, so they get this.
 //
 // ⚠️ WHAT THIS DOES NOT DO: it does not weaken the guard, and it must never be
-// used to test it. The stub answers `null` — "no such user row" — which the
-// guard treats as "nothing to revoke", exactly the behaviour at c38a596. So a
-// suite wrapped in this sees the same auth outcomes it saw before this commit,
-// which is the point: these files test grocery lists and meal plans, not
-// revocation.
+// used to test it. The stub answers a row whose `tokensValidFrom` is null —
+// "this user exists and has never revoked anything" — so a suite wrapped in
+// this sees the same auth outcomes it saw before the guard existed, which is
+// the point: these files test grocery lists and meal plans, not revocation.
+//
+// D-WS9-257 — this used to answer `null` (NO row), and the guard used to read
+// that as "nothing to revoke". It no longer can: with DELETE /me real, a token
+// whose user row is gone is a 401 on every route, so `null` here would mean
+// every wrapped suite authenticates as a deleted account. The row is the
+// honest fixture — these users are not deleted, they are just not modelled.
 //
 // The revocation guard's OWN tests (bug233SingleUseTokens, bug234Session-
 // Invalidation) build their own stubs that return real rows with real
@@ -31,8 +36,8 @@ export function withSessionUser<T>(stub: T): T {
     ...(stub as any),
     user: {
       ...(existing ?? {}),
-      // `null` => no row => no epoch => nothing revoked. Pre-guard behaviour.
-      findUnique: async () => null,
+      // A row with a null epoch => the user exists, nothing was ever revoked.
+      findUnique: async () => ({ tokensValidFrom: null }),
     },
   } as T;
 }

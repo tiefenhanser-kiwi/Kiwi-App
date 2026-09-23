@@ -43,10 +43,7 @@ import {
   INSTACART_DEFAULT_TITLE,
   INSTACART_EXPIRES_IN_DAYS,
 } from "../lib/retailers/instacartPayload";
-import {
-  createCachedSettingReader,
-  readBooleanSetting,
-} from "../lib/systemSettings";
+import { createInstacartEnabledReader } from "../lib/retailers/instacartFlag";
 import { emitActivity } from "../lib/userActivity";
 import {
   bucketKeyOf,
@@ -109,7 +106,10 @@ export interface GroceryListsRouterDeps {
   instacartLimiterOpts?: { capacity: number; refillPerSec: number };
 }
 
-export const INSTACART_ENABLED_SETTING_KEY = "retailer.instacart_enabled";
+// Store-prep lane — INSTACART_ENABLED_SETTING_KEY and its cached reader moved
+// to lib/retailers/instacartFlag.ts when GET /home became a second consumer.
+// Nothing imported the symbol from here (the grocery tests use the string
+// literal), so it is not re-exported: one canonical home for the key.
 
 const KNOWN_SECTIONS: StoreSection[] = [
   "produce",
@@ -261,9 +261,7 @@ export function createGroceryListsRouter(
     readConfig: () => readInstacartConfig(process.env),
     createShoppingListLink: productionCreateShoppingListLink,
   };
-  const getInstacartEnabled = createCachedSettingReader(() =>
-    readBooleanSetting(prisma, INSTACART_ENABLED_SETTING_KEY, false),
-  );
+  const getInstacartEnabled = createInstacartEnabledReader(prisma);
 
   router.post(
     "/plans/:id/generate-grocery-list",

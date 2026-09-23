@@ -141,6 +141,10 @@ interface StubOpts {
   hasMeals?: boolean;
   // WS9-2 2c (D-WS9-154) — GET /home/rail rows.
   rail?: ReturnType<typeof railTemplate>[];
+  // Store-prep lane — the retailer.instacart_enabled SystemSetting row.
+  // `undefined` models NO ROW at all, which is the live production state
+  // and must read as false.
+  instacartEnabled?: boolean;
 }
 
 // A public MealPlanTemplate row in the RAIL_SELECT shape (TEMPLATE_SELECT plus
@@ -265,6 +269,14 @@ function makeStubPrisma(opts: StubOpts) {
     systemSetting: {
       findMany: async (args: { where: { key: { in: string[] } } }) =>
         TOP_RATED_SETTINGS.filter((s) => args.where.key.in.includes(s.key)),
+      // Store-prep lane — readBooleanSetting reads ONE key by findUnique. A
+      // missing row is the fallback path (false), which is where production
+      // sits today, so the default here is genuinely "no row".
+      findUnique: async (args: { where: { key: string } }) =>
+        args.where.key === "retailer.instacart_enabled" &&
+        opts.instacartEnabled !== undefined
+          ? { key: args.where.key, value: opts.instacartEnabled }
+          : null,
     },
   };
 }
@@ -583,6 +595,46 @@ describe("GET /home", () => {
       assert.equal(res.status, 401);
     } finally {
       await harness.close();
+    }
+  });
+
+  // Store-prep lane — the phone gates Plan Review's "Order Online" cell on
+  // this, and Plan Review has no payload of its own, so the flag has to ride
+  // the one Home already fetches. Both states are pinned: an `enabled: true`
+  // that is never asserted false is not a gate.
+  it("carries retailers.instacart.enabled — true when the flag row says so", async () => {
+    const harness = await spinUp(
+      makeStubPrisma({ activeInstance: null, instacartEnabled: true }),
+    );
+    try {
+      const res = await authGet(harness, "/home");
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        retailers?: { instacart?: { enabled?: unknown } };
+      };
+      assert.equal(body.retailers?.instacart?.enabled, true);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("carries retailers.instacart.enabled false when the flag is off, and when there is no row at all", async () => {
+    for (const instacartEnabled of [false, undefined]) {
+      const harness = await spinUp(makeStubPrisma({ activeInstance: null, instacartEnabled }));
+      try {
+        const res = await authGet(harness, "/home");
+        assert.equal(res.status, 200);
+        const body = (await res.json()) as {
+          retailers?: { instacart?: { enabled?: unknown } };
+        };
+        assert.equal(
+          body.retailers?.instacart?.enabled,
+          false,
+          `flag row = ${String(instacartEnabled)} must read false`,
+        );
+      } finally {
+        await harness.close();
+      }
     }
   });
 });

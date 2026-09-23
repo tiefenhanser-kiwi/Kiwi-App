@@ -85,10 +85,25 @@ export interface SessionEpochRow {
 }
 
 /**
- * Read the revocation epoch for a user. Returns `undefined` when there is no
- * such row — the caller decides what that means (see requireAuth, which treats
- * it as "nothing to revoke", preserving c38a596 behaviour for a token whose
- * user has been deleted; existence checking is not this guard's job).
+ * Read the revocation epoch for a user.
+ *
+ * THREE-VALUED, and every one of the three means something different:
+ *   · a `Date`    — the row exists and something revoked its tokens.
+ *   · `null`      — the row exists and nothing ever revoked anything.
+ *   · `undefined` — THERE IS NO SUCH USER ROW.
+ *
+ * D-WS9-257 made that last one load-bearing: requireAuth now refuses a token
+ * whose user has been deleted, which it can only do because "no row" is a
+ * distinct value from "no epoch". Before deletion was real the guard treated
+ * the two alike and the distinction was documentation.
+ *
+ * ⚠️ Hence the explicit `?? null`. A real Prisma `select` always returns the
+ * selected field, so this changes nothing in production — but an object that
+ * simply lacks the property (a test stub that models the users table for its
+ * own reasons) would otherwise read `undefined` off it and be reported as a
+ * DELETED ACCOUNT. That is a 401 on every route of a suite that has nothing to
+ * do with auth, and it is exactly what happened the first time this branch ran
+ * against the existing stubs. Absent field => null => "nothing revoked".
  */
 export async function readTokensValidFrom(
   prisma: PrismaClient,
@@ -98,7 +113,7 @@ export async function readTokensValidFrom(
     where: { id: userId },
     select: { tokensValidFrom: true },
   })) as SessionEpochRow | null;
-  return row ? row.tokensValidFrom : undefined;
+  return row ? (row.tokensValidFrom ?? null) : undefined;
 }
 
 /**

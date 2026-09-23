@@ -1,10 +1,24 @@
 // /me/* — authenticated user-account routes.
 //
-// Deactivation note: per WS7-2 Block A locked decision 2, deactivation reuses
-// existing User columns rather than introducing a deactivatedAt field.
-//   deactivate  = { accountStatus: 'paused', customerEndDate: new Date() }
-//   reactivate  = { accountStatus: 'active', customerEndDate: null }  (within 6mo TTL)
-// Permanent deletion is a future cron job (out of scope for Block A).
+// D-WS9-257 — DELETION REPLACES DEACTIVATION. WS7-2 Block A shipped
+// POST /me/deactivate + POST /me/reactivate: an accountStatus flip to 'paused'
+// with customerEndDate as the clock, a 6-month reactivation TTL, and permanent
+// deletion left as "a future cron job". That cron was never built, so the
+// half-feature anonymized nothing, deleted nothing, and offered no restore a
+// user could reach — while the screen told them "All your saved meals, dishes,
+// plans, and preferences will be removed". Apple 5.1.1(v) asks an app that
+// creates accounts to DELETE them and says in terms that offering to
+// "temporarily deactivate or disable an account is insufficient".
+//
+// The PRD's §14.9.4 reasons for a soft delete were billing reconciliation
+// (a Stripe customer to retain) and an admin restore window (an admin panel to
+// restore from). Neither exists today, so neither is an obstacle. Both routes
+// are gone; DELETE /me below does the real thing in one transaction.
+//
+// `accountStatus` and `customerEndDate` STAY on the schema (additive-only
+// branch rule, no migration in this lane) and are now WRITE-NEVER: the login
+// and reset-confirm checks that read accountStatus are left in place, harmless
+// with nothing able to pause an account.
 
 import { Router, type IRouter } from "express";
 import { type Prisma, type PrismaClient } from "@prisma/client";
@@ -90,8 +104,18 @@ const passwordChangeLimiter = rateLimit({ capacity: 10, refillPerSec: 10 / 60 })
 // Same posture as password-reset request: deters enumeration probing.
 const emailRequestLimiter = rateLimit({ capacity: 5, refillPerSec: 5 / 300 });
 
-// Brute-force protection on reactivate (matches /auth/login posture).
-const reactivateLimiter = rateLimit({ capacity: 10, refillPerSec: 10 / 60 });
+// D-WS9-257 — DELETE /me. Built the same way row 8 built the Instacart link
+// limiter (per-user key so the bucket survives IP rotation and is not shared
+// behind a NAT; BUG-223's reasoning in lib/rateLimit.ts applies). 3/hour, the
+// tightest bucket in the file, because unlike every other limiter here this
+// one is not metering cost — a second call from the same user can only ever be
+// a 401 (the row is gone) or a mistake, so 3 is generous for "the request
+// timed out and I tapped again" and nothing legitimate needs a fourth.
+const deleteAccountLimiter = rateLimit({
+  capacity: 3,
+  refillPerSec: 3 / 3600,
+  keyFn: (req) => `deleteaccount:${req.userId ?? "anonymous"}`,
+});
 
 // Email-change verification token TTL (matches password-reset).
 const EMAIL_CHANGE_EXPIRY = "1h";
@@ -166,19 +190,15 @@ const emailVerifyChangeSchema = z.object({
   token: z.string().min(10).max(500),
 });
 
-const reactivateSchema = z.object({
-  email: z.string().email().max(255),
-  password: z.string().min(1).max(100),
+// D-WS9-257 — the confirm word. z.literal, so ANY other body (a bare {}, a
+// boolean, the wrong word) is one 400 `confirm_required` and never a delete.
+const deleteAccountSchema = z.object({
+  confirm: z.literal("delete"),
 });
 
-// WS7-2 Block A locked decision 5: reactivation TTL is 6 months from
-// customerEndDate. After that the account is past its window and the user
-// must contact support (permanent-deletion cron is post-MVP).
-const REACTIVATION_TTL_MS = 6 * 30 * 24 * 60 * 60 * 1000;
-
-// MealPlanInstance.status values that represent active or scheduled plans
-// (per PlanStatus enum). On deactivation these flip to 'past'.
-const ACTIVE_PLAN_STATUSES = ["this_week", "next_week", "upcoming"] as const;
+// D-WS9-257 rule (d) — bucket objects are counted, not deleted. This is the
+// prefix lib/images/imageStore.ts writes into imageUrl (publicUrlFor).
+const GCS_PUBLIC_PREFIX = "https://storage.googleapis.com/";
 
 const preferencesPatchSchema = z
   .object({
@@ -1089,142 +1109,125 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
     }
   });
 
-  // ── Deactivate / reactivate ─────────────────────────────────────────
-  // Per WS7-2 Block A locked decision 2, deactivation reuses User columns:
-  //   { accountStatus: 'paused', customerEndDate: now() }
-  // Reactivation flips back within the 6-month TTL; past that the account is
-  // out of reach until the future permanent-deletion cron + support flow.
+  // ── Account deletion (D-WS9-257) ─────────────────────────────────────
+  //
+  // DELETE /me — the real thing, in one transaction. Replaces the WS7-2
+  // deactivate/reactivate pair (see the file header for why).
+  //
+  // Ordering is DERIVED FROM THE SCHEMA, not guessed. The FK graph (read out
+  // of prisma/migrations, not out of the Prisma defaults, because the two
+  // disagree) says a user's rows fall into four classes:
+  //
+  //   CASCADE from users — favorites, playlist_meals, user_preferences,
+  //     wizard_last_batches, pantry_staples, subscriptions, user_activities.
+  //     `user.delete` takes these. Nothing explicit needed.
+  //
+  //   RESTRICT on users — grocery_lists, meal_plan_instances,
+  //     meal_plan_templates, retailer_connections, order_sessions. The delete
+  //     FAILS unless these go first. Each has its own explicit deleteMany
+  //     below, in child-before-parent order.
+  //
+  //   SET NULL on users — meals, dishes, llm_call_logs, plus the two admin
+  //     tables (ai_prompt_versions.createdById, system_settings.updatedById).
+  //     ⚠️ THIS IS THE DANGEROUS CLASS, because it does NOT fail: without an
+  //     explicit delete, the user's meals and dishes would SURVIVE the
+  //     deletion as `userId: null` rows — un-owned, un-listable, un-deletable
+  //     residue of an account we just promised to erase. They are deleted
+  //     explicitly. The admin tables are the opposite case and SET NULL is
+  //     right there: the prompt version and the settings row are not the
+  //     user's data, they are system rows that merely remember who touched
+  //     them, so the row stays and the attribution drops. llm_call_logs is
+  //     nulled explicitly (see below) rather than left to the FK, because
+  //     de-identifying the cost ledger is an intention, not a side effect.
+  //
+  //   NO FOREIGN KEY AT ALL — notification_preferences, used_tokens, and
+  //     recipe_instruction_steps (whose owner link is a (ownerType, ownerId)
+  //     pair the schema says is "enforced at application layer, not DB",
+  //     because Postgres cannot conditionally reference two tables). Nothing
+  //     in the database will ever clean these up. They are deleted by query,
+  //     and the step rows have to be collected BEFORE their meals and dishes
+  //     are gone, because after that there is nothing left to match on.
+  //
+  // What is NOT deleted, deliberately:
+  //   · llm_call_logs rows — kept with `userId: null`. This is the PRD's
+  //     "activity history retained but de-identified": the spend ledger is
+  //     accounting, it is what tells us a prompt version costs what it costs,
+  //     and it carries no PII once the id is gone.
+  //   · GCS image objects for the deleted meals — counted and logged, not
+  //     deleted. Removing bucket objects is a different failure domain from a
+  //     database transaction (it cannot be rolled back with one) and this lane
+  //     does not build it. The count rides the log line so the carried item is
+  //     measurable rather than theoretical.
+  router.delete("/me", requireAuth, deleteAccountLimiter, async (req, res) => {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: "unauthenticated" });
+    }
+    // A typed word, not a boolean: the phone makes the user type it, and a
+    // body that could be sent by accident is not a confirmation.
+    const parsed = deleteAccountSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "confirm_required" });
+    }
 
-  // POST /me/deactivate — auth required, idempotent.
-  router.post("/me/deactivate", requireAuth, async (req, res) => {
     try {
-      const user = await prisma.user.findUnique({
-        where: { id: req.userId },
-        select: { id: true, accountStatus: true },
-      });
-      if (!user) {
-        return res.status(401).json({ error: "user not found" });
-      }
-      if (user.accountStatus === "deleted" || user.accountStatus === "blocked") {
-        return res.status(400).json({
-          error: "cannot_deactivate",
-          userFacingMessage: "This account cannot be deactivated.",
-        });
-      }
-      if (user.accountStatus === "paused") {
-        // Idempotent — already paused, nothing to do.
-        return res.json({ success: true });
-      }
-
-      await prisma.$transaction([
-        prisma.user.update({
-          where: { id: user.id },
-          data: {
-            accountStatus: "paused",
-            customerEndDate: new Date(),
-          },
-        }),
-        prisma.mealPlanInstance.updateMany({
-          where: {
-            userId: user.id,
-            status: { in: [...ACTIVE_PLAN_STATUSES] },
-          },
-          data: { status: "past" },
+      // Collected before the transaction: the ids the application-layer
+      // ownership link needs, and the bucket-object count for the log.
+      const [mealRows, dishRows, templateRows] = await Promise.all([
+        prisma.meal.findMany({ where: { userId }, select: { id: true, imageUrl: true } }),
+        prisma.dish.findMany({ where: { userId }, select: { id: true, imageUrl: true } }),
+        prisma.mealPlanTemplate.findMany({
+          where: { userId },
+          select: { imageUrl: true },
         }),
       ]);
+      const ownerIds = [...mealRows.map((m) => m.id), ...dishRows.map((d) => d.id)];
+      const gcsObjectCount = [...mealRows, ...dishRows, ...templateRows].filter(
+        (r) => typeof r.imageUrl === "string" && r.imageUrl.startsWith(GCS_PUBLIC_PREFIX),
+      ).length;
 
-      logger.info({ userId: user.id }, "Account deactivated");
-      return res.json({ success: true });
+      await prisma.$transaction([
+        // 1. Grocery lists first — items and item-sources cascade from them,
+        //    and grocery_lists.mealPlanInstanceId is SET NULL, so doing this
+        //    before the plans avoids a pointless UPDATE of rows about to die.
+        prisma.groceryList.deleteMany({ where: { userId } }),
+        // 2. Plan instances — meal_plan_items, prep_step_completions and
+        //    prep_week_structures cascade. This is also what releases the
+        //    RESTRICT that meal_plan_items holds on meals (step 5).
+        prisma.mealPlanInstance.deleteMany({ where: { userId } }),
+        // 3. Plan templates — meal_plan_template_items cascade, releasing the
+        //    second RESTRICT on meals.
+        prisma.mealPlanTemplate.deleteMany({ where: { userId } }),
+        // 4. The orphan-by-design step rows, before their owners vanish.
+        prisma.recipeInstructionStep.deleteMany({
+          where: { ownerId: { in: ownerIds } },
+        }),
+        // 5. Meals — favorites, playlist_meals and meal_dish_links cascade.
+        //    Explicit because the FK is SET NULL (see the note above).
+        prisma.meal.deleteMany({ where: { userId } }),
+        // 6. Dishes — dish_ingredients cascade; meal_dish_links (RESTRICT on
+        //    dishId) died with the meals in step 5.
+        prisma.dish.deleteMany({ where: { userId } }),
+        // 7. The retailer pair. Order sessions first: both are RESTRICT on
+        //    users and neither references the other, so this is only tidiness.
+        prisma.orderSession.deleteMany({ where: { userId } }),
+        prisma.retailerConnection.deleteMany({ where: { userId } }),
+        // 8. The two FK-less tables. Nothing else would ever remove these.
+        prisma.notificationPreference.deleteMany({ where: { userId } }),
+        prisma.usedToken.deleteMany({ where: { userId } }),
+        // 9. De-identify the cost ledger. The FK would do this anyway; saying
+        //    it here is what makes it a decision rather than a coincidence.
+        prisma.lLMCallLog.updateMany({ where: { userId }, data: { userId: null } }),
+        // 10. The user. Everything in the CASCADE class goes with it, and the
+        //     two admin tables keep their rows with a null attribution.
+        prisma.user.delete({ where: { id: userId } }),
+      ]);
+
+      logger.info({ userId, gcsObjectCount }, "Account deleted");
+      return res.status(204).end();
     } catch (err) {
-      logger.error({ err, userId: req.userId }, "POST /me/deactivate failed");
-      return res.status(500).json({ error: "failed to deactivate account" });
-    }
-  });
-
-  // POST /me/reactivate — public; takes credentials and flips the status.
-  router.post("/me/reactivate", reactivateLimiter, async (req, res) => {
-    const parsed = reactivateSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({ error: "invalid request body" });
-    }
-    const { email, password } = parsed.data;
-    const normalizedEmail = email.toLowerCase().trim();
-
-    try {
-      const user = await prisma.user.findUnique({
-        where: { email: normalizedEmail },
-        include: { subscription: true },
-      });
-      // Same generic 401 for unknown user vs wrong password — no enumeration.
-      if (!user || !user.passwordHash) {
-        return res.status(401).json({ error: "invalid credentials" });
-      }
-      const valid = await verifyPassword(password, user.passwordHash);
-      if (!valid) {
-        return res.status(401).json({ error: "invalid credentials" });
-      }
-
-      if (user.accountStatus !== "paused") {
-        return res.status(400).json({
-          error: "not_paused",
-          userFacingMessage: "This account cannot be reactivated.",
-        });
-      }
-      const endedAt = user.customerEndDate;
-      if (!endedAt || Date.now() - endedAt.getTime() > REACTIVATION_TTL_MS) {
-        return res.status(400).json({
-          error: "reactivation_window_expired",
-          userFacingMessage:
-            "The reactivation window has expired. Please contact support.",
-        });
-      }
-
-      const reactivated = await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          accountStatus: "active",
-          customerEndDate: null,
-        },
-        include: { subscription: true },
-      });
-      const authToken = signToken(reactivated.id);
-      logger.info({ userId: reactivated.id }, "Account reactivated");
-      return res.json({
-        user: {
-          id: reactivated.id,
-          email: reactivated.email,
-          firstName: reactivated.firstName,
-          lastName: reactivated.lastName,
-          phone: reactivated.phone,
-          zipCode: reactivated.zipCode,
-          timezone: reactivated.timezone,
-          accountStatus: reactivated.accountStatus,
-          subscriptionStatus: reactivated.subscriptionStatus,
-          defaultHouseholdSize: reactivated.defaultHouseholdSize,
-          lastPlanDiscoveryFilters: reactivated.lastPlanDiscoveryFilters,
-          lastPlansFilters: reactivated.lastPlansFilters,
-          lastMealsFilters: reactivated.lastMealsFilters,
-          onboardingComplete: reactivated.onboardingComplete,
-          firstRunChoiceMade: reactivated.firstRunChoiceMade,
-          createdAt: reactivated.createdAt.toISOString(),
-          subscription: reactivated.subscription
-            ? {
-                status: reactivated.subscription.status,
-                planCode: reactivated.subscription.planCode,
-                trialEndsAt: reactivated.subscription.trialEndsAt
-                  ? reactivated.subscription.trialEndsAt.toISOString()
-                  : null,
-                currentPeriodEnd: reactivated.subscription.currentPeriodEnd
-                  ? reactivated.subscription.currentPeriodEnd.toISOString()
-                  : null,
-              }
-            : null,
-        },
-        authToken,
-      });
-    } catch (err) {
-      logger.error({ err }, "POST /me/reactivate failed");
-      return res.status(500).json({ error: "failed to reactivate account" });
+      logger.error({ err, userId }, "DELETE /me failed");
+      return res.status(500).json({ error: "failed to delete account" });
     }
   });
 

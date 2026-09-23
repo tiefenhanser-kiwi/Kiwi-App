@@ -88,18 +88,17 @@ export function assertMailEnvComplete(): void {
 /**
  * Build the link a mail-bearing flow puts in front of a user.
  *
- * 🔴 THE SCHEME IS AN OPEN DECISION — D-WS9-231, status OPEN as of the
- * 2026-09-08 01:32Z canon mirror, which records three options and says in
- * terms: "CHAT-CLAUDE'S READ, NOT A RULING … Hans decides".
+ * D-WS9-231 — RULED September 7, 2026: https fallback page now, universal
+ * links later, same URL.
  *
- * This mints the `https://` shape, which is what BOTH live options produce:
- * option 1 (universal / app links) and option 2 (an https page that hands off
- * to the app) are identical from the server's side and differ only in what is
- * hosted at the other end. Option 3 (keep `kiwi://`) is the only one that
- * would change this function, and D-WS9-231 calls it "indefensible at launch".
- *
- * ⚠️ IF HANS RULES OPTION 3, THIS FUNCTION IS THE ONLY EDIT. That is why the
- * scheme lives here rather than inlined at the two call sites.
+ * The docblock this replaces recorded the decision as OPEN and said "Hans
+ * decides"; it was written against the 2026-09-08 01:32Z canon mirror and was
+ * stale from the day it landed. The ruling does not change this function: the
+ * `https://` shape it already mints is what both halves of the ruling produce
+ * — a fallback page today and universal links later are identical from the
+ * server's side and differ only in what is hosted at the other end. The
+ * scheme still lives here rather than inlined at the two call sites, so the
+ * universal-links lane has one edit to make and not three.
  */
 export function buildAppLink(path: string, token: string): string {
   const clean = path.startsWith("/") ? path : `/${path}`;

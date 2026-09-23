@@ -18,6 +18,7 @@ import { logger } from "../lib/logger";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { createRequireAuth } from "../middleware/auth";
 import { MEAL_LIST_SELECT, toListShape } from "./meals";
+import { createInstacartEnabledReader } from "../lib/retailers/instacartFlag";
 import { resolveRailPlans, toYmd } from "../lib/planQueries";
 import { resolveThisWeekWinnerId } from "../lib/planDates";
 import { parseLocalDate, todayFor } from "../lib/planDayAssignment";
@@ -147,6 +148,12 @@ export function createHomeRouter(
   // importing the singleton) is what keeps this router's tests hermetic.
   // Shadows the module import: every requireAuth call site below is unchanged.
   const requireAuth = createRequireAuth({ prisma });
+  // Store-prep lane — the same flag reader the grocery-list detail GET uses
+  // (lib/retailers/instacartFlag.ts): one key, one fallback, one 60 s window
+  // per router instance. The phone gates Plan Review's "Order Online" cell on
+  // it, so with the flag off NOTHING Instacart-shaped renders anywhere
+  // (Hans, September 22 — the "coming soon" stub is withdrawn).
+  const getInstacartEnabled = createInstacartEnabledReader(prisma);
   const router: IRouter = Router();
 
   router.get("/home", requireAuth, async (req, res) => {
@@ -262,7 +269,7 @@ export function createHomeRouter(
       // a playlist add forks the catalog meal into a row this matches, so
       // "has a meal" covers authored AND playlisted). Both reads in parallel
       // so the payload pays no extra round-trip.
-      const [user, anyMeal] = await Promise.all([
+      const [user, anyMeal, instacartEnabled] = await Promise.all([
         prisma.user.findUnique({
           where: { id: userId },
           // D-WS9-026 — firstPlanCreatedAt drives the Home teaching-arc collapse
@@ -273,6 +280,11 @@ export function createHomeRouter(
           where: { userId, isArchived: false },
           select: { id: true },
         }),
+        // Store-prep lane — rides the payload Home already fetches (the third
+        // parallel read, and a cache hit for 60 s out of every 60). Plan
+        // Review has no payload of its own to hang the gate on, so it reads
+        // this one out of the query cache.
+        getInstacartEnabled(),
       ]);
 
       return res.json({
@@ -284,6 +296,10 @@ export function createHomeRouter(
         // D-WS9-247 amendment — the CTA gate: shown only when BOTH are falsy.
         playlistCtaTappedAt: user?.playlistCtaTappedAt?.toISOString() ?? null,
         hasMeals: anyMeal !== null,
+        // Store-prep lane — same shape as the grocery-list detail GET's
+        // `retailers` block. ADDITIVE here and OPTIONAL on the phone's Zod
+        // schema, so an old server never breaks a new binary (D-WS9-254).
+        retailers: { instacart: { enabled: instacartEnabled } },
       });
     } catch (err) {
       logger.error({ err, userId }, "GET /home failed");

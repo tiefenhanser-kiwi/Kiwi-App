@@ -83,11 +83,27 @@ export function createRequireAuth(deps: Partial<RequireAuthDeps> = {}) {
       return;
     }
 
-    // `undefined` means no such user row. That is NOT a revocation: this guard
-    // answers "has this token been revoked", and a token for a deleted user is
-    // left exactly as c38a596 left it (GET /auth/me is where a vanished user
-    // becomes a 401). Widening requireAuth into an existence check would change
-    // behaviour well outside BUG-234 and is not this block's call to make.
+    // `undefined` means NO SUCH USER ROW, and readTokensValidFrom keeps that
+    // distinct from `null` (a row whose epoch was never bumped) precisely so
+    // this branch can exist.
+    //
+    // BUG-234 left it passing, on the reasoning that a vanished user was a
+    // theoretical state reached only by a manual DB delete, that GET /auth/me
+    // was where it surfaced, and that widening the guard was not that block's
+    // call. D-WS9-257 made it reachable from the phone: DELETE /me removes the
+    // row while the user's 30-day session JWT is still signed, unexpired and
+    // in the app's keychain. A token that outlives its account authenticates
+    // nothing — Apple 5.1.1(v) asks for deletion, and a deletion whose
+    // credentials keep working is not one. So the existence check IS this
+    // lane's call, and it is made here, once, for all ~69 authenticated
+    // handlers rather than route by route.
+    //
+    // Cost: none. The row was already being read for the epoch; this reads the
+    // same result differently.
+    if (epoch === undefined) {
+      res.status(401).json({ error: "invalid or expired token" });
+      return;
+    }
     if (isIssuedBeforeEpoch(payload.iat, epoch)) {
       res.status(401).json({ error: "invalid or expired token" });
       return;
