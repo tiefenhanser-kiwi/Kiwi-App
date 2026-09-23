@@ -54,6 +54,12 @@ const PLAN: ActivePlanStripModel = {
   durationDays: 5,
 };
 
+// BUG-308 — the Instacart flag, ON. Every pre-existing plan-state test below
+// passes this, because the four-cell 2×2 roster those tests pin is now the
+// flag-ON roster; the flag-OFF roster is three cells and is pinned by its own
+// tests at the end of the file. Shape-only, matching HomeRetailerFlags.
+const HOME_ON = { retailers: { instacart: { enabled: true } } };
+
 function render(props: React.ComponentProps<typeof ActivePlanStrip>): Json {
   let tree!: TestRenderer.ReactTestRenderer;
   act(() => {
@@ -180,7 +186,7 @@ test("Item 1: the two branches are ASYMMETRIC, and that is the contract", () => 
   // "re-balances" them — a filler cell, a spacer, restoring the two cells —
   // this is what should stop it.
   assert.equal(cellLabels(render({ model: TODAY })).length, 2);
-  assert.equal(cellLabels(render({ model: PLAN })).length, 4);
+  assert.equal(cellLabels(render({ model: PLAN, home: HOME_ON })).length, 4);
 });
 
 test("today: the stacked full-width buttons are GONE, and View plan is not doubled", () => {
@@ -293,7 +299,7 @@ test("BUG-091 (second half): the PLAN state's body IS a tap target, to Plan Revi
 
 test("BUG-091 (second half): the plan body tap does NOT contain any panel cell", () => {
   // Same structural guarantee as the today state's — siblings, not descendants.
-  const root = render({ model: PLAN });
+  const root = render({ model: PLAN, home: HOME_ON });
   const target = pressableByLabel(root, "Open Spice It Up");
   assert.ok(target);
   const inner = texts(target!);
@@ -335,8 +341,10 @@ test("plan: renders NO image (D-WS9-144 — only the MEAL thumbnail is the excep
   assert.equal(findAll(root, "expo-image").length, 0);
 });
 
+// ⚠️ BUG-308 — this roster is the flag-ON one, so the test now passes `home`.
+// The flag-OFF roster is three cells and has its own test at the end.
 test("plan: the panel is Prep and Cook · Grocery List · Order Online · View plan", () => {
-  const root = render({ model: PLAN });
+  const root = render({ model: PLAN, home: HOME_ON });
   assert.deepEqual(cellLabels(root), [
     "Prep and Cook",
     "Grocery List",
@@ -367,6 +375,7 @@ test("plan: every cell fires its OWN handler and no other", () => {
   const fired: string[] = [];
   const root = render({
     model: PLAN,
+    home: HOME_ON,
     onPress: () => fired.push("plan"),
     onPrepAndCook: () => fired.push("prep"),
     onGroceryList: () => fired.push("grocery"),
@@ -423,7 +432,7 @@ test("plan: a null duration still says nothing is set for today", () => {
 // they are in scope. The today state's absences are pinned by their own test
 // above, so nothing that this used to guard has gone unguarded.
 test("Part 4 Item 3: the PLAN state carries the plan-scoped cells", () => {
-  const t = texts(render({ model: PLAN }));
+  const t = texts(render({ model: PLAN, home: HOME_ON }));
   assert.ok(t.includes("Grocery List"), "Grocery List missing from plan");
   assert.ok(t.includes("Order Online"), "Order Online missing from plan");
 });
@@ -515,5 +524,131 @@ test("Item 1: groceryLoading is INERT on the today state, not orphaned", () => {
       true,
       "a plan-scoped busy flag must not disable a meal-scoped cell",
     );
+  }
+});
+
+// -- BUG-308: the Order Online cell is gated on the Instacart flag -----------
+//
+// Reported on device during the store-prep lane and carried here. The
+// store-prep lane gated Plan Review's identical cell (showOrderOnline) and
+// InstacartOrderPanel, but MISSED this card, so Home still offered "Order
+// Online" on a build with no retailer wired -- the one surface Hans withdrew.
+//
+// The gate is the SAME pure function on the SAME cached payload; this card
+// evaluates it itself because Home is app/** and outside the test glob, so a
+// pre-computed boolean would leave the whole decision untested.
+
+function flatStyle(node: Json): Record<string, unknown> {
+  const raw = node.props.style;
+  const resolved =
+    typeof raw === "function"
+      ? (raw as (s: { pressed: boolean }) => unknown)({ pressed: false })
+      : raw;
+  return Object.assign(
+    {},
+    ...(Array.isArray(resolved) ? resolved : [resolved]).filter(Boolean),
+  ) as Record<string, unknown>;
+}
+
+/** Only the Views that are children of a node (rows of a panel, cols of a row). */
+function childViews(node: Json): Json[] {
+  return (node.children ?? []).filter((c): c is Json => typeof c !== "string");
+}
+
+/** The action panel itself, located by its sage[100] fill — not by its text. */
+function panel(root: Json): Json {
+  const found = findAll(root, "rn-view").find(
+    (n) => flatStyle(n).backgroundColor === Colors.sage[100],
+  );
+  assert.ok(found, "action panel not found");
+  return found!;
+}
+
+/** The panel rows, as arrays of the labels each row holds. */
+function rowLabels(root: Json): string[][] {
+  return childViews(panel(root)).map((row) =>
+    childViews(row).map((col) => texts(col).join("")),
+  );
+}
+
+test("BUG-308: the flag OFF hides Order Online and leaves THREE cells", () => {
+  const off = render({
+    model: PLAN,
+    home: { retailers: { instacart: { enabled: false } } },
+  });
+  assert.deepEqual(cellLabels(off), [
+    "Prep and Cook",
+    "Grocery List",
+    "View plan",
+  ]);
+  assert.ok(
+    !texts(off).includes("Order Online"),
+    "nothing Instacart-shaped may render with no retailer wired",
+  );
+  assert.equal(
+    pressables(off).length,
+    4,
+    "three panel cells + the plan-body tap target",
+  );
+});
+
+test("BUG-308: every UNKNOWN home shape hides it too", () => {
+  // Absent, not-yet-fetched, or a server that predates the field. Hiding on
+  // unknown is the safe direction: a cell that appears late was never seen,
+  // while a cell on a retailer-less build is the defect. The exhaustive shape
+  // matrix lives on showOrderOnline itself (lib/__tests__/orderOnline.test.ts);
+  // these pin that the CARD routes through it rather than re-deriving.
+  for (const home of [undefined, null, {}, { retailers: null }] as const) {
+    const t = texts(render({ model: PLAN, home }));
+    assert.ok(!t.includes("Order Online"), `shown for ${JSON.stringify(home)}`);
+  }
+});
+
+test("BUG-308: the lone trailing cell spans the row -- no spacer, no filler", () => {
+  // The ruling: an odd roster is not a defect to balance away. The last row
+  // holds View plan ALONE and takes the full width.
+  const off = render({ model: PLAN, home: null });
+  assert.deepEqual(rowLabels(off), [
+    ["Prep and Cook", "Grocery List"],
+    ["View plan"],
+  ]);
+  const rows = childViews(panel(off));
+  const solo = childViews(rows[rows.length - 1]!);
+  assert.equal(solo.length, 1, "a spacer or filler cell was added beside it");
+  assert.equal(
+    flatStyle(solo[0]!).flexBasis,
+    "100%",
+    "the lone cell must take the whole row, not sit at half width",
+  );
+});
+
+test("BUG-308: the flag ON restores the four-cell 2x2 with Order Online wired", () => {
+  // The flag flips SERVER-side, so approval brings the cell back with no app
+  // update -- there is no build in which this roster is unreachable.
+  const fired: string[] = [];
+  const on = render({
+    model: PLAN,
+    home: HOME_ON,
+    onOrderOnline: () => fired.push("order"),
+  });
+  assert.deepEqual(rowLabels(on), [
+    ["Prep and Cook", "Grocery List"],
+    ["Order Online", "View plan"],
+  ]);
+  const c = cell(on, "Order Online");
+  assert.ok(c, "Order Online cell not found with the flag on");
+  act(() => {
+    (c!.props.onPress as () => void)();
+  });
+  assert.deepEqual(fired, ["order"], "the restored cell must still be wired");
+});
+
+test("BUG-308: the today state is untouched by the flag", () => {
+  // Branch A renders no plan-scoped cell either way -- the flag must not add
+  // one, and must not disturb the two-cell roster.
+  for (const home of [HOME_ON, { retailers: { instacart: { enabled: false } } }]) {
+    const t = render({ model: TODAY, home });
+    assert.deepEqual(cellLabels(t), ["Start Cooking", "View plan"]);
+    assert.ok(!texts(t).includes("Order Online"));
   }
 });

@@ -25,6 +25,13 @@
 // ⚠️ THE BRANCHES ARE ASYMMETRIC AND THE CARDS DIFFER IN HEIGHT. Accepted and
 // intended. No filler cell, no spacer, no re-balancing.
 //
+// ⚠️ BUG-308 (packaging lane, ruled September 23) — branch B's "Order Online"
+// cell is GATED on the Instacart flag, exactly as Plan Review's identical cell
+// is (showOrderOnline, lib/orderOnline.ts). With the flag off the branch is
+// THREE cells and the roster is ODD. "No filler cell, no spacer" above still
+// holds and now has a second job: a lone trailing cell is simply FULL-WIDTH.
+// An odd roster is not a defect to balance away.
+//
 // ⚠️ THE FIRST CELL IS CONTEXTUAL. Same slot, same tint, same `play` glyph; the
 // label and destination switch by branch:
 //   today → "Start Cooking" (onCook, Cook Mode for tonight's meal)
@@ -65,6 +72,7 @@ import {
 } from "@/constants/tokens";
 import { formatMacro } from "@/lib/format/macros";
 import type { HeroModel } from "@/lib/home/heroState";
+import { showOrderOnline, type HomeRetailerFlags } from "@/lib/orderOnline";
 import { DisplayTitle } from "./DisplayTitle";
 import { TreatedImage } from "./TreatedImage";
 
@@ -116,6 +124,22 @@ type Props = {
   /** D-WS9-158 — the Order Online stub. Plan state only (see onGroceryList). */
   onOrderOnline?: () => void;
   /**
+   * BUG-308 — the cached GET /home payload, read ONLY for the Instacart flag
+   * that gates the "Order Online" cell. Structurally typed (HomeRetailerFlags),
+   * so passing the whole HomePayload costs this card no type dependency on the
+   * API schemas.
+   *
+   * ⚠️ The GATE IS EVALUATED HERE, not by the caller, deliberately. Home is
+   * app/** and outside the test glob (D-WS9-164); this component is not. Taking
+   * the DATA rather than a pre-computed boolean is what lets the two states be
+   * pinned by a test at all.
+   *
+   * ⚠️ Widened from the model prop rather than adding a second query: Home
+   * already holds this payload (homeQuery.data — the same object deriveHeroModel
+   * consumes). Absent/unknown hides the cell, which is the safe direction.
+   */
+  home?: HomeRetailerFlags | null;
+  /**
    * BUG-091, today state only — tapping the CARD BODY opens the plan-instance
    * meal detail for tonight's meal. The card rendered two working buttons and a
    * dead body; a card that looks like a meal and does nothing when you tap the
@@ -151,6 +175,9 @@ type PanelCell = {
  * The cell list is therefore the thing that varies, which is why this went from
  * a fixed 2×2 to a chunked list.
  *
+ * ⚠️ BUG-308 — and branch B is THREE when the Instacart flag is off, so the
+ * roster can now be ODD. A trailing lone cell takes the whole row.
+ *
  * ⚠️ Mirrors Plan Review's panel (app/plan/[id].tsx s.actionPanel / s.panelCell
  * / s.actionRow / s.actionCol) rather than extracting a shared component. The
  * two are the same TREATMENT applied to different action sets on surfaces with
@@ -159,9 +186,9 @@ type PanelCell = {
  * `tint` variant, which is the part that carries the design.
  */
 function ActionPanel({ cells }: { cells: PanelCell[] }) {
-  // Two per row. A trailing odd cell would sit at half width with a gap beside
-  // it rather than stretching — but no branch has an odd roster today, and a
-  // fake spacer to "balance" one is exactly what the ruling forbids.
+  // Two per row. BUG-308 made the odd roster real (branch B is three cells with
+  // the Instacart flag off), and the ruling is that a trailing LONE cell simply
+  // spans the row — no spacer, no fake cell, no re-balancing.
   const rows: PanelCell[][] = [];
   for (let i = 0; i < cells.length; i += 2) rows.push(cells.slice(i, i + 2));
 
@@ -170,7 +197,14 @@ function ActionPanel({ cells }: { cells: PanelCell[] }) {
       {rows.map((row, r) => (
         <View key={r} style={styles.actionRow}>
           {row.map((c) => (
-            <View key={c.label} style={styles.actionCol}>
+            <View
+              key={c.label}
+              style={
+                row.length === 1
+                  ? [styles.actionCol, styles.actionColSolo]
+                  : styles.actionCol
+              }
+            >
               <Button
                 label={c.label}
                 variant={c.tint ? "tint" : "secondary"}
@@ -213,7 +247,13 @@ export function ActivePlanStrip({
   groceryLoading,
   onOrderOnline,
   onOpenMeal,
+  home,
 }: Props) {
+  // BUG-308 — the same gate, the same tested pure function, and the same cached
+  // payload Plan Review reads. Branch A renders no Order Online cell at all, so
+  // this is consumed on the plan branch only (like onGroceryList above).
+  const orderOnlineVisible = showOrderOnline(home);
+
   if (model.kind === "today") {
     const { meal } = model;
     const meta = [
@@ -329,8 +369,14 @@ export function ActivePlanStrip({
           </View>
         </Pressable>
 
-        {/* Branch B is UNCHANGED — four cells, two rows, Prep and Cook tinted.
-            Nothing here is meal-scoped, so the plan-scoped cells are at home. */}
+        {/* Branch B — Prep and Cook tinted, then the plan-scoped cells. Nothing
+            here is meal-scoped, so they are at home.
+
+            ⚠️ BUG-308 — "Order Online" is CONDITIONAL. With no retailer wired
+            the flag is off, nothing Instacart-shaped renders anywhere in the
+            app, and this branch is three cells: [Prep and Cook · Grocery List]
+            then a full-width [View plan]. The flag flips server-side, so
+            approval restores the four-cell 2×2 with no app update. */}
         <ActionPanel
           cells={[
             { label: "Prep and Cook", icon: "play", tint: true, onPress: onPrepAndCook },
@@ -340,7 +386,15 @@ export function ActivePlanStrip({
               loading: groceryLoading,
               onPress: onGroceryList,
             },
-            { label: "Order Online", icon: "shopping-cart", onPress: onOrderOnline },
+            ...(orderOnlineVisible
+              ? ([
+                  {
+                    label: "Order Online",
+                    icon: "shopping-cart",
+                    onPress: onOrderOnline,
+                  },
+                ] as PanelCell[])
+              : []),
             { label: "View plan", icon: "calendar", onPress: onPress },
           ]}
         />
@@ -441,4 +495,11 @@ const styles = StyleSheet.create({
     gap: Spacing[2],
   },
   actionCol: { flex: 1 },
+  // BUG-308 — the trailing LONE cell of an odd roster. `flex: 1` alone already
+  // grows a single child to the row's full width (flexGrow 1, no sibling to
+  // share with); this states the intent explicitly so the full-width rule
+  // survives any later change to actionCol's basis, and gives the test
+  // something to assert on — react-test-renderer runs no Yoga layout, so a
+  // measured width is not assertable here.
+  actionColSolo: { flexBasis: "100%" },
 });

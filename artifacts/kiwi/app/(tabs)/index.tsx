@@ -408,6 +408,13 @@ export default function HomeTab() {
                       groceryLoading={isGeneratingList}
                       onOrderOnline={handleStripOrderOnline}
                       onOpenMeal={handleOpenTodaysMeal}
+                      // BUG-308 — the card's "Order Online" cell is gated on
+                      // the Instacart flag, exactly as Plan Review's identical
+                      // cell is. The payload this screen ALREADY fetched is
+                      // handed down whole; the gate itself (showOrderOnline)
+                      // runs inside the card, which unlike this file is inside
+                      // the test glob. No second query, no second read.
+                      home={homeQuery.data}
                     />
                   ) : null}
                 </View>

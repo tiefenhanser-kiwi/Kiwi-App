@@ -19,10 +19,15 @@ test("dishesEmptyCopy: featured copy acknowledges seeding state", () => {
   assert.match(copy, /still growing/);
 });
 
-test("dishesEmptyCopy: top_rated copy acknowledges transient empty", () => {
+// BUG-309 — INVERTED, deliberately, and identical to the meals twin. The copy
+// used to promise "as the Kiwi community starts cooking"; on a store build with
+// no users that names a community that does not exist. The chip still names
+// itself and still offers the next step.
+test("dishesEmptyCopy: top_rated copy names the chip and offers the next step", () => {
   const copy = dishesEmptyCopy("top_rated");
   assert.match(copy, /top-rated/i);
-  assert.match(copy, /community/);
+  assert.match(copy, /\+ Add Dish/);
+  assert.doesNotMatch(copy, /community/i);
 });
 
 test("dishesEmptyCopy: every DISH_FILTER_KEYS chip resolves a non-empty string", () => {

@@ -8,8 +8,12 @@ const COPY: Record<DishFilterKey, string> = {
     "Your dishes show up here. Add one with + Add Dish, or browse Featured to get started.",
   featured:
     "No featured dishes yet — Kiwi's catalog is still growing. Add your own with + Add Dish, or check My Dishes.",
-  top_rated:
-    "No top-rated dishes yet — favorites show up here as the Kiwi community starts cooking. Add your own with + Add Dish.",
+  // BUG-309 (packaging lane) — the exact twin of the meals fix the store-prep
+  // lane made: "as the Kiwi community starts cooking" described a community
+  // that does not exist yet on a store build with no users. The Dishes sub-tab
+  // was missed then. "+ Add Dish" is verbatim the sub-tab's own button label
+  // (app/(tabs)/meals.tsx).
+  top_rated: "No top-rated dishes yet. Add your own with + Add Dish.",
 };
 
 export function dishesEmptyCopy(chip: DishFilterKey): string {
