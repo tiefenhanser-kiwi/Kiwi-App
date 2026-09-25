@@ -1,0 +1,170 @@
+// Row 13 "Test Kitchen" · Block 1 — THE UNAUTHENTICATED SURFACE GUARD.
+//
+// Phase 0 asked for this, and the reason is specific to what this block did:
+// Row 13 is the first change in the project's history that adds a route an
+// anonymous caller may reach, and it does it by introducing a SECOND auth
+// guard (requireGuestOrAuth). Both of those make it easier than it has ever
+// been for a route to end up reachable without meaning to — a missing guard
+// in a router factory, a guard applied to the wrong overload, a new route
+// pasted next to a guarded neighbour.
+//
+// So: enumerate every route Express actually mounted, probe each one with NO
+// Authorization header, and assert the set that does not answer 401/403 is
+// EXACTLY the known list. This is a canary, not a policy — when it fails, the
+// question to ask is "should that route be public?", and the list below is
+// widened only with an answer.
+//
+// ⚠️ The probe sends no body and no auth. A route that 400s on a missing body
+// BEFORE it authenticates is treated as UNAUTHENTICATED here, deliberately:
+// answering "your body is wrong" to a stranger is itself a disclosure, and
+// more to the point it means the handler ran before the guard did.
+//
+// Run via: pnpm --filter @workspace/api-server test
+
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+import express, { type Express, type IRouter } from "express";
+
+import router from "../index";
+
+// ── the known list ───────────────────────────────────────────────────────
+//
+// Every entry is here because someone decided it should be, and the comment
+// says who and why. Adding a line to this list is a security decision.
+const KNOWN_PUBLIC = new Set<string>([
+  // Liveness / readiness — probed by Cloud Run itself, before any user exists.
+  "GET /healthz",
+  "GET /readyz",
+  "GET /health",
+  // The auth doors. These ARE the unauthenticated surface by definition; each
+  // has its own limiter (authLimiter / resetLimiter).
+  "POST /auth/signup",
+  "POST /auth/login",
+  "POST /auth/logout",
+  "POST /auth/password-reset/request",
+  "POST /auth/password-reset/confirm",
+  // Redeemed from an emailed link, in whatever browser the person opened the
+  // mail in — there is no session to present. The purpose-scoped,
+  // single-use (BUG-233) token in the body IS the credential, exactly as on
+  // /auth/password-reset/confirm. Rate-limited by passwordChangeLimiter.
+  // FOUND BY THIS TEST on its first run, which is the test working.
+  "POST /me/email/verify-change",
+  // 🔴 ROW 13 · BLOCK 1 — THE ONE ROUTE THIS BLOCK ADDS TO THIS LIST.
+  // Rate-limited, and Turnstile-gated the moment TURNSTILE_SECRET_KEY is set.
+  // The other three /guest routes sit behind requireGuestOrAuth and must NOT
+  // appear here.
+  "POST /guest/session",
+]);
+
+/** Walk the mounted router and return "METHOD /path" for every layer. */
+function enumerateRoutes(r: IRouter): string[] {
+  const out: string[] = [];
+  const walk = (stack: unknown[], prefix: string): void => {
+    for (const layer of stack as Array<Record<string, unknown>>) {
+      const route = layer.route as
+        | { path: string; methods?: Record<string, boolean>; stack?: unknown[] }
+        | undefined;
+      if (route) {
+        const methods =
+          route.methods ??
+          ((route as unknown as { stack: Array<{ method?: string }> }).stack ?? [])
+            .reduce<Record<string, boolean>>((acc, s) => {
+              if (s.method) acc[s.method] = true;
+              return acc;
+            }, {});
+        for (const m of Object.keys(methods)) {
+          out.push(`${m.toUpperCase()} ${prefix}${route.path}`);
+        }
+      } else if (layer.handle && (layer.handle as { stack?: unknown[] }).stack) {
+        walk((layer.handle as { stack: unknown[] }).stack, prefix);
+      }
+    }
+  };
+  walk((r as unknown as { stack: unknown[] }).stack, "");
+  return [...new Set(out)];
+}
+
+describe("the unauthenticated surface", () => {
+  it("is EXACTLY the known list plus POST /guest/session", async () => {
+    const app: Express = express();
+    app.use(express.json());
+    app.use("/api", router);
+    const server = await new Promise<import("node:http").Server>((resolve) => {
+      const s = app.listen(0, "127.0.0.1", () => resolve(s));
+    });
+    const { port } = server.address() as { port: number };
+
+    try {
+      const routes = enumerateRoutes(router);
+      assert.ok(
+        routes.length > 50,
+        `the enumeration found only ${routes.length} routes — it is not walking the tree`,
+      );
+
+      const unauthenticated: string[] = [];
+      for (const entry of routes) {
+        const [method, path] = entry.split(" ");
+        // Only probe paths with no parameters; a :id probe would 400/404 for
+        // reasons unrelated to auth and muddy the signal.
+        if (path.includes(":")) continue;
+        // The internal routes are OIDC-gated and answer 404 when unconfigured,
+        // which is indistinguishable from "not mounted" by design — they are
+        // covered by their own tests (internalImageDrain, guestSweep).
+        if (path.startsWith("/internal/")) continue;
+
+        const res = await fetch(`http://127.0.0.1:${port}/api${path}`, {
+          method,
+          headers: { "content-type": "application/json" },
+          ...(method === "GET" || method === "HEAD"
+            ? {}
+            : { body: JSON.stringify({}) }),
+        });
+        if (res.status !== 401 && res.status !== 403) {
+          unauthenticated.push(entry);
+        }
+      }
+
+      // The list must not rot in the other direction either: an entry that no
+      // longer names a reachable public route is a stale exemption, and a
+      // stale exemption is how a future route gets waved through by accident.
+      const probed = new Set(
+        routes.filter((e) => {
+          const p = e.split(" ")[1];
+          return !p.includes(":") && !p.startsWith("/internal/");
+        }),
+      );
+      const stale = [...KNOWN_PUBLIC].filter(
+        (e) => probed.has(e) && !unauthenticated.includes(e),
+      );
+      assert.deepEqual(
+        stale,
+        [],
+        `these KNOWN_PUBLIC entries are now guarded — remove them:\n  ${stale.join("\n  ")}`,
+      );
+
+      const unexpected = unauthenticated.filter((e) => !KNOWN_PUBLIC.has(e));
+      assert.deepEqual(
+        unexpected,
+        [],
+        `these routes answered an unauthenticated caller without 401/403:\n  ${unexpected.join("\n  ")}\n` +
+          `If that is intended, add each to KNOWN_PUBLIC with a comment saying why.`,
+      );
+
+      // The other half of the guard: the three guest routes that are NOT
+      // public must actually be guarded, and this asserts it positively
+      // rather than relying on their absence from a list.
+      for (const guarded of ["GET /guest/session", "GET /guest/draft", "POST /guest/events"]) {
+        assert.ok(
+          !unauthenticated.includes(guarded),
+          `${guarded} must require a guest token`,
+        );
+      }
+      assert.ok(
+        unauthenticated.includes("POST /guest/session"),
+        "POST /guest/session must be reachable without a token — it is how a guest gets one",
+      );
+    } finally {
+      await new Promise<void>((r) => server.close(() => r()));
+    }
+  });
+});

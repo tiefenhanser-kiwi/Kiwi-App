@@ -83,10 +83,13 @@ beforeEach(() => _resetSpendGuardLogSampling());
 describe("readSpendGuardConfig", () => {
   it("unset env = every check disabled", () => {
     const cfg = readSpendGuardConfig({});
+    // Row 13 · Block 1 (D-WS9-261) — the two guest fields join the config.
     assert.deepEqual(cfg, {
       disabled: false,
       dailyCeilingUsd: null,
       userDailyCalls: null,
+      guestDisabled: false,
+      guestDailyCeilingUsd: null,
     });
   });
 
@@ -450,7 +453,7 @@ describe("validateSpendGuardEnv (BUG-263)", () => {
     assert.equal(r.errors.length, 0);
     assert.equal(r.infos.length, 1);
     assert.deepEqual(report.invalid, []);
-    assert.deepEqual(report.config, { disabled: false, dailyCeilingUsd: null, userDailyCalls: null });
+    assert.deepEqual(report.config, { disabled: false, dailyCeilingUsd: null, userDailyCalls: null, guestDisabled: false, guestDailyCeilingUsd: null });
     assert.equal(r.infos[0].obj.killSwitch, "off");
     assert.equal(r.infos[0].obj.dailyCeilingUsd, "disabled");
     assert.equal(r.infos[0].obj.userDailyCalls, "disabled");
@@ -464,7 +467,7 @@ describe("validateSpendGuardEnv (BUG-263)", () => {
       r.log,
     );
     assert.equal(r.errors.length, 0);
-    assert.deepEqual(report.config, { disabled: false, dailyCeilingUsd: 10, userDailyCalls: 500 });
+    assert.deepEqual(report.config, { disabled: false, dailyCeilingUsd: 10, userDailyCalls: 500, guestDisabled: false, guestDailyCeilingUsd: null });
     assert.equal(r.infos[0].obj.dailyCeilingUsd, 10);
     assert.equal(r.infos[0].obj.userDailyCalls, 500);
     assert.match(r.infos[0].msg, /daily ceiling \$10 · per-user cap 500 calls\/day/);
@@ -512,7 +515,7 @@ describe("validateSpendGuardEnv (BUG-263)", () => {
     );
     assert.equal(r.errors.length, 3);
     assert.equal(r.infos.length, 1);
-    assert.deepEqual(report.config, { disabled: false, dailyCeilingUsd: null, userDailyCalls: null });
+    assert.deepEqual(report.config, { disabled: false, dailyCeilingUsd: null, userDailyCalls: null, guestDisabled: false, guestDailyCeilingUsd: null });
   });
 
   it("the summary line owns only the three guard vars — no other env leaks", () => {
@@ -532,8 +535,18 @@ describe("validateSpendGuardEnv (BUG-263)", () => {
     assert.ok(!serialized.includes("postgres://"), "DATABASE_URL leaked");
     assert.ok(!serialized.includes("s3cr3t"), "JWT_SECRET leaked");
     assert.ok(!serialized.includes("instacart-secret-value"), "INSTACART_API_KEY leaked");
+    // Row 13 · Block 1 (D-WS9-261) — the guest kill switch and guest ceiling
+    // join the boot line. This assertion is an EXACT key set on purpose: it is
+    // the thing that would catch a future variable's VALUE being logged, so it
+    // is meant to break when the line grows, and to be widened deliberately.
     assert.deepEqual(Object.keys(r.infos[0].obj).sort(), [
-      "dailyCeilingUsd", "event", "invalidVars", "killSwitch", "userDailyCalls",
+      "dailyCeilingUsd",
+      "event",
+      "guestDailyCeilingUsd",
+      "guestKillSwitch",
+      "invalidVars",
+      "killSwitch",
+      "userDailyCalls",
     ]);
   });
 });
