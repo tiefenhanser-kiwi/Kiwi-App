@@ -4,6 +4,7 @@ import builderRouter from "./builder";
 import cookingRouter from "./cooking";
 import dishesRouter from "./dishes";
 import groceryListsRouter from "./groceryLists";
+import guestRouter from "./guest";
 import healthRouter from "./health";
 import homeRouter from "./home";
 import internalRouter from "./internal";
@@ -21,6 +22,10 @@ router.use(builderRouter);
 router.use(cookingRouter);
 router.use(dishesRouter);
 router.use(groceryListsRouter);
+// Row 13 "Test Kitchen" · Block 1 (D-WS9-259) — the guest lane. POST
+// /guest/session is the ONE unauthenticated route this block adds; the other
+// three sit behind requireGuestOrAuth.
+router.use(guestRouter);
 router.use(healthRouter);
 router.use(homeRouter);
 // Row 5 · Block 1c (D-WS9-248) — scheduler-only routes (OIDC-gated).

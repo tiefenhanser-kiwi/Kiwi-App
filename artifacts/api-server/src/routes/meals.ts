@@ -38,6 +38,7 @@ import {
   type SubscriptionService,
 } from "../lib/subscriptionService";
 import { createRequireAuth } from "../middleware/auth";
+import { createRequireGuestOrAuth } from "../middleware/guestAuth";
 
 export interface MealsRouterDeps {
   runAICall: typeof productionRunAICall;
@@ -612,6 +613,9 @@ export function createMealsRouter(
   // importing the singleton) is what keeps this router's tests hermetic.
   // Shadows the module import: every requireAuth call site below is unchanged.
   const requireAuth = createRequireAuth({ prisma });
+  // Row 13 · Block 1 — the guest-or-user guard, for GET /meals/:id ONLY. Same
+  // factory discipline: built from the injected client so tests stay hermetic.
+  const requireGuestOrAuth = createRequireGuestOrAuth({ prisma });
   const subscriptionService =
     deps.subscriptionService ?? productionSubscriptionService;
   // Same per-user token-bucket pattern as wizard routes. Find Similar is
@@ -810,10 +814,43 @@ export function createMealsRouter(
   });
 
   // GET /meals/:id — meal detail with per-dish ingredients + steps.
-  router.get("/meals/:id", requireAuth, catalogLimiter, async (req, res) => {
+  //
+  // Row 13 · Block 1 (D-WS9-260) — requireGuestOrAuth, so a Test Kitchen guest
+  // can read the full recipe of a plan meal (Hans: "I think it's fine to read
+  // the full recipe in the plan"). Reading is free; every WRITE is a door.
+  router.get("/meals/:id", requireGuestOrAuth, catalogLimiter, async (req, res) => {
     const id = req.params.id;
     if (typeof id !== "string" || id.length === 0 || id.length > 100) {
       return res.status(400).json({ error: "invalid meal id" });
+    }
+
+    // 🔴 THE GUEST VISIBILITY GATE, AND IT IS A PRE-CHECK ON PURPOSE.
+    //
+    // composeMealDetail() below is the GET-emits-by-include pattern — a bare
+    // `findUnique({ where: { id }, include: MEAL_DETAIL_INCLUDE })` with NO
+    // visibility predicate of any kind. Widening it to take a "who is asking"
+    // argument would put a new predicate in the path of GET /plans/:id and the
+    // batch sibling too, which is a far larger blast radius than this block is
+    // entitled to. So the restriction is a SEPARATE, select-only read in front
+    // of it, and the serialiser is untouched.
+    //
+    // A guest sees ONLY the catalog: isPublic AND userId null. Not "public",
+    // which would also serve a community member's published meal, and not the
+    // requester's own meals, because a guest has none. 404 (never 403) so the
+    // route cannot be used to probe which ids exist.
+    //
+    // ⚠️ A FINDING, NOT FIXED HERE (needs an ID): for an AUTHENTICATED caller
+    // this handler still applies no ownership or visibility check at all — any
+    // signed-in user can read any meal by id, including another user's private
+    // one. That is pre-existing and out of this block's fence; it is reported.
+    if (req.guestSessionId) {
+      const visible = await prisma.meal.findFirst({
+        where: { id, isPublic: true, userId: null, isArchived: false },
+        select: { id: true },
+      });
+      if (!visible) {
+        return res.status(404).json({ error: "meal not found" });
+      }
     }
 
     // WS7-7-A B5 (D-WS7-090 read-side) — optional plan context. When the caller
@@ -836,12 +873,18 @@ export function createMealsRouter(
       // WS7-8b (D-WS7-169 keystone) — also read the item's per-instance
       // servingsOverride so the composed detail resolves effectiveServings.
       let servingsOverride: number | null = null;
-      if (planItemId) {
+      // 🔴 `req.userId` — NOT the non-null assertion alone. Since this handler
+      // accepts a guest (Row 13 · Block 1), `req.userId` can be undefined, and
+      // Prisma reads an undefined value in a `where` as "no such filter" — the
+      // ownership scope would VANISH and any planItemId would resolve against
+      // every user's plans. A guest has no plan items at all, so the whole read
+      // is skipped for one; for a user it is byte-identical to before.
+      if (planItemId && req.userId) {
         const item = await prisma.mealPlanItem.findFirst({
           where: {
             id: planItemId,
             mealId: id,
-            planInstance: { userId: req.userId! },
+            planInstance: { userId: req.userId },
           },
           select: { recipeOverrideJson: true, servingsOverride: true },
         });

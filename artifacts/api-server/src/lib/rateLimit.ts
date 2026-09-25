@@ -27,7 +27,10 @@ export function __clearRateLimitStoreForTests(): void {
   STORE.clear();
 }
 
-function clientIp(req: Request): string {
+// Row 13 · Block 1 — exported (was module-private) so the guest lane's per-IP
+// cap reads the SAME address this limiter keys on. A second derivation would
+// be a second definition of "who is this", and the two would drift.
+export function clientIp(req: Request): string {
   // BUG-223 — `req.ip` is the address Express DERIVES from the app's
   // `trust proxy` setting, which app.ts drives from TRUST_PROXY_HOPS and which
   // DEFAULTS TO 0. At 0, Express ignores `x-forwarded-for` entirely and req.ip

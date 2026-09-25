@@ -15,7 +15,16 @@ if (!jwtSecret) {
 // purpose-scoped tokens (session vs password_reset vs email_change) and have
 // the verifier refuse cross-purpose reuse — e.g. a stolen reset token can't
 // be replayed as a session token.
-export type TokenPurpose = "session" | "password_reset" | "email_change";
+// Row 13 · Block 1 (D-WS9-259) — "guest" joins the set. A guest token carries
+// the GuestSession.id in the `userId` slot (so the !decoded.userId guard below
+// and every limiter keyFn keep working unchanged) and expires in 24 h.
+// requireAuth still demands purpose "session", so a guest token authenticates
+// nothing outside the routes requireGuestOrAuth explicitly opens.
+export type TokenPurpose =
+  | "session"
+  | "password_reset"
+  | "email_change"
+  | "guest";
 
 export interface JwtPayload {
   userId: string;

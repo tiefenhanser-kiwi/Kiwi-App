@@ -6,6 +6,8 @@ import pagesRouter from "./routes/pages";
 import { logger } from "./lib/logger";
 import { validateSpendGuardEnv } from "./lib/spendGuard";
 import { logInstacartConfig } from "./lib/retailers/instacartClient";
+import { logTurnstileConfig } from "./lib/turnstile";
+import { parseTrustProxyHops } from "./lib/trustProxy";
 import { noStore } from "./middleware/cacheControl";
 import { errorHandler } from "./middleware/errorHandler";
 
@@ -36,14 +38,12 @@ const app: Express = express();
 // value is 1: exactly one hop, Google's front end. Measured: at 1, req.ip is
 // the LAST entry in the chain (the hop nearest the app), which is the address
 // that front end reports and the only one it cannot be tricked about.
-export function parseTrustProxyHops(raw: string | undefined): number {
-  if (raw == null || raw.trim() === "") return 0;
-  const n = Number(raw);
-  // Anything that is not a non-negative integer falls back to the safe value.
-  // A typo in a deploy variable must not silently widen who we trust.
-  if (!Number.isInteger(n) || n < 0) return 0;
-  return n;
-}
+// Row 13 · Block 1 — the body moved to lib/trustProxy.ts so routes/guest.ts can
+// read the same hop count without importing this module (importing app.ts
+// builds the entire Express app). Re-exported here: the call site below and
+// bug223TrustProxy.test.ts's `import { parseTrustProxyHops } from "../../app"`
+// are both unchanged.
+export { parseTrustProxyHops };
 
 const trustProxyHops = parseTrustProxyHops(process.env["TRUST_PROXY_HOPS"]);
 if (process.env["TRUST_PROXY_HOPS"] && trustProxyHops === 0) {
@@ -66,6 +66,12 @@ validateSpendGuardEnv(process.env);
 // only, never a value. Neither variable is required at boot: Cloud Run does
 // not have them yet and must keep booting; the route answers 503 until it does.
 logInstacartConfig(process.env);
+
+// Row 13 · Block 1 (D-WS9-262) — same posture, one line: `turnstile:
+// configured` or a WARN naming the unset variable. Not required at boot —
+// unset means POST /guest/session accepts every caller, and the funnel must be
+// buildable before Cloudflare is wired.
+logTurnstileConfig(process.env);
 
 app.use(
   pinoHttp({
