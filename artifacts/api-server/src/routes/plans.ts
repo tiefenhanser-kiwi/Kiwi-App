@@ -49,6 +49,7 @@ import { picksPlanTitle, uniquePlanTitle, UNNAMED_PICKS_TITLE } from "../lib/pla
 import { bumpPlanRevision } from "../lib/planRevision";
 import { emitActivity } from "../lib/userActivity";
 import { markFirstPlanCreated } from "../lib/firstPlan";
+import { copyTemplateForUser } from "../lib/planFromTemplate";
 import { computeDietaryStale } from "../lib/planStaleness";
 import {
   clampLimit,
@@ -1715,101 +1716,16 @@ export function createPlansRouter(
 
       try {
         const result = await prisma.$transaction(async (tx) => {
-          const template = await tx.mealPlanTemplate.findUnique({
-            where: { id: templateId },
-            include: { items: { orderBy: { positionIndex: "asc" } } },
-          });
-          if (!template) {
-            return { kind: "not_found" as const };
-          }
-          if (!template.isPublic && template.userId !== userId) {
-            return { kind: "not_found" as const };
-          }
-
-          // WS7-6 (E): no demote-prior — the stored isActiveThisWeek column
-          // is gone. The new row is created undated; mobile dates it via a
-          // follow-up PATCH /plans/:id, and the per-user EXCLUDE constraint
-          // enforces single-current at that point.
-          const instance = await tx.mealPlanInstance.create({
-            data: {
-              userId,
-              mealPlanTemplateId: templateId,
-              titleOverride: null,
-              status: "draft",
-              startDate: null,
-              endDate: null,
-              // WS9 3d Part 2d (D-WS9-013) — use-template mints a real committed
-              // (non-draft) plan, just undated/inactive; stamp the commit instant.
-              committedAt: new Date(),
-              optimizationNotes:
-                (template.optimizationNotes as Prisma.InputJsonValue | null) ??
-                Prisma.DbNull,
-              breakfastOverrides: null,
-              lunchOverrides: null,
-            },
-          });
-
-          // D-WS9-026 — stamp first-plan-created (write-if-null; first wins).
-          await markFirstPlanCreated(tx, userId);
-
-          if (template.items.length > 0) {
-            // WS7-7-A B5 fix2 (D-WS7-139) — fork-on-acquire. Template items
-            // bind the template's mealIds, which for a public/featured template
-            // are curated/null-owner or another user's meals. Clone each
-            // not-already-owned source meal into a user-owned copy so the new
-            // plan's meals are editable. Dedup by source mealId: a meal that
-            // appears in two slots of the template shares ONE forked copy
-            // (preserving the template's intra-plan sharing); already-owned
-            // meals bind as-is.
-            const distinctMealIds = [
-              ...new Set(template.items.map((it) => it.mealId)),
-            ];
-            const owners = await tx.meal.findMany({
-              where: { id: { in: distinctMealIds } },
-              select: { id: true, userId: true },
-            });
-            const ownerById = new Map(owners.map((m) => [m.id, m.userId]));
-            const boundBySource = new Map<string, string>();
-            for (const sourceMealId of distinctMealIds) {
-              const owner = ownerById.get(sourceMealId);
-              boundBySource.set(
-                sourceMealId,
-                owner === userId
-                  ? sourceMealId
-                  : (await forkMealForUser(tx, sourceMealId, userId)).mealId,
-              );
-            }
-            await tx.mealPlanItem.createMany({
-              data: template.items.map((it) => ({
-                mealPlanInstanceId: instance.id,
-                mealId: boundBySource.get(it.mealId) ?? it.mealId,
-                positionIndex: it.positionIndex,
-                assignedDayOfWeek: it.assignedDayOfWeek,
-                isBreakfast: it.isBreakfast,
-                isLunch: it.isLunch,
-                isDinner: it.isDinner,
-              })),
-            });
-          }
-
-          await tx.mealPlanTemplate.update({
-            where: { id: templateId },
-            data: {
-              useCount: { increment: 1 },
-              lastUsedAt: new Date(),
-            },
-          });
-
-          await emitActivity({
+          // Row 13 · Block 1 — the copy moved to lib/planFromTemplate.ts so
+          // the guest claim's `templatePlanId` can reuse it instead of a
+          // second copy of the same fork-on-acquire logic. The body was
+          // already written entirely against `tx`, so this is a move.
+          return copyTemplateForUser(
             tx,
+            templateId,
             userId,
-            eventType: "plan_used_from_browse",
-            entityType: "MealPlanInstance",
-            entityId: instance.id,
-            metadata: { templateId, itemCount: template.items.length },
-          });
-
-          return { kind: "created" as const, instance };
+            markFirstPlanCreated,
+          );
         });
 
         if (result.kind === "not_found") {

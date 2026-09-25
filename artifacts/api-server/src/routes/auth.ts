@@ -15,6 +15,12 @@ import {
 import { prisma as productionPrisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
 import { isIssuedBeforeEpoch, redeemPurposeToken } from "../lib/tokenRevocation";
+import {
+  adoptTemplateForUser,
+  claimGuestSessionInTx,
+  GuestSessionInvalidError,
+  materializeClaimedDraft,
+} from "../lib/guestClaim";
 
 // Tight limiter for signup/login to slow brute-force attempts
 const authLimiter = rateLimit({ capacity: 10, refillPerSec: 10 / 60 }); // 10 burst, ~1/6s
@@ -37,6 +43,16 @@ const TRIAL_LENGTH_DAYS = 14;
 // token can't be replayed as a session.
 const PASSWORD_RESET_EXPIRY = "1h";
 
+// Row 13 · Block 1 — shared by signup and login so the two cannot drift.
+// `localDate` rides along for the same reason POST /wizard/drafts/:id/activate
+// takes one: the claimed plan's first dinner is TOMORROW in the visitor's
+// calendar, not tomorrow UTC.
+const GUEST_CLAIM_FIELDS = {
+  guestSessionId: z.string().min(1).max(100).optional(),
+  templatePlanId: z.string().min(1).max(100).optional(),
+  localDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+} as const;
+
 const signupSchema = z.object({
   email: z.string().email().max(255),
   password: z.string().min(8).max(100),
@@ -53,11 +69,22 @@ const signupSchema = z.object({
   phone: phoneSchema.nullable().optional(),
   marketingConsentEmail: z.boolean().optional(),
   marketingConsentSms: z.boolean().optional(),
+  // Row 13 "Test Kitchen" · Block 1 (D-WS9-259) — THE CLAIM. Both optional,
+  // MUTUALLY EXCLUSIVE, and both are the same sentence in different words:
+  // "keep what I just made."
+  //   guestSessionId  — the Test Kitchen plan this visitor built (§3.4)
+  //   templatePlanId  — "sign up and use this week" on the published weekly
+  //                     plan (§3.7)
+  ...GUEST_CLAIM_FIELDS,
 });
 
 const loginSchema = z.object({
   email: z.string().email().max(255),
   password: z.string().min(1).max(100),
+  // Row 13 · Block 1 — a returning user can claim too: they walked the Test
+  // Kitchen, liked the plan, and turn out to already have an account. Same
+  // claim, minus the preferences copy (see lib/guestClaim.ts's header).
+  ...GUEST_CLAIM_FIELDS,
 });
 
 const resetRequestSchema = z.object({
@@ -157,6 +184,9 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
       phone,
       marketingConsentEmail,
       marketingConsentSms,
+      guestSessionId,
+      templatePlanId,
+      localDate,
     } = parsed.data;
     const normalizedEmail = email.toLowerCase().trim();
 
@@ -165,6 +195,14 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
       return res
         .status(400)
         .json({ error: "SMS consent requires a phone number" });
+    }
+
+    // Row 13 · Block 1 — the two claims are different plans from different
+    // places; asking for both is a client bug, not a merge to guess at.
+    if (guestSessionId && templatePlanId) {
+      return res.status(400).json({
+        error: "guestSessionId and templatePlanId are mutually exclusive",
+      });
     }
 
     try {
@@ -179,6 +217,14 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
       );
 
       // Create user and subscription in a transaction — every user has a Subscription row.
+      //
+      // Row 13 · Block 1 (D-WS9-259) — STAGE 1 OF THE CLAIM rides inside this
+      // same transaction: the preferences copy and the session marked claimed,
+      // so an account created from a guest session is never created without
+      // them. Stage 2 (the plan itself) CANNOT be in here — see the long note
+      // at the top of lib/guestClaim.ts. A GuestSessionInvalidError thrown
+      // below rolls the whole thing back, and the catch maps it to 409.
+      let claimedDraft: unknown = null;
       const user = await prisma.$transaction(async (tx) => {
         const newUser = await tx.user.create({
           data: {
@@ -203,11 +249,57 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
             trialEndsAt,
           },
         });
+        if (guestSessionId) {
+          const claim = await claimGuestSessionInTx({
+            tx,
+            guestSessionId,
+            userId: newUser.id,
+            // A brand-new account: the guest's wizard answers ARE its
+            // preferences. (Sign-in passes false — see guestClaim's header.)
+            copyPreferences: true,
+          });
+          claimedDraft = claim.draft;
+        }
         return { ...newUser, subscription };
       });
 
+      // ── STAGE 2. After the commit, and deliberately outside it. ─────────
+      // A failure here leaves a perfectly good account with no plan and says
+      // so, rather than throwing away a sign-up the visitor has already made.
+      let claimedPlanId: string | null = null;
+      if (guestSessionId && claimedDraft) {
+        try {
+          claimedPlanId = await materializeClaimedDraft({
+            prisma,
+            userId: user.id,
+            draft: claimedDraft,
+            localDate,
+          });
+        } catch (err) {
+          logger.error(
+            { event: "guest_claim_plan_failed", userId: user.id, err },
+            "Guest claim could not build the plan — account created without it",
+          );
+        }
+      } else if (templatePlanId) {
+        claimedPlanId = await adoptTemplateForUser({
+          prisma,
+          userId: user.id,
+          templateId: templatePlanId,
+          localDate,
+        });
+      }
+
       const token = signToken(user.id);
-      logger.info({ userId: user.id }, "User signed up");
+      logger.info(
+        {
+          userId: user.id,
+          guestSessionId: guestSessionId ?? null,
+          templatePlanId: templatePlanId ?? null,
+          claimedPlanId,
+        },
+        "User signed up",
+      );
       return res.status(201).json({
         user: {
           ...toUserShape(user),
@@ -215,8 +307,23 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
         },
         authToken: token,
         onboardingRequired: true,
+        // Row 13 · Block 1 — null when nothing was claimed, AND null when a
+        // claim was asked for but the plan could not be built. The client
+        // navigates to the plan when this is set and to Home when it is not;
+        // it never has to distinguish the two nulls.
+        claimedPlanId,
       });
     } catch (err) {
+      // Row 13 · Block 1 — a session that is missing, expired or already
+      // claimed is the CLIENT's state being stale, not a server failure, and
+      // the rollback means no half-made account survives it.
+      if (err instanceof GuestSessionInvalidError) {
+        logger.info(
+          { event: "guest_claim_refused", guestSessionId, detail: err.detail },
+          "Signup refused: the guest session could not be claimed",
+        );
+        return res.status(409).json({ code: "guest_session_invalid" });
+      }
       logger.error({ err }, "Signup failed");
       return res.status(500).json({ error: "signup failed" });
     }
@@ -228,8 +335,15 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
     if (!parsed.success) {
       return res.status(400).json({ error: "invalid request body" });
     }
-    const { email, password } = parsed.data;
+    const { email, password, guestSessionId, templatePlanId, localDate } =
+      parsed.data;
     const normalizedEmail = email.toLowerCase().trim();
+
+    if (guestSessionId && templatePlanId) {
+      return res.status(400).json({
+        error: "guestSessionId and templatePlanId are mutually exclusive",
+      });
+    }
 
     try {
       const user = await prisma.user.findUnique({
@@ -261,8 +375,74 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
           logger.warn({ err, userId: user.id }, "Failed to update login tracking");
         });
 
+      // ── Row 13 · Block 1 — the sign-in claim. ───────────────────────────
+      //
+      // Steps 3→8 of the signup claim, MINUS THE PREFERENCES COPY. This user
+      // already has preferences — possibly months of them — and a guest blob
+      // typed into a public demo must never replace their allergy list. The
+      // plan follows them; nothing else does.
+      let claimedPlanId: string | null = null;
+      let claimedDraft: unknown = null;
+      if (guestSessionId) {
+        try {
+          const claim = await prisma.$transaction(async (tx) =>
+            claimGuestSessionInTx({
+              tx,
+              guestSessionId,
+              userId: user.id,
+              copyPreferences: false,
+            }),
+          );
+          claimedDraft = claim.draft;
+        } catch (err) {
+          if (err instanceof GuestSessionInvalidError) {
+            // 🔴 LOGGED, NOT REFUSED — the asymmetry with signup is deliberate.
+            // At signup the account did not exist and the 409 costs nothing.
+            // Here the credentials are already verified, and refusing a valid
+            // login because a demo session went stale would lock someone out
+            // of their own account over a cosmetic failure.
+            logger.info(
+              {
+                event: "guest_claim_refused",
+                userId: user.id,
+                guestSessionId,
+                detail: err.detail,
+              },
+              "Login proceeded; the guest session could not be claimed",
+            );
+          } else {
+            throw err;
+          }
+        }
+      }
+      if (claimedDraft) {
+        try {
+          claimedPlanId = await materializeClaimedDraft({
+            prisma,
+            userId: user.id,
+            draft: claimedDraft,
+            localDate,
+          });
+        } catch (err) {
+          logger.error(
+            { event: "guest_claim_plan_failed", userId: user.id, err },
+            "Guest claim could not build the plan — login unaffected",
+          );
+        }
+      } else if (templatePlanId) {
+        claimedPlanId = await adoptTemplateForUser({
+          prisma,
+          userId: user.id,
+          templateId: templatePlanId,
+          localDate,
+        });
+      }
+
       const token = signToken(user.id);
-      logger.info({ userId: user.id }, "User logged in");
+      logger.info(
+        { userId: user.id, claimedPlanId },
+        "User logged in",
+      );
       return res.json({
         user: {
           ...toUserShape(user),
@@ -271,6 +451,7 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
             : null,
         },
         authToken: token,
+        claimedPlanId,
       });
     } catch (err) {
       logger.error({ err }, "Login failed");
