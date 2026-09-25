@@ -338,6 +338,9 @@ model User {
   aiPromptVersionsCreated AIPromptVersion[]    @relation("PromptVersionCreator")
   systemSettingsUpdated   SystemSetting[]      @relation("SettingUpdater")
   llmCalls                LLMCallLog[]         @relation("LLMCallUser")
+  // Row 13 · Block 1 (D-WS9-259) — the guest sessions this account claimed.
+  // SetNull on delete: the funnel evidence survives the account.
+  guestSessionsClaimed    GuestSession[]       @relation("GuestSessionClaimant")
 
   @@map("users")
 }
@@ -1604,9 +1607,18 @@ model LLMCallLog {
 
   user User? @relation("LLMCallUser", fields: [userId], references: [id])
 
+  // Row 13 · Block 1 (D-WS9-261) — guest attribution. A PLAIN NULLABLE STRING
+  // WITH NO FOREIGN KEY, on purpose: the guest sweep hard-deletes GuestSession
+  // rows, and a cascade from here would erase the cost ledger while a RESTRICT
+  // would block the sweep. The cost log outlives the session that spent it.
+  // Indexed because the guest ceiling sums on (guestSessionId IS NOT NULL,
+  // createdAt >= dayStart) on every guest AI call.
+  guestSessionId String?
+
   @@index([createdAt])
   @@index([promptKey, createdAt])
   @@index([userId, createdAt])
+  @@index([guestSessionId, createdAt])
   @@map("llm_call_logs")
 }
 
@@ -1638,4 +1650,82 @@ model UsedToken {
   @@index([expiresAt])
   @@index([userId])
   @@map("used_tokens")
+}
+
+// ── Row 13 "Test Kitchen" · Block 1 (D-WS9-259) — the guest lane ──────────
+//
+// A guest is a visitor who has no account. Phase 0 (September 25) established
+// the constraint this whole model exists to satisfy: meal_plan_instances.userId,
+// meal_plan_templates.userId, user_preferences.userId and
+// wizard_last_batches.userId are ALL NOT NULL (RESTRICT / CASCADE), so a guest
+// can never own a plan row, never fork a meal, never activate. Rejected
+// alternatives: a shadow User row per guest (collides with authLimiter, email
+// uniqueness and the per-user Subscription row) and a nullable userId on the
+// plan tables (touches a RESTRICT FK and every `where: { userId }`).
+//
+// So THE GUEST'S PLAN LIVES HERE, AS JSON. `preferences` is the wizard body,
+// `candidates` is the build-plans result, `draft` is the expanded blob in the
+// exact shape GET /wizard/drafts/:id returns. The claim at sign-up is a FIRST
+// PERSIST for the brand-new real user — not a transfer, not a re-parent.
+model GuestSession {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  // 24 h from creation (the token's own lifetime). The 7-day figure in the
+  // scope doc is the SWEEP horizon, not the session's usable window:
+  // POST /internal/guest/sweep deletes unclaimed rows 7 days past expiresAt.
+  expiresAt DateTime
+
+  // sha256(clientIp + JWT_SECRET). NEVER the raw address — the per-IP cap
+  // needs to recognise a repeat visitor, not to know where they live. Nullable
+  // because clientIp() can degrade to "unknown" and because the cap is inert
+  // until TRUST_PROXY_HOPS is measured (Phase 0 §9.5).
+  ipHash String?
+
+  // The wizard body as sent (validated at the route). Copied — field by named
+  // field, never wholesale — into UserPreferences at the claim.
+  preferences Json
+  // The build-plans result: the wire candidates the guest was shown.
+  candidates  Json?
+  // The expanded draft, shape-identical to GET /wizard/drafts/:id's `expanded`.
+  draft       Json?
+
+  // ONE generation per guest session (Hans, September 24). Incremented by
+  // build-plans; a second call is a door, not a refusal to be retried.
+  generationCount Int     @default(0)
+  // Denormalised last funnel event, for a cheap "where did they stop?" read
+  // without touching guest_events. The events table is the record.
+  lastEvent       String?
+
+  // SetNull, not Cascade: deleting a user must not delete the funnel evidence
+  // that the signup happened. The row survives, anonymous, until the sweep.
+  claimedByUserId String?
+  claimedBy       User?   @relation("GuestSessionClaimant", fields: [claimedByUserId], references: [id], onDelete: SetNull)
+  claimedAt       DateTime?
+
+  events GuestEvent[]
+
+  @@index([expiresAt])
+  @@index([claimedByUserId])
+  @@map("guest_sessions")
+}
+
+// Server-side funnel events keyed on the guest session (scope §3.8).
+//
+// `event` is a PLAIN STRING, deliberately not an enum. UserActivity's
+// ActivityEventType has 42 values and every new one is a migration; a funnel
+// whose whole purpose is to learn where people stop cannot pay a migration per
+// question. The closed list lives in code (GUEST_EVENTS in routes/guest.ts),
+// where widening it is a one-line change and a deploy.
+model GuestEvent {
+  id             String   @id @default(uuid())
+  guestSessionId String
+  session        GuestSession @relation(fields: [guestSessionId], references: [id], onDelete: Cascade)
+  event          String
+  // The wizard step, for `wizard_step`; the door's name, for `door_tapped`.
+  step           String?
+  at             DateTime @default(now())
+  meta           Json?
+
+  @@index([guestSessionId, at])
+  @@map("guest_events")
 }
