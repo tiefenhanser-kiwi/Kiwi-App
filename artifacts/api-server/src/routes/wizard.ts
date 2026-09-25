@@ -106,6 +106,10 @@ import {
   type ResolvedPreferences,
 } from "../lib/wizardPreferences";
 import { createRequireAuth } from "../middleware/auth";
+import {
+  createRequireGuestOrAuth,
+  principalKey,
+} from "../middleware/guestAuth";
 
 // Cookbook Phase B Block 2 — the generation-shaping slice of the user's stored
 // UserPreferences, attached to the generate input as `preferencesContext`
@@ -278,6 +282,12 @@ export function createWizardRouter(
   // importing the singleton) is what keeps this router's tests hermetic.
   // Shadows the module import: every requireAuth call site below is unchanged.
   const requireAuth = createRequireAuth({ prisma });
+  // Row 13 "Test Kitchen" · Block 1 (D-WS9-259) — the guest-or-user guard.
+  // Mounted on EXACTLY TWO routes: POST /wizard/build-plans and POST
+  // /wizard/expand. Every other wizard route stays requireAuth, because every
+  // other wizard route is a WRITE-SHAPED action and therefore a door: a second
+  // generation, dismiss, activate, save, the last batch, the limits.
+  const requireGuestOrAuth = createRequireGuestOrAuth({ prisma });
   const subscriptionService =
     deps.subscriptionService ?? productionSubscriptionService;
   const expandCandidate = deps.expandCandidate ?? productionExpandCandidate;
@@ -456,6 +466,44 @@ export function createWizardRouter(
       candidates,
       input,
     });
+  }
+
+  // ── Row 13 "Test Kitchen" · Block 1 (D-WS9-259) ───────────────────────
+  //
+  // The GUEST's counterpart to commitGeneratedBatch above, and it writes to
+  // exactly one place: the GuestSession row's JSON columns. There is no
+  // last-batch row, no draft supersede and no activity event, because all
+  // three are tables whose userId is a NOT NULL FK to users and a guest is
+  // not a user. `generationCount` is incremented here, which is what makes
+  // "one generation per guest session" true — the 409 at the top of the route
+  // reads this number.
+  //
+  // Best-effort, like every write in commitGeneratedBatch: the candidates are
+  // already on the wire by the time this runs, so a failure here must not sink
+  // the response. The cost is that a guest could, on a failed write, generate
+  // a second time. That is the right way round — the alternative is refusing a
+  // visitor the plan they just watched Kiwi build.
+  async function persistGuestGeneration(
+    guestSessionId: string,
+    input: unknown,
+    candidates: WizardPlanCandidateWire[],
+  ): Promise<void> {
+    try {
+      await prisma.guestSession.update({
+        where: { id: guestSessionId },
+        data: {
+          preferences: input as Prisma.InputJsonValue,
+          candidates: candidates as unknown as Prisma.InputJsonValue,
+          generationCount: { increment: 1 },
+          lastEvent: "generated",
+        },
+      });
+    } catch (err) {
+      logger.warn(
+        { event: "guest_generation_persist_failed", guestSessionId, err },
+        "Failed to persist the guest generation onto the session row",
+      );
+    }
   }
 
   // ── shelf presentation → last-batch slot (post-pass Part A) ──────────
@@ -670,7 +718,11 @@ export function createWizardRouter(
 
   const wizardLimiter = rateLimit({
     ...limiterOpts,
-    keyFn: (req: Request) => req.userId ?? "anonymous",
+    // Row 13 · Block 1 — principalKey, not `req.userId ?? "anonymous"`: a guest
+    // now arrives on this route with its session id, and `user:<id>` /
+    // `guest:<id>` keeps the two namespaces from ever colliding. Guests share
+    // the same buckets and the same budgets as users — no new limits.
+    keyFn: principalKey,
   });
 
   // ── POST /wizard/shelf — WS9 Redesign Arc Block 1 (D-WS9-237) ────────────
@@ -1071,16 +1123,39 @@ export function createWizardRouter(
 
   router.post(
     "/wizard/build-plans",
-    requireAuth,
+    // Row 13 "Test Kitchen" · Block 1 (D-WS9-259) — a guest may generate ONCE.
+    requireGuestOrAuth,
     wizardLimiter,
     async (req, res) => {
-      const userId = req.userId;
+      const guestSessionId = req.guestSessionId ?? null;
+      // 🔴 THE GUEST ID RIDES IN THE `userId` VARIABLE, DELIBERATELY.
+      //
+      // Every helper below takes a `userId: string` and uses it as a filter
+      // value — `where: { userId }` on preferences, plans, playlist, activity —
+      // and a guest id simply matches nothing, which is the correct answer for
+      // a visitor who owns nothing. Phase 0 checked each of them for a `User`
+      // lookup that would THROW on no row rather than return empty; none does.
+      // The one place the distinction matters is a WRITE, and every write on
+      // this path is explicitly skipped for a guest below.
+      const userId = req.userId ?? guestSessionId;
       if (!userId) {
         return res.status(401).json({ error: "unauthenticated" });
       }
       // BUG-052 — before the AI generate call, so the end-of-generation
       // supersede spares any draft the user creates mid-stream from this batch.
       const generationStartedAt = new Date();
+
+      // ONE generation per guest session (Hans, September 24). A second is a
+      // door, not a retry — the client shows the sign-up sheet on this code.
+      if (guestSessionId) {
+        const session = await prisma.guestSession.findUnique({
+          where: { id: guestSessionId },
+          select: { generationCount: true },
+        });
+        if (!session || session.generationCount >= 1) {
+          return res.status(409).json({ code: "guest_generation_used" });
+        }
+      }
 
       // 1. Validate the input.
       const parsed = WizardInputSchema.omit({ hiddenContext: true }).safeParse(
@@ -1093,16 +1168,25 @@ export function createWizardRouter(
         });
       }
 
-      // 2. Entitlement check.
-      const ent = await subscriptionService.can(
-        userId,
-        "kitchen_wizard_set_preferences",
-      );
-      if (!ent.allowed) {
-        return res.status(402).json({
-          error: "upgrade required",
-          reason: ent.reason ?? "Kitchen Wizard is a premium feature.",
-        });
+      // 2. Entitlement check — SKIPPED FOR A GUEST, and skipped explicitly.
+      //
+      // A guest has no Subscription row, so there is nothing for an
+      // entitlement to resolve against. Today subscriptionService.can() is the
+      // trial-mode stub that allows everyone and would pass a guest by
+      // accident; the moment Stripe replaces it (roadmap 1.1) that accident
+      // becomes a 402 on the first screen of the public funnel. The whole
+      // point of the Test Kitchen is that it runs IN FRONT of the paywall.
+      if (!guestSessionId) {
+        const ent = await subscriptionService.can(
+          userId,
+          "kitchen_wizard_set_preferences",
+        );
+        if (!ent.allowed) {
+          return res.status(402).json({
+            error: "upgrade required",
+            reason: ent.reason ?? "Kitchen Wizard is a premium feature.",
+          });
+        }
       }
 
       // 3. Read SystemSetting tunables.
@@ -1314,7 +1398,11 @@ export function createWizardRouter(
           { wizardInput, storeShortlist: storeShortlist.forPrompt },
           {
             prisma,
-            userId,
+            // Row 13 · Block 1 (D-WS9-261) — a guest call carries userId NULL
+            // and guestSessionId set, so its cost lands on the guest ledger
+            // and the guest ceiling, never on the user-attributed global sum.
+            userId: guestSessionId ? null : userId,
+            guestSessionId,
             cacheSplitMarker: WIZARD_GENERATE_CACHE_MARKER,
             onCandidate: sendCandidate,
             // Delta-driven liveness: keeps the client's stall watchdog alive
@@ -1335,7 +1423,7 @@ export function createWizardRouter(
             },
             "Wizard plan generation (stream) failed",
           );
-          await emitActivity(userId, "wizard_failure");
+          if (!guestSessionId) await emitActivity(userId, "wizard_failure");
           // BUG-249 — the stream ended early: check whatever was emitted (the
           // client keeps those cards), so a repeat among them is still counted.
           logCandidateRepeatCheck({
@@ -1426,7 +1514,12 @@ export function createWizardRouter(
         // worth re-showing later). Only when candidates were produced.
         // BUG-050 — commit the RECONCILED candidates (real Meal.ids) so a
         // rehydrated streamed batch binds at expand instead of demoting to live.
-        if (reconciledCandidates.length > 0) {
+        // Row 13 · Block 1 — SKIPPED FOR A GUEST. Both clears write rows a
+        // guest cannot own: persistWizardLastBatch upserts wizard_last_batches
+        // (NOT NULL userId FK) and the supersede updates meal_plan_instances.
+        // Skipped, not caught: a swallowed FK violation per generation is a
+        // silent error budget, not a design.
+        if (!guestSessionId && reconciledCandidates.length > 0) {
           await commitGeneratedBatch({
             userId,
             source: "wizard",
@@ -1435,6 +1528,17 @@ export function createWizardRouter(
             generationStartedAt,
             another,
           });
+        }
+        // Row 13 · Block 1 (D-WS9-259) — the guest's counterpart to the
+        // last-batch row: the wizard body and the wire candidates onto the
+        // session blob, and the ONE generation spent. Best-effort in the same
+        // spirit as commitGeneratedBatch — the cards are already on the wire.
+        if (guestSessionId && reconciledCandidates.length > 0) {
+          await persistGuestGeneration(
+            guestSessionId,
+            parsed.data,
+            reconciledCandidates,
+          );
         }
 
         sendFrame("done", {
@@ -1445,7 +1549,7 @@ export function createWizardRouter(
             latencyMs: streamResult.metadata.latencyMs,
           },
         });
-        await emitActivity(userId, "wizard_complete");
+        if (!guestSessionId) await emitActivity(userId, "wizard_complete");
         return res.end();
       }
 
@@ -1454,7 +1558,14 @@ export function createWizardRouter(
         "wizard.set_preferences.generate",
         { wizardInput, storeShortlist: storeShortlist.forPrompt },
         WizardPlanCandidatesResultSchema,
-        { prisma, userId },
+        // Row 13 · Block 1 (D-WS9-261) — see the streaming sibling above.
+        // `undefined` rather than `null` only because AICallOptions.userId is
+        // `string | undefined`; runAICall coalesces both to null on the row.
+        {
+          prisma,
+          userId: guestSessionId ? undefined : userId,
+          guestSessionId: guestSessionId ?? undefined,
+        },
       );
 
       if (!result.success) {
@@ -1470,7 +1581,8 @@ export function createWizardRouter(
         // PRD §5.10 — record the failure so cost/observability and admin
         // funnels can see real failure rates. Same fire-and-forget pattern
         // as wizard_complete: never let activity-write failures bubble up.
-        await emitActivity(userId, "wizard_failure");
+        // Row 13 · Block 1 — see the note at the activity event below.
+        if (!guestSessionId) await emitActivity(userId, "wizard_failure");
         return withAIFailureStatus(res, result.reason).json({
           error: result.userFacingMessage,
           reason: result.reason,
@@ -1545,7 +1657,8 @@ export function createWizardRouter(
       // 6b. Block 4b-3 (D-WS9-072 + BUG-047) — generation-clears (see the
       //     streaming path). Overwrite the last-batch row + supersede prior
       //     expand-drafts, only when candidates were produced.
-      if (candidates.length > 0) {
+      // Row 13 · Block 1 — SKIPPED FOR A GUEST; see the streaming sibling.
+      if (!guestSessionId && candidates.length > 0) {
         await commitGeneratedBatch({
           userId,
           source: "wizard",
@@ -1555,9 +1668,15 @@ export function createWizardRouter(
           another,
         });
       }
+      // Row 13 · Block 1 (D-WS9-259) — see the streaming sibling.
+      if (guestSessionId && candidates.length > 0) {
+        await persistGuestGeneration(guestSessionId, parsed.data, candidates);
+      }
 
       // 7. Activity event.
-      await emitActivity(userId, "wizard_complete");
+      // Row 13 · Block 1 — a guest owns no UserActivity rows (NOT NULL userId FK);
+      // the guest funnel is guest_events, written from POST /guest/events.
+      if (!guestSessionId) await emitActivity(userId, "wizard_complete");
 
       return res.json(response);
     },
@@ -1585,7 +1704,9 @@ export function createWizardRouter(
   // don't want a shared bucket to starve either flow.
   const tellKiwiLimiter = rateLimit({
     ...limiterOpts,
-    keyFn: (req: Request) => `tellkiwi:${req.userId ?? "anonymous"}`,
+    // Row 13 · Block 1 — principalKey for consistency across the wizard's
+    // buckets. Tell Kiwi itself stays requireAuth (a guest never reaches it).
+    keyFn: (req: Request) => `tellkiwi:${principalKey(req)}`,
   });
 
   router.post(
@@ -1973,15 +2094,23 @@ export function createWizardRouter(
   // plus the per-dish macro loop is the most expensive wizard action).
   const expandLimiter = rateLimit({
     ...limiterOpts,
-    keyFn: (req: Request) => `expand:${req.userId ?? "anonymous"}`,
+    // Row 13 · Block 1 — see the build-plans limiter note.
+    keyFn: (req: Request) => `expand:${principalKey(req)}`,
   });
 
   router.post(
     "/wizard/expand",
-    requireAuth,
+    // Row 13 "Test Kitchen" · Block 1 (D-WS9-260) — a guest may expand, and
+    // the expand is CATALOG-ONLY: a candidate the catalog cannot fill entirely
+    // returns `catalog_only_gap` before any AI call, and the client shows the
+    // thin-shelf door instead of a plan.
+    requireGuestOrAuth,
     expandLimiter,
     async (req, res) => {
-      const userId = req.userId;
+      const guestSessionId = req.guestSessionId ?? null;
+      // See the build-plans note: the guest id rides in the userId slot, where
+      // every helper uses it as a filter value that matches nothing.
+      const userId = req.userId ?? guestSessionId;
       if (!userId) {
         return res.status(401).json({ error: "unauthenticated" });
       }
@@ -1995,16 +2124,18 @@ export function createWizardRouter(
         });
       }
 
-      // 2. Entitlement.
-      const ent = await subscriptionService.can(
-        userId,
-        "kitchen_wizard_set_preferences",
-      );
-      if (!ent.allowed) {
-        return res.status(402).json({
-          error: "upgrade required",
-          reason: ent.reason ?? "Kitchen Wizard is a premium feature.",
-        });
+      // 2. Entitlement — skipped for a guest; see the build-plans note.
+      if (!guestSessionId) {
+        const ent = await subscriptionService.can(
+          userId,
+          "kitchen_wizard_set_preferences",
+        );
+        if (!ent.allowed) {
+          return res.status(402).json({
+            error: "upgrade required",
+            reason: ent.reason ?? "Kitchen Wizard is a premium feature.",
+          });
+        }
       }
 
       // 3. BUG-030 idempotency (expand side). Compute the content-derived key
@@ -2017,16 +2148,22 @@ export function createWizardRouter(
         parsed.data.candidate.title,
         parsed.data.candidate.mealTitles,
       );
-      const existingDraft = await prisma.mealPlanInstance.findFirst({
-        where: {
-          userId,
-          isWizardDraft: true,
-          isArchived: false,
-          wizardContentHash: contentHash,
-        },
-        orderBy: { createdAt: "desc" },
-        select: { id: true, createdAt: true, wizardDraftPayload: true },
-      });
+      // Row 13 · Block 1 — not read for a guest: a guest owns no
+      // MealPlanInstance rows, so this query can only ever match nothing.
+      // A guest's idempotency is the one-generation rule plus the single
+      // `draft` column on its session row.
+      const existingDraft = guestSessionId
+        ? null
+        : await prisma.mealPlanInstance.findFirst({
+            where: {
+              userId,
+              isWizardDraft: true,
+              isArchived: false,
+              wizardContentHash: contentHash,
+            },
+            orderBy: { createdAt: "desc" },
+            select: { id: true, createdAt: true, wizardDraftPayload: true },
+          });
       if (existingDraft) {
         const cached = WizardExpandedPlanDetailsSchema.safeParse(
           existingDraft.wizardDraftPayload,
@@ -2050,8 +2187,35 @@ export function createWizardRouter(
         prisma,
         userId,
         request: parsed.data,
+        // Row 13 · Block 1 (D-WS9-260) — catalog-only FOR A GUEST AND ONLY FOR
+        // A GUEST. A signed-in user keeps the live gap-fill: inventing a meal
+        // is the product they are paying for.
+        catalogOnly: !!guestSessionId,
+        guestSessionId: guestSessionId ?? undefined,
         runAICall,
       });
+
+      // Row 13 · Block 1 (D-WS9-260) — the thin-shelf DOOR. Hans's ruling:
+      // "Access to the full Kiwi meal library and meals that meet unique
+      // dietary needs and preferences is available in the app — sign up here."
+      // Not a fallback, not a partial plan, not a retry: 409 with the titles
+      // the catalog could not supply, and the client shows the sign-up sheet.
+      if (expanded.status === "catalog_only_gap") {
+        logger.info(
+          {
+            event: "wizard_expand_catalog_only_gap",
+            guestSessionId,
+            liveSlotCount: expanded.liveSlotTitles.length,
+            storeSlotCount: expanded.storeSlotCount,
+          },
+          "Guest expand hit the thin-shelf door",
+        );
+        return res.status(409).json({
+          code: "catalog_only_gap",
+          liveSlotTitles: expanded.liveSlotTitles,
+          storeSlotCount: expanded.storeSlotCount,
+        });
+      }
 
       if (expanded.status === "ai_failed") {
         logger.warn(
@@ -2063,11 +2227,51 @@ export function createWizardRouter(
           },
           "Wizard candidate expand failed",
         );
-        await emitActivity(userId, "wizard_failure");
+        if (!guestSessionId) await emitActivity(userId, "wizard_failure");
         return withAIFailureStatus(res, expanded.reason).json({
           error: expanded.userFacingMessage,
           reason: expanded.reason,
         });
+      }
+
+      // ── 5-GUEST. Row 13 · Block 1 (D-WS9-259) — NO persistWizardDraft. ──
+      //
+      // persistWizardDraft writes a MealPlanInstance, whose userId is a NOT
+      // NULL FK to users; a guest has no row for it to point at. The blob goes
+      // onto the session instead, IN THE SHAPE THE DRAFTS-GET RETURNS —
+      // { draft: { id, createdAt }, expanded } — so GET /guest/draft is a
+      // plain read and the mobile draft screen renders it unchanged.
+      //
+      // The `id` is the session id, not a plan id, and that is honest: there
+      // is no plan row to name. It becomes a real plan id at the claim, when
+      // persistWizardDraft finally runs for the new user.
+      if (guestSessionId) {
+        const guestDraft = {
+          draft: {
+            id: guestSessionId,
+            createdAt: new Date().toISOString(),
+          },
+          expanded: expanded.expanded,
+        };
+        try {
+          await prisma.guestSession.update({
+            where: { id: guestSessionId },
+            data: {
+              draft: guestDraft as unknown as Prisma.InputJsonValue,
+              lastEvent: "plan_opened",
+            },
+          });
+        } catch (err) {
+          // Unlike the generation persist, this one is FATAL: the response the
+          // guest is about to read is the plan, and a plan they can see but
+          // cannot come back to is worse than an honest failure.
+          logger.error(
+            { event: "guest_draft_persist_failed", guestSessionId, err },
+            "Failed to persist the guest draft onto the session row",
+          );
+          return res.status(500).json({ error: "failed to persist draft" });
+        }
+        return res.json(guestDraft);
       }
 
       // 5. Persist the hidden draft.

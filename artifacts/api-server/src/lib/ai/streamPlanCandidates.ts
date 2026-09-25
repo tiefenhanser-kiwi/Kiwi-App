@@ -86,6 +86,7 @@ export type StreamCapableMessages = Pick<Anthropic.Messages, "stream">;
 export interface StreamPlanCandidatesOptions {
   prisma?: PrismaLike | null;
   userId?: string | null;
+  guestSessionId?: string | null;
   model?: string;
   maxTokens?: number;
   temperature?: number;
@@ -130,6 +131,10 @@ export async function streamPlanCandidates(
   const start = Date.now();
   const prisma = opts.prisma ?? null;
   const userId = opts.userId ?? null;
+  // Row 13 · Block 1 (D-WS9-261) — guest attribution, same contract as
+  // runAICall: userId null AND guestSessionId set. This is the door the ONE AI
+  // call a guest is allowed goes through (wizard.set_preferences.generate).
+  const guestSessionId = opts.guestSessionId ?? null;
 
   const descriptor = await resolvePromptDescriptorFromDb(promptKey, prisma);
   const promptVersion = descriptor.version;
@@ -146,6 +151,7 @@ export async function streamPlanCandidates(
       model,
       mode: "text",
       userId,
+      guestSessionId,
       latencyMs: Date.now() - start,
       inputTokens: 0,
       outputTokens: 0,
@@ -162,7 +168,7 @@ export async function streamPlanCandidates(
   // D-WS9-240 — spend guard, same seam as runAICall: after rate resolution,
   // before `messages.stream`. A refusal writes NO LLMCallLog row (see the
   // runAICall note — the no_api_key branch above is the deliberate exception).
-  const guard = await checkSpendGuard({ prisma, userId, promptKey });
+  const guard = await checkSpendGuard({ prisma, userId, guestSessionId, promptKey });
   if (guard.refused) {
     return fail(promptKey, promptVersion, model, Date.now() - start, guard.reason);
   }
@@ -267,6 +273,7 @@ export async function streamPlanCandidates(
       model,
       mode: "text",
       userId,
+      guestSessionId,
       latencyMs,
       inputTokens: 0,
       outputTokens: 0,
@@ -316,6 +323,7 @@ export async function streamPlanCandidates(
       model,
       mode: "text",
       userId,
+      guestSessionId,
       latencyMs,
       inputTokens,
       outputTokens,
@@ -359,6 +367,7 @@ export async function streamPlanCandidates(
     model,
     mode: "text",
     userId,
+    guestSessionId,
     latencyMs,
     inputTokens,
     outputTokens,
@@ -387,6 +396,10 @@ function fail(
     | "ai_disabled"
     | "spend_cap_global"
     | "spend_cap_user"
+    // Row 13 · Block 1 (D-WS9-261) — this is the door the guest's one AI call
+    // goes through, so it is where a guest refusal surfaces.
+    | "guest_disabled"
+    | "guest_daily_ceiling"
   >,
   tokens?: { inputTokens: number; outputTokens: number },
 ): AICallResult<WizardPlanCandidatesResult> {

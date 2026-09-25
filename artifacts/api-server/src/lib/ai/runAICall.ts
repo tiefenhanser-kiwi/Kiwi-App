@@ -47,7 +47,15 @@ export interface AICallOptions {
   // Default true — single retry on validation failure with stricter prompt.
   retryOnValidationFailure?: boolean;
   // For LLMCallLog correlation. Null = system-triggered (seeds, batch jobs).
+  //
+  // Row 13 · Block 1 (D-WS9-261) — the GUEST counterpart. A guest call carries
+  // userId: null AND guestSessionId set: the two are mutually exclusive by
+  // construction, because a guest has no User row for userId to point at. The
+  // spend guard branches on guestSessionId ABOVE its `userId == null` early
+  // return, so guest spend is guarded by the guest ceiling and never joins the
+  // user-attributed global sum.
   userId?: string;
+  guestSessionId?: string;
   // Test seam — inject a custom Anthropic client. Production callers omit.
   client?: Pick<Anthropic, "messages">;
   // Production: pass the singleton from ../prisma to enable DB-backed prompt
@@ -148,6 +156,11 @@ export async function runAICall<T extends z.ZodTypeAny>(
   const temperature = opts.temperature ?? 0.7;
   const retryOnValidationFailure = opts.retryOnValidationFailure ?? true;
   const userId = opts.userId ?? null;
+  // Row 13 · Block 1 (D-WS9-261) — rides on every LLMCallLog row this call
+  // writes (success, SDK failure, validation exhaustion, no_api_key) and into
+  // the spend guard below. One resolution, threaded, so no exit path can
+  // write an unattributed guest row.
+  const guestSessionId = opts.guestSessionId ?? null;
   const cachedSystemPrefix = opts.cachedSystemPrefix;
 
   const client = opts.client ?? getClient();
@@ -166,6 +179,7 @@ export async function runAICall<T extends z.ZodTypeAny>(
       model,
       mode,
       userId,
+      guestSessionId,
       latencyMs: failureResult.metadata.latencyMs ?? 0,
       inputTokens: 0,
       outputTokens: 0,
@@ -190,6 +204,7 @@ export async function runAICall<T extends z.ZodTypeAny>(
   const guard = await checkSpendGuard({
     prisma: prismaClient,
     userId,
+    guestSessionId,
     promptKey,
   });
   if (guard.refused) {
@@ -281,6 +296,7 @@ export async function runAICall<T extends z.ZodTypeAny>(
         model,
         mode,
         userId,
+        guestSessionId,
         latencyMs,
         inputTokens,
         outputTokens,
@@ -355,6 +371,7 @@ export async function runAICall<T extends z.ZodTypeAny>(
         model,
         mode,
         userId,
+        guestSessionId,
         latencyMs,
         inputTokens,
         outputTokens,
@@ -399,6 +416,7 @@ export async function runAICall<T extends z.ZodTypeAny>(
     model,
     mode,
     userId,
+    guestSessionId,
     latencyMs,
     inputTokens,
     outputTokens,

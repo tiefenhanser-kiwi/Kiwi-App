@@ -461,9 +461,15 @@ export interface PrismaLike {
     count?(args: {
       where: { userId: string; createdAt: { gte: Date } };
     }): Promise<number>;
+    // Row 13 · Block 1 (D-WS9-261) — the `where` widened to cover the GUEST sum
+    // too (`guestSessionId: { not: null }` instead of `userId: { not: null }`).
+    // Both shapes are the same aggregate against the same index family; typing
+    // the where as a union keeps every existing stub valid.
     aggregate?(args: {
       _sum: { costEstimateUsd: true };
-      where: { createdAt: { gte: Date }; userId: { not: null } };
+      where:
+        | { createdAt: { gte: Date }; userId: { not: null } }
+        | { createdAt: { gte: Date }; guestSessionId: { not: null } };
     }): Promise<{ _sum: { costEstimateUsd: unknown } }>;
   };
 }
@@ -479,6 +485,11 @@ export interface LLMCallLogCreateData {
   model: string;
   mode: LLMCallLogMode;
   userId: string | null;
+  // Row 13 · Block 1 (D-WS9-261) — the guest ledger. Optional on the type (not
+  // `string | null` like userId) so the dozens of existing hand-built literals
+  // in tests and scripts keep compiling; the two production doors both pass it
+  // explicitly, null included.
+  guestSessionId?: string | null;
   latencyMs: number;
   inputTokens: number;
   outputTokens: number;

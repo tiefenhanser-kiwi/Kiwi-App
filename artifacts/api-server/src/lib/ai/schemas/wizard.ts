@@ -689,6 +689,36 @@ export type WizardExpandedPlanDetails = z.infer<
   typeof WizardExpandedPlanDetailsSchema
 >;
 
+// ── Row 13 "Test Kitchen" · Block 1 (D-WS9-260) ─────────────────────────
+//
+// The THIN-SHELF DOOR, on the wire. POST /wizard/expand's response is now a
+// union: the ordinary { draft, expanded } body, or — for a catalog-only
+// (guest) expand the catalog could not fill — a 409 carrying this shape.
+//
+// There was NO thin-shelf response shape before this block. The shelf
+// degraded silently to fully-live, so "the catalog ran out" was a condition
+// the wire could not express. It can now, and only under catalogOnly: a
+// signed-in user never sees it, because for them the gap is filled.
+export const WizardCatalogOnlyGapSchema = z.object({
+  code: z.literal("catalog_only_gap"),
+  // The titles the AI picked that the catalog could not supply. These are what
+  // sign-up unlocks; the door names them.
+  liveSlotTitles: z.array(z.string()).min(1),
+  // How many slots the catalog DID fill — the "we got this far" number.
+  storeSlotCount: z.number().int().nonnegative(),
+});
+export type WizardCatalogOnlyGap = z.infer<typeof WizardCatalogOnlyGapSchema>;
+
+/** The full POST /wizard/expand response union. */
+export const WizardExpandResponseSchema = z.union([
+  z.object({
+    draft: z.object({ id: z.string().min(1), createdAt: z.string().min(1) }),
+    expanded: WizardExpandedPlanDetailsSchema,
+  }),
+  WizardCatalogOnlyGapSchema,
+]);
+export type WizardExpandResponse = z.infer<typeof WizardExpandResponseSchema>;
+
 // ── WS7-5c Block A — finalize-steps AI output (call #3) ──────────────────
 // wizard.candidate.finalize_steps returns per-dish step arrays keyed by
 // (mealIndex, dishIndex) so the server can merge them positionally into

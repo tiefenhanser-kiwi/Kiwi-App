@@ -54,6 +54,24 @@ export interface ExpandCandidateOptions {
   prisma: PrismaClient;
   userId: string;
   request: WizardExpandRequest;
+  // Row 13 "Test Kitchen" · Block 1 (D-WS9-260) — CATALOG-ONLY. When true, a
+  // candidate with ANY live slot is refused with `catalog_only_gap` before a
+  // single AI call is made, instead of composing the gap live.
+  //
+  // 🔴 THIS IS THE THING HANS RULED OFF FOR GUESTS, and it is worth naming
+  // precisely because the scope doc named the wrong thing. D-WS9-238 (the
+  // "AI-fallback engine") is RULED AND UNBUILT and appears nowhere in src/.
+  // The invention path that actually exists is right here: `liveSlots` below,
+  // and `expandOneMeal` over them. That is what this flag switches off.
+  //
+  // A thin shelf for a guest is therefore a DOOR, not a fallback: "Access to
+  // the full Kiwi meal library … is available in the app — sign up here." No
+  // invented meals for a visitor who has not signed up to cook them.
+  catalogOnly?: boolean;
+  // Row 13 · Block 1 (D-WS9-261) — attribution for a guest's AI spend. Threaded
+  // to every runAICall on this path so the guest ceiling can see the cost and
+  // the user-attributed global sum never does.
+  guestSessionId?: string;
   // DI seams.
   runAICall?: typeof productionRunAICall;
   estimateDishMacrosImpl?: typeof estimateDishMacros;
@@ -75,6 +93,15 @@ export type ExpandCandidateResult =
       status: "ai_failed";
       reason: string;
       userFacingMessage: string;
+    }
+  // Row 13 · Block 1 (D-WS9-260) — the thin-shelf door. Returned ONLY under
+  // catalogOnly, and only when the catalog could not fill every slot. The
+  // titles are what the AI wanted and the catalog could not supply; the client
+  // shows them as "we'd have to invent these for you — sign up".
+  | {
+      status: "catalog_only_gap";
+      liveSlotTitles: string[];
+      storeSlotCount: number;
     };
 
 /**
@@ -205,6 +232,38 @@ export async function expandCandidate(
     "Wizard expand store-compose summary",
   );
 
+  // ── Row 13 "Test Kitchen" · Block 1 (D-WS9-260) — the catalog-only guard ──
+  //
+  // 🔴 PLACED HERE, AND THE PLACEMENT IS THE GUARANTEE. `liveSlots` is fully
+  // built one statement above; the first `runAICall` is the Promise.all one
+  // statement below. Nothing between them touches Anthropic — the compose
+  // summary is a log line, and composeStoreMealDetails is a DB read. So a
+  // catalog-only expand returning from here has provably made ZERO AI calls,
+  // which is the claim guestCatalogOnly.test.ts asserts on the DI seam's call
+  // count rather than on this response shape.
+  //
+  // Refuse rather than compose: an invented meal costs ~$0.065 and ~33 s and
+  // is exactly the surface Hans ruled off for guests. The refusal is a door.
+  if (opts.catalogOnly && liveSlots.length > 0) {
+    logger.info(
+      {
+        event: "wizard_catalog_only_gap",
+        userId: opts.userId,
+        guestSessionId: opts.guestSessionId,
+        candidateId: opts.request.candidate.id,
+        totalSlots: mealTitles.length,
+        storeSlotCount: storeMealsBound,
+        liveSlotCount: liveSlots.length,
+      },
+      "Catalog-only expand refused — the catalog could not fill every slot",
+    );
+    return {
+      status: "catalog_only_gap",
+      liveSlotTitles: liveSlots.map((s) => s.title),
+      storeSlotCount: storeMealsBound,
+    };
+  }
+
   // 1. AI-expand the LIVE slots only (store slots already carry full detail).
   const perMealResults = await Promise.all(
     liveSlots.map((s) =>
@@ -212,6 +271,7 @@ export async function expandCandidate(
         runAICall,
         prisma: opts.prisma,
         userId: opts.userId,
+        guestSessionId: opts.guestSessionId,
         candidate: opts.request.candidate,
         candidateContext: serverCandidateContext,
         mealTitle: s.title,
@@ -594,6 +654,11 @@ interface ExpandOneMealOptions {
   candidate: WizardExpandRequest["candidate"];
   candidateContext: WizardExpandRequest["candidateContext"];
   mealTitle: string;
+  // Row 13 · Block 1 (D-WS9-261) — guest attribution, threaded to runAICall.
+  // Unreachable for a guest today (catalogOnly returns before this function is
+  // ever called), and present anyway so the attribution invariant is STRUCTURAL
+  // rather than a consequence of the guard that happens to sit upstream.
+  guestSessionId?: string;
 }
 
 /**
@@ -637,6 +702,7 @@ async function expandOneMeal(
     {
       prisma: opts.prisma,
       userId: opts.userId,
+      guestSessionId: opts.guestSessionId,
       maxTokens: WIZARD_EXPAND_PER_MEAL_MAX_TOKENS,
     },
   );

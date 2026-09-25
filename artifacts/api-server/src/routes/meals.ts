@@ -38,7 +38,10 @@ import {
   type SubscriptionService,
 } from "../lib/subscriptionService";
 import { createRequireAuth } from "../middleware/auth";
-import { createRequireGuestOrAuth } from "../middleware/guestAuth";
+import {
+  createRequireGuestOrAuth,
+  principalKey,
+} from "../middleware/guestAuth";
 
 export interface MealsRouterDeps {
   runAICall: typeof productionRunAICall;
@@ -657,7 +660,19 @@ export function createMealsRouter(
 
   // Catalog read limiter — 30 burst, ~1 every 2s. Created per-router so
   // unit-test harnesses each get their own bucket.
-  const catalogLimiter = rateLimit({ capacity: 30, refillPerSec: 30 / 60 });
+  // Row 13 · Block 1 — keyed on the PRINCIPAL, not on the IP it used to
+  // default to. GET /meals/:id now accepts a guest, so this bucket had to be
+  // looked at, and the look found a live problem: the default keyFn is
+  // clientIp(), and with TRUST_PROXY_HOPS unset on Cloud Run (BUG-223 / Phase 0
+  // §9.5) req.ip is Google's front end for EVERY request — so "30 catalog reads
+  // a minute per IP" was in fact 30 a minute for the entire userbase, shared.
+  // principalKey gives each user, and each guest, their own bucket, which is
+  // what the number was always meant to mean.
+  const catalogLimiter = rateLimit({
+    capacity: 30,
+    refillPerSec: 30 / 60,
+    keyFn: principalKey,
+  });
 
   router.post(
     "/meals/find-similar",

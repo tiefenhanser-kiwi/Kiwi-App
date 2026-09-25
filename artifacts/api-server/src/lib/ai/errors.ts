@@ -20,7 +20,12 @@ export type AICallFailureReason =
   // an LLMCallLog row.
   | "ai_disabled"
   | "spend_cap_global"
-  | "spend_cap_user";
+  | "spend_cap_user"
+  // Row 13 · Block 1 (D-WS9-261) — the guest lane's two. A guest refusal is
+  // the same class of event as the user ceiling's: no Anthropic call, no
+  // LLMCallLog row, and a "come back later" for the caller.
+  | "guest_disabled"
+  | "guest_daily_ceiling";
 
 const KIWI_DISTRACTED = "Kiwi got distracted. Try again?";
 const RATE_LIMITED =
@@ -40,6 +45,14 @@ export function userFacingMessage(reason: AICallFailureReason): string {
       return SPEND_CAP_USER_COPY;
     case "spend_cap_global":
     case "ai_disabled":
+      return AI_UNAVAILABLE_COPY;
+    // Row 13 · Block 1 — a guest hitting the guest ceiling or the guest kill
+    // switch is told the same thing a user is told when the global ceiling
+    // trips. It is deliberately NOT a door: the visitor did nothing wrong and
+    // nothing they can buy fixes it, so inviting them to sign up here would be
+    // a lie about what sign-up does.
+    case "guest_disabled":
+    case "guest_daily_ceiling":
       return AI_UNAVAILABLE_COPY;
     case "no_api_key":
     case "sdk_error":
@@ -67,13 +80,19 @@ export interface AIFailureHttp {
 
 export type SpendGuardFailureReason = Extract<
   AICallFailureReason,
-  "ai_disabled" | "spend_cap_global" | "spend_cap_user"
+  | "ai_disabled"
+  | "spend_cap_global"
+  | "spend_cap_user"
+  | "guest_disabled"
+  | "guest_daily_ceiling"
 >;
 
 const SPEND_GUARD_REASONS: ReadonlySet<string> = new Set<SpendGuardFailureReason>([
   "ai_disabled",
   "spend_cap_global",
   "spend_cap_user",
+  "guest_disabled",
+  "guest_daily_ceiling",
 ]);
 
 // The fan-out helpers (wizardExpansion / wizardFinalize) wrap a per-meal
@@ -97,6 +116,13 @@ export function aiFailureStatus(
     case "spend_cap_global":
       return { status: 503, retryAfterSeconds: secondsUntilNextUtcDay(now) };
     case "ai_disabled":
+      return { status: 503, retryAfterSeconds: AI_DISABLED_RETRY_AFTER_SECONDS };
+    // Row 13 · Block 1 — 503, not 429. The guest ceiling is a PROPERTY OF THE
+    // DAY, not of this visitor: they have spent nothing and can do nothing
+    // about it, which is the global ceiling's shape, not the per-user cap's.
+    case "guest_daily_ceiling":
+      return { status: 503, retryAfterSeconds: secondsUntilNextUtcDay(now) };
+    case "guest_disabled":
       return { status: 503, retryAfterSeconds: AI_DISABLED_RETRY_AFTER_SECONDS };
     default:
       return { status: 502 };
