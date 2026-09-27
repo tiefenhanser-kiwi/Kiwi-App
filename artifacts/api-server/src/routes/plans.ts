@@ -95,6 +95,21 @@ export interface PlansRouterDeps {
   loadPrepStepSet: typeof productionLoadPrepStepSet;
   rateLimiterOpts?: { capacity: number; refillPerSec: number };
   mutationLimiterOpts?: { capacity: number; refillPerSec: number };
+  /**
+   * BUG-311 — "now", injected. The PATCH decides whether a re-dated plan NEWLY
+   * covers the present moment, and that decision is what stamps `activatedAt`
+   * and gates the plan_activated_this_week emit. It was reading the WALL CLOCK
+   * while the window under test came from the body's `localDate`, so the Part D
+   * (c) case in plans.test.ts pinned a window to 2026-09-16…09-23 and went
+   * permanently red on 2026-09-24 — a test that measured the calendar, not the
+   * code.
+   *
+   * Deliberately narrow: only the two coverage predicates in the PATCH read it.
+   * `currentWeekRange()` on the POST path and the `new Date()` stamps are
+   * untouched, because nothing needed them injected and a wider seam is a wider
+   * blast radius for no coverage.
+   */
+  now?: () => Date;
 }
 
 // Per-filter fetch cap for GET /plans. Each filter is resolved up to this
@@ -203,6 +218,9 @@ export function createPlansRouter(
   // Shadows the module import: every requireAuth call site below is unchanged.
   const requireAuth = createRequireAuth({ prisma });
   const loadPrepStepSet = deps.loadPrepStepSet ?? productionLoadPrepStepSet;
+  // BUG-311 — see the dep's doc comment. Production is the wall clock, so this
+  // is behaviour-neutral outside a test that injects.
+  const now = deps.now ?? (() => new Date());
   // Same per-user token-bucket pattern + ceiling as meals.ts. Recalc
   // CAN fan out to N AI calls in the worst case, but real Plan Review
   // editing flows (remove an ingredient, re-trigger; tweak servings,
@@ -1198,6 +1216,11 @@ export function createPlansRouter(
           didNewlyCoverNow(
             { startDate: row.startDate, endDate: row.endDate },
             nextRow,
+            // BUG-311 — the injected clock. planDates.ts already took an
+            // optional `now` on both predicates; the route simply never passed
+            // one, so the decision was made against the wall clock while the
+            // window came from the body.
+            now(),
           );
         if (didNewlyCover) {
           data.activatedAt = new Date();
@@ -1226,7 +1249,7 @@ export function createPlansRouter(
         // helper from lib/planDates.ts — single source of truth with the
         // resolver basis (D-WS7-103). Never stamps on
         // isActiveThisWeek: false; never when the field is absent.
-        const nextCoversNow = isInstanceActiveThisWeek(nextRow);
+        const nextCoversNow = isInstanceActiveThisWeek(nextRow, now()); // BUG-311
         if (body.isActiveThisWeek === true && !didNewlyCover && nextCoversNow) {
           data.activatedAt = new Date();
           changedFields.add("activatedAt");

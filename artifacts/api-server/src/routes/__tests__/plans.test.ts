@@ -2240,6 +2240,12 @@ function mutationSpinUp(
   opts?: {
     limiterCapacity?: number;
     planNeedsMacroEstimation?: () => Promise<boolean>;
+    // BUG-311 — pin "today" for cases whose window comes from a fixed
+    // `localDate`. Without this the PATCH decided coverage against the WALL
+    // CLOCK, so a test asserting a stamped activatedAt on a 2026-09-16 window
+    // passed until 2026-09-23 and was red every day after. Omitted → the real
+    // clock, which is what every other case here wants.
+    now?: Date;
   },
 ): Promise<Harness> {
   return spinUp({
@@ -2247,6 +2253,7 @@ function mutationSpinUp(
     computePlanMacros: (async () => HAPPY_RESULT) as never,
     planNeedsMacroEstimation: (opts?.planNeedsMacroEstimation ??
       (async () => false)) as never,
+    ...(opts?.now ? { now: () => opts.now! } : {}),
     // Over-provision the mutation limiter so mutation-route test cases
     // do not 429 themselves (c2/c3/c4 share this helper).
     mutationLimiterOpts: { capacity: opts?.limiterCapacity ?? 1000, refillPerSec: 100 },
@@ -4492,6 +4499,13 @@ describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
         instances: [fixturePatch({ id: "p-saved", startDate: null, endDate: null })],
         items: sevenItems("p-saved"),
       }),
+      // BUG-311 — the server clock is pinned to the SAME Wednesday the body
+      // names below. The case is about what a localDate does to the window and
+      // to the activation stamp, and both halves have to live in one calendar
+      // for that to be a statement about the code. Before this the window came
+      // from the body and the stamp from the wall clock, so the test passed for
+      // one week in September 2026 and failed every day after.
+      { now: new Date("2026-09-16T12:00:00Z") },
     );
     try {
       // Wednesday 2026-09-16 in the client's calendar.
@@ -4507,6 +4521,46 @@ describe("PATCH /plans/:id — multi-field (WS7-4-C c4)", () => {
       assert.equal(toYmd(days[6].date), "2026-09-23");
       // It covers "today" in that calendar → activatedAt stamped + emit.
       assert.ok(wrote.activatedAt instanceof Date);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // BUG-311, the other half. The case above proves the stamp lands when the
+  // injected clock is INSIDE the window the localDate opens. This proves the
+  // clock is what decides it: same body, same window, a clock a month later →
+  // the window does not cover "now", so activatedAt must NOT be stamped.
+  //
+  // Without this the fix could be a seam nothing reads — the test above would
+  // pass just as well against a hard-coded `true`, and next September the whole
+  // pair would go quietly wrong again.
+  it("BUG-311: the injected clock DECIDES the stamp — a window that no longer covers today does not activate", async () => {
+    const recorder: C4PatchRecorder = { instanceUpdates: [], updateManyCalls: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeC4PatchStub({
+        recorder,
+        instances: [fixturePatch({ id: "p-stale", startDate: null, endDate: null })],
+        items: sevenItems("p-stale"),
+      }),
+      // A month after the window the body below opens.
+      { now: new Date("2026-10-20T12:00:00Z") },
+    );
+    try {
+      const res = await patchPlan(harness, "p-stale", {
+        isActiveThisWeek: true,
+        localDate: "2026-09-16",
+      });
+      assert.equal(res.status, 200);
+      const wrote = recorder.instanceUpdates[0].data;
+      // The window still comes from the body — that half never read the clock.
+      assert.equal(toYmd(wrote.startDate as Date), "2026-09-16");
+      assert.equal(toYmd(wrote.endDate as Date), "2026-09-23");
+      // But the stamp does, and this window is in the past.
+      assert.equal(
+        wrote.activatedAt,
+        undefined,
+        "a plan whose window does not cover now must not be stamped active",
+      );
     } finally {
       await harness.close();
     }
