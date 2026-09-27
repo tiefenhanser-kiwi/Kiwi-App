@@ -257,6 +257,23 @@ enum MealImageStatus {
   failed
 }
 
+// Row 9 (1.1) · OAuth Block 1 — the social sign-in providers.
+//
+// AN ENUM, not the plain String that GuestEvent.event and User.signupSource
+// deliberately are, and the difference is the shape of the fact. Those two
+// record something that HAPPENED and whose vocabulary grows by a line of
+// code; this one names a VERIFICATION PATH, and every value has to exist as
+// server code before it can ever be written — a JWKS URL, an issuer, an
+// audience variable, a nonce rule. There is no such thing as a provider the
+// database knows and the code does not, so the database may as well refuse it.
+//
+// Meta is future (PRD §3.3). It arrives as a migration, which is correct: it
+// cannot arrive without one anyway.
+enum OAuthProvider {
+  apple
+  google
+}
+
 // ── MODELS ──
 
 model User {
@@ -367,8 +384,97 @@ model User {
   // Row 13 · Block 1 (D-WS9-259) — the guest sessions this account claimed.
   // SetNull on delete: the funnel evidence survives the account.
   guestSessionsClaimed    GuestSession[]       @relation("GuestSessionClaimant")
+  // Row 9 (1.1) · OAuth Block 1 — the Apple / Google identities on this
+  // account. Cascade: an identity has no meaning without its user.
+  identities              UserIdentity[]
 
   @@map("users")
+}
+
+// Row 9 (1.1) · OAuth Block 1 — WHO A PERSON IS AT A PROVIDER.
+//
+// ── WHY A TABLE AND NOT TWO COLUMNS ON `users` ───────────────────────────
+//
+// `appleSubject` / `googleSubject` on the user row is the tempting shape and
+// it is wrong in three ways that all cost a migration later:
+//
+//   1. It is not one-to-one. A person signs in with Apple on the phone and
+//      Google on the laptop, and both are the same account. Columns make that
+//      a pair of nullable fields whose uniqueness has to be spelled out twice;
+//      a table makes it two rows and one constraint.
+//   2. Meta is next (PRD §3.3), and a third provider is a third pair of
+//      columns on the single hottest table in the schema.
+//   3. The per-identity FACTS have nowhere to live. `emailAtLink`,
+//      `isPrivateRelay` and the Apple refresh token are properties of THE LINK,
+//      not of the person: two providers can assert two different emails, and
+//      only one of them is a `@privaterelay.appleid.com`.
+//
+// ── THE CONSTRAINT THAT MATTERS ──────────────────────────────────────────
+//
+// `@@unique([provider, subject])`. The `sub` claim is unique per provider, not
+// globally, and it is stable — Apple and Google both promise it survives an
+// email change, which is exactly why resolution keys on it FIRST and on the
+// email only as a fallback. The unique index is also the race guard: two
+// simultaneous first sign-ins with the same token cannot both create a user,
+// because the second insert hits P2002 rather than winning.
+//
+// ⚠️ An account can hold identities AND a password. They are not exclusive:
+// `users.passwordHash` has been nullable since before this block, an
+// OAuth-only user simply has null there, and a user who later completes a
+// password reset gains one without losing anything.
+model UserIdentity {
+  id     String        @id @default(uuid())
+  userId String
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  provider OAuthProvider
+  // The provider's `sub` claim. STABLE and opaque — never parsed, never shown.
+  subject  String
+
+  // The email the token asserted AT THE TIME THIS LINK WAS MADE, and the
+  // reason it is not just `users.email`: it is evidence, not identity. If the
+  // link was made by the email-match branch, this is what matched; if the user
+  // later changes their Kiwi email, this still says what the provider said.
+  // Never used to sign anyone in — only `(provider, subject)` does that.
+  emailAtLink   String?
+  // Did the provider assert the email as VERIFIED? An unverified assertion is
+  // never allowed to link to an existing account (that would be a takeover:
+  // claim a stranger's address, get their account), so this is recorded as the
+  // fact that justified the link.
+  emailVerified Boolean @default(false)
+  // Apple's Hide My Email (PRD OQ-3.3, default accepted). A
+  // `@privaterelay.appleid.com` address is stored as the user's email and
+  // flagged here. The account works in-app exactly like any other; the flag is
+  // what lets a future email send know it is relaying through Apple.
+  isPrivateRelay Boolean @default(false)
+
+  // 🔴 App Review 5.1.1(v): an app offering Sign in with Apple MUST revoke the
+  // token when the account is deleted. That call needs a refresh token, which
+  // Apple returns ONCE, from the one-time authorization code — so it is stored,
+  // and stored ENCRYPTED (lib/oauth/secretBox.ts), because unlike a password
+  // hash it is a live bearer credential against appleid.apple.com.
+  //
+  // NULL is a normal state, not a failure: Google identities never have one,
+  // and an Apple sign-in whose code exchange failed (or whose deploy has no
+  // encryption key) has none either. DELETE /me skips what it cannot decrypt
+  // and deletes anyway — the revoke is best-effort and never blocks deletion.
+  appleRefreshTokenEnc String?
+  // WHICH client id the refresh token was issued to. Apple's /auth/revoke
+  // requires the same `client_id` the token was minted for, and
+  // APPLE_OAUTH_AUDIENCES is a LIST (a bundle id for native, a Services ID for
+  // web) — so the right one cannot be guessed at deletion time. It is the
+  // verified token's own `aud`, recorded here when the link is made.
+  appleClientId String?
+
+  createdAt DateTime @default(now())
+  // Not in the original shape, and earned: the row is WRITTEN AGAIN on later
+  // sign-ins (a fresh authorization code re-stores the refresh token), so
+  // `createdAt` alone would leave no trace of the most recent link.
+  updatedAt DateTime @updatedAt
+
+  @@unique([provider, subject])
+  @@index([userId])
+  @@map("user_identities")
 }
 
 // WS7-2 Block A — per-user meal favorites. Cascade-deleted on user or meal
