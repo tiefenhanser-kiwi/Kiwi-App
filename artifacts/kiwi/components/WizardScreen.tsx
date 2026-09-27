@@ -79,6 +79,12 @@ import {
   type WizardShelfRequest,
 } from "@/lib/wizard/perRunPayload";
 import { pickMealsRouteParams } from "@/lib/wizard/pickMeals";
+// Row 13 "Test Kitchen" · Block 2 Part C (R3) — the guest form.
+import { buildGuestWizardPayload } from "@/lib/wizard/guestPayload";
+import { buildGuestPlans, trackGuestEvent } from "@/lib/api/guest";
+import { useGuestOptional } from "@/contexts/GuestContext";
+import { useGuestDoor } from "@/hooks/useGuestDoor";
+import { GuestDoorSheet } from "@/components/GuestDoorSheet";
 
 export type WizardMode = "prefs" | "text";
 /** Which of the two "How to build it" rows is chosen. `null` = nothing yet. */
@@ -123,6 +129,18 @@ export const PATH_PLANS_SUB_PREFS = "3 plans built from your preferences. Pick o
 export const PATH_PLANS_SUB_TEXT =
   "3 plans built from what you wrote and your preferences. Pick one.";
 export const MIX_INTRO = "Leave both unset and Kiwi plans straight from your preferences.";
+
+// ── Row 13 Block 2 (R3) — the guest form's copy ───────────────────────────
+// The disclosure is EXPANDED by default and RETITLED for a guest: it holds the
+// allergy question, and it is the ONLY place a guest is ever asked. Collapsed
+// behind "Adjust saved prefs for this plan · Optional" a visitor could generate
+// a week without ever seeing it — and there are no saved prefs to adjust.
+export const GUEST_DIET_TITLE = "Allergies, cuisines and more";
+export const GUEST_DIET_SUBTITLE = "Tell Kiwi what to avoid and what you like";
+export const GUEST_CTA_HINT = "Next: Kiwi builds 3 plans — you pick one";
+export const GUEST_SPENT_TITLE = "You've built your Test Kitchen plan";
+export const GUEST_SPENT_BODY =
+  "The Test Kitchen builds one plan per visit. Create a free account for unlimited plans — and to keep this one.";
 
 interface WizardFormState {
   /** Text mode's box. Empty and unrendered in prefs mode. */
@@ -206,6 +224,28 @@ export interface WizardScreenProps {
   /** Block 2b — changes when the Pick screen dismisses BACK to this mounted
    *  screen with adjust / focus, so the effects below re-fire on the same "1". */
   paramNonce?: string;
+  // ── Row 13 "Test Kitchen" · Block 2 Part C (R3) ───────────────────────────
+  /**
+   * The Test Kitchen's guest form. Hans: "it's the wizard flow… users can skip
+   * most of it if they want" — so this is a SET OF GATES on the existing screen,
+   * not a second screen:
+   *   · mode is locked to prefs and the path to "plans" (the chooser is hidden):
+   *     /wizard/shelf and /wizard/build-from-text are both requireAuth, and
+   *     build-from-text is the AI-invention surface Hans ruled off for guests;
+   *   · sauce and "The mix" are HIDDEN and omitted from the request entirely
+   *     (lib/wizard/guestPayload.ts — the claim saves what the request carried);
+   *   · the dietary disclosure is EXPANDED and retitled;
+   *   · every member-only read on this screen is disabled: GET /me/preferences,
+   *     GET /playlist and GET /wizard/last-batch are all requireAuth, and a
+   *     guest token there is a 401 (measured), which is the cascade.
+   */
+  guest?: boolean;
+  /** The one generation is used (GET /guest/session generationCount > 0). The
+   *  server's 409 guest_generation_used is the authority; this is what lets the
+   *  screen show a door instead of spending a call to be refused. */
+  guestGenerationSpent?: boolean;
+  /** The entry s "pick up where you left off" link, rendered above the form. */
+  guestResumeBanner?: React.ReactNode;
 }
 
 export function WizardScreen({
@@ -214,30 +254,50 @@ export function WizardScreen({
   adjustOpen = false,
   focusText = false,
   paramNonce,
+  guest = false,
+  guestGenerationSpent = false,
+  guestResumeBanner = null,
 }: WizardScreenProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const isText = mode === "text";
+  // Row 13 Block 2 — a guest is never in text mode (build-from-text is
+  // member-only AND the AI-invention surface), whatever the route asked for.
+  const isText = mode === "text" && !guest;
 
   const [form, setForm] = useState<WizardFormState>(() => ({
     ...INITIAL_FORM,
     description: isText ? initialText : "",
-    adjustExpanded: adjustOpen,
+    // R3 — EXPANDED by default for a guest. It holds the allergy question and
+    // it is the only place a guest is ever asked.
+    adjustExpanded: guest || adjustOpen,
   }));
-  const [path, setPath] = useState<WizardPath | null>(null);
+  // R3 — the path is LOCKED for a guest: the chooser is not rendered, and
+  // "plans" is the only path whose two calls a guest token may make.
+  const [path, setPath] = useState<WizardPath | null>(guest ? "plans" : null);
   const textInputRef = useRef<TextInput>(null);
 
   // Cookbook Phase B Block 4 — stored prefs hydrate the controls (D-WS7-035).
   // Read-only here: the wizard never PATCHes /me/preferences.
+  //
+  // 🔴 DISABLED FOR A GUEST. GET /me/preferences is requireAuth. A guest token
+  // there is a measured 401, and an authenticated 401 is the session-expired
+  // cascade — so leaving this enabled would have evicted every Test Kitchen
+  // visitor to /(auth)/sign-in on mount. `enabled: false` also keeps `hydrated`
+  // false forever for a guest, which is exactly why the guest payload has its
+  // own builder (lib/wizard/guestPayload.ts): the member builder reads
+  // `hydrated` and would drop the visitor's allergies.
   const prefsQuery = useQuery<UserPreferences>({
     queryKey: ["me", "preferences"],
     queryFn: getPreferences,
+    enabled: !guest,
   });
   // Block 2a — the Playlist dial's gate. Only `count` is read; a failed read
-  // leaves it undefined and the chips render (never a blocker).
+  // leaves it undefined and the chips render (never a blocker). Disabled for a
+  // guest for the same reason as above — and moot, since "The mix" is hidden.
   const playlistQuery = useQuery({
     queryKey: PLAYLIST_QUERY_KEY,
     queryFn: getPlaylist,
+    enabled: !guest,
   });
 
   // Once stored prefs arrive we seed the form exactly once. `hydrated` also
@@ -269,6 +329,20 @@ export function WizardScreen({
     if (adjustOpen) setForm((prev) => ({ ...prev, adjustExpanded: true }));
   }, [adjustOpen, paramNonce]);
 
+  // ── Row 13 Block 2 Part C — the guest's ONE generation ──────────────────
+  // Buffered POST /wizard/build-plans with the guest principal. Not the SSE
+  // stream: see lib/api/guest.ts buildGuestPlans. `useGuest()` is called
+  // unconditionally (hooks sit above every branch) and simply goes unread on the
+  // member path — GuestProvider wraps the whole navigator, so it is always there.
+  // useGuestOptional, not useGuest: this component is shared with the member app
+  // and its own component tests render it bare, with no providers at all.
+  const guestCtx = useGuestOptional();
+  const guestMutation = useMutation({ mutationFn: buildGuestPlans });
+  // Part D — the one shared door. Mounted unconditionally (hooks above the early
+  // returns); it renders nothing until an action hits a door, and for a member
+  // guestGuard always answers "allow", so no action ever does.
+  const guestDoor = useGuestDoor();
+
   // Path B, text mode — today's build-from-text (buffered), untouched.
   const textMutation = useBuildFromText();
   // Path A — the shelf. Fast, DB-only unless text is sent.
@@ -285,7 +359,8 @@ export function WizardScreen({
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const busy = textMutation.isPending || shelfMutation.isPending;
+  const busy =
+    textMutation.isPending || shelfMutation.isPending || guestMutation.isPending;
 
   const textTooShort = () =>
     isText && form.description.trim().length < DESCRIPTION_MIN;
@@ -359,15 +434,55 @@ export function WizardScreen({
     });
   };
 
+  // ── Row 13 Block 2 Part C — the guest's submit ───────────────────────────
+  // The guest payload is built HERE and nowhere else: buildGuestWizardPayload
+  // always carries allergies, eating styles and the cap, and never carries sauce
+  // or either dial. The cards go into GuestContext (so the options screen has
+  // them even if the server's best-effort persist missed) alongside the form,
+  // because the expand's candidateContext is built from these same answers.
+  const submitGuest = () => {
+    const form_ = {
+      planDurationDays: form.planDurationDays,
+      householdSize: form.householdSize,
+      cuisines: form.cuisines,
+      eatingStyles: form.eatingStyles,
+      allergies: form.allergies,
+      dietaryNotes: form.dietaryNotes,
+      difficulty: form.difficulty,
+      weeklyPacing: form.weeklyPacing,
+      additionalNotes: form.additionalNotes,
+      maxCookTimeMinutes: form.maxCookTimeMinutes,
+      maxCookTimeCoverage: form.maxCookTimeCoverage,
+    };
+    void trackGuestEvent("wizard_step", { step: "generate_submitted" });
+    guestMutation.mutate(buildGuestWizardPayload(form_), {
+      onSuccess: (result) => {
+        if (result.candidates.length === 0) return;
+        guestCtx?.setGeneration({ candidates: result.candidates, form: form_ });
+        // The session row's generationCount and candidates both moved.
+        queryClient.invalidateQueries({ queryKey: ["guest", "session"] });
+        router.push("/test-kitchen/options");
+      },
+    });
+  };
+
   const handleSubmit = () => {
     Keyboard.dismiss();
     if (!path || busy) return;
+    if (guest) {
+      // R4 — "a second generation" is on the door list. The CTA is disabled when
+      // the generation is spent, so this is the belt against a stale render (and
+      // the path a keyboard "enter" could still take).
+      if (guestGenerationSpent) return guestDoor.open("second_generation");
+      return submitGuest();
+    }
     if (path === "plans") submitPlans();
     else submitPick();
   };
 
-  const ctaHint =
-    path === "pick"
+  const ctaHint = guest
+    ? GUEST_CTA_HINT
+    : path === "pick"
       ? CTA_HINT_PICK
       : path === "plans"
         ? CTA_HINT_PLANS
@@ -391,9 +506,17 @@ export function WizardScreen({
   return (
     <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
       <Header
-        showBack
-        title="Kitchen Wizard"
-        subtitle={isText ? "Just say what you want" : "Set preferences"}
+        // A guest reached this screen from a URL, not from a stack — there is
+        // nothing behind it to go back to.
+        showBack={!guest}
+        title={guest ? "Kiwi Test Kitchen" : "Kitchen Wizard"}
+        subtitle={
+          guest
+            ? "Build a week of dinners — no account needed"
+            : isText
+              ? "Just say what you want"
+              : "Set preferences"
+        }
       />
       {/* 2 — the CTA, at the TOP as drawn, and ANCHORED (Block 2c Part B,
           Hans's item 6: "persist/anchor the top button… anchor is probably
@@ -405,10 +528,12 @@ export function WizardScreen({
           label={busy ? "Kiwi is thinking…" : CTA_LABEL}
           variant="primary"
           onPress={handleSubmit}
-          disabled={!path || busy}
+          disabled={!path || busy || (guest && guestGenerationSpent)}
           testID="wizard-build"
         />
-        {shelfMutation.isPending ? (
+        {guestMutation.isPending ? (
+          <LoadingShim variant="inline" label="Kiwi is building your week…" />
+        ) : shelfMutation.isPending ? (
           <LoadingShim variant="inline" label="Pulling meals that fit…" />
         ) : textMutation.isPending ? (
           <LoadingShim variant="inline" label="Reading what you wrote…" />
@@ -423,13 +548,24 @@ export function WizardScreen({
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {/* Row 13 Block 2 — the entry's resume link, and the spent-generation
+            notice. Both above everything else: they are the reason a returning
+            visitor is on this screen at all. */}
+        {guest && guestResumeBanner}
+        {guest && guestGenerationSpent && (
+          <View style={s.noticeCard}>
+            <Text style={s.noticeTitle}>{GUEST_SPENT_TITLE}</Text>
+            <Text style={s.noticeBody}>{GUEST_SPENT_BODY}</Text>
+          </View>
+        )}
+
         {/* Inline status for the two calls, right under the action. */}
-        {(shelfMutation.isError || textMutation.isError) && (
+        {(shelfMutation.isError || textMutation.isError || guestMutation.isError) && (
           <View style={s.noticeCard}>
             <Text style={s.noticeTitle}>Kiwi got distracted. Try again?</Text>
-            {(shelfMutation.error ?? textMutation.error)?.message ? (
+            {(shelfMutation.error ?? textMutation.error ?? guestMutation.error)?.message ? (
               <Text style={s.noticeBody}>
-                {(shelfMutation.error ?? textMutation.error)!.message}
+                {(shelfMutation.error ?? textMutation.error ?? guestMutation.error)!.message}
               </Text>
             ) : null}
           </View>
@@ -453,8 +589,11 @@ export function WizardScreen({
             </View>
           )}
 
-        {/* Block 4b-3 — "See Previous Options" (hidden when no batch). */}
-        <WizardPreviousOptionsLink />
+        {/* Block 4b-3 — "See Previous Options" (hidden when no batch).
+            🔴 NOT for a guest: it reads GET /wizard/last-batch, which is
+            requireAuth. The guest's equivalent is the entry's resume banner,
+            fed by GET /guest/session. */}
+        {!guest && <WizardPreviousOptionsLink />}
 
         {/* 3 — text mode only: the box. */}
         {isText && (
@@ -483,39 +622,49 @@ export function WizardScreen({
           </Section>
         )}
 
-        {/* 4 — the path. Nothing selected by default. */}
-        <Section label="How to build it" title="What should Kiwi suggest?">
-          <View style={s.pathList}>
-            <PathOptionRow
-              title={PATH_PICK_TITLE}
-              subline={isText ? PATH_PICK_SUB_TEXT : PATH_PICK_SUB_PREFS}
-              selected={path === "pick"}
-              onPress={() => setPath("pick")}
-              testID="wizard-path-pick"
-            />
-            <PathOptionRow
-              title={PATH_PLANS_TITLE}
-              subline={isText ? PATH_PLANS_SUB_TEXT : PATH_PLANS_SUB_PREFS}
-              selected={path === "plans"}
-              onPress={() => setPath("plans")}
-              testID="wizard-path-plans"
-            />
-          </View>
-        </Section>
+        {/* 4 — the path. Nothing selected by default.
+            🔴 HIDDEN for a guest, and `path` is pre-set to "plans": the Pick
+            path posts /wizard/shelf, which is requireAuth. */}
+        {!guest && (
+          <Section label="How to build it" title="What should Kiwi suggest?">
+            <View style={s.pathList}>
+              <PathOptionRow
+                title={PATH_PICK_TITLE}
+                subline={isText ? PATH_PICK_SUB_TEXT : PATH_PICK_SUB_PREFS}
+                selected={path === "pick"}
+                onPress={() => setPath("pick")}
+                testID="wizard-path-pick"
+              />
+              <PathOptionRow
+                title={PATH_PLANS_TITLE}
+                subline={isText ? PATH_PLANS_SUB_TEXT : PATH_PLANS_SUB_PREFS}
+                selected={path === "plans"}
+                onPress={() => setPath("plans")}
+                testID="wizard-path-plans"
+              />
+            </View>
+          </Section>
+        )}
 
-        {/* 5 — the mix. Per-run: hydrated from stored, never written back. */}
-        <Section label="The mix" title="What goes in?">
-          <Text style={s.mixIntro}>{MIX_INTRO}</Text>
-          <MixDials
-            style={{ marginTop: Spacing[3] }}
-            value={{
-              playlistLevel: form.playlistLevel,
-              discoveryLevel: form.discoveryLevel,
-            }}
-            onChange={(next) => setForm((prev) => ({ ...prev, ...next }))}
-            playlistCount={playlistQuery.data?.count}
-          />
-        </Section>
+        {/* 5 — the mix. Per-run: hydrated from stored, never written back.
+            🔴 HIDDEN for a guest (R3), and the two dial keys are omitted from
+            the request entirely — the server then runs both off. Showing the
+            dials would also be dishonest: the Playlist dial's whole subject is
+            the user's own meals, and a guest has none. */}
+        {!guest && (
+          <Section label="The mix" title="What goes in?">
+            <Text style={s.mixIntro}>{MIX_INTRO}</Text>
+            <MixDials
+              style={{ marginTop: Spacing[3] }}
+              value={{
+                playlistLevel: form.playlistLevel,
+                discoveryLevel: form.discoveryLevel,
+              }}
+              onChange={(next) => setForm((prev) => ({ ...prev, ...next }))}
+              playlistCount={playlistQuery.data?.count}
+            />
+          </Section>
+        )}
 
         {/* 6 — today's wizard exactly, from here down. */}
         <Section label="Plan length" title="How long is this plan?">
@@ -551,9 +700,16 @@ export function WizardScreen({
             hitSlop={6}
           >
             <View style={{ flex: 1 }}>
-              <Text style={s.cardTitle}>Adjust saved prefs for this plan</Text>
+              {/* R3 — RETITLED for a guest. "Adjust saved prefs" names something
+                  a guest does not have, and "Optional" invites skipping the one
+                  place the allergy question is asked. */}
+              <Text style={s.cardTitle}>
+                {guest ? GUEST_DIET_TITLE : "Adjust saved prefs for this plan"}
+              </Text>
               <Text style={s.cardSubtitle}>
-                Optional — changes apply to this plan only
+                {guest
+                  ? GUEST_DIET_SUBTITLE
+                  : "Optional — changes apply to this plan only"}
               </Text>
             </View>
             <Feather
@@ -603,23 +759,35 @@ export function WizardScreen({
                   onDietaryNotesChange={(v) => update("dietaryNotes", v)}
                   // WS9 BUG-201 — the screen renders past a prefs error by
                   // design; this makes it SAY so.
-                  prefsUnavailable={prefsQuery.isError}
+                  // A guest has no stored prefs to be unavailable — the form IS
+                  // the source. Passing prefsQuery.isError here would render a
+                  // "we couldn't load your preferences" warning about a read
+                  // that was never made.
+                  prefsUnavailable={!guest && prefsQuery.isError}
                 />
               </View>
 
-              <Text style={[s.subSectionLabel, { marginTop: Spacing[4] }]}>
-                Sauces and Spice Mixes Preference
-              </Text>
-              <View style={s.chipRow}>
-                {SAUCE_PREFERENCE_OPTIONS.map((opt) => (
-                  <Chip
-                    key={opt.value}
-                    label={opt.label}
-                    selected={form.saucePreference === opt.value}
-                    onPress={() => update("saucePreference", opt.value)}
-                  />
-                ))}
-              </View>
+              {/* 🔴 HIDDEN for a guest (R3), and `saucePreference` is omitted
+                  from the request. The server runs sauce as balanced for this
+                  generation; the account's own default is set later, by the
+                  user, in Preferences — never by a form they never saw. */}
+              {!guest && (
+                <>
+                  <Text style={[s.subSectionLabel, { marginTop: Spacing[4] }]}>
+                    Sauces and Spice Mixes Preference
+                  </Text>
+                  <View style={s.chipRow}>
+                    {SAUCE_PREFERENCE_OPTIONS.map((opt) => (
+                      <Chip
+                        key={opt.value}
+                        label={opt.label}
+                        selected={form.saucePreference === opt.value}
+                        onPress={() => update("saucePreference", opt.value)}
+                      />
+                    ))}
+                  </View>
+                </>
+              )}
 
               <Text style={[s.subSectionLabel, { marginTop: Spacing[4] }]}>
                 Max cook time
@@ -677,16 +845,22 @@ export function WizardScreen({
           </Section>
         )}
 
-        <View style={s.footer}>
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={6}
-            style={({ pressed }) => [s.cancelLink, pressed && { opacity: 0.6 }]}
-          >
-            <Text style={s.cancelText}>Cancel</Text>
-          </Pressable>
-        </View>
+        {/* Cancel goes BACK, and a guest arrived by URL with nothing behind it. */}
+        {!guest && (
+          <View style={s.footer}>
+            <Pressable
+              onPress={() => router.back()}
+              hitSlop={6}
+              style={({ pressed }) => [s.cancelLink, pressed && { opacity: 0.6 }]}
+            >
+              <Text style={s.cancelText}>Cancel</Text>
+            </Pressable>
+          </View>
+        )}
       </KeyboardAwareScrollViewCompat>
+      {/* Part D — the shared door (R5). Renders nothing until an action hits it,
+          and for a member no action ever does. */}
+      <GuestDoorSheet action={guestDoor.door} onClose={guestDoor.close} />
     </View>
   );
 }

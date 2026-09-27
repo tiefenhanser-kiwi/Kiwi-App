@@ -20,8 +20,28 @@ import {
   type GuestSessionCredentials,
 } from "@/lib/guest/guestToken";
 import { deriveGuestEntryAction, type GuestEntryAction } from "@/lib/guest/guestSession";
+import type { GuestWizardForm } from "@/lib/wizard/guestPayload";
+import type { WizardPlanCandidate } from "@/lib/types";
 
 export type GuestStatus = "idle" | "starting" | "live" | "failed";
+
+/**
+ * Row 13 Block 2 Part C — the one generation, held in memory for this tab.
+ *
+ * NOT the source of truth: the server persists both halves onto the
+ * GuestSession row (`candidates` and `preferences`) and GET /guest/session reads
+ * them back, which is what makes a reload work. This exists because that write
+ * is BEST-EFFORT by design (routes/wizard.ts persistGuestGeneration — "the
+ * candidates are already on the wire by the time this runs, so a failure here
+ * must not sink the response"). A visitor whose persist failed would otherwise
+ * watch Kiwi build three plans and then be told there were none.
+ */
+export interface GuestGeneration {
+  candidates: WizardPlanCandidate[];
+  /** The answers that produced them — the expand's candidateContext is built
+   *  from these, so they must travel with the cards. */
+  form: GuestWizardForm;
+}
 
 interface GuestContextValue {
   /** Non-null exactly when a guest session is live in this tab. */
@@ -41,6 +61,9 @@ interface GuestContextValue {
   startOrResume: (opts?: { turnstileToken?: string }) => Promise<GuestEntryAction>;
   /** The claim succeeded, or the session is spent. Clears storage and state. */
   endGuestSession: () => void;
+  /** The generation just made in this tab — see GuestGeneration. */
+  generation: GuestGeneration | null;
+  setGeneration: (g: GuestGeneration | null) => void;
 }
 
 const GuestCtx = React.createContext<GuestContextValue | null>(null);
@@ -56,6 +79,7 @@ export function GuestProvider({ children }: { children: React.ReactNode }) {
     readGuestSession() ? "live" : "idle",
   );
   const [error, setError] = React.useState<Error | null>(null);
+  const [generation, setGeneration] = React.useState<GuestGeneration | null>(null);
   // The shared in-flight create. A ref, not state: two callers in the same tick
   // must see the same promise, and a state update would not have landed yet.
   const inFlight = React.useRef<Promise<GuestEntryAction> | null>(null);
@@ -105,6 +129,9 @@ export function GuestProvider({ children }: { children: React.ReactNode }) {
     setSession(null);
     setStatus("idle");
     setError(null);
+    // The plan now belongs to an account (or the session is spent). Holding the
+    // cards would let a claimed visitor keep browsing the guest copy.
+    setGeneration(null);
   }, []);
 
   const value = React.useMemo<GuestContextValue>(
@@ -115,8 +142,10 @@ export function GuestProvider({ children }: { children: React.ReactNode }) {
       error,
       startOrResume,
       endGuestSession,
+      generation,
+      setGeneration,
     }),
-    [session, status, error, startOrResume, endGuestSession],
+    [session, status, error, startOrResume, endGuestSession, generation],
   );
 
   return <GuestCtx.Provider value={value}>{children}</GuestCtx.Provider>;
@@ -129,10 +158,23 @@ export function useGuest(): GuestContextValue {
 }
 
 /**
- * SessionGate's read. Returns false rather than throwing when the provider is
- * absent, so a tree that has not adopted GuestProvider still renders — the gate
- * runs above almost everything and must never be the thing that crashes.
+ * The non-throwing read, for code that is SHARED between the guest flow and the
+ * member app and so may render in a tree without this provider.
+ *
+ * Two real callers, and both matter:
+ *   · SessionGate, which runs above almost everything and must never be the
+ *     thing that crashes a cold start;
+ *   · components/WizardScreen, whose component tests render it bare (with
+ *     react-test-renderer, no providers) — the strict useGuest() threw there and
+ *     took 11 pre-existing tests down with it.
+ *
+ * Absent provider reads as "not a guest", which is the correct answer for every
+ * tree that has not mounted one.
  */
+export function useGuestOptional(): GuestContextValue | null {
+  return React.useContext(GuestCtx);
+}
+
 export function useIsGuestSafe(): boolean {
   return React.useContext(GuestCtx)?.isGuest ?? false;
 }
