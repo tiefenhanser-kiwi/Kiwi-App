@@ -67,6 +67,23 @@ export const HomePayloadSchema = z.object({
   retailers: z
     .object({ instacart: z.object({ enabled: z.boolean() }) })
     .optional(),
+  // Row 13 "Test Kitchen" · Block 2 Part F (R8 / D-WS9-263) — show the
+  // personalize popup. True only for an account created from a Test Kitchen
+  // claim that has not answered yet; the server turns it off on
+  // PATCH /me/ui-state { personalizeNudgeDismissed: true }.
+  //
+  // OPTIONAL and bare, exactly like `retailers` above and for the same reason: a
+  // new required field breaks the whole Home tab until the server deploys, and
+  // the app ships first.
+  //
+  // ⚠️ NO `.default(false)`. It reads better at the call site but it makes the
+  // schema's INPUT and OUTPUT types diverge, and apiClient takes a
+  // `z.ZodType<T>` — so getHomePayload no longer type-checks against
+  // HomePayload. Absent is handled where the decision lives instead:
+  // lib/home/personalizeNudge.ts takes `boolean | undefined` and treats
+  // anything but `true` as "do not show", which is the safe direction for a
+  // modal the user must tap through.
+  showPersonalizeNudge: z.boolean().optional(),
 });
 export type HomePayload = z.infer<typeof HomePayloadSchema>;
 

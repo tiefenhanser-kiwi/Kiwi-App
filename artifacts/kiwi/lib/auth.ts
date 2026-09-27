@@ -298,6 +298,14 @@ export async function patchUiState(body: {
    * One-way: there is no `false`.
    */
   playlistCtaTapped?: true;
+  /**
+   * Row 13 "Test Kitchen" · Block 2 Part F (R8 / D-WS9-263) — the personalize
+   * popup was answered. One-way, like playlistCtaTapped: there is no `false`,
+   * and the server stamps the time (personalizeNudgeDismissedAt). Sent by the
+   * PRIMARY button only — "Later" writes a per-device flag instead, so the app
+   * still asks once.
+   */
+  personalizeNudgeDismissed?: true;
 }): Promise<void> {
   await apiClient("/me/ui-state", {
     method: "PATCH",

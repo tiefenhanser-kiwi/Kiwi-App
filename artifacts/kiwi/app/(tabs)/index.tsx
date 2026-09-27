@@ -27,8 +27,10 @@ import { useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { ActivePlanStrip } from "@/components/ActivePlanStrip";
+import { GetTheAppStrip } from "@/components/GetTheAppStrip";
 import { HomeHeader } from "@/components/HomeHeader";
 import { LoadingShim } from "@/components/LoadingShim";
+import { PersonalizeNudgeModal } from "@/components/PersonalizeNudgeModal";
 import { PlanPreviewModal } from "@/components/PlanPreviewModal";
 import { Screen } from "@/components/Screen";
 import { SectionLabel } from "@/components/SectionLabel";
@@ -36,6 +38,7 @@ import { TeachingArc } from "@/components/TeachingArc";
 import { TellKiwiCard } from "@/components/TellKiwiCard";
 import { FeaturedPlanCard } from "@/components/FeaturedPlanCard";
 import { useApp } from "@/contexts/AppContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useHomePayload } from "@/hooks/useHomePayload";
 import { useHomeRail } from "@/hooks/useHomeRail";
 import { usePlans } from "@/hooks/usePlans";
@@ -45,6 +48,11 @@ import { deriveHeroModel } from "@/lib/home/heroState";
 import { homeSectionOrder } from "@/lib/home/homeSections";
 import { shouldOfferAddOwnMeals } from "@/lib/home/makeLaneOptions";
 import { buildRailItems } from "@/lib/home/rail";
+import {
+  PERSONALIZE_NUDGE_DEVICE_KEY,
+  shouldShowPersonalizeNudge,
+} from "@/lib/home/personalizeNudge";
+import { loadJSON, saveJSON } from "@/lib/storage";
 import { generateGroceryListForPlan } from "@/lib/api/grocery";
 import type { GroceryListListItem } from "@/lib/api/groceries";
 import type { HomePayload } from "@/lib/api/home";
@@ -58,6 +66,7 @@ export default function HomeTab() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { useTemplateAsPlan, setPlanActiveThisWeek } = useApp();
+  const { user } = useAuth();
 
   // D-WS9-258 — no paywall in the first binary; Stripe's lane re-adds the lock
   // and its route.
@@ -78,6 +87,59 @@ export default function HomeTab() {
   // does NOT re-show the placeholder once data exists; the lead only goes
   // neutral when we genuinely have nothing to render from.
   const isHomeLoading = homeQuery.isLoading;
+
+  // ── Row 13 "Test Kitchen" · Block 2 Part F (R8 / D-WS9-263) ────────────────
+  // The personalize popup, gated by lib/home/personalizeNudge.ts (tested).
+  //
+  // The DEVICE half of the gate is read once, asynchronously, and starts as
+  // `true` so the modal cannot flash before the read lands — a modal the user
+  // must tap through is the worst thing to render optimistically. A read that
+  // throws resolves to `false` (lib/storage.ts swallows and returns the
+  // fallback), which shows the nudge: asked once too often beats never asked.
+  const [nudgeDeviceDismissed, setNudgeDeviceDismissed] = React.useState(true);
+  const [nudgeBusy, setNudgeBusy] = React.useState(false);
+  React.useEffect(() => {
+    let cancelled = false;
+    void loadJSON<boolean>(PERSONALIZE_NUDGE_DEVICE_KEY, false).then((v) => {
+      if (!cancelled) setNudgeDeviceDismissed(v === true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const showNudge = shouldShowPersonalizeNudge({
+    serverFlag: homeQuery.data?.showPersonalizeNudge,
+    deviceDismissed: nudgeDeviceDismissed,
+    hasUser: !!user,
+  });
+
+  // Primary — the ACCOUNT-level answer, then Preferences. The local flag is set
+  // too, so a failed PATCH does not leave the modal on screen in a loop; the
+  // server flag is the one that makes it once-per-account.
+  const handlePersonalize = async () => {
+    if (nudgeBusy) return;
+    setNudgeBusy(true);
+    setNudgeDeviceDismissed(true);
+    void saveJSON(PERSONALIZE_NUDGE_DEVICE_KEY, true);
+    try {
+      await patchUiState({ personalizeNudgeDismissed: true });
+      queryClient.invalidateQueries({ queryKey: ["home"] });
+    } catch {
+      // Best-effort: the point of the tap was to go to Preferences, and
+      // answering the question there is what actually matters.
+    } finally {
+      setNudgeBusy(false);
+      router.push("/preferences");
+    }
+  };
+
+  // "Later" — the DEVICE flag only. The server flag deliberately stays unset so
+  // the app asks once too (Hans).
+  const handleNudgeLater = () => {
+    setNudgeDeviceDismissed(true);
+    void saveJSON(PERSONALIZE_NUDGE_DEVICE_KEY, true);
+  };
 
   // Prefetch. The query key ["plans","list",["my_plans"]] is SHARED with three
   // live consumers, so issuing it here warms all of them:
@@ -363,6 +425,9 @@ export default function HomeTab() {
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
+      {/* R10 — the "get the app" strip. Web only, and renders nothing while the
+          store links in constants/storeLinks.ts are null, which is now. */}
+      <GetTheAppStrip />
       <HomeHeader />
       <Screen>
         {sections.map((section) => {
@@ -486,6 +551,14 @@ export default function HomeTab() {
         templateId={preview.templateId}
         onClose={preview.close}
         onUsePlan={handleUseFromPreview}
+      />
+      {/* R8 — the personalize popup after a Test Kitchen claim. Tap-through only:
+          no backdrop press, and Android back resolves to "Later". */}
+      <PersonalizeNudgeModal
+        visible={showNudge}
+        busy={nudgeBusy}
+        onPersonalize={() => void handlePersonalize()}
+        onLater={handleNudgeLater}
       />
     </View>
   );

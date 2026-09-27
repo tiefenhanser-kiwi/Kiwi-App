@@ -35,6 +35,9 @@ export default function SignUpPage() {
   const insets = useSafeAreaInsets();
   const { signup, error, clearError } = useAuth();
   const cooldown = useSubmitCooldown();
+  // Row 13 Block 2 Part E — useGuestOptional, not useGuest: this screen renders in
+  // the member app too (from Welcome), where no guest session exists.
+  const guestCtx = useGuestOptional();
 
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");

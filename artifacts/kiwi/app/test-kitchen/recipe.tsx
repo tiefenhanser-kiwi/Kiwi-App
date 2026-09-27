@@ -68,9 +68,9 @@ function GuestRecipeScreen() {
         subtitle={
           meal
             ? [
-                meal.estimatedTimeMinutes ? `${meal.estimatedTimeMinutes} min` : null,
+                meal.minutes ? `${meal.minutes} min` : null,
                 `${meal.effectiveServings} servings`,
-                meal.cuisineType,
+                meal.cuisine,
               ]
                 .filter(Boolean)
                 .join(" · ")

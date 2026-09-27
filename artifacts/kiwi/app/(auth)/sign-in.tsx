@@ -19,6 +19,12 @@ export default function SignInPage() {
   const insets = useSafeAreaInsets();
   const { login, error, clearError } = useAuth();
   const cooldown = useSubmitCooldown();
+  // Row 13 Block 2 Part E (R5) — the door sheet offers "Already have an account?
+  // Sign in", and the server claims the plan for a returning user too, WITHOUT
+  // copying preferences (theirs are theirs). useGuestOptional, not useGuest: this
+  // screen renders in the member app as well, where no provider-backed guest
+  // session exists.
+  const guestCtx = useGuestOptional();
 
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");

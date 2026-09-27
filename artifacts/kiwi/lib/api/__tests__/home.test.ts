@@ -125,6 +125,16 @@ test("HomePayloadSchema no longer carries planDiscoveryCards", () => {
     "playlistCtaTappedAt",
     "todaysMeal",
   ]);
+  // Row 13 Block 2 Part F — `showPersonalizeNudge` is bare `.optional()`, like
+  // `retailers`, so a server that does not send it leaves the key ABSENT rather
+  // than materialising a false. The decision that reads it treats anything but
+  // `true` as "do not show" (lib/home/personalizeNudge.ts).
+  assert.equal("showPersonalizeNudge" in parsed, false);
+  assert.equal(
+    HomePayloadSchema.parse({ ...HOME_EMPTY, showPersonalizeNudge: true })
+      .showPersonalizeNudge,
+    true,
+  );
 
   // An older server still sending the field parses cleanly (a plain z.object
   // strips unknown keys) — which is what makes the rollout order safe.
