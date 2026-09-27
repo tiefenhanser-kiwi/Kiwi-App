@@ -14,6 +14,7 @@ import meRouter from "./me";
 import plansRouter from "./plans";
 import playlistRouter from "./playlist";
 import recipesRouter from "./recipes";
+import webhooksRouter from "./webhooks";
 import wizardRouter from "./wizard";
 
 const router: IRouter = Router();
@@ -40,6 +41,10 @@ router.use(plansRouter);
 // WS9 Redesign Arc Block 1 — the playlist (D-WS9-234).
 router.use(playlistRouter);
 router.use(recipesRouter);
+// Row 9 (1.1) · Stripe S1 Part E — the webhook. UNAUTHENTICATED by design: the
+// stripe-signature header over the RAW body is the credential. Its path is in
+// app.ts ROUTE_SCOPED_JSON_PATHS so the default JSON parser never touches it.
+router.use(webhooksRouter);
 router.use(wizardRouter);
 
 export default router;

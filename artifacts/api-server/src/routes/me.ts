@@ -30,6 +30,7 @@ import { hashPassword, signToken, verifyPassword, verifyToken } from "../lib/aut
 import { readOAuthConfig, type OAuthConfig } from "../lib/oauth/config";
 import { revokeAppleIdentitiesForUser as productionRevokeAppleIdentities } from "../lib/oauth/revokeOnDelete";
 import { readBillingConfig, type BillingConfig } from "../lib/billing/config";
+import { cancelStripeForUser as productionCancelStripeForUser } from "../lib/billing/cancelOnDelete";
 import {
   effectiveStatus,
   readSubscriptionSnapshot,
@@ -685,6 +686,15 @@ export interface MeRouterDeps {
    * GET /me/subscription.
    */
   billingConfig: BillingConfig;
+  /**
+   * Row 9 (1.1) · Stripe S1 Part E — DELETE /me cancels a live Stripe
+   * subscription and deletes the customer before removing the account. Injected
+   * for exactly the reason `revokeAppleIdentities` is, with higher stakes:
+   * `pnpm test` loads .env, and a default that reached Stripe would put a REAL
+   * CANCELLATION of a REAL subscription one forgotten stub away from every
+   * deletion test.
+   */
+  cancelStripeForUser: typeof productionCancelStripeForUser;
   /** Injected so entitlement and the trial clock are testable. */
   now?: () => Date;
 }
@@ -695,6 +705,8 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
   const subscriptionService =
     deps.subscriptionService ?? productionSubscriptionService;
   const billingConfig = deps.billingConfig ?? readBillingConfig();
+  const cancelStripeForUser =
+    deps.cancelStripeForUser ?? productionCancelStripeForUser;
   const nowFn = deps.now ?? (() => new Date());
   const revokeAppleIdentities =
     deps.revokeAppleIdentities ?? productionRevokeAppleIdentities;
@@ -1361,6 +1373,42 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
         );
       }
 
+      // ── Row 9 (1.1) · Stripe S1 Part E — STRIPE, BEFORE THE DELETE TOO ──
+      //
+      // Same shape and same reason as the Apple block above: the customer and
+      // subscription ids live on the `subscriptions` row, which cascades away
+      // with the user in the transaction below, so afterwards there is nothing
+      // left to cancel with.
+      //
+      // 🔴 IT CANNOT FAIL THE DELETION EITHER — every failure inside is logged
+      // and swallowed there (lib/billing/cancelOnDelete.ts), and this `catch` is
+      // the second belt to that brace.
+      //
+      // ⚠️ BUT THE FAILURE COSTS MORE THAN APPLE'S. An un-revoked Apple token is
+      // a privacy loose end; an un-cancelled Stripe subscription KEEPS CHARGING A
+      // CARD for an account that no longer exists, and the person has no way left
+      // to stop it — they cannot log in to reach the Portal. That is why the
+      // helper logs the customer and subscription ids on every skip, and why they
+      // appear on the deletion's own log line below.
+      let stripeCancel = {
+        hadCustomer: false,
+        cancelled: false,
+        customerDeleted: false,
+        skipped: [] as string[],
+      };
+      try {
+        stripeCancel = await cancelStripeForUser({
+          prisma,
+          userId,
+          config: billingConfig,
+        });
+      } catch (err) {
+        logger.error(
+          { event: "stripe_cancel_failed", userId, err },
+          "Stripe cancellation threw at the route — deletion proceeds regardless. THE CARD MAY STILL BE CHARGED; check the Dashboard",
+        );
+      }
+
       // Collected before the transaction: the ids the application-layer
       // ownership link needs, and the bucket-object count for the log.
       const [mealRows, dishRows, templateRows] = await Promise.all([
@@ -1423,6 +1471,15 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
           appleIdentities: appleRevoke.found,
           appleRevoked: appleRevoke.revoked,
           appleRevokeSkipped: appleRevoke.skipped,
+          // Row 9 (1.1) · Stripe S1 Part E — on the same line as the deletion,
+          // for the same reason the Apple fields are: an obligation that went
+          // unmet is visible where the deletion is, not only in a warning
+          // somewhere above it. `stripeCancelSkipped` non-empty on a row that
+          // `hadCustomer` is the line that means a card may still be charged.
+          stripeHadCustomer: stripeCancel.hadCustomer,
+          stripeCancelled: stripeCancel.cancelled,
+          stripeCustomerDeleted: stripeCancel.customerDeleted,
+          stripeCancelSkipped: stripeCancel.skipped,
         },
         "Account deleted",
       );

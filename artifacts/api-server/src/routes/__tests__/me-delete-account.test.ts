@@ -219,10 +219,23 @@ interface Harness {
   close: () => Promise<void>;
 }
 
-async function spinUp(prisma: unknown): Promise<Harness> {
+async function spinUp(
+  prisma: unknown,
+  // Row 9 (1.1) · Stripe S1 Part E — the Stripe cancel seam. Omitted by every
+  // pre-existing case in this file, so they keep the production default, which
+  // finds no customer on these fixtures and does nothing.
+  opts: { cancelStripeForUser?: unknown } = {},
+): Promise<Harness> {
   const app: Express = express();
   app.use(express.json());
-  app.use(createMeRouter({ prisma: prisma as never }));
+  app.use(
+    createMeRouter({
+      prisma: prisma as never,
+      ...(opts.cancelStripeForUser
+        ? { cancelStripeForUser: opts.cancelStripeForUser as never }
+        : {}),
+    }),
+  );
   return await new Promise<Harness>((resolve, reject) => {
     const server: Server = app.listen(0, () => {
       const addr = server.address();
@@ -405,6 +418,107 @@ describe("requireAuth after deletion (D-WS9-257 / BUG-234 widening)", () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       assert.equal(other.status, 401);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── Row 9 (1.1) · Stripe S1 Part E — the Stripe cancellation ─────────────
+//
+// Same shape and same ruling as the Apple revoke this route already does
+// (D-WS9-257, best-effort): it runs BEFORE the delete, because the customer and
+// subscription ids live on the `subscriptions` row that cascades with the user,
+// and it CANNOT fail the deletion.
+//
+// ⚠️ The failure here costs more than Apple's. An un-revoked Apple token is a
+// privacy loose end; an un-cancelled Stripe subscription KEEPS CHARGING A CARD
+// for an account that no longer exists, and the person cannot log in to reach the
+// Portal. So the "it throws and we still delete" test is not a nicety — it is the
+// assertion that a Stripe outage cannot trap someone in an account they asked to
+// leave, and its companion asserts the attempt is made exactly once so nobody is
+// tempted to add a retry loop in front of a deletion.
+
+describe("DELETE /me cancels Stripe first, best-effort (Stripe S1 Part E)", () => {
+  beforeEach(() => {
+    __clearRateLimitStoreForTests();
+  });
+
+  it("calls the cancel seam ONCE, before the delete, and still 204s", async () => {
+    const state = makeState();
+    const calls: Array<{ userId: string }> = [];
+    let userStillPresentAtCancel: boolean | null = null;
+    const harness = await spinUp(makeStubPrisma(state), {
+      cancelStripeForUser: async ({ userId }: { userId: string }) => {
+        calls.push({ userId });
+        // The ORDER is the claim: the row the cancel reads its ids from must
+        // still exist when it runs.
+        userStillPresentAtCancel = state.users.some((u) => u.id === userId);
+        return { hadCustomer: true, cancelled: true, customerDeleted: true, skipped: [] };
+      },
+    });
+    try {
+      const res = await del(harness, { confirm: "delete" });
+      assert.equal(res.status, 204);
+      assert.equal(calls.length, 1, "exactly once — a deletion is not a place for a retry loop");
+      assert.equal(calls[0].userId, USER_ID);
+      assert.equal(userStillPresentAtCancel, true, "cancel ran BEFORE the delete");
+      assert.equal(state.users.some((u) => u.id === USER_ID), false, "and the user is gone");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("STILL DELETES when the cancel throws — a Stripe outage cannot trap someone in an account", async () => {
+    const state = makeState();
+    const harness = await spinUp(makeStubPrisma(state), {
+      cancelStripeForUser: async () => {
+        throw new Error("stripe is having a day");
+      },
+    });
+    try {
+      const res = await del(harness, { confirm: "delete" });
+      assert.equal(res.status, 204, "the deletion is not conditional on a third party");
+      assert.equal(state.users.some((u) => u.id === USER_ID), false);
+      // And the other user is untouched, as ever.
+      assert.equal(state.users.some((u) => u.id === OTHER_ID), true);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("still deletes when the cancel reports a SKIP rather than throwing", async () => {
+    const state = makeState();
+    const harness = await spinUp(makeStubPrisma(state), {
+      cancelStripeForUser: async () => ({
+        hadCustomer: true,
+        cancelled: false,
+        customerDeleted: false,
+        skipped: ["cancel_failed"],
+      }),
+    });
+    try {
+      assert.equal((await del(harness, { confirm: "delete" })).status, 204);
+      assert.equal(state.users.some((u) => u.id === USER_ID), false);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("a REFUSED confirmation does not touch Stripe — nothing is cancelled for a 400", async () => {
+    const state = makeState();
+    let called = 0;
+    const harness = await spinUp(makeStubPrisma(state), {
+      cancelStripeForUser: async () => {
+        called++;
+        return { hadCustomer: false, cancelled: false, customerDeleted: false, skipped: [] };
+      },
+    });
+    try {
+      const res = await del(harness, { confirm: "nope" });
+      assert.equal(res.status, 400);
+      assert.equal(called, 0, "a rejected confirmation must not cancel anybody's subscription");
+      assert.equal(state.users.some((u) => u.id === USER_ID), true);
     } finally {
       await harness.close();
     }

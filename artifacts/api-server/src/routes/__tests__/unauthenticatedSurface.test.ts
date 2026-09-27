@@ -66,6 +66,23 @@ const KNOWN_PUBLIC = new Set<string>([
   // The other three /guest routes sit behind requireGuestOrAuth and must NOT
   // appear here.
   "POST /guest/session",
+  // 🔴 ROW 9 (1.1) · STRIPE S1 — THE ONE ROUTE THAT BLOCK ADDS, and it is the
+  // second unauthenticated WRITE surface in the server.
+  //
+  // It belongs here for the same reason the OAuth doors do: THE CREDENTIAL IS
+  // THE REQUEST. The `stripe-signature` header is an HMAC over the raw body with
+  // a timestamp window, verified against STRIPE_WEBHOOK_SECRET before anything
+  // else happens — a check Stripe alone can satisfy, and a stronger one than the
+  // password beside it. A caller with no signature gets 400 and learns nothing.
+  //
+  // It CANNOT be authenticated any other way: Stripe's servers have no Kiwi
+  // session and their source addresses are not a stable allowlist. There is also
+  // no rate limiter, deliberately — a 429 makes Stripe retry the whole burst for
+  // three days, and renewals legitimately arrive in bursts.
+  //
+  // ⚠️ This test probes with no body. The route answers 400 (no signature) BEFORE
+  // it reads anything, which is the correct order and is why it shows up here.
+  "POST /webhooks/stripe",
 ]);
 
 /** Walk the mounted router and return "METHOD /path" for every layer. */

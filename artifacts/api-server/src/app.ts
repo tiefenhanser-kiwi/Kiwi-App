@@ -9,6 +9,7 @@ import { logInstacartConfig } from "./lib/retailers/instacartClient";
 import { logTurnstileConfig } from "./lib/turnstile";
 import { logOAuthConfig } from "./lib/oauth/config";
 import { logBillingConfig } from "./lib/billing/config";
+import { STRIPE_WEBHOOK_PATH } from "./routes/webhooks";
 import { parseTrustProxyHops } from "./lib/trustProxy";
 import { noStore } from "./middleware/cacheControl";
 import { errorHandler } from "./middleware/errorHandler";
@@ -119,8 +120,24 @@ app.use(cors());
 // larger-limit parser (WS6 6c-2: /api/recipes/import-image uses 35mb). Without
 // this guard, the default 100KB parser intercepts first and 413s the request
 // before the route-scoped parser runs.
+// 🔴 ROW 9 (1.1) · STRIPE S1 — THE WEBHOOK JOINS THIS SET FOR THE OPPOSITE
+// REASON to import-image's, and both reasons are "the default parser must not
+// run here".
+//
+// import-image needs a BIGGER parser. The Stripe webhook needs NO parser: Stripe
+// signs the exact bytes it sent, and `express.json()` parses and discards them.
+// `JSON.stringify(req.body)` does not reproduce them — key order, whitespace and
+// number formatting are all free to differ — so a parsed body makes every
+// signature verification fail, with an error that reads exactly like a wrong
+// secret. The route mounts `express.raw({ type: "application/json" })` itself.
+//
+// ⚠️ BOTH HALVES ARE REQUIRED. Without this line the global parser wins and the
+// route sees an object; without the route's own `express.raw` it sees undefined.
+// The route checks `Buffer.isBuffer(req.body)` and names THIS LINE in the error
+// if the check fails, because that is the fix.
 const ROUTE_SCOPED_JSON_PATHS = new Set<string>([
   "/api/recipes/import-image",
+  `/api${STRIPE_WEBHOOK_PATH}`,
 ]);
 const defaultJsonParser = express.json();
 app.use((req, res, next) => {
