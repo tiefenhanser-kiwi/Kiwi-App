@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Response } from "express";
 import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
@@ -16,12 +16,29 @@ import { prisma as productionPrisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
 import { isIssuedBeforeEpoch, redeemPurposeToken } from "../lib/tokenRevocation";
 import {
-  adoptTemplateForUser,
   claimGuestSessionInTx,
   GuestSessionInvalidError,
   materializeClaimedDraft as productionMaterializeClaimedDraft,
-  releaseClaimForRetry,
 } from "../lib/guestClaim";
+// Row 9 · OAuth Block 1 Part D — the account-creation and claim-stage-2 code
+// that sign-up and sign-in used to hold inline. Extracted, not copied: the two
+// OAuth routes below are the third and fourth callers (§2.7).
+import { createAccountInTx, finishClaimAfterCommit } from "../lib/authAccount";
+import { readOAuthConfig, type OAuthConfig } from "../lib/oauth/config";
+import {
+  claimForExistingUser,
+  isIdentityRaceLoss,
+  resolveIdentity,
+  type IdentityLinkFacts,
+} from "../lib/oauth/resolve";
+import {
+  productionAppleJwksCache,
+  productionGoogleJwksCache,
+  verifyAppleIdentityToken,
+  verifyGoogleIdentityToken,
+  type IdentityVerdict,
+  type OAuthProviderName,
+} from "../lib/oauth/verify";
 
 // Tight limiter for signup/login to slow brute-force attempts
 const authLimiter = rateLimit({ capacity: 10, refillPerSec: 10 / 60 }); // 10 burst, ~1/6s
@@ -30,14 +47,6 @@ const meLimiter = rateLimit({ capacity: 30, refillPerSec: 30 / 60 });
 // Even tighter for password reset request (prevents email enumeration via rate patterns)
 const resetLimiter = rateLimit({ capacity: 5, refillPerSec: 5 / 300 }); // 5 burst, ~1/60s
 
-// WS9-2 — free-trial length in days. Ruled 14 (was 30): the business-plan
-// economics are modeled on a 14-day trial. No backfill — existing rows keep
-// their prior +30 stamp (no real customer data yet). This const sets the actual
-// trialEndsAt stamp.
-// ⚠️ KEEP IN SYNC with the mobile copy const: artifacts/kiwi/lib/domain.ts has
-// its own `TRIAL_LENGTH_DAYS` (separate package, no cheap shared module). Change
-// BOTH together.
-const TRIAL_LENGTH_DAYS = 14;
 
 // Password-reset tokens are short-lived per WS7-2 Block A. Reuses the
 // session signing helper with purpose='password_reset' so a leaked reset
@@ -95,6 +104,52 @@ const loginSchema = z.object({
   // Kitchen, liked the plan, and turn out to already have an account. Same
   // claim, minus the preferences copy (see lib/guestClaim.ts's header).
   ...GUEST_CLAIM_FIELDS,
+});
+
+// ── Row 9 (1.1) · OAuth Block 1 Part D — the two social sign-in bodies ────
+//
+// Everything a password SIGN-UP may send rides here too, and for one reason:
+// an OAuth sign-in that turns out to be a first sign-in IS a sign-up. PRD §3.3
+// shows the consent checkboxes on the OAuth sign-up screen, so the consents
+// have to be on this wire or they would have to be a second PATCH — the write
+// that D-WS9-241 A already rejected, because a consent that may or may not
+// have landed is worse than none.
+//
+// They are IGNORED for an existing user. Someone signing in for the twentieth
+// time is not re-stating their marketing preferences, and letting a sign-in
+// body overwrite them would make every launch of the app a silent consent
+// update.
+const OAUTH_SHARED_FIELDS = {
+  // Apple hands the name to the CLIENT on the first authorisation and never
+  // again, so the client forwards what it was given. Never trusted for
+  // anything but display, and never applied to an account that already exists.
+  firstName: z.string().max(100).optional(),
+  lastName: z.string().max(100).optional(),
+  zipCode: z.string().max(20).optional(),
+  timezone: z.string().max(100).optional(),
+  phone: phoneSchema.nullable().optional(),
+  marketingConsentEmail: z.boolean().optional(),
+  marketingConsentSms: z.boolean().optional(),
+  platform: z.enum(["web", "ios", "android"]).optional(),
+  ...GUEST_CLAIM_FIELDS,
+} as const;
+
+const appleOAuthSchema = z.object({
+  identityToken: z.string().min(1).max(8000),
+  // The PRE-HASH value. Apple's token carries sha256hex of it; the server
+  // recomputes and compares. See lib/oauth/verify.ts's header for the exact
+  // encoding the client must use.
+  rawNonce: z.string().min(1).max(500),
+  // OPTIONAL, and its absence never blocks a sign-in. It is the one-time code
+  // Apple returns beside the identity token; exchanging it is what yields the
+  // refresh token that DELETE /me needs to revoke (App Review 5.1.1(v)).
+  authorizationCode: z.string().min(1).max(2000).optional(),
+  ...OAUTH_SHARED_FIELDS,
+});
+
+const googleOAuthSchema = z.object({
+  idToken: z.string().min(1).max(8000),
+  ...OAUTH_SHARED_FIELDS,
 });
 
 const resetRequestSchema = z.object({
@@ -189,12 +244,49 @@ export interface AuthRouterDeps {
    * threading the inner one would add four pass-through deps for no coverage.
    */
   materializeClaimedDraft: typeof productionMaterializeClaimedDraft;
+  /**
+   * Row 9 · OAuth Block 1 Part C — THE SEAM THAT KEEPS THE SUITE HERMETIC.
+   *
+   * `pnpm test` runs with `--env-file=.env`. A default that reached Apple's or
+   * Google's live JWKS endpoint would put a real outbound request one
+   * forgotten stub away from every router test in this file, and a flaky
+   * network would then read as a broken auth route. Tests inject a verifier
+   * over a locally generated key pair; production passes the real one.
+   *
+   * The seam is the WHOLE verification, not the JWKS fetch inside it, because
+   * that is what the route calls — threading the fetch would leave the caches,
+   * the issuer lists and the nonce rule on the production path anyway.
+   */
+  verifyApple: (opts: {
+    identityToken: string | undefined;
+    rawNonce: string | undefined;
+    audiences: readonly string[];
+  }) => Promise<IdentityVerdict>;
+  verifyGoogle: (opts: {
+    idToken: string | undefined;
+    clientIds: readonly string[];
+  }) => Promise<IdentityVerdict>;
+  /** Read once per router so a test can hand in a configured or unconfigured deploy. */
+  oauthConfig: OAuthConfig;
 }
 
 export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
   const prisma = deps.prisma ?? productionPrisma;
   const materializeClaimedDraft =
     deps.materializeClaimedDraft ?? productionMaterializeClaimedDraft;
+  // Read ONCE at router construction, not per request: a Cloud Run env change
+  // is a new revision anyway, so a per-request read would buy nothing and
+  // would make the boot line (logOAuthConfig, app.ts) a different answer from
+  // the one the routes actually use.
+  const oauthConfig = deps.oauthConfig ?? readOAuthConfig();
+  const verifyApple =
+    deps.verifyApple ??
+    ((opts) =>
+      verifyAppleIdentityToken({ ...opts, cache: productionAppleJwksCache() }));
+  const verifyGoogle =
+    deps.verifyGoogle ??
+    ((opts) =>
+      verifyGoogleIdentityToken({ ...opts, cache: productionGoogleJwksCache() }));
   // WS9A BUG-234 — the session guard now reads User.tokensValidFrom, so it
   // needs a Prisma client. Building it from the injected one (rather than
   // importing the singleton) is what keeps this router's tests hermetic.
@@ -248,139 +340,53 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
       }
 
       const passwordHash = await hashPassword(password);
-      const trialEndsAt = new Date(
-        Date.now() + TRIAL_LENGTH_DAYS * 24 * 60 * 60 * 1000,
-      );
 
-      // Create user and subscription in a transaction — every user has a Subscription row.
+      // Row 13 · Block 1 (D-WS9-259) — STAGE 1 OF THE CLAIM rides inside the
+      // same transaction as the account: the preferences copy and the session
+      // marked claimed, so an account created from a guest session is never
+      // created without them. Stage 2 (the plan itself) CANNOT be in here —
+      // see the long note at the top of lib/guestClaim.ts. A
+      // GuestSessionInvalidError rolls the whole thing back and the catch below
+      // maps it to 409.
       //
-      // Row 13 · Block 1 (D-WS9-259) — STAGE 1 OF THE CLAIM rides inside this
-      // same transaction: the preferences copy and the session marked claimed,
-      // so an account created from a guest session is never created without
-      // them. Stage 2 (the plan itself) CANNOT be in here — see the long note
-      // at the top of lib/guestClaim.ts. A GuestSessionInvalidError thrown
-      // below rolls the whole thing back, and the catch maps it to 409.
-      let claimedDraft: unknown = null;
-      const user = await prisma.$transaction(async (tx) => {
-        const newUser = await tx.user.create({
-          data: {
-            email: normalizedEmail,
-            passwordHash,
-            firstName,
-            lastName,
-            zipCode: zipCode ?? null,
-            timezone: timezone ?? "America/New_York",
-            phone: phone ?? null,
-            // Only written when the client sent them — an absent flag keeps
-            // the Prisma default (false), same as onboardingComplete below.
-            ...(marketingConsentEmail !== undefined ? { marketingConsentEmail } : {}),
-            ...(marketingConsentSms !== undefined ? { marketingConsentSms } : {}),
-            // D-WS9-264 — the entry point, resolved HERE and written once.
-            // A guestSessionId wins over `platform` because it is the more
-            // specific fact: the Test Kitchen runs on the web, so a body with
-            // both would otherwise record "web" and lose the funnel this column
-            // exists to name. Null when neither is present.
-            signupSource: guestSessionId ? "test_kitchen" : (platform ?? null),
-          },
-        });
-        const subscription = await tx.subscription.create({
-          data: {
-            userId: newUser.id,
-            planCode: "free",
-            status: "trialing",
-            trialEndsAt,
-          },
-        });
-        let onboardingComplete = newUser.onboardingComplete;
-        if (guestSessionId) {
-          const claim = await claimGuestSessionInTx({
-            tx,
-            guestSessionId,
-            userId: newUser.id,
-            // A brand-new account: the guest's wizard answers ARE its
-            // preferences. (Sign-in passes false — see guestClaim's header.)
-            copyPreferences: true,
-          });
-          claimedDraft = claim.draft;
-          // ── R1 / D-WS9-263 — THE CLAIM COMPLETES ONBOARDING. ─────────────
-          //
-          // Hans: "agreed we don't want them to have to go to the same form,
-          // unpopulated, after saving." The account already holds the answers
-          // the onboarding form would ask for, so sending them to it would be
-          // asking twice and showing them an empty version of what they just
-          // filled in. The personalize NUDGE (R2) takes its place.
-          //
-          // Gated on `preferencesCopied`, never on `guestSessionId` alone: an
-          // unreadable blob leaves the user on column defaults, which is
-          // exactly the state onboarding exists to fix, so onboarding stays
-          // required there.
-          //
-          // 🔴 A SECOND WRITE, NOT A FIELD ON THE CREATE ABOVE, and it has to
-          // be: the decision depends on the claim's result, and the claim needs
-          // `newUser.id`, so it cannot run before the create. Pre-reading and
-          // re-parsing the blob to decide early would put a second copy of that
-          // judgement in a second place, free to disagree with the write that
-          // actually happened. Same transaction, so it is still atomic — an
-          // account is never committed with onboardingComplete out of step with
-          // its preferences row.
-          if (claim.preferencesCopied) {
-            const flagged = await tx.user.update({
-              where: { id: newUser.id },
-              data: { onboardingComplete: true },
-              select: { onboardingComplete: true },
-            });
-            onboardingComplete = flagged.onboardingComplete;
-          }
-        }
-        return { ...newUser, onboardingComplete, subscription };
-      });
+      // Row 9 · OAuth Block 1 Part D — the body of this transaction MOVED to
+      // lib/authAccount.ts so the two OAuth routes create accounts the same
+      // way this one does, rather than through a copy free to drift from it.
+      // Behaviour is unchanged; what changed is that there is one copy of it.
+      const created = await prisma.$transaction((tx) =>
+        createAccountInTx({
+          tx,
+          email: normalizedEmail,
+          passwordHash,
+          firstName,
+          lastName,
+          zipCode,
+          timezone,
+          phone,
+          marketingConsentEmail,
+          marketingConsentSms,
+          // D-WS9-264 — the entry point, resolved HERE and written once. A
+          // guestSessionId wins over `platform` because it is the more specific
+          // fact: the Test Kitchen runs on the web, so a body with both would
+          // otherwise record "web" and lose the funnel this column exists to
+          // name. Null when neither is present.
+          signupSource: guestSessionId ? "test_kitchen" : (platform ?? null),
+          guestSessionId,
+        }),
+      );
+      const user = { ...created.user, subscription: created.subscription };
 
       // ── STAGE 2. After the commit, and deliberately outside it. ─────────
-      // A failure here leaves a perfectly good account with no plan and says
-      // so, rather than throwing away a sign-up the visitor has already made.
-      let claimedPlanId: string | null = null;
-      // Row 13 · Block 1b Part A — did the compensating release land, so the
-      // client may offer "try again"? See releaseClaimForRetry's header.
-      let claimRetryable = false;
-      if (guestSessionId && claimedDraft) {
-        try {
-          claimedPlanId = await materializeClaimedDraft({
-            prisma,
-            userId: user.id,
-            draft: claimedDraft,
-            localDate,
-          });
-        } catch (err) {
-          // 🔴 Row 13 · Block 1b Part A — COMPENSATE, then log. Block 1 logged
-          // and stopped, which left the session claimed forever: every later
-          // attempt hit the `claimedAt: null` guard and the visitor's plan was
-          // gone for good. Releasing the mark makes the next sign-in with the
-          // same guestSessionId (copyPreferences: false — it needs no change,
-          // the preferences row already exists) claim it again and succeed.
-          claimRetryable = await releaseClaimForRetry({
-            prisma,
-            guestSessionId,
-            userId: user.id,
-          });
-          logger.error(
-            {
-              event: "guest_claim_plan_failed",
-              userId: user.id,
-              guestSessionId,
-              claimRetryable,
-              err,
-            },
-            "Guest claim could not build the plan — account created without it",
-          );
-        }
-      } else if (templatePlanId) {
-        claimedPlanId = await adoptTemplateForUser({
-          prisma,
-          userId: user.id,
-          templateId: templatePlanId,
-          localDate,
-        });
-      }
+      const { claimedPlanId, claimRetryable } = await finishClaimAfterCommit({
+        prisma,
+        userId: user.id,
+        guestSessionId,
+        templatePlanId,
+        claimedDraft: created.claimedDraft,
+        localDate,
+        materializeClaimedDraft,
+        via: "signup",
+      });
 
       const token = signToken(user.id);
       logger.info(
@@ -485,7 +491,6 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
       // already has preferences — possibly months of them — and a guest blob
       // typed into a public demo must never replace their allergy list. The
       // plan follows them; nothing else does.
-      let claimedPlanId: string | null = null;
       let claimedDraft: unknown = null;
       if (guestSessionId) {
         try {
@@ -519,46 +524,21 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
           }
         }
       }
-      let claimRetryable = false;
-      if (claimedDraft) {
-        try {
-          claimedPlanId = await materializeClaimedDraft({
-            prisma,
-            userId: user.id,
-            draft: claimedDraft,
-            localDate,
-          });
-        } catch (err) {
-          // Row 13 · Block 1b Part A — the same compensation as signup, and it
-          // matters MORE here: a returning user who claims, fails, and signs in
-          // again is the single most likely retry there is, and without the
-          // release every one of those attempts would be refused by the
-          // `claimedAt: null` guard. `guestSessionId` is non-null in this
-          // branch — `claimedDraft` is only ever set inside the block above it.
-          claimRetryable = await releaseClaimForRetry({
-            prisma,
-            guestSessionId: guestSessionId!,
-            userId: user.id,
-          });
-          logger.error(
-            {
-              event: "guest_claim_plan_failed",
-              userId: user.id,
-              guestSessionId,
-              claimRetryable,
-              err,
-            },
-            "Guest claim could not build the plan — login unaffected",
-          );
-        }
-      } else if (templatePlanId) {
-        claimedPlanId = await adoptTemplateForUser({
-          prisma,
-          userId: user.id,
-          templateId: templatePlanId,
-          localDate,
-        });
-      }
+      // Row 9 · OAuth Block 1 Part D — stage 2, through the same helper the
+      // sign-up uses. The compensation matters MORE here than there: a
+      // returning user who claims, fails, and signs in again is the single most
+      // likely retry there is, and without the release every one of those
+      // attempts would be refused by the `claimedAt: null` guard.
+      const { claimedPlanId, claimRetryable } = await finishClaimAfterCommit({
+        prisma,
+        userId: user.id,
+        guestSessionId,
+        templatePlanId,
+        claimedDraft,
+        localDate,
+        materializeClaimedDraft,
+        via: "login",
+      });
 
       const token = signToken(user.id);
       logger.info(
@@ -580,6 +560,276 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
     } catch (err) {
       logger.error({ err }, "Login failed");
       return res.status(500).json({ error: "login failed" });
+    }
+  });
+
+  // ── Row 9 (1.1) · OAuth Block 1 Part D — the two social sign-in doors ───
+  //
+  // ONE BODY, and it is both a sign-up and a sign-in. Which one it turns out
+  // to be is not the client's to declare: `resolveIdentity` decides from the
+  // verified token, and `isNewUser` on the response is the report of what
+  // happened. A client that asked for "sign up" and was recognised gets signed
+  // in, which is the only behaviour a person tapping one button expects.
+  //
+  // ⚠️ ONE GENERIC 401 FOR EVERY VERIFICATION FAILURE (§2.8). A wrong
+  // audience, an expired token, a bad signature, a nonce mismatch and an
+  // unverified email all answer the same three bytes. The reason goes to the
+  // log, where it is diagnosable, and not to the wire, where it would tell an
+  // attacker which of their guesses was closest.
+
+  interface OAuthHandlerArgs {
+    provider: OAuthProviderName;
+    verdict: IdentityVerdict;
+    body: {
+      firstName?: string | undefined;
+      lastName?: string | undefined;
+      zipCode?: string | undefined;
+      timezone?: string | undefined;
+      phone?: string | null | undefined;
+      marketingConsentEmail?: boolean | undefined;
+      marketingConsentSms?: boolean | undefined;
+      platform?: "web" | "ios" | "android" | undefined;
+      guestSessionId?: string | undefined;
+      templatePlanId?: string | undefined;
+      localDate?: string | undefined;
+    };
+    /** Part E fills this in for Apple; null everywhere else. */
+    appleRefreshTokenEnc?: string | null;
+    res: Response;
+  }
+
+  async function completeOAuthSignIn(args: OAuthHandlerArgs) {
+    const { provider, verdict, body, res } = args;
+
+    if (!verdict.ok) {
+      logger.warn(
+        { event: "oauth_verify_failed", provider, reason: verdict.reason, detail: verdict.detail },
+        "OAuth identity token refused",
+      );
+      // `not_configured` cannot reach here — the route checks the audience
+      // list before verifying — but if it ever did, 401 is the safe answer.
+      return res.status(401).json({ error: "invalid credentials" });
+    }
+    const identity = verdict.identity;
+
+    const { guestSessionId, templatePlanId, localDate } = body;
+    if (guestSessionId && templatePlanId) {
+      return res.status(400).json({
+        error: "guestSessionId and templatePlanId are mutually exclusive",
+      });
+    }
+
+    const linkFacts: IdentityLinkFacts = {
+      emailAtLink: identity.email,
+      emailVerified: identity.emailVerified,
+      isPrivateRelay: identity.isPrivateRelay,
+      appleClientId: provider === "apple" ? identity.audience : null,
+      appleRefreshTokenEnc: args.appleRefreshTokenEnc ?? null,
+    };
+
+    const resolveOnce = () =>
+      resolveIdentity({
+        prisma,
+        identity,
+        bodyFirstName: body.firstName,
+        bodyLastName: body.lastName,
+        zipCode: body.zipCode,
+        timezone: body.timezone,
+        phone: body.phone,
+        marketingConsentEmail: body.marketingConsentEmail,
+        marketingConsentSms: body.marketingConsentSms,
+        platform: body.platform,
+        guestSessionId,
+        linkFacts,
+      });
+
+    let outcome;
+    try {
+      outcome = await resolveOnce();
+    } catch (err) {
+      // The unique index on (provider, subject) is the race guard: two
+      // simultaneous first sign-ins with the same token cannot both create an
+      // account. The loser retries ONCE and takes branch (a), which is now
+      // true. A second P2002 is a real failure and propagates.
+      if (!isIdentityRaceLoss(err)) throw err;
+      logger.info(
+        { event: "oauth_identity_race", provider },
+        "Concurrent first sign-in for the same identity — retrying as an existing one",
+      );
+      outcome = await resolveOnce();
+    }
+
+    if (!outcome.ok) {
+      logger.warn(
+        { event: "oauth_resolve_refused", provider, reason: outcome.reason },
+        "OAuth sign-in refused after verification",
+      );
+      return res.status(401).json({ error: "invalid credentials" });
+    }
+
+    // ── the claim (§2.7) ──────────────────────────────────────────────────
+    // A NEW user's claim already ran inside `resolveIdentity`'s transaction
+    // (preferences copied, onboarding completed). An EXISTING user claims here
+    // and copies NOTHING but the plan — a guest blob typed into a public demo
+    // must never replace an established account's allergy list.
+    let claimedDraft = outcome.claimedDraft;
+    if (!outcome.isNewUser && guestSessionId) {
+      try {
+        claimedDraft = await claimForExistingUser({
+          prisma,
+          guestSessionId,
+          userId: outcome.userId,
+        });
+      } catch (err) {
+        if (!(err instanceof GuestSessionInvalidError)) throw err;
+        // LOGGED, NOT REFUSED — the same asymmetry password login has. The
+        // identity is already verified, and refusing a valid sign-in because a
+        // demo session went stale would lock someone out of their own account
+        // over a cosmetic failure.
+        logger.info(
+          { event: "guest_claim_refused", provider, userId: outcome.userId, detail: err.detail },
+          "OAuth sign-in proceeded; the guest session could not be claimed",
+        );
+      }
+    }
+
+    const { claimedPlanId, claimRetryable } = await finishClaimAfterCommit({
+      prisma,
+      userId: outcome.userId,
+      guestSessionId,
+      templatePlanId,
+      claimedDraft,
+      localDate,
+      materializeClaimedDraft,
+      via: `oauth_${provider}`,
+    });
+
+    // Re-read rather than thread the created row out: `resolveIdentity` has
+    // three exits and only one of them holds a user object, and the claim above
+    // may have flipped `onboardingComplete` since. One query, one shape.
+    const user = await prisma.user.findUnique({
+      where: { id: outcome.userId },
+      include: { subscription: true },
+    });
+    if (!user) {
+      logger.error({ event: "oauth_user_vanished", provider, userId: outcome.userId }, "OAuth user missing after resolve");
+      return res.status(500).json({ error: "sign-in failed" });
+    }
+    if (user.accountStatus !== "active") {
+      return res.status(403).json({ error: "account not active" });
+    }
+
+    if (!outcome.isNewUser) {
+      // Same non-critical tracking password login does; a failure never blocks.
+      await prisma.user
+        .update({
+          where: { id: user.id },
+          data: { lastLoginAt: new Date(), loginCountTotal: { increment: 1 } },
+        })
+        .catch((err) => {
+          logger.warn({ err, userId: user.id }, "Failed to update login tracking");
+        });
+    }
+
+    logger.info(
+      {
+        event: "oauth_sign_in",
+        provider,
+        userId: user.id,
+        isNewUser: outcome.isNewUser,
+        identityCreated: outcome.identityCreated,
+        isPrivateRelay: identity.isPrivateRelay,
+        guestSessionId: guestSessionId ?? null,
+        claimedPlanId,
+      },
+      `Signed in with ${provider}`,
+    );
+
+    return res.status(outcome.isNewUser ? 201 : 200).json({
+      user: {
+        ...toUserShape(user),
+        subscription: user.subscription ? toSubscriptionShape(user.subscription) : null,
+      },
+      authToken: signToken(user.id),
+      // DERIVED, never a literal — an OAuth sign-up that claimed a Test Kitchen
+      // session already has its preferences and must not be sent to an empty
+      // copy of the form it just filled in (R1 / D-WS9-263).
+      onboardingRequired: !user.onboardingComplete,
+      claimedPlanId,
+      claimRetryable,
+      // §2.8 — the one thing this response says that the password ones do not.
+      // The client needs it to know whether to show the welcome flow, and it is
+      // a REPORT of what the server decided, not an echo of what was asked.
+      isNewUser: outcome.isNewUser,
+    });
+  }
+
+  // POST /auth/oauth/apple
+  router.post("/auth/oauth/apple", authLimiter, async (req, res) => {
+    const parsed = appleOAuthSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "invalid request body" });
+    }
+    const { identityToken, rawNonce, ...body } = parsed.data;
+
+    // The OFF state, before anything else: no audience configured means the
+    // deploy has not been wired to Apple, and saying 503 is honest where a 401
+    // would blame the caller for the operator's missing variable.
+    if (oauthConfig.appleAudiences.length === 0) {
+      return res.status(503).json({ code: "oauth_unavailable" });
+    }
+    if (body.marketingConsentSms && !body.phone) {
+      return res.status(400).json({ error: "SMS consent requires a phone number" });
+    }
+
+    try {
+      const verdict = await verifyApple({
+        identityToken,
+        rawNonce,
+        audiences: oauthConfig.appleAudiences,
+      });
+      return await completeOAuthSignIn({ provider: "apple", verdict, body, res });
+    } catch (err) {
+      if (err instanceof GuestSessionInvalidError) {
+        logger.info(
+          { event: "guest_claim_refused", provider: "apple", detail: err.detail },
+          "Apple sign-up refused: the guest session could not be claimed",
+        );
+        return res.status(409).json({ code: "guest_session_invalid" });
+      }
+      logger.error({ err }, "Apple OAuth failed");
+      return res.status(500).json({ error: "sign-in failed" });
+    }
+  });
+
+  // POST /auth/oauth/google
+  router.post("/auth/oauth/google", authLimiter, async (req, res) => {
+    const parsed = googleOAuthSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "invalid request body" });
+    }
+    const { idToken, ...body } = parsed.data;
+
+    if (oauthConfig.googleClientIds.length === 0) {
+      return res.status(503).json({ code: "oauth_unavailable" });
+    }
+    if (body.marketingConsentSms && !body.phone) {
+      return res.status(400).json({ error: "SMS consent requires a phone number" });
+    }
+
+    try {
+      const verdict = await verifyGoogle({ idToken, clientIds: oauthConfig.googleClientIds });
+      return await completeOAuthSignIn({ provider: "google", verdict, body, res });
+    } catch (err) {
+      if (err instanceof GuestSessionInvalidError) {
+        logger.info(
+          { event: "guest_claim_refused", provider: "google", detail: err.detail },
+          "Google sign-up refused: the guest session could not be claimed",
+        );
+        return res.status(409).json({ code: "guest_session_invalid" });
+      }
+      logger.error({ err }, "Google OAuth failed");
+      return res.status(500).json({ error: "sign-in failed" });
     }
   });
 

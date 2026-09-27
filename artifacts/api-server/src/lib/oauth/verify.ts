@@ -175,8 +175,12 @@ async function verifySigned(
       // An ARRAY: any one of the configured client ids is acceptable, which is
       // what lets one deploy serve the iOS app, the Android app and the web
       // button without three code paths.
-      audience: [...args.audiences],
-      issuer: [...args.issuers],
+      // The tuple casts are `jsonwebtoken`'s types insisting on a NON-EMPTY
+      // array. Both lists are non-empty by construction here: `audiences` was
+      // checked above (empty = `not_configured`, never a skipped check) and
+      // `issuers` is a module-level literal.
+      audience: [...args.audiences] as [string, ...string[]],
+      issuer: [...args.issuers] as [string, ...string[]],
     });
     if (typeof verified === "string") return { ok: false, reason: "malformed" };
     return { ok: true, payload: verified };
