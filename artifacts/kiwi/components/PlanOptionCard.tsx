@@ -95,6 +95,17 @@ interface Props {
    * is the reason this is a prop on the member card rather than a second card.
    */
   guestAction?: { label: string; busyLabel?: string; busy?: boolean; onPress: () => void };
+  /**
+   * Row 13 · Block 2b (BUG-316) — the catalog-gap refusal, IN this card.
+   *
+   * When the expand comes back 409 `catalog_only_gap` the refusal belongs where
+   * the tap happened. It arrives as a node (the ExhaustedCard's guest variant,
+   * built by the screen so the copy and the door stay in one place) and it
+   * REPLACES the guestAction row — the button that was just refused must not sit
+   * there inviting a second identical tap. Ignored unless `guestAction` is set,
+   * because a member card has no such refusal.
+   */
+  guestGapBanner?: React.ReactNode;
 }
 
 export function macrosLine(m: WizardPlanCandidate["dailyMacros"]): string {
@@ -111,6 +122,7 @@ export function PlanOptionCard({
   onSaveForLater,
   onNotForMe,
   guestAction,
+  guestGapBanner,
 }: Props) {
   const rows = rowsFor(candidate);
   // lane-pfc Part C.5 — testIDs key on the CONTENT identity (BUG-289's
@@ -173,19 +185,26 @@ export function PlanOptionCard({
       </Text>
 
       {guestAction ? (
-        <View style={s.actions}>
-          <Button
-            label={
-              guestAction.busy
-                ? (guestAction.busyLabel ?? guestAction.label)
-                : guestAction.label
-            }
-            variant="tint"
-            onPress={guestAction.onPress}
-            disabled={guestAction.busy || locked}
-            testID={`plan-option-${idKey}-guest-open`}
-          />
-        </View>
+        /* Block 2b (BUG-316) — the gap refusal replaces the refused button. */
+        guestGapBanner ? (
+          <View style={s.actions} testID={`plan-option-${idKey}-guest-gap`}>
+            {guestGapBanner}
+          </View>
+        ) : (
+          <View style={s.actions}>
+            <Button
+              label={
+                guestAction.busy
+                  ? (guestAction.busyLabel ?? guestAction.label)
+                  : guestAction.label
+              }
+              variant="tint"
+              onPress={guestAction.onPress}
+              disabled={guestAction.busy || locked}
+              testID={`plan-option-${idKey}-guest-open`}
+            />
+          </View>
+        )
       ) : state === "saved" ? (
         <View style={s.savedRow}>
           <Text style={s.savedLine} accessibilityLabel={SAVED_LINE}>

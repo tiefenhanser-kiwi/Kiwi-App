@@ -35,6 +35,12 @@ import { useGuest } from "@/contexts/GuestContext";
 import { useGuestDoor } from "@/hooks/useGuestDoor";
 import { expandGuestCandidate, getGuestSession, trackGuestEvent } from "@/lib/api/guest";
 import { THIN_SHELF_CTA, THIN_SHELF_TITLE } from "@/lib/guest/doors";
+// Block 2b (BUG-316) — the refusal is keyed to the card that earned it.
+import {
+  deriveThinShelfPlacement,
+  thinShelfShowsOnCard,
+  type ThinShelfRefusal,
+} from "@/lib/guest/thinShelf";
 import {
   buildGuestCandidateContext,
   guestFormFromStoredPreferences,
@@ -76,7 +82,10 @@ function GuestOptionsScreen() {
   const { session, generation } = useGuest();
   const guestDoor = useGuestDoor();
   const [busyKey, setBusyKey] = React.useState<string | null>(null);
-  const [thinShelf, setThinShelf] = React.useState<string[] | null>(null);
+  // Block 2b (BUG-316) — was `string[] | null` (the 409's liveSlotTitles alone),
+  // which is why the banner could only be rendered somewhere the screen knew
+  // about: the top of the list. It carries the tapped card's key now.
+  const [thinShelf, setThinShelf] = React.useState<ThinShelfRefusal | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
   // The server's copy — authoritative across a reload, and the only source of
@@ -101,6 +110,10 @@ function GuestOptionsScreen() {
     }
   }, [candidates.length]);
 
+  // Block 2b (BUG-316) — where the gap refusal goes. `topOfList` is a typed
+  // `false`; the only placement left is inside one card.
+  const placement = deriveThinShelfPlacement(thinShelf);
+
   const openCandidate = async (candidate: WizardPlanCandidate, key: string) => {
     if (busyKey) return;
     setBusyKey(key);
@@ -116,7 +129,7 @@ function GuestOptionsScreen() {
         void trackGuestEvent("thin_shelf", {
           meta: { liveSlotTitles: result.liveSlotTitles },
         });
-        setThinShelf(result.liveSlotTitles);
+        setThinShelf({ candidateKey: key, liveSlotTitles: result.liveSlotTitles });
         return;
       }
       void trackGuestEvent("plan_opened", { meta: { title: result.draft.expanded.title } });
@@ -154,18 +167,13 @@ function GuestOptionsScreen() {
           </View>
         ) : null}
 
-        {/* R6 — the thin shelf. Hans's copy, verbatim, and a sign-up exit. */}
-        {thinShelf ? (
-          <ExhaustedCard
-            title={THIN_SHELF_TITLE}
-            body=""
-            guestExit={{
-              label: THIN_SHELF_CTA,
-              onPress: () => guestDoor.open("thin_shelf"),
-            }}
-          />
-        ) : null}
-
+        {/* R6 — the thin shelf. Hans's copy, verbatim, and a sign-up exit.
+            🔴 Block 2b (BUG-316): the ExhaustedCard used to render HERE, above
+            the first candidate. Tapping the THIRD one put it ~1,400 px above the
+            viewport, so the 409 landed, the thin_shelf event landed, and nothing
+            changed where the visitor was looking. It is built below and passed
+            INTO the tapped card. Nothing goes back in this slot — that is what
+            deriveThinShelfPlacement's `topOfList: false` is asserting. */}
         {candidates.map((candidate, i) => {
           const key = `${i}-${candidate.title}`;
           return (
@@ -187,6 +195,21 @@ function GuestOptionsScreen() {
                 busy: busyKey === key,
                 onPress: () => void openCandidate(candidate, key),
               }}
+              // Block 2b (BUG-316) — exactly one card can show this, and only
+              // the one that was tapped. It replaces that card's "See this plan",
+              // so the refused button is not left there inviting the same tap.
+              guestGapBanner={
+                thinShelfShowsOnCard(placement, key) ? (
+                  <ExhaustedCard
+                    title={THIN_SHELF_TITLE}
+                    body=""
+                    guestExit={{
+                      label: THIN_SHELF_CTA,
+                      onPress: () => guestDoor.open("thin_shelf"),
+                    }}
+                  />
+                ) : null
+              }
             />
           );
         })}
