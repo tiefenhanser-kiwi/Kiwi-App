@@ -100,17 +100,9 @@ export default function SignUpPage() {
     };
   }, [phone, emailConsent, smsConsent]);
 
-  // Read at RENDER time and kept in a ref: a successful claim clears the guest
-  // store inside oauthSignIn, so by the time this runs there is nothing left
-  // to say there had been one. The password path reads it inline instead,
-  // because there its call is one statement away.
-  const claimedGuestSessionRef = React.useRef(false);
-  claimedGuestSessionRef.current =
-    claimedGuestSessionRef.current || readGuestSessionId() !== null;
-
   const handleSocialSuccess = React.useCallback(
-    (res: OAuthAuthResponse) => {
-      if (claimedGuestSessionRef.current) {
+    (res: OAuthAuthResponse, ctx: { claimAttempted: boolean }) => {
+      if (ctx.claimAttempted) {
         guestCtx?.setGeneration(null);
         if (res.claimRetryable) {
           Alert.alert("Account created", CLAIM_RETRY_LINE);

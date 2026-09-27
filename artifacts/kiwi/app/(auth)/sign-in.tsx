@@ -33,13 +33,6 @@ export default function SignInPage() {
   const [password, setPassword] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
   const claimPending = submitting && !!guestCtx?.session;
-  // Row 9 · read at RENDER time and kept in a ref: a successful claim clears
-  // the guest store inside oauthSignIn, so by the time handleSocialSuccess
-  // runs there is nothing left to say there had been one. The password path
-  // reads it inline instead, because there its call is one statement away.
-  const claimedGuestSessionRef = React.useRef(false);
-  claimedGuestSessionRef.current =
-    claimedGuestSessionRef.current || readGuestSessionId() !== null;
 
   // ── Row 9 (1.1) · OAuth Block 2 Part E — a social sign-in completes ────
   //
@@ -54,8 +47,8 @@ export default function SignInPage() {
   // says so with isNewUser — so the claim copy has to cover both, and the
   // title on screen is the only thing that said "sign in".
   const handleSocialSuccess = React.useCallback(
-    (res: OAuthAuthResponse) => {
-      if (claimedGuestSessionRef.current) {
+    (res: OAuthAuthResponse, ctx: { claimAttempted: boolean }) => {
+      if (ctx.claimAttempted) {
         guestCtx?.setGeneration(null);
         if (res.claimRetryable) {
           Alert.alert(res.isNewUser ? "Account created" : "Signed in", CLAIM_RETRY_LINE);

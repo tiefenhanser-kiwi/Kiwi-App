@@ -37,6 +37,7 @@ import React from "react";
 import { ActivityIndicator, Platform, StyleSheet, Text, View } from "react-native";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { readGuestSessionId } from "@/lib/guest/guestToken";
 import { oauthFailure } from "@/lib/oauth/errors";
 import {
   anyProviderVisible,
@@ -72,8 +73,15 @@ export interface SocialSignInBlockProps {
    * A completed sign-in. The screen routes and says its own line — "Account
    * created" reads wrong under a Sign in title, and `isNewUser` is what tells
    * the sign-in screen it was in fact a sign-up.
+   *
+   * `claimAttempted` is read HERE, immediately before the request, because a
+   * successful claim clears the guest store inside oauthSignIn — by the time
+   * this callback runs there is nothing left to say there had been one. It is
+   * the same "read before the call" the password paths do inline; the
+   * difference is only that a provider sheet sits between the tap and the
+   * request, so the screens cannot do it themselves.
    */
-  onSuccess: (res: OAuthAuthResponse) => void;
+  onSuccess: (res: OAuthAuthResponse, ctx: { claimAttempted: boolean }) => void;
 }
 
 export function SocialSignInBlock({
@@ -141,6 +149,9 @@ export function SocialSignInBlock({
       try {
         const got = await get();
         if (!got) return; // dismissed: say nothing, do nothing
+        // Read before the request, not after: oauthSignIn clears the guest
+        // store on a successful claim.
+        const claimAttempted = readGuestSessionId() !== null;
         const res = await oauthSignIn({
           provider,
           mode,
@@ -152,7 +163,7 @@ export function SocialSignInBlock({
           // and the belt is the one that is tested.
           consents: mode === "signup" ? consents : undefined,
         });
-        onSuccess(res);
+        onSuccess(res, { claimAttempted });
       } catch (err) {
         const failure = oauthFailure(err, provider);
         // The hide is idempotent, and AuthContext already did it for a refusal
