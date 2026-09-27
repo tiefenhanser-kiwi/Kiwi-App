@@ -8,6 +8,7 @@ import { validateSpendGuardEnv } from "./lib/spendGuard";
 import { logInstacartConfig } from "./lib/retailers/instacartClient";
 import { logTurnstileConfig } from "./lib/turnstile";
 import { logOAuthConfig } from "./lib/oauth/config";
+import { logBillingConfig } from "./lib/billing/config";
 import { parseTrustProxyHops } from "./lib/trustProxy";
 import { noStore } from "./middleware/cacheControl";
 import { errorHandler } from "./middleware/errorHandler";
@@ -81,6 +82,17 @@ logTurnstileConfig(process.env);
 // an unset provider answers 503 `oauth_unavailable` and the password lane is
 // untouched. Logs COUNTS and variable NAMES only, never a value.
 logOAuthConfig(process.env);
+
+// Row 9 (1.1) · Stripe S1 — the fifth line of the same kind, with ONE
+// difference that matters: this is the only one of the five that can stop the
+// boot. `BILLING_ENFORCED=true` with Stripe unconfigured is a paywall with no
+// way to pay — every account past its trial refused, and checkout answering
+// 503 to all of them — so it THROWS a named error rather than logging and
+// serving (lib/billing/config.ts's header has the full reasoning). Every other
+// state here logs and serves: unset Stripe means the billing routes answer 503
+// `billing_unavailable` and `can()` keeps allowing everyone, which is exactly
+// today's behaviour (D-WS9-258).
+logBillingConfig(process.env);
 
 app.use(
   pinoHttp({
