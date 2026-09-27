@@ -1612,6 +1612,31 @@ model Subscription {
   stripeSubscriptionId String?            @unique
   stripeCustomerId     String?
   promoCodeId          String?
+  // Row 9 (1.1) · Stripe S1 — the four columns the webhook mirror needs.
+  //
+  // `stripePriceId` is what `planCode` is DERIVED from (premium_monthly vs
+  // premium_annual): the price id is Stripe's fact, planCode is our rendering
+  // of it, and keeping both means a mismatch is detectable instead of silent.
+  //
+  // `cancelAtPeriodEnd` is the difference between "canceled" and "cancelling":
+  // a user who cancels in the Portal stays ENTITLED until currentPeriodEnd, and
+  // without this column the app cannot tell them when they lose access.
+  //
+  // `stripeUpdatedAt` is the out-of-order guard. Stripe does not promise event
+  // ORDER, only delivery, so a `customer.subscription.updated` can arrive after
+  // a later one. This holds the `created` of the last event we mirrored; an
+  // older event refetches the subscription and mirrors THAT instead of writing
+  // stale truth. It is Stripe's clock, never ours — comparing our clock to
+  // Stripe's would make the guard depend on the two agreeing.
+  //
+  // `earlyPayBonusApplied` is the pay-early experiment's own measurement
+  // (D-WS9-270 §5a). Without it, "did the bonus change conversion?" is
+  // unanswerable after the fact, because the bonus lives in a Checkout Session
+  // that Stripe expires in 24 hours.
+  stripePriceId        String?
+  cancelAtPeriodEnd    Boolean            @default(false)
+  stripeUpdatedAt      DateTime?
+  earlyPayBonusApplied Boolean            @default(false)
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
 
@@ -1619,6 +1644,35 @@ model Subscription {
   promoCode PromoCode? @relation(fields: [promoCodeId], references: [id])
 
   @@map("subscriptions")
+}
+
+// Row 9 (1.1) · Stripe S1 — THE WEBHOOK'S IDEMPOTENCY LEDGER.
+//
+// Stripe guarantees AT-LEAST-ONCE delivery: it retries for up to three days on
+// any non-2xx, and it can deliver the same event twice even after a 200. Every
+// handler in this block is written to be safe to replay, but "safe to replay"
+// and "replayed" are different costs — a redelivered `checkout.session.completed`
+// would re-run a customer attach, and a redelivered subscription event would
+// re-write the mirror with whatever that event carried, undoing a newer one.
+//
+// So the FIRST thing the route does is claim the event id. `id` is Stripe's own
+// event id as the PRIMARY KEY, which makes the database the arbiter rather than
+// application logic: two concurrent deliveries of the same event cannot both
+// proceed — the second insert raises a unique violation and is acknowledged 200,
+// ignored. That is the same shape as `user_identities_provider_subject_key`
+// guarding two simultaneous first sign-ins.
+//
+// There is no `userId` and no foreign key, on purpose. An event may arrive for a
+// customer whose Kiwi account has since been deleted, and the ledger must still
+// record that it was seen — a FK would either block the insert or lose the row.
+// Nothing reads this table except the replay check.
+model StripeEvent {
+  /** Stripe's event id (`evt_…`). THE primary key — see the note above. */
+  id         String   @id
+  type       String
+  receivedAt DateTime @default(now())
+
+  @@map("stripe_events")
 }
 
 model PromoCode {
