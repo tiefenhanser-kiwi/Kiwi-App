@@ -225,6 +225,57 @@ function makeStubPrisma(opts: {
         if (typeof args.take === "number") rows = rows.slice(0, args.take);
         return rows;
       },
+      // BUG-312 (Block 1b Part E) — the visibility gate's read, modelled off
+      // the WHERE the route actually sends rather than hard-coded to agree
+      // with it. Two predicate shapes reach here:
+      //   the GUEST branch  { id, isPublic, userId: null, isArchived }
+      //   the USER branch   { id, OR: [{userId}, {isPublic,isArchived},
+      //                                {planItems:{some:{planInstance:{userId}}}}] }
+      findFirst: async (args: {
+        where: {
+          id: string;
+          isPublic?: boolean;
+          userId?: string | null;
+          isArchived?: boolean;
+          OR?: Array<{
+            userId?: string;
+            isPublic?: boolean;
+            isArchived?: boolean;
+            planItems?: { some: { planInstance: { userId: string } } };
+          }>;
+        };
+      }) => {
+        const w = args.where;
+        const m = detailMeals.find((r) => r.id === w.id);
+        if (!m) return null;
+        const onCallersPlan = (userId: string): boolean =>
+          planItems.some((p) => p.mealId === m.id && p.userId === userId);
+        if (w.OR) {
+          const ok = w.OR.some((clause) => {
+            if (clause.planItems) {
+              return onCallersPlan(clause.planItems.some.planInstance.userId);
+            }
+            if (clause.userId !== undefined) return m.userId === clause.userId;
+            if (clause.isPublic !== undefined) {
+              return (
+                m.isPublic === clause.isPublic &&
+                (clause.isArchived === undefined ||
+                  m.isArchived === clause.isArchived)
+              );
+            }
+            return false;
+          });
+          return ok ? { id: m.id } : null;
+        }
+        // The guest branch: every named field must match, `userId: null`
+        // included (catalog only — never a community member's published meal).
+        if (w.isPublic !== undefined && m.isPublic !== w.isPublic) return null;
+        if (w.userId !== undefined && m.userId !== w.userId) return null;
+        if (w.isArchived !== undefined && m.isArchived !== w.isArchived) {
+          return null;
+        }
+        return { id: m.id };
+      },
       findUnique: async (args: { where: { id: string } }) => {
         const m = detailMeals.find((r) => r.id === args.where.id);
         if (!m) return null;
@@ -909,6 +960,225 @@ describe("GET /meals/:id", () => {
     try {
       const res = await authGet(harness, "/meals/meal-single", false);
       assert.equal(res.status, 401);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+
+// ── BUG-312 (Block 1b Part E) — GET /meals/:id visibility ────────────────
+//
+// Before this, an authenticated caller got NO check at all: the handler
+// composed its answer from an id-only findUnique, so any signed-in user could
+// read any other user's private meal — full recipe, ingredients, steps.
+//
+// Three ways in and no fourth: own, public-and-not-archived, or on one of the
+// caller's own plans. Every miss is 404, never 403 — a 403 confirms the id
+// exists, which is the probe the guest branch already refuses to be.
+
+/** One dish, one ingredient — enough body to prove a recipe did or did not leak. */
+const ONE_DISH: DishLinkFixture[] = [
+  {
+    positionIndex: 0,
+    roleLabel: "main",
+    dish: dish("d-1", "The Dish", [
+      dishIngredient("Salt", "Pantry", 1, "tsp", 0),
+    ]),
+  },
+];
+
+/** A meal owned by someone else, unpublished. The row Block 1 leaked. */
+function privateForeignMeal(id: string): DetailMealFixture {
+  return {
+    ...detailMeal(id, "Someone Else's Dinner", ONE_DISH),
+    isPublic: false,
+    userId: "owner-1",
+  };
+}
+
+describe("GET /meals/:id — BUG-312 visibility for an authenticated caller", () => {
+  it("MY OWN meal: 200, even unpublished", async () => {
+    const mine: DetailMealFixture = {
+      ...privateForeignMeal("m-mine"),
+      userId: USER_ID,
+    };
+    const harness = await spinUp(makeStubPrisma({ detailMeals: [mine] }));
+    try {
+      const res = await authGet(harness, "/meals/m-mine");
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { meal: { id: string } };
+      assert.equal(body.meal.id, "m-mine");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("a PUBLIC, non-archived meal: 200", async () => {
+    // detailMeal() defaults to isPublic true / userId "owner-1" — NOT mine, so
+    // this passes on the public clause alone, which is the point.
+    const harness = await spinUp(
+      makeStubPrisma({
+        detailMeals: [detailMeal("m-pub", "Catalog Dinner", ONE_DISH)],
+      }),
+    );
+    try {
+      assert.equal((await authGet(harness, "/meals/m-pub")).status, 200);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("🔴 ANOTHER USER'S PRIVATE meal: 404 — the leak, closed", async () => {
+    const harness = await spinUp(
+      makeStubPrisma({ detailMeals: [privateForeignMeal("m-theirs")] }),
+    );
+    try {
+      const res = await authGet(harness, "/meals/m-theirs");
+      assert.equal(res.status, 404, "not 403 — the id is not confirmed");
+      const body = (await res.json()) as Record<string, unknown>;
+      assert.equal(body.meal, undefined, "and no recipe leaks in the body");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("another user's private meal that is ON MY PLAN: 200", async () => {
+    // The third clause, and the reason the two-clause rule open-coded elsewhere
+    // could not be reused: a forked or shared meal legitimately in my week is
+    // someone else's private row, and 404ing it would break Plan Review.
+    const harness = await spinUp(
+      makeStubPrisma({
+        detailMeals: [privateForeignMeal("m-onplan")],
+        planItems: [
+          {
+            id: "pi-1",
+            mealId: "m-onplan",
+            userId: USER_ID,
+            recipeOverrideJson: null,
+          },
+        ],
+      }),
+    );
+    try {
+      assert.equal((await authGet(harness, "/meals/m-onplan")).status, 200);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("the same meal on SOMEBODY ELSE'S plan does not let me in: 404", async () => {
+    const harness = await spinUp(
+      makeStubPrisma({
+        detailMeals: [privateForeignMeal("m-onplan")],
+        planItems: [
+          {
+            id: "pi-1",
+            mealId: "m-onplan",
+            userId: "some-other-user",
+            recipeOverrideJson: null,
+          },
+        ],
+      }),
+    );
+    try {
+      assert.equal((await authGet(harness, "/meals/m-onplan")).status, 404);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("a PUBLIC but ARCHIVED meal is not public content: 404", async () => {
+    const harness = await spinUp(
+      makeStubPrisma({
+        detailMeals: [
+          detailMeal("m-arch-detail", "Retired Dinner", ONE_DISH, {
+            isArchived: true,
+          }),
+        ],
+      }),
+    );
+    try {
+      assert.equal(
+        (await authGet(harness, "/meals/m-arch-detail")).status,
+        404,
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── the GUEST pre-check, unchanged by Part E ─────────────────────────────
+//
+// Block 1's guest rule is strictly NARROWER than the authenticated one — the
+// catalog only, meaning isPublic AND userId null — and Part E must not have
+// widened it by collapsing the two branches into one predicate. There was no
+// test on it before; there is now, so the next change to this handler cannot
+// quietly promote a guest to the three-clause rule.
+describe("GET /meals/:id — the guest pre-check (Block 1, re-pinned by 1b)", () => {
+  const GUEST_ID = "gs-meal-detail";
+
+  /** makeStubPrisma + the one model requireGuestOrAuth reads. */
+  function withGuestSession(stub: ReturnType<typeof makeStubPrisma>) {
+    return {
+      ...stub,
+      guestSession: {
+        findUnique: async ({ where }: { where: { id: string } }) =>
+          where.id === GUEST_ID
+            ? {
+                id: GUEST_ID,
+                expiresAt: new Date(Date.now() + 3_600_000),
+                claimedAt: null,
+              }
+            : null,
+      },
+    };
+  }
+
+  const guestGet = (harness: Harness, path: string) =>
+    fetch(`${harness.baseUrl}${path}`, {
+      headers: {
+        Authorization: `Bearer ${signToken(GUEST_ID, {
+          purpose: "guest",
+          expiresIn: "1h",
+        })}`,
+      },
+    });
+
+  it("a CATALOG meal (isPublic, userId null): 200", async () => {
+    const catalog: DetailMealFixture = {
+      ...detailMeal("m-catalog", "Kiwi Dinner", ONE_DISH),
+      userId: null,
+    };
+    const harness = await spinUp(
+      withGuestSession(makeStubPrisma({ detailMeals: [catalog] })),
+    );
+    try {
+      assert.equal((await guestGet(harness, "/meals/m-catalog")).status, 200);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("🔴 a PUBLIC meal owned by a USER is still 404 for a guest — catalog, not 'public'", async () => {
+    // detailMeal() defaults to userId "owner-1", isPublic true. An
+    // authenticated caller gets 200 on this row; a guest must not.
+    const harness = await spinUp(
+      withGuestSession(
+        makeStubPrisma({
+          detailMeals: [detailMeal("m-published", "Community Dinner", ONE_DISH)],
+        }),
+      ),
+    );
+    try {
+      assert.equal(
+        (await guestGet(harness, "/meals/m-published")).status,
+        404,
+        "the guest rule stays narrower than the user rule",
+      );
+      // Same fixture, authenticated → 200. The two branches really do differ.
+      assert.equal((await authGet(harness, "/meals/m-published")).status, 200);
     } finally {
       await harness.close();
     }

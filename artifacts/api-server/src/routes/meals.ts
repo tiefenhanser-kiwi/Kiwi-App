@@ -30,6 +30,7 @@ import {
 } from "../lib/ai/schemas/findSimilar";
 import { normalizeIngredientName } from "../lib/groceryNormalization";
 import { logger } from "../lib/logger";
+import { isMealReadableByUser } from "../lib/mealVisibility";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
 import { hasUnmatchedAmount, type AmountRef } from "../lib/stepAmountRefs";
@@ -854,16 +855,40 @@ export function createMealsRouter(
     // requester's own meals, because a guest has none. 404 (never 403) so the
     // route cannot be used to probe which ids exist.
     //
-    // ⚠️ A FINDING, NOT FIXED HERE (needs an ID): for an AUTHENTICATED caller
-    // this handler still applies no ownership or visibility check at all — any
-    // signed-in user can read any meal by id, including another user's private
-    // one. That is pre-existing and out of this block's fence; it is reported.
+    // Block 1b / BUG-312 — the finding Block 1 left here is now FIXED below:
+    // an authenticated caller gets a real visibility gate too. The two gates
+    // stay separate rather than merging into one predicate, because the guest
+    // rule is strictly narrower (catalog only: isPublic AND userId null) and
+    // collapsing them would widen what a guest can read.
     if (req.guestSessionId) {
       const visible = await prisma.meal.findFirst({
         where: { id, isPublic: true, userId: null, isArchived: false },
         select: { id: true },
       });
       if (!visible) {
+        return res.status(404).json({ error: "meal not found" });
+      }
+    } else {
+      // 🔴 BUG-312 — THE AUTHENTICATED GATE. Before this, any signed-in user
+      // could read any other user's private meal by id: this handler composed
+      // its response from an id-only findUnique with no predicate at all.
+      //
+      // Own, or public-and-not-archived, or on one of the caller's own plans —
+      // see lib/mealVisibility.ts for why that third clause is required and why
+      // none of the three existing inline copies of the first two was reusable.
+      //
+      // 404, NEVER 403. A 403 would confirm the id exists, which is the same
+      // probe the guest branch above refuses to be; the two branches answer
+      // identically so the route leaks nothing about which of them ran.
+      //
+      // `req.userId` is narrowed explicitly, not asserted: this handler is
+      // mounted behind requireGuestOrAuth, so the type permits undefined, and
+      // an undefined value in the helper's `where` would be NO FILTER rather
+      // than no match (the standing Prisma hazard).
+      if (!req.userId) {
+        return res.status(401).json({ error: "unauthenticated" });
+      }
+      if (!(await isMealReadableByUser(prisma, id, req.userId))) {
         return res.status(404).json({ error: "meal not found" });
       }
     }
