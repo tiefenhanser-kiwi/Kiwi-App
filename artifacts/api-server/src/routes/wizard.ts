@@ -504,6 +504,63 @@ export function createWizardRouter(
         "Failed to persist the guest generation onto the session row",
       );
     }
+    // Block 1b Part F (scope §3.8) — the funnel's `generated` row. `lastEvent`
+    // above is the denormalised "where did they stop?"; THIS is the record, and
+    // it carries the shape of what the shelf could actually supply.
+    //
+    // The two slot figures are DERIVED here rather than read from a field,
+    // because no such field exists: a candidate carries `storeSlots` (the marks
+    // the reconciler kept) and `mealTitles` (every slot), so store slots are the
+    // marks and the rest are slots a signed-in user would have had INVENTED.
+    // For a guest that second number is the thin-shelf pressure — the gap the
+    // catalog did not cover — which is the whole question §3.8 asks of this
+    // event. Written OUTSIDE the try above deliberately: a failed session
+    // update still produced candidates the visitor saw, and the funnel should
+    // record that they saw them.
+    const storeSlotsTotal = candidates.reduce(
+      (n, c) => n + (c.storeSlots?.length ?? 0),
+      0,
+    );
+    const liveSlotsRequested = candidates.reduce(
+      (n, c) => n + Math.max(0, c.mealTitles.length - (c.storeSlots?.length ?? 0)),
+      0,
+    );
+    await writeGuestEvent(guestSessionId, "generated", {
+      candidateCount: candidates.length,
+      storeSlotsTotal,
+      liveSlotsRequested,
+    });
+  }
+
+  // ── Block 1b Part F — the server-written funnel rows (scope §3.8) ─────
+  //
+  // Best-effort, in the same spirit as every other guest write on this path:
+  // telemetry never sinks the funnel it is measuring. One helper so the three
+  // call sites cannot drift on that posture.
+  //
+  // ⚠️ These names are NOT in GUEST_EVENTS (routes/guest.ts). That const is the
+  // CLIENT-postable list, and a visitor who could post `generated` or
+  // `catalog_only_gap` into their own session could corrupt exactly the numbers
+  // this event exists to produce. See the note above GUEST_EVENTS.
+  async function writeGuestEvent(
+    guestSessionId: string,
+    event: string,
+    meta?: Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      await prisma.guestEvent.create({
+        data: {
+          guestSessionId,
+          event,
+          ...(meta === undefined ? {} : { meta: meta as Prisma.InputJsonValue }),
+        },
+      });
+    } catch (err) {
+      logger.warn(
+        { event: "guest_event_write_failed", guestSessionId, funnelEvent: event, err },
+        "Failed to write a server-side guest funnel event",
+      );
+    }
   }
 
   // ── shelf presentation → last-batch slot (post-pass Part A) ──────────
@@ -2210,6 +2267,22 @@ export function createWizardRouter(
           },
           "Guest expand hit the thin-shelf door",
         );
+        // Block 1b Part F — the door, recorded. `catalogOnly` is only ever set
+        // for a guest, so this status implies guestSessionId; the guard is here
+        // because the type does not know that and a null id would 500 the write.
+        //
+        // ⚠️ `candidateId`, NOT the "candidate index" the brief asked for:
+        // WizardExpandRequestSchema has no index on it and never did. The client
+        // echoes the WHOLE candidate (D-WS9-191 Part A.5), not its position in a
+        // batch, and the id is the better key anyway — an index only means
+        // something against a batch the server no longer holds.
+        if (guestSessionId) {
+          await writeGuestEvent(guestSessionId, "catalog_only_gap", {
+            candidateId: parsed.data.candidate.id,
+            liveSlotCount: expanded.liveSlotTitles.length,
+            storeSlotCount: expanded.storeSlotCount,
+          });
+        }
         return res.status(409).json({
           code: "catalog_only_gap",
           liveSlotTitles: expanded.liveSlotTitles,
@@ -2271,6 +2344,19 @@ export function createWizardRouter(
           );
           return res.status(500).json({ error: "failed to persist draft" });
         }
+        // Block 1b Part F — `expanded`: the guest has a plan they can open.
+        // AFTER the persist, and only on its success path, because that write is
+        // the fatal one here (see the catch above) — an `expanded` row in front
+        // of it would claim a plan the visitor cannot come back to.
+        //
+        // `lastEvent` on the row above stays "plan_opened" and is NOT changed to
+        // "expanded". They are different facts: the denormalised column answers
+        // "where did they stop?" and the visitor did open the plan, while this
+        // row records that the server built it. Both are true.
+        await writeGuestEvent(guestSessionId, "expanded", {
+          candidateId: parsed.data.candidate.id,
+          mealCount: expanded.expanded.meals.length,
+        });
         return res.json(guestDraft);
       }
 

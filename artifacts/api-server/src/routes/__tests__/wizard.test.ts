@@ -32,6 +32,15 @@ import type {
 // ── stubs ──────────────────────────────────────────────────────────────
 
 interface StubPrismaOpts {
+  // Row 13 · Block 1b Part F — set this and the stub becomes a GUEST session:
+  // requireGuestOrAuth resolves it, the build-plans one-generation gate reads
+  // generationCount off it, and the funnel writes land in _guestEvents().
+  guestSession?: {
+    id: string;
+    expiresAt?: Date;
+    claimedAt?: Date | null;
+    generationCount?: number;
+  };
   // D-WS9-038 — rows returned by meal.findMany for the store shortlist. The
   // stub ignores the where/select and hands these back; buildStoreShortlist
   // reads the fields it selects off them.
@@ -90,6 +99,9 @@ function makeStubPrisma(opts: StubPrismaOpts = {}) {
   const llmCalls: unknown[] = [];
   const activities: { eventType: string; userId: string }[] = [];
   const mealWheres: Record<string, unknown>[] = [];
+  // Row 13 · Block 1b Part F — the guest funnel's recorded writes.
+  const guestEvents: Record<string, unknown>[] = [];
+  const guestSessionUpdates: Record<string, unknown>[] = [];
   return {
     aIPrompt: { findUnique: async () => null },
     systemSetting: {
@@ -178,8 +190,37 @@ function makeStubPrisma(opts: StubPrismaOpts = {}) {
         return data;
       },
     },
+    // Row 13 · Block 1b Part F — the guest lane's two tables. Present
+    // unconditionally so a non-guest test that never touches them is unchanged,
+    // and `opts.guestSession` opts a test INTO being a guest: requireGuestOrAuth
+    // reads {id, expiresAt, claimedAt} off this, the build-plans 409 reads
+    // generationCount, and persistGuestGeneration writes the row.
+    guestSession: {
+      findUnique: async ({ where }: { where: { id: string } }) => {
+        const g = opts.guestSession;
+        if (!g || g.id !== where.id) return null;
+        return {
+          id: g.id,
+          expiresAt: g.expiresAt ?? new Date(Date.now() + 3_600_000),
+          claimedAt: g.claimedAt ?? null,
+          generationCount: g.generationCount ?? 0,
+        };
+      },
+      update: async ({ data }: { data: Record<string, unknown> }) => {
+        guestSessionUpdates.push(data);
+        return data;
+      },
+    },
+    guestEvent: {
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        guestEvents.push(data);
+        return data;
+      },
+    },
     _activities: () => activities,
     _llmCalls: () => llmCalls,
+    _guestEvents: () => guestEvents,
+    _guestSessionUpdates: () => guestSessionUpdates,
   };
 }
 
@@ -5947,6 +5988,310 @@ describe("POST /api/wizard/candidates/dismiss — plan_candidate_dismissed", () 
       });
       assert.equal(anon.status, 401);
       assert.equal(rec.calls.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── Row 13 · Block 1b Part F — server-side guest funnel events (§3.8) ─────
+//
+// Block 1 shipped the guest lane with exactly two guest_events rows in the
+// whole funnel — `session_created` and `claimed` — so between "a visitor
+// arrived" and "a visitor signed up" the record was blank. That is the span the
+// funnel exists to measure: did the generation happen, did the plan expand, or
+// did they hit the thin-shelf door?
+//
+// ⚠️ The names written here are NOT in GUEST_EVENTS (routes/guest.ts). That
+// const is the CLIENT-postable list; a visitor able to post `generated` or
+// `catalog_only_gap` into their own session could forge exactly these numbers.
+// See the note above GUEST_EVENTS.
+
+const FUNNEL_GUEST_ID = "gs-funnel-events";
+
+const GUEST_HEADERS = (guestSessionId = FUNNEL_GUEST_ID) => ({
+  "Content-Type": "application/json",
+  Authorization: `Bearer ${signToken(guestSessionId, {
+    purpose: "guest",
+    expiresIn: "1h",
+  })}`,
+});
+
+describe("POST /api/wizard/build-plans — the guest generated event (Part F)", () => {
+  it("writes exactly ONE generated row, with the slot shape the shelf could supply", async () => {
+    // One store mark that SURVIVES reconciliation (alias m1 → store-1, whose
+    // higher useCount ranks it first), against 3 candidates of 5 titles each.
+    // So: storeSlotsTotal 1, liveSlotsRequested 15 - 1 = 14. Hand-computed, and
+    // the subtraction is what makes the two numbers differ — a sum of titles
+    // alone would read 15, so dropping it cannot pass.
+    const ai = makeRunAICall(async () =>
+      resultWithStoreSlots([{ slotIndex: 0, storeMealId: "m1" }]),
+    );
+    const prisma = makeStubPrisma({
+      guestSession: { id: FUNNEL_GUEST_ID, generationCount: 0 },
+      storeMeals: [
+        storeMealRow("store-1", { useCount: 100 }),
+        storeMealRow("store-2"),
+      ],
+    });
+    const harness = await spinUp({
+      runAICall: ai.fn,
+      prisma,
+      subscriptionService: makeSubscriptionService(true),
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: GUEST_HEADERS(),
+        body: JSON.stringify(VALID_BODY),
+      });
+      assert.equal(res.status, 200);
+
+      const generated = prisma
+        ._guestEvents()
+        .filter((e) => e.event === "generated");
+      assert.equal(generated.length, 1, "exactly one generated row");
+      assert.equal(generated[0].guestSessionId, FUNNEL_GUEST_ID);
+      assert.deepEqual(generated[0].meta, {
+        candidateCount: 3,
+        storeSlotsTotal: 1,
+        liveSlotsRequested: 14,
+      });
+
+      // The row is the record; lastEvent on the session is the denormalised
+      // shortcut. Both are written, and Block 1 behaviour is unchanged.
+      const updates = prisma._guestSessionUpdates();
+      assert.equal(updates.length, 1);
+      assert.equal(updates[0].lastEvent, "generated");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("a SIGNED-IN generation writes no guest event at all", async () => {
+    // The funnel belongs to the guest lane. A signed-in generation is
+    // UserActivity business and must not leak a row into guest_events.
+    const ai = makeRunAICall(async () => happyResult());
+    const prisma = makeStubPrisma({ storeMeals: [storeMealRow("store-1")] });
+    const harness = await spinUp({
+      runAICall: ai.fn,
+      prisma,
+      subscriptionService: makeSubscriptionService(true),
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: AUTH_HEADERS("funnel-signed-in-user"),
+        body: JSON.stringify(VALID_BODY),
+      });
+      assert.equal(res.status, 200);
+      assert.equal(prisma._guestEvents().length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("a guest_events write that THROWS does not sink the generation", async () => {
+    const prisma = makeStubPrisma({
+      guestSession: { id: FUNNEL_GUEST_ID, generationCount: 0 },
+      storeMeals: [storeMealRow("store-1")],
+    });
+    // Telemetry never sinks the funnel it measures: the cards are already on
+    // the wire by the time this write runs.
+    prisma.guestEvent.create = async () => {
+      throw new Error("guest_events insert failed");
+    };
+    const harness = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      prisma,
+      subscriptionService: makeSubscriptionService(true),
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: GUEST_HEADERS(),
+        body: JSON.stringify(VALID_BODY),
+      });
+      assert.equal(res.status, 200, "🔴 the visitor still gets their plans");
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+describe("POST /api/wizard/expand — the guest expanded / catalog_only_gap events (Part F)", () => {
+  /** The two guest tables plus the minimum the expand route reads. */
+  function guestExpandPrisma() {
+    const guestEvents: Record<string, unknown>[] = [];
+    const sessionUpdates: Record<string, unknown>[] = [];
+    return {
+      _guestEvents: () => guestEvents,
+      _sessionUpdates: () => sessionUpdates,
+      aIPrompt: { findUnique: async () => null },
+      systemSetting: { findUnique: async () => null },
+      userPreferences: { findUnique: async () => null },
+      pantryStaple: { findMany: async () => [] },
+      userActivity: { findMany: async () => [], create: async () => ({}) },
+      lLMCallLog: { create: async () => ({}) },
+      mealPlanInstance: {
+        findMany: async () => [],
+        findFirst: async () => null,
+      },
+      guestSession: {
+        findUnique: async ({ where }: { where: { id: string } }) =>
+          where.id === FUNNEL_GUEST_ID
+            ? {
+                id: FUNNEL_GUEST_ID,
+                expiresAt: new Date(Date.now() + 3_600_000),
+                claimedAt: null,
+                generationCount: 1,
+              }
+            : null,
+        update: async ({ data }: { data: Record<string, unknown> }) => {
+          sessionUpdates.push(data);
+          return data;
+        },
+      },
+      guestEvent: {
+        create: async ({ data }: { data: Record<string, unknown> }) => {
+          guestEvents.push(data);
+          return data;
+        },
+      },
+    };
+  }
+
+  const EXPANDED_OK = {
+    status: "success",
+    expanded: {
+      candidateId: "c1",
+      title: "Cozy Comfort Week",
+      tags: ["Comfort"],
+      whyBullets: ["one"],
+      meals: [
+        {
+          title: "Sheet-pan harissa chicken",
+          cuisineType: "Mediterranean",
+          estimatedTimeMinutes: 35,
+          difficulty: "easy",
+          servings: 5,
+          dishes: [
+            {
+              title: "Sheet-pan harissa chicken",
+              role: "main",
+              positionIndex: 0,
+              ingredients: [
+                { name: "chicken thighs", quantity: 1.5, unit: "pound" },
+              ],
+              steps: ["Roast."],
+              macros: {
+                caloriesPerServing: 540,
+                proteinGPerServing: 38,
+                carbsGPerServing: 12,
+                fatGPerServing: 28,
+              },
+            },
+          ],
+        },
+      ],
+    },
+  };
+
+  it("a successful guest expand writes ONE expanded row, after the draft persist", async () => {
+    const prisma = guestExpandPrisma();
+    const harness = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      prisma,
+      subscriptionService: makeSubscriptionService(true),
+      expandCandidate: (async () => EXPANDED_OK) as never,
+      sweepStaleWizardDrafts: (async () => 0) as never,
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/expand`, {
+        method: "POST",
+        headers: GUEST_HEADERS(),
+        body: JSON.stringify(EXPAND_VALID_BODY),
+      });
+      assert.equal(res.status, 200);
+
+      const rows = prisma._guestEvents();
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].event, "expanded");
+      assert.deepEqual(rows[0].meta, { candidateId: "c1", mealCount: 1 });
+
+      // The draft really did land first — the event follows the write it
+      // reports, so an expanded row never claims a plan that was not stored.
+      assert.equal(prisma._sessionUpdates().length, 1);
+      assert.equal(prisma._sessionUpdates()[0].lastEvent, "plan_opened");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("🔴 a FAILED draft persist writes NO expanded row", async () => {
+    const prisma = guestExpandPrisma();
+    prisma.guestSession.update = async () => {
+      throw new Error("draft persist failed");
+    };
+    const harness = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      prisma,
+      subscriptionService: makeSubscriptionService(true),
+      expandCandidate: (async () => EXPANDED_OK) as never,
+      sweepStaleWizardDrafts: (async () => 0) as never,
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/expand`, {
+        method: "POST",
+        headers: GUEST_HEADERS(),
+        body: JSON.stringify(EXPAND_VALID_BODY),
+      });
+      assert.equal(res.status, 500, "that write is the fatal one");
+      assert.equal(
+        prisma._guestEvents().length,
+        0,
+        "an expanded row must not claim a plan they cannot come back to",
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("the thin-shelf door writes a catalog_only_gap row with the size of the gap", async () => {
+    const prisma = guestExpandPrisma();
+    const harness = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      prisma,
+      subscriptionService: makeSubscriptionService(true),
+      expandCandidate: (async () => ({
+        status: "catalog_only_gap",
+        liveSlotTitles: ["Baked potato bar", "Chicken noodle soup"],
+        storeSlotCount: 3,
+      })) as never,
+      sweepStaleWizardDrafts: (async () => 0) as never,
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/expand`, {
+        method: "POST",
+        headers: GUEST_HEADERS(),
+        body: JSON.stringify(EXPAND_VALID_BODY),
+      });
+      assert.equal(res.status, 409);
+      assert.equal(
+        ((await res.json()) as { code: string }).code,
+        "catalog_only_gap",
+      );
+
+      const rows = prisma._guestEvents();
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].event, "catalog_only_gap");
+      assert.deepEqual(rows[0].meta, {
+        candidateId: "c1",
+        liveSlotCount: 2,
+        storeSlotCount: 3,
+      });
+      // The door is not a draft: nothing was stored.
+      assert.equal(prisma._sessionUpdates().length, 0);
     } finally {
       await harness.close();
     }
