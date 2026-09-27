@@ -29,10 +29,47 @@ import { useGuest } from "@/contexts/GuestContext";
 import { useGuestDoor } from "@/hooks/useGuestDoor";
 import { trackGuestEvent } from "@/lib/api/guest";
 import { getMeal } from "@/lib/api/meals";
-import { formatQuantity } from "@/lib/format/quantity";
+// Block 2b (BUG-315) — the shared line formatter and the shared steps decision.
+// Both were extracted from app/meal/[id].tsx, which now calls them too; see each
+// file's header for what this screen got wrong before them.
+import { formatIngredientLine } from "@/lib/format/ingredientLine";
+import {
+  flatMealSteps,
+  mealStepsAreGrouped,
+  stepBearingDishes,
+} from "@/lib/meals/mealSteps";
 
 export const GUEST_RECIPE_GONE =
   "Kiwi could not find this recipe. It may have been updated since your plan was built.";
+
+/**
+ * One numbered step row, read-only. Block 2b (BUG-315): numbered by POSITION in
+ * its own list, not by `step.stepIndex` — in the grouped layout each dish's
+ * numbering restarts at 1, which is what the member screen does, and a dish's
+ * stepIndex is not guaranteed to start at 0 anyway.
+ *
+ * Deliberately NOT app/meal/[id].tsx's renderStepRow: that one carries the
+ * timing-sensitive circle, the amountRefs scaling against a servings multiplier
+ * this screen has no stepper for, and the unmatched-amount clarify hint (a
+ * prompt to edit, which a guest cannot). The shared piece is the DECISION
+ * (lib/meals/mealSteps.ts), not the chrome.
+ */
+function renderStep(
+  step: { text: string; estimatedMinutes: number },
+  i: number,
+): React.ReactElement {
+  return (
+    <View key={i} style={s.step}>
+      <Text style={s.stepIndex}>{i + 1}</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={s.stepText}>{step.text}</Text>
+        {step.estimatedMinutes > 0 ? (
+          <Text style={s.stepMeta}>{step.estimatedMinutes} min</Text>
+        ) : null}
+      </View>
+    </View>
+  );
+}
 
 export default function GuestRecipeRoute() {
   if (Platform.OS !== "web") return <Redirect href="/" />;
@@ -56,6 +93,11 @@ function GuestRecipeScreen() {
   React.useEffect(() => {
     if (meal) void trackGuestEvent("recipe_opened", { meta: { mealId } });
   }, [meal, mealId]);
+
+  // Block 2b (BUG-315) — the shared decision, computed once. Both are safe on a
+  // null meal (the query has not resolved) because the shapes default to empty.
+  const stepsGrouped = meal ? mealStepsAreGrouped(meal) : false;
+  const flatSteps = meal ? flatMealSteps(meal) : [];
 
   if (!session) return <Redirect href="/test-kitchen" />;
 
@@ -101,14 +143,7 @@ function GuestRecipeScreen() {
                 <View style={s.ingredients}>
                   {dish.ingredients.map((ing, ii) => (
                     <Text key={`${ii}-${ing.name}`} style={s.ingredient}>
-                      {[
-                        formatQuantity(ing.quantity, ing.unit),
-                        ing.name,
-                        ing.preparationNote ? `(${ing.preparationNote})` : null,
-                        ing.isOptional ? "— optional" : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" ")}
+                      {formatIngredientLine(ing, { includeNotes: true })}
                     </Text>
                   ))}
                 </View>
@@ -116,23 +151,22 @@ function GuestRecipeScreen() {
             ))}
 
             {/* The steps. A catalog meal has them; this is the whole reason the
-                recipe is read from GET /meals/:id and not from the draft. */}
-            {meal.steps.length > 0 ? (
+                recipe is read from GET /meals/:id and not from the draft.
+                Block 2b (BUG-315): this read `meal.steps`, the MEAL-owned array,
+                which is empty on every multi-dish catalog meal — the steps live
+                on dishes[].steps. The grouped/flat decision is now the member
+                screen's, shared (lib/meals/mealSteps.ts). */}
+            {stepsGrouped ? (
+              stepBearingDishes(meal.dishes).map((dish, di) => (
+                <View key={`steps-${di}-${dish.title}`} style={s.card}>
+                  <Text style={s.cardTitle}>Steps · {dish.title}</Text>
+                  <View style={s.steps}>{dish.steps.map(renderStep)}</View>
+                </View>
+              ))
+            ) : flatSteps.length > 0 ? (
               <View style={s.card}>
                 <Text style={s.cardTitle}>Steps</Text>
-                <View style={s.steps}>
-                  {meal.steps.map((step) => (
-                    <View key={step.stepIndex} style={s.step}>
-                      <Text style={s.stepIndex}>{step.stepIndex + 1}</Text>
-                      <View style={{ flex: 1 }}>
-                        <Text style={s.stepText}>{step.text}</Text>
-                        {step.estimatedMinutes > 0 ? (
-                          <Text style={s.stepMeta}>{step.estimatedMinutes} min</Text>
-                        ) : null}
-                      </View>
-                    </View>
-                  ))}
-                </View>
+                <View style={s.steps}>{flatSteps.map(renderStep)}</View>
               </View>
             ) : null}
 

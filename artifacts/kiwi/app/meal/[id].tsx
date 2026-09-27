@@ -37,7 +37,17 @@ import { buildAmountRefSegments } from "@/lib/cooking/amountSegments";
 import { buildCookSessionParams } from "@/lib/cooking/cookSession";
 import { formatMacro } from "@/lib/format/macros";
 import { formatMealTime } from "@/lib/mealTimeLine";
-import { formatQuantity } from "@/lib/format/quantity";
+// Block 2b (BUG-315) — the ingredient line was composed inline here
+// (formatQuantity + a bare {ing.unit}); the guest recipe screen reused
+// formatQuantity, which is AMOUNT-ONLY, and so lost every unit. The composition
+// is now one shared pure function and this is one of its callers, which is what
+// keeps the two screens from drifting apart again.
+import { formatIngredientLine } from "@/lib/format/ingredientLine";
+import {
+  flatMealSteps,
+  mealStepsAreGrouped,
+  stepBearingDishes,
+} from "@/lib/meals/mealSteps";
 import {
   clampServings,
   shouldShowCanonicalSaveServings,
@@ -229,14 +239,12 @@ function MealDetailContent({
   // those would duplicate the same steps under each dish. Group only for a
   // multi-dish meal with empty meal-owned steps and at least one dish that
   // carries steps; every other case renders the existing flat list.
-  const stepsAreGrouped =
-    meal.dishes.length > 1 &&
-    meal.steps.length === 0 &&
-    meal.dishes.some((dish) => dish.steps.length > 0);
-  const flatSteps =
-    meal.steps.length > 0
-      ? meal.steps
-      : meal.dishes.flatMap((dish) => dish.steps);
+  // Block 2b (BUG-315) — both were these two expressions, inline; they are now
+  // lib/meals/mealSteps.ts, because the guest recipe screen needed the same
+  // decision and reimplemented it as `meal.steps` alone (empty on every
+  // multi-dish catalog meal → no steps section at all).
+  const stepsAreGrouped = mealStepsAreGrouped(meal);
+  const flatSteps = flatMealSteps(meal);
 
   // Renders one numbered step row. `displayNumber` is the 1-based position
   // within its list (flat, or restarting per dish in the grouped layout).
@@ -688,8 +696,7 @@ function MealDetailContent({
               )}
               {dish.ingredients.map((ing, i) => (
                 <Text key={i} style={s.ingredientLine}>
-                  {formatQuantity(ing.quantity * servingsMultiplier, ing.unit)}{" "}
-                  {ing.unit} {ing.name}
+                  {formatIngredientLine(ing, { multiplier: servingsMultiplier })}
                 </Text>
               ))}
             </View>
@@ -702,8 +709,7 @@ function MealDetailContent({
         <View style={s.section}>
           <SectionLabel label="Recipe steps" />
           {stepsAreGrouped
-            ? meal.dishes
-                .filter((dish) => dish.steps.length > 0)
+            ? stepBearingDishes(meal.dishes)
                 .map((dish) => (
                   <View key={dish.dishId} style={s.dishBlock}>
                     <Text style={s.dishHeader}>For the {resolveDisplayTitle(dish)}:</Text>
