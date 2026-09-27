@@ -22,7 +22,7 @@ import {
 import { authErrorPresentation } from "@/lib/authErrorCopy";
 import { completeAuth, type AuthCompletionDeps } from "@/lib/authCompletion";
 import { appleOAuthRequest, googleOAuthRequest, type OAuthAuthResponse } from "@/lib/oauth/api";
-import { oauthFailure } from "@/lib/oauth/errors";
+import { isProviderUnavailable } from "@/lib/oauth/errors";
 import {
   appleRequestBody,
   googleRequestBody,
@@ -387,13 +387,16 @@ export function AuthProvider({
           { resendWithoutClaimOn409: true },
         );
       } catch (err) {
-        // §2.6 — a dismissed sheet is not an error: no toast, no error state,
-        // nothing on screen. A 503 hides that provider's button for the rest
-        // of the session. Everything else gets one line, and the screens
-        // already render `error`.
-        const failure = oauthFailure(err, provider);
-        if (failure.kind === "unavailable") hideProviderForSession(provider);
-        if (failure.kind !== "cancelled") setError(failure.message);
+        // §2.6 — the 503 hide is SESSION state, so it has to land here
+        // whoever ends up catching: a provider that answered oauth_unavailable
+        // is gone for the rest of the session, on both screens.
+        //
+        // The MESSAGE deliberately does NOT land here. A provider sheet can
+        // also fail BEFORE this function is reached (a dismissed Apple sheet
+        // never produces a request at all), so the copy has exactly one owner
+        // — components/oauth/SocialSignInBlock.tsx, which renders it under the
+        // buttons that produced it — and a cancel sets nothing anywhere.
+        if (isProviderUnavailable(err)) hideProviderForSession(provider);
         throw err;
       }
     },

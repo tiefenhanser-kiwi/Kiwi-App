@@ -16,6 +16,7 @@ import { Feather } from "@expo/vector-icons";
 import { Button } from "@/components/Button";
 import { PasswordField } from "@/components/PasswordField";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { SocialSignInBlock } from "@/components/oauth/SocialSignInBlock";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGuestOptional } from "@/contexts/GuestContext";
 import { useSubmitCooldown } from "@/hooks/useSubmitCooldown";
@@ -25,8 +26,13 @@ import {
   CLAIM_BUSY_LABEL,
   CLAIM_LOST_LINE,
   CLAIM_RETRY_LINE,
-  claimDestination,
 } from "@/lib/guest/claim";
+// Row 9 (1.1) · OAuth Block 2 Part E — one routing function for all four
+// callers (§2.5). This is claimDestination's decision with the route names
+// attached; the screen no longer holds its own copy of the ternary.
+import { authLanding } from "@/lib/authCompletion";
+import type { OAuthAuthResponse } from "@/lib/oauth/api";
+import type { OAuthConsentFields } from "@/lib/oauth/request";
 import { readGuestSessionId } from "@/lib/guest/guestToken";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
@@ -70,6 +76,53 @@ export default function SignUpPage() {
     firstName.trim().length > 0 &&
     lastName.trim().length > 0 &&
     !submitting;
+
+  // ── Row 9 (1.1) · OAuth Block 2 Part C/E — what the social buttons send ──
+  //
+  // §2.4 — "from the SIGN-UP screen, send the consent checkboxes' current
+  // values (unchecked by default — an explicit opt-in per CAN-SPAM/TCPA, PRD
+  // §3.3) and the phone if entered".
+  //
+  // 🔴 AN INVALID PHONE IS DROPPED RATHER THAN REFUSED. The password path
+  // alerts and stops, because the user is already looking at the field they
+  // must fix. A social tap is two taps into a provider sheet by the time the
+  // server would answer 400 "invalid request body", and losing a whole
+  // sign-in over a typo in an OPTIONAL field is the worse trade. The phone
+  // goes, and lib/oauth/request.ts drops the SMS consent with it — a
+  // consent to text a number we do not have is not a consent.
+  const socialConsents = React.useMemo<OAuthConsentFields>(() => {
+    const trimmed = phone.trim();
+    const usable = trimmed.length > 0 && isValidPhone(trimmed);
+    return {
+      phone: usable ? trimmed : undefined,
+      marketingConsentEmail: emailConsent,
+      marketingConsentSms: usable ? smsConsent : undefined,
+    };
+  }, [phone, emailConsent, smsConsent]);
+
+  // Read at RENDER time and kept in a ref: a successful claim clears the guest
+  // store inside oauthSignIn, so by the time this runs there is nothing left
+  // to say there had been one. The password path reads it inline instead,
+  // because there its call is one statement away.
+  const claimedGuestSessionRef = React.useRef(false);
+  claimedGuestSessionRef.current =
+    claimedGuestSessionRef.current || readGuestSessionId() !== null;
+
+  const handleSocialSuccess = React.useCallback(
+    (res: OAuthAuthResponse) => {
+      if (claimedGuestSessionRef.current) {
+        guestCtx?.setGeneration(null);
+        if (res.claimRetryable) {
+          Alert.alert("Account created", CLAIM_RETRY_LINE);
+        } else if (res.isNewUser && res.claimedPlanId === null) {
+          Alert.alert("Account created", CLAIM_LOST_LINE);
+        }
+      }
+      // §2.5 — identical to the password path below, and the same function.
+      router.replace(authLanding(res));
+    },
+    [guestCtx, router],
+  );
 
   const handleSubmit = async () => {
     // BUG-296 — inside a rate-limit hold the button is disabled and the copy
@@ -155,7 +208,7 @@ export default function SignUpPage() {
           Alert.alert("Account created", CLAIM_LOST_LINE);
         }
       }
-      router.replace(claimDestination(res) === "home" ? "/(tabs)" : "/onboarding-prefs");
+      router.replace(authLanding(res));
     } catch (err) {
       // BUG-296 — same copy decision as context.error (which this screen
       // also renders), plus the Retry-After hold on a 429.
@@ -187,6 +240,15 @@ export default function SignUpPage() {
       >
         <Text style={styles.stepIndicator}>Step 1 of 3</Text>
         <Text style={styles.title}>Create account</Text>
+
+        {/* §2.1 — at the TOP, then the divider, then the email form. Renders
+            nothing at all while neither provider is configured. */}
+        <SocialSignInBlock
+          mode="signup"
+          consents={socialConsents}
+          disabled={submitting}
+          onSuccess={handleSocialSuccess}
+        />
 
         <TextInput
           ref={firstNameRef}

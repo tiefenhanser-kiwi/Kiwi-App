@@ -5,13 +5,16 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 
 import { Button } from "@/components/Button";
+import { SocialSignInBlock } from "@/components/oauth/SocialSignInBlock";
 import { PasswordField } from "@/components/PasswordField";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGuestOptional } from "@/contexts/GuestContext";
 import { useSubmitCooldown } from "@/hooks/useSubmitCooldown";
 import { authErrorPresentation } from "@/lib/authErrorCopy";
-import { CLAIM_BUSY_LABEL, CLAIM_RETRY_LINE } from "@/lib/guest/claim";
+import { CLAIM_BUSY_LABEL, CLAIM_LOST_LINE, CLAIM_RETRY_LINE } from "@/lib/guest/claim";
 import { readGuestSessionId } from "@/lib/guest/guestToken";
+import { authLanding } from "@/lib/authCompletion";
+import type { OAuthAuthResponse } from "@/lib/oauth/api";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
 export default function SignInPage() {
@@ -30,6 +33,43 @@ export default function SignInPage() {
   const [password, setPassword] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
   const claimPending = submitting && !!guestCtx?.session;
+  // Row 9 · read at RENDER time and kept in a ref: a successful claim clears
+  // the guest store inside oauthSignIn, so by the time handleSocialSuccess
+  // runs there is nothing left to say there had been one. The password path
+  // reads it inline instead, because there its call is one statement away.
+  const claimedGuestSessionRef = React.useRef(false);
+  claimedGuestSessionRef.current =
+    claimedGuestSessionRef.current || readGuestSessionId() !== null;
+
+  // ── Row 9 (1.1) · OAuth Block 2 Part E — a social sign-in completes ────
+  //
+  // §2.5 — the routing is IDENTICAL to a password sign-in, and it is one
+  // function (lib/authCompletion.ts authLanding) rather than this screen's own
+  // opinion. Where the password path routes through "/" and lets index.tsx
+  // re-derive the gate from the cached user, this reads the SAME fact off the
+  // response the server just sent: onboardingRequired is !onboardingComplete.
+  //
+  // 🔴 AND IT MAY HAVE BEEN A SIGN-UP. Tapping Continue with Apple on the
+  // SIGN-IN screen having never used Kiwi creates the account — the server
+  // says so with isNewUser — so the claim copy has to cover both, and the
+  // title on screen is the only thing that said "sign in".
+  const handleSocialSuccess = React.useCallback(
+    (res: OAuthAuthResponse) => {
+      if (claimedGuestSessionRef.current) {
+        guestCtx?.setGeneration(null);
+        if (res.claimRetryable) {
+          Alert.alert(res.isNewUser ? "Account created" : "Signed in", CLAIM_RETRY_LINE);
+        } else if (res.isNewUser && res.claimedPlanId === null) {
+          // The claim was refused (409) and the sign-up was resent without it.
+          // Only reachable for a NEW user: an existing account's failed claim
+          // is logged and never refused, so it never 409s.
+          Alert.alert("Account created", CLAIM_LOST_LINE);
+        }
+      }
+      router.replace(authLanding(res));
+    },
+    [guestCtx, router],
+  );
 
   const handleSubmit = async () => {
     if (!email.trim() || !password || cooldown.active) return;
@@ -66,6 +106,13 @@ export default function SignInPage() {
       </Pressable>
       <View style={styles.body}>
         <Text style={styles.title}>Sign in</Text>
+        {/* §2.1 — at the TOP, then the divider, then the email form. Renders
+            nothing at all while neither provider is configured. */}
+        <SocialSignInBlock
+          mode="signin"
+          disabled={submitting}
+          onSuccess={handleSocialSuccess}
+        />
         <TextInput
           value={email}
           onChangeText={setEmail}
