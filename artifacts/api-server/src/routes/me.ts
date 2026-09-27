@@ -29,6 +29,14 @@ import { hashPassword, signToken, verifyPassword, verifyToken } from "../lib/aut
 // on account deletion, and the config that governs whether it can be made.
 import { readOAuthConfig, type OAuthConfig } from "../lib/oauth/config";
 import { revokeAppleIdentitiesForUser as productionRevokeAppleIdentities } from "../lib/oauth/revokeOnDelete";
+import { readBillingConfig, type BillingConfig } from "../lib/billing/config";
+import {
+  effectiveStatus,
+  readSubscriptionSnapshot,
+  subscriptionRequiredBody,
+  subscriptionService as productionSubscriptionService,
+  type SubscriptionService,
+} from "../lib/subscriptionService";
 import { logger } from "../lib/logger";
 import { phoneSchema } from "../lib/phoneValidation";
 import {
@@ -664,11 +672,30 @@ export interface MeRouterDeps {
   revokeAppleIdentities: typeof productionRevokeAppleIdentities;
   /** Read once per router so a test can hand in a configured deploy. */
   oauthConfig: OAuthConfig;
+  /**
+   * Row 9 (1.1) · Stripe S1 Part C — POST /me/meals and POST /me/dishes run the
+   * BUG-274 / BUG-278 macros-at-save pre-pass, which is a model call per
+   * zero-macro dish, and neither asked. Also the service `GET /me/subscription`
+   * reads.
+   */
+  subscriptionService: SubscriptionService;
+  /**
+   * Row 9 (1.1) · Stripe S1 — read once per router. Governs the 503 on the
+   * billing routes and the `billingAvailable` / `enforced` fields on
+   * GET /me/subscription.
+   */
+  billingConfig: BillingConfig;
+  /** Injected so entitlement and the trial clock are testable. */
+  now?: () => Date;
 }
 
 export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
   const prisma = deps.prisma ?? productionPrisma;
   const estimateDishMacros = deps.estimateDishMacros ?? productionEstimateDishMacros;
+  const subscriptionService =
+    deps.subscriptionService ?? productionSubscriptionService;
+  const billingConfig = deps.billingConfig ?? readBillingConfig();
+  const nowFn = deps.now ?? (() => new Date());
   const revokeAppleIdentities =
     deps.revokeAppleIdentities ?? productionRevokeAppleIdentities;
   const oauthConfig = deps.oauthConfig ?? readOAuthConfig();
@@ -1070,6 +1097,69 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
   });
 
   // ── Preferences ──────────────────────────────────────────────────────
+
+  // ── GET /me/subscription — Row 9 (1.1) · Stripe S1 Part C ─────────────
+  //
+  // THE ONE SHAPE the paywall sheet, the trial banner and the Settings
+  // "Subscription" row all read. Nothing is added to `GET /me`, deliberately:
+  // that response is fetched on every cold start by clients in the stores right
+  // now, and a subscription block on it would be a field those builds ignore
+  // while every one of them pays for the extra query. This is its own endpoint
+  // so the clients that need it can refetch it on foreground, after a checkout
+  // return, and when the paywall is dismissed — which is exactly the access
+  // pattern S2 has and `GET /me` does not.
+  //
+  // `firstChargeDateIfSubscribedNow` is computed HERE rather than in three
+  // clients. It is `trialEndsAt + BILLING_EARLY_PAY_BONUS_DAYS` while the trial
+  // is running and `null` otherwise, and it is what lets the upsell sheet say
+  // "Subscribe now — your first charge is <date>" without any client doing date
+  // arithmetic against a bonus it would have to be told about separately.
+  router.get("/me/subscription", requireAuth, async (req, res) => {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: "unauthenticated" });
+    }
+    try {
+      const snapshot = await readSubscriptionSnapshot(prisma, userId);
+      const now = nowFn();
+
+      // No row is corruption (it is written in the same transaction as the
+      // User), but this endpoint must still answer something a client can
+      // render. `none` is the honest answer and it shows a paywall rather than
+      // a spinner — and `can()` logs the corruption loudly on the write paths.
+      const status = snapshot === null ? "none" : effectiveStatus(snapshot, now);
+
+      const trialEndsAt = snapshot?.trialEndsAt ?? null;
+      const firstChargeDateIfSubscribedNow =
+        status === "trialing" && trialEndsAt !== null
+          ? new Date(
+              trialEndsAt.getTime() +
+                billingConfig.earlyPayBonusDays * 24 * 60 * 60 * 1000,
+            ).toISOString()
+          : null;
+
+      return res.json({
+        status,
+        planCode: snapshot?.planCode ?? "free",
+        trialEndsAt: trialEndsAt?.toISOString() ?? null,
+        currentPeriodEnd: snapshot?.currentPeriodEnd?.toISOString() ?? null,
+        cancelAtPeriodEnd: snapshot?.cancelAtPeriodEnd ?? false,
+        // Both of these are about the DEPLOY, not the user, and the client needs
+        // them to tell three states apart that otherwise look identical:
+        // "subscribe" (enforced + available), "you're in the trial and nothing
+        // is being enforced yet" (available, not enforced), and "we cannot take
+        // your money right now" (not available) — which must never render a
+        // button that leads to a 503.
+        billingAvailable: billingConfig.available,
+        enforced: billingConfig.enforced,
+        earlyPayBonusDays: billingConfig.earlyPayBonusDays,
+        firstChargeDateIfSubscribedNow,
+      });
+    } catch (err) {
+      logger.error({ err, userId }, "GET /me/subscription failed");
+      return res.status(500).json({ error: "failed to fetch subscription" });
+    }
+  });
 
   // GET /me/preferences — returns the user's prefs row. Creates one with
   // defaults on first fetch (idempotent), so mobile never sees a 404 here.
@@ -1510,13 +1600,31 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
         // back its LLMCallLog rows on a failed save. Fail-soft (a failed /
         // slow dish saves at zero with a warn); materializeMeal consumes the
         // result and stamps macros + macroGroundedPct + dish_macros_estimated.
-        const estimatedMacrosByIndex = await estimateZeroMacroDishes({
-          prisma,
-          userId,
-          payload,
-          ingredientIdByCanonical,
-          estimateImpl: estimateDishMacros,
-        });
+        // Row 9 (1.1) · Stripe S1 Part C — the estimator is a model call per
+        // zero-macro dish, so it asks first. The DENIAL IS GRACEFUL, not a 402:
+        // saving a meal is not an AI feature, it is the user keeping their own
+        // recipe, and the read-only ruling says that keeps working. What the
+        // estimator adds is nutrition, and BUG-274 already made a failed or slow
+        // estimate "save at zero with a warn" — so an unentitled account takes
+        // the path that already exists for an estimator that did not answer.
+        // The meal saves; the macros read zero until the account is entitled and
+        // something recalculates.
+        const macroEnt = await subscriptionService.can(userId, "meal_macro_estimate");
+        const estimatedMacrosByIndex = macroEnt.allowed
+          ? await estimateZeroMacroDishes({
+              prisma,
+              userId,
+              payload,
+              ingredientIdByCanonical,
+              estimateImpl: estimateDishMacros,
+            })
+          : undefined;
+        if (!macroEnt.allowed) {
+          logger.info(
+            { event: "macro_estimate_skipped_unentitled", userId, status: macroEnt.status },
+            "Macros-at-save skipped — account is not entitled to AI; the meal still saves, with zero macros",
+          );
+        }
         const result = await prisma.$transaction(
           async (tx) =>
             materializeMeal(tx, userId, payload, ingredientIdByCanonical, undefined, {
@@ -1571,13 +1679,27 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
         // through the SAME seam as POST /me/meals (BUG-274 / F2): the
         // injected estimator, on the plain client, BEFORE the tx opens,
         // fail-soft (a failed / slow estimate saves at zero with a warn).
-        const estimatedMacros = await estimateZeroMacroDish({
-          prisma,
+        // Row 9 (1.1) · Stripe S1 Part C — same key and the same graceful skip as
+        // POST /me/meals above; see the comment there.
+        const dishMacroEnt = await subscriptionService.can(
           userId,
-          payload: body,
-          ingredientIdByCanonical,
-          estimateImpl: estimateDishMacros,
-        });
+          "meal_macro_estimate",
+        );
+        const estimatedMacros = dishMacroEnt.allowed
+          ? await estimateZeroMacroDish({
+              prisma,
+              userId,
+              payload: body,
+              ingredientIdByCanonical,
+              estimateImpl: estimateDishMacros,
+            })
+          : undefined;
+        if (!dishMacroEnt.allowed) {
+          logger.info(
+            { event: "macro_estimate_skipped_unentitled", userId, status: dishMacroEnt.status },
+            "Macros-at-save skipped for a standalone dish — not entitled to AI; the dish still saves, with zero macros",
+          );
+        }
         const result = await prisma.$transaction(
           async (tx) =>
             materializeDish(tx, userId, body, ingredientIdByCanonical, {

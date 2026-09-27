@@ -57,6 +57,8 @@ import { prisma as productionPrisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
 import { readNumberSetting as readNumberSettingShared } from "../lib/systemSettings";
 import {
+  SUBSCRIPTION_REQUIRED_CODE,
+  subscriptionRequiredBody,
   subscriptionService as productionSubscriptionService,
   type SubscriptionService,
 } from "../lib/subscriptionService";
@@ -810,6 +812,7 @@ export function createWizardRouter(
     if (!ent.allowed) {
       return res.status(402).json({
         error: "upgrade required",
+        code: ent.code ?? SUBSCRIPTION_REQUIRED_CODE,
         reason: ent.reason ?? "Kitchen Wizard is a premium feature.",
       });
     }
@@ -1241,6 +1244,7 @@ export function createWizardRouter(
         if (!ent.allowed) {
           return res.status(402).json({
             error: "upgrade required",
+            code: ent.code ?? SUBSCRIPTION_REQUIRED_CODE,
             reason: ent.reason ?? "Kitchen Wizard is a premium feature.",
           });
         }
@@ -1805,6 +1809,7 @@ export function createWizardRouter(
       if (!ent.allowed) {
         return res.status(402).json({
           error: "upgrade required",
+          code: ent.code ?? SUBSCRIPTION_REQUIRED_CODE,
           reason: ent.reason ?? "Tell Kiwi is a premium feature.",
         });
       }
@@ -2190,6 +2195,7 @@ export function createWizardRouter(
         if (!ent.allowed) {
           return res.status(402).json({
             error: "upgrade required",
+            code: ent.code ?? SUBSCRIPTION_REQUIRED_CODE,
             reason: ent.reason ?? "Kitchen Wizard is a premium feature.",
           });
         }
@@ -2634,6 +2640,24 @@ export function createWizardRouter(
       return res.status(201).json({ instance: activateIdempotent });
     }
 
+    // Row 9 (1.1) · Stripe S1 Part C — finalize-steps is a Sonnet call per
+    // build-slot meal and this route never asked. It is a 402 rather than a skip
+    // because the steps ARE the plan: activating a draft whose meals have no
+    // method is not a degraded save, it is a broken one, and the user is better
+    // told why than handed an empty recipe. The draft is left untouched, so
+    // subscribing and tapping again works.
+    //
+    // ⚠️ The check is AFTER the idempotency short-circuit above. A draft already
+    // activated returns its existing plan without finalizing anything, and
+    // 402-ing a retry of a call that already succeeded would be a paywall on a
+    // no-op.
+    const finalizeEnt = await subscriptionService.can(userId, "plan_finalize_steps");
+    if (!finalizeEnt.allowed) {
+      return res
+        .status(402)
+        .json(subscriptionRequiredBody(finalizeEnt, "Saving a Kiwi plan is a subscriber feature."));
+    }
+
     // WS7-5c Block A — finalize-steps BEFORE the tx. Stepless details-stage
     // draft + wizard.candidate.finalize_steps merge → with-steps payload
     // ready for the materializer. Kept outside the $transaction because the
@@ -2908,6 +2932,18 @@ export function createWizardRouter(
       // on the next generation, not on consume.
       await archiveOwnDraft(draftId, userId);
       return res.status(201).json({ instance: saveIdempotent });
+    }
+
+    // Row 9 (1.1) · Stripe S1 Part C — same gate as /activate, same placement
+    // (after the idempotency short-circuit); see the comment block there.
+    const saveFinalizeEnt = await subscriptionService.can(
+      userId,
+      "plan_finalize_steps",
+    );
+    if (!saveFinalizeEnt.allowed) {
+      return res
+        .status(402)
+        .json(subscriptionRequiredBody(saveFinalizeEnt, "Saving a Kiwi plan is a subscriber feature."));
     }
 
     // WS7-5c Block A — finalize-steps BEFORE the tx. Mirrors /activate; see

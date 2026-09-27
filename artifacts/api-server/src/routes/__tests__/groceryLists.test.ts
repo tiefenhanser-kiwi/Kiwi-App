@@ -22,6 +22,8 @@ import {
 } from "../../lib/retailers/instacartClient";
 import { __clearRateLimitStoreForTests } from "../../lib/rateLimit";
 import { withSessionUser } from "./fixtures/sessionUserStub";
+import { createSubscriptionService } from "../../lib/subscriptionService";
+import { readBillingConfig } from "../../lib/billing/config";
 
 // ── stubs ──────────────────────────────────────────────────────────────
 
@@ -648,6 +650,11 @@ interface Harness {
 }
 
 interface HarnessOpts {
+  // Row 9 (1.1) · Stripe S1 Part C — an unentitled service, for the two
+  // enforcement tests at the bottom of this file. Omitted everywhere else, so
+  // every pre-existing test keeps the production default (which is allow-all
+  // while BILLING_ENFORCED is unset) and none of them changed.
+  subscriptionService?: { can: (userId: string, key: string) => Promise<{ allowed: boolean; code?: string; reason?: string; status?: string }> };
   consolidated?: ConsolidatedItem[];
   filled?: ConsolidatedItem[];
   finalItems?: GenerateGroceryListResult["items"];
@@ -732,6 +739,9 @@ async function spinUp(opts: HarnessOpts = {}): Promise<Harness> {
     // its job cannot masquerade as a broken assertion. The limiter itself is
     // guarded in bug222GenerateLimiter.test.ts.
     generateLimiterOpts: { capacity: 1_000_000, refillPerSec: 0 },
+    ...(opts.subscriptionService
+      ? { subscriptionService: opts.subscriptionService as never }
+      : {}),
     instacartLimiterOpts: opts.instacartLimiterOpts ?? {
       capacity: 1_000_000,
       refillPerSec: 0,
@@ -3833,6 +3843,8 @@ function finalFromConsolidated(
 async function spinUpReconcile(opts: {
   current: ConsolidatedItem[];
   aiThrows?: Error;
+  // Row 9 (1.1) · Stripe S1 Part C — see HarnessOpts.
+  subscriptionService?: { can: (userId: string, key: string) => Promise<{ allowed: boolean; status?: string }> };
 }): Promise<ReconHarness> {
   const state = makeState();
   const stubPrisma = makeStubPrisma(state);
@@ -3845,6 +3857,9 @@ async function spinUpReconcile(opts: {
     // its job cannot masquerade as a broken assertion. The limiter itself is
     // guarded in bug222GenerateLimiter.test.ts.
     generateLimiterOpts: { capacity: 1_000_000, refillPerSec: 0 },
+    ...(opts.subscriptionService
+      ? { subscriptionService: opts.subscriptionService as never }
+      : {}),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     prisma: withSessionUser(stubPrisma) as any,
     consolidatePlanIngredients: (async () => {
@@ -5581,4 +5596,230 @@ describe("GET /api/grocery-lists/:id — retailers.instacart.enabled (Row 8 Bloc
       }
     });
   }
+});
+
+// ── Row 9 (1.1) · Stripe S1 Part C — ENFORCEMENT, THE TWO SHAPES ─────────
+//
+// This file is where both shapes of the gate meet, which is why the tests live
+// here rather than in a file of their own:
+//
+//   POST /plans/:id/generate-grocery-list  →  402. The user asked Kiwi to MAKE
+//   something, and making it is two model calls.
+//
+//   GET  /grocery-lists/:id                →  200, reconcile SKIPPED. The user
+//   asked to LOOK at a list they already have, and the ruling is "read-only, not
+//   locked". A 402 here would paywall reading your own grocery list.
+//
+// The GET test is the one that would catch the tempting mistake — gating the
+// route instead of the spend — so it asserts BOTH that the read succeeded and
+// that none of the three AI seams was touched.
+
+const UNENTITLED = {
+  can: async () => ({
+    allowed: false,
+    code: "subscription_required",
+    reason: "Your free trial has ended.",
+    status: "none",
+  }),
+};
+
+describe("Stripe S1 Part C — enforcement on the grocery routes", () => {
+  it("GET /grocery-lists/:id still answers 200 for a lapsed account, and reconciles NOTHING", async () => {
+    const h = await spinUpReconcile({
+      current: [
+        consolidatedItem({
+          canonicalName: "garlic",
+          displayName: "Garlic",
+          ingredientId: "ing-garlic",
+          unit: "clove",
+          quantity: 6,
+          sources: [{ mealId: "meal-a", dishId: "dish-x" }],
+        }),
+      ],
+      subscriptionService: UNENTITLED as never,
+    });
+    // Revision DRIFT: the plan has moved on, so an entitled account WOULD
+    // reconcile here. That is what makes the assertion below meaningful — the
+    // seams stay untouched because of entitlement, not because there was
+    // nothing to do.
+    seedReconPlan(h.state, 9);
+    seedReconList(h.state, 7);
+    seedReconItem(h.state, {
+      id: "it-garlic",
+      ingredientId: "ing-garlic",
+      displayName: "Garlic",
+      unit: "clove",
+      quantity: 3,
+      isChecked: true,
+    });
+    seedReconSource(h.state, "it-garlic", "meal-a", "dish-x");
+    try {
+      const res = await getList(h);
+      // THE READ IS NOT PAYWALLED.
+      assert.equal(res.status, 200, "a lapsed account may still read its own list");
+      const body = (await res.json()) as { reconciled: boolean; list: { items: unknown[] } };
+      assert.equal(body.reconciled, false, "nothing was reconciled, and the client is told so");
+      // NOT ONE MODEL CALL.
+      assert.equal(h.spies.consolidate, 0);
+      assert.equal(h.spies.fill, 0);
+      assert.equal(h.spies.finalPass, 0);
+      // The stamp is untouched, so the next read after subscribing retries.
+      assert.equal(h.state.lists[0].lastGeneratedFromPlanRevisionId, 7);
+      // And the user's own state survived — this is their list, stale but theirs.
+      assert.equal(findRow(h.state, "it-garlic")!.quantity, 3);
+      assert.equal(findRow(h.state, "it-garlic")!.isChecked, true);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("an ENTITLED account on the same drifted state DOES reconcile — the skip is the gate, not a bug", async () => {
+    const h = await spinUpReconcile({
+      current: [
+        consolidatedItem({
+          canonicalName: "garlic",
+          displayName: "Garlic",
+          ingredientId: "ing-garlic",
+          unit: "clove",
+          quantity: 6,
+          sources: [{ mealId: "meal-a", dishId: "dish-x" }],
+        }),
+      ],
+      subscriptionService: { can: async () => ({ allowed: true }) } as never,
+    });
+    seedReconPlan(h.state, 9);
+    seedReconList(h.state, 7);
+    seedReconItem(h.state, {
+      id: "it-garlic",
+      ingredientId: "ing-garlic",
+      displayName: "Garlic",
+      unit: "clove",
+      quantity: 3,
+    });
+    seedReconSource(h.state, "it-garlic", "meal-a", "dish-x");
+    try {
+      const res = await getList(h);
+      assert.equal(res.status, 200);
+      assert.equal(h.spies.consolidate, 1, "the entitled path reconciles");
+      assert.equal(h.state.lists[0].lastGeneratedFromPlanRevisionId, 9);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("POST /plans/:id/generate-grocery-list answers 402 with code subscription_required", async () => {
+    const harness = await spinUp({ subscriptionService: UNENTITLED as never });
+    seedPlan(harness.state, { id: "plan-gate", userId: "user-gate", revisionId: 1 });
+    try {
+      const res = await fetch(
+        `${harness.baseUrl}/plans/plan-gate/generate-grocery-list`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${signToken("user-gate")}`,
+          },
+          body: JSON.stringify({}),
+        },
+      );
+      assert.equal(res.status, 402);
+      const body = (await res.json()) as { error: string; code: string; reason: string };
+      // `code` is what S2 keys on; `error` is kept for the builds already shipped.
+      assert.equal(body.code, "subscription_required");
+      assert.equal(body.error, "upgrade required");
+      assert.match(body.reason, /trial has ended/i);
+      // And NOTHING was generated.
+      assert.equal(harness.state.lists.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── the whole chain, with NO stubbed service ─────────────────────────────
+//
+// Every test above hands the router a hand-written `can()`. This one builds the
+// REAL createSubscriptionService from a REAL readBillingConfig with
+// BILLING_ENFORCED set, over a stub Subscription row, and drives it through a
+// real route. It is the only test in the suite that proves the full path —
+// env var → config → effectiveStatus → can() → 402 — rather than proving each
+// link in isolation. If the flag is ever read in the wrong direction, or the
+// derived status stops being derived, this is what goes red.
+describe("Stripe S1 Part C — the real service, the real config, a real route", () => {
+  const CONFIGURED_ENFORCED = {
+    STRIPE_SECRET_KEY: "sk_test_x",
+    STRIPE_WEBHOOK_SECRET: "whsec_x",
+    STRIPE_PRICE_MONTHLY: "price_m",
+    STRIPE_PRICE_ANNUAL: "price_a",
+    BILLING_RETURN_URL_BASE: "https://app.example",
+    BILLING_ENFORCED: "true",
+  };
+  const NOW_ = new Date("2026-09-27T12:00:00.000Z");
+
+  function realService(
+    status: "trialing" | "active",
+    trialEndsAt: Date | null,
+    env: Record<string, string> = CONFIGURED_ENFORCED,
+  ) {
+    return createSubscriptionService({
+      prisma: {
+        subscription: {
+          findUnique: async () => ({
+            status,
+            planCode: "free",
+            trialEndsAt,
+            currentPeriodEnd: null,
+            cancelAtPeriodEnd: false,
+            stripeCustomerId: null,
+            stripeSubscriptionId: null,
+            earlyPayBonusApplied: false,
+          }),
+          update: async () => ({}),
+        },
+      } as never,
+      readConfig: () => readBillingConfig(env),
+      now: () => NOW_,
+    });
+  }
+
+  async function generateWith(svc: unknown): Promise<Response> {
+    const harness = await spinUp({ subscriptionService: svc as never });
+    seedPlan(harness.state, { id: "plan-real", userId: "user-real", revisionId: 1 });
+    try {
+      return await fetch(`${harness.baseUrl}/plans/plan-real/generate-grocery-list`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${signToken("user-real")}`,
+        },
+        body: JSON.stringify({}),
+      });
+    } finally {
+      await harness.close();
+    }
+  }
+
+  it("an EXPIRED trial + BILLING_ENFORCED=true → 402 through the real service", async () => {
+    const res = await generateWith(
+      realService("trialing", new Date(NOW_.getTime() - 24 * 60 * 60 * 1000)),
+    );
+    assert.equal(res.status, 402);
+    assert.equal(((await res.json()) as { code: string }).code, "subscription_required");
+  });
+
+  it("the SAME expired trial with the flag UNSET → allowed (this is today, and it must stay today)", async () => {
+    const env = { ...CONFIGURED_ENFORCED } as Record<string, string>;
+    delete env.BILLING_ENFORCED;
+    const res = await generateWith(
+      realService("trialing", new Date(NOW_.getTime() - 24 * 60 * 60 * 1000), env),
+    );
+    assert.notEqual(res.status, 402, "with enforcement off nobody is ever refused");
+  });
+
+  it("a LIVE trial with the flag set → allowed; the trial is entitlement", async () => {
+    const res = await generateWith(
+      realService("trialing", new Date(NOW_.getTime() + 24 * 60 * 60 * 1000)),
+    );
+    assert.notEqual(res.status, 402);
+  });
 });

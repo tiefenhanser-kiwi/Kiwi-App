@@ -38,7 +38,7 @@ import { withAIFailureStatus } from "../lib/ai/errors";
 import { logger } from "../lib/logger";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
-import { subscriptionService as productionSubscriptionService, type SubscriptionService } from "../lib/subscriptionService";
+import { SUBSCRIPTION_REQUIRED_CODE, subscriptionService as productionSubscriptionService, type SubscriptionService } from "../lib/subscriptionService";
 import { createRequireAuth } from "../middleware/auth";
 
 export interface BuilderRouterDeps {
@@ -214,6 +214,7 @@ export function createBuilderRouter(
       if (!ent.allowed) {
         return res.status(402).json({
           error: "upgrade required",
+          code: ent.code ?? SUBSCRIPTION_REQUIRED_CODE,
           reason:
             ent.reason ??
             "Parsing meals from free text is a premium feature.",
@@ -282,6 +283,7 @@ export function createBuilderRouter(
       if (!ent.allowed) {
         return res.status(402).json({
           error: "upgrade required",
+          code: ent.code ?? SUBSCRIPTION_REQUIRED_CODE,
           reason:
             ent.reason ??
             "Parsing dishes from free text is a premium feature.",

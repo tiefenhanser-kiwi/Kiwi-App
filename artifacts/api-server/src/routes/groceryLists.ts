@@ -75,10 +75,20 @@ import {
 import { logger } from "../lib/logger";
 import { resolveThisWeekWinnerId } from "../lib/planDates";
 import { prisma as productionPrisma } from "../lib/prisma";
+import {
+  subscriptionRequiredBody,
+  subscriptionService as productionSubscriptionService,
+  type SubscriptionService,
+} from "../lib/subscriptionService";
 import { rateLimit } from "../lib/rateLimit";
 import { createRequireAuth } from "../middleware/auth";
 
 export interface GroceryListsRouterDeps {
+  // Row 9 (1.1) · Stripe S1 Part C — two spenders in this file, gated two
+  // DIFFERENT ways: POST /plans/:id/generate-grocery-list answers 402, and the
+  // reconcile-on-read inside GET /grocery-lists/:id SKIPS instead (a read must
+  // stay 200 — "read-only, not locked"). See both call sites.
+  subscriptionService: SubscriptionService;
   consolidatePlanIngredients: typeof productionConsolidatePlanIngredients;
   fillPurchaseSizesWithWriteBack: typeof productionFillPurchaseSizesWithWriteBack;
   generateFinalGroceryList: typeof productionGenerateFinalGroceryList;
@@ -189,6 +199,8 @@ async function lookupIngredientIdByCanonicalName(
 export function createGroceryListsRouter(
   deps: Partial<GroceryListsRouterDeps> = {},
 ): IRouter {
+  const subscriptionService =
+    deps.subscriptionService ?? productionSubscriptionService;
   const consolidatePlanIngredients =
     deps.consolidatePlanIngredients ?? productionConsolidatePlanIngredients;
   const fillPurchaseSizesWithWriteBack =
@@ -276,6 +288,17 @@ export function createGroceryListsRouter(
       const planId = Array.isArray(planIdRaw) ? planIdRaw[0] : planIdRaw;
       if (!planId) {
         return res.status(400).json({ error: "missing plan id" });
+      }
+
+      // Row 9 (1.1) · Stripe S1 Part C — generating a list is TWO model calls
+      // (the Haiku purchase-size gap-fill and the Sonnet final pass, steps 3–4
+      // below) and it had no entitlement check. 402 is right here where it is
+      // wrong on the GET: this is the user asking Kiwi to MAKE something.
+      const ent = await subscriptionService.can(userId, "grocery_list_generate");
+      if (!ent.allowed) {
+        return res
+          .status(402)
+          .json(subscriptionRequiredBody(ent, "Building a grocery list is a subscriber feature."));
       }
 
       try {
@@ -650,25 +673,57 @@ export function createGroceryListsRouter(
       // changes, so the client can show the "updating to match plan changes"
       // banner (data-driven, not a timer). False on the revision-equal fast
       // path and on a reconcile failure (we served prior state).
+      //
+      // 🔴 ROW 9 (1.1) · STRIPE S1 PART C — THE ONE GATE IN THIS BLOCK THAT
+      // SKIPS RATHER THAN REFUSES, and the reason is the ruling itself.
+      //
+      // The post-trial state is READ-ONLY, NOT LOCKED (D-WS9-270 §4): a lapsed
+      // account can still see every list it already has. But this READ can spend
+      // two model calls, because reconcile-on-read re-resolves the changed subset
+      // when the plan has advanced. So an unentitled caller must not 402 — that
+      // would paywall looking at your own grocery list — and must not reconcile
+      // either.
+      //
+      // The graceful path already existed, which is what makes this cheap: a
+      // reconcile FAILURE serves the prior persisted state un-stamped and logs.
+      // "Not entitled" takes exactly that path. `reconciled: false` is already
+      // the documented value for it, and the list the user sees is the one they
+      // last had — stale against the plan, but theirs, and readable.
       let reconciled = false;
-      try {
-        const result = await reconcileGroceryListIfStale(listId, userId, {
-          prisma,
-          consolidatePlanIngredients,
-          fillPurchaseSizesWithWriteBack,
-          generateFinalGroceryList,
-        });
-        reconciled = result.reconciled;
-      } catch (reconcileErr) {
-        logger.warn(
+      const reconcileEnt = await subscriptionService.can(
+        userId,
+        "grocery_list_reconcile",
+      );
+      if (!reconcileEnt.allowed) {
+        logger.info(
           {
-            event: "grocery_reconcile_failed",
+            event: "grocery_reconcile_skipped_unentitled",
             userId,
             listId,
-            err: reconcileErr,
+            status: reconcileEnt.status,
           },
-          "Grocery list reconcile failed; serving prior state un-stamped",
+          "Grocery list reconcile skipped — account is not entitled to AI; serving prior state un-stamped (the read itself stays 200)",
         );
+      } else {
+        try {
+          const result = await reconcileGroceryListIfStale(listId, userId, {
+            prisma,
+            consolidatePlanIngredients,
+            fillPurchaseSizesWithWriteBack,
+            generateFinalGroceryList,
+          });
+          reconciled = result.reconciled;
+        } catch (reconcileErr) {
+          logger.warn(
+            {
+              event: "grocery_reconcile_failed",
+              userId,
+              listId,
+              err: reconcileErr,
+            },
+            "Grocery list reconcile failed; serving prior state un-stamped",
+          );
+        }
       }
 
       const list = await prisma.groceryList.findFirst({

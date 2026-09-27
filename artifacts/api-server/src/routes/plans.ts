@@ -75,6 +75,11 @@ import {
 } from "../lib/planDates";
 import { sortPlanItemsCanonical } from "../lib/planItemSort";
 import {
+  subscriptionRequiredBody,
+  subscriptionService as productionSubscriptionService,
+  type SubscriptionService,
+} from "../lib/subscriptionService";
+import {
   derivePrepCompletion,
   effectivePrepStatus,
 } from "../lib/prepCompletion";
@@ -87,6 +92,9 @@ import {
 
 export interface PlansRouterDeps {
   computePlanMacros: typeof productionComputePlanMacros;
+  // Row 9 (1.1) · Stripe S1 Part C — POST /plans/:id/recalc-macros fans out to
+  // estimateDishMacros, which is a model call per dish. It never asked.
+  subscriptionService: SubscriptionService;
   planNeedsMacroEstimation: typeof productionPlanNeedsMacroEstimation;
   prisma: PrismaClient;
   // WS7-8a B3 — deterministic prep step-set loader for the GET /plans/:id
@@ -209,6 +217,8 @@ export function createPlansRouter(
   deps: Partial<PlansRouterDeps> = {},
 ): IRouter {
   const computePlanMacros = deps.computePlanMacros ?? productionComputePlanMacros;
+  const subscriptionService =
+    deps.subscriptionService ?? productionSubscriptionService;
   const planNeedsMacroEstimation =
     deps.planNeedsMacroEstimation ?? productionPlanNeedsMacroEstimation;
   const prisma = deps.prisma ?? productionPrisma;
@@ -265,6 +275,18 @@ export function createPlansRouter(
       const planId = Array.isArray(planIdRaw) ? planIdRaw[0] : planIdRaw;
       if (!planId) {
         return res.status(400).json({ error: "missing plan id" });
+      }
+
+      // Row 9 (1.1) · Stripe S1 Part C — computePlanMacros runs
+      // estimateDishMacros per zero-macro dish, so a recalc on a full plan is a
+      // fan-out of model calls. This route's own limiter comment already said as
+      // much ("Recalc CAN fan out to N AI calls in the worst case") and there was
+      // no entitlement check under it.
+      const ent = await subscriptionService.can(userId, "plan_macro_recalc");
+      if (!ent.allowed) {
+        return res
+          .status(402)
+          .json(subscriptionRequiredBody(ent, "Recalculating nutrition is a subscriber feature."));
       }
 
       try {

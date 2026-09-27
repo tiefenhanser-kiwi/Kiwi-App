@@ -34,6 +34,11 @@ import {
   RecipeImportError,
   type RecipeJsonLd,
 } from "../lib/recipeImport";
+import {
+  subscriptionRequiredBody,
+  subscriptionService as productionSubscriptionService,
+  type SubscriptionService,
+} from "../lib/subscriptionService";
 
 interface ScaleIngredient {
   name: string;
@@ -69,12 +74,17 @@ const ImportTextRequestSchema = z.object({
 
 export interface RecipesRouterDeps {
   prisma: PrismaClient;
+  // Row 9 (1.1) · Stripe S1 Part C — all four routes in this file spend a model
+  // call and NONE of them asked. Injected, like every other router's.
+  subscriptionService: SubscriptionService;
 }
 
 export function createRecipesRouter(
   deps: Partial<RecipesRouterDeps> = {},
 ): IRouter {
   const prisma = deps.prisma ?? productionPrisma;
+  const subscriptionService =
+    deps.subscriptionService ?? productionSubscriptionService;
   // WS9A BUG-234 — the session guard now reads User.tokensValidFrom, so it
   // needs a Prisma client. Building it from the injected one (rather than
   // importing the singleton) is what keeps this router's tests hermetic.
@@ -111,6 +121,22 @@ export function createRecipesRouter(
 
     if (toServings === fromServings) {
       return res.json({ scaled: ingredients });
+    }
+
+    // Row 9 (1.1) · Stripe S1 Part C — the gate, and it is HERE rather than at
+    // the top of the handler on purpose: both early returns above answer without
+    // spending anything (a 400 for no ingredients, and the identity case where
+    // from === to, which just echoes the input). Gating above them would 402 a
+    // lapsed account for a request that was never going to cost us a cent, which
+    // is a paywall where there is no bill.
+    const scaleUserId = req.userId;
+    if (scaleUserId) {
+      const ent = await subscriptionService.can(scaleUserId, "recipe_scale_ai");
+      if (!ent.allowed) {
+        return res
+          .status(402)
+          .json(subscriptionRequiredBody(ent, "Scaling a recipe with Kiwi is a subscriber feature."));
+      }
     }
 
     const aiResult = await runAICall(
@@ -179,6 +205,22 @@ export function createRecipesRouter(
       }
       const { url } = parsed.data;
       const userId = req.userId ?? null;
+
+      // Row 9 (1.1) · Stripe S1 Part C — BEFORE THE FETCH, not merely before the
+      // model call. Every import path here reaches `reformatRecipeForKiwi`
+      // regardless of whether the page had JSON-LD (structured data becomes
+      // hints for the same call, not a way around it), so there is no cheap
+      // outcome to protect. And the fetch is itself an outbound request made on
+      // the caller's behalf — worth not making for an account that cannot use
+      // the result.
+      if (userId) {
+        const ent = await subscriptionService.can(userId, "recipe_import_ai");
+        if (!ent.allowed) {
+          return res
+            .status(402)
+            .json(subscriptionRequiredBody(ent, "Importing recipes with Kiwi is a subscriber feature."));
+        }
+      }
 
       let html: string;
       try {
@@ -314,6 +356,18 @@ export function createRecipesRouter(
         });
       }
 
+      // Row 9 (1.1) · Stripe S1 Part C — ahead of the decoded-byte loop below,
+      // which walks up to 25 MiB of base64 before it has decided anything.
+      const imageUserId = req.userId;
+      if (imageUserId) {
+        const ent = await subscriptionService.can(imageUserId, "recipe_import_ai");
+        if (!ent.allowed) {
+          return res
+            .status(402)
+            .json(subscriptionRequiredBody(ent, "Importing recipes with Kiwi is a subscriber feature."));
+        }
+      }
+
       const { images } = parsed.data;
       let totalBytes = 0;
       for (let i = 0; i < images.length; i++) {
@@ -425,6 +479,17 @@ export function createRecipesRouter(
 
       const { rawText } = parsed.data;
       const userId = req.userId ?? null;
+
+      // Row 9 (1.1) · Stripe S1 Part C — same key as the other two import doors:
+      // one thing the user did ("import a recipe"), three ways in.
+      if (userId) {
+        const ent = await subscriptionService.can(userId, "recipe_import_ai");
+        if (!ent.allowed) {
+          return res
+            .status(402)
+            .json(subscriptionRequiredBody(ent, "Importing recipes with Kiwi is a subscriber feature."));
+        }
+      }
 
       const aiResult = await reformatRecipeForKiwi(
         { rawText },

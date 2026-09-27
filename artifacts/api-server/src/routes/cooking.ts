@@ -51,6 +51,7 @@ import { logger } from "../lib/logger";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
 import {
+  SUBSCRIPTION_REQUIRED_CODE,
   subscriptionService as productionSubscriptionService,
   type SubscriptionService,
 } from "../lib/subscriptionService";
@@ -241,6 +242,7 @@ export function createCookingRouter(
       if (!ent.allowed) {
         return res.status(402).json({
           error: "upgrade required",
+          code: ent.code ?? SUBSCRIPTION_REQUIRED_CODE,
           reason: ent.reason ?? "Prep the Week is a Premium feature",
         });
       }
