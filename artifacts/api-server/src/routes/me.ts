@@ -25,6 +25,10 @@ import { type Prisma, type PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
 import { hashPassword, signToken, verifyPassword, verifyToken } from "../lib/auth";
+// Row 9 · OAuth Block 1 Part E — the revoke call App Review 5.1.1(v) requires
+// on account deletion, and the config that governs whether it can be made.
+import { readOAuthConfig, type OAuthConfig } from "../lib/oauth/config";
+import { revokeAppleIdentitiesForUser as productionRevokeAppleIdentities } from "../lib/oauth/revokeOnDelete";
 import { logger } from "../lib/logger";
 import { phoneSchema } from "../lib/phoneValidation";
 import {
@@ -647,11 +651,27 @@ export interface MeRouterDeps {
    * otherwise reach the live SDK from a stub-prisma test).
    */
   estimateDishMacros: typeof productionEstimateDishMacros;
+  /**
+   * Row 9 · OAuth Block 1 Part E — App Review 5.1.1(v)'s revoke call, made
+   * from DELETE /me before the account is removed. Injected for the same
+   * reason every outbound call in this server is: `pnpm test` loads .env, and
+   * a default that reached appleid.apple.com would put a live POST one
+   * forgotten stub away from every deletion test.
+   *
+   * The seam is the WHOLE revocation (find the identities, decrypt, call), not
+   * the fetch inside it, because that is the function this route calls.
+   */
+  revokeAppleIdentities: typeof productionRevokeAppleIdentities;
+  /** Read once per router so a test can hand in a configured deploy. */
+  oauthConfig: OAuthConfig;
 }
 
 export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
   const prisma = deps.prisma ?? productionPrisma;
   const estimateDishMacros = deps.estimateDishMacros ?? productionEstimateDishMacros;
+  const revokeAppleIdentities =
+    deps.revokeAppleIdentities ?? productionRevokeAppleIdentities;
+  const oauthConfig = deps.oauthConfig ?? readOAuthConfig();
   // WS9A BUG-234 — the session guard now reads User.tokensValidFrom, so it
   // needs a Prisma client. Building it from the injected one (rather than
   // importing the singleton) is what keeps this router's tests hermetic.
@@ -1226,6 +1246,31 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
     }
 
     try {
+      // ── Row 9 · OAuth Block 1 Part E — APPLE FIRST, AND BEFORE THE DELETE ─
+      //
+      // App Review guideline 5.1.1(v): an app offering Sign in with Apple must
+      // revoke the Apple token when the account is deleted. It has to run
+      // BEFORE, because the identity rows (and the refresh token on them)
+      // cascade away with the user in the transaction below — after the delete
+      // there is nothing left to revoke with.
+      //
+      // 🔴 IT CANNOT FAIL THE DELETION. Every failure inside — an
+      // unconfigured deploy, a token that will not decrypt, an Apple outage, a
+      // throw — is logged and swallowed there (lib/oauth/revokeOnDelete.ts).
+      // A person asking to be deleted gets deleted; an account that cannot be
+      // removed because a third party is down is worse for them and worse for
+      // us under GDPR than an un-revoked token for an account that no longer
+      // exists. This `catch` is the second belt to that brace.
+      let appleRevoke = { found: 0, revoked: 0, skipped: [] as string[] };
+      try {
+        appleRevoke = await revokeAppleIdentities({ prisma, userId, config: oauthConfig });
+      } catch (err) {
+        logger.error(
+          { event: "apple_revoke_failed", userId, err },
+          "Apple revocation threw at the route — deletion proceeds regardless",
+        );
+      }
+
       // Collected before the transaction: the ids the application-layer
       // ownership link needs, and the bucket-object count for the log.
       const [mealRows, dishRows, templateRows] = await Promise.all([
@@ -1278,7 +1323,19 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
         prisma.user.delete({ where: { id: userId } }),
       ]);
 
-      logger.info({ userId, gcsObjectCount }, "Account deleted");
+      logger.info(
+        {
+          userId,
+          gcsObjectCount,
+          // Row 9 · Part E — on the same line as the deletion, so a 5.1.1(v)
+          // obligation that went unmet is visible where the deletion is,
+          // rather than only in a warning somewhere above it.
+          appleIdentities: appleRevoke.found,
+          appleRevoked: appleRevoke.revoked,
+          appleRevokeSkipped: appleRevoke.skipped,
+        },
+        "Account deleted",
+      );
       return res.status(204).end();
     } catch (err) {
       logger.error({ err, userId }, "DELETE /me failed");

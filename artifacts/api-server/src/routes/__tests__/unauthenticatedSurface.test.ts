@@ -43,6 +43,18 @@ const KNOWN_PUBLIC = new Set<string>([
   "POST /auth/logout",
   "POST /auth/password-reset/request",
   "POST /auth/password-reset/confirm",
+  // 🔴 ROW 9 (1.1) · OAUTH BLOCK 1 — the two social doors, and they belong
+  // here for exactly the reason /auth/login does: they ARE the unauthenticated
+  // surface. There is no session to present; the CREDENTIAL IS THE BODY — an
+  // identity token verified against Apple's or Google's published keys before
+  // anything else happens (lib/oauth/verify.ts), which is a stronger check
+  // than the password one beside them, not a weaker one.
+  //
+  // Both carry `authLimiter`, the same limiter as signup and login. An unset
+  // audience list answers 503 `oauth_unavailable` and every verification
+  // failure answers one generic 401 — a stranger learns nothing from either.
+  "POST /auth/oauth/apple",
+  "POST /auth/oauth/google",
   // Redeemed from an emailed link, in whatever browser the person opened the
   // mail in — there is no session to present. The purpose-scoped,
   // single-use (BUG-233) token in the body IS the credential, exactly as on

@@ -26,6 +26,11 @@ import {
 import { createAccountInTx, finishClaimAfterCommit } from "../lib/authAccount";
 import { readOAuthConfig, type OAuthConfig } from "../lib/oauth/config";
 import {
+  exchangeAppleAuthorizationCode as productionExchangeAppleCode,
+  productionAppleFetch,
+} from "../lib/oauth/appleTokens";
+import { encryptSecret } from "../lib/oauth/secretBox";
+import {
   claimForExistingUser,
   isIdentityRaceLoss,
   resolveIdentity,
@@ -268,6 +273,12 @@ export interface AuthRouterDeps {
   }) => Promise<IdentityVerdict>;
   /** Read once per router so a test can hand in a configured or unconfigured deploy. */
   oauthConfig: OAuthConfig;
+  /**
+   * Row 9 · OAuth Block 1 Part E — the one-time code → refresh token exchange
+   * at appleid.apple.com. Same reason as the verifiers: the suite loads .env
+   * and a default-on live POST is one forgotten stub from every test here.
+   */
+  exchangeAppleCode: typeof productionExchangeAppleCode;
 }
 
 export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
@@ -287,6 +298,7 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
     deps.verifyGoogle ??
     ((opts) =>
       verifyGoogleIdentityToken({ ...opts, cache: productionGoogleJwksCache() }));
+  const exchangeAppleCode = deps.exchangeAppleCode ?? productionExchangeAppleCode;
   // WS9A BUG-234 — the session guard now reads User.tokensValidFrom, so it
   // needs a Prisma client. Building it from the injected one (rather than
   // importing the singleton) is what keeps this router's tests hermetic.
@@ -770,7 +782,7 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
     if (!parsed.success) {
       return res.status(400).json({ error: "invalid request body" });
     }
-    const { identityToken, rawNonce, ...body } = parsed.data;
+    const { identityToken, rawNonce, authorizationCode, ...body } = parsed.data;
 
     // The OFF state, before anything else: no audience configured means the
     // deploy has not been wired to Apple, and saying 503 is honest where a 401
@@ -788,7 +800,57 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
         rawNonce,
         audiences: oauthConfig.appleAudiences,
       });
-      return await completeOAuthSignIn({ provider: "apple", verdict, body, res });
+
+      // ── Part E · the code exchange, AFTER verification and never before ──
+      //
+      // ORDERING MATTERS: the code is only exchanged once the identity token
+      // has proved itself, so an unverified caller cannot make this server
+      // spend an outbound round trip on Apple for them.
+      //
+      // 🔴 EVERY FAILURE HERE IS SILENT TO THE CALLER. A missing code, a
+      // deploy with no signing trio, no encryption key, an Apple timeout, an
+      // unencryptable token — all of them leave `appleRefreshTokenEnc` null
+      // and let the sign-in proceed. The person is verified; refusing to let
+      // them in because a secondary call to Apple failed would trade a real
+      // login for a future convenience. The cost is recorded in the log and
+      // in the boot line, and lands on DELETE /me, which will have nothing to
+      // revoke for this identity and says so.
+      let appleRefreshTokenEnc: string | null = null;
+      if (verdict.ok && authorizationCode && oauthConfig.appleSigning && oauthConfig.appleRefreshEncSecret) {
+        const exchange = await exchangeAppleCode({
+          signing: oauthConfig.appleSigning,
+          // The client id the token was ACTUALLY minted for — not a constant.
+          // Apple's /auth/revoke insists on the same one later, which is why
+          // it is recorded on the identity row beside the token.
+          clientId: verdict.identity.audience,
+          authorizationCode,
+          fetchImpl: productionAppleFetch,
+        });
+        if (exchange.refreshToken) {
+          try {
+            appleRefreshTokenEnc = encryptSecret(
+              exchange.refreshToken,
+              oauthConfig.appleRefreshEncSecret,
+            );
+          } catch (err) {
+            // Storing it in the clear instead is NOT the fallback. A live
+            // bearer credential against appleid.apple.com does not go into a
+            // column unencrypted because the encryption failed.
+            logger.error(
+              { event: "apple_refresh_token_unencryptable", err },
+              "Could not encrypt Apple's refresh token — NOT stored; DELETE /me will have nothing to revoke",
+            );
+          }
+        }
+      }
+
+      return await completeOAuthSignIn({
+        provider: "apple",
+        verdict,
+        body,
+        appleRefreshTokenEnc,
+        res,
+      });
     } catch (err) {
       if (err instanceof GuestSessionInvalidError) {
         logger.info(
