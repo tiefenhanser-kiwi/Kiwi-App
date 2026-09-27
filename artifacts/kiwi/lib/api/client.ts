@@ -35,6 +35,8 @@
 import type { z } from "zod";
 
 import { readToken } from "../auth";
+import { readGuestToken } from "../guest/guestToken";
+import { isGuestAllowedPath } from "../guest/guestRoutes";
 import { apiBase } from "./base";
 import { emitSessionExpired } from "./auth-bridge";
 import {
@@ -80,6 +82,22 @@ export interface ApiClientOptions<T> {
   errorMode?: "throw" | "envelope";
   /** Defaults to true. Set false for unauthenticated routes (signup, login). */
   auth?: boolean;
+  /**
+   * Row 13 "Test Kitchen" · Block 2 — WHICH token to attach.
+   *
+   * "user" (the default) is every pre-existing call site, byte-unchanged:
+   * `readToken()`, and a 401 means the session died.
+   *
+   * "guest" attaches the Test Kitchen guest token from lib/guest/guestToken.ts
+   * and changes two things, both deliberate:
+   *   1. the path must be on the guest allowlist (lib/guest/guestRoutes.ts) or
+   *      this throws a programmer error rather than sending it — a guest token
+   *      on a requireAuth route is a measured 401, and a 401 is a cascade;
+   *   2. NO session-expired cascade, ever. A guest has no session to expire; a
+   *      401 here means the guest session is spent (expired / claimed) and the
+   *      Test Kitchen screens handle it by starting a new one.
+   */
+  principal?: "user" | "guest";
   signal?: AbortSignal;
   headers?: Record<string, string>;
   /**
@@ -115,17 +133,29 @@ export async function apiClient<T = unknown>(
   const parseAs = opts.parseAs ?? "json";
   const method = opts.method ?? "GET";
   const wantsAuth = opts.auth !== false;
+  // Row 13 Block 2 — a guest principal never participates in the cascade.
+  const isGuest = opts.principal === "guest";
+  if (isGuest && !isGuestAllowedPath(path)) {
+    // Programmer error, and the one the allowlist exists to make impossible:
+    // sending a guest token at a requireAuth route 401s, and an authenticated
+    // 401 evicts the visitor to sign-in. Surface it loudly, both error modes.
+    throw new Error(
+      `apiClient: ${JSON.stringify(path)} is not a guest-allowed route — a guest action is a door, not a call`,
+    );
+  }
 
   // ── Token gate ─────────────────────────────────────────────────────
   let token: string | null = null;
   if (wantsAuth) {
-    token = await readToken();
+    token = isGuest ? readGuestToken() : await readToken();
     if (!token) {
-      emitSessionExpired();
+      if (!isGuest) emitSessionExpired();
       const err = new UnauthenticatedError({
         status: 401,
         body: null,
-        userFacingMessage: "You need to be signed in.",
+        userFacingMessage: isGuest
+          ? "This Test Kitchen session has ended."
+          : "You need to be signed in.",
       });
       if (envelope) return { success: false, error: err };
       throw err;
@@ -205,6 +235,13 @@ export async function apiClient<T = unknown>(
     const details = { status: res.status, body: rawBody, userFacingMessage, retryAfterSec };
 
     if (res.status === 401) {
+      // Row 13 Block 2 — a GUEST 401 is never the cascade. It means the guest
+      // session is spent (expired, or claimed by a sign-up that already handed
+      // the visitor a real token); the Test Kitchen screens read the typed
+      // UnauthenticatedError and start a fresh session. Firing the cascade here
+      // would clear a user token this visitor does not have and evict them to
+      // sign-in from a page they reached without ever signing in.
+      //
       // WS9 BUG-239 — only an AUTHENTICATED request's 401 means "your session
       // died". On an `auth: false` route (login, signup) a 401 is the endpoint
       // rejecting the credentials in the body — a wrong password — and there
@@ -215,7 +252,7 @@ export async function apiClient<T = unknown>(
       // so the user got told their session expired for a typo.
       // The token gate above already made this distinction; the response path
       // did not.
-      if (wantsAuth) emitSessionExpired();
+      if (wantsAuth && !isGuest) emitSessionExpired();
       const err = new UnauthenticatedError(details);
       if (envelope) return { success: false, error: err };
       throw err;

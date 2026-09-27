@@ -50,6 +50,21 @@ export interface SessionGateInputs {
   hasUser: boolean;
   /** `useSegments()[0]` — undefined at "/", "(auth)" inside the auth group. */
   group: string | undefined;
+  /**
+   * Row 13 "Test Kitchen" · Block 2 — a guest session is live in this tab.
+   *
+   * 🔴 WITHOUT THIS THE TEST KITCHEN COULD NOT EXIST. `/test-kitchen` is a
+   * top-level route, so `useSegments()[0]` is "test-kitchen" — not undefined and
+   * not "(auth)". A visitor there has no token, so bootstrapStatus is "ok" and
+   * hasUser is false: the exact shape this gate evicts. It would have replaced
+   * the guest wizard with sign-in the moment the screen mounted.
+   *
+   * A guest is NEITHER evicted NOR signed in: `hasUser` stays false (index.tsx
+   * still sends a tokenless visit to Welcome, every member route still guards),
+   * and only the eviction is suppressed. Optional so every existing caller and
+   * every existing test keeps its meaning.
+   */
+  isGuest?: boolean;
 }
 
 /**
@@ -68,6 +83,8 @@ export function sessionGateShouldEvict(i: SessionGateInputs): boolean {
   // The failure screen owns this state; the router must not move.
   if (i.bootstrapStatus === "failed") return false;
   if (i.hasUser) return false;
+  // Row 13 Block 2 — a live guest session owns its own routes. See isGuest.
+  if (i.isGuest) return false;
   // undefined = "/" (index.tsx owns the cold-start decision itself, and
   // bouncing it here would race its Redirect). "(auth)" = already where a
   // signed-out user belongs; redirecting from there would also throw a user

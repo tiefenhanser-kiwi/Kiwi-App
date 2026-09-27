@@ -128,3 +128,81 @@ test("ok + no user on an authenticated route → evicts (WS9 BUG-239, unchanged)
     );
   }
 });
+
+// ── Row 13 "Test Kitchen" · Block 2 Part B — the guest ─────────────────
+//
+// 🔴 THE CASE THAT WOULD HAVE BROKEN THE TEST KITCHEN OUTRIGHT. "/test-kitchen"
+// is a top-level route, so useSegments()[0] is "test-kitchen": not undefined and
+// not "(auth)". A visitor there holds no user token, so deriveBootstrapStatus
+// answers "ok" and hasUser is false — the exact triple this gate evicts. Without
+// the isGuest read the gate replaced the guest wizard with /(auth)/sign-in the
+// instant it mounted.
+
+test("🔴 a guest on the Test Kitchen route is NOT evicted", () => {
+  assert.equal(
+    sessionGateShouldEvict({
+      bootstrapStatus: "ok",
+      hasUser: false,
+      group: "test-kitchen",
+      isGuest: true,
+    }),
+    false,
+  );
+});
+
+test("WITHOUT the guest flag the same route evicts — this is what isGuest suppresses", () => {
+  assert.equal(
+    sessionGateShouldEvict({ bootstrapStatus: "ok", hasUser: false, group: "test-kitchen" }),
+    true,
+  );
+});
+
+test("a guest is not evicted from ANY route — the flag is about the visitor, not the path", () => {
+  for (const group of [undefined, "(auth)", "test-kitchen", ...DEAD_SESSION_GROUPS]) {
+    assert.equal(
+      sessionGateShouldEvict({
+        bootstrapStatus: "ok",
+        hasUser: false,
+        group,
+        isGuest: true,
+      }),
+      false,
+      `group=${String(group)}`,
+    );
+  }
+});
+
+test("a guest is not treated as SIGNED IN — hasUser stays the only signed-in signal", () => {
+  // The guest flag suppresses the eviction and nothing else. A real user on a
+  // dead session is still evicted; deriveBootstrapStatus never sees isGuest at
+  // all, so a guest with a token in hand (a claim mid-flight) still bootstraps.
+  assert.equal(
+    deriveBootstrapStatus({
+      storageRead: true,
+      token: null,
+      hasMeData: false,
+      meIsError: false,
+    }),
+    "ok",
+  );
+  assert.equal(
+    sessionGateShouldEvict({
+      bootstrapStatus: "ok",
+      hasUser: false,
+      group: "(tabs)",
+      isGuest: false,
+    }),
+    true,
+  );
+});
+
+test("isGuest is optional — every pre-Row-13 call keeps its meaning", () => {
+  assert.equal(
+    sessionGateShouldEvict({ bootstrapStatus: "ok", hasUser: false, group: "(tabs)" }),
+    true,
+  );
+  assert.equal(
+    sessionGateShouldEvict({ bootstrapStatus: "pending", hasUser: false, group: "(tabs)" }),
+    false,
+  );
+});

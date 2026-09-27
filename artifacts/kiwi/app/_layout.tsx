@@ -28,6 +28,7 @@ import { BootstrapFailedScreen } from "@/components/BootstrapFailedScreen";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/contexts/AppContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { GuestProvider, useIsGuestSafe } from "@/contexts/GuestContext";
 import { ToastProvider } from "@/contexts/ToastProvider";
 import { Palette } from "@/constants/tokens";
 import { sessionGateShouldEvict } from "@/lib/sessionBootstrap";
@@ -65,6 +66,12 @@ const queryClient = new QueryClient({
  */
 function SessionGate() {
   const { user, bootstrapStatus } = useAuth();
+  // Row 13 "Test Kitchen" · Block 2 — a live guest session suppresses eviction.
+  // "/test-kitchen" is a top-level route, so segments[0] is "test-kitchen": not
+  // undefined, not "(auth)". A visitor there has no token, so bootstrapStatus is
+  // "ok" with user null — the exact shape this gate evicts. Without this read the
+  // guest wizard was replaced by sign-in the instant it mounted.
+  const isGuest = useIsGuestSafe();
   const segments = useSegments();
   const router = useRouter();
 
@@ -80,6 +87,7 @@ function SessionGate() {
         bootstrapStatus,
         hasUser: !!user,
         group: segments[0],
+        isGuest,
       })
     ) {
       return;
@@ -97,7 +105,7 @@ function SessionGate() {
     // Hans saw. Keying on the SAME user that (auth)/_layout guards on means
     // the two cannot disagree: when this fires, that guard is already false.
     router.replace("/(auth)/sign-in");
-  }, [user, bootstrapStatus, segments, router]);
+  }, [user, bootstrapStatus, segments, router, isGuest]);
 
   return null;
 }
@@ -182,19 +190,21 @@ export default function RootLayout() {
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
-            <AppProvider>
-              <GestureHandlerRootView style={{ flex: 1 }}>
-                <KeyboardProvider>
-                  {/* WS9 3d Part 3b-2 — app-level toast host, above the
-                      navigator so toasts survive route changes. */}
-                  <ToastProvider>
-                    <StatusBar style="dark" />
-                    <SessionGate />
-                    <RootLayoutNav />
-                  </ToastProvider>
-                </KeyboardProvider>
-              </GestureHandlerRootView>
-            </AppProvider>
+            <GuestProvider>
+              <AppProvider>
+                <GestureHandlerRootView style={{ flex: 1 }}>
+                  <KeyboardProvider>
+                    {/* WS9 3d Part 3b-2 — app-level toast host, above the
+                        navigator so toasts survive route changes. */}
+                    <ToastProvider>
+                      <StatusBar style="dark" />
+                      <SessionGate />
+                      <RootLayoutNav />
+                    </ToastProvider>
+                  </KeyboardProvider>
+                </GestureHandlerRootView>
+              </AppProvider>
+            </GuestProvider>
           </AuthProvider>
         </QueryClientProvider>
       </ErrorBoundary>
