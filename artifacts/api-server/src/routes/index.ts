@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import authRouter from "./auth";
+import billingRouter from "./billing";
 import builderRouter from "./builder";
 import cookingRouter from "./cooking";
 import dishesRouter from "./dishes";
@@ -18,6 +19,9 @@ import wizardRouter from "./wizard";
 const router: IRouter = Router();
 
 router.use(authRouter);
+// Row 9 (1.1) · Stripe S1 — the two hosted link-outs. Both member-only; both
+// answer 503 `billing_unavailable` until the deploy has Stripe.
+router.use(billingRouter);
 router.use(builderRouter);
 router.use(cookingRouter);
 router.use(dishesRouter);
