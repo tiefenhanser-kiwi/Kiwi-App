@@ -1,0 +1,118 @@
+// Row 13 "Test Kitchen" · Block 2 Part D (R4, R5, R6) — the door guard.
+//
+// The third deliberate break in this block lives here: let a guest through a
+// write action and one of these goes red.
+
+import assert from "node:assert/strict";
+import { test } from "node:test";
+
+import {
+  DOOR_APP_NOTE,
+  DOOR_PRIMARY,
+  DOOR_SECONDARY,
+  DOOR_SIGN_IN,
+  DOOR_TITLE,
+  DOOR_UNLOCKS,
+  GUEST_ACTIONS,
+  THIN_SHELF_TITLE,
+  guestDoorActions,
+  guestGuard,
+  type GuestAction,
+} from "../doors";
+
+const ALL = Object.keys(GUEST_ACTIONS) as GuestAction[];
+
+// ── the invariant ────────────────────────────────────────────────────────
+
+test("🔴 for a GUEST, every write-shaped action is a door — no exceptions", () => {
+  for (const action of ALL) {
+    const expected = GUEST_ACTIONS[action].write ? "door" : "allow";
+    assert.equal(guestGuard({ isGuest: true, action }), expected, action);
+  }
+  // And the writes are not an empty set, so the loop above cannot pass vacuously.
+  assert.ok(guestDoorActions().length >= 10);
+});
+
+test("🔴 every one of R4's named actions is on the door list", () => {
+  // Hans's list, verbatim: "grocery list · Order Online · save / edit / swap /
+  // add meals · Prep & Cook · a second generation · playlist · anything under
+  // Profile".
+  for (const action of [
+    "grocery_list",
+    "order_online",
+    "save_plan",
+    "edit_plan",
+    "swap_meal",
+    "add_meal",
+    "prep_cook",
+    "second_generation",
+    "playlist",
+    "profile",
+  ] as GuestAction[]) {
+    assert.equal(guestGuard({ isGuest: true, action }), "door", action);
+  }
+});
+
+test("reads are free (R4) — the plan, a candidate and the full recipe", () => {
+  for (const action of ["open_plan", "open_candidate", "open_recipe"] as GuestAction[]) {
+    assert.equal(guestGuard({ isGuest: true, action }), "allow", action);
+  }
+});
+
+test("🔴 a MEMBER is never gated — the guard adds nothing to that path", () => {
+  for (const action of ALL) {
+    assert.equal(guestGuard({ isGuest: false, action }), "allow", action);
+  }
+});
+
+test("the thin shelf is a door, not a failure (R6)", () => {
+  assert.equal(guestGuard({ isGuest: true, action: "thin_shelf" }), "door");
+});
+
+test("guestDoorActions lists exactly the writes", () => {
+  const doors = guestDoorActions();
+  for (const action of ALL) {
+    assert.equal(doors.includes(action), GUEST_ACTIONS[action].write, action);
+  }
+});
+
+// ── the copy (R5, §8.2–8.3) ──────────────────────────────────────────────
+
+test("the door says ACCOUNT FIRST and names the app only as a note", () => {
+  assert.equal(DOOR_TITLE, "Here's the plan you made");
+  assert.equal(DOOR_PRIMARY, "Create my free account — save my plan");
+  assert.equal(DOOR_SECONDARY, "Keep looking");
+  assert.match(DOOR_APP_NOTE, /app comes right after/i);
+  assert.match(DOOR_SIGN_IN, /Already have an account/i);
+});
+
+test("🔴 NO price and NO 'trial' wording anywhere on the door — payments do not exist yet", () => {
+  const everything = [
+    DOOR_TITLE,
+    DOOR_PRIMARY,
+    DOOR_SECONDARY,
+    DOOR_APP_NOTE,
+    DOOR_SIGN_IN,
+    THIN_SHELF_TITLE,
+    ...DOOR_UNLOCKS,
+  ].join(" ");
+  assert.equal(/trial/i.test(everything), false, "the word 'trial'");
+  assert.equal(/\$|\bUSD\b|\bper month\b|\bpermonth\b|\b\/mo\b/i.test(everything), false, "a price");
+});
+
+test("the unlock list is the six ruled lines", () => {
+  assert.equal(DOOR_UNLOCKS.length, 6);
+  assert.match(DOOR_UNLOCKS[0], /Save, edit and re-use this plan/);
+  assert.match(DOOR_UNLOCKS.join(" "), /Unlimited plans/);
+  assert.match(DOOR_UNLOCKS.join(" "), /grocery list and online ordering/);
+  assert.match(DOOR_UNLOCKS.join(" "), /Your own meals/);
+  assert.match(DOOR_UNLOCKS.join(" "), /Prep & Cook/);
+  assert.match(DOOR_UNLOCKS.join(" "), /Find and share recipes/);
+});
+
+test("the thin-shelf line is Hans's copy, verbatim (R6)", () => {
+  assert.equal(
+    THIN_SHELF_TITLE,
+    "Access to the full Kiwi meal library and meals that meet unique dietary needs and preferences is available in the app — sign up here.",
+  );
+});

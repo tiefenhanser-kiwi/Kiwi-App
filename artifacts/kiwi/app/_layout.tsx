@@ -156,6 +156,14 @@ function RootLayoutNav() {
           pause/reactivate half-feature is gone and DELETE /me is real. */}
       <Stack.Screen name="delete-account" />
       <Stack.Screen name="verify-email" />
+      {/* Row 13 "Test Kitchen" · Block 2 — the guest flow. WEB ONLY (R1): each
+          of these redirects to "/" on native before any hook runs, so nothing a
+          store reviewer can reach changes. They are outside (tabs) and outside
+          (auth) because a guest is in neither. */}
+      <Stack.Screen name="test-kitchen/index" />
+      <Stack.Screen name="test-kitchen/options" />
+      <Stack.Screen name="test-kitchen/plan" />
+      <Stack.Screen name="test-kitchen/recipe" />
     </Stack>
   );
 }

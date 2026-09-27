@@ -240,12 +240,23 @@ export type MealDetail = z.infer<typeof MealDetailSchema>;
 export async function getMeal(
   id: string,
   planItemId?: string,
+  // Row 13 "Test Kitchen" · Block 2 Part D — GET /meals/:id is the one catalog
+  // route mounted behind requireGuestOrAuth, so it is also the guest's only
+  // route to a full recipe (their draft carries no `steps` — see
+  // lib/guest/guestPlanModel.ts). A guest sees ONLY the public catalog:
+  // `isPublic AND userId null`, and a miss is 404, never 403.
+  //
+  // An options object rather than a second exported function: the URL, the
+  // schema and the envelope are identical, and a `getGuestMeal` would be this
+  // body copied with one option changed.
+  opts: { principal?: "user" | "guest" } = {},
 ): Promise<MealDetail> {
   const query = planItemId
     ? `?planItemId=${encodeURIComponent(planItemId)}`
     : "";
   const body = await apiClient(`/meals/${encodeURIComponent(id)}${query}`, {
     schema: MealDetailEnvelopeSchema,
+    ...(opts.principal ? { principal: opts.principal } : {}),
   });
   return body.meal;
 }

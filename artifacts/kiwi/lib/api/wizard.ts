@@ -175,6 +175,22 @@ const WizardExpandEnrichedMealSchema = z
     difficulty: z.enum(["easy", "medium", "fancy"]),
     servings: z.number(),
     dishes: z.array(WizardExpandEnrichedDishSchema),
+    // Row 13 "Test Kitchen" · Block 2 Part D — the catalog Meal this slot was
+    // COMPOSED from. The server has emitted it since the store-compose path
+    // existed (lib/store/storeMealDetails.ts `sourceStoreMealId: meal.id`);
+    // mobile simply never declared it, so `.passthrough()` carried it untyped.
+    //
+    // It is declared now because it is the guest's ONLY route to a full recipe:
+    // this expand payload carries ingredients and macros but NOT `steps` — the
+    // details stage dropped them in WS7-5c Block A and finalize-steps runs at
+    // save/activate, both of which are member-only doors for a guest. So the
+    // recipe comes from GET /meals/:id (guest-OK, catalog-only) keyed on this id.
+    //
+    // OPTIONAL, matching the server: a LIVE (AI-expanded) slot has no Meal row
+    // and carries no id. A guest's expand is catalog-only, so every slot in a
+    // guest's plan has one — but a member's draft can mix, and this schema is
+    // shared.
+    sourceStoreMealId: z.string().optional(),
   })
   .passthrough();
 

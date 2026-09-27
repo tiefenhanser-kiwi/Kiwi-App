@@ -27,9 +27,27 @@ interface Props {
   /** Defaults to the Pick screen's line; the plan-options screen says "plans". */
   title?: string;
   body?: string;
+  /**
+   * Row 13 "Test Kitchen" · Block 2 Part D (R6) — THE THIN SHELF, this card's
+   * third consumer. When the catalog cannot fill every slot of a guest's chosen
+   * plan the server refuses before any AI call (`catalog_only_gap`) and the
+   * refusal IS the door: Hans's copy, and a SIGN-UP exit instead of the
+   * Refine / Tell Kiwi pair.
+   *
+   * ⚠️ The two default exits are wrong for a guest twice over, which is why this
+   * is a replacement and not an addition: "Tell Kiwi" opens /tellkiwi, whose
+   * POST /wizard/build-from-text is member-only AND is the AI-invention surface
+   * ruled off for guests; "Refine preferences" dismissTo's /wizard, which is not
+   * on a guest's stack and whose generate a guest has already spent.
+   */
+  guestExit?: { label: string; onPress: () => void };
 }
 
-export function ExhaustedCard({ title = EXHAUSTED_TITLE, body = EXHAUSTED_BODY }: Props) {
+export function ExhaustedCard({
+  title = EXHAUSTED_TITLE,
+  body = EXHAUSTED_BODY,
+  guestExit,
+}: Props) {
   const router = useRouter();
   const handleRefine = () =>
     router.dismissTo({
@@ -45,15 +63,26 @@ export function ExhaustedCard({ title = EXHAUSTED_TITLE, body = EXHAUSTED_BODY }
   return (
     <View style={s.card}>
       <Text style={s.title}>{title}</Text>
-      <Text style={s.body}>{body}</Text>
-      <View style={s.row}>
-        <View style={{ flex: 1 }}>
-          <Button label={EXHAUSTED_REFINE} variant="ghost" onPress={handleRefine} />
+      {body ? <Text style={s.body}>{body}</Text> : null}
+      {guestExit ? (
+        <View style={{ marginTop: Spacing[1] }}>
+          <Button
+            label={guestExit.label}
+            variant="primary"
+            onPress={guestExit.onPress}
+            testID="exhausted-guest-exit"
+          />
         </View>
-        <View style={{ flex: 1 }}>
-          <Button label={EXHAUSTED_TELL} variant="ghost" onPress={handleTellKiwi} />
+      ) : (
+        <View style={s.row}>
+          <View style={{ flex: 1 }}>
+            <Button label={EXHAUSTED_REFINE} variant="ghost" onPress={handleRefine} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Button label={EXHAUSTED_TELL} variant="ghost" onPress={handleTellKiwi} />
+          </View>
         </View>
-      </View>
+      )}
     </View>
   );
 }

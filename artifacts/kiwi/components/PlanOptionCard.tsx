@@ -85,6 +85,16 @@ interface Props {
   onUseThisWeek: () => void;
   onSaveForLater: () => void;
   onNotForMe: () => void;
+  /**
+   * Row 13 "Test Kitchen" · Block 2 Part D — the guest's card.
+   *
+   * ONE action, "See this plan" (the expand), because Use This Week, Save for
+   * Later and Not For Me are all writes and therefore all doors (R4) — and a
+   * card showing three buttons that each open the same sign-up sheet reads as a
+   * paywall, not as a plan. Everything ABOVE the action row is identical, which
+   * is the reason this is a prop on the member card rather than a second card.
+   */
+  guestAction?: { label: string; busyLabel?: string; busy?: boolean; onPress: () => void };
 }
 
 export function macrosLine(m: WizardPlanCandidate["dailyMacros"]): string {
@@ -100,6 +110,7 @@ export function PlanOptionCard({
   onUseThisWeek,
   onSaveForLater,
   onNotForMe,
+  guestAction,
 }: Props) {
   const rows = rowsFor(candidate);
   // lane-pfc Part C.5 — testIDs key on the CONTENT identity (BUG-289's
@@ -161,7 +172,21 @@ export function PlanOptionCard({
         {macrosLine(candidate.dailyMacros)}
       </Text>
 
-      {state === "saved" ? (
+      {guestAction ? (
+        <View style={s.actions}>
+          <Button
+            label={
+              guestAction.busy
+                ? (guestAction.busyLabel ?? guestAction.label)
+                : guestAction.label
+            }
+            variant="tint"
+            onPress={guestAction.onPress}
+            disabled={guestAction.busy || locked}
+            testID={`plan-option-${idKey}-guest-open`}
+          />
+        </View>
+      ) : state === "saved" ? (
         <View style={s.savedRow}>
           <Text style={s.savedLine} accessibilityLabel={SAVED_LINE}>
             {SAVED_LINE}

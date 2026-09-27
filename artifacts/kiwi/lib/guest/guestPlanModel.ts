@@ -1,0 +1,99 @@
+// Row 13 "Test Kitchen" · Block 2 Part D — the guest plan's view-model.
+//
+// The guest plan screen renders GET /guest/draft's `expanded` object, which is
+// the SAME shape POST /wizard/expand returns. What goes on screen is decided
+// here, as pure functions, because `app/**` is outside the test glob (D-WS9-164)
+// and two of these decisions are not obvious from the payload:
+//
+// 🔴 A GUEST'S PLAN HAS NO COOKING STEPS, AND THAT IS NOT A BUG IN THIS BLOCK.
+// WS7-5c Block A split the expansion into a details stage (ingredients + macros,
+// no steps) and a finalize-steps stage that runs at SAVE or ACTIVATE. Both are
+// member-only for a guest, and both are doors. The server also strips `steps`
+// from legacy steps-bearing drafts on the GET path, so the shape is consistent.
+// So R4's "it's fine to read the full recipe in the plan" is satisfied a
+// different way than by reading the draft: every slot in a guest's plan is
+// CATALOG-COMPOSED (the expand refuses otherwise — `catalog_only_gap`), so every
+// slot carries `sourceStoreMealId`, and the full recipe including steps comes
+// from GET /meals/:id — guest-OK, catalog-only. `recipeMealId` below is that
+// bridge, and `recipeReadable` is the honest answer when a slot lacks it.
+//
+// The macro line is derived, not sent: the expand payload carries PER-DISH
+// macros and the candidate card's `dailyMacros` belongs to the candidate, not to
+// the draft. Summing the dishes is the only per-meal figure available here.
+
+import type { WizardExpandEnrichedMeal, WizardExpandedPlan } from "@/lib/api/wizard";
+
+export interface GuestPlanRow {
+  /** Stable within a render — the draft has no per-meal id of its own. */
+  key: string;
+  title: string;
+  description: string | null;
+  /** "35 min" / null. */
+  timeLabel: string | null;
+  difficulty: string;
+  servings: number;
+  /** The catalog meal behind this slot, or null for a live-expanded one. */
+  recipeMealId: string | null;
+  /** False when the full recipe cannot be fetched — see the header. */
+  recipeReadable: boolean;
+  /** Per-serving calories, summed over the dishes, or null when unknown. */
+  caloriesPerServing: number | null;
+}
+
+export function guestPlanRows(expanded: WizardExpandedPlan): GuestPlanRow[] {
+  return expanded.meals.map((meal, index) => {
+    const mealId = mealRecipeId(meal);
+    return {
+      key: `${index}-${meal.title}`,
+      title: meal.title,
+      description: meal.description ?? null,
+      timeLabel:
+        typeof meal.estimatedTimeMinutes === "number" && meal.estimatedTimeMinutes > 0
+          ? `${meal.estimatedTimeMinutes} min`
+          : null,
+      difficulty: meal.difficulty,
+      servings: meal.servings,
+      recipeMealId: mealId,
+      recipeReadable: mealId !== null,
+      caloriesPerServing: sumCalories(meal),
+    };
+  });
+}
+
+function mealRecipeId(meal: WizardExpandEnrichedMeal): string | null {
+  const id = (meal as { sourceStoreMealId?: unknown }).sourceStoreMealId;
+  return typeof id === "string" && id.length > 0 ? id : null;
+}
+
+/**
+ * Per-serving calories for the whole meal — the sum over its dishes, because
+ * that is what "a serving of this meal" is. A dish whose macro pass FAILED
+ * (`macros.failed`) or is null makes the whole figure unknown rather than
+ * understated: a calorie count missing a component is worse than none.
+ */
+function sumCalories(meal: WizardExpandEnrichedMeal): number | null {
+  let total = 0;
+  for (const dish of meal.dishes) {
+    if (!dish.macros || dish.macros.failed) return null;
+    total += dish.macros.caloriesPerServing;
+  }
+  return Math.round(total);
+}
+
+/**
+ * The plan's sub-line. `planDurationDays` is not on the draft — the draft is the
+ * expanded plan, not the request — so the meal count is the honest figure.
+ */
+export function guestPlanSubline(expanded: WizardExpandedPlan): string {
+  const n = expanded.meals.length;
+  return n === 1 ? "1 meal" : `${n} meals`;
+}
+
+/** Find one row by its key — the recipe screen's lookup after a route hop. */
+export function guestPlanRowByKey(
+  rows: GuestPlanRow[],
+  key: string | undefined,
+): GuestPlanRow | null {
+  if (!key) return null;
+  return rows.find((r) => r.key === key) ?? null;
+}
