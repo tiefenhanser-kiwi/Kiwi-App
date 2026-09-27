@@ -19,26 +19,24 @@
 // ⚠️ No secret is involved: the service-account email and the audience are
 // configuration, not credentials. Nothing to put in Secret Manager for this.
 
-import { createPublicKey, type KeyObject } from "node:crypto";
+import type { KeyObject } from "node:crypto";
 import jwt from "jsonwebtoken";
+
+import { JwksCache, type JwksCacheDeps, type JwksFetch } from "./oauth/jwks";
 
 export const GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs";
 export const GOOGLE_ISSUERS = ["https://accounts.google.com", "accounts.google.com"] as const;
-const DEFAULT_CACHE_MS = 60 * 60 * 1000;
-const MIN_CACHE_MS = 60 * 1000;
 
-export type JwksFetch = (url: string) => Promise<{
-  ok: boolean;
-  status: number;
-  headers: { get(name: string): string | null };
-  json(): Promise<unknown>;
-}>;
-
-export interface OidcVerifyDeps {
-  fetch: JwksFetch;
-  now?: () => number;
-  jwksUrl?: string;
-}
+// Row 9 (1.1) · OAuth Block 1 Part A — THE CACHE MOVED to lib/oauth/jwks.ts.
+// It held nothing that was about Google: a JWKS fetch, RSA JWKs turned into
+// KeyObjects, a max-age TTL and a refetch on an unknown kid. Apple publishes
+// the same document, so the user-facing OAuth lane needed the same class, and
+// a second copy of it would be a second place for the rotation logic to drift.
+// Re-exported under both of the names this file used to define, so every
+// import in the repo (internal.ts, guestSweep.test.ts,
+// internalImageDrain.test.ts, googleOidc.test.ts) is unchanged.
+export type { JwksFetch };
+export type OidcVerifyDeps = JwksCacheDeps;
 
 export interface OidcExpectation {
   audience: string;
@@ -61,52 +59,12 @@ export type OidcVerdict =
       detail?: string;
     };
 
-interface Jwk {
-  kid?: string;
-  kty?: string;
-  alg?: string;
-  use?: string;
-  n?: string;
-  e?: string;
-}
-
-export class GoogleJwksCache {
-  private keys = new Map<string, KeyObject>();
-  private expiresAt = 0;
-  constructor(private readonly deps: OidcVerifyDeps) {}
-
-  private now(): number {
-    return (this.deps.now ?? Date.now)();
-  }
-
-  private async refresh(): Promise<boolean> {
-    const res = await this.deps.fetch(this.deps.jwksUrl ?? GOOGLE_JWKS_URL);
-    if (!res.ok) return false;
-    const body = (await res.json()) as { keys?: Jwk[] };
-    const next = new Map<string, KeyObject>();
-    for (const k of body.keys ?? []) {
-      if (!k.kid || k.kty !== "RSA" || !k.n || !k.e) continue;
-      try {
-        next.set(k.kid, createPublicKey({ key: { kty: "RSA", n: k.n, e: k.e }, format: "jwk" }));
-      } catch {
-        /* a malformed entry is skipped, not fatal */
-      }
-    }
-    const maxAge = /max-age=(\d+)/.exec(res.headers.get("cache-control") ?? "");
-    const ttl = maxAge ? Math.max(MIN_CACHE_MS, Number(maxAge[1]) * 1000) : DEFAULT_CACHE_MS;
-    this.keys = next;
-    this.expiresAt = this.now() + ttl;
-    return true;
-  }
-
-  // The key for `kid`, refetching once if the cache is stale or does not know
-  // the id. `undefined` = Google does not (currently) publish that key.
-  // Throws only when the JWKS endpoint itself is unreachable.
-  async keyFor(kid: string): Promise<KeyObject | undefined> {
-    if (this.now() < this.expiresAt && this.keys.has(kid)) return this.keys.get(kid);
-    const fetched = await this.refresh();
-    if (!fetched) throw new Error("jwks_unavailable");
-    return this.keys.get(kid);
+// The Google-flavoured cache: the shared class plus the one fact that is
+// Google's, its key endpoint. Callers that already pass a `jwksUrl` (the
+// drain tests do not, but the option survives) keep theirs.
+export class GoogleJwksCache extends JwksCache {
+  constructor(deps: OidcVerifyDeps) {
+    super({ ...deps, jwksUrl: deps.jwksUrl ?? GOOGLE_JWKS_URL });
   }
 }
 

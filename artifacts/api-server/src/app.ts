@@ -7,6 +7,7 @@ import { logger } from "./lib/logger";
 import { validateSpendGuardEnv } from "./lib/spendGuard";
 import { logInstacartConfig } from "./lib/retailers/instacartClient";
 import { logTurnstileConfig } from "./lib/turnstile";
+import { logOAuthConfig } from "./lib/oauth/config";
 import { parseTrustProxyHops } from "./lib/trustProxy";
 import { noStore } from "./middleware/cacheControl";
 import { errorHandler } from "./middleware/errorHandler";
@@ -72,6 +73,14 @@ logInstacartConfig(process.env);
 // unset means POST /guest/session accepts every caller, and the funnel must be
 // buildable before Cloudflare is wired.
 logTurnstileConfig(process.env);
+
+// Row 9 (1.1) · OAuth Block 1 — the fourth line of the same kind: one per
+// provider naming whether it is on, plus an ERROR when Apple sign-in is
+// configured but token revocation is not (App Review 5.1.1(v) requires the
+// revoke call on account deletion). Not required at boot and cannot fail it:
+// an unset provider answers 503 `oauth_unavailable` and the password lane is
+// untouched. Logs COUNTS and variable NAMES only, never a value.
+logOAuthConfig(process.env);
 
 app.use(
   pinoHttp({
