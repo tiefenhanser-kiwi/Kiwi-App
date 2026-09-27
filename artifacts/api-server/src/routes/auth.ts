@@ -70,6 +70,15 @@ const signupSchema = z.object({
   phone: phoneSchema.nullable().optional(),
   marketingConsentEmail: z.boolean().optional(),
   marketingConsentSms: z.boolean().optional(),
+  // Row 13 · Block 1b / D-WS9-264 — where this account came from. Hans: "mark
+  // the entry point of the user somehow so I can add them into an onboarding
+  // campaign that alerts them of the mobile app. and vice versa."
+  //
+  // OPTIONAL, and absent means null, not a guess: every client shipped before
+  // this sends nothing, and inferring a platform from the User-Agent would
+  // write a fact nobody asserted into a column marketing will segment on.
+  // A `guestSessionId` on the body OVERRIDES this — see the resolution below.
+  platform: z.enum(["web", "ios", "android"]).optional(),
   // Row 13 "Test Kitchen" · Block 1 (D-WS9-259) — THE CLAIM. Both optional,
   // MUTUALLY EXCLUSIVE, and both are the same sentence in different words:
   // "keep what I just made."
@@ -115,6 +124,11 @@ function toUserShape(u: {
   marketingConsentSms: boolean;
   onboardingComplete: boolean;
   firstRunChoiceMade: boolean;
+  // Row 13 · Block 1b B2 — D-WS9-264 / D-WS9-263. REQUIRED on the input type,
+  // not optional: a caller whose `select` forgets a column then fails to
+  // typecheck instead of quietly serialising undefined into the wire shape.
+  signupSource: string | null;
+  personalizeNudgeDismissedAt: Date | null;
   createdAt: Date;
 }) {
   return {
@@ -135,6 +149,12 @@ function toUserShape(u: {
     marketingConsentSms: u.marketingConsentSms,
     onboardingComplete: u.onboardingComplete,
     firstRunChoiceMade: u.firstRunChoiceMade,
+    // D-WS9-264 — read-only after signup; no route updates it.
+    signupSource: u.signupSource,
+    // D-WS9-263 — ISO or null, like its siblings firstPlanCreatedAt /
+    // playlistCtaTappedAt. `IS NULL` is the gate; the value says when.
+    personalizeNudgeDismissedAt:
+      u.personalizeNudgeDismissedAt?.toISOString() ?? null,
     createdAt: u.createdAt.toISOString(),
   };
 }
@@ -199,6 +219,7 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
       phone,
       marketingConsentEmail,
       marketingConsentSms,
+      platform,
       guestSessionId,
       templatePlanId,
       localDate,
@@ -254,6 +275,12 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
             // the Prisma default (false), same as onboardingComplete below.
             ...(marketingConsentEmail !== undefined ? { marketingConsentEmail } : {}),
             ...(marketingConsentSms !== undefined ? { marketingConsentSms } : {}),
+            // D-WS9-264 — the entry point, resolved HERE and written once.
+            // A guestSessionId wins over `platform` because it is the more
+            // specific fact: the Test Kitchen runs on the web, so a body with
+            // both would otherwise record "web" and lose the funnel this column
+            // exists to name. Null when neither is present.
+            signupSource: guestSessionId ? "test_kitchen" : (platform ?? null),
           },
         });
         const subscription = await tx.subscription.create({
@@ -264,6 +291,7 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
             trialEndsAt,
           },
         });
+        let onboardingComplete = newUser.onboardingComplete;
         if (guestSessionId) {
           const claim = await claimGuestSessionInTx({
             tx,
@@ -274,8 +302,37 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
             copyPreferences: true,
           });
           claimedDraft = claim.draft;
+          // ── R1 / D-WS9-263 — THE CLAIM COMPLETES ONBOARDING. ─────────────
+          //
+          // Hans: "agreed we don't want them to have to go to the same form,
+          // unpopulated, after saving." The account already holds the answers
+          // the onboarding form would ask for, so sending them to it would be
+          // asking twice and showing them an empty version of what they just
+          // filled in. The personalize NUDGE (R2) takes its place.
+          //
+          // Gated on `preferencesCopied`, never on `guestSessionId` alone: an
+          // unreadable blob leaves the user on column defaults, which is
+          // exactly the state onboarding exists to fix, so onboarding stays
+          // required there.
+          //
+          // 🔴 A SECOND WRITE, NOT A FIELD ON THE CREATE ABOVE, and it has to
+          // be: the decision depends on the claim's result, and the claim needs
+          // `newUser.id`, so it cannot run before the create. Pre-reading and
+          // re-parsing the blob to decide early would put a second copy of that
+          // judgement in a second place, free to disagree with the write that
+          // actually happened. Same transaction, so it is still atomic — an
+          // account is never committed with onboardingComplete out of step with
+          // its preferences row.
+          if (claim.preferencesCopied) {
+            const flagged = await tx.user.update({
+              where: { id: newUser.id },
+              data: { onboardingComplete: true },
+              select: { onboardingComplete: true },
+            });
+            onboardingComplete = flagged.onboardingComplete;
+          }
         }
-        return { ...newUser, subscription };
+        return { ...newUser, onboardingComplete, subscription };
       });
 
       // ── STAGE 2. After the commit, and deliberately outside it. ─────────
@@ -341,7 +398,12 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
           subscription: toSubscriptionShape(user.subscription),
         },
         authToken: token,
-        onboardingRequired: true,
+        // R1 / D-WS9-263 — DERIVED, never a literal. This was hard-coded `true`
+        // since the route was written, which was correct while every signup
+        // path led to the form; a Test Kitchen claim is the first one that does
+        // not, and a literal here would have sent exactly those users to an
+        // empty copy of the form they had just filled in.
+        onboardingRequired: !user.onboardingComplete,
         // Row 13 · Block 1 — null when nothing was claimed, AND null when a
         // claim was asked for but the plan could not be built. The client
         // navigates to the plan when this is set and to Home when it is not;

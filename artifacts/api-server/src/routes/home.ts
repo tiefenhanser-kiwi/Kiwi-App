@@ -274,7 +274,16 @@ export function createHomeRouter(
           where: { id: userId },
           // D-WS9-026 — firstPlanCreatedAt drives the Home teaching-arc collapse
           // (null → first-run, show the arc; non-null → collapsed forever).
-          select: { firstPlanCreatedAt: true, playlistCtaTappedAt: true },
+          //
+          // Row 13 · Block 1b / D-WS9-263 — the personalize nudge's two halves
+          // ride THIS select, which Home already issues, so the card costs no
+          // extra query: two more columns on a read that was happening anyway.
+          select: {
+            firstPlanCreatedAt: true,
+            playlistCtaTappedAt: true,
+            signupSource: true,
+            personalizeNudgeDismissedAt: true,
+          },
         }),
         prisma.meal.findFirst({
           where: { userId, isArchived: false },
@@ -296,6 +305,21 @@ export function createHomeRouter(
         // D-WS9-247 amendment — the CTA gate: shown only when BOTH are falsy.
         playlistCtaTappedAt: user?.playlistCtaTappedAt?.toISOString() ?? null,
         hasMeals: anyMeal !== null,
+        // R2 / D-WS9-263 — the personalize card's gate, DERIVED here rather than
+        // shipped as two raw columns, because the rule is the server's to own:
+        // the card exists only for the sign-ups that skipped onboarding, and
+        // that is precisely `signupSource === "test_kitchen"`. A client deriving
+        // it from raw fields would be a second copy of that rule, free to drift
+        // the day a new entry point also skips the form.
+        //
+        // ⚠️ ADDITIVE and safe for an app that has not updated: mobile's
+        // HomePayloadSchema is a plain z.object (no .strict(), no
+        // .passthrough()), so Zod STRIPS an unknown key and the parse still
+        // succeeds. There is no server-side Zod for this payload to mark
+        // optional — it is built inline, right here.
+        showPersonalizeNudge:
+          user?.signupSource === "test_kitchen" &&
+          user?.personalizeNudgeDismissedAt === null,
         // Store-prep lane — same shape as the grocery-list detail GET's
         // `retailers` block. ADDITIVE here and OPTIONAL on the phone's Zod
         // schema, so an old server never breaks a new binary (D-WS9-254).

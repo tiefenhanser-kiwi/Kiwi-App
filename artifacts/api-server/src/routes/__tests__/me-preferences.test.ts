@@ -85,8 +85,22 @@ function defaultsFor(userId: string): PrefsRow {
   };
 }
 
-function makeStubPrisma(initial: PrefsRow | null = null) {
+function makeStubPrisma(
+  initial: PrefsRow | null = null,
+  // D-WS9-263 — the user row's nudge stamp. Null = never dismissed, which is
+  // every account until they personalize or dismiss.
+  nudgeSeed: { userId?: string; personalizeNudgeDismissedAt?: Date | null } = {},
+) {
   let row: PrefsRow | null = initial;
+  const nudgeState = {
+    userId: nudgeSeed.userId ?? USER_ID,
+    personalizeNudgeDismissedAt:
+      nudgeSeed.personalizeNudgeDismissedAt ?? (null as Date | null),
+  };
+  const nudgeUpdateManyCalls: Array<{
+    where: Record<string, unknown>;
+    data: Record<string, unknown>;
+  }> = [];
   return {
     userPreferences: {
       findUnique: async ({
@@ -123,7 +137,38 @@ function makeStubPrisma(initial: PrefsRow | null = null) {
         return row;
       },
     },
+    // Row 13 · Block 1b B2 / D-WS9-263 — personalizing IS dismissing the
+    // personalize nudge, so a successful PATCH here stamps
+    // User.personalizeNudgeDismissedAt write-if-null. Modelled with the guard
+    // evaluated, not assumed.
+    //
+    // ⚠️ Before this the stub had no `user` model at all beyond what
+    // withSessionUser adds, so the stamp threw a TypeError straight into the
+    // route's best-effort catch — every preferences test logged
+    // `personalize_nudge_stamp_failed` and still passed. That is the correct
+    // PRODUCTION behaviour (a failed stamp must not fail a save the user has
+    // already made) but it made the path invisible here.
+    user: {
+      updateMany: async (args: {
+        where: Record<string, unknown>;
+        data: Record<string, unknown>;
+      }) => {
+        nudgeUpdateManyCalls.push(args);
+        if (args.where.id !== nudgeState.userId) return { count: 0 };
+        if (
+          args.where.personalizeNudgeDismissedAt === null &&
+          nudgeState.personalizeNudgeDismissedAt !== null
+        ) {
+          return { count: 0 };
+        }
+        nudgeState.personalizeNudgeDismissedAt =
+          args.data.personalizeNudgeDismissedAt as Date;
+        return { count: 1 };
+      },
+    },
     _row: () => row,
+    _nudge: () => nudgeState,
+    _nudgeCalls: nudgeUpdateManyCalls,
   };
 }
 
@@ -672,6 +717,102 @@ describe("PATCH /me/preferences", () => {
       assert.deepEqual(out.preferences.cuisines, ["japanese"]);
       assert.equal(out.preferences.userId, USER_ID);
       assert.ok(prisma._row());
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── Row 13 · Block 1b B2 / D-WS9-263 — personalizing IS dismissing ─────────
+//
+// R2: the nudge asks them to tell Kiwi how they really cook. A successful
+// preferences save is them doing exactly that, so the card has done its job and
+// must not greet them again on the next Home. Write-if-null, so a user who saves
+// preferences every week keeps the timestamp of the save that RETIRED the nudge
+// rather than the latest one.
+describe("PATCH /me/preferences — retires the personalize nudge (D-WS9-263)", () => {
+  const patchPrefs = (harness: Harness, body: unknown) =>
+    fetch(`${harness.baseUrl}/me/preferences`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${signToken(USER_ID)}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+  it("a successful save stamps personalizeNudgeDismissedAt once", async () => {
+    const prisma = makeStubPrisma(defaultsFor(USER_ID));
+    const harness = await spinUp(prisma);
+    try {
+      const before = Date.now();
+      const res = await patchPrefs(harness, { cuisines: ["thai"] });
+      assert.equal(res.status, 200);
+
+      const stamp = prisma._nudge().personalizeNudgeDismissedAt;
+      assert.ok(stamp instanceof Date, "the save retired the nudge");
+      assert.ok(stamp.getTime() >= before && stamp.getTime() <= Date.now());
+      // Through the guarded write, carrying the null predicate.
+      assert.equal(prisma._nudgeCalls.length, 1);
+      assert.equal(prisma._nudgeCalls[0].where.personalizeNudgeDismissedAt, null);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("🔴 a SECOND save does not move the stamp", async () => {
+    const prisma = makeStubPrisma(defaultsFor(USER_ID));
+    const harness = await spinUp(prisma);
+    try {
+      assert.equal((await patchPrefs(harness, { cuisines: ["thai"] })).status, 200);
+      const first = prisma._nudge().personalizeNudgeDismissedAt;
+      assert.ok(first instanceof Date);
+
+      assert.equal(
+        (await patchPrefs(harness, { cuisines: ["italian"] })).status,
+        200,
+      );
+      assert.equal(
+        prisma._nudge().personalizeNudgeDismissedAt,
+        first,
+        "it records the save that retired the nudge, not the latest one",
+      );
+      // The preferences themselves DID change — this is not a test that the
+      // second save was a no-op.
+      assert.deepEqual(prisma._row()?.cuisines, ["italian"]);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("a REJECTED save (400) retires nothing", async () => {
+    // The stamp belongs to a save that landed. weeklyPacingDefault is a
+    // server-only column the .strict() accept list refuses (Cookbook Phase B).
+    const prisma = makeStubPrisma(defaultsFor(USER_ID));
+    const harness = await spinUp(prisma);
+    try {
+      const res = await patchPrefs(harness, { weeklyPacingDefault: "mixed" });
+      assert.equal(res.status, 400);
+      assert.equal(prisma._nudge().personalizeNudgeDismissedAt, null);
+      assert.equal(prisma._nudgeCalls.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("a FAILED stamp never fails the save the user already made", async () => {
+    // Best-effort by design: the cost of a lost stamp is one extra sighting of
+    // a dismissible card, and failing the preferences write instead would throw
+    // away an edit they have already committed.
+    const prisma = makeStubPrisma(defaultsFor(USER_ID));
+    prisma.user.updateMany = async () => {
+      throw new Error("user table unavailable");
+    };
+    const harness = await spinUp(prisma);
+    try {
+      const res = await patchPrefs(harness, { cuisines: ["thai"] });
+      assert.equal(res.status, 200, "🔴 the preferences save still succeeds");
+      assert.deepEqual(prisma._row()?.cuisines, ["thai"], "and really persisted");
     } finally {
       await harness.close();
     }

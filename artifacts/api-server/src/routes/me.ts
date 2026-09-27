@@ -45,6 +45,7 @@ import {
 } from "../lib/mealMaterialize";
 import { estimateDishMacros as productionEstimateDishMacros } from "../lib/dishMacros";
 import { resolveIngredients } from "../lib/ingredientResolve";
+import { markPersonalizeNudgeDismissed } from "../lib/personalizeNudge";
 import { bumpPlanRevision } from "../lib/planRevision";
 import {
   buildAppLink,
@@ -146,6 +147,14 @@ const uiStateSchema = z.object({
   // a value: the flag is one-way (the CTA is only ever visible while unset,
   // so there is nothing to un-tap).
   playlistCtaTapped: z.literal(true).optional(),
+  // Row 13 · Block 1b / D-WS9-263 — the personalize nudge was dismissed for
+  // good. Same shape and same reasoning as playlistCtaTapped above: the client
+  // sends the FACT (`true`), the server stamps the time, and `false` is not a
+  // value because the flag is one-way.
+  //
+  // ⚠️ This is the "dismiss for good" half only. The card's [Later] button is
+  // per-DEVICE and never reaches this route — see lib/personalizeNudge.ts.
+  personalizeNudgeDismissed: z.literal(true).optional(),
   // At-least-one-field requirement is enforced below by the runtime
   // Object.keys length check, so Zod's .optional() on every field is
   // intentional.
@@ -660,7 +669,8 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
         details: parsed.error.flatten(),
       });
     }
-    const { playlistCtaTapped, ...filterUpdates } = parsed.data;
+    const { playlistCtaTapped, personalizeNudgeDismissed, ...filterUpdates } =
+      parsed.data;
     if (Object.keys(parsed.data).length === 0) {
       return res.status(400).json({ error: "no fields to update" });
     }
@@ -671,6 +681,20 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
     };
 
     try {
+      // 🔴 D-WS9-263 — the nudge dismissal is a SEPARATE, GUARDED write, not a
+      // field on the update below, and the separation is the idempotency. A
+      // `personalizeNudgeDismissedAt: new Date()` in `updates` would move the
+      // timestamp on every call, so a client that retries would keep rewriting
+      // WHEN the user stopped needing the nudge. markPersonalizeNudgeDismissed
+      // carries the `: null` predicate (the lib/firstPlan.ts pattern), so the
+      // first dismissal wins and later ones no-op.
+      //
+      // Ordered first so a body carrying ONLY this field still has its effect
+      // even though `updates` is then empty — Prisma accepts an empty `data`
+      // and writes nothing, which is the correct no-op.
+      if (personalizeNudgeDismissed) {
+        await markPersonalizeNudgeDismissed(prisma, req.userId!);
+      }
       await prisma.user.update({
         where: { id: req.userId },
         data: updates,
@@ -753,11 +777,24 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
           marketingConsentSms: true,
           onboardingComplete: true,
           firstRunChoiceMade: true,
+          // Row 13 · Block 1b B2 — this route is the SECOND user-shape builder
+          // (it hand-rolls the projection rather than calling auth.ts's
+          // toUserShape), so both new columns have to be added here too or the
+          // shape drifts: a client that re-reads its user from a profile PATCH
+          // would silently lose signupSource and the nudge stamp that
+          // /auth/me and signup do send.
+          signupSource: true,
+          personalizeNudgeDismissedAt: true,
           createdAt: true,
         },
       });
       return res.json({
-        user: { ...updated, createdAt: updated.createdAt.toISOString() },
+        user: {
+          ...updated,
+          personalizeNudgeDismissedAt:
+            updated.personalizeNudgeDismissedAt?.toISOString() ?? null,
+          createdAt: updated.createdAt.toISOString(),
+        },
       });
     } catch (err) {
       logger.error({ err, userId: req.userId }, "PATCH /me/profile failed");
@@ -1101,6 +1138,24 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
         where: { userId: req.userId! },
         update: data,
         create: { userId: req.userId!, ...data },
+      });
+      // D-WS9-263 — PERSONALIZING IS DISMISSING. The nudge asks them to tell
+      // Kiwi how they really cook; a successful preferences save is them doing
+      // it, so the card has done its job and must not greet them again. Write-
+      // if-null, so a user who saves preferences every week keeps the timestamp
+      // of the save that retired the nudge, not of the latest one.
+      //
+      // AFTER the upsert, never before: the nudge is retired by a save that
+      // LANDED. A throw above leaves the stamp null and the card shown, which is
+      // the honest state — they tried to personalize and it did not take.
+      //
+      // Best-effort: a failed stamp must not fail a preferences save the user
+      // has already made. The cost is one extra sighting of a dismissible card.
+      await markPersonalizeNudgeDismissed(prisma, req.userId!).catch((err) => {
+        logger.warn(
+          { err, userId: req.userId, event: "personalize_nudge_stamp_failed" },
+          "Preferences saved but the personalize-nudge stamp did not land",
+        );
       });
       return res.json({ preferences: serializePreferences(prefs) });
     } catch (err) {

@@ -139,6 +139,11 @@ interface StubOpts {
   // Row 5 Block 4 (D-WS9-247 amendment) — the CTA gate's two halves.
   playlistCtaTappedAt?: Date | null;
   hasMeals?: boolean;
+  // Row 13 · Block 1b / D-WS9-263 — the personalize-nudge gate's two halves.
+  // signupSource defaults to null (an account from before the column existed),
+  // which must read as "no nudge".
+  signupSource?: string | null;
+  personalizeNudgeDismissedAt?: Date | null;
   // WS9-2 2c (D-WS9-154) — GET /home/rail rows.
   rail?: ReturnType<typeof railTemplate>[];
   // Store-prep lane — the retailer.instacart_enabled SystemSetting row.
@@ -256,6 +261,9 @@ function makeStubPrisma(opts: StubOpts) {
         lastPlanDiscoveryFilters: opts.lastPlanDiscoveryFilters ?? [],
         firstPlanCreatedAt: opts.firstPlanCreatedAt ?? null,
         playlistCtaTappedAt: opts.playlistCtaTappedAt ?? null,
+        // D-WS9-263 — both default to the pre-column state.
+        signupSource: opts.signupSource ?? null,
+        personalizeNudgeDismissedAt: opts.personalizeNudgeDismissedAt ?? null,
       }),
     },
     meal: {
@@ -831,6 +839,109 @@ describe("BUG-114 — today's item is driven by assignedDayOfWeek alone", () => 
         null,
         "assignedDayOfWeek is the only assignment signal a client can write, so it is the only one read",
       );
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── Row 13 · Block 1b B2 / D-WS9-263 — showPersonalizeNudge ───────────────
+//
+// R2: a Test Kitchen sign-up skips onboarding (R1 sets onboardingComplete from
+// the claim), so the first Home shows ONE dismissible card instead of a second,
+// empty form. The server owns the RULE, not just the columns: the card is for
+// the sign-ups that skipped the form, which is exactly signupSource
+// test_kitchen. Shipping two raw fields and letting the client combine them
+// would put that rule in two places.
+describe("GET /home — the personalize nudge gate (D-WS9-263)", () => {
+  it("a Test Kitchen sign-up who has not dismissed: true", async () => {
+    const harness = await spinUp(
+      makeStubPrisma({ signupSource: "test_kitchen", personalizeNudgeDismissedAt: null }),
+    );
+    try {
+      const res = await authGet(harness, "/home");
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { showPersonalizeNudge: boolean };
+      assert.equal(body.showPersonalizeNudge, true);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("the same user after dismissing: false", async () => {
+    const harness = await spinUp(
+      makeStubPrisma({
+        signupSource: "test_kitchen",
+        personalizeNudgeDismissedAt: new Date("2026-09-27T10:00:00Z"),
+      }),
+    );
+    try {
+      const body = (await (await authGet(harness, "/home")).json()) as {
+        showPersonalizeNudge: boolean;
+      };
+      assert.equal(body.showPersonalizeNudge, false);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("🔴 a WEB sign-up never sees it, dismissed or not — they went through onboarding", async () => {
+    const harness = await spinUp(
+      makeStubPrisma({ signupSource: "web", personalizeNudgeDismissedAt: null }),
+    );
+    try {
+      const body = (await (await authGet(harness, "/home")).json()) as {
+        showPersonalizeNudge: boolean;
+      };
+      assert.equal(
+        body.showPersonalizeNudge,
+        false,
+        "the nudge replaces onboarding; a user who did onboarding is not owed it",
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("an account from before the column exists (signupSource null): false", async () => {
+    // No backfill by design, so every pre-Block-1b row reads null here. That
+    // must be the quiet direction — a card offered to the whole existing user
+    // base would be a migration bug wearing a feature costume.
+    const harness = await spinUp(makeStubPrisma({}));
+    try {
+      const body = (await (await authGet(harness, "/home")).json()) as {
+        showPersonalizeNudge: boolean;
+      };
+      assert.equal(body.showPersonalizeNudge, false);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("costs no extra query: both columns ride the select Home already issues", async () => {
+    // The gate is two more columns on the read Home already does, not a second
+    // round trip.
+    //
+    // ⚠️ Counting every user.findUnique would count TWO and prove nothing: the
+    // requireAuth epoch guard (BUG-234) reads the same table through the same
+    // stub. So identify the PAYLOAD read by a column only it selects
+    // (firstPlanCreatedAt), and assert both that there is exactly one of them
+    // and that the two nudge columns are on it. That is the actual claim.
+    const stub = makeStubPrisma({ signupSource: "test_kitchen" });
+    const payloadSelects: Record<string, unknown>[] = [];
+    const inner = stub.user.findUnique;
+    stub.user.findUnique = async (args?: { select?: Record<string, unknown> }) => {
+      if (args?.select?.firstPlanCreatedAt) payloadSelects.push(args.select);
+      // The stub ignores its args (it answers the whole row regardless of the
+      // select, as the other stubs here do), so forward nothing.
+      return inner();
+    };
+    const harness = await spinUp(stub);
+    try {
+      assert.equal((await authGet(harness, "/home")).status, 200);
+      assert.equal(payloadSelects.length, 1, "one user read for the whole payload");
+      assert.equal(payloadSelects[0].signupSource, true, "on the same select");
+      assert.equal(payloadSelects[0].personalizeNudgeDismissedAt, true);
     } finally {
       await harness.close();
     }

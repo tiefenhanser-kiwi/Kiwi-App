@@ -783,3 +783,227 @@ describe("Block 1b R3: a hidden guest default is never saved as a preference", (
     }
   });
 });
+
+// ── Block 1b B2 — R1 (onboarding) + R4 (the entry point) ──────────────────
+//
+// R1 / D-WS9-263. Hans: "agreed we don't want them to have to go to the same
+// form, unpopulated, after saving." A Test Kitchen sign-up whose wizard answers
+// were copied already HAS what onboarding would ask for, so the claim completes
+// onboarding and the personalize nudge (R2) takes the form's place.
+//
+// The gate is `preferencesCopied`, NOT "a guestSessionId was sent": an
+// unreadable blob leaves the account on column defaults, which is exactly the
+// state onboarding exists to fix, so onboarding stays required there. That
+// distinction is the whole test below.
+//
+// R4 / D-WS9-264. Hans: "mark the entry point of the user somehow so I can add
+// them into an onboarding campaign that alerts them of the mobile app. and vice
+// versa."
+
+describe("Block 1b B2: the claim completes onboarding (R1) and marks the source (R4)", () => {
+  it("a claim that copied preferences: onboardingComplete true, onboardingRequired FALSE, source test_kitchen", async () => {
+    const prisma = makePrisma({ id: "gs-1" });
+    const h = await spinUp(prisma);
+    try {
+      const res = await h.post("/auth/signup", {
+        ...SIGNUP,
+        guestSessionId: "gs-1",
+      });
+      assert.equal(res.status, 201);
+      const body = (await res.json()) as {
+        onboardingRequired: boolean;
+        user: { onboardingComplete: boolean; signupSource: string | null };
+      };
+
+      assert.equal(
+        body.onboardingRequired,
+        false,
+        "🔴 they must not be sent to an empty copy of the form they just filled in",
+      );
+      assert.equal(body.user.onboardingComplete, true);
+      assert.equal(body.user.signupSource, "test_kitchen");
+
+      // The flag is on the ROW, not only in the response — it is what the
+      // mobile router reads on every later launch.
+      const stored = prisma._state().users[0];
+      assert.equal(stored.onboardingComplete, true);
+      assert.equal(stored.signupSource, "test_kitchen");
+      // And it was earned: a preferences row really was created from the blob.
+      assert.equal(prisma._state().preferencesCreates.length, 1);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("🔴 an UNREADABLE blob: no preferences row, so onboarding stays REQUIRED", async () => {
+    // The claim still succeeds — a blob we cannot read is not a reason to fail a
+    // sign-up — but the account lands on column defaults, and skipping the form
+    // in that state would leave them with nothing and no way back to it.
+    const prisma = makePrisma({ id: "gs-1" });
+    prisma._state().guest.preferences = { householdSize: "four" };
+    const h = await spinUp(prisma);
+    try {
+      const res = await h.post("/auth/signup", {
+        ...SIGNUP,
+        guestSessionId: "gs-1",
+      });
+      assert.equal(res.status, 201, "an unreadable blob never fails the signup");
+      const body = (await res.json()) as {
+        onboardingRequired: boolean;
+        user: { onboardingComplete: boolean; signupSource: string | null };
+      };
+      assert.equal(body.onboardingRequired, true);
+      assert.equal(body.user.onboardingComplete, false);
+      assert.equal(
+        prisma._state().preferencesCreates.length,
+        0,
+        "nothing was copied, which is why onboarding is still owed",
+      );
+      // The SOURCE is still test_kitchen: where they came from is true either
+      // way, and the marketing segment does not depend on the blob parsing.
+      assert.equal(body.user.signupSource, "test_kitchen");
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("claimGuestSessionInTx reports preferencesCopied — true on a copy, false for a sign-in claim", async () => {
+    const copied = makePrisma({ id: "gs-1" });
+    const a = await claimGuestSessionInTx({
+      tx: copied as never,
+      guestSessionId: "gs-1",
+      userId: "u-new",
+      copyPreferences: true,
+    });
+    assert.equal(a.preferencesCopied, true);
+
+    const notCopied = makePrisma({ id: "gs-1" });
+    const b = await claimGuestSessionInTx({
+      tx: notCopied as never,
+      guestSessionId: "gs-1",
+      userId: "u-existing",
+      copyPreferences: false,
+    });
+    assert.equal(
+      b.preferencesCopied,
+      false,
+      "a sign-in claim copies the plan and nothing else, so it completes no onboarding",
+    );
+
+    const unreadable = makePrisma({ id: "gs-1" });
+    unreadable._state().guest.preferences = { difficulty: "impossible" };
+    const c = await claimGuestSessionInTx({
+      tx: unreadable as never,
+      guestSessionId: "gs-1",
+      userId: "u-new-2",
+      copyPreferences: true,
+    });
+    assert.equal(c.preferencesCopied, false, "asked for, but nothing was written");
+  });
+
+  it("platform: ios with NO claim → onboardingRequired true, signupSource ios", async () => {
+    const prisma = makePrisma({ id: "gs-1" });
+    const h = await spinUp(prisma);
+    try {
+      const res = await h.post("/auth/signup", { ...SIGNUP, platform: "ios" });
+      assert.equal(res.status, 201);
+      const body = (await res.json()) as {
+        onboardingRequired: boolean;
+        user: { signupSource: string | null };
+      };
+      assert.equal(
+        body.onboardingRequired,
+        true,
+        "an ordinary signup still goes through onboarding",
+      );
+      assert.equal(body.user.signupSource, "ios");
+      assert.equal(prisma._state().guest.claimedAt, null, "and nothing was claimed");
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("no platform, no claim → signupSource null (absent is not a guess)", async () => {
+    // Every client shipped before this sends nothing. Inferring a platform from
+    // the User-Agent would write a fact nobody asserted into a column marketing
+    // will segment on.
+    const prisma = makePrisma({ id: "gs-1" });
+    const h = await spinUp(prisma);
+    try {
+      const res = await h.post("/auth/signup", SIGNUP);
+      assert.equal(res.status, 201);
+      const body = (await res.json()) as {
+        user: { signupSource: string | null };
+      };
+      assert.equal(body.user.signupSource, null);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("a guestSessionId OVERRIDES platform — the Test Kitchen runs on the web", async () => {
+    // A body with both is not a contradiction to reject: the web client that
+    // hosts the Test Kitchen may well send platform: "web". test_kitchen is the
+    // more specific fact and the one the funnel needs named.
+    const prisma = makePrisma({ id: "gs-1" });
+    const h = await spinUp(prisma);
+    try {
+      const res = await h.post("/auth/signup", {
+        ...SIGNUP,
+        platform: "web",
+        guestSessionId: "gs-1",
+      });
+      assert.equal(res.status, 201);
+      const body = (await res.json()) as {
+        user: { signupSource: string | null };
+      };
+      assert.equal(body.user.signupSource, "test_kitchen");
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("an invalid platform is a 400, and no account survives it", async () => {
+    const prisma = makePrisma({ id: "gs-1" });
+    const h = await spinUp(prisma);
+    try {
+      const res = await h.post("/auth/signup", {
+        ...SIGNUP,
+        platform: "blackberry",
+      });
+      assert.equal(res.status, 400);
+      assert.equal(prisma._state().users.length, 0);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("LOGIN is untouched: it claims the plan, completes no onboarding, sets no source", async () => {
+    const prisma = makePrisma({ id: "gs-1" });
+    const h = await spinUp(prisma);
+    try {
+      // An ordinary account first — no claim, so onboarding is owed.
+      assert.equal((await h.post("/auth/signup", SIGNUP)).status, 201);
+      assert.equal(prisma._state().users[0].onboardingComplete, false);
+
+      const res = await h.post("/auth/login", {
+        email: SIGNUP.email,
+        password: SIGNUP.password,
+        guestSessionId: "gs-1",
+      });
+      assert.equal(res.status, 200);
+      assert.equal(
+        prisma._state().users[0].onboardingComplete,
+        false,
+        "🔴 a sign-in claim copies no preferences, so it completes no onboarding",
+      );
+      assert.equal(prisma._state().users[0].signupSource, null);
+      assert.ok(
+        prisma._state().guest.claimedAt instanceof Date,
+        "but the session IS claimed — the plan still follows them",
+      );
+    } finally {
+      await h.close();
+    }
+  });
+});

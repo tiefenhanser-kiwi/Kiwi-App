@@ -193,8 +193,25 @@ export interface ClaimInTxOptions {
   now?: Date;
 }
 
-/** The draft blob stage 2 will materialize, or null if the guest never expanded. */
-export type ClaimInTxResult = { draft: unknown | null };
+export type ClaimInTxResult = {
+  /** The draft blob stage 2 will materialize, or null if the guest never expanded. */
+  draft: unknown | null;
+  /**
+   * Block 1b B2 / D-WS9-263 — did this claim actually create a UserPreferences
+   * row FROM THE GUEST BLOB? True only when `copyPreferences` was asked for AND
+   * the blob parsed; false for a sign-in claim (which never copies) and false on
+   * the `guest_preferences_unreadable` branch.
+   *
+   * 🔴 THIS IS THE ONLY THING ALLOWED TO DECIDE `onboardingComplete`, and the
+   * reason it is returned rather than re-derived by the caller: R1 completes
+   * onboarding because the account already HAS the answers the onboarding form
+   * would ask for. A caller that re-read and re-parsed the blob to decide for
+   * itself could disagree with what this function actually wrote — and the
+   * failure mode is a user sent past the form with a preferences row that was
+   * never created. One decision, made where the write happens.
+   */
+  preferencesCopied: boolean;
+};
 
 export async function claimGuestSessionInTx(
   opts: ClaimInTxOptions,
@@ -218,6 +235,7 @@ export async function claimGuestSessionInTx(
     throw new GuestSessionInvalidError("expired");
   }
 
+  let preferencesCopied = false;
   if (copyPreferences) {
     const parsed = GuestPreferencesSchema.safeParse(session.preferences ?? {});
     if (parsed.success) {
@@ -226,6 +244,10 @@ export async function claimGuestSessionInTx(
       // signup path leaves the user without one and the resolvers cope, but a
       // guest who DID answer the wizard should not have to answer it again.
       await tx.userPreferences.create({ data: { userId, ...data } });
+      // Set AFTER the create, so it reports a row that exists rather than an
+      // intention. A throw here rolls the signup back anyway; this flag never
+      // outlives a failed write.
+      preferencesCopied = true;
     } else {
       // A blob we cannot read is not a reason to fail a sign-up — the account
       // is the thing being created. Log it; the user keeps column defaults.
@@ -254,7 +276,7 @@ export async function claimGuestSessionInTx(
     data: { guestSessionId, event: "claimed", meta: { userId } },
   });
 
-  return { draft: session.draft ?? null };
+  return { draft: session.draft ?? null, preferencesCopied };
 }
 
 // ── stage 1's compensating write (Block 1b Part A) ───────────────────────
