@@ -10,7 +10,10 @@ import { test } from "node:test";
 
 import {
   BOOTSTRAP_DEADLINE_MS,
+  GUEST_ROUTE_GROUP,
   deriveBootstrapStatus,
+  deriveGuestRouteStatus,
+  isGuestRouteGroup,
   sessionGateShouldEvict,
 } from "../sessionBootstrap";
 
@@ -150,10 +153,106 @@ test("🔴 a guest on the Test Kitchen route is NOT evicted", () => {
   );
 });
 
-test("WITHOUT the guest flag the same route evicts — this is what isGuest suppresses", () => {
+// ── Row 13 Block 2b (BUG-314) — guest territory is decided by PATH ─────
+//
+// 🔴 THE COLD DOOR. A Block 2 test stood exactly here asserting the OPPOSITE of
+// the first case below — "WITHOUT the guest flag the same route evicts" — and it
+// was green, because it pinned the bug: GuestContext derives
+// isGuest from a STORED CREDENTIAL, and on a first visit there is none until
+// POST /guest/session resolves (~580 ms, measured). Every browser-pass cold
+// entry to /test-kitchen therefore landed on /(auth)/sign-in and stayed there.
+// The case is inverted below, deliberately, and that inversion IS the fix.
+
+test("🔴 COLD guest route — no token yet — is guest_pending and is NEVER evicted", () => {
+  assert.equal(deriveGuestRouteStatus("test-kitchen", false), "guest_pending");
   assert.equal(
     sessionGateShouldEvict({ bootstrapStatus: "ok", hasUser: false, group: "test-kitchen" }),
-    true,
+    false,
+  );
+  // Explicit-false isGuest is the same cold state, spelled out.
+  assert.equal(
+    sessionGateShouldEvict({
+      bootstrapStatus: "ok",
+      hasUser: false,
+      group: "test-kitchen",
+      isGuest: false,
+    }),
+    false,
+  );
+});
+
+test("a guest route WITH a token is `guest` — and still not evicted", () => {
+  assert.equal(deriveGuestRouteStatus("test-kitchen", true), "guest");
+  assert.equal(
+    sessionGateShouldEvict({
+      bootstrapStatus: "ok",
+      hasUser: false,
+      group: "test-kitchen",
+      isGuest: true,
+    }),
+    false,
+  );
+});
+
+test("a FAILED guest session create is still the guest route, not sign-in", () => {
+  // POST /guest/session rejected (network / 403 Turnstile / 429 / 503): the
+  // credential never arrives, so isGuest stays false forever on this screen.
+  // The gate must still not move — app/test-kitchen/index.tsx's `status ===
+  // "failed"` card (with its own retry) owns that state.
+  assert.equal(deriveGuestRouteStatus(GUEST_ROUTE_GROUP, false), "guest_pending");
+  assert.equal(
+    sessionGateShouldEvict({
+      bootstrapStatus: "ok",
+      hasUser: false,
+      group: GUEST_ROUTE_GROUP,
+      isGuest: false,
+    }),
+    false,
+  );
+});
+
+test("the path rule covers the guest route group only — a MEMBER route with no token still evicts", () => {
+  assert.equal(isGuestRouteGroup(GUEST_ROUTE_GROUP), true);
+  for (const group of [...DEAD_SESSION_GROUPS, "test-kitchen-ish", "test", undefined, "(auth)"]) {
+    assert.equal(isGuestRouteGroup(group), false, `group=${String(group)}`);
+    assert.equal(deriveGuestRouteStatus(group, false), "not_guest_route", `group=${String(group)}`);
+  }
+  // And the eviction those member groups get is unchanged (BUG-239).
+  for (const group of DEAD_SESSION_GROUPS) {
+    assert.equal(
+      sessionGateShouldEvict({ bootstrapStatus: "ok", hasUser: false, group }),
+      true,
+      `group=${group}`,
+    );
+  }
+});
+
+test("the guest route is not evicted on ANY bootstrap status — the path outranks all of them", () => {
+  for (const bootstrapStatus of ["pending", "ok", "failed"] as const) {
+    assert.equal(
+      sessionGateShouldEvict({
+        bootstrapStatus,
+        hasUser: false,
+        group: GUEST_ROUTE_GROUP,
+      }),
+      false,
+      bootstrapStatus,
+    );
+  }
+});
+
+test("a signed-in MEMBER on the guest route keeps today's behaviour — no eviction, no redirect", () => {
+  // hasUser short-circuits above the path check, so this was already false
+  // before Block 2b and still is. Pinned so the path rule cannot be read as
+  // having changed it.
+  assert.equal(
+    sessionGateShouldEvict({
+      bootstrapStatus: "ok",
+      hasUser: true,
+      group: GUEST_ROUTE_GROUP,
+      isGuest: false,
+    }),
+    false,
   );
 });
 

@@ -69,8 +69,13 @@ function SessionGate() {
   // Row 13 "Test Kitchen" · Block 2 — a live guest session suppresses eviction.
   // "/test-kitchen" is a top-level route, so segments[0] is "test-kitchen": not
   // undefined, not "(auth)". A visitor there has no token, so bootstrapStatus is
-  // "ok" with user null — the exact shape this gate evicts. Without this read the
-  // guest wizard was replaced by sign-in the instant it mounted.
+  // "ok" with user null — the exact shape this gate evicts.
+  //
+  // Block 2b (BUG-314): this read alone was NOT enough. It is false for the whole
+  // cold-start window, so a first visit was evicted to sign-in while
+  // POST /guest/session was still in flight. The path half of the answer is
+  // `segments[0]`, which sessionGateShouldEvict now reads through
+  // deriveGuestRouteStatus; both halves are passed below.
   const isGuest = useIsGuestSafe();
   const segments = useSegments();
   const router = useRouter();
