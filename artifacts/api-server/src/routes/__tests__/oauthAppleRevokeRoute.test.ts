@@ -26,7 +26,7 @@ import { __clearRateLimitStoreForTests } from "../../lib/rateLimit";
 import { JwksCache, type JwksFetch } from "../../lib/oauth/jwks";
 import { APPLE_ISSUER, verifyAppleIdentityToken } from "../../lib/oauth/verify";
 import type { AppleSigningConfig, OAuthConfig } from "../../lib/oauth/config";
-import { decryptSecret, encryptSecret } from "../../lib/oauth/secretBox";
+import { decryptSecret } from "../../lib/oauth/secretBox";
 import { createAuthRouter } from "../auth";
 import { createMeRouter } from "../me";
 
