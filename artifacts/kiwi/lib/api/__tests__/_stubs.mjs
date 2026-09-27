@@ -69,3 +69,36 @@ const AsyncStorage = {
 export function __resetForTests() { __store.clear(); }
 export default AsyncStorage;
 `;
+
+// Row 9 (1.1) · OAuth Block 2 Part D — expo-crypto, backed by node:crypto.
+//
+// A REAL implementation, not a canned string: lib/oauth/nonce.ts's whole job is
+// the hex contract, and a stub that returned a fixed value would make the test
+// that matters vacuous. The three production implementations were read and all
+// three return lower-case hex of the UTF-8 bytes (see nonce.ts's header); this
+// matches them.
+//
+// It exists so lib/oauth/appleWeb.ts is importable under `node --test` —
+// readAppleWebSuccess is pure and worth pinning, and it lives in the same
+// module as the script loading.
+export const ExpoCryptoStub = `
+import { createHash, randomFillSync } from "node:crypto";
+export const CryptoDigestAlgorithm = { SHA256: "SHA-256" };
+export const CryptoEncoding = { HEX: "hex", BASE64: "base64" };
+export async function digestStringAsync(algorithm, data, options = { encoding: "hex" }) {
+  if (algorithm !== "SHA-256") throw new Error("stub: only SHA-256 is wired");
+  return createHash("sha256").update(data, "utf8").digest(options.encoding);
+}
+export function getRandomBytes(byteCount) {
+  return randomFillSync(new Uint8Array(byteCount));
+}
+export async function getRandomBytesAsync(byteCount) {
+  return getRandomBytes(byteCount);
+}
+export function getRandomValues(typedArray) {
+  return randomFillSync(typedArray);
+}
+export function randomUUID() {
+  return "00000000-0000-4000-8000-000000000000";
+}
+`;

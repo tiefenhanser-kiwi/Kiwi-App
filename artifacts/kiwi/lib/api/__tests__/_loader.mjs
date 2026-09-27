@@ -16,6 +16,7 @@ import {
   ImageManipulatorStub,
   AsyncStorageStub,
   ExpoFetchStub,
+  ExpoCryptoStub,
 } from "./_stubs.mjs";
 
 // Inline-source stubs (don't import React; safe to ship as data-style modules
@@ -25,6 +26,9 @@ const STUBS = new Map([
   ["expo-image-manipulator", ImageManipulatorStub],
   ["@react-native-async-storage/async-storage", AsyncStorageStub],
   ["expo/fetch", ExpoFetchStub],
+  // Row 9 (1.1) OAuth Block 2 — node:crypto-backed, so the SHA-256 vector in
+  // lib/oauth/__tests__/nonce.test.ts exercises a real digest.
+  ["expo-crypto", ExpoCryptoStub],
 ]);
 
 // WS7-4-B c6 — physical stub files. These need real file URLs so the loader

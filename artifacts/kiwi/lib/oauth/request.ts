@@ -141,7 +141,11 @@ export interface AppleCredential {
   /**
    * Optional, and its absence never blocks a sign-in: it is what the server
    * exchanges for the refresh token DELETE /me revokes (App Review 5.1.1(v)).
-   * Apple's web JS flow does not return one, so on web this is always absent.
+   *
+   * Native sends it. WEB DELIBERATELY DOES NOT, even though Apple's popup
+   * returns one — the server's exchange sends no `redirect_uri`, which Apple
+   * requires for a code issued to a Services ID, so forwarding it would buy a
+   * guaranteed warning per sign-in and store nothing. See ./appleWeb.ts.
    */
   authorizationCode?: string | null;
 }

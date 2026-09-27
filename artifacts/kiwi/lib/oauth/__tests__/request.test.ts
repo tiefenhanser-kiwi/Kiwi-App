@@ -155,8 +155,9 @@ test("the Apple body carries identityToken and the RAW nonce", () => {
 });
 
 test("an absent authorizationCode is omitted — its absence never blocks a sign-in", () => {
-  // Apple's web JS flow returns no code at all, and the server's only loss is
-  // having nothing to revoke at DELETE /me.
+  // Web deliberately omits it (./appleWeb.ts: the server's exchange sends no
+  // redirect_uri, which Apple requires for a Services-ID code), and the only
+  // loss is having nothing to revoke at DELETE /me for a web-only account.
   for (const code of [undefined, null, ""]) {
     const body = appleRequestBody(
       { identityToken: "tok", rawNonce: "raw", authorizationCode: code },

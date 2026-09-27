@@ -44,9 +44,10 @@ export function AppleContinueButton({
   busy,
 }: AppleContinueButtonProps) {
   if (Platform.OS === "web") {
-    // Part D renders Apple's JS button here. Until then web Apple is simply
-    // absent, which is also what lib/oauth/providers.ts reports while
-    // EXPO_PUBLIC_APPLE_SERVICES_ID is unset.
+    // SocialSignInBlock renders AppleWebButton on web and never reaches here.
+    // The guard stays because the cost of being wrong is not a bad layout:
+    // src/ExpoAppleAuthenticationButton.ts is `undefined` off-iOS, so
+    // rendering the component below on web would throw.
     return null;
   }
   return (

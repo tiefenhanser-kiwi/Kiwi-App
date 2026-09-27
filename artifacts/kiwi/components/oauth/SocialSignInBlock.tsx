@@ -50,11 +50,14 @@ import {
   subscribeHiddenProviders,
 } from "@/lib/oauth/unavailable";
 import type { OAuthAuthResponse } from "@/lib/oauth/api";
+import type { AppleWebResult } from "@/lib/oauth/appleWeb";
 import type { AppleCredential, OAuthConsentFields, OAuthMode } from "@/lib/oauth/request";
 import { Colors, Radius, Spacing, Typography } from "@/constants/tokens";
 
 import { AppleContinueButton } from "./AppleContinueButton";
+import { AppleWebButton } from "./AppleWebButton";
 import { GoogleContinueButton } from "./GoogleContinueButton";
+import { GoogleWebButton } from "./GoogleWebButton";
 
 const PLATFORM = Platform.OS as AppPlatform;
 
@@ -182,6 +185,35 @@ export function SocialSignInBlock({
     [run],
   );
 
+  // ── Part D — the web flows arrive INVERTED ────────────────────────────
+  //
+  // Both web buttons are drawn by the provider's own script (§2.1), so
+  // neither has an onPress this component can wrap. The credential simply
+  // turns up: Google through the callback registered at initialize(), Apple
+  // through a document event. So the web halves feed `run` a getter that
+  // already holds the answer, and a failure feeds it a rejection — which
+  // keeps ONE classifier (§2.6) rather than a second copy of the catch.
+  const onAppleWebResult = React.useCallback(
+    (result: AppleWebResult) => run("apple", async () => result),
+    [run],
+  );
+  const onGoogleWebCredential = React.useCallback(
+    (idToken: string) => run("google", async () => ({ credential: { idToken } })),
+    [run],
+  );
+  const onProviderFailure = React.useCallback(
+    (provider: OAuthProvider, err: unknown) => run(provider, () => Promise.reject(err)),
+    [run],
+  );
+  const onAppleWebFailure = React.useCallback(
+    (err: unknown) => onProviderFailure("apple", err),
+    [onProviderFailure],
+  );
+  const onGoogleWebFailure = React.useCallback(
+    (err: unknown) => onProviderFailure("google", err),
+    [onProviderFailure],
+  );
+
   // §2.3 — absent, not empty. No stranded divider over a blank row.
   if (!anyProviderVisible(buttons) && error === null) return null;
 
@@ -190,15 +222,31 @@ export function SocialSignInBlock({
   return (
     <View style={s.wrap} testID="social-sign-in">
       {buttons.apple ? (
-        <AppleContinueButton
-          mode={mode}
-          onPress={onApple}
-          disabled={held}
-          busy={busy === "apple"}
-        />
+        PLATFORM === "web" ? (
+          <AppleWebButton
+            onResult={onAppleWebResult}
+            onFailure={onAppleWebFailure}
+            disabled={held}
+          />
+        ) : (
+          <AppleContinueButton
+            mode={mode}
+            onPress={onApple}
+            disabled={held}
+            busy={busy === "apple"}
+          />
+        )
       ) : null}
       {buttons.google ? (
-        <GoogleContinueButton onPress={onGoogle} disabled={held} busy={busy === "google"} />
+        PLATFORM === "web" ? (
+          <GoogleWebButton
+            onCredential={onGoogleWebCredential}
+            onFailure={onGoogleWebFailure}
+            disabled={held}
+          />
+        ) : (
+          <GoogleContinueButton onPress={onGoogle} disabled={held} busy={busy === "google"} />
+        )
       ) : null}
       {busy ? (
         <View style={s.busy}>

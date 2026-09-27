@@ -164,6 +164,12 @@ function RootLayoutNav() {
       <Stack.Screen name="test-kitchen/options" />
       <Stack.Screen name="test-kitchen/plan" />
       <Stack.Screen name="test-kitchen/recipe" />
+      {/* Row 9 (1.1) · OAuth Block 2 Part D — Apple’s Return URL. Registered
+          on the Services ID and validated by Apple before the sheet opens;
+          with usePopup the flow never navigates here. Outside (auth) because
+          (auth) redirects an authenticated visitor away, and someone landing
+          on this page may already be signed in. */}
+      <Stack.Screen name="auth/apple" />
     </Stack>
   );
 }

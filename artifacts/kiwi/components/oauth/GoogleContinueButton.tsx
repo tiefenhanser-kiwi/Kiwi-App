@@ -38,9 +38,10 @@ export function GoogleContinueButton({
   busy,
 }: GoogleContinueButtonProps) {
   if (Platform.OS === "web") {
-    // Part D renders Google Identity Services' own button here. The package's
-    // web build is a stub that throws "Web support is only available to
-    // sponsors", so this branch must never fall through to it.
+    // SocialSignInBlock renders GoogleWebButton on web and never reaches here.
+    // The guard stays because the package's web build is a stub that throws
+    // "Web support is only available to sponsors" — a fall-through would put
+    // that sentence in front of a user.
     return null;
   }
   return (
