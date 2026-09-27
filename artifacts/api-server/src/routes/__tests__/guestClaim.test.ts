@@ -667,3 +667,119 @@ describe("Block 1b Part A: a failed plan build releases the claim", () => {
     }
   });
 });
+
+// ── Block 1b Part C — otherAllergies, and Part R3's guard ────────────────
+//
+// ⚠️ A PREMISE THAT DID NOT HOLD, AND IT LIMITS WHAT THIS CAN TEST.
+// The block's brief said "the wizard collects them, the claim drops them".
+// Half of that is wrong: WizardInputSchema (lib/ai/schemas/wizard.ts) has NO
+// `otherAllergies` key and is a plain z.object, which STRIPS unknown keys — so
+// a guest client that sends the field has it discarded at POST
+// /wizard/build-plans, long before persistGuestGeneration stores the body.
+// The claim was not dropping them; they never arrived.
+//
+// So the copy is wired here, correctly and with presence semantics, and it is
+// exercised against a session blob that HAS the field — which is exactly the
+// blob a wizard body carrying it would produce. Making the funnel actually
+// carry it needs a field on WizardInputSchema AND a decision about allergen
+// resolution (the shelf filter and the prompt read allergiesAndAvoidances
+// only), so collecting it without that would record a constraint while
+// generating a plan that ignores it. Reported, not guessed at.
+
+describe("Block 1b Part C: otherAllergies rides the claim", () => {
+  it("present -> copied to the otherAllergies column", () => {
+    const parsed = GuestPreferencesSchema.parse({
+      ...WIZARD_BODY,
+      otherAllergies: ["sulfites", "mango"],
+    });
+    const data = toUserPreferencesCreateData(parsed);
+    assert.deepEqual(data.otherAllergies, ["sulfites", "mango"]);
+  });
+
+  it("absent -> the key is not written at all, so the column default stands", () => {
+    const parsed = GuestPreferencesSchema.parse(WIZARD_BODY);
+    const data = toUserPreferencesCreateData(parsed);
+    assert.ok(
+      !("otherAllergies" in data),
+      "presence, never an empty array written over @default([])",
+    );
+  });
+
+  it("through the route: a session blob carrying it reaches UserPreferences", async () => {
+    const prisma = makePrisma({ id: "gs-1" });
+    prisma._state().guest.preferences = {
+      ...WIZARD_BODY,
+      otherAllergies: ["sulfites"],
+    };
+    const h = await spinUp(prisma);
+    try {
+      assert.equal(
+        (await h.post("/auth/signup", { ...SIGNUP, guestSessionId: "gs-1" }))
+          .status,
+        201,
+      );
+      const created = prisma._state().preferencesCreates;
+      assert.equal(created.length, 1);
+      assert.deepEqual(created[0].otherAllergies, ["sulfites"]);
+    } finally {
+      await h.close();
+    }
+  });
+});
+
+describe("Block 1b R3: a hidden guest default is never saved as a preference", () => {
+  // R3 (Hans, September 26): the guest wizard hides sauces and both dials —
+  // sauce RUNS as balanced and the dials run off, but neither is an answer the
+  // visitor gave, so neither may be written as the account's stored setting.
+  //
+  // The claim's side of that rule is presence: a key the blob does not have is
+  // a key Prisma never sees, and the account lands on the COLUMN defaults
+  // (saucePreference "balanced", both dials `none`, maxCookTimeCoverage
+  // "most") — the same values, arrived at honestly. Verified in the source
+  // that nothing upstream synthesizes them either: all five are `.optional()`
+  // with NO `.default()` on WizardInputSchema, so `parsed.data` does not carry
+  // them and neither does the session blob.
+  const HIDDEN = [
+    "saucePreference",
+    "discoveryLevel",
+    "playlistLevel",
+    "maxCookTimeMinutes",
+    "maxCookTimeCoverage",
+  ] as const;
+
+  it("omitting all five writes none of them", () => {
+    const answered = { ...WIZARD_BODY } as Record<string, unknown>;
+    for (const k of HIDDEN) delete answered[k];
+    const data = toUserPreferencesCreateData(
+      GuestPreferencesSchema.parse(answered),
+    );
+    for (const k of HIDDEN) {
+      assert.ok(!(k in data), `${k} must not be synthesized`);
+    }
+    // The answered basics still come through — this is not a test that the
+    // copy does nothing.
+    assert.equal(data.householdSize, 4);
+    assert.equal(data.difficultyDefault, "medium");
+  });
+
+  it("and the route writes a preferences row with none of the five", async () => {
+    const answered = { ...WIZARD_BODY } as Record<string, unknown>;
+    for (const k of HIDDEN) delete answered[k];
+    const prisma = makePrisma({ id: "gs-1" });
+    prisma._state().guest.preferences = answered;
+    const h = await spinUp(prisma);
+    try {
+      assert.equal(
+        (await h.post("/auth/signup", { ...SIGNUP, guestSessionId: "gs-1" }))
+          .status,
+        201,
+      );
+      const created = prisma._state().preferencesCreates[0];
+      for (const k of HIDDEN) {
+        assert.ok(!(k in created), `${k} reached Prisma`);
+      }
+    } finally {
+      await h.close();
+    }
+  });
+});

@@ -92,6 +92,25 @@ export const GuestPreferencesSchema = z
     cuisines: z.array(z.string().max(60)).max(60).optional(),
     eatingStyles: z.array(z.string().max(60)).max(30).optional(),
     allergiesAndAvoidances: z.array(z.string().max(60)).max(60).optional(),
+    // Row 13 · Block 1b Part C — the free-text allergies, on D-WS9-206's terms.
+    // The field matters more than its size suggests: the chip list above is a
+    // fixed vocabulary and `otherAllergies` is where anything outside it goes,
+    // so the entries most likely to be a real medical constraint are exactly
+    // the ones that land here. Same bounds as allergiesAndAvoidances; same
+    // column type (String[] @default([])).
+    //
+    // ⚠️ WIRED BUT NOT YET REACHABLE FROM THE FUNNEL, and the gap is upstream,
+    // not here. Block 1b's brief said "the wizard collects them, the claim
+    // drops them"; the second half was the only true half. WizardInputSchema
+    // (ai/schemas/wizard.ts) has NO otherAllergies key and is a plain z.object,
+    // so a guest client sending the field has it STRIPPED at POST
+    // /wizard/build-plans — it never reaches the session blob for the claim to
+    // drop. Closing that needs a field on WizardInputSchema AND a ruling on
+    // allergen resolution (the shelf filter and the prompt read
+    // allergiesAndAvoidances only), because collecting a constraint while
+    // generating a plan that ignores it is worse than not collecting it.
+    // REPORTED for an ID; deliberately not guessed at here.
+    otherAllergies: z.array(z.string().max(60)).max(60).optional(),
     dietaryNotes: z.string().max(500).nullable().optional(),
     // Wizard-body names → UserPreferences column names, mapped below.
     difficulty: z.enum(["easy", "medium", "fancy"]).optional(),
@@ -124,6 +143,11 @@ export function toUserPreferencesCreateData(
   if (parsed.eatingStyles !== undefined) d.eatingStyles = parsed.eatingStyles;
   if (parsed.allergiesAndAvoidances !== undefined) {
     d.allergiesAndAvoidances = parsed.allergiesAndAvoidances;
+  }
+  // Part C — presence semantics, exactly as for every key here: absent leaves
+  // the column at its `@default([])`, never an empty array written over it.
+  if (parsed.otherAllergies !== undefined) {
+    d.otherAllergies = parsed.otherAllergies;
   }
   if (parsed.dietaryNotes !== undefined) d.dietaryNotes = parsed.dietaryNotes;
   if (parsed.difficulty !== undefined) d.difficultyDefault = parsed.difficulty;
