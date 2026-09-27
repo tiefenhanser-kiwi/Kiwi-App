@@ -291,6 +291,14 @@ export function createGuestRouter(deps: Partial<GuestRouterDeps> = {}): IRouter 
           expiresAt: true,
           generationCount: true,
           preferences: true,
+          // Block 1b Part D — the cards the guest was shown. Without this a
+          // visitor who reloads mid-funnel has `generationCount: 1` (so the
+          // one generation is spent and a second is refused) and NOTHING to
+          // render — the resume read could tell them the plans existed but not
+          // what they were. Returned RAW: the column holds the same
+          // WizardPlanCandidateWire[] that POST /wizard/build-plans put on the
+          // wire, so the Pick screen parses it with the code it already has.
+          candidates: true,
           draft: true,
         },
       });
@@ -301,6 +309,11 @@ export function createGuestRouter(deps: Partial<GuestRouterDeps> = {}): IRouter 
         generationCount: row.generationCount,
         hasDraft: row.draft !== null,
         preferences: row.preferences,
+        // null before the first generation, and null is a state the client
+        // must handle anyway (a session minted but never used). NOT `[]`:
+        // "never generated" and "generated nothing" are different facts and
+        // the 409 on a second generation turns on the first one.
+        candidates: row.candidates ?? null,
       });
     } catch (err) {
       logger.error(

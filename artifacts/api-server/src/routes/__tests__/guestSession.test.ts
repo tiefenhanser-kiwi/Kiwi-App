@@ -17,6 +17,7 @@ import type { PrismaClient } from "@prisma/client";
 
 import { signToken, verifyToken } from "../../lib/auth";
 import { __clearRateLimitStoreForTests } from "../../lib/rateLimit";
+import type { WizardPlanCandidateWire } from "../../lib/ai/schemas/wizard";
 import { createGuestRouter } from "../guest";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -332,6 +333,94 @@ describe("POST /api/guest/events", () => {
         400,
         "meta over 2KB is refused — this is a public write into a JSONB column",
       );
+    } finally {
+      await h.close();
+    }
+  });
+});
+
+// ── Block 1b Part D — GET /guest/session returns the candidates ───────────
+//
+// Block 1 stored them (persistGuestGeneration writes GuestSession.candidates)
+// and then never handed them back, so a mid-funnel reload left the visitor with
+// generationCount: 1 — the one generation spent, a second refused — and no way
+// to see the plans it bought.
+//
+// 🔴 THE FIXTURE IS ANNOTATED `WizardPlanCandidateWire[]`, WHICH IS THE POINT.
+// The claim under test is "the shape matches what POST /wizard/build-plans
+// returned to the guest". That type has no Zod counterpart to parse against at
+// runtime, so the check is made at COMPILE time: if the wire shape drifts, tsc
+// fails this file rather than the test agreeing with a hand-rolled fixture
+// forever.
+const WIRE_CANDIDATES: WizardPlanCandidateWire[] = [
+  {
+    id: "cand-1",
+    title: "Weeknight Italian",
+    tags: ["italian", "quick"],
+    whyBullets: ["Everything on your shelf", "Two pans, five nights"],
+    mealTitles: ["Cacio e Pepe", "Sheet-pan Chicken"],
+    dailyMacros: { calories: 2100, proteinG: 120, carbsG: 210, fatG: 70 },
+    storeSlots: [{ slotIndex: 0, storeMealId: "meal-cacio" }],
+    meals: [
+      {
+        title: "Cacio e Pepe",
+        description: "Pepper, pecorino, one pan.",
+        storeMealId: "meal-cacio",
+        estimatedTimeMinutes: 20,
+      },
+      { title: "Sheet-pan Chicken", description: null },
+    ],
+  },
+];
+
+describe("GET /api/guest/session — Block 1b Part D: candidates", () => {
+  it("null before the first generation (NOT [] — never-generated is its own fact)", async () => {
+    const prisma = makePrisma();
+    const h = await spinUp(prisma);
+    try {
+      const created = (await (await h.post("/guest/session")).json()) as {
+        guestSessionId: string;
+        token: string;
+      };
+      const body = (await (
+        await h.get("/guest/session", created.token)
+      ).json()) as Record<string, unknown>;
+      assert.ok("candidates" in body, "the key is always present");
+      assert.equal(body.candidates, null);
+      assert.equal(body.generationCount, 0, "and nothing has been spent");
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("returns the stored wire candidates RAW — byte-identical to what build-plans sent", async () => {
+    const prisma = makePrisma();
+    const h = await spinUp(prisma);
+    try {
+      const created = (await (await h.post("/guest/session")).json()) as {
+        guestSessionId: string;
+        token: string;
+      };
+      // Exactly what persistGuestGeneration does: the wire candidates onto the
+      // row, and the one generation spent.
+      const row = prisma._rows().get(created.guestSessionId)!;
+      row.candidates = WIRE_CANDIDATES;
+      row.generationCount = 1;
+      row.lastEvent = "generated";
+
+      const res = await h.get("/guest/session", created.token);
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as Record<string, unknown>;
+      // A JSON round-trip of the fixture, compared whole: no re-shape, no
+      // field dropped, no field added.
+      assert.deepEqual(
+        body.candidates,
+        JSON.parse(JSON.stringify(WIRE_CANDIDATES)),
+      );
+      assert.equal(body.generationCount, 1);
+      // And the read still gives up nothing it should not.
+      assert.ok(!("ipHash" in body), "ipHash must never reach the client");
+      assert.ok(!("claimedByUserId" in body));
     } finally {
       await h.close();
     }
