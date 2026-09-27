@@ -26,6 +26,7 @@ import {
   claimGuestSessionInTx,
   GuestSessionInvalidError,
   GuestPreferencesSchema,
+  releaseClaimForRetry,
   toUserPreferencesCreateData,
 } from "../../lib/guestClaim";
 import { createAuthRouter } from "../auth";
@@ -133,15 +134,28 @@ function makePrisma(guest: Partial<GuestRow> & { id: string }) {
     guestSession: {
       findUnique: async ({ where }: { where: { id: string } }) =>
         where.id === state.guest.id ? state.guest : null,
+      // Block 1b Part A — the stub now models BOTH guarded predicates, because
+      // there are two: `claimedAt: null` (the single-use claim guard) and
+      // `claimedByUserId: <me>` (the compensating release). Evaluated
+      // generically off the keys present in the where, so neither test is
+      // asserting against a stub that was shaped to agree with it.
       updateMany: async ({
         where,
         data,
       }: {
-        where: { id: string; claimedAt: null };
+        where: { id: string; claimedAt?: null; claimedByUserId?: string };
         data: Record<string, unknown>;
       }) => {
         if (where.id !== state.guest.id) return { count: 0 };
-        if (state.guest.claimedAt !== null) return { count: 0 };
+        if (where.claimedAt === null && state.guest.claimedAt !== null) {
+          return { count: 0 };
+        }
+        if (
+          where.claimedByUserId !== undefined &&
+          state.guest.claimedByUserId !== where.claimedByUserId
+        ) {
+          return { count: 0 };
+        }
         Object.assign(state.guest, data);
         return { count: 1 };
       },
@@ -169,7 +183,13 @@ function makePrisma(guest: Partial<GuestRow> & { id: string }) {
   return client;
 }
 
-async function spinUp(prisma: ReturnType<typeof makePrisma>) {
+async function spinUp(
+  prisma: ReturnType<typeof makePrisma>,
+  // Block 1b Part A — stage 2 of the claim, injected. Undefined leaves the
+  // production function in place, which every pre-1b test relies on doing
+  // nothing at all (those sessions carry no draft, so it is never called).
+  materializeClaimedDraft?: () => Promise<string | null>,
+) {
   __clearRateLimitStoreForTests();
   const app: Express = express();
   app.use(express.json());
@@ -178,6 +198,9 @@ async function spinUp(prisma: ReturnType<typeof makePrisma>) {
     createAuthRouter({
       prisma: prisma as unknown as PrismaClient,
       sendEmail: async () => ({ ok: true }) as never,
+      ...(materializeClaimedDraft
+        ? { materializeClaimedDraft: materializeClaimedDraft as never }
+        : {}),
     }),
   );
   const server: Server = await new Promise((resolve) => {
@@ -472,6 +495,173 @@ describe("POST /api/auth/login with guestSessionId", () => {
         ((await res.json()) as { claimedPlanId: string | null }).claimedPlanId,
         null,
       );
+    } finally {
+      await h.close();
+    }
+  });
+});
+
+// ── Block 1b Part A — the stage-2 compensation ───────────────────────────
+//
+// Block 1 marked the session claimed in stage 1 and built the plan in stage 2.
+// When stage 2 threw, the mark STAYED — and claimGuestSessionInTx refuses a
+// session whose claimedAt is non-null, so the visitor's plan was gone for good.
+// These four tests are the contract of the fix: the mark comes off, the client
+// is told it may retry, the retry works, and the release cannot free a session
+// that belongs to somebody else.
+
+/** A draft blob truthy enough to reach stage 2. Its SHAPE is stage 2's
+ *  business, and stage 2 is the stub here — the route only checks truthiness. */
+const SOME_DRAFT = { draft: { id: "gs-1" }, expanded: { title: "x", meals: [] } };
+
+describe("Block 1b Part A: a failed plan build releases the claim", () => {
+  it("signup: stage 2 throws -> session back to UNCLAIMED, claimRetryable true, account kept", async () => {
+    const prisma = makePrisma({ id: "gs-1", draft: SOME_DRAFT });
+    const h = await spinUp(prisma, async () => {
+      throw new Error("materializeWizardDraft blew up");
+    });
+    try {
+      const res = await h.post("/auth/signup", {
+        ...SIGNUP,
+        guestSessionId: "gs-1",
+      });
+      assert.equal(res.status, 201, "a failed plan build never fails the signup");
+      const body = (await res.json()) as {
+        claimedPlanId: string | null;
+        claimRetryable: boolean;
+      };
+      assert.equal(body.claimedPlanId, null);
+      assert.equal(body.claimRetryable, true, "the client may offer a retry");
+
+      const guest = prisma._state().guest;
+      assert.equal(guest.claimedAt, null, "🔴 the mark came OFF");
+      assert.equal(guest.claimedByUserId, null, "and the attribution with it");
+      assert.equal(guest.lastEvent, "claim_plan_failed");
+      assert.ok(
+        prisma._state().guestEvents.some((e) => e.event === "claim_plan_failed"),
+        "the funnel records the failure",
+      );
+
+      // The account is the thing that was created; only the session's claim is
+      // undone. Preferences belong to the user, not to the session.
+      assert.equal(prisma._state().users.length, 1, "the account survives");
+      assert.equal(
+        prisma._state().preferencesCreates.length,
+        1,
+        "and keeps the preferences the claim copied",
+      );
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("and then a LOGIN with the same guestSessionId claims it again and succeeds", async () => {
+    const prisma = makePrisma({ id: "gs-1", draft: SOME_DRAFT });
+    // Fails once (the signup), succeeds on the retry (the login). Same stub, so
+    // the only difference between the two attempts is the release in between.
+    let calls = 0;
+    const h = await spinUp(prisma, async () => {
+      calls += 1;
+      if (calls === 1) throw new Error("first attempt fails");
+      return "plan-retry";
+    });
+    try {
+      const first = await h.post("/auth/signup", {
+        ...SIGNUP,
+        guestSessionId: "gs-1",
+      });
+      assert.equal(first.status, 201);
+      assert.equal(prisma._state().guest.claimedAt, null);
+
+      const second = await h.post("/auth/login", {
+        email: SIGNUP.email,
+        password: SIGNUP.password,
+        guestSessionId: "gs-1",
+      });
+      assert.equal(second.status, 200);
+      const body = (await second.json()) as {
+        claimedPlanId: string | null;
+        claimRetryable: boolean;
+      };
+      assert.equal(body.claimedPlanId, "plan-retry", "🔴 the plan is recovered");
+      assert.equal(body.claimRetryable, false, "nothing left to retry");
+      assert.equal(calls, 2, "stage 2 really ran a second time");
+      assert.ok(
+        prisma._state().guest.claimedAt instanceof Date,
+        "and the session is claimed again, for good this time",
+      );
+      // The sign-in claim's own rule is untouched by the retry: the account's
+      // preferences came from the SIGNUP copy and nothing wrote a second row.
+      assert.equal(prisma._state().preferencesCreates.length, 1);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("login: stage 2 throws -> the same release, and the login still succeeds", async () => {
+    const prisma = makePrisma({ id: "gs-1", draft: SOME_DRAFT });
+    const h = await spinUp(prisma, async () => {
+      throw new Error("materializeWizardDraft blew up");
+    });
+    try {
+      // An account with no claim first, so the login is the only claimant.
+      assert.equal((await h.post("/auth/signup", SIGNUP)).status, 201);
+      assert.equal(prisma._state().guest.claimedAt, null);
+
+      const res = await h.post("/auth/login", {
+        email: SIGNUP.email,
+        password: SIGNUP.password,
+        guestSessionId: "gs-1",
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        claimedPlanId: string | null;
+        claimRetryable: boolean;
+      };
+      assert.equal(body.claimedPlanId, null);
+      assert.equal(body.claimRetryable, true);
+      assert.equal(prisma._state().guest.claimedAt, null, "the mark came off");
+      assert.equal(prisma._state().guest.claimedByUserId, null);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("the release NEVER frees a session claimed by a different user, and the single-use guard still refuses it", async () => {
+    const prisma = makePrisma({
+      id: "gs-1",
+      draft: SOME_DRAFT,
+      claimedAt: new Date(),
+      claimedByUserId: "u-somebody-else",
+    });
+
+    // Directly: the release is narrowed to claimedByUserId, so an unrelated
+    // caller cannot use a failure of their own to steal someone's session.
+    const released = await releaseClaimForRetry({
+      prisma: prisma as never,
+      guestSessionId: "gs-1",
+      userId: "u-me",
+    });
+    assert.equal(released, false, "🔴 not mine to release");
+    assert.ok(
+      prisma._state().guest.claimedAt instanceof Date,
+      "the other user's claim stands",
+    );
+    assert.equal(prisma._state().guest.claimedByUserId, "u-somebody-else");
+
+    // And through the route: the claimedAt guard is NOT loosened by Part A.
+    const h = await spinUp(prisma, async () => "never-reached");
+    try {
+      const res = await h.post("/auth/signup", {
+        ...SIGNUP,
+        guestSessionId: "gs-1",
+      });
+      assert.equal(res.status, 409);
+      assert.equal(
+        ((await res.json()) as { code: string }).code,
+        "guest_session_invalid",
+      );
+      assert.equal(prisma._state().users.length, 0, "and no account survives");
     } finally {
       await h.close();
     }

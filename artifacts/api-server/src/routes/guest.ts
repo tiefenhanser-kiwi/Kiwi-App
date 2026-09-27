@@ -36,6 +36,22 @@ import {
 // ONE exported const, and a plain string column behind it, so widening the
 // funnel is a line here and a deploy — never a migration. GuestEvent.event is
 // deliberately not an enum for exactly this reason (see the schema comment).
+//
+// ⚠️ Block 1b — THIS LIST IS THE CLIENT-POSTABLE SET, not the whole funnel
+// vocabulary, and the distinction is deliberate. Three names are written ONLY
+// by the server and are kept OUT of this enum so a visitor cannot forge them
+// into their own session's funnel — which would corrupt exactly the numbers the
+// funnel exists to answer:
+//
+//   generated         — routes/wizard.ts persistGuestGeneration (also in the
+//                       list below, because Block 1 shipped it client-postable;
+//                       the server row is the authoritative one)
+//   expanded          — routes/wizard.ts, the guest expand success path
+//   catalog_only_gap  — routes/wizard.ts, the thin-shelf door
+//   claim_plan_failed — lib/guestClaim.ts releaseClaimForRetry
+//
+// A server-side name is a plain string literal at its write site. Adding one
+// here is a decision to let clients send it, never just bookkeeping.
 export const GUEST_EVENTS = [
   "session_created",
   "wizard_step",

@@ -19,7 +19,8 @@ import {
   adoptTemplateForUser,
   claimGuestSessionInTx,
   GuestSessionInvalidError,
-  materializeClaimedDraft,
+  materializeClaimedDraft as productionMaterializeClaimedDraft,
+  releaseClaimForRetry,
 } from "../lib/guestClaim";
 
 // Tight limiter for signup/login to slow brute-force attempts
@@ -156,10 +157,24 @@ export interface AuthRouterDeps {
   prisma: PrismaClient;
   /** BUG-224 — injected so tests record instead of sending. See lib/email. */
   sendEmail: EmailSender;
+  /**
+   * Row 13 · Block 1b — stage 2 of the claim, on the computePlanMacros /
+   * estimateDishMacros DI pattern. Injected so a test can make the plan build
+   * FAIL and assert the compensating release (Part A), which is otherwise
+   * unreachable from a router test: stage 2 is a four-call pipeline over the
+   * real wizard primitives, and driving it to a controlled throw through a stub
+   * Prisma would be asserting on an incidental TypeError rather than on the
+   * contract. The seam is the whole stage, not its inner
+   * `materializeWizardDraft`, because that is the function this route calls —
+   * threading the inner one would add four pass-through deps for no coverage.
+   */
+  materializeClaimedDraft: typeof productionMaterializeClaimedDraft;
 }
 
 export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
   const prisma = deps.prisma ?? productionPrisma;
+  const materializeClaimedDraft =
+    deps.materializeClaimedDraft ?? productionMaterializeClaimedDraft;
   // WS9A BUG-234 — the session guard now reads User.tokensValidFrom, so it
   // needs a Prisma client. Building it from the injected one (rather than
   // importing the singleton) is what keeps this router's tests hermetic.
@@ -267,6 +282,9 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
       // A failure here leaves a perfectly good account with no plan and says
       // so, rather than throwing away a sign-up the visitor has already made.
       let claimedPlanId: string | null = null;
+      // Row 13 · Block 1b Part A — did the compensating release land, so the
+      // client may offer "try again"? See releaseClaimForRetry's header.
+      let claimRetryable = false;
       if (guestSessionId && claimedDraft) {
         try {
           claimedPlanId = await materializeClaimedDraft({
@@ -276,8 +294,25 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
             localDate,
           });
         } catch (err) {
+          // 🔴 Row 13 · Block 1b Part A — COMPENSATE, then log. Block 1 logged
+          // and stopped, which left the session claimed forever: every later
+          // attempt hit the `claimedAt: null` guard and the visitor's plan was
+          // gone for good. Releasing the mark makes the next sign-in with the
+          // same guestSessionId (copyPreferences: false — it needs no change,
+          // the preferences row already exists) claim it again and succeed.
+          claimRetryable = await releaseClaimForRetry({
+            prisma,
+            guestSessionId,
+            userId: user.id,
+          });
           logger.error(
-            { event: "guest_claim_plan_failed", userId: user.id, err },
+            {
+              event: "guest_claim_plan_failed",
+              userId: user.id,
+              guestSessionId,
+              claimRetryable,
+              err,
+            },
             "Guest claim could not build the plan — account created without it",
           );
         }
@@ -312,6 +347,13 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
         // navigates to the plan when this is set and to Home when it is not;
         // it never has to distinguish the two nulls.
         claimedPlanId,
+        // Row 13 · Block 1b Part A — the two nulls above stay indistinguishable
+        // for navigation, and THIS is the one thing a client may want to tell
+        // apart: true means the session was released and re-claiming it (by
+        // signing in with the same guestSessionId) will build the plan. False
+        // covers "nothing was claimed", "the draft was malformed" (a retry
+        // reproduces the same malformed draft) and "the release itself failed".
+        claimRetryable,
       });
     } catch (err) {
       // Row 13 · Block 1 — a session that is missing, expired or already
@@ -415,6 +457,7 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
           }
         }
       }
+      let claimRetryable = false;
       if (claimedDraft) {
         try {
           claimedPlanId = await materializeClaimedDraft({
@@ -424,8 +467,25 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
             localDate,
           });
         } catch (err) {
+          // Row 13 · Block 1b Part A — the same compensation as signup, and it
+          // matters MORE here: a returning user who claims, fails, and signs in
+          // again is the single most likely retry there is, and without the
+          // release every one of those attempts would be refused by the
+          // `claimedAt: null` guard. `guestSessionId` is non-null in this
+          // branch — `claimedDraft` is only ever set inside the block above it.
+          claimRetryable = await releaseClaimForRetry({
+            prisma,
+            guestSessionId: guestSessionId!,
+            userId: user.id,
+          });
           logger.error(
-            { event: "guest_claim_plan_failed", userId: user.id, err },
+            {
+              event: "guest_claim_plan_failed",
+              userId: user.id,
+              guestSessionId,
+              claimRetryable,
+              err,
+            },
             "Guest claim could not build the plan — login unaffected",
           );
         }
@@ -452,6 +512,8 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
         },
         authToken: token,
         claimedPlanId,
+        // Row 13 · Block 1b Part A — same meaning as on signup.
+        claimRetryable,
       });
     } catch (err) {
       logger.error({ err }, "Login failed");

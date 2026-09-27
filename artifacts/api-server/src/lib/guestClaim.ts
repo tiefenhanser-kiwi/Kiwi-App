@@ -233,6 +233,80 @@ export async function claimGuestSessionInTx(
   return { draft: session.draft ?? null };
 }
 
+// ── stage 1's compensating write (Block 1b Part A) ───────────────────────
+
+/**
+ * Row 13 · Block 1b — UNDO THE MARK when stage 2 failed.
+ *
+ * Block 1 shipped the two stages with no compensation between them, and the
+ * gap is not cosmetic: stage 1 sets `claimedAt` / `claimedByUserId`, stage 2
+ * builds the plan, and a stage-2 failure left the session PERMANENTLY claimed
+ * with no plan to show for it. `claimGuestSessionInTx` refuses a session whose
+ * `claimedAt` is non-null, so nothing — not a retry, not a later sign-in, not
+ * support — could ever recover that visitor's plan. The failure was logged and
+ * then made unrecoverable.
+ *
+ * So: clear the mark, narrowed to `claimedByUserId: userId`. That predicate is
+ * the whole safety of this function. It releases only the claim THIS caller
+ * just made, so a session some other user legitimately holds cannot be freed
+ * by an unrelated failure, and the single-use guard is not loosened — it is
+ * restored to the state it had before a claim that did not complete.
+ *
+ * The user's `UserPreferences` row and `onboardingComplete` are NOT rolled
+ * back. They belong to the account, which exists and is correct; only the
+ * session's claim is undone.
+ *
+ * Returns whether the release actually landed — the caller reports that to the
+ * client as `claimRetryable`, so "you can try again" is a measured fact rather
+ * than an assumption.
+ */
+export async function releaseClaimForRetry(opts: {
+  prisma: PrismaClient;
+  guestSessionId: string;
+  userId: string;
+}): Promise<boolean> {
+  const { prisma, guestSessionId, userId } = opts;
+  try {
+    const released = await prisma.guestSession.updateMany({
+      where: { id: guestSessionId, claimedByUserId: userId },
+      data: {
+        claimedAt: null,
+        claimedByUserId: null,
+        lastEvent: "claim_plan_failed",
+      },
+    });
+    if (released.count === 0) {
+      logger.warn(
+        { event: "guest_claim_release_noop", guestSessionId, userId },
+        "Nothing to release — the session is not claimed by this user",
+      );
+      return false;
+    }
+    // Funnel telemetry never sinks the funnel, and it certainly never undoes
+    // the release above: the row is already free by the time this runs.
+    await prisma.guestEvent
+      .create({
+        data: { guestSessionId, event: "claim_plan_failed", meta: { userId } },
+      })
+      .catch((err) => {
+        logger.warn(
+          { event: "guest_event_write_failed", guestSessionId, err },
+          "Failed to write the claim_plan_failed guest event",
+        );
+      });
+    return true;
+  } catch (err) {
+    // A failed release is bad but not fatal: the account is intact and the
+    // only loss is the plan. Loud, because it is the one path that leaves a
+    // session stuck claimed with nothing to show.
+    logger.error(
+      { event: "guest_claim_release_failed", guestSessionId, userId, err },
+      "Could not release the guest claim after a failed plan build",
+    );
+    return false;
+  }
+}
+
 // ── stage 2 ──────────────────────────────────────────────────────────────
 
 export interface MaterializeClaimedDraftOptions {
