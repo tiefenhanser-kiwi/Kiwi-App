@@ -304,6 +304,32 @@ model User {
   // default, no backfill — ADDITIVE, so the live Cloud Run client that does
   // not know the column is unaffected (D-WS9-254).
   playlistCtaTappedAt      DateTime?
+  // Row 13 · Block 1b / D-WS9-264 — WHERE THIS ACCOUNT CAME FROM. Hans:
+  // "mark the entry point of the user somehow so I can add them into an
+  // onboarding campaign that alerts them of the mobile app. and vice versa."
+  //   "test_kitchen"           — the signup carried a guestSessionId
+  //   "web" | "ios" | "android" — the client's own `platform`, when it sent one
+  //   null                     — neither (an old client, or a path with no
+  //                              platform to name)
+  // WRITE-ONCE at signup and read-only after: it records an event that
+  // happened, so no route updates it. A plain String? rather than an enum —
+  // a new entry point (a partner link, a referral) must be a line of code and
+  // a deploy, exactly as GuestEvent.event is. Nullable, no backfill: ADDITIVE,
+  // so a live client that does not know the column is unaffected (D-WS9-254).
+  signupSource             String?
+  // Row 13 · Block 1b / D-WS9-263 — the personalize nudge on the first Home
+  // after a Test Kitchen sign-up. The claim copied the guest's wizard answers
+  // and set onboardingComplete, so these users never see the onboarding form
+  // ("agreed we don't want them to have to go to the same form, unpopulated,
+  // after saving") — one dismissible card takes its place.
+  //
+  // PER-USER and one-way, the playlistCtaTappedAt pattern above: IS NULL is
+  // the gate, the value says when. Set by PATCH /me/ui-state
+  // { personalizeNudgeDismissed: true } AND by a successful PATCH
+  // /me/preferences (personalizing IS dismissing). "Later" is per DEVICE and
+  // lives on the client — this column flips only when they actually
+  // personalize or explicitly dismiss for good.
+  personalizeNudgeDismissedAt DateTime?
   // WS9A BUG-233 + BUG-234 — the token revocation epoch. NULL means "never
   // revoked", which is every row that exists today, so behaviour is identical
   // to c38a596 until something bumps it (D-WS9-230: no backfill).
