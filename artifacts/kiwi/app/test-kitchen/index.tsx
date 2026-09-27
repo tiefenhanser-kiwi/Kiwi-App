@@ -29,7 +29,7 @@ import { WizardScreen } from "@/components/WizardScreen";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { useGuest } from "@/contexts/GuestContext";
 import { getGuestSession } from "@/lib/api/guest";
-import { ApiError } from "@/lib/api/errors";
+import { ApiError, UnauthenticatedError } from "@/lib/api/errors";
 import { deriveGuestStage, guestGenerationSpent } from "@/lib/guest/guestSession";
 import { turnstileEnabled } from "@/lib/guest/turnstile";
 
@@ -56,7 +56,7 @@ export default function TestKitchenRoute() {
 
 function TestKitchenEntry() {
   const router = useRouter();
-  const { session, status, error, startOrResume } = useGuest();
+  const { session, status, error, startOrResume, endGuestSession } = useGuest();
   const [turnstileToken, setTurnstileToken] = React.useState<string | null>(null);
   const gated = turnstileEnabled();
   const started = React.useRef(false);
@@ -64,6 +64,12 @@ function TestKitchenEntry() {
   // Start once. `startOrResume` is idempotent (it shares the in-flight promise),
   // but the ref keeps a re-render from re-entering it at all — a guest's one
   // generation is too expensive to protect only downstream.
+  //
+  // ⚠️ `session` is in the deps, and it is not decoration: the recovery effect
+  // below clears a server-dead session and lowers the ref, and without `session`
+  // here nothing would change to make this re-run — the visitor would sit on the
+  // "starting" loader forever. With the ref still guarding, the added dep only
+  // ever re-fires the mint after a deliberate teardown.
   React.useEffect(() => {
     if (started.current) return;
     if (gated && !turnstileToken) return;
@@ -73,7 +79,7 @@ function TestKitchenEntry() {
       // rejection in a browser console.
       started.current = false;
     });
-  }, [gated, turnstileToken, startOrResume]);
+  }, [gated, turnstileToken, startOrResume, session]);
 
   // Where a resumed visitor belongs. Guest-OK (GET /guest/session); skipped
   // until a session exists so it never fires tokenless.
@@ -83,6 +89,18 @@ function TestKitchenEntry() {
     enabled: !!session,
     staleTime: 0,
   });
+
+  // A stored token the SERVER has finished with: expired past its 24 h row, or
+  // claimed by a sign-up in another tab. The client-side expiry check
+  // (deriveGuestEntryAction) cannot see either, so the read's 401 is the only
+  // signal — and it is NOT the session-expired cascade for a guest, by design, so
+  // nothing else would react to it. Clear and mint a fresh session rather than
+  // leaving the visitor on a form whose generate is guaranteed to 401.
+  React.useEffect(() => {
+    if (!(sessionQuery.error instanceof UnauthenticatedError)) return;
+    endGuestSession();
+    started.current = false;
+  }, [sessionQuery.error, endGuestSession]);
 
   const stage = sessionQuery.data
     ? deriveGuestStage({
