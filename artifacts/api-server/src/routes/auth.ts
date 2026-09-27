@@ -824,6 +824,11 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
           // it is recorded on the identity row beside the token.
           clientId: verdict.identity.audience,
           authorizationCode,
+          // Row 9 (1.1) · Stripe S1 Part F — D-WS9-268 follow-up. The exchange
+          // decides on its own whether to send a redirect_uri, by comparing the
+          // VERIFIED audience above to the configured Services ID. Both env vars
+          // unset => appleWebRedirect is null => exactly today behaviour.
+          webRedirect: oauthConfig.appleWebRedirect,
           fetchImpl: productionAppleFetch,
         });
         if (exchange.refreshToken) {

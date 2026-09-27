@@ -27,6 +27,8 @@ import {
   ENV_APPLE_PRIVATE_KEY,
   ENV_APPLE_REFRESH_TOKEN_ENC_KEY,
   ENV_APPLE_TEAM_ID,
+  ENV_APPLE_SERVICES_ID,
+  ENV_APPLE_WEB_REDIRECT_URI,
   ENV_GOOGLE_OAUTH_CLIENT_IDS,
   logOAuthConfig,
   missingAppleSigningVars,
@@ -278,5 +280,99 @@ describe("secretBox (AES-256-GCM)", () => {
   it("a long unicode token survives the round trip", () => {
     const weird = "üñí—🌱".repeat(200);
     assert.equal(decryptSecret(encryptSecret(weird, KEY), KEY), weird);
+  });
+});
+
+// ── Row 9 (1.1) · Stripe S1 Part F — the Apple WEB code exchange (D-WS9-268) ──
+
+// ── Row 9 (1.1) · Stripe S1 Part F — the Apple WEB code exchange (D-WS9-268) ──
+
+describe("readOAuthConfig — the web redirect pair (Part F)", () => {
+  const SERVICES_ID = "com.kitchenwizard.kiwi.web";
+  const REDIRECT = "https://app.kitchenwizard.ai/auth/apple/callback";
+
+  it("both set → configured", async () => {
+    const c = readOAuthConfig({
+      [ENV_APPLE_OAUTH_AUDIENCES]: SERVICES_ID,
+      [ENV_APPLE_SERVICES_ID]: SERVICES_ID,
+      [ENV_APPLE_WEB_REDIRECT_URI]: REDIRECT,
+    });
+    assert.deepEqual(c.appleWebRedirect, { servicesId: SERVICES_ID, redirectUri: REDIRECT });
+  });
+
+  it("either one alone → null, because one of the pair is not a usable state", async () => {
+    assert.equal(readOAuthConfig({ [ENV_APPLE_SERVICES_ID]: SERVICES_ID }).appleWebRedirect, null);
+    assert.equal(readOAuthConfig({ [ENV_APPLE_WEB_REDIRECT_URI]: REDIRECT }).appleWebRedirect, null);
+  });
+
+  it("neither → null, which is exactly today", async () => {
+    assert.equal(readOAuthConfig({}).appleWebRedirect, null);
+  });
+
+  it("the boot line ERRORS on a half-configured pair — its only other symptom is invalid_grant", () => {
+    const r = recorder();
+    logOAuthConfig(
+      {
+        [ENV_APPLE_OAUTH_AUDIENCES]: "com.kitchenwizard.kiwi",
+        [ENV_APPLE_SERVICES_ID]: SERVICES_ID,
+        // APPLE_WEB_REDIRECT_URI deliberately absent.
+      },
+      r.log,
+    );
+    const err = r.at("error").find((l) => l.obj.event === "oauth_apple_web_redirect_half_configured");
+    assert.ok(err, "a half-configured pair must be named at boot");
+    assert.deepEqual(err!.obj.vars, [ENV_APPLE_WEB_REDIRECT_URI]);
+  });
+
+  it("the boot line ERRORS when the Services ID is not in the audience list", () => {
+    // This combination cannot work at all: the identity token is rejected before
+    // the exchange is reached, so the redirect_uri never gets a chance to matter.
+    const r = recorder();
+    logOAuthConfig(
+      {
+        [ENV_APPLE_OAUTH_AUDIENCES]: "com.kitchenwizard.kiwi",
+        [ENV_APPLE_SERVICES_ID]: SERVICES_ID,
+        [ENV_APPLE_WEB_REDIRECT_URI]: REDIRECT,
+      },
+      r.log,
+    );
+    assert.ok(
+      r.at("error").some((l) => l.obj.event === "oauth_apple_services_id_not_an_audience"),
+      "a Services ID outside the audience list must be named",
+    );
+  });
+
+  it("a correctly configured pair logs NO error, and says so on the info line", () => {
+    const r = recorder();
+    logOAuthConfig(
+      {
+        [ENV_APPLE_OAUTH_AUDIENCES]: `com.kitchenwizard.kiwi,${SERVICES_ID}`,
+        [ENV_APPLE_SERVICES_ID]: SERVICES_ID,
+        [ENV_APPLE_WEB_REDIRECT_URI]: REDIRECT,
+        [ENV_APPLE_TEAM_ID]: "ABCDE12345",
+        [ENV_APPLE_KEY_ID]: "KEY1234567",
+        [ENV_APPLE_PRIVATE_KEY]: "pem",
+        [ENV_APPLE_REFRESH_TOKEN_ENC_KEY]: "enc",
+      },
+      r.log,
+    );
+    assert.deepEqual(r.at("error"), []);
+    assert.match(r.at("info")[0].msg, /apple web redirect_uri on/);
+  });
+
+  it("NEITHER var leaks a value into the boot log", () => {
+    const r = recorder();
+    logOAuthConfig(
+      {
+        [ENV_APPLE_OAUTH_AUDIENCES]: SERVICES_ID,
+        [ENV_APPLE_SERVICES_ID]: SERVICES_ID,
+        [ENV_APPLE_WEB_REDIRECT_URI]: REDIRECT,
+      },
+      r.log,
+    );
+    // The Services ID is not a secret, but it is a needless fingerprint of the
+    // deploy — the same rule the client ids follow.
+    assert.ok(!r.dump().includes(REDIRECT), "the redirect URI leaked");
+    assert.ok(!r.dump().includes(SERVICES_ID), "the Services ID leaked");
   });
 });

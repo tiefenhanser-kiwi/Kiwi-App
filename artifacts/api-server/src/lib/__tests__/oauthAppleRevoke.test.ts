@@ -57,6 +57,9 @@ function config(over: Partial<OAuthConfig> = {}): OAuthConfig {
     googleClientIds: [],
     appleSigning: SIGNING,
     appleRefreshEncSecret: ENC_KEY,
+    // Row 9 (1.1) · Stripe S1 Part F — null is the NATIVE lane, i.e. every case
+    // in this file except the two that override it. Both env vars unset.
+    appleWebRedirect: null,
     ...over,
   };
 }
@@ -354,5 +357,74 @@ describe("revokeAppleIdentitiesForUser", () => {
       revokeAppleToken: async (o) => { seen.push(o.clientId); return { ok: true }; },
     });
     assert.deepEqual(seen, [CLIENT_ID], "a guess beats not trying");
+  });
+});
+
+// ── Row 9 (1.1) · Stripe S1 Part F — the web redirect_uri (D-WS9-268 follow-up)
+//
+// Apple REQUIRES `redirect_uri` on a code from the web flow and REFUSES it on a
+// code from a native app, and both mistakes answer `invalid_grant` with nothing to
+// tell them apart. So the decision is made from the VERIFIED audience, and these
+// tests pin all four combinations — the one that sends it, the one that must not,
+// and the two half-configured states that have to behave like today.
+
+describe("exchangeAppleAuthorizationCode — redirect_uri by audience (Part F)", () => {
+  const SERVICES_ID = "com.kitchenwizard.kiwi.web";
+  const REDIRECT = "https://app.kitchenwizard.ai/auth/apple/callback";
+  const WEB_REDIRECT = { servicesId: SERVICES_ID, redirectUri: REDIRECT };
+
+  async function exchangeWith(
+    clientId: string,
+    webRedirect: { servicesId: string; redirectUri: string } | null | undefined,
+  ): Promise<Record<string, string>> {
+    const { fetchImpl, calls } = recordingFetch({
+      ok: true,
+      body: JSON.stringify({ refresh_token: "r.tok" }),
+    });
+    await exchangeAppleAuthorizationCode({
+      signing: SIGNING,
+      clientId,
+      authorizationCode: "c-1",
+      fetchImpl,
+      ...(webRedirect === undefined ? {} : { webRedirect }),
+    });
+    return calls[0].params;
+  }
+
+  it("a SERVICES-ID audience sends redirect_uri, exactly as configured", async () => {
+    const params = await exchangeWith(SERVICES_ID, WEB_REDIRECT);
+    assert.equal(params.redirect_uri, REDIRECT);
+    // Apple matches it byte-for-byte against the portal registration, so it must
+    // not be normalised, re-encoded or given a trailing slash on the way out.
+    assert.equal(params.client_id, SERVICES_ID);
+  });
+
+  it("a NATIVE (bundle-id) audience sends NO redirect_uri even when the pair is configured", async () => {
+    const params = await exchangeWith(CLIENT_ID, WEB_REDIRECT);
+    assert.equal("redirect_uri" in params, false, "Apple refuses a redirect_uri on a native code");
+    assert.equal(params.client_id, CLIENT_ID);
+  });
+
+  it("no webRedirect configured → no redirect_uri, for EITHER audience (today's behaviour)", async () => {
+    for (const aud of [CLIENT_ID, SERVICES_ID]) {
+      assert.equal("redirect_uri" in (await exchangeWith(aud, null)), false, aud);
+      // `undefined` is the omitted-argument case, which is what every existing
+      // caller looked like before this block.
+      assert.equal("redirect_uri" in (await exchangeWith(aud, undefined)), false, aud);
+    }
+  });
+
+  it("the match is STRICT — a near-miss audience is treated as native, not web", async () => {
+    // A trailing dot, a case difference, a suffix: none of these is the Services
+    // ID, and guessing "close enough" would send a redirect_uri Apple refuses.
+    for (const aud of [
+      `${SERVICES_ID}.`,
+      SERVICES_ID.toUpperCase(),
+      `${SERVICES_ID}2`,
+      SERVICES_ID.slice(0, -1),
+    ]) {
+      const params = await exchangeWith(aud, WEB_REDIRECT);
+      assert.equal("redirect_uri" in params, false, aud);
+    }
   });
 });

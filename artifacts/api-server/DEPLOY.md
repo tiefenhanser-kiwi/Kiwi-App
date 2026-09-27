@@ -75,6 +75,86 @@ lives for the deployed instance. "env" = a plain Cloud Run env var
 ` escapes is accepted and unescaped at read. ES256 signs the client-secret JWT used at `/auth/token` and `/auth/revoke`. |
 | `APPLE_REFRESH_TOKEN_ENC_KEY` | if Apple revocation is on | **Secret Manager** | **Row 9 — encryption at rest for `user_identities.appleRefreshTokenEnc`.** Any string; an AES-256-GCM key is derived from it with HKDF-SHA256. Apple's refresh token is a **live bearer credential**, so it is the one column in this database that is not stored in the clear. Unset (with the trio set) → boot logs an `error`, the token is **not stored at all**, and `DELETE /me` has nothing to revoke. **Rotating this value makes every already-stored token undecryptable** (they are skipped, logged, and deletion still proceeds). |
 
+| `APPLE_SERVICES_ID` | for the Apple **web** button | env | **Row 9 · Stripe S1 Part F (D-WS9-268 follow-up).** The **Services ID** (`com.kitchenwizard.kiwi.web` or similar) from *Apple Developer → Identifiers*. A **PAIR** with the next row — both or neither. Apple **requires** `redirect_uri` on an authorization code from the web flow and **refuses** it on one from a native app, and both mistakes answer `invalid_grant` with nothing to tell them apart; so the server decides by **audience**, sending the redirect only when a verified token's `aud` equals this value. **⚠️ It must ALSO appear in `APPLE_OAUTH_AUDIENCES`** or no web token verifies and the exchange is never reached — boot logs an `error` for that, and another for exactly one of the pair being set. Both unset → today's behaviour. |
+| `APPLE_WEB_REDIRECT_URI` | with `APPLE_SERVICES_ID` | env | The redirect URI registered against that Services ID (*Apple Developer → Identifiers → the Services ID → Configure → Return URLs*). **⚠️ Apple matches it BYTE-FOR-BYTE** — an added or removed trailing slash is an `invalid_grant`. |
+
+### Row 9 (1.1) · Stripe S1 — billing
+
+Kiwi never sees a card number: Checkout and the Customer Portal are Stripe-hosted
+pages the apps link out to (D-WS9-267). Values come from the Stripe Dashboard at
+commissioning (S3) — the names are below, **never the values**.
+
+| Name | Required | Destination | Note |
+| --- | --- | --- | --- |
+| `STRIPE_SECRET_KEY` | for billing | **Secret Manager** | **LIVE MONEY.** *Dashboard → Developers → API keys.* `sk_test_…` while commissioning, `sk_live_…` after. Never plain env, never logged. |
+| `STRIPE_WEBHOOK_SECRET` | for billing | **Secret Manager** | `whsec_…` for the endpoint below. **This is the only thing between a stranger and writing subscription rows** — `POST /api/webhooks/stripe` has no session and no allowlist; the signature IS the credential. *Dashboard → Developers → Webhooks → the endpoint → Signing secret.* **⚠️ PER ENDPOINT:** test mode and live mode have different secrets. |
+| `STRIPE_PRICE_MONTHLY` | for billing | env | The **Price** id (`price_…`), not a product id and not the amount. $9.99/month. *Dashboard → Product catalogue → the Kiwi product.* **⚠️ Set tax behaviour EXCLUSIVE** ($9.99 + tax) — Stripe Tax is on and inclusive pricing would quietly reduce revenue. |
+| `STRIPE_PRICE_ANNUAL` | for billing | env | The other Price id. $99.99/year. Same tax-behaviour note. |
+| `BILLING_RETURN_URL_BASE` | for billing | env | Base https URL, no trailing slash, e.g. `https://app.kitchenwizard.ai`. Checkout returns to `<base>/billing/return?session_id=…` and `<base>/billing/cancelled`; the Portal returns to `<base>/billing/return`. **Must serve those two paths** (S2 builds them). A trailing slash is stripped. |
+| `BILLING_EARLY_PAY_BONUS_DAYS` | no | env | **The pay-early experiment (D-WS9-270 §5a).** Whole days added to the free period when a user subscribes **during** the trial: `trial_end = trialEndsAt + this`, so the card goes on file and the first charge lands then. Absent → **14**. **`0` is VALID** and means no bonus — that is how the experiment ends without a code deploy, so it is not treated as unset. Garbage/negative → 14 + an `error` at boot. Stripe requires `trial_end` ≥ 48 h out; too close and the server drops the trial_end and logs rather than failing the checkout. |
+| `BILLING_ENFORCED` | no (**the paywall switch**) | env | Unset/falsy → **OFF**: `can()` allows everyone exactly as today while every billing route works — which is what makes it safe to deploy S1 and commission Stripe with nobody locked out. Truthy → an account whose `effectiveStatus` is `none`/`canceled` gets **402 `subscription_required`** on every AI feature; reads keep working. A typo (`ture`) is OFF + an `error`. **⚠️ FLIP ONLY AFTER `scripts/billing/cutover.sql` HAS RUN** — see below. |
+
+**🔴 The one environment state in this server that REFUSES TO BOOT.** Everything
+else here degrades: an unset feature variable means the feature is off and says
+so. `BILLING_ENFORCED` truthy with **any** of the five Stripe variables unset
+throws `BillingEnforcedWithoutStripeError` instead, because that combination is a
+locked front door with no key cut — every account past its trial refused, and
+`POST /api/billing/checkout-session` answering 503 to all of them, until someone
+notices. There is no revision of that state better than refusing to boot, and on
+Cloud Run a boot failure rolls traffic back to the previous revision by itself.
+The error is logged before it is thrown, so a sink that never sees the crash still
+sees the reason. **One missing variable is enough** — a half-configured deploy is
+not configured.
+
+**Reading the boot line.** One `info` per revision: `Billing: stripe on|off ·
+enforcement ON|off · early-pay bonus N d`, plus a WARN naming any missing
+variable. Presence and names only, never a value.
+
+**The webhook endpoint.** Create it in *Dashboard → Developers → Webhooks* with
+URL **`https://<service-url>/api/webhooks/stripe`** — note the **`/api`** prefix;
+the whole router is mounted there. Subscribe it to: `checkout.session.completed`,
+`customer.subscription.created`, `customer.subscription.updated`,
+`customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`. Any
+other event is answered 200 and ignored, so a broader selection is harmless.
+Copy the signing secret into `STRIPE_WEBHOOK_SECRET`.
+
+**Dashboard settings the server assumes but cannot set:**
+
+- **Customer Portal** (*Settings → Billing → Customer portal*): allow **cancel**
+  and **switch plan** (monthly ↔ annual). Kiwi builds no cancel UI — App Review
+  is satisfied by the link-out because Kiwi sells nothing in-app (PRD §14.7).
+- **Smart Retries / dunning**: 7 days, then cancel the subscription. Kiwi keeps
+  no second timer — `past_due` stays **entitled** until Stripe says `canceled`.
+- **Trial-ending emails: ON.** The pay-early bonus puts a card on file and charges
+  it at the end of a free period, and several card-network and FTC rules want a
+  reminder before that happens. Stripe sends it; Kiwi does not.
+- **Stripe Tax: on**, with registration handled separately (Massachusetts taxes
+  prewritten software including SaaS — the home-state registration is the first
+  accountant question). Cost: 0.5% of the taxed transaction.
+
+**The cutover, and the order it goes in.** Every account that exists today was
+created under "everyone is premium" (D-WS9-258) and carries a `trialEndsAt` that
+expired months ago, silently, because `can()` was a stub. The instant enforcement
+is on, `effectiveStatus()` derives `none` for all of them and the entire existing
+user base is paywalled in the same second — not as a decision, as an accident of a
+timestamp nobody was shown. `scripts/billing/cutover.sql` gives each a fresh 14
+days from the day the paywall appears. **Run it by hand in the Neon console (no
+code runs it), read its dry-run SELECT first, and run it BEFORE** setting
+`BILLING_ENFORCED`. The sequence:
+
+1. 1.0 approved by both stores
+2. production migrations applied (Block 1b, OAuth, S1)
+3. deploy
+4. Stripe live-mode commissioning (the Dashboard steps above)
+5. `scripts/billing/cutover.sql`
+6. `BILLING_ENFORCED=true` — a Cloud Run env change: a new revision, no build
+
+`scripts/billing/cost_per_prompt_key.sql` is the companion read: median and p90
+`costEstimateUsd` per `promptKey` over 30 days, split member/guest/system. It is
+what makes "should this cheap AI call be free for a lapsed account?" a question
+with a number attached, and `ENTITLEMENTS` in `lib/subscriptionService.ts` is the
+one-word change that acts on the answer.
+
 **Row 9 · OAuth Block 1 — reading the boot line.** The six variables above are validated at boot beside the `AI_*` ones and log **names and counts only, never a value**. One `info` line per revision: `OAuth: apple on|off · google on|off · apple revocation on|off`. A provider with no audience list is **off** and its route answers 503 — the password lane is unaffected either way. Apple sign-in configured **without** the signing trio, or with the trio but no encryption key, logs an `error`: sign-in works, but **token revocation does not**, and an App Store submission in that state is rejectable under guideline 5.1.1(v).
 
 All five `AI_*` variables are validated once at boot (BUG-263): a variable that is **set but unparseable** (e.g. `AI_DAILY_CEILING_USD="$10"`) leaves its check **off** and logs an `error` naming it; every revision also logs one `info` line `AI spend guard: kill switch … · daily ceiling … · per-user cap … · guest kill switch … · guest ceiling …` with the effective config — read that line after each deploy rather than trusting the env you meant to set. System-triggered calls (`userId` null — seeds, batch jobs) bypass the ceiling and per-user cap entirely (BUG-262); only `AI_DISABLED` refuses them.

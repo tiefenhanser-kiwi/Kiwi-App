@@ -52,7 +52,7 @@
 
 import jwt from "jsonwebtoken";
 
-import type { AppleSigningConfig } from "./config";
+import type { AppleSigningConfig, AppleWebRedirectConfig } from "./config";
 import { logger } from "../logger";
 
 export const APPLE_TOKEN_URL = "https://appleid.apple.com/auth/token";
@@ -155,10 +155,30 @@ async function postToApple(
  */
 export async function exchangeAppleAuthorizationCode(opts: AppleCallOptions & {
   authorizationCode: string;
+  /**
+   * Row 9 (1.1) · Stripe S1 Part F — D-WS9-268's follow-up.
+   *
+   * Apple REQUIRES `redirect_uri` on a code that came from the web flow and
+   * REFUSES it on a code from a native app. Both mistakes answer `invalid_grant`
+   * with nothing to distinguish them, so the decision cannot be made by trial.
+   *
+   * It is made by AUDIENCE: `opts.clientId` here is the verified token's own
+   * `aud` (routes/auth.ts passes `verdict.identity.audience`), so comparing it to
+   * the configured Services ID is comparing a fact to a fact — not guessing from
+   * a `platform` field the client could get wrong or lie about.
+   *
+   * Omitted, or a native audience → today's behaviour exactly: no `redirect_uri`.
+   */
+  webRedirect?: AppleWebRedirectConfig | null;
 }): Promise<AppleCodeExchange> {
   const params = new URLSearchParams();
   params.set("grant_type", "authorization_code");
   params.set("code", opts.authorizationCode);
+  // The one line the follow-up is about. Deliberately a strict equality against
+  // the verified audience and nothing else.
+  if (opts.webRedirect && opts.clientId === opts.webRedirect.servicesId) {
+    params.set("redirect_uri", opts.webRedirect.redirectUri);
+  }
 
   const res = await postToApple(APPLE_TOKEN_URL, params, opts);
   if (!res.ok) {

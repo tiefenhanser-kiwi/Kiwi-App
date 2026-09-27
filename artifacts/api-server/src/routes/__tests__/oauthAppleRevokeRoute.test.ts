@@ -47,6 +47,7 @@ const CONFIGURED: OAuthConfig = {
   googleClientIds: [],
   appleSigning: SIGNING,
   appleRefreshEncSecret: ENC_KEY,
+  appleWebRedirect: null,
 };
 
 // ── a real RS256 pair for the identity token ─────────────────────────────

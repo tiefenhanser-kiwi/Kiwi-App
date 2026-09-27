@@ -54,12 +54,14 @@ const CONFIG: OAuthConfig = {
   googleClientIds: [GOOGLE_IOS],
   appleSigning: null,
   appleRefreshEncSecret: null,
+  appleWebRedirect: null,
 };
 const OFF: OAuthConfig = {
   appleAudiences: [],
   googleClientIds: [],
   appleSigning: null,
   appleRefreshEncSecret: null,
+  appleWebRedirect: null,
 };
 
 // ── a real key pair, served by a stub JWKS ───────────────────────────────
