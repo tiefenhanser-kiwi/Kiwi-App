@@ -20,10 +20,21 @@ import {
   type BootstrapStatus,
 } from "@/lib/sessionBootstrap";
 import { authErrorPresentation } from "@/lib/authErrorCopy";
+import { completeAuth, type AuthCompletionDeps } from "@/lib/authCompletion";
+import { appleOAuthRequest, googleOAuthRequest, type OAuthAuthResponse } from "@/lib/oauth/api";
+import { oauthFailure } from "@/lib/oauth/errors";
+import {
+  appleRequestBody,
+  googleRequestBody,
+  type AppleCredential,
+  type OAuthConsentFields,
+  type OAuthContext,
+  type OAuthMode,
+} from "@/lib/oauth/request";
+import type { OAuthProvider } from "@/lib/oauth/providers";
+import { hideProviderForSession } from "@/lib/oauth/unavailable";
 import { todayLocalDate } from "@/lib/dates";
 import { clearGuestSession, readGuestSessionId } from "@/lib/guest/guestToken";
-import { guestTeardownAfterClaim, signupRetryWithoutClaim } from "@/lib/guest/claim";
-import { ApiError } from "@/lib/api/errors";
 import type { AuthResponse } from "@/lib/auth";
 import type { User } from "@/lib/types";
 
@@ -36,6 +47,27 @@ export interface SignupOptions {
   phone?: string;
   marketingConsentEmail?: boolean;
   marketingConsentSms?: boolean;
+}
+
+/**
+ * Row 9 (1.1) · OAuth Block 2 — what a screen hands over after a provider
+ * sheet closes successfully.
+ *
+ * `mode` is the SCREEN, not the outcome: whether this was a first sign-in is
+ * the server’s answer (`isNewUser`), and it arrives after the body has already
+ * been built. All the mode decides is whether the consent checkboxes
+ * contribute — see lib/oauth/request.ts (§2.4).
+ */
+export interface OAuthSignInInput {
+  provider: OAuthProvider;
+  mode: OAuthMode;
+  /** Apple: identityToken + the RAW nonce (+ authorizationCode). Google: idToken. */
+  credential: AppleCredential | { idToken: string };
+  /** Apple hands these over on the FIRST authorisation only. Forward them. */
+  firstName?: string | null;
+  lastName?: string | null;
+  /** Sign-up screen only; ignored when `mode === "signin"`. */
+  consents?: OAuthConsentFields;
 }
 
 interface AuthContextValue {
@@ -67,6 +99,11 @@ interface AuthContextValue {
    *  passed. Resolves with the claim fields so the screen can decide where to
    *  land and what to say. */
   signup: (input: SignupOptions) => Promise<AuthResponse>;
+  /** Row 9 (1.1) · OAuth Block 2 — completeAuth’s third and fourth callers
+   *  (§2.5). Resolves with the signup/login shape plus `isNewUser`. On a
+   *  dismissed sheet it REJECTS without setting `error` — §2.6: a cancel is
+   *  not a failure, so the caller simply stops its spinner. */
+  oauthSignIn: (input: OAuthSignInInput) => Promise<OAuthAuthResponse>;
   logout: () => Promise<void>;
   /** WS9 BUG-239 §1c — end THIS client's session because we already know the
    *  token is dead, rather than waiting for the next request to discover it.
@@ -86,6 +123,23 @@ interface AuthContextValue {
 }
 
 const AuthContext = React.createContext<AuthContextValue | null>(null);
+
+// Platform.OS is "web" | "ios" | "android" on every build this app produces;
+// the cast is only because RN’s type also admits "windows" and "macos",
+// which Expo does not target here. R9 / D-WS9-264 — sent on every account
+// creation, password or social, and recorded server-side as signupSource.
+function devicePlatform(): "web" | "ios" | "android" {
+  return Platform.OS as "web" | "ios" | "android";
+}
+
+/** Auto-detected, never passed in. If Intl fails the server default applies. */
+function deviceTimezone(): string | undefined {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch {
+    return undefined;
+  }
+}
 
 const ME_KEY = ["auth", "me"] as const;
 
@@ -196,31 +250,55 @@ export function AuthProvider({
     };
   }, []);
 
+  // ── Row 9 (1.1) · OAuth Block 2 Part B — the shared completion (§2.5) ───
+  //
+  // The eight steps that used to be written out inside login() and signup()
+  // now live in lib/authCompletion.ts, and these are the two things only the
+  // provider can do: put the token in React state, and seed the /auth/me
+  // cache so the very next render has a user without a round trip.
+  const adoptSession = React.useCallback(
+    (res: AuthResponse) => {
+      queryClient.setQueryData<User | null>(ME_KEY, res.user);
+      setToken(res.authToken);
+    },
+    [queryClient],
+  );
+
+  const completionDeps = React.useMemo<AuthCompletionDeps>(
+    () => ({
+      // Read from the guest store rather than passed in by a screen: the
+      // sign-up screen is reachable from the door sheet, from Welcome and from
+      // a URL, and the live guest session is the same fact in all three.
+      readGuestSessionId: () => readGuestSessionId(),
+      clearGuestSession,
+      todayLocalDate,
+      storeToken,
+      adoptSession,
+    }),
+    [adoptSession],
+  );
+
   const login = React.useCallback(
     async (email: string, password: string) => {
       setError(null);
       try {
-        // Row 13 Block 2 Part E (R7) — a returning visitor claims too: they walked
-        // the Test Kitchen, liked the plan, and turn out to already have an
-        // account. The server does the same claim minus the preferences copy, so
-        // their stored preferences are never overwritten by a guest form.
+        // Row 13 Block 2 Part E (R7) — a returning visitor claims too: they
+        // walked the Test Kitchen, liked the plan, and turn out to already
+        // have an account. The server does the same claim minus the
+        // preferences copy, so their stored preferences are never overwritten
+        // by a guest form. Also the RETRY path: a sign-up whose stage 2 failed
+        // kept the guestSessionId (claimRetryable), and this is the next
+        // sign-in that finishes it.
         //
-        // Also the RETRY path: a sign-up whose stage 2 failed kept the
-        // guestSessionId (claimRetryable), and this is the next sign-in that
-        // finishes it.
-        const guestSessionId = readGuestSessionId() ?? undefined;
-        const res = await loginRequest({
-          email,
-          password,
-          ...(guestSessionId ? { guestSessionId, localDate: todayLocalDate() } : {}),
-        });
-        await storeToken(res.authToken);
-        queryClient.setQueryData<User | null>(ME_KEY, res.user);
-        setToken(res.authToken);
-        if (guestSessionId && guestTeardownAfterClaim(res) === "clear") {
-          clearGuestSession();
-        }
-        return res;
+        // `resendWithoutClaimOn409: false` — see lib/authCompletion.ts. Login
+        // cannot 409 today; if it ever does it means something this code has
+        // not been told about, and retrying it without the claim would turn an
+        // unknown refusal into a second sign-in.
+        return await completeAuth(
+          (claim) => loginRequest({ email, password, ...claim }),
+          completionDeps,
+          { resendWithoutClaimOn409: false },
+        );
       } catch (err) {
         // BUG-296 — the screen renders `error`; the 429 / 400 copy is decided
         // in one place (lib/authErrorCopy.ts), not off the server's string.
@@ -228,92 +306,98 @@ export function AuthProvider({
         throw err;
       }
     },
-    [queryClient],
+    [completionDeps],
   );
 
   const signup = React.useCallback(
     async (input: SignupOptions) => {
       setError(null);
       try {
-        // Auto-detect timezone from device.
-        let timezone: string | undefined;
-        try {
-          timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        } catch {
-          // If Intl fails (shouldn't on modern RN), let server default apply.
-        }
         // D-WS9-241 A — phone + consents go on the same write. An empty phone
         // is "no phone" (undefined, not ""), and SMS consent is only ever
         // sent alongside a phone: the server refuses the pairing (400), the
         // form already clears it, and this is the wire-level guarantee.
         const phone = input.phone?.trim() || undefined;
-        // ── Row 13 "Test Kitchen" · Block 2 Part E ──────────────────────────
-        // R9 / D-WS9-264 — `platform` on EVERY sign-up, native included. The
-        // server records it as signupSource, and a guestSessionId on the body
-        // overrides it with "test_kitchen" because that is the more specific
-        // fact. Platform.OS is "web" | "ios" | "android" on every build this app
-        // produces; the cast is only because RN's type also admits "windows" and
-        // "macos", which Expo does not target here.
-        const platform = Platform.OS as "web" | "ios" | "android";
-        // R7 — the claim. Read from the guest store, not passed in: the sign-up
-        // screen is reachable from the door sheet, from Welcome and from a URL,
-        // and the live guest session is the same fact in all three.
-        const guestSessionId = readGuestSessionId() ?? undefined;
         const base = {
           email: input.email,
           password: input.password,
           firstName: input.firstName,
           lastName: input.lastName,
-          timezone,
+          timezone: deviceTimezone(),
           phone,
           marketingConsentEmail: input.marketingConsentEmail,
           marketingConsentSms: phone ? input.marketingConsentSms : undefined,
-          platform,
+          // R9 / D-WS9-264 — `platform` on EVERY sign-up, native included. The
+          // server records it as signupSource, and a guestSessionId on the body
+          // overrides it with "test_kitchen" because that is the more specific
+          // fact.
+          platform: devicePlatform(),
         };
-
-        let res: AuthResponse;
-        try {
-          res = await signupRequest({
-            ...base,
-            ...(guestSessionId ? { guestSessionId, localDate: todayLocalDate() } : {}),
-          });
-        } catch (err) {
-          // 🔴 A 409 guest_session_invalid ROLLED THE WHOLE SIGN-UP BACK. Stage 1
-          // of the claim runs inside the User-creating transaction, so there is
-          // no half-made account to "proceed" with (routes/auth.ts says so in as
-          // many words). R7's "sign-up proceeds without the claim" is therefore a
-          // RESEND without the guestSessionId — once, and only for that code.
-          if (
-            signupRetryWithoutClaim(
-              err instanceof ApiError ? { status: err.status, body: err.body } : null,
-              !!guestSessionId,
-            )
-          ) {
-            clearGuestSession();
-            res = await signupRequest(base);
-            // The account exists and the plan did not come over. The screen says
-            // so in one line (lib/guest/claim.ts CLAIM_LOST_LINE); it reads this.
-            res = { ...res, claimedPlanId: null, claimRetryable: false };
-          } else {
-            throw err;
-          }
-        }
-
-        await storeToken(res.authToken);
-        queryClient.setQueryData<User | null>(ME_KEY, res.user);
-        setToken(res.authToken);
-        // R7 — clear on success; KEEP when the server asked us to retry, so the
-        // next sign-in with the same id finishes stage 2.
-        if (guestSessionId && guestTeardownAfterClaim(res) === "clear") {
-          clearGuestSession();
-        }
-        return res;
+        return await completeAuth(
+          (claim) => signupRequest({ ...base, ...claim }),
+          completionDeps,
+          { resendWithoutClaimOn409: true },
+        );
       } catch (err) {
         setError(authErrorPresentation(err, "Signup failed").message);
         throw err;
       }
     },
-    [queryClient],
+    [completionDeps],
+  );
+
+  // ── Row 9 (1.1) · OAuth Block 2 — the third and fourth callers (§2.5) ───
+  //
+  // One method for both providers, because past the credential there is no
+  // difference: the same claim, the same token storage, the same routing.
+  // The credential is the caller's — a native sheet, a web popup or a Google
+  // Identity Services callback produced it, and none of those can live in a
+  // context that also has to load under `node --test`.
+  //
+  // 🔴 A FIRST SIGN-IN IS A SIGN-UP, which is why `resendWithoutClaimOn409`
+  // is true on BOTH modes. The server's 409 rolls the account creation back
+  // exactly as the password sign-up's does, and it can land on a tap made
+  // from the sign-IN screen.
+  const oauthSignIn = React.useCallback(
+    async (input: OAuthSignInInput) => {
+      setError(null);
+      const { provider, mode } = input;
+      const ctx: OAuthContext = {
+        mode,
+        platform: devicePlatform(),
+        timezone: deviceTimezone(),
+        firstName: input.firstName,
+        lastName: input.lastName,
+        consents: input.consents,
+      };
+      try {
+        return await completeAuth<OAuthAuthResponse>(
+          (claim) =>
+            provider === "apple"
+              ? appleOAuthRequest(
+                  appleRequestBody(input.credential as AppleCredential, { ...ctx, claim }),
+                )
+              : googleOAuthRequest(
+                  googleRequestBody(input.credential as { idToken: string }, {
+                    ...ctx,
+                    claim,
+                  }),
+                ),
+          completionDeps,
+          { resendWithoutClaimOn409: true },
+        );
+      } catch (err) {
+        // §2.6 — a dismissed sheet is not an error: no toast, no error state,
+        // nothing on screen. A 503 hides that provider's button for the rest
+        // of the session. Everything else gets one line, and the screens
+        // already render `error`.
+        const failure = oauthFailure(err, provider);
+        if (failure.kind === "unavailable") hideProviderForSession(provider);
+        if (failure.kind !== "cancelled") setError(failure.message);
+        throw err;
+      }
+    },
+    [completionDeps],
   );
 
   const logout = React.useCallback(async () => {
@@ -417,6 +501,7 @@ export function AuthProvider({
     error,
     login,
     signup,
+    oauthSignIn,
     logout,
     endSession,
     clearError,

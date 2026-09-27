@@ -145,6 +145,39 @@ If neither is set, the wrapper targets `http://localhost:3000/api`. The
 historical `lib/auth.ts` "footgun" (only reading `EXPO_PUBLIC_API_BASE_URL`
 with `??` rather than `||`) was removed in WS7-1 Commit 3.
 
+### Social sign-in client ids (Row 9 · OAuth Block 2, §2.8)
+
+There is no `.env.example` in this package, so the four social-sign-in
+variables are documented here beside the two above. All four are read in
+[../oauth/providers.ts](../oauth/providers.ts) — through a function, not a
+module const, because Expo inlines `process.env.EXPO_PUBLIC_*` at build time.
+
+| Var                                  | Purpose                                                                  | Platforms   | Console field it comes from |
+| ------------------------------------ | ------------------------------------------------------------------------ | ----------- | --------------------------- |
+| `EXPO_PUBLIC_APPLE_SERVICES_ID`      | `clientId` for Sign in with Apple JS — the Services ID, NOT the bundle id | web         | Apple Developer → Identifiers → Services IDs → Identifier |
+| `EXPO_PUBLIC_APPLE_WEB_REDIRECT_URI` | `redirectURI` for the same; must match a registered Return URL exactly    | web         | that Services ID → Sign in with Apple → Configure → Return URLs |
+| `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`   | The audience every Google ID token is minted for — **all** platforms      | web/ios/android | Google Cloud → Credentials → OAuth 2.0 Client IDs → *Web application* |
+| `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`   | `iosClientId` for `GoogleSignin.configure()`                              | ios         | Google Cloud → Credentials → OAuth 2.0 Client IDs → *iOS* |
+
+**Unset is a supported state, and the only one CI has.** A provider whose
+variables are missing renders no button and the email form is unchanged
+(§2.3); the app builds, typechecks, tests and exports with all four absent.
+
+Two things deliberately absent from this table:
+
+- **No iOS Apple variable.** The native flow's client id is the bundle
+  identifier and its configuration is the `com.apple.developer.applesignin`
+  entitlement, written into the build by `expo-apple-authentication`'s config
+  plugin when `ios.usesAppleSignIn` is true. The runtime check is
+  `AppleAuthentication.isAvailableAsync()`, not an env read.
+- **No Android Google variable.** Android's ID token is minted for the *web*
+  client id above. The Android OAuth client has to exist so Google will accept
+  the package name + release SHA-1, but it is never named in code.
+
+The server's half of the pair is `readOAuthConfig()` in
+`artifacts/api-server/src/lib/oauth/config.ts`. The Services ID and the web
+client id must appear in the server's audience lists or a valid token 401s.
+
 ## Per-module patterns
 
 | File             | Mode                                | Schema                          |
