@@ -115,15 +115,38 @@ export const MeUserSchema = z
 
 const MeResponseSchema = z.object({ user: MeUserSchema });
 
+// Row 13 "Test Kitchen" · Block 2 Part E (R7) — the claim's three response
+// fields, shared by signup and login so the two cannot drift (the server shares
+// them too: GUEST_CLAIM_FIELDS in routes/auth.ts).
+//
+// All OPTIONAL, matching the server and for the reason HomePayloadSchema's
+// `retailers` is: a new REQUIRED field here breaks sign-in on any build whose
+// server has not deployed yet, and the app ships to the stores before the server
+// does. Absent reads as "no claim", which is the truth for every ordinary
+// sign-up.
+const ClaimResponseFields = {
+  /** The plan the claim materialised, or null. */
+  claimedPlanId: z.string().nullable().optional(),
+  /** Stage 2 failed and the claim was RELEASED — the next sign-in retries it. */
+  claimRetryable: z.boolean().optional(),
+} as const;
+
 export const LoginResponseSchema = z.object({
   user: MeUserSchema,
   authToken: z.string(),
+  // Row 13 Block 2 Part E — a returning user can claim too (R5: "Already have an
+  // account? Sign in"). Same claim, minus the preferences copy: their stored
+  // preferences are theirs and the Test Kitchen must not overwrite them.
+  ...ClaimResponseFields,
 });
 
 export const SignupResponseSchema = z.object({
   user: MeUserSchema,
   authToken: z.string(),
+  // false after a claim that copied preferences — the guest's wizard answers ARE
+  // the account's starting preferences, so there is nothing to onboard.
   onboardingRequired: z.boolean().optional(),
+  ...ClaimResponseFields,
 });
 
 // ── Auth API calls ────────────────────────────────────────────────────────
@@ -131,6 +154,11 @@ export const SignupResponseSchema = z.object({
 export interface AuthResponse {
   user: User;
   authToken: string;
+  // Row 13 Block 2 Part E (R7) — passed through so the screen can decide where to
+  // land and what to say. See lib/guest/claim.ts for each decision.
+  onboardingRequired?: boolean;
+  claimedPlanId?: string | null;
+  claimRetryable?: boolean;
 }
 
 export interface SignupInput {
@@ -147,11 +175,26 @@ export interface SignupInput {
   phone?: string | null;
   marketingConsentEmail?: boolean;
   marketingConsentSms?: boolean;
+  // ── Row 13 "Test Kitchen" · Block 2 Part E ───────────────────────────────
+  /** R9 / D-WS9-264 — where this account came from. Platform.OS on EVERY
+   *  sign-up, native included. A guestSessionId on the body overrides it with
+   *  "test_kitchen" server-side, because that is the more specific fact. */
+  platform?: "web" | "ios" | "android";
+  /** R7 — the Test Kitchen plan to claim. Mutually exclusive with the server's
+   *  templatePlanId, which this client does not send. */
+  guestSessionId?: string;
+  /** The visitor's calendar date. The claimed plan's first dinner is TOMORROW in
+   *  their calendar, not tomorrow UTC — the same reason the draft-activate
+   *  endpoint takes one. */
+  localDate?: string;
 }
 
 export interface LoginInput {
   email: string;
   password: string;
+  // Row 13 Block 2 Part E — the claim, on the sign-in wire too.
+  guestSessionId?: string;
+  localDate?: string;
 }
 
 export async function signupRequest(input: SignupInput): Promise<AuthResponse> {
@@ -161,7 +204,13 @@ export async function signupRequest(input: SignupInput): Promise<AuthResponse> {
     auth: false,
     schema: SignupResponseSchema,
   });
-  return { user: body.user as User, authToken: body.authToken };
+  return {
+    user: body.user as User,
+    authToken: body.authToken,
+    onboardingRequired: body.onboardingRequired,
+    claimedPlanId: body.claimedPlanId,
+    claimRetryable: body.claimRetryable,
+  };
 }
 
 export async function loginRequest(input: LoginInput): Promise<AuthResponse> {
@@ -171,7 +220,12 @@ export async function loginRequest(input: LoginInput): Promise<AuthResponse> {
     auth: false,
     schema: LoginResponseSchema,
   });
-  return { user: body.user as User, authToken: body.authToken };
+  return {
+    user: body.user as User,
+    authToken: body.authToken,
+    claimedPlanId: body.claimedPlanId,
+    claimRetryable: body.claimRetryable,
+  };
 }
 
 export async function logoutRequest(): Promise<void> {

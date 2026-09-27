@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import React from "react";
+import { Platform } from "react-native";
 
 import { resetCascade, subscribeSessionEvents } from "@/lib/api/auth-bridge";
 import { useAuthMe } from "@/lib/api/auth";
@@ -19,6 +20,11 @@ import {
   type BootstrapStatus,
 } from "@/lib/sessionBootstrap";
 import { authErrorPresentation } from "@/lib/authErrorCopy";
+import { todayLocalDate } from "@/lib/dates";
+import { clearGuestSession, readGuestSessionId } from "@/lib/guest/guestToken";
+import { guestTeardownAfterClaim, signupRetryWithoutClaim } from "@/lib/guest/claim";
+import { ApiError } from "@/lib/api/errors";
+import type { AuthResponse } from "@/lib/auth";
 import type { User } from "@/lib/types";
 
 export interface SignupOptions {
@@ -51,11 +57,16 @@ interface AuthContextValue {
    *  (the server is unreachable by definition here), no message → Welcome. */
   abandonBootstrap: () => Promise<void>;
   error: string | null;
-  login: (email: string, password: string) => Promise<void>;
+  /** Row 13 Block 2 Part E — resolves with the claim fields (R7) so the screen
+   *  can decide where to land and what to say. */
+  login: (email: string, password: string) => Promise<AuthResponse>;
   /** D-WS9-241 A (BUG-261) — an options object (was 4 positionals): phone
    *  and both consents ride the same create as the account. Timezone is
-   *  auto-detected here, not passed. */
-  signup: (input: SignupOptions) => Promise<void>;
+   *  auto-detected here, not passed; Row 13 Block 2 Part E adds `platform`
+   *  (R9, every sign-up) and the guest claim, both read here rather than
+   *  passed. Resolves with the claim fields so the screen can decide where to
+   *  land and what to say. */
+  signup: (input: SignupOptions) => Promise<AuthResponse>;
   logout: () => Promise<void>;
   /** WS9 BUG-239 §1c — end THIS client's session because we already know the
    *  token is dead, rather than waiting for the next request to discover it.
@@ -189,10 +200,27 @@ export function AuthProvider({
     async (email: string, password: string) => {
       setError(null);
       try {
-        const res = await loginRequest({ email, password });
+        // Row 13 Block 2 Part E (R7) — a returning visitor claims too: they walked
+        // the Test Kitchen, liked the plan, and turn out to already have an
+        // account. The server does the same claim minus the preferences copy, so
+        // their stored preferences are never overwritten by a guest form.
+        //
+        // Also the RETRY path: a sign-up whose stage 2 failed kept the
+        // guestSessionId (claimRetryable), and this is the next sign-in that
+        // finishes it.
+        const guestSessionId = readGuestSessionId() ?? undefined;
+        const res = await loginRequest({
+          email,
+          password,
+          ...(guestSessionId ? { guestSessionId, localDate: todayLocalDate() } : {}),
+        });
         await storeToken(res.authToken);
         queryClient.setQueryData<User | null>(ME_KEY, res.user);
         setToken(res.authToken);
+        if (guestSessionId && guestTeardownAfterClaim(res) === "clear") {
+          clearGuestSession();
+        }
+        return res;
       } catch (err) {
         // BUG-296 — the screen renders `error`; the 429 / 400 copy is decided
         // in one place (lib/authErrorCopy.ts), not off the server's string.
@@ -219,7 +247,19 @@ export function AuthProvider({
         // sent alongside a phone: the server refuses the pairing (400), the
         // form already clears it, and this is the wire-level guarantee.
         const phone = input.phone?.trim() || undefined;
-        const res = await signupRequest({
+        // ── Row 13 "Test Kitchen" · Block 2 Part E ──────────────────────────
+        // R9 / D-WS9-264 — `platform` on EVERY sign-up, native included. The
+        // server records it as signupSource, and a guestSessionId on the body
+        // overrides it with "test_kitchen" because that is the more specific
+        // fact. Platform.OS is "web" | "ios" | "android" on every build this app
+        // produces; the cast is only because RN's type also admits "windows" and
+        // "macos", which Expo does not target here.
+        const platform = Platform.OS as "web" | "ios" | "android";
+        // R7 — the claim. Read from the guest store, not passed in: the sign-up
+        // screen is reachable from the door sheet, from Welcome and from a URL,
+        // and the live guest session is the same fact in all three.
+        const guestSessionId = readGuestSessionId() ?? undefined;
+        const base = {
           email: input.email,
           password: input.password,
           firstName: input.firstName,
@@ -228,10 +268,46 @@ export function AuthProvider({
           phone,
           marketingConsentEmail: input.marketingConsentEmail,
           marketingConsentSms: phone ? input.marketingConsentSms : undefined,
-        });
+          platform,
+        };
+
+        let res: AuthResponse;
+        try {
+          res = await signupRequest({
+            ...base,
+            ...(guestSessionId ? { guestSessionId, localDate: todayLocalDate() } : {}),
+          });
+        } catch (err) {
+          // 🔴 A 409 guest_session_invalid ROLLED THE WHOLE SIGN-UP BACK. Stage 1
+          // of the claim runs inside the User-creating transaction, so there is
+          // no half-made account to "proceed" with (routes/auth.ts says so in as
+          // many words). R7's "sign-up proceeds without the claim" is therefore a
+          // RESEND without the guestSessionId — once, and only for that code.
+          if (
+            signupRetryWithoutClaim(
+              err instanceof ApiError ? { status: err.status, body: err.body } : null,
+              !!guestSessionId,
+            )
+          ) {
+            clearGuestSession();
+            res = await signupRequest(base);
+            // The account exists and the plan did not come over. The screen says
+            // so in one line (lib/guest/claim.ts CLAIM_LOST_LINE); it reads this.
+            res = { ...res, claimedPlanId: null, claimRetryable: false };
+          } else {
+            throw err;
+          }
+        }
+
         await storeToken(res.authToken);
         queryClient.setQueryData<User | null>(ME_KEY, res.user);
         setToken(res.authToken);
+        // R7 — clear on success; KEEP when the server asked us to retry, so the
+        // next sign-in with the same id finishes stage 2.
+        if (guestSessionId && guestTeardownAfterClaim(res) === "clear") {
+          clearGuestSession();
+        }
+        return res;
       } catch (err) {
         setError(authErrorPresentation(err, "Signup failed").message);
         throw err;

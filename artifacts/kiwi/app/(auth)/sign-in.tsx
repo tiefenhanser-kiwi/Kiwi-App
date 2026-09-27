@@ -1,5 +1,5 @@
 import React from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useRouter, Link } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -7,8 +7,11 @@ import { Feather } from "@expo/vector-icons";
 import { Button } from "@/components/Button";
 import { PasswordField } from "@/components/PasswordField";
 import { useAuth } from "@/contexts/AuthContext";
+import { useGuestOptional } from "@/contexts/GuestContext";
 import { useSubmitCooldown } from "@/hooks/useSubmitCooldown";
 import { authErrorPresentation } from "@/lib/authErrorCopy";
+import { CLAIM_BUSY_LABEL, CLAIM_RETRY_LINE } from "@/lib/guest/claim";
+import { readGuestSessionId } from "@/lib/guest/guestToken";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
 export default function SignInPage() {
@@ -20,13 +23,23 @@ export default function SignInPage() {
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
+  const claimPending = submitting && !!guestCtx?.session;
 
   const handleSubmit = async () => {
     if (!email.trim() || !password || cooldown.active) return;
     clearError();
     setSubmitting(true);
+    // Row 13 Block 2 Part E — read before the call; a successful claim clears the
+    // guest store inside login().
+    const claimedGuestSession = readGuestSessionId() !== null;
     try {
-      await login(email.trim(), password);
+      const res = await login(email.trim(), password);
+      if (claimedGuestSession) {
+        guestCtx?.setGeneration(null);
+        // R7 — stage 2 failed and the claim was RELEASED; the next sign-in with
+        // the same id retries it, which is why the id is deliberately kept.
+        if (res.claimRetryable) Alert.alert("Signed in", CLAIM_RETRY_LINE);
+      }
       // Route through index.tsx's state machine (WS7-2-E Bug 2) so a user
       // who bailed mid-onboarding resumes at the right gate on re-login.
       router.replace("/");
@@ -71,6 +84,8 @@ export default function SignInPage() {
         {submitting ? (
           <View style={styles.buttonLoading}>
             <ActivityIndicator color={Colors.sage[700]} />
+            {/* R7 — a sign-in that is also claiming a plan takes ~10s. */}
+            {claimPending ? <Text style={styles.claimBusy}>{CLAIM_BUSY_LABEL}</Text> : null}
           </View>
         ) : (
           <Button onPress={handleSubmit} label="Sign in" disabled={cooldown.active} />
@@ -99,6 +114,7 @@ const styles = StyleSheet.create({
   // set, the preview APK rendered white-on-white (the native EditText theme
   // decided). Every other text on this screen already sets a Colors.* value.
   input: { borderWidth: 1, borderColor: Colors.neutral[400], borderRadius: Radius.md, padding: Spacing[3], fontSize: Typography.fontSize.md, color: Colors.neutral[900], backgroundColor: Palette.background.card, fontFamily: Typography.face.sans[400] },
+  claimBusy: { marginTop: Spacing[2], fontSize: Typography.fontSize.sm, color: Colors.neutral[700], fontFamily: Typography.face.sans[500], textAlign: "center" },
   errorText: { color: Colors.terracotta[700], fontSize: Typography.fontSize.sm, fontFamily: Typography.face.sans[500] },
   buttonLoading: { alignItems: "center", padding: Spacing[3] },
   link: { color: Colors.sage[700], fontSize: Typography.fontSize.md, textAlign: "center", marginTop: Spacing[2], fontFamily: Typography.face.sans[500] },

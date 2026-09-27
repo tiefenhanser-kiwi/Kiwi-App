@@ -17,9 +17,17 @@ import { Button } from "@/components/Button";
 import { PasswordField } from "@/components/PasswordField";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useAuth } from "@/contexts/AuthContext";
+import { useGuestOptional } from "@/contexts/GuestContext";
 import { useSubmitCooldown } from "@/hooks/useSubmitCooldown";
 import { authErrorPresentation } from "@/lib/authErrorCopy";
 import { isValidPhone } from "@/lib/phone";
+import {
+  CLAIM_BUSY_LABEL,
+  CLAIM_LOST_LINE,
+  CLAIM_RETRY_LINE,
+  claimDestination,
+} from "@/lib/guest/claim";
+import { readGuestSessionId } from "@/lib/guest/guestToken";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 
 export default function SignUpPage() {
@@ -44,6 +52,8 @@ export default function SignUpPage() {
   const phoneRef = React.useRef<TextInput>(null);
 
   const phoneEntered = phone.trim().length > 0;
+  // Whether THIS submit is carrying a claim — drives the busy copy.
+  const claimPending = submitting && !!guestCtx?.session;
 
   // Reset SMS consent if the phone number is cleared, so a re-add doesn't
   // silently inherit a prior opt-in.
@@ -95,10 +105,17 @@ export default function SignUpPage() {
     }
     clearError();
     setSubmitting(true);
+    // Row 13 Block 2 Part E — read BEFORE the call: AuthContext clears the guest
+    // store on a successful claim, so afterwards there is nothing left to tell us
+    // there had been one.
+    const claimedGuestSession = readGuestSessionId() !== null;
     try {
       // D-WS9-241 A — phone + both consents ride the signup write itself.
       // (This used to call the 4-arg signup() and silently drop all three.)
-      await signup({
+      // Row 13 Block 2 Part E — `platform` (R9) and the guest claim (R7) are read
+      // inside signup(), not passed: the live guest session is the same fact
+      // whether this screen was reached from the door sheet, Welcome or a URL.
+      const res = await signup({
         email: email.trim(),
         password,
         firstName: firstName.trim(),
@@ -114,7 +131,28 @@ export default function SignUpPage() {
       // that races with the AuthLayout redirect (fires when the freshly-set
       // token flips isAuthenticated true) and surfaces a "POP_TO_TOP not
       // handled" warning.
-      router.replace("/onboarding-prefs");
+      // ── Row 13 "Test Kitchen" · Block 2 Part E (R7) ──────────────────────
+      // "put the user in the home screen and have a popup". The SERVER decides:
+      // onboardingRequired is false after a claim that copied preferences,
+      // because the guest's wizard answers ARE the account's starting
+      // preferences. An ordinary sign-up leaves it true and keeps today's route.
+      //
+      // The popup itself is Home's (R8, Part F), gated on GET /home's
+      // showPersonalizeNudge — not a param carried from here, so it survives a
+      // reload and shows once per account rather than once per navigation.
+      if (claimedGuestSession) {
+        // The guest session is spent either way: a success clears it in
+        // AuthContext, a claimRetryable keeps it for the next sign-in. Drop the
+        // in-memory cards so the claimed plan is not also browsable as a guest.
+        guestCtx?.setGeneration(null);
+        if (res.claimRetryable) {
+          Alert.alert("Account created", CLAIM_RETRY_LINE);
+        } else if (res.claimedPlanId === null) {
+          // The claim was refused (409) and the sign-up was resent without it.
+          Alert.alert("Account created", CLAIM_LOST_LINE);
+        }
+      }
+      router.replace(claimDestination(res) === "home" ? "/(tabs)" : "/onboarding-prefs");
     } catch (err) {
       // BUG-296 — same copy decision as context.error (which this screen
       // also renders), plus the Retry-After hold on a 429.
@@ -320,6 +358,13 @@ const styles = StyleSheet.create({
     color: Colors.neutral[800],
     lineHeight: 18,
     fontFamily: Typography.face.sans[400],
+  },
+  claimBusy: {
+    marginTop: Spacing[2],
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[500],
+    textAlign: "center",
   },
   errorText: {
     color: Colors.terracotta[700],
