@@ -56,6 +56,55 @@ export interface IngredientLineOptions {
   includeNotes?: boolean;
 }
 
+// ── BUG-317 — THE COUNT UNITS, SUPPRESSED (ruled by Hans, 2026-09-27) ──────
+//
+// "1 each large shrimp" is not English. A COUNT unit is a placeholder for the
+// absence of a unit — the catalog writes it because the column is a `String` and
+// something had to go in it — so emitting it puts a word on screen that no recipe
+// has ever contained. Suppressed, the same lines read "1 large shrimp",
+// "6 garlic cloves", "2 lemons (1 juiced…)".
+//
+// 🔴 REAL UNITS STAY WORDS, and the line between the two is what this set is for.
+// `head`, `clove`, `bunch`, `can`, `slice` are units a recipe genuinely says out
+// loud — "1 head garlic" is correct and "1 garlic" is not — so they are absent
+// here, as are `whole` ("1 whole chicken") and `large` ("1 large egg"), both of
+// which carry meaning that dropping them would destroy.
+//
+// WHAT IS ACTUALLY IN THE CATALOG (measured, not assumed): the 49 distinct `unit`
+// values across the two catalog snapshots in
+// api-server/scripts/output/ws9-30min/preimage_km30*.json are — each, "",
+// teaspoon(s), tablespoon(s), cup(s), ounce(s), oz, pound(s), lb, clove, slice(s),
+// head, stalk, sprig, leaf, strip, loaf, packet, package, bag, box, bottle,
+// can(s), jar, bunch, pint, inch, "cup dry", "can (15.5 oz)", and a set of
+// fraction-prefixed forms ("½ cups", "¼ teaspoons", "¾ lb", "½"). Of those, ONLY
+// `each` and the empty string are count-ish: `piece`, `pieces`, `count`, `ct` and
+// `unit` appear NOWHERE in the catalog today.
+//
+// They are in the set anyway, and that is a decision rather than an oversight.
+// The prompt names them; the server's own count-unit table
+// (api-server/src/lib/ingredientConversions.ts's COUNT_UNITS) holds exactly
+// each/whole/""/piece/pieces/count/ct; and the recipe IMPORT path writes `unit`
+// from arbitrary web pages, so a line reading "3 pieces chicken thigh" is one
+// import away rather than impossible. Suppressing a spelling that never arrives
+// costs nothing; missing one that does costs a bad line on the recipe screen.
+//
+// `whole` is the one member of the server's COUNT_UNITS deliberately NOT here:
+// see above, and the test that pins "1 whole shallot" still passing.
+const SUPPRESSED_COUNT_UNITS: ReadonlySet<string> = new Set([
+  "each",
+  "piece",
+  "pieces",
+  "count",
+  "ct",
+  "unit",
+  "units",
+]);
+
+/** Whether a unit token is a placeholder rather than a word a recipe says. */
+export function isSuppressedCountUnit(unit: string | null | undefined): boolean {
+  return SUPPRESSED_COUNT_UNITS.has((unit ?? "").trim().toLowerCase());
+}
+
 /**
  * "1½ pound large shrimp" — amount, unit, name, in the member screen's order
  * and with the member screen's fraction glyphs (formatQuantity: eighths ∪
@@ -65,9 +114,14 @@ export interface IngredientLineOptions {
  * an empty word; that is the one behaviour difference from the old inline JSX,
  * which produced a double space there.
  *
- * A count-ish unit ("each") is emitted AS WRITTEN — "1 each large shrimp" —
- * because that is what the member screen shows today and suppressing it is a
- * display ruling nobody has made. See the test, which pins it deliberately.
+ * BUG-317 — a COUNT unit is dropped too: "1 large shrimp", not "1 each large
+ * shrimp". See SUPPRESSED_COUNT_UNITS above for which tokens count and which
+ * real units (head, clove, bunch, can, slice, whole) deliberately do not.
+ *
+ * ⚠️ THE SUPPRESSED TOKEN IS STILL PASSED TO formatQuantity. It reads `unit` to
+ * pick the whole-unit ceiling rule, so dropping it from the amount call as well
+ * would change 3.2 lemons from "4" to "3.2" — a rounding change wearing a
+ * display change's clothes.
  */
 export function formatIngredientLine(
   ing: IngredientLineParts,
@@ -76,7 +130,7 @@ export function formatIngredientLine(
   const { multiplier = 1, includeNotes = false } = opts;
   const unit = ing.unit?.trim() ?? "";
   const parts: string[] = [formatQuantity(ing.quantity * multiplier, unit)];
-  if (unit) parts.push(unit);
+  if (unit && !isSuppressedCountUnit(unit)) parts.push(unit);
   parts.push(ing.name);
   if (includeNotes) {
     const note = ing.preparationNote?.trim();

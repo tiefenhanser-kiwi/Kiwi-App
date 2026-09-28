@@ -42,6 +42,13 @@ const FindSimilarMatchSchema = z.object({
 
 const FindSimilarResponseSchema = z.object({
   matches: z.array(FindSimilarMatchSchema),
+  // Row 9 (1.1) Stripe S2 Part C/E -- "subscription_required" when the ENTITLEMENT
+  // gate, rather than anything else, produced the cuisine-only fallback. Absent on
+  // every other path, including a future non-entitlement fallback, which is why the
+  // client keys on THIS and not on `metadata.mode`. z.string() rather than an enum
+  // so a new server value is rendered as "no notice" instead of failing the schema
+  // on a screen that has results to show.
+  aiSkipped: z.string().optional(),
   metadata: z
     .object({
       promptVersion: z.number().nullable(),
@@ -59,6 +66,8 @@ export interface FindSimilarMatch {
 
 export interface FindSimilarResponse {
   matches: FindSimilarMatch[];
+  /** S2 -- see the schema. Feed to `findSimilarNotice` rather than testing it here. */
+  aiSkipped?: string;
   metadata?: {
     promptVersion: number | null;
     latencyMs: number;

@@ -34,6 +34,9 @@ import { useCompostWithUndo } from "@/hooks/useCompostWithUndo";
 import { useMeal } from "@/hooks/useMeal";
 import { usePlan } from "@/hooks/usePlan";
 import { usePlanWrite } from "@/hooks/usePlanWrite";
+import { BillingNotice } from "@/components/BillingNotice";
+import { useBilling } from "@/contexts/BillingContext";
+import { macrosNoticeFor } from "@/lib/billing/subscriptionView";
 import { ApiError } from "@/lib/api/errors";
 import { buildDayStrip } from "@/lib/domain";
 import { formatMacro } from "@/lib/format/macros";
@@ -126,6 +129,11 @@ export default function PlanReviewScreen() {
     copyPlan,
     isMacrosRecalcInFlight,
   } = useApp();
+  // Row 9 (1.1) Stripe S2 Part E -- above every early return, per the block rule.
+  const { fireUpsellMoment, subscription } = useBilling();
+  // The in-place notice a gated grocery generate leaves behind (§2.6). The copy
+  // arrives already resolved from lib/groceryHandoff.ts.
+  const [generateNotice, setGenerateNotice] = useState<string | null>(null);
   const { showToast } = useToast();
   const compostWithUndo = useCompostWithUndo();
 
@@ -297,6 +305,10 @@ export default function PlanReviewScreen() {
         navigate: (id) =>
           router.push({ pathname: "/grocery-list/[id]", params: { id } }),
         alert: (title, message) => Alert.alert(title, message),
+        // Row 9 (1.1) Stripe S2 Part E -- a 402 is NOT an alert (§2.6). The notice
+        // stays on screen beside the plan; the paywall sheet is opened separately
+        // by the fetch layer for every 402 in the app.
+        notice: (text) => setGenerateNotice(text),
       });
       // BUG-111 — a successful generate used to invalidate NOTHING. The
       // Groceries tab's useRefetchOnFocus is gated on isStale and the default
@@ -307,6 +319,11 @@ export default function PlanReviewScreen() {
       if (action.kind === "navigate") {
         queryClient.invalidateQueries({ queryKey: ["groceries"] });
         queryClient.invalidateQueries({ queryKey: ["home"] });
+        setGenerateNotice(null);
+        // S2 Part E -- upsell moment `first_grocery_list` (§2.5), on the SAME
+        // navigate-outcome gate BUG-111 already established: a list really exists.
+        // §27.2 -- no new hook; this is the existing success branch.
+        fireUpsellMoment("first_grocery_list");
       }
     } finally {
       setIsGeneratingList(false);
@@ -961,6 +978,17 @@ export default function PlanReviewScreen() {
           </View>
         )}
 
+        {/* Row 9 (1.1) Stripe S2 Part E -- a gated grocery generate (§2.6). IN
+            PLACE OF the generate ACTION's outcome, not in place of the plan:
+            every button above stays, and an existing list is untouched. Rendered
+            here rather than as an Alert because "say why in place" means the
+            sentence has to still be there after the user has read it. */}
+        {generateNotice !== null && (
+          <View style={s.section}>
+            <BillingNotice text={generateNotice} testID="plan-generate-notice" />
+          </View>
+        )}
+
         {/* §8.3.5 — Daily macro averages */}
         {/* WS7-4-E c3 — inline-above-row LoadingShim (Q2:A) renders while the
             AppContext hybrid-recalc dispatcher has a recalc-macros POST in
@@ -970,6 +998,14 @@ export default function PlanReviewScreen() {
         <View style={s.section}>
           <Card>
             <Text style={s.cardTitle}>Daily averages</Text>
+            {/* Row 9 (1.1) Stripe S2 Part E -- the MACROS notice (§2.6). The
+                figures below it are the STORED ones and they stay on screen: the
+                gate stopped a REFRESH, it did not erase what was already
+                computed. "Keep what exists", and do not pretend the recalc ran. */}
+            <BillingNotice
+              text={macrosNoticeFor(subscription)}
+              testID="plan-macros-notice"
+            />
             {isMacrosRecalcInFlight && (
               <View style={{ marginTop: Spacing[2] }}>
                 <LoadingShim variant="inline" label="Updating macros…" />

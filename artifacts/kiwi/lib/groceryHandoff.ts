@@ -25,13 +25,30 @@
 // report for the six-outcome diff).
 
 import type { GenerateGroceryListResult } from "@/lib/api/grocery";
+import { NOTICE_GROCERY_STALE } from "@/lib/billing/copy";
 
 // The UI action a generate result resolves to. BOTH the 200-new and the
 // 409-exists cases navigate to the same list screen — the user cannot tell the
 // difference and should not have to.
 export type HandoffAction =
   | { kind: "navigate"; listId: string }
-  | { kind: "alert"; title: string; message: string };
+  | { kind: "alert"; title: string; message: string }
+  /**
+   * Row 9 (1.1) · Stripe S2 Part E — the entitlement gate refused (§2.6).
+   *
+   * 🔴 NOT AN ALERT, and that is the ruling rather than a taste call. D-WS9-272:
+   * "keep what exists · do not pretend the call ran · say why in place · offer the
+   * upgrade." An Alert is a modal that must be dismissed before the user can look
+   * at the list they already have, and it disappears the moment they do — so it is
+   * neither "in place" nor "keep what exists". The notice renders BESIDE the
+   * existing list and stays there.
+   *
+   * The paywall sheet is opened independently, by the fetch layer, for every 402
+   * in the app (§2.7). So a gated generate produces both: the sheet as the offer,
+   * and this notice as the explanation that survives "Not now". Two surfaces, one
+   * of which is transient by design.
+   */
+  | { kind: "notice"; text: string };
 
 /**
  * Pure mapping from a generate result to a UI action. Seven outcomes.
@@ -54,6 +71,11 @@ export function resolveGenerateResult(
   if (result.success) return { kind: "navigate", listId: result.groceryListId };
   if (result.error === "list_exists")
     return { kind: "navigate", listId: result.existingListId };
+  // S2 Part E — the gate. Checked before every other failure branch because it is
+  // the only one that is not a failure: nothing broke, the account is not entitled,
+  // and the list the user already has is untouched.
+  if (result.error === "upgrade_required")
+    return { kind: "notice", text: NOTICE_GROCERY_STALE };
   if (result.error === "spend_guard")
     return {
       kind: "alert",
@@ -93,6 +115,12 @@ export function resolveGenerateResult(
 export interface GenerateHandoffSinks {
   navigate: (listId: string) => void;
   alert: (title: string, message: string) => void;
+  /**
+   * S2 Part E -- where a `notice` action is delivered. OPTIONAL so the two
+   * existing callers compile unchanged; a caller that omits it falls back to the
+   * alert sink, which is worse than a notice but much better than silence.
+   */
+  notice?: (text: string) => void;
 }
 
 /**
@@ -111,6 +139,16 @@ export function dispatchGenerateResult(
   const action = resolveGenerateResult(result);
   if (action.kind === "navigate") {
     sinks.navigate(action.listId);
+  } else if (action.kind === "notice") {
+    if (sinks.notice) {
+      sinks.notice(action.text);
+    } else {
+      // No notice sink wired. The copy is still the RIGHT copy -- it says why and
+      // offers the upgrade -- so it is delivered through the alert rather than
+      // dropped. A caller in this state is a caller that has not yet been given a
+      // place to put an in-place notice.
+      sinks.alert("Upgrade to continue", action.text);
+    }
   } else {
     sinks.alert(action.title, action.message);
   }

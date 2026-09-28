@@ -30,6 +30,7 @@ import {
   canManageBilling,
   findSimilarNotice,
   groceryStaleNotice,
+  macrosNoticeFor,
   payEarlyLine,
   settingsRowFor,
   sheetStateFor,
@@ -384,4 +385,42 @@ test("all three notices end with the same upgrade sentence, written out three ti
       n,
     );
   }
+});
+
+// ── 8. the macros notice (§2.6), the one with no response field ──────────
+//
+// 🔴 IT IS DERIVED FROM THE STATUS, AND THAT IS A DEPARTURE WORTH PINNING. The
+// other two notices answer "did THIS response's work get skipped?", which a server
+// field can say. This one answers a question about a FIGURE ALREADY ON SCREEN — a
+// plan's daily averages, a meal's macro strip — rendered from stored columns with
+// no request behind them to carry a flag. `macrosSkipped` covers the SAVE moment;
+// it cannot cover a screen opened a week later.
+//
+// So it claims the narrower thing: not "this figure is wrong" but "a refresh of it
+// is a premium feature". A wrong answer is a redundant sentence, never a lie, and
+// the stored figures stay on screen either way.
+
+test("the macros notice appears for a LAPSED account and for nothing else", () => {
+  assert.equal(macrosNoticeFor(sub({ status: "none" })), NOTICE_MACROS);
+  assert.equal(macrosNoticeFor(sub({ status: "canceled" })), NOTICE_MACROS);
+  // The three statuses the SERVER's isEntitled allows to spend
+  // (ENTITLED_STATUSES in api-server/src/lib/subscriptionService.ts). A refresh
+  // would succeed for these, so there is nothing to explain.
+  assert.equal(macrosNoticeFor(sub({ status: "trialing" })), null);
+  assert.equal(macrosNoticeFor(sub({ status: "active" })), null);
+  assert.equal(
+    macrosNoticeFor(sub({ status: "past_due" })),
+    null,
+    "past_due still spends — the server's set says so",
+  );
+});
+
+test("🔴 the macros notice is blacked out with everything else while enforced is false", () => {
+  for (const status of ALL_STATUSES) {
+    assert.equal(macrosNoticeFor(sub({ status, enforced: false })), null, status);
+  }
+});
+
+test("no payload means no notice — not a notice over a loading screen", () => {
+  assert.equal(macrosNoticeFor(null), null);
 });

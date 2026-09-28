@@ -38,6 +38,12 @@ export type GenerateGroceryListResult =
   | { success: false; error: "list_exists"; existingListId: string }
   | { success: false; error: "plan_not_found" }
   | { success: false; error: "ai_failed"; message?: string }
+  // Row 9 (1.1) Stripe S2 Part E -- the entitlement gate answered 402. NOT filed
+  // under `unknown`: D-WS9-272 wants the reason SAID IN PLACE, and "Something
+  // went wrong" is the one thing that is not true here. The paywall sheet has
+  // already been opened by the fetch layer (upgrade-bridge); this branch is what
+  // lets the SCREEN keep its existing list and explain why no new one arrived.
+  | { success: false; error: "upgrade_required" }
   | { success: false; error: "spend_guard"; reason: SpendGuardReason; message: string }
   | { success: false; error: "unauthenticated" }
   | { success: false; error: "unknown"; status?: number };
@@ -77,6 +83,9 @@ export async function generateGroceryListForPlan(
         reason: refusal.reason,
         message: refusal.message,
       };
+    }
+    if (err.status === 402) {
+      return { success: false, error: "upgrade_required" };
     }
     if (err.status === 409) {
       const body = err.body as { existingListId?: string } | null;
@@ -177,6 +186,14 @@ const GroceryListWireSchema = z
 
 const GetGroceryListResponseSchema = z.object({
   list: GroceryListWireSchema,
+  // Row 9 (1.1) Stripe S2 Part C/E -- WHY the reconcile did not run:
+  // "subscription_required" (the gate) or "error" (it was attempted and threw).
+  // ABSENT when one ran, and absent when there was nothing to do. `reconciled:
+  // false` alone meant all three, and only the first earns an upgrade notice --
+  // telling someone to subscribe because our AI call threw would be a sales pitch
+  // dressed as an explanation. z.string() rather than an enum so a new server value
+  // renders as "no notice" instead of failing the schema on a readable list.
+  reconcileSkipped: z.string().optional(),
   // WS7-7-A B5 — true when this read reconciled the list to plan changes.
   // Optional for forward-compat with any pre-B5 server.
   reconciled: z.boolean().optional(),
@@ -265,6 +282,8 @@ function normalizeList(wire: GroceryListWire): GroceryList {
 
 export interface GetGroceryListResult {
   list: GroceryList;
+  /** S2 -- feed to `groceryStaleNotice`; do not compare it at the call site. */
+  reconcileSkipped?: string;
   // WS7-7-A B5 — drives the transient "updating to match plan changes" banner.
   reconciled: boolean;
   // Row 8 Block 2 — true → the Instacart CTA. Hans, September 22: false now
@@ -282,6 +301,7 @@ export async function getGroceryList(
   return {
     list: normalizeList(body.list),
     reconciled: body.reconciled ?? false,
+    reconcileSkipped: body.reconcileSkipped,
     instacartEnabled: body.retailers?.instacart?.enabled ?? false,
   };
 }

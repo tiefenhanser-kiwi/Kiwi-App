@@ -49,6 +49,7 @@ import {
   useBuildWizardPlansStreaming,
   type UseBuildWizardPlansStreamingDeps,
 } from "@/hooks/useBuildWizardPlansStreaming";
+import { useBilling } from "@/contexts/BillingContext";
 import { ApiError } from "@/lib/api/errors";
 import { getPlans, patchPlan } from "@/lib/api/plans";
 import { buildFromText, type BuildFromTextResult } from "@/lib/api/tellKiwi";
@@ -196,6 +197,9 @@ export default function PlanOptionsScreen() {
   const listRef = useRef(list);
   listRef.current = list;
 
+  // Row 9 (1.1) Stripe S2 Part E -- above every early return, per the block rule.
+  const { fireUpsellMoment } = useBilling();
+
   // ── the cap ──────────────────────────────────────────────────────────────
   const limitsQuery = useQuery({
     queryKey: ["wizard", "limits"],
@@ -230,6 +234,23 @@ export default function PlanOptionsScreen() {
   // The first batch is COMPLETE (the button's gate): a stream that settled, a
   // pre-built or rehydrated set at mount.
   const firstBatchComplete = mode !== "wizard" || initial.isComplete;
+
+  // ── Row 9 (1.1) Stripe S2 Part E -- upsell moment `first_plan_generated` ──
+  //
+  // Keyed on the SAME `firstBatchComplete` the "Get another plan option" button
+  // gates on, and on there being at least one card, so the moment means what it
+  // says: a plan the user can look at exists on this screen. Mode-agnostic (a
+  // rehydrated or Tell-Kiwi batch counts -- the user got a plan either way).
+  //
+  // NEVER BLOCKING: this fires AFTER the cards are on screen, the sheet is
+  // dismissible, and `fireUpsellMoment` is a no-op unless all four gates pass
+  // (enforced, trialing, unseen on this device, a loaded subscription). In this
+  // build the first gate is closed, so it does nothing at all.
+  const hasFirstOption = list.length > 0;
+  useEffect(() => {
+    if (!firstBatchComplete || !hasFirstOption) return;
+    fireUpsellMoment("first_plan_generated");
+  }, [firstBatchComplete, hasFirstOption, fireUpsellMoment]);
 
   // ── "Get another plan option" ────────────────────────────────────────────
   // BUG-289 — the run, its within-run dedupe and the busy flag live in

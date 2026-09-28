@@ -14,7 +14,7 @@
 // live screen.
 
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { describe, it, test } from "node:test";
 
 import type { GenerateGroceryListResult } from "@/lib/api/grocery";
 import {
@@ -22,6 +22,7 @@ import {
   resolveGenerateResult,
   type HandoffAction,
 } from "../groceryHandoff";
+import { NOTICE_GROCERY_STALE } from "../billing/copy";
 
 // ── resolveGenerateResult (carried over from groceryPicker.test.ts) ─────────
 
@@ -213,4 +214,77 @@ test("dispatch: EXACTLY ONE sink fires per outcome — never both, never neither
       `outcome ${JSON.stringify(result)} fired ${navigated.length + alerted.length} sinks`,
     );
   }
+});
+
+// ── Row 9 (1.1) · Stripe S2 Part E — the eighth outcome ──────────────────
+//
+// 🔴 A 402 IS NOT AN ALERT, and that is D-WS9-272 rather than a taste call. An
+// Alert is a modal the user must dismiss before they can look at the list they
+// already have, and it is gone the moment they do — so it is neither "in place" nor
+// "keep what exists". The notice renders beside the plan and stays.
+//
+// The paywall sheet opens independently, from the fetch layer, for every 402 in the
+// app (§2.7). So a gated generate produces BOTH: the sheet as the offer, and this
+// notice as the explanation that survives "Not now".
+describe("Stripe S2 — a gated generate resolves to a NOTICE, not an alert", () => {
+  it("402 → { kind: 'notice' } with the ruled copy", () => {
+    const action = resolveGenerateResult({
+      success: false,
+      error: "upgrade_required",
+    });
+    assert.equal(action.kind, "notice");
+    assert.equal(
+      action.kind === "notice" ? action.text : null,
+      NOTICE_GROCERY_STALE,
+    );
+  });
+
+  it("the notice sink receives it, and neither navigate nor alert fires", () => {
+    const calls: string[] = [];
+    const action = dispatchGenerateResult(
+      { success: false, error: "upgrade_required" },
+      {
+        navigate: () => calls.push("navigate"),
+        alert: () => calls.push("alert"),
+        notice: (text) => calls.push(`notice:${text}`),
+      },
+    );
+    assert.equal(action.kind, "notice");
+    assert.deepEqual(calls, [`notice:${NOTICE_GROCERY_STALE}`]);
+  });
+
+  it("a caller with NO notice sink degrades to the alert with the SAME copy, not to silence", () => {
+    // The two pre-S2 callers compiled unchanged because `notice` is optional. The
+    // copy is still the right copy — it says why and offers the upgrade — so it is
+    // delivered rather than dropped.
+    const alerts: [string, string][] = [];
+    dispatchGenerateResult(
+      { success: false, error: "upgrade_required" },
+      {
+        navigate: () => assert.fail("navigate must not fire on a refusal"),
+        alert: (title, message) => alerts.push([title, message]),
+      },
+    );
+    assert.equal(alerts.length, 1);
+    assert.equal(alerts[0][1], NOTICE_GROCERY_STALE);
+  });
+
+  it("the gate is checked BEFORE every failure branch — it is the one that is not a failure", () => {
+    // Every other error maps to an alert; only this one does not. Asserted over the
+    // whole ladder so a future branch inserted above it shows up here.
+    const others: Parameters<typeof resolveGenerateResult>[0][] = [
+      { success: false, error: "ai_failed" },
+      { success: false, error: "plan_not_found" },
+      { success: false, error: "unauthenticated" },
+      { success: false, error: "unknown", status: 500 },
+      { success: false, error: "spend_guard", reason: "spend_cap_user", message: "m" },
+    ];
+    for (const r of others) {
+      assert.equal(resolveGenerateResult(r).kind, "alert", r.error);
+    }
+    assert.equal(
+      resolveGenerateResult({ success: false, error: "upgrade_required" }).kind,
+      "notice",
+    );
+  });
 });

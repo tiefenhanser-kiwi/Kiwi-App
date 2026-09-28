@@ -17,8 +17,11 @@ import { Colors, ImageTreatment, Radius, Spacing, Typography } from "@/constants
 import { useDish } from "@/hooks/useDish";
 import { ApiError } from "@/lib/api/errors";
 import type { DishDetail } from "@/lib/api/dishes";
+import { BillingNotice } from "@/components/BillingNotice";
+import { useBilling } from "@/contexts/BillingContext";
+import { macrosNoticeFor } from "@/lib/billing/subscriptionView";
 import { formatMacro } from "@/lib/format/macros";
-import { formatQuantity } from "@/lib/format/quantity";
+import { formatIngredientLine } from "@/lib/format/ingredientLine";
 
 // WS7-3 Block C3 c3: dish detail reads GET /dishes/:id via useDish. Adopts
 // the Block B gate/body pattern from app/meal/[id].tsx — DishDetailScreen
@@ -87,6 +90,8 @@ export default function DishDetailScreen() {
 
 function DishDetailContent({ dish }: { dish: DishDetail }) {
   const router = useRouter();
+  // Row 9 (1.1) Stripe S2 Part E -- above every early return, per the block rule.
+  const { subscription } = useBilling();
 
   const onCookNow = () => {
     console.log("[dish-detail] cook-now tapped", { dishId: dish.id });
@@ -135,6 +140,15 @@ function DishDetailContent({ dish }: { dish: DishDetail }) {
             <Text style={s.heroDescription}>{dish.description}</Text>
           )}
           <Text style={s.heroMeta}>{metaParts.join(" · ")}</Text>
+          {/* Row 9 (1.1) Stripe S2 Part E -- the MACROS notice (§2.6). NAMED HERE
+              TOO, though the ruling lists only the meal strip and the plan recalc:
+              this is where a dish SAVED by a lapsed account lands, and
+              "Macros not set" below would otherwise be the only explanation a user
+              got for a figure the gate withheld. Reported as an addition. */}
+          <BillingNotice
+            text={macrosNoticeFor(subscription)}
+            testID="dish-macros-notice"
+          />
           <Text style={s.heroMacros}>
             {macrosAllZero
               ? "Macros not set"
@@ -167,8 +181,16 @@ function DishDetailContent({ dish }: { dish: DishDetail }) {
             <Text key={i} style={s.ingredientLine}>
               {/* ①-follow-up — render 1.75 back as "1¾" via the existing
                   formatQuantity glyph formatter (same as Meal Detail), so a
-                  fraction the user typed reads as a fraction on reopen. */}
-              {formatQuantity(ing.quantity, ing.unit)} {ing.unit} {ing.name}
+                  fraction the user typed reads as a fraction on reopen.
+                  Row 9 (1.1) · Stripe S2 Part E (BUG-317) — THE THIRD SCREEN.
+                  This line used to compose itself: `formatQuantity(...) {unit}
+                  {name}`, inline, the way all three screens did before BUG-315
+                  moved two of them onto the shared formatter and left this one
+                  behind. So "both screens change at once, by construction" was
+                  true of two screens out of three, and a count-unit suppression
+                  landing on the meal and guest screens would have left "1 each"
+                  here. Now there is one formatter and three callers. */}
+              {formatIngredientLine(ing)}
             </Text>
           ))}
         </View>

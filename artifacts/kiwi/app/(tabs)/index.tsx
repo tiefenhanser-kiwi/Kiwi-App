@@ -27,6 +27,8 @@ import { useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { ActivePlanStrip } from "@/components/ActivePlanStrip";
+import { BillingBanner } from "@/components/BillingBanner";
+import { BillingNotice } from "@/components/BillingNotice";
 import { GetTheAppStrip } from "@/components/GetTheAppStrip";
 import { HomeHeader } from "@/components/HomeHeader";
 import { LoadingShim } from "@/components/LoadingShim";
@@ -39,6 +41,7 @@ import { TellKiwiCard } from "@/components/TellKiwiCard";
 import { FeaturedPlanCard } from "@/components/FeaturedPlanCard";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useBilling } from "@/contexts/BillingContext";
 import { useHomePayload } from "@/hooks/useHomePayload";
 import { useHomeRail } from "@/hooks/useHomeRail";
 import { usePlans } from "@/hooks/usePlans";
@@ -67,6 +70,12 @@ export default function HomeTab() {
   const queryClient = useQueryClient();
   const { useTemplateAsPlan, setPlanActiveThisWeek } = useApp();
   const { user } = useAuth();
+  // Row 9 (1.1) Stripe S2 Part E -- above every early return, per the block rule.
+  const { fireUpsellMoment } = useBilling();
+  // The in-place notice a gated grocery generate leaves behind (§2.6). Null is the
+  // normal state; `groceryStaleNotice` is not used here because the copy arrives
+  // already resolved from lib/groceryHandoff.ts.
+  const [generateNotice, setGenerateNotice] = useState<string | null>(null);
 
   // D-WS9-258 — no paywall in the first binary; Stripe's lane re-adds the lock
   // and its route.
@@ -317,6 +326,10 @@ export default function HomeTab() {
         navigate: (id) =>
           router.push({ pathname: "/grocery-list/[id]", params: { id } }),
         alert: (title, message) => Alert.alert(title, message),
+        // Row 9 (1.1) Stripe S2 Part E -- a 402 is NOT an alert (§2.6). The notice
+        // stays on screen beside the plan; the paywall sheet is opened separately
+        // by the fetch layer for every 402 in the app.
+        notice: (text) => setGenerateNotice(text),
       });
       // BUG-111 — see the twin at app/plan/[id].tsx. A successful generate
       // invalidated nothing, so the Groceries tab (60s staleTime, focus-refetch
@@ -326,6 +339,11 @@ export default function HomeTab() {
       if (action.kind === "navigate") {
         queryClient.invalidateQueries({ queryKey: ["groceries"] });
         queryClient.invalidateQueries({ queryKey: ["home"] });
+        setGenerateNotice(null);
+        // S2 Part E -- upsell moment `first_grocery_list` (§2.5), on the SAME
+        // navigate-outcome gate BUG-111 already established: a list really exists.
+        // §27.2 -- no new hook; this is the existing success branch.
+        fireUpsellMoment("first_grocery_list");
       }
     } finally {
       setIsGeneratingList(false);
@@ -428,8 +446,16 @@ export default function HomeTab() {
       {/* R10 — the "get the app" strip. Web only, and renders nothing while the
           store links in constants/storeLinks.ts are null, which is now. */}
       <GetTheAppStrip />
+      {/* Row 9 (1.1) · Stripe S2 Part E — the billing banner (§2.4). Top of Home,
+          above the header, one at a time, and NOTHING while `enforced` is false —
+          which is every build until Hans flips the flag. The decision is
+          lib/billing/subscriptionView.ts's bannerFor, not this line. */}
+      <BillingBanner />
       <HomeHeader />
       <Screen>
+        {/* S2 Part E -- a gated grocery generate says why, in place, and the plan
+            beneath it is untouched. */}
+        <BillingNotice text={generateNotice} testID="home-generate-notice" />
         {sections.map((section) => {
           switch (section) {
             case "leadLoading":

@@ -35,6 +35,9 @@ import { ApiError } from "@/lib/api/errors";
 import type { MealDetail, MealStep } from "@/lib/api/meals";
 import { buildAmountRefSegments } from "@/lib/cooking/amountSegments";
 import { buildCookSessionParams } from "@/lib/cooking/cookSession";
+import { BillingNotice } from "@/components/BillingNotice";
+import { useBilling } from "@/contexts/BillingContext";
+import { macrosNoticeFor } from "@/lib/billing/subscriptionView";
 import { formatMacro } from "@/lib/format/macros";
 import { formatMealTime } from "@/lib/mealTimeLine";
 // Block 2b (BUG-315) — the ingredient line was composed inline here
@@ -189,6 +192,8 @@ function MealDetailContent({
   const { setServingsForPlanItem, updateMeal, addMealToPlan, removeMealFromPlan } =
     useApp();
   const { user: authUser } = useAuth();
+  // Row 9 (1.1) Stripe S2 Part E -- above every early return, per the block rule.
+  const { subscription } = useBilling();
 
   // Plan-instance context — true only when the screen was opened from a plan
   // item (both ids present); false in the Library (My Recipes). Gates the
@@ -602,6 +607,13 @@ function MealDetailContent({
         <View style={s.section}>
           <Card>
             <Text style={s.cardTitle}>Per serving</Text>
+            {/* Row 9 (1.1) Stripe S2 Part E -- the MACROS notice (§2.6). The four
+                figures below are the STORED ones and they stay: the gate stops a
+                REFRESH, it does not erase what was already computed. */}
+            <BillingNotice
+              text={macrosNoticeFor(subscription)}
+              testID="meal-macros-notice"
+            />
             <View style={s.macroRow}>
               <View style={s.macroStat}>
                 <Text style={s.macroValue}>{formatMacro(meal.calories)}</Text>

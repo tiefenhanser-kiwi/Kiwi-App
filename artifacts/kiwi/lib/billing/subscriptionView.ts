@@ -33,6 +33,7 @@ import {
   BANNER_TRIAL_CTA,
   NOTICE_FIND_SIMILAR,
   NOTICE_GROCERY_STALE,
+  NOTICE_MACROS,
   SETTINGS_ACTIVE_NO_DATE,
   SETTINGS_MANAGE,
   SETTINGS_PAST_DUE,
@@ -388,4 +389,48 @@ export function findSimilarNotice(
   aiSkipped: string | null | undefined,
 ): string | null {
   return aiSkipped === SKIPPED_FOR_SUBSCRIPTION ? NOTICE_FIND_SIMILAR : null;
+}
+
+/**
+ * The statuses the server's `isEntitled` allows to spend
+ * (api-server/src/lib/subscriptionService.ts's ENTITLED_STATUSES).
+ *
+ * ⚠️ MIRRORED, WHICH IS A COST WORTH NAMING. The server is the authority and this
+ * client must never gate anything on its own copy — every real refusal is a 402 or
+ * a `*Skipped` field. This set exists for ONE job the wire cannot do: the macro
+ * notice (below) has no per-response flag to read on a screen that is only
+ * DISPLAYING stored figures, so it has to answer "would a refresh be refused?"
+ * from the status. If the server's set ever changes, the failure mode here is a
+ * notice shown or hidden one status too early — not a wrong entitlement decision.
+ */
+const ENTITLED_STATUSES: ReadonlySet<SubscriptionStatus> = new Set<SubscriptionStatus>([
+  "trialing",
+  "active",
+  "past_due",
+]);
+
+/**
+ * The macros notice (§2.6), or null.
+ *
+ * 🔴 THE ONE NOTICE WITH NO RESPONSE FIELD BEHIND IT, and the reason is worth
+ * reading before changing it. The other two answer "did this response's work get
+ * skipped?", which a server field can say. This one answers a question about a
+ * FIGURE ALREADY ON SCREEN: the plan's daily averages and a meal's macro strip
+ * render from stored columns, and no request was made to carry a flag. The
+ * `macrosSkipped` field S2 added covers the SAVE moment; it cannot cover a screen
+ * the user opened a week later.
+ *
+ * So this one is derived from the status, and it is honest about what it claims:
+ * not "this figure is wrong" but "a refresh of it is a premium feature". The
+ * stored figures stay on screen either way — that is the "keep what exists"
+ * clause, and it is why a wrong answer here is a redundant sentence rather than a
+ * lie.
+ *
+ * Null while `enforced` is false: no refresh would be refused, so there is nothing
+ * to explain.
+ */
+export function macrosNoticeFor(sub: SubscriptionPayload | null): string | null {
+  if (sub === null) return null;
+  if (!sub.enforced) return null;
+  return ENTITLED_STATUSES.has(sub.status) ? null : NOTICE_MACROS;
 }

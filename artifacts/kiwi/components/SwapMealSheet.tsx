@@ -15,6 +15,7 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AskKiwiCreator } from "@/components/AskKiwiCreator";
+import { BillingNotice } from "@/components/BillingNotice";
 import { DisplayTitle } from "@/components/DisplayTitle";
 import { FilterChipRow } from "@/components/FilterChipRow";
 import { ImportSourceCards } from "@/components/ImportSourceCards";
@@ -26,6 +27,7 @@ import { useFindSimilarMeals } from "@/hooks/useFindSimilarMeals";
 import { useMeal } from "@/hooks/useMeal";
 import { useInfiniteMeals, useMeals } from "@/hooks/useMeals";
 import { spendGuardRefusalFromError } from "@/lib/api/errors";
+import { findSimilarNotice } from "@/lib/billing/subscriptionView";
 import {
   importEntryParams,
   type ImportEntryContext,
@@ -386,6 +388,7 @@ function SimilarBody({
   const [hadError, setHadError] = useState(false);
 
   const findSimilarMutation = useFindSimilarMeals();
+  const [aiSkipped, setAiSkipped] = useState<string | undefined>(undefined);
   const candidatesQuery = useMeals(FIND_SIMILAR_BUCKETS, SIMILAR_CANDIDATE_LIMIT);
   const sourceMealQuery = useMeal(sourceMealId);
   const sourceMeal = sourceMealQuery.data;
@@ -424,6 +427,7 @@ function SimilarBody({
       return;
     }
     setAiOrderedIds(null);
+    setAiSkipped(undefined);
     setHadError(false);
     // Hard-cap the payload regardless of library size.
     const payload = dedupedItems.slice(0, FIND_SIMILAR_MAX_PAYLOAD);
@@ -442,6 +446,11 @@ function SimilarBody({
       {
         onSuccess: (data) => {
           setAiOrderedIds(data.matches.map((m) => m.mealId));
+          // Row 9 (1.1) Stripe S2 Part E -- the ENTITLEMENT fallback, named by the
+          // server. These ARE cuisine matches and they render as normal; the one
+          // line above them is the difference between a quiet downgrade and an
+          // honest one (D-WS9-272: do not pretend the call ran).
+          setAiSkipped(data.aiSkipped);
           setHadError(false);
         },
         onError: () => {
@@ -522,6 +531,11 @@ function SimilarBody({
           </View>
         ) : (
           <View style={s.list}>
+            {/* S2 Part E -- ONE line OVER the results, never instead of them. */}
+            <BillingNotice
+              text={findSimilarNotice(aiSkipped)}
+              testID="find-similar-notice"
+            />
             {matches.map((meal) => (
               <MealRow key={meal.id} meal={meal} onPress={() => onPick(meal)} />
             ))}

@@ -18,8 +18,11 @@ import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollV
 import { PasswordField } from "@/components/PasswordField";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useBilling } from "@/contexts/BillingContext";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { ApiError } from "@/lib/api/errors";
+import { SETTINGS_ROW_TITLE } from "@/lib/billing/copy";
+import { settingsRowFor } from "@/lib/billing/subscriptionView";
 import { PRIVACY_URL, TERMS_URL } from "@/lib/legal";
 
 type EditableField = "name" | "email" | "phone";
@@ -400,11 +403,25 @@ export default function ProfileTab() {
           onPress={handlePreferences}
         />
 
-        {/* Section D: Account (PRD §14.7). D-WS9-258 — the card was "Account &
-            Subscription" and carried the trial state plus "Upgrade for
-            unlimited Kitchen Wizard plans and AI-powered features". Nothing in
-            the first binary takes money, so nothing in it promises a purchase.
-            Stripe lane re-adds both lines. The destination is unchanged. */}
+        {/* Section C2: Subscription (§2.8). Row 9 (1.1) · Stripe S2 Part E —
+            THE ONE SURFACE THAT SURVIVES THE `enforced` BLACKOUT, because a line
+            reading "Free trial · ends Oct 11" promises nothing and answers the one
+            question a user in a trial actually has.
+
+            D-WS9-258 removed the trial state and "Upgrade for unlimited Kitchen
+            Wizard plans and AI-powered features" from the card below, on the
+            grounds that "nothing in the first binary takes money, so nothing in it
+            promises a purchase", and said "Stripe lane re-adds both lines". This
+            is that lane, and it re-adds them HERE rather than back onto the
+            Account card — the Account card's own subtitle is about details,
+            password and deletion, and a subscription state squeezed into it was
+            what made the old card read as two things at once.
+
+            Renders nothing at all when Stripe is unconfigured AND enforcement is
+            off; settingsRowFor decides, not this JSX. */}
+        <SubscriptionCard />
+
+        {/* Section D: Account (PRD §14.7). The destination is unchanged. */}
         <Pressable
           onPress={handleAccountAndSubscription}
           style={({ pressed }) => [s.card, pressed && { opacity: 0.85 }]}
@@ -519,6 +536,65 @@ function EditableRow({
         </View>
       )}
     </Pressable>
+  );
+}
+
+/**
+ * Row 9 (1.1) · Stripe S2 Part E — Settings → Subscription (§2.8).
+ *
+ * A thin renderer. Which line, which buttons and whether the row exists at all are
+ * `settingsRowFor`'s answers (lib/billing/subscriptionView.ts), tested over every
+ * status × `billingAvailable` × `enforced` without a React tree — so the one thing
+ * this component must not do is re-derive any of them.
+ *
+ * Both buttons are gated on `billingAvailable` inside that helper, because a button
+ * whose only possible outcome is a 503 is worse than no button at all.
+ */
+function SubscriptionCard() {
+  const { subscription, openSheet, openPortal, linkError } = useBilling();
+  const row = settingsRowFor(subscription);
+  if (row === null) return null;
+
+  return (
+    <View style={s.card} testID="settings-subscription">
+      <View style={s.cardHeaderRow}>
+        <Text style={s.cardTitle}>{SETTINGS_ROW_TITLE}</Text>
+      </View>
+      <Text style={s.subscriptionHint} testID="settings-subscription-status">
+        {row.statusLine}
+      </Text>
+      {row.subscribe && (
+        <View style={s.subscriptionButton}>
+          <Button
+            label={row.subscribeLabel}
+            variant="primary"
+            size="sm"
+            onPress={() => openSheet()}
+            testID="settings-subscribe"
+          />
+        </View>
+      )}
+      {row.manage && (
+        <View style={s.subscriptionButton}>
+          <Button
+            label={row.manageLabel}
+            variant="ghost"
+            size="sm"
+            onPress={() => void openPortal()}
+            testID="settings-manage"
+          />
+        </View>
+      )}
+      {/* The Portal's 409 (`no_billing_account`) lands here rather than in an
+          Alert: the button was shown on a `hasBillingAccount` that has since gone
+          stale, and the honest response is a line plus a refetch, which
+          BillingContext has already fired. */}
+      {linkError !== null && (
+        <Text style={s.subscriptionError} testID="settings-subscription-error">
+          {linkError}
+        </Text>
+      )}
+    </View>
   );
 }
 
@@ -807,6 +883,16 @@ const s = StyleSheet.create({
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.sans[600],
     marginTop: 2,
+  },
+  subscriptionButton: {
+    marginTop: Spacing[2],
+  },
+  subscriptionError: {
+    fontSize: Typography.fontSize.sm,
+    color: Palette.text.danger,
+    fontFamily: Typography.face.sans[400],
+    marginTop: Spacing[2],
+    lineHeight: 18,
   },
   subscriptionHint: {
     fontSize: Typography.fontSize.sm,

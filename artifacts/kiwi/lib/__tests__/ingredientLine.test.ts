@@ -74,14 +74,94 @@ test("the member screen's fraction glyphs are unchanged — formatQuantity still
 
 // ── the unit edge cases ────────────────────────────────────────────────
 
-test("unit 'each' is emitted AS WRITTEN — pinned deliberately, not ruled", () => {
-  // "1 each large shrimp" is what the member meal screen shows today for a
-  // count unit, and Block 2b ruled no copy changes beyond the three fixes. So
-  // this formatter reproduces it rather than quietly suppressing the word.
-  // Suppressing it is a display decision nobody has made; this test is where it
-  // would change, and the change would be visible in both screens at once.
-  assert.equal(formatIngredientLine({ name: "large shrimp", quantity: 1, unit: "each" }), "1 each large shrimp");
-  assert.equal(formatIngredientLine({ name: "lemon", quantity: 2, unit: "each" }), "2 each lemon");
+// 🔴 BUG-317 — THE INVERSION. The test above this line used to read "unit 'each'
+// is emitted AS WRITTEN — pinned deliberately, not ruled", and said so at length:
+// suppressing it was "a display decision nobody has made; this test is where it
+// would change, and the change would be visible in both screens at once."
+//
+// Hans made the decision on 2026-09-27. This is that test, inverted, and the
+// change was visible in both screens at once exactly as predicted — plus a THIRD
+// screen the old comment did not know about (app/dish/[id].tsx still composed its
+// line inline; S2 Part E moved it onto this formatter, which is what makes "both
+// screens, by construction" true rather than approximate).
+test("🔴 BUG-317 — a COUNT unit is SUPPRESSED: '1 large shrimp', not '1 each large shrimp'", () => {
+  assert.equal(
+    formatIngredientLine({ name: "large shrimp", quantity: 1, unit: "each" }),
+    "1 large shrimp",
+  );
+  assert.equal(formatIngredientLine({ name: "lemon", quantity: 2, unit: "each" }), "2 lemon");
+  // Case and whitespace do not smuggle it back in.
+  assert.equal(formatIngredientLine({ name: "lemon", quantity: 2, unit: "Each" }), "2 lemon");
+  assert.equal(formatIngredientLine({ name: "lemon", quantity: 2, unit: " EACH " }), "2 lemon");
+  // The other spellings the ruling names. None of them is in the catalog today
+  // (measured: 49 distinct units across both snapshots), but the import path
+  // writes `unit` from arbitrary web pages.
+  for (const unit of ["piece", "pieces", "count", "ct", "unit", "units"]) {
+    assert.equal(
+      formatIngredientLine({ name: "chicken thigh", quantity: 3, unit }),
+      "3 chicken thigh",
+      unit,
+    );
+  }
+});
+
+test("🔴 BUG-317 — REAL units stay words: head, clove, bunch, can, slice, whole, large", () => {
+  // The whole point of the ruling is the line between a placeholder and a word a
+  // recipe actually says. "1 head garlic" is correct; "1 garlic" is not.
+  assert.equal(formatIngredientLine({ name: "garlic", quantity: 1, unit: "head" }), "1 head garlic");
+  assert.equal(formatIngredientLine({ name: "garlic", quantity: 6, unit: "clove" }), "6 clove garlic");
+  assert.equal(formatIngredientLine({ name: "parsley", quantity: 1, unit: "bunch" }), "1 bunch parsley");
+  assert.equal(
+    formatIngredientLine({ name: "coconut milk", quantity: 1, unit: "can" }),
+    "1 can coconut milk",
+  );
+  assert.equal(formatIngredientLine({ name: "bacon", quantity: 6, unit: "slice" }), "6 slice bacon");
+  // `whole` is in the SERVER's count-unit table and deliberately NOT suppressed
+  // here — "1 whole chicken" is a sentence, and the existing test below pins it.
+  assert.equal(formatIngredientLine({ name: "chicken", quantity: 1, unit: "whole" }), "1 whole chicken");
+  // `large` maps to "each" in the server's prepCombineEngine canon, and is also
+  // deliberately kept: dropping it turns "1 large egg" into "1 egg".
+  assert.equal(formatIngredientLine({ name: "egg", quantity: 1, unit: "large" }), "1 large egg");
+});
+
+test("🔴 BUG-317 — suppressing the WORD does not change the NUMBER", () => {
+  // The suppressed token is STILL handed to formatQuantity, which reads `unit` to
+  // pick its whole-unit ceiling rule. Passing "" there instead would be a rounding
+  // change disguised as a display change, so this pins that the amount is
+  // untouched by the suppression: identical to what the same quantity+unit
+  // produced before, for a unit that DOES take the ceiling and one that does not.
+  assert.equal(
+    formatIngredientLine({ name: "garlic", quantity: 3.2, unit: "clove" }),
+    "4 clove garlic",
+    "clove still ceilings, and still prints its word",
+  );
+  // ⚠️ AN ADJACENT FINDING, PINNED AND NOT FIXED. formatQuantity's ceiling list is
+  // ["whole", "clove"] — `each` is NOT in it — so a fractional count prints as a
+  // fraction: "3¼ lemons". That is nonsense for a countable thing, and BUG-317
+  // makes it slightly more visible by removing the word in front of it. It is NOT
+  // this ruling's scope (§2.10 — no changes beyond the above), and adding `each`
+  // to that list would move numbers on every screen formatQuantity feeds,
+  // including the grocery list. Reported; Hans's call.
+  assert.equal(formatIngredientLine({ name: "lemons", quantity: 3.2, unit: "each" }), "3¼ lemons");
+  // A whole count is the overwhelmingly common case, and it reads correctly.
+  assert.equal(formatIngredientLine({ name: "lemons", quantity: 2, unit: "each" }), "2 lemons");
+});
+
+test("BUG-317 — a suppressed unit still leaves no doubled or trailing space", () => {
+  for (const unit of ["each", "piece", "count", "ct", "unit"]) {
+    const line = formatIngredientLine({ name: "lemon", quantity: 2, unit });
+    assert.equal(line, line.trim(), unit);
+    assert.ok(!line.includes("  "), unit);
+    assert.equal(line, "2 lemon", unit);
+  }
+  // And with notes on, the parenthetical still attaches to the name.
+  assert.equal(
+    formatIngredientLine(
+      { name: "lemons", quantity: 2, unit: "each", preparationNote: "1 juiced" },
+      { includeNotes: true },
+    ),
+    "2 lemons (1 juiced)",
+  );
 });
 
 test("a missing unit drops the token instead of emitting a blank word", () => {

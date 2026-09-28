@@ -18,6 +18,7 @@ import { Feather } from "@expo/vector-icons";
 import { Button } from "@/components/Button";
 import { ClarifySheetView } from "@/components/ClarifySheetView";
 import { Header } from "@/components/Header";
+import { BillingNotice } from "@/components/BillingNotice";
 import { InstacartOrderPanel } from "@/components/InstacartOrderPanel";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { focusAddItemInput } from "@/lib/groceryAddAnchor";
@@ -46,6 +47,8 @@ import {
   type PurchaseEditorFields,
 } from "@/lib/format/grocery";
 import { parseQuantity } from "@/lib/quantity";
+import { groceryStaleNotice } from "@/lib/billing/subscriptionView";
+import { useBilling } from "@/contexts/BillingContext";
 import { getGroceryListById } from "@/lib/stubs";
 import {
   Colors,
@@ -145,6 +148,8 @@ export default function GroceryListDetail() {
   // second add path (see lib/groceryAddAnchor.ts).
   const addInputRef = useRef<TextInput | null>(null);
   const scrollRef = useRef<ScrollView | null>(null);
+  // Row 9 (1.1) Stripe S2 Part E -- above every early return, per the block rule.
+  const { fireUpsellMoment } = useBilling();
   const [addItemInput, setAddItemInput] = useState("");
   // 6c-6-C — debounced typeahead state. debouncedQuery trails the raw
   // input by 250ms to match the plans.tsx debounce convention; the
@@ -163,6 +168,13 @@ export default function GroceryListDetail() {
   // WS7-7-A B5 — shown when the GET reconciled the list to plan changes
   // (data-driven off the server's `reconciled` flag, not a timer). Dismissable.
   const [showReconciledBanner, setShowReconciledBanner] = useState(false);
+  // Row 9 (1.1) Stripe S2 Part E -- the server's reason the reconcile did not run.
+  // Held raw and passed through `groceryStaleNotice`, never compared here: the
+  // rule that only "subscription_required" earns a notice belongs in one tested
+  // place, not at each render site.
+  const [reconcileSkipped, setReconcileSkipped] = useState<string | undefined>(
+    undefined,
+  );
   // WS5-5Q-fix-2 — inline quantity edit (mirrors meal-builder's two-input
   // amount + unit pattern; parent owns edit state so a focus-swap between
   // the two inputs doesn't unmount the row mid-edit).
@@ -307,8 +319,12 @@ export default function GroceryListDetail() {
     let cancelled = false;
     (async () => {
       try {
-        const { list: real, reconciled, instacartEnabled: retailerOn } =
-          await getGroceryList(id);
+        const {
+          list: real,
+          reconciled,
+          instacartEnabled: retailerOn,
+          reconcileSkipped,
+        } = await getGroceryList(id);
         if (!cancelled) {
           setList(real);
           setInstacartEnabled(retailerOn);
@@ -316,6 +332,12 @@ export default function GroceryListDetail() {
           // The list self-maintained to match plan edits — tell the user so
           // a changed quantity doesn't look like a glitch (PRD: no staleness).
           if (reconciled) setShowReconciledBanner(true);
+          // Row 9 (1.1) Stripe S2 Part E -- the STALE-LIST notice (§2.6). Distinct
+          // from the reconciled banner above in every way that matters: that one
+          // is transient and says work HAPPENED, this one is persistent and says
+          // work did NOT happen and why. Only the entitlement value earns it --
+          // `groceryStaleNotice` returns null for "error" and for absence.
+          setReconcileSkipped(reconcileSkipped);
         }
       } catch (err) {
         console.error("[grocery-list/[id]] load failed", err);
@@ -952,6 +974,13 @@ export default function GroceryListDetail() {
     }
     try {
       await Linking.openURL(url);
+      // Row 9 (1.1) Stripe S2 Part E -- upsell moment `first_instacart_handoff`
+      // (§2.5). AFTER the handoff has actually happened, never before: the moment
+      // is "the product just proved itself", and a sheet between the tap and the
+      // retailer would be an interruption rather than an offer. Gated four ways in
+      // lib/billing/upsellMoments.ts, once per device, and a no-op in every build
+      // where enforcement is off -- which is this one.
+      fireUpsellMoment("first_instacart_handoff");
     } catch (err) {
       console.warn("[grocery-list] instacart openURL rejected", err);
       setInstacartError(INSTACART_NO_BROWSER_COPY);
@@ -1029,6 +1058,15 @@ export default function GroceryListDetail() {
             state: everything is checked, so the R1 selection would be empty.
             The "Kiwi needs a few specifics" banner sits directly under it, so
             its "before they can be ordered" line reads next to the CTA. */}
+        {/* Row 9 (1.1) Stripe S2 Part E -- the stale-list notice (§2.6). FIRST in
+            the scroll because it is a statement about the whole list, and the list
+            underneath it is untouched: every row, every check, every quantity the
+            user set is still theirs to read and edit. "Keep what exists." */}
+        <BillingNotice
+          text={groceryStaleNotice(reconcileSkipped)}
+          testID="grocery-stale-notice"
+        />
+
         {list.status !== "completed" && (
           <InstacartOrderPanel
             enabled={instacartEnabled}
