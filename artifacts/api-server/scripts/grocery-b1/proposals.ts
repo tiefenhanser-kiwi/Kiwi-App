@@ -58,7 +58,10 @@ export const PACK_YIELDS: PackYield[] = [
   { ingredient: "thai basil", unit: "cup", perPack: 2, source: "Hans Sept 7", note: "herb-bunch convention", chose: true },
   { ingredient: "fresh dill", unit: "cup", perPack: 2, source: "Hans Sept 7", note: "herb-bunch convention" },
   { ingredient: "fresh mint", unit: "cup", perPack: 2, source: "Hans Sept 7", note: "herb-bunch convention; the live `fresh mint -> fresh mint leaves 1 cup` edge is high but NOT human-reviewed and disagrees", chose: true },
-  { ingredient: "fresh oregano", unit: "cup", perPack: 2, source: "Hans Sept 7", note: "herb-bunch convention; the live `-> fresh oregano leaves 4 tbsp` edge is high, unreviewed, and disagrees", chose: true },
+  // RULED Sept 28 (digest #12, CHANGED from the proposed 2 cup): a WOODY herb
+  // takes the LOWER sourced figure, and the live edge's 4 tbsp is it. A lower
+  // yield buys more, never less.
+  { ingredient: "fresh oregano", unit: "cup", perPack: 0.25, source: "relation-edge", note: "RULED Sept 28 — woody herb, lower sourced figure: the live `-> fresh oregano leaves 4 tbsp` edge = 0.25 cup per bunch" },
   { ingredient: "fresh sage", unit: "cup", perPack: 0.5, source: "relation-edge", note: "fresh sage -> fresh sage leaves 0.5 cup (high, unreviewed); sage leaves are large and sparse, so the 2-cup convention overstates", chose: true },
   // woody herbs: the reviewed thyme edge is the precedent, rosemary takes parity
   { ingredient: "fresh thyme", unit: "tbsp", perPack: 3, source: "relation-edge", note: "fresh thyme -> fresh thyme leaves 3 tbsp, high + human-reviewed" },
@@ -171,8 +174,11 @@ export const PART_EDGES: PartEdge[] = [
     source: "Hans Sept 7", note: "exists (1 cup, high, unreviewed), refused on basis `cup`; the pack is a bunch, and Hans's uncut figure is 2", existsButRefused: true, chose: true },
   { parent: "fresh sage", child: "fresh sage leaves", yieldQuantity: 0.5, yieldUnit: "cup", coHarvestable: true,
     source: "relation-edge", note: "exists, refused on basis `tablespoon`; the pack is a bunch", existsButRefused: true },
-  { parent: "fresh oregano", child: "fresh oregano leaves", yieldQuantity: 2, yieldUnit: "cup", coHarvestable: true,
-    source: "Hans Sept 7", note: "exists (4 tbsp), refused on basis `tablespoon`; the pack is a bunch", existsButRefused: true, chose: true },
+  // RULED Sept 28 (digest #71, CHANGED from 2 cup): consistent with Y #12. The
+  // edge's own 4 tbsp = 0.25 cup stands; only its BASIS was wrong — `tablespoon`,
+  // not the bunch it is packed in.
+  { parent: "fresh oregano", child: "fresh oregano leaves", yieldQuantity: 0.25, yieldUnit: "cup", coHarvestable: true,
+    source: "relation-edge", note: "exists as 4 tbsp = 0.25 cup; refused on basis `tablespoon`, and the pack is a bunch", existsButRefused: true },
   { parent: "thai basil", child: "fresh thai basil leaves", yieldQuantity: 2, yieldUnit: "cup", coHarvestable: true,
     source: "Hans Sept 7", note: "exists (1 cup), refused on basis `cup`; the pack is a bunch", existsButRefused: true, chose: true },
   { parent: "parmesan", child: "parmesan rind", yieldQuantity: 1, yieldUnit: "each", coHarvestable: true,
@@ -250,5 +256,40 @@ export const X_ITEMS: { kind: string; target: string; change: string; why: strin
     why: "they fold to DIFFERENT keys, so 425da049 ships `fresh flat-leaf parsley 4 tbsp` and `fresh parsley 3 tbsp` as two bunches. A3 reverted this fold deliberately, 'for unit reasons, not the yield' — with a pack yield the unit reason is gone. Hans's call whether B1 re-folds it." },
 ];
 
+/**
+ * RULED Sept 28 — the four category corrections. `Ingredient.category` is the
+ * write-once inferCategory vocabulary and these four are produce stamped
+ * `Pantry`. They matter twice over: the category feeds
+ * PERISHABILITY_BY_CATEGORY (day assignment) and CATEGORY_TO_SECTION (the
+ * grocery aisle), so each one is also an aisle move.
+ */
+export const CATEGORY_FIXES: { ingredient: string; from: string; to: string; aisle: string }[] = [
+  { ingredient: "fresh oregano", from: "Pantry", to: "Produce", aisle: "pantry -> produce" },
+  { ingredient: "radicchio", from: "Pantry", to: "Produce", aisle: "pantry -> produce" },
+  { ingredient: "seedless watermelon", from: "Pantry", to: "Produce", aisle: "pantry -> produce" },
+  { ingredient: "broccolini", from: "Pantry", to: "Produce", aisle: "pantry -> produce" },
+];
+
+/** RULED Sept 28 — re-time the PUBLIC rows only (BUG-328). */
+export const RETIME: { id: string; title: string; from: number; to: number }[] = [
+  { id: "b96af5ed", title: "Cheese Ravioli with Marinara and Garlic Bread", from: 30, to: 73 },
+  { id: "9d693c64", title: "Spicy Chicken Scampi with Cherry Tomatoes over Linguine", from: 28, to: 50 },
+  { id: "1f122b1a", title: "Sausage and Kale Orecchiette with Crusty Bread", from: 27, to: 65 },
+];
+
 // ── the two named constants ─────────────────────────────────────────────────
 export const PACK_FORGIVENESS_FRACTION = 0.125;
+
+/**
+ * RULED Sept 28 — THE FORGIVENESS DISCRIMINATOR IS THE PACK UNIT, NOT THE
+ * CATEGORY. Hans:
+ *
+ *   "The forgiveness exists so nobody throws out ¾ of a bunch that wilts in
+ *    days. Garlic, onions, cabbage and citrus keep for weeks, so they round
+ *    straight up. Garlic 21 cloves → 3 heads."
+ *
+ * So it is one token — `bunch` — and needs no map at all. Part A's proposal read
+ * `category === 'Produce'`, whose only corpus effect was to buy 2 heads of garlic
+ * for a 21-clove need. That is the measurement that produced this ruling.
+ */
+export const PACK_FORGIVENESS_UNIT = "bunch";

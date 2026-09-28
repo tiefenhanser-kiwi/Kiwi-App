@@ -707,6 +707,40 @@ model Ingredient {
   // from the code table + USDA foodPortions; runtime AI-fallback fills gaps
   // stamped 'ai_estimated'. Null until seeded/backfilled.
   conversionRef       Json?
+  // ── [grocery] B1 (D-WS9-280 / D-WS9-225) — THE PER-INGREDIENT PACK YIELD ──
+  //
+  // How much of a MEASURED need ONE PACK of this ingredient yields: a bunch of
+  // cilantro gives 2 cups, a head of iceberg 4 cups, a head of garlic 10 cloves.
+  // Without it a plan needing ¼ cup and ¼ bunch of cilantro prints two "1 bunch"
+  // rows, and one needing a head of cabbage plus 2 cups buys one head.
+  //
+  // THE PACK NOUN IS NOT STORED HERE. It is `purchaseUnit`, three fields up. A
+  // yield is (unit, perPack) and nothing else — which is exactly what the garlic
+  // `conversionRef.subUnit {parent, perParent}` ladder already is, minus the
+  // child unit it never had to name because its child was always a clove. The
+  // ladder reads THESE columns now; `subUnit` is the fallback for a row that has
+  // no yield yet, and the two must never disagree for garlic (asserted by test).
+  //
+  // ⚠️ DELIBERATELY NOT IN `conversionRef` (D-WS9-189). That JSON has THREE live
+  // rewriters — two backfills and the runtime gap-fill — so a yield stored there
+  // inherits every one of them as a corruption vector. Scalar columns also make
+  // the yield queryable, which `conversionRef.subUnit` never was: the Part A
+  // survey had to resolve 1,780 JSON blobs in process to count ONE ladder row.
+  //
+  // ⚠️ FOUR COLUMNS, NOT A JSON BLOB, and the last two are why: this data is
+  // loaded through the A1 reviewed round trip, so every row must carry where its
+  // figure came from and whether a human signed it off. That is the same shape
+  // `IngredientRelation.confidence` / `reviewedByHuman` already uses, and the
+  // precedent is deliberate — a figure nobody can trace is the failure A1's
+  // provenance discipline exists to prevent.
+  //
+  // NULLABLE by design: 1,780 catalog rows and ~55 of them are sold whole
+  // against a measured need. A null yield means "fall back to one whole pack per
+  // need", which over-orders and never under-orders (D-WS9-182).
+  packYieldUnit            String?
+  packYieldPerPack         Float?
+  packYieldSource          String?
+  packYieldReviewedByHuman Boolean @default(false)
 
   dishIngredients DishIngredient[]
   groceryItems    GroceryListItem[]
