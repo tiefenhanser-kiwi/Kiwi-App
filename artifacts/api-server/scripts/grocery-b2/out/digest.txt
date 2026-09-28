@@ -14,1340 +14,1183 @@ S — THE SUBSUMES EDGES.  546 rows in the table; 308 are LIVE
     126 generics. Grouped by generic; one number per EDGE.
 ==============================================================================
 
-  -- S.PROMO — MEDIUM, UNREVIEWED ROWS THIS LANE WANTS PAST THE GATE.
-     Same mechanism as RULED_PROMOTIONS in ingredientRelations.ts, which
-     already does exactly this for synonym edges. Without these two the
-     prompt's own worked examples do not fold. --
-   1.   PROMOTE parsley ⊇ fresh flat-leaf parsley
-        why: digest #101, already ruled — 2 bunches parsley (at least one flat-leaf). The row is medium and unreviewed; the RULING is what promotes it.
-   2. ? PROMOTE chicken thighs ⊇ boneless skinless chicken thighs
-        why: the prompt requires this pair in the dry run and R7 names the same food as the Instacart failure of September 19. The row is medium and unreviewed, so it needs a promotion or it stays two lines.
-
-  -- S.0 — THE TOKEN FAMILIES. Each is ONE decision applied to many edges.
-     Rule these and the per-edge list below follows. A family is the word the
-     SPECIFIC adds over the GENERIC; the class says what that word means. --
-   3. ? KEEP      "dried"  — decides 16 edges
-        e.g. black beans ⊇ dried black beans · chickpeas ⊇ dried chickpeas · flat rice noodles ⊇ dried flat rice noodles
-   4. ? QUALIFIER "san"  — decides 14 edges
-        e.g. canned crushed tomatoes ⊇ canned crushed san marzano tomatoes · canned crushed tomatoes ⊇ canned san marzano crushed tomatoes · canned whole peeled tomatoes ⊇ canned san marzano whole peeled tomatoes
-   5. ? KEEP      "canned"  — decides 14 edges
-        e.g. cannellini beans ⊇ canned cannellini beans · cannellini beans ⊇ canned white cannellini beans · chickpeas ⊇ canned chickpeas
-   6. ? QUALIFIER "large"  — decides 13 edges
-        e.g. bell peppers ⊇ large bell peppers · flatbread ⊇ large whole-wheat flatbreads · onion ⊇ large yellow onion
-   7. ? QUALIFIER "peeled"  — decides 13 edges
-        e.g. large shrimp ⊇ large shrimp, peeled and deveined · large shrimp ⊇ large shrimp, peeled and deveined (16/20 count) · large shrimp ⊇ large shrimp, peeled and deveined (21–25 count)
-   8. ? QUALIFIER "yellow"  — decides 12 edges
-        e.g. baby potato ⊇ baby yellow potato · bell peppers ⊇ yellow bell pepper · cornmeal ⊇ coarse yellow cornmeal
-   9. ? QUALIFIER "deveined"  — decides 12 edges
-        e.g. large shrimp ⊇ large shrimp, peeled and deveined · large shrimp ⊇ large shrimp, peeled and deveined (16/20 count) · large shrimp ⊇ large shrimp, peeled and deveined (21–25 count)
-  10. ? QUALIFIER "medium"  — decides 10 edges
-        e.g. carrots ⊇ medium carrots · dried flat rice noodles ⊇ dried flat rice noodles (medium width, 3–5mm) · dried rice noodles ⊇ dried flat rice noodles (medium width, 3–5mm)
-  11. ? KEEP      "fresh"  — decides 9 edges
-        e.g. asparagus ⊇ fresh asparagus spears, thick-cut · corn kernels ⊇ fresh corn kernels · green beans ⊇ fresh green beans
-  12. ? QUALIFIER "red"  — decides 8 edges
-        e.g. baby potato ⊇ baby red potatoes · baby potato ⊇ small red potatoes · bell peppers ⊇ red bell pepper
-  13. ? QUALIFIER "flat"  — decides 7 edges
-        e.g. dried rice noodles ⊇ dried flat rice noodles · dried rice noodles ⊇ dried flat rice noodles (8mm wide) · dried rice noodles ⊇ dried flat rice noodles (medium width, 3–5mm)
-  14. ? QUALIFIER "bone-in"  — decides 6 edges
-        e.g. beef chuck ⊇ bone-in beef chuck roast · beef chuck roast ⊇ bone-in beef chuck roast · ribeye steak ⊇ bone-in ribeye steaks
-  15. ? QUALIFIER "white"  — decides 6 edges
-        e.g. canned tuna in water ⊇ canned solid white albacore tuna in water · cheddar ⊇ sharp white cheddar cheese · cheddar cheese ⊇ sharp white cheddar cheese
-  16. ? QUALIFIER "sharp"  — decides 6 edges
-        e.g. cheddar ⊇ sharp cheddar · cheddar ⊇ sharp cheddar cheese · cheddar ⊇ sharp white cheddar cheese
-  17. ? KEEP      "mild"  — decides 6 edges
-        e.g. italian pork sausage ⊇ mild italian pork sausage · italian pork sausage ⊇ mild italian pork sausage links · italian pork sausage links ⊇ mild italian pork sausage links
-  18. ? KEEP      "dark"  — decides 5 edges
-        e.g. canned kidney beans ⊇ canned dark red kidney beans · kidney beans ⊇ canned dark red kidney beans · kidney beans ⊇ dark red kidney beans
-  19. ? QUALIFIER "baby"  — decides 4 edges
-        e.g. arugula ⊇ baby arugula · fresh spinach ⊇ fresh baby spinach · small potato ⊇ baby red potatoes
-  20. ? QUALIFIER "ripe"  — decides 4 edges
-        e.g. beefsteak tomato ⊇ ripe beefsteak tomatoes · roma tomatoes ⊇ ripe roma tomatoes · tomato ⊇ ripe beefsteak tomatoes
-  21. ? QUALIFIER "whole-milk"  — decides 4 edges
-        e.g. low-moisture mozzarella ⊇ low-moisture whole-milk mozzarella · low-moisture mozzarella ⊇ whole-milk low-moisture mozzarella · shredded low-moisture mozzarella ⊇ shredded low-moisture whole-milk mozzarella
-  22. ? QUALIFIER "small"  — decides 3 edges
-        e.g. baby potato ⊇ small red potatoes · beets ⊇ small beet · red potatoes ⊇ small red potatoes
-  23. ? QUALIFIER "boneless"  — decides 3 edges
-        e.g. beef chuck ⊇ boneless beef chuck roast · beef chuck roast ⊇ boneless beef chuck roast · ribeye steak ⊇ boneless ribeye steaks
-  24. ? KEEP      "fire-roasted"  — decides 3 edges
-        e.g. canned diced tomatoes ⊇ canned fire-roasted diced tomatoes · crushed tomatoes ⊇ crushed fire-roasted tomatoes · crushed tomatoes ⊇ fire-roasted crushed tomatoes
-  25. ? KEEP      "frozen"  — decides 3 edges
-        e.g. corn kernels ⊇ frozen corn kernels · edamame ⊇ shelled frozen edamame · green beans ⊇ frozen green beans
-  26. ? KEEP      "kashmiri"  — decides 3 edges
-        e.g. dried red chilies ⊇ dried kashmiri red chilies · red chili powder ⊇ kashmiri red chili powder · red chili powder ⊇ pinch of kashmiri red chili powder
-  27. ? KEEP      "thai"  — decides 3 edges
-        e.g. fresh red chili ⊇ fresh red thai chilies · red chili ⊇ fresh red thai chilies · red chili ⊇ red thai chili
-  28. ? QUALIFIER "lean"  — decides 3 edges
-        e.g. ground beef ⊇ ground beef (85% lean) · ground beef ⊇ lean ground beef · ground beef ⊇ lean ground beef (85/15)
-  29. ? QUALIFIER "brioche"  — decides 3 edges
-        e.g. hamburger buns ⊇ brioche hamburger bun · hot dog buns ⊇ brioche hot dog buns · slider buns ⊇ brioche slider buns
-  30. ? KEEP      "sweet"  — decides 3 edges
-        e.g. italian pork sausage ⊇ sweet italian pork sausage · italian sausage ⊇ sweet italian pork sausage · italian sausage ⊇ sweet italian sausage links
-  31. ? QUALIFIER "long-grain"  — decides 2 edges
-        e.g. brown rice ⊇ long-grain brown rice · cooked white rice ⊇ cooked long-grain white rice
-  32. ? QUALIFIER "albacore"  — decides 2 edges
-        e.g. canned tuna in water ⊇ canned albacore tuna in water · canned tuna in water ⊇ canned solid white albacore tuna in water
-  33. ? QUALIFIER "thick-cut"  — decides 2 edges
-        e.g. fresh asparagus ⊇ fresh asparagus spears, thick-cut · fresh asparagus spears ⊇ fresh asparagus spears, thick-cut
-  34. ? QUALIFIER "pitted"  — decides 2 edges
-        e.g. green olives ⊇ pitted green olives · kalamata olives ⊇ pitted kalamata olives
-  35. ? QUALIFIER "potato"  — decides 2 edges
-        e.g. hamburger buns ⊇ potato hamburger bun · slider rolls ⊇ potato slider rolls
-  36. ? KEEP      "lacinato"  — decides 2 edges
-        e.g. kale ⊇ fresh lacinato kale · kale ⊇ lacinato kale
-  37. ? KEEP      "fresno"  — decides 2 edges
-        e.g. red chili ⊇ red fresno chiles · red chili ⊇ red fresno chili
-  38. ? KEEP      "kielbasa"  — decides 2 edges
-        e.g. smoked sausage ⊇ kielbasa (smoked polish sausage) · smoked sausage ⊇ smoked kielbasa sausage
-  39. ? QUALIFIER "crisp"  — decides 1 edge
-        e.g. apple ⊇ crisp apple
-  40. ? QUALIFIER "granny"  — decides 1 edge
-        e.g. apple ⊇ granny smith apple
-  41. ? QUALIFIER "honeycrisp"  — decides 1 edge
-        e.g. apple ⊇ honeycrisp apple
-  42. ? QUALIFIER "yukon"  — decides 1 edge
-        e.g. baby potato ⊇ baby yukon gold potatoes
-  43. ? KEEP      "honey"  — decides 1 edge
-        e.g. bbq sauce ⊇ honey bbq sauce
-  44. ? KEEP      "smoky"  — decides 1 edge
-        e.g. bbq sauce ⊇ smoky bbq sauce
-  45. ? QUALIFIER "green"  — decides 1 edge
-        e.g. bell peppers ⊇ green bell pepper
-  46. ? QUALIFIER "center-cut"  — decides 1 edge
-        e.g. bone-in pork chops ⊇ bone-in center-cut pork chops
-  47. ? QUALIFIER "italian"  — decides 1 edge
-        e.g. breadcrumbs ⊇ italian breadcrumbs
-  48. ? QUALIFIER "solid"  — decides 1 edge
-        e.g. canned tuna in water ⊇ canned solid white albacore tuna in water
-  49. ? KEEP      "madras"  — decides 1 edge
-        e.g. curry powder ⊇ madras curry powder
-  50. ? KEEP      "sichuan"  — decides 1 edge
-        e.g. dried red chilies ⊇ dried red sichuan chilies
-  51. ? QUALIFIER "shelled"  — decides 1 edge
-        e.g. edamame ⊇ shelled edamame
-  52. ? KEEP      "hatch"  — decides 1 edge
-        e.g. green chili ⊇ hatch green chiles
-  53. ? QUALIFIER "80/20"  — decides 1 edge
-        e.g. ground beef ⊇ ground beef (80/20 chuck)
-  54. ? QUALIFIER "85%"  — decides 1 edge
-        e.g. ground beef ⊇ ground beef (85% lean)
-  55. ? QUALIFIER "85/15"  — decides 1 edge
-        e.g. ground beef ⊇ lean ground beef (85/15)
-  56. ? QUALIFIER "french"  — decides 1 edge
-        e.g. hoagie rolls ⊇ french hoagie rolls (10-inch)
-  57. ? KEEP      "chipotle"  — decides 1 edge
-        e.g. hot sauce ⊇ chipotle hot sauce
-  58. ? KEEP      "hot"  — decides 1 edge
-        e.g. italian sausage ⊇ hot italian sausage
-  59. ? KEEP      "spicy"  — decides 1 edge
-        e.g. italian sausage ⊇ spicy italian sausage
-  60. ? KEEP      "roja"  — decides 1 edge
-        e.g. jarred salsa ⊇ jarred salsa roja
-  61. ? KEEP      "verde"  — decides 1 edge
-        e.g. jarred salsa ⊇ jarred salsa verde
-  62. ? KEEP      "curly"  — decides 1 edge
-        e.g. kale ⊇ curly kale
-  63. ? QUALIFIER "mexican"  — decides 1 edge
-        e.g. lager beer ⊇ mexican lager beer
-  64. ? QUALIFIER "navel"  — decides 1 edge
-        e.g. orange ⊇ navel oranges
-  65. ? KEEP      "refrigerated"  — decides 1 edge
-        e.g. pizza dough ⊇ refrigerated pizza dough
-  66. ? KEEP      "jarred"  — decides 1 edge
-        e.g. roasted red peppers ⊇ jarred roasted red peppers
-  67. ? QUALIFIER "japanese"  — decides 1 edge
-        e.g. short-grain white rice ⊇ japanese short-grain white rice
-  68. ? QUALIFIER "jumbo"  — decides 1 edge
-        e.g. shrimp ⊇ jumbo shrimp, peeled and deveined
-  69. ? KEEP      "andouille"  — decides 1 edge
-        e.g. smoked sausage ⊇ andouille smoked sausage
-  70. ? QUALIFIER "low-sodium"  — decides 1 edge
-        e.g. soy sauce ⊇ low-sodium soy sauce
-  71. ? KEEP      "cherry"  — decides 1 edge
-        e.g. tomato ⊇ cherry tomatoes
-  72. ? KEEP      "heirloom"  — decides 1 edge
-        e.g. tomato ⊇ heirloom tomato
-  73. ? KEEP      "plum"  — decides 1 edge
-        e.g. tomato ⊇ plum tomatoes
-
-  -- S.1 — THE EDGES. `?` here means NO family covered it. --
-
   80/20 ground beef
-  74. ? KEEP      ground beef (80/20 chuck)
+   1.   H1      ground beef (80/20 chuck)
         -> TWO lines: "80/20 ground beef" and "ground beef (80/20 chuck)"
-        why: no family covers (chuck) — refusing to fold is the safe side, and this one needs a look
+        why: go-ahead S.1 #74/#203
 
   apple
-  75.   QUALIFIER crisp apple
-        -> ONE line: "2 apple (at least one crisp)"
-        why: family "crisp" — a grade, trim, colour or size on the same food
-  76.   QUALIFIER granny smith apple
-        -> ONE line: "2 apple (at least one granny smith)"
-        why: family "granny" — a grade, trim, colour or size on the same food
-  77.   QUALIFIER honeycrisp apple
-        -> ONE line: "2 apple (at least one honeycrisp)"
-        why: family "honeycrisp" — a grade, trim, colour or size on the same food
+   2.   H1      crisp apple
+        -> TWO lines: "apple" and "crisp apple"
+        why: "crisp" names a different product (H1)
+   3.   H1      granny smith apple
+        -> TWO lines: "apple" and "granny smith apple"
+        why: "granny" names a different product (H1)
+   4.   H1      honeycrisp apple
+        -> TWO lines: "apple" and "honeycrisp apple"
+        why: "honeycrisp" names a different product (H1)
 
   arugula
-  78.   QUALIFIER baby arugula
-        -> ONE line: "2 arugula (at least one baby)"
-        why: family "baby" — a grade, trim, colour or size on the same food
+   5.   H3      baby arugula
+        -> ONE line IF a recipe demanded "arugula" and it is count-sold: "N arugula, at least M <variety>"; TWO lines otherwise
+        why: "baby" is a store product the generic can stand in for (H3)
 
   asparagus
-  79.   KEEP      fresh asparagus spears, thick-cut
-        -> TWO lines: "asparagus" and "fresh asparagus spears, thick-cut"
-        why: family "fresh" — a different food or state
+   6.   H3      fresh asparagus spears, thick-cut
+        -> ONE line IF a recipe demanded "asparagus" and it is count-sold: "N asparagus, at least M <variety>"; TWO lines otherwise
+        why: same; `spears` and `thick-cut` are a hedge and a grade
 
   baby potato
-  80.   QUALIFIER baby red potatoes
-        -> ONE line: "2 baby potato (at least one red)"
-        why: family "red" — a grade, trim, colour or size on the same food
-  81.   QUALIFIER baby yellow potato
-        -> ONE line: "2 baby potato (at least one yellow)"
-        why: family "yellow" — a grade, trim, colour or size on the same food
-  82.   QUALIFIER baby yukon gold potatoes
-        -> ONE line: "2 baby potato (at least one yukon gold)"
-        why: family "yukon" — a grade, trim, colour or size on the same food
-  83.   QUALIFIER small red potatoes
-        -> ONE line: "2 baby potato (at least one small red)"
-        why: family "small, red" — a grade, trim, colour or size on the same food
+   7.   H3      baby red potatoes
+        -> ONE line IF a recipe demanded "baby potato" and it is count-sold: "N baby potato, at least M <variety>"; TWO lines otherwise
+        why: "red" is a store product the generic can stand in for (H3)
+   8.   H3      baby yellow potato
+        -> ONE line IF a recipe demanded "baby potato" and it is count-sold: "N baby potato, at least M <variety>"; TWO lines otherwise
+        why: "yellow" is a store product the generic can stand in for (H3)
+   9.   H3      baby yukon gold potatoes
+        -> ONE line IF a recipe demanded "baby potato" and it is count-sold: "N baby potato, at least M <variety>"; TWO lines otherwise
+        why: "yukon, gold" is a store product the generic can stand in for (H3)
+  10.   H3      small red potatoes
+        -> ONE line IF a recipe demanded "baby potato" and it is count-sold: "N baby potato, at least M <variety>"; TWO lines otherwise
+        why: "small, red" is a store product the generic can stand in for (H3)
 
   bbq sauce
-  84.   KEEP      honey bbq sauce
+  11.   H1      honey bbq sauce
         -> TWO lines: "bbq sauce" and "honey bbq sauce"
-        why: family "honey" — a different food or state
-  85.   KEEP      smoky bbq sauce
+        why: "honey" names a different product (H1)
+  12.   H1      smoky bbq sauce
         -> TWO lines: "bbq sauce" and "smoky bbq sauce"
-        why: family "smoky" — a different food or state
+        why: "smoky" names a different product (H1)
 
   beef chuck
-  86. ? KEEP      beef chuck roast
+  13. ? H1      beef chuck roast
         -> TWO lines: "beef chuck" and "beef chuck roast"
-        why: no family covers (roast) — refusing to fold is the safe side, and this one needs a look
-  87.   QUALIFIER bone-in beef chuck roast
-        -> ONE line: "2 beef chuck (at least one bone-in roast)"
-        why: family "bone-in" — a grade, trim, colour or size on the same food
-  88.   QUALIFIER boneless beef chuck roast
-        -> ONE line: "2 beef chuck (at least one boneless roast)"
-        why: family "boneless" — a grade, trim, colour or size on the same food
+        why: no family covers (roast) — H1 is the safe side, because it buys exactly what the recipe said
+  14.   H1      bone-in beef chuck roast
+        -> TWO lines: "beef chuck" and "bone-in beef chuck roast"
+        why: "bone-in" names a different product (H1)
+  15.   H1      boneless beef chuck roast
+        -> TWO lines: "beef chuck" and "boneless beef chuck roast"
+        why: "boneless" names a different product (H1)
 
   beef chuck roast
-  89.   QUALIFIER bone-in beef chuck roast
-        -> ONE line: "2 beef chuck roast (at least one bone-in)"
-        why: family "bone-in" — a grade, trim, colour or size on the same food
-  90.   QUALIFIER boneless beef chuck roast
-        -> ONE line: "2 beef chuck roast (at least one boneless)"
-        why: family "boneless" — a grade, trim, colour or size on the same food
+  16.   H1      bone-in beef chuck roast
+        -> TWO lines: "beef chuck roast" and "bone-in beef chuck roast"
+        why: "bone-in" names a different product (H1)
+  17.   H1      boneless beef chuck roast
+        -> TWO lines: "beef chuck roast" and "boneless beef chuck roast"
+        why: "boneless" names a different product (H1)
 
   beefsteak tomato
-  91.   QUALIFIER ripe beefsteak tomatoes
-        -> ONE line: "2 beefsteak tomato (at least one ripe)"
-        why: family "ripe" — a grade, trim, colour or size on the same food
+  18.   GENERIC ripe beefsteak tomatoes
+        -> ONE line: "beefsteak tomato" — the difference is a hedge, not a product
+        why: only hedges, sizes or prep (ripe) — H4's last clause
 
   beets
-  92.   QUALIFIER small beet
-        -> ONE line: "2 beets (at least one small)"
-        why: family "small" — a grade, trim, colour or size on the same food
+  19.   H3      small beet
+        -> ONE line IF a recipe demanded "beets" and it is count-sold: "N beets, at least M <variety>"; TWO lines otherwise
+        why: "small" is a store product the generic can stand in for (H3)
 
   bell peppers
-  93.   QUALIFIER green bell pepper
-        -> ONE line: "2 bell peppers (at least one green)"
-        why: family "green" — a grade, trim, colour or size on the same food
-  94.   QUALIFIER large bell peppers
-        -> ONE line: "2 bell peppers (at least one large)"
-        why: family "large" — a grade, trim, colour or size on the same food
-  95.   QUALIFIER red bell pepper
-        -> ONE line: "2 bell peppers (at least one red)"
-        why: family "red" — a grade, trim, colour or size on the same food
-  96.   QUALIFIER yellow bell pepper
-        -> ONE line: "2 bell peppers (at least one yellow)"
-        why: family "yellow" — a grade, trim, colour or size on the same food
+  20.   H3      green bell pepper
+        -> ONE line IF a recipe demanded "bell peppers" and it is count-sold: "N bell peppers, at least M <variety>"; TWO lines otherwise
+        why: "green" is a store product the generic can stand in for (H3)
+  21.   H3      large bell peppers
+        -> ONE line IF a recipe demanded "bell peppers" and it is count-sold: "N bell peppers, at least M <variety>"; TWO lines otherwise
+        why: "large" is a store product the generic can stand in for (H3)
+  22.   H3      red bell pepper
+        -> ONE line IF a recipe demanded "bell peppers" and it is count-sold: "N bell peppers, at least M <variety>"; TWO lines otherwise
+        why: "red" is a store product the generic can stand in for (H3)
+  23.   H3      yellow bell pepper
+        -> ONE line IF a recipe demanded "bell peppers" and it is count-sold: "N bell peppers, at least M <variety>"; TWO lines otherwise
+        why: "yellow" is a store product the generic can stand in for (H3)
 
   black beans
-  97.   KEEP      dried black beans
+  24.   H1      dried black beans
         -> TWO lines: "black beans" and "dried black beans"
-        why: family "dried" — a different food or state
+        why: "dried" names a different product (H1)
 
   bone-in pork chops
-  98.   QUALIFIER bone-in center-cut pork chops
-        -> ONE line: "2 bone-in pork chops (at least one center-cut)"
-        why: family "center-cut" — a grade, trim, colour or size on the same food
-  99.   GENERIC   bone-in pork chops, about 1 inch thick
-        -> ONE line: "2 bone-in pork chops"
-        why: only a dimension or hedge (1) — nothing for the shopper to honour
- 100.   GENERIC   bone-in pork chops, about 1-inch thick
-        -> ONE line: "2 bone-in pork chops"
-        why: only a dimension or hedge (1-inch) — nothing for the shopper to honour
- 101.   GENERIC   bone-in pork chops, about 3/4-inch thick
-        -> ONE line: "2 bone-in pork chops"
-        why: only a dimension or hedge (3/4-inch) — nothing for the shopper to honour
- 102. ? KEEP      bone-in pork rib chops
+  25.   H3      bone-in center-cut pork chops
+        -> ONE line IF a recipe demanded "bone-in pork chops" and it is count-sold: "N bone-in pork chops, at least M <variety>"; TWO lines otherwise
+        why: "center-cut" is a store product the generic can stand in for (H3)
+  26.   GENERIC bone-in pork chops, about 1 inch thick
+        -> ONE line: "bone-in pork chops" — the difference is a hedge, not a product
+        why: only hedges, sizes or prep (about 1 inch thick) — H4's last clause
+  27. ? H1      bone-in pork chops, about 1-inch thick
+        -> TWO lines: "bone-in pork chops" and "bone-in pork chops, about 1-inch thick"
+        why: no family covers (1-inch) — H1 is the safe side, because it buys exactly what the recipe said
+  28. ? H1      bone-in pork chops, about 3/4-inch thick
+        -> TWO lines: "bone-in pork chops" and "bone-in pork chops, about 3/4-inch thick"
+        why: no family covers (3/4-inch) — H1 is the safe side, because it buys exactly what the recipe said
+  29. ? H1      bone-in pork rib chops
         -> TWO lines: "bone-in pork chops" and "bone-in pork rib chops"
-        why: no family covers (rib) — refusing to fold is the safe side, and this one needs a look
- 103. ? KEEP      bone-in pork rib chops (about 1 inch thick)
+        why: no family covers (rib) — H1 is the safe side, because it buys exactly what the recipe said
+  30. ? H1      bone-in pork rib chops (about 1 inch thick)
         -> TWO lines: "bone-in pork chops" and "bone-in pork rib chops (about 1 inch thick)"
-        why: no family covers (rib 1) — refusing to fold is the safe side, and this one needs a look
- 104. ? KEEP      bone-in pork rib chops, about 1-inch thick
+        why: no family covers (rib) — H1 is the safe side, because it buys exactly what the recipe said
+  31. ? H1      bone-in pork rib chops, about 1-inch thick
         -> TWO lines: "bone-in pork chops" and "bone-in pork rib chops, about 1-inch thick"
-        why: no family covers (rib 1-inch) — refusing to fold is the safe side, and this one needs a look
+        why: no family covers (rib 1-inch) — H1 is the safe side, because it buys exactly what the recipe said
 
   bone-in pork chops, about 1 inch thick
- 105. ? KEEP      bone-in pork rib chops (about 1 inch thick)
+  32. ? H1      bone-in pork rib chops (about 1 inch thick)
         -> TWO lines: "bone-in pork chops, about 1 inch thick" and "bone-in pork rib chops (about 1 inch thick)"
-        why: no family covers (rib) — refusing to fold is the safe side, and this one needs a look
- 106. ? KEEP      bone-in pork rib chops, about 1-inch thick
+        why: no family covers (rib) — H1 is the safe side, because it buys exactly what the recipe said
+  33. ? H1      bone-in pork rib chops, about 1-inch thick
         -> TWO lines: "bone-in pork chops, about 1 inch thick" and "bone-in pork rib chops, about 1-inch thick"
-        why: no family covers (rib 1-inch) — refusing to fold is the safe side, and this one needs a look
+        why: no family covers (rib 1-inch) — H1 is the safe side, because it buys exactly what the recipe said
 
   bone-in pork chops, about 1-inch thick
- 107. ? KEEP      bone-in pork rib chops (about 1 inch thick)
+  34. ? H1      bone-in pork rib chops (about 1 inch thick)
         -> TWO lines: "bone-in pork chops, about 1-inch thick" and "bone-in pork rib chops (about 1 inch thick)"
-        why: no family covers (rib 1) — refusing to fold is the safe side, and this one needs a look
- 108. ? KEEP      bone-in pork rib chops, about 1-inch thick
+        why: no family covers (rib) — H1 is the safe side, because it buys exactly what the recipe said
+  35. ? H1      bone-in pork rib chops, about 1-inch thick
         -> TWO lines: "bone-in pork chops, about 1-inch thick" and "bone-in pork rib chops, about 1-inch thick"
-        why: no family covers (rib) — refusing to fold is the safe side, and this one needs a look
+        why: no family covers (rib) — H1 is the safe side, because it buys exactly what the recipe said
 
   bone-in pork rib chops
- 109.   GENERIC   bone-in pork rib chops (about 1 inch thick)
-        -> ONE line: "2 bone-in pork rib chops"
-        why: only a dimension or hedge (1) — nothing for the shopper to honour
- 110.   GENERIC   bone-in pork rib chops, about 1-inch thick
-        -> ONE line: "2 bone-in pork rib chops"
-        why: only a dimension or hedge (1-inch) — nothing for the shopper to honour
+  36.   GENERIC bone-in pork rib chops (about 1 inch thick)
+        -> ONE line: "bone-in pork rib chops" — the difference is a hedge, not a product
+        why: only hedges, sizes or prep (about 1 inch thick) — H4's last clause
+  37. ? H1      bone-in pork rib chops, about 1-inch thick
+        -> TWO lines: "bone-in pork rib chops" and "bone-in pork rib chops, about 1-inch thick"
+        why: no family covers (1-inch) — H1 is the safe side, because it buys exactly what the recipe said
 
   bone-in ribeye steaks
- 111.   GENERIC   bone-in ribeye steaks, 1-inch thick
-        -> ONE line: "2 bone-in ribeye steaks"
-        why: only a dimension or hedge (1-inch) — nothing for the shopper to honour
- 112.   GENERIC   bone-in ribeye steaks, about 1-inch thick
-        -> ONE line: "2 bone-in ribeye steaks"
-        why: only a dimension or hedge (1-inch) — nothing for the shopper to honour
- 113.   GENERIC   bone-in ribeye steaks, about 1.25 inches thick
-        -> ONE line: "2 bone-in ribeye steaks"
-        why: only a dimension or hedge (1.25) — nothing for the shopper to honour
+  38. ? H1      bone-in ribeye steaks, 1-inch thick
+        -> TWO lines: "bone-in ribeye steaks" and "bone-in ribeye steaks, 1-inch thick"
+        why: no family covers (1-inch) — H1 is the safe side, because it buys exactly what the recipe said
+  39. ? H1      bone-in ribeye steaks, about 1-inch thick
+        -> TWO lines: "bone-in ribeye steaks" and "bone-in ribeye steaks, about 1-inch thick"
+        why: no family covers (1-inch) — H1 is the safe side, because it buys exactly what the recipe said
+  40.   GENERIC bone-in ribeye steaks, about 1.25 inches thick
+        -> ONE line: "bone-in ribeye steaks" — the difference is a hedge, not a product
+        why: only hedges, sizes or prep (about 1.25 inches thick) — H4's last clause
 
   breadcrumbs
- 114.   QUALIFIER italian breadcrumbs
-        -> ONE line: "2 breadcrumbs (at least one italian)"
-        why: family "italian" — a grade, trim, colour or size on the same food
- 115. ? KEEP      italian-seasoned breadcrumbs
+  41.   H3      italian breadcrumbs
+        -> ONE line IF a recipe demanded "breadcrumbs" and it is count-sold: "N breadcrumbs, at least M <variety>"; TWO lines otherwise
+        why: "italian" is a store product the generic can stand in for (H3)
+  42.   H1      italian-seasoned breadcrumbs
         -> TWO lines: "breadcrumbs" and "italian-seasoned breadcrumbs"
-        why: no family covers (italian-seasoned) — refusing to fold is the safe side, and this one needs a look
+        why: "italian-seasoned" names a different product (H1)
 
   brown rice
- 116.   QUALIFIER long-grain brown rice
-        -> ONE line: "2 brown rice (at least one long-grain)"
-        why: family "long-grain" — a grade, trim, colour or size on the same food
+  43.   H3      long-grain brown rice
+        -> ONE line IF a recipe demanded "brown rice" and it is count-sold: "N brown rice, at least M <variety>"; TWO lines otherwise
+        why: "long-grain" is a store product the generic can stand in for (H3)
 
   canned crushed tomatoes
- 117.   QUALIFIER canned crushed san marzano tomatoes
-        -> ONE line: "2 canned crushed tomatoes (at least one san marzano)"
-        why: family "san" — a grade, trim, colour or size on the same food
- 118.   QUALIFIER canned san marzano crushed tomatoes
-        -> ONE line: "2 canned crushed tomatoes (at least one san marzano)"
-        why: family "san" — a grade, trim, colour or size on the same food
+  44.   H3      canned crushed san marzano tomatoes
+        -> ONE line IF a recipe demanded "canned crushed tomatoes" and it is count-sold: "N canned crushed tomatoes, at least M <variety>"; TWO lines otherwise
+        why: "san, marzano" is a store product the generic can stand in for (H3)
+  45.   H3      canned san marzano crushed tomatoes
+        -> ONE line IF a recipe demanded "canned crushed tomatoes" and it is count-sold: "N canned crushed tomatoes, at least M <variety>"; TWO lines otherwise
+        why: "san, marzano" is a store product the generic can stand in for (H3)
 
   canned diced tomatoes
- 119.   KEEP      canned fire-roasted diced tomatoes
+  46.   H1      canned fire-roasted diced tomatoes
         -> TWO lines: "canned diced tomatoes" and "canned fire-roasted diced tomatoes"
-        why: family "fire-roasted" — a different food or state
+        why: Hans: diced tomatoes over fire-roasted is a different product
 
   canned kidney beans
- 120.   KEEP      canned dark red kidney beans
-        -> TWO lines: "canned kidney beans" and "canned dark red kidney beans"
-        why: family "dark" — a different food or state
+  47.   H3      canned dark red kidney beans
+        -> ONE line IF a recipe demanded "canned kidney beans" and it is count-sold: "N canned kidney beans, at least M <variety>"; TWO lines otherwise
+        why: "red" is a store product the generic can stand in for (H3)
 
   canned tuna in water
- 121.   QUALIFIER canned albacore tuna in water
-        -> ONE line: "2 canned tuna in water (at least one albacore)"
-        why: family "albacore" — a grade, trim, colour or size on the same food
- 122.   QUALIFIER canned solid white albacore tuna in water
-        -> ONE line: "2 canned tuna in water (at least one solid white albacore)"
-        why: family "solid, white, albacore" — a grade, trim, colour or size on the same food
+  48.   H3      canned albacore tuna in water
+        -> ONE line IF a recipe demanded "canned tuna in water" and it is count-sold: "N canned tuna in water, at least M <variety>"; TWO lines otherwise
+        why: "albacore" is a store product the generic can stand in for (H3)
+  49.   H3      canned solid white albacore tuna in water
+        -> ONE line IF a recipe demanded "canned tuna in water" and it is count-sold: "N canned tuna in water, at least M <variety>"; TWO lines otherwise
+        why: "solid, white, albacore" is a store product the generic can stand in for (H3)
 
   canned whole peeled tomatoes
- 123.   QUALIFIER canned san marzano whole peeled tomatoes
-        -> ONE line: "2 canned whole peeled tomatoes (at least one san marzano)"
-        why: family "san" — a grade, trim, colour or size on the same food
+  50.   H3      canned san marzano whole peeled tomatoes
+        -> ONE line IF a recipe demanded "canned whole peeled tomatoes" and it is count-sold: "N canned whole peeled tomatoes, at least M <variety>"; TWO lines otherwise
+        why: "san, marzano" is a store product the generic can stand in for (H3)
 
   cannellini beans
- 124.   KEEP      canned cannellini beans
-        -> TWO lines: "cannellini beans" and "canned cannellini beans"
-        why: family "canned" — a different food or state
- 125.   KEEP      canned white cannellini beans
-        -> TWO lines: "cannellini beans" and "canned white cannellini beans"
-        why: family "canned" — a different food or state
+  51.   H3      canned cannellini beans
+        -> ONE line IF a recipe demanded "cannellini beans" and it is count-sold: "N cannellini beans, at least M <variety>"; TWO lines otherwise
+        why: "canned" is a store product the generic can stand in for (H3)
+  52.   H3      canned white cannellini beans
+        -> ONE line IF a recipe demanded "cannellini beans" and it is count-sold: "N cannellini beans, at least M <variety>"; TWO lines otherwise
+        why: "canned, white" is a store product the generic can stand in for (H3)
 
   carrots
- 126.   QUALIFIER medium carrots
-        -> ONE line: "2 carrots (at least one medium)"
-        why: family "medium" — a grade, trim, colour or size on the same food
+  53.   H3      medium carrots
+        -> ONE line IF a recipe demanded "carrots" and it is count-sold: "N carrots, at least M <variety>"; TWO lines otherwise
+        why: "medium" is a store product the generic can stand in for (H3)
 
   cheddar
- 127.   QUALIFIER sharp cheddar
-        -> ONE line: "2 cheddar (at least one sharp)"
-        why: family "sharp" — a grade, trim, colour or size on the same food
- 128.   QUALIFIER sharp cheddar cheese
-        -> ONE line: "2 cheddar (at least one sharp cheese)"
-        why: family "sharp" — a grade, trim, colour or size on the same food
- 129.   QUALIFIER sharp white cheddar cheese
-        -> ONE line: "2 cheddar (at least one sharp white cheese)"
-        why: family "sharp, white" — a grade, trim, colour or size on the same food
+  54.   H3      sharp cheddar
+        -> ONE line IF a recipe demanded "cheddar" and it is count-sold: "N cheddar, at least M <variety>"; TWO lines otherwise
+        why: "sharp" is a store product the generic can stand in for (H3)
+  55.   H3      sharp cheddar cheese
+        -> ONE line IF a recipe demanded "cheddar" and it is count-sold: "N cheddar, at least M <variety>"; TWO lines otherwise
+        why: "sharp" is a store product the generic can stand in for (H3)
+  56.   H3      sharp white cheddar cheese
+        -> ONE line IF a recipe demanded "cheddar" and it is count-sold: "N cheddar, at least M <variety>"; TWO lines otherwise
+        why: "sharp, white" is a store product the generic can stand in for (H3)
 
   cheddar cheese
- 130.   QUALIFIER sharp cheddar cheese
-        -> ONE line: "2 cheddar cheese (at least one sharp)"
-        why: family "sharp" — a grade, trim, colour or size on the same food
- 131.   QUALIFIER sharp white cheddar cheese
-        -> ONE line: "2 cheddar cheese (at least one sharp white)"
-        why: family "sharp, white" — a grade, trim, colour or size on the same food
+  57.   H3      sharp cheddar cheese
+        -> ONE line IF a recipe demanded "cheddar cheese" and it is count-sold: "N cheddar cheese, at least M <variety>"; TWO lines otherwise
+        why: "sharp" is a store product the generic can stand in for (H3)
+  58.   H3      sharp white cheddar cheese
+        -> ONE line IF a recipe demanded "cheddar cheese" and it is count-sold: "N cheddar cheese, at least M <variety>"; TWO lines otherwise
+        why: "sharp, white" is a store product the generic can stand in for (H3)
 
   chickpeas
- 132.   KEEP      canned chickpeas
-        -> TWO lines: "chickpeas" and "canned chickpeas"
-        why: family "canned" — a different food or state
- 133.   KEEP      dried chickpeas
+  59.   H3      canned chickpeas
+        -> ONE line IF a recipe demanded "chickpeas" and it is count-sold: "N chickpeas, at least M <variety>"; TWO lines otherwise
+        why: "canned" is a store product the generic can stand in for (H3)
+  60.   H1      dried chickpeas
         -> TWO lines: "chickpeas" and "dried chickpeas"
-        why: family "dried" — a different food or state
+        why: "dried" names a different product (H1)
 
   chili powder
- 134.   KEEP      ancho chili powder
+  61.   H1      ancho chili powder
         -> TWO lines: "chili powder" and "ancho chili powder"
         why: Hans: chili powder over ancho is a different product
- 135.   KEEP      chipotle chili powder
+  62.   H1      chipotle chili powder
         -> TWO lines: "chili powder" and "chipotle chili powder"
         why: Hans: chili powder over ancho is a different product
- 136.   KEEP      kashmiri chili powder
+  63.   H1      kashmiri chili powder
         -> TWO lines: "chili powder" and "kashmiri chili powder"
         why: Hans: chili powder over ancho is a different product
- 137.   KEEP      kashmiri red chili powder
+  64.   H1      kashmiri red chili powder
         -> TWO lines: "chili powder" and "kashmiri red chili powder"
         why: Hans: chili powder over ancho is a different product
- 138.   KEEP      pinch of kashmiri red chili powder
+  65.   H1      pinch of kashmiri red chili powder
         -> TWO lines: "chili powder" and "pinch of kashmiri red chili powder"
         why: Hans: chili powder over ancho is a different product
 
   cooked white rice
- 139.   QUALIFIER cooked long-grain white rice
-        -> ONE line: "2 cooked white rice (at least one long-grain)"
-        why: family "long-grain" — a grade, trim, colour or size on the same food
+  66.   H3      cooked long-grain white rice
+        -> ONE line IF a recipe demanded "cooked white rice" and it is count-sold: "N cooked white rice, at least M <variety>"; TWO lines otherwise
+        why: "long-grain" is a store product the generic can stand in for (H3)
 
   cooking spray
- 140. ? KEEP      neutral cooking spray
+  67. ? H1      neutral cooking spray
         -> TWO lines: "cooking spray" and "neutral cooking spray"
-        why: no family covers (neutral) — refusing to fold is the safe side, and this one needs a look
+        why: no family covers (neutral) — H1 is the safe side, because it buys exactly what the recipe said
 
   corn kernels
- 141.   KEEP      fresh corn kernels
-        -> TWO lines: "corn kernels" and "fresh corn kernels"
-        why: family "fresh" — a different food or state
- 142.   KEEP      frozen corn kernels
+  68.   H3      fresh corn kernels
+        -> ONE line IF a recipe demanded "corn kernels" and it is count-sold: "N corn kernels, at least M <variety>"; TWO lines otherwise
+        why: `fresh` is whole produce's default state
+  69.   H1      frozen corn kernels
         -> TWO lines: "corn kernels" and "frozen corn kernels"
-        why: family "frozen" — a different food or state
+        why: "frozen" names a different product (H1)
 
   cornmeal
- 143.   QUALIFIER coarse yellow cornmeal
-        -> ONE line: "2 cornmeal (at least one coarse yellow)"
-        why: family "yellow" — a grade, trim, colour or size on the same food
- 144.   QUALIFIER coarse-ground yellow cornmeal
-        -> ONE line: "2 cornmeal (at least one coarse-ground yellow)"
-        why: family "yellow" — a grade, trim, colour or size on the same food
- 145.   QUALIFIER coarse-ground yellow cornmeal (polenta)
-        -> ONE line: "2 cornmeal (at least one coarse-ground yellow)"
-        why: family "yellow" — a grade, trim, colour or size on the same food
- 146. ? KEEP      fine cornmeal
-        -> TWO lines: "cornmeal" and "fine cornmeal"
-        why: no family covers (fine) — refusing to fold is the safe side, and this one needs a look
- 147.   QUALIFIER fine yellow cornmeal
-        -> ONE line: "2 cornmeal (at least one fine yellow)"
-        why: family "yellow" — a grade, trim, colour or size on the same food
- 148.   QUALIFIER yellow cornmeal
-        -> ONE line: "2 cornmeal (at least one yellow)"
-        why: family "yellow" — a grade, trim, colour or size on the same food
+  70.   H3      coarse yellow cornmeal
+        -> ONE line IF a recipe demanded "cornmeal" and it is count-sold: "N cornmeal, at least M <variety>"; TWO lines otherwise
+        why: "coarse, yellow" is a store product the generic can stand in for (H3)
+  71.   H3      coarse-ground yellow cornmeal
+        -> ONE line IF a recipe demanded "cornmeal" and it is count-sold: "N cornmeal, at least M <variety>"; TWO lines otherwise
+        why: "yellow" is a store product the generic can stand in for (H3)
+  72.   H3      coarse-ground yellow cornmeal (polenta)
+        -> ONE line IF a recipe demanded "cornmeal" and it is count-sold: "N cornmeal, at least M <variety>"; TWO lines otherwise
+        why: "yellow" is a store product the generic can stand in for (H3)
+  73.   H3      fine cornmeal
+        -> ONE line IF a recipe demanded "cornmeal" and it is count-sold: "N cornmeal, at least M <variety>"; TWO lines otherwise
+        why: "fine" is a store product the generic can stand in for (H3)
+  74.   H3      fine yellow cornmeal
+        -> ONE line IF a recipe demanded "cornmeal" and it is count-sold: "N cornmeal, at least M <variety>"; TWO lines otherwise
+        why: "fine, yellow" is a store product the generic can stand in for (H3)
+  75.   H3      yellow cornmeal
+        -> ONE line IF a recipe demanded "cornmeal" and it is count-sold: "N cornmeal, at least M <variety>"; TWO lines otherwise
+        why: "yellow" is a store product the generic can stand in for (H3)
 
   croutons
- 149. ? KEEP      whole grain croutons
-        -> TWO lines: "croutons" and "whole grain croutons"
-        why: no family covers (whole grain) — refusing to fold is the safe side, and this one needs a look
+  76.   H3      whole grain croutons
+        -> ONE line IF a recipe demanded "croutons" and it is count-sold: "N croutons, at least M <variety>"; TWO lines otherwise
+        why: "whole, grain" is a store product the generic can stand in for (H3)
 
   crushed canned tomatoes
- 150.   QUALIFIER canned crushed san marzano tomatoes
-        -> ONE line: "2 crushed canned tomatoes (at least one san marzano)"
-        why: family "san" — a grade, trim, colour or size on the same food
- 151.   QUALIFIER canned san marzano crushed tomatoes
-        -> ONE line: "2 crushed canned tomatoes (at least one san marzano)"
-        why: family "san" — a grade, trim, colour or size on the same food
+  77.   H3      canned crushed san marzano tomatoes
+        -> ONE line IF a recipe demanded "crushed canned tomatoes" and it is count-sold: "N crushed canned tomatoes, at least M <variety>"; TWO lines otherwise
+        why: "san, marzano" is a store product the generic can stand in for (H3)
+  78.   H3      canned san marzano crushed tomatoes
+        -> ONE line IF a recipe demanded "crushed canned tomatoes" and it is count-sold: "N crushed canned tomatoes, at least M <variety>"; TWO lines otherwise
+        why: "san, marzano" is a store product the generic can stand in for (H3)
 
   crushed tomatoes
- 152.   KEEP      canned crushed san marzano tomatoes
-        -> TWO lines: "crushed tomatoes" and "canned crushed san marzano tomatoes"
-        why: family "canned" — a different food or state
- 153.   KEEP      canned san marzano crushed tomatoes
-        -> TWO lines: "crushed tomatoes" and "canned san marzano crushed tomatoes"
-        why: family "canned" — a different food or state
- 154.   KEEP      crushed fire-roasted tomatoes
+  79.   H3      canned crushed san marzano tomatoes
+        -> ONE line IF a recipe demanded "crushed tomatoes" and it is count-sold: "N crushed tomatoes, at least M <variety>"; TWO lines otherwise
+        why: "canned, san, marzano" is a store product the generic can stand in for (H3)
+  80.   H3      canned san marzano crushed tomatoes
+        -> ONE line IF a recipe demanded "crushed tomatoes" and it is count-sold: "N crushed tomatoes, at least M <variety>"; TWO lines otherwise
+        why: "canned, san, marzano" is a store product the generic can stand in for (H3)
+  81.   H1      crushed fire-roasted tomatoes
         -> TWO lines: "crushed tomatoes" and "crushed fire-roasted tomatoes"
-        why: family "fire-roasted" — a different food or state
- 155.   QUALIFIER crushed san marzano tomatoes
-        -> ONE line: "2 crushed tomatoes (at least one san marzano)"
-        why: family "san" — a grade, trim, colour or size on the same food
- 156.   KEEP      fire-roasted crushed tomatoes
+        why: "fire-roasted" names a different product (H1)
+  82.   H3      crushed san marzano tomatoes
+        -> ONE line IF a recipe demanded "crushed tomatoes" and it is count-sold: "N crushed tomatoes, at least M <variety>"; TWO lines otherwise
+        why: "san, marzano" is a store product the generic can stand in for (H3)
+  83.   H1      fire-roasted crushed tomatoes
         -> TWO lines: "crushed tomatoes" and "fire-roasted crushed tomatoes"
-        why: family "fire-roasted" — a different food or state
- 157.   QUALIFIER san marzano crushed tomatoes
-        -> ONE line: "2 crushed tomatoes (at least one san marzano)"
-        why: family "san" — a grade, trim, colour or size on the same food
+        why: "fire-roasted" names a different product (H1)
+  84.   H3      san marzano crushed tomatoes
+        -> ONE line IF a recipe demanded "crushed tomatoes" and it is count-sold: "N crushed tomatoes, at least M <variety>"; TWO lines otherwise
+        why: "san, marzano" is a store product the generic can stand in for (H3)
 
   crushed tomatoes, canned
- 158.   QUALIFIER canned crushed san marzano tomatoes
-        -> ONE line: "2 crushed tomatoes, canned (at least one san marzano)"
-        why: family "san" — a grade, trim, colour or size on the same food
- 159.   QUALIFIER canned san marzano crushed tomatoes
-        -> ONE line: "2 crushed tomatoes, canned (at least one san marzano)"
-        why: family "san" — a grade, trim, colour or size on the same food
+  85.   H3      canned crushed san marzano tomatoes
+        -> ONE line IF a recipe demanded "crushed tomatoes, canned" and it is count-sold: "N crushed tomatoes, canned, at least M <variety>"; TWO lines otherwise
+        why: "san, marzano" is a store product the generic can stand in for (H3)
+  86.   H3      canned san marzano crushed tomatoes
+        -> ONE line IF a recipe demanded "crushed tomatoes, canned" and it is count-sold: "N crushed tomatoes, canned, at least M <variety>"; TWO lines otherwise
+        why: "san, marzano" is a store product the generic can stand in for (H3)
 
   crusty bread
- 160.   GENERIC   crusty italian bread
-        -> ONE line: "2 crusty bread"
+  87.   GENERIC crusty italian bread
+        -> ONE line: "crusty bread" — the difference is a hedge, not a product
         why: Hans: could be sourdough, but could be french so it stays generic
- 161.   GENERIC   crusty italian bread loaf
-        -> ONE line: "2 crusty bread"
+  88.   GENERIC crusty italian bread loaf
+        -> ONE line: "crusty bread" — the difference is a hedge, not a product
         why: Hans: could be sourdough, but could be french so it stays generic
- 162.   GENERIC   crusty sourdough bread
-        -> ONE line: "2 crusty bread"
+  89.   GENERIC crusty sourdough bread
+        -> ONE line: "crusty bread" — the difference is a hedge, not a product
         why: Hans: could be sourdough, but could be french so it stays generic
 
   curry powder
- 163.   KEEP      madras curry powder
+  90.   H1      madras curry powder
         -> TWO lines: "curry powder" and "madras curry powder"
-        why: family "madras" — a different food or state
+        why: "madras" names a different product (H1)
 
   dark red kidney beans
- 164.   KEEP      canned dark red kidney beans
-        -> TWO lines: "dark red kidney beans" and "canned dark red kidney beans"
-        why: family "canned" — a different food or state
+  91.   H3      canned dark red kidney beans
+        -> ONE line IF a recipe demanded "dark red kidney beans" and it is count-sold: "N dark red kidney beans, at least M <variety>"; TWO lines otherwise
+        why: "canned" is a store product the generic can stand in for (H3)
 
   diced tomatoes
- 165.   KEEP      canned fire-roasted diced tomatoes
+  92.   H1      canned fire-roasted diced tomatoes
         -> TWO lines: "diced tomatoes" and "canned fire-roasted diced tomatoes"
         why: Hans: diced tomatoes over fire-roasted is a different product
- 166.   KEEP      diced fire-roasted tomatoes
+  93.   H1      diced fire-roasted tomatoes
         -> TWO lines: "diced tomatoes" and "diced fire-roasted tomatoes"
         why: Hans: diced tomatoes over fire-roasted is a different product
- 167.   KEEP      fire-roasted diced tomatoes
+  94.   H1      fire-roasted diced tomatoes
         -> TWO lines: "diced tomatoes" and "fire-roasted diced tomatoes"
         why: Hans: diced tomatoes over fire-roasted is a different product
 
   dried flat rice noodles
- 168.   GENERIC   dried flat rice noodles (8mm wide)
-        -> ONE line: "2 dried flat rice noodles"
-        why: only a dimension or hedge (8mm) — nothing for the shopper to honour
- 169.   QUALIFIER dried flat rice noodles (medium width, 3–5mm)
-        -> ONE line: "2 dried flat rice noodles (at least one medium 3–5mm)"
-        why: family "medium" — a grade, trim, colour or size on the same food
+  95.   GENERIC dried flat rice noodles (8mm wide)
+        -> ONE line: "dried flat rice noodles" — the difference is a hedge, not a product
+        why: only hedges, sizes or prep (8mm wide) — H4's last clause
+  96.   H3      dried flat rice noodles (medium width, 3–5mm)
+        -> ONE line IF a recipe demanded "dried flat rice noodles" and it is count-sold: "N dried flat rice noodles, at least M <variety>"; TWO lines otherwise
+        why: "medium" is a store product the generic can stand in for (H3)
 
   dried red chilies
- 170.   KEEP      dried kashmiri red chilies
+  97.   H1      dried kashmiri red chilies
         -> TWO lines: "dried red chilies" and "dried kashmiri red chilies"
-        why: family "kashmiri" — a different food or state
- 171.   KEEP      dried red sichuan chilies
+        why: "kashmiri" names a different product (H1)
+  98.   H1      dried red sichuan chilies
         -> TWO lines: "dried red chilies" and "dried red sichuan chilies"
-        why: family "sichuan" — a different food or state
+        why: "sichuan" names a different product (H1)
 
   dried rice noodles
- 172.   QUALIFIER dried flat rice noodles
-        -> ONE line: "2 dried rice noodles (at least one flat)"
-        why: family "flat" — a grade, trim, colour or size on the same food
- 173.   QUALIFIER dried flat rice noodles (8mm wide)
-        -> ONE line: "2 dried rice noodles (at least one flat)"
-        why: family "flat" — a grade, trim, colour or size on the same food
- 174.   QUALIFIER dried flat rice noodles (medium width, 3–5mm)
-        -> ONE line: "2 dried rice noodles (at least one flat medium 3–5mm)"
-        why: family "flat, medium" — a grade, trim, colour or size on the same food
- 175. ? KEEP      dried rice vermicelli noodles
+  99.   H3      dried flat rice noodles
+        -> ONE line IF a recipe demanded "dried rice noodles" and it is count-sold: "N dried rice noodles, at least M <variety>"; TWO lines otherwise
+        why: "flat" is a store product the generic can stand in for (H3)
+ 100.   H3      dried flat rice noodles (8mm wide)
+        -> ONE line IF a recipe demanded "dried rice noodles" and it is count-sold: "N dried rice noodles, at least M <variety>"; TWO lines otherwise
+        why: "flat" is a store product the generic can stand in for (H3)
+ 101.   H3      dried flat rice noodles (medium width, 3–5mm)
+        -> ONE line IF a recipe demanded "dried rice noodles" and it is count-sold: "N dried rice noodles, at least M <variety>"; TWO lines otherwise
+        why: "flat, medium" is a store product the generic can stand in for (H3)
+ 102.   H1      dried rice vermicelli noodles
         -> TWO lines: "dried rice noodles" and "dried rice vermicelli noodles"
-        why: no family covers (vermicelli) — refusing to fold is the safe side, and this one needs a look
- 176.   GENERIC   wide dried rice noodles (sen yai)
-        -> ONE line: "2 dried rice noodles"
-        why: only a dimension or hedge (yai) — nothing for the shopper to honour
+        why: go-ahead S.1 #175 — vermicelli is a different noodle
+ 103.   H3      wide dried rice noodles (sen yai)
+        -> ONE line IF a recipe demanded "dried rice noodles" and it is count-sold: "N dried rice noodles, at least M <variety>"; TWO lines otherwise
+        why: "wide" is a store product the generic can stand in for (H3)
 
   edamame
- 177.   QUALIFIER shelled edamame
-        -> ONE line: "2 edamame (at least one shelled)"
-        why: family "shelled" — a grade, trim, colour or size on the same food
- 178.   KEEP      shelled frozen edamame
+ 104.   H3      shelled edamame
+        -> ONE line IF a recipe demanded "edamame" and it is count-sold: "N edamame, at least M <variety>"; TWO lines otherwise
+        why: "shelled" is a store product the generic can stand in for (H3)
+ 105.   H1      shelled frozen edamame
         -> TWO lines: "edamame" and "shelled frozen edamame"
-        why: family "frozen" — a different food or state
+        why: "frozen" names a different product (H1)
 
   egg noodles
- 179.   GENERIC   wide egg noodles
-        -> ONE line: "2 egg noodles"
-        why: the specific adds no word the generic lacks
+ 106.   H3      wide egg noodles
+        -> ONE line IF a recipe demanded "egg noodles" and it is count-sold: "N egg noodles, at least M <variety>"; TWO lines otherwise
+        why: "wide" is a store product the generic can stand in for (H3)
 
   flat rice noodles
- 180.   KEEP      dried flat rice noodles
+ 107.   H1      dried flat rice noodles
         -> TWO lines: "flat rice noodles" and "dried flat rice noodles"
-        why: family "dried" — a different food or state
- 181.   KEEP      dried flat rice noodles (8mm wide)
+        why: "dried" names a different product (H1)
+ 108.   H1      dried flat rice noodles (8mm wide)
         -> TWO lines: "flat rice noodles" and "dried flat rice noodles (8mm wide)"
-        why: family "dried" — a different food or state
- 182.   KEEP      dried flat rice noodles (medium width, 3–5mm)
+        why: "dried" names a different product (H1)
+ 109.   H1      dried flat rice noodles (medium width, 3–5mm)
         -> TWO lines: "flat rice noodles" and "dried flat rice noodles (medium width, 3–5mm)"
-        why: family "dried" — a different food or state
- 183. ? KEEP      flat rice noodles (6–8 mm wide)
+        why: "dried" names a different product (H1)
+ 110. ? H1      flat rice noodles (6–8 mm wide)
         -> TWO lines: "flat rice noodles" and "flat rice noodles (6–8 mm wide)"
-        why: no family covers (6–8 mm) — refusing to fold is the safe side, and this one needs a look
- 184.   GENERIC   flat rice noodles (6–8mm wide)
-        -> ONE line: "2 flat rice noodles"
-        why: only a dimension or hedge (6–8mm) — nothing for the shopper to honour
- 185.   QUALIFIER flat rice noodles (medium width, 3mm)
-        -> ONE line: "2 flat rice noodles (at least one medium)"
-        why: family "medium" — a grade, trim, colour or size on the same food
+        why: no family covers (mm) — H1 is the safe side, because it buys exactly what the recipe said
+ 111.   GENERIC flat rice noodles (6–8mm wide)
+        -> ONE line: "flat rice noodles" — the difference is a hedge, not a product
+        why: only hedges, sizes or prep (6–8mm wide) — H4's last clause
+ 112.   H3      flat rice noodles (medium width, 3mm)
+        -> ONE line IF a recipe demanded "flat rice noodles" and it is count-sold: "N flat rice noodles, at least M <variety>"; TWO lines otherwise
+        why: "medium" is a store product the generic can stand in for (H3)
 
   flatbread
- 186.   QUALIFIER large whole-wheat flatbreads
-        -> ONE line: "2 flatbread (at least one large whole-wheat)"
-        why: family "large" — a grade, trim, colour or size on the same food
+ 113.   H3      large whole-wheat flatbreads
+        -> ONE line IF a recipe demanded "flatbread" and it is count-sold: "N flatbread, at least M <variety>"; TWO lines otherwise
+        why: "large" is a store product the generic can stand in for (H3)
 
   fresh asparagus
- 187.   QUALIFIER fresh asparagus spears, thick-cut
-        -> ONE line: "2 fresh asparagus (at least one spears thick-cut)"
-        why: family "thick-cut" — a grade, trim, colour or size on the same food
+ 114.   H3      fresh asparagus spears, thick-cut
+        -> ONE line IF a recipe demanded "fresh asparagus" and it is count-sold: "N fresh asparagus, at least M <variety>"; TWO lines otherwise
+        why: same
 
   fresh asparagus spears
- 188.   QUALIFIER fresh asparagus spears, thick-cut
-        -> ONE line: "2 fresh asparagus spears (at least one thick-cut)"
-        why: family "thick-cut" — a grade, trim, colour or size on the same food
+ 115.   H3      fresh asparagus spears, thick-cut
+        -> ONE line IF a recipe demanded "fresh asparagus spears" and it is count-sold: "N fresh asparagus spears, at least M <variety>"; TWO lines otherwise
+        why: same
 
   fresh parsley
- 189.   QUALIFIER fresh flat-leaf parsley
-        -> ONE line: "2 fresh parsley (at least one flat-leaf)"
-        why: digest #101, same pair under the fresh spelling
+ 116.   H3      fresh flat-leaf parsley
+        -> ONE line IF a recipe demanded "fresh parsley" and it is count-sold: "N fresh parsley, at least M <variety>"; TWO lines otherwise
+        why: go-ahead S.PROMO #1 — same pair, the `fresh` spelling
 
   fresh red chili
- 190.   KEEP      fresh red thai chilies
+ 117.   H1      fresh red thai chilies
         -> TWO lines: "fresh red chili" and "fresh red thai chilies"
-        why: family "thai" — a different food or state
+        why: "thai" names a different product (H1)
 
   fresh spinach
- 191.   QUALIFIER fresh baby spinach
-        -> ONE line: "2 fresh spinach (at least one baby)"
-        why: family "baby" — a grade, trim, colour or size on the same food
+ 118.   H3      fresh baby spinach
+        -> ONE line IF a recipe demanded "fresh spinach" and it is count-sold: "N fresh spinach, at least M <variety>"; TWO lines otherwise
+        why: "baby" is a store product the generic can stand in for (H3)
 
   fresh thai chilies
- 192.   QUALIFIER fresh red thai chilies
-        -> ONE line: "2 fresh thai chilies (at least one red)"
-        why: family "red" — a grade, trim, colour or size on the same food
+ 119.   H3      fresh red thai chilies
+        -> ONE line IF a recipe demanded "fresh thai chilies" and it is count-sold: "N fresh thai chilies, at least M <variety>"; TWO lines otherwise
+        why: "red" is a store product the generic can stand in for (H3)
 
   green beans
- 193.   KEEP      fresh green beans
-        -> TWO lines: "green beans" and "fresh green beans"
-        why: family "fresh" — a different food or state
- 194.   KEEP      frozen green beans
+ 120.   H3      fresh green beans
+        -> ONE line IF a recipe demanded "green beans" and it is count-sold: "N green beans, at least M <variety>"; TWO lines otherwise
+        why: same
+ 121.   H1      frozen green beans
         -> TWO lines: "green beans" and "frozen green beans"
-        why: family "frozen" — a different food or state
+        why: "frozen" names a different product (H1)
 
   green chili
- 195.   KEEP      hatch green chiles
+ 122.   H1      hatch green chiles
         -> TWO lines: "green chili" and "hatch green chiles"
-        why: family "hatch" — a different food or state
+        why: "hatch" names a different product (H1)
 
   green olives
- 196.   QUALIFIER pitted green olives
-        -> ONE line: "2 green olives (at least one pitted)"
-        why: family "pitted" — a grade, trim, colour or size on the same food
+ 123.   H3      pitted green olives
+        -> ONE line IF a recipe demanded "green olives" and it is count-sold: "N green olives, at least M <variety>"; TWO lines otherwise
+        why: "pitted" is a store product the generic can stand in for (H3)
 
   ground beef
- 197.   GENERIC   80/20 ground beef
-        -> ONE line: "2 ground beef"
-        why: only a dimension or hedge (80/20) — nothing for the shopper to honour
- 198.   QUALIFIER ground beef (80/20 chuck)
-        -> ONE line: "2 ground beef (at least one chuck)"
-        why: family "80/20" — a grade, trim, colour or size on the same food
- 199.   GENERIC   ground beef (80/20)
-        -> ONE line: "2 ground beef"
-        why: only a dimension or hedge (80/20) — nothing for the shopper to honour
- 200.   QUALIFIER ground beef (85% lean)
-        -> ONE line: "2 ground beef (at least one 85% lean)"
-        why: family "85%, lean" — a grade, trim, colour or size on the same food
- 201.   QUALIFIER lean ground beef
-        -> ONE line: "2 ground beef (at least one lean)"
-        why: family "lean" — a grade, trim, colour or size on the same food
- 202.   QUALIFIER lean ground beef (85/15)
-        -> ONE line: "2 ground beef (at least one lean)"
-        why: family "lean, 85/15" — a grade, trim, colour or size on the same food
+ 124.   H1      80/20 ground beef
+        -> TWO lines: "ground beef" and "80/20 ground beef"
+        why: "80/20" names a different product (H1)
+ 125.   H1      ground beef (80/20 chuck)
+        -> TWO lines: "ground beef" and "ground beef (80/20 chuck)"
+        why: go-ahead S.1 #74/#203 — a lean ratio is the product
+ 126.   H1      ground beef (80/20)
+        -> TWO lines: "ground beef" and "ground beef (80/20)"
+        why: "80/20" names a different product (H1)
+ 127.   H1      ground beef (85% lean)
+        -> TWO lines: "ground beef" and "ground beef (85% lean)"
+        why: "85%, lean" names a different product (H1)
+ 128.   H1      lean ground beef
+        -> TWO lines: "ground beef" and "lean ground beef"
+        why: "lean" names a different product (H1)
+ 129.   H1      lean ground beef (85/15)
+        -> TWO lines: "ground beef" and "lean ground beef (85/15)"
+        why: "lean, 85/15" names a different product (H1)
 
   ground beef (80/20)
- 203. ? KEEP      ground beef (80/20 chuck)
+ 130.   H1      ground beef (80/20 chuck)
         -> TWO lines: "ground beef (80/20)" and "ground beef (80/20 chuck)"
-        why: no family covers (chuck) — refusing to fold is the safe side, and this one needs a look
+        why: go-ahead S.1 #74/#203
 
   hamburger buns
- 204.   QUALIFIER brioche hamburger bun
-        -> ONE line: "2 hamburger buns (at least one brioche)"
-        why: family "brioche" — a grade, trim, colour or size on the same food
- 205.   QUALIFIER potato hamburger bun
-        -> ONE line: "2 hamburger buns (at least one potato)"
-        why: family "potato" — a grade, trim, colour or size on the same food
+ 131.   H3      brioche hamburger bun
+        -> ONE line IF a recipe demanded "hamburger buns" and it is count-sold: "N hamburger buns, at least M <variety>"; TWO lines otherwise
+        why: "brioche" is a store product the generic can stand in for (H3)
+ 132.   H3      potato hamburger bun
+        -> ONE line IF a recipe demanded "hamburger buns" and it is count-sold: "N hamburger buns, at least M <variety>"; TWO lines otherwise
+        why: "potato" is a store product the generic can stand in for (H3)
 
   hoagie rolls
- 206.   QUALIFIER french hoagie rolls (10-inch)
-        -> ONE line: "2 hoagie rolls (at least one french)"
-        why: family "french" — a grade, trim, colour or size on the same food
+ 133.   H3      french hoagie rolls (10-inch)
+        -> ONE line IF a recipe demanded "hoagie rolls" and it is count-sold: "N hoagie rolls, at least M <variety>"; TWO lines otherwise
+        why: "french" is a store product the generic can stand in for (H3)
 
   hot dog buns
- 207.   QUALIFIER brioche hot dog buns
-        -> ONE line: "2 hot dog buns (at least one brioche)"
-        why: family "brioche" — a grade, trim, colour or size on the same food
- 208. ? KEEP      poppy seed hot dog buns
-        -> TWO lines: "hot dog buns" and "poppy seed hot dog buns"
-        why: no family covers (poppy seed) — refusing to fold is the safe side, and this one needs a look
+ 134.   H3      brioche hot dog buns
+        -> ONE line IF a recipe demanded "hot dog buns" and it is count-sold: "N hot dog buns, at least M <variety>"; TWO lines otherwise
+        why: "brioche" is a store product the generic can stand in for (H3)
+ 135.   H3      poppy seed hot dog buns
+        -> ONE line IF a recipe demanded "hot dog buns" and it is count-sold: "N hot dog buns, at least M <variety>"; TWO lines otherwise
+        why: "poppy, seed" is a store product the generic can stand in for (H3)
 
   hot sauce
- 209.   KEEP      chipotle hot sauce
+ 136.   H1      chipotle hot sauce
         -> TWO lines: "hot sauce" and "chipotle hot sauce"
-        why: family "chipotle" — a different food or state
- 210. ? KEEP      frank's redhot original hot sauce
+        why: "chipotle" names a different product (H1)
+ 137. ? H1      frank's redhot original hot sauce
         -> TWO lines: "hot sauce" and "frank's redhot original hot sauce"
-        why: no family covers (frank's redhot original) — refusing to fold is the safe side, and this one needs a look
+        why: no family covers (frank's redhot original) — H1 is the safe side, because it buys exactly what the recipe said
 
   italian pork sausage
- 211. ? KEEP      italian pork sausage links
-        -> TWO lines: "italian pork sausage" and "italian pork sausage links"
-        why: no family covers (links) — refusing to fold is the safe side, and this one needs a look
- 212.   KEEP      mild italian pork sausage
+ 138.   H3      italian pork sausage links
+        -> ONE line IF a recipe demanded "italian pork sausage" and it is count-sold: "N italian pork sausage, at least M <variety>"; TWO lines otherwise
+        why: go-ahead S.1 #211/#218 — links vs bulk within one variety
+ 139.   H1      mild italian pork sausage
         -> TWO lines: "italian pork sausage" and "mild italian pork sausage"
-        why: family "mild" — a different food or state
- 213.   KEEP      mild italian pork sausage links
+        why: "mild" names a different product (H1)
+ 140.   H1      mild italian pork sausage links
         -> TWO lines: "italian pork sausage" and "mild italian pork sausage links"
-        why: family "mild" — a different food or state
- 214.   KEEP      sweet italian pork sausage
+        why: "mild" names a different product (H1)
+ 141.   H1      sweet italian pork sausage
         -> TWO lines: "italian pork sausage" and "sweet italian pork sausage"
-        why: family "sweet" — a different food or state
+        why: "sweet" names a different product (H1)
 
   italian pork sausage links
- 215.   KEEP      mild italian pork sausage links
+ 142.   H1      mild italian pork sausage links
         -> TWO lines: "italian pork sausage links" and "mild italian pork sausage links"
-        why: family "mild" — a different food or state
+        why: go-ahead S.1 #266 — H1 across mild/hot
 
   italian sausage
- 216. ? KEEP      bulk italian sausage
-        -> TWO lines: "italian sausage" and "bulk italian sausage"
-        why: no family covers (bulk) — refusing to fold is the safe side, and this one needs a look
- 217.   KEEP      hot italian sausage
+ 143.   H3      bulk italian sausage
+        -> ONE line IF a recipe demanded "italian sausage" and it is count-sold: "N italian sausage, at least M <variety>"; TWO lines otherwise
+        why: go-ahead S.1 #216 — bulk vs links within one variety
+ 144.   H1      hot italian sausage
         -> TWO lines: "italian sausage" and "hot italian sausage"
-        why: family "hot" — a different food or state
- 218. ? KEEP      italian pork sausage links
-        -> TWO lines: "italian sausage" and "italian pork sausage links"
-        why: no family covers (pork links) — refusing to fold is the safe side, and this one needs a look
- 219.   KEEP      mild italian pork sausage
+        why: "hot" names a different product (H1)
+ 145.   H3      italian pork sausage links
+        -> ONE line IF a recipe demanded "italian sausage" and it is count-sold: "N italian sausage, at least M <variety>"; TWO lines otherwise
+        why: go-ahead S.1 #211/#218 — same
+ 146.   H1      mild italian pork sausage
         -> TWO lines: "italian sausage" and "mild italian pork sausage"
-        why: family "mild" — a different food or state
- 220.   KEEP      mild italian pork sausage links
+        why: "mild" names a different product (H1)
+ 147.   H1      mild italian pork sausage links
         -> TWO lines: "italian sausage" and "mild italian pork sausage links"
-        why: family "mild" — a different food or state
- 221.   KEEP      mild italian sausage
+        why: "mild" names a different product (H1)
+ 148.   H1      mild italian sausage
         -> TWO lines: "italian sausage" and "mild italian sausage"
-        why: family "mild" — a different food or state
- 222.   KEEP      spicy italian sausage
+        why: "mild" names a different product (H1)
+ 149.   H1      spicy italian sausage
         -> TWO lines: "italian sausage" and "spicy italian sausage"
-        why: family "spicy" — a different food or state
- 223.   KEEP      sweet italian pork sausage
+        why: "spicy" names a different product (H1)
+ 150.   H1      sweet italian pork sausage
         -> TWO lines: "italian sausage" and "sweet italian pork sausage"
-        why: family "sweet" — a different food or state
- 224.   KEEP      sweet italian sausage links
+        why: "sweet" names a different product (H1)
+ 151.   H1      sweet italian sausage links
         -> TWO lines: "italian sausage" and "sweet italian sausage links"
-        why: family "sweet" — a different food or state
+        why: "sweet" names a different product (H1)
 
   jarred salsa
- 225.   QUALIFIER jarred salsa (medium)
-        -> ONE line: "2 jarred salsa (at least one medium)"
-        why: family "medium" — a grade, trim, colour or size on the same food
- 226.   KEEP      jarred salsa roja
+ 152.   H3      jarred salsa (medium)
+        -> ONE line IF a recipe demanded "jarred salsa" and it is count-sold: "N jarred salsa, at least M <variety>"; TWO lines otherwise
+        why: "medium" is a store product the generic can stand in for (H3)
+ 153.   H1      jarred salsa roja
         -> TWO lines: "jarred salsa" and "jarred salsa roja"
-        why: family "roja" — a different food or state
- 227.   KEEP      jarred salsa verde
+        why: "roja" names a different product (H1)
+ 154.   H1      jarred salsa verde
         -> TWO lines: "jarred salsa" and "jarred salsa verde"
-        why: family "verde" — a different food or state
+        why: "verde" names a different product (H1)
 
   kalamata olives
- 228.   QUALIFIER pitted kalamata olives
-        -> ONE line: "2 kalamata olives (at least one pitted)"
-        why: family "pitted" — a grade, trim, colour or size on the same food
+ 155.   H3      pitted kalamata olives
+        -> ONE line IF a recipe demanded "kalamata olives" and it is count-sold: "N kalamata olives, at least M <variety>"; TWO lines otherwise
+        why: "pitted" is a store product the generic can stand in for (H3)
 
   kale
- 229.   KEEP      curly kale
+ 156.   H1      curly kale
         -> TWO lines: "kale" and "curly kale"
-        why: family "curly" — a different food or state
- 230.   KEEP      fresh lacinato kale
+        why: "curly" names a different product (H1)
+ 157.   H1      fresh lacinato kale
         -> TWO lines: "kale" and "fresh lacinato kale"
-        why: family "fresh, lacinato" — a different food or state
- 231.   KEEP      lacinato kale
+        why: `lacinato` is H1 regardless of `fresh`
+ 158.   H1      lacinato kale
         -> TWO lines: "kale" and "lacinato kale"
-        why: family "lacinato" — a different food or state
+        why: "lacinato" names a different product (H1)
 
   kidney beans
- 232.   KEEP      canned dark red kidney beans
-        -> TWO lines: "kidney beans" and "canned dark red kidney beans"
-        why: family "canned, dark" — a different food or state
- 233.   KEEP      canned kidney beans
-        -> TWO lines: "kidney beans" and "canned kidney beans"
-        why: family "canned" — a different food or state
- 234.   KEEP      dark red kidney beans
-        -> TWO lines: "kidney beans" and "dark red kidney beans"
-        why: family "dark" — a different food or state
- 235.   KEEP      dried red kidney beans
+ 159.   H3      canned dark red kidney beans
+        -> ONE line IF a recipe demanded "kidney beans" and it is count-sold: "N kidney beans, at least M <variety>"; TWO lines otherwise
+        why: "canned, red" is a store product the generic can stand in for (H3)
+ 160.   H3      canned kidney beans
+        -> ONE line IF a recipe demanded "kidney beans" and it is count-sold: "N kidney beans, at least M <variety>"; TWO lines otherwise
+        why: "canned" is a store product the generic can stand in for (H3)
+ 161.   H3      dark red kidney beans
+        -> ONE line IF a recipe demanded "kidney beans" and it is count-sold: "N kidney beans, at least M <variety>"; TWO lines otherwise
+        why: "red" is a store product the generic can stand in for (H3)
+ 162.   H1      dried red kidney beans
         -> TWO lines: "kidney beans" and "dried red kidney beans"
-        why: family "dried" — a different food or state
- 236.   QUALIFIER red kidney beans
-        -> ONE line: "2 kidney beans (at least one red)"
-        why: family "red" — a grade, trim, colour or size on the same food
+        why: "dried" names a different product (H1)
+ 163.   H3      red kidney beans
+        -> ONE line IF a recipe demanded "kidney beans" and it is count-sold: "N kidney beans, at least M <variety>"; TWO lines otherwise
+        why: "red" is a store product the generic can stand in for (H3)
 
   lager beer
- 237.   QUALIFIER mexican lager beer
-        -> ONE line: "2 lager beer (at least one mexican)"
-        why: family "mexican" — a grade, trim, colour or size on the same food
+ 164.   H3      mexican lager beer
+        -> ONE line IF a recipe demanded "lager beer" and it is count-sold: "N lager beer, at least M <variety>"; TWO lines otherwise
+        why: "mexican" is a store product the generic can stand in for (H3)
 
   large flour tortillas
- 238.   GENERIC   flour tortillas (10-inch)
-        -> ONE line: "2 large flour tortillas"
-        why: only a dimension or hedge (10-inch) — nothing for the shopper to honour
- 239.   GENERIC   large flour tortillas (10-inch)
-        -> ONE line: "2 large flour tortillas"
-        why: only a dimension or hedge (10-inch) — nothing for the shopper to honour
- 240.   GENERIC   large flour tortillas (12-inch)
-        -> ONE line: "2 large flour tortillas"
-        why: only a dimension or hedge (12-inch) — nothing for the shopper to honour
+ 165. ? H1      flour tortillas (10-inch)
+        -> TWO lines: "large flour tortillas" and "flour tortillas (10-inch)"
+        why: no family covers (10-inch) — H1 is the safe side, because it buys exactly what the recipe said
+ 166. ? H1      large flour tortillas (10-inch)
+        -> TWO lines: "large flour tortillas" and "large flour tortillas (10-inch)"
+        why: no family covers (10-inch) — H1 is the safe side, because it buys exactly what the recipe said
+ 167. ? H1      large flour tortillas (12-inch)
+        -> TWO lines: "large flour tortillas" and "large flour tortillas (12-inch)"
+        why: no family covers (12-inch) — H1 is the safe side, because it buys exactly what the recipe said
 
   large shrimp
- 241. ? KEEP      large shell-on shrimp (16/20 count)
-        -> TWO lines: "large shrimp" and "large shell-on shrimp (16/20 count)"
-        why: no family covers (shell-on 16/20) — refusing to fold is the safe side, and this one needs a look
- 242.   QUALIFIER large shrimp, peeled and deveined
-        -> ONE line: "2 large shrimp (at least one peeled deveined)"
-        why: family "peeled, deveined" — a grade, trim, colour or size on the same food
- 243.   QUALIFIER large shrimp, peeled and deveined (16/20 count)
-        -> ONE line: "2 large shrimp (at least one peeled deveined)"
-        why: family "peeled, deveined" — a grade, trim, colour or size on the same food
- 244.   QUALIFIER large shrimp, peeled and deveined (21–25 count)
-        -> ONE line: "2 large shrimp (at least one peeled deveined 21–25)"
-        why: family "peeled, deveined" — a grade, trim, colour or size on the same food
- 245.   QUALIFIER large shrimp, peeled and deveined (31–40 count)
-        -> ONE line: "2 large shrimp (at least one peeled deveined 31–40)"
-        why: family "peeled, deveined" — a grade, trim, colour or size on the same food
- 246.   QUALIFIER large shrimp, peeled and deveined, tails on
-        -> ONE line: "2 large shrimp (at least one peeled deveined tails)"
-        why: family "peeled, deveined" — a grade, trim, colour or size on the same food
+ 168.   H3      large shell-on shrimp (16/20 count)
+        -> ONE line IF a recipe demanded "large shrimp" and it is count-sold: "N large shrimp, at least M <variety>"; TWO lines otherwise
+        why: "shell-on" is a store product the generic can stand in for (H3)
+ 169.   H3      large shrimp, peeled and deveined
+        -> ONE line IF a recipe demanded "large shrimp" and it is count-sold: "N large shrimp, at least M <variety>"; TWO lines otherwise
+        why: "peeled, deveined" is a store product the generic can stand in for (H3)
+ 170.   H3      large shrimp, peeled and deveined (16/20 count)
+        -> ONE line IF a recipe demanded "large shrimp" and it is count-sold: "N large shrimp, at least M <variety>"; TWO lines otherwise
+        why: "peeled, deveined" is a store product the generic can stand in for (H3)
+ 171.   H3      large shrimp, peeled and deveined (21–25 count)
+        -> ONE line IF a recipe demanded "large shrimp" and it is count-sold: "N large shrimp, at least M <variety>"; TWO lines otherwise
+        why: "peeled, deveined" is a store product the generic can stand in for (H3)
+ 172.   H3      large shrimp, peeled and deveined (31–40 count)
+        -> ONE line IF a recipe demanded "large shrimp" and it is count-sold: "N large shrimp, at least M <variety>"; TWO lines otherwise
+        why: "peeled, deveined" is a store product the generic can stand in for (H3)
+ 173.   H3      large shrimp, peeled and deveined, tails on
+        -> ONE line IF a recipe demanded "large shrimp" and it is count-sold: "N large shrimp, at least M <variety>"; TWO lines otherwise
+        why: "peeled, deveined, tails" is a store product the generic can stand in for (H3)
 
   large shrimp, peeled and deveined
- 247.   GENERIC   large shrimp, peeled and deveined (16/20 count)
-        -> ONE line: "2 large shrimp, peeled and deveined"
-        why: only a dimension or hedge (16/20) — nothing for the shopper to honour
- 248.   GENERIC   large shrimp, peeled and deveined (21–25 count)
-        -> ONE line: "2 large shrimp, peeled and deveined"
-        why: only a dimension or hedge (21–25) — nothing for the shopper to honour
- 249.   GENERIC   large shrimp, peeled and deveined (31–40 count)
-        -> ONE line: "2 large shrimp, peeled and deveined"
-        why: only a dimension or hedge (31–40) — nothing for the shopper to honour
- 250. ? KEEP      large shrimp, peeled and deveined, tails on
-        -> TWO lines: "large shrimp, peeled and deveined" and "large shrimp, peeled and deveined, tails on"
-        why: no family covers (tails) — refusing to fold is the safe side, and this one needs a look
+ 174.   GENERIC large shrimp, peeled and deveined (16/20 count)
+        -> ONE line: "large shrimp, peeled and deveined" — the difference is a hedge, not a product
+        why: only hedges, sizes or prep (16/20 count) — H4's last clause
+ 175.   GENERIC large shrimp, peeled and deveined (21–25 count)
+        -> ONE line: "large shrimp, peeled and deveined" — the difference is a hedge, not a product
+        why: only hedges, sizes or prep (21–25 count) — H4's last clause
+ 176.   GENERIC large shrimp, peeled and deveined (31–40 count)
+        -> ONE line: "large shrimp, peeled and deveined" — the difference is a hedge, not a product
+        why: only hedges, sizes or prep (31–40 count) — H4's last clause
+ 177.   H3      large shrimp, peeled and deveined, tails on
+        -> ONE line IF a recipe demanded "large shrimp, peeled and deveined" and it is count-sold: "N large shrimp, peeled and deveined, at least M <variety>"; TWO lines otherwise
+        why: "tails" is a store product the generic can stand in for (H3)
 
   lean ground beef
- 251.   GENERIC   ground beef (85% lean)
-        -> ONE line: "2 lean ground beef"
-        why: only a dimension or hedge (85%) — nothing for the shopper to honour
- 252.   GENERIC   lean ground beef (85/15)
-        -> ONE line: "2 lean ground beef"
-        why: only a dimension or hedge (85/15) — nothing for the shopper to honour
+ 178.   H1      ground beef (85% lean)
+        -> TWO lines: "lean ground beef" and "ground beef (85% lean)"
+        why: "85%" names a different product (H1)
+ 179.   H1      lean ground beef (85/15)
+        -> TWO lines: "lean ground beef" and "lean ground beef (85/15)"
+        why: "85/15" names a different product (H1)
 
   lettuce
- 253.   KEEP      butter lettuce
+ 180.   H1      butter lettuce
         -> TWO lines: "lettuce" and "butter lettuce"
         why: Hans: lettuce over iceberg / romaine / hearts is a different product
- 254.   KEEP      butter lettuce leaves
+ 181.   H1      butter lettuce leaves
         -> TWO lines: "lettuce" and "butter lettuce leaves"
         why: Hans: lettuce over iceberg / romaine / hearts is a different product
- 255.   KEEP      green leaf lettuce
+ 182.   H1      green leaf lettuce
         -> TWO lines: "lettuce" and "green leaf lettuce"
         why: Hans: lettuce over iceberg / romaine / hearts is a different product
- 256.   KEEP      iceberg lettuce
+ 183.   H1      iceberg lettuce
         -> TWO lines: "lettuce" and "iceberg lettuce"
         why: Hans: lettuce over iceberg / romaine / hearts is a different product
- 257.   KEEP      iceberg lettuce leaves
+ 184.   H1      iceberg lettuce leaves
         -> TWO lines: "lettuce" and "iceberg lettuce leaves"
         why: Hans: lettuce over iceberg / romaine / hearts is a different product
- 258.   KEEP      little gem lettuce
+ 185.   H1      little gem lettuce
         -> TWO lines: "lettuce" and "little gem lettuce"
         why: Hans: lettuce over iceberg / romaine / hearts is a different product
- 259.   KEEP      romaine lettuce
+ 186.   H1      romaine lettuce
         -> TWO lines: "lettuce" and "romaine lettuce"
         why: Hans: lettuce over iceberg / romaine / hearts is a different product
- 260.   KEEP      romaine lettuce hearts
+ 187.   H1      romaine lettuce hearts
         -> TWO lines: "lettuce" and "romaine lettuce hearts"
-        why: Hans keeps lettuce separate; his hearts-are-just-romaine ruling is a ROMAINE-level fold and needs an edge that does not exist (finding N4)
- 261.   KEEP      romaine lettuce leaves
+        why: Hans: lettuce over iceberg / romaine / hearts is a different product
+ 188.   H1      romaine lettuce leaves
         -> TWO lines: "lettuce" and "romaine lettuce leaves"
         why: Hans: lettuce over iceberg / romaine / hearts is a different product
- 262.   KEEP      shredded iceberg lettuce
+ 189.   H1      shredded iceberg lettuce
         -> TWO lines: "lettuce" and "shredded iceberg lettuce"
         why: Hans: lettuce over iceberg / romaine / hearts is a different product
- 263.   KEEP      shredded romaine lettuce
+ 190.   H1      shredded romaine lettuce
         -> TWO lines: "lettuce" and "shredded romaine lettuce"
         why: Hans: lettuce over iceberg / romaine / hearts is a different product
 
   low-moisture mozzarella
- 264.   QUALIFIER low-moisture whole-milk mozzarella
-        -> ONE line: "2 low-moisture mozzarella (at least one whole-milk)"
-        why: family "whole-milk" — a grade, trim, colour or size on the same food
- 265.   QUALIFIER whole-milk low-moisture mozzarella
-        -> ONE line: "2 low-moisture mozzarella (at least one whole-milk)"
-        why: family "whole-milk" — a grade, trim, colour or size on the same food
+ 191.   H3      low-moisture whole-milk mozzarella
+        -> ONE line IF a recipe demanded "low-moisture mozzarella" and it is count-sold: "N low-moisture mozzarella, at least M <variety>"; TWO lines otherwise
+        why: "whole-milk" is a store product the generic can stand in for (H3)
+ 192.   H3      whole-milk low-moisture mozzarella
+        -> ONE line IF a recipe demanded "low-moisture mozzarella" and it is count-sold: "N low-moisture mozzarella, at least M <variety>"; TWO lines otherwise
+        why: "whole-milk" is a store product the generic can stand in for (H3)
 
   mild italian pork sausage
- 266. ? KEEP      mild italian pork sausage links
-        -> TWO lines: "mild italian pork sausage" and "mild italian pork sausage links"
-        why: no family covers (links) — refusing to fold is the safe side, and this one needs a look
+ 193.   H3      mild italian pork sausage links
+        -> ONE line IF a recipe demanded "mild italian pork sausage" and it is count-sold: "N mild italian pork sausage, at least M <variety>"; TWO lines otherwise
+        why: go-ahead S.1 #211 — within the mild variety
 
   navy beans
- 267.   KEEP      canned navy beans
-        -> TWO lines: "navy beans" and "canned navy beans"
-        why: family "canned" — a different food or state
- 268.   KEEP      dried navy beans
+ 194.   H3      canned navy beans
+        -> ONE line IF a recipe demanded "navy beans" and it is count-sold: "N navy beans, at least M <variety>"; TWO lines otherwise
+        why: "canned" is a store product the generic can stand in for (H3)
+ 195.   H1      dried navy beans
         -> TWO lines: "navy beans" and "dried navy beans"
-        why: family "dried" — a different food or state
+        why: "dried" names a different product (H1)
 
   new york strip steak
- 269.   GENERIC   new york strip steaks, about 1 inch thick
-        -> ONE line: "2 new york strip steak"
-        why: only a dimension or hedge (1) — nothing for the shopper to honour
+ 196.   GENERIC new york strip steaks, about 1 inch thick
+        -> ONE line: "new york strip steak" — the difference is a hedge, not a product
+        why: only hedges, sizes or prep (about 1 inch thick) — H4's last clause
 
   okra
- 270.   KEEP      fresh okra
-        -> TWO lines: "okra" and "fresh okra"
-        why: family "fresh" — a different food or state
+ 197.   H3      fresh okra
+        -> ONE line IF a recipe demanded "okra" and it is count-sold: "N okra, at least M <variety>"; TWO lines otherwise
+        why: same
 
   onion
- 271.   QUALIFIER diced white onion
-        -> ONE line: "2 onion (at least one diced white)"
-        why: family "white" — a grade, trim, colour or size on the same food
- 272.   QUALIFIER large yellow onion
-        -> ONE line: "2 onion (at least one large yellow)"
-        why: family "large, yellow" — a grade, trim, colour or size on the same food
- 273.   QUALIFIER medium yellow onion
-        -> ONE line: "2 onion (at least one medium yellow)"
-        why: family "medium, yellow" — a grade, trim, colour or size on the same food
- 274.   QUALIFIER red onion
-        -> ONE line: "2 onion (at least one red)"
-        why: family "red" — a grade, trim, colour or size on the same food
- 275.   QUALIFIER white onion
-        -> ONE line: "2 onion (at least one white)"
-        why: family "white" — a grade, trim, colour or size on the same food
- 276.   QUALIFIER yellow onion
-        -> ONE line: "2 onion (at least one yellow)"
-        why: family "yellow" — a grade, trim, colour or size on the same food
+ 198.   H3      diced white onion
+        -> ONE line IF a recipe demanded "onion" and it is count-sold: "N onion, at least M <variety>"; TWO lines otherwise
+        why: "white" is a store product the generic can stand in for (H3)
+ 199.   H3      large yellow onion
+        -> ONE line IF a recipe demanded "onion" and it is count-sold: "N onion, at least M <variety>"; TWO lines otherwise
+        why: "large, yellow" is a store product the generic can stand in for (H3)
+ 200.   H3      medium yellow onion
+        -> ONE line IF a recipe demanded "onion" and it is count-sold: "N onion, at least M <variety>"; TWO lines otherwise
+        why: "medium, yellow" is a store product the generic can stand in for (H3)
+ 201.   H3      red onion
+        -> ONE line IF a recipe demanded "onion" and it is count-sold: "N onion, at least M <variety>"; TWO lines otherwise
+        why: "red" is a store product the generic can stand in for (H3)
+ 202.   H3      white onion
+        -> ONE line IF a recipe demanded "onion" and it is count-sold: "N onion, at least M <variety>"; TWO lines otherwise
+        why: "white" is a store product the generic can stand in for (H3)
+ 203.   H3      yellow onion
+        -> ONE line IF a recipe demanded "onion" and it is count-sold: "N onion, at least M <variety>"; TWO lines otherwise
+        why: "yellow" is a store product the generic can stand in for (H3)
 
   orange
- 277.   QUALIFIER navel oranges
-        -> ONE line: "2 orange (at least one navel oranges)"
-        why: family "navel" — a grade, trim, colour or size on the same food
+ 204.   H3      navel oranges
+        -> ONE line IF a recipe demanded "orange" and it is count-sold: "N orange, at least M <variety>"; TWO lines otherwise
+        why: "navel" is a store product the generic can stand in for (H3)
 
   pappardelle
- 278.   KEEP      dried pappardelle pasta
+ 205.   H1      dried pappardelle pasta
         -> TWO lines: "pappardelle" and "dried pappardelle pasta"
-        why: family "dried" — a different food or state
+        why: "dried" names a different product (H1)
 
   pickle brine
- 279. ? KEEP      dill pickle brine
+ 206.   H1      dill pickle brine
         -> TWO lines: "pickle brine" and "dill pickle brine"
-        why: no family covers (dill) — refusing to fold is the safe side, and this one needs a look
+        why: go-ahead S.1 #279 — B1's co-harvest edge handles brine
 
   pickle slices
- 280. ? KEEP      dill pickle slices
-        -> TWO lines: "pickle slices" and "dill pickle slices"
-        why: no family covers (dill) — refusing to fold is the safe side, and this one needs a look
+ 207.   H3      dill pickle slices
+        -> ONE line IF a recipe demanded "pickle slices" and it is count-sold: "N pickle slices, at least M <variety>"; TWO lines otherwise
+        why: "dill" is a store product the generic can stand in for (H3)
 
   pinto beans
- 281.   KEEP      canned pinto beans
-        -> TWO lines: "pinto beans" and "canned pinto beans"
-        why: family "canned" — a different food or state
- 282.   KEEP      dried pinto beans
+ 208.   H3      canned pinto beans
+        -> ONE line IF a recipe demanded "pinto beans" and it is count-sold: "N pinto beans, at least M <variety>"; TWO lines otherwise
+        why: "canned" is a store product the generic can stand in for (H3)
+ 209.   H1      dried pinto beans
         -> TWO lines: "pinto beans" and "dried pinto beans"
-        why: family "dried" — a different food or state
- 283.   KEEP      pinto beans, canned
-        -> TWO lines: "pinto beans" and "pinto beans, canned"
-        why: family "canned" — a different food or state
+        why: "dried" names a different product (H1)
+ 210.   H3      pinto beans, canned
+        -> ONE line IF a recipe demanded "pinto beans" and it is count-sold: "N pinto beans, at least M <variety>"; TWO lines otherwise
+        why: "canned" is a store product the generic can stand in for (H3)
 
   pizza dough
- 284.   KEEP      refrigerated pizza dough
-        -> TWO lines: "pizza dough" and "refrigerated pizza dough"
-        why: family "refrigerated" — a different food or state
+ 211.   H3      refrigerated pizza dough
+        -> ONE line IF a recipe demanded "pizza dough" and it is count-sold: "N pizza dough, at least M <variety>"; TWO lines otherwise
+        why: "refrigerated" is a store product the generic can stand in for (H3)
 
   pork spare ribs
- 285. ? KEEP      st. louis-style pork spare ribs
+ 212. ? H1      st. louis-style pork spare ribs
         -> TWO lines: "pork spare ribs" and "st. louis-style pork spare ribs"
-        why: no family covers (st louis-style) — refusing to fold is the safe side, and this one needs a look
+        why: no family covers (st louis-style) — H1 is the safe side, because it buys exactly what the recipe said
 
   prosciutto
- 286. ? KEEP      prosciutto di parma
-        -> TWO lines: "prosciutto" and "prosciutto di parma"
-        why: no family covers (di parma) — refusing to fold is the safe side, and this one needs a look
+ 213.   H3      prosciutto di parma
+        -> ONE line IF a recipe demanded "prosciutto" and it is count-sold: "N prosciutto, at least M <variety>"; TWO lines otherwise
+        why: go-ahead S.1 #286 — a grade of the same product
 
   red chili
- 287.   KEEP      fresh red thai chilies
+ 214.   H1      fresh red thai chilies
         -> TWO lines: "red chili" and "fresh red thai chilies"
-        why: family "fresh, thai" — a different food or state
- 288.   KEEP      red fresno chiles
+        why: `thai` is H1 regardless of `fresh`
+ 215.   H1      red fresno chiles
         -> TWO lines: "red chili" and "red fresno chiles"
-        why: family "fresno" — a different food or state
- 289.   KEEP      red fresno chili
+        why: "fresno" names a different product (H1)
+ 216.   H1      red fresno chili
         -> TWO lines: "red chili" and "red fresno chili"
-        why: family "fresno" — a different food or state
- 290.   KEEP      red thai chili
+        why: "fresno" names a different product (H1)
+ 217.   H1      red thai chili
         -> TWO lines: "red chili" and "red thai chili"
-        why: family "thai" — a different food or state
+        why: "thai" names a different product (H1)
 
   red chili powder
- 291.   KEEP      kashmiri red chili powder
+ 218.   H1      kashmiri red chili powder
         -> TWO lines: "red chili powder" and "kashmiri red chili powder"
-        why: family "kashmiri" — a different food or state
- 292.   KEEP      pinch of kashmiri red chili powder
+        why: "kashmiri" names a different product (H1)
+ 219.   H1      pinch of kashmiri red chili powder
         -> TWO lines: "red chili powder" and "pinch of kashmiri red chili powder"
-        why: family "kashmiri" — a different food or state
+        why: "kashmiri" names a different product (H1)
 
   red kidney beans
- 293.   KEEP      canned dark red kidney beans
-        -> TWO lines: "red kidney beans" and "canned dark red kidney beans"
-        why: family "canned, dark" — a different food or state
- 294.   KEEP      dark red kidney beans
+ 220.   H3      canned dark red kidney beans
+        -> ONE line IF a recipe demanded "red kidney beans" and it is count-sold: "N red kidney beans, at least M <variety>"; TWO lines otherwise
+        why: "canned" is a store product the generic can stand in for (H3)
+ 221. ? H1      dark red kidney beans
         -> TWO lines: "red kidney beans" and "dark red kidney beans"
-        why: family "dark" — a different food or state
- 295.   KEEP      dried red kidney beans
+        why: no family covers (dark) — H1 is the safe side, because it buys exactly what the recipe said
+ 222.   H1      dried red kidney beans
         -> TWO lines: "red kidney beans" and "dried red kidney beans"
-        why: family "dried" — a different food or state
+        why: "dried" names a different product (H1)
 
   red potatoes
- 296.   QUALIFIER small red potatoes
-        -> ONE line: "2 red potatoes (at least one small)"
-        why: family "small" — a grade, trim, colour or size on the same food
+ 223.   H3      small red potatoes
+        -> ONE line IF a recipe demanded "red potatoes" and it is count-sold: "N red potatoes, at least M <variety>"; TWO lines otherwise
+        why: "small" is a store product the generic can stand in for (H3)
 
   refried beans
- 297.   KEEP      canned refried beans
-        -> TWO lines: "refried beans" and "canned refried beans"
-        why: family "canned" — a different food or state
+ 224.   H3      canned refried beans
+        -> ONE line IF a recipe demanded "refried beans" and it is count-sold: "N refried beans, at least M <variety>"; TWO lines otherwise
+        why: "canned" is a store product the generic can stand in for (H3)
 
   reserved birria braising liquid
- 298. ? KEEP      reserved braising liquid from chicken birria
+ 225.   H1      reserved braising liquid from chicken birria
         -> TWO lines: "reserved birria braising liquid" and "reserved braising liquid from chicken birria"
-        why: no family covers (from chicken) — refusing to fold is the safe side, and this one needs a look
+        why: go-ahead S.1 #298 — H1, and BOTH endpoints are never-order (see NEVER_ORDER_CANDIDATES)
 
   ribeye steak
- 299.   QUALIFIER bone-in ribeye steaks
-        -> ONE line: "2 ribeye steak (at least one bone-in)"
-        why: family "bone-in" — a grade, trim, colour or size on the same food
- 300.   QUALIFIER bone-in ribeye steaks, 1-inch thick
-        -> ONE line: "2 ribeye steak (at least one bone-in)"
-        why: family "bone-in" — a grade, trim, colour or size on the same food
- 301.   QUALIFIER bone-in ribeye steaks, about 1-inch thick
-        -> ONE line: "2 ribeye steak (at least one bone-in)"
-        why: family "bone-in" — a grade, trim, colour or size on the same food
- 302.   QUALIFIER bone-in ribeye steaks, about 1.25 inches thick
-        -> ONE line: "2 ribeye steak (at least one bone-in)"
-        why: family "bone-in" — a grade, trim, colour or size on the same food
- 303.   QUALIFIER boneless ribeye steaks
-        -> ONE line: "2 ribeye steak (at least one boneless)"
-        why: family "boneless" — a grade, trim, colour or size on the same food
+ 226.   H1      bone-in ribeye steaks
+        -> TWO lines: "ribeye steak" and "bone-in ribeye steaks"
+        why: "bone-in" names a different product (H1)
+ 227.   H1      bone-in ribeye steaks, 1-inch thick
+        -> TWO lines: "ribeye steak" and "bone-in ribeye steaks, 1-inch thick"
+        why: "bone-in" names a different product (H1)
+ 228.   H1      bone-in ribeye steaks, about 1-inch thick
+        -> TWO lines: "ribeye steak" and "bone-in ribeye steaks, about 1-inch thick"
+        why: "bone-in" names a different product (H1)
+ 229.   H1      bone-in ribeye steaks, about 1.25 inches thick
+        -> TWO lines: "ribeye steak" and "bone-in ribeye steaks, about 1.25 inches thick"
+        why: "bone-in" names a different product (H1)
+ 230.   H1      boneless ribeye steaks
+        -> TWO lines: "ribeye steak" and "boneless ribeye steaks"
+        why: "boneless" names a different product (H1)
 
   rice noodles
- 304.   KEEP      dried flat rice noodles
+ 231.   H1      dried flat rice noodles
         -> TWO lines: "rice noodles" and "dried flat rice noodles"
-        why: family "dried" — a different food or state
- 305.   KEEP      dried flat rice noodles (8mm wide)
+        why: "dried" names a different product (H1)
+ 232.   H1      dried flat rice noodles (8mm wide)
         -> TWO lines: "rice noodles" and "dried flat rice noodles (8mm wide)"
-        why: family "dried" — a different food or state
- 306.   KEEP      dried flat rice noodles (medium width, 3–5mm)
+        why: "dried" names a different product (H1)
+ 233.   H1      dried flat rice noodles (medium width, 3–5mm)
         -> TWO lines: "rice noodles" and "dried flat rice noodles (medium width, 3–5mm)"
-        why: family "dried" — a different food or state
- 307.   KEEP      dried rice noodles
+        why: "dried" names a different product (H1)
+ 234.   H1      dried rice noodles
         -> TWO lines: "rice noodles" and "dried rice noodles"
-        why: family "dried" — a different food or state
- 308.   KEEP      dried rice vermicelli noodles
+        why: "dried" names a different product (H1)
+ 235.   H1      dried rice vermicelli noodles
         -> TWO lines: "rice noodles" and "dried rice vermicelli noodles"
-        why: family "dried" — a different food or state
- 309.   QUALIFIER flat rice noodles
-        -> ONE line: "2 rice noodles (at least one flat)"
-        why: family "flat" — a grade, trim, colour or size on the same food
- 310.   QUALIFIER flat rice noodles (6–8 mm wide)
-        -> ONE line: "2 rice noodles (at least one flat 6–8 mm)"
-        why: family "flat" — a grade, trim, colour or size on the same food
- 311.   QUALIFIER flat rice noodles (6–8mm wide)
-        -> ONE line: "2 rice noodles (at least one flat 6–8mm)"
-        why: family "flat" — a grade, trim, colour or size on the same food
- 312.   QUALIFIER flat rice noodles (medium width, 3mm)
-        -> ONE line: "2 rice noodles (at least one flat medium)"
-        why: family "flat, medium" — a grade, trim, colour or size on the same food
- 313.   KEEP      fresh wide rice noodles
+        why: go-ahead S.1 #175/#316 — same
+ 236.   H3      flat rice noodles
+        -> ONE line IF a recipe demanded "rice noodles" and it is count-sold: "N rice noodles, at least M <variety>"; TWO lines otherwise
+        why: "flat" is a store product the generic can stand in for (H3)
+ 237.   GENERIC flat rice noodles (6–8 mm wide)
+        -> ONE line: "rice noodles" — the difference is a hedge, not a product
+        why: go-ahead S.1 #183 — a width, not a product
+ 238.   GENERIC flat rice noodles (6–8mm wide)
+        -> ONE line: "rice noodles" — the difference is a hedge, not a product
+        why: go-ahead S.1 #183 — same, the other spelling
+ 239.   H3      flat rice noodles (medium width, 3mm)
+        -> ONE line IF a recipe demanded "rice noodles" and it is count-sold: "N rice noodles, at least M <variety>"; TWO lines otherwise
+        why: "flat, medium" is a store product the generic can stand in for (H3)
+ 240.   H1      fresh wide rice noodles
         -> TWO lines: "rice noodles" and "fresh wide rice noodles"
-        why: family "fresh" — a different food or state
- 314.   KEEP      fresh wide rice noodles (ho fun)
+        why: fresh rice noodles are refrigerated, not shelf-stable — a different product (go-ahead's `fresh mozzarella` carve-out)
+ 241.   H1      fresh wide rice noodles (ho fun)
         -> TWO lines: "rice noodles" and "fresh wide rice noodles (ho fun)"
-        why: family "fresh" — a different food or state
- 315.   KEEP      fresh wide rice noodles (sen yai)
+        why: same
+ 242.   H1      fresh wide rice noodles (sen yai)
         -> TWO lines: "rice noodles" and "fresh wide rice noodles (sen yai)"
-        why: family "fresh" — a different food or state
- 316. ? KEEP      rice vermicelli noodles
+        why: same
+ 243.   H1      rice vermicelli noodles
         -> TWO lines: "rice noodles" and "rice vermicelli noodles"
-        why: no family covers (vermicelli) — refusing to fold is the safe side, and this one needs a look
- 317.   KEEP      wide dried rice noodles (sen yai)
+        why: go-ahead S.1 #316 — same
+ 244.   H1      wide dried rice noodles (sen yai)
         -> TWO lines: "rice noodles" and "wide dried rice noodles (sen yai)"
-        why: family "dried" — a different food or state
+        why: "dried" names a different product (H1)
 
   rice paper wrappers
- 318.   GENERIC   rice paper wrappers (22cm)
-        -> ONE line: "2 rice paper wrappers"
-        why: only a dimension or hedge (22cm) — nothing for the shopper to honour
+ 245.   GENERIC rice paper wrappers (22cm)
+        -> ONE line: "rice paper wrappers" — the difference is a hedge, not a product
+        why: only hedges, sizes or prep (22cm) — H4's last clause
 
   roasted red peppers
- 319.   KEEP      jarred roasted red peppers
-        -> TWO lines: "roasted red peppers" and "jarred roasted red peppers"
-        why: family "jarred" — a different food or state
+ 246.   H3      jarred roasted red peppers
+        -> ONE line IF a recipe demanded "roasted red peppers" and it is count-sold: "N roasted red peppers, at least M <variety>"; TWO lines otherwise
+        why: "jarred" is a store product the generic can stand in for (H3)
 
   roma tomatoes
- 320.   QUALIFIER ripe roma tomatoes
-        -> ONE line: "2 roma tomatoes (at least one ripe)"
-        why: family "ripe" — a grade, trim, colour or size on the same food
+ 247.   GENERIC ripe roma tomatoes
+        -> ONE line: "roma tomatoes" — the difference is a hedge, not a product
+        why: only hedges, sizes or prep (ripe) — H4's last clause
 
   russet potatoes
- 321.   QUALIFIER large russet potatoes
-        -> ONE line: "2 russet potatoes (at least one large)"
-        why: family "large" — a grade, trim, colour or size on the same food
+ 248.   H3      large russet potatoes
+        -> ONE line IF a recipe demanded "russet potatoes" and it is count-sold: "N russet potatoes, at least M <variety>"; TWO lines otherwise
+        why: "large" is a store product the generic can stand in for (H3)
 
   salsa
- 322.   KEEP      chunky salsa
+ 249.   H1      chunky salsa
         -> TWO lines: "salsa" and "chunky salsa"
         why: Hans: salsa over verde is a different product
- 323.   KEEP      fresh salsa
+ 250.   H1      fresh salsa
         -> TWO lines: "salsa" and "fresh salsa"
         why: Hans: salsa over verde is a different product
- 324.   KEEP      fresh tomato salsa
+ 251.   H1      fresh tomato salsa
         -> TWO lines: "salsa" and "fresh tomato salsa"
         why: Hans: salsa over verde is a different product
- 325.   KEEP      jarred salsa
+ 252.   H1      jarred salsa
         -> TWO lines: "salsa" and "jarred salsa"
         why: Hans: salsa over verde is a different product
- 326.   KEEP      jarred salsa (medium)
+ 253.   H1      jarred salsa (medium)
         -> TWO lines: "salsa" and "jarred salsa (medium)"
         why: Hans: salsa over verde is a different product
- 327.   KEEP      jarred salsa roja
+ 254.   H1      jarred salsa roja
         -> TWO lines: "salsa" and "jarred salsa roja"
         why: Hans: salsa over verde is a different product
- 328.   KEEP      jarred salsa verde
+ 255.   H1      jarred salsa verde
         -> TWO lines: "salsa" and "jarred salsa verde"
         why: Hans: salsa over verde is a different product
- 329.   KEEP      mild salsa
+ 256.   H1      mild salsa
         -> TWO lines: "salsa" and "mild salsa"
         why: Hans: salsa over verde is a different product
- 330.   KEEP      salsa verde
+ 257.   H1      salsa verde
         -> TWO lines: "salsa" and "salsa verde"
         why: Hans: salsa over verde is a different product
 
   salt
- 331.   KEEP      coarse kosher salt
+ 258.   H1      coarse kosher salt
         -> TWO lines: "salt" and "coarse kosher salt"
-        why: BUG-168 LOCKED + NEVER_FOLD_PAIRS: the cluster holds coarse kosher salt / kosher salt and is refused whole
- 332.   KEEP      fine salt
+        why: BUG-168 LOCKED + NEVER_FOLD_PAIRS — and H1 reaches the same answer independently
+ 259.   H1      fine salt
         -> TWO lines: "salt" and "fine salt"
-        why: BUG-168 LOCKED + NEVER_FOLD_PAIRS: the cluster holds coarse kosher salt / kosher salt and is refused whole
- 333.   KEEP      fine sea salt
+        why: BUG-168 LOCKED + NEVER_FOLD_PAIRS — and H1 reaches the same answer independently
+ 260.   H1      fine sea salt
         -> TWO lines: "salt" and "fine sea salt"
-        why: BUG-168 LOCKED + NEVER_FOLD_PAIRS: the cluster holds coarse kosher salt / kosher salt and is refused whole
- 334.   KEEP      hawaiian sea salt
+        why: BUG-168 LOCKED + NEVER_FOLD_PAIRS — and H1 reaches the same answer independently
+ 261.   H1      hawaiian sea salt
         -> TWO lines: "salt" and "hawaiian sea salt"
-        why: BUG-168 LOCKED + NEVER_FOLD_PAIRS: the cluster holds coarse kosher salt / kosher salt and is refused whole
- 335.   KEEP      kosher salt
+        why: BUG-168 LOCKED + NEVER_FOLD_PAIRS — and H1 reaches the same answer independently
+ 262.   H1      kosher salt
         -> TWO lines: "salt" and "kosher salt"
-        why: BUG-168 LOCKED + NEVER_FOLD_PAIRS: the cluster holds coarse kosher salt / kosher salt and is refused whole
+        why: BUG-168 LOCKED + NEVER_FOLD_PAIRS — and H1 reaches the same answer independently
 
   short-grain white rice
- 336.   QUALIFIER japanese short-grain white rice
-        -> ONE line: "2 short-grain white rice (at least one japanese)"
-        why: family "japanese" — a grade, trim, colour or size on the same food
+ 263.   H3      japanese short-grain white rice
+        -> ONE line IF a recipe demanded "short-grain white rice" and it is count-sold: "N short-grain white rice, at least M <variety>"; TWO lines otherwise
+        why: "japanese" is a store product the generic can stand in for (H3)
 
   shredded cheddar cheese
- 337.   QUALIFIER shredded sharp cheddar cheese
-        -> ONE line: "2 shredded cheddar cheese (at least one sharp)"
-        why: family "sharp" — a grade, trim, colour or size on the same food
+ 264.   H3      shredded sharp cheddar cheese
+        -> ONE line IF a recipe demanded "shredded cheddar cheese" and it is count-sold: "N shredded cheddar cheese, at least M <variety>"; TWO lines otherwise
+        why: "sharp" is a store product the generic can stand in for (H3)
 
   shredded low-moisture mozzarella
- 338.   QUALIFIER shredded low-moisture whole-milk mozzarella
-        -> ONE line: "2 shredded low-moisture mozzarella (at least one whole-milk)"
-        why: family "whole-milk" — a grade, trim, colour or size on the same food
+ 265.   H3      shredded low-moisture whole-milk mozzarella
+        -> ONE line IF a recipe demanded "shredded low-moisture mozzarella" and it is count-sold: "N shredded low-moisture mozzarella, at least M <variety>"; TWO lines otherwise
+        why: "whole-milk" is a store product the generic can stand in for (H3)
 
   shredded mozzarella cheese
- 339.   QUALIFIER shredded whole-milk mozzarella cheese
-        -> ONE line: "2 shredded mozzarella cheese (at least one whole-milk)"
-        why: family "whole-milk" — a grade, trim, colour or size on the same food
+ 266.   H3      shredded whole-milk mozzarella cheese
+        -> ONE line IF a recipe demanded "shredded mozzarella cheese" and it is count-sold: "N shredded mozzarella cheese, at least M <variety>"; TWO lines otherwise
+        why: "whole-milk" is a store product the generic can stand in for (H3)
 
   shrimp
- 340.   QUALIFIER jumbo shrimp, peeled and deveined
-        -> ONE line: "2 shrimp (at least one jumbo peeled deveined)"
-        why: family "jumbo, peeled, deveined" — a grade, trim, colour or size on the same food
- 341.   QUALIFIER large shell-on shrimp (16/20 count)
-        -> ONE line: "2 shrimp (at least one large shell-on)"
-        why: family "large" — a grade, trim, colour or size on the same food
- 342.   QUALIFIER large shrimp
-        -> ONE line: "2 shrimp (at least one large)"
-        why: family "large" — a grade, trim, colour or size on the same food
- 343.   QUALIFIER large shrimp, peeled and deveined
-        -> ONE line: "2 shrimp (at least one large peeled deveined)"
-        why: family "large, peeled, deveined" — a grade, trim, colour or size on the same food
- 344.   QUALIFIER large shrimp, peeled and deveined (16/20 count)
-        -> ONE line: "2 shrimp (at least one large peeled deveined)"
-        why: family "large, peeled, deveined" — a grade, trim, colour or size on the same food
- 345.   QUALIFIER large shrimp, peeled and deveined (21–25 count)
-        -> ONE line: "2 shrimp (at least one large peeled deveined 21–25)"
-        why: family "large, peeled, deveined" — a grade, trim, colour or size on the same food
- 346.   QUALIFIER large shrimp, peeled and deveined (31–40 count)
-        -> ONE line: "2 shrimp (at least one large peeled deveined 31–40)"
-        why: family "large, peeled, deveined" — a grade, trim, colour or size on the same food
- 347.   QUALIFIER large shrimp, peeled and deveined, tails on
-        -> ONE line: "2 shrimp (at least one large peeled deveined tails)"
-        why: family "large, peeled, deveined" — a grade, trim, colour or size on the same food
- 348.   QUALIFIER medium shrimp
-        -> ONE line: "2 shrimp (at least one medium)"
-        why: family "medium" — a grade, trim, colour or size on the same food
- 349.   QUALIFIER raw shrimp, peeled and deveined, finely chopped
-        -> ONE line: "2 shrimp (at least one raw peeled deveined finely chopped)"
-        why: family "peeled, deveined" — a grade, trim, colour or size on the same food
+ 267.   H3      jumbo shrimp, peeled and deveined
+        -> ONE line IF a recipe demanded "shrimp" and it is count-sold: "N shrimp, at least M <variety>"; TWO lines otherwise
+        why: "jumbo, peeled, deveined" is a store product the generic can stand in for (H3)
+ 268.   H3      large shell-on shrimp (16/20 count)
+        -> ONE line IF a recipe demanded "shrimp" and it is count-sold: "N shrimp, at least M <variety>"; TWO lines otherwise
+        why: "large, shell-on" is a store product the generic can stand in for (H3)
+ 269.   H3      large shrimp
+        -> ONE line IF a recipe demanded "shrimp" and it is count-sold: "N shrimp, at least M <variety>"; TWO lines otherwise
+        why: "large" is a store product the generic can stand in for (H3)
+ 270.   H3      large shrimp, peeled and deveined
+        -> ONE line IF a recipe demanded "shrimp" and it is count-sold: "N shrimp, at least M <variety>"; TWO lines otherwise
+        why: "large, peeled, deveined" is a store product the generic can stand in for (H3)
+ 271.   H3      large shrimp, peeled and deveined (16/20 count)
+        -> ONE line IF a recipe demanded "shrimp" and it is count-sold: "N shrimp, at least M <variety>"; TWO lines otherwise
+        why: "large, peeled, deveined" is a store product the generic can stand in for (H3)
+ 272.   H3      large shrimp, peeled and deveined (21–25 count)
+        -> ONE line IF a recipe demanded "shrimp" and it is count-sold: "N shrimp, at least M <variety>"; TWO lines otherwise
+        why: "large, peeled, deveined" is a store product the generic can stand in for (H3)
+ 273.   H3      large shrimp, peeled and deveined (31–40 count)
+        -> ONE line IF a recipe demanded "shrimp" and it is count-sold: "N shrimp, at least M <variety>"; TWO lines otherwise
+        why: "large, peeled, deveined" is a store product the generic can stand in for (H3)
+ 274.   H3      large shrimp, peeled and deveined, tails on
+        -> ONE line IF a recipe demanded "shrimp" and it is count-sold: "N shrimp, at least M <variety>"; TWO lines otherwise
+        why: "large, peeled, deveined, tails" is a store product the generic can stand in for (H3)
+ 275.   H3      medium shrimp
+        -> ONE line IF a recipe demanded "shrimp" and it is count-sold: "N shrimp, at least M <variety>"; TWO lines otherwise
+        why: "medium" is a store product the generic can stand in for (H3)
+ 276.   H3      raw shrimp, peeled and deveined, finely chopped
+        -> ONE line IF a recipe demanded "shrimp" and it is count-sold: "N shrimp, at least M <variety>"; TWO lines otherwise
+        why: "peeled, deveined" is a store product the generic can stand in for (H3)
 
   sirloin steak
- 350. ? KEEP      top sirloin steaks, about 1 inch thick
+ 277. ? H1      top sirloin steaks, about 1 inch thick
         -> TWO lines: "sirloin steak" and "top sirloin steaks, about 1 inch thick"
-        why: no family covers (top 1) — refusing to fold is the safe side, and this one needs a look
+        why: no family covers (top) — H1 is the safe side, because it buys exactly what the recipe said
 
   slider buns
- 351.   QUALIFIER brioche slider buns
-        -> ONE line: "2 slider buns (at least one brioche)"
-        why: family "brioche" — a grade, trim, colour or size on the same food
+ 278.   H3      brioche slider buns
+        -> ONE line IF a recipe demanded "slider buns" and it is count-sold: "N slider buns, at least M <variety>"; TWO lines otherwise
+        why: "brioche" is a store product the generic can stand in for (H3)
 
   slider rolls
- 352.   QUALIFIER potato slider rolls
-        -> ONE line: "2 slider rolls (at least one potato)"
-        why: family "potato" — a grade, trim, colour or size on the same food
+ 279.   H3      potato slider rolls
+        -> ONE line IF a recipe demanded "slider rolls" and it is count-sold: "N slider rolls, at least M <variety>"; TWO lines otherwise
+        why: "potato" is a store product the generic can stand in for (H3)
 
   small potato
- 353.   QUALIFIER baby red potatoes
-        -> ONE line: "2 small potato (at least one baby red)"
-        why: family "baby, red" — a grade, trim, colour or size on the same food
- 354.   QUALIFIER baby yellow potato
-        -> ONE line: "2 small potato (at least one baby yellow)"
-        why: family "baby, yellow" — a grade, trim, colour or size on the same food
- 355.   QUALIFIER small red potatoes
-        -> ONE line: "2 small potato (at least one red)"
-        why: family "red" — a grade, trim, colour or size on the same food
+ 280.   H3      baby red potatoes
+        -> ONE line IF a recipe demanded "small potato" and it is count-sold: "N small potato, at least M <variety>"; TWO lines otherwise
+        why: "baby, red" is a store product the generic can stand in for (H3)
+ 281.   H3      baby yellow potato
+        -> ONE line IF a recipe demanded "small potato" and it is count-sold: "N small potato, at least M <variety>"; TWO lines otherwise
+        why: "baby, yellow" is a store product the generic can stand in for (H3)
+ 282.   H3      small red potatoes
+        -> ONE line IF a recipe demanded "small potato" and it is count-sold: "N small potato, at least M <variety>"; TWO lines otherwise
+        why: "red" is a store product the generic can stand in for (H3)
 
   smoked kielbasa
- 356. ? KEEP      smoked pork kielbasa
+ 283.   H1      smoked pork kielbasa
         -> TWO lines: "smoked kielbasa" and "smoked pork kielbasa"
-        why: no family covers (pork) — refusing to fold is the safe side, and this one needs a look
+        why: go-ahead S.1 #356
 
   smoked sausage
- 357.   KEEP      andouille smoked sausage
+ 284.   H1      andouille smoked sausage
         -> TWO lines: "smoked sausage" and "andouille smoked sausage"
-        why: family "andouille" — a different food or state
- 358.   KEEP      kielbasa (smoked polish sausage)
+        why: "andouille" names a different product (H1)
+ 285.   H1      kielbasa (smoked polish sausage)
         -> TWO lines: "smoked sausage" and "kielbasa (smoked polish sausage)"
-        why: family "kielbasa" — a different food or state
- 359.   KEEP      smoked kielbasa sausage
+        why: "kielbasa" names a different product (H1)
+ 286.   H1      smoked kielbasa sausage
         -> TWO lines: "smoked sausage" and "smoked kielbasa sausage"
-        why: family "kielbasa" — a different food or state
+        why: "kielbasa" names a different product (H1)
 
   soy sauce
- 360.   QUALIFIER low-sodium soy sauce
-        -> ONE line: "2 soy sauce (at least one low-sodium)"
-        why: family "low-sodium" — a grade, trim, colour or size on the same food
+ 287.   H3      low-sodium soy sauce
+        -> ONE line IF a recipe demanded "soy sauce" and it is count-sold: "N soy sauce, at least M <variety>"; TWO lines otherwise
+        why: "low-sodium" is a store product the generic can stand in for (H3)
 
   stone-ground grits
- 361.   QUALIFIER stone-ground white grits
-        -> ONE line: "2 stone-ground grits (at least one white)"
-        why: family "white" — a grade, trim, colour or size on the same food
- 362.   QUALIFIER stone-ground yellow grits
-        -> ONE line: "2 stone-ground grits (at least one yellow)"
-        why: family "yellow" — a grade, trim, colour or size on the same food
+ 288.   H3      stone-ground white grits
+        -> ONE line IF a recipe demanded "stone-ground grits" and it is count-sold: "N stone-ground grits, at least M <variety>"; TWO lines otherwise
+        why: "white" is a store product the generic can stand in for (H3)
+ 289.   H3      stone-ground yellow grits
+        -> ONE line IF a recipe demanded "stone-ground grits" and it is count-sold: "N stone-ground grits, at least M <variety>"; TWO lines otherwise
+        why: "yellow" is a store product the generic can stand in for (H3)
 
   sweet potatoes
- 363.   QUALIFIER large sweet potatoes
-        -> ONE line: "2 sweet potatoes (at least one large)"
-        why: family "large" — a grade, trim, colour or size on the same food
+ 290.   H3      large sweet potatoes
+        -> ONE line IF a recipe demanded "sweet potatoes" and it is count-sold: "N sweet potatoes, at least M <variety>"; TWO lines otherwise
+        why: "large" is a store product the generic can stand in for (H3)
 
   tomato
- 364. ? KEEP      beefsteak tomato
+ 291.   H1      beefsteak tomato
         -> TWO lines: "tomato" and "beefsteak tomato"
-        why: no family covers (beefsteak) — refusing to fold is the safe side, and this one needs a look
- 365.   KEEP      cherry tomatoes
+        why: "beefsteak" names a different product (H1)
+ 292.   H1      cherry tomatoes
         -> TWO lines: "tomato" and "cherry tomatoes"
-        why: family "cherry" — a different food or state
- 366.   KEEP      heirloom tomato
+        why: "cherry" names a different product (H1)
+ 293.   H1      heirloom tomato
         -> TWO lines: "tomato" and "heirloom tomato"
-        why: family "heirloom" — a different food or state
- 367.   KEEP      plum tomatoes
+        why: "heirloom" names a different product (H1)
+ 294.   H1      plum tomatoes
         -> TWO lines: "tomato" and "plum tomatoes"
-        why: family "plum" — a different food or state
- 368.   QUALIFIER ripe beefsteak tomatoes
-        -> ONE line: "2 tomato (at least one ripe beefsteak)"
-        why: family "ripe" — a grade, trim, colour or size on the same food
- 369.   QUALIFIER ripe roma tomatoes
-        -> ONE line: "2 tomato (at least one ripe roma)"
-        why: family "ripe" — a grade, trim, colour or size on the same food
- 370. ? KEEP      roma tomatoes
+        why: "plum" names a different product (H1)
+ 295.   H1      ripe beefsteak tomatoes
+        -> TWO lines: "tomato" and "ripe beefsteak tomatoes"
+        why: "beefsteak" names a different product (H1)
+ 296.   H1      ripe roma tomatoes
+        -> TWO lines: "tomato" and "ripe roma tomatoes"
+        why: "roma" names a different product (H1)
+ 297.   H1      roma tomatoes
         -> TWO lines: "tomato" and "roma tomatoes"
-        why: no family covers (roma) — refusing to fold is the safe side, and this one needs a look
+        why: "roma" names a different product (H1)
 
   top sirloin steaks
- 371.   GENERIC   top sirloin steaks, about 1 inch thick
-        -> ONE line: "2 top sirloin steaks"
-        why: only a dimension or hedge (1) — nothing for the shopper to honour
+ 298.   GENERIC top sirloin steaks, about 1 inch thick
+        -> ONE line: "top sirloin steaks" — the difference is a hedge, not a product
+        why: only hedges, sizes or prep (about 1 inch thick) — H4's last clause
 
   tortilla chips
- 372. ? KEEP      restaurant-style tortilla chips
-        -> TWO lines: "tortilla chips" and "restaurant-style tortilla chips"
-        why: no family covers (restaurant-style) — refusing to fold is the safe side, and this one needs a look
+ 299.   H3      restaurant-style tortilla chips
+        -> ONE line IF a recipe demanded "tortilla chips" and it is count-sold: "N tortilla chips, at least M <variety>"; TWO lines otherwise
+        why: "restaurant-style" is a store product the generic can stand in for (H3)
 
   whole canned tomatoes
- 373.   QUALIFIER canned san marzano whole peeled tomatoes
-        -> ONE line: "2 whole canned tomatoes (at least one san marzano peeled)"
-        why: family "san, peeled" — a grade, trim, colour or size on the same food
- 374.   QUALIFIER canned san marzano whole tomatoes
-        -> ONE line: "2 whole canned tomatoes (at least one san marzano)"
-        why: family "san" — a grade, trim, colour or size on the same food
- 375.   QUALIFIER canned whole san marzano tomatoes
-        -> ONE line: "2 whole canned tomatoes (at least one san marzano)"
-        why: family "san" — a grade, trim, colour or size on the same food
+ 300.   H3      canned san marzano whole peeled tomatoes
+        -> ONE line IF a recipe demanded "whole canned tomatoes" and it is count-sold: "N whole canned tomatoes, at least M <variety>"; TWO lines otherwise
+        why: "san, marzano, peeled" is a store product the generic can stand in for (H3)
+ 301.   H3      canned san marzano whole tomatoes
+        -> ONE line IF a recipe demanded "whole canned tomatoes" and it is count-sold: "N whole canned tomatoes, at least M <variety>"; TWO lines otherwise
+        why: "san, marzano" is a store product the generic can stand in for (H3)
+ 302.   H3      canned whole san marzano tomatoes
+        -> ONE line IF a recipe demanded "whole canned tomatoes" and it is count-sold: "N whole canned tomatoes, at least M <variety>"; TWO lines otherwise
+        why: "san, marzano" is a store product the generic can stand in for (H3)
 
   whole peeled tomatoes
- 376.   KEEP      canned san marzano whole peeled tomatoes
-        -> TWO lines: "whole peeled tomatoes" and "canned san marzano whole peeled tomatoes"
-        why: family "canned" — a different food or state
- 377.   QUALIFIER san marzano whole peeled tomatoes
-        -> ONE line: "2 whole peeled tomatoes (at least one san marzano)"
-        why: family "san" — a grade, trim, colour or size on the same food
- 378.   QUALIFIER whole peeled san marzano tomatoes
-        -> ONE line: "2 whole peeled tomatoes (at least one san marzano)"
-        why: family "san" — a grade, trim, colour or size on the same food
+ 303.   H3      canned san marzano whole peeled tomatoes
+        -> ONE line IF a recipe demanded "whole peeled tomatoes" and it is count-sold: "N whole peeled tomatoes, at least M <variety>"; TWO lines otherwise
+        why: "canned, san, marzano" is a store product the generic can stand in for (H3)
+ 304.   H3      san marzano whole peeled tomatoes
+        -> ONE line IF a recipe demanded "whole peeled tomatoes" and it is count-sold: "N whole peeled tomatoes, at least M <variety>"; TWO lines otherwise
+        why: "san, marzano" is a store product the generic can stand in for (H3)
+ 305.   H3      whole peeled san marzano tomatoes
+        -> ONE line IF a recipe demanded "whole peeled tomatoes" and it is count-sold: "N whole peeled tomatoes, at least M <variety>"; TWO lines otherwise
+        why: "san, marzano" is a store product the generic can stand in for (H3)
 
   yellow onion
- 379.   QUALIFIER large yellow onion
-        -> ONE line: "2 yellow onion (at least one large)"
-        why: family "large" — a grade, trim, colour or size on the same food
- 380.   QUALIFIER medium yellow onion
-        -> ONE line: "2 yellow onion (at least one medium)"
-        why: family "medium" — a grade, trim, colour or size on the same food
+ 306.   H3      large yellow onion
+        -> ONE line IF a recipe demanded "yellow onion" and it is count-sold: "N yellow onion, at least M <variety>"; TWO lines otherwise
+        why: "large" is a store product the generic can stand in for (H3)
+ 307.   H3      medium yellow onion
+        -> ONE line IF a recipe demanded "yellow onion" and it is count-sold: "N yellow onion, at least M <variety>"; TWO lines otherwise
+        why: "medium" is a store product the generic can stand in for (H3)
 
   zucchini
- 381.   QUALIFIER medium zucchini
-        -> ONE line: "2 zucchini (at least one medium)"
-        why: family "medium" — a grade, trim, colour or size on the same food
+ 308.   H3      medium zucchini
+        -> ONE line IF a recipe demanded "zucchini" and it is count-sold: "N zucchini, at least M <variety>"; TWO lines otherwise
+        why: "medium" is a store product the generic can stand in for (H3)
 
-  S totals: QUALIFIER 128 · KEEP 152 · GENERIC 28 · marked ? 35
+  S totals: H1 148 · H3 142 · GENERIC 18 · marked ? 22
 
 ==============================================================================
 N — BUY-NAME CLEANINGS (R7). The Instacart search term is NOT proposed:
@@ -1355,144 +1198,148 @@ N — BUY-NAME CLEANINGS (R7). The Instacart search term is NOT proposed:
     line name. Printed here so the pair can be read together.
 ==============================================================================
 
- 382.   neutral oil
+ 309.   neutral oil
         -> line: vegetable oil
         -> Instacart name: vegetable oil
         why: Hans: neutral oil can be considered vegetable oil — a store sells vegetable oil and sells nothing called neutral oil
- 383.   neutral cooking oil
+ 310.   neutral cooking oil
         -> line: vegetable oil
         -> Instacart name: vegetable oil
         why: Hans: neutral oil can be considered vegetable oil — a store sells vegetable oil and sells nothing called neutral oil
- 384.   neutral oil (for frying)
+ 311.   neutral oil (for frying)
         -> line: vegetable oil
         -> Instacart name: vegetable oil
         why: Hans: neutral oil can be considered vegetable oil — a store sells vegetable oil and sells nothing called neutral oil
- 385.   neutral oil for frying
+ 312.   neutral oil for frying
         -> line: vegetable oil
         -> Instacart name: vegetable oil
         why: Hans: neutral oil can be considered vegetable oil — a store sells vegetable oil and sells nothing called neutral oil
- 386.   neutral oil (such as avocado or canola oil)
+ 313.   neutral oil (such as avocado or canola oil)
         -> line: vegetable oil
         -> Instacart name: vegetable oil
         why: Hans: neutral oil can be considered vegetable oil — a store sells vegetable oil and sells nothing called neutral oil
- 387.   neutral oil (such as canola or grapeseed)
+ 314.   neutral oil (such as canola or grapeseed)
         -> line: vegetable oil
         -> Instacart name: vegetable oil
         why: Hans: neutral oil can be considered vegetable oil — a store sells vegetable oil and sells nothing called neutral oil
- 388.   neutral oil (such as canola)
+ 315.   neutral oil (such as canola)
         -> line: vegetable oil
         -> Instacart name: vegetable oil
         why: Hans: neutral oil can be considered vegetable oil — a store sells vegetable oil and sells nothing called neutral oil
- 389.   neutral oil (such as grapeseed or avocado)
+ 316.   neutral oil (such as grapeseed or avocado)
         -> line: vegetable oil
         -> Instacart name: vegetable oil
         why: Hans: neutral oil can be considered vegetable oil — a store sells vegetable oil and sells nothing called neutral oil
- 390.   neutral oil (such as grapeseed or canola)
+ 317.   neutral oil (such as grapeseed or canola)
         -> line: vegetable oil
         -> Instacart name: vegetable oil
         why: Hans: neutral oil can be considered vegetable oil — a store sells vegetable oil and sells nothing called neutral oil
- 391.   neutral oil (such as vegetable oil)
+ 318.   neutral oil (such as vegetable oil)
         -> line: vegetable oil
         -> Instacart name: vegetable oil
         why: Hans: neutral oil can be considered vegetable oil — a store sells vegetable oil and sells nothing called neutral oil
- 392.   neutral oil (such as vegetable or avocado oil)
+ 319.   neutral oil (such as vegetable or avocado oil)
         -> line: vegetable oil
         -> Instacart name: vegetable oil
         why: Hans: neutral oil can be considered vegetable oil — a store sells vegetable oil and sells nothing called neutral oil
- 393.   neutral oil (such as vegetable or canola oil)
+ 320.   neutral oil (such as vegetable or canola oil)
         -> line: vegetable oil
         -> Instacart name: vegetable oil
         why: Hans: neutral oil can be considered vegetable oil — a store sells vegetable oil and sells nothing called neutral oil
- 394.   neutral oil (such as vegetable or canola)
+ 321.   neutral oil (such as vegetable or canola)
         -> line: vegetable oil
         -> Instacart name: vegetable oil
         why: Hans: neutral oil can be considered vegetable oil — a store sells vegetable oil and sells nothing called neutral oil
- 395.   neutral oil (such as vegetable or peanut oil)
+ 322.   neutral oil (such as vegetable or peanut oil)
         -> line: vegetable oil
         -> Instacart name: vegetable oil
         why: Hans: neutral oil can be considered vegetable oil — a store sells vegetable oil and sells nothing called neutral oil
- 396.   neutral oil (vegetable or canola)
+ 323.   neutral oil (vegetable or canola)
         -> line: vegetable oil
         -> Instacart name: vegetable oil
         why: Hans: neutral oil can be considered vegetable oil — a store sells vegetable oil and sells nothing called neutral oil
- 397.   neutral vegetable oil
+ 324.   neutral vegetable oil
         -> line: vegetable oil
         -> Instacart name: vegetable oil
         why: Hans: neutral oil can be considered vegetable oil — a store sells vegetable oil and sells nothing called neutral oil
- 398.   neutral cooking spray
+ 325.   neutral cooking spray
         -> line: cooking spray
         -> Instacart name: cooking spray
-        why: same ruling, applied to the spray form
- 399. ? lard or neutral oil
+        why: same ruling, the spray form
+ 326.   lard or neutral oil
         -> line: lard or vegetable oil
         -> Instacart name: lard or vegetable oil
-        why: the or-alternative is NOT rewritten (instacartName's stated rule); only the neutral half is renamed
- 400.   bone-in, skin-on chicken thighs
-        -> line: chicken thighs (bone-in, skin-on)
-        -> Instacart name: chicken thighs
-        why: R7 verbatim — this is the name that failed to match on Instacart, September 19
- 401.   bone-in skin-on chicken thighs
-        -> line: chicken thighs (bone-in, skin-on)
-        -> Instacart name: chicken thighs
-        why: the comma-less spelling of the same food
- 402.   bone-in, skin-on chicken drumsticks
-        -> line: chicken drumsticks (bone-in, skin-on)
-        -> Instacart name: chicken drumsticks
-        why: same shape
- 403.   boneless skinless chicken thighs
-        -> line: chicken thighs (boneless, skinless)
-        -> Instacart name: chicken thighs
-        why: same shape, the other trim
- 404.   corn tortillas (6-inch)
+        why: go-ahead N #399 YES — the or-alternative is not rewritten; only the neutral half is renamed
+ 327.   bone-in, skin-on chicken thighs
+        -> line: bone-in chicken thighs
+        -> Instacart name: bone-in chicken thighs
+        why: go-ahead N #400 — skin-on dropped from the line
+ 328.   bone-in skin-on chicken thighs
+        -> line: bone-in chicken thighs
+        -> Instacart name: bone-in chicken thighs
+        why: go-ahead N #401 — same, the comma-less spelling
+ 329.   bone-in, skin-on chicken drumsticks
+        -> line: bone-in chicken drumsticks
+        -> Instacart name: bone-in chicken drumsticks
+        why: go-ahead N #402
+ 330.   bone-in skin-on chicken drumsticks
+        -> line: bone-in chicken drumsticks
+        -> Instacart name: bone-in chicken drumsticks
+        why: go-ahead N #402 — same, the comma-less spelling
+ 331.   boneless skinless chicken thighs
+        -> line: boneless skinless chicken thighs   (UNCHANGED — the search term was the only defect)
+        -> Instacart name: boneless skinless chicken thighs
+        why: go-ahead N #403 — STAYS, and is searched as exactly that (H7)
+ 332.   corn tortillas (6-inch)
         -> line: corn tortillas (6-inch)   (UNCHANGED — the search term was the only defect)
         -> Instacart name: corn tortillas
-        why: already R7's shape — the size is already a parenthetical, so only the search term changes and it already does
- 405.   large flour tortillas (10-inch)
+        why: already R7's shape; only the search term changes, and it already does
+ 333.   large flour tortillas (10-inch)
         -> line: flour tortillas (large, 10-inch)
         -> Instacart name: flour tortillas
-        why: R7's verbatim shape — flour tortillas (8-inch)
- 406.   large flour tortillas (12-inch)
+        why: R7's verbatim shape
+ 334.   large flour tortillas (12-inch)
         -> line: flour tortillas (large, 12-inch)
         -> Instacart name: flour tortillas
         why: same
- 407.   flour tortillas (10-inch)
+ 335.   flour tortillas (10-inch)
         -> line: flour tortillas (10-inch)   (UNCHANGED — the search term was the only defect)
         -> Instacart name: flour tortillas
         why: already the shape
- 408.   mozzarella cheese, shredded
+ 336.   mozzarella cheese, shredded
         -> line: shredded mozzarella cheese
         -> Instacart name: shredded mozzarella cheese
-        why: the comma inversion is not a search term; the store sells shredded mozzarella cheese
- 409.   day-old cooked long-grain white rice
+        why: the comma inversion is not a search term
+ 337.   day-old cooked long-grain white rice
         -> line: long-grain white rice (day-old, cooked)
         -> Instacart name: long-grain white rice
         why: day-old and cooked are recipe states, not things a store stocks
- 410. ? 80/20 ground beef
+ 338.   80/20 ground beef
         -> line: ground beef (80/20)
         -> Instacart name: ground beef
-        why: R7's shape — the lean ratio is the spec, the product is ground beef
- 411. ? fresh basil leaves
+        why: go-ahead N #410 YES
+ 339.   fresh basil leaves
         -> line: fresh basil (leaves)
         -> Instacart name: fresh basil
-        why: the pool edge is admitted and correct; it declines only because the demand arrives in `each` against a yield in cups with no grams-per-leaf. The NAME is fixable now, the pool is not.
- 412. ? fresh sage leaves
+        why: go-ahead N #411 YES
+ 340.   fresh sage leaves
         -> line: fresh sage (leaves)
         -> Instacart name: fresh sage
-        why: same
- 413. ? iceberg lettuce leaves
+        why: go-ahead N #412 YES
+ 341.   iceberg lettuce leaves
         -> line: iceberg lettuce (leaves)
         -> Instacart name: iceberg lettuce
-        why: a synonym edge already folds it to iceberg lettuce; the fold never fires because no plan carries both rows, so the name has to carry it
+        why: go-ahead N #413 YES
 
   -- names the sweep looked at and REFUSED to change --
- 414.   REFUSE bay leaves
-        why: NOT a part — a store sells a container of bay leaves and sells no bay. The census's part-word regex is over-broad here; casing is the only change (section C).
- 415.   REFUSE fennel fronds
-        why: gets a PARENT EDGE, not a rename — see section P.
+ 342.   REFUSE bay leaves
+        why: go-ahead N9 — NOT a part. A store sells a container of bay leaves and sells no bay; the census part-word regex is over-broad. Casing is the only change.
+ 343.   REFUSE fennel fronds
+        why: gets a PARENT EDGE, not a rename — see PART_EDGES.
 
   -- P — the part edge --
- 416. ? component fennel bulb -> fennel fronds · 3 tablespoon · coHarvestable true
-        why: Hans: tops are part of the bulb and come with it. The bulb row ALREADY EXISTS (canonicalName `fennel bulb`, purchaseUnit `each`, pack '1 fennel bulb') so no new catalog row is needed — the prompt's premise is wrong on that point. `each` is in COMPONENT_BASIS_UNITS, so the edge is admitted as authored.
+ 344.   component fennel bulb -> fennel fronds · 3 tablespoon · coHarvestable true
+        why: go-ahead N #416 YES. Hans: tops are part of the bulb and come with it. The bulb row ALREADY EXISTS (purchaseUnit `each`, pack '1 fennel bulb'), so `each` is in COMPONENT_BASIS_UNITS and the edge is admitted as authored.
 
 ==============================================================================
 C — CASING (BUG-323). The rule lowercases the FIRST CHARACTER ONLY, and
@@ -1502,8 +1349,8 @@ C — CASING (BUG-323). The rule lowercases the FIRST CHARACTER ONLY, and
 
   Ingredient rows                                     1780
   Ingredient.displayName with a leading capital       207
-    -> LOWERCASED by the rule                         115
-    -> KEPT (proper noun)                             92
+    -> LOWERCASED by the rule                         116
+    -> KEPT (proper noun)                             91
   Ingredient.canonicalName with a leading capital     0   (nothing to do)
   DishIngredient name copies                          0   — the model has NO name column
                                                           (dishId, ingredientId, quantity, unit,
@@ -1512,60 +1359,59 @@ C — CASING (BUG-323). The rule lowercases the FIRST CHARACTER ONLY, and
   GroceryListItem rows with a leading capital         1359   — USER DATA, NOT TOUCHED (D-WS9-230)
 
   -- the FULL proper-noun exception list (leading tokens that keep the capital) --
- 417.   KEEP "American"  (1 row: American cheese slices)
- 418.   KEEP "Asian"  (1 row: Asian pear)
- 419. ? KEEP "Basmati"  (1 row: Basmati rice)
- 420.   KEEP "Belgian"  (1 row: Belgian endive)
- 421. ? KEEP "Brussels"  (1 row: Brussels sprouts)
- 422.   KEEP "Caesar"  (1 row: Caesar dressing)
- 423.   KEEP "Cajun"  (2 rows: Cajun seasoning · Cajun crawfish boil seasoning (such as Zatarain's))
- 424.   KEEP "Cheese"  (1 row: Cheese Whiz)
- 425.   KEEP "Chinese"  (1 row: Chinese broccoli (gai lan))
- 426.   KEEP "Chinkiang"  (1 row: Chinkiang black vinegar)
- 427. ? KEEP "Cotija"  (1 row: Cotija cheese)
- 428.   KEEP "Creole"  (2 rows: Creole mustard · Creole seasoning)
- 429.   KEEP "English"  (2 rows: English cucumbers, thinly sliced · English muffins)
- 430.   KEEP "Frank's"  (4 rows: Frank's RedHot original hot sauce · Frank's RedHot sauce · Frank's RedHot Buffalo sauce · Frank's RedHot original cayenne pepper sauce)
- 431.   KEEP "French"  (3 rows: French bread loaf · French hoagie rolls (10-inch) · French bread po' boy loaves)
- 432.   KEEP "Fritos"  (1 row: Fritos corn chips)
- 433.   KEEP "Granny"  (1 row: Granny Smith apple)
- 434.   KEEP "Greek"  (1 row: Greek yogurt or mayo)
- 435.   KEEP "Guinness"  (1 row: Guinness stout)
- 436.   KEEP "Hatch"  (1 row: Hatch green chiles)
- 437.   KEEP "Hawaiian"  (2 rows: Hawaiian sweet rolls · Hawaiian sea salt)
- 438.   KEEP "Honeycrisp"  (1 row: Honeycrisp or Braeburn apples)
- 439.   KEEP "Italian"  (10 rows: Italian sausage links · Italian breadcrumbs · Italian pork sausage links · Italian ciabatta or rustic baguette · Italian baguette · Italian seasoning · Italian sausage · Italian ciabatta loaf · Italian or French baguette · Italian pork sausage)
- 440.   KEEP "Italian-seasoned"  (1 row: Italian-seasoned breadcrumbs)
- 441.   KEEP "Italian-style"  (1 row: Italian-style chicken sausage links)
- 442.   KEEP "Japanese"  (3 rows: Japanese short-grain white rice · Japanese curry roux blocks · Japanese mayonnaise)
- 443. ? KEEP "Kalamata"  (1 row: Kalamata olives)
- 444.   KEEP "Kashmiri"  (2 rows: Kashmiri chili powder · Kashmiri red chili powder)
- 445.   KEEP "Madras"  (1 row: Madras curry powder)
- 446.   KEEP "Mexican"  (6 rows: Mexican crema · Mexican lager beer · Mexican dark chocolate · Mexican crumbling cheese (cotija) · Mexican cheese blend, shredded · Mexican fresh chorizo)
- 447.   KEEP "Near"  (1 row: Near East rice pilaf)
- 448.   KEEP "New"  (2 rows: New York strip steaks · New York strip steaks, about 1 inch thick)
- 449.   KEEP "Oaxacan"  (3 rows: Oaxacan cheese or low-moisture mozzarella · Oaxacan cheese · Oaxacan cheese (quesillo))
- 450.   KEEP "Old"  (1 row: Old Bay seasoning)
- 451.   KEEP "Panang"  (1 row: Panang curry paste)
- 452. ? KEEP "Parmesan"  (3 rows: Parmesan · Parmesan rind · Parmesan cheese, finely grated)
- 453.   KEEP "Parmigiano-Reggiano"  (1 row: Parmigiano-Reggiano rind)
- 454.   KEEP "Pecorino"  (1 row: Pecorino Romano cheese)
- 455.   KEEP "Persian"  (1 row: Persian cucumbers)
- 456.   KEEP "Pico"  (1 row: Pico de Gallo)
- 457. ? KEEP "Ritz"  (1 row: Ritz crackers)
- 458.   KEEP "San"  (3 rows: San Marzano tomatoes · San Marzano whole peeled tomatoes · San Marzano crushed tomatoes)
- 459.   KEEP "Shaoxing"  (2 rows: Shaoxing rice wine · Shaoxing wine)
- 460.   KEEP "Sichuan"  (1 row: Sichuan peppercorns)
- 461.   KEEP "Spanish"  (1 row: Spanish cured chorizo)
- 462.   KEEP "St."  (2 rows: St. Louis-style pork ribs · St. Louis-style pork spare ribs)
- 463.   KEEP "Swiss"  (1 row: Swiss cheese slices)
- 464.   KEEP "Szechuan"  (2 rows: Szechuan doubanjiang (chili bean paste) · Szechuan peppercorns)
- 465.   KEEP "T-bone"  (1 row: T-bone steaks)
- 466.   KEEP "Thai"  (6 rows: Thai basil · Thai red chili · Thai eggplant · Thai green curry paste · Thai red curry paste · Thai bird's eye chilies)
- 467.   KEEP "Yukon"  (1 row: Yukon Gold potatoes, cut into 1½-inch chunks)
+ 345.   KEEP "American"  (1 row: American cheese slices)
+ 346.   KEEP "Asian"  (1 row: Asian pear)
+ 347.   KEEP "Belgian"  (1 row: Belgian endive)
+ 348.   KEEP "Brussels"  (1 row: Brussels sprouts)
+ 349.   KEEP "Caesar"  (1 row: Caesar dressing)
+ 350.   KEEP "Cajun"  (2 rows: Cajun seasoning · Cajun crawfish boil seasoning (such as Zatarain's))
+ 351.   KEEP "Cheese"  (1 row: Cheese Whiz)
+ 352.   KEEP "Chinese"  (1 row: Chinese broccoli (gai lan))
+ 353.   KEEP "Chinkiang"  (1 row: Chinkiang black vinegar)
+ 354.   KEEP "Cotija"  (1 row: Cotija cheese)
+ 355.   KEEP "Creole"  (2 rows: Creole mustard · Creole seasoning)
+ 356.   KEEP "English"  (2 rows: English cucumbers, thinly sliced · English muffins)
+ 357.   KEEP "Frank's"  (4 rows: Frank's RedHot original hot sauce · Frank's RedHot sauce · Frank's RedHot Buffalo sauce · Frank's RedHot original cayenne pepper sauce)
+ 358.   KEEP "French"  (3 rows: French bread loaf · French hoagie rolls (10-inch) · French bread po' boy loaves)
+ 359.   KEEP "Fritos"  (1 row: Fritos corn chips)
+ 360.   KEEP "Granny"  (1 row: Granny Smith apple)
+ 361.   KEEP "Greek"  (1 row: Greek yogurt or mayo)
+ 362.   KEEP "Guinness"  (1 row: Guinness stout)
+ 363.   KEEP "Hatch"  (1 row: Hatch green chiles)
+ 364.   KEEP "Hawaiian"  (2 rows: Hawaiian sweet rolls · Hawaiian sea salt)
+ 365.   KEEP "Honeycrisp"  (1 row: Honeycrisp or Braeburn apples)
+ 366.   KEEP "Italian"  (10 rows: Italian sausage links · Italian breadcrumbs · Italian pork sausage links · Italian ciabatta or rustic baguette · Italian baguette · Italian seasoning · Italian sausage · Italian ciabatta loaf · Italian or French baguette · Italian pork sausage)
+ 367.   KEEP "Italian-seasoned"  (1 row: Italian-seasoned breadcrumbs)
+ 368.   KEEP "Italian-style"  (1 row: Italian-style chicken sausage links)
+ 369.   KEEP "Japanese"  (3 rows: Japanese short-grain white rice · Japanese curry roux blocks · Japanese mayonnaise)
+ 370.   KEEP "Kalamata"  (1 row: Kalamata olives)
+ 371.   KEEP "Kashmiri"  (2 rows: Kashmiri chili powder · Kashmiri red chili powder)
+ 372.   KEEP "Madras"  (1 row: Madras curry powder)
+ 373.   KEEP "Mexican"  (6 rows: Mexican crema · Mexican lager beer · Mexican dark chocolate · Mexican crumbling cheese (cotija) · Mexican cheese blend, shredded · Mexican fresh chorizo)
+ 374.   KEEP "Near"  (1 row: Near East rice pilaf)
+ 375.   KEEP "New"  (2 rows: New York strip steaks · New York strip steaks, about 1 inch thick)
+ 376.   KEEP "Oaxacan"  (3 rows: Oaxacan cheese or low-moisture mozzarella · Oaxacan cheese · Oaxacan cheese (quesillo))
+ 377.   KEEP "Old"  (1 row: Old Bay seasoning)
+ 378.   KEEP "Panang"  (1 row: Panang curry paste)
+ 379.   KEEP "Parmesan"  (3 rows: Parmesan · Parmesan rind · Parmesan cheese, finely grated)
+ 380.   KEEP "Parmigiano-Reggiano"  (1 row: Parmigiano-Reggiano rind)
+ 381.   KEEP "Pecorino"  (1 row: Pecorino Romano cheese)
+ 382.   KEEP "Persian"  (1 row: Persian cucumbers)
+ 383.   KEEP "Pico"  (1 row: Pico de Gallo)
+ 384.   KEEP "Ritz"  (1 row: Ritz crackers)
+ 385.   KEEP "San"  (3 rows: San Marzano tomatoes · San Marzano whole peeled tomatoes · San Marzano crushed tomatoes)
+ 386.   KEEP "Shaoxing"  (2 rows: Shaoxing rice wine · Shaoxing wine)
+ 387.   KEEP "Sichuan"  (1 row: Sichuan peppercorns)
+ 388.   KEEP "Spanish"  (1 row: Spanish cured chorizo)
+ 389.   KEEP "St."  (2 rows: St. Louis-style pork ribs · St. Louis-style pork spare ribs)
+ 390.   KEEP "Swiss"  (1 row: Swiss cheese slices)
+ 391.   KEEP "Szechuan"  (2 rows: Szechuan doubanjiang (chili bean paste) · Szechuan peppercorns)
+ 392.   KEEP "T-bone"  (1 row: T-bone steaks)
+ 393.   KEEP "Thai"  (6 rows: Thai basil · Thai red chili · Thai eggplant · Thai green curry paste · Thai red curry paste · Thai bird's eye chilies)
+ 394.   KEEP "Yukon"  (1 row: Yukon Gold potatoes, cut into 1½-inch chunks)
 
   -- the rows the rule LOWERCASES, for the record --
-     All-purpose flour · Apple · Asparagus · Avocado · Baby spinach · Bacon · Bagels · Bananas · Bay leaves · Bean sprouts · Beets · Bell peppers · Black pepper · Blueberries · Broccoli · Brown rice · Butter · Carrots · Celery · Cheddar · Cherry tomatoes · Chicken breast · Chicken thighs · Chickpeas · Cilantro · Coconut milk · Corn tortillas · Cream cheese · Cremini mushrooms · Crusty bread · Cucumber · Diced tomatoes · Dried oregano · Edamame · Extra-firm tofu · Fajita seasoning · Farro · Feta · Feta block · Fish sauce · Flour tortillas · Fresh basil · Fresh dill · Fresh mozzarella · Fresh parsley · Fresh thyme · Frozen mixed vegetables · Frozen waffles · Garam masala · Garlic · Ginger · Granulated sugar · Green lentils · Ground beef · Ground beef patties · Ground turkey · Heavy cream · Kale · Ketchup · Kosher salt · Large eggs · Large shrimp · Lemon · Lettuce · Lime · Linguine · Mayonnaise · Olive oil · Orange · Pappardelle · Parmigiano-Reggiano, finely grated · Parsley · Peanut butter · Peanuts · Pizza dough · Plain Greek yogurt · Pumpkin seeds · Quinoa · Red onion · Red pepper flakes · Red wine vinegar · Rice noodles · Romaine lettuce · Russet potatoes · Salmon fillets · Salsa · Salsa verde · Salt · Sandwich bread · Scallions · Sesame oil · Sesame seeds · Shallot · Sharp cheddar · Shrimp · Sour cream · Soy sauce · Spaghetti · Spiced & diced green chiles · Strawberry · Taco seasoning · Taco shells · Tahini · Tamarind paste · Teriyaki sauce · Tikka masala paste · Tomato · Vanilla ice cream · Vegetable broth · White onion · White wine · Whole milk · Wild rice · Yellow on-yon · Yellow onion
+     All-purpose flour · Apple · Asparagus · Avocado · Baby spinach · Bacon · Bagels · Bananas · Basmati rice · Bay leaves · Bean sprouts · Beets · Bell peppers · Black pepper · Blueberries · Broccoli · Brown rice · Butter · Carrots · Celery · Cheddar · Cherry tomatoes · Chicken breast · Chicken thighs · Chickpeas · Cilantro · Coconut milk · Corn tortillas · Cream cheese · Cremini mushrooms · Crusty bread · Cucumber · Diced tomatoes · Dried oregano · Edamame · Extra-firm tofu · Fajita seasoning · Farro · Feta · Feta block · Fish sauce · Flour tortillas · Fresh basil · Fresh dill · Fresh mozzarella · Fresh parsley · Fresh thyme · Frozen mixed vegetables · Frozen waffles · Garam masala · Garlic · Ginger · Granulated sugar · Green lentils · Ground beef · Ground beef patties · Ground turkey · Heavy cream · Kale · Ketchup · Kosher salt · Large eggs · Large shrimp · Lemon · Lettuce · Lime · Linguine · Mayonnaise · Olive oil · Orange · Pappardelle · Parmigiano-Reggiano, finely grated · Parsley · Peanut butter · Peanuts · Pizza dough · Plain Greek yogurt · Pumpkin seeds · Quinoa · Red onion · Red pepper flakes · Red wine vinegar · Rice noodles · Romaine lettuce · Russet potatoes · Salmon fillets · Salsa · Salsa verde · Salt · Sandwich bread · Scallions · Sesame oil · Sesame seeds · Shallot · Sharp cheddar · Shrimp · Sour cream · Soy sauce · Spaghetti · Spiced & diced green chiles · Strawberry · Taco seasoning · Taco shells · Tahini · Tamarind paste · Teriyaki sauce · Tikka masala paste · Tomato · Vanilla ice cream · Vegetable broth · White onion · White wine · Whole milk · Wild rice · Yellow on-yon · Yellow onion
 
 ==============================================================================
 M — MULTI-PARENT CHILDREN. The rule, in order:
@@ -1576,7 +1422,7 @@ M — MULTI-PARENT CHILDREN. The rule, in order:
 ==============================================================================
 
   children with more than one admitted parent: 1
- 468.   fresh flat-leaf parsley leaves
+ 395.   fresh flat-leaf parsley leaves
         parent "flat-leaf parsley"  containment 17
         parent "parsley"  containment 7
         -> rule 2 picks: flat-leaf parsley   (rule 1 can override at runtime)
@@ -1597,3 +1443,16 @@ I — IDENTITY FOLDS (R1 / BUG-210): plan-row groups sharing an ingredientId.
 
      The 22 rows the census's D1 detector flags are all DIFFERENT ingredient
      rows (generic/specific pairs). They are section S's territory, not R1's.
+
+==============================================================================
+RELABEL_TO_SYNONYM — the go-ahead N6 correction
+==============================================================================
+  romaine lettuce -> romaine lettuce hearts: go-ahead N6 — Hans: 'Romaine lettuce hearts are just romaine in my opinion.' The row is labelled `component`, which asserts a yield relation that does not exist. Relabel to `synonym`, reviewedByHuman.
+
+==============================================================================
+NEVER-ORDER CANDIDATES — the go-ahead S.1 #298
+==============================================================================
+  reserved birria braising liquid
+  reserved braising liquid from chicken birria
+  pasta cooking water
+  reserved pasta cooking water

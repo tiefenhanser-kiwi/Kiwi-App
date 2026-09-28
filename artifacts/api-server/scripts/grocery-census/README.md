@@ -44,7 +44,28 @@ an ambiguous one.
 | nothing persisted | the harness calls the pipeline's three stages and **returns before** the route's `prisma.$transaction` that creates `GroceryList` / `GroceryListItem`. |
 | catalog untouched | every write method on the `ingredient` delegate is proxied to a recorder that applies nothing; `$transaction(array)` is `Promise.all`'d rather than handed to Prisma. Would-be writes are reported per list. |
 | no user's ledger touched | AI calls run with `userId` undefined — a system-triggered CLI row. |
-| belt and braces | the `.env` role is `cookbook_ro`, which holds `SELECT` and nothing else, so no write is physically possible. `LLMCallLog` inserts therefore fail soft and **cost is measured from the SDK's own token counts** through the same `estimateCostUsdFromRate` the server uses. |
+| ~~belt and braces~~ **NO LONGER TRUE — see below** | the `.env` role WAS `cookbook_ro`, which holds `SELECT` and nothing else. `LLMCallLog` inserts therefore fail soft and **cost is measured from the SDK's own token counts** through the same `estimateCostUsdFromRate` the server uses. |
+
+## ⚠️ THE ROLE CHANGED (2026-09-28, [grocery] B2 A2 / go-ahead N10)
+
+The `.env` role is **`neondb_owner`**, not `cookbook_ro`. It changed when
+[grocery] B1 Part B needed to write the reviewed pack yields, and the belt-and-
+braces row above has been stale ever since.
+
+**Nothing about the harness's safety depends on the role any more, and nothing
+ever depended on it alone.** The two fences that actually hold are both still in
+place and both are code:
+
+- the **host check** — `census.ts:123` throws unless `DATABASE_URL`'s host
+  contains `ep-broad-haze`. Every probe and preview in `scripts/grocery-b1/`
+  and `scripts/grocery-b2/` repeats it.
+- the **write proxy** — every write method on the `ingredient` delegate is
+  routed to a recorder that applies nothing, and `$transaction(array)` is
+  `Promise.all`'d rather than handed to Prisma.
+
+What DID change: `LLMCallLog` inserts now succeed, so a census run leaves ledger
+rows. `ledgerSince()` reports them; cost is still measured from the SDK's token
+counts, which is a direct measurement rather than a read of a row about one.
 
 ## The render is the client's, not a copy
 

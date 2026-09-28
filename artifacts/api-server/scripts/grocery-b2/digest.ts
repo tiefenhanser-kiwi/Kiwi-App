@@ -2,8 +2,12 @@
 //
 //   node --env-file=.env --import tsx scripts/grocery-b2/digest.ts  -> out/digest.txt
 //
-// One numbered plain-text list. Reply by number: "12 no, 41 no".
-// Every figure comes from proposals.ts; every population comes from the DB.
+// THE RECORD of the ruled classification, regenerated under H1-H7. Part A
+// classified these edges as QUALIFIER / KEEP / GENERIC and Hans replaced that
+// model wholesale; this file now prints the H class each edge carries, so the
+// classification stays reproducible for Part D's tests.
+//
+// The DECISIONS Hans still owes are in out/defaults.txt, not here.
 
 import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -13,18 +17,14 @@ import { PrismaClient } from "@prisma/client";
 
 import { loadRelationIndex } from "../../src/lib/relationIndexLoader";
 import {
-  KEEP_TOKENS,
-  QUALIFIER_TOKENS,
-  distinguishingTokens,
-  classifySubsumes,
-  qualifierText,
+  classifyEdge,
   lowercaseLead,
   PROPER_NOUN_LEADS,
-  PROPER_NOUN_UNCERTAIN,
-  RULED_SUBSUMES_PROMOTIONS,
   NAME_CLEANINGS,
   NAME_REFUSALS,
   PART_EDGES,
+  RELABEL_TO_SYNONYM,
+  NEVER_ORDER_CANDIDATES,
 } from "./proposals";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -83,74 +83,28 @@ L.push(`     reviewedByHuman OR confidence 'high', the same gate admitSynonym us
 L.push(`    ${byGeneric.size} generics. Grouped by generic; one number per EDGE.`);
 L.push("=".repeat(78));
 
-// ── S.0 — THE TOKEN FAMILIES, ruled ONCE ──────────────────────────────────
-// 247 of the 308 edges are decided by a token family. Putting a `?` on each of
-// them would ask Hans to make one decision 247 times. The families ARE the
-// decision, so they get the numbers and the `?`; the per-edge list below then
-// carries `?` only where no family covered it.
-// Keyed per TOKEN, not per matched combination: "large, peeled, deveined" is
-// three decisions Hans has already made elsewhere, not a 76th new one.
-const familyUse = new Map<string, { klass: string; edges: string[] }>();
-for (const e of liveEdges) {
-  const r = classifySubsumes(e.generic, e.specific);
-  if (r.basis !== "keep-token" && r.basis !== "qualifier-token") continue;
-  const matched = distinguishingTokens(e.generic, e.specific).filter((t) =>
-    r.basis === "keep-token" ? KEEP_TOKENS.includes(t) : QUALIFIER_TOKENS.includes(t),
-  );
-  for (const tok of matched) {
-    let a = familyUse.get(tok);
-    if (!a) { a = { klass: r.klass, edges: [] }; familyUse.set(tok, a); }
-    a.edges.push(`${e.generic} ⊇ ${e.specific}`);
-  }
-}
-L.push("");
-L.push("  -- S.PROMO — MEDIUM, UNREVIEWED ROWS THIS LANE WANTS PAST THE GATE.");
-L.push("     Same mechanism as RULED_PROMOTIONS in ingredientRelations.ts, which");
-L.push("     already does exactly this for synonym edges. Without these two the");
-L.push("     prompt's own worked examples do not fold. --");
-for (const p of RULED_SUBSUMES_PROMOTIONS) {
-  L.push(`${num()}. ${p.uncertain ? "?" : " "} PROMOTE ${p.generic} ⊇ ${p.specific}`);
-  L.push(`        why: ${p.why}`);
-}
-
-L.push("");
-L.push("  -- S.0 — THE TOKEN FAMILIES. Each is ONE decision applied to many edges.");
-L.push("     Rule these and the per-edge list below follows. A family is the word the");
-L.push("     SPECIFIC adds over the GENERIC; the class says what that word means. --");
-for (const [fam, v] of [...familyUse].sort((a, b) => b[1].edges.length - a[1].edges.length)) {
-  L.push(`${num()}. ? ${v.klass.padEnd(9)} "${fam}"  — decides ${v.edges.length} edge${v.edges.length === 1 ? "" : "s"}`);
-  L.push(`        e.g. ${v.edges.slice(0, 3).join(" · ")}`);
-}
-L.push("");
-L.push("  -- S.1 — THE EDGES. `?` here means NO family covered it. --");
-
-const classCounts: Record<string, number> = { QUALIFIER: 0, KEEP: 0, GENERIC: 0 };
+const classCounts: Record<string, number> = { H1: 0, H3: 0, GENERIC: 0 };
 let uncertainS = 0;
 for (const [generic, specifics] of [...byGeneric].sort((a, b) => a[0].localeCompare(b[0]))) {
   L.push("");
   L.push(`  ${generic}`);
   for (const specific of specifics) {
-    const r = classifySubsumes(generic, specific);
-    classCounts[r.klass]++;
+    const r = classifyEdge(generic, specific);
+    classCounts[r.hClass]++;
     if (r.uncertain) uncertainS++;
-    const mark = r.uncertain ? "?" : " ";
-    let rendered: string;
-    if (r.klass === "QUALIFIER") {
-      const q = qualifierText(generic, specific);
-      rendered = `ONE line: "2 ${generic} (${q})"`;
-    } else if (r.klass === "GENERIC") {
-      rendered = `ONE line: "2 ${generic}"`;
-    } else {
-      rendered = `TWO lines: "${generic}" and "${specific}"`;
-    }
-    L.push(`${num()}. ${mark} ${r.klass.padEnd(9)} ${specific}`);
+    const rendered =
+      r.hClass === "H1"
+        ? `TWO lines: "${generic}" and "${specific}"`
+        : r.hClass === "H3"
+          ? `ONE line IF a recipe demanded "${generic}" and it is count-sold: "N ${generic}, at least M <variety>"; TWO lines otherwise`
+          : `ONE line: "${generic}" — the difference is a hedge, not a product`;
+    L.push(`${num()}. ${r.uncertain ? "?" : " "} ${r.hClass.padEnd(7)} ${specific}`);
     L.push(`        -> ${rendered}`);
     L.push(`        why: ${r.why}`);
   }
 }
 L.push("");
-L.push(`  S totals: QUALIFIER ${classCounts.QUALIFIER} · KEEP ${classCounts.KEEP} · GENERIC ${classCounts.GENERIC} · marked ? ${uncertainS}`);
-
+L.push(`  S totals: H1 ${classCounts.H1} · H3 ${classCounts.H3} · GENERIC ${classCounts.GENERIC} · marked ? ${uncertainS}`);
 // ---------------------------------------------------------------------------
 // N — buy-name cleanings
 // ---------------------------------------------------------------------------
@@ -220,7 +174,7 @@ L.push(`  GroceryListItem rows with a leading capital         ${gliCap[0].n}   �
 L.push("");
 L.push("  -- the FULL proper-noun exception list (leading tokens that keep the capital) --");
 for (const p of PROPER_NOUN_LEADS) {
-  const unc = PROPER_NOUN_UNCERTAIN.includes(p);
+  const unc = false;
   const rows = capLead.filter((i) => i.displayName.trim().split(/\s+/)[0] === p);
   L.push(`${num()}. ${unc ? "?" : " "} KEEP "${p}"  (${rows.length} row${rows.length === 1 ? "" : "s"}: ${rows.map((r) => r.displayName).join(" · ")})`);
 }
@@ -309,6 +263,16 @@ try {
   L.push(`     (corpus not readable: ${String(e)})`);
 }
 
+L.push("");
+L.push("=".repeat(78));
+L.push("RELABEL_TO_SYNONYM — the go-ahead N6 correction");
+L.push("=".repeat(78));
+for (const r of RELABEL_TO_SYNONYM) L.push(`  ${r.from} -> ${r.to}: ${r.why}`);
+L.push("");
+L.push("=".repeat(78));
+L.push("NEVER-ORDER CANDIDATES — the go-ahead S.1 #298");
+L.push("=".repeat(78));
+for (const c of NEVER_ORDER_CANDIDATES) L.push(`  ${c}`);
 L.push("");
 writeFileSync(join(OUT, "digest.txt"), L.join("\n"), "utf8");
 console.log(L.join("\n"));

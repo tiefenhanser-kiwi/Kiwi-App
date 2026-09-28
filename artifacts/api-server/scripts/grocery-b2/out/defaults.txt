@@ -1,0 +1,828 @@
+[grocery] B2 · A2(b) — THE DEFAULTS LIST · September 28, 2026
+
+Reply by number. Two ways to answer a line:
+  "41 no"                 -> leave it NONE (H3). Nothing to do; NONE is the norm.
+  "41 bone-in pork chops" -> that specific becomes the default (H2).
+
+A line marked `?` is one this lane PROPOSES. Everything else is NONE and
+needs no reply — it is listed so any of them can be overridden by number.
+
+WHAT A DEFAULT DOES (H2): the plain name joins the default's line and is
+named as the default. `chicken thighs` 2 lb + `bone-in chicken thighs` 3 lb
+becomes one line reading `bone-in chicken thighs`. It does NOT touch the
+other variants — `boneless skinless chicken thighs` stays its own line (H1).
+
+WHAT NONE DOES (H3): the plain name stays generic. If a recipe ALSO named a
+variety and the generic is count-sold, the generic line carries it in whole
+counts (`6 bell peppers, at least 2 green`). Otherwise both stand alone.
+
+   1.   80/20 ground beef → NONE (H3) · corpus lists affected: 4
+        pack: 1.5 lb pack [lb] · weight/volume-sold, H5 blocks shares · Protein
+        variants: ground beef (80/20 chuck) [H1]
+        lists: 31c7a885 6e952e32 8a462408 ed238692
+   2.   apple → NONE (H3) · corpus lists affected: 0
+        pack: 1 apple [each] · count-sold, CAN carry shares · Produce
+        variants: crisp apple [H1] · granny smith apple [H1] · honeycrisp apple [H1]
+   3.   arugula → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Produce
+        variants: baby arugula [H3]
+   4.   asparagus → NONE (H3) · corpus lists affected: 1
+        pack: 1 lb bunch [lb] · weight/volume-sold, H5 blocks shares · Produce
+        variants: fresh asparagus spears, thick-cut [H3]
+        lists: 425da049
+   5.   avocado → NONE (H3) · corpus lists affected: 2
+        pack: 2 avocados [each] · count-sold, CAN carry shares · Produce
+        variants: ripe hass avocados [H1, below the gate: medium]
+        lists: 96a94410 a8b0bbd5
+   6.   baby potato → NONE (H3) · corpus lists affected: 0
+        pack: 2 lb bag [lb] · weight/volume-sold, H5 blocks shares · Produce
+        variants: baby red potatoes [H3] · baby yellow potato [H3] · baby yukon gold potatoes [H3] · small red potatoes [H3]
+   7.   bacon → NONE (H3) · corpus lists affected: 1
+        pack: 1 package (12 oz) [package] · count-sold, CAN carry shares · Protein
+        variants: smoked bacon [H1, below the gate: medium]
+        lists: 11653a33
+   8.   basmati rice → NONE (H3) · corpus lists affected: 0
+        pack: 1 bag (2 lb) [bag] · count-sold, CAN carry shares · Pantry
+        variants: white basmati rice [H3, below the gate: medium]
+   9.   bbq sauce → NONE (H3) · corpus lists affected: 1
+        pack: 1 bottle (18 oz) [bottle] · count-sold, CAN carry shares · Pantry
+        variants: honey bbq sauce [H1] · smoky bbq sauce [H1]
+        lists: 247cd7bb
+  10.   bean sprouts → NONE (H3) · corpus lists affected: 1
+        pack: 1 bag (8 oz) [bag] · count-sold, CAN carry shares · Produce
+        variants: fresh bean sprouts [H3, below the gate: medium]
+        lists: 11653a33
+  11.   beef broth → NONE (H3) · corpus lists affected: 10
+        pack: 1 can (14.5 oz) [can] · count-sold, CAN carry shares · Canned
+        variants: beef broth, low-sodium [H3, below the gate: medium] · low-sodium beef broth [H3, below the gate: medium]
+        lists: 2b6e51a1 31c7a885 425da049 56b03a57 6e952e32 8a462408 96a94410 b8e7f134 c404a3cf d47d18aa
+  12.   beef chuck → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Protein
+        variants: beef chuck roast [H1] · bone-in beef chuck roast [H1] · boneless beef chuck roast [H1]
+  13.   beef chuck roast → NONE (H3) · corpus lists affected: 2
+        pack: 3 lb roast [lb] · weight/volume-sold, H5 blocks shares · Protein
+        variants: bone-in beef chuck roast [H1] · boneless beef chuck roast [H1]
+        lists: 14879176 d47d18aa
+  14.   beef sirloin → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Protein
+        variants: beef sirloin steak [H1, below the gate: medium] · beef sirloin tips [H1, below the gate: medium] · beef sirloin steak tips [H1, below the gate: medium]
+  15.   beefsteak tomato → NONE (H3) · corpus lists affected: 2
+        pack: 2 large beefsteak tomatoes [each] · count-sold, CAN carry shares · Produce
+        variants: ripe beefsteak tomatoes [GENERIC]
+        lists: 6e952e32 8a462408
+  16.   beets → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Produce
+        variants: small beet [H3]
+  17.   bell peppers → NONE (H3) · corpus lists affected: 2
+        pack: 3 peppers [each] · count-sold, CAN carry shares · Produce
+        variants: green bell pepper [H3] · large bell peppers [H3] · red bell pepper [H3] · yellow bell pepper [H3]
+        lists: 11653a33 247cd7bb
+  18.   black beans → NONE (H3) · corpus lists affected: 1
+        pack: 1 can (15 oz) [can] · count-sold, CAN carry shares · Canned
+        variants: cooked black beans [H1, below the gate: medium] · dried black beans [H1]
+        lists: 247cd7bb
+  19.   black pepper → NONE (H3) · corpus lists affected: 20
+        pack: 1 container [container] · count-sold, CAN carry shares · Pantry
+        variants: black pepper, coarsely ground [H1, below the gate: medium] · black pepper, freshly ground [H1, below the gate: medium] · black pepper, ground [H1, below the gate: medium] · coarsely cracked black pepper [H1, below the gate: medium] · coarsely ground black pepper [H1, below the gate: medium] · freshly ground black pepper [H1, below the gate: medium] · ground black pepper [H1, below the gate: medium]
+        lists: 11653a33 14397131 14879176 163875ec 247cd7bb 2b6e51a1 316d0846 31c7a885 353ce059 425da049 56b03a57 6e952e32 8a462408 96a94410 a8b0bbd5 b8e7f134 c404a3cf d47d18aa ed238692 f5556c19
+  20.   black pepper, ground → NONE (H3) · corpus lists affected: 0
+        pack: 1 container (2 oz) [container] · count-sold, CAN carry shares · Pantry
+        variants: black pepper, coarsely ground [H1, below the gate: medium] · black pepper, freshly ground [H1, below the gate: medium] · coarsely ground black pepper [H1, below the gate: medium] · freshly ground black pepper [H1, below the gate: medium]
+  21.   bone-in beef short ribs → NONE (H3) · corpus lists affected: 0
+        pack: 2.5 lb pack [lb] · weight/volume-sold, H5 blocks shares · Protein
+        variants: bone-in beef chuck short ribs [H1, below the gate: medium]
+  22.   bone-in pork chops → NONE (H3) · corpus lists affected: 1
+        pack: 2.5 lb pack [lb] · weight/volume-sold, H5 blocks shares · Protein
+        variants: bone-in center-cut pork chops [H3] · bone-in pork chops, about 1 inch thick [GENERIC] · bone-in pork chops, about 1-inch thick [H1] · bone-in pork chops, about 3/4-inch thick [H1] · bone-in pork rib chops [H1] · bone-in pork rib chops (about 1 inch thick) [H1] · bone-in pork rib chops, about 1-inch thick [H1]
+        lists: d47d18aa
+  23.   bone-in pork chops, about 1 inch thick → NONE (H3) · corpus lists affected: 0
+        pack: 2 lb pack (4 chops, 1 inch thick) [lb] · weight/volume-sold, H5 blocks shares · Protein
+        variants: bone-in pork rib chops (about 1 inch thick) [H1] · bone-in pork rib chops, about 1-inch thick [H1]
+  24.   bone-in pork chops, about 1-inch thick → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Protein
+        variants: bone-in pork rib chops (about 1 inch thick) [H1] · bone-in pork rib chops, about 1-inch thick [H1]
+  25.   bone-in pork rib chops → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Protein
+        variants: bone-in pork rib chops (about 1 inch thick) [GENERIC] · bone-in pork rib chops, about 1-inch thick [H1]
+  26.   bone-in pork shoulder → NONE (H3) · corpus lists affected: 0
+        pack: 3 lb pack [lb] · weight/volume-sold, H5 blocks shares · Protein
+        variants: bone-in pork shoulder (boston butt) [GENERIC, below the gate: medium]
+  27.   bone-in ribeye steaks → NONE (H3) · corpus lists affected: 1
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Protein
+        variants: bone-in ribeye steaks, 1-inch thick [H1] · bone-in ribeye steaks, about 1-inch thick [H1] · bone-in ribeye steaks, about 1.25 inches thick [GENERIC]
+        lists: 8a462408
+  28.   bone-in, skin-on chicken pieces (drumsticks and thighs) → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Protein
+        variants: bone-in skin-on chicken drumsticks [GENERIC, below the gate: medium] · bone-in skin-on chicken thighs [GENERIC, below the gate: medium] · bone-in, skin-on chicken drumsticks [GENERIC, below the gate: medium] · bone-in, skin-on chicken thighs [GENERIC, below the gate: medium]
+  29.   bone-in, skin-on chicken pieces (thighs and drumsticks) → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Protein
+        variants: bone-in skin-on chicken drumsticks [GENERIC, below the gate: medium] · bone-in skin-on chicken thighs [GENERIC, below the gate: medium] · bone-in, skin-on chicken drumsticks [GENERIC, below the gate: medium] · bone-in, skin-on chicken thighs [GENERIC, below the gate: medium]
+  30.   boneless pork shoulder → NONE (H3) · corpus lists affected: 1
+        pack: 2.5 lb pack [lb] · weight/volume-sold, H5 blocks shares · Protein
+        variants: boneless pork shoulder (butt) [GENERIC, below the gate: medium]
+        lists: f5556c19
+  31.   bratwurst sausages → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Protein
+        variants: fresh bratwurst sausages [H3, below the gate: medium]
+  32.   breadcrumbs → NONE (H3) · corpus lists affected: 0
+        pack: 1 container (8 oz) [container] · count-sold, CAN carry shares · Pantry
+        variants: italian breadcrumbs [H3] · italian-seasoned breadcrumbs [H1] · panko breadcrumbs [H1, below the gate: medium] · plain breadcrumbs [H1, below the gate: medium]
+  33.   breakfast pork sausage → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Protein
+        variants: bulk pork breakfast sausage [H1, below the gate: medium]
+  34.   brown rice → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: long-grain brown rice [H3]
+  35.   brown sugar → NONE (H3) · corpus lists affected: 2
+        pack: 1 bag (2 lb) [bag] · count-sold, CAN carry shares · Pantry
+        variants: dark brown sugar [H1, below the gate: medium] · light brown sugar [H1, below the gate: medium]
+        lists: 8a462408 ed238692
+  36.   butter → NONE (H3) · corpus lists affected: 2
+        pack: 1 package (1 lb, 4 sticks) [package] · count-sold, CAN carry shares · Dairy
+        variants: unsalted butter [H3, below the gate: medium]
+        lists: 163875ec 96a94410
+  37.   canned albacore tuna in water → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Canned
+        variants: canned solid white albacore tuna in water [H3, below the gate: medium]
+  38.   canned crushed tomatoes → NONE (H3) · corpus lists affected: 0
+        pack: 1 can (14.5 oz) [can] · count-sold, CAN carry shares · Canned
+        variants: canned crushed san marzano tomatoes [H3] · canned san marzano crushed tomatoes [H3]
+  39.   canned diced green chiles → NONE (H3) · corpus lists affected: 0
+        pack: 1 can (7 oz) [can] · count-sold, CAN carry shares · Canned
+        variants: canned roasted diced green chiles [H1, below the gate: medium] · diced roasted green chiles [H1, below the gate: medium] · roasted diced green chiles [H1, below the gate: medium]
+  40.   canned diced tomatoes → NONE (H3) · corpus lists affected: 2
+        pack: 1 can (14.5 oz) [can] · count-sold, CAN carry shares · Canned
+        variants: canned fire-roasted diced tomatoes [H1]
+        lists: 163875ec 96a94410
+  41.   canned green chiles → NONE (H3) · corpus lists affected: 0
+        pack: 1 can (4 oz) [can] · count-sold, CAN carry shares · Canned
+        variants: canned roasted diced green chiles [H1, below the gate: medium] · diced green chiles [GENERIC, below the gate: medium] · diced roasted green chiles [H1, below the gate: medium] · roasted diced green chiles [H1, below the gate: medium] · canned diced green chiles [GENERIC, below the gate: medium]
+  42.   canned kidney beans → NONE (H3) · corpus lists affected: 2
+        pack: 1 can (15 oz) [can] · count-sold, CAN carry shares · Canned
+        variants: canned dark red kidney beans [H3]
+        lists: 163875ec 96a94410
+  43.   canned pineapple chunks → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Canned
+        variants: canned pineapple chunks in juice [H1, below the gate: medium]
+  44.   canned red enchilada sauce → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Canned
+        variants: mild red enchilada sauce [H1, below the gate: medium]
+  45.   canned tuna in water → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Canned
+        variants: canned albacore tuna in water [H3] · canned solid white albacore tuna in water [H3]
+  46.   canned whole peeled tomatoes → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Canned
+        variants: canned san marzano whole peeled tomatoes [H3]
+  47.   cannellini beans → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Canned
+        variants: canned cannellini beans [H3] · canned white cannellini beans [H3]
+  48.   carrots → NONE (H3) · corpus lists affected: 9
+        pack: 1 lb bag [lb] · weight/volume-sold, H5 blocks shares · Produce
+        variants: baby carrot [H3, below the gate: medium] · medium carrots [H3]
+        lists: 14397131 14879176 2b6e51a1 425da049 6e952e32 8a462408 b8e7f134 d47d18aa ed238692
+  49.   carrots, peeled and grated → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Produce
+        variants: baby carrot [H3, below the gate: medium]
+  50.   castelvetrano olives → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: pitted castelvetrano olives [H3, below the gate: medium]
+  51.   cheddar → NONE (H3) · corpus lists affected: 1
+        pack: 1 block (8 oz) [block] · count-sold, CAN carry shares · Dairy
+        variants: sharp cheddar [H3] · sharp cheddar cheese [H3] · sharp white cheddar cheese [H3]
+        lists: 11653a33
+  52.   cheddar cheese → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Dairy
+        variants: sharp cheddar cheese [H3] · sharp white cheddar cheese [H3]
+  53.   cheese tortellini → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Dairy
+        variants: fresh cheese tortellini [H3, below the gate: medium] · refrigerated cheese tortellini [H3, below the gate: medium]
+  54. ? chicken breast → default: boneless skinless chicken breasts · corpus lists affected: 1
+        pack: 1 lb [lb] · weight/volume-sold, H5 blocks shares · Protein
+        variants: bone-in skin-on chicken breast [H1, below the gate: medium] · bone-in, skin-on chicken breasts [H1, below the gate: medium] · boneless skinless chicken breasts [H1, below the gate: medium]
+        canonical to fold onto: boneless skinless chicken breasts
+        why: PROPOSED by parity with the thigh ruling and the other way round: the default retail chicken breast IS the boneless skinless one. Same argument — the case is never sold unqualified.
+        lists: 11653a33
+  55.   chicken broth → NONE (H3) · corpus lists affected: 5
+        pack: 1 can (14.5 oz) [can] · count-sold, CAN carry shares · Canned
+        variants: chicken broth, low-sodium [H3, below the gate: medium] · low-sodium chicken broth [H3, below the gate: medium]
+        lists: 353ce059 425da049 96a94410 b8e7f134 f5556c19
+  56.   chicken drumsticks → NONE (H3) · corpus lists affected: 1
+        pack: 3 lb pack [lb] · weight/volume-sold, H5 blocks shares · Protein
+        variants: bone-in skin-on chicken drumsticks [H1, below the gate: medium] · bone-in, skin-on chicken drumsticks [H1, below the gate: medium]
+        lists: 247cd7bb
+  57.   chicken stock → NONE (H3) · corpus lists affected: 3
+        pack: 1 can (14.5 oz) [can] · count-sold, CAN carry shares · Canned
+        variants: low-sodium chicken stock [H3, below the gate: medium]
+        lists: 2b6e51a1 56b03a57 c404a3cf
+  58.   chicken thighs → default: bone-in chicken thighs · corpus lists affected: 1
+        pack: 2 lb [lb] · weight/volume-sold, H5 blocks shares · Protein
+        variants: bone-in skin-on chicken thighs [H1, below the gate: medium] · bone-in, skin-on chicken thighs [H1, below the gate: medium] · bone-in, skinless chicken thighs [H1, below the gate: medium] · boneless skinless chicken thighs [H1, below the gate: medium]
+        canonical to fold onto: bone-in skin-on chicken thighs
+        why: RULED. Hans: 'if a recipe calls for generic Chicken Thighs, I would assume it means bone-in.' A meat counter has no unqualified 'chicken thighs' bin — every pack states its cut. The canonical carries `skin-on`; the LINE drops it (go-ahead N #400-#402).
+        lists: 163875ec
+  59.   chickpeas → NONE (H3) · corpus lists affected: 1
+        pack: 1 can (15 oz) [can] · count-sold, CAN carry shares · Canned
+        variants: dried chickpeas [H1] · canned chickpeas [H3]
+        lists: 11653a33
+  60.   chili powder → NONE (H3) · corpus lists affected: 12
+        pack: 1 container (2.5 oz) [container] · count-sold, CAN carry shares · Pantry
+        variants: ancho chili powder [H1] · chipotle chili powder [H1] · kashmiri chili powder [H1] · kashmiri red chili powder [H1] · mild chili powder [H1, below the gate: medium] · pinch of kashmiri red chili powder [H1] · red chili powder [H3, below the gate: medium]
+        lists: 163875ec 247cd7bb 2b6e51a1 31c7a885 425da049 56b03a57 6e952e32 8a462408 96a94410 a8b0bbd5 c404a3cf ed238692
+  61.   cod fillets → NONE (H3) · corpus lists affected: 1
+        pack: 1 lb pack [lb] · weight/volume-sold, H5 blocks shares · Protein
+        variants: cod fillets, skinless [H1, below the gate: medium]
+        lists: 14879176
+  62.   cooked black beans → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Canned
+        variants: canned black beans [H3, below the gate: medium]
+  63.   cooked long-grain white rice → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: day-old cooked long-grain white rice [H1, below the gate: medium]
+  64.   cooked turkey breast → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Protein
+        variants: sliced roasted turkey breast [H1, below the gate: medium] · roasted turkey breast [H1, below the gate: medium]
+  65.   cooked white rice → NONE (H3) · corpus lists affected: 0
+        pack: 1 box (8.8 oz) [box] · count-sold, CAN carry shares · Pantry
+        variants: cooked long-grain white rice [H3] · day-old cooked long-grain white rice [H3, below the gate: medium] · day-old cooked short-grain white rice [H3, below the gate: medium]
+  66.   cooking spray → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: neutral cooking spray [H1]
+  67.   corn kernels → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Produce
+        variants: frozen corn kernels [H1] · fresh corn kernels [H3]
+  68.   corn tortillas → NONE (H3) · corpus lists affected: 4
+        pack: 1 package (12 count) [package] · count-sold, CAN carry shares · Bakery
+        variants: corn tortillas (6-inch) [H1, below the gate: medium] · white corn tortillas [H3, below the gate: medium]
+        lists: 163875ec 96a94410 b8e7f134 f5556c19
+  69.   cornmeal → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: coarse yellow cornmeal [H3] · coarse-ground yellow cornmeal [H3] · fine cornmeal [H3] · fine yellow cornmeal [H3] · yellow cornmeal [H3] · coarse-ground yellow cornmeal (polenta) [H3]
+  70.   croutons → NONE (H3) · corpus lists affected: 3
+        pack: 1 box (5-6 oz) [box] · count-sold, CAN carry shares · Pantry
+        variants: whole grain croutons [H3] · plain croutons [H1, below the gate: medium]
+        lists: 163875ec 353ce059 96a94410
+  71.   crushed canned tomatoes → NONE (H3) · corpus lists affected: 1
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Canned
+        variants: canned crushed san marzano tomatoes [H3] · canned san marzano crushed tomatoes [H3]
+        lists: d47d18aa
+  72.   crushed tomatoes → NONE (H3) · corpus lists affected: 3
+        pack: 1 can (14.5 oz) [can] · count-sold, CAN carry shares · Canned
+        variants: canned crushed san marzano tomatoes [H3] · canned san marzano crushed tomatoes [H3] · crushed san marzano tomatoes [H3] · fire-roasted crushed tomatoes [H1] · san marzano crushed tomatoes [H3] · crushed fire-roasted tomatoes [H1]
+        lists: 56b03a57 6e952e32 c404a3cf
+  73.   crushed tomatoes, canned → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Canned
+        variants: canned crushed san marzano tomatoes [H3] · canned san marzano crushed tomatoes [H3]
+  74.   crusty bread → NONE (H3) · corpus lists affected: 0
+        pack: 1 loaf (crusty bread) [loaf] · count-sold, CAN carry shares · Bakery
+        variants: crusty artisan bread loaf [H1, below the gate: medium] · crusty italian bread [GENERIC] · crusty italian bread loaf [GENERIC] · crusty sourdough bread [GENERIC]
+  75.   cucumber → NONE (H3) · corpus lists affected: 1
+        pack: 1 cucumber [each] · count-sold, CAN carry shares · Produce
+        variants: english cucumber [H1, below the gate: medium] · persian cucumbers [H1, below the gate: medium]
+        lists: 11653a33
+  76.   curry powder → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: madras curry powder [H1]
+  77.   dark red kidney beans → NONE (H3) · corpus lists affected: 2
+        pack: 1 can (15 oz) [can] · count-sold, CAN carry shares · Canned
+        variants: canned dark red kidney beans [H3]
+        lists: 56b03a57 c404a3cf
+  78.   deli ham → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Protein
+        variants: thinly sliced deli ham [GENERIC, below the gate: medium]
+  79.   diced green chiles → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: canned roasted diced green chiles [H3, below the gate: medium] · diced roasted green chiles [H1, below the gate: medium] · roasted diced green chiles [H1, below the gate: medium]
+  80.   diced tomatoes → NONE (H3) · corpus lists affected: 0
+        pack: 1 can (14.5 oz) [can] · count-sold, CAN carry shares · Canned
+        variants: canned fire-roasted diced tomatoes [H1] · diced fire-roasted tomatoes [H1] · fire-roasted diced tomatoes [H1]
+  81.   dried flat rice noodles → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: dried flat rice noodles (8mm wide) [GENERIC] · dried flat rice noodles (medium width, 3–5mm) [H3]
+  82.   dried red chilies → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: dried kashmiri red chilies [H1] · dried red sichuan chilies [H1]
+  83.   dried rice noodles → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: dried flat rice noodles (8mm wide) [H3] · dried flat rice noodles (medium width, 3–5mm) [H3] · dried flat rice noodles [H3] · dried rice vermicelli noodles [H1] · wide dried rice noodles (sen yai) [H3]
+  84.   edamame → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Produce
+        variants: shelled edamame [H3] · shelled frozen edamame [H1]
+  85.   egg noodles → NONE (H3) · corpus lists affected: 0
+        pack: 1 box (12 oz) [box] · count-sold, CAN carry shares · Pantry
+        variants: wide egg noodles [H3]
+  86.   endive → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: belgian endive [H1, below the gate: medium]
+  87.   farro → NONE (H3) · corpus lists affected: 1
+        pack: 1 bag (16 oz) [bag] · count-sold, CAN carry shares · Pantry
+        variants: pearled farro [H1, below the gate: medium] · semi-pearled farro [H1, below the gate: medium]
+        lists: 11653a33
+  88.   fine cornmeal → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: fine yellow cornmeal [H3, below the gate: medium]
+  89.   fine salt → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: fine sea salt [H1, below the gate: medium]
+  90.   flat rice noodles → NONE (H3) · corpus lists affected: 0
+        pack: 1 package (12-14 oz) [package] · count-sold, CAN carry shares · Pantry
+        variants: dried flat rice noodles (8mm wide) [H1] · dried flat rice noodles (medium width, 3–5mm) [H1] · dried flat rice noodles [H1] · flat rice noodles (6–8 mm wide) [H1] · flat rice noodles (6–8mm wide) [GENERIC] · flat rice noodles (medium width, 3mm) [H3]
+  91.   flat rice noodles (6–8mm wide) → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: dried flat rice noodles (8mm wide) [H1, below the gate: medium]
+  92.   flatbread → NONE (H3) · corpus lists affected: 0
+        pack: 1 package (4 count) [package] · count-sold, CAN carry shares · Pantry
+        variants: large whole-wheat flatbreads [H3]
+  93.   flour tortillas → NONE (H3) · corpus lists affected: 2
+        pack: 1 package (10 ct) [package] · count-sold, CAN carry shares · Bakery
+        variants: flour tortillas (8-inch) [H1, below the gate: medium]
+        lists: 11653a33 163875ec
+  94.   fresh arugula → NONE (H3) · corpus lists affected: 0
+        pack: 1 bag (5 oz) [bag] · count-sold, CAN carry shares · Produce
+        variants: baby arugula [H3, below the gate: medium]
+  95.   fresh asparagus → NONE (H3) · corpus lists affected: 1
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Produce
+        variants: fresh asparagus spears, thick-cut [H3]
+        lists: 8a462408
+  96.   fresh asparagus spears → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Produce
+        variants: fresh asparagus spears, thick-cut [H3]
+  97.   fresh parsley → NONE (H3) · corpus lists affected: 4
+        pack: 1 bunch [bunch] · count-sold, CAN carry shares · Produce
+        variants: fresh flat-leaf parsley [H3]
+        lists: 425da049 56b03a57 8a462408 c404a3cf
+  98.   fresh red chili → NONE (H3) · corpus lists affected: 0
+        pack: 1 fresh red chili [each] · count-sold, CAN carry shares · Pantry
+        variants: fresh red thai chilies [H1]
+  99.   fresh salsa → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: fresh tomato salsa [H1, below the gate: medium]
+ 100.   fresh spinach → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Produce
+        variants: baby spinach [H3, below the gate: medium] · fresh baby spinach [H3]
+ 101.   fresh thai chilies → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: fresh red thai chilies [H3] · red thai chili [H3, below the gate: medium]
+ 102.   fresh tomatoes → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Produce
+        variants: ripe tomato [GENERIC, below the gate: medium]
+ 103.   grated parmesan → NONE (H3) · corpus lists affected: 0
+        pack: 1 container (5 oz) [container] · count-sold, CAN carry shares · Dairy
+        variants: finely grated parmesan cheese [H1, below the gate: medium] · finely grated parmesan [GENERIC, below the gate: medium] · freshly grated parmesan cheese [H1, below the gate: medium] · freshly grated parmesan [H1, below the gate: medium]
+ 104.   grated parmesan cheese → NONE (H3) · corpus lists affected: 3
+        pack: 1 container (8 oz) [container] · count-sold, CAN carry shares · Dairy
+        variants: finely grated parmesan cheese [GENERIC, below the gate: medium] · freshly grated parmesan cheese [H1, below the gate: medium]
+        lists: 6e952e32 96a94410 d47d18aa
+ 105.   green beans → NONE (H3) · corpus lists affected: 1
+        pack: 1 lb bag [lb] · weight/volume-sold, H5 blocks shares · Produce
+        variants: fresh green beans [H3] · frozen green beans [H1]
+        lists: 2b6e51a1
+ 106.   green chili → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: hatch green chiles [H1] · roasted hatch green chiles [H1, below the gate: medium]
+ 107.   green olives → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: pimento-stuffed green olives [H1, below the gate: medium] · pitted green olives [H3]
+ 108.   ground beef → NONE (H3) · corpus lists affected: 1
+        pack: 1 lb [lb] · weight/volume-sold, H5 blocks shares · Protein
+        variants: 80/20 ground beef [H1] · ground beef (80/20 chuck) [H1] · ground beef (80/20) [H1] · ground beef (85% lean) [H1] · lean ground beef [H1] · lean ground beef (85/15) [H1] · lean ground beef meat boi [H1, below the gate: medium]
+        lists: 11653a33
+ 109.   ground beef (80/20) → NONE (H3) · corpus lists affected: 7
+        pack: 2 lb pack [lb] · weight/volume-sold, H5 blocks shares · Protein
+        variants: ground beef (80/20 chuck) [H1]
+        lists: 14879176 2b6e51a1 425da049 56b03a57 96a94410 b8e7f134 c404a3cf
+ 110.   ground black pepper → NONE (H3) · corpus lists affected: 0
+        pack: 1 container (2.3 oz) [container] · count-sold, CAN carry shares · Pantry
+        variants: black pepper, coarsely ground [H1, below the gate: medium] · coarsely ground black pepper [H1, below the gate: medium] · freshly ground black pepper [H1, below the gate: medium] · black pepper, freshly ground [H1, below the gate: medium]
+ 111.   ground turkey → NONE (H3) · corpus lists affected: 0
+        pack: 1.5 lb pack [lb] · weight/volume-sold, H5 blocks shares · Protein
+        variants: ground turkey (93% lean) [H1, below the gate: medium] · lean ground turkey [H1, below the gate: medium]
+ 112.   hamburger buns → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Bakery
+        variants: brioche hamburger bun [H3] · potato hamburger bun [H3]
+ 113.   hatch green chiles → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: roasted hatch green chiles [H1, below the gate: medium]
+ 114.   hoagie rolls → NONE (H3) · corpus lists affected: 2
+        pack: 1 package (4 count) [package] · count-sold, CAN carry shares · Bakery
+        variants: crusty hoagie rolls [H1, below the gate: medium] · french hoagie rolls (10-inch) [H3]
+        lists: 247cd7bb 96a94410
+ 115.   hominy → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: white hominy [H3, below the gate: medium]
+ 116.   hot dog buns → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Bakery
+        variants: brioche hot dog buns [H3] · poppy seed hot dog buns [H3]
+ 117.   hot sauce → NONE (H3) · corpus lists affected: 7
+        pack: 1 bottle (5 oz) [bottle] · count-sold, CAN carry shares · Pantry
+        variants: chipotle hot sauce [H1] · frank's redhot original hot sauce [H1]
+        lists: 2b6e51a1 31c7a885 425da049 6e952e32 8a462408 96a94410 ed238692
+ 118.   italian bread loaf → NONE (H3) · corpus lists affected: 5
+        pack: 1 loaf [each] · count-sold, CAN carry shares · Bakery
+        variants: crusty italian bread loaf [H1, below the gate: medium]
+        lists: 316d0846 6e952e32 8a462408 a8b0bbd5 ed238692
+ 119.   italian pork sausage → NONE (H3) · corpus lists affected: 2
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Protein
+        variants: italian pork sausage links [H3] · mild italian pork sausage [H1] · mild italian pork sausage links [H1] · sweet italian pork sausage [H1]
+        lists: 316d0846 ed238692
+ 120.   italian pork sausage links → NONE (H3) · corpus lists affected: 0
+        pack: 1.5 lb pack [lb] · weight/volume-sold, H5 blocks shares · Protein
+        variants: mild italian pork sausage links [H1]
+ 121.   italian sausage → NONE (H3) · corpus lists affected: 0
+        pack: 0.75 lb pack [lb] · weight/volume-sold, H5 blocks shares · Protein
+        variants: bulk italian sausage [H3] · hot italian sausage [H1] · italian pork sausage links [H3] · mild italian pork sausage [H1] · mild italian pork sausage links [H1] · mild italian sausage [H1] · spicy italian sausage [H1] · sweet italian pork sausage [H1] · sweet italian sausage links [H1]
+ 122.   jarred salsa → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: jarred salsa (medium) [H3] · jarred salsa roja [H1] · jarred salsa verde [H1]
+ 123.   kaffir lime leaves → NONE (H3) · corpus lists affected: 0
+        pack: 1 package (0.5 oz) [package] · count-sold, CAN carry shares · Produce
+        variants: fresh kaffir lime leaves [H3, below the gate: medium]
+ 124.   kalamata olives → NONE (H3) · corpus lists affected: 1
+        pack: 1 jar (12 oz) [jar] · count-sold, CAN carry shares · Pantry
+        variants: pitted kalamata olives [H3]
+        lists: d47d18aa
+ 125.   kale → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Produce
+        variants: curly kale [H1] · fresh lacinato kale [H1] · lacinato kale [H1]
+ 126.   kidney beans → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Canned
+        variants: canned dark red kidney beans [H3] · red kidney beans [H3] · canned kidney beans [H3] · dark red kidney beans [H3] · dried red kidney beans [H1]
+ 127.   kimchi → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: napa cabbage kimchi [H1, below the gate: medium]
+ 128.   lager beer → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: mexican lager beer [H3]
+ 129.   large flour tortillas → NONE (H3) · corpus lists affected: 1
+        pack: 1 package (8 count) [package] · count-sold, CAN carry shares · Bakery
+        variants: flour tortillas (10-inch) [H1] · large flour tortillas (10-inch) [H1] · large flour tortillas (12-inch) [H1]
+        lists: 353ce059
+ 130.   large shrimp → NONE (H3) · corpus lists affected: 1
+        pack: 1.5 lb pack [lb] · weight/volume-sold, H5 blocks shares · Protein
+        variants: large shell-on shrimp (16/20 count) [H3] · large shrimp, peeled and deveined [H3] · large shrimp, peeled and deveined (16/20 count) [H3] · large shrimp, peeled and deveined (21–25 count) [H3] · large shrimp, peeled and deveined (31–40 count) [H3] · large shrimp, peeled and deveined, tails on [H3]
+        lists: 14879176
+ 131.   large shrimp, peeled and deveined → NONE (H3) · corpus lists affected: 0
+        pack: 1.5 lb pack [lb] · weight/volume-sold, H5 blocks shares · Protein
+        variants: large shrimp, peeled and deveined (16/20 count) [GENERIC] · large shrimp, peeled and deveined (31–40 count) [GENERIC] · large shrimp, peeled and deveined, tails on [H3] · large shrimp, peeled and deveined (21–25 count) [GENERIC]
+ 132.   lean ground beef → NONE (H3) · corpus lists affected: 1
+        pack: 3.5 lb pack [lb] · weight/volume-sold, H5 blocks shares · Protein
+        variants: ground beef (85% lean) [H1] · lean ground beef (85/15) [H1]
+        lists: 247cd7bb
+ 133.   lettuce → NONE (H3) · corpus lists affected: 1
+        pack: 1 head [head] · count-sold, CAN carry shares · Produce
+        variants: butter lettuce leaves [H1] · butter lettuce [H1] · frisée lettuce [H1, below the gate: medium] · green leaf lettuce [H1] · iceberg lettuce leaves [H1] · iceberg lettuce [H1] · little gem lettuce [H1] · mixed green lettuce [H3, below the gate: medium] · romaine lettuce [H1] · romaine lettuce hearts [H1] · romaine lettuce leaves [H1] · shredded iceberg lettuce [H1] · shredded romaine lettuce [H1]
+        lists: 11653a33
+ 134.   low-moisture mozzarella → NONE (H3) · corpus lists affected: 0
+        pack: 1 lb block [lb] · weight/volume-sold, H5 blocks shares · Dairy
+        variants: low-moisture whole-milk mozzarella [H3] · whole-milk low-moisture mozzarella [H3]
+ 135.   mayonnaise → NONE (H3) · corpus lists affected: 8
+        pack: 1 jar (15 oz) [jar] · count-sold, CAN carry shares · Pantry
+        variants: japanese mayonnaise [H3, below the gate: medium]
+        lists: 163875ec 2b6e51a1 425da049 6e952e32 8a462408 96a94410 ed238692 f5556c19
+ 136.   mild italian pork sausage → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Protein
+        variants: mild italian pork sausage links [H3]
+ 137.   mild italian sausage → NONE (H3) · corpus lists affected: 0
+        pack: 1 lb pack [lb] · weight/volume-sold, H5 blocks shares · Protein
+        variants: mild italian pork sausage links [H1, below the gate: medium]
+ 138.   mixed greens → NONE (H3) · corpus lists affected: 0
+        pack: 1 bag (5 oz) [bag] · count-sold, CAN carry shares · Pantry
+        variants: mixed baby greens [H3, below the gate: medium] · mixed green lettuce [H1, below the gate: medium]
+ 139.   mustard → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: creole mustard [H1, below the gate: medium] · dijon mustard [H1, below the gate: medium] · whole grain mustard [H3, below the gate: medium] · whole-grain creole mustard [H1, below the gate: medium] · whole-grain dijon mustard [H1, below the gate: medium] · whole-grain mustard [H1, below the gate: medium] · yellow mustard [H3, below the gate: medium]
+ 140.   mustard seeds → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: brown mustard seeds [H1, below the gate: medium] · black mustard seeds [H1, below the gate: medium]
+ 141.   navy beans → NONE (H3) · corpus lists affected: 0
+        pack: 1 can (15 oz) [can] · count-sold, CAN carry shares · Canned
+        variants: canned navy beans [H3] · dried navy beans [H1]
+ 142.   new york strip steak → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Protein
+        variants: new york strip steaks, about 1 inch thick [GENERIC]
+ 143.   nutmeg → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: freshly grated nutmeg [H1, below the gate: medium] · ground nutmeg [H1, below the gate: medium] · whole nutmeg [H3, below the gate: medium]
+ 144.   okra → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: fresh okra [H3] · frozen sliced okra [H1, below the gate: medium]
+ 145.   olive oil → NONE (H3) · corpus lists affected: 16
+        pack: 1 bottle (17 oz) [bottle] · count-sold, CAN carry shares · Pantry
+        variants: extra virgin olive oil [H1, below the gate: medium] · extra-virgin olive oil [H1, below the gate: medium]
+        lists: 11653a33 14879176 163875ec 247cd7bb 2b6e51a1 31c7a885 425da049 56b03a57 6e952e32 8a462408 96a94410 a8b0bbd5 b8e7f134 c404a3cf d47d18aa f5556c19
+ 146.   onion → NONE (H3) · corpus lists affected: 0
+        pack: 2 onions [each] · count-sold, CAN carry shares · Produce
+        variants: diced white onion [H3] · pearl onion [H1, below the gate: medium] · red onion [H3] · white onion [H3] · yellow onion [H3] · large yellow onion [H3] · medium yellow onion [H3]
+ 147.   orange → NONE (H3) · corpus lists affected: 1
+        pack: 1 medium orange [each] · count-sold, CAN carry shares · Produce
+        variants: navel oranges [H3]
+        lists: f5556c19
+ 148.   pappardelle → NONE (H3) · corpus lists affected: 0
+        pack: 1 box (1 lb) [box] · count-sold, CAN carry shares · Pantry
+        variants: dried pappardelle pasta [H1]
+ 149.   paprika → NONE (H3) · corpus lists affected: 0
+        pack: 1 container (2.6 oz) [container] · count-sold, CAN carry shares · Pantry
+        variants: sweet hungarian paprika [H1, below the gate: medium]
+ 150.   parsley → NONE (H3) · corpus lists affected: 1
+        pack: 1 bunch [bunch] · count-sold, CAN carry shares · Produce
+        variants: flat-leaf parsley [H1, below the gate: medium] · fresh flat-leaf parsley [H3, below the gate: medium]
+        lists: 11653a33
+ 151.   peanut butter → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: creamy peanut butter [H1, below the gate: medium] · natural peanut butter [H1, below the gate: medium]
+ 152.   peanuts → NONE (H3) · corpus lists affected: 1
+        pack: 1 bag (8 oz) [bag] · count-sold, CAN carry shares · Pantry
+        variants: crushed roasted peanuts [H1, below the gate: medium] · roasted peanuts [H1, below the gate: medium] · roasted unsalted peanuts [H3, below the gate: medium]
+        lists: 11653a33
+ 153.   pepperoni → NONE (H3) · corpus lists affected: 0
+        pack: 1 package (6 oz) [package] · count-sold, CAN carry shares · Protein
+        variants: pepperoni slices [H1, below the gate: medium] · cup pepperoni slices [H1, below the gate: medium]
+ 154.   pickle brine → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: dill pickle brine [H1]
+ 155.   pickle slices → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: dill pickle slices [H3]
+ 156.   pineapple chunks → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Produce
+        variants: canned pineapple chunks [H3, below the gate: medium] · canned pineapple chunks in juice [H3, below the gate: medium]
+ 157.   pinto beans → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Canned
+        variants: canned pinto beans [H3] · dried pinto beans [H1] · pinto beans, canned [H3]
+ 158.   pita bread → NONE (H3) · corpus lists affected: 0
+        pack: 1 package (8 count) [package] · count-sold, CAN carry shares · Bakery
+        variants: whole wheat pita breads [H3, below the gate: medium]
+ 159.   pizza dough → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Bakery
+        variants: refrigerated pizza dough [H3]
+ 160.   plain greek yogurt → NONE (H3) · corpus lists affected: 0
+        pack: 1 container (32 oz) [container] · count-sold, CAN carry shares · Dairy
+        variants: full-fat greek yogurt [H1, below the gate: medium] · plain full-fat greek yogurt [H1, below the gate: medium] · plain whole-milk greek yogurt [H3, below the gate: medium]
+ 161.   pork belly → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Protein
+        variants: pork belly, skin-on [H1, below the gate: medium]
+ 162.   pork spare ribs → NONE (H3) · corpus lists affected: 0
+        pack: 1.5 lb pack [lb] · weight/volume-sold, H5 blocks shares · Protein
+        variants: st. louis-style pork spare ribs [H1]
+ 163.   potato gnocchi → NONE (H3) · corpus lists affected: 1
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Produce
+        variants: shelf-stable potato gnocchi [H1, below the gate: medium]
+        lists: 316d0846
+ 164.   prosciutto → NONE (H3) · corpus lists affected: 0
+        pack: 4 oz package [oz] · weight/volume-sold, H5 blocks shares · Protein
+        variants: prosciutto di parma [H3]
+ 165.   quinoa → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: white quinoa [H3, below the gate: medium]
+ 166.   red chili → NONE (H3) · corpus lists affected: 0
+        pack: 1 red chili [each] · count-sold, CAN carry shares · Pantry
+        variants: fresh red thai chilies [H1] · red fresno chili [H1] · red thai chili [H1] · red fresno chiles [H1]
+ 167.   red chili powder → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: kashmiri red chili powder [H1] · pinch of kashmiri red chili powder [H1]
+ 168.   red enchilada sauce → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Canned
+        variants: mild red enchilada sauce [H1, below the gate: medium]
+ 169.   red kidney beans → NONE (H3) · corpus lists affected: 1
+        pack: 2 cans (15 oz each) [can] · count-sold, CAN carry shares · Canned
+        variants: canned dark red kidney beans [H3] · dark red kidney beans [H1] · dried red kidney beans [H1]
+        lists: 6e952e32
+ 170.   red potatoes → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Produce
+        variants: baby red potatoes [H3, below the gate: medium] · small red potatoes [H3]
+ 171.   red wine → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: dry red wine [H1, below the gate: medium]
+ 172.   refried beans → NONE (H3) · corpus lists affected: 0
+        pack: 1 can (16 oz) [can] · count-sold, CAN carry shares · Canned
+        variants: canned refried beans [H3]
+ 173.   refrigerated pie crust dough → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Bakery
+        variants: refrigerated double-crust pie dough [H1, below the gate: medium]
+ 174.   reserved birria braising liquid → NONE (H3) · corpus lists affected: 0
+        pack: 1 container (32 oz) [container] · count-sold, CAN carry shares · Pantry
+        variants: reserved braising liquid from chicken birria [H1] · reserved braising liquid from goat birria [H1, below the gate: medium]
+ 175.   ribeye steak → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Protein
+        variants: bone-in ribeye steaks, 1-inch thick [H1] · bone-in ribeye steaks, about 1-inch thick [H1] · bone-in ribeye steaks, about 1.25 inches thick [H1] · bone-in ribeye steaks [H1] · boneless ribeye steaks [H1]
+ 176.   rice noodles → NONE (H3) · corpus lists affected: 1
+        pack: 1 package (8 oz) [package] · count-sold, CAN carry shares · Pantry
+        variants: dried flat rice noodles (8mm wide) [H1] · dried flat rice noodles (medium width, 3–5mm) [H1] · dried flat rice noodles [H1] · dried rice noodles [H1] · dried rice vermicelli noodles [H1] · flat rice noodles (6–8 mm wide) [GENERIC] · flat rice noodles (6–8mm wide) [GENERIC] · flat rice noodles [H3] · fresh wide rice noodles (ho fun) [H1] · fresh wide rice noodles (sen yai) [H1] · fresh wide rice noodles [H1] · rice vermicelli noodles [H1] · wide dried rice noodles (sen yai) [H1] · flat rice noodles (medium width, 3mm) [H3]
+        lists: 11653a33
+ 177.   rice paper wrappers → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: rice paper wrappers (22cm) [GENERIC]
+ 178.   ripe avocado → NONE (H3) · corpus lists affected: 2
+        pack: 3 avocados [each] · count-sold, CAN carry shares · Produce
+        variants: ripe hass avocados [H1, below the gate: medium]
+        lists: 56b03a57 c404a3cf
+ 179.   ripe tomato → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Produce
+        variants: ripe beefsteak tomatoes [H1, below the gate: medium] · ripe roma tomatoes [H1, below the gate: medium]
+ 180.   roasted cashews → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: roasted unsalted cashews [H3, below the gate: medium]
+ 181.   roasted peanuts → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: roasted unsalted peanuts [H3, below the gate: medium]
+ 182.   roasted red peppers → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: jarred roasted red peppers [H3] · roasted red bell pepper [H1, below the gate: medium]
+ 183.   roma tomatoes → NONE (H3) · corpus lists affected: 9
+        pack: 4 roma tomatoes [each] · count-sold, CAN carry shares · Produce
+        variants: ripe roma tomatoes [GENERIC]
+        lists: 163875ec 247cd7bb 31c7a885 56b03a57 96a94410 a8b0bbd5 b8e7f134 c404a3cf ed238692
+ 184.   russet potatoes → NONE (H3) · corpus lists affected: 5
+        pack: 2 lb bag [lb] · weight/volume-sold, H5 blocks shares · Produce
+        variants: large russet potatoes [H3]
+        lists: 247cd7bb 56b03a57 8a462408 b8e7f134 c404a3cf
+ 185.   salmon fillets → NONE (H3) · corpus lists affected: 0
+        pack: 1.5 lb (4 fillets) [lb] · weight/volume-sold, H5 blocks shares · Protein
+        variants: salmon fillets, skin-on [H1, below the gate: medium] · skin-on salmon fillets [H1, below the gate: medium] · skinless salmon fillet [H1, below the gate: medium] · sushi-grade salmon fillet [H1, below the gate: medium]
+ 186.   salsa → NONE (H3) · corpus lists affected: 1
+        pack: 1 jar (16 oz) [jar] · count-sold, CAN carry shares · Pantry
+        variants: chunky salsa [H1] · fresh salsa [H1] · fresh tomato salsa [H1] · jarred salsa (medium) [H1] · jarred salsa roja [H1] · jarred salsa verde [H1] · jarred salsa [H1] · mild salsa [H1] · salsa roja [H1, below the gate: medium] · salsa verde [H1]
+        lists: 11653a33
+ 187.   salsa roja → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: jarred salsa roja [H3, below the gate: medium]
+ 188.   salsa verde → NONE (H3) · corpus lists affected: 0
+        pack: 1 jar (16 oz) [jar] · count-sold, CAN carry shares · Pantry
+        variants: jarred salsa verde [H3, below the gate: medium]
+ 189.   salt → NONE (H3) · corpus lists affected: 3
+        pack: 1 container [container] · count-sold, CAN carry shares · Pantry
+        variants: coarse kosher salt [H1] · fine salt [H1] · fine sea salt [H1] · flaky sea salt [H1, below the gate: medium] · hawaiian sea salt [H1] · kosher salt [H1] · pickling salt [H1, below the gate: medium]
+        lists: 11653a33 163875ec 96a94410
+ 190.   san marzano tomatoes → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Canned
+        variants: canned san marzano crushed tomatoes [H3, below the gate: medium] · canned san marzano whole tomatoes [H3, below the gate: medium] · canned whole san marzano tomatoes [H3, below the gate: medium] · crushed san marzano tomatoes [GENERIC, below the gate: medium] · san marzano whole peeled tomatoes [H3, below the gate: medium] · whole peeled san marzano tomatoes [H3, below the gate: medium] · whole san marzano tomatoes [H3, below the gate: medium] · canned crushed san marzano tomatoes [H3, below the gate: medium] · canned san marzano whole peeled tomatoes [H3, below the gate: medium] · san marzano crushed tomatoes [GENERIC, below the gate: medium]
+ 191.   sauerkraut → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: jarred sauerkraut [H3, below the gate: medium]
+ 192.   sesame oil → NONE (H3) · corpus lists affected: 3
+        pack: 1 bottle (6.5 oz) [bottle] · count-sold, CAN carry shares · Pantry
+        variants: dark sesame oil [H1, below the gate: medium] · toasted sesame oil [H1, below the gate: medium]
+        lists: 2b6e51a1 31c7a885 425da049
+ 193.   sesame seeds → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: black sesame seeds [H1, below the gate: medium] · white sesame seeds [H3, below the gate: medium]
+ 194.   sharp cheddar → NONE (H3) · corpus lists affected: 0
+        pack: 0.5 lb block [lb] · weight/volume-sold, H5 blocks shares · Dairy
+        variants: sharp white cheddar cheese [H3, below the gate: medium]
+ 195.   sharp cheddar cheese → NONE (H3) · corpus lists affected: 5
+        pack: 1 block (8 oz) [block] · count-sold, CAN carry shares · Dairy
+        variants: sharp white cheddar cheese [H3, below the gate: medium]
+        lists: 163875ec 31c7a885 6e952e32 96a94410 ed238692
+ 196.   shelled edamame → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Produce
+        variants: shelled frozen edamame [H1, below the gate: medium]
+ 197.   short-grain white rice → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: japanese short-grain white rice [H3]
+ 198.   shredded carrots → NONE (H3) · corpus lists affected: 1
+        pack: 1 bag (10 oz) [bag] · count-sold, CAN carry shares · Produce
+        variants: baby carrot [H3, below the gate: medium]
+        lists: 6e952e32
+ 199.   shredded cheddar cheese → NONE (H3) · corpus lists affected: 2
+        pack: 2.5 lb bag [lb] · weight/volume-sold, H5 blocks shares · Dairy
+        variants: shredded sharp cheddar cheese [H3]
+        lists: 56b03a57 c404a3cf
+ 200.   shredded low-moisture mozzarella → NONE (H3) · corpus lists affected: 1
+        pack: 1 bag (8 oz) [bag] · count-sold, CAN carry shares · Dairy
+        variants: shredded low-moisture whole-milk mozzarella [H3]
+        lists: 96a94410
+ 201.   shredded mozzarella cheese → NONE (H3) · corpus lists affected: 1
+        pack: 1 bag (8 oz) [bag] · count-sold, CAN carry shares · Dairy
+        variants: shredded whole-milk mozzarella cheese [H3]
+        lists: d47d18aa
+ 202.   shrimp → NONE (H3) · corpus lists affected: 1
+        pack: 1 lb [lb] · weight/volume-sold, H5 blocks shares · Protein
+        variants: jumbo shrimp, peeled and deveined [H3] · large shell-on shrimp (16/20 count) [H3] · large shrimp, peeled and deveined (16/20 count) [H3] · large shrimp, peeled and deveined (21–25 count) [H3] · large shrimp, peeled and deveined (31–40 count) [H3] · large shrimp, peeled and deveined, tails on [H3] · large shrimp, peeled and deveined [H3] · large shrimp [H3] · medium shrimp [H3] · raw shrimp, peeled and deveined, finely chopped [H3]
+        lists: 11653a33
+ 203.   sirloin steak → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Protein
+        variants: top sirloin steaks [H1, below the gate: medium] · top sirloin steaks, about 1 inch thick [H1]
+ 204.   slider buns → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Bakery
+        variants: brioche slider buns [H3]
+ 205.   slider rolls → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Bakery
+        variants: potato slider rolls [H3]
+ 206.   small potato → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Produce
+        variants: baby red potatoes [H3] · baby yellow potato [H3] · small red potatoes [H3]
+ 207.   smoked kielbasa → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: smoked pork kielbasa [H1]
+ 208.   smoked sausage → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Protein
+        variants: andouille smoked sausage [H1] · smoked kielbasa sausage [H1] · kielbasa (smoked polish sausage) [H1]
+ 209.   snap peas → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Produce
+        variants: fresh snap peas [H3, below the gate: medium]
+ 210.   sourdough bread → NONE (H3) · corpus lists affected: 0
+        pack: 1 loaf [loaf] · count-sold, CAN carry shares · Bakery
+        variants: crusty sourdough bread [H1, below the gate: medium] · sourdough sandwich bread [H1, below the gate: medium]
+ 211.   soy sauce → NONE (H3) · corpus lists affected: 6
+        pack: 1 bottle (10 oz) [bottle] · count-sold, CAN carry shares · Pantry
+        variants: low-sodium soy sauce [H3]
+        lists: 2b6e51a1 31c7a885 425da049 56b03a57 b8e7f134 c404a3cf
+ 212.   stone-ground grits → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: stone-ground white grits [H3] · stone-ground yellow grits [H3]
+ 213.   sweet corn kernels → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Produce
+        variants: fresh corn kernels [H3, below the gate: medium] · frozen corn kernels [H1, below the gate: medium]
+ 214.   sweet paprika → NONE (H3) · corpus lists affected: 1
+        pack: 1 container (2.6 oz) [container] · count-sold, CAN carry shares · Pantry
+        variants: sweet hungarian paprika [H1, below the gate: medium]
+        lists: 353ce059
+ 215.   sweet potatoes → NONE (H3) · corpus lists affected: 0
+        pack: 6 lb bag [lb] · weight/volume-sold, H5 blocks shares · Produce
+        variants: large sweet potatoes [H3]
+ 216.   toasted cashews → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: roasted unsalted cashews [H3, below the gate: medium]
+ 217.   tomato → NONE (H3) · corpus lists affected: 1
+        pack: 3 tomatoes [each] · count-sold, CAN carry shares · Produce
+        variants: beefsteak tomato [H1] · cherry tomatoes [H1] · heirloom tomato [H1] · plum tomatoes [H1] · ripe beefsteak tomatoes [H1] · ripe roma tomatoes [H1] · roma tomatoes [H1] · ripe tomato [GENERIC, below the gate: medium]
+        lists: 11653a33
+ 218.   top sirloin steaks → NONE (H3) · corpus lists affected: 0
+        pack: 1.5 lb pack [lb] · weight/volume-sold, H5 blocks shares · Protein
+        variants: top sirloin steaks, about 1 inch thick [GENERIC]
+ 219.   tortilla chips → NONE (H3) · corpus lists affected: 0
+        pack: 1 bag (13 oz) [bag] · count-sold, CAN carry shares · Snacks
+        variants: restaurant-style tortilla chips [H3]
+ 220.   vegetable broth → NONE (H3) · corpus lists affected: 0
+        pack: 1 carton (32 oz) [carton] · count-sold, CAN carry shares · Pantry
+        variants: chicken-style vegetable broth [H1, below the gate: medium] · low-sodium vegetable broth [H3, below the gate: medium]
+ 221.   vermicelli noodles → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: dried rice vermicelli noodles [H1, below the gate: medium] · rice vermicelli noodles [H1, below the gate: medium]
+ 222.   walnuts → NONE (H3) · corpus lists affected: 0
+        pack: 1 lb bag [lb] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: walnut halves [H1, below the gate: medium]
+ 223.   waxy potatoes → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Produce
+        variants: waxy yellow potatoes [H3, below the gate: medium]
+ 224.   white pepper → NONE (H3) · corpus lists affected: 5
+        pack: 1 container (1.9 oz) [container] · count-sold, CAN carry shares · Pantry
+        variants: ground white pepper [H1, below the gate: medium]
+        lists: 2b6e51a1 31c7a885 56b03a57 b8e7f134 c404a3cf
+ 225.   white wine → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: dry white wine [H1, below the gate: medium]
+ 226.   whole canned tomatoes → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Canned
+        variants: canned san marzano whole peeled tomatoes [H3] · canned san marzano whole tomatoes [H3] · canned whole san marzano tomatoes [H3]
+ 227.   whole grain mustard → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: whole-grain dijon mustard [H1, below the gate: medium] · whole-grain creole mustard [H1, below the gate: medium]
+ 228.   whole peeled tomatoes → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Produce
+        variants: canned san marzano whole peeled tomatoes [H3] · san marzano whole peeled tomatoes [H3] · whole peeled san marzano tomatoes [H3]
+ 229.   whole-grain mustard → NONE (H3) · corpus lists affected: 1
+        pack: 1 jar (8 oz) [jar] · count-sold, CAN carry shares · Pantry
+        variants: whole-grain creole mustard [H1, below the gate: medium] · whole-grain dijon mustard [H1, below the gate: medium]
+        lists: d47d18aa
+ 230.   yellow cornmeal → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Pantry
+        variants: coarse yellow cornmeal [H3, below the gate: medium] · coarse-ground yellow cornmeal (polenta) [H1, below the gate: medium] · coarse-ground yellow cornmeal [H1, below the gate: medium] · fine yellow cornmeal [H3, below the gate: medium]
+ 231.   yellow onion → NONE (H3) · corpus lists affected: 18
+        pack: 2 onions [each] · count-sold, CAN carry shares · Produce
+        variants: large yellow onion [H3] · medium yellow onion [H3]
+        lists: 11653a33 14397131 14879176 163875ec 247cd7bb 2b6e51a1 31c7a885 353ce059 425da049 56b03a57 6e952e32 8a462408 96a94410 b8e7f134 c404a3cf d47d18aa ed238692 f5556c19
+ 232.   yellow potatoes → NONE (H3) · corpus lists affected: 0
+        pack: (none stated) [-] · weight/volume-sold, H5 blocks shares · Produce
+        variants: baby yellow potato [H3, below the gate: medium] · waxy yellow potatoes [H1, below the gate: low]
+ 233.   yukon gold potatoes → NONE (H3) · corpus lists affected: 1
+        pack: 2 lb bag [lb] · weight/volume-sold, H5 blocks shares · Produce
+        variants: baby yukon gold potatoes [H3, below the gate: medium]
+        lists: d47d18aa
+ 234.   zucchini → NONE (H3) · corpus lists affected: 0
+        pack: 2 medium zucchini [each] · count-sold, CAN carry shares · Produce
+        variants: medium zucchini [H3]
+
+==============================================================================
+generics with live subsumes-variants on a dish   234
+  proposed a default                             2
+  left at NONE (H3)                              232
+generics that appear in the 20-list corpus       79
+
+WHY SO FEW PROPOSALS. The bar the go-ahead set is that the plain name is not
+itself something a shopper can pick up. Two generics clear it, and both are
+chicken: a meat case has no unqualified `chicken thighs` or `chicken breast`
+bin — every pack states its cut. `ribeye steak`, `smoked sausage`,
+`hamburger buns`, `kale`, `kidney beans` and the rest are all sold under
+exactly their plain name, so a default would substitute where H4 forbids it.
+
+⚠️ A TEMPTING WRONG SIGNAL, measured and rejected: 109 of the 234
+generics carry NO pack at all (purchaseUnit and purchaseDisplay both null).
+That looks like 'unbuyable' and is not — `arugula`, `kale`, `brown rice` and
+`hamburger buns` are in that set. It measures how far the catalog's pack
+backfill got, not what a store sells. No default was proposed from it.
+
+ONE MORE THIS LANE CONSIDERED AND DID NOT PROPOSE: `corn kernels`. Its only
+variants are `fresh corn kernels` and `frozen corn kernels`, and loose corn
+kernels are genuinely not a thing you pick up — but picking one would be
+choosing between two products H1 keeps apart, which is the substitution H4
+forbids. It is listed at NONE; override it by number if that is wrong.
