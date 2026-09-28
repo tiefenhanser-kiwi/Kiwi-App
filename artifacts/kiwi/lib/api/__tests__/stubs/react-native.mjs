@@ -150,3 +150,34 @@ export const Animated = {
     };
   },
 };
+
+// Row 9 (1.1) · Stripe S2 Part D — AppState, for BillingContext's foreground
+// refetch. §2.3 refetches GET /me/subscription on every "active", because the
+// user pays in the SYSTEM browser and comes back to the app by hand, so there is
+// no callback — "the app became active" is the only signal there is.
+//
+// A test drives it with __emitAppState("active"). Listeners are returned with a
+// real `remove()` so a provider that forgot to unsubscribe shows up as a listener
+// still in this array after unmount, rather than as a silent leak.
+let __appStateListeners = [];
+export function __getAppStateListenerCount() {
+  return __appStateListeners.length;
+}
+export function __emitAppState(next) {
+  for (const l of [...__appStateListeners]) l(next);
+}
+export function __resetAppState() {
+  __appStateListeners = [];
+}
+export const AppState = {
+  currentState: "active",
+  addEventListener(type, listener) {
+    if (type !== "change") return { remove() {} };
+    __appStateListeners.push(listener);
+    return {
+      remove() {
+        __appStateListeners = __appStateListeners.filter((l) => l !== listener);
+      },
+    };
+  },
+};

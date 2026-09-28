@@ -15,8 +15,11 @@
  * (envelope mode). The cascade is fired in BOTH modes so the user lands
  * on welcome even if the consumer is type-checking against ApiResult.
  *
- * 402 handling: throws `UpgradeRequiredError` (throw mode) / envelope.
- * No cascade — 402 is per-call (upgrade flow), not session-level.
+ * 402 handling: throws `UpgradeRequiredError` (throw mode) / envelope, AND
+ * announces on upgrade-bridge so BillingProvider opens the paywall sheet (S2
+ * §2.7 — 402 is handled at exactly one place). Not a session cascade: the
+ * session is fine, the entitlement is not, and the calling screen keeps its
+ * content.
  *
  * Schema: if `opts.schema` is supplied, the parsed JSON is validated with
  * `schema.safeParse()`. Validation failure throws `ApiSchemaError` /
@@ -39,6 +42,7 @@ import { readGuestToken } from "../guest/guestToken";
 import { isGuestAllowedPath } from "../guest/guestRoutes";
 import { apiBase } from "./base";
 import { emitSessionExpired } from "./auth-bridge";
+import { emitUpgradeRequired } from "./upgrade-bridge";
 import {
   ApiError,
   ApiNetworkError,
@@ -258,6 +262,19 @@ export async function apiClient<T = unknown>(
       throw err;
     }
     if (res.status === 402) {
+      // 🔴 ROW 9 (1.1) · STRIPE S2 PART D — THE ONE PLACE 402 IS HANDLED (§2.7).
+      //
+      // Fired in BOTH error modes, exactly as the 401 cascade is, and for the
+      // same reason: envelope mode is a CALLER's preference about types, not a
+      // statement that the app-level consequence should be skipped. Half the
+      // gated routes in this client use envelope mode (grocery generate, recipe
+      // import), so announcing only in throw mode would mean the paywall never
+      // opens for the paths most likely to hit it.
+      //
+      // No screen adds its own 402 branch. The calling screen keeps whatever it
+      // was showing — the typed error is still returned/thrown so it can stop a
+      // spinner — and the sheet arrives over the top.
+      emitUpgradeRequired({ path, body: rawBody });
       const err = new UpgradeRequiredError(details);
       if (envelope) return { success: false, error: err };
       throw err;

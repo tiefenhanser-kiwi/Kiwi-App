@@ -28,6 +28,8 @@ import { BootstrapFailedScreen } from "@/components/BootstrapFailedScreen";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/contexts/AppContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { BillingProvider } from "@/contexts/BillingContext";
+import { PaywallSheet } from "@/components/PaywallSheet";
 import { GuestProvider, useIsGuestSafe } from "@/contexts/GuestContext";
 import { ToastProvider } from "@/contexts/ToastProvider";
 import { Palette } from "@/constants/tokens";
@@ -175,6 +177,13 @@ function RootLayoutNav() {
           (auth) redirects an authenticated visitor away, and someone landing
           on this page may already be signed in. */}
       <Stack.Screen name="auth/apple" />
+      {/* Row 9 (1.1) · Stripe S2 Part D — Stripe's success_url / cancel_url.
+          PUBLIC, and outside (auth) for the same reason auth/apple is: these are
+          URLs Stripe sends people to, the visitor may or may not be signed in on
+          web, and an auth bounce on a payment return page is the worst possible
+          landing. Neither writes subscription state — the webhook is the truth. */}
+      <Stack.Screen name="billing/return" />
+      <Stack.Screen name="billing/cancelled" />
     </Stack>
   );
 }
@@ -211,17 +220,28 @@ export default function RootLayout() {
           <AuthProvider>
             <GuestProvider>
               <AppProvider>
-                <GestureHandlerRootView style={{ flex: 1 }}>
-                  <KeyboardProvider>
-                    {/* WS9 3d Part 3b-2 — app-level toast host, above the
-                        navigator so toasts survive route changes. */}
-                    <ToastProvider>
-                      <StatusBar style="dark" />
-                      <SessionGate />
-                      <RootLayoutNav />
-                    </ToastProvider>
-                  </KeyboardProvider>
-                </GestureHandlerRootView>
+                {/* Row 9 (1.1) · Stripe S2 Part D — inside AuthProvider (it only
+                    fetches for a signed-in member) and inside QueryClientProvider.
+                    ABOVE the navigator, like ToastProvider, because a 402 can
+                    arrive on any screen and the sheet must survive the route
+                    change that a banner CTA or a "Not now" may cause. */}
+                <BillingProvider>
+                  <GestureHandlerRootView style={{ flex: 1 }}>
+                    <KeyboardProvider>
+                      {/* WS9 3d Part 3b-2 — app-level toast host, above the
+                          navigator so toasts survive route changes. */}
+                      <ToastProvider>
+                        <StatusBar style="dark" />
+                        <SessionGate />
+                        <RootLayoutNav />
+                        {/* ONE sheet for the whole app (§2.2 / §2.7). Renders
+                            nothing while `sheet` is null, which is every state but
+                            the three entry points. */}
+                        <PaywallSheet />
+                      </ToastProvider>
+                    </KeyboardProvider>
+                  </GestureHandlerRootView>
+                </BillingProvider>
               </AppProvider>
             </GuestProvider>
           </AuthProvider>
