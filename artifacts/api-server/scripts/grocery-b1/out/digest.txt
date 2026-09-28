@@ -1,0 +1,142 @@
+[grocery] B1 — THE DIGEST · September 28, 2026
+Rule by number. `?` = this lane had to choose; a line with a source and no `?` is
+high-confidence and needs no reply. Reply like: 12 no, 41 no
+
+Constants: PACK_FORGIVENESS_FRACTION = 0.125 · the perishable
+discriminator is Ingredient.category === 'Produce' (read through the EXISTING
+PERISHABILITY_BY_CATEGORY table in planDayAssignment.ts, tier 1 = FRESH). There is
+NO 'Herbs' category — the live vocabulary is exactly: Pantry 725, Produce 367,
+Protein 232, Dairy 148, Canned 130, Bakery 119, Frozen 39, Snacks 19, Household 1.
+
+=== Y — PACK YIELDS (how much of the need unit ONE PACK gives) ===
+The pack noun is not repeated: it is Ingredient.purchaseUnit, which already exists.
+
+  1.   garlic · 10 clove per head ("1 head", Produce) · source: D-WS9-220 — Hans: 'garlic heads have ~10 cloves'; identical to today's conversionRef.subUnit {head, 10}
+  2.   fresh cilantro · 2 cup per bunch ("1 bunch", Produce) · source: Hans Sept 7 — uncut leaves+stems, 2 cup/bunch
+  3.   cilantro · 2 cup per bunch ("1 bunch", Produce) · source: Hans Sept 7 — same food, same figure
+  4.   fresh flat-leaf parsley · 2 cup per bunch ("1 bunch", Produce) · source: Hans Sept 7 — uncut, 2 cup/bunch
+  5.   fresh parsley · 2 cup per bunch ("1 bunch", Produce) · source: Hans Sept 7 — uncut, 2 cup/bunch
+  6.   parsley · 2 cup per bunch ("1 bunch", Produce) · source: Hans Sept 7 — uncut, 2 cup/bunch
+  7.   flat-leaf parsley · 2 cup per bunch ("1 bunch", Produce) · source: Hans Sept 7 — uncut, 2 cup/bunch
+  8.   fresh basil · 2 cup per bunch ("1 bunch", Produce) · source: relation-edge — fresh basil -> fresh basil leaves 2 cup, high + human-reviewed; agrees with Hans Sept 7
+  9. ? thai basil · 2 cup per bunch ("1 bunch", Produce) · source: Hans Sept 7 — herb-bunch convention
+ 10.   fresh dill · 2 cup per bunch ("1 bunch", Produce) · source: Hans Sept 7 — herb-bunch convention
+ 11. ? fresh mint · 2 cup per bunch ("1 bunch", Produce) · source: Hans Sept 7 — herb-bunch convention; the live `fresh mint -> fresh mint leaves 1 cup` edge is high but NOT human-reviewed and disagrees
+ 12. ? fresh oregano · 2 cup per bunch ("1 bunch", Pantry) · source: Hans Sept 7 — herb-bunch convention; the live `-> fresh oregano leaves 4 tbsp` edge is high, unreviewed, and disagrees
+ 13. ? fresh sage · 0.5 cup per bunch ("1 bunch", Produce) · source: relation-edge — fresh sage -> fresh sage leaves 0.5 cup (high, unreviewed); sage leaves are large and sparse, so the 2-cup convention overstates
+ 14.   fresh thyme · 3 tbsp per bunch ("1 bunch", Produce) · source: relation-edge — fresh thyme -> fresh thyme leaves 3 tbsp, high + human-reviewed
+ 15. ? fresh rosemary · 3 tbsp per bunch ("1 bunch", Produce) · source: relation-edge — parity with the reviewed thyme figure — both woody, leaves stripped from the stem
+ 16. ? fresh rosemary, finely chopped · 3 tbsp per bunch ("1 bunch", Produce) · source: relation-edge — parity with fresh rosemary
+ 17.   fresh chives · 8 tbsp per bunch ("1 bunch", Produce) · source: CSV(usable) — pack_yields_REVIEWED.csv, claude_pass=RULED (Hans)
+ 18.   fresh cilantro, roughly chopped · 1 cup per bunch ("1 bunch", Produce) · source: Hans Sept 7 — CHOPPED: 1 cup/bunch
+ 19.   fresh flat-leaf parsley, finely chopped · 16 tbsp per bunch ("1 bunch", Produce) · source: Hans Sept 7 — = 1 cup chopped per bunch
+ 20.   iceberg lettuce · 4 cup per head ("4 heads", Produce) · source: Hans Sept 28 — 'iceberg probably shreds to 4 cups'; the row's own 539 g/head ÷ 57 g/cup would say 9.5, and Hans's ruled figure wins
+ 21. ? green cabbage · 8 cup per head ("1 head", Produce) · source: CSV(usable) — CSV PROPOSED (high); the row's own 908 g/head ÷ 89 g/cup says 10.2 — the lower figure buys more, never less
+ 22. ? red cabbage · 8 cup per each ("1 head", Produce) · source: CSV(usable) — CSV PROPOSED (high); own density says 12.0 — same argument as green
+ 23. ? romaine lettuce · 6 cup per head ("1 head", Produce) · source: web — a romaine head ~300 g ÷ its own 47 g/cup = 6.4 cup shredded
+ 24. ? radicchio · 6 cup per each ("1 head", Pantry) · source: web — a radicchio head ~250 g ÷ its own 40 g/cup = 6.2 cup
+ 25.   broccoli · 4 cup per each ("1 head", Produce) · source: relation-edge — broccoli -> broccoli florets 4 cup, high + human-reviewed
+ 26.   fresh pineapple · 4 cup per each ("1 medium pineapple", Produce) · source: Hans Sept 7 — 'pineapple 4 cups of chunks'
+ 27.   seedless watermelon · 6 pound per each ("1 seedless watermelon", Pantry) · source: Hans Sept 7 — 'a recipe's pound is flesh (~6 lb of a ~10 lb melon)'
+ 28. ? yellow onion · 1 cup per each ("2 onions", Produce) · source: web — 1 medium onion ≈ 1 cup chopped (standard kitchen reference)
+ 29. ? white onion · 1 cup per each ("1 medium white onion", Produce) · source: web — 1 medium onion ≈ 1 cup chopped; this row carries NO conversionRef at all, which is why f5556c19 ships two white-onion rows
+ 30. ? red onion · 1 cup per each ("1 medium red onion", Produce) · source: web — 1 medium onion ≈ 1 cup chopped
+ 31. ? fresh ginger · 9 tbsp per each ("1 small knob (~2 oz)", Produce) · source: derived — the pack says ~2 oz = 56.7 g; the row's own 96 g/cup makes that 0.59 cup = 9.4 tbsp grated
+ 32.   broccolini · 12 ounce per bunch ("1 bunch (~12 oz)", Pantry) · source: CSV(usable) — CSV PROPOSED (high), read off the pack display '1 bunch (~12 oz)'
+ 33.   fresh lacinato kale · 10 ounce per bunch ("1 bunch (~10 oz)", Produce) · source: derived — read off the pack display '1 bunch (~10 oz)' — the same move the CSV made for broccolini
+ 34. ? sliced scallions · 1 cup per bunch ("1 bunch (~6 scallions)", Produce) · source: web — 1 bunch (~6 scallions) ≈ 1 cup sliced
+ 35. ? crusty bread · 16 ounce per each ("1 loaf (crusty bread)", Bakery) · source: web — a crusty loaf ≈ 1 lb
+ 36. ? rotisserie chicken · 3.5 cup per each ("1 whole rotisserie chicken (~2 lb)", Protein) · source: relation-edge — rotisserie chicken -> shredded rotisserie chicken 3.5 cup (medium, unreviewed)
+ 37. ? pickled jalapeños · 1.5 cup per jar ("1 jar (12 oz)", Canned) · source: web — a 12-oz jar of pickled jalapeño slices drains to ~1.5 cup; without this the brine cannot reach the jar and the pool declines
+ 38. ? pickled jalapeño slices · 1.5 cup per jar ("1 jar (12 oz)", Canned) · source: web — same jar, same figure
+ 39.   fresh rosemary sprigs · 8 each per bunch ("1 bunch", Produce) · source: CSV(usable) — 8 sprigs/bunch
+ 40.   fresh thyme sprigs · 30 each per bunch ("1 bunch", Produce) · source: relation-edge — 30 sprigs/bunch, human-reviewed
+ 41. ? fresh cilantro sprigs · NO PACK NOUN — the ladder cannot fire; needs a pack first
+ 42.   celery stalks · 8 each per bunch ("1 bunch (~8-10 stalks)", Produce) · source: Hans Sept 7 — 'celery 8 stalks/bunch'
+ 43.   celery · 8 each per bunch ("1 bunch (~6 stalks)", Produce) · source: Hans Sept 7 — 'celery 8 stalks/bunch'
+ 44. ? butter lettuce leaves · NO PACK NOUN — the ladder cannot fire; needs a pack first
+ 45. ? iceberg lettuce leaves · 16 each per head ("1 head", Produce) · source: derived — parity with the reviewed butter-lettuce figure
+ 46. ? romaine lettuce leaves · NO PACK NOUN — the ladder cannot fire; needs a pack first
+
+-- R2 population members that need NO yield row (reuse first) --
+ 47.   roma tomatoes · NO YIELD OWED — pack unit is `each` and the row carries gramsPerEach 123 — convertToGrams/gramsToUnit already relate a pound need to a count pack. The blocker is the merge's isMeasured gate, not missing data.
+ 48.   lime juice · NO YIELD OWED — a PART — see P. Its buy line is a lime, not a bottle of juice.
+ 49.   fresh lime juice · NO YIELD OWED — a PART — see P.
+ 50.   lime juice, fresh · NO YIELD OWED — a PART — see P.
+ 51.   lime juice, freshly squeezed · NO YIELD OWED — a PART — see P.
+ 52.   fresh lemon juice · NO YIELD OWED — a PART — see P.
+ 53.   lemon zest · NO YIELD OWED — a PART — see P.
+ 54.   lime zest · NO YIELD OWED — a PART — see P.
+ 55.   fresh cilantro leaves · NO YIELD OWED — a PART — the edge already exists and is human-reviewed.
+ 56.   fresh cilantro stems · NO YIELD OWED — a PART — the edge already exists and is human-reviewed.
+ 57.   fresh basil leaves · NO YIELD OWED — a PART — the edge already exists and is human-reviewed.
+ 58.   fresh thyme leaves · NO YIELD OWED — a PART — the edge already exists and is human-reviewed.
+ 59.   fresh mint leaves · NO YIELD OWED — a PART — the edge exists; only its basis unit blocks it (see P).
+ 60.   fresh flat-leaf parsley leaves · NO YIELD OWED — a PART — the edge exists; only its basis unit blocks it (see P).
+ 61.   fresh thai basil leaves · NO YIELD OWED — a PART — the edge exists; only its basis unit blocks it (see P).
+ 62.   fresh corn kernels · NO YIELD OWED — a PART — fresh corn -> fresh corn kernels 0.75 cup is admitted today.
+ 63.   romaine lettuce hearts · NO YIELD OWED — a PART — the edge is admitted today.
+ 64.   rotisserie chicken, meat shredded · NO YIELD OWED — a PART of a rotisserie chicken; the parent's yield carries it.
+ 65.   shredded rotisserie chicken · NO YIELD OWED — a PART — the edge is admitted today.
+ 66.   fennel fronds · NO YIELD OWED — a PART that must never buy its own line (D-WS9-225) — and it has no parent catalog row, so the edge cannot be authored. See X.
+
+-- R2 population members with NO DEFENSIBLE FIGURE --
+  (none — every one of the 53 whole-sold R2 foods is answered above)
+
+=== P — PARTS (a part never buys its own line) ===
+Every one is a `component` edge with coHarvestable where the part rides free.
+
+-- P1. edges that EXIST and are refused only because the basis is read off
+   defaultUnit instead of the PACK. Reading the pack instead is a code change with
+   NO new column; each edge it newly reaches still needs a yes/no. --
+ 67.   ADMIT parmesan -> parmesan rind · 1 each · coHarvestable true — one wedge carries one rind and it rides free — D-WS9-225's fennel-frond ruling
+ 68.   ADMIT dill pickle -> dill pickle brine · 2 tbsp · coHarvestable true — the brine rides free with the jar
+ 69. ? ADMIT fresh flat-leaf parsley -> fresh flat-leaf parsley leaves · 2 cup · coHarvestable true — leaves come off the bunch you bought
+ 70. ? ADMIT fresh mint -> fresh mint leaves · 2 cup · coHarvestable true — same
+ 71. ? ADMIT fresh oregano -> fresh oregano leaves · 2 cup · coHarvestable true — same
+ 72.   ADMIT fresh sage -> fresh sage leaves · 0.5 cup · coHarvestable true — same
+ 73. ? ADMIT thai basil -> fresh thai basil leaves · 2 cup · coHarvestable true — same
+
+-- P2. edges the widening reaches and this lane REFUSES. Listed so nobody
+   re-proposes them. --
+ 74.   REFUSE canned tuna in olive oil -> olive oil — 🔴 olive oil is its own product with its own bottle. Absorbing it ordered SIX CANS OF TUNA for 11 tbsp of oil on f5556c19. A part rides free only when it is not separately bought.
+ 75.   REFUSE garlic -> garlic cloves — D-WS9-189 A3 ruled garlic OUT of the pool: the LADDER renders '3 heads Garlic (25 cloves)' and the pool loses the clove need
+ 76.   REFUSE garlic -> garlic cloves, peeled — same ruling
+ 77.   REFUSE celery -> celery stalks — a stalk is a PORTION of the same food, not a part that rides free — the ladder's shape (D-WS9-220). Moved to Y.
+ 78.   REFUSE celery -> celery sticks — same
+ 79.   REFUSE fresh rosemary -> fresh rosemary sprigs — same — a sprig is a portion. Moved to Y.
+ 80.   REFUSE water -> pasta cooking water — pasta water is a by-product of cooking pasta, not something a bottle of water yields on the shelf
+ 81.   REFUSE water -> reserved pasta cooking water — same
+ 82.   REFUSE large eggs -> egg whites — a dozen is a pack of twelve, not one whole — D-WS9-218's 12× error, unchanged. The `egg [each]` edge already carries this correctly.
+ 83.   REFUSE large eggs -> large egg yolks — same
+ 84.   REFUSE jasmine rice -> cooked day-old jasmine rice — a cooked form is not a part of the raw pack; the yield is a recipe step, and the pack basis (a 2-lb bag) is not one whole
+ 85.   REFUSE parmigiano-reggiano -> parmigiano-reggiano rind — the pack is '1 lb block' — a pound is a measure, not a countable whole, so the basis is still not derivable
+
+-- P3. NEW edges --
+ 86. ? pickled jalapeños -> pickled jalapeño brine · 3 tbsp · coHarvestable · web/derived — the brine in a 12-oz jar of slices is roughly a third of it; 3 tbsp is a conservative per-jar figure and the brine RIDES FREE either way (coHarvestable)
+ 87.   lime -> lime wedges · 8 each · exclusive (adds) · D-WS9-182 — ruled 8 wedges per lime; the live edge says 6
+ 88.   lemon -> lemon wedges · 8 each · exclusive (adds) · D-WS9-182 — ruled 8 wedges per lemon; the live edge says 6
+ 89.   fresh lime -> fresh lime wedges · 8 each · exclusive (adds) · D-WS9-182 — the `fresh lime` spelling has juice edges but no wedge edge, so `fresh lime wedges` buys its own limes on 96a94410
+ 90.   orange -> orange juice · 5 tbsp · coHarvestable · D-WS9-182 — ruled 5 tbsp juice per orange; the live edge says 0.25 cup = 4 tbsp
+ 91.   orange -> orange zest · 2 tbsp · coHarvestable · D-WS9-182 — ruled 2 tbsp zest per orange; the live edge says 1 tbsp
+
+-- P4. NEW synonym edges (same product, two rows) --
+ 92. ? SYNONYM pickled jalapeño slices <-> pickled jalapeños — the same 12-oz jar under two names; D-WS9-223's test ('does the distinction change the dish?') says no. Without this the jar is bought twice on 163875ec and the brine's parent has no pack to inherit.
+
+=== X — REFUSALS AND DATA FIXES ===
+ 93.   [relation] a30858b7 coarse kosher salt --synonym--> kosher salt: label synonym -> distinct, reviewedByHuman = true — D-WS9-217 is PERMANENT and the code-level NEVER_FOLD_PAIRS veto already refuses this pair at runtime. The row is medium/ai_judge/unreviewed, so it is a standing invitation for a confidence upgrade to fold it.
+ 94.   [pack] iceberg lettuce.purchaseQuantity / purchaseDisplay: 4 / "4 heads"  ->  1 / "1 head" — THIS is why two corpus lists order '4 heads iceberg lettuce (2 cup)'. No rounding rule can fix a pack that says four heads is one pack.
+ 95.   [pack] red cabbage.purchaseUnit: "each" -> "head" — the display already reads "1 head"; the ladder fires only when purchaseUnit equals the pack noun
+ 96.   [pack] broccoli.purchaseUnit: "each" -> "head" — display reads "1 head"
+ 97.   [pack] radicchio.purchaseUnit: "each" -> "head" — display reads "1 head"
+ 98.   [pack] crusty bread.purchaseUnit: "each" -> "loaf" — display reads "1 loaf (crusty bread)"
+ 99.   [report-only] fennel fronds: no edge can be authored — D-WS9-225 rules fronds off the list, and the mechanism is a coHarvestable edge to the bulb — but there is NO `fennel` catalog row, and a relation is row->row. Needs a `fennel` row first; that is a catalog write outside this block's ruling.
+100. ? [report-only] `lemons` / `limes` rows with no catalog row: none proposed — 11 corpus rows ship a bare plural beside the singular — `lemon 1 each` + `lemons 1 each`, two packs for one fruit. There is no catalog row for the plural, so no relation edge can hold it; the fix is a singularising fold in normalizeIngredientName or the hand map. NOT a yield, NOT in this block's ruling — Hans's call.
+101. ? [report-only] `parsley` vs `flat-leaf parsley` group keys: none proposed — they fold to DIFFERENT keys, so 425da049 ships `fresh flat-leaf parsley 4 tbsp` and `fresh parsley 3 tbsp` as two bunches. A3 reverted this fold deliberately, 'for unit reasons, not the yield' — with a pack yield the unit reason is gone. Hans's call whether B1 re-folds it.
+
+-- BUG-328: the three ≤30-min labels, with the honest step-sum minutes --
+102.   Cheese Ravioli with Marinara and Garlic Bread (b96af5ed, public) · label 30 · active 23 · HONEST STEP SUM 73 min (ratio 2.43) · the convenience/bought path is 54 min (1.80) · re-time or relabel — Hans's call
+103.   Spicy Chicken Scampi with Cherry Tomatoes over Linguine (9d693c64, public) · label 28 · active 27 · HONEST STEP SUM 50 min (ratio 1.79) · bought path 48 min (1.71)
+104.   Sausage and Kale Orecchiette with Crusty Bread (FOUR rows share this title: 1f122b1a public, plus private copies 1b565fb5 / 97aeb9cc / bf29666d) · label 27 · active 24 · HONEST STEP SUM 65 min (ratio 2.41) · both paths 65 min · ⚠️ FOUR rows share this title, so a relabel is four writes, not one
+
+(104 numbered lines)

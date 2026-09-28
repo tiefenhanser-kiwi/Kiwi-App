@@ -1,0 +1,620 @@
+INGREDIENTS: 1780
+
+=== Ingredient.category — LIVE VOCABULARY ===
+  Pantry  725
+  Produce  367
+  Protein  232
+  Dairy  148
+  Canned  130
+  Bakery  119
+  Frozen  39
+  Snacks  19
+  Household  1
+  subcategory non-null: 0 / 1780
+
+=== pack (purchaseUnit) class ===
+  container: 361
+  whole: 140
+  measure: 131
+  none: 1148
+
+DISH INGREDIENT rows: 43041 in 1699 distinct ingredients
+
+=== §3.2 THE R2 POPULATION, CATALOG-WIDE ===
+whole-sold packs with a MEASURE need: 53 foods / 3519 DishIngredient rows
+container packs with a MEASURE need: 315 foods / 24103 rows
+
+-- whole-sold (R2 proper) --
+  fresh cilantro [Produce] pack=bunch "1 bunch" default=bunch need: cup×554 tablespoon×158 ounce×3 (+35 count rows) gpc=16
+  fresh flat-leaf parsley [Produce] pack=bunch "1 bunch" default=cup need: tablespoon×444 cup×148 (+6 count rows) gpc=60
+  lime juice [Produce] pack=each "3 limes" default=tablespoon need: tablespoon×312 teaspoon×3 tbsp×1 cup×1 gpc=242
+  fresh lemon juice [Produce] pack=each "1 lemon" default=tablespoon need: tablespoon×204 cup×9 teaspoon×5 tbsp×4 gpc=244
+  fresh ginger [Produce] pack=each "1 small knob (~2 oz)" default=tablespoon need: tablespoon×125 teaspoon×76 ounce×5 (+19 count rows) gpc=96
+  fresh lime juice [Produce] pack=each "1 lime" default=tablespoon need: tablespoon×174 teaspoon×2 gpc=242
+  fresh parsley [Produce] pack=bunch "1 bunch" default=bunch need: tablespoon×99 cup×24 (+2 count rows) gpc=60
+  green cabbage [Produce] pack=head "1 head" default=cup need: cup×116 pound×3 (+69 count rows) gpc=89 gpe=908
+  lemon zest [Produce] pack=each "1 lemon" default=teaspoon need: teaspoon×104 tablespoon×1
+  fresh basil leaves [Produce] pack=bunch "1 bunch" default=cup need: cup×102 ounce×2 (+20 count rows)
+  fresh chives [Produce] pack=bunch "1 bunch" default=tablespoon need: tablespoon×91 cup×1 tbsp×1 (+1 count rows)
+  fresh dill [Produce] pack=bunch "1 bunch" default=bunch need: tablespoon×82 cup×3 (+3 count rows)
+  fresh rosemary [Produce] pack=bunch "1 bunch" default=sprig need: teaspoon×46 tablespoon×32 (+30 count rows)
+  fresh thyme [Produce] pack=bunch "1 bunch" default=bunch need: teaspoon×45 tablespoon×26 (+118 count rows)
+  lime zest [Produce] pack=each "1 lime" default=teaspoon need: teaspoon×66
+  fresh mint leaves [Produce] pack=bunch "1 bunch" default=tablespoon need: tablespoon×25 cup×22
+  fresh thyme leaves [Produce] pack=bunch "1 bunch" default=teaspoon need: teaspoon×34 tablespoon×12
+  red cabbage [Produce] pack=each "1 head" default=cup need: cup×41 pound×3 (+20 count rows) gpc=70 gpe=839
+  fresh basil [Produce] pack=bunch "1 bunch" default=bunch need: cup×31 tablespoon×3 (+9 count rows) gpc=24
+  fresh cilantro leaves [Produce] pack=bunch "1 bunch" default=cup need: cup×23 tablespoon×5
+  fresh thai basil leaves [Produce] pack=bunch "1 bunch" default=cup need: cup×26
+  romaine lettuce [Produce] pack=head "1 head" default=head need: cup×20 ounce×3 (+25 count rows) gpc=47
+  red onion [Produce] pack=each "1 medium red onion" default=each need: cup×21 tablespoon×1 (+238 count rows)
+  white onion [Produce] pack=each "1 medium white onion" default=each need: cup×19 (+323 count rows)
+  fresh pineapple [Produce] pack=each "1 medium pineapple" default=cup need: cup×13 ounce×3
+  fresh mint [Produce] pack=bunch "1 bunch" default=sprig need: tablespoon×11 cup×3 ounce×1 (+1 count rows)
+  iceberg lettuce [Produce] pack=head "4 heads" default=each need: cup×15 (+33 count rows) gpc=57 gpe=539
+  broccolini [Pantry] pack=bunch "1 bunch (~12 oz)" default=ounce need: ounce×13 (+2 count rows)
+  lime juice, fresh [Produce] pack=each "2 limes" default=tablespoon need: tablespoon×13
+  romaine lettuce hearts [Produce] pack=each "2 romaine lettuce hearts" default=each need: ounce×9 pound×2 (+76 count rows) gpc=47
+  fresh corn kernels [Produce] pack=each "3 ears of corn" default=cup need: cup×10
+  lime juice, freshly squeezed [Produce] pack=each "1 lime" default=tablespoon need: tablespoon×7 cup×1
+  fresh flat-leaf parsley leaves [Produce] pack=bunch "1 bunch" default=cup need: cup×6
+  fresh oregano [Pantry] pack=bunch "1 bunch" default=tablespoon need: tablespoon×5
+  fresh sage [Produce] pack=bunch "1 bunch" default=tablespoon need: tablespoon×2 ounce×2
+  crusty bread [Bakery] pack=each "1 loaf (crusty bread)" default=loaf need: ounce×3 (+5 count rows)
+  seedless watermelon [Pantry] pack=each "1 seedless watermelon" default=pound need: cup×2 pound×1
+  broccoli [Produce] pack=each "1 head" default=head need: pound×3 (+3 count rows) gpc=88
+  thai basil [Produce] pack=bunch "1 bunch" default=cup need: cup×3
+  garlic [Produce] pack=head "1 head" default=cloves need: teaspoon×3 (+1263 count rows) SUBUNIT gpe=45
+  yellow onion [Produce] pack=each "2 onions" default=each need: cup×2 pound×1 (+766 count rows) gpc=160 gpe=110
+  fresh cilantro stems [Produce] pack=bunch "1 bunch" default=cup need: cup×3
+  fresh lacinato kale [Produce] pack=bunch "1 bunch (~10 oz)" default=ounce need: ounce×3
+  fresh flat-leaf parsley, finely chopped [Produce] pack=bunch "1 bunch" default=tablespoon need: tablespoon×3
+  fresh cilantro, roughly chopped [Produce] pack=bunch "1 bunch" default=cup need: cup×3
+  rotisserie chicken [Protein] pack=each "1 whole rotisserie chicken (~2 lb)" default=each need: pound×1 cup×1 (+15 count rows)
+  rotisserie chicken, meat shredded [Protein] pack=each "1 rotisserie chicken" default=cup need: cup×2
+  fresh rosemary, finely chopped [Produce] pack=bunch "1 bunch" default=teaspoon need: teaspoon×2
+  fennel fronds [Produce] pack=bunch "1 bunch" default=tablespoon need: tablespoon×2
+  radicchio [Pantry] pack=each "1 head" default=each need: ounce×1 (+9 count rows) gpc=40
+  shredded rotisserie chicken [Protein] pack=each "1 rotisserie chicken" default=cup need: cup×1
+  roma tomatoes [Produce] pack=each "4 roma tomatoes" default=each need: pound×1 (+206 count rows) gpc=180 gpe=123
+  sliced scallions [Produce] pack=bunch "1 bunch (~6 scallions)" default=each need: tablespoon×1 (+18 count rows)
+
+-- container packs (never forgiven; listed for the ceil rule) --
+  kosher salt [Pantry] pack=container "1 container (26 oz)" need: teaspoon×3641 tablespoon×72
+  black pepper [Pantry] pack=container "1 container" need: teaspoon×2479 tsp×38 tablespoon×2
+  olive oil [Pantry] pack=bottle "1 bottle (17 oz)" need: tablespoon×1189 tbsp×34 teaspoon×16 cup×6
+  smoked paprika [Pantry] pack=container "1 container (2.6 oz)" need: teaspoon×862 tablespoon×13
+  garlic powder [Pantry] pack=container "1 container (2.6 oz)" need: teaspoon×732 tablespoon×4 tsp×1
+  neutral oil [Pantry] pack=bottle "1 bottle (51 oz)" need: tablespoon×637 cup×45 teaspoon×30
+  ground cumin [Pantry] pack=container "1 container (1.7 oz)" need: teaspoon×696
+  dried oregano [Pantry] pack=container "1 container (0.5 oz)" need: teaspoon×622 tbsp×2 tsp×2 tablespoon×1
+  extra-virgin olive oil [Pantry] pack=bottle "1 bottle (25.5 oz)" need: tablespoon×505 cup×19 tbsp×2
+  water [Pantry] pack=bottle "1 bottle (16.9 oz)" need: cup×430 tablespoon×47
+  dijon mustard [Pantry] pack=jar "1 jar (8 oz)" need: teaspoon×279 tablespoon×127 tbsp×1 tsp×1
+  sour cream [Dairy] pack=container "1 container (16 oz)" need: cup×353 tablespoon×35
+  apple cider vinegar [Produce] pack=bottle "1 bottle (16 oz)" need: tablespoon×278 cup×40 teaspoon×30
+  chili powder [Pantry] pack=container "1 container (2.5 oz)" need: teaspoon×291 tablespoon×39 tsp×1
+  mayonnaise [Pantry] pack=jar "1 jar (15 oz)" need: tablespoon×160 cup×153 tbsp×1
+  granulated sugar [Pantry] pack=bag "1 bag (4 lb)" need: teaspoon×212 tablespoon×90 cup×5
+  onion powder [Pantry] pack=container "1 container (2.6 oz)" need: teaspoon×288 tablespoon×3
+  red pepper flakes [Pantry] pack=container "1 container (1.6 oz)" need: teaspoon×286 tsp×1
+  tomato paste [Canned] pack=can "1 can (6 oz)" need: tablespoon×262
+  cayenne pepper [Pantry] pack=container "1 container (1.7 oz)" need: teaspoon×253 tablespoon×7
+  worcestershire sauce [Pantry] pack=bottle "1 bottle (10 oz)" need: tablespoon×171 teaspoon×81 tsp×1
+  whole milk [Dairy] pack=bottle "1 bottle (1 quart / 32 oz)" need: cup×221 tablespoon×29
+  honey [Pantry] pack=jar "1 jar (12 oz)" need: tablespoon×134 teaspoon×109 cup×4
+  soy sauce [Pantry] pack=bottle "1 bottle (10 oz)" need: tablespoon×198 cup×22 teaspoon×18
+  chicken broth [Canned] pack=can "1 can (14.5 oz)" need: cup×237
+  low-sodium chicken broth [Canned] pack=can "1 can (14.5 oz)" need: cup×202 ounce×3 tablespoon×1
+  lemon juice [Produce] pack=bottle "1 bottle (15 oz)" need: tablespoon×159 teaspoon×20 cup×7 tbsp×3
+  parmesan cheese [Dairy] pack=block "1 block (8 oz)" need: ounce×125 cup×38 tablespoon×23
+  cherry tomatoes [Produce] pack=pint "1 pint" need: cup×113 ounce×60 pound×1
+  sesame oil [Pantry] pack=bottle "1 bottle (6.5 oz)" need: teaspoon×96 tablespoon×65 tbsp×1
+  heavy cream [Dairy] pack=container "1 container (16 oz)" need: cup×149 tablespoon×12
+  cornstarch [Pantry] pack=box "1 box (16 oz)" need: tablespoon×69 cup×52 teaspoon×36
+  beef broth [Canned] pack=can "1 can (14.5 oz)" need: cup×142 ounce×3
+  vegetable oil [Pantry] pack=bottle "1 bottle (51 oz)" need: tablespoon×90 cup×45 tbsp×4 teaspoon×1
+  crushed red pepper flakes [Pantry] pack=container "1 container (1.5 oz)" need: teaspoon×134
+  dried thyme [Pantry] pack=container "1 container (0.5 oz)" need: teaspoon×123 tsp×1
+  rice vinegar [Pantry] pack=bottle "1 bottle (10 oz)" need: tablespoon×110 teaspoon×7 cup×6
+  brown sugar [Pantry] pack=bag "1 bag (2 lb)" need: tablespoon×106 teaspoon×16
+  sharp cheddar cheese [Dairy] pack=block "1 block (8 oz)" need: ounce×101 cup×16
+  hot sauce [Pantry] pack=bottle "1 bottle (5 oz)" need: teaspoon×57 tablespoon×55 cup×4
+  dry white wine [Pantry] pack=bottle "1 bottle (750 ml)" need: cup×112 tablespoon×2
+  jasmine rice [Pantry] pack=bag "1 bag (2 lb)" need: cup×111
+  ketchup [Pantry] pack=bottle "1 bottle (20 oz)" need: cup×51 tablespoon×50 tbsp×1
+  salt [Pantry] pack=container "1 container" need: teaspoon×50 tsp×46 tbsp×3 pinch×1
+  flaky sea salt [Pantry] pack=container "1 container (4-5 oz)" need: teaspoon×95
+  red wine vinegar [Pantry] pack=bottle "1 bottle (16 oz)" need: tablespoon×87 cup×3 teaspoon×2 tbsp×2
+  celery seed [Produce] pack=container "1 container (1.3 oz)" need: teaspoon×90
+  canned black beans [Canned] pack=can "1 can (15 oz)" need: ounce×85 cup×3
+  ground coriander [Pantry] pack=container "1 container (1.5 oz)" need: teaspoon×87
+  crushed san marzano tomatoes [Canned] pack=can "1 can (14.5 oz)" need: ounce×83 cup×2
+  yellow mustard [Pantry] pack=bottle "1 bottle (14 oz)" need: tablespoon×61 teaspoon×16 cup×2
+  oyster sauce [Pantry] pack=bottle "1 bottle (9.6 oz)" need: tablespoon×78
+  extra virgin olive oil [Pantry] pack=bottle "1 bottle (25.5 oz)" need: tablespoon×74 cup×2
+  baby arugula [Produce] pack=container "1 container (5 oz)" need: ounce×62 cup×14
+  shredded mexican cheese blend [Dairy] pack=bag "1 bag (8 oz)" need: cup×70 ounce×4
+  buttermilk [Dairy] pack=container "1 container (32 oz)" need: cup×59 tablespoon×12
+  baking powder [Pantry] pack=container "1 container (10 oz)" need: teaspoon×49 tablespoon×21
+  white pepper [Pantry] pack=container "1 container (1.9 oz)" need: teaspoon×69
+  toasted sesame oil [Pantry] pack=bottle "1 bottle (6.5 oz)" need: teaspoon×37 tablespoon×30
+  ground turmeric [Pantry] pack=container "1 container (1.9 oz)" need: teaspoon×67
+  panko breadcrumbs [Pantry] pack=box "1 box (8 oz)" need: cup×64 tablespoon×1
+  bbq sauce [Pantry] pack=bottle "1 bottle (18 oz)" need: cup×58 tablespoon×4
+  frozen peas [Frozen] pack=bag "1 bag (10 oz)" need: cup×57 ounce×3
+  fish sauce [Pantry] pack=bottle "1 bottle (8 oz)" need: tablespoon×54 tbsp×4 teaspoon×2
+  dried basil [Pantry] pack=container "1 container (0.5 oz)" need: teaspoon×58
+  basmati rice [Pantry] pack=bag "1 bag (2 lb)" need: cup×53 cups×5
+  grated parmesan cheese [Dairy] pack=container "1 container (8 oz)" need: cup×39 tablespoon×13 ounce×6
+  pickled jalapeño slices [Canned] pack=jar "1 jar (12 oz)" need: cup×31 tablespoon×24 ounce×1
+  sugar [Pantry] pack=bag "1 bag (4 lb)" need: teaspoon×53 tablespoon×3
+  plain breadcrumbs [Pantry] pack=container "1 container (15 oz)" need: cup×56
+  chicken stock [Canned] pack=can "1 can (14.5 oz)" need: cup×52 tablespoon×3
+  dry red wine [Pantry] pack=bottle "1 bottle (750 ml)" need: cup×55
+  canned diced tomatoes [Canned] pack=can "1 can (14.5 oz)" need: ounce×53
+  garam masala [Pantry] pack=container "1 container (2 oz)" need: teaspoon×49 tbsp×1
+  wide egg noodles [Pantry] pack=box "1 box (12 oz)" need: ounce×47
+  white wine vinegar [Pantry] pack=bottle "1 bottle (16 oz)" need: tablespoon×19 cup×17 teaspoon×10
+  capers [Canned] pack=jar "1 jar (3.5 oz)" need: tablespoon×38 cup×4
+  ground cinnamon [Pantry] pack=container "1 container (1.7 oz)" need: teaspoon×41
+  cream cheese [Dairy] pack=package "1 package (8 oz)" need: ounce×40
+  kalamata olives [Pantry] pack=jar "1 jar (12 oz)" need: cup×31 ounce×7
+  black pepper, freshly ground [Pantry] pack=container "1 container (2 oz)" need: teaspoon×38
+  crushed tomatoes [Canned] pack=can "1 can (14.5 oz)" need: ounce×30 cup×8
+  canned crushed tomatoes [Canned] pack=can "1 can (14.5 oz)" need: ounce×30 cup×7
+  low-sodium soy sauce [Pantry] pack=bottle "1 bottle (10 oz)" need: tablespoon×26 cup×10 teaspoon×1
+  frozen corn kernels [Frozen] pack=bag "1 bag (10 oz)" need: cup×36
+  spaghetti [Pantry] pack=box "1 box (1 lb)" need: ounce×24 lb×6 gram×2 oz×2 pound×2
+  pickled jalapeños [Canned] pack=jar "1 jar (12 oz)" need: tablespoon×25 cup×10
+  fresh baby spinach [Produce] pack=container "1 container (5 oz)" need: ounce×26 cup×7
+  plain whole-milk yogurt [Dairy] pack=container "1 container (32 oz)" need: cup×29 tablespoon×3
+  freshly ground black pepper [Pantry] pack=container "1 container (2.3 oz)" need: teaspoon×32
+  fine sea salt [Pantry] pack=container "1 container (26 oz)" need: teaspoon×31
+  dried rosemary [Pantry] pack=container "1 container (0.5 oz)" need: teaspoon×31
+  fresh orange juice [Produce] pack=bottle "1 bottle (64 oz)" need: cup×27 tablespoon×4
+  adobo sauce [Pantry] pack=can "1 can (7 oz)" need: tablespoon×28 teaspoon×2
+  shredded sharp cheddar cheese [Dairy] pack=package "1 package (8 oz)" need: cup×28 ounce×2
+  dark soy sauce [Pantry] pack=bottle "1 bottle (10 oz)" need: tablespoon×25 teaspoon×5
+  shredded monterey jack cheese [Dairy] pack=package "1 package (8 oz)" need: cup×28 ounce×1
+  bean sprouts [Produce] pack=bag "1 bag (8 oz)" need: cup×24 ounce×5
+  baby spinach [Produce] pack=container "1 container (5 oz)" need: cup×15 ounce×14
+  butter [Dairy] pack=package "1 package (1 lb, 4 sticks)" need: tbsp×17 tablespoon×10 teaspoon×1
+  elbow macaroni [Pantry] pack=box "1 box (1 lb)" need: ounce×25 cup×2 pound×1
+  baking soda [Pantry] pack=box "1 box (16 oz)" need: teaspoon×28
+  feta cheese [Dairy] pack=container "1 container (8 oz)" need: ounce×26 cup×1
+  fresh mozzarella [Dairy] pack=container "1 container (8 oz)" need: ounce×23 oz×3
+  finely grated parmesan cheese [Dairy] pack=container "1 container (5 oz)" need: cup×23 ounce×2 tablespoon×1
+  mexican crema [Pantry] pack=container "1 container (12 oz)" need: cup×21 tablespoon×4
+  low-sodium beef broth [Canned] pack=can "1 can (14.5 oz)" need: cup×25
+  warm water [Pantry] pack=bottle "1 bottle (16.9 oz)" need: cup×21 tablespoon×4
+  white vinegar [Pantry] pack=bottle "1 bottle (16 oz)" need: tablespoon×16 teaspoon×8 cup×1
+  balsamic vinegar [Pantry] pack=bottle "1 bottle (8.5 oz)" need: tablespoon×15 teaspoon×6 cup×2 tbsp×1
+  marinara sauce [Canned] pack=jar "1 jar (24 oz)" need: cup×20 ounce×4
+  kettle-cooked potato chips [Snacks] pack=bag "1 bag (5-6 oz)" need: ounce×23
+  dill pickle chips [Snacks] pack=jar "1 jar (16 oz)" need: cup×22 ounce×1
+  full-fat greek yogurt [Dairy] pack=container "1 container (32 oz)" need: cup×22
+  canned diced green chiles [Canned] pack=can "1 can (7 oz)" need: ounce×22
+  shaoxing rice wine [Pantry] pack=bottle "1 bottle (10 oz)" need: tablespoon×22
+  whole-grain mustard [Pantry] pack=jar "1 jar (8 oz)" need: tablespoon×21 teaspoon×1
+  tahini [Pantry] pack=jar "1 jar (16 oz)" need: cup×19 tablespoon×2
+  salsa verde [Pantry] pack=jar "1 jar (16 oz)" need: cup×20
+  canned cannellini beans [Canned] pack=can "1 can (15 oz)" need: ounce×20
+  tortilla chips [Snacks] pack=bag "1 bag (13 oz)" need: ounce×20
+  ground cloves [Pantry] pack=container "1 container (1.7 oz)" need: teaspoon×20
+  orange juice [Produce] pack=bottle "1 bottle (64 oz)" need: cup×14 tablespoon×6
+  whole-milk ricotta cheese [Dairy] pack=container "1 container (15 oz)" need: cup×10 ounce×10
+  shaved parmesan [Dairy] pack=package "1 package (5 oz)" need: ounce×20
+  palm sugar [Pantry] pack=bag "1 bag (8 oz)" need: tablespoon×20
+  ground allspice [Pantry] pack=container "1 container (1.9 oz)" need: teaspoon×19
+  full-fat coconut milk [Canned] pack=can "1 can (13.5 oz)" need: ounce×18 cup×1
+  low-sodium chicken stock [Canned] pack=carton "1 carton (32 oz)" need: cup×19
+  croutons [Pantry] pack=box "1 box (5-6 oz)" need: cup×19
+  ground black pepper [Pantry] pack=container "1 container (2.3 oz)" need: teaspoon×19
+  dried spaghetti [Pantry] pack=box "1 box (1 lb)" need: ounce×18
+  store-bought pizza dough [Bakery] pack=package "1 package (16 oz)" need: ounce×17 pound×1
+  vegetable broth [Pantry] pack=carton "1 carton (32 oz)" need: cup×16 cups×2
+  paprika [Pantry] pack=container "1 container (2.6 oz)" need: teaspoon×18
+  rigatoni [Pantry] pack=box "1 box (16 oz)" need: ounce×18
+  dry mustard powder [Pantry] pack=container "1 container (1-2 oz)" need: teaspoon×18
+  beef stock [Canned] pack=carton "1 carton (32 oz)" need: cup×17
+  dark brown sugar [Pantry] pack=bag "1 bag (16 oz)" need: tablespoon×14 cup×2
+  coconut oil [Pantry] pack=jar "1 jar (14 oz)" need: tablespoon×16
+  angel hair pasta [Pantry] pack=box "1 box (16 oz)" need: ounce×16
+  salsa [Pantry] pack=jar "1 jar (16 oz)" need: cup×16
+  whole-milk ricotta [Dairy] pack=container "1 container (15 oz)" need: cup×14 ounce×1
+  dill pickle [Produce] pack=jar "1 jar (32 oz)" need: cup×6 tablespoon×5 ounce×3
+  grated parmesan [Dairy] pack=container "1 container (5 oz)" need: tablespoon×13 cup×1
+  canned pinto beans [Canned] pack=can "1 can (15 oz)" need: ounce×14
+  instant yeast [Pantry] pack=package "1 package (0.25 oz)" need: teaspoon×11 tsp×3
+  pepper jack cheese [Dairy] pack=block "1 block (8 oz)" need: ounce×14
+  canned kidney beans [Canned] pack=can "1 can (15 oz)" need: ounce×13 cup×1
+  dry sherry [Pantry] pack=bottle "1 bottle (750 ml)" need: cup×9 tablespoon×4
+  dried italian seasoning [Pantry] pack=container "1 container (0.5 oz)" need: teaspoon×13
+  freshly grated nutmeg [Pantry] pack=container "1 container (1.3 oz)" need: teaspoon×13
+  canned whole san marzano tomatoes [Canned] pack=can "1 can (28 oz)" need: ounce×13
+  breadcrumbs [Pantry] pack=container "1 container (8 oz)" need: cup×13
+  bacon [Protein] pack=package "1 package (12 oz)" need: ounce×7 oz×5
+  blue cheese crumbles [Dairy] pack=container "1 container (4 oz)" need: ounce×9 cup×3
+  dried red chili flakes [Pantry] pack=container "1 container (1.6 oz)" need: teaspoon×12
+  san marzano whole peeled tomatoes [Canned] pack=can "1 can (28 oz)" need: ounce×12
+  whole black peppercorns [Pantry] pack=container "1 container (2 oz)" need: teaspoon×6 tablespoon×6
+  couscous [Pantry] pack=box "1 box (10 oz)" need: cup×12
+  italian seasoning [Pantry] pack=container "1 container (0.6 oz)" need: teaspoon×12
+  black peppercorns [Pantry] pack=container "1 container (2 oz)" need: teaspoon×10 tablespoon×2
+  adobo sauce (from can) [Pantry] pack=can "1 can (7 oz)" need: tablespoon×12
+  red chili flakes [Pantry] pack=container "1 container (1.6 oz)" need: teaspoon×12
+  old bay seasoning [Pantry] pack=container "1 container (2.6 oz)" need: teaspoon×9 tablespoon×3
+  black beans [Canned] pack=can "1 can (15 oz)" need: ounce×11
+  orzo pasta [Pantry] pack=box "1 box (16 oz)" need: ounce×6 cup×5
+  shredded carrots [Produce] pack=bag "1 bag (10 oz)" need: cup×11
+  low-sodium vegetable broth [Canned] pack=carton "2 cartons (32 oz each)" need: cup×11
+  sweet paprika [Pantry] pack=container "1 container (2.6 oz)" need: teaspoon×11
+  shredded iceberg lettuce [Produce] pack=bag "1 bag (5 oz)" need: cup×11
+  plain whole-milk greek yogurt [Dairy] pack=container "1 container (32 oz)" need: cup×10
+  shredded low-moisture mozzarella [Dairy] pack=bag "1 bag (8 oz)" need: cup×8 ounce×2
+  neutral cooking oil [Pantry] pack=bottle "1 bottle (51 oz)" need: tablespoon×10
+  frozen peas and carrots [Frozen] pack=bag "1 bag (10 oz)" need: cup×9
+  black olives [Pantry] pack=can "1 can (6 oz)" need: cup×5 ounce×4
+  canned navy beans [Canned] pack=can "1 can (15 oz)" need: ounce×9
+  cheddar [Dairy] pack=block "1 block (8 oz)" need: cup×9
+  pickled jalapeño brine [Canned] pack=jar "1 jar (12 oz)" need: tablespoon×9
+  fajita seasoning [Pantry] pack=packet "1 packet" need: tbsp×9
+  shredded mozzarella cheese [Dairy] pack=bag "1 bag (8 oz)" need: cup×8 ounce×1
+  taco seasoning [Pantry] pack=packet "1 packet" need: tbsp×9
+  balsamic glaze [Pantry] pack=bottle "1 bottle (8.5 oz)" need: tablespoon×9
+  barbecue sauce [Pantry] pack=bottle "1 bottle (18 oz)" need: cup×8
+  canned tomato sauce [Canned] pack=can "1 can (15 oz)" need: ounce×7 cup×1
+  feta [Dairy] pack=block "1 block (8 oz)" need: oz×8
+  mixed greens [Pantry] pack=bag "1 bag (5 oz)" need: ounce×6 cup×2
+  ranch dressing [Pantry] pack=bottle "1 bottle (16 oz)" need: cup×6 tablespoon×2
+  lard or neutral oil [Pantry] pack=bottle "1 bottle (16 oz)" need: tablespoon×8
+  chipotle chili powder [Pantry] pack=container "1 container (2.6 oz)" need: teaspoon×8
+  lard [Pantry] pack=container "1 container (16 oz)" need: tablespoon×5 cup×3
+  fine yellow cornmeal [Pantry] pack=bag "1 bag (2 lb)" need: cup×8
+  farro [Pantry] pack=bag "1 bag (16 oz)" need: cup×7
+  mild chili powder [Pantry] pack=container "1 container (2.6 oz)" need: teaspoon×6 tablespoon×1
+  refried beans [Canned] pack=can "1 can (16 oz)" need: ounce×6 cup×1
+  guacamole [Pantry] pack=container "1 container (8 oz)" need: cup×7
+  ancho chili powder [Pantry] pack=container "1 container (2.5 oz)" need: teaspoon×4 tablespoon×3
+  pineapple juice [Produce] pack=bottle "1 bottle (64 oz)" need: cup×7
+  dill pickle relish [Produce] pack=jar "1 jar (16 oz)" need: tablespoon×7
+  penne pasta [Pantry] pack=box "1 box (1 lb)" need: ounce×7
+  rice noodles [Pantry] pack=package "1 package (8 oz)" need: oz×4 ounce×3
+  tamarind paste [Pantry] pack=jar "1 jar (8 oz)" need: tbsp×4 tablespoon×3
+  coarse kosher salt [Pantry] pack=container "1 container (26 oz)" need: tablespoon×7
+  harissa paste [Pantry] pack=jar "1 jar (16 oz)" need: tablespoon×7
+  mixed salad greens [Produce] pack=bag "1 bag (5 oz)" need: ounce×6 cup×1
+  masa harina [Pantry] pack=bag "1 bag (5 lb)" need: cup×6 tablespoon×1
+  penne rigate [Pantry] pack=box "1 box (1 lb)" need: ounce×6
+  pico de gallo [Pantry] pack=container "1 container (16 oz)" need: cup×6
+  ziti pasta [Pantry] pack=box "1 box (16 oz)" need: ounce×6
+  olive oil spray [Pantry] pack=bottle "1 bottle (8 oz)" need: teaspoon×3 tablespoon×2 ounce×1
+  vodka [Pantry] pack=bottle "1 bottle (750 ml)" need: cup×6
+  whole-milk plain yogurt [Dairy] pack=container "1 container (32 oz)" need: cup×6
+  coarsely ground black pepper [Pantry] pack=container "1 container (2 oz)" need: teaspoon×5 tablespoon×1
+  szechuan peppercorns [Pantry] pack=container "1 container (1.6 oz)" need: teaspoon×6
+  store-bought croutons [Pantry] pack=bag "1 bag (5-6 oz)" need: cup×6
+  cajun seasoning [Pantry] pack=container "1 container (2.6 oz)" need: teaspoon×5 tablespoon×1
+  diced fire-roasted tomatoes [Produce] pack=can "1 can (14.5 oz)" need: ounce×6
+  red curry paste [Pantry] pack=jar "1 jar (4 oz)" need: tablespoon×6
+  canned crushed san marzano tomatoes [Canned] pack=can "1 can (28 oz)" need: ounce×6
+  dried red pepper flakes [Pantry] pack=container "1 container (1.6 oz)" need: teaspoon×6
+  neutral oil (such as canola) [Pantry] pack=bottle "1 bottle (51 oz)" need: tablespoon×6
+  molasses [Pantry] pack=jar "1 jar (12 oz)" need: tablespoon×6
+  coconut milk [Canned] pack=can "1 can (13.5 oz)" need: ounce×3 cup×2
+  italian breadcrumbs [Pantry] pack=container "1 container (8 oz)" need: cup×5
+  frank's redhot original hot sauce [Pantry] pack=bottle "1 bottle (12 oz)" need: cup×5
+  plain greek yogurt [Dairy] pack=container "1 container (32 oz)" need: cup×5
+  oyster crackers [Snacks] pack=box "1 box (8-10 oz)" need: cup×3 ounce×2
+  dried pappardelle pasta [Pantry] pack=box "1 box (12-13 oz)" need: ounce×5
+  canned refried beans [Canned] pack=can "1 can (15 oz)" need: ounce×4 cup×1
+  diced tomatoes [Canned] pack=can "1 can (14.5 oz)" need: ounce×5
+  fresh or thawed frozen corn kernels [Frozen] pack=bag "1 bag (10 oz frozen)" need: cup×5
+  achiote paste [Pantry] pack=container "1 container (3.5 oz)" need: tablespoon×5
+  ancho chile powder [Pantry] pack=container "1 container (2 oz)" need: teaspoon×4 tablespoon×1
+  dark red kidney beans [Canned] pack=can "1 can (15 oz)" need: ounce×4 cup×1
+  seafood stock [Canned] pack=carton "1 carton (32 oz)" need: cup×5
+  dry spaghetti [Pantry] pack=box "1 box (1 lb)" need: ounce×5
+  tomato sauce [Canned] pack=can "1 can (15 oz)" need: cup×5
+  canned diced tomatoes with green chiles (rotel) [Canned] pack=can "1 can (14.5 oz)" need: ounce×4
+  guajillo chile paste [Pantry] pack=jar "1 jar (8 oz)" need: tablespoon×4
+  peanuts [Pantry] pack=bag "1 bag (8 oz)" need: cup×4
+  day-old cooked long-grain white rice [Pantry] pack=container "1 container (8.8 oz)" need: cup×4
+  chipotle peppers in adobo sauce [Pantry] pack=can "1 can (7 oz)" need: tablespoon×4
+  chunky salsa [Pantry] pack=jar "1 jar (16 oz)" need: cup×4
+  canned san marzano whole tomatoes [Canned] pack=can "1 can (28 oz)" need: ounce×4
+  coarse-ground yellow cornmeal (polenta) [Pantry] pack=bag "1 bag (16 oz)" need: cup×4
+  stone-ground yellow grits [Pantry] pack=bag "1 bag (24 oz)" need: cup×4
+  coleslaw mix [Pantry] pack=bag "1 bag (10 oz)" need: ounce×4
+  whole san marzano tomatoes [Canned] pack=can "1 can (28 oz)" need: ounce×4
+  canned san marzano crushed tomatoes [Canned] pack=can "1 can (14.5 oz)" need: ounce×4
+  tikka masala paste [Pantry] pack=jar "1 jar (10 oz)" need: oz×4
+  white sesame seeds [Pantry] pack=container "1 container (4 oz)" need: tablespoon×4
+  blue cheese dressing [Dairy] pack=bottle "1 bottle (8 oz)" need: cup×4
+  pepperoni [Protein] pack=package "1 package (6 oz)" need: ounce×4
+  ditalini pasta [Pantry] pack=box "1 box (1 lb)" need: ounce×3 cup×1
+  cooked white rice [Pantry] pack=box "1 box (8.8 oz)" need: cup×4
+  caesar dressing [Pantry] pack=bottle "1 bottle (10 oz)" need: cup×4
+  pepperoncini peppers [Pantry] pack=jar "1 jar (12 oz)" need: cup×4
+  ranch seasoning mix [Pantry] pack=package "1 package (1 oz)" need: ounce×3
+  black sesame seeds [Pantry] pack=bag "1 bag (4 oz)" need: tablespoon×3
+  canned white cannellini beans [Canned] pack=can "1 can (15 oz)" need: ounce×3
+  american cheese [Dairy] pack=package "1 package (8 oz, ~16 slices)" need: ounce×3
+  sourdough bread [Bakery] pack=loaf "1 loaf" need: ounce×3
+  canned green chiles [Canned] pack=can "1 can (4 oz)" need: ounce×3
+  pepperoncini brine [Pantry] pack=jar "1 jar (12 oz)" need: tablespoon×3
+  au jus gravy mix [Pantry] pack=package "1 package (1 oz)" need: ounce×3
+  sliced almonds [Pantry] pack=bag "1 bag (8 oz)" need: tablespoon×3
+  fermented black bean paste [Canned] pack=jar "1 jar (13.5 oz)" need: tablespoon×3
+  bottled caesar dressing [Pantry] pack=bottle "1 bottle (16 oz)" need: cup×3
+  neutral oil (such as vegetable oil) [Pantry] pack=bottle "1 bottle (51 oz)" need: tablespoon×3
+  creole mustard [Pantry] pack=jar "1 jar (12 oz)" need: tablespoon×3
+  green curry paste [Pantry] pack=jar "1 jar (4 oz)" need: tablespoon×3
+  flat rice noodles [Pantry] pack=package "1 package (12-14 oz)" need: ounce×3
+  fresh arugula [Produce] pack=bag "1 bag (5 oz)" need: cup×2 ounce×1
+  parmesan cheese, finely grated [Dairy] pack=block "1 block (8 oz)" need: tablespoon×2 cup×1
+  fire-roasted diced tomatoes [Canned] pack=can "1 can (14.5 oz)" need: ounce×3
+  apple cider [Produce] pack=bottle "1 bottle (64 oz)" need: cup×3
+  pure maple syrup [Pantry] pack=bottle "1 bottle (12 oz)" need: tablespoon×2
+  coarse-ground yellow cornmeal [Pantry] pack=bag "1 bag (2 lb)" need: cup×2
+  fine semolina or all-purpose flour [Pantry] pack=bag "1 bag (5 lb)" need: tablespoon×2
+  unsweetened cocoa powder [Pantry] pack=container "1 container (8 oz)" need: tablespoon×2
+  sweetened condensed milk [Dairy] pack=can "1 can (14 oz)" need: tablespoon×2
+  neutral cooking spray [Pantry] pack=can "1 can (8 oz)" need: tablespoon×2
+  pappardelle [Pantry] pack=box "1 box (1 lb)" need: lb×2
+  raw jasmine rice [Pantry] pack=bag "1 bag (2 lb)" need: tablespoon×2
+  mild red enchilada sauce [Canned] pack=can "1 can (10 oz)" need: ounce×2
+  red kidney beans [Canned] pack=can "2 cans (15 oz each)" need: ounce×2
+  honey bbq sauce [Pantry] pack=bottle "1 bottle (18 oz)" need: cup×2
+  egg noodles [Pantry] pack=box "1 box (12 oz)" need: ounce×2
+  jarred salsa roja [Pantry] pack=jar "1 jar (16 oz)" need: cup×2
+  instant couscous [Pantry] pack=box "1 box (10 oz)" need: ounce×2
+  cumin, ground [Pantry] pack=container "1 container (1.7 oz)" need: teaspoon×2
+  ground mustard [Pantry] pack=container "1 container (1.3 oz)" need: teaspoon×2
+  chili-bean paste (doubanjiang) [Pantry] pack=jar "1 jar (8 oz)" need: tablespoon×2
+  canned diced fire-roasted tomatoes [Canned] pack=can "1 can (28 oz)" need: ounce×2
+  coarsely cracked black pepper [Pantry] pack=container "1 container (2 oz)" need: teaspoon×2
+  fresh breadcrumbs [Pantry] pack=package "1 package (8 oz)" need: cup×2
+  fresh cheese tortellini [Dairy] pack=package "1 package (20 oz)" need: ounce×2
+  black pepper, ground [Pantry] pack=container "1 container (2 oz)" need: teaspoon×2
+  green or french lentils [Pantry] pack=bag "1 bag (1 lb)" need: cup×2
+  corn tortilla chips [Snacks] pack=bag "1 bag (10 oz)" need: ounce×2
+  crumbled cotija cheese [Dairy] pack=container "1 container (5 oz)" need: ounce×2
+  chicken or vegetable broth [Canned] pack=can "1 can (14.5 oz)" need: cup×2
+  avocado oil or olive oil [Produce] pack=bottle "1 bottle (25.5 oz)" need: cup×1
+  applewood chips [Snacks] pack=bag "1 bag (2 lb)" need: cup×1
+  sea salt [Pantry] pack=container "1 container (26 oz)" need: tsp×1
+  marinated artichoke hearts [Pantry] pack=jar "1 jar (12 oz)" need: cup×1
+  reserved birria braising liquid [Pantry] pack=container "1 container (32 oz)" need: cup×1
+  chipotle chiles in adobo [Pantry] pack=can "1 can (7 oz)" need: tablespoon×1
+  mild salsa [Pantry] pack=jar "1 jar (16 oz)" need: cup×1
+  applewood smoking chips [Snacks] pack=bag "1 bag (2 lb)" need: cup×1
+  bread and butter pickles [Dairy] pack=jar "1 jar (16 oz)" need: cup×1
+  peach preserves [Produce] pack=jar "1 jar (12 oz)" need: cup×1
+  canned black beans, drained and rinsed [Canned] pack=can "2 cans (15 oz each)" need: ounce×1
+  pomegranate molasses [Pantry] pack=bottle "1 bottle (10 oz)" need: tablespoon×1
+  flatbread dough [Bakery] pack=package "1 package (1 lb)" need: lb×1
+
+=== §3.3 THE PARTS POPULATION (name pattern) ===
+99 ingredients whose name ends in a part word
+  [brine] capers with brine [Canned] -> parent? "capers with" no catalog row · need tablespoon×1
+  [brine] dill pickle brine [Produce] -> parent? "dill pickle" EXISTS · need tablespoon×2
+  [brine] jarred grape leaves in brine [Produce] -> parent? "jarred grape leaves in" no catalog row · need each×1
+  [brine] kimchi brine [Pantry] -> parent? "kimchi" EXISTS · need tablespoon×2
+  [brine] pepperoncini brine [Pantry] -> parent? "pepperoncini" EXISTS · need tablespoon×3
+  [brine] pickle brine [Pantry] -> parent? "pickle" no catalog row · need tablespoon×2
+  [brine] pickled jalapeño brine [Canned] -> parent? "pickled jalapeño" no catalog row · need tablespoon×9
+  [clove] garlic clove, minced [Produce] -> parent? "garlic" EXISTS · need clove×1
+  [cloves] garlic cloves [Produce] -> parent? "garlic" EXISTS · need clove×3 each×747
+  [cloves] garlic cloves, minced [Produce] -> parent? "garlic" EXISTS · need each×9 clove×3
+  [cloves] garlic cloves, peeled [Produce] -> parent? "garlic" EXISTS · need each×2
+  [cloves] garlic cloves, thinly sliced [Produce] -> parent? "garlic" EXISTS · need each×2
+  [cloves] ground cloves [Pantry] -> parent? "ground" no catalog row · need teaspoon×20
+  [cloves] whole cloves [Pantry] -> parent? "whole" no catalog row · need each×11
+  [florets] broccoli florets [Produce] -> parent? "broccoli" EXISTS · need ounce×8 pound×32 lb×3 cup×39
+  [florets] cauliflower florets [Produce] -> parent? "cauliflower" EXISTS · need ounce×1 cup×1
+  [florets] pre-cut broccoli florets [Produce] -> parent? "pre-cut broccoli" no catalog row · need ounce×2
+  [fronds] fennel fronds [Produce] -> parent? "fennel" no catalog row · need tablespoon×2
+  [greens] bagged greens [Pantry] -> parent? "bagged" no catalog row · need ounce×4
+  [greens] collard greens [Pantry] -> parent? "collard" no catalog row · need ounce×1 bunch×2 pound×6
+  [greens] mixed baby greens [Pantry] -> parent? "mixed baby" no catalog row · need ounce×2
+  [greens] mixed greens [Pantry] -> parent? "mixed" no catalog row · need cup×2 ounce×6
+  [greens] mixed salad greens [Produce] -> parent? "mixed salad" no catalog row · need ounce×6 cup×1
+  [greens] mustard greens [Pantry] -> parent? "mustard" EXISTS · need ounce×1
+  [greens] scallion greens [Produce] -> parent? "scallion" no catalog row · need each×1
+  [juice] bottled clam juice [Pantry] -> parent? "bottled clam" no catalog row · need ounce×1 fluid ounce×1
+  [juice] canned pineapple chunks in juice [Canned] -> parent? "canned pineapple chunks in" no catalog row · need ounce×1
+  [juice] chopped clams in juice [Pantry] -> parent? "chopped clams in" no catalog row · need ounce×2
+  [juice] chopped clams in juice, canned [Canned] -> parent? "chopped clams in" no catalog row · need ounce×1
+  [juice] clam juice [Pantry] -> parent? "clam" no catalog row · need ounce×1
+  [juice] fresh lemon juice [Produce] -> parent? "fresh lemon" EXISTS · need cup×9 tablespoon×204 teaspoon×5 tbsp×4
+  [juice] fresh lime juice [Produce] -> parent? "fresh lime" EXISTS · need teaspoon×2 tablespoon×174
+  [juice] fresh orange juice [Produce] -> parent? "fresh orange" EXISTS · need tablespoon×4 cup×27
+  [juice] kimchi juice [Pantry] -> parent? "kimchi" EXISTS · need tablespoon×1
+  [juice] lemon juice [Produce] -> parent? "lemon" EXISTS · need teaspoon×20 tablespoon×159 tbsp×3 cup×7
+  [juice] lemon juice, freshly squeezed [Produce] -> parent? "lemon" EXISTS · need tablespoon×2 teaspoon×2
+  [juice] lime juice [Produce] -> parent? "lime" EXISTS · need tbsp×1 cup×1 teaspoon×3 tablespoon×312
+  [juice] lime juice, fresh [Produce] -> parent? "lime" EXISTS · need tablespoon×13
+  [juice] lime juice, freshly squeezed [Produce] -> parent? "lime" EXISTS · need cup×1 tablespoon×7
+  [juice] orange juice [Produce] -> parent? "orange" EXISTS · need cup×14 tablespoon×6
+  [juice] orange juice, freshly squeezed [Produce] -> parent? "orange" EXISTS · need cup×1
+  [juice] pineapple juice [Produce] -> parent? "pineapple" no catalog row · need cup×7
+  [juice] reserved pineapple juice [Produce] -> parent? "reserved pineapple" no catalog row · need cup×1
+  [leaves] banana leaves [Produce] -> parent? "banana" no catalog row · need each×1
+  [leaves] bay leaves [Pantry] -> parent? "bay" no catalog row · need each×171
+  [leaves] butter lettuce leaves [Produce] -> parent? "butter lettuce" EXISTS · need each×8
+  [leaves] dried bay leaves [Pantry] -> parent? "dried bay" no catalog row · need each×1
+  [leaves] fresh basil leaves [Produce] -> parent? "fresh basil" EXISTS · need cup×102 each×20 ounce×2
+  [leaves] fresh cilantro leaves [Produce] -> parent? "fresh cilantro" EXISTS · need tablespoon×5 cup×23
+  [leaves] fresh curry leaves [Pantry] -> parent? "fresh curry" no catalog row · need each×1
+  [leaves] fresh flat-leaf parsley leaves [Produce] -> parent? "fresh flat-leaf parsley" EXISTS · need cup×6
+  [leaves] fresh holy basil leaves [Produce] -> parent? "fresh holy basil" no catalog row · need cup×1
+  [leaves] fresh kaffir lime leaves [Produce] -> parent? "fresh kaffir lime" no catalog row · need each×2
+  [leaves] fresh makrut lime leaves [Produce] -> parent? "fresh makrut lime" no catalog row · need each×1
+  [leaves] fresh mint leaves [Produce] -> parent? "fresh mint" EXISTS · need tablespoon×25 cup×22
+  [leaves] fresh mint leaves, finely chopped [Produce] -> parent? "fresh mint" EXISTS · need tablespoon×2
+  [leaves] fresh oregano leaves [Produce] -> parent? "fresh oregano" EXISTS · need tablespoon×8
+  [leaves] fresh sage leaves [Produce] -> parent? "fresh sage" EXISTS · need each×7
+  [leaves] fresh tarragon leaves [Produce] -> parent? "fresh tarragon" EXISTS · need teaspoon×1
+  [leaves] fresh thai basil leaves [Produce] -> parent? "fresh thai basil" EXISTS · need cup×26
+  [leaves] fresh thyme leaves [Produce] -> parent? "fresh thyme" EXISTS · need teaspoon×34 tablespoon×12
+  [leaves] iceberg lettuce leaves [Produce] -> parent? "iceberg lettuce" EXISTS · need each×3
+  [leaves] kaffir lime leaves [Produce] -> parent? "kaffir lime" no catalog row · need each×13
+  [leaves] romaine lettuce leaves [Produce] -> parent? "romaine lettuce" EXISTS · need each×4
+  [rind] parmesan rind [Dairy] -> parent? "parmesan" EXISTS · need each×6
+  [rind] parmigiano-reggiano rind [Dairy] -> parent? "parmigiano-reggiano" EXISTS · need each×3
+  [seed] celery seed [Produce] -> parent? "celery" EXISTS · need teaspoon×90
+  [seed] dill seed [Produce] -> parent? "dill" no catalog row · need teaspoon×1
+  [seed] sesame seed [Pantry] -> parent? "sesame" no catalog row · need tablespoon×2
+  [seeds] black mustard seeds [Pantry] -> parent? "black mustard" no catalog row · need teaspoon×1
+  [seeds] black sesame seeds [Pantry] -> parent? "black sesame" no catalog row · need tablespoon×3
+  [seeds] brown mustard seeds [Pantry] -> parent? "brown mustard" no catalog row · need teaspoon×2
+  [seeds] caraway seeds [Pantry] -> parent? "caraway" no catalog row · need teaspoon×6
+  [seeds] coriander seeds [Pantry] -> parent? "coriander" no catalog row · need tablespoon×1 teaspoon×2
+  [seeds] cumin seeds [Pantry] -> parent? "cumin" EXISTS · need teaspoon×16
+  [seeds] fennel seeds [Produce] -> parent? "fennel" no catalog row · need teaspoon×9
+  [seeds] mustard seeds [Pantry] -> parent? "mustard" EXISTS · need teaspoon×1
+  [seeds] poppy seeds [Pantry] -> parent? "poppy" no catalog row · need teaspoon×1 tablespoon×4
+  [seeds] pumpkin seeds [Pantry] -> parent? "pumpkin" no catalog row · need cup×1
+  [seeds] sesame seeds [Pantry] -> parent? "sesame" no catalog row · need teaspoon×25 tablespoon×34 tbsp×4
+  [seeds] toasted sesame seeds [Pantry] -> parent? "toasted sesame" no catalog row · need tablespoon×59 teaspoon×25
+  [seeds] white sesame seeds [Pantry] -> parent? "white sesame" no catalog row · need tablespoon×4
+  [seeds] whole coriander seeds [Pantry] -> parent? "whole coriander" no catalog row · need teaspoon×1
+  [seeds] whole cumin seeds [Pantry] -> parent? "whole cumin" no catalog row · need teaspoon×3
+  [sprigs] fresh cilantro sprigs [Produce] -> parent? "fresh cilantro" EXISTS · need each×2 cup×1
+  [sprigs] fresh cilantro sprigs, for serving [Produce] -> parent? "fresh cilantro" EXISTS · need each×2
+  [sprigs] fresh rosemary sprigs [Produce] -> parent? "fresh rosemary" EXISTS · need each×22
+  [sprigs] fresh thyme sprigs [Produce] -> parent? "fresh thyme" EXISTS · need each×54
+  [stems] fresh cilantro stems [Produce] -> parent? "fresh cilantro" EXISTS · need cup×3
+  [wedges] fresh lime wedges [Produce] -> parent? "fresh lime" EXISTS · need each×4
+  [wedges] lemon wedges [Produce] -> parent? "lemon" EXISTS · need each×7
+  [wedges] lime wedges [Produce] -> parent? "lime" EXISTS · need each×61
+  [wedges] lime wedges, for serving [Produce] -> parent? "lime" EXISTS · need each×2
+  [whites] egg whites [Dairy] -> parent? "egg" EXISTS · need each×2
+  [yolks] egg yolks [Dairy] -> parent? "egg" EXISTS · need each×16
+  [yolks] large egg yolks [Dairy] -> parent? "large egg" no catalog row · need each×1
+  [zest] lemon zest [Produce] -> parent? "lemon" EXISTS · need teaspoon×104 tablespoon×1
+  [zest] lime zest [Produce] -> parent? "lime" EXISTS · need teaspoon×66
+  [zest] orange zest [Produce] -> parent? "orange" EXISTS · need tablespoon×4 teaspoon×1
+
+=== ingredient_relations — INVENTORY ===
+  distinct: 737
+  synonym: 494
+  subsumes: 546
+  component: 95
+
+-- component edges (95), with the basis gate's verdict --
+  boneless pork loin [default=ounce pack=- "-"] -> boneless pork loin chops: 12 each coHarvest=false conf=medium human=false :: REFUSED basis-unit-not-countable (ounce)
+  broccoli [default=head pack=each "1 head"] -> broccoli florets: 4 cup coHarvest=true conf=high human=true :: admitted
+  butter lettuce [default=head pack=each "2 heads"] -> butter lettuce leaves: 16 each coHarvest=false conf=medium human=true :: admitted
+  canned pineapple chunks in juice [default=ounce pack=- "-"] -> pineapple juice: 0.5 cup coHarvest=true conf=high human=false :: REFUSED basis-unit-not-countable (ounce)
+  canned tuna in olive oil [default=can pack=- "-"] -> olive oil: 2 tbsp coHarvest=true conf=medium human=false :: REFUSED basis-unit-not-countable (can)
+  cauliflower [default=pound pack=- "-"] -> cauliflower florets: 6 cup coHarvest=false conf=high human=false :: REFUSED basis-unit-not-countable (pound)
+  celery [default=stalks pack=bunch "1 bunch (~6 stalks)"] -> celery sticks: 16 each coHarvest=false conf=medium human=false :: REFUSED basis-unit-not-countable (stalks)
+  celery [default=stalks pack=bunch "1 bunch (~6 stalks)"] -> celery stalks: 8 each coHarvest=false conf=medium human=false :: REFUSED basis-unit-not-countable (stalks)
+  chipotle chile in adobo sauce [default=each pack=can "1 can (7 oz)"] -> adobo sauce: 1 tbsp coHarvest=true conf=high human=true :: admitted
+  chipotle chiles in adobo sauce [default=each pack=can "1 can (7 oz)"] -> adobo sauce: 1 tbsp coHarvest=true conf=high human=true :: admitted
+  chipotle pepper in adobo sauce [default=each pack=can "1 can (7 oz)"] -> adobo sauce: 1 tbsp coHarvest=true conf=high human=true :: admitted
+  chipotle peppers in adobo sauce [default=each pack=can "1 can (7 oz)"] -> adobo sauce: 1 tbsp coHarvest=true conf=high human=true :: admitted
+  chopped clams in juice [default=ounce pack=- "-"] -> bottled clam juice: 0.33 cup coHarvest=true conf=medium human=false :: REFUSED basis-unit-not-countable (ounce)
+  chopped clams in juice [default=ounce pack=- "-"] -> clam juice: 0.33 cup coHarvest=true conf=medium human=false :: REFUSED basis-unit-not-countable (ounce)
+  chopped clams in juice, canned [default=ounce pack=- "-"] -> bottled clam juice: 0.33 cup coHarvest=true conf=medium human=false :: REFUSED basis-unit-not-countable (ounce)
+  chopped clams in juice, canned [default=ounce pack=- "-"] -> clam juice: 0.33 cup coHarvest=true conf=medium human=false :: REFUSED basis-unit-not-countable (ounce)
+  cilantro [default=bunch pack=bunch "1 bunch"] -> fresh cilantro sprigs: 50 each coHarvest=false conf=medium human=true :: admitted
+  cilantro [default=bunch pack=bunch "1 bunch"] -> fresh cilantro stems: 0.75 cup coHarvest=true conf=high human=true :: admitted
+  cilantro [default=bunch pack=bunch "1 bunch"] -> fresh cilantro leaves: 2 cup coHarvest=true conf=high human=true :: admitted
+  dill pickle [default=slice pack=jar "1 jar (32 oz)"] -> dill pickle brine: 2 tbsp coHarvest=true conf=high human=false :: REFUSED basis-unit-not-countable (slice)
+  dried ancho chiles [default=each pack=package "1 package (2 oz)"] -> dried ancho chiles, stemmed and seeded: 1 each coHarvest=false conf=high human=false :: admitted
+  dried ancho chili [default=each pack=- "-"] -> dried ancho chiles, stemmed and seeded: 1 each coHarvest=false conf=high human=false :: admitted
+  dried black beans [default=pound pack=- "-"] -> cooked black beans: 3 cup coHarvest=false conf=high human=false :: REFUSED basis-unit-not-countable (pound)
+  dried guajillo chiles [default=each pack=package "1 package (3-4 oz)"] -> dried guajillo chiles, stemmed and seeded: 1 each coHarvest=false conf=high human=false :: admitted
+  dried guajillo chili [default=each pack=- "-"] -> dried guajillo chiles, stemmed and seeded: 1 each coHarvest=false conf=high human=false :: admitted
+  egg [default=each pack=dozen "1 dozen"] -> egg whites: 1 each coHarvest=true conf=high human=false :: admitted
+  egg [default=each pack=dozen "1 dozen"] -> egg yolks: 1 each coHarvest=true conf=high human=false :: admitted
+  egg [default=each pack=dozen "1 dozen"] -> large egg yolks: 1 each coHarvest=true conf=high human=false :: admitted
+  flat-leaf parsley [default=tablespoon pack=- "-"] -> fresh flat-leaf parsley leaves: 2 cup coHarvest=true conf=high human=false :: REFUSED basis-unit-not-countable (tablespoon)
+  fresh basil [default=bunch pack=bunch "1 bunch"] -> fresh basil leaves: 2 cup coHarvest=true conf=high human=true :: admitted
+  fresh cilantro [default=bunch pack=bunch "1 bunch"] -> fresh cilantro leaves: 2 cup coHarvest=true conf=high human=true :: admitted
+  fresh cilantro [default=bunch pack=bunch "1 bunch"] -> fresh cilantro stems: 0.75 cup coHarvest=true conf=high human=true :: admitted
+  fresh cilantro [default=bunch pack=bunch "1 bunch"] -> fresh cilantro sprigs: 50 each coHarvest=false conf=medium human=true :: admitted
+  fresh corn [default=each pack=each "4 ears"] -> fresh corn kernels: 0.75 cup coHarvest=false conf=high human=false :: admitted
+  fresh flat-leaf parsley [default=cup pack=bunch "1 bunch"] -> fresh flat-leaf parsley leaves: 1 cup coHarvest=true conf=high human=false :: REFUSED basis-unit-not-countable (cup)
+  fresh lemon [default=each pack=each "1 lemon"] -> fresh lemon juice: 3 tbsp coHarvest=true conf=high human=false :: admitted
+  fresh lime [default=each pack=each "2 limes"] -> fresh lime juice: 2 tbsp coHarvest=true conf=high human=false :: admitted
+  fresh lime [default=each pack=each "2 limes"] -> lime juice, fresh: 2 tbsp coHarvest=true conf=high human=false :: admitted
+  fresh mint [default=sprig pack=bunch "1 bunch"] -> fresh mint leaves: 1 cup coHarvest=true conf=high human=false :: REFUSED basis-unit-not-countable (sprig)
+  fresh oregano [default=tablespoon pack=bunch "1 bunch"] -> fresh oregano leaves: 4 tbsp coHarvest=true conf=high human=false :: REFUSED basis-unit-not-countable (tablespoon)
+  fresh parsley [default=bunch pack=bunch "1 bunch"] -> fresh flat-leaf parsley leaves: 2 cup coHarvest=true conf=medium human=false :: admitted
+  fresh rosemary [default=sprig pack=bunch "1 bunch"] -> fresh rosemary sprigs: 8 each coHarvest=false conf=medium human=false :: REFUSED basis-unit-not-countable (sprig)
+  fresh sage [default=tablespoon pack=bunch "1 bunch"] -> fresh sage leaves: 0.5 cup coHarvest=true conf=high human=false :: REFUSED basis-unit-not-countable (tablespoon)
+  fresh tarragon [default=cup pack=- "-"] -> fresh tarragon leaves: 3 tbsp coHarvest=true conf=high human=false :: REFUSED basis-unit-not-countable (cup)
+  fresh thai basil [default=ounce pack=- "-"] -> fresh thai basil leaves: 1 cup coHarvest=true conf=high human=false :: REFUSED basis-unit-not-countable (ounce)
+  fresh thyme [default=bunch pack=bunch "1 bunch"] -> fresh thyme leaves: 3 tbsp coHarvest=true conf=high human=true :: admitted
+  fresh thyme [default=bunch pack=bunch "1 bunch"] -> fresh thyme sprigs: 30 each coHarvest=false conf=medium human=true :: admitted
+  garlic [default=cloves pack=head "1 head"] -> garlic cloves: 10 clove coHarvest=false conf=high human=false :: REFUSED basis-unit-not-countable (cloves)
+  garlic [default=cloves pack=head "1 head"] -> garlic cloves, peeled: 10 clove coHarvest=false conf=high human=false :: REFUSED basis-unit-not-countable (cloves)
+  garlic head [default=each pack=each "1 head"] -> garlic: 10 clove coHarvest=false conf=high human=true :: admitted
+  guajillo chiles, dried [default=each pack=package "1 package (3.5 oz)"] -> dried guajillo chiles, stemmed and seeded: 1 each coHarvest=false conf=high human=false :: admitted
+  head of garlic [default=head pack=each "2 heads"] -> garlic: 10 clove coHarvest=false conf=high human=true :: admitted
+  jasmine rice [default=cup pack=bag "1 bag (2 lb)"] -> cooked day-old jasmine rice: 3 cup coHarvest=false conf=high human=false :: REFUSED basis-unit-not-countable (cup)
+  jasmine rice [default=cup pack=bag "1 bag (2 lb)"] -> cooked jasmine rice, day-old: 3 cup coHarvest=false conf=high human=false :: REFUSED basis-unit-not-countable (cup)
+  jasmine rice [default=cup pack=bag "1 bag (2 lb)"] -> day-old cooked jasmine rice: 3 cup coHarvest=false conf=high human=false :: REFUSED basis-unit-not-countable (cup)
+  kimchi [default=cup pack=- "-"] -> kimchi brine: 0.5 cup coHarvest=true conf=high human=false :: REFUSED basis-unit-not-countable (cup)
+  kimchi [default=cup pack=- "-"] -> kimchi juice: 0.5 cup coHarvest=true conf=high human=false :: REFUSED basis-unit-not-countable (cup)
+  large eggs [default=dozen pack=dozen "1 dozen"] -> egg whites: 1 each coHarvest=true conf=high human=false :: REFUSED basis-unit-not-countable (dozen)
+  large eggs [default=dozen pack=dozen "1 dozen"] -> large egg yolks: 1 each coHarvest=true conf=high human=false :: REFUSED basis-unit-not-countable (dozen)
+  leeks [default=each pack=- "-"] -> leeks, white and light green parts only: 1 each coHarvest=false conf=high human=true :: admitted
+  lemon [default=each pack=each "2 lemons"] -> fresh lemon juice: 3 tbsp coHarvest=true conf=high human=false :: admitted
+  lemon [default=each pack=each "2 lemons"] -> lemon juice: 3 tbsp coHarvest=true conf=high human=false :: admitted
+  lemon [default=each pack=each "2 lemons"] -> lemon juice, freshly squeezed: 3 tbsp coHarvest=true conf=high human=false :: admitted
+  lemon [default=each pack=each "2 lemons"] -> lemon zest: 1 tbsp coHarvest=true conf=high human=false :: admitted
+  lemon [default=each pack=each "2 lemons"] -> lemon wedges: 6 each coHarvest=false conf=high human=false :: admitted
+  lime [default=each pack=each "2 limes"] -> fresh lime juice: 2 tbsp coHarvest=true conf=high human=false :: admitted
+  lime [default=each pack=each "2 limes"] -> lime juice: 2 tbsp coHarvest=true conf=high human=false :: admitted
+  lime [default=each pack=each "2 limes"] -> lime juice, fresh: 2 tbsp coHarvest=true conf=high human=false :: admitted
+  lime [default=each pack=each "2 limes"] -> lime juice, freshly squeezed: 2 tbsp coHarvest=true conf=high human=false :: admitted
+  lime [default=each pack=each "2 limes"] -> lime wedges: 6 each coHarvest=false conf=high human=false :: admitted
+  lime [default=each pack=each "2 limes"] -> lime zest: 2 tsp coHarvest=true conf=high human=false :: admitted
+  long grain white rice [default=cup pack=- "-"] -> cooked long-grain white rice: 3 cup coHarvest=false conf=high human=false :: REFUSED basis-unit-not-countable (cup)
+  long grain white rice [default=cup pack=- "-"] -> day-old cooked long-grain white rice: 3 cup coHarvest=false conf=high human=false :: REFUSED basis-unit-not-countable (cup)
+  long-grain white rice [default=cup pack=lb "1 lb bag"] -> cooked long-grain white rice: 3 cup coHarvest=false conf=high human=false :: REFUSED basis-unit-not-countable (cup)
+  long-grain white rice [default=cup pack=lb "1 lb bag"] -> day-old cooked long-grain white rice: 3 cup coHarvest=false conf=high human=false :: REFUSED basis-unit-not-countable (cup)
+  long-grain white rice, uncooked [default=cup pack=- "-"] -> cooked long-grain white rice: 3 cup coHarvest=false conf=high human=false :: REFUSED basis-unit-not-countable (cup)
+  orange [default=each pack=each "1 medium orange"] -> orange juice: 0.25 cup coHarvest=true conf=high human=true :: admitted
+  orange [default=each pack=each "1 medium orange"] -> orange juice, freshly squeezed: 0.25 cup coHarvest=true conf=high human=true :: admitted
+  orange [default=each pack=each "1 medium orange"] -> orange zest: 1 tbsp coHarvest=true conf=high human=true :: admitted
+  orange [default=each pack=each "1 medium orange"] -> fresh orange juice: 0.25 cup coHarvest=true conf=high human=true :: admitted
+  parmesan [default=cup pack=wedge "1 wedge (6 oz)"] -> parmesan rind: 1 each coHarvest=true conf=high human=false :: REFUSED basis-unit-not-countable (cup)
+  parmigiano reggiano [default=ounce pack=- "-"] -> parmigiano-reggiano rind: 1 each coHarvest=true conf=high human=false :: REFUSED basis-unit-not-countable (ounce)
+  parmigiano-reggiano [default=ounce pack=lb "1 lb block"] -> parmigiano-reggiano rind: 1 each coHarvest=true conf=high human=false :: REFUSED basis-unit-not-countable (ounce)
+  parsley [default=bunch pack=bunch "1 bunch"] -> fresh flat-leaf parsley leaves: 2 cup coHarvest=true conf=medium human=false :: admitted
+  pepperoncini [default=each pack=- "-"] -> pepperoncini brine: 0.75 tbsp coHarvest=true conf=high human=true :: admitted
+  romaine lettuce [default=head pack=head "1 head"] -> romaine lettuce hearts: 1 each coHarvest=false conf=medium human=false :: admitted
+  rotisserie chicken [default=each pack=each "1 whole rotisserie chicken (~2 lb)"] -> shredded rotisserie chicken: 3.5 cup coHarvest=false conf=medium human=false :: admitted
+  short-grain white rice [default=cup pack=- "-"] -> day-old cooked short-grain white rice: 3 cup coHarvest=false conf=high human=false :: REFUSED basis-unit-not-countable (cup)
+  sweet corn [default=each pack=each "4 ears"] -> sweet corn kernels: 0.75 cup coHarvest=false conf=high human=false :: admitted
+  thai basil [default=cup pack=bunch "1 bunch"] -> fresh thai basil leaves: 1 cup coHarvest=true conf=high human=false :: REFUSED basis-unit-not-countable (cup)
+  water [default=cup pack=bottle "1 bottle (16.9 oz)"] -> pasta cooking water: 1 cup coHarvest=true conf=medium human=false :: REFUSED basis-unit-not-countable (cup)
+  water [default=cup pack=bottle "1 bottle (16.9 oz)"] -> reserved pasta cooking water: 1 cup coHarvest=true conf=medium human=false :: REFUSED basis-unit-not-countable (cup)
+  whole garlic head [default=each pack=each "1 head"] -> garlic: 10 clove coHarvest=false conf=high human=true :: admitted
+  whole nutmeg [default=teaspoon pack=- "-"] -> freshly grated nutmeg: 2 tsp coHarvest=false conf=high human=false :: REFUSED basis-unit-not-countable (teaspoon)
+  zucchini [default=each pack=each "2 medium zucchini"] -> reserved zucchini flesh: 0.5 cup coHarvest=true conf=high human=false :: admitted
+
+-- the coarse-salt row (D-WS9-217) --
+  id=6a5e0295-c341-4777-b6bf-c9e0e96ee067 unsalted butter --synonym--> unsalted butter, softened conf=high human=false source=ai_judge
+  id=a30858b7-57be-4d66-a72a-1037f580b5f6 coarse kosher salt --synonym--> kosher salt conf=medium human=false source=ai_judge
+  id=1c183ee7-b9ec-404b-9ccf-60c5ef94b11f salt --subsumes--> coarse kosher salt conf=high human=false source=ai_judge
+  id=0df13587-936e-4538-92dd-02f1c6d5bbcb fine salt --subsumes--> fine sea salt conf=medium human=false source=ai_judge
+  id=99dac5d0-809b-4d0d-bc28-619272c55442 salt --subsumes--> fine salt conf=high human=false source=ai_judge
+  id=0bd1fb85-96e5-44c8-8e36-74c8620cc53a fine sea salt --distinct--> flaky sea salt conf=high human=false source=ai_judge
+  id=76e58565-d7a7-40c7-b15a-de757fd3d81b salt --subsumes--> fine sea salt conf=high human=false source=ai_judge
+  id=da3633eb-2adb-4a3d-82bb-77c85f3271c1 salt --subsumes--> flaky sea salt conf=medium human=false source=ai_judge
+  id=689a2f58-7d6f-40a5-bddc-bc6ea1beff57 salt --subsumes--> hawaiian sea salt conf=high human=false source=ai_judge
+  id=3eb10463-8dc5-48da-8060-f621dc5a6bbf salt --subsumes--> kosher salt conf=high human=false source=ai_judge
+  id=e70b0454-a8a1-41d0-83fe-b145e9e713e9 salt --subsumes--> pickling salt conf=medium human=false source=ai_judge
+  id=67a65de4-d020-43a0-9171-fb29e6ce65f8 celery salt --distinct--> salt conf=high human=false source=ai_judge
+
+=== conversionRef occupancy ===
+  conversionRef non-null: 236 · subUnit: 1 · purchase*: 54 · gramsPerCup: 205 · gramsPerEach: 58
+    subUnit: garlic {head / 10}

@@ -1,0 +1,158 @@
+B1 PREVIEW — what Parts B + C would do to the 20-list golden corpus
+computed from the census `consolidated` arrays at f3f274a. NOTHING WRITTEN.
+
+pack yields loaded: 43 of 38
+  ⚠️ fresh cilantro sprigs: no pack noun anywhere — the ladder cannot fire
+  ⚠️ butter lettuce leaves: no pack noun anywhere — the ladder cannot fire
+  ⚠️ romaine lettuce leaves: no pack noun anywhere — the ladder cannot fire
+
+component parents: 20 at HEAD -> 28 with the pack basis
+edges UNBLOCKED by reading the basis off the pack, and ADMITTED (7):
+   parmesan -> parmesan rind: basis cup (defaultUnit, refused today) -> wedge (the pack)
+   dill pickle -> dill pickle brine: basis slice (defaultUnit, refused today) -> jar (the pack)
+   fresh flat-leaf parsley -> fresh flat-leaf parsley leaves: basis cup (defaultUnit, refused today) -> bunch (the pack)
+   fresh mint -> fresh mint leaves: basis sprig (defaultUnit, refused today) -> bunch (the pack)
+   fresh oregano -> fresh oregano leaves: basis tablespoon (defaultUnit, refused today) -> bunch (the pack)
+   fresh sage -> fresh sage leaves: basis tablespoon (defaultUnit, refused today) -> bunch (the pack)
+   thai basil -> fresh thai basil leaves: basis cup (defaultUnit, refused today) -> bunch (the pack)
+edges the widening reaches but the P rulings REFUSE (35):
+   garlic -> garlic cloves: the pack "head" would reach it — REFUSED · D-WS9-189 A3 ruled garlic OUT of the pool: the LADDER renders '3 heads Garlic (25 cloves)' and the pool loses the clove need
+   garlic -> garlic cloves, peeled: the pack "head" would reach it — REFUSED · same ruling
+   dried black beans -> cooked black beans: basis pound (defaultUnit) and pack "none" — neither names one purchasable whole
+   cauliflower -> cauliflower florets: basis pound (defaultUnit) and pack "none" — neither names one purchasable whole
+   celery -> celery sticks: the pack "bunch" would reach it — REFUSED · same
+   large eggs -> egg whites: basis dozen (defaultUnit) and pack "dozen" — neither names one purchasable whole · a dozen is a pack of twelve, not one whole — D-WS9-218's 12× error, unchanged. The `egg [each]` edge already carries this correctly.
+   large eggs -> large egg yolks: basis dozen (defaultUnit) and pack "dozen" — neither names one purchasable whole · same
+   flat-leaf parsley -> fresh flat-leaf parsley leaves: basis tablespoon (defaultUnit) and pack "none" — neither names one purchasable whole
+   fresh rosemary -> fresh rosemary sprigs: the pack "bunch" would reach it — REFUSED · same — a sprig is a portion. Moved to Y.
+   fresh tarragon -> fresh tarragon leaves: basis cup (defaultUnit) and pack "none" — neither names one purchasable whole
+   fresh thai basil -> fresh thai basil leaves: basis ounce (defaultUnit) and pack "none" — neither names one purchasable whole
+   canned pineapple chunks in juice -> pineapple juice: basis ounce (defaultUnit) and pack "none" — neither names one purchasable whole
+   kimchi -> kimchi brine: basis cup (defaultUnit) and pack "none" — neither names one purchasable whole
+   kimchi -> kimchi juice: basis cup (defaultUnit) and pack "none" — neither names one purchasable whole
+   whole nutmeg -> freshly grated nutmeg: basis teaspoon (defaultUnit) and pack "none" — neither names one purchasable whole
+   canned tuna in olive oil -> olive oil: basis can (defaultUnit) and pack "none" — neither names one purchasable whole · 🔴 olive oil is its own product with its own bottle. Absorbing it ordered SIX CANS OF TUNA for 11 tbsp of oil on f5556c19. A part rides free only when it is not separately bought.
+   parmigiano reggiano -> parmigiano-reggiano rind: basis ounce (defaultUnit) and pack "none" — neither names one purchasable whole
+   parmigiano-reggiano -> parmigiano-reggiano rind: basis ounce (defaultUnit) and pack "lb" — neither names one purchasable whole · the pack is '1 lb block' — a pound is a measure, not a countable whole, so the basis is still not derivable
+   jasmine rice -> cooked day-old jasmine rice: basis cup (defaultUnit) and pack "bag" — neither names one purchasable whole · a cooked form is not a part of the raw pack; the yield is a recipe step, and the pack basis (a 2-lb bag) is not one whole
+   jasmine rice -> cooked jasmine rice, day-old: basis cup (defaultUnit) and pack "bag" — neither names one purchasable whole
+   long grain white rice -> cooked long-grain white rice: basis cup (defaultUnit) and pack "none" — neither names one purchasable whole
+   long-grain white rice -> cooked long-grain white rice: basis cup (defaultUnit) and pack "lb" — neither names one purchasable whole
+   long-grain white rice, uncooked -> cooked long-grain white rice: basis cup (defaultUnit) and pack "none" — neither names one purchasable whole
+   jasmine rice -> day-old cooked jasmine rice: basis cup (defaultUnit) and pack "bag" — neither names one purchasable whole
+   long-grain white rice -> day-old cooked long-grain white rice: basis cup (defaultUnit) and pack "lb" — neither names one purchasable whole
+   short-grain white rice -> day-old cooked short-grain white rice: basis cup (defaultUnit) and pack "none" — neither names one purchasable whole
+   chopped clams in juice -> bottled clam juice: basis ounce (defaultUnit) and pack "none" — neither names one purchasable whole
+   chopped clams in juice, canned -> bottled clam juice: basis ounce (defaultUnit) and pack "none" — neither names one purchasable whole
+   chopped clams in juice, canned -> clam juice: basis ounce (defaultUnit) and pack "none" — neither names one purchasable whole
+   chopped clams in juice -> clam juice: basis ounce (defaultUnit) and pack "none" — neither names one purchasable whole
+   water -> pasta cooking water: basis cup (defaultUnit) and pack "bottle" — neither names one purchasable whole · pasta water is a by-product of cooking pasta, not something a bottle of water yields on the shelf
+   water -> reserved pasta cooking water: basis cup (defaultUnit) and pack "bottle" — neither names one purchasable whole · same
+   celery -> celery stalks: the pack "bunch" would reach it — REFUSED · a stalk is a PORTION of the same food, not a part that rides free — the ladder's shape (D-WS9-220). Moved to Y.
+   boneless pork loin -> boneless pork loin chops: basis ounce (defaultUnit) and pack "none" — neither names one purchasable whole
+   long grain white rice -> day-old cooked long-grain white rice: basis cup (defaultUnit) and pack "none" — neither names one purchasable whole
+edges ADDED or RE-FIGURED by the P proposals (3):
+   pickled jalapeños -> pickled jalapeño brine: 3 tbsp co=true basis=jar
+   fresh lime -> fresh lime wedges: 8 each co=false basis=each
+   SYNONYM pickled jalapeño slices <-> pickled jalapeños
+
+=== CHANGED ROWS, BY LIST ===
+
+## f5556c19 — Backyard Farewell to Summer   (51 rows -> 48)
+  1.      - 2 White onions (1½ each)   (absorbed / merged away)
+  2.        1 medium white onion White onion (¾ cup)
+     -> 3 medium white onion White onion (2¼ cup)
+  3.      - 1 bunch fresh cilantro stems (¼ cup)   (absorbed / merged away)
+  4.      - 1 bunch fresh cilantro leaves (½ cup)   (absorbed / merged away)
+  5.      POOL cilantro: 2 coHarvestable row(s) ride free; pack floor 1 bunch, need unchanged
+
+## 56b03a57 — Comfort Classics with a Saturday Showstopper   (65 rows -> 63)
+  6.      - 6 garlic cloves (6 each)   (absorbed / merged away)
+  7.        1 head Garlic (9 cloves)
+     -> 3 heads Garlic (25 cloves)
+  8.      - 1 garlic head (1 each)   (absorbed / merged away)
+
+## c404a3cf — 2Comfort Classics with a Saturday Showstopper   (65 rows -> 63)
+  9.      - 6 garlic cloves (6 each)   (absorbed / merged away)
+ 10.        1 head Garlic (9 cloves)
+     -> 3 heads Garlic (25 cloves)
+ 11.      - 1 garlic head (1 each)   (absorbed / merged away)
+
+## 247cd7bb — Backyard BBQ to Bold Skillet: Grill-to-Stovetop Summer   (57 rows -> 56)
+ 12.        1 bunch fresh cilantro (¼ cup)
+     -> 1 bunch fresh cilantro (¾ cup)
+ 13.      - 1 bunch fresh cilantro (¼ bunches)   (absorbed / merged away)
+ 14.      DECLINE egg <- egg yolks: carries "egg" in "dozen", basis "each", and no pack yield relates them
+
+## 14879176 — Slow-Cooked Ragùs and Crispy Weeknight Wins   (61 rows -> 60)
+ 15.      - 12 garlic cloves (12 each)   (absorbed / merged away)
+ 16.        1 head Garlic (7 cloves)
+     -> 2 heads Garlic (19 cloves)
+ 17.      DECLINE egg <- egg yolks: carries "egg" in "dozen", basis "each", and no pack yield relates them
+ 18.      DECLINE fresh basil <- fresh basil leaves: "fresh basil leaves" 6 each does not convert to "cup" without a density
+
+## b8e7f134 — Cozy Roasted Weeknights with Bold Mexican Flavors   (59 rows -> 58)
+ 19.        1 bunch fresh cilantro (¼ cup)
+     -> 1 bunch fresh cilantro (1¼ cup)
+ 20.      - 1 bunch fresh cilantro (½ bunches)   (absorbed / merged away)
+ 21.      DECLINE fresh thyme: an EXCLUSIVE slot (fresh thyme sprigs) cannot be added to an off-basis row in "sprig"
+
+## 31c7a885 — Hans's meals, week of Sep 19   (63 rows -> 62)
+ 22.        4 heads iceberg lettuce (2 cup)
+     -> 1 head iceberg lettuce (2 cup)
+ 23.      - 1 jar (12 oz) pickled jalapeño brine (1 tablespoon)   (absorbed / merged away)
+ 24.      POOL pickled jalapeños: 1 coHarvestable row(s) ride free; pack floor 1 jar, need unchanged
+
+## 96a94410 — Soups, Subs, and Skillet Nights   (80 rows -> 77)
+ 25.      - 4 garlic cloves (4 each)   (absorbed / merged away)
+ 26.        2 heads Garlic (16 cloves)
+     -> 2 heads Garlic (20 cloves)
+ 27.        1 bunch fresh cilantro (¼ cup)
+     -> 1 bunch fresh cilantro (¾ cup)
+ 28.      - 1 bunch fresh cilantro (¼ bunches)   (absorbed / merged away)
+ 29.      - 8 fresh lime wedges (8 each)   (absorbed / merged away)
+ 30.        3 limes (3 each)
+     -> 4 limes (4 each)
+ 31.      POOL lime: +1 each onto the existing row
+
+## ed238692 — Hans's meals, week of Sep 24   (58 rows -> 56)
+ 32.      - 3 garlic cloves (3 each)   (absorbed / merged away)
+ 33.        1 head Garlic (5 cloves)
+     -> 1 head Garlic (8 cloves)
+ 34.        4 heads iceberg lettuce (2 cup)
+     -> 1 head iceberg lettuce (2 cup)
+ 35.      - 1 jar (12 oz) pickled jalapeño brine (1 tablespoon)   (absorbed / merged away)
+ 36.      POOL pickled jalapeños: 1 coHarvestable row(s) ride free; pack floor 1 jar, need unchanged
+
+## 316d0846 — Rustic Italian Stovetop Nights   (25 rows -> 24)
+ 37.      - 6 garlic cloves (6 each)   (absorbed / merged away)
+ 38.        1 head Garlic (8 cloves)
+     -> 2 heads Garlic (14 cloves)
+ 39.      DECLINE fresh sage <- fresh sage leaves: "fresh sage leaves" 20 each does not convert to "cup" without a density
+
+## 163875ec — Hans's meals, week of Sep 19 (3)   (61 rows -> 60)
+ 40.      - 1 jar (12 oz) pickled jalapeño slices (¼ cup)   (absorbed / merged away)
+ 41.      - 1 jar (12 oz) pickled jalapeños (2 tablespoon)   (absorbed / merged away)
+ 42.      + 1 jar (12 oz) pickled jalapeños (⅜ cup)
+
+## d47d18aa — Sunday Roast Energy, Five Nights Running   (58 rows -> 57)
+ 43.      - 12 garlic cloves (12 each)   (absorbed / merged away)
+ 44.        1 head Garlic (9 cloves)
+     -> 2 heads Garlic (21 cloves)
+ 45.      DECLINE fresh thyme: an EXCLUSIVE slot (fresh thyme sprigs) cannot be added to an off-basis row in "sprig"
+
+=== WHERE THE FORGIVENESS FIRES ON THE CORPUS ===
+  garlic 21 clove: 2.1000 packs -> 2 instead of 3 (over by 0.1000 ≤ 0.125)
+
+=== §2 RULE 3 — THE FIVE NAMED CASES, COMPUTED ===
+  fresh cilantro: 1 bunch + 2 tablespoon  =  2.125 undefined = 1.0625 packs  ->  1 bunch  [expected 1 bunch]  ✅
+  green cabbage: 1 head + 2 cup  =  10 undefined = 1.2500 packs  ->  2 head  [expected 2 heads]  ✅
+  iceberg lettuce: 2 cup  =  2 undefined = 0.5000 packs  ->  1 head  [expected 1 head]  ✅
+  fresh cilantro: 0.25 cup + 0.25 bunch  =  0.75 undefined = 0.3750 packs  ->  1 bunch  [expected 1 bunch]  ✅
+  fresh cilantro: 1 bunch + 0.5 cup  =  2.5 undefined = 1.2500 packs  ->  2 bunch  [expected 2 bunches]  ✅
+  garlic: 1 head + 3 clove  =  13 undefined = 1.3000 packs  ->  2 head  [expected 2 heads]  ✅
+
+=== TOTALS ===
+changed row-slots: 35 · unchanged: 1030
+  class R2/pool: 19
+  class garlic: 16
