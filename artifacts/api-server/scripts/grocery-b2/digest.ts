@@ -25,6 +25,7 @@ import {
   PART_EDGES,
   RELABEL_TO_SYNONYM,
   NEVER_ORDER_CANDIDATES,
+  NEVER_ORDER_ALREADY,
 } from "./proposals";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -272,7 +273,9 @@ L.push("");
 L.push("=".repeat(78));
 L.push("NEVER-ORDER CANDIDATES — the go-ahead S.1 #298");
 L.push("=".repeat(78));
-for (const c of NEVER_ORDER_CANDIDATES) L.push(`  ${c}`);
+for (const c of NEVER_ORDER_CANDIDATES) L.push(`  ${c.onADish ? "*" : " "} ${c.name} — ${c.why}`);
+L.push("  (* = a dish reaches it today)");
+L.push("  already covered by NEVER_ORDER_CANONICALS: " + NEVER_ORDER_ALREADY.join(" · "));
 L.push("");
 writeFileSync(join(OUT, "digest.txt"), L.join("\n"), "utf8");
 console.log(L.join("\n"));

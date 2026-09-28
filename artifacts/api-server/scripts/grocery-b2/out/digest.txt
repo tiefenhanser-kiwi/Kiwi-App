@@ -1452,7 +1452,13 @@ RELABEL_TO_SYNONYM — the go-ahead N6 correction
 ==============================================================================
 NEVER-ORDER CANDIDATES — the go-ahead S.1 #298
 ==============================================================================
-  reserved birria braising liquid
-  reserved braising liquid from chicken birria
-  pasta cooking water
-  reserved pasta cooking water
+  * reserved birria braising liquid — go-ahead S.1 #298, named
+  * reserved braising liquid from chicken birria — go-ahead S.1 #298, named
+  * reserved braising liquid from goat birria — the same by-product under the third spelling — swept in by the same argument
+    braising liquid from pot roast — same; no dish reaches it today
+  * reserved frying oil — oil the shopper already bought, set aside mid-recipe
+  * reserved pineapple juice — the juice in the can of pineapple already on the list
+  * reserved zucchini flesh — scooped out of the zucchini already on the list
+    reserved pasta water — a spelling NEVER_ORDER_CANONICALS does not carry — the set has `pasta cooking water` and `reserved pasta cooking water`, not this one
+  (* = a dish reaches it today)
+  already covered by NEVER_ORDER_CANONICALS: pasta cooking water · reserved pasta cooking water

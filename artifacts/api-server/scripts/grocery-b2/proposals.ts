@@ -494,9 +494,26 @@ export const RELABEL_TO_SYNONYM: readonly { from: string; to: string; why: strin
  * cooking, not a purchase. `isNeverOrdered` (groceryStaples.ts) is the existing
  * home; these are candidates for it, reported rather than written by this file.
  */
-export const NEVER_ORDER_CANDIDATES: readonly string[] = [
-  "reserved birria braising liquid",
-  "reserved braising liquid from chicken birria",
+export const NEVER_ORDER_CANDIDATES: readonly {
+  name: string;
+  onADish: boolean;
+  why: string;
+}[] = [
+  { name: "reserved birria braising liquid", onADish: true, why: "go-ahead S.1 #298, named" },
+  { name: "reserved braising liquid from chicken birria", onADish: true, why: "go-ahead S.1 #298, named" },
+  { name: "reserved braising liquid from goat birria", onADish: true, why: "the same by-product under the third spelling — swept in by the same argument" },
+  { name: "braising liquid from pot roast", onADish: false, why: "same; no dish reaches it today" },
+  { name: "reserved frying oil", onADish: true, why: "oil the shopper already bought, set aside mid-recipe" },
+  { name: "reserved pineapple juice", onADish: true, why: "the juice in the can of pineapple already on the list" },
+  { name: "reserved zucchini flesh", onADish: true, why: "scooped out of the zucchini already on the list" },
+  { name: "reserved pasta water", onADish: false, why: "a spelling NEVER_ORDER_CANONICALS does not carry — the set has `pasta cooking water` and `reserved pasta cooking water`, not this one" },
+];
+
+/**
+ * Already in `NEVER_ORDER_CANONICALS` (groceryStaples.ts) — listed so the Part B
+ * apply does not "add" them and report a change that is not one.
+ */
+export const NEVER_ORDER_ALREADY: readonly string[] = [
   "pasta cooking water",
   "reserved pasta cooking water",
 ];
