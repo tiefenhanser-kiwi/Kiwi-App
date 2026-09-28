@@ -1,0 +1,134 @@
+B1 PART E — the golden corpus, re-run at HEAD (tag `b1`) against `live` (f3f274a).
+Both runs are the FULL pipeline including the Sonnet pass. Reproducibility was
+measured in Part A: 5 plans x 3 runs gave identical SUBSTANCE on all five and
+identical RENDERED on three — the two exceptions are one AI-invented pack string
+for paper towels ('6 rolls' vs '6-pack'), which is noise this diff must expect.
+
+## f5556c19 — Backyard Farewell to Summer   (51 rows -> 48)
+  1. [AI pack string]   1 package (6-pack) paper towels (1 each)
+       -> 1 package (6 rolls) paper towels (1 each)
+  2. [pooled parts] - 1 bunch fresh cilantro stems (¼ cup)   (merged away / absorbed)
+  3. [pooled parts] - 1 bunch fresh cilantro leaves (½ cup)   (merged away / absorbed)
+  4. [R2 rounding]   13 limes (13 each)
+       -> 12 limes (12 each)
+  5. [R2 rounding]   1 medium white onion White onion (¾ cup)
+       -> 3 medium white onion White onion (2¼ cup)
+
+## 56b03a57 — Comfort Classics with a Saturday Showstopper   (65 rows -> 63)
+  6. [garlic] - 1 head garlic cloves (6 each)   (merged away / absorbed)
+  7. [garlic]   1 head Garlic (9 cloves)
+       -> 3 heads Garlic (25 cloves)
+  8. [garlic] - 1 head garlic head (1 each)   (merged away / absorbed)
+
+## c404a3cf — 2Comfort Classics with a Saturday Showstopper   (65 rows -> 63)
+  9. [garlic] - 1 head garlic cloves (6 each)   (merged away / absorbed)
+ 10. [garlic]   1 head garlic (9 cloves)
+       -> 3 heads Garlic (25 cloves)
+ 11. [garlic] - 1 head garlic head (1 each)   (merged away / absorbed)
+
+## 247cd7bb — Backyard BBQ to Bold Skillet: Grill-to-Stovetop Summer   (57 rows -> 56)
+ 12. [R2 rounding]   1 bunch fresh cilantro (¼ bunches)
+       -> 1 bunch fresh cilantro (¾ cup)
+ 13. [R2 rounding]   1 radicchio (1 each)
+       -> 1 head radicchio (1 each)
+ 14. [R2 rounding] - 1 bunch parsley (1 bunch)   (merged away / absorbed)
+ 15. [R2 rounding] + 1 bunch flat-leaf parsley (1 bunch)
+
+## 14879176 — Slow-Cooked Ragùs and Crispy Weeknight Wins   (61 rows -> 59)
+ 16. [AI pack string]   1 package (6 rolls) paper towels (1 each)
+       -> 1 package (6-pack) paper towels (1 each)
+ 17. [garlic] - 2 heads garlic cloves (12 each)   (merged away / absorbed)
+ 18. [garlic]   1 head Garlic (7 cloves)
+       -> 2 heads Garlic (19 cloves)
+ 19. [R2 rounding]   1 radicchio (1 each)
+       -> 1 head radicchio (1 each)
+ 20. [R2 rounding] - 1 bunch parsley (1 bunch)   (merged away / absorbed)
+
+## b8e7f134 — Cozy Roasted Weeknights with Bold Mexican Flavors   (59 rows -> 58)
+ 21. [AI pack string]   1 package (6 rolls) paper towels (1 each)
+       -> 1 package (6-pack) paper towels (1 each)
+ 22. [R2 rounding]   1 bunch fresh cilantro (½ bunches)
+       -> 1 bunch fresh cilantro (1¼ cup)
+
+## 31c7a885 — Hans's meals, week of Sep 19   (63 rows -> 62)
+ 23. [pooled parts] - 1 jar (12 oz) pickled jalapeño brine (1 tablespoon)   (merged away / absorbed)
+ 24. [R2 rounding]   4 heads iceberg lettuce (2 cup)
+       -> 1 head iceberg lettuce (2 cup)
+
+## 96a94410 — Soups, Subs, and Skillet Nights   (80 rows -> 77)
+ 25. [garlic] - 1 head garlic cloves (4 each)   (merged away / absorbed)
+ 26. [garlic]   2 heads Garlic (16 cloves)
+       -> 2 heads Garlic (20 cloves)
+ 27. [pooled parts] - 8 fresh lime wedges (8 each)   (merged away / absorbed)
+ 28. [R2 rounding]   1 bunch fresh cilantro (¼ bunches)
+       -> 1 bunch fresh cilantro (¾ cup)
+ 29. [R2 rounding]   3 limes (3 each)
+       -> 4 limes (4 each)
+
+## ed238692 — Hans's meals, week of Sep 24   (58 rows -> 56)
+ 30. [AI pack string]   1 bag pet treats (1 each)
+       -> 1 box pet treats (1 each)
+ 31. [garlic] - 1 head garlic cloves (3 each)   (merged away / absorbed)
+ 32. [garlic]   1 head Garlic (5 cloves)
+       -> 1 head Garlic (8 cloves)
+ 33. [pooled parts] - 1 jar (12 oz) pickled jalapeño brine (1 tablespoon)   (merged away / absorbed)
+ 34. [R2 rounding]   4 heads iceberg lettuce (2 cup)
+       -> 1 head iceberg lettuce (2 cup)
+
+## 2b6e51a1 — Hans's meals, week of Sep 18   (61 rows -> 61)
+ 35. [AI pack string]   1 box pet treats (1 each)
+       -> 1 bag pet treats (1 each)
+
+## 316d0846 — Rustic Italian Stovetop Nights   (25 rows -> 24)
+ 36. [garlic] - 1 head garlic cloves (6 each)   (merged away / absorbed)
+ 37. [garlic]   1 head Garlic (8 cloves)
+       -> 2 heads Garlic (14 cloves)
+
+## 163875ec — Hans's meals, week of Sep 19 (3)   (61 rows -> 60)
+ 38. [AI pack string]   1 package (6 rolls) paper towels (1 each)
+       -> 1 package (6-pack) paper towels (1 each)
+ 39. [pooled parts] - 1 jar (12 oz) pickled jalapeño slices (¼ cup)   (merged away / absorbed)
+ 40. [pooled parts]   1 jar (12 oz) pickled jalapeños (2 tablespoon)
+       -> 1 jar (12 oz) pickled jalapeños (⅜ cup)
+
+## d47d18aa — Sunday Roast Energy, Five Nights Running   (58 rows -> 57)
+ 41. [garlic] - 2 heads garlic cloves (12 each)   (merged away / absorbed)
+ 42. [garlic]   1 head Garlic (9 cloves)
+       -> 3 heads Garlic (21 cloves)
+
+## 8a462408 — Flame & Fork: Grill-Fired Weeknights with One Showstopper   (61 rows -> 61)
+ 43. [R2 rounding]   4 heads iceberg lettuce (4 slices)
+       -> 1 head iceberg lettuce (4 slices)
+
+=== COUNTS ===
+rows byte-identical: 1018
+rows changed:        43
+
+=== BY CLASS ===
+  R2 rounding            14
+  pooled parts           7
+  garlic                 16
+  salt                   0
+  AI pack string         6
+  OUTSIDE THE CLASSES    0
+
+NOTHING CHANGED OUTSIDE THE AFFECTED CLASSES.
+
+=== THE CENSUS DETECTORS, BEFORE -> AFTER ===
+  D1: 34 -> 22   (-12)
+  D2: 11 -> 11   
+  D3: 151 -> 148   (-3)
+  D4: 37 -> 33   (-4)
+  D5: 7 -> 5   (-2)
+  D6: 324 -> 324   
+  D8: 17 -> 17   
+
+  sub-detectors that moved:
+    D1 · component-pool miss: 7 -> 0
+    D1 · relation row links them (distinct): 2 -> 4
+    D1 · relation row links them (subsumes): 10 -> 9
+    D1 · relation row links them (synonym): 3 -> 1
+    D1 · unit split: 4 -> 0
+    D3 · smallest pack already >2× the need: 151 -> 148
+    D4 · \b(brine|stems?|leaves|zest|juice of|rin: 11 -> 7
+    D5 · pack residue repeated in the line: 3 -> 1
