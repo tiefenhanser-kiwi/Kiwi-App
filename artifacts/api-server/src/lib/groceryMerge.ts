@@ -24,6 +24,7 @@ import { baseStapleName, mergeGroupBaseName } from "./groceryStaples";
 import {
   EMPTY_RELATION_INDEX,
   type RelationIndex,
+  type SelfYield,
 } from "./ingredientRelations";
 import type { ConsolidatedItem, GrocerySource } from "./groceryList";
 import {
@@ -37,6 +38,8 @@ import {
   canonicalUnitToken,
   normalizeUnit,
   resolveConversion,
+  rowConversion,
+  toSubUnitChild,
   unitDimension,
   withGroupLadder,
   type IngredientConversion,
@@ -112,8 +115,35 @@ function foldMetadata(base: ConsolidatedItem, member: ConsolidatedItem): void {
 // "garlic salt" and "celery salt" are absent from that map and are therefore
 // never handed salt's density.
 function groupConversion(group: ConsolidatedItem[]): IngredientConversion | null {
+  // ── WS9 BUG-200, RE-OPENED AND FIXED HERE ([grocery] B1) ─────────────────
+  //
+  // D-WS9-189 A3's note says the sub-unit ladder closed BUG-200 — "one row,
+  // '5 heads Garlic (50 cloves)'". IT DID NOT. The September 28 census found
+  // THREE garlic rows on 5 of 20 live lists (`56b03a57`, `c404a3cf` — "1 head
+  // Garlic (9 cloves)" above "1 head garlic cloves (6 each)" above "1 head
+  // garlic head (1 each)") and two rows on two more.
+  //
+  // The cause is this loop, one line down as it was written: it returned the
+  // FIRST non-null conversion in group order, and `garlic cloves` carries a
+  // `usda_derived` conversionRef with gramsPerCup and NO ladder. So the group's
+  // conversion had no subUnit, the ladder branch in mergeGroup never ran, and
+  // the group shipped unmerged — while `garlic`, one row further down, carried
+  // the curated ladder the whole time.
+  //
+  // BUG-215 already established the principle for the AI path: THE LADDER
+  // TRAVELS WITH THE MERGE GROUP, NOT WITH THE ROW THAT HAPPENS TO SORT FIRST.
+  // `withGroupLadder` is that rule on the other side of the boundary. This is
+  // the same rule, applied where the group is still a group.
+  //
+  // The ladder-carrying member is preferred and NOTHING ELSE CHANGES: a group
+  // with no ladder anywhere takes the original first-non-null in the second
+  // pass below, so every non-ladder group is byte-identical.
   for (const it of group) {
-    const c = resolveConversion(it.canonicalName, it.conversionRef);
+    const c = rowConversion(it);
+    if (c?.subUnit) return c;
+  }
+  for (const it of group) {
+    const c = rowConversion(it);
     if (c) return c;
   }
   for (const it of group) {
@@ -123,6 +153,45 @@ function groupConversion(group: ConsolidatedItem[]): IngredientConversion | null
     if (c) return c;
   }
   return null;
+}
+
+/**
+ * [grocery] B1 — ONE GROUP MEMBER'S QUANTITY, IN THE LADDER'S CHILD UNIT.
+ *
+ * Mostly this is {@link toSubUnitChild}. The branch above it exists because of a
+ * case that would otherwise UNDER-BUY, and the under-buy is the point:
+ *
+ *   `56b03a57` holds `garlic cloves 6 each`, `garlic 9 clove` and `garlic head
+ *   1 each`, all folding to one group. BUG-211's rule says a bare count IS the
+ *   child, so `garlic head 1 each` counts as ONE CLOVE. It is one HEAD — ten.
+ *   Summed that way the group is 16 cloves = 2 heads against a real need of 25
+ *   = 3, and merging without this branch would have replaced three correct rows
+ *   with one wrong one.
+ *
+ * THE CATALOG ALREADY KNOWS. `garlic head --component--> garlic : 10 clove` is
+ * in `ingredient_relations`, high confidence and human-reviewed, and the relation
+ * index DROPS it as a self-edge precisely because both names fold to one group
+ * key. `RelationIndex.selfYields` keeps those dropped magnitudes instead of
+ * discarding them, and this reads one back.
+ *
+ * No new data, no new map, and nothing garlic-specific: the rule is "a member
+ * whose own edge states how many of the group's child unit ONE of it yields
+ * counts that many".
+ */
+function memberChildQuantity(
+  item: ConsolidatedItem,
+  conv: IngredientConversion,
+  selfYields: ReadonlyMap<string, SelfYield>,
+): number | null {
+  const sub = conv.subUnit;
+  if (!sub) return null;
+  if (isCountUnit(item.unit) && canonicalUnitToken(item.unit) !== canonicalUnitToken(sub.parent)) {
+    const sy = selfYields.get(normalizeIngredientName(item.canonicalName));
+    if (sy && sub.childUnit && canonicalUnitToken(sy.unit) === canonicalUnitToken(sub.childUnit)) {
+      return item.quantity * sy.perOne;
+    }
+  }
+  return toSubUnitChild(item.quantity, item.unit, conv);
 }
 
 // Attempt to merge a same-canonical group (≥2 distinct units) into ONE item
@@ -380,7 +449,10 @@ function finishMerge(
   return base;
 }
 
-function mergeGroup(group: ConsolidatedItem[]): ConsolidatedItem | null {
+function mergeGroup(
+  group: ConsolidatedItem[],
+  selfYields: ReadonlyMap<string, SelfYield>,
+): ConsolidatedItem | null {
   const conv = groupConversion(group);
   const units = group.map((g) => g.unit);
   const rep = pickRepresentative(group);
@@ -509,10 +581,27 @@ function mergeGroup(group: ConsolidatedItem[]): ConsolidatedItem | null {
     if (childSet.size === 1) {
       const child = [...childSet][0];
       let totalChild = 0;
+      let convertible = true;
       for (const it of group) {
-        const u = canonicalUnitToken(it.unit);
-        totalChild += u === parent ? it.quantity * conv.subUnit.perParent : it.quantity;
+        // ── [grocery] B1 — THE LADDER NOW KNOWS WHAT ITS CHILD UNIT IS ──────
+        //
+        // This loop used to be `u === parent ? qty * perParent : qty` — every
+        // non-parent unit was taken to BE the child, whatever it said. That was
+        // safe while exactly one ingredient in 1,569 carried a ladder and its
+        // child was always a clove; with a pack yield on 42 rows it is not.
+        // toSubUnitChild converts through the named child unit and returns null
+        // when nothing in the data relates them, and a group that cannot be
+        // converted is REFUSED rather than summed on an assumption — the same
+        // conserve-or-refuse contract BUG-142's guard asserts.
+        //
+        // ⚠️ BUG-211's "a bare count IS the child" survives, inside
+        // toSubUnitChild, which is why `garlic cloves` in "each" still folds
+        // onto `garlic` in "clove".
+        const q = memberChildQuantity(it, conv, selfYields);
+        if (q === null) { convertible = false; break; }
+        totalChild += q;
       }
+      if (!convertible) return null;
       // The canonical token decided WHICH rows sum together; the row keeps a
       // spelling that actually occurs in the data. canonicalUnitToken is for
       // keys and comparisons — writing it onto `unit` would change a stored
@@ -617,7 +706,7 @@ export function mergeConvertibleGroups(
       out.push(...group);
       continue;
     }
-    const merged = mergeGroup(group);
+    const merged = mergeGroup(group, relations.selfYields);
     if (merged) out.push(merged);
     // ⚠️ A REFUSED GROUP PASSES THROUGH UNMERGED — AND NOTHING ROUTES IT TO
     // SONNET. This line used to read "table can't convert → leave for the AI

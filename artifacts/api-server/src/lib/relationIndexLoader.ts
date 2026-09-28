@@ -44,7 +44,13 @@ export async function loadRelationIndex(
 ): Promise<RelationIndex> {
   const raw = await prisma.ingredientRelation.findMany({
     include: {
-      from: { select: { canonicalName: true, defaultUnit: true } },
+      // [grocery] B1 — `purchaseUnit` joins `defaultUnit` as the component
+      // basis's FALLBACK. D-WS9-218 said unblocking the rest needed a new
+      // `fromUnit` column; it did not — `fresh mint` is defaultUnit "sprig" and
+      // packed by the BUNCH, and the pack column was already here. The gate that
+      // keeps that from re-admitting `canned tuna in olive oil -> olive oil`
+      // lives in buildRelationIndex, on `reviewedByHuman`.
+      from: { select: { canonicalName: true, defaultUnit: true, purchaseUnit: true } },
       to: { select: { canonicalName: true } },
     },
   });
@@ -58,6 +64,7 @@ export async function loadRelationIndex(
     confidence: r.confidence as RelationRow["confidence"],
     reviewedByHuman: r.reviewedByHuman,
     fromDefaultUnit: r.from.defaultUnit,
+    fromPurchaseUnit: r.from.purchaseUnit,
   }));
   return buildRelationIndex(rows);
 }

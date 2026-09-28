@@ -58,6 +58,7 @@ import {
   normalizeUnit,
   resolveConversion,
   scalePurchaseForSubUnit,
+  rowConversion,
   withGroupLadder,
   type IngredientConversion,
 } from "./ingredientConversions";
@@ -357,11 +358,19 @@ function resolvePurchaseFields(
   purchaseQuantity: number | null;
   purchaseDisplay: string | null;
 } {
-  const conv = withGroupLadder(
-    resolveConversion(item.canonicalName, item.conversionRef),
-    groupConv,
-  );
-  const scaled = scalePurchaseForSubUnit(conv, item.quantity, item.unit);
+  // [grocery] B1 — `rowConversion`, not `resolveConversion`: the row's own
+  // PACK YIELD is layered on and wins (D-WS9-220's unruled half). A row with no
+  // yield resolves exactly as before, so every non-yield row is byte-identical.
+  const conv = withGroupLadder(rowConversion(item), groupConv);
+  const scaled = scalePurchaseForSubUnit(conv, item.quantity, item.unit, {
+    // A coHarvestable part pooled onto this row adds no need — it rides free —
+    // but it can still mean one more pack. poolComponentNeeds left the floor.
+    packFloor: item.packFloor,
+    // The stored display decides whether the pack noun is SYNTHESISED ("1 head"
+    // -> "3 heads", BUG-025-1) or has only its leading count rewritten
+    // ("1 small knob (~2 oz)" -> "2 small knob (~2 oz)"). See renderPackDisplay.
+    storedDisplay: item.purchaseDisplay,
+  });
   if (scaled && conv?.subUnit) {
     return {
       purchaseUnit: conv.subUnit.parent,
@@ -564,9 +573,29 @@ export async function generateFinalGroceryList(
   // withGroupLadder can never OVERRIDE a ladder the row already carries and
   // touches nothing else on the conversion, so every row without a folded key
   // resolves exactly as before.
+  // ── [grocery] B1 — "43 live rows, all of them garlic" IS NO LONGER TRUE, and
+  //    the widening this note predicted has happened ──────────────────────────
+  //
+  // 42 catalog rows now carry a pack yield, and a yield is a ladder. But those
+  // live in `Ingredient.packYield*`, which `lookupConversion` — the CURATED CODE
+  // TABLE — cannot see. So the key lookup below answers for garlic and for
+  // nothing else that was added since.
+  //
+  // The rows themselves know, and they are already in hand: `items` is the whole
+  // consolidated list. So ask a SIBLING first — any member of the same fold group
+  // whose own conversion carries a ladder — and fall back to the code table by
+  // key. That needs no query and no new argument.
+  //
+  // Unchanged: a row with no fold gets nothing, and withGroupLadder can never
+  // override a ladder the row already carries.
   const groupLadder = (name: string): IngredientConversion | null => {
     const key = relations.groupKey(name);
     if (key === normalizeIngredientName(name)) return null; // no fold, no new answer
+    for (const other of items) {
+      if (relations.groupKey(other.canonicalName) !== key) continue;
+      const c = rowConversion(other);
+      if (c?.subUnit) return c;
+    }
     return lookupConversion(key) ?? null;
   };
 

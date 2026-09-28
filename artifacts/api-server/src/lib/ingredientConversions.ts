@@ -20,12 +20,51 @@
 
 export type ConversionSource = "curated" | "usda_derived" | "ai_estimated";
 
+const QTY_EPSILON = 1e-9;
+
+/**
+ * [grocery] B1 (D-WS9-280) — how far past a whole pack a need may go before it
+ * costs another pack. An eighth.
+ *
+ * Hans, September 28: "on vegetables, I don't want them to have to throw out
+ * 3/4 head of cilantro because they needed a little more than their head."
+ * 1 bunch + 2 tbsp cilantro is 1 bunch; 1 bunch + ½ cup is 2.
+ */
+export const PACK_FORGIVENESS_FRACTION = 0.125;
+
+/**
+ * …and the pack it applies to. See {@link forgivesPartPack} for the ruling and
+ * for the measurement that narrowed it from a category to this one token.
+ */
+export const PACK_FORGIVENESS_UNIT = "bunch";
+
 // Sub-unit equivalence — the head↔clove case (BUG-025-1). `perParent` children
 // make up one `parent` (1 head = 10 cloves). Keeps count↔count conversions and
 // purchase-pack sanity ("need 2 cloves" → "1 head", not "2 heads") off the AI.
+//
+// ── [grocery] B1 (D-WS9-280 / D-WS9-225) — `childUnit`, AND WHY IT IS THE WHOLE
+//    GENERALISATION ───────────────────────────────────────────────────────────
+//
+// This shape was already the pack yield: `parent` is the pack noun, `perParent`
+// is how much one pack gives. The ONE thing it could not say was what
+// `perParent` COUNTS, because garlic's child was always a clove and the code
+// simply assumed a bare count. That assumption is why a bunch of cilantro
+// against a need in cups had no ladder at all, and why scalePurchaseForSubUnit
+// divided by `perParent` for ANY non-parent unit — 3 oz of cilantro against
+// {bunch, 2} would have computed 1.5 bunches of nothing.
+//
+// With `childUnit` named, the same ladder carries `{bunch, 2, "cup"}` and
+// `{head, 4, "cup"}` and `{jar, 1.5, "cup"}` without a second mechanism.
+//
+// `childUnit` UNDEFINED is today's shape and keeps today's meaning: the child is
+// a bare count. Garlic's persisted conversionRef still parses to that, and the
+// pack-yield columns now supply `{head, 10, "clove"}` for the same row — the two
+// must agree, and a test says so.
 export interface SubUnitEquivalence {
   parent: string; // e.g. "head"
   perParent: number; // e.g. 10 cloves per head
+  /** The unit `perParent` counts. Undefined = a bare count (the pre-B1 shape). */
+  childUnit?: string;
 }
 
 // One conversion/purchase row. Every field except `source` is optional: a
@@ -222,11 +261,56 @@ const UNIT_CANONICAL_TOKEN: ReadonlyMap<string, string> = new Map([
 // `cloves`, `ground cloves` and `whole cloves`, the spice, measured in
 // teaspoons. This map is consulted with a UNIT string and never with a name,
 // so the spice is untouched; there is a test that says so.
+// ── [grocery] B1 — THE PACK NOUNS, ADDED ON A RULING, AND THE MEASUREMENT THAT
+//    QUALIFIES IT ──────────────────────────────────────────────────────────────
+//
+// ⚠️ THE SCOPE NOTE ABOVE IS STILL TRUE AND WAS RE-MEASURED ON 2026-09-28, so
+// read this before concluding the rule was abandoned. `heads`, `bunches`,
+// `jars`, `loaves`, `sprigs`, `leaves` and `slices` STILL have ZERO live rows in
+// `dish_ingredients` (42 distinct unit spellings) and ZERO in
+// `grocery_list_items` (34 spellings, 5,003 items). By the scope rule above,
+// none of them qualifies as a live family.
+//
+// They are here anyway, on Hans's ruling of September 28, and the reason they do
+// no harm is exactly the measurement: with zero live rows on either side, adding
+// them folds NOTHING that exists, so no bucket changes and no stored row
+// re-keys. The reconcile guard below is what turns that into a fact rather than
+// a claim.
+//
+// AND THERE IS A SECOND CONSUMER THAT MADE IT WORTH DOING. B1's pack line
+// compares a stored purchaseDisplay's RESIDUE against the pack noun — "4 heads"
+// against `head` — to decide whether to synthesise "1 head" or rewrite only the
+// leading count. That residue is authored PROSE, not a unit column, and it is
+// plural in the live data. Without these rows the comparison failed and the
+// rewrite produced "1 heads iceberg lettuce". Putting the fold HERE rather than
+// in a second private map is what keeps it to one map.
+//
+// ⚠️ STILL NOT A SINGULARISING NORMALIZER, and these rows must not be taken as
+// licence to become one. Every entry is written out by hand for the same reason
+// the original four were.
 const COUNT_UNIT_ALIASES: Record<string, string> = {
   cloves: "clove",
   cans: "can",
   stalks: "stalk",
   inches: "inch",
+  // pack nouns (B1) — zero live rows on either side; see the note above
+  heads: "head",
+  bunches: "bunch",
+  jars: "jar",
+  loaves: "loaf",
+  bulbs: "bulb",
+  ears: "ear",
+  sprigs: "sprig",
+  wedges: "wedge",
+  bottles: "bottle",
+  packages: "package",
+  blocks: "block",
+  containers: "container",
+  boxes: "box",
+  bags: "bag",
+  slices: "slice",
+  sticks: "stick",
+  leaves: "leaf",
 };
 
 /**
@@ -540,9 +624,16 @@ export function parseConversionRef(value: unknown): IngredientConversion | null 
     typeof (v.subUnit as Record<string, unknown>).parent === "string" &&
     typeof (v.subUnit as Record<string, unknown>).perParent === "number"
   ) {
+    const sv = v.subUnit as Record<string, unknown>;
     out.subUnit = {
-      parent: (v.subUnit as Record<string, unknown>).parent as string,
-      perParent: (v.subUnit as Record<string, unknown>).perParent as number,
+      parent: sv.parent as string,
+      perParent: sv.perParent as number,
+      // B1 — forward-compatible. No persisted conversionRef carries this today
+      // (the pack yield lives in its own columns), but a blob that gained one
+      // must not have it silently dropped.
+      ...(typeof sv.childUnit === "string" && sv.childUnit.trim().length > 0
+        ? { childUnit: sv.childUnit }
+        : {}),
     };
   }
   if (typeof v.purchaseUnit === "string") out.purchaseUnit = v.purchaseUnit;
@@ -566,20 +657,187 @@ export function scalePurchaseForSubUnit(
   conv: IngredientConversion | null | undefined,
   needQuantity: number,
   needUnit: string,
+  opts?: ScalePurchaseOptions,
 ): { purchaseQuantity: number; purchaseDisplay: string } | null {
   if (!conv?.subUnit || !conv.purchaseUnit) return null;
   if (!(needQuantity > 0)) return null;
   const parent = normalizeUnit(conv.subUnit.parent);
   if (normalizeUnit(conv.purchaseUnit) !== parent) return null;
 
-  const u = normalizeUnit(needUnit);
-  const packs =
-    u === parent
-      ? Math.ceil(needQuantity - 1e-9)
-      : Math.ceil(needQuantity / conv.subUnit.perParent - 1e-9);
-  const n = Math.max(1, packs);
-  const display = `${n} ${parent}${n === 1 ? "" : "s"}`;
-  return { purchaseQuantity: n, purchaseDisplay: display };
+  const child = toSubUnitChild(needQuantity, needUnit, conv);
+  if (child === null || !(child > 0)) return null;
+
+  const floor = opts?.packFloor ?? 0;
+  const n = Math.max(
+    floor,
+    packsForNeed(child / conv.subUnit.perParent, forgivesPartPack(conv.purchaseUnit)),
+  );
+  if (!(n > 0)) return null;
+  return {
+    purchaseQuantity: n,
+    purchaseDisplay: renderPackDisplay(n, parent, opts?.storedDisplay ?? conv.purchaseDisplay ?? null),
+  };
+}
+
+/**
+ * Convert a need into the ladder's CHILD unit, or null when nothing in the data
+ * relates them. B1's single conversion seam: the merge and the pack line both
+ * go through it, so they cannot disagree about what six cloves are.
+ *
+ * Returns null rather than guessing — the caller declines and PRINTS, which is
+ * BUG-208's discipline and the reason A1's invented yields were caught.
+ */
+export function toSubUnitChild(
+  quantity: number,
+  fromUnit: string,
+  conv: IngredientConversion | null | undefined,
+): number | null {
+  const sub = conv?.subUnit;
+  if (!sub) return null;
+  const from = canonicalUnitToken(fromUnit);
+  // The need is stated in WHOLE PACKS: one bunch IS perParent of the child.
+  if (from === canonicalUnitToken(sub.parent)) return quantity * sub.perParent;
+
+  const childUnit = sub.childUnit ? normalizeUnit(sub.childUnit) : null;
+  if (childUnit === null) {
+    // ── THE PRE-B1 SHAPE, PRESERVED BYTE FOR BYTE ──────────────────────────
+    //
+    // A ladder with no child unit named cannot check anything, so it assumes
+    // what this code has always assumed: ANY non-parent unit IS the child. That
+    // is exactly the old `u === parent ? … : quantity` branch.
+    //
+    // ⚠️ AND NARROWING IT TO `isCountUnit(fromUnit)` IS WRONG — measured. That
+    // looked like the safe reading and turned five BUG-025-1 tests red at once,
+    // because COUNT_UNITS holds each/whole/piece/count and NOT "clove": the one
+    // ladder that has shipped since BUG-025-1 states its need in the very unit
+    // the narrowed test rejects. The assumption is only safe BECAUSE it is
+    // unchecked, which is precisely why `childUnit` exists for every new row.
+    return quantity;
+  }
+  if (from === canonicalUnitToken(childUnit)) return quantity;
+
+  // ── WS9 BUG-211, PRESERVED — A BARE COUNT AGAINST A COUNT CHILD IS THAT CHILD
+  //
+  // `garlic cloves` is authored defaultUnit "each" and `garlic` "cloves", so a
+  // plan drawing on both arrives as {each, clove}. Without this the density path
+  // below turns 6 "each" into grams and back and gets a different number for the
+  // same six cloves.
+  //
+  // ⚠️ THE TEST IS NOT `isCountUnit(childUnit)`. COUNT_UNITS does not carry
+  // "clove" — it holds each/whole/piece/count and the empty string — so asking
+  // whether the CHILD is a count unit returns false for the one ladder that has
+  // shipped since BUG-025-1. The honest test is that the child is not a MEASURE.
+  if (isCountUnit(fromUnit) && unitDimension(childUnit) === null) return quantity;
+
+  const same = convertWithinDimension(quantity, fromUnit, childUnit);
+  if (same !== null) return same;
+  // Cross-dimension needs the row's own density (the broccoli case, A3).
+  const grams = convertToGrams(quantity, fromUnit, conv);
+  if (grams === null) return null;
+  return gramsToUnit(grams, childUnit, conv);
+}
+
+/**
+ * How many WHOLE PACKS cover `rawPacks`, with the forgiveness.
+ *
+ * R2 (D-WS9-280, Hans, September 28): "I don't want users to not have enough.
+ * and on vegetables, I don't want them to have to throw out 3/4 head of
+ * cilantro because they needed a little more than their head."
+ *
+ * So: ceil, always — under-buying is never acceptable — with ONE narrowing. When
+ * the need exceeds a whole number of packs by PACK_FORGIVENESS_FRACTION or less
+ * AND the pack is one that wilts, do not add a pack.
+ */
+export function packsForNeed(rawPacks: number, forgives: boolean): number {
+  if (!(rawPacks > 0)) return 0;
+  const whole = Math.floor(rawPacks + QTY_EPSILON);
+  const over = rawPacks - whole;
+  if (over <= QTY_EPSILON) return Math.max(1, whole);
+  if (forgives && over <= PACK_FORGIVENESS_FRACTION + QTY_EPSILON) {
+    return Math.max(1, whole);
+  }
+  return Math.max(1, whole + 1);
+}
+
+/**
+ * Does a part-pack overage get forgiven for this pack?
+ *
+ * 🔴 RULED September 28, and the discriminator is THE PACK UNIT, NOT THE
+ * CATEGORY. Hans: "The forgiveness exists so nobody throws out ¾ of a bunch that
+ * wilts in days. Garlic, onions, cabbage and citrus keep for weeks, so they
+ * round straight up. Garlic 21 cloves → 3 heads."
+ *
+ * ⚠️ THE MEASUREMENT THAT PRODUCED THE RULING, so nobody re-widens it: B1's
+ * first design read `Ingredient.category === "Produce"`, and across all 20
+ * golden-corpus lists that rule changed EXACTLY ONE row — it bought 2 heads of
+ * garlic against a 21-clove need. Every other forgiveness on the corpus was
+ * below one pack, where `max(1, …)` already gives 1 and the branch decides
+ * nothing. So the category rule's entire live effect was the one case it got
+ * wrong.
+ *
+ * One token, no map, no category lookup.
+ */
+export function forgivesPartPack(purchaseUnit: string | null | undefined): boolean {
+  if (!purchaseUnit) return false;
+  return canonicalUnitToken(purchaseUnit) === PACK_FORGIVENESS_UNIT;
+}
+
+export interface ScalePurchaseOptions {
+  /**
+   * A minimum pack count the row must not fall below, because a coHarvestable
+   * PART was pooled onto it and rides free (poolComponentNeeds). The part adds
+   * no need — that is what "rides free" means — but it can still mean one more
+   * pack.
+   */
+  packFloor?: number | null;
+  /** The row's stored purchaseDisplay, when it differs from the table's. */
+  storedDisplay?: string | null;
+}
+
+/**
+ * The pack display at `n` packs.
+ *
+ * ⚠️ TWO BRANCHES, AND THE SECOND ONE EXISTS BECAUSE THE FIRST WAS WRONG FOR
+ * EVERYTHING BUT GARLIC. Synthesising `${n} ${parent}s` is exactly right for
+ * BUG-025-1's "1 head" → "3 heads", and it destroyed every pack whose display
+ * says more than its noun: B1's first dry run turned "1 small knob (~2 oz) fresh
+ * ginger" into "1 each fresh ginger" and "1 head red cabbage" into "1 each red
+ * cabbage".
+ *
+ * So synthesise ONLY when the stored residue IS the bare pack noun, and
+ * otherwise rewrite the leading count and leave the words alone — the same
+ * decomposition the client's packResidue / scalePackDisplay already make.
+ *
+ * The residue comparison goes through canonicalUnitToken because the live data
+ * is plural: iceberg's pack read "4 heads", and a bare string compare against
+ * "head" missed it and produced "1 heads".
+ */
+function renderPackDisplay(n: number, parent: string, storedDisplay: string | null): string {
+  const plural = n === 1 ? "" : parent.endsWith("h") || parent.endsWith("s") ? "es" : "s";
+  if (!storedDisplay) return `${n} ${parent}${plural}`;
+  const residue = storedDisplay.replace(/^\s*\d+(?:\.\d+)?\s+/, "").trim();
+  // Synthesise when the residue LEADS with the pack noun and states no SIZE.
+  //
+  // Two conditions, and each one is a measured case:
+  //   · leading word, not the whole residue — `garlic cloves` is stored as
+  //     "1 head of garlic", whose residue is not the bare noun; rewriting only
+  //     the count gave "2 head of garlic", which is ungrammatical and lost
+  //     BUG-025-1's "2 heads". The trailing words only re-name the item.
+  //   · no digits — "1 bunch (~12 oz)" also leads with its noun, and
+  //     synthesising would DROP the ~12 oz. That parenthetical is real
+  //     information: the client's packSizeHint reads it, and B1's own broccolini
+  //     yield was derived from it.
+  const lead = residue.split(/\s+/)[0] ?? "";
+  if (canonicalUnitToken(lead) === canonicalUnitToken(parent) && !/\d/.test(residue)) {
+    return `${n} ${parent}${plural}`;
+  }
+  // ⚠️ NOT PLURALISED. The pack noun is buried in authored prose ("1 small knob
+  // (~2 oz)"), and the client owns plurals — BUG-321 / BUG-329 are that lane.
+  // Rewriting the words here would be the server formatting a display string,
+  // which is exactly what WS7-8b B2 moved to render.
+  return /^\s*\d/.test(storedDisplay)
+    ? storedDisplay.replace(/^\s*\d+(?:\.\d+)?/, String(n))
+    : `${n} ${storedDisplay}`;
 }
 
 /**
@@ -592,6 +850,75 @@ export function resolveConversion(
   conversionRef: unknown,
 ): IngredientConversion | null {
   return parseConversionRef(conversionRef) ?? lookupConversion(canonicalName);
+}
+
+/**
+ * The columns `Ingredient.packYield*` + `purchaseUnit` arrive as, carried on a
+ * consolidated row so this module never imports Prisma.
+ */
+export interface PackYieldFields {
+  packYieldUnit?: string | null;
+  packYieldPerPack?: number | null;
+  purchaseUnit?: string | null;
+}
+
+/**
+ * [grocery] B1 — LAYER THE PERSISTED PACK YIELD ONTO A CONVERSION, AND MAKE IT
+ * AUTHORITATIVE.
+ *
+ * D-WS9-220 left unruled whether the garlic factor lives in the ladder or in the
+ * yield. This is the ruling: THE PER-INGREDIENT YIELD WINS, and
+ * `conversionRef.subUnit` is the fallback for a row that has no yield yet.
+ * Garlic's two agree — {head, 10, clove} both ways — and a test asserts it, so
+ * BUG-025-1's "3 heads" render is reached by either route.
+ *
+ * The pack NOUN comes from `purchaseUnit`, not from the yield: a yield is
+ * (unit, perPack) and repeating the noun would be a second place for it to be
+ * wrong.
+ *
+ * Returns the conversion UNCHANGED when there is no yield, so a row that never
+ * gets one behaves exactly as it does today.
+ */
+export function withPackYield(
+  conv: IngredientConversion | null,
+  row: PackYieldFields | null | undefined,
+): IngredientConversion | null {
+  const unit = row?.packYieldUnit;
+  const perPack = row?.packYieldPerPack;
+  const pack = row?.purchaseUnit ?? conv?.purchaseUnit ?? null;
+  if (!unit || perPack == null || !(perPack > 0) || !pack) return conv;
+  const base: IngredientConversion = conv ?? { source: "curated" };
+  return {
+    ...base,
+    // The pack columns travel with the yield: a ladder whose parent is not the
+    // pack it is sold in never fires (scalePurchaseForSubUnit's own guard), and
+    // a row seeded from the code table can carry a different pack than the
+    // catalog row does.
+    purchaseUnit: pack,
+    subUnit: { parent: pack, perParent: perPack, childUnit: unit },
+  };
+}
+
+/**
+ * [grocery] B1 — THE ONE PLACE A CONSOLIDATED ROW BECOMES A CONVERSION.
+ *
+ * `resolveConversion` reads the persisted `conversionRef` then the curated code
+ * table; `withPackYield` layers the row's own pack-yield columns on top and they
+ * WIN (D-WS9-220's unruled half, ruled here). Every caller that used to write
+ * `resolveConversion(it.canonicalName, it.conversionRef)` on a consolidated row
+ * goes through this instead, so the merge, the pack line and the conservation
+ * guard cannot disagree about what one bunch is.
+ *
+ * ⚠️ IT LIVES HERE, IN THE LEAF MODULE, and not beside ConsolidatedItem. That
+ * type is declared in groceryList.ts, which imports groceryMerge; a value
+ * exported from there and imported back would be a runtime cycle. The structural
+ * parameter keeps this module free of every other one, which is the same reason
+ * ingredientRelations declares PoolableItem instead of importing the real type.
+ */
+export function rowConversion(
+  row: PackYieldFields & { canonicalName: string; conversionRef?: unknown },
+): IngredientConversion | null {
+  return withPackYield(resolveConversion(row.canonicalName, row.conversionRef), row);
 }
 
 /**

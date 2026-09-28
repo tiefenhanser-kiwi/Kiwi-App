@@ -68,6 +68,21 @@ export interface ConsolidatedItem {
   // threaded through for the density-aware merge + macro grams path. Null for
   // synthetic recurring entries and rows the backfill left un-populated.
   conversionRef: unknown;
+  // ── [grocery] B1 — the PERSISTED PACK YIELD, threaded like conversionRef ──
+  // `Ingredient.packYieldUnit` / `packYieldPerPack`: how much of a measured need
+  // ONE PACK gives. Read together with `purchaseUnit` above (the pack noun is
+  // not repeated) and layered onto the conversion by `rowConversion`. Null for
+  // the ~1,738 catalog rows that need no yield and for synthetic recurring
+  // entries, and null means "one whole pack per need", which over-orders and
+  // never under-orders (D-WS9-182).
+  packYieldUnit: string | null;
+  packYieldPerPack: number | null;
+  // ── [grocery] B1 — the PACK FLOOR a pooled part left behind ───────────────
+  // A coHarvestable part (lemon zest, jalapeño brine, cilantro stems) adds NO
+  // need to the row it pools onto — that is what "rides free" means — but it can
+  // still mean one more pack. poolComponentNeeds writes the minimum here and
+  // resolvePurchaseFields reads it. Null on every row no part pooled onto.
+  packFloor: number | null;
   // 6c-5: prep-note + dish-title signals threaded to the AI for form
   // inference and ambiguity flagging. Null when no recipe context is
   // available (e.g. synthetic recurring entries).
@@ -209,6 +224,9 @@ interface EffectiveDishIngredient {
     purchaseQuantity: number | null;
     purchaseDisplay: string | null;
     conversionRef: unknown;
+    // [grocery] B1 — the pack yield, selected wherever conversionRef is.
+    packYieldUnit: string | null;
+    packYieldPerPack: number | null;
   } | null;
   canonicalFallback: string;
   unit: string;
@@ -289,6 +307,8 @@ async function resolveOverrideIngredients(
         purchaseQuantity: true,
         purchaseDisplay: true,
         conversionRef: true,
+        packYieldUnit: true,
+        packYieldPerPack: true,
       } as const;
       // Canonical first, with the full select — byte-for-byte the pre-BUG-096
       // query, so the hit path costs exactly what it always did.
@@ -465,6 +485,10 @@ export async function consolidatePlanIngredients(
             purchaseQuantity: ing?.purchaseQuantity ?? null,
             purchaseDisplay: ing?.purchaseDisplay ?? null,
             conversionRef: ing?.conversionRef ?? null,
+            // [grocery] B1 — the pack yield rides with the pack it is a yield of.
+            packYieldUnit: ing?.packYieldUnit ?? null,
+            packYieldPerPack: ing?.packYieldPerPack ?? null,
+            packFloor: null,
             preparationNote: prepRaw,
             sourceDishTitle: dish.title
               ? dish.title.length > MAX_SOURCE_DISH_TITLE_LEN
@@ -592,6 +616,13 @@ export async function consolidatePlanIngredients(
       purchaseQuantity: def ? def.purchaseQuantity : null,
       purchaseDisplay: def ? def.purchaseDisplay : null,
       conversionRef: lookupConversion(norm) ?? null,
+      // [grocery] B1 — a synthetic recurring entry has no catalog row to read a
+      // yield from (that is what makes it synthetic), so it gets none and falls
+      // back to one whole pack per need. If the recurring name later matches a
+      // catalog row, that is D-WS9-188's question and still unruled.
+      packYieldUnit: null,
+      packYieldPerPack: null,
+      packFloor: null,
       preparationNote: null,
       sourceDishTitle: null,
     };

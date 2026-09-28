@@ -121,12 +121,33 @@ describe("canonicalUnitToken — spelling families fold, magnitudes do not", () 
     assert.equal(canonicalUnitToken("inch"), "inch");
   });
 
-  it("folds NOTHING beyond those four — no speculative plural rule", () => {
-    // These plurals have ZERO live rows. A strip-the-s normalizer would fold
-    // them anyway; this map must not, because that would be inventing data.
-    // (ws9-bug096-ingredient-merge.ts:16-20 — a general singulariser was
-    // measured and refuted: molasses→molass, couscous→couscou.)
-    for (const u of ["heads", "sprigs", "leaves", "bunches", "slices", "pinches"]) {
+  // ── [grocery] B1 — THE PACK NOUNS WERE ADDED, AND THIS TEST CHANGED WITH
+  //    THEM. The version it replaces asserted `heads`, `sprigs`, `leaves`,
+  //    `bunches` and `slices` must NOT fold, on the ground that all five have
+  //    zero live rows. That measurement was re-taken on 2026-09-28 and is STILL
+  //    TRUE — zero in `dish_ingredients` (42 spellings), zero in
+  //    `grocery_list_items` (34 spellings, 5,003 items) — which is exactly why
+  //    adding them is safe: with nothing live on either side, the fold changes
+  //    no bucket and re-keys no stored row.
+  //
+  //    They earn their place on a SECOND consumer: B1's pack line compares a
+  //    stored purchaseDisplay's residue ("4 heads") against the pack noun, and
+  //    that residue is authored prose, not a unit column. Hans ruled September
+  //    28 that the fold belongs in this one map rather than a second private one.
+  it("folds the pack nouns (B1 ruling) and STILL invents no general plural rule", () => {
+    for (const [plural, singular] of [
+      ["heads", "head"], ["bunches", "bunch"], ["jars", "jar"],
+      ["loaves", "loaf"], ["leaves", "leaf"], ["slices", "slice"],
+      ["sprigs", "sprig"], ["wedges", "wedge"],
+    ] as const) {
+      assert.equal(canonicalUnitToken(plural), singular, `${plural} folds to ${singular}`);
+    }
+    // 🔴 THE GUARD THAT ACTUALLY MATTERS, UNCHANGED: every entry is hand-written,
+    // so a plural nobody listed is still left alone. A strip-the-s normalizer
+    // would fold all three of these; this map must not, because that is how you
+    // get molasses→molass and couscous→couscou
+    // (ws9-bug096-ingredient-merge.ts:16-20, measured and refuted).
+    for (const u of ["pinches", "dashes", "glasses", "bushels"]) {
       assert.equal(canonicalUnitToken(u), u, u + " must not be folded");
     }
     // And the trap in this module's own data: inch/inches are both live, but

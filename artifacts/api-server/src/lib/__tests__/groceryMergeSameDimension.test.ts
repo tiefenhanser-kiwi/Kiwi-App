@@ -44,6 +44,9 @@ function item(
     purchaseQuantity: null,
     purchaseDisplay: null,
     conversionRef,
+    packYieldUnit: null,
+    packYieldPerPack: null,
+    packFloor: null,
     preparationNote: null,
     sourceDishTitle: null,
   };
