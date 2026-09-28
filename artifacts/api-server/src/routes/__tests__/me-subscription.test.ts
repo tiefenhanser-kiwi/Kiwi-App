@@ -46,6 +46,8 @@ interface RowFixture {
   trialEndsAt?: Date | null;
   currentPeriodEnd?: Date | null;
   cancelAtPeriodEnd?: boolean;
+  /** Row 9 (1.1) Stripe S2 Part C -- what hasBillingAccount is derived from. */
+  stripeCustomerId?: string | null;
 }
 
 function stubPrisma(row: RowFixture | null) {
@@ -60,7 +62,7 @@ function stubPrisma(row: RowFixture | null) {
               trialEndsAt: row.trialEndsAt ?? null,
               currentPeriodEnd: row.currentPeriodEnd ?? null,
               cancelAtPeriodEnd: row.cancelAtPeriodEnd ?? false,
-              stripeCustomerId: null,
+              stripeCustomerId: row.stripeCustomerId ?? null,
               stripeSubscriptionId: null,
               earlyPayBonusApplied: false,
             },
@@ -113,6 +115,7 @@ interface Body {
   enforced: boolean;
   earlyPayBonusDays: number;
   firstChargeDateIfSubscribedNow: string | null;
+  hasBillingAccount: boolean;
 }
 
 async function get(h: Harness): Promise<{ status: number; body: Body }> {
@@ -276,6 +279,87 @@ describe("GET /me/subscription", () => {
     try {
       const res = await fetch(`${h.baseUrl}/me/subscription`);
       assert.equal(res.status, 401);
+    } finally {
+      await h.close();
+    }
+  });
+});
+
+// ── Row 9 (1.1) · Stripe S2 Part C — `hasBillingAccount` ─────────────────
+//
+// 🔴 ADDED BECAUSE §2.8 RULED A FACT THE S1 CONTRACT DID NOT CARRY. The Settings
+// row must show "Manage subscription" "when a Stripe subscription exists", and
+// this body had no field saying so. Inferring it from the status is wrong in BOTH
+// directions, which is why it is a field rather than a client-side guess:
+//
+//   · `canceled` would infer NO, yet the Portal is exactly where a cancelled
+//     subscriber finds their invoices and the resubscribe button;
+//   · `active` would infer YES, and an active row read before its first
+//     `customer.subscription.updated` webhook has no customer id — the button
+//     would open a 409.
+//
+// Keyed on `stripeCustomerId`, not `stripeSubscriptionId`: the Portal is scoped to
+// the CUSTOMER, and that is also what POST /billing/portal-session 409s
+// `no_billing_account` on. routes/billing.ts persists the customer BEFORE creating
+// a checkout session, so an abandoned checkout still leaves a reachable portal.
+describe("GET /me/subscription — hasBillingAccount (S2 Part C)", () => {
+  it("false for a trial that has never touched Stripe", async () => {
+    const h = await spinUp({
+      status: "trialing",
+      trialEndsAt: new Date(NOW.getTime() + 10 * DAY),
+    });
+    try {
+      const { body } = await get(h);
+      assert.equal(body.hasBillingAccount, false);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("🔴 TRUE for a CANCELED account — the portal is where its invoices live", async () => {
+    const h = await spinUp({ status: "canceled", stripeCustomerId: "cus_123" });
+    try {
+      const { body } = await get(h);
+      assert.equal(body.status, "canceled");
+      assert.equal(body.hasBillingAccount, true, "a status inference would say no here");
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("🔴 FALSE for an ACTIVE row with no customer id — the button would open a 409", async () => {
+    const h = await spinUp({
+      status: "active",
+      planCode: "monthly",
+      currentPeriodEnd: new Date(NOW.getTime() + 20 * DAY),
+      stripeCustomerId: null,
+    });
+    try {
+      const { body } = await get(h);
+      assert.equal(body.status, "active");
+      assert.equal(body.hasBillingAccount, false, "a status inference would say yes here");
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("true once a customer exists, whatever the status — a checkout begun is enough", async () => {
+    for (const status of ["trialing", "active", "past_due", "canceled"] as const) {
+      const h = await spinUp({ status, stripeCustomerId: "cus_abandoned_checkout" });
+      try {
+        assert.equal((await get(h)).body.hasBillingAccount, true, status);
+      } finally {
+        await h.close();
+      }
+    }
+  });
+
+  it("false when there is no Subscription row at all", async () => {
+    const h = await spinUp(null);
+    try {
+      const { body } = await get(h);
+      assert.equal(body.status, "none");
+      assert.equal(body.hasBillingAccount, false);
     } finally {
       await h.close();
     }

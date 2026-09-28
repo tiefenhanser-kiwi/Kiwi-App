@@ -689,12 +689,28 @@ export function createGroceryListsRouter(
       // "Not entitled" takes exactly that path. `reconciled: false` is already
       // the documented value for it, and the list the user sees is the one they
       // last had — stale against the plan, but theirs, and readable.
+      //
+      // 🔴 ROW 9 (1.1) · STRIPE S2 PART C — `reconcileSkipped` SAYS WHICH.
+      //
+      // `reconciled: false` was enough while the only two reasons were "nothing
+      // to do" and "it failed", because neither is the user's to act on. It is
+      // not enough now. D-WS9-272's ruling is "keep what exists · DO NOT PRETEND
+      // THE CALL RAN · say why in place · offer the upgrade", and a client cannot
+      // say why from a boolean that means three things.
+      //
+      // So: "subscription_required" when the GATE skipped it, "error" when a
+      // reconcile was attempted and threw, and the key ABSENT when one ran (or
+      // when there was nothing to reconcile). Only the first earns the upgrade
+      // notice — telling someone to subscribe because our AI call threw would be
+      // a sales pitch dressed as an explanation.
       let reconciled = false;
+      let reconcileSkipped: "subscription_required" | "error" | undefined;
       const reconcileEnt = await subscriptionService.can(
         userId,
         "grocery_list_reconcile",
       );
       if (!reconcileEnt.allowed) {
+        reconcileSkipped = "subscription_required";
         logger.info(
           {
             event: "grocery_reconcile_skipped_unentitled",
@@ -714,6 +730,7 @@ export function createGroceryListsRouter(
           });
           reconciled = result.reconciled;
         } catch (reconcileErr) {
+          reconcileSkipped = "error";
           logger.warn(
             {
               event: "grocery_reconcile_failed",
@@ -805,6 +822,9 @@ export function createGroceryListsRouter(
       return res.status(200).json({
         list: listWithComputedActive,
         reconciled,
+        // S2 Part C — omitted entirely on the normal path, so a client that has
+        // never heard of it sees the byte-identical body it saw before.
+        ...(reconcileSkipped !== undefined ? { reconcileSkipped } : {}),
         retailers: { instacart: { enabled: instacartEnabled } },
       });
     } catch (err) {

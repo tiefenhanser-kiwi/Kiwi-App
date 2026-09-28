@@ -5736,6 +5736,158 @@ describe("Stripe S1 Part C — enforcement on the grocery routes", () => {
   });
 });
 
+// ── Row 9 (1.1) · Stripe S2 Part C — `reconcileSkipped` ──────────────────
+//
+// D-WS9-272: "keep what exists · DO NOT PRETEND THE CALL RAN · say why in place ·
+// offer the upgrade." `reconciled: false` cannot carry that, because it means
+// three different things and only one of them earns an upgrade notice.
+//
+// 🔴 THE TEST THAT MATTERS IS THE SECOND ONE. A reconcile that FAILED leaves the
+// user looking at exactly the same stale list as a reconcile that was SKIPPED for
+// entitlement — and telling them to subscribe because our AI call threw would be
+// a sales pitch dressed as an explanation. Deliberate break (5) in the S2 report
+// makes the entitlement path report "error" and watches the client's notice go
+// quiet, which is the failure this distinction exists to make visible.
+describe("Stripe S2 Part C — reconcileSkipped: gated vs failed vs normal", () => {
+  const ITEM = consolidatedItem({
+    canonicalName: "garlic",
+    displayName: "Garlic",
+    ingredientId: "ing-garlic",
+    unit: "clove",
+    quantity: 6,
+    sources: [{ mealId: "meal-a", dishId: "dish-x" }],
+  });
+
+  /** Revision DRIFT in every case, so an entitled account WOULD reconcile. */
+  function seedDrift(h: ReconHarness): void {
+    seedReconPlan(h.state, 9);
+    seedReconList(h.state, 7);
+    seedReconItem(h.state, {
+      id: "it-garlic",
+      ingredientId: "ing-garlic",
+      displayName: "Garlic",
+      unit: "clove",
+      quantity: 3,
+    });
+    seedReconSource(h.state, "it-garlic", "meal-a", "dish-x");
+  }
+
+  it("GATED — the entitlement skip is named, so the client can offer the upgrade", async () => {
+    const h = await spinUpReconcile({
+      current: [ITEM],
+      subscriptionService: UNENTITLED as never,
+    });
+    seedDrift(h);
+    try {
+      const res = await getList(h);
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        reconciled: boolean;
+        reconcileSkipped?: string;
+      };
+      assert.equal(body.reconciled, false);
+      assert.equal(body.reconcileSkipped, "subscription_required");
+      assert.equal(h.spies.consolidate, 0, "not one model call");
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("🔴 FAILED — a reconcile that threw reports `error`, NOT the entitlement value", async () => {
+    const h = await spinUpReconcile({
+      // A SECOND, NEW item is what makes the final AI pass run at all — with only
+      // the carried-forward garlic there is no added subset to name, the pass is
+      // skipped and `aiThrows` never fires. Same shape as the B4 AI-failure test
+      // above, for the same reason.
+      current: [
+        ITEM,
+        consolidatedItem({
+          canonicalName: "basil",
+          displayName: "Basil",
+          ingredientId: "ing-basil",
+          unit: "bunch",
+          quantity: 1,
+          sources: [{ mealId: "meal-b", dishId: "dish-z" }],
+        }),
+      ],
+      aiThrows: new GroceryListAIError("the model did not answer"),
+      subscriptionService: { can: async () => ({ allowed: true }) } as never,
+    });
+    seedDrift(h);
+    try {
+      const res = await getList(h);
+      // Still a 200 serving prior state — the pre-existing graceful path.
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        reconciled: boolean;
+        reconcileSkipped?: string;
+      };
+      assert.equal(body.reconciled, false, "the same stale list as the gated case");
+      assert.equal(
+        body.reconcileSkipped,
+        "error",
+        "an AI failure is not a reason to sell a subscription",
+      );
+      assert.notEqual(body.reconcileSkipped, "subscription_required");
+      // The reconcile WAS attempted, and the AI pass with it — which is the
+      // difference from the gated case, where not one model call happens.
+      assert.equal(h.spies.consolidate, 1);
+      assert.equal(h.spies.finalPass, 1);
+      // And the stamp is untouched, so the next read retries.
+      assert.equal(h.state.lists[0].lastGeneratedFromPlanRevisionId, 7);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("NORMAL — a reconcile that ran omits the key entirely", async () => {
+    const h = await spinUpReconcile({
+      current: [ITEM],
+      subscriptionService: { can: async () => ({ allowed: true }) } as never,
+    });
+    seedDrift(h);
+    try {
+      const res = await getList(h);
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        reconciled: boolean;
+        reconcileSkipped?: string;
+      };
+      assert.equal(body.reconciled, true);
+      // ABSENT, not null and not "". A client that has never heard of this field
+      // sees the byte-identical body it saw before S2.
+      assert.equal("reconcileSkipped" in body, false);
+      assert.equal(h.spies.consolidate, 1);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("NORMAL (nothing to do) — a revision-equal read also omits the key", async () => {
+    // The fast path: no drift, so no reconcile is even attempted. `reconciled` is
+    // false here for a third reason, and it is not one the user can act on.
+    const h = await spinUpReconcile({
+      current: [ITEM],
+      subscriptionService: { can: async () => ({ allowed: true }) } as never,
+    });
+    seedReconPlan(h.state, 7);
+    seedReconList(h.state, 7);
+    seedReconItem(h.state, { id: "it-garlic", displayName: "Garlic", quantity: 3 });
+    try {
+      const res = await getList(h);
+      const body = (await res.json()) as {
+        reconciled: boolean;
+        reconcileSkipped?: string;
+      };
+      assert.equal(body.reconciled, false);
+      assert.equal("reconcileSkipped" in body, false, "no work is not a refusal");
+      assert.equal(h.spies.consolidate, 0);
+    } finally {
+      await h.close();
+    }
+  });
+});
+
 // ── the whole chain, with NO stubbed service ─────────────────────────────
 //
 // Every test above hands the router a hand-written `can()`. This one builds the

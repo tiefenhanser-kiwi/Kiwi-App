@@ -1166,6 +1166,25 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
         enforced: billingConfig.enforced,
         earlyPayBonusDays: billingConfig.earlyPayBonusDays,
         firstChargeDateIfSubscribedNow,
+        // 🔴 ROW 9 (1.1) · STRIPE S2 PART C — ADDED, because §2.8 rules that
+        // "Manage subscription" appears "when a Stripe subscription exists" and
+        // this body carried no field saying so. The client would have had to
+        // infer it from the status, which is wrong in BOTH directions: a
+        // `canceled` account still has a portal worth opening (invoices,
+        // resubscribe — and `POST /billing/portal-session` needs only the
+        // CUSTOMER, which is what it 409s `no_billing_account` on), while an
+        // `active` one read before its first `customer.subscription.updated`
+        // webhook has no customer id yet and would get a button that 409s.
+        //
+        // Keyed on `stripeCustomerId`, deliberately, NOT on
+        // `stripeSubscriptionId`: the customer is what the Portal is scoped to,
+        // and `routes/billing.ts` persists it before the checkout session is
+        // created — so a user who started a checkout and abandoned it can still
+        // reach their billing page.
+        //
+        // A widening, so every shipped client ignores it and the S2 schema takes
+        // it as `.optional()`.
+        hasBillingAccount: snapshot?.stripeCustomerId != null,
       });
     } catch (err) {
       logger.error({ err, userId }, "GET /me/subscription failed");
@@ -1682,6 +1701,32 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
             "Macros-at-save skipped — account is not entitled to AI; the meal still saves, with zero macros",
           );
         }
+        //
+        // 🔴 ROW 9 (1.1) · STRIPE S2 PART C — AND THE PART THE SCHEMA WILL NOT LET
+        // US DO, REPORTED RATHER THAN FAKED.
+        //
+        // §2.6 asks that a new meal "saves with macros absent, never a fabricated
+        // zero". IT IS NOT REPRESENTABLE. `Dish.caloriesPerServing` and
+        // `proteinGPerServing` are `Float @default(0)` and NOT NULLABLE
+        // (schema.prisma:921-922, and 1074-1075 for the Meal), so there is no
+        // absent to save. What the write already does is the closest thing
+        // available and is not a fabrication: mealMaterialize.ts omits the macro
+        // KEYS entirely when there is neither an estimate nor a client-supplied
+        // set, and the column default supplies the 0. No number is invented by
+        // this route; the schema has one.
+        //
+        // Making it representable means a nullable column and a migration, which
+        // this block may not do. So the honest half — telling the user WHY the
+        // figure did not arrive — is done on the WIRE instead, and the client
+        // renders §2.6's notice from it rather than guessing from a zero (a zero
+        // is also what a genuinely zero-calorie edit stores, and the two must not
+        // read the same).
+        //
+        // `macroGroundedPct` (nullable, schema.prisma:933) staying NULL is the
+        // persisted trace of the same fact, for anything reading the row later.
+        const macrosSkipped = macroEnt.allowed
+          ? undefined
+          : ("subscription_required" as const);
         const result = await prisma.$transaction(
           async (tx) =>
             materializeMeal(tx, userId, payload, ingredientIdByCanonical, undefined, {
@@ -1695,6 +1740,9 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
             dishIds: result.dishIds,
             linksCreated: result.linksCreated,
           },
+          // Absent on the normal path — a client that has never heard of it sees
+          // the body it saw before.
+          ...(macrosSkipped !== undefined ? { macrosSkipped } : {}),
         });
       } catch (err) {
         logger.error({ err, userId }, "POST /me/meals failed");
@@ -1757,6 +1805,12 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
             "Macros-at-save skipped for a standalone dish — not entitled to AI; the dish still saves, with zero macros",
           );
         }
+        // S2 Part C — same wire flag as POST /me/meals, same reasoning; see the
+        // long note there for why the "absent, never a zero" half of §2.6 is a
+        // schema change this block may not make.
+        const dishMacrosSkipped = dishMacroEnt.allowed
+          ? undefined
+          : ("subscription_required" as const);
         const result = await prisma.$transaction(
           async (tx) =>
             materializeDish(tx, userId, body, ingredientIdByCanonical, {
@@ -1764,7 +1818,12 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
             }),
           { timeout: 15000 },
         );
-        return res.status(201).json({ dish: { id: result.dishId } });
+        return res.status(201).json({
+          dish: { id: result.dishId },
+          ...(dishMacrosSkipped !== undefined
+            ? { macrosSkipped: dishMacrosSkipped }
+            : {}),
+        });
       } catch (err) {
         logger.error({ err, userId }, "POST /me/dishes failed");
         return res.status(500).json({ error: "failed to create dish" });

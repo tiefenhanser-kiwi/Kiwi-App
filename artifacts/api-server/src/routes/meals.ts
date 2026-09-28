@@ -705,6 +705,17 @@ export function createMealsRouter(
       // 3. Entitlement check. Premium-deny path returns the cuisine-only
       //    fallback in the same response shape — no AI call, no LLMCallLog,
       //    no activity event. Trial-mode (WS6) currently always allows.
+      //
+      //    🔴 ROW 9 (1.1) · STRIPE S2 PART C — `aiSkipped` NAMES THE GATE.
+      //
+      //    The fallback shape is unchanged, and that was always the point: the
+      //    client renders matches either way. What it could not do was TELL THE
+      //    USER, and `mode: "fallback_cuisine"` does not distinguish "you are not
+      //    entitled to the smart matches" from any other reason a cuisine
+      //    fallback might one day be served. D-WS9-272: do not pretend the call
+      //    ran; say why in place. So the entitlement case — and only it — carries
+      //    `aiSkipped: "subscription_required"`, and the client puts ONE line over
+      //    the results it is already showing.
       const ent = await subscriptionService.can(userId, "find_similar_ai");
       if (!ent.allowed) {
         const fallback = cuisineOnlyFallback(
@@ -714,6 +725,7 @@ export function createMealsRouter(
         );
         return res.json({
           ...fallback,
+          aiSkipped: "subscription_required",
           metadata: {
             promptVersion: null,
             latencyMs: 0,

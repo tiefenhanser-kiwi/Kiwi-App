@@ -237,11 +237,20 @@ const failSoftEstimator: EstimateDep = (async () => ({
 async function spinUp(
   prisma: unknown,
   estimateDishMacros: EstimateDep = failSoftEstimator,
+  // Row 9 (1.1) · Stripe S2 Part C — injected only by the macrosSkipped block
+  // below. Absent means the production service, which returns allowed for
+  // everyone while BILLING_ENFORCED is unset — i.e. every pre-existing test in
+  // this file is byte-unchanged.
+  subscriptionService?: { can: (userId: string, key: string) => Promise<{ allowed: boolean; status?: string }> },
 ): Promise<Harness> {
   const app: Express = express();
   app.use(express.json());
   app.use(
-    createMeRouter({ prisma: withSessionUser(prisma) as never, estimateDishMacros }),
+    createMeRouter({
+      prisma: withSessionUser(prisma) as never,
+      estimateDishMacros,
+      ...(subscriptionService ? { subscriptionService: subscriptionService as never } : {}),
+    }),
   );
 
   return await new Promise<Harness>((resolve, reject) => {
@@ -636,6 +645,163 @@ describe("POST /me/meals — BUG-274 estimator wiring (Block 1 follow-up F2)", (
       assert.equal(res.status, 201);
       assert.deepEqual(order, ["estimate", "tx-open"]);
       assert.equal(captured.dishCreates.length, 2);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── Row 9 (1.1) · Stripe S2 Part C — `macrosSkipped` ─────────────────────
+//
+// 🔴 AND THE HALF OF §2.6 THE SCHEMA WILL NOT ALLOW, PINNED RATHER THAN FAKED.
+//
+// The ruling asks that a new meal "saves with macros absent, never a fabricated
+// zero". `Dish.caloriesPerServing` is `Float @default(0)` and NOT NULLABLE
+// (schema.prisma:921-922), so there is no absent to save and this block may not
+// migrate. What the route already does is the closest available thing and is not
+// a fabrication — it omits the macro KEYS and the column default supplies the 0,
+// which the BUG-274 fail-soft test above pins with the same assertion.
+//
+// So the honest half is done on the WIRE: `macrosSkipped` tells the client WHY the
+// figure did not arrive, and the client renders the notice from that rather than
+// guessing from a zero — because a zero is also what a genuinely zero-calorie
+// edit stores, and the two must not read the same.
+describe("POST /me/meals + /me/dishes — S2 macrosSkipped (gated vs normal)", () => {
+  const UNENTITLED = {
+    can: async () => ({ allowed: false, status: "none" as const }),
+  };
+  const ENTITLED = { can: async () => ({ allowed: true }) };
+
+  const oneZeroMacroDish = {
+    title: "Chicken and rice",
+    dishes: [
+      {
+        kind: "new",
+        title: "Grilled chicken",
+        role: "main",
+        positionIndex: 0,
+        ingredients: [{ name: "Chicken breast", quantity: 1, unit: "lb" }],
+        steps: [{ text: "Grill." }],
+      },
+    ],
+  };
+
+  const estimator: EstimateDep = (async () => ({
+    status: "success",
+    perServing: { calories: 310, proteinG: 35, carbsG: 2, fatG: 12 },
+    sanityFlags: [],
+    grounding: { status: "full", ratio: 1, matched: 2, total: 2 },
+  })) as never;
+
+  it("GATED — the meal SAVES, the estimator never runs, and the wire says why", async () => {
+    const { prisma, captured } = makeStub();
+    const harness = await spinUp(prisma, estimator, UNENTITLED);
+    try {
+      const res = await authPost(harness, "/me/meals", oneZeroMacroDish);
+      // "Keep what exists": saving a meal is the user keeping their own recipe,
+      // not an AI feature. It is NOT a 402.
+      assert.equal(res.status, 201);
+      const body = (await res.json()) as { meal: { id: string }; macrosSkipped?: string };
+      assert.ok(body.meal.id, "the meal was created");
+      assert.equal(body.macrosSkipped, "subscription_required");
+      // NO FABRICATED ZERO: the key is absent from the write, so the column
+      // default lands. The same assertion as the BUG-274 fail-soft test — which
+      // is the point: an unentitled account takes the path that already existed
+      // for an estimator that did not answer.
+      assert.ok(
+        !("caloriesPerServing" in captured.dishCreates[0]),
+        "no macro number is invented by this route",
+      );
+      // And macroGroundedPct (nullable) stays absent — the persisted trace.
+      assert.ok(!("macroGroundedPct" in captured.dishCreates[0]));
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("NORMAL — an entitled save omits the key entirely and stamps the estimate", async () => {
+    const { prisma, captured } = makeStub();
+    const harness = await spinUp(prisma, estimator, ENTITLED);
+    try {
+      const res = await authPost(harness, "/me/meals", oneZeroMacroDish);
+      assert.equal(res.status, 201);
+      const body = (await res.json()) as { macrosSkipped?: string };
+      assert.equal("macrosSkipped" in body, false, "absent, not null and not empty");
+      assert.equal(captured.dishCreates[0].caloriesPerServing, 310);
+      assert.equal(captured.dishCreates[0].macroGroundedPct, 100);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("GATED — a standalone dish behaves identically (BUG-278's seam)", async () => {
+    const { prisma, captured } = makeStub();
+    const harness = await spinUp(prisma, estimator, UNENTITLED);
+    try {
+      const res = await authPost(harness, "/me/dishes", {
+        title: "Grilled chicken",
+        ingredients: [{ name: "Chicken breast", quantity: 1, unit: "lb" }],
+        steps: [{ text: "Grill." }],
+      });
+      assert.equal(res.status, 201);
+      const body = (await res.json()) as { dish: { id: string }; macrosSkipped?: string };
+      assert.ok(body.dish.id);
+      assert.equal(body.macrosSkipped, "subscription_required");
+      assert.ok(!("caloriesPerServing" in captured.dishCreates[0]));
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("NORMAL — an entitled standalone dish omits the key", async () => {
+    const { prisma } = makeStub();
+    const harness = await spinUp(prisma, estimator, ENTITLED);
+    try {
+      const res = await authPost(harness, "/me/dishes", {
+        title: "Grilled chicken",
+        ingredients: [{ name: "Chicken breast", quantity: 1, unit: "lb" }],
+        steps: [{ text: "Grill." }],
+      });
+      assert.equal(res.status, 201);
+      assert.equal("macrosSkipped" in ((await res.json()) as object), false);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("a CLIENT-SUPPLIED macro set is written even while gated — the gate is the ESTIMATOR, not the field", async () => {
+    // The gate is on the model call, not on the user's own numbers. A user who
+    // typed 450 calories into the Meal Builder gets 450 saved, subscription or
+    // not, and no notice — nothing was skipped.
+    const { prisma, captured } = makeStub();
+    const harness = await spinUp(prisma, estimator, UNENTITLED);
+    try {
+      const res = await authPost(harness, "/me/meals", {
+        title: "Chicken and rice",
+        dishes: [
+          {
+            kind: "new",
+            title: "Grilled chicken",
+            role: "main",
+            positionIndex: 0,
+            ingredients: [{ name: "Chicken breast", quantity: 1, unit: "lb" }],
+            steps: [{ text: "Grill." }],
+            macros: {
+              caloriesPerServing: 450,
+              proteinGPerServing: 40,
+              carbsGPerServing: 5,
+              fatGPerServing: 20,
+            },
+          },
+        ],
+      });
+      assert.equal(res.status, 201);
+      assert.equal(captured.dishCreates[0].caloriesPerServing, 450);
+      // The flag still rides, because the ROUTE did skip a call it would have
+      // made for a zero-macro dish in the same payload. The client's notice is
+      // keyed per macro FIGURE on screen, and this dish has one.
+      const body = (await res.json()) as { macrosSkipped?: string };
+      assert.equal(body.macrosSkipped, "subscription_required");
     } finally {
       await harness.close();
     }

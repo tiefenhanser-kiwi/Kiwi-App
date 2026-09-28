@@ -411,7 +411,12 @@ interface Harness {
   close: () => Promise<void>;
 }
 
-async function spinUp(prisma: unknown): Promise<Harness> {
+async function spinUp(
+  prisma: unknown,
+  // Row 9 (1.1) · Stripe S2 Part C — injected only by the pinning block at the
+  // end of this file. Absent means the production service.
+  subscriptionService?: { can: (userId: string, key: string) => Promise<{ allowed: boolean; status?: string }> },
+): Promise<Harness> {
   const app: Express = express();
   app.use(express.json());
   app.use(
@@ -421,6 +426,7 @@ async function spinUp(prisma: unknown): Promise<Harness> {
       // that never estimates (fail-soft path), so no live SDK call can leave
       // this suite. The BUG-274 wiring itself is asserted in me-save-canonical.
       estimateDishMacros: (async () => ({ status: "failed", error: "test stub" })) as never,
+      ...(subscriptionService ? { subscriptionService: subscriptionService as never } : {}),
     }),
   );
 
@@ -1491,6 +1497,126 @@ describe("PATCH /me/meals/:id (re-created dishes keep parallelGroup when omitted
       );
       const stamped = captured.mealUpdates.filter((u) => u.where.id === "meal-1" && "estimatedTimeMinutes" in u.data);
       assert.equal(stamped.at(-1)!.data.estimatedTimeMinutes, 42, "derived from the preserved tags: max(10, 12) + 30 — not the serial 52");
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── Row 9 (1.1) · Stripe S2 Part C — THE EDIT PATH, PINNED RATHER THAN CHANGED ──
+//
+// §2.6 rules: "an EDIT of a meal that already has macros leaves the stored macros
+// untouched" under a gate, and adds "if the macro edit path turns out to already
+// leave stored macros alone, say so with the evidence and add the pinning test
+// instead of code."
+//
+// 🔴 IT DOES, AND FOR A STRONGER REASON THAN THE RULING ASSUMES: THE EDIT PATH IS
+// NOT GATED AT ALL. `meal_macro_estimate` has exactly two call sites in the whole
+// server — routes/me.ts's POST /me/meals and POST /me/dishes — and neither PATCH
+// route calls `subscriptionService.can` or the estimator at any point. So there is
+// no gated macro-edit behaviour to correct; there is an absence to pin, because an
+// absence is exactly the kind of fact a later block re-introduces by accident.
+//
+// The first test proves the absence by MEASUREMENT (a service that records every
+// question asked of it, and is asked none) rather than by reading the route.
+describe("Stripe S2 Part C — an UNENTITLED edit leaves stored macros alone (pinned)", () => {
+  /** Records every entitlement question, and would DENY if asked. */
+  function recordingUnentitled() {
+    const asked: string[] = [];
+    return {
+      asked,
+      service: {
+        can: async (_userId: string, key: string) => {
+          asked.push(key);
+          return { allowed: false, status: "none" as const };
+        },
+      },
+    };
+  }
+
+  it("a scalar edit writes NO macro column, and the route never asks about entitlement", async () => {
+    const { prisma, captured } = makeStub({
+      meals: [{ id: "meal-1", userId: USER_ID, isArchived: false }],
+    });
+    const gate = recordingUnentitled();
+    const harness = await spinUp(prisma, gate.service);
+    try {
+      const res = await authPatch(harness, "/me/meals/meal-1", {
+        title: "Renamed while lapsed",
+      });
+      assert.equal(res.status, 200);
+      // THE PIN: one update, and not a macro column in it.
+      assert.equal(captured.mealUpdates.length, 1);
+      const data = captured.mealUpdates[0] as Record<string, unknown>;
+      for (const col of [
+        "caloriesPerServing",
+        "proteinGPerServing",
+        "carbsGPerServing",
+        "fatGPerServing",
+      ]) {
+        assert.ok(!(col in data), `${col} must not be written by a title edit`);
+      }
+      // THE MEASUREMENT: the edit path asks nothing, so it cannot deny anything.
+      assert.deepEqual(gate.asked, [], "PATCH /me/meals is not entitlement-gated");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("no 402 is reachable on the edit path, whatever the account's state", async () => {
+    // A lapsed account can rename, re-tag and re-time its own meals. That is the
+    // read-only ruling (D-WS9-270 §4) applied to writes that spend nothing.
+    const { prisma } = makeStub({
+      meals: [{ id: "meal-1", userId: USER_ID, isArchived: false }],
+    });
+    const gate = recordingUnentitled();
+    const harness = await spinUp(prisma, gate.service);
+    try {
+      const res = await authPatch(harness, "/me/meals/meal-1", {
+        title: "Still mine",
+        tags: ["weeknight"],
+      });
+      assert.notEqual(res.status, 402);
+      assert.equal(res.status, 200);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("⚠️ ADJACENT AND NOT AN ENTITLEMENT MATTER: a dishes[] edit recreates rows at the column default", async () => {
+    // Reported rather than fixed, because it is neither caused by nor curable by
+    // the gate. PATCH with `dishes[]` is a WIPE-AND-RECREATE (rematerializeMeal),
+    // and a recreated dish carrying no `macros` in the payload gets fresh rows at
+    // `Float @default(0)` — for an entitled account exactly as much as for a
+    // lapsed one, because nothing on this path estimates. Whether an edit should
+    // preserve or re-estimate the macros of a dish it rebuilds is a product
+    // question, and it predates this block by many.
+    const { prisma, captured } = makeStub({
+      meals: [{ id: "meal-1", userId: USER_ID, isArchived: false }],
+      links: [],
+    });
+    const gate = recordingUnentitled();
+    const harness = await spinUp(prisma, gate.service);
+    try {
+      const res = await authPatch(harness, "/me/meals/meal-1", {
+        dishes: [
+          {
+            kind: "new",
+            title: "Rebuilt dish",
+            role: "main",
+            positionIndex: 0,
+            ingredients: [{ name: "Rice", quantity: 1, unit: "cup" }],
+            steps: [{ text: "Simmer." }],
+          },
+        ],
+      });
+      assert.equal(res.status, 200);
+      assert.equal(captured.dishCreates.length, 1);
+      // No macro key is WRITTEN (so no number is invented here either) — the
+      // column default is what the row ends up holding.
+      assert.ok(!("caloriesPerServing" in (captured.dishCreates[0] as Record<string, unknown>)));
+      // And still not one entitlement question on the whole path.
+      assert.deepEqual(gate.asked, []);
     } finally {
       await harness.close();
     }

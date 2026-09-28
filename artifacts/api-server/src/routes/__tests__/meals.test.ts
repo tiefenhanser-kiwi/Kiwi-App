@@ -260,6 +260,9 @@ describe("POST /api/meals/find-similar — happy path", () => {
     assert.equal(body.metadata.mode, "ai");
     assert.equal(body.metadata.promptVersion, 2);
     assert.equal(ai.getCalls(), 1);
+    // S2 Part C — the NORMAL case: the key is ABSENT, not null and not "". A
+    // client that has never heard of `aiSkipped` sees the body it saw before.
+    assert.equal("aiSkipped" in body, false);
 
     const events = prisma._activities();
     assert.equal(events.length, 1);
@@ -367,6 +370,31 @@ describe("POST /api/meals/find-similar — premium-deny fallback", () => {
     // No AI call, no activity event.
     assert.equal(ai.getCalls(), 0);
     assert.equal(prisma._activities().length, 0);
+  });
+
+  // Row 9 (1.1) · Stripe S2 Part C — D-WS9-272: "do not pretend the call ran; say
+  // why in place". The fallback shape is unchanged (the client renders matches
+  // either way); what it could not do was TELL THE USER, because
+  // `mode: "fallback_cuisine"` does not distinguish "not entitled" from any other
+  // reason a cuisine fallback might be served.
+  it("names the gate with aiSkipped, so the client can put ONE line over the results", async () => {
+    const res = await fetch(`${harness.baseUrl}/meals/find-similar`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${signToken(TEST_USER_ID + "-deny-2")}`,
+      },
+      body: JSON.stringify({ source: SOURCE, candidates: CANDIDATES }),
+    });
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as {
+      aiSkipped?: string;
+      matches: unknown[];
+    };
+    assert.equal(body.aiSkipped, "subscription_required");
+    // The matches are still there — the notice sits OVER results, not instead of
+    // them. "Keep what exists" is the first clause of the ruling.
+    assert.equal(body.matches.length, 2);
   });
 });
 
@@ -513,6 +541,11 @@ describe("POST /api/meals/find-similar — AI failure", () => {
     const body = (await res.json()) as { error: string; reason: string };
     assert.match(body.error, /Kiwi got distracted/);
     assert.equal(body.reason, "validation_failed");
+    // S2 Part C — the FAILED case, and it is structurally unlike the grocery
+    // reconcile's: a find-similar AI failure has no fallback to mislabel. It is
+    // a 502 with no matches at all, so there is no `aiSkipped` to carry and no
+    // way for this path to earn an upgrade notice.
+    assert.equal("aiSkipped" in body, false);
 
     // Activity event must not fire on AI failure — it's a "successful use"
     // counter, not a "user clicked" counter.
