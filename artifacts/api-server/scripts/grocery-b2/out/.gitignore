@@ -1,0 +1,6 @@
+# Scratch: machine detail and stderr captures. The two .txt deliverables are
+# committed (same discipline as scripts/grocery-b1/out).
+*.json
+*.err
+probe3.txt
+probe4.txt
