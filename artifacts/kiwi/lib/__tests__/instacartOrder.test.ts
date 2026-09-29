@@ -420,8 +420,17 @@ describe("🔴 D-WS9-284 — household rows are held back from the food payload"
   });
 });
 
-describe("D-WS9-286 — the server pack count rides the payload", () => {
-  it("a row carrying a server count sends THAT number", () => {
+describe("D-WS9-286 — the server pack count and the payload", () => {
+  it("🔴 a row carrying a server count sends NO packCount — see M15", () => {
+    // ⚠️ THIS TEST ASSERTED THE OPPOSITE WHEN IT WAS WRITTEN, on ruling 6's
+    // premise that "Instacart's payload uses it directly where present,
+    // replacing the packCount × purchaseQuantity arithmetic". The B4 lane then
+    // measured that the server half of that cannot be done — nothing on the wire
+    // distinguishes the two shapes of `purchaseQuantity` — and kept rule 1's
+    // multiply. With the multiply still there, sending a server count squares
+    // it: this row would order 4 × 4 = 16 cans for a 6-cup need.
+    //
+    // So the field renders and does not send. See instacartItemForRow.
     const row = foodRow("f1", "chicken broth", {
       quantityAmount: "6",
       quantityUnit: "cup",
@@ -430,13 +439,10 @@ describe("D-WS9-286 — the server pack count rides the payload", () => {
       purchaseDisplay: "4 can (14.5 oz)",
       packCount: 4,
     });
-    const wire = instacartItemForRow(row);
-    assert.equal(wire.packCount, 4);
-    assert.equal(wire.packUnit, "can");
-    assert.equal(wire.packSizeText, "(14.5 oz)");
+    assert.deepEqual(instacartItemForRow(row), { groceryListItemId: "f1" });
   });
 
-  it("🔴 and it is sent even where the PARSER would have declined", () => {
+  it("the row it came from is unchanged with or without the field", () => {
     // cup against can: packsToCoverNeed returns null, so without the server
     // count this row omits packCount entirely and the server falls back.
     const without = instacartItemForRow(
@@ -463,5 +469,116 @@ describe("D-WS9-286 — the server pack count rides the payload", () => {
   it("the out-of-range bound still drops the field rather than failing the request", () => {
     const row = foodRow("f1", "potatoes", { packCount: 500 });
     assert.deepEqual(instacartItemForRow(row), { groceryListItemId: "f1" });
+  });
+});
+
+// ── 🔴 M15 / D-WS9-286 — A SERVER COUNT IS NOT SENT TO INSTACART ─────────────
+//
+// `packCount` on the Instacart wire is an INPUT to the server's rule 1, which
+// computes `packCount × purchaseQuantity`. That is right for a count the PHONE
+// derived and wrong for one the SERVER derived, because on a scaled row
+// `purchaseQuantity` is already a count. Measured on the 20-plan census corpus:
+// 34 rows would newly send one, and the worst orders 25 cans for a 5-can need.
+
+describe("🔴 D-WS9-286 — a SERVER-derived count is rendered but NOT sent", () => {
+  const scaledBroth = (): GroceryListItem =>
+    ({
+      id: "broth",
+      name: "low-sodium chicken broth",
+      quantity: "8 cup",
+      quantityAmount: "8",
+      quantityUnit: "cup",
+      sectionKey: "canned",
+      isUniversalStaple: false,
+      isRecurringItem: false,
+      isAmbiguous: false,
+      isOptional: false,
+      isCompleted: false,
+      // resolvePurchaseFields SCALED this row: purchaseQuantity is the COUNT of
+      // cans, and the per-pack size survives only inside the display string.
+      purchaseUnit: "can",
+      purchaseQuantity: 5,
+      purchaseDisplay: "5 can (14.5 oz)",
+      packCount: 5,
+    }) as GroceryListItem;
+
+  it("the RENDER uses it — the shopper reads five cans", () => {
+    const r = scaledBroth();
+    assert.deepEqual(
+      renderedPack(
+        r.purchaseDisplay,
+        r.quantityAmount,
+        r.quantityUnit,
+        r.purchaseUnit,
+        r.isUniversalStaple,
+        undefined,
+        r.packCount,
+      ),
+      { packCount: 5, packSizeText: "(14.5 oz)", fromServer: true },
+    );
+  });
+
+  it("🔴 and the PAYLOAD omits it — 5 x 5 = 25 cans is what sending it would order", () => {
+    assert.deepEqual(instacartItemForRow(scaledBroth()), { groceryListItemId: "broth" });
+  });
+
+  it("garlic, the other live shape: 3 heads must not become 9", () => {
+    const garlic = {
+      ...scaledBroth(),
+      id: "garlic",
+      name: "garlic",
+      quantityAmount: "25",
+      quantityUnit: "clove",
+      purchaseUnit: "head",
+      purchaseQuantity: 3,
+      purchaseDisplay: "3 heads",
+      packCount: 3,
+    } as GroceryListItem;
+    assert.deepEqual(instacartItemForRow(garlic), { groceryListItemId: "garlic" });
+  });
+
+  it("a PHONE-derived count is still sent — rule 1 is correct for those", () => {
+    // Unscaled: purchaseQuantity 1 really is the per-pack size, the parser
+    // derives 2 packs, and rule 1 gives 2 x 1 = 2 lb.
+    const row = {
+      id: "beef",
+      name: "ground beef",
+      quantity: "2 lb",
+      quantityAmount: "2",
+      quantityUnit: "lb",
+      sectionKey: "meat_seafood",
+      isUniversalStaple: false,
+      isRecurringItem: false,
+      isAmbiguous: false,
+      isOptional: false,
+      isCompleted: false,
+      purchaseUnit: "lb",
+      purchaseQuantity: 1,
+      purchaseDisplay: "1 lb pack",
+    } as GroceryListItem;
+    const wire = instacartItemForRow(row);
+    assert.equal(wire.packCount, 2);
+    assert.equal(wire.packUnit, "lb");
+  });
+
+  it("and a row with NO server count behaves exactly as it did before the field", () => {
+    const row = {
+      id: "beef",
+      name: "ground beef",
+      quantity: "2 lb",
+      quantityAmount: "2",
+      quantityUnit: "lb",
+      sectionKey: "meat_seafood",
+      isUniversalStaple: false,
+      isRecurringItem: false,
+      isAmbiguous: false,
+      isOptional: false,
+      isCompleted: false,
+      purchaseUnit: "lb",
+      purchaseQuantity: 1,
+      purchaseDisplay: "1 lb pack",
+      packCount: null,
+    } as GroceryListItem;
+    assert.equal(instacartItemForRow(row).packCount, 2);
   });
 });

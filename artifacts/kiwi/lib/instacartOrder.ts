@@ -97,11 +97,44 @@ export function instacartItemForRow(item: GroceryListItem): InstacartLinkItem {
     item.isUniversalStaple,
     { quantity: item.purchaseQuantityOverride, display: item.purchaseDisplayOverride },
     // D-WS9-286 — the server's own count, when it computed one. Same call the
-    // ROW renders with, so the number on the wire is the number on screen; that
-    // is Row 8's architecture ruling and it survives the new field unchanged.
+    // ROW renders with, so the number on screen and the number considered here
+    // are one derivation.
     item.packCount,
   );
   if (!pack || pack.packCount > MAX_PACK_COUNT) return wire;
+  // ── 🔴 D-WS9-286 — A SERVER COUNT IS NOT SENT, AND THE REASON IS ARITHMETIC ─
+  //
+  // `packCount` on THIS wire is not "how many packs": it is an input to the
+  // server's rule 1, which computes `packCount × the row's per-pack size`
+  // (instacartPayload.ts composeOrderSource), taking that size from
+  // `purchaseQuantity`. That multiply is correct for a count the PHONE derived,
+  // because the phone only derives one on a row whose `purchaseQuantity` really
+  // is a per-pack size.
+  //
+  // It is wrong for a count the SERVER derived. On a scaled row
+  // `resolvePurchaseFields` writes the pack COUNT into `purchaseQuantity` and
+  // leaves the size inside the display string — so rule 1 multiplies a count by
+  // a count. Measured on the 20-plan census corpus: 34 rows would newly send one,
+  // and "5 can (14.5 oz) low-sodium chicken broth" against an 8-cup need would
+  // order 5 × 5 = 25 cans. Garlic goes 3 heads → 9.
+  //
+  // ⚠️ THE B4 LANE ALREADY MEASURED THE OTHER HALF OF THIS AND REFUSED IT.
+  // Ruling 6 asked rule 1 to use packCount directly; it cannot, because nothing
+  // on the wire distinguishes the two shapes of `purchaseQuantity` — the
+  // tempting `purchaseQuantity === packCount` test is true of 579 corpus rows of
+  // which only 71 are scaled. So rule 1 kept its arithmetic, and the client must
+  // not feed it a number of the other kind.
+  //
+  // Omitting is not a loss: `packCount` absent means "the phone has no derived
+  // pack for this row", and the server's own precedence then reaches rule 3 —
+  // which the B4 lane measured as already correct for BOTH shapes (a scaled
+  // row's need and pack carry different unit tokens, so its `packs` collapses to
+  // 1 and the total becomes the count the scaler wrote).
+  //
+  // The RENDER still uses the server's count. That is the whole point of the
+  // field, and it is untouched: the shopper reads the right number, and the
+  // order is composed from the row the server already owns.
+  if (pack.fromServer) return wire;
   wire.packCount = pack.packCount;
   const unit = (item.purchaseUnitOverride ?? item.purchaseUnit ?? "").trim();
   if (unit.length > 0 && unit.length <= MAX_PACK_UNIT_LEN) wire.packUnit = unit;
