@@ -94,17 +94,29 @@ export const YIELD_FIXES: YieldFix[] = [
   // 20 lists are in that state, and Gate 1 cannot see any of them — they are the
   // largest single class in ruling 11's "unit family with no conversion" residue.
   //
-  // The figure is arithmetic, not judgement: 14.5 fl oz ÷ 8 = 1.8125 cups.
+  // ⚠️ THE FIGURE WAS 1.8125 AND THAT WAS WRONG — B3 · F, corrected September 29.
+  //
+  // "14.5 oz" on a broth can is NET WEIGHT, not fluid ounces, and dividing it by
+  // 8 treats a weight ounce as a fluid ounce. 14.5 oz × 28.35 = 411 g, which for
+  // a broth (essentially water) is ~411 mL = 1.74 cups; the cans themselves say
+  // "about 1¾ cups". So 1.8125 claims 4.3% more broth per can than the can holds,
+  // and a yield that over-states the pack UNDER-BUYS: a 7¼-cup need orders 4 cans
+  // at 1.8125 and 5 at 1.75.
+  //
+  // 1.75 is B1's rule — the lower honest figure buys more — and it is also the
+  // number printed on the label, which beats any arithmetic of ours.
+  //
   // Revert = delete these four entries.
   ...(["chicken broth", "low-sodium chicken broth", "beef broth", "low-sodium beef broth"].map(
     (canonical): YieldFix => ({
       canonical,
       unit: "cup",
-      perPack: 1.8125,
-      source: "D-WS9-284 (ruling 8 amendment)",
+      perPack: 1.75,
+      source: "D-WS9-284 (ruling 8 amendment) · B3·F correction",
       why:
-        "The pack is 1 can (14.5 fl oz) and every recipe need is in cups. " +
-        "14.5 ÷ 8 = 1.8125 cups per can. Without it the H3 rider ruling 8 asked " +
+        "The pack is 1 can of 14.5 oz NET WEIGHT and every recipe need is in " +
+        "cups. The label states about 1¾ cups; 14.5 oz × 28.35 = 411 g ≈ 411 mL " +
+        "≈ 1.74 cups agrees with it. Without a yield the H3 rider ruling 8 asked " +
         "for cannot be stated, and the pack count for a cup-denominated need " +
         "falls back to one whole can however many cups the recipes want.",
     }),

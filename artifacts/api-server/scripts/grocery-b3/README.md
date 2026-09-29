@@ -116,3 +116,12 @@ composes `GET /meals/:id` for all 10 bought-only components.
    word "low-sodium" from a list that used to carry it on its own line. The four
    broth pack yields in `proposals.ts` are the amendment that makes the ruled
    outcome exist; deleting those four entries reverts it.
+
+8. **The yield figure was 1.8125 and that was wrong (B3 · F).** "14.5 oz" on a
+   broth can is NET WEIGHT, not fluid ounces, and dividing it by 8 treats a
+   weight ounce as a fluid ounce. 14.5 oz x 28.35 = 411 g, which for a broth is
+   ~411 mL = 1.74 cups; the cans say "about 1¾ cups". A yield that over-states
+   the pack UNDER-buys, so this is 1.75. The two figures disagree only at 7¼, 9
+   and 10¾ cups, and no corpus need lands there — the 20 lists are byte-identical
+   either way, which is exactly why a boundary error like this survives a
+   corpus diff and has to be caught by reading the label.

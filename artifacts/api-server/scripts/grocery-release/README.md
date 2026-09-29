@@ -203,7 +203,7 @@ Ten rows, three classes. Expected on a clean production catalog:
 | class | rows | what |
 |---|---|---|
 | P1 sandwich-bread pack | 1 update | `sandwich bread` → `1 loaf (20 oz, 22 slices)` |
-| P2 pack yields | 5 updates | `romaine lettuce hearts` → 6 cup per 2-pack; the four broth rows → 1.8125 cup per can. All reviewed. |
+| P2 pack yields | 5 updates | `romaine lettuce hearts` → 6 cup per 2-pack; the four broth rows → **1.75** cup per can. All reviewed. |
 | P3 broth edge promotions | 4 updates | four `subsumes` edges → `reviewedByHuman: true`; **no label and no confidence moves** |
 
 **The same `DATABASE_URL` note as B1/B2 applies** — the script throws unless the
@@ -213,6 +213,12 @@ explicitly. Do not edit `.env`.
 `apply.ts` REFUSES a P3 row whose label is not `subsumes`. A promotion must never
 change a label; if production's edge says something else, stop and compare.
 
+> ⚠️ **1.75, not 1.8125.** "14.5 oz" on a broth can is NET WEIGHT, not fluid
+> ounces; the labels say "about 1¾ cups". Dividing 14.5 by 8 treats a weight
+> ounce as a fluid ounce, over-states the pack by 4.3% and therefore UNDER-buys
+> at the boundary (a 7¼-cup need orders 4 cans at 1.8125 and 5 at 1.75). B1's
+> rule stands: the lower honest figure buys more.
+>
 > ⚠️ **The four broth pack yields are the reason the promotion is safe to ship.**
 > Without them the fold lands and its "at least 1 low-sodium" rider does not,
 > because the share is stated in cups and nothing relates a cup to a can — which
