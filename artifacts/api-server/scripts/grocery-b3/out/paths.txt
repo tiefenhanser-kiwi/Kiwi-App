@@ -1,0 +1,59 @@
+tagged RecipeInstructionStep rows: 5350
+  by pathKey: {"bought":2223,"scratch":3127}
+  by ownerType: {"dish":5350}
+components (ownerType,ownerId,componentKey): 1916
+  both paths:   1906
+  only bought:  10
+  only scratch: 0
+distinct tagged dish owners: 1714   meal owners: 0
+meals reached (via MealDishLink + meal-owned): 1344
+
+## THE ONLY-BOUGHT COMPONENTS — these come out EMPTY in the scheduler today
+  dish f2ec6ed7-0a7f-47be-95c6-da02705feb83  "Beef and Pork Meatballs in San Marzano Tomato Sauce"  user PUBLIC
+      componentKey "seasoning"  bought steps 1  scratch 0
+      owner has 13 steps; 11 survive selectDefaultPathSteps  (2 dropped)
+        [9] Stir in ½ teaspoon Italian seasoning blend in place of the oregano and red pepper flakes.
+  dish f46b65c4-6b87-4ed6-8fee-8ae394e5052b  "Classic Chicken Noodle Soup"  user PUBLIC
+      componentKey "broth"  bought steps 2  scratch 0
+      owner has 12 steps; 9 survive selectDefaultPathSteps  (3 dropped)
+        [5] Pour both 32-oz low-sodium chicken broth cartons (8 cups total) into a large pot, add the smashed garlic, pars
+        [6] Reduce to a simmer and cook for 10 minutes to infuse the broth, then discard the thyme sprigs, bay leaves, and
+  dish 3a516539-2aa8-4b5c-a3e4-26af8c7024b2  "Breakfast Burritos"  user PUBLIC
+      componentKey "salsa"  bought steps 1  scratch 0
+      owner has 8 steps; 7 survive selectDefaultPathSteps  (1 dropped)
+        [5] Measure ½ cup jarred salsa into a small bowl for spooning.
+  dish 6776a8ef-f863-458a-99f2-18019649e9de  "Broccoli Cheddar Soup"  user PUBLIC
+      componentKey "broth"  bought steps 1  scratch 0
+      owner has 13 steps; 11 survive selectDefaultPathSteps  (2 dropped)
+        [3] Measure 2 cups low-sodium chicken broth from the carton.
+  dish 1b3f12b0-67a8-4b49-b8c4-87f038837194  "Broccoli Cheddar Soup"  user PUBLIC
+      componentKey "broccoli"  bought steps 1  scratch 0
+      owner has 12 steps; 10 survive selectDefaultPathSteps  (2 dropped)
+        [2] Open the 12 oz bag of pre-cut broccoli florets and break any large pieces in half so they're roughly ½ inch ac
+  dish 5a25f11d-3070-4cfe-bffa-0283cf5305f6  "Beef Panang Curry"  user PUBLIC
+      componentKey "paste"  bought steps 1  scratch 0
+      owner has 9 steps; 8 survive selectDefaultPathSteps  (1 dropped)
+        [1] If using a can of store-bought Panang curry paste (e.g. Maesri or Maeploy), open and measure 3 tablespoons, re
+  dish a33bad3e-489a-4534-a810-5510857a8bff  "Chicken Pesto Panini"  user PUBLIC
+      componentKey "pesto"  bought steps 1  scratch 0
+      owner has 9 steps; 7 survive selectDefaultPathSteps  (2 dropped)
+        [3] Measure ½ cup basil pesto from the jar.
+  dish beec43ff-0a68-407e-977d-83c0d1798f22  "Sopes with Refried Beans, Chorizo, and Crumbled Queso Fresco"  user 76f9d078
+      componentKey "beans"  bought steps 1  scratch 0
+      owner has 10 steps; 9 survive selectDefaultPathSteps  (1 dropped)
+        [7] Empty the 15 oz can of refried beans into a small saucepan and warm over medium-low, stirring occasionally, fo
+  dish 2fd92c93-cbb7-498b-ab8f-86b61d0a33a3  "Sopes with Refried Beans, Chorizo, and Crumbled Queso Fresco"  user 76f9d078
+      componentKey "beans"  bought steps 1  scratch 0
+      owner has 10 steps; 9 survive selectDefaultPathSteps  (1 dropped)
+        [7] Empty the 15 oz can of refried beans into a small saucepan and warm over medium-low, stirring occasionally, fo
+  dish 106693d7-6e9c-4c2d-8b88-ebd51282ed84  "Sopes with Refried Beans, Chorizo, and Crumbled Queso Fresco"  user PUBLIC
+      componentKey "beans"  bought steps 1  scratch 0
+      owner has 10 steps; 9 survive selectDefaultPathSteps  (1 dropped)
+        [7] Empty the 15 oz can of refried beans into a small saucepan and warm over medium-low, stirring occasionally, fo
+
+DishIngredient rows: 43041   componentKey tagged: 0   pathKey tagged: 0
+dishes with a componentRegistry: 1714
+
+## do any of the 20 census plans reach an only-bought component?
+  MealPlanItem rows pointing at a meal with an only-bought component: 2
+  distinct plans: 2 -> 04ddfc4f, bf205267

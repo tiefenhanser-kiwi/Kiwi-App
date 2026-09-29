@@ -1,0 +1,45 @@
+# recurring vocabulary — dev, 2026-09-29T01:40:54.701Z
+users with preferences rows: 29
+users with >=1 recurring item: 13
+total recurring entries: 72
+distinct texts: 18
+
+001. "Bananas" -> bananas [via canonical; display "bananas"; cat Produce; pack 1 each "1 banana"; yield - -] · users: 9
+002. "Milk" -> whole milk [via alias; display "whole milk"; cat Dairy; pack 1 bottle "1 bottle (1 quart / 32 oz)"; yield - -] · users: 9
+003. "Paper towels" -> NONE [inferCategory Household; purchaseDefault -] · users: 9
+004. "Bread" -> sandwich bread [via alias; display "sandwich bread"; cat Bakery; pack - - "-"; yield - -] · users: 8
+005. "Pet treats" -> NONE [inferCategory Pantry; purchaseDefault -] · users: 8
+006. "Toilet paper" -> NONE [inferCategory Household; purchaseDefault -] · users: 7
+007. "Coffee" -> NONE [inferCategory Pantry; purchaseDefault -] · users: 5
+008. "Egg" -> egg [via canonical; display "egg"; cat Dairy; pack 1 dozen "1 dozen"; yield - -] · users: 3
+009. "Eggs" -> egg [via alias; display "egg"; cat Dairy; pack 1 dozen "1 dozen"; yield - -] · users: 3
+010. "Lemons" -> lemon [via alias; display "lemon"; cat Produce; pack 2 each "2 lemons"; yield - -] · users: 2
+011. "Limes" -> lime [via alias; display "lime"; cat Produce; pack 2 each "2 limes"; yield - -] · users: 2
+012. "bread" -> sandwich bread [via alias; display "sandwich bread"; cat Bakery; pack - - "-"; yield - -] · users: 1
+013. "coffee" -> NONE [inferCategory Pantry; purchaseDefault -] · users: 1
+014. "egg" -> egg [via canonical; display "egg"; cat Dairy; pack 1 dozen "1 dozen"; yield - -] · users: 1
+015. "garlic" -> garlic [via canonical; display "garlic"; cat Produce; pack 1 head "1 head"; yield 10 clove] · users: 1
+016. "milk" -> whole milk [via alias; display "whole milk"; cat Dairy; pack 1 bottle "1 bottle (1 quart / 32 oz)"; yield - -] · users: 1
+017. "olive oil" -> olive oil [via canonical; display "olive oil"; cat Pantry; pack 1 bottle "1 bottle (17 oz)"; yield - -] · users: 1
+018. "salt" -> salt [via canonical; display "salt"; cat Pantry; pack 1 container "1 container"; yield - -] · users: 1
+
+resolved: 13   unresolved: 5
+
+## unresolved texts — candidate catalog rows containing the token
+  "Paper towels" (stem "paper towel"): (no catalog row contains the stem)
+  "Pet treats" (stem "pet treat"): (no catalog row contains the stem)
+  "Toilet paper" (stem "toilet paper"): (no catalog row contains the stem)
+  "Coffee" (stem "coffe"): (no catalog row contains the stem)
+  "coffee" (stem "coffe"): (no catalog row contains the stem)
+
+## alias rows touching the vocabulary
+  "milk" -> whole milk
+  "bread" -> sandwich bread
+  "egg" -> large eggs
+  "eggs" -> egg
+  "lemons" -> lemon
+  "limes" -> lime
+  "bread" -> sandwich bread
+  "egg" -> large eggs
+  "milk" -> whole milk
+  "salt" -> kosher salt

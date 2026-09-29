@@ -1,0 +1,521 @@
+[grocery] B3 — THE DRY RUN, Part A · September 29, 2026
+BEFORE = the real pipeline at HEAD: consolidate -> gap-fill -> final -> the
+         client's composePackName. Sonnet echoed; Haiku cached across passes.
+AFTER  = the same pipeline with the recurring items resolved through
+         lookupIngredientByName (canonical, then the IngredientAlias index),
+         matched on IDENTITY, and rendered under R3's two branches.
+
+## f5556c19  "Backyard Farewell to Summer"   BEFORE 48 rows / AFTER 47 rows
+   001. REMOVED
+        before: 1 bunch Bananas (1 bunch) — recurring
+   002. ADDED
+        after : 1 banana (1 each) — recurring
+   003. REMOVED
+        before: 1 loaf bread (1 each) — recurring
+   004. ADDED
+        after : 1 bag (12 oz) coffee (1 bag) — recurring
+   005. REMOVED
+        before: 1 bag (12 oz) coffee (1 each) — recurring
+   006. REMOVED
+        before: 1 Lime (1 each) — recurring
+   007. CHANGED
+        before: 12 limes (12 each)
+        after : 14 limes (14 each) — 2 recurring + 12 for meals
+   008. REMOVED
+        before: 1 bottle (1 quart) milk (1 each) — recurring
+   009. REMOVED
+        before: 1 package (6 rolls) Paper towels (1 each) — recurring
+   010. ADDED
+        after : 1 package (6-pack) Paper towels (1 package) — recurring
+   011. ADDED
+        after : 1 box Pet treats (1 box) — recurring
+   012. REMOVED
+        before: 1 box Pet treats (1 each) — recurring
+   013. ADDED
+        after : 1 loaf sandwich bread (1 loaf) — recurring
+   014. REMOVED
+        before: 1 package (12-pack) Toilet paper (1 each) — recurring
+   015. ADDED
+        after : 1 package (12-pack) Toilet paper (1 package) — recurring
+   016. ADDED
+        after : 1 bottle (1 quart / 32 oz) whole milk (1 bottle) — recurring
+
+## 56b03a57  "Comfort Classics with a Saturday Showstopper"   BEFORE 63 rows / AFTER 61 rows
+   017. REMOVED
+        before: 1 bunch Bananas (1 bunch) — recurring
+   018. ADDED
+        after : 1 banana (1 each) — recurring
+   019. REMOVED
+        before: 1 loaf bread (1 each) — recurring
+   020. ADDED
+        after : 1 bag (12 oz) coffee (1 bag) — recurring
+   021. REMOVED
+        before: 1 bag (12 oz) coffee (1 each) — recurring
+   022. REMOVED
+        before: 1 Lime (1 each) — recurring
+   023. CHANGED
+        before: 2 limes (2 each)
+        after : 4 limes (4 each) — 2 recurring + 2 for meals
+   024. REMOVED
+        before: 1 bottle (1 quart) milk (1 each) — recurring
+   025. REMOVED
+        before: 1 package (6 rolls) Paper towels (1 each) — recurring
+   026. ADDED
+        after : 1 package (6-pack) Paper towels (1 package) — recurring
+   027. ADDED
+        after : 1 box Pet treats (1 box) — recurring
+   028. REMOVED
+        before: 1 box Pet treats (1 each) — recurring
+   029. ADDED
+        after : 1 loaf sandwich bread (1 loaf) — recurring
+   030. REMOVED
+        before: 1 package (12-pack) Toilet paper (1 each) — recurring
+   031. ADDED
+        after : 1 package (12-pack) Toilet paper (1 package) — recurring
+   032. CHANGED
+        before: 1 bottle (1 quart / 32 oz) whole milk (½ cup)
+        after : 1 bottle (1 quart / 32 oz) whole milk (½ cup) — recurring; 0.5 cup for meals
+
+## c404a3cf  "2Comfort Classics with a Saturday Showstopper"   BEFORE 63 rows / AFTER 61 rows
+   033. REMOVED
+        before: 1 bunch Bananas (1 bunch) — recurring
+   034. ADDED
+        after : 1 banana (1 each) — recurring
+   035. REMOVED
+        before: 1 loaf bread (1 each) — recurring
+   036. ADDED
+        after : 1 bag (12 oz) coffee (1 bag) — recurring
+   037. REMOVED
+        before: 1 bag (12 oz) coffee (1 each) — recurring
+   038. REMOVED
+        before: 1 Lime (1 each) — recurring
+   039. CHANGED
+        before: 2 limes (2 each)
+        after : 4 limes (4 each) — 2 recurring + 2 for meals
+   040. REMOVED
+        before: 1 bottle (1 quart) milk (1 each) — recurring
+   041. REMOVED
+        before: 1 package (6 rolls) Paper towels (1 each) — recurring
+   042. ADDED
+        after : 1 package (6-pack) Paper towels (1 package) — recurring
+   043. ADDED
+        after : 1 box Pet treats (1 box) — recurring
+   044. REMOVED
+        before: 1 box Pet treats (1 each) — recurring
+   045. ADDED
+        after : 1 loaf sandwich bread (1 loaf) — recurring
+   046. REMOVED
+        before: 1 package (12-pack) Toilet paper (1 each) — recurring
+   047. ADDED
+        after : 1 package (12-pack) Toilet paper (1 package) — recurring
+   048. CHANGED
+        before: 1 bottle (1 quart / 32 oz) whole milk (½ cup)
+        after : 1 bottle (1 quart / 32 oz) whole milk (½ cup) — recurring; 0.5 cup for meals
+
+## 247cd7bb  "Backyard BBQ to Bold Skillet: Grill-to-Stovetop Summer"   BEFORE 56 rows / AFTER 55 rows
+   049. REMOVED
+        before: 1 bunch Bananas (1 bunch) — recurring
+   050. ADDED
+        after : 1 banana (1 each) — recurring
+   051. REMOVED
+        before: 1 loaf bread (1 each) — recurring
+   052. ADDED
+        after : 1 bag (12 oz) coffee (1 bag) — recurring
+   053. REMOVED
+        before: 1 bag (12 oz) coffee (1 each) — recurring
+   054. REMOVED
+        before: 1 Lime (1 each) — recurring
+   055. CHANGED
+        before: 2 limes (2 each)
+        after : 4 limes (4 each) — 2 recurring + 2 for meals
+   056. REMOVED
+        before: 1 bottle (1 quart) milk (1 each) — recurring
+   057. REMOVED
+        before: 1 package (6 rolls) Paper towels (1 each) — recurring
+   058. ADDED
+        after : 1 package (6-pack) Paper towels (1 package) — recurring
+   059. ADDED
+        after : 1 box Pet treats (1 box) — recurring
+   060. REMOVED
+        before: 1 box Pet treats (1 each) — recurring
+   061. ADDED
+        after : 1 loaf sandwich bread (1 loaf) — recurring
+   062. REMOVED
+        before: 1 package (12-pack) Toilet paper (1 each) — recurring
+   063. ADDED
+        after : 1 package (12-pack) Toilet paper (1 package) — recurring
+   064. ADDED
+        after : 1 bottle (1 quart / 32 oz) whole milk (1 bottle) — recurring
+
+## 14879176  "Slow-Cooked Ragùs and Crispy Weeknight Wins"   BEFORE 59 rows / AFTER 58 rows
+   065. REMOVED
+        before: 1 bunch Bananas (1 bunch) — recurring
+   066. ADDED
+        after : 1 banana (1 each) — recurring
+   067. REMOVED
+        before: 1 loaf bread (1 each) — recurring
+   068. ADDED
+        after : 1 bag (12 oz) coffee (1 bag) — recurring
+   069. REMOVED
+        before: 1 bag (12 oz) coffee (1 each) — recurring
+   070. REMOVED
+        before: 1 Lime (1 each) — recurring
+   071. ADDED
+        after : 2 limes (2 each) — recurring
+   072. REMOVED
+        before: 1 bottle (1 quart) milk (1 each) — recurring
+   073. REMOVED
+        before: 1 package (6 rolls) Paper towels (1 each) — recurring
+   074. ADDED
+        after : 1 package (6-pack) Paper towels (1 package) — recurring
+   075. ADDED
+        after : 1 box Pet treats (1 box) — recurring
+   076. REMOVED
+        before: 1 box Pet treats (1 each) — recurring
+   077. ADDED
+        after : 1 loaf sandwich bread (1 loaf) — recurring
+   078. REMOVED
+        before: 1 package (12-pack) Toilet paper (1 each) — recurring
+   079. ADDED
+        after : 1 package (12-pack) Toilet paper (1 package) — recurring
+   080. CHANGED
+        before: 1 bottle (1 quart / 32 oz) whole milk (¼ cup)
+        after : 1 bottle (1 quart / 32 oz) whole milk (¼ cup) — recurring; 0.25 cup for meals
+
+## b8e7f134  "Cozy Roasted Weeknights with Bold Mexican Flavors"   BEFORE 58 rows / AFTER 56 rows
+   081. REMOVED
+        before: 1 bunch Bananas (1 bunch) — recurring
+   082. ADDED
+        after : 1 banana (1 each) — recurring
+   083. REMOVED
+        before: 1 loaf bread (1 each) — recurring
+   084. ADDED
+        after : 1 bag (12 oz) coffee (1 bag) — recurring
+   085. REMOVED
+        before: 1 bag (12 oz) coffee (1 each) — recurring
+   086. REMOVED
+        before: 1 Lime (1 each) — recurring
+   087. CHANGED
+        before: 5 limes (5 each)
+        after : 7 limes (7 each) — 2 recurring + 5 for meals
+   088. REMOVED
+        before: 1 bottle (1 quart) milk (1 each) — recurring
+   089. REMOVED
+        before: 1 package (6 rolls) Paper towels (1 each) — recurring
+   090. ADDED
+        after : 1 package (6-pack) Paper towels (1 package) — recurring
+   091. ADDED
+        after : 1 box Pet treats (1 box) — recurring
+   092. REMOVED
+        before: 1 box Pet treats (1 each) — recurring
+   093. ADDED
+        after : 1 loaf sandwich bread (1 loaf) — recurring
+   094. REMOVED
+        before: 1 package (12-pack) Toilet paper (1 each) — recurring
+   095. ADDED
+        after : 1 package (12-pack) Toilet paper (1 package) — recurring
+   096. CHANGED
+        before: 1 bottle (1 quart / 32 oz) whole milk (1 cup)
+        after : 1 bottle (1 quart / 32 oz) whole milk (1 cup) — recurring; 1 cup for meals
+
+## 31c7a885  "Hans's meals, week of Sep 19"   BEFORE 62 rows / AFTER 61 rows
+   097. REMOVED
+        before: 1 bunch Bananas (1 bunch) — recurring
+   098. ADDED
+        after : 1 banana (1 each) — recurring
+   099. REMOVED
+        before: 1 loaf Bread (1 each) — recurring
+   100. REMOVED
+        before: 1 dozen Eggs (1 dozen) — recurring
+   101. ADDED
+        after : 1 dozen egg (1 dozen) — recurring
+   102. REMOVED
+        before: 1 bottle (1 quart) Milk (1 each) — recurring
+   103. REMOVED
+        before: 1 package (6 rolls) Paper towels (1 each) — recurring
+   104. ADDED
+        after : 1 package (6-pack) Paper towels (1 package) — recurring
+   105. ADDED
+        after : 1 box Pet treats (1 box) — recurring
+   106. REMOVED
+        before: 1 box Pet treats (1 each) — recurring
+   107. ADDED
+        after : 1 loaf sandwich bread (1 loaf) — recurring
+   108. REMOVED
+        before: 1 package (12-pack) Toilet paper (1 each) — recurring
+   109. ADDED
+        after : 1 package (12-pack) Toilet paper (1 package) — recurring
+   110. CHANGED
+        before: 1 bottle (1 quart / 32 oz) whole milk (1 cup)
+        after : 1 bottle (1 quart / 32 oz) whole milk (1 cup) — recurring; 1 cup for meals
+
+## 96a94410  "Soups, Subs, and Skillet Nights"   BEFORE 78 rows / AFTER 78 rows
+
+## 425da049  "Amy's Fresh and Easy Family Meals"   BEFORE 65 rows / AFTER 64 rows
+   111. REMOVED
+        before: 1 Lemon (1 each) — recurring
+   112. CHANGED
+        before: 5 lemons (5 each)
+        after : 7 lemons (7 each) — 2 recurring + 5 for meals
+
+## ed238692  "Hans's meals, week of Sep 24"   BEFORE 56 rows / AFTER 55 rows
+   113. REMOVED
+        before: 1 bunch Bananas (1 bunch) — recurring
+   114. ADDED
+        after : 1 banana (1 each) — recurring
+   115. REMOVED
+        before: 1 loaf bread (1 each) — recurring
+   116. ADDED
+        after : 1 bag (12 oz) coffee (1 bag) — recurring
+   117. REMOVED
+        before: 1 bag (12 oz) coffee (1 each) — recurring
+   118. REMOVED
+        before: 1 Lime (1 each) — recurring
+   119. ADDED
+        after : 2 limes (2 each) — recurring
+   120. REMOVED
+        before: 1 bottle (1 quart) milk (1 each) — recurring
+   121. REMOVED
+        before: 1 package (6 rolls) Paper towels (1 each) — recurring
+   122. ADDED
+        after : 1 package (6-pack) Paper towels (1 package) — recurring
+   123. ADDED
+        after : 1 box Pet treats (1 box) — recurring
+   124. REMOVED
+        before: 1 box Pet treats (1 each) — recurring
+   125. ADDED
+        after : 1 loaf sandwich bread (1 loaf) — recurring
+   126. REMOVED
+        before: 1 package (12-pack) Toilet paper (1 each) — recurring
+   127. ADDED
+        after : 1 package (12-pack) Toilet paper (1 package) — recurring
+   128. CHANGED
+        before: 1 bottle (1 quart / 32 oz) whole milk (1 cup)
+        after : 1 bottle (1 quart / 32 oz) whole milk (1 cup) — recurring; 1 cup for meals
+
+## 2b6e51a1  "Hans's meals, week of Sep 18"   BEFORE 61 rows / AFTER 61 rows
+   129. REMOVED
+        before: 1 bunch Bananas (1 bunch) — recurring
+   130. ADDED
+        after : 1 banana (1 each) — recurring
+   131. REMOVED
+        before: 1 loaf Bread (1 each) — recurring
+   132. ADDED
+        after : 1 bag (12 oz) coffee (1 bag) — recurring
+   133. REMOVED
+        before: 1 bag (12 oz) Coffee (1 each) — recurring
+   134. REMOVED
+        before: 1 dozen Eggs (1 dozen) — recurring
+   135. ADDED
+        after : 1 dozen egg (1 dozen) — recurring
+   136. REMOVED
+        before: 1 bottle (1 quart) Milk (1 each) — recurring
+   137. REMOVED
+        before: 1 package (6 rolls) Paper towels (1 each) — recurring
+   138. ADDED
+        after : 1 package (6-pack) Paper towels (1 package) — recurring
+   139. ADDED
+        after : 1 box Pet treats (1 box) — recurring
+   140. REMOVED
+        before: 1 box Pet treats (1 each) — recurring
+   141. ADDED
+        after : 1 loaf sandwich bread (1 loaf) — recurring
+   142. REMOVED
+        before: 1 package (12-pack) Toilet paper (1 each) — recurring
+   143. ADDED
+        after : 1 package (12-pack) Toilet paper (1 package) — recurring
+   144. ADDED
+        after : 1 bottle (1 quart / 32 oz) whole milk (1 bottle) — recurring
+
+## 6e952e32  "E's meals, week of Sep 24 (2)"   BEFORE 62 rows / AFTER 62 rows
+
+## a8b0bbd5  "Cozy Fall Vegetarian Nights"   BEFORE 34 rows / AFTER 34 rows
+
+## 316d0846  "Rustic Italian Stovetop Nights"   BEFORE 24 rows / AFTER 24 rows
+
+## 11653a33  "Quick Weeknights"   BEFORE 38 rows / AFTER 37 rows
+   145. REMOVED
+        before: 1 Lemon (1 each) — recurring
+   146. CHANGED
+        before: 1 lemon (1 each)
+        after : 3 lemons (3 each) — 2 recurring + 1 for meals
+
+## 353ce059  "Hans's meals, week of Sep 17 (2)"   BEFORE 25 rows / AFTER 25 rows
+
+## 14397131  "Hans's meals, week of Sep 16 (3)"   BEFORE 15 rows / AFTER 15 rows
+
+## 163875ec  "Hans's meals, week of Sep 19 (3)"   BEFORE 60 rows / AFTER 60 rows
+   147. REMOVED
+        before: 1 bunch Bananas (1 bunch) — recurring
+   148. ADDED
+        after : 1 banana (1 each) — recurring
+   149. REMOVED
+        before: 1 loaf Bread (1 each) — recurring
+   150. REMOVED
+        before: 1 dozen Eggs (1 dozen) — recurring
+   151. ADDED
+        after : 1 dozen egg (1 dozen) — recurring
+   152. REMOVED
+        before: 1 bottle (1 quart) Milk (1 each) — recurring
+   153. REMOVED
+        before: 1 package (6 rolls) Paper towels (1 each) — recurring
+   154. ADDED
+        after : 1 package (6-pack) Paper towels (1 package) — recurring
+   155. ADDED
+        after : 1 box Pet treats (1 box) — recurring
+   156. REMOVED
+        before: 1 box Pet treats (1 each) — recurring
+   157. ADDED
+        after : 1 loaf sandwich bread (1 loaf) — recurring
+   158. REMOVED
+        before: 1 package (12-pack) Toilet paper (1 each) — recurring
+   159. ADDED
+        after : 1 package (12-pack) Toilet paper (1 package) — recurring
+   160. ADDED
+        after : 1 bottle (1 quart / 32 oz) whole milk (1 bottle) — recurring
+
+## d47d18aa  "Sunday Roast Energy, Five Nights Running"   BEFORE 57 rows / AFTER 57 rows
+
+## 8a462408  "Flame & Fork: Grill-Fired Weeknights with One Showstopper"   BEFORE 61 rows / AFTER 60 rows
+   161. REMOVED
+        before: 1 bunch Bananas (1 bunch) — recurring
+   162. ADDED
+        after : 1 banana (1 each) — recurring
+   163. REMOVED
+        before: 1 loaf bread (1 each) — recurring
+   164. ADDED
+        after : 1 bag (12 oz) coffee (1 bag) — recurring
+   165. REMOVED
+        before: 1 bag (12 oz) coffee (1 each) — recurring
+   166. REMOVED
+        before: 1 Lime (1 each) — recurring
+   167. CHANGED
+        before: 4 limes (4 each)
+        after : 6 limes (6 each) — 2 recurring + 4 for meals
+   168. REMOVED
+        before: 1 bottle (1 quart) milk (1 each) — recurring
+   169. REMOVED
+        before: 1 package (6 rolls) Paper towels (1 each) — recurring
+   170. ADDED
+        after : 1 package (6-pack) Paper towels (1 package) — recurring
+   171. ADDED
+        after : 1 box Pet treats (1 box) — recurring
+   172. REMOVED
+        before: 1 box Pet treats (1 each) — recurring
+   173. ADDED
+        after : 1 loaf sandwich bread (1 loaf) — recurring
+   174. REMOVED
+        before: 1 package (12-pack) Toilet paper (1 each) — recurring
+   175. ADDED
+        after : 1 package (12-pack) Toilet paper (1 package) — recurring
+   176. ADDED
+        after : 1 bottle (1 quart / 32 oz) whole milk (1 bottle) — recurring
+
+==============================================================================
+rows changed / added / removed: 176
+recurring-marked rows  BEFORE 96   AFTER 96
+GATE 1 (packs x size >= need)   fails 0 (new: 0)   unverifiable 665
+GATE 2 ("at least" + a measure) fails 0
+GATE 3 (H1 varieties on a line) fails 0
+GATE 4 (a recurring row keeps its mark) fails 0
+Haiku: 36 real calls, 123 cache hits
+intercepted Ingredient writes (applied to nothing): 63
+  distinct ingredient ids written: 24
+
+## THE RECURRING ROWS, AFTER, IN FULL
+  [f5556c19] 14 limes (14 each) — 2 recurring + 12 for meals
+  [f5556c19] 1 dozen egg (1 dozen) — recurring
+  [f5556c19] 1 bottle (1 quart / 32 oz) whole milk (1 bottle) — recurring
+  [f5556c19] 1 loaf sandwich bread (1 loaf) — recurring
+  [f5556c19] 1 bag (12 oz) coffee (1 bag) — recurring
+  [f5556c19] 1 box Pet treats (1 box) — recurring
+  [f5556c19] 1 package (6-pack) Paper towels (1 package) — recurring
+  [f5556c19] 1 package (12-pack) Toilet paper (1 package) — recurring
+  [f5556c19] 1 banana (1 each) — recurring
+  [56b03a57] 1 bottle (1 quart / 32 oz) whole milk (½ cup) — recurring; 0.5 cup for meals
+  [56b03a57] 4 limes (4 each) — 2 recurring + 2 for meals
+  [56b03a57] 1 dozen egg (1 dozen) — recurring
+  [56b03a57] 1 loaf sandwich bread (1 loaf) — recurring
+  [56b03a57] 1 bag (12 oz) coffee (1 bag) — recurring
+  [56b03a57] 1 box Pet treats (1 box) — recurring
+  [56b03a57] 1 package (6-pack) Paper towels (1 package) — recurring
+  [56b03a57] 1 package (12-pack) Toilet paper (1 package) — recurring
+  [56b03a57] 1 banana (1 each) — recurring
+  [c404a3cf] 1 bottle (1 quart / 32 oz) whole milk (½ cup) — recurring; 0.5 cup for meals
+  [c404a3cf] 4 limes (4 each) — 2 recurring + 2 for meals
+  [c404a3cf] 1 dozen egg (1 dozen) — recurring
+  [c404a3cf] 1 loaf sandwich bread (1 loaf) — recurring
+  [c404a3cf] 1 bag (12 oz) coffee (1 bag) — recurring
+  [c404a3cf] 1 box Pet treats (1 box) — recurring
+  [c404a3cf] 1 package (6-pack) Paper towels (1 package) — recurring
+  [c404a3cf] 1 package (12-pack) Toilet paper (1 package) — recurring
+  [c404a3cf] 1 banana (1 each) — recurring
+  [247cd7bb] 4 limes (4 each) — 2 recurring + 2 for meals
+  [247cd7bb] 1 dozen egg (1 dozen) — recurring
+  [247cd7bb] 1 bottle (1 quart / 32 oz) whole milk (1 bottle) — recurring
+  [247cd7bb] 1 loaf sandwich bread (1 loaf) — recurring
+  [247cd7bb] 1 bag (12 oz) coffee (1 bag) — recurring
+  [247cd7bb] 1 box Pet treats (1 box) — recurring
+  [247cd7bb] 1 package (6-pack) Paper towels (1 package) — recurring
+  [247cd7bb] 1 package (12-pack) Toilet paper (1 package) — recurring
+  [247cd7bb] 1 banana (1 each) — recurring
+  [14879176] 1 bottle (1 quart / 32 oz) whole milk (¼ cup) — recurring; 0.25 cup for meals
+  [14879176] 1 dozen egg (1 dozen) — recurring
+  [14879176] 1 loaf sandwich bread (1 loaf) — recurring
+  [14879176] 1 bag (12 oz) coffee (1 bag) — recurring
+  [14879176] 1 box Pet treats (1 box) — recurring
+  [14879176] 1 package (6-pack) Paper towels (1 package) — recurring
+  [14879176] 1 package (12-pack) Toilet paper (1 package) — recurring
+  [14879176] 1 banana (1 each) — recurring
+  [14879176] 2 limes (2 each) — recurring
+  [b8e7f134] 7 limes (7 each) — 2 recurring + 5 for meals
+  [b8e7f134] 1 bottle (1 quart / 32 oz) whole milk (1 cup) — recurring; 1 cup for meals
+  [b8e7f134] 1 dozen egg (1 dozen) — recurring
+  [b8e7f134] 1 loaf sandwich bread (1 loaf) — recurring
+  [b8e7f134] 1 bag (12 oz) coffee (1 bag) — recurring
+  [b8e7f134] 1 box Pet treats (1 box) — recurring
+  [b8e7f134] 1 package (6-pack) Paper towels (1 package) — recurring
+  [b8e7f134] 1 package (12-pack) Toilet paper (1 package) — recurring
+  [b8e7f134] 1 banana (1 each) — recurring
+  [31c7a885] 1 bottle (1 quart / 32 oz) whole milk (1 cup) — recurring; 1 cup for meals
+  [31c7a885] 1 package (6-pack) Paper towels (1 package) — recurring
+  [31c7a885] 1 package (12-pack) Toilet paper (1 package) — recurring
+  [31c7a885] 1 banana (1 each) — recurring
+  [31c7a885] 1 box Pet treats (1 box) — recurring
+  [31c7a885] 1 dozen egg (1 dozen) — recurring
+  [31c7a885] 1 loaf sandwich bread (1 loaf) — recurring
+  [425da049] 7 lemons (7 each) — 2 recurring + 5 for meals
+  [ed238692] 1 bottle (1 quart / 32 oz) whole milk (1 cup) — recurring; 1 cup for meals
+  [ed238692] 1 dozen egg (1 dozen) — recurring
+  [ed238692] 1 loaf sandwich bread (1 loaf) — recurring
+  [ed238692] 1 bag (12 oz) coffee (1 bag) — recurring
+  [ed238692] 1 box Pet treats (1 box) — recurring
+  [ed238692] 1 package (6-pack) Paper towels (1 package) — recurring
+  [ed238692] 1 package (12-pack) Toilet paper (1 package) — recurring
+  [ed238692] 1 banana (1 each) — recurring
+  [ed238692] 2 limes (2 each) — recurring
+  [2b6e51a1] 1 package (6-pack) Paper towels (1 package) — recurring
+  [2b6e51a1] 1 package (12-pack) Toilet paper (1 package) — recurring
+  [2b6e51a1] 1 bag (12 oz) coffee (1 bag) — recurring
+  [2b6e51a1] 1 loaf sandwich bread (1 loaf) — recurring
+  [2b6e51a1] 1 bottle (1 quart / 32 oz) whole milk (1 bottle) — recurring
+  [2b6e51a1] 1 banana (1 each) — recurring
+  [2b6e51a1] 1 dozen egg (1 dozen) — recurring
+  [2b6e51a1] 1 box Pet treats (1 box) — recurring
+  [11653a33] 3 lemons (3 each) — 2 recurring + 1 for meals
+  [163875ec] 1 package (6-pack) Paper towels (1 package) — recurring
+  [163875ec] 1 package (12-pack) Toilet paper (1 package) — recurring
+  [163875ec] 1 banana (1 each) — recurring
+  [163875ec] 1 box Pet treats (1 box) — recurring
+  [163875ec] 1 dozen egg (1 dozen) — recurring
+  [163875ec] 1 bottle (1 quart / 32 oz) whole milk (1 bottle) — recurring
+  [163875ec] 1 loaf sandwich bread (1 loaf) — recurring
+  [8a462408] 6 limes (6 each) — 2 recurring + 4 for meals
+  [8a462408] 1 dozen egg (1 dozen) — recurring
+  [8a462408] 1 bottle (1 quart / 32 oz) whole milk (1 bottle) — recurring
+  [8a462408] 1 loaf sandwich bread (1 loaf) — recurring
+  [8a462408] 1 bag (12 oz) coffee (1 bag) — recurring
+  [8a462408] 1 box Pet treats (1 box) — recurring
+  [8a462408] 1 package (6-pack) Paper towels (1 package) — recurring
+  [8a462408] 1 package (12-pack) Toilet paper (1 package) — recurring
+  [8a462408] 1 banana (1 each) — recurring
