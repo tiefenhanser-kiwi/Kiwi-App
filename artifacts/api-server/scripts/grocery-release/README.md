@@ -181,3 +181,69 @@ things to look for:
    without the words "skin-on";
 3. no line repeats its own name (`1 rotisserie chicken rotisserie chicken, …`);
 4. a plan needing 12 oz of cherry tomatoes says **2 pints**, not 1.
+
+---
+
+# B3 — RECURRING ITEMS + RIDERS (D-WS9-284, September 29 2026)
+
+B3 adds **no migration**. Everything below writes columns and rows that already
+exist. Ruling 1 chose "option (c), no migration": a recurring text is resolved at
+every generation and nothing is persisted per user.
+
+## B3.1 — The data apply
+
+```bash
+node --env-file=.env --import tsx scripts/grocery-b3/apply.ts --dry-run
+node --env-file=.env --import tsx scripts/grocery-b3/apply.ts --apply
+node --env-file=.env --import tsx scripts/grocery-b3/apply.ts --apply   # idempotence: all unchanged
+```
+
+Six rows, three classes. Expected on a clean production catalog:
+
+| class | rows | what |
+|---|---|---|
+| P1 sandwich-bread pack | 1 update | `sandwich bread` → `1 loaf (20 oz, 22 slices)` |
+| P2 romaine pack yield | 1 update | `romaine lettuce hearts` → 6 cup per 2-pack, reviewed |
+| P3 broth edge promotions | 4 updates | four `subsumes` edges → `reviewedByHuman: true`; **no label and no confidence moves** |
+
+**The same `DATABASE_URL` note as B1/B2 applies** — the script throws unless the
+host contains `ep-broad-haze`, so a production run needs the guard satisfied
+explicitly. Do not edit `.env`.
+
+`apply.ts` REFUSES a P3 row whose label is not `subsumes`. A promotion must never
+change a label; if production's edge says something else, stop and compare.
+
+### What is expected to differ on production
+
+- **`SKIP … no catalog row` / `no edge`** — production is missing a row or a
+  judged pair dev has. Reported by name; nothing else is affected.
+- **`==` on a row** — production already carries the value. Fine.
+
+## B3.2 — What ships with the build, not with a script
+
+- **The recurring purchase defaults** (`paper towels`, `toilet paper`,
+  `pet treats`, `coffee`, and `milk`'s gallon) are keys in
+  `INGREDIENT_CONVERSIONS`, `src/lib/ingredientConversions.ts`. Code, not data —
+  that is what ruling 1's option (c) means. Nothing to run.
+- **The Household rule's five new phrases** (`pet`, `dog food`, `dog treats`,
+  `cat food`, `cat litter`) are keywords in `inferCategory`,
+  `src/lib/ingredientResolve.ts`. `inferCategory` runs at ingredient CREATE time
+  only, so existing rows keep their category; swept over all 1,780 dev catalog
+  names, **0 rows change**.
+- **The recurring grade map** (`egg` / `eggs` → `large eggs`) is a code constant
+  in `src/lib/groceryList.ts`, applied to recurring text only. D-WS9-228: this
+  is an alias-precedence change, not a fold — the two catalog rows stay
+  separate and the `distinct` edge stands.
+- **Rule 3** (`pathKey` on the wire, and the widened `selectDefaultPathSteps`)
+  and **BUG-320** are code. Nothing to run.
+
+## B3.3 — After
+
+Generate one grocery list on production for a user who has recurring items.
+
+1. `milk` reads **1 gallon whole milk**, and where the plan also cooks with milk
+   the line says so beside it — never one line for each;
+2. a plan needing lemons shows **one** lemon line with the split, not two;
+3. `paper towels` reads the same pack it read last week;
+4. nothing on the list is the word `milk`, `bread`, `eggs` or `limes` — those are
+   what the user typed, not what the catalog calls the food.

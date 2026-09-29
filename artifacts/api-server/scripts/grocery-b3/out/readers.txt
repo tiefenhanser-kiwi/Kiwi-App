@@ -1,0 +1,41 @@
+# B3 Part B — table-entry blast radius, 2026-09-29T11:28:46.963Z
+
+## 1. does a catalog row carry the key itself?
+  "milk": no catalog row
+  "paper towels": no catalog row
+  "toilet paper": no catalog row
+  "pet treats": no catalog row
+  "coffee": no catalog row
+
+## 2. which catalog rows FOLD to a touched key via baseStapleName,
+##    and would therefore reach the new purchase fields through the
+##    groceryMerge.ts:152 / groceryListAI.ts:417 fallback?
+##    The fallback fires ONLY when the row's own conversionRef is null.
+  exposed rows (conversionRef null AND folding to a touched key): 0
+
+## 3. the create-time reader: ingredientResolve.resolveIngredients
+##    seeds purchase fields from lookupPurchaseDefault on a NEW row only.
+  "milk": before null · conversion {"gramsPerCup":240,"source":"curated"}
+  "paper towels": before null · conversion null
+  "toilet paper": before null · conversion null
+  "pet treats": before null · conversion null
+  "coffee": before null · conversion null
+
+## 4. ruling 5 — the Household rule sweep over every catalog name
+##    (inferCategory at HEAD; re-run after the change and diff)
+  catalog rows: 1780   inferCategory distribution: {"Canned":131,"Produce":367,"Pantry":724,"Protein":232,"Dairy":148,"Snacks":19,"Bakery":119,"Frozen":39,"Household":1}
+  -> out/infercategory_before.json  (1780 rows, for the after-diff)
+
+## 5. ruling 5's negatives and positives, at HEAD
+  inferCategory("hot dogs") = Pantry
+  inferCategory("hot dog buns") = Bakery
+  inferCategory("catfish") = Pantry
+  inferCategory("petite diced tomatoes") = Canned
+  inferCategory("trumpet mushrooms") = Produce
+  inferCategory("pet treats") = Pantry
+  inferCategory("dog food") = Pantry
+  inferCategory("dog treats") = Pantry
+  inferCategory("cat food") = Pantry
+  inferCategory("cat litter") = Pantry
+  inferCategory("paper towels") = Household
+  inferCategory("toilet paper") = Household

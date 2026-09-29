@@ -522,7 +522,24 @@ export const INGREDIENT_CONVERSIONS: Record<string, IngredientConversion> = {
   eggs: { purchaseUnit: "dozen", purchaseQuantity: 1, purchaseDisplay: "1 dozen", gramsPerEach: 50, source: "curated" },
   egg: { purchaseUnit: "dozen", purchaseQuantity: 1, purchaseDisplay: "1 dozen", gramsPerEach: 50, source: "curated" },
   butter: { purchaseUnit: "package", purchaseQuantity: 1, purchaseDisplay: "1 package (1 lb, 4 sticks)", gramsPerCup: 227, source: "curated" },
-  milk: { gramsPerCup: 240, source: "curated" },
+  // ── D-WS9-284 ruling 3 — `milk` gains a pack, and the pack is a GALLON ─────
+  //
+  // Hans, D-WS9-188: "we usually get a gallon of milk". This key is the
+  // RECURRING default (ruling 2's step 1), not a recipe pack — no recipe ever
+  // buys a gallon for a half cup, and none can reach this entry:
+  //
+  //   • There is no catalog row named `milk`, so no row reads it directly.
+  //   • No catalog row folds to `milk` through baseStapleName with a null
+  //     conversionRef, so the groceryMerge.ts:152 / groceryListAI.ts:417
+  //     fallbacks cannot reach it either (measured: 0 rows).
+  //   • `resolveIngredients` cannot mint a `milk` row, because `milk` is an
+  //     ALIAS on `whole milk` and lookupIngredientsByName resolves it to that
+  //     row before the upsert is considered. Removing that alias would expose
+  //     this entry to the create path — do not remove it without re-reading
+  //     this comment.
+  //
+  // gramsPerCup is untouched, so every density consumer is byte-identical.
+  milk: { purchaseUnit: "gallon", purchaseQuantity: 1, purchaseDisplay: "1 gallon", gramsPerCup: 240, source: "curated" },
   // — pantry / dry goods —
   "taco shells": { purchaseUnit: "box", purchaseQuantity: 1, purchaseDisplay: "1 box (12 ct)", source: "curated" },
   "flour tortillas": { purchaseUnit: "package", purchaseQuantity: 1, purchaseDisplay: "1 package (10 ct)", source: "curated" },
@@ -558,6 +575,36 @@ export const INGREDIENT_CONVERSIONS: Record<string, IngredientConversion> = {
   breadcrumbs: { gramsPerCup: 108, source: "curated" },
   rice: { gramsPerCup: 185, source: "curated" },
   water: { gramsPerCup: 236, source: "curated" },
+  // ── D-WS9-284 ruling 3 — THE RECURRING VOCABULARY THAT NAMES NO FOOD ──────
+  //
+  // Four texts in the live recurring vocabulary resolve to no catalog row, and
+  // none of them ever will: paper towels and toilet paper are not food, pet
+  // treats are not human food, and coffee is a food nobody has written a recipe
+  // for. Before D-WS9-284 each was a purchase-default MISS, which made it a
+  // gap-fill cache miss, which meant Haiku authored its pack on EVERY generation
+  // and the answer was thrown away (groceryListAI.ts skips write-back when
+  // ingredientId is null). Across the census corpus that cost 74 of 96 recurring
+  // rows a model call per run, and two of them disagreed with themselves —
+  // `paper towels` came back "(6-pack)" 49 times and "(6 rolls)" 7.
+  //
+  // These four entries are that answer, written down once. Ruling 2: a recurring
+  // synthetic is never gap-filled again; a text that misses this table renders
+  // its name with no pack, which is stable and free.
+  //
+  // The figures: paper towels and pet treats are Haiku's own majority answer
+  // (49 of 56, 54 of 56); coffee is Hans's words in D-WS9-188, "my weekly 1 lb
+  // bag of coffee"; toilet paper is the 12-roll pack stated in rolls to match
+  // paper towels.
+  //
+  // NONE of these keys names a catalog row and none is reachable by a
+  // baseStapleName fold (measured: 0). They ARE reachable by
+  // `resolveIngredients` if a recipe ever mentions one by name, which would
+  // create the row seeded with this pack — correct for coffee, and the other
+  // three do not appear in recipes.
+  "paper towels": { purchaseUnit: "pack", purchaseQuantity: 1, purchaseDisplay: "1 pack (6 rolls)", source: "curated" },
+  "toilet paper": { purchaseUnit: "pack", purchaseQuantity: 1, purchaseDisplay: "1 pack (12 rolls)", source: "curated" },
+  "pet treats": { purchaseUnit: "bag", purchaseQuantity: 1, purchaseDisplay: "1 bag", source: "curated" },
+  coffee: { purchaseUnit: "bag", purchaseQuantity: 1, purchaseDisplay: "1 bag (1 lb)", source: "curated" },
 };
 
 // ── lookups ─────────────────────────────────────────────────────────────

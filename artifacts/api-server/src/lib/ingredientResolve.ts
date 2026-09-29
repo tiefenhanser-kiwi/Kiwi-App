@@ -100,11 +100,29 @@ const CATEGORY_RULES: CategoryRule[] = [
     ],
   },
   {
+    // D-WS9-284 ruling 5 — HOUSEHOLD IS A CATEGORY, NOT A LOOKUP FAILURE.
+    //
+    // The recurring path needs to know which items to keep OUT of the Instacart
+    // food payload, and the tempting test — "it resolved to no catalog row" —
+    // is wrong: `coffee` resolves to nothing and is a food. The test is this
+    // rule's verdict, and that means the rule has to actually cover pet items,
+    // which it did not: `pet treats` fell through every rule to the Pantry
+    // fallback and would have been ordered as groceries.
+    //
+    // `pet` is single-token, so keywordMatches compiles it to \bpet(?:es|s)?\b —
+    // word-bounded, which is what keeps "petite diced tomatoes" (Canned, and
+    // caught earlier anyway) and "trumpet mushrooms" (Produce) out of it. The
+    // four animal-food phrases are multi-token and therefore substring matches,
+    // which cannot reach "hot dogs" or "hot dog buns". "catfish" needs no
+    // defending here — `cat` is not a keyword, only `cat food` / `cat litter`.
+    //
+    // Swept over all 1,780 catalog names: 0 rows change category.
     category: "Household",
     keywords: [
       "paper towel", "toilet paper", "trash bag", "garbage bag",
       "dish soap", "laundry detergent", "sponge", "aluminum foil",
       "plastic wrap", "parchment paper", "zip-top bag",
+      "pet", "dog food", "dog treats", "cat food", "cat litter",
     ],
   },
   {
