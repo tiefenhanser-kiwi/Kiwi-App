@@ -129,9 +129,17 @@ export const MealStepSchema = z.object({
   text: z.string(),
   estimatedMinutes: z.number(),
   phaseType: z.string(),
-  // BUG-018 B2 — parallelGroup retired; the server no longer emits it on the
-  // meal/dish detail wire (routes/meals.ts toStepShape). Removed here in the
-  // same change so both directions of the wire stay in sync (§27).
+  // BUG-018 B2 removed `parallelGroup` from this schema, and its note said the
+  // server no longer emits it.
+  //
+  // ⚠️ THAT NOTE IS NO LONGER TRUE, and it was stale for weeks (N7). D-WS9-239
+  // (1b) put the intra-dish overlap token back on the wire: routes/meals.ts
+  // `toStepShape` emits `parallelGroup: s.parallelGroup ?? null` on every step.
+  // The field's ABSENCE from this schema is still correct — the mobile UI has
+  // no reader for it and z.object strips what it does not name — but "the
+  // server no longer emits it" would have sent the next person to delete a live
+  // emit. Corrected, not removed: the reason it is absent is different from the
+  // reason it was removed.
   requiresPreheat: z.boolean(),
   requiresRest: z.boolean(),
   requiresMarination: z.boolean(),
@@ -143,6 +151,19 @@ export const MealStepSchema = z.object({
   // resolved to no unique ingredient → drives the subtle clarify-any-time
   // signal. Absent/false on legacy + fully-matched steps.
   unmatchedAmount: z.boolean().optional(),
+  // ── [grocery] B3 / D-WS9-277 Rule 3 — THE SWAPPABLE-COMPONENT TAGS ────────
+  //
+  // The steps on this wire are ALREADY filtered to one path per component
+  // (`selectDefaultPathSteps`, applied in composeLoadedMealDetail and shared
+  // with the scheduler), so these say WHICH path the reader is looking at —
+  // they do not offer a choice. Rule 3: scratch when it exists, bought when
+  // only bought exists.
+  //
+  // `.nullish()` because the server emits null on an untagged step and older
+  // payloads omit them entirely. Accepted here so the fields survive parsing;
+  // the TOGGLE that reads them is row 3c, not this block.
+  componentKey: z.string().nullish(),
+  pathKey: z.string().nullish(),
 });
 
 export const MealDetailIngredientSchema = z.object({
@@ -152,6 +173,12 @@ export const MealDetailIngredientSchema = z.object({
   preparationNote: z.string().nullable(),
   category: z.string(),
   isOptional: z.boolean(),
+  // [grocery] B3 / D-WS9-277 Rule 3 — the same tags the steps carry, so an
+  // ingredient can be attributed to the path it belongs to. Optional on the
+  // server too: the per-instance recipe override rebuilds this list from the
+  // override's own shape and has no tags to carry.
+  componentKey: z.string().nullish(),
+  pathKey: z.string().nullish(),
 });
 
 // One sub-dish of a meal. `roleLabel` / `difficulty` / `phaseType` are server

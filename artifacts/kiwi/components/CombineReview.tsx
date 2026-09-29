@@ -15,6 +15,7 @@ import { Feather } from "@expo/vector-icons";
 
 import { resolveDisplayTitle } from "@/components/DisplayTitle";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { formatIngredientLine } from "@/lib/format/ingredientLine";
 import type { SavedDish } from "@/lib/types";
 
 export interface CombineReviewProps {
@@ -78,9 +79,19 @@ export function CombineReview({
       {selected.map((dish) => (
         <View key={dish.id} style={s.reviewDish}>
           <Text style={s.reviewDishHeader}>{resolveDisplayTitle(dish)}</Text>
+          {/* WS9 BUG-321 — through the SHARED formatter, which is the fix and
+              not just the plural. This was `{ing.quantity} {ing.unit}
+              {ing.name}` composed inline, and it was the fourth caller
+              lib/format/ingredientLine.ts's own header warns about ("the fourth
+              caller to compose the line by hand would have been free to drop
+              the unit again"). One call buys all three of: the count-unit
+              suppression BUG-317 ruled ("1 each large shrimp" is not English),
+              the fraction glyphs (0.5 → ½), and the plurals.
+              `SavedDishIngredient` is {quantity, unit, name}, which structurally
+              satisfies IngredientLineParts — no adapter. */}
           {dish.ingredients.map((ing, i) => (
             <Text key={i} style={s.reviewIngredient}>
-              {ing.quantity} {ing.unit} {ing.name}
+              {formatIngredientLine(ing)}
             </Text>
           ))}
         </View>

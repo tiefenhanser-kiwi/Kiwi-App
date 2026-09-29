@@ -160,6 +160,25 @@ const GroceryListItemWireSchema = z
     // via UpdateItemResponseSchema — stay type-compatible; only the list GET
     // populates it. Merged/user-added rows with no sources → absent → no label.
     mealNames: z.array(z.string()).optional(),
+    // D-WS9-286 — the server's whole-pack count for the SUMMED need. `.nullish()`
+    // because all three states are real and distinct: a number (use it), null
+    // (the server tried and could not), absent (a server that predates the
+    // field, or a mutation response that does not recompute). The client treats
+    // null and absent identically — parse the display — but the schema must
+    // accept both or a null fails validation on a readable list.
+    packCount: z.number().nullish(),
+    // D-WS9-284 — R3's derived render fields on a recurring row. Absent on every
+    // other row, so `.optional()`, not `.nullable()`.
+    recurringFacets: z
+      .object({
+        recurringQuantity: z.number().nullable(),
+        recurringUnit: z.string().nullable(),
+        mealQuantity: z.number().nullable(),
+        mealUnit: z.string().nullable(),
+        comparable: z.boolean(),
+        household: z.boolean(),
+      })
+      .optional(),
   })
   .passthrough();
 
@@ -256,6 +275,15 @@ function normalizeListItem(wire: GroceryListItemWire): GroceryListItem {
     // WS9 3e Part 2.2 — meal provenance (absent / empty → no label).
     mealNames:
       wire.mealNames && wire.mealNames.length > 0 ? wire.mealNames : undefined,
+    // D-WS9-286 — the server's pack count. `?? null` folds absent into null:
+    // both mean "the client decides", and the render only ever asks whether a
+    // NUMBER is there.
+    packCount: wire.packCount ?? null,
+    // D-WS9-284 — R3's facets. The wire schema is .passthrough(), so these were
+    // already arriving the moment the server started sending them; THIS mapper
+    // is what was dropping them, exactly as it was dropping the BUG-240
+    // override trio before that fix.
+    recurringFacets: wire.recurringFacets,
   };
 }
 

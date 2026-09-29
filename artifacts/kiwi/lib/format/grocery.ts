@@ -63,13 +63,99 @@ const COUNT_NOUN_PLURALS: Record<string, string> = {
   gallon: "gallons",
 };
 
+// ── WS9 BUG-329 — PLURAL ONLY ABOVE ONE ────────────────────────────────────
+//
+// The guard was `quantity === 1`, so everything BELOW one pluralized too:
+// `¼ bunches`, `½ heads`. Ruled: plural when the quantity is GREATER than one.
+//
+// MEASURED BLAST RADIUS, and why this had to land before BUG-321 rather than
+// beside it. On the grocery corpus (b3 after-state, 1,021 rows across 20 plans)
+// this changes NOTHING: `roundNeedQuantity` ceils count nouns server-side, so no
+// live grocery row reaches here with a sub-one count. On DISH INGREDIENTS —
+// where BUG-321 is about to wire this engine in for the first time — it is
+// live: the catalog snapshot carries `0.5 head` rows (Shredded Cabbage). Wiring
+// formatIngredientLine to the engine without this fix first would have shipped
+// "½ heads green cabbage" as the fix for "½ head cabbage".
+//
+// The ≤ also covers 0 and negatives, which is the same answer for the same
+// reason: neither is more than one of anything.
 export function pluralizeNeedUnit(
   unit: string,
   quantity: number | null,
 ): string {
-  if (quantity === null || quantity === 1) return unit; // singular / unknown count
+  if (quantity === null || quantity <= 1) return unit; // singular / unknown count
   const plural = COUNT_NOUN_PLURALS[unit.trim().toLowerCase()];
   return plural ?? unit; // measure/unknown units untouched
+}
+
+// ── WS9 BUG-321 — THE MEASURE UNITS, OWED BACK FROM THE WEB ────────────────
+//
+// ⚠️ PORTED VERBATIM from kiwi-site/scripts/cookbook/render.mjs, where the
+// Cookbook generator added it and left a comment naming this debt. Its own
+// words: the app's table above is COUNT nouns and deliberately omits measure
+// units, because the grocery line it was written for renders a parenthetical
+// need ("4⅞ oz") where "4⅞ ozs" would be worse than the bug it fixed. A RECIPE
+// LINE is a different sentence — it renders the unit as a WORD a cook reads
+// ("2 cups milk") — and "2 cup milk" is simply wrong English.
+//
+// It stays a SECOND table rather than being folded into COUNT_NOUN_PLURALS, so
+// that the ported half stays byte-comparable with the web's and the grocery
+// parenthetical keeps its narrower vocabulary. pluralizeNeedUnit reads one
+// table; pluralizeUnitWord reads both.
+//
+// MEASURED, NOT GUESSED (the web's count, `dish_ingredients.unit`, 42 distinct
+// values, 2026-09-27): teaspoon 13,360 · tablespoon 9,156 · cup 6,347 ·
+// ounce 2,552 · pound 1,918 · inch 26 · quart 16 · "fluid ounce" 11 · pint 8 ·
+// gram 2 · pinch 2 · second 3.
+//
+// ⚠️ THE ABBREVIATIONS ARE DELIBERATELY ABSENT — tbsp 110, tsp 98, lb 64, oz 32
+// are all live in the catalog and all stay invariant: an abbreviation is
+// already invariant in recipe English ("2 tbsp", never "2 tbsps"), and
+// pluralizing one is the exact mistake COUNT_NOUN_PLURALS' comment warns
+// against. `large` (4 rows) is absent for the same reason BUG-317 keeps it as a
+// word: "2 large eggs" pluralizes the NAME, not the unit. Literal pack
+// spellings ("15-ounce can") pass through untouched — they are already phrases.
+const MEASURE_UNIT_PLURALS: Record<string, string> = {
+  teaspoon: "teaspoons",
+  tablespoon: "tablespoons",
+  cup: "cups",
+  ounce: "ounces",
+  "fluid ounce": "fluid ounces",
+  pound: "pounds",
+  gram: "grams",
+  kilogram: "kilograms",
+  liter: "liters",
+  litre: "litres",
+  milliliter: "milliliters",
+  millilitre: "millilitres",
+  inch: "inches",
+  pinch: "pinches",
+  dash: "dashes",
+  handful: "handfuls",
+  second: "seconds",
+  minute: "minutes",
+};
+
+/**
+ * THE RECIPE LINE'S unit pluralizer: the count-noun table first, then the
+ * measure units. Same contract as {@link pluralizeNeedUnit} — quantity ≤ 1 or
+ * unknown is a no-op, an unknown unit passes through unchanged — and the same
+ * body, ported verbatim from the web's `pluralizeUnitWord`.
+ *
+ * ⚠️ NOT a drop-in for pluralizeNeedUnit at the GROCERY call sites. The need
+ * parenthetical and the pack label must keep rendering "4⅞ oz" and "3 lb pack";
+ * this one is for a line where the unit is read as a word.
+ */
+export function pluralizeUnitWord(
+  unit: string,
+  quantity: number | null | undefined,
+): string {
+  if (quantity === null || quantity === undefined) return unit;
+  if (quantity <= 1) return unit; // "½ cup", never "½ cups"
+  const key = unit.trim().toLowerCase();
+  const plural = COUNT_NOUN_PLURALS[key] ?? MEASURE_UNIT_PLURALS[key];
+  if (!plural) return unit;
+  return matchLeadingCase(unit.trim(), plural);
 }
 
 /**
@@ -145,11 +231,115 @@ function packResidue(purchaseDisplay: string): string {
   return purchaseDisplay.replace(/^\s*\d+(?:\.\d+)?\s+/, "").trim();
 }
 
+// ── WS9 BUG-160 — THE SHOPPER LINE, AND WHY EXACT MATCHING WAS NOT ENOUGH ───
+//
+// The elide asks one question: do the pack's words already name the item, so
+// that printing both would say it twice? It asked it with an EXACT comparison
+// plus a simple plural, and the live data does not cooperate:
+//
+//     "1 bunch (~6-8 scallions) scallions (3 each)"
+//     "1 lb (~4-5 tomatillos) tomatillos (¾ pound)"
+//     "1 bunch (~6-8 radishes) radishes (6 each)"
+//     "3 medium white onion white onion (2¼ cup)"
+//     "1 rotisserie chicken rotisserie chicken, meat shredded (3 cup)"
+//
+// In each the residue and the name overlap without being equal. Eight rows on
+// the B3 after-state read like that.
+//
+// ⚠️ THE TEST IS DIRECTIONAL, AND A SYMMETRIC ONE IS WRONG. Measured: nine
+// further rows have the NAME containing the RESIDUE, and eliding four of them
+// LOSES the distinguishing word —
+//
+//     residue "loaf"     name "italian bread loaf"  ->  "1 loaf"      ✗
+//     residue "boule"    name "sourdough boule"     ->  "1 boule"     ✗
+//     residue "baguette" name "Italian baguette"    ->  "1 baguette"  ✗
+//     residue "peppers"  name "bell peppers"        ->  "3 peppers"   ✗
+//
+// So the rule is: elide when the RESIDUE contains the NAME — the residue is the
+// fuller phrase and keeping it loses nothing. Never the other way.
+//
+// ⚠️ THE COMMA CLAUSE COMES OFF THE NAME FIRST, and that is what rescues the
+// fifth row above. "rotisserie chicken, meat shredded" is a prep clause on a
+// name the residue states exactly; stripped, the two are EQUAL and the pre-
+// existing exact test handles it with no containment at all. The distinguishing
+// modifiers in the four rows that must not elide all sit BEFORE the head noun,
+// which is why they survive the strip and stay unmatched. The split is the same
+// one pluralizeIngredientName and singularizeIngredientName already use, for
+// the same reason — reused, not rewritten.
+//
+// ⚠️ THIS PREDICATE IS ALSO RULE 1's, via countedPackTitle, and widening it
+// moves 15 rows that did NOT duplicate: "1 white onion" becomes "1 medium white
+// onion", "1 beefsteak tomato" becomes "1 large beefsteak tomato". Ruled
+// ACCEPTED (2026-09-29) — that is the pack you reach for on the shelf, and R7
+// wants the line to be a search term a store understands. One predicate, not
+// two. lib/__tests__/grocery-format.test.ts pins all 28 rows as literals.
+
+// ── 🔴 WS9 BUG-160 — A RIDER IS NOT A PREP CLAUSE, AND ELIDING ONE LOSES IT ──
+//
+// H3's variety rider (api-server/src/lib/groceryVarietyRider.ts) rides in the
+// NAME, because the name is the only channel to the shopper's line:
+//
+//     "bell peppers, at least 2 green"
+//     "yellow onions, at least 1 large"
+//
+// It LOOKS like the prep clause on "rotisserie chicken, meat shredded" and it
+// is the opposite thing: a prep note describes what you do after you buy, a
+// rider is the part of WHAT TO BUY that the pack string cannot state. Stripping
+// it before the containment test made both rows above elide — the residue
+// "green bell peppers" contains the head "bell peppers" — and printed the pack
+// residue INSTEAD of the name, dropping "at least 2 green" off a list that
+// carried it. Caught by the corpus diff, not by reasoning.
+//
+// That is precisely the failure B3 Part E's ruling-8 note records in the other
+// direction ("the fold landed and the rider did not, which would have REMOVED
+// the word 'low-sodium' from a list that used to carry it"). So: a name
+// carrying a rider NEVER elides. The residue cannot contain a rider — the rider
+// is not in the pack string and never will be — so there is no case where
+// eliding one is safe, and refusing outright is stronger than trying to
+// preserve it.
+//
+// The grammar is machine-written and fixed (`composeVarietyRider`: "at least N
+// <variety>", joined by " and "), and nothing else in the codebase writes a
+// `, at least N x` clause onto an ingredient name. That is what makes detecting
+// it by shape honest rather than a guess.
+const NAME_RIDER = /,\s*at least \d+\s/i;
+
+/**
+ * A name minus its trailing PREP clause: "chicken, meat shredded" → "chicken".
+ * Returns the name unchanged when the clause is a variety rider.
+ */
+function nameHead(name: string): string {
+  if (NAME_RIDER.test(name)) return name.trim();
+  const comma = name.indexOf(",");
+  return (comma === -1 ? name : name.slice(0, comma)).trim();
+}
+
+/** Escape a string for use as a regex literal. */
+function escapeForRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Does `haystack` contain `needle` as whole words, tolerating a plural marker
+ * on the contained phrase? "bunch (~6-8 scallions)" contains "scallions";
+ * "medium white onion" contains "white onion"; "onion powder" does NOT contain
+ * "onion powder her" and "scallion" does not match "scallions oil".
+ */
+function containsPhrase(haystack: string, needle: string): boolean {
+  if (needle.length === 0) return false;
+  return new RegExp(`(^|[^a-z])${escapeForRegex(needle)}(e?s)?([^a-z]|$)`, "i").test(
+    haystack,
+  );
+}
+
 /** Does the pack's residue name the item itself (so printing both would dup)? */
 function residueNamesItem(residue: string, name: string): boolean {
   const r = residue.toLowerCase().trim();
-  const n = name.toLowerCase().trim();
-  return r === n || r === `${n}s` || r === `${n}es`;
+  const n = nameHead(name).toLowerCase();
+  if (n.length === 0) return false;
+  if (r === n || r === `${n}s` || r === `${n}es`) return true;
+  // BUG-160 — one direction only: the residue may be the fuller phrase.
+  return containsPhrase(r, n);
 }
 
 // Ingredient-name head nouns that must never take an "s". Mass nouns and
@@ -373,6 +563,10 @@ function resolveNeed(amount: string | number | null | undefined): number | null 
 
 const PACK_EPSILON = 1e-9;
 
+/** A bare decimal, as a pack display spells one. Shared by the size hint and
+ *  its range form so the two cannot accept different numbers. */
+const PACK_NUM = String.raw`\d+(?:\.\d+)?`;
+
 // Unit spellings that mean the same thing. Only what the live data actually
 // uses — the need side says "pound"/"ounce" where the pack side says "lb"/"oz",
 // and without this the two never match and nothing scales.
@@ -399,6 +593,18 @@ const UNIT_ALIASES: Record<string, string> = {
   // Same class as `fl oz: "oz"` above and not the plural-folding the rest of
   // this table does: two spellings the live data genuinely uses for one unit.
   count: "each",
+  // WS9 BUG-332 (W2) — the ABBREVIATED spellings of the same thing. BUG-216
+  // added `count` and the live data also writes `ct`: "1 package (10 ct)" and
+  // "1 box (12 ct)" sat unrelatable beside "1 package (12 count)", which
+  // resolved. Two of the census's under-orders are exactly this — 12 tortillas
+  // against a 10-ct package printed one package.
+  //
+  // Measured on the B3 after-state: 6 distinct count-sized packs, 19 rows; 4 of
+  // the packs already resolved through `count`, and adding these three rows
+  // moves 3 rows and nothing else.
+  ct: "each",
+  cnt: "each",
+  ea: "each",
 };
 
 export function normalizeUnitToken(unit: string | null | undefined): string {
@@ -578,13 +784,35 @@ function packLeadingMeasuredUnit(purchaseDisplay: string): string | null {
  * optional second word is guarded against "each", so "(14.5 oz each)" still
  * reads "oz" and lets the trailing (?:each)? consume the rest.
  */
+/**
+ * WS9 BUG-332 (W1) — A RANGED PACK SIZE READS AS ITS LOWER BOUND.
+ *
+ * "1 bag (5-6 oz)", "1 box (12-13 oz)", "1 container (4-5 oz)". The single
+ * `[\d.]+` capture could not match across the dash, so the whole hint failed
+ * and the pack printed verbatim however much the week wanted — 8 oz of kettle
+ * chips against a 5-6 oz bag ordered one bag.
+ *
+ * ⚠️ THE LOW FIGURE, AND THAT IS R2. Hans: "I don't want users to not have
+ * enough." A pack stated as a range might be either end, so the conservative
+ * reading is the SMALLER pack — it needs more of them to cover the need.
+ * Reading 5-6 oz as 6 would order one bag for an 8-oz need; reading it as 5
+ * orders two. Over-ordering against a ranged pack is the accepted trade, the
+ * same one BUG-125 accepted for a bogus stored pack.
+ *
+ * Measured on the B3 after-state: 10 distinct ranged packs over 22 rows. Eight
+ * of them are already decided by another rule (a count need against a bunch, a
+ * weight need against a weight pack), so this moves exactly 2 rows.
+ */
+const RANGE_LOW = new RegExp(`^\\s*(${PACK_NUM})\\s*(?:-|–|—|to)\\s*${PACK_NUM}\\s*$`);
+
 function packSizeHint(purchaseDisplay: string): { amt: number; unit: string } | null {
-  const m =
-    /\(\s*~?\s*([\d.]+)\s*([a-zA-Z]+(?:\s+(?!each\b)[a-zA-Z]+)?)\s*(?:each)?\s*\)/.exec(
-      purchaseDisplay,
-    );
+  const m = new RegExp(
+    `\\(\\s*~?\\s*(${PACK_NUM}(?:\\s*(?:-|–|—|to)\\s*${PACK_NUM})?)\\s*([a-zA-Z]+(?:\\s+(?!each\\b)[a-zA-Z]+)?)\\s*(?:each)?\\s*\\)`,
+  ).exec(purchaseDisplay);
   if (!m) return null;
-  const amt = parseFloat(m[1]);
+  const raw = m[1].trim();
+  const range = RANGE_LOW.exec(raw);
+  const amt = parseFloat(range ? range[1] : raw);
   return Number.isFinite(amt) && amt > 0 ? { amt, unit: m[2] } : null;
 }
 
@@ -653,6 +881,37 @@ function packsToCoverNeed(
     );
   }
   // 4. Needs a container→measure factor nothing supplies. Out of scope.
+  //
+  // ── 🔴 WS9 BUG-332 — DO NOT READ A PARENTHETICAL `oz` AS FLUID OUNCES ─────
+  //
+  // This is where 315 corpus rows land: a volumetric need ("½ cup") against a
+  // pack whose parenthetical says plain "oz". The obvious-looking fix is to
+  // treat that `oz` as FLUID oz when the need is volumetric, which relates them
+  // and empties this branch. It was measured and REFUSED (ruled 2026-09-29).
+  //
+  // `oz` in a pack parenthetical is AMBIGUOUS and the string does not say which
+  // it is. The overwhelming majority of those 315 rows are weight-labelled
+  // SOLIDS — "1 container (2.6 oz) smoked paprika", "1 bag (8 oz) sliced
+  // almonds", "1 block (8 oz) cheddar". Reading them as fluid ounces produces:
+  //
+  //     1 bag (5 oz) mixed salad greens, need 4 cup   ->  SEVEN bags
+  //     1 bag (5 oz) shredded iceberg, need 2 cup     ->  four bags
+  //     1 container (8.8 oz) cooked rice, need 4 cup  ->  four containers
+  //     1 wedge (6 oz) Parmesan, need 1 cup           ->  two wedges
+  //
+  // And R2 does NOT rescue it. Misreading weight as volume errs in BOTH
+  // directions: it understates the pack for anything fluffier than water (the
+  // seven bags) and OVERSTATES it for anything denser — honey, molasses, syrup
+  // — which under-orders, the failure Hans ruled worst. It over-orders on
+  // today's corpus because of what happens to be on it, not because of a rule.
+  //
+  // The datum that settles fl-oz vs weight-oz is per-ingredient and the server
+  // holds it (`Ingredient.packYield*`). The client is not sent it, and does not
+  // need to be: the B4 lane sends the finished `packCount` instead, which is
+  // consulted ABOVE this whole function (see renderedPack). A row that arrives
+  // with a packCount never reaches this branch at all.
+  //
+  // lib/__tests__/grocery-format.test.ts pins this null.
   return null;
 }
 
@@ -1150,6 +1409,50 @@ export interface RenderedPack {
   packSizeText?: string;
 }
 
+// ── 🔴 WS9 D-WS9-286 — THE SERVER'S PACK COUNT WINS, AND THE PARSER STOPS ───
+//
+// THE DEFECT THIS CLOSES (block C Part A, finding M1). `purchaseDisplay`'s
+// leading number means two different things and nothing on the wire says which:
+//
+//     "1.5 lb pack"       -> 1.5 is the SIZE of one pack
+//     "4 can (14.5 oz)"   -> 4 is the COUNT of packs the server already scaled to
+//
+// `packLeadingQuantity` documents itself as the first and `packsToCoverNeed`
+// divides by it in both cases. `purchaseQuantity` carries the same ambiguity,
+// so there was nowhere to look it up. Today the collision is invisible only
+// because the client cannot relate any of the unit pairs the server scales on
+// (head↔clove, can↔cup, pint↔ounce, lb-bag↔cup) — measured: every yield-bearing
+// row with a container pack against a measured need returns null here. That is
+// an accident of what the client can parse, not a guarantee, and widening the
+// parser is what would have removed it.
+//
+// So the B4 lane sends the answer. `packCount` is the whole number of packs the
+// SERVER computed for the summed need, through a pack yield, a sub-unit ladder
+// or a same-unit comparison; `null` when it could not compute one.
+//
+// ⚠️ THE RULE IS ABSOLUTE: WHEN packCount IS PRESENT THE CLIENT USES IT AND
+// NEVER PARSES THE DISPLAY. Parsing runs only when it is null. Consulting both
+// and preferring one is the same collision wearing a tie-break, and a guard
+// test asserts that a row with a packCount reaches no parse call.
+//
+// ⚠️ THE OVERRIDE AND STAPLE GATES STILL COME FIRST. A pantry staple renders no
+// pack at all (BUG-171) and a quantity override is the user's stated buy, not a
+// derivation (BUG-240) — neither is something the server's count can answer,
+// and the server does not see the override when it computes.
+//
+// `packSizeText` still comes off the display either way: it is the
+// parenthetical, not a number, and it is not what the ambiguity is about.
+
+export interface RenderedPack {
+  /** Number of packs — an integer ≥ 1, NEVER the displayed total. */
+  packCount: number;
+  /** The parenthetical size off the stored display, parens included. */
+  packSizeText?: string;
+  /** D-WS9-286 — true when this count came from the server, not from the
+   *  display parser. Read by the tests and by the Instacart payload's note. */
+  fromServer?: boolean;
+}
+
 export function renderedPack(
   purchaseDisplay: string | null | undefined,
   needAmount: string | number | null | undefined,
@@ -1157,11 +1460,27 @@ export function renderedPack(
   purchaseUnit: string | null | undefined,
   isPantryStaple?: boolean,
   override?: PurchaseOverride,
+  serverPackCount?: number | null,
 ): RenderedPack | null {
   if (isPantryStaple) return null;
   const ovrQty = override?.quantity;
   if (ovrQty !== undefined && ovrQty !== null) return null;
   if (!purchaseDisplay) return null;
+  const size = /\([^)]+\)/.exec(purchaseDisplay);
+  const withSize = (packCount: number, fromServer: boolean): RenderedPack => ({
+    packCount,
+    ...(size ? { packSizeText: size[0] } : {}),
+    ...(fromServer ? { fromServer: true } : {}),
+  });
+  // D-WS9-286 — the server's count, and no parse.
+  if (
+    serverPackCount !== undefined &&
+    serverPackCount !== null &&
+    Number.isFinite(serverPackCount) &&
+    serverPackCount > 0
+  ) {
+    return withSize(Math.ceil(serverPackCount), true);
+  }
   const need = resolveNeed(needAmount);
   const packQuantity = packLeadingQuantity(purchaseDisplay);
   if (need === null || packQuantity === null) return null;
@@ -1169,6 +1488,5 @@ export function renderedPack(
   const pUnit = (purchaseUnit ?? "").trim().toLowerCase();
   const packs = packsToCoverNeed(need, packQuantity, nUnit, pUnit, purchaseDisplay);
   if (packs === null) return null;
-  const size = /\([^)]+\)/.exec(purchaseDisplay);
-  return size ? { packCount: packs, packSizeText: size[0] } : { packCount: packs };
+  return withSize(packs, false);
 }

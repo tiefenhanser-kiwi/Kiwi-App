@@ -810,3 +810,74 @@ test("updateMeal URL-encodes the meal id", async () => {
   assert.ok(!captured.url!.includes(" "));
   assert.ok(captured.url!.includes("with%20spaces"));
 });
+
+// ── [grocery] B3 / D-WS9-277 Rule 3 — the swappable-component tags ────────────
+//
+// The server filters the wire to ONE path per component before it emits, so
+// these say WHICH path the reader is looking at rather than offering a choice.
+// The client accepts them now; the toggle that reads them is row 3c.
+
+import { MealDetailIngredientSchema, MealStepSchema } from "../meals";
+
+const baseStep = {
+  stepIndex: 0,
+  text: "Measure 2 cups low-sodium chicken broth from the carton.",
+  estimatedMinutes: 2,
+  phaseType: "prep",
+  requiresPreheat: false,
+  requiresRest: false,
+  requiresMarination: false,
+  isTimingSensitive: false,
+};
+
+test("D-WS9-277 — a step carries componentKey / pathKey through the schema", () => {
+  const parsed = MealStepSchema.parse({
+    ...baseStep,
+    componentKey: "broth",
+    pathKey: "bought",
+  });
+  assert.equal(parsed.componentKey, "broth");
+  assert.equal(parsed.pathKey, "bought");
+});
+
+test("D-WS9-277 — null (an untagged step) and absent (an older payload) both parse", () => {
+  const withNull = MealStepSchema.parse({ ...baseStep, componentKey: null, pathKey: null });
+  assert.equal(withNull.componentKey, null);
+  assert.equal(withNull.pathKey, null);
+  const absent = MealStepSchema.parse(baseStep);
+  assert.equal(absent.componentKey, undefined);
+  assert.equal(absent.pathKey, undefined);
+});
+
+test("D-WS9-277 — the ingredient schema carries them too", () => {
+  const ing = MealDetailIngredientSchema.parse({
+    name: "low-sodium chicken broth",
+    quantity: 2,
+    unit: "cup",
+    preparationNote: null,
+    category: "pantry",
+    isOptional: false,
+    componentKey: "broth",
+    pathKey: "bought",
+  });
+  assert.equal(ing.componentKey, "broth");
+  assert.equal(ing.pathKey, "bought");
+  // And an override-rebuilt list, which carries no tags, still parses.
+  const noTags = MealDetailIngredientSchema.parse({
+    name: "garlic",
+    quantity: 4,
+    unit: "clove",
+    preparationNote: null,
+    category: "produce",
+    isOptional: false,
+  });
+  assert.equal(noTags.componentKey, undefined);
+});
+
+test("N7 — parallelGroup is still STRIPPED, and a payload carrying it still parses", () => {
+  // The server DOES emit it (routes/meals.ts toStepShape, D-WS9-239 1b); the
+  // mobile UI has no reader, so z.object drops it. The old comment claiming the
+  // server no longer emits it was stale for weeks.
+  const parsed = MealStepSchema.parse({ ...baseStep, parallelGroup: "sauce" });
+  assert.ok(!("parallelGroup" in parsed));
+});

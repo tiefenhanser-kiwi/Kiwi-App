@@ -23,7 +23,8 @@
 //
 // Pure and in lib/ because app/** is outside the test glob (D-WS9-164).
 
-import { formatQuantity } from "./quantity";
+import { displayedQuantity, formatQuantity } from "./quantity";
+import { pluralizeIngredientName, pluralizeUnitWord } from "./grocery";
 
 /** The fields of a meal-detail ingredient this formatter reads. Structurally
  *  satisfied by MealDetailIngredientSchema's output (lib/api/meals.ts) and by
@@ -122,6 +123,43 @@ export function isSuppressedCountUnit(unit: string | null | undefined): boolean 
  * pick the whole-unit ceiling rule, so dropping it from the amount call as well
  * would change 3.2 lemons from "4" to "3.2" — a rounding change wearing a
  * display change's clothes.
+ *
+ * ── WS9 BUG-321 — THE ENGINE, WIRED IN ────────────────────────────────────
+ *
+ * The line printed "6 clove garlic" and "2 lemon". Not because the pluralizer
+ * was wrong — lib/format/grocery.ts has carried one since WS7-8b, and the
+ * grocery screen has used it all along — but because this formatter never
+ * called it. The Cookbook generator's own note names it: "a wiring gap where
+ * formatIngredientLine never calls the engine at all".
+ *
+ * BOTH halves move, and they are different functions for a reason:
+ *   - the UNIT goes through `pluralizeUnitWord`, which reads the count nouns
+ *     AND the measure units ported back from the web. A recipe line says "2
+ *     cups milk"; the grocery parenthetical still says "4⅞ oz" through
+ *     `pluralizeNeedUnit`, which reads only the count-noun table.
+ *   - the NAME goes through `pluralizeIngredientName` — head noun only, prep
+ *     clause untouched, declines whenever it cannot act safely.
+ *
+ * ⚠️ PLURALIZED ON THE *DISPLAYED* AMOUNT, not the raw one. `displayedQuantity`
+ * is the number formatQuantity will actually show, so "1 cups" cannot happen
+ * when 1.05 renders as "1". Feeding the raw quantity here is the defect that
+ * extraction exists to prevent.
+ *
+ * 🔴 THE NAME IS COUNTED ONLY WHEN THERE IS NO UNIT TO COUNT. "4 tablespoons
+ * unsalted butter" — you have four tablespoons, not four butters. Pluralizing
+ * the name beside a real unit produced "4 tablespoons unsalted butters",
+ * "2⅛ cups flours" and "6 cloves garlics" on the first cut, and the BUG-315 /
+ * BUG-317 pins caught all three. So the name moves only when the unit is absent
+ * or a SUPPRESSED count token — which is precisely when the number in front of
+ * it counts the ingredient itself ("2 lemons"). This is the same split
+ * composePackName already makes: its Rule 3 measure branch leaves the name
+ * alone and its Rule 3 count branch runs countedName.
+ *
+ * ⚠️ NO SINGULARIZATION, deliberately, and it leaves one class standing: a name
+ * authored PLURAL against a quantity of 1 still reads "1 lemons". grocery.ts
+ * has `singularizeIngredientName` for exactly that and it is NOT called here —
+ * the census asked for the plural direction, and singularizing a catalog name
+ * is a bigger change than this block was scoped for. See finding M13.
  */
 export function formatIngredientLine(
   ing: IngredientLineParts,
@@ -129,9 +167,13 @@ export function formatIngredientLine(
 ): string {
   const { multiplier = 1, includeNotes = false } = opts;
   const unit = ing.unit?.trim() ?? "";
-  const parts: string[] = [formatQuantity(ing.quantity * multiplier, unit)];
-  if (unit && !isSuppressedCountUnit(unit)) parts.push(unit);
-  parts.push(ing.name);
+  const scaled = ing.quantity * multiplier;
+  const shown = displayedQuantity(scaled, unit);
+  const hasUnitWord = unit.length > 0 && !isSuppressedCountUnit(unit);
+  const parts: string[] = [formatQuantity(scaled, unit)];
+  if (hasUnitWord) parts.push(pluralizeUnitWord(unit, shown));
+  // The number counts the NAME only when no unit word stands between them.
+  parts.push(hasUnitWord ? ing.name : pluralizeIngredientName(ing.name, shown));
   if (includeNotes) {
     const note = ing.preparationNote?.trim();
     if (note) parts.push(`(${note})`);

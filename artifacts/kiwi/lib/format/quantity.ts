@@ -68,42 +68,66 @@ export function formatNeedGlyph(qty: number): string {
   return `${sign}${whole}${glyph}`;
 }
 
-export function formatQuantity(qty: number, unit: string): string {
-  const wholeUnits = ["whole", "clove"];
-  if (wholeUnits.includes(unit.toLowerCase())) {
-    return String(Math.ceil(qty));
-  }
+/** The units formatQuantity ceils to a whole number ("you cannot use ⅓ of a clove"). */
+const WHOLE_UNITS = ["whole", "clove"];
 
+/**
+ * WS9 BUG-321 — THE NUMBER {@link formatQuantity} WILL ACTUALLY SHOW, as a
+ * number. Extracted so the amount and the UNIT WORD beside it cannot disagree.
+ *
+ * 🔴 WHY IT EXISTS. formatQuantity is lossy on purpose: whole units ceil, and
+ * everything else rounds to the nearest ⅛. BUG-321 puts a pluralizer next to it
+ * (`pluralizeUnitWord`), and a pluralizer that reads the RAW quantity answers a
+ * different question from the renderer beside it. 1.05 cup renders "1" —
+ * Math.round(8.4)/8 = 1 — while 1.05 > 1 pluralizes, giving "1 cups". A
+ * servings multiplier reaches those values routinely (0.7 cup × 1.5 = 1.05).
+ *
+ * So the rounding rule lives HERE, once, and formatQuantity renders from its
+ * result rather than re-deriving it. One implementation, two readers, and they
+ * cannot drift — the same discipline COUNT_NOUN_SINGULARS uses in grocery.ts.
+ *
+ * Display-only, exactly as formatQuantity is: never persist this, never feed it
+ * back to an editor.
+ */
+export function displayedQuantity(qty: number, unit: string): number {
+  if (WHOLE_UNITS.includes(unit.toLowerCase())) return Math.ceil(qty);
   const whole = Math.floor(qty);
   const frac = qty - whole;
-
   // WS7-8b — thirds first: ⅓/⅔ are not representable as eighths, so match them
   // before the eighth-rounding below (which would otherwise mangle ⅓→⅜, ⅔→⅝).
-  if (Math.abs(frac - 1 / 3) <= GLYPH_EPSILON) {
-    return whole === 0 ? "⅓" : `${whole}⅓`;
-  }
-  if (Math.abs(frac - 2 / 3) <= GLYPH_EPSILON) {
-    return whole === 0 ? "⅔" : `${whole}⅔`;
-  }
-
+  if (Math.abs(frac - 1 / 3) <= GLYPH_EPSILON) return whole + 1 / 3;
+  if (Math.abs(frac - 2 / 3) <= GLYPH_EPSILON) return whole + 2 / 3;
   // Round to nearest 1/8 for cooking measures (approximate — WS9 polish).
-  const rounded = Math.round(qty * 8) / 8;
-  const rWhole = Math.floor(rounded);
-  const rFrac = rounded - rWhole;
-  const fracMap: Record<string, string> = {
-    "0.125": "⅛",
-    "0.250": "¼",
-    "0.375": "⅜",
-    "0.500": "½",
-    "0.625": "⅝",
-    "0.750": "¾",
-    "0.875": "⅞",
-  };
-  const fracKey = rFrac.toFixed(3);
-  const fracStr = fracMap[fracKey] ?? "";
+  return Math.round(qty * 8) / 8;
+}
+
+// The fractional parts formatQuantity can spell, keyed by `frac.toFixed(3)`.
+// Thirds are in the map now because displayedQuantity returns them as NUMBERS
+// (whole + 1/3) rather than returning a string early — the two branches that
+// used to `return` mid-function are the same two rows here.
+const FRACTION_STRINGS: Record<string, string> = {
+  "0.125": "⅛",
+  "0.250": "¼",
+  "0.333": "⅓",
+  "0.375": "⅜",
+  "0.500": "½",
+  "0.625": "⅝",
+  "0.667": "⅔",
+  "0.750": "¾",
+  "0.875": "⅞",
+};
+
+export function formatQuantity(qty: number, unit: string): string {
+  if (WHOLE_UNITS.includes(unit.toLowerCase())) {
+    return String(displayedQuantity(qty, unit));
+  }
+  const shown = displayedQuantity(qty, unit);
+  const rWhole = Math.floor(shown);
+  const rFrac = shown - rWhole;
+  const fracStr = FRACTION_STRINGS[rFrac.toFixed(3)] ?? "";
   if (rWhole === 0 && fracStr) return fracStr;
   if (rWhole > 0 && fracStr) return `${rWhole}${fracStr}`;
   if (rWhole > 0 && !fracStr) return String(rWhole);
   // Fallback: tiny non-mappable fraction (shouldn't happen after 1/8 rounding).
-  return rounded.toFixed(2);
+  return shown.toFixed(2);
 }

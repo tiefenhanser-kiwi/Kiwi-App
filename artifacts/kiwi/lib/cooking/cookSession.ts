@@ -181,8 +181,34 @@ export function sequenceMealSteps(
     out.push({ ...toCookStep(hit.step, k, hit.dishTitle), cue: entry.reason });
   }
 
-  // Defensive append: any step the sequence omitted (or that failed to map) is
-  // appended in naive order so the flow NEVER loses a step (§27).
+  // ── §27 DEFENSIVE APPEND — WHAT IT IS ACTUALLY FOR, AS OF [grocery] B3 ────
+  //
+  // Any step the sequence omitted (or that failed to map) is appended in naive
+  // order so the flow NEVER loses a step.
+  //
+  // ⚠️ THE REASON CHANGED AND THE CODE DID NOT. It used to carry a swappable
+  // component's `bought` steps: the scheduler dropped them at its input while
+  // the meal detail still returned them, so they arrived here and trailed. B3
+  // (D-WS9-277 Rule 3) ended that — `selectDefaultPathSteps` is now per-
+  // component, and BOTH sides run the same predicate over the same rows
+  // (routes/meals.ts composeLoadedMealDetail, cookingScheduler
+  // scheduleCookingSequence). Measured on the 10 dev components with a
+  // bought-only path: every one returns exactly one path, and "components
+  // carrying two paths" is 0. So that class is empty, and nothing here can
+  // append a second path — it only ever re-emits steps `meal.dishes[].steps`
+  // already holds, which is one path by construction.
+  //
+  // ⚠️ IT IS NOT DEAD, AND THE LIVE CASE IS THE RECIPE OVERRIDE. These are TWO
+  // independent reads and one is not the other's input: `GET /meals/:id`
+  // applies the per-instance recipe override (applyRecipeOverrideToDishes,
+  // AFTER the path filter, rebuilding the dish list from the override's own
+  // shape), while `POST /meals/:id/cooking-sequence` reads
+  // `recipeInstructionStep` straight from Prisma and never sees the override.
+  // A plan item with one therefore hands the two calls different step sets, and
+  // this is what keeps the flow whole. It also still covers an unmappable
+  // (dishId, stepIndex) and a duplicated sequence reference.
+  //
+  // Deleting it needs the override applied to BOTH endpoints first.
   for (const k of naiveOrder) {
     if (used.has(k)) continue;
     const hit = byKey.get(k);

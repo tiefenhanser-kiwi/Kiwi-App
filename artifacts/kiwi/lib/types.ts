@@ -822,6 +822,51 @@ export interface GroceryListItem {
    *  (1-to-many). Empty for merged/renamed AI-tail rows and user-added items
    *  (~10.5% of plan-derived items) — render no provenance label in that case. */
   mealNames?: string[];
+  /**
+   * D-WS9-286 — the SERVER's whole-pack count for the summed need, computed
+   * through a pack yield, a sub-unit ladder or a same-unit comparison. `null`
+   * when the server could not compute one; absent on a server that predates the
+   * field and on locally-added rows.
+   *
+   * 🔴 When it is present the client USES IT and does not parse
+   * `purchaseDisplay` — see renderedPack (lib/format/grocery.ts) for why the
+   * display's leading number cannot be trusted on a row the server scaled.
+   */
+  packCount?: number | null;
+  /**
+   * D-WS9-284 — R3's render fields for a recurring row, DERIVED server-side at
+   * read (nothing is persisted per user). Absent on every non-recurring row and
+   * on a recurring row no current recurring text claims.
+   */
+  recurringFacets?: RecurringFacets;
+}
+
+/**
+ * D-WS9-284 / D-WS9-188 — what a recurring row needs in order to say which part
+ * of it is the standing order and which part this week's cooking asked for.
+ * Mirrors the server's `RecurringFacets` (api-server/src/lib/recurringItems.ts);
+ * the hand-synced-mirror precedent every cross-package contract in lib/api/*
+ * already carries.
+ */
+export interface RecurringFacets {
+  /** What the recurring item buys on its own, in its own unit. */
+  recurringQuantity: number | null;
+  recurringUnit: string | null;
+  /** What this plan's recipes need. `null` when the plan needs none of it. */
+  mealQuantity: number | null;
+  mealUnit: string | null;
+  /**
+   * R3's branch. true → ONE line, summed, with the split. false → the recurring
+   * quantity is the order line and the need shows beside it.
+   *
+   * ⚠️ Comparable is not convertible. A gallon and two cups convert perfectly
+   * and Hans put that exact pair in the incomparable branch: the app never
+   * decides that a gallon covers the cups. The server's test is that both sides
+   * are the SAME COUNT UNIT; the client only reads the answer.
+   */
+  comparable: boolean;
+  /** Paper towels, toilet paper, pet treats — not food. */
+  household: boolean;
 }
 
 // GroceryListSummary retired in WS7-3 C3 c5 — the Groceries tab consumes

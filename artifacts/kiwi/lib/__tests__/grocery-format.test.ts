@@ -13,6 +13,7 @@ import {
   pluralizeIngredientName,
   singularizeIngredientName,
   normalizeUnitToken,
+  renderedPack,
   purchaseEditorPatch,
   purchaseEditorSeed,
   GROCERY_UNIT_OPTIONS,
@@ -1316,9 +1317,22 @@ describe("BUG-240: a quantity-only override keeps the label's plural", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 describe("BUG-240: a quantity-only override equals the derived title at that count", () => {
   // [name, purchaseUnit, purchaseDisplay, needUnit, liveNeed, [title at 1, at 2, at 3]]
+  //
+  // ⚠️ THE `White onion` LITERALS MOVED IN [grocery] C (BUG-160), AND THE GUARD
+  // DID NOT. Widening residueNamesItem to word-boundary containment made
+  // "medium white onion" name the item, so this row left Rule 1's NAME branch
+  // for its RESIDUE branch: "1 White onion" is now "1 medium white onion".
+  // Ruled accepted 2026-09-29 — that is the pack you reach for on the shelf.
+  //
+  // What this guard actually asserts is untouched and is the reason the row
+  // stays here: the OVERRIDE title at a count equals the DERIVED title at that
+  // count. Both sides moved together, which is the property. The two device
+  // strings below are still gone — "2 medium white onions" is not
+  // "2 medium white onion White onion".
   const ROWS: [string, string, string, string, number, [string, string, string]][] = [
+    // Rule 1, residue NAMES the item by containment (BUG-160) → the residue, counted.
+    ["White onion", "each", "1 medium white onion", "each", 0.5, ["1 medium white onion", "2 medium white onions", "3 medium white onions"]],
     // Rule 1, residue does NOT name the item → the NAME, counted.
-    ["White onion", "each", "1 medium white onion", "each", 0.5, ["1 White onion", "2 White onions", "3 White onions"]],
     ["ripe avocado", "each", "3 avocados", "each", 2, ["1 ripe avocado", "2 ripe avocados", "3 ripe avocados"]],
     // Rule 1, residue names the item → Root D at 1, the residue pluralised above.
     ["Lemon", "each", "2 lemons", "each", 1.5, ["1 Lemon", "2 lemons", "3 lemons"]],
@@ -1438,6 +1452,310 @@ describe("BUG-240: purchaseEditorPatch sends only what differs from the seed", (
     assert.deepEqual(
       purchaseEditorPatch(seed, { quantity: "3", label: "", name: "Sweet onion" }),
       { purchaseQuantity: 3, purchaseDisplay: null, displayName: "Sweet onion" },
+    );
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// [grocery] Block C — THE PACK COUNT (BUG-332 / D-WS9-286) AND THE SHOPPER LINE
+// (BUG-160). Every literal below is a row measured on the B3 after-state corpus
+// (artifacts/api-server/scripts/grocery-census/out/b3__*__r1.json, 20 plans,
+// 1,021 rows), not an invented example.
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe("BUG-332 W1 — a ranged pack size reads as its LOWER bound (R2)", () => {
+  it("the two census under-orders are gone", () => {
+    // "1 bag (5-6 oz) kettle-cooked potato chips", need 8 ounce. Read as 6 it
+    // is one bag and the shopper is 2 oz short; read as 5 it is two.
+    assert.equal(
+      composePackName("kettle-cooked potato chips", "bag", "1 bag (5-6 oz)", 8, "ounce"),
+      "2 bags (5-6 oz) kettle-cooked potato chips",
+    );
+    // "1 package (10 ct) flour tortillas", need 12 each — W2 supplies the unit
+    // fold, W1 is not involved; pinned together because they are the two rows
+    // the census called hidden under-orders.
+    assert.equal(
+      composePackName("flour tortillas", "package", "1 package (10 ct)", 12, "each"),
+      "2 packages (10 ct) flour tortillas",
+    );
+  });
+
+  it("a range that IS covered by one pack stays at one", () => {
+    // "1 box (12-13 oz) dried pappardelle pasta", need 12 ounce → exactly one.
+    assert.equal(
+      composePackName("dried pappardelle pasta", "box", "1 box (12-13 oz)", 12, "ounce"),
+      "1 box (12-13 oz) dried pappardelle pasta",
+    );
+  });
+
+  it("every dash spelling the corpus uses, plus `to`", () => {
+    for (const dash of ["-", "–", "—", " to "]) {
+      assert.equal(
+        composePackName("chips", "bag", `1 bag (5${dash}6 oz)`, 8, "ounce"),
+        `2 bags (5${dash}6 oz) chips`,
+        dash,
+      );
+    }
+  });
+
+  it("an unranged size is untouched — the regex did not get greedier", () => {
+    assert.equal(
+      composePackName("chicken stock", "can", "1 can (14.5 oz)", 14.5, "ounce"),
+      "1 can (14.5 oz) chicken stock",
+    );
+    assert.equal(
+      composePackName("chicken stock", "can", "1 can (14.5 oz)", 20, "ounce"),
+      "2 cans (14.5 oz) chicken stock",
+    );
+  });
+});
+
+describe("BUG-332 W2 — `ct` is how a pack spells a count", () => {
+  it("ct / cnt / ea all normalize to each, beside BUG-216 `count`", () => {
+    for (const tok of ["ct", "cnt", "ea", "count"]) {
+      assert.equal(normalizeUnitToken(tok), "each", tok);
+    }
+  });
+
+  it("the two census rows resolve", () => {
+    assert.equal(
+      composePackName("taco shells", "box", "1 box (12 ct)", 12, "each"),
+      "1 box (12 ct) taco shells",
+    );
+    assert.equal(
+      composePackName("flour tortillas", "package", "1 package (10 ct)", 8, "each"),
+      "1 package (10 ct) flour tortillas",
+    );
+  });
+});
+
+describe("🔴 BUG-332 W3 — a WEIGHT parenthetical against a VOLUME need stays unrelatable", () => {
+  // REFUSED, ruled 2026-09-29, and this is the pin. `oz` in a pack
+  // parenthetical is ambiguous and the string does not say which it is. Reading
+  // it as FLUID oz relates 305 corpus rows and gets nine of them badly wrong —
+  // "1 bag (5 oz) mixed salad greens" against a 4-cup need becomes SEVEN BAGS.
+  // It errs both ways (dense foods under-order), so R2 round-up does not rescue
+  // it. The server pack count is the answer instead; see the block below.
+  const WEIGHT_PACK_VOLUME_NEED: [string, string, string, number, string][] = [
+    ["mixed salad greens", "bag", "1 bag (5 oz)", 4, "cup"],
+    ["shredded iceberg lettuce", "bag", "1 bag (5 oz)", 2, "cup"],
+    ["long-grain white rice", "container", "1 container (8.8 oz)", 4, "cup"],
+    ["Parmesan", "wedge", "1 wedge (6 oz)", 1, "cup"],
+    ["shredded mozzarella cheese", "bag", "1 bag (8 oz)", 2, "cup"],
+    ["sour cream", "container", "1 container (16 oz)", 1.25, "cup"],
+    ["smoked paprika", "container", "1 container (2.6 oz)", 1.5, "teaspoon"],
+  ];
+
+  it("the pack prints VERBATIM — one pack, whatever the volume need", () => {
+    for (const [name, pu, pd, need, nu] of WEIGHT_PACK_VOLUME_NEED) {
+      assert.equal(
+        composePackName(name, pu, pd, need, nu),
+        `${pd} ${name}`,
+        `${name} @ ${need} ${nu}`,
+      );
+    }
+  });
+
+  it("and renderedPack declines, so Instacart falls to the server own precedence", () => {
+    for (const [, pu, pd, need, nu] of WEIGHT_PACK_VOLUME_NEED) {
+      assert.equal(renderedPack(pd, need, nu, pu), null, `${pd} @ ${need} ${nu}`);
+    }
+  });
+
+  it("volume↔volume still relates — the refusal is about `oz`, not about volume", () => {
+    // BUG-147 row, untouched: a quart bottle against a need in cups.
+    assert.equal(
+      composePackName("buttermilk", "bottle", "1 bottle (1 quart)", 6, "cup"),
+      "2 bottles (1 quart) buttermilk",
+    );
+  });
+
+  it("weight↔weight still relates — BUG-143 row, untouched", () => {
+    assert.equal(
+      composePackName("Cotija", "block", "1 lb block", 20, "oz"),
+      "2 lb block Cotija",
+    );
+  });
+});
+
+describe("🔴 D-WS9-286 — the SERVER pack count wins, and the parser does not run", () => {
+  // THE GUARD. `purchaseDisplay` leading number means the SIZE of one pack on
+  // "1.5 lb pack" and the COUNT of packs on "4 can (14.5 oz)" — the server
+  // writes the second through scalePurchaseForSubUnit. The client cannot tell
+  // them apart, so when the server sends its own count the client must use it
+  // and never parse.
+
+  it("a server count is used verbatim, even where the parser would disagree", () => {
+    const parsed = renderedPack("1 lb pack", 2, "lb", "lb");
+    assert.deepEqual(parsed, { packCount: 2 });
+    const served = renderedPack("1 lb pack", 2, "lb", "lb", false, undefined, 5);
+    assert.deepEqual(served, { packCount: 5, fromServer: true });
+  });
+
+  it("🔴 THE PARSE DOES NOT RUN: a display the parser CANNOT read still yields the server count", () => {
+    // No leading number at all → packLeadingQuantity is null → the parsing path
+    // returns null before it ever reaches packsToCoverNeed. A server count must
+    // survive that, which it can only do by being consulted FIRST.
+    assert.equal(renderedPack("a family pack", 3, "cup", "bag"), null);
+    assert.deepEqual(renderedPack("a family pack", 3, "cup", "bag", false, undefined, 2), {
+      packCount: 2,
+      fromServer: true,
+    });
+    // Same for the W3 class the parser refuses outright.
+    assert.equal(renderedPack("1 bag (5 oz)", 4, "cup", "bag"), null);
+    assert.deepEqual(renderedPack("1 bag (5 oz)", 4, "cup", "bag", false, undefined, 1), {
+      packCount: 1,
+      packSizeText: "(5 oz)",
+      fromServer: true,
+    });
+  });
+
+  it("null / absent / zero fall back to the parser — all three mean you decide", () => {
+    for (const v of [null, undefined, 0]) {
+      assert.deepEqual(
+        renderedPack("1 lb pack", 2, "lb", "lb", false, undefined, v),
+        { packCount: 2 },
+        String(v),
+      );
+    }
+  });
+
+  it("the staple and override gates still come FIRST — the server never saw them", () => {
+    // BUG-171: a pantry staple renders no pack at all.
+    assert.equal(
+      renderedPack("1 container (26 oz)", 11, "tsp", "container", true, undefined, 3),
+      null,
+    );
+    // BUG-240: a quantity override is the user stated buy, not a derivation.
+    assert.equal(renderedPack("1 lb pack", 2, "lb", "lb", false, { quantity: 4 }, 3), null);
+  });
+
+  it("packSizeText still comes off the display either way", () => {
+    assert.deepEqual(renderedPack("4 can (14.5 oz)", 6, "cup", "can", false, undefined, 4), {
+      packCount: 4,
+      packSizeText: "(14.5 oz)",
+      fromServer: true,
+    });
+  });
+});
+
+describe("BUG-160 — the shopper line: the residue may CONTAIN the name", () => {
+  // (A) THE DUPLICATING ROWS on the B3 after-state, as literals.
+  it("(A) the residue is the fuller phrase → elide, and the duplication is gone", () => {
+    const A: [string, string, string, number, string, string][] = [
+      ["scallions", "bunch", "1 bunch (~6-8 scallions)", 3, "each", "1 bunch (~6-8 scallions)"],
+      ["scallions", "bunch", "1 bunch (~6-8 scallions)", 2, "each", "1 bunch (~6-8 scallions)"],
+      ["radishes", "bunch", "1 bunch (~6-8 radishes)", 6, "each", "1 bunch (~6-8 radishes)"],
+      ["tomatillo", "lb", "2 lb (~3–4 tomatillos)", 1.25, "pound", "2 lb (~3–4 tomatillos)"],
+      ["tomatillos", "lb", "1 lb (~4-5 tomatillos)", 0.75, "pound", "1 lb (~4-5 tomatillos)"],
+      ["white onion", "each", "3 medium white onion", 2.25, "cup", "3 medium white onion"],
+      // The census third shape: the residue equals the name HEAD once the prep
+      // clause comes off, so the pre-existing exact test handles it.
+      ["rotisserie chicken, meat shredded", "each", "1 rotisserie chicken", 3, "cup", "1 rotisserie chicken"],
+    ];
+    for (const [name, pu, pd, need, nu, want] of A) {
+      assert.equal(composePackName(name, pu, pd, need, nu), want, `${name} @ ${need} ${nu}`);
+    }
+  });
+
+  // (B) THE ROWS WHERE THE NAME CONTAINS THE RESIDUE. A symmetric rule would
+  // elide these and LOSE the distinguishing word. One direction only.
+  it("(B) the name is the fuller phrase → do NOT elide, the modifier survives", () => {
+    // The four live rows, as the corpus renders them. All four take Rule 1's
+    // NAME branch, which is what keeps the modifier — a symmetric containment
+    // rule would have flipped them to the residue and printed "1 loaf",
+    // "1 boule", "1 baguette", "3 peppers".
+    const B: [string, string, string, number, string, string][] = [
+      ["italian bread loaf", "each", "1 loaf", 1, "each", "1 italian bread loaf"],
+      ["sourdough boule", "each", "1 boule", 1, "each", "1 sourdough boule"],
+      ["Italian baguette", "each", "1 baguette", 1, "each", "1 Italian baguette"],
+      ["bell peppers", "each", "3 peppers", 3, "each", "3 bell peppers"],
+    ];
+    for (const [name, pu, pd, need, nu, want] of B) {
+      assert.equal(composePackName(name, pu, pd, need, nu), want, name);
+      assert.ok(
+        want.toLowerCase().includes(name.split(" ")[0].toLowerCase()),
+        `${name}: the distinguishing word must survive`,
+      );
+    }
+  });
+
+  it("(B2) and on RULE 2, where the elide is the only thing deciding, it declines", () => {
+    // Rule 1 prints the name whatever residueNamesItem says, so the rows above
+    // pass for a second reason as well as the right one. This is the shape
+    // where the predicate ALONE decides: a container pack, a measured need. The
+    // name contains the residue, so the residue must NOT swallow it.
+    assert.equal(
+      composePackName("italian bread loaf", "loaf", "1 loaf", 2, "cup"),
+      "1 loaf italian bread loaf",
+    );
+    // And the mirror: the residue contains the name → elide, one printing only.
+    assert.equal(
+      composePackName("white onion", "each", "3 medium white onion", 2.25, "cup"),
+      "3 medium white onion",
+    );
+  });
+
+  // (C) THE RULE-1 ROWS the widening moves. Ruled ACCEPTED — that is the pack
+  // you reach for on the shelf, and R7 wants a line a store search understands.
+  // Two of Part A fifteen are absorbed by Root D and do not move; pinned too.
+  it("(C) Rule 1 now prints the residue where it names the item — ruled accepted", () => {
+    const C: [string, string, string, number, string, string][] = [
+      ["white onion", "each", "1 medium white onion", 0.5, "each", "1 medium white onion"],
+      ["white onion", "each", "1 medium white onion", 0.25, "each", "1 medium white onion"],
+      ["white onion", "each", "3 medium white onion", 2.25, "each", "3 medium white onions"],
+      ["red onion", "each", "1 medium red onion", 0.25, "each", "1 medium red onion"],
+      ["red onion", "each", "2 medium red onion", 1.25, "each", "2 medium red onions"],
+      ["red onion", "each", "3 medium red onion", 3, "each", "3 medium red onions"],
+      ["orange", "each", "1 medium orange", 5, "each", "5 medium oranges"],
+      ["rotisserie chicken", "each", "1 whole rotisserie chicken (~2 lb)", 1, "each", "1 whole rotisserie chicken (~2 lb)"],
+    ];
+    for (const [name, pu, pd, need, nu, want] of C) {
+      assert.equal(composePackName(name, pu, pd, need, nu), want, `${name} @ ${need}`);
+    }
+    // Root D absorbs these two: the residue last word is already plural, so at
+    // a count of 1 the NAME is preferred and the line does not move.
+    assert.equal(
+      composePackName("beefsteak tomato", "each", "2 large beefsteak tomatoes", 0.5, "each"),
+      "1 beefsteak tomato",
+    );
+    assert.equal(
+      composePackName("beefsteak tomato", "each", "2 large beefsteak tomatoes", 1, "each"),
+      "1 beefsteak tomato",
+    );
+  });
+
+  // (D) 🔴 THE RIDER. Caught by the corpus diff, not by reasoning.
+  it("🔴 (D) a variety rider is NEVER elided — H3 words must not be dropped", () => {
+    // The residue "green bell peppers" CONTAINS the name head "bell peppers",
+    // so stripping the comma clause first made this elide and printed the
+    // residue INSTEAD of the name — dropping "at least 2 green" off a list that
+    // carried it. That is the loss B3 Part E ruling 8 forbids.
+    assert.equal(
+      composePackName("bell peppers, at least 2 green", "each", "2 green bell peppers", 6, "each"),
+      "6 bell peppers, at least 2 green",
+    );
+    assert.equal(
+      composePackName("yellow onions, at least 1 large", "each", "2 large yellow onion", 1.5, "each"),
+      "2 yellow onions, at least 1 large",
+    );
+    // The broth row from B3 Part E ruling 8, same shape on a container pack.
+    assert.equal(
+      composePackName("chicken broth, at least 1 low-sodium", "can", "4 can (14.5 oz)", 6, "cup"),
+      "4 can (14.5 oz) chicken broth, at least 1 low-sodium",
+    );
+  });
+
+  it("containment is WORD-BOUNDED — a shared prefix is not a match", () => {
+    // "onion" must not name "onion powder", and "scallion" must not name
+    // "scallion oil".
+    assert.equal(
+      composePackName("onion powder", "container", "1 container (2.6 oz)", 0.5, "teaspoon"),
+      "1 container (2.6 oz) onion powder",
+    );
+    assert.equal(
+      composePackName("scallion oil", "bottle", "1 bottle (8 oz)", 2, "tablespoon"),
+      "1 bottle (8 oz) scallion oil",
     );
   });
 });

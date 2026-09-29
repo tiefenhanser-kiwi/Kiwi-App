@@ -365,3 +365,65 @@ test("lookupGroceryItemCandidates surfaces a timeout-abort as a settled rejectio
     },
   );
 });
+
+// ── [grocery] Block C — the two additive wire fields ──────────────────────────
+//
+// D-WS9-286 `packCount` and D-WS9-284 `recurringFacets`. Both are additive and
+// both were ALREADY arriving the moment the server started sending them
+// (GroceryListItemWireSchema is .passthrough()); normalizeListItem was dropping
+// them, exactly as it was dropping the BUG-240 override trio before that fix.
+
+test("D-WS9-286 — packCount survives normalize, and null/absent both read as null", async () => {
+  nextResponse = () => mockJson({ item: wireItem({ packCount: 4 }) });
+  const withCount = await updateGroceryListItem("list-1", "item-1", {});
+  assert.equal(withCount.packCount, 4);
+
+  nextResponse = () => mockJson({ item: wireItem({ packCount: null }) });
+  const withNull = await updateGroceryListItem("list-1", "item-1", {});
+  assert.equal(withNull.packCount, null);
+
+  // A server that predates the field — the row must still parse.
+  nextResponse = () => mockJson({ item: wireItem({}) });
+  const absent = await updateGroceryListItem("list-1", "item-1", {});
+  assert.equal(absent.packCount, null);
+});
+
+test("D-WS9-284 — recurringFacets survive normalize, and are absent on a normal row", async () => {
+  const facets = {
+    recurringQuantity: 2,
+    recurringUnit: "each",
+    mealQuantity: 3,
+    mealUnit: "each",
+    comparable: true,
+    household: false,
+  };
+  nextResponse = () =>
+    mockJson({ item: wireItem({ isRecurringItem: true, recurringFacets: facets }) });
+  const recurring = await updateGroceryListItem("list-1", "item-1", {});
+  assert.deepEqual(recurring.recurringFacets, facets);
+
+  nextResponse = () => mockJson({ item: wireItem({}) });
+  const plain = await updateGroceryListItem("list-1", "item-1", {});
+  assert.equal(plain.recurringFacets, undefined);
+});
+
+test("D-WS9-284 — a household recurring row carries its facet AND its section", async () => {
+  nextResponse = () =>
+    mockJson({
+      item: wireItem({
+        isRecurringItem: true,
+        storeSection: "household",
+        recurringFacets: {
+          recurringQuantity: 1,
+          recurringUnit: "pack",
+          mealQuantity: null,
+          mealUnit: null,
+          comparable: false,
+          household: true,
+        },
+      }),
+    });
+  const item = await updateGroceryListItem("list-1", "item-1", {});
+  assert.equal(item.sectionKey, "household");
+  assert.equal(item.recurringFacets?.household, true);
+});

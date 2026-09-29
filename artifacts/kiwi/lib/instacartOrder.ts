@@ -12,6 +12,7 @@
 
 import { ApiError } from "@/lib/api/errors";
 import { renderedPack } from "@/lib/format/grocery";
+import { isHouseholdRow } from "@/lib/format/recurringLine";
 import type { GroceryListItem } from "@/lib/types";
 
 // ── R1 — the selection ───────────────────────────────────────────────────
@@ -27,9 +28,32 @@ import type { GroceryListItem } from "@/lib/types";
 // "never a soft-deleted row" is a property of the input, and this filter is
 // checked-state and staple opt-in only.
 
+// ── 🔴 WS9 D-WS9-284 — HOUSEHOLD ROWS DO NOT GO IN A FOOD ORDER ─────────────
+//
+// B3 gave a recurring item a real catalog identity, and three of them are not
+// food: paper towels, toilet paper, pet treats. Measured on the B3 after-state:
+// 33 such rows across the 20 census plans, every one `isUniversalStaple: false`
+// and unchecked at generation — so every one of them was going into the
+// Instacart payload, silently. R1's filter had a staple clause and nothing
+// else, so there was no branch for them to fail.
+//
+// Ruled (2026-09-29): HELD BACK BY DEFAULT, and named. No new column and no
+// per-row opt-in gesture in this block — the user adds paper towels in
+// Instacart if they want them, and the count line tells them Kiwi left them
+// out, which is the standing answer to Hans's "if it won't send everything it
+// should tell the user it didn't". If a per-row opt-in is ever wanted it
+// mirrors `stapleOptedIn`; not now.
+//
+// The held-back set is therefore two kinds, and `instacartCountSummary` names
+// them in one fragment rather than two — the user does not need the taxonomy,
+// they need the list.
+
 export function selectInstacartRows(items: GroceryListItem[]): GroceryListItem[] {
   return items.filter(
-    (it) => !it.isCompleted && (!it.isUniversalStaple || it.stapleOptedIn === true),
+    (it) =>
+      !it.isCompleted &&
+      (!it.isUniversalStaple || it.stapleOptedIn === true) &&
+      !isHouseholdRow(it),
   );
 }
 
@@ -72,6 +96,10 @@ export function instacartItemForRow(item: GroceryListItem): InstacartLinkItem {
     item.purchaseUnit,
     item.isUniversalStaple,
     { quantity: item.purchaseQuantityOverride, display: item.purchaseDisplayOverride },
+    // D-WS9-286 — the server's own count, when it computed one. Same call the
+    // ROW renders with, so the number on the wire is the number on screen; that
+    // is Row 8's architecture ruling and it survives the new field unchanged.
+    item.packCount,
   );
   if (!pack || pack.packCount > MAX_PACK_COUNT) return wire;
   wire.packCount = pack.packCount;
@@ -102,11 +130,18 @@ export function instacartItemsForList(items: GroceryListItem[]): InstacartLinkIt
 // staples not opted in — so a checked-off staple is neither sent nor "not
 // included"; it is simply done.
 
-/** The unchecked universal staples R1 leaves home (BUG-171's rule at the button). */
+/**
+ * The unchecked rows R1 leaves home: universal staples not opted in (BUG-171's
+ * rule at the button) and household rows (D-WS9-284).
+ *
+ * Computed as R1's COMPLEMENT among the unchecked rows rather than as its own
+ * predicate list — one filter, one inverse, so a third held-back kind can never
+ * be added to the send rule and forgotten here. A checked-off row is in
+ * neither: it is not sent and it is not "not included", it is simply done.
+ */
 export function heldBackStaples(items: GroceryListItem[]): GroceryListItem[] {
-  return items.filter(
-    (it) => !it.isCompleted && it.isUniversalStaple && it.stapleOptedIn !== true,
-  );
+  const sent = new Set(selectInstacartRows(items).map((it) => it.id));
+  return items.filter((it) => !it.isCompleted && !sent.has(it.id));
 }
 
 /** The name the list already shows for a row. Name ONLY — a staple has no
@@ -118,24 +153,41 @@ export function stapleDisplayName(item: GroceryListItem): string {
 export interface InstacartCountSummary {
   /** Rows the tap would send — `selectInstacartRows(items).length`. */
   sendCount: number;
-  /** The staples the tap leaves home, in list order. */
+  /** The rows the tap leaves home, in list order. */
   heldBack: GroceryListItem[];
   /** "Sends 54 items" / "Sends 1 item". Plain text. */
   sendsText: string;
-  /** "6 pantry staples not included" / "1 pantry staple not included"; null at 0. */
+  /**
+   * "6 pantry staples not included" · "3 household items not included" ·
+   * "6 pantry staples and 3 household items not included"; null at 0.
+   */
   staplesText: string | null;
   /** The whole line as read aloud: sendsText, then " · " + staplesText when present. */
   line: string;
+}
+
+/** "6 pantry staples" / "1 household item" — count + the right noun. */
+function heldBackFragment(n: number, one: string, many: string): string | null {
+  if (n <= 0) return null;
+  return `${n} ${n === 1 ? one : many}`;
 }
 
 export function instacartCountSummary(items: GroceryListItem[]): InstacartCountSummary {
   const sendCount = selectInstacartRows(items).length;
   const heldBack = heldBackStaples(items);
   const sendsText = `Sends ${sendCount} ${sendCount === 1 ? "item" : "items"}`;
+  // D-WS9-284 — the held-back set is two kinds now, and calling three rolls of
+  // paper towels "pantry staples" would be a wrong word in a sentence whose
+  // whole job is to be accurate about what Kiwi did not send. Named separately;
+  // the copy is byte-identical to before on a list with no household rows.
+  const householdCount = heldBack.filter(isHouseholdRow).length;
+  const stapleCount = heldBack.length - householdCount;
+  const fragments = [
+    heldBackFragment(stapleCount, "pantry staple", "pantry staples"),
+    heldBackFragment(householdCount, "household item", "household items"),
+  ].filter((f): f is string => f !== null);
   const staplesText =
-    heldBack.length > 0
-      ? `${heldBack.length} pantry ${heldBack.length === 1 ? "staple" : "staples"} not included`
-      : null;
+    fragments.length > 0 ? `${fragments.join(" and ")} not included` : null;
   return {
     sendCount,
     heldBack,

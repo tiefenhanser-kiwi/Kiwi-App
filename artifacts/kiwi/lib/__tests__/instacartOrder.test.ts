@@ -307,3 +307,161 @@ describe("the count line", () => {
     assert.doesNotMatch(stapleDisplayName(plain), /bottle|oz|\(/);
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// [grocery] Block C — D-WS9-284: household rows do not go in a food order, and
+// D-WS9-286: the server pack count rides the payload.
+//
+// The household fixtures are the three live rows on the B3 after-state corpus
+// (Paper towels, Toilet paper, Pet treats — 33 rows across 20 plans), every one
+// isUniversalStaple false and unchecked, and therefore every one of them was
+// being SENT before this block.
+// ═════════════════════════════════════════════════════════════════════════════
+
+const householdRow = (id: string, name: string): GroceryListItem =>
+  ({
+    id,
+    name,
+    quantity: "1 pack",
+    quantityAmount: "1",
+    quantityUnit: "pack",
+    sectionKey: "household",
+    isUniversalStaple: false,
+    isRecurringItem: true,
+    isAmbiguous: false,
+    isOptional: false,
+    isCompleted: false,
+    purchaseUnit: "pack",
+    purchaseQuantity: 1,
+    purchaseDisplay: "1 pack (6 rolls)",
+  }) as GroceryListItem;
+
+const foodRow = (id: string, name: string, over: Partial<GroceryListItem> = {}): GroceryListItem =>
+  ({
+    id,
+    name,
+    quantity: "2 lb",
+    quantityAmount: "2",
+    quantityUnit: "lb",
+    sectionKey: "produce",
+    isUniversalStaple: false,
+    isRecurringItem: false,
+    isAmbiguous: false,
+    isOptional: false,
+    isCompleted: false,
+    purchaseUnit: "lb",
+    purchaseQuantity: 1,
+    purchaseDisplay: "1 lb pack",
+    ...over,
+  }) as GroceryListItem;
+
+describe("🔴 D-WS9-284 — household rows are held back from the food payload", () => {
+  const LIST = [
+    foodRow("f1", "russet potatoes"),
+    householdRow("h1", "Paper towels"),
+    householdRow("h2", "Toilet paper"),
+    householdRow("h3", "Pet treats"),
+    foodRow("f2", "yellow onions"),
+  ];
+
+  it("none of the three reaches the selection", () => {
+    const sent = selectInstacartRows(LIST);
+    assert.deepEqual(sent.map((r) => r.id), ["f1", "f2"]);
+  });
+
+  it("nor the wire items", () => {
+    const items = instacartItemsForList(LIST);
+    assert.equal(items.length, 2);
+    assert.ok(!items.some((i) => i.groceryListItemId.startsWith("h")));
+  });
+
+  it("and they are NAMED in the held-back line, exactly like staples", () => {
+    const s = instacartCountSummary(LIST);
+    assert.equal(s.sendCount, 2);
+    assert.equal(s.heldBack.length, 3);
+    assert.equal(s.staplesText, "3 household items not included");
+    assert.equal(s.line, "Sends 2 items · 3 household items not included");
+  });
+
+  it("a household row the user CHECKED OFF is done, not held back", () => {
+    const list = [foodRow("f1", "potatoes"), { ...householdRow("h1", "Paper towels"), isCompleted: true }];
+    const s = instacartCountSummary(list);
+    assert.equal(s.heldBack.length, 0);
+    assert.equal(s.staplesText, null);
+    assert.equal(s.line, "Sends 1 item");
+  });
+
+  it("staples and household are counted SEPARATELY in the copy", () => {
+    const staple = foodRow("s1", "Kosher salt", {
+      sectionKey: "pantry",
+      isUniversalStaple: true,
+      stapleOptedIn: false,
+    });
+    const s = instacartCountSummary([foodRow("f1", "potatoes"), staple, householdRow("h1", "Paper towels")]);
+    assert.equal(s.staplesText, "1 pantry staple and 1 household item not included");
+  });
+
+  it("a list with NO household rows reads exactly as it did before", () => {
+    const staples = [1, 2, 3, 4, 5, 6].map((n) =>
+      foodRow(`s${n}`, `staple ${n}`, { sectionKey: "pantry", isUniversalStaple: true, stapleOptedIn: false }),
+    );
+    const s = instacartCountSummary([...staples, foodRow("f1", "potatoes")]);
+    assert.equal(s.staplesText, "6 pantry staples not included");
+    assert.equal(s.line, "Sends 1 item · 6 pantry staples not included");
+  });
+
+  it("an opted-in staple is still sent — BUG-171 rule intact", () => {
+    const staple = foodRow("s1", "Kosher salt", {
+      sectionKey: "pantry",
+      isUniversalStaple: true,
+      stapleOptedIn: true,
+    });
+    assert.deepEqual(selectInstacartRows([staple]).map((r) => r.id), ["s1"]);
+  });
+});
+
+describe("D-WS9-286 — the server pack count rides the payload", () => {
+  it("a row carrying a server count sends THAT number", () => {
+    const row = foodRow("f1", "chicken broth", {
+      quantityAmount: "6",
+      quantityUnit: "cup",
+      purchaseUnit: "can",
+      purchaseQuantity: 4,
+      purchaseDisplay: "4 can (14.5 oz)",
+      packCount: 4,
+    });
+    const wire = instacartItemForRow(row);
+    assert.equal(wire.packCount, 4);
+    assert.equal(wire.packUnit, "can");
+    assert.equal(wire.packSizeText, "(14.5 oz)");
+  });
+
+  it("🔴 and it is sent even where the PARSER would have declined", () => {
+    // cup against can: packsToCoverNeed returns null, so without the server
+    // count this row omits packCount entirely and the server falls back.
+    const without = instacartItemForRow(
+      foodRow("f1", "chicken broth", {
+        quantityAmount: "6", quantityUnit: "cup",
+        purchaseUnit: "can", purchaseQuantity: 4, purchaseDisplay: "4 can (14.5 oz)",
+      }),
+    );
+    assert.equal(without.packCount, undefined);
+  });
+
+  it("a staple still sends no pack data at all, server count or not", () => {
+    const staple = foodRow("s1", "Kosher salt", {
+      sectionKey: "pantry", isUniversalStaple: true, stapleOptedIn: true, packCount: 3,
+    });
+    assert.deepEqual(instacartItemForRow(staple), { groceryListItemId: "s1" });
+  });
+
+  it("a quantity OVERRIDE still suppresses packCount — the server rule 2 owns it", () => {
+    const row = foodRow("f1", "potatoes", { purchaseQuantityOverride: 5, packCount: 2 });
+    assert.deepEqual(instacartItemForRow(row), { groceryListItemId: "f1" });
+  });
+
+  it("the out-of-range bound still drops the field rather than failing the request", () => {
+    const row = foodRow("f1", "potatoes", { packCount: 500 });
+    assert.deepEqual(instacartItemForRow(row), { groceryListItemId: "f1" });
+  });
+});
