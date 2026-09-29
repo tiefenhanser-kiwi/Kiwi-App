@@ -260,3 +260,83 @@ Generate one grocery list on production for a user who has recurring items.
 3. `paper towels` reads the same pack it read last week;
 4. nothing on the list is the word `milk`, `bread`, `eggs` or `limes` — those are
    what the user typed, not what the catalog calls the food.
+
+---
+
+# B4 — PACK YIELDS + THE `packCount` WIRE FIELD (D-WS9-286, September 29 2026)
+
+B4 adds **one migration** (`grocery_b4_pack_count`, a nullable Int column) and
+**88 catalog updates**. Deploy the migration BEFORE the build that emits the
+field, as usual.
+
+## B4.1 — The migration
+
+```bash
+npx prisma migrate status    # expect: 1 migration not yet applied
+npx prisma migrate deploy
+npx prisma migrate status    # expect: Database schema is up to date
+```
+
+`grocery_list_items.packCount INTEGER` — additive, nullable, nothing dropped or
+renamed. Existing rows read NULL, which is exactly the documented "the server
+could not compute one" value, so a list generated before this deploy renders on
+the old client path with no migration of its data.
+
+> ⚠️ **`--shadow-database-url` RESETS the database it is pointed at.** It wiped
+> the Neon dev branch on 2026-09-18. This migration was hand-written for that
+> reason. Never pass that flag here.
+
+## B4.2 — The data apply
+
+```bash
+node --env-file=.env --import tsx scripts/grocery-b4/apply.ts --dry-run
+node --env-file=.env --import tsx scripts/grocery-b4/apply.ts --apply
+node --env-file=.env --import tsx scripts/grocery-b4/apply.ts --apply   # all unchanged
+```
+
+95 proposals, of which **88 update** and **7 are refused** on a clean dev
+catalog. Expected totals: `updated 88 · unchanged 0 · guarded 0 · no row 0 ·
+refused 7`.
+
+| what | why |
+|---|---|
+| **updated 88** | a pack yield derived from the pack's own label, on a row that had none |
+| **refused 7** | the catalog row carries no `purchaseUnit`, so a ladder has no parent and the yield could never fire. On dev these are rows whose pack only ever existed as an intercepted gap-fill answer; on production they may well have one, in which case they load instead of refusing. Either outcome is correct — read the names it prints. |
+| **guarded N** | the row already carries a yield and is NOT overwritten. Expect 0 on a catalog that has had B1/B3 applied in order, and a non-zero count if production already learned a yield some other way. Never force it. |
+
+### What the figures are, and what they are not
+
+Every one comes from the size or count the row's own `purchaseDisplay` already
+states. None is from a model. Four rules, and the third and fourth are the ones
+that bite:
+
+1. a natively volumetric size (ml, quart, fl oz) is a volume;
+2. a count on the label is a count, in `each` — the unit the recipes state;
+3. a range takes its **lower** bound;
+4. a weight size needs a **density**; `oz ÷ 8` is what over-stated a broth can by
+   4.3% in B3·F, and 72 spice canonicals have no density and are therefore not
+   in this sheet at all.
+
+And "oz" on a label is ambiguous: a bottle of oil means fluid ounces, a tub of
+sour cream means net weight. Both readings are taken where both are admissible
+and the lower wins — but the fluid reading is admissible **only from a bottle,
+carton or jug**.
+
+## B4.3 — What ships with the build
+
+- **`packCount`** on every grocery-list item, emitted by `resolvePurchaseFields`
+  — the same code that already scales the display, so nothing computes twice.
+  The client trusts it when present and parses `purchaseDisplay` only when it is
+  null. Instacart's payload uses it in place of its own `ceil(need / pack)`.
+- **The same-unit rule in Gate 1** (the census harness) and **N11's split fix**
+  in `recurringFacetsFor`. Neither touches stored data.
+
+## B4.4 — After
+
+Generate one grocery list on production for a plan with a canned or boxed
+ingredient in it.
+
+1. a plan needing 8 cups of broth reads **5 cans**, not 1;
+2. a plan needing 12 tortillas reads **2 packages** of a 10-count pack;
+3. a staple still reads its need and **no pack** — that is D-WS9-221, not a bug;
+4. nothing reads a fractional pack.
