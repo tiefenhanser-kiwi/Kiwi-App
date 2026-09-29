@@ -504,3 +504,70 @@ describe("[grocery] B1 — head and heads bucket together", () => {
     assert.equal(merged[0].quantity, 2);
   });
 });
+
+// ── [grocery] B2 BUG-330 — the pint of cherry tomatoes that under-ordered ────
+//
+// `1 pint cherry tomatoes (12 ounce)` bought 298 g against a 340 g need. The
+// pack is a VOLUME and the need is a WEIGHT, and nothing said how much of the
+// need one pint gives, so resolvePurchaseFields left the count at 1. The
+// per-ingredient pack yield is the home; 10 oz per dry pint is the figure.
+//
+// Asserted at every boundary rather than at the one number the bug reported,
+// because an off-by-one in the ceil would still pass a single 12-oz case.
+describe("BUG-330 — a pint of cherry tomatoes yields 10 ounces", () => {
+  const CHERRY = {
+    canonicalName: "cherry tomatoes",
+    conversionRef: {
+      source: "curated",
+      gramsPerCup: 149,
+      purchaseUnit: "pint",
+      purchaseQuantity: 1,
+      purchaseDisplay: "1 pint",
+    },
+    packYieldUnit: "ounce",
+    packYieldPerPack: 10,
+    purchaseUnit: "pint",
+  };
+
+  function packsFor(needOunces: number): number | null {
+    const conv = rowConversion(CHERRY as never);
+    const scaled = scalePurchaseForSubUnit(conv, needOunces, "ounce", {
+      packFloor: null,
+      storedDisplay: "1 pint",
+    });
+    return scaled?.purchaseQuantity ?? null;
+  }
+
+  it("the yield reaches the ladder at all", () => {
+    const conv = rowConversion(CHERRY as never);
+    assert.deepEqual(conv?.subUnit, { parent: "pint", perParent: 10, childUnit: "ounce" });
+  });
+
+  it("orders ONE pint up to and including 10 ounces", () => {
+    assert.equal(packsFor(6), 1);
+    assert.equal(packsFor(10), 1);
+  });
+
+  it("orders TWO the moment the need passes one pint — the reported case", () => {
+    assert.equal(packsFor(11), 2);
+    assert.equal(packsFor(12), 2, "the live a8b0bbd5 line");
+    assert.equal(packsFor(20), 2);
+  });
+
+  it("keeps climbing, and never under-orders", () => {
+    assert.equal(packsFor(21), 3);
+    for (const need of [1, 5, 9.9, 10.1, 15, 19.9, 20.1, 25]) {
+      const packs = packsFor(need)!;
+      assert.ok(packs * 10 + 1e-9 >= need, `${packs} pints must cover ${need} oz`);
+    }
+  });
+
+  it("renders the pack line with the plural", () => {
+    const conv = rowConversion(CHERRY as never);
+    const scaled = scalePurchaseForSubUnit(conv, 12, "ounce", {
+      packFloor: null,
+      storedDisplay: "1 pint",
+    });
+    assert.equal(scaled?.purchaseDisplay, "2 pints");
+  });
+});

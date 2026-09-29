@@ -751,6 +751,139 @@ describe("generateFinalGroceryList", () => {
     });
   }
 
+  // ── [grocery] B2 H3 — the rider, the collapse, and Gate 2 ────────────
+  //
+  // These run through generateFinalGroceryList and not through a helper, because
+  // the SHARES are stated in whole units of the buy unit and the buy unit is what
+  // resolvePurchaseFields settles — so the arithmetic only exists after the pack
+  // is resolved. A unit test of the composer alone would pass while the wiring
+  // was wrong.
+
+  describe("H3 — the variety rider", () => {
+    async function oneLine(item: ConsolidatedItem) {
+      _resetClientCache();
+      _resetRegistryCaches();
+      const fake = makeFakeClient([]);
+      const { prisma } = makeStubPrisma();
+      const result = await generateFinalGroceryList(
+        "Plan",
+        [item],
+        ["produce", "extras"],
+        { prisma, userId: TEST_USER_ID, client: fake.client },
+      );
+      return result.items[0];
+    }
+
+    it("states the share in whole units of the buy unit — Hans's bell peppers", async () => {
+      const out = await oneLine(
+        baseInputItem({
+          canonicalName: "bell peppers",
+          displayName: "bell peppers",
+          quantity: 6,
+          unit: "each",
+          sectionKey: "produce",
+          purchaseUnit: "each",
+          purchaseQuantity: 3,
+          purchaseDisplay: "3 peppers",
+          varietyShares: [
+            { variety: "red", need: 2, unit: "each", displayName: "red bell pepper" },
+            { variety: "yellow", need: 2, unit: "each", displayName: "yellow bell pepper" },
+          ],
+        }),
+      );
+      assert.equal(
+        out.displayName,
+        "bell peppers, at least 2 red and at least 2 yellow",
+      );
+    });
+
+    it("GATE 2 — an 'at least' is never followed by a measure", async () => {
+      // The need is a WEIGHT and the pack is a count: the share cannot be stated
+      // in whole buy-units, so no rider is stated at all. The failure this
+      // prevents is "3 lb ground beef, at least 1 lb 80/20" (H5).
+      const out = await oneLine(
+        baseInputItem({
+          canonicalName: "mystery",
+          displayName: "mystery",
+          quantity: 3,
+          unit: "pound",
+          sectionKey: "produce",
+          purchaseUnit: "bunch",
+          purchaseQuantity: 1,
+          purchaseDisplay: "1 bunch",
+          varietyShares: [
+            { variety: "large", need: 1, unit: "pound", displayName: "large mystery" },
+          ],
+        }),
+      );
+      assert.equal(out.displayName, "mystery", "no rider when the share is not a whole buy-unit");
+      assert.equal(/at least/.test(out.displayName), false);
+    });
+
+    it("COLLAPSES to the variety when one variety covers the whole count", async () => {
+      // Hans: "Generic parsley ¼ cup + flat-leaf parsley ½ cup -> 1 bunch
+      // flat-leaf parsley, never '1 bunch parsley, at least ½ cup flat-leaf'."
+      const out = await oneLine(
+        baseInputItem({
+          canonicalName: "parsley",
+          displayName: "parsley",
+          quantity: 12,
+          unit: "tablespoon",
+          sectionKey: "produce",
+          purchaseUnit: "bunch",
+          purchaseQuantity: 1,
+          purchaseDisplay: "1 bunch",
+          packYieldUnit: "cup",
+          packYieldPerPack: 2,
+          varietyShares: [
+            { variety: "flat-leaf", need: 8, unit: "tablespoon", displayName: "flat-leaf parsley" },
+          ],
+        }),
+      );
+      // 2 cups = 32 tbsp per bunch, so 12 tbsp is ONE bunch and the 8-tbsp share
+      // is also one — nothing generic is left to choose.
+      assert.equal(out.displayName, "flat-leaf parsley");
+    });
+
+    it("keeps the rider when there IS something left to choose", async () => {
+      const out = await oneLine(
+        baseInputItem({
+          canonicalName: "parsley",
+          displayName: "parsley",
+          quantity: 80,
+          unit: "tablespoon",
+          sectionKey: "produce",
+          purchaseUnit: "bunch",
+          purchaseQuantity: 1,
+          purchaseDisplay: "1 bunch",
+          packYieldUnit: "cup",
+          packYieldPerPack: 2,
+          varietyShares: [
+            { variety: "flat-leaf", need: 8, unit: "tablespoon", displayName: "flat-leaf parsley" },
+          ],
+        }),
+      );
+      // 80 tbsp is three bunches; the share is one.
+      assert.equal(out.displayName, "parsley, at least 1 flat-leaf");
+    });
+
+    it("a row with no shares is untouched", async () => {
+      const out = await oneLine(
+        baseInputItem({
+          canonicalName: "parsley",
+          displayName: "parsley",
+          quantity: 2,
+          unit: "tablespoon",
+          sectionKey: "produce",
+          purchaseUnit: "bunch",
+          purchaseQuantity: 1,
+          purchaseDisplay: "1 bunch",
+        }),
+      );
+      assert.equal(out.displayName, "parsley");
+    });
+  });
+
   // ── deterministic path (Fix A: no AI when nothing needs AI) ──────────
 
   describe("deterministic path (Fix A skip + Fix B formatter)", () => {
