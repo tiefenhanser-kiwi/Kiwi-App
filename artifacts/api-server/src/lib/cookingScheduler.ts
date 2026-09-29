@@ -517,11 +517,17 @@ interface WorkStep {
  * D-WS9-239: steps 1–4 run twice — tags honoured, tags ignored — and the
  * shorter total wins (rule 6). The two runs are identical when nothing is tagged.
  *
- * BUG-270: a dish's `bought`-path steps are dropped HERE, before anything else
- * reads them (classification included), so the schedule is base + the default
- * from-scratch path — never both alternatives of a swappable component. A
- * dish left with no steps by that drop is treated exactly like a dish handed
- * over with none (it does not appear in `dishDurations`).
+ * BUG-270, as amended by [grocery] B3 (D-WS9-277 Rule 3): ONE path per swappable
+ * component is selected HERE, before anything else reads the steps
+ * (classification included), so the schedule is never both alternatives of one
+ * component. A `bought` step is dropped only when its own component HAS a
+ * scratch alternative; a component whose only path is bought keeps its steps.
+ *
+ * ⚠️ THAT MEANS THE DROP CAN NO LONGER EMPTY A DISH — the predicate is
+ * per-component and the scratch step it prefers is in the same dish, so whatever
+ * is removed leaves something behind. A dish handed over with no steps at all is
+ * still treated as empty (it does not appear in `dishDurations`); the comment
+ * that said the DROP could produce one described the defect BUG-121 named.
  */
 export function scheduleCookingSequence(
   dishes: SchedulerDish[],

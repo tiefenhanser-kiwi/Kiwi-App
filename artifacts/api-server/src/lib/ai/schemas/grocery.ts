@@ -229,6 +229,12 @@ export const GenerateListOutputItemSchema = z
     purchaseUnit: z.string().nullable().optional(),
     purchaseQuantity: z.number().nullable().optional(),
     purchaseDisplay: z.string().nullable().optional(),
+    // [grocery] B4 (D-WS9-286) — the pack COUNT, as a number. Same contract as
+    // the three above: the AI does not author it, resolvePurchaseFields attaches
+    // it after the AI pass, and a model that emitted one could not influence it.
+    // Optional so raw AI output still validates; null means the server could not
+    // relate the need to the pack, which is an answer and not a gap.
+    packCount: z.number().int().nullable().optional(),
     // BUG-165 — the consolidator bucket keys (see bucketKeyOf) this output row
     // stands for. Same contract as the purchase pack above: the AI does not
     // author it; generateFinalGroceryList OVERWRITES it on every returned item

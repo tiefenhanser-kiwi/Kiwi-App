@@ -289,11 +289,27 @@ export function recurringFacetsFor(
   const recurringQuantity = res.purchase?.purchaseQuantity ?? null;
   const comparable = recurringComparable(recurringUnit, row.unit);
 
+  // ── [grocery] B4 · N11 — WHEN DOES THE PLAN CONTRIBUTE TO THIS ROW? ────────
+  //
+  // `hasPlanSources` was the whole test and it is not enough. The recurring pass
+  // runs BEFORE `poolComponentNeeds` (D-WS9-195's ordering, which stands), so a
+  // recurring item whose food is a POOLING PARENT finds no bucket to meet: it
+  // appends one, and pooling then tops that row up without moving any sources
+  // onto it. Measured on `56b03a57` and `c404a3cf`, where the plan demands
+  // `lime juice` and the row came out `lime 4 each` — 2 recurring plus 2 pooled
+  // — while claiming the plan needed none of it.
+  //
+  // On a COMPARABLE row the arithmetic answers the question on its own: the
+  // recurring share is a known constant, so anything above it came from the
+  // plan, whatever route it took to get there. Sources stay the discriminator
+  // for the incomparable branch, where an appended row's quantity IS the
+  // recurring quantity and nothing can be inferred from it.
   let mealQuantity: number | null = null;
-  if (row.hasPlanSources) {
-    mealQuantity = comparable && recurringQuantity !== null
-      ? Math.max(0, row.quantity - recurringQuantity)
-      : row.quantity;
+  if (comparable && recurringQuantity !== null) {
+    const fromPlan = row.quantity - recurringQuantity;
+    if (row.hasPlanSources || fromPlan > 0) mealQuantity = Math.max(0, fromPlan);
+  } else if (row.hasPlanSources) {
+    mealQuantity = row.quantity;
   }
   return {
     recurringQuantity,

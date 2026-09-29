@@ -153,11 +153,15 @@ export async function runCookingSequence(
       })),
     }));
 
-  // WS9 BUG-270 — the scheduler drops a swappable component's `bought` steps
-  // at its input, so the sequence below is base + the from-scratch path: the
-  // recipe the cook is following by default. Those rows still exist on the
-  // meal; the mobile's §27 append (cookSession.sequenceMealSteps) keeps them
-  // in the flow, trailing, until D-WS9-148's toggle decides what to show.
+  // WS9 BUG-270, as amended by [grocery] B3 (D-WS9-277 Rule 3) — the scheduler
+  // selects ONE path per swappable component at its input, so the sequence below
+  // is base + the default path. A component's `bought` steps are dropped only
+  // when that component HAS a scratch alternative to prefer; a component whose
+  // only path is bought keeps its steps, because dropping them left the recipe
+  // silently missing the one step that makes it (BUG-121 / BUG-322 — Classic
+  // Chicken Noodle Soup with no broth step). The dropped alternates still exist
+  // on the meal; the mobile's §27 append (cookSession.sequenceMealSteps) keeps
+  // them in the flow, trailing, until D-WS9-148's toggle decides what to show.
   const result = scheduleCookingSequence(schedulerDishes);
   // WS9 D-WS9-239 — an ignored tag is a tagging defect, logged and moved past:
   // the step waited (rule 4), so the sequence is the conservative one.

@@ -382,6 +382,7 @@ function resolvePurchaseFields(
   purchaseUnit: string | null;
   purchaseQuantity: number | null;
   purchaseDisplay: string | null;
+  packCount: number | null;
 } {
   // [grocery] B1 — `rowConversion`, not `resolveConversion`: the row's own
   // PACK YIELD is layered on and wins (D-WS9-220's unruled half). A row with no
@@ -396,17 +397,42 @@ function resolvePurchaseFields(
     // ("1 small knob (~2 oz)" -> "2 small knob (~2 oz)"). See renderPackDisplay.
     storedDisplay: item.purchaseDisplay,
   });
+  // ── [grocery] B4 (D-WS9-286) — THE PACK COUNT, EMITTED HERE AND NOWHERE ELSE ─
+  //
+  // `purchaseDisplay`'s leading number means two different things — "1.5 lb
+  // pack" is a SIZE, "4 can (14.5 oz)" is a COUNT — and `purchaseQuantity`
+  // carries the same ambiguity, because THIS function writes the scaled count
+  // into it when a ladder fires and the per-pack size when one does not. Every
+  // reader downstream has had to guess, and the client divides by it.
+  //
+  // So the count is emitted from the one place that already knows which branch
+  // it took. Nothing computes it twice: the scaled branch already HAS the number
+  // (`scaled.purchaseQuantity` IS the count), and the unscaled branch reuses
+  // `buyUnitsForNeed`, which is the same function the H3 rider asks the same
+  // question with.
   if (scaled && conv?.subUnit) {
     return {
       purchaseUnit: conv.subUnit.parent,
       purchaseQuantity: scaled.purchaseQuantity,
       purchaseDisplay: scaled.purchaseDisplay,
+      // THE INVARIANT a consumer uses to tell a count from a size: when the
+      // server scaled, these two are the same number.
+      packCount: scaled.purchaseQuantity,
     };
   }
   return {
     purchaseUnit: item.purchaseUnit,
     purchaseQuantity: item.purchaseQuantity,
     purchaseDisplay: item.purchaseDisplay,
+    // null when nothing in the data relates the need to the pack — a real
+    // answer, not a gap, and the client then parses the display as it always has.
+    packCount: buyUnitsForNeed(
+      item.quantity,
+      item.unit,
+      item.purchaseUnit,
+      item.purchaseQuantity,
+      conv,
+    ),
   };
 }
 
@@ -548,6 +574,24 @@ function buyUnitsForNeed(
   if (!(need > 0)) return 0;
   if (purchaseUnit && isCountUnit(needUnit) && isCountUnit(purchaseUnit)) {
     return Math.ceil(need - 1e-9);
+  }
+  // ── [grocery] B4 · N12 — THE SAME UNIT ON BOTH SIDES IS ARITHMETIC ─────────
+  //
+  // A need of one bunch against a pack of one bunch was UNRELATABLE here: `bunch`
+  // is not a count unit (COUNT_UNITS holds each/whole/piece/ct) and
+  // convertWithinDimension knows only weight and volume, so neither branch fired
+  // and the row fell through to null. 91 rows of the census corpus — 14% of
+  // Gate 1's whole unverifiable residue — were rows whose two unit STRINGS are
+  // the same and which nothing ever compared.
+  //
+  // This is the phone's `packsToCoverNeed` rule 1 verbatim, including the
+  // epsilon, so the two agree: a need of exactly one pack must not ceil to two
+  // on float noise.
+  if (purchaseUnit && purchaseQuantity && purchaseQuantity > 0) {
+    const nu = canonicalUnitToken(needUnit);
+    if (nu.length > 0 && nu === canonicalUnitToken(purchaseUnit)) {
+      return Math.max(1, Math.ceil(need / purchaseQuantity - 1e-9));
+    }
   }
   const sub = conv?.subUnit;
   if (sub && sub.childUnit) {
@@ -1176,7 +1220,7 @@ export async function generateFinalGroceryList(
           { ...src, quantity: out.quantity, unit: out.unit },
           groupConv,
         )
-      : { purchaseUnit: null, purchaseQuantity: null, purchaseDisplay: null };
+      : { purchaseUnit: null, purchaseQuantity: null, purchaseDisplay: null, packCount: null };
     const landed: GenerateListOutputItem = {
       ...out,
       quantity: roundNeedQuantity(out.quantity, out.unit),

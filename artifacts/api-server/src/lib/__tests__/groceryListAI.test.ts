@@ -2867,3 +2867,194 @@ describe("[grocery] B3 — a recurring append never reaches the gap-fill", () =>
     assert.equal(filled[0].purchaseDisplay, "1 can (6 oz)");
   });
 });
+
+// ── [grocery] B4 (D-WS9-286) — `packCount`, THE COUNT AS A NUMBER ───────────
+//
+// `purchaseDisplay`'s leading number means two different things — "1.5 lb pack"
+// is a SIZE, "4 can (14.5 oz)" is a COUNT — and `purchaseQuantity` carries the
+// same ambiguity, because resolvePurchaseFields writes the scaled count into it
+// when a ladder fires and the per-pack size when one does not. Every reader
+// downstream had to guess, and the client divided by it.
+
+describe("[grocery] B4 — packCount on the wire", () => {
+  const CONV = {
+    source: "curated" as const,
+    purchaseUnit: "can",
+    purchaseQuantity: 1,
+    purchaseDisplay: "1 can (14.5 oz)",
+    subUnit: { parent: "can", perParent: 1.75, childUnit: "cup" },
+  };
+
+  it("a SCALED row: packCount is the count, and it equals the display's leading number", async () => {
+    _resetClientCache();
+    _resetRegistryCaches();
+    const { prisma } = makeStubPrisma();
+    const item = makeItem({
+      canonicalName: "chicken broth",
+      displayName: "chicken broth",
+      quantity: 6,
+      unit: "cup",
+      purchaseUnit: "can",
+      purchaseQuantity: 1,
+      purchaseDisplay: "1 can (14.5 oz)",
+      conversionRef: CONV,
+      packYieldUnit: "cup",
+      packYieldPerPack: 1.75,
+    });
+    const out = await generateFinalGroceryList("t", [item], ["pantry", "canned", "meat_seafood", "extras"], { prisma, userId: TEST_USER_ID, client: makeFakeClient([]).client });
+    const row = out.items[0];
+    // 6 cups / 1.75 cups a can = 3.43 -> 4 cans.
+    assert.equal(row.packCount, 4);
+    assert.equal(
+      Number(/^(\d+)/.exec(row.purchaseDisplay ?? "")?.[1]),
+      row.packCount,
+      "the display's leading count and packCount are the same number",
+    );
+    // THE INVARIANT a consumer uses to tell a count from a size.
+    assert.equal(row.purchaseQuantity, row.packCount);
+  });
+
+  it("an UNSCALED same-unit row: packCount is derived, and purchaseQuantity stays the SIZE", async () => {
+    _resetClientCache();
+    _resetRegistryCaches();
+    const { prisma } = makeStubPrisma();
+    const item = makeItem({
+      canonicalName: "chicken breasts",
+      displayName: "chicken breasts",
+      quantity: 4,
+      unit: "lb",
+      purchaseUnit: "lb",
+      purchaseQuantity: 1.5,
+      purchaseDisplay: "1.5 lb pack",
+      conversionRef: null,
+      packYieldUnit: null,
+      packYieldPerPack: null,
+    });
+    const out = await generateFinalGroceryList("t", [item], ["pantry", "canned", "meat_seafood", "extras"], { prisma, userId: TEST_USER_ID, client: makeFakeClient([]).client });
+    const row = out.items[0];
+    assert.equal(row.packCount, 3, "4 lb over a 1.5 lb pack is three packs");
+    assert.equal(row.purchaseQuantity, 1.5, "and purchaseQuantity is still the SIZE");
+    assert.notEqual(row.purchaseQuantity, row.packCount);
+  });
+
+  it("packCount is NULL when nothing in the data relates the need to the pack", async () => {
+    _resetClientCache();
+    _resetRegistryCaches();
+    const { prisma } = makeStubPrisma();
+    const item = makeItem({
+      canonicalName: "dried oregano",
+      displayName: "dried oregano",
+      quantity: 2,
+      unit: "teaspoon",
+      purchaseUnit: "container",
+      purchaseQuantity: 1,
+      purchaseDisplay: "1 container (0.5 oz)",
+      conversionRef: null,
+      packYieldUnit: null,
+      packYieldPerPack: null,
+    });
+    const out = await generateFinalGroceryList("t", [item], ["pantry", "canned", "meat_seafood", "extras"], { prisma, userId: TEST_USER_ID, client: makeFakeClient([]).client });
+    // A real answer, not a gap: the client parses the display as it always has.
+    assert.equal(out.items[0].packCount, null);
+  });
+});
+
+// ── [grocery] B4 · N12 — THE SAME UNIT ON BOTH SIDES IS ARITHMETIC ──────────
+//
+// A need of one bunch against a pack of one bunch was unrelatable: `bunch` is
+// not a count unit (COUNT_UNITS holds each/whole/piece/ct) and
+// convertWithinDimension knows only weight and volume, so neither branch fired.
+// 91 rows of the census corpus — 14% of Gate 1's whole unverifiable residue —
+// were rows whose two unit STRINGS are the same and which nothing compared.
+
+describe("[grocery] B4 — N12: a pack noun against itself", () => {
+  async function oneRow(item: ConsolidatedItem) {
+    _resetClientCache();
+    _resetRegistryCaches();
+    const { prisma } = makeStubPrisma();
+    const out = await generateFinalGroceryList(
+      "t",
+      [item],
+      ["produce", "pantry", "extras"],
+      { prisma, userId: TEST_USER_ID, client: makeFakeClient([]).client },
+    );
+    return out.items[0];
+  }
+
+  it("one bunch needed against a one-bunch pack is ONE pack, not null", async () => {
+    const row = await oneRow(
+      makeItem({
+        canonicalName: "fresh basil",
+        displayName: "fresh basil",
+        quantity: 1,
+        unit: "bunch",
+        sectionKey: "produce",
+        purchaseUnit: "bunch",
+        purchaseQuantity: 1,
+        purchaseDisplay: "1 bunch",
+        conversionRef: null,
+        packYieldUnit: null,
+        packYieldPerPack: null,
+      }),
+    );
+    assert.equal(row.packCount, 1);
+  });
+
+  it("three bunches needed against a one-bunch pack is THREE", async () => {
+    const row = await oneRow(
+      makeItem({
+        canonicalName: "fresh basil",
+        displayName: "fresh basil",
+        quantity: 3,
+        unit: "bunch",
+        sectionKey: "produce",
+        purchaseUnit: "bunch",
+        purchaseQuantity: 1,
+        purchaseDisplay: "1 bunch",
+        conversionRef: null,
+        packYieldUnit: null,
+        packYieldPerPack: null,
+      }),
+    );
+    assert.equal(row.packCount, 3);
+  });
+
+  it("exactly one pack does not ceil to two on float noise", async () => {
+    // The epsilon is load-bearing and is the phone's, so the two agree.
+    const row = await oneRow(
+      makeItem({
+        canonicalName: "sandwich bread",
+        displayName: "sandwich bread",
+        quantity: 2,
+        unit: "loaf",
+        sectionKey: "pantry",
+        purchaseUnit: "loaf",
+        purchaseQuantity: 2,
+        purchaseDisplay: "2 loaf",
+        conversionRef: null,
+        packYieldUnit: null,
+        packYieldPerPack: null,
+      }),
+    );
+    assert.equal(row.packCount, 1);
+  });
+
+  it("different pack nouns are still unrelatable — the rule is same STRING, not any pair", async () => {
+    const row = await oneRow(
+      makeItem({
+        canonicalName: "dried oregano",
+        displayName: "dried oregano",
+        quantity: 2,
+        unit: "teaspoon",
+        sectionKey: "pantry",
+        purchaseUnit: "container",
+        purchaseQuantity: 1,
+        purchaseDisplay: "1 container (0.5 oz)",
+        conversionRef: null,
+        packYieldUnit: null,
+        packYieldPerPack: null,
+      }),
+    );
+    assert.equal(row.packCount, null);
+  });
+});

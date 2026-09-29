@@ -410,6 +410,9 @@ export async function reconcileGroceryListIfStale(
       purchaseUnit: item.purchaseUnit ?? null,
       purchaseQuantity: item.purchaseQuantity ?? null,
       purchaseDisplay: item.purchaseDisplay ?? null,
+      // [grocery] B4 (D-WS9-286) — the pack COUNT, stored as a count. Part of the
+      // DERIVED trio above: reconcile regenerates it and a user override supersedes it.
+      packCount: item.packCount ?? null,
     }));
     newSources = final.items.flatMap((item, idx) => {
       const keys =

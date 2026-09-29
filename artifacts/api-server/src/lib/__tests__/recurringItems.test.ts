@@ -336,3 +336,78 @@ describe("[grocery] B3 — matchResolution: identity first, then the name", () =
     assert.equal(hit!.canonicalName, "whole milk");
   });
 });
+
+// ── [grocery] B4 · N11 — A POOLED NEED IS STILL A PLAN NEED ─────────────────
+//
+// The recurring pass runs BEFORE poolComponentNeeds (D-WS9-195's ordering, which
+// stands), so a recurring item whose food is a POOLING PARENT finds no bucket to
+// meet: it appends one, and pooling tops that row up without moving any sources
+// onto it. On `56b03a57` and `c404a3cf` the plan demands `lime juice` and the row
+// came out `lime 4 each` — 2 recurring plus 2 pooled — while `hasPlanSources`
+// said the plan needed none of it.
+
+describe("[grocery] B4 — N11: a comparable row infers the plan's share", () => {
+  const RES = [
+    {
+      text: "Limes",
+      norm: "limes",
+      ingredientId: "ing-lime",
+      canonicalName: "lime",
+      displayName: "lime",
+      category: "Produce",
+      matchedVia: "alias" as const,
+      purchase: { purchaseUnit: "each", purchaseQuantity: 2, purchaseDisplay: "2 limes" },
+      household: false,
+    },
+  ];
+
+  it("no sources, but more than the recurring pack: the excess IS the plan's", () => {
+    const f = recurringFacetsFor(
+      { ingredientId: "ing-lime", canonicalName: "lime", unit: "each", quantity: 4, hasPlanSources: false },
+      RES,
+    )!;
+    assert.equal(f.comparable, true);
+    assert.equal(f.recurringQuantity, 2);
+    assert.equal(f.mealQuantity, 2, "4 limes — 2 recurring + 2 for meals");
+  });
+
+  it("no sources and exactly the recurring pack: the plan contributed nothing", () => {
+    const f = recurringFacetsFor(
+      { ingredientId: "ing-lime", canonicalName: "lime", unit: "each", quantity: 2, hasPlanSources: false },
+      RES,
+    )!;
+    assert.equal(f.mealQuantity, null, "nothing above the pack means nothing from the plan");
+  });
+
+  it("sources present: unchanged — the arithmetic and the provenance agree", () => {
+    const f = recurringFacetsFor(
+      { ingredientId: "ing-lime", canonicalName: "lime", unit: "each", quantity: 7, hasPlanSources: true },
+      RES,
+    )!;
+    assert.equal(f.mealQuantity, 5);
+  });
+
+  it("the INCOMPARABLE branch still keys on sources, because nothing can be inferred", () => {
+    // An appended incomparable row's quantity IS the recurring quantity, so
+    // there is no excess to read a plan need out of.
+    const milk = [
+      {
+        text: "Milk", norm: "milk", ingredientId: "ing-milk", canonicalName: "whole milk",
+        displayName: "whole milk", category: "Dairy", matchedVia: "alias" as const,
+        purchase: { purchaseUnit: "gallon", purchaseQuantity: 1, purchaseDisplay: "1 gallon" },
+        household: false,
+      },
+    ];
+    const appended = recurringFacetsFor(
+      { ingredientId: "ing-milk", canonicalName: "whole milk", unit: "gallon", quantity: 1, hasPlanSources: false },
+      milk,
+    )!;
+    assert.equal(appended.mealQuantity, null);
+    const met = recurringFacetsFor(
+      { ingredientId: "ing-milk", canonicalName: "whole milk", unit: "cup", quantity: 0.5, hasPlanSources: true },
+      milk,
+    )!;
+    assert.equal(met.comparable, false);
+    assert.equal(met.mealQuantity, 0.5);
+  });
+});

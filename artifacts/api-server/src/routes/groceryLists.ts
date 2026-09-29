@@ -452,6 +452,9 @@ export function createGroceryListsRouter(
             purchaseUnit: item.purchaseUnit ?? null,
             purchaseQuantity: item.purchaseQuantity ?? null,
             purchaseDisplay: item.purchaseDisplay ?? null,
+            // [grocery] B4 (D-WS9-286) — the pack COUNT, stored as a count. Part of the
+            // DERIVED trio above: reconcile regenerates it and a user override supersedes it.
+            packCount: item.packCount ?? null,
           }));
 
           // Build source rows by joining each final item back to its
@@ -1429,6 +1432,9 @@ export function createGroceryListsRouter(
             purchaseUnitOverride: true,
             purchaseQuantityOverride: true,
             purchaseDisplayOverride: true,
+            // [grocery] B4 (D-WS9-286) — the server's own pack count, so the
+            // order does not have to re-derive one from a display string.
+            packCount: true,
           },
         });
         if (rows.length !== ids.length) {

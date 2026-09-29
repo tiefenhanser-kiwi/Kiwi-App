@@ -60,6 +60,12 @@ export interface InstacartRowInput {
   purchaseUnitOverride: string | null;
   purchaseQuantityOverride: number | null;
   purchaseDisplayOverride: string | null;
+  /**
+   * [grocery] B4 (D-WS9-286) — the number of packs the SERVER computed for this
+   * row's summed need. Optional so every existing fixture still compiles and a
+   * pre-B4 row (null column) behaves exactly as it did.
+   */
+  packCount?: number | null;
 }
 
 /**
@@ -299,11 +305,34 @@ function resolveOrderSource(
   if (row.purchaseQuantity != null && row.purchaseQuantity > 0 && rowPackUnit) {
     const needToken = canonicalUnitToken(row.unit);
     const packToken = canonicalUnitToken(rowPackUnit);
+    // ── [grocery] B4 (D-WS9-286) — THE SERVER'S OWN COUNT, WHERE IT HAS ONE ──
+    //
+    // The same-token arithmetic below is the phone's rule 1, and it can only see
+    // pairs that share a unit token. It therefore orders ONE pack for any row
+    // whose need is in cups against a pack in cans — which is how a plan wanting
+    // eight cups of broth ordered a single 14.5 oz can. `packCount` is the count
+    // the server derived through the pack yield, so where it exists it wins.
+    //
+    // ⚠️ AND `purchaseQuantity` MEANS TWO DIFFERENT THINGS, which is why the
+    // per-pack size is read off the invariant rather than assumed. When the
+    // server SCALED the pack, resolvePurchaseFields wrote the same number into
+    // both columns, so `purchaseQuantity === packCount` and the order is simply
+    // `packCount` of the pack noun ("4 can"). When it did not scale,
+    // `purchaseQuantity` is the per-pack SIZE and the order is the product
+    // ("2 packs of 1.5 lb" = 3 lb). Multiplying in the first case would order
+    // sixteen cans for four.
+    const serverPacks =
+      row.packCount != null && row.packCount > 0 ? row.packCount : null;
     const packs =
-      needToken.length > 0 && needToken === packToken && row.quantity > 0
+      serverPacks ??
+      (needToken.length > 0 && needToken === packToken && row.quantity > 0
         ? Math.max(1, Math.ceil(row.quantity / row.purchaseQuantity - PACK_EPSILON))
-        : 1;
-    const total = packs * row.purchaseQuantity;
+        : 1);
+    const perPack =
+      serverPacks !== null && row.purchaseQuantity === serverPacks
+        ? 1
+        : row.purchaseQuantity;
+    const total = packs * perPack;
     const packLine =
       packs === 1
         ? row.purchaseDisplay?.trim() || `${formatCount(total)} ${rowPackUnit}`
