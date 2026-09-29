@@ -2760,3 +2760,110 @@ describe("BUG-138 — the deterministic path resolves the FOLD GROUP's ladder", 
     assert.equal(line.purchaseDisplay, "1 bottle (17 oz)");
   });
 });
+
+// ── [grocery] B3 (D-WS9-284 rulings 2 and 6) — THE ROW THAT IS NEVER ASKED ───
+//
+// Measured across the census corpus: 74 of 96 recurring rows were a gap-fill
+// cache miss on EVERY generation, the answer was thrown away (write-back skips a
+// null ingredientId), and two of the nine texts disagreed with themselves —
+// `paper towels` came back "(6-pack)" 49 times and "(6 rolls)" 7 over 288
+// observations. Ruling 2 step 3: no pack, and NO AI CALL. Ruling 6: and no
+// model-authored write reaches the shared catalog from a recurring resolution.
+
+describe("[grocery] B3 — a recurring append never reaches the gap-fill", () => {
+  it("skipGapFill: no AI call and no Ingredient write, even with every pack field null", async () => {
+    _resetClientCache();
+    _resetRegistryCaches();
+    const fake = makeFakeClient([]); // nothing queued -> throws if called
+    const { prisma, llmCalls, ingredientUpdates } = makeStubPrisma();
+
+    const items: ConsolidatedItem[] = [
+      makeItem({
+        canonicalName: "dryer sheets",
+        displayName: "dryer sheets",
+        ingredientId: null,
+        isRecurringItem: true,
+        sources: [],
+        purchaseUnit: null,
+        purchaseQuantity: null,
+        purchaseDisplay: null,
+        skipGapFill: true,
+      }),
+    ];
+
+    const filled = await fillPurchaseSizesWithWriteBack(items, {
+      prisma,
+      userId: TEST_USER_ID,
+      client: fake.client,
+    });
+
+    assert.equal(fake.callCount(), 0, "a recurring append is never asked");
+    assert.equal(llmCalls().length, 0);
+    assert.equal(ingredientUpdates().length, 0);
+    // It passes through UNCHANGED — its name renders with no pack, which is the
+    // ruled outcome: stable, and free.
+    assert.equal(filled[0].purchaseDisplay, null);
+    assert.equal(filled[0].purchaseUnit, null);
+  });
+
+  it("skipGapFill on a RESOLVED recurring row keeps a model answer out of the shared catalog", async () => {
+    _resetClientCache();
+    _resetRegistryCaches();
+    const fake = makeFakeClient([]);
+    const { prisma, ingredientUpdates } = makeStubPrisma();
+
+    const items: ConsolidatedItem[] = [
+      makeItem({
+        canonicalName: "sandwich bread",
+        displayName: "sandwich bread",
+        ingredientId: "ing-sandwich-bread", // a REAL row — write-back would fire
+        isRecurringItem: true,
+        sources: [],
+        purchaseUnit: null,
+        purchaseQuantity: null,
+        purchaseDisplay: null,
+        skipGapFill: true,
+      }),
+    ];
+
+    await fillPurchaseSizesWithWriteBack(items, {
+      prisma,
+      userId: TEST_USER_ID,
+      client: fake.client,
+    });
+
+    assert.equal(fake.callCount(), 0);
+    assert.equal(
+      ingredientUpdates().length,
+      0,
+      "ruling 6: no model-authored write reaches the catalog from a recurring resolution",
+    );
+  });
+
+  it("a PLAN row with the same null pack is still gap-filled — the flag is narrow", async () => {
+    _resetClientCache();
+    _resetRegistryCaches();
+    const fake = makeFakeClient([
+      {
+        content: [
+          textBlock({
+            purchaseUnit: "can",
+            purchaseQuantity: 1,
+            purchaseDisplay: "1 can (6 oz)",
+            confidence: "high",
+          }),
+        ],
+      },
+    ]);
+    const { prisma } = makeStubPrisma();
+
+    const filled = await fillPurchaseSizesWithWriteBack([makeItem()], {
+      prisma,
+      userId: TEST_USER_ID,
+      client: fake.client,
+    });
+
+    assert.equal(fake.callCount(), 1, "an ordinary plan row is unaffected");
+    assert.equal(filled[0].purchaseDisplay, "1 can (6 oz)");
+  });
+});

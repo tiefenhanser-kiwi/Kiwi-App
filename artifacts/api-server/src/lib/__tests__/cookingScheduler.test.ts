@@ -88,14 +88,37 @@ function assertWellFormed(result: ScheduleResult, dishes: SchedulerDish[]) {
   // a `bought` alternate is never scheduled, so it is not an input step here.
   const inputCount = dishes.reduce((n, d) => n + selectDefaultPathSteps(d.steps).length, 0);
 
-  // Every (default-path) input step appears exactly once; no bought step ever.
+  // Every (default-path) input step appears exactly once, and a bought step is
+  // absent only when its own component HAS a scratch alternative to prefer.
+  //
+  // [grocery] B3 (D-WS9-277 Rule 3 / D-WS9-284 ruling 10) — this used to assert
+  // "no bought step ever", which is the defect BUG-121/BUG-322 named: 10 dev
+  // components have a bought path and no scratch one, and dropping theirs left
+  // the dish scheduling with the step that makes its broth, its broccoli or its
+  // pesto simply gone. "If only shortcut, show shortcut."
   assert.equal(rows.length, inputCount, "every default-path input step appears exactly once");
   const keys = new Set(rows.map((r) => `${r.dishId}#${r.stepIndex}`));
   assert.equal(keys.size, inputCount, "no duplicate step in output");
-  for (const d of dishes)
-    for (const s of d.steps)
-      if (s.pathKey === "bought")
-        assert.ok(!keys.has(`${d.dishId}#${s.stepIndex}`), `bought step ${d.dishId}#${s.stepIndex} must not be scheduled`);
+  for (const d of dishes) {
+    const withScratch = new Set(
+      d.steps.filter((s) => s.pathKey === "scratch" && s.componentKey).map((s) => s.componentKey),
+    );
+    for (const s of d.steps) {
+      if (s.pathKey !== "bought") continue;
+      const dropped = !s.componentKey || withScratch.has(s.componentKey);
+      if (dropped) {
+        assert.ok(
+          !keys.has(`${d.dishId}#${s.stepIndex}`),
+          `bought step ${d.dishId}#${s.stepIndex} has a scratch alternative and must not be scheduled`,
+        );
+      } else {
+        assert.ok(
+          keys.has(`${d.dishId}#${s.stepIndex}`),
+          `bought step ${d.dishId}#${s.stepIndex} is the ONLY path for "${s.componentKey}" and must be scheduled`,
+        );
+      }
+    }
+  }
 
   // sequenceIndex is contiguous 0..n-1 in emission order.
   result.steps.forEach((s, i) =>
@@ -1014,7 +1037,10 @@ describe("scheduleCookingSequence — BUG-270 base + default (scratch) path only
           positionIndex: 0,
           steps: [
             tstep(0, 10, "preheat", { tag: "w" }), // base window
-            tstep(1, 2, "prep", { tag: "w", componentKey: "sauce", pathKey: "bought" }), // the only rider — gone
+            tstep(1, 2, "prep", { tag: "w", componentKey: "sauce", pathKey: "bought" }), // the only rider — gone,
+            //                                    because "sauce" HAS a scratch path (below), which is
+            //                                    what makes the bought one droppable at all (Rule 3).
+            tstep(3, 4, "prep", { componentKey: "sauce", pathKey: "scratch" }),
             tstep(2, 20, "cook"),
           ],
         },
@@ -1022,7 +1048,7 @@ describe("scheduleCookingSequence — BUG-270 base + default (scratch) path only
       const result = scheduleCookingSequence(d);
       assertWellFormed(result, d);
       assert.deepEqual(result.ignoredTags, [{ dishId: "o", stepIndex: 0, token: "w", reason: "lone_token" }]);
-      assert.equal(result.totalEstimatedMinutes, 30, "10 + 20 serial: nothing rides the preheat any more");
+      assert.equal(result.totalEstimatedMinutes, 34, "10 + 20 serial, plus the 4-min scratch step that makes the bought rider droppable");
     });
 
     it("a bought window with base riders: the first surviving rider becomes the window if unattended, so later riders still overlap it", () => {
@@ -1032,6 +1058,10 @@ describe("scheduleCookingSequence — BUG-270 base + default (scratch) path only
           title: "R",
           positionIndex: 0,
           steps: [
+            // Rule 3: the bought window is dropped because "sauce" also has a
+            // scratch step. Without one it would survive and there would be no
+            // orphaned token to test.
+            tstep(4, 3, "prep", { componentKey: "sauce", pathKey: "scratch" }),
             tstep(0, 12, "cook", { tag: "g", componentKey: "sauce", pathKey: "bought" }), // bought window — gone
             tstep(1, 8, "cook", { tag: "g" }), // base, unattended → the window now
             tstep(2, 5, "prep", { tag: "g" }), // base rider → rides #1's kickoff
@@ -1042,7 +1072,7 @@ describe("scheduleCookingSequence — BUG-270 base + default (scratch) path only
       const result = scheduleCookingSequence(d);
       assertWellFormed(result, d);
       assert.deepEqual(result.ignoredTags, []);
-      assert.equal(result.totalEstimatedMinutes, 10, "prep rides the 8-min cook (kicked off together), then 2");
+      assert.equal(result.totalEstimatedMinutes, 13, "prep rides the 8-min cook (kicked off together), then 2, plus the 3-min scratch step");
       const rows = analyze(result, d);
       assert.equal(rows.find((r) => r.stepIndex === 2)!.startAbs, rows.find((r) => r.stepIndex === 1)!.startAbs);
     });
@@ -1057,25 +1087,81 @@ describe("scheduleCookingSequence — BUG-270 base + default (scratch) path only
             tstep(0, 12, "cook", { tag: "g", componentKey: "sauce", pathKey: "bought" }),
             tstep(1, 5, "prep", { tag: "g" }),
             tstep(2, 2, "assemble"),
+            // Rule 3: gives "sauce" a scratch path, so the bought one is dropped.
+            tstep(3, 3, "prep", { componentKey: "sauce", pathKey: "scratch" }),
           ],
         },
       ];
       const result = scheduleCookingSequence(d);
       assertWellFormed(result, d);
       assert.deepEqual(result.ignoredTags, [{ dishId: "r", stepIndex: 1, token: "g", reason: "attended_window" }]);
-      assert.equal(result.totalEstimatedMinutes, 7);
+      assert.equal(result.totalEstimatedMinutes, 10, "5 + 2, plus the 3-min scratch step");
     });
   });
 
-  it("a dish left with NO steps by the drop is treated as empty: absent from dishDurations, the meal still schedules", () => {
+  // ── [grocery] B3 (D-WS9-277 Rule 3 / D-WS9-284 ruling 10) — REWRITTEN ──────
+  //
+  // This used to be "a dish left with NO steps by the drop is treated as empty",
+  // and under Rule 3 THE DROP CAN NO LONGER EMPTY A DISH. The predicate is
+  // per-component and per-dish: a bought step is dropped only when its own
+  // component has a scratch step, and that scratch step is in the same dish — so
+  // whatever the drop removes, it leaves something behind. That is the whole
+  // point (BUG-121 / BUG-322): 10 dev components are bought-only, and emptying
+  // them is how Classic Chicken Noodle Soup came to schedule with no broth step.
+  //
+  // Both halves are still worth pinning, so the test now asserts both: the
+  // bought-only dish SURVIVES, and a dish genuinely handed over with zero steps
+  // is still absent from dishDurations.
+  it("a bought-only dish survives (Rule 3); a genuinely step-less dish is still absent from dishDurations", () => {
     const d: SchedulerDish[] = [
-      { dishId: "gone", title: "All bought", positionIndex: 0, steps: [tstep(0, 3, "prep", { componentKey: "k", pathKey: "bought" })] },
+      {
+        dishId: "onlybought",
+        title: "Only bought",
+        positionIndex: 0,
+        steps: [tstep(0, 3, "prep", { componentKey: "k", pathKey: "bought" })],
+      },
       { dishId: "kept", title: "Kept", positionIndex: 1, steps: [tstep(0, 9, "prep")] },
     ];
     const result = scheduleCookingSequence(d);
-    assert.deepEqual(Object.keys(result.dishDurations), ["kept"]);
-    assert.equal(result.totalEstimatedMinutes, 9);
-    assert.equal(scheduleCookingSequence([d[0]]).totalEstimatedMinutes, 0, "alone it is the empty schedule");
+    assert.deepEqual(
+      Object.keys(result.dishDurations).sort(),
+      ["kept", "onlybought"],
+      "the only way the component is made is still in the schedule",
+    );
+    assert.equal(result.totalEstimatedMinutes, 12, "3 + 9, both attended");
+    assert.equal(
+      scheduleCookingSequence([d[0]]).totalEstimatedMinutes,
+      3,
+      "alone it schedules its one bought step, not an empty schedule",
+    );
+
+    // A dish handed over with no steps at all — the case that IS still reachable.
+    const withEmpty: SchedulerDish[] = [
+      { dishId: "empty", title: "Empty", positionIndex: 0, steps: [] },
+      { dishId: "kept", title: "Kept", positionIndex: 1, steps: [tstep(0, 9, "prep")] },
+    ];
+    const r2 = scheduleCookingSequence(withEmpty);
+    assert.deepEqual(Object.keys(r2.dishDurations), ["kept"]);
+    assert.equal(r2.totalEstimatedMinutes, 9);
+  });
+
+  // [grocery] B3 — the shape the 10 dev components actually have, named.
+  it("a component with BOTH paths keeps scratch; a component with only bought keeps bought", () => {
+    const d: SchedulerDish[] = [
+      {
+        dishId: "soup",
+        title: "Soup",
+        positionIndex: 0,
+        steps: [
+          tstep(0, 5, "prep", { componentKey: "broth", pathKey: "bought" }),
+          tstep(1, 4, "prep", { componentKey: "sauce", pathKey: "scratch" }),
+          tstep(2, 6, "prep", { componentKey: "sauce", pathKey: "bought" }),
+          tstep(3, 2, "assemble"),
+        ],
+      },
+    ];
+    const kept = selectDefaultPathSteps(d[0].steps).map((s) => s.stepIndex);
+    assert.deepEqual(kept, [0, 1, 3], "broth's only path survives; sauce's bought alternate does not");
   });
 
   it("selectDefaultPathSteps: drops the literal bought only, keeps order and stepIndex", () => {

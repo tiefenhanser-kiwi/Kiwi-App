@@ -1285,7 +1285,16 @@ interface OrderingHarnessOpts {
     authoredServingsDefault?: number | null;
     servingsDefault?: number;
   };
-  existingDish?: { id: string; userId: string; isArchived?: boolean };
+  // [grocery] B3 (BUG-320) — the dish PATCH now reads the pre-edit ingredient
+  // set + servings, to answer "did this edit move a per-serving macro?".
+  existingDish?: {
+    id: string;
+    userId: string;
+    isArchived?: boolean;
+    title?: string;
+    servingsDefault?: number;
+    dishIngredients?: Array<{ ingredientId: string; quantity: number; unit: string }>;
+  };
   // WS7-8 BUG-003 B2.3 — exclusive dishes currently linked to the meal, so the
   // rematerialize wipe actually deletes a row and the recreate/carry-forward
   // path is exercised (not vacuous). `existingLinks` are returned by the
@@ -1340,16 +1349,36 @@ function makeOrderingStub(opts: OrderingHarnessOpts = {}) {
       findUnique: async (args: { where: { id: string } }) => {
         events.push(`dish.findUnique:${args.where.id}`);
         if (opts.existingDish && opts.existingDish.id === args.where.id) {
-          return opts.existingDish;
+          // [grocery] B3 (BUG-320) — defaults for the fields the dish PATCH's
+          // change test reads, so a fixture that does not care about macros
+          // still answers the new select.
+          return {
+            title: "Existing dish",
+            servingsDefault: 4,
+            dishIngredients: [],
+            ...opts.existingDish,
+          };
         }
         return null;
       },
       findMany: async (args: { where?: { id?: { in: string[] } } }) => {
         events.push(`dish.findMany`);
         const ids = args?.where?.id?.in ?? [];
-        return (opts.existingLinkedDishes ?? []).filter((d) =>
-          ids.includes(d.id),
-        );
+        return (opts.existingLinkedDishes ?? [])
+          .filter((d) => ids.includes(d.id))
+          // [grocery] B3 (BUG-320) — readPriorDishesByPosition selects the four
+          // macro columns + dishIngredients. Defaults first so a fixture that
+          // sets any of them still wins.
+          .map((d) => ({
+            servingsDefault: 4,
+            caloriesPerServing: 0,
+            proteinGPerServing: 0,
+            carbsGPerServing: 0,
+            fatGPerServing: 0,
+            macroGroundedPct: null,
+            dishIngredients: [],
+            ...d,
+          }));
       },
       create: async (args: { data: Record<string, unknown> }) => {
         events.push(`dish.create`);
@@ -1408,7 +1437,10 @@ function makeOrderingStub(opts: OrderingHarnessOpts = {}) {
         // otherLinks query: where { dishId: {in}, mealId: {not} } → shared
         // links elsewhere; none, so every linked dish is exclusive.
         if (args?.where?.mealId !== undefined && args.where.dishId === undefined) {
-          return (opts.existingLinks ?? []).map((dishId) => ({ dishId }));
+          // [grocery] B3 (BUG-320) — readPriorDishesByPosition keys by the
+          // dish's POSITION, the same key the step-preservation read uses, so
+          // the link rows have to carry it.
+          return (opts.existingLinks ?? []).map((dishId, i) => ({ dishId, positionIndex: i }));
         }
         return [];
       },

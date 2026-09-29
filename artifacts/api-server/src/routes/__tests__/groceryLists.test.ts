@@ -133,6 +133,10 @@ interface RelationFixture {
 }
 
 interface StubState {
+  // [grocery] B3 (D-WS9-284) — the caller's recurring texts, for the detail
+  // read's R3 derivation. Empty by default: the route skips the whole
+  // derivation when the user has none, which is what every pre-B3 fixture is.
+  recurringItems?: string[];
   plans: PlanRow[];
   lists: ListRow[];
   listItems: ListItemRow[];
@@ -470,6 +474,14 @@ function makeStubPrisma(state: StubState) {
     ingredientRelation: {
       findMany: async () => state.relations,
     },
+    // [grocery] B3 (D-WS9-284) — the detail read derives R3's render fields, so
+    // it asks for the caller's recurring texts. Empty by default: these fixtures
+    // are about reconcile and provenance, and a user with no recurring items
+    // makes the whole derivation a no-op (the route skips it entirely).
+    // `state.recurringItems` lets a fixture that IS about R3 seed them.
+    userPreferences: {
+      findUnique: async () => ({ recurringGroceryItems: state.recurringItems ?? [] }),
+    },
     ingredient: {
       findFirst: async ({
         where,
@@ -488,6 +500,32 @@ function makeStubPrisma(state: StubState) {
         where: { id: string };
       }) => {
         return state.ingredientDefaultUnits.get(where.id) ?? null;
+      },
+      // [grocery] B3 — the batched canonical probe + the by-id pack re-read
+      // `resolveRecurringItems` issues.
+      findMany: async (args?: {
+        where?: { canonicalName?: { in: string[] }; id?: { in: string[] } };
+      }) => {
+        const names = args?.where?.canonicalName?.in;
+        const ids = args?.where?.id?.in;
+        const out: Array<Record<string, unknown>> = [];
+        if (names) {
+          for (const n of names) {
+            const id = state.ingredients.get(n);
+            if (id) out.push({ id, canonicalName: n });
+          }
+        } else if (ids) {
+          for (const id of ids) {
+            for (const [n, i] of state.ingredients) {
+              if (i !== id) continue;
+              out.push({
+                id, canonicalName: n, displayName: n, category: "Pantry",
+                purchaseUnit: null, purchaseQuantity: null, purchaseDisplay: null,
+              });
+            }
+          }
+        }
+        return out;
       },
     },
     groceryListItem: {

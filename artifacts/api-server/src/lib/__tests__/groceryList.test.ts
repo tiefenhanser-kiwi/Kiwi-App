@@ -157,6 +157,11 @@ function makePrisma(
     id: string;
     displayName?: string;
     category?: string;
+    // [grocery] B3 — the catalog pack, so a fixture can exercise ruling 2's
+    // step 2 (the resolved row's pack, when the table has no entry).
+    purchaseUnit?: string | null;
+    purchaseQuantity?: number | null;
+    purchaseDisplay?: string | null;
   }> = [],
   // WS9 BUG-096 — aliasKey → canonicalName. Models the POST-MERGE catalog:
   // the loser row is GONE and its name survives only as an alias.
@@ -177,9 +182,45 @@ function makePrisma(
         const hit = canonical ? byName.get(canonical) : undefined;
         return hit ? { ingredient: { id: hit.id, canonicalName: hit.canonicalName } } : null;
       },
-      findMany: async () => [],
+      // [grocery] B3 — the BATCHED alias probe `resolveRecurringItems` uses.
+      findMany: async (args?: { where?: { aliasKey?: { in: string[] } } }) => {
+        const keys = args?.where?.aliasKey?.in ?? [];
+        return keys
+          .map((aliasKey) => {
+            const canonical = aliases[aliasKey];
+            const hit = canonical ? byName.get(canonical) : undefined;
+            return hit
+              ? { aliasKey, ingredient: { id: hit.id, canonicalName: hit.canonicalName } }
+              : null;
+          })
+          .filter((r): r is NonNullable<typeof r> => r !== null);
+      },
     },
     ingredient: {
+      // [grocery] B3 — the batched canonical probe, and the by-id re-read that
+      // fetches the resolved row's pack. Both shapes `resolveRecurringItems`
+      // issues; the fixture answers from the same `ingredients` seed the
+      // findFirst below reads, so a test cannot make the two disagree.
+      findMany: async (args?: {
+        where?: { canonicalName?: { in: string[] }; id?: { in: string[] } };
+      }) => {
+        const names = args?.where?.canonicalName?.in;
+        const ids = args?.where?.id?.in;
+        const rows = names
+          ? names.map((n) => byName.get(n)).filter((h): h is NonNullable<typeof h> => !!h)
+          : ids
+            ? ids.map((i) => byId.get(i)).filter((h): h is NonNullable<typeof h> => !!h)
+            : [];
+        return rows.map((hit) => ({
+          id: hit.id,
+          canonicalName: hit.canonicalName,
+          displayName: hit.displayName ?? hit.canonicalName,
+          category: hit.category ?? "Pantry",
+          purchaseUnit: hit.purchaseUnit ?? null,
+          purchaseQuantity: hit.purchaseQuantity ?? null,
+          purchaseDisplay: hit.purchaseDisplay ?? null,
+        }));
+      },
       // Handles BOTH shapes the resolver uses: the canonical-name probe, and
       // the by-id re-read that follows an alias hit.
       findFirst: async ({
@@ -234,16 +275,34 @@ describe("consolidatePlanIngredients — empty / minimal", () => {
     assert.deepEqual(out, []);
   });
 
+  // [grocery] B3 (D-WS9-284) — REWRITTEN. This pinned "quantity 1 / unit each /
+  // section extras" for EVERY unmatched recurring item, which rulings 3 and 5
+  // both move: `paper towels` now has a stable pack from the table, and household
+  // is a section rather than a lookup failure.
   it("returns recurring-only list when plan has no items but user has recurring items", async () => {
     const prisma = makePrisma({ items: [], recurringItems: ["paper towels", "trash bags"] });
     const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
     assert.equal(out.length, 2);
     for (const item of out) {
       assert.equal(item.isRecurringItem, true);
-      assert.equal(item.quantity, 1);
-      assert.equal(item.unit, "each");
-      assert.equal(item.sectionKey, "extras");
+      // Ruling 5 — both are Household by `inferCategory`, so both land there.
+      assert.equal(item.sectionKey, "household");
+      // Rulings 2/6 — a recurring append is never handed to the gap-fill.
+      assert.equal(item.skipGapFill, true);
     }
+    // Ruling 3 — the hand-set table entry, and it does not move between runs.
+    const towels = findItem(out, "paper towels")!;
+    assert.equal(towels.quantity, 1);
+    assert.equal(towels.unit, "pack");
+    assert.equal(towels.purchaseDisplay, "1 pack (6 rolls)");
+    // Ruling 2 step 3 — a text the table and the catalog both miss renders its
+    // name with no pack. Stable, and free.
+    const bags = findItem(out, "trash bags")!;
+    assert.equal(bags.quantity, 1);
+    assert.equal(bags.unit, "each");
+    assert.equal(bags.purchaseUnit, null);
+    assert.equal(bags.purchaseQuantity, null);
+    assert.equal(bags.purchaseDisplay, null);
   });
 
   it("returns one line for a single meal with a single ingredient", async () => {
@@ -860,7 +919,9 @@ describe("consolidatePlanIngredients — recurring items", () => {
     assert.equal(out[0].unit, "cup"); // not overwritten
   });
 
-  it("appends an unmatched recurring item with quantity 1 / unit each / section extras", async () => {
+  // [grocery] B3 (D-WS9-284 rulings 3 + 5) — RETITLED AND REWRITTEN. `extras`
+  // was the old catch-all; `paper towels` is Household and carries a pack now.
+  it("appends an unmatched recurring item under its own section and pack", async () => {
     const prisma = makePrisma({
       items: [
         {
@@ -882,8 +943,11 @@ describe("consolidatePlanIngredients — recurring items", () => {
     assert.ok(towels, "recurring item should be appended");
     assert.equal(towels!.isRecurringItem, true);
     assert.equal(towels!.quantity, 1);
-    assert.equal(towels!.unit, "each");
-    assert.equal(towels!.sectionKey, "extras");
+    assert.equal(towels!.unit, "pack");
+    assert.equal(towels!.purchaseDisplay, "1 pack (6 rolls)");
+    assert.equal(towels!.sectionKey, "household");
+    // And the plan's own line is untouched by any of it.
+    assert.ok(findItem(out, "ground beef"));
   });
 });
 
@@ -1517,18 +1581,22 @@ describe("consolidatePlanIngredients — BUG-025-3 recurring purchase default", 
     assert.equal(garlic.purchaseDisplay, "1 head");
   });
 
+  // [grocery] B3 (D-WS9-284) — `paper towels` is no longer the example of a
+  // table MISS; ruling 3 gave it an entry. The behaviour this test guards is
+  // unchanged and still guarded, on a text that really is absent from both the
+  // table and the catalog.
   it("an unmatched recurring item WITHOUT a purchase default falls back to each/1/null", async () => {
     const out = await consolidatePlanIngredients({
-      prisma: makePrisma({ items: [], recurringItems: ["paper towels"] }),
+      prisma: makePrisma({ items: [], recurringItems: ["dryer sheets"] }),
       planId: TEST_PLAN,
       userId: TEST_USER,
     });
-    const towels = findItem(out, "paper towels")!;
-    assert.equal(towels.unit, "each");
-    assert.equal(towels.quantity, 1);
-    assert.equal(towels.purchaseUnit, null);
-    assert.equal(towels.purchaseQuantity, null);
-    assert.equal(towels.purchaseDisplay, null);
+    const sheets = findItem(out, "dryer sheets")!;
+    assert.equal(sheets.unit, "each");
+    assert.equal(sheets.quantity, 1);
+    assert.equal(sheets.purchaseUnit, null);
+    assert.equal(sheets.purchaseQuantity, null);
+    assert.equal(sheets.purchaseDisplay, null);
   });
 
   it("a recurring name matching a real plan line does NOT get a synthetic entry (match-flag path unchanged)", async () => {
@@ -1889,15 +1957,32 @@ describe("consolidatePlanIngredients — BUG-164 recurring bucket key", () => {
 
   it("a recurring item with no purchase default still keys and renders as 'each'", async () => {
     const out = await consolidatePlanIngredients({
+      prisma: makePrisma({ items: [], recurringItems: ["dryer sheets"] }),
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+    const sheets = findItem(out, "dryer sheets")!;
+    assert.equal(sheets.unit, "each");
+    assert.equal(
+      bucketKeyOf(sheets.canonicalName, sheets.unit),
+      "dryer sheets|each",
+    );
+  });
+
+  // [grocery] B3 (D-WS9-284 ruling 3 / BUG-164) — and one WITH a table entry,
+  // because the bucket key must agree with the row's unit either way. This is
+  // the case the old fixture used to cover before `paper towels` gained a pack.
+  it("a recurring item WITH a table default keys under that pack's unit", async () => {
+    const out = await consolidatePlanIngredients({
       prisma: makePrisma({ items: [], recurringItems: ["paper towels"] }),
       planId: TEST_PLAN,
       userId: TEST_USER,
     });
     const towels = findItem(out, "paper towels")!;
-    assert.equal(towels.unit, "each");
+    assert.equal(towels.unit, "pack");
     assert.equal(
       bucketKeyOf(towels.canonicalName, towels.unit),
-      "paper towels|each",
+      "paper towels|pack",
     );
   });
 });
@@ -2072,5 +2157,197 @@ describe("consolidatePlanIngredients — BUG-169 never-order water", () => {
     // ...and it is the SYNTHETIC recurring entry, not the dish's 4 quarts.
     assert.equal(water.sources.length, 0);
     assert.notEqual(water.quantity, 4);
+  });
+});
+
+// ── [grocery] B3 (D-WS9-284) — THE RECURRING ITEM MEETS THE PLAN ────────────
+//
+// The census measured the defect: 0 of 96 recurring rows across the 20 lists
+// carried a plan source, because the match was an exact name equality against
+// catalog canonicals and there is no catalog row called `milk`. Every list read
+// `Whole milk` beside `milk`.
+
+describe("[grocery] B3 — R3: the recurring item and the plan's row are ONE line", () => {
+  const CATALOG = [
+    { canonicalName: "whole milk", id: "ing-whole-milk", displayName: "whole milk", category: "Dairy",
+      purchaseUnit: "bottle", purchaseQuantity: 1, purchaseDisplay: "1 bottle (1 quart / 32 oz)" },
+    { canonicalName: "lemon", id: "ing-lemon", displayName: "lemon", category: "Produce",
+      purchaseUnit: "each", purchaseQuantity: 2, purchaseDisplay: "2 lemons" },
+    { canonicalName: "bananas", id: "ing-bananas", displayName: "bananas", category: "Produce",
+      purchaseUnit: "each", purchaseQuantity: 1, purchaseDisplay: "1 banana" },
+    { canonicalName: "large eggs", id: "ing-large-eggs", displayName: "large eggs", category: "Dairy",
+      purchaseUnit: "dozen", purchaseQuantity: 1, purchaseDisplay: "1 dozen" },
+    { canonicalName: "egg", id: "ing-egg", displayName: "egg", category: "Dairy",
+      purchaseUnit: "dozen", purchaseQuantity: 1, purchaseDisplay: "1 dozen" },
+  ];
+  const ALIASES = { milk: "whole milk", lemons: "lemon", eggs: "egg", egg: "large eggs" };
+
+  function planWith(
+    ingredients: Array<{ name: string; quantity: number; unit: string; category?: string; ingredientId?: string }>,
+    recurringItems: string[],
+  ) {
+    return makePrisma(
+      {
+        items: [{ id: "i1", dishes: [{ id: "d1", title: "Dish", servingsDefault: 4, ingredients }] }],
+        recurringItems,
+      },
+      CATALOG,
+      ALIASES,
+    );
+  }
+
+  it("SAME UNIT: one line, summed, and the split is on the row", async () => {
+    const out = await consolidatePlanIngredients({
+      prisma: planWith(
+        [{ name: "lemon", quantity: 5, unit: "each", category: "Produce", ingredientId: "ing-lemon" }],
+        ["Lemons"],
+      ),
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+    const rows = out.filter((r) => r.canonicalName === "lemon");
+    assert.equal(rows.length, 1, "ONE line, not `Lemons` beside `lemon`");
+    const lemon = rows[0];
+    assert.equal(lemon.isRecurringItem, true);
+    assert.equal(lemon.quantity, 7, "5 for meals + the 2-lemon recurring pack");
+    assert.equal(lemon.recurringFacets!.comparable, true);
+    assert.equal(lemon.recurringFacets!.recurringQuantity, 2);
+    assert.equal(lemon.recurringFacets!.mealQuantity, 5);
+    // And it still carries its plan provenance, which is the 0-of-96 fix.
+    assert.equal(lemon.sources.length, 1);
+  });
+
+  it("INCOMPARABLE: `milk` meets `whole milk`, the need is untouched, the purchase is the gallon", async () => {
+    const out = await consolidatePlanIngredients({
+      prisma: planWith(
+        [{ name: "whole milk", quantity: 0.5, unit: "cup", category: "Dairy", ingredientId: "ing-whole-milk" }],
+        ["Milk"],
+      ),
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+    const rows = out.filter((r) => r.canonicalName === "whole milk");
+    assert.equal(rows.length, 1, "`Whole milk` beside `milk` was the defect");
+    const milk = rows[0];
+    assert.equal(milk.isRecurringItem, true);
+    // NOT summed, NOT converted: the app never decides a gallon covers a cup.
+    assert.equal(milk.quantity, 0.5);
+    assert.equal(milk.purchaseDisplay, "1 gallon");
+    assert.equal(milk.recurringFacets!.comparable, false);
+    assert.equal(milk.recurringFacets!.recurringUnit, "gallon");
+    assert.equal(milk.recurringFacets!.mealQuantity, 0.5);
+  });
+
+  it("recurring bananas keeps `1 bunch` beside a recipe's 2 (ruling 2: the table first)", async () => {
+    const out = await consolidatePlanIngredients({
+      prisma: planWith(
+        [{ name: "bananas", quantity: 2, unit: "each", category: "Produce", ingredientId: "ing-bananas" }],
+        ["Bananas"],
+      ),
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+    const b = out.find((r) => r.canonicalName === "bananas")!;
+    assert.equal(b.quantity, 2, "the recipe's 2, not 2 + a bunch");
+    assert.equal(b.purchaseDisplay, "1 bunch");
+    assert.equal(b.recurringFacets!.comparable, false);
+    assert.equal(b.recurringFacets!.recurringQuantity, 1);
+    assert.equal(b.recurringFacets!.mealQuantity, 2);
+  });
+
+  it("ruling 4: recurring `eggs` lands on `large eggs`; a plan's `egg` keeps its own line", async () => {
+    const out = await consolidatePlanIngredients({
+      prisma: planWith(
+        [{ name: "egg", quantity: 3, unit: "each", category: "Dairy", ingredientId: "ing-egg" }],
+        ["Eggs"],
+      ),
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+    const egg = out.find((r) => r.canonicalName === "egg")!;
+    const large = out.find((r) => r.canonicalName === "large eggs")!;
+    assert.ok(egg, "the 39-recipe row is still its own line");
+    assert.equal(egg.isRecurringItem, false, "the recurring item is not this row");
+    assert.equal(egg.quantity, 3);
+    assert.ok(large, "and the recurring one resolved to the graded row");
+    assert.equal(large.isRecurringItem, true);
+    assert.equal(large.purchaseDisplay, "1 dozen");
+  });
+
+  it("a resolved recurring item the plan does NOT demand gets one line, with an identity", async () => {
+    const out = await consolidatePlanIngredients({
+      prisma: planWith(
+        [{ name: "Ground Beef", quantity: 1, unit: "lb", category: "Protein" }],
+        ["Milk"],
+      ),
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+    const milk = out.find((r) => r.canonicalName === "whole milk")!;
+    assert.equal(milk.ingredientId, "ing-whole-milk", "no longer a synthetic with a null FK");
+    assert.equal(milk.displayName, "whole milk", "the catalog's name, not the user's text");
+    assert.equal(milk.sectionKey, "dairy_eggs", "and its real aisle, not `extras`");
+    assert.equal(milk.recurringFacets!.mealQuantity, null, "the plan needs none of it");
+  });
+
+  it("household lands in `household`; coffee — a food with no catalog row — does not", async () => {
+    const out = await consolidatePlanIngredients({
+      prisma: planWith([], ["Paper towels", "Toilet paper", "Pet treats", "Coffee"]),
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+    for (const n of ["paper towels", "toilet paper", "pet treats"]) {
+      assert.equal(findItem(out, n)!.sectionKey, "household", n + " is household");
+      assert.equal(findItem(out, n)!.recurringFacets!.household, true);
+    }
+    const coffee = findItem(out, "coffee")!;
+    assert.equal(coffee.sectionKey, "pantry", "coffee is a food and shops like one");
+    assert.equal(coffee.recurringFacets!.household, false);
+    assert.equal(coffee.purchaseDisplay, "1 bag (1 lb)");
+  });
+
+  it("every appended recurring row opts OUT of the gap-fill (rulings 2 and 6)", async () => {
+    const out = await consolidatePlanIngredients({
+      prisma: planWith([], ["Paper towels", "Milk", "dryer sheets"]),
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+    for (const r of out) {
+      assert.equal(r.skipGapFill, true, r.canonicalName + " must never reach a model");
+    }
+  });
+
+  it("the pack does not move between two generations of the same plan", async () => {
+    // The defect this replaces: a synthetic's pack was a Haiku answer nothing
+    // stored, so `paper towels` came back "(6-pack)" 49 times and "(6 rolls)" 7
+    // across 288 corpus observations. The table is a constant; two runs agree.
+    const run = () =>
+      consolidatePlanIngredients({
+        prisma: planWith([], ["Paper towels", "Pet treats", "Coffee"]),
+        planId: TEST_PLAN,
+        userId: TEST_USER,
+      });
+    const a = await run();
+    const b = await run();
+    const shape = (rows: ConsolidatedItem[]) =>
+      rows.map((r) => r.canonicalName + "|" + r.quantity + "|" + r.unit + "|" + r.purchaseDisplay).sort();
+    assert.deepEqual(shape(a), shape(b));
+  });
+
+  it("a recurring append is NOT a recipe demand, so it cannot open an H3 fold", async () => {
+    // H3's gate is "did a RECIPE ask for the generic". Before B3 the leak was
+    // unreachable because a synthetic carried the user's raw text; resolution
+    // gives these rows real catalog names, so the hold-out has to be explicit.
+    const out = await consolidatePlanIngredients({
+      prisma: planWith(
+        [{ name: "Ground Beef", quantity: 1, unit: "lb", category: "Protein" }],
+        ["Milk"],
+      ),
+      planId: TEST_PLAN,
+      userId: TEST_USER,
+    });
+    const milk = out.find((r) => r.canonicalName === "whole milk")!;
+    assert.equal(milk.sources.length, 0, "no plan source — it is not a demand");
+    assert.equal(milk.varietyShares, undefined, "and it owes no variety rider");
   });
 });

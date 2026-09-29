@@ -363,11 +363,34 @@ describe("BUG-270 — deriveMealTiming inherits base + default path from the sch
     assert.deepEqual(t.ignoredTags, []);
   });
 
-  it("a dish the drop leaves empty gets NO dishTotals entry (fails open, like a null), and the meal still derives", () => {
+  // ── [grocery] B3 (D-WS9-277 Rule 3 / D-WS9-284 ruling 10) — REWRITTEN ──────
+  //
+  // This was "a dish the drop leaves empty gets NO dishTotals entry", built on a
+  // dish whose ONLY step was `bought`. Under Rule 3 that step is the only way its
+  // component is made, so it survives and the dish is not empty — which is the
+  // whole fix (BUG-121 / BUG-322): 10 dev components are bought-only, and
+  // dropping theirs made Classic Chicken Noodle Soup time itself with no broth
+  // step and Broccoli Cheddar Soup with no broccoli step.
+  it("a bought-only dish is TIMED, not dropped (Rule 3) — its minutes count", () => {
     const allBought = withPath(dish("jar", [{ min: 2, phase: "prep" }]), [["bought", "sauce"]]);
     const pasta = dish("pasta", [{ min: 12 }], 1);
     const t = deriveMealTiming([allBought, pasta]);
-    assert.equal(t.totalMinutes, 12);
-    assert.deepEqual([...t.dishTotals.entries()], [["pasta", 12]], "no undefined for the vanished dish");
+    assert.equal(t.dishTotals.get("jar"), 2, "the only way the sauce happens is still timed");
+    assert.equal(t.dishTotals.get("pasta"), 12);
+  });
+
+  it("a dish whose bought steps DO have a scratch alternative still drops them", () => {
+    // Both paths on one component: the scratch one is the default and the
+    // bought one is not timed. The dish keeps 5, not 7.
+    const sauce = withPath(
+      dish("sauce", [
+        { min: 5, phase: "prep" },
+        { min: 2, phase: "prep" },
+      ]),
+      [["scratch", "sauce"], ["bought", "sauce"]],
+    );
+    const pasta = dish("pasta", [{ min: 12 }], 1);
+    const t = deriveMealTiming([sauce, pasta]);
+    assert.equal(t.dishTotals.get("sauce"), 5, "the bought alternate is not timed");
   });
 });

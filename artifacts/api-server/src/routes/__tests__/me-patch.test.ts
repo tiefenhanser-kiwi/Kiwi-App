@@ -79,6 +79,15 @@ interface DishRow {
   id: string;
   userId: string | null;
   isArchived: boolean;
+  // [grocery] B3 (BUG-320) — the pre-edit macros a re-created dish carries
+  // forward, and the ingredient set the change test is measured against.
+  servingsDefault?: number;
+  caloriesPerServing?: number;
+  proteinGPerServing?: number;
+  carbsGPerServing?: number;
+  fatGPerServing?: number;
+  macroGroundedPct?: number | null;
+  dishIngredients?: Array<{ ingredientId: string; quantity: number; unit: string }>;
 }
 interface LinkRow {
   mealId: string;
@@ -202,7 +211,10 @@ function makeStub(opts: StubOpts = {}) {
         select?: Record<string, boolean>;
       }) => {
         const d = dishes.find((row) => row.id === args.where.id);
-        return d ? { ...d } : null;
+        // [grocery] B3 (BUG-320) — the dish PATCH reads the pre-edit title,
+        // servings and ingredient set to answer "did this move a macro?".
+        // Defaults first so a fixture that sets them still wins.
+        return d ? { title: "Dish", servingsDefault: 4, dishIngredients: [], ...d } : null;
       },
       findMany: async (args: { where: Record<string, unknown> }) => {
         captured.dishFindMany.push({ where: args.where });
@@ -216,7 +228,19 @@ function makeStub(opts: StubOpts = {}) {
           .filter((d) =>
             where.isArchived === undefined ? true : d.isArchived === where.isArchived,
           )
-          .map((d) => ({ id: d.id, userId: d.userId }));
+          // [grocery] B3 (BUG-320) — readPriorDishesByPosition selects the four
+          // macro columns + dishIngredients alongside the two this fixture used.
+          .map((d) => ({
+            servingsDefault: 4,
+            caloriesPerServing: 0,
+            proteinGPerServing: 0,
+            carbsGPerServing: 0,
+            fatGPerServing: 0,
+            macroGroundedPct: null,
+            dishIngredients: [],
+            // The fixture's own values win — defaults first, row last.
+            ...d,
+          }));
       },
       create: async (args: { data: Record<string, unknown> }) => {
         captured.dishCreates.push(args.data);
@@ -416,6 +440,9 @@ async function spinUp(
   // Row 9 (1.1) · Stripe S2 Part C — injected only by the pinning block at the
   // end of this file. Absent means the production service.
   subscriptionService?: { can: (userId: string, key: string) => Promise<{ allowed: boolean; status?: string }> },
+  // [grocery] B3 (BUG-320) — an estimator that SUCCEEDS, for the entitled
+  // re-estimate tests. Absent keeps the fail-soft stub below.
+  estimateDishMacros?: unknown,
 ): Promise<Harness> {
   const app: Express = express();
   app.use(express.json());
@@ -425,7 +452,8 @@ async function spinUp(
       // WS9 BUG-274 — hermetic by construction: the estimator dep is a stub
       // that never estimates (fail-soft path), so no live SDK call can leave
       // this suite. The BUG-274 wiring itself is asserted in me-save-canonical.
-      estimateDishMacros: (async () => ({ status: "failed", error: "test stub" })) as never,
+      estimateDishMacros: (estimateDishMacros ??
+        (async () => ({ status: "failed", error: "test stub" }))) as never,
       ...(subscriptionService ? { subscriptionService: subscriptionService as never } : {}),
     }),
   );
@@ -1583,17 +1611,35 @@ describe("Stripe S2 Part C — an UNENTITLED edit leaves stored macros alone (pi
     }
   });
 
-  it("⚠️ ADJACENT AND NOT AN ENTITLEMENT MATTER: a dishes[] edit recreates rows at the column default", async () => {
-    // Reported rather than fixed, because it is neither caused by nor curable by
-    // the gate. PATCH with `dishes[]` is a WIPE-AND-RECREATE (rematerializeMeal),
-    // and a recreated dish carrying no `macros` in the payload gets fresh rows at
-    // `Float @default(0)` — for an entitled account exactly as much as for a
-    // lapsed one, because nothing on this path estimates. Whether an edit should
-    // preserve or re-estimate the macros of a dish it rebuilds is a product
-    // question, and it predates this block by many.
+  // ── [grocery] B3 · WS9 BUG-320 (D-WS9-284 ruling 9) — THE FIX, NOT THE PIN ──
+  //
+  // This test used to be titled "⚠️ ADJACENT AND NOT AN ENTITLEMENT MATTER: a
+  // dishes[] edit recreates rows at the column default", and it pinned the
+  // defect: a wipe-and-recreate wrote macros only when the payload carried
+  // `d.macros`, the client never sends one, the columns are `Float @default(0)`,
+  // and `recomputeAndPersistMealMacros` then summed the zeros. Renaming a meal
+  // you own zeroed its nutrition — for an entitled account as much as a lapsed
+  // one, and the lapsed one could not repair it because recalc is paid and 402s.
+  //
+  // D-WS9-284 ruling 9 fixed it, so the pin is now the opposite assertion.
+  it("BUG-320: a LAPSED dishes[] edit preserves the pre-edit macros, asks once, and calls no model", async () => {
     const { prisma, captured } = makeStub({
       meals: [{ id: "meal-1", userId: USER_ID, isArchived: false }],
-      links: [],
+      dishes: [
+        {
+          id: "dish-1",
+          userId: USER_ID,
+          isArchived: false,
+          servingsDefault: 4,
+          caloriesPerServing: 620,
+          proteinGPerServing: 31,
+          carbsGPerServing: 44,
+          fatGPerServing: 22,
+          macroGroundedPct: 80,
+          dishIngredients: [{ ingredientId: "ing-rice", quantity: 1, unit: "cup" }],
+        },
+      ],
+      links: [{ mealId: "meal-1", dishId: "dish-1", positionIndex: 0 }],
     });
     const gate = recordingUnentitled();
     const harness = await spinUp(prisma, gate.service);
@@ -1605,20 +1651,303 @@ describe("Stripe S2 Part C — an UNENTITLED edit leaves stored macros alone (pi
             title: "Rebuilt dish",
             role: "main",
             positionIndex: 0,
-            ingredients: [{ name: "Rice", quantity: 1, unit: "cup" }],
+            // A DIFFERENT ingredient set, so the change test says "changed" and
+            // an entitled account would have re-estimated. This one may not.
+            ingredients: [{ name: "Quinoa", quantity: 2, unit: "cup" }],
             steps: [{ text: "Simmer." }],
           },
         ],
       });
       assert.equal(res.status, 200);
       assert.equal(captured.dishCreates.length, 1);
-      // No macro key is WRITTEN (so no number is invented here either) — the
-      // column default is what the row ends up holding.
-      assert.ok(!("caloriesPerServing" in (captured.dishCreates[0] as Record<string, unknown>)));
-      // And still not one entitlement question on the whole path.
-      assert.deepEqual(gate.asked, []);
+      const created = captured.dishCreates[0] as Record<string, unknown>;
+      // THE PIN, INVERTED: the numbers the user already had, carried onto the
+      // re-created row. D-WS9-272 — saved macros are never overwritten.
+      assert.equal(created.caloriesPerServing, 620);
+      assert.equal(created.proteinGPerServing, 31);
+      assert.equal(created.carbsGPerServing, 44);
+      assert.equal(created.fatGPerServing, 22);
+      assert.equal(created.macroGroundedPct, 80);
+      // Asked exactly once, and denied — so no model call was made.
+      assert.deepEqual(gate.asked, ["meal_macro_estimate"]);
+      // And the wire says WHY, so the client can show the premium notice
+      // instead of silence.
+      const body = (await res.json()) as { macrosPreserved?: boolean };
+      assert.equal(body.macrosPreserved, true);
     } finally {
       await harness.close();
+    }
+  });
+
+  it("BUG-320: an UNCHANGED dish carries its macros forward and is never asked about", async () => {
+    const { prisma, captured } = makeStub({
+      meals: [{ id: "meal-1", userId: USER_ID, isArchived: false }],
+      dishes: [
+        {
+          id: "dish-1",
+          userId: USER_ID,
+          isArchived: false,
+          servingsDefault: 4,
+          caloriesPerServing: 500,
+          proteinGPerServing: 20,
+          carbsGPerServing: 60,
+          fatGPerServing: 10,
+          macroGroundedPct: null,
+          dishIngredients: [{ ingredientId: "ing-rice", quantity: 1, unit: "cup" }],
+        },
+      ],
+      links: [{ mealId: "meal-1", dishId: "dish-1", positionIndex: 0 }],
+    });
+    const gate = recordingUnentitled();
+    const harness = await spinUp(prisma, gate.service);
+    try {
+      const res = await authPatch(harness, "/me/meals/meal-1", {
+        title: "A new name for the same food",
+        dishes: [
+          {
+            kind: "new",
+            title: "Rebuilt dish",
+            role: "main",
+            positionIndex: 0,
+            servingsDefault: 4,
+            // The SAME ingredient set. `Rice` resolves to `ing-rice` through the
+            // fixture's upsert, so the change test sees no movement.
+            ingredients: [{ name: "Rice", quantity: 1, unit: "cup" }],
+            steps: [{ text: "Simmer." }],
+          },
+        ],
+      });
+      assert.equal(res.status, 200);
+      const created = captured.dishCreates[0] as Record<string, unknown>;
+      assert.equal(created.caloriesPerServing, 500);
+      assert.equal(created.fatGPerServing, 10);
+      // A null grounding stamp is not carried as a key — there is nothing to say.
+      assert.ok(!("macroGroundedPct" in created));
+      // NOTHING was asked: an unchanged dish cannot need a model call, whatever
+      // the account's state, so the gate is never consulted.
+      assert.deepEqual(gate.asked, []);
+      const body = (await res.json()) as { macrosPreserved?: boolean };
+      assert.equal(body.macrosPreserved, undefined);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── [grocery] B3 · WS9 BUG-320 (D-WS9-284 ruling 9) — THE ENTITLED HALF ──────
+//
+// The lapsed half (preserve, ask once, say so) is pinned in the Stripe S2 block
+// above, where the defect it replaces used to be pinned. This block is the other
+// two branches and the dish PATCH.
+
+describe("[grocery] B3 — BUG-320: the entitled paths and the dish PATCH", () => {
+  /** An estimator that always answers, so the re-estimate is observable. */
+  function estimator(calls: string[]) {
+    return async (opts: { dishTitle: string }) => {
+      calls.push(opts.dishTitle);
+      return {
+        status: "ok" as const,
+        perServing: { calories: 711, proteinG: 41, carbsG: 51, fatG: 21 },
+        grounding: { ratio: 0.5 },
+      };
+    };
+  }
+  const entitled = { can: async () => ({ allowed: true, status: "active" as const }) };
+  const lapsed = { can: async () => ({ allowed: false, status: "none" as const }) };
+
+  function seed() {
+    return makeStub({
+      meals: [{ id: "meal-1", userId: USER_ID, isArchived: false }],
+      dishes: [
+        {
+          id: "dish-1",
+          userId: USER_ID,
+          isArchived: false,
+          servingsDefault: 4,
+          caloriesPerServing: 300,
+          proteinGPerServing: 10,
+          carbsGPerServing: 20,
+          fatGPerServing: 5,
+          macroGroundedPct: 60,
+          dishIngredients: [{ ingredientId: "ing-rice", quantity: 1, unit: "cup" }],
+        },
+      ],
+      links: [{ mealId: "meal-1", dishId: "dish-1", positionIndex: 0 }],
+      plans: [{ id: "plan-current", userId: USER_ID, revisionId: 1 }],
+    });
+  }
+
+  it("ENTITLED + a CHANGED dish: the macros are re-estimated, not carried", async () => {
+    const { prisma, captured } = seed();
+    const calls: string[] = [];
+    const h = await spinUp(prisma, entitled, estimator(calls));
+    try {
+      const res = await authPatch(h, "/me/meals/meal-1", {
+        dishes: [
+          {
+            kind: "new",
+            title: "Rebuilt dish",
+            role: "main",
+            positionIndex: 0,
+            ingredients: [{ name: "Quinoa", quantity: 2, unit: "cup" }],
+            steps: [{ text: "Simmer." }],
+          },
+        ],
+      });
+      assert.equal(res.status, 200);
+      assert.deepEqual(calls, ["Rebuilt dish"], "exactly one model call, for the changed dish");
+      const created = captured.dishCreates[0] as Record<string, unknown>;
+      assert.equal(created.caloriesPerServing, 711);
+      assert.equal(created.macroGroundedPct, 50);
+      const body = (await res.json()) as { macrosPreserved?: boolean };
+      assert.equal(body.macrosPreserved, undefined, "nothing was preserved instead");
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("ENTITLED + an UNCHANGED dish: carried, and the estimator is never called", async () => {
+    const { prisma, captured } = seed();
+    const calls: string[] = [];
+    const h = await spinUp(prisma, entitled, estimator(calls));
+    try {
+      const res = await authPatch(h, "/me/meals/meal-1", {
+        title: "Only the name moved",
+        dishes: [
+          {
+            kind: "new",
+            title: "Rebuilt dish",
+            role: "main",
+            positionIndex: 0,
+            servingsDefault: 4,
+            ingredients: [{ name: "Rice", quantity: 1, unit: "cup" }],
+            steps: [{ text: "Simmer." }],
+          },
+        ],
+      });
+      assert.equal(res.status, 200);
+      assert.deepEqual(calls, [], "an unchanged dish is not worth a model call");
+      const created = captured.dishCreates[0] as Record<string, unknown>;
+      assert.equal(created.caloriesPerServing, 300, "the number the user already saw");
+      assert.equal(created.macroGroundedPct, 60);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("a servings change alone counts as CHANGED — it is the macro denominator", async () => {
+    const { prisma } = seed();
+    const calls: string[] = [];
+    const h = await spinUp(prisma, entitled, estimator(calls));
+    try {
+      const res = await authPatch(h, "/me/meals/meal-1", {
+        dishes: [
+          {
+            kind: "new",
+            title: "Rebuilt dish",
+            role: "main",
+            positionIndex: 0,
+            servingsDefault: 8,
+            ingredients: [{ name: "Rice", quantity: 1, unit: "cup" }],
+            steps: [{ text: "Simmer." }],
+          },
+        ],
+      });
+      assert.equal(res.status, 200);
+      assert.deepEqual(calls, ["Rebuilt dish"]);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("dish PATCH, ENTITLED: an ingredient change re-estimates and re-sums the meal", async () => {
+    const { prisma, captured } = seed();
+    const calls: string[] = [];
+    const h = await spinUp(prisma, entitled, estimator(calls));
+    try {
+      const res = await authPatch(h, "/me/dishes/dish-1", {
+        ingredients: [{ name: "Tofu", quantity: 1, unit: "block" }],
+      });
+      assert.equal(res.status, 200);
+      assert.deepEqual(calls.length, 1, "one estimate for the one changed dish");
+      const update = captured.dishUpdates.find((u) => "caloriesPerServing" in (u.data as object));
+      assert.ok(update, "the estimate is written");
+      assert.equal((update!.data as Record<string, unknown>).caloriesPerServing, 711);
+      // The meal's own row is re-summed — the half that was missing entirely.
+      assert.ok(
+        captured.mealUpdates.some((u) => "caloriesPerServing" in (u.data as object)),
+        "the parent meal is re-summed",
+      );
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("dish PATCH, LAPSED: the pre-edit macros stand, no model call, and the wire says so", async () => {
+    const { prisma, captured } = seed();
+    const calls: string[] = [];
+    const h = await spinUp(prisma, lapsed, estimator(calls));
+    try {
+      const res = await authPatch(h, "/me/dishes/dish-1", {
+        ingredients: [{ name: "Tofu", quantity: 1, unit: "block" }],
+      });
+      assert.equal(res.status, 200);
+      assert.deepEqual(calls, [], "no model call on a lapsed account");
+      assert.ok(
+        !captured.dishUpdates.some((u) => "caloriesPerServing" in (u.data as object)),
+        "and no macro column is written, so the saved numbers stand (D-WS9-272)",
+      );
+      const body = (await res.json()) as { macrosPreserved?: boolean };
+      assert.equal(body.macrosPreserved, true);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("dish PATCH: a steps-only edit asks nothing and re-sums nothing", async () => {
+    const { prisma, captured } = seed();
+    const calls: string[] = [];
+    const h = await spinUp(prisma, lapsed, estimator(calls));
+    try {
+      const res = await authPatch(h, "/me/dishes/dish-1", {
+        steps: [{ text: "Stir once more." }],
+      });
+      assert.equal(res.status, 200);
+      assert.deepEqual(calls, []);
+      const body = (await res.json()) as { macrosPreserved?: boolean };
+      assert.equal(body.macrosPreserved, undefined, "a step edit moves no per-serving number");
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("dish PATCH: bumpPlanId bumps the owner's plan, atomically with the edit", async () => {
+    const { prisma, captured } = seed();
+    const h = await spinUp(prisma, lapsed);
+    try {
+      const res = await authPatch(h, "/me/dishes/dish-1", {
+        ingredients: [{ name: "Tofu", quantity: 1, unit: "block" }],
+        bumpPlanId: "plan-current",
+      });
+      assert.equal(res.status, 200);
+      assert.deepEqual(captured.planBumps, [{ id: "plan-current" }]);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("dish PATCH: a foreign plan id is silently skipped, and the edit still lands", async () => {
+    const { prisma, captured } = seed();
+    const h = await spinUp(prisma, lapsed);
+    try {
+      const res = await authPatch(h, "/me/dishes/dish-1", {
+        ingredients: [{ name: "Tofu", quantity: 1, unit: "block" }],
+        bumpPlanId: "plan-someone-else",
+      });
+      assert.equal(res.status, 200);
+      assert.equal(captured.planBumps.length, 0);
+    } finally {
+      await h.close();
     }
   });
 });
