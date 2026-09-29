@@ -18,6 +18,7 @@ import { PlaylistToggleButton } from "@/components/PlaylistToggleButton";
 import { Card } from "@/components/Card";
 import { DisplayTitle, resolveDisplayTitle } from "@/components/DisplayTitle";
 import { Header } from "@/components/Header";
+import { IngredientsSectionHeading } from "@/components/IngredientsSectionHeading";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { MealIngredientsSheetView } from "@/components/MealIngredientsSheetView";
 import { SectionLabel } from "@/components/SectionLabel";
@@ -677,32 +678,12 @@ function MealDetailContent({
             ingredientsY.current = e.nativeEvent.layout.y;
           }}
         >
-          {/* ── D-WS9-058 (BUG-331) — THE HEADING IS THE CONTROL ────────────
-              Hans reported this label as something that "is supposed to expand,
-              but no-ops when I click now". It never did: git history says it has
-              been an inert <Text> since WS5-5F (a286a7f), nothing near it was
-              ever pressable, and no Ingredients disclosure exists on any other
-              screen. He was remembering D-WS9-058, ruled July 20 and never
-              built. This is it.
-
-              ⚠️ SectionLabel IS NOT TOUCHED. It is shared across 11 renders in 5
-              files and takes no onPress; adding one would put a tap target on
-              ten headings that do nothing. The Pressable and the chevron are the
-              CALL SITE's, which is also why the eyebrow's own weight is
-              unchanged — the hierarchy inversion Hans is really seeing (14px
-              serif italic above a 15px serif-600 dish header) is RECORDED, not
-              fixed here. */}
-          <Pressable
-            onPress={() => setIngredientsOpen(true)}
-            accessibilityRole="button"
-            accessibilityLabel="View all ingredients"
-            hitSlop={8}
-            style={({ pressed }) => [s.ingredientsHeadingRow, pressed && { opacity: 0.6 }]}
-            testID="meal-ingredients-heading"
-          >
-            <SectionLabel label="Ingredients" />
-            <Feather name="chevron-right" size={16} color={Colors.neutral[700]} />
-          </Pressable>
+          {/* D-WS9-058 (BUG-331) — the heading is the control. It lives in
+              components/ rather than inline here because app/** is outside the
+              test glob: inline, deleting the Pressable would be a silent green
+              regression back to the exact bug Hans reported. See that file for
+              why SectionLabel itself is untouched. */}
+          <IngredientsSectionHeading onPress={() => setIngredientsOpen(true)} />
           <View style={s.servingsAdjuster}>
             <Text style={s.servingsLabel}>Adjust for</Text>
             <View style={s.stepperRow}>
@@ -920,12 +901,6 @@ const s = StyleSheet.create({
     color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     marginTop: 2,
-  },
-  // D-WS9-058 — the heading and its chevron share one tap target.
-  ingredientsHeadingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
   },
   servingsAdjuster: {
     flexDirection: "row",
