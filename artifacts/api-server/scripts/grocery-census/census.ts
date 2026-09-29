@@ -58,7 +58,8 @@ import {
   generateFinalGroceryList,
   partitionForAI,
 } from "../../src/lib/groceryListAI.js";
-import { loadRelationIndex } from "../../src/lib/relationIndexLoader.js";
+import { loadRelationRows } from "../../src/lib/relationIndexLoader.js";
+import { buildRelationIndex } from "../../src/lib/ingredientRelations.js";
 import {
   estimateCostUsdFromRate,
   getModelRate,
@@ -468,9 +469,20 @@ async function runOnce(planIdIn: string, mode: string, run: number): Promise<Run
   const db = interceptingPrisma(prisma, writes);
 
   // Reads only — the raw client is fine and keeps the proxy off the hot path.
-  const relations = await loadRelationIndex(prisma);
+  //
+  // ── [grocery] B2 — THE ROWS, NOT JUST THE INDEX ──────────────────────────
+  //
+  // This harness's whole claim is that it runs THE REAL PIPELINE AT HEAD. At HEAD
+  // routes/groceryLists.ts passes `relationRows` as well as `relations`, because
+  // the subsumes reader has to rebuild its index once it knows what the plan
+  // demanded (H3's gate). A census that passed only the index would silently
+  // measure the pre-B2 path and report that B2 changed nothing — a false negative
+  // with no symptom. Same rows build the index, so partitionForAI and the
+  // consolidator still agree about what one ingredient is.
+  const relationRows = await loadRelationRows(prisma);
+  const relations = buildRelationIndex(relationRows);
   const consolidated = await consolidatePlanIngredients({
-    prisma, planId: plan.id, userId: plan.userId, relations,
+    prisma, planId: plan.id, userId: plan.userId, relations, relationRows,
   });
 
   // partitionForAI is pure and exported; calling it here tells us the split and
