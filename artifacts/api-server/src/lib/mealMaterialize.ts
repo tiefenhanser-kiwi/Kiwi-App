@@ -245,12 +245,24 @@ export interface EstimateZeroMacroDishesOptions {
   /** The PLAIN client (the pre-pass runs outside the save tx). */
   prisma: Pick<Prisma.TransactionClient, "ingredient"> & EstimateDishMacrosOptions["prisma"];
   userId: string;
-  payload: MaterializeMealPayload;
+  /**
+   * Only the two fields this pre-pass reads. Widened from
+   * `MaterializeMealPayload` for BUG-320: the EDIT payload's `title` is optional
+   * (a PATCH need not rename), and requiring it here would have forced the route
+   * to fabricate one purely to satisfy a function that never looks at it.
+   */
+  payload: Pick<MaterializeMealPayload, "dishes"> & { servingsDefault?: number };
   ingredientIdByCanonical: Map<string, string>;
   /** The estimator — the route's injected dep (real in production, a stub in tests). */
   estimateImpl: typeof estimateDishMacros;
   /** Deadline override for tests. Production omits. */
   deadlineMs?: number;
+  /**
+   * WS9 BUG-320 — restrict the pre-pass to these payload dish indices. The EDIT
+   * path passes the dishes whose macro INPUTS changed; omitting it (the create
+   * path) considers every `kind:"new"` dish, exactly as before.
+   */
+  onlyIndices?: ReadonlySet<number>;
 }
 
 export interface EstimatedDishMacros {
@@ -302,6 +314,12 @@ export async function estimateZeroMacroDishes(
   const work: Array<{ index: number; dish: Extract<MaterializeMealDish, { kind: "new" }> }> = [];
   payload.dishes.forEach((d, index) => {
     if (d.kind !== "new") return;
+    // WS9 BUG-320 — on the EDIT path the caller narrows this to the dishes whose
+    // ingredients or servings actually moved. Every other dish carries the
+    // macros it already had, so asking a model about it would spend a call to
+    // arrive back at the same number. Absent on the create path (POST /me/meals),
+    // where every dish is new and every one is fair game.
+    if (opts.onlyIndices && !opts.onlyIndices.has(index)) return;
     const snapshot = {
       caloriesPerServing: d.macros?.caloriesPerServing ?? 0,
       proteinGPerServing: d.macros?.proteinGPerServing ?? 0,
@@ -1044,12 +1062,151 @@ export interface RematerializeMealPayload {
   sourceType?: "manual" | "wizard" | "directed" | "curated";
 }
 
+// ── WS9 BUG-320 (D-WS9-284 ruling 9) — MACROS SURVIVE A WIPE-AND-RECREATE ────
+//
+// `PATCH /me/meals/:id` with `dishes[]` deletes every exclusively-owned dish and
+// re-creates it. The create wrote macros only when the payload carried
+// `d.macros`, the client has never sent one, the four columns are
+// `Float @default(0)`, and `recomputeAndPersistMealMacros` then summed the
+// zeros. So renaming a meal you own zeroed its nutrition, silently, for
+// entitled and lapsed accounts alike — and the lapsed one could not repair it,
+// because `plan_macro_recalc` is a paid feature and 402s.
+//
+// The fix has three parts and none of them is "estimate everything":
+//   • an UNCHANGED dish carries its own macros forward — no model call, and the
+//     number the user already saw does not move;
+//   • a CHANGED dish is re-estimated through the SAME pre-pass `POST /me/meals`
+//     already runs (estimateZeroMacroDishes, on the plain client, before the tx);
+//   • a LAPSED account preserves the pre-wipe macros whether or not the dish
+//     changed, and makes no AI call. D-WS9-272: saved macros are never
+//     overwritten. The route returns `macrosPreserved: true` and the client
+//     shows the premium notice.
+//
+// A changed dish whose estimate failed or was never asked for ALSO carries the
+// prior macros rather than dropping to zero. BUG-274's "save at zero with a
+// warn" is right for a NEW dish, which has no prior; here one exists, and a
+// stale number beats a fabricated zero.
+
+/** One pre-wipe dish, as the carry-forward and the change test need it. */
+export interface PriorDishState {
+  dishId: string;
+  servingsDefault: number;
+  caloriesPerServing: number;
+  proteinGPerServing: number;
+  carbsGPerServing: number;
+  fatGPerServing: number;
+  macroGroundedPct: number | null;
+  /** `ingredientId|quantity|unit`, sorted — the change test's other half. */
+  ingredientKeys: string[];
+}
+
+const PRIOR_DISH_SELECT = {
+  id: true,
+  servingsDefault: true,
+  caloriesPerServing: true,
+  proteinGPerServing: true,
+  carbsGPerServing: true,
+  fatGPerServing: true,
+  macroGroundedPct: true,
+  dishIngredients: {
+    select: { ingredientId: true, quantity: true, unit: true },
+  },
+} as const;
+
+/**
+ * The meal's current dishes, keyed by their POSITION in the meal — the same key
+ * `preservableByPosition` uses for step fields, and for the same reason: after
+ * the wipe there is no dish id to match on, only the slot.
+ *
+ * Exported because the route needs it BEFORE the transaction opens (to decide
+ * which dishes to spend a model call on) and `rematerializeMeal` needs it again
+ * INSIDE, before the wipe. Two reads of the same rows, deliberately: an AI round
+ * trip inside a 15 s tx would hold a Neon connection through model latency,
+ * which is the placement BUG-274 already settled.
+ */
+export async function readPriorDishesByPosition(
+  db: Prisma.TransactionClient,
+  mealId: string,
+): Promise<Map<number, PriorDishState>> {
+  const links = await db.mealDishLink.findMany({
+    where: { mealId },
+    select: { dishId: true, positionIndex: true },
+  });
+  if (links.length === 0) return new Map();
+  const dishes = await db.dish.findMany({
+    where: { id: { in: links.map((l) => l.dishId) } },
+    select: PRIOR_DISH_SELECT,
+  });
+  const byId = new Map(dishes.map((d) => [d.id, d]));
+  const out = new Map<number, PriorDishState>();
+  for (const l of links) {
+    const d = byId.get(l.dishId);
+    if (!d) continue;
+    out.set(l.positionIndex, {
+      dishId: d.id,
+      servingsDefault: d.servingsDefault,
+      caloriesPerServing: d.caloriesPerServing,
+      proteinGPerServing: d.proteinGPerServing,
+      carbsGPerServing: d.carbsGPerServing,
+      fatGPerServing: d.fatGPerServing,
+      macroGroundedPct: d.macroGroundedPct,
+      ingredientKeys: d.dishIngredients
+        .map((di) => `${di.ingredientId}|${di.quantity}|${di.unit.toLowerCase().trim()}`)
+        .sort(),
+    });
+  }
+  return out;
+}
+
+/**
+ * Did this payload dish change the thing macros are computed FROM?
+ *
+ * Only the ingredient set and the servings denominator. A title, a tag, a
+ * difficulty or a step edit does not move a per-serving macro, and re-estimating
+ * on one would spend a model call to arrive back at the same number — which is
+ * the behaviour this whole fix is replacing, one level up.
+ *
+ * Ingredients are compared by resolved `ingredientId`, not by the name the
+ * payload used, so a rename that lands on the same catalog row through an alias
+ * ("roma tomatoes" → `roma tomato`) is correctly read as unchanged.
+ */
+export function dishMacroInputChanged(
+  prior: PriorDishState | undefined,
+  dish: MaterializeMealDish,
+  ingredientIdByCanonical: Map<string, string>,
+  fallbackServings: number,
+): boolean {
+  if (!prior) return true;
+  if (dish.kind !== "new") return false;
+  if ((dish.servingsDefault ?? fallbackServings) !== prior.servingsDefault) return true;
+  const now = dish.ingredients
+    .map((ing) => {
+      const key = ingredientCanonicalKey(ing.name);
+      const id = ingredientIdByCanonical.get(key) ?? key;
+      return `${id}|${ing.quantity}|${ing.unit.toLowerCase().trim()}`;
+    })
+    .sort();
+  if (now.length !== prior.ingredientKeys.length) return true;
+  return now.some((k, i) => k !== prior.ingredientKeys[i]);
+}
+
+export interface RematerializeMealOptions {
+  /** dish index → the estimate the route's pre-pass produced. */
+  estimatedMacrosByIndex?: Map<number, EstimatedDishMacros>;
+  /**
+   * D-WS9-272 — the account is not entitled to AI. Every recreated dish carries
+   * its pre-wipe macros, changed or not, and nothing is estimated.
+   */
+  preserveMacros?: boolean;
+}
+
 export async function rematerializeMeal(
   tx: Prisma.TransactionClient,
   userId: string,
   mealId: string,
   payload: RematerializeMealPayload,
   ingredientIdByCanonical: Map<string, string>,
+  opts?: RematerializeMealOptions,
 ): Promise<MaterializeMealResult> {
   // WS7-8 BUG-003 B2.3 — anchor-preservation guard (Option 1, meal-anchor
   // inheritance). Read the meal's immutable authored anchor BEFORE the scalar
@@ -1088,6 +1245,11 @@ export async function rematerializeMeal(
     const byIndex = preservableByDish.get(l.dishId);
     if (byIndex) preservableByPosition.set(l.positionIndex, byIndex);
   }
+
+  // WS9 BUG-320 — the same trick, for the numbers rather than the step fields.
+  // Read BEFORE the wipe, keyed by slot, so a re-created dish can carry the
+  // macros the deleted one had.
+  const priorByPosition = await readPriorDishesByPosition(tx, mealId);
 
   let exclusiveDishIds: string[] = [];
   if (linkedDishIds.length > 0) {
@@ -1170,6 +1332,26 @@ export async function rematerializeMeal(
     if (d.kind === "link") {
       dishId = d.dishId;
     } else {
+      // ── WS9 BUG-320 — WHICH NUMBER THE RE-CREATED DISH GETS ────────────────
+      //
+      // In order: what the client SENT · what the route's pre-pass ESTIMATED
+      // (entitled, and only for a dish whose ingredients or servings moved) ·
+      // what the DELETED dish at this slot had · nothing, and the column default
+      // supplies the 0. The last case is a dish at a position the meal did not
+      // previously have, which is a genuinely new dish.
+      const prior = priorByPosition.get(d.positionIndex);
+      const estimated = opts?.estimatedMacrosByIndex?.get(di);
+      const carried = prior
+        ? {
+            caloriesPerServing: prior.caloriesPerServing,
+            proteinGPerServing: prior.proteinGPerServing,
+            carbsGPerServing: prior.carbsGPerServing,
+            fatGPerServing: prior.fatGPerServing,
+            ...(prior.macroGroundedPct !== null
+              ? { macroGroundedPct: prior.macroGroundedPct }
+              : {}),
+          }
+        : null;
       const macros = d.macros
         ? {
             caloriesPerServing: d.macros.caloriesPerServing ?? 0,
@@ -1177,7 +1359,15 @@ export async function rematerializeMeal(
             carbsGPerServing: d.macros.carbsGPerServing ?? 0,
             fatGPerServing: d.macros.fatGPerServing ?? 0,
           }
-        : {};
+        : estimated && !opts?.preserveMacros
+          ? {
+              caloriesPerServing: estimated.caloriesPerServing,
+              proteinGPerServing: estimated.proteinGPerServing,
+              carbsGPerServing: estimated.carbsGPerServing,
+              fatGPerServing: estimated.fatGPerServing,
+              macroGroundedPct: estimated.macroGroundedPct,
+            }
+          : (carried ?? {});
 
       const dish = await tx.dish.create({
         data: {
@@ -1316,12 +1506,26 @@ export function collectRematerializeDishMentions(
   );
 }
 
+export interface RematerializeDishOptions {
+  /**
+   * WS9 BUG-320 (D-WS9-284 ruling 9) — the route's pre-pass estimate, for a dish
+   * whose ingredients moved on an entitled account. Absent means "carry what the
+   * row already has", which is what this function has always done: its scalar
+   * update only writes the fields the payload carries, so an omitted `macros`
+   * leaves the columns alone. That is why a dish PATCH left macros STALE rather
+   * than zeroing them — a different defect from the meal PATCH's, and a
+   * different fix.
+   */
+  estimatedMacros?: EstimatedDishMacros;
+}
+
 export async function rematerializeDish(
   tx: Prisma.TransactionClient,
   _userId: string,
   dishId: string,
   payload: RematerializeDishPayload,
   ingredientIdByCanonical: Map<string, string>,
+  opts?: RematerializeDishOptions,
 ): Promise<{ dishId: string }> {
   // D-WS9-235 — read the steps about to be wiped so a rewrite that omits
   // phaseType / isTimingSensitive (the Dish Builder does) keeps them per index.
@@ -1361,6 +1565,17 @@ export async function rematerializeDish(
       scalarUpdate.carbsGPerServing = payload.macros.carbsGPerServing;
     if (payload.macros.fatGPerServing !== undefined)
       scalarUpdate.fatGPerServing = payload.macros.fatGPerServing;
+  } else if (opts?.estimatedMacros) {
+    // WS9 BUG-320 — the re-estimate for a dish whose ingredients moved. Only
+    // when the payload sent no macros of its own: a user-typed number is a
+    // claim and outranks an estimate (the same precedence the PATCH's scalar
+    // path already applies, including the macroGroundedPct clear below).
+    const e = opts.estimatedMacros;
+    scalarUpdate.caloriesPerServing = e.caloriesPerServing;
+    scalarUpdate.proteinGPerServing = e.proteinGPerServing;
+    scalarUpdate.carbsGPerServing = e.carbsGPerServing;
+    scalarUpdate.fatGPerServing = e.fatGPerServing;
+    scalarUpdate.macroGroundedPct = e.macroGroundedPct;
   }
   if (Object.keys(scalarUpdate).length > 0) {
     await tx.dish.update({ where: { id: dishId }, data: scalarUpdate });
@@ -1428,6 +1643,35 @@ export async function rematerializeDish(
         select: { dishId: true },
       });
       await stampMealTiming(tx, mealId, siblings.map((l) => l.dishId));
+    }
+  }
+
+  // ── WS9 BUG-320 (D-WS9-284 ruling 9) — RE-SUM THE PARENT MEAL ─────────────
+  //
+  // A meal's macros are the SUM of its dishes' per-serving values
+  // (recomputeAndPersistMealMacros), and every other write path re-runs that
+  // sum: materializeMeal, rematerializeMeal, wizardActivation, computePlanMacros
+  // and the backfill script. This one did not — so editing a dish through
+  // `PATCH /me/dishes/:id` moved the dish's number and left every meal
+  // containing it describing the pre-edit recipe. Nothing said so, and nothing
+  // ever corrected it short of a paid plan recalc.
+  //
+  // Runs whenever this edit could have moved a per-serving number: the
+  // ingredients were rewritten, or macros were sent, or an estimate replaced
+  // them. A steps-only edit changes no macro and pays nothing.
+  if (
+    payload.ingredients !== undefined ||
+    payload.macros !== undefined ||
+    opts?.estimatedMacros !== undefined
+  ) {
+    const linkedMeals = await tx.mealDishLink.findMany({
+      where: { dishId },
+      select: { mealId: true },
+    });
+    for (const { mealId } of new Map(
+      linkedMeals.map((l) => [l.mealId, l]),
+    ).values()) {
+      await recomputeAndPersistMealMacros(tx, mealId);
     }
   }
 

@@ -33,6 +33,7 @@ import { logger } from "../lib/logger";
 import { isMealReadableByUser } from "../lib/mealVisibility";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
+import { selectDefaultPathSteps } from "../lib/cookingScheduler";
 import { hasUnmatchedAmount, type AmountRef } from "../lib/stepAmountRefs";
 import {
   subscriptionService as productionSubscriptionService,
@@ -205,6 +206,10 @@ export function toStepShape(s: {
   // Json?; null on legacy/unwired steps, an array (possibly []) on steps
   // derived by a Block-1 generation/create seam.
   amountRefs?: unknown;
+  // [grocery] B3 (D-WS9-277 Rule 3) — the swappable-component tags. Optional on
+  // the input so hand-built fixtures and narrower selects still compile.
+  componentKey?: string | null;
+  pathKey?: string | null;
 }) {
   return {
     stepIndex: s.stepIndex,
@@ -224,6 +229,19 @@ export function toStepShape(s: {
     amountRefs: (s.amountRefs ?? null) as AmountRef[] | null,
     // WS7-8b BUG-003 Block 1 — derived read-side (not stored); false on legacy.
     unmatchedAmount: hasUnmatchedAmount(s.stepTextTranslated, s.amountRefs ?? null),
+    // ── [grocery] B3 (D-WS9-277 Rule 3) — THE TAGS GO ON THE WIRE ────────────
+    //
+    // The steps this shape carries are already filtered to ONE path per
+    // component (selectDefaultPathSteps, applied in composeLoadedMealDetail), so
+    // these two say WHICH path the reader is looking at rather than offering a
+    // choice. Block C renders the toggle from them; until then they are inert
+    // and the 1.0 client strips them (MealStepSchema is a plain z.object, not
+    // `.strict()`, so an added key is dropped rather than rejected).
+    //
+    // null on an untagged step, never undefined — the same contract
+    // `parallelGroup` above uses.
+    componentKey: s.componentKey ?? null,
+    pathKey: s.pathKey ?? null,
   };
 }
 
@@ -249,6 +267,11 @@ export interface MealDetailDish {
     preparationNote: string | null;
     category: string;
     isOptional: boolean;
+    // [grocery] B3 (D-WS9-277 Rule 3) — the swappable-component tags. Optional
+    // because the per-instance recipe override rebuilds this list from the
+    // override's own shape and has no tags to carry.
+    componentKey?: string | null;
+    pathKey?: string | null;
   }[];
   steps: MealStepShape[];
 }
@@ -477,8 +500,29 @@ function composeLoadedMealDetail(
         preparationNote: di.preparationNote,
         category: di.ingredient.category,
         isOptional: di.isOptional,
+        // [grocery] B3 (D-WS9-277 Rule 3) — the same two tags the steps carry.
+        // 0 of 43,041 DishIngredient rows are tagged today, so both are null on
+        // every row and the ingredient list is byte-identical; they are here so
+        // the wire shape is whole when the ingredient side is eventually tagged,
+        // and so the same Rule-3 filter can be applied without a second contract
+        // change. (This is also why the grocery list cannot double-buy a
+        // swappable component today: nothing on the ingredient side is tagged.)
+        componentKey: di.componentKey ?? null,
+        pathKey: di.pathKey ?? null,
       })),
-      steps: steps.map(toStepShape),
+      // ── [grocery] B3 (D-WS9-277 Rule 3) — ONE PATH, NOT BOTH ───────────────
+      //
+      // BUG-121 / BUG-322: this compose applied no path filter, so a dish with a
+      // swappable component returned its from-scratch steps AND the store-bought
+      // alternates, interleaved by stepIndex, to every reader — the recipe
+      // screen, the plan review, the Test Kitchen. The reader was left to
+      // perform both alternatives.
+      //
+      // `selectDefaultPathSteps` is the scheduler's own predicate, shared rather
+      // than re-implemented, so the recipe a user READS and the sequence Cook
+      // Mode TIMES can no longer disagree about which path is the default. Rule
+      // 3: scratch when it exists, bought when only bought exists.
+      steps: selectDefaultPathSteps(steps).map(toStepShape),
     };
   });
 
@@ -523,7 +567,9 @@ function composeLoadedMealDetail(
     // Top-level meal-owned steps — populated for legacy single-dish meals,
     // empty when dishes carry their own steps. Defensive shape: mobile reads
     // meal.dishes[].steps first.
-    steps: mealSteps.map(toStepShape),
+    // Rule 3 applies here too: a legacy single-dish meal owns its steps, and a
+    // tagged one is no less swappable for it. Same predicate, same reason.
+    steps: selectDefaultPathSteps(mealSteps).map(toStepShape),
     notes: null,
     effectiveServings,
   };

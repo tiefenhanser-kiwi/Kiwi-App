@@ -52,6 +52,10 @@ import {
   GroceryConsolidationNotFoundError,
 } from "../lib/groceryList";
 import {
+  recurringFacetsFor,
+  resolveRecurringItems,
+} from "../lib/recurringItems";
+import {
   categorizeGroceryItem as productionCategorizeGroceryItem,
   fillPurchaseSizesWithWriteBack as productionFillPurchaseSizesWithWriteBack,
   generateFinalGroceryList as productionGenerateFinalGroceryList,
@@ -794,6 +798,32 @@ export function createGroceryListsRouter(
         });
         for (const m of meals) mealTitleById.set(m.id, m.title);
       }
+      // ── [grocery] B3 (D-WS9-284) — R3's render fields, DERIVED at read ──────
+      //
+      // Ruling 1 chose option (c): nothing is persisted per user, so there is no
+      // column holding "2 of these 5 lemons are the recurring ones". It does not
+      // need one — the recurring default is deterministic (the table, then the
+      // resolved row's pack), so the split is `quantity - recurringQuantity` and
+      // `recurringFacetsFor` is the SAME pure function the generation path calls.
+      // One implementation, two callers, and they cannot drift.
+      //
+      // Costs nothing on a list with no recurring rows: the resolve is skipped
+      // when the user has no recurring items, and skipped again when no row on
+      // the list is marked.
+      const recurringTexts =
+        list.items.some((i) => i.isRecurringItem)
+          ? (
+              await prisma.userPreferences.findUnique({
+                where: { userId },
+                select: { recurringGroceryItems: true },
+              })
+            )?.recurringGroceryItems ?? []
+          : [];
+      const recurringResolutions =
+        recurringTexts.length > 0
+          ? await resolveRecurringItems(prisma, recurringTexts)
+          : [];
+
       const itemsWithProvenance = list.items.map((i) => {
         const { sources, ...rest } = i;
         const names: string[] = [];
@@ -801,7 +831,29 @@ export function createGroceryListsRouter(
           const t = mealTitleById.get(sr.mealId);
           if (t && !names.includes(t)) names.push(t);
         }
-        return { ...rest, mealNames: names };
+        // D-WS9-230 — a list generated BEFORE B3 still carries its synthetic
+        // under the user's own text (`milk`, not `whole milk`). matchResolution
+        // falls back to the normalized name for exactly that row, so an old list
+        // gets its facets too without anything being rewritten.
+        const facets =
+          i.isRecurringItem && recurringResolutions.length > 0
+            ? recurringFacetsFor(
+                {
+                  ingredientId: i.ingredientId,
+                  canonicalName: i.displayName,
+                  unit: i.unit,
+                  quantity: i.quantity,
+                  hasPlanSources: sources.length > 0,
+                },
+                recurringResolutions,
+              )
+            : null;
+        return {
+          ...rest,
+          mealNames: names,
+          // Additive on the wire; the 1.0 client's Zod schema strips it.
+          ...(facets ? { recurringFacets: facets } : {}),
+        };
       });
       const listWithProvenance = { ...list, items: itemsWithProvenance };
       // WS7-6 (E) Block 1 REWORK — resolve "is the linked plan THIS WEEK's

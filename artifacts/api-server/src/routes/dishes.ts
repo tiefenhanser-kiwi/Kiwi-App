@@ -19,6 +19,7 @@ import { logger } from "../lib/logger";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { createRequireAuth } from "../middleware/auth";
 import { toStepShape } from "./meals";
+import { selectDefaultPathSteps } from "../lib/cookingScheduler";
 
 export interface DishesRouterDeps {
   prisma: PrismaClient;
@@ -88,8 +89,14 @@ export function createDishesRouter(
             preparationNote: di.preparationNote,
             category: di.ingredient.category,
             isOptional: di.isOptional,
+            // [grocery] B3 (D-WS9-277 Rule 3) — same two tags as the meal shape.
+            componentKey: di.componentKey ?? null,
+            pathKey: di.pathKey ?? null,
           })),
-          steps: steps.map(toStepShape),
+          // [grocery] B3 (D-WS9-277 Rule 3) — one path, not both. Same predicate
+          // as composeMealDetail and as the scheduler; a dish read on its own is
+          // no less swappable than the same dish read through its meal.
+          steps: selectDefaultPathSteps(steps).map(toStepShape),
         },
       });
     } catch (err) {

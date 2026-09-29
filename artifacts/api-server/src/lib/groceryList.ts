@@ -16,10 +16,13 @@ import { lookupIngredientByName } from "./ingredientLookup";
 // membership instead of folding. The function itself is untouched and still
 // serves groupConversion (BUG-142) and groceryListAI's conservation guard.
 import { isNeverOrdered, UNIVERSAL_STAPLES } from "./groceryStaples";
+// [grocery] B3 — `lookupPurchaseDefault` is no longer imported here. Its one
+// consumer was the synthetic recurring entry's pack, and the precedence that
+// reads it (table, then the resolved row, then nothing) now lives in
+// recurringItems.ts where the resolution it belongs to happens.
 import {
   canonicalUnitToken,
   lookupConversion,
-  lookupPurchaseDefault,
 } from "./ingredientConversions";
 import { mergeConvertibleGroups } from "./groceryMerge";
 import {
@@ -31,6 +34,12 @@ import {
 } from "./ingredientRelations";
 import { distinguishingTokens } from "./subsumesClasses";
 import { roundNeedQuantity } from "./needQuantity";
+import {
+  recurringComparable,
+  recurringFacetsFor,
+  resolveRecurringItems,
+  type RecurringFacets,
+} from "./recurringItems";
 import { logger } from "./logger";
 
 // WS7-7-A Block 1 — a single plan source contributing to a consolidated line.
@@ -108,6 +117,18 @@ export interface ConsolidatedItem {
     /** the specific's catalog display name, for H3's single-variety collapse */
     displayName: string;
   }[];
+  // ── [grocery] B3 (D-WS9-284) — the two flags the recurring path adds ───────
+  //
+  // `skipGapFill` is ruling 2 step 3 and ruling 6 in one word: a recurring row
+  // this pass APPENDED is never handed to the gap-fill. Without a pack it renders
+  // its name alone (stable, free) instead of asking a model every generation; with
+  // one, a gap-fill would WRITE BACK to the shared catalog, and no model-authored
+  // write may reach the catalog from a recurring resolution.
+  //
+  // `recurringFacets` is R3's render data. It is NOT persisted (ruling 1 chose no
+  // migration), so the detail read re-derives it with the same pure function.
+  skipGapFill?: boolean;
+  recurringFacets?: RecurringFacets;
 }
 
 export interface ConsolidateOptions {
@@ -587,82 +608,136 @@ export async function consolidatePlanIngredients(
     }
   }
 
-  // Recurring items: match-or-append. Match flips the flag on an existing
-  // entry; no match appends a new entry with quantity 1 / unit 'each' /
-  // section 'extras' (PRD §3.5 / Phase 1 §10 default).
+  // ── [grocery] B3 (D-WS9-284) — RECURRING ITEMS MEET THE PLAN ──────────────
+  //
+  // The old rule was `normalizeIngredientName(entry.canonicalName) === norm` —
+  // an exact name equality against catalog canonicals — and there is no catalog
+  // row called `milk`. That one line is why 0 of 96 recurring rows across the 20
+  // census lists carried a plan source, why every list read `Whole milk` beside
+  // `milk`, and why 74 of those 96 rows paid a Haiku gap-fill on EVERY
+  // generation for an answer nothing stored (write-back skips a null
+  // ingredientId).
+  //
+  // The new rule resolves the free text FIRST (recurringItems.ts, on the shared
+  // alias-aware lookup) and then matches on IDENTITY: `ingredientId`, falling
+  // back to `relations.groupKey` — the same key the merge and partitionForAI
+  // already use, so all three agree about what one food is by construction.
+  //
+  // D-WS9-230: forward-only. Nothing is backfilled and nothing is persisted per
+  // user (D-WS9-284 ruling 1), so this runs at every generation.
   const recurringRaw = plan.user?.preferences?.recurringGroceryItems ?? [];
-  for (const raw of recurringRaw) {
-    const norm = normalizeIngredientName(raw);
-    if (!norm) continue;
+  const recurringResolutions = recurringRaw.length > 0
+    ? await resolveRecurringItems(prisma, recurringRaw)
+    : [];
+  // The rows THIS pass appended, as opposed to plan rows it merely flagged.
+  // They are held out of `demanded` below — see the note there.
+  const recurringAppended = new Set<ConsolidatedItem>();
 
-    let matched = false;
+  for (const res of recurringResolutions) {
+    const { norm } = res;
+
+    // ── (a) does the plan already demand this food? ────────────────────────
+    //
+    // Identity first, then the group key. The loop does not break: one food can
+    // occupy several unit-buckets, and every one of them is the same food.
+    const met: ConsolidatedItem[] = [];
     for (const entry of buckets.values()) {
-      if (normalizeIngredientName(entry.canonicalName) === norm) {
-        entry.isRecurringItem = true;
-        matched = true;
-        // Don't break — a recurring item could (rarely) match multiple
-        // unit-buckets of the same canonical; flag them all.
-      }
+      const sameId =
+        res.ingredientId !== null && entry.ingredientId === res.ingredientId;
+      const sameKey =
+        res.canonicalName !== null &&
+        relations.groupKey(entry.canonicalName) ===
+          relations.groupKey(res.canonicalName);
+      const sameName =
+        res.canonicalName === null &&
+        normalizeIngredientName(entry.canonicalName) === norm;
+      if (sameId || sameKey || sameName) met.push(entry);
     }
-    if (matched) continue;
 
-    // BUG-164 — key the synthetic bucket by the unit it ACTUALLY carries.
+    if (met.length > 0) {
+      for (const entry of met) {
+        entry.isRecurringItem = true;
+        // ── R3, D-WS9-188 ──────────────────────────────────────────────────
+        //
+        // SAME COUNT UNIT → one line, summed; the split rides in the facets, so
+        // the line can say "5 lemons — 2 recurring + 3 for meals".
+        //
+        // ⛔ ANYTHING ELSE ADDS NOTHING TO THE NEED. The recurring quantity
+        // becomes the DEFAULT PURCHASE (which is what `purchaseQuantity`
+        // already is) and the meal need stays exactly what the recipes asked
+        // for. The app never decides a gallon covers two cups — and it never
+        // buys two gallons either.
+        const qty = res.purchase?.purchaseQuantity ?? null;
+        if (qty !== null && recurringComparable(res.purchase?.purchaseUnit, entry.unit)) {
+          entry.quantity += qty;
+        } else if (res.purchase) {
+          // The default purchase, stated on the row the recipes already own.
+          entry.purchaseUnit = res.purchase.purchaseUnit;
+          entry.purchaseQuantity = res.purchase.purchaseQuantity;
+          entry.purchaseDisplay = res.purchase.purchaseDisplay;
+        }
+      }
+      continue;
+    }
+
+    // ── (b) the plan demands none of it — one line, with an identity ───────
     //
-    // The bucket map is keyed (normalizedCanonical, unit) everywhere else, and
-    // BUG-025-3 gave this entry a real purchase unit ("bananas" → 1 bunch,
-    // "egg" → 1 dozen) while leaving the key hard-wired to "each". The map then
-    // held an entry filed under a unit it does not have — `bucketKeyOf(norm,
-    // "each")` for a row whose unit is "dozen" — and, because this same string
-    // is the provenance join key (see bucketKeyOf), a key that disagrees with
-    // the row is a latent mis-join, not just untidiness.
-    //
-    // SCOPE: mechanical only. Whether a recurring "milk" SHOULD absorb the
-    // plan's "whole milk 3 tbsp" need is D-WS9-188 and is unruled, so the
-    // match-or-append name test above is deliberately left exactly as it was.
-    const def = lookupPurchaseDefault(norm);
-    const syntheticUnit = def ? def.purchaseUnit : "each";
-    const key = bucketKeyOf(norm, syntheticUnit);
-    if (buckets.has(key)) {
-      // Already added a synthetic bucket for an earlier identical recurring entry.
-      const existing = buckets.get(key)!;
+    // BUG-164 — key the bucket by the unit it ACTUALLY carries. The map is
+    // keyed (normalizedCanonical, unit) everywhere else and this string is also
+    // the provenance join key, so a key that disagrees with its row is a latent
+    // mis-join, not untidiness.
+    const unit = res.purchase?.purchaseUnit ?? "each";
+    const name = res.canonicalName ?? norm;
+    const key = bucketKeyOf(name, unit);
+    const existing = buckets.get(key);
+    if (existing) {
+      // An earlier recurring text already produced this bucket, or the plan
+      // holds it under a name the identity test above did not reach.
       existing.isRecurringItem = true;
       continue;
     }
-    // WS7-8b B1 (BUG-025-3) — give the synthetic recurring entry a proper
-    // purchasable representation per PRD §12.8 [LOCKED]. Consult the shared
-    // purchase-pack defaults (bananas → "1 bunch", garlic → "1 head"); when
-    // the item isn't in the table, fall back to the prior each/1/null shape
-    // so genuinely unknown recurring items still render sanely. `def` is
-    // resolved above, because BUG-164 makes the bucket key depend on it.
-    const synthetic: ConsolidatedItem = {
-      ingredientId: null,
-      canonicalName: norm,
-      displayName: raw,
-      quantity: def ? def.purchaseQuantity : 1,
-      unit: def ? def.purchaseUnit : "each",
-      sectionKey: "extras",
-      // WS9 BUG-182 — explicit membership, no inheritance (see the bucket
-      // site above and UNIVERSAL_STAPLES).
-      isUniversalStaple: UNIVERSAL_STAPLE_KEYS.has(norm),
-      isUserPantryStaple: userPantryKeys.has(norm),
+    const appended: ConsolidatedItem = {
+      ingredientId: res.ingredientId,
+      canonicalName: name,
+      // The CATALOG's name when there is one — "whole milk", not "Milk". The
+      // user's text is what they typed, not what the shop calls the food.
+      displayName: res.displayName ?? res.text,
+      quantity: res.purchase?.purchaseQuantity ?? 1,
+      unit,
+      // Ruling 5 — household is a CATEGORY, never a lookup failure. Coffee
+      // resolves to nothing and is still a food; it stays in the Instacart
+      // payload and lands in `pantry`. Everything else keeps `extras`.
+      sectionKey: sectionForCategory(res.household ? "Household" : res.category),
+      // WS9 BUG-182 — explicit membership, no inheritance.
+      isUniversalStaple: UNIVERSAL_STAPLE_KEYS.has(normalizeIngredientName(name)),
+      isUserPantryStaple: userPantryKeys.has(normalizeIngredientName(name)),
       isRecurringItem: true,
       sources: [],
-      purchaseUnit: def ? def.purchaseUnit : null,
-      purchaseQuantity: def ? def.purchaseQuantity : null,
-      purchaseDisplay: def ? def.purchaseDisplay : null,
-      conversionRef: lookupConversion(norm) ?? null,
-      // [grocery] B1 — a synthetic recurring entry has no catalog row to read a
-      // yield from (that is what makes it synthetic), so it gets none and falls
-      // back to one whole pack per need. If the recurring name later matches a
-      // catalog row, that is D-WS9-188's question and still unruled.
+      purchaseUnit: res.purchase?.purchaseUnit ?? null,
+      purchaseQuantity: res.purchase?.purchaseQuantity ?? null,
+      purchaseDisplay: res.purchase?.purchaseDisplay ?? null,
+      conversionRef: lookupConversion(name) ?? lookupConversion(norm) ?? null,
       packYieldUnit: null,
       packYieldPerPack: null,
       packFloor: null,
       preparationNote: null,
       sourceDishTitle: null,
+      // ── RULING 2, STEP 3: "no pack, and no AI call." ──────────────────────
+      //
+      // This flag is the whole of it. A recurring row the table and the catalog
+      // both miss renders its name with no pack — stable, and free — instead of
+      // being handed to Haiku, which is what produced `paper towels` as
+      // "(6-pack)" 49 times and "(6 rolls)" 7 across the same corpus.
+      //
+      // It also enforces ruling 6 from the other side: a RESOLVED recurring row
+      // carries a real ingredientId, so a gap-fill on it would WRITE BACK to the
+      // shared catalog, and no model-authored write may reach the catalog from a
+      // recurring resolution.
+      skipGapFill: true,
     };
-    buckets.set(key, synthetic);
+    buckets.set(key, appended);
     order.push(key);
+    recurringAppended.add(appended);
   }
 
   const ordered = order
@@ -714,8 +789,18 @@ export async function consolidatePlanIngredients(
   //
   // A caller that supplied no relation index gets no overlay and no subsumes
   // reading at all — the pre-B2 path, unchanged.
+  //
+  // ⚠️ [grocery] B3 — A RECURRING APPEND IS NOT A RECIPE DEMAND. H3's gate is
+  // "did a RECIPE ask for the generic", and a row this pass appended because the
+  // user types "chicken broth" into their weekly list is not a recipe asking for
+  // anything. Before B3 the leak was unreachable in practice — a synthetic
+  // carried the user's raw text (`milk`), which matches no generic — but
+  // resolution gives these rows real catalog names, so it becomes reachable.
+  // Rows the plan itself demanded and this pass merely FLAGGED as recurring stay
+  // in: those are recipe demands that happen also to be recurring.
   const demanded = new Set<string>();
   for (const it of ordered) {
+    if (recurringAppended.has(it)) continue;
     const n = normalizeIngredientName(it.canonicalName);
     demanded.add(n);
     demanded.add(relations.groupKey(it.canonicalName));
@@ -823,6 +908,30 @@ export async function consolidatePlanIngredients(
   // displayed quantity, never the item set. Recurring entries are unaffected.
   for (const item of merged) {
     item.quantity = roundNeedQuantity(item.quantity, item.unit);
+  }
+
+  // ── [grocery] B3 (D-WS9-284) — R3's render fields, computed LAST ──────────
+  //
+  // After the merge and after the rounding sweep, because `mealQuantity` on a
+  // summed line is `quantity - recurringQuantity` and `quantity` is not final
+  // until both have run. The detail read re-derives these from the persisted row
+  // with the same pure function (ruling 1: nothing is persisted), so computing
+  // them anywhere earlier would make the two disagree by exactly a rounding.
+  if (recurringResolutions.length > 0) {
+    for (const item of merged) {
+      if (!item.isRecurringItem) continue;
+      const facets = recurringFacetsFor(
+        {
+          ingredientId: item.ingredientId,
+          canonicalName: item.canonicalName,
+          unit: item.unit,
+          quantity: item.quantity,
+          hasPlanSources: item.sources.length > 0,
+        },
+        recurringResolutions,
+      );
+      if (facets) item.recurringFacets = facets;
+    }
   }
   return merged;
 }

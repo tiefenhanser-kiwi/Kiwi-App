@@ -240,18 +240,49 @@ export function isUnattended(
 export const EXCLUDED_PATH_KEY = "bought";
 
 /**
- * The steps a from-scratch cook actually does: base (null path) + the scratch
- * path. The `bought` alternates are dropped. Order and stepIndex are preserved,
- * so every emitted `originalStepIndex` still names a persisted row.
+ * The steps a cook actually does: base (null path) + ONE path per swappable
+ * component. Order and stepIndex are preserved, so every emitted
+ * `originalStepIndex` still names a persisted row.
  *
  * WS9 BUG-270 — applied ONCE, at `scheduleCookingSequence`'s input, so every
  * consumer inherits it (see the header). Exported so a script can measure
  * "what the scheduler will see" without re-implementing the predicate.
+ *
+ * ── D-WS9-277 RULE 3 / BUG-121 / BUG-322 (D-WS9-284 ruling 10) ──────────────
+ *
+ * Hans: "if no shortcut, or no from scratch, just show that's there. but to your
+ * specific point, if only shortcut, show shortcut."
+ *
+ * This function used to drop `bought` UNCONDITIONALLY, and 10 components on dev
+ * have a bought path and no scratch one. The failure that produced was not an
+ * empty dish — every one of those dishes kept 7 to 11 of its steps and scheduled
+ * normally. It was a SILENTLY INCOMPLETE RECIPE: Classic Chicken Noodle Soup
+ * scheduled with no broth step at all, Broccoli Cheddar Soup with no broccoli
+ * step. An empty dish is visible; a recipe missing the step that makes one of
+ * its components is not.
+ *
+ * So the rule is per COMPONENT, not per step: a `bought` step is dropped only
+ * when its own component has a scratch alternative to prefer.
+ *
+ * A `bought` step carrying NO componentKey is still dropped — it belongs to no
+ * component, so there is nothing to ask the question about, and `storeFill`'s
+ * `incomplete_tag` check already strips that shape at authoring time. Measured
+ * on dev: 0 such rows, and 0 with a componentKey but no pathKey.
  */
-export function selectDefaultPathSteps<T extends Pick<SchedulerStep, "pathKey">>(
-  steps: T[],
-): T[] {
-  return steps.filter((s) => (s.pathKey ?? null) !== EXCLUDED_PATH_KEY);
+export function selectDefaultPathSteps<
+  T extends Pick<SchedulerStep, "pathKey" | "componentKey">,
+>(steps: T[]): T[] {
+  const componentsWithScratch = new Set<string>();
+  for (const s of steps) {
+    if (s.pathKey === "scratch" && s.componentKey) {
+      componentsWithScratch.add(s.componentKey);
+    }
+  }
+  return steps.filter((s) => {
+    if ((s.pathKey ?? null) !== EXCLUDED_PATH_KEY) return true;
+    if (!s.componentKey) return false;
+    return !componentsWithScratch.has(s.componentKey);
+  });
 }
 
 // Present-tense gerund for a passive window, used to compose a natural cue.

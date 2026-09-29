@@ -49,7 +49,11 @@ import {
   collectMealMentions,
   collectRematerializeDishMentions,
   estimateZeroMacroDish,
+  dishMacroInputChanged,
   estimateZeroMacroDishes,
+  type EstimatedDishMacros,
+  type PriorDishState,
+  readPriorDishesByPosition,
   materializeDish,
   materializeMeal,
   rematerializeDish,
@@ -614,6 +618,12 @@ const patchMeDishSchema = z
     macros: macrosPerServingSchema.optional(),
     ingredients: z.array(ingredientItemSchema).min(1).max(40).optional(),
     steps: z.array(stepItemSchema).max(30).optional(),
+    // WS9 BUG-320 (D-WS9-284 ruling 9) — the "apply every time" plan bump the
+    // meal PATCH has had since WS7-7-A Block 5, and the dish PATCH never did.
+    // A dish edit changes what the plan's grocery list needs just as much as a
+    // meal edit does; without this the list never learned. Additive and
+    // optional: the 1.0 client does not send it, which is harmless.
+    bumpPlanId: z.string().min(1).max(100).optional(),
   })
   .strict()
   .refine((obj) => Object.keys(obj).length > 0, {
@@ -1925,6 +1935,79 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
             prisma,
             mentions,
           );
+
+          // ── WS9 BUG-320 (D-WS9-284 ruling 9) — MACROS SURVIVE THE WIPE ─────
+          //
+          // This route wipes and re-creates every exclusively-owned dish, the
+          // client has never sent `d.macros`, and the four columns default to 0
+          // — so renaming a meal you own zeroed its nutrition, and on a lapsed
+          // account the zero was permanent (recalc is `plan_macro_recalc`, a
+          // paid feature that 402s).
+          //
+          // The pre-pass runs HERE, on the plain client, before the tx opens —
+          // the BUG-274 placement, for the reason its comment gives: an AI round
+          // trip inside a 15 s tx holds a Neon connection through model latency
+          // and rolls back its LLMCallLog rows on a failed save.
+          //
+          // It is narrowed to the dishes whose macro INPUTS moved. A title or
+          // tag edit does not change a per-serving macro, so asking a model
+          // about it would spend a call to arrive back at the same number.
+          const priorByPosition = await readPriorDishesByPosition(
+            prisma,
+            mealId,
+          );
+          const changedIndices = new Set<number>();
+          payload.dishes.forEach((d, i) => {
+            if (
+              dishMacroInputChanged(
+                priorByPosition.get(d.positionIndex),
+                d,
+                ingredientIdByCanonical,
+                payload.servingsDefault ?? 4,
+              )
+            ) {
+              changedIndices.add(i);
+            }
+          });
+
+          // D-WS9-272 — a lapsed account preserves what it has and is asked for
+          // nothing. Same key and the same graceful skip as POST /me/meals; the
+          // difference is that here there is something to preserve, so the meal
+          // does not fall back to zero.
+          //
+          // THE GATE IS ONLY CONSULTED WHEN SOMETHING CHANGED. A rename rebuilds
+          // the sub-graph but moves no per-serving number, so there is nothing to
+          // estimate, nothing to deny and nothing to tell the user about — asking
+          // anyway would put a premium notice on an edit that never wanted AI.
+          // (`me-patch.test.ts` pins the empty `asked` list for exactly that.)
+          let macroEstimateAllowed = true;
+          let estimatedMacrosByIndex: Map<number, EstimatedDishMacros> | undefined;
+          if (changedIndices.size > 0) {
+            const ent = await subscriptionService.can(userId, "meal_macro_estimate");
+            macroEstimateAllowed = ent.allowed;
+            if (ent.allowed) {
+              estimatedMacrosByIndex = await estimateZeroMacroDishes({
+                prisma,
+                userId,
+                payload,
+                ingredientIdByCanonical,
+                estimateImpl: estimateDishMacros,
+                onlyIndices: changedIndices,
+              });
+            } else {
+              logger.info(
+                {
+                  event: "macro_estimate_skipped_unentitled",
+                  userId,
+                  mealId,
+                  status: ent.status,
+                  changedDishes: changedIndices.size,
+                },
+                "Macro re-estimate skipped on a meal edit — not entitled to AI; the pre-edit macros are preserved",
+              );
+            }
+          }
+
           const result = await prisma.$transaction(
             async (tx) => {
               const materialized = await rematerializeMeal(
@@ -1933,6 +2016,10 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
                 mealId,
                 payload,
                 ingredientIdByCanonical,
+                {
+                  estimatedMacrosByIndex,
+                  preserveMacros: !macroEstimateAllowed,
+                },
               );
               // WS7-7-A Block 5 — "apply every time" current-plan bump, atomic
               // with the meal edit so there's no window where the meal updated
@@ -1950,6 +2037,12 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
               dishIds: result.dishIds,
               linksCreated: result.linksCreated,
             },
+            // D-WS9-272 — the honest half, on the wire. Omitted entirely on the
+            // normal path, so a client that has never heard of it sees the
+            // byte-identical body it saw before; present only when an edit kept
+            // the pre-edit macros because the account is not entitled to AI. The
+            // premium notice is the client's; the server says WHY.
+            ...(!macroEstimateAllowed ? { macrosPreserved: true } : {}),
           });
         }
 
@@ -2035,7 +2128,15 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
 
       const dish = await prisma.dish.findUnique({
         where: { id: dishId },
-        select: { id: true, userId: true, isArchived: true },
+        select: {
+          id: true, userId: true, isArchived: true,
+          // WS9 BUG-320 — the pre-edit state the re-estimate is grounded in and
+          // the change test is measured against.
+          title: true, servingsDefault: true,
+          dishIngredients: {
+            select: { ingredientId: true, quantity: true, unit: true },
+          },
+        },
       });
       if (!dish || dish.isArchived) {
         return res.status(404).json({ error: "dish not found" });
@@ -2057,18 +2158,97 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
             mentions.length > 0
               ? await resolveIngredients(prisma, mentions)
               : new Map<string, string>();
+
+          // ── WS9 BUG-320 (D-WS9-284 ruling 9) — THE DISH PATCH FOLLOWS THE
+          //    MEAL PATCH'S RULE ────────────────────────────────────────────
+          //
+          // This path does NOT zero macros — `rematerializeDish` only writes the
+          // fields the payload carries, so an omitted `macros` leaves the
+          // columns alone. What it did instead was leave them STALE: swap the
+          // chicken for tofu and the dish kept the chicken's calories, and
+          // nothing re-summed the meals containing it.
+          //
+          // Same shape as the meal PATCH above, same seam, same entitlement key:
+          // ingredients changed and entitled → re-estimate; ingredients changed
+          // and lapsed → preserve and say so; unchanged → carry, no call.
+          const priorState: PriorDishState = {
+            dishId: dish.id,
+            servingsDefault: dish.servingsDefault,
+            caloriesPerServing: 0, proteinGPerServing: 0,
+            carbsGPerServing: 0, fatGPerServing: 0, macroGroundedPct: null,
+            ingredientKeys: dish.dishIngredients
+              .map((di) => `${di.ingredientId}|${di.quantity}|${di.unit.toLowerCase().trim()}`)
+              .sort(),
+          };
+          const macroInputChanged =
+            body.ingredients !== undefined &&
+            dishMacroInputChanged(
+              priorState,
+              {
+                kind: "new",
+                title: body.title ?? dish.title,
+                role: "main",
+                positionIndex: 0,
+                servingsDefault: body.servingsDefault ?? dish.servingsDefault,
+                ingredients: body.ingredients,
+                steps: [],
+              },
+              ingredientIdByCanonical,
+              dish.servingsDefault,
+            );
+
+          let dishPatchEntAllowed = true;
+          let estimatedMacros: EstimatedDishMacros | undefined;
+          if (macroInputChanged) {
+            const ent = await subscriptionService.can(userId, "meal_macro_estimate");
+            dishPatchEntAllowed = ent.allowed;
+            if (ent.allowed) {
+              estimatedMacros = await estimateZeroMacroDish({
+                prisma,
+                userId,
+                payload: {
+                  title: body.title ?? dish.title,
+                  servingsDefault: body.servingsDefault ?? dish.servingsDefault,
+                  ingredients: body.ingredients ?? [],
+                  steps: [],
+                },
+                ingredientIdByCanonical,
+                estimateImpl: estimateDishMacros,
+              });
+            } else {
+              logger.info(
+                { event: "macro_estimate_skipped_unentitled", userId, dishId, status: ent.status },
+                "Macro re-estimate skipped on a dish edit — not entitled to AI; the pre-edit macros are preserved",
+              );
+            }
+          }
+
           await prisma.$transaction(
-            async (tx) =>
-              rematerializeDish(
+            async (tx) => {
+              await rematerializeDish(
                 tx,
                 userId,
                 dishId,
                 body,
                 ingredientIdByCanonical,
-              ),
+                { estimatedMacros },
+              );
+              // WS9 BUG-320 — the "apply every time" bump the meal PATCH has
+              // had since WS7-7-A Block 5. Atomic with the edit, so there is no
+              // window where the dish changed and the plan's grocery list did
+              // not reconcile. Ownership-checked; a foreign plan id is skipped.
+              if (body.bumpPlanId) {
+                await bumpCurrentPlanRevision(tx, body.bumpPlanId, userId);
+              }
+            },
             { timeout: 15000 },
           );
-          return res.json({ dish: { id: dishId } });
+          return res.json({
+            dish: { id: dishId },
+            ...(macroInputChanged && !dishPatchEntAllowed
+              ? { macrosPreserved: true }
+              : {}),
+          });
         }
 
         // Scalar-only patch.

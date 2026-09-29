@@ -16,6 +16,18 @@
 import type { DishRole, PrismaClient } from "@prisma/client";
 
 import { resolvePrepCategory } from "./prepCategoryOverride";
+import { selectDefaultPathSteps } from "./cookingScheduler";
+
+/** Group already-ordered rows by ownerId, preserving order within each owner. */
+function groupByOwner<T extends { ownerId: string }>(rows: T[]): Map<string, T[]> {
+  const out = new Map<string, T[]>();
+  for (const r of rows) {
+    const list = out.get(r.ownerId);
+    if (list) list.push(r);
+    else out.set(r.ownerId, [r]);
+  }
+  return out;
+}
 
 // ── enriched loader output (engine-ready, pre-scaling) ──────────────────────
 
@@ -268,26 +280,34 @@ export async function loadPrepWeekInput(
       prisma.recipeInstructionStep.findMany({
         where: { ownerType: "dish", ownerId: { in: dishIds } },
         orderBy: [{ ownerId: "asc" }, { stepIndex: "asc" }],
-        select: { ownerId: true, stepTextRaw: true },
+        // [grocery] B3 (D-WS9-277 Rule 3) — the component tags ride along so the
+        // path filter below can run. See the note at that filter.
+        select: { ownerId: true, stepTextRaw: true, componentKey: true, pathKey: true },
       }),
       prisma.recipeInstructionStep.findMany({
         where: { ownerType: "meal", ownerId: { in: mealIds } },
         orderBy: [{ ownerId: "asc" }, { stepIndex: "asc" }],
-        select: { ownerId: true, stepTextRaw: true },
+        select: { ownerId: true, stepTextRaw: true, componentKey: true, pathKey: true },
       }),
     ]);
 
+    // ── [grocery] B3 (D-WS9-277 Rule 3) — PREP-WEEK READS THE SELECTED PATH ───
+    //
+    // This read had no path filter, so a dish with a swappable component handed
+    // the prep judge BOTH alternatives: "Measure ½ cup basil pesto from the jar"
+    // AND the four steps that make pesto from scratch. The judge then proposed
+    // prep tasks for a path the cook is not taking. Rule 3 says the recipe, the
+    // timing and the prep week all read one path, and this is the third of them.
+    const selectOwned = <T extends { componentKey: string | null; pathKey: string | null }>(
+      rows: T[],
+    ): T[] => selectDefaultPathSteps(rows);
     const dishStepsByOwner = new Map<string, string[]>();
-    for (const s of dishSteps) {
-      const list = dishStepsByOwner.get(s.ownerId);
-      if (list) list.push(s.stepTextRaw);
-      else dishStepsByOwner.set(s.ownerId, [s.stepTextRaw]);
+    for (const [owner, rows] of groupByOwner(dishSteps)) {
+      dishStepsByOwner.set(owner, selectOwned(rows).map((s) => s.stepTextRaw));
     }
     const mealStepsByOwner = new Map<string, string[]>();
-    for (const s of mealSteps) {
-      const list = mealStepsByOwner.get(s.ownerId);
-      if (list) list.push(s.stepTextRaw);
-      else mealStepsByOwner.set(s.ownerId, [s.stepTextRaw]);
+    for (const [owner, rows] of groupByOwner(mealSteps)) {
+      mealStepsByOwner.set(owner, selectOwned(rows).map((s) => s.stepTextRaw));
     }
 
     // Fold a dish's own steps + its meal's steps into one list. For multi-dish

@@ -163,6 +163,25 @@ export async function fillPurchaseSizesWithWriteBack(
   const missIndices: number[] = [];
   for (let i = 0; i < items.length; i++) {
     const it = items[i];
+    // ── [grocery] B3 (D-WS9-284 rulings 2 and 6) — THE ONE ROW THAT IS NEVER
+    //    ASKED ────────────────────────────────────────────────────────────────
+    //
+    // A recurring row the consolidator APPENDED opts out here, and it is the
+    // whole of ruling 2's step 3 ("no pack, and no AI call") and ruling 6.
+    //
+    // Before B3 every one of these was a cache miss, because a synthetic's pack
+    // came from a table keyed on the user's free text and most of that
+    // vocabulary missed it. Measured across the census corpus: 74 of 96
+    // recurring rows paid a Haiku call on EVERY generation, the answer was
+    // thrown away (the write-back below skips a null ingredientId), and two of
+    // the nine texts disagreed with themselves — `paper towels` came back
+    // "(6-pack)" 49 times and "(6 rolls)" 7.
+    //
+    // Now that the row can resolve, the same call would be worse, not better: it
+    // carries a real ingredientId, so the write-back WOULD fire and a model's
+    // guess would land in the shared catalog every user reads. Ruling 6: no
+    // model-authored write reaches the catalog from a recurring resolution.
+    if (it.skipGapFill) continue;
     if (
       it.purchaseUnit === null ||
       it.purchaseQuantity === null ||
