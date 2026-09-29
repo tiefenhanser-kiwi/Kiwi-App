@@ -553,9 +553,12 @@ describe("forkMealForUser", () => {
 // Row 5 · Block 1c (D-WS9-248) — a copy INHERITS the parent's image; it never
 // enqueues its own. Provenance travels with the URL (the gap Block 1 flagged).
 describe("Block 1c — image provenance + queue state on the copy paths", () => {
-  it("inheritedImageStatus: url → ready; no url + failed parent → failed; no url otherwise → pending", () => {
+  // BUG-332 / D-WS9-288 ruling 2 — the `failed` case FLIPPED. It used to be
+  // `failed` (the D-WS9-230 residue rule); a fork is a new row the drain has
+  // never tried, so it now starts `pending` and takes its own three attempts.
+  it("inheritedImageStatus: url → ready; no url → pending, whatever the parent's verdict was", () => {
     assert.equal(inheritedImageStatus({ imageUrl: "https://x/meals/a.jpg", imageStatus: "pending" }), "ready");
-    assert.equal(inheritedImageStatus({ imageUrl: null, imageStatus: "failed" }), "failed");
+    assert.equal(inheritedImageStatus({ imageUrl: null, imageStatus: "failed" }), "pending");
     assert.equal(inheritedImageStatus({ imageUrl: null, imageStatus: "pending" }), "pending");
     assert.equal(inheritedImageStatus({ imageUrl: null, imageStatus: "generating" }), "pending");
   });
@@ -581,10 +584,11 @@ describe("Block 1c — image provenance + queue state on the copy paths", () => 
     assert.equal(rec.mealCreates[0].sourceStoreMealId, "src-meal");
   });
 
-  it("publishMealToStore of a failed-image source is `failed` too (never re-enqueued)", async () => {
+  // BUG-332 / D-WS9-288 ruling 2 — was "is `failed` too (never re-enqueued)".
+  it("publishMealToStore of a failed-image source is `pending` — the write-back is a new row, not the source's verdict", async () => {
     const source = { ...makeSource(), imageUrl: null, imageSource: null, imageGeneratedAt: null, imageStatus: "failed" };
     const { tx, rec } = makeTxStub(source as never);
     await publishMealToStore(tx as never, "src-meal");
-    assert.equal(rec.mealCreates[0].imageStatus, "failed");
+    assert.equal(rec.mealCreates[0].imageStatus, "pending");
   });
 });

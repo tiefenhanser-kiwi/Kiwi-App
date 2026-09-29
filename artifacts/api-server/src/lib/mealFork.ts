@@ -26,12 +26,28 @@ type Tx = Prisma.TransactionClient;
 
 // Row 5 · Block 1c (D-WS9-248) — the queue state a copy takes from its source.
 // Shared by cloneMealInto and mealCreate.ts's createMealWithDishes.
+//
+// BUG-332 / D-WS9-288 ruling 2 — A FORK NEVER INHERITS `failed`.
+//
+// It used to: a source that was `failed` made the copy `failed` too, at
+// attempt 0, born terminal and never claimed. That is how the Apple review
+// account got a plan of eight imageless meals sixty seconds after signup — it
+// forked eight seed meals that the Block 1c migration had marked `failed`
+// (that migration wrote `failed` onto 282 user-authored rows with no image;
+// on the 2026-09-27 dev copy, ALL 290 `failed` rows still sit at 0 attempts,
+// so not one of them was ever a real generation failure).
+//
+// The source's verdict is not the copy's. A fork is a NEW row the drain has
+// never tried, so it starts `pending` and takes its three attempts like any
+// other. What still travels is the IMAGE: a source with a URL yields `ready`
+// and the copy renders the parent's photo immediately, which is the whole
+// point of not generating twice.
 export function inheritedImageStatus(source: {
   imageUrl: string | null;
   imageStatus: MealImageStatus;
 }): MealImageStatus {
   if (source.imageUrl) return "ready";
-  return source.imageStatus === "failed" ? "failed" : "pending";
+  return "pending";
 }
 
 // Target attributes for a clone: who owns it, whether it's pool-visible, and an
@@ -225,7 +241,8 @@ async function cloneMealInto(
       // never enqueues its own: url + provenance travel together, and the
       // queue state follows the image (ready when there is one; a copy of a
       // still-pending parent is pending and is STAMPED by the drain when the
-      // parent lands — the claim skips it; a copy of a failed parent is failed).
+      // parent lands — the claim skips it). BUG-332 / D-WS9-288: a copy of a
+      // FAILED parent is `pending` now, not `failed` — see inheritedImageStatus.
       imageUrl: source.imageUrl,
       imageSource: source.imageSource,
       imageGeneratedAt: source.imageGeneratedAt,

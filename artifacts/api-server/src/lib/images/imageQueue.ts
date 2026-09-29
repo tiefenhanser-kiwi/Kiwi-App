@@ -37,6 +37,11 @@
 // generating, and when the parent lands the drain stamps the same URL onto
 // every such fork. One generation per catalog image, however many plans
 // it is in.
+// ⚠️ BUG-332 / D-WS9-288: a fork of a `failed` parent is now `pending`, not
+// `failed` — the parent's verdict is not the copy's, and the copy takes its
+// own three attempts. `release(strike)` below still marks a WAITING fork
+// `failed` when its parent exhausts in flight; that is a real strike the fork
+// was riding on, not an inherited one.
 //
 // STUCK ROWS: a row left `generating` for IMAGE_STUCK_AFTER_MINUTES (a
 // drain that crashed mid-generation) is put back to `pending` at the start

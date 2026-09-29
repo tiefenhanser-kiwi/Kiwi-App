@@ -1055,7 +1055,9 @@ export interface RematerializeMealPayload {
   tags?: string[];
   macros?: MaterializeMealMacrosPerServing;
   // No `imageUrl` (BUG-297 / D-WS9-246): the image is server-owned — the
-  // queue writes it, forks inherit it, no edit path sets it.
+  // queue writes it, forks inherit it, no edit path sets it. BUG-332 /
+  // D-WS9-288: the rematerialize DOES re-queue a `failed` meal (imageStatus →
+  // pending, attempts → 0); that is derived from the row, never from payload.
   // dishes[] — REQUIRED for rematerialize; the route uses a scalar-only
   // update path when dishes is absent so the wipe never runs unnecessarily.
   dishes: MaterializeMealDish[];
@@ -1219,7 +1221,15 @@ export async function rematerializeMeal(
   // to the meal's PRIOR servingsDefault (read here, pre-update).
   const mealAnchorRow = await tx.meal.findUnique({
     where: { id: mealId },
-    select: { authoredServingsDefault: true, servingsDefault: true },
+    // BUG-332 / D-WS9-288 ruling 3 — the image state rides along on this
+    // existing read (no extra query); it is consumed at the scalar update
+    // below.
+    select: {
+      authoredServingsDefault: true,
+      servingsDefault: true,
+      imageStatus: true,
+      imageUrl: true,
+    },
   });
   const inheritedAuthoredServings =
     mealAnchorRow?.authoredServingsDefault ??
@@ -1316,6 +1326,32 @@ export async function rematerializeMeal(
     if (payload.macros.fatGPerServing !== undefined)
       scalarUpdate.fatGPerServing = payload.macros.fatGPerServing;
   }
+
+  // BUG-332 / D-WS9-288 ruling 3 — A REMATERIALIZE OF A `failed` MEAL RE-QUEUES
+  // IT. `failed` is terminal by construction: the claim only ever takes
+  // `pending` rows, nothing anywhere moves a row out of `failed`, and
+  // `imageUrl` is not patchable (BUG-297), so before this there was NO way for
+  // a user to get a picture onto a meal the September-18 backfill had marked
+  // — not even by rewriting every dish in it. This gives them one, using the
+  // action they already take.
+  //
+  // Attempts reset to 0 because the three strikes this row supposedly used are
+  // the backfill's, not a generator's (all 290 `failed` rows on the 2026-09-27
+  // dev copy sit at attempt 0; a row that had really struck out three times
+  // deserves its reset too — the dishes it failed on are gone).
+  //
+  // NARROW ON PURPOSE. A `ready` meal keeps its image and is not touched:
+  // re-generating on edit is explicitly out of scope, so renaming a meal never
+  // spends a generation. Only `failed` WITHOUT a url moves — a `failed` row
+  // that somehow has one is left alone, since it has a picture to render.
+  if (
+    mealAnchorRow?.imageStatus === "failed" &&
+    mealAnchorRow.imageUrl === null
+  ) {
+    scalarUpdate.imageStatus = "pending";
+    scalarUpdate.imageAttempts = 0;
+  }
+
   if (Object.keys(scalarUpdate).length > 0) {
     await tx.meal.update({ where: { id: mealId }, data: scalarUpdate });
   }

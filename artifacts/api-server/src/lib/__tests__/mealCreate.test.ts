@@ -372,7 +372,10 @@ describe("createMealWithDishes — Block 1c image provenance", () => {
     assert.equal(data.imageStatus, "ready");
   });
 
-  it("a failed-image source yields a failed copy (D-WS9-230 residue never re-enters the queue)", async () => {
+  // BUG-332 / D-WS9-288 ruling 2 — was "yields a failed copy (D-WS9-230
+  // residue never re-enters the queue)". The residue rule applied to the rows
+  // the migration marked, not to every copy taken off one afterwards.
+  it("a failed-image source yields a PENDING copy — the source's verdict is not the copy's", async () => {
     const recorder = emptyRecorder();
     const tx = makeTx({
       recorder,
@@ -383,6 +386,6 @@ describe("createMealWithDishes — Block 1c image provenance", () => {
       sourceImage: { imageUrl: null, imageSource: null, imageGeneratedAt: null, imageStatus: "failed" },
     });
     await createMealWithDishes(tx as never, { userId: "u-1", sourceMealId: "src", override: OVERRIDE_HAPPY });
-    assert.equal(recorder.mealCreates[0].data.imageStatus, "failed");
+    assert.equal(recorder.mealCreates[0].data.imageStatus, "pending");
   });
 });

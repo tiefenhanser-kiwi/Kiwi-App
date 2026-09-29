@@ -1,0 +1,63 @@
+{
+  "_": "BUG-332 / D-WS9-288 ruling 1b — public catalog meals whose centrepiece is a WHOLE or LARGE item, so the old house prompt could shrink the whole thing onto a dinner plate. Swept read-only on the dev copy of production (2026-09-27); 1,309 public meals scanned, 51 matched the word list, 35 survive hand-classification. Every one of the 35 is already `ready` with a bucket URL, so re-queuing them REPLACES a shared catalog image in the production bucket — hence §IMG (c) and its approval gate. `cookbook` is membership in kiwi-site/scripts/cookbook/state/_slugs.json at the time of the sweep.",
+  "sweptAt": "2026-09-29",
+  "scanned": 1309,
+  "patternHits": 51,
+  "confirmed": 35,
+  "meals": [
+    { "id": "316a0ecc-59e3-4f7b-99fa-19c5ad46be13", "kind": "whole chicken", "cookbook": true, "title": "Herb-Marinated Spatchcock Grilled Chicken with Lemon-Garlic Roasted Potatoes and Grilled Zucchini" },
+    { "id": "8a9e026d-c26e-425e-8d9c-56077458a60b", "kind": "whole chicken", "cookbook": true, "title": "BBQ-Glazed Spatchcock Grilled Chicken with Grilled Corn and Creamy Coleslaw" },
+    { "id": "d72d79dd-4932-43d0-8455-60d8975d61be", "kind": "whole chicken", "cookbook": true, "title": "Smoky Spice-Rubbed Spatchcock Grilled Chicken with Corn on the Cob and Grilled Zucchini" },
+    { "id": "f2426fed-00ae-495d-b3e2-cefb4110c75d", "kind": "whole chicken", "cookbook": true, "title": "Spatchcocked Lemon-Herb Grilled Chicken with Roasted Potatoes and Grilled Zucchini" },
+    { "id": "b873f58d-064f-4244-bf2d-9f236b40de2a", "kind": "whole chicken", "cookbook": true, "title": "Spatchcocked Roast Chicken with Smoked Paprika, Roasted Potatoes, and Garlic Green Beans" },
+    { "id": "f798f8db-b1fe-43c4-a6d7-47e360e00c84", "kind": "whole chicken", "cookbook": true, "title": "Classic Herb Butter Roast Chicken with Roasted Potatoes and Green Beans" },
+    { "id": "354dbaa0-89d2-458c-ac9e-0f2a8f31cea9", "kind": "whole chicken", "cookbook": true, "title": "Dry-Rubbed Roast Chicken with Crispy Skin, Roasted Potatoes, and Green Beans" },
+    { "id": "4193b1cd-a0b9-43e5-9b4e-cd1a9bc66aa3", "kind": "whole chicken", "cookbook": true, "title": "Garlic and Lemon Roast Chicken with Roasted Potatoes and Green Beans" },
+    { "id": "fa33573b-f919-43ba-9f29-7c2834045de3", "kind": "whole chicken", "cookbook": true, "title": "Honey-Dijon Glazed Roast Chicken with Roasted Root Vegetables and Garlic Green Beans" },
+    { "id": "34edb8f9-b2af-4e53-9d31-0eeca9c3799b", "kind": "whole chicken", "cookbook": true, "title": "Lemon-Pepper Rotisserie-Style Chicken with Roasted Potatoes and Green Beans" },
+    { "id": "40616a67-0e89-42c5-b7a8-48f7a264084a", "kind": "whole chicken", "cookbook": true, "title": "Tuscan Roast Chicken with White Wine and Olives" },
+
+    { "id": "a3202c3d-0a06-46c7-a019-0ebf48f5f07e", "kind": "turkey breast roast", "cookbook": true, "title": "Roast Turkey Breast with Mashed Potatoes and Roasted Green Beans" },
+    { "id": "ec75d935-7b62-4947-b223-3717fc071bcd", "kind": "rack of", "cookbook": true, "title": "Herb-Crusted Rack of Lamb with Roasted Potatoes and Mint Chimichurri" },
+
+    { "id": "3e171700-045e-4d90-82ce-b63957ed5de3", "kind": "ham", "cookbook": true, "title": "Brown Sugar and Mustard Glazed Baked Ham with Roasted Sweet Potatoes and Green Beans" },
+    { "id": "2ed4ff2f-1d5b-4655-b2a8-2bb1097c2e79", "kind": "ham", "cookbook": true, "title": "Ham and Scalloped Potatoes with Steamed Green Beans" },
+
+    { "id": "b014a9b3-9886-4b1d-a52a-896df96eee58", "kind": "brisket", "cookbook": true, "title": "Texas-Style Smoked Brisket with Pinto Beans and Pickled Jalapeños" },
+    { "id": "5c413119-e3df-40b2-883a-e50e4f4a695d", "kind": "brisket", "cookbook": true, "title": "Corned Beef and Cabbage with Carrots, Potatoes, and Mustard" },
+
+    { "id": "797e0350-984c-4f97-ace1-90e9e97ccb7e", "kind": "pot roast", "cookbook": true, "title": "Classic Slow-Cooker Pot Roast with Carrots and Potatoes" },
+    { "id": "2779f2b5-6568-4ff8-8eb4-0869c240ec02", "kind": "pot roast", "cookbook": true, "title": "Classic Sunday Pot Roast with Carrots and Potatoes" },
+    { "id": "d97218ce-ad50-4d62-a185-cd8e903ffa97", "kind": "pot roast", "cookbook": true, "title": "French Onion Pot Roast with Creamy Mashed Potatoes and Roasted Green Beans" },
+    { "id": "29804250-a78b-47e1-8659-f6fd9487f074", "kind": "pot roast", "cookbook": true, "title": "Guinness and Root Vegetable Pot Roast" },
+    { "id": "3dfeba44-a041-419c-87e6-a58fbdb5fb41", "kind": "pot roast", "cookbook": true, "title": "Mississippi Pot Roast with Pepperoncini and Ranch" },
+    { "id": "a56eb79e-9324-406b-b102-73991d77b0c2", "kind": "pot roast", "cookbook": true, "title": "Red Wine and Herb Braised Pot Roast with Roasted Carrots and Mashed Potatoes" },
+    { "id": "29e6318d-93c9-48cf-b073-b92744cf43c1", "kind": "pot roast", "cookbook": true, "title": "Red Wine and Herb Slow-Cooker Pot Roast with Roasted Carrots and Potatoes" },
+    { "id": "577e0f3a-7f25-4ae8-9add-786988121ddc", "kind": "pot roast", "cookbook": true, "title": "Tomato and Italian Herb Pot Roast with Roasted Potatoes and Green Beans" },
+    { "id": "de07e9c7-9139-45d1-9799-e05289b2c6dd", "kind": "pot roast", "cookbook": true, "title": "Tomato and Onion Slow-Cooker Pot Roast with Roasted Potatoes and Green Beans" },
+
+    { "id": "8270958a-eadc-47da-ad9e-971e9cac1f7a", "kind": "meatloaf", "cookbook": true, "title": "Bacon-Wrapped Meatloaf with Garlic Mashed Potatoes and Roasted Green Beans" },
+    { "id": "0a3116a6-51d5-443c-b05c-8187a8d3925c", "kind": "meatloaf", "cookbook": true, "title": "BBQ Meatloaf with Garlic Mashed Potatoes and Roasted Green Beans" },
+    { "id": "6801713c-55c4-4e47-bf10-6ea64c83a878", "kind": "meatloaf", "cookbook": false, "title": "Classic Beef Meatloaf with Roasted Green Beans and Garlic Mashed Potatoes" },
+    { "id": "2a3dbaee-40b7-4aea-887e-02319ad73bcb", "kind": "meatloaf", "cookbook": false, "title": "Classic Beef Meatloaf with Roasted Green Beans and Garlic Mashed Potatoes" },
+    { "id": "adad80c7-4539-4af7-ba1b-9d55e1fd6fce", "kind": "meatloaf", "cookbook": true, "title": "Classic Glazed Meatloaf with Mashed Potatoes and Green Beans" },
+    { "id": "300b113b-275e-4fb0-ae4a-88d7267c159c", "kind": "meatloaf", "cookbook": true, "title": "Classic Turkey Meatloaf with Ketchup Glaze, Mashed Potatoes, and Green Beans" },
+    { "id": "4bfc00af-60c6-400c-8ce7-d9e6d5ddad02", "kind": "meatloaf", "cookbook": true, "title": "Italian Meatloaf with Roasted Garlic Mashed Potatoes and Sautéed Broccolini" },
+    { "id": "5217bb3e-ba48-4829-b856-c177a2e49b57", "kind": "meatloaf", "cookbook": true, "title": "Mushroom and Swiss Meatloaf with Garlic Mashed Potatoes and Roasted Green Beans" },
+    { "id": "1dd2ff06-bbdf-479d-829c-714e25118527", "kind": "meatloaf", "cookbook": true, "title": "Tex-Mex Meatloaf with Roasted Corn and Mashed Potatoes" }
+  ],
+  "rejected": {
+    "_": "Matched the word list, hand-rejected: the item is ALREADY a portion or a composed dish, so the prompt was never going to shrink a whole thing onto the plate. Listed so the classification is auditable and nobody re-derives it.",
+    "ids": [
+      "dd695860-592b-4a0d-9bbe-d806562942e1", "cebc46f8-9031-4d72-8a7d-8e60a5c766ac",
+      "9bde0421-15fb-48c5-987a-a75de208a2b7", "c156a3e3-3d3f-4801-a393-2b88d03a47c0",
+      "3d2772ad-e550-4396-82cc-0b06ae642509", "0d7a6033-bd0b-4ed2-abc4-d9ca8a57d544",
+      "c090c519-e395-41f0-8103-bdb20f90b745", "3125a570-3131-4b27-864a-b1737c75cf2a",
+      "3199ea5d-8e71-49b3-a91a-c893815cb3e8", "22614b9f-9b8f-4e8f-a550-fbbe858e3f47",
+      "e251f17b-752a-4704-8b13-25ae0acae31b", "7345d3d5-db48-4fcf-b7ce-ecd15c1eb18b",
+      "7936f226-4d98-41b4-9add-78a426c24a4b", "149daf99-4526-4c37-9f2e-764409da92f3",
+      "ddc2659d-94fb-4889-9913-71d6ed6b74a1", "73d6b2d7-e87c-4760-a14b-425032cda1d6"
+    ],
+    "why": "roast-beef sandwich / po' boy; ham as an ingredient in soups, sliders, a pizza and sandwiches; chicken thighs, bowls, casseroles, sheet-pans, gravy-over-biscuits and a Caesar salad."
+  }
+}

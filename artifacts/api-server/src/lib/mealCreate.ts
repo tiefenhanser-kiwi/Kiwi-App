@@ -60,6 +60,10 @@ export async function createMealWithDishes(
       imageSource: true,
       imageGeneratedAt: true,
       imageStatus: true,
+      // BUG-332 / D-WS9-288 ruling 4 — decides whether this copy carries
+      // lineage (see the sourceStoreMealId write below).
+      userId: true,
+      isPublic: true,
       servingsDefault: true,
       estimatedTimeMinutes: true,
       difficulty: true,
@@ -89,6 +93,22 @@ export async function createMealWithDishes(
       imageSource: source.imageSource,
       imageGeneratedAt: source.imageGeneratedAt,
       imageStatus: inheritedImageStatus(source),
+      // BUG-332 / D-WS9-288 ruling 4 — STAMP THE LINEAGE when the source is a
+      // store/pool meal. This helper wrote none, so a copy taken off a catalog
+      // meal that was itself still `pending` was invisible to the drain's
+      // fork-skip: the claim only skips a row whose `sourceStoreMealId` parent
+      // is pending/generating, and markReady only stamps the parent's URL onto
+      // forks that carry the link. Without it the same dish was generated
+      // twice — once for the catalog row, once for this copy — at ~$0.009 and
+      // one of the org's five slots a minute each.
+      //
+      // Scoped to the pool (userId null or isPublic), matching what the column
+      // is documented to mean: "the store/pool Meal.id this copy was cloned
+      // from" (D-WS9-073, persist-only). ⚠️ forkMealForUser stamps it
+      // UNCONDITIONALLY, including off another user's private meal — a
+      // divergence left standing here rather than widened without a ruling.
+      sourceStoreMealId:
+        source.userId === null || source.isPublic ? sourceMealId : null,
       servingsDefault: source.servingsDefault,
       estimatedTimeMinutes: source.estimatedTimeMinutes,
       difficulty: source.difficulty,

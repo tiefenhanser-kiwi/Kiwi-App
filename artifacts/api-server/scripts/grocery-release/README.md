@@ -352,3 +352,188 @@ ingredient in it.
 5. a count above one reads a PLURAL pack noun — "4 cans (14.5 oz)", not "4 can".
    B4 moved the scaling of those rows from the client to the server, and whoever
    writes the count owns its plural.
+
+---
+
+# IMG — MEAL IMAGES (BUG-332 / D-WS9-288, September 29 2026)
+
+🔴 **NOTHING IN THIS SECTION RUNS TODAY.** Every step here changes production
+data, and the App Store review freeze forbids that. Each one waits for Hans to
+say so, individually. The code half of D-WS9-288 ships with the build and needs
+none of this.
+
+**What the code half already fixed, so you do not run a script for it:** a fork
+no longer inherits `failed` (`inheritedImageStatus`), a full rematerialize
+re-queues a `failed` meal (`rematerializeMeal`), and the house prompt no longer
+shows packaging or a whole roast shrunk onto a plate (`buildHousePrompt`). From
+the build forward, NEW rows are right. These steps are only about rows that
+already exist.
+
+## IMG (a) — re-queue the rows the September-18 backfill marked `failed`
+
+**What they are.** The Block 1c migration
+(`20260918161800_ws9_row5_b1c_image_queue`) wrote `imageStatus = 'failed'` onto
+every user-authored meal that had no image — 282 rows by its own note, 290 on
+the 2026-09-27 dev copy. **All 290 sit at `imageAttempts = 0`**: not one was
+ever a real generation failure. `failed` is terminal (the drain claims only
+`pending`), so they render the warm gradient permanently.
+
+**Which rows is Hans's call.** Both scopes are written out; run ONE.
+
+Cost, at the measured $0.0088 per image and the org limit of 5 images/minute:
+
+| scope | rows | cost | drain time |
+|---|---|---|---|
+| all | ~290 | ~$2.55 | ~58 min |
+| named accounts only | as selected | rows x $0.0088 | rows / 5 min |
+
+```sql
+-- FIRST, ALWAYS: what you are about to change. SELECT only.
+SELECT count(*) FILTER (WHERE "imageAttempts" = 0) AS backfilled,
+       count(*) FILTER (WHERE "imageAttempts" > 0) AS really_struck_out,
+       count(*) AS total
+FROM "meals"
+WHERE "imageStatus" = 'failed' AND "imageUrl" IS NULL AND "userId" IS NOT NULL;
+```
+
+```sql
+-- SCOPE 1 — ALL of them.
+-- `imageAttempts = 0` is deliberate: it re-queues ONLY the backfill rows and
+-- leaves alone anything that genuinely used its three strikes.
+UPDATE "meals"
+SET "imageStatus" = 'pending'
+WHERE "imageStatus" = 'failed'
+  AND "imageUrl" IS NULL
+  AND "userId" IS NOT NULL
+  AND "imageAttempts" = 0;
+```
+
+```sql
+-- SCOPE 2 — NAMED ACCOUNTS ONLY. Edit the email list; nothing else.
+-- The App Store reviewer account is the one that showed the bug: it signed up,
+-- built a plan from a template, and every meal in it forked a seed meal the
+-- migration had marked `failed` — eight imageless meals, sixty seconds in.
+UPDATE "meals" m
+SET "imageStatus" = 'pending'
+FROM "users" u
+WHERE u."id" = m."userId"
+  AND u."email" IN (
+    'reviewer@kitchenwizard.ai',
+    'hans.tiefenthaler+8@gmail.com'
+  )
+  AND m."imageStatus" = 'failed'
+  AND m."imageUrl" IS NULL
+  AND m."imageAttempts" = 0;
+```
+
+⚠️ **Re-queue the PARENTS too, or the children pay for it twice.** The seed
+meals the reviewer plan forked (`dev-meal-*`) are themselves `failed`. With the
+D-WS9-288 code shipped, a NEW fork of one starts `pending` and generates its own
+image, so this is no longer a correctness problem — but a re-queued parent gets
+ONE generation that every later fork inherits, instead of one generation per
+fork. Scope 2 misses those parents if they belong to another account; check with
+the SELECT above before choosing a scope.
+
+**After:** the drain picks them up within a minute, five a minute. Watch it with
+IMG (b). There is nothing to verify by hand beyond "the gradients became
+photographs".
+
+## IMG (b) — is the drain actually running?
+
+The drain route **fails closed**: with either env var unset,
+`POST /api/internal/images/drain` answers **404 to every caller**, including
+Cloud Scheduler, and logs `image_drain_not_configured` once per process. A
+scheduler job pointed at such a revision shows up as a failing job rather than a
+silent no-op — but only if somebody looks.
+
+**Cloud Run must carry both** (`src/routes/internal.ts`):
+
+- `IMAGE_DRAIN_OIDC_EMAIL` — the scheduler job service-account email
+  (comma-separated allowlist)
+- `IMAGE_DRAIN_OIDC_AUDIENCE` — the `aud` the job was created with; by Cloud
+  Scheduler default that is the drain URL itself
+
+```sql
+-- Query 4 of kiwi-local-tools/bug332/production-read.sql. SELECT only.
+-- One row per hour for three days. A GAP is the finding: the scheduler did not
+-- fire, or fired at a revision whose drain answers 404.
+SELECT date_trunc('hour', l."createdAt") AS hour,
+       l."success", l."failureReason",
+       count(*) AS n,
+       round(sum(l."costEstimateUsd")::numeric, 4) AS usd
+FROM "llm_call_logs" l
+WHERE l."promptKey" = 'images.generate'
+  AND l."createdAt" > now() - interval '3 days'
+GROUP BY 1, 2, 3
+ORDER BY 1 DESC, 2;
+```
+
+```sql
+-- And the queue depth. `pending` older than a few minutes means stalled, not
+-- busy. `generating` older than five minutes should already have been swept
+-- back to `pending` by the next claim (IMAGE_STUCK_AFTER_MINUTES).
+SELECT "imageStatus", count(*) AS n,
+       min("createdAt") AS oldest_created, min("updatedAt") AS oldest_touched
+FROM "meals" WHERE "imageStatus" IN ('pending', 'generating') GROUP BY 1;
+```
+
+## IMG (c) — re-generate the whole-item catalog images
+
+🔴 **THIS REPLACES SHARED CATALOG IMAGES IN THE PRODUCTION BUCKET.** Every id in
+the list is `ready` with a live URL today, and the object key is
+`meals/<mealId>.jpg` — a re-generation OVERWRITES it, for every user whose plan
+contains that meal and for every published Cookbook page. It is not additive and
+there is no undo beyond generating again. **It waits for Hans, separately from
+(a) and (b).**
+
+**Why.** Two live Cookbook pages showed a whole roast chicken scaled down onto a
+dinner plate — "either a really big side or a really small bird" (Hans,
+2026-09-29). The old prompt asked for "a single plated serving" and the model
+sized the whole bird to the plate instead of carving it. D-WS9-288 ruling 1b
+added the portion-and-scale sentence; these rows were generated before it.
+
+**The list:** `scripts/grocery-release/bug332-whole-item-meals.json` — 35
+confirmed of 51 pattern hits, swept read-only over 1,309 public meals, with the
+16 rejections and the reason for each. 33 of the 35 are on the Cookbook.
+
+**Order matters:**
+
+1. The build carrying the D-WS9-288 `buildHousePrompt` must be live on
+   production. Re-queuing before that re-generates with the OLD prompt and buys
+   nothing.
+2. Re-queue the 35:
+
+   ```sql
+   -- Paste the 35 ids from bug332-whole-item-meals.json.
+   -- imageUrl is NULLED on purpose. The drain claims `pending` rows and
+   -- markReady overwrites the URL either way, but leaving the old URL in place
+   -- keeps the card showing the OLD photo until the new one lands; nulling it
+   -- shows the gradient for that minute instead. Which is worse is Hans call;
+   -- the statement is written for the honest version.
+   UPDATE "meals"
+   SET "imageStatus" = 'pending', "imageAttempts" = 0, "imageUrl" = NULL
+   WHERE "id" IN ('316a0ecc-...', ...);
+   ```
+
+3. ~35 images at 5 a minute is about **7 minutes, ~$0.31**. Watch with (b).
+4. **Then, and only then**, the Cookbook: `--regenerate` over the affected
+   slugs, so the static pages pick up the new bucket URLs. A Cookbook build run
+   before the drain finishes republishes the OLD images.
+5. Look at three of the rebuilt pages. A whole bird should now be a leg and
+   thigh or a few slices, at plate scale, beside its sides.
+
+## IMG — what is NOT here
+
+- **Changing the image model.** `gpt-image-1-mini` shuts down **December 1,
+  2026** (announced June 2, 2026; the named replacements are
+  `gpt-image-2.5-sunburst` / `gpt-image-2.5-flare`). D-WS9-288 deliberately did
+  not touch the model — a swap re-opens the house prompt calibration and the
+  per-image cost. It is its own block and it is owed before that date.
+- **A retry affordance for a genuinely `failed` meal.** Today the only way out
+  of `failed` is a full rematerialize (D-WS9-288 ruling 3) or one of the SQL
+  statements above. No UI exposes it.
+- **Telling the client anything about `imageStatus`.** The phone receives
+  `imageUrl` and nothing else, so `pending`, `generating`, `failed` and a
+  ready-but-dead URL all render the same warm gradient. That is the ruled
+  terminal state (D-WS9-246), not an oversight — but it is also why this
+  arrived as a bug report rather than as a metric.
