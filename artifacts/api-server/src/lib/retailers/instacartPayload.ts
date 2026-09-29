@@ -24,6 +24,7 @@
 
 import { canonicalUnitToken } from "../ingredientConversions";
 import { instacartSearchName } from "./instacartName";
+import { splitRiderForRetailer } from "../groceryVarietyRider";
 import {
   mapMeasurement,
   mapOrderUnit,
@@ -156,18 +157,85 @@ const PACK_NOUN_PLURALS: Readonly<Record<string, string>> = {
  * residue (pack line minus its leading count) equals the name, is its plural
  * or singular, or ends with it — and nothing of the pack arithmetic.
  */
+// ── [grocery] B2 BUG-160 — CONTAINMENT, AND IT IS TWO RULES ─────────────────
+//
+// The test here was equality, its two plurals, and `residue.endsWith(" name")`.
+// The census found three shapes it misses, and a dry run proved that ONE
+// symmetric "either contains the other" predicate is the wrong fix — it turned
+// "3 Bell peppers" into "3 ", because the pack "3 peppers" has a residue the NAME
+// contains and dropping the name there throws away the word "bell".
+//
+// The DIRECTION decides the repair:
+//
+//   residue ⊇ name       "3 medium white onion" + "White onion"
+//                        the pack line already says everything the name says
+//                        -> DROP THE NAME            "3 medium white onion"
+//
+//   name OPENS with it   "1 rotisserie chicken" + "rotisserie chicken, meat
+//                        shredded" — the name is the fuller statement and its
+//                        head is the duplicate
+//                        -> COUNT + NAME  "1 rotisserie chicken, meat shredded"
+//
+//   anything else        "3 peppers" + "bell peppers"; "1 head" + "Garlic"
+//                        -> LEAVE IT ALONE
+//
+// Plural-aware through the same crude stem in both directions. Nothing here
+// pluralises — BUG-321/329 are the client's lane.
+//
+// ⚠️ THE SHOPPER'S LIST LINE IS NOT FIXED HERE. It is composed by
+// `artifacts/kiwi/lib/format/grocery.ts:149` (residueNamesItem), which is outside
+// this block's fence and is ruled to block C. This is the Instacart half, and the
+// two have to end up agreeing.
+/**
+ * The crudest plural stem that is still RIGHT, and it got one word wrong before.
+ *
+ * The first cut was `endsWith("es") -> drop two`, which turns "limes" into "lim"
+ * while "lime" stays "lime" — so `6 limes` + `Lime` stopped eliding and the live
+ * list printed "6 limes Lime" again, which is the exact defect BUG-160 named.
+ *
+ * English forms -es only after s / x / z / ch / sh, and after -o. Everything else
+ * ending in -es is a word ending in -e taking a plain -s. Both sides of every
+ * comparison run through this, so a word it stems oddly ("leaves" -> "leave")
+ * still matches itself; what matters is that it never produces two different
+ * stems for one word.
+ */
+function stemWord(w: string): string {
+  if (/(?:ss|x|z|ch|sh)es$/.test(w)) return w.slice(0, -2);
+  if (w.endsWith("oes")) return w.slice(0, -2);
+  if (w.endsWith("s") && !w.endsWith("ss") && w.length > 2) return w.slice(0, -1);
+  return w;
+}
+const stemAll = (x: string): string[] =>
+  x.toLowerCase().split(/[\s,]+/).filter(Boolean).map(stemWord);
+
+function containsSeq(hay: string[], needle: string[]): boolean {
+  if (needle.length === 0 || needle.length > hay.length) return false;
+  for (let i = 0; i + needle.length <= hay.length; i++) {
+    let ok = true;
+    for (let j = 0; j < needle.length; j++) {
+      if (hay[i + j] !== needle[j]) {
+        ok = false;
+        break;
+      }
+    }
+    if (ok) return true;
+  }
+  return false;
+}
+
 function humanLine(packLine: string, name: string): string {
-  const residue = packLine.replace(/^\s*~?\d+(?:[./]\d+)?\s+/, "").trim().toLowerCase();
-  const n = name.trim().toLowerCase();
+  const n = name.trim();
   if (n.length === 0) return packLine;
-  const same =
-    residue === n ||
-    residue === `${n}s` ||
-    residue === `${n}es` ||
-    n === `${residue}s` ||
-    n === `${residue}es` ||
-    residue.endsWith(` ${n}`);
-  return same ? packLine : `${packLine} ${name}`;
+  const residueText = packLine.replace(/^\s*~?\d+(?:[./]\d+)?\s+/, "").trim();
+  const r = stemAll(residueText);
+  const nm = stemAll(n);
+  if (r.length === 0 || nm.length === 0) return `${packLine} ${name}`;
+  if (containsSeq(r, nm)) return packLine;
+  if (nm.length > r.length && containsSeq(nm.slice(0, r.length), r)) {
+    const count = packLine.match(/^\s*~?\d+(?:[./]\d+)?/)?.[0]?.trim() ?? "";
+    return count ? `${count} ${n}` : n;
+  }
+  return `${packLine} ${name}`;
 }
 
 /**
@@ -304,6 +372,38 @@ export function composeInstacartPayload(
     };
     const measurement = mapMeasurement(row.unit, row.quantity);
     if (measurement) item.line_item_measurements = [measurement];
+
+    // ── [grocery] B2 H7 — AN H3 LINE IS SENT AS SEPARATE ITEMS ───────────────
+    //
+    // Hans's shape is one DISPLAY line — "5 bell peppers, at least 2 red and at
+    // least 2 yellow" — and that is what the shopper reads. But a retailer cart
+    // holding one item called "bell peppers" has thrown the constraint away: the
+    // picker has no way to know two of them must be red. So the order carries one
+    // item per called-out variety at its guaranteed count, plus the remainder at
+    // the generic name, and `display_text` stays the single line.
+    //
+    // ⚠️ THE SEARCH TERM NEEDED NO CHANGE AND THAT IS NOT LUCK. The rider is a
+    // trailing comma-clause opening with "at", and "at" is in
+    // instacartName.PREP_WORDS, so `instacartSearchName` already drops it —
+    // "bell peppers, at least 2 green" searches as "bell peppers". Asserted by
+    // test rather than relied on quietly.
+    const split = splitRiderForRetailer(row.displayName, order.quantity);
+    if (split.length > 1) {
+      split.forEach((part, k) => {
+        line_items.push({
+          ...item,
+          name: instacartSearchName(part.name, k === 0 ? row.userResolvedTo : null),
+          quantity: part.quantity,
+          // The human line rides on the FIRST item only. Repeating it would show
+          // the shopper the same sentence three times in the retailer's cart.
+          display_text: k === 0 ? item.display_text : part.name,
+          // A measurement describes the whole need and cannot be divided between
+          // the varieties, so the split items carry none.
+          line_item_measurements: undefined,
+        });
+      });
+      continue;
+    }
     line_items.push(item);
   }
 

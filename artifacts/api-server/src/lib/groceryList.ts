@@ -24,10 +24,14 @@ import {
 import { mergeConvertibleGroups } from "./groceryMerge";
 import {
   EMPTY_RELATION_INDEX,
+  buildRelationIndex,
   poolComponentNeeds,
   type RelationIndex,
+  type RelationRow,
 } from "./ingredientRelations";
+import { distinguishingTokens } from "./subsumesClasses";
 import { roundNeedQuantity } from "./needQuantity";
+import { logger } from "./logger";
 
 // WS7-7-A Block 1 — a single plan source contributing to a consolidated line.
 // Tracked as (mealId, dishId) PAIRS (not two independent arrays) so per-row
@@ -88,6 +92,22 @@ export interface ConsolidatedItem {
   // available (e.g. synthetic recurring entries).
   preparationNote: string | null;
   sourceDishTitle: string | null;
+  // ── [grocery] B2 H3 — the varieties a folded GENERIC line still owes ───────
+  //
+  // Set only on a row an H3 fold absorbed a specific into. The RIDER is not
+  // composed here: H3 states shares in whole units of the LINE's buy unit, and
+  // the pack count that defines that unit is resolved in
+  // generateFinalGroceryList. So the need travels and the arithmetic happens
+  // where the pack is known.
+  varietyShares?: {
+    /** the distinguishing words — "red", "san marzano", "large" */
+    variety: string;
+    /** the specific's own need, in its own unit */
+    need: number;
+    unit: string;
+    /** the specific's catalog display name, for H3's single-variety collapse */
+    displayName: string;
+  }[];
 }
 
 export interface ConsolidateOptions {
@@ -102,6 +122,21 @@ export interface ConsolidateOptions {
   // dry run supplies a real index built from `ingredient_relations`; wiring the
   // production route to load one is a separate, ruled step.
   relations?: RelationIndex;
+  // ── [grocery] B2 — THE ROWS, not just the index, and why both ─────────────
+  //
+  // The subsumes overlay cannot be built by the caller: H3's gate is "did a
+  // recipe demand the generic", which is only known after the buckets exist. So
+  // the consolidator rebuilds the index itself — and to do that it needs the
+  // ROWS the caller already loaded, not the finished index.
+  //
+  // Omit it and there is no overlay and no subsumes reading at all: the pre-B2
+  // path, byte for byte. That is the same opt-in discipline `relations` uses.
+  relationRows?: RelationRow[];
+  /**
+   * Group keys whose H3 fold must not be made — the collapse fallback, set by a
+   * caller that has already seen the shares cover the whole count.
+   */
+  suppressH3?: ReadonlySet<string>;
 }
 
 export class GroceryConsolidationNotFoundError extends Error {
@@ -634,6 +669,73 @@ export async function consolidatePlanIngredients(
     .map((k) => buckets.get(k)!)
     .filter((x): x is ConsolidatedItem => !!x);
 
+  // ── [grocery] B2 R1 (BUG-210) — THE IDENTITY GUARD ────────────────────────
+  //
+  // R1 said two rows carrying the same `ingredientId` are one food and must fold.
+  // Part A measured the population and it is EMPTY, structurally: the bucket
+  // above takes its name from the ingredient it resolved (`canonical =
+  // ing?.canonicalName`), so one ingredientId can only ever produce one
+  // canonicalName, and two buckets carrying it differ by UNIT alone — which
+  // `relations.groupKey` already groups. 0 collisions across 1,044 corpus rows at
+  // both stages.
+  //
+  // So this is a GUARD, not a fix. It moves nothing today and it is here because
+  // the invariant is worth stating where it can be checked: if a future change
+  // ever lets one ingredientId carry two names, the merge would ship two lines
+  // for one food and nothing would say so.
+  const namesById = new Map<string, Set<string>>();
+  for (const it of ordered) {
+    if (!it.ingredientId) continue; // synthetic recurring entries have none, by design
+    let s = namesById.get(it.ingredientId);
+    if (!s) { s = new Set(); namesById.set(it.ingredientId, s); }
+    s.add(normalizeIngredientName(it.canonicalName));
+  }
+  for (const [id, names] of namesById) {
+    if (names.size < 2) continue;
+    logger.warn(
+      { event: "grocery_identity_split", ingredientId: id, names: [...names] },
+      "one ingredientId produced two canonical names — R1's invariant is broken",
+    );
+  }
+
+  // ── [grocery] B2 — THE SUBSUMES OVERLAY, BUILT HERE AND NOWHERE ELSE ──────
+  //
+  // H3 folds a specific onto its generic only when A RECIPE DEMANDED THE GENERIC,
+  // which is a property of this plan and not of the relation table. So the index
+  // cannot be built once by the caller: it is rebuilt here, over the same rows,
+  // with the demanded set the buckets just produced.
+  //
+  // ⚠️ `demanded` IS THE RAW BUCKET NAMES, PLUS THEIR GROUP KEYS. "A meal that
+  // says bell peppers" is a DishIngredient, which is a bucket — so the buckets
+  // are the honest answer to what the recipes asked for. Part A2's dry run used
+  // the POST-merge names instead, which is a subset and made the answer depend on
+  // which spelling won a synonym contest; a plan whose only parsley row is
+  // `fresh parsley` asks for parsley either way.
+  //
+  // A caller that supplied no relation index gets no overlay and no subsumes
+  // reading at all — the pre-B2 path, unchanged.
+  const demanded = new Set<string>();
+  for (const it of ordered) {
+    const n = normalizeIngredientName(it.canonicalName);
+    demanded.add(n);
+    demanded.add(relations.groupKey(it.canonicalName));
+  }
+  const packUnitByName = new Map<string, string | null>();
+  for (const it of ordered) {
+    packUnitByName.set(normalizeIngredientName(it.canonicalName), it.purchaseUnit);
+  }
+  const effective = opts.relationRows
+    ? buildRelationIndex(opts.relationRows, {
+        subsumes: {
+          demanded,
+          // H3 requires the GENERIC to be demanded, so its bucket is always
+          // present and its pack unit always known. No second lookup needed.
+          packUnitOf: (name) => packUnitByName.get(normalizeIngredientName(name)) ?? null,
+          suppress: opts.suppressH3,
+        },
+      })
+    : relations;
+
   // WS9 D-WS9-189 A2 — COMPONENT POOLING, between the recurring match-or-append
   // above and the merge below. Placed here and not inside mergeConvertibleGroups
   // for a STRUCTURAL reason: mergeGroup's contract is CONSERVATION (BUG-142
@@ -642,7 +744,7 @@ export async function consolidatePlanIngredients(
   //
   // No-op unless `relations` was supplied: EMPTY_RELATION_INDEX carries no
   // component parents and the pass returns its input.
-  const pooled = poolComponentNeeds(ordered, relations);
+  const pooled = poolComponentNeeds(ordered, effective);
 
   // WS7-8b B2 (BUG-031) — density-aware merge of same-canonical/different-unit
   // rows (parmesan oz+½cup, garlic head+clove) using the conversion table.
@@ -650,7 +752,71 @@ export async function consolidatePlanIngredients(
   // once by the sweep below (merge-then-round-once — never round the parts then
   // merge). A group the table can't convert passes through unmerged (and, see
   // the note at that branch, is NOT routed to the AI).
-  const merged = mergeConvertibleGroups(pooled.items, relations);
+  const merged = mergeConvertibleGroups(pooled.items, effective);
+
+  // A pin target need NOT be on the list — H2 renames `chicken thighs` to
+  // `bone-in chicken thighs` on a plan that carries no bone-in row — so its
+  // display name is read from the catalog rather than from a member. One query,
+  // and only when there is a pin to resolve.
+  const pinTargets = new Set<string>();
+  for (const item of merged) {
+    const pin = effective.pinnedNameByKey.get(effective.groupKey(item.canonicalName));
+    if (pin && pin !== normalizeIngredientName(item.canonicalName)) pinTargets.add(pin);
+  }
+  const catalogNameByCanonical = new Map<string, string>();
+  if (pinTargets.size > 0) {
+    const rows = await prisma.ingredient.findMany({
+      where: { canonicalName: { in: [...pinTargets] } },
+      select: { canonicalName: true, displayName: true },
+    });
+    for (const r of rows) catalogNameByCanonical.set(r.canonicalName, r.displayName);
+  }
+
+  // ── [grocery] B2 H2 + H3 — THE NAME THE FOLDED LINE TAKES, AND WHAT IT OWES ─
+  //
+  // The merge picked the surviving row by `pickRepresentative` — the shortest
+  // name among the members PRESENT — which is right for a synonym fold and wrong
+  // for these two. H2 names the line after the DEFAULT; H3 names it after the
+  // GENERIC and R5's one hard rule is that it is never renamed to the specific.
+  // Both come off the index's pin.
+  //
+  // The SHARES are computed here, where the members are still known, and are
+  // rendered later — the rider states whole units of the LINE's buy unit, and the
+  // pack count that defines that unit is only resolved in generateFinalGroceryList.
+  for (const item of merged) {
+    const key = effective.groupKey(item.canonicalName);
+    const pin = effective.pinnedNameByKey.get(key);
+    if (pin && pin !== normalizeIngredientName(item.canonicalName)) {
+      const named = catalogNameByCanonical.get(pin);
+      if (named) item.displayName = named;
+    }
+    const varieties = effective.varietiesByKey.get(key);
+    if (!varieties || varieties.length === 0) continue;
+    // Only the varieties THIS plan asked for, and only when the fold actually
+    // absorbed something: a lone specific has nothing to reconcile, and
+    // "1 yellow onion, at least 1 yellow" is a tautology on a line that never
+    // merged (D-WS9-217 from the other side).
+    const membersHere = ordered.filter(
+      (o) => effective.groupKey(o.canonicalName) === key,
+    );
+    if (membersHere.length < 2) continue;
+    item.varietyShares = varieties
+      .filter((v) =>
+        membersHere.some((o) => distinguishingTokens(pin ?? key, o.canonicalName).join(" ") === v),
+      )
+      .map((v) => {
+        const row = membersHere.find(
+          (o) => distinguishingTokens(pin ?? key, o.canonicalName).join(" ") === v,
+        );
+        return {
+          variety: v,
+          need: row?.quantity ?? 0,
+          unit: row?.unit ?? item.unit,
+          displayName: row?.displayName ?? v,
+        };
+      });
+    if (item.varietyShares.length === 0) delete item.varietyShares;
+  }
 
   // WS7-8b B1 (BUG-025-2) — final need-quantity round-up sweep. Once, AFTER the
   // merge, so merged totals and single-unit rows round identically. Changes only

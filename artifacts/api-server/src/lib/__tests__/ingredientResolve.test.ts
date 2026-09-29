@@ -315,7 +315,17 @@ describe("resolveIngredients — extracted shared upsert path", () => {
     ]);
     const crushed = captured.find((c) => c.canonicalName === "crushed tomatoes");
     assert.ok(crushed, "crushed tomatoes upsert captured");
-    assert.equal(crushed.create.displayName, "Crushed Tomatoes");
+    // ── [grocery] B2 BUG-323 — CHANGED, and this assertion was the old rule ──
+    //
+    // The first-occurrence name is still what lands; what changed is that its
+    // LEADING CHARACTER is lowercased when the leading token is a common noun.
+    // This line is the reason the 116-row catalog fix was needed: the intake path
+    // took the caller's casing verbatim, so "Crushed Tomatoes" became the shared
+    // label for every user after. `lowercaseLead` touches the first character
+    // only, which is why the interior "Tomatoes" is untouched here — that is the
+    // rule doing exactly what it says, not a half-fix. The proper-noun case is
+    // asserted two tests below.
+    assert.equal(crushed.create.displayName, "crushed Tomatoes");
     assert.equal(crushed.create.category, "Canned");
     assert.equal(crushed.create.defaultUnit, "oz");
     const garlic = captured.find((c) => c.canonicalName === "garlic");

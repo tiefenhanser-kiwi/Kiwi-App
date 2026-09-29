@@ -298,9 +298,23 @@ export function shadowCanonicalName(canonicalName: string): string {
 // BUG-160 — the containment rule. Two rules, not one.
 // ---------------------------------------------------------------------------
 
+/**
+ * The crudest plural stem that is still RIGHT, and it got one word wrong before.
+ *
+ * The first cut was `endsWith("es") -> drop two`, which turns "limes" into "lim"
+ * while "lime" stays "lime" — so `6 limes` + `Lime` stopped eliding and the live
+ * list printed "6 limes Lime" again, which is the exact defect BUG-160 named.
+ *
+ * English forms -es only after s / x / z / ch / sh, and after -o. Everything else
+ * ending in -es is a word ending in -e taking a plain -s. Both sides of every
+ * comparison run through this, so a word it stems oddly ("leaves" -> "leave")
+ * still matches itself; what matters is that it never produces two different
+ * stems for one word.
+ */
 function stemWord(w: string): string {
-  if (w.endsWith("es") && w.length > 4) return w.slice(0, -2);
-  if (w.endsWith("s") && !w.endsWith("ss") && w.length > 3) return w.slice(0, -1);
+  if (/(?:ss|x|z|ch|sh)es$/.test(w)) return w.slice(0, -2);
+  if (w.endsWith("oes")) return w.slice(0, -2);
+  if (w.endsWith("s") && !w.endsWith("ss") && w.length > 2) return w.slice(0, -1);
   return w;
 }
 const stemAll = (s: string) => s.toLowerCase().split(/[\s,]+/).filter(Boolean).map(stemWord);

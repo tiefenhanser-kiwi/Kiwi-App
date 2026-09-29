@@ -58,7 +58,8 @@ import {
   GroceryListAIError,
 } from "../lib/groceryListAI";
 import { reconcileGroceryListIfStale } from "../lib/groceryReconcile";
-import { loadRelationIndex } from "../lib/relationIndexLoader";
+import { loadRelationIndex, loadRelationRows } from "../lib/relationIndexLoader";
+import { buildRelationIndex } from "../lib/ingredientRelations";
 import { withAIFailureStatus } from "../lib/ai/errors";
 import { normalizeIngredientName } from "../lib/groceryNormalization";
 import { lookupIngredientByName } from "../lib/ingredientLookup";
@@ -343,7 +344,13 @@ export function createGroceryListsRouter(
         // handed to BOTH consumers below: the consolidator's merge key and
         // partitionForAI's rule 3. Loading it twice, or wiring only one of
         // them, would let the two disagree about what one ingredient is.
-        const relations = await loadRelationIndex(prisma);
+        // [grocery] B2 — the ROWS as well as the index, and one read for both.
+        // The consolidator rebuilds its own index with the subsumes overlay once
+        // it knows what this plan demanded (H3's gate); partitionForAI below
+        // still wants the plain index, and it must be built from the SAME rows or
+        // the two disagree about what one ingredient is.
+        const relationRows = await loadRelationRows(prisma);
+        const relations = buildRelationIndex(relationRows);
 
         // 3. Block A: deterministic consolidation. May throw
         //    GroceryConsolidationNotFoundError if the plan vanished between
@@ -353,6 +360,7 @@ export function createGroceryListsRouter(
           planId,
           userId,
           relations,
+          relationRows,
         });
 
         // 4. Block B: gap-fill (Haiku, write-back) + final AI pass (Sonnet).

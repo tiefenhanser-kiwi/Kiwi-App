@@ -58,11 +58,17 @@ import {
   normalizeUnit,
   resolveConversion,
   scalePurchaseForSubUnit,
+  convertWithinDimension,
   rowConversion,
   withGroupLadder,
   type IngredientConversion,
 } from "./ingredientConversions";
 import { roundNeedQuantity } from "./needQuantity";
+import {
+  appendVarietyRider,
+  parseVarietyRider,
+  type VarietyShare,
+} from "./groceryVarietyRider";
 
 export class GroceryListAIError extends Error {
   // D-WS9-240 — the AICallFailureReason when the throw came from an
@@ -490,12 +496,108 @@ const CONSERVATION_REL_TOLERANCE = 0.005;
 // through with purchaseUnit "each" and the client's Rule 1 (BUG-138) orders the
 // need instead of the pack: LIVE on list cb5c8f6e, 2026-09-07, "16 cloves"
 // against one head.
+
+// ── [grocery] B2 H3 — HOW MANY BUY-UNITS A NEED COMES TO ────────────────────
+//
+// H3: "Shares are whole units of the line's buy unit (each, bunch, can), the
+// variety's own need rounded up. Never a measure."
+//
+// So both the line's TOTAL and each variety's SHARE are the same question asked
+// of different needs, and this answers it once. The three routes, in order, and
+// they mirror what the CLIENT prints — which is the number the shopper reads and
+// therefore the number H3 is about:
+//
+//   1. a COUNT need against a COUNT pack. The client's countedPackTitle prints
+//      the NEED ("6 bell peppers" for a need of 6 each against a "3 peppers"
+//      pack), so the need IS the count.
+//   2. a pack YIELD or sub-unit ladder that names how much one buy-unit gives.
+//      Parsley's bunch yields 2 cups = 32 tbsp, so a 7-tbsp need is one bunch.
+//      Converted within the dimension when the yield's unit and the need's unit
+//      differ, which is the whole reason the cup/tbsp step is here.
+//   3. the pack's own quantity, when it and the need share a dimension.
+//
+// null when none of the three relate them. A rider is then NOT emitted: H3's
+// shares are whole units of the buy unit, and a share we cannot express in that
+// unit is one we must not state.
+function buyUnitsForNeed(
+  need: number,
+  needUnit: string,
+  purchaseUnit: string | null | undefined,
+  purchaseQuantity: number | null | undefined,
+  conv: IngredientConversion | null,
+): number | null {
+  if (!(need > 0)) return 0;
+  if (purchaseUnit && isCountUnit(needUnit) && isCountUnit(purchaseUnit)) {
+    return Math.ceil(need - 1e-9);
+  }
+  const sub = conv?.subUnit;
+  if (sub && sub.childUnit) {
+    const per =
+      canonicalUnitToken(sub.childUnit) === canonicalUnitToken(needUnit)
+        ? sub.perParent
+        : convertWithinDimension(sub.perParent, sub.childUnit, needUnit);
+    if (per !== null && per > 0) return Math.ceil(need / per - 1e-9);
+  }
+  if (purchaseUnit && purchaseQuantity && purchaseQuantity > 0) {
+    const per = convertWithinDimension(purchaseQuantity, purchaseUnit, needUnit);
+    if (per !== null && per > 0) return Math.ceil(need / per - 1e-9);
+  }
+  return null;
+}
+
+/**
+ * [grocery] B2 H3 — turn a folded row's variety shares into the line's name.
+ *
+ * Runs AFTER resolvePurchaseFields because the buy unit is what the pack
+ * resolution settles. Two outcomes:
+ *
+ *   the rider      "bell peppers, at least 2 green" — the shopper picks the rest.
+ *   the COLLAPSE   one variety whose share covers the whole count. Hans:
+ *                  "Generic parsley ¼ cup + flat-leaf parsley ½ cup ->
+ *                  '1 bunch flat-leaf parsley', never '1 bunch parsley, at least
+ *                  ½ cup flat-leaf'." There is no 'whatever' left to choose, so
+ *                  the line takes the variety's name.
+ *
+ * ⚠️ THE COLLAPSE IS FOR ONE VARIETY ONLY, and that is a decision this block
+ * made rather than found. "The line simply takes the variety's name" has no
+ * answer for two varieties, and Hans's own worked example leaves a remainder
+ * (5 peppers, 2 red + 2 yellow claimed). So several varieties covering the total
+ * exactly emit the rider with NO remainder — which is his shape, reads correctly,
+ * and needs no second pass over the plan.
+ */
+function applyVarietyRider(
+  item: ConsolidatedItem,
+  out: GenerateListOutputItem,
+  conv: IngredientConversion | null,
+): GenerateListOutputItem {
+  const shares = item.varietyShares;
+  if (!shares || shares.length === 0) return out;
+  const total = buyUnitsForNeed(
+    out.quantity, out.unit, out.purchaseUnit, out.purchaseQuantity, conv,
+  );
+  if (total === null) return out;
+  const counted: VarietyShare[] = [];
+  for (const sh of shares) {
+    const n = buyUnitsForNeed(sh.need, sh.unit, out.purchaseUnit, out.purchaseQuantity, conv);
+    if (n === null) return out; // cannot state this share in the buy unit — state none
+    counted.push({ variety: sh.variety, count: Math.max(1, n) });
+  }
+  const claimed = counted.reduce((a, b) => a + b.count, 0);
+  if (counted.length === 1 && claimed >= total) {
+    return { ...out, displayName: shares[0].displayName };
+  }
+  // IDEMPOTENT, and it has to be: the AI path calls this on a name Sonnet may
+  // have echoed a rider back into. Strip any rider first, then compose one.
+  const { base } = parseVarietyRider(out.displayName);
+  return { ...out, displayName: appendVarietyRider(base, counted) };
+}
+
 function buildDeterministicOutputItem(
   item: ConsolidatedItem,
   groupConv: IngredientConversion | null = null,
 ): GenerateListOutputItem {
   const pack = resolvePurchaseFields(item, groupConv);
-  return {
+  const built: GenerateListOutputItem = {
     // BUG-165 — a deterministic row stands for exactly its own bucket.
     sourceKeys: [bucketKeyOf(item.canonicalName, item.unit)],
     canonicalName: item.canonicalName,
@@ -513,6 +615,7 @@ function buildDeterministicOutputItem(
     wasAiInferred: false,
     ...pack,
   };
+  return applyVarietyRider(item, built, withGroupLadder(rowConversion(item), groupConv));
 }
 
 /**
@@ -1055,20 +1158,32 @@ export async function generateFinalGroceryList(
           groupConv,
         )
       : { purchaseUnit: null, purchaseQuantity: null, purchaseDisplay: null };
+    const landed: GenerateListOutputItem = {
+      ...out,
+      quantity: roundNeedQuantity(out.quantity, out.unit),
+      ...pack,
+      // BUG-165 — the row's own bucket plus every sibling it absorbed. An
+      // output that matched nothing represents no consolidated bucket and so
+      // claims no provenance, rather than inheriting a neighbour's.
+      sourceKeys: [
+        ...(src ? [bucketKeyOf(src.canonicalName, src.unit)] : []),
+        ...(absorbedKeys.get(i) ?? []),
+      ],
+    };
     placed.push({
       index: match ? match.index : items.length + i,
-      out: {
-        ...out,
-        quantity: roundNeedQuantity(out.quantity, out.unit),
-        ...pack,
-        // BUG-165 — the row's own bucket plus every sibling it absorbed. An
-        // output that matched nothing represents no consolidated bucket and so
-        // claims no provenance, rather than inheriting a neighbour's.
-        sourceKeys: [
-          ...(src ? [bucketKeyOf(src.canonicalName, src.unit)] : []),
-          ...(absorbedKeys.get(i) ?? []),
-        ],
-      },
+      // ── [grocery] B2 H3 — RE-ASSERT THE RIDER OVER THE MODEL'S NAME ────────
+      //
+      // Sonnet returns its own `displayName` and this path spreads it, so a
+      // folded row that reaches the AI subset would come back with the rider
+      // silently deleted — the shopper loses the constraint their recipe stated.
+      // A folded row CAN reach the subset: `isVague` and `sectionKey === "extras"`
+      // both route rows there regardless of how they were built.
+      //
+      // Re-running the composer rather than patching a string keeps ONE grammar,
+      // and it is idempotent — if the model happened to echo the rider back,
+      // parseVarietyRider finds it and appendVarietyRider rewrites the same text.
+      out: src ? applyVarietyRider(src, landed, groupConv) : landed,
     });
   }
 

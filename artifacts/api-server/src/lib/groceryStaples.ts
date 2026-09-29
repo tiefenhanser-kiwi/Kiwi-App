@@ -113,6 +113,29 @@ const NEVER_ORDER_CANONICALS: ReadonlySet<string> = new Set([
   "boiling water",
   "pasta cooking water",
   "reserved pasta cooking water",
+  // ── [grocery] B2 — THE BY-PRODUCTS OF COOKING SOMETHING ALREADY ON THE LIST ─
+  //
+  // The same ruling as the water above, one step further: a recipe saying
+  // "reserved braising liquid" is telling you to keep something you are already
+  // making, not to buy it. The list said otherwise — `reserved birria braising
+  // liquid` shipped as a purchase on a live plan.
+  //
+  // The sweep started from the two rows the go-ahead named and asked the catalog
+  // for the same SHAPE. It found eight, six of them reachable from a dish today.
+  // Listed in full rather than by the pattern that found them, because "anything
+  // containing 'reserved'" would also catch a real purchase the day somebody
+  // mints one.
+  "reserved birria braising liquid",
+  "reserved braising liquid from chicken birria",
+  "reserved braising liquid from goat birria",
+  "braising liquid from pot roast",
+  "reserved frying oil",
+  "reserved pineapple juice",
+  "reserved zucchini flesh",
+  // A THIRD SPELLING of the pasta water two lines up. The set already carried
+  // `pasta cooking water` and `reserved pasta cooking water` and not this one,
+  // which is exactly how a name-keyed set fails.
+  "reserved pasta water",
 ]);
 
 /**

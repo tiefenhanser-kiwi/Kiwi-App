@@ -18,6 +18,7 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { logger } from "./logger";
+import { lowercaseLead } from "./ingredientNameCase";
 import { lookupPurchaseDefault } from "./ingredientConversions";
 import { lookupIngredientsByName } from "./ingredientLookup";
 import {
@@ -339,7 +340,18 @@ export async function resolveIngredients(
     if (!discovered.has(canonical)) {
       discovered.set(canonical, {
         canonical,
-        displayName: m.name.trim(),
+        // ── [grocery] B2 BUG-323 — THE CASING RULE, ON THE WAY IN ────────────
+        //
+        // This is the line that minted the 116 rows Part B just fixed: the
+        // wizard, the importer and the AI all hand over free text, and whatever
+        // case they used became the shared catalog's label for good ("Bell
+        // peppers" beside "bell peppers"). Fixing the 116 without fixing this
+        // would let the catalog re-accumulate exactly the way it did the first
+        // time — which is the argument BUG-096's alias table already won.
+        //
+        // The rule is the same function the one-time fix used, deliberately:
+        // one list of proper nouns, one first-character rule, no second copy.
+        displayName: lowercaseLead(m.name.trim()),
         defaultUnit: m.unit,
       });
     }

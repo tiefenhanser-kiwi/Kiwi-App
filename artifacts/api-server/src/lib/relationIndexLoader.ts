@@ -39,9 +39,9 @@ import {
  * the hand map composing last to a fixpoint. This function's only job is to
  * hand that builder every row, in the shape it expects.
  */
-export async function loadRelationIndex(
+export async function loadRelationRows(
   prisma: PrismaClient,
-): Promise<RelationIndex> {
+): Promise<RelationRow[]> {
   const raw = await prisma.ingredientRelation.findMany({
     include: {
       // [grocery] B1 — `purchaseUnit` joins `defaultUnit` as the component
@@ -66,5 +66,22 @@ export async function loadRelationIndex(
     fromDefaultUnit: r.from.defaultUnit,
     fromPurchaseUnit: r.from.purchaseUnit,
   }));
-  return buildRelationIndex(rows);
+  return rows;
+}
+
+/**
+ * The index, for the callers that only need one.
+ *
+ * ⚠️ [grocery] B2 — A CONSUMER OF `subsumes` NEEDS THE ROWS, NOT THIS. H3 folds a
+ * specific onto its generic only when a recipe demanded the generic, so the
+ * subsumes overlay depends on the PLAN and the index has to be rebuilt once the
+ * buckets exist. `consolidatePlanIngredients` does that from its
+ * `relationRows` option; this function stays because `partitionForAI` and
+ * `groceryReconcile` genuinely want one index with no overlay, and because every
+ * pre-B2 caller keeps working untouched.
+ */
+export async function loadRelationIndex(
+  prisma: PrismaClient,
+): Promise<RelationIndex> {
+  return buildRelationIndex(await loadRelationRows(prisma));
 }
