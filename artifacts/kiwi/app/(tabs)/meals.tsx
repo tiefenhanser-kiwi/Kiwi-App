@@ -148,6 +148,18 @@ export default function MealsTab() {
     router.push({ pathname: "/meal/[id]", params: { id: mealId } });
   };
 
+  // D-WS9-058 (BUG-331) — the meals-list entry point. Same destination as a row
+  // tap plus `ingredients=1`, which lands on meal detail scrolled to the
+  // ingredients section with the consolidated sheet open. One push, not a
+  // second screen: the ruling asks that the user land where the information
+  // lives rather than in a modal over a screen they never saw.
+  const handleViewIngredients = (mealId: string) => {
+    router.push({
+      pathname: "/meal/[id]",
+      params: { id: mealId, ingredients: "1" },
+    });
+  };
+
   const handleOpenDish = (dishId: string) => {
     router.push({ pathname: "/dish/[id]", params: { id: dishId } });
   };
@@ -300,6 +312,7 @@ export default function MealsTab() {
                   setAddToPlanFor({ mealId, mealTitle })
                 }
                 sortKey={mealSort}
+                onViewIngredients={() => handleViewIngredients(item.id)}
               />
             )}
             ItemSeparatorComponent={() => <View style={s.rowGap} />}

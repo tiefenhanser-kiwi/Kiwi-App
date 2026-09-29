@@ -159,6 +159,39 @@ export function PlanReviewMealRow({
         )}
       </View>
 
+      {/* ── D-WS9-058 (BUG-331) — "View Ingredients" on the Plan Details meal
+          card, the entry point the ruling names.
+
+          ⚠️ OUTSIDE the `!readOnly` gate below, deliberately. That gate hides
+          the action row because "these are all edits"; this is a READ action,
+          and a user looking at a composted or archived plan has exactly the
+          same reason to want the list. Cook Now is gated because a draft has no
+          meal id to launch against; the ingredients are on the meal either way.
+
+          The deep link carries `ingredients=1`, which lands the user on meal
+          detail scrolled to the ingredients section with the sheet open — "the
+          user lands where the information lives", per the ruling, rather than
+          in a modal floating over a screen they never saw. */}
+      <Pressable
+        onPress={() => {
+          router.push({
+            pathname: "/meal/[id]",
+            params: {
+              id: row.mealId,
+              planId,
+              planItemId: row.planItemId,
+              ingredients: "1",
+            },
+          });
+        }}
+        accessibilityRole="button"
+        accessibilityLabel="View ingredients"
+        style={({ pressed }) => [styles.viewIngredientsBtn, pressed && { opacity: 0.7 }]}
+        testID="plan-row-view-ingredients"
+      >
+        <Text style={styles.viewIngredientsText}>View Ingredients</Text>
+      </Pressable>
+
       {/* Body row: thumbnail + meta + macros. Tapping body also navigates. */}
       <Pressable
         onPress={onRowTap}
@@ -476,6 +509,25 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.background.card,
   },
   actionText: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[800],
+    fontWeight: Typography.fontWeight.medium,
+    fontFamily: Typography.face.sans[500],
+  },
+  // D-WS9-058 — a READ action, so it borrows actionBtn's shape but sits above
+  // the edit row and outside its readOnly gate. alignSelf keeps it to its own
+  // width instead of stretching across the card.
+  viewIngredientsBtn: {
+    alignSelf: "flex-start",
+    marginTop: Spacing[1],
+    paddingHorizontal: Spacing[2],
+    paddingVertical: Spacing[1],
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.neutral[300],
+    backgroundColor: Palette.background.card,
+  },
+  viewIngredientsText: {
     fontSize: Typography.fontSize.xs,
     color: Colors.neutral[800],
     fontWeight: Typography.fontWeight.medium,

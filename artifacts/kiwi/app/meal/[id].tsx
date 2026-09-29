@@ -19,6 +19,7 @@ import { Card } from "@/components/Card";
 import { DisplayTitle, resolveDisplayTitle } from "@/components/DisplayTitle";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { MealIngredientsSheetView } from "@/components/MealIngredientsSheetView";
 import { SectionLabel } from "@/components/SectionLabel";
 import { TreatedImage } from "@/components/TreatedImage";
 import {
@@ -46,6 +47,7 @@ import { formatMealTime } from "@/lib/mealTimeLine";
 // is now one shared pure function and this is one of its callers, which is what
 // keeps the two screens from drifting apart again.
 import { formatIngredientLine } from "@/lib/format/ingredientLine";
+import { consolidateMealIngredients } from "@/lib/meals/consolidateMealIngredients";
 import {
   flatMealSteps,
   mealStepsAreGrouped,
@@ -104,10 +106,16 @@ function HeartButton({ mealId }: { mealId: string }) {
 // "meal not found" view, and a retry-able error banner for everything else —
 // and hands the resolved MealDetail to <MealDetailContent>.
 export default function MealDetailScreen() {
-  const { id, planId, planItemId } = useLocalSearchParams<{
+  const { id, planId, planItemId, ingredients } = useLocalSearchParams<{
     id: string;
     planId?: string;
     planItemId?: string;
+    /** D-WS9-058 — "1" opens the consolidated-ingredients sheet on mount and
+     *  scrolls to the ingredients section. The entry points on the plan-detail
+     *  meal card and the meals-list rows set it: the ruling asks that tapping
+     *  "View Ingredients" land the user "where the information lives" rather
+     *  than in a modal floating over a screen they never saw. */
+    ingredients?: string;
   }>();
   const mealId = id ?? "";
   const router = useRouter();
@@ -175,6 +183,7 @@ export default function MealDetailScreen() {
       meal={meal}
       planId={planId}
       planItemId={planItemId}
+      openIngredients={ingredients === "1"}
     />
   );
 }
@@ -183,10 +192,12 @@ function MealDetailContent({
   meal,
   planId,
   planItemId,
+  openIngredients,
 }: {
   meal: MealDetail;
   planId?: string;
   planItemId?: string;
+  openIngredients?: boolean;
 }) {
   const router = useRouter();
   const { setServingsForPlanItem, updateMeal, addMealToPlan, removeMealFromPlan } =
@@ -207,6 +218,15 @@ function MealDetailContent({
   // denominator below.
   const [displayServings, setDisplayServings] = useState(meal.effectiveServings);
   const [addToPlanVisible, setAddToPlanVisible] = useState(false);
+  // ── D-WS9-058 (BUG-331) — the consolidated-ingredients sheet ──────────────
+  // Hans: "there's text 'ingredients' … it is supposed to expand, but no-ops
+  // when I click now." It never expanded — the label has been an inert <Text>
+  // since WS5-5F. This is the ruling it was remembering, built.
+  const [ingredientsOpen, setIngredientsOpen] = useState(false);
+  const scrollRef = useRef<{ scrollTo?: (o: { y: number; animated?: boolean }) => void } | null>(
+    null,
+  );
+  const ingredientsY = useRef(0);
   const canPersistServings = !!(planId && planItemId);
   // BUG-006 follow-up — the latest in-flight servings write (already
   // .catch-guarded, so awaiting it never throws). Cook Now awaits this so it
@@ -225,6 +245,20 @@ function MealDetailContent({
   useEffect(() => {
     setDisplayServings(meal.effectiveServings);
   }, [meal.effectiveServings]);
+
+  // D-WS9-058 — the deep link. "tapping it opens meal detail ANCHORED to the
+  // ingredients area with the modal expanded — the user lands where the
+  // information lives." Runs once: the flag is a route param, so re-firing it
+  // on every render would re-open a sheet the user had closed.
+  const deepLinked = useRef(false);
+  useEffect(() => {
+    if (!openIngredients || deepLinked.current) return;
+    deepLinked.current = true;
+    // Scroll first, then open — so the sheet's dismissal reveals the section
+    // rather than the hero.
+    scrollRef.current?.scrollTo?.({ y: Math.max(0, ingredientsY.current - 12), animated: false });
+    setIngredientsOpen(true);
+  }, [openIngredients]);
 
   // WS7-8b (D-WS7-169) / WS7-8 BUG-003 — DENOMINATOR is the immutable authored
   // anchor (meal.authoredServingsDefault), NOT effectiveServings and NOT the
@@ -533,6 +567,7 @@ function MealDetailContent({
         rightContent={<HeartButton mealId={meal.id} />}
       />
       <KeyboardAwareScrollViewCompat
+        ref={scrollRef as never}
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
       >
@@ -636,8 +671,38 @@ function MealDetailContent({
         </View>
 
         {/* Ingredients */}
-        <View style={s.section}>
-          <SectionLabel label="Ingredients" />
+        <View
+          style={s.section}
+          onLayout={(e) => {
+            ingredientsY.current = e.nativeEvent.layout.y;
+          }}
+        >
+          {/* ── D-WS9-058 (BUG-331) — THE HEADING IS THE CONTROL ────────────
+              Hans reported this label as something that "is supposed to expand,
+              but no-ops when I click now". It never did: git history says it has
+              been an inert <Text> since WS5-5F (a286a7f), nothing near it was
+              ever pressable, and no Ingredients disclosure exists on any other
+              screen. He was remembering D-WS9-058, ruled July 20 and never
+              built. This is it.
+
+              ⚠️ SectionLabel IS NOT TOUCHED. It is shared across 11 renders in 5
+              files and takes no onPress; adding one would put a tap target on
+              ten headings that do nothing. The Pressable and the chevron are the
+              CALL SITE's, which is also why the eyebrow's own weight is
+              unchanged — the hierarchy inversion Hans is really seeing (14px
+              serif italic above a 15px serif-600 dish header) is RECORDED, not
+              fixed here. */}
+          <Pressable
+            onPress={() => setIngredientsOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="View all ingredients"
+            hitSlop={8}
+            style={({ pressed }) => [s.ingredientsHeadingRow, pressed && { opacity: 0.6 }]}
+            testID="meal-ingredients-heading"
+          >
+            <SectionLabel label="Ingredients" />
+            <Feather name="chevron-right" size={16} color={Colors.neutral[700]} />
+          </Pressable>
           <View style={s.servingsAdjuster}>
             <Text style={s.servingsLabel}>Adjust for</Text>
             <View style={s.stepperRow}>
@@ -733,6 +798,17 @@ function MealDetailContent({
             : flatSteps.map((step, i) => renderStepRow(step, i + 1, i))}
         </View>
       </KeyboardAwareScrollViewCompat>
+      {/* D-WS9-058 — the complete consolidated list, deduplicated across
+          dishes, summed, and scaled to the DISPLAYED servings (the ruling's two
+          open questions). Display-only: nothing here writes. */}
+      <MealIngredientsSheetView
+        visible={ingredientsOpen}
+        title={resolveDisplayTitle(meal)}
+        servings={displayServings}
+        items={consolidateMealIngredients(meal, servingsMultiplier)}
+        showProvenance={meal.dishes.length > 1}
+        onClose={() => setIngredientsOpen(false)}
+      />
     </View>
   );
 }
@@ -844,6 +920,12 @@ const s = StyleSheet.create({
     color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     marginTop: 2,
+  },
+  // D-WS9-058 — the heading and its chevron share one tap target.
+  ingredientsHeadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   servingsAdjuster: {
     flexDirection: "row",

@@ -108,7 +108,7 @@ test("flag true + error: Kiwi's copy renders under the expectation line", () => 
 // Rendered off the SAME rows the selection test counts (the measured fixture).
 // The "N items" half is plain text; only the staples fragment is a control.
 
-import { measuredList } from "@/lib/__tests__/fixtures/instacartMeasuredList";
+import { measuredList, row } from "@/lib/__tests__/fixtures/instacartMeasuredList";
 import type { GroceryListItem } from "@/lib/types";
 
 const textOf = (tree: Node, id: string) => gatherText(findAll(tree, byTestId(id))[0] ?? null).join("");
@@ -231,4 +231,70 @@ test("Part D: singulars — '1 item', '1 pantry staple'", () => {
 test("Part D: the off state renders no count either — it renders nothing", () => {
   const tree = render({ enabled: false, busy: false, error: null, onPress: () => {}, items: measuredList() });
   assert.equal(tree, null);
+});
+
+// ── 🔴 D-WS9-284 — HOUSEHOLD ROWS: LISTED, NOT ADDABLE ───────────────────────
+//
+// The held-back set is two kinds now. A staple's Add works because
+// `stapleOptedIn` is exactly the flag selectInstacartRows reads; a household
+// row is excluded on its SECTION, which no flag changes. The same button on
+// both would be a control that visibly does nothing — so the household row is
+// NAMED (Hans: "are we able to list what isn't sent?") and no more.
+
+const HOUSEHOLD: GroceryListItem[] = [
+  row({ id: "hh-paper towels", name: "paper towels", sectionKey: "household", isRecurringItem: true }),
+  row({ id: "hh-toilet paper", name: "toilet paper", sectionKey: "household", isRecurringItem: true }),
+  row({ id: "hh-pet treats", name: "pet treats", sectionKey: "household", isRecurringItem: true }),
+];
+
+test("D-WS9-284: the three live household rows are held back, and the copy names them", () => {
+  const h = harness([...measuredList(), ...HOUSEHOLD]);
+  const tree = h.json();
+  assert.equal(
+    textOf(tree, "instacart-count"),
+    "Sends 54 items · 6 pantry staples and 3 household items not included",
+  );
+});
+
+test("🔴 D-WS9-284: a household row gets NO Add — there is no gesture that includes it", () => {
+  const h = harness([...measuredList(), ...HOUSEHOLD]);
+  h.press("instacart-staples-toggle");
+  const tree = h.json();
+  // All nine are listed.
+  const names = staplesTexts(tree).filter((t) => t !== "Add" && t !== "not food");
+  assert.ok(names.includes("paper towels"));
+  assert.ok(names.includes("toilet paper"));
+  assert.ok(names.includes("pet treats"));
+  // Six Adds, not nine.
+  const adds = findAll(
+    tree,
+    (n) => typeof n.props?.testID === "string" && n.props.testID.startsWith("instacart-staple-add-"),
+  );
+  assert.equal(adds.length, 6);
+  for (const a of adds) assert.ok(!String(a.props?.testID).includes("hh-"));
+  // And the three carry the quiet note instead.
+  assert.equal(staplesTexts(tree).filter((t) => t === "not food").length, 3);
+});
+
+test("D-WS9-284: a household-only list still shows the disclosure, with no Adds at all", () => {
+  const h = harness([row({ id: "f1", name: "potatoes", sectionKey: "produce" }), ...HOUSEHOLD]);
+  assert.equal(
+    textOf(h.json(), "instacart-count"),
+    "Sends 1 item · 3 household items not included",
+  );
+  h.press("instacart-staples-toggle");
+  const adds = findAll(
+    h.json(),
+    (n) => typeof n.props?.testID === "string" && n.props.testID.startsWith("instacart-staple-add-"),
+  );
+  assert.equal(adds.length, 0);
+});
+
+test("D-WS9-284: a CHECKED-OFF household row is done, not held back", () => {
+  const h = harness([
+    row({ id: "f1", name: "potatoes", sectionKey: "produce" }),
+    { ...HOUSEHOLD[0], isCompleted: true },
+  ]);
+  assert.equal(textOf(h.json(), "instacart-count"), "Sends 1 item");
+  assert.equal(findAll(h.json(), byTestId("instacart-staples-toggle")).length, 0);
 });

@@ -46,6 +46,7 @@ import {
   purchaseEditorSeed,
   type PurchaseEditorFields,
 } from "@/lib/format/grocery";
+import { recurringDetail } from "@/lib/format/recurringLine";
 import { parseQuantity } from "@/lib/quantity";
 import { groceryStaleNotice } from "@/lib/billing/subscriptionView";
 import { useBilling } from "@/contexts/BillingContext";
@@ -1503,6 +1504,29 @@ function GroceryRow({
   );
   const needText = displayQty ? String(displayQty) : "";
 
+  // ── D-WS9-284 / D-WS9-188 — R3, the recurring line ────────────────────────
+  //
+  // Hans ruled two shapes and the data supplies a third:
+  //   same unit    "5 lemons — 2 recurring + 3 for meals"
+  //   otherwise    "1 gallon whole milk — recurring; ½ cup for meals"
+  //   no plan need "1 dozen large eggs — recurring"
+  //
+  // ⚠️ IT REPLACES THE NEED PARENTHETICAL RATHER THAN SITTING BESIDE IT. The
+  // incomparable clause already STATES the need ("½ cup for meals"), so keeping
+  // "(½ cup)" as well says it twice; and on the summed branch the row's own
+  // number is the total, which the split then breaks down. The ruled sentences
+  // carry no parenthetical, and this is why.
+  //
+  // ⚠️ SAME PRESSABLE, so nothing is lost. The parenthetical is the row's edit
+  // affordance (onEnterEdit → the BUG-240 purchase editor); swapping the TEXT
+  // inside it keeps the tap target, the hit slop and the staple branch exactly
+  // as they were. Only the words change.
+  //
+  // The branch logic is in lib/format/recurringLine.ts, not in a ternary here:
+  // app/** is outside the test glob (D-WS9-164).
+  const recurring = recurringDetail(item.recurringFacets);
+  const needLine = recurring ? recurring.detail : needText;
+
   return (
     <View style={s.row}>
       <Pressable
@@ -1663,10 +1687,14 @@ function GroceryRow({
               <Feather name="check" size={16} color={Colors.neutral[0]} />
             </Pressable>
           </View>
-        ) : needText ? (
+        ) : needLine ? (
           // The need parenthetical — the edit affordance. Default staples tap
           // to opt-in (onTap); non-staples tap to edit the need (onEnterEdit).
           // Sibling Pressable, never nested in the name toggle.
+          //
+          // D-WS9-284 — on a recurring row the TEXT is R3's clause, set off by
+          // an em-dash instead of parentheses (it is a sentence, not an aside),
+          // and the Pressable is otherwise untouched.
           <Pressable
             onPress={isDefaultStaple ? onTap : onEnterEdit}
             hitSlop={12}
@@ -1678,7 +1706,7 @@ function GroceryRow({
                 (isDefaultStaple || item.isCompleted) && { color: Colors.neutral[700] },
               ]}
             >
-              ({needText})
+              {recurring ? `— ${needLine}` : `(${needLine})`}
             </Text>
           </Pressable>
         ) : null}

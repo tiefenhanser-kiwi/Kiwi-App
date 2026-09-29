@@ -17,6 +17,17 @@ type Props = {
    *  doesn't carry cook-stat fields today (D-WS7-048 extended) so the
    *  cook-stat sorts surface a "no data yet" hint rather than fake numbers. */
   sortKey?: SortKey;
+  /**
+   * D-WS9-058 (BUG-331) — "View Ingredients", the meals-list entry point the
+   * ruling names.
+   *
+   * ⚠️ OPTIONAL, and that is what keeps the three PICKER callers unchanged.
+   * MealRow is rendered by the Meals tab AND by AddMealsSheet and SwapMealSheet,
+   * where the row's whole job is to be PICKED — a second destination inside a
+   * picker would navigate away from the choice the user came to make. Only the
+   * Meals tab passes it.
+   */
+  onViewIngredients?: () => void;
 };
 
 function buildSortLine(sortKey: SortKey): string | null {
@@ -41,6 +52,7 @@ export function MealRow({
   onCookNow,
   onAddToPlan,
   sortKey,
+  onViewIngredients,
 }: Props) {
   const sortLine = useMemo(
     () => (sortKey ? buildSortLine(sortKey) : null),
@@ -103,6 +115,21 @@ export function MealRow({
         >
           <Text style={styles.addToPlanText}>Add to Plan</Text>
         </Pressable>
+        {/* D-WS9-058 — only when the caller wants it; the pickers do not. */}
+        {onViewIngredients && (
+          <Pressable
+            onPress={onViewIngredients}
+            accessibilityRole="button"
+            accessibilityLabel="View ingredients"
+            style={({ pressed }) => [
+              styles.viewIngredientsBtn,
+              pressed && { opacity: 0.85 },
+            ]}
+            testID="meal-row-view-ingredients"
+          >
+            <Text style={styles.viewIngredientsText}>Ingredients</Text>
+          </Pressable>
+        )}
       </View>
     </View>
   );
@@ -161,5 +188,22 @@ const styles = StyleSheet.create({
     color: Colors.neutral[0],
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.sans[600],
+  },
+  // D-WS9-058 — the third action. A READ action beside two writes, so it takes
+  // the quiet outline treatment rather than a third filled colour.
+  viewIngredientsBtn: {
+    borderWidth: 1,
+    borderColor: Colors.neutral[300],
+    backgroundColor: Palette.background.card,
+    paddingHorizontal: Spacing[2],
+    paddingVertical: 8,
+    borderRadius: Radius.md,
+    alignItems: "center",
+  },
+  viewIngredientsText: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[800],
+    fontWeight: Typography.fontWeight.medium,
+    fontFamily: Typography.face.sans[500],
   },
 });

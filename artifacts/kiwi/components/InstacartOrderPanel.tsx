@@ -9,6 +9,7 @@ import {
   instacartCountSummary,
   stapleDisplayName,
 } from "@/lib/instacartOrder";
+import { isHouseholdRow } from "@/lib/format/recurringLine";
 import type { GroceryListItem } from "@/lib/types";
 
 // Row 8 Block 2 — the flag-gated order block on the grocery detail screen.
@@ -118,22 +119,43 @@ export function InstacartOrderPanel({
         <View style={s.staplesList} testID="instacart-staples">
           {summary.heldBack.map((item) => {
             const name = stapleDisplayName(item);
+            // ── 🔴 D-WS9-284 — A HOUSEHOLD ROW IS LISTED BUT NOT ADDABLE ────
+            //
+            // The held-back set is two kinds now. A STAPLE has an Add because
+            // `stapleOptedIn` is exactly the gesture that moves it into the
+            // send: selectInstacartRows reads that flag. A HOUSEHOLD row is
+            // excluded on its SECTION, which no flag changes — so the same
+            // button would set `stapleOptedIn` on a row nothing reads it for,
+            // the row would stay held back, and the user would tap a control
+            // that visibly does nothing.
+            //
+            // Ruled 2026-09-29: no new column and no opt-in gesture in this
+            // block — "the user adds paper towels in Instacart if they want
+            // them." So it is NAMED (which is the point: Hans's "are we able to
+            // list what isn't sent? that's better than the user thinking
+            // 'which 6?'") and no more. If a per-row opt-in is ever wanted it
+            // mirrors stapleOptedIn, and this is where the button comes back.
+            const addable = !isHouseholdRow(item);
             return (
               <View key={item.id} style={s.stapleRow}>
                 <Text style={s.stapleName} numberOfLines={2}>
                   {name}
                 </Text>
-                <Pressable
-                  onPress={() => onAddStaple(item)}
-                  hitSlop={6}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Add ${name}`}
-                  style={({ pressed }) => [s.stapleAdd, pressed && { opacity: 0.6 }]}
-                  testID={`instacart-staple-add-${item.id}`}
-                >
-                  <Feather name="plus" size={12} color={Colors.sage[700]} />
-                  <Text style={s.stapleAddText}>Add</Text>
-                </Pressable>
+                {addable ? (
+                  <Pressable
+                    onPress={() => onAddStaple(item)}
+                    hitSlop={6}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Add ${name}`}
+                    style={({ pressed }) => [s.stapleAdd, pressed && { opacity: 0.6 }]}
+                    testID={`instacart-staple-add-${item.id}`}
+                  >
+                    <Feather name="plus" size={12} color={Colors.sage[700]} />
+                    <Text style={s.stapleAddText}>Add</Text>
+                  </Pressable>
+                ) : (
+                  <Text style={s.stapleNote}>not food</Text>
+                )}
               </View>
             );
           })}
@@ -217,6 +239,13 @@ const s = StyleSheet.create({
     borderRadius: Radius.full,
     borderWidth: 1,
     borderColor: Colors.sage[300],
+  },
+  // D-WS9-284 — the quiet note where a household row would have had an Add.
+  stapleNote: {
+    fontFamily: Typography.face.sans[400],
+    fontSize: 12,
+    lineHeight: 16,
+    color: Colors.neutral[600],
   },
   stapleAddText: {
     fontFamily: Typography.face.sans[600],
