@@ -199,7 +199,10 @@ describe("[grocery] B1 — ceil to whole packs, and the one forgiveness", () => 
       purchaseUnit: "jar", purchaseQuantity: 1, purchaseDisplay: "1 jar (12 oz)",
       packYieldUnit: "cup", packYieldPerPack: 1.5,
     });
-    assert.equal(packLine(jar), "2 jar (12 oz)");
+    // [grocery] B4 — was "2 jar (12 oz)". Whoever writes the count owns its
+    // plural, and once B4's yields moved the scaling of nine corpus rows to the
+    // server, the client could not repair a display that already read "4 can".
+    assert.equal(packLine(jar), "2 jars (12 oz)");
   });
 });
 
@@ -285,7 +288,8 @@ describe("[grocery] B1 — the pack display", () => {
       packYieldUnit: "ounce", packYieldPerPack: 10,
     });
     // 25 oz = 2.5 packs -> 3 (a bunch forgives only 1/8).
-    assert.equal(packLine(kale), "3 bunch (~10 oz)");
+    // [grocery] B4 — was "3 bunch (~10 oz)"; the lead noun is pluralised now.
+    assert.equal(packLine(kale), "3 bunches (~10 oz)");
   });
 
   it("rewrites only the leading count when the residue is authored prose", () => {
@@ -569,5 +573,59 @@ describe("BUG-330 — a pint of cherry tomatoes yields 10 ounces", () => {
       storedDisplay: "1 pint",
     });
     assert.equal(scaled?.purchaseDisplay, "2 pints");
+  });
+});
+
+// ── [grocery] B4 — WHOEVER WRITES THE COUNT OWNS ITS PLURAL ─────────────────
+//
+// B4's pack yields moved the scaling of nine corpus rows from the client to the
+// server, and the server rewrote only the leading number: "4 can (14.5 oz)".
+// The client cannot repair that — it pluralises a pack noun only when IT does
+// the scaling, from "1 can" to "4 cans"; handed a display that already reads
+// "4 can" it leaves it alone. Measured on both the committed and the in-flight
+// client.
+
+describe("[grocery] B4 — a scaled pack display pluralises its lead noun", () => {
+  function scaled(display: string, parent: string, perParent: number, need: number, needUnit: string) {
+    const conv = {
+      source: "curated" as const,
+      purchaseUnit: parent,
+      purchaseQuantity: 1,
+      purchaseDisplay: display,
+      subUnit: { parent, perParent, childUnit: needUnit },
+    };
+    return scalePurchaseForSubUnit(conv, need, needUnit, { storedDisplay: display })?.purchaseDisplay;
+  }
+
+  it("pluralises the pack noun when a SIZE follows it", () => {
+    assert.equal(scaled("1 can (14.5 oz)", "can", 14.5, 56, "ounce"), "4 cans (14.5 oz)");
+    assert.equal(scaled("1 container (5 oz)", "container", 5, 9, "ounce"), "2 containers (5 oz)");
+  });
+
+  it("uses -es where English does", () => {
+    assert.equal(scaled("1 box (12 ct)", "box", 12, 30, "each"), "3 boxes (12 ct)");
+    assert.equal(scaled("1 bunch (~12 oz)", "bunch", 12, 20, "ounce"), "2 bunches (~12 oz)");
+  });
+
+  it("leaves a count of ONE singular", () => {
+    assert.equal(scaled("1 can (15 oz)", "can", 15, 7.5, "ounce"), "1 can (15 oz)");
+  });
+
+  it("SINGULARISES a stored display that already carried a plural", () => {
+    // A live corpus row: "2 cans (15 oz each)" against a need of 7.5 oz lands on
+    // one can, and rewriting only the number left "1 cans".
+    assert.equal(scaled("2 cans (15 oz each)", "can", 15, 7.5, "ounce"), "1 can (15 oz each)");
+    assert.equal(scaled("2 cans (15 oz each)", "can", 15, 40, "ounce"), "3 cans (15 oz each)");
+  });
+
+  it("does not touch authored prose whose lead word is not the pack noun", () => {
+    // "1 small knob (~2 oz)" leads with "small". Pluralising it would be the
+    // server rewriting someone's sentence.
+    assert.equal(scaled("1 small knob (~2 oz)", "each", 9, 20, "tablespoon"), "3 small knob (~2 oz)");
+  });
+
+  it("the size-less synthesise branch still wins, and still pluralises", () => {
+    // BUG-025-1's case: "1 head" -> "3 heads", not "3 head".
+    assert.equal(scaled("1 head", "head", 10, 25, "clove"), "3 heads");
   });
 });

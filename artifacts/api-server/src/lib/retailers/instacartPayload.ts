@@ -305,34 +305,35 @@ function resolveOrderSource(
   if (row.purchaseQuantity != null && row.purchaseQuantity > 0 && rowPackUnit) {
     const needToken = canonicalUnitToken(row.unit);
     const packToken = canonicalUnitToken(rowPackUnit);
-    // ── [grocery] B4 (D-WS9-286) — THE SERVER'S OWN COUNT, WHERE IT HAS ONE ──
+    // ── [grocery] B4 (D-WS9-286) — AND WHY `packCount` IS NOT USED HERE ──────
     //
-    // The same-token arithmetic below is the phone's rule 1, and it can only see
-    // pairs that share a unit token. It therefore orders ONE pack for any row
-    // whose need is in cups against a pack in cans — which is how a plan wanting
-    // eight cups of broth ordered a single 14.5 oz can. `packCount` is the count
-    // the server derived through the pack yield, so where it exists it wins.
+    // Ruling 6 asked this step to take the server's count in place of its own
+    // arithmetic. MEASURED, IT CANNOT, and the measurement is worth keeping:
     //
-    // ⚠️ AND `purchaseQuantity` MEANS TWO DIFFERENT THINGS, which is why the
-    // per-pack size is read off the invariant rather than assumed. When the
-    // server SCALED the pack, resolvePurchaseFields wrote the same number into
-    // both columns, so `purchaseQuantity === packCount` and the order is simply
-    // `packCount` of the pack noun ("4 can"). When it did not scale,
-    // `purchaseQuantity` is the per-pack SIZE and the order is the product
-    // ("2 packs of 1.5 lb" = 3 lb). Multiplying in the first case would order
-    // sixteen cans for four.
-    const serverPacks =
-      row.packCount != null && row.packCount > 0 ? row.packCount : null;
+    // The order total is `packs × the per-pack SIZE`, and `purchaseQuantity` is
+    // that size only on an UNSCALED row. When `resolvePurchaseFields` scales a
+    // pack it writes the pack COUNT into `purchaseQuantity` instead, and the
+    // size survives only inside the display string. So a consumer needs to know
+    // which shape it is holding, and the only discriminator available on the
+    // wire — `purchaseQuantity === packCount` — is a coincidence test, not an
+    // invariant: across the 20-plan corpus it is true of 579 rows of which just
+    // 71 are actually scaled. Three of the false positives are `2 lb` packs
+    // against a need of 2.25–3.75 lb, where trusting it orders 2 lb instead of 4.
+    //
+    // The arithmetic below is already correct for BOTH shapes, and not by luck:
+    // a scaled row's need and pack carry different unit tokens (cups against
+    // cans), so `packs` collapses to 1 and `total` becomes the count the scaler
+    // already wrote. An unscaled same-token row multiplies properly. Replacing it
+    // with `packCount` would have regressed the three rows above.
+    //
+    // `packCount` still rides the wire for the CLIENT, which renders a count and
+    // never multiplies it by a size. Making this path use it needs the per-pack
+    // size on the wire too — see N14.
     const packs =
-      serverPacks ??
-      (needToken.length > 0 && needToken === packToken && row.quantity > 0
+      needToken.length > 0 && needToken === packToken && row.quantity > 0
         ? Math.max(1, Math.ceil(row.quantity / row.purchaseQuantity - PACK_EPSILON))
-        : 1);
-    const perPack =
-      serverPacks !== null && row.purchaseQuantity === serverPacks
-        ? 1
-        : row.purchaseQuantity;
-    const total = packs * perPack;
+        : 1;
+    const total = packs * row.purchaseQuantity;
     const packLine =
       packs === 1
         ? row.purchaseDisplay?.trim() || `${formatCount(total)} ${rowPackUnit}`

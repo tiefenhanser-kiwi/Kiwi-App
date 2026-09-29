@@ -859,8 +859,25 @@ export interface ScalePurchaseOptions {
  * is plural: iceberg's pack read "4 heads", and a bare string compare against
  * "head" missed it and produced "1 heads".
  */
+/** English plural suffix for a pack noun. `box` -> `boxes`, `bunch` -> `bunches`. */
+function packPlural(n: number, noun: string): string {
+  if (n === 1) return "";
+  return /(?:s|x|z|ch|sh)$/i.test(noun) ? "es" : "s";
+}
+
+/** The inverse, for a stored display that already carries a plural. */
+function singularisePackNoun(noun: string): string {
+  if (/(?:s|x|z|ch|sh)es$/i.test(noun)) return noun.slice(0, -2);
+  if (/s$/i.test(noun) && !/ss$/i.test(noun)) return noun.slice(0, -1);
+  return noun;
+}
+
+function escapeForRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function renderPackDisplay(n: number, parent: string, storedDisplay: string | null): string {
-  const plural = n === 1 ? "" : parent.endsWith("h") || parent.endsWith("s") ? "es" : "s";
+  const plural = packPlural(n, parent);
   if (!storedDisplay) return `${n} ${parent}${plural}`;
   const residue = storedDisplay.replace(/^\s*\d+(?:\.\d+)?\s+/, "").trim();
   // Synthesise when the residue LEADS with the pack noun and states no SIZE.
@@ -878,10 +895,39 @@ function renderPackDisplay(n: number, parent: string, storedDisplay: string | nu
   if (canonicalUnitToken(lead) === canonicalUnitToken(parent) && !/\d/.test(residue)) {
     return `${n} ${parent}${plural}`;
   }
-  // ⚠️ NOT PLURALISED. The pack noun is buried in authored prose ("1 small knob
-  // (~2 oz)"), and the client owns plurals — BUG-321 / BUG-329 are that lane.
-  // Rewriting the words here would be the server formatting a display string,
-  // which is exactly what WS7-8b B2 moved to render.
+  // ── [grocery] B4 — PLURALISE THE LEAD NOUN WHEN IT IS THE PACK NOUN ───────
+  //
+  // The residue leads with the pack noun but states a SIZE too ("can (14.5 oz)",
+  // "container (5 oz)"), so the branch above declines to synthesise — dropping
+  // the size would lose real information. But rewriting only the count left
+  // "4 can (14.5 oz)" on nine corpus rows the moment B4's pack yields moved the
+  // scaling from the client to here.
+  //
+  // ⚠️ AND THE CLIENT CANNOT FIX IT. The note this replaces said the client owns
+  // plurals (BUG-321 / BUG-329) — but the client only pluralises a pack noun
+  // when IT does the scaling, from "1 can" to "4 cans". Handed a display that
+  // already reads "4 can" it leaves it alone, measured on both the committed and
+  // the in-flight version. Whoever writes the count owns its plural.
+  //
+  // Only the LEAD WORD moves, and only when it is the pack noun, so authored
+  // prose is still untouched: "1 small knob (~2 oz)" leads with "small", which
+  // is not the parent, and comes through exactly as before.
+  // The stored display may ALREADY carry a plural ("2 cans (15 oz each)"), and a
+  // yield that lands on one pack must not leave "1 cans" behind. So the lead is
+  // matched through its singular and rewritten as the correctly inflected parent,
+  // in both directions.
+  const leadSingular = singularisePackNoun(lead);
+  const scaledLead =
+    /^\s*\d/.test(storedDisplay) &&
+    canonicalUnitToken(leadSingular) === canonicalUnitToken(parent)
+      ? storedDisplay
+          .replace(/^\s*\d+(?:\.\d+)?/, String(n))
+          .replace(
+            new RegExp(`^(\\s*${String(n)}\\s+)${escapeForRegExp(lead)}\\b`),
+            (_m, head: string) => `${head}${parent}${packPlural(n, parent)}`,
+          )
+      : null;
+  if (scaledLead !== null) return scaledLead;
   return /^\s*\d/.test(storedDisplay)
     ? storedDisplay.replace(/^\s*\d+(?:\.\d+)?/, String(n))
     : `${n} ${storedDisplay}`;

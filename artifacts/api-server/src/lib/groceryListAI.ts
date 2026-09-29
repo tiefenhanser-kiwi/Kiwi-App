@@ -426,14 +426,54 @@ function resolvePurchaseFields(
     purchaseDisplay: item.purchaseDisplay,
     // null when nothing in the data relates the need to the pack — a real
     // answer, not a gap, and the client then parses the display as it always has.
-    packCount: buyUnitsForNeed(
-      item.quantity,
-      item.unit,
-      item.purchaseUnit,
-      item.purchaseQuantity,
-      conv,
-    ),
+    packCount: packsForRow(item, conv),
   };
+}
+
+/**
+ * How many PACKS cover this row's need.
+ *
+ * ⚠️ THIS IS NOT `buyUnitsForNeed`, AND THE FIRST VERSION OF packCount REUSED IT
+ * AND WAS WRONG. That function answers the H3 rider's question — "how many whole
+ * units of the LINE's buy unit" — and for a count pack the line's buy unit is the
+ * ITEM, not the pack: a need of three bell peppers against a "3 peppers" pack is
+ * three buy units and ONE pack. Measured on the corpus, reusing it made Gate 1
+ * fail 52 rows that were perfectly well ordered. The two questions coincide only
+ * when a pack holds one of something.
+ *
+ * So this divides by the pack: work out how much ONE pack gives IN THE NEED'S
+ * UNIT, then ceil. Null when nothing in the data relates the two, which is a real
+ * answer and not a gap.
+ */
+function packsForRow(
+  item: ConsolidatedItem,
+  conv: IngredientConversion | null,
+): number | null {
+  const { quantity: need, unit: needUnit, purchaseUnit, purchaseQuantity } = item;
+  if (!(need > 0)) return null;
+  if (!purchaseUnit || !purchaseQuantity || !(purchaseQuantity > 0)) return null;
+
+  let perPack: number | null = null;
+  const nu = canonicalUnitToken(needUnit);
+  // N12 — the same unit on both sides is arithmetic. `bunch` against `bunch` is
+  // neither a count unit nor a dimension unit, so every other branch declined it
+  // and 91 corpus rows went unchecked for want of a string comparison.
+  if (nu.length > 0 && nu === canonicalUnitToken(purchaseUnit)) {
+    perPack = purchaseQuantity;
+  } else if (conv?.subUnit?.childUnit) {
+    // A pack yield says how much of the need ONE pack gives.
+    const y = conv.subUnit.perParent;
+    const inNeedUnit = canonicalUnitToken(conv.subUnit.childUnit) === nu
+      ? y
+      : convertWithinDimension(y, conv.subUnit.childUnit, needUnit);
+    if (inNeedUnit !== null) perPack = inNeedUnit * purchaseQuantity;
+  }
+  if (perPack === null) {
+    const c = convertWithinDimension(purchaseQuantity, purchaseUnit, needUnit);
+    if (c !== null) perPack = c;
+  }
+  if (perPack === null || !(perPack > 0)) return null;
+  return Math.max(1, Math.ceil(need / perPack - 1e-9));
 }
 
 // BUG-142 — quantity conservation across an AI merge.
@@ -575,24 +615,13 @@ function buyUnitsForNeed(
   if (purchaseUnit && isCountUnit(needUnit) && isCountUnit(purchaseUnit)) {
     return Math.ceil(need - 1e-9);
   }
-  // ── [grocery] B4 · N12 — THE SAME UNIT ON BOTH SIDES IS ARITHMETIC ─────────
+  // ── [grocery] B4 · N12 lives in `packsForRow`, NOT HERE ───────────────────
   //
-  // A need of one bunch against a pack of one bunch was UNRELATABLE here: `bunch`
-  // is not a count unit (COUNT_UNITS holds each/whole/piece/ct) and
-  // convertWithinDimension knows only weight and volume, so neither branch fired
-  // and the row fell through to null. 91 rows of the census corpus — 14% of
-  // Gate 1's whole unverifiable residue — were rows whose two unit STRINGS are
-  // the same and which nothing ever compared.
-  //
-  // This is the phone's `packsToCoverNeed` rule 1 verbatim, including the
-  // epsilon, so the two agree: a need of exactly one pack must not ceil to two
-  // on float noise.
-  if (purchaseUnit && purchaseQuantity && purchaseQuantity > 0) {
-    const nu = canonicalUnitToken(needUnit);
-    if (nu.length > 0 && nu === canonicalUnitToken(purchaseUnit)) {
-      return Math.max(1, Math.ceil(need / purchaseQuantity - 1e-9));
-    }
-  }
+  // The same-unit rule was added here first and it was the wrong home: this
+  // function answers the H3 RIDER's question — "how many whole units of the
+  // line's buy unit" — and for a count pack the buy unit is the ITEM. Putting a
+  // pack division in it silently changed what a rider states. `packsForRow`
+  // asks the pack question and owns the rule.
   const sub = conv?.subUnit;
   if (sub && sub.childUnit) {
     const per =

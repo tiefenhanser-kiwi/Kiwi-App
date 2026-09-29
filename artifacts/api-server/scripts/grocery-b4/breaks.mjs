@@ -45,13 +45,10 @@ const BREAKS = [
   {
     name: "3. the same-unit rule is dropped",
     file: `${S}groceryListAI.ts`,
-    from: `  if (purchaseUnit && purchaseQuantity && purchaseQuantity > 0) {
-    const nu = canonicalUnitToken(needUnit);
-    if (nu.length > 0 && nu === canonicalUnitToken(purchaseUnit)) {
-      return Math.max(1, Math.ceil(need / purchaseQuantity - 1e-9));
-    }
-  }`,
-    to: ``,
+    from: `  if (nu.length > 0 && nu === canonicalUnitToken(purchaseUnit)) {
+    perPack = purchaseQuantity;
+  } else if (conv?.subUnit?.childUnit) {`,
+    to: `  if (conv?.subUnit?.childUnit) {`,
     test: `${S}__tests__/groceryListAI.test.ts`,
     rule: "N12: a need of one bunch against a one-bunch pack is arithmetic, and 91 corpus rows were unrelatable for want of it",
   },

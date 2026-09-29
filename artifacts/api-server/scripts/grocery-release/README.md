@@ -327,7 +327,16 @@ carton or jug**.
 - **`packCount`** on every grocery-list item, emitted by `resolvePurchaseFields`
   — the same code that already scales the display, so nothing computes twice.
   The client trusts it when present and parses `purchaseDisplay` only when it is
-  null. Instacart's payload uses it in place of its own `ceil(need / pack)`.
+  null.
+
+  > ⚠️ **The Instacart order does NOT use it, and that is deliberate (N14).** An
+  > order total is `packs x the per-pack SIZE`, and `purchaseQuantity` is that
+  > size only on an unscaled row — when the server scales a pack it writes the
+  > COUNT there instead and the size survives only inside the display string.
+  > The only discriminator on the wire, `purchaseQuantity === packCount`, is a
+  > coincidence: true of 579 corpus rows of which 71 are actually scaled.
+  > Trusting it ordered 2 lb against a 3.75 lb need on three of them. The order
+  > path keeps its own arithmetic, which is correct for both shapes.
 - **The same-unit rule in Gate 1** (the census harness) and **N11's split fix**
   in `recurringFacetsFor`. Neither touches stored data.
 
@@ -339,4 +348,7 @@ ingredient in it.
 1. a plan needing 8 cups of broth reads **5 cans**, not 1;
 2. a plan needing 12 tortillas reads **2 packages** of a 10-count pack;
 3. a staple still reads its need and **no pack** — that is D-WS9-221, not a bug;
-4. nothing reads a fractional pack.
+4. nothing reads a fractional pack;
+5. a count above one reads a PLURAL pack noun — "4 cans (14.5 oz)", not "4 can".
+   B4 moved the scaling of those rows from the client to the server, and whoever
+   writes the count owns its plural.

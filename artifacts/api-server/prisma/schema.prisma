@@ -1503,9 +1503,15 @@ model GroceryListItem {
   // It belongs to the DERIVED trio above, not to the override trio: reconcile
   // regenerates it, and a user override supersedes all four.
   //
-  // INVARIANT, asserted by test: when the server scaled the pack,
-  // `purchaseQuantity === packCount`. That is what lets a consumer tell a count
-  // from a size — see resolveOrderSource in instacartPayload.ts.
+  // ⚠️ IT DOES NOT, ON ITS OWN, LET A CONSUMER TELL A COUNT FROM A SIZE (N14).
+  // When the server scales a pack it writes the COUNT into `purchaseQuantity`
+  // and the per-pack size survives only inside `purchaseDisplay`, so a consumer
+  // computing `count × size` still needs to know which shape it holds. The
+  // tempting test — `purchaseQuantity === packCount` — is a coincidence, not an
+  // invariant: across the 20-plan corpus it is true of 579 rows of which 71 are
+  // actually scaled. This field is therefore safe for a consumer that RENDERS a
+  // count (the client) and not yet enough for one that MULTIPLIES it (the
+  // Instacart order, which keeps its own arithmetic — see instacartPayload.ts).
   packCount                Int?
 
   groceryList GroceryList             @relation(fields: [groceryListId], references: [id], onDelete: Cascade)

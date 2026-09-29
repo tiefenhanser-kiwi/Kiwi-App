@@ -1,0 +1,1488 @@
+[grocery] B4 — PART D · THE CORPUS AT HEAD · September 29, 2026
+BEFORE = census tag `b3` (B3·F). AFTER = tag `b4` (HEAD).
+⚠️ BOTH sides render through the client compose PINNED AT b083ffc, because
+   block C is editing that file in this working tree. See the file header.
+
+## 11653a33  "Quick Weeknights"   37 → 37 rows
+
+## 14397131  "Hans's meals, week of Sep 16 (3)"   15 → 15 rows
+   01. CHANGED
+        before: 5 can (14.5 oz) low-sodium chicken broth (8 cup)
+        after : 5 cans (14.5 oz) low-sodium chicken broth (8 cup)
+
+## 14879176  "Slow-Cooked Ragùs and Crispy Weeknight Wins"   57 → 57 rows
+
+## 163875ec  "Hans's meals, week of Sep 19 (3)"   59 → 59 rows
+   01. CHANGED
+        before: 1 package (10 ct) flour tortillas (12 each)
+        after : 2 packages (10 ct) flour tortillas (12 each)
+
+## 247cd7bb  "Backyard BBQ to Bold Skillet: Grill-to-Stovetop Summer"   53 → 53 rows
+
+## 2b6e51a1  "Hans's meals, week of Sep 18"   60 → 60 rows
+
+## 316d0846  "Rustic Italian Stovetop Nights"   24 → 24 rows
+
+## 31c7a885  "Hans's meals, week of Sep 19"   60 → 60 rows
+
+## 353ce059  "Hans's meals, week of Sep 17 (2)"   25 → 25 rows
+   01. CHANGED
+        before: 2 can (14.5 oz) chicken broth (2 cup)
+        after : 2 cans (14.5 oz) chicken broth (2 cup)
+   02. CHANGED
+        before: 1 bag (5-6 oz) kettle-cooked potato chips (8 ounce)
+        after : 2 bags (5-6 oz) kettle-cooked potato chips (8 ounce)
+
+## 425da049  "Amy's Fresh and Easy Family Meals"   63 → 63 rows
+   01. CHANGED
+        before: 2 can (14.5 oz) chicken broth (3 cup)
+        after : 2 cans (14.5 oz) chicken broth (3 cup)
+
+## 56b03a57  "Comfort Classics with a Saturday Showstopper"   61 → 61 rows
+
+## 6e952e32  "E's meals, week of Sep 24 (2)"   61 → 61 rows
+   01. CHANGED
+        before: 2 cans (15 oz each) red kidney beans (7½ ounce)
+        after : 1 can (15 oz each) red kidney beans (7½ ounce)
+
+## 8a462408  "Flame & Fork: Grill-Fired Weeknights with One Showstopper"   60 → 60 rows
+
+## 96a94410  "Soups, Subs, and Skillet Nights"   77 → 77 rows
+   01. CHANGED
+        before: 4 can (14.5 oz) chicken broth, at least 1 low-sodium (6 cup)
+        after : 4 cans (14.5 oz) chicken broth, at least 1 low-sodium (6 cup)
+
+## a8b0bbd5  "Cozy Fall Vegetarian Nights"   34 → 34 rows
+
+## b8e7f134  "Cozy Roasted Weeknights with Bold Mexican Flavors"   56 → 56 rows
+   01. CHANGED
+        before: 2 can (14.5 oz) beef broth (2 cup)
+        after : 2 cans (14.5 oz) beef broth (2 cup)
+   02. CHANGED
+        before: 2 can (14.5 oz) chicken broth (3½ cup)
+        after : 2 cans (14.5 oz) chicken broth (3½ cup)
+
+## c404a3cf  "2Comfort Classics with a Saturday Showstopper"   61 → 61 rows
+
+## d47d18aa  "Sunday Roast Energy, Five Nights Running"   56 → 56 rows
+   01. CHANGED
+        before: 4 can (14.5 oz) low-sodium beef broth (7 cup)
+        after : 4 cans (14.5 oz) low-sodium beef broth (7 cup)
+   02. CHANGED
+        before: 2 can (14.5 oz) low-sodium chicken broth (3 cup)
+        after : 2 cans (14.5 oz) low-sodium chicken broth (3 cup)
+
+## ed238692  "Hans's meals, week of Sep 24"   55 → 55 rows
+
+## f5556c19  "Backyard Farewell to Summer"   47 → 47 rows
+
+==============================================================================
+rows   BEFORE 1021   AFTER 1021   (0)
+       byte-identical 1010 · changed 11 · added 0 · removed 0
+
+GATES
+  1 — packs × size >= need    FAIL(new) 0 · fail(total) 0
+      unverifiable  BEFORE 545  ->  AFTER 297   (-248)
+         528 ->  286   unit family with no conversion
+          17 ->   11   range
+  2 — "at least" + a measure  fail 0
+  3 — H1 varieties on a line  fail 0
+  4 — a recurring row keeps its mark  fail 0
+  VERDICT: PASS
+
+AI spend  BEFORE $0.0773  AFTER $0.0773
+intercepted Ingredient writes  BEFORE 26  AFTER 26
+
+## EVERY ROW CARRYING A packCount (696; 325 rows carry null)
+   [11653a33] 1 lb boneless skinless chicken breasts (1 lb)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 lb  [SCALED: the two are the same number]
+   [11653a33] 3 bell peppers (3 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 3 each  [size, not a count]
+   [11653a33] 1 yellow onion (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [11653a33] 1 package (10 ct) flour tortillas (8 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 package  [SCALED: the two are the same number]
+   [11653a33] 3 limes (3 each)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 each  [SCALED: the two are the same number]
+   [11653a33] 1 bunch cilantro (1 bunch)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [11653a33] 1 container (16 oz) sour cream (1½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 container  [SCALED: the two are the same number]
+   [11653a33] 1 lb ground beef (1 lb)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 lb  [SCALED: the two are the same number]
+   [11653a33] 1 box (12 ct) taco shells (12 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 box  [SCALED: the two are the same number]
+   [11653a33] 1 block (8 oz) cheddar (1 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 block  [SCALED: the two are the same number]
+   [11653a33] 1 head lettuce (1 head)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 head  [SCALED: the two are the same number]
+   [11653a33] 2 tomatoes (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 3 each  [size, not a count]
+   [11653a33] 1 jar (16 oz) salsa (1 jar)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [11653a33] 1 package (8 oz) flat rice noodles (8 oz)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 package  [SCALED: the two are the same number]
+   [11653a33] 1 lb shrimp (1 lb)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 lb  [SCALED: the two are the same number]
+   [11653a33] 1 bag (8 oz) peanuts (¼ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [11653a33] 1 bottle (8 oz) fish sauce (2 tbsp)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [11653a33] 1 dozen egg (6 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 dozen  [SCALED: the two are the same number]
+   [11653a33] 1 box (1 lb) spaghetti (1 lb)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 box  [SCALED: the two are the same number]
+   [11653a33] 1 package (12 oz) bacon (6 oz)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 package  [SCALED: the two are the same number]
+   [11653a33] 1 wedge (6 oz) Parmesan (1 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 wedge  [SCALED: the two are the same number]
+   [11653a33] 1 head garlic (2 cloves)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 head  [SCALED: the two are the same number]
+   [11653a33] 1 bunch parsley (1 bunch)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [11653a33] 1 bag (16 oz) farro (1 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [11653a33] 1 can (15 oz) chickpeas (1 can)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [11653a33] 1 cucumber (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [11653a33] 1 pint cherry tomatoes (1 pint)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 pint  [SCALED: the two are the same number]
+   [11653a33] 1 block (8 oz) feta (4 oz)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 block  [SCALED: the two are the same number]
+   [11653a33] 3 lemons (3 each)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 each  [SCALED: the two are the same number]
+   [11653a33] 1 jar (16 oz) tahini (¼ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [11653a33] olive oil (3 tbsp)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [14397131] 2 lb pack bone-in chicken thighs (2 pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 lb  [size, not a count]
+   [14397131] 1 lb pack bone-in chicken drumsticks (1 pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 lb  [SCALED: the two are the same number]
+   [14397131] 1 yellow onion (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [14397131] 1 bunch (~8-10 stalks) celery stalks (3 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [14397131] 1 head garlic cloves (4 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 head  [SCALED: the two are the same number]
+   [14397131] 5 cans (14.5 oz) low-sodium chicken broth (8 cup)
+        packCount 5  (BEFORE: none)  ·  purchaseQuantity 5 can  [SCALED: the two are the same number]
+   [14397131] 1 bunch fresh flat-leaf parsley (¼ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [14397131] 1 box (12 oz) wide egg noodles (6 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 box  [SCALED: the two are the same number]
+   [14397131] 1 bottle (51 oz) vegetable oil (1 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [14397131] 1 bunch fresh thyme (1 bunch)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [14879176] 3 lb roast beef chuck roast (2 pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 3 lb  [size, not a count]
+   [14879176] olive oil (15 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [14879176] 3 yellow onions (2½ each)
+        packCount 3  (BEFORE: none)  ·  purchaseQuantity 3 each  [SCALED: the two are the same number]
+   [14879176] 1 bunch (~8-10 stalks) celery stalks (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [14879176] 2 heads garlic (19 cloves)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 head  [SCALED: the two are the same number]
+   [14879176] 1 can (6 oz) tomato paste (7 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [14879176] 1 bottle (750 ml) dry red wine (1 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [14879176] 1 can (28 oz) San Marzano whole peeled tomatoes (28 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [14879176] 1 bunch fresh rosemary sprigs (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [14879176] 1 box (12-13 oz) dried pappardelle pasta (12 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 box  [SCALED: the two are the same number]
+   [14879176] 1 lb block parmigiano-reggiano (5 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 lb  [SCALED: the two are the same number]
+   [14879176] 1 bunch fresh flat-leaf parsley (¾ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [14879176] 1 container (5 oz) baby arugula (4 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 container  [SCALED: the two are the same number]
+   [14879176] 3 lemons (3 each)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 each  [SCALED: the two are the same number]
+   [14879176] 1 fennel bulb (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [14879176] 1 bottle (750 ml) dry white wine (1 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [14879176] 4 cans (14.5 oz) crushed San Marzano tomatoes (56 ounce)
+        packCount 4  (BEFORE: none)  ·  purchaseQuantity 4 can  [SCALED: the two are the same number]
+   [14879176] 1 lb pack littleneck clams (1 pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 lb  [SCALED: the two are the same number]
+   [14879176] 1 lb pack mussels (1 pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 lb  [SCALED: the two are the same number]
+   [14879176] 1.5 lb pack large shrimp (¾ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1.5 lb  [size, not a count]
+   [14879176] 1 lb pack cod fillets (¾ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 lb  [SCALED: the two are the same number]
+   [14879176] 1 sourdough boule (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [14879176] 2 lb pack ground beef (80/20) (¾ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 lb  [size, not a count]
+   [14879176] 0.5 lb pack ground pork (½ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 0.5 lb  [size, not a count]
+   [14879176] 1 container (15 oz) plain breadcrumbs (½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 container  [SCALED: the two are the same number]
+   [14879176] 1 gallon whole milk (¼ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 gallon  [SCALED: the two are the same number]
+   [14879176] 1 dozen large eggs (5 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 dozen  [SCALED: the two are the same number]
+   [14879176] 1 block (8 oz) parmesan cheese (⅞ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 block  [SCALED: the two are the same number]
+   [14879176] sugar (½ teaspoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [14879176] 1 box (1 lb) dried spaghetti (12 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 box  [SCALED: the two are the same number]
+   [14879176] 1 box (16 oz) rigatoni (16 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 box  [SCALED: the two are the same number]
+   [14879176] 0.5 lb pack guanciale (8 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 0.5 lb  [size, not a count]
+   [14879176] 4 oz block pecorino romano (3 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 4 oz  [size, not a count]
+   [14879176] 2 Belgian endives (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [14879176] dijon mustard (½ teaspoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [14879176] 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 loaf  [SCALED: the two are the same number]
+   [14879176] 1 bag (1 lb) coffee (1 bag)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [14879176] 1 bag Pet treats (1 bag)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [14879176] 1 pack (6 rolls) Paper towels (1 pack)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 pack  [SCALED: the two are the same number]
+   [14879176] 1 pack (12 rolls) Toilet paper (1 pack)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 pack  [SCALED: the two are the same number]
+   [14879176] 1 bunch bananas (1 bunch)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [14879176] 2 limes (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [14879176] 1 bunch fresh thyme (1 bunch)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [163875ec] vegetable oil (1 tbsp)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [163875ec] 2 boxes Near East rice pilaf (1 box)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 box  [size, not a count]
+   [163875ec] butter (1 tbsp)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 package  [SCALED: the two are the same number]
+   [163875ec] olive oil (11 tbsp)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [163875ec] 4 lb boneless skinless chicken thighs (3¾ lb)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 lb  [SCALED: the two are the same number]
+   [163875ec] 2 cans (15 oz) canned black beans (2 cans)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 1 can  [size, not a count]
+   [163875ec] 2 heads garlic (13 cloves)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 head  [SCALED: the two are the same number]
+   [163875ec] 3 roma tomatoes (3 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 4 each  [size, not a count]
+   [163875ec] 1 white onion (½ each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [163875ec] 1 bunch fresh cilantro (½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [163875ec] 5 limes (5 each)
+        packCount 3  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [163875ec] 1 package (12 count) corn tortillas (8 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 package  [SCALED: the two are the same number]
+   [163875ec] 1 head romaine lettuce (1 head)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 head  [SCALED: the two are the same number]
+   [163875ec] mayonnaise (½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [163875ec] 1 bottle (10 oz) worcestershire sauce (½ tsp)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [163875ec] 2 red bell peppers (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [163875ec] 1 yellow bell pepper (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [163875ec] 2 yellow onions (2 each)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 each  [SCALED: the two are the same number]
+   [163875ec] 2 packages (10 ct) flour tortillas (12 each)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 package  [SCALED: the two are the same number]
+   [163875ec] 1 container (16 oz) sour cream (1 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 container  [SCALED: the two are the same number]
+   [163875ec] 1 bag (8 oz) shredded mexican cheese blend (1 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [163875ec] 1 jar (12 oz) pickled jalapeños (⅜ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [163875ec] 2.5 lb pack lean ground turkey (1¼ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2.5 lb  [size, not a count]
+   [163875ec] 1 box (1 lb) elbow macaroni (8 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 box  [SCALED: the two are the same number]
+   [163875ec] 1 green bell pepper (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [163875ec] 1 can (14.5 oz) canned diced tomatoes (14½ ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [163875ec] 1 can (15 oz) canned tomato sauce (15 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [163875ec] 1 can (15 oz) canned kidney beans (15 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [163875ec] 1 can (14.5 oz) low-sodium chicken broth (1½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [163875ec] 1 block (8 oz) sharp cheddar cheese (4 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 block  [SCALED: the two are the same number]
+   [163875ec] 1 pack (6 rolls) Paper towels (1 pack)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 pack  [SCALED: the two are the same number]
+   [163875ec] 1 pack (12 rolls) Toilet paper (1 pack)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 pack  [SCALED: the two are the same number]
+   [163875ec] 1 bunch bananas (1 bunch)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [163875ec] 1 bag Pet treats (1 bag)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [163875ec] 1 dozen large eggs (1 dozen)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 dozen  [SCALED: the two are the same number]
+   [163875ec] 1 gallon whole milk (1 gallon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 gallon  [SCALED: the two are the same number]
+   [163875ec] 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 loaf  [SCALED: the two are the same number]
+   [163875ec] 1 lemon (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [247cd7bb] 3 lb pack chicken drumsticks (3 pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 3 lb  [size, not a count]
+   [247cd7bb] olive oil (7 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [247cd7bb] 6 bell peppers, at least 2 green (6 each)
+        packCount 3  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [247cd7bb] 4 corn on the cob (4 each)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 each  [SCALED: the two are the same number]
+   [247cd7bb] 1 bunch fresh cilantro (¾ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [247cd7bb] 1 box (1 lb) spaghetti (400 gram)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 box  [SCALED: the two are the same number]
+   [247cd7bb] 0.5 lb pack pancetta (6 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 0.5 lb  [size, not a count]
+   [247cd7bb] 1 dozen large eggs (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 dozen  [SCALED: the two are the same number]
+   [247cd7bb] 4 oz block pecorino romano (3 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 4 oz  [size, not a count]
+   [247cd7bb] 1 lb block parmigiano-reggiano (1 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 lb  [SCALED: the two are the same number]
+   [247cd7bb] 2 Belgian endives (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [247cd7bb] 1 lemon (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [247cd7bb] dijon mustard (½ teaspoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [247cd7bb] 2 lb pack boneless skinless chicken breasts (2 pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 lb  [size, not a count]
+   [247cd7bb] 1 package (4 count) hoagie rolls (4 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 package  [SCALED: the two are the same number]
+   [247cd7bb] 3 yellow onions (3 each)
+        packCount 3  (BEFORE: none)  ·  purchaseQuantity 3 each  [SCALED: the two are the same number]
+   [247cd7bb] 1 lb package cremini mushrooms (8 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 lb  [SCALED: the two are the same number]
+   [247cd7bb] 1 head garlic (6 cloves)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 head  [SCALED: the two are the same number]
+   [247cd7bb] vegetable oil (4 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [247cd7bb] 1 bottle (10 oz) worcestershire sauce (1 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [247cd7bb] 2 lb bag russet potatoes (2 pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 lb  [size, not a count]
+   [247cd7bb] 3.5 lb pack lean ground beef (1¼ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 3.5 lb  [size, not a count]
+   [247cd7bb] 1 can (15 oz) black beans (1 can)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [247cd7bb] 1 can (14.5 oz) fire-roasted diced tomatoes (1 can)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [247cd7bb] 2 packages (8 count) small flour tortillas (12 each)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 package  [SCALED: the two are the same number]
+   [247cd7bb] 1 container (16 oz) sour cream (½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 container  [SCALED: the two are the same number]
+   [247cd7bb] 4 limes (4 each)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 each  [SCALED: the two are the same number]
+   [247cd7bb] 1 jar (12 oz) pickled jalapeños (⅓ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [247cd7bb] 1 bag (8 oz) shredded mexican cheese blend (¾ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [247cd7bb] 2 roma tomatoes (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 4 each  [size, not a count]
+   [247cd7bb] 1 gallon whole milk (1 gallon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 gallon  [SCALED: the two are the same number]
+   [247cd7bb] 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 loaf  [SCALED: the two are the same number]
+   [247cd7bb] 1 bag (1 lb) coffee (1 bag)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [247cd7bb] 1 bag Pet treats (1 bag)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [247cd7bb] 1 pack (6 rolls) Paper towels (1 pack)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 pack  [SCALED: the two are the same number]
+   [247cd7bb] 1 pack (12 rolls) Toilet paper (1 pack)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 pack  [SCALED: the two are the same number]
+   [247cd7bb] 1 bunch bananas (1 bunch)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [247cd7bb] 1 bunch flat-leaf parsley (1 bunch)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [2b6e51a1] 2 lb pack ground beef (80/20) (1¼ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 lb  [size, not a count]
+   [2b6e51a1] 1 white onion (½ each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [2b6e51a1] 1 head garlic (8 cloves)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 head  [SCALED: the two are the same number]
+   [2b6e51a1] 1 can (6 oz) tomato paste (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [2b6e51a1] 1 can (14.5 oz) beef broth (¼ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [2b6e51a1] vegetable oil (3¼ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [2b6e51a1] 1 package (12 count) corn tortillas (6-inch) (12 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 package  [SCALED: the two are the same number]
+   [2b6e51a1] 1 bunch fresh cilantro (⅜ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [2b6e51a1] 4 limes (4 each)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 each  [SCALED: the two are the same number]
+   [2b6e51a1] 1 jar (12 oz) pickled jalapeños (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [2b6e51a1] 1 head green cabbage (3 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 head  [SCALED: the two are the same number]
+   [2b6e51a1] 1 head red cabbage (1 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 head  [SCALED: the two are the same number]
+   [2b6e51a1] 1 bottle (16 oz) apple cider vinegar (1 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [2b6e51a1] olive oil (1 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [2b6e51a1] 1 jar (12 oz) honey (½ teaspoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [2b6e51a1] 1 container (16 oz) sour cream (½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 container  [SCALED: the two are the same number]
+   [2b6e51a1] mayonnaise (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [2b6e51a1] 2 lb pack boneless skinless chicken breasts (1½ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 lb  [size, not a count]
+   [2b6e51a1] 1 box (16 oz) cornstarch (½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 box  [SCALED: the two are the same number]
+   [2b6e51a1] 1 lb bag green beans (12 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 lb  [SCALED: the two are the same number]
+   [2b6e51a1] 2 yellow onions (2 each)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 each  [SCALED: the two are the same number]
+   [2b6e51a1] 1 small knob (~2 oz) fresh ginger (1½ teaspoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [2b6e51a1] 1 bottle (10 oz) dark soy sauce (1 teaspoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [2b6e51a1] 1 bottle (6.5 oz) sesame oil (1 teaspoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [2b6e51a1] sugar (4 teaspoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [2b6e51a1] 1 bag (2 lb) jasmine rice (2 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [2b6e51a1] 3 lb pack boneless skinless chicken thighs (2 pound)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 1.5 lb  [size, not a count]
+   [2b6e51a1] 1 dozen large eggs (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 dozen  [SCALED: the two are the same number]
+   [2b6e51a1] 1 pack (6 rolls) Paper towels (1 pack)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 pack  [SCALED: the two are the same number]
+   [2b6e51a1] 1 pack (12 rolls) Toilet paper (1 pack)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 pack  [SCALED: the two are the same number]
+   [2b6e51a1] 1 bag (1 lb) Coffee (1 bag)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [2b6e51a1] 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 loaf  [SCALED: the two are the same number]
+   [2b6e51a1] 1 gallon whole milk (1 gallon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 gallon  [SCALED: the two are the same number]
+   [2b6e51a1] 1 bunch bananas (1 bunch)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [2b6e51a1] 1 bag Pet treats (1 bag)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [316d0846] 1.5 lb pack (16/20 count) large shrimp, peeled and deveined (1½ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1.5 lb  [size, not a count]
+   [316d0846] extra-virgin olive oil (12 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [316d0846] 2 heads garlic (14 cloves)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 head  [SCALED: the two are the same number]
+   [316d0846] 1 bottle (750 ml) dry white wine (1 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [316d0846] 4 lemons (4 each)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 each  [SCALED: the two are the same number]
+   [316d0846] 1 bunch fresh flat-leaf parsley (¼ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [316d0846] 1 box (16 oz) angel hair pasta (12 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 box  [SCALED: the two are the same number]
+   [316d0846] 2 containers (5 oz) baby arugula (9 ounce)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 container  [SCALED: the two are the same number]
+   [316d0846] 1 lb pack Italian pork sausage (1 pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 lb  [SCALED: the two are the same number]
+   [316d0846] 1 can (14.5 oz) low-sodium chicken broth (½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [316d0846] 1 lb block parmigiano-reggiano (2 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 lb  [SCALED: the two are the same number]
+   [316d0846] 1 italian bread loaf (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [316d0846] 1 block (8 oz) parmesan cheese (4 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 block  [SCALED: the two are the same number]
+   [316d0846] dijon mustard (½ teaspoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [31c7a885] 1.5 lb pack ground beef (80/20) (1¼ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1.5 lb  [size, not a count]
+   [31c7a885] 1 box (12 count) crunchy taco shells (12 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 box  [SCALED: the two are the same number]
+   [31c7a885] 1 head iceberg lettuce (2 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 head  [SCALED: the two are the same number]
+   [31c7a885] 2 roma tomatoes (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 4 each  [size, not a count]
+   [31c7a885] 1 container (16 oz) sour cream (1¼ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 container  [SCALED: the two are the same number]
+   [31c7a885] 1 gallon whole milk (1 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 gallon  [SCALED: the two are the same number]
+   [31c7a885] 1 block (8 oz) sharp cheddar cheese (6 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 block  [SCALED: the two are the same number]
+   [31c7a885] 1 jar (12 oz) pickled jalapeño slices (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [31c7a885] 4 lb pack boneless skinless chicken breasts (3 pound)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 lb  [SCALED: the two are the same number]
+   [31c7a885] 1 dozen large eggs (5 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 dozen  [SCALED: the two are the same number]
+   [31c7a885] 2 yellow onions (2 each)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 each  [SCALED: the two are the same number]
+   [31c7a885] 2 heads garlic (12 cloves)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 head  [SCALED: the two are the same number]
+   [31c7a885] 1 bottle (6.5 oz) sesame oil (1 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [31c7a885] vegetable oil (4 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [31c7a885] 1 bunch (~6-8 scallions) scallions (3 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [31c7a885] 1.5 lb pack beef sirloin steak (1½ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1.5 lb  [size, not a count]
+   [31c7a885] 1 lb package cremini mushrooms (10 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 lb  [SCALED: the two are the same number]
+   [31c7a885] 1 can (14.5 oz) beef broth (1½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [31c7a885] 1 bottle (10 oz) worcestershire sauce (1 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [31c7a885] dijon mustard (1½ teaspoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [31c7a885] 1 bunch fresh flat-leaf parsley (5 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [31c7a885] 1 box (12 oz) wide egg noodles (12 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 box  [SCALED: the two are the same number]
+   [31c7a885] 2 lb pack thin-sliced chicken cutlets (2 pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 lb  [size, not a count]
+   [31c7a885] olive oil (12 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [31c7a885] 4 lemons (4 each)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 each  [SCALED: the two are the same number]
+   [31c7a885] 1 bunch fresh thyme (1 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [31c7a885] 1 bunch fresh rosemary (1 teaspoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [31c7a885] 1 box (10 oz) instant couscous (10 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 box  [SCALED: the two are the same number]
+   [31c7a885] 1 can (14.5 oz) low-sodium chicken broth (1½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [31c7a885] 2 containers (5 oz) baby arugula (9 ounce)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 container  [SCALED: the two are the same number]
+   [31c7a885] 1 block (8 oz) parmesan cheese (4⅓ ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 block  [SCALED: the two are the same number]
+   [31c7a885] 1 pint cherry tomatoes (8⅔ ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 pint  [SCALED: the two are the same number]
+   [31c7a885] 1 jar (12 oz) honey (¼ teaspoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [31c7a885] 1 box (8 oz) panko breadcrumbs (1 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 box  [SCALED: the two are the same number]
+   [31c7a885] 1 can (14.5 oz) crushed San Marzano tomatoes (1 can)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [31c7a885] 1 bunch fresh basil (¼ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [31c7a885] 1 lb block whole-milk mozzarella (6 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 lb  [SCALED: the two are the same number]
+   [31c7a885] 1 pack (6 rolls) Paper towels (1 pack)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 pack  [SCALED: the two are the same number]
+   [31c7a885] 1 pack (12 rolls) Toilet paper (1 pack)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 pack  [SCALED: the two are the same number]
+   [31c7a885] 1 bunch bananas (1 bunch)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [31c7a885] 1 bag Pet treats (1 bag)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [31c7a885] 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 loaf  [SCALED: the two are the same number]
+   [353ce059] 1 rotisserie chicken (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [353ce059] 1 package (8 count) large flour tortillas (4 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 package  [SCALED: the two are the same number]
+   [353ce059] 2 romaine lettuce hearts (2 each)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 each  [SCALED: the two are the same number]
+   [353ce059] 1 block (8 oz) parmesan cheese (2 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 block  [SCALED: the two are the same number]
+   [353ce059] 1 lemon (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [353ce059] 2 bags (5-6 oz) kettle-cooked potato chips (8 ounce)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 bag  [SCALED: the two are the same number]
+   [353ce059] 2 lb pack boneless skinless chicken breasts (1½ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 lb  [size, not a count]
+   [353ce059] 1 lb package cremini mushrooms (8 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 lb  [SCALED: the two are the same number]
+   [353ce059] 1 green bell pepper (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [353ce059] 1 red bell pepper (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [353ce059] 1 yellow onion (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [353ce059] 1 head garlic (3 cloves)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 head  [SCALED: the two are the same number]
+   [353ce059] 1 bottle (750 ml) dry sherry (¼ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [353ce059] 2 cans (14.5 oz) chicken broth (2 cup)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 can  [SCALED: the two are the same number]
+   [353ce059] 1 container (16 oz) heavy cream (¾ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 container  [SCALED: the two are the same number]
+   [353ce059] 1 bunch fresh flat-leaf parsley (3 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [353ce059] 1 box (12 oz) wide egg noodles (12 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 box  [SCALED: the two are the same number]
+   [425da049] 2 lb pack ground beef (80/20) (1¼ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 lb  [size, not a count]
+   [425da049] 1 white onion (½ each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [425da049] 2 heads garlic (17 cloves)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 head  [SCALED: the two are the same number]
+   [425da049] 1 can (6 oz) tomato paste (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [425da049] 1 can (14.5 oz) beef broth (1¾ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [425da049] vegetable oil (3 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [425da049] 1 package (12 count) corn tortillas (6-inch) (12 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 package  [SCALED: the two are the same number]
+   [425da049] 1 bunch fresh cilantro (⅜ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [425da049] 4 limes (4 each)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 each  [SCALED: the two are the same number]
+   [425da049] 1 jar (12 oz) pickled jalapeños (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [425da049] 1 head green cabbage (3 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 head  [SCALED: the two are the same number]
+   [425da049] 1 head red cabbage (1 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 head  [SCALED: the two are the same number]
+   [425da049] 1 bottle (16 oz) apple cider vinegar (1 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [425da049] olive oil (13 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [425da049] 1 jar (12 oz) honey (½ teaspoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [425da049] 1 container (16 oz) sour cream (1¼ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 container  [SCALED: the two are the same number]
+   [425da049] mayonnaise (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [425da049] 6 lb pack boneless skinless chicken breasts (5¾ pound)
+        packCount 3  (BEFORE: none)  ·  purchaseQuantity 2 lb  [size, not a count]
+   [425da049] 9 lemons (9 each)
+        packCount 9  (BEFORE: none)  ·  purchaseQuantity 1 each  [size, not a count]
+   [425da049] 1 bunch fresh flat-leaf parsley (7 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [425da049] 1.5 lb bag baby Yukon gold potatoes (1½ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1.5 lb  [size, not a count]
+   [425da049] 1 bunch fresh rosemary (1 teaspoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [425da049] 1 bunch fresh thyme (1 teaspoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [425da049] 2 lb bag fresh green beans (1¾ pound)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 1 lb  [size, not a count]
+   [425da049] 2 lb bunch asparagus (1¼ pound)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 1 lb  [size, not a count]
+   [425da049] 1 box (16 oz) orzo pasta (1½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 box  [SCALED: the two are the same number]
+   [425da049] 2 cans (14.5 oz) chicken broth (3 cup)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 can  [SCALED: the two are the same number]
+   [425da049] 1 block (8 oz) parmesan cheese (1½ ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 block  [SCALED: the two are the same number]
+   [425da049] 1 bunch fresh basil (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [425da049] 2 lb pack lean ground beef (85/15) (1½ pound)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 1 lb  [size, not a count]
+   [425da049] 1 lb package cremini mushrooms (10 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 lb  [SCALED: the two are the same number]
+   [425da049] 1 yellow onion (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [425da049] 1 bottle (10 oz) worcestershire sauce (1 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [425da049] dijon mustard (1 teaspoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [425da049] 1 box (12 oz) wide egg noodles (12 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 box  [SCALED: the two are the same number]
+   [425da049] 1 box (16 oz) cornstarch (½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 box  [SCALED: the two are the same number]
+   [425da049] 1 dozen large eggs (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 dozen  [SCALED: the two are the same number]
+   [425da049] 1 bag (4 lb) granulated sugar (⅓ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [425da049] 1 red bell pepper (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [425da049] 1 yellow bell pepper (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [425da049] 1 bottle (6.5 oz) sesame oil (1 teaspoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [425da049] 1 bag (2 lb) jasmine rice (1½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [56b03a57] 2 lb pack boneless skinless chicken breasts (1½ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 lb  [size, not a count]
+   [56b03a57] 1 package (8 count) flour tortillas (large, 10-inch) (4 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 package  [SCALED: the two are the same number]
+   [56b03a57] 1 package (8 oz) shredded sharp cheddar cheese (1 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 package  [SCALED: the two are the same number]
+   [56b03a57] olive oil (5⅓ tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [56b03a57] 1 bottle (51 oz) vegetable oil (3 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [56b03a57] 1 jar (12 oz) pickled jalapeño slices (¼ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [56b03a57] 4 roma tomatoes (4 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 4 each  [size, not a count]
+   [56b03a57] 1 white onion (½ each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [56b03a57] 1 fresh jalapeño (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [56b03a57] 1 bunch fresh cilantro (½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [56b03a57] 1 container (16 oz) sour cream (1 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 container  [SCALED: the two are the same number]
+   [56b03a57] 2 ripe avocados (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 3 each  [size, not a count]
+   [56b03a57] 3 heads garlic (25 cloves)
+        packCount 3  (BEFORE: none)  ·  purchaseQuantity 3 head  [SCALED: the two are the same number]
+   [56b03a57] 1 jar (12 oz) honey (3 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [56b03a57] 1 bunch fresh parsley (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [56b03a57] 1 bag (2 lb) jasmine rice (1½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [56b03a57] 2 lemons (1½ each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [56b03a57] 2 lb pack ground beef (80/20) (1½ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 lb  [size, not a count]
+   [56b03a57] 1 yellow onion (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [56b03a57] 1 green bell pepper (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [56b03a57] 2 cans (15 oz) dark red kidney beans (30 ounce)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 can  [SCALED: the two are the same number]
+   [56b03a57] 2 cans (14.5 oz) crushed tomatoes (28 ounce)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 can  [SCALED: the two are the same number]
+   [56b03a57] 1 can (6 oz) tomato paste (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [56b03a57] 1 can (14.5 oz) beef broth (½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [56b03a57] 1 bunch (~6-8 scallions) scallions (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [56b03a57] 2 lb pack pork tenderloin (1½ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 lb  [size, not a count]
+   [56b03a57] dijon mustard (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [56b03a57] 1 bunch fresh rosemary (1 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [56b03a57] 1 bunch fresh thyme (1 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [56b03a57] 2 lb bag russet potatoes (2 pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 lb  [size, not a count]
+   [56b03a57] 1 gallon whole milk (½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 gallon  [SCALED: the two are the same number]
+   [56b03a57] 1 bunch fresh chives (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [56b03a57] 1 lb bag fresh green beans (1 pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 lb  [SCALED: the two are the same number]
+   [56b03a57] 1 bag (8 oz) sliced almonds (3 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [56b03a57] 1 dozen large eggs (1 dozen)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 dozen  [SCALED: the two are the same number]
+   [56b03a57] 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 loaf  [SCALED: the two are the same number]
+   [56b03a57] 1 bag (1 lb) coffee (1 bag)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [56b03a57] 1 bag Pet treats (1 bag)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [56b03a57] 1 pack (6 rolls) Paper towels (1 pack)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 pack  [SCALED: the two are the same number]
+   [56b03a57] 1 pack (12 rolls) Toilet paper (1 pack)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 pack  [SCALED: the two are the same number]
+   [56b03a57] 1 bunch bananas (1 bunch)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [56b03a57] 4 limes (4 each)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 each  [SCALED: the two are the same number]
+   [6e952e32] 1.5 lb pack ground beef (80/20) (1⅜ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1.5 lb  [size, not a count]
+   [6e952e32] 1 white onion (¼ each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [6e952e32] 1 head garlic (7½ cloves)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 head  [SCALED: the two are the same number]
+   [6e952e32] 1 can (6 oz) tomato paste (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [6e952e32] 1 can (14.5 oz) beef broth (⅞ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [6e952e32] 1 bottle (51 oz) vegetable oil (1⅛ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [6e952e32] 1 package (12 count) corn tortillas (6-inch) (6 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 package  [SCALED: the two are the same number]
+   [6e952e32] 1 bunch fresh cilantro (¼ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [6e952e32] 2 limes (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [6e952e32] 1 jar (12 oz) pickled jalapeños (1 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [6e952e32] 1 head green cabbage (3 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 head  [SCALED: the two are the same number]
+   [6e952e32] 1 head red cabbage (½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 head  [SCALED: the two are the same number]
+   [6e952e32] 1 bottle (16 oz) apple cider vinegar (1½ tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [6e952e32] olive oil (4 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [6e952e32] 1 jar (12 oz) honey (¼ teaspoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [6e952e32] 1 container (16 oz) sour cream (¼ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 container  [SCALED: the two are the same number]
+   [6e952e32] mayonnaise (4 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [6e952e32] 1 container (4 oz) blue cheese crumbles (2 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 container  [SCALED: the two are the same number]
+   [6e952e32] 1 bottle (10 oz) worcestershire sauce (2 teaspoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [6e952e32] 1 head iceberg lettuce (leaves) (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 head  [SCALED: the two are the same number]
+   [6e952e32] 1 beefsteak tomato (½ each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [6e952e32] 2 yellow onions, at least 1 large (1½ each)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 each  [SCALED: the two are the same number]
+   [6e952e32] 1 box (16 oz) cornstarch (⅛ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 box  [SCALED: the two are the same number]
+   [6e952e32] 1 jar (32 oz) dill pickle (1½ ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [6e952e32] 1 bag (4 lb) granulated sugar (¾ teaspoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [6e952e32] 1 lb pack lean ground beef (85/15) (¾ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 lb  [SCALED: the two are the same number]
+   [6e952e32] 1 can (14.5 oz) crushed tomatoes (7½ ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [6e952e32] 1 box (1 lb) dried spaghetti (12 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 box  [SCALED: the two are the same number]
+   [6e952e32] 1 block (8 oz) sharp cheddar cheese (4 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 block  [SCALED: the two are the same number]
+   [6e952e32] 1 can (15 oz each) red kidney beans (7½ ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [6e952e32] 2 lb pack boneless skinless chicken breasts (1 pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 lb  [size, not a count]
+   [6e952e32] 1 dozen large eggs (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 dozen  [SCALED: the two are the same number]
+   [6e952e32] 1 container (15 oz) plain breadcrumbs (⅜ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 container  [SCALED: the two are the same number]
+   [6e952e32] 1 container (8 oz) grated parmesan cheese (½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 container  [SCALED: the two are the same number]
+   [6e952e32] 1 can (28 oz) canned whole San Marzano tomatoes (14 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [6e952e32] 1 lb block low-moisture whole-milk mozzarella (3 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 lb  [SCALED: the two are the same number]
+   [6e952e32] 1 bunch fresh flat-leaf parsley (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [6e952e32] 1 italian bread loaf (½ each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [6e952e32] 1 bunch fresh basil (1 bunch)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [8a462408] 3 lb pack ground beef (80/20) (2¾ pound)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 1.5 lb  [size, not a count]
+   [8a462408] 3 yellow onions (3 each)
+        packCount 3  (BEFORE: none)  ·  purchaseQuantity 3 each  [SCALED: the two are the same number]
+   [8a462408] 1 bottle (51 oz) vegetable oil (5 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [8a462408] 1 beefsteak tomato (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [8a462408] mayonnaise (⅝ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [8a462408] yellow mustard (1 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [8a462408] 1 bottle (10 oz) worcestershire sauce (½ teaspoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [8a462408] 2 lb bag russet potatoes (2 pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 lb  [size, not a count]
+   [8a462408] 1 bunch fresh parsley (⅝ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [8a462408] 1 white onion (½ each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [8a462408] 2 heads garlic (12 cloves)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 head  [SCALED: the two are the same number]
+   [8a462408] 1 can (6 oz) tomato paste (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [8a462408] 1 can (14.5 oz) beef broth (¼ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [8a462408] 1 package (12 count) corn tortillas (6-inch) (12 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 package  [SCALED: the two are the same number]
+   [8a462408] 1 bunch fresh cilantro (⅜ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [8a462408] 6 limes (6 each)
+        packCount 3  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [8a462408] 1 jar (12 oz) pickled jalapeños (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [8a462408] 1 head green cabbage (3 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 head  [SCALED: the two are the same number]
+   [8a462408] 1 head red cabbage (1 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 head  [SCALED: the two are the same number]
+   [8a462408] 1 bottle (16 oz) apple cider vinegar (1 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [8a462408] olive oil (8 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [8a462408] 1 jar (12 oz) honey (½ teaspoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [8a462408] 1 container (16 oz) sour cream (½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 container  [SCALED: the two are the same number]
+   [8a462408] 1.5 lb pack Italian sausage links (1½ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1.5 lb  [size, not a count]
+   [8a462408] 2 red bell peppers (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [8a462408] 1 yellow bell pepper (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [8a462408] 1 green bell pepper (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [8a462408] 2 italian bread loaves (2 each)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 1 each  [size, not a count]
+   [8a462408] 2.5 lb pack bone-in ribeye steaks (2½ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2.5 lb  [size, not a count]
+   [8a462408] 1 bag (2 lb) brown sugar (½ teaspoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [8a462408] 1 bunch fresh chives (1 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [8a462408] 1.5 lb bunch fresh asparagus (1½ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1.5 lb  [size, not a count]
+   [8a462408] 2 lemons (1½ each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [8a462408] 1 dozen large eggs (1 dozen)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 dozen  [SCALED: the two are the same number]
+   [8a462408] 1 gallon whole milk (1 gallon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 gallon  [SCALED: the two are the same number]
+   [8a462408] 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 loaf  [SCALED: the two are the same number]
+   [8a462408] 1 bag (1 lb) coffee (1 bag)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [8a462408] 1 bag Pet treats (1 bag)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [8a462408] 1 pack (6 rolls) Paper towels (1 pack)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 pack  [SCALED: the two are the same number]
+   [8a462408] 1 pack (12 rolls) Toilet paper (1 pack)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 pack  [SCALED: the two are the same number]
+   [8a462408] 1 bunch bananas (1 bunch)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [96a94410] 1 can (28 oz) canned diced fire-roasted tomatoes (28 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [96a94410] 4 yellow onions (4 each)
+        packCount 4  (BEFORE: none)  ·  purchaseQuantity 4 each  [SCALED: the two are the same number]
+   [96a94410] 1 jalapeño (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 4 each  [size, not a count]
+   [96a94410] 2 heads garlic (20 cloves)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 head  [SCALED: the two are the same number]
+   [96a94410] 4 cans (14.5 oz) chicken broth, at least 1 low-sodium (6 cup)
+        packCount 4  (BEFORE: none)  ·  purchaseQuantity 4 can  [SCALED: the two are the same number]
+   [96a94410] 1 bottle (51 oz) vegetable oil (5 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [96a94410] 1 bunch fresh cilantro (¾ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [96a94410] 2 packages (12 count) corn tortillas (18 each)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 package  [SCALED: the two are the same number]
+   [96a94410] 2 avocados (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [96a94410] 1 container (16 oz) sour cream (1½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 container  [SCALED: the two are the same number]
+   [96a94410] 1 bag (8 oz) shredded mexican cheese blend (¾ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [96a94410] 2 lb pack boneless skinless chicken breasts (2 pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 lb  [size, not a count]
+   [96a94410] 1 dozen large eggs (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 dozen  [SCALED: the two are the same number]
+   [96a94410] 1 container (8 oz) grated parmesan cheese (½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 container  [SCALED: the two are the same number]
+   [96a94410] olive oil (19 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [96a94410] 1 jar (24 oz) marinara sauce (1½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [96a94410] 1 package (4 count) hoagie rolls (4 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 package  [SCALED: the two are the same number]
+   [96a94410] 1 head romaine lettuce (1 head)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 head  [SCALED: the two are the same number]
+   [96a94410] 2 romaine lettuce hearts (2 each)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 each  [SCALED: the two are the same number]
+   [96a94410] 1 pint cherry tomatoes (1 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 pint  [SCALED: the two are the same number]
+   [96a94410] 1 red onion (¼ each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [96a94410] 1 bottle (16 oz) red wine vinegar (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [96a94410] 2.5 lb pack lean ground turkey (1¼ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2.5 lb  [size, not a count]
+   [96a94410] 1 box (1 lb) elbow macaroni (8 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 box  [SCALED: the two are the same number]
+   [96a94410] 1 green bell pepper (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [96a94410] 1 can (14.5 oz) canned diced tomatoes (14½ ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [96a94410] 1 can (15 oz) canned tomato sauce (15 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [96a94410] 1 can (15 oz) canned kidney beans (15 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [96a94410] 1 block (8 oz) sharp cheddar cheese (4 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 block  [SCALED: the two are the same number]
+   [96a94410] 1 jar (12 oz) pickled jalapeños (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [96a94410] 2 lb pack ground beef (80/20) (1½ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 lb  [size, not a count]
+   [96a94410] 1 can (6 oz) tomato paste (4 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [96a94410] 1 can (14.5 oz) beef broth (½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [96a94410] 1 lb block Cotija cheese (3 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 lb  [SCALED: the two are the same number]
+   [96a94410] 1 bag (5 oz) shredded iceberg lettuce (2 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [96a94410] 2 roma tomatoes (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 4 each  [size, not a count]
+   [96a94410] 4 limes (4 each)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 each  [SCALED: the two are the same number]
+   [96a94410] 1 package (20 oz) fresh cheese tortellini (20 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 package  [SCALED: the two are the same number]
+   [96a94410] 1 can (28 oz) canned crushed San Marzano tomatoes (28 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [96a94410] 1 container (16 oz) heavy cream (¾ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 container  [SCALED: the two are the same number]
+   [96a94410] 1 lb block parmigiano-reggiano (4½ ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 lb  [SCALED: the two are the same number]
+   [96a94410] 1 Italian baguette (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [96a94410] 1 bunch fresh flat-leaf parsley (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [96a94410] mayonnaise (3 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [96a94410] dijon mustard (1 teaspoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [96a94410] 1 bottle (10 oz) worcestershire sauce (½ teaspoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [96a94410] 1.5 lb pack chicken cutlets (1½ lb)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1.5 lb  [size, not a count]
+   [96a94410] 1 bottle (750 ml) dry white wine (½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [96a94410] butter (2 tbsp)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 package  [SCALED: the two are the same number]
+   [96a94410] 1 box (1 lb) spaghetti (8 oz)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 box  [SCALED: the two are the same number]
+   [96a94410] 1 bunch fresh basil (1 bunch)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [96a94410] 3 lemons (3 each)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 each  [SCALED: the two are the same number]
+   [a8b0bbd5] 4 portobello mushroom caps (4 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 4 each  [size, not a count]
+   [a8b0bbd5] 1 container (15 oz) whole-milk ricotta cheese (1 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 container  [SCALED: the two are the same number]
+   [a8b0bbd5] 1 container (5 oz) fresh baby spinach (5 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 container  [SCALED: the two are the same number]
+   [a8b0bbd5] 1 block (8 oz) parmesan cheese (3 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 block  [SCALED: the two are the same number]
+   [a8b0bbd5] 1 head garlic (8 cloves)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 head  [SCALED: the two are the same number]
+   [a8b0bbd5] 1 shallot (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [a8b0bbd5] olive oil (7½ tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [a8b0bbd5] 2 pints cherry tomatoes (12 ounce)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 pint  [SCALED: the two are the same number]
+   [a8b0bbd5] 1 bottle (8.5 oz) balsamic vinegar (1 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [a8b0bbd5] 1 italian bread loaf (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [a8b0bbd5] 1 bunch fresh flat-leaf parsley (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [a8b0bbd5] 2 red bell peppers (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [a8b0bbd5] 1 poblano pepper (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [a8b0bbd5] 1 jar (12 oz) pickled jalapeño slices (½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [a8b0bbd5] 2 bags (8 oz) shredded mexican cheese blend (12 ounce)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 bag  [SCALED: the two are the same number]
+   [a8b0bbd5] 1 container (16 oz) sour cream (½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 container  [SCALED: the two are the same number]
+   [a8b0bbd5] 1 bunch fresh cilantro (¼ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [a8b0bbd5] 2 roma tomatoes (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 4 each  [size, not a count]
+   [a8b0bbd5] 2 avocados (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [a8b0bbd5] 2 limes (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [a8b0bbd5] 1 bunch (~6-8 scallions) scallions (3 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [a8b0bbd5] 1 bunch fresh basil (1 bunch)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [a8b0bbd5] 1 lemon (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [b8e7f134] 1.5 lb pack boneless skinless chicken thighs (1½ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1.5 lb  [size, not a count]
+   [b8e7f134] 2 heads garlic (19 cloves)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 head  [SCALED: the two are the same number]
+   [b8e7f134] olive oil (3⅓ tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [b8e7f134] 1 package (12 count) corn tortillas (12 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 package  [SCALED: the two are the same number]
+   [b8e7f134] 1 bunch fresh cilantro (1¼ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [b8e7f134] 3 white onions (2¼ each)
+        packCount 3  (BEFORE: none)  ·  purchaseQuantity 3 each  [SCALED: the two are the same number]
+   [b8e7f134] 7 limes (7 each)
+        packCount 4  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [b8e7f134] 1 head green cabbage (2 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 head  [SCALED: the two are the same number]
+   [b8e7f134] 1 head red cabbage (1 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 head  [SCALED: the two are the same number]
+   [b8e7f134] 1 bottle (16 oz) apple cider vinegar (1 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [b8e7f134] 1 container (16 oz) sour cream (1¼ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 container  [SCALED: the two are the same number]
+   [b8e7f134] 1 lb block Cotija cheese (5 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 lb  [SCALED: the two are the same number]
+   [b8e7f134] 2 lb pack ground beef (80/20) (1½ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 lb  [size, not a count]
+   [b8e7f134] 3 yellow onions (3 each)
+        packCount 3  (BEFORE: none)  ·  purchaseQuantity 3 each  [SCALED: the two are the same number]
+   [b8e7f134] 1 bottle (10 oz) worcestershire sauce (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [b8e7f134] dijon mustard (1 teaspoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [b8e7f134] 1 bottle (51 oz) vegetable oil (9 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [b8e7f134] 2 cans (14.5 oz) beef broth (2 cup)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 can  [SCALED: the two are the same number]
+   [b8e7f134] 6 lb bag russet potatoes (4½ pound)
+        packCount 3  (BEFORE: none)  ·  purchaseQuantity 2 lb  [size, not a count]
+   [b8e7f134] 1 gallon whole milk (1 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 gallon  [SCALED: the two are the same number]
+   [b8e7f134] 1 bunch fresh chives (4 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [b8e7f134] 3 lb pack bone-in chicken thighs (2½ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 3 lb  [size, not a count]
+   [b8e7f134] 2 lb (~3–4 tomatillos) tomatillo (1¼ pound)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 1 lb  [size, not a count]
+   [b8e7f134] 2 jalapeños (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 4 each  [size, not a count]
+   [b8e7f134] 2 cans (14.5 oz) chicken broth (3½ cup)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 can  [SCALED: the two are the same number]
+   [b8e7f134] 2 roma tomatoes (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 4 each  [size, not a count]
+   [b8e7f134] 1 can (6 oz) tomato paste (1 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [b8e7f134] 2 cans (15 oz) canned pinto beans (2 cans)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 1 can  [size, not a count]
+   [b8e7f134] 3 lb roast boneless beef chuck roast (3 pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 3 lb  [size, not a count]
+   [b8e7f134] 1 package (1 oz) ranch seasoning mix (1 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 package  [SCALED: the two are the same number]
+   [b8e7f134] 1 package (1 oz) au jus gravy mix (1 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 package  [SCALED: the two are the same number]
+   [b8e7f134] 1 bunch fresh thyme sprigs (3 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [b8e7f134] 2 lb bag carrots (1¼ pound)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 1 lb  [size, not a count]
+   [b8e7f134] 1 jar (12 oz) honey (1 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [b8e7f134] 1 bunch fresh flat-leaf parsley (1 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [b8e7f134] 1 dozen large eggs (1 dozen)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 dozen  [SCALED: the two are the same number]
+   [b8e7f134] 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 loaf  [SCALED: the two are the same number]
+   [b8e7f134] 1 bag (1 lb) coffee (1 bag)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [b8e7f134] 1 bag Pet treats (1 bag)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [b8e7f134] 1 pack (6 rolls) Paper towels (1 pack)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 pack  [SCALED: the two are the same number]
+   [b8e7f134] 1 pack (12 rolls) Toilet paper (1 pack)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 pack  [SCALED: the two are the same number]
+   [b8e7f134] 1 bunch bananas (1 bunch)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [c404a3cf] 2 lb pack boneless skinless chicken breasts (1½ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 lb  [size, not a count]
+   [c404a3cf] 1 package (8 count) flour tortillas (large, 10-inch) (4 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 package  [SCALED: the two are the same number]
+   [c404a3cf] 1 package (8 oz) shredded sharp cheddar cheese (1 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 package  [SCALED: the two are the same number]
+   [c404a3cf] olive oil (5⅓ tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [c404a3cf] 1 bottle (51 oz) vegetable oil (3 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [c404a3cf] 1 jar (12 oz) pickled jalapeño slices (¼ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [c404a3cf] 4 roma tomatoes (4 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 4 each  [size, not a count]
+   [c404a3cf] 1 white onion (½ each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [c404a3cf] 1 fresh jalapeño (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [c404a3cf] 1 bunch fresh cilantro (½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [c404a3cf] 1 container (16 oz) sour cream (1 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 container  [SCALED: the two are the same number]
+   [c404a3cf] 2 ripe avocados (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 3 each  [size, not a count]
+   [c404a3cf] 3 heads garlic (25 cloves)
+        packCount 3  (BEFORE: none)  ·  purchaseQuantity 3 head  [SCALED: the two are the same number]
+   [c404a3cf] 1 jar (12 oz) honey (3 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [c404a3cf] 1 bunch fresh parsley (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [c404a3cf] 1 bag (2 lb) jasmine rice (1½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [c404a3cf] 2 lemons (1½ each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [c404a3cf] 2 lb pack ground beef (80/20) (1½ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 lb  [size, not a count]
+   [c404a3cf] 1 yellow onion (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [c404a3cf] 1 green bell pepper (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [c404a3cf] 2 cans (15 oz) dark red kidney beans (30 ounce)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 can  [SCALED: the two are the same number]
+   [c404a3cf] 2 cans (14.5 oz) crushed tomatoes (28 ounce)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 can  [SCALED: the two are the same number]
+   [c404a3cf] 1 can (6 oz) tomato paste (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [c404a3cf] 1 can (14.5 oz) beef broth (½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [c404a3cf] 1 bunch (~6-8 scallions) scallions (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [c404a3cf] 2 lb pack pork tenderloin (1½ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 lb  [size, not a count]
+   [c404a3cf] dijon mustard (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [c404a3cf] 1 bunch fresh rosemary (1 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [c404a3cf] 1 bunch fresh thyme (1 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [c404a3cf] 2 lb bag russet potatoes (2 pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 lb  [size, not a count]
+   [c404a3cf] 1 gallon whole milk (½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 gallon  [SCALED: the two are the same number]
+   [c404a3cf] 1 bunch fresh chives (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [c404a3cf] 1 lb bag fresh green beans (1 pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 lb  [SCALED: the two are the same number]
+   [c404a3cf] 1 bag (8 oz) sliced almonds (3 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [c404a3cf] 1 dozen large eggs (1 dozen)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 dozen  [SCALED: the two are the same number]
+   [c404a3cf] 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 loaf  [SCALED: the two are the same number]
+   [c404a3cf] 1 bag (1 lb) coffee (1 bag)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [c404a3cf] 1 bag Pet treats (1 bag)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [c404a3cf] 1 pack (6 rolls) Paper towels (1 pack)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 pack  [SCALED: the two are the same number]
+   [c404a3cf] 1 pack (12 rolls) Toilet paper (1 pack)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 pack  [SCALED: the two are the same number]
+   [c404a3cf] 1 bunch bananas (1 bunch)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [c404a3cf] 4 limes (4 each)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 each  [SCALED: the two are the same number]
+   [d47d18aa] 6 lb roast beef chuck roast (4½ pound)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 3 lb  [size, not a count]
+   [d47d18aa] vegetable oil (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [d47d18aa] 3 yellow onions (3 each)
+        packCount 3  (BEFORE: none)  ·  purchaseQuantity 3 each  [SCALED: the two are the same number]
+   [d47d18aa] 3 heads garlic (21 cloves)
+        packCount 3  (BEFORE: none)  ·  purchaseQuantity 3 head  [SCALED: the two are the same number]
+   [d47d18aa] 1 can (6 oz) tomato paste (6 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [d47d18aa] 1 can (14.9 oz) Guinness stout (1 can)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [d47d18aa] 4 cans (14.5 oz) low-sodium beef broth (7 cup)
+        packCount 4  (BEFORE: none)  ·  purchaseQuantity 4 can  [SCALED: the two are the same number]
+   [d47d18aa] 1 bottle (10 oz) worcestershire sauce (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [d47d18aa] 1 bunch fresh thyme sprigs (4 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [d47d18aa] 2 parsnips (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [d47d18aa] 4 lb bag yukon gold potatoes (2¼ pound)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 lb  [SCALED: the two are the same number]
+   [d47d18aa] 1 bunch flat-leaf parsley (10 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [d47d18aa] dijon mustard (3 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [d47d18aa] 1 jar (12 oz) honey (3 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [d47d18aa] 1 bottle (16 oz) apple cider vinegar (1 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [d47d18aa] olive oil (12 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [d47d18aa] 2 lb bag fresh green beans (1¼ pound)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 1 lb  [size, not a count]
+   [d47d18aa] 3 lemons (2½ each)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 each  [SCALED: the two are the same number]
+   [d47d18aa] 3 lb pack boneless skinless chicken thighs (2 pound)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 1.5 lb  [size, not a count]
+   [d47d18aa] 2 english cucumbers (1½ each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [d47d18aa] 2 red onions (1¼ each)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 each  [SCALED: the two are the same number]
+   [d47d18aa] 2 red bell peppers (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [d47d18aa] 1 yellow bell pepper (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [d47d18aa] 1 box (16 oz) orzo pasta (1½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 box  [SCALED: the two are the same number]
+   [d47d18aa] 2 cans (14.5 oz) low-sodium chicken broth (3 cup)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 can  [SCALED: the two are the same number]
+   [d47d18aa] 1 pint cherry tomatoes (1 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 pint  [SCALED: the two are the same number]
+   [d47d18aa] 1 container (8 oz) feta cheese (3 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 container  [SCALED: the two are the same number]
+   [d47d18aa] 1 bottle (16 oz) red wine vinegar (1 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [d47d18aa] 1 lb pack lean ground beef (85/15) (1 pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 lb  [SCALED: the two are the same number]
+   [d47d18aa] 2 cans (14.5 oz) crushed San Marzano tomatoes (28 ounce)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 2 can  [SCALED: the two are the same number]
+   [d47d18aa] 1 bag (4 lb) granulated sugar (½ teaspoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [d47d18aa] 1 container (15 oz) whole-milk ricotta cheese (1 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 container  [SCALED: the two are the same number]
+   [d47d18aa] 1 bag (8 oz) shredded mozzarella cheese (1 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [d47d18aa] 1 container (8 oz) grated parmesan cheese (½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 container  [SCALED: the two are the same number]
+   [d47d18aa] 1 bunch (~8-10 stalks) celery stalks (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [d47d18aa] 1 bunch fresh basil (1 bunch)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [ed238692] 1.5 lb pack ground turkey (93% lean) (1¼ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1.5 lb  [size, not a count]
+   [ed238692] 1 yellow onion (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [ed238692] 1 green bell pepper (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [ed238692] 1 head garlic (8 cloves)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 head  [SCALED: the two are the same number]
+   [ed238692] 1 can (6 oz) tomato paste (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [ed238692] 1 bottle (10 oz) worcestershire sauce (1 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [ed238692] 1 bag (2 lb) brown sugar (1 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [ed238692] 1 bottle (16 oz) apple cider vinegar (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [ed238692] yellow mustard (1 teaspoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [ed238692] 1 bottle (51 oz) vegetable oil (1 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [ed238692] 1 head green cabbage (½ each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 head  [SCALED: the two are the same number]
+   [ed238692] mayonnaise (⅓ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [ed238692] 1 bag (4 lb) granulated sugar (1 teaspoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [ed238692] 1.5 lb pack ground beef (80/20) (1¼ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1.5 lb  [size, not a count]
+   [ed238692] 1 box (12 count) crunchy taco shells (12 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 box  [SCALED: the two are the same number]
+   [ed238692] 1 head iceberg lettuce (2 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 head  [SCALED: the two are the same number]
+   [ed238692] 2 roma tomatoes (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 4 each  [size, not a count]
+   [ed238692] 1 container (16 oz) sour cream (½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 container  [SCALED: the two are the same number]
+   [ed238692] 1 gallon whole milk (1 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 gallon  [SCALED: the two are the same number]
+   [ed238692] 1 block (8 oz) sharp cheddar cheese (6 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 block  [SCALED: the two are the same number]
+   [ed238692] 1 jar (12 oz) pickled jalapeño slices (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [ed238692] 1 lb pack Italian pork sausage (1 pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 lb  [SCALED: the two are the same number]
+   [ed238692] 1 bottle (750 ml) dry white wine (½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [ed238692] 1 can (14.5 oz) low-sodium chicken broth (½ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [ed238692] extra-virgin olive oil (4 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [ed238692] 1 lb block parmigiano-reggiano (2 ounce)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 lb  [SCALED: the two are the same number]
+   [ed238692] 1 italian bread loaf (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [ed238692] 1 dozen large eggs (1 dozen)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 dozen  [SCALED: the two are the same number]
+   [ed238692] 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 loaf  [SCALED: the two are the same number]
+   [ed238692] 1 bag (1 lb) coffee (1 bag)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [ed238692] 1 bag Pet treats (1 bag)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [ed238692] 1 pack (6 rolls) Paper towels (1 pack)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 pack  [SCALED: the two are the same number]
+   [ed238692] 1 pack (12 rolls) Toilet paper (1 pack)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 pack  [SCALED: the two are the same number]
+   [ed238692] 1 bunch bananas (1 bunch)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [ed238692] 2 limes (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [f5556c19] 4.5 lb pack skirt steak (3½ pound)
+        packCount 3  (BEFORE: none)  ·  purchaseQuantity 1.5 lb  [size, not a count]
+   [f5556c19] 5 oranges (5 each)
+        packCount 5  (BEFORE: none)  ·  purchaseQuantity 1 each  [size, not a count]
+   [f5556c19] 16 limes (16 each)
+        packCount 8  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [f5556c19] 3 heads garlic (25 cloves)
+        packCount 3  (BEFORE: none)  ·  purchaseQuantity 3 head  [SCALED: the two are the same number]
+   [f5556c19] 1 bunch fresh cilantro (1⅓ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [f5556c19] 3 jalapeños (3 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 4 each  [size, not a count]
+   [f5556c19] olive oil (11 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [f5556c19] 4 poblano peppers (4 each)
+        packCount 4  (BEFORE: none)  ·  purchaseQuantity 1 each  [size, not a count]
+   [f5556c19] 2 cans (15 oz) canned pinto beans (2 cans)
+        packCount 2  (BEFORE: none)  ·  purchaseQuantity 1 can  [size, not a count]
+   [f5556c19] 1 yellow onion (1 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 each  [SCALED: the two are the same number]
+   [f5556c19] 1 can (14.5 oz) chicken broth (1 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 can  [SCALED: the two are the same number]
+   [f5556c19] 3 red onions (3 each)
+        packCount 3  (BEFORE: none)  ·  purchaseQuantity 3 each  [SCALED: the two are the same number]
+   [f5556c19] 1 bottle (16 oz) apple cider vinegar (1⅝ cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [f5556c19] 1 bag (4 lb) granulated sugar (3 teaspoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [f5556c19] 3 packages (12 count) corn tortillas (36 each)
+        packCount 3  (BEFORE: none)  ·  purchaseQuantity 3 package  [SCALED: the two are the same number]
+   [f5556c19] 2.5 lb pack boneless pork shoulder (2 pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2.5 lb  [size, not a count]
+   [f5556c19] 3 medium white onion white onion (2¼ cup)
+        packCount 3  (BEFORE: none)  ·  purchaseQuantity 3 each  [SCALED: the two are the same number]
+   [f5556c19] 1 bottle (51 oz) vegetable oil (4 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bottle  [SCALED: the two are the same number]
+   [f5556c19] 1 head green cabbage (3 cup)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 head  [SCALED: the two are the same number]
+   [f5556c19] mayonnaise (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 jar  [SCALED: the two are the same number]
+   [f5556c19] 2 lemons (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [f5556c19] 1 bunch fresh flat-leaf parsley (2 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [f5556c19] 1.5 lb bag baby Yukon gold potatoes (1½ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1.5 lb  [size, not a count]
+   [f5556c19] 1 bunch fresh chives (1 tablespoon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
+   [f5556c19] 1 lb (~4-5 tomatillos) tomatillos (¾ pound)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 lb  [SCALED: the two are the same number]
+   [f5556c19] 2 serrano chiles (2 each)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 2 each  [size, not a count]
+   [f5556c19] 1 dozen large eggs (1 dozen)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 dozen  [SCALED: the two are the same number]
+   [f5556c19] 1 gallon whole milk (1 gallon)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 gallon  [SCALED: the two are the same number]
+   [f5556c19] 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 loaf  [SCALED: the two are the same number]
+   [f5556c19] 1 bag (1 lb) coffee (1 bag)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [f5556c19] 1 bag Pet treats (1 bag)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bag  [SCALED: the two are the same number]
+   [f5556c19] 1 pack (6 rolls) Paper towels (1 pack)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 pack  [SCALED: the two are the same number]
+   [f5556c19] 1 pack (12 rolls) Toilet paper (1 pack)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 pack  [SCALED: the two are the same number]
+   [f5556c19] 1 bunch bananas (1 bunch)
+        packCount 1  (BEFORE: none)  ·  purchaseQuantity 1 bunch  [SCALED: the two are the same number]
