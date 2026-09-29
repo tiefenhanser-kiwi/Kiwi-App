@@ -15,7 +15,11 @@ import {
   type SubsumesOverlay,
   type PoolableItem,
 } from "../ingredientRelations";
-import { classifyEdge, distinguishingTokens } from "../subsumesClasses";
+import {
+  classifyEdge,
+  distinguishingTokens,
+  DEMOTED_DEFAULT_PAIRS,
+} from "../subsumesClasses";
 import { lowercaseLead, PROPER_NOUN_LEADS } from "../ingredientNameCase";
 import {
   appendVarietyRider,
@@ -170,7 +174,6 @@ describe("H1 — a different product is two lines", () => {
       ["chili powder", "ancho chili powder"],
       ["diced tomatoes", "canned fire-roasted diced tomatoes"],
       ["tomato", "cherry tomatoes"],
-      ["chicken thighs", "boneless skinless chicken thighs"],
       ["ground beef", "ground beef (80/20 chuck)"],
     ] as [string, string][]) {
       assert.equal(classifyEdge(g, s).hClass, "H1", `${g} over ${s}`);
@@ -265,26 +268,53 @@ describe("H2 — a plain name joins its ruled default", () => {
   it("the generic folds onto the default and the line takes the DEFAULT's name", () => {
     const idx = buildRelationIndex(rows, { subsumes: overlay(["chicken thighs"]) });
     // The LIVE value. Shortest-wins would give "chicken thighs" (14 chars) over
-    // "bone-in skin-on chicken thighs" (30), so this asserts the pin.
-    assert.equal(idx.groupKey("chicken thighs"), "bone-in skin-on chicken thighs");
+    // "boneless skinless chicken thighs" (32), so this asserts the pin.
+    assert.equal(idx.groupKey("chicken thighs"), "boneless skinless chicken thighs");
     assert.equal(
-      idx.pinnedNameByKey.get("bone-in skin-on chicken thighs"),
-      "bone-in skin-on chicken thighs",
+      idx.pinnedNameByKey.get("boneless skinless chicken thighs"),
+      "boneless skinless chicken thighs",
     );
   });
 
   it("a MEDIUM row is promoted by the ruling, not by its confidence", () => {
-    // Both default rows are `medium` and unreviewed in the live table. Without
-    // RULED_DEFAULT_PAIRS the confidence gate refuses them and H2 never fires.
+    // The default row is `medium` and unreviewed as the judge wrote it. Without
+    // RULED_DEFAULT_PAIRS the confidence gate refuses it and H2 never fires.
     const idx = buildRelationIndex(rows, { subsumes: overlay(["chicken thighs"]) });
-    assert.equal(idx.groupKey("chicken thighs"), "bone-in skin-on chicken thighs");
-    // …and the OTHER medium row on the same generic is still refused.
-    assert.equal(idx.groupKey("boneless skinless chicken thighs"), "boneless skinless chicken thighs");
+    assert.equal(idx.groupKey("chicken thighs"), "boneless skinless chicken thighs");
+  });
+
+  it("the DEMOTED pair is not a default and gets no pin", () => {
+    // Hans flipped this on September 28: boneless skinless is the everyday thigh,
+    // and a recipe wanting bone-in must say so. If the demotion were lost, the
+    // bone-in row would win the pin here (it is alphabetically and by-insertion
+    // first) and every plain "chicken thighs" would buy bone-in again.
+    const idx = buildRelationIndex(rows, { subsumes: overlay(["chicken thighs"]) });
+    assert.notEqual(idx.groupKey("chicken thighs"), "bone-in skin-on chicken thighs");
+    assert.equal(idx.groupKey("bone-in skin-on chicken thighs"), "bone-in skin-on chicken thighs");
+    assert.equal(
+      DEMOTED_DEFAULT_PAIRS.some(
+        (d) => d.generic === "chicken thighs" && d.specific === "bone-in skin-on chicken thighs",
+      ),
+      true,
+    );
+  });
+
+  it("bone-in stays H1 as a CLASS, and the class is not the default's business", () => {
+    // Both statements are true at once and the ordering in admitSubsumes is what
+    // keeps them from fighting: the class governs two demanded names, the default
+    // governs what the plain name means.
+    assert.equal(classifyEdge("chicken thighs", "bone-in skin-on chicken thighs").hClass, "H1");
+    assert.equal(classifyEdge("chicken thighs", "boneless skinless chicken thighs").hClass, "H1");
   });
 
   it("does nothing when the plain name is not on the list", () => {
-    const idx = buildRelationIndex(rows, { subsumes: overlay(["bone-in skin-on chicken thighs"]) });
-    assert.equal(idx.groupKey("bone-in skin-on chicken thighs"), "bone-in skin-on chicken thighs");
+    const idx = buildRelationIndex(rows, {
+      subsumes: overlay(["boneless skinless chicken thighs"]),
+    });
+    assert.equal(
+      idx.groupKey("boneless skinless chicken thighs"),
+      "boneless skinless chicken thighs",
+    );
     assert.equal(idx.pinnedNameByKey.size, 0);
   });
 });

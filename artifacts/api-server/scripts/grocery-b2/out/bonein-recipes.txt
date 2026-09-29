@@ -1,0 +1,29 @@
+[grocery] B2 — PUBLIC recipes whose plain chicken should probably be bone-in
+REPORT ONLY. Nothing was changed.
+
+Hans, September 28: a recipe wanting bone-in must SAY so. H2 now makes a
+plain "chicken thighs" mean boneless skinless on the shopping list, which is
+right for shopping and wrong for any recipe whose STEPS assume skin or bone.
+This is the recipe-authoring side of the same rule.
+
+dishes using a plain chicken name: 26  (PUBLIC: 1)
+…of those, dishes whose steps tell on them: 2  (PUBLIC: 0)
+
+⚠️ THE PUBLIC POPULATION IS TINY AND THAT IS THE POINT. Almost every catalog
+recipe already NAMES its cut — which is Hans's rule working before it was
+written down. The plain name is mostly a USER-authored shape, and a user's own
+recipe is theirs to word.
+
+## Chicken Thighs   [private]
+   dish id: 1dac83c9-ca48-4db6-b86a-e36d45325639
+   meal(s): (none public)
+   plain ingredient: chicken thighs
+   step 2 — names a skin side: "Place the chicken thighs skin-side down in the hot skillet and cook until the skin is"
+   step 2 — judges doneness by the skin: "n in the hot skillet and cook until the skin is golden and crispy, about 6 minutes. Place the chicke"
+
+## Grilled Chicken Thighs   [private]
+   dish id: d763fb21-f4b1-44d0-a29e-81c4fe523902
+   meal(s): (none public)
+   plain ingredient: chicken thighs
+   step 3 — names a skin side: "the grill grates. Place chicken thighs skin-side down on the grill. Lightly oil the grill grates. P"
+   step 4 — judges doneness by the skin: "Grill for 6-7 minutes until skin is golden and crispy. Grill for 6-7 minutes until skin"

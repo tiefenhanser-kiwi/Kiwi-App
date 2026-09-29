@@ -54,6 +54,7 @@ export {
   classifyEdge,
   DEFAULTS,
   RULED_DEFAULTS,
+  DEMOTED_DEFAULT_PAIRS,
   COUNT_PACK_UNITS,
   packUnitCarriesShares,
 } from "../../src/lib/subsumesClasses";

@@ -217,8 +217,16 @@ for (const s of ["crusty italian bread", "crusty italian bread loaf", "crusty so
 // #1 parsley over flat-leaf: H3 only, via the single-bunch case. No default.
 put("parsley", "fresh flat-leaf parsley", "H3", "go-ahead S.PROMO #1 — H3 only; where the two share one bunch the line becomes `1 bunch flat-leaf parsley`");
 put("fresh parsley", "fresh flat-leaf parsley", "H3", "go-ahead S.PROMO #1 — same pair, the `fresh` spelling");
-// #2 chicken thighs over boneless skinless: NO.
-put("chicken thighs", "boneless skinless chicken thighs", "H1", "go-ahead S.PROMO #2 — NO (H1). Hans: recipes should be calling for what they need");
+// #2 chicken thighs over boneless skinless: NO as a CLASS, and then made the
+// DEFAULT, which is a different question and a different mechanism.
+//
+// ⚠️ THIS LOOKS LIKE A CONTRADICTION AND IS NOT. The class says what happens when
+// both names are demanded: two lines, because the cut is the product (H1). The
+// DEFAULT says what the PLAIN name means when nobody said: the boneless skinless
+// pack (H2). `admitSubsumes` tests RULED_DEFAULT_PAIRS first for exactly this
+// reason, so the H2 join fires and the H1 class governs nothing it should not.
+// Do not "reconcile" these by deleting one.
+put("chicken thighs", "boneless skinless chicken thighs", "H1", "go-ahead S.PROMO #2 — NO as a class (H1); the same pair is the H2 DEFAULT, which is a different question");
 
 // ---------------------------------------------------------------------------
 // 4 — THE CLASSIFIER
@@ -334,9 +342,9 @@ export interface DefaultRuling {
  */
 export const DEFAULTS: readonly DefaultRuling[] = [
   {
-    generic: "chicken thighs", def: "bone-in skin-on chicken thighs",
-    reads: "bone-in chicken thighs",
-    why: "RULED. Hans: 'if a recipe calls for generic Chicken Thighs, I would assume it means bone-in.' A meat counter has no unqualified 'chicken thighs' bin — every pack states its cut. The canonical carries `skin-on`; the LINE drops it (go-ahead N #400-#402).",
+    generic: "chicken thighs", def: "boneless skinless chicken thighs",
+    reads: "boneless skinless chicken thighs",
+    why: "RULED, and FLIPPED on September 28 after the build go-ahead. Hans: 'it sounds like boneless skinless thighs are more popular, especially for easy cooking. I think we need to update the map to \"chicken thighs\" => boneless skinless thighs, and \"bone in chicken thighs\" stays \"bone in chicken thighs\"'. A meat case has no unqualified bin, so the plain name has to mean SOMETHING; the everyday one is the boneless skinless pack.",
     uncertain: false,
   },
   {
@@ -354,6 +362,28 @@ export const DEFAULTS: readonly DefaultRuling[] = [
  * this is the whole list.
  */
 export const RULED_DEFAULTS = DEFAULTS.filter((d) => d.def && !d.uncertain);
+
+/**
+ * ⚠️ `chicken thighs -> bone-in skin-on chicken thighs` IS NOT A DEFAULT, and the
+ * absence is the ruling rather than an omission.
+ *
+ * It was the default for about two hours on September 28 and Hans reversed it:
+ * boneless skinless is the everyday pack, and "a recipe wanting bone-in must say
+ * so" — his examples were "oven roasted chicken thighs" and "grilled whole
+ * thighs". So `bone-in chicken thighs` stays H1: its own line when a recipe names
+ * it, displayed without "skin-on" (the N cleanings), searched as exactly that.
+ *
+ * Part B's first pass flipped `reviewedByHuman` on the bone-in row with a
+ * rationale calling it the default. The amended apply reverses that, because a
+ * stale rationale in the data is a decision nobody made.
+ */
+export const DEMOTED_DEFAULT_PAIRS: readonly { generic: string; specific: string; why: string }[] = [
+  {
+    generic: "chicken thighs",
+    specific: "bone-in skin-on chicken thighs",
+    why: "Hans, September 28, reversing his own earlier ruling: boneless skinless is the default thigh; a recipe wanting bone-in must say so.",
+  },
+];
 
 // ---------------------------------------------------------------------------
 // 6 — H5: WHICH GENERICS CAN CARRY SHARES AT ALL

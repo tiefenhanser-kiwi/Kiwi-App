@@ -120,11 +120,12 @@ have fixed.
 |---|---|---|---|
 | N buy names | `Ingredient.displayName` — the 16 neutral-oil spellings → `vegetable oil`, the 13 `skin-on` rows → the cut without it, the tortilla/mozzarella/rice/ground-beef shapes, the three parts | 39 updated · 3 unchanged | 0 · 42 unchanged |
 | C casing | `Ingredient.displayName` — the leading character lowercased where the leading token is not a proper noun | 116 updated · 1,622 unchanged | 0 · 1,738 unchanged |
-| D defaults | `reviewedByHuman` / `reviewedAt` / `rationale` / `source` on **2** `subsumes` rows (`chicken thighs ⊇ bone-in skin-on chicken thighs`, `chicken breast ⊇ boneless skinless chicken breasts`) | 2 updated | 0 · 2 unchanged |
+| D defaults | `reviewedByHuman` / `reviewedAt` / `rationale` / `source` on **2** `subsumes` rows (`chicken thighs ⊇ boneless skinless chicken thighs`, `chicken breast ⊇ boneless skinless chicken breasts`) | 2 updated | 0 · 2 unchanged |
+| D-rev reversal | clears `reviewedByHuman` and replaces the rationale on **1** row — `chicken thighs ⊇ bone-in skin-on chicken thighs`, which was the default for two hours on September 28 before Hans reversed it. **On a fresh production database this is 0 updated / 1 unchanged**: nothing ever stamped it there, and the class carries the reversal already. | 0 updated · 1 unchanged | 0 · 1 unchanged |
 | Y BUG-330 | `cherry tomatoes` pack yield — 10 ounce per pint | 1 updated · 1 skipped | 0 · 1 unchanged · 1 skipped |
 | R N6 relabel | `romaine lettuce → romaine lettuce hearts`, `component` → `synonym`, yield cleared | 1 updated | 0 · 1 unchanged |
 | P fennel edge | `fennel bulb → fennel fronds`, component, 3 tbsp, coHarvestable | 1 created | 0 · 1 unchanged |
-| **TOTAL** | | **1 created · 159 updated · 1,625 unchanged · 1 skipped** | **0 created · 0 updated · 1,785 unchanged · 1 skipped** |
+| **TOTAL** | | **1 created · 159 updated · 1,626 unchanged · 1 skipped** | **0 created · 0 updated · 1,786 unchanged · 1 skipped** |
 
 **The 1 skipped is expected, on both runs.** `grape tomatoes` has no catalog row;
 the figure is recorded in `scripts/grocery-b2/proposals.ts` so nobody re-derives
@@ -175,7 +176,8 @@ Generate one grocery list on production for a real plan and read it. The four
 things to look for:
 
 1. no line says `neutral oil`;
-2. a chicken-thigh plan says `bone-in chicken thighs`, and a boneless-skinless
-   recipe still gets its own line;
+2. a plan whose recipe says plain "chicken thighs" reads **boneless skinless
+   chicken thighs** — and a recipe that names **bone-in** still gets its own line,
+   without the words "skin-on";
 3. no line repeats its own name (`1 rotisserie chicken rotisserie chicken, …`);
 4. a plan needing 12 oz of cherry tomatoes says **2 pints**, not 1.

@@ -25,6 +25,7 @@ import {
   NAME_CLEANINGS,
   lowercaseLead,
   DEFAULTS,
+  DEMOTED_DEFAULT_PAIRS,
   PACK_YIELDS,
   RELABEL_TO_SYNONYM,
   PART_EDGES,
@@ -43,6 +44,7 @@ const stats: Record<string, Stat> = {
   "N buy names": stat(),
   "C casing": stat(),
   "D defaults (subsumes rows)": stat(),
+  "D-rev reversed default": stat(),
   "Y BUG-330 pack yields": stat(),
   "R N6 relabel": stat(),
   "P fennel part edge": stat(),
@@ -143,6 +145,49 @@ async function main() {
     }
     s.updated++;
     note(`  D  ${d.generic} ⊇ ${d.def}  reviewedByHuman ${existing.reviewedByHuman} -> true  (was ${existing.confidence})`);
+  }
+
+  // ── D-rev — THE DEFAULT THAT WAS REVERSED ────────────────────────────────
+  //
+  // `chicken thighs -> bone-in skin-on chicken thighs` was the default for about
+  // two hours on September 28 and Hans reversed it. The first apply stamped that
+  // row `reviewedByHuman` with a rationale calling it the default, and a stale
+  // rationale in the data is a decision nobody made — so it comes back off,
+  // through the same round trip that put it on.
+  //
+  // ⚠️ IT IS NOT DELETED. The subsumes row is true — a bone-in thigh IS a kind of
+  // chicken thigh — and A1's 476 ai_judge rows include it on its own merits. What
+  // is reversed is the HUMAN REVIEW STAMP and the rationale, which are the two
+  // fields that said "Hans ruled this the default". Confidence and label are left
+  // exactly as the judge wrote them.
+  note("");
+  note("=== D-rev — the reversed default ===");
+  for (const d of DEMOTED_DEFAULT_PAIRS) {
+    const s2 = stats["D-rev reversed default"];
+    const from = byCanonical.get(d.generic);
+    const to = byCanonical.get(d.specific);
+    if (!from || !to) { s2.skipped++; note(`  SKIP ${d.generic} -> ${d.specific}: missing catalog row`); continue; }
+    const existing = await prisma.ingredientRelation.findUnique({
+      where: { fromIngredientId_toIngredientId: { fromIngredientId: from.id, toIngredientId: to.id } },
+      select: { id: true, reviewedByHuman: true, rationale: true, source: true },
+    });
+    if (!existing) { s2.skipped++; note(`  SKIP ${d.generic} -> ${d.specific}: no row`); continue; }
+    const carriesTheOldRuling =
+      existing.reviewedByHuman || (existing.rationale ?? "").includes("B2 H2 DEFAULT");
+    if (!carriesTheOldRuling) { s2.unchanged++; continue; }
+    if (APPLY) {
+      await prisma.ingredientRelation.update({
+        where: { id: existing.id },
+        data: {
+          reviewedByHuman: false,
+          reviewedAt: null,
+          source: "ai_judge",
+          rationale: `[grocery] B2 — NOT a default. ${d.why}`,
+        },
+      });
+    }
+    s2.updated++;
+    note(`  D-rev  ${d.generic} ⊇ ${d.specific}: reviewedByHuman ${existing.reviewedByHuman} -> false, rationale replaced`);
   }
 
   // ── Y — BUG-330 ──────────────────────────────────────────────────────────
