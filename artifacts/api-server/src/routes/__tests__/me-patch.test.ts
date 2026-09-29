@@ -74,6 +74,11 @@ interface MealRow {
   id: string;
   userId: string | null;
   isArchived: boolean;
+  // BUG-332 / D-WS9-288 ruling 3 — the image state rematerializeMeal reads off
+  // the anchor row to decide whether to re-queue. Optional: every older fixture
+  // leaves them undefined, which reads as "not failed" and changes nothing.
+  imageStatus?: "pending" | "generating" | "ready" | "failed";
+  imageUrl?: string | null;
 }
 interface DishRow {
   id: string;
@@ -1948,6 +1953,148 @@ describe("[grocery] B3 — BUG-320: the entitled paths and the dish PATCH", () =
       assert.equal(captured.planBumps.length, 0);
     } finally {
       await h.close();
+    }
+  });
+});
+
+// ── BUG-332 / D-WS9-288 ruling 3 — a rematerialize re-queues a `failed` meal ──
+//
+// Before this, `failed` was a one-way door: the drain claims only `pending`,
+// nothing moved a row out of `failed`, and `imageUrl` is not patchable
+// (BUG-297). A user whose meal the September-18 backfill marked could rewrite
+// every dish in it and still get the grey gradient. The edit they already make
+// is the way out.
+
+describe("PATCH /me/meals/:id — BUG-332 image re-queue on rematerialize", () => {
+  const ONE_DISH = [
+    {
+      kind: "new" as const,
+      title: "Replacement dish",
+      role: "main" as const,
+      positionIndex: 0,
+      ingredients: [{ name: "Garlic", quantity: 2, unit: "clove" }],
+      steps: [{ text: "Mince." }],
+    },
+  ];
+
+  it("a `failed` meal with no image → pending, attempts 0", async () => {
+    const { prisma, captured } = makeStub({
+      meals: [
+        {
+          id: "meal-1",
+          userId: USER_ID,
+          isArchived: false,
+          imageStatus: "failed",
+          imageUrl: null,
+        },
+      ],
+    });
+    const harness = await spinUp(prisma);
+    try {
+      const res = await authPatch(harness, "/me/meals/meal-1", {
+        title: "Patched",
+        dishes: ONE_DISH,
+      });
+      assert.equal(res.status, 200);
+      // Selected by content, not position — the same rule the wipe test learned.
+      const requeue = captured.mealUpdates.find((u) => "imageStatus" in u.data);
+      assert.ok(requeue, "the failed meal should have been re-queued");
+      assert.equal(requeue.data.imageStatus, "pending");
+      assert.equal(requeue.data.imageAttempts, 0);
+      // It rides the SAME scalar update as the title — one write, not two.
+      assert.ok("title" in requeue.data, "the re-queue rides the scalar update");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("a `ready` meal is NOT touched — renaming never spends a generation", async () => {
+    const { prisma, captured } = makeStub({
+      meals: [
+        {
+          id: "meal-1",
+          userId: USER_ID,
+          isArchived: false,
+          imageStatus: "ready",
+          imageUrl: "https://storage.googleapis.com/b/meals/meal-1.jpg",
+        },
+      ],
+    });
+    const harness = await spinUp(prisma);
+    try {
+      const res = await authPatch(harness, "/me/meals/meal-1", {
+        title: "Patched",
+        dishes: ONE_DISH,
+      });
+      assert.equal(res.status, 200);
+      assert.equal(
+        captured.mealUpdates.filter((u) => "imageStatus" in u.data).length,
+        0,
+        "a ready meal must keep its image and its queue state",
+      );
+      assert.equal(
+        captured.mealUpdates.filter((u) => "imageUrl" in u.data).length,
+        0,
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("a `pending` meal is not touched either — it is already in the queue", async () => {
+    const { prisma, captured } = makeStub({
+      meals: [
+        {
+          id: "meal-1",
+          userId: USER_ID,
+          isArchived: false,
+          imageStatus: "pending",
+          imageUrl: null,
+        },
+      ],
+    });
+    const harness = await spinUp(prisma);
+    try {
+      const res = await authPatch(harness, "/me/meals/meal-1", {
+        title: "Patched",
+        dishes: ONE_DISH,
+      });
+      assert.equal(res.status, 200);
+      assert.equal(
+        captured.mealUpdates.filter((u) => "imageStatus" in u.data).length,
+        0,
+        "re-queuing a pending row would reset an in-flight attempt count",
+      );
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("a `failed` meal that somehow HAS a url is left alone — it has a picture to render", async () => {
+    const { prisma, captured } = makeStub({
+      meals: [
+        {
+          id: "meal-1",
+          userId: USER_ID,
+          isArchived: false,
+          imageStatus: "failed",
+          imageUrl: "https://storage.googleapis.com/b/meals/meal-1.jpg",
+        },
+      ],
+    });
+    const harness = await spinUp(prisma);
+    try {
+      const res = await authPatch(harness, "/me/meals/meal-1", {
+        title: "Patched",
+        dishes: ONE_DISH,
+      });
+      assert.equal(res.status, 200);
+      assert.equal(
+        captured.mealUpdates.filter((u) => "imageStatus" in u.data).length,
+        0,
+      );
+    } finally {
+      await harness.close();
     }
   });
 });

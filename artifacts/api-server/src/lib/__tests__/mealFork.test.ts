@@ -592,3 +592,81 @@ describe("Block 1c — image provenance + queue state on the copy paths", () => 
     assert.equal(rec.mealCreates[0].imageStatus, "pending");
   });
 });
+
+// ── BUG-332 / D-WS9-288 ruling 2 — the three fork cases, end to end ─────────
+//
+// The unit-level table is above (inheritedImageStatus). This block drives the
+// real helper so the wiring is pinned too: the status and the URL and the
+// lineage all have to agree, or the drain does the wrong thing with the row.
+describe("BUG-332 — what a fork inherits, and what it does not", () => {
+  it("parent `failed` with NO url → the fork is PENDING (the parent's verdict is not the copy's)", async () => {
+    const source = {
+      ...makeSource(),
+      imageUrl: null,
+      imageSource: null,
+      imageGeneratedAt: null,
+      imageStatus: "failed",
+    };
+    const { tx, rec } = makeTxStub(source as never);
+    await forkMealForUser(tx as never, "src-meal", "user-1");
+    const meal = rec.mealCreates[0];
+    assert.equal(meal.imageStatus, "pending", "a new row the drain has never tried");
+    assert.equal(meal.imageUrl, null);
+    assert.equal(meal.imageSource, null);
+    // This is the Apple-reviewer shape: a plan built from a template, forking
+    // seed meals the September-18 backfill had marked `failed`. Every one of
+    // those copies used to be born terminal at attempt 0.
+  });
+
+  it("parent `ready` → the fork is READY and carries the URL (one generation, however many plans)", async () => {
+    const at = new Date("2026-09-29T12:00:00Z");
+    const source = {
+      ...makeSource(),
+      imageUrl: "https://storage.googleapis.com/b/meals/src-meal.jpg",
+      imageSource: "ai_generated",
+      imageGeneratedAt: at,
+      imageStatus: "ready",
+    };
+    const { tx, rec } = makeTxStub(source as never);
+    await forkMealForUser(tx as never, "src-meal", "user-1");
+    const meal = rec.mealCreates[0];
+    assert.equal(meal.imageStatus, "ready");
+    assert.equal(meal.imageUrl, "https://storage.googleapis.com/b/meals/src-meal.jpg");
+    assert.equal(meal.imageSource, "ai_generated");
+    assert.equal(meal.imageGeneratedAt, at);
+  });
+
+  it("parent `pending` → the fork is PENDING with the lineage the claim skips on", async () => {
+    const source = {
+      ...makeSource(),
+      imageUrl: null,
+      imageSource: null,
+      imageGeneratedAt: null,
+      imageStatus: "pending",
+    };
+    const { tx, rec } = makeTxStub(source as never);
+    await forkMealForUser(tx as never, "src-meal", "user-1");
+    const meal = rec.mealCreates[0];
+    assert.equal(meal.imageStatus, "pending");
+    assert.equal(meal.imageUrl, null);
+    // The lineage is the whole mechanism: the claim skips a row whose
+    // sourceStoreMealId parent is pending/generating, and markReady stamps the
+    // parent's URL onto it when the parent lands. Without this field the fork
+    // would be claimed on its own and the same dish generated twice.
+    assert.equal(meal.sourceStoreMealId, "src-meal");
+  });
+
+  it("parent `generating` → PENDING too — the copy waits, it does not race", async () => {
+    const source = {
+      ...makeSource(),
+      imageUrl: null,
+      imageSource: null,
+      imageGeneratedAt: null,
+      imageStatus: "generating",
+    };
+    const { tx, rec } = makeTxStub(source as never);
+    await forkMealForUser(tx as never, "src-meal", "user-1");
+    assert.equal(rec.mealCreates[0].imageStatus, "pending");
+    assert.equal(rec.mealCreates[0].sourceStoreMealId, "src-meal");
+  });
+});

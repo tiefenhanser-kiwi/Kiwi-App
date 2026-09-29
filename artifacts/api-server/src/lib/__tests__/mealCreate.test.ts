@@ -31,6 +31,13 @@ function makeTx(opts: {
   throwOnFirstDishCreate?: boolean;
   /** Row 5 · Block 1c — the source's image columns (default: none, pending). */
   sourceImage?: { imageUrl: string | null; imageSource: string | null; imageGeneratedAt: Date | null; imageStatus: string };
+  /**
+   * BUG-332 / D-WS9-288 ruling 4 — the source's ownership + pool membership,
+   * which decide whether the copy carries `sourceStoreMealId`. Default is the
+   * null-owner catalog shape, which is what every pre-existing fixture here
+   * meant by "a source meal".
+   */
+  sourceOwner?: { userId: string | null; isPublic: boolean };
 }) {
   const recorder = opts.recorder;
   let mealCounter = 0;
@@ -60,6 +67,7 @@ function makeTx(opts: {
               cuisineType: "Italian",
               mealType: "dinner",
               ...(opts.sourceImage ?? { imageUrl: null, imageSource: null, imageGeneratedAt: null, imageStatus: "pending" }),
+              ...(opts.sourceOwner ?? { userId: null, isPublic: true }),
               servingsDefault: 4,
               estimatedTimeMinutes: 45,
               difficulty: "medium",
@@ -387,5 +395,69 @@ describe("createMealWithDishes — Block 1c image provenance", () => {
     });
     await createMealWithDishes(tx as never, { userId: "u-1", sourceMealId: "src", override: OVERRIDE_HAPPY });
     assert.equal(recorder.mealCreates[0].data.imageStatus, "pending");
+  });
+});
+
+// ── BUG-332 / D-WS9-288 ruling 4 — the lineage this helper never wrote ──────
+//
+// createMealWithDishes is the per-item recipe-override path (plans.ts). It
+// copied the source's image and queue state but wrote no `sourceStoreMealId`,
+// so a copy taken off a catalog meal that was ITSELF still pending was
+// invisible to the drain's fork-skip: the claim only skips a row whose parent
+// link points at a pending/generating row, and markReady only stamps the
+// parent's URL onto forks that carry the link. The same dish got generated
+// twice, at ~$0.009 and one of the org's five slots a minute each.
+describe("createMealWithDishes — BUG-332 lineage stamp", () => {
+  const INGREDIENTS = [
+    { id: "ing-salt", canonicalName: "salt" },
+    { id: "ing-tomato", canonicalName: "tomato" },
+  ];
+
+  it("stamps sourceStoreMealId when the source is a NULL-OWNER catalog meal", async () => {
+    const recorder = emptyRecorder();
+    const tx = makeTx({
+      recorder,
+      ingredients: INGREDIENTS,
+      sourceOwner: { userId: null, isPublic: true },
+    });
+    await createMealWithDishes(tx as never, { userId: "u-1", sourceMealId: "src", override: OVERRIDE_HAPPY });
+    assert.equal(recorder.mealCreates[0].data.sourceStoreMealId, "src");
+  });
+
+  it("stamps it for a PUBLIC pool meal that has an owner (a live write-back's source)", async () => {
+    const recorder = emptyRecorder();
+    const tx = makeTx({
+      recorder,
+      ingredients: INGREDIENTS,
+      sourceOwner: { userId: "someone-else", isPublic: true },
+    });
+    await createMealWithDishes(tx as never, { userId: "u-1", sourceMealId: "src", override: OVERRIDE_HAPPY });
+    assert.equal(recorder.mealCreates[0].data.sourceStoreMealId, "src");
+  });
+
+  it("does NOT stamp it off a private, user-owned source — that is not pool lineage", async () => {
+    const recorder = emptyRecorder();
+    const tx = makeTx({
+      recorder,
+      ingredients: INGREDIENTS,
+      sourceOwner: { userId: "u-1", isPublic: false },
+    });
+    await createMealWithDishes(tx as never, { userId: "u-1", sourceMealId: "src", override: OVERRIDE_HAPPY });
+    assert.equal(recorder.mealCreates[0].data.sourceStoreMealId, null);
+  });
+
+  it("the stamp travels WITH the queue state, so a pending parent is paired not duplicated", async () => {
+    const recorder = emptyRecorder();
+    const tx = makeTx({
+      recorder,
+      ingredients: INGREDIENTS,
+      sourceOwner: { userId: null, isPublic: true },
+      sourceImage: { imageUrl: null, imageSource: null, imageGeneratedAt: null, imageStatus: "pending" },
+    });
+    await createMealWithDishes(tx as never, { userId: "u-1", sourceMealId: "src", override: OVERRIDE_HAPPY });
+    const data = recorder.mealCreates[0].data;
+    assert.equal(data.imageStatus, "pending");
+    assert.equal(data.imageUrl, null);
+    assert.equal(data.sourceStoreMealId, "src");
   });
 });
