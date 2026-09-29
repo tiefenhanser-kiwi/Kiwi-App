@@ -345,14 +345,16 @@ export const DEFAULTS: readonly DefaultRuling[] = [
   {
     generic: "chicken breast", def: "boneless skinless chicken breasts",
     reads: "boneless skinless chicken breasts",
-    why: "PROPOSED by parity with the thigh ruling and the other way round: the default retail chicken breast IS the boneless skinless one. Same argument — the case is never sold unqualified.",
-    uncertain: true,
+    // RULED Sept 28 (Parts B-E go-ahead, defaults #54: YES). Was `?` in A2.
+    why: "RULED. Parity with the thigh ruling and the other way round: the default retail chicken breast IS the boneless skinless one. Same argument — the case is never sold unqualified.",
+    uncertain: false,
   },
 ];
 
 /**
- * Only RULED defaults move rows in the dry run. A proposal Hans has not yet
- * seen must not quietly rewrite 20 lists underneath the numbers he is reading.
+ * Only RULED defaults move rows. A proposal Hans has not seen must not quietly
+ * rewrite 20 lists underneath the numbers he is reading; both are ruled now, so
+ * this is the whole list.
  */
 export const RULED_DEFAULTS = DEFAULTS.filter((d) => d.def && !d.uncertain);
 
@@ -452,6 +454,28 @@ export const NAME_CLEANINGS: readonly NameCleaning[] = [
     current: "boneless skinless chicken thighs", line: "boneless skinless chicken thighs",
     why: "go-ahead N #403 — STAYS, and is searched as exactly that (H7)", uncertain: false,
   },
+  // ── the rest of the 13 rows that say skin-on ──────────────────────────────
+  //
+  // The Parts B-E go-ahead: "drop it from the DISPLAY line under N (13 catalog
+  // rows)". Four are above; these are the other nine.
+  //
+  // ⚠️ A CONCERN, STATED AND THEN APPLIED AS RULED. For chicken the drop costs
+  // nothing: bone-in chicken at retail is skin-on, so `bone-in chicken thighs`
+  // names the same pack. For SALMON and PORK BELLY it is not the same pack — a
+  // fish counter sells skin-on and skinless side by side, `skinless salmon
+  // fillet` is its own catalog row, and H1 says the cut is the product. After
+  // this, three rows (`salmon fillets`, `salmon fillets, skin-on`, `skin-on
+  // salmon fillets`) all read "salmon fillets" while the skinless one reads
+  // "skinless salmon fillet". Reported; the ruling is applied as given.
+  { current: "bone-in skin-on chicken breast", line: "bone-in chicken breast", why: "the skin-on drop, chicken", uncertain: false },
+  { current: "bone-in, skin-on chicken breasts", line: "bone-in chicken breasts", why: "the skin-on drop, chicken", uncertain: false },
+  { current: "bone-in, skin-on chicken pieces (drumsticks and thighs)", line: "bone-in chicken pieces (drumsticks and thighs)", why: "the skin-on drop, chicken", uncertain: false },
+  { current: "bone-in, skin-on chicken pieces (thighs and drumsticks)", line: "bone-in chicken pieces (thighs and drumsticks)", why: "the skin-on drop, chicken", uncertain: false },
+  { current: "bone-in, skin-on turkey breast half", line: "bone-in turkey breast half", why: "the skin-on drop, poultry", uncertain: false },
+  { current: "whole chicken halves (bone-in, skin-on)", line: "whole chicken halves (bone-in)", why: "the skin-on drop, chicken", uncertain: false },
+  { current: "salmon fillets, skin-on", line: "salmon fillets", why: "the skin-on drop as ruled — see the concern above", uncertain: false },
+  { current: "skin-on salmon fillets", line: "salmon fillets", why: "the skin-on drop as ruled — see the concern above", uncertain: false },
+  { current: "pork belly, skin-on", line: "pork belly", why: "the skin-on drop as ruled — see the concern above", uncertain: false },
 
   { current: "corn tortillas (6-inch)", line: "corn tortillas (6-inch)", why: "already R7's shape; only the search term changes, and it already does", uncertain: false },
   { current: "large flour tortillas (10-inch)", line: "flour tortillas (large, 10-inch)", why: "R7's verbatim shape", uncertain: false },
@@ -478,6 +502,51 @@ export const PART_EDGES: readonly {
     parent: "fennel bulb", child: "fennel fronds", yieldQuantity: 3, yieldUnit: "tablespoon",
     coHarvestable: true, uncertain: false,
     why: "go-ahead N #416 YES. Hans: tops are part of the bulb and come with it. The bulb row ALREADY EXISTS (purchaseUnit `each`, pack '1 fennel bulb'), so `each` is in COMPONENT_BASIS_UNITS and the edge is admitted as authored.",
+  },
+];
+
+// ---------------------------------------------------------------------------
+// BUG-330 — the pint of cherry tomatoes that under-orders.
+// ---------------------------------------------------------------------------
+
+/**
+ * A8's Gate 1 caught one row failing at HEAD as well as after: `1 pint cherry
+ * tomatoes (12 ounce)` buys 298 g against a 340 g need. The pack is a PINT (a
+ * volume) and the need is in OUNCES (a weight), and nothing said how much of
+ * the need one pint gives — so `resolvePurchaseFields` left the count at 1.
+ * B1's per-ingredient pack yield is exactly the home for that.
+ *
+ * THE FIGURE: 10 ounces per dry pint. Two independent sources, and they agree:
+ *   • USDA FoodData Central, "Tomatoes, cherry, raw" — 1 cup = 149 g. A dry pint
+ *     is 2 cups, so 298 g = 10.51 oz. This is the same 149 g/cup already in the
+ *     row's own curated conversionRef, so the arithmetic is self-consistent.
+ *   • US retail: the clamshell labelled "pint" is netted at 10 oz (Sunset,
+ *     NatureSweet, and the store brands all print 10 oz).
+ *
+ * 10 is the LOWER of the two and that is the direction the ruling requires: a
+ * yield is a claim about how much a pack GIVES, so understating it buys one more
+ * pack and overstating it leaves the shopper short. D-WS9-182's rule, unchanged.
+ * 12 oz / 10 = 1.2 -> ceil -> TWO pints, 20 oz bought against 12 needed.
+ *
+ * ⚠️ `grape tomatoes` HAS NO CATALOG ROW. The figure is the same (grape and
+ * cherry are sold in the identical 10-oz clamshell) and is recorded here so the
+ * next lane does not re-derive it, but the apply will SKIP it with that reason
+ * rather than mint a row this block has no ruling for.
+ */
+export const PACK_YIELDS: readonly {
+  ingredient: string;
+  unit: string;
+  perPack: number;
+  source: string;
+  why: string;
+}[] = [
+  {
+    ingredient: "cherry tomatoes", unit: "ounce", perPack: 10, source: "human",
+    why: "BUG-330 — USDA FDC 149 g/cup gives 10.51 oz per dry pint; the retail clamshell is netted at 10 oz. 10 is the lower figure, so it never over-claims what a pint gives.",
+  },
+  {
+    ingredient: "grape tomatoes", unit: "ounce", perPack: 10, source: "human",
+    why: "BUG-330 — the same 10-oz clamshell. No catalog row today; recorded so the figure is not re-derived.",
   },
 ];
 
