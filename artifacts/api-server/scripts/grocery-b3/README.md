@@ -67,3 +67,52 @@ are all shipped functions, called unchanged.
    are the same COUNT unit; anything measured takes the default-purchase branch.
    Reading it as "same dimension" would have summed `1 bottle` into `1 cup`, which
    is the consumption modelling the ruling forbids.
+
+---
+
+## Parts B and E
+
+```bash
+# Part B — the reviewed catalog writes (dry-run, then apply, then apply again)
+node --env-file=.env --import tsx scripts/grocery-b3/readers.ts        # -> out/readers.txt  (blast radius)
+node --env-file=.env --import tsx scripts/grocery-b3/apply.ts --dry-run
+node --env-file=.env --import tsx scripts/grocery-b3/apply.ts --apply
+
+# Part D — the ten deliberate breaks
+node scripts/grocery-b3/breaks.mjs
+
+# Part E — the corpus at HEAD, then the diff and the gates
+node --env-file=.env --import tsx scripts/grocery-census/census.ts \
+  --plans f5556c19,56b03a57,c404a3cf,247cd7bb,14879176,b8e7f134,31c7a885,96a94410,425da049,ed238692,2b6e51a1,6e952e32,a8b0bbd5,316d0846,11653a33,353ce059,14397131,163875ec,d47d18aa,8a462408 \
+  --mode live --tag b3 --budget 6
+node --env-file=.env --import tsx scripts/grocery-b3/after.ts         # -> out/after.txt
+node --env-file=.env --import tsx scripts/grocery-b3/paths-after.ts   # -> out/paths-after.txt
+```
+
+`paths-after.ts` exists because the grocery corpus cannot show Rule 3: only two
+dev plans reach a component with a bought path and no scratch one, and neither is
+among the 20. It runs the scheduler on those two with each predicate in turn, and
+composes `GET /meals/:id` for all 10 bought-only components.
+
+## What Part E changed about its own design
+
+5. **Gate 4 cannot be a name comparison.** The first detector asked whether an
+   AFTER row's name shared a four-character prefix with the BEFORE row's, and
+   reported 33 failures that are the block working: `milk` → `whole milk`,
+   `eggs` → `large eggs`, `bread` → `sandwich bread` share no prefix, which is
+   the entire point of resolving. It now walks the user's own recurring TEXTS
+   through the resolver and asks where each one landed.
+
+6. **Gate 2's rider must stop at the need.** `at least[^,)]*` ran past the
+   opening bracket of the client's need suffix, so
+   `"4 can (14.5 oz) chicken broth, at least 1 low-sodium (6 cup)"` was read as
+   the rider `"at least 1 low-sodium (6 cup"` and reported as a measure. The
+   rider is a count; the measure is the sentence's, not the rider's.
+
+7. **Ruling 8's premise did not hold, and the first Part E run is the evidence.**
+   "Cans are counts, so this is allowed" — but the SHARE is 1.5 cup and 5.5 cup,
+   `buyUnitsForNeed` has to state it in the buy unit, and nothing related `cup`
+   to `can`. The fold landed and the rider did not, which would have REMOVED the
+   word "low-sodium" from a list that used to carry it on its own line. The four
+   broth pack yields in `proposals.ts` are the amendment that makes the ruled
+   outcome exist; deleting those four entries reverts it.

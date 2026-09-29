@@ -198,12 +198,12 @@ node --env-file=.env --import tsx scripts/grocery-b3/apply.ts --apply
 node --env-file=.env --import tsx scripts/grocery-b3/apply.ts --apply   # idempotence: all unchanged
 ```
 
-Six rows, three classes. Expected on a clean production catalog:
+Ten rows, three classes. Expected on a clean production catalog:
 
 | class | rows | what |
 |---|---|---|
 | P1 sandwich-bread pack | 1 update | `sandwich bread` → `1 loaf (20 oz, 22 slices)` |
-| P2 romaine pack yield | 1 update | `romaine lettuce hearts` → 6 cup per 2-pack, reviewed |
+| P2 pack yields | 5 updates | `romaine lettuce hearts` → 6 cup per 2-pack; the four broth rows → 1.8125 cup per can. All reviewed. |
 | P3 broth edge promotions | 4 updates | four `subsumes` edges → `reviewedByHuman: true`; **no label and no confidence moves** |
 
 **The same `DATABASE_URL` note as B1/B2 applies** — the script throws unless the
@@ -212,6 +212,13 @@ explicitly. Do not edit `.env`.
 
 `apply.ts` REFUSES a P3 row whose label is not `subsumes`. A promotion must never
 change a label; if production's edge says something else, stop and compare.
+
+> ⚠️ **The four broth pack yields are the reason the promotion is safe to ship.**
+> Without them the fold lands and its "at least 1 low-sodium" rider does not,
+> because the share is stated in cups and nothing relates a cup to a can — which
+> would REMOVE the word "low-sodium" from a list that used to carry it on its own
+> line. They also fix a pre-existing under-buy: a plan needing 8 cups of broth
+> ordered one 14.5 oz can. Deploy P2 and P3 together or neither.
 
 ### What is expected to differ on production
 

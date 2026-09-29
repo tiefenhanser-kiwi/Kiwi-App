@@ -1,0 +1,558 @@
+[grocery] B3 — PART E · THE CORPUS AT HEAD · September 29, 2026
+BEFORE = census tag `b2` (B2's after-state). AFTER = census tag `b3` (HEAD).
+Both are the REAL pipeline: consolidate → gap-fill (Haiku) → final (Sonnet)
+→ the client's composePackName. No number here is recomputed.
+
+## 11653a33  "Quick Weeknights"   38 → 37 rows
+   01. REMOVED
+        before: 1 lemon (1 each)
+   02. CHANGED
+        before: 1 lemon (1 each)
+        after : 3 lemons (3 each)
+
+## 14397131  "Hans's meals, week of Sep 16 (3)"   15 → 15 rows
+   01. CHANGED
+        before: 1 can (14.5 oz) low-sodium chicken broth (8 cup)
+        after : 5 can (14.5 oz) low-sodium chicken broth (8 cup)
+
+## 14879176  "Slow-Cooked Ragùs and Crispy Weeknight Wins"   59 → 57 rows
+   01. REMOVED
+        before: 1 loaf bread (1 each)
+   02. ADDED
+        after : 1 bag (1 lb) coffee (1 bag)
+   03. REMOVED
+        before: 1 bag (12 oz) coffee (1 each)
+   04. REMOVED
+        before: 1 dozen eggs egg yolks (4 each)
+   05. REMOVED
+        before: 1 dozen eggs (1 dozen)
+   06. ADDED
+        after : 1 dozen egg (4 each)
+   07. REMOVED
+        before: 1 lime (1 each)
+   08. ADDED
+        after : 2 limes (2 each)
+   09. REMOVED
+        before: 1 bottle (1 quart) milk (1 each)
+   10. REMOVED
+        before: 1 package (6-pack) paper towels (1 each)
+   11. ADDED
+        after : 1 pack (6 rolls) Paper towels (1 pack)
+   12. ADDED
+        after : 1 bag Pet treats (1 bag)
+   13. REMOVED
+        before: 1 box pet treats (1 each)
+   14. ADDED
+        after : 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)
+   15. REMOVED
+        before: 1 package (12-pack) toilet paper (1 each)
+   16. ADDED
+        after : 1 pack (12 rolls) Toilet paper (1 pack)
+   17. CHANGED
+        before: 1 bottle (1 quart / 32 oz) whole milk (¼ cup)
+        after : 1 gallon whole milk (¼ cup)
+
+## 163875ec  "Hans's meals, week of Sep 19 (3)"   59 → 59 rows
+   01. REMOVED
+        before: 1 loaf bread (1 each)
+   02. REMOVED
+        before: 1 dozen eggs (1 dozen)
+   03. ADDED
+        after : 1 dozen large eggs (1 dozen)
+   04. REMOVED
+        before: 1 bottle (1 quart) milk (1 each)
+   05. REMOVED
+        before: 1 package (6-pack) paper towels (1 each)
+   06. ADDED
+        after : 1 pack (6 rolls) Paper towels (1 pack)
+   07. ADDED
+        after : 1 bag Pet treats (1 bag)
+   08. REMOVED
+        before: 1 box pet treats (1 each)
+   09. ADDED
+        after : 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)
+   10. REMOVED
+        before: 1 package (12-pack) toilet paper (1 each)
+   11. ADDED
+        after : 1 pack (12 rolls) Toilet paper (1 pack)
+   12. ADDED
+        after : 1 gallon whole milk (1 gallon)
+
+## 247cd7bb  "Backyard BBQ to Bold Skillet: Grill-to-Stovetop Summer"   55 → 53 rows
+   01. REMOVED
+        before: 1 loaf bread (1 each)
+   02. ADDED
+        after : 1 bag (1 lb) coffee (1 bag)
+   03. REMOVED
+        before: 1 bag (12 oz) coffee (1 each)
+   04. REMOVED
+        before: 1 dozen eggs egg yolks (4 each)
+   05. REMOVED
+        before: 1 dozen eggs (1 dozen)
+   06. ADDED
+        after : 1 dozen egg (4 each)
+   07. REMOVED
+        before: 1 lime (1 each)
+   08. CHANGED
+        before: 2 limes (2 each)
+        after : 4 limes (4 each)
+   09. REMOVED
+        before: 1 bottle (1 quart) milk (1 each)
+   10. REMOVED
+        before: 1 package (6-pack) paper towels (1 each)
+   11. ADDED
+        after : 1 pack (6 rolls) Paper towels (1 pack)
+   12. ADDED
+        after : 1 bag Pet treats (1 bag)
+   13. REMOVED
+        before: 1 box pet treats (1 each)
+   14. ADDED
+        after : 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)
+   15. REMOVED
+        before: 1 package (12-pack) toilet paper (1 each)
+   16. ADDED
+        after : 1 pack (12 rolls) Toilet paper (1 pack)
+   17. ADDED
+        after : 1 gallon whole milk (1 gallon)
+
+## 2b6e51a1  "Hans's meals, week of Sep 18"   61 → 60 rows
+   01. REMOVED
+        before: 1 loaf bread (1 each)
+   02. ADDED
+        after : 1 bag (1 lb) Coffee (1 bag)
+   03. REMOVED
+        before: 1 bag (12 oz) coffee (1 each)
+   04. REMOVED
+        before: 1 dozen eggs (1 dozen)
+   05. REMOVED
+        before: 1 bottle (1 quart) milk (1 each)
+   06. REMOVED
+        before: 1 package (6-pack) paper towels (1 each)
+   07. ADDED
+        after : 1 pack (6 rolls) Paper towels (1 pack)
+   08. ADDED
+        after : 1 bag Pet treats (1 bag)
+   09. REMOVED
+        before: 1 box pet treats (1 each)
+   10. ADDED
+        after : 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)
+   11. REMOVED
+        before: 1 package (12-pack) toilet paper (1 each)
+   12. ADDED
+        after : 1 pack (12 rolls) Toilet paper (1 pack)
+   13. ADDED
+        after : 1 gallon whole milk (1 gallon)
+
+## 316d0846  "Rustic Italian Stovetop Nights"   24 → 24 rows
+
+## 31c7a885  "Hans's meals, week of Sep 19"   62 → 60 rows
+   01. REMOVED
+        before: 1 loaf bread (1 each)
+   02. REMOVED
+        before: 1 dozen eggs (1 dozen)
+   03. REMOVED
+        before: 1 bottle (1 quart) milk (1 each)
+   04. REMOVED
+        before: 1 package (6-pack) paper towels (1 each)
+   05. ADDED
+        after : 1 pack (6 rolls) Paper towels (1 pack)
+   06. ADDED
+        after : 1 bag Pet treats (1 bag)
+   07. REMOVED
+        before: 1 box pet treats (1 each)
+   08. ADDED
+        after : 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)
+   09. REMOVED
+        before: 1 package (12-pack) toilet paper (1 each)
+   10. ADDED
+        after : 1 pack (12 rolls) Toilet paper (1 pack)
+   11. CHANGED
+        before: 1 bottle (1 quart / 32 oz) whole milk (1 cup)
+        after : 1 gallon whole milk (1 cup)
+
+## 353ce059  "Hans's meals, week of Sep 17 (2)"   25 → 25 rows
+   01. CHANGED
+        before: 1 can (14.5 oz) chicken broth (2 cup)
+        after : 2 can (14.5 oz) chicken broth (2 cup)
+
+## 425da049  "Amy's Fresh and Easy Family Meals"   64 → 63 rows
+   01. CHANGED
+        before: 1 can (14.5 oz) chicken broth (3 cup)
+        after : 2 can (14.5 oz) chicken broth (3 cup)
+   02. REMOVED
+        before: 1 lemon (1 each)
+   03. CHANGED
+        before: 5 lemons (5 each)
+        after : 9 lemons (9 each)
+
+## 56b03a57  "Comfort Classics with a Saturday Showstopper"   63 → 61 rows
+   01. REMOVED
+        before: 1 loaf bread (1 each)
+   02. ADDED
+        after : 1 bag (1 lb) coffee (1 bag)
+   03. REMOVED
+        before: 1 bag (12 oz) coffee (1 each)
+   04. REMOVED
+        before: 1 dozen eggs (1 dozen)
+   05. ADDED
+        after : 1 dozen large eggs (1 dozen)
+   06. REMOVED
+        before: 1 lime (1 each)
+   07. CHANGED
+        before: 2 limes (2 each)
+        after : 4 limes (4 each)
+   08. REMOVED
+        before: 1 bottle (1 quart) milk (1 each)
+   09. REMOVED
+        before: 1 package (6-pack) paper towels (1 each)
+   10. ADDED
+        after : 1 pack (6 rolls) Paper towels (1 pack)
+   11. ADDED
+        after : 1 bag Pet treats (1 bag)
+   12. REMOVED
+        before: 1 box pet treats (1 each)
+   13. ADDED
+        after : 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)
+   14. REMOVED
+        before: 1 package (12-pack) toilet paper (1 each)
+   15. ADDED
+        after : 1 pack (12 rolls) Toilet paper (1 pack)
+   16. CHANGED
+        before: 1 bottle (1 quart / 32 oz) whole milk (½ cup)
+        after : 1 gallon whole milk (½ cup)
+
+## 6e952e32  "E's meals, week of Sep 24 (2)"   61 → 61 rows
+
+## 8a462408  "Flame & Fork: Grill-Fired Weeknights with One Showstopper"   61 → 60 rows
+   01. REMOVED
+        before: 1 loaf bread (1 each)
+   02. ADDED
+        after : 1 bag (1 lb) coffee (1 bag)
+   03. REMOVED
+        before: 1 bag (12 oz) coffee (1 each)
+   04. REMOVED
+        before: 1 dozen eggs (1 dozen)
+   05. ADDED
+        after : 1 dozen large eggs (1 dozen)
+   06. REMOVED
+        before: 1 lime (1 each)
+   07. CHANGED
+        before: 4 limes (4 each)
+        after : 6 limes (6 each)
+   08. REMOVED
+        before: 1 bottle (1 quart) milk (1 each)
+   09. REMOVED
+        before: 1 package (6-pack) paper towels (1 each)
+   10. ADDED
+        after : 1 pack (6 rolls) Paper towels (1 pack)
+   11. ADDED
+        after : 1 bag Pet treats (1 bag)
+   12. REMOVED
+        before: 1 box pet treats (1 each)
+   13. ADDED
+        after : 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)
+   14. REMOVED
+        before: 1 package (12-pack) toilet paper (1 each)
+   15. ADDED
+        after : 1 pack (12 rolls) Toilet paper (1 pack)
+   16. ADDED
+        after : 1 gallon whole milk (1 gallon)
+
+## 96a94410  "Soups, Subs, and Skillet Nights"   78 → 77 rows
+   01. CHANGED
+        before: 1 can (14.5 oz) chicken broth (4½ cup)
+        after : 4 can (14.5 oz) chicken broth, at least 1 low-sodium (6 cup)
+   02. REMOVED
+        before: 1 can (14.5 oz) low-sodium chicken broth (1½ cup)
+
+## a8b0bbd5  "Cozy Fall Vegetarian Nights"   34 → 34 rows
+
+## b8e7f134  "Cozy Roasted Weeknights with Bold Mexican Flavors"   58 → 56 rows
+   01. CHANGED
+        before: 1 can (14.5 oz) beef broth (2 cup)
+        after : 2 can (14.5 oz) beef broth (2 cup)
+   02. REMOVED
+        before: 1 loaf bread (1 each)
+   03. CHANGED
+        before: 1 can (14.5 oz) chicken broth (3½ cup)
+        after : 2 can (14.5 oz) chicken broth (3½ cup)
+   04. ADDED
+        after : 1 bag (1 lb) coffee (1 bag)
+   05. REMOVED
+        before: 1 bag (12 oz) coffee (1 each)
+   06. REMOVED
+        before: 1 dozen eggs (1 dozen)
+   07. ADDED
+        after : 1 dozen large eggs (1 dozen)
+   08. REMOVED
+        before: 1 lime (1 each)
+   09. CHANGED
+        before: 5 limes (5 each)
+        after : 7 limes (7 each)
+   10. REMOVED
+        before: 1 bottle (1 quart) milk (1 each)
+   11. REMOVED
+        before: 1 package (6-pack) paper towels (1 each)
+   12. ADDED
+        after : 1 pack (6 rolls) Paper towels (1 pack)
+   13. ADDED
+        after : 1 bag Pet treats (1 bag)
+   14. REMOVED
+        before: 1 box pet treats (1 each)
+   15. ADDED
+        after : 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)
+   16. REMOVED
+        before: 1 package (12-pack) toilet paper (1 each)
+   17. ADDED
+        after : 1 pack (12 rolls) Toilet paper (1 pack)
+   18. CHANGED
+        before: 1 bottle (1 quart / 32 oz) whole milk (1 cup)
+        after : 1 gallon whole milk (1 cup)
+
+## c404a3cf  "2Comfort Classics with a Saturday Showstopper"   63 → 61 rows
+   01. REMOVED
+        before: 1 loaf bread (1 each)
+   02. ADDED
+        after : 1 bag (1 lb) coffee (1 bag)
+   03. REMOVED
+        before: 1 bag (12 oz) coffee (1 each)
+   04. REMOVED
+        before: 1 dozen eggs (1 dozen)
+   05. ADDED
+        after : 1 dozen large eggs (1 dozen)
+   06. REMOVED
+        before: 1 lime (1 each)
+   07. CHANGED
+        before: 2 limes (2 each)
+        after : 4 limes (4 each)
+   08. REMOVED
+        before: 1 bottle (1 quart) milk (1 each)
+   09. REMOVED
+        before: 1 package (6-pack) paper towels (1 each)
+   10. ADDED
+        after : 1 pack (6 rolls) Paper towels (1 pack)
+   11. ADDED
+        after : 1 bag Pet treats (1 bag)
+   12. REMOVED
+        before: 1 box pet treats (1 each)
+   13. ADDED
+        after : 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)
+   14. REMOVED
+        before: 1 package (12-pack) toilet paper (1 each)
+   15. ADDED
+        after : 1 pack (12 rolls) Toilet paper (1 pack)
+   16. CHANGED
+        before: 1 bottle (1 quart / 32 oz) whole milk (½ cup)
+        after : 1 gallon whole milk (½ cup)
+
+## d47d18aa  "Sunday Roast Energy, Five Nights Running"   57 → 56 rows
+   01. CHANGED
+        before: 1 can (14.5 oz) beef broth (1½ cup)
+        after : 4 can (14.5 oz) low-sodium beef broth (7 cup)
+   02. REMOVED
+        before: 1 can (14.5 oz) low-sodium beef broth (5½ cup)
+   03. CHANGED
+        before: 1 can (14.5 oz) low-sodium chicken broth (3 cup)
+        after : 2 can (14.5 oz) low-sodium chicken broth (3 cup)
+
+## ed238692  "Hans's meals, week of Sep 24"   56 → 55 rows
+   01. REMOVED
+        before: 1 loaf bread (1 each)
+   02. ADDED
+        after : 1 bag (1 lb) coffee (1 bag)
+   03. REMOVED
+        before: 1 bag (12 oz) coffee (1 each)
+   04. REMOVED
+        before: 1 dozen eggs (1 dozen)
+   05. ADDED
+        after : 1 dozen large eggs (1 dozen)
+   06. REMOVED
+        before: 1 lime (1 each)
+   07. ADDED
+        after : 2 limes (2 each)
+   08. REMOVED
+        before: 1 bottle (1 quart) milk (1 each)
+   09. REMOVED
+        before: 1 package (6-pack) paper towels (1 each)
+   10. ADDED
+        after : 1 pack (6 rolls) Paper towels (1 pack)
+   11. ADDED
+        after : 1 bag Pet treats (1 bag)
+   12. REMOVED
+        before: 1 box pet treats (1 each)
+   13. ADDED
+        after : 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)
+   14. REMOVED
+        before: 1 package (12-pack) toilet paper (1 each)
+   15. ADDED
+        after : 1 pack (12 rolls) Toilet paper (1 pack)
+   16. CHANGED
+        before: 1 bottle (1 quart / 32 oz) whole milk (1 cup)
+        after : 1 gallon whole milk (1 cup)
+
+## f5556c19  "Backyard Farewell to Summer"   48 → 47 rows
+   01. REMOVED
+        before: 1 loaf bread (1 each)
+   02. ADDED
+        after : 1 bag (1 lb) coffee (1 bag)
+   03. REMOVED
+        before: 1 bag (12 oz) coffee (1 each)
+   04. REMOVED
+        before: 1 dozen eggs (1 dozen)
+   05. ADDED
+        after : 1 dozen large eggs (1 dozen)
+   06. REMOVED
+        before: 1 lime (1 each)
+   07. CHANGED
+        before: 12 limes (12 each)
+        after : 16 limes (16 each)
+   08. REMOVED
+        before: 1 bottle (1 quart) milk (1 each)
+   09. REMOVED
+        before: 1 package (6-pack) paper towels (1 each)
+   10. ADDED
+        after : 1 pack (6 rolls) Paper towels (1 pack)
+   11. ADDED
+        after : 1 bag Pet treats (1 bag)
+   12. REMOVED
+        before: 1 box pet treats (1 each)
+   13. ADDED
+        after : 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)
+   14. REMOVED
+        before: 1 package (12-pack) toilet paper (1 each)
+   15. ADDED
+        after : 1 pack (12 rolls) Toilet paper (1 pack)
+   16. ADDED
+        after : 1 gallon whole milk (1 gallon)
+
+==============================================================================
+rows   BEFORE 1041   AFTER 1021   (-20)
+       byte-identical 930 · changed 22 · added 69 · removed 89
+recurring-marked rows  BEFORE 96   AFTER 96
+
+GATES
+  1 — packs × size >= need    FAIL(new) 0 · fail(total) 0 · unverifiable 638
+  2 — "at least" + a measure  fail 0
+  3 — H1 varieties on a line  fail 0
+  4 — a recurring row keeps its mark  fail 0
+  VERDICT: PASS
+
+## RULING 11 — GATE 1's UNVERIFIABLE RESIDUE, BY REASON
+   (no fix in this block; this is what the gate actually covers)
+    621  unit family with no conversion
+          [11653a33] 1 packet fajita seasoning (2 tbsp) — pack 1 × 1 packet (count/pack-noun) vs need 2 tbsp (volume)
+          [11653a33] 1 package (10 ct) flour tortillas (8 each) — pack 1 × 1 package (count/pack-noun) vs need 8 each (count/pack-noun)
+          [11653a33] 1 bunch cilantro (1 bunch) — pack 1 × 1 bunch (count/pack-noun) vs need 1 bunch (count/pack-noun)
+          [11653a33] 1 container (16 oz) sour cream (1½ cup) — pack 1 × 1 container (count/pack-noun) vs need 1.5 cup (volume)
+          [11653a33] 1 box (12 ct) taco shells (12 each) — pack 1 × 1 box (count/pack-noun) vs need 12 each (count/pack-noun)
+          [11653a33] 1 block (8 oz) cheddar (1 cup) — pack 1 × 1 block (count/pack-noun) vs need 1 cup (volume)
+     17  range
+          [14879176] 1 box (12-13 oz) dried pappardelle pasta (12 ounce) — pack 1 × 1 box (count/pack-noun) vs need 12 ounce (weight)
+          [163875ec] 1 box (5-6 oz) croutons (1 cup) — pack 1 × 1 box (count/pack-noun) vs need 1 cup (volume)
+          [2b6e51a1] 1 container (4-5 oz) flaky sea salt (¼ teaspoon) — pack 1 × 1 container (count/pack-noun) vs need 0.25 teaspoon (volume)
+          [316d0846] 1 container (4-5 oz) flaky sea salt (¼ teaspoon) — pack 1 × 1 container (count/pack-noun) vs need 0.25 teaspoon (volume)
+          [31c7a885] 1 bunch (~6-8 scallions) scallions (3 each) — pack 1 × 1 bunch (count/pack-noun) vs need 3 each (count/pack-noun)
+          [353ce059] 1 box (5-6 oz) croutons (1 cup) — pack 1 × 1 box (count/pack-noun) vs need 1 cup (volume)
+
+## COST AND CATALOG WRITES
+   AI spend for the 20 lists:  BEFORE $0.5051   AFTER $0.0773
+   intercepted Ingredient writes: BEFORE 26 (23 ids)   AFTER 26 (23 ids)
+   ids written AFTER but not BEFORE: 0  (ruling 6: 0 recurring-caused catalog writes)
+
+## THE RECURRING ROWS, AFTER, IN FULL (96)
+   [11653a33] 3 lemons (3 each)   ·  recurring 2 each · meals 1 each · SUMMED
+   [14879176] 1 gallon whole milk (¼ cup)   ·  recurring 1 gallon · meals 0.25 cup · display-both
+   [14879176] 1 dozen large eggs (5 each)   ·  recurring 1 dozen · meals 5 each · display-both
+   [14879176] 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)   ·  recurring 1 loaf · plan needs none · display-both
+   [14879176] 1 bag (1 lb) coffee (1 bag)   ·  recurring 1 bag · plan needs none · display-both
+   [14879176] 1 bag Pet treats (1 bag)   ·  recurring 1 bag · plan needs none · display-both · household
+   [14879176] 1 pack (6 rolls) Paper towels (1 pack)   ·  recurring 1 pack · plan needs none · display-both · household
+   [14879176] 1 pack (12 rolls) Toilet paper (1 pack)   ·  recurring 1 pack · plan needs none · display-both · household
+   [14879176] 1 bunch bananas (1 bunch)   ·  recurring 1 bunch · plan needs none · display-both
+   [14879176] 2 limes (2 each)   ·  recurring 2 each · plan needs none · SUMMED
+   [163875ec] 1 pack (6 rolls) Paper towels (1 pack)   ·  recurring 1 pack · plan needs none · display-both · household
+   [163875ec] 1 pack (12 rolls) Toilet paper (1 pack)   ·  recurring 1 pack · plan needs none · display-both · household
+   [163875ec] 1 bunch bananas (1 bunch)   ·  recurring 1 bunch · plan needs none · display-both
+   [163875ec] 1 bag Pet treats (1 bag)   ·  recurring 1 bag · plan needs none · display-both · household
+   [163875ec] 1 dozen large eggs (1 dozen)   ·  recurring 1 dozen · plan needs none · display-both
+   [163875ec] 1 gallon whole milk (1 gallon)   ·  recurring 1 gallon · plan needs none · display-both
+   [163875ec] 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)   ·  recurring 1 loaf · plan needs none · display-both
+   [247cd7bb] 1 dozen large eggs (2 each)   ·  recurring 1 dozen · meals 2 each · display-both
+   [247cd7bb] 4 limes (4 each)   ·  recurring 2 each · meals 2 each · SUMMED
+   [247cd7bb] 1 gallon whole milk (1 gallon)   ·  recurring 1 gallon · plan needs none · display-both
+   [247cd7bb] 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)   ·  recurring 1 loaf · plan needs none · display-both
+   [247cd7bb] 1 bag (1 lb) coffee (1 bag)   ·  recurring 1 bag · plan needs none · display-both
+   [247cd7bb] 1 bag Pet treats (1 bag)   ·  recurring 1 bag · plan needs none · display-both · household
+   [247cd7bb] 1 pack (6 rolls) Paper towels (1 pack)   ·  recurring 1 pack · plan needs none · display-both · household
+   [247cd7bb] 1 pack (12 rolls) Toilet paper (1 pack)   ·  recurring 1 pack · plan needs none · display-both · household
+   [247cd7bb] 1 bunch bananas (1 bunch)   ·  recurring 1 bunch · plan needs none · display-both
+   [2b6e51a1] 1 dozen large eggs (2 each)   ·  recurring 1 dozen · meals 2 each · display-both
+   [2b6e51a1] 1 pack (6 rolls) Paper towels (1 pack)   ·  recurring 1 pack · plan needs none · display-both · household
+   [2b6e51a1] 1 pack (12 rolls) Toilet paper (1 pack)   ·  recurring 1 pack · plan needs none · display-both · household
+   [2b6e51a1] 1 bag (1 lb) Coffee (1 bag)   ·  recurring 1 bag · plan needs none · display-both
+   [2b6e51a1] 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)   ·  recurring 1 loaf · plan needs none · display-both
+   [2b6e51a1] 1 gallon whole milk (1 gallon)   ·  recurring 1 gallon · plan needs none · display-both
+   [2b6e51a1] 1 bunch bananas (1 bunch)   ·  recurring 1 bunch · plan needs none · display-both
+   [2b6e51a1] 1 bag Pet treats (1 bag)   ·  recurring 1 bag · plan needs none · display-both · household
+   [31c7a885] 1 gallon whole milk (1 cup)   ·  recurring 1 gallon · meals 1 cup · display-both
+   [31c7a885] 1 dozen large eggs (5 each)   ·  recurring 1 dozen · meals 5 each · display-both
+   [31c7a885] 1 pack (6 rolls) Paper towels (1 pack)   ·  recurring 1 pack · plan needs none · display-both · household
+   [31c7a885] 1 pack (12 rolls) Toilet paper (1 pack)   ·  recurring 1 pack · plan needs none · display-both · household
+   [31c7a885] 1 bunch bananas (1 bunch)   ·  recurring 1 bunch · plan needs none · display-both
+   [31c7a885] 1 bag Pet treats (1 bag)   ·  recurring 1 bag · plan needs none · display-both · household
+   [31c7a885] 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)   ·  recurring 1 loaf · plan needs none · display-both
+   [425da049] 9 lemons (9 each)   ·  recurring 2 each · meals 7 each · SUMMED
+   [56b03a57] 1 gallon whole milk (½ cup)   ·  recurring 1 gallon · meals 0.5 cup · display-both
+   [56b03a57] 1 dozen large eggs (1 dozen)   ·  recurring 1 dozen · plan needs none · display-both
+   [56b03a57] 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)   ·  recurring 1 loaf · plan needs none · display-both
+   [56b03a57] 1 bag (1 lb) coffee (1 bag)   ·  recurring 1 bag · plan needs none · display-both
+   [56b03a57] 1 bag Pet treats (1 bag)   ·  recurring 1 bag · plan needs none · display-both · household
+   [56b03a57] 1 pack (6 rolls) Paper towels (1 pack)   ·  recurring 1 pack · plan needs none · display-both · household
+   [56b03a57] 1 pack (12 rolls) Toilet paper (1 pack)   ·  recurring 1 pack · plan needs none · display-both · household
+   [56b03a57] 1 bunch bananas (1 bunch)   ·  recurring 1 bunch · plan needs none · display-both
+   [56b03a57] 4 limes (4 each)   ·  recurring 2 each · plan needs none · SUMMED
+   [8a462408] 6 limes (6 each)   ·  recurring 2 each · meals 4 each · SUMMED
+   [8a462408] 1 dozen large eggs (1 dozen)   ·  recurring 1 dozen · plan needs none · display-both
+   [8a462408] 1 gallon whole milk (1 gallon)   ·  recurring 1 gallon · plan needs none · display-both
+   [8a462408] 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)   ·  recurring 1 loaf · plan needs none · display-both
+   [8a462408] 1 bag (1 lb) coffee (1 bag)   ·  recurring 1 bag · plan needs none · display-both
+   [8a462408] 1 bag Pet treats (1 bag)   ·  recurring 1 bag · plan needs none · display-both · household
+   [8a462408] 1 pack (6 rolls) Paper towels (1 pack)   ·  recurring 1 pack · plan needs none · display-both · household
+   [8a462408] 1 pack (12 rolls) Toilet paper (1 pack)   ·  recurring 1 pack · plan needs none · display-both · household
+   [8a462408] 1 bunch bananas (1 bunch)   ·  recurring 1 bunch · plan needs none · display-both
+   [b8e7f134] 7 limes (7 each)   ·  recurring 2 each · meals 5 each · SUMMED
+   [b8e7f134] 1 gallon whole milk (1 cup)   ·  recurring 1 gallon · meals 1 cup · display-both
+   [b8e7f134] 1 dozen large eggs (1 dozen)   ·  recurring 1 dozen · plan needs none · display-both
+   [b8e7f134] 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)   ·  recurring 1 loaf · plan needs none · display-both
+   [b8e7f134] 1 bag (1 lb) coffee (1 bag)   ·  recurring 1 bag · plan needs none · display-both
+   [b8e7f134] 1 bag Pet treats (1 bag)   ·  recurring 1 bag · plan needs none · display-both · household
+   [b8e7f134] 1 pack (6 rolls) Paper towels (1 pack)   ·  recurring 1 pack · plan needs none · display-both · household
+   [b8e7f134] 1 pack (12 rolls) Toilet paper (1 pack)   ·  recurring 1 pack · plan needs none · display-both · household
+   [b8e7f134] 1 bunch bananas (1 bunch)   ·  recurring 1 bunch · plan needs none · display-both
+   [c404a3cf] 1 gallon whole milk (½ cup)   ·  recurring 1 gallon · meals 0.5 cup · display-both
+   [c404a3cf] 1 dozen large eggs (1 dozen)   ·  recurring 1 dozen · plan needs none · display-both
+   [c404a3cf] 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)   ·  recurring 1 loaf · plan needs none · display-both
+   [c404a3cf] 1 bag (1 lb) coffee (1 bag)   ·  recurring 1 bag · plan needs none · display-both
+   [c404a3cf] 1 bag Pet treats (1 bag)   ·  recurring 1 bag · plan needs none · display-both · household
+   [c404a3cf] 1 pack (6 rolls) Paper towels (1 pack)   ·  recurring 1 pack · plan needs none · display-both · household
+   [c404a3cf] 1 pack (12 rolls) Toilet paper (1 pack)   ·  recurring 1 pack · plan needs none · display-both · household
+   [c404a3cf] 1 bunch bananas (1 bunch)   ·  recurring 1 bunch · plan needs none · display-both
+   [c404a3cf] 4 limes (4 each)   ·  recurring 2 each · plan needs none · SUMMED
+   [ed238692] 1 gallon whole milk (1 cup)   ·  recurring 1 gallon · meals 1 cup · display-both
+   [ed238692] 1 dozen large eggs (1 dozen)   ·  recurring 1 dozen · plan needs none · display-both
+   [ed238692] 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)   ·  recurring 1 loaf · plan needs none · display-both
+   [ed238692] 1 bag (1 lb) coffee (1 bag)   ·  recurring 1 bag · plan needs none · display-both
+   [ed238692] 1 bag Pet treats (1 bag)   ·  recurring 1 bag · plan needs none · display-both · household
+   [ed238692] 1 pack (6 rolls) Paper towels (1 pack)   ·  recurring 1 pack · plan needs none · display-both · household
+   [ed238692] 1 pack (12 rolls) Toilet paper (1 pack)   ·  recurring 1 pack · plan needs none · display-both · household
+   [ed238692] 1 bunch bananas (1 bunch)   ·  recurring 1 bunch · plan needs none · display-both
+   [ed238692] 2 limes (2 each)   ·  recurring 2 each · plan needs none · SUMMED
+   [f5556c19] 16 limes (16 each)   ·  recurring 2 each · meals 14 each · SUMMED
+   [f5556c19] 1 dozen large eggs (1 dozen)   ·  recurring 1 dozen · plan needs none · display-both
+   [f5556c19] 1 gallon whole milk (1 gallon)   ·  recurring 1 gallon · plan needs none · display-both
+   [f5556c19] 1 loaf (20 oz, 22 slices) sandwich bread (1 loaf)   ·  recurring 1 loaf · plan needs none · display-both
+   [f5556c19] 1 bag (1 lb) coffee (1 bag)   ·  recurring 1 bag · plan needs none · display-both
+   [f5556c19] 1 bag Pet treats (1 bag)   ·  recurring 1 bag · plan needs none · display-both · household
+   [f5556c19] 1 pack (6 rolls) Paper towels (1 pack)   ·  recurring 1 pack · plan needs none · display-both · household
+   [f5556c19] 1 pack (12 rolls) Toilet paper (1 pack)   ·  recurring 1 pack · plan needs none · display-both · household
+   [f5556c19] 1 bunch bananas (1 bunch)   ·  recurring 1 bunch · plan needs none · display-both

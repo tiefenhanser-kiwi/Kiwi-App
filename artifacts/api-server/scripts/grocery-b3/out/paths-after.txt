@@ -1,0 +1,57 @@
+# [grocery] B3 Part E — Rule 3 on the only-bought components (10)
+
+## (a) GET /meals/:id — one path each
+   f2ec6ed7  "Beef and Pork Meatballs in San Marzano Tomato Sauce"  component "seasoning"  steps on the wire 12  ·  this component: 1/1 bought step(s) PRESENT  ·  components carrying two paths: 0
+        [9] bought — Stir in ½ teaspoon Italian seasoning blend in place of the oregano and red pepper flakes.
+   f46b65c4  "Classic Chicken Noodle Soup"  component "broth"  steps on the wire 11  ·  this component: 2/2 bought step(s) PRESENT  ·  components carrying two paths: 0
+        [5] bought — Pour both 32-oz low-sodium chicken broth cartons (8 cups total) into a large pot, add the smashe
+        [6] bought — Reduce to a simmer and cook for 10 minutes to infuse the broth, then discard the thyme sprigs, b
+   3a516539  "Breakfast Burritos"  component "salsa"  steps on the wire 8  ·  this component: 1/1 bought step(s) PRESENT  ·  components carrying two paths: 0
+        [5] bought — Measure ½ cup jarred salsa into a small bowl for spooning.
+   6776a8ef  "Broccoli Cheddar Soup"  component "broth"  steps on the wire 12  ·  this component: 1/1 bought step(s) PRESENT  ·  components carrying two paths: 0
+        [3] bought — Measure 2 cups low-sodium chicken broth from the carton.
+   1b3f12b0  "Broccoli Cheddar Soup"  component "broccoli"  steps on the wire 11  ·  this component: 1/1 bought step(s) PRESENT  ·  components carrying two paths: 0
+        [2] bought — Open the 12 oz bag of pre-cut broccoli florets and break any large pieces in half so they're rou
+   5a25f11d  "Beef Panang Curry"  component "paste"  steps on the wire 9  ·  this component: 1/1 bought step(s) PRESENT  ·  components carrying two paths: 0
+        [1] bought — If using a can of store-bought Panang curry paste (e.g. Maesri or Maeploy), open and measure 3 t
+   a33bad3e  "Chicken Pesto Panini"  component "pesto"  steps on the wire 8  ·  this component: 1/1 bought step(s) PRESENT  ·  components carrying two paths: 0
+        [3] bought — Measure ½ cup basil pesto from the jar.
+   beec43ff  "Sopes with Refried Beans, Chorizo, and Crumbled Queso Fresco"  component "beans"  steps on the wire 10  ·  this component: 1/1 bought step(s) PRESENT  ·  components carrying two paths: 0
+        [7] bought — Empty the 15 oz can of refried beans into a small saucepan and warm over medium-low, stirring oc
+   2fd92c93  "Sopes with Refried Beans, Chorizo, and Crumbled Queso Fresco"  component "beans"  steps on the wire 10  ·  this component: 1/1 bought step(s) PRESENT  ·  components carrying two paths: 0
+        [7] bought — Empty the 15 oz can of refried beans into a small saucepan and warm over medium-low, stirring oc
+   106693d7  "Sopes with Refried Beans, Chorizo, and Crumbled Queso Fresco"  component "beans"  steps on the wire 10  ·  this component: 1/1 bought step(s) PRESENT  ·  components carrying two paths: 0
+        [7] bought — Empty the 15 oz can of refried beans into a small saucepan and warm over medium-low, stirring oc
+   VERDICT: every component returns exactly one path, and the bought-only ones are present
+
+## (b) the scheduler, BEFORE vs AFTER, on the two dev plans that reach an only-bought component
+   plans: 04ddfc4f, bf205267
+
+   ### 04ddfc4f  "Saucy Pots, Crispy Shells, and a Fancy Italian Night"
+      meal "Sopes with Refried Beans, Chorizo, and Crumbled Queso Fresco"
+         steps scheduled   BEFORE 13  ->  AFTER 14
+         totalEstimated    BEFORE 64 min  ->  AFTER 67 min
+         "Sopes with Refried Beans, Chorizo, and Crumbled Queso Fresco" · component "beans"
+             BEFORE: MISSING  [7] Empty the 15 oz can of refried beans into a small saucepan and warm over medium-low, stirrin
+             AFTER:  present  [7] Empty the 15 oz can of refried beans into a small saucepan and warm over medium-low, stirrin
+
+   ### bf205267  "Backyard BBQ Nights with a Fancy Italian Anchor"
+      meal "Sopes with Refried Beans, Chorizo, and Crumbled Queso Fresco"
+         steps scheduled   BEFORE 13  ->  AFTER 14
+         totalEstimated    BEFORE 64 min  ->  AFTER 67 min
+         "Sopes with Refried Beans, Chorizo, and Crumbled Queso Fresco" · component "beans"
+             BEFORE: MISSING  [7] Empty the 15 oz can of refried beans into a small saucepan and warm over medium-low, stirrin
+             AFTER:  present  [7] Empty the 15 oz can of refried beans into a small saucepan and warm over medium-low, stirrin
+
+## (c) every one of the 10, at the predicate level (no plan needed)
+   f2ec6ed7 "Beef and Pork Meatballs in San Marzano Tomato Sauce" · "seasoning": 13 steps · BEFORE kept 11 · AFTER kept 12 · recovered 1 (= its 1 bought step(s))
+   f46b65c4 "Classic Chicken Noodle Soup" · "broth": 12 steps · BEFORE kept 9 · AFTER kept 11 · recovered 2 (= its 2 bought step(s))
+   3a516539 "Breakfast Burritos" · "salsa": 8 steps · BEFORE kept 7 · AFTER kept 8 · recovered 1 (= its 1 bought step(s))
+   6776a8ef "Broccoli Cheddar Soup" · "broth": 13 steps · BEFORE kept 11 · AFTER kept 12 · recovered 1 (= its 1 bought step(s))
+   1b3f12b0 "Broccoli Cheddar Soup" · "broccoli": 12 steps · BEFORE kept 10 · AFTER kept 11 · recovered 1 (= its 1 bought step(s))
+   5a25f11d "Beef Panang Curry" · "paste": 9 steps · BEFORE kept 8 · AFTER kept 9 · recovered 1 (= its 1 bought step(s))
+   a33bad3e "Chicken Pesto Panini" · "pesto": 9 steps · BEFORE kept 7 · AFTER kept 8 · recovered 1 (= its 1 bought step(s))
+   beec43ff "Sopes with Refried Beans, Chorizo, and Crumbled Queso Fresco" · "beans": 10 steps · BEFORE kept 9 · AFTER kept 10 · recovered 1 (= its 1 bought step(s))
+   2fd92c93 "Sopes with Refried Beans, Chorizo, and Crumbled Queso Fresco" · "beans": 10 steps · BEFORE kept 9 · AFTER kept 10 · recovered 1 (= its 1 bought step(s))
+   106693d7 "Sopes with Refried Beans, Chorizo, and Crumbled Queso Fresco" · "beans": 10 steps · BEFORE kept 9 · AFTER kept 10 · recovered 1 (= its 1 bought step(s))
+   steps recovered across the 10 components: 11

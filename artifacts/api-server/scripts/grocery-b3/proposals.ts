@@ -74,6 +74,41 @@ export const YIELD_FIXES: YieldFix[] = [
       "yields 6 — the same 6 cups the `romaine lettuce` head row already carries " +
       "as a human-reviewed yield. The two agree on purpose: they are one food.",
   },
+  // ── AMENDMENT, AND IT IS A STEP THE RULINGS DID NOT NAME ──────────────────
+  //
+  // Ruling 8 says the promoted broth edges make "a plain broth demand may carry
+  // 'at least 1 low-sodium'" reachable, on the grounds that "cans are counts".
+  // MEASURED ON THE CORPUS, THAT PREMISE DOES NOT HOLD, and the first Part E run
+  // is the evidence: the fold lands (96a94410's chicken broth went 4½ → 6 cup,
+  // d47d18aa's beef broth 1½ → 7) and the rider does NOT appear on either line.
+  //
+  // The pack is a can; the SHARE is 1.5 cup and 5.5 cup. `buyUnitsForNeed` has to
+  // state the share in the buy unit, nothing relates `cup` to `can` for broth, so
+  // it returns null and `applyVarietyRider` states no rider at all. Shipping the
+  // promotion without this would REMOVE the word "low-sodium" from a list that
+  // used to carry it on its own line — a regression, dressed as a fold.
+  //
+  // The same missing conversion is also a live under-buy that predates this
+  // block entirely: a plan needing 8 cups of broth ordered ONE 14.5 oz can,
+  // because the pack count could not be derived either. 19 broth rows across the
+  // 20 lists are in that state, and Gate 1 cannot see any of them — they are the
+  // largest single class in ruling 11's "unit family with no conversion" residue.
+  //
+  // The figure is arithmetic, not judgement: 14.5 fl oz ÷ 8 = 1.8125 cups.
+  // Revert = delete these four entries.
+  ...(["chicken broth", "low-sodium chicken broth", "beef broth", "low-sodium beef broth"].map(
+    (canonical): YieldFix => ({
+      canonical,
+      unit: "cup",
+      perPack: 1.8125,
+      source: "D-WS9-284 (ruling 8 amendment)",
+      why:
+        "The pack is 1 can (14.5 fl oz) and every recipe need is in cups. " +
+        "14.5 ÷ 8 = 1.8125 cups per can. Without it the H3 rider ruling 8 asked " +
+        "for cannot be stated, and the pack count for a cup-denominated need " +
+        "falls back to one whole can however many cups the recipes want.",
+    }),
+  )),
 ];
 
 // ── D-WS9-284 ruling 8 — the broth promotions ──────────────────────────────
