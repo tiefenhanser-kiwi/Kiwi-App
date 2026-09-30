@@ -17,6 +17,7 @@
   ],
   "exclude": [
     "node_modules",
+    "e2e/**/*",
     "lib/api/__tests__/**/*",
     "contexts/__tests__/**/*",
     "components/__tests__/**/*",
