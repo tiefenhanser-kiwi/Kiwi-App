@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 
 import { Button } from "@/components/Button";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { ApiError, ApiNetworkError } from "@/lib/api/errors";
 import { requestPasswordReset } from "@/lib/api/passwordReset";
@@ -89,7 +90,23 @@ export default function ForgotPasswordPage() {
       <Pressable onPress={() => router.back()} hitSlop={12} style={styles.back}>
         <Feather name="chevron-left" size={26} color={Colors.sage[700]} />
       </Pressable>
-      <View style={styles.body}>
+      {/* Sept 29 design review — the form SCROLLS and clears the keyboard.
+          sign-up has done this since BUG-077; these three did not, so a focused
+          field near the bottom sat under the keyboard and, at a large font
+          scale, the trailing links were unreachable even with it dismissed.
+          Pattern copied verbatim from sign-up.tsx: `style={{ flex: 1 }}` on the
+          scroller, the old `body` style moved to contentContainerStyle, and the
+          safe-area bottom inset added there. The Compat wrapper already
+          defaults bottomOffset to Spacing[6] and degrades to a plain ScrollView
+          on web. */}
+      <KeyboardAwareScrollViewCompat
+        style={{ flex: 1 }}
+        contentContainerStyle={[
+          styles.body,
+          { paddingBottom: insets.bottom + Spacing[5] },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.title}>Reset your password</Text>
         <Text style={styles.hint}>
           Enter the email for your Kiwi account and we'll send a link to choose a new password.
@@ -116,14 +133,15 @@ export default function ForgotPasswordPage() {
         <Pressable onPress={goToSignIn}>
           <Text style={styles.link}>Back to sign in</Text>
         </Pressable>
-      </View>
+      </KeyboardAwareScrollViewCompat>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   // sign-in.tsx's form styles.
-  wrap: { flex: 1, backgroundColor: Colors.neutral[100], padding: Spacing[4] },
+  // paddingHorizontal, not padding — see sign-in.tsx.
+  wrap: { flex: 1, backgroundColor: Colors.neutral[100], paddingHorizontal: Spacing[4] },
   back: { marginBottom: Spacing[3] },
   body: { gap: Spacing[3] },
   title: { fontSize: Typography.fontSize.xl * 1.4, fontWeight: "700", color: Colors.neutral[900], fontFamily: Typography.face.serif[700] },

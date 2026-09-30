@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 
 import { Button } from "@/components/Button";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { SocialSignInBlock } from "@/components/oauth/SocialSignInBlock";
 import { PasswordField } from "@/components/PasswordField";
 import { useAuth } from "@/contexts/AuthContext";
@@ -97,7 +98,23 @@ export default function SignInPage() {
       <Pressable onPress={() => router.back()} hitSlop={12} style={styles.back}>
         <Feather name="chevron-left" size={26} color={Colors.sage[700]} />
       </Pressable>
-      <View style={styles.body}>
+      {/* Sept 29 design review — the form SCROLLS and clears the keyboard.
+          sign-up has done this since BUG-077; these three did not, so a focused
+          field near the bottom sat under the keyboard and, at a large font
+          scale, the trailing links were unreachable even with it dismissed.
+          Pattern copied verbatim from sign-up.tsx: `style={{ flex: 1 }}` on the
+          scroller, the old `body` style moved to contentContainerStyle, and the
+          safe-area bottom inset added there. The Compat wrapper already
+          defaults bottomOffset to Spacing[6] and degrades to a plain ScrollView
+          on web. */}
+      <KeyboardAwareScrollViewCompat
+        style={{ flex: 1 }}
+        contentContainerStyle={[
+          styles.body,
+          { paddingBottom: insets.bottom + Spacing[5] },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.title}>Sign in</Text>
         {/* §2.1 — at the TOP, then the divider, then the email form. Renders
             nothing at all while neither provider is configured. */}
@@ -146,13 +163,15 @@ export default function SignInPage() {
             <Text style={styles.link}>Don't have an account? Sign up</Text>
           </Pressable>
         </Link>
-      </View>
+      </KeyboardAwareScrollViewCompat>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: Colors.neutral[100], padding: Spacing[4] },
+  // paddingHorizontal, not padding: the bottom pad moved onto the scroller's
+  // contentContainerStyle (with the safe-area inset) and the top is set inline.
+  wrap: { flex: 1, backgroundColor: Colors.neutral[100], paddingHorizontal: Spacing[4] },
   back: { marginBottom: Spacing[3] },
   body: { gap: Spacing[3] },
   title: { fontSize: Typography.fontSize.xl * 1.4, fontWeight: "700", color: Colors.neutral[900], fontFamily: Typography.face.serif[700] },

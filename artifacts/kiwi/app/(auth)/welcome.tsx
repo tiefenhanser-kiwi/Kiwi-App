@@ -1,5 +1,5 @@
 import React from "react";
-import { Image, Linking, StyleSheet, Text, View } from "react-native";
+import { Image, Linking, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -50,9 +50,10 @@ export default function Welcome() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   return (
-    <View
-      style={[
-        styles.bg,
+    <ScrollView
+      style={styles.bg}
+      contentContainerStyle={[
+        styles.content,
         { paddingTop: insets.top, paddingBottom: insets.bottom + Spacing[4] },
       ]}
     >
@@ -108,14 +109,31 @@ export default function Welcome() {
           .
         </Text>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  // Sept 29 design review — THE SCREEN SCROLLS. It was a fixed `flex: 1` View
+  // with `justifyContent: "space-between"`, so on a 667 pt phone — and on any
+  // phone at a large Dynamic Type / font-scale setting — the legal line and the
+  // "I already have an account" button fell off the bottom with no way to reach
+  // them. Sign-in was UNREACHABLE for those users, not merely cramped.
+  //
+  // ⚠️ THE SPLIT IS LOAD-BEARING. `flex: 1` and the background stay on the
+  // ScrollView's own `style`; the horizontal padding and `justifyContent` move
+  // to contentContainerStyle, with `flexGrow: 1` rather than `flex: 1`.
+  // flexGrow is what keeps the space-between layout BYTE-IDENTICAL on a tall
+  // phone where the content already fits, while still letting the content
+  // exceed the viewport and scroll when it does not. `justifyContent` on the
+  // ScrollView's `style` would lay out the scroll container, not its content,
+  // and would silently do nothing.
   bg: {
     flex: 1,
     backgroundColor: Colors.neutral[100],
+  },
+  content: {
+    flexGrow: 1,
     paddingHorizontal: Spacing[5],
     justifyContent: "space-between",
   },

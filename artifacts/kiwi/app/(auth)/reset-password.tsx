@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 
 import { Button } from "@/components/Button";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { PasswordField } from "@/components/PasswordField";
 import { useToast } from "@/contexts/ToastProvider";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
@@ -127,7 +128,23 @@ export default function ResetPasswordPage() {
 
   return (
     <View style={[styles.wrap, { paddingTop: insets.top + 8 }]}>
-      <View style={styles.body}>
+      {/* Sept 29 design review — the form SCROLLS and clears the keyboard.
+          sign-up has done this since BUG-077; these three did not, so a focused
+          field near the bottom sat under the keyboard and, at a large font
+          scale, the trailing links were unreachable even with it dismissed.
+          Pattern copied verbatim from sign-up.tsx: `style={{ flex: 1 }}` on the
+          scroller, the old `body` style moved to contentContainerStyle, and the
+          safe-area bottom inset added there. The Compat wrapper already
+          defaults bottomOffset to Spacing[6] and degrades to a plain ScrollView
+          on web. */}
+      <KeyboardAwareScrollViewCompat
+        style={{ flex: 1 }}
+        contentContainerStyle={[
+          styles.body,
+          { paddingBottom: insets.bottom + Spacing[5] },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.title}>Set a new password</Text>
         <Text style={styles.hint}>
           Choose a new password for your Kiwi account. At least 8 characters.
@@ -161,14 +178,15 @@ export default function ResetPasswordPage() {
         <Pressable onPress={goToSignIn}>
           <Text style={styles.link}>Back to sign in</Text>
         </Pressable>
-      </View>
+      </KeyboardAwareScrollViewCompat>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   // sign-in.tsx's form styles.
-  wrap: { flex: 1, backgroundColor: Colors.neutral[100], padding: Spacing[4] },
+  // paddingHorizontal, not padding — see sign-in.tsx.
+  wrap: { flex: 1, backgroundColor: Colors.neutral[100], paddingHorizontal: Spacing[4] },
   body: { gap: Spacing[3], paddingTop: Spacing[3] },
   title: { fontSize: Typography.fontSize.xl * 1.4, fontWeight: "700", color: Colors.neutral[900], fontFamily: Typography.face.serif[700] },
   hint: { fontSize: Typography.fontSize.sm, color: Colors.neutral[700], fontFamily: Typography.face.sans[400], lineHeight: 20 },
