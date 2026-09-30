@@ -9,9 +9,17 @@
 // ── The problem shape (Phase 0 finding, Hans-endorsed) ──────────────────────
 // ONE cook = a single resource with unattended gaps. Active steps SERIALIZE;
 // only unattended steps overlap. "All finish times equal" is NOT achievable and
-// is NOT the target. The enforced invariant is: nothing finishes MATERIALLY
+// is NOT the target. The enforced invariant is: nothing HOT finishes MATERIALLY
 // EARLY (no cold food / wilted salad). A dish finishing a little late is fine
-// (food is hot); a dish finishing early is the bug.
+// (food is hot); a hot dish finishing early is the bug.
+//
+// ── Two later amendments to that invariant (WS9 BUG-337 / D-WS9-297) ────────
+//  • A SERVED-COLD dish is exempt and is pulled FORWARD instead (ruling 3):
+//    pico is meant to sit, and finish-aligning it was what left a 30-minute
+//    marinade with 27 idle minutes. See `isServedCold`.
+//  • "Late is fine" was only ever true BETWEEN dishes. WITHIN a dish, a step
+//    that drifts from its own predecessor is a cooling steak, so a LATEST bound
+//    now caps that lag (ruling 1). See LAG_AFTER_HEAT_REST.
 //
 // ── Attended vs unattended (the load-bearing classification) ────────────────
 // A step OCCUPIES the cook's hands (serializes) when ATTENDED:
@@ -111,6 +119,14 @@ export interface SchedulerStep {
   // = base (always in the recipe; rides with anything).
   componentKey?: string | null;
   pathKey?: string | null;
+  /**
+   * D-WS9-297 ruling 2 — the step's own prose, read ONLY to say what a dish is
+   * doing in a cue ("While the steak is resting"). Optional on purpose: the
+   * timing derivation (`mealTiming.ts`) and every pre-existing fixture pass none,
+   * and a cue is emitted text that moves no total, so an absent `text` changes
+   * no number anywhere. Never parsed for quantities, order or duration.
+   */
+  text?: string | null;
 }
 
 /** One input dish: its identity/title/order plus its steps in stepIndex order. */
@@ -119,6 +135,13 @@ export interface SchedulerDish {
   title: string;
   positionIndex: number;
   steps: SchedulerStep[];
+  /**
+   * D-WS9-297 ruling 3 — MealDishLink.roleLabel, carried for the served-cold
+   * predicate. See `isServedCold` for why it turned out not to discriminate;
+   * kept on the input shape because the ruling names it and a later refinement
+   * (a real servedTemperature column) would land here.
+   */
+  roleLabel?: string | null;
 }
 
 /** One scheduled output step — mirrors the wire SequencedStep (serve-anchored). */
@@ -171,6 +194,21 @@ export interface IgnoredTag {
   stepIndex: number;
   token: string;
   reason: IgnoredTagReason;
+}
+
+/** Knobs on the scheduler. Production passes none; every default is the shipped behaviour. */
+export interface ScheduleOptions {
+  /**
+   * D-WS9-297 ruling 1 — the latest bound. Defaults TRUE. Set false only to
+   * price the bound (which meals grow) or to drive the §BREAK test; no
+   * production caller passes it.
+   */
+  enforceMaxLag?: boolean;
+  /**
+   * D-WS9-297 ruling 3 — pull served-cold dishes forward instead of
+   * finish-aligning them. Defaults TRUE. Same two callers as above.
+   */
+  coldDishesForward?: boolean;
 }
 
 export interface ScheduleResult {
@@ -239,6 +277,17 @@ export function isUnattended(
 // itself is the only runtime caller.
 export const EXCLUDED_PATH_KEY = "bought";
 
+// ── WS9 BUG-337 / D-WS9-297 ruling 1 — the latest bound, in minutes ─────────
+// A step whose own dish-predecessor is a heat (`cook`) step must begin within
+// this many minutes of it. `rest` is tighter than everything else because a rest
+// that starts late is not a rest: the meat has already cooled, which is the
+// whole defect BUG-337 names. Exported so the measurement scripts and the tests
+// state the same numbers the scheduler enforces rather than copies of them.
+export const LAG_AFTER_HEAT_REST = 2;
+export const LAG_AFTER_HEAT_OTHER = 5;
+/** Belt on the repair loop; `pull` is monotone decreasing, so this never binds in practice. */
+const MAX_LAG_ITERATIONS = 8;
+
 /**
  * The steps a cook actually does: base (null path) + ONE path per swappable
  * component. Order and stepIndex are preserved, so every emitted
@@ -285,15 +334,122 @@ export function selectDefaultPathSteps<
   });
 }
 
-// Present-tense gerund for a passive window, used to compose a natural cue.
-const GERUND: Record<SchedulerPhase, string> = {
-  cook: "cooks",
-  preheat: "heats up",
-  rest: "rests",
-  hold: "stays warm",
-  prep: "comes together",
-  assemble: "comes together",
+// ── WS9 BUG-337 / D-WS9-297 ruling 2 — WHAT THE DISH IS ACTUALLY DOING ──────
+//
+// The old table mapped `phaseType` → a third-person-singular verb and composed
+// "While the <title> <verb>, start on the <other>." Measured on the 13-plan
+// census, 115 of 193 cues were false or ungrammatical, in five ways:
+//
+//   69  a plural dish title with a singular verb — "While the Warm Corn
+//       Tortillas stays warm". No table keyed on the phase can fix this,
+//       because the number belongs to the TITLE.
+//   18  the cue pointed FORWARD at a step the cook had not begun (see
+//       composeCue's ordering guard).
+//   14  "cooks" on a `cook` row whose own prose is not heat — "While the
+//       Steamed Jasmine Rice cooks" where the step is "Combine the rinsed rice
+//       and 2½ cups water…". The rice had been rinsed, nothing more.
+//   13  "rests" on a marinate/soak/brine, which `rest` also covers.
+//    1  "stays warm" on a dish being refrigerated — "While the Guacamole stays
+//       warm", where the step is "Press plastic wrap onto the surface and
+//       refrigerate".
+//
+// So: the connective is now the NUMBER-NEUTRAL progressive ("While the X is
+// resting"), which kills all 69 plural cases at once and reads no worse for a
+// singular title; and the STATE is read from the window step's own prose, with
+// the phase as the fallback only. A `cook` row whose prose is neither heat nor a
+// recognised passive state gets NO CUE — silence beats a confident lie.
+type PassiveState = "cooking" | "heating up" | "resting" | "marinating" | "chilling" | "staying warm";
+
+// Heat, named rather than indexed: `passiveStateOf` needs it twice (once as the
+// last prose rule, once as the veto on the `cook` phase fallback), and a
+// positional reference into the array below would rot the moment a rule is added.
+const HEAT_PROSE =
+  /\b(bak\w*|roast\w*|grill\w*|boil\w*|simmer\w*|braise\w*|steam\w*|sear\w*|sauté\w*|saute\w*|fry\w*|cook\w*|smok\w*|broil\w*|poach\w*|toast\w*|reduc\w*|char\w*|caramel\w*|melt\w*|warm\w*\s+(?:the\s+)?(?:tortillas|pan|skillet|oil))\b/i;
+
+/** Prose → state. First match wins, so the order is the precedence. */
+const STATE_FROM_PROSE: ReadonlyArray<{ re: RegExp; state: PassiveState }> = [
+  { re: /\b(refrigerat\w*|chill\w*|in the fridge|ice bath)\b/i, state: "chilling" },
+  { re: /\b(marinat\w*|brin\w*|soak\w*)\b/i, state: "marinating" },
+  { re: /\b(rest|resting|rests)\b/i, state: "resting" },
+  { re: /\b(preheat\w*|heat the oven|heats up)\b/i, state: "heating up" },
+  { re: /\b(keep\w*\s+warm|stay\w*\s+warm|hold\w*\s+warm|tent\w*|wrap\w*\s+in\s+(?:a\s+)?(?:clean\s+)?(?:kitchen\s+)?(?:towel|foil))\b/i, state: "staying warm" },
+  // Heat, last: a step may mention a pan and still be a marinade, and the
+  // passive states above are the more specific claim.
+  { re: HEAT_PROSE, state: "cooking" },
+];
+
+/** The phase's own claim, used only when the prose says nothing recognisable. */
+const STATE_FROM_PHASE: Partial<Record<SchedulerPhase, PassiveState>> = {
+  preheat: "heating up",
+  rest: "resting",
+  // NOTE: `hold` deliberately has NO fallback. "Staying warm" is the one state
+  // that is actively wrong about a cold dish, and a `hold` row is just as often
+  // a fridge as a warm oven. Without prose that says which, there is no cue.
+  cook: "cooking",
 };
+
+/**
+ * What the window dish is doing, or null when nothing can be said honestly.
+ *
+ * "Staying warm" is additionally gated on the dish not being a served-cold one:
+ * a chilled guacamole in a `hold` step whose prose happens to say "cover and
+ * keep" must not be described as warm.
+ */
+function passiveStateOf(step: SchedulerStep, text: string, coldDish: boolean): PassiveState | null {
+  let state: PassiveState | null = null;
+  if (text.length > 0) {
+    for (const { re, state: s } of STATE_FROM_PROSE) {
+      if (re.test(text)) { state = s; break; }
+    }
+  }
+  const fromProse = state !== null;
+  state ??= STATE_FROM_PHASE[step.phaseType] ?? null;
+  if (state === null) return null;
+  if (state === "staying warm" && coldDish) return "chilling";
+  // A `cook` row whose prose matched nothing heat-like is the 14-case class:
+  // the phase fallback would assert "cooking" about a rinse. Refuse it — but
+  // only when there WAS prose to read. A caller that supplies no text (the
+  // timing derivation, every pre-existing fixture) keeps the phase fallback, so
+  // its numbers are untouched; cues are emitted text and move no total.
+  if (state === "cooking" && !fromProse && text.length > 0) return null;
+  return state;
+}
+
+// ── WS9 BUG-337 / D-WS9-297 ruling 3 — WHICH DISHES ARE SERVED COLD ─────────
+//
+// A cold dish is not finish-aligned: it is pulled forward into the earliest
+// passive window that can hold it (see `scheduleOnce`). Hans's reason, via
+// chat-Claude: a blind follower must have something to do during a 30-minute
+// marinade, and pico is MEANT to sit. Measured: 15 passive windows ≥ 10 min sat
+// idle across the census, worst a 60-minute pizza-dough rest with the Caesar
+// romaine already startable.
+//
+// Keyed on roleLabel first (the structural signal) and the title second (the
+// only signal most dishes carry). Deliberately a SHORT list of things that are
+// unambiguously served cold — a false positive here serves something warm cold,
+// which is worse than leaving a window idle.
+const COLD_DISH_TITLE =
+  /\b(salsa|pico de gallo|pico|guacamole|slaw|salad|dressing|vinaigrette|crema|raita|tzatziki|chutney|relish|dip|sour cream|aioli|remoulade|gremolata|chimichurri)\b/i;
+/** A title that matches COLD_DISH_TITLE but is served hot anyway. */
+const COLD_DISH_EXCEPTION = /\b(warm|hot|grilled|roasted|charred|fried|baked|wilted|toasted)\b/i;
+
+/**
+ * True when this dish is eaten cold, so finishing early is a feature.
+ *
+ * ⚠️ roleLabel IS NOT USED, AND THAT IS THE FINDING. The ruling says "by
+ * roleLabel and dish title", but the DishRole enum is
+ * main|side|sauce|topping|base|optional and NONE of those values implies
+ * temperature: a `sauce` is gravy as often as it is crema, a `topping` is melted
+ * cheese as often as it is pico. Threading it in and then ignoring it would be
+ * worse than saying so. The title is the only signal the data actually carries,
+ * and the exception list is what keeps "Warm Corn Tortillas" and "Grilled
+ * Romaine Salad" out.
+ */
+export function isServedCold(dish: Pick<SchedulerDish, "title">): boolean {
+  const title = dish.title ?? "";
+  if (COLD_DISH_EXCEPTION.test(title)) return false;
+  return COLD_DISH_TITLE.test(title);
+}
 
 // ── D-WS9-239 tag classification (rule 4: invalid → untagged, reported) ─────
 
@@ -531,7 +687,13 @@ interface WorkStep {
  */
 export function scheduleCookingSequence(
   dishes: SchedulerDish[],
+  opts: ScheduleOptions = {},
 ): ScheduleResult {
+  // D-WS9-297 ruling 1 — the bound is ON for every production caller. The flag
+  // exists so a measurement script can price it (which meals grow, and by how
+  // much) and so the §BREAK test can remove it without editing this file.
+  const enforceMaxLag = opts.enforceMaxLag ?? true;
+  const coldDishesForward = opts.coldDishesForward ?? true;
   // Guard: no dishes / no steps -> empty schedule (caller handles empties).
   const nonEmpty = dishes
     .map((d) => ({ ...d, steps: selectDefaultPathSteps(d.steps) }))
@@ -547,10 +709,10 @@ export function scheduleCookingSequence(
   }
 
   const anyTag = nonEmpty.some((d) => d.steps.some((s) => rawToken(s) !== null));
-  const untagged = scheduleOnce(nonEmpty, false);
+  const untagged = scheduleOnce(nonEmpty, false, enforceMaxLag, coldDishesForward);
   if (!anyTag) return untagged; // byte-identical to the pre-D-WS9-239 path
 
-  const tagged = scheduleOnce(nonEmpty, true);
+  const tagged = scheduleOnce(nonEmpty, true, enforceMaxLag, coldDishesForward);
   // Rule 6 — the anomaly guard. A tie keeps the tagged schedule: it is the
   // order the recipe's own prose describes, and it costs nothing.
   if (tagged.totalEstimatedMinutes <= untagged.totalEstimatedMinutes) {
@@ -559,6 +721,12 @@ export function scheduleCookingSequence(
   // Report every window whose (valid) tag the guard set aside, then return the
   // untagged schedule — including its serial per-dish durations, so the dish
   // stamps stay consistent with the meal's.
+  //
+  // ⚠️ D-WS9-297 — THE GUARD COMPARES LIKE WITH LIKE. Both arms run with the
+  // same `enforceMaxLag`, so this is still tags-vs-no-tags and never
+  // bound-vs-no-bound. The bound is a CORRECTNESS constraint, not an
+  // optimisation: it is never traded away for a shorter total, which is why it
+  // sits inside each arm instead of beside them.
   const guarded: IgnoredTag[] = [...tagged.ignoredTags];
   for (const d of nonEmpty) {
     const kinds = classifyDish(d, true, []);
@@ -579,6 +747,8 @@ export function scheduleCookingSequence(
 function scheduleOnce(
   nonEmpty: SchedulerDish[],
   honourTags: boolean,
+  enforceMaxLag: boolean,
+  coldDishesForward: boolean,
 ): ScheduleResult {
   const ignoredTags: IgnoredTag[] = [];
 
@@ -588,10 +758,32 @@ function scheduleOnce(
   );
   const anchor = Math.max(...alone.map((a) => a.duration));
 
+  // ── WS9 BUG-337 / D-WS9-297 ruling 3 — COLD DISHES COME FORWARD ──────────
+  //
+  // Finish-alignment exists so nothing hot finishes early (BUG-018: cold corn).
+  // Applied to EVERY dish it also pushes the pico and the guacamole late, which
+  // is why a 30-minute marinade had 27 idle minutes with four prep steps already
+  // startable: the work that could have filled the window had been deliberately
+  // moved past it. Measured: 15 windows ≥ 10 min, worst a 60-minute dough rest
+  // with the Caesar romaine waiting.
+  //
+  // A served-cold dish has no early-finish penalty — pico is MEANT to sit — so
+  // it is not finish-aligned. Its base start is 0: it takes the earliest hands
+  // the single-cook pass will give it, which is exactly the idle window. Hot
+  // dishes are untouched, so BUG-018's fix is intact.
+  //
+  // This does not reorder anything by itself. It lowers the cold dish's priority
+  // keys, and the pass still serialises the hands; a cold dish whose window
+  // never opens simply lands where it always did.
+  const coldDishIds = new Set(
+    coldDishesForward ? nonEmpty.filter(isServedCold).map((d) => d.dishId) : [],
+  );
+
   // 2. Finish-aligned ideal starts (each dish finishes at `anchor`).
   const work: WorkStep[] = [];
   nonEmpty.forEach((dish, dishIdx) => {
-    const base = anchor - alone[dishIdx].duration; // dish base start
+    // A cold dish starts as early as the hands allow; a hot one finishes at the anchor.
+    const base = coldDishIds.has(dish.dishId) ? 0 : anchor - alone[dishIdx].duration;
     dish.steps.forEach((step, stepIdx) => {
       const idealStart = base + alone[dishIdx].offsets[stepIdx];
       work.push({
@@ -609,46 +801,131 @@ function scheduleOnce(
     });
   });
 
-  // Priority order for the single-cook pass: earliest ideal start first, then
-  // stable by dish position then stepIndex (fully deterministic tie-break).
-  // Within a dish this order always places a step's dependencies first: a plain
-  // step's offset is past every prior finish, a rider's is at or past its
-  // window's kickoff, and ties fall to stepIndex.
-  const priority = [...work].sort(
-    (a, b) =>
-      a.idealStart - b.idealStart ||
-      a.dishIdx - b.dishIdx ||
-      a.step.stepIndex - b.step.stepIndex,
-  );
+  // ── WS9 BUG-337 / D-WS9-297 ruling 1 — THE LATEST BOUND ──────────────────
+  //
+  // Until this, the pass modelled only `earliest`: a step could begin once its
+  // dish allowed it, its ideal start had arrived, and the hands were free.
+  // Nothing bounded how LATE it could drift from the step before it, so food
+  // sat in the pan for as long as another dish wanted the cook. Measured on the
+  // 13-plan census: 12 of 27 rest steps waited more than 2 minutes after their
+  // own heat step (worst 24 min) and 23 cook steps held more than 5 (worst 19).
+  //
+  // The Carne Asada repro, in full, because the mechanism is not obvious. The
+  // steak's rest has idealStart 48 (its grill finishes at 48 in the dish-alone
+  // frame). Four steps of SHORTER dishes have ideal starts of 42, 43, 45 and 47
+  // — fractionally earlier, because finish-alignment pushes a short dish late
+  // and those landed just below 48. They therefore win the priority sort, each
+  // is attended, and between them they hold the hands to minute 70. The rest is
+  // `max(48, 50, 70)` = 70: twenty minutes of a cooling steak, produced by four
+  // steps that were each individually reasonable.
+  //
+  // The bound: a step whose own dish-predecessor is a HEAT step must start
+  // within LAG_AFTER_HEAT_REST minutes of it if it is a rest, and
+  // LAG_AFTER_HEAT_OTHER otherwise. `rest` gets the tighter number because a
+  // rest that starts late is not a rest — the meat has already cooled.
+  //
+  // Enforced by PRIORITY REPAIR rather than by a new constraint in the walk.
+  // A "don't start after T" rule has nowhere to go in a forward pass that only
+  // ever pushes later; what has to change is WHO GETS THE HANDS FIRST. So the
+  // pass runs, violations are collected, and each violating step's sort key is
+  // pulled down to its predecessor's finish — which places it ahead of the
+  // short-dish work that was stealing the window — and the pass runs again.
+  //
+  // TERMINATION: `pull` only ever DECREASES a key (`Math.min`), keys are
+  // integers bounded below by 0, and the loop stops the moment a pass changes
+  // nothing. MAX_LAG_ITERATIONS is a belt on top of that, not the argument for
+  // termination. If violations survive the cap the schedule is emitted as-is:
+  // that is the pre-bound behaviour for those steps, i.e. conservative, never
+  // wrong in a new way.
+  const priorityKey = new Map<WorkStep, number>();
+  const keyOf = (w: WorkStep) => priorityKey.get(w) ?? w.idealStart;
 
-  // 3. Single-cook forward simulation.
-  //    cookBusyUntil: the minute the cook's hands are next free.
-  //    placed[i][k]: dish i's step k once scheduled (its actual start/finish).
-  let cookBusyUntil = 0;
-  const placed = nonEmpty.map((d) => new Array<WorkStep | undefined>(d.steps.length));
-  for (const w of priority) {
-    // A step can't begin before its own dish allows it — a rider at its
-    // window's kickoff, anything else once every prior step of the dish has
-    // finished — nor before its finish-aligned ideal start, nor before the cook
-    // is free to touch it (even an unattended step needs a moment of hands to
-    // kick off).
-    const mine = placed[w.dishIdx];
-    let earliest = 0;
-    if (w.kind.kind === "rider") {
-      earliest = mine[w.kind.windowIdx]?.actualStart ?? 0;
-    } else {
-      for (let j = 0; j < w.stepIdx; j++) {
-        earliest = Math.max(earliest, mine[j]?.finish ?? 0);
+  /** The step before this one in its own dish, or undefined for a rider/first. */
+  const dishPredecessor = (w: WorkStep): WorkStep | undefined =>
+    w.kind.kind === "rider" || w.stepIdx === 0
+      ? undefined
+      : work.find((o) => o.dishIdx === w.dishIdx && o.stepIdx === w.stepIdx - 1);
+
+  /** The bound in minutes, or null when this step has no heat predecessor. */
+  const maxLagOf = (w: WorkStep): number | null => {
+    const prev = dishPredecessor(w);
+    if (!prev || prev.step.phaseType !== "cook") return null;
+    return w.step.phaseType === "rest" ? LAG_AFTER_HEAT_REST : LAG_AFTER_HEAT_OTHER;
+  };
+
+  const runPass = () => {
+    let cookBusyUntil = 0;
+    const placed = nonEmpty.map((d) => new Array<WorkStep | undefined>(d.steps.length));
+    // Earliest key first, then stable by dish position then stepIndex (fully
+    // deterministic tie-break). Within a dish this order always places a step's
+    // dependencies first: a plain step's offset is past every prior finish, a
+    // rider's is at or past its window's kickoff, and ties fall to stepIndex.
+    // A repaired step carries a pulled-down key, never a pulled-up one, so the
+    // within-dish guarantee is preserved: a step can only move ahead of work in
+    // OTHER dishes.
+    const priority = [...work].sort(
+      (a, b) =>
+        keyOf(a) - keyOf(b) ||
+        a.idealStart - b.idealStart ||
+        a.dishIdx - b.dishIdx ||
+        a.step.stepIndex - b.step.stepIndex,
+    );
+    for (const w of priority) {
+      // A step can't begin before its own dish allows it — a rider at its
+      // window's kickoff, anything else once every prior step of the dish has
+      // finished — nor before its finish-aligned ideal start, nor before the cook
+      // is free to touch it (even an unattended step needs a moment of hands to
+      // kick off).
+      const mine = placed[w.dishIdx];
+      let earliest = 0;
+      if (w.kind.kind === "rider") {
+        earliest = mine[w.kind.windowIdx]?.actualStart ?? 0;
+      } else {
+        for (let j = 0; j < w.stepIdx; j++) {
+          earliest = Math.max(earliest, mine[j]?.finish ?? 0);
+        }
+      }
+      const start = Math.max(w.idealStart, earliest, cookBusyUntil);
+      w.actualStart = start;
+      w.finish = start + w.step.estimatedMinutes;
+      mine[w.stepIdx] = w;
+      // Attended steps hold the cook for their whole duration; unattended steps
+      // release the cook immediately after kickoff (they run in the background).
+      if (!w.unattended) {
+        cookBusyUntil = w.finish;
       }
     }
-    const start = Math.max(w.idealStart, earliest, cookBusyUntil);
-    w.actualStart = start;
-    w.finish = start + w.step.estimatedMinutes;
-    mine[w.stepIdx] = w;
-    // Attended steps hold the cook for their whole duration; unattended steps
-    // release the cook immediately after kickoff (they run in the background).
-    if (!w.unattended) {
-      cookBusyUntil = w.finish;
+  };
+
+  // 3. Single-cook forward simulation, repaired until the latest bound holds.
+  runPass();
+  let lagIterations = 0;
+  if (enforceMaxLag) {
+    for (; lagIterations < MAX_LAG_ITERATIONS; lagIterations++) {
+      let changed = false;
+      for (const w of work) {
+        const lag = maxLagOf(w);
+        if (lag === null) continue;
+        const prev = dishPredecessor(w)!;
+        if (w.actualStart <= prev.finish + lag) continue;
+        // Pull it to its PREDECESSOR'S KEY, not to the predecessor's finish.
+        //
+        // 🔴 `prev.finish` was the first attempt and it is not enough. The
+        // Carne Asada rest's predecessor finishes at 60, so a key of 60 left it
+        // still sorting BEHIND the tortilla sear, whose key is its own ideal
+        // start of 47 — and the sear is attended, so it took the hands to 68 and
+        // the rest landed 8 minutes late again. What the step needs is to be
+        // adjacent to its predecessor in the PRIORITY ORDER, which means sharing
+        // its key; the sort's stepIndex tie-break then keeps the predecessor
+        // first, so the dependency order is preserved by construction.
+        const want = Math.min(keyOf(w), keyOf(prev));
+        if (want < keyOf(w)) {
+          priorityKey.set(w, want);
+          changed = true;
+        }
+      }
+      if (!changed) break;
+      runPass();
     }
   }
 
@@ -670,7 +947,7 @@ function scheduleOnce(
       sequenceIndex: seqIdx,
       startOffsetMinutes: w.actualStart - serveAnchor,
     };
-    const cue = composeCue(w, ordered, seqIdx);
+    const cue = composeCue(w, ordered, seqIdx, coldDishIds);
     if (cue) entry.reason = cue;
     return entry;
   });
@@ -712,14 +989,22 @@ function composeCue(
   w: WorkStep,
   ordered: WorkStep[],
   seqIdx: number,
+  coldDishIds: ReadonlySet<string>,
 ): string | undefined {
   if (seqIdx === 0) return undefined;
   const prev = ordered[seqIdx - 1];
   if (prev.dishId === w.dishId) return undefined; // same dish, no hand-off cue
 
   // Find any OTHER dish's unattended step still running when this one starts.
+  //
+  // ⚠️ D-WS9-297 ruling 2 — `sequenceIndex < seqIdx` IS LOAD-BEARING. The start
+  // comparison alone is `<=`, so two steps at the SAME offset each satisfied it
+  // about the other: step 10 was told to use step 11's window and step 11 to use
+  // step 10's, and neither had begun when the cook read it. 18 of 193 cues.
+  // A window must already be UNDERWAY in the order the cook actually reads.
   const window = ordered.find(
-    (o) =>
+    (o, oIdx) =>
+      oIdx < seqIdx &&
       o.dishId !== w.dishId &&
       o.unattended &&
       o.actualStart <= w.actualStart &&
@@ -727,8 +1012,29 @@ function composeCue(
   );
   if (!window) return undefined;
 
-  const gerund = GERUND[window.step.phaseType] ?? "cooks";
-  const cue = `While the ${window.dishTitle} ${gerund}, start on the ${w.dishTitle}.`;
+  const state = passiveStateOf(
+    window.step,
+    window.step.text ?? "",
+    coldDishIds.has(window.dishId),
+  );
+  // Nothing honest to say about what that dish is doing → no cue. Silence is a
+  // correct answer here; a confident wrong one is what BUG-337 is about.
+  if (state === null) return undefined;
+
+  // ⚠️ THE RULING'S OWN WORDING IS NOT NUMBER-NEUTRAL, so this is not it.
+  // D-WS9-297 ruling 2 asks for "While the rice is cooking". `is` agrees with a
+  // singular subject exactly as `stays` did: "While the Warm Corn Tortillas IS
+  // staying warm" is the same 69-case defect in a new tense — it needs `are`.
+  //
+  // A PARTICIPIAL ABSOLUTE has no agreement at all, so it is right for both
+  // numbers without anyone having to know which this title is:
+  //   "With the rice cooking, start on the stir-fry."
+  //   "With the Warm Corn Tortillas staying warm, start on the Carne Asada."
+  // That matters more than the opening word: inflecting `is`/`are` would mean
+  // guessing a title's number from its spelling, and the census checker already
+  // needed an allowlist for couscous / hummus / asparagus to do that badly. This
+  // form removes the question instead of answering it.
+  const cue = `With the ${window.dishTitle} ${state}, start on the ${w.dishTitle}.`;
   // Hard cap mirrors the wire schema's reason max (140).
   return cue.length <= 140 ? cue : undefined;
 }

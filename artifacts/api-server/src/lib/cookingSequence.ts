@@ -139,11 +139,18 @@ export async function runCookingSequence(
       dishId: dl.dishId,
       title: dl.dish.title,
       positionIndex: dl.positionIndex,
+      // D-WS9-297 ruling 3 — carried for the served-cold predicate. Free: the
+      // dishLinks include already returns every MealDishLink scalar.
+      roleLabel: dl.roleLabel,
       steps: (stepsByDish.get(dl.dishId) ?? []).map((s) => ({
         stepIndex: s.stepIndex,
         estimatedMinutes: s.estimatedMinutes,
         phaseType: s.phaseType as SchedulerPhase,
         isTimingSensitive: s.isTimingSensitive,
+        // D-WS9-297 ruling 2 — the prose the cue's state is read from. Cook Mode
+        // is the ONLY caller that passes it: `mealTiming.ts` derives numbers and
+        // a cue moves no number, so the stamps are untouched by this line.
+        text: s.stepTextRaw,
         // WS9 D-WS9-239 — the intra-dish overlap token and the component tags
         // the scheduler validates it against. Dropping them here is how a
         // persisted tag silently failed to reach Cook Mode.
