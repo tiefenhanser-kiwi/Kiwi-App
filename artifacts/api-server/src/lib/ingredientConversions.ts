@@ -330,6 +330,46 @@ export function canonicalUnitToken(unit: string): string {
   return UNIT_CANONICAL_TOKEN.get(u) ?? COUNT_UNIT_ALIASES[u] ?? u;
 }
 
+// ── [grocery] F (F5.2) — THE SAME TABLE, READ BACKWARDS ─────────────────────
+//
+// `formatMeasure` (prepWeekAssembly.ts) prints the CANONICAL token, and the
+// canonical token is the singular — so the Prep the Week text said "Finely dice
+// 3 stalk celery and transfer to a container". A count unit above one inflects;
+// a measure unit never does ("1½ cup", "2 lb" are correct recipe English and
+// "2 lbs" is not).
+//
+// DERIVED from COUNT_UNIT_ALIASES rather than authored, exactly as the client's
+// COUNT_NOUN_SINGULARS is derived from COUNT_NOUN_PLURALS (BUG-144), and for the
+// same reason: two hand-written directions drift, one table cannot. It also
+// inherits that table's discipline for free — the map is the hand-written
+// count-unit list whose docblock explains at length why it must never become a
+// mechanical singulariser, and reading it backwards cannot introduce a pair it
+// does not already contain.
+//
+// ⚠️ IT IS NOT A GENERAL PLURALISER AND MUST NOT BECOME ONE. A unit absent from
+// the table returns unchanged, which is right for every measure unit (`tsp`,
+// `cup`, `oz`, `lb`, `g`, `ml`) and right for an unknown one. `each` is absent
+// and stays absent: BUG-317 ruled that a count unit is SUPPRESSED on a recipe
+// line, not pluralised.
+const COUNT_UNIT_PLURALS: Readonly<Record<string, string>> = Object.freeze(
+  Object.fromEntries(
+    Object.entries(COUNT_UNIT_ALIASES).map(([many, one]) => [one, many]),
+  ),
+);
+
+/**
+ * A count unit agreed with its quantity: `pluralizeCountUnit("stalk", 3)` is
+ * "stalks", `(…, 1)` is "stalk", and a measure or unknown unit passes through
+ * at every quantity.
+ *
+ * Quantity ≤ 1 is singular — the same threshold BUG-329 ruled for the grocery
+ * line, and for the same reason: `¼ bunches` is not English either.
+ */
+export function pluralizeCountUnit(unit: string, quantity: number): string {
+  if (!(quantity > 1)) return unit;
+  return COUNT_UNIT_PLURALS[normalizeUnit(unit)] ?? unit;
+}
+
 /**
  * True when converting this unit to grams REQUIRES a per-ingredient factor
  * (density for volume, grams-per-each for count) — i.e. a table/AI lookup can

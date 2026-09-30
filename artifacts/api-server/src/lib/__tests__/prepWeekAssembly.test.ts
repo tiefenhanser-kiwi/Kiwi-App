@@ -479,9 +479,46 @@ describe("formatMeasure — kitchen-fraction formatting", () => {
 
   it("renders counts whole where clean, else as-is; unknown tokens pass through", () => {
     assert.equal(formatMeasure(3, "each"), "3 each");
-    assert.equal(formatMeasure(2, "clove"), "2 clove");
     assert.equal(formatMeasure(1.5, "each"), "1.5 each"); // half an onion stays
-    assert.equal(formatMeasure(1, "sprig"), "1 sprig"); // unknown token kept
+    assert.equal(formatMeasure(1, "sprig"), "1 sprig");
+  });
+
+  // ── 🔴 [grocery] F (F5.2) — A COUNT UNIT INFLECTS ─────────────────────────
+  //
+  // This test previously asserted `formatMeasure(2, "clove") === "2 clove"`. It
+  // was PINNING THE DEFECT, not the rule: Hans's device pass (item 18) read
+  // "Finely dice 3 stalk celery and transfer to a container" on the Prep the
+  // Week text, and that line comes straight from here — the narrator echoes
+  // formatMeasure's string verbatim so that "prose can't move the math".
+  //
+  // Updated rather than deleted, because the three invariants around it are
+  // what make the change safe and they deserve to stay asserted.
+  it("🔴 F5.2 — a COUNT unit above one is plural", () => {
+    assert.equal(formatMeasure(2, "clove"), "2 cloves");
+    assert.equal(formatMeasure(3, "stalk"), "3 stalks"); // Hans's line
+    assert.equal(formatMeasure(3, "stalks"), "3 stalks"); // already plural, canonicalised then re-inflected
+    assert.equal(formatMeasure(2, "sprig"), "2 sprigs");
+    assert.equal(formatMeasure(4, "slice"), "4 slices");
+    assert.equal(formatMeasure(3, "can"), "3 cans");
+  });
+
+  it("F5.2 — exactly one, and below one, stay singular", () => {
+    assert.equal(formatMeasure(1, "clove"), "1 clove");
+    assert.equal(formatMeasure(1, "stalk"), "1 stalk");
+  });
+
+  it("F5.2 — a MEASURE unit never inflects, at any quantity", () => {
+    // The whole reason the plural lives in the count branch alone: "2 cups" and
+    // "2 lbs" are not how a recipe is written, and pluralising them would be a
+    // regression wearing a fix's clothes.
+    assert.equal(formatMeasure(2, "cup"), "2 cup");
+    assert.equal(formatMeasure(3, "tbsp"), "3 tbsp");
+    assert.equal(formatMeasure(2, "lb"), "2 lb");
+    assert.equal(formatMeasure(2, "oz"), "2 oz");
+    assert.equal(formatMeasure(200, "g"), "200 g");
+    // `each` is absent from the table on purpose (BUG-317: a count unit is
+    // suppressed on a recipe line, never pluralised).
+    assert.equal(formatMeasure(3, "each"), "3 each");
   });
 
   it("normalizes unit spelling variants via the engine canonicalizer", () => {

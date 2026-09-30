@@ -447,6 +447,12 @@ async function loadLists(prefixes: string[]): Promise<CorpusRow[]> {
 }
 
 // ── main ───────────────────────────────────────────────────────────────────
+//
+// Guarded: diff.ts imports `loadCorpus` from here, and without this the whole
+// measurement ran on import and printed itself over the diff's own report.
+// (basename, not a path fragment: Windows and POSIX disagree about the
+// separator and a backslash in a TS string literal is its own hazard.)
+if (path.basename(process.argv[1] ?? "").startsWith("measure")) {
 const tag = arg("tag", "b4");
 const only = process.argv.includes("--finding") ? arg("finding") : null;
 const listArg = process.argv.includes("--lists") ? arg("lists") : null;
@@ -458,3 +464,4 @@ console.log(
 );
 const table: Record<string, (r: CorpusRow[]) => void> = { F1: f1, F2: f2, F3: f3, F4: f4, F5: f5, F8: f8 };
 for (const [k, fn] of Object.entries(table)) if (!only || only === k) fn(rows);
+}

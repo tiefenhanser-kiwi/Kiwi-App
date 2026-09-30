@@ -537,3 +537,94 @@ confirmed of 51 pattern hits, swept read-only over 1,309 public meals, with the
   ready-but-dead URL all render the same warm gradient. That is the ruled
   terminal state (D-WS9-246), not an oversight — but it is also why this
   arrived as a bug report rather than as a metric.
+
+---
+
+# ⛔ BLOCK F — AFTER APPROVAL
+
+**Everything in this section waits for Hans's explicit go-ahead on production.**
+Each step is dev-verified and none of it has run against production.
+
+## F.1 — The data apply: F2, F3 and F4's catalog rows (AFTER APPROVAL)
+
+```bash
+node --env-file=.env --import tsx scripts/grocery-f/catalog-sweep.ts   # read-only
+node --env-file=.env --import tsx scripts/grocery-f/catalog-fix.ts     # dry
+node --env-file=.env --import tsx scripts/grocery-f/catalog-fix.ts --apply
+node --env-file=.env --import tsx scripts/grocery-f/catalog-sweep.ts   # 0 outliers
+```
+
+27 field updates on a clean dev catalog — 2 for F2, 8 for F3, 17 for F4.
+
+| what | why |
+|---|---|
+| **F2 · 2 rows** | `tomatillo` / `tomatillos` lose a `(~3–4 tomatillos)` count hint that was both factually wrong (a medium tomatillo is ~2 oz, so ~8 to the pound) and the only place the line named the food. It feeds no arithmetic: `packSizeHint` needs the hint's unit to relate to the need's through the weight or volume table, and "tomatillos" is in neither. |
+| **F3 · 4 rows × 2 fields** | a single-container pack authored as two — `cream of chicken soup` at `2 cans (10.5 oz each)`, plus canned black beans, red kidney beans and Near East rice pilaf. The list was faithfully printing what the catalog told it. |
+| **F4 · 17 rows** | `Ingredient.category` outliers, each with correctly-filed siblings: one vinegar in Produce (11 others in Pantry), five condensed soups split between Protein and Produce (none in Canned), eleven fresh chiles and tomatillos in Pantry (four in Produce). |
+
+**⚠️ The sweep may find MORE on production than on dev,** and that is the point
+of running it first. `catalog-fix.ts` writes a fixed, named list; anything the
+sweep reports that the fix does not name is a new row and needs a ruling, not a
+widened script.
+
+**`pouch sticky rice` (`2 pouches`) is deliberately NOT fixed.** Microwave rice
+pouches genuinely ship as 2-packs, so the stored value may be right. It is
+reported by the sweep on every run until someone rules on it.
+
+## F.2 — BUG-334: the amount refs that print their fraction twice (AFTER APPROVAL)
+
+```bash
+node --env-file=.env --import tsx scripts/grocery-f/bug334-repair.ts          # dry
+node --env-file=.env --import tsx scripts/grocery-f/bug334-repair.ts --apply
+node --env-file=.env --import tsx scripts/grocery-f/bug334-repair.ts          # public → 0
+```
+
+**Order matters, and this one is genuinely optional.**
+
+1. **The build carrying the render guard must be live first.**
+   `kiwi/lib/cooking/amountSegments.ts` refuses a ref whose unit opens with a
+   number and renders the authored text instead, so every affected step reads
+   correctly *with no data written at all*. That is what makes this apply
+   cleanup rather than the fix.
+2. Then the repair. Dev figures: **3,266 corrupt refs → 2,494 written** across
+   2,312 steps and 1,521 **public** dishes.
+3. **772 refs on 492 user-owned dish copies are NOT written** — D-WS9-230, fixes
+   are forward-only for user data. The guard is what serves them, permanently.
+   So a post-apply re-run reporting a non-zero corrupt count is CORRECT: the
+   expected residue is exactly the user-owned copies.
+
+**The script refuses to write on anything but a clean dry run.** Every repair is
+checked against the authored span at `[charStart, charEnd)` before it is
+accepted, and a ref whose repaired quantity does not reproduce the text a reader
+sees is skipped and printed. Dev: 0 refused. If production refuses any, read the
+names — do not pass a flag.
+
+Two classes, opposite arithmetic, and a single-class repair gets one wrong:
+
+- **glyph** (3,263 on dev) — `{q: 1.5, u: "½ cups"}`. The quantity is already
+  right; only the unit repeats the fraction. Quantity untouched.
+- **digit** (3 on dev, **all three on user-owned dishes**, so none is written) —
+  `{q: 1, u: "1/2 tablespoons"}`. The fraction is *lost*, not duplicated, and the
+  quantity must be raised to 1.5.
+
+## F.3 — `retailer.instacart_enabled` (AFTER APPROVAL — and probably NOT)
+
+Block F set this **true on DEV only**, so device-pass item 11 could be tested at
+all. Production is a separate decision and is not part of this runbook: turning
+it on exposes the Order Online surface to every user.
+
+```bash
+# DEV ONLY. The script's host check refuses anything but ep-broad-haze.
+node --env-file=.env --import tsx scripts/grocery-f/instacart-dev.ts --enable
+```
+
+## F.4 — What ships with the build, not with a script
+
+- **D-WS9-292** — fresh meat, poultry and seafood bought by weight
+  (`src/lib/freshProtein.ts`, gated in `resolvePurchaseFields`). **Writes no
+  catalog row**: the stored pack keeps its value and simply stops being consulted
+  for this class, so the whole rule reverts by deleting one block.
+- **F5.2** — `pluralizeCountUnit` in `ingredientConversions.ts`, read by
+  `formatMeasure`, so the Prep the Week text stops saying "3 stalk celery".
+- The client-side rules (F2's two render rules, F5.1/5.3/5.4/5.5, BUG-334's
+  guard) ship in `artifacts/kiwi/lib/**`.

@@ -47,6 +47,7 @@ import {
   type SectionKey,
 } from "./ai/schemas/grocery";
 import { bucketKeyOf, type ConsolidatedItem } from "./groceryList";
+import { classifyFreshProtein, freshProteinPurchase } from "./freshProtein";
 import { normalizeIngredientName } from "./groceryNormalization";
 import { baseStapleName } from "./groceryStaples";
 import { logger } from "./logger";
@@ -388,6 +389,37 @@ function resolvePurchaseFields(
   // PACK YIELD is layered on and wins (D-WS9-220's unruled half). A row with no
   // yield resolves exactly as before, so every non-yield row is byte-identical.
   const conv = withGroupLadder(rowConversion(item), groupConv);
+
+  // ── 🔴 D-WS9-292 — FRESH MEAT IS BOUGHT BY WEIGHT, AND THE GATE COMES FIRST ─
+  //
+  // Hans, September 30: "for meat, order the quantity needed." A fresh cut whose
+  // summed need resolves to a weight buys that weight to the next ¼ lb, and the
+  // stored pack — "4 lb pack" against a 2½ lb need — simply stops being
+  // consulted for this class.
+  //
+  // ⚠️ ABOVE EVERY PACK BRANCH, for the same reason BUG-171's staple gate is
+  // above them in composePackName: a rule that says "this row has no pack" must
+  // not be reachable around. Nothing below can reintroduce one.
+  //
+  // ⚠️ IT WRITES NO CATALOG ROW. `Ingredient.purchaseDisplay` keeps saying
+  // "4 lb pack" and every other consumer keeps reading it; this row's LIST
+  // fields are simply derived from the need instead. That is what "don't write
+  // catalog packs for this class" means, and it is why the rule is reversible
+  // by deleting this block.
+  //
+  // The three exceptions and exception 3's count→weight conversion live in
+  // freshProtein.ts with their sources; this is only the seam.
+  const protein = classifyFreshProtein({
+    sectionKey: item.sectionKey,
+    canonicalName: item.canonicalName,
+    displayName: item.displayName,
+    quantity: item.quantity,
+    unit: item.unit,
+    gramsPerEach: conv?.gramsPerEach ?? null,
+  });
+  if (protein.kind === "by_weight") {
+    return freshProteinPurchase(protein.buyLb);
+  }
   const scaled = scalePurchaseForSubUnit(conv, item.quantity, item.unit, {
     // A coHarvestable part pooled onto this row adds no need — it rides free —
     // but it can still mean one more pack. poolComponentNeeds left the floor.
@@ -1246,7 +1278,18 @@ export async function generateFinalGroceryList(
         : null;
     const pack = src
       ? resolvePurchaseFields(
-          { ...src, quantity: out.quantity, unit: out.unit },
+          {
+            ...src,
+            quantity: out.quantity,
+            unit: out.unit,
+            // D-WS9-292 — the SECTION the row lands in, not the one it was
+            // consolidated with. The fresh-protein gate keys on `meat_seafood`,
+            // and the Sonnet pass's whole job on this subset is to move rows
+            // between sections: reading `src.sectionKey` here would classify a
+            // row by an aisle the list does not show it in. Every other field
+            // the gate reads (name, quantity, unit) already comes from `out`.
+            sectionKey: out.sectionKey,
+          },
           groupConv,
         )
       : { purchaseUnit: null, purchaseQuantity: null, purchaseDisplay: null, packCount: null };

@@ -156,6 +156,20 @@ const NOT_MEAT = /\b(broth|stock|bouillon|base|soup|consomm|gravy|seasoning|flav
 // A produce word inside a BAKED or MILLED good is not produce either.
 const NOT_PRODUCE_FORM = /\b(tortillas?|bread|bun|roll|baguette|pita|naan|flour|meal|starch|pasta|noodles?|crackers?|muffins?|cake|chips?)\b/i;
 
+// ── [grocery] F (F4) — aisles a name can NEVER be in ───────────────────────
+//
+// The negative counterpart of SECTION_HINTS. See the D8 body for why this could
+// not be expressed as a hint: the hint loop exempts exactly these two shapes,
+// so the exemption is where the blindness lives. `vinegar` and `soup` are the
+// two Hans reported; each entry needs a reason a reader can check.
+const SECTION_FORBIDDEN: [RegExp, string[], string][] = [
+  // A shelf-stable acid is not fresh food, whatever fruit it is pressed from.
+  [/\bvinegars?\b/i, ["produce", "meat_seafood", "dairy_eggs", "frozen", "bakery_bread"], "a vinegar is shelf-stable"],
+  // An animal word inside a SOUP is the flavour, not the counter — the same
+  // reading NOT_MEAT already applies when it exempts the row from the hint.
+  [/\bsoups?\b/i, ["meat_seafood", "produce"], "a soup is a canned/pantry good"],
+];
+
 const SECTION_HINTS: [RegExp, string][] = [
   [/\b(lettuce|romaine|spinach|kale|onion|garlic|pepper(s)?|tomato|potato|carrot|celery|cilantro|parsley|basil|thyme|rosemary|mint|dill|scallion|green onion|lime|lemon|orange|apple|avocado|cucumber|zucchini|mushroom|broccoli|cabbage|ginger|jalapeno|jalapeño|shallot|corn|herb)\b/i, "produce"],
   [/\b(chicken|beef|pork|turkey|lamb|bacon|sausage|shrimp|salmon|steak|ribs|ground (beef|pork|turkey|chicken|lamb|veal|sausage))\b/i, "meat_seafood"],
@@ -397,6 +411,34 @@ async function main() {
 
     // ── D8 — aisle plausibility ────────────────────────────────────────────
     final.forEach((it, i) => {
+      // ── [grocery] F (F4) — THE FORBIDDEN PASS, AND WHY IT HAD TO BE SEPARATE ─
+      //
+      // Hans's device pass found apple cider vinegar in PRODUCE and cream of
+      // chicken soup in MEAT & SEAFOOD, and D8 was silent on both. Not by
+      // oversight — by its own anti-false-positive guards. `NOT_FRESH` carries
+      // `vinegar` so that "rice vinegar" is not demanded into produce, and
+      // `NOT_MEAT` carries `soup` so that "chicken soup" is not demanded onto
+      // the meat counter. Each `break`s out of the hint loop, and a broken-out
+      // row is never tested against the aisle it is actually IN.
+      //
+      // The two facts are different shapes and that is the whole fix. A HINT
+      // says "this name belongs in aisle X" and is easy to get wrong, so it is
+      // rightly exempted whenever a modifier moves the food. A FORBIDDEN says
+      // "whatever else is true, this name is not in aisle Y", and the exemptions
+      // above are precisely the evidence FOR it: a thing NOT_FRESH excuses from
+      // being produce is a thing that should not be filed as produce either.
+      //
+      // Run before the hints and never `break`s, so a row can be both hinted and
+      // forbidden. Kept tiny and keyed on classes Hans reported.
+      for (const [re, forbidden, why] of SECTION_FORBIDDEN) {
+        if (re.test(it.displayName) && forbidden.includes(it.sectionKey)) {
+          push({
+            detector: "D8", sub: `${it.sectionKey} → never ${it.sectionKey} (${why})`,
+            rows: [i], lines: [rendered[i].line],
+            detail: `"${it.displayName}" filed under ${it.sectionKey}`,
+          });
+        }
+      }
       const dried = NOT_FRESH.test(it.displayName) || SPICE_PEPPER.test(it.displayName);
       for (const [re, expected] of SECTION_HINTS) {
         if (re.test(it.displayName)) {

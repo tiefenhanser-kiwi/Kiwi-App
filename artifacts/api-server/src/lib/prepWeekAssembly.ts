@@ -22,6 +22,7 @@
 // Known simplification (D-WS7-151): two distinct dish-blends in one plan merge
 // into a single seasonings_dry blend step. Accepted for now.
 
+import { pluralizeCountUnit } from "./ingredientConversions";
 import {
   PREP_PHASE_ORDER,
   canonicalizeUnit,
@@ -142,11 +143,29 @@ function toCount(q: number): string {
   return String(Number(q.toFixed(2)));
 }
 
+// ── [grocery] F (F5.2) — A COUNT UNIT INFLECTS ─────────────────────────────
+//
+// Hans's device pass, item 18: the Prep the Week text read "Finely dice 3 stalk
+// celery and transfer to a container". Nothing was wrong with the number or the
+// noun — `canonicalizeUnit` returns the CANONICAL token, and the canonical
+// token is the singular, so every count above one printed singular. The
+// narrator echoes `formatMeasure`'s string verbatim ("prose can't move the
+// math"), which is exactly why the grammar has to be right here and cannot be
+// left to the model.
+//
+// ⚠️ ONLY THE COUNT BRANCH. The two branches above it are measure units and
+// they stay invariant on purpose: "1 ½ cup" and "2 lb" are how a recipe is
+// written, and "2 lbs" / "2 cups" would be a regression dressed as a fix. That
+// is the same split COUNT_NOUN_PLURALS keeps on the client.
+//
+// `pluralizeCountUnit` is the INVERSE of the count-unit alias map
+// ingredientConversions already owns — derived, not a second table.
 export function formatMeasure(quantity: number, rawUnit: string): string {
   const { token } = canonicalizeUnit(rawUnit);
   if (EIGHTH_UNITS.has(token)) return `${toEighths(quantity)} ${token}`;
   if (WHOLE_UNITS.has(token)) return `${Math.max(1, Math.round(quantity))} ${token}`;
-  return `${toCount(quantity)} ${token}`;
+  const shown = toCount(quantity);
+  return `${shown} ${pluralizeCountUnit(token, Number(shown))}`;
 }
 
 // One narration component per summed line of a group. The narrator writes from

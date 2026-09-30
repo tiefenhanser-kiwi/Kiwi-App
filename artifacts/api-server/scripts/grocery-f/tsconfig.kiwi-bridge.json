@@ -1,0 +1,10 @@
+{
+  "//": "[grocery] F (F7) — the ONE tsconfig that lets an api-server script import artifacts/kiwi/lib/instacartOrder.ts, whose imports are written against the mobile package's `@/*` alias. tsx reads `paths` from the tsconfig it is given, so `--tsconfig scripts/grocery-f/tsconfig.kiwi-bridge.json` resolves them to artifacts/kiwi. Nothing is compiled with this file and nothing else reads it: it exists so the payload is built from the phone's REAL selection code instead of a re-implementation of it.",
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": "../..",
+    "paths": {
+      "@/*": ["../kiwi/*"]
+    }
+  }
+}
