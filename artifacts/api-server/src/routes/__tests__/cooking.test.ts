@@ -24,6 +24,7 @@ import {
 import type { PrepLoadedPlan } from "../../lib/prepWeekAggregation";
 import type { PrepWeekResult } from "../../lib/ai/schemas/prepWeek";
 import { prepCompositionFingerprint } from "../../lib/prepWeekFingerprint";
+import { PROTEINS_PHASE_NOTE } from "../../lib/prepStorage";
 import { createCookingRouter } from "../cooking";
 import { withSessionUser } from "./fixtures/sessionUserStub";
 
@@ -2189,6 +2190,62 @@ describe("POST /api/plans/:planId/prep-week — full week is unchanged (WS9)", (
         mealIds: [MEAL_ID_X],
       });
       assert.equal(res.status, 402);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── WS9 D-WS9-298 — THE DATE OVERLAY RUNS ON EVERY READ ─────────────────────
+
+describe("POST /api/plans/:planId/prep-week — the storage overlay is computed, not cached", () => {
+  it("🔴 a CACHE HIT still carries the Proteins phase line", async () => {
+    // The cached blob is the assembled result, and the storage notes inside it
+    // depend on the DAY — which changes without the composition changing, since
+    // D-WS9-298 made a day reassignment a cache hit. So the hit path is exactly
+    // the one that must recompute them. A blob served untouched is yesterday's
+    // dates presented as today's.
+    const cache = makeCacheStub();
+    const stale = happyPrepWeekResult();
+    stale.totalEstimatedMinutes = 99; // marker: served only on a HIT
+    // The cached blob has NO phase note — it predates the overlay.
+    for (const p of stale.phases) delete (p as { note?: string }).note;
+    cache.rows.set(PLAN_ID, {
+      id: "row-overlay",
+      planId: PLAN_ID,
+      structureJson: stale,
+      compositionFingerprint: prepCompositionFingerprint(
+        buildStubInput({ planId: PLAN_ID, mealIds: [MEAL_ID_X], selected: [MEAL_ID_X] }),
+      ),
+      lastGeneratedFromPlanRevisionId: 1,
+      lastGeneratedAt: new Date("2026-09-30T00:00:00Z"),
+      promptVersion: STUB_PROMPT_VERSION,
+    });
+    let aiCalls = 0;
+    const harness = await spinUp({
+      loadPrepWeekInput: makeLoaderStub({ planRevisionId: 1, mealIds: [MEAL_ID_X] }),
+      resolvePromptDescriptor: makeDescriptorStub(),
+      runAICall: makeAICallStub({ onCall: () => { aiCalls++; }, promptVersion: STUB_PROMPT_VERSION }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prisma: cache.prisma as any,
+      subscriptionService: { can: async () => ({ allowed: true }) },
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/${PLAN_ID}/prep-week`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${signToken("u-overlay")}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { cacheHit: boolean; result: PrepWeekResult };
+      assert.equal(body.cacheHit, true, "this test is about the HIT path");
+      assert.equal(aiCalls, 0);
+      assert.equal(body.result.totalEstimatedMinutes, 99, "the cached blob must be what was served");
+      const proteins = body.result.phases.find((p) => p.phase === "proteins")!;
+      assert.equal(
+        proteins.note,
+        PROTEINS_PHASE_NOTE,
+        "the overlay did not run on the cache-hit path",
+      );
     } finally {
       await harness.close();
     }

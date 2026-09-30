@@ -259,6 +259,69 @@ const BREAKS: Break[] = [
     runner: "api",
     expect: '"measure 2 tbsp hot sauce" is a prep step again',
   },
+  {
+    n: 16,
+    ruling: "D-WS9-298 (2) — a Friday protein is not prepped on Sunday",
+    file: join(API, "src/lib/prepStorage.ts"),
+    cwd: API,
+    edits: [
+      {
+        from: "  if (daysUntilCook <= 2) {",
+        to: "  if (daysUntilCook <= 99) {",
+      },
+    ],
+    test: "src/lib/__tests__/prepStorage.test.ts",
+    runner: "api",
+    expect: "a salmon cooked in 5 days renders as a step with a 2-day note",
+  },
+  {
+    n: 17,
+    ruling: "D-WS9-298 (2) — an unassigned day is not day zero",
+    file: join(API, "src/lib/prepStorage.ts"),
+    cwd: API,
+    edits: [
+      {
+        from: "  if (daysUntilCook === undefined) {",
+        to: "  if (false) {",
+      },
+    ],
+    test: "src/lib/__tests__/prepStorage.test.ts",
+    runner: "api",
+    expect: "an undated chicken step gets the confident 2-day note instead of its own line",
+  },
+  {
+    n: 18,
+    ruling: "D-WS9-298 (1) — the model's storage text never reaches the screen",
+    file: join(API, "src/lib/prepStorage.ts"),
+    cwd: API,
+    edits: [
+      {
+        // Keep the model's note when it has one — the merge the ruling forbids.
+        from: "        return { ...step, storageNote: storageClassFor(ctx.text).note };",
+        to: "        return { ...step, storageNote: step.storageNote ?? storageClassFor(ctx.text).note };",
+      },
+    ],
+    test: "src/lib/__tests__/prepStorage.test.ts",
+    runner: "api",
+    expect: "a model-written storage note survives onto the step",
+  },
+  {
+    n: 19,
+    ruling: "D-WS9-298 — the overlay is computed, never read from the cache",
+    file: join(API, "src/routes/cooking.ts"),
+    cwd: API,
+    edits: [
+      {
+        // Serve the cached blob untouched: the shape D-WS9-298 forbids, because
+        // the blob holds the dates the plan had when it was generated.
+        from: "          result: applyStorageOverlay(\n            cached.structureJson as unknown as PrepWeekResult,\n            storageContextFor(),\n          ),",
+        to: "          result: cached.structureJson as unknown as PrepWeekResult,",
+      },
+    ],
+    test: "src/routes/__tests__/cooking.test.ts",
+    runner: "api",
+    expect: "a cache hit serves yesterday's storage notes",
+  },
 ];
 
 function runTest(b: Break): { pass: boolean; tail: string } {

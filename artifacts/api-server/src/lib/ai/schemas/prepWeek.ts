@@ -96,6 +96,13 @@ export const PrepWeekPhaseSchema = z.object({
   // present. A phase with zero steps is still emitted to keep the 4-phase
   // shape stable across plans.
   skippable: z.boolean(),
+  /**
+   * WS9 D-WS9-298 item 3 — a quiet line under the phase title, CODE-OWNED and
+   * computed on every read. Today only the Proteins phase carries one, saying
+   * why that phase is short. Not an alert and not a modal: the same tier as a
+   * storage note.
+   */
+  note: z.string().max(200).optional(),
   steps: z.array(PrepWeekStepSchema).min(0).max(30),
 });
 export type PrepWeekPhase = z.infer<typeof PrepWeekPhaseSchema>;

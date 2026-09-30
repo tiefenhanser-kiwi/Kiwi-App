@@ -41,6 +41,7 @@ import {
   PrepNarrationIncompleteError,
 } from "../lib/prepWeekAssembly";
 import { PrepNarrationResultSchema } from "../lib/ai/schemas/prepNarration";
+import { applyStorageOverlay, type StorageContext } from "../lib/prepStorage";
 import {
   stepKeysOfResult,
   derivePrepCompletion,
@@ -308,6 +309,64 @@ export function createCookingRouter(
       // A NULL stored fingerprint (any row written before this shipped) is a
       // MISS: self-healing, one regeneration per plan, no backfill.
       // See prepWeekFingerprint.ts for why a hash and not a second counter.
+      // ── WS9 D-WS9-298 — THE ENGINE RUNS BEFORE THE CACHE GATE ────────────
+      //
+      // It used to run only on a MISS. The storage overlay needs the step
+      // plan's context — each step's phase, its ingredient names and its
+      // `daysUntilCook` — on EVERY read, because a cached blob holds notes
+      // that depend on the DAY while the day changes without the composition
+      // changing. That is precisely the case D-WS9-298 made a cache HIT, so
+      // the hit path is the one that must recompute them.
+      //
+      // The cost is pure CPU over data already in hand: no query, no AI call.
+      // The alternative is putting the dates back in the fingerprint, and then
+      // every day reassignment is a regeneration again.
+      // 4. Cache miss or stale. BLENDED path: deterministic engine does ALL
+      //    grouping / summing / scaling / attribution / phase placement; the
+      //    AI is called only to narrate the computed step plan into prose.
+      const combineInput = buildPrepCombineInput(input);
+      const combineResult = combinePrep(combineInput);
+      // WS7-8a B2b — step text per dishId (folded dish + meal owned) so the
+      // narration layer can judge combine-vs-season and demote skip steps.
+      const stepTextByDishId = new Map<string, string[]>();
+      for (const meal of input.meals) {
+        for (const dish of meal.dishes) {
+          stepTextByDishId.set(dish.dishId, dish.stepTexts);
+        }
+      }
+      // WS9 BUG-338 / D-WS9-298 — the lag is computed in the LOADER now, beside
+      // the input rather than inside it, so `prepCompositionFingerprint` never
+      // sees a date and a day reassignment stays a cache hit. B1 had this
+      // arithmetic copied here and in the census harness; one copy remains.
+      const stepPlan = buildStepPlan(
+        combineResult,
+        input.planName,
+        stepTextByDishId,
+        cookDays.lagByMealId,
+      );
+
+      /**
+       * D-WS9-298 — what the overlay needs, keyed by stepKey. Built from the
+       * STEP PLAN rather than the cached blob, so it is today's dates either way.
+       */
+      const storageContextFor = (): Map<string, StorageContext> => {
+        const m = new Map<string, StorageContext>();
+        for (const st of stepPlan.steps) {
+          const names = st.components.map((c) => c.ingredientName);
+          const notes = st.components.flatMap((c) => [
+            c.preparationNote ?? "",
+            ...c.measures.map((x) => x.preparationNote ?? ""),
+          ]);
+          m.set(st.stepKey, {
+            daysUntilCook: st.daysUntilCook,
+            phase: st.phase,
+            text: [...names, ...notes].join(" "),
+            ingredientNames: names,
+          });
+        }
+        return m;
+      };
+
       const cached = isSubset
         ? null
         : await prisma.prepWeekStructure.findUnique({ where: { planId } });
@@ -339,36 +398,20 @@ export function createCookingRouter(
         return res.json({
           cacheHit: true,
           subset: false,
-          result: cached.structureJson as unknown as PrepWeekResult,
+          // D-WS9-298 — THE DATE OVERLAY, ON THE HIT PATH TOO. The blob is what
+          // the AI wrote; the storage notes, the protein demotions and the
+          // Proteins phase line are recomputed from today's cook days.
+          result: applyStorageOverlay(
+            cached.structureJson as unknown as PrepWeekResult,
+            storageContextFor(),
+          ),
           planRevisionId,
           generatedAt: cached.lastGeneratedAt.toISOString(),
           promptVersion: cached.promptVersion,
         });
       }
 
-      // 4. Cache miss or stale. BLENDED path: deterministic engine does ALL
-      //    grouping / summing / scaling / attribution / phase placement; the
-      //    AI is called only to narrate the computed step plan into prose.
-      const combineInput = buildPrepCombineInput(input);
-      const combineResult = combinePrep(combineInput);
-      // WS7-8a B2b — step text per dishId (folded dish + meal owned) so the
-      // narration layer can judge combine-vs-season and demote skip steps.
-      const stepTextByDishId = new Map<string, string[]>();
-      for (const meal of input.meals) {
-        for (const dish of meal.dishes) {
-          stepTextByDishId.set(dish.dishId, dish.stepTexts);
-        }
-      }
-      // WS9 BUG-338 / D-WS9-298 — the lag is computed in the LOADER now, beside
-      // the input rather than inside it, so `prepCompositionFingerprint` never
-      // sees a date and a day reassignment stays a cache hit. B1 had this
-      // arithmetic copied here and in the census harness; one copy remains.
-      const stepPlan = buildStepPlan(
-        combineResult,
-        input.planName,
-        stepTextByDishId,
-        cookDays.lagByMealId,
-      );
+      // 4. Cache miss or stale — the engine already ran above the gate.
 
       // Nothing in the plan is prep-worthy (all denylisted / buy-and-use) —
       // same 400 + copy as a structurally empty plan.
@@ -546,7 +589,9 @@ export function createCookingRouter(
         // `envelope.subset` is a straight boolean, never an absence to reason
         // about.
         subset: isSubset,
-        result,
+        // D-WS9-298 — the same overlay, from the same helper, so the two paths
+        // cannot drift into showing different storage text for one plan.
+        result: applyStorageOverlay(result, storageContextFor()),
         planRevisionId,
         generatedAt: new Date().toISOString(),
         promptVersion,
