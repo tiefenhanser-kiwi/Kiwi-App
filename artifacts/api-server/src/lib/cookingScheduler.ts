@@ -287,6 +287,8 @@ export const LAG_AFTER_HEAT_REST = 2;
 export const LAG_AFTER_HEAT_OTHER = 5;
 /** Belt on the repair loop; `pull` is monotone decreasing, so this never binds in practice. */
 const MAX_LAG_ITERATIONS = 8;
+/** D-WS9-297 ruling 3 — the shortest passive window worth moving a cold dish into. */
+const COLD_FORWARD_MIN_WINDOW = 10;
 
 /**
  * The steps a cook actually does: base (null path) + ONE path per swappable
@@ -709,10 +711,10 @@ export function scheduleCookingSequence(
   }
 
   const anyTag = nonEmpty.some((d) => d.steps.some((s) => rawToken(s) !== null));
-  const untagged = scheduleOnce(nonEmpty, false, enforceMaxLag, coldDishesForward);
+  const untagged = scheduleArm(nonEmpty, false, enforceMaxLag, coldDishesForward);
   if (!anyTag) return untagged; // byte-identical to the pre-D-WS9-239 path
 
-  const tagged = scheduleOnce(nonEmpty, true, enforceMaxLag, coldDishesForward);
+  const tagged = scheduleArm(nonEmpty, true, enforceMaxLag, coldDishesForward);
   // Rule 6 — the anomaly guard. A tie keeps the tagged schedule: it is the
   // order the recipe's own prose describes, and it costs nothing.
   if (tagged.totalEstimatedMinutes <= untagged.totalEstimatedMinutes) {
@@ -744,11 +746,86 @@ export function scheduleCookingSequence(
   return { ...untagged, ignoredTags: guarded };
 }
 
-function scheduleOnce(
+/**
+ * WS9 BUG-337 / D-WS9-297 ruling 3 — one arm of the tag guard, with the cold
+ * dishes moved into a passive window.
+ *
+ * ── WHY THIS IS TWO PASSES AND NOT A BASE OF ZERO ──────────────────────────
+ *
+ * 🔴 THE FIRST IMPLEMENTATION SET A COLD DISH'S BASE TO 0 ("as early as the
+ * hands allow") AND MADE THE METRIC WORSE. Measured on the 54-meal corpus: idle
+ * window minutes went 2,137 → 2,206, and 14 of the 16 meals it touched got
+ * LONGER (a Tortellini + Caesar meal 37 → 45, +21.6%). The reason is that base 0
+ * does not put the salad in a window — it puts the salad FIRST, ahead of the
+ * point where any window opens, so the hot dishes start later and the whole meal
+ * slides. The ruling says "pulled into the nearest passive window ≥ 10 min", and
+ * that is a different instruction from "pulled to the front".
+ *
+ * A window's position is not known until the hot dishes have been placed, so:
+ *   pass 1  schedule with every dish finish-aligned — this DISCOVERS the windows
+ *   pass 2  re-schedule with each cold dish based at the earliest window that is
+ *           actually earlier than where finish-alignment had put it
+ * and the shorter total wins, exactly as rule 6 does for tags. That makes ruling
+ * 3 free by construction rather than by luck: a cold dish whose window never
+ * opens, or whose move would cost minutes, simply stays where it was.
+ */
+function scheduleArm(
   nonEmpty: SchedulerDish[],
   honourTags: boolean,
   enforceMaxLag: boolean,
   coldDishesForward: boolean,
+): ScheduleResult {
+  const aligned = scheduleOnce(nonEmpty, honourTags, enforceMaxLag, null);
+  if (!coldDishesForward) return aligned;
+  const cold = nonEmpty.filter(isServedCold);
+  if (cold.length === 0) return aligned;
+
+  // The passive windows pass 1 opened, in cook-start-frame minutes. Only HOT
+  // dishes' windows count: a cold dish moving into another cold dish's rest
+  // would just shuffle two things that were already free to sit.
+  const coldIds = new Set(cold.map((d) => d.dishId));
+  const serve = aligned.totalEstimatedMinutes;
+  const stepByKey = new Map<string, SchedulerStep>();
+  for (const d of nonEmpty) for (const s of d.steps) stepByKey.set(`${d.dishId}#${s.stepIndex}`, s);
+  const windows: number[] = [];
+  for (const e of aligned.steps) {
+    if (coldIds.has(e.dishId)) continue;
+    const s = stepByKey.get(`${e.dishId}#${e.originalStepIndex}`);
+    if (!s || !isUnattended(s) || s.estimatedMinutes < COLD_FORWARD_MIN_WINDOW) continue;
+    windows.push(e.startOffsetMinutes + serve);
+  }
+  if (windows.length === 0) return aligned;
+  windows.sort((a, b) => a - b);
+
+  // Where finish-alignment had each cold dish; only a genuinely EARLIER window
+  // is a move worth making. "Earliest first" — every cold dish takes the first
+  // window that beats its current base, and the single-cook pass then packs them
+  // in priority order.
+  const alignedBase = new Map<string, number>();
+  for (const e of aligned.steps) {
+    if (!coldIds.has(e.dishId)) continue;
+    const abs = e.startOffsetMinutes + serve;
+    const cur = alignedBase.get(e.dishId);
+    if (cur === undefined || abs < cur) alignedBase.set(e.dishId, abs);
+  }
+  const coldBases = new Map<string, number>();
+  for (const d of cold) {
+    const was = alignedBase.get(d.dishId);
+    if (was === undefined) continue;
+    const w = windows.find((x) => x < was);
+    if (w !== undefined) coldBases.set(d.dishId, w);
+  }
+  if (coldBases.size === 0) return aligned;
+
+  const forward = scheduleOnce(nonEmpty, honourTags, enforceMaxLag, coldBases);
+  return forward.totalEstimatedMinutes <= aligned.totalEstimatedMinutes ? forward : aligned;
+}
+
+function scheduleOnce(
+  nonEmpty: SchedulerDish[],
+  honourTags: boolean,
+  enforceMaxLag: boolean,
+  coldBases: ReadonlyMap<string, number> | null,
 ): ScheduleResult {
   const ignoredTags: IgnoredTag[] = [];
 
@@ -758,32 +835,17 @@ function scheduleOnce(
   );
   const anchor = Math.max(...alone.map((a) => a.duration));
 
-  // ── WS9 BUG-337 / D-WS9-297 ruling 3 — COLD DISHES COME FORWARD ──────────
-  //
-  // Finish-alignment exists so nothing hot finishes early (BUG-018: cold corn).
-  // Applied to EVERY dish it also pushes the pico and the guacamole late, which
-  // is why a 30-minute marinade had 27 idle minutes with four prep steps already
-  // startable: the work that could have filled the window had been deliberately
-  // moved past it. Measured: 15 windows ≥ 10 min, worst a 60-minute dough rest
-  // with the Caesar romaine waiting.
-  //
-  // A served-cold dish has no early-finish penalty — pico is MEANT to sit — so
-  // it is not finish-aligned. Its base start is 0: it takes the earliest hands
-  // the single-cook pass will give it, which is exactly the idle window. Hot
-  // dishes are untouched, so BUG-018's fix is intact.
-  //
-  // This does not reorder anything by itself. It lowers the cold dish's priority
-  // keys, and the pass still serialises the hands; a cold dish whose window
-  // never opens simply lands where it always did.
-  const coldDishIds = new Set(
-    coldDishesForward ? nonEmpty.filter(isServedCold).map((d) => d.dishId) : [],
-  );
+  // The served-cold set, for the cue's "stays warm" veto (ruling 2). NOT the same
+  // question as `coldBases`, which is only about the dishes ruling 3 chose to
+  // MOVE: a guacamole must never be described as staying warm whether or not it
+  // was pulled forward, and `coldDishesForward: false` must not reinstate that lie.
+  const coldDishIds = new Set(nonEmpty.filter(isServedCold).map((d) => d.dishId));
 
-  // 2. Finish-aligned ideal starts (each dish finishes at `anchor`).
+  // 2. Finish-aligned ideal starts (each dish finishes at `anchor`), except for
+  //    a cold dish that `coldBases` has moved into a passive window (ruling 3).
   const work: WorkStep[] = [];
   nonEmpty.forEach((dish, dishIdx) => {
-    // A cold dish starts as early as the hands allow; a hot one finishes at the anchor.
-    const base = coldDishIds.has(dish.dishId) ? 0 : anchor - alone[dishIdx].duration;
+    const base = coldBases?.get(dish.dishId) ?? anchor - alone[dishIdx].duration;
     dish.steps.forEach((step, stepIdx) => {
       const idealStart = base + alone[dishIdx].offsets[stepIdx];
       work.push({
@@ -853,8 +915,48 @@ function scheduleOnce(
     return w.step.phaseType === "rest" ? LAG_AFTER_HEAT_REST : LAG_AFTER_HEAT_OTHER;
   };
 
+  // ── THE COOK'S HANDS ARE A BUSY SET, NOT A HIGH-WATER MARK ───────────────
+  //
+  // 🔴 THIS REPLACED A SCALAR `cookBusyUntil`, AND THE REPAIR ABOVE IS WHY.
+  // A single high-water mark is only correct if steps are considered in time
+  // order, because it says "the hands are busy until T" and can never be asked
+  // about a gap before T. Priority repair breaks that premise by design: it
+  // moves a step's KEY without moving its START.
+  //
+  // Measured: the Mississippi Pot Roast grew 520 → 589 minutes (+13.3%). Its
+  // shred step follows an 8-hour braise, so the bound pulled the shred's key to
+  // the braise's — placing it FIRST in the walk with an actual start of 502. As
+  // an attended step it set the mark to 506, and the mashed potatoes, whose ideal
+  // start was 458 and which had happily run inside the braise for the previous
+  // eight hours, were then told the hands were busy until 506. Nothing was
+  // actually busy at 458; the scalar just could not represent a hole.
+  //
+  // So the hands keep a set of occupied intervals and a step takes the earliest
+  // slot that genuinely fits. An ATTENDED step needs the whole interval free; an
+  // UNATTENDED one needs only the instant it is kicked off in (the same rule
+  // `walkDishAlone` already applies within a dish).
+  const findSlot = (
+    busy: readonly [number, number][],
+    from: number,
+    duration: number,
+    wholeWindow: boolean,
+  ): number => {
+    let t = from;
+    // Each shift lands on some interval's end, and there are finitely many, so
+    // this settles rather than looping.
+    for (let guard = 0; guard <= busy.length; guard++) {
+      let moved = false;
+      for (const [s, f] of busy) {
+        const clashes = wholeWindow ? t < f && s < t + duration : s <= t && t < f;
+        if (clashes) { t = f; moved = true; }
+      }
+      if (!moved) break;
+    }
+    return t;
+  };
+
   const runPass = () => {
-    let cookBusyUntil = 0;
+    const busy: [number, number][] = [];
     const placed = nonEmpty.map((d) => new Array<WorkStep | undefined>(d.steps.length));
     // Earliest key first, then stable by dish position then stepIndex (fully
     // deterministic tie-break). Within a dish this order always places a step's
@@ -885,14 +987,15 @@ function scheduleOnce(
           earliest = Math.max(earliest, mine[j]?.finish ?? 0);
         }
       }
-      const start = Math.max(w.idealStart, earliest, cookBusyUntil);
+      const floor = Math.max(w.idealStart, earliest);
+      const start = findSlot(busy, floor, w.step.estimatedMinutes, !w.unattended);
       w.actualStart = start;
       w.finish = start + w.step.estimatedMinutes;
       mine[w.stepIdx] = w;
       // Attended steps hold the cook for their whole duration; unattended steps
       // release the cook immediately after kickoff (they run in the background).
       if (!w.unattended) {
-        cookBusyUntil = w.finish;
+        busy.push([start, w.finish]);
       }
     }
   };

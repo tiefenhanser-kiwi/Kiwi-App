@@ -178,6 +178,38 @@ describe("BUG-337 ruling 1 — a step may not drift from its own heat predecesso
     }
   });
 
+  it("a repaired step does not block work that could run in a hole before it", () => {
+    // THE MISSISSIPPI POT ROAST REPRO. The shred follows an 8-hour braise, so the
+    // bound pulls its key to the braise's and it is placed FIRST in the walk —
+    // with an actual start of 502. Under the old scalar `cookBusyUntil` that set
+    // the mark to 506, and the mashed potatoes (ideal start 458, happily inside
+    // the braise for the previous eight hours) were told the hands were busy
+    // until 506. The meal grew 520 -> 589. Nothing was busy at 458; a high-water
+    // mark simply cannot represent a hole, so the hands keep a busy SET.
+    const dishes = [
+      dish("roast", "Slow Cooker Pot Roast", 0, [
+        step(0, 3, "prep"),
+        step(1, 10, "cook", { ts: true, text: "Sear the roast in a heavy skillet." }),
+        step(2, 480, "cook", { text: "Cover and cook on low for 8 hours." }),
+        step(3, 4, "assemble", { text: "Shred the roast with two forks." }),
+      ]),
+      dish("mash", "Buttery Mashed Potatoes", 1, [
+        step(0, 8, "prep", { text: "Peel and cut the potatoes." }),
+        step(1, 20, "cook", { text: "Boil the potatoes." }),
+        step(2, 5, "assemble", { text: "Mash the potatoes." }),
+      ]),
+    ];
+    const r = scheduleCookingSequence(dishes);
+    // The potatoes' prep must land INSIDE the braise, not after the shred.
+    const braiseEnd = finishOf(r, dishes, "roast", 2);
+    assert.ok(
+      startOf(r, "mash", 0) < braiseEnd,
+      `the potato prep was pushed to ${startOf(r, "mash", 0)}, after the braise ended at ${braiseEnd}`,
+    );
+    // And the bound still holds on the step that caused the repair.
+    assert.ok(startOf(r, "roast", 3) - braiseEnd <= LAG_AFTER_HEAT_OTHER);
+  });
+
   it("a step with no heat predecessor is unconstrained (the bound is not a global tightening)", () => {
     // Every step here follows a prep/assemble, so the bound must never fire and
     // the schedule must be byte-identical with it on and off.
