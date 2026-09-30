@@ -297,8 +297,8 @@ const BREAKS: Break[] = [
     edits: [
       {
         // Keep the model's note when it has one — the merge the ruling forbids.
-        from: "        return { ...step, storageNote: storageClassFor(ctx.text).note };",
-        to: "        return { ...step, storageNote: step.storageNote ?? storageClassFor(ctx.text).note };",
+        from: "        return { ...step, storageNote: storageClassFor(ctx.text, ctx.bowlName).note };",
+        to: "        return { ...step, storageNote: step.storageNote ?? storageClassFor(ctx.text, ctx.bowlName).note };",
       },
     ],
     test: "src/lib/__tests__/prepStorage.test.ts",
