@@ -30,6 +30,7 @@ import {
   flattenMealSteps,
   misePlaceItems,
   remainingMinutes,
+  remainingMinutesToServe,
   resolveAmountMultiplier,
   resolveCookRender,
   resolvePrepGate,
@@ -274,7 +275,13 @@ export default function CookSession() {
       prepped={prepped}
       showSkipBar={showSkipBar}
       recapItems={recapItems}
-      remainingMins={remainingMinutes(activeSteps, safeIndex)}
+      // D-WS9-297 ruling 5 — the scheduler's wall clock, not a sum of step
+      // minutes. remainingMinutes is the fallback for the unsequenced paths,
+      // where no serve-anchored offset exists. Never both.
+      remainingMins={
+        remainingMinutesToServe(activeSteps, safeIndex) ??
+        remainingMinutes(activeSteps, safeIndex)
+      }
       onAdvance={advance}
       onPrevStep={prev}
       onSelectStep={selectStep}

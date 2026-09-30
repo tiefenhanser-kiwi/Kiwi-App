@@ -6,6 +6,22 @@
 // independent one, with nothing reconciling them — so the number a shopper
 // reads had no relationship to the recipe underneath it.
 //
+// ⚠️ TWO CLOCKS, NEVER THREE (WS9 BUG-337 / D-WS9-297 ruling 5).
+// `cookingScheduler` owns the wall clock. THIS FILE is the second clock: a thin
+// adapter that reads the scheduler's numbers for the stamp the card shows. There
+// is no third.
+//
+// The rule is written down because it was already broken. `artifacts/kiwi/lib/
+// cooking/stepTiming.ts` grew a `remainingMinutes` that SUMS step minutes, and
+// Cook Mode's footer showed it as elapsed time: measured on the 13-plan census,
+// 48 of 54 meals overstated, median 43% over, worst 167% — the Carne Asada Tacos
+// footer read 116 minutes beside a card reading 88, from the same steps. Both
+// numbers were "right" about their own arithmetic and one of them was not a
+// clock. Anything that sums step minutes and presents the result as time
+// remaining is a third clock; the wire already carries
+// `SequencedStep.startOffsetMinutes` for exactly this, and the footer reads it
+// now (`remainingMinutesToServe`).
+//
 // ⚠️ THIS FILE OWNS NO PARALLELISM RULES AND MUST NEVER GROW ANY. Hans:
 // "we did a lot of work on this and what counts as parallel or not, so the
 // rules are there." `cookingScheduler` decides what overlaps — unattended is

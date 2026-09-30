@@ -26,7 +26,7 @@ export {
   timerRemainingMs,
   type ActiveTimer,
 } from "./timer";
-export { remainingMinutes } from "./stepTiming";
+export { remainingMinutes, remainingMinutesToServe } from "./stepTiming";
 
 export const PREP_PHASE = "prep";
 
@@ -91,6 +91,15 @@ export interface CookStep {
    * step, so advancement is never gated on it (PRD §13.9).
    */
   cue?: string;
+  /**
+   * WS9 BUG-337 / D-WS9-297 ruling 5 — the server's serve-anchored offset
+   * (0 = serve, negative = minutes before serve), set ONLY on the sequenced
+   * path. This is what the footer's "~N min left" is computed from; it is the
+   * scheduler's own wall-clock, so the screen can no longer disagree with the
+   * card. Absent on the flatten paths and on §27's defensive append, where
+   * `remainingMinutes` is still the only answer available.
+   */
+  startOffsetMinutes?: number | null;
 }
 
 function toCookStep(s: MealStep, key: string, dishTitle?: string): CookStep {
@@ -178,7 +187,11 @@ export function sequenceMealSteps(
     const hit = byKey.get(k);
     if (!hit || used.has(k)) continue; // unmappable or duplicate → defer to append.
     used.add(k);
-    out.push({ ...toCookStep(hit.step, k, hit.dishTitle), cue: entry.reason });
+    out.push({
+      ...toCookStep(hit.step, k, hit.dishTitle),
+      cue: entry.reason,
+      startOffsetMinutes: entry.startOffsetMinutes,
+    });
   }
 
   // ── §27 DEFENSIVE APPEND — WHAT IT IS ACTUALLY FOR, AS OF [grocery] B3 ────
