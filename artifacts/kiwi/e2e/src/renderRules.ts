@@ -145,11 +145,25 @@ export async function bR2_recurringFormsRender(
 // ── B-R3 — the glyph ladder and BUG-317's "each", on the pixels ─────────────
 
 /**
- * A raw decimal in a quantity position. Deliberately narrow: a version number,
- * a temperature ("425°F"), a percentage and a pack size ("1.5 lb bag" is the
- * store's own words) are not the need column.
+ * A raw decimal in a quantity position. Deliberately narrow: a temperature
+ * ("425°F"), a percentage, and a PACK SIZE ("1 package (0.25 oz)", "1.5 lb
+ * bag") are the store's own words, not the need column.
+ *
+ * ── ⚠️ NARROWED TWICE. The second time was a regex bug, not a ruling ────────
+ *
+ * Run 5 of the first full pass reported one violation: `0.2` in
+ * "1 package (0.25 oz) instant yeast". The unit exclusion was already there and
+ * it was defeated by BACKTRACKING — `(\d+\.\d+)` matched "0.25", the lookahead
+ * saw " oz" and rejected it, so the engine backed off to "0.2", whose lookahead
+ * then saw "5 oz" and passed. `(?!\d)` pins the decimal to its full length so
+ * it cannot shrink out from under its own exclusion.
+ *
+ * Worth keeping as a comment because it is the failure mode of every
+ * lookahead-guarded numeric pattern, and the symptom — a captured value that is
+ * a PREFIX of the number actually on screen — is the tell.
  */
-const RAW_DECIMAL = /(?<![\d.°%$])(\d+\.\d+)(?!\s*(?:°|%|lb bag|oz|ml|g\b))/;
+const RAW_DECIMAL =
+  /(?<![\d.°%$])(\d+\.\d+)(?!\d)(?!\s*(?:°|%|oz|ounces?|ml|l\b|g\b|kg|lb|pound|inch|in\b|cm|mm|%))/i;
 
 /** BUG-317 / [grocery] F5.5 — "1 each for meals" is not English. */
 const BARE_EACH = /\b\d+\s+each\b/i;
