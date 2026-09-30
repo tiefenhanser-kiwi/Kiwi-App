@@ -1500,7 +1500,8 @@ A 'planName', a 'dishSteps' map (each dish name → that dish's recipe instructi
 
 ⚠️ A WHOLE FRUIT AND ITS JUICE ARE THE SAME FRUIT. If one step preps whole limes and another measures lime juice, the user has ONE pile of limes to serve both. Never write the two as if they were separate shopping. 'fromSource' is what lets you say the real number.
 - 'relevantDishes' — the NAMES of the dish(es) these ingredients are cooked in (a subset of this step's 'forDish' names). Look each name up in the top-level 'dishSteps' map to get that dish's recipe instruction-step text; the combined text of a step's 'relevantDishes' is what the rules below call this step's 'relevantSteps'. Read it to judge prep vs. at-cook (see "# Prep-vs-cook-time rule"). A step with no 'relevantDishes' (or a name absent from 'dishSteps') has no step text — treat its 'relevantSteps' as empty.
-- 'blendSpiceDish' — present ONLY on a sauce/marinade step whose dish ALSO has spices waiting in the seasoning-blend step; its value is that dish's name. When present, you MUST tell the user to combine this step's items with that dish's spices from their seasoning blend (see "# Linking a sauce to its blend spices"). Absent → never mention the blend.
+- 'bowlName' — THE VESSEL, present on a step whose items all go into ONE named container: "Carne asada marinade bowl", "Teriyaki Salmon glaze jar", "Fajita spice blend". Use the string EXACTLY as given, every time you name the container, and never invent a different name for it. This is the whole point of such a step: the spices, the juices and the aromatics of one mixture are measured into one bowl instead of scattered across five. See "# A step with a bowl".
+- 'cookDaySentence' — present ONLY on a raw-protein step whose protein joins a bowl on cook day. It is already written for you. Echo it VERBATIM as the step's instruction and add nothing to it: it states a fact about the schedule, not a suggestion.
 
 # How to write the measures (this is the core of the job)
 
@@ -1525,14 +1526,24 @@ title: "Measure the pork chop glaze"
 1 tsp apple cider vinegar"
 - NEVER add two dishes' amounts into one number, and NEVER tell the user to measure a total and split it.
 
-# Linking a step to its dish's blend
+# A step with a bowl
 
-When a step carries a 'blendSpiceDish', that dish's mixture lives in TWO places: this step and the earlier seasoning-blend step. The user will otherwise end up with a lonely container and no idea what it belongs with. So on a step with 'blendSpiceDish', after writing this step's per-dish measures, add ONE closing sentence telling the user to combine them with what is waiting in the blend step.
+A step carrying 'bowlName' is ONE mixture going into ONE container, and its items may come from several phases — a marinade's spices, its citrus and its garlic all belong in the same bowl even though they look like three different kinds of prep. Write it as one action into that vessel.
 
-NAME THE COMPONENT, AND NEVER CALL A LIQUID A SPICE. The sentence must say what the user is BUILDING — "the carne asada marinade", "the teriyaki glaze", "the burger sauce" — and not merely "the sauce". Read this step's own ingredients to decide which it is: something that soaks a protein is a marinade, something brushed or poured at the end is a glaze, a dressing dresses, a rub is dry. Judge what is in the blend step the same way: mirin, sake and honey are a glaze base, not "spices", so "combine these with the Teriyaki Salmon spices" is wrong where "add these to the Teriyaki Salmon glaze" is right. Say "spices" only when the blend really is dry seasonings.
+Open by naming the bowl, list the per-dish measures beneath it, and close with nothing at all — there is no second container to point at. Verbatim shape:
+title: "Build the Carne asada marinade bowl"
+"Measure into the Carne asada marinade bowl:
+1 tsp chili powder
+1 tsp ground cumin
+¼ cup orange juice
+3 tbsp lime juice
+4 cloves garlic, minced"
 
-So: "Add these to the <component> along with the <blendSpiceDish> portion from your blend step." — using the exact 'blendSpiceDish' name for the dish and your own reading for the component. When 'blendSpiceDish' is absent, never mention the blend — there is nothing to point at.
+USE THE GIVEN NAME AND ONLY THE GIVEN NAME. Not "the marinade bowl", not "the carne asada bowl", not "your mixing bowl" — the exact 'bowlName' string. The user will look for that label on a container in the fridge on Friday, and a bowl named two ways is two bowls to them.
 
+When a LATER step adds to a bowl the user already has, say so plainly: "Add these to the Carne asada marinade bowl." Never "combine with the spices from your seasoning blend" — that was the old wording for two containers, and there is one now.
+
+A step with NO 'bowlName' is a plain portion of a single ingredient. Do not invent a bowl for it.
 # What you return
 
 Exactly ONE output object per input step, with the SAME 'stepId'. Same count, same ids — no more, no fewer. For each:
