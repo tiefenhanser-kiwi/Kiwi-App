@@ -23,6 +23,8 @@ export function Stepper({
 }: Props) {
   const disabledMin = value <= min;
   const disabledMax = value >= max;
+  // ", 4 servings" / ", 4" — the trailing half of both button labels.
+  const label = `, ${value}${suffix ? ` ${suffix}` : ""}`;
 
   const dec = () => {
     if (disabledMin) return;
@@ -35,10 +37,18 @@ export function Stepper({
 
   return (
     <View style={s.wrap}>
+      {/* Sept 29 design review — the +/- glyphs announced as nothing. The
+          label carries the VALUE because that is the only way the announcement
+          is useful on a control whose whole job is to move a number the user
+          cannot see change: "Decrease, 4 servings". `suffix` is optional, so
+          it is appended only when present. */}
       <Pressable
         onPress={dec}
         disabled={disabledMin}
         hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel={`Decrease${label}`}
+        accessibilityState={{ disabled: disabledMin }}
         style={({ pressed }) => [
           s.btn,
           disabledMin && { opacity: 0.4 },
@@ -55,6 +65,9 @@ export function Stepper({
         onPress={inc}
         disabled={disabledMax}
         hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel={`Increase${label}`}
+        accessibilityState={{ disabled: disabledMax }}
         style={({ pressed }) => [
           s.btn,
           disabledMax && { opacity: 0.4 },

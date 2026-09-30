@@ -34,6 +34,19 @@ export function Header({
           <Pressable
             onPress={onBack ?? (() => router.back())}
             hitSlop={12}
+            // Sept 29 design review — an unlabelled Feather glyph announces as
+            // nothing useful. This one Pressable is the back affordance on ~35
+            // screens, Cook Mode among them, so the label lands everywhere at
+            // once.
+            //
+            // ⚠️ THE RIGHT SLOT DELIBERATELY GETS NO LABEL PROP. The review
+            // asked for one; `rightIcon` turns out to have ZERO callers (both
+            // right-slot users pass `rightContent`), so the prop would have
+            // shipped dead. The two live nodes are already right: meal detail's
+            // HeartButton carries its own role + label, and Plan Review's
+            // "Saved" pill is static text, not a control.
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
             style={styles.iconBtn}
           >
             <Feather name="chevron-left" size={24} color={Colors.sage[700]} />

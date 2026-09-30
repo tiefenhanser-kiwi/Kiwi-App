@@ -1,7 +1,14 @@
 // WS7-8b Block 4 (Block 1) — shared per-step timer chip.
 //
-// Lifted VERBATIM from CookSessionView so the Week Prep screen can offer the
-// same per-step timers. Renders only on time-bearing steps (estimatedMinutes>0).
+// Lifted from CookSessionView. Renders only on time-bearing steps
+// (estimatedMinutes>0).
+//
+// ⚠️ THE WEEK PREP SCREEN DOES NOT USE THIS. The original header said it was
+// extracted "so the Week Prep screen can offer the same per-step timers"; that
+// never happened. Verified Sept 30: TimerChip has exactly ONE importer,
+// components/CookSessionView.tsx. So this file is Cook-Mode-only, and a change
+// here has no Prep-the-Week blast radius -- which is why the Sept 29 design
+// review could re-glyph it without crossing into another lane's fence.
 // Idle → "⏱ Start M:00 timer" (a single Pressable). Once started, the chip is a
 // row carrying the live label plus two explicit controls: "Add a minute"
 // (extends — running pushes the end out, done re-arms a fresh 1:00) and "✕"
@@ -46,6 +53,12 @@ export function TimerChip({
     return (
       <Pressable
         onPress={onStart}
+        // Sept 29 design review — the START chip had NO hitSlop at all, and it
+        // is the one control here you reach for with wet or full hands. 12 a
+        // side on all three controls in this file.
+        hitSlop={12}
+        accessibilityRole="button"
+        accessibilityLabel={`Start a ${step.estimatedMinutes} minute timer`}
         style={({ pressed }) => [
           s.chip,
           sensitive ? s.chipAlert : s.chipIdle,
@@ -71,7 +84,8 @@ export function TimerChip({
       <Text style={labelStyle}>{label}</Text>
       <Pressable
         onPress={onAddMinute}
-        hitSlop={8}
+        hitSlop={12}
+        accessibilityRole="button"
         accessibilityLabel="Add a minute"
         style={({ pressed }) => [s.chipAction, pressed && { opacity: 0.6 }]}
       >
@@ -79,7 +93,8 @@ export function TimerChip({
       </Pressable>
       <Pressable
         onPress={onClear}
-        hitSlop={8}
+        hitSlop={12}
+        accessibilityRole="button"
         accessibilityLabel="Dismiss timer"
         style={({ pressed }) => [s.chipAction, pressed && { opacity: 0.6 }]}
       >

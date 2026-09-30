@@ -1529,9 +1529,22 @@ function GroceryRow({
 
   return (
     <View style={s.row}>
+      {/* Sept 29 design review — the checkbox is the most-tapped control in
+          the app and was the smallest. The box is 22 pt and hitSlop was 8, so
+          the effective target measured 38 pt, under the 44 pt minimum. 11 a
+          side takes it to exactly 44 without moving a pixel of the box.
+          Semantics copied from MealPickCard: role + state + the item NAME as
+          the label, so a screen reader announces "Butter, checkbox, checked"
+          rather than an unlabelled button. `checked` reads the SAME fact the
+          tick renders (showCheck), not item.isCompleted -- a default staple
+          draws a dashed plus and is deliberately not "checked", and announcing
+          it as checked would contradict the glyph. */}
       <Pressable
         onPress={onTap}
-        hitSlop={8}
+        hitSlop={11}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: showCheck }}
+        accessibilityLabel={item.userResolvedTo ?? item.name}
         style={({ pressed }) => [pressed && { opacity: 0.7 }]}
       >
         <View

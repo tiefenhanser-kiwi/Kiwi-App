@@ -49,6 +49,12 @@ type Size = "md" | "sm";
 interface Props {
   label: string;
   onPress?: () => void;
+  /** Sept 29 design review — what a screen reader announces. Defaults to the
+   *  visible `label`, which is the whole point: while `loading` is true the
+   *  <Text> is replaced by an ActivityIndicator, so the button had NOTHING to
+   *  announce at exactly the moment a user most needs to know what they just
+   *  pressed. Pass this only to say something the label cannot. */
+  accessibilityLabel?: string;
   variant?: Variant;
   /** Visual weight. `md` (default) is the app-wide button; `sm` is the quieter
    *  peer used where a cell must read as subordinate to its neighbours. */
@@ -64,6 +70,7 @@ interface Props {
 export function Button({
   label,
   onPress,
+  accessibilityLabel,
   variant = "primary",
   size = "md",
   disabled,
@@ -99,6 +106,17 @@ export function Button({
   return (
     <Pressable
       testID={testID}
+      accessibilityRole="button"
+      // `busy` is what distinguishes "submitting" from "you may not press
+      // this": both render disabled, and only one of them is about to finish.
+      accessibilityState={{ disabled: isOff, busy: !!loading }}
+      accessibilityLabel={accessibilityLabel ?? label}
+      // Sept 29 design review — `sm` measures 9 + 9 padding around a 14 pt
+      // label, about 37 pt tall, under the 44 pt minimum. 4 a side closes it
+      // without touching SIZES: the rule that `md` stays byte-identical to its
+      // pre-2e values applies to VISUAL metrics, and hitSlop moves no pixels.
+      // `md` is 14 + 14 + 17 = 45 and needs nothing.
+      hitSlop={size === "sm" ? 4 : undefined}
       onPress={() => {
         if (disabled || loading) return;
         Haptics.selectionAsync().catch(() => {});
