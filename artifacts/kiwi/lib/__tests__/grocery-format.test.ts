@@ -359,18 +359,24 @@ describe("Root A: a container pack scales to cover the need", () => {
       "3 bunches fresh cilantro",
     );
     // A multi-unit pack: 3.5 lb needed, 1.5 lb per pack -> 3 packs = 4.5 lb.
+    // [grocery] F (F5.4) — the TOTAL is glyphed at render now ("4½", not "4.5").
+    // The arithmetic is unchanged and that is the point of keeping this guard:
+    // glyphPackDisplay runs last, on the string about to be shown, long after
+    // packLeadingQuantity has parsed the stored decimal.
     assert.equal(
       composePackName("chicken thighs", "lb", "1.5 lb pack", "3.5", "pound"),
-      "4.5 lb pack chicken thighs",
+      "4½ lb pack chicken thighs",
     );
   });
 
   it("guard A2 — BOUNDARY: need == purchaseQuantity is exactly ONE pack", () => {
     // Float noise makes ceil(1.0/1.0) unsafe without an epsilon.
     assert.equal(composePackName("ground beef", "lb", "1 lb", "1", "pound"), "1 lb ground beef");
+    // F5.4 — one pack, so scalePackDisplay returns the STORED string and the
+    // glyph is the only thing that moved.
     assert.equal(
       composePackName("chicken thighs", "lb", "1.5 lb pack", "1.5", "pound"),
-      "1.5 lb pack chicken thighs",
+      "1½ lb pack chicken thighs",
     );
     assert.equal(
       composePackName("fresh cilantro", "bunch", "1 bunch", "1", "bunch"),
@@ -515,9 +521,10 @@ describe("BUG-143: weight↔weight packs scale; nothing else starts scaling", ()
   it("guard W3 — BOUNDARY: a half-pound pack, where the epsilon earns its keep", () => {
     // 8 oz against "0.5 lb pack" is EXACTLY one pack. Without the epsilon this
     // is the case that ceils to 2 on float noise.
+    // F5.4 — Hans's own example: "0.5 lb pack" reads "½ lb pack".
     assert.equal(
       composePackName("guanciale", "lb", "0.5 lb pack", "8", "ounce"),
-      "0.5 lb pack guanciale",
+      "½ lb pack guanciale",
     );
     // 9 oz needs two half-pound packs — which is one pound of total product,
     // the same total-not-count convention guard A3 already pins.
@@ -544,17 +551,21 @@ describe("BUG-143: weight↔weight packs scale; nothing else starts scaling", ()
     // Measured against the DB at build time: all 35 weight↔weight rows need at
     // most one pack, so BUG-143 changes ZERO current rows. It is a forward fix
     // (D-WS9-186) and writes nothing. These are the real live shapes.
+    //
+    // [grocery] F (F5.4) — the two sub-one packs now render their glyph. Still
+    // ONE pack each: the PACK COUNT is what this guard is about and none of it
+    // moved, which is exactly what a render-only change should look like.
     assert.equal(
       composePackName("Cotija cheese", "lb", "1 lb block", "5.125", "ounce"),
       "1 lb block Cotija cheese",
     );
     assert.equal(
       composePackName("Mexican fresh chorizo", "lb", "0.75 lb pack", "12", "ounce"),
-      "0.75 lb pack Mexican fresh chorizo",
+      "¾ lb pack Mexican fresh chorizo",
     );
     assert.equal(
       composePackName("gruyère cheese", "lb", "0.5 lb block", "4", "ounce"),
-      "0.5 lb block gruyère cheese",
+      "½ lb block gruyère cheese",
     );
   });
 
@@ -1641,13 +1652,28 @@ describe("🔴 D-WS9-286 — the SERVER pack count wins, and the parser does not
 
 describe("BUG-160 — the shopper line: the residue may CONTAIN the name", () => {
   // (A) THE DUPLICATING ROWS on the B3 after-state, as literals.
-  it("(A) the residue is the fuller phrase → elide, and the duplication is gone", () => {
+  //
+  // ── 🔴 [grocery] F (F2) — FIVE OF THESE SEVEN NOW PRINT THE NAME ───────────
+  //
+  // Hans's device pass read "2 lb (~3–4 tomatillos)" with no food name on the
+  // line at all. BUG-160's rule is right and this is the case it did not
+  // anticipate: the containment that fired the elide was inside a
+  // PARENTHETICAL, and a parenthetical is a size hint, not a name. The elide
+  // now tests the residue's HEAD, and when the hint was the thing naming the
+  // food it comes off the display — so the line gains a name and does not say
+  // it twice.
+  //
+  // The last two rows are UNCHANGED and that is the control: "3 medium white
+  // onion" and "1 rotisserie chicken" elide on their HEAD, exactly as BUG-160
+  // intended, and nothing about them was a parenthetical.
+  it("(A) the residue's HEAD is the fuller phrase → elide; a parenthetical never elides", () => {
     const A: [string, string, string, number, string, string][] = [
-      ["scallions", "bunch", "1 bunch (~6-8 scallions)", 3, "each", "1 bunch (~6-8 scallions)"],
-      ["scallions", "bunch", "1 bunch (~6-8 scallions)", 2, "each", "1 bunch (~6-8 scallions)"],
-      ["radishes", "bunch", "1 bunch (~6-8 radishes)", 6, "each", "1 bunch (~6-8 radishes)"],
-      ["tomatillo", "lb", "2 lb (~3–4 tomatillos)", 1.25, "pound", "2 lb (~3–4 tomatillos)"],
-      ["tomatillos", "lb", "1 lb (~4-5 tomatillos)", 0.75, "pound", "1 lb (~4-5 tomatillos)"],
+      ["scallions", "bunch", "1 bunch (~6-8 scallions)", 3, "each", "1 bunch scallions"],
+      ["scallions", "bunch", "1 bunch (~6-8 scallions)", 2, "each", "1 bunch scallions"],
+      ["radishes", "bunch", "1 bunch (~6-8 radishes)", 6, "each", "1 bunch radishes"],
+      ["tomatillo", "lb", "2 lb (~3–4 tomatillos)", 1.25, "pound", "2 lb tomatillo"],
+      ["tomatillos", "lb", "1 lb (~4-5 tomatillos)", 0.75, "pound", "1 lb tomatillos"],
+      // ── the control: these two elide on the HEAD and do not move ───────────
       ["white onion", "each", "3 medium white onion", 2.25, "cup", "3 medium white onion"],
       // The census third shape: the residue equals the name HEAD once the prep
       // clause comes off, so the pre-existing exact test handles it.
@@ -1656,6 +1682,42 @@ describe("BUG-160 — the shopper line: the residue may CONTAIN the name", () =>
     for (const [name, pu, pd, need, nu, want] of A) {
       assert.equal(composePackName(name, pu, pd, need, nu), want, `${name} @ ${need} ${nu}`);
     }
+  });
+
+  it("🔴 F2 — a buy line ALWAYS names the food", () => {
+    // The property, stated as a property rather than as seven literals: for
+    // every row above, some word of the ingredient name survives onto the line.
+    const rows: [string, string, string, number, string][] = [
+      ["scallions", "bunch", "1 bunch (~6-8 scallions)", 3, "each"],
+      ["radishes", "bunch", "1 bunch (~6-8 radishes)", 6, "each"],
+      ["tomatillo", "lb", "2 lb (~3–4 tomatillos)", 1.25, "pound"],
+      ["celery stalks", "bunch", "1 bunch (~8-10 stalks)", 3, "each"],
+      ["brioche burger buns", "package", "1 package (4 buns)", 4, "each"],
+      ["sliced scallions", "bunch", "1 bunch (~6 scallions)", 2, "each"],
+    ];
+    for (const [name, pu, pd, need, nu] of rows) {
+      const line = composePackName(name, pu, pd, need, nu).toLowerCase();
+      const head = name.toLowerCase().split(" ").pop()!.replace(/e?s$/, "");
+      assert.ok(line.includes(head), `"${name}" → "${line}" names no food`);
+    }
+  });
+
+  it("F2 — a hint that names something ELSE is left exactly as authored", () => {
+    // "(4 buns)" is the pack's own head noun and "(14.5 oz)" is a size. Neither
+    // was ever the thing naming the food, so neither is touched — the narrow
+    // scope is what keeps this from editing the catalog's copy at render.
+    assert.equal(
+      composePackName("unsalted butter", "lb", "1 lb pack (4 sticks)", "7", "tablespoon"),
+      "1 lb pack (4 sticks) unsalted butter",
+    );
+    assert.equal(
+      composePackName("chipotle peppers in adobo sauce", "can", "1 can (7 oz)", "3", "each"),
+      "1 can (7 oz) chipotle peppers in adobo sauce",
+    );
+    assert.equal(
+      composePackName("celery", "bunch", "1 bunch (~6 stalks)", "3", "each"),
+      "1 bunch (~6 stalks) celery",
+    );
   });
 
   // (B) THE ROWS WHERE THE NAME CONTAINS THE RESIDUE. A symmetric rule would
@@ -1757,5 +1819,148 @@ describe("BUG-160 — the shopper line: the residue may CONTAIN the name", () =>
       composePackName("scallion oil", "bottle", "1 bottle (8 oz)", 2, "tablespoon"),
       "1 bottle (8 oz) scallion oil",
     );
+  });
+});
+
+// ── [grocery] F (F5.3) — a pack that states a BARE COUNT governs a plural ───
+describe("F5.3 — '1 dozen egg' is not English", () => {
+  it("🔴 the literal from the device pass (list 9c0a250e)", () => {
+    // The catalog's displayName for that row is literally "egg". Rule 2 prints
+    // "{display} {name}" verbatim, rightly — the count in front of a container
+    // pack counts CONTAINERS. "dozen" is the exception: it names no
+    // intermediate noun, so the number it states is a number of the food.
+    assert.equal(composePackName("egg", "dozen", "1 dozen", "2", "each"), "1 dozen eggs");
+  });
+
+  it("an already-plural name is byte-identical (the other live egg row)", () => {
+    assert.equal(
+      composePackName("large eggs", "dozen", "1 dozen", "1", "each"),
+      "1 dozen large eggs",
+    );
+  });
+
+  it("'(12 count)' and '(10 ct)' are bare counts too", () => {
+    assert.equal(
+      composePackName("corn tortilla", "package", "1 package (12 count)", "12", "each"),
+      "1 package (12 count) corn tortillas",
+    );
+    assert.equal(
+      composePackName("flour tortilla", "package", "2 packages (10 ct)", "12", "each"),
+      "2 packages (10 ct) flour tortillas",
+    );
+  });
+
+  it("🔴 a count WITH A NOUN is excluded — this is the whole reason it is narrow", () => {
+    // "(4 sticks)" counts sticks, not butters. Feeding 4 to the pluraliser
+    // gives "4 unsalted butters"; the same trap waits in "(6 rolls)" on paper
+    // towels and "(~6 stalks)" on celery.
+    assert.equal(
+      composePackName("unsalted butter", "lb", "1 lb pack (4 sticks)", "7", "tablespoon"),
+      "1 lb pack (4 sticks) unsalted butter",
+    );
+    assert.equal(
+      composePackName("Paper towel", "pack", "1 pack (6 rolls)", "1", "pack"),
+      "1 pack (6 rolls) Paper towel",
+    );
+    assert.equal(
+      composePackName("celery", "bunch", "1 bunch (~6 stalks)", "3", "each"),
+      "1 bunch (~6 stalks) celery",
+    );
+  });
+
+  it("a measured size is never a count", () => {
+    assert.equal(
+      composePackName("sour cream", "container", "1 container (16 oz)", "1.5", "cup"),
+      "1 container (16 oz) sour cream",
+    );
+  });
+});
+
+// ── [grocery] F (F5.4) — the pack's own count takes a glyph ─────────────────
+describe("F5.4 — the buy line uses glyphs, like every other number on it", () => {
+  it("🔴 the literal from the device pass", () => {
+    // Hans: "`0.5 lb pack ground pork` should read `½ lb`, using glyphs as
+    // everywhere else." (This row also disappears under D-WS9-292 — the class
+    // is what is pinned, and it is live on cheese, potatoes and provolone.)
+    assert.equal(
+      composePackName("ground pork", "lb", "0.5 lb pack", "0.5", "pound"),
+      "½ lb pack ground pork",
+    );
+    assert.equal(
+      composePackName("shredded cheddar cheese", "lb", "2.5 lb bag", "0.5", "cup"),
+      "2½ lb bag shredded cheddar cheese",
+    );
+  });
+
+  it("🔴 the glyph is render-only — the ARITHMETIC still reads the stored decimal", () => {
+    // This is the ordering that matters. glyphPackDisplay runs LAST, on the
+    // string about to be shown; packLeadingQuantity parses "1.5 lb pack" with a
+    // regex a glyph would defeat. Glyphing earlier silently stops the scaling.
+    // 3.5 lb against a 1.5 lb pack is still three packs = 4.5 lb.
+    assert.equal(
+      composePackName("chicken thighs", "lb", "1.5 lb pack", "3.5", "pound"),
+      "4½ lb pack chicken thighs",
+    );
+    // …and renderedPack, which the Instacart order reads, is untouched.
+    assert.deepEqual(
+      renderedPack("1.5 lb pack", "3.5", "pound", "lb"),
+      { packCount: 3 },
+    );
+  });
+
+  it("a whole number is unchanged, and an off-ladder decimal is left alone", () => {
+    assert.equal(
+      composePackName("ground beef", "lb", "1 lb", "1", "pound"),
+      "1 lb ground beef",
+    );
+    // formatNeedGlyph returns String(qty) off its ⅛ ladder, so this is lossless
+    // rather than rounded: 1.7 is not a kitchen fraction and stays a decimal.
+    assert.equal(
+      composePackName("beef brisket", "lb", "1.7 lb pack", "1.7", "pound"),
+      "1.7 lb pack beef brisket",
+    );
+  });
+
+  it("only the LEADING number — a parenthetical size is authored prose", () => {
+    // Rewriting "(14.5 oz)" or "(1 quart / 32 oz)" would be editing the
+    // catalog's own copy at render time.
+    assert.equal(
+      composePackName("beef broth", "can", "1 can (14.5 oz)", "0.75", "cup"),
+      "1 can (14.5 oz) beef broth",
+    );
+    assert.equal(
+      composePackName("whole milk", "bottle", "1 bottle (1 quart / 32 oz)", "1.125", "cup"),
+      "1 bottle (1 quart / 32 oz) whole milk",
+    );
+  });
+});
+
+// ── [grocery] F — a token that does not start with a letter is not a noun ────
+describe("F — pluralizeIngredientName declines on punctuation", () => {
+  it("🔴 the two live catalog names the corpus diff caught", () => {
+    // Both are already plural and needed no change at all; the head-noun rule
+    // looks at the LAST word of the head clause and the last word was a
+    // parenthetical. F5.3 exposed it by routing Rule 2's names through here.
+    assert.equal(
+      composePackName("corn tortillas (6-inch)", "package", "1 package (12 count)", "12", "each"),
+      "1 package (12 count) corn tortillas (6-inch)",
+    );
+    assert.equal(
+      composePackName(
+        "flour tortillas (large, 10-inch)",
+        "package",
+        "1 package (8 count)",
+        "4",
+        "each",
+      ),
+      "1 package (8 count) flour tortillas (large, 10-inch)",
+    );
+  });
+
+  it("the helper itself declines, at every quantity", () => {
+    assert.equal(pluralizeIngredientName("corn tortillas (6-inch)", 12), "corn tortillas (6-inch)");
+    assert.equal(pluralizeIngredientName("rice (long-grain)", 3), "rice (long-grain)");
+    // …and a real head noun still moves, so the guard is not a blanket refusal.
+    assert.equal(pluralizeIngredientName("roma tomato", 3), "roma tomatoes");
   });
 });

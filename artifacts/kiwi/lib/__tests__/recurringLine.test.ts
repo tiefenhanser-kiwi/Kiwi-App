@@ -88,7 +88,10 @@ describe("R3 branch 2 — OTHERWISE: the recurring quantity orders, the need sho
         "1 dozen large eggs",
         facets({ recurringQuantity: 1, recurringUnit: "dozen", mealQuantity: 5, mealUnit: "each" }),
       ),
-      "1 dozen large eggs — recurring; 5 each for meals",
+      // [grocery] F (F5.5) — "5 each for meals" was BUG-317's rule ("'1 each
+      // large shrimp' is not English") missing the one sentence that had not
+      // heard it. A count unit is a placeholder for the ABSENCE of a unit.
+      "1 dozen large eggs — recurring; 5 for meals",
     );
   });
 
@@ -131,7 +134,9 @@ describe("R3 — additive by construction", () => {
       facets({ recurringQuantity: null, recurringUnit: null, mealQuantity: 3, mealUnit: "each", comparable: true }),
     );
     assert.equal(r?.branch, "default_purchase");
-    assert.equal(r?.detail, "recurring; 3 each for meals");
+    // F5.5 — the count drops "each"; the BRANCH is what this test is about and
+    // it is unchanged.
+    assert.equal(r?.detail, "recurring; 3 for meals");
   });
 });
 

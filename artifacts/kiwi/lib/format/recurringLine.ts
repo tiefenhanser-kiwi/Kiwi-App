@@ -49,10 +49,38 @@ export interface RecurringLine {
  * abbreviated and uninflected ("½ cup", "2 lb"), and it is the same helper
  * formatNeedText uses so the two halves of the row cannot drift.
  */
+// ── [grocery] F (F5.5) — A COUNT DROPS "each" ──────────────────────────────
+//
+// Hans's device pass: "— recurring; 1 each for meals" should read "— recurring;
+// 1 for meals". This is BUG-317's ruling ("'1 each large shrimp' is not
+// English"; a count unit is a placeholder for the ABSENCE of a unit, written
+// because the column is a `String` and something had to go in it) reaching the
+// one sentence that had not heard it.
+//
+// ⚠️ THE SUMMED BRANCH ALREADY DID THIS, and that is what makes the defect a
+// near-miss rather than an oversight: it calls `amount(q, null)` because the
+// unit is shared and stated once. Only the default-purchase branch passes a
+// real unit, and only there could "each" reach the page.
+//
+// The token set is BUG-317's, not a new one — the same reasoning and the same
+// deliberate exclusions. `whole` is absent ("1 whole chicken"), and so are
+// `head`, `clove`, `bunch`, `can` and `slice`: those are units a recipe says
+// out loud, and "recurring; 3 cloves for meals" is correct English.
+const COUNT_PLACEHOLDER_UNITS: ReadonlySet<string> = new Set([
+  "each",
+  "piece",
+  "pieces",
+  "count",
+  "ct",
+  "unit",
+  "units",
+]);
+
 function amount(quantity: number, unit: string | null): string {
   const n = formatNeedGlyph(quantity);
   const u = unit?.trim();
-  return u ? `${n} ${pluralizeNeedUnit(u, quantity)}` : n;
+  if (!u || COUNT_PLACEHOLDER_UNITS.has(u.toLowerCase())) return n;
+  return `${n} ${pluralizeNeedUnit(u, quantity)}`;
 }
 
 /**

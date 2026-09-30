@@ -376,3 +376,57 @@ describe("🔴 BUG-321 — the NAME is counted only when no unit word stands in 
     );
   });
 });
+
+// ── 🔴 [grocery] F (F5.1) — M13 CLOSED: THE NAME SINGULARISES TOO ───────────
+//
+// The file's own docblock carried this as a known gap: "NO SINGULARIZATION,
+// deliberately, and it leaves one class standing: a name authored PLURAL
+// against a quantity of 1 still reads '1 lemons'." Hans found it on the
+// meal-detail Ingredients sheet as "1 garlic cloves" — the same class, wearing
+// a catalog name that is plural by construction.
+describe("F5.1 — a count of exactly 1 singularises the name", () => {
+  it("🔴 the literal from the device pass", () => {
+    assert.equal(
+      formatIngredientLine({ name: "garlic cloves", quantity: 1, unit: "each" }),
+      "1 garlic clove",
+    );
+    assert.equal(formatIngredientLine({ name: "lemons", quantity: 1 }), "1 lemon");
+    assert.equal(formatIngredientLine({ name: "roma tomatoes", quantity: 1 }), "1 roma tomato");
+  });
+
+  it("above one still pluralises — both directions, one function", () => {
+    // countedIngredientName is the grocery line's own countedName, exported
+    // rather than copied, so the two surfaces cannot disagree about a noun.
+    assert.equal(formatIngredientLine({ name: "garlic cloves", quantity: 3 }), "3 garlic cloves");
+    assert.equal(formatIngredientLine({ name: "lemon", quantity: 2 }), "2 lemons");
+  });
+
+  it("a REAL unit word still blocks both directions", () => {
+    // "4 tablespoons unsalted butter" — you have four tablespoons, not four
+    // butters, and not one butter either. The unit branch is untouched.
+    assert.equal(
+      formatIngredientLine({ name: "unsalted butter", quantity: 1, unit: "tablespoon" }),
+      "1 tablespoon unsalted butter",
+    );
+    assert.equal(
+      formatIngredientLine({ name: "garlic cloves", quantity: 1, unit: "head" }),
+      "1 head garlic cloves",
+    );
+  });
+
+  it("an invariant or unstemmable name declines, in both directions", () => {
+    // singularizeIngredientName returns the name unchanged whenever it cannot
+    // act safely — "molasses" is in NOT_A_PLURAL and asparagus fails the -us
+    // test. Neither becomes "molass" or "asparagu".
+    assert.equal(formatIngredientLine({ name: "molasses", quantity: 1 }), "1 molasses");
+    assert.equal(formatIngredientLine({ name: "asparagus", quantity: 1 }), "1 asparagus");
+    assert.equal(formatIngredientLine({ name: "corn", quantity: 1 }), "1 corn");
+  });
+
+  it("the prep clause rides along, singularising too", () => {
+    assert.equal(
+      formatIngredientLine({ name: "tomatillos, husked and halved", quantity: 1 }),
+      "1 tomatillo, husked and halved",
+    );
+  });
+});

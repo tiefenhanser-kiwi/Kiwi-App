@@ -24,7 +24,7 @@
 // Pure and in lib/ because app/** is outside the test glob (D-WS9-164).
 
 import { displayedQuantity, formatQuantity } from "./quantity";
-import { pluralizeIngredientName, pluralizeUnitWord } from "./grocery";
+import { countedIngredientName, pluralizeUnitWord } from "./grocery";
 
 /** The fields of a meal-detail ingredient this formatter reads. Structurally
  *  satisfied by MealDetailIngredientSchema's output (lib/api/meals.ts) and by
@@ -155,11 +155,26 @@ export function isSuppressedCountUnit(unit: string | null | undefined): boolean 
  * composePackName already makes: its Rule 3 measure branch leaves the name
  * alone and its Rule 3 count branch runs countedName.
  *
- * ⚠️ NO SINGULARIZATION, deliberately, and it leaves one class standing: a name
- * authored PLURAL against a quantity of 1 still reads "1 lemons". grocery.ts
- * has `singularizeIngredientName` for exactly that and it is NOT called here —
- * the census asked for the plural direction, and singularizing a catalog name
- * is a bigger change than this block was scoped for. See finding M13.
+ * ── 🔴 [grocery] F (F5.1) — M13 CLOSED: THE NAME IS COUNTED BOTH WAYS ───────
+ *
+ * This docblock used to end "NO SINGULARIZATION, deliberately, and it leaves
+ * one class standing: a name authored PLURAL against a quantity of 1 still
+ * reads '1 lemons'." Hans's device pass found it on the meal-detail Ingredients
+ * sheet as **"1 garlic cloves"**, which is the same class wearing a catalog
+ * name that is plural by construction.
+ *
+ * `countedIngredientName` is the both-directions helper the GROCERY line has
+ * used since BUG-144 (`countedName`, now exported rather than copied): it
+ * singularises at exactly 1 and pluralises above it. Routing this line through
+ * the same function is what stops the two surfaces disagreeing about the same
+ * word — which is how BUG-144 hid in the first place, one branch guarded and
+ * its twin not.
+ *
+ * ⚠️ THE SUB-ONE CASE CANNOT ARISE HERE, and that is why there is no third
+ * branch. This call is reached only when the unit is absent or a suppressed
+ * count token, and `displayedQuantity` ceils a count to a whole — so `shown` is
+ * an integer ≥ 1. A fractional count would be "½ lemon", which needs the
+ * singular and would get it from the `<= 1` branch anyway.
  */
 export function formatIngredientLine(
   ing: IngredientLineParts,
@@ -173,7 +188,7 @@ export function formatIngredientLine(
   const parts: string[] = [formatQuantity(scaled, unit)];
   if (hasUnitWord) parts.push(pluralizeUnitWord(unit, shown));
   // The number counts the NAME only when no unit word stands between them.
-  parts.push(hasUnitWord ? ing.name : pluralizeIngredientName(ing.name, shown));
+  parts.push(hasUnitWord ? ing.name : countedIngredientName(ing.name, shown));
   if (includeNotes) {
     const note = ing.preparationNote?.trim();
     if (note) parts.push(`(${note})`);

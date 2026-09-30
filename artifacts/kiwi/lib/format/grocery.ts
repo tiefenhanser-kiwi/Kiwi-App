@@ -332,14 +332,80 @@ function containsPhrase(haystack: string, needle: string): boolean {
   );
 }
 
-/** Does the pack's residue name the item itself (so printing both would dup)? */
+// ── 🔴 [grocery] F (F2) — A BUY LINE ALWAYS NAMES THE FOOD ──────────────────
+//
+// Hans's device pass read, in PANTRY:
+//
+//     2 lb (~3–4 tomatillos)          — For Beef Enchiladas Verdes …  (1¼ pound)
+//
+// There is no food name on that line. `residueNamesItem` elided it because the
+// residue "lb (~3–4 tomatillos)" *contains* "tomatillo" — but the containment
+// is inside a PARENTHETICAL, and a parenthetical is a size hint, not a name.
+// BUG-160's rule ("elide when the residue is the fuller phrase, because keeping
+// it loses nothing") is sound and this is the case it did not anticipate: here
+// the residue is not a fuller phrase at all, it is a measurement with a note.
+//
+// RULED September 30: the elide may never fire on the strength of a
+// parenthetical. The test now runs on the residue's HEAD.
+//
+// ⚠️ THE 8 ROWS THIS TOUCHES, MEASURED ON THE f0 CORPUS, and why only two of
+// them actually move. The other six already printed their name (the elide never
+// fired) or keep printing exactly what they printed:
+//
+//     "1 lb (~4-5 tomatillos)"   + tomatillos        elided  ->  names the food
+//     "1 lb (~3–4 tomatillos)"   + tomatillo         elided  ->  names the food
+//     "1 bunch (~6-8 radishes)"  + radishes          elided  ->  names the food
+//     "1 bunch (~6-8 scallions)" + scallions         elided  ->  names the food
+//     "1 bunch (~8-10 stalks)"   + celery stalks     already printed the name
+//     "1 bunch (~6 scallions)"   + sliced scallions  already printed the name
+//     "1 package (4 buns)"       + brioche burger buns   already printed
+//
+// ⚠️ SO WHY DOES THE LINE NOT NOW SAY IT TWICE? Because when the PARENTHETICAL
+// is what named the item, the name has taken over that job and the hint is
+// redundant — so it comes off the display. "1 bunch (~6-8 scallions)" becomes
+// "1 bunch scallions", not "1 bunch (~6-8 scallions) scallions". A hint that
+// names something ELSE ("(4 buns)" on brioche burger buns is its own head noun;
+// "(14.5 oz)" is a size) is untouched, because it was never the thing naming
+// the food.
+//
+// The tomatillo hint is ALSO removed from the catalog (Part B), because its
+// number was wrong independent of all this — a medium tomatillo is ~2 oz, so
+// ~8 to the pound rather than 3-4. These two fixes are independent and each
+// one alone would have put the name back on that line.
+
+/** A residue or display with every parenthetical removed: "lb (~3–4 x)" → "lb". */
+function stripParentheticals(s: string): string {
+  return s.replace(/\s*\([^)]*\)\s*/g, " ").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Does the pack's residue name the item itself (so printing both would dup)?
+ *
+ * F2 — tested on the HEAD only. A parenthetical is a size hint and never a
+ * name, however much of the food's own word it happens to contain.
+ */
 function residueNamesItem(residue: string, name: string): boolean {
-  const r = residue.toLowerCase().trim();
+  return headNamesItem(stripParentheticals(residue), name);
+}
+
+/** The BUG-160 test, on a string that has already had its parentheticals cut. */
+function headNamesItem(head: string, name: string): boolean {
+  const r = head.toLowerCase().trim();
   const n = nameHead(name).toLowerCase();
   if (n.length === 0) return false;
   if (r === n || r === `${n}s` || r === `${n}es`) return true;
   // BUG-160 — one direction only: the residue may be the fuller phrase.
   return containsPhrase(r, n);
+}
+
+/**
+ * F2 — was the PARENTHETICAL the only thing naming the food? True when the
+ * whole residue names it but its head does not, which is precisely the case
+ * where the name is about to be printed and the hint becomes redundant.
+ */
+function parentheticalNamedItem(residue: string, name: string): boolean {
+  if (residueNamesItem(residue, name)) return false; // the head did it
+  return headNamesItem(residue, name);
 }
 
 // Ingredient-name head nouns that must never take an "s". Mass nouns and
@@ -415,6 +481,25 @@ function lastWord(phrase: string): string {
 function pluralizeNoun(word: string): string {
   const w = word.toLowerCase();
   if (!w) return word;
+  // ── [grocery] F — A TOKEN THAT DOES NOT START WITH A LETTER IS NOT A NOUN ──
+  //
+  // Caught by the corpus diff the moment F5.3 started routing Rule 2's names
+  // through here. Two live catalog names end their head clause in a
+  // parenthetical, and every branch below happily appended an "s" to it:
+  //
+  //     "corn tortillas (6-inch)"          ->  "corn tortillas (6-inch)s"
+  //     "flour tortillas (large, 10-inch)"  ->  "flour tortillas (larges, 10-inch)"
+  //
+  // (The second is the comma split landing inside the parens, so the "last
+  // word" is the fragment "(large".) Neither name needed pluralising at all —
+  // both are already plural — but the head-noun rule looks at the LAST word and
+  // the last word was punctuation.
+  //
+  // Declining here rather than at the new call site, because the defect is not
+  // F5.3's: every caller of pluralizeIngredientName has always been one such
+  // catalog name away from it. There is no word in any language this rule
+  // refuses that the old code pluralised correctly.
+  if (!/^[a-z]/i.test(word.trim())) return word;
   if (INVARIANT_NAME_NOUNS.has(w)) return word;
   if (isPluralWord(w)) return word;
   // Reuse the count-noun map first — it already knows the irregulars this
@@ -527,6 +612,22 @@ function countedName(name: string, quantity: number): string {
   return quantity === 1
     ? singularizeIngredientName(name)
     : pluralizeIngredientName(name, quantity);
+}
+
+/**
+ * [grocery] F (F5.1) — the same function, exported for the RECIPE line.
+ *
+ * `formatIngredientLine` (lib/format/ingredientLine.ts) pluralised the name and
+ * never singularised it, so a catalog name that is plural by construction read
+ * "1 garlic cloves" on the meal-detail Ingredients sheet — the M13 note that
+ * file carries, found by Hans's device pass. It now calls this.
+ *
+ * Exported rather than re-implemented for exactly the reason `countedName`
+ * exists at all: BUG-144 hid because one branch was guarded and its twin was
+ * not. Two surfaces counting the same noun must not be able to disagree.
+ */
+export function countedIngredientName(name: string, quantity: number): string {
+  return countedName(name, quantity);
 }
 
 /** The need as a number, from the raw editable amount. null when unknown. */
@@ -918,6 +1019,62 @@ function packsToCoverNeed(
 /** Pack counts keep the display's own decimal style — glyphs are the NEED's convention. */
 function formatPackAmount(n: number): string {
   return String(parseFloat(n.toFixed(4)));
+}
+
+// ── [grocery] F (F5.3) — HOW MANY OF THE FOOD ONE PACK HOLDS, WHEN IT SAYS ──
+//
+// Only the BARE forms: a count word with no noun after it. See the call site in
+// composePackName for why a noun-bearing hint ("(4 sticks)", "(6 rolls)") must
+// never reach the pluraliser.
+const DOZEN = 12;
+const BARE_COUNT_PAREN = /\(\s*(\d+)\s*(?:count|ct|cnt)\s*\)/i;
+
+/** "1 dozen" → 12 · "1 package (12 count)" → 12 · "1 lb pack (4 sticks)" → null. */
+function packItemCount(purchaseDisplay: string): number | null {
+  const bare = BARE_COUNT_PAREN.exec(purchaseDisplay);
+  if (bare) {
+    const n = parseInt(bare[1], 10);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+  if (/(^|[^a-z])dozens?([^a-z]|$)/i.test(purchaseDisplay)) {
+    const lead = packLeadingQuantity(purchaseDisplay) ?? 1;
+    return DOZEN * lead;
+  }
+  return null;
+}
+
+// ── [grocery] F (F5.4) — THE PACK'S OWN COUNT TAKES A GLYPH ────────────────
+//
+// Hans's device pass: "`0.5 lb pack ground pork` should read `½ lb`, using
+// glyphs as everywhere else."
+//
+// The need parenthetical has used glyphs since WS7-8b (`formatNeedGlyph`) and
+// the pack half never did, because `scalePackDisplay` — the one place that
+// rewrites the number — returns the stored string UNTOUCHED at one pack, and a
+// sub-one pack is always one pack. So "0.5 lb pack", "1.5 lb pack" and
+// "2.5 lb bag" printed their raw decimals: 28 rows on the f0 corpus.
+//
+// ⚠️ APPLIED AT RENDER, LAST, AND NEVER PERSISTED. This runs on the string
+// about to be shown, after every arithmetic step has read the display. That
+// ordering is load-bearing: `packLeadingQuantity` parses "2.5 lb" with a regex
+// that a glyph would defeat, so glyphing earlier would silently stop the pack
+// scaling. The same discipline the need half has always kept — the stored
+// `purchaseQuantity` is still 2.5.
+//
+// ⚠️ THE LEADING NUMBER ONLY. A parenthetical size is authored prose in the
+// catalog's own voice ("(14.5 oz)", "(1 quart / 32 oz)", "(10.5 oz each)") and
+// is left exactly as written; rewriting it would be editing the catalog's copy
+// at render. `formatNeedGlyph` is reused rather than a second ladder.
+function glyphPackDisplay(purchaseDisplay: string): string {
+  return purchaseDisplay.replace(/^(\s*)(\d+(?:\.\d+)?)(\s)/, (all, lead, num, gap) => {
+    const n = parseFloat(num);
+    if (!Number.isFinite(n) || n <= 0) return all;
+    // formatNeedGlyph is LOSSLESS by construction: off its ladder it returns
+    // `String(qty)`, so "1.7 lb" comes back "1.7 lb". No branch is needed and
+    // no number is ever rounded here — this only swaps a decimal for the glyph
+    // that means the same thing.
+    return `${lead}${formatNeedGlyph(n)}${gap}`;
+  });
 }
 
 /**
@@ -1313,6 +1470,9 @@ export function composePackName(
   // when the pack's words already name the item, printing both duplicates it
   // ("1 seedless watermelon seedless watermelon", "2 lemons lemon").
   const packNamesItem = residueNamesItem(residue, name);
+  // F2 — the hint, not the head, was naming the food. The name is about to be
+  // printed, so the hint has nothing left to do and would only say it twice.
+  const hintWasTheName = parentheticalNamedItem(residue, name);
 
   // ── Rule 1: both units are the count unit → the pack is meaningless ──────
   // The body lives in countedPackTitle (BUG-240 follow-up) so the quantity-only
@@ -1325,13 +1485,35 @@ export function composePackName(
   // ── Rule 2: the units differ → a real container, used as stored ──────────
   // WS9 Root A — scale the container to cover the need. Returns the stored
   // display untouched whenever the need and the pack cannot be related.
-  const display = derivedPackDisplay(purchaseDisplay, need, nUnit, pUnit);
+  const derived = derivedPackDisplay(purchaseDisplay, need, nUnit, pUnit);
+  // F2 — drop the hint that was doing the naming; F5.4 — glyph the count.
+  const display = glyphPackDisplay(
+    hintWasTheName ? stripParentheticals(derived) : derived,
+  );
 
   if (packNamesItem) return display;
   // Pre-BUG-125 back-compat: with no need to decide with, an "each" pack whose
   // residue doesn't match the name is still dropped rather than guessed at.
   if (pUnit === "each" && need === null) return name;
-  return `${display} ${name}`;
+  // ── [grocery] F (F5.3) — A PACK THAT STATES A BARE COUNT GOVERNS A PLURAL ──
+  //
+  // "1 dozen egg" (live, list 9c0a250e). The catalog's displayName for that row
+  // is literally "egg", and Rule 2 prints "{display} {name}" verbatim — rightly,
+  // because the count in front is a count of CONTAINERS, not of the food: one
+  // package of butter is not four butters.
+  //
+  // A pack label that states a BARE COUNT is the exception, and the only one:
+  // "dozen", "(12 count)", "(10 ct)" name no intermediate noun, so the number
+  // they state IS a number of the food and the name must agree with it.
+  //
+  // ⚠️ A COUNT WITH A NOUN IS EXCLUDED, and this is the whole reason the rule
+  // is written narrowly. "1 lb pack (4 sticks) unsalted butter" states four
+  // STICKS; feeding 4 to the pluraliser yields "4 unsalted butters". So does
+  // "(6 rolls)" on paper towels and "(~6 stalks)" on celery. Measured on the f0
+  // corpus and the two device lists, the bare-count form moves exactly one row
+  // — "1 dozen egg" → "1 dozen eggs" — and every noun-bearing hint is untouched.
+  const items = packItemCount(purchaseDisplay);
+  return `${display} ${items !== null ? pluralizeIngredientName(name, items) : name}`;
 }
 
 /**

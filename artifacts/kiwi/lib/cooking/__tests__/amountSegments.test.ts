@@ -3,7 +3,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { buildAmountRefSegments, spanHoldsRange } from "../amountSegments";
+import { buildAmountRefSegments, spanHoldsRange, unitIsCorrupt } from "../amountSegments";
 import type { AmountRef } from "../../api/meals";
 
 const ref = (quantity: number, unit: string, charStart: number, charEnd: number): AmountRef => ({
@@ -187,5 +187,80 @@ describe("🔴 BUG-326 — an authored range keeps its authored text", () => {
     assert.equal(spanHoldsRange("2 tablespoons"), false);
     assert.equal(spanHoldsRange("¾ cup"), false);
     assert.equal(spanHoldsRange("low-sodium"), false);
+  });
+});
+
+// ── 🔴 WS9 BUG-334 — the fraction printed twice ─────────────────────────────
+//
+// Hans's device pass, item 16. Two literals from the report, and they are the
+// two shapes: a fraction glyph the extractor left in BOTH fields, and the
+// slash spelling of the same split.
+describe("BUG-334 — a unit that opens with a number is not a unit", () => {
+  it("🔴 the literal from the report: '1½ cups' renders ONCE", () => {
+    // Meal b52fd852, step 6. The ref is {quantity: 1.5, unit: "½ cups"} and the
+    // authored span is the seven characters "1½ cups". Before the guard this
+    // printed "1½ ½ cups".
+    const text = "Whisk together 1½ cups all-purpose flour with the baking powder.";
+    const start = text.indexOf("1½ cups");
+    assert.equal(start, 15); // the charStart the report quoted
+    const segs = buildAmountRefSegments(text, [ref(1.5, "½ cups", start, start + 7)], 1);
+    assert.equal(segs[1].text, "1½ cups");
+    assert.equal(segs[1].isRef, true); // still an amount, still terracotta
+    assert.equal(segs.map((s) => s.text).join(""), text); // prose is intact
+  });
+
+  it("🔴 the second literal: Cook Mode's '1 3/4 3/4 lbs'", () => {
+    // The DIGIT class — here the quantity is 1 and the fraction was LOST into
+    // the unit, so printing the structured value would be wrong twice over.
+    // Rendering the authored text is right either way, which is why one guard
+    // serves both classes.
+    const text = "Place the trimmed 1 3/4 lbs chicken thighs in the slow cooker.";
+    const start = text.indexOf("1 3/4 lbs");
+    const segs = buildAmountRefSegments(text, [ref(1, "3/4 lbs", start, start + 9)], 1);
+    assert.equal(segs[1].text, "1 3/4 lbs");
+    assert.equal(segs.map((s) => s.text).join(""), text);
+  });
+
+  it("🔴 the range case is NOT the range guard — the span is just '5½'", () => {
+    // The report read this as BUG-326 letting "½–6 hours" through. It is not:
+    // the ref's span is the four characters "5½" and "–6 hours" is ordinary
+    // prose this builder never touched. Measured across all 3,266 corrupt refs,
+    // ZERO authored spans contain a range, so spanHoldsRange fires on none.
+    const text = "Cover and cook on low for 5½–6 hours (or high for 3–3½ hours).";
+    const start = text.indexOf("5½");
+    assert.equal(spanHoldsRange("5½"), false); // the range guard is not involved
+    const segs = buildAmountRefSegments(text, [ref(5.5, "½", start, start + 2)], 1);
+    assert.equal(segs.map((s) => s.text).join(""), text);
+    assert.ok(!segs.some((s) => s.text.includes("½ ½")));
+  });
+
+  it("the guard is a SHAPE test — every way a number can lead", () => {
+    const text = "Add 2 cups broth.";
+    const start = text.indexOf("2 cups");
+    for (const unit of ["½ cups", "¼ pounds", "⅜ oz", "3/4 lbs", "/4 cups", "12 count", "½"]) {
+      const segs = buildAmountRefSegments(text, [ref(9, unit, start, start + 6)], 3);
+      assert.equal(segs[1].text, "2 cups", `unit "${unit}" must be refused`);
+    }
+  });
+
+  it("a REAL unit is untouched, and still scales", () => {
+    const text = "Add 2 cups broth.";
+    const start = text.indexOf("2 cups");
+    for (const unit of ["cup", "cups", "tablespoon", "lb", "oz", "g", "clove", "fl oz", ""]) {
+      const segs = buildAmountRefSegments(text, [ref(2, unit, start, start + 6)], 3);
+      assert.notEqual(segs[1].text, "2 cups", `unit "${unit}" must still scale`);
+    }
+  });
+
+  it("unitIsCorrupt is the whole predicate, exported for the repair script", () => {
+    assert.equal(unitIsCorrupt("½ cups"), true);
+    assert.equal(unitIsCorrupt("3/4 lbs"), true);
+    assert.equal(unitIsCorrupt("2 hours"), true);
+    assert.equal(unitIsCorrupt(" ¾"), true); // leading space tolerated
+    assert.equal(unitIsCorrupt("cups"), false);
+    assert.equal(unitIsCorrupt("fl oz"), false);
+    assert.equal(unitIsCorrupt(""), false);
+    assert.equal(unitIsCorrupt(null), false);
+    assert.equal(unitIsCorrupt(undefined), false);
   });
 });
