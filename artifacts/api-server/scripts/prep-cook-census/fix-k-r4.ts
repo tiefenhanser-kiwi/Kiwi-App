@@ -17,6 +17,14 @@
 // owns. Deleting it would also drop 3 minutes from a public catalog dish's
 // derived time for no reason.
 //
+// 🔴 THERE ARE TWO TEXT COLUMNS AND THE FIRST RUN WROTE THE WRONG ONE.
+// `RecipeInstructionStep` has `stepTextRaw` AND `stepTextTranslated`, and
+// `toStepShape` (routes/meals.ts) renders stepTextTranslated — so the cook's
+// screen was unchanged while a scan of stepTextRaw reported the fix as applied.
+// Measured on dev: the two columns were IDENTICAL on all 30,718 rows until this
+// script made 2 of them disagree, which is exactly how the mistake hid. Both
+// columns are written now, and the match is on either.
+//
 // ⚠️ OTHER "(see … dish)" REFERENCES ARE LEGITIMATE AND ARE LEFT ALONE. Twelve
 // rows contain "dish)"; the rest point at an INGREDIENT another dish makes (a
 // tomato sauce, a consommé broth) rather than repeating an action. Only the
@@ -53,17 +61,25 @@ const TO =
 async function main() {
   const revert = arg("revert");
   if (revert) {
-    const rows = JSON.parse(readFileSync(revert, "utf8")).rows as { id: string; before: string }[];
+    const rows = JSON.parse(readFileSync(revert, "utf8")).rows as {
+      id: string; before: string; beforeTranslated?: string;
+    }[];
     for (const r of rows) {
-      await prisma.recipeInstructionStep.update({ where: { id: r.id }, data: { stepTextRaw: r.before } });
+      await prisma.recipeInstructionStep.update({
+        where: { id: r.id },
+        data: { stepTextRaw: r.before, stepTextTranslated: r.beforeTranslated ?? r.before },
+      });
     }
     console.log(`reverted ${rows.length} step(s)`);
     return;
   }
 
   const rows = await prisma.recipeInstructionStep.findMany({
-    where: { stepTextRaw: FROM },
-    select: { id: true, ownerId: true, ownerType: true, stepIndex: true, stepTextRaw: true },
+    where: { OR: [{ stepTextRaw: FROM }, { stepTextTranslated: FROM }] },
+    select: {
+      id: true, ownerId: true, ownerType: true, stepIndex: true,
+      stepTextRaw: true, stepTextTranslated: true,
+    },
   });
   // Public-vs-private is worth printing: a public row is the catalog carve-out
   // (D-WS9-230) and needs the production runbook line; a private one does not.
@@ -95,7 +111,10 @@ async function main() {
     JSON.stringify({ stamp, host: DB_HOST, to: TO, rows: rows.map((r) => ({ id: r.id, before: r.stepTextRaw })) }, null, 2),
   );
   for (const r of rows) {
-    await prisma.recipeInstructionStep.update({ where: { id: r.id }, data: { stepTextRaw: TO } });
+    await prisma.recipeInstructionStep.update({
+      where: { id: r.id },
+      data: { stepTextRaw: TO, stepTextTranslated: TO },
+    });
   }
   console.log(`\nwrote ${rows.length} step(s). Ledger (revert with --revert): ${ledger}`);
 }

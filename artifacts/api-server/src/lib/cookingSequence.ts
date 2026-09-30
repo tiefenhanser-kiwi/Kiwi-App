@@ -150,7 +150,14 @@ export async function runCookingSequence(
         // D-WS9-297 ruling 2 — the prose the cue's state is read from. Cook Mode
         // is the ONLY caller that passes it: `mealTiming.ts` derives numbers and
         // a cue moves no number, so the stamps are untouched by this line.
-        text: s.stepTextRaw,
+        //
+        // 🔴 stepTextTranslated, NOT stepTextRaw. There are two text columns and
+        // `toStepShape` renders the TRANSLATED one, so that is the sentence the
+        // cook actually reads — a cue derived from the raw column would describe
+        // text nobody is shown. They are identical on all 30,718 dev rows today,
+        // which is precisely why picking the wrong one would go unnoticed until a
+        // row diverged.
+        text: s.stepTextTranslated,
         // WS9 D-WS9-239 — the intra-dish overlap token and the component tags
         // the scheduler validates it against. Dropping them here is how a
         // persisted tag silently failed to reach Cook Mode.

@@ -102,6 +102,9 @@ const hit = (rule: string, plan: string, where: string, detail: string) =>
   findings.push({ rule, plan, where, detail });
 
 // Denominators: a rate needs the population it is a rate over.
+/** K-R6's context rows — reported, never counted. */
+const context: { plan: string; label: string; serialSum: number; schedule: number; card: number }[] = [];
+
 const denom: Record<string, number> = {};
 const bump = (k: string, n = 1) => { denom[k] = (denom[k] ?? 0) + n; };
 
@@ -205,7 +208,13 @@ function checkCookMeal(plan: PlanRecord, meal: CookMeal) {
   }
 
   // ── K-R3 — the connective phrase is true at that moment ──────────────────
-  const CUE_RE = /^While the (.+?) (cooks|rests|heats up|stays warm|comes together), start on the (.+?)\.$/;
+  // ⚠️ BOTH WORDINGS. The pre-B1 form was "While the X cooks"; D-WS9-297 ruling 2
+  // replaced it with the agreement-free "With the X cooking". A checker that knew
+  // only the old one reported all 193 after-state cues as UNPARSEABLE and made a
+  // fix read as a 68% regression. It parses either, so the before/after table
+  // compares truth rather than spelling.
+  const CUE_RE =
+    /^(?:While the (.+?) (cooks|rests|heats up|stays warm|comes together)|With the (.+?) (cooking|resting|heating up|staying warm|marinating|chilling)), start on the (.+?)\.$/;
   for (const s of meal.steps) {
     if (!s.cue) continue;
     bump("K-R3");
@@ -214,7 +223,15 @@ function checkCookMeal(plan: PlanRecord, meal: CookMeal) {
       hit("K-R3", plan.planId, label, `unparseable cue: "${s.cue}"`);
       continue;
     }
-    const [, windowTitle, gerund] = m;
+    const windowTitle = m[1] ?? m[3];
+    const rawState = m[2] ?? m[4];
+    // Normalise the two spellings onto one vocabulary for the arms below.
+    const gerund =
+      rawState === "cooking" ? "cooks"
+      : rawState === "resting" ? "rests"
+      : rawState === "heating up" ? "heats up"
+      : rawState === "staying warm" ? "stays warm"
+      : rawState;
     // The window the scheduler meant: another dish's unattended step running now.
     const cands = meal.steps.filter(
       (o) => o.dishId !== s.dishId && o.dishTitle === windowTitle && isUnattended(o) &&
@@ -235,14 +252,26 @@ function checkCookMeal(plan: PlanRecord, meal: CookMeal) {
     // 2. "stays warm" on a cold dish.
     const wt = norm(windowTitle);
     const wtext = norm(w.text);
-    if (gerund === "stays warm") {
+    if (gerund === "marinating" || gerund === "chilling") {
+      // Ruling 2's own vocabulary. Nothing to flag: the cue is SAYING it is a
+      // marinade or a chill, which is the fix rather than the defect.
+    } else if (gerund === "stays warm") {
       const cold = COLD_DISH_WORDS.some((c) => wt.includes(c)) || CHILL_WORDS.some((c) => wtext.includes(c));
       if (cold) {
         hit("K-R3", plan.planId, label, `"stays warm" on a cold/chilled dish: "${s.cue}" (window step: "${w.text.slice(0, 70)}")`);
       }
     }
     // 3. "cooks" when the window step's own prose is not a heat action.
-    if (gerund === "cooks" && NON_HEAT_OPENERS.some((v) => wtext.startsWith(v))) {
+    //
+    // ⚠️ A NON-HEAT OPENER IS NOT A NON-HEAT STEP, and the opener test alone
+    // reported 10 false positives: "Place the bread cut-side up and BAKE for
+    // 10–12 minutes" opens with "place the" and is unambiguously cooking. The
+    // step has to lack a heat verb ANYWHERE, which is also the rule the
+    // production `passiveStateOf` applies — stated separately here (a shared
+    // predicate would let a bug hide from its own detector) but to the same test.
+    const HEAT_ANYWHERE =
+      /\b(bak\w*|roast\w*|grill\w*|boil\w*|simmer\w*|braise\w*|steam\w*|sear\w*|saut\w*|fry\w*|cook\w*|smok\w*|broil\w*|poach\w*|toast\w*|reduc\w*|char\w*|caramel\w*|melt\w*)\b/;
+    if (gerund === "cooks" && NON_HEAT_OPENERS.some((v) => wtext.startsWith(v)) && !HEAT_ANYWHERE.test(wtext)) {
       hit("K-R3", plan.planId, label, `"cooks" but the window step is not heat: "${s.cue}" (window step: "${w.text.slice(0, 70)}")`);
     }
     // 4. "rests" when the window step is a marinate/soak/chill, not a rest.
@@ -250,8 +279,15 @@ function checkCookMeal(plan: PlanRecord, meal: CookMeal) {
       hit("K-R3", plan.planId, label, `"rests" but the window step is a marinate/soak: "${s.cue}" (window step: "${w.text.slice(0, 70)}")`);
     }
     // 5. GRAMMAR — a plural dish title with a singular verb.
+    //
+    // ⚠️ ONLY THE "While the X <verb>s" FORM CAN HAVE THIS DEFECT. The
+    // participial "With the X cooking" carries no agreement at all, which is the
+    // whole reason ruling 2 chose it, so firing this arm on it reported 76 false
+    // positives — a fix counted as the bug it fixed. Gated on the wording the
+    // cue actually used, not on the title alone.
+    const usesFiniteVerb = /^While the /.test(s.cue);
     const last = wt.split(/\s+/).pop() ?? "";
-    if (last.endsWith("s") && !SINGULAR_S.has(last) && !last.endsWith("ss")) {
+    if (usesFiniteVerb && last.endsWith("s") && !SINGULAR_S.has(last) && !last.endsWith("ss")) {
       hit("K-R3", plan.planId, label, `plural dish title with a singular verb: "${s.cue}"`);
     }
   }
@@ -324,11 +360,20 @@ function checkCookMeal(plan: PlanRecord, meal: CookMeal) {
   // (b) THE STAMP. `Meal.estimatedTimeMinutes` and the live sequence both come
   //     off cookingScheduler, so they agree unless the stamp is stale.
   bump("K-R6");
+  // ⚠️ THE Σ-STEP-MINUTES GAP IS NOT A FINDING ANY MORE, and keeping it as one
+  // was wrong. Σ step minutes vs the schedule is a property of the DATA — a
+  // multi-dish meal overlaps, so the sum is always larger — and it will never be
+  // zero. What K-R6 asks is whether a USER is shown two numbers, and since
+  // D-WS9-297 ruling 5 the footer reads `startOffsetMinutes` and the sum is shown
+  // nowhere. Reported as context (the gap the footer used to leak) but not counted.
   const footerSerial = meal.steps.reduce((s, x) => s + x.estimatedMinutes, 0);
-  if (footerSerial !== meal.sequenceTotalMinutes) {
-    hit("K-R6", plan.planId, label,
-      `Cook Mode's footer sums ${footerSerial} min (Σ step minutes, remainingMinutes) while the card and the schedule say ${meal.sequenceTotalMinutes} min — Δ${footerSerial - meal.sequenceTotalMinutes} (${Math.round((footerSerial / Math.max(1, meal.sequenceTotalMinutes) - 1) * 100)}% over)`);
-  }
+  context.push({
+    plan: plan.planId,
+    label,
+    serialSum: footerSerial,
+    schedule: meal.sequenceTotalMinutes,
+    card: meal.cardTotalMinutes,
+  });
   if (meal.sequenceTotalMinutes !== meal.cardTotalMinutes) {
     const why =
       meal.derivedTotalMinutes === meal.sequenceTotalMinutes
@@ -515,8 +560,17 @@ function checkPrep(plan: PlanRecord, narration: NarrationInput | null) {
     if (!s.rendered) continue;
     bump("P-R5");
     const blob = `${s.title}\n${s.instructions}`;
+    // ⚠️ A PACK SIZE IS NOT A QUANTITY. "1 can (14.9 oz) Guinness stout" prints
+    // the container's own printed size, not a number the cook measures, and after
+    // ruling 7 it was the single surviving P-R5 hit. A decimal inside parentheses
+    // immediately before a unit is a pack size; its offset is skipped below.
+    const packSizeAt = new Set<number>();
+    for (const m of blob.matchAll(/\(\s*(\d+\.\d+)\s*(?:oz|fl oz|lb|g|kg|ml|l)\b/gi)) {
+      if (m.index !== undefined) packSizeAt.add(m.index + m[0].indexOf(m[1]));
+    }
     // A bare decimal quantity. Excludes temperatures, ranges and "1.5-inch".
     for (const m of blob.matchAll(/(?<![\d.])(\d+\.\d+)(?!\d*\s*(?:°|inch|in\b|cm|%))/g)) {
+      if (m.index !== undefined && packSizeAt.has(m.index)) continue;
       hit("P-R5", plan.planId, `${P} · ${s.title.slice(0, 40)}`, `decimal quantity "${m[1]}" in: "${blob.slice(Math.max(0, m.index - 30), m.index + 40).replace(/\n/g, " ")}"`);
     }
     // "each" used as a unit.
