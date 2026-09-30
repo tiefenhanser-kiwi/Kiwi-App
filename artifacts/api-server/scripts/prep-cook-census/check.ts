@@ -530,8 +530,22 @@ function checkPrep(plan: PlanRecord, narration: NarrationInput | null) {
       // "Slice the red bell peppers for Sheet-Pan Chicken Fajitas" as protein
       // because the DESTINATION DISH is named in the title; the object is the
       // part before " for ".
-      const object = norm(s.title.split(/\bfor\b/)[0]);
-      const p1 = s.phase === "proteins" || RAW_PROTEIN_RE.test(object);
+      // 🔴 AND NOW THE TITLE NAMES A BOWL, so the title is no use either.
+      // D-WS9-296 titles a component step "Build the Lemon-Herb Baked CHICKEN
+      // Breast marinade bowl" — a bowl of oregano, lemon and garlic with no
+      // chicken in it — and this arm reported six of them as raw flesh. Exactly
+      // the label-vs-contents mistake the product's own storage classifier made
+      // one commit earlier, repeated in its detector.
+      //
+      // THE INSTRUCTIONS ARE NO BETTER, and trying them was the over-correction:
+      // "scatter over the sliced chicken just before serving" is a garnish step
+      // whose prose names the protein it garnishes, and the count went UP.
+      //
+      // Only the PHASE says what a step is ABOUT. The title names a bowl, the
+      // instructions name the destination dish, and `proteins` is exactly the
+      // population D-WS9-298 governs — so it is both the honest test and the
+      // relevant one.
+      const p1 = s.phase === "proteins";
       hit("P-R3", plan.planId, `${P} · ${p1 ? "P1 " : ""}${s.title.slice(0, 50)}`,
         `storage "${windowDays} day${windowDays === 1 ? "" : "s"}" but the cook day is ${lag} days after prep (${prepDay} → ${latest})${p1 ? "  ⚠ RAW PROTEIN" : ""}`);
     }
@@ -548,7 +562,15 @@ function checkPrep(plan: PlanRecord, narration: NarrationInput | null) {
   for (const s of steps) {
     bump("P-R4");
     const blob = `${s.title}\n${s.instructions}`;
-    const m = DONT.exec(blob);
+    // 🔴 A STEP THAT STORES SOMETHING IS NOT REFUSING TO PREP IT. "Chop ¼ cup
+    // fresh parsley AND STORE in a small container — scatter over the sliced
+    // chicken just before serving" is a forward reference about when the parsley
+    // is USED, and the `just before` arm read it as a prohibition. The parsley is
+    // prepped; the step says so in its own first clause. Third narrowing of this
+    // detector, and all three were the same shape: a phrase about cook day is not
+    // a refusal to prep.
+    const storesIt = /\b(and store|store in|store the|keep in|keep the|transfer to|set aside in)\b/i.test(blob);
+    const m = storesIt ? null : DONT.exec(blob);
     if (m) {
       hit("P-R4", plan.planId, `${P} · ${s.title.slice(0, 50)}`,
         `${s.rendered ? "RENDERED" : "render-omitted"} prep step that tells you not to prep it: "…${m[0].trim()}…" — full: "${s.instructions.slice(0, 120).replace(/\n/g, " ")}"`);
