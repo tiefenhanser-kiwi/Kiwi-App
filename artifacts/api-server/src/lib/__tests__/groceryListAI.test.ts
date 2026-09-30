@@ -751,6 +751,119 @@ describe("generateFinalGroceryList", () => {
     });
   }
 
+  // ── 🔴 D-WS9-292 — THE SEAM, not the classifier ───────────────────────
+  //
+  // freshProtein.test.ts pins the RULE; this pins that resolvePurchaseFields
+  // actually consults it. The two are different failures: the classifier can be
+  // perfect while the gate is unreachable, which is the shape every "the helper
+  // was right and nobody called it" defect in this project has taken (BUG-321's
+  // own note: "a wiring gap where formatIngredientLine never calls the engine
+  // at all").
+  //
+  // Hans's row, verbatim from the device pass: a 4 lb pack against a need of
+  // 2½ lb. Part D break (1) removes the gate and this goes red.
+  describe("D-WS9-292 — fresh meat is bought by weight", () => {
+    async function onePack(item: ConsolidatedItem) {
+      _resetClientCache();
+      _resetRegistryCaches();
+      const fake = makeFakeClient([]);
+      const { prisma } = makeStubPrisma();
+      const result = await generateFinalGroceryList(
+        "Plan",
+        [item],
+        ["meat_seafood", "extras"],
+        { prisma, userId: TEST_USER_ID, client: fake.client },
+      );
+      return result.items[0];
+    }
+
+    it("🔴 a WEIGHT need replaces the stored pack with the weight itself", async () => {
+      const out = await onePack(
+        baseInputItem({
+          canonicalName: "boneless skinless chicken breasts",
+          displayName: "boneless skinless chicken breasts",
+          quantity: 2.5,
+          unit: "pound",
+          sectionKey: "meat_seafood",
+          purchaseUnit: "lb",
+          purchaseQuantity: 4,
+          purchaseDisplay: "4 lb pack",
+        }),
+      );
+      assert.equal(out.purchaseDisplay, "2.5 lb");
+      assert.equal(out.purchaseUnit, "lb");
+      assert.equal(out.purchaseQuantity, 2.5);
+      // D-WS9-286: a COUNT of packs. One parcel of the stated weight is one.
+      assert.equal(out.packCount, 1);
+    });
+
+    it("🔴 a COUNT need of a sourced cut converts, then rounds up to the ¼", async () => {
+      // "a chicken breast is probably 1/2 lb on average, so 4 breasts = 2 lbs".
+      const out = await onePack(
+        baseInputItem({
+          canonicalName: "chicken breasts",
+          displayName: "chicken breasts",
+          quantity: 4,
+          unit: "each",
+          sectionKey: "meat_seafood",
+          purchaseUnit: "lb",
+          purchaseQuantity: 1.5,
+          purchaseDisplay: "1.5 lb pack",
+        }),
+      );
+      assert.equal(out.purchaseDisplay, "2 lb");
+    });
+
+    it("an UNSOURCED cut keeps its pack — the rule declines rather than guesses", async () => {
+      const out = await onePack(
+        baseInputItem({
+          canonicalName: "bone-in chicken thighs",
+          displayName: "bone-in chicken thighs",
+          quantity: 4,
+          unit: "each",
+          sectionKey: "meat_seafood",
+          purchaseUnit: "lb",
+          purchaseQuantity: 3,
+          purchaseDisplay: "3 lb pack",
+        }),
+      );
+      assert.equal(out.purchaseDisplay, "3 lb pack");
+    });
+
+    it("🔴 a fixed-package meat keeps its pack through the seam too", async () => {
+      const out = await onePack(
+        baseInputItem({
+          canonicalName: "thick-cut bacon",
+          displayName: "thick-cut bacon",
+          quantity: 1,
+          unit: "pound",
+          sectionKey: "meat_seafood",
+          purchaseUnit: "lb",
+          purchaseQuantity: 1,
+          purchaseDisplay: "1 lb pack (8 slices)",
+        }),
+      );
+      assert.equal(out.purchaseDisplay, "1 lb pack (8 slices)");
+    });
+
+    it("a row outside meat_seafood is untouched, whatever its name says", async () => {
+      // 25 corpus rows have a protein word and sit in `canned`.
+      const out = await onePack(
+        baseInputItem({
+          canonicalName: "low-sodium chicken broth",
+          displayName: "low-sodium chicken broth",
+          quantity: 2,
+          unit: "pound",
+          sectionKey: "canned",
+          purchaseUnit: "can",
+          purchaseQuantity: 1,
+          purchaseDisplay: "1 can (14.5 oz)",
+        }),
+      );
+      assert.equal(out.purchaseDisplay, "1 can (14.5 oz)");
+    });
+  });
+
   // ── [grocery] B2 H3 — the rider, the collapse, and Gate 2 ────────────
   //
   // These run through generateFinalGroceryList and not through a helper, because
