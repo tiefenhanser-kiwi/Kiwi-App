@@ -317,9 +317,24 @@ export const Palette = {
   },
 
   badge: {
+    // ⚠️ Sept 29 design review — `text` IS neutral[800], NOT Colors.gold.text.
+    // #996E1B on gold.background #F6E8C8 measures 3.7593:1, under the 4.5:1 AA
+    // floor, and this pair carries a real label. neutral[800] #4A3F30 on the
+    // same fill is 8.4579:1. Identical reasoning, and the identical fix, to
+    // DietarySection's gold chip.
+    //
+    // ⚠️ Colors.gold.text ITSELF IS DELIBERATELY UNCHANGED. It is a scale stop,
+    // and re-valuing it would move any future non-text or on-paper use of gold
+    // ink to satisfy one surface. The three call sites that put it on
+    // gold.background moved instead: this token pair (sole reader
+    // MealPickCard's "new to you" pill), PrepCookHubView's TONE_STYLE.gold.fg,
+    // and app/plan/[id].tsx's dietary note (icon + text).
+    //
+    // Guarded in lib/__tests__/tokens-contrast.test.ts, which reads THIS value
+    // rather than restating it.
     trial: {
       background: Colors.gold.background,
-      text:       Colors.gold.text,
+      text:       Colors.neutral[800],
     },
   },
 

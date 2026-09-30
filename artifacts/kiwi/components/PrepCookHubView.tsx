@@ -65,7 +65,13 @@ interface Props {
 // `bg` here and left the whole suite passing.
 export const TONE_STYLE: Record<PillTone, { bg: string; fg: string }> = {
   sage: { bg: Colors.sage[100], fg: Colors.sage[700] },
-  gold: { bg: Colors.gold.background, fg: Colors.gold.text },
+  // ⚠️ Sept 29 design review — `fg` is neutral[800], NOT Colors.gold.text.
+  // gold.text on this tone's own fill was 3.7593:1, under AA, and like the
+  // neutral tone below this `fg` is a DUAL site: it colours a <Text> (4.5:1
+  // bar) and a Feather icon (3:1 bar). 3.7593 -> 8.4579. The gold FILL is
+  // untouched, so the three tones still separate by hue exactly as the
+  // BUG-199 note below requires.
+  gold: { bg: Colors.gold.background, fg: Colors.neutral[800] },
   // WS9 BUG-157 — a DUAL site: `fg` colours the chip's <Text> (4.5:1) at :245
   // and :335 AND a Feather icon (3:1) at :241/:243. neutral[600] on this tone's
   // own neutral[200] fill measured 3.1141:1 — icon clear, text not.

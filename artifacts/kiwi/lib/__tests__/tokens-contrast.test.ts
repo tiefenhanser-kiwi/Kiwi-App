@@ -300,11 +300,55 @@ describe("BUG-199 — the PrepCookHub neutral chip separates from the page and c
     assert.equal(at4(ratio("#F6E8C8", HUB_PAGE)), 1.1363); // gold.background
   });
 
-  it("⚠️ FOUND, NOT FIXED: the gold chip's own text is 3.7593:1, under AA", () => {
-    // gold.text on gold.background. Out of BUG-199's scope — Hans device-
-    // confirmed the gold tone reads fine and only the neutral one was ruled.
-    // Recorded here so it is a known number rather than a future surprise.
-    assert.equal(at4(ratio(Colors.gold.text, Colors.gold.background)), 3.7593);
+  // ── Sept 29 design review — FIXED. This block replaces the "FOUND, NOT
+  // FIXED" assertion that pinned 3.7593:1 as a known miss.
+  //
+  // ⚠️ IT READS THE CALL SITES, NOT THE CONSTANTS. The old assertion computed
+  // ratio(Colors.gold.text, Colors.gold.background) — both of them the scale
+  // stops — which is the tautology this file's header warns about: it would
+  // have stayed perfectly green while every screen still drew unreadable ink,
+  // and it would have gone RED if the fix landed at the call sites, which is
+  // precisely backwards.
+  //
+  // The two reachable call-site values are read live:
+  //   Palette.badge.trial.text  → MealPickCard's "new to you" pill
+  //   TONE_STYLE.gold.fg        → the Prep & Cook hub's gold status chip
+  // The BACKGROUND stays a literal, per this file's both-directions rule.
+  //
+  // ⚠️ THE THIRD CALL SITE IS NOT COVERED. app/plan/[id].tsx's dietary note
+  // (D-WS9-013) reads the same pair, but app/** is outside the test glob and
+  // that screen exports no styles, so no assertion here can see it. It was
+  // fixed in the same commit; it is guarded by nothing. Known gap, not an
+  // oversight — and the reason this comment names it.
+  it("the gold chip's ink clears AA on its own fill, at BOTH live call sites", () => {
+    const GOLD_FILL = "#F6E8C8"; // Colors.gold.background, unchanged
+    const before = at4(ratio("#996E1B", GOLD_FILL)); // Colors.gold.text, the old ink
+    assert.equal(before, 3.7593, "the miss this fix exists for");
+
+    for (const [name, fg] of [
+      ["Palette.badge.trial.text", Palette.badge.trial.text],
+      ["TONE_STYLE.gold.fg", TONE_STYLE.gold.fg],
+    ] as const) {
+      const after = at4(ratio(fg, GOLD_FILL));
+      assert.equal(after, 8.4579, `${name} drifted off neutral[800]`);
+      assert.ok(after >= AA_TEXT, `${name} must clear the 4.5:1 text bar`);
+      assert.ok(after > before, `${name} must get easier to read, not harder`);
+    }
+  });
+
+  it("the gold FILL is untouched — the fix moved ink, not surfaces", () => {
+    // If a later pass "fixes" the contrast by darkening the fill instead, the
+    // three hub tones stop separating by hue and this fails.
+    assert.equal(Palette.badge.trial.background, "#F6E8C8");
+    assert.equal(TONE_STYLE.gold.bg, "#F6E8C8");
+  });
+
+  it("⚠️ Colors.gold.text ITSELF is deliberately still the old value", () => {
+    // The scale stop did NOT move: re-valuing it would drag any future
+    // non-text or on-paper use of gold ink along to satisfy one surface. The
+    // CALL SITES moved. If someone later "tidies" this by re-valuing the stop,
+    // this fails and points them at the note in constants/tokens.ts.
+    assert.equal(Colors.gold.text, "#996E1B");
   });
 });
 

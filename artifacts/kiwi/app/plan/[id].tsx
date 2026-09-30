@@ -1055,7 +1055,10 @@ export default function PlanReviewScreen() {
         {showDietaryNote && (
           <View style={s.section}>
             <View style={s.dietaryNote}>
-              <Feather name="alert-circle" size={16} color={Colors.gold.text} />
+              {/* Sept 29 design review — neutral[800], not Colors.gold.text:
+                  the icon shares the <Text>'s colour below and gold.text on
+                  gold.background was 3.7593:1. */}
+              <Feather name="alert-circle" size={16} color={Colors.neutral[800]} />
               <Text style={s.dietaryNoteText}>
                 Your dietary preferences or restrictions were updated after this
                 plan was created. Double-check your ingredients.
@@ -1653,7 +1656,13 @@ const s = StyleSheet.create({
   dietaryNoteText: {
     flex: 1,
     fontSize: Typography.fontSize.sm,
-    color: Colors.gold.text,
+    // ⚠️ Sept 29 design review — neutral[800], NOT Colors.gold.text (3.7593:1 on
+    // this fill, under AA). 8.4579:1. The gold background is unchanged: this is
+    // still the gold state-chip treatment D-WS9-013 asked for, with readable
+    // ink. ⚠️ THIS SITE IS NOT REACHABLE FROM THE TEST GLOB -- app/** is
+    // excluded and this screen exports no styles, so the contrast guard covers
+    // the other two call sites only. Reported, not silently assumed.
+    color: Colors.neutral[800],
     fontFamily: Typography.face.sans[400],
     lineHeight: 18,
   },
