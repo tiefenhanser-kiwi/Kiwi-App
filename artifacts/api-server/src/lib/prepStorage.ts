@@ -125,13 +125,31 @@ export const DEFAULT_STORAGE: StorageClass = {
 /** The classes D-WS9-298 treats as the P1 (raw flesh) class. */
 const P1_KEYS = new Set(["raw-fish", "raw-meat"]);
 
-/** First match wins. `text` is the step's ingredient names and prep notes. */
-export function storageClassFor(text: string): StorageClass {
-  for (const c of STORAGE_TABLE) if (c.match.test(text)) return c;
+export const isP1Class = (c: StorageClass) => P1_KEYS.has(c.key);
+
+/**
+ * First match wins.
+ *
+ * ⚠️ THE BOWL NAME IS A LABEL, NOT CONTENTS, AND THE P1 CLASSES MUST NOT SEE IT.
+ * Two opposite mistakes, one after the other:
+ *
+ *   • without the bowl name, "Loaded Vegetarian Nachos seasoning" holding cumin,
+ *     chili powder and garlic powder read as loose produce, because none of
+ *     those three words says "blend";
+ *   • WITH it, "Sheet-Pan Chicken Fajitas seasoning bowl" — a jar of dry spices
+ *     — matched the raw-meat class on the word CHICKEN and was told to cook
+ *     within 2 days.
+ *
+ * So the label decides what KIND of mixture it is, and the contents decide
+ * whether raw flesh is in the container. The raw classes read `contents` alone.
+ */
+export function storageClassFor(contents: string, bowlName = ""): StorageClass {
+  const labelled = bowlName ? `${contents} ${bowlName}` : contents;
+  for (const c of STORAGE_TABLE) {
+    if (c.match.test(isP1Class(c) ? contents : labelled)) return c;
+  }
   return DEFAULT_STORAGE;
 }
-
-export const isP1Class = (c: StorageClass) => P1_KEYS.has(c.key);
 
 // ── the proteins phase ──────────────────────────────────────────────────────
 
@@ -196,8 +214,10 @@ export interface StorageContext {
   daysUntilCook?: number;
   /** The phase the step sits in — proteins has its own rules. */
   phase: string;
-  /** The ingredient names and prep notes the step covers, for the table. */
+  /** The ingredient names and prep notes the step covers — the CONTENTS. */
   text: string;
+  /** The bowl's name, when the step has one. A LABEL, never contents. */
+  bowlName?: string;
   /** Ingredient names, for the noun-form title of a demoted step. */
   ingredientNames: string[];
 }
@@ -246,7 +266,7 @@ export function applyStorageOverlay(
           }
           return { ...step, storageNote: verdict.note };
         }
-        return { ...step, storageNote: storageClassFor(ctx.text).note };
+        return { ...step, storageNote: storageClassFor(ctx.text, ctx.bowlName).note };
       }),
     })),
   };

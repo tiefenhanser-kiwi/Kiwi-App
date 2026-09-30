@@ -51,6 +51,26 @@ describe("D-WS9-298 — the storage table", () => {
     assert.equal(storageClassFor("salmon fillets for the teriyaki glaze").days, 2);
   });
 
+  it("🔴 the BOWL NAME is a label, not contents — two opposite mistakes", () => {
+    // Without the label, "Loaded Vegetarian Nachos seasoning" holding cumin,
+    // chili powder and garlic powder read as loose produce: none of those three
+    // words says "blend".
+    assert.equal(
+      storageClassFor("ground cumin chili powder garlic powder", "Loaded Vegetarian Nachos seasoning").key,
+      "spice-blend",
+    );
+    // WITH the label reaching every class, a jar of dry spices matched RAW MEAT
+    // on the word "Chicken" in its dish's name and was told to cook within 2
+    // days. The raw classes read the contents alone.
+    assert.equal(
+      storageClassFor("ground cumin chili powder garlic powder", "Sheet-Pan Chicken Fajitas seasoning bowl").key,
+      "spice-blend",
+    );
+    // …while real raw flesh is still caught, label or no label.
+    assert.equal(storageClassFor("salmon fillets", "Teriyaki Salmon glaze jar").key, "raw-fish");
+    assert.equal(storageClassFor("soy sauce sesame oil honey", "Teriyaki Salmon glaze jar").key, "sauces-dressings");
+  });
+
   it("an unmatched food falls to the SHORTEST produce window, not the longest", () => {
     // The safe direction: a note that says 3 days for something that keeps 5
     // wastes a little food; the other way makes someone ill.
