@@ -434,6 +434,7 @@ function buildStubInput(opts: {
   return {
     planId: opts.planId,
     planName: "Test Plan",
+    prepDay: null,
     // idx is the meal's position in the WHOLE plan, not in the selection —
     // so a meal's dishId is the same whether it arrives via a full week or
     // a subset, exactly as real dish identity behaves. That stability is
@@ -443,6 +444,10 @@ function buildStubInput(opts: {
       mealName: `Meal ${opts.mealIds.indexOf(mealId) + 1}`,
       cuisine: null,
       servingsOverride: opts.servingsOverride ?? null,
+      // D-WS9-297 ruling 13 — no day assignment, which is the shape 6 of the 13
+      // census plans have and the one these fixtures were written against.
+      assignedDate: null,
+      assignedDayOfWeek: null,
       dishes: [
         {
           dishId: `dddddddd-dddd-4ddd-8ddd-${String(
@@ -461,6 +466,7 @@ function buildStubInput(opts: {
               quantity: 1,
               unit: "each",
               preparationNote: "diced",
+              sourceYield: null,
             },
           ],
         },
@@ -1527,6 +1533,7 @@ function makeTwoProduceLoaderStub(planRevisionId: number) {
                   quantity: 1,
                   unit: "each",
                   preparationNote: "diced",
+                  sourceYield: null,
                 },
                 {
                   ingredientId: CARROT_ID,
@@ -1535,6 +1542,7 @@ function makeTwoProduceLoaderStub(planRevisionId: number) {
                   quantity: 2,
                   unit: "each",
                   preparationNote: "diced",
+                  sourceYield: null,
                 },
               ],
             },

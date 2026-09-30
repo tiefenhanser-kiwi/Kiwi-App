@@ -71,6 +71,10 @@ export function buildPrepCombineInput(loaded: PrepLoadedPlan): PrepCombineInput 
               quantity: split.quantity * multiplier,
               unit: split.unit,
               preparationNote: ing.preparationNote,
+              // D-WS9-297 ruling 8 — passed straight through. The compound-unit
+              // split above touches the DEMAND's unit; the yield is a property
+              // of the ingredient and is unaffected by it.
+              sourceYield: ing.sourceYield,
             };
           }),
         };

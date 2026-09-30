@@ -26,12 +26,16 @@ function loaded(overrides: {
   return {
     planId: "plan-1",
     planName: "Test Plan",
+    // D-WS9-297 ruling 13 — no dates, the shape 6 of the 13 census plans have.
+    prepDay: null,
     meals: [
       {
         mealId: "meal-1",
         mealName: "Meal 1",
         cuisine: null,
         servingsOverride: overrides.servingsOverride,
+        assignedDate: null,
+        assignedDayOfWeek: null,
         dishes: [
           {
             dishId: "dish-1",
@@ -51,6 +55,7 @@ function loaded(overrides: {
                 quantity: overrides.quantity,
                 unit: overrides.unit,
                 preparationNote: overrides.preparationNote ?? null,
+                sourceYield: null,
               },
             ],
           },

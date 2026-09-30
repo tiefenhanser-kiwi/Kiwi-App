@@ -45,6 +45,17 @@ export interface PrepCombineIngredient {
   quantity: number;
   unit: string;
   preparationNote?: string | null;
+  // D-WS9-297 ruling 8 — the whole ingredient this one is a component of, and
+  // its yield ("lime", 3, "tbsp"). Carried, never interpreted: the engine sums
+  // quantities and the assembly layer turns this into a fruit count.
+  sourceYield?: SourceYield | null;
+}
+
+/** D-WS9-297 ruling 8 — a `component` edge's magnitude, from ingredient_relations. */
+export interface SourceYield {
+  fromName: string;
+  quantity: number;
+  unit: string;
 }
 
 // WS7-8b #4 — MealDishLink.roleLabel (schema DishRole enum). A local string
@@ -124,6 +135,10 @@ export interface PrepIngredientGroup {
   prepWorthy: PrepWorthy;
   // Tier-3: part of a 3+ distinct dry-seasoning blend on at least one dish.
   isBlendComponent: boolean;
+  // D-WS9-297 ruling 8 — null for the vast majority; set for a derived
+  // component (lime juice, lemon zest) so the narration layer can say how many
+  // whole ones it takes.
+  sourceYield: SourceYield | null;
   lines: PrepCombinedLine[];
 }
 
@@ -300,6 +315,7 @@ interface GroupAccumulator {
   ingredientId: string;
   ingredientName: string;
   category: string;
+  sourceYield: SourceYield | null;
   contributions: PrepContribution[];
 }
 
@@ -423,6 +439,7 @@ export function combinePrep(input: PrepCombineInput): PrepCombineResult {
             ingredientId: ing.ingredientId,
             ingredientName: ing.ingredientName,
             category: ing.category,
+            sourceYield: ing.sourceYield ?? null,
             contributions: [],
           };
           groups.set(ing.ingredientId, g);
@@ -464,6 +481,7 @@ export function combinePrep(input: PrepCombineInput): PrepCombineResult {
       phase,
       prepWorthy,
       isBlendComponent,
+      sourceYield: g.sourceYield,
       lines: buildLines(g.contributions),
     };
 

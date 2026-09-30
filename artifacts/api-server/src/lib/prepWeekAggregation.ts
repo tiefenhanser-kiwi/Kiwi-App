@@ -44,6 +44,21 @@ export interface PrepLoadedIngredient {
   quantity: number;
   unit: string;
   preparationNote: string | null;
+  /**
+   * WS9 BUG-338 / D-WS9-297 ruling 8 — where this ingredient COMES FROM, when
+   * it is a derived component of a whole one.
+   *
+   * The census (P-R6): every plan that prepped citrus counted it twice. "Prep
+   * all limes" portions 1 juiced lime plus wedges; "Measure all lime juice: 3
+   * tbsp + 2 tbsp + 2 tbsp" then asks for juice and NEVER SAYS HOW MANY LIMES.
+   * A blind follower has one lime and a demand for 7 tbsp.
+   *
+   * `ingredient_relations` already answers it: a `component` edge carries
+   * yieldQuantity/yieldUnit ("lemon -> lemon juice : 3 tbsp", D-WS9-194), which
+   * is exactly the number that was missing. Null for an ingredient with no
+   * component parent, which is nearly all of them.
+   */
+  sourceYield: { fromName: string; quantity: number; unit: string } | null;
 }
 
 export interface PrepLoadedDish {
@@ -78,12 +93,39 @@ export interface PrepLoadedMeal {
   cuisine: string | null;
   // plan-item servingsOverride (null = use each dish's baseServings).
   servingsOverride: number | null;
+  // ── WS9 BUG-338 / D-WS9-297 ruling 13 — THE COOK DAY, AT LAST ─────────────
+  //
+  // Part A's finding: this loader read NO date field, so every storage note the
+  // narrator wrote ("keep up to 2 days") was a guess by a model that could not
+  // know when the meal was cooked. Measured: 57 windows that expire before their
+  // own cook day across 7 of 13 plans, max lag 5 days, 15 of them raw flesh.
+  //
+  // MealPlanItem.assignedDate / assignedDayOfWeek, free — the loader's `items`
+  // uses `include`, so every scalar was already coming back and being dropped.
+  // Null when the plan has no day assignment (6 of the 13 census plans).
+  //
+  // B1 THREADS IT AND MEASURES IT. It does NOT change what a storage note says:
+  // the shape of the fix (a mid-week session / cook-day prep / freezing) is B3's,
+  // and Hans's.
+  assignedDate: string | null;
+  assignedDayOfWeek: string | null;
   dishes: PrepLoadedDish[];
 }
 
 export interface PrepLoadedPlan {
   planId: string;
   planName: string;
+  /**
+   * D-WS9-297 ruling 13 — the day the prep session happens, as an ISO date, and
+   * the baseline every `daysUntilCook` is measured from.
+   *
+   * ⚠️ NO COLUMN STORES THIS. Prep runs before the week, so the plan's own
+   * `startDate` is the only answer the data offers; failing that, the earliest
+   * assigned meal date. Null when the plan carries neither, and then no lag can
+   * be computed at all — which is 6 of the 13 census plans and is why B3's shape
+   * has to cope with not knowing.
+   */
+  prepDay: string | null;
   meals: PrepLoadedMeal[];
 }
 
@@ -237,6 +279,9 @@ export async function loadPrepWeekInput(
             quantity: di.quantity,
             unit: di.unit,
             preparationNote: di.preparationNote ?? null,
+            // Filled after the loop — the relation read needs every ingredient
+            // id the plan touches, which is not known until the loop is done.
+            sourceYield: null,
           }),
         );
         return {
@@ -259,6 +304,8 @@ export async function loadPrepWeekInput(
       mealName: meal.title,
       cuisine: meal.cuisineType ?? null,
       servingsOverride: item.servingsOverride,
+      assignedDate: item.assignedDate ? item.assignedDate.toISOString().slice(0, 10) : null,
+      assignedDayOfWeek: item.assignedDayOfWeek ?? null,
       dishes,
     });
   }
@@ -266,6 +313,57 @@ export async function loadPrepWeekInput(
   // After filtering empty meals/dishes, we may still have nothing to prep —
   // treat as empty plan.
   if (meals.length === 0) throw new PrepWeekEmptyPlanError(planId);
+
+  // ── WS9 BUG-338 / D-WS9-297 ruling 8 — how many limes is that ─────────────
+  //
+  // One keyed read, scoped to the ingredient ids this plan actually uses, for
+  // the `component` edges that say what a derived ingredient comes FROM. The
+  // edge is DIRECTED and the direction matters: `from` is the thing you buy
+  // (lime), `to` is the thing the recipe calls for (lime juice) — so the lookup
+  // is keyed on `to`.
+  //
+  // Only `component` carries a yield. `subsumes` deliberately does not
+  // (schema.prisma:872 — "the same object under two names" has no quantity), and
+  // reading one here would invent arithmetic.
+  const allIngredientIds = [
+    ...new Set(meals.flatMap((m) => m.dishes.flatMap((d) => d.ingredients.map((i) => i.ingredientId)))),
+  ];
+  if (allIngredientIds.length > 0) {
+    const edges = await prisma.ingredientRelation.findMany({
+      where: {
+        toIngredientId: { in: allIngredientIds },
+        label: "component",
+        yieldQuantity: { not: null },
+        yieldUnit: { not: null },
+      },
+      select: {
+        toIngredientId: true,
+        yieldQuantity: true,
+        yieldUnit: true,
+        from: { select: { canonicalName: true } },
+      },
+    });
+    // An ingredient can in principle have more than one component parent; take
+    // the first by a stable key so a regenerate is deterministic (the prep
+    // fingerprint hashes this output).
+    const byTo = new Map<string, (typeof edges)[number]>();
+    for (const e of [...edges].sort((a, b) => a.from.canonicalName.localeCompare(b.from.canonicalName))) {
+      if (!byTo.has(e.toIngredientId)) byTo.set(e.toIngredientId, e);
+    }
+    for (const meal of meals) {
+      for (const dish of meal.dishes) {
+        for (const ing of dish.ingredients) {
+          const e = byTo.get(ing.ingredientId);
+          if (!e || e.yieldQuantity === null || e.yieldUnit === null) continue;
+          ing.sourceYield = {
+            fromName: e.from.canonicalName,
+            quantity: e.yieldQuantity,
+            unit: e.yieldUnit,
+          };
+        }
+      }
+    }
+  }
 
   // WS7-8a B2b — fetch instruction-step text for BOTH polymorphic owner
   // types (mirrors cookingSequence.ts:107-111). Dish-owned steps cover
@@ -326,10 +424,22 @@ export async function loadPrepWeekInput(
     plan.titleOverride ??
     `Plan ${plan.id.slice(0, 8)}`;
 
+  // D-WS9-297 ruling 13 — the prep-day baseline. startDate first (the plan's own
+  // claim about when the week begins), else the earliest assigned meal.
+  const assignedDates = meals
+    .map((m) => m.assignedDate)
+    .filter((d): d is string => d !== null)
+    .sort();
+  const prepDay =
+    (plan.startDate ? plan.startDate.toISOString().slice(0, 10) : null) ??
+    assignedDates[0] ??
+    null;
+
   return {
     input: {
       planId: plan.id,
       planName,
+      prepDay,
       meals,
     },
     planRevisionId: plan.revisionId,

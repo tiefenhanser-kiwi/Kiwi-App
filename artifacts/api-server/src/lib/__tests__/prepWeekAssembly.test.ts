@@ -451,7 +451,11 @@ describe("formatMeasure — kitchen-fraction formatting", () => {
       [0.875, "cup", "⅞ cup"],
       // whole + mixed
       [1, "tsp", "1 tsp"],
-      [1.5, "tbsp", "1 ½ tbsp"],
+      // 🔴 D-WS9-297 ruling 7 — UNSPACED. This line asserted "1 ½ tbsp" and was
+      // pinning a divergence, not a rule: artifacts/kiwi/lib/format/quantity.ts
+      // writes "1½" everywhere else in the app, and the census counted 55 spaced
+      // mixed numbers in the prep text alone. One app, one mixed number.
+      [1.5, "tbsp", "1½ tbsp"],
       [2, "cup", "2 cup"],
       // rounds UP: 0.6425 cup → next eighth above ⅝(0.625) is ¾(0.75)
       [0.6425, "cup", "¾ cup"],
@@ -467,7 +471,7 @@ describe("formatMeasure — kitchen-fraction formatting", () => {
 
   it("applies the same 1/8 policy to weight units oz/lb", () => {
     assert.equal(formatMeasure(0.5, "oz"), "½ oz");
-    assert.equal(formatMeasure(1.3, "lb"), "1 ⅜ lb"); // 1.3 → 1.375 up
+    assert.equal(formatMeasure(1.3, "lb"), "1⅜ lb"); // 1.3 → 1.375 up, unspaced (ruling 7)
     assert.equal(formatMeasure(2, "oz"), "2 oz");
   });
 
@@ -477,10 +481,29 @@ describe("formatMeasure — kitchen-fraction formatting", () => {
     assert.equal(formatMeasure(250.6, "ml"), "251 ml");
   });
 
-  it("renders counts whole where clean, else as-is; unknown tokens pass through", () => {
-    assert.equal(formatMeasure(3, "each"), "3 each");
-    assert.equal(formatMeasure(1.5, "each"), "1.5 each"); // half an onion stays
+  // ── 🔴 D-WS9-297 ruling 7 — "each" IS NOT A WORD A COOK SAYS ───────────────
+  //
+  // This test asserted "3 each" and "1.5 each". Both were pinning defects: the
+  // census counted 135 printed "each" ("Dice 3 each roma tomatoes", the largest
+  // single P-R5 class) and 24 bare decimals ("0.25 bunch", "0.5 each"). The
+  // placeholder unit is dropped so the narrator writes "3 roma tomatoes" from the
+  // ingredient name it already has, and a fractional count gets a glyph.
+  it("🔴 ruling 7 — a placeholder count unit is dropped and a fraction gets a glyph", () => {
+    assert.equal(formatMeasure(3, "each"), "3");
+    assert.equal(formatMeasure(1.5, "each"), "1½"); // half an onion, as a glyph
+    assert.equal(formatMeasure(0.5, "each"), "½");
+    assert.equal(formatMeasure(0.25, "bunch"), "¼ bunch"); // a SPECIFIC count keeps its token
     assert.equal(formatMeasure(1, "sprig"), "1 sprig");
+  });
+
+  it("🔴 ruling 7 — a count glyph is NEAREST, not rounded up like a measure", () => {
+    // toEighths rounds up because under-measuring a teaspoon spoils a dish. Half
+    // an onion is exact, and rounding it to ⅝ would be a lie about the data.
+    assert.equal(formatMeasure(1 / 3, "each"), "⅓");
+    assert.equal(formatMeasure(2 / 3, "each"), "⅔");
+    // Off-glyph falls back to the decimal rather than inventing a fraction —
+    // same contract as lib/format/quantity.ts.
+    assert.equal(formatMeasure(0.4, "each"), "0.4");
   });
 
   // ── 🔴 [grocery] F (F5.2) — A COUNT UNIT INFLECTS ─────────────────────────
@@ -517,14 +540,15 @@ describe("formatMeasure — kitchen-fraction formatting", () => {
     assert.equal(formatMeasure(2, "oz"), "2 oz");
     assert.equal(formatMeasure(200, "g"), "200 g");
     // `each` is absent from the table on purpose (BUG-317: a count unit is
-    // suppressed on a recipe line, never pluralised).
-    assert.equal(formatMeasure(3, "each"), "3 each");
+    // suppressed on a recipe line, never pluralised) — and since D-WS9-297
+    // ruling 7 the token itself is dropped, so there is nothing to inflect.
+    assert.equal(formatMeasure(3, "each"), "3");
   });
 
   it("normalizes unit spelling variants via the engine canonicalizer", () => {
     assert.equal(formatMeasure(1, "teaspoons"), "1 tsp");
     assert.equal(formatMeasure(2, "Tablespoons"), "2 tbsp");
-    assert.equal(formatMeasure(1.5, "cups"), "1 ½ cup");
+    assert.equal(formatMeasure(1.5, "cups"), "1½ cup"); // unspaced, ruling 7
   });
 });
 
@@ -540,8 +564,8 @@ describe("componentsOf via buildStepPlan — per-dish measures (FIX 1)", () => {
     const byDish = Object.fromEntries(measures.map((m) => [m.forDish, m.amount]));
     // d-a onion qty 1, d-b onion qty 2 — kept PER DISH, not summed to 3.
     assert.deepEqual(byDish, {
-      "Seasoned Beef": "1 each",
-      Fajitas: "2 each",
+      "Seasoned Beef": "1",
+      Fajitas: "2",
     });
     // prep note rides along per-dish.
     assert.ok(measures.every((m) => m.preparationNote === "diced"));

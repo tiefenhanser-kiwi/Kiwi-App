@@ -77,9 +77,21 @@ interface StepFixture {
   stepTextRaw: string;
 }
 
+/** D-WS9-297 ruling 8 — one `component` edge: `from` yields `to`. */
+interface RelationFixture {
+  toIngredientId: string;
+  fromCanonicalName: string;
+  yieldQuantity: number;
+  yieldUnit: string;
+}
+
 function makePrismaStub(
   plans: PlanFixture[],
   steps: StepFixture[] = [],
+  // D-WS9-297 ruling 8 — `component` edges, for the sourceYield lookup. Default
+  // empty: every pre-existing test asserts a payload with sourceYield null, which
+  // is the shape for an ingredient with no component parent (nearly all of them).
+  relations: RelationFixture[] = [],
 ): PrismaClient {
   return {
     mealPlanInstance: {
@@ -102,6 +114,21 @@ function makePrismaStub(
           )
           .sort((a, b) => a.stepIndex - b.stepIndex)
           .map((s) => ({ ownerId: s.ownerId, stepTextRaw: s.stepTextRaw })),
+    },
+    ingredientRelation: {
+      findMany: async ({
+        where,
+      }: {
+        where: { toIngredientId: { in: string[] } };
+      }) =>
+        relations
+          .filter((r) => where.toIngredientId.in.includes(r.toIngredientId))
+          .map((r) => ({
+            toIngredientId: r.toIngredientId,
+            yieldQuantity: r.yieldQuantity,
+            yieldUnit: r.yieldUnit,
+            from: { canonicalName: r.fromCanonicalName },
+          })),
     },
   } as unknown as PrismaClient;
 }

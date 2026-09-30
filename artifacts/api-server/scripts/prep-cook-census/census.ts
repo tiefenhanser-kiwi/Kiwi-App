@@ -327,7 +327,19 @@ async function runPlan(planId: string): Promise<PlanRecord> {
     for (const meal of input.meals) {
       for (const dish of meal.dishes) stepTextByDishId.set(dish.dishId, dish.stepTexts);
     }
-    const stepPlan = buildStepPlan(combineResult, input.planName, stepTextByDishId);
+    // D-WS9-297 ruling 13 — the SAME lag map routes/cooking.ts builds. Copied
+    // rather than imported because the route computes it inline; if that moves
+    // into a helper, this should call it.
+    const cookLagByMealId = new Map<string, number>();
+    if (input.prepDay) {
+      const prepMs = Date.parse(input.prepDay);
+      for (const m of input.meals) {
+        if (!m.assignedDate) continue;
+        const lag = Math.round((Date.parse(m.assignedDate) - prepMs) / 86_400_000);
+        if (Number.isFinite(lag)) cookLagByMealId.set(m.mealId, Math.max(0, lag));
+      }
+    }
+    const stepPlan = buildStepPlan(combineResult, input.planName, stepTextByDishId, cookLagByMealId);
     if (stepPlan.steps.length === 0) {
       rec.prepError = "empty step plan";
     } else {

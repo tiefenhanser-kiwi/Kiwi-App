@@ -36,6 +36,13 @@ export interface PrepMeasure {
   // poured into a pan → DEMOTE). Judged alongside the dish steps
   // (relevantDishes → dishSteps).
   dishRole: DishRoleT;
+  // WS9 BUG-338 / D-WS9-297 ruling 8 — INPUT ONLY, and CODE-COMPUTED: how many
+  // whole ones this derived amount takes ("2 limes" for 3 tbsp of lime juice),
+  // from the `component` edge's yield in ingredient_relations. Present only on a
+  // derived ingredient whose parent has a yield; absent on everything else.
+  // The narrator states it so the cook knows what to buy and squeeze — it has no
+  // matching output field, so prose still cannot move the math.
+  fromSource?: string;
   preparationNote?: string;
 }
 
@@ -77,6 +84,18 @@ export interface PrepNarrationStepInput {
   // narrator MUST tell the user to combine the sauce's wet parts with "the
   // <name> spices from your seasoning blend." Absent → no linkage wording.
   blendSpiceDish?: string;
+  /**
+   * WS9 BUG-338 / D-WS9-297 ruling 13 — how many days after the prep session the
+   * LATEST meal this step feeds is cooked. Code-computed from
+   * MealPlanItem.assignedDate against the plan's start; absent when the plan has
+   * no day assignment, which is 6 of the 13 census plans.
+   *
+   * ⚠️ B1 PASSES IT AND THE PROMPT DOES NOT YET USE IT. The storage-note shape
+   * — a mid-week session, cook-day prep for late perishables, or freezing — is
+   * B3's ruling and Hans's. It is threaded now so the lag can be MEASURED
+   * against real plans before anyone decides what to do about it.
+   */
+  daysUntilCook?: number;
 }
 
 export interface PrepNarrationInput {
