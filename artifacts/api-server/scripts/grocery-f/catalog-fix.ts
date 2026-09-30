@@ -19,7 +19,7 @@ import { assertDevHost } from "./catalog-sweep";
 interface Change {
   finding: string;
   canonicalName: string;
-  field: "purchaseDisplay" | "purchaseQuantity" | "category";
+  field: "purchaseDisplay" | "purchaseQuantity" | "purchaseUnit" | "category" | "displayName";
   to: string | number;
   why: string;
 }
@@ -96,6 +96,72 @@ const F4_CATEGORY: { name: string; to: string }[] = [
   { name: "tomatillos, husked and halved", to: "Produce" },
 ];
 
+// ── E3 (D-WS9-295) — THE SMALLEST NORMAL RETAIL SIZE ───────────────────────
+//
+// D-WS9-221 applied to the F8 list. A pack four times the need is not a pack
+// problem when the pack is the only size sold; it is one when a smaller size is
+// on the same shelf. Each row below is a size a US supermarket stocks.
+//
+// ⚠️ EVERY CATALOG ROW OF THE SAME FOOD MOVES, not just the one the corpus
+// happened to render. The catalog carries singular/plural and "… cheese"
+// variants of most of these, and leaving a sibling behind is how the same
+// defect comes back under a different name — which is exactly the class E2 is
+// closing on the staple side.
+//
+// ⚠️ WHOLE MILK IS NOT HERE, and that is the answer to the question the ruling
+// asked. It is ALREADY "1 bottle (1 quart / 32 oz)". The gallon on the census
+// lines comes from the RECURRING path — INGREDIENT_CONVERSIONS' `milk` entry,
+// which D-WS9-284 ruling 3 set to a gallon ("we usually get a gallon of milk")
+// and which overwrites purchaseDisplay only on a row the recurring resolver
+// claims. The two cannot collide: they are different tables consulted on
+// different branches, and no recipe row reads the recurring default.
+const E3_PACKS: { name: string; unit: string; quantity: number; display: string }[] = [
+  // shredded cheddar — 2.5 lb is a warehouse bag; 8 oz is the shelf default.
+  { name: "shredded cheddar cheese", unit: "bag", quantity: 1, display: "1 bag (8 oz)" },
+  // parmigiano-reggiano — a 1 lb block is a deli cut; a wedge is what is stocked.
+  { name: "parmigiano-reggiano", unit: "wedge", quantity: 1, display: "1 wedge (8 oz)" },
+  { name: "parmigiano-reggiano, finely grated", unit: "wedge", quantity: 1, display: "1 wedge (8 oz)" },
+  // mozzarella, the BLOCK rows only. `fresh mozzarella` is already a 8 oz
+  // container and is a different product (packed in water).
+  { name: "low-moisture whole-milk mozzarella", unit: "block", quantity: 1, display: "1 block (8 oz)" },
+  { name: "low-moisture mozzarella", unit: "block", quantity: 1, display: "1 block (8 oz)" },
+  { name: "low-moisture mozzarella cheese", unit: "block", quantity: 1, display: "1 block (8 oz)" },
+  { name: "mozzarella cheese", unit: "block", quantity: 1, display: "1 block (8 oz)" },
+  // Two siblings the first pass missed and the CORPUS DIFF caught — the reason
+  // the after-corpus is read row by row rather than trusted.
+  { name: "whole-milk mozzarella", unit: "block", quantity: 1, display: "1 block (8 oz)" },
+  // cotija — sold as a 10 oz round, not a pound.
+  { name: "cotija cheese", unit: "block", quantity: 1, display: "1 block (10 oz)" },
+  { name: "heavy cream", unit: "carton", quantity: 1, display: "1 carton (8 fl oz)" },
+  { name: "sour cream", unit: "container", quantity: 1, display: "1 container (8 oz)" },
+  { name: "full-fat greek yogurt", unit: "container", quantity: 1, display: "1 container (16 oz)" },
+  { name: "plain greek yogurt", unit: "container", quantity: 1, display: "1 container (16 oz)" },
+  { name: "plain whole-milk greek yogurt", unit: "container", quantity: 1, display: "1 container (16 oz)" },
+  { name: "pineapple juice", unit: "can", quantity: 1, display: "1 can (6 oz)" },
+  { name: "dill pickle", unit: "jar", quantity: 1, display: "1 jar (16 oz)" },
+  // asparagus — the BUNCH-SIZE row. Bare `asparagus` is already "1 lb bunch";
+  // the corpus's "2 lb bunch" was that row SCALED to two, not a 2 lb bunch.
+  // This is the row that really states one.
+  { name: "fresh asparagus spears, thick-cut", unit: "lb", quantity: 1, display: "1 lb bunch" },
+  { name: "fresh asparagus", unit: "lb", quantity: 1, display: "1 lb bunch" },
+];
+
+// ── E4.1 — the tomatillo line ──────────────────────────────────────────────
+//
+// The synonym EDGE is written separately (relations, not packs). This is the
+// other half of the same ruling: "the line should read `2 lb tomatillos`".
+//
+// ⚠️ THE EDGE ALONE CANNOT DO IT, measured. A synonym edge folds two rows when
+// BOTH are on one plan, and across the 20-plan corpus they never co-occur — one
+// plan carries `tomatillos` (19 dish refs) and another carries `tomatillo` (6).
+// On the plan that has only the singular row there is nothing to fold WITH, so
+// the line keeps its singular name however good the edge is. The buy name for
+// this food is plural — you do not buy a tomatillo — so the display name is what
+// has to change.
+const E4_DISPLAY_NAMES: { name: string; display: string }[] = [
+  { name: "tomatillo", display: "tomatillos" },
+];
+
 /** "1 lb (~3–4 tomatillos)" → "1 lb". Collapses the space the paren leaves. */
 export function dropParenthetical(display: string): string {
   return display.replace(/\s*\([^)]*\)\s*/g, " ").replace(/\s+/g, " ").trim();
@@ -115,15 +181,23 @@ async function main() {
   const noops: string[] = [];
   const missing: string[] = [];
 
-  const byName = new Map<string, { id: string; category: string | null; purchaseDisplay: string | null; purchaseQuantity: number | null }>();
+  const byName = new Map<string, {
+    id: string; category: string | null; displayName: string;
+    purchaseUnit: string | null; purchaseDisplay: string | null; purchaseQuantity: number | null;
+  }>();
   const wanted = [
     ...F2_DROP_PAREN,
     ...F3_SINGLE.map((r) => r.name),
     ...F4_CATEGORY.map((r) => r.name),
+    ...E3_PACKS.map((r) => r.name),
+    ...E4_DISPLAY_NAMES.map((r) => r.name),
   ];
   for (const row of await prisma.ingredient.findMany({
     where: { canonicalName: { in: [...new Set(wanted)] } },
-    select: { id: true, canonicalName: true, category: true, purchaseDisplay: true, purchaseQuantity: true },
+    select: {
+      id: true, canonicalName: true, category: true, displayName: true,
+      purchaseUnit: true, purchaseDisplay: true, purchaseQuantity: true,
+    },
   })) {
     byName.set(row.canonicalName, row);
   }
@@ -147,6 +221,27 @@ async function main() {
     if (row.purchaseQuantity !== qty) {
       changes.push({ finding: "F3", canonicalName: name, field: "purchaseQuantity", to: qty, why: `${row.purchaseQuantity} → ${qty}` });
     } else noops.push(`F3 ${name} quantity`);
+  }
+
+  for (const { name, unit, quantity, display } of E3_PACKS) {
+    const row = byName.get(name);
+    if (!row) continue;
+    if (row.purchaseDisplay !== display) {
+      changes.push({ finding: "E3", canonicalName: name, field: "purchaseDisplay", to: display, why: `"${row.purchaseDisplay}" → "${display}"` });
+    } else noops.push(`E3 ${name} display`);
+    if (row.purchaseUnit !== unit) {
+      changes.push({ finding: "E3", canonicalName: name, field: "purchaseUnit", to: unit, why: `${row.purchaseUnit} → ${unit}` });
+    } else noops.push(`E3 ${name} unit`);
+    if (row.purchaseQuantity !== quantity) {
+      changes.push({ finding: "E3", canonicalName: name, field: "purchaseQuantity", to: quantity, why: `${row.purchaseQuantity} → ${quantity}` });
+    } else noops.push(`E3 ${name} quantity`);
+  }
+
+  for (const { name, display } of E4_DISPLAY_NAMES) {
+    const row = byName.get(name);
+    if (!row) continue;
+    if (row.displayName === display) { noops.push(`E4 ${name} (already "${display}")`); continue; }
+    changes.push({ finding: "E4", canonicalName: name, field: "displayName", to: display, why: `"${row.displayName}" → "${display}"` });
   }
 
   for (const { name, to } of F4_CATEGORY) {

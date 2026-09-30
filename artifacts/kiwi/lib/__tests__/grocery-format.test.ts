@@ -1673,8 +1673,12 @@ describe("BUG-160 — the shopper line: the residue may CONTAIN the name", () =>
       ["radishes", "bunch", "1 bunch (~6-8 radishes)", 6, "each", "1 bunch radishes"],
       ["tomatillo", "lb", "2 lb (~3–4 tomatillos)", 1.25, "pound", "2 lb tomatillo"],
       ["tomatillos", "lb", "1 lb (~4-5 tomatillos)", 0.75, "pound", "1 lb tomatillos"],
-      // ── the control: these two elide on the HEAD and do not move ───────────
-      ["white onion", "each", "3 medium white onion", 2.25, "cup", "3 medium white onion"],
+      // ── the control: these two elide on the HEAD ─────────────────────────
+      // [grocery] F Part E (E4.2) — the onion's residue is now AGREED with the
+      // count. The elide is unchanged and is still the thing being tested; what
+      // moved is the plural, which nothing was applying. See the E4.2 block
+      // below for why the weight rows beside it must NOT move.
+      ["white onion", "each", "3 medium white onion", 2.25, "cup", "3 medium white onions"],
       // The census third shape: the residue equals the name HEAD once the prep
       // clause comes off, so the pre-existing exact test handles it.
       ["rotisserie chicken, meat shredded", "each", "1 rotisserie chicken", 3, "cup", "1 rotisserie chicken"],
@@ -1752,9 +1756,10 @@ describe("BUG-160 — the shopper line: the residue may CONTAIN the name", () =>
       "1 loaf italian bread loaf",
     );
     // And the mirror: the residue contains the name → elide, one printing only.
+    // E4.2 — one printing, now agreed with the count.
     assert.equal(
       composePackName("white onion", "each", "3 medium white onion", 2.25, "cup"),
-      "3 medium white onion",
+      "3 medium white onions",
     );
   });
 
@@ -1962,5 +1967,48 @@ describe("F — pluralizeIngredientName declines on punctuation", () => {
     assert.equal(pluralizeIngredientName("rice (long-grain)", 3), "rice (long-grain)");
     // …and a real head noun still moves, so the guard is not a blanket refusal.
     assert.equal(pluralizeIngredientName("roma tomato", 3), "roma tomatoes");
+  });
+});
+
+// ── [grocery] F Part E (E4.2) — an elided COUNT pack agrees with its count ──
+describe("E4.2 — '3 medium white onion' is the rendered line, not the stored pack", () => {
+  it("🔴 the literal from the device pass", () => {
+    // The pack is "3 medium white onion" and the elide returns it verbatim, so
+    // this is what a user reads. Rule 1 would have agreed it, but Rule 1 needs a
+    // COUNT need and this row's need is 2¼ cup.
+    assert.equal(
+      composePackName("white onion", "each", "3 medium white onion", 2.25, "cup"),
+      "3 medium white onions",
+    );
+  });
+
+  it("🔴 a WEIGHT pack must NOT be agreed — D-WS9-292 renders through here", () => {
+    // These three elide too: the residue "lb beef chuck roast" contains the
+    // name. The leading number is a WEIGHT, not a count of roasts, and agreeing
+    // it prints "2 lb beef chuck roasts". Measured on the corpus: 3 weight rows
+    // would have been wrong against the 1 count row that was.
+    assert.equal(
+      composePackName("beef chuck roast", "lb", "2 lb beef chuck roast", 2, "pound"),
+      "2 lb beef chuck roast",
+    );
+    assert.equal(
+      composePackName("boneless beef chuck roast", "lb", "3 lb boneless beef chuck roast", 3, "pound"),
+      "3 lb boneless beef chuck roast",
+    );
+    assert.equal(
+      composePackName("boneless pork shoulder", "lb", "2 lb boneless pork shoulder", 2, "pound"),
+      "2 lb boneless pork shoulder",
+    );
+  });
+
+  it("exactly one is left singular, and an already-plural residue is untouched", () => {
+    assert.equal(
+      composePackName("white onion", "each", "1 medium white onion", 0.75, "cup"),
+      "1 medium white onion",
+    );
+    assert.equal(
+      composePackName("roma tomatoes", "each", "4 roma tomatoes", 2, "cup"),
+      "4 roma tomatoes",
+    );
   });
 });

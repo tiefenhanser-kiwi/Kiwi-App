@@ -774,7 +774,23 @@ describe("consolidatePlanIngredients — staple flags", () => {
         planId: TEST_PLAN,
         userId: TEST_USER,
       });
-      assert.equal(out.length, 15, `variant=${variant} length`);
+      // ⚠️ THIS WAS A LITERAL 15, AND IT CANNOT BE A COUNT AT ALL ANY MORE.
+      //
+      // The assertion's point is "EVERY staple is flagged, whatever the casing",
+      // which is the loop below. The length was a proxy for it and stopped being
+      // one when D-WS9-295 added ten names: four of them MERGE with a sibling
+      // already in the list (the sugars fold together, as they should — that is
+      // mergeConvertibleGroups doing its job on one food spelled three ways), so
+      // 27 inputs land as 23 rows. Re-pinning the new literal would have to be
+      // redone every time the list or the merge map moves, and would go red for
+      // a correct fold.
+      //
+      // What is still worth asserting is that nothing is INVENTED: the output
+      // cannot be longer than the input, and cannot be empty.
+      assert.ok(
+        out.length > 0 && out.length <= UNIVERSAL_STAPLES.length,
+        `variant=${variant} length ${out.length} vs ${UNIVERSAL_STAPLES.length}`,
+      );
       for (const item of out) {
         assert.equal(item.isUniversalStaple, true, `variant=${variant} ${item.canonicalName}`);
       }
@@ -1703,7 +1719,12 @@ describe("consolidatePlanIngredients — BUG-025-5 staple variants", () => {
       "sea salt",
       "table salt",
       "coarse sea salt",
-      "fine sea salt",
+      // ⚠️ "fine sea salt" MOVED OUT of this list by D-WS9-295 and is now a
+      // staple by name. BUG-182 had excluded it with flaky sea salt on the
+      // grounds that "grain size is the product"; D-WS9-295 draws the line
+      // between a FINISHING salt (bought for a dish) and a COOKING salt (in the
+      // cupboard) instead. `flaky sea salt` — the row Hans added by hand because
+      // he does not own it — stays right where it is, first in this list.
       "fine salt",
       "black peppercorns", // whole, not ground — distinct product (BUG-168)
       "cracked black pepper",

@@ -215,25 +215,45 @@ export const PIECE_WEIGHT_LB: readonly { match: string; lb: number; source: stri
     lb: 1,
     source: "catalog pack display \"2 lb pack (2 steaks, ~1.25 in thick)\"",
   },
+  // ── D-WS9-295 — THE THIGH, WHICH PART B COULD NOT SOURCE ──────────────────
+  //
+  // Block F Part B reported that nothing in this repository states a chicken
+  // thigh's piece weight and left the three corpus rows as counts. chat-Claude
+  // supplied the figures on 2026-09-30 from the retail range (bone-in packs run
+  // about 5–7 oz a thigh), which is the same kind of datum Hans's own half-pound
+  // breast is: a typical purchase, not a measurement of one bird.
+  //
+  // ⚠️ ORDER MATTERS HERE — longestMatch picks the LONGEST `match` that occurs
+  // in the name, so "boneless skinless chicken thighs" reaches the boneless row
+  // (4 oz) and "bone-in skin-on chicken thighs" falls through to the bone-in
+  // one (6 oz). The bone is a third of the weight and getting this backwards
+  // would over-buy on the commonest cut in the catalog.
+  {
+    match: "boneless skinless chicken thigh",
+    lb: 0.25,
+    source: "chat-Claude, D-WS9-295, retail range (4 oz a thigh)",
+  },
+  {
+    match: "chicken thigh",
+    lb: 0.375,
+    source: "chat-Claude, D-WS9-295, retail range (bone-in packs run ~5–7 oz a thigh)",
+  },
 ];
 
 /**
- * 🔴 CUTS DELIBERATELY ABSENT, AND THE ONE THAT MATTERS.
+ * 🔴 CUTS DELIBERATELY ABSENT.
  *
- * `chicken thigh` is not here. It is the commonest count-need cut on the
- * corpus — three of the five count rows are `3 lb pack bone-in chicken thighs
- * (4 each)` — and NOTHING IN THE REPOSITORY STATES ITS PIECE WEIGHT: no
- * Protein row carries `gramsPerEach`, no catalog pack states a thigh count,
- * and the prose sweep returns only glyph splits. Picking a number here would be
- * inventing the one datum the whole rule rests on, so those rows keep today's
- * pack and are reported.
+ * Nothing in this repository states these piece weights: no Protein row carries
+ * `gramsPerEach`, no catalog pack states a count for them, and the prose sweep
+ * returns only glyph splits. Picking a number would invent the one datum the
+ * rule rests on, so a count need of one of these keeps today's pack and is
+ * reported by `classifyFreshProtein` as `count_unsourced`.
  *
- * The same is true of chicken drumsticks, chicken wings, ribeye / strip /
- * sirloin steaks, lamb chops and lamb shanks. Each needs one sourced figure to
- * join the table and nothing else.
+ * `chicken thigh` WAS the entry that mattered — three of the five corpus count
+ * rows — and D-WS9-295 sourced it. Each name below needs one sourced figure to
+ * join PIECE_WEIGHT_LB and nothing else.
  */
 export const UNSOURCED_COUNT_CUTS: readonly string[] = [
-  "chicken thigh",
   "chicken drumstick",
   "chicken wing",
   "ribeye steak",

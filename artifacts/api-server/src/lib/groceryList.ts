@@ -15,7 +15,11 @@ import { lookupIngredientByName } from "./ingredientLookup";
 // this file were the isUniversalStaple flag sites, and both now test explicit
 // membership instead of folding. The function itself is untouched and still
 // serves groupConversion (BUG-142) and groceryListAI's conservation guard.
-import { isNeverOrdered, UNIVERSAL_STAPLES } from "./groceryStaples";
+import {
+  isNeverOrdered,
+  isUniversalStapleName,
+  UNIVERSAL_STAPLES,
+} from "./groceryStaples";
 // [grocery] B3 — `lookupPurchaseDefault` is no longer imported here. Its one
 // consumer was the synthetic recurring entry's pack, and the precedence that
 // reads it (table, then the resolved row, then nothing) now lives in
@@ -196,10 +200,9 @@ function sectionForCategory(category: string | null | undefined): StoreSection {
   return CATEGORY_TO_SECTION[category] ?? "extras";
 }
 
-// Normalized canonical names of universal staples — built once, reused across calls.
-const UNIVERSAL_STAPLE_KEYS = new Set(
-  UNIVERSAL_STAPLES.map((s) => normalizeIngredientName(s.canonicalName)),
-);
+// D-WS9-295 — the key set and the membership test moved to groceryStaples.ts,
+// beside the list they are built from, so a caller cannot consult the list
+// without consulting the rule. `isUniversalStapleName` is imported instead.
 
 // WS7-5d Block 4 Fix 1 — bucket key is (normalizedCanonical, unit). Prep is
 // intentionally NOT part of the key. The 6c-5 decision to split rows by prep
@@ -531,9 +534,12 @@ export async function consolidatePlanIngredients(
             // the normalised canonical name itself; the baseStapleName fold is
             // gone from here. A staple flag is now held in an ingredient's own
             // right or not at all. See UNIVERSAL_STAPLES for why.
-            isUniversalStaple: UNIVERSAL_STAPLE_KEYS.has(
-              normalizeIngredientName(canonical),
-            ),
+            // D-WS9-295 — BOTH names the catalog row carries. The canonical
+            // name for vegetable oil is `neutral oil`; the display name is
+            // "vegetable oil", which is what the list holds. See
+            // isUniversalStapleName for the measurement and for why this is not
+            // the BUG-182 fold.
+            isUniversalStaple: isUniversalStapleName(canonical, display),
             isUserPantryStaple: false, // filled below from user.pantryStaples
             isRecurringItem: false, // filled below from preferences.recurringGroceryItems
             sources: [],
@@ -709,7 +715,10 @@ export async function consolidatePlanIngredients(
       // payload and lands in `pantry`. Everything else keeps `extras`.
       sectionKey: sectionForCategory(res.household ? "Household" : res.category),
       // WS9 BUG-182 — explicit membership, no inheritance.
-      isUniversalStaple: UNIVERSAL_STAPLE_KEYS.has(normalizeIngredientName(name)),
+      // D-WS9-295 — and the resolved CATALOG display name too, when the
+      // recurring text resolved to a row: "neutral oil" typed as "vegetable oil"
+      // is the same staple either way.
+      isUniversalStaple: isUniversalStapleName(name, res.displayName),
       isUserPantryStaple: userPantryKeys.has(normalizeIngredientName(name)),
       isRecurringItem: true,
       sources: [],

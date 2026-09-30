@@ -1491,7 +1491,31 @@ export function composePackName(
     hintWasTheName ? stripParentheticals(derived) : derived,
   );
 
-  if (packNamesItem) return display;
+  // ── [grocery] F Part E (E4.2) — AN ELIDED COUNT PACK AGREES WITH ITS COUNT ──
+  //
+  // "3 medium white onion (2¼ cup)" is the RENDERED line, not the stored pack:
+  // the pack is "3 medium white onion", the elide fires because the residue
+  // names the item, and the residue is returned verbatim. A user sees it.
+  //
+  // Rule 1 already agrees a counted title with its count (countedPackTitle), but
+  // Rule 1 needs the NEED to be a count too. This row's need is 2¼ CUP against a
+  // pack of 3 each, so it lands here instead, where nothing was inflecting it.
+  //
+  // ⚠️ GATED ON THE PACK UNIT BEING A COUNT, and that gate is load-bearing.
+  // D-WS9-292 now renders weights through this same branch — "2 lb beef chuck
+  // roast", "3 lb boneless beef chuck roast", "2 lb boneless pork shoulder" all
+  // elide, because the residue "lb beef chuck roast" contains the name. The
+  // leading number there is a WEIGHT, not a count of roasts, and agreeing it
+  // would print "2 lb beef chuck roasts". Measured on the corpus: 3 weight rows
+  // would have been wrong and 1 count row was.
+  if (packNamesItem) {
+    const shownCount = packLeadingQuantity(display);
+    if ((pUnit === "each" || pUnit === "") && shownCount !== null && shownCount > 1) {
+      const head = packResidue(display);
+      return `${formatPackAmount(shownCount)} ${pluralizeIngredientName(head, shownCount)}`;
+    }
+    return display;
+  }
   // Pre-BUG-125 back-compat: with no need to decide with, an "each" pack whose
   // residue doesn't match the name is still dropped rather than guessed at.
   if (pUnit === "each" && need === null) return name;

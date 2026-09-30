@@ -161,14 +161,14 @@ describe("D-WS9-292 — exception 3, the amendment", () => {
   });
 
   it("🔴 an UNSOURCED cut stays a count and keeps its pack", () => {
-    // Three of the five corpus count rows are bone-in chicken thighs, and
-    // NOTHING in the repository states a thigh's piece weight: no Protein row
-    // carries gramsPerEach, no catalog pack states a thigh count, and the
-    // authored-prose sweep returns only glyph splits. Inventing one here would
-    // invent the datum the whole rule rests on.
-    const v = verdict("bone-in chicken thighs", 4, "each");
+    // ⚠️ THIS TEST USED TO NAME bone-in chicken thighs, which was the class's
+    // own example until D-WS9-295 sourced it. The PROPERTY it pins is what
+    // matters and is unchanged: a cut with no defensible piece weight declines
+    // rather than guessing, because inventing one invents the datum the whole
+    // rule rests on. Re-pointed at a cut that is still unsourced.
+    const v = verdict("chicken drumsticks", 4, "each");
     assert.equal(v.kind, "count_unsourced");
-    assert.equal(v.kind === "count_unsourced" && v.cut, "chicken thigh");
+    assert.equal(v.kind === "count_unsourced" && v.cut, "chicken drumstick");
   });
 
   it("the catalog's own gramsPerEach BEATS the curated table", () => {
@@ -213,5 +213,41 @@ describe("D-WS9-292 — the pack it writes", () => {
     const p = freshProteinPurchase(2.5);
     assert.ok(!/pack|bag|package|block|roast/.test(p.purchaseDisplay));
     assert.match(p.purchaseDisplay, /^[\d.]+ lb$/);
+  });
+});
+
+// ── D-WS9-295 (E1) — the thigh, which Part B could not source ───────────────
+describe("D-WS9-295 — bone-in and boneless chicken thighs", () => {
+  it("🔴 the three corpus rows: 4 bone-in thighs is 1½ lb", () => {
+    // Part B left these as counts because nothing in the repository stated a
+    // thigh's piece weight. chat-Claude supplied it from the retail range.
+    const v = verdict("bone-in chicken thighs", 4, "each");
+    assert.equal(v.kind, "by_weight");
+    assert.equal(v.kind === "by_weight" && v.pieceLb, 0.375);
+    assert.equal(v.kind === "by_weight" && v.buyLb, 1.5);
+  });
+
+  it("🔴 BONELESS is the shorter weight, and the longest match decides", () => {
+    // The bone is a third of the piece. "boneless skinless chicken thighs"
+    // contains BOTH table keys, so longestMatch is what stops it being bought
+    // at the bone-in weight — 4 boneless thighs is 1 lb, not 1½.
+    const v = verdict("boneless skinless chicken thighs", 4, "each");
+    assert.equal(v.kind === "by_weight" && v.pieceLb, 0.25);
+    assert.equal(v.kind === "by_weight" && v.buyLb, 1);
+    // …and the bone-in spelling still reaches the bone-in row.
+    const bonein = verdict("bone-in skin-on chicken thighs", 4, "each");
+    assert.equal(bonein.kind === "by_weight" && bonein.pieceLb, 0.375);
+  });
+
+  it("a WEIGHT need is unaffected by either piece weight", () => {
+    const v = verdict("boneless skinless chicken thighs", 1.75, "pound");
+    assert.equal(v.kind === "by_weight" && v.buyLb, 1.75);
+    assert.equal(v.kind === "by_weight" && v.via, "weight");
+  });
+
+  it("the cuts still without a source stay counts", () => {
+    for (const cut of ["chicken drumsticks", "chicken wings", "lamb shanks"]) {
+      assert.equal(verdict(cut, 4, "each").kind, "count_unsourced", cut);
+    }
   });
 });

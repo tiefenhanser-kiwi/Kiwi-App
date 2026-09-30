@@ -161,6 +161,55 @@ function gateCatchesSoup(): { ok: boolean; detail: string } {
   return { ok: caught, detail: caught ? "D8 fired on the soup row" : "D8 SILENT on the soup row" };
 }
 
+// ── break (E2)'s check: a DATA break, shown by the corpus ───────────────────
+//
+// D-WS9-295's cheddar pack is a catalog ROW, not code, so there is no source
+// file to edit and no test to turn red. It is broken the way the ruling says to
+// show it: revert the row, re-run the census on ONE plan that reaches it, and
+// read the rendered line. `dataBreak` below carries its own revert, because a
+// restore here is a database write and cannot be a file copy.
+const CHEDDAR = "shredded cheddar cheese";
+
+async function cheddarPack(): Promise<{ unit: string | null; quantity: number | null; display: string | null }> {
+  const { PrismaClient } = await import("@prisma/client");
+  const prisma = new PrismaClient();
+  const row = await prisma.ingredient.findFirst({
+    where: { canonicalName: CHEDDAR },
+    select: { purchaseUnit: true, purchaseQuantity: true, purchaseDisplay: true },
+  });
+  await prisma.$disconnect();
+  return row ?? { unit: null, quantity: null, display: null } as never;
+}
+
+async function setCheddarPack(unit: string, quantity: number, display: string): Promise<void> {
+  const { PrismaClient } = await import("@prisma/client");
+  const prisma = new PrismaClient();
+  await prisma.ingredient.update({
+    where: { canonicalName: CHEDDAR },
+    data: { purchaseUnit: unit, purchaseQuantity: quantity, purchaseDisplay: display },
+  });
+  await prisma.$disconnect();
+}
+
+/** One plan through the real pipeline; returns every rendered line. */
+function censusLines(tag: string, plan: string): string[] {
+  const r = spawnSync(
+    process.execPath,
+    ["--env-file=.env", "--import", "tsx", "scripts/grocery-census/census.ts",
+     "--plans", plan, "--mode", "live", "--tag", tag, "--budget", "1"],
+    { cwd: API, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
+  );
+  if (r.status !== 0) return [];
+  const out = join(API, "scripts", "grocery-census", "out");
+  const idx = JSON.parse(readFileSync(join(out, `_index__${tag}.json`), "utf8")) as { entries: { file: string }[] };
+  const lines: string[] = [];
+  for (const e of idx.entries) {
+    const run = JSON.parse(readFileSync(join(out, e.file), "utf8")) as { rendered: { line: string }[] };
+    for (const x of run.rendered) lines.push(x.line);
+  }
+  return lines;
+}
+
 // ── the breaks ─────────────────────────────────────────────────────────────
 const BREAKS: Break[] = [
   {
@@ -240,6 +289,39 @@ const BREAKS: Break[] = [
     to: ``,
     check: gateCatchesSoup,
   },
+  {
+    n: 101,
+    title: "E2 — remove sugar from the staples: its pack returns",
+    file: "artifacts/api-server/src/lib/groceryStaples.ts",
+    from: `  { canonicalName: "granulated sugar", defaultSection: "pantry", defaultUnit: "bag" },`,
+    to: ``,
+    check: () => serverTest("src/lib/__tests__/staplesE2.test.ts"),
+  },
+  {
+    n: 103,
+    title: "E1 — drop the bone-in thigh piece weight: the three rows revert",
+    file: "artifacts/api-server/src/lib/freshProtein.ts",
+    from: `  {
+    match: "chicken thigh",
+    lb: 0.375,`,
+    to: `  {
+    match: "chicken thigh--disabled",
+    lb: 0.375,`,
+    check: () =>
+      serverTest("src/lib/__tests__/freshProtein.test.ts", "src/lib/__tests__/groceryListAI.test.ts"),
+  },
+  {
+    n: 104,
+    title: "E3 — recurring Milk becomes a quart",
+    file: "artifacts/api-server/src/lib/ingredientConversions.ts",
+    from: `    purchaseUnit: "gallon",
+    purchaseQuantity: 1,
+    purchaseDisplay: "1 gallon",`,
+    to: `    purchaseUnit: "quart",
+    purchaseQuantity: 1,
+    purchaseDisplay: "1 quart",`,
+    check: () => serverTest("src/lib/__tests__/staplesE2.test.ts"),
+  },
 ];
 
 // ── the run ────────────────────────────────────────────────────────────────
@@ -304,6 +386,52 @@ for (const b of list) {
     failures++;
     console.log(`(${b.n}) 🔴 ${!red ? "STAYED GREEN" : "RESTORE MISMATCH"} — ${b.title}`);
     console.log(`      broken: ${broken.detail}  restored=${restored}`);
+  }
+}
+
+// ── break (102) — the DATA break, which no file edit can express ───────────
+//
+// "Revert the cheddar pack to 2.5 lb → red. The corpus shows it; a data break
+// is shown by the corpus diff." So this one edits the CATALOG, re-runs the real
+// pipeline on the one plan that reaches the row, and reads the rendered line.
+//
+// ⚠️ ITS RESTORE IS A DATABASE WRITE, so the SHA-256-against-HEAD discipline has
+// no meaning here. The equivalent is asserted instead: the row read back after
+// the restore must equal the row read before the break, field by field.
+if (only === null || only === 102) {
+  const PLAN = "56b03a57"; // the plan whose list carries shredded cheddar
+  const RULED = { unit: "bag", quantity: 1, display: "1 bag (8 oz)" };
+  const before = await cheddarPack();
+  const hasCheddar = (ls: string[]) => ls.some((l) => /shredded (sharp )?cheddar/i.test(l));
+  const showsRuled = (ls: string[]) => ls.some((l) => /1 bag \(8 oz\) shredded/i.test(l));
+  const showsBroken = (ls: string[]) => ls.some((l) => /2\.5 lb bag|2½ lb bag/i.test(l));
+
+  const baseline = censusLines("f-break-base", PLAN);
+  const baseOk = hasCheddar(baseline) && showsRuled(baseline) && !showsBroken(baseline);
+
+  await setCheddarPack("lb", 2.5, "2.5 lb bag");
+  const broken = censusLines("f-break-red", PLAN);
+  const isRed = showsBroken(broken);
+
+  await setCheddarPack(RULED.unit, RULED.quantity, RULED.display);
+  const after = await cheddarPack();
+  const restored =
+    after.purchaseUnit === before.purchaseUnit &&
+    after.purchaseQuantity === before.purchaseQuantity &&
+    after.purchaseDisplay === before.purchaseDisplay;
+
+  if (!baseOk) {
+    failures++;
+    console.log("(102) 🔴 BASELINE NOT GREEN — the corpus does not show the ruled cheddar pack");
+    console.log(`      cheddar lines: ${JSON.stringify(baseline.filter((l) => /cheddar/i.test(l)))}`);
+  } else if (isRed && restored) {
+    console.log("(102) ✅ RED then RESTORED — E3: revert the cheddar pack to 2.5 lb");
+    console.log(`      broken line:  ${broken.find((l) => /2\.5 lb bag|2½ lb bag/i.test(l))}`);
+    console.log(`      restored row: ${JSON.stringify(after)}`);
+  } else {
+    failures++;
+    console.log(`(102) 🔴 ${!isRed ? "STAYED GREEN" : "RESTORE MISMATCH"} — E3 cheddar pack`);
+    console.log(`      broken=${JSON.stringify(broken.filter((l) => /cheddar/i.test(l)))} restored=${restored}`);
   }
 }
 

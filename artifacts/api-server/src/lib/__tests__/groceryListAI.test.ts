@@ -814,11 +814,29 @@ describe("generateFinalGroceryList", () => {
       assert.equal(out.purchaseDisplay, "2 lb");
     });
 
-    it("an UNSOURCED cut keeps its pack — the rule declines rather than guesses", async () => {
+    it("🔴 D-WS9-295 — the bone-in thigh rows, through the seam", async () => {
+      // These three rows were the block's one unsourced class and kept their
+      // "3 lb pack" until chat-Claude supplied the piece weight. 4 x 6 oz.
       const out = await onePack(
         baseInputItem({
           canonicalName: "bone-in chicken thighs",
           displayName: "bone-in chicken thighs",
+          quantity: 4,
+          unit: "each",
+          sectionKey: "meat_seafood",
+          purchaseUnit: "lb",
+          purchaseQuantity: 3,
+          purchaseDisplay: "3 lb pack",
+        }),
+      );
+      assert.equal(out.purchaseDisplay, "1.5 lb");
+    });
+
+    it("an UNSOURCED cut keeps its pack — the rule declines rather than guesses", async () => {
+      const out = await onePack(
+        baseInputItem({
+          canonicalName: "chicken drumsticks",
+          displayName: "chicken drumsticks",
           quantity: 4,
           unit: "each",
           sectionKey: "meat_seafood",

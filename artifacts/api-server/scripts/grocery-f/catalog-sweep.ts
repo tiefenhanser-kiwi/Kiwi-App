@@ -46,6 +46,21 @@ export function parenNamesFood(display: string, name: string): boolean {
 // ── F3 — a canned good bought more than one at a time ──────────────────────
 const SINGLE_CONTAINER = /^(can|jar|box|bottle|tube|pouch)s?$/i;
 
+/**
+ * [grocery] F Part E (E4.3) — RULED CORRECT, so the sweep stops reporting it.
+ *
+ * `pouch sticky rice` at "2 pouches" was the one row F3 could not decide.
+ * Ruled by Hans on 2026-09-30: it really does ship as a 2-pack, so the stored
+ * value is right and the detector is what is wrong about it.
+ *
+ * ⚠️ AN ALLOW-LIST, NOT A WIDENED DETECTOR. The rule stays "a single-container
+ * pack bought more than one at a time is suspect"; this records the one row
+ * where the answer has been given, by name, so a NEW row of the same shape
+ * still reports. Loosening `SINGLE_CONTAINER` to exempt every pouch would have
+ * hidden the next one.
+ */
+const F3_RULED_CORRECT: ReadonlySet<string> = new Set(["pouch sticky rice"]);
+
 // ── F4 — category outliers, tested against SIBLINGS not against a hunch ────
 //
 // Each rule is "a name matching X is never category Y". They are the two shapes
@@ -104,9 +119,13 @@ async function main() {
       r.purchaseUnit != null &&
       SINGLE_CONTAINER.test(r.purchaseUnit) &&
       r.purchaseQuantity != null &&
-      r.purchaseQuantity > 1,
+      r.purchaseQuantity > 1 &&
+      !F3_RULED_CORRECT.has(r.canonicalName),
   );
   console.log(`\n══ F3 — a single-container pack bought ${">"} 1 at a time (${f3.length}) ══`);
+  console.log(
+    `   (ruled correct and suppressed: ${[...F3_RULED_CORRECT].join(", ") || "none"})`,
+  );
   for (const r of f3) {
     console.log(
       `  ${r.canonicalName.padEnd(40)} ${String(r.category).padEnd(8)} unit=${r.purchaseUnit} qty=${r.purchaseQuantity}  "${r.purchaseDisplay}"`,

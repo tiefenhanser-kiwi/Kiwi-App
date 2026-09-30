@@ -1,3 +1,5 @@
+import { normalizeIngredientName } from "./groceryNormalization";
+
 // WS6 6c-4 Block A — Universal staples seed.
 // Hardcoded const (not DB) per Phase 1 D-WS6-066. Originally 14 items;
 // WS7-5d Block 5 Fix 1 adds "water" (15) — recipes calling for "1/2 cup
@@ -73,9 +75,109 @@ export const UNIVERSAL_STAPLES = [
   { canonicalName: "yellow mustard", defaultSection: "pantry", defaultUnit: "bottle" },
   { canonicalName: "dijon mustard", defaultSection: "pantry", defaultUnit: "jar" },
   { canonicalName: "mayonnaise", defaultSection: "pantry", defaultUnit: "jar" },
+  // ── D-WS9-295 — SUGAR, SALT AND CORNSTARCH, BY NAME ───────────────────────
+  //
+  // "a staple states the need and shows no pack (BUG-171). Flour, baking powder
+  // and salt already sit there; sugar belongs beside them." Measured on the F8
+  // list, sugar was the standout: `1 bag (4 lb) granulated sugar (1 teaspoon)`
+  // is a 435× over-buy and it took five of the worst six rows on the corpus.
+  //
+  // Listed BY NAME, per BUG-182 — the fold is still gone and must stay gone.
+  // Each of these has a live catalog row with dish references; a name with none
+  // would be a silent no-op, which is the discipline this list's docblock sets.
+  { canonicalName: "granulated sugar", defaultSection: "pantry", defaultUnit: "bag" },
+  { canonicalName: "white sugar", defaultSection: "pantry", defaultUnit: "bag" },
+  { canonicalName: "brown sugar", defaultSection: "pantry", defaultUnit: "bag" },
+  // Dark and light are the same pantry decision as bare "brown sugar" and are
+  // added with it: listing the base alone would re-create the exact escape class
+  // D-WS9-295 asked to close.
+  { canonicalName: "dark brown sugar", defaultSection: "pantry", defaultUnit: "bag" },
+  { canonicalName: "light brown sugar", defaultSection: "pantry", defaultUnit: "bag" },
+  //
+  // ⚠️ DELIBERATELY NOT SUGAR: `powdered sugar` (2 refs), `palm sugar` (20) and
+  // `rock sugar` (1). Same reasoning BUG-182 used to keep flaky sea salt out —
+  // these are distinct products bought for a specific dish, not a thing you
+  // already have. Adding them would be the inheritance that ruling removed.
+  //
+  // The salts. D-WS9-295 names fine sea salt and coarse kosher salt.
+  //
+  // ⚠️ THIS PARTLY REVERSES BUG-182, WHICH IS WORTH SAYING OUT LOUD. That ruling
+  // listed "fine sea salt (24 refs)" among the rows deliberately NOT added, on
+  // the grounds that "grain size is the product … you do not already own the one
+  // you bought for finishing". D-WS9-295 draws the line differently and the
+  // distinction holds: a FINISHING salt is bought for a dish, a COOKING salt is
+  // in the cupboard. So fine sea salt and coarse kosher salt come in and
+  // `flaky sea salt` (95 refs, the row Hans added by hand precisely because he
+  // does not own it) stays out, along with hawaiian and pickling salt.
+  { canonicalName: "fine sea salt", defaultSection: "pantry", defaultUnit: "container" },
+  //
+  // ⚠️ `fine salt` AND `sea salt` ARE DELIBERATELY NOT HERE, though the ruling's
+  // preamble reads "every salt variant not already covered". The names it then
+  // gives are two, and adding the rest on the strength of the preamble would be
+  // this lane deciding what counts as a cooking salt — which is exactly the
+  // judgement BUG-182 removed from the code and gave to Hans. A test asserted
+  // both stay out; it still does.
+  // ⚠️ A STAPLE FLAG ONLY. D-WS9-217 keeps coarse kosher salt OUT of the merge
+  // group — "salts are super different so keeping them separate is probably
+  // needed and best" — and this list does not touch merge grouping, which reads
+  // MERGE_GROUP_VARIANT_TO_BASE. The two questions stay separate.
+  { canonicalName: "coarse kosher salt", defaultSection: "pantry", defaultUnit: "container" },
+  { canonicalName: "cornstarch", defaultSection: "pantry", defaultUnit: "box" },
 ] as const;
 
 export type UniversalStaple = (typeof UNIVERSAL_STAPLES)[number];
+
+/** Normalized canonical names of every universal staple. Built once. */
+const UNIVERSAL_STAPLE_KEYS: ReadonlySet<string> = new Set(
+  UNIVERSAL_STAPLES.map((s) => normalizeIngredientName(s.canonicalName)),
+);
+
+/**
+ * ── 🔴 D-WS9-295 — THE STAPLE TEST READS BOTH NAMES THE CATALOG CARRIES ─────
+ *
+ * Is this ingredient a universal staple?
+ *
+ * THE DEFECT THIS CLOSES. Hans asked why `1 bottle (51 oz) vegetable oil` shows
+ * a pack when vegetable oil renders as a Pantry Staple on real lists. Measured:
+ * the flag varies **per plan for the same food**, because the catalog's
+ * canonical name for it is `neutral oil` and its DISPLAY name is
+ * "vegetable oil". `vegetable oil` is in the list; `neutral oil` is not. A plan
+ * that happens to carry a second `vegetable oil` row merges the two and
+ * `foldMetadata` ORs the flag true (groceryMerge.ts:78); a plan without one
+ * renders a bottle. Nothing about the food decided it.
+ *
+ * Sixteen catalog rows are in that state and **all sixteen are the same food**:
+ * `neutral oil`, `neutral cooking oil`, `neutral vegetable oil` and thirteen
+ * `neutral oil (such as …)` spellings, 773 dish references between them.
+ *
+ * ⚠️ THIS IS NOT THE FOLD BUG-182 REMOVED, and the difference is the whole
+ * justification. That fold ran a name through STAPLE_VARIANT_TO_BASE — an
+ * INFERENCE, "a flaky sea salt is a salt" — and inherited a flag the specific
+ * ingredient had never been granted. This reads the row's OWN `displayName`,
+ * which the catalog authored, against the same explicit list. The membership
+ * test is unchanged and still exact-string; it is simply asked of both names the
+ * row already has, rather than of one of them.
+ *
+ * ⚠️ MEASURED FOR COLLATERAL BEFORE IT WAS WRITTEN. Across all 1,780 catalog
+ * rows, exactly those 16 have a display name in the list and a canonical name
+ * that is not. `lard or neutral oil` displays "lard or vegetable oil" and stays
+ * out, correctly — it is a choice, not the staple. `flaky sea salt` displays
+ * "flaky sea salt" and stays out, which is BUG-182's ruling surviving intact.
+ * `granulated sugar` displays "granulated sugar", which is why the sugars above
+ * still had to be listed by name.
+ *
+ * `displayName` is optional: the recurring path and the override path both
+ * build items from a name with no catalog row behind it, and they pass one
+ * argument exactly as before.
+ */
+export function isUniversalStapleName(
+  canonicalName: string,
+  displayName?: string | null,
+): boolean {
+  if (UNIVERSAL_STAPLE_KEYS.has(normalizeIngredientName(canonicalName))) return true;
+  if (displayName == null) return false;
+  return UNIVERSAL_STAPLE_KEYS.has(normalizeIngredientName(displayName));
+}
 
 // WS9 BUG-169 — never-order canonicals.
 //
