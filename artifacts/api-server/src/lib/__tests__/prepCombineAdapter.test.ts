@@ -43,6 +43,7 @@ function loaded(overrides: {
                 ? overrides.baseServings
                 : overrides.authoredBaseServings,
             stepTexts: [],
+            componentSteps: [],
             ingredients: [
               {
                 ingredientId: "ing-1",
