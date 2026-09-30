@@ -49,6 +49,29 @@ export interface PrepCombineIngredient {
   // its yield ("lime", 3, "tbsp"). Carried, never interpreted: the engine sums
   // quantities and the assembly layer turns this into a fruit count.
   sourceYield?: SourceYield | null;
+  /**
+   * WS9 D-WS9-296 — the mixture this ingredient belongs to WITHIN ITS DISH, and
+   * the bowl it is portioned into. Resolved by the adapter from the dish's steps
+   * (see prepComponents.ts); null for an ingredient that belongs to no mixture,
+   * which keeps today's per-ingredient step.
+   */
+  component?: IngredientComponent | null;
+  /**
+   * D-WS9-296 ruling 1 — the bowl this ingredient joins ON COOK DAY rather than
+   * sitting in. Set for a raw protein a mixture's steps name: the marinade is
+   * prepped on Sunday, the steak meets it on Friday.
+   */
+  cookDayInto?: string | null;
+}
+
+/** D-WS9-296 — a mixture's identity and its bowl, as the engine carries it. */
+export interface IngredientComponent {
+  /** Stable within the dish: the step group that assembles the mixture. */
+  key: string;
+  /** The label ("marinade"); null for a numbered or seasoning fallback. */
+  noun: string | null;
+  /** The finished, user-facing vessel name. */
+  bowlName: string;
 }
 
 /** D-WS9-297 ruling 8 — a `component` edge's magnitude, from ingredient_relations. */
@@ -113,6 +136,19 @@ export interface PrepContribution {
   quantity: number;
   unit: string;
   preparationNote?: string | null;
+  /**
+   * D-WS9-296 — the mixture this CONTRIBUTION joins. On the contribution rather
+   * than the group because a component is per (dish, ingredient): the plan's
+   * garlic is one ingredient group feeding four dishes, and each dish's share
+   * goes to a different bowl.
+   */
+  component?: IngredientComponent | null;
+  /**
+   * D-WS9-296 ruling 1 — a raw protein has a DESTINATION, not a seat. When set,
+   * this contribution is not a member of the bowl; it joins on cook day and the
+   * engine writes that sentence.
+   */
+  cookDayInto?: string | null;
 }
 
 // A summed line within an ingredient group. Multiple lines exist ONLY when an
@@ -456,6 +492,8 @@ export function combinePrep(input: PrepCombineInput): PrepCombineResult {
           ...(ing.preparationNote != null
             ? { preparationNote: ing.preparationNote }
             : {}),
+          ...(ing.component ? { component: ing.component } : {}),
+          ...(ing.cookDayInto ? { cookDayInto: ing.cookDayInto } : {}),
         });
       }
     }

@@ -77,13 +77,21 @@ export interface PrepNarrationStepInput {
   // have step text are listed, so an empty array still means "no step text →
   // never demote", exactly as before.
   relevantDishes: string[];
-  // WS7-8b #5 — INPUT ONLY (code-owned; no matching output field, so prose
-  // still can't move the math). Present ONLY on a grouped sauces_marinades
-  // dish-step whose dish also has dry spices that survived into the
-  // seasonings_dry blend step; the value is that dish's name. When present, the
-  // narrator MUST tell the user to combine the sauce's wet parts with "the
-  // <name> spices from your seasoning blend." Absent → no linkage wording.
-  blendSpiceDish?: string;
+  /**
+   * WS9 D-WS9-296 — THE BOWL. Present on a component step: every measure in it
+   * goes into this one named vessel, and the narrator uses the string VERBATIM.
+   * Absent on a plain per-ingredient portion.
+   *
+   * This replaces `blendSpiceDish`, which pointed from one container at
+   * another. There is one container now.
+   */
+  bowlName?: string;
+  /**
+   * D-WS9-296 ruling 1 — a raw protein JOINS a bowl on cook day rather than
+   * sitting in it. The sentence is written by the ENGINE and echoed verbatim:
+   * it states a fact about the schedule and prose must not move it.
+   */
+  cookDaySentence?: string;
 }
 
 export interface PrepNarrationInput {

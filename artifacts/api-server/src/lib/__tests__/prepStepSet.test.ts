@@ -59,6 +59,7 @@ function blendLoaderStub(): typeof productionLoadPrepWeekInput {
               baseServings: 4,
               authoredBaseServings: 4,
               stepTexts: [],
+              componentSteps: [],
               ingredients: [
                 {
                   ingredientId: ONION_ID,

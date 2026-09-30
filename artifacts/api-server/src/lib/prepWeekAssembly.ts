@@ -23,6 +23,7 @@
 // into a single seasonings_dry blend step. Accepted for now.
 
 import { convertWithinDimension, pluralizeCountUnit } from "./ingredientConversions";
+import { judgePrepWorthiness } from "./prepComponents";
 import {
   PREP_PHASE_ORDER,
   canonicalizeUnit,
@@ -87,7 +88,24 @@ export interface PlannedStep {
   // ("combine … with the <name> spices from your seasoning blend") only when
   // present. Absent when the sauce's dry spices were dropped upstream as noise
   // (<3-per-dish blend), so the wording never points at spices that aren't there.
-  blendSpiceDish?: string;
+  /**
+   * WS9 D-WS9-296 — the vessel this step fills, e.g. "Carne asada marinade bowl".
+   * Present on a COMPONENT step; absent on a plain per-ingredient portion. The
+   * narrator must use it verbatim, and every destination row shows it.
+   */
+  bowlName?: string;
+  /**
+   * D-WS9-296 ruling 1 — the sentence for a raw protein that JOINS a bowl on cook
+   * day rather than sitting in it. Written by the ENGINE, never the model: it
+   * states a fact about the schedule, and prose must not be able to move it.
+   */
+  cookDaySentence?: string;
+  /**
+   * D-WS9-299 — the engine's own demotion. A step that does not save weeknight
+   * time is render-omitted, whatever the model thinks. Carries the arm that
+   * refused it so the corpus report can be read.
+   */
+  demoted?: { reason: string };
   /**
    * D-WS9-298 — max over this step's destination meals of (cook date − prep day),
    * in days. Undefined when no destination carries a date.
@@ -311,6 +329,47 @@ function sourceCountFor(
   return `${count} ${count === 1 ? sourceYield.fromName : pluralizeSourceNoun(sourceYield.fromName)}`;
 }
 
+/**
+ * WS9 D-WS9-296 — `componentsOf`, minus the contributions a COMPONENT step has
+ * already taken.
+ *
+ * 🔴 FILTERED PER (dish, ingredient), NOT PER INGREDIENT. The plan's garlic is
+ * ONE ingredient group feeding four dishes; the carne asada's share goes into
+ * its marinade bowl while the other three still need their own portions. An
+ * entry-level skip would silently drop those three.
+ */
+function componentsOfUnclaimed(
+  entry: PrepIngredientGroup,
+  claimed: ReadonlySet<string>,
+): PrepNarrationComponent[] {
+  const out: PrepNarrationComponent[] = [];
+  for (const line of entry.lines) {
+    const kept = line.contributions.filter(
+      (c) => !claimed.has(`${c.dishId}|${entry.ingredientId}`),
+    );
+    if (kept.length === 0) continue;
+    const prep = kept.find((c) => (c.preparationNote ?? "").trim() !== "")?.preparationNote;
+    const measures: PrepMeasure[] = kept.map((c) => {
+      const fromSource = sourceCountFor(entry.sourceYield, c.quantity, c.unit);
+      return {
+        amount: formatMeasure(c.quantity, c.unit),
+        forDish: c.dishName,
+        dishRole: c.dishRole,
+        ...(fromSource ? { fromSource } : {}),
+        ...((c.preparationNote ?? "").trim()
+          ? { preparationNote: (c.preparationNote ?? "").trim() }
+          : {}),
+      };
+    });
+    out.push({
+      ingredientName: entry.ingredientName,
+      ...(prep ? { preparationNote: prep } : {}),
+      measures,
+    });
+  }
+  return out;
+}
+
 function componentsOf(entry: PrepIngredientGroup): PrepNarrationComponent[] {
   return entry.lines.map((line) => {
     const prep = line.contributions.find(
@@ -437,27 +496,19 @@ export function buildStepPlan(
         .filter((name): name is string => !!name && dishStepsByName.has(name)),
     );
 
-  // WS7-8b #5 — dishIds (→ dish name) whose dry spices actually SURVIVE into the
-  // collapsed seasonings_dry blend step. phase.entries are already include +
-  // uncertain only (a <3-per-dish blend is dropped as noise upstream, see
-  // classifyPrepWorthy), so this is precisely the set of dishes with real blend
-  // spices. A grouped sauce step for one of these dishes gets a blendSpiceDish
-  // marker → the narrator emits the linkage wording. Absent otherwise → no
-  // false pointer at spices that were dropped.
-  const blendSpiceDishByDishId = new Map<string, string>();
-  const seasoningsPhase = result.phases.find((p) => p.phase === "seasonings_dry");
-  if (seasoningsPhase) {
-    for (const entry of seasoningsPhase.entries) {
-      for (const line of entry.lines) {
-        for (const c of line.contributions) {
-          if (!blendSpiceDishByDishId.has(c.dishId)) {
-            blendSpiceDishByDishId.set(c.dishId, c.dishName);
-          }
-        }
-      }
-    }
-  }
-
+  // ── WS9 D-WS9-296 — `blendSpiceDish` IS RETIRED ─────────────────────────
+  //
+  // WS7-8b #5 built it, and B1's ruling 10 widened it: a per-dish sauce step
+  // whose dish also had spices in the blend carried the dish's NAME, and the
+  // narrator wrote "combine these with the <dish> spices from your seasoning
+  // blend". It was always a pointer between two containers that should have
+  // been one, and it could never reach the case that mattered — a marinade's
+  // orange juice is `produce`, and the field was only ever set on
+  // `sauces_marinades`. Measured in B2 Part A: 74 of 108 multi-pile dishes had
+  // no join at all.
+  //
+  // Components replace it. There is no sentence pointing from one vessel to
+  // another because there is one vessel, and it has a name.
   // ── WS9 BUG-338 / D-WS9-297 ruling 9 — A BLEND OF ONE IS NOT A BLEND ──────
   //
   // ⚠️ THE RULING'S LITERAL WORDING HAS NO TARGETS. It asks that "a lone
@@ -504,6 +555,77 @@ export function buildStepPlan(
     }
   }
 
+  // ── WS9 D-WS9-296 — ONE STEP PER COMPONENT PER DISH ───────────────────────
+  //
+  // A mixture's members are scattered across phases by construction: the carne
+  // asada marinade has four spices in seasonings_dry and its juices and garlic
+  // in produce. Hans's Bowl A is one vessel, so it is one STEP — placed in the
+  // EARLIEST phase it touches, holding every member, named for the bowl.
+  //
+  // Claimed contributions are removed from the per-phase steps below, so a
+  // marinade's cumin no longer also appears in the dish's spice blend.
+  interface ComponentBucket {
+    dishId: string;
+    dishName: string;
+    bowlName: string;
+    noun: string | null;
+    phase: PrepPhaseKey;
+    entries: Map<string, PrepIngredientGroup>;
+    mealIds: Set<string>;
+  }
+  const componentBuckets = new Map<string, ComponentBucket>();
+  /** `${dishId}|${ingredientId}` claimed by a component — skipped per-phase. */
+  const claimed = new Set<string>();
+  for (const phase of result.phases) {
+    for (const entry of phase.entries) {
+      for (const line of entry.lines) {
+        for (const c of line.contributions) {
+          if (!c.component) continue;
+          const k = `${c.dishId}|${c.component.key}`;
+          const b = componentBuckets.get(k) ?? {
+            dishId: c.dishId,
+            dishName: c.dishName,
+            bowlName: c.component.bowlName,
+            noun: c.component.noun,
+            phase: phase.phase,
+            entries: new Map<string, PrepIngredientGroup>(),
+            mealIds: new Set<string>(),
+          };
+          // Earliest phase wins: PREP_PHASE_ORDER is the fixed order.
+          if (PREP_PHASE_ORDER.indexOf(phase.phase) < PREP_PHASE_ORDER.indexOf(b.phase)) {
+            b.phase = phase.phase;
+          }
+          b.entries.set(entry.ingredientId, entry);
+          b.mealIds.add(c.mealId);
+          componentBuckets.set(k, b);
+          claimed.add(`${c.dishId}|${entry.ingredientId}`);
+        }
+      }
+    }
+  }
+
+  // ── D-WS9-296 ruling 1 — the raw protein's cook-day step ─────────────────
+  //
+  // "On cook day: 1½ lb skirt steak into the Carne asada marinade bowl (a
+  // zip-top bag works)." The sentence is the ENGINE's, because it states a fact
+  // about the schedule; the model may not move it.
+  const cookDayByDishIngredient = new Map<string, string>();
+  for (const phase of result.phases) {
+    for (const entry of phase.entries) {
+      for (const line of entry.lines) {
+        for (const c of line.contributions) {
+          if (c.cookDayInto) cookDayByDishIngredient.set(`${c.dishId}|${entry.ingredientId}`, c.cookDayInto);
+        }
+      }
+    }
+  }
+
+  /** The mixture noun a planned step belongs to, for the must-sit arm. */
+  const nounByBowl = new Map<string, string | null>();
+  for (const b of componentBuckets.values()) nounByBowl.set(b.bowlName, b.noun);
+  const componentNounOf = (st: PlannedStep): string | null =>
+    st.bowlName ? nounByBowl.get(st.bowlName) ?? null : null;
+
   for (const phase of result.phases) {
     const key = phase.phase;
     const entries = phase.entries; // include + uncertain only (excluded dropped)
@@ -518,14 +640,98 @@ export function buildStepPlan(
       const lags = step.contributesToMealIds
         .map((id) => cookLagByMealId.get(id))
         .filter((n): n is number => n !== undefined);
-      steps.push({
+      const planned: PlannedStep = {
         stepId: `${key}#${number}`,
         phase: key,
         number,
         ...step,
         ...(lags.length > 0 ? { daysUntilCook: Math.max(...lags) } : {}),
-      });
+      };
+      // ── D-WS9-299 — DOES THIS STEP SAVE WEEKNIGHT TIME? ──────────────────
+      //
+      // Hans: "measuring 1 thing (condiment, cooking oil, single spice), or
+      // even 2 simple things that don't need to sit and mix together, isn't
+      // part of prep." The judge is in prepComponents.ts; a refusal is a
+      // render-omitted step, exactly as an AI demotion is, and its dish's
+      // cook-day step handles the item.
+      //
+      // ⚠️ A COOK-DAY PROTEIN STEP IS NEVER JUDGED. It carries no measuring at
+      // all — it tells the cook where the steak goes on Friday — so the
+      // weeknight-time test does not apply to it.
+      if (!planned.cookDaySentence) {
+        const verdict = judgePrepWorthiness({
+          measuredItems: planned.components.reduce((n, c) => n + c.measures.length, 0),
+          componentNoun: componentNounOf(planned),
+          preparationNotes: planned.components.flatMap((c) => [
+            c.preparationNote ?? "",
+            ...c.measures.map((m) => m.preparationNote ?? ""),
+          ]),
+          text: planned.components.map((c) => c.ingredientName).join(" "),
+          phase: planned.phase,
+        });
+        if (!verdict.worthDoingAhead) planned.demoted = { reason: verdict.reason };
+      }
+      steps.push(planned);
     };
+
+    // ── D-WS9-296 — this phase's COMPONENT steps, first ────────────────────
+    //
+    // One step per (dish, component), placed in the earliest phase the mixture
+    // touches, holding every member across phases. Keyed
+    // `component#${dishId}#${componentKey}` so a checkbox survives a
+    // regenerate exactly as the per-dish blend and sauce keys do (D-WS7-153).
+    for (const [bucketKey, b] of componentBuckets) {
+      if (b.phase !== key) continue;
+      // Ruling 3, applied again AFTER the engine's prep-worthy filter: a bucket
+      // whose other members were dropped upstream arrives with one measure and
+      // is a plain portion, not a mixture. Its claim is released so the
+      // per-phase branches below pick the survivor up.
+      const surviving = [...b.entries.values()]
+        .flatMap((e) => componentsForDish(e, b.dishId))
+        .reduce((n, c) => n + c.measures.length, 0);
+      if (surviving < 2) {
+        for (const e of b.entries.values()) claimed.delete(`${b.dishId}|${e.ingredientId}`);
+        continue;
+      }
+      const dishId = b.dishId;
+      pushStep({
+        stepKey: `component#${bucketKey}`,
+        ingredientId: null,
+        contributesToMealIds: [...b.mealIds],
+        // A mixture IS a blend in the narrator's sense — one pre-measure
+        // action into one vessel — whatever phase it sits in.
+        isBlend: true,
+        components: [...b.entries.values()].flatMap((e) => componentsForDish(e, dishId)),
+        relevantDishes: relevantDishesFor([dishId]),
+        bowlName: b.bowlName,
+      });
+    }
+
+    // ── D-WS9-296 ruling 1 — the raw proteins that JOIN a bowl on cook day ──
+    if (key === "proteins") {
+      for (const entry of entries) {
+        for (const dishId of new Set(dishIdsOf(entry))) {
+          const bowl = cookDayByDishIngredient.get(`${dishId}|${entry.ingredientId}`);
+          if (!bowl) continue;
+          const mine = componentsForDish(entry, dishId);
+          const amount = mine[0]?.measures[0]?.amount ?? "";
+          pushStep({
+            stepKey: `cookday#${dishId}#${entry.ingredientId}`,
+            ingredientId: entry.ingredientId,
+            contributesToMealIds: dedupe(
+              entry.lines.flatMap((l) =>
+                l.contributions.filter((c) => c.dishId === dishId).map((c) => c.mealId),
+              ),
+            ),
+            isBlend: false,
+            components: mine,
+            relevantDishes: relevantDishesFor([dishId]),
+            cookDaySentence: `On cook day: ${amount} ${entry.ingredientName} into the ${bowl} (a zip-top bag works).`,
+          });
+          claimed.add(`${dishId}|${entry.ingredientId}`);
+        }
+      }
+    }
 
     if (key === "seasonings_dry") {
       // BUG-016 (D-WS7-187) — split the collapsed blend PER DISH. The B1 ruling
@@ -555,7 +761,12 @@ export function buildStepPlan(
         }
       }
       for (const dishId of dishOrder) {
-        const dishEntries = entriesByDish.get(dishId)!;
+        // D-WS9-296 — a (dish, ingredient) a component step already took is not
+        // measured twice. When nothing is left, the step is not emitted at all.
+        const dishEntries = (entriesByDish.get(dishId) ?? []).filter(
+          (e) => !claimed.has(`${dishId}|${e.ingredientId}`),
+        );
+        if (dishEntries.length === 0) continue;
         const mealIds = dedupe(
           dishEntries.flatMap((e) =>
             e.lines.flatMap((l) =>
@@ -599,7 +810,12 @@ export function buildStepPlan(
         }
       }
       for (const dishId of dishOrder) {
-        const dishEntries = entriesByDish.get(dishId)!;
+        // D-WS9-296 — a (dish, ingredient) a component step already took is not
+        // measured twice. When nothing is left, the step is not emitted at all.
+        const dishEntries = (entriesByDish.get(dishId) ?? []).filter(
+          (e) => !claimed.has(`${dishId}|${e.ingredientId}`),
+        );
+        if (dishEntries.length === 0) continue;
         const mealIds = dedupe(
           dishEntries.flatMap((e) =>
             e.lines.flatMap((l) =>
@@ -609,12 +825,8 @@ export function buildStepPlan(
             ),
           ),
         );
-        // Ruling 9 — the folded one-component blend rides here, and the linkage
-        // sentence is then WRONG: there is no separate blend to combine with, so
-        // `blendSpiceDish` is suppressed for a folded dish. The component is in
-        // this step's own list; the narrator writes one instruction.
+        // Ruling 9 — the folded one-component blend rides on this step.
         const folded = foldedBlendByDishId.get(dishId);
-        const blendSpiceDish = folded ? undefined : blendSpiceDishByDishId.get(dishId);
         pushStep({
           stepKey: `${key}#dish#${dishId}`,
           ingredientId: null,
@@ -625,44 +837,32 @@ export function buildStepPlan(
             ...(folded ? componentsForDish(folded, dishId) : []),
           ],
           relevantDishes: relevantDishesFor([dishId]),
-          ...(blendSpiceDish ? { blendSpiceDish } : {}),
         });
       }
     } else {
       // One step per ingredient group (produce, proteins). group[0] === entry,
       // so entry.ingredientId is its stable identity (D-WS7-153).
       for (const entry of entries) {
-        // ── D-WS9-297 ruling 10 — the join sentence, as far as it reaches ────
-        //
-        // The carne asada marinade is split five ways and never assembled, while
-        // the teriyaki glaze at least gets one "combine these with the spices
-        // from your blend" sentence. The difference: `blendSpiceDish` was only
-        // ever set on a `sauces_marinades` step, and a marinade's orange juice
-        // and lime juice are categorised `produce` — so for that whole class the
-        // link could not fire. Setting it here lets it.
-        //
-        // ⚠️ SINGLE-DISH STEPS ONLY, AND THAT IS THE LIMIT OF THIS INTERIM.
-        // `blendSpiceDish` is one dish NAME on a step, and a produce step is per
-        // INGREDIENT — the plan's lime juice is one step feeding three dishes.
-        // There is no honest single answer for it, and naming one dish would tell
-        // the cook to tip all three portions into one bowl. So the shared-
-        // ingredient steps (the carne asada's lime juice, garlic and cilantro)
-        // stay unjoined until D-WS9-296's components give a step a component to
-        // belong to. What this reaches is the single-dish case: the orange juice.
-        const stepDishIds = [...new Set(dishIdsOf(entry))];
-        const soleDishId = stepDishIds.length === 1 ? stepDishIds[0] : null;
-        const blendSpiceDish =
-          soleDishId !== null && !foldedBlendByDishId.has(soleDishId)
-            ? blendSpiceDishByDishId.get(soleDishId)
-            : undefined;
+        // D-WS9-296 — filtered per (dish, ingredient): the carne asada's garlic is
+        // in its marinade bowl, the other three dishes' garlic still needs a step.
+        const unclaimed = componentsOfUnclaimed(entry, claimed);
+        if (unclaimed.length === 0) continue;
+        const unclaimedDishIds = dishIdsOf(entry).filter(
+          (d) => !claimed.has(`${d}|${entry.ingredientId}`),
+        );
         pushStep({
           stepKey: `${key}#${entry.ingredientId}`,
           ingredientId: entry.ingredientId,
-          contributesToMealIds: dedupe(mealIdsOf(entry)),
+          contributesToMealIds: dedupe(
+            entry.lines.flatMap((l) =>
+              l.contributions
+                .filter((c) => !claimed.has(`${c.dishId}|${entry.ingredientId}`))
+                .map((c) => c.mealId),
+            ),
+          ),
           isBlend: false,
-          components: componentsOf(entry),
-          relevantDishes: relevantDishesFor(dishIdsOf(entry)),
-          ...(blendSpiceDish ? { blendSpiceDish } : {}),
+          components: unclaimed,
+          relevantDishes: relevantDishesFor(unclaimedDishIds),
         });
       }
     }
@@ -689,7 +889,8 @@ export function buildStepPlan(
       isBlend: s.isBlend,
       components: s.components,
       relevantDishes: s.relevantDishes,
-      ...(s.blendSpiceDish ? { blendSpiceDish: s.blendSpiceDish } : {}),
+      ...(s.bowlName ? { bowlName: s.bowlName } : {}),
+      ...(s.cookDaySentence ? { cookDaySentence: s.cookDaySentence } : {}),
       // ⚠️ daysUntilCook IS DELIBERATELY NOT HERE. It stays on the step skeleton
       // (PlannedStep) where the deterministic layers read it; sending it to the
       // narrator bought nothing the model needed and made the prose day-dependent,

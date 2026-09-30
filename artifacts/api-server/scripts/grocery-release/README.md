@@ -628,3 +628,96 @@ node --env-file=.env --import tsx scripts/grocery-f/instacart-dev.ts --enable
   `formatMeasure`, so the Prep the Week text stops saying "3 stalk celery".
 - The client-side rules (F2's two render rules, F5.1/5.3/5.4/5.5, BUG-334's
   guard) ship in `artifacts/kiwi/lib/**`.
+
+---
+
+# ⛔ PREPCOOK — THE PREP & COOK PASS (BUG-337 / BUG-338, September 30 2026)
+
+**Everything in this section waits for Hans's explicit go-ahead on production.**
+Dev-verified; none of it has run against production. Run the three in the order
+below — the re-stamp reads the step text the second one fixes, so a reversed
+order leaves two meals stamped from the old rows.
+
+The pass's code ships with the build (the scheduler, the client footer, the prep
+engine and assembly). Only these three touch data.
+
+## PREPCOOK (a) — the dish text the census found duplicated (AFTER APPROVAL)
+
+```bash
+node --env-file=.env --import tsx scripts/prep-cook-census/fix-k-r4.ts          # scan, writes nothing
+node --env-file=.env --import tsx scripts/prep-cook-census/fix-k-r4.ts --apply
+node --env-file=.env --import tsx scripts/prep-cook-census/fix-k-r4.ts          # → 0 remaining
+```
+
+One step, in the Carne Asada dish, whose whole body points at another dish's
+work: *"While the steak rests, warm the corn tortillas (see Warm Corn Tortillas
+dish)."* The Warm Corn Tortillas dish is in the same meal and the scheduler
+already interleaves it, so the meal warmed 12 tortillas twice. 2 rows on dev, one
+of them CATALOG (`userId` null); production may hold more or fewer, and the scan
+prints each with its owner before anything is written.
+
+> 🔴 **`RecipeInstructionStep` HAS TWO TEXT COLUMNS.** `stepTextRaw` and
+> `stepTextTranslated`, and `toStepShape` (`src/routes/meals.ts`) renders the
+> **translated** one — that is what the cook reads. The first dev run wrote only
+> `stepTextRaw`, the screen did not change, and a scan of the raw column reported
+> the fix as applied. They are identical on all 30,718 dev rows, which is exactly
+> why the mistake was invisible. **This script now writes both, and anything else
+> that edits step text must too.**
+
+Every run leaves `out/k-r4-<stamp>.json`; `--revert <that file>` restores both
+columns.
+
+## PREPCOOK (b) — re-stamp the derived meal times (AFTER APPROVAL)
+
+```bash
+node --env-file=.env --import tsx scripts/prep-cook-census/restamp.ts --scan     # default; writes nothing
+node --env-file=.env --import tsx scripts/prep-cook-census/restamp.ts --apply
+```
+
+`Meal.estimatedTimeMinutes` / `activeTimeMinutes` are stamped from
+`cookingScheduler` at save time. B1 changed the scheduler — a latest bound on a
+step following heat, served-cold dishes pulled into passive windows, and the
+cook's hands modelled as a busy SET rather than a high-water mark — so every
+stored stamp predates the code that produced it.
+
+**Dev moved 23 of the 54 corpus meals** (delta min −21, median −3, max +5). A
+bare invocation is `--scan` and cannot write. Omitting `--plans` scans the whole
+catalog, which is what production wants; expect the count to be far larger than
+23 and read the distribution it prints before applying.
+
+Every run leaves `out/restamp-<stamp>.json`; `--revert <that file>` restores the
+previous pair on every row it touched.
+
+## PREPCOOK (c) — reseed `prep.narrate_steps` (AFTER APPROVAL)
+
+The prompt body changed (D-WS9-297 rulings 11 and 12, plus D-WS9-296's bowl
+names). The seed is diff-driven: it compares the active version's body to the
+seed body and only inserts a new version when they differ, so re-running it is
+idempotent.
+
+```bash
+node --env-file=.env --import tsx -e "
+import { PrismaClient } from '@prisma/client';
+import { seedAIPrompts } from './prisma/seeds/aiPrompts.ts';
+const prisma = new PrismaClient();
+await seedAIPrompts(prisma);
+await prisma.\$disconnect();
+"
+```
+
+> ⚠️ **The seed's own host guard does not apply here** — `seedAIPrompts` writes
+> wherever `DATABASE_URL` points. Re-read §0 before running it.
+
+**A bump invalidates every cached `PrepWeekStructure`,** because the route folds
+the active prompt version into the cache gate. That is correct and intended: a
+cached row holds prose the previous version wrote. The cost is one regeneration
+per plan on first open, and it is self-healing — no backfill.
+
+## PREPCOOK — what is NOT here
+
+- **The migration: none.** The whole pass is additive in code; no column was
+  added, dropped or retyped.
+- **The cook day is not part of the prep cache key** (D-WS9-298). A day
+  reassignment is a cache HIT by construction, and a test pins it. If a
+  production plan starts regenerating whenever Hans drags a meal to another day,
+  a date has leaked back into `PrepLoadedPlan` — see `PrepCookDays`.

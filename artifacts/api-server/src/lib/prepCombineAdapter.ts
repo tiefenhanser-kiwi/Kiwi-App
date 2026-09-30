@@ -21,6 +21,8 @@
 // empty-category row.
 
 import { inferCategory } from "./ingredientResolve";
+import { assignPhase } from "./prepCombineEngine";
+import { resolveDishComponents } from "./prepComponents";
 import type { PrepCombineInput } from "./prepCombineEngine";
 import type { PrepLoadedPlan } from "./prepWeekAggregation";
 
@@ -45,6 +47,37 @@ export function buildPrepCombineInput(loaded: PrepLoadedPlan): PrepCombineInput 
       mealId: meal.mealId,
       mealName: meal.mealName,
       dishes: meal.dishes.map((dish) => {
+        // ── WS9 D-WS9-296 — resolve this dish's mixtures ────────────────────
+        //
+        // Done HERE and not in the engine because it needs the dish's STEPS,
+        // which the engine's input deliberately omits — the same reason the
+        // servings scaling and the compound-unit split live in this adapter.
+        //
+        // `assignPhase` is called for the protein test (ruling 1) rather than a
+        // second copy of the category rules; the engine exports it for exactly
+        // this kind of pre-pass.
+        const resolved = resolveDishComponents(
+          dish.dishName,
+          meal.mealName,
+          // `?? []` on purpose: the field is new, and the loader always sets it,
+          // but several hand-built fixtures are `as never`-cast and predate it.
+          // A missing field must degrade to "no components", never throw.
+          dish.componentSteps ?? [],
+          dish.ingredients.map((i) => ({
+            ingredientId: i.ingredientId,
+            ingredientName: i.ingredientName,
+            preparationNote: i.preparationNote,
+            phase: assignPhase(i.category, i.ingredientName),
+          })),
+        );
+        // Ruling 1 — a raw protein named by a mixture's steps joins it on cook
+        // day. One protein can only join one bowl; first by component order.
+        const cookDayIntoByIngredientId = new Map<string, string>();
+        for (const c of resolved.components) {
+          for (const id of c.cookDayIds) {
+            if (!cookDayIntoByIngredientId.has(id)) cookDayIntoByIngredientId.set(id, c.bowlName);
+          }
+        }
         // WS7-8 BUG-003 — DENOMINATOR is the immutable authored anchor
         // (authoredBaseServings ?? baseServings); the NUMERATOR keeps its
         // no-override fallback of the live baseServings (= servingsDefault).
@@ -64,6 +97,8 @@ export function buildPrepCombineInput(loaded: PrepLoadedPlan): PrepCombineInput 
               ing.category && ing.category.trim() !== ""
                 ? ing.category
                 : inferCategory(ing.ingredientName);
+            const comp = resolved.byIngredient.get(ing.ingredientId) ?? null;
+            const cookDayInto = cookDayIntoByIngredientId.get(ing.ingredientId) ?? null;
             return {
               ingredientId: ing.ingredientId,
               ingredientName: ing.ingredientName,
@@ -71,6 +106,10 @@ export function buildPrepCombineInput(loaded: PrepLoadedPlan): PrepCombineInput 
               quantity: split.quantity * multiplier,
               unit: split.unit,
               preparationNote: ing.preparationNote,
+              component: comp
+                ? { key: comp.key, noun: comp.noun, bowlName: comp.bowlName }
+                : null,
+              cookDayInto,
               // D-WS9-297 ruling 8 — passed straight through. The compound-unit
               // split above touches the DEMAND's unit; the yield is a property
               // of the ingredient and is unaffected by it.

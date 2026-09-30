@@ -160,13 +160,16 @@ describe("BUG-338 ruling 9 — a one-component blend folds into its dish's sauce
     assert.ok(names.includes("bbq sauce"), `bbq sauce missing: ${names.join(", ")}`);
   });
 
-  it("the linkage sentence is SUPPRESSED on a folded dish — there is nothing to link to", () => {
-    const sauce = plan(drumsticks).steps.find((s) => s.stepKey === "sauces_marinades#dish#d1");
-    assert.equal(
-      sauce!.blendSpiceDish,
-      undefined,
-      "telling the cook to combine with a blend step that no longer exists is worse than saying nothing",
-    );
+  it("🔴 no step points at another container — `blendSpiceDish` is retired", () => {
+    // B1 asserted that the FOLDED dish's linkage sentence was suppressed. The
+    // field is gone entirely now (D-WS9-296): a mixture is one named vessel, so
+    // there is never a second container to point at.
+    for (const st of plan(drumsticks).steps) {
+      assert.ok(!("blendSpiceDish" in st), `${st.stepKey} still carries blendSpiceDish`);
+    }
+    for (const st of plan(drumsticks).narrationInput.steps) {
+      assert.ok(!("blendSpiceDish" in st), `${st.stepId} still sends blendSpiceDish`);
+    }
   });
 
   it("a MULTI-component blend is untouched — this is not a general collapse", () => {
@@ -203,63 +206,18 @@ describe("BUG-338 ruling 9 — a one-component blend folds into its dish's sauce
 
 // ── ruling 10 — the join sentence, as far as it reaches ─────────────────────
 
-describe("BUG-338 ruling 10 — a single-dish produce step can carry the blend link", () => {
-  // THE CARNE ASADA MARINADE. Its orange juice is `produce` and its own step;
-  // before this, blendSpiceDish only ever landed on a `sauces_marinades` step, so
-  // the whole class could never be joined.
-  const marinade = input([
-    {
-      dishId: "d1",
-      dishName: "Carne Asada",
-      ingredients: [
-        { id: "ing-cumin", name: "ground cumin", category: "Pantry", quantity: 1, unit: "tsp" },
-        { id: "ing-chili", name: "chili powder", category: "Pantry", quantity: 1, unit: "tsp" },
-        { id: "ing-oregano", name: "dried oregano", category: "Pantry", quantity: 0.5, unit: "tsp" },
-        { id: "ing-oj", name: "orange juice", category: "Produce", quantity: 0.25, unit: "cup" },
-      ],
-    },
-    {
-      dishId: "d2",
-      dishName: "Pico de Gallo",
-      ingredients: [{ id: "ing-lime", name: "lime juice", category: "Produce", quantity: 2, unit: "tbsp" }],
-    },
-  ]);
-
-  it("a produce step feeding ONE dish that has a blend gets the link", () => {
-    const oj = plan(marinade).steps.find((s) => s.components.some((c) => c.ingredientName === "orange juice"));
-    assert.ok(oj, "the orange juice step should exist");
-    assert.equal(oj!.blendSpiceDish, "Carne Asada");
-  });
-
-  it("🔴 a produce step feeding MORE THAN ONE dish gets NO link, and that is the interim's limit", () => {
-    // `blendSpiceDish` is one dish NAME on a step, and a produce step is per
-    // INGREDIENT. The plan's lime juice feeds three dishes; naming one would tell
-    // the cook to tip all three portions into that dish's bowl. This is the gap
-    // D-WS9-296's components close, and it is asserted so B2 inherits a test that
-    // says what is still missing.
-    const shared = input([
-      {
-        dishId: "d1",
-        dishName: "Carne Asada",
-        ingredients: [
-          { id: "ing-cumin", name: "ground cumin", category: "Pantry", quantity: 1, unit: "tsp" },
-          { id: "ing-chili", name: "chili powder", category: "Pantry", quantity: 1, unit: "tsp" },
-          { id: "ing-oregano", name: "dried oregano", category: "Pantry", quantity: 0.5, unit: "tsp" },
-          { id: "ing-lime", name: "lime juice", category: "Produce", quantity: 3, unit: "tbsp" },
-        ],
-      },
-      {
-        dishId: "d2",
-        dishName: "Pico de Gallo",
-        ingredients: [{ id: "ing-lime", name: "lime juice", category: "Produce", quantity: 2, unit: "tbsp" }],
-      },
-    ]);
-    const lime = plan(shared).steps.find((s) => s.components.some((c) => c.ingredientName === "lime juice"));
-    assert.ok(lime, "the lime juice step should exist");
-    assert.equal(lime!.blendSpiceDish, undefined);
-  });
-});
-
+// ── 🔴 RULING 10's TWO TESTS ARE GONE, WITH THE INTERIM THEY PINNED ────────
+//
+// B1 set `blendSpiceDish` on a single-dish produce step so the carne asada's
+// orange juice could at least get the sentence the teriyaki glaze got, and the
+// second test RECORDED THE GAP: a produce step feeding three dishes got
+// nothing, because the field is one dish name and naming one would have told
+// the cook to tip three portions into one bowl.
+//
+// D-WS9-296 closes that gap rather than widening the interim, so both tests
+// are retired with the field. The replacement is prepComponentsBug338.test.ts:
+// the shared lime juice now reaches each dish's own bowl, which is the thing
+// the gap was about.
 // ── ruling 13 — the cook day reaches the narration input ────────────────────
 
 describe("BUG-338 ruling 13 — daysUntilCook rides on the step", () => {

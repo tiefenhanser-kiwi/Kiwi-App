@@ -698,25 +698,20 @@ describe("buildStepPlan — #5 sauce grouping by dishId", () => {
     );
   });
 
-  it("stamps blendSpiceDish when the sauce dish's dry spices survive into the blend", () => {
-    const sp = buildStepPlan(combinePrep(saucePlan()), "Dinner");
-    const dressing = sp.steps.find((s) => s.stepKey === "sauces_marinades#dish#d-dressing")!;
-    assert.equal(dressing.blendSpiceDish, "House Dressing");
-    // narrationInput mirrors it verbatim for the AI.
-    const ni = sp.narrationInput.steps.find((s) => s.stepId === dressing.stepId)!;
-    assert.equal(ni.blendSpiceDish, "House Dressing");
-  });
-
-  it("OMITS blendSpiceDish when the sauce dish has no surviving blend spices (no false pointer)", () => {
-    const sp = buildStepPlan(combinePrep(saucePlan()), "Dinner");
-    const salsa = sp.steps.find((s) => s.stepKey === "sauces_marinades#dish#d-salsa")!;
-    assert.equal(salsa.blendSpiceDish, undefined);
-    // Field is absent (not just falsy) on the narration input, so the prompt's
-    // "present ONLY" gate never emits a linkage for it.
-    const ni = sp.narrationInput.steps.find((s) => s.stepId === salsa.stepId)!;
-    assert.equal("blendSpiceDish" in ni, false);
-  });
-
+  // ── 🔴 THE TWO `blendSpiceDish` TESTS ARE GONE, WITH THE FIELD ───────────
+  //
+  // WS7-8b #5 stamped a sauce step with its dish's NAME so the narrator could
+  // write "combine these with the <dish> spices from your seasoning blend", and
+  // B1's ruling 10 widened it to single-dish produce steps. It was always a
+  // pointer between two containers that should have been one, and it could
+  // never reach the case that mattered: a marinade's orange juice is `produce`,
+  // and the field was only ever set on `sauces_marinades`. B2 Part A measured
+  // 74 of 108 multi-pile dishes with no join at all.
+  //
+  // D-WS9-296 replaces it with ONE VESSEL that has a NAME. The behaviour those
+  // two tests pinned — a linkage when the spices survive, silence when they do
+  // not — has no meaning now: there is nothing to link to. What replaced them
+  // is `prepComponentsBug338.test.ts`, which asserts the bowl itself.
   it("#4 signal: dishRole rides every measure (KEEP-vs-DEMOTE input)", () => {
     const sp = buildStepPlan(combinePrep(saucePlan()), "Dinner");
     const dressing = sp.steps.find((s) => s.stepKey === "sauces_marinades#dish#d-dressing")!;

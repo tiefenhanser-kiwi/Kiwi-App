@@ -17,6 +17,7 @@ import type { DishRole, PrismaClient } from "@prisma/client";
 
 import { resolvePrepCategory } from "./prepCategoryOverride";
 import { selectDefaultPathSteps } from "./cookingScheduler";
+import type { ComponentStep } from "./prepComponents";
 
 /** Group already-ordered rows by ownerId, preserving order within each owner. */
 function groupByOwner<T extends { ownerId: string }>(rows: T[]): Map<string, T[]> {
@@ -85,6 +86,19 @@ export interface PrepLoadedDish {
   // RecipeInstructionStep is polymorphic (ownerType/ownerId, app-enforced),
   // so this is a separate keyed query, not a relation traversal.
   stepTexts: string[];
+  /**
+   * WS9 D-WS9-296 — the same steps, with what the COMPONENT derivation needs:
+   * the componentKey tag and the ingredientIds `amountRefs` resolved to.
+   * `stepTexts` above stays as it is because the narration input's shared
+   * `dishSteps` map is keyed on prose alone and must not change shape.
+   *
+   * 🔴 THE TEXT HERE IS `stepTextTranslated`, not `stepTextRaw`. There are two
+   * columns and `toStepShape` renders the translated one, so that is the
+   * sentence the cook reads and the only one a derivation may reason from.
+   * They are identical on all 30,718 dev rows, which is exactly why reading
+   * the wrong one went unnoticed for a whole block (B1 F).
+   */
+  componentSteps: ComponentStep[];
 }
 
 export interface PrepLoadedMeal {
@@ -314,6 +328,7 @@ export async function loadPrepWeekInput(
           authoredBaseServings: dish.authoredServingsDefault,
           ingredients,
           stepTexts: [] as string[], // filled below from a keyed step query
+          componentSteps: [] as ComponentStep[],
         };
       })
       // Skip dishes with no ingredients — nothing to prep.
@@ -400,12 +415,20 @@ export async function loadPrepWeekInput(
         orderBy: [{ ownerId: "asc" }, { stepIndex: "asc" }],
         // [grocery] B3 (D-WS9-277 Rule 3) — the component tags ride along so the
         // path filter below can run. See the note at that filter.
-        select: { ownerId: true, stepTextRaw: true, componentKey: true, pathKey: true },
+        // D-WS9-296 adds stepIndex, stepTextTranslated and amountRefs; the
+        // component tags were already here for the path filter below.
+        select: {
+          ownerId: true, stepIndex: true, stepTextRaw: true, stepTextTranslated: true,
+          componentKey: true, pathKey: true, amountRefs: true,
+        },
       }),
       prisma.recipeInstructionStep.findMany({
         where: { ownerType: "meal", ownerId: { in: mealIds } },
         orderBy: [{ ownerId: "asc" }, { stepIndex: "asc" }],
-        select: { ownerId: true, stepTextRaw: true, componentKey: true, pathKey: true },
+        select: {
+          ownerId: true, stepIndex: true, stepTextRaw: true, stepTextTranslated: true,
+          componentKey: true, pathKey: true, amountRefs: true,
+        },
       }),
     ]);
 
@@ -419,13 +442,40 @@ export async function loadPrepWeekInput(
     const selectOwned = <T extends { componentKey: string | null; pathKey: string | null }>(
       rows: T[],
     ): T[] => selectDefaultPathSteps(rows);
+    /** D-WS9-296 — one persisted row in the shape the derivation reads. */
+    const toComponentStep = (r: {
+      stepIndex: number;
+      stepTextTranslated: string;
+      componentKey: string | null;
+      amountRefs: unknown;
+    }): ComponentStep => ({
+      stepIndex: r.stepIndex,
+      text: r.stepTextTranslated,
+      componentKey: r.componentKey,
+      ingredientIds: Array.isArray(r.amountRefs)
+        ? [
+            ...new Set(
+              (r.amountRefs as { ingredientId?: unknown }[])
+                .map((x) => x?.ingredientId)
+                .filter((x): x is string => typeof x === "string"),
+            ),
+          ]
+        : [],
+    });
+
     const dishStepsByOwner = new Map<string, string[]>();
+    const dishComponentStepsByOwner = new Map<string, ComponentStep[]>();
     for (const [owner, rows] of groupByOwner(dishSteps)) {
-      dishStepsByOwner.set(owner, selectOwned(rows).map((s) => s.stepTextRaw));
+      const kept = selectOwned(rows);
+      dishStepsByOwner.set(owner, kept.map((s) => s.stepTextRaw));
+      dishComponentStepsByOwner.set(owner, kept.map(toComponentStep));
     }
     const mealStepsByOwner = new Map<string, string[]>();
+    const mealComponentStepsByOwner = new Map<string, ComponentStep[]>();
     for (const [owner, rows] of groupByOwner(mealSteps)) {
-      mealStepsByOwner.set(owner, selectOwned(rows).map((s) => s.stepTextRaw));
+      const kept = selectOwned(rows);
+      mealStepsByOwner.set(owner, kept.map((s) => s.stepTextRaw));
+      mealComponentStepsByOwner.set(owner, kept.map(toComponentStep));
     }
 
     // Fold a dish's own steps + its meal's steps into one list. For multi-dish
@@ -433,9 +483,14 @@ export async function loadPrepWeekInput(
     // empty — so each dish ends up with the steps that actually cook it.
     for (const meal of meals) {
       const mealOwned = mealStepsByOwner.get(meal.mealId) ?? [];
+      const mealOwnedComponents = mealComponentStepsByOwner.get(meal.mealId) ?? [];
       for (const dish of meal.dishes) {
         const dishOwned = dishStepsByOwner.get(dish.dishId) ?? [];
         dish.stepTexts = [...dishOwned, ...mealOwned];
+        dish.componentSteps = [
+          ...(dishComponentStepsByOwner.get(dish.dishId) ?? []),
+          ...mealOwnedComponents,
+        ];
       }
     }
   }

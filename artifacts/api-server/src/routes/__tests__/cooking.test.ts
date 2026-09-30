@@ -453,6 +453,7 @@ function buildStubInput(opts: {
           baseServings: 4,
           authoredBaseServings: 4,
           stepTexts: [],
+            componentSteps: [],
           ingredients: [
             {
               ingredientId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
@@ -1566,6 +1567,7 @@ function makeTwoProduceLoaderStub(planRevisionId: number) {
               baseServings: 4,
               authoredBaseServings: 4,
               stepTexts: [],
+            componentSteps: [],
               ingredients: [
                 {
                   ingredientId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
