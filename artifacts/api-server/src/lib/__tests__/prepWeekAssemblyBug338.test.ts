@@ -259,3 +259,80 @@ describe("BUG-338 ruling 10 — a single-dish produce step can carry the blend l
     assert.equal(lime!.blendSpiceDish, undefined);
   });
 });
+
+// ── ruling 13 — the cook day reaches the narration input ────────────────────
+
+describe("BUG-338 ruling 13 — daysUntilCook rides on the step", () => {
+  // Two meals, one shared ingredient. The loader's job (reading assignedDate) is
+  // covered in prepWeekAggregation.test.ts; this is the arithmetic that turns a
+  // per-meal date into a per-step lag.
+  const twoMeals: PrepCombineInput = {
+    meals: [
+      {
+        mealId: "meal-tue",
+        mealName: "Tuesday Meal",
+        dishes: [
+          {
+            dishId: "d1",
+            dishName: "Stir-Fry",
+            dishRole: "main",
+            ingredients: [
+              { ingredientId: "ing-garlic", ingredientName: "garlic", category: "Produce", quantity: 2, unit: "clove", preparationNote: "minced", sourceYield: null },
+            ],
+          },
+        ],
+      },
+      {
+        mealId: "meal-sat",
+        mealName: "Saturday Meal",
+        dishes: [
+          {
+            dishId: "d2",
+            dishName: "Tacos",
+            dishRole: "main",
+            ingredients: [
+              { ingredientId: "ing-garlic", ingredientName: "garlic", category: "Produce", quantity: 3, unit: "clove", preparationNote: "minced", sourceYield: null },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+
+  const lagMap = new Map([
+    ["meal-tue", 2],
+    ["meal-sat", 6],
+  ]);
+
+  it("takes the LATEST cook day, because that is what the portion must survive to", () => {
+    const sp = buildStepPlan(combinePrep(twoMeals), "Test Plan", new Map(), lagMap);
+    const garlic = sp.steps.find((s) => s.components.some((c) => c.ingredientName === "garlic"));
+    assert.ok(garlic, "the garlic step should exist");
+    // One step feeds both meals; min would be 2 and would let it spoil by Saturday.
+    assert.equal(garlic!.daysUntilCook, 6);
+  });
+
+  it("reaches the narration input, which is what the prompt reads", () => {
+    const sp = buildStepPlan(combinePrep(twoMeals), "Test Plan", new Map(), lagMap);
+    const inputStep = sp.narrationInput.steps.find((s) => s.stepId === sp.steps[0].stepId);
+    assert.ok(inputStep, "the narration input should carry the step");
+    assert.equal(inputStep!.daysUntilCook, 6);
+  });
+
+  it("absent — not zero — when the plan carries no dates", () => {
+    // 6 of the 13 census plans. A fabricated 0 would read as "cooked the same
+    // day", which is a claim the data does not make.
+    const sp = buildStepPlan(combinePrep(twoMeals), "Test Plan", new Map(), new Map());
+    for (const s of sp.steps) assert.equal(s.daysUntilCook, undefined);
+    for (const s of sp.narrationInput.steps) assert.equal(s.daysUntilCook, undefined);
+  });
+
+  it("a step whose only destination is undated gets no lag", () => {
+    const sp = buildStepPlan(combinePrep(twoMeals), "Test Plan", new Map(), new Map([["meal-tue", 2]]));
+    const garlic = sp.steps.find((s) => s.components.some((c) => c.ingredientName === "garlic"));
+    // This step feeds BOTH meals and only one is dated, so the known lag stands —
+    // partial knowledge is still knowledge, and it is the conservative direction
+    // only because the unknown one might be later. Recorded, not asserted as ideal.
+    assert.equal(garlic!.daysUntilCook, 2);
+  });
+});
