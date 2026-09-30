@@ -93,40 +93,50 @@ export interface PrepLoadedMeal {
   cuisine: string | null;
   // plan-item servingsOverride (null = use each dish's baseServings).
   servingsOverride: number | null;
-  // ── WS9 BUG-338 / D-WS9-297 ruling 13 — THE COOK DAY, AT LAST ─────────────
-  //
-  // Part A's finding: this loader read NO date field, so every storage note the
-  // narrator wrote ("keep up to 2 days") was a guess by a model that could not
-  // know when the meal was cooked. Measured: 57 windows that expire before their
-  // own cook day across 7 of 13 plans, max lag 5 days, 15 of them raw flesh.
-  //
-  // MealPlanItem.assignedDate / assignedDayOfWeek, free — the loader's `items`
-  // uses `include`, so every scalar was already coming back and being dropped.
-  // Null when the plan has no day assignment (6 of the 13 census plans).
-  //
-  // B1 THREADS IT AND MEASURES IT. It does NOT change what a storage note says:
-  // the shape of the fix (a mid-week session / cook-day prep / freezing) is B3's,
-  // and Hans's.
-  assignedDate: string | null;
-  assignedDayOfWeek: string | null;
   dishes: PrepLoadedDish[];
+}
+
+// ── WS9 BUG-338 / D-WS9-298 — THE COOK DAY RIDES BESIDE THE INPUT, NOT IN IT ─
+//
+// 🔴 B1 PUT THESE FIELDS ON `PrepLoadedMeal` AND THAT WAS THE WRONG PLACE.
+// `prepCompositionFingerprint` hashes the WHOLE of `PrepLoadedPlan`, on purpose
+// and with a long argument in its header for why an allowlist is the worse
+// hazard. Adding dates to that object therefore made every day reassignment a
+// cache miss — ~73 s and ~$0.125 for a byte-identical payload — which is exactly
+// the waste that module exists to remove, and Hans moves days ad hoc all week.
+//
+// So the dates come back BESIDE the input rather than inside it. The fingerprint
+// keeps hashing everything it is given, with no field list to forget; the dates
+// reach the engine and the assembly layer, which is where every date-dependent
+// behaviour is deterministic and needs no cache at all.
+//
+// ⚠️ D-WS9-298 MUST APPLY ITS DATE-DEPENDENT OVERLAY ON THE CACHE-HIT PATH TOO.
+// The cached blob is the assembled result. The moment a storage note or a
+// `skipSuggested` depends on the day, a hit that returns `structureJson`
+// untouched serves yesterday's dates. Cache what the AI wrote (date-independent);
+// apply the deterministic overlay on every read.
+export interface PrepCookDays {
+  /**
+   * The day the prep session happens, as an ISO date, and the baseline every lag
+   * is measured from. NO COLUMN STORES IT: prep runs before the week, so the
+   * plan's `startDate` is the only answer the data offers, else the earliest
+   * assigned meal date. Null when the plan carries neither — 4 of the 13 census
+   * plans, which is why D-WS9-298's shape has to cope with not knowing.
+   */
+  prepDay: string | null;
+  /** mealId → whole days from `prepDay` to that meal's cook day. Absent when undated. */
+  lagByMealId: Map<string, number>;
+  /** mealId → the assigned day name, for copy that says "Friday" rather than "in 5 days". */
+  dayNameByMealId: Map<string, string>;
 }
 
 export interface PrepLoadedPlan {
   planId: string;
   planName: string;
-  /**
-   * D-WS9-297 ruling 13 — the day the prep session happens, as an ISO date, and
-   * the baseline every `daysUntilCook` is measured from.
-   *
-   * ⚠️ NO COLUMN STORES THIS. Prep runs before the week, so the plan's own
-   * `startDate` is the only answer the data offers; failing that, the earliest
-   * assigned meal date. Null when the plan carries neither, and then no lag can
-   * be computed at all — which is 6 of the 13 census plans and is why B3's shape
-   * has to cope with not knowing.
-   */
-  prepDay: string | null;
   meals: PrepLoadedMeal[];
+  // ⚠️ NOTHING DATE-SHAPED BELONGS ON THIS OBJECT. prepCompositionFingerprint
+  // hashes every field it has, so a date here makes a day reassignment a cache
+  // miss. Cook days ride on LoadPrepWeekInputResult.cookDays instead.
 }
 
 // Route handler maps NotFoundError → 404; access leak prevention follows
@@ -188,6 +198,8 @@ export interface LoadPrepWeekInputParams {
 export interface LoadPrepWeekInputResult {
   input: PrepLoadedPlan;
   planRevisionId: number;
+  /** D-WS9-298 — deliberately NOT part of `input`; see PrepCookDays. */
+  cookDays: PrepCookDays;
 }
 
 export async function loadPrepWeekInput(
@@ -255,12 +267,22 @@ export async function loadPrepWeekInput(
   // (carried through here as servingsOverride). category + baseServings are
   // already fetched by the include below — we just stop dropping them.
   const meals: PrepLoadedMeal[] = [];
+  // D-WS9-298 — collected alongside, never onto the meal. First slot wins, the
+  // same multi-slot collapse buildMealLabelLookup already documents.
+  const assignedDateByMealId = new Map<string, string>();
+  const dayNameByMealId = new Map<string, string>();
   for (const item of plan.items) {
     const meal = item.meal;
     // WS9 — the subset filter. The ONLY place a subset differs from a full
     // week; everything downstream consumes `meals` and is untouched.
     if (selectedMealIds && !selectedMealIds.has(item.mealId)) continue;
     if (meal.dishLinks.length === 0) continue;
+    if (item.assignedDate && !assignedDateByMealId.has(item.mealId)) {
+      assignedDateByMealId.set(item.mealId, item.assignedDate.toISOString().slice(0, 10));
+    }
+    if (item.assignedDayOfWeek && !dayNameByMealId.has(item.mealId)) {
+      dayNameByMealId.set(item.mealId, item.assignedDayOfWeek);
+    }
 
     const dishes: PrepLoadedDish[] = meal.dishLinks
       .map((link) => {
@@ -304,8 +326,6 @@ export async function loadPrepWeekInput(
       mealName: meal.title,
       cuisine: meal.cuisineType ?? null,
       servingsOverride: item.servingsOverride,
-      assignedDate: item.assignedDate ? item.assignedDate.toISOString().slice(0, 10) : null,
-      assignedDayOfWeek: item.assignedDayOfWeek ?? null,
       dishes,
     });
   }
@@ -424,24 +444,31 @@ export async function loadPrepWeekInput(
     plan.titleOverride ??
     `Plan ${plan.id.slice(0, 8)}`;
 
-  // D-WS9-297 ruling 13 — the prep-day baseline. startDate first (the plan's own
-  // claim about when the week begins), else the earliest assigned meal.
-  const assignedDates = meals
-    .map((m) => m.assignedDate)
-    .filter((d): d is string => d !== null)
-    .sort();
+  // D-WS9-298 — the prep-day baseline. startDate first (the plan's own claim
+  // about when the week begins), else the earliest assigned meal.
   const prepDay =
     (plan.startDate ? plan.startDate.toISOString().slice(0, 10) : null) ??
-    assignedDates[0] ??
+    [...assignedDateByMealId.values()].sort()[0] ??
     null;
+  // The lag, computed HERE so the route and the census cannot drift apart on it
+  // (B1 had the same arithmetic copied in both). A meal dated before the prep
+  // session is a data oddity, not a negative shelf life — clamped at 0.
+  const lagByMealId = new Map<string, number>();
+  if (prepDay) {
+    const prepMs = Date.parse(prepDay);
+    for (const [mealId, iso] of assignedDateByMealId) {
+      const lag = Math.round((Date.parse(iso) - prepMs) / 86_400_000);
+      if (Number.isFinite(lag)) lagByMealId.set(mealId, Math.max(0, lag));
+    }
+  }
 
   return {
     input: {
       planId: plan.id,
       planName,
-      prepDay,
       meals,
     },
     planRevisionId: plan.revisionId,
+    cookDays: { prepDay, lagByMealId, dayNameByMealId },
   };
 }

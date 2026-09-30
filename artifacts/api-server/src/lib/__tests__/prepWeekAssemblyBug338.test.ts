@@ -312,19 +312,34 @@ describe("BUG-338 ruling 13 — daysUntilCook rides on the step", () => {
     assert.equal(garlic!.daysUntilCook, 6);
   });
 
-  it("reaches the narration input, which is what the prompt reads", () => {
+  it("🔴 does NOT reach the narration input — the prompt never sees a date", () => {
+    // THIS TEST WAS THE OPPOSITE ASSERTION IN B1 and chat-Claude reversed the
+    // ruling. Sending the lag to the narrator bought nothing the model needed,
+    // and it made the PROSE day-dependent — which in turn made every day
+    // reassignment a cache miss (~73 s, ~$0.125) for text that would not have
+    // changed. Hans moves days ad hoc all week. Every date-dependent behaviour
+    // D-WS9-298 adds is deterministic and lives in code, so the lag stays on the
+    // skeleton and out of the AI's input.
     const sp = buildStepPlan(combinePrep(twoMeals), "Test Plan", new Map(), lagMap);
-    const inputStep = sp.narrationInput.steps.find((s) => s.stepId === sp.steps[0].stepId);
-    assert.ok(inputStep, "the narration input should carry the step");
-    assert.equal(inputStep!.daysUntilCook, 6);
+    assert.equal(sp.steps[0].daysUntilCook, 6, "the skeleton keeps it");
+    for (const s of sp.narrationInput.steps) {
+      assert.ok(
+        !("daysUntilCook" in s),
+        `the narration input must carry no date: ${JSON.stringify(s.stepId)}`,
+      );
+    }
+    // And nothing date-shaped anywhere in the serialised input the model receives.
+    assert.ok(
+      !/daysUntilCook|prepDay|assignedDate/.test(JSON.stringify(sp.narrationInput)),
+      "a date field reached the narration input",
+    );
   });
 
   it("absent — not zero — when the plan carries no dates", () => {
-    // 6 of the 13 census plans. A fabricated 0 would read as "cooked the same
+    // 4 of the 13 census plans. A fabricated 0 would read as "cooked the same
     // day", which is a claim the data does not make.
     const sp = buildStepPlan(combinePrep(twoMeals), "Test Plan", new Map(), new Map());
     for (const s of sp.steps) assert.equal(s.daysUntilCook, undefined);
-    for (const s of sp.narrationInput.steps) assert.equal(s.daysUntilCook, undefined);
   });
 
   it("a step whose only destination is undated gets no lag", () => {

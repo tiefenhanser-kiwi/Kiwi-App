@@ -88,8 +88,14 @@ export interface PlannedStep {
   // present. Absent when the sauce's dry spices were dropped upstream as noise
   // (<3-per-dish blend), so the wording never points at spices that aren't there.
   blendSpiceDish?: string;
-  // D-WS9-297 ruling 13 — max over this step's destination meals of (cook date −
-  // prep day), in days. Undefined when no destination carries a date.
+  /**
+   * D-WS9-298 — max over this step's destination meals of (cook date − prep day),
+   * in days. Undefined when no destination carries a date.
+   *
+   * ⚠️ CODE-ONLY. This never reaches the narration input: the storage note and the
+   * demotion it drives are deterministic, and a day-dependent PROMPT input makes
+   * every day reassignment a cache miss for prose that would not have changed.
+   */
   daysUntilCook?: number;
 }
 
@@ -684,7 +690,10 @@ export function buildStepPlan(
       components: s.components,
       relevantDishes: s.relevantDishes,
       ...(s.blendSpiceDish ? { blendSpiceDish: s.blendSpiceDish } : {}),
-      ...(s.daysUntilCook !== undefined ? { daysUntilCook: s.daysUntilCook } : {}),
+      // ⚠️ daysUntilCook IS DELIBERATELY NOT HERE. It stays on the step skeleton
+      // (PlannedStep) where the deterministic layers read it; sending it to the
+      // narrator bought nothing the model needed and made the prose day-dependent,
+      // which in turn made every day reassignment a cache miss. D-WS9-298.
     })),
   };
 

@@ -434,7 +434,6 @@ function buildStubInput(opts: {
   return {
     planId: opts.planId,
     planName: "Test Plan",
-    prepDay: null,
     // idx is the meal's position in the WHOLE plan, not in the selection —
     // so a meal's dishId is the same whether it arrives via a full week or
     // a subset, exactly as real dish identity behaves. That stability is
@@ -444,10 +443,6 @@ function buildStubInput(opts: {
       mealName: `Meal ${opts.mealIds.indexOf(mealId) + 1}`,
       cuisine: null,
       servingsOverride: opts.servingsOverride ?? null,
-      // D-WS9-297 ruling 13 — no day assignment, which is the shape 6 of the 13
-      // census plans have and the one these fixtures were written against.
-      assignedDate: null,
-      assignedDayOfWeek: null,
       dishes: [
         {
           dishId: `dddddddd-dddd-4ddd-8ddd-${String(
@@ -477,6 +472,10 @@ function buildStubInput(opts: {
 
 function makeLoaderStub(opts: {
   planRevisionId: number;
+  /** D-WS9-298 — optional cook-day context; absent = an undated plan. */
+  prepDay?: string | null;
+  lagByMealId?: Record<string, number>;
+  dayNameByMealId?: Record<string, string>;
   mealIds: string[];
   /** WS9 — plan-item servingsOverride, so a servings change can be simulated
    *  without touching the meal set. */
@@ -511,6 +510,15 @@ function makeLoaderStub(opts: {
         servingsOverride: opts.servingsOverride,
       }),
       planRevisionId: opts.planRevisionId,
+      // D-WS9-298 — cook days ride BESIDE the hashed input. Empty by default:
+      // these fixtures are undated, which is the shape 4 of the 13 census plans
+      // have, and it keeps every pre-existing assertion about the fingerprint
+      // exactly as it was.
+      cookDays: {
+        prepDay: opts.prepDay ?? null,
+        lagByMealId: new Map(Object.entries(opts.lagByMealId ?? {})),
+        dayNameByMealId: new Map(Object.entries(opts.dayNameByMealId ?? {})),
+      },
     };
   }) as never;
 }
@@ -907,6 +915,11 @@ describe("POST /api/plans/:planId/prep-week — invalidation is scoped to compos
       mealIds: string[];
       servingsOverride?: number | null;
       planRevisionId: number;
+      // D-WS9-298 — the cook days the loader reports AFTER the edit. The point of
+      // the test below is that these move while the fingerprint does not.
+      prepDay?: string | null;
+      lagByMealId?: Record<string, number>;
+      dayNameByMealId?: Record<string, string>;
     };
     userTag: string;
   }) {
@@ -935,6 +948,9 @@ describe("POST /api/plans/:planId/prep-week — invalidation is scoped to compos
         planRevisionId: opts.after.planRevisionId,
         mealIds: opts.after.mealIds,
         servingsOverride: opts.after.servingsOverride,
+        prepDay: opts.after.prepDay,
+        lagByMealId: opts.after.lagByMealId,
+        dayNameByMealId: opts.after.dayNameByMealId,
       }),
       resolvePromptDescriptor: makeDescriptorStub(),
       runAICall: makeAICallStub({
@@ -977,6 +993,31 @@ describe("POST /api/plans/:planId/prep-week — invalidation is scoped to compos
     assert.equal(aiCalls, 0, "no AI call may be spent on a date-only edit");
     // The cached blob is what came back — proof it was served, not regenerated.
     assert.equal(body.result.totalEstimatedMinutes, 99);
+  });
+
+  // ── WS9 BUG-338 / D-WS9-298 — A DAY REASSIGNMENT IS A CACHE HIT ───────────
+  //
+  // 🔴 THE TEST ABOVE PASSES EVEN WITH THE BUG, because its stub reports no cook
+  // days at all — nothing moves, so nothing can leak into the hash. This one
+  // moves them: the loader reports a meal that was Sunday (1 day out) as Friday
+  // (5 days out), with the composition byte-identical. B1 shipped the dates on
+  // `PrepLoadedMeal`, which the fingerprint hashes, so this was a MISS and cost
+  // ~73 s and ~$0.125 every time Hans dragged a meal to another day.
+  it("🔴 a DAY REASSIGNMENT hits the cache — the cook day is not part of the composition", async () => {
+    const { aiCalls, body } = await runTransition({
+      before: { mealIds: [MEAL_ID_X, MEAL_ID_Y], selected: [MEAL_ID_X, MEAL_ID_Y] },
+      after: {
+        mealIds: [MEAL_ID_X, MEAL_ID_Y],
+        planRevisionId: 7,
+        prepDay: "2026-10-04",
+        lagByMealId: { [MEAL_ID_X]: 5 },
+        dayNameByMealId: { [MEAL_ID_X]: "Friday" },
+      },
+      userTag: "u-daymove",
+    });
+    assert.equal(body.cacheHit, true, "moving a meal to another day must still hit the cache");
+    assert.equal(aiCalls, 0, "no AI call may be spent on a day reassignment");
+    assert.equal(body.result.totalEstimatedMinutes, 99, "the cached blob must be what came back");
   });
 
   // ── the four that MUST invalidate ─────────────────────────────────────────

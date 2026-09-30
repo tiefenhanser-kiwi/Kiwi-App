@@ -148,6 +148,32 @@ const BREAKS: Break[] = [
     runner: "api",
     expect: 'a cold dish is called "staying warm" again — the pre-B1 GERUND[phaseType] behaviour',
   },
+  {
+    n: 10,
+    ruling: "D-WS9-298 — the cook day is not part of the composition",
+    file: join(API, "src/lib/prepWeekAggregation.ts"),
+    cwd: API,
+    edits: [
+      {
+        // Put the plan-level date back INSIDE the hashed input.
+        from: "      planId: plan.id,\n      planName,\n      meals,\n    },",
+        to: "      planId: plan.id,\n      planName,\n      meals,\n      ...({ prepDay } as Record<string, unknown>),\n    },",
+      },
+      {
+        // And the PER-MEAL date, which is the edit that actually moves the
+        // fingerprint between two plans that differ only in which day a meal is
+        // on. `prepDay` alone does not: both arms of the test share a startDate,
+        // so it is the same string in each and only the structural assertion
+        // catches it. Both halves of B1's shape have to come back for the
+        // behavioural guarantee to break.
+        from: "      servingsOverride: item.servingsOverride,\n      dishes,",
+        to: "      servingsOverride: item.servingsOverride,\n      ...({ assignedDate: item.assignedDate?.toISOString().slice(0, 10) ?? null } as Record<string, unknown>),\n      dishes,",
+      },
+    ],
+    test: "src/lib/__tests__/prepWeekAggregation.test.ts",
+    runner: "api",
+    expect: "a day reassignment moves the fingerprint, so the cache misses",
+  },
 ];
 
 function runTest(b: Break): { pass: boolean; tail: string } {

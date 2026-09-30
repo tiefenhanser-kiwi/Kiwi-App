@@ -278,7 +278,7 @@ export function createCookingRouter(
         );
         return res.status(500).json({ error: "internal server error" });
       }
-      const { input, planRevisionId } = loadResult;
+      const { input, planRevisionId, cookDays } = loadResult;
 
       // 3. Cache lookup. Hit + matching revisionId returns the stored
       //    structureJson without an AI call (no LLMCallLog row).
@@ -359,25 +359,15 @@ export function createCookingRouter(
           stepTextByDishId.set(dish.dishId, dish.stepTexts);
         }
       }
-      // WS9 BUG-338 / D-WS9-297 ruling 13 — days from the prep session to each
-      // meal's cook day. Empty when the plan carries no dates (6 of the 13
-      // census plans), and then no step gets a lag rather than a fabricated 0.
-      const cookLagByMealId = new Map<string, number>();
-      if (input.prepDay) {
-        const prepMs = Date.parse(input.prepDay);
-        for (const meal of input.meals) {
-          if (!meal.assignedDate) continue;
-          const lag = Math.round((Date.parse(meal.assignedDate) - prepMs) / 86_400_000);
-          // A meal dated BEFORE the prep session is a data oddity, not a
-          // negative shelf life; clamp so nothing downstream reads a negative.
-          if (Number.isFinite(lag)) cookLagByMealId.set(meal.mealId, Math.max(0, lag));
-        }
-      }
+      // WS9 BUG-338 / D-WS9-298 — the lag is computed in the LOADER now, beside
+      // the input rather than inside it, so `prepCompositionFingerprint` never
+      // sees a date and a day reassignment stays a cache hit. B1 had this
+      // arithmetic copied here and in the census harness; one copy remains.
       const stepPlan = buildStepPlan(
         combineResult,
         input.planName,
         stepTextByDishId,
-        cookLagByMealId,
+        cookDays.lagByMealId,
       );
 
       // Nothing in the plan is prep-worthy (all denylisted / buy-and-use) —

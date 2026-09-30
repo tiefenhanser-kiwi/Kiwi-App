@@ -6,6 +6,8 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type { PrismaClient } from "@prisma/client";
 
+import { prepCompositionFingerprint } from "../prepWeekFingerprint";
+
 import {
   loadPrepWeekInput,
   PrepWeekEmptyPlanError,
@@ -60,6 +62,10 @@ interface ItemFixture {
   positionIndex: number;
   servingsOverride: number | null;
   meal: MealFixture;
+  // D-WS9-298 — the cook day. Optional so every pre-existing fixture stays as it
+  // is (undated, which is 4 of the 13 census plans).
+  assignedDate?: Date | null;
+  assignedDayOfWeek?: string | null;
 }
 
 interface PlanFixture {
@@ -68,6 +74,8 @@ interface PlanFixture {
   revisionId: number;
   titleOverride: string | null;
   items: ItemFixture[];
+  // D-WS9-298 — the prep-day baseline the lag is measured from.
+  startDate?: Date | null;
 }
 
 interface StepFixture {
@@ -558,5 +566,88 @@ describe("loadPrepWeekInput — mealIds subset (WS9)", () => {
       }),
       (err) => err instanceof PrepWeekNotFoundError,
     );
+  });
+});
+
+// ── WS9 BUG-338 / D-WS9-298 — THE CACHE MUST NOT SEE A DATE ──────────────────
+//
+// 🔴 THIS IS THE REVERSAL OF A B1 DECISION, AND THE TEST THAT KEEPS IT REVERSED.
+// B1 put assignedDate/assignedDayOfWeek on `PrepLoadedMeal`.
+// `prepCompositionFingerprint` hashes the WHOLE of `PrepLoadedPlan` — deliberately,
+// with a long argument in its own header for why a field allowlist is the worse
+// hazard — so every day reassignment became a cache MISS and cost ~73 s and
+// ~$0.125 to regenerate a byte-identical payload. Hans moves days ad hoc all week.
+//
+// The dates now ride on `cookDays`, BESIDE the hashed input. Both halves are
+// asserted below, because either alone would be satisfiable by a broken
+// implementation: the fingerprint must not move, AND the dates must still arrive.
+
+describe("loadPrepWeekInput — cook days ride beside the hashed input (D-WS9-298)", () => {
+  const dated = (iso: string, day: string) =>
+    plan({
+      startDate: new Date("2026-10-04T00:00:00.000Z"),
+      items: plan().items.map((it, i) =>
+        i === 0 ? { ...it, assignedDate: new Date(iso), assignedDayOfWeek: day } : it,
+      ),
+    });
+
+  it("a day reassignment does not move the composition fingerprint", async () => {
+    const sunday = dated("2026-10-05T00:00:00.000Z", "Sunday");
+    const friday = dated("2026-10-09T00:00:00.000Z", "Friday");
+    const a = await loadPrepWeekInput({ planId: PLAN_ID, userId: USER_ID, prisma: makePrismaStub([sunday]) });
+    const b = await loadPrepWeekInput({ planId: PLAN_ID, userId: USER_ID, prisma: makePrismaStub([friday]) });
+    assert.equal(
+      prepCompositionFingerprint(a.input),
+      prepCompositionFingerprint(b.input),
+      "moving a meal from Sunday to Friday changed the fingerprint — the cache will miss",
+    );
+  });
+
+  it("…and the dates DO arrive, on cookDays", async () => {
+    // The other half. A fingerprint that never moves is also what you get by
+    // dropping the dates entirely, which would make D-WS9-298 unbuildable.
+    const sunday = dated("2026-10-05T00:00:00.000Z", "Sunday");
+    const friday = dated("2026-10-09T00:00:00.000Z", "Friday");
+    const a = await loadPrepWeekInput({ planId: PLAN_ID, userId: USER_ID, prisma: makePrismaStub([sunday]) });
+    const b = await loadPrepWeekInput({ planId: PLAN_ID, userId: USER_ID, prisma: makePrismaStub([friday]) });
+    assert.equal(a.cookDays.prepDay, "2026-10-04");
+    assert.equal(a.cookDays.lagByMealId.get(MEAL_A), 1);
+    assert.equal(b.cookDays.lagByMealId.get(MEAL_A), 5);
+    assert.equal(a.cookDays.dayNameByMealId.get(MEAL_A), "Sunday");
+    assert.equal(b.cookDays.dayNameByMealId.get(MEAL_A), "Friday");
+  });
+
+  it("the loaded input carries NO date-shaped field at all", async () => {
+    // Structural, not behavioural: the guarantee is that nothing date-shaped can
+    // reach the hash, not merely that today's two fields do not.
+    const r = await loadPrepWeekInput({
+      planId: PLAN_ID,
+      userId: USER_ID,
+      prisma: makePrismaStub([dated("2026-10-09T00:00:00.000Z", "Friday")]),
+    });
+    const json = JSON.stringify(r.input);
+    for (const needle of ["assignedDate", "assignedDayOfWeek", "prepDay", "startDate", "2026-10"]) {
+      assert.ok(!json.includes(needle), `"${needle}" reached the hashed input`);
+    }
+  });
+
+  it("an undated plan yields a null prepDay and no lags, never a fabricated zero", async () => {
+    const r = await loadPrepWeekInput({ planId: PLAN_ID, userId: USER_ID, prisma: makePrismaStub([plan()]) });
+    assert.equal(r.cookDays.prepDay, null);
+    assert.equal(r.cookDays.lagByMealId.size, 0);
+    assert.equal(r.cookDays.dayNameByMealId.size, 0);
+  });
+
+  it("with no startDate the earliest assigned meal becomes the baseline", async () => {
+    const p = plan({
+      startDate: null,
+      items: plan().items.map((it, i) =>
+        i === 0 ? { ...it, assignedDate: new Date("2026-10-09T00:00:00.000Z"), assignedDayOfWeek: "Friday" } : it,
+      ),
+    });
+    const r = await loadPrepWeekInput({ planId: PLAN_ID, userId: USER_ID, prisma: makePrismaStub([p]) });
+    assert.equal(r.cookDays.prepDay, "2026-10-09");
+    // The baseline meal is itself zero days out.
+    assert.equal(r.cookDays.lagByMealId.get(MEAL_A), 0);
   });
 });

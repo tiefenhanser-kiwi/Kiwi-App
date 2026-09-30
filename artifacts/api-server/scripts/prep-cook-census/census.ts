@@ -321,25 +321,15 @@ async function runPlan(planId: string): Promise<PlanRecord> {
 
   // ── Prep the Week (the blended path, cache bypassed on both sides) ────────
   try {
-    const { input } = await loadPrepWeekInput({ planId: plan.id, userId: plan.userId, prisma });
+    const { input, cookDays } = await loadPrepWeekInput({ planId: plan.id, userId: plan.userId, prisma });
     const combineResult = combinePrep(buildPrepCombineInput(input));
     const stepTextByDishId = new Map<string, string[]>();
     for (const meal of input.meals) {
       for (const dish of meal.dishes) stepTextByDishId.set(dish.dishId, dish.stepTexts);
     }
-    // D-WS9-297 ruling 13 — the SAME lag map routes/cooking.ts builds. Copied
-    // rather than imported because the route computes it inline; if that moves
-    // into a helper, this should call it.
-    const cookLagByMealId = new Map<string, number>();
-    if (input.prepDay) {
-      const prepMs = Date.parse(input.prepDay);
-      for (const m of input.meals) {
-        if (!m.assignedDate) continue;
-        const lag = Math.round((Date.parse(m.assignedDate) - prepMs) / 86_400_000);
-        if (Number.isFinite(lag)) cookLagByMealId.set(m.mealId, Math.max(0, lag));
-      }
-    }
-    const stepPlan = buildStepPlan(combineResult, input.planName, stepTextByDishId, cookLagByMealId);
+    // D-WS9-298 — the lag map comes off the LOADER now. B1 computed it here and
+    // in the route, two copies of one arithmetic; the reversal removed both.
+    const stepPlan = buildStepPlan(combineResult, input.planName, stepTextByDishId, cookDays.lagByMealId);
     if (stepPlan.steps.length === 0) {
       rec.prepError = "empty step plan";
     } else {

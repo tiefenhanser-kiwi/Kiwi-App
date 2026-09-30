@@ -84,18 +84,6 @@ export interface PrepNarrationStepInput {
   // narrator MUST tell the user to combine the sauce's wet parts with "the
   // <name> spices from your seasoning blend." Absent → no linkage wording.
   blendSpiceDish?: string;
-  /**
-   * WS9 BUG-338 / D-WS9-297 ruling 13 — how many days after the prep session the
-   * LATEST meal this step feeds is cooked. Code-computed from
-   * MealPlanItem.assignedDate against the plan's start; absent when the plan has
-   * no day assignment, which is 6 of the 13 census plans.
-   *
-   * ⚠️ B1 PASSES IT AND THE PROMPT DOES NOT YET USE IT. The storage-note shape
-   * — a mid-week session, cook-day prep for late perishables, or freezing — is
-   * B3's ruling and Hans's. It is threaded now so the lag can be MEASURED
-   * against real plans before anyone decides what to do about it.
-   */
-  daysUntilCook?: number;
 }
 
 export interface PrepNarrationInput {
