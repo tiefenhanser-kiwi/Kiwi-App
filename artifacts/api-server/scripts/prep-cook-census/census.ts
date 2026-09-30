@@ -263,6 +263,8 @@ export interface PlanRecord {
     /** The phone's number — KEPT steps only (skipSuggested render-omitted). */
     renderedTotalMinutes: number;
     steps: PrepStepRecord[];
+    /** D-WS9-298 item 3 — the quiet per-phase line, code-owned. */
+    phaseNotes: Record<string, string>;
     /** What the narrator was handed, verbatim — the audit trail for a prompt fix. */
     narrationInputHash: string;
     plannedStepCount: number;
@@ -414,7 +416,10 @@ async function runPlan(planId: string): Promise<PlanRecord> {
             });
           }
         }
+        const phaseNotes: Record<string, string> = {};
+        for (const ph of withDemotions.phases) if (ph.note) phaseNotes[ph.phase] = ph.note;
         rec.prep = {
+          phaseNotes,
           totalEstimatedMinutes: assembled.totalEstimatedMinutes,
           renderedTotalMinutes: vm.totalEstimatedMinutes,
           steps,
@@ -564,6 +569,8 @@ function renderText(rec: PlanRecord): string {
         phase = s.phase;
         L.push("");
         L.push(`  ── ${s.phaseTitle} [${s.phase}] ──`);
+        const note = rec.prep?.phaseNotes?.[s.phase];
+        if (note) L.push(`     » ${note}`);
       }
       L.push(`  ${s.rendered ? " " : "×"} ${String(s.number).padStart(2)}. ${s.title}   (${s.estimatedMinutes} min)${s.skipSuggested ? "  [skipSuggested — RENDER-OMITTED]" : ""}`);
       for (const line of s.instructions.split("\n")) L.push(`        ${line}`);
