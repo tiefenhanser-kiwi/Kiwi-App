@@ -60,6 +60,11 @@ async function main() {
         estimatedMinutes: s.estimatedMinutes <= 0 ? 1 : s.estimatedMinutes,
         phaseType: s.phaseType as SchedulerPhase,
         isTimingSensitive: s.isTimingSensitive,
+        // D-WS9-297 ruling 2 — the cue reads this. Omitting it made the probe
+        // print "resting" where the real path prints "chilling": the state fell
+        // back to the PHASE because the probe supplied no prose. A probe that
+        // renders less than the product misreports the product.
+        text: s.stepTextTranslated,
         parallelGroup: s.parallelGroup,
         componentKey: s.componentKey,
         pathKey: s.pathKey,
