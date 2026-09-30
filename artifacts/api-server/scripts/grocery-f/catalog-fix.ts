@@ -132,6 +132,20 @@ const E3_PACKS: { name: string; unit: string; quantity: number; display: string 
   { name: "whole-milk mozzarella", unit: "block", quantity: 1, display: "1 block (8 oz)" },
   // cotija — sold as a 10 oz round, not a pound.
   { name: "cotija cheese", unit: "block", quantity: 1, display: "1 block (10 oz)" },
+  // ── Part F item 2 — the two E3 missed, found by sweeping the SHAPE ────────
+  //
+  // "1 lb block monterey jack cheese (8 ounce)" on chat-Claude's browser pass.
+  // E3 worked from the rows the F8 list happened to show; this came from a
+  // catalog-wide sweep for a pack that LEADS with a pound or more and a
+  // block/bag noun. That sweep returns 86 rows and these are the only two left
+  // to move: 80 are Protein, where D-WS9-292 stops the stored pack being used
+  // at all, and the rest are butter (E3 ruled leave), bulk produce bags
+  // (potatoes, carrots, rice — a 1–2 lb bag IS the normal size) and a 20 oz
+  // tortellini package, which is a standard format and not a cheese block.
+  { name: "monterey jack cheese", unit: "block", quantity: 1, display: "1 block (8 oz)" },
+  // queso fresco is cotija's shelf-mate and takes cotija's size for the same
+  // reason: a Mexican crumbling cheese is a round, not a pound.
+  { name: "queso fresco", unit: "block", quantity: 1, display: "1 block (10 oz)" },
   { name: "heavy cream", unit: "carton", quantity: 1, display: "1 carton (8 fl oz)" },
   { name: "sour cream", unit: "container", quantity: 1, display: "1 container (8 oz)" },
   { name: "full-fat greek yogurt", unit: "container", quantity: 1, display: "1 container (16 oz)" },

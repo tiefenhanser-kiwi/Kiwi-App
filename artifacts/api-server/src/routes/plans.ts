@@ -15,6 +15,7 @@
 // per-day + per-meal totals plus a daily-average rollup for Plan
 // Review.
 
+import { publicTags } from "../lib/internalTags";
 import { Router, type IRouter } from "express";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { z } from "zod";
@@ -705,7 +706,7 @@ export function createPlansRouter(
           title: template.title,
           description: template.description,
           image: template.imageUrl,
-          tags: template.tags,
+          tags: publicTags(template.tags), // BUG-339
           sourceType: template.sourceType,
           defaultDaysCount: template.defaultDaysCount,
           optimizationNotes: template.optimizationNotes ?? [],

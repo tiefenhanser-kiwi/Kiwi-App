@@ -1714,18 +1714,17 @@ describe("consolidatePlanIngredients — BUG-025-5 staple variants", () => {
     // in UNIVERSAL_STAPLES, so none is a staple now — no judgement about what
     // counts as "specialty" was needed to get here.
     for (const v of [
-      "flaky sea salt", // Hans added this by hand; he does not own it
+      // ── 🔴 THE SALTS LEFT THIS LIST IN TWO STEPS, AND THE RULE CHANGED ────
+      //
+      // BUG-182 excluded every salt variant on the grounds that "grain size is
+      // the product". D-WS9-295 replaced that line with a different one — a
+      // FINISHING salt is bought for a dish, a COOKING salt is in the cupboard —
+      // and under it `fine sea salt` and `coarse kosher salt` (Part E) then
+      // `table salt`, `sea salt`, `fine salt` and `coarse sea salt` (Part F)
+      // are all staples. What is left here is the finishing salts, which is
+      // exactly the row Hans added by hand because he does not own it.
+      "flaky sea salt",
       "flaky salt",
-      "sea salt",
-      "table salt",
-      "coarse sea salt",
-      // ⚠️ "fine sea salt" MOVED OUT of this list by D-WS9-295 and is now a
-      // staple by name. BUG-182 had excluded it with flaky sea salt on the
-      // grounds that "grain size is the product"; D-WS9-295 draws the line
-      // between a FINISHING salt (bought for a dish) and a COOKING salt (in the
-      // cupboard) instead. `flaky sea salt` — the row Hans added by hand because
-      // he does not own it — stays right where it is, first in this list.
-      "fine salt",
       "black peppercorns", // whole, not ground — distinct product (BUG-168)
       "cracked black pepper",
       "cracked pepper",

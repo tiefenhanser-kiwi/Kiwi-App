@@ -520,11 +520,44 @@ function packsForRow(
 // table, then the BASE STAPLE's code-table row), so the deterministic merge and
 // this guard agree about what is convertible instead of disagreeing at the
 // boundary.
+/**
+ * ── 🔴 [grocery] F Part F (D-WS9-295) — THE GUARD MUST SEE THE PACK YIELD ────
+ *
+ * This read `resolveConversion(canonicalName, conversionRef)` and therefore
+ * could not see `Ingredient.packYieldUnit` / `packYieldPerPack` — the columns B1
+ * added, which `rowConversion` layers onto the conversion as a sub-unit ladder.
+ *
+ * WHAT THAT COST, measured on plan b4aa6fee. Three cilantro rows (¼ bunch,
+ * 1 cup, 5 tablespoon) reached the Sonnet subset, the model merged them into
+ * one — correctly — and the conservation guard then REFUSED its own answer and
+ * shipped three rows:
+ *
+ *     event=grocery_ai_merge_refused canonicalName=cilantro inputRows=3
+ *     outputRows=1 neededGrams=null returnedGrams=null
+ *     basis=sub_unit_children reason=not_convertible_to_common_unit
+ *
+ * `totalGrams` fails first because a bunch has no gram conversion; the fallback
+ * `totalInSubUnitChildren` then needs the ladder, and without the pack yield
+ * there was no ladder to need. So the guard could not price EITHER side and
+ * declined — the correct behaviour on a basis it cannot compute, and the wrong
+ * basis to be handed.
+ *
+ * ⚠️ IT IS THE SAME FUNCTION `groceryMerge.groupConversion` ALREADY USES, and
+ * that asymmetry is the defect: two halves of one pipeline disagreed about what
+ * conversion a group has. Same shape as BUG-144 (one branch guarded, its twin
+ * not) and BUG-321 (the engine existed and the caller never called it). Reused
+ * rather than re-derived, so they cannot drift again.
+ *
+ * ⚠️ IT CANNOT LOOSEN THE GUARD. A ladder gives the guard a basis it did not
+ * have; it does not change the tolerance, and a group that still cannot be
+ * priced is still refused. What changes is that a group the catalog CAN price
+ * now gets priced.
+ */
 function conversionForGroup(
   items: ConsolidatedItem[],
 ): ReturnType<typeof resolveConversion> {
   for (const it of items) {
-    const c = resolveConversion(it.canonicalName, it.conversionRef);
+    const c = rowConversion(it);
     if (c) return c;
   }
   for (const it of items) {

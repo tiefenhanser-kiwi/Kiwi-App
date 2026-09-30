@@ -10,9 +10,9 @@ Run everything from `artifacts/api-server`.
 ## The one command
 
 ```bash
-# 1. the corpus (20 plans, live pipeline)
+# 1. the corpus (21 plans, live pipeline)
 node --env-file=.env --import tsx scripts/grocery-census/census.ts \
-  --plans f5556c19,56b03a57,c404a3cf,247cd7bb,14879176,b8e7f134,31c7a885,96a94410,425da049,ed238692,2b6e51a1,6e952e32,a8b0bbd5,316d0846,11653a33,353ce059,14397131,163875ec,d47d18aa,8a462408 \
+  --plans f5556c19,56b03a57,c404a3cf,247cd7bb,14879176,b8e7f134,31c7a885,96a94410,425da049,ed238692,2b6e51a1,6e952e32,a8b0bbd5,316d0846,11653a33,353ce059,14397131,163875ec,d47d18aa,8a462408,b4aa6fee \
   --mode live --tag live --budget 6
 
 # 2. reproducibility (5 plans × 3 runs)
@@ -35,6 +35,19 @@ node --import tsx scripts/grocery-census/yields.ts  --tag live
 
 Plan ids may be given as 8-char prefixes; the harness resolves them and refuses
 an ambiguous one.
+
+## ⚠️ THE 21st PLAN, AND WHY IT WAS ADDED ([grocery] F Part F)
+
+`b4aa6fee` joined the list on 2026-09-30. The original twenty are a good corpus
+and they were **blind to a whole class**: not one of them reaches a single
+ingredient in three different units, so all twenty stayed byte-identical across
+the fix for cilantro printing three times on one list. The defect was found by a
+browser pass, not by this harness, and the plan that exposed it is in the harness
+now so the next lane inherits the coverage rather than the luck.
+
+It is also why a Part F run reports "1,005 rows, 0 moved" against the twenty and
+the real before/after against the twenty-first. **A corpus that cannot see a fix
+is evidence of no collateral, not evidence of no effect — read both.**
 
 ## The fences, and why each one holds
 

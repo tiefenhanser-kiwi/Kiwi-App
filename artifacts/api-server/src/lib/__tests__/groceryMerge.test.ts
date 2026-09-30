@@ -897,3 +897,91 @@ describe("BUG-215 — the merged row carries the GROUP's sub-unit ladder", () =>
     assert.equal(scaled!.purchaseQuantity, 4);
   });
 });
+
+// ── 🔴 [grocery] F Part F (D-WS9-295) — ONE CHILD REACHED IN TWO MEASURES ────
+//
+// chat-Claude's browser pass found cilantro printed THREE times on one list, on
+// plan b4aa6fee. Same ingredientId, same pack, same conversion, same section —
+// split only by the unit each recipe stated it in.
+describe("one child reached in two measures is still one child", () => {
+  /** The live cilantro row: a 1-bunch pack yielding 2 cups. */
+  const cilantro = (quantity: number, unit: string) =>
+    item({
+      canonicalName: "fresh cilantro",
+      quantity,
+      unit,
+      sectionKey: "produce",
+      purchaseUnit: "bunch",
+      purchaseQuantity: 1,
+      purchaseDisplay: "1 bunch",
+      packYieldUnit: "cup",
+      packYieldPerPack: 2,
+      conversionRef: { source: "usda_derived", confidence: "medium", gramsPerCup: 16 },
+    });
+
+  it("🔴 the three rows become one, and the arithmetic is the ladder's", () => {
+    const out = mergeConvertibleGroups([
+      cilantro(0.25, "bunch"),
+      cilantro(1, "cup"),
+      cilantro(5, "tablespoon"),
+    ]);
+    assert.equal(out.length, 1, "three rows for one bunch of cilantro");
+    // ¼ bunch × 2 cups/bunch = 0.5 · 1 cup = 1 · 5 tbsp = 5/16 = 0.3125
+    assert.equal(out[0].unit, "cup");
+    assert.ok(Math.abs(out[0].quantity - 1.8125) < 1e-9, `got ${out[0].quantity}`);
+  });
+
+  it("the parent alone, and the measures alone, both still work", () => {
+    // Guarding the two paths either side of the widened gate.
+    const parentOnly = mergeConvertibleGroups([cilantro(0.25, "bunch"), cilantro(1, "bunch")]);
+    assert.equal(parentOnly.length, 1);
+    assert.equal(parentOnly[0].quantity, 1.25);
+    const measuresOnly = mergeConvertibleGroups([cilantro(1, "cup"), cilantro(5, "tablespoon")]);
+    assert.equal(measuresOnly.length, 1);
+    assert.ok(Math.abs(measuresOnly[0].quantity - 1.3125) < 1e-9);
+  });
+
+  it("🔴 a genuinely MIXED child is still refused", () => {
+    // The gate is narrowed on the ladder's own childUnit having a DIMENSION.
+    // A count child reached as two different count nouns is not one child, and
+    // nothing in the data says how a slice relates to a clove.
+    const mixed = mergeConvertibleGroups([
+      item({
+        canonicalName: "test bulb",
+        quantity: 2,
+        unit: "clove",
+        purchaseUnit: "head",
+        purchaseQuantity: 1,
+        purchaseDisplay: "1 head",
+        packYieldUnit: "clove",
+        packYieldPerPack: 10,
+      }),
+      item({
+        canonicalName: "test bulb",
+        quantity: 3,
+        unit: "slice",
+        purchaseUnit: "head",
+        purchaseQuantity: 1,
+        purchaseDisplay: "1 head",
+        packYieldUnit: "clove",
+        packYieldPerPack: 10,
+      }),
+    ]);
+    assert.equal(mixed.length, 2, "clove + slice must not be summed");
+  });
+
+  it("a measure that is NOT the child's dimension does not collapse", () => {
+    // The child is a cup (volume). An ounce is weight; `unitDimension` says so,
+    // and the group falls through to the paths that need a density.
+    const out = mergeConvertibleGroups([
+      cilantro(0.25, "bunch"),
+      cilantro(1, "cup"),
+      cilantro(2, "ounce"),
+    ]);
+    // It may or may not merge by another route, but it must not take the
+    // one-child shortcut and treat 2 oz as 2 cups.
+    if (out.length === 1) {
+      assert.ok(out[0].quantity !== 1.5 + 2, "2 oz must never be read as 2 cups");
+    }
+  });
+});

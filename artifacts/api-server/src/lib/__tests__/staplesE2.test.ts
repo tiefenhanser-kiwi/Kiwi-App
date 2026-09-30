@@ -25,14 +25,36 @@ describe("D-WS9-295 — the staples added by name", () => {
     }
   });
 
-  it("🔴 the two salts D-WS9-295 names, and no others", () => {
-    assert.equal(isUniversalStapleName("fine sea salt"), true);
-    assert.equal(isUniversalStapleName("coarse kosher salt"), true);
-    // ⚠️ BUG-182's exclusions survive. `flaky sea salt` is the row Hans added by
-    // hand precisely because he does not own it; a finishing salt is bought for
-    // a dish, a cooking salt is in the cupboard.
-    for (const n of ["flaky sea salt", "flaky salt", "sea salt", "fine salt", "table salt", "coarse sea salt"]) {
+  it("🔴 every COOKING salt is a staple", () => {
+    // ⚠️ THIS TEST ASSERTED THE OPPOSITE FOR FOUR OF THESE. Part E added only
+    // the two names D-WS9-295 spelled out and left "every salt variant not
+    // already covered" to Hans, because deciding which salts are cooking salts
+    // is the judgement BUG-182 took out of the code. chat-Claude ruled it on
+    // 2026-09-30 and the four moved.
+    for (const n of [
+      "fine sea salt",
+      "coarse kosher salt",
+      "table salt",
+      "sea salt",
+      "fine salt",
+      "coarse sea salt",
+    ]) {
+      assert.equal(isUniversalStapleName(n), true, `${n} is a cooking salt`);
+    }
+  });
+
+  it("🔴 a FINISHING salt is still not a staple — BUG-182 stands", () => {
+    // `flaky sea salt` is the row Hans added by hand precisely because he does
+    // not own it: a recipe names it on purpose, at the end, and you buy it for
+    // that dish. The line D-WS9-295 draws is finishing-vs-cooking, not
+    // specialty-vs-ordinary, so these four are excluded by the SAME rule that
+    // admitted the six above rather than by a leftover.
+    for (const n of ["flaky sea salt", "flaky salt", "hawaiian sea salt", "pickling salt"]) {
       assert.equal(isUniversalStapleName(n), false, `${n} must NOT be a staple`);
+    }
+    // …and a seasoning that merely contains the word is untouched, as ever.
+    for (const n of ["garlic salt", "celery salt", "onion salt", "seasoned salt", "salted butter"]) {
+      assert.equal(isUniversalStapleName(n), false, n);
     }
   });
 

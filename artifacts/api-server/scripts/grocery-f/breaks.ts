@@ -169,27 +169,34 @@ function gateCatchesSoup(): { ok: boolean; detail: string } {
 // read the rendered line. `dataBreak` below carries its own revert, because a
 // restore here is a database write and cannot be a file copy.
 const CHEDDAR = "shredded cheddar cheese";
+const MONTEREY = "monterey jack cheese";
 
-async function cheddarPack(): Promise<{ unit: string | null; quantity: number | null; display: string | null }> {
+interface PackRow { purchaseUnit: string | null; purchaseQuantity: number | null; purchaseDisplay: string | null }
+
+async function ingredientPack(name: string): Promise<PackRow> {
   const { PrismaClient } = await import("@prisma/client");
   const prisma = new PrismaClient();
   const row = await prisma.ingredient.findFirst({
-    where: { canonicalName: CHEDDAR },
+    where: { canonicalName: name },
     select: { purchaseUnit: true, purchaseQuantity: true, purchaseDisplay: true },
   });
   await prisma.$disconnect();
-  return row ?? { unit: null, quantity: null, display: null } as never;
+  return row ?? { purchaseUnit: null, purchaseQuantity: null, purchaseDisplay: null };
 }
 
-async function setCheddarPack(unit: string, quantity: number, display: string): Promise<void> {
+async function setIngredientPack(name: string, unit: string, quantity: number, display: string): Promise<void> {
   const { PrismaClient } = await import("@prisma/client");
   const prisma = new PrismaClient();
   await prisma.ingredient.update({
-    where: { canonicalName: CHEDDAR },
+    where: { canonicalName: name },
     data: { purchaseUnit: unit, purchaseQuantity: quantity, purchaseDisplay: display },
   });
   await prisma.$disconnect();
 }
+
+const cheddarPack = () => ingredientPack(CHEDDAR);
+const setCheddarPack = (unit: string, quantity: number, display: string) =>
+  setIngredientPack(CHEDDAR, unit, quantity, display);
 
 /** One plan through the real pipeline; returns every rendered line. */
 function censusLines(tag: string, plan: string): string[] {
@@ -311,6 +318,30 @@ const BREAKS: Break[] = [
       serverTest("src/lib/__tests__/freshProtein.test.ts", "src/lib/__tests__/groceryListAI.test.ts"),
   },
   {
+    n: 201,
+    title: "F1 — remove the cilantro fix: three rows return",
+    file: "artifacts/api-server/src/lib/groceryMerge.ts",
+    from: `    const childSet = oneChildTwoMeasures`,
+    to: `    const childSet = false`,
+    check: () => serverTest("src/lib/__tests__/groceryMerge.test.ts"),
+  },
+  {
+    n: 203,
+    title: "F3 — table salt shows a pack again",
+    file: "artifacts/api-server/src/lib/groceryStaples.ts",
+    from: `  { canonicalName: "table salt", defaultSection: "pantry", defaultUnit: "container" },`,
+    to: ``,
+    check: () => serverTest("src/lib/__tests__/staplesE2.test.ts"),
+  },
+  {
+    n: 204,
+    title: "F4 — an internal scenario tag reaches a user-facing tag list",
+    file: "artifacts/api-server/src/lib/planQueries.ts",
+    from: `    tags: publicTags(row.template?.tags),`,
+    to: `    tags: row.template?.tags ?? [],`,
+    check: () => serverTest("src/lib/__tests__/planQueriesTags.test.ts"),
+  },
+  {
     n: 104,
     title: "E3 — recurring Milk becomes a quart",
     file: "artifacts/api-server/src/lib/ingredientConversions.ts",
@@ -428,6 +459,48 @@ if (only === null || only === 102) {
     failures++;
     console.log(`(102) 🔴 ${!isRed ? "STAYED GREEN" : "RESTORE MISMATCH"} — E3 cheddar pack`);
     console.log(`      broken=${JSON.stringify(broken.filter((l) => /cheddar/i.test(l)))} restored=${restored}`);
+  }
+}
+
+// ── break (202) — the second DATA break, on the plan the 20 could not see ──
+//
+// Same shape as (102) and a different plan, because the 20-plan corpus does not
+// reach `monterey jack cheese` at all — only `shredded monterey jack cheese`,
+// which was already 8 oz. Plan b4aa6fee is the 21st plan, added to the census
+// in Part F for exactly this reason.
+if (only === null || only === 202) {
+  const PLAN = "b4aa6fee";
+  const RULED = { unit: "block", quantity: 1, display: "1 block (8 oz)" };
+  const before = await ingredientPack(MONTEREY);
+  const showsRuled = (ls: string[]) => ls.some((l) => /1 block \(8 oz\) monterey jack/i.test(l));
+  const showsBroken = (ls: string[]) => ls.some((l) => /1 lb block monterey jack/i.test(l));
+
+  const baseline = censusLines("f-mj-base", PLAN);
+  const baseOk = showsRuled(baseline) && !showsBroken(baseline);
+
+  await setIngredientPack(MONTEREY, "lb", 1, "1 lb block");
+  const broken = censusLines("f-mj-red", PLAN);
+  const isRed = showsBroken(broken);
+
+  await setIngredientPack(MONTEREY, RULED.unit, RULED.quantity, RULED.display);
+  const after = await ingredientPack(MONTEREY);
+  const restored =
+    after.purchaseUnit === before.purchaseUnit &&
+    after.purchaseQuantity === before.purchaseQuantity &&
+    after.purchaseDisplay === before.purchaseDisplay;
+
+  if (!baseOk) {
+    failures++;
+    console.log("(202) 🔴 BASELINE NOT GREEN — the corpus does not show the ruled monterey jack pack");
+    console.log(`      lines: ${JSON.stringify(baseline.filter((l) => /monterey/i.test(l)))}`);
+  } else if (isRed && restored) {
+    console.log("(202) ✅ RED then RESTORED — F2: revert monterey jack to 1 lb");
+    console.log(`      broken line:  ${broken.find((l) => /1 lb block monterey jack/i.test(l))}`);
+    console.log(`      restored row: ${JSON.stringify(after)}`);
+  } else {
+    failures++;
+    console.log(`(202) 🔴 ${!isRed ? "STAYED GREEN" : "RESTORE MISMATCH"} — F2 monterey jack`);
+    console.log(`      broken=${JSON.stringify(broken.filter((l) => /monterey/i.test(l)))} restored=${restored}`);
   }
 }
 

@@ -11,6 +11,7 @@
 // PlanListItem is a uniform shape spanning both row kinds so a discovery card
 // or a /plans page can mix instances and templates.
 
+import { publicTags } from "./internalTags";
 import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { featuredWhere, hostingFeaturedWhere } from "./featuring";
@@ -205,7 +206,8 @@ export function instanceToListItem(
     name: row.titleOverride ?? row.template?.title ?? "",
     description: row.template?.description ?? null,
     image: row.template?.imageUrl ?? null,
-    tags: row.template?.tags ?? [],
+    // BUG-339 — an internal scenario marker must not reach a tag chip.
+    tags: publicTags(row.template?.tags),
     source: "instance",
     status: row.status,
     startDate: toYmd(row.startDate),
@@ -221,7 +223,7 @@ function templateToListItem(row: TemplateRow): PlanListItem {
     name: row.title,
     description: row.description,
     image: row.imageUrl,
-    tags: row.tags,
+    tags: publicTags(row.tags), // BUG-339
     source: "template",
     status: null,
     startDate: null,
@@ -236,7 +238,7 @@ function railRowToItem(row: RailRow): RailPlanItem {
     id: row.id,
     name: row.title,
     image: row.imageUrl,
-    tags: row.tags,
+    tags: publicTags(row.tags), // BUG-339
     isFeatured: row.isFeatured,
     isHostingFeatured: row.isHostingFeatured,
   };

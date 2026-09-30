@@ -111,12 +111,23 @@ export const UNIVERSAL_STAPLES = [
   // does not own it) stays out, along with hawaiian and pickling salt.
   { canonicalName: "fine sea salt", defaultSection: "pantry", defaultUnit: "container" },
   //
-  // ⚠️ `fine salt` AND `sea salt` ARE DELIBERATELY NOT HERE, though the ruling's
-  // preamble reads "every salt variant not already covered". The names it then
-  // gives are two, and adding the rest on the strength of the preamble would be
-  // this lane deciding what counts as a cooking salt — which is exactly the
-  // judgement BUG-182 removed from the code and gave to Hans. A test asserted
-  // both stay out; it still does.
+  // ── D-WS9-295, Part F item 3 — THE REST OF THE COOKING SALTS ──────────────
+  //
+  // Part E added only the two names D-WS9-295 spelled out and left the rest,
+  // because "every salt variant not already covered" is a preamble and deciding
+  // which salts are cooking salts is the judgement BUG-182 took out of the code.
+  // chat-Claude ruled the question on 2026-09-30: these four are cooking salts
+  // nobody buys for a quarter teaspoon.
+  { canonicalName: "table salt", defaultSection: "pantry", defaultUnit: "container" },
+  { canonicalName: "sea salt", defaultSection: "pantry", defaultUnit: "container" },
+  { canonicalName: "fine salt", defaultSection: "pantry", defaultUnit: "container" },
+  { canonicalName: "coarse sea salt", defaultSection: "pantry", defaultUnit: "container" },
+  //
+  // ⚠️ `flaky sea salt` AND `flaky salt` STAY OUT, and that is BUG-182's ruling
+  // standing rather than an omission. A finishing salt is one a recipe names on
+  // purpose and you do not already own — Hans added the row by hand for exactly
+  // that reason. `hawaiian sea salt` and `pickling salt` stay out on the same
+  // argument. The test below pins all four.
   // ⚠️ A STAPLE FLAG ONLY. D-WS9-217 keeps coarse kosher salt OUT of the merge
   // group — "salts are super different so keeping them separate is probably
   // needed and best" — and this list does not touch merge grouping, which reads

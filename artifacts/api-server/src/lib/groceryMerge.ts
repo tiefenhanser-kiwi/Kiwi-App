@@ -574,8 +574,50 @@ function mergeGroup(
     // else, so the widening is a garlic fix wearing general syntax, not a
     // general rule that happens to fix garlic.
     const named = new Set(others.filter((u) => !isCountUnit(u)));
-    const childSet =
-      named.size === 1 ? named : new Set(others);
+    // ── 🔴 [grocery] F Part F (D-WS9-295) — ONE CHILD REACHED IN TWO MEASURES
+    //    IS STILL ONE CHILD ──────────────────────────────────────────────────
+    //
+    // chat-Claude's browser pass, the founding R1/R2 example: cilantro printed
+    // THREE times on one list.
+    //
+    //     1 bunch fresh cilantro … (¼ bunch)
+    //     1 bunch fresh cilantro … (1 cup)
+    //     1 bunch fresh cilantro … (5 tablespoon)
+    //
+    // Same ingredientId, same pack, same conversion, same section. They are one
+    // merge group and they reached this branch: the ladder is {parent bunch,
+    // perParent 2, childUnit cup}, so `parent` is "bunch" and `others` is
+    // {cup, tbsp}. `named` then had size 2, `childSet` fell to `new Set(others)`
+    // — also 2 — and the group was refused.
+    //
+    // But cup and tbsp are not MIXED CHILDREN. They are one child, a cup,
+    // reached in two measures of the same dimension. This is BUG-137's
+    // clove/cloves and BUG-211's clove/each one step further out: each of those
+    // widened the gate for two SPELLINGS of one child, and this widens it for
+    // two MEASURES of one child.
+    //
+    // ⚠️ THE ARITHMETIC NEEDED NOTHING. `toSubUnitChild` has converted through
+    // the named child unit since B1 — `convertWithinDimension(5, tbsp, cup)` is
+    // 0.3125 with no ingredient data at all, and it still returns null and
+    // refuses when nothing relates them. Only the gate was wrong, which is why
+    // this is three lines and not a new conversion path.
+    //
+    // ⚠️ GATED ON THE LADDER'S OWN `childUnit` HAVING A DIMENSION, so a
+    // genuinely mixed group is still refused. {clove, slice} have no dimension
+    // and take the old path; {cup, oz} against a `cup` child do NOT collapse,
+    // because an ounce is not a measure of volume and `unitDimension` says so.
+    const childDim = conv.subUnit.childUnit
+      ? unitDimension(conv.subUnit.childUnit)
+      : null;
+    const oneChildTwoMeasures =
+      childDim !== null &&
+      named.size > 1 &&
+      [...named].every((u) => unitDimension(u) === childDim);
+    const childSet = oneChildTwoMeasures
+      ? new Set([canonicalUnitToken(conv.subUnit.childUnit!)])
+      : named.size === 1
+        ? named
+        : new Set(others);
     // Mergeable only when the non-parent units are a SINGLE child unit
     // (e.g. all "clove"); mixed children (clove + slice) can't be summed.
     if (childSet.size === 1) {
