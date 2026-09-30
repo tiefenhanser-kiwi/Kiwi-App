@@ -373,3 +373,50 @@ describe("D-WS9-296 — a component step carries its bowl to the prompt", () => 
     for (const st of plan(plain).steps) assert.equal(st.bowlName, undefined);
   });
 });
+
+// ── the wire contract on the keys ───────────────────────────────────────────
+
+describe("D-WS9-296 — every generated stepKey fits the wire", () => {
+  it("🔴 stepKey stays inside the schema's 80-character cap", () => {
+    // THE CENSUS CAUGHT THIS AND NO TEST DID. `cookday#${uuid}#${uuid}` is 81
+    // characters before a noun is involved, so PrepWeekResultSchema rejected the
+    // assembled result and EVERY plan 502'd — after paying for its AI call. The
+    // route tests missed it because their stub input carries no componentSteps
+    // and therefore emits no component step at all.
+    const withBowl: PrepCombineInput = {
+      meals: [
+        {
+          mealId: "11111111-1111-4111-8111-111111111111",
+          mealName: "A Meal With A Long Name For The Bowl Label",
+          dishes: [
+            {
+              dishId: "22222222-2222-4222-8222-222222222222",
+              dishName: "A Dish With A Very Long Title Indeed",
+              dishRole: "main",
+              ingredients: [
+                { ingredientId: "33333333-3333-4333-8333-333333333333", ingredientName: "ground cumin", category: "Pantry", quantity: 1, unit: "tsp", preparationNote: null, sourceYield: null, component: { key: "marinade", noun: "marinade", bowlName: "A Dish With A Very Long marinade bowl" } },
+                { ingredientId: "44444444-4444-4444-8444-444444444444", ingredientName: "chili powder", category: "Pantry", quantity: 1, unit: "tsp", preparationNote: null, sourceYield: null, component: { key: "marinade", noun: "marinade", bowlName: "A Dish With A Very Long marinade bowl" } },
+                // A THIRD spice, because classifyPrepWorthy only admits a pantry
+                // seasoning that is part of a 3+ blend on its dish — with two, both
+                // are filtered upstream and no component bucket ever forms.
+                { ingredientId: "66666666-6666-4666-8666-666666666666", ingredientName: "smoked paprika", category: "Pantry", quantity: 0.5, unit: "tsp", preparationNote: null, sourceYield: null, component: { key: "marinade", noun: "marinade", bowlName: "A Dish With A Very Long marinade bowl" } },
+                { ingredientId: "55555555-5555-4555-8555-555555555555", ingredientName: "skirt steak", category: "Protein", quantity: 1.5, unit: "lb", preparationNote: null, sourceYield: null, cookDayInto: "A Dish With A Very Long marinade bowl" },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const sp = buildStepPlan(combinePrep(withBowl), "Test Plan");
+    assert.ok(sp.steps.length > 0);
+    for (const st of sp.steps) {
+      assert.ok(
+        st.stepKey.length <= 80,
+        `${st.stepKey} is ${st.stepKey.length} chars — PrepWeekStepSchema caps it at 80`,
+      );
+    }
+    // Both new key shapes are present, or the test is asserting nothing.
+    assert.ok(sp.steps.some((s) => s.stepKey.startsWith("cmp#")), "no component key in the fixture");
+    assert.ok(sp.steps.some((s) => s.stepKey.startsWith("cd#")), "no cook-day key in the fixture");
+  });
+});

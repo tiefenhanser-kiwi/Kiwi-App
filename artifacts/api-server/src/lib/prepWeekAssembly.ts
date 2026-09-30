@@ -695,7 +695,15 @@ export function buildStepPlan(
       }
       const dishId = b.dishId;
       pushStep({
-        stepKey: `component#${bucketKey}`,
+        // 🔴 THE SCHEMA CAPS stepKey AT 80 CHARS, and the first keys blew it:
+        // `component#${uuid}#${noun}` is 10 + 36 + 1 + n, and
+        // `cookday#${uuid}#${uuid}` is 81 before the noun even exists. Every
+        // plan 502'd on PrepWeekResultSchema, and no route test caught it because
+        // the stub input has no componentSteps and so emits no component step at
+        // all. Short prefixes, and the noun is capped: the key must still be
+        // STABLE across a regenerate (D-WS7-153), and a deterministic truncation
+        // is.
+        stepKey: `cmp#${bucketKey.slice(0, 68)}`,
         ingredientId: null,
         contributesToMealIds: [...b.mealIds],
         // A mixture IS a blend in the narrator's sense — one pre-measure
@@ -716,7 +724,7 @@ export function buildStepPlan(
           const mine = componentsForDish(entry, dishId);
           const amount = mine[0]?.measures[0]?.amount ?? "";
           pushStep({
-            stepKey: `cookday#${dishId}#${entry.ingredientId}`,
+            stepKey: `cd#${dishId}#${entry.ingredientId}`,
             ingredientId: entry.ingredientId,
             contributesToMealIds: dedupe(
               entry.lines.flatMap((l) =>
