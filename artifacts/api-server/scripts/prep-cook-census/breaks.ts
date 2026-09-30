@@ -27,8 +27,17 @@ interface Break {
   ruling: string;
   file: string;
   cwd: string;
-  from: string;
-  to: string;
+  /**
+   * One or more exact-string edits, applied together.
+   *
+   * 🔴 SOME DEFECTS ARE HELD OFF BY TWO GUARDS AND NEED BOTH REMOVED. Break 9
+   * is the case: for a served-cold dish, "staying warm" is prevented BOTH by
+   * STATE_FROM_PHASE having no `hold` entry AND by the cold-dish veto, and
+   * either alone is sufficient — so a single-edit break came back green and
+   * reported a test that pinned nothing. Two guards is the better code; the
+   * break just has to say so.
+   */
+  edits: { from: string; to: string }[];
   test: string;
   /** How the test run is invoked in that package. */
   runner: "api" | "kiwi";
@@ -41,8 +50,7 @@ const BREAKS: Break[] = [
     ruling: "1 — the latest bound",
     file: join(API, "src/lib/cookingScheduler.ts"),
     cwd: API,
-    from: "export const LAG_AFTER_HEAT_REST = 2;\nexport const LAG_AFTER_HEAT_OTHER = 5;",
-    to: "export const LAG_AFTER_HEAT_REST = Infinity;\nexport const LAG_AFTER_HEAT_OTHER = Infinity;",
+    edits: [{ from: "export const LAG_AFTER_HEAT_REST = 2;\nexport const LAG_AFTER_HEAT_OTHER = 5;", to: "export const LAG_AFTER_HEAT_REST = Infinity;\nexport const LAG_AFTER_HEAT_OTHER = Infinity;" }],
     test: "src/lib/__tests__/cookingSchedulerBug337.test.ts",
     runner: "api",
     expect: "the Carne Asada rest gap returns to 20 min",
@@ -52,19 +60,22 @@ const BREAKS: Break[] = [
     ruling: "2 — the cue's state",
     file: join(API, "src/lib/cookingScheduler.ts"),
     cwd: API,
-    from: '  if (state === "staying warm" && coldDish) return "chilling";',
-    to: '  if (state === "staying warm" && coldDish) return "staying warm";',
+    edits: [
+      {
+        from: '{ re: /\\b(refrigerat\\w*|chill\\w*|in the fridge|ice bath)\\b/i, state: "chilling" }',
+        to: '{ re: /\\bZZZ_NEVER_MATCHES\\b/i, state: "chilling" }',
+      },
+    ],
     test: "src/lib/__tests__/cookingSchedulerBug337.test.ts",
     runner: "api",
-    expect: '"staying warm" is said of a refrigerated guacamole',
+    expect: "the guacamole's refrigerate step stops being read as chilling",
   },
   {
     n: 3,
     ruling: "2 — the tie",
     file: join(API, "src/lib/cookingScheduler.ts"),
     cwd: API,
-    from: "    (o, oIdx) =>\n      oIdx < seqIdx &&\n      o.dishId !== w.dishId &&",
-    to: "    (o, _oIdx) =>\n      o.dishId !== w.dishId &&",
+    edits: [{ from: "    (o, oIdx) =>\n      oIdx < seqIdx &&\n      o.dishId !== w.dishId &&", to: "    (o, _oIdx) =>\n      o.dishId !== w.dishId &&" }],
     test: "src/lib/__tests__/cookingSchedulerBug337.test.ts",
     runner: "api",
     expect: "a cue points forward at a step the cook has not begun",
@@ -74,8 +85,7 @@ const BREAKS: Break[] = [
     ruling: "3 — cold dishes forward",
     file: join(API, "src/lib/cookingScheduler.ts"),
     cwd: API,
-    from: "  if (COLD_DISH_EXCEPTION.test(title)) return false;\n  return COLD_DISH_TITLE.test(title);",
-    to: "  if (COLD_DISH_EXCEPTION.test(title)) return false;\n  return false;",
+    edits: [{ from: "  if (COLD_DISH_EXCEPTION.test(title)) return false;\n  return COLD_DISH_TITLE.test(title);", to: "  if (COLD_DISH_EXCEPTION.test(title)) return false;\n  return false;" }],
     test: "src/lib/__tests__/cookingSchedulerBug337.test.ts",
     runner: "api",
     expect: "pico is finish-aligned again and the marinade window stays empty",
@@ -85,8 +95,7 @@ const BREAKS: Break[] = [
     ruling: "5 — the third clock",
     file: join(KIWI, "lib/cooking/stepTiming.ts"),
     cwd: KIWI,
-    from: "  const step = steps[Math.max(0, fromIndex)];\n  const off = step?.startOffsetMinutes;\n  if (off == null) return null;\n  return Math.max(0, -off);",
-    to: "  void steps;\n  void fromIndex;\n  return null;",
+    edits: [{ from: "  const step = steps[Math.max(0, fromIndex)];\n  const off = step?.startOffsetMinutes;\n  if (off == null) return null;\n  return Math.max(0, -off);", to: "  void steps;\n  void fromIndex;\n  return null;" }],
     test: "lib/cooking/__tests__/cookClockBug337.test.ts",
     runner: "kiwi",
     expect: "the footer falls back to the flat sum and reads 116 for the Carne Asada",
@@ -96,8 +105,7 @@ const BREAKS: Break[] = [
     ruling: "7 — glyphs and counts",
     file: join(API, "src/lib/prepWeekAssembly.ts"),
     cwd: API,
-    from: "  if (best === null) return String(Number(q.toFixed(2)));\n  return mixedNumber(whole, best.glyph);",
-    to: "  void best;\n  return String(Number(q.toFixed(2)));",
+    edits: [{ from: "  if (best === null) return String(Number(q.toFixed(2)));\n  return mixedNumber(whole, best.glyph);", to: "  void best;\n  return String(Number(q.toFixed(2)));" }],
     test: "src/lib/__tests__/prepWeekAssembly.test.ts",
     runner: "api",
     expect: "0.25 prints as 0.25 rather than ¼",
@@ -107,8 +115,7 @@ const BREAKS: Break[] = [
     ruling: "9 — a blend of one",
     file: join(API, "src/lib/prepWeekAssembly.ts"),
     cwd: API,
-    from: "        if (foldedBlendByDishId.has(dishId)) continue;",
-    to: "        if (false && foldedBlendByDishId.has(dishId)) continue;",
+    edits: [{ from: "        if (foldedBlendByDishId.has(dishId)) continue;", to: "        if (false && foldedBlendByDishId.has(dishId)) continue;" }],
     test: "src/lib/__tests__/prepWeekAssemblyBug338.test.ts",
     runner: "api",
     expect: "the lone paprika gets its own seasonings_dry step again",
@@ -118,11 +125,28 @@ const BREAKS: Break[] = [
     ruling: "13 — the cook day",
     file: join(API, "src/lib/prepWeekAssembly.ts"),
     cwd: API,
-    from: "        ...(lags.length > 0 ? { daysUntilCook: Math.max(...lags) } : {}),",
-    to: "        ...(false && lags.length > 0 ? { daysUntilCook: Math.max(...lags) } : {}),",
+    edits: [{ from: "        ...(lags.length > 0 ? { daysUntilCook: Math.max(...lags) } : {}),", to: "        ...(false && lags.length > 0 ? { daysUntilCook: Math.max(...lags) } : {})," }],
     test: "src/lib/__tests__/prepWeekAssemblyBug338.test.ts",
     runner: "api",
     expect: "no daysUntilCook reaches the narration input",
+  },
+  {
+    n: 9,
+    ruling: "2 — the absent hold fallback",
+    file: join(API, "src/lib/cookingScheduler.ts"),
+    cwd: API,
+    edits: [
+      // The phase fallback the old GERUND table had.
+      { from: '  rest: "resting",', to: '  rest: "resting",\n  hold: "staying warm",' },
+      // And the veto that catches it for a cold dish.
+      {
+        from: '  if (state === "staying warm" && coldDish) return "chilling";',
+        to: '  if (state === "staying warm" && coldDish) return "staying warm";',
+      },
+    ],
+    test: "src/lib/__tests__/cookingSchedulerBug337.test.ts",
+    runner: "api",
+    expect: 'a cold dish is called "staying warm" again — the pre-B1 GERUND[phaseType] behaviour',
   },
 ];
 
@@ -165,14 +189,19 @@ let allRed = true;
 for (const b of BREAKS) {
   const original = readFileSync(b.file, "utf8");
   const before = sha(original);
-  if (!original.includes(b.from)) {
-    results.push(`BREAK ${b.n} (${b.ruling}) — ⚠️ ANCHOR MISSING in ${b.file.replace(API, "api-server").replace(KIWI, "kiwi")}; break NOT RUN`);
+  const missing = b.edits.filter((e) => !original.includes(e.from));
+  if (missing.length > 0) {
+    results.push(
+      `BREAK ${b.n} (${b.ruling}) — ⚠️ ANCHOR MISSING in ${b.file.replace(API, "api-server").replace(KIWI, "kiwi")} (${missing.length} of ${b.edits.length}); break NOT RUN`,
+    );
     allRed = false;
     continue;
   }
   // Baseline: the test must be GREEN before the break, or the break proves nothing.
   const baseline = runTest(b);
-  writeFileSync(b.file, original.replace(b.from, b.to));
+  let broken_src = original;
+  for (const e of b.edits) broken_src = broken_src.replace(e.from, e.to);
+  writeFileSync(b.file, broken_src);
   const broken = runTest(b);
   writeFileSync(b.file, original);
   const after = sha(readFileSync(b.file, "utf8"));
@@ -193,5 +222,5 @@ for (const b of BREAKS) {
 }
 
 console.log(results.join("\n\n"));
-console.log(`\n${allRed ? "All 8 breaks RED and restored." : "⚠️ NOT every break was red — see above."}`);
+console.log(`\n${allRed ? `All ${BREAKS.length} breaks RED and restored.` : "⚠️ NOT every break was red — see above."}`);
 if (!allRed) process.exitCode = 1;

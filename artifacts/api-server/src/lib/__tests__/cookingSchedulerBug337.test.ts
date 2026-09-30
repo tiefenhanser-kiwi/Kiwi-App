@@ -279,26 +279,57 @@ describe("BUG-337 ruling 2 — the connective says what the dish is actually doi
   });
 
   it("no cue points forward at a window the cook has not begun", () => {
-    // Two steps at the SAME offset each satisfied `actualStart <= actualStart`
-    // about the other, so each was told to use the other's window. 18 of 193.
+    // 🔴 THE FIXTURE MATTERS MORE THAN THE ASSERTION HERE. An earlier version of
+    // this test used three dishes of unequal length and stayed GREEN when the
+    // ordering guard was removed — it never produced the tie it was meant to
+    // catch, which the break harness found (break 3). Two unattended roasts of
+    // EQUAL length in different dishes are finish-aligned to the same anchor, so
+    // both start at the same minute, and that is the only shape where
+    // `actualStart <= actualStart` is true in both directions.
     const dishes = [
-      dish("a", "Roasted Broccoli", 0, [step(0, 2, "prep"), step(1, 20, "cook", { text: "Roast the broccoli at 425F." })]),
-      dish("b", "Rice Pilaf", 1, [step(0, 2, "prep"), step(1, 20, "cook", { text: "Simmer the pilaf covered." })]),
-      dish("c", "Grilled Chicken", 2, [step(0, 3, "prep"), step(1, 10, "cook", { ts: true, text: "Grill the chicken." }), step(2, 2, "assemble")]),
+      dish("a", "Roasted Broccoli", 0, [
+        step(0, 2, "prep", { text: "Trim the broccoli." }),
+        step(1, 20, "cook", { text: "Roast the broccoli at 425F." }),
+      ]),
+      dish("b", "Roasted Carrots", 1, [
+        step(0, 2, "prep", { text: "Peel the carrots." }),
+        step(1, 20, "cook", { text: "Roast the carrots at 425F." }),
+      ]),
     ];
     const r = scheduleCookingSequence(dishes);
-    const idxOfTitle = new Map(dishes.map((d) => [d.title, d.dishId]));
-    for (const s of r.steps) {
-      if (!s.reason) continue;
-      const m = /^With the (.+?) (cooking|heating up|resting|marinating|chilling|staying warm), /.exec(s.reason);
-      assert.ok(m, `cue not in the expected shape: "${s.reason}"`);
-      const windowDishId = idxOfTitle.get(m![1]);
-      const windowEntries = r.steps.filter(
-        (o) => o.dishId === windowDishId && o.sequenceIndex < s.sequenceIndex,
-      );
+    const roasts = r.steps.filter((e) => e.originalStepIndex === 1);
+    assert.equal(roasts.length, 2);
+    assert.equal(
+      roasts[0].startOffsetMinutes,
+      roasts[1].startOffsetMinutes,
+      "the fixture must produce a genuine tie or it proves nothing",
+    );
+    // Exactly ONE of the two may carry a cue: the later one, citing the earlier.
+    // Both carrying one is the defect — each told to use the other's window.
+    const cued = r.steps.filter((e) => e.reason);
+    assert.equal(cued.length, 1, `both sides of the tie were cued: ${JSON.stringify(cued.map((c) => c.reason))}`);
+    assert.ok(
+      cued[0].sequenceIndex > roasts[0].sequenceIndex,
+      "the cue must sit on the LATER step of the tie",
+    );
+
+    // And the general invariant, over a busier meal: every cited window already
+    // appears earlier in the order the cook reads.
+    const busy = [
+      dish("x", "Roasted Broccoli", 0, [step(0, 2, "prep"), step(1, 20, "cook", { text: "Roast the broccoli." })]),
+      dish("y", "Rice Pilaf", 1, [step(0, 2, "prep"), step(1, 20, "cook", { text: "Simmer the pilaf covered." })]),
+      dish("z", "Grilled Chicken", 2, [step(0, 3, "prep"), step(1, 10, "cook", { ts: true, text: "Grill the chicken." }), step(2, 2, "assemble")]),
+    ];
+    const rb = scheduleCookingSequence(busy);
+    const titleToId = new Map(busy.map((d) => [d.title, d.dishId]));
+    for (const e of rb.steps) {
+      if (!e.reason) continue;
+      const m = /^With the (.+?) (cooking|heating up|resting|marinating|chilling|staying warm), /.exec(e.reason);
+      assert.ok(m, `cue not in the expected shape: "${e.reason}"`);
+      const windowId = titleToId.get(m![1]);
       assert.ok(
-        windowEntries.length > 0,
-        `step #${s.sequenceIndex} cites "${m![1]}" but no step of it appears earlier: "${s.reason}"`,
+        rb.steps.some((o) => o.dishId === windowId && o.sequenceIndex < e.sequenceIndex),
+        `step #${e.sequenceIndex} cites "${m![1]}" but no step of it appears earlier: "${e.reason}"`,
       );
     }
   });
@@ -319,6 +350,32 @@ describe("BUG-337 ruling 2 — the connective says what the dish is actually doi
     for (const c of cues) {
       assert.ok(!/ (stays|rests|cooks|heats up|comes together) /.test(c), `third-person-singular verb survived: "${c}"`);
       assert.ok(!/Tortillas is /.test(c), `the copula reintroduced agreement: "${c}"`);
+    }
+  });
+
+  it("a hold step whose prose says nothing recognisable gets NO cue", () => {
+    // 🔴 TWO INDEPENDENT GUARDS STOP "While the Guacamole stays warm", and the
+    // break harness is what made that visible: breaking the prose rule alone left
+    // the other in place, so break 2 came back green. This pins the second one —
+    // STATE_FROM_PHASE has NO `hold` entry, deliberately, because a hold row is as
+    // often a fridge as a warm oven. Restoring `hold: "staying warm"` makes this red.
+    const dishes = [
+      dish("slaw", "Cabbage Slaw", 0, [
+        step(0, 4, "prep", { text: "Shred the cabbage." }),
+        step(1, 14, "hold", { text: "Cover the bowl and set it aside until serving." }),
+      ]),
+      dish("steak", "Carne Asada", 1, [
+        step(0, 4, "prep"),
+        step(1, 6, "cook", { ts: true, text: "Grill the steak." }),
+        step(2, 3, "assemble", { text: "Slice the steak." }),
+      ]),
+    ];
+    const cues = scheduleCookingSequence(dishes).steps.map((x) => x.reason).filter(Boolean) as string[];
+    for (const c of cues) {
+      assert.ok(
+        !/Cabbage Slaw (staying warm|cooking)/.test(c),
+        `invented a state for a bare hold step: "${c}"`,
+      );
     }
   });
 
