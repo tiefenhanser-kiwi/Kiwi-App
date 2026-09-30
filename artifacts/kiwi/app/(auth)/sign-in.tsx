@@ -1,5 +1,15 @@
 import React from "react";
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  AccessibilityInfo,
+  ActivityIndicator,
+  Alert,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { useRouter, Link } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -32,6 +42,9 @@ export default function SignInPage() {
 
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
+  // Item 8 — the Next key's focus target. PasswordField is forwardRef for
+  // exactly this (its own header says so); sign-up already relies on it.
+  const passwordRef = React.useRef<TextInput>(null);
   const [submitting, setSubmitting] = React.useState(false);
   const claimPending = submitting && !!guestCtx?.session;
 
@@ -64,6 +77,28 @@ export default function SignInPage() {
     },
     [guestCtx, router],
   );
+
+  // ── Item 7 — a sign-in error has to be ANNOUNCED, not just drawn ─────────
+  //
+  // The error <Text> below mounts silently. A screen-reader user taps Sign in,
+  // the spinner disappears, and nothing tells them why they are still on the
+  // screen -- the single worst place in the app for a silent failure.
+  //
+  // Both halves are needed and they are not redundant:
+  //   • accessibilityLiveRegion + role="alert" on the <Text> is the ANDROID
+  //     mechanism. TalkBack reads a live region when it mounts or changes.
+  //   • announceForAccessibility is the iOS mechanism. RN's accessibilityLiveRegion
+  //     is Android-only (it maps to android:accessibilityLiveRegion), so on iOS
+  //     the prop is inert and VoiceOver would say nothing at all without this.
+  //
+  // Keyed on the message STRING, so two consecutive failures with the same
+  // message announce once and a CHANGED message announces again. Guarded off
+  // web, where the platform's own live-region handling applies and calling into
+  // the shim is pointless.
+  React.useEffect(() => {
+    if (!error) return;
+    if (Platform.OS === "ios") AccessibilityInfo.announceForAccessibility(error);
+  }, [error]);
 
   const handleSubmit = async () => {
     if (!email.trim() || !password || cooldown.active) return;
@@ -131,19 +166,39 @@ export default function SignInPage() {
           autoCapitalize="none"
           keyboardType="email-address"
           autoComplete="email"
+          // Item 8 — Next moves to the password field instead of dismissing the
+          // keyboard and leaving the user to aim at it.
+          returnKeyType="next"
+          onSubmitEditing={() => passwordRef.current?.focus()}
+          submitBehavior="submit"
           style={styles.input}
           editable={!submitting}
         />
         <PasswordField
+          ref={passwordRef}
           value={password}
           onChangeText={setPassword}
           placeholder="Password"
           placeholderTextColor={Palette.text.placeholder}
           autoComplete="password"
+          // Item 8 — Go submits. handleSubmit is already idempotent against an
+          // empty form and the 429 cooldown (it early-returns on both), so the
+          // keyboard path needs no guard the button does not already have.
+          returnKeyType="go"
+          onSubmitEditing={() => void handleSubmit()}
           style={styles.input}
           editable={!submitting}
         />
-        {error && <Text style={styles.errorText}>{error}</Text>}
+        {error && (
+          <Text
+            style={styles.errorText}
+            accessibilityRole="alert"
+            accessibilityLiveRegion="assertive"
+            testID="sign-in-error"
+          >
+            {error}
+          </Text>
+        )}
         {submitting ? (
           <View style={styles.buttonLoading}>
             <ActivityIndicator color={Colors.sage[700]} />
