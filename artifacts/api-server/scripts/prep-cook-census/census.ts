@@ -51,6 +51,7 @@ import { buildStepPlan, assemblePrepWeekResult } from "../../src/lib/prepWeekAss
 import { PrepNarrationResultSchema } from "../../src/lib/ai/schemas/prepNarration";
 import { PrepWeekResultSchema } from "../../src/lib/ai/schemas/prepWeek";
 import { runAICall } from "../../src/lib/ai/runAICall";
+import { applyStorageOverlay, type StorageContext } from "../../src/lib/prepStorage";
 import { runCookingSequence } from "../../src/lib/cookingSequence";
 import { composeMealDetail } from "../../src/routes/meals";
 import { deriveMealTiming } from "../../src/lib/mealTiming";
@@ -342,7 +343,29 @@ async function runPlan(planId: string): Promise<PlanRecord> {
       if (!ai.success) {
         rec.prepError = `ai ${ai.reason}`;
       } else {
-        const assembled = PrepWeekResultSchema.parse(assemblePrepWeekResult(stepPlan, ai.data));
+        // D-WS9-298 — the SAME overlay the route applies on every read. Without
+        // it the corpus would measure prose the screen never shows: the storage
+        // notes and the protein demotions are computed, not narrated.
+        const storageContext = new Map<string, StorageContext>();
+        for (const st of stepPlan.steps) {
+          const names = st.components.map((c) => c.ingredientName);
+          const notes = st.components.flatMap((c) => [
+            c.preparationNote ?? "",
+            ...c.measures.map((x) => x.preparationNote ?? ""),
+          ]);
+          storageContext.set(st.stepKey, {
+            daysUntilCook: st.daysUntilCook,
+            phase: st.phase,
+            // The BOWL NAME is part of the text on purpose: "Fajita spice
+            // blend" and "… seasoning" say what the mixture IS, and without it a
+            // dry blend read as loose produce and got a fridge note.
+            text: [st.bowlName ?? "", ...names, ...notes].join(" "),
+            ingredientNames: names,
+          });
+        }
+        const assembled = PrepWeekResultSchema.parse(
+          applyStorageOverlay(assemblePrepWeekResult(stepPlan, ai.data), storageContext),
+        );
         // THE PHONE'S RENDER — the same two client functions Screen 3 calls.
         const lookup = buildMealLabelLookup(
           plan.items.map((i) => ({
@@ -351,12 +374,27 @@ async function runPlan(planId: string): Promise<PlanRecord> {
             meal: i.meal ? { title: i.meal.title } : null,
           })),
         );
-        const vm = buildPrepWeekModel(assembled, { mealLabel: lookup });
+        // D-WS9-299 — the ENGINE's demotion, folded in before the client model
+        // sees it. `buildPrepWeekModel` render-omits `skipSuggested`, and a
+        // code-owned demotion has to reach it the same way an AI one does.
+        const engineDemoted = new Set(
+          stepPlan.steps.filter((s) => s.demoted).map((s) => s.stepKey),
+        );
+        const withDemotions = {
+          ...assembled,
+          phases: assembled.phases.map((ph) => ({
+            ...ph,
+            steps: ph.steps.map((st) =>
+              engineDemoted.has(st.stepKey) ? { ...st, skipSuggested: true } : st,
+            ),
+          })),
+        };
+        const vm = buildPrepWeekModel(withDemotions, { mealLabel: lookup });
         const renderedKeys = new Set<string>();
         for (const p of vm.phases) for (const s of p.steps) renderedKeys.add(s.stepKey);
 
         const steps: PrepStepRecord[] = [];
-        for (const phase of assembled.phases) {
+        for (const phase of withDemotions.phases) {
           for (const s of phase.steps) {
             steps.push({
               stepKey: s.stepKey,

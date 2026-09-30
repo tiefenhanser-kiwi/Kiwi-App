@@ -76,7 +76,10 @@ export const STORAGE_TABLE: readonly StorageClass[] = [
     key: "cut-alliums",
     days: 4,
     note: "Airtight in the fridge — up to 4 days. It will scent the shelf; a sealed jar helps.",
-    match: /\b(onions?|shallots?|garlic|leeks?|scallion)\b/i,
+    // Same trap as the chiles below, and the smoke run found it: "garlic
+    // POWDER" is a dry spice and was getting the 4-day fridge note, scent-of-
+    // the-shelf advice and all. Every allium here has a ground form.
+    match: /\b(onions?|shallots?|garlic|leeks?|scallion)(?!\s+(?:powder|salt|granules))\b/i,
   },
   {
     key: "cut-peppers",

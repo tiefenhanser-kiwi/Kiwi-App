@@ -360,7 +360,10 @@ export function createCookingRouter(
           m.set(st.stepKey, {
             daysUntilCook: st.daysUntilCook,
             phase: st.phase,
-            text: [...names, ...notes].join(" "),
+            // The BOWL NAME is part of the text on purpose: "Fajita spice
+            // blend" and "… seasoning" say what the mixture IS, and without it a
+            // dry blend read as loose produce and got a fridge note.
+            text: [st.bowlName ?? "", ...names, ...notes].join(" "),
             ingredientNames: names,
           });
         }
