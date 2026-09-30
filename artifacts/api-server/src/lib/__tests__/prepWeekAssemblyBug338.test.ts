@@ -309,3 +309,67 @@ describe("BUG-338 ruling 13 — daysUntilCook rides on the step", () => {
     assert.equal(garlic!.daysUntilCook, 2);
   });
 });
+
+// ── D-WS9-296 — the bowl reaches the narrator ───────────────────────────────
+
+describe("D-WS9-296 — a component step carries its bowl to the prompt", () => {
+  const BOWL = "Carne Asada marinade bowl";
+  /** A dish whose three spices already carry a component, as the adapter sets it. */
+  const withBowl = (): PrepCombineInput => ({
+    meals: [
+      {
+        mealId: "meal-1",
+        mealName: "Carne Asada Tacos",
+        dishes: [
+          {
+            dishId: "d1",
+            dishName: "Carne Asada",
+            dishRole: "main",
+            ingredients: [
+              { ingredientId: "cumin", ingredientName: "ground cumin", category: "Pantry", quantity: 1, unit: "tsp", preparationNote: null, sourceYield: null, component: { key: "marinade", noun: "marinade", bowlName: BOWL } },
+              { ingredientId: "chili", ingredientName: "chili powder", category: "Pantry", quantity: 1, unit: "tsp", preparationNote: null, sourceYield: null, component: { key: "marinade", noun: "marinade", bowlName: BOWL } },
+              { ingredientId: "oregano", ingredientName: "dried oregano", category: "Pantry", quantity: 0.5, unit: "tsp", preparationNote: null, sourceYield: null, component: { key: "marinade", noun: "marinade", bowlName: BOWL } },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+  it("emits ONE step for the mixture, named for the bowl", () => {
+    const sp = plan(withBowl());
+    const bowls = sp.steps.filter((s) => s.bowlName);
+    assert.equal(bowls.length, 1, `expected one bowl step, got ${sp.steps.length} steps`);
+    assert.equal(bowls[0].bowlName, BOWL);
+    assert.equal(bowls[0].components.reduce((n, c) => n + c.measures.length, 0), 3);
+  });
+
+  it("🔴 the bowl reaches the NARRATION INPUT — a nameless vessel is the defect", () => {
+    // D-WS9-296 is not "group the measures", it is "give the container a name the
+    // cook can find on Friday". A step that groups and does not name has done
+    // half the job and looks entirely correct.
+    const sp = plan(withBowl());
+    const step = sp.steps.find((s) => s.bowlName)!;
+    const ni = sp.narrationInput.steps.find((s) => s.stepId === step.stepId)!;
+    assert.equal(ni.bowlName, BOWL);
+  });
+
+  it("no measure of the mixture is ALSO portioned on its own", () => {
+    // The `claimed` filter. Without it the cumin appears twice: once in the bowl
+    // and once in the dish's spice blend.
+    const sp = plan(withBowl());
+    const names = sp.steps.flatMap((s) => s.components.map((c) => c.ingredientName));
+    assert.deepEqual(
+      names.filter((n) => n === "ground cumin").length,
+      1,
+      `cumin measured ${names.filter((n) => n === "ground cumin").length} times`,
+    );
+  });
+
+  it("a plain portion carries NO bowl — one is never invented", () => {
+    const plain: PrepCombineInput = input([
+      { dishId: "d1", dishName: "Pico", ingredients: [{ id: "t", name: "roma tomatoes", category: "Produce", quantity: 3, unit: "each", note: "diced" }] },
+    ]);
+    for (const st of plan(plain).steps) assert.equal(st.bowlName, undefined);
+  });
+});

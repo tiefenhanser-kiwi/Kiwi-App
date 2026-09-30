@@ -174,6 +174,91 @@ const BREAKS: Break[] = [
     runner: "api",
     expect: "a day reassignment moves the fingerprint, so the cache misses",
   },
+  {
+    n: 11,
+    ruling: "D-WS9-296 (1) — the component key",
+    file: join(API, "src/lib/prepComponents.ts"),
+    cwd: API,
+    edits: [
+      {
+        // Every signal off at once: no componentKey, no role noun, no verb
+        // group. Nothing forms a mixture and the marinade scatters into the
+        // eight separate portions BUG-338 opened on.
+        from: "    let noun: string | null = st.componentKey ? nounIn(st.componentKey.replace(/[-_]+/g, \" \")) : null;\n    // Signal 2 — the step's own prose.\n    noun ??= nounIn(st.text);",
+        to: "    let noun: string | null = null;",
+      },
+      {
+        from: "    const isCombine = COMBINE_VERB.test(st.text);",
+        to: "    const isCombine = false;",
+      },
+    ],
+    test: "src/lib/__tests__/prepComponents.test.ts",
+    runner: "api",
+    expect: "the carne asada marinade scatters into eight portions again",
+  },
+{
+    n: 12,
+    ruling: "D-WS9-296 — the bowl name on every destination",
+    file: join(API, "src/lib/prepWeekAssembly.ts"),
+    cwd: API,
+    edits: [
+      {
+        // The step still groups, but the vessel loses its name — which is the
+        // whole of D-WS9-296: a bowl nobody can label is a bowl nobody finds.
+        from: "        bowlName: b.bowlName,",
+        to: "        // bowlName dropped",
+      },
+    ],
+    test: "src/lib/__tests__/prepWeekAssemblyBug338.test.ts",
+    runner: "api",
+    expect: "a component step reaches the narrator with no bowl to name",
+  },
+  {
+    n: 13,
+    ruling: "D-WS9-296 ruling 1 — a protein is never a member",
+    file: join(API, "src/lib/prepComponents.ts"),
+    cwd: API,
+    edits: [
+      {
+        from: "      if (isProtein(id)) b.cookDay.add(id);",
+        to: "      if (false) b.cookDay.add(id);",
+      },
+    ],
+    test: "src/lib/__tests__/prepComponents.test.ts",
+    runner: "api",
+    expect: "raw skirt steak sits in the marinade bowl all week",
+  },
+  {
+    n: 14,
+    ruling: "D-WS9-296 ruling 2 — the service-form guard",
+    file: join(API, "src/lib/prepComponents.ts"),
+    cwd: API,
+    edits: [
+      {
+        from: "    return SERVICE_FORM.test(blob);",
+        to: "    return false;",
+      },
+    ],
+    test: "src/lib/__tests__/prepComponents.test.ts",
+    runner: "api",
+    expect: "the wedged limes are back in the hot-sauce jar",
+  },
+  {
+    n: 15,
+    ruling: "D-WS9-299 — prep-worthiness",
+    file: join(API, "src/lib/prepComponents.ts"),
+    cwd: API,
+    edits: [
+      {
+        // Everything is prep again, so "measure 2 tbsp hot sauce" is a step.
+        from: "  // Proteins are exempt — see `phase` on the input.",
+        to: "  return { worthDoingAhead: true, reason: \"mixture\" };\n  // Proteins are exempt — see `phase` on the input.",
+      },
+    ],
+    test: "src/lib/__tests__/prepComponents.test.ts",
+    runner: "api",
+    expect: '"measure 2 tbsp hot sauce" is a prep step again',
+  },
 ];
 
 function runTest(b: Break): { pass: boolean; tail: string } {
