@@ -108,6 +108,17 @@ export interface TimedRow {
   unit: string | null;
   action: ActionClass;
   minutes: number;
+  /**
+   * H2b ruling 2 — the WHOLE FRUIT (or other source) this row is handling, when
+   * the row is a derived component. Two rows sharing it are two operations on one
+   * piece of food: zesting a lime and juicing the same lime is one lime.
+   */
+  sourceName?: string;
+  /**
+   * False when this row was folded into a sibling off the same source (zesting
+   * and juicing one lime). Set by `timeStep`; undefined on a bare `timeRow`.
+   */
+  charged?: boolean;
 }
 
 /**
@@ -161,6 +172,41 @@ function countOf(quantity: number | null, unit: string | null): number {
   return 1;
 }
 
+/** D-WS9-297 ruling 8's yield edge, as this module needs it. */
+export interface SourceYieldLike {
+  fromName: string;
+  quantity: number;
+  unit: string;
+}
+
+/**
+ * H2b ruling 2 — HOW MANY WHOLE FRUIT AN AMOUNT OF JUICE OR ZEST TAKES.
+ *
+ * `ingredient_relations` already carries it: a `component` edge says "lime →
+ * lime juice : 2 tbsp" (D-WS9-194), which is exactly the conversion the timing
+ * needs. The same arithmetic produces the "(from 2 limes)" the prose shows, and
+ * `prepWeekAssembly.sourceCountFor` now calls this so there is ONE copy of it.
+ *
+ * Rounds UP to a whole fruit: you cannot squeeze three fifths of a lime.
+ */
+export function wholeFruitCount(
+  y: SourceYieldLike | null | undefined,
+  quantity: number | null,
+  unit: string | null,
+  canon: (u: string | null | undefined) => string,
+  convert: (q: number, from: string, to: string) => number | null,
+): number | null {
+  if (!y || !(y.quantity > 0) || quantity == null || quantity <= 0) return null;
+  const demand = canon(unit);
+  const yielded = canon(y.unit);
+  const inYieldUnit = demand === yielded ? quantity : convert(quantity, demand, yielded);
+  if (inYieldUnit === null || !Number.isFinite(inYieldUnit) || inYieldUnit <= 0) return null;
+  // The 1e-9 is the same guard sourceCountFor uses: 2 tbsp of a 2-tbsp yield is
+  // one lime, not two, and floating point should not decide that.
+  const count = Math.ceil(inYieldUnit / y.quantity - 1e-9);
+  return Number.isFinite(count) && count >= 1 ? count : null;
+}
+
 /** Cups, when the unit is a volume this table understands. */
 function toCups(quantity: number, unit: string | null): number | null {
   if (quantity <= 0 || !unit) return null;
@@ -183,6 +229,8 @@ export function timeRow(
   ingredientName: string,
   preparationNote: string,
   amount: string,
+  /** H2b ruling 2 — the yield edge for this ingredient, when it has one. */
+  yieldFor?: (name: string) => { yield: SourceYieldLike | null; count: (q: number | null, u: string | null) => number | null } | null,
 ): TimedRow {
   const { quantity, unit } = parseAmount(amount);
   const name = ingredientName.toLowerCase();
@@ -218,11 +266,22 @@ export function timeRow(
       // the corpus that one error was 12% of all prep minutes — the third-largest
       // class, on 50 rows, most of them a volume of juice rather than a fruit.
       //
-      // A COUNT is fruit. A VOLUME is juice, and ¼ cup is about one fruit's
-      // worth, so it is costed per ¼ cup with the single-fruit figure as a floor.
-      const cups = quantity == null ? null : toCups(quantity, unit);
-      if (cups != null) {
-        return row("citrus-zest-juice", Math.max(MINUTES.citrusZestJuice, cups * 4 * MINUTES.citrusZestJuice));
+      // …AND IT IS NOT ¼ CUP EITHER. H2 replaced the first error with a ¼-cup
+      // proxy, which pinned all 37 volume rows in the corpus to the 1.5-minute
+      // floor — the opposite error, and just as invented.
+      //
+      // The real answer was already in the data. `ingredient_relations` carries
+      // "lime → lime juice : 2 tbsp" (D-WS9-194), which is what the prose's
+      // "(from 2 limes)" is built from. 3 tbsp is two limes, and two limes is
+      // three minutes of squeezing.
+      const viaYield = yieldFor?.(ingredientName) ?? null;
+      const fruit = viaYield ? viaYield.count(quantity, unit) : null;
+      if (fruit != null && viaYield?.yield) {
+        const r = row("citrus-zest-juice", fruit * MINUTES.citrusZestJuice);
+        // The SOURCE, so `timeStep` can see that this row and a zest row off the
+        // same lime are two operations on ONE lime.
+        r.sourceName = viaYield.yield.fromName;
+        return r;
       }
       return row("citrus-zest-juice", countOf(quantity, unit) * MINUTES.citrusZestJuice);
     }
@@ -272,10 +331,19 @@ export interface StepTiming {
  * mixture — the stirring is real work and it happens once per bowl, not once per
  * ingredient.
  */
-export function timeStep(input: {
-  components: { ingredientName: string; preparationNote?: string | null; measures: { amount: string; preparationNote?: string | null }[] }[];
-  bowlName?: string;
-}): StepTiming {
+export function timeStep(
+  input: {
+    components: { ingredientName: string; preparationNote?: string | null; measures: { amount: string; preparationNote?: string | null }[] }[];
+    bowlName?: string;
+  },
+  /**
+   * H2b ruling 2 — the yield edge per ingredient name, so juice and zest are
+   * charged on the FRUIT COUNT rather than on a volume. Optional: a caller
+   * without the engine's groups in hand (a test, a fixture) falls back to the
+   * count rule, and the fallback is the same one that was there before.
+   */
+  yieldFor?: (name: string) => { yield: SourceYieldLike | null; count: (q: number | null, u: string | null) => number | null } | null,
+): StepTiming {
   // ── 🔴 ONE INGREDIENT IS ONE ACTION, SIZED BY ITS TOTAL ───────────────────
   //
   // D-WS9-301 rule 5 makes a shared ingredient ONE container with a measure per
@@ -309,11 +377,38 @@ export function timeStep(input: {
       // Re-render the summed amount in the same shape `parseAmount` reads. The
       // fraction glyphs are not needed: a decimal parses, and only the magnitude
       // is used from here on.
-      rows.push(timeRow(c.ingredientName, agg.note, `${agg.quantity} ${unit}`.trim()));
+      rows.push(timeRow(c.ingredientName, agg.note, `${agg.quantity} ${unit}`.trim(), yieldFor));
     }
-    for (const u of unparsed) rows.push(timeRow(c.ingredientName, u.note, u.amount));
+    for (const u of unparsed) rows.push(timeRow(c.ingredientName, u.note, u.amount, yieldFor));
   }
-  let sum = rows.reduce((n, r) => n + r.minutes, 0);
+
+  // ── 🔴 ONE LIME IS ONE LIME, however many of its parts a step uses ─────────
+  //
+  // The corpus had a step wanting "½ tsp lime zest" AND "2 tbsp lime juice", each
+  // resolving to one lime, each charged 1.5 min: three minutes to zest and juice
+  // one lime, when the table's figure of 1.5 is for doing BOTH to one fruit.
+  //
+  // Rows that name the same source are operations on the same food, so the group
+  // costs the MAXIMUM of its rows, not the sum — the fruit count that satisfies
+  // the hungriest of them also satisfies the others.
+  const bySource = new Map<string, TimedRow[]>();
+  for (const r of rows) {
+    if (!r.sourceName) continue;
+    const l = bySource.get(r.sourceName) ?? [];
+    l.push(r);
+    bySource.set(r.sourceName, l);
+  }
+  const collapsed = new Set<TimedRow>();
+  for (const group of bySource.values()) {
+    if (group.length < 2) continue;
+    const keep = group.reduce((a, b) => (b.minutes > a.minutes ? b : a));
+    for (const r of group) if (r !== keep) collapsed.add(r);
+  }
+  // Marked rather than removed: a report that wants per-class totals has to be
+  // able to tell a charged row from one folded into its sibling, and dropping
+  // them would make the rows lie about what the step contains.
+  for (const r of rows) r.charged = !collapsed.has(r);
+  let sum = rows.reduce((n, r) => n + (r.charged ? r.minutes : 0), 0);
   // A container is never worth less than a minute, however little is in it.
   if (rows.length > 0) sum = Math.max(MINUTES.containerFloor, sum);
   if (input.bowlName && WET_MIXTURE_NOUN.test(input.bowlName)) sum += MINUTES.whisk;

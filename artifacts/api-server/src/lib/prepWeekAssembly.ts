@@ -25,7 +25,7 @@
 import { convertWithinDimension, pluralizeCountUnit } from "./ingredientConversions";
 import { judgePrepWorthiness, bowlNameFor, useNounFor } from "./prepComponents";
 import { isLoneKey } from "./prepMoments";
-import { timeStep, planMinutes } from "./prepStepMinutes";
+import { timeStep, planMinutes, wholeFruitCount, type SourceYieldLike } from "./prepStepMinutes";
 import {
   PREP_PHASE_ORDER,
   canonicalizeUnit,
@@ -337,8 +337,10 @@ function sourceCountFor(
     inYieldUnit = convertWithinDimension(quantity, demandToken, yieldToken);
   }
   if (inYieldUnit === null || !Number.isFinite(inYieldUnit) || inYieldUnit <= 0) return undefined;
-  const count = Math.ceil(inYieldUnit / sourceYield.quantity - 1e-9);
-  if (!Number.isFinite(count) || count < 1) return undefined;
+  // H2b — ONE copy of the arithmetic, shared with the timing. The prose and the
+  // clock must not be able to disagree about how many limes a step needs.
+  const count = wholeFruitCount(sourceYield, quantity, unit, (u) => canonicalizeUnit(u).token, convertWithinDimension);
+  if (count === null) return undefined;
   return `${count} ${count === 1 ? sourceYield.fromName : pluralizeSourceNoun(sourceYield.fromName)}`;
 }
 
@@ -472,6 +474,28 @@ export function buildStepPlan(
   cookLagByMealId: ReadonlyMap<string, number> = new Map(),
 ): StepPlan {
   const steps: PlannedStep[] = [];
+
+  // ── H2b ruling 2 — THE YIELD LOOKUP THE CLOCK NEEDS ───────────────────────
+  //
+  // "3 tbsp lime juice" has to be costed as the TWO LIMES it takes to squeeze,
+  // and `ingredient_relations` already knows that (D-WS9-194). The engine put the
+  // edge on each group as `sourceYield`; this makes it reachable by ingredient
+  // NAME, which is the only handle `timeStep` has on a narration component.
+  const yieldByIngredientName = new Map<string, SourceYieldLike>();
+  for (const phase of result.phases) {
+    for (const entry of phase.entries) {
+      if (entry.sourceYield) yieldByIngredientName.set(entry.ingredientName, entry.sourceYield);
+    }
+  }
+  const yieldFor = (name: string) => {
+    const y = yieldByIngredientName.get(name);
+    if (!y) return null;
+    return {
+      yield: y,
+      count: (q: number | null, u: string | null) =>
+        wholeFruitCount(y, q, u, (x) => canonicalizeUnit(x).token, convertWithinDimension),
+    };
+  };
 
   // D-WS9-049 A1.2 — dish name ⇄ step text, so a dish's prose is sent ONCE
   // (input-level `dishSteps` map) and each step just references dish names.
@@ -779,7 +803,7 @@ export function buildStepPlan(
       number += 1;
       // WS9 BUG-204 — the clock, computed from what the step holds. Done here so
       // EVERY step gets one by construction and no branch can forget.
-      const timing = timeStep({ components: step.components, bowlName: step.bowlName });
+      const timing = timeStep({ components: step.components, bowlName: step.bowlName }, yieldFor);
       // D-WS9-297 ruling 13 — the LATEST cook day this step has to survive to.
       // Max, not min: a portion feeding Tuesday and Saturday has to last until
       // Saturday, and the shorter answer is the one that spoils food.

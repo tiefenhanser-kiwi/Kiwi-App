@@ -596,6 +596,50 @@ const BREAKS: Break[] = [
     runner: "api",
     expect: '"Skip this one and do it at the stove. » Airtight in the fridge" comes back',
   },
+  // ── H2b — the two measured inflations ─────────────────────────────────────
+  {
+    n: 39,
+    ruling: "H2b 1 — a shared container's knife work is costed ONCE",
+    file: join(API, "src/lib/prepStepMinutes.ts"),
+    cwd: API,
+    edits: [
+      {
+        // Stop the per-dish measures from folding into one amount. The last
+        // measure then overwrites rather than summing, so 2½ onions is costed as
+        // the ½ onion of the final share — a visibly wrong total either way, and
+        // deterministic, which a `Math.random()` key would not have been.
+        from: "      const prev = byUnit.get(key);",
+        to: "      const prev = undefined as undefined | { quantity: number; amount: string; note: string };",
+      },
+    ],
+    test: "src/lib/__tests__/prepStepMinutes.test.ts",
+    runner: "api",
+    expect: "the per-dish split is charged as separate cuts again",
+  },
+  {
+    n: 40,
+    ruling: "H2b 2 — juice and zest are charged on the FRUIT COUNT",
+    file: join(API, "src/lib/prepStepMinutes.ts"),
+    cwd: API,
+    edits: [
+      { from: "      const viaYield = yieldFor?.(ingredientName) ?? null;", to: "      const viaYield = null as null | { yield: SourceYieldLike | null; count: (q: number | null, u: string | null) => number | null };" },
+    ],
+    test: "src/lib/__tests__/prepStepMinutes.test.ts",
+    runner: "api",
+    expect: "3 tbsp of lime juice falls back to a made-up figure",
+  },
+  {
+    n: 41,
+    ruling: "H2b 2 — one lime is one lime, zested AND juiced",
+    file: join(API, "src/lib/prepStepMinutes.ts"),
+    cwd: API,
+    edits: [
+      { from: "    if (group.length < 2) continue;", to: "    if (group.length < 2 || true) continue;" },
+    ],
+    test: "src/lib/__tests__/prepStepMinutes.test.ts",
+    runner: "api",
+    expect: "zesting and juicing one lime is charged twice",
+  },
 ];
 
 function runTest(b: Break): { pass: boolean; tail: string } {

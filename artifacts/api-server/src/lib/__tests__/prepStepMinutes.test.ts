@@ -152,3 +152,157 @@ describe("BUG-204 — the header total: 10% overhead, then UP to the next 5", ()
     assert.equal(twenty, tens);
   });
 });
+
+// ── H2b — the two measured inflations ───────────────────────────────────────
+
+/** A yield lookup in the shape `buildStepPlan` passes: "lime → 2 tbsp of juice". */
+function yields(table: Record<string, { fromName: string; quantity: number; unit: string }>) {
+  const TBSP: Record<string, number> = { tbsp: 1, tsp: 1 / 3, cup: 16 };
+  return (name: string) => {
+    const y = table[name];
+    if (!y) return null;
+    return {
+      yield: y,
+      count: (q: number | null, u: string | null) => {
+        if (q == null || !u) return null;
+        const inTbsp = (TBSP[u] ?? null) === null ? null : q * TBSP[u];
+        if (inTbsp == null) return null;
+        return Math.ceil(inTbsp / y.quantity - 1e-9);
+      },
+    };
+  };
+}
+
+describe("H2b ruling 1 — a shared container's knife work is costed ONCE", () => {
+  it("🔴 four per-dish measures of one onion are ONE dicing, sized by the total", () => {
+    // Rule 5 gives a shared container a measure per destination dish: "1 white
+    // onion for the enchiladas, ½ for the sauce, ½ for the rice, ½ for the
+    // fixings". Costed per measure that is four separate onion-dicings — the
+    // counter-version of the rule that created the container.
+    const t = timeStep({
+      components: [
+        {
+          ingredientName: "white onion",
+          preparationNote: "finely diced",
+          measures: [
+            { amount: "1 each", preparationNote: null },
+            { amount: "½ each", preparationNote: null },
+            { amount: "½ each", preparationNote: null },
+            { amount: "½ each", preparationNote: null },
+          ],
+        },
+      ],
+    });
+    const cuts = t.rows.filter((r) => r.action === "cut-vegetable");
+    assert.equal(cuts.length, 1, `the cut was charged ${cuts.length} times`);
+    assert.equal(cuts[0].quantity, 2.5, "the total is 2½ onions");
+    // 2½ onions rounds up to 3 whole ones × 2 min. Not 4 × 2 = 8.
+    assert.equal(t.minutes, 6);
+  });
+
+  it("…and one dish's single measure is unaffected", () => {
+    const t = timeStep({
+      components: [{ ingredientName: "yellow onion", preparationNote: "diced", measures: [{ amount: "1 each", preparationNote: null }] }],
+    });
+    assert.equal(t.minutes, 2);
+  });
+});
+
+describe("H2b ruling 2 — juice and zest are charged on the FRUIT COUNT", () => {
+  const LIME = yields({ "lime juice": { fromName: "lime", quantity: 2, unit: "tbsp" } });
+
+  it("🔴 3 tbsp of lime juice is TWO limes, so three minutes of squeezing", () => {
+    // Not three limes (the first error) and not the ¼-cup floor of 1.5 min (the
+    // second). `ingredient_relations` says a lime gives 2 tbsp, so 3 tbsp is two
+    // limes — the same number the prose already prints as "(from 2 limes)".
+    const t = timeStep(
+      { components: [{ ingredientName: "lime juice", preparationNote: null, measures: [{ amount: "3 tbsp", preparationNote: null }] }] },
+      LIME,
+    );
+    const row = t.rows.find((r) => r.action === "citrus-zest-juice")!;
+    assert.equal(row.minutes, 3);
+    assert.equal(row.sourceName, "lime");
+    assert.equal(t.minutes, 3);
+  });
+
+  it("2 tbsp is ONE lime, not two — the boundary is not a rounding artefact", () => {
+    const t = timeStep(
+      { components: [{ ingredientName: "lime juice", preparationNote: null, measures: [{ amount: "2 tbsp", preparationNote: null }] }] },
+      LIME,
+    );
+    assert.equal(t.minutes, 2); // 1.5 → ceil 2
+  });
+
+  it("🔴 ZESTING AND JUICING ONE LIME IS ONE LIME", () => {
+    // The corpus had a step wanting ½ tsp of zest AND 2 tbsp of juice, each
+    // resolving to one lime, each charged 1.5 min. The table's 1.5 is for doing
+    // BOTH to one fruit.
+    const both = yields({
+      "lime juice": { fromName: "lime", quantity: 2, unit: "tbsp" },
+      "lime zest": { fromName: "lime", quantity: 1, unit: "tsp" },
+    });
+    const t = timeStep(
+      {
+        components: [
+          { ingredientName: "lime zest", preparationNote: null, measures: [{ amount: "½ tsp", preparationNote: null }] },
+          { ingredientName: "lime juice", preparationNote: null, measures: [{ amount: "2 tbsp", preparationNote: null }] },
+        ],
+      },
+      both,
+    );
+    const charged = t.rows.filter((r) => r.charged !== false);
+    assert.equal(charged.length, 1, "both operations on one lime were charged");
+    assert.equal(t.rows.length, 2, "…but both rows are still reported");
+    assert.equal(t.minutes, 2); // one lime, 1.5 → ceil 2
+  });
+
+  it("…while juice from DIFFERENT fruit is charged separately", () => {
+    const two = yields({
+      "lime juice": { fromName: "lime", quantity: 2, unit: "tbsp" },
+      "lemon juice": { fromName: "lemon", quantity: 3, unit: "tbsp" },
+    });
+    const t = timeStep(
+      {
+        components: [
+          { ingredientName: "lime juice", preparationNote: null, measures: [{ amount: "2 tbsp", preparationNote: null }] },
+          { ingredientName: "lemon juice", preparationNote: null, measures: [{ amount: "3 tbsp", preparationNote: null }] },
+        ],
+      },
+      two,
+    );
+    assert.equal(t.rows.filter((r) => r.charged !== false).length, 2);
+    assert.equal(t.minutes, 3); // 1.5 + 1.5
+  });
+
+  it("🔴 and the per-dish split is summed BEFORE the fruit count is taken", () => {
+    // Three dishes wanting 2 tbsp each is 6 tbsp — three limes, not three
+    // separate one-lime charges. Ruling 1 and ruling 2 are the same defect in
+    // two domains, and the fold is what makes them one fix.
+    const t = timeStep(
+      {
+        components: [
+          {
+            ingredientName: "lime juice",
+            preparationNote: null,
+            measures: [
+              { amount: "2 tbsp", preparationNote: null },
+              { amount: "2 tbsp", preparationNote: null },
+              { amount: "2 tbsp", preparationNote: null },
+            ],
+          },
+        ],
+      },
+      LIME,
+    );
+    const row = t.rows.find((r) => r.action === "citrus-zest-juice")!;
+    assert.equal(row.quantity, 6, "the three dishes' shares were not summed");
+    assert.equal(row.minutes, 4.5); // 3 limes × 1.5
+  });
+
+  it("no yield edge falls back to the count rule, unchanged", () => {
+    const t = timeStep({
+      components: [{ ingredientName: "lemon", preparationNote: "zested and juiced", measures: [{ amount: "2 each", preparationNote: null }] }],
+    });
+    assert.equal(t.minutes, 3); // 2 fruit × 1.5
+  });
+});
