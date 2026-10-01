@@ -475,18 +475,16 @@ const BREAKS: Break[] = [
   },
   {
     n: 30,
-    ruling: "ruling 4 — the header's minutes round UP",
+    // H2 moved the ROUND-UP into prepStepMinutes.planMinutes, where break 35 now
+    // pins it. What summarizePrepWeek still owns is the exclusion: a demoted step
+    // is neither a container nor a minute.
+    ruling: "ruling 4 — a demoted step counts for nothing in the header",
     file: join(API, "src/lib/prepWeekAssembly.ts"),
     cwd: API,
-    edits: [
-      {
-        from: "    estimatedMinutes: minutes === 0 ? 0 : Math.ceil(minutes / 5) * 5,",
-        to: "    estimatedMinutes: minutes === 0 ? 0 : Math.floor(minutes / 5) * 5,",
-      },
-    ],
+    edits: [{ from: "      if (step.skipSuggested) continue;", to: "      if (false && step.skipSuggested) continue;" }],
     test: "src/lib/__tests__/prepMoments.test.ts",
     runner: "api",
-    expect: "12 minutes of work states 10, and the cook misses the number",
+    expect: "a dropped garnish portion is counted as a container the cook does not have",
   },
   {
     n: 31,
@@ -512,6 +510,76 @@ const BREAKS: Break[] = [
     test: "src/lib/__tests__/prepComponents.test.ts",
     runner: "api",
     expect: '"Slow-Cooker Chicken bowl 1" comes back',
+  },
+  // ── H2 — honest minutes, and two leave-behinds ────────────────────────────
+  {
+    n: 33,
+    ruling: "BUG-204 — the step minutes are the ENGINE's, not the model's",
+    file: join(API, "src/lib/prepWeekAssembly.ts"),
+    cwd: API,
+    edits: [
+      {
+        from: "      estimatedMinutes: planned.estimatedMinutes, // CODE (BUG-204 — prepStepMinutes.ts)",
+        to: "      estimatedMinutes: prose.estimatedMinutes ?? planned.estimatedMinutes,",
+      },
+      {
+        from: "    total += planned.estimatedMinutes;",
+        to: "    total += prose.estimatedMinutes ?? planned.estimatedMinutes;",
+      },
+    ],
+    test: "src/lib/__tests__/prepWeekAssembly.test.ts",
+    runner: "api",
+    expect: "the model's inflated estimate moves the total again",
+  },
+  {
+    n: 34,
+    ruling: "BUG-204 — the cap REPORTS a classification error, it does not hide it",
+    file: join(API, "src/lib/prepStepMinutes.ts"),
+    cwd: API,
+    edits: [{ from: "    overCap: raw > MINUTES.stepCap,", to: "    overCap: false," }],
+    test: "src/lib/__tests__/prepStepMinutes.test.ts",
+    runner: "api",
+    expect: "a 40-minute step is silently flattened to 15 with nothing to chase",
+  },
+  {
+    n: 35,
+    ruling: "BUG-204 — the header rounds UP, and the overhead is applied once",
+    file: join(API, "src/lib/prepStepMinutes.ts"),
+    cwd: API,
+    edits: [
+      {
+        from: "  return Math.ceil(withOverhead / 5) * 5;",
+        to: "  return Math.floor(withOverhead / 5) * 5;",
+      },
+    ],
+    test: "src/lib/__tests__/prepStepMinutes.test.ts",
+    runner: "api",
+    expect: "a stated number the cook misses — the direction Hans's condition forbids",
+  },
+  {
+    n: 36,
+    ruling: "H2.2 — a dry noun never names a container holding fresh food",
+    file: join(API, "src/lib/prepComponents.ts"),
+    cwd: API,
+    edits: [
+      {
+        from: "    const noun = hasFresh && b.noun !== null && DRY_NOUNS.has(norm(b.noun)) ? null : b.noun;",
+        to: "    const noun = b.noun;",
+      },
+    ],
+    test: "src/lib/__tests__/prepComponents.test.ts",
+    runner: "api",
+    expect: '"Tex-Mex Seasoned Ground Beef seasoning" holds a diced onion again',
+  },
+  {
+    n: 37,
+    ruling: "H2.3 — a demoted step carries no storage note",
+    file: join(API, "src/lib/prepStorage.ts"),
+    cwd: API,
+    edits: [{ from: "        if (step.skipSuggested) {", to: "        if (false && step.skipSuggested) {" }],
+    test: "src/lib/__tests__/prepStorage.test.ts",
+    runner: "api",
+    expect: '"Skip this one and do it at the stove. » Airtight in the fridge" comes back',
   },
 ];
 

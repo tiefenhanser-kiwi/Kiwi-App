@@ -291,3 +291,49 @@ describe("D-WS9-298 — the overlay, applied on every read", () => {
     assert.deepEqual(a, b);
   });
 });
+
+// ── WS9 D-WS9-301 H2.3 — a demoted step has nothing to store ─────────────────
+
+describe("D-WS9-301 H2.3 — a step that is not done carries no storage note", () => {
+  it("🔴 an already-demoted step loses its note", () => {
+    // Shipped: "Pre-measuring 1½ tbsp olive oil to drizzle over asparagus saves
+    // nothing — just pour it straight from the bottle when you roast. Skip this
+    // one and do it at the stove. » Airtight in the fridge — up to 3 days."
+    // Two sentences arguing with each other, the second about a container that
+    // will never exist.
+    const r = result([
+      { stepKey: "oil", phase: "produce", title: "Measure the oil", storageNote: "Airtight in the fridge — up to 3 days." },
+    ]);
+    r.phases.find((p) => p.phase === "produce")!.steps[0].skipSuggested = true;
+    const out = applyStorageOverlay(
+      r,
+      new Map([["oil", ctx({ phase: "produce", text: "extra-virgin olive oil", ingredientNames: ["extra-virgin olive oil"] })]]),
+    );
+    const step = out.phases.find((p) => p.phase === "produce")!.steps[0];
+    assert.equal(step.storageNote, undefined);
+    assert.equal(step.skipSuggested, true, "the demotion itself must survive");
+  });
+
+  it("…and a KEPT step still gets one", () => {
+    const r = result([{ stepKey: "cil", phase: "produce", title: "Chop the cilantro" }]);
+    const out = applyStorageOverlay(
+      r,
+      new Map([["cil", ctx({ phase: "produce", text: "fresh cilantro", ingredientNames: ["fresh cilantro"] })]]),
+    );
+    assert.match(out.phases.find((p) => p.phase === "produce")!.steps[0].storageNote!, /up to 3 days/);
+  });
+
+  it("🔴 the PROTEIN demotion keeps its sentence — it is a reason, not storage advice", () => {
+    // The overlay writes "This one is 4 days out — leave it for cook day" into
+    // the same field. That explains the demotion; dropping it would delete the
+    // only thing on the card that says why.
+    const r = result([{ stepKey: "fish", phase: "proteins", title: "Portion the salmon" }]);
+    const out = applyStorageOverlay(
+      r,
+      new Map([["fish", ctx({ phase: "proteins", daysUntilCook: 4, ingredientNames: ["salmon fillets"] })]]),
+    );
+    const step = out.phases.find((p) => p.phase === "proteins")!.steps[0];
+    assert.equal(step.skipSuggested, true);
+    assert.match(step.storageNote!, /4 days out/);
+  });
+});

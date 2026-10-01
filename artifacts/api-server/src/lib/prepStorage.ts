@@ -325,6 +325,22 @@ export function applyStorageOverlay(
       // Item 3 — always, on Proteins, whatever the phase contains.
       ...(phase.phase === "proteins" ? { note: PROTEINS_PHASE_NOTE } : {}),
       steps: phase.steps.map((step) => {
+        // ── D-WS9-301 H2.3 — A STEP THAT IS NOT DONE HAS NOTHING TO STORE ────
+        //
+        // The corpus shipped: "Pre-measuring 1½ tbsp olive oil to drizzle over
+        // asparagus saves nothing — just pour it straight from the bottle when
+        // you roast. Skip this one and do it at the stove. » Airtight in the
+        // fridge — up to 3 days." Two sentences arguing with each other, and the
+        // second one is advice about a container that will never exist.
+        //
+        // Applies to a step that arrives ALREADY demoted — by the narrator or by
+        // the engine. The protein demotion BELOW is different: it writes "This
+        // one is 4 days out — leave it for cook day" into the same field, and
+        // that sentence is the reason, not a storage instruction.
+        if (step.skipSuggested) {
+          const { storageNote: _drop, ...rest } = step;
+          return rest;
+        }
         const ctx = contextByStepKey.get(step.stepKey);
         if (!ctx) {
           // No context means the step plan does not know this key — drop the
