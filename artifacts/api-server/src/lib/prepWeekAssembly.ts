@@ -708,6 +708,29 @@ export function buildStepPlan(
     if (firstFresh) b.phase = firstFresh;
   }
 
+  // ── H2.2, SECOND HALF — THE NAME IS CHECKED WHERE THE MEMBERSHIP IS FINAL ──
+  //
+  // `resolveDishComponents` drops a dry noun when ITS OWN members include
+  // something fresh, and that is the right place for the ingredients the author
+  // grouped. It is the wrong place for the ones the ADAPTER absorbed into the
+  // bucket afterwards (rule 1's run absorption): prepComponents never sees them,
+  // so "Texas-Style Beef Chili spice blend" kept its name while five minced
+  // garlic cloves sat in it. One container out of the 14-plan corpus, found by
+  // asserting the property rather than by re-reading the code.
+  //
+  // This layer knows the final membership, so the check belongs here too. Both
+  // guards stay: dropping the first would let the name reach the narrator wrong
+  // for authored members, and dropping this one leaves the absorbed hole.
+  for (const b of componentBuckets.values()) {
+    if (b.bowlName === "" || !DRY_BOWL_NOUN.test(b.bowlName)) continue;
+    const phases = [...b.entries.values()].map((e) => e.phase);
+    if (!phases.some((p) => p === "produce" || p === "proteins")) continue;
+    b.noun = null;
+    b.bowlName = bowlNameFor(
+      b.dishName, b.mealName, null, 0, false, false, useNounFor(phases),
+    );
+  }
+
   // Rule 8 — name every container the author did not name, by dish and use.
   for (const b of componentBuckets.values()) {
     if (b.bowlName !== "") continue;
@@ -1082,6 +1105,9 @@ export function countContainers(steps: readonly PlannedStep[]): number {
 }
 
 const CONTAINER_TARGET_MAX = 15;
+
+/** H2.2 — a bowl name that promises a shelf-stable DRY container. */
+const DRY_BOWL_NOUN = /\b(seasoning|spice blend|spice mix|rub|dry rub|dredge)\b/i;
 
 function dropLowValueSteps(steps: PlannedStep[]): void {
   if (countContainers(steps) <= CONTAINER_TARGET_MAX) return;

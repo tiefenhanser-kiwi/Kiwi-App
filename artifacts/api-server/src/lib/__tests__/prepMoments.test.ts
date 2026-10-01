@@ -322,6 +322,87 @@ describe("D-WS9-301 rule 1 — a moment is closed by heat", () => {
   });
 });
 
+// ── H2.2 second half — the name is re-checked where membership is final ─────
+
+describe("D-WS9-301 H2.2 — an ABSORBED fresh ingredient still strips a dry name", () => {
+  it("🔴 a container the adapter put garlic into cannot stay a 'spice blend'", () => {
+    // `resolveDishComponents` drops a dry noun when ITS OWN members include
+    // something fresh. It never sees the ingredients rule 1's run absorption adds
+    // later, so one container in the 14-plan corpus — "Texas-Style Beef Chili
+    // spice blend" — kept its name with five minced garlic cloves in it. Found by
+    // asserting the property over the corpus, not by re-reading the code.
+    //
+    // The shape, directly: a dry-nouned component, plus a produce ingredient
+    // carrying the same moment key, which is exactly what the adapter emits.
+    const BOWL = "Texas-Style Beef Chili spice blend";
+    const component = { key: "seasoning", noun: "spice blend", bowlName: BOWL };
+    const input: PrepCombineInput = {
+      meals: [
+        {
+          mealId: "m1",
+          mealName: "Chili Night",
+          dishes: [
+            {
+              dishId: "d1",
+              dishName: "Texas-Style Beef Chili",
+              dishRole: "main",
+              ingredients: [
+                { ingredientId: "cumin", ingredientName: "ground cumin", category: "Pantry", quantity: 2, unit: "tsp", preparationNote: null, component, momentKey: "c:seasoning" },
+                { ingredientId: "oregano", ingredientName: "dried oregano", category: "Pantry", quantity: 1, unit: "tsp", preparationNote: null, component, momentKey: "c:seasoning" },
+                // A third dry item, because `detectBlendComponents` keeps a dry
+                // blend only at 3+ per dish — below that they are noise and get
+                // dropped, and the container would never form at all.
+                { ingredientId: "paprika", ingredientName: "smoked paprika", category: "Pantry", quantity: 1, unit: "tsp", preparationNote: null, component, momentKey: "c:seasoning" },
+                // Absorbed by the run, with no component of its own — the case
+                // prepComponents structurally cannot see.
+                { ingredientId: "garlic", ingredientName: "garlic cloves", category: "Produce", quantity: 5, unit: "clove", preparationNote: "minced", momentKey: "c:seasoning" },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const sp = buildStepPlan(combinePrep(input), "Test Plan");
+    const bowl = sp.steps.find((s) => s.bowlName)!;
+    assert.ok(bowl, "no container was formed");
+    assert.ok(
+      bowl.components.some((c) => c.ingredientName === "garlic cloves"),
+      "the garlic left the container — that is not the fix",
+    );
+    assert.ok(
+      !/\b(seasoning|spice blend|rub)\b/i.test(bowl.bowlName!),
+      `"${bowl.bowlName}" still promises a shelf-stable dry blend`,
+    );
+  });
+
+  it("…and an all-dry container keeps its name through the same pass", () => {
+    const BOWL = "Beef Enchiladas Verdes spice blend";
+    const component = { key: "seasoning", noun: "spice blend", bowlName: BOWL };
+    const input: PrepCombineInput = {
+      meals: [
+        {
+          mealId: "m1",
+          mealName: "Enchilada Night",
+          dishes: [
+            {
+              dishId: "d1",
+              dishName: "Beef Enchiladas Verdes",
+              dishRole: "main",
+              ingredients: [
+                { ingredientId: "cumin", ingredientName: "ground cumin", category: "Pantry", quantity: 2, unit: "tsp", preparationNote: null, component, momentKey: "c:seasoning" },
+                { ingredientId: "chili", ingredientName: "chili powder", category: "Pantry", quantity: 1, unit: "tsp", preparationNote: null, component, momentKey: "c:seasoning" },
+                { ingredientId: "oregano", ingredientName: "dried oregano", category: "Pantry", quantity: 1, unit: "tsp", preparationNote: null, component, momentKey: "c:seasoning" },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const sp = buildStepPlan(combinePrep(input), "Test Plan");
+    assert.equal(sp.steps.find((s) => s.bowlName)!.bowlName, BOWL);
+  });
+});
+
 // ── rule 4: ground meat ─────────────────────────────────────────────────────
 
 describe("D-WS9-301 rule 4 — ground meat is never touched", () => {

@@ -572,6 +572,21 @@ const BREAKS: Break[] = [
     expect: '"Tex-Mex Seasoned Ground Beef seasoning" holds a diced onion again',
   },
   {
+    n: 38,
+    ruling: "H2.2 second half — the name is re-checked where the membership is final",
+    file: join(API, "src/lib/prepWeekAssembly.ts"),
+    cwd: API,
+    edits: [
+      {
+        from: "    if (b.bowlName === \"\" || !DRY_BOWL_NOUN.test(b.bowlName)) continue;",
+        to: "    if (true || b.bowlName === \"\") continue;",
+      },
+    ],
+    test: "src/lib/__tests__/prepMoments.test.ts",
+    runner: "api",
+    expect: "a container the ADAPTER absorbed garlic into keeps its spice-blend name",
+  },
+  {
     n: 37,
     ruling: "H2.3 — a demoted step carries no storage note",
     file: join(API, "src/lib/prepStorage.ts"),
