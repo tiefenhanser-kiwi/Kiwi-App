@@ -710,9 +710,20 @@ missing sweep file prints a warning rather than a zero.
 ## PREPCOOK (c) — reseed `prep.narrate_steps` (AFTER APPROVAL)
 
 The prompt body changed (D-WS9-297 rulings 11 and 12, plus D-WS9-296's bowl
-names). The seed is diff-driven: it compares the active version's body to the
-seed body and only inserts a new version when they differ, so re-running it is
-idempotent.
+names, and now **D-WS9-301 rule 5**). The seed is diff-driven: it compares the
+active version's body to the seed body and only inserts a new version when they
+differ, so re-running it is idempotent.
+
+> 🔴 **D-WS9-301 — ONE SENTENCE WAS THE OPPOSITE OF RULE 5, AND IT WAS THE
+> LARGEST SINGLE SOURCE OF THE "~30 CONTAINERS" REPORT.** The body used to say:
+> *"When a step splits an ingredient (or a blend) across MULTIPLE dishes, tell
+> the user up front to get out one small container per dish and portion each
+> dish's amount into its own."* Rule 5 says the exact reverse — one container,
+> labelled with the dishes it serves, and the cook portions at the stove. The
+> sentence is inverted in the seed. **Dev is at v12** (reseeded 2026-10-01);
+> production is still on whatever version it was deployed with, so this reseed is
+> required for the grouping re-cut to reach a user even though the rest of the
+> re-cut is code.
 
 ```bash
 node --env-file=.env --import tsx -e "
