@@ -190,11 +190,37 @@ export async function tapButton(
 // `remainingMinutesToServe(activeSteps, safeIndex) ?? remainingMinutes(...)`
 // into CookFooter's "~N min left". At step 0 that IS the total, so the harness
 // parses the rendered string and uses it. No arithmetic of our own survives.
+// ⚠️ IT IS THREE TEXT NODES, NOT ONE. CookFooter.tsx:54 is
+// `<Text>~{remainingMins} min left</Text>` — JSX with three children, so the
+// DOM holds "~", "106" and " min left" as separate text runs. The first version
+// of this parser scanned the rendered-text ARRAY line by line, where no single
+// entry ever contains the whole phrase, so it returned null for all 25 meals of
+// the first quick check and K-R6 silently fell back to the serial sum it was
+// written to replace. A detector that cannot fail loudly will fail quietly.
 const COOK_TOTAL_RE = /~\s*(\d+)\s*min\s*left/i;
 
+/**
+ * Read the footer's total off the live DOM. `innerText` concatenates an
+ * element's own text runs, which is exactly what the three-node phrase needs.
+ */
+export async function readCookModeTotalMinutes(page: Page): Promise<number | null> {
+  return page.evaluate(() => {
+    const re = /~\s*(\d+)\s*min\s*left/i;
+    const m = re.exec(document.body.innerText || "");
+    return m ? Number(m[1]) : null;
+  });
+}
+
+/** The array form, for re-scoring a saved capture. Joined, for the reason above. */
 export function parseCookTotalMinutes(text: string[]): number | null {
   for (const line of text) {
     const m = COOK_TOTAL_RE.exec(line);
+    if (m) return Number(m[1]);
+  }
+  // Adjacent runs, rejoined both ways: " " covers "~ 106 min left" and "" covers
+  // "~106min left" after each node has been trimmed.
+  for (const joined of [text.join(" "), text.join("")]) {
+    const m = COOK_TOTAL_RE.exec(joined);
     if (m) return Number(m[1]);
   }
   return null;

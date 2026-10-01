@@ -408,6 +408,37 @@ export function runPrepCookChecker(
   gaps: string[],
 ): PrepCookCheckResult {
   const out = join(PREP_COOK_CENSUS_DIR, "out");
+
+  // ── ⚠️ ONE DENOMINATOR IN THIS TABLE IS NOT THIS HARNESS'S ───────────────
+  //
+  // [prepcook] G gave K-R6 a second arm with a POPULATION denominator, read
+  // from `out/stamp-sweep.json` — a FIXED filename, not a tagged one. The
+  // checker picks it up on any `--tag`, so a run of ours inherits whatever
+  // the Prep & Cook lane's last sweep wrote: its `scanned` lands in K-R6's
+  // denominator and its `rows` land as findings attributed to "population".
+  //
+  // That is useful context and it is not a measurement of the five plans this
+  // harness just drove, so the report must not present it as one. Recorded as
+  // a gap with the file's own stamp so a reader can see whose number it is.
+  try {
+    const sweep = JSON.parse(readFileSync(join(out, "stamp-sweep.json"), "utf8")) as {
+      scanned: number;
+      stale: number;
+      stamp: string;
+      rows: unknown[];
+    };
+    gaps.push(
+      `K-R6's denominator includes the Prep & Cook lane's population sweep, not just this ` +
+        `run's meals: out/stamp-sweep.json (stamped ${sweep.stamp}) reports ${sweep.scanned} ` +
+        `meals scanned, ${sweep.stale} stale, ${sweep.rows.length} row(s) listed. Per-meal ` +
+        `K-R6 findings are this harness's; any finding on plan "population" is theirs.`,
+    );
+  } catch {
+    gaps.push(
+      "K-R6's population arm had no input (no out/stamp-sweep.json), so it scored nothing — " +
+        "reported, not read as a pass",
+    );
+  }
   const written: string[] = [];
   for (const rec of planRecords) {
     const planId = String((rec as { planId: string }).planId);

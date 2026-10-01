@@ -126,6 +126,11 @@ export class Api {
     throw last;
   }
 
+  /** The reuse path needs this too: which list does this plan already have? */
+  async listsForPlanPublic(planId: string): Promise<string[]> {
+    return this.listsForPlan(planId);
+  }
+
   /** Lists on this account, newest first — the write-recovery read. */
   private async listsForPlan(planId: string): Promise<string[]> {
     const r = await this.call<{ groceryLists: { id: string; mealPlanInstanceId: string | null }[] }>(

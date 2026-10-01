@@ -39,7 +39,7 @@ import {
   gotoGroceryList,
   gotoPlanDetail,
   gotoPrepWeek,
-  parseCookTotalMinutes,
+  readCookModeTotalMinutes,
   signInThroughUi,
 } from "../src/screen";
 import { measured, type SurfaceSpend } from "../src/spend";
@@ -123,12 +123,35 @@ for (const corpus of selectedRuns()) {
       const userId = api.userId!;
 
       // ── 2 — build the plan from the named catalog meals (no AI, no cost) ──
-      const built = await api.planFromMeals({
-        mealIds: corpus.mealIds,
-        planDurationDays: 5,
-        localDate: new Date().toISOString().slice(0, 10),
-      });
+      //
+      // REUSE MODE. `KIWI_E2E_REUSE_PLANS=<id,…>` takes the plan for this run
+      // from an earlier pass instead of building a new one. It exists because a
+      // detector bug found AFTER a pass should not cost a second pass: the
+      // plan's grocery list already exists (and `generate-grocery-list` answers
+      // 409 for a plan that has one anyway), prep-week returns `cacheHit` for
+      // free, and Cook Mode has had no AI call since BUG-018 B2. So a re-measure
+      // of the browser-side rules costs nothing at all.
+      const reuse = (process.env.KIWI_E2E_REUSE_PLANS ?? "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const reusedPlanId = reuse[selectedRuns().findIndex((c) => c.run === corpus.run)];
+
+      const built = reusedPlanId
+        ? { planId: reusedPlanId, planName: null }
+        : await api.planFromMeals({
+            mealIds: corpus.mealIds,
+            planDurationDays: 5,
+            localDate: new Date().toISOString().slice(0, 10),
+          });
       flow.planId = built.planId;
+      if (reusedPlanId) {
+        frictions.push(
+          `REUSE MODE — this flow measured the existing plan ${reusedPlanId.slice(0, 8)} rather ` +
+            `than building a new one, so the grocery and prep spend below is $0 and reflects a ` +
+            `cache hit, not a generation`,
+        );
+      }
       const planRead = await api.plan(built.planId);
       flow.planName = planRead.plan.name;
       expect(planRead.plan.items.length, "the plan holds the meals it was built from").toBe(
@@ -136,9 +159,14 @@ for (const corpus of selectedRuns()) {
       );
 
       // ── 3 — the grocery list ──────────────────────────────────────────────
-      const gen = await measured(userId, "grocery-generate", () =>
-        api.generateGroceryList(built.planId),
-      );
+      const gen = await measured(userId, "grocery-generate", async () => {
+        if (reusedPlanId) {
+          const existing = await api.listsForPlanPublic(built.planId);
+          if (existing.length === 0) throw new Error(`reused plan ${built.planId} has no list`);
+          return { listId: existing[0], recovered: false };
+        }
+        return api.generateGroceryList(built.planId);
+      });
       spend.push(gen.spend);
       flow.listId = gen.value.listId;
       if (gen.value.recovered) {
@@ -223,7 +251,7 @@ for (const corpus of selectedRuns()) {
           planId: built.planId,
           planItemId: it.id,
         });
-        const total = parseCookTotalMinutes(cookText);
+        const total = await readCookModeTotalMinutes(page);
         if (total != null) screenTotals.set(it.mealId, total);
         cookTotals.push({
           meal: m.title,
