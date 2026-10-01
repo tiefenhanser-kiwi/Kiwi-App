@@ -17,6 +17,7 @@ import {
   View,
   type LayoutChangeEvent,
 } from "react-native";
+import { Feather } from "@expo/vector-icons";
 
 import { Button } from "@/components/Button";
 import { CookFooter } from "@/components/cooking/CookFooter";
@@ -200,7 +201,7 @@ export function CookSessionView({
       </Text>
 
       {/* Persistent active-timer strip (§13.5.1). Each pill carries the same two
-          controls as the per-step chip (#2) — "+1 min" and "✕" — wired to the
+          controls as the per-step chip (#2) — "+1 min" and an × — wired to the
           shared extendTimer/clearTimer handlers so a timer can be extended or
           dismissed from the top without scrolling to its step. extendTimer
           already branches running-vs-done internally, so both apply in either
@@ -212,10 +213,21 @@ export function CookSessionView({
               key={entry.key}
               style={[s.timerPill, entry.done && s.timerPillDone, s.timerPillRow]}
             >
+              {/* Sept 29 design review — 🔔 and 🟢 were emoji in a <Text>.
+                  Feather `bell` and `clock` at the label's size and colour
+                  (D-WS9-162). The DONE pill is the one that has to read across
+                  a kitchen, which is why it keeps the bell rather than a tick:
+                  the bell is the "your attention is wanted" glyph and the tick
+                  belongs to steps you completed. */}
+              <Feather
+                name={entry.done ? "bell" : "clock"}
+                size={PILL_ICON}
+                color={Colors.neutral[800]}
+              />
               <Text style={s.timerPillText}>
                 {entry.done
-                  ? `🔔 ${entry.label} done`
-                  : `🟢 ${entry.label} ${formatClock(entry.remaining)}`}
+                  ? `${entry.label} done`
+                  : `${entry.label} ${formatClock(entry.remaining)}`}
               </Text>
               <Pressable
                 onPress={() => extendTimer(entry.key)}
@@ -231,7 +243,7 @@ export function CookSessionView({
                 accessibilityLabel="Dismiss timer (strip)"
                 style={({ pressed }) => [s.timerPillAction, pressed && { opacity: 0.6 }]}
               >
-                <Text style={s.timerPillActionText}>✕</Text>
+                <Feather name="x" size={PILL_ICON} color={Colors.sage[700]} />
               </Pressable>
             </View>
           ))}
@@ -252,9 +264,14 @@ export function CookSessionView({
               You already prepped this — get your:
             </Text>
             {recapItems.length > 0 ? (
+              /* Sept 29 design review — the "• " prefix is DROPPED, not
+                 replaced. It was a literal character inside the <Text>, so it
+                 was read aloud as "bullet" on every line and could not be
+                 aligned; the list reads as a list from its own spacing
+                 (recapItem gains a marginTop below) and its heading. */
               recapItems.map((item, i) => (
                 <Text key={i} style={s.recapItem}>
-                  • {item}
+                  {item}
                 </Text>
               ))
             ) : (
@@ -289,7 +306,13 @@ export function CookSessionView({
                 pressed && isCurrent && { opacity: 0.9 },
               ]}
             >
-              {isDone && <Text style={s.doneMark}>✓ done</Text>}
+              {/* Sept 29 design review — Feather `check` for the ✓ glyph. */}
+              {isDone && (
+                <View style={s.doneMarkRow}>
+                  <Feather name="check" size={DONE_ICON} color={Colors.sage[600]} />
+                  <Text style={s.doneMark}>done</Text>
+                </View>
+              )}
               {step.dishTitle && <Text style={s.dishTag}>{step.dishTitle}</Text>}
               {/* Sequencer parallel cue (server `reason`) — a suggestion, never
                   blocking (§13.9). Plain annotation on a real step. */}
@@ -307,7 +330,16 @@ export function CookSessionView({
                 step={step}
                 timer={timers[step.key]}
                 nowMs={nowMs}
-                onStart={() => startTimer(step)}
+                // D-WS9-289 — the label the notification announces. Same
+                // resolution the active-timer strip uses above (dish title,
+                // else the first words of the step), so a lock-screen alert and
+                // the on-screen pill name the timer identically.
+                onStart={() =>
+                  startTimer({
+                    ...step,
+                    label: step.dishTitle ?? shortLabel(step.text),
+                  })
+                }
                 onClear={() => clearTimer(step.key)}
                 onAddMinute={() => extendTimer(step.key)}
               />
@@ -334,6 +366,11 @@ export function CookSessionView({
     </View>
   );
 }
+
+// Sept 29 design review — Feather sizes, each matched to the text it sits
+// beside rather than to a shared scale, so an icon reads as part of its word.
+const PILL_ICON = 12; // fontSize.xs, the strip pill's label
+const DONE_ICON = 12; // fontSize.xs, the step card's "done"
 
 const s = StyleSheet.create({
   bg: { flex: 1, backgroundColor: Colors.neutral[100] },
@@ -407,11 +444,16 @@ const s = StyleSheet.create({
     fontFamily: Typography.face.serif[600],
     marginBottom: Spacing[1],
   },
+  // Sept 29 design review — marginTop is NET-NEW, and it is what "drop the
+  // bullet for spacing" means: with the "• " prefix gone the lines had nothing
+  // but lineHeight separating them and read as a wrapped paragraph rather than a
+  // list. Spacing[1] restores the list rhythm without reintroducing a character.
   recapItem: {
     fontSize: Typography.fontSize.md,
     color: Colors.neutral[800],
     fontFamily: Typography.face.sans[400],
     lineHeight: 22,
+    marginTop: Spacing[1],
   },
   skipBtnWrap: { marginTop: Spacing[3] },
 
@@ -428,12 +470,19 @@ const s = StyleSheet.create({
   },
   stepDone: { opacity: 0.42 },
   stepUpcoming: { opacity: 0.5 },
+  // The marginBottom moved to doneMarkRow: on a child of a flex row it would
+  // offset the text against the icon beside it instead of spacing the group.
+  doneMarkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing[1],
+    marginBottom: Spacing[1],
+  },
   doneMark: {
     fontSize: Typography.fontSize.xs,
     color: Colors.sage[600],
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.sans[600],
-    marginBottom: Spacing[1],
   },
   // ⚠️ WS9 BUG-199 — MOVED to neutral[700]. This carried a BUG-157 STAY comment
   // calling it "ambiguous, so left rather than guessed in the darkening

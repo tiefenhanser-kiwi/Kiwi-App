@@ -9,12 +9,18 @@
 // components/CookSessionView.tsx. So this file is Cook-Mode-only, and a change
 // here has no Prep-the-Week blast radius -- which is why the Sept 29 design
 // review could re-glyph it without crossing into another lane's fence.
-// Idle → "⏱ Start M:00 timer" (a single Pressable). Once started, the chip is a
-// row carrying the live label plus two explicit controls: "Add a minute"
-// (extends — running pushes the end out, done re-arms a fresh 1:00) and "✕"
-// (dismiss/clear). The done chip persists until the ✕ is tapped — nothing
+// Idle → a clock glyph + "Start M:00 timer" (a single Pressable). Once started,
+// the chip is a row carrying the live label plus two explicit controls: "Add a
+// minute" (extends — running pushes the end out, done re-arms a fresh 1:00) and
+// an × (dismiss/clear). The done chip persists until the × is tapped — nothing
 // auto-clears, so a finished timer never vanishes while hands are busy. Timing-
 // sensitive steps use the warm alert tone on the idle chip.
+//
+// ⚠️ ICONS ARE FEATHER, NOT EMOJI (D-WS9-162; Sept 29 design review). ⏱ / ✓ / ✕
+// were text glyphs, which meant they rendered at the system emoji font's whim,
+// ignored the chip's own colour, and announced as their unicode names. Each is
+// now a <Feather> at the label's size, tinted with the label's colour, inside a
+// row — so the icon and the text stay one object in every state.
 //
 // The `step` prop is widened to the minimal timer-relevant shape so this chip is
 // reusable beyond the meal-shaped CookStep (Week Prep steps pass
@@ -22,6 +28,7 @@
 
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Feather } from "@expo/vector-icons";
 
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import {
@@ -65,23 +72,39 @@ export function TimerChip({
           pressed && { opacity: 0.8 },
         ]}
       >
-        <Text style={[s.chipText, sensitive && s.chipTextAlert]}>
-          {`⏱ Start ${step.estimatedMinutes}:00 timer`}
-        </Text>
+        <View style={s.labelRow}>
+          <Feather
+            name="clock"
+            size={ICON}
+            color={sensitive ? Palette.cookMode.alertText : Colors.neutral[800]}
+          />
+          <Text style={[s.chipText, sensitive && s.chipTextAlert]}>
+            {`Start ${step.estimatedMinutes}:00 timer`}
+          </Text>
+        </View>
       </Pressable>
     );
   }
 
   const done = isTimerDone(timer, nowMs);
-  const label = done
-    ? "✓ Timer done"
-    : `⏱ ${formatClock(timerRemainingMs(timer, nowMs))}`;
+  const label = done ? "Timer done" : formatClock(timerRemainingMs(timer, nowMs));
   const labelStyle = done ? s.chipTextDone : s.chipTextRunning;
   const actionStyle = done ? s.chipActionTextDone : s.chipActionText;
+  // The icon takes the LABEL's colour in both states — on the done chip that is
+  // cream on sage[600], on the running chip sage[700] on sage[50]. A hard-coded
+  // tint would have been invisible on one of the two.
+  const iconColor = done ? Colors.neutral[0] : Colors.sage[700];
 
   return (
     <View style={[s.chip, done ? s.chipDone : s.chipRunning, s.chipRow]}>
-      <Text style={labelStyle}>{label}</Text>
+      <View style={s.labelRow}>
+        <Feather
+          name={done ? "check-circle" : "clock"}
+          size={ICON}
+          color={iconColor}
+        />
+        <Text style={labelStyle}>{label}</Text>
+      </View>
       <Pressable
         onPress={onAddMinute}
         hitSlop={12}
@@ -98,13 +121,24 @@ export function TimerChip({
         accessibilityLabel="Dismiss timer"
         style={({ pressed }) => [s.chipAction, pressed && { opacity: 0.6 }]}
       >
-        <Text style={actionStyle}>✕</Text>
+        <Feather name="x" size={ICON} color={iconColor} />
       </Pressable>
     </View>
   );
 }
 
+// Matched to fontSize.sm (12), which every label in this file uses. Sized to
+// the text rather than to a token scale so the icon reads as part of the word.
+const ICON = 13;
+
 const s = StyleSheet.create({
+  // Icon + text as one unit. `gap` replaces the space that used to follow the
+  // emoji, so the optical spacing is a layout value rather than a character.
+  labelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing[1],
+  },
   chip: {
     alignSelf: "flex-start",
     borderRadius: Radius.full,

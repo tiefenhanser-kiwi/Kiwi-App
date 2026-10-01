@@ -35,6 +35,32 @@ function flat(node: RenderedNode | null): string {
   return gatherText(node).join(" ").replace(/\s+/g, " ").trim();
 }
 
+// ── Sept 29 design review — Cook Mode's emoji became Feather icons (D-WS9-162),
+// so five assertions in this file that probed for "🟢" / "✓ done" as TEXT had to
+// change. They are not weakened: a glyph in a <Text> was only ever a proxy for
+// "the icon is there", and these read the icon directly.
+//
+// The @expo/vector-icons stub renders <icon-feather name="…">, so the NAME is
+// exactly what a test should assert — it survives a tint, a size or a layout
+// change and fails on the one thing that matters, the wrong glyph.
+function featherNames(node: RenderedNode | string | null, out: string[] = []): string[] {
+  if (node == null || typeof node === "string") return out;
+  if (node.type === "icon-feather") {
+    const n = (node.props as { name?: unknown } | undefined)?.name;
+    if (typeof n === "string") out.push(n);
+  }
+  if (Array.isArray(node.children)) for (const c of node.children) featherNames(c, out);
+  return out;
+}
+
+// The active-timer strip exists iff its own controls do. Keyed on the control's
+// exact accessibilityLabel rather than on any glyph, so this probe is immune to
+// the next icon pass as well. (The chip's labels are "Dismiss timer" /
+// "Add a minute"; the strip's are the same, suffixed " (strip)".)
+function hasTimerStrip(node: RenderedNode | null): boolean {
+  return findByA11yLabel(node, "Dismiss timer (strip)") !== null;
+}
+
 function findPressableByText(
   node: RenderedNode | string | null,
   text: string,
@@ -71,7 +97,8 @@ function findInnermostPressableByText(
 }
 
 // Exact-match on accessibilityLabel — used to disambiguate the per-step chip
-// controls from the top-strip controls (#2), which share the "✕" glyph. The
+// controls from the top-strip controls (#2), which share the same dismiss icon
+// (a Feather `x` since the Sept 29 design review; previously a "✕" glyph). The
 // chip labels are "Dismiss timer"/"Add a minute"; the strip labels are the same
 // suffixed with " (strip)", so an EXACT match targets one surface unambiguously.
 function findByA11yLabel(
@@ -207,8 +234,16 @@ test("session: renders title, step N of M, the anchor step, and the footer advan
 });
 
 test("session: a step above the anchor shows the done marker", () => {
-  const texts = flat(renderView({ currentIndex: 1 }).toJSON() as RenderedNode | null);
-  assert.ok(texts.includes("✓ done"), `missing done marker: ${texts}`);
+  const tree = renderView({ currentIndex: 1 }).toJSON() as RenderedNode | null;
+  const texts = flat(tree);
+  // WAS assert.ok(texts.includes("✓ done")). The ✓ is a Feather `check` now, so
+  // the marker is two things and both are asserted — the word on its own would
+  // pass against a step card that lost its tick.
+  assert.ok(texts.includes("done"), `missing done marker: ${texts}`);
+  assert.ok(
+    featherNames(tree).includes("check"),
+    "the done marker's Feather check icon is missing",
+  );
   assert.ok(texts.includes("step 2 of 3"));
 });
 
@@ -317,7 +352,17 @@ test("timer chip: tapping start begins a visible countdown and the active-timer 
   // Fresh timer reads 8:00 (rounds up). Both the chip and the top strip show it.
   assert.ok(texts.includes("8:00"), `countdown not shown: ${texts}`);
   // The active-timer strip labels it from the step text ("Boil pasta" → "Boil pasta").
-  assert.ok(texts.includes("🟢"), `active-timer strip missing: ${texts}`);
+  // WAS assert.ok(texts.includes("🟢")) — the running pill's 🟢 is a Feather
+  // `clock` now. The strip's PRESENCE is probed through its own control, and the
+  // glyph is asserted separately so neither hides the other's failure.
+  assert.ok(
+    hasTimerStrip(renderer.toJSON() as RenderedNode | null),
+    `active-timer strip missing: ${texts}`,
+  );
+  assert.ok(
+    featherNames(renderer.toJSON() as RenderedNode | null).includes("clock"),
+    "the running pill should carry the Feather clock",
+  );
   assert.ok(!texts.includes("Start 8:00 timer"), "idle label should be replaced by the countdown");
   // Flush the passive-effect cleanup (clearInterval) synchronously, so the live
   // 1s interval is gone before any later test enables mock.timers — otherwise a
@@ -426,17 +471,20 @@ test("timer #4: the chip '✕' dismiss control clears the timer (persists until 
     (findInnermostPressableByText(renderer.toJSON() as RenderedNode | null, "Start 8:00 timer")!
       .props!.onPress as () => void)(),
   );
-  assert.ok(flat(renderer.toJSON() as RenderedNode | null).includes("🟢"), "active-timer strip should appear");
+  assert.ok(hasTimerStrip(renderer.toJSON() as RenderedNode | null), "active-timer strip should appear");
 
-  // Once a timer runs, BOTH the chip and the strip render a "✕" (#2); target the
-  // CHIP's dismiss by its exact accessibilityLabel so this stays unambiguous.
+  // Once a timer runs, BOTH the chip and the strip render a dismiss icon (#2);
+  // target the CHIP's by its exact accessibilityLabel so this stays unambiguous.
   const dismiss = findByA11yLabel(renderer.toJSON() as RenderedNode | null, "Dismiss timer");
-  assert.ok(dismiss, "chip '✕' dismiss control missing");
+  assert.ok(dismiss, "chip dismiss control missing");
   act(() => (dismiss!.props!.onPress as () => void)());
 
   const texts = flat(renderer.toJSON() as RenderedNode | null);
   assert.ok(texts.includes("Start 8:00 timer"), `dismiss should return to the idle chip: ${texts}`);
-  assert.ok(!texts.includes("🟢"), "active-timer strip should be gone after dismiss");
+  assert.ok(
+    !hasTimerStrip(renderer.toJSON() as RenderedNode | null),
+    "active-timer strip should be gone after dismiss",
+  );
   act(() => renderer.unmount());
 });
 
@@ -451,17 +499,20 @@ test("strip #2: the top-strip '✕' dismisses the timer without scrolling to the
     (findInnermostPressableByText(renderer.toJSON() as RenderedNode | null, "Start 8:00 timer")!
       .props!.onPress as () => void)(),
   );
-  assert.ok(flat(renderer.toJSON() as RenderedNode | null).includes("🟢"), "active-timer strip should appear");
+  assert.ok(hasTimerStrip(renderer.toJSON() as RenderedNode | null), "active-timer strip should appear");
 
   const stripDismiss = findByA11yLabel(
     renderer.toJSON() as RenderedNode | null,
     "Dismiss timer (strip)",
   );
-  assert.ok(stripDismiss, "strip '✕' dismiss control missing");
+  assert.ok(stripDismiss, "strip dismiss control missing");
   act(() => (stripDismiss!.props!.onPress as () => void)());
 
   const texts = flat(renderer.toJSON() as RenderedNode | null);
-  assert.ok(!texts.includes("🟢"), "strip should be gone after a strip-dismiss");
+  assert.ok(
+    !hasTimerStrip(renderer.toJSON() as RenderedNode | null),
+    "strip should be gone after a strip-dismiss",
+  );
   assert.ok(texts.includes("Start 8:00 timer"), `the step chip should return to idle: ${texts}`);
   act(() => renderer.unmount());
 });
