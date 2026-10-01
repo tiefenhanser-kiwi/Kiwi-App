@@ -12,6 +12,7 @@ import {
   STORAGE_TABLE,
   DEFAULT_STORAGE,
   PROTEINS_PHASE_NOTE,
+  SHELF_STABLE_PROTEIN,
   applyStorageOverlay,
   judgeProteinStep,
   nounFormTitle,
@@ -69,6 +70,60 @@ describe("D-WS9-298 — the storage table", () => {
     // …while real raw flesh is still caught, label or no label.
     assert.equal(storageClassFor("salmon fillets", "Teriyaki Salmon glaze jar").key, "raw-fish");
     assert.equal(storageClassFor("soy sauce sesame oil honey", "Teriyaki Salmon glaze jar").key, "sauces-dressings");
+  });
+
+  // ── BUG-340 — shelf-stable proteins ───────────────────────────────────────
+
+  it("🔴 anchovy paste is not raw fish — a jar that keeps for months", () => {
+    // The founding case. `Ingredient.category` is Protein, so it reached the
+    // raw-fish regex on the word "anchovy" and was told to cook within 2 days.
+    assert.equal(storageClassFor("anchovy paste").key, "shelf-stable");
+    assert.match(storageClassFor("anchovy paste").note, /keeps in its own jar/);
+    // …and the LABEL still decides the kind of mixture, exactly as before: a
+    // tsp of paste measured into the Caesar dressing jar is a dressing, and
+    // gets the dressing's 5 days. What BUG-340 removes is the RAW-FISH window,
+    // not the bowl's own identity.
+    const inBowl = storageClassFor("1 tsp anchovy paste", "Classic Caesar Salad dressing jar");
+    assert.equal(inBowl.key, "sauces-dressings");
+    assert.notEqual(inBowl.key, "raw-fish");
+  });
+
+  it("🔴 the shelf-stable form is SUBTRACTED, so real flesh beside it still wins", () => {
+    // An early return would have been the dangerous version of this fix: one
+    // jar of anchovy paste in a container would have cleared the raw-fish note
+    // off the salmon sharing it.
+    assert.equal(storageClassFor("salmon fillets, anchovy paste").key, "raw-fish");
+    assert.equal(storageClassFor("salmon fillets, anchovy paste").days, 2);
+    // …and what is left of a mixed container is classified on its remainder,
+    // through the table's existing order (alliums before peppers).
+    assert.equal(storageClassFor("cured chorizo, red peppers, onion").key, "cut-alliums");
+    assert.equal(storageClassFor("cured chorizo, red peppers").key, "cut-peppers");
+  });
+
+  it("🔴 BACON AND HAM ARE CURED AND LIVE IN THE FRIDGE — the adjective is not the rule", () => {
+    // The trap this fix was one regex away from: /cured|smoked|dried/ matches
+    // 59 Protein-category names on dev and 53 of them are refrigerated. A
+    // shelf-stable list is a list of FORMS, not of preservation words.
+    for (const n of [
+      "thick-cut bacon", "smoked bacon", "deli ham", "smoked ham hock",
+      "italian pork sausage", "kielbasa (smoked polish sausage)", "smoked chicken breast",
+      "andouille smoked sausage",
+    ]) {
+      assert.equal(storageClassFor(n).key, "raw-meat", `"${n}" must keep the 2-day window`);
+    }
+    // While the genuinely ambient forms do not.
+    for (const n of ["genoa salami", "prosciutto di parma", "pepperoni slices", "spanish cured chorizo"]) {
+      assert.equal(storageClassFor(n).key, "shelf-stable", `"${n}" is not raw flesh`);
+    }
+  });
+
+  it("the shelf-stable test is repeatable — a /g/ regex would answer every other call", () => {
+    // `lastIndex` on a shared global instance is why this is two regexes from
+    // one source. Ten identical questions, ten identical answers.
+    for (let i = 0; i < 10; i++) {
+      assert.equal(storageClassFor("anchovy paste").key, "shelf-stable", `call ${i}`);
+      assert.equal(SHELF_STABLE_PROTEIN.test("anchovy paste"), true, `call ${i}`);
+    }
   });
 
   it("an unmatched food falls to the SHORTEST produce window, not the longest", () => {
@@ -206,6 +261,22 @@ describe("D-WS9-298 — the overlay, applied on every read", () => {
     const step = out.phases.find((p) => p.phase === "proteins")!.steps[0];
     assert.equal(step.skipSuggested, undefined);
     assert.match(step.storageNote!, /prep this the day before you cook/);
+  });
+
+  it("🔴 BUG-340 — a shelf-stable protein IN the Proteins phase is still not raw flesh", () => {
+    // Belt and braces with the phase classifier. If the catalog miscategorises
+    // something tomorrow the way it miscategorised anchovy paste, the phase
+    // alone must not be able to put "cook within 2 days" on a jar.
+    const r = result([{ stepKey: "anch", phase: "proteins", title: "Measure the anchovy paste" }]);
+    const out = applyStorageOverlay(
+      r,
+      new Map([["anch", ctx({ phase: "proteins", daysUntilCook: 5, text: "anchovy paste", ingredientNames: ["anchovy paste"] })]]),
+    );
+    const step = out.phases.find((p) => p.phase === "proteins")!.steps[0];
+    assert.equal(step.skipSuggested, undefined, "a jar 5 days out is not demoted");
+    assert.equal(step.title, "Measure the anchovy paste");
+    assert.match(step.storageNote!, /keeps in its own jar/);
+    assert.ok(!/2 days/.test(step.storageNote!), "the raw-flesh line reached a shelf-stable jar");
   });
 
   it("the overlay is PURE — the same input twice gives the same output", () => {

@@ -185,6 +185,29 @@ describe("assignPhase", () => {
     assert.equal(assignPhase("Pantry", "olive oil"), "sauces_marinades");
   });
 
+  it("🔴 BUG-340 — a shelf-stable Protein is routed like a pantry item", () => {
+    // Anchovy paste's category is Protein, so it landed in the Proteins phase
+    // and inherited D-WS9-298's raw-flesh line. `Ingredient.category` stays as
+    // it is — grocery aisles read it, and D-WS9-211 ruled it unusable as a
+    // cross-check — so the FORM decides the phase. "paste" is already a sauce
+    // hint, so it goes where the Caesar dressing it joins is built.
+    assert.equal(assignPhase("Protein", "anchovy paste"), "sauces_marinades");
+    assert.equal(assignPhase("Protein", "genoa salami"), "seasonings_dry");
+    assert.equal(assignPhase("Protein", "canned tuna"), "seasonings_dry");
+  });
+
+  it("🔴 BUG-340 — bacon, ham and fresh sausage STAY in the Proteins phase", () => {
+    // They are cured or smoked and they are refrigerated. An adjective regex
+    // would have moved 53 of dev's 59 such names out of the phase that exists
+    // to protect them.
+    for (const n of [
+      "thick-cut bacon", "deli ham", "italian pork sausage", "smoked ham hock",
+      "kielbasa (smoked polish sausage)", "andouille smoked sausage", "smoked chicken breast",
+    ]) {
+      assert.equal(assignPhase("Protein", n), "proteins", `"${n}" left the Proteins phase`);
+    }
+  });
+
   it("returns null for buy-and-use categories", () => {
     assert.equal(assignPhase("Dairy", "cheddar"), null);
     assert.equal(assignPhase("Bakery", "tortillas"), null);

@@ -51,7 +51,12 @@ export const STORAGE_TABLE: readonly StorageClass[] = [
     key: "raw-meat",
     days: 2,
     note: "Covered in the fridge — cook within 2 days.",
-    match: /\b(chicken|turkey|beef|pork|lamb|veal|steak|brisket|tenderloin|sausages?|bacon|chorizo|ground (?:beef|turkey|pork|chicken|lamb)|breasts?|thighs?|drumsticks?|cutlets?|(?:pork|lamb|veal) chops?)\b/i,
+    // `ham` was missing until BUG-340's own test asked for it: "deli ham" and
+    // "smoked ham hock" fell to the 3-day default, which is the only direction
+    // this table is not allowed to be wrong in. `\bham\b` cannot reach
+    // "hamburger" — the boundary fails on the following letter — and the
+    // dry-cured hams (prosciutto, capicola) are stripped before this runs.
+    match: /\b(chicken|turkey|beef|pork|lamb|veal|steak|brisket|tenderloin|sausages?|bacon|ham|chorizo|ground (?:beef|turkey|pork|chicken|lamb)|breasts?|thighs?|drumsticks?|cutlets?|(?:pork|lamb|veal) chops?)\b/i,
   },
   // ── produce, by how fast it turns ─────────────────────────────────────────
   {
@@ -114,6 +119,50 @@ export const STORAGE_TABLE: readonly StorageClass[] = [
   },
 ];
 
+// ── BUG-340 — SHELF-STABLE PROTEINS ─────────────────────────────────────────
+//
+// Anchovy paste's `Ingredient.category` is Protein, so it landed in the
+// Proteins phase and a jar that keeps for months was told to cook within 2
+// days. The category is not the problem to solve: grocery aisles read it, and
+// D-WS9-211 already ruled it is not a usable cross-check. The form is.
+//
+// 🔴 AN ADJECTIVE LIST WOULD HAVE REPEATED THE "CHILI POWDER" MISTAKE TWICE
+// OVER. The obvious regex is /cured|smoked|dried/ — and BACON, HAM, SMOKED
+// SAUSAGE and KIELBASA are all cured or smoked and all live in the fridge. A
+// dev sweep of the 59 Protein-category names carrying one of those words found
+// 53 of them refrigerated. So this is a list of SHELF-STABLE FORMS, not of
+// preservation adjectives: a paste, a can, a jar, something dried, and the
+// dry-cured salumi that hang at room temperature. Fresh sausage, bacon, ham and
+// smoked poultry are deliberately absent and must stay absent.
+//
+// ⚠️ TWO REGEXES FROM ONE SOURCE, ON PURPOSE. A `/g` regex carries `lastIndex`
+// between calls, so `.test()` on a shared global instance answers differently
+// every other time it is asked. The exported one is NOT global and is the only
+// one anything calls `.test()` on; the stripper below builds its own global
+// copy and `.replace()` resets it.
+const SHELF_STABLE_SRC =
+  "\\b(?:anchovy paste|shrimp paste|fish paste|(?:canned|tinned|jarred)\\s+\\w+" +
+  "|dried (?:shrimp|anchovies|anchovy|fish|beef)" +
+  "|salami|genoa salami|soppressata|capicola|coppa|bresaola|pepperoni" +
+  "|prosciutto(?: di parma)?|cured chorizo|spanish cured chorizo|dry-cured \\w+|jerky)\\b";
+
+export const SHELF_STABLE_PROTEIN = new RegExp(SHELF_STABLE_SRC, "i");
+const SHELF_STABLE_ALL = new RegExp(SHELF_STABLE_SRC, "gi");
+
+/** Remove every shelf-stable form from a contents string. */
+export function stripShelfStable(text: string): string {
+  return text.replace(SHELF_STABLE_ALL, " ");
+}
+
+/** BUG-340 — what a shelf-stable protein's step says instead of the 2-day line. */
+export const SHELF_STABLE_STORAGE: StorageClass = {
+  key: "shelf-stable",
+  days: 30,
+  roomTemp: true,
+  note: "Shelf-stable — it keeps in its own jar or packet, so portion it whenever suits you.",
+  match: /(?:)/,
+};
+
 /** The fallback when nothing matches: the shortest produce window. */
 export const DEFAULT_STORAGE: StorageClass = {
   key: "default",
@@ -142,13 +191,22 @@ export const isP1Class = (c: StorageClass) => P1_KEYS.has(c.key);
  *
  * So the label decides what KIND of mixture it is, and the contents decide
  * whether raw flesh is in the container. The raw classes read `contents` alone.
+ *
+ * BUG-340 — and a shelf-stable form is SUBTRACTED from the contents before any
+ * of that, rather than short-circuiting it. "Anchovy paste" alone then matches
+ * nothing and comes back shelf-stable; "salmon fillets and anchovy paste" still
+ * matches raw-fish on what is left, which is the whole reason this is a strip
+ * and not an early return. Same shape as the label split above: remove what is
+ * not flesh, then ask whether flesh remains.
  */
 export function storageClassFor(contents: string, bowlName = ""): StorageClass {
-  const labelled = bowlName ? `${contents} ${bowlName}` : contents;
+  const shelfStable = stripShelfStable(contents);
+  const isShelfStable = shelfStable !== contents;
+  const labelled = bowlName ? `${shelfStable} ${bowlName}` : shelfStable;
   for (const c of STORAGE_TABLE) {
-    if (c.match.test(isP1Class(c) ? contents : labelled)) return c;
+    if (c.match.test(isP1Class(c) ? shelfStable : labelled)) return c;
   }
-  return DEFAULT_STORAGE;
+  return isShelfStable ? SHELF_STABLE_STORAGE : DEFAULT_STORAGE;
 }
 
 // ── the proteins phase ──────────────────────────────────────────────────────
@@ -254,7 +312,13 @@ export function applyStorageOverlay(
           const { storageNote: _drop, ...rest } = step;
           return rest;
         }
-        if (ctx.phase === "proteins") {
+        // BUG-340 — a shelf-stable form in the Proteins phase is not raw flesh,
+        // whatever the phase says. The phase classifier below also keeps these
+        // out of the phase; this is the second half of the same fix, and it is
+        // the half the user is protected by: a category the catalog gets wrong
+        // tomorrow must not be able to put "cook within 2 days" on a jar.
+        const shelfStableHere = stripShelfStable(ctx.text) !== ctx.text;
+        if (ctx.phase === "proteins" && !shelfStableHere) {
           const verdict = judgeProteinStep(ctx.daysUntilCook);
           if (verdict.kind === "demote") {
             return {

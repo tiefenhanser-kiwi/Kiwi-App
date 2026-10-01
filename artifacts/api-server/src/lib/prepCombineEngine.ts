@@ -24,6 +24,9 @@
 // by the AI narration layer in the next block, not here.
 
 import { normalizeIngredientName } from "./groceryNormalization";
+// BUG-340 — the shelf-stable test lives with the storage table it protects, so
+// the phase classifier and the storage note cannot drift apart.
+import { SHELF_STABLE_PROTEIN } from "./prepStorage";
 import { PrepWeekPhaseKey, type PrepWeekPhaseKeyT } from "./ai/schemas/prepWeek";
 
 // ── phase tokens ─────────────────────────────────────────────────────────
@@ -329,17 +332,29 @@ function categoryKey(category: string): string {
 // (liquid/sauce hint → sauces_marinades, else seasonings_dry). Buy-and-use
 // categories (Dairy/Bakery/Frozen/Canned/unknown) have no prep phase → null.
 export function assignPhase(category: string, name: string): PrepPhaseKey | null {
+  const pantryPhase = (): PrepPhaseKey => {
+    const nn = normalizeIngredientName(name);
+    return SAUCE_NAME_HINTS.some((h) => nn.includes(h))
+      ? "sauces_marinades"
+      : "seasonings_dry";
+  };
   switch (categoryKey(category)) {
     case "produce":
       return "produce";
     case "protein":
-      return "proteins";
-    case "pantry": {
-      const nn = normalizeIngredientName(name);
-      return SAUCE_NAME_HINTS.some((h) => nn.includes(h))
-        ? "sauces_marinades"
-        : "seasonings_dry";
-    }
+      // BUG-340 — anchovy paste is categorised Protein, so it landed in the
+      // Proteins phase and inherited D-WS9-298's raw-flesh line: a jar that
+      // keeps for months told to cook within 2 days. `Ingredient.category` is
+      // NOT the place to fix it — grocery aisles read that column and
+      // D-WS9-211 ruled it is not a usable cross-check — so the form decides.
+      // A shelf-stable protein is treated exactly like a pantry item, which is
+      // what it is on the shelf; "paste" is already a sauce hint, so the
+      // anchovy goes where the Caesar dressing it joins is built.
+      return SHELF_STABLE_PROTEIN.test(normalizeIngredientName(name))
+        ? pantryPhase()
+        : "proteins";
+    case "pantry":
+      return pantryPhase();
     default:
       return null;
   }

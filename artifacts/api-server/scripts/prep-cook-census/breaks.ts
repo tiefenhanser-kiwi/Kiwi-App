@@ -322,6 +322,64 @@ const BREAKS: Break[] = [
     runner: "api",
     expect: "a cache hit serves yesterday's storage notes",
   },
+  {
+    n: 20,
+    ruling: "BUG-340 — the phase classifier's shelf-stable exclusion",
+    file: join(API, "src/lib/prepCombineEngine.ts"),
+    cwd: API,
+    edits: [
+      {
+        from: "      return SHELF_STABLE_PROTEIN.test(normalizeIngredientName(name))\n        ? pantryPhase()\n        : \"proteins\";",
+        to: "      return \"proteins\";",
+      },
+    ],
+    test: "src/lib/__tests__/prepCombineEngine.test.ts",
+    runner: "api",
+    expect: "anchovy paste goes back into the Proteins phase",
+  },
+  {
+    n: 21,
+    ruling: "BUG-340 — the shelf-stable form is subtracted from the contents",
+    file: join(API, "src/lib/prepStorage.ts"),
+    cwd: API,
+    edits: [
+      {
+        from: "  const shelfStable = stripShelfStable(contents);\n  const isShelfStable = shelfStable !== contents;",
+        to: "  const shelfStable = contents;\n  const isShelfStable = false;",
+      },
+    ],
+    test: "src/lib/__tests__/prepStorage.test.ts",
+    runner: "api",
+    expect: "a jar of anchovy paste is told to cook within 2 days",
+  },
+  {
+    n: 22,
+    ruling: "BUG-340 — the overlay's own shelf-stable guard, independent of the phase",
+    file: join(API, "src/lib/prepStorage.ts"),
+    cwd: API,
+    edits: [
+      {
+        // Only the overlay's guard, leaving the strip in place: the point is
+        // that the PHASE alone must not be able to put the raw-flesh line on
+        // a jar, the way `Ingredient.category` did.
+        from: "        if (ctx.phase === \"proteins\" && !shelfStableHere) {",
+        to: "        if (ctx.phase === \"proteins\") {",
+      },
+    ],
+    test: "src/lib/__tests__/prepStorage.test.ts",
+    runner: "api",
+    expect: "a miscategorised jar in the Proteins phase gets the 2-day line again",
+  },
+  {
+    n: 23,
+    ruling: "BUG-340 (adjacent) — `ham` in the raw-meat class",
+    file: join(API, "src/lib/prepStorage.ts"),
+    cwd: API,
+    edits: [{ from: "|sausages?|bacon|ham|chorizo|", to: "|sausages?|bacon|chorizo|" }],
+    test: "src/lib/__tests__/prepStorage.test.ts",
+    runner: "api",
+    expect: "deli ham falls to the 3-day default — the one direction this table may not be wrong in",
+  },
 ];
 
 function runTest(b: Break): { pass: boolean; tail: string } {
