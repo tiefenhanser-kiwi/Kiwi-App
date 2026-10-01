@@ -153,8 +153,44 @@ async function main() {
   }
   if (rows.length > 20) console.log(`  … and ${rows.length - 20} more`);
 
+  // ── BUG-341 / G2 — THE SWEEP FILE THE CHECKER SCORES ──────────────────────
+  //
+  // 🔴 WHY THIS EXISTS. K-R6 always compared the right pair (Cook Mode's total
+  // against `Meal.estimatedTimeMinutes`, the field the card renders). It scored
+  // 0 anyway, because the census corpus is 13 plans and B1 re-stamped exactly
+  // those 13 plans' 23 meals. The instrument was measuring a sample its own
+  // lane had already repaired. The QA harness picked 25 other catalog meals and
+  // 9 of them were stale; a population scan found 791 of 2,042.
+  //
+  // A per-plan rule cannot see a population. So the population scan — which is
+  // this file, and already existed — now writes what it found as DATA, and
+  // check.ts scores K-R6 over it without a database of its own.
+  //
+  // Written on --scan as well as --apply: the sweep is the measurement, and the
+  // measurement must not require the write.
+  writeFileSync(
+    join(OUT, "stamp-sweep.json"),
+    JSON.stringify(
+      {
+        stamp: new Date().toISOString(),
+        host: DB_HOST,
+        applied: APPLY,
+        scope: ONLY_PLANS.length ? ONLY_PLANS : "all non-archived meals",
+        scanned,
+        stale: rows.length,
+        rows,
+      },
+      null,
+      2,
+    ),
+  );
+
   if (!APPLY) {
-    console.log("\n--scan only; nothing written. Pass --apply to write.");
+    // "nothing written" used to be true of the whole run. It is now true only
+    // of the DATABASE, and saying so precisely matters: the sweep file IS a
+    // write, to out/.
+    console.log("\n--scan only; no DATABASE write. Pass --apply to write.");
+    console.log(`sweep written: ${join(OUT, "stamp-sweep.json")} (check.ts scores K-R6 over it)`);
     return;
   }
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");

@@ -685,8 +685,27 @@ bare invocation is `--scan` and cannot write. Omitting `--plans` scans the whole
 catalog, which is what production wants; expect the count to be far larger than
 23 and read the distribution it prints before applying.
 
+> 🔴 **BUG-341 — RUN THIS WITHOUT `--plans`, AND THAT IS THE WHOLE POINT.** The
+> B1 dev run was scoped to the census's 13 plans, so it repaired 23 meals and
+> left the rest of the catalog stamped by the pre-B1 scheduler. The QA harness
+> then read five plans off the rendered screen and found Cook Mode disagreeing
+> with the card on **9 of 25 meals**; the unscoped scan found **791 of 2,042**
+> (delta min −43, p25 −6, median −2, p75 −1, max +18). Applied on dev
+> 2026-10-01 00:28Z → re-scan reports 0 stale. **Production is the same catalog
+> and will hold the same class.** Nothing is wrong with the two readers:
+> `deriveMealTiming` reproduced `runCookingSequence` on all 89 rows measured
+> (public + forks), every time. The stamp was simply older than the scheduler.
+>
+> Forks are not a separate step. `POST /plans/from-meals` copies the stamp at
+> fork time and never re-derives it, so a fork made before a scheduler change
+> keeps the old number for ever (two such rows are still on dev, from August).
+> The unscoped scan covers every non-archived meal, forks included — which is
+> why it is 2,042 and not the catalog count.
+
 Every run leaves `out/restamp-<stamp>.json`; `--revert <that file>` restores the
-previous pair on every row it touched.
+previous pair on every row it touched. `--scan` also writes
+`out/stamp-sweep.json`, which `check.ts` scores as K-R6's population arm; a
+missing sweep file prints a warning rather than a zero.
 
 ## PREPCOOK (c) — reseed `prep.narrate_steps` (AFTER APPROVAL)
 

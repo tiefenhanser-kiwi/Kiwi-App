@@ -626,6 +626,33 @@ function main() {
   const files = readdirSync(OUT).filter((f) => f.startsWith(`${TAG}__`) && f.endsWith(".json") && !f.includes("summary") && !f.includes("narration-input") && !f.includes("__check"));
   const plans: PlanRecord[] = files.map((f) => JSON.parse(readFileSync(join(OUT, f), "utf8")));
 
+  // ── BUG-341 / G2 — K-R6's POPULATION ARM ──────────────────────────────────
+  //
+  // 🔴 THE RULE WAS NEVER WRONG; THE SAMPLE WAS. K-R6 has always compared Cook
+  // Mode's total against `Meal.estimatedTimeMinutes` — the field GET /meals/:id
+  // maps to `minutes`, which is the number every card renders. It still scored
+  // 0 while the QA harness, reading the rendered screen, found 13 of 25.
+  //
+  // The reason is not in this file. The census corpus is 13 plans, and B1's
+  // re-stamp ran over exactly those 13 plans' 23 meals. The lane repaired its
+  // own sample and then measured it. A population scan found 791 of 2,042.
+  //
+  // So K-R6 gets a second arm with a population denominator, fed by
+  // restamp.ts --scan as DATA — this file still opens no database.
+  // ⚠️ A MISSING SWEEP IS REPORTED, NEVER SCORED AS ZERO. That is the whole
+  // lesson: an arm with no input must look like an arm with no input.
+  let sweep: { scanned: number; stale: number; scope: unknown; stamp: string; rows: { mealId: string; title: string; before: { total: number }; after: { total: number } }[] } | null = null;
+  try {
+    sweep = JSON.parse(readFileSync(join(OUT, "stamp-sweep.json"), "utf8"));
+  } catch { /* not run — reported as a gap below, not as a pass */ }
+  if (sweep) {
+    bump("K-R6", sweep.scanned);
+    for (const r of sweep.rows) {
+      hit("K-R6", "population", `catalog · ${r.title.slice(0, 44)}`,
+        `stored stamp ${r.before.total} min vs a fresh derive ${r.after.total} min (Δ${r.before.total - r.after.total}) — the card shows the stamp`);
+    }
+  }
+
   for (const plan of plans) {
     let narration: NarrationInput | null = null;
     try {
@@ -639,6 +666,13 @@ function main() {
   const L: string[] = [];
   L.push(`THE PREP & COOK CENSUS — checker, tag=${TAG}`);
   L.push(`${plans.length} plans · ${plans.reduce((s, p) => s + p.meals.length, 0)} meals · ${plans.reduce((s, p) => s + (p.prep?.steps.length ?? 0), 0)} prep steps · ${plans.reduce((s, p) => s + p.meals.reduce((t, m) => t + m.steps.length, 0), 0)} cook steps`);
+  L.push("");
+  L.push(
+    sweep
+      ? `K-R6 population arm: ${sweep.stale} stale of ${sweep.scanned} scanned (sweep ${sweep.stamp}, scope ${JSON.stringify(sweep.scope)})`
+      : "⚠️ K-R6 POPULATION ARM DID NOT RUN — no out/stamp-sweep.json. Run restamp.ts --scan. " +
+        "K-R6's count below is the 13-plan corpus only, which is the blind spot BUG-341 was found in.",
+  );
   L.push("");
   L.push("| rule | hits | of | plans affected |");
   L.push("|---|---|---|---|");

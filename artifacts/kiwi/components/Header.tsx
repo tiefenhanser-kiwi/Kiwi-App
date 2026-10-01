@@ -4,7 +4,7 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Colors, Spacing, Typography } from "@/constants/tokens";
+import { Colors, Palette, Spacing, Typography } from "@/constants/tokens";
 
 interface Props {
   title?: string;
@@ -73,8 +73,29 @@ export function Header({
 }
 
 const styles = StyleSheet.create({
+  // D-WS9-290 (Sept 29 design review) — the header band is the PAGE colour.
+  //
+  // Hans, verbatim: "if header should be the page color is a new standard I am
+  // fine to go with that. I thought the beige band looks better to me, but I am
+  // not everyone else. change on the header is approved."
+  //
+  // WAS Colors.neutral[300] (#E4DCCB), a beige band against the neutral[100]
+  // paper of every screen below it. Now Palette.background.header, which IS
+  // neutral[100] — so the chrome and the page are one surface.
+  //
+  // ⚠️ THE neutral[400] HAIRLINE STAYS, and it is now the only thing dividing
+  // the header from the page. Removing it would leave the title floating with no
+  // boundary at all; it measures 1.1657:1 against the paper either side, which is
+  // a divider, not a contrast surface, and needs no AA floor.
+  //
+  // ⚠️ THE TOKEN HAD ZERO READERS BEFORE THIS LINE. So do Palette.background.nav
+  // and .sheet, and this commit deliberately does NOT wire them: the tab bar,
+  // sheets and inputs were not in the review and changing them under cover of
+  // "consistency" is how a one-screen ruling becomes an app-wide restyle.
+  //
+  // ⚠️ THIS IS NOT HOME’S HEADER. Home draws HomeHeader, which is untouched.
   wrap: {
-    backgroundColor: Colors.neutral[300],
+    backgroundColor: Palette.background.header,
     paddingHorizontal: Spacing[4],
     paddingBottom: Spacing[3],
     borderBottomWidth: 1,
