@@ -84,6 +84,15 @@ export interface PrepPhaseVM {
 
 export interface PrepWeekVM {
   totalEstimatedMinutes: number;
+  /**
+   * D-WS9-301 ruling 4 — the header's two numbers, "N containers · about M min".
+   * Both are the SERVER's: it counts over the steps that render and rounds the
+   * minutes UP to the next 5, so the stated number is one a cook beats rather
+   * than misses. Undefined for a payload written before this shipped, and the
+   * header hides itself rather than guessing.
+   */
+  containerCount?: number;
+  statedMinutes?: number;
   /** The 4 phases in fixed server order [seasonings_dry … proteins]. */
   phases: PrepPhaseVM[];
   /** Steps checked across all phases. */
@@ -194,6 +203,11 @@ export function buildPrepWeekModel(
   return {
     // BUG-011 — kept-steps only, clamped to the server's 1..240 range.
     totalEstimatedMinutes: Math.min(240, Math.max(1, keptMinutes)),
+    // D-WS9-301 ruling 4 — passed through, never recomputed. The rounding rule
+    // ("no more than 50 minutes or so in reality") is one decision and it lives
+    // on the server; a second copy here would be a second answer.
+    containerCount: result.containerCount,
+    statedMinutes: result.estimatedMinutes,
     phases,
     doneCount: weekDone,
     totalCount: weekTotal,

@@ -252,6 +252,27 @@ export function PrepWeekView({
       <Text style={s.subtitle}>
         — {mealCount} {mealCount === 1 ? "meal" : "meals"} combined —
       </Text>
+      {/* WS9 D-WS9-301 ruling 4 — THE SUMMED TOTAL IS BACK, with a container
+          count beside it. Hans amended D-WS9-213 (quoted above) today: "'12
+          containers, about 40 minutes' sounds great. that's a time investment
+          with a clear outcome that users can see value in. when it's 90 minutes
+          of unclear steps the logic of showing 5 minutes to cut an onion and the
+          user racing to do it in 3 is good."
+
+          The September ruling stands on its reasoning — it was made against a
+          two-hour output with ~30 containers, and the re-cut is what makes the
+          number worth showing. The per-phase "~N min left" is untouched.
+
+          Both numbers come from the server (it rounds the minutes UP to the next
+          5 so reality beats the estimate rather than missing it). Rendered only
+          when the server sent them AND there is something to prep: a plan with
+          no prep steps shows nothing rather than "0 containers". */}
+      {vm.containerCount != null && vm.containerCount > 0 && vm.statedMinutes != null ? (
+        <Text style={s.tally}>
+          {vm.containerCount} {vm.containerCount === 1 ? "container" : "containers"} · about{" "}
+          {vm.statedMinutes} min
+        </Text>
+      ) : null}
 
       {/* Phase indicator + the 4-phase progress bar. */}
       <Text style={s.phaseIndicator}>
@@ -348,6 +369,15 @@ const s = StyleSheet.create({
     color: Colors.terracotta[400],
     fontStyle: "italic",
     fontFamily: Typography.face.serifItalic[500],
+    textAlign: "center",
+    paddingBottom: Spacing[2],
+  },
+  // D-WS9-301 ruling 4 — the container/minute tally. Quieter than the subtitle
+  // above it: it is information the cook acts on once, at the start, not a
+  // heading.
+  tally: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[600],
     textAlign: "center",
     paddingBottom: Spacing[2],
   },

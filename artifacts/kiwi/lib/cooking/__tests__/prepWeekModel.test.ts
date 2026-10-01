@@ -379,3 +379,32 @@ test("buildMealLabelLookup feeds buildPrepWeekModel end-to-end (lookup → desti
   assert.equal(dests[0].label, "Chicken Fajitas · Tuesday");
   assert.equal(dests[1].label, "Veggie Risotto"); // day null → name only
 });
+
+// ── WS9 D-WS9-301 ruling 4 — the header tally ───────────────────────────────
+//
+// "N containers · about M min". Both numbers are the SERVER's: it counts over
+// the steps that render and rounds the minutes UP to the next 5, per Hans's
+// condition that "40 minutes is no more than 50 minutes or so in reality".
+// The model passes them through; a second copy of the rounding rule here would
+// be a second answer to one question.
+
+test("D-WS9-301 — containerCount and statedMinutes pass through untouched", () => {
+  const vm = buildPrepWeekModel(result({ containerCount: 12, estimatedMinutes: 40 }));
+  assert.equal(vm.containerCount, 12);
+  assert.equal(vm.statedMinutes, 40);
+});
+
+test("D-WS9-301 — the model does NOT recompute the tally from the steps", () => {
+  // Deliberately inconsistent input: if the model ever starts deriving these,
+  // this test fails and the two sources of truth are caught at birth.
+  const vm = buildPrepWeekModel(result({ containerCount: 99, estimatedMinutes: 5 }));
+  assert.equal(vm.containerCount, 99);
+  assert.equal(vm.statedMinutes, 5);
+  assert.notEqual(vm.statedMinutes, vm.totalEstimatedMinutes);
+});
+
+test("D-WS9-301 — a payload without the tally leaves it undefined, so the header can hide", () => {
+  const vm = buildPrepWeekModel(result());
+  assert.equal(vm.containerCount, undefined);
+  assert.equal(vm.statedMinutes, undefined);
+});

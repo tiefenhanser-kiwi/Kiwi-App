@@ -236,6 +236,10 @@ const PrepWeekStepSchema = z.object({
   contributesToMealIds: z.array(z.string().uuid()).min(1).max(20),
   storageNote: z.string().max(200).optional(),
   skipSuggested: z.boolean().optional(),
+  // D-WS9-301 rule 7 — a step that holds no food (the cook-day protein
+  // sentence). The server excludes it from the container count; mirrored here so
+  // the shapes stay in step, not because the client recounts.
+  holdsNoContainer: z.boolean().optional(),
 });
 export type PrepWeekStep = z.infer<typeof PrepWeekStepSchema>;
 
@@ -254,6 +258,11 @@ export type PrepWeekPhase = z.infer<typeof PrepWeekPhaseSchema>;
 const PrepWeekResultSchema = z
   .object({
     totalEstimatedMinutes: z.number().int().min(1).max(240),
+    // D-WS9-301 ruling 4 — the header tally. Optional in BOTH directions: a
+    // structureJson blob cached before this shipped carries neither, and the
+    // header hides itself rather than inventing a number.
+    containerCount: z.number().int().min(0).optional(),
+    estimatedMinutes: z.number().int().min(0).optional(),
     phases: z.array(PrepWeekPhaseSchema).length(4),
   })
   .superRefine((val, ctx) => {

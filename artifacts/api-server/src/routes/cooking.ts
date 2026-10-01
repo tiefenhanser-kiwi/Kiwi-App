@@ -39,6 +39,7 @@ import {
   buildStepPlan,
   assemblePrepWeekResult,
   PrepNarrationIncompleteError,
+  summarizePrepWeek,
 } from "../lib/prepWeekAssembly";
 import { PrepNarrationResultSchema } from "../lib/ai/schemas/prepNarration";
 import { applyStorageOverlay, type StorageContext } from "../lib/prepStorage";
@@ -405,9 +406,14 @@ export function createCookingRouter(
           // D-WS9-298 — THE DATE OVERLAY, ON THE HIT PATH TOO. The blob is what
           // the AI wrote; the storage notes, the protein demotions and the
           // Proteins phase line are recomputed from today's cook days.
-          result: applyStorageOverlay(
-            cached.structureJson as unknown as PrepWeekResult,
-            storageContextFor(),
+          // D-WS9-301 ruling 4 — the header numbers are computed AFTER the
+          // overlay, because the overlay can demote a protein step and a step
+          // that no longer renders is not a container today.
+          result: summarizePrepWeek(
+            applyStorageOverlay(
+              cached.structureJson as unknown as PrepWeekResult,
+              storageContextFor(),
+            ),
           ),
           planRevisionId,
           generatedAt: cached.lastGeneratedAt.toISOString(),
@@ -595,7 +601,7 @@ export function createCookingRouter(
         subset: isSubset,
         // D-WS9-298 — the same overlay, from the same helper, so the two paths
         // cannot drift into showing different storage text for one plan.
-        result: applyStorageOverlay(result, storageContextFor()),
+        result: summarizePrepWeek(applyStorageOverlay(result, storageContextFor())),
         planRevisionId,
         generatedAt: new Date().toISOString(),
         promptVersion,
