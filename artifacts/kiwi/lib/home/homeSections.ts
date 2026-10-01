@@ -19,7 +19,14 @@
 // "thisWeek" is a compound section: eyebrow + tonight strip + utility row.
 // "leadLoading" is the placeholder that occupies the LEAD slot while GET /home
 // is still in flight (WS9-2 2c Commit 2) — see the isLoading note below.
-export type HomeSection = "leadLoading" | "arc" | "thisWeek" | "makeLane" | "rail";
+// "error" is WHOLE-SCREEN and exclusive — see the note on `isError` below.
+export type HomeSection =
+  | "error"
+  | "leadLoading"
+  | "arc"
+  | "thisWeek"
+  | "makeLane"
+  | "rail";
 
 export function homeSectionOrder(opts: {
   /** firstPlanCreatedAt == null (and payload loaded). */
@@ -47,7 +54,32 @@ export function homeSectionOrder(opts: {
    * false statement, and is deliberately left alone.
    */
   isLoading?: boolean;
+  /**
+   * Sept 29 design review, item 14 — GET /home FAILED (or was aborted by the
+   * client-side timeout in useHomePayload). Optional (absent ⇒ false) so every
+   * pre-existing caller and test keeps its exact behaviour.
+   *
+   * ⚠️ ERROR IS NOT EMPTY, and before this the two were INDISTINGUISHABLE — but
+   * not in the way the review assumed. On a failed load React Query reports
+   * isLoading false and data undefined, so isFirstRun is false, deriveHeroModel
+   * collapses to "empty" and hasActivePlan is false. The order that came back was
+   * ["makeLane"] — not the new-account screen (a genuine first run renders the
+   * teaching arc) but something STRICTLY EMPTIER than either real state: no lead
+   * slot at all, no arc, no explanation, and a silent implicit claim that the
+   * user has no plan this week.
+   *
+   * That is a WRONG statement, not a missing one, which is the same diagnosis
+   * isLoading carries above — and it is why error PRE-EMPTS everything,
+   * including the make lane. The make lane would still function (it needs no
+   * payload), but half a screen beside "we couldn't reach Kiwi" reads as a
+   * partial success. One state, one claim.
+   */
+  isError?: boolean;
 }): HomeSection[] {
+  // ⚠️ FIRST, AND EXCLUSIVE. Error outranks loading because a settled failure is
+  // knowledge and "still loading" is not; a request that errors is not pending.
+  if (opts.isError) return ["error"];
+
   const sections: HomeSection[] = [];
   // LEAD slot — above the make-lane eyebrow. Arc and the this-week module are
   // mutually exclusive in production (a first plan stamps firstPlanCreatedAt, so

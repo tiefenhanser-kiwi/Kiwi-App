@@ -119,3 +119,105 @@ test("isLoading is optional — omitting it is identical to passing false", () =
   assert.deepEqual(omitted, explicit);
   assert.ok(!omitted.includes("leadLoading"));
 });
+
+// ── Sept 29 design review, item 14 — error is its own state ──────────────────
+//
+// THE DEFECT THIS PINS, stated precisely, because the review stated it wrong and
+// a vaguer version of these tests would have let it back in:
+//
+// On a failed GET /home, React Query reports isLoading false and data undefined.
+// So isFirstRun is false (it requires a loaded payload), deriveHeroModel(undefined)
+// collapses to "empty" so hasActivePlan is false, and the rail is empty. The
+// order that came back was ["makeLane"] — which is NOT the new-account screen.
+// A genuine first run renders the teaching arc. The errored screen rendered
+// something STRICTLY EMPTIER than either real state, with no explanation, while
+// silently implying the user has no plan this week.
+
+test("item 14: an ERROR is not the empty/new-account state", () => {
+  // Exactly the inputs a failed load produces.
+  const errored = homeSectionOrder({
+    isFirstRun: false,
+    hasActivePlan: false,
+    hasRail: false,
+    isLoading: false,
+    isError: true,
+  });
+  assert.deepEqual(errored, ["error"]);
+
+  // The two states it used to be indistinguishable from, with the SAME inputs
+  // apart from isError. Both must differ from it.
+  const emptyReturning = homeSectionOrder({
+    isFirstRun: false,
+    hasActivePlan: false,
+    hasRail: false,
+    isLoading: false,
+  });
+  const firstRun = homeSectionOrder({
+    isFirstRun: true,
+    hasActivePlan: false,
+    hasRail: false,
+    isLoading: false,
+  });
+
+  assert.deepEqual(emptyReturning, ["makeLane"], "the pre-fix errored output");
+  assert.deepEqual(firstRun, ["arc", "makeLane"]);
+  assert.notDeepEqual(errored, emptyReturning, "error must not render as empty");
+  assert.notDeepEqual(errored, firstRun, "error must not render as a first run");
+  assert.ok(!errored.includes("arc"), "an errored load is not a new account");
+});
+
+test("item 14: error is EXCLUSIVE — nothing else renders beside it", () => {
+  // Every other input set to the value that would normally ADD a section. If any
+  // of them leaks through, the user gets half a screen next to "we couldn't
+  // reach Kiwi", which reads as a partial success.
+  assert.deepEqual(
+    homeSectionOrder({
+      isFirstRun: true,
+      hasActivePlan: true,
+      hasRail: true,
+      isLoading: true,
+      isError: true,
+    }),
+    ["error"],
+  );
+});
+
+test("item 14: a HANG lands in error, not in an eternal placeholder", () => {
+  // useHomePayload's AbortController ceiling turns a request that never settles
+  // into a rejection, so React Query reports isError and isLoading goes false.
+  // This is the state AFTER that conversion, and it must not be leadLoading —
+  // the pre-fix behaviour was the "Getting your week…" shim forever.
+  const afterTimeout = homeSectionOrder({
+    isFirstRun: false,
+    hasActivePlan: false,
+    hasRail: false,
+    isLoading: false,
+    isError: true,
+  });
+  assert.deepEqual(afterTimeout, ["error"]);
+  assert.ok(
+    !afterTimeout.includes("leadLoading"),
+    "a timed-out load must stop claiming it is still loading",
+  );
+
+  // And error OUTRANKS loading, which is what makes the conversion safe even if a
+  // retry is in flight when the error is still latched: a settled failure is
+  // knowledge, a pending request is not.
+  assert.deepEqual(
+    homeSectionOrder({
+      isFirstRun: false,
+      hasActivePlan: false,
+      hasRail: false,
+      isLoading: true,
+      isError: true,
+    }),
+    ["error"],
+  );
+});
+
+test("item 14: isError absent ⇒ every pre-existing caller is unchanged", () => {
+  assert.deepEqual(
+    homeSectionOrder({ isFirstRun: false, hasActivePlan: true, hasRail: true }),
+    ["thisWeek", "makeLane", "rail"],
+  );
+});

@@ -92,13 +92,19 @@ export type HomePayload = z.infer<typeof HomePayloadSchema>;
  * errors: `UnauthenticatedError` (401), `ApiSchemaError` on a response-shape
  * mismatch.
  */
-export async function getHomePayload(): Promise<HomePayload> {
+export async function getHomePayload(
+  // Sept 29 design review, item 14 — the caller (useHomePayload) imposes a
+  // client-side ceiling so a hung request becomes an ERROR rather than an
+  // eternal placeholder. Optional: every other caller is unaffected.
+  opts: { signal?: AbortSignal } = {},
+): Promise<HomePayload> {
   // WS9 BUG-282 (client half) — "today" for the Tonight card is resolved on
   // the SERVER by server-local time (UTC on Cloud Run), so after 8 PM ET the
   // card showed tomorrow's meal. Send the device's local calendar date; the
   // server half reads it next lane (it ignores the param until then).
   return apiClient(`/home?localDate=${encodeURIComponent(todayLocalDate())}`, {
     schema: HomePayloadSchema,
+    signal: opts.signal,
   });
 }
 

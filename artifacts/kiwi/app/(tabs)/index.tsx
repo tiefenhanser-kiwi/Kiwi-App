@@ -30,6 +30,7 @@ import { ActivePlanStrip } from "@/components/ActivePlanStrip";
 import { BillingBanner } from "@/components/BillingBanner";
 import { BillingNotice } from "@/components/BillingNotice";
 import { GetTheAppStrip } from "@/components/GetTheAppStrip";
+import { HomeErrorState } from "@/components/HomeErrorState";
 import { HomeHeader } from "@/components/HomeHeader";
 import { LoadingShim } from "@/components/LoadingShim";
 import { PersonalizeNudgeModal } from "@/components/PersonalizeNudgeModal";
@@ -96,6 +97,21 @@ export default function HomeTab() {
   // does NOT re-show the placeholder once data exists; the lead only goes
   // neutral when we genuinely have nothing to render from.
   const isHomeLoading = homeQuery.isLoading;
+
+  // ── Sept 29 design review, item 14 — GET /home failed ─────────────────────
+  //
+  // ⚠️ WHAT THIS REPLACES WAS NOT THE NEW-ACCOUNT SCREEN, which is what the
+  // review assumed. With data undefined and isLoading false, isFirstRun was
+  // false, deriveHeroModel collapsed to "empty" and the rail was empty, so
+  // homeSectionOrder returned ["makeLane"]: NO lead slot, no arc, no
+  // explanation. Strictly emptier than either real state — a first run at least
+  // gets the teaching arc — and a silent claim that there is no plan this week.
+  //
+  // The decision lives in lib/home/homeSections.ts (tested, and error ≠ empty is
+  // pinned there); this screen only renders it. A hung request reaches this
+  // branch too: useHomePayload's AbortController ceiling converts a request that
+  // never settles into a rejection, so there is one failure state, not two.
+  const isHomeError = homeQuery.isError;
 
   // ── Row 13 "Test Kitchen" · Block 2 Part F (R8 / D-WS9-263) ────────────────
   // The personalize popup, gated by lib/home/personalizeNudge.ts (tested).
@@ -434,6 +450,7 @@ export default function HomeTab() {
     hasActivePlan,
     hasRail: railItems.length > 0,
     isLoading: isHomeLoading,
+    isError: isHomeError,
   });
   // The make-lane eyebrow takes its tight top margin only when it genuinely
   // LEADS the screen. Derived from the computed order rather than re-deriving
@@ -458,6 +475,18 @@ export default function HomeTab() {
         <BillingNotice text={generateNotice} testID="home-generate-notice" />
         {sections.map((section) => {
           switch (section) {
+            case "error":
+              // Whole-screen and exclusive (homeSectionOrder returns ["error"]
+              // alone). The make lane would still work — it needs no payload —
+              // but half a screen beside "we couldn't reach Kiwi" reads as a
+              // partial success. One state, one claim.
+              return (
+                <HomeErrorState
+                  key="error"
+                  onRetry={() => void homeQuery.refetch()}
+                  retrying={homeQuery.isFetching}
+                />
+              );
             case "leadLoading":
               // WS9-2 2c Commit 2 — holds the LEAD slot while GET /home is in
               // flight. Before this, the slot collapsed and Home read as
