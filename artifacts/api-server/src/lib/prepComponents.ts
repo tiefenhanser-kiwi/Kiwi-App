@@ -40,6 +40,14 @@ export interface ComponentStep {
   componentKey: string | null;
   /** ingredientIds this step's `amountRefs` resolved to. */
   ingredientIds: string[];
+  /**
+   * D-WS9-301 rule 1 — the authored phase tag, because a MOMENT ends when heat
+   * starts. `cook` is the heat marker; everything else (`prep`, `assemble`,
+   * `rest`, `hold`) continues the current moment. Measured against a
+   * heat-in-prose regex over four plans it agrees on ~82% of steps, and it is
+   * the tag the scheduler already trusts, so it is the primary signal.
+   */
+  phaseType: string;
 }
 
 /** One dish ingredient, as this module needs it. */
@@ -193,6 +201,23 @@ export function shortDishName(title: string): string {
  * title already contains the noun ("Pico de Gallo pico de gallo bowl").
  * `mealName` is preferred when the dish IS the meal, which is the single-dish case.
  */
+/**
+ * D-WS9-301 rule 8 — the use noun for a container the recipe never named,
+ * derived from what is in it. Never a number.
+ *
+ * Deliberately coarse. "Spice blend" and "sauce bowl" are what a cook would
+ * call them; a produce-bearing container is the dish's own prep, and calling it
+ * a "sauce bowl" because a tablespoon of oil is in it would be worse than
+ * saying less.
+ */
+export function useNounFor(phases: (string | null)[]): string {
+  const set = new Set(phases.filter((p): p is string => !!p));
+  if (set.size === 0) return "prep container";
+  if (set.size === 1 && set.has("seasonings_dry")) return "spice blend";
+  if (!set.has("produce") && !set.has("proteins")) return "sauce bowl";
+  return "prep container";
+}
+
 export function bowlNameFor(
   dishTitle: string,
   mealName: string | null,
@@ -202,6 +227,13 @@ export function bowlNameFor(
   looksLikeSeasoning: boolean,
   /** Ruling 7 — the mixture lost a cook-day base, so it is the MIX-INS. */
   lostBase = false,
+  /**
+   * D-WS9-301 rule 8 — "Containers, named by dish + use. Never 'bowl 1',
+   * 'dish A'." This is the use noun for a mixture the author never named, and
+   * it replaces the numbered last resort. The sample plan shipped
+   * "Slow-Cooker Chicken bowl 1" and "Garlic Herb Roasted Potatoes bowl 1".
+   */
+  fallbackUse: string | null = null,
 ): string {
   const dish = shortDishName(
     mealName && norm(mealName) === norm(dishTitle) ? mealName : dishTitle,
@@ -209,7 +241,11 @@ export function bowlNameFor(
   if (lostBase) return `${dish} mix-ins bowl`;
   if (noun === null) {
     if (looksLikeSeasoning) return `${dish} seasoning bowl`;
-    return `${dish} bowl ${ordinal}`; // last resort
+    // Rule 8 — a use, never an ordinal. `ordinal` is kept in the signature
+    // because a caller that genuinely has nothing to say still needs a unique
+    // name, but no production path reaches it any more.
+    if (fallbackUse) return `${dish} ${fallbackUse}`;
+    return `${dish} bowl ${ordinal}`;
   }
   const vessel = JAR_NOUNS.has(noun) ? "jar" : "bowl";
   if (new RegExp(`\\b${noun.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(dish)) {
@@ -379,7 +415,10 @@ export function resolveDishComponents(
     const comp: ResolvedComponent = {
       key,
       noun: b.noun,
-      bowlName: bowlNameFor(dishTitle, mealName, b.noun, ordinal, looksLikeSeasoning, b.lostBase),
+      bowlName: bowlNameFor(
+        dishTitle, mealName, b.noun, ordinal, looksLikeSeasoning, b.lostBase,
+        useNounFor([...b.members].map((id) => byId.get(id)?.phase ?? null)),
+      ),
       memberIds: [...b.members],
       cookDayIds: [...b.cookDay],
     };

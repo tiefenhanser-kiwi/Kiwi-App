@@ -297,8 +297,10 @@ const BREAKS: Break[] = [
     edits: [
       {
         // Keep the model's note when it has one — the merge the ruling forbids.
-        from: "        return { ...step, storageNote: storageClassFor(ctx.text, ctx.bowlName).note };",
-        to: "        return { ...step, storageNote: step.storageNote ?? storageClassFor(ctx.text, ctx.bowlName).note };",
+        // H1 moved this line: the flesh classes now read ctx.ingredientNames
+        // (BUG-346 a), so the anchor is the three-argument call.
+        from: "          storageNote: storageClassFor(ctx.text, ctx.bowlName, ctx.ingredientNames).note,",
+        to: "          storageNote: step.storageNote ?? storageClassFor(ctx.text, ctx.bowlName, ctx.ingredientNames).note,",
       },
     ],
     test: "src/lib/__tests__/prepStorage.test.ts",
@@ -314,8 +316,10 @@ const BREAKS: Break[] = [
       {
         // Serve the cached blob untouched: the shape D-WS9-298 forbids, because
         // the blob holds the dates the plan had when it was generated.
-        from: "          result: applyStorageOverlay(\n            cached.structureJson as unknown as PrepWeekResult,\n            storageContextFor(),\n          ),",
-        to: "          result: cached.structureJson as unknown as PrepWeekResult,",
+        // H1 wrapped this in summarizePrepWeek (ruling 4's header numbers are
+        // computed AFTER the overlay), so the anchor gained a level of nesting.
+        from: "          result: summarizePrepWeek(\n            applyStorageOverlay(\n              cached.structureJson as unknown as PrepWeekResult,\n              storageContextFor(),\n            ),\n          ),",
+        to: "          result: summarizePrepWeek(cached.structureJson as unknown as PrepWeekResult),",
       },
     ],
     test: "src/routes/__tests__/cooking.test.ts",
@@ -379,6 +383,135 @@ const BREAKS: Break[] = [
     test: "src/lib/__tests__/prepStorage.test.ts",
     runner: "api",
     expect: "deli ham falls to the 3-day default — the one direction this table may not be wrong in",
+  },
+  // ── D-WS9-301 — the grouping re-cut ───────────────────────────────────────
+  {
+    n: 24,
+    ruling: "rule 1 — a moment is closed by HEAT",
+    file: join(API, "src/lib/prepMoments.ts"),
+    cwd: API,
+    edits: [
+      {
+        // Never close a run: every step of a dish becomes one moment, so the
+        // slow cooker and the taco look identical.
+        from: '    const heat = s.phaseType === HEAT_PHASE;\n    if (!heat && lastWasHeat) run++;',
+        to: '    const heat = false;\n    if (!heat && lastWasHeat) run++;',
+      },
+    ],
+    test: "src/lib/__tests__/prepMoments.test.ts",
+    runner: "api",
+    expect: "nothing separates a prep run from what happens after the pan is hot",
+  },
+  {
+    n: 25,
+    ruling: "rule 1's inverse — the component absorbs its run (the marinade's lemon)",
+    file: join(API, "src/lib/prepCombineAdapter.ts"),
+    cwd: API,
+    edits: [
+      {
+        from: "          const run = moments.runByIngredientId.get(ing.ingredientId);\n          const shared = run === undefined ? undefined : componentKeyByRun.get(run);\n          if (shared) return `c:${shared}`;",
+        to: "          const run = moments.runByIngredientId.get(ing.ingredientId);\n          void run;",
+      },
+    ],
+    test: "src/lib/__tests__/prepMoments.test.ts",
+    runner: "api",
+    expect: "the lemon leaves the marinade and is prepped into a second container",
+  },
+  {
+    n: 26,
+    ruling: "rule 2 — an all-dry component absorbs nothing fresh (the taco onion)",
+    file: join(API, "src/lib/prepCombineAdapter.ts"),
+    cwd: API,
+    edits: [
+      {
+        from: "          if (allDry) continue;",
+        to: "          if (false && allDry) continue;",
+      },
+    ],
+    test: "src/lib/__tests__/prepMoments.test.ts",
+    runner: "api",
+    expect: "the diced onion is swallowed by the taco seasoning blend",
+  },
+  {
+    n: 27,
+    ruling: "rule 4 — ground meat is never touched",
+    file: join(API, "src/lib/prepCombineEngine.ts"),
+    cwd: API,
+    edits: [{ from: "  if (isGroundMeat(group.ingredientName)) return \"exclude\";", to: "" }],
+    test: "src/lib/__tests__/prepMoments.test.ts",
+    runner: "api",
+    expect: '"Portion the ground beef" comes back',
+  },
+  {
+    n: 28,
+    ruling: "rule 5 — a shared ingredient is ONE container, never one per dish",
+    file: join(API, "src/lib/prepWeekAssembly.ts"),
+    cwd: API,
+    edits: [
+      {
+        from: "          if (!isAuthoredMixture && new Set(dishIdsOf(entry)).size > 1) continue;",
+        to: "          void isAuthoredMixture;",
+      },
+    ],
+    test: "src/lib/__tests__/prepMoments.test.ts",
+    runner: "api",
+    expect: "rule 1 splits the garlic three ways, one single-dish container each",
+  },
+  {
+    n: 29,
+    ruling: "rule 7 — the drop pass STOPS after two classes",
+    file: join(API, "src/lib/prepWeekAssembly.ts"),
+    cwd: API,
+    edits: [
+      {
+        // Let it reach everything, which is the loop Hans ruled against.
+        from: '    .filter((x): x is { s: PlannedStep; cls: "garnish" | "citrus-wedge" } => x.cls !== null && !x.s.demoted)',
+        to: '    .map((x) => ({ s: x.s, cls: (x.cls ?? "garnish") as "garnish" | "citrus-wedge" }))\n    .filter((x) => !x.s.demoted)',
+      },
+    ],
+    test: "src/lib/__tests__/prepMoments.test.ts",
+    runner: "api",
+    expect: "the pass deletes real knife work to force the count under 15",
+  },
+  {
+    n: 30,
+    ruling: "ruling 4 — the header's minutes round UP",
+    file: join(API, "src/lib/prepWeekAssembly.ts"),
+    cwd: API,
+    edits: [
+      {
+        from: "    estimatedMinutes: minutes === 0 ? 0 : Math.ceil(minutes / 5) * 5,",
+        to: "    estimatedMinutes: minutes === 0 ? 0 : Math.floor(minutes / 5) * 5,",
+      },
+    ],
+    test: "src/lib/__tests__/prepMoments.test.ts",
+    runner: "api",
+    expect: "12 minutes of work states 10, and the cook misses the number",
+  },
+  {
+    n: 31,
+    ruling: "BUG-346 (a) — the flesh check reads identity, not a note",
+    file: join(API, "src/lib/prepStorage.ts"),
+    cwd: API,
+    edits: [
+      {
+        from: "  const identity = ingredientNames ? ingredientNames.join(\" \") : contents;",
+        to: "  const identity = contents;",
+      },
+    ],
+    test: "src/lib/__tests__/prepMoments.test.ts",
+    runner: "api",
+    expect: '"baking soda (for tenderizing beef)" is told to cook within 2 days',
+  },
+  {
+    n: 32,
+    ruling: "rule 8 — a container is named by dish and use, never numbered",
+    file: join(API, "src/lib/prepComponents.ts"),
+    cwd: API,
+    edits: [{ from: "    if (fallbackUse) return `${dish} ${fallbackUse}`;", to: "" }],
+    test: "src/lib/__tests__/prepComponents.test.ts",
+    runner: "api",
+    expect: '"Slow-Cooker Chicken bowl 1" comes back',
   },
 ];
 

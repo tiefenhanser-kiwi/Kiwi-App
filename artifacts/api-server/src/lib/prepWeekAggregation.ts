@@ -419,7 +419,7 @@ export async function loadPrepWeekInput(
         // component tags were already here for the path filter below.
         select: {
           ownerId: true, stepIndex: true, stepTextRaw: true, stepTextTranslated: true,
-          componentKey: true, pathKey: true, amountRefs: true,
+          componentKey: true, pathKey: true, amountRefs: true, phaseType: true,
         },
       }),
       prisma.recipeInstructionStep.findMany({
@@ -427,7 +427,7 @@ export async function loadPrepWeekInput(
         orderBy: [{ ownerId: "asc" }, { stepIndex: "asc" }],
         select: {
           ownerId: true, stepIndex: true, stepTextRaw: true, stepTextTranslated: true,
-          componentKey: true, pathKey: true, amountRefs: true,
+          componentKey: true, pathKey: true, amountRefs: true, phaseType: true,
         },
       }),
     ]);
@@ -448,10 +448,13 @@ export async function loadPrepWeekInput(
       stepTextTranslated: string;
       componentKey: string | null;
       amountRefs: unknown;
+      phaseType: string;
     }): ComponentStep => ({
       stepIndex: r.stepIndex,
       text: r.stepTextTranslated,
       componentKey: r.componentKey,
+      // D-WS9-301 rule 1 — the heat marker that closes a moment.
+      phaseType: r.phaseType,
       ingredientIds: Array.isArray(r.amountRefs)
         ? [
             ...new Set(

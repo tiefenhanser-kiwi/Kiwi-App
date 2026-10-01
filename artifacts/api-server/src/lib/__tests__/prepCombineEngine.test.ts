@@ -402,7 +402,7 @@ function tacoBlendPlan(): PrepCombineInput {
               { ingredientId: "ing-salt", ingredientName: "salt", category: "Pantry", quantity: 1, unit: "tsp" },
               { ingredientId: "ing-pepper", ingredientName: "black pepper", category: "Pantry", quantity: 0.5, unit: "tsp" },
               { ingredientId: "ing-oil", ingredientName: "olive oil", category: "Pantry", quantity: 1, unit: "tbsp" },
-              { ingredientId: "ing-beef", ingredientName: "ground beef", category: "Protein", quantity: 1, unit: "lb" },
+              { ingredientId: "ing-beef", ingredientName: "beef chuck roast", category: "Protein", quantity: 1, unit: "lb", preparationNote: "cut into cubes" },
               { ingredientId: "ing-onion", ingredientName: "yellow onion", category: "Produce", quantity: 1, unit: "each", preparationNote: "diced" },
               { ingredientId: "ing-cheese", ingredientName: "cheddar", category: "Dairy", quantity: 4, unit: "oz" },
             ],

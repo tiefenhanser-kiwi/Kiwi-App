@@ -7,6 +7,8 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  useNounFor,
+  bowlNameFor,
   resolveDishComponents,
   judgePrepWorthiness,
   shortDishName,
@@ -19,12 +21,15 @@ import {
 const step = (
   stepIndex: number,
   text: string,
-  o: { componentKey?: string; ids?: string[] } = {},
+  o: { componentKey?: string; ids?: string[]; phaseType?: string } = {},
 ): ComponentStep => ({
   stepIndex,
   text,
   componentKey: o.componentKey ?? null,
   ingredientIds: o.ids ?? [],
+  // D-WS9-301 — defaults to `prep` so every pre-existing component case keeps
+  // its meaning; the moment tests pass `cook` explicitly where heat matters.
+  phaseType: o.phaseType ?? "prep",
 });
 
 const ing = (
@@ -299,5 +304,41 @@ describe("D-WS9-299 — a prep step exists only when it saves weeknight time", (
     // Without this every unmarinated protein was demoted as a single item.
     const v = judge({ measuredItems: 1, phase: "proteins", text: "lean ground beef" });
     assert.equal(v.worthDoingAhead, true);
+  });
+});
+
+// ── WS9 D-WS9-301 rule 8 — "Containers, named by dish + use. Never 'bowl 1'" ─
+
+describe("D-WS9-301 rule 8 — a container is never numbered", () => {
+  it("🔴 a nameless mixture gets a USE, not an ordinal", () => {
+    // The sample plan shipped "Slow-Cooker Chicken bowl 1" and "Garlic Herb
+    // Roasted Potatoes bowl 1". The ordinal is anonymous: a cook looking in the
+    // fridge on Friday has no way to tell bowl 1 from bowl 2.
+    assert.equal(
+      bowlNameFor("Garlic Herb Roasted Potatoes", null, null, 1, false, false, "prep container"),
+      "Garlic Herb Roasted Potatoes prep container",
+    );
+    assert.equal(
+      bowlNameFor("Texas-Style Beef Chili", null, null, 2, false, false, "spice blend"),
+      "Texas-Style Beef Chili spice blend",
+    );
+  });
+
+  it("the use noun is derived from what is in the container", () => {
+    assert.equal(useNounFor(["seasonings_dry", "seasonings_dry"]), "spice blend");
+    assert.equal(useNounFor(["seasonings_dry", "sauces_marinades"]), "sauce bowl");
+    // Anything fresh in it and "sauce bowl" would be a lie — a tablespoon of oil
+    // does not make a container of potatoes a sauce.
+    assert.equal(useNounFor(["produce", "sauces_marinades"]), "prep container");
+    assert.equal(useNounFor([]), "prep container");
+  });
+
+  it("🔴 and no name this module can produce ends in a bare number", () => {
+    for (const noun of [null, "marinade", "glaze", "spice blend"]) {
+      for (const use of ["prep container", "spice blend", "sauce bowl"]) {
+        const name = bowlNameFor("Some Dish", null, noun, 3, false, false, use);
+        assert.ok(!/\b\d+$/.test(name), `"${name}" ends in an ordinal`);
+      }
+    }
   });
 });

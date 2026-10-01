@@ -65,6 +65,14 @@ export interface PrepCombineIngredient {
    * prepped on Sunday, the steak meets it on Friday.
    */
   cookDayInto?: string | null;
+  /**
+   * D-WS9-301 rule 1 — the MOMENT this ingredient enters the cooking process,
+   * as an opaque dish-local key (see prepMoments.ts). Two ingredients of one
+   * dish sharing this key are one container; different keys are separate
+   * containers. Supersedes `component` as the grouping key: a component is one
+   * of the three signals that produce it, and the strongest.
+   */
+  momentKey?: string | null;
 }
 
 /** D-WS9-296 — a mixture's identity and its bowl, as the engine carries it. */
@@ -152,6 +160,12 @@ export interface PrepContribution {
    * engine writes that sentence.
    */
   cookDayInto?: string | null;
+  /**
+   * D-WS9-301 rule 1 — the moment key, per (dish, ingredient) for the same
+   * reason `component` is: the plan's garlic is one group feeding four dishes
+   * and each dish's share enters its own dish at its own moment.
+   */
+  momentKey?: string | null;
 }
 
 // A summed line within an ingredient group. Multiple lines exist ONLY when an
@@ -446,12 +460,33 @@ function detectBlendComponents(input: PrepCombineInput): Set<string> {
 
 // Tiered prep-worthy classification (D3/D4). Precedence: denylist → produce →
 // protein → pantry(dry blend / sauces) → buy-and-use.
+/**
+ * D-WS9-301 rule 4 — "Ground meat is never touched — no portioning, no forming,
+ * nothing until the pan."
+ *
+ * Knife work on produce and on WHOLE proteins is prep: cubing a chuck roast or
+ * cutting chicken into strips saves real weeknight time. Ground meat saves
+ * none — it goes from the package into the skillet — and the census was
+ * producing "Portion the ground beef for the Hamburger Steaks", "Keep the 1¼ lb
+ * ground beef in its original packaging", and a dozen more steps whose whole
+ * content was "do nothing to this".
+ *
+ * Matched on the NAME, because the category is `Protein` for ground and whole
+ * alike and `Ingredient.category` is not a usable discriminator (D-WS9-211).
+ */
+const GROUND_MEAT = /\bground\s+(?:beef|turkey|pork|chicken|lamb|veal|sausage|meat|bison|venison)\b/i;
+
+export const isGroundMeat = (name: string) => GROUND_MEAT.test(name);
+
 function classifyPrepWorthy(
   group: GroupAccumulator,
   phase: PrepPhaseKey | null,
   isBlendComponent: boolean,
 ): PrepWorthy {
   if (isDenied(group.ingredientName)) return "exclude"; // Tier 1
+  // Rule 4 — before the category switch, because it is a statement about the
+  // FORM of the food and no category can express it.
+  if (isGroundMeat(group.ingredientName)) return "exclude";
   switch (categoryKey(group.category)) {
     case "produce":
       // Tier 2: produce with a prep note (diced/minced/chopped/…) is prep work.
@@ -509,6 +544,9 @@ export function combinePrep(input: PrepCombineInput): PrepCombineResult {
             : {}),
           ...(ing.component ? { component: ing.component } : {}),
           ...(ing.cookDayInto ? { cookDayInto: ing.cookDayInto } : {}),
+          // D-WS9-301 rule 1 — carried, never interpreted here. The assembly
+          // layer buckets on it; the engine only has to not lose it.
+          ...(ing.momentKey ? { momentKey: ing.momentKey } : {}),
         });
       }
     }

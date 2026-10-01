@@ -86,6 +86,13 @@ export const PrepWeekStepSchema = z.object({
   // Pure annotation: code-owned number / contributesToMealIds / quantities
   // are untouched. Mobile renders skipSuggested steps muted (Block 8b).
   skipSuggested: z.boolean().optional(),
+  /**
+   * D-WS9-301 rule 7 — CODE-OWNED. True for a step that holds no food: the
+   * cook-day protein instruction ("On cook day: 1½ lb skirt steak into the
+   * Carne Asada marinade bowl"). It is a sentence about Friday, not a container,
+   * and counting it would inflate the header's first number.
+   */
+  holdsNoContainer: z.boolean().optional(),
 });
 export type PrepWeekStep = z.infer<typeof PrepWeekStepSchema>;
 
@@ -113,6 +120,18 @@ export type PrepWeekPhase = z.infer<typeof PrepWeekPhaseSchema>;
 export const PrepWeekResultSchema = z
   .object({
     totalEstimatedMinutes: z.number().int().min(1).max(240),
+    /**
+     * D-WS9-301 rule 7 / ruling 4 — the header's two numbers. Both are CODE's,
+     * computed over the steps that actually render, and both are recomputed on
+     * every read for the same reason the storage notes are: a protein demoted by
+     * today's cook day changes the count.
+     *
+     * Optional so a `structureJson` blob written before this shipped still
+     * parses; the route fills them on the way out either way.
+     */
+    containerCount: z.number().int().min(0).optional(),
+    /** Sum of the rendered steps' minutes, ROUNDED UP to the next 5 (ruling 4). */
+    estimatedMinutes: z.number().int().min(0).optional(),
     phases: z.array(PrepWeekPhaseSchema).length(4),
   })
   .superRefine((val, ctx) => {

@@ -47,7 +47,7 @@ function plan(): PrepCombineInput {
               { ingredientId: "ing-cumin", ingredientName: "cumin", category: "Pantry", quantity: 1, unit: "tsp" },
               { ingredientId: "ing-paprika", ingredientName: "paprika", category: "Pantry", quantity: 1, unit: "tsp" },
               { ingredientId: "ing-chili", ingredientName: "chili powder", category: "Pantry", quantity: 2, unit: "tsp" },
-              { ingredientId: "ing-beef", ingredientName: "ground beef", category: "Protein", quantity: 1, unit: "lb" },
+              { ingredientId: "ing-beef", ingredientName: "beef chuck roast", category: "Protein", quantity: 1, unit: "lb", preparationNote: "cut into cubes" },
             ],
           },
         ],
@@ -115,11 +115,11 @@ describe("buildStepPlan", () => {
     );
   });
 
-  it("routes ground beef to a proteins step", () => {
+  it("routes a WHOLE protein to a proteins step (D-WS9-301 rule 4 keeps knife work)", () => {
     const sp = buildStepPlan(combinePrep(plan()), "Test Plan");
     const proteinSteps = sp.steps.filter((s) => s.phase === "proteins");
     assert.equal(proteinSteps.length, 1);
-    assert.equal(proteinSteps[0].components[0].ingredientName, "ground beef");
+    assert.equal(proteinSteps[0].components[0].ingredientName, "beef chuck roast");
   });
 });
 
@@ -179,7 +179,7 @@ function reorderedPlanWithAddedMeal(): PrepCombineInput {
               { ingredientId: "ing-cumin", ingredientName: "cumin", category: "Pantry", quantity: 1, unit: "tsp" },
               { ingredientId: "ing-paprika", ingredientName: "paprika", category: "Pantry", quantity: 1, unit: "tsp" },
               { ingredientId: "ing-chili", ingredientName: "chili powder", category: "Pantry", quantity: 2, unit: "tsp" },
-              { ingredientId: "ing-beef", ingredientName: "ground beef", category: "Protein", quantity: 1, unit: "lb" },
+              { ingredientId: "ing-beef", ingredientName: "beef chuck roast", category: "Protein", quantity: 1, unit: "lb", preparationNote: "cut into cubes" },
             ],
           },
         ],
@@ -235,8 +235,8 @@ describe("buildStepPlan — stable stepKey (B3 / D-WS7-153)", () => {
     assert.equal(onionBefore.stepKey, onionAfter.stepKey); // …but the key held.
 
     // Beef + blend keys also hold.
-    assert.equal(keyByIngredient(before, "proteins", "ground beef"), "proteins#ing-beef");
-    assert.equal(keyByIngredient(after, "proteins", "ground beef"), "proteins#ing-beef");
+    assert.equal(keyByIngredient(before, "proteins", "beef chuck roast"), "proteins#ing-beef");
+    assert.equal(keyByIngredient(after, "proteins", "beef chuck roast"), "proteins#ing-beef");
     assert.equal(
       before.steps.find((s) => s.phase === "seasonings_dry")!.stepKey,
       after.steps.find((s) => s.phase === "seasonings_dry")!.stepKey,

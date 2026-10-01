@@ -23,6 +23,7 @@
 import { inferCategory } from "./ingredientResolve";
 import { assignPhase } from "./prepCombineEngine";
 import { resolveDishComponents } from "./prepComponents";
+import { resolveMoments } from "./prepMoments";
 import type { PrepCombineInput } from "./prepCombineEngine";
 import type { PrepLoadedPlan } from "./prepWeekAggregation";
 
@@ -70,6 +71,73 @@ export function buildPrepCombineInput(loaded: PrepLoadedPlan): PrepCombineInput 
             phase: assignPhase(i.category, i.ingredientName),
           })),
         );
+        // ── D-WS9-301 rule 1 — the MOMENT each ingredient enters ───────────
+        //
+        // Same reason this lives in the adapter as the components above: it
+        // needs the dish's STEPS, which the engine's input omits. One call per
+        // dish; the result is an opaque per-ingredient key the assembly layer
+        // buckets on.
+        const moments = resolveMoments(
+          dish.componentSteps ?? [],
+          dish.ingredients.map((i) => ({
+            ingredientId: i.ingredientId,
+            ingredientName: i.ingredientName,
+            preparationNote: i.preparationNote,
+            phase: assignPhase(i.category, i.ingredientName),
+          })),
+        );
+        // ── D-WS9-301 rule 1's INVERSE CASE — a component absorbs its run ───
+        //
+        // "The lemon-herb marinade… all its parts enter together (into the
+        // marinade), so it is ONE container finished in ONE step — zest and
+        // juice the lemon inside that step, never deferred to the produce
+        // phase." The sample plan did the opposite and said so out loud: "Note:
+        // the lemon zest and juice for this marinade are handled in the lemon
+        // prep step — add them to this bowl once prepped."
+        //
+        // The marinade's own steps carry the component tag; the lemon's amount
+        // is stated on a step that carries none. So the component supplies the
+        // NAME and the run supplies MEMBERSHIP: whatever is measured in the same
+        // run as a resolved component belongs in it.
+        //
+        // ⚠️ Proteins are excluded — ruling 1 again: raw flesh has a destination,
+        // not a seat, and joins on cook day.
+        // 🔴 AND RULE 2 IS WHAT STOPS IT SWALLOWING THE TACO ONION. "Dry blend:
+        // 3+ dry items for one dish → one shelf-stable container… DRY ONLY.
+        // Garlic, onion and fresh herbs never join a dry blend."
+        //
+        // Both of Hans's examples are "an unclaimed ingredient shares a run with
+        // a component", and they must go opposite ways: the lemon DOES belong in
+        // the marinade, the diced onion does NOT belong in the taco seasoning.
+        // What tells them apart is the component itself — a marinade is wet and
+        // things get added to it, a spice blend is dry and must stay shelf
+        // stable. So an all-dry component absorbs nothing fresh.
+        const phaseOfIngredient = new Map(
+          dish.ingredients.map((i) => [i.ingredientId, assignPhase(i.category, i.ingredientName)]),
+        );
+        const componentKeyByRun = new Map<number, string>();
+        for (const comp of resolved.components) {
+          const allDry = comp.memberIds.every(
+            (id) => phaseOfIngredient.get(id) === "seasonings_dry",
+          );
+          if (allDry) continue;
+          for (const memberId of comp.memberIds) {
+            const run = moments.runByIngredientId.get(memberId);
+            if (run === undefined) continue;
+            if (!componentKeyByRun.has(run)) componentKeyByRun.set(run, comp.key);
+          }
+        }
+        const momentKeyFor = (ing: { ingredientId: string; category: string; ingredientName: string }): string | null => {
+          const own = resolved.byIngredient.get(ing.ingredientId);
+          if (own) return `c:${own.key}`;
+          if (assignPhase(ing.category, ing.ingredientName) === "proteins") {
+            return moments.keyByIngredientId.get(ing.ingredientId) ?? null;
+          }
+          const run = moments.runByIngredientId.get(ing.ingredientId);
+          const shared = run === undefined ? undefined : componentKeyByRun.get(run);
+          if (shared) return `c:${shared}`;
+          return moments.keyByIngredientId.get(ing.ingredientId) ?? null;
+        };
         // Ruling 1 — a raw protein named by a mixture's steps joins it on cook
         // day. One protein can only join one bowl; first by component order.
         const cookDayIntoByIngredientId = new Map<string, string>();
@@ -110,6 +178,11 @@ export function buildPrepCombineInput(loaded: PrepLoadedPlan): PrepCombineInput 
                 ? { key: comp.key, noun: comp.noun, bowlName: comp.bowlName }
                 : null,
               cookDayInto,
+              momentKey: momentKeyFor({
+                ingredientId: ing.ingredientId,
+                category,
+                ingredientName: ing.ingredientName,
+              }),
               // D-WS9-297 ruling 8 — passed straight through. The compound-unit
               // split above touches the DEMAND's unit; the yield is a property
               // of the ingredient and is unaffected by it.

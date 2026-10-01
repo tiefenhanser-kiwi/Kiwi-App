@@ -199,12 +199,32 @@ export const isP1Class = (c: StorageClass) => P1_KEYS.has(c.key);
  * and not an early return. Same shape as the label split above: remove what is
  * not flesh, then ask whether flesh remains.
  */
-export function storageClassFor(contents: string, bowlName = ""): StorageClass {
+export function storageClassFor(
+  contents: string,
+  bowlName = "",
+  /**
+   * BUG-346 (a) — THE IDENTITIES of the ingredients in the container, with no
+   * preparation notes attached. The raw-flesh classes read ONLY this.
+   *
+   * 🔴 A FREE-TEXT NOTE IS NOT AN INGREDIENT. `"baking soda (for tenderizing
+   * beef)"` matched the raw-meat class on the word BEEF, and a sauce jar holding
+   * nothing but powders was told to cook within 2 days. So did `"cornstarch (for
+   * velveting the chicken)"`. The note says what the powder is FOR — the dish it
+   * serves, the protein it will act on — and the one thing it never says is what
+   * is in the container.
+   *
+   * Defaults to `contents` so every existing caller keeps today's behaviour; the
+   * overlay passes the real list.
+   */
+  ingredientNames?: readonly string[],
+): StorageClass {
+  const identity = ingredientNames ? ingredientNames.join(" ") : contents;
   const shelfStable = stripShelfStable(contents);
   const isShelfStable = shelfStable !== contents;
+  const fleshIdentity = stripShelfStable(identity);
   const labelled = bowlName ? `${shelfStable} ${bowlName}` : shelfStable;
   for (const c of STORAGE_TABLE) {
-    if (c.match.test(isP1Class(c) ? shelfStable : labelled)) return c;
+    if (c.match.test(isP1Class(c) ? fleshIdentity : labelled)) return c;
   }
   return isShelfStable ? SHELF_STABLE_STORAGE : DEFAULT_STORAGE;
 }
@@ -317,7 +337,8 @@ export function applyStorageOverlay(
         // out of the phase; this is the second half of the same fix, and it is
         // the half the user is protected by: a category the catalog gets wrong
         // tomorrow must not be able to put "cook within 2 days" on a jar.
-        const shelfStableHere = stripShelfStable(ctx.text) !== ctx.text;
+        const identityHere = ctx.ingredientNames.join(" ");
+        const shelfStableHere = stripShelfStable(identityHere) !== identityHere;
         if (ctx.phase === "proteins" && !shelfStableHere) {
           const verdict = judgeProteinStep(ctx.daysUntilCook);
           if (verdict.kind === "demote") {
@@ -330,7 +351,11 @@ export function applyStorageOverlay(
           }
           return { ...step, storageNote: verdict.note };
         }
-        return { ...step, storageNote: storageClassFor(ctx.text, ctx.bowlName).note };
+        return {
+          ...step,
+          // BUG-346 (a) — the identities, so a note cannot name a protein.
+          storageNote: storageClassFor(ctx.text, ctx.bowlName, ctx.ingredientNames).note,
+        };
       }),
     })),
   };
