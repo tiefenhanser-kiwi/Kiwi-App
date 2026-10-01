@@ -81,7 +81,44 @@ export interface GroceryCheckResult {
   findings: GroceryFinding[];
   /** What the bridge could not supply, and what that costs. */
   gaps: string[];
+  /**
+   * Detectors whose findings are NOT defects, with the reason. Reported, never
+   * suppressed: the count stays in `totals` and the findings stay in
+   * `findings`, and a reader is told which rows to discount and why.
+   */
+  superseded: { detector: string; by: string; why: string }[];
 }
+
+// ── 1c — D7's R3 arm is superseded by B-R2 ──────────────────────────────────
+//
+// D7 asks whether a recurring row that ALSO carries a meal need has an
+// annotated split, and it looks for the annotation in `it.notes`. That is where
+// the split used to live. D-WS9-284 made the facets DERIVED AND NOT PERSISTED:
+// the server now ships `recurringFacets` and the SCREEN composes the sentence
+// through `recurringDetail` (app/grocery-list/[id].tsx:1527). `notes` is `null`
+// on every row of every list this harness has generated, so D7's R3 arm fires
+// on every recurring-with-meal-need row by construction — 15 of them across the
+// Part A pass — and none of them is a defect.
+//
+// ⛔ THE CENSUS CHECKER IS NOT EDITED. It is another lane's file and its own
+// corpus may still hold pre-D-WS9-284 lists where the arm is meaningful. The
+// supersession is declared HERE, in this harness's output, where it describes
+// this harness's runs.
+//
+// B-R2 is the live check: it composes each recurring row's sentence with the
+// phone's own `recurringDetail` and asserts the screen renders it, which is the
+// rule D-WS9-188 actually stated.
+const SUPERSEDED: GroceryCheckResult["superseded"] = [
+  {
+    detector: "D7 · recurring + meal need merged with no annotated split (R3)",
+    by: "B-R2",
+    why:
+      "reads `notes`, where the R3 split no longer lives — D-WS9-284 made the facets derived, " +
+      "not persisted, and the sentence is composed client-side by recurringDetail(). `notes` is " +
+      "null on every generated row, so this arm fires by construction. B-R2 checks the rendered " +
+      "sentence instead.",
+  },
+];
 
 export interface PrepCookFinding {
   rule: string;
@@ -352,7 +389,14 @@ export function runGroceryChecker(
     subTotals: Record<string, number>;
     findings: GroceryFinding[];
   };
-  return { tag, totals: parsed.totals, subTotals: parsed.subTotals, findings: parsed.findings, gaps };
+  return {
+    tag,
+    totals: parsed.totals,
+    subTotals: parsed.subTotals,
+    findings: parsed.findings,
+    gaps,
+    superseded: SUPERSEDED,
+  };
 }
 
 // ── prep & cook ──────────────────────────────────────────────────────────────

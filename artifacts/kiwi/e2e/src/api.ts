@@ -32,6 +32,18 @@ export const apiLog: ApiCall[] = [];
 export class Api {
   private token: string | null = null;
   userId: string | null = null;
+  /**
+   * Defaults to the same origin the BROWSER uses, so a call here and a call the
+   * screen makes are indistinguishable to the server. An API-only task (the
+   * cleanup pass) overrides it to the api-server directly — it has no page, so
+   * making it depend on the web server being up would be a dependency on
+   * nothing it uses.
+   */
+  private readonly base: string;
+
+  constructor(base: string = API_BASE) {
+    this.base = base;
+  }
 
   private async once<T>(
     method: string,
@@ -43,7 +55,7 @@ export class Api {
     const headers: Record<string, string> = { accept: "application/json" };
     if (body !== undefined) headers["content-type"] = "application/json";
     if (this.token) headers.authorization = `Bearer ${this.token}`;
-    const res = await fetch(`${API_BASE}${path}`, {
+    const res = await fetch(`${this.base}${path}`, {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -218,6 +230,36 @@ export class Api {
     return this.call<PlanResponse>("GET", `/plans/${planId}`);
   }
 
+  async plans(): Promise<
+    { id: string; name: string | null; status?: string; isActiveThisWeek?: boolean }[]
+  > {
+    const r = await this.call<{
+      plans: { id: string; name: string | null; status?: string; isActiveThisWeek?: boolean }[];
+    }>("GET", "/plans");
+    return r.plans;
+  }
+
+  async groceryLists(): Promise<{ id: string; mealPlanInstanceId: string | null }[]> {
+    const r = await this.call<{
+      groceryLists: { id: string; mealPlanInstanceId: string | null }[];
+    }>("GET", "/grocery-lists");
+    return r.groceryLists;
+  }
+
+  /**
+   * ⛔ SOFT-DELETE, NOT A HARD ONE. `DELETE /plans/:id` is the compost path
+   * (plans.ts:862): the row stays, `status` → "past", `compostedAt` stamped,
+   * `isArchived` true, `revisionId` bumped — and in the SAME transaction the
+   * plan's grocery lists take `status: "archived"` (D-WS9-001), scoped to
+   * non-archived rows so a second call is a no-op. One request archives both.
+   */
+  async compostPlan(planId: string): Promise<void> {
+    await this.call<unknown>("DELETE", `/plans/${planId}`, undefined, {
+      // Already-composted is success for a cleanup pass.
+      allowStatus: [404],
+    });
+  }
+
   // ── cook / prep ───────────────────────────────────────────────────────────
 
   async meal(mealId: string, planItemId?: string): Promise<MealDetail> {
@@ -291,6 +333,14 @@ export interface GroceryItemWire {
   isRecurringItem: boolean;
   isUserAdded?: boolean;
   stapleOptedIn: boolean;
+  /**
+   * WS7-7-A B5 — a resolved ambiguity renders THIS over `displayName`, so B-R1
+   * has to look for it on screen. It was missing from this interface until the
+   * e2e typecheck was wired up, which means the branch that reads it was
+   * comparing against `undefined` and never fired.
+   */
+  userResolvedTo: string | null;
+  ambiguityOptions?: string[];
   notes: string | null;
   purchaseUnit?: string | null;
   purchaseQuantity?: number | null;

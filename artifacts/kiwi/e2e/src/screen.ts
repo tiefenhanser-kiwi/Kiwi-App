@@ -130,6 +130,76 @@ export function looksLoading(text: string[]): boolean {
   return /loading|generating|building your|one moment|updating to match/.test(j);
 }
 
+// ── selectors ────────────────────────────────────────────────────────────────
+//
+// ROLE FIRST, everywhere a control has a role. [design-fix] A1–A4 gave the
+// shared `Button` an `accessibilityRole` and an accessible name, which covers
+// every primary control this harness touches. `tapButton` therefore needs no
+// text fallback at all, and the one it has is a diagnostic: when it fires, the
+// control it was aiming at has lost (or never had) its role, and that is a
+// finding for the next UI block rather than something to paper over.
+//
+// WHAT STILL HAS NO ROLE, on the screens this pass drives (surveyed at
+// 4ecabed, reported not fixed):
+//   • components/CookSessionView.tsx — 3 Pressables, 0 roles. The timer-strip
+//     "+1 min" and "dismiss" carry an accessibilityLabel but no role, so they
+//     are reachable by LABEL and not by role; the step rows carry `step-<i>`
+//     and neither a role nor a label.
+//   • app/grocery-list/[id].tsx — 4 roles across 13 Pressables. The row's name
+//     and need pressables (the inline-edit affordance) have no role, no label
+//     and no testID: text is the only handle.
+//   • components/Header.tsx — 1 role across 2 Pressables.
+
+/** Tap a control by role + accessible name. Text is a reported fallback. */
+export async function tapButton(
+  page: Page,
+  name: string | RegExp,
+  opts: { fallbackNote?: string[] } = {},
+): Promise<"role" | "text"> {
+  const byRole = page.getByRole("button", { name, exact: typeof name === "string" });
+  try {
+    await byRole.first().waitFor({ state: "visible", timeout: 20_000 });
+    await byRole.first().click();
+    return "role";
+  } catch {
+    // ⚠️ REACHED ONLY WHEN THE CONTROL HAS NO ROLE. Recorded as a finding.
+    const note =
+      `no role="button" named ${String(name)} — fell back to a focusable-div text match; ` +
+      `that control needs an accessibilityRole`;
+    opts.fallbackNote?.push(note);
+    const byText = page.locator('[tabindex="0"]').filter({
+      hasText: typeof name === "string" ? new RegExp(`^${name}$`) : name,
+    });
+    await byText.first().waitFor({ state: "visible", timeout: 20_000 });
+    await byText.first().click();
+    return "text";
+  }
+}
+
+// ── Cook Mode's own total ────────────────────────────────────────────────────
+//
+// 🔴 READ OFF THE SCREEN, NOT SUMMED. The bridge used to set a meal's
+// `sequenceTotalMinutes` to a serial sum of step minutes whenever Cook Mode had
+// no sequence — which is every single-dish meal, because §7.13 means Cook Mode
+// never sequences one. `lib/cooking/stepTiming.ts` is blunt about what that
+// number is: "THIS IS NOT THE WALL CLOCK, AND IT MUST NOT BE SHOWN AS ONE …
+// 48 of 54 meals overstated, median 43% over". Feeding it to K-R6 produced
+// four findings that were about the instrument.
+//
+// The footer is the user's number: `app/cook-session.tsx:281` renders
+// `remainingMinutesToServe(activeSteps, safeIndex) ?? remainingMinutes(...)`
+// into CookFooter's "~N min left". At step 0 that IS the total, so the harness
+// parses the rendered string and uses it. No arithmetic of our own survives.
+const COOK_TOTAL_RE = /~\s*(\d+)\s*min\s*left/i;
+
+export function parseCookTotalMinutes(text: string[]): number | null {
+  for (const line of text) {
+    const m = COOK_TOTAL_RE.exec(line);
+    if (m) return Number(m[1]);
+  }
+  return null;
+}
+
 // ── sign-in ──────────────────────────────────────────────────────────────────
 
 /**
@@ -152,31 +222,22 @@ export async function signInThroughUi(page: Page): Promise<{ token: string }> {
   await emailBox.fill(email);
   await passBox.fill(password);
 
-  // ── 🔴 THE WORST SELECTOR IN THIS HARNESS, AND WHY IT HAS TO BE ──────────
+  // ── ✅ A ROLE QUERY, AS OF [design-fix] A2 ───────────────────────────────
   //
-  // `getByRole("button", { name: "Sign in" })` does not work, and the reason is
-  // worth an app-side fix rather than a better test:
+  // This used to be the worst selector in the harness. `components/Button.tsx`
+  // wrapped a bare `Pressable` with no `accessibilityRole`, so react-native-web
+  // rendered `<div tabindex="0">` with no role — and the ONE element on this
+  // screen that did carry `role="button"` was the password-visibility toggle,
+  // with an empty accessible name, so a role query could select the wrong
+  // control. The harness had to fall back to
+  // `div[tabindex="0"]` filtered on exact text.
   //
-  //   • components/Button.tsx wraps a bare react-native `Pressable` with no
-  //     `accessibilityRole`, so react-native-web renders it as
-  //     `<div tabindex="0">` with NO role at all. There is no button to find.
-  //   • the one element on this screen that DOES carry `role="button"` is the
-  //     password-visibility toggle inside PasswordField — and it has an empty
-  //     accessible name. So a role query does not merely miss the submit
-  //     control, it can select the wrong control.
-  //   • and "Sign in" is the screen's heading as well as its button label, so a
-  //     plain text selector matches two nodes and strict mode throws.
-  //
-  // What is left that is actually unambiguous: the focusable div whose own text
-  // is exactly "Sign in". The heading is not focusable, so `[tabindex="0"]`
-  // separates them. One `accessibilityRole="button"` on Button.tsx would retire
-  // this whole comment — logged in the report, not changed here (components/**
-  // belongs to the design-fix lane).
-  const submit = page
-    .locator('div[tabindex="0"]')
-    .filter({ hasText: /^Sign in$/ });
-  await submit.first().waitFor({ state: "visible", timeout: 30_000 });
-  await submit.first().click();
+  // `9fbd65b` ([design-fix] A2) gave Button both `accessibilityRole="button"`
+  // and `accessibilityLabel={accessibilityLabel ?? label}`, and gave the
+  // PasswordField toggle a real name. Both halves of the problem are gone, so
+  // the role query is exact and the heading/button ambiguity ("Sign in" is
+  // both) no longer matters — a heading is not a button.
+  await tapButton(page, "Sign in");
 
   // The app replaces the auth stack on success. Wait for the token rather than
   // for a URL: expo-router's web history rewrites are not atomic with the
@@ -220,6 +281,14 @@ export async function gotoCookMode(
   const q = new URLSearchParams({ mealId: args.mealId, planId: args.planId });
   if (args.planItemId) q.set("planItemId", args.planItemId);
   await page.goto(`${WEB_ORIGIN}/cook-session?${q}`, { waitUntil: "domcontentloaded" });
+  let text = await settle(page, { timeoutMs: 120_000, minLines: 5 });
+  if (looksLoading(text)) text = await settle(page, { timeoutMs: 120_000, minLines: 5 });
+  return text;
+}
+
+/** The plan detail screen — where PlanReviewMealRow's "Remove from plan" lives. */
+export async function gotoPlanDetail(page: Page, planId: string): Promise<string[]> {
+  await page.goto(`${WEB_ORIGIN}/plan/${planId}`, { waitUntil: "domcontentloaded" });
   let text = await settle(page, { timeoutMs: 120_000, minLines: 5 });
   if (looksLoading(text)) text = await settle(page, { timeoutMs: 120_000, minLines: 5 });
   return text;

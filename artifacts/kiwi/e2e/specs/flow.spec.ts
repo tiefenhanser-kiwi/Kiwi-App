@@ -37,7 +37,9 @@ import {
   capture,
   gotoCookMode,
   gotoGroceryList,
+  gotoPlanDetail,
   gotoPrepWeek,
+  parseCookTotalMinutes,
   signInThroughUi,
 } from "../src/screen";
 import { measured, type SurfaceSpend } from "../src/spend";
@@ -191,29 +193,63 @@ for (const corpus of selectedRuns()) {
         corpusFile.gaps,
       );
 
-      // ── 4 — Cook Mode, for one meal ──────────────────────────────────────
-      // The FIRST multi-dish plan item, because a single-dish meal never calls
-      // the sequencer (§7.13) and K-R1/2/3 would have no candidates at all.
-      let cookItem = planRead.plan.items[0];
+      // ── 4 — Cook Mode, EVERY meal ────────────────────────────────────────
+      //
+      // 🔴 EVERY MEAL, NOT ONE, AND THE REASON IS K-R6. "Cook Mode's total" has
+      // to be the number the FOOTER RENDERS — the Part A bridge summed step
+      // minutes whenever there was no sequence, which is every single-dish
+      // meal, and `stepTiming.ts` says plainly that that sum "IS NOT THE WALL
+      // CLOCK AND MUST NOT BE SHOWN AS ONE". Four K-R6 findings came out of it.
+      //
+      // The only way to read the footer for a meal is to open that meal. So the
+      // flow opens all five, parses "~N min left" at step 0, and hands the map
+      // to the bridge. Costs navigation time and no money (the sequencer has
+      // been free since BUG-018 B2).
+      const screenTotals = new Map<string, number>();
+      const cookTotals: {
+        meal: string;
+        dishes: number;
+        screen: number | null;
+        card: number;
+      }[] = [];
+      let firstCookCaptured = false;
       for (const it of planRead.plan.items) {
-        const d = (await api.meal(it.mealId, it.id)) as { meal?: { dishes?: unknown[] } };
-        const n = (d.meal?.dishes ?? []).length;
-        if (n > 1) {
-          cookItem = it;
-          break;
+        const d = (await api.meal(it.mealId, it.id)) as {
+          meal?: { title: string; minutes: number; dishes?: unknown[] };
+        };
+        const m = d.meal!;
+        const cookText = await gotoCookMode(page, {
+          mealId: it.mealId,
+          planId: built.planId,
+          planItemId: it.id,
+        });
+        const total = parseCookTotalMinutes(cookText);
+        if (total != null) screenTotals.set(it.mealId, total);
+        cookTotals.push({
+          meal: m.title,
+          dishes: (m.dishes ?? []).length,
+          screen: total,
+          card: m.minutes,
+        });
+        if (total == null) {
+          frictions.push(
+            `Cook Mode for "${m.title.slice(0, 40)}" rendered no "~N min left" — the footer ` +
+              `hides it when remainingMins is 0, so K-R6 falls back to the app's own expression`,
+          );
+        }
+        // Photograph the first multi-dish meal: the sequenced path is the one
+        // with cues and offsets, and one screenshot per flow is the budget.
+        if (!firstCookCaptured && (m.dishes ?? []).length > 1) {
+          firstCookCaptured = true;
+          const { shot } = await capture(page, label, "03-cook-mode");
+          flow.screens.push(shot);
+          browserRules.push(
+            screenReached("cook-mode", cookText, [/step|next|start cooking|min/i]),
+          );
+          browserRules.push({ ...bR3_glyphsAndEach(cookText), rule: "B-R3/cook" });
         }
       }
-      const cookText = await gotoCookMode(page, {
-        mealId: cookItem.mealId,
-        planId: built.planId,
-        planItemId: cookItem.id,
-      });
-      const { shot: cookShot } = await capture(page, label, "03-cook-mode");
-      flow.screens.push(cookShot);
-      browserRules.push(
-        screenReached("cook-mode", cookText, [/step|next|start cooking|min/i]),
-      );
-      browserRules.push({ ...bR3_glyphsAndEach(cookText), rule: "B-R3/cook" });
+      flow.cookTotals = cookTotals;
 
       // ── 5 — Prep the Week (this one spends) ──────────────────────────────
       //
@@ -285,10 +321,29 @@ for (const corpus of selectedRuns()) {
       // ── the prep-cook census checker, unmodified ─────────────────────────
       const planRecord = await buildPlanRecord(
         api,
-        { planId: built.planId, prepResult, prepError },
+        { planId: built.planId, prepResult, prepError, screenTotals },
         gaps,
       );
       flow.prepCook = runPrepCookChecker(`qa-${RUN_ID}-r${corpus.run}`, [planRecord], gaps);
+
+      // ── 6 — the two screens chat-Claude asked to see ─────────────────────
+      // Not scored: they are a visual review of [design-fix] C1 (the header
+      // band becomes the page) and C3 ("Remove from plan" stops looking like
+      // the actions that undo). Captured on run 1 only — five identical
+      // screenshots of the same two components teach nothing.
+      if (corpus.run === selectedRuns()[0].run) {
+        const planText = await gotoPlanDetail(page, built.planId);
+        const { shot: planShot } = await capture(page, label, "05-plan-review-row");
+        flow.screens.push(planShot);
+        browserRules.push(
+          screenReached("plan-detail", planText, [/remove from plan|swap|cook/i]),
+        );
+        // The grocery header, framed on its own: C1 changed the band, and the
+        // grocery list is where it is widest.
+        await gotoGroceryList(page, gen.value.listId);
+        const { shot: headerShot } = await capture(page, label, "06-grocery-header");
+        flow.screens.push(headerShot);
+      }
 
       flow.ok = true;
     } catch (err) {

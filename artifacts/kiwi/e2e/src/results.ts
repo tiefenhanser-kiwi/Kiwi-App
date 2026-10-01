@@ -38,6 +38,11 @@ export interface FlowResult {
   spend: SurfaceSpend[];
   /** Everything that fought the harness, per run. */
   frictions: string[];
+  /**
+   * K-R6's evidence, per meal: what the Cook Mode FOOTER rendered against what
+   * the card claims. The number the rule is scored on is `screen`.
+   */
+  cookTotals?: { meal: string; dishes: number; screen: number | null; card: number }[];
 }
 
 export interface RunFile {

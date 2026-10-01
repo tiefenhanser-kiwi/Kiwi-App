@@ -84,8 +84,18 @@ export async function buildCookMeal(
     assignedDate: string | null;
   },
   gaps: string[],
-): Promise<{ record: CookStepRecord[]; meal: WireMeal; seq: CookingSequenceResponse | null }> {
-  const { sequenceMealSteps } = await import("../../lib/cooking/cookSession");
+): Promise<{
+  record: CookStepRecord[];
+  meal: WireMeal;
+  seq: CookingSequenceResponse | null;
+  /** What the app's own footer expression yields, for the screen cross-check. */
+  appFooterMinutes: number | null;
+  /** The discredited serial sum, kept only so the report can show the delta. */
+  serialSumMinutes: number;
+}> {
+  const { sequenceMealSteps, remainingMinutes, remainingMinutesToServe } = await import(
+    "../../lib/cooking/cookSession"
+  );
 
   const detailRaw = (await api.meal(args.mealId, args.planItemId)) as { meal?: WireMeal };
   const meal = (detailRaw.meal ?? (detailRaw as unknown as WireMeal)) as WireMeal;
@@ -179,13 +189,38 @@ export async function buildCookMeal(
     }
   }
 
-  return { record, meal, seq };
+  // ── the app's own footer expression, verbatim ────────────────────────────
+  // app/cook-session.tsx:281 — `remainingMinutesToServe(activeSteps, i) ??
+  // remainingMinutes(activeSteps, i)`, at i = 0. Both functions are imported
+  // from the phone's module, not reimplemented. This is the cross-check for the
+  // number scraped off the screen; where the two disagree, the harness trusts
+  // the screen and the report says so.
+  const stepsForFooter = record.map((s) => ({
+    estimatedMinutes: s.estimatedMinutes,
+    startOffsetMinutes: s.startOffsetMinutes,
+  }));
+  const appFooterMinutes =
+    remainingMinutesToServe(stepsForFooter, 0) ?? remainingMinutes(stepsForFooter, 0);
+  const serialSumMinutes = remainingMinutes(stepsForFooter, 0);
+
+  return { record, meal, seq, appFooterMinutes, serialSumMinutes };
 }
 
 /** The full PlanRecord the prep-cook checker reads as data. */
 export async function buildPlanRecord(
   api: Api,
-  args: { planId: string; prepResult: unknown | null; prepError: string | null },
+  args: {
+    planId: string;
+    prepResult: unknown | null;
+    prepError: string | null;
+    /**
+     * mealId → the "~N min left" the Cook Mode footer actually rendered at
+     * step 0. THE AUTHORITY for K-R6. A meal missing from this map was not
+     * opened in the browser, and its total falls back to the app's own footer
+     * expression with that recorded per meal.
+     */
+    screenTotals?: Map<string, number>;
+  },
   gaps: string[],
 ): Promise<Record<string, unknown>> {
   const { buildPrepWeekModel, buildMealLabelLookup } = await import(
@@ -275,7 +310,7 @@ export async function buildPlanRecord(
   for (const it of plan.items) {
     if (seen.has(it.mealId)) continue;
     seen.add(it.mealId);
-    const { record, meal, seq } = await buildCookMeal(
+    const { record, meal, seq, appFooterMinutes, serialSumMinutes } = await buildCookMeal(
       api,
       {
         mealId: it.mealId,
@@ -285,18 +320,36 @@ export async function buildPlanRecord(
       },
       gaps,
     );
+    // ── WHAT K-R6 IS GIVEN AS "Cook Mode's total" ───────────────────────────
+    // The screen's own number when the browser read one; the app's footer
+    // expression otherwise. NEVER the serial sum on its own — that is what
+    // produced four findings about the instrument in the Part A pass.
+    const screen = args.screenTotals?.get(it.mealId);
+    const totalForRule = screen ?? appFooterMinutes ?? serialSumMinutes;
+    if (screen != null && appFooterMinutes != null && screen !== appFooterMinutes) {
+      gaps.push(
+        `${meal.title.slice(0, 40)}: the Cook Mode footer rendered ${screen} min but the app's ` +
+          `own expression yields ${appFooterMinutes} — the screen is used, and the difference ` +
+          `is itself worth a look`,
+      );
+    }
     meals.push({
       mealId: it.mealId,
       mealTitle: meal.title,
       assignedDayOfWeek: it.assignedDayOfWeek,
       assignedDate: it.assignedDate ? String(it.assignedDate).slice(0, 10) : null,
+      // Extra fields the checker declares nowhere and therefore ignores; they
+      // exist so the report can show all three numbers side by side.
+      qaScreenTotalMinutes: screen ?? null,
+      qaAppFooterMinutes: appFooterMinutes,
+      qaSerialSumMinutes: serialSumMinutes,
       // The census reads recipeOverrideJson off Prisma to warn where GET
       // /meals/:id and the sequencer disagree (its README's "one deviation").
       // No endpoint exposes it, so the browser lane cannot tell — false, and
       // recorded as a gap once per plan below.
       hasRecipeOverride: false,
       dishCount: meal.dishes.length,
-      sequenceTotalMinutes: seq?.totalEstimatedMinutes ?? record.reduce((s, x) => s + x.estimatedMinutes, 0),
+      sequenceTotalMinutes: totalForRule,
       cardTotalMinutes: meal.minutes,
       cardActiveMinutes: meal.activeTimeMinutes ?? null,
       derivedTotalMinutes: null,
