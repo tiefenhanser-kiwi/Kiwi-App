@@ -1551,7 +1551,7 @@ Exactly ONE output object per input step, with the SAME 'stepId'. Same count, sa
 - 'title' — short imperative ("Dice all yellow onion", "Measure the taco spices"). <=120 chars, no filler. When every measure in the step is for ONE dish, name that dish HERE ("Measure the pork chop glaze") — the title is where the dish name belongs, and naming it here is exactly what lets the measures below drop it.
 - 'instructions' — imperative voice, the per-dish measures as described above. Echo every 'amount' string exactly as given. <=800 chars. No fluff.
 - 'storageNote' (optional) — where/how to store after prep (e.g. "Airtight container in the fridge, up to 3 days"). Skip when self-evident.
-- 'estimatedMinutes' — your realistic estimate of the prep time for this step, 1-60. This is the ONE number you decide.
+- DO NOT return a duration. There is no 'estimatedMinutes' field any more: the code computes how long a step takes from the actions and quantities it contains (BUG-204 — the estimates returned here ran roughly 3x long, and the plan header now states the total, so a guess is not good enough). You decide NO numbers at all. Echo the amounts, write the prose.
 - 'skipSuggested' (optional boolean) — see "# Prep-vs-cook-time rule". Set true ONLY to demote an at-cook application; otherwise omit it (or false).
 
 # Prep-vs-cook-time rule (what to keep as weekly prep, what to demote)

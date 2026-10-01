@@ -294,20 +294,24 @@ describe("assemblePrepWeekResult", () => {
     );
   });
 
-  it("totalEstimatedMinutes is the SUM of AI step estimates", () => {
+  it("🔴 BUG-204 — totalEstimatedMinutes is the ENGINE's sum, not the AI's", () => {
     const sp = buildStepPlan(combinePrep(plan()), "Test Plan");
     const result = assemblePrepWeekResult(sp, echo(sp, 6));
-    // 3 steps (blend + produce + protein) × 6 = 18.
     assert.equal(sp.steps.length, 3);
-    assert.equal(result.totalEstimatedMinutes, 18);
+    // The echo claims 6 min a step (18 total). The engine's own numbers stand.
+    const engine = sp.steps.reduce((n, s) => n + s.estimatedMinutes, 0);
+    assert.equal(result.totalEstimatedMinutes, engine);
+    assert.notEqual(result.totalEstimatedMinutes, 18);
   });
 
-  it("clamps totalEstimatedMinutes to the schema ceiling (240)", () => {
+  it("🔴 BUG-204 — an inflated AI estimate cannot move the total at all", () => {
     const sp = buildStepPlan(combinePrep(plan()), "Test Plan");
-    // 3 steps × 60 = 180 < 240; push past with a fat fixture instead.
-    const result = assemblePrepWeekResult(sp, echo(sp, 60));
-    assert.ok(result.totalEstimatedMinutes <= 240);
-    assert.equal(result.totalEstimatedMinutes, 180);
+    // 60 min a step was the schema's old ceiling and the sort of number that put
+    // "about 120 min" on a 40-minute plan. It is ignored.
+    const fat = assemblePrepWeekResult(sp, echo(sp, 60));
+    const lean = assemblePrepWeekResult(sp, echo(sp, 1));
+    assert.equal(fat.totalEstimatedMinutes, lean.totalEstimatedMinutes);
+    assert.ok(fat.totalEstimatedMinutes <= 240, "still inside the schema ceiling");
   });
 
   it("carries an optional storageNote through when present", () => {

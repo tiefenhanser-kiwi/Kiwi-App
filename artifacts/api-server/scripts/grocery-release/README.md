@@ -720,10 +720,21 @@ differ, so re-running it is idempotent.
 > the user up front to get out one small container per dish and portion each
 > dish's amount into its own."* Rule 5 says the exact reverse — one container,
 > labelled with the dishes it serves, and the cook portions at the stove. The
-> sentence is inverted in the seed. **Dev is at v12** (reseeded 2026-10-01);
+> sentence is inverted in the seed. **Dev is at v13** (reseeded 2026-10-01);
 > production is still on whatever version it was deployed with, so this reseed is
 > required for the grouping re-cut to reach a user even though the rest of the
 > re-cut is code.
+>
+> 🔴 **v12 → v13 (BUG-204) — THE MODEL NO LONGER RETURNS A DURATION.** It used to
+> own `estimatedMinutes`, and over the 14-plan corpus its estimates ran about 3x
+> long (mean 6.6 min a step; 3 min to halve one poblano). That was cosmetic until
+> D-WS9-301 ruling 4 put the SUM in the header. `prepStepMinutes.ts` computes it
+> now, the field is OPTIONAL on the narration schema so a v12 response still
+> parses, and anything that arrives is ignored. **The values in `MINUTES` are
+> starting values awaiting Hans's timed session** — see the H2 report for the
+> per-action-class evidence and the recommended multiplier. Re-tuning is editing
+> that one object; no reseed and no regeneration are needed for a re-tune, because
+> the minutes are not in `structureJson`.
 
 ```bash
 node --env-file=.env --import tsx -e "

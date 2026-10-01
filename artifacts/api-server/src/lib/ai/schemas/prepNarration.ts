@@ -113,9 +113,22 @@ export const PrepNarrationStepResultSchema = z.object({
   title: z.string().min(1).max(120),
   instructions: z.string().min(1).max(800),
   storageNote: z.string().min(1).max(200).optional(),
-  // The one number the AI owns: a prep-time judgment (not a quantity, not an
-  // attribution). Code sums these into totalEstimatedMinutes.
-  estimatedMinutes: z.number().int().min(1).max(60),
+  /**
+   * WS9 BUG-204 — 🔴 THE AI OWNS NO NUMBERS AT ALL NOW, INCLUDING THIS ONE.
+   *
+   * It used to be "the one number the AI owns", and across the 14-plan corpus it
+   * ran about three times long: mean 6.6 min per step, 3 min to halve one
+   * poblano, 4 min to dice one onion. That was survivable while it only coloured
+   * individual cards. D-WS9-301 ruling 4 puts the SUM in the header, and Hans's
+   * condition for showing a total was trust in both directions — "40 minutes is
+   * no more than 50 minutes or so in reality".
+   *
+   * A duration is a fact about an action and a quantity, so `prepStepMinutes.ts`
+   * computes it. OPTIONAL rather than removed: a v12 narration already in flight
+   * still parses, and anything that arrives here is IGNORED — the assembly never
+   * reads it.
+   */
+  estimatedMinutes: z.number().int().min(1).max(60).optional(),
   // WS7-8a B2b (D-WS7-150) — the AI's combine-vs-season judgment. true =
   // demote this step (its ingredients are only seasoned-and-cooked, not
   // prepped ahead). Annotation only; code-owned numbers/attribution stand.

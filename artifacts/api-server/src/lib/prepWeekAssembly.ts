@@ -25,6 +25,7 @@
 import { convertWithinDimension, pluralizeCountUnit } from "./ingredientConversions";
 import { judgePrepWorthiness, bowlNameFor, useNounFor } from "./prepComponents";
 import { isLoneKey } from "./prepMoments";
+import { timeStep, planMinutes } from "./prepStepMinutes";
 import {
   PREP_PHASE_ORDER,
   canonicalizeUnit,
@@ -77,6 +78,17 @@ export interface PlannedStep {
   // CODE-OWNED attribution — the dedup union of the contributing meal ids.
   contributesToMealIds: string[];
   isBlend: boolean;
+  /**
+   * WS9 BUG-204 — CODE-OWNED minutes, from `prepStepMinutes.timeStep`. Replaces
+   * the model's estimate, which ran about 3x long and is no longer requested.
+   *
+   * ⚠️ NEVER SENT TO THE NARRATOR. It is derived from the step's own contents,
+   * so the model has nothing to add and a number in the prompt would only invite
+   * prose that contradicts it ("this takes a couple of minutes").
+   */
+  estimatedMinutes: number;
+  /** True when the raw estimate exceeded the cap — a classification error. */
+  minutesOverCap?: boolean;
   components: PrepNarrationComponent[];
   // WS7-8a B2b / D-WS9-049 A1.2 — NAMES of the dish(es) this step's ingredients
   // are cooked in and that have step text. The prose itself lives once in the
@@ -738,8 +750,13 @@ export function buildStepPlan(
     if (entries.length === 0) continue;
 
     let number = 0;
-    const pushStep = (step: Omit<PlannedStep, "stepId" | "number" | "phase">): void => {
+    const pushStep = (
+      step: Omit<PlannedStep, "stepId" | "number" | "phase" | "estimatedMinutes">,
+    ): void => {
       number += 1;
+      // WS9 BUG-204 — the clock, computed from what the step holds. Done here so
+      // EVERY step gets one by construction and no branch can forget.
+      const timing = timeStep({ components: step.components, bowlName: step.bowlName });
       // D-WS9-297 ruling 13 — the LATEST cook day this step has to survive to.
       // Max, not min: a portion feeding Tuesday and Saturday has to last until
       // Saturday, and the shorter answer is the one that spoils food.
@@ -751,6 +768,8 @@ export function buildStepPlan(
         phase: key,
         number,
         ...step,
+        estimatedMinutes: timing.minutes,
+        ...(timing.overCap ? { minutesOverCap: true } : {}),
         ...(lags.length > 0 ? { daysUntilCook: Math.max(...lags) } : {}),
       };
       // ── D-WS9-299 — DOES THIS STEP SAVE WEEKNIGHT TIME? ──────────────────
@@ -1113,12 +1132,14 @@ function dropLowValueSteps(steps: PlannedStep[]): void {
 export function summarizePrepWeek(result: PrepWeekResult): PrepWeekResult {
   let containers = 0;
   let minutes = 0;
+  const perStep: number[] = [];
   for (const phase of result.phases) {
     for (const step of phase.steps) {
       if (step.skipSuggested) continue;
       // The cook-day sentence still shows and still takes a moment on Friday, so
       // it counts toward the MINUTES — it just is not a container.
       minutes += step.estimatedMinutes;
+      perStep.push(step.estimatedMinutes);
       if (step.holdsNoContainer) continue;
       containers += 1;
     }
@@ -1126,7 +1147,9 @@ export function summarizePrepWeek(result: PrepWeekResult): PrepWeekResult {
   return {
     ...result,
     containerCount: containers,
-    estimatedMinutes: minutes === 0 ? 0 : Math.ceil(minutes / 5) * 5,
+    // BUG-204 — planMinutes adds the one allowed padding (10% for getting the
+    // containers out and wiping down) and rounds UP to the next 5.
+    estimatedMinutes: planMinutes(perStep),
   };
 }
 
@@ -1149,13 +1172,15 @@ export function assemblePrepWeekResult(
   let total = 0;
   for (const planned of plan.steps) {
     const prose = proseById.get(planned.stepId)!;
-    total += prose.estimatedMinutes;
+    // WS9 BUG-204 — the step minutes are the ENGINE's. 
+    // is ignored even when a v12 narration still sends one.
+    total += planned.estimatedMinutes;
     stepsByPhase.get(planned.phase)!.push({
       number: planned.number, // CODE
       stepKey: planned.stepKey, // CODE — stable persistence identity
       title: prose.title, // AI
       instructions: prose.instructions, // AI
-      estimatedMinutes: prose.estimatedMinutes, // AI (time judgment)
+      estimatedMinutes: planned.estimatedMinutes, // CODE (BUG-204 — prepStepMinutes.ts)
       contributesToMealIds: planned.contributesToMealIds, // CODE — never from prose
       ...(prose.storageNote ? { storageNote: prose.storageNote } : {}),
       // WS7-8a B2b — AI demotion annotation. Only emit when true so the wire

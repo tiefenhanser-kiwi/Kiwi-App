@@ -541,13 +541,16 @@ describe("D-WS9-301 ruling 4 — the header reads N containers, about M min", ()
   it("a demoted step is neither a container nor a minute", () => {
     const out = summarizePrepWeek(wireResult([{ minutes: 5 }, { minutes: 30, skip: true }]));
     assert.equal(out.containerCount, 1);
-    assert.equal(out.estimatedMinutes, 5);
+    // 5 min + 10% overhead = 5.5 → the next 5 is 10. The 30-minute demoted step
+    // contributes nothing, which is the assertion that matters here.
+    assert.equal(out.estimatedMinutes, 10);
+    assert.equal(summarizePrepWeek(wireResult([{ minutes: 5 }])).estimatedMinutes, 10);
   });
 
   it("a cook-day sentence costs minutes but is not a container", () => {
     const out = summarizePrepWeek(wireResult([{ minutes: 5 }, { minutes: 2, noContainer: true }]));
     assert.equal(out.containerCount, 1);
-    assert.equal(out.estimatedMinutes, 10);
+    assert.equal(out.estimatedMinutes, 10); // 7 min + 10% = 7.7 → 10
   });
 
   it("an empty plan states zero, so the header can hide itself", () => {
