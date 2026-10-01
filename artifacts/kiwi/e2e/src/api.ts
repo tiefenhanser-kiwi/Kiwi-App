@@ -235,20 +235,53 @@ export class Api {
     return this.call<PlanResponse>("GET", `/plans/${planId}`);
   }
 
+  /**
+   * ⚠️ FOLLOWS THE CURSOR, and it has to. `GET /plans` is cursor-paginated at
+   * 20 (`paginateById`, plans.ts:374) and the first cleanup run read only page
+   * one: with 20 harness plans on the account, a SEED plan fell off the page
+   * and the staleness guard reported it as deleted. It was not — it was on
+   * page two.
+   *
+   * The failure was in the safe direction, because the keep-list is by id: an
+   * unseen seed plan is simply never touched, and the worst case is that a
+   * harness plan is MISSED rather than that a real one is archived. Fixed
+   * anyway, because "missed some" is still wrong and the guard should mean what
+   * it says.
+   */
   async plans(): Promise<
     { id: string; name: string | null; status?: string; isActiveThisWeek?: boolean }[]
   > {
-    const r = await this.call<{
-      plans: { id: string; name: string | null; status?: string; isActiveThisWeek?: boolean }[];
-    }>("GET", "/plans");
-    return r.plans;
+    type Row = { id: string; name: string | null; status?: string; isActiveThisWeek?: boolean };
+    const out: Row[] = [];
+    let cursor: string | undefined;
+    for (let page = 0; page < 50; page++) {
+      const q = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+      const r = await this.call<{ plans: Row[]; nextCursor?: string | null }>(
+        "GET",
+        `/plans${q}`,
+      );
+      out.push(...r.plans);
+      if (!r.nextCursor) break;
+      cursor = r.nextCursor;
+    }
+    return out;
   }
 
   async groceryLists(): Promise<{ id: string; mealPlanInstanceId: string | null }[]> {
-    const r = await this.call<{
-      groceryLists: { id: string; mealPlanInstanceId: string | null }[];
-    }>("GET", "/grocery-lists");
-    return r.groceryLists;
+    type Row = { id: string; mealPlanInstanceId: string | null };
+    const out: Row[] = [];
+    let cursor: string | undefined;
+    for (let page = 0; page < 50; page++) {
+      const q = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+      const r = await this.call<{ groceryLists: Row[]; nextCursor?: string | null }>(
+        "GET",
+        `/grocery-lists${q}`,
+      );
+      out.push(...r.groceryLists);
+      if (!r.nextCursor) break;
+      cursor = r.nextCursor;
+    }
+    return out;
   }
 
   /**
