@@ -17,6 +17,7 @@ import {
   AsyncStorageStub,
   ExpoFetchStub,
   ExpoCryptoStub,
+  ExpoNotificationsStub,
 } from "./_stubs.mjs";
 
 // Inline-source stubs (don't import React; safe to ship as data-style modules
@@ -29,6 +30,10 @@ const STUBS = new Map([
   // Row 9 (1.1) OAuth Block 2 — node:crypto-backed, so the SHA-256 vector in
   // lib/oauth/__tests__/nonce.test.ts exercises a real digest.
   ["expo-crypto", ExpoCryptoStub],
+  // D-WS9-289 — lets hooks/useStepTimers.ts keep a STATIC import of the live
+  // notifier while staying mountable. Every export throws: see the note in
+  // _stubs.mjs for why that is deliberate.
+  ["expo-notifications", ExpoNotificationsStub],
 ]);
 
 // WS7-4-B c6 — physical stub files. These need real file URLs so the loader

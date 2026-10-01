@@ -102,3 +102,30 @@ export function randomUUID() {
   return "00000000-0000-4000-8000-000000000000";
 }
 `;
+
+// D-WS9-289 — expo-notifications. Stubbed for the same reason every other Expo
+// native module here is: importing the real one pulls \`expo\` itself into the
+// graph, and node's --experimental-strip-types refuses .ts under node_modules
+// (ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING on expo/src/Expo.ts).
+//
+// ⚠️ THIS STUB IS NOT WHAT THE TESTS ASSERT AGAINST. The notification policy is
+// tested against an injected recorder in lib/cooking/__tests__/timerNotifications.test.ts;
+// this exists only so hooks/useStepTimers.ts can keep a STATIC import of
+// lib/cooking/liveTimerNotifier.ts (which is the honest production shape) while
+// being mountable under node:test. Every function here throws if actually
+// called, so a test that reaches the live wiring by accident FAILS rather than
+// silently passing against a fake.
+export const ExpoNotificationsStub = `
+const unreachable = (name) => {
+  throw new Error(
+    "stub: expo-notifications." + name + " was called. The tests inject a " +
+    "TimerNotifier; reaching the live module means the seam was bypassed."
+  );
+};
+export const SchedulableTriggerInputTypes = { DATE: "date", TIME_INTERVAL: "timeInterval" };
+export async function getPermissionsAsync() { unreachable("getPermissionsAsync"); }
+export async function requestPermissionsAsync() { unreachable("requestPermissionsAsync"); }
+export async function scheduleNotificationAsync() { unreachable("scheduleNotificationAsync"); }
+export async function cancelScheduledNotificationAsync() { unreachable("cancelScheduledNotificationAsync"); }
+export function setNotificationHandler() { unreachable("setNotificationHandler"); }
+`;
