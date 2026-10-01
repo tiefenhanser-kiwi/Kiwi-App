@@ -210,6 +210,15 @@ export function shortDishName(title: string): string {
  * a "sauce bowl" because a tablespoon of oil is in it would be worse than
  * saying less.
  */
+/**
+ * D-WS9-301 H2.2 — nouns that promise a SHELF-STABLE DRY container. None of them
+ * may name a container with fresh food in it.
+ */
+const DRY_NOUNS: ReadonlySet<string> = new Set([
+  "seasoning", "seasonings", "spice blend", "spice mix", "spice mixture",
+  "rub", "dry rub", "blend", "spices", "dredge", "breading",
+]);
+
 export function useNounFor(phases: (string | null)[]): string {
   const set = new Set(phases.filter((p): p is string => !!p));
   if (set.size === 0) return "prep container";
@@ -412,11 +421,26 @@ export function resolveDishComponents(
       const ph = byId.get(id)?.phase;
       return ph === "seasonings_dry" || ph === "sauces_marinades";
     });
+    // ── D-WS9-301 H2.2 — A CONTAINER HOLDING FRESH FOOD IS NOT A "SEASONING" ──
+    //
+    // Rule 2: "Dry only. Garlic, onion and fresh herbs never join a dry blend."
+    // Rule 8: the name carries the use. The corpus shipped "Tex-Mex Seasoned
+    // Ground Beef seasoning" holding six dry spices AND three minced garlic
+    // cloves AND a diced yellow onion — a name that tells the cook it is a dry
+    // blend, on a container that will not keep like one.
+    //
+    // The MEMBERSHIP is not wrong: those things do go into the pan together, and
+    // H1 already moved the container out of the skippable dry phase and gave it
+    // a fridge window. Only the noun lies. So where anything fresh is inside, a
+    // dry noun is dropped and `useNounFor` supplies an honest one.
+    const memberPhases = [...b.members].map((id) => byId.get(id)?.phase ?? null);
+    const hasFresh = memberPhases.some((p) => p === "produce" || p === "proteins");
+    const noun = hasFresh && b.noun !== null && DRY_NOUNS.has(norm(b.noun)) ? null : b.noun;
     const comp: ResolvedComponent = {
       key,
-      noun: b.noun,
+      noun,
       bowlName: bowlNameFor(
-        dishTitle, mealName, b.noun, ordinal, looksLikeSeasoning, b.lostBase,
+        dishTitle, mealName, noun, ordinal, looksLikeSeasoning && !hasFresh, b.lostBase,
         useNounFor([...b.members].map((id) => byId.get(id)?.phase ?? null)),
       ),
       memberIds: [...b.members],

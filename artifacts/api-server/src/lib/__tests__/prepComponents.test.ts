@@ -342,3 +342,72 @@ describe("D-WS9-301 rule 8 — a container is never numbered", () => {
     }
   });
 });
+
+// ── WS9 D-WS9-301 H2.2 — a container holding fresh food is not a "seasoning" ──
+
+describe("D-WS9-301 H2.2 — a dry noun never names a container with fresh food in it", () => {
+  it("🔴 the Tex-Mex seasoning that held garlic and onion loses the word", () => {
+    // Shipped in the H1 corpus: "Tex-Mex Seasoned Ground Beef seasoning" holding
+    // six dry spices AND three minced garlic cloves AND a diced yellow onion. The
+    // membership is right — they go into the pan together — and H1 already moved
+    // the container out of the skippable dry phase and gave it a fridge window.
+    // Only the NAME lied, and it is the name the cook reads in the fridge.
+    const steps = [
+      // The real shape: one tagged step carries the whole lot, spices and fresh
+      // aromatics together, because they all go into the skillet at once.
+      step(0, "Combine the chili powder, cumin, paprika and oregano with the minced garlic and diced onion.", {
+        componentKey: "seasoning",
+        ids: ["chili", "cumin", "paprika", "oregano", "garlic", "onion"],
+      }),
+    ];
+    const ingredients = [
+      ing("garlic", "garlic", "produce", "minced"),
+      ing("onion", "yellow onion", "produce", "finely diced"),
+      ing("chili", "chili powder", "seasonings_dry"),
+      ing("cumin", "ground cumin", "seasonings_dry"),
+      ing("paprika", "smoked paprika", "seasonings_dry"),
+      ing("oregano", "dried oregano", "seasonings_dry"),
+    ];
+    const { components } = resolveDishComponents("Tex-Mex Seasoned Ground Beef", null, steps, ingredients);
+    const withFresh = components.find((c) => c.memberIds.includes("onion"));
+    assert.ok(withFresh, "the onion left the container entirely — that is not the fix");
+    assert.ok(
+      !/\b(seasoning|spice blend|rub)\b/i.test(withFresh!.bowlName),
+      `"${withFresh!.bowlName}" still promises a dry blend`,
+    );
+    assert.equal(withFresh!.noun, null);
+  });
+
+  it("…and an all-dry container KEEPS its dry noun", () => {
+    const steps = [
+      step(0, "Combine the cumin, chili powder and oregano as the seasoning blend.", {
+        componentKey: "seasoning",
+        ids: ["cumin", "chili", "oregano"],
+      }),
+    ];
+    const ingredients = [
+      ing("cumin", "ground cumin", "seasonings_dry"),
+      ing("chili", "chili powder", "seasonings_dry"),
+      ing("oregano", "dried oregano", "seasonings_dry"),
+    ];
+    const { components } = resolveDishComponents("Beef Enchiladas Verdes", null, steps, ingredients);
+    assert.match(components[0].bowlName, /spice blend|seasoning/i);
+  });
+
+  it("a WET noun survives fresh members — a marinade is supposed to hold garlic", () => {
+    const steps = [
+      step(0, "Whisk the oil and lemon juice with the minced garlic to make the marinade.", {
+        componentKey: "marinade",
+        ids: ["oil", "lemon", "garlic"],
+      }),
+    ];
+    const ingredients = [
+      ing("oil", "extra-virgin olive oil", "sauces_marinades"),
+      ing("lemon", "lemon juice", "produce"),
+      ing("garlic", "garlic", "produce", "minced"),
+    ];
+    const { components } = resolveDishComponents("Lemon-Herb Chicken", null, steps, ingredients);
+    assert.equal(components[0].noun, "marinade");
+    assert.match(components[0].bowlName, /marinade/);
+  });
+});
