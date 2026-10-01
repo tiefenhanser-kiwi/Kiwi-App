@@ -47,7 +47,7 @@ import { PrismaClient } from "@prisma/client";
 import { loadPrepWeekInput } from "../../src/lib/prepWeekAggregation";
 import { buildPrepCombineInput } from "../../src/lib/prepCombineAdapter";
 import { combinePrep } from "../../src/lib/prepCombineEngine";
-import { buildStepPlan, assemblePrepWeekResult } from "../../src/lib/prepWeekAssembly";
+import { buildStepPlan, assemblePrepWeekResult, summarizePrepWeek } from "../../src/lib/prepWeekAssembly";
 import { PrepNarrationResultSchema } from "../../src/lib/ai/schemas/prepNarration";
 import { PrepWeekResultSchema } from "../../src/lib/ai/schemas/prepWeek";
 import { runAICall } from "../../src/lib/ai/runAICall";
@@ -262,6 +262,9 @@ export interface PlanRecord {
     totalEstimatedMinutes: number;
     /** The phone's number — KEPT steps only (skipSuggested render-omitted). */
     renderedTotalMinutes: number;
+    /** D-WS9-301 ruling 4 — the two numbers the HEADER shows, from the product. */
+    containerCount: number;
+    statedMinutes: number;
     steps: PrepStepRecord[];
     /** D-WS9-298 item 3 — the quiet per-phase line, code-owned. */
     phaseNotes: Record<string, string>;
@@ -419,10 +422,17 @@ async function runPlan(planId: string): Promise<PlanRecord> {
         }
         const phaseNotes: Record<string, string> = {};
         for (const ph of withDemotions.phases) if (ph.note) phaseNotes[ph.phase] = ph.note;
+        const summary = summarizePrepWeek(withDemotions);
         rec.prep = {
           phaseNotes,
           totalEstimatedMinutes: assembled.totalEstimatedMinutes,
           renderedTotalMinutes: vm.totalEstimatedMinutes,
+          // D-WS9-301 ruling 4 — the SAME function the route calls on every read.
+          // Without it the corpus could not see the header at all, which is the
+          // B2 E lesson again: a harness that renders less than the product
+          // misreports the product.
+          containerCount: summary.containerCount ?? 0,
+          statedMinutes: summary.estimatedMinutes ?? 0,
           steps,
           narrationInputHash: sha(JSON.stringify(stepPlan.narrationInput)),
           plannedStepCount: stepPlan.steps.length,
@@ -563,6 +573,9 @@ function renderText(rec: PlanRecord): string {
   if (!rec.prep) {
     L.push(`  (no prep: ${rec.prepError})`);
   } else {
+    // D-WS9-301 ruling 4 — print the HEADER first, because it is the first thing
+    // the cook reads and a corpus that does not print it cannot audit it.
+    L.push(`  HEADER: ${rec.prep.containerCount} containers · about ${rec.prep.statedMinutes} min`);
     L.push(`  server total ${rec.prep.totalEstimatedMinutes} min · phone shows ${rec.prep.renderedTotalMinutes} min · ${rec.prep.steps.length} steps (${rec.prep.plannedStepCount} planned)`);
     let phase = "";
     for (const s of rec.prep.steps) {

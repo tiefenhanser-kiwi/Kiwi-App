@@ -78,7 +78,15 @@ interface PlanRecord {
   mealCount: number;
   datedItems: number;
   dayByMealId: Record<string, { day: string | null; date: string | null }>;
-  prep: { totalEstimatedMinutes: number; renderedTotalMinutes: number; steps: PrepStep[]; plannedStepCount: number } | null;
+  prep: {
+    totalEstimatedMinutes: number;
+    renderedTotalMinutes: number;
+    steps: PrepStep[];
+    plannedStepCount: number;
+    /** D-WS9-301 ruling 4 — the header's own two numbers, written by the product. */
+    containerCount?: number;
+    statedMinutes?: number;
+  } | null;
   prepError: string | null;
   meals: CookMeal[];
 }
@@ -443,9 +451,31 @@ function checkPrep(plan: PlanRecord, narration: NarrationInput | null) {
         }
       }
     }
+    // ── D-WS9-301 ruling 4 / rule 7 — P-R1's NUMBER IS THE PRODUCT'S COUNT ──
+    //
+    // The arithmetic above counts one container per (ingredient, dish), which is
+    // what the old rules built and what produced ~30 for five meals. Rule 5
+    // retired that shape: a shared ingredient is ONE container. So the number
+    // P-R1 reports is now the header's own `containerCount` — the product's,
+    // computed by `summarizePrepWeek` — and the per-portion figure stays beside
+    // it as the before-picture.
+    //
+    // ⚠️ OVER 15 IS REPORTED, NOT RED. Hans: "exceeding 15 is allowed when every
+    // step clears the test… or even more within reason." The drop pass reaches
+    // only the two lowest classes by ruling, so a plan of real blends, marinades
+    // and knife work lands where it lands.
     bump("P-R1");
+    const shipped = plan.prep?.containerCount;
+    const target =
+      shipped == null
+        ? " (the corpus predates the header count)"
+        : shipped <= 15
+          ? ` — inside the 10–15 target`
+          : ` — ${shipped - 15} OVER the 15 target (reported, not forced: the drop pass stops after garnish portions and citrus wedges)`;
     hit("P-R1", plan.planId, `${P} · ${plan.mealCount} meals`,
-      `${containers} containers across ${narration.steps.length} steps (${(containers / Math.max(1, plan.mealCount)).toFixed(1)} per meal); ${tiny.length} hold a single ingredient under 1 tbsp — e.g. ${tiny.slice(0, 3).map((t) => `"${t}"`).join(", ")}`);
+      `${shipped ?? "?"} containers · about ${plan.prep?.statedMinutes ?? "?"} min${target}; ` +
+      `per-(ingredient,dish) portions would be ${containers} across ${narration.steps.length} steps; ` +
+      `${tiny.length} hold a single ingredient under 1 tbsp${tiny.length ? ` — e.g. ${tiny.slice(0, 3).map((t) => `"${t}"`).join(", ")}` : ""}`);
   }
   // The rendered text's own container count, as a second, independent read.
   const WORDS: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12 };
