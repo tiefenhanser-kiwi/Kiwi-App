@@ -431,6 +431,10 @@ function buildStubInput(opts: {
   mealIds: string[];
   selected: string[];
   servingsOverride?: number | null;
+  /** G1 — add a Protein-category row so a `proteins` phase step actually
+   *  exists. Off by default: every pre-existing fingerprint assertion in this
+   *  file is written against the one-onion shape. */
+  protein?: boolean;
 }): PrepLoadedPlan {
   return {
     planId: opts.planId,
@@ -465,6 +469,19 @@ function buildStubInput(opts: {
               preparationNote: "diced",
               sourceYield: null,
             },
+            ...(opts.protein
+              ? [
+                  {
+                    ingredientId: "11111111-1111-4111-8111-111111111111",
+                    ingredientName: "chicken thighs",
+                    category: "Protein",
+                    quantity: 1,
+                    unit: "lb",
+                    preparationNote: "trimmed",
+                    sourceYield: null,
+                  },
+                ]
+              : []),
           ],
         },
       ],
@@ -482,6 +499,8 @@ function makeLoaderStub(opts: {
   /** WS9 — plan-item servingsOverride, so a servings change can be simulated
    *  without touching the meal set. */
   servingsOverride?: number | null;
+  /** G1 — see buildStubInput. */
+  protein?: boolean;
   throwOn?: "not_found" | "empty";
   /** Filled in by the stub: every `mealIds` value the route passed, in order.
    *  `undefined` entries are full-week calls. */
@@ -510,6 +529,7 @@ function makeLoaderStub(opts: {
         mealIds: opts.mealIds,
         selected,
         servingsOverride: opts.servingsOverride,
+        protein: opts.protein,
       }),
       planRevisionId: opts.planRevisionId,
       // D-WS9-298 — cook days ride BESIDE the hashed input. Empty by default:
@@ -2249,5 +2269,118 @@ describe("POST /api/plans/:planId/prep-week — the storage overlay is computed,
     } finally {
       await harness.close();
     }
+  });
+});
+
+// ── WS9 BUG-338 / Part G1 — THE DAY-DEPENDENT LINES ARE COMPUTED ON READ ────
+//
+// 🔴 THE FOOD-SAFETY CLASS. B2 · 0 deliberately made a day reassignment a cache
+// HIT (the cook day is not part of the composition fingerprint). B3 then hung
+// three lines off that same cook day:
+//
+//   • "This one is 4 days out — leave it for cook day." + the demoted title;
+//   • "Covered in the fridge — cook within 2 days.";
+//   • the unassigned-protein line.
+//
+// If ANY of them were baked into `structureJson`, a user who drags Friday's
+// salmon to Monday would be served Friday's advice from the cache — for free,
+// instantly, and wrong in the direction that spoils food. The suite above
+// proves the overlay RUNS on the hit path (the phase note); this proves the
+// per-step verdict actually MOVES, in all three directions, with no AI call.
+describe("POST /api/plans/:planId/prep-week — G1: a day move rewrites the advice on a cache HIT", () => {
+  // One cache stub across several requests. The FIRST call is a genuine miss
+  // that fills the cache exactly as the product does — stepKeys included,
+  // which a hand-seeded row cannot get right (an unknown key makes the overlay
+  // drop the note rather than rewrite it, and the test would pass vacuously).
+  async function runWithLag(
+    cache: ReturnType<typeof makeCacheStub>,
+    lag: number | undefined,
+    tag: string,
+  ) {
+    let aiCalls = 0;
+    const harness = await spinUp({
+      loadPrepWeekInput: makeLoaderStub({
+        planRevisionId: 1,
+        mealIds: [MEAL_ID_X],
+        protein: true,
+        prepDay: "2026-10-04",
+        // No entry at all is what an UNASSIGNED meal looks like coming out of
+        // the loader — not a zero.
+        ...(lag === undefined ? {} : { lagByMealId: { [MEAL_ID_X]: lag } }),
+      }),
+      resolvePromptDescriptor: makeDescriptorStub(),
+      runAICall: makeAICallStub({
+        onCall: () => {
+          aiCalls++;
+        },
+        promptVersion: STUB_PROMPT_VERSION,
+      }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prisma: cache.prisma as any,
+      subscriptionService: { can: async () => ({ allowed: true }) },
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/${PLAN_ID}/prep-week`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${signToken(tag)}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { cacheHit: boolean; result: PrepWeekResult };
+      const proteins = body.result.phases.find((p) => p.phase === "proteins")!;
+      assert.equal(proteins.steps.length, 1, "the fixture must produce exactly one protein step");
+      return { aiCalls, cacheHit: body.cacheHit, step: proteins.steps[0] };
+    } finally {
+      await harness.close();
+    }
+  }
+
+  it("🔴 4 days out → 1 day out flips demoted to prepped, with ZERO AI calls", async () => {
+    const cache = makeCacheStub();
+
+    // 1. Generate, with the meal 4 days after the prep session.
+    const far = await runWithLag(cache, 4, "u-g1-far");
+    assert.equal(far.cacheHit, false, "the first call must be the generating miss");
+    assert.equal(far.aiCalls, 1);
+    assert.equal(far.step.skipSuggested, true, "4 days out must demote");
+    assert.equal(far.step.title, "Chicken thighs — cook day");
+    assert.match(far.step.storageNote!, /4 days out/);
+
+    // 🔴 AND THE CACHED BLOB MUST NOT CARRY ANY OF IT. What is stored is what
+    // the model wrote; the verdict is applied over it on the way out. If this
+    // assertion fails, the rest of the test is theatre — the next read would
+    // return the demotion no matter what the overlay computed.
+    const stored = cache.rows.get(PLAN_ID).structureJson as PrepWeekResult;
+    const storedStep = stored.phases.find((p) => p.phase === "proteins")!.steps[0];
+    assert.equal(storedStep.skipSuggested, undefined, "the demotion was baked into the cache");
+    assert.notEqual(storedStep.title, "Chicken thighs — cook day", "the demoted title was baked in");
+    assert.ok(
+      storedStep.storageNote === undefined || !/days out/.test(storedStep.storageNote),
+      "a day-dependent storage note was baked into the cache",
+    );
+    const modelTitle = storedStep.title;
+
+    // 2. Move the meal to the day after the prep session. Same composition, so
+    //    this MUST be a hit — and the advice must still change.
+    const near = await runWithLag(cache, 1, "u-g1-near");
+    assert.equal(near.cacheHit, true, "a day move must not invalidate the cache");
+    assert.equal(near.aiCalls, 0, "no AI call may be spent re-deciding a date");
+    assert.equal(near.step.skipSuggested, undefined, "1 day out must NOT be demoted");
+    assert.equal(near.step.title, modelTitle, "the title must revert to what the model wrote");
+    assert.match(near.step.storageNote!, /cook within 2 days/);
+
+    // 3. The reverse move, from the cache this time. The first demotion came
+    //    from a fresh generation; this one has to come from the overlay alone.
+    const backOut = await runWithLag(cache, 5, "u-g1-back");
+    assert.equal(backOut.cacheHit, true);
+    assert.equal(backOut.aiCalls, 0);
+    assert.equal(backOut.step.skipSuggested, true);
+    assert.match(backOut.step.storageNote!, /5 days out/);
+
+    // 4. And unassigned, which is not day zero.
+    const none = await runWithLag(cache, undefined, "u-g1-none");
+    assert.equal(none.cacheHit, true);
+    assert.equal(none.aiCalls, 0);
+    assert.equal(none.step.skipSuggested, undefined);
+    assert.match(none.step.storageNote!, /prep this the day before you cook/);
   });
 });
