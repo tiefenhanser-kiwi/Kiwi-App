@@ -64,6 +64,7 @@
     "expo-crypto": "~15.0.9",
     "expo-dev-client": "~6.0.21",
     "expo-image-manipulator": "^14.0.8",
+    "expo-keep-awake": "~15.0.8",
     "expo-notifications": "~0.32.17",
     "expo-updates": "~29.0.20",
     "react-native-draggable-flatlist": "^4.0.3"
