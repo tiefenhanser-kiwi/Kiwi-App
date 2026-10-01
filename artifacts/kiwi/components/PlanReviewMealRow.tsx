@@ -1,5 +1,6 @@
 import React, { useRef } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
 import {
@@ -364,6 +365,33 @@ export function PlanReviewMealRow({
         >
           <Text style={styles.actionText}>Swap for Similar Meal</Text>
         </Pressable>
+        {/* ── Sept 29 design review, item 15 — Remove is NOT a peer pill ──────
+            It was styled actionBtn/actionText, i.e. byte-identical to Edit and
+            the two Swaps, so the one destructive action on the row looked exactly
+            like the three reversible ones.
+
+            ⚠️ TEXT, NOT A BUTTON, AND NOT Palette.button.destructive. That token
+            exists and is an OUTLINE (transparent fill, terracotta[600] ink,
+            terracotta[300] edge) — a filled terracotta was never on the table.
+            Hans ruled text anyway: an outlined terracotta pill on EVERY meal row
+            multiplies into the loudest thing on Plan Review and competes with the
+            screen's one terracotta emphasis (D-WS9-162, as amended — one dominant
+            terracotta emphasis per screen, tint or fill; Plan Review has ZERO
+            terracotta fills and that is intentional). No border, no fill. A
+            device look judges whether text alone is enough.
+
+            ⚠️ SELF-CONTAINED ON PURPOSE. D-WS9-293 re-cuts this row immediately
+            after this block (View Ingredients · Change meal · Swap for Similar
+            Meal · Remove from plan, with an expand if it does not fit at 375 pt).
+            The treatment is three styles — removeAction / removeSpacer /
+            removeText — and the icon, with nothing reaching into the actionRow
+            around it, so the re-cut can lift it wholesale. */}
+        {/* The spacer, not a margin on the control: actionRow is a WRAPPING
+            flex row, and a margin would travel with the control onto the second
+            line and indent it there. A zero-height flex-grow cell pushes Remove
+            to the trailing edge when the row has space and collapses to nothing
+            when it wraps. */}
+        <View style={styles.removeSpacer} />
         <Pressable
           onPress={() => {
             console.log("[meal-row] remove tapped", {
@@ -371,9 +399,19 @@ export function PlanReviewMealRow({
             });
             onCompost?.(row.planItemId, row.title);
           }}
-          style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.7 }]}
+          // The row's other actions have no hitSlop and are padded pills; a text
+          // action has no padding to be tapped, so it gets the slop instead.
+          hitSlop={10}
+          accessibilityRole="button"
+          // The TITLE is in the label because a screen reader moving down the
+          // screen hears four identical "Remove from plan" buttons otherwise, one
+          // per meal, with nothing to say which meal each belongs to.
+          accessibilityLabel={`Remove ${row.title} from plan`}
+          style={({ pressed }) => [styles.removeAction, pressed && { opacity: 0.6 }]}
+          testID="plan-row-remove"
         >
-          <Text style={styles.actionText}>Remove from plan</Text>
+          <Feather name="trash-2" size={13} color={Palette.text.danger} />
+          <Text style={styles.removeText}>Remove from plan</Text>
         </Pressable>
       </View>
       )}
@@ -511,6 +549,37 @@ const styles = StyleSheet.create({
   actionText: {
     fontSize: Typography.fontSize.xs,
     color: Colors.neutral[800],
+    fontWeight: Typography.fontWeight.medium,
+    fontFamily: Typography.face.sans[500],
+  },
+  // ── Sept 29 design review, item 15 — Remove from plan ─────────────────────
+  // A text action, set apart. Deliberately shares NOTHING with actionBtn: no
+  // border, no background, no padding — that is the whole point, since looking
+  // like its three reversible neighbours was the defect.
+  //
+  // Palette.text.danger is terracotta[600] #893719. MEASURED on the white card:
+  // 8.0025:1, well past the 4.5:1 AA text bar, and the trash-2 icon shares the
+  // colour so it clears the 3:1 non-text bar with room to spare. (The first draft
+  // of this comment said 5.1626 from memory and was wrong; the number above was
+  // computed from the token.)
+  removeAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing[1],
+    // paddingVertical only: it keeps the text's tap height in line with the
+    // pills beside it without a horizontal inset that would read as a button.
+    paddingVertical: Spacing[1],
+  },
+  // Zero-height so it never affects the row's height; flexGrow so it eats the
+  // slack and pushes Remove to the trailing edge. See the note at the call site
+  // for why this is not a margin.
+  removeSpacer: {
+    flexGrow: 1,
+    height: 0,
+  },
+  removeText: {
+    fontSize: Typography.fontSize.xs,
+    color: Palette.text.danger,
     fontWeight: Typography.fontWeight.medium,
     fontFamily: Typography.face.sans[500],
   },

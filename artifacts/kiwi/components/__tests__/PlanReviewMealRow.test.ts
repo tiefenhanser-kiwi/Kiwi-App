@@ -487,3 +487,155 @@ test("BUG-153 still holds: no description means no node, not an empty line", asy
   assert.equal(nodes.length, 0, "no description => no description node at all");
   renderer.unmount();
 });
+
+// ── Sept 29 design review, item 15 — Remove from plan is DISTINCT ────────────
+//
+// THE DEFECT: Remove was styled actionBtn/actionText, byte-identical to Edit and
+// the two Swaps, so the one destructive action on the row looked exactly like the
+// three reversible ones.
+//
+// ⚠️ THESE ASSERTIONS ARE ON THE RENDERED STYLE, NOT ON THE STYLESHEET, and they
+// compare Remove AGAINST ITS NEIGHBOURS rather than against literals. That is
+// what makes them survive D-WS9-293, which re-cuts this row immediately after this
+// block: the roster changes, the relationship must not. "Remove does not look like
+// its peers" stays true however the peers are re-labelled.
+
+// ⚠️ RESOLVES A FUNCTION STYLE. Every Pressable on this row passes a
+// `style={({ pressed }) => [...]}` callback, and the react-native stub is a passthrough
+// host element, so props.style arrives as the FUNCTION rather than as a resolved
+// object. A first version of this helper only walked arrays and objects, so it
+// returned {} for every Pressable — which made the "Remove has no border" checks
+// pass vacuously while the peer checks failed loudly. The peer failure is what
+// exposed it; a test file with only the Remove assertions would have shipped
+// green and proved nothing.
+function flatStyle(node: RenderedNode | null): Record<string, unknown> {
+  let raw = (node?.props as { style?: unknown } | undefined)?.style;
+  if (typeof raw === "function") raw = (raw as (s: { pressed: boolean }) => unknown)({ pressed: false });
+  const out: Record<string, unknown> = {};
+  const walk = (s: unknown) => {
+    if (Array.isArray(s)) s.forEach(walk);
+    else if (s && typeof s === "object") Object.assign(out, s);
+  };
+  walk(raw);
+  return out;
+}
+
+function findByTestId(node: RenderedNode | string | null, id: string): RenderedNode | null {
+  if (node == null || typeof node === "string") return null;
+  if ((node.props as { testID?: unknown } | undefined)?.testID === id) return node;
+  if (Array.isArray(node.children)) {
+    for (const c of node.children) {
+      const hit = findByTestId(c, id);
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
+
+function featherNames(node: RenderedNode | string | null, out: string[] = []): string[] {
+  if (node == null || typeof node === "string") return out;
+  if (node.type === "icon-feather") {
+    const n = (node.props as { name?: unknown } | undefined)?.name;
+    if (typeof n === "string") out.push(n);
+  }
+  if (Array.isArray(node.children)) for (const c of node.children) featherNames(c, out);
+  return out;
+}
+
+test("item 15: Remove does NOT share the outline-pill treatment of its peers", async () => {
+  const { renderer, tree } = await render();
+
+  const remove = findByTestId(tree, "plan-row-remove");
+  assert.ok(remove, "Remove control missing");
+  const removeStyle = flatStyle(remove);
+
+  // Its peers ARE pills. Read one live rather than restating actionBtn's values,
+  // so this keeps meaning if the pill treatment is ever re-valued.
+  const peer = findPressableByText(tree, "Swap for Similar Meal");
+  assert.ok(peer, "peer action missing");
+  const peerStyle = flatStyle(peer);
+  assert.equal(peerStyle.borderWidth, 1, "the peer pills should still have an edge");
+  assert.ok(peerStyle.backgroundColor, "the peer pills should still have a fill");
+
+  // ⚠️ NO BORDER AND NO FILL. Hans ruled text over the available
+  // Palette.button.destructive OUTLINE: an outlined terracotta pill on every meal
+  // row competes with the screen's one terracotta emphasis (D-WS9-162 as amended
+  // — Plan Review has ZERO terracotta fills, intentionally).
+  assert.ok(!removeStyle.borderWidth, "Remove must have no border");
+  assert.ok(!removeStyle.backgroundColor, "Remove must have no fill");
+  assert.notEqual(
+    removeStyle.borderWidth,
+    peerStyle.borderWidth,
+    "Remove must not look like its reversible neighbours",
+  );
+
+  renderer.unmount();
+});
+
+test("item 15: Remove is danger-coloured text with a trash icon, and NO terracotta fill", async () => {
+  const { renderer, tree } = await render();
+  const remove = findByTestId(tree, "plan-row-remove")!;
+
+  // Palette.text.danger = terracotta[600] #893719; 8.0025:1 on the white card.
+  // The literal is deliberate: an assertion against Palette.text.danger would
+  // pass if the token were repointed at the card colour.
+  const label = collectText(remove).join(" ");
+  assert.ok(label.includes("Remove from plan"), `label changed: ${label}`);
+
+  const textNode = findPressableByText(remove, "Remove from plan");
+  assert.ok(textNode, "Remove text node missing");
+  const anyDanger = (node: RenderedNode | string | null): boolean => {
+    if (node == null || typeof node === "string") return false;
+    if (flatStyle(node).color === "#893719") return true;
+    return Array.isArray(node.children) ? node.children.some(anyDanger) : false;
+  };
+  assert.ok(anyDanger(remove), "the label must be terracotta[600] #893719");
+
+  assert.ok(
+    featherNames(remove).includes("trash-2"),
+    "Remove must carry the Feather trash-2 icon",
+  );
+
+  // THE RULE WITH NO EXCEPTIONS ON THIS SCREEN: not one terracotta FILL anywhere
+  // on the row. #C24F25 is terracotta[400], the primary fill.
+  const noTerracottaFill = (node: RenderedNode | string | null): boolean => {
+    if (node == null || typeof node === "string") return true;
+    const bg = flatStyle(node).backgroundColor;
+    if (bg === "#C24F25" || bg === "#893719") return false;
+    return Array.isArray(node.children) ? node.children.every(noTerracottaFill) : true;
+  };
+  assert.ok(noTerracottaFill(tree), "Plan Review must have no terracotta fill");
+
+  renderer.unmount();
+});
+
+test("item 15: Remove still fires onCompost, and announces WHICH meal", async () => {
+  const { renderer, tree, calls } = await render();
+  const remove = findByTestId(tree, "plan-row-remove")!;
+
+  // Four identical "Remove from plan" buttons down the screen are useless to a
+  // screen reader; the label names the meal.
+  assert.equal(
+    (remove.props as { accessibilityLabel?: unknown }).accessibilityLabel,
+    `Remove ${ROW.title} from plan`,
+  );
+  assert.equal((remove.props as { accessibilityRole?: unknown }).accessibilityRole, "button");
+
+  await act(async () => {
+    (remove.props!.onPress as () => void)();
+  });
+  assert.deepEqual(calls.compost, [[ROW.planItemId, ROW.title]]);
+  renderer.unmount();
+});
+
+test("item 15: the OTHER three actions are untouched — only Remove's treatment moved", async () => {
+  const { renderer, tree } = await render();
+  const texts = allText(tree);
+  // The ruling: change only Remove's treatment; do not move or relabel the rest.
+  for (const label of ["Edit", "Swap for Different Meal", "Swap for Similar Meal"]) {
+    assert.ok(texts.includes(label), `"${label}" must still render, unchanged`);
+    const style = flatStyle(findPressableByText(tree, label));
+    assert.equal(style.borderWidth, 1, `"${label}" must still be an outline pill`);
+  }
+  renderer.unmount();
+});
