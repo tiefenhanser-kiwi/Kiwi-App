@@ -10,6 +10,7 @@
 
 import React, { useRef } from "react";
 import {
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -18,6 +19,7 @@ import {
   type LayoutChangeEvent,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useKeepAwake } from "expo-keep-awake";
 
 import { Button } from "@/components/Button";
 import { CookFooter } from "@/components/cooking/CookFooter";
@@ -42,6 +44,39 @@ import {
 import type { CookStep } from "@/lib/cooking/cookSession";
 import { buildAmountRefSegments } from "@/lib/cooking/amountSegments";
 import type { AmountRef } from "@/lib/api/meals";
+
+// ── Sept 29 design review, item 10 — the screen stays awake while cooking ────
+//
+// Cook Mode is read at arm's length with wet or full hands, for the length of a
+// braise. A display timing out mid-step means drying your hands to wake a phone,
+// and on a passcoded device unlocking it too.
+//
+// ⚠️ A COMPONENT, NOT A CONDITIONAL HOOK CALL. An "if (Platform.OS !== web)
+// useKeepAwake()" would be a Rules-of-Hooks violation — harmless at runtime,
+// since Platform.OS cannot change, but exactly the pattern that becomes a real
+// bug the moment someone adds a second condition. Mounting a component
+// conditionally is legal; calling a hook conditionally is not, so the hook is
+// unconditional INSIDE here and the MOUNT is what the platform gates.
+//
+// ⚠️ THE WEB GUARD IS NOT COSMETIC, and this needs saying because the hook looks
+// platform-safe. expo-keep-awake 15.0.8's web implementation
+// (src/ExpoKeepAwake.web.ts) calls navigator.wakeLock.request('screen') guarded
+// only by Platform.isDOMAvailable. On a browser WITHOUT the Screen Wake Lock API
+// (Safari before 16.4, Firefox) navigator.wakeLock is undefined, so that call
+// throws a TypeError — and useKeepAwake's effect has no .catch around
+// activateKeepAwakeAsync, so it surfaces as an unhandled promise rejection. Not
+// mounting on web is the fix, not a preference.
+//
+// The hook releases the lock on unmount, so leaving Cook Mode restores the
+// device's normal timeout with nothing to remember.
+//
+// ⚠️ DEVICE-ONLY. Nothing in the node suite can observe a wake lock — the
+// react-native stub harness does not model one — so this is proved by a
+// development build and by nothing else.
+function KeepScreenAwake(): null {
+  useKeepAwake();
+  return null;
+}
 
 interface Props {
   title: string;
@@ -142,6 +177,7 @@ export function CookSessionView({
   if (gatePromptVisible) {
     return (
       <View style={s.bg}>
+        {Platform.OS !== "web" ? <KeepScreenAwake /> : null}
         <Header showBack title="Cook" onBack={onExit} />
         <View style={s.gateWrap}>
           <View style={s.gateCard}>
@@ -190,6 +226,10 @@ export function CookSessionView({
 
   return (
     <View style={s.bg}>
+      {/* Item 10 — mounted on BOTH branches of this component (here and on the
+          prep gate above), because a user answering "did you prep this already?"
+          is already standing in the kitchen. */}
+      {Platform.OS !== "web" ? <KeepScreenAwake /> : null}
       <Header showBack title={title} onBack={onExit} />
 
       {/* Progress segments: done = sage, current = terracotta, upcoming = neutral. */}

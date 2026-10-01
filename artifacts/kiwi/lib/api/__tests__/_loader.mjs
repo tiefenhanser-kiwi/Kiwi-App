@@ -18,6 +18,7 @@ import {
   ExpoFetchStub,
   ExpoCryptoStub,
   ExpoNotificationsStub,
+  ExpoKeepAwakeStub,
 } from "./_stubs.mjs";
 
 // Inline-source stubs (don't import React; safe to ship as data-style modules
@@ -34,6 +35,9 @@ const STUBS = new Map([
   // notifier while staying mountable. Every export throws: see the note in
   // _stubs.mjs for why that is deliberate.
   ["expo-notifications", ExpoNotificationsStub],
+  // Sept 29 design review, item 10 — Cook Mode's useKeepAwake. A no-op, not a
+  // throw: see the note in _stubs.mjs.
+  ["expo-keep-awake", ExpoKeepAwakeStub],
 ]);
 
 // WS7-4-B c6 — physical stub files. These need real file URLs so the loader

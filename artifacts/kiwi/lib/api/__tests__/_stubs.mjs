@@ -129,3 +129,20 @@ export async function scheduleNotificationAsync() { unreachable("scheduleNotific
 export async function cancelScheduledNotificationAsync() { unreachable("cancelScheduledNotificationAsync"); }
 export function setNotificationHandler() { unreachable("setNotificationHandler"); }
 `;
+
+// Sept 29 design review, item 10 — expo-keep-awake. Native-only, so the node
+// suite needs a stand-in for CookSessionView to keep importing.
+//
+// ⚠️ useKeepAwake IS A NO-OP HERE, not a throw — unlike the expo-notifications
+// stub beside it. The difference is deliberate: a notification reaching the live
+// module would mean the injected seam was bypassed and the test is lying, whereas
+// a wake lock has no seam and nothing observable under node. There is nothing for
+// a test to assert, which is exactly why item 10 is reported as device-verified
+// only rather than as covered.
+export const ExpoKeepAwakeStub = `
+export function useKeepAwake() {}
+export async function activateKeepAwakeAsync() {}
+export async function deactivateKeepAwake() {}
+export async function isAvailableAsync() { return false; }
+export const ExpoKeepAwakeTag = "ExpoKeepAwakeDefaultTag";
+`;
