@@ -73,10 +73,22 @@ export function demotedStepKeysFromStructure(structureJson: unknown): Set<string
     const steps = (phase as { steps?: unknown } | null)?.steps;
     if (!Array.isArray(steps)) continue;
     for (const step of steps as unknown[]) {
-      const s = step as { stepKey?: unknown; skipSuggested?: unknown } | null;
+      const s = step as {
+        stepKey?: unknown;
+        skipSuggested?: unknown;
+        holdsNoContainer?: unknown;
+      } | null;
+      // ── D-WS9-301 rule 10 — THE WASH STEP DOES NOT GATE "PREPPED" ────────
+      //
+      // It contributes to every meal in the plan that has produce, so leaving
+      // it in the required set means NO meal can read prepped until it is
+      // ticked — including for a cook who buys washed greens and skips it.
+      // It holds no container and portions nothing, which is the same test
+      // that keeps it out of the header count. The cook can still tick it; it
+      // just does not hold the week hostage.
       if (
         s &&
-        s.skipSuggested === true &&
+        (s.skipSuggested === true || s.holdsNoContainer === true) &&
         typeof s.stepKey === "string" &&
         s.stepKey.length > 0
       ) {
@@ -105,10 +117,17 @@ export async function loadPrepStepSet(
       combinePrep(buildPrepCombineInput(input)),
       input.planName,
     );
-    const refs = stepPlan.steps.map((s) => ({
-      stepKey: s.stepKey,
-      contributesToMealIds: s.contributesToMealIds,
-    }));
+    // D-WS9-301 rule 10 — a step that holds no container is dropped HERE, at
+    // the source, rather than relying on the stored blob to carry the flag. The
+    // wash step contributes to every meal with produce, so leaving it required
+    // means no meal reads "prepped" until it is ticked — and a cook who buys
+    // washed greens never ticks it.
+    const refs = stepPlan.steps
+      .filter((s) => !s.holdsNoContainer)
+      .map((s) => ({
+        stepKey: s.stepKey,
+        contributesToMealIds: s.contributesToMealIds,
+      }));
 
     // WS7-8b Block 2 (D-WS7-184) — overlay the persisted `skipSuggested` flags
     // from the cached structure and drop demoted steps from the required-set.

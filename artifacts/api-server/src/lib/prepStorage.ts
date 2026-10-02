@@ -235,6 +235,17 @@ export function storageClassFor(
  * D-WS9-298 item 3 — shown on the Proteins phase ALWAYS, in the quiet
  * storage-note tier. No alert, no modal: it explains why the phase is short.
  */
+/**
+ * D-WS9-301 rule 13 — shown on the Proteins phase when the plan has NO cook
+ * days at all. Everything is prepped with the 2-day note, and this says why the
+ * app cannot do better and what the cook can do about it.
+ */
+export const NO_COOK_DAYS_NOTE =
+  "Assign cook days in Plan Review and Kiwi will hold raw meat and fish for the right day.";
+
+/** D-WS9-301 rule 13 — the heading above the held-for-cook-day lines. */
+export const HELD_FOR_COOK_DAY_TITLE = "Held for cook day";
+
 export const PROTEINS_PHASE_NOTE =
   "Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.";
 
@@ -275,6 +286,11 @@ export function judgeProteinStep(daysUntilCook: number | undefined): ProteinVerd
  * Derived from the step's ingredient names rather than rewriting the model's
  * title, because the model's title is an imperative by construction.
  */
+/** "Cube the chuck" → "cube the chuck", for the middle of a sentence. */
+function lowerFirst(t: string): string {
+  return t.length === 0 ? t : `${t.charAt(0).toLowerCase()}${t.slice(1)}`;
+}
+
 export function nounFormTitle(ingredientNames: string[]): string {
   const names = [...new Set(ingredientNames.map((n) => n.trim()).filter(Boolean))];
   if (names.length === 0) return "Cook day";
@@ -298,6 +314,14 @@ export interface StorageContext {
   bowlName?: string;
   /** Ingredient names, for the noun-form title of a demoted step. */
   ingredientNames: string[];
+  /**
+   * D-WS9-301 rule 13 — the weekday this step's latest meal is cooked on, for
+   * the held list: "Texas-style chili (Saturday, 5 days out)". Absent when the
+   * plan carries no day for it.
+   */
+  dayName?: string;
+  /** The dish or meal the held line names. */
+  mealName?: string;
 }
 
 /**
@@ -318,12 +342,25 @@ export function applyStorageOverlay(
   result: PrepWeekResult,
   contextByStepKey: ReadonlyMap<string, StorageContext>,
 ): PrepWeekResult {
+  // D-WS9-301 rule 13 — collected as the proteins phase is rewritten below.
+  const held: string[] = [];
+  let anyDayKnown = false;
+  for (const ctx of contextByStepKey.values()) {
+    if (ctx.daysUntilCook !== undefined) anyDayKnown = true;
+  }
+
   return {
     ...result,
     phases: result.phases.map((phase) => ({
       ...phase,
       // Item 3 — always, on Proteins, whatever the phase contains.
-      ...(phase.phase === "proteins" ? { note: PROTEINS_PHASE_NOTE } : {}),
+      // D-WS9-298 item 3 + D-WS9-301 rule 13. With no cook days anywhere, the
+      // phase says so and tells the cook how to fix it; otherwise it carries
+      // the standing two-day line.
+      ...(phase.phase === "proteins"
+        ? { note: anyDayKnown ? PROTEINS_PHASE_NOTE : `${PROTEINS_PHASE_NOTE} ${NO_COOK_DAYS_NOTE}` }
+        : {}),
+      ...(phase.phase === "proteins" && held.length > 0 ? { heldForCookDay: held } : {}),
       steps: phase.steps.map((step) => {
         // ── D-WS9-301 H2.3 — A STEP THAT IS NOT DONE HAS NOTHING TO STORE ────
         //
@@ -358,6 +395,12 @@ export function applyStorageOverlay(
         if (ctx.phase === "proteins" && !shelfStableHere) {
           const verdict = judgeProteinStep(ctx.daysUntilCook);
           if (verdict.kind === "demote") {
+            // Rule 13 — "shown instead of silently dropped".
+            const who = ctx.mealName ?? nounFormTitle(ctx.ingredientNames).replace(" — cook day", "");
+            const when = ctx.dayName
+              ? `${ctx.dayName}, ${ctx.daysUntilCook} days out`
+              : `${ctx.daysUntilCook} days out`;
+            held.push(`${who} (${when}) — ${lowerFirst(nounFormTitle(ctx.ingredientNames).replace(" — cook day", ""))} that morning.`);
             return {
               ...step,
               title: nounFormTitle(ctx.ingredientNames),

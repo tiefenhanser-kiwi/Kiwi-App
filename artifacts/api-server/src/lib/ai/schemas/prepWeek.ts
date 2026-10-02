@@ -119,6 +119,16 @@ export const PrepWeekPhaseSchema = z.object({
    * storage note.
    */
   note: z.string().max(200).optional(),
+  /**
+   * D-WS9-301 rule 13 — the quiet "Held for cook day" list that closes the
+   * Proteins phase: the steps D-WS9-298 demotes, SHOWN rather than silently
+   * dropped. "Texas-style chili (Saturday, 5 days out) — cube the chuck that
+   * morning."
+   *
+   * ⚠️ CODE-OWNED and computed on every read, like the storage notes and for
+   * the same reason: which steps are held depends on today's cook days.
+   */
+  heldForCookDay: z.array(z.string().max(200)).max(20).optional(),
   steps: z.array(PrepWeekStepSchema).min(0).max(30),
 });
 export type PrepWeekPhase = z.infer<typeof PrepWeekPhaseSchema>;

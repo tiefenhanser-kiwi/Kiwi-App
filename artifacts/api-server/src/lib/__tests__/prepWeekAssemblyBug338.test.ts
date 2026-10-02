@@ -57,7 +57,7 @@ const allMeasures = (i: PrepCombineInput) =>
 
 // ── ruling 8 — how many limes is that ──────────────────────────────────────
 
-describe("BUG-338 ruling 8 — a derived ingredient states its fruit count", () => {
+describe("D-WS9-301 rule 14 — the source parenthetical is GONE from every step", () => {
   const limeJuice = (quantity: number, unit: string): PrepCombineInput =>
     input([
       {
@@ -76,42 +76,52 @@ describe("BUG-338 ruling 8 — a derived ingredient states its fruit count", () 
       },
     ]);
 
-  it("emits fromSource on the measure, rounded UP", () => {
-    // 3 tbsp at 2 tbsp per lime = 1.5 limes. You cannot buy 1.5 limes.
-    const m = allMeasures(limeJuice(3, "tbsp")).find((x) => x.ingredient === "lime juice");
-    assert.equal(m?.fromSource, "2 limes");
+  it("🔴 a derived ingredient no longer carries '(from 2 limes)'", () => {
+    // D-WS9-297 ruling 8 ADDED this, to fix P-R6: a juice step that never said
+    // how many limes it took. Hans read the result on the device and ruled the
+    // other way — "'3 cloves garlic', never '3 cloves garlic (from 1 garlic
+    // head)' … the count stays in the grocery list where it belongs." A prep
+    // card is for the cook at the counter, who has already shopped.
+    for (const demand of [limeJuice(3, "tbsp"), limeJuice(4, "tbsp"), limeJuice(2, "tbsp"), limeJuice(0.25, "cup")]) {
+      const m = allMeasures(demand).find((x) => x.ingredient === "lime juice");
+      assert.ok(m, "the measure should still exist");
+      assert.equal(
+        (m as unknown as { fromSource?: string }).fromSource,
+        undefined,
+        "a source parenthetical survived",
+      );
+    }
   });
 
-  it("an exact multiple is not rounded past itself", () => {
-    const m = allMeasures(limeJuice(4, "tbsp")).find((x) => x.ingredient === "lime juice");
-    assert.equal(m?.fromSource, "2 limes");
+  it("…and no step's prose input can reach one either", () => {
+    // Structural, not per-field: nothing in the narration input may carry the
+    // string, or the narrator will echo it back.
+    const json = JSON.stringify(
+      buildStepPlan(combinePrep(limeJuice(3, "tbsp")), "Test Plan").narrationInput,
+    );
+    assert.ok(!json.includes("fromSource"), "fromSource reached the narration input");
+    assert.ok(!/from \d+ lime/i.test(json), "a '(from N limes)' string reached the narration input");
   });
 
-  it("one whole one is singular", () => {
-    const m = allMeasures(limeJuice(2, "tbsp")).find((x) => x.ingredient === "lime juice");
-    assert.equal(m?.fromSource, "1 lime");
+  it("🔴 but the ARITHMETIC survives, because the clock still needs it", () => {
+    // Retiring the display must not retire the knowledge. 3 tbsp of lime juice
+    // is still two limes to squeeze, and BUG-204's timing is costed on exactly
+    // that number — so the yield has to keep reaching the engine even though
+    // nothing prints it.
+    const sp = buildStepPlan(combinePrep(limeJuice(3, "tbsp")), "Test Plan");
+    const step = sp.steps.find((x) => x.components.some((c) => c.ingredientName === "lime juice"));
+    assert.ok(step, "the lime-juice step should exist");
+    // Two limes at 1.5 min each = 3.
+    assert.equal(step!.estimatedMinutes, 3);
   });
 
-  it("converts a demand stated in another volume unit", () => {
-    // ¼ cup = 4 tbsp = 2 limes.
-    const m = allMeasures(limeJuice(0.25, "cup")).find((x) => x.ingredient === "lime juice");
-    assert.equal(m?.fromSource, "2 limes");
-  });
-
-  it("says nothing when the dimensions are incompatible rather than guessing", () => {
-    // Juice demanded by weight against a yield in tbsp: no honest conversion.
-    const m = allMeasures(limeJuice(50, "g")).find((x) => x.ingredient === "lime juice");
-    assert.equal(m?.fromSource, undefined);
-  });
-
-  it("an ingredient with no component parent carries no fromSource", () => {
+  it("an ingredient with no component parent is unchanged", () => {
     const i = input([
       { dishId: "d1", dishName: "Pico", ingredients: [{ id: "ing-tom", name: "roma tomatoes", category: "Produce", quantity: 3, unit: "each" }] },
     ]);
     const m = allMeasures(i).find((x) => x.ingredient === "roma tomatoes");
     assert.ok(m, "the tomato measure should exist");
-    assert.equal(m!.fromSource, undefined);
-    // And ruling 7: the placeholder unit is gone.
+    // And D-WS9-297 ruling 7: the placeholder unit is still gone.
     assert.equal(m!.amount, "3");
   });
 });
@@ -279,7 +289,10 @@ describe("BUG-338 ruling 13 — daysUntilCook rides on the step", () => {
     // D-WS9-298 adds is deterministic and lives in code, so the lag stays on the
     // skeleton and out of the AI's input.
     const sp = buildStepPlan(combinePrep(twoMeals), "Test Plan", new Map(), lagMap);
-    assert.equal(sp.steps[0].daysUntilCook, 6, "the skeleton keeps it");
+    // D-WS9-301 rule 10 — steps[0] may now be the wash step, which feeds no
+    // meal and carries no lag. Ask the first step that does.
+    const dated = sp.steps.find((s) => s.components.length > 0)!;
+    assert.equal(dated.daysUntilCook, 6, "the skeleton keeps it");
     for (const s of sp.narrationInput.steps) {
       assert.ok(
         !("daysUntilCook" in s),

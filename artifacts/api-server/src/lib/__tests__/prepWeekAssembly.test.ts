@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 
 import { combinePrep, type PrepCombineInput } from "../prepCombineEngine";
 import {
+  WASH_STEP_KEY,
   buildStepPlan,
   assemblePrepWeekResult,
   formatMeasure,
@@ -86,12 +87,14 @@ describe("buildStepPlan", () => {
   it("emits one produce step (onion grouped across both meals)", () => {
     const sp = buildStepPlan(combinePrep(plan()), "Test Plan");
     const produceSteps = sp.steps.filter((s) => s.phase === "produce");
-    assert.equal(produceSteps.length, 1);
-    assert.equal(produceSteps[0].number, 1);
-    assert.equal(produceSteps[0].stepId, "produce#1");
+    // D-WS9-301 rule 10 — produce#1 is the wash step now; the onion is #2.
+    assert.equal(produceSteps.length, 2);
+    assert.equal(produceSteps[0].stepKey, WASH_STEP_KEY);
+    assert.equal(produceSteps[1].number, 2);
+    assert.equal(produceSteps[1].stepId, "produce#2");
     // attribution = union of both meals
     assert.deepEqual(
-      [...produceSteps[0].contributesToMealIds].sort(),
+      [...produceSteps[1].contributesToMealIds].sort(),
       [MEAL_A, MEAL_B].sort(),
     );
   });
@@ -106,13 +109,17 @@ describe("buildStepPlan", () => {
     assert.deepEqual(names, ["chili powder", "cumin", "paprika"]);
   });
 
-  it("narrationInput mirrors the planned steps 1:1 by stepId", () => {
+  it("narrationInput mirrors every step the MODEL writes, 1:1 by stepId", () => {
+    // D-WS9-301 rule 10 — the wash step carries engine-owned prose and is not
+    // sent to the narrator at all: there is nothing to narrate and nothing to
+    // get wrong. Every OTHER step still mirrors exactly.
     const sp = buildStepPlan(combinePrep(plan()), "Test Plan");
     assert.equal(sp.narrationInput.planName, "Test Plan");
     assert.deepEqual(
       sp.narrationInput.steps.map((s) => s.stepId),
-      sp.steps.map((s) => s.stepId),
+      sp.steps.filter((s) => !s.fixedProse).map((s) => s.stepId),
     );
+    assert.equal(sp.steps.length - sp.narrationInput.steps.length, 1);
   });
 
   it("routes a WHOLE protein to a proteins step (D-WS9-301 rule 4 keeps knife work)", () => {
@@ -191,7 +198,7 @@ function reorderedPlanWithAddedMeal(): PrepCombineInput {
 describe("buildStepPlan — stable stepKey (B3 / D-WS7-153)", () => {
   it("(i) every normal step gets a `${phase}#${ingredientId}` key", () => {
     const sp = buildStepPlan(combinePrep(plan()), "Test Plan");
-    const produce = sp.steps.find((s) => s.phase === "produce")!;
+    const produce = sp.steps.find((s) => s.phase === "produce" && s.ingredientId)!;
     const protein = sp.steps.find((s) => s.phase === "proteins")!;
     assert.equal(produce.stepKey, "produce#ing-onion");
     assert.equal(produce.ingredientId, "ing-onion");
@@ -225,12 +232,15 @@ describe("buildStepPlan — stable stepKey (B3 / D-WS7-153)", () => {
     assert.equal(keyByIngredient(before, "produce", "yellow onion"), "produce#ing-onion");
     assert.equal(keyByIngredient(after, "produce", "yellow onion"), "produce#ing-onion");
     // The positional number DID move (proves the key is not positional).
-    const onionBefore = before.steps.find((s) => s.phase === "produce")!;
+    const onionBefore = before.steps.find(
+      (s) => s.phase === "produce" && s.components.some((c) => c.ingredientName === "yellow onion"),
+    )!;
     const onionAfter = after.steps.find(
       (s) => s.phase === "produce" && s.components.some((c) => c.ingredientName === "yellow onion"),
     )!;
-    assert.equal(onionBefore.number, 1);
-    assert.equal(onionAfter.number, 2); // carrot took #1
+    // D-WS9-301 rule 10 — the wash step is produce#1, so these shift by one.
+    assert.equal(onionBefore.number, 2);
+    assert.equal(onionAfter.number, 3); // carrot took #2
     assert.notEqual(onionBefore.number, onionAfter.number);
     assert.equal(onionBefore.stepKey, onionAfter.stepKey); // …but the key held.
 
@@ -251,7 +261,7 @@ describe("buildStepPlan — stable stepKey (B3 / D-WS7-153)", () => {
     const result = assemblePrepWeekResult(sp, echo(sp));
     assert.ok(PrepWeekResultSchema.safeParse(result).success);
     const produce = result.phases.find((p) => p.phase === "produce")!;
-    assert.equal(produce.steps[0].stepKey, "produce#ing-onion");
+    assert.equal(produce.steps[1].stepKey, "produce#ing-onion");
     const blend = result.phases.find((p) => p.phase === "seasonings_dry")!;
     assert.equal(blend.steps[0].stepKey, "seasonings_dry#dish#d-a");
     // Keys are unique across the whole result (no collisions within a plan).
@@ -285,9 +295,9 @@ describe("assemblePrepWeekResult", () => {
       })),
     });
     const produce = result.phases.find((p) => p.phase === "produce")!;
-    const planned = sp.steps.find((s) => s.phase === "produce")!;
-    assert.equal(produce.steps[0].title, "AI TITLE"); // prose = AI
-    assert.equal(produce.steps[0].number, planned.number); // number = code
+    const planned = sp.steps.find((s) => s.phase === "produce" && s.components.length > 0)!;
+    assert.equal(produce.steps[1].title, "AI TITLE"); // prose = AI
+    assert.equal(produce.steps[1].number, planned.number); // number = code
     assert.deepEqual(
       produce.steps[0].contributesToMealIds, // attribution = code
       planned.contributesToMealIds,
@@ -297,7 +307,7 @@ describe("assemblePrepWeekResult", () => {
   it("🔴 BUG-204 — totalEstimatedMinutes is the ENGINE's sum, not the AI's", () => {
     const sp = buildStepPlan(combinePrep(plan()), "Test Plan");
     const result = assemblePrepWeekResult(sp, echo(sp, 6));
-    assert.equal(sp.steps.length, 3);
+    assert.equal(sp.steps.length, 4); // + the rule 10 wash step
     // The echo claims 6 min a step (18 total). The engine's own numbers stand.
     const engine = sp.steps.reduce((n, s) => n + s.estimatedMinutes, 0);
     assert.equal(result.totalEstimatedMinutes, engine);
@@ -327,7 +337,7 @@ describe("assemblePrepWeekResult", () => {
     };
     const result = assemblePrepWeekResult(sp, narration);
     const produce = result.phases.find((p) => p.phase === "produce")!;
-    assert.equal(produce.steps[0].storageNote, "Fridge, 3 days");
+    assert.equal(produce.steps[1].storageNote, "Fridge, 3 days");
     // a step without storageNote omits it entirely
     const blend = result.phases.find((p) => p.phase === "seasonings_dry")!;
     assert.equal("storageNote" in blend.steps[0], false);
@@ -361,7 +371,7 @@ describe("buildStepPlan — relevantDishes + dishSteps (B2b / D-WS9-049 A1.2)", 
     ]);
     const sp = buildStepPlan(combinePrep(plan()), "P", map);
     // onion appears in d-a (Seasoned Beef) AND d-b (Fajitas) → both dishes named.
-    const produce = sp.steps.find((s) => s.phase === "produce")!;
+    const produce = sp.steps.find((s) => s.phase === "produce" && s.components.length > 0)!;
     assert.deepEqual(
       [...produce.relevantDishes].sort(),
       ["Fajitas", "Seasoned Beef"],
@@ -561,7 +571,7 @@ describe("formatMeasure — kitchen-fraction formatting", () => {
 describe("componentsOf via buildStepPlan — per-dish measures (FIX 1)", () => {
   it("keeps onion's per-dish measures separate (NOT summed) and names each dish", () => {
     const sp = buildStepPlan(combinePrep(plan()), "Test Plan");
-    const produce = sp.steps.find((s) => s.phase === "produce")!;
+    const produce = sp.steps.find((s) => s.phase === "produce" && s.components.length > 0)!;
     // one component (onion), two per-dish measures
     assert.equal(produce.components.length, 1);
     const measures = produce.components[0].measures;
@@ -577,7 +587,7 @@ describe("componentsOf via buildStepPlan — per-dish measures (FIX 1)", () => {
 
   it("carries the per-dish prep breakdown onto the narration input verbatim", () => {
     const sp = buildStepPlan(combinePrep(plan()), "Test Plan");
-    const produce = sp.steps.find((s) => s.phase === "produce")!;
+    const produce = sp.steps.find((s) => s.phase === "produce" && s.components.length > 0)!;
     const ni = sp.narrationInput.steps.find((s) => s.stepId === produce.stepId)!;
     assert.deepEqual(
       ni.components[0].measures,

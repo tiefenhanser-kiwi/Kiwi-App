@@ -223,7 +223,10 @@ describe("D-WS9-298 — the overlay, applied on every read", () => {
 
   it("the Proteins phase ALWAYS carries its line, even with no steps in it", () => {
     const out = applyStorageOverlay(result([]), new Map());
-    assert.equal(out.phases.find((p) => p.phase === "proteins")!.note, PROTEINS_PHASE_NOTE);
+    // D-WS9-301 rule 13 — with no cook days anywhere the line also says how to
+    // get them, because "two days" is all the app can promise without one.
+    assert.ok(out.phases.find((p) => p.phase === "proteins")!.note!.startsWith(PROTEINS_PHASE_NOTE));
+    assert.match(out.phases.find((p) => p.phase === "proteins")!.note!, /Assign cook days in Plan Review/);
     // …and no other phase gets one.
     for (const p of out.phases) if (p.phase !== "proteins") assert.equal(p.note, undefined);
   });

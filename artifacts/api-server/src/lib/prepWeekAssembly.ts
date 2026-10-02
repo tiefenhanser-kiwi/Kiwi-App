@@ -23,7 +23,7 @@
 // into a single seasonings_dry blend step. Accepted for now.
 
 import { convertWithinDimension, pluralizeCountUnit } from "./ingredientConversions";
-import { judgePrepWorthiness, bowlNameFor, useNounFor } from "./prepComponents";
+import { judgePrepWorthiness, bowlNameFor, useNounFor, proteinVerbsFor } from "./prepComponents";
 import { isLoneKey } from "./prepMoments";
 import { timeStep, planMinutes, wholeFruitCount, type SourceYieldLike } from "./prepStepMinutes";
 import {
@@ -51,6 +51,20 @@ const PHASE_META: Record<PrepPhaseKey, { title: string; skippable: boolean }> = 
   sauces_marinades: { title: "Sauces and marinades", skippable: true },
   proteins: { title: "Proteins", skippable: false },
 };
+
+// ── D-WS9-301 rule 10 — THE WASH STEP ──────────────────────────────────────
+//
+// Hans's strategy opens the board with it: "then I do my produce — wash and dry
+// all to start". It is fixed prose, a fixed three minutes, and NO container —
+// nothing is portioned, so it must not inflate the header's first number.
+//
+// Emitted once, only when the produce phase has something in it, and keyed so a
+// regenerate finds the same checkbox.
+export const WASH_STEP_KEY = "produce#wash-all";
+export const WASH_STEP_TITLE = "Wash and dry all the produce";
+export const WASH_STEP_INSTRUCTIONS =
+  "Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.";
+const WASH_STEP_MINUTES = 3;
 
 // PrepWeekResult.totalEstimatedMinutes is capped 1..240 by the locked schema.
 // Clamp the summed estimate so a large plan can't fail validation on the total.
@@ -116,6 +130,16 @@ export interface PlannedStep {
    * states a fact about the schedule, and prose must not be able to move it.
    */
   cookDaySentence?: string;
+  /** D-WS9-301 rule 12 — the knife verb(s) this protein step should name. */
+  knifeVerbs?: string[];
+  /** D-WS9-301 rule 7 — a step that holds no food (the wash, a cook-day line). */
+  holdsNoContainer?: boolean;
+  /**
+   * D-WS9-301 rule 10 — prose the ENGINE owns outright, for a step with no
+   * ingredients for the model to narrate. The wash step is the only one today.
+   * When present the narrator is not asked about this step at all.
+   */
+  fixedProse?: { title: string; instructions: string };
   /**
    * D-WS9-299 — the engine's own demotion. A step that does not save weeknight
    * time is render-omitted, whatever the model thinks. Carries the arm that
@@ -137,6 +161,12 @@ export interface StepPlan {
   steps: PlannedStep[];
   narrationInput: PrepNarrationInput;
 }
+
+/**
+ * D-WS9-301 rule 11 — where one (dish, ingredient) portion goes, by container
+ * name. Undefined when the portion is its own container and needs no pointer.
+ */
+type DestinationResolver = (dishId: string, ingredientId: string | null) => string | undefined;
 
 function dedupe(values: string[]): string[] {
   return [...new Set(values)];
@@ -325,6 +355,17 @@ function pluralizeSourceNoun(noun: string): string {
   return `${w}s`;
 }
 
+/**
+ * ⚠️ D-WS9-301 rule 14 — NO LONGER PRINTED. "The source parenthetical goes from
+ * every step — '3 cloves garlic', never '3 cloves garlic (from 1 garlic head)';
+ * '3 celery stalks', never '(from 1 celery bunch)'. The count stays in the
+ * grocery list where it belongs." Hans read it on the device and it is noise on
+ * a prep card: the cook already bought the head.
+ *
+ * Kept because the ARITHMETIC is shared with `prepStepMinutes.wholeFruitCount`,
+ * which needs to know that 3 tbsp of lime juice is two limes in order to cost
+ * the squeezing. One copy of the sum, one of them no longer rendered.
+ */
 function sourceCountFor(
   sourceYield: PrepIngredientGroup["sourceYield"],
   quantity: number,
@@ -359,6 +400,7 @@ function sourceCountFor(
 function componentsOfUnclaimed(
   entry: PrepIngredientGroup,
   claimed: ReadonlySet<string>,
+  destinationFor?: DestinationResolver,
 ): PrepNarrationComponent[] {
   const out: PrepNarrationComponent[] = [];
   for (const line of entry.lines) {
@@ -368,13 +410,12 @@ function componentsOfUnclaimed(
     if (kept.length === 0) continue;
     const prep = kept.find((c) => (c.preparationNote ?? "").trim() !== "")?.preparationNote;
     const measures: PrepMeasure[] = kept.map((c) => {
-      const fromSource = sourceCountFor(entry.sourceYield, c.quantity, c.unit);
       return {
         amount: formatMeasure(c.quantity, c.unit),
         forDish: c.dishName,
         dishRole: c.dishRole,
-        ...(fromSource ? { fromSource } : {}),
-        ...((c.preparationNote ?? "").trim()
+        ...(destinationFor ? { destination: destinationFor(c.dishId, entry.ingredientId) } : {}),
+          ...((c.preparationNote ?? "").trim()
           ? { preparationNote: (c.preparationNote ?? "").trim() }
           : {}),
       };
@@ -388,19 +429,21 @@ function componentsOfUnclaimed(
   return out;
 }
 
-function componentsOf(entry: PrepIngredientGroup): PrepNarrationComponent[] {
+function componentsOf(
+  entry: PrepIngredientGroup,
+  destinationFor?: DestinationResolver,
+): PrepNarrationComponent[] {
   return entry.lines.map((line) => {
     const prep = line.contributions.find(
       (c) => (c.preparationNote ?? "").trim() !== "",
     )?.preparationNote;
     const measures: PrepMeasure[] = line.contributions.map((c) => {
-      const fromSource = sourceCountFor(entry.sourceYield, c.quantity, c.unit);
       return {
         amount: formatMeasure(c.quantity, c.unit),
         forDish: c.dishName,
         dishRole: c.dishRole,
-        ...(fromSource ? { fromSource } : {}),
-        ...((c.preparationNote ?? "").trim()
+        ...(destinationFor ? { destination: destinationFor(c.dishId, entry.ingredientId) } : {}),
+          ...((c.preparationNote ?? "").trim()
           ? { preparationNote: (c.preparationNote ?? "").trim() }
           : {}),
       };
@@ -423,6 +466,7 @@ function componentsOf(entry: PrepIngredientGroup): PrepNarrationComponent[] {
 function componentsForDish(
   entry: PrepIngredientGroup,
   dishId: string,
+  destinationFor?: DestinationResolver,
 ): PrepNarrationComponent[] {
   const out: PrepNarrationComponent[] = [];
   for (const line of entry.lines) {
@@ -432,13 +476,12 @@ function componentsForDish(
       (c) => (c.preparationNote ?? "").trim() !== "",
     )?.preparationNote;
     const measures: PrepMeasure[] = contribs.map((c) => {
-      const fromSource = sourceCountFor(entry.sourceYield, c.quantity, c.unit);
       return {
         amount: formatMeasure(c.quantity, c.unit),
         forDish: c.dishName,
         dishRole: c.dishRole,
-        ...(fromSource ? { fromSource } : {}),
-        ...((c.preparationNote ?? "").trim()
+        ...(destinationFor ? { destination: destinationFor(c.dishId, entry.ingredientId) } : {}),
+          ...((c.preparationNote ?? "").trim()
           ? { preparationNote: (c.preparationNote ?? "").trim() }
           : {}),
       };
@@ -635,6 +678,18 @@ export function buildStepPlan(
   const componentBuckets = new Map<string, ComponentBucket>();
   /** `${dishId}|${ingredientId}` claimed by a container — skipped per-phase. */
   const claimed = new Set<string>();
+  /**
+   * D-WS9-301 rule 11(a) — shared portions waiting to see whether their dish's
+   * moment container turns out to have other members. Resolved after the first
+   * pass; the ones nobody takes fall through to rule 5's shared step.
+   */
+  const deferredShared: {
+    dishId: string;
+    momentKey: string;
+    entry: PrepIngredientGroup;
+    phase: PrepPhaseKey;
+    mealId: string;
+  }[] = [];
   for (const phase of result.phases) {
     for (const entry of phase.entries) {
       for (const line of entry.lines) {
@@ -673,8 +728,17 @@ export function buildStepPlan(
           // while the other three dishes' garlic shared a step, and Hans
           // ratified that. A `c:` key means a resolved component — the author
           // said these things belong together — so it still claims its share.
+          // D-WS9-301 rule 11(a) REPLACES THE FLAT REFUSAL ABOVE. A shared
+          // ingredient is held back from the FIRST pass and offered to the
+          // buckets afterwards, once "has other members" is answerable. An
+          // authored mixture still claims its share immediately — that is
+          // D-WS9-296 and Hans ratified it.
           const isAuthoredMixture = mk.startsWith("c:");
-          if (!isAuthoredMixture && new Set(dishIdsOf(entry)).size > 1) continue;
+          const isShared = new Set(dishIdsOf(entry)).size > 1;
+          if (!isAuthoredMixture && isShared) {
+            deferredShared.push({ dishId: c.dishId, momentKey: mk, entry, phase: phase.phase, mealId: c.mealId });
+            continue;
+          }
           const k = `${c.dishId}|${mk}`;
           const b = componentBuckets.get(k) ?? {
             dishId: c.dishId,
@@ -704,6 +768,23 @@ export function buildStepPlan(
         }
       }
     }
+  }
+
+  // ── D-WS9-301 rule 11(a), SECOND PASS ────────────────────────────────────
+  //
+  // Offer each deferred portion to its dish's moment container, and only to one
+  // that ALREADY holds two or more members. That condition is the whole
+  // difference between this and the shape H1 measured going wrong: joining an
+  // existing container moves a portion, where creating one per dish multiplies
+  // them. H3.0 measured the effect over the 14 plans at 206 containers → 148.
+  for (const d of deferredShared) {
+    const k = `${d.dishId}|${d.momentKey}`;
+    const b = componentBuckets.get(k);
+    if (!b || b.entries.size < 2) continue;
+    if (PREP_PHASE_ORDER.indexOf(d.phase) < PREP_PHASE_ORDER.indexOf(b.phase)) b.phase = d.phase;
+    b.entries.set(d.entry.ingredientId, d.entry);
+    b.mealIds.add(d.mealId);
+    claimed.add(`${d.dishId}|${d.entry.ingredientId}`);
   }
 
   // A container holds at least two things. A moment with one ingredient in it is
@@ -758,6 +839,18 @@ export function buildStepPlan(
     );
   }
 
+  // ── D-WS9-301 rule 11 — WHERE EACH PORTION GOES ──────────────────────────
+  //
+  //   (a) its dish's own moment container, when that container has other
+  //       members — the slow-cooker onion joins the carrots, celery and herbs;
+  //   (b) else the shared ingredient container, labelled with its dishes.
+  //
+  // Built from `componentBuckets`, which is final by this point: the key is
+  // (dishId, ingredientId) and the answer is the container's user-facing name,
+  // so the narrator can write "¾ into the Mexican rice container" without
+  // knowing anything about moments.
+  const containerByDishIngredient = new Map<string, string>();
+
   // Rule 8 — name every container the author did not name, by dish and use.
   for (const b of componentBuckets.values()) {
     if (b.bowlName !== "") continue;
@@ -771,6 +864,20 @@ export function buildStepPlan(
       useNounFor([...b.entries.values()].map((e) => e.phase)),
     );
   }
+  for (const b of componentBuckets.values()) {
+    for (const ingredientId of b.entries.keys()) {
+      containerByDishIngredient.set(`${b.dishId}|${ingredientId}`, b.bowlName);
+    }
+  }
+  /**
+   * Rule 11(a) then (b). Undefined when the portion IS its own container and
+   * pointing at itself would be noise ("dice the onion — into the onion
+   * container").
+   */
+  const destinationFor: DestinationResolver = (dishId, ingredientId) =>
+    ingredientId === null
+      ? undefined
+      : containerByDishIngredient.get(`${dishId}|${ingredientId}`);
 
   // ── D-WS9-296 ruling 1 — the raw protein's cook-day step ─────────────────
   //
@@ -800,6 +907,8 @@ export function buildStepPlan(
     if (entries.length === 0) continue;
 
     let number = 0;
+    /** Rule 10 — set once the wash step has been emitted for this phase. */
+    let washEmitted = false;
     const pushStep = (
       step: Omit<PlannedStep, "stepId" | "number" | "phase" | "estimatedMinutes">,
     ): void => {
@@ -807,6 +916,16 @@ export function buildStepPlan(
       // WS9 BUG-204 — the clock, computed from what the step holds. Done here so
       // EVERY step gets one by construction and no branch can forget.
       const timing = timeStep({ components: step.components, bowlName: step.bowlName }, yieldFor);
+      // D-WS9-301 rule 12 — the action, for a whole-protein step. Read here so
+      // every branch that emits one gets it, and so a step that is later held
+      // for cook day still says what the cook will be doing on the day.
+      const knifeVerbs =
+        key === "proteins" && !step.cookDaySentence
+          ? proteinVerbsFor(
+              step.components.map((c) => c.preparationNote ?? "").join(" "),
+              step.relevantDishes.flatMap((d) => dishStepsByName.get(d) ?? []).join(" "),
+            )
+          : [];
       // D-WS9-297 ruling 13 — the LATEST cook day this step has to survive to.
       // Max, not min: a portion feeding Tuesday and Saturday has to last until
       // Saturday, and the shorter answer is the one that spoils food.
@@ -819,6 +938,7 @@ export function buildStepPlan(
         number,
         ...step,
         estimatedMinutes: timing.minutes,
+        ...(knifeVerbs.length > 0 ? { knifeVerbs } : {}),
         ...(timing.overCap ? { minutesOverCap: true } : {}),
         ...(lags.length > 0 ? { daysUntilCook: Math.max(...lags) } : {}),
       };
@@ -849,6 +969,38 @@ export function buildStepPlan(
       steps.push(planned);
     };
 
+    // ── D-WS9-301 rule 10 — the produce phase opens with the wash ──────────
+    //
+    // Pushed before anything else in the phase so it is step 1 on the screen.
+    // `contributesToMealIds` is every meal the phase touches: it is work for the
+    // whole week, not for one dish.
+    if (key === "produce" && !washEmitted) {
+      washEmitted = true;
+      const everyMealHere = dedupe(
+        entries.flatMap((e) =>
+          e.lines.flatMap((l) => l.contributions.map((c) => c.mealId)),
+        ),
+      );
+      if (everyMealHere.length > 0) {
+        number += 1;
+        steps.push({
+          stepId: `${key}#${number}`,
+          stepKey: WASH_STEP_KEY,
+          phase: key,
+          number,
+          ingredientId: null,
+          contributesToMealIds: everyMealHere,
+          isBlend: false,
+          estimatedMinutes: WASH_STEP_MINUTES,
+          components: [],
+          relevantDishes: [],
+          // Nothing is portioned into anything, so it is not a container.
+          holdsNoContainer: true,
+          fixedProse: { title: WASH_STEP_TITLE, instructions: WASH_STEP_INSTRUCTIONS },
+        });
+      }
+    }
+
     // ── D-WS9-296 — this phase's COMPONENT steps, first ────────────────────
     //
     // One step per (dish, component), placed in the earliest phase the mixture
@@ -862,7 +1014,7 @@ export function buildStepPlan(
       // is a plain portion, not a mixture. Its claim is released so the
       // per-phase branches below pick the survivor up.
       const surviving = [...b.entries.values()]
-        .flatMap((e) => componentsForDish(e, b.dishId))
+        .flatMap((e) => componentsForDish(e, b.dishId, destinationFor))
         .reduce((n, c) => n + c.measures.length, 0);
       if (surviving < 2) {
         for (const e of b.entries.values()) claimed.delete(`${b.dishId}|${e.ingredientId}`);
@@ -884,7 +1036,7 @@ export function buildStepPlan(
         // A mixture IS a blend in the narrator's sense — one pre-measure
         // action into one vessel — whatever phase it sits in.
         isBlend: true,
-        components: [...b.entries.values()].flatMap((e) => componentsForDish(e, dishId)),
+        components: [...b.entries.values()].flatMap((e) => componentsForDish(e, dishId, destinationFor)),
         relevantDishes: relevantDishesFor([dishId]),
         bowlName: b.bowlName,
       });
@@ -967,7 +1119,7 @@ export function buildStepPlan(
           ingredientId: null,
           contributesToMealIds: mealIds,
           isBlend: true,
-          components: dishEntries.flatMap((e) => componentsForDish(e, dishId)),
+          components: dishEntries.flatMap((e) => componentsForDish(e, dishId, destinationFor)),
           relevantDishes: relevantDishesFor([dishId]),
         });
       }
@@ -1016,8 +1168,8 @@ export function buildStepPlan(
           contributesToMealIds: mealIds,
           isBlend: false,
           components: [
-            ...dishEntries.flatMap((e) => componentsForDish(e, dishId)),
-            ...(folded ? componentsForDish(folded, dishId) : []),
+            ...dishEntries.flatMap((e) => componentsForDish(e, dishId, destinationFor)),
+            ...(folded ? componentsForDish(folded, dishId, destinationFor) : []),
           ],
           relevantDishes: relevantDishesFor([dishId]),
         });
@@ -1028,7 +1180,7 @@ export function buildStepPlan(
       for (const entry of entries) {
         // D-WS9-296 — filtered per (dish, ingredient): the carne asada's garlic is
         // in its marinade bowl, the other three dishes' garlic still needs a step.
-        const unclaimed = componentsOfUnclaimed(entry, claimed);
+        const unclaimed = componentsOfUnclaimed(entry, claimed, destinationFor);
         if (unclaimed.length === 0) continue;
         const unclaimedDishIds = dishIdsOf(entry).filter(
           (d) => !claimed.has(`${d}|${entry.ingredientId}`),
@@ -1066,7 +1218,9 @@ export function buildStepPlan(
   const narrationInput: PrepNarrationInput = {
     planName,
     dishSteps,
-    steps: steps.map((s) => ({
+    // D-WS9-301 rule 10 — a step the ENGINE owns the prose for is not sent to
+    // the model at all. There is nothing to narrate and nothing to get wrong.
+    steps: steps.filter((s) => !s.fixedProse).map((s) => ({
       stepId: s.stepId,
       phase: s.phase,
       isBlend: s.isBlend,
@@ -1074,6 +1228,7 @@ export function buildStepPlan(
       relevantDishes: s.relevantDishes,
       ...(s.bowlName ? { bowlName: s.bowlName } : {}),
       ...(s.cookDaySentence ? { cookDaySentence: s.cookDaySentence } : {}),
+      ...(s.knifeVerbs ? { knifeVerbs: s.knifeVerbs } : {}),
       // ⚠️ daysUntilCook IS DELIBERATELY NOT HERE. It stays on the step skeleton
       // (PlannedStep) where the deterministic layers read it; sending it to the
       // narrator bought nothing the model needed and made the prose day-dependent,
@@ -1128,7 +1283,9 @@ export function lowValueClass(step: PlannedStep): "garnish" | "citrus-wedge" | n
 
 /** Containers in a step plan: a kept step that holds food. */
 export function countContainers(steps: readonly PlannedStep[]): number {
-  return steps.filter((s) => !s.demoted && !s.cookDaySentence).length;
+  // D-WS9-301 rule 10 — the wash step holds no food either, so it carries
+  // `holdsNoContainer` and must not reach the header count.
+  return steps.filter((s) => !s.demoted && !s.cookDaySentence && !s.holdsNoContainer).length;
 }
 
 const CONTAINER_TARGET_MAX = 15;
@@ -1215,7 +1372,7 @@ export function assemblePrepWeekResult(
   // Fail closed: every planned step must be narrated. We never ship a step
   // with code-owned numbers but no prose.
   const missing = plan.steps
-    .filter((s) => !proseById.has(s.stepId))
+    .filter((s) => !s.fixedProse && !proseById.has(s.stepId))
     .map((s) => s.stepId);
   if (missing.length > 0) throw new PrepNarrationIncompleteError(missing);
 
@@ -1224,7 +1381,9 @@ export function assemblePrepWeekResult(
 
   let total = 0;
   for (const planned of plan.steps) {
-    const prose = proseById.get(planned.stepId)!;
+    const prose = planned.fixedProse
+      ? { ...planned.fixedProse, storageNote: undefined, skipSuggested: undefined }
+      : proseById.get(planned.stepId)!;
     // WS9 BUG-204 — the step minutes are the ENGINE's. 
     // is ignored even when a v12 narration still sends one.
     total += planned.estimatedMinutes;
@@ -1246,7 +1405,7 @@ export function assemblePrepWeekResult(
       // would be a container the header did not count.
       ...(planned.demoted ? { skipSuggested: true } : {}),
       // A cook-day sentence holds no food, so it is not a container.
-      ...(planned.cookDaySentence ? { holdsNoContainer: true } : {}),
+      ...(planned.cookDaySentence || planned.holdsNoContainer ? { holdsNoContainer: true } : {}),
     });
   }
 

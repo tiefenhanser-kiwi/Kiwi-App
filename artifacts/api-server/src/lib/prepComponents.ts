@@ -524,3 +524,42 @@ export function judgePrepWorthiness(input: PrepWorthinessInput): PrepWorthiness 
     reason: input.measuredItems <= 1 ? "single-item" : "two-simple-items",
   };
 }
+
+// ── D-WS9-301 rule 12 — THE WHOLE-PROTEIN KNIFE VERBS ───────────────────────
+//
+// "Phase 4 is every whole-protein knife-work verb the recipe text names: cube,
+// trim, pound, butterfly, skin, cut strips, portion."
+//
+// The step used to read as a bare ingredient line — "Boneless skinless chicken
+// breasts" — because the narrator was given the ingredient and nothing else.
+// Measured over the 14-plan corpus: 25 of 31 protein components have a verb
+// somewhere in their dish's prose and 15 have one in their own note, and none
+// of it reached the card.
+//
+// ⚠️ THE PROSE WINS OVER THE NOTE (Hans's ruling 4). The note is the shopping
+// form — "sliced very thin", "patted dry" — and the prose is what the cook step
+// expects to find ready. Where the Buttermilk chicken's note says "sliced very
+// thin" and its prose says pound and portion, the cook needs to pound.
+const PROTEIN_VERBS: ReadonlyArray<[RegExp, string]> = [
+  [/\bbutterfl(?:y|ied|ying)\b/i, "butterfly"],
+  [/\bpound(?:s|ed|ing)?\b/i, "pound"],
+  [/\bcub(?:e|es|ed|ing)\b/i, "cube"],
+  [/\b(?:cut|slice)[^.]{0,30}\bstrips?\b/i, "cut into strips"],
+  [/\b(?:skinned|remove the skin|skin removed)\b/i, "skin"],
+  [/\btrim(?:s|med|ming)?\b/i, "trim"],
+  [/\bportion(?:s|ed|ing)?\b/i, "portion"],
+];
+
+/**
+ * Rule 12 — the verbs a protein step should name, most specific first.
+ *
+ * Returns at most two: a card that says "pound, portion and trim the chicken"
+ * is a paragraph, not a step title. Empty when the recipe names none, and then
+ * the narrator writes the step as it does today.
+ */
+export function proteinVerbsFor(note: string | null | undefined, prose: string): string[] {
+  const fromProse = PROTEIN_VERBS.filter(([re]) => re.test(prose)).map(([, v]) => v);
+  if (fromProse.length > 0) return fromProse.slice(0, 2);
+  const fromNote = PROTEIN_VERBS.filter(([re]) => re.test(note ?? "")).map(([, v]) => v);
+  return fromNote.slice(0, 2);
+}

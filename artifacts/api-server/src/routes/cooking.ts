@@ -350,6 +350,7 @@ export function createCookingRouter(
        * D-WS9-298 — what the overlay needs, keyed by stepKey. Built from the
        * STEP PLAN rather than the cached blob, so it is today's dates either way.
        */
+      const mealNameById = new Map(input.meals.map((m) => [m.mealId, m.mealName]));
       const storageContextFor = (): Map<string, StorageContext> => {
         const m = new Map<string, StorageContext>();
         for (const st of stepPlan.steps) {
@@ -358,8 +359,17 @@ export function createCookingRouter(
             c.preparationNote ?? "",
             ...c.measures.map((x) => x.preparationNote ?? ""),
           ]);
+          // D-WS9-301 rule 13 — the held line names the day and the meal, so
+          // the overlay needs both. The LATEST meal is the one the lag is from.
+          const latest = st.contributesToMealIds
+            .map((id) => ({ id, lag: cookDays.lagByMealId.get(id) ?? -1 }))
+            .sort((x, y) => y.lag - x.lag)[0];
+          const dayName = latest ? cookDays.dayNameByMealId.get(latest.id) : undefined;
+          const mealName = latest ? mealNameById.get(latest.id) : undefined;
           m.set(st.stepKey, {
             daysUntilCook: st.daysUntilCook,
+            ...(dayName ? { dayName } : {}),
+            ...(mealName ? { mealName } : {}),
             phase: st.phase,
             // The BOWL NAME is part of the text on purpose: "Fajita spice
             // blend" and "… seasoning" say what the mixture IS, and without it a

@@ -36,13 +36,26 @@ export interface PrepMeasure {
   // poured into a pan → DEMOTE). Judged alongside the dish steps
   // (relevantDishes → dishSteps).
   dishRole: DishRoleT;
-  // WS9 BUG-338 / D-WS9-297 ruling 8 — INPUT ONLY, and CODE-COMPUTED: how many
-  // whole ones this derived amount takes ("2 limes" for 3 tbsp of lime juice),
-  // from the `component` edge's yield in ingredient_relations. Present only on a
-  // derived ingredient whose parent has a yield; absent on everything else.
-  // The narrator states it so the cook knows what to buy and squeeze — it has no
-  // matching output field, so prose still cannot move the math.
-  fromSource?: string;
+  /**
+   * ⚠️ D-WS9-301 rule 14 — RETIRED, and deliberately left here as a tombstone.
+   * It carried "(from 2 limes)" / "(from 1 garlic head)" onto every derived
+   * measure. Hans on the device pass: the parenthetical goes, the count lives in
+   * the grocery list. Nothing sets it; the narrator is told not to invent it.
+   * fromSource?: string;
+   */
+  /**
+   * D-WS9-301 rule 10 — WHERE THIS PORTION GOES, by container name.
+   *
+   * "Finely dice 2 white onions — 1 into the enchilada container, ¾ into the
+   * Mexican rice container, ¼ into the chili fixings container." The amount
+   * alone was never enough: a cook reading "¾ onion" on a shared step has no
+   * way to know which of four dishes it belongs to, and the recipe is not on
+   * the screen.
+   *
+   * Rule 11's priority decides the value: the dish's own moment container when
+   * it has other members, else the shared container this step fills.
+   */
+  destination?: string;
   preparationNote?: string;
 }
 
@@ -92,6 +105,13 @@ export interface PrepNarrationStepInput {
    * it states a fact about the schedule and prose must not move it.
    */
   cookDaySentence?: string;
+  /**
+   * D-WS9-301 rule 12 — the knife-work verb(s) the recipe names for this whole
+   * protein, e.g. ["pound"] or ["trim"]. The narrator OPENS the step with it:
+   * "Pound 4 chicken breasts to even thickness", never a bare ingredient line.
+   * Absent when the recipe names none, and then today's wording stands.
+   */
+  knifeVerbs?: string[];
 }
 
 export interface PrepNarrationInput {

@@ -735,6 +735,15 @@ differ, so re-running it is idempotent.
 > per-action-class evidence and the recommended multiplier. Re-tuning is editing
 > that one object; no reseed and no regeneration are needed for a re-tune, because
 > the minutes are not in `structureJson`.
+>
+> 🔴 **v13 → v14 (D-WS9-301, the October 1 device pass).** The phases became the
+> KIND OF WORK in the order a cook works a board (Dry · Produce · Sauces and
+> marinades · Proteins — `produce` and `sauces_marinades` swapped, keys
+> unchanged); every produce portion now names its destination container WITH its
+> quantity; phase 1 and 3 steps carry no knife work; a protein step opens with
+> the verb the recipe names; and the source parenthetical ("from 1 garlic head")
+> is gone. **Dev is at v14** (reseeded 2026-10-02). Without this reseed the
+> engine groups correctly and the prose still reads the old way.
 
 ```bash
 node --env-file=.env --import tsx -e "
