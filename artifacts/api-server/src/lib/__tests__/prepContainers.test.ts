@@ -15,7 +15,7 @@ import {
   buildStepPlan,
   assemblePrepWeekResult,
   countContainers,
-  feedsContainersOnly,
+  containerNamesOf,
   memberKind,
   summarizePrepWeek,
   WASH_STEP_KEY,
@@ -157,10 +157,12 @@ describe("rule 11(c) — a marinade's produce is prepped in the produce phase", 
     }
   });
 
-  it("the knife work that only fills the bowl is not a bowl of its own", () => {
+  it("the knife work names the bowl it fills, and no bowl of its own", () => {
+    // H6.1-B — `feedsContainersOnly` is gone; the question is now which VESSELS a
+    // step touches. The garlic fills the marinade and puts nothing else out.
     const sp = buildStepPlan(combinePrep(marinade()), "Test Plan");
     const garlic = phaseOf(sp, "produce").find((s) => names(s).includes("garlic cloves"))!;
-    assert.equal(feedsContainersOnly(garlic), true);
+    assert.deepEqual(containerNamesOf(garlic), [MARINADE.bowlName]);
   });
 });
 
@@ -224,8 +226,14 @@ describe("rule 11(c) — the counter counts containers, not steps", () => {
     const bowl = wire.filter((s) => s.containerId);
     assert.equal(bowl.length, 2, "the bowl's two steps should both carry the identity");
     for (const s of bowl) {
-      assert.equal(s.feedsContainersOnly, undefined, "a container was marked as holding nothing");
+      // H6.1-B — a container's own step NAMES it, which is how the header counts
+      // it once across both of its steps.
+      assert.deepEqual(s.containerNames, [MARINADE.bowlName]);
     }
+    // …and the knife work that fills it names it too, so the union is still one.
+    const feeders = wire.filter((s) => !s.containerId && (s.containerNames ?? []).length > 0);
+    assert.ok(feeders.length > 0, "the produce steps stopped naming their destination");
+    for (const s of feeders) assert.deepEqual(s.containerNames, [MARINADE.bowlName]);
     // …and the two steps still both show, and both cost minutes.
     const shown = result.phases.flatMap((p) => p.steps).filter((s) => !s.skipSuggested);
     assert.ok(shown.length > result.containerCount!, "the steps collapsed with the count");

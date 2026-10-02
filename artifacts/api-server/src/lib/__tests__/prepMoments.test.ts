@@ -67,15 +67,17 @@ describe("D-WS9-301 rule 1 — a moment is closed by heat", () => {
       ing("oregano", "dried oregano", "seasonings_dry"),
     ]);
     const k = (id: string) => r.keyByIngredientId.get(id);
-    // At THIS layer the onion and the spices share a run, and that is correct:
-    // both amounts are stated before any heat. What separates them is the
-    // COMPONENT TAG, and the component is resolved one layer up — so the
-    // pipeline test below is the one that pins Hans's example. The override is
-    // recorded for the onion (its prose moment is step 3) and deliberately not
-    // applied, because it already has a run.
-    assert.equal(k("onion"), "r:0");
-    assert.equal(k("chili"), "r:0");
+    // 🔴 H6.1 ruling 3 REVERSED THE H1 NARROWING, and this is the assertion that
+    // said so: the onion's prose moment used to be RECORDED AND REFUSED because it
+    // already had a run. "Add the diced onion and cook until softened" is when the
+    // onion enters, and that beats a proxy which only knows that two amounts were
+    // written near each other. The measured cost of the refusal was 412 of 545
+    // overrides overruled, and both of H6.0's container defects.
+    assert.equal(k("onion"), "s:3", "the onion's own cook step should be its moment");
+    assert.equal(k("chili"), "r:0", "…and the spices, which no cook step names, keep the run");
     assert.equal(r.overrides.find((o) => o.ingredientName === "yellow onion")?.stepIndex, 3);
+    // `wasRunMoment` is still reported — it is the audit trail for how often the
+    // prose and the proxy disagree — but it no longer decides anything.
     assert.equal(r.overrides.find((o) => o.ingredientName === "yellow onion")?.wasRunMoment, 0);
   });
 
@@ -130,9 +132,18 @@ describe("D-WS9-301 rule 1 — a moment is closed by heat", () => {
     // no longer prove anything. What absorption changes is the DESTINATION: a
     // swallowed onion is portioned into the dry blend, and a dry blend has to
     // stay shelf stable.
+    // H6.1-B — every portion names a container now, so "no destination" is no longer
+    // the test. What must be true is that the destination is NOT the spice blend:
+    // the onion goes into a tub of its own, named for its dish and its cut.
     for (const c of onionStep.components) {
       for (const v of c.measures) {
-        assert.equal(v.destination, undefined, "the diced onion is portioned into a dry container");
+        assert.ok(v.destination, "the diced onion still says nothing about where it goes");
+        assert.doesNotMatch(
+          v.destination!,
+          /seasoning|spice blend|rub\b/i,
+          "the diced onion is portioned into a shelf-stable dry container",
+        );
+        assert.notEqual(v.destination, spiceStep.bowlName);
       }
     }
     // The spices are ONE container, and it is named.
@@ -167,7 +178,58 @@ describe("D-WS9-301 rule 1 — a moment is closed by heat", () => {
         r.keyByIngredientId.get(id),
       ),
     );
-    assert.equal(keys.size, 1, `expected one moment, got ${[...keys].join(" / ")}`);
+    // 🔴 H6.1 ruling 3 — THIS FIXTURE IS UNTAGGED, AND THAT IS NOW THE DIFFERENCE.
+    //
+    // Hans ruled "slow-cooker herbs + onion + chicken go in together → one container
+    // is right", and on the REAL dish it still is: its members carry a componentKey,
+    // and an ingredient inside a component never reaches the override at all. This
+    // fixture carries none, so the prose decides — "Pour in the broth and add the
+    // dried thyme and rosemary" (step 2) is a different moment from the knife work
+    // at step 0, and the engine now says so.
+    //
+    // That is the accepted cost of reversing the narrowing, stated here rather than
+    // buried: for an UNTAGGED recipe, things added at different steps are different
+    // moments. The tagged case — which is what the catalog actually contains, and
+    // what Hans ruled on — is pinned by the pipeline test below.
+    assert.deepEqual(
+      [...keys].sort(),
+      ["r:0", "s:2"],
+      "the knife work and the broth-and-herbs step are two moments in an untagged recipe",
+    );
+  });
+
+  it("🔴 …and WITH the author's tag they are one container again, as Hans ruled", () => {
+    // The same dish as the catalog actually carries it: the slow-cooker members share
+    // a componentKey, so they are one mixture by authorship and the override never
+    // looks at them.
+    const steps = [
+      step(0, "prep", "Slice the celery and carrots, and mince the garlic.", {
+        componentKey: "crock",
+        ids: ["celery", "carrot", "garlic"],
+      }),
+      step(1, "cook", "Add the chicken thighs to the slow cooker.", { ids: ["chicken"] }),
+      step(2, "cook", "Pour in the broth and add the dried thyme and rosemary.", {
+        componentKey: "crock",
+        ids: ["broth", "thyme", "rosemary"],
+      }),
+    ];
+    const ings = [
+      ing("celery", "celery stalks", "produce"),
+      ing("carrot", "carrots", "produce"),
+      ing("garlic", "garlic cloves", "produce"),
+      ing("broth", "low-sodium chicken broth", "sauces_marinades"),
+      ing("thyme", "dried thyme", "seasonings_dry"),
+      ing("rosemary", "dried rosemary", "seasonings_dry"),
+    ];
+    const r = resolveMoments(steps, ings);
+    const overridden = r.overrides.filter((o) =>
+      ings.some((i) => i.ingredientName === o.ingredientName),
+    );
+    assert.deepEqual(
+      overridden.map((o) => o.ingredientName),
+      [],
+      "an ingredient inside a component must never be moved by the prose",
+    );
   });
 
   it("🔴 A COOK STEP BETWEEN TWO PREP RUNS SPLITS THEM — heat is the boundary", () => {

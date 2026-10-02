@@ -119,12 +119,20 @@ describe("H5.1 — toppings are never a mix", () => {
     // Each member is handled on its own, which is the ruling.
     const live = sp.steps.filter((s) => !s.demoted && !s.holdsNoContainer);
     assert.ok(live.length >= 3, "the members lost their steps as well as their jar");
-    for (const s of live) {
-      for (const c of s.components) {
-        for (const m of c.measures) {
-          assert.equal(m.destination, undefined, "a topping was portioned into a container");
-        }
-      }
+    // H6.1-B — every portion names a container, so the test is no longer "nothing
+    // named" but "nothing SHARED": each topping goes into a tub of its own, labelled
+    // for its dish, and never into one mixture with the others.
+    const destinations = new Set(
+      live.flatMap((s) => s.components.flatMap((c) => c.measures.map((m) => m.destination))),
+    );
+    assert.equal(
+      destinations.size,
+      live.length,
+      `the toppings share a container: ${[...destinations].join(" | ")}`,
+    );
+    for (const d of destinations) {
+      assert.ok(d, "a topping still says nothing about where it goes");
+      assert.match(d!, /Taco Toppings —/, "a topping's tub should be labelled for its dish");
     }
   });
 });
@@ -272,9 +280,13 @@ describe("H5.2 — a finished step ends in the fridge, not 'set aside'", () => {
     const sent = new Map(
       sp.narrationInput.steps.map((x) => [x.stepId, (x as { setAsideFor?: string }).setAsideFor]),
     );
+    // H6.1-C — the handoff is computed over container NAMES, so the NEXT step to
+    // touch this bowl is the one that counts. Its garlic is prepped in the produce
+    // phase and portioned into it, so the dry measure hands off to PRODUCE; the
+    // sauces step is later still.
     assert.equal(
       sent.get(dry.stepId),
-      "sauces and marinades",
+      "produce",
       "the dry measure was not told its bowl is worked again — it will say 'set aside' or send it to the fridge",
     );
     assert.equal(
@@ -292,7 +304,16 @@ describe("H5.2 — a finished step ends in the fridge, not 'set aside'", () => {
     const sent = new Map(
       sp.narrationInput.steps.map((x) => [x.stepId, (x as { setAsideFor?: string }).setAsideFor]),
     );
-    assert.equal(sent.get(garlic.stepId), undefined);
+    // 🔴 H6.1-C MOVED THIS ONE, and the new answer is the better one: the garlic is
+    // portioned INTO the marinade bowl, which is opened again in the sauces phase, so
+    // the garlic step is part of the handoff and says so. The storage line belongs to
+    // whichever step closes the bowl, and that is not this one.
+    assert.equal(sent.get(garlic.stepId), "sauces and marinades");
+    assert.equal(garlic.suppressStorage, true, "a step feeding a later bowl kept a storage line");
+
+    // The step that DOES close the marinade carries it.
+    const last = sp.steps.find((x) => x.phase === "sauces_marinades" && x.containerId)!;
+    assert.equal(last.suppressStorage, undefined, "the closing step lost its storage line");
   });
 
   it("the model is no longer asked for a storageNote at all", () => {

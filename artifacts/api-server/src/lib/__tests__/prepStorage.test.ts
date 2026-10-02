@@ -52,24 +52,32 @@ describe("D-WS9-298 — the storage table", () => {
     assert.equal(storageClassFor("salmon fillets for the teriyaki glaze").days, 2);
   });
 
-  it("🔴 the BOWL NAME is a label, not contents — two opposite mistakes", () => {
-    // Without the label, "Loaded Vegetarian Nachos seasoning" holding cumin,
-    // chili powder and garlic powder read as loose produce: none of those three
-    // words says "blend".
-    assert.equal(
-      storageClassFor("ground cumin chili powder garlic powder", "Loaded Vegetarian Nachos seasoning").key,
-      "spice-blend",
-    );
-    // WITH the label reaching every class, a jar of dry spices matched RAW MEAT
-    // on the word "Chicken" in its dish's name and was told to cook within 2
-    // days. The raw classes read the contents alone.
-    assert.equal(
-      storageClassFor("ground cumin chili powder garlic powder", "Sheet-Pan Chicken Fajitas seasoning bowl").key,
-      "spice-blend",
-    );
-    // …while real raw flesh is still caught, label or no label.
+  it("🔴 THE NAME SELECTS NOTHING — the contents decide, both ways", () => {
+    // H6.1-C reversed this test's premise, and its own second half is why: with the
+    // label reaching every class, a jar of dry spices matched RAW MEAT on the word
+    // "Chicken" in its dish's name and was told to cook within 2 days. On Hans's
+    // plan the same leak classed a bowl of flour and cornmeal as cut chillies,
+    // because the dish is called "Jalapeño Cheddar Cornbread".
+    //
+    // So the contents have to be sufficient on their own — and they are: cumin,
+    // chili powder and garlic powder are cupboard items whatever the bowl is called.
+    for (const label of [
+      "Loaded Vegetarian Nachos seasoning",
+      "Sheet-Pan Chicken Fajitas seasoning bowl",
+      "Jalapeño Cheddar Cornbread seasoning bowl",
+      "",
+    ]) {
+      const c = storageClassFor("ground cumin chili powder garlic powder", label);
+      assert.equal(c.roomTemp, true, `"${label}" moved a jar of dry spices`);
+      assert.doesNotMatch(c.note, /cook within/, "a jar of spices was treated as flesh");
+    }
+    // …and real raw flesh is still caught, label or no label.
     assert.equal(storageClassFor("salmon fillets", "Teriyaki Salmon glaze jar").key, "raw-fish");
-    assert.equal(storageClassFor("soy sauce sesame oil honey", "Teriyaki Salmon glaze jar").key, "sauces-dressings");
+    assert.equal(storageClassFor("salmon fillets", "").key, "raw-fish");
+    // A wet mixture is a jar, and says so without the word "jar" in its label.
+    const glaze = storageClassFor("soy sauce sesame oil honey", "");
+    assert.match(glaze.note, /fridge/);
+    assert.doesNotMatch(glaze.note, /damp paper towel/, "a glaze is not loose herbs");
   });
 
   // ── BUG-340 — shelf-stable proteins ───────────────────────────────────────
@@ -84,7 +92,7 @@ describe("D-WS9-298 — the storage table", () => {
     // gets the dressing's 5 days. What BUG-340 removes is the RAW-FISH window,
     // not the bowl's own identity.
     const inBowl = storageClassFor("1 tsp anchovy paste", "Classic Caesar Salad dressing jar");
-    assert.equal(inBowl.key, "sauces-dressings");
+    assert.equal(inBowl.roomTemp ?? false, true, "a shelf-stable jar keeps for months");
     assert.notEqual(inBowl.key, "raw-fish");
   });
 

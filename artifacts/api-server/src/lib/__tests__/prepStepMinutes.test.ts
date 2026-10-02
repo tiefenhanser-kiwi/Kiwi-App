@@ -68,9 +68,33 @@ describe("BUG-204 — the table's arithmetic", () => {
     assert.ok(t.minutes >= 5 && t.minutes <= 7, `got ${t.minutes}`);
   });
 
-  it("dicing an onion is 2 minutes, and a whole onion counts as one", () => {
-    assert.equal(timeStep({ components: [comp("yellow onion", "diced", "1 each")] }).minutes, 2);
-    assert.equal(timeStep({ components: [comp("yellow onion", "finely diced", "2 each")] }).minutes, 4);
+  it("dicing an onion is 2½ minutes, and a whole onion counts as one", () => {
+    // H6.1 ruling 2 — the single `perCutVegetable: 2` costed an onion, a pepper, a
+    // celery stalk and a carrot alike. These are the H2 table's own per-vegetable
+    // figures, which H2 · 1 collapsed at authoring time: onion 2.5, celery 0.5,
+    // carrot 1 (+0.5 to peel), potato 1.5.
+    assert.equal(timeStep({ components: [comp("yellow onion", "diced", "1 each")] }).minutes, 3);
+    assert.equal(timeStep({ components: [comp("yellow onion", "finely diced", "2 each")] }).minutes, 5);
+  });
+
+  it("🔴 and a celery stalk is NOT an onion", () => {
+    // 3 stalks read 6 minutes on Hans's plan. The table says 0.5 each.
+    assert.equal(timeStep({ components: [comp("celery stalks", "sliced", "3 each")] }).minutes, 2);
+    assert.equal(timeStep({ components: [comp("carrots", "sliced", "2 each")] }).minutes, 2);
+    // Peeling is charged on top, and only for a carrot.
+    assert.equal(timeStep({ components: [comp("carrots", "peeled and sliced", "2 each")] }).minutes, 3);
+    // A potato reads its own rate only once it is in CUT_VEG; before that it took
+    // the batch floor, where 2 potatoes cost the same as 20.
+    assert.equal(timeStep({ components: [comp("baby Yukon gold potatoes", "halved", "2 each")] }).minutes, 3);
+  });
+
+  it("🔴 a bare count on a clove-shaped name is a CLOVE count", () => {
+    // The old line demanded the unit token be literally "clove(s)" and charged ONE
+    // clove otherwise, so a merged garlic group of 27 cost 20 seconds. 16 of the
+    // corpus's 79 garlic measures were being charged as one clove.
+    assert.equal(timeStep({ components: [comp("garlic cloves", "minced", "27 cloves")] }).minutes, 9);
+    assert.equal(timeStep({ components: [comp("garlic cloves", "minced", "27")] }).minutes, 9);
+    assert.equal(timeStep({ components: [comp("garlic", "minced", "3 cloves")] }).minutes, 1);
   });
 
   it("a batch vegetable is costed by weight, with a floor", () => {
@@ -197,14 +221,16 @@ describe("H2b ruling 1 — a shared container's knife work is costed ONCE", () =
     assert.equal(cuts.length, 1, `the cut was charged ${cuts.length} times`);
     assert.equal(cuts[0].quantity, 2.5, "the total is 2½ onions");
     // 2½ onions rounds up to 3 whole ones × 2 min. Not 4 × 2 = 8.
-    assert.equal(t.minutes, 6);
+    // 1 + ½ + ½ + ½ = 2½ onions, ROUNDED to 3 whole onions (you dice a whole one),
+    // at 2.5 each = 7.5 → 8. The rounding is pre-existing; only the rate moved.
+    assert.equal(t.minutes, 8);
   });
 
   it("…and one dish's single measure is unaffected", () => {
     const t = timeStep({
       components: [{ ingredientName: "yellow onion", preparationNote: "diced", measures: [{ amount: "1 each", preparationNote: null }] }],
     });
-    assert.equal(t.minutes, 2);
+    assert.equal(t.minutes, 3);
   });
 });
 

@@ -541,6 +541,10 @@ function makeLoaderStub(opts: {
         lagByMealId: new Map(Object.entries(opts.lagByMealId ?? {})),
         dayNameByMealId: new Map(Object.entries(opts.dayNameByMealId ?? {})),
       },
+      // H6.1 ruling 1 — the real loader returns the plan's food-identity fold, and
+      // the route hands it to combinePrep. Empty here: the stub's ingredients are
+      // one row each, so nothing folds, and the shape is what matters.
+      identity: { foldedIdByIngredientId: new Map<string, string>() },
     };
   }) as never;
 }
