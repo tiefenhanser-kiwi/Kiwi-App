@@ -157,6 +157,37 @@ const SERVICE_FORM =
 // user a brown guacamole.
 const COOK_DAY_BASE = /\b(avocado|avocados|banana|bananas|apple|apples|potato|potatoes)\b/i;
 
+// ── H5.1 — SERVED SEPARATELY IS NOT A MIXTURE ───────────────────────────────
+//
+// Hans, October 2: toppings and garnishes go on the finished dish; they are never
+// combined. So a component whose NAME says it is served rather than assembled is
+// not a container at all, and each member is handled on its own — the knife work
+// joins its ingredient's produce step, the lime wedges are rule 7's first drop
+// class, and a condiment is not prep at all (D-WS9-299).
+//
+// 🔴 TESTED AGAINST THE NAME, NOT THE STEP PROSE. A mixture's own prose may
+// mention serving it ("whisk the vinaigrette… dress the salad to serve"), and a
+// vinaigrette is a real jar. What is never a jar is a thing CALLED the toppings.
+const SERVED_SEPARATELY =
+  /\b(toppings?|garnishes|fixin'?s|fixings|condiments?|accompaniments?|for serving|to serve|serve[- ]?alongside)\b/i;
+
+/**
+ * H5.1 — is this thing SET OUT rather than assembled?
+ *
+ * Exported because two layers have to agree: the component resolver, which must
+ * not build a bowl for it, and the assembly's moment grouping, which must not
+ * rebuild one from the same run and have rule 8 name it off the dish. The first
+ * fix did only the former, and "Taco Toppings sauce jar" came straight back as
+ * "Taco Toppings prep container".
+ *
+ * 🔴 A SPECIFIC MIXTURE STILL WINS. Pico de gallo and guacamole are real bowls
+ * however they reach the table, so the class only bites when the name offers no
+ * mixture of its own.
+ */
+export function isServedSeparately(name: string): boolean {
+  return SERVED_SEPARATELY.test(name) && nounIn(name) === null;
+}
+
 /** Ruling 4 — an explicit destination in the note wins over every signal. */
 const NOTE_SAYS_MARINADE = /\bfor (?:the )?marinade\b/i;
 
@@ -288,6 +319,18 @@ export function resolveDishComponents(
   steps: ComponentStep[],
   ingredients: ComponentIngredient[],
 ): { components: ResolvedComponent[]; byIngredient: Map<string, ResolvedComponent> } {
+  // H5.1 — a dish that IS the toppings forms no component. Checked first,
+  // before any signal runs, because the cheapest way to get this wrong is to
+  // build the bucket and then try to unpick it.
+  //
+  // 🔴 A SPECIFIC MIXTURE STILL WINS. "Pico de Gallo" and "Guacamole" are real
+  // bowls whoever eats them, and a dish may be named for both ("Pico de Gallo
+  // Toppings"), so the negative class only bites when the name offers no mixture
+  // of its own. Without this arm the salsa and the guacamole would lose their
+  // bowls the moment a recipe called them toppings.
+  if (isServedSeparately(dishTitle)) {
+    return { components: [], byIngredient: new Map() };
+  }
   const ordered = [...steps].sort((a, b) => a.stepIndex - b.stepIndex);
   const byId = new Map(ingredients.map((i) => [i.ingredientId, i]));
   /** step group key → bucket. Ruling 5: the GROUP is the identity, the noun a label. */
@@ -318,7 +361,12 @@ export function resolveDishComponents(
     if (st.ingredientIds.length === 0) continue;
 
     // Signal 1 — componentKey, but only when it names a MIXTURE (ruling 6).
-    let noun: string | null = st.componentKey ? nounIn(st.componentKey.replace(/[-_]+/g, " ")) : null;
+    // H5.1 — the same test on the component's OWN name, for a dish whose title
+    // says nothing: a `componentKey` of "toppings" or "garnish" is the author
+    // telling us these are set out, not mixed.
+    const keyText = st.componentKey ? st.componentKey.replace(/[-_]+/g, " ") : "";
+    if (keyText !== "" && isServedSeparately(keyText)) continue;
+    let noun: string | null = nounIn(keyText);
     // Signal 2 — the step's own prose.
     noun ??= nounIn(st.text);
 

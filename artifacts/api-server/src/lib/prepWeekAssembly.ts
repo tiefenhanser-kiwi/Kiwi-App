@@ -23,7 +23,13 @@
 // into a single seasonings_dry blend step. Accepted for now.
 
 import { convertWithinDimension, pluralizeCountUnit } from "./ingredientConversions";
-import { judgePrepWorthiness, bowlNameFor, useNounFor, proteinVerbsFor } from "./prepComponents";
+import {
+  judgePrepWorthiness,
+  bowlNameFor,
+  useNounFor,
+  proteinVerbsFor,
+  isServedSeparately,
+} from "./prepComponents";
 import { isLoneKey } from "./prepMoments";
 import { timeStep, planMinutes, wholeFruitCount, type SourceYieldLike } from "./prepStepMinutes";
 import {
@@ -204,17 +210,15 @@ type MemberKind = "dry" | "produce" | "wet" | "protein";
 
 /** Juice, zest and purée are liquids however the catalog files them. */
 const WET_FORM = /\b(juice|zest|purée|puree|paste|sauce|vinegar|oil|syrup|honey|broth|stock|wine|cream|yogurt|mayo|mustard)\b/i;
-/** A note that says the cook is extracting liquid rather than cutting. */
-const WET_NOTE = /\b(zest\w*|juic\w*|squeez\w*)\b/i;
-/**
- * …and the note that says they are CUTTING, which beats the squeeze. "Grated and
- * squeezed dry" is a drained vegetable, not a juiced one: the squeeze gets the
- * water out of work the knife already did, and that work belongs at the board in
- * phase 2. Found by measuring the corpus — the tzatziki's cucumber was being
- * grated inside the finishing step, which is the exact shape rule 11(c) removes.
- */
-const CUT_NOTE = /\b(grat\w*|shred\w*|dic\w*|chop\w*|minc\w*|slic\w*|julienn\w*|halv\w*|quarter\w*|cub\w*)\b/i;
-
+// 🔴 THERE IS NO NOTE ARM ANY MORE, AND IT MUST NOT COME BACK. H5.3 — a whole
+// lemon whose note says "zested and juiced" is still a lemon on a board: its
+// juice and its zest are portioned to their destinations in phase 2, like the
+// onion, and the marinade's phase 3 step adds only the oil. A note arm sent it
+// into the bowl instead, where a step cannot say where each portion goes.
+//
+// Measured before removing it: the arm placed 6 members in phase 3 across the 14
+// corpus plans, and 5 were named "lime juice" or "lemon juice" — wet by FORM,
+// unaffected. The 6th was a grated cucumber that never belonged there.
 export function memberKind(
   phase: PrepPhaseKey | null,
   ingredientName: string,
@@ -223,12 +227,11 @@ export function memberKind(
   if (phase === "proteins") return "protein";
   if (phase === "seasonings_dry") return "dry";
   if (phase === "sauces_marinades") return "wet";
-  // Produce by category. Wet by form or by what the note says is being done.
+  // The FORM, and nothing else. "lime juice" is a bottle and belongs with the
+  // oil; "lime" is a fruit and belongs on the board, whatever its note says is
+  // going to be done to it.
   if (WET_FORM.test(ingredientName)) return "wet";
-  // The form wins over the note, and a cut beats a squeeze. Of the 6 members the
-  // squeeze arm placed in phase 3 across the corpus, 5 were lime or lemon JUICE —
-  // already wet by form above — and the 6th was a grated cucumber.
-  if (WET_NOTE.test(preparationNotes) && !CUT_NOTE.test(preparationNotes)) return "wet";
+  void preparationNotes;
   return "produce";
 }
 
@@ -819,6 +822,10 @@ export function buildStepPlan(
             deferredShared.push({ dishId: c.dishId, momentKey: mk, entry, phase: phase.phase, mealId: c.mealId });
             continue;
           }
+          // H5.1 — a dish that IS the toppings forms no container by the moment
+          // route either. Without this the run grouping rebuilds exactly the
+          // bucket the resolver refused and rule 8 names it off the dish.
+          if (isServedSeparately(c.dishName)) continue;
           const k = `${c.dishId}|${mk}`;
           const b = componentBuckets.get(k) ?? {
             dishId: c.dishId,
@@ -1356,6 +1363,23 @@ export function buildStepPlan(
     }
   }
 
+  /**
+   * H5.2 — the label of the next phase that touches this step's container, or
+   * null when nothing does. A container is the identity (H4 rule 11(c)), so this
+   * is "is there a later step on the same `containerId`".
+   */
+  const workedAgainAfter = (step: PlannedStep): string | null => {
+    if (!step.containerId) return null;
+    const here = PREP_PHASE_ORDER.indexOf(step.phase);
+    const later = steps.find(
+      (other) =>
+        other.containerId === step.containerId &&
+        !other.demoted &&
+        PREP_PHASE_ORDER.indexOf(other.phase) > here,
+    );
+    return later ? PHASE_META[later.phase].title.toLowerCase() : null;
+  };
+
   const narrationInput: PrepNarrationInput = {
     planName,
     dishSteps,
@@ -1374,6 +1398,10 @@ export function buildStepPlan(
       // construction (it is the container's own membership), so it does not
       // reopen the cache-miss hazard the note below guards.
       ...(s.containerHolds ? { containerHolds: s.containerHolds } : {}),
+      // H5.2 — is this container worked again later in the session? Computed over
+      // the FINAL step list, so a container whose later step was dropped by the
+      // worthiness filter or by rule 7 correctly reads as finished here.
+      ...(workedAgainAfter(s) ? { setAsideFor: workedAgainAfter(s)! } : {}),
       // ⚠️ daysUntilCook IS DELIBERATELY NOT HERE. It stays on the step skeleton
       // (PlannedStep) where the deterministic layers read it; sending it to the
       // narrator bought nothing the model needed and made the prose day-dependent,

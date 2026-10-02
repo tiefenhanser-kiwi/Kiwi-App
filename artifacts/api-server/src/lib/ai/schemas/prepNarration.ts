@@ -125,6 +125,18 @@ export interface PrepNarrationStepInput {
    * Absent on the FIRST step that touches a container, and on a plain portion.
    */
   containerHolds?: string[];
+  /**
+   * H5.2 — the NEXT phase that touches this step's container, as a label
+   * ("sauces and marinades"). Present only when the container is worked again in
+   * the same prep session, which is the one case where the bowl stays on the
+   * counter: the step closes "Set aside for the sauces and marinades step."
+   *
+   * Absent means the work is DONE, and the app's own storage line closes it. The
+   * model must write no close at all then — a "set aside" there contradicts the
+   * fridge line rendered directly beneath it, which is what Hans read on the
+   * device.
+   */
+  setAsideFor?: string;
 }
 
 export interface PrepNarrationInput {

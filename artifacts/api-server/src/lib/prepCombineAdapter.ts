@@ -42,6 +42,99 @@ export function splitCompoundUnit(
   return { quantity: quantity * factor, unit: m[2] };
 }
 
+// ── H5.3 — THE SERVICE PORTION IS NOT PREP ──────────────────────────────────
+//
+// Hans, October 2: "Rounds / wedges / slices 'for topping' or 'for serving' are
+// cook-day work, not prep." Cut citrus is also rule 6's first drop class, so it
+// is doubly not prep — and a round sliced on Sunday is limp by Thursday.
+//
+// 🔴 IT IS REMOVED HERE, AT THE SOURCE, and therefore from the step, the
+// container count and the minutes together. Demoting it later leaves the work
+// costed and the vessel counted for something the cook is told not to do.
+//
+// 🔴 THIS IS THE PREP LANE ONLY. The limes stay in the recipe, the grocery list
+// and Cook Mode, which read their own paths — the cook still cuts wedges on the
+// night, which is the whole point.
+const SERVICE_PURPOSE =
+  /\bfor (?:topping|toppings|serving|garnish|the table)\b|\bto (?:serve|garnish)\b/i;
+/** The cut forms that are service work when they are for service. */
+const SERVICE_CUT =
+  /\b(rounds?|wedges?|wedged|slices?|sliced|halves|halved|quartered)\b/i;
+/** A leading count on a clause: "1 zested and juiced". */
+const LEADING_COUNT = /^\s*(\d+(?:\.\d+)?|½|¼|¾|⅓|⅔)\s+(.*)$/;
+const GLYPH: Record<string, number> = { "½": 0.5, "¼": 0.25, "¾": 0.75, "⅓": 1 / 3, "⅔": 2 / 3 };
+
+/**
+ * Split one ingredient row into the part that is PREP and the part that is
+ * service. Returns null when the whole row is service and nothing is left to do
+ * ahead.
+ *
+ * Only ever reduces: a note it does not recognise returns the row untouched.
+ */
+/**
+ * Split one ingredient row into the part that is PREP and the part that is
+ * cook-day service work. Returns null when nothing is left to do ahead.
+ *
+ * 🔴 ONLY CUT FORMS LEAVE. A chopped herb for garnish keeps everything —
+ * including the words "for garnish" in its note, which is how rule 7's drop
+ * class recognises it (lowValueClass). Stripping them would blind the drop pass.
+ *
+ * Only ever reduces: a shape it does not recognise returns the row untouched.
+ */
+export function prepPortion(
+  ingredientName: string,
+  quantity: number,
+  unit: string,
+  preparationNote: string | null,
+): { quantity: number; preparationNote: string | null } | null {
+  const note = (preparationNote ?? "").trim();
+  const unchanged = { quantity, preparationNote };
+  if (note === "") return unchanged;
+
+  const clauses = note.split(/\s*,\s*/).map((c) => c.trim()).filter((c) => c !== "");
+  // A purpose stated anywhere in the note governs the whole of it: "cut into
+  // wedges, for serving" is one instruction split by a comma.
+  const purposeSomewhere = clauses.some((c) => SERVICE_PURPOSE.test(c));
+  if (!purposeSomewhere) return unchanged;
+
+  // The cut may be named by the ingredient instead of the note: "lemon wedges".
+  const nameIsCut = SERVICE_CUT.test(ingredientName);
+  const isServiceClause = (c: string) =>
+    SERVICE_CUT.test(c) || (SERVICE_PURPOSE.test(c) && nameIsCut);
+  const serviceClauses = clauses.filter(isServiceClause);
+  if (serviceClauses.length === 0) {
+    // A purpose with no cut — "chopped, for garnish". Rule 7's business, not
+    // this function's, and its note must survive for the drop pass to see it.
+    return unchanged;
+  }
+
+  const keptClauses = clauses.filter(
+    (c) => !isServiceClause(c) && !SERVICE_PURPOSE.test(c),
+  );
+  // Nothing but the cut and its purpose: the whole row is cook-day work.
+  if (keptClauses.length === 0) return null;
+
+  // A split row on a COUNT unit, where every clause states its own count. Less
+  // regular than that and the quantity stands — a wrong number is worse than an
+  // undivided one.
+  const counted = (c: string): number | null => {
+    const m = LEADING_COUNT.exec(c);
+    if (!m) return null;
+    const n = GLYPH[m[1]] ?? Number(m[1]);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+  const keptNote = keptClauses.join(", ");
+  const keptCounts = keptClauses.map(counted);
+  const isCount = /^(each|whole|clove|cloves|head|heads|stalk|stalks|sprig|sprigs)$/i.test(
+    unit.trim(),
+  );
+  if (!isCount || keptCounts.some((n) => n === null)) {
+    return { quantity, preparationNote: keptNote };
+  }
+  const prepTotal = (keptCounts as number[]).reduce((x, y) => x + y, 0);
+  // Never invent more than the row had.
+  return { quantity: Math.min(quantity, prepTotal), preparationNote: keptNote };
+}
 export function buildPrepCombineInput(loaded: PrepLoadedPlan): PrepCombineInput {
   return {
     meals: loaded.meals.map((meal) => ({
@@ -159,21 +252,30 @@ export function buildPrepCombineInput(loaded: PrepLoadedPlan): PrepCombineInput 
           dishId: dish.dishId,
           dishName: dish.dishName,
           dishRole: dish.dishRole,
-          ingredients: dish.ingredients.map((ing) => {
+          ingredients: dish.ingredients.flatMap((ing) => {
             const split = splitCompoundUnit(ing.quantity, ing.unit);
+            // H5.3 — drop the service portion before anything downstream can
+            // cost it, name it or count a vessel for it.
+            const prep = prepPortion(
+              ing.ingredientName,
+              split.quantity,
+              split.unit,
+              ing.preparationNote,
+            );
+            if (prep === null) return [];
             const category =
               ing.category && ing.category.trim() !== ""
                 ? ing.category
                 : inferCategory(ing.ingredientName);
             const comp = resolved.byIngredient.get(ing.ingredientId) ?? null;
             const cookDayInto = cookDayIntoByIngredientId.get(ing.ingredientId) ?? null;
-            return {
+            return [{
               ingredientId: ing.ingredientId,
               ingredientName: ing.ingredientName,
               category,
-              quantity: split.quantity * multiplier,
+              quantity: prep.quantity * multiplier,
               unit: split.unit,
-              preparationNote: ing.preparationNote,
+              preparationNote: prep.preparationNote,
               component: comp
                 ? { key: comp.key, noun: comp.noun, bowlName: comp.bowlName }
                 : null,
@@ -187,7 +289,7 @@ export function buildPrepCombineInput(loaded: PrepLoadedPlan): PrepCombineInput 
               // split above touches the DEMAND's unit; the yield is a property
               // of the ingredient and is unaffected by it.
               sourceYield: ing.sourceYield,
-            };
+            }];
           }),
         };
       }),

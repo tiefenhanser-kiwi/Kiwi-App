@@ -1502,6 +1502,7 @@ A 'planName', a 'dishSteps' map (each dish name → that dish's recipe instructi
 - 'relevantDishes' — the NAMES of the dish(es) these ingredients are cooked in (a subset of this step's 'forDish' names). Look each name up in the top-level 'dishSteps' map to get that dish's recipe instruction-step text; the combined text of a step's 'relevantDishes' is what the rules below call this step's 'relevantSteps'. Read it to judge prep vs. at-cook (see "# Prep-vs-cook-time rule"). A step with no 'relevantDishes' (or a name absent from 'dishSteps') has no step text — treat its 'relevantSteps' as empty.
 - 'bowlName' — THE VESSEL, present on a step whose items all go into ONE named container: "Carne asada marinade bowl", "Teriyaki Salmon glaze jar", "Fajita spice blend". Use the string EXACTLY as given, every time you name the container, and never invent a different name for it. This is the whole point of such a step: one mixture is built in one named vessel instead of scattered across five. The SAME 'bowlName' can appear on two steps — the dry measure and the liquid finish — and they are one container, not two. See "# A step with a bowl".
 - 'containerHolds' — present on a bowl step that is NOT the first to touch its container: the names of what the cook already put in, from earlier phases. Open with it — "Carne asada marinade bowl (spices and garlic already in it): add …" — because a step that does not say so reads as if a fresh bowl is being started, and the cook ends up with two. Name them in plain words; you do not have to list all of them if there are many ("the spices and aromatics already in it").
+- 'setAsideFor' — present when this step's container is worked AGAIN later in the same session ("sauces and marinades"). Close the step with exactly that: "Set aside for the sauces and marinades step." The bowl stays on the counter, so do not send it to the fridge.
 - 'knifeVerbs' — present on a whole-protein step whose recipe names the knife work: ["pound"], ["trim"], ["cube","trim"]. OPEN the step with it, as an instruction: "Pound 4 chicken breasts to even thickness", "Trim 2 lb boneless thighs". A bare ingredient line on a protein step is the defect this replaces — the cook needs the action, not the shopping name.
 - 'cookDaySentence' — present ONLY on a raw-protein step whose protein joins a bowl on cook day. It is already written for you. Echo it VERBATIM as the step's instruction and add nothing to it: it states a fact about the schedule, not a suggestion.
 
@@ -1558,13 +1559,35 @@ USE THE GIVEN NAME AND ONLY THE GIVEN NAME. Not "the marinade bowl", not "the ca
 When a LATER step adds to a bowl the user already has, say so plainly: "Add these to the Carne asada marinade bowl." Never "combine with the spices from your seasoning blend" — that was the old wording for two containers, and there is one now.
 
 A step with NO 'bowlName' is a plain portion of a single ingredient. Do not invent a bowl for it.
+# Citrus, and anything else you squeeze
+
+A whole lemon or lime is PRODUCE and it is worked at the board in the produce phase, exactly like an onion: one step, and every portion says where it goes and how much. It is never zested or juiced inside a sauce bowl — the cook has put the board away by then.
+
+Say the WHOLE-FRUIT count once, then the portions. Verbatim shape:
+title: "Prep all lemons"
+"Zest 1 lemon and juice 1½ lemons:
+zest and the juice of 1 — into the Lemon-Herb Baked Chicken Breast marinade bowl
+the juice of ½ — into a small jar for the roasted asparagus"
+
+🔴 NEVER ASK FOR ROUNDS, WEDGES OR SLICES. Cut citrus is cook-day work: it goes limp and loses its edge in storage, and the app has already removed those portions from the amounts you are given. If a note still mentions them, ignore it — the number in 'measures' is the prep portion only and is the only number you may state.
+
+🔴 AND NEVER SAY "set aside separately". A portion with no 'destination' is its own container; say what it is for, and the app's storage line closes it.
+
+# How a step ENDS
+
+🔴 A STEP WITHOUT 'setAsideFor' IS FINISHED, AND THE APP CLOSES IT. The storage line — "Cover and refrigerate — up to 3 days." — is written by the app from the food and the cook day, and it is rendered immediately under your instructions. So end on the last action and stop.
+
+NEVER write "set aside", "set it aside", "reserve", "leave it on the counter" or any other close on a finished step. Hans read exactly that on the device: a chopped-parsley step that said "set aside" with "Airtight in the fridge — up to 3 days" printed underneath it. Two instructions, disagreeing. His words: "unless they're getting combined in the prep session, it should be 'cover and put in the fridge' because that step is done."
+
+The ONLY step that is set aside is one carrying 'setAsideFor', because its container is worked again before the session ends.
+
 # What you return
 
 Exactly ONE output object per input step, with the SAME 'stepId'. Same count, same ids — no more, no fewer. For each:
 - 'stepId' — the echoed id.
 - 'title' — short imperative ("Dice all yellow onion", "Measure the taco spices", "Pound the chicken breasts"). <=120 chars, no filler. On a protein step with 'knifeVerbs', the title opens with that verb. When every measure in the step is for ONE dish, name that dish HERE ("Measure the pork chop glaze") — the title is where the dish name belongs, and naming it here is exactly what lets the measures below drop it.
 - 'instructions' — imperative voice, the per-dish measures as described above. Echo every 'amount' string exactly as given. <=800 chars. No fluff.
-- 'storageNote' (optional) — where/how to store after prep (e.g. "Airtight container in the fridge, up to 3 days"). Skip when self-evident.
+- DO NOT return a 'storageNote'. The app writes the storage line itself, from the food and the cook day, and renders it directly beneath your instructions. Anything you write there is discarded (H5.2 — it has to be, because the prose is cached and the cook day is not).
 - DO NOT return a duration. There is no 'estimatedMinutes' field any more: the code computes how long a step takes from the actions and quantities it contains (BUG-204 — the estimates returned here ran roughly 3x long, and the plan header now states the total, so a guess is not good enough). You decide NO numbers at all. Echo the amounts, write the prose.
 - 'skipSuggested' (optional boolean) — see "# Prep-vs-cook-time rule". Set true ONLY to demote an at-cook application; otherwise omit it (or false).
 
