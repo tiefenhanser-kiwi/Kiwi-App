@@ -19,6 +19,15 @@ import { resolvePrepCategory } from "./prepCategoryOverride";
 import { selectDefaultPathSteps } from "./cookingScheduler";
 import type { ComponentStep } from "./prepComponents";
 
+/**
+ * H3 item 14 — weekday name → `Date.getUTCDay()` index. Lowercased on lookup so
+ * a stored "monday" and a stored "Monday" are one day.
+ */
+const DAY_INDEX: Readonly<Record<string, number>> = {
+  sunday: 0, monday: 1, tuesday: 2, wednesday: 3,
+  thursday: 4, friday: 5, saturday: 6,
+};
+
 /** Group already-ordered rows by ownerId, preserving order within each owner. */
 function groupByOwner<T extends { ownerId: string }>(rows: T[]): Map<string, T[]> {
   const out = new Map<string, T[]>();
@@ -283,7 +292,9 @@ export async function loadPrepWeekInput(
   const meals: PrepLoadedMeal[] = [];
   // D-WS9-298 — collected alongside, never onto the meal. First slot wins, the
   // same multi-slot collapse buildMealLabelLookup already documents.
-  const assignedDateByMealId = new Map<string, string>();
+  // H3 item 14 — `assignedDate` is NOT collected any more. The prep lane reads
+  // the weekday name and derives the date; keeping a second source around is
+  // how the two drifted apart in the first place.
   const dayNameByMealId = new Map<string, string>();
   for (const item of plan.items) {
     const meal = item.meal;
@@ -291,9 +302,6 @@ export async function loadPrepWeekInput(
     // week; everything downstream consumes `meals` and is untouched.
     if (selectedMealIds && !selectedMealIds.has(item.mealId)) continue;
     if (meal.dishLinks.length === 0) continue;
-    if (item.assignedDate && !assignedDateByMealId.has(item.mealId)) {
-      assignedDateByMealId.set(item.mealId, item.assignedDate.toISOString().slice(0, 10));
-    }
     if (item.assignedDayOfWeek && !dayNameByMealId.has(item.mealId)) {
       dayNameByMealId.set(item.mealId, item.assignedDayOfWeek);
     }
@@ -502,21 +510,39 @@ export async function loadPrepWeekInput(
     plan.titleOverride ??
     `Plan ${plan.id.slice(0, 8)}`;
 
-  // D-WS9-298 — the prep-day baseline. startDate first (the plan's own claim
-  // about when the week begins), else the earliest assigned meal.
-  const prepDay =
-    (plan.startDate ? plan.startDate.toISOString().slice(0, 10) : null) ??
-    [...assignedDateByMealId.values()].sort()[0] ??
-    null;
-  // The lag, computed HERE so the route and the census cannot drift apart on it
-  // (B1 had the same arithmetic copied in both). A meal dated before the prep
-  // session is a data oddity, not a negative shelf life — clamped at 0.
+  // ── 🔴 H3 ITEM 14 — THE LAG COMES FROM THE DAY NAME, NOT `assignedDate` ───
+  //
+  // D-WS9-298 built every cook-day behaviour on `MealPlanItem.assignedDate`.
+  // NOTHING WRITES THAT COLUMN AFTER PLAN CREATION. `planDayAssignment` sets it
+  // once in the create transaction; the day-change endpoint
+  // (`PATCH /plans/:id/items/:itemId`, plans.ts:2439-2448) writes
+  // `assignedDayOfWeek` and only that. BUG-114 had already found this in
+  // home.ts and removed its own `assignedDate` read for exactly this reason —
+  // "a day-change PATCH moves assignedDayOfWeek and leaves the stale
+  // assignedDate winning here forever, unfixably from the client" — and
+  // D-WS9-298 then built on the column anyway.
+  //
+  // Measured on Hans's own plan: he moved the Texas-Style Beef Chili four times
+  // and the chuck's cube-and-trim step never changed. The row read
+  // `assignedDayOfWeek: "Monday"` against `assignedDate: 2026-10-01`, which is a
+  // THURSDAY — the label had moved four times and the date had not moved once.
+  // The two meals he touched were the only two whose label and date disagreed.
+  //
+  // So the weekday NAME is the authority, and the date is derived: the single
+  // occurrence of that weekday inside the plan's seven-day window from
+  // `startDate`. A name earlier in the week than the start wraps forward, which
+  // is the right answer — "Monday" on a Wednesday-start plan is next Monday.
+  //
+  // ⚠️ AND THE DATE IS NOT WRITTEN BACK. A derived value stored beside its
+  // source is two truths again, which is the whole of this bug.
+  const prepDay = plan.startDate ? plan.startDate.toISOString().slice(0, 10) : null;
   const lagByMealId = new Map<string, number>();
-  if (prepDay) {
-    const prepMs = Date.parse(prepDay);
-    for (const [mealId, iso] of assignedDateByMealId) {
-      const lag = Math.round((Date.parse(iso) - prepMs) / 86_400_000);
-      if (Number.isFinite(lag)) lagByMealId.set(mealId, Math.max(0, lag));
+  if (plan.startDate) {
+    const startDow = plan.startDate.getUTCDay();
+    for (const [mealId, dayName] of dayNameByMealId) {
+      const dow = DAY_INDEX[dayName.trim().toLowerCase()];
+      if (dow === undefined) continue; // an unrecognised name says nothing
+      lagByMealId.set(mealId, (dow - startDow + 7) % 7);
     }
   }
 

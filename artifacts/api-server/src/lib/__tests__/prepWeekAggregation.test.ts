@@ -603,18 +603,83 @@ describe("loadPrepWeekInput — cook days ride beside the hashed input (D-WS9-29
     );
   });
 
-  it("…and the dates DO arrive, on cookDays", async () => {
+  it("…and the days DO arrive, on cookDays", async () => {
     // The other half. A fingerprint that never moves is also what you get by
-    // dropping the dates entirely, which would make D-WS9-298 unbuildable.
+    // dropping the days entirely, which would make D-WS9-298 unbuildable.
+    //
+    // 🔴 H3 item 14 — THE LAG IS DERIVED FROM THE NAME NOW. The plan starts on
+    // Sunday 2026-10-04, so "Sunday" is 0 days out and "Friday" is 5.
+    //
+    // This test used to assert 1 and 5 off `assignedDate`, and its own fixture
+    // carried the very defect the item-14 probe found on Hans's plan: it paired
+    // the label "Sunday" with 2026-10-05, which is a MONDAY. The old assertion
+    // was reading the date and calling it the day.
     const sunday = dated("2026-10-05T00:00:00.000Z", "Sunday");
     const friday = dated("2026-10-09T00:00:00.000Z", "Friday");
     const a = await loadPrepWeekInput({ planId: PLAN_ID, userId: USER_ID, prisma: makePrismaStub([sunday]) });
     const b = await loadPrepWeekInput({ planId: PLAN_ID, userId: USER_ID, prisma: makePrismaStub([friday]) });
     assert.equal(a.cookDays.prepDay, "2026-10-04");
-    assert.equal(a.cookDays.lagByMealId.get(MEAL_A), 1);
+    assert.equal(a.cookDays.lagByMealId.get(MEAL_A), 0);
     assert.equal(b.cookDays.lagByMealId.get(MEAL_A), 5);
     assert.equal(a.cookDays.dayNameByMealId.get(MEAL_A), "Sunday");
     assert.equal(b.cookDays.dayNameByMealId.get(MEAL_A), "Friday");
+  });
+
+  it("🔴 H3 item 14 — THE DAY NAME MOVES THE LAG AND `assignedDate` DOES NOT", async () => {
+    // The defect, in one assertion pair. Hans moved a meal four times on Plan
+    // Review; `PATCH /plans/:id/items/:itemId` writes `assignedDayOfWeek` and
+    // nothing else (plans.ts:2443-2444), and the prep lane was reading
+    // `assignedDate`, which is written once at plan creation and never again.
+    const withDate = (day: string, iso: string | null) =>
+      plan({
+        startDate: new Date("2026-10-04T00:00:00.000Z"), // a Sunday
+        items: plan().items.map((it, i) =>
+          i === 0
+            ? { ...it, assignedDayOfWeek: day, assignedDate: iso ? new Date(iso) : null }
+            : it,
+        ),
+      });
+
+    // Same stale date on both; only the NAME differs. The lag must follow.
+    const asWed = await loadPrepWeekInput({
+      planId: PLAN_ID, userId: USER_ID,
+      prisma: makePrismaStub([withDate("Wednesday", "2026-10-05T00:00:00.000Z")]),
+    });
+    const asSat = await loadPrepWeekInput({
+      planId: PLAN_ID, userId: USER_ID,
+      prisma: makePrismaStub([withDate("Saturday", "2026-10-05T00:00:00.000Z")]),
+    });
+    assert.equal(asWed.cookDays.lagByMealId.get(MEAL_A), 3, "Wednesday is 3 days after Sunday");
+    assert.equal(asSat.cookDays.lagByMealId.get(MEAL_A), 6, "Saturday is 6 days after Sunday");
+
+    // …and the same name with WILDLY different dates gives the same lag, which
+    // is the statement that `assignedDate` is no longer read at all.
+    const dateA = await loadPrepWeekInput({
+      planId: PLAN_ID, userId: USER_ID,
+      prisma: makePrismaStub([withDate("Friday", "2026-10-09T00:00:00.000Z")]),
+    });
+    const dateB = await loadPrepWeekInput({
+      planId: PLAN_ID, userId: USER_ID,
+      prisma: makePrismaStub([withDate("Friday", "2027-03-02T00:00:00.000Z")]),
+    });
+    const noDate = await loadPrepWeekInput({
+      planId: PLAN_ID, userId: USER_ID,
+      prisma: makePrismaStub([withDate("Friday", null)]),
+    });
+    assert.equal(dateA.cookDays.lagByMealId.get(MEAL_A), 5);
+    assert.equal(dateB.cookDays.lagByMealId.get(MEAL_A), 5, "a date five months out moved the lag");
+    assert.equal(noDate.cookDays.lagByMealId.get(MEAL_A), 5, "a NULL date lost the lag");
+  });
+
+  it("a weekday earlier in the week than the start WRAPS FORWARD", async () => {
+    // "Monday" on a Wednesday-start plan is next Monday, not five days ago.
+    // Hans's own plan is this shape: start Wednesday 2026-09-30, chili "Monday".
+    const p = plan({
+      startDate: new Date("2026-09-30T00:00:00.000Z"), // a Wednesday
+      items: plan().items.map((it, i) => (i === 0 ? { ...it, assignedDayOfWeek: "Monday" } : it)),
+    });
+    const r = await loadPrepWeekInput({ planId: PLAN_ID, userId: USER_ID, prisma: makePrismaStub([p]) });
+    assert.equal(r.cookDays.lagByMealId.get(MEAL_A), 5);
   });
 
   it("the loaded input carries NO date-shaped field at all", async () => {
@@ -638,7 +703,13 @@ describe("loadPrepWeekInput — cook days ride beside the hashed input (D-WS9-29
     assert.equal(r.cookDays.dayNameByMealId.size, 0);
   });
 
-  it("with no startDate the earliest assigned meal becomes the baseline", async () => {
+  it("🔴 with no startDate there is NO baseline and NO lags — not a guess", async () => {
+    // This used to fall back to the earliest `assignedDate` as the baseline.
+    // H3 item 14 removes that: a weekday NAME means nothing without a week to
+    // place it in, and the fallback could only ever be driven by the same
+    // write-once column the whole defect came from. No startDate, no lags — and
+    // D-WS9-298's unknown-day sentence covers the user ("prep this the day
+    // before you cook, or leave it for cook day").
     const p = plan({
       startDate: null,
       items: plan().items.map((it, i) =>
@@ -646,8 +717,9 @@ describe("loadPrepWeekInput — cook days ride beside the hashed input (D-WS9-29
       ),
     });
     const r = await loadPrepWeekInput({ planId: PLAN_ID, userId: USER_ID, prisma: makePrismaStub([p]) });
-    assert.equal(r.cookDays.prepDay, "2026-10-09");
-    // The baseline meal is itself zero days out.
-    assert.equal(r.cookDays.lagByMealId.get(MEAL_A), 0);
+    assert.equal(r.cookDays.prepDay, null);
+    assert.equal(r.cookDays.lagByMealId.size, 0);
+    // The day NAME still arrives — it is what the "Saturday" copy renders from.
+    assert.equal(r.cookDays.dayNameByMealId.get(MEAL_A), "Friday");
   });
 });
