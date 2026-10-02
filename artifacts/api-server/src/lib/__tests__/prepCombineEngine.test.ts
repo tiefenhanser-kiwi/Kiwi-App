@@ -512,12 +512,12 @@ describe("combinePrep — prep-worthy filter tiers", () => {
 // ── structural invariants ────────────────────────────────────────────────────
 
 describe("combinePrep — result shape", () => {
-  it("always emits exactly 4 phases in fixed order with proteins last", () => {
+  it("always emits 4 phases in D-WS9-301 rule 9 order, proteins last", () => {
     const result = combinePrep({ meals: [] });
     assert.equal(result.phases.length, 4);
     assert.deepEqual(
       result.phases.map((p) => p.phase),
-      ["seasonings_dry", "sauces_marinades", "produce", "proteins"],
+      ["seasonings_dry", "produce", "sauces_marinades", "proteins"],
     );
     assert.equal(result.phases[3].phase, "proteins");
     assert.equal(result.totalEstimatedMinutes, 0);

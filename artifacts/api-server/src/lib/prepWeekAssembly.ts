@@ -42,10 +42,13 @@ import type {
 import type { PrepWeekResult, PrepWeekStep } from "./ai/schemas/prepWeek";
 
 // Fixed, code-owned phase labels + skippable flags (PRD §13.4.1). Never AI.
+// D-WS9-301 rule 9 — the labels Hans gave on the device pass. Short, and the
+// kind of work rather than the aisle it came from. SERVER-OWNED: the client
+// renders `phase.title` verbatim, so this is the only place they live.
 const PHASE_META: Record<PrepPhaseKey, { title: string; skippable: boolean }> = {
-  seasonings_dry: { title: "Seasonings & dry ingredients", skippable: true },
-  sauces_marinades: { title: "Sauces, marinades & garnishes", skippable: true },
+  seasonings_dry: { title: "Dry ingredients", skippable: true },
   produce: { title: "Produce", skippable: false },
+  sauces_marinades: { title: "Sauces and marinades", skippable: true },
   proteins: { title: "Proteins", skippable: false },
 };
 

@@ -263,12 +263,12 @@ describe("buildStepPlan — stable stepKey (B3 / D-WS7-153)", () => {
 // ── assemblePrepWeekResult ───────────────────────────────────────────────────
 
 describe("assemblePrepWeekResult", () => {
-  it("emits 4 phases in fixed order with proteins last", () => {
+  it("emits 4 phases in D-WS9-301 rule 9 order, proteins last", () => {
     const sp = buildStepPlan(combinePrep(plan()), "Test Plan");
     const result = assemblePrepWeekResult(sp, echo(sp));
     assert.deepEqual(
       result.phases.map((p) => p.phase),
-      ["seasonings_dry", "sauces_marinades", "produce", "proteins"],
+      ["seasonings_dry", "produce", "sauces_marinades", "proteins"],
     );
     assert.equal(result.phases[3].phase, "proteins");
   });

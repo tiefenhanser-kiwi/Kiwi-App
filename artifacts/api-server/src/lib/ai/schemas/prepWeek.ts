@@ -6,6 +6,15 @@
 // the 4-phase Prep the Week structure with cross-meal aggregation. Premium
 // per PRD §1.2 + §13.4.6 (content-generating AI). Phase order is fixed —
 // proteins LAST for food safety per PRD §13.4.1.
+//
+// D-WS9-301 rule 9 (Hans, October 1 device pass) — THE PHASES ARE THE KIND OF
+// WORK, IN THE ORDER A COOK WORKS A BOARD: dry, then produce, then the sauces
+// and marinades those cuts feed, then proteins. `produce` and
+// `sauces_marinades` swapped places; the KEYS are unchanged, so no stored
+// stepKey moves. His own strategy is the spec: "measure the dry stuff so I can
+// re-use the measuring cups and spoons… then I do my produce… then I would add
+// the olive oil and lemon juice to any marinades I can make ahead. and then, if
+// I am still going strong, I will trim the chicken for the week."
 
 import { z } from "zod";
 
@@ -15,8 +24,8 @@ import { z } from "zod";
 // must agree before the response is returned.
 export const PrepWeekPhaseKey = z.enum([
   "seasonings_dry",
-  "sauces_marinades",
   "produce",
+  "sauces_marinades",
   "proteins",
 ]);
 export type PrepWeekPhaseKeyT = z.infer<typeof PrepWeekPhaseKey>;
@@ -99,9 +108,9 @@ export type PrepWeekStep = z.infer<typeof PrepWeekStepSchema>;
 export const PrepWeekPhaseSchema = z.object({
   phase: PrepWeekPhaseKey,
   title: z.string().min(1).max(80),
-  // Phases 1+2 (seasonings_dry, sauces_marinades) skippable; 3+4 always
-  // present. A phase with zero steps is still emitted to keep the 4-phase
-  // shape stable across plans.
+  // Phases 1 and 3 (dry, sauces/marinades) skippable; produce and proteins
+  // always present. A phase with zero steps is still emitted to keep the
+  // 4-phase shape stable across plans.
   skippable: z.boolean(),
   /**
    * WS9 D-WS9-298 item 3 — a quiet line under the phase title, CODE-OWNED and
@@ -114,9 +123,9 @@ export const PrepWeekPhaseSchema = z.object({
 });
 export type PrepWeekPhase = z.infer<typeof PrepWeekPhaseSchema>;
 
-// Phase order is fixed: seasonings_dry → sauces_marinades → produce →
-// proteins. Enforced by the .superRefine below. The model is also told
-// this in the prompt; the schema is the structural floor.
+// Phase order is fixed: seasonings_dry → produce → sauces_marinades →
+// proteins (D-WS9-301 rule 9). Enforced by the .superRefine below. The model is
+// also told this in the prompt; the schema is the structural floor.
 export const PrepWeekResultSchema = z
   .object({
     totalEstimatedMinutes: z.number().int().min(1).max(240),
@@ -137,8 +146,8 @@ export const PrepWeekResultSchema = z
   .superRefine((val, ctx) => {
     const expected: PrepWeekPhaseKeyT[] = [
       "seasonings_dry",
-      "sauces_marinades",
       "produce",
+      "sauces_marinades",
       "proteins",
     ];
     for (let i = 0; i < 4; i++) {

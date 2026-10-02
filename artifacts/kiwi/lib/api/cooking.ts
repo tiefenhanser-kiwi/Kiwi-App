@@ -215,8 +215,8 @@ export async function getCookingSequence(
 // Canonical 4-phase enum, fixed order — mirrors prepWeek.ts PrepWeekPhaseKey.
 const PrepWeekPhaseKeySchema = z.enum([
   "seasonings_dry",
-  "sauces_marinades",
   "produce",
+  "sauces_marinades",
   "proteins",
 ]);
 export type PrepWeekPhaseKey = z.infer<typeof PrepWeekPhaseKeySchema>;
@@ -268,8 +268,8 @@ const PrepWeekResultSchema = z
   .superRefine((val, ctx) => {
     const expected: PrepWeekPhaseKey[] = [
       "seasonings_dry",
-      "sauces_marinades",
       "produce",
+      "sauces_marinades",
       "proteins",
     ];
     for (let i = 0; i < 4; i++) {
