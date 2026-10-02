@@ -50,7 +50,6 @@ function prepResult(mealIds: string[]) {
     totalEstimatedMinutes: 20,
     phases: [
       { phase: "seasonings_dry", title: "Seasonings", skippable: true, steps: [] },
-      { phase: "sauces_marinades", title: "Sauces", skippable: true, steps: [] },
       {
         phase: "produce",
         title: "Produce",
@@ -66,6 +65,7 @@ function prepResult(mealIds: string[]) {
           },
         ],
       },
+      { phase: "sauces_marinades", title: "Sauces", skippable: true, steps: [] },
       { phase: "proteins", title: "Proteins", skippable: false, steps: [] },
     ],
   };

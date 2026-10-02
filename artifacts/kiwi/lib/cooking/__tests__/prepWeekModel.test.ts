@@ -25,7 +25,6 @@ function result(overrides: Partial<PrepWeekResult> = {}): PrepWeekResult {
     totalEstimatedMinutes: 45,
     phases: [
       { phase: "seasonings_dry", title: "Seasonings & dry", skippable: true, steps: [] },
-      { phase: "sauces_marinades", title: "Sauces & marinades", skippable: true, steps: [] },
       {
         phase: "produce",
         title: "Produce",
@@ -41,6 +40,7 @@ function result(overrides: Partial<PrepWeekResult> = {}): PrepWeekResult {
           },
         ],
       },
+      { phase: "sauces_marinades", title: "Sauces & marinades", skippable: true, steps: [] },
       {
         phase: "proteins",
         title: "Proteins",
@@ -86,7 +86,7 @@ test("buildPrepWeekModel: preserves the 4 phases in fixed server order", () => {
   assert.equal(vm.phases.length, 4);
   assert.deepEqual(
     vm.phases.map((p) => p.phase),
-    ["seasonings_dry", "sauces_marinades", "produce", "proteins"],
+    ["seasonings_dry", "produce", "sauces_marinades", "proteins"],
   );
   // BUG-011 / D-WS7-184: total is recomputed from KEPT steps (produce 6 +
   // proteins-trim 10 = 16); the 8-min demoted "Rub the steak" is excluded —
@@ -94,12 +94,12 @@ test("buildPrepWeekModel: preserves the 4 phases in fixed server order", () => {
   assert.equal(vm.totalEstimatedMinutes, 16);
   // phase metadata passes through
   assert.equal(vm.phases[0].skippable, true);
-  assert.equal(vm.phases[2].skippable, false);
-  assert.equal(vm.phases[2].title, "Produce");
+  assert.equal(vm.phases[1].skippable, false);
+  assert.equal(vm.phases[1].title, "Produce");
 });
 
 test("buildPrepWeekModel: step fields (stepKey/number/title/instructions/minutes) pass through", () => {
-  const produceStep = buildPrepWeekModel(result()).phases[2].steps[0];
+  const produceStep = buildPrepWeekModel(result()).phases[1].steps[0];
   assert.equal(produceStep.stepKey, `produce#${M1}`);
   assert.equal(produceStep.number, 1);
   assert.equal(produceStep.title, "Dice onions");
@@ -111,14 +111,14 @@ test("buildPrepWeekModel: step fields (stepKey/number/title/instructions/minutes
 
 test("buildPrepWeekModel: combinesCount = contributesToMealIds.length", () => {
   const vm = buildPrepWeekModel(result());
-  assert.equal(vm.phases[2].steps[0].combinesCount, 2); // M1 + M2
+  assert.equal(vm.phases[1].steps[0].combinesCount, 2); // M1 + M2
   assert.equal(vm.phases[3].steps[0].combinesCount, 1); // M1 only
 });
 
 // ── Destination labels (Option 1 — display-only, injected lookup) ─────────────
 
 test("buildPrepWeekModel: destinations map one row per mealId, composing name · day", () => {
-  const dests = buildPrepWeekModel(result(), { mealLabel: lookup }).phases[2]
+  const dests = buildPrepWeekModel(result(), { mealLabel: lookup }).phases[1]
     .steps[0].destinations;
   assert.equal(dests.length, 2);
   // M1 resolves name + day → "Chicken Fajitas · Tuesday"
@@ -136,7 +136,6 @@ test("buildPrepWeekModel: an unresolved mealId degrades to a stable generic labe
   const r = result({
     phases: [
       { phase: "seasonings_dry", title: "S", skippable: true, steps: [] },
-      { phase: "sauces_marinades", title: "M", skippable: true, steps: [] },
       {
         phase: "produce",
         title: "Produce",
@@ -152,10 +151,11 @@ test("buildPrepWeekModel: an unresolved mealId degrades to a stable generic labe
           },
         ],
       },
+      { phase: "sauces_marinades", title: "M", skippable: true, steps: [] },
       { phase: "proteins", title: "P", skippable: false, steps: [] },
     ],
   });
-  const dest = buildPrepWeekModel(r, { mealLabel: lookup }).phases[2].steps[0]
+  const dest = buildPrepWeekModel(r, { mealLabel: lookup }).phases[1].steps[0]
     .destinations[0];
   assert.equal(dest.name, null);
   assert.equal(dest.day, null);
@@ -163,7 +163,7 @@ test("buildPrepWeekModel: an unresolved mealId degrades to a stable generic labe
 });
 
 test("buildPrepWeekModel: with no lookup at all, every destination uses the fallback label", () => {
-  const dests = buildPrepWeekModel(result()).phases[2].steps[0].destinations;
+  const dests = buildPrepWeekModel(result()).phases[1].steps[0].destinations;
   assert.deepEqual(
     dests.map((d) => d.label),
     ["A planned meal", "A planned meal"],
@@ -211,7 +211,6 @@ test("buildPrepWeekModel: with no demoted steps, total = plain sum of kept minut
     totalEstimatedMinutes: 999, // server value must be ignored
     phases: [
       { phase: "seasonings_dry", title: "S", skippable: true, steps: [] },
-      { phase: "sauces_marinades", title: "M", skippable: true, steps: [] },
       {
         phase: "produce",
         title: "Produce",
@@ -235,6 +234,7 @@ test("buildPrepWeekModel: with no demoted steps, total = plain sum of kept minut
           },
         ],
       },
+      { phase: "sauces_marinades", title: "M", skippable: true, steps: [] },
       { phase: "proteins", title: "P", skippable: false, steps: [] },
     ],
   });
@@ -252,7 +252,7 @@ test("buildPrepWeekModel: skipSuggested steps are omitted from the rendered list
   assert.equal(vm.phases[3].totalCount, 1);
   // Every rendered step is a kept step, so skipSuggested is false on all of them.
   assert.ok(vm.phases[3].steps.every((s) => s.skipSuggested === false));
-  assert.equal(vm.phases[2].steps[0].skipSuggested, false); // absent → false
+  assert.equal(vm.phases[1].steps[0].skipSuggested, false); // absent → false
 });
 
 test("buildPrepWeekModel: a checked demoted (omitted) stepKey does not inflate the rollup", () => {
@@ -269,14 +269,14 @@ test("buildPrepWeekModel: a checked demoted (omitted) stepKey does not inflate t
 test("buildPrepWeekModel: storageNote passes through (and is undefined when absent)", () => {
   const vm = buildPrepWeekModel(result());
   assert.equal(vm.phases[3].steps[0].storageNote, "Airtight, 2 days max");
-  assert.equal(vm.phases[2].steps[0].storageNote, undefined);
+  assert.equal(vm.phases[1].steps[0].storageNote, undefined);
 });
 
 // ── Checked-set → done rollups ────────────────────────────────────────────────
 
 test("buildPrepWeekModel: no checked set → nothing done", () => {
   const vm = buildPrepWeekModel(result());
-  assert.equal(vm.phases[2].steps[0].done, false);
+  assert.equal(vm.phases[1].steps[0].done, false);
   assert.equal(vm.doneCount, 0);
   assert.equal(vm.totalCount, 2);
   assert.equal(vm.allDone, false);
@@ -286,10 +286,10 @@ test("buildPrepWeekModel: a checked stepKey marks its step done and rolls up the
   const checked = new Set([`produce#${M1}`]);
   const vm = buildPrepWeekModel(result(), { checkedStepKeys: checked });
   // the produce step is done; its phase is fully done (1/1)
-  assert.equal(vm.phases[2].steps[0].done, true);
-  assert.equal(vm.phases[2].doneCount, 1);
-  assert.equal(vm.phases[2].totalCount, 1);
-  assert.equal(vm.phases[2].allDone, true);
+  assert.equal(vm.phases[1].steps[0].done, true);
+  assert.equal(vm.phases[1].doneCount, 1);
+  assert.equal(vm.phases[1].totalCount, 1);
+  assert.equal(vm.phases[1].allDone, true);
   // proteins step is NOT checked → its phase is not done
   assert.equal(vm.phases[3].steps[0].done, false);
   assert.equal(vm.phases[3].allDone, false);
@@ -302,7 +302,7 @@ test("buildPrepWeekModel: a checked stepKey marks its step done and rolls up the
 test("buildPrepWeekModel: all stepKeys checked → every phase and the week roll up done", () => {
   const checked = new Set([`produce#${M1}`, `proteins#${M1}`]);
   const vm = buildPrepWeekModel(result(), { checkedStepKeys: checked });
-  assert.equal(vm.phases[2].allDone, true);
+  assert.equal(vm.phases[1].allDone, true);
   assert.equal(vm.phases[3].allDone, true);
   assert.equal(vm.allDone, true);
   assert.equal(vm.doneCount, 2);
@@ -374,7 +374,7 @@ test("buildMealLabelLookup feeds buildPrepWeekModel end-to-end (lookup → desti
     planItem({ mealId: M1, assignedDayOfWeek: "Tuesday", meal: { title: "Chicken Fajitas" } }),
     planItem({ mealId: M2, assignedDayOfWeek: null, meal: { title: "Veggie Risotto" } }),
   ]);
-  const dests = buildPrepWeekModel(result(), { mealLabel: lk }).phases[2].steps[0]
+  const dests = buildPrepWeekModel(result(), { mealLabel: lk }).phases[1].steps[0]
     .destinations;
   assert.equal(dests[0].label, "Chicken Fajitas · Tuesday");
   assert.equal(dests[1].label, "Veggie Risotto"); // day null → name only

@@ -335,7 +335,6 @@ const PREP_RESULT = {
   totalEstimatedMinutes: 45,
   phases: [
     { phase: "seasonings_dry", title: "Seasonings & dry", skippable: true, steps: [] },
-    { phase: "sauces_marinades", title: "Sauces & marinades", skippable: true, steps: [] },
     {
       phase: "produce",
       title: "Produce",
@@ -351,6 +350,7 @@ const PREP_RESULT = {
         },
       ],
     },
+    { phase: "sauces_marinades", title: "Sauces & marinades", skippable: true, steps: [] },
     {
       phase: "proteins",
       title: "Proteins",
@@ -408,7 +408,7 @@ test("getPrepWeek POSTs to the prep-week path with NO body and parses the cache-
   assert.equal(out.envelope.result.phases.length, 4);
   assert.deepEqual(
     out.envelope.result.phases.map((p) => p.phase),
-    ["seasonings_dry", "sauces_marinades", "produce", "proteins"],
+    ["seasonings_dry", "produce", "sauces_marinades", "proteins"],
   );
   // optional step fields round-trip
   const protein = out.envelope.result.phases[3].steps[0];
