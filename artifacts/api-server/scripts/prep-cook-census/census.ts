@@ -247,6 +247,13 @@ export interface PrepStepRecord {
   rendered: boolean;
   contributesToMealIds: string[];
   destinationLabels: string[];
+  /**
+   * H4 / rule 11(c) — the container this step works on, when it has one. Two
+   * steps sharing one value are ONE container, which is what the header counts.
+   */
+  containerId: string | null;
+  /** H4 — knife work whose every portion has a destination: no bowl of its own. */
+  feedsContainersOnly: boolean;
 }
 
 export interface PlanRecord {
@@ -433,6 +440,8 @@ async function runPlan(planId: string): Promise<PlanRecord> {
               destinationLabels: s.contributesToMealIds.map(
                 (id) => lookup(id)?.name ?? "A planned meal",
               ),
+              containerId: s.containerId ?? null,
+              feedsContainersOnly: s.feedsContainersOnly === true,
             });
           }
         }
@@ -607,6 +616,30 @@ function renderText(rec: PlanRecord): string {
           .map((p) => `${p} ${rec.prep!.stepsPerPhase[p] ?? 0}`)
           .join(" · "),
     );
+    // H4 / rule 11(c) — WHAT THE FIRST NUMBER IS MADE OF. Without this the
+    // corpus prints a count and no way to tell a real rise from a re-sort.
+    {
+      const live = rec.prep.steps.filter((x) => !x.skipSuggested);
+      const byContainer = new Map<string, number>();
+      let standalone = 0;
+      let feeders = 0;
+      for (const x of live) {
+        if (x.containerId) {
+          byContainer.set(x.containerId, (byContainer.get(x.containerId) ?? 0) + 1);
+          continue;
+        }
+        if (x.feedsContainersOnly) {
+          feeders += 1;
+          continue;
+        }
+        standalone += 1;
+      }
+      const twoStep = [...byContainer.values()].filter((n) => n > 1).length;
+      L.push(
+        `  CONTAINERS: ${byContainer.size} named (${twoStep} worked in two steps) + ${standalone} ingredient = ${byContainer.size + standalone}` +
+          `  ·  ${feeders} step(s) fill other containers and add none`,
+      );
+    }
     for (const h of rec.prep.heldForCookDay) L.push(`  HELD: ${h}`);
     L.push(`  server total ${rec.prep.totalEstimatedMinutes} min · phone shows ${rec.prep.renderedTotalMinutes} min · ${rec.prep.steps.length} steps (${rec.prep.plannedStepCount} planned)`);
     let phase = "";

@@ -125,6 +125,16 @@ describe("D-WS9-301 rule 1 — a moment is closed by heat", () => {
     const onionStep = stepOf("yellow onion");
     const spiceStep = stepOf("chili powder");
     assert.notEqual(onionStep.stepId, spiceStep.stepId, "the onion is in the taco seasoning container");
+    // 🔴 AND ITS PORTION GOES NOWHERE NAMED. H4 / rule 11(c) gives every produce
+    // member its own step whether a container absorbed it or not, so two stepIds
+    // no longer prove anything. What absorption changes is the DESTINATION: a
+    // swallowed onion is portioned into the dry blend, and a dry blend has to
+    // stay shelf stable.
+    for (const c of onionStep.components) {
+      for (const v of c.measures) {
+        assert.equal(v.destination, undefined, "the diced onion is portioned into a dry container");
+      }
+    }
     // The spices are ONE container, and it is named.
     assert.equal(spiceStep.components.length, 3);
     assert.ok(spiceStep.bowlName, "the spice blend has no name");
@@ -272,8 +282,19 @@ describe("D-WS9-301 rule 1 — a moment is closed by heat", () => {
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sp = buildStepPlan(combinePrep(buildPrepCombineInput(loaded as any)), "Lemon Week");
-    const bowl = sp.steps.find((s) => s.bowlName);
+    // 🔴 BY NAME, NOT BY "the first bowl". H4 / rule 11(c) gave a plan more than
+    // one bowl step, and when the lemon is NOT absorbed it gets a container of
+    // its own that sorts ahead of the marinade — so `find((s) => s.bowlName)`
+    // returned the lemon's own bowl and this test passed on the defect.
+    const bowl = sp.steps.find((s) => /marinade/i.test(s.bowlName ?? ""));
     assert.ok(bowl, "the marinade produced no named container");
+    // And it is the ONLY container on this dish: a second one means the lemon
+    // was given its own, which is what ruling 1 forbids.
+    assert.deepEqual(
+      sp.steps.filter((s) => s.bowlName).map((s) => s.bowlName),
+      [bowl!.bowlName],
+      "the lemon was given a container of its own",
+    );
     const inBowl = bowl!.components.map((c) => c.ingredientName);
     assert.ok(
       inBowl.includes("lemon"),
@@ -365,9 +386,15 @@ describe("D-WS9-301 H2.2 — an ABSORBED fresh ingredient still strips a dry nam
     const sp = buildStepPlan(combinePrep(input), "Test Plan");
     const bowl = sp.steps.find((s) => s.bowlName)!;
     assert.ok(bowl, "no container was formed");
+    // H4 / rule 11(c) — the garlic still BELONGS to this container, but its
+    // mincing is no longer done inside it: that work is its own produce step,
+    // naming this container as the destination. So membership is proved from the
+    // destination, not from the bowl step's component list.
+    const garlic = sp.steps.find((s) => s.components.some((c) => c.ingredientName === "garlic cloves"));
+    assert.ok(garlic, "the garlic left the plan entirely — that is not the fix");
     assert.ok(
-      bowl.components.some((c) => c.ingredientName === "garlic cloves"),
-      "the garlic left the container — that is not the fix",
+      garlic!.components.some((c) => c.measures.some((v) => v.destination === bowl.bowlName)),
+      "the garlic no longer goes into the container — that is not the fix",
     );
     assert.ok(
       !/\b(seasoning|spice blend|rub)\b/i.test(bowl.bowlName!),

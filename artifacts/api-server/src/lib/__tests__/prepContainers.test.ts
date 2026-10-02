@@ -1,0 +1,409 @@
+// WS9 D-WS9-301 rule 11(c) — H4. A container's members are distributed to steps
+// by the KIND OF WORK they need; the container keeps one name across them, and
+// the counter counts containers, not steps.
+//
+// Hans's objection on the October 1 device pass is the whole of this file:
+// *"the user should have already prepped the veggies that will go into that
+// marinade"*. A marinade step that minces its own garlic asks the cook to pick
+// the knife back up after they put it down.
+
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+
+import { combinePrep, type PrepCombineInput } from "../prepCombineEngine";
+import {
+  buildStepPlan,
+  assemblePrepWeekResult,
+  countContainers,
+  feedsContainersOnly,
+  memberKind,
+  summarizePrepWeek,
+  WASH_STEP_KEY,
+} from "../prepWeekAssembly";
+import { demotedStepKeysFromStructure } from "../prepStepSet";
+import type { PrepNarrationResult } from "../ai/schemas/prepNarration";
+
+const MEAL_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+
+const echo = (sp: ReturnType<typeof buildStepPlan>): PrepNarrationResult => ({
+  steps: sp.steps
+    .filter((s) => !s.fixedProse)
+    .map((s, i) => ({ stepId: s.stepId, title: `T${i}`, instructions: `I${i}` })),
+});
+
+const MARINADE = { key: "marinade", noun: "marinade", bowlName: "Lemon-Herb Chicken marinade bowl" };
+
+/**
+ * One authored marinade with all four kinds of member in it: a dry measure, two
+ * pieces of knife work, and two liquids. Every one of them is filed by the
+ * catalog under the SAME component, which is how the engine used to emit them
+ * as one "Build the marinade bowl" step in the middle of the produce phase.
+ */
+function marinade(): PrepCombineInput {
+  const m = (
+    ingredientId: string,
+    ingredientName: string,
+    category: string,
+    quantity: number,
+    unit: string,
+    preparationNote?: string,
+  ) => ({
+    ingredientId,
+    ingredientName,
+    category,
+    quantity,
+    unit,
+    ...(preparationNote ? { preparationNote } : {}),
+    component: MARINADE,
+    momentKey: "c:marinade",
+  });
+  return {
+    meals: [
+      {
+        mealId: MEAL_A,
+        mealName: "Lemon-Herb Chicken",
+        dishes: [
+          {
+            dishId: "d1",
+            dishName: "Lemon-Herb Chicken",
+            dishRole: "main",
+            ingredients: [
+              // Three, because D-WS9-299 tier 3 pre-measures a dry seasoning
+              // only when its dish has 3+ of them. Below that the engine is
+              // right to leave them in the jar.
+              m("cumin", "ground cumin", "Pantry", 1, "tsp"),
+              m("paprika", "smoked paprika", "Pantry", 2, "tsp"),
+              m("oregano", "dried oregano", "Pantry", 1, "tsp"),
+              m("garlic", "garlic cloves", "Produce", 3, "clove", "minced"),
+              m("rosemary", "fresh rosemary", "Produce", 2, "tbsp", "chopped"),
+              m("oil", "extra-virgin olive oil", "Pantry", 3, "tbsp"),
+              m("lemon", "lemon", "Produce", 1, "each", "juiced and zested"),
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+/** No liquid anywhere: a dry rub plus the vegetables that go in the crock. */
+function slowCooker(): PrepCombineInput {
+  const c = { key: "crock", noun: "prep container", bowlName: "Slow-Cooker Chicken prep container" };
+  const m = (
+    ingredientId: string,
+    ingredientName: string,
+    category: string,
+    quantity: number,
+    unit: string,
+    preparationNote?: string,
+  ) => ({
+    ingredientId,
+    ingredientName,
+    category,
+    quantity,
+    unit,
+    ...(preparationNote ? { preparationNote } : {}),
+    component: c,
+    momentKey: "c:crock",
+  });
+  return {
+    meals: [
+      {
+        mealId: MEAL_A,
+        mealName: "Slow-Cooker Chicken",
+        dishes: [
+          {
+            dishId: "d1",
+            dishName: "Slow-Cooker Chicken",
+            dishRole: "main",
+            ingredients: [
+              m("paprika", "smoked paprika", "Pantry", 2, "tsp"),
+              m("thyme_d", "dried thyme", "Pantry", 1, "tsp"),
+              m("gpowder", "garlic powder", "Pantry", 1, "tsp"),
+              m("onion", "yellow onion", "Produce", 1, "each", "diced"),
+              m("celery", "celery stalks", "Produce", 3, "each", "sliced"),
+              m("carrot", "carrots", "Produce", 2, "each", "sliced"),
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+const phaseOf = (sp: ReturnType<typeof buildStepPlan>, phase: string) =>
+  sp.steps.filter((s) => s.phase === phase && !s.demoted);
+const names = (s: { components: { ingredientName: string }[] }) =>
+  s.components.map((c) => c.ingredientName).sort();
+
+// ── 1 ───────────────────────────────────────────────────────────────────────
+
+describe("rule 11(c) — a marinade's produce is prepped in the produce phase", () => {
+  it("🔴 garlic and rosemary get their OWN steps, with the marinade as destination and a quantity", () => {
+    const sp = buildStepPlan(combinePrep(marinade()), "Test Plan");
+    const produce = phaseOf(sp, "produce").filter((s) => s.stepKey !== WASH_STEP_KEY);
+    const garlic = produce.find((s) => names(s).includes("garlic cloves"));
+    const rosemary = produce.find((s) => names(s).includes("fresh rosemary"));
+    assert.ok(garlic, "the marinade's garlic is not prepped in the produce phase");
+    assert.ok(rosemary, "the marinade's rosemary is not prepped in the produce phase");
+    for (const step of [garlic!, rosemary!]) {
+      assert.equal(step.containerId, undefined, "knife work is not itself the container");
+      for (const c of step.components) {
+        for (const measure of c.measures) {
+          assert.equal(measure.destination, MARINADE.bowlName);
+          assert.match(measure.amount, /\S/, "a portion with no quantity leaves the cook lost");
+        }
+      }
+    }
+  });
+
+  it("the knife work that only fills the bowl is not a bowl of its own", () => {
+    const sp = buildStepPlan(combinePrep(marinade()), "Test Plan");
+    const garlic = phaseOf(sp, "produce").find((s) => names(s).includes("garlic cloves"))!;
+    assert.equal(feedsContainersOnly(garlic), true);
+  });
+});
+
+// ── 2 ───────────────────────────────────────────────────────────────────────
+
+describe("rule 11(c) — the phase 3 step is the liquids, and it says what is already in it", () => {
+  it("🔴 oil and lemon, and `containerHolds` names the four that went in before", () => {
+    const sp = buildStepPlan(combinePrep(marinade()), "Test Plan");
+    const sauces = phaseOf(sp, "sauces_marinades");
+    assert.equal(sauces.length, 1, "the marinade should be finished in exactly one step");
+    const step = sauces[0];
+    assert.equal(step.bowlName, MARINADE.bowlName, "the container keeps ONE name across its steps");
+    assert.deepEqual(names(step), ["extra-virgin olive oil", "lemon"]);
+    // The lemon is Produce in the catalog and a liquid on the counter: juicing
+    // and zesting is wet work and belongs with the oil, not with the knife.
+    assert.equal(memberKind("produce", "lemon", "juiced and zested"), "wet");
+    assert.ok(step.containerHolds, "the finishing step does not say what is in the bowl");
+    assert.deepEqual(
+      [...step.containerHolds!].sort(),
+      ["dried oregano", "fresh rosemary", "garlic cloves", "ground cumin", "smoked paprika"].sort(),
+    );
+  });
+
+  it("🔴 the dry measure is phase 1 and holds NO knife work", () => {
+    const sp = buildStepPlan(combinePrep(marinade()), "Test Plan");
+    const dry = phaseOf(sp, "seasonings_dry");
+    assert.equal(dry.length, 1);
+    assert.deepEqual(names(dry[0]), ["dried oregano", "ground cumin", "smoked paprika"]);
+    assert.equal(dry[0].containerHolds, undefined, "nothing is in the bowl yet");
+  });
+});
+
+// ── 3 ───────────────────────────────────────────────────────────────────────
+
+describe("rule 11(c) — the counter counts containers, not steps", () => {
+  it("🔴 the marinade is worked in TWO steps and counted ONCE", () => {
+    const sp = buildStepPlan(combinePrep(marinade()), "Test Plan");
+    const steps = sp.steps.filter((s) => !s.demoted && s.bowlName === MARINADE.bowlName);
+    assert.equal(steps.length, 2, "expected a dry step and a wet step");
+    assert.equal(new Set(steps.map((s) => s.containerId)).size, 1, "two steps, one identity");
+    // The bowl, and nothing else: the garlic, the rosemary and the lemon all
+    // live in it, and the wash step holds nothing.
+    assert.equal(countContainers(sp.steps), 1);
+  });
+
+  it("🔴 the number ON SCREEN agrees, over the assembled result", () => {
+    const sp = buildStepPlan(combinePrep(marinade()), "Test Plan");
+    const result = summarizePrepWeek(assemblePrepWeekResult(sp, echo(sp)));
+    assert.equal(result.containerCount, 1);
+    // 🔴 AND THE WIRE SAYS SO HONESTLY. A bowl carries its identity and does NOT
+    // claim to hold nothing; the knife work that fills it is the other way
+    // round. Without this the counter still happened to be right — it checks the
+    // identity first — and the payload was telling the client that every
+    // container on the plan was empty.
+    const wire = result.phases.flatMap((p) => p.steps);
+    const bowl = wire.filter((s) => s.containerId);
+    assert.equal(bowl.length, 2, "the bowl's two steps should both carry the identity");
+    for (const s of bowl) {
+      assert.equal(s.feedsContainersOnly, undefined, "a container was marked as holding nothing");
+    }
+    // …and the two steps still both show, and both cost minutes.
+    const shown = result.phases.flatMap((p) => p.steps).filter((s) => !s.skipSuggested);
+    assert.ok(shown.length > result.containerCount!, "the steps collapsed with the count");
+  });
+});
+
+// ── 4 ───────────────────────────────────────────────────────────────────────
+
+describe("rule 11(c) — a container with no liquid has no phase 3 step", () => {
+  it("🔴 dry in phase 1, produce in its own steps, nothing in Sauces, one container", () => {
+    const sp = buildStepPlan(combinePrep(slowCooker()), "Test Plan");
+    const dry = phaseOf(sp, "seasonings_dry");
+    assert.equal(dry.length, 1);
+    assert.deepEqual(names(dry[0]), ["dried thyme", "garlic powder", "smoked paprika"]);
+
+    const produce = phaseOf(sp, "produce").filter((s) => s.stepKey !== WASH_STEP_KEY);
+    assert.deepEqual(
+      produce.flatMap(names).sort(),
+      ["carrots", "celery stalks", "yellow onion"],
+    );
+    for (const s of produce) {
+      for (const c of s.components) {
+        for (const m of c.measures) assert.equal(m.destination, "Slow-Cooker Chicken prep container");
+      }
+    }
+
+    assert.equal(phaseOf(sp, "sauces_marinades").length, 0, "a dry container was finished in Sauces");
+    assert.equal(countContainers(sp.steps), 1);
+  });
+});
+
+// ── 5 ───────────────────────────────────────────────────────────────────────
+
+describe("rule 11(c) — Produce holds no 'Build the …' step", () => {
+  it("🔴 no produce step carries a bowlName on either fixture", () => {
+    for (const input of [marinade(), slowCooker()]) {
+      const sp = buildStepPlan(combinePrep(input), "Test Plan");
+      const built = phaseOf(sp, "produce").filter((s) => s.bowlName);
+      assert.deepEqual(
+        built.map((s) => s.bowlName),
+        [],
+        "a container is being assembled in the middle of the knife work",
+      );
+    }
+  });
+});
+
+// ── 6 ───────────────────────────────────────────────────────────────────────
+
+describe("rule 11(c) — each phase holds only its own kind of work", () => {
+  it("🔴 no knife work in phase 1 or 3, and no dry measure in phase 2", () => {
+    const KNIFE = ["garlic cloves", "fresh rosemary", "yellow onion", "celery stalks", "carrots"];
+    const DRY = ["ground cumin", "smoked paprika", "dried oregano", "dried thyme", "garlic powder"];
+    for (const input of [marinade(), slowCooker()]) {
+      const sp = buildStepPlan(combinePrep(input), "Test Plan");
+      for (const s of sp.steps) {
+        if (s.demoted) continue;
+        const held = names(s);
+        if (s.phase === "seasonings_dry" || s.phase === "sauces_marinades") {
+          for (const n of held) assert.ok(!KNIFE.includes(n), `${n} needs a knife and is in ${s.phase}`);
+        }
+        if (s.phase === "produce") {
+          for (const n of held) assert.ok(!DRY.includes(n), `${n} is a dry measure and is in produce`);
+        }
+      }
+    }
+  });
+});
+
+describe("rule 11(c) — a cut beats a squeeze", () => {
+  it("🔴 a grated cucumber squeezed dry is KNIFE work, not juicing", () => {
+    // Found by measuring, not by reasoning: the tzatziki's cucumber was being
+    // grated inside the finishing step because "squeezed dry" read as juicing.
+    assert.equal(memberKind("produce", "english cucumber", "grated and squeezed dry"), "produce");
+  });
+
+  it("…and zesting and juicing a lemon still is", () => {
+    assert.equal(memberKind("produce", "lemon", "zested and juiced"), "wet");
+    assert.equal(memberKind("produce", "lemon", "freshly squeezed"), "wet");
+    // By FORM, which is why taking the squeeze arm away from cut produce costs
+    // nothing: 5 of the 6 corpus members it placed were named "… juice".
+    assert.equal(memberKind("produce", "lime juice", "freshly squeezed"), "wet");
+  });
+});
+
+// ── 7 ───────────────────────────────────────────────────────────────────────
+
+/**
+ * The sample plan's Garlic Herb Roasted Potatoes: four aromatics and ONE olive
+ * oil. Its phase 3 share is a single measure, and the first corpus run after the
+ * split dissolved it on exactly that — so the container never got its oil.
+ */
+function oneLiquid(): PrepCombineInput {
+  const c = { key: "potatoes", noun: "prep container", bowlName: "Garlic Herb Potatoes prep container" };
+  const m = (
+    ingredientId: string,
+    ingredientName: string,
+    category: string,
+    quantity: number,
+    unit: string,
+    preparationNote?: string,
+  ) => ({
+    ingredientId,
+    ingredientName,
+    category,
+    quantity,
+    unit,
+    ...(preparationNote ? { preparationNote } : {}),
+    component: c,
+    momentKey: "c:potatoes",
+  });
+  return {
+    meals: [
+      {
+        mealId: MEAL_A,
+        mealName: "Garlic Herb Potatoes",
+        dishes: [
+          {
+            dishId: "d1",
+            dishName: "Garlic Herb Potatoes",
+            dishRole: "side",
+            ingredients: [
+              m("potato", "baby Yukon gold potatoes", "Produce", 2, "lb", "halved"),
+              m("garlic", "garlic cloves", "Produce", 4, "clove", "minced"),
+              m("rosemary", "fresh rosemary", "Produce", 1, "tbsp", "chopped"),
+              m("thyme", "fresh thyme", "Produce", 1, "tbsp", "chopped"),
+              m("oil", "extra-virgin olive oil", "Pantry", 3, "tbsp"),
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+describe("rule 11(c) — a container whose phase 3 share is ONE measure survives", () => {
+  it("🔴 four aromatics and one oil: the oil is still poured", () => {
+    const sp = buildStepPlan(combinePrep(oneLiquid()), "Test Plan");
+    const sauces = phaseOf(sp, "sauces_marinades");
+    assert.equal(sauces.length, 1, "the container dissolved on its own single liquid");
+    assert.deepEqual(names(sauces[0]), ["extra-virgin olive oil"]);
+    assert.equal(sauces[0].bowlName, "Garlic Herb Potatoes prep container");
+    // Four aromatics went in before it, and the step says so.
+    assert.equal(sauces[0].containerHolds?.length, 4);
+    assert.equal(countContainers(sp.steps), 1);
+  });
+});
+
+describe("rule 11(c) — a plan with a wet mixture has a non-empty Sauces phase", () => {
+  it("🔴 the marinade plan's Sauces phase is where the bowl is finished", () => {
+    const sp = buildStepPlan(combinePrep(marinade()), "Test Plan");
+    const result = assemblePrepWeekResult(sp, echo(sp));
+    const sauces = result.phases.find((p) => p.phase === "sauces_marinades")!;
+    assert.ok(sauces.steps.length > 0, "the liquids vanished with the Build step");
+  });
+});
+
+// ── 8 ───────────────────────────────────────────────────────────────────────
+
+describe("rule 11(c) — the completion rollup over a two-step container", () => {
+  it("🔴 BOTH of a container's steps are required, and the knife work with them", () => {
+    const sp = buildStepPlan(combinePrep(marinade()), "Test Plan");
+    const result = assemblePrepWeekResult(sp, echo(sp));
+    // The rollup's required set is loadPrepStepSet's filter (steps that hold a
+    // container) minus demotedStepKeysFromStructure (steps the blob excuses).
+    const excused = demotedStepKeysFromStructure(result);
+    const required = sp.steps
+      .filter((s) => !s.holdsNoContainer && !excused.has(s.stepKey))
+      .map((s) => s.stepKey);
+
+    const bowlKeys = sp.steps
+      .filter((s) => s.bowlName === MARINADE.bowlName && !s.demoted)
+      .map((s) => s.stepKey);
+    assert.equal(bowlKeys.length, 2, "expected a dry step and a wet step");
+    for (const k of bowlKeys) {
+      assert.ok(required.includes(k), `a container step is missing from the rollup: ${k}`);
+    }
+    // The knife work fills the bowl and puts no bowl out — but the cook still
+    // has to do it, so it stays in the set. `feedsContainersOnly` is NOT
+    // `holdsNoContainer`, and this is the line that keeps them apart.
+    const garlic = sp.steps.find((s) => names(s).includes("garlic cloves"))!;
+    assert.ok(required.includes(garlic.stepKey), "the garlic dropped out of 'prepped'");
+    // …and the wash step, which holds nothing, is still excused.
+    assert.ok(!required.includes(WASH_STEP_KEY), "the wash step gates 'prepped' again");
+  });
+});

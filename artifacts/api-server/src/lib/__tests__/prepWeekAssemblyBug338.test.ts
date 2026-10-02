@@ -429,7 +429,13 @@ describe("D-WS9-296 — every generated stepKey fits the wire", () => {
       );
     }
     // Both new key shapes are present, or the test is asserting nothing.
-    assert.ok(sp.steps.some((s) => s.stepKey.startsWith("cmp#")), "no component key in the fixture");
+    // H4 / rule 11(c) — the container key gained its phase: `cnt#<phase>#…`. A
+    // container has up to two steps now (its dry measure, then its wet finish)
+    // and each needs its own stable checkbox, so one `cmp#` key cannot serve
+    // both. The container half of the key is unchanged, which is what keeps a
+    // day change a cache HIT (G1) — but a tick stored against an old `cmp#`
+    // container step IS orphaned once, and that is the known cost of 11(c).
+    assert.ok(sp.steps.some((s) => s.stepKey.startsWith("cnt#")), "no container key in the fixture");
     assert.ok(sp.steps.some((s) => s.stepKey.startsWith("cd#")), "no cook-day key in the fixture");
   });
 });
