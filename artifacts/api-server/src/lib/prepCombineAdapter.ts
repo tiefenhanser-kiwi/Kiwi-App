@@ -157,10 +157,17 @@ export function buildPrepCombineInput(loaded: PrepLoadedPlan): PrepCombineInput 
           // but several hand-built fixtures are `as never`-cast and predate it.
           // A missing field must degrade to "no components", never throw.
           dish.componentSteps ?? [],
+          // 🔴 THE PREP NOTE, NOT THE RAW ONE. H5.3 removes a service clause in the
+          // row mapping below, and this call used to run before it on the raw text —
+          // so a lemon noted "1 zested and juiced, 1 sliced into rounds for topping"
+          // read as a service form, and signal 4 refused to claim it from its own
+          // marinade step. The resolver has to see the note the cook will see.
           dish.ingredients.map((i) => ({
             ingredientId: i.ingredientId,
             ingredientName: i.ingredientName,
-            preparationNote: i.preparationNote,
+            preparationNote:
+              prepPortion(i.ingredientName, 1, "each", i.preparationNote)?.preparationNote ??
+              i.preparationNote,
             phase: assignPhase(i.category, i.ingredientName),
           })),
         );
@@ -205,6 +212,18 @@ export function buildPrepCombineInput(loaded: PrepLoadedPlan): PrepCombineInput 
         // What tells them apart is the component itself — a marinade is wet and
         // things get added to it, a spice blend is dry and must stay shelf
         // stable. So an all-dry component absorbs nothing fresh.
+        // ── D-WS9-301 rule 1, SCOPED BY H6.1 ruling 3 ─────────────────────────
+        //
+        // A resolved component occupies the run its members are measured in, and an
+        // unclaimed ingredient measured in that run joins it. That is what puts the
+        // lemon in the lemon-herb marinade, which is Hans's own rule 1.
+        //
+        // ⚠️ THE allDry GUARD IS NOT ENOUGH ON ITS OWN, and H6.0 found out how: the
+        // taco's `seasoning` tag sits on the spice step AND on the later "stir in the
+        // spice blend and 2 tablespoons tomato paste" step, so TOMATO PASTE is a
+        // member, `every(dry)` is false, and the blend absorbed the diced garlic.
+        // The guard stays — it is right about what it can see — and ruling 3's order
+        // of authority does the rest: see `momentKeyFor`.
         const phaseOfIngredient = new Map(
           dish.ingredients.map((i) => [i.ingredientId, assignPhase(i.category, i.ingredientName)]),
         );
@@ -226,10 +245,23 @@ export function buildPrepCombineInput(loaded: PrepLoadedPlan): PrepCombineInput 
           if (assignPhase(ing.category, ing.ingredientName) === "proteins") {
             return moments.keyByIngredientId.get(ing.ingredientId) ?? null;
           }
+          // ── H6.1 ruling 3 — THE ORDER OF AUTHORITY, IN ONE PLACE ───────────
+          //
+          //   1. the ingredient's OWN tag        — `resolved.byIngredient`, above
+          //   2. a cook step that names it       — an `s:` key from resolveMoments
+          //   3. the run proxy, and only then the tag of a component sharing it
+          //
+          // 🔴 THE THIRD LINE IS WHAT SEPARATES THE TACO FROM THE LEMON, with no new
+          // vocabulary. The garlic has "Add the minced garlic and cook…", so its key
+          // is `s:4` and it is no longer a run neighbour — the spice blend cannot
+          // reach it. The lemon has no cook step naming it, so it is still `r:0`,
+          // and the marinade's tag takes it, which is rule 1.
+          const resolvedKey = moments.keyByIngredientId.get(ing.ingredientId) ?? null;
+          if (resolvedKey !== null && !resolvedKey.startsWith("r:")) return resolvedKey;
           const run = moments.runByIngredientId.get(ing.ingredientId);
           const shared = run === undefined ? undefined : componentKeyByRun.get(run);
           if (shared) return `c:${shared}`;
-          return moments.keyByIngredientId.get(ing.ingredientId) ?? null;
+          return resolvedKey;
         };
         // Ruling 1 — a raw protein named by a mixture's steps joins it on cook
         // day. One protein can only join one bowl; first by component order.

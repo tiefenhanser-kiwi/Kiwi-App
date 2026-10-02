@@ -191,35 +191,33 @@ export function resolveMoments(
     const wasRun = firstRefStep.has(ing.ingredientId)
       ? runOfStep.get(firstRefStep.get(ing.ingredientId)!) ?? null
       : null;
-    // 🔴 THE OVERRIDE FILLS GAPS; IT DOES NOT MOVE WHAT ALREADY HAS A RUN.
-    // D-WS9-301's ruling 1 says the prose moment "beats the run proxy", and
-    // measured over the 14 plans that moves 395 ingredients and fills 109 gaps.
-    // But the 395 include HANS'S OWN SECOND EXAMPLE, in the opposite direction:
-    // the slow cooker's dried thyme and rosemary are named in "Pour in the broth
-    // and add the dried thyme and rosemary" (step 2) while its celery, carrots
-    // and garlic are measured at step 0, so the override split the one container
-    // the ruling says is right — "Slow-cooker herbs + onion + chicken go in
-    // together → one container is right."
+    // ── H6.1 ruling 3 — THE COOK STEP IS THE MOMENT, NOT A GAP-FILLER ───────
     //
-    // The two examples cannot both be served by "a later cook step wins": in the
-    // taco the onion is COOKED before the spices arrive, in the slow cooker
-    // nothing is cooked between the additions, and `phaseType` cannot tell those
-    // apart. The taco case does not need the override anyway — its spices carry
-    // a componentKey and its onion does not, so they were already two
-    // containers.
+    // H1 scoped this override to ingredients with no run at all, on the argument
+    // that "a later cook step wins" would split the slow-cooker container: its
+    // dried thyme and rosemary are named in "Pour in the broth and add the dried
+    // thyme and rosemary" while its celery and carrots are measured at step 0, and
+    // Hans ruled that container right.
     //
-    // So the override is scoped to what it can only improve: an ingredient with
-    // NO amountRef anywhere, where the run proxy has nothing to say. This is a
-    // deliberate narrowing of ruling 1 and it is reported as one.
-    if (wasRun !== null) {
-      overrides.push({
-        ingredientName: ing.ingredientName,
-        stepIndex: named.stepIndex,
-        wasRunMoment: wasRun,
-        prose: named.text.slice(0, 90),
-      });
-      continue;
-    }
+    // 🔴 THAT COUNTER-EXAMPLE NO LONGER BITES, and the guard above is why: the
+    // slow cooker's herbs carry an authored componentKey, and an ingredient inside
+    // a component never reaches this loop. What H1 could not separate — a tagged
+    // mixture from an untagged neighbour — ruling 3 separates by authority: the
+    // tag owns its own steps, the prose owns everything else, the run proxy owns
+    // what is left.
+    //
+    // The measured cost of the narrowing was 412 of 545 overrides overruled by a
+    // proxy, and both of H6.0's defects: the taco garlic minced into a
+    // shelf-stable spice bowl ("Add the minced garlic", step 4, refused) and the
+    // chili's masa pre-mixed with the cumin ("Whisk the masa harina with ¼ cup
+    // cold water", step 8, refused).
+    //
+    // `ordered.find` takes the EARLIEST entry-phase step that names it, so the
+    // moment is where the food first enters the dish — not where it is cut, which
+    // is its phase's business, and not a later mention of the same thing.
+    //
+    // `wasRunMoment` is still reported, so an audit can see what the proxy would
+    // have said and how often the two disagree.
     entryStep.set(ing.ingredientId, named.stepIndex);
     overrides.push({
       ingredientName: ing.ingredientName,

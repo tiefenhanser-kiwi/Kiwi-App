@@ -184,6 +184,34 @@ const SERVED_SEPARATELY =
  * however they reach the table, so the class only bites when the name offers no
  * mixture of its own.
  */
+/**
+ * H6.1 ruling 3 — IS THIS COMPONENT'S OWN WORK COOKING?
+ *
+ * The chili's `chile-base`: "Toast the 3 ancho chiles… in a dry skillet… cover with
+ * boiling water, and soak for 15 minutes", then "Drain… transfer to a blender…
+ * blend until completely smooth". None of that is Sunday work, and the engine was
+ * putting three kinds of whole dried chile into a prep container for it.
+ *
+ * Matched on the component's OWN step text, because that is the only place the
+ * answer is written. A mixture assembled cold (whisk, stir, toss, combine) is prep
+ * however it is used later; one that is heated, soaked or blended is not.
+ *
+ * ⚠️ `blend` IS NOT HERE AS A NOUN. "Spice blend" is a container; "blend until
+ * smooth" is a machine. The verb forms are matched and the noun is not.
+ */
+const COOKING_WORK =
+  /\b(toast(?:s|ed|ing)?|soak(?:s|ed|ing)?|simmer(?:s|ed|ing)?|fry|fries|fried|frying|bakes?\b|baked\b|baking\b(?!\s+(?:powder|soda|sheet|dish|pan|tray|paper))|boil(?:s|ed|ing)?|roast(?:s|ed|ing)?|saut[ée](?:s|ed|ing)?|sear(?:s|ed|ing)?|blend until|blend to|in a blender|br(?:own|owns|owned|owning))\b/i;
+
+export function isCookingWork(stepTexts: readonly string[]): boolean {
+  // 🔴 EVERY STEP, NOT SOME. The first draft used `some` and dissolved the
+  // dumpling dough bowl and the cornbread dry mix, because a component's steps
+  // normally include BOTH the cold assembly and the cooking: "whisk the flour and
+  // leaveners" then "drop the dumplings onto the simmering stew". A mixture with a
+  // cold step has prep work in it. The chili's chile-base has none — toast, soak,
+  // blend — and that is what this is for.
+  return stepTexts.length > 0 && stepTexts.every((t) => COOKING_WORK.test(t));
+}
+
 export function isServedSeparately(name: string): boolean {
   return SERVED_SEPARATELY.test(name) && nounIn(name) === null;
 }
@@ -446,8 +474,39 @@ export function resolveDishComponents(
     for (const [, b] of buckets) {
       if (!b.stepIndexes.some((i) => combineIdx.has(i))) continue;
       const texts = b.stepIndexes.map((i) => ordered.find((s) => s.stepIndex === i)?.text ?? "");
-      if (texts.some((t) => re.test(t))) { b.members.add(ing.ingredientId); break; }
+      // 🔴 STRIP THE NAMES OF WHAT IS ALREADY IN THIS BUCKET before looking for the
+      // head word. "combine … ½ teaspoon GARLIC POWDER, ½ teaspoon ONION POWDER …"
+      // otherwise matches "garlic" and "yellow onion", and the taco's fresh
+      // aromatics were pulled into a shelf-stable spice blend by the names of two
+      // powders already in it. An occurrence the bucket's own members explain is not
+      // evidence about a third food.
+      const memberNames = [...b.members, ...b.cookDay]
+        .map((id) => byId.get(id)?.ingredientName ?? "")
+        .filter((n) => n.trim() !== "")
+        .sort((x, y) => y.length - x.length);
+      const scrub = (t: string): string => {
+        let out = norm(t);
+        for (const n of memberNames) {
+          const needle = norm(n);
+          if (needle.length < 3) continue;
+          out = out.split(needle).join(" ");
+        }
+        return out;
+      };
+      if (texts.some((t) => re.test(scrub(t)))) { b.members.add(ing.ingredientId); break; }
     }
+  }
+
+  // ── H6.1 ruling 3 — A COMPONENT WHOSE OWN STEPS COOK IS NOT A PREP CONTAINER
+  //
+  // Dissolved here, where the bucket knows which steps built it. Its members fall
+  // back to their ordinary per-ingredient handling: the produce among them still
+  // gets knife work in the produce phase, and the dry and wet members leave the
+  // session entirely, which is the right answer for a chile you are going to toast.
+  for (const [k, b] of [...buckets]) {
+    const texts = b.stepIndexes.map((i) => ordered.find((s) => s.stepIndex === i)?.text ?? "");
+    if (!isCookingWork(texts)) continue;
+    buckets.delete(k);
   }
 
   // ── ruling 3 — A MIXTURE HAS AT LEAST TWO MEMBERS ──────────────────────────
