@@ -86,6 +86,10 @@ interface PlanRecord {
     /** D-WS9-301 ruling 4 — the header's own two numbers, written by the product. */
     containerCount?: number;
     statedMinutes?: number;
+    /** D-WS9-301 rule 9 — rendered steps per phase. */
+    stepsPerPhase?: Record<string, number>;
+    /** D-WS9-301 rule 13 — the held-for-cook-day lines. */
+    heldForCookDay?: string[];
   } | null;
   prepError: string | null;
   meals: CookMeal[];
@@ -474,6 +478,8 @@ function checkPrep(plan: PlanRecord, narration: NarrationInput | null) {
           : ` — ${shipped - 15} OVER the 15 target (reported, not forced: the drop pass stops after garnish portions and citrus wedges)`;
     hit("P-R1", plan.planId, `${P} · ${plan.mealCount} meals`,
       `${shipped ?? "?"} containers · about ${plan.prep?.statedMinutes ?? "?"} min${target}; ` +
+      `phases ${["seasonings_dry","produce","sauces_marinades","proteins"].map((x) => `${x.slice(0,4)} ${plan.prep?.stepsPerPhase?.[x] ?? 0}`).join("/")}; ` +
+      `held ${plan.prep?.heldForCookDay?.length ?? 0}; ` +
       `per-(ingredient,dish) portions would be ${containers} across ${narration.steps.length} steps; ` +
       `${tiny.length} hold a single ingredient under 1 tbsp${tiny.length ? ` — e.g. ${tiny.slice(0, 3).map((t) => `"${t}"`).join(", ")}` : ""}`);
   }

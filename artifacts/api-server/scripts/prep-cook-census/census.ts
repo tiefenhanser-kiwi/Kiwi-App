@@ -262,6 +262,10 @@ export interface PlanRecord {
     totalEstimatedMinutes: number;
     /** The phone's number — KEPT steps only (skipSuggested render-omitted). */
     renderedTotalMinutes: number;
+    /** D-WS9-301 rule 13 — the held-for-cook-day lines, as the screen shows them. */
+    heldForCookDay: string[];
+    /** D-WS9-301 rule 9 — rendered steps per phase, for P-R1's breakdown. */
+    stepsPerPhase: Record<string, number>;
     /** D-WS9-301 ruling 4 — the two numbers the HEADER shows, from the product. */
     containerCount: number;
     statedMinutes: number;
@@ -351,6 +355,7 @@ async function runPlan(planId: string): Promise<PlanRecord> {
         // D-WS9-298 — the SAME overlay the route applies on every read. Without
         // it the corpus would measure prose the screen never shows: the storage
         // notes and the protein demotions are computed, not narrated.
+        const mealNameById = new Map(input.meals.map((m) => [m.mealId, m.mealName]));
         const storageContext = new Map<string, StorageContext>();
         for (const st of stepPlan.steps) {
           const names = st.components.map((c) => c.ingredientName);
@@ -358,9 +363,20 @@ async function runPlan(planId: string): Promise<PlanRecord> {
             c.preparationNote ?? "",
             ...c.measures.map((x) => x.preparationNote ?? ""),
           ]);
+          // D-WS9-301 rule 13 — the held line names the day and the meal, and
+          // the ROUTE supplies both. A harness that leaves them out reports an
+          // empty held list on a plan that has one; that is the B2 E lesson for
+          // the third time this pass, so it is copied rather than approximated.
+          const latest = st.contributesToMealIds
+            .map((id) => ({ id, lag: cookDays.lagByMealId.get(id) ?? -1 }))
+            .sort((x, y) => y.lag - x.lag)[0];
+          const dayName = latest ? cookDays.dayNameByMealId.get(latest.id) : undefined;
+          const mealName = latest ? mealNameById.get(latest.id) : undefined;
           storageContext.set(st.stepKey, {
             daysUntilCook: st.daysUntilCook,
             phase: st.phase,
+            ...(dayName ? { dayName } : {}),
+            ...(mealName ? { mealName } : {}),
             // The BOWL NAME is part of the text on purpose: "Fajita spice
             // blend" and "… seasoning" say what the mixture IS, and without it a
             // dry blend read as loose produce and got a fridge note.
@@ -422,6 +438,13 @@ async function runPlan(planId: string): Promise<PlanRecord> {
         }
         const phaseNotes: Record<string, string> = {};
         for (const ph of withDemotions.phases) if (ph.note) phaseNotes[ph.phase] = ph.note;
+        // D-WS9-301 rule 13 + the P-R1 phase breakdown.
+        const heldForCookDay: string[] = [];
+        const stepsPerPhase: Record<string, number> = {};
+        for (const ph of withDemotions.phases) {
+          if (ph.heldForCookDay) heldForCookDay.push(...ph.heldForCookDay);
+          stepsPerPhase[ph.phase] = ph.steps.filter((x) => !x.skipSuggested).length;
+        }
         const summary = summarizePrepWeek(withDemotions);
         rec.prep = {
           phaseNotes,
@@ -431,6 +454,8 @@ async function runPlan(planId: string): Promise<PlanRecord> {
           // Without it the corpus could not see the header at all, which is the
           // B2 E lesson again: a harness that renders less than the product
           // misreports the product.
+          heldForCookDay,
+          stepsPerPhase,
           containerCount: summary.containerCount ?? 0,
           statedMinutes: summary.estimatedMinutes ?? 0,
           steps,
@@ -576,6 +601,13 @@ function renderText(rec: PlanRecord): string {
     // D-WS9-301 ruling 4 — print the HEADER first, because it is the first thing
     // the cook reads and a corpus that does not print it cannot audit it.
     L.push(`  HEADER: ${rec.prep.containerCount} containers · about ${rec.prep.statedMinutes} min`);
+    L.push(
+      `  phases: ` +
+        ["seasonings_dry", "produce", "sauces_marinades", "proteins"]
+          .map((p) => `${p} ${rec.prep!.stepsPerPhase[p] ?? 0}`)
+          .join(" · "),
+    );
+    for (const h of rec.prep.heldForCookDay) L.push(`  HELD: ${h}`);
     L.push(`  server total ${rec.prep.totalEstimatedMinutes} min · phone shows ${rec.prep.renderedTotalMinutes} min · ${rec.prep.steps.length} steps (${rec.prep.plannedStepCount} planned)`);
     let phase = "";
     for (const s of rec.prep.steps) {

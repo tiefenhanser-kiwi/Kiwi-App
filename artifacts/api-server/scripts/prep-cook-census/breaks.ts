@@ -449,8 +449,11 @@ const BREAKS: Break[] = [
     cwd: API,
     edits: [
       {
-        from: "          if (!isAuthoredMixture && new Set(dishIdsOf(entry)).size > 1) continue;",
-        to: "          void isAuthoredMixture;",
+        // D-WS9-301 rule 11(a) replaced H1's flat refusal with a deferral, so
+        // the break is now "let a shared ingredient bucket immediately" — which
+        // is precisely the shape H1 measured going wrong.
+        from: "          if (!isAuthoredMixture && isShared) {\n            deferredShared.push({ dishId: c.dishId, momentKey: mk, entry, phase: phase.phase, mealId: c.mealId });\n            continue;\n          }",
+        to: "          void isAuthoredMixture; void isShared; void deferredShared;",
       },
     ],
     test: "src/lib/__tests__/prepMoments.test.ts",
@@ -639,6 +642,172 @@ const BREAKS: Break[] = [
     test: "src/lib/__tests__/prepStepMinutes.test.ts",
     runner: "api",
     expect: "zesting and juicing one lime is charged twice",
+  },
+  // ── D-WS9-301 rules 9-14 — the October 1 device pass ──────────────────────
+  {
+    n: 42,
+    ruling: "rule 9 — the phases are the kind of work, in work order",
+    file: join(API, "src/lib/ai/schemas/prepWeek.ts"),
+    cwd: API,
+    edits: [
+      {
+        from: '      "seasonings_dry",\n      "produce",\n      "sauces_marinades",\n      "proteins",',
+        to: '      "seasonings_dry",\n      "sauces_marinades",\n      "produce",\n      "proteins",',
+      },
+    ],
+    test: "src/lib/__tests__/prepPhases.test.ts",
+    runner: "api",
+    expect: "sauces come before produce again — the aisle order, not the board order",
+  },
+  {
+    n: 43,
+    ruling: "rule 9 — the labels Hans gave",
+    file: join(API, "src/lib/prepWeekAssembly.ts"),
+    cwd: API,
+    edits: [
+      {
+        from: 'seasonings_dry: { title: "Dry ingredients", skippable: true },',
+        to: 'seasonings_dry: { title: "Seasonings & dry ingredients", skippable: true },',
+      },
+    ],
+    test: "src/lib/__tests__/prepPhases.test.ts",
+    runner: "api",
+    expect: "the old aisle label comes back",
+  },
+  {
+    n: 44,
+    ruling: "rule 10 — produce opens with the wash step",
+    file: join(API, "src/lib/prepWeekAssembly.ts"),
+    cwd: API,
+    edits: [{ from: '    if (key === "produce" && !washEmitted) {', to: "    if (false) {" }],
+    test: "src/lib/__tests__/prepPhases.test.ts",
+    runner: "api",
+    expect: "no wash step, and the phase opens on a knife",
+  },
+  {
+    n: 45,
+    ruling: "rule 10 — the wash step is not a container and does not gate prepped",
+    file: join(API, "src/lib/prepWeekAssembly.ts"),
+    cwd: API,
+    edits: [
+      {
+        from: "  return steps.filter((s) => !s.demoted && !s.cookDaySentence && !s.holdsNoContainer).length;",
+        to: "  return steps.filter((s) => !s.demoted && !s.cookDaySentence).length;",
+      },
+    ],
+    test: "src/lib/__tests__/prepPhases.test.ts",
+    runner: "api",
+    expect: "the wash step is counted as a container in the header",
+  },
+  {
+    n: 46,
+    ruling: "rule 10 — the wash step's prose is the engine's, not the model's",
+    file: join(API, "src/lib/prepWeekAssembly.ts"),
+    cwd: API,
+    edits: [
+      {
+        from: "    steps: steps.filter((s) => !s.fixedProse).map((s) => ({",
+        to: "    steps: steps.map((s) => ({",
+      },
+    ],
+    test: "src/lib/__tests__/prepPhases.test.ts",
+    runner: "api",
+    expect: "the wash step is sent to the narrator, which can then get it wrong",
+  },
+  {
+    n: 47,
+    ruling: "rule 11 — a portion names its destination container",
+    file: join(API, "src/lib/prepWeekAssembly.ts"),
+    cwd: API,
+    edits: [
+      {
+        from: "  const destinationFor: DestinationResolver = (dishId, ingredientId) =>",
+        to: "  const destinationFor: DestinationResolver = () => undefined; const _unused = (dishId: string, ingredientId: string | null) =>",
+      },
+    ],
+    test: "src/lib/__tests__/prepPhases.test.ts",
+    runner: "api",
+    expect: '"¾ onion" with no statement of ¾ into WHAT',
+  },
+  {
+    n: 48,
+    ruling: "rule 12 — a protein step names the action, and the PROSE wins",
+    file: join(API, "src/lib/prepComponents.ts"),
+    cwd: API,
+    edits: [
+      {
+        // Note first instead of prose first: the Buttermilk chicken reads
+        // "sliced very thin" when the cook step expects it pounded.
+        from: "  const fromProse = PROTEIN_VERBS.filter(([re]) => re.test(prose)).map(([, v]) => v);\n  if (fromProse.length > 0) return fromProse.slice(0, 2);",
+        to: "  const fromProseIgnored = PROTEIN_VERBS.filter(([re]) => re.test(prose)).map(([, v]) => v);\n  void fromProseIgnored;",
+      },
+    ],
+    test: "src/lib/__tests__/prepPhases.test.ts",
+    runner: "api",
+    expect: "the shopping form wins over the action the cook step expects",
+  },
+  {
+    n: 49,
+    ruling: "rule 13 — the held list, and its evaluation order",
+    file: join(API, "src/lib/prepStorage.ts"),
+    cwd: API,
+    edits: [
+      {
+        from: "      const steps = phase.steps.map((step) => {",
+        to: "      const steps: typeof phase.steps = []; const _late = phase.steps.map((step) => {",
+      },
+    ],
+    test: "src/lib/__tests__/prepPhases.test.ts",
+    runner: "api",
+    expect: "the phase is built before its own steps have run",
+  },
+  {
+    n: 50,
+    ruling: "rule 13 — the no-cook-days line",
+    file: join(API, "src/lib/prepStorage.ts"),
+    cwd: API,
+    edits: [
+      {
+        from: "          ? { note: anyDayKnown ? PROTEINS_PHASE_NOTE : `${PROTEINS_PHASE_NOTE} ${NO_COOK_DAYS_NOTE}` }",
+        to: "          ? { note: PROTEINS_PHASE_NOTE }",
+      },
+    ],
+    test: "src/lib/__tests__/prepPhases.test.ts",
+    runner: "api",
+    expect: "a plan with no cook days is never told how to get them",
+  },
+  {
+    n: 51,
+    ruling: "rule 14 — the source parenthetical stays gone",
+    file: join(API, "src/lib/prepWeekAssembly.ts"),
+    cwd: API,
+    edits: [
+      {
+        // Put the parenthetical back on EVERY measure builder (there are three,
+        // and the test asserts over the whole narration input, so one is enough
+        // to go red — but all three is the honest reinstatement of the defect).
+        from: "        ...(destinationFor ? { destination: destinationFor(c.dishId, entry.ingredientId) } : {}),",
+        to: "        ...({ fromSource: sourceCountFor(entry.sourceYield, c.quantity, c.unit) } as object),",
+      },
+    ],
+    test: "src/lib/__tests__/prepWeekAssemblyBug338.test.ts",
+    runner: "api",
+    expect: '"(from 2 limes)" comes back onto the card',
+  },
+  {
+    n: 52,
+    ruling: "H3 item 14 — the lag follows the day NAME",
+    file: join(API, "src/lib/prepWeekAggregation.ts"),
+    cwd: API,
+    edits: [
+      {
+        from: "      lagByMealId.set(mealId, (dow - startDow + 7) % 7);",
+        to: "      void dow; void startDow; lagByMealId.set(mealId, 1);",
+      },
+    ],
+    test: "src/lib/__tests__/prepWeekAggregation.test.ts",
+    runner: "api",
+    expect: "every meal is one day out however Plan Review moves it",
   },
 ];
 

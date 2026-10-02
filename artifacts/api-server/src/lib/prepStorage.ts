@@ -351,17 +351,14 @@ export function applyStorageOverlay(
 
   return {
     ...result,
-    phases: result.phases.map((phase) => ({
-      ...phase,
-      // Item 3 — always, on Proteins, whatever the phase contains.
-      // D-WS9-298 item 3 + D-WS9-301 rule 13. With no cook days anywhere, the
-      // phase says so and tells the cook how to fix it; otherwise it carries
-      // the standing two-day line.
-      ...(phase.phase === "proteins"
-        ? { note: anyDayKnown ? PROTEINS_PHASE_NOTE : `${PROTEINS_PHASE_NOTE} ${NO_COOK_DAYS_NOTE}` }
-        : {}),
-      ...(phase.phase === "proteins" && held.length > 0 ? { heldForCookDay: held } : {}),
-      steps: phase.steps.map((step) => {
+    phases: result.phases.map((phase) => {
+      // 🔴 THE STEPS ARE REWRITTEN BEFORE THE PHASE OBJECT IS BUILT, AND THAT
+      // ORDER IS LOAD-BEARING. `held` is filled by the demote branch inside the
+      // step map below. Reading `heldForCookDay` in the same object literal
+      // that builds the steps reads an EMPTY array: object properties evaluate
+      // in source order, so the spread ran before its own phase's steps had.
+      // The test caught it; the types never could.
+      const steps = phase.steps.map((step) => {
         // ── D-WS9-301 H2.3 — A STEP THAT IS NOT DONE HAS NOTHING TO STORE ────
         //
         // The corpus shipped: "Pre-measuring 1½ tbsp olive oil to drizzle over
@@ -400,7 +397,14 @@ export function applyStorageOverlay(
             const when = ctx.dayName
               ? `${ctx.dayName}, ${ctx.daysUntilCook} days out`
               : `${ctx.daysUntilCook} days out`;
-            held.push(`${who} (${when}) — ${lowerFirst(nounFormTitle(ctx.ingredientNames).replace(" — cook day", ""))} that morning.`);
+            // Rule 13 names the ACTION — "cube the chuck that morning" — so it
+            // reads the step's own title, which rule 12 has already opened with
+            // the verb the recipe uses. The noun form is the fallback for a step
+            // whose recipe named none.
+            const what = /^(pound|trim|cube|cut|skin|portion|butterfly|slice|halve|dice)/i.test(step.title)
+              ? lowerFirst(step.title)
+              : lowerFirst(nounFormTitle(ctx.ingredientNames).replace(" — cook day", ""));
+            held.push(`${who} (${when}) — ${what} that morning.`);
             return {
               ...step,
               title: nounFormTitle(ctx.ingredientNames),
@@ -415,7 +419,19 @@ export function applyStorageOverlay(
           // BUG-346 (a) — the identities, so a note cannot name a protein.
           storageNote: storageClassFor(ctx.text, ctx.bowlName, ctx.ingredientNames).note,
         };
-      }),
-    })),
+      });
+
+      return {
+        ...phase,
+        // D-WS9-298 item 3 + D-WS9-301 rule 13. With no cook days anywhere the
+        // phase says so and tells the cook how to fix it; otherwise it carries
+        // the standing two-day line.
+        ...(phase.phase === "proteins"
+          ? { note: anyDayKnown ? PROTEINS_PHASE_NOTE : `${PROTEINS_PHASE_NOTE} ${NO_COOK_DAYS_NOTE}` }
+          : {}),
+        ...(phase.phase === "proteins" && held.length > 0 ? { heldForCookDay: held } : {}),
+        steps,
+      };
+    }),
   };
 }
