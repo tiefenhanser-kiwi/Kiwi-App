@@ -240,6 +240,15 @@ const PrepWeekStepSchema = z.object({
   // sentence). The server excludes it from the container count; mirrored here so
   // the shapes stay in step, not because the client recounts.
   holdsNoContainer: z.boolean().optional(),
+  // H4 / D-WS9-301 rule 11(c) — a container is worked in up to two steps (its
+  // dry measure, then its wet finish) and is ONE container; this is the identity
+  // the server counts by. Opaque here: mirrored so the shapes stay in step, and
+  // never rendered.
+  containerId: z.string().min(1).max(120).optional(),
+  // H4 / rule 11(c) — knife work whose every portion has a destination. Real
+  // work, so it still shows and still counts toward the minutes; it just puts no
+  // extra bowl on the counter.
+  feedsContainersOnly: z.boolean().optional(),
 });
 export type PrepWeekStep = z.infer<typeof PrepWeekStepSchema>;
 

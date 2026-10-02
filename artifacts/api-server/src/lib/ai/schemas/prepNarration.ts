@@ -112,6 +112,19 @@ export interface PrepNarrationStepInput {
    * Absent when the recipe names none, and then today's wording stands.
    */
   knifeVerbs?: string[];
+  /**
+   * H4 / D-WS9-301 rule 11(c) — what the cook ALREADY put in this container, in
+   * earlier phases. A container is worked in up to two steps now and its produce
+   * is cut in the produce phase, so by the time the liquids go in the bowl is
+   * not empty — and a step that does not say so reads as if the cook is starting
+   * a new bowl. Opening clause, verbatim shape:
+   *
+   *   "Lemon-Herb Chicken marinade bowl (garlic and rosemary already in it): add
+   *    3 tbsp olive oil, zest and juice 1 lemon, whisk."
+   *
+   * Absent on the FIRST step that touches a container, and on a plain portion.
+   */
+  containerHolds?: string[];
 }
 
 export interface PrepNarrationInput {

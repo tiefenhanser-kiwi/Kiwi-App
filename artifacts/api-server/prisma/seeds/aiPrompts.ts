@@ -1500,7 +1500,8 @@ A 'planName', a 'dishSteps' map (each dish name → that dish's recipe instructi
 
 ⚠️ A WHOLE FRUIT AND ITS JUICE ARE THE SAME FRUIT. If one step preps whole limes and another measures lime juice, the user has ONE pile of limes to serve both. Never write the two as if they were separate shopping. 'fromSource' is what lets you say the real number.
 - 'relevantDishes' — the NAMES of the dish(es) these ingredients are cooked in (a subset of this step's 'forDish' names). Look each name up in the top-level 'dishSteps' map to get that dish's recipe instruction-step text; the combined text of a step's 'relevantDishes' is what the rules below call this step's 'relevantSteps'. Read it to judge prep vs. at-cook (see "# Prep-vs-cook-time rule"). A step with no 'relevantDishes' (or a name absent from 'dishSteps') has no step text — treat its 'relevantSteps' as empty.
-- 'bowlName' — THE VESSEL, present on a step whose items all go into ONE named container: "Carne asada marinade bowl", "Teriyaki Salmon glaze jar", "Fajita spice blend". Use the string EXACTLY as given, every time you name the container, and never invent a different name for it. This is the whole point of such a step: the spices, the juices and the aromatics of one mixture are measured into one bowl instead of scattered across five. See "# A step with a bowl".
+- 'bowlName' — THE VESSEL, present on a step whose items all go into ONE named container: "Carne asada marinade bowl", "Teriyaki Salmon glaze jar", "Fajita spice blend". Use the string EXACTLY as given, every time you name the container, and never invent a different name for it. This is the whole point of such a step: one mixture is built in one named vessel instead of scattered across five. The SAME 'bowlName' can appear on two steps — the dry measure and the liquid finish — and they are one container, not two. See "# A step with a bowl".
+- 'containerHolds' — present on a bowl step that is NOT the first to touch its container: the names of what the cook already put in, from earlier phases. Open with it — "Carne asada marinade bowl (spices and garlic already in it): add …" — because a step that does not say so reads as if a fresh bowl is being started, and the cook ends up with two. Name them in plain words; you do not have to list all of them if there are many ("the spices and aromatics already in it").
 - 'knifeVerbs' — present on a whole-protein step whose recipe names the knife work: ["pound"], ["trim"], ["cube","trim"]. OPEN the step with it, as an instruction: "Pound 4 chicken breasts to even thickness", "Trim 2 lb boneless thighs". A bare ingredient line on a protein step is the defect this replaces — the cook needs the action, not the shopping name.
 - 'cookDaySentence' — present ONLY on a raw-protein step whose protein joins a bowl on cook day. It is already written for you. Echo it VERBATIM as the step's instruction and add nothing to it: it states a fact about the schedule, not a suggestion.
 
@@ -1533,16 +1534,24 @@ title: "Measure the pork chop glaze"
 
 # A step with a bowl
 
-A step carrying 'bowlName' is ONE mixture going into ONE container, and its items may come from several phases — a marinade's spices, its citrus and its garlic all belong in the same bowl even though they look like three different kinds of prep. Write it as one action into that vessel.
+A step carrying 'bowlName' is work on ONE named container. The container is worked in up to TWO steps and it is still one container: its dry measures in phase 1, then its liquids in phase 3. Its cut produce is NOT in either — that work is done in the produce phase, in each ingredient's own step, with this container named as the destination. Write only the items this step actually gives you.
 
-Open by naming the bowl, list the per-dish measures beneath it, and close with nothing at all — there is no second container to point at. Verbatim shape:
-title: "Build the Carne asada marinade bowl"
-"Measure into the Carne asada marinade bowl:
+🔴 THE BOWL IS USUALLY NOT EMPTY WHEN YOU GET TO IT. When 'containerHolds' is present it lists what the cook already put in — say so in the opening clause, then add what this step holds. When it is absent, this is the first thing going in.
+
+Open by naming the bowl, list the per-dish measures beneath it, and close with nothing at all — there is no second container to point at. Verbatim shape, phase 1 (nothing in it yet):
+title: "Measure the Carne asada marinade spices"
+"Into the Carne asada marinade bowl:
 1 tsp chili powder
-1 tsp ground cumin
+1 tsp ground cumin"
+
+…and phase 3, the same bowl, with 'containerHolds' = ["chili powder", "ground cumin", "garlic cloves"]:
+title: "Finish the Carne asada marinade"
+"Carne asada marinade bowl (spices and garlic already in it): add
 ¼ cup orange juice
 3 tbsp lime juice
-4 cloves garlic, minced"
+Whisk."
+
+NEVER write "mince the garlic" or any other knife work in one of these steps, and never list a cut ingredient among its items. The cook put the knife down at the end of the produce phase and rule 11(c) exists so they do not pick it back up.
 
 USE THE GIVEN NAME AND ONLY THE GIVEN NAME. Not "the marinade bowl", not "the carne asada bowl", not "your mixing bowl" — the exact 'bowlName' string. The user will look for that label on a container in the fridge on Friday, and a bowl named two ways is two bowls to them.
 

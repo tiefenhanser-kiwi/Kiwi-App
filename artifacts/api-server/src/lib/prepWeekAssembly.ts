@@ -135,6 +135,18 @@ export interface PlannedStep {
   /** D-WS9-301 rule 7 — a step that holds no food (the wash, a cook-day line). */
   holdsNoContainer?: boolean;
   /**
+   * H4 / rule 11(c) — THE CONTAINER THIS STEP WORKS ON. A container has up to
+   * two steps (dry in phase 1, wet in phase 3) and the counter counts
+   * CONTAINERS, not steps, so the identity has to be on the step.
+   */
+  containerId?: string;
+  /**
+   * H4 — what is already in the container when this step runs, so the later
+   * step can open with it: "Lemon-herb marinade container (garlic, rosemary and
+   * thyme already in it): add 3 tbsp olive oil…".
+   */
+  containerHolds?: string[];
+  /**
    * D-WS9-301 rule 10 — prose the ENGINE owns outright, for a step with no
    * ingredients for the model to narrate. The wash step is the only one today.
    * When present the narrator is not asked about this step at all.
@@ -167,6 +179,74 @@ export interface StepPlan {
  * name. Undefined when the portion is its own container and needs no pointer.
  */
 type DestinationResolver = (dishId: string, ingredientId: string | null) => string | undefined;
+
+// ── H4 / D-WS9-301 rule 11(c) — THE KIND OF WORK A MEMBER NEEDS ────────────
+//
+// A container is the unit of IDENTITY; a step is the work done on it in ONE
+// phase. Its members are distributed by what each one needs doing:
+//
+//   dry      → phase 1, one step per container ("measure the seasonings")
+//   produce  → phase 2, into that INGREDIENT's own step, with this container as
+//              the named destination. Never a "Build the … container" step in
+//              Produce: Hans works one knife and one board, all the garlic at
+//              once, and a marinade step that minces garlic inside it is exactly
+//              what he objected to — "the user should have already prepped the
+//              veggies that will go into that marinade".
+//   wet      → phase 3, one step per container, which is where the container is
+//              finished and says what is already in it.
+//   protein  → phase 4, as built in H3.
+//
+// 🔴 WET IS NOT THE SAME AS "sauces_marinades". A lemon is Produce, and zesting
+// and juicing it is wet work that belongs with the oil in phase 3, not with the
+// knife work in phase 2. So the engine's phase is the starting point and the
+// FORM decides the rest.
+type MemberKind = "dry" | "produce" | "wet" | "protein";
+
+/** Juice, zest and purée are liquids however the catalog files them. */
+const WET_FORM = /\b(juice|zest|purée|puree|paste|sauce|vinegar|oil|syrup|honey|broth|stock|wine|cream|yogurt|mayo|mustard)\b/i;
+/** A note that says the cook is extracting liquid rather than cutting. */
+const WET_NOTE = /\b(zest\w*|juic\w*|squeez\w*)\b/i;
+/**
+ * …and the note that says they are CUTTING, which beats the squeeze. "Grated and
+ * squeezed dry" is a drained vegetable, not a juiced one: the squeeze gets the
+ * water out of work the knife already did, and that work belongs at the board in
+ * phase 2. Found by measuring the corpus — the tzatziki's cucumber was being
+ * grated inside the finishing step, which is the exact shape rule 11(c) removes.
+ */
+const CUT_NOTE = /\b(grat\w*|shred\w*|dic\w*|chop\w*|minc\w*|slic\w*|julienn\w*|halv\w*|quarter\w*|cub\w*)\b/i;
+
+export function memberKind(
+  phase: PrepPhaseKey | null,
+  ingredientName: string,
+  preparationNotes: string,
+): MemberKind {
+  if (phase === "proteins") return "protein";
+  if (phase === "seasonings_dry") return "dry";
+  if (phase === "sauces_marinades") return "wet";
+  // Produce by category. Wet by form or by what the note says is being done.
+  if (WET_FORM.test(ingredientName)) return "wet";
+  // The form wins over the note, and a cut beats a squeeze. Of the 6 members the
+  // squeeze arm placed in phase 3 across the corpus, 5 were lime or lemon JUICE —
+  // already wet by form above — and the 6th was a grated cucumber.
+  if (WET_NOTE.test(preparationNotes) && !CUT_NOTE.test(preparationNotes)) return "wet";
+  return "produce";
+}
+
+/** Which phase a member's work is done in. */
+const PHASE_OF_KIND: Record<MemberKind, PrepPhaseKey> = {
+  dry: "seasonings_dry",
+  produce: "produce",
+  wet: "sauces_marinades",
+  protein: "proteins",
+};
+
+/** The kind of one engine group, from the fields the assembly has. */
+function kindOf(entry: PrepIngredientGroup): MemberKind {
+  const notes = entry.lines
+    .flatMap((l) => l.contributions.map((c) => c.preparationNote ?? ""))
+    .join(" ");
+  return memberKind(entry.phase, entry.ingredientName, notes);
+}
 
 function dedupe(values: string[]): string[] {
   return [...new Set(values)];
@@ -764,7 +844,14 @@ export function buildStepPlan(
           b.entries.set(entry.ingredientId, entry);
           b.mealIds.add(c.mealId);
           componentBuckets.set(k, b);
-          claimed.add(`${c.dishId}|${entry.ingredientId}`);
+          // 🔴 RULE 11(c) — A PRODUCE MEMBER IS NOT CLAIMED. Its knife work is
+          // done in its own ingredient's step (one ingredient at a time, all the
+          // garlic at once), with this container as the named destination. Only
+          // the members whose work happens IN the container — the dry measure and
+          // the wet pour — are claimed out of the per-ingredient steps.
+          if (kindOf(entry) !== "produce") {
+            claimed.add(`${c.dishId}|${entry.ingredientId}`);
+          }
         }
       }
     }
@@ -784,7 +871,10 @@ export function buildStepPlan(
     if (PREP_PHASE_ORDER.indexOf(d.phase) < PREP_PHASE_ORDER.indexOf(b.phase)) b.phase = d.phase;
     b.entries.set(d.entry.ingredientId, d.entry);
     b.mealIds.add(d.mealId);
-    claimed.add(`${d.dishId}|${d.entry.ingredientId}`);
+    // Rule 11(c) again: a produce member keeps its own step.
+    if (kindOf(d.entry) !== "produce") {
+      claimed.add(`${d.dishId}|${d.entry.ingredientId}`);
+    }
   }
 
   // A container holds at least two things. A moment with one ingredient in it is
@@ -953,7 +1043,25 @@ export function buildStepPlan(
       // ⚠️ A COOK-DAY PROTEIN STEP IS NEVER JUDGED. It carries no measuring at
       // all — it tells the cook where the steak goes on Friday — so the
       // weeknight-time test does not apply to it.
-      if (!planned.cookDaySentence) {
+      // ── 🔴 H4 — A STEP THAT FEEDS A CONTAINER IS PART OF A MIXTURE ────────
+      //
+      // D-WS9-299 demotes a step that measures one lone thing. Splitting a
+      // container across phases makes almost every one of its steps look like
+      // that from the inside: the Garlic Herb Potatoes' phase 3 step holds one
+      // olive oil, and the thyme's produce step holds one herb portion — and the
+      // first corpus run after the split demoted both, so the container never
+      // got its oil and the marinades never got their thyme.
+      //
+      // Neither is a lone measure. One FINISHES a container that already holds
+      // four things (`containerHolds`); the other is knife work every one of
+      // whose portions has a destination. Both are mixture work by construction,
+      // which is exactly what the judge's own "mixture" arm exempts — it just
+      // cannot see it one step at a time.
+      const feedsAContainer =
+        planned.containerId != null ||
+        (planned.containerHolds?.length ?? 0) > 0 ||
+        feedsContainersOnly(planned);
+      if (!planned.cookDaySentence && !feedsAContainer) {
         const verdict = judgePrepWorthiness({
           measuredItems: planned.components.reduce((n, c) => n + c.measures.length, 0),
           componentNoun: componentNounOf(planned),
@@ -1008,19 +1116,45 @@ export function buildStepPlan(
     // `component#${dishId}#${componentKey}` so a checkbox survives a
     // regenerate exactly as the per-dish blend and sauce keys do (D-WS7-153).
     for (const [bucketKey, b] of componentBuckets) {
-      if (b.phase !== key) continue;
+      // ── H4 / RULE 11(c) — ONE STEP PER CONTAINER PER PHASE ────────────────
+      //
+      // The container no longer IS a step. Its members are split by the kind of
+      // work each needs, and this phase takes only its own kind. A container
+      // with no dry members has no phase 1 step; with no wet members, no phase 3
+      // step; a produce-only container has no step of its own at all — its
+      // members are prepped in their ingredients' steps and it exists as a
+      // destination name, which is the whole point of rule 11(c).
+      // 🔴 A CONTAINER NEVER HAS A STEP IN PRODUCE. "Build the … container"
+      // steps are exactly what rule 11(c) removes: the produce members' work is
+      // done in their own ingredients' steps, one ingredient at a time, with
+      // this container named as the destination. Phase 2 container steps would
+      // put the mincing back inside the marinade.
+      if (key === "produce" || key === "proteins") continue;
+      const mine = [...b.entries.values()].filter(
+        (e) => PHASE_OF_KIND[kindOf(e)] === key,
+      );
+      if (mine.length === 0) continue;
       // Ruling 3, applied again AFTER the engine's prep-worthy filter: a bucket
       // whose other members were dropped upstream arrives with one measure and
       // is a plain portion, not a mixture. Its claim is released so the
       // per-phase branches below pick the survivor up.
+      //
+      // ⚠️ MEASURED OVER THE WHOLE CONTAINER, not over this phase's share. A
+      // marinade with one oil in phase 3 and four aromatics in phase 2 is a real
+      // mixture of five; counting only the oil would dissolve it.
       const surviving = [...b.entries.values()]
         .flatMap((e) => componentsForDish(e, b.dishId, destinationFor))
         .reduce((n, c) => n + c.measures.length, 0);
       if (surviving < 2) {
         for (const e of b.entries.values()) claimed.delete(`${b.dishId}|${e.ingredientId}`);
+        componentBuckets.delete(bucketKey);
         continue;
       }
       const dishId = b.dishId;
+      // What the cook already put in it, for the later step's opening clause.
+      const alreadyIn = [...b.entries.values()]
+        .filter((e) => PREP_PHASE_ORDER.indexOf(PHASE_OF_KIND[kindOf(e)]) < PREP_PHASE_ORDER.indexOf(key))
+        .map((e) => e.ingredientName);
       pushStep({
         // 🔴 THE SCHEMA CAPS stepKey AT 80 CHARS, and the first keys blew it:
         // `component#${uuid}#${noun}` is 10 + 36 + 1 + n, and
@@ -1030,15 +1164,22 @@ export function buildStepPlan(
         // all. Short prefixes, and the noun is capped: the key must still be
         // STABLE across a regenerate (D-WS7-153), and a deterministic truncation
         // is.
-        stepKey: `cmp#${bucketKey.slice(0, 68)}`,
+        // 🔴 H4 — THE KEY IS THE CONTAINER PLUS THE PHASE. A container now has
+        // up to two steps and each needs its own stable checkbox, so the phase
+        // is part of the key. The container half is unchanged, which is what
+        // keeps a day change a cache HIT: the key does not move when the cook
+        // day does (G1), only when the plan's composition does.
+        stepKey: `cnt#${key.slice(0, 4)}#${bucketKey.slice(0, 62)}`,
+        containerId: bucketKey,
         ingredientId: null,
         contributesToMealIds: [...b.mealIds],
         // A mixture IS a blend in the narrator's sense — one pre-measure
         // action into one vessel — whatever phase it sits in.
         isBlend: true,
-        components: [...b.entries.values()].flatMap((e) => componentsForDish(e, dishId, destinationFor)),
+        components: mine.flatMap((e) => componentsForDish(e, dishId, destinationFor)),
         relevantDishes: relevantDishesFor([dishId]),
         bowlName: b.bowlName,
+        ...(alreadyIn.length > 0 ? { containerHolds: alreadyIn } : {}),
       });
     }
 
@@ -1229,6 +1370,10 @@ export function buildStepPlan(
       ...(s.bowlName ? { bowlName: s.bowlName } : {}),
       ...(s.cookDaySentence ? { cookDaySentence: s.cookDaySentence } : {}),
       ...(s.knifeVerbs ? { knifeVerbs: s.knifeVerbs } : {}),
+      // H4 / rule 11(c) — the opening clause's facts. Date-independent by
+      // construction (it is the container's own membership), so it does not
+      // reopen the cache-miss hazard the note below guards.
+      ...(s.containerHolds ? { containerHolds: s.containerHolds } : {}),
       // ⚠️ daysUntilCook IS DELIBERATELY NOT HERE. It stays on the step skeleton
       // (PlannedStep) where the deterministic layers read it; sending it to the
       // narrator bought nothing the model needed and made the prose day-dependent,
@@ -1281,11 +1426,47 @@ export function lowValueClass(step: PlannedStep): "garnish" | "citrus-wedge" | n
   return null;
 }
 
+/**
+ * H4 / rule 11(c) — does this planned step put a container of its own on the
+ * counter? False when every portion it makes has a destination: the food lives
+ * in the containers it fills, and the knife work is not a third bowl.
+ *
+ * 🔴 ONE predicate, read by the plan-side counter AND by the wire mapping, so
+ * the drop pass and the header can never disagree about what a container is.
+ */
+export function feedsContainersOnly(step: PlannedStep): boolean {
+  // 🔴 A step that IS a container is never merely feeding one. Its own members
+  // all carry it as their destination, so without this line every bowl on the
+  // plan reads as "holds nothing" — which is how the first draft of the
+  // on-screen counter came to skip all nine containers on the sample plan.
+  if (step.containerId) return false;
+  const measures = step.components.flatMap((c) => c.measures);
+  return measures.length > 0 && measures.every((m) => m.destination);
+}
+
 /** Containers in a step plan: a kept step that holds food. */
 export function countContainers(steps: readonly PlannedStep[]): number {
-  // D-WS9-301 rule 10 — the wash step holds no food either, so it carries
-  // `holdsNoContainer` and must not reach the header count.
-  return steps.filter((s) => !s.demoted && !s.cookDaySentence && !s.holdsNoContainer).length;
+  // ── H4 / rule 11(c) — CONTAINERS, NOT STEPS ───────────────────────────────
+  //
+  // A container now has up to two steps (its dry measure in phase 1, its wet
+  // finish in phase 3) and it is ONE container. Counting steps would make the
+  // redistribution look like it added containers when it only re-sorted work.
+  //
+  // Two populations, counted once each:
+  //   • every distinct `containerId` among the kept steps;
+  //   • every kept step with no containerId that holds food — a per-ingredient
+  //     portion IS its own container, unless every one of its portions has a
+  //     destination, in which case the food lives in those containers and this
+  //     step is only the knife work that fills them.
+  const ids = new Set<string>();
+  let standalone = 0;
+  for (const s of steps) {
+    if (s.demoted || s.cookDaySentence || s.holdsNoContainer) continue;
+    if (s.containerId) { ids.add(s.containerId); continue; }
+    if (feedsContainersOnly(s)) continue;
+    standalone += 1;
+  }
+  return ids.size + standalone;
 }
 
 const CONTAINER_TARGET_MAX = 15;
@@ -1340,20 +1521,31 @@ function dropLowValueSteps(steps: PlannedStep[]): void {
  * applyStorageOverlay, and the reason this is not baked into `structureJson`.
  */
 export function summarizePrepWeek(result: PrepWeekResult): PrepWeekResult {
-  let containers = 0;
+  // H4 / rule 11(c) — CONTAINERS, NOT STEPS, on the screen too. A container
+  // worked in phase 1 and again in phase 3 is one bowl; counting its steps made
+  // the redistribution look like it added bowls when it only re-sorted work.
+  const ids = new Set<string>();
+  let standalone = 0;
   let minutes = 0;
   const perStep: number[] = [];
   for (const phase of result.phases) {
     for (const step of phase.steps) {
       if (step.skipSuggested) continue;
       // The cook-day sentence still shows and still takes a moment on Friday, so
-      // it counts toward the MINUTES — it just is not a container.
+      // it counts toward the MINUTES — it just is not a container. Same for the
+      // knife work that only fills other containers: real work, no extra bowl.
       minutes += step.estimatedMinutes;
       perStep.push(step.estimatedMinutes);
-      if (step.holdsNoContainer) continue;
-      containers += 1;
+      // Identity FIRST — a container is counted once however many steps work it.
+      if (step.containerId) {
+        ids.add(step.containerId);
+        continue;
+      }
+      if (step.holdsNoContainer || step.feedsContainersOnly) continue;
+      standalone += 1;
     }
   }
+  const containers = ids.size + standalone;
   return {
     ...result,
     containerCount: containers,
@@ -1406,6 +1598,11 @@ export function assemblePrepWeekResult(
       ...(planned.demoted ? { skipSuggested: true } : {}),
       // A cook-day sentence holds no food, so it is not a container.
       ...(planned.cookDaySentence || planned.holdsNoContainer ? { holdsNoContainer: true } : {}),
+      // H4 / rule 11(c) — the two fields the header's first number is counted
+      // from. They have to travel on the wire because the cache-HIT path counts
+      // the stored blob and has no step plan to ask.
+      ...(planned.containerId ? { containerId: planned.containerId } : {}),
+      ...(feedsContainersOnly(planned) ? { feedsContainersOnly: true } : {}),
     });
   }
 

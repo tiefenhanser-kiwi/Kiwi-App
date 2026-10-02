@@ -102,6 +102,32 @@ export const PrepWeekStepSchema = z.object({
    * and counting it would inflate the header's first number.
    */
   holdsNoContainer: z.boolean().optional(),
+  /**
+   * H4 / D-WS9-301 rule 11(c) — CODE-OWNED. The container this step works on,
+   * when it has one. A container is now worked in up to two steps — its dry
+   * measure in phase 1 and its wet finish in phase 3 — and it is ONE container.
+   * The header counts DISTINCT values of this field, so the redistribution
+   * cannot inflate the tally by re-sorting the same work into more steps.
+   *
+   * Opaque to the client: an id, never shown. Absent on a step that is its own
+   * container (a per-ingredient portion), and absent from any structureJson
+   * cached before this shipped — where the count falls back to per-step, which
+   * is what that blob was counted as when it was written.
+   */
+  containerId: z.string().min(1).max(120).optional(),
+  /**
+   * H4 / D-WS9-301 rule 11(c) — CODE-OWNED. True for a step that holds no food
+   * OF ITS OWN because every portion it produces has a named destination: the
+   * knife work that fills other containers. "Mince all the garlic — 2 cloves to
+   * the marinade bowl, 1 to the chili container" puts no third bowl on the
+   * counter.
+   *
+   * 🔴 NOT the same as holdsNoContainer, and deliberately a separate field. A
+   * cook-day sentence is not work the cook does at prep time; this IS, so it
+   * still counts toward the minutes AND stays in the completion set
+   * (prepStepSet.ts). Only the container tally skips it.
+   */
+  feedsContainersOnly: z.boolean().optional(),
 });
 export type PrepWeekStep = z.infer<typeof PrepWeekStepSchema>;
 
