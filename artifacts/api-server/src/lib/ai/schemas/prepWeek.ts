@@ -127,7 +127,25 @@ export const PrepWeekStepSchema = z.object({
    * still counts toward the minutes AND stays in the completion set
    * (prepStepSet.ts). Only the container tally skips it.
    */
-  feedsContainersOnly: z.boolean().optional(),
+  /**
+   * H6.1-B — the vessels this step fills, by name: its own container plus every
+   * container its portions go into. The header's first number is the union of
+   * these across the rendered steps.
+   *
+   * 🔴 REPLACES `feedsContainersOnly`. That boolean asked whether a step put a
+   * bowl out of its own, which stopped distinguishing anything once rule 11 gave
+   * every portion a destination — it became true of every ingredient step and the
+   * count collapsed to the mixtures. A container counts once however many steps
+   * touch it, and a step that fills three has to be able to say so.
+   */
+  containerNames: z.array(z.string().min(1).max(120)).max(12).optional(),
+  /**
+   * H6.1-C — CODE-OWNED. This step is not the last to touch its container, so it
+   * carries no storage line: the bowl is opened again in a later phase and the
+   * line belongs to the step that closes it. A fridge sentence on a bowl the cook
+   * is about to add to is the contradiction Hans read on the device.
+   */
+  suppressStorage: z.boolean().optional(),
 });
 export type PrepWeekStep = z.infer<typeof PrepWeekStepSchema>;
 

@@ -95,7 +95,12 @@ export const STORAGE_TABLE: readonly StorageClass[] = [
     // class instead of the room-temperature one — a fresh-chile pattern eating a
     // ground spice. The lookaheads exclude the ground forms; a fresh chile keeps
     // its short window.
-    match: /\b(?:peppers?(?!\s+(?:powder|flakes))|chil[ei]s?(?!\s+(?:powder|flakes))|jalapeños?|jalapenos?|serranos?|poblanos?|tomatillos?|tomatoes?|cucumbers?|celery|carrots?|radishes?|cabbage|broccoli|cauliflower|zucchini|squash|green beans?|asparagus|mushrooms?)\b/i,
+    // …AND NOT ONE QUALIFIED AHEAD OF THE NOUN EITHER. The lookaheads caught
+    // "pepper powder" and "chili flakes"; they did not catch CAYENNE pepper, BLACK
+    // pepper or DRIED ANCHO chiles, so a bowl of paprika, cayenne and masa was told
+    // to live in the fridge for four days. Third instance of this exact shape in the
+    // pass — a fresh-produce pattern eating a cupboard spice.
+    match: /\b(?<!\b(?:cayenne|black|white|ground|cracked|crushed|dried|smoked|chipotle|ancho|guajillo|chile|chili)\s)(?:peppers?(?!\s+(?:powder|flakes))|chil[ei]s?(?!\s+(?:powder|flakes)))\b|\b(?:jalapeños?|jalapenos?|serranos?|poblanos?|tomatillos?|tomatoes?|cucumbers?|celery|carrots?|radishes?|cabbage|broccoli|cauliflower|zucchini|squash|green beans?|asparagus|mushrooms?)\b/i,
   },
   // ── made things ───────────────────────────────────────────────────────────
   {
@@ -116,6 +121,18 @@ export const STORAGE_TABLE: readonly StorageClass[] = [
     roomTemp: true,
     note: "Small airtight container at room temperature — it keeps for weeks.",
     match: /\b(spice blend|seasoning|rub|blend|spices?)\b/i,
+  },
+  // H6.1-C — THE DRY MIX. Flour, cornmeal, masa, sugar, leaveners, salt and dry
+  // legumes and grains: a cupboard holds them for months, and the table had no
+  // class for any of them, so a dumpling dough bowl was told to live in the fridge
+  // for 3 days.
+  {
+    key: "dry-mix",
+    days: 14,
+    roomTemp: true,
+    note: "Airtight at room temperature — it keeps for weeks.",
+    match:
+      /\b(flour|cornmeal|cornstarch|corn starch|masa(?:\s+harina)?|polenta|semolina|baking powder|baking soda|cream of tartar|yeast|sugar|brown sugar|powdered sugar|confectioners.? sugar|cocoa|salt|rice|lentils?|split peas|dried beans|oats|breadcrumbs|panko)\b/i,
   },
 ];
 
@@ -140,6 +157,45 @@ export const STORAGE_TABLE: readonly StorageClass[] = [
 // every other time it is asked. The exported one is NOT global and is the only
 // one anything calls `.test()` on; the stripper below builds its own global
 // copy and `.replace()` resets it.
+// ── H6.1-C — THE CONTAINER'S FORM, FROM ITS MEMBERS ─────────────────────────
+//
+// The note text says what KIND of container this is, and the window says how long.
+// They are different questions with different answers: a marinade holding rosemary
+// keeps for 3 days BECAUSE of the rosemary, and is still a jar of oil rather than a
+// tub of loose herbs that wants a damp paper towel over it.
+//
+// 🔴 READ FROM THE MEMBERS, never from the bowl or dish name — that leak is what
+// classed a bowl of flour and cornmeal as cut chillies because the dish was called
+// "Jalapeño Cheddar Cornbread".
+type ContainerForm = "wet" | "dry" | "herbs" | "flesh" | "produce";
+
+/** Anything poured. One of these and the container is a jar, whatever else is in it. */
+const WET_MEMBER =
+  /\b(oil|vinegar|juice|sauce|broth|stock|wine|cream|yogurt|yoghurt|mayonnaise|mayo|mustard|honey|syrup|molasses|buttermilk|milk|water|paste|pur[ée]e|zest)\b/i;
+/** Loose fresh herbs, which are the only thing the damp-towel advice is for. */
+const HERB_MEMBER =
+  /\b(?:fresh\s+)?(parsley|cilantro|coriander leaves|basil|mint|dill|chives|tarragon|oregano leaves|rosemary|thyme|sage)\b/i;
+/** Cupboard dry goods — the dry-mix class's own vocabulary. */
+const DRY_MEMBER =
+  /\b(flour|cornmeal|cornstarch|corn starch|masa(?:\s+harina)?|polenta|semolina|baking powder|baking soda|cream of tartar|yeast|sugar|cocoa|salt|pepper\b(?!\s*s)|peppercorns?|cayenne|paprika|cumin|coriander|turmeric|cinnamon|nutmeg|clove powder|chili powder|chile powder|curry powder|garlic powder|onion powder|dried \w+|ground \w+|breadcrumbs|panko|oats|rice|lentils?)\b/i;
+
+function containerForm(names: readonly string[], fleshIdentity: string): ContainerForm {
+  if (RAW_FLESH_HINT.test(fleshIdentity)) return "flesh";
+  if (names.some((n) => WET_MEMBER.test(n))) return "wet";
+  if (names.length > 0 && names.every((n) => DRY_MEMBER.test(n))) return "dry";
+  if (names.some((n) => HERB_MEMBER.test(n))) return "herbs";
+  return "produce";
+}
+
+/** The sentence each form writes. `N` is replaced by the strictest window. */
+const FORM_NOTE: Readonly<Record<ContainerForm, string>> = {
+  wet: "Covered in the fridge — up to N days.",
+  dry: "Airtight at room temperature — it keeps for weeks.",
+  herbs: "Airtight in the fridge, with a barely damp paper towel — up to N days.",
+  flesh: "Covered in the fridge — cook within N days.",
+  produce: "Airtight in the fridge — up to N days.",
+};
+
 const SHELF_STABLE_SRC =
   "\\b(?:anchovy paste|shrimp paste|fish paste|(?:canned|tinned|jarred)\\s+\\w+" +
   "|dried (?:shrimp|anchovies|anchovy|fish|beef)" +
@@ -199,6 +255,13 @@ export const isP1Class = (c: StorageClass) => P1_KEYS.has(c.key);
  * and not an early return. Same shape as the label split above: remove what is
  * not flesh, then ask whether flesh remains.
  */
+/**
+ * Raw flesh, for the form test only — the WINDOW still comes from the P1 classes in
+ * the table, which are the authority and are unchanged.
+ */
+const RAW_FLESH_HINT =
+  /\b(chicken|turkey|beef|pork|lamb|veal|steak|chuck|brisket|salmon|cod|halibut|tilapia|tuna|snapper|trout|shrimp|prawns?|scallops?|fillets?|breasts?|thighs?|drumsticks?|cutlets?|chops?|ground\s+(?:beef|turkey|pork|chicken|lamb|veal|sausage|meat|bison|venison))\b/i;
+
 export function storageClassFor(
   contents: string,
   bowlName = "",
@@ -218,15 +281,68 @@ export function storageClassFor(
    */
   ingredientNames?: readonly string[],
 ): StorageClass {
+  // ── H6.1-C — THE MEMBERS DECIDE, AND ONLY THE MEMBERS ────────────────────
+  //
+  // 🔴 THE BOWL NAME USED TO BE PART OF THE MATCHED TEXT, and the dish name rode in
+  // with it: "Jalapeño Cheddar Cornbread seasoning bowl" matched `cut-peppers` on
+  // the word JALAPEÑO, so a bowl of flour and cornmeal was classed as cut chillies
+  // and sent to the fridge for 4 days. The same leak let any container with
+  // "seasoning" in its label claim the room-temperature spice class whatever was
+  // inside it — right for the enchilada spices by luck, wrong in principle.
+  //
+  // A container's storage is a fact about its CONTENTS. `bowlName` is still taken
+  // (callers pass it, and the signature is load-bearing elsewhere) and is
+  // deliberately not consulted.
+  void bowlName;
   const identity = ingredientNames ? ingredientNames.join(" ") : contents;
-  const shelfStable = stripShelfStable(contents);
-  const isShelfStable = shelfStable !== contents;
+  const shelfStable = stripShelfStable(identity);
+  const isShelfStable = shelfStable !== identity;
   const fleshIdentity = stripShelfStable(identity);
-  const labelled = bowlName ? `${shelfStable} ${bowlName}` : shelfStable;
-  for (const c of STORAGE_TABLE) {
-    if (c.match.test(isP1Class(c) ? fleshIdentity : labelled)) return c;
+
+  // ── THE WINDOW IS THE STRICTEST MEMBER'S; THE NOTE IS THE CONTAINER'S FORM ──
+  //
+  // A marinade holding rosemary used to take the HERB note — "with a barely damp
+  // paper towel" — which is advice for loose herbs in a tub and nonsense for a jar
+  // of oil. So every class the contents match is collected: the shortest window
+  // wins, and the note comes from the form the container actually has.
+  // With no list, the contents string stands in as a single name. The flesh test
+  // runs first either way, so "chicken breasts and flour" is still flesh; what this
+  // recovers is the ordinary "a jar of three dry spices" case for callers that
+  // predate the identity list.
+  const names = ingredientNames ?? (contents.trim() === "" ? [] : [contents]);
+  const matched = STORAGE_TABLE.filter((c) =>
+    c.match.test(isP1Class(c) ? fleshIdentity : shelfStable),
+  );
+  const form = containerForm(names, fleshIdentity);
+  // The WINDOW: the strictest member's, from the table. With nothing matched, the
+  // shelf-stable default when every member is shelf stable, else the plain default.
+  const base = matched.length > 0
+    ? matched.reduce((a, b) => (b.days < a.days ? b : a))
+    : isShelfStable
+      ? SHELF_STABLE_STORAGE
+      : DEFAULT_STORAGE;
+  // A dry cupboard container keeps for weeks whatever the strictest row said; every
+  // other form takes the strictest window and its own sentence.
+  // 🔴 A CUPBOARD FORM CANNOT OVERRIDE A FRIDGE CLASS THE CONTENTS MATCHED.
+  // "cooked rice" matches the dry vocabulary on the word RICE, and `cooked-grains`
+  // says 4 days in the fridge — the strictest member is the authority on the
+  // window, so a 14-day cupboard answer there would be the food-safety mistake this
+  // whole table exists to avoid.
+  const effForm: ContainerForm = form === "dry" && matched.length > 0 && !base.roomTemp ? "produce" : form;
+  if (effForm === "dry") {
+    // The strictest ROOM-TEMPERATURE class the contents matched keeps its own key and
+    // sentence — an authored spice blend stays a spice blend, a flour mix is a dry
+    // mix, and both say "room temperature, weeks". Only a dry form that matched
+    // nothing at all needs the generic row.
+    if (base.roomTemp) return base;
+    const dryRow = STORAGE_TABLE.find((c) => c.key === "dry-mix")!;
+    return { ...dryRow, note: FORM_NOTE.dry };
   }
-  return isShelfStable ? SHELF_STABLE_STORAGE : DEFAULT_STORAGE;
+  if (base.roomTemp) return base;
+  return {
+    ...base,
+    note: FORM_NOTE[effForm].replace("N", String(base.days)),
+  };
 }
 
 // ── the proteins phase ──────────────────────────────────────────────────────
@@ -371,6 +487,16 @@ export function applyStorageOverlay(
         // the engine. The protein demotion BELOW is different: it writes "This
         // one is 4 days out — leave it for cook day" into the same field, and
         // that sentence is the reason, not a storage instruction.
+        // ── H6.1-C — NOT EVERY STEP HAS A STORAGE LINE ────────────────────
+        //
+        // The wash step holds nothing — it reads "Airtight in the fridge — up to 3
+        // days" about a pile of rinsed vegetables it does not keep. And a container
+        // worked again in a later phase is not finished, so its line belongs to the
+        // step that closes it (`suppressStorage`).
+        if (step.holdsNoContainer === true || step.suppressStorage === true) {
+          const { storageNote: _none, ...rest } = step;
+          return rest;
+        }
         if (step.skipSuggested) {
           const { storageNote: _drop, ...rest } = step;
           return rest;

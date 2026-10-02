@@ -153,6 +153,11 @@ export interface PlannedStep {
    */
   containerHolds?: string[];
   /**
+   * H6.1-C — this step is not the LAST to touch its container(s), so the storage
+   * line belongs to a later step and this one closes "Set aside for …" instead.
+   */
+  suppressStorage?: boolean;
+  /**
    * D-WS9-301 rule 10 — prose the ENGINE owns outright, for a step with no
    * ingredients for the model to narrate. The wash step is the only one today.
    * When present the narrator is not asked about this step at all.
@@ -249,6 +254,26 @@ function kindOf(entry: PrepIngredientGroup): MemberKind {
     .flatMap((l) => l.contributions.map((c) => c.preparationNote ?? ""))
     .join(" ");
   return memberKind(entry.phase, entry.ingredientName, notes);
+}
+
+/**
+ * H6.1-B — a container label the cook can read off a lid, inside the wire's
+ * 120-character cap. Three dishes named, the rest counted, and a hard trim as the
+ * last resort so a single very long dish title cannot overflow it either.
+ */
+const LABEL_MAX = 120;
+function containerLabel(noun: string, dishes: readonly string[]): string {
+  const named = dishes.slice(0, 3);
+  const rest = dishes.length - named.length;
+  const tail = rest > 0 ? `${named.join(", ")} +${rest} more` : named.join(", ");
+  const full = `${noun} — ${tail}`;
+  if (full.length <= LABEL_MAX) return full;
+  return `${full.slice(0, LABEL_MAX - 1).trimEnd()}…`;
+}
+
+/** "diced onion" → "Diced onion", for the head of a container label. */
+function upperFirst(t: string): string {
+  return t.length === 0 ? t : `${t.charAt(0).toUpperCase()}${t.slice(1)}`;
 }
 
 function dedupe(values: string[]): string[] {
@@ -971,10 +996,86 @@ export function buildStepPlan(
    * pointing at itself would be noise ("dice the onion — into the onion
    * container").
    */
-  const destinationFor: DestinationResolver = (dishId, ingredientId) =>
-    ingredientId === null
-      ? undefined
-      : containerByDishIngredient.get(`${dishId}|${ingredientId}`);
+  // ── H6.1-B — RULE 11's (b) AND (c), SO NOTHING IS LEFT UNNAMED ───────────
+  //
+  // (b) A portion of a shared ingredient that joined no dish's mixture goes into
+  //     ONE container for that ingredient-and-cut, labelled with the dishes it
+  //     serves. The cook fills one tub of diced onion and reads which dinners it
+  //     is for, which is rule 5's whole argument applied to the label.
+  // (c) A single-dish portion that joined nothing gets a container named for its
+  //     dish and its use, because "set it aside" is what Hans read on the device
+  //     and could not act on.
+  const sharedLabel = new Map<string, string>();
+  const loneLabel = new Map<string, string>();
+  {
+    /** The cut, from the notes, so "diced onion" and "sliced onion" stay apart. */
+    const cutOf = (notes: string[]): string | null => {
+      const blob = notes.join(" ").toLowerCase();
+      for (const cut of ["minced", "finely diced", "diced", "finely chopped", "chopped", "thinly sliced", "sliced", "shredded", "grated", "julienned", "halved", "quartered", "cubed", "snapped", "stripped", "zested", "juiced"]) {
+        if (blob.includes(cut)) return cut;
+      }
+      return null;
+    };
+    for (const phase of result.phases) {
+      // A raw protein is its own package and carries its own storage rule
+      // (D-WS9-298). Pointing it at a container named after itself is exactly the
+      // noise rule 11's comment warns about.
+      if (phase.phase === "proteins") continue;
+      for (const entry of phase.entries) {
+        // Only the portions that (a) did not claim.
+        const orphans = entry.lines.flatMap((l) =>
+          l.contributions.filter(
+            (c) => !containerByDishIngredient.has(`${c.dishId}|${entry.ingredientId}`),
+          ),
+        );
+        if (orphans.length === 0) continue;
+        // 🔴 GROUPED BY CUT. The first draft took the first cut it found across every
+        // orphan portion, so the tomatillo sauce's "3 cloves, UNPEELED" was labelled
+        // into the MINCED garlic tub. Minced garlic and whole cloves are not the same
+        // thing in a tub, and the cut is what says so.
+        const byCut = new Map<string, typeof orphans>();
+        for (const c of orphans) {
+          const k = cutOf([c.preparationNote ?? ""]) ?? "";
+          const l = byCut.get(k) ?? [];
+          l.push(c);
+          byCut.set(k, l);
+        }
+        for (const [cut, group] of byCut) {
+          const dishes = [...new Set(group.map((c) => c.dishName))];
+          const noun = cut ? `${cut} ${entry.ingredientName}` : entry.ingredientName;
+          if (dishes.length > 1) {
+            // (b) — one tub per ingredient AND cut, labelled with its dinners.
+            for (const c of group) {
+              sharedLabel.set(
+                `${c.dishId}|${entry.ingredientId}`,
+                containerLabel(upperFirst(noun), dishes),
+              );
+            }
+          } else if (phase.phase === "seasonings_dry") {
+            // (c), DRY — one bowl for the dish's dry measures together.
+            for (const c of group) {
+              loneLabel.set(`${c.dishId}|${entry.ingredientId}`, `${dishes[0]} dry mix`);
+            }
+          } else {
+            // (c) — named for the dish and the use.
+            for (const c of group) {
+              loneLabel.set(`${c.dishId}|${entry.ingredientId}`, containerLabel(dishes[0], [noun]));
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const destinationFor: DestinationResolver = (dishId, ingredientId) => {
+    if (ingredientId === null) return undefined;
+    const claimed = containerByDishIngredient.get(`${dishId}|${ingredientId}`);
+    if (claimed) return claimed;
+    return (
+      sharedLabel.get(`${dishId}|${ingredientId}`) ??
+      loneLabel.get(`${dishId}|${ingredientId}`)
+    );
+  };
 
   // ── D-WS9-296 ruling 1 — the raw protein's cook-day step ─────────────────
   //
@@ -1064,10 +1165,21 @@ export function buildStepPlan(
       // whose portions has a destination. Both are mixture work by construction,
       // which is exactly what the judge's own "mixture" arm exempts — it just
       // cannot see it one step at a time.
+      // H6.1-B — every portion names a container now, so "all its measures have a
+      // destination" no longer distinguishes mixture work from anything else. What
+      // still does: the step IS a container, it finishes one that already holds
+      // things, or its portions go into a container OTHER than one named for this
+      // ingredient alone (rule 11 (a) — a real mixture, not the (b)/(c) tub that
+      // exists to hold this very ingredient).
+      const ownLabels = new Set(
+        containerNamesOf(planned).filter((n) =>
+          planned.components.some((c) => n.toLowerCase().includes(c.ingredientName.toLowerCase())),
+        ),
+      );
       const feedsAContainer =
         planned.containerId != null ||
         (planned.containerHolds?.length ?? 0) > 0 ||
-        feedsContainersOnly(planned);
+        containerNamesOf(planned).some((n) => !ownLabels.has(n));
       if (!planned.cookDaySentence && !feedsAContainer) {
         const verdict = judgePrepWorthiness({
           measuredItems: planned.components.reduce((n, c) => n + c.measures.length, 0),
@@ -1368,17 +1480,53 @@ export function buildStepPlan(
    * null when nothing does. A container is the identity (H4 rule 11(c)), so this
    * is "is there a later step on the same `containerId`".
    */
+  // ── H6.1-C — WHO TOUCHES EACH CONTAINER, AND WHO IS LAST ──────────────────
+  //
+  // Keyed on the container NAME, not on `containerId`: the steps that fill a
+  // prep container are the ingredients' own produce steps, which have no id of
+  // their own. Ordered by phase then number, which is the order the cook reads.
+  const rank = (st: PlannedStep) => PREP_PHASE_ORDER.indexOf(st.phase) * 1000 + st.number;
+  const touchers = new Map<string, PlannedStep[]>();
+  for (const st of steps) {
+    if (st.demoted || st.cookDaySentence || st.holdsNoContainer) continue;
+    for (const n of containerNamesOf(st)) {
+      const l = touchers.get(n) ?? [];
+      l.push(st);
+      touchers.set(n, l);
+    }
+  }
+  for (const l of touchers.values()) l.sort((x, y) => rank(x) - rank(y));
+
+  /** The phase label of the next step to touch this one's container, or null. */
   const workedAgainAfter = (step: PlannedStep): string | null => {
-    if (!step.containerId) return null;
+    let best: PlannedStep | null = null;
     const here = PREP_PHASE_ORDER.indexOf(step.phase);
-    const later = steps.find(
-      (other) =>
-        other.containerId === step.containerId &&
-        !other.demoted &&
-        PREP_PHASE_ORDER.indexOf(other.phase) > here,
-    );
-    return later ? PHASE_META[later.phase].title.toLowerCase() : null;
+    for (const n of containerNamesOf(step)) {
+      for (const other of touchers.get(n) ?? []) {
+        // 🔴 ACROSS PHASES ONLY. Ranking by phase-then-number told a produce step to
+        // "set aside for the produce step" while the cook was standing in it. A
+        // handoff the cook can act on is one that names a DIFFERENT part of the
+        // session; two steps in the same phase are just two steps.
+        if (PREP_PHASE_ORDER.indexOf(other.phase) <= here) continue;
+        if (rank(other) <= rank(step)) continue;
+        if (best === null || rank(other) < rank(best)) best = other;
+      }
+    }
+    return best ? PHASE_META[best.phase].title.toLowerCase() : null;
   };
+
+  // The storage line goes to the LAST toucher only. A step that touches nothing
+  // named keeps its note — it is its own container by construction.
+  for (const st of steps) {
+    if (st.demoted || st.cookDaySentence || st.holdsNoContainer) continue;
+    const names = containerNamesOf(st);
+    if (names.length === 0) continue;
+    const isLastForSome = names.some((n) => {
+      const l = touchers.get(n) ?? [];
+      return l.length > 0 && l[l.length - 1] === st;
+    });
+    if (!isLastForSome) st.suppressStorage = true;
+  }
 
   const narrationInput: PrepNarrationInput = {
     planName,
@@ -1462,39 +1610,45 @@ export function lowValueClass(step: PlannedStep): "garnish" | "citrus-wedge" | n
  * 🔴 ONE predicate, read by the plan-side counter AND by the wire mapping, so
  * the drop pass and the header can never disagree about what a container is.
  */
-export function feedsContainersOnly(step: PlannedStep): boolean {
-  // 🔴 A step that IS a container is never merely feeding one. Its own members
-  // all carry it as their destination, so without this line every bowl on the
-  // plan reads as "holds nothing" — which is how the first draft of the
-  // on-screen counter came to skip all nine containers on the sample plan.
-  if (step.containerId) return false;
-  const measures = step.components.flatMap((c) => c.measures);
-  return measures.length > 0 && measures.every((m) => m.destination);
+/**
+ * H6.1-B — THE VESSELS A STEP TOUCHES, by name.
+ *
+ * Its own container, if it is one, plus every container its portions go into. The
+ * header counts the union of these across the kept steps, because that is the set
+ * of things the cook will have on the counter.
+ *
+ * 🔴 THIS REPLACES `feedsContainersOnly`. That predicate asked "does this step put
+ * a bowl out of its own?", which was the right question while most portions went
+ * nowhere named. Now that rule 11 names every destination, it answered "no" for
+ * every ingredient step on the plan and the count collapsed to the mixtures alone.
+ * Counting NAMES cannot have that failure: a container counts once, whoever fills
+ * it, and a step that fills three counts them all.
+ */
+export function containerNamesOf(step: PlannedStep): string[] {
+  const names = new Set<string>();
+  if (step.bowlName) names.add(step.bowlName);
+  for (const c of step.components) {
+    for (const m of c.measures) if (m.destination) names.add(m.destination);
+  }
+  return [...names];
 }
 
-/** Containers in a step plan: a kept step that holds food. */
+/** Containers in a step plan: every distinct vessel the kept steps fill. */
 export function countContainers(steps: readonly PlannedStep[]): number {
-  // ── H4 / rule 11(c) — CONTAINERS, NOT STEPS ───────────────────────────────
-  //
-  // A container now has up to two steps (its dry measure in phase 1, its wet
-  // finish in phase 3) and it is ONE container. Counting steps would make the
-  // redistribution look like it added containers when it only re-sorted work.
-  //
-  // Two populations, counted once each:
-  //   • every distinct `containerId` among the kept steps;
-  //   • every kept step with no containerId that holds food — a per-ingredient
-  //     portion IS its own container, unless every one of its portions has a
-  //     destination, in which case the food lives in those containers and this
-  //     step is only the knife work that fills them.
-  const ids = new Set<string>();
-  let standalone = 0;
+  const names = new Set<string>();
+  let unnamed = 0;
   for (const s of steps) {
     if (s.demoted || s.cookDaySentence || s.holdsNoContainer) continue;
-    if (s.containerId) { ids.add(s.containerId); continue; }
-    if (feedsContainersOnly(s)) continue;
-    standalone += 1;
+    const here = containerNamesOf(s);
+    if (here.length === 0) {
+      // Nothing named at all. After rule 11 this should be empty; it is counted
+      // rather than ignored so the gap shows up in the census instead of hiding.
+      unnamed += 1;
+      continue;
+    }
+    for (const n of here) names.add(n);
   }
-  return ids.size + standalone;
+  return names.size + unnamed;
 }
 
 const CONTAINER_TARGET_MAX = 15;
@@ -1552,28 +1706,29 @@ export function summarizePrepWeek(result: PrepWeekResult): PrepWeekResult {
   // H4 / rule 11(c) — CONTAINERS, NOT STEPS, on the screen too. A container
   // worked in phase 1 and again in phase 3 is one bowl; counting its steps made
   // the redistribution look like it added bowls when it only re-sorted work.
-  const ids = new Set<string>();
-  let standalone = 0;
+  const names = new Set<string>();
+  let unnamed = 0;
   let minutes = 0;
   const perStep: number[] = [];
   for (const phase of result.phases) {
     for (const step of phase.steps) {
       if (step.skipSuggested) continue;
       // The cook-day sentence still shows and still takes a moment on Friday, so
-      // it counts toward the MINUTES — it just is not a container. Same for the
-      // knife work that only fills other containers: real work, no extra bowl.
+      // it counts toward the MINUTES — it just is not a container.
       minutes += step.estimatedMinutes;
       perStep.push(step.estimatedMinutes);
-      // Identity FIRST — a container is counted once however many steps work it.
-      if (step.containerId) {
-        ids.add(step.containerId);
+      if (step.holdsNoContainer) continue;
+      // H6.1-B — count VESSELS BY NAME. A container counts once however many steps
+      // touch it, and a step that fills three counts three.
+      const here = step.containerNames ?? (step.containerId ? [step.containerId] : []);
+      if (here.length === 0) {
+        unnamed += 1;
         continue;
       }
-      if (step.holdsNoContainer || step.feedsContainersOnly) continue;
-      standalone += 1;
+      for (const n of here) names.add(n);
     }
   }
-  const containers = ids.size + standalone;
+  const containers = names.size + unnamed;
   return {
     ...result,
     containerCount: containers,
@@ -1630,7 +1785,15 @@ export function assemblePrepWeekResult(
       // from. They have to travel on the wire because the cache-HIT path counts
       // the stored blob and has no step plan to ask.
       ...(planned.containerId ? { containerId: planned.containerId } : {}),
-      ...(feedsContainersOnly(planned) ? { feedsContainersOnly: true } : {}),
+      // H6.1-C — the overlay must not write a storage line on a bowl that is about
+      // to be opened again; the last toucher carries it.
+      ...(planned.suppressStorage ? { suppressStorage: true } : {}),
+      // H6.1-B — THE VESSEL NAMES, which is what the header counts. A boolean
+      // could not say that one step fills three containers, and after rule 11 it
+      // was true of every ingredient step and collapsed the count.
+      ...(containerNamesOf(planned).length > 0
+        ? { containerNames: containerNamesOf(planned) }
+        : {}),
     });
   }
 
