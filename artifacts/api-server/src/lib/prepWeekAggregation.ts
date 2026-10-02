@@ -216,6 +216,16 @@ export interface LoadPrepWeekInputParams {
   // false to skip them (each dish keeps stepTexts=[]). Defaults true so the
   // narration generate path (which DOES judge combine-vs-season) is unchanged.
   includeStepTexts?: boolean;
+  /**
+   * H5.0 — "now", for the prep-day anchor only. Injectable because the anchor is
+   * the one thing in this loader that depends on the wall clock, and a test that
+   * asserts a lag must be able to pin the day it is measured from. Defaults to
+   * the real clock.
+   *
+   * ⚠️ It must stay OUT of `input`: prepCompositionFingerprint hashes every
+   * field that object has, and a date in there makes each day a cache miss.
+   */
+  now?: Date;
 }
 
 export interface LoadPrepWeekInputResult {
@@ -228,7 +238,7 @@ export interface LoadPrepWeekInputResult {
 export async function loadPrepWeekInput(
   params: LoadPrepWeekInputParams,
 ): Promise<LoadPrepWeekInputResult> {
-  const { planId, userId, prisma, includeStepTexts = true, mealIds } = params;
+  const { planId, userId, prisma, includeStepTexts = true, mealIds, now } = params;
 
   // Minimal include shape mirroring planMacros.ts — items → meal → dishes
   // → dishIngredients → ingredient. No user-prefs branch (pantry / picky
@@ -535,14 +545,43 @@ export async function loadPrepWeekInput(
   //
   // ⚠️ AND THE DATE IS NOT WRITTEN BACK. A derived value stored beside its
   // source is two truths again, which is the whole of this bug.
-  const prepDay = plan.startDate ? plan.startDate.toISOString().slice(0, 10) : null;
+  // ── H5.0 — THE PREP SESSION CANNOT HAPPEN IN THE PAST ────────────────────
+  //
+  // 🔴 THE LAG IS NOT THE WEEKDAY OFFSET. It is the number of days from the prep
+  // session to the cook day, and those are the same number only while the
+  // session is on `startDate`. The shipped code used the offset, so once the
+  // week had begun every lag was inflated by however many days had passed — and
+  // judgeProteinStep's window is TWO days. Measured on Hans's own plan on Oct 2
+  // with a Sep 30 start: the chicken he was cooking TOMORROW read "3 days out —
+  // leave it for cook day", and so did the chuck. The Proteins phase emptied
+  // itself, and because moving a meal to Saturday still read as 3, moving days
+  // around changed nothing on screen (device items 5.2, 12 and 13 are one bug).
+  //
+  // So the weekday name still fixes the DATE — the single occurrence of that
+  // weekday in the plan's seven-day window from `startDate` — and the lag is
+  // measured from the later of `startDate` and today, because you cannot prep on
+  // a day that has gone.
+  //
+  // ⚠️ ISO date strings compare correctly with `<`, and both are UTC midnight
+  // here, so no timezone arithmetic is involved and none should be added.
+  const DAY_MS = 86_400_000;
+  const todayIso = (now ?? new Date()).toISOString().slice(0, 10);
+  const startIso = plan.startDate ? plan.startDate.toISOString().slice(0, 10) : null;
+  const prepDay = startIso === null ? null : startIso > todayIso ? startIso : todayIso;
   const lagByMealId = new Map<string, number>();
-  if (plan.startDate) {
+  if (plan.startDate && startIso && prepDay) {
     const startDow = plan.startDate.getUTCDay();
+    const startMs = Date.parse(`${startIso}T00:00:00Z`);
+    const prepMs = Date.parse(`${prepDay}T00:00:00Z`);
     for (const [mealId, dayName] of dayNameByMealId) {
       const dow = DAY_INDEX[dayName.trim().toLowerCase()];
       if (dow === undefined) continue; // an unrecognised name says nothing
-      lagByMealId.set(mealId, (dow - startDow + 7) % 7);
+      const cookMs = startMs + ((dow - startDow + 7) % 7) * DAY_MS;
+      // A cook day already gone clamps to 0, not to a negative: the soonest the
+      // cook can act is now, and a negative lag would read as "keep" by accident
+      // rather than on purpose. (A plan whose day has passed is its own question
+      // and no device item asks it — this clamp is deliberate, not a guess.)
+      lagByMealId.set(mealId, Math.max(0, Math.round((cookMs - prepMs) / DAY_MS)));
     }
   }
 
