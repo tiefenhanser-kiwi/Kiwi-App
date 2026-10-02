@@ -29,8 +29,22 @@ export const MINUTES = {
   containerFloor: 1,
   /** Mincing garlic: 1 min per 3 cloves. */
   garlicPerClove: 1 / 3,
-  /** Dicing or slicing one onion, pepper, celery stalk or carrot. */
-  perCutVegetable: 2,
+  // ── H6.1 ruling 2 — ONE RATE WAS FOUR JOBS ────────────────────────────────
+  //
+  // `perCutVegetable: 2` costed an onion, a bell pepper, a celery stalk and a
+  // carrot the same, so 3 celery stalks read 6 minutes on the sample plan. These
+  // are the H2 table's own figures, restored; Hans's calibration was "an onion in
+  // 2, others take 3".
+  /** Dicing one onion, pepper or tomato. */
+  perCutVegetable: 2.5,
+  /** Slicing one celery stalk — the cheapest cut on the board. */
+  perCutCelery: 0.5,
+  /** Cutting one carrot (peeling is charged separately). */
+  perCutCarrot: 1,
+  /** Peeling one carrot, on top of cutting it. */
+  perPeelCarrot: 0.5,
+  /** Cutting one potato. */
+  perCutPotato: 1.5,
   /** Chopping herbs: 1 min per ¼ cup. */
   herbsPerCup: 4,
   /** Zesting AND juicing one citrus fruit. */
@@ -68,8 +82,28 @@ export const MINUTES = {
 // ── classification ──────────────────────────────────────────────────────────
 
 const GARLIC = /\bgarlic\b(?!\s*(?:powder|salt|granules))/i;
+/**
+ * H6.1 ruling 2 — the per-vegetable rate, by what is being cut. Order matters
+ * only in that each arm is tested against the whole name; the fallback is the
+ * onion rate, which is the most common cut and the one Hans timed.
+ */
+const CUT_RATES: ReadonlyArray<[RegExp, number]> = [
+  [/\bcelery\b/i, MINUTES.perCutCelery],
+  [/\bcarrots?\b/i, MINUTES.perCutCarrot],
+  [/\bpotato(?:es)?\b/i, MINUTES.perCutPotato],
+];
+/** Peeling, when the note says so, on top of the cut. */
+const PEEL_NOTE = /\bpeel\w*\b/i;
+function cutRateFor(name: string, note: string): number {
+  for (const [re, rate] of CUT_RATES) {
+    if (!re.test(name)) continue;
+    const peel = /\bcarrots?\b/i.test(name) && PEEL_NOTE.test(note) ? MINUTES.perPeelCarrot : 0;
+    return rate + peel;
+  }
+  return MINUTES.perCutVegetable;
+}
 const CUT_VEG =
-  /\b(onions?|shallots?|leeks?|scallions?|green onions?|peppers?|jalapeños?|jalapenos?|serranos?|poblanos?|chil[ei]s?|celery|carrots?|cucumbers?|radishes?|zucchini|squash|fennel|cabbage|tomatoes?|tomatillos?|mushrooms?)\b/i;
+  /\b(onions?|shallots?|leeks?|scallions?|green onions?|peppers?|jalapeños?|jalapenos?|serranos?|poblanos?|chil[ei]s?|celery|carrots?|cucumbers?|radishes?|zucchini|squash|fennel|cabbage|tomatoes?|tomatillos?|mushrooms?|potatoes?)\b/i;
 const HERBS =
   /\b(cilantro|parsley|basil|mint|dill|tarragon|chives|rosemary|thyme|oregano|sage|scallions?|green onions?)\b/i;
 const CITRUS = /\b(lime|lemon|orange|grapefruit)s?\b/i;
@@ -252,7 +286,20 @@ export function timeRow(
 
   // Garlic, by the clove.
   if (GARLIC.test(name)) {
-    const cloves = unit && /^cloves?$/.test(unit) && quantity ? quantity : 1;
+    // 🔴 A BARE COUNT ON A CLOVE-SHAPED NAME IS A CLOVE COUNT. The old line
+    // demanded the unit token be literally "clove(s)" and charged ONE clove
+    // otherwise — so "garlic cloves: 17" cost 20 seconds. The engine renders a
+    // count-unit ingredient's amount as a bare number, so the unit was simply
+    // absent, and 16 of the corpus's 79 garlic measures were charged as one clove.
+    //
+    // The name is the other half of the evidence: when it already says "clove",
+    // the number beside it counts cloves and needs no unit to prove it.
+    const nameSaysCloves = /\bcloves?\b/i.test(name);
+    const unitSaysCloves = unit != null && /^cloves?$/.test(unit);
+    const cloves =
+      quantity != null && quantity > 0 && (unitSaysCloves || (nameSaysCloves && unit == null))
+        ? quantity
+        : 1;
     return row("garlic", cloves * MINUTES.garlicPerClove);
   }
 
@@ -294,7 +341,7 @@ export function timeRow(
     if (lb != null) return row("batch", Math.max(MINUTES.batchFloor, lb * MINUTES.batchPerLb));
     // A count of batch vegetables with no weight ("1 poblano, halved") is knife
     // work on that many items, not a batch.
-    if (CUT_VEG.test(name)) return row("cut-vegetable", (quantity ?? 1) * MINUTES.perCutVegetable);
+    if (CUT_VEG.test(name)) return row("cut-vegetable", (quantity ?? 1) * cutRateFor(name, note));
     return row("batch", MINUTES.batchFloor);
   }
 
@@ -309,7 +356,7 @@ export function timeRow(
   if (CUT_VEG.test(name) && CUT_NOTE.test(note)) {
     const count =
       unit === null || /^(each|whole|large|medium|small)$/.test(unit) ? Math.max(1, Math.round(quantity ?? 1)) : 1;
-    return row("cut-vegetable", count * MINUTES.perCutVegetable);
+    return row("cut-vegetable", count * cutRateFor(name, note));
   }
 
   // Everything else is a measure into a container.

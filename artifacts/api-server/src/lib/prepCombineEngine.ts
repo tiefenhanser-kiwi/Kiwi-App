@@ -28,6 +28,7 @@ import { normalizeIngredientName } from "./groceryNormalization";
 // the phase classifier and the storage note cannot drift apart.
 import { SHELF_STABLE_PROTEIN } from "./prepStorage";
 import { PrepWeekPhaseKey, type PrepWeekPhaseKeyT } from "./ai/schemas/prepWeek";
+import { ingredientGroupKey } from "./ingredientRelations";
 
 // ── phase tokens ─────────────────────────────────────────────────────────
 // Reuse the schema enum so phase tokens stay identical across blocks. Order
@@ -447,7 +448,9 @@ function detectBlendComponents(input: PrepCombineInput): Set<string> {
         if (isDenied(ing.ingredientName)) continue;
         if (categoryKey(ing.category) !== "pantry") continue;
         if (assignPhase(ing.category, ing.ingredientName) === "seasonings_dry") {
-          drySeasonings.add(ing.ingredientId);
+          // H6.1 — the blend detector counts DISTINCT FOODS, for the same reason
+          // the groups do: two rows for one spice are not two items of a 3+ blend.
+          drySeasonings.add(ingredientGroupKey(ing.ingredientName));
         }
       }
       if (drySeasonings.size >= 3) {
@@ -512,24 +515,67 @@ function classifyPrepWorthy(
 // per-meal attribution, assign phases, and apply the prep-worthy filter.
 // Variant ingredient rows (red vs yellow onion = different ingredientId) stay
 // separate groups by design — that is correct prep behavior, not a bug.
-export function combinePrep(input: PrepCombineInput): PrepCombineResult {
+export function combinePrep(
+  input: PrepCombineInput,
+  /**
+   * H6.1 ruling 1 — ingredientId → the id its food groups under, from
+   * loadPrepWeekInput's `identity`. It carries the folds only the catalog knows
+   * (the plan's synonym edges); the name fold below is applied regardless, so a
+   * caller without this still merges every garlic spelling.
+   */
+  foldedIdByIngredientId?: ReadonlyMap<string, string>,
+): PrepCombineResult {
   const groups = new Map<string, GroupAccumulator>();
   const order: string[] = [];
+
+  // ── H6.1 ruling 1 — ONE INGREDIENT IS ONE FOOD, NOT ONE ROW ──────────────
+  //
+  // The sample plan had "Mince all garlic" (10 cloves, 3 dishes) and "Mince all
+  // garlic cloves" (17, five more) because the catalog carries `garlic` and
+  // `garlic cloves` as two rows. The grocery list has always folded them —
+  // `ingredientGroupKey` is the function it folds with — and the prep lane was
+  // the only one still keying on the row.
+  //
+  // The representative is the SMALLEST id of the merged set, so the surviving
+  // `produce#<id>` stepKey does not depend on which meal the user dragged first.
+  // 🔴 ONE SOURCE OR THE OTHER, NEVER BOTH CONCATENATED. The loader's map is
+  // already the union of the name fold and the plan's synonym edges, and it sends
+  // every member of a group to that group's root — so with the map in hand the
+  // name key is redundant, and including it alongside the id put the RAW id back
+  // into the key and merged nothing at all.
+  //
+  // Without the map — a test, a fixture, any caller that has no database — the
+  // pure name key is the whole answer, which still folds every garlic spelling.
+  const keyOf = (ing: { ingredientId: string; ingredientName: string }) =>
+    foldedIdByIngredientId
+      ? (foldedIdByIngredientId.get(ing.ingredientId) ?? ing.ingredientId)
+      : ingredientGroupKey(ing.ingredientName);
+  const representative = new Map<string, string>();
+  for (const meal of input.meals) {
+    for (const dish of meal.dishes) {
+      for (const ing of dish.ingredients) {
+        const k = keyOf(ing);
+        const cur = representative.get(k);
+        if (cur === undefined || ing.ingredientId < cur) representative.set(k, ing.ingredientId);
+      }
+    }
+  }
 
   for (const meal of input.meals) {
     for (const dish of meal.dishes) {
       for (const ing of dish.ingredients) {
-        let g = groups.get(ing.ingredientId);
+        const groupId = representative.get(keyOf(ing)) ?? ing.ingredientId;
+        let g = groups.get(groupId);
         if (!g) {
           g = {
-            ingredientId: ing.ingredientId,
+            ingredientId: groupId,
             ingredientName: ing.ingredientName,
             category: ing.category,
             sourceYield: ing.sourceYield ?? null,
             contributions: [],
           };
-          groups.set(ing.ingredientId, g);
-          order.push(ing.ingredientId);
+          groups.set(groupId, g);
+          order.push(groupId);
         }
         g.contributions.push({
           mealId: meal.mealId,
@@ -552,6 +598,33 @@ export function combinePrep(input: PrepCombineInput): PrepCombineResult {
     }
   }
 
+
+  // ── H6.1 — ONE FOOD, ONE UNIT ─────────────────────────────────────────────
+  //
+  // Merging `garlic` with `garlic cloves` produced a group whose contributions
+  // used two units — "cloves" from one catalog row and nothing at all from the
+  // other — so the per-unit sum below kept them as two lines and the step costed
+  // 10 cloves plus "1 clove" instead of 27.
+  //
+  // Within ONE group a bare count and a count-unit are the same thing, so the
+  // unitless contributions adopt the sibling unit. Across groups they are not, and
+  // this never looks outside one.
+  const COUNTISH = /^(?:|each|whole)$/i;
+  for (const g of groups.values()) {
+    const named = g.contributions.find(
+      (c) => typeof c.unit === "string" && c.unit.trim() !== "" && !COUNTISH.test(c.unit.trim()),
+    );
+    if (!named) continue;
+    const unit = named.unit as string;
+    // Only a COUNT unit may be adopted — never a weight or a volume, where a bare
+    // number says nothing about how much food there is.
+    if (!/^(?:cloves?|heads?|stalks?|sprigs?|ears?|slices?)$/i.test(unit.trim())) continue;
+    for (const c of g.contributions) {
+      if (typeof c.unit === "string" && !COUNTISH.test(c.unit.trim())) continue;
+      c.unit = unit;
+    }
+  }
+
   const blendIds = detectBlendComponents(input);
 
   // Seed the 4 fixed phases (empty entries retained — invariant shape).
@@ -562,7 +635,10 @@ export function combinePrep(input: PrepCombineInput): PrepCombineResult {
   for (const id of order) {
     const g = groups.get(id)!;
     const phase = assignPhase(g.category, g.ingredientName);
-    const isBlendComponent = blendIds.has(g.ingredientId);
+    // H6.1 — keyed on the FOOD, matching what detectBlendComponents collects. The
+    // first draft changed the set to group keys and left this reading ids, which
+    // emptied the dry phase on all 14 plans — the table caught it immediately.
+    const isBlendComponent = blendIds.has(ingredientGroupKey(g.ingredientName));
     const prepWorthy = classifyPrepWorthy(g, phase, isBlendComponent);
 
     const entry: PrepIngredientGroup = {

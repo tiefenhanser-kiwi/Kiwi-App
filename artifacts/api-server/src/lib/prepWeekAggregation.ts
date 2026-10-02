@@ -18,6 +18,7 @@ import type { DishRole, PrismaClient } from "@prisma/client";
 import { resolvePrepCategory } from "./prepCategoryOverride";
 import { selectDefaultPathSteps } from "./cookingScheduler";
 import type { ComponentStep } from "./prepComponents";
+import { ingredientGroupKey } from "./ingredientRelations";
 
 /**
  * H3 item 14 — weekday name → `Date.getUTCDay()` index. Lowercased on lookup so
@@ -228,11 +229,28 @@ export interface LoadPrepWeekInputParams {
   now?: Date;
 }
 
+/**
+ * H6.1 ruling 1 — the plan's FOOD IDENTITY map: ingredientId → the id its group
+ * is keyed on. Absent entries mean "its own id".
+ *
+ * Two rows for one food (`garlic` and `garlic cloves`) must be one prep step, and
+ * the grocery lane has always folded them. This is that fold, scoped to the plan:
+ * the pure hand-map key plus the plan's own synonym edges, which is every fold the
+ * full RelationIndex would find for these ingredients at a fraction of the cost.
+ *
+ * ⚠️ NOT ON `input`. prepCompositionFingerprint hashes that object whole.
+ */
+export interface PrepFoodIdentity {
+  /** ingredientId → representative ingredientId (smallest of the merged set). */
+  foldedIdByIngredientId: ReadonlyMap<string, string>;
+}
+
 export interface LoadPrepWeekInputResult {
   input: PrepLoadedPlan;
   planRevisionId: number;
   /** D-WS9-298 — deliberately NOT part of `input`; see PrepCookDays. */
   cookDays: PrepCookDays;
+  identity: PrepFoodIdentity;
 }
 
 export async function loadPrepWeekInput(
@@ -243,6 +261,9 @@ export async function loadPrepWeekInput(
   // Minimal include shape mirroring planMacros.ts — items → meal → dishes
   // → dishIngredients → ingredient. No user-prefs branch (pantry / picky
   // avoidances don't shape prep-aggregation scheduling).
+  /** H6.1 — filled by the scoped synonym query below; empty when it is skipped. */
+  let synonymPairs: [string, string][] = [];
+
   const plan = await prisma.mealPlanInstance.findUnique({
     where: { id: planId },
     include: {
@@ -396,6 +417,29 @@ export async function loadPrepWeekInput(
         from: { select: { canonicalName: true } },
       },
     });
+    // ── H6.1 ruling 1 — THE PLAN'S SYNONYM EDGES, scoped ────────────────────
+    //
+    // Symmetric edges, stored in canonical order, so both directions are read.
+    // Only this plan's ingredients: tens of rows against an index, beside the
+    // query above, rather than the whole table.
+    const synEdges = await prisma.ingredientRelation.findMany({
+      where: {
+        label: "synonym",
+        OR: [
+          { fromIngredientId: { in: allIngredientIds } },
+          { toIngredientId: { in: allIngredientIds } },
+        ],
+      },
+      select: { fromIngredientId: true, toIngredientId: true },
+    });
+    synonymPairs = synEdges
+      .filter(
+        (e) =>
+          allIngredientIds.includes(e.fromIngredientId) &&
+          allIngredientIds.includes(e.toIngredientId),
+      )
+      .map((e) => [e.fromIngredientId, e.toIngredientId] as [string, string]);
+
     // An ingredient can in principle have more than one component parent; take
     // the first by a stable key so a regenerate is deterministic (the prep
     // fingerprint hashes this output).
@@ -568,6 +612,49 @@ export async function loadPrepWeekInput(
   const todayIso = (now ?? new Date()).toISOString().slice(0, 10);
   const startIso = plan.startDate ? plan.startDate.toISOString().slice(0, 10) : null;
   const prepDay = startIso === null ? null : startIso > todayIso ? startIso : todayIso;
+  // ── H6.1 ruling 1 — FOLD THE PLAN'S FOODS ────────────────────────────────
+  //
+  // Union-find over two sources of truth: the pure name key (which folds every
+  // garlic spelling the hand map knows) and the plan's own synonym edges. The
+  // representative is the SMALLEST id, so `produce#<id>` does not move when a
+  // user reorders meals.
+  const parentOf = new Map<string, string>();
+  const findRoot = (x: string): string => {
+    let r = parentOf.get(x) ?? x;
+    if (r !== x) {
+      r = findRoot(r);
+      parentOf.set(x, r);
+    }
+    return r;
+  };
+  const union = (a: string, b: string): void => {
+    const ra = findRoot(a);
+    const rb = findRoot(b);
+    if (ra === rb) return;
+    // Smaller id wins, so the root is the smallest member however we arrive.
+    if (ra < rb) parentOf.set(rb, ra);
+    else parentOf.set(ra, rb);
+  };
+  {
+    const byNameKey = new Map<string, string>();
+    for (const m of meals) {
+      for (const d of m.dishes) {
+        for (const i of d.ingredients) {
+          const k = ingredientGroupKey(i.ingredientName);
+          const seen = byNameKey.get(k);
+          if (seen === undefined) byNameKey.set(k, i.ingredientId);
+          else union(seen, i.ingredientId);
+        }
+      }
+    }
+    for (const [a, b] of synonymPairs) union(a, b);
+  }
+  const foldedIdByIngredientId = new Map<string, string>();
+  for (const id of parentOf.keys()) {
+    const root = findRoot(id);
+    if (root !== id) foldedIdByIngredientId.set(id, root);
+  }
+
   const lagByMealId = new Map<string, number>();
   if (plan.startDate && startIso && prepDay) {
     const startDow = plan.startDate.getUTCDay();
@@ -593,5 +680,6 @@ export async function loadPrepWeekInput(
     },
     planRevisionId: plan.revisionId,
     cookDays: { prepDay, lagByMealId, dayNameByMealId },
+    identity: { foldedIdByIngredientId },
   };
 }

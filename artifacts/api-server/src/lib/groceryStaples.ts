@@ -401,6 +401,12 @@ const MERGE_GROUP_VARIANT_TO_BASE: Record<string, string> = {
   "head of garlic": "garlic",
   "whole garlic head": "garlic",
   "garlic cloves": "garlic",
+  // H6.1 — the SINGULAR was missing, and a recipe written "1 garlic clove" got a
+  // second line in the basket and a second step on the prep screen. Measured on
+  // the corpus: groupKey("garlic cloves") = "garlic" but groupKey("garlic clove")
+  // = "garlic clove". The catalog already carries "garlic clove" as an alias of
+  // the cloves row, so this is the map catching up with it.
+  "garlic clove": "garlic",
   "fresh garlic": "garlic",
 };
 

@@ -104,7 +104,7 @@ export async function loadPrepStepSet(
 ): Promise<PrepStepRef[]> {
   const load = params.loadPrepWeekInput ?? productionLoadPrepWeekInput;
   try {
-    const { input } = await load({
+    const { input, identity } = await load({
       planId: params.planId,
       userId: params.userId,
       prisma: params.prisma,
@@ -114,7 +114,10 @@ export async function loadPrepStepSet(
       includeStepTexts: false,
     });
     const stepPlan = buildStepPlan(
-      combinePrep(buildPrepCombineInput(input)),
+      // H6.1 — the SAME fold the route uses. If these two disagree the rollup
+      // computes stepKeys the cached structure never had, and no meal can ever
+      // read "prepped".
+      combinePrep(buildPrepCombineInput(input), identity?.foldedIdByIngredientId),
       input.planName,
     );
     // D-WS9-301 rule 10 — a step that holds no container is dropped HERE, at

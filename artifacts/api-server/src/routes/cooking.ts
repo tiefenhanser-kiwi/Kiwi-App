@@ -280,7 +280,7 @@ export function createCookingRouter(
         );
         return res.status(500).json({ error: "internal server error" });
       }
-      const { input, planRevisionId, cookDays } = loadResult;
+      const { input, planRevisionId, cookDays, identity } = loadResult;
 
       // 3. Cache lookup. Hit + matching revisionId returns the stored
       //    structureJson without an AI call (no LLMCallLog row).
@@ -326,7 +326,7 @@ export function createCookingRouter(
       //    grouping / summing / scaling / attribution / phase placement; the
       //    AI is called only to narrate the computed step plan into prose.
       const combineInput = buildPrepCombineInput(input);
-      const combineResult = combinePrep(combineInput);
+      const combineResult = combinePrep(combineInput, identity?.foldedIdByIngredientId);
       // WS7-8a B2b — step text per dishId (folded dish + meal owned) so the
       // narration layer can judge combine-vs-season and demote skip steps.
       const stepTextByDishId = new Map<string, string[]>();
