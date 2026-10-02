@@ -295,16 +295,31 @@ describe("D-WS9-301 rule 1 — a moment is closed by heat", () => {
       [bowl!.bowlName],
       "the lemon was given a container of its own",
     );
-    const inBowl = bowl!.components.map((c) => c.ingredientName);
-    assert.ok(
-      inBowl.includes("lemon"),
-      `the lemon was deferred to another container — the bowl holds ${inBowl.join(", ")}`,
-    );
-    // …and it appears in exactly ONE container, not two.
+    // 🔴 H5.3 — "IN the bowl" is now a DESTINATION, not a seat. Ruling 1's claim
+    // is that the lemon belongs to this marinade and is not deferred to a second
+    // container; H5.3 adds that its juicing happens at the board, in its own
+    // produce step, with the bowl named. Both still hold — and the thing ruling 1
+    // actually forbids, a second container for the lemon, is asserted below.
     const lemonSteps = sp.steps.filter((s) => s.components.some((c) => c.ingredientName === "lemon"));
     assert.equal(lemonSteps.length, 1, "the lemon is prepped twice");
+    const destinations = lemonSteps[0].components
+      .flatMap((c) => c.measures.map((v) => v.destination))
+      .filter((d): d is string => typeof d === "string");
+    assert.deepEqual(
+      [...new Set(destinations)],
+      [bowl!.bowlName],
+      "the lemon no longer goes into the marinade",
+    );
+    assert.deepEqual(
+      sp.steps.filter((s) => s.bowlName).map((s) => s.bowlName),
+      [bowl!.bowlName],
+      "the lemon was given a container of its own",
+    );
     // The CHICKEN is not a member — raw flesh has a destination, not a seat.
-    assert.ok(!inBowl.includes("boneless skinless chicken breasts"));
+    assert.ok(
+      !bowl!.components.some((c) => c.ingredientName === "boneless skinless chicken breasts"),
+      "the raw chicken is sitting in the marinade bowl at prep time",
+    );
   });
 
   it("🔴 A DISH WITH NO amountRefs INVENTS NOTHING", () => {

@@ -135,16 +135,33 @@ describe("D-WS9-296 ruling 2 — the name match is guarded", () => {
   it("🔴 a SERVICE FORM never enters a mixture — the wedged limes leave the jar", () => {
     // B2 Part A put "2 limes, cut into wedges, for serving" in the Taco
     // Toppings HOT-SAUCE jar, because "lime" appears in that step's text.
+    // ONE combine step with BOTH sauce members, and "lime" in its text. That is the
+    // defect's mechanism: signal 4 claims an unplaced ingredient whose head word
+    // appears in a combine step, and the jar is what it claims it into.
     const steps = [
-      step(0, "Whisk together 2 tablespoons hot sauce and a squeeze of lime.", { ids: ["hot-sauce"] }),
-      step(1, "Stir in the sour cream.", { ids: ["sour-cream"] }),
+      step(0, "Whisk together 2 tablespoons hot sauce and the sour cream with a squeeze of lime.", {
+        ids: ["hot-sauce", "sour-cream"],
+      }),
     ];
     const ingredients = [
       ing("hot-sauce", "hot sauce", "sauces_marinades"),
       ing("sour-cream", "sour cream", "sauces_marinades"),
       ing("lime", "lime", "produce", "cut into wedges, for serving"),
     ];
-    const { byIngredient } = resolveDishComponents("Taco Toppings", null, steps, ingredients);
+    // 🔴 NOT "Taco Toppings". H5.1 refuses that dish a container outright, which
+    // would make this pass without consulting the guard at all.
+    const { byIngredient, components } = resolveDishComponents(
+      "Velvety Nacho Cheese Sauce",
+      null,
+      steps,
+      ingredients,
+    );
+    // 🔴 AND THE FIXTURE MUST ACTUALLY FORM THE JAR. Without this line the test
+    // asserts an absence from an empty map, which is what it had been doing: its
+    // two steps held one ingredient each, ruling 3 dissolved both, and the
+    // service-form guard was never reached.
+    assert.equal(components.length, 1, "the fixture must form the jar, or nothing is being tested");
+    assert.equal(components[0].memberIds.length, 2, "the jar should hold the hot sauce and the cream");
     assert.equal(byIngredient.has("lime"), false, "a wedge for the table is not an ingredient of the sauce");
   });
 

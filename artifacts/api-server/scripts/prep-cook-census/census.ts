@@ -251,6 +251,12 @@ export interface PrepStepRecord {
    * H4 / rule 11(c) — the container this step works on, when it has one. Two
    * steps sharing one value are ONE container, which is what the header counts.
    */
+  /**
+   * H5 — the step holds no food at all (the wash step; a cook-day sentence). The
+   * product excludes it from the header count, and without it here the harness's
+   * own decomposition over-reported by exactly one.
+   */
+  holdsNoContainer: boolean;
   containerId: string | null;
   /** H4 — knife work whose every portion has a destination: no bowl of its own. */
   feedsContainersOnly: boolean;
@@ -440,6 +446,7 @@ async function runPlan(planId: string): Promise<PlanRecord> {
               destinationLabels: s.contributesToMealIds.map(
                 (id) => lookup(id)?.name ?? "A planned meal",
               ),
+              holdsNoContainer: s.holdsNoContainer === true,
               containerId: s.containerId ?? null,
               feedsContainersOnly: s.feedsContainersOnly === true,
             });
@@ -624,6 +631,7 @@ function renderText(rec: PlanRecord): string {
       let standalone = 0;
       let feeders = 0;
       for (const x of live) {
+        if (x.holdsNoContainer) continue;
         if (x.containerId) {
           byContainer.set(x.containerId, (byContainer.get(x.containerId) ?? 0) + 1);
           continue;

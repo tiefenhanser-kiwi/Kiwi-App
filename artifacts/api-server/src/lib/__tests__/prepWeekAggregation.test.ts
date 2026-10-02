@@ -7,6 +7,10 @@ import assert from "node:assert/strict";
 import type { PrismaClient } from "@prisma/client";
 
 import { prepCompositionFingerprint } from "../prepWeekFingerprint";
+import { buildPrepCombineInput } from "../prepCombineAdapter";
+import { combinePrep } from "../prepCombineEngine";
+import { buildStepPlan } from "../prepWeekAssembly";
+import { applyStorageOverlay, type StorageContext } from "../prepStorage";
 
 import {
   loadPrepWeekInput,
@@ -678,7 +682,15 @@ describe("loadPrepWeekInput — cook days ride beside the hashed input (D-WS9-29
       startDate: new Date("2026-09-30T00:00:00.000Z"), // a Wednesday
       items: plan().items.map((it, i) => (i === 0 ? { ...it, assignedDayOfWeek: "Monday" } : it)),
     });
-    const r = await loadPrepWeekInput({ planId: PLAN_ID, userId: USER_ID, prisma: makePrismaStub([p]) });
+    // `now` pinned to the start: this test's subject is the WRAP, and H5.0 made
+    // the lag depend on today as well. Without the pin it asserts two things at
+    // once and goes red on the calendar rather than on a defect.
+    const r = await loadPrepWeekInput({
+      planId: PLAN_ID,
+      userId: USER_ID,
+      prisma: makePrismaStub([p]),
+      now: new Date("2026-09-30T09:00:00.000Z"),
+    });
     assert.equal(r.cookDays.lagByMealId.get(MEAL_A), 5);
   });
 
@@ -694,6 +706,250 @@ describe("loadPrepWeekInput — cook days ride beside the hashed input (D-WS9-29
     for (const needle of ["assignedDate", "assignedDayOfWeek", "prepDay", "startDate", "2026-10"]) {
       assert.ok(!json.includes(needle), `"${needle}" reached the hashed input`);
     }
+  });
+
+  // ── H5.0 — THE PREP SESSION CANNOT HAPPEN IN THE PAST ───────────────────
+  //
+  // The block from Hans's October 2 device pass: the Proteins phase rendered no
+  // steps although he was cooking the chicken the next day. The lag was the
+  // weekday offset from `startDate`, so once the week had begun every lag was
+  // inflated by the days that had passed — against a 2-day food-safety window.
+  describe("the lag is measured from the prep session, not from startDate", () => {
+    /** Hans's own plan: a Wednesday start, the chicken on Saturday. */
+    const hansPlan = () =>
+      plan({
+        startDate: new Date("2026-09-30T00:00:00.000Z"), // Wednesday
+        items: plan().items.map((it, i) =>
+          i === 0 ? { ...it, assignedDayOfWeek: "Saturday", assignedDate: null } : it,
+        ),
+      });
+    const at = (nowIso: string) =>
+      loadPrepWeekInput({
+        planId: PLAN_ID,
+        userId: USER_ID,
+        prisma: makePrismaStub([hansPlan()]),
+        now: new Date(nowIso),
+      });
+
+    it("🔴 opened two days into the week, SATURDAY is one day out — not three", async () => {
+      // The measured defect, exactly: on Friday Oct 2 the cook is prepping for
+      // tomorrow, and the shipped code called it three days out and told them to
+      // leave the chicken for cook day.
+      const r = await at("2026-10-02T18:00:00.000Z");
+      assert.equal(r.cookDays.prepDay, "2026-10-02", "the prep day stayed in the past");
+      assert.equal(r.cookDays.lagByMealId.get(MEAL_A), 1);
+    });
+
+    it("…and opened BEFORE the week starts, the plan's start is still the anchor", async () => {
+      const r = await at("2026-09-28T18:00:00.000Z");
+      assert.equal(r.cookDays.prepDay, "2026-09-30");
+      assert.equal(r.cookDays.lagByMealId.get(MEAL_A), 3, "Saturday is 3 days after Wednesday");
+    });
+
+    it("…and on the start day itself, the two anchors agree", async () => {
+      const r = await at("2026-09-30T23:59:00.000Z");
+      assert.equal(r.cookDays.prepDay, "2026-09-30");
+      assert.equal(r.cookDays.lagByMealId.get(MEAL_A), 3);
+    });
+
+    it("🔴 a cook day already gone clamps to 0, never to a negative", async () => {
+      // A negative lag would read as "keep" by accident — judgeProteinStep's
+      // first arm is `<= 2` — rather than on purpose.
+      const r = await at("2026-10-05T12:00:00.000Z"); // Monday, past Saturday
+      assert.equal(r.cookDays.lagByMealId.get(MEAL_A), 0);
+    });
+
+    it("the anchor does NOT reach the hashed input — a new day is not a cache miss", async () => {
+      const a = await at("2026-10-02T06:00:00.000Z");
+      const b = await at("2026-10-04T06:00:00.000Z");
+      assert.notEqual(
+        a.cookDays.lagByMealId.get(MEAL_A),
+        b.cookDays.lagByMealId.get(MEAL_A),
+        "the two days must differ, or this test proves nothing",
+      );
+      assert.equal(
+        prepCompositionFingerprint(a.input),
+        prepCompositionFingerprint(b.input),
+        "the clock reached the fingerprint — every day would cost ~73 s and ~$0.125",
+      );
+    });
+  });
+
+  // ── H5.0 — THE WHOLE SERVER CHAIN, on the shape that was broken ──────────
+  //
+  // The loader's lag is only half the defect: what Hans saw was an EMPTY PHASE,
+  // which is applyStorageOverlay's `skipSuggested`. So run the chain the route
+  // runs — loader → buildStepPlan → overlay — and assert on the phase.
+  describe("the Proteins phase is not empty when the cook is cooking tomorrow", () => {
+    const PROT_PLAN = "22222222-2222-4222-8222-222222222222";
+    const PROT_MEAL = "33333333-3333-4333-8333-333333333333";
+
+    /** One meal, one dish, one whole protein with knife work the recipe names. */
+    const proteinPlan = (day: string): PlanFixture => ({
+      id: PROT_PLAN,
+      userId: USER_ID,
+      revisionId: 1,
+      titleOverride: "Protein Week",
+      startDate: new Date("2026-09-30T00:00:00.000Z"), // a Wednesday
+      items: [
+        {
+          id: "item-p",
+          mealId: PROT_MEAL,
+          positionIndex: 0,
+          servingsOverride: null,
+          assignedDayOfWeek: day,
+          assignedDate: null,
+          meal: {
+            id: PROT_MEAL,
+            title: "Lemon-Herb Baked Chicken Breast",
+            cuisineType: null,
+            servingsDefault: 4,
+            dishLinks: [
+              {
+                dishId: "44444444-4444-4444-8444-444444444444",
+                positionIndex: 0,
+                dish: {
+                  id: "44444444-4444-4444-8444-444444444444",
+                  title: "Lemon-Herb Baked Chicken Breast",
+                  servingsDefault: 4,
+                  authoredServingsDefault: 4,
+                  dishIngredients: [
+                    {
+                      quantity: 2,
+                      unit: "lb",
+                      preparationNote: "pounded to an even thickness",
+                      positionIndex: 0,
+                      ingredient: {
+                        id: "55555555-5555-4555-8555-555555555555",
+                        displayName: "boneless skinless chicken breasts",
+                        category: "Protein",
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    /** routes/cooking.ts's own context builder, keyed by stepKey. */
+    const contextFor = (
+      sp: ReturnType<typeof buildStepPlan>,
+      lags: Map<string, number>,
+      dayNames: Map<string, string>,
+      names: Map<string, string>,
+    ): Map<string, StorageContext> => {
+      const m = new Map<string, StorageContext>();
+      for (const st of sp.steps) {
+        const ingredientNames = st.components.map((c) => c.ingredientName);
+        const notes = st.components.flatMap((c) => [
+          c.preparationNote ?? "",
+          ...c.measures.map((x) => x.preparationNote ?? ""),
+        ]);
+        const latest = st.contributesToMealIds
+          .map((id) => ({ id, lag: lags.get(id) ?? -1 }))
+          .sort((x, y) => y.lag - x.lag)[0];
+        const dayName = latest ? dayNames.get(latest.id) : undefined;
+        const mealName = latest ? names.get(latest.id) : undefined;
+        m.set(st.stepKey, {
+          daysUntilCook: st.daysUntilCook,
+          ...(dayName ? { dayName } : {}),
+          ...(mealName ? { mealName } : {}),
+          phase: st.phase,
+          text: [...ingredientNames, ...notes].join(" "),
+          bowlName: st.bowlName,
+          ingredientNames,
+        } as StorageContext);
+      }
+      return m;
+    };
+
+    async function run(day: string, nowIso: string) {
+      const loaded = await loadPrepWeekInput({
+        planId: PROT_PLAN,
+        userId: USER_ID,
+        prisma: makePrismaStub([proteinPlan(day)]),
+        now: new Date(nowIso),
+      });
+      const lags = loaded.cookDays.lagByMealId;
+      const dayNames = loaded.cookDays.dayNameByMealId;
+      const names = new Map(loaded.input.meals.map((m) => [m.mealId, m.mealName]));
+      const texts = new Map<string, string[]>();
+      for (const m of loaded.input.meals) for (const d of m.dishes) texts.set(d.dishId, d.stepTexts);
+      const sp = buildStepPlan(
+        combinePrep(buildPrepCombineInput(loaded.input)),
+        loaded.input.planName,
+        texts,
+        lags,
+      );
+      // An assembled-shaped result, with the ENGINE's keys — an overlay given an
+      // unknown key drops the note instead of rewriting it, and the test would
+      // pass vacuously.
+      const result = {
+        totalEstimatedMinutes: 20,
+        phases: ["seasonings_dry", "produce", "sauces_marinades", "proteins"].map((phase) => ({
+          phase,
+          title: phase,
+          skippable: false,
+          steps: sp.steps
+            .filter((x) => x.phase === phase && !x.demoted)
+            .map((x, i) => ({
+              number: i + 1,
+              stepKey: x.stepKey,
+              title: "Pound the chicken breasts",
+              instructions: "Pound them to an even thickness.",
+              estimatedMinutes: x.estimatedMinutes,
+              contributesToMealIds: x.contributesToMealIds,
+            })),
+        })),
+      };
+      const overlaid = applyStorageOverlay(
+        result as never,
+        contextFor(sp, lags, dayNames, names),
+      );
+      const proteins = overlaid.phases.find((p) => p.phase === "proteins")!;
+      return {
+        lag: lags.get(PROT_MEAL),
+        prepDay: loaded.cookDays.prepDay,
+        steps: proteins.steps,
+        shown: proteins.steps.filter((x) => !x.skipSuggested),
+        held: (proteins as { heldForCookDay?: string[] }).heldForCookDay ?? [],
+      };
+    }
+
+    it("🔴 Saturday, opened on the Friday: the phase RENDERS the step", async () => {
+      // The device defect, end to end. Before H5.0 this read lag 3 and the phase
+      // came back with nothing on it.
+      const r = await run("Saturday", "2026-10-02T18:00:00.000Z");
+      assert.equal(r.prepDay, "2026-10-02");
+      assert.equal(r.lag, 1);
+      assert.equal(r.steps.length, 1, "the fixture must produce one protein step");
+      assert.equal(r.shown.length, 1, "🔴 THE PROTEINS PHASE IS EMPTY ON SCREEN");
+      assert.match(r.shown[0].storageNote!, /cook within 2 days/);
+      assert.deepEqual(r.held, [], "nothing should be held when it is cooked tomorrow");
+    });
+
+    it("…and a day 5+ out moves it into heldForCookDay instead", async () => {
+      // Monday on a Wednesday-start plan, read before the week begins: 5 days.
+      const r = await run("Monday", "2026-09-28T18:00:00.000Z");
+      assert.equal(r.lag, 5);
+      assert.equal(r.shown.length, 0, "5 days out must not be prepped ahead");
+      assert.equal(r.steps[0].skipSuggested, true);
+      assert.equal(r.held.length, 1, "a demoted protein must be SHOWN as held, not dropped");
+      assert.match(r.held[0], /Monday, 5 days out/);
+      assert.match(r.held[0], /that morning/);
+    });
+
+    it("…and the same Monday meal, read on the Sunday, comes BACK into the phase", async () => {
+      // The move that matters to the cook is the calendar's, not theirs. Same
+      // plan, same day name, one day later: 5 → 1, and the step returns.
+      const r = await run("Monday", "2026-10-04T18:00:00.000Z");
+      assert.equal(r.lag, 1);
+      assert.equal(r.shown.length, 1, "the step did not come back when the week caught up");
+      assert.deepEqual(r.held, []);
+    });
   });
 
   it("an undated plan yields a null prepDay and no lags, never a fabricated zero", async () => {

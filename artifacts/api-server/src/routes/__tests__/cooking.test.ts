@@ -2332,11 +2332,49 @@ describe("POST /api/plans/:planId/prep-week — G1: a day move rewrites the advi
       const body = (await res.json()) as { cacheHit: boolean; result: PrepWeekResult };
       const proteins = body.result.phases.find((p) => p.phase === "proteins")!;
       assert.equal(proteins.steps.length, 1, "the fixture must produce exactly one protein step");
-      return { aiCalls, cacheHit: body.cacheHit, step: proteins.steps[0] };
+      return {
+        aiCalls,
+        cacheHit: body.cacheHit,
+        step: proteins.steps[0],
+        // H5.0 — the phase, so the held list is assertable. A demoted protein is
+        // render-omitted, so WITHOUT this the payload's answer to "the phase is
+        // empty" is untested over HTTP.
+        phase: proteins,
+      };
     } finally {
       await harness.close();
     }
   }
+
+  it("🔴 H5.0 — a demoted protein leaves the phase EMPTY and arrives in heldForCookDay", async () => {
+    // Hans, October 2: the Proteins phase rendered no steps. The phase being
+    // empty is correct when everything in it is days away; what was missing was
+    // anywhere for the cook to see that. Over HTTP, both halves.
+    const cache = makeCacheStub();
+
+    const far = await runWithLag(cache, 5, "u-h5-far");
+    assert.equal(far.step.skipSuggested, true, "5 days out must demote");
+    assert.equal(
+      far.phase.steps.filter((x) => !x.skipSuggested).length,
+      0,
+      "nothing should render in the phase",
+    );
+    assert.ok(far.phase.heldForCookDay, "the phase is empty AND says nothing about why");
+    assert.equal(far.phase.heldForCookDay!.length, 1);
+    assert.match(far.phase.heldForCookDay![0], /5 days out/);
+    assert.match(far.phase.heldForCookDay![0], /that morning/);
+
+    // …and one day out, the step renders and the held list is gone entirely.
+    const near = await runWithLag(cache, 1, "u-h5-near");
+    assert.equal(near.cacheHit, true, "a day move must not invalidate the cache");
+    assert.equal(near.aiCalls, 0);
+    assert.equal(near.step.skipSuggested, undefined);
+    assert.equal(
+      near.phase.heldForCookDay,
+      undefined,
+      "a held list with nothing held is a line of empty furniture",
+    );
+  });
 
   it("🔴 4 days out → 1 day out flips demoted to prepped, with ZERO AI calls", async () => {
     const cache = makeCacheStub();

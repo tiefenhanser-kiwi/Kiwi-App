@@ -173,14 +173,19 @@ describe("rule 11(c) — the phase 3 step is the liquids, and it says what is al
     assert.equal(sauces.length, 1, "the marinade should be finished in exactly one step");
     const step = sauces[0];
     assert.equal(step.bowlName, MARINADE.bowlName, "the container keeps ONE name across its steps");
-    assert.deepEqual(names(step), ["extra-virgin olive oil", "lemon"]);
-    // The lemon is Produce in the catalog and a liquid on the counter: juicing
-    // and zesting is wet work and belongs with the oil, not with the knife.
-    assert.equal(memberKind("produce", "lemon", "juiced and zested"), "wet");
+    // 🔴 H5.3 REVERSED H4 HERE. H4 read "juiced and zested" as wet work and put
+    // the lemon in this step beside the oil. Hans ruled on the October 2 device
+    // pass that a whole lemon is worked at the board like an onion — its juice and
+    // zest portioned per destination in phase 2 — and that this step then adds
+    // only what it adds here. The FORM decides now, and a lemon is a fruit.
+    assert.deepEqual(names(step), ["extra-virgin olive oil"]);
+    assert.equal(memberKind("produce", "lemon", "juiced and zested"), "produce");
+    assert.equal(memberKind("produce", "lemon juice", ""), "wet", "a bottle is still a bottle");
     assert.ok(step.containerHolds, "the finishing step does not say what is in the bowl");
     assert.deepEqual(
       [...step.containerHolds!].sort(),
-      ["dried oregano", "fresh rosemary", "garlic cloves", "ground cumin", "smoked paprika"].sort(),
+      // …and the lemon is in the bowl BEFORE the oil now, so it is held, not added.
+      ["dried oregano", "fresh rosemary", "garlic cloves", "ground cumin", "lemon", "smoked paprika"].sort(),
     );
   });
 
@@ -290,19 +295,23 @@ describe("rule 11(c) — each phase holds only its own kind of work", () => {
   });
 });
 
-describe("rule 11(c) — a cut beats a squeeze", () => {
+describe("rule 11(c) / H5.3 — the form decides, and only the form", () => {
   it("🔴 a grated cucumber squeezed dry is KNIFE work, not juicing", () => {
-    // Found by measuring, not by reasoning: the tzatziki's cucumber was being
-    // grated inside the finishing step because "squeezed dry" read as juicing.
+    // H4 found this by measuring the corpus and fixed it with an exception;
+    // H5.3's simpler rule gets it for free, which is the better reason to hold.
     assert.equal(memberKind("produce", "english cucumber", "grated and squeezed dry"), "produce");
   });
 
-  it("…and zesting and juicing a lemon still is", () => {
-    assert.equal(memberKind("produce", "lemon", "zested and juiced"), "wet");
-    assert.equal(memberKind("produce", "lemon", "freshly squeezed"), "wet");
-    // By FORM, which is why taking the squeeze arm away from cut produce costs
-    // nothing: 5 of the 6 corpus members it placed were named "… juice".
+  it("…and the FORM is the only signal — H5.3 retired the note arm", () => {
+    // H4 had two signals and an exception between them (CUT_NOTE beat the
+    // squeeze). H5.3 removed the note arm altogether, which removed the need for
+    // the exception: a whole fruit is produce whatever is going to be done to it,
+    // and a bottle of juice is wet whatever the note says.
+    assert.equal(memberKind("produce", "lemon", "zested and juiced"), "produce");
+    assert.equal(memberKind("produce", "lemon", "freshly squeezed"), "produce");
+    assert.equal(memberKind("produce", "english cucumber", "grated and squeezed dry"), "produce");
     assert.equal(memberKind("produce", "lime juice", "freshly squeezed"), "wet");
+    assert.equal(memberKind("produce", "extra-virgin olive oil", ""), "wet");
   });
 });
 
