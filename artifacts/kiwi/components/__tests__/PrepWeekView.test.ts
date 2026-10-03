@@ -222,11 +222,14 @@ test("D-WS9-213: the header carries NO summed total", () => {
   );
 
   // ⚠️ POSITIVE CONTROL — ONLY THE SUM WENT. The per-step estimates and the
-  // footer's per-phase "~N min left" are the "I can do that in under 5 minutes"
+  // footer's per-phase "This step: ~N min" are the "I can do that in under 5 minutes"
   // framing Hans is asking FOR; if this block ever deletes them too, these go
   // red. (Phase 3 = Produce, one kept 6-min step.)
   assert.ok(texts.includes("6 min"), `per-step estimate was removed too: ${texts}`);
-  assert.ok(texts.includes("min left"), `per-phase remaining was removed: ${texts}`);
+  assert.ok(
+    texts.includes("This step: ~6 min"),
+    `per-phase minutes were removed: ${texts}`,
+  );
 });
 
 test("phase indicator: shows 'Phase X of 4' for the current pointer", () => {
@@ -401,6 +404,37 @@ test("footer: the make-ahead note always renders", () => {
     texts.includes("Kiwi skips the prep you did here"),
     `missing footer note: ${texts}`,
   );
+});
+
+// Oct 3 device pass — the footer line is "Next: {next} · This step: ~{n} min",
+// and "Last step · This step: ~{n} min" on the last one. One page of Prep the
+// Week is one phase, so {next} is the next phase and {n} this phase's minutes.
+test("footer line: names the next phase and this phase's minutes", () => {
+  // Produce (one kept 6-min step) → Proteins.
+  const texts = flat(renderView({ phaseIndex: 2 }).toJSON() as RenderedNode | null);
+  assert.ok(
+    texts.includes("Next: Proteins · This step: ~6 min"),
+    `footer line missing: ${texts}`,
+  );
+  // The old two-line copy is gone from Week Prep (Cook Mode keeps it).
+  assert.ok(!texts.includes("Next · "), `old "Next ·" preview still renders: ${texts}`);
+  assert.ok(!texts.includes("min left"), `old "~N min left" still renders: ${texts}`);
+});
+
+test("footer line: the last phase says 'Last step', with its kept minutes only", () => {
+  // Proteins: the kept 10-min trim; the 8-min demoted rub is not counted.
+  const texts = flat(renderView({ phaseIndex: 3 }).toJSON() as RenderedNode | null);
+  assert.ok(
+    texts.includes("Last step · This step: ~10 min"),
+    `last-step footer line missing: ${texts}`,
+  );
+  assert.ok(!texts.includes("Next:"), `the last phase names a next one: ${texts}`);
+});
+
+test("footer line: an empty phase names the next one and promises no minutes", () => {
+  const texts = flat(renderView({ phaseIndex: 0 }).toJSON() as RenderedNode | null);
+  assert.ok(texts.includes("Next: Sauces & marinades"), `footer line missing: ${texts}`);
+  assert.ok(!texts.includes("This step:"), `an empty phase shows minutes: ${texts}`);
 });
 
 // ── Empty phase ───────────────────────────────────────────────────────────────

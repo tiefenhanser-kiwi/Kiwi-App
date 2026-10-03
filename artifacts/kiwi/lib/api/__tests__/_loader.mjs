@@ -56,6 +56,8 @@ const PHYSICAL_STUBS = new Map([
   ["expo-image", "./stubs/expo-image.mjs"],
   // WS9 Redesign Arc Block 2a — lets the merged wizard (WizardScreen) mount.
   ["react-native-keyboard-controller", "./stubs/keyboard-controller.mjs"],
+  // Prep the Week loading screen — the six onion-dicing panels draw with it.
+  ["react-native-svg", "./stubs/react-native-svg.mjs"],
 ]);
 
 // kiwi/ root, used to resolve the `@/*` tsconfig path alias.

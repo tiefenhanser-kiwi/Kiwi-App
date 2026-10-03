@@ -30,6 +30,7 @@ import {
   Typography,
 } from "@/constants/tokens";
 import type { PrepWeekPhaseKey } from "@/lib/api/cooking";
+import { prepWeekFooterLine } from "@/lib/cooking/prepWeekFooter";
 import type {
   PrepPhaseVM,
   PrepStepVM,
@@ -216,7 +217,7 @@ export function PrepWeekView({
     .map((p, i) => (p.allDone ? -1 : i))
     .filter((i) => i >= 0);
 
-  // Minutes left in THIS phase — footer "~N min left". BUG-011: exclude
+  // Minutes in THIS phase — footer "This step: ~N min". BUG-011: exclude
   // skipSuggested-demoted steps so this agrees with the kept-only header total.
   const phaseMins = phase
     ? phase.steps.reduce(
@@ -238,11 +239,12 @@ export function PrepWeekView({
           prep today, this is too much, i quit'."
 
           ⚠️ ONLY THE SUM IS REMOVED. The per-step "N min" (StepCard) and the
-          footer's per-phase "~N min left" both STAY — the small numbers are the
-          "I can do that in under 5 minutes" framing Hans is asking FOR, and
-          only the aggregate produced the daunting one. The per-step estimates
-          are separately inflated (BUG-204); that is a narration-prompt fix in
-          another block and is deliberately NOT attempted here.
+          footer's per-phase minutes (now "This step: ~N min") both STAY — the
+          small numbers are the "I can do that in under 5 minutes" framing Hans
+          is asking FOR, and only the aggregate produced the daunting one. The
+          per-step estimates are separately inflated (BUG-204); that is a
+          narration-prompt fix in another block and is deliberately NOT
+          attempted here.
 
           `vm.totalEstimatedMinutes` is left on the view-model: it is a tested
           part of the buildPrepWeekModel contract (kept-steps-only summing,
@@ -261,7 +263,7 @@ export function PrepWeekView({
 
           The September ruling stands on its reasoning — it was made against a
           two-hour output with ~30 containers, and the re-cut is what makes the
-          number worth showing. The per-phase "~N min left" is untouched.
+          number worth showing. The per-phase footer minutes are untouched.
 
           Both numbers come from the server (it rounds the minutes UP to the next
           5 so reality beats the estimate rather than missing it). Rendered only
@@ -322,8 +324,10 @@ export function PrepWeekView({
           finish). The write-free secondary actions — "Skip this Prep" (hidden on
           the last phase) and "Save & Exit" — render in the footer's secondary row. */}
       <CookFooter
-        nextLabel={!onLastPhase && nextPhase ? nextPhase.title : null}
-        remainingMins={phaseMins}
+        statusLine={prepWeekFooterLine(
+          !onLastPhase && nextPhase ? nextPhase.title : null,
+          phaseMins,
+        )}
         backDisabled={phaseIndex <= 0}
         showAdvance
         onPrevStep={onPrevPhase}
