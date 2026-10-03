@@ -290,6 +290,14 @@ describe("Part J.0 B — portion lines are the code's", () => {
     assert.equal(r.lines[2], `1 clove — into the tub "${own("Herb-Marinated Tzatziki Sauce")}"`);
   });
 
+  it("a count names the food in its number: 3 yellow onions, 1 roma tomato, 3 celery (never 'celeries')", () => {
+    const count = (name: string, amount: string) =>
+      renderPortionLines({ components: [{ ingredientName: name, measures: [{ amount, forDish: "Soup", dishRole: "main" as const, destination: "Soup vegetables", qty: Number.parseFloat(amount), unit: "each" }] }] })!.lines[0];
+    assert.equal(count("yellow onion", "3"), "3 yellow onions for Soup — into the Soup vegetables container");
+    assert.equal(count("roma tomatoes", "1"), "1 roma tomato for Soup — into the Soup vegetables container");
+    assert.equal(count("celery", "3"), "3 celery for Soup — into the Soup vegetables container");
+  });
+
   it("the fixture's shared garlic step reaches the wire under 800 with the opening first", () => {
     const res = wire(buildPrepWeekPlan(fixture()));
     const garlic = res.phases.flatMap((p) => p.steps).find((s) => s.stepKey === `produce#${GARLIC}`)!;

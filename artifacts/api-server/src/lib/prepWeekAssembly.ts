@@ -1988,7 +1988,9 @@ export function renderPortionLines(
         const noun = !countOnly || n === null
           ? c.ingredientName
           : n > 1
-            ? (/s$/i.test(c.ingredientName) ? c.ingredientName : pluralizeSourceNoun(c.ingredientName))
+            // "celery" is a mass noun on a board ("3 celery", never "3 celeries");
+            // the -y plural is left to names the catalog already pluralises.
+            ? (/[sy]$/i.test(c.ingredientName) ? c.ingredientName : pluralizeSourceNoun(c.ingredientName))
             : c.ingredientName.replace(/(tomato|potato)es$/i, "$1").replace(/([^se])s$/i, "$1");
         qty = `${m.amount} ${noun}`;
       }
