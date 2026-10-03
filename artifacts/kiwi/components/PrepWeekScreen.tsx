@@ -15,14 +15,16 @@
 // "upgrade" state (never a hard paywall). The gate is inert in trial today.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import { Button } from "@/components/Button";
 import { resolveDisplayTitle } from "@/components/DisplayTitle";
 import { Header } from "@/components/Header";
+import { PrepWeekLoadingView } from "@/components/PrepWeekLoadingView";
 import { PrepWeekView } from "@/components/PrepWeekView";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { spendGuardRefusalFromError } from "@/lib/api/errors";
+import { useDelayedFlag } from "@/hooks/useDelayedFlag";
 import { usePlan } from "@/hooks/usePlan";
 import { usePrepWeek } from "@/hooks/usePrepWeek";
 import { usePrepWeekCompletions } from "@/hooks/usePrepWeekCompletions";
@@ -40,6 +42,9 @@ import {
 
 const LAST_PHASE_INDEX = 3; // 4 fixed phases, 0..3
 const TOAST_MS = 2500; // PRD §7.12 — 2-3s
+// A cached generate (server cacheHit) answers well inside this, so the loading
+// screen never paints for it — no flash on the way to the real content.
+export const LOADING_SCREEN_DELAY_MS = 400;
 
 export function PrepWeekScreen({
   planId,
@@ -126,6 +131,23 @@ export function PrepWeekScreen({
     }
     return ids.size;
   }, [outcome]);
+
+  // The generate call / plan / resume read in flight. The loading screen waits
+  // LOADING_SCREEN_DELAY_MS before it paints (see the constant).
+  const loading =
+    prepQuery.isLoading || planQuery.isLoading || completionsQuery.isLoading;
+  const showLoadingScreen = useDelayedFlag(loading, LOADING_SCREEN_DELAY_MS);
+
+  // "Sorting N meals" on the loading screen — only from what the client already
+  // holds before the response: a subset names its meals in the route, a full
+  // week reads the plan detail. Unknown → undefined, and the line is omitted.
+  const loadingMealCount = useMemo(() => {
+    if (isSubset) return new Set(mealIds).size;
+    if (!planQuery.data) return undefined;
+    return new Set(
+      planQuery.data.items.filter((i) => i.meal != null).map((i) => i.mealId),
+    ).size;
+  }, [isSubset, mealIds, planQuery.data]);
 
   // Finish toast (§7.12) → lands, then routes out.
   useEffect(() => {
@@ -253,35 +275,18 @@ export function PrepWeekScreen({
   }
 
   // ── Loading: the AI generate call / plan / resume read in flight ────────────
-  if (prepQuery.isLoading || planQuery.isLoading || completionsQuery.isLoading) {
+  // Oct 3 — the approved onion-dicing loading screen (PrepWeekLoadingView)
+  // replaces the spinner and the D-WS9-213 §3.2 strings ("just over a minute" /
+  // "about 40 seconds"). Its subtitle is the mockup's, as written, and it is
+  // one string for both runs. For the first LOADING_SCREEN_DELAY_MS only the
+  // header paints, so a cached load goes straight to the content.
+  if (loading) {
     return (
       <View style={s.bg}>
         <Header showBack title={headerTitle} onBack={onExit} />
-        <View style={s.center}>
-          <ActivityIndicator color={Colors.sage[700]} />
-          {/* WS9 D-WS9-213 §3.2 — Hans-canonical copy, verbatim. Two versions,
-              because the two runs are not the same wait. MEASURED: a
-              selected-meals subset ran 35-41s (device-confirmed at 41s), a full
-              week 64-75s. One estimate over both either over-promises the full
-              week or makes the subset feel slow for no reason.
-
-              ⚠️ THE EXPLANATORY CLAUSE IS LOAD-BEARING, NOT FILLER. "Reading
-              every meal, dish and ingredient" converts dead time into visible
-              effort — it is the reason the wait reads as work rather than as a
-              hang. DO NOT SHORTEN IT TO FIT A LAYOUT. `s.muted` sets no
-              numberOfLines and `s.center` has no fixed height, so the sentence
-              wraps freely; if a future layout clips it, move the layout.
-
-              ⚠️ The previous pair ("about 30 seconds" / "about a minute") was
-              not true against the measurements it cited in its own comment —
-              30s under-promised a 35-41s subset and "about a minute"
-              under-promised a 64-75s week. Both estimates moved. */}
-          <Text style={s.muted}>
-            {isSubset
-              ? "This usually takes about 40 seconds — Kiwi is reading every meal, dish and ingredient in your selected meals to build one efficient prep session."
-              : "This usually takes just over a minute — Kiwi is reading every meal, dish and ingredient in your plan to build one efficient prep session."}
-          </Text>
-        </View>
+        {showLoadingScreen ? (
+          <PrepWeekLoadingView mealCount={loadingMealCount} />
+        ) : null}
       </View>
     );
   }
@@ -363,12 +368,6 @@ const s = StyleSheet.create({
     justifyContent: "center",
     gap: Spacing[3],
     paddingHorizontal: Spacing[5],
-  },
-  muted: {
-    fontSize: Typography.fontSize.md,
-    color: Colors.neutral[700],
-    fontFamily: Typography.face.sans[400],
-    textAlign: "center",
   },
   errorText: {
     fontSize: Typography.fontSize.md,

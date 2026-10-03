@@ -93,6 +93,22 @@ export const Dimensions = {
   },
 };
 
+// Prep the Week loading screen — useWindowDimensions, so the onion grid's
+// column decision (it folds to one column at large system font sizes) can be
+// driven from a test. Defaults to the same 375×812 phone at 1× text, which
+// keeps every pre-existing test unchanged.
+const __defaultWindow = { width: 375, height: 812, scale: 2, fontScale: 1 };
+let __window = { ...__defaultWindow };
+export function __setWindowDimensionsForTests(patch) {
+  __window = { ...__window, ...patch };
+}
+export function __resetWindowDimensionsForTests() {
+  __window = { ...__defaultWindow };
+}
+export function useWindowDimensions() {
+  return __window;
+}
+
 export const Keyboard = {
   dismiss() {},
 };
@@ -139,6 +155,7 @@ export const Animated = {
         value.setValue(config.toValue);
         if (cb) cb({ finished: true });
       },
+      stop() {},
     };
   },
   sequence(animations) {
@@ -147,8 +164,26 @@ export const Animated = {
         animations.forEach((a) => a.start());
         if (cb) cb({ finished: true });
       },
+      stop() {},
     };
   },
+  // Prep the Week loading bar. Runs the wrapped animation ONCE — a synchronous
+  // stub that really looped would never return.
+  loop(animation) {
+    return {
+      start() {
+        animation.start();
+      },
+      stop() {},
+    };
+  },
+};
+
+export const Easing = {
+  linear: (t) => t,
+  ease: (t) => t,
+  bezier: () => (t) => t,
+  inOut: (fn) => fn,
 };
 
 // Row 9 (1.1) · Stripe S2 Part D — AppState, for BillingContext's foreground
