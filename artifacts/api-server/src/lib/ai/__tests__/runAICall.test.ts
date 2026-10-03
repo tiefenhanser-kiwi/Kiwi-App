@@ -339,9 +339,10 @@ describe("runAICall — cost estimation", () => {
 
     assert.equal(result.success, true);
     if (!result.success) return;
-    // Sonnet 2000 in + 1000 out = 0.002*3 + 0.001*15 = 0.006 + 0.015 = 0.021
+    // Part J.0 (D2) — TOOL_KEY (set_preferences.generate) runs on Sonnet 5.5 now:
+    // 2000 in + 1000 out = 0.002*2 + 0.001*10 = 0.004 + 0.010 = 0.014
     assert.ok(
-      Math.abs(result.metadata.costEstimateUsd - 0.021) < 1e-9,
+      Math.abs(result.metadata.costEstimateUsd - 0.014) < 1e-9,
       `cost ${result.metadata.costEstimateUsd}`,
     );
     assert.equal(result.metadata.inputTokens, 2000);

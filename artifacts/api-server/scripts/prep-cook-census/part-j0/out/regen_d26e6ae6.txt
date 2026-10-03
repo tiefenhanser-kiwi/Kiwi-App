@@ -1,0 +1,163 @@
+PLAN d26e6ae6-3dcd-42ce-9f77-b3962697fff5  [A19]  HTTP 200
+  HEADER: 20 containers · about 70 min · prompt v20
+
+  ── seasonings_dry ──
+     1. Measure the Classic Sauced BBQ Chicken rub bowl   (2 min)   [105 chars]
+        Into the Classic Sauced BBQ Chicken rub bowl:
+        1 tsp garlic powder
+        1 tsp smoked paprika
+        ½ tsp onion powder
+        » storage: Airtight at room temperature — it keeps for weeks.
+     2. Measure the BBQ-Glazed Spatchcock Grilled sauce bowl   (4 min)   [204 chars]
+        Into the BBQ-Glazed Spatchcock Grilled sauce bowl:
+        1 tsp garlic powder
+        1½ tsp smoked paprika
+        ½ tsp onion powder
+        ¼ tsp cayenne pepper
+        2 tbsp brown sugar, packed
+        Set aside for the sauces and marinades step.
+     3. Measure the Grilled Shrimp Tacos seasoning   (2 min)   [119 chars]
+        Into the Grilled Shrimp Tacos seasoning:
+        ½ tsp garlic powder
+        ½ tsp smoked paprika
+        ½ tsp ground cumin
+        1 tsp chili powder
+        » storage: Airtight at room temperature — it keeps for weeks.
+     4. Measure the Grilled Shrimp Skewers marinade bowl   (3 min)   [115 chars]
+        Into the Grilled Shrimp Skewers marinade bowl:
+        1 tsp smoked paprika
+        1½ tsp chipotle chili powder
+        ½ tsp ground cumin
+        » storage: Airtight at room temperature — it keeps for weeks. Add the large shrimp the night before you cook them (Tuesday).
+     5. Measure the Mexican Street Corn sauce jar   (3 min)   [145 chars]
+        Into the Mexican Street Corn sauce jar:
+        ¼ tsp smoked paprika
+        ⅛ tsp cayenne pepper
+        ½ tsp chili powder
+        Set aside for the sauces and marinades step.
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)   [104 chars]
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+  ×  2. Ears of corn — cook day   (1 min)  [RENDER-OMITTED]   [40 chars]
+        Nothing to cut — it goes in as it comes.
+     3. Shred all green cabbage   (1 min)   [185 chars]
+        Thinly shred 8 cup green cabbage.
+        4 cup for Creamy Coleslaw — into the tub "Creamy Coleslaw — shredded green cabbage"
+        4 cup for Creamy Coleslaw — into the tub "Creamy Coleslaw — greens"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Creamy Coleslaw#0, Creamy Coleslaw#0
+     4. Shred all red cabbage   (1 min)   [333 chars]
+        Thinly shred 3½ cup red cabbage.
+        1 cup for Creamy Coleslaw — into the tub "Shredded red cabbage — Creamy Coleslaw, Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo"
+        1½ cup for Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — same tub
+        1 cup for Creamy Coleslaw — into the tub "Creamy Coleslaw — greens"
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Creamy Coleslaw#0, Creamy Coleslaw#0, Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo#7
+     5. Grate all carrots   (1 min)   [221 chars]
+        Peel and grate 4 large carrot.
+        2 large carrots for Creamy Coleslaw — into the tub "Creamy Coleslaw — grated large carrot"
+        2 large carrots for Creamy Coleslaw — into the tub "Creamy Coleslaw — large carrot and celery seed"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Creamy Coleslaw#0, Creamy Coleslaw#0
+     6. Mince all garlic   (2 min)   [295 chars]
+        Mince 5 cloves of garlic.
+        4 cloves for Grilled Shrimp Skewers — into the tub "Grilled Shrimp Skewers — minced garlic"
+        1 clove for Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — into the tub "Shrimp Tacos — garlic, lime, fresh cilantro, jalapeño, roma tomatoes and white onion"
+        » storage: Airtight in the fridge — up to 4 days.
+     7. Prep all limes   (8 min)   [707 chars]
+        Zest 4 limes, then juice them, plus 1 tbsp more lime juice.
+        1 lime zested for Grilled Shrimp Skewers — into the tub "Grilled Shrimp Skewers — zested lime"
+        1 lime zested for Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — into the tub "Shrimp Tacos — garlic, lime, fresh cilantro, jalapeño, roma tomatoes and white onion"
+        2 limes juiced for Charred Corn and Avocado Salad with Lime Vinaigrette — into the tub "Charred Corn and Avocado Salad with Lime Vinaigrette — lime, fresh cilantro, red onion and jalapeño"
+        1 tbsp lime juice for Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — into the tub "Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — lime juice"
+        » storage: Airtight in the fridge — up to 3 days. Covered in the fridge — up to 3 days.
+        » covers cook steps: Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo#4
+     8. Chop all fresh cilantro   (3 min)   [670 chars]
+        Chop 12 tbsp fresh cilantro, some roughly and some finely.
+        2 tbsp chopped for Grilled Shrimp Skewers — into the tub "Grilled Shrimp Skewers — chopped fresh cilantro"
+        ¼ cup chopped for Charred Corn and Avocado Salad with Lime Vinaigrette — into the tub "Charred Corn and Avocado Salad with Lime Vinaigrette — lime, fresh cilantro, red onion and jalapeño"
+        ¼ cup chopped for Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — into the tub "Shrimp Tacos — garlic, lime, fresh cilantro, jalapeño, roma tomatoes and white onion"
+        2 tbsp finely chopped for Mexican Street Corn (Elotes) — into the tub "Mexican Street Corn (Elotes) — finely chopped fresh cilantro"
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » covers cook steps: Charred Corn and Avocado Salad with Lime Vinaigrette#1, Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo#4
+     9. Husk the fresh corn   (1 min)   [179 chars]
+        Husk 4 fresh corn.
+        4 fresh corns for Charred Corn and Avocado Salad with Lime Vinaigrette — into the tub "Charred Corn and Avocado Salad with Lime Vinaigrette — husked fresh corn"
+        » storage: Airtight in the fridge — up to 3 days.
+  × 10. Avocado — cook day   (1 min)  [RENDER-OMITTED]   [53 chars]
+        This browns once it is cut, so it is cut on cook day.
+    11. Dice the red onion   (3 min)   [210 chars]
+        Finely dice ½ red onion.
+        ½ red onion for Charred Corn and Avocado Salad with Lime Vinaigrette — into the tub "Charred Corn and Avocado Salad with Lime Vinaigrette — lime, fresh cilantro, red onion and jalapeño"
+        » covers cook steps: Charred Corn and Avocado Salad with Lime Vinaigrette#1
+    12. Mince all jalapeño   (5 min)   [392 chars]
+        Seed and mince 2 jalapeño.
+        1 jalapeño for Charred Corn and Avocado Salad with Lime Vinaigrette — into the tub "Charred Corn and Avocado Salad with Lime Vinaigrette — lime, fresh cilantro, red onion and jalapeño"
+        1 jalapeño for Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — into the tub "Shrimp Tacos — garlic, lime, fresh cilantro, jalapeño, roma tomatoes and white onion"
+        » storage: Charred Corn and Avocado Salad with Lime Vinaigrette: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » covers cook steps: Charred Corn and Avocado Salad with Lime Vinaigrette#1, Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo#4
+    13. Husk the corn on the cob   (1 min)   [152 chars]
+        Husk 4 corn on the cob.
+        4 corn on the cobs for Charred Grilled Corn on the Cob — into the tub "Charred Grilled Corn on the Cob — husked corn on the cob"
+        » storage: Airtight in the fridge — up to 3 days.
+    14. Slice the fresh chives   (1 min)   [154 chars]
+        Thinly slice 1 tbsp fresh chives.
+        1 tbsp for Charred Grilled Corn on the Cob — into the tub "Charred Grilled Corn on the Cob — thinly sliced fresh chives"
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+    15. Measure the celery seed   (1 min)   [116 chars]
+        Measure ½ tsp celery seed.
+        ½ tsp for Creamy Coleslaw — into the tub "Creamy Coleslaw — large carrot and celery seed"
+        » storage: Creamy Coleslaw — large carrot and celery seed: Airtight in the fridge — up to 4 days.
+    16. Dice the roma tomatoes   (8 min)   [213 chars]
+        Dice 3 roma tomatoes small.
+        3 roma tomatoes for Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — into the tub "Shrimp Tacos — garlic, lime, fresh cilantro, jalapeño, roma tomatoes and white onion"
+        » covers cook steps: Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo#4
+    17. Dice the white onion   (3 min)   [210 chars]
+        Finely dice ½ white onion.
+        ½ white onion for Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — into the tub "Shrimp Tacos — garlic, lime, fresh cilantro, jalapeño, roma tomatoes and white onion"
+        » storage: Shrimp Tacos: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Grilled Shrimp Tacos seasoning and lime juice separate; combine on cook day (Saturday).
+        » covers cook steps: Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo#4
+
+  ── sauces_marinades ──
+     1. Finish the BBQ-Glazed Spatchcock Grilled sauce bowl   (4 min)   [260 chars]
+        BBQ-Glazed Spatchcock Grilled sauce bowl (garlic powder, smoked paprika, onion powder, cayenne pepper and brown sugar already in it): add
+        2 tbsp apple cider vinegar
+        ½ cup Ketchup
+        1 tbsp worcestershire sauce
+        1 tsp yellow mustard
+        1 tsp hot sauce
+        Stir to combine.
+        » storage: Covered in the fridge — up to 5 days.
+     2. Finish the Mexican Street Corn sauce jar   (2 min)   [133 chars]
+        Mexican Street Corn sauce jar (smoked paprika, cayenne pepper and chili powder already in it): add
+        3 tbsp Mayonnaise
+        Stir to combine.
+        » storage: Covered in the fridge — up to 3 days.
+  ×  3. Bbq sauce — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  4. Mayonnaise, apple cider vinegar and dijon mustard — cook day   (2 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+  ×  5. Mayonnaise, apple cider vinegar and dijon mustard — cook day   (2 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+  ×  6. Honey — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  7. Chipotle chile in adobo — cook day   (3 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     HELD: Add the large shrimp the night before you cook them (Tuesday).
+     HELD: BBQ-Glazed Spatchcock Grilled Chicken with Grilled Corn and Creamy Coleslaw (Thursday, 4 days out) — pound the chicken halves that morning.
+     HELD: Grilled Shrimp Tacos with Mexican Street Corn (Saturday, 6 days out) — large shrimp, peeled and deveined that morning.
+  ×  1. Whole chicken halves (bone-in) — cook day   (15 min)  [RENDER-OMITTED]   [273 chars]
+        Pound the chicken to even thickness:
+        4 whole chicken halves (bone-in), about 1.5 lb each, patted dry, for the Classic Sauced BBQ Chicken Halves
+        4 lb whole chicken halves (bone-in), backbone removed, spatchcocked and patted dry, for the BBQ-Glazed Spatchcock Grilled Chicken
+        » storage: This one is 4 days out — leave it for cook day.
+  ×  2. Large shrimp — cook day   (6 min)  [RENDER-OMITTED]   [86 chars]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+  ×  3. Large shrimp, peeled and deveined — cook day   (5 min)  [RENDER-OMITTED]   [59 chars]
+        Pat dry the shrimp:
+        1½ lb large shrimp, peeled and deveined
+        » storage: This one is 6 days out — leave it for cook day.

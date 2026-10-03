@@ -607,14 +607,23 @@ describe("componentsOf via buildStepPlan — per-dish measures (FIX 1)", () => {
     assert.ok(measures.every((m) => m.preparationNote === "diced"));
   });
 
-  it("carries the per-dish prep breakdown onto the narration input verbatim", () => {
+  it("Part J.0 — a produce step's per-dish breakdown is rendered by CODE, and the narrator sees none of it", () => {
     const sp = buildStepPlan(combinePrep(plan()), "Test Plan");
     const produce = sp.steps.find((s) => s.phase === "produce" && s.components.length > 0)!;
     const ni = sp.narrationInput.steps.find((s) => s.stepId === produce.stepId)!;
-    assert.deepEqual(
-      ni.components[0].measures,
-      produce.components[0].measures,
-    );
+    // Every per-dish amount is on a code-rendered line…
+    const amounts = produce.components.flatMap((c) => c.measures.map((m) => m.amount));
+    assert.ok(produce.portionLines && produce.portionLines.length === amounts.length);
+    for (const [i, a] of amounts.entries()) assert.ok(produce.portionLines![i].includes(a) || produce.portionLines!.some((l) => l.startsWith(a)));
+    // …and the narration input carries the food and total instead of the measures.
+    assert.deepEqual(ni.components[0].measures, []);
+    assert.ok(ni.portionsByApp && ni.portionsByApp.portionCount === amounts.length);
+  });
+
+  it("Part J.0 — the narration input never carries the code-only attribution", () => {
+    const sp = buildStepPlan(combinePrep(plan()), "Test Plan");
+    const json = JSON.stringify(sp.narrationInput);
+    for (const f of ['"mealId"', '"dishId"', '"ingredientId"', '"qty"']) assert.ok(!json.includes(f), f);
   });
 
   it("blend step keeps a fraction-formatted per-dish measure for each spice", () => {

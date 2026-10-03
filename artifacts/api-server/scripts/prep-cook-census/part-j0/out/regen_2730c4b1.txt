@@ -1,0 +1,146 @@
+PLAN 2730c4b1-7648-404a-a7bf-692fb89faa03  [A17]  HTTP 200
+  HEADER: 18 containers · about 70 min · prompt v20
+
+  ── seasonings_dry ──
+     1. Measure the Spiced Beef Kofta spice blend   (3 min)   [146 chars]
+        Into the Spiced Beef Kofta spice blend:
+        1½ tsp ground cumin
+        1 tsp ground coriander
+        1 tsp smoked paprika
+        ¼ tsp ground cinnamon
+        ¼ tsp cayenne pepper
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » covers cook steps: Spiced Beef Kofta#2
+     2. Measure the Creamy Hummus sauce bowl   (2 min)   [85 chars]
+        Into the Creamy Hummus sauce bowl:
+        ½ tsp ground cumin
+        Set aside for the produce step.
+     3. Measure the Harissa-Spiced Chicken Shawarma spice blend   (3 min)   [161 chars]
+        Into the Harissa-Spiced Chicken Shawarma spice blend:
+        1½ tsp ground cumin
+        1 tsp ground coriander
+        1 tsp smoked paprika
+        ¼ tsp ground cinnamon
+        ½ tsp ground turmeric
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » covers cook steps: Harissa-Spiced Chicken Shawarma#1
+     4. Measure the Marinated Chicken Gyro Filling marinade bowl   (3 min)   [147 chars]
+        Into the Marinated Chicken Gyro Filling marinade bowl:
+        ½ tsp ground cumin
+        ½ tsp smoked paprika
+        1½ tsp dried oregano
+        Set aside for the produce step.
+     5. Measure the Herb and Rice Stuffed Grape spice blend   (2 min)   [131 chars]
+        Into the Herb and Rice Stuffed Grape spice blend:
+        ¼ tsp ground cinnamon
+        1 cup long-grain white rice, uncooked
+        ½ tsp ground allspice
+        » storage: Airtight in the fridge — up to 4 days.
+  ×  6. Ground cumin, smoked paprika, store-bought hummus and pitted Kalamata olives — cook day   (2 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)   [104 chars]
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+     2. Prep all yellow onion   (1 min)   [425 chars]
+        Work through 1½ yellow onion two ways: grated on the large holes of a box grater and finely diced.
+        ½ yellow onion grated for Spiced Beef Kofta — into the tub "Spiced Beef Kofta — yellow onion, fresh flat-leaf parsley and garlic"
+        1 yellow onion finely diced for Herb and Rice Stuffed Grape Leaves (Dolmades) — into the tub "Grape Leaves — yellow onion, fresh flat-leaf parsley, garlic, fresh mint leaves, fresh dill and lemon"
+     3. Chop all flat-leaf parsley   (7 min)   [793 chars]
+        Chop 1⅝ cup fresh flat-leaf parsley, finely chopped for most dishes and roughly chopped where the recipe calls for it.
+        ¼ cup finely chopped — into the tub "Spiced Beef Kofta — yellow onion, fresh flat-leaf parsley and garlic"
+        ½ cup finely chopped — into the tub "Grape Leaves — yellow onion, fresh flat-leaf parsley, garlic, fresh mint leaves, fresh dill and lemon"
+        3 tbsp finely chopped — into the tub "Warm Herbed Bulgur — finely chopped fresh flat-leaf parsley"
+        2 tbsp chopped for Charred Flatbread — into the tub "Chopped fresh flat-leaf parsley — Pickled Onions and Charred Flatbread, Harissa-Spiced Chicken Shawarma"
+        ¼ cup chopped for Chicken Shawarma — same tub
+        ¼ cup chopped — into the tub "Marinated Chicken Gyro Filling — fresh flat-leaf parsley, garlic, red onion and roma tomatoes"
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » covers cook steps: Spiced Beef Kofta#1, Herb and Rice Stuffed Grape Leaves (Dolmades)#1, Warm Herbed Bulgur#0, Marinated Chicken Gyro Filling#3
+     4. Mince all garlic   (6 min)   [769 chars]
+        Mince 17 cloves of garlic.
+        3 cloves for Spiced Beef Kofta — into the tub "Spiced Beef Kofta — yellow onion, fresh flat-leaf parsley and garlic"
+        3 cloves for Herb and Rice Stuffed Grape Leaves (Dolmades) — into the tub "Grape Leaves — yellow onion, fresh flat-leaf parsley, garlic, fresh mint leaves, fresh dill and lemon"
+        1 clove for Tzatziki — into the tub "Tzatziki — garlic, fresh dill and english cucumber"
+        4 cloves for Harissa-Spiced Chicken Shawarma — into the Harissa-Spiced Chicken Shawarma marinade bowl
+        4 cloves for Marinated Chicken Gyro Filling — into the tub "Marinated Chicken Gyro Filling — fresh flat-leaf parsley, garlic, red onion and roma tomatoes"
+        2 cloves for Tzatziki Sauce — into the tub "Tzatziki Sauce — garlic, fresh dill and english cucumber"
+        » storage: Spiced Beef Kofta — yellow onion, fresh flat-leaf parsley and garlic: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Spiced Beef Kofta spice blend separate; combine o…
+        » covers cook steps: Spiced Beef Kofta#1, Herb and Rice Stuffed Grape Leaves (Dolmades)#1
+     5. Prep all lemons   (9 min)   [691 chars]
+        Zest 1 tsp from a lemon, then juice it and the rest to get 9 tbsp fresh lemon juice, keeping 1 lemon for the dolmades.
+        3 tbsp fresh lemon juice — into the Creamy Hummus sauce bowl
+        1 tbsp fresh lemon juice for Tzatziki — into the tub "Fresh lemon juice — Tzatziki, Tzatziki Sauce"
+        1 tbsp fresh lemon juice for Tzatziki Sauce — same tub
+        2 tbsp fresh lemon juice — into the Harissa-Spiced Chicken Shawarma marinade bowl
+        2 tbsp fresh lemon juice — into the Marinated Chicken Gyro Filling marinade bowl
+        1 tsp lemon zest — into the tub "Warm Herbed Bulgur — lemon zest"
+        2 lemons — into the tub "Grape Leaves — yellow onion, fresh flat-leaf parsley, garlic, fresh mint leaves, fresh dill and lemon"
+        » storage: All 3 containers: Covered in the fridge — up to 3 days. Add the boneless skinless chicken thighs the night before you cook them (Friday).
+        » covers cook steps: Herb and Rice Stuffed Grape Leaves (Dolmades)#1, Warm Herbed Bulgur#0
+     6. Slice all red onion   (8 min)   [538 chars]
+        Thinly slice 2½ red onion into half-moons, cutting the wedges the roasted vegetables need as the recipe directs.
+        1 red onion for Pickled Onions and Charred Flatbread — into the tub "Pickled Onions and Charred Flatbread — thinly sliced red onion"
+        ½ red onion for Marinated Chicken Gyro Filling — into the tub "Marinated Chicken Gyro Filling — fresh flat-leaf parsley, garlic, red onion and roma tomatoes"
+        1 red onion for Roasted Vegetables and Hummus — into the tub "Roasted Vegetables and Hummus — red onion, zucchini and red bell pepper"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Pickled Onions and Charred Flatbread#0, Marinated Chicken Gyro Filling#3
+  ×  7. Jarred grape leaves in brine — cook day   (1 min)  [RENDER-OMITTED]   [40 chars]
+        Nothing to cut — it goes in as it comes.
+     8. Chop all fresh mint   (2 min)   [312 chars]
+        Finely chop ⅜ cup fresh mint leaves.
+        ¼ cup for Herb and Rice Stuffed Grape Leaves (Dolmades) — into the tub "Grape Leaves — yellow onion, fresh flat-leaf parsley, garlic, fresh mint leaves, fresh dill and lemon"
+        2 tbsp for Warm Herbed Bulgur — into the tub "Warm Herbed Bulgur — finely chopped fresh mint leaves"
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » covers cook steps: Herb and Rice Stuffed Grape Leaves (Dolmades)#1, Warm Herbed Bulgur#0
+     9. Chop all fresh dill   (2 min)   [394 chars]
+        Finely chop 6 tbsp fresh dill.
+        2 tbsp for Herb and Rice Stuffed Grape Leaves (Dolmades) — into the tub "Grape Leaves — yellow onion, fresh flat-leaf parsley, garlic, fresh mint leaves, fresh dill and lemon"
+        2 tbsp for Tzatziki — into the tub "Tzatziki — garlic, fresh dill and english cucumber"
+        2 tbsp for Tzatziki Sauce — into the tub "Tzatziki Sauce — garlic, fresh dill and english cucumber"
+        » storage: Grape Leaves: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Herb and Rice Stuffed Grape spice blend separate; combine on cook day (Friday).
+        » covers cook steps: Herb and Rice Stuffed Grape Leaves (Dolmades)#1
+    10. Grate all english cucumber   (1 min)   [318 chars]
+        Grate 1 english cucumber on the large holes of a box grater, then squeeze it dry in a clean kitchen towel.
+        ½ english cucumber for Tzatziki — into the tub "Tzatziki — garlic, fresh dill and english cucumber"
+        ½ english cucumber for Tzatziki Sauce — into the tub "Tzatziki Sauce — garlic, fresh dill and english cucumber"
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Tzatziki, Tzatziki Sauce separate; combine on cook day (Friday). Keep the Tzatziki, Tzatziki Sauce sep…
+        » covers cook steps: Tzatziki#0, Tzatziki Sauce#0
+    11. Cut the zucchini   (1 min)   [196 chars]
+        Halve 2 zucchini lengthwise, then cut into 1-inch half-moons.
+        2 zucchinis for Roasted Vegetables and Hummus — into the tub "Roasted Vegetables and Hummus — red onion, zucchini and red bell pepper"
+    12. Cut the red bell peppers   (1 min)   [198 chars]
+        Seed 2 red bell peppers and cut them into 1-inch strips.
+        2 red bell peppers for Roasted Vegetables and Hummus — into the tub "Roasted Vegetables and Hummus — red onion, zucchini and red bell pepper"
+        » storage: Roasted Vegetables and Hummus: Airtight in the fridge — up to 4 days.
+  × 13. Cherry tomatoes — cook day   (1 min)  [RENDER-OMITTED]   [40 chars]
+        Nothing to cut — it goes in as it comes.
+    14. Slice the roma tomatoes   (5 min)   [184 chars]
+        Slice 2 roma tomatoes.
+        2 roma tomatoes for Marinated Chicken Gyro Filling — into the tub "Marinated Chicken Gyro Filling — fresh flat-leaf parsley, garlic, red onion and roma tomatoes"
+        » storage: Marinated Chicken Gyro Filling: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Marinated Chicken Gyro Filling marinade bowl separate; combine on cook day (Friday).
+        » covers cook steps: Marinated Chicken Gyro Filling#3
+
+  ── sauces_marinades ──
+     1. Finish the Creamy Hummus sauce bowl   (2 min)   [134 chars]
+        Creamy Hummus sauce bowl (ground cumin and the fresh lemon juice from produce step 5 already in it): add
+        ⅜ cup tahini
+        Stir to combine.
+        » storage: Covered in the fridge — up to 3 days.
+     2. Finish the Harissa-Spiced Chicken Shawarma marinade bowl   (2 min)   [158 chars]
+        Harissa-Spiced Chicken Shawarma marinade bowl (garlic and the fresh lemon juice from produce step 5 already in it): add
+        3 tbsp harissa paste
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 3 days. Add the boneless skinless chicken thighs the night before you cook them (Thursday).
+  ×  3. Red wine vinegar — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     HELD: Add the boneless skinless chicken thighs the night before you cook them (Friday).
+     HELD: Add the boneless skinless chicken thighs the night before you cook them (Thursday).
+     HELD: Classic Chicken Gyros with Tzatziki, Tomato, and Red Onion (Friday, 5 days out) — trim the chicken thighs that morning.
+  ×  1. Boneless skinless chicken thighs — cook day   (12 min)  [RENDER-OMITTED]   [148 chars]
+        Trim excess fat from the boneless skinless chicken thighs:
+        2 lb for the Harissa-Spiced Chicken Shawarma
+        1¾ lb for the Marinated Chicken Gyro Filling
+        » storage: This one is 5 days out — leave it for cook day.

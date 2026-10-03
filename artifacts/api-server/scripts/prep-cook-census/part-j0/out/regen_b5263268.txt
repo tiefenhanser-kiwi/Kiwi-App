@@ -1,0 +1,154 @@
+PLAN b5263268-64c7-41ff-a8f2-20c01a2b905e  [E-b5263268]  HTTP 200
+  HEADER: 18 containers · about 90 min · prompt v20
+
+  ── seasonings_dry ──
+     1. Measure the Smoky Chipotle Ground Beef sauce jar spices   (3 min)   [139 chars]
+        Into the Smoky Chipotle Ground Beef sauce jar:
+        1½ tsp ground cumin
+        1 tsp smoked paprika
+        ½ tsp dried oregano
+        Set aside for the produce step.
+     2. Measure the Tex-Mex Seasoned Ground Beef spice blend   (3 min)   [169 chars]
+        Into the Tex-Mex Seasoned Ground Beef spice blend:
+        2 tbsp chili powder
+        1 tsp ground cumin
+        1 tsp smoked paprika
+        ½ tsp dried oregano
+        ½ tsp garlic powder
+        ½ tsp onion powder
+        » storage: Airtight at room temperature — it keeps for weeks.
+     3. Measure the Beef Enchiladas Verdes spice blend   (2 min)   [102 chars]
+        Into the Beef Enchiladas Verdes spice blend:
+        1 tsp ground cumin
+        1 tsp chili powder
+        ½ tsp dried oregano
+        » storage: Airtight at room temperature — it keeps for weeks.
+     4. Measure the Classic Glazed Meatloaf mix-ins bowl   (2 min)   [168 chars]
+        Into the Classic Glazed Meatloaf mix-ins bowl:
+        ½ cup plain breadcrumbs
+        ½ tsp dried thyme
+        1 tbsp brown sugar (for the glaze)
+        Set aside for the sauces and marinades step.
+        » covers cook steps: Classic Glazed Meatloaf#7
+  ×  5. Ground cumin — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  6. Ground cumin — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  7. Dried thyme, dried rosemary, All-purpose flour and baking powder — cook day   (2 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)   [104 chars]
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+     2. Dice all yellow onion   (10 min)   [529 chars]
+        Work through 4 yellow onions two ways: finely diced and diced.
+        1 yellow onion finely diced for Smoky Chipotle Ground Beef — into the tub "Finely diced yellow onion — Smoky Chipotle Ground Beef, Tex-Mex Seasoned Ground Beef"
+        1 yellow onion finely diced for Tex-Mex Seasoned Ground Beef — same tub
+        1 yellow onion finely diced for Classic Glazed Meatloaf — into the tub "Classic Glazed Meatloaf — yellow onion and garlic"
+        1 yellow onion diced for Slow-Cooker Chicken and Dumplings — into the Slow-Cooker Chicken vegetables container
+        » storage: Airtight in the fridge — up to 4 days.
+     3. Mince all garlic   (7 min)   [661 chars]
+        Mince 19 cloves of garlic.
+        4 cloves for Smoky Chipotle Ground Beef — into the Smoky Chipotle Ground Beef sauce jar
+        1 clove for Avocado Crema — into the tub "Minced garlic — Avocado Crema, Tex-Mex Seasoned Ground Beef, Beef Enchiladas Verdes, Mexican Rice, Buttered Green Beans"
+        3 cloves for Tex-Mex Seasoned Ground Beef — same tub
+        3 cloves for Beef Enchiladas Verdes — same tub
+        2 cloves for Mexican Rice — same tub
+        1 clove for Buttered Green Beans — same tub
+        3 cloves for Slow-Cooker Chicken and Dumplings — into the Slow-Cooker Chicken vegetables container
+        2 cloves for Classic Glazed Meatloaf — into the tub "Classic Glazed Meatloaf — yellow onion and garlic"
+        » storage: Both containers: Airtight in the fridge — up to 4 days. Stir in the Classic Glazed Meatloaf mix-ins bowl now — it is eaten within a day.
+        » covers cook steps: Smoky Chipotle Ground Beef#0, Tex-Mex Seasoned Ground Beef#0, Slow-Cooker Chicken and Dumplings#0, Beef Enchiladas Verdes#0, Mexican Rice#0, Classic Glazed Meatloaf#1, Buttered Green Beans#0
+  ×  4. Ripe avocado — cook day   (1 min)  [RENDER-OMITTED]   [53 chars]
+        This browns once it is cut, so it is cut on cook day.
+  ×  5. Fresh lime juice and lime — cook day   (7 min)  [RENDER-OMITTED]   [39 chars]
+        Citrus wedges keep best cut on the day.
+     6. Chop all fresh cilantro   (4 min)   [439 chars]
+        Roughly chop the fresh cilantro, ¾ cup + ½ bunch in all.
+        ¼ cup for Avocado Crema — into the tub "Chopped fresh cilantro — Avocado Crema, Beef Enchiladas Verdes"
+        ¼ cup for Beef Enchiladas Verdes — same tub
+        ¼ cup for Fresh Pico de Gallo — into the tub "Fresh Pico de Gallo — fresh cilantro, jalapeño, roma tomatoes and white onion"
+        ½ bunch for Warm Corn Tortillas & Garnishes — into the tub "Warm Corn Tortillas & Garnishes — fresh cilantro"
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » covers cook steps: Fresh Pico de Gallo#0
+     7. Slice the red onion   (3 min)   [134 chars]
+        Thinly slice 1 red onion.
+        1 red onion for Quick Pickled Red Onions — into the tub "Quick Pickled Red Onions — thinly sliced red onion"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Quick Pickled Red Onions#0
+     8. Prep all jalapeño   (8 min)   [444 chars]
+        Work through 3 jalapeños three ways: thinly sliced, minced and halved.
+        1 jalapeño thinly sliced for Warm Corn Tortillas & Garnishes — into the tub "Warm Corn Tortillas & Garnishes — thinly sliced jalapeño"
+        1 jalapeño minced for Fresh Pico de Gallo — into the tub "Fresh Pico de Gallo — fresh cilantro, jalapeño, roma tomatoes and white onion"
+        1 jalapeño halved for Roasted Tomatillo Sauce — into the Roasted Tomatillo Sauce vegetables container
+        » storage: Airtight in the fridge — up to 4 days.
+     9. Dice the roma tomatoes   (8 min)   [163 chars]
+        Finely dice 3 roma tomatoes.
+        3 roma tomatoes for Fresh Pico de Gallo — into the tub "Fresh Pico de Gallo — fresh cilantro, jalapeño, roma tomatoes and white onion"
+        » covers cook steps: Fresh Pico de Gallo#0
+    10. Prep all white onion   (5 min)   [506 chars]
+        Work through 2¼ white onions two ways: finely diced and quartered.
+        ½ white onion finely diced for Fresh Pico de Gallo — into the tub "Fresh Pico de Gallo — fresh cilantro, jalapeño, roma tomatoes and white onion"
+        ½ white onion finely diced for Beef Enchiladas Verdes — into the tub "Beef Enchiladas Verdes — finely diced white onion"
+        ¼ white onion finely diced for Beef Enchiladas Verdes — same tub
+        1 white onion quartered for Roasted Tomatillo Sauce — into the Roasted Tomatillo Sauce vegetables container
+        » storage: Fresh Pico de Gallo: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Airtight in the fridge — up to 4 days. Stir in the Avocado Crema, Fresh Pico de Gallo now — it is eaten wit…
+        » covers cook steps: Fresh Pico de Gallo#0, Beef Enchiladas Verdes#0
+    11. Shred the iceberg lettuce   (1 min)   [111 chars]
+        Shred 2 cups iceberg lettuce.
+        2 cup for Taco Toppings — into the tub "Taco Toppings — shredded iceberg lettuce"
+        » storage: Airtight in the fridge — up to 3 days.
+    12. Slice the celery   (2 min)   [123 chars]
+        Slice 3 celery stalks.
+        3 celeries for Slow-Cooker Chicken and Dumplings — into the Slow-Cooker Chicken vegetables container
+        » covers cook steps: Slow-Cooker Chicken and Dumplings#0
+    13. Slice the carrots   (3 min)   [128 chars]
+        Slice 3 carrots into rounds.
+        3 carrots for Slow-Cooker Chicken and Dumplings — into the Slow-Cooker Chicken vegetables container
+        » storage: Slow-Cooker Chicken vegetables: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Slow-Cooker Chicken and Dumplings#0
+    14. Chop the parsley   (1 min)   [146 chars]
+        Chop 2 tbsp fresh parsley.
+        2 tbsp for Slow-Cooker Chicken and Dumplings — into the tub "Slow-Cooker Chicken and Dumplings — chopped fresh parsley"
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+    15. Husk and halve the tomatillos   (3 min)   [122 chars]
+        Husk and halve 1¼ lb tomatillos.
+        1¼ lb for Roasted Tomatillo Sauce — into the Roasted Tomatillo Sauce vegetables container
+    16. Halve and seed the poblano peppers   (1 min)   [135 chars]
+        Halve and seed 2 poblano peppers.
+        2 poblano peppers for Roasted Tomatillo Sauce — into the Roasted Tomatillo Sauce vegetables container
+        » storage: Roasted Tomatillo Sauce vegetables: Airtight in the fridge — up to 4 days.
+  × 17. Russet potatoes — cook day   (4 min)  [RENDER-OMITTED]   [53 chars]
+        This browns once it is cut, so it is cut on cook day.
+    18. Trim the green beans   (2 min)   [145 chars]
+        Trim the stem ends from 12 oz fresh green beans.
+        12 oz for Buttered Green Beans — into the tub "Buttered Green Beans — trimmed fresh green beans"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Buttered Green Beans#0
+
+  ── sauces_marinades ──
+     1. Finish the Smoky Chipotle Ground Beef sauce jar   (7 min)   [182 chars]
+        Smoky Chipotle Ground Beef sauce jar (ground cumin, smoked paprika, dried oregano and garlic already in it): add
+        2 chipotle peppers in adobo sauce
+        1 tbsp adobo sauce
+        Stir to combine.
+        » storage: Covered in the fridge — up to 4 days.
+        » covers cook steps: Smoky Chipotle Ground Beef#0
+     2. Finish the Classic Glazed Meatloaf mix-ins bowl   (2 min)   [248 chars]
+        Classic Glazed Meatloaf mix-ins bowl (dried thyme, plain breadcrumbs and brown sugar already in it): add
+        1 tbsp worcestershire sauce
+        2 tbsp ketchup (mixed into meat)
+        3 tbsp ketchup (for glaze)
+        1 tsp apple cider vinegar (for glaze)
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 5 days.
+        » covers cook steps: Classic Glazed Meatloaf#7
+  ×  3. Apple cider vinegar — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  4. Hot sauce — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+  ×  1. Boneless skinless chicken thighs — cook day   (5 min)  [RENDER-OMITTED]   [86 chars]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.

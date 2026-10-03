@@ -469,7 +469,10 @@ describe("loadPrepWeekInput — step text (WS7-8a B2b)", () => {
 // through, and an id that isn't in the plan is REJECTED rather than dropped.
 
 describe("loadPrepWeekInput — mealIds subset (WS9)", () => {
-  it("passes only the named meals to the aggregation input", async () => {
+  it("Part J.0 (A3) — a valid selection still loads the WHOLE plan; the step plan is scoped later", async () => {
+    // The loader used to drop unselected meals here, and the food-identity fold
+    // then ran over the subset alone and minted keys the full plan never had.
+    // Now `mealIds` only validates; scoping is buildStepPlan's `scopeMealIds`.
     const prisma = makePrismaStub([plan()]);
     const { input } = await loadPrepWeekInput({
       planId: PLAN_ID,
@@ -477,18 +480,14 @@ describe("loadPrepWeekInput — mealIds subset (WS9)", () => {
       prisma,
       mealIds: [MEAL_B],
     });
-    // Read the LIVE result, not a restated literal: the ids actually present.
     assert.deepEqual(
       input.meals.map((m) => m.mealId),
-      [MEAL_B],
+      [MEAL_A, MEAL_B],
     );
-    // And the excluded meal's ingredients are genuinely absent — MEAL_A is the
-    // only source of garlic in this fixture, so its absence proves the filter
-    // reached the ingredient level, not just the meal list.
     const allIngredientIds = input.meals.flatMap((m) =>
       m.dishes.flatMap((d) => d.ingredients.map((i) => i.ingredientId)),
     );
-    assert.equal(allIngredientIds.includes(ING_GARLIC), false);
+    assert.equal(allIngredientIds.includes(ING_GARLIC), true);
     assert.equal(allIngredientIds.includes(ING_ONION), true);
   });
 

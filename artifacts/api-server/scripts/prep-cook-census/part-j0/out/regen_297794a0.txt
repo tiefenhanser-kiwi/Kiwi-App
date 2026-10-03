@@ -1,0 +1,179 @@
+PLAN 297794a0-569d-4af8-9506-0fe4cc43999a  [A21]  HTTP 200
+  HEADER: 24 containers · about 100 min · prompt v20
+
+  ── seasonings_dry ──
+     1. Measure the Chipotle-Braised Beef spice blend   (2 min)   [104 chars]
+        Into the Chipotle-Braised Beef spice blend:
+        1½ tsp ground cumin
+        1 tsp smoked paprika
+        ½ tsp dried oregano
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » covers cook steps: Chipotle-Braised Beef#2
+     2. Measure the Chipotle Braised Pulled Chicken spice blend   (2 min)   [113 chars]
+        Into the Chipotle Braised Pulled Chicken spice blend:
+        1 tsp ground cumin
+        ½ tsp smoked paprika
+        1 tsp dried oregano
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » covers cook steps: Chipotle Braised Pulled Chicken#2
+     3. Measure the Crispy Chicken Flautas seasoning   (2 min)   [119 chars]
+        Into the Crispy Chicken Flautas seasoning:
+        1 tsp ground cumin
+        1 tsp chili powder
+        ½ tsp garlic powder
+        ½ tsp onion powder
+        » storage: Airtight at room temperature — it keeps for weeks.
+     4. Measure the Crispy Chicken Flautas sauce bowl   (4 min)   [179 chars]
+        Into the Crispy Chicken Flautas sauce bowl:
+        1 tsp ground cumin
+        ½ tsp dried oregano
+        1 tsp chili powder
+        ½ tsp garlic powder
+        2 bay leaves
+        Set aside for the sauces and marinades step.
+  ×  5. Ground cumin — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  6. Ground cumin and dried oregano — cook day   (1 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+  ×  7. Ground cumin — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  8. Ground cumin and smoked paprika — cook day   (1 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+  ×  9. Ground cumin — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  × 10. Ground cumin — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  × 11. Mexican crema and toothpicks — cook day   (1 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)   [104 chars]
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+     2. Dice the yellow onion   (3 min)   [133 chars]
+        Dice 1 yellow onion.
+        1 yellow onion for Chipotle-Braised Beef — into the tub "Chipotle-Braised Beef — yellow onion and garlic cloves"
+     3. Mince all garlic   (4 min)   [543 chars]
+        Mince 11 cloves of garlic.
+        4 cloves for Chipotle-Braised Beef — into the tub "Chipotle-Braised Beef — yellow onion and garlic cloves"
+        1 clove for Black Beans, Roasted Corn, and Fresh Toppings — into the tub "Minced garlic cloves — Black Beans, Roasted Corn, and Fresh Toppings, Creamy Refried Pinto Beans, Mexican Rice"
+        3 cloves for Creamy Refried Pinto Beans — same tub
+        2 cloves for Mexican Rice — same tub
+        1 clove for Chunky Guacamole — into the tub "Chunky Guacamole — garlic cloves, fresh cilantro, roma tomatoes, white onion and jalapeño"
+        » storage: Both containers: Airtight in the fridge — up to 4 days. Keep the Chipotle-Braised Beef spice blend and Beef, Rice, Beans, Chicken, Salad, Flautas, Gallo, Guacamole separate; combine on cook day (Satu…
+        » covers cook steps: Chunky Guacamole#0
+  ×  4. Fresh lime juice, lime zest and lime — cook day   (15 min)  [RENDER-OMITTED]   [39 chars]
+        Citrus wedges keep best cut on the day.
+     5. Chop all cilantro   (8 min)   [687 chars]
+        Work through the cilantro two ways: finely chop and roughly chop 1⅝ cup fresh cilantro plus ⅜ cup fresh cilantro leaves.
+        ¼ cup — into the tub "Cilantro-Lime Rice — finely chopped fresh cilantro"
+        ¼ cup — into the Fresh Pico de Gallo tub
+        3 tbsp — into the Chunky Guacamole tub
+        ¼ cup for Black Beans — into the Chopped fresh cilantro tub
+        2 tbsp for Mexican Rice — same tub
+        ¼ cup — into the Shredded Cabbage Slaw dressing jar
+        ¼ cup — into the tub "Crispy Chicken Flautas — fresh cilantro, white onion and lime"
+        ¼ cup — into the tub "Chipotle Braised Pulled Chicken — fresh cilantro leaves"
+        2 tbsp — into the tub "Charred Corn and Black Bean Salad — fresh cilantro leaves and red bell pepper"
+        » storage: All 3 containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » covers cook steps: Black Beans, Roasted Corn, and Fresh Toppings#0, Shredded Cabbage Slaw#2, Fresh Pico de Gallo#1, Chunky Guacamole#0
+     6. Cut all roma tomatoes   (15 min)   [641 chars]
+        Work through 9 roma tomatoes three ways: diced, quartered and finely diced.
+        2 roma tomatoes diced for Black Beans, Roasted Corn, and Fresh Toppings — into the tub "Black Beans, Roasted Corn, and Fresh Toppings — diced roma tomatoes"
+        1 roma tomato diced for Chunky Guacamole — into the tub "Chunky Guacamole — garlic cloves, fresh cilantro, roma tomatoes, white onion and jalapeño"
+        2 roma tomatoes quartered for Mexican Red Rice — into the tub "Mexican Red Rice — roma tomatoes and white onion"
+        4 roma tomatoes finely diced for Fresh Pico de Gallo — into the tub "Fresh Pico de Gallo — fresh cilantro, roma tomatoes, white onion and jalapeño"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Black Beans, Roasted Corn, and Fresh Toppings#0, Fresh Pico de Gallo#0, Chunky Guacamole#0
+     7. Finely dice the red onion   (3 min)   [174 chars]
+        Finely dice ¼ red onion.
+        ¼ red onion for Black Beans, Roasted Corn, and Fresh Toppings — into the tub "Black Beans, Roasted Corn, and Fresh Toppings — finely diced red onion"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Black Beans, Roasted Corn, and Fresh Toppings#0
+  ×  8. Avocado — cook day   (1 min)  [RENDER-OMITTED]   [53 chars]
+        This browns once it is cut, so it is cut on cook day.
+     9. Prep the tomatillos   (3 min)   [137 chars]
+        Husk and halve 1¼ lb tomatillos.
+        1¼ lb for Salsa Verde Braised Chicken Thighs — into the Salsa Verde Braised Chicken vegetables container
+    10. Cut all white onion   (15 min)   [764 chars]
+        Work through the white onion four ways: roughly chopped, finely diced, thinly sliced and halved, 4¾ white onion plus ¼ cup in all.
+        1 white onion chopped for Chicken Thighs — into the Salsa Verde Braised Chicken vegetables container
+        ¼ white onion chopped — into the Mexican Red Rice tub
+        ½ white onion finely diced for Pinto Beans — into the Finely diced white onion tub
+        ½ white onion finely diced for Pulled Chicken — same tub
+        ½ white onion finely diced for Mexican Rice — same tub
+        ½ white onion finely diced — into the Fresh Pico de Gallo tub
+        ¼ cup finely diced — into the Chunky Guacamole tub
+        1 white onion thinly sliced for Pulled Chicken — the same tub as above
+        ½ white onion halved — into the tub "Crispy Chicken Flautas — fresh cilantro, white onion and lime"
+        » storage: Crispy Chicken Flautas — fresh cilantro, white onion and lime: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Mexican Red Rice — roma tomatoes and white onion: Airtight in the…
+        » covers cook steps: Fresh Pico de Gallo#0, Chunky Guacamole#0
+    11. Cut all jalapeños   (1 min)   [607 chars]
+        Work through 8 jalapeños three ways: stemmed and halved, thinly sliced into rounds, and seeded and minced.
+        2 jalapeños halved for Salsa Verde Braised Chicken Thighs — into the Salsa Verde Braised Chicken vegetables container
+        4 jalapeños thinly sliced for Quick Pickled Jalapeños — into the Quick Pickled Jalapeños brine bowl
+        1 jalapeño minced for Fresh Pico de Gallo — into the tub "Fresh Pico de Gallo — fresh cilantro, roma tomatoes, white onion and jalapeño"
+        1 jalapeño minced for Chunky Guacamole — into the tub "Chunky Guacamole — garlic cloves, fresh cilantro, roma tomatoes, white onion and jalapeño"
+        » storage: Chunky Guacamole: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Fresh Pico de Gallo: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Salsa Verde Braise…
+        » covers cook steps: Fresh Pico de Gallo#1, Chunky Guacamole#0
+    12. Cut the corn kernels   (1 min)   [187 chars]
+        Cut 2 cups of corn kernels from the cob, or measure thawed frozen corn.
+        2 cup for Charred Corn and Black Bean Salad — into the tub "Charred Corn and Black Bean Salad — fresh corn kernels"
+        » storage: Airtight in the fridge — up to 3 days.
+    13. Finely dice the red bell pepper   (3 min)   [181 chars]
+        Finely dice 1 red bell pepper.
+        1 red bell pepper for Charred Corn and Black Bean Salad — into the tub "Charred Corn and Black Bean Salad — fresh cilantro leaves and red bell pepper"
+        » storage: Charred Corn and Black Bean Salad: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Beef, Rice, Beans, Chicken, Salad, Flautas, Gallo, Guacamole separate; combine on co…
+    14. Shred the green cabbage   (1 min)   [139 chars]
+        Core and thinly shred 4 cups green cabbage.
+        4 cup for Shredded Cabbage Slaw — into the tub "Shredded Cabbage Slaw — shredded green cabbage"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Shredded Cabbage Slaw#0
+    15. Shred the red cabbage   (1 min)   [134 chars]
+        Core and thinly shred 1 cup red cabbage.
+        1 cup for Shredded Cabbage Slaw — into the tub "Shredded Cabbage Slaw — shredded red cabbage"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Shredded Cabbage Slaw#0
+  × 16. Ripe Hass avocados — cook day   (1 min)  [RENDER-OMITTED]   [53 chars]
+        This browns once it is cut, so it is cut on cook day.
+
+  ── sauces_marinades ──
+     1. Finish the Crispy Chicken Flautas sauce bowl   (4 min)   [183 chars]
+        Crispy Chicken Flautas sauce bowl (ground cumin, dried oregano, chili powder, garlic powder and bay leaves already in it): add
+        1 minced chipotle pepper in adobo sauce
+        Stir to combine.
+        » storage: Covered in the fridge — up to 5 days.
+     2. Finish the Shredded Cabbage Slaw dressing jar   (2 min)   [130 chars]
+        Shredded Cabbage Slaw dressing jar (fresh cilantro already in it): add
+        1 tbsp extra-virgin olive oil
+        1 tsp honey
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 3 days.
+     3. Finish the Quick Pickled Jalapeños brine bowl   (2 min)   [107 chars]
+        Quick Pickled Jalapeños brine bowl (jalapeño already in it): add
+        ½ cup white wine vinegar
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 4 days.
+  ×  4. Chipotle chiles in adobo sauce — cook day   (8 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  5. Chipotle chiles in adobo sauce and adobo sauce (from can) — cook day   (8 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+  ×  6. Extra-virgin olive oil — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     HELD: Chipotle Braised Chicken Tacos with Pickled Jalapeños and Cotija (Wednesday, 3 days out) — trim the bone-in chicken thighs that morning.
+     HELD: Chicken Flautas with Guacamole and Mexican Rice (Saturday, 6 days out) — trim the chicken breasts that morning.
+     1. Cut the beef chuck roast into chunks   (8 min)   [45 chars]
+        Cut 2 lb beef chuck roast into 2-inch chunks.
+        » storage: Covered in the fridge — cook within 2 days.
+  ×  2. Bone-in chicken thighs — cook day   (15 min)  [RENDER-OMITTED]   [177 chars]
+        Trim the bone-in chicken thighs, keeping each dish's portion separate in its own wrapping:
+        2½ lb for Salsa Verde Braised Chicken Thighs
+        2½ lb for Chipotle Braised Pulled Chicken
+        » storage: This one is 3 days out — leave it for cook day.
+  ×  3. Boneless skinless chicken breasts — cook day   (9 min)  [RENDER-OMITTED]   [178 chars]
+        Trim the boneless skinless chicken breasts, keeping each dish's portion separate in its own wrapping:
+        1½ lb for Crispy Chicken Flautas with Crema
+        1½ lb for Crispy Chicken Flautas
+        » storage: This one is 6 days out — leave it for cook day.

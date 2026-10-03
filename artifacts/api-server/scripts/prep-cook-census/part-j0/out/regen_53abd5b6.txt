@@ -1,0 +1,61 @@
+PLAN 53abd5b6-156d-490e-b1db-6bc04626c027  [A03]  HTTP 200
+  HEADER: 7 containers · about 20 min · prompt v20
+
+  ── seasonings_dry ──
+     1. Measure the Buffalo Chicken Salad dry mix   (2 min)   [123 chars]
+        Into the Buffalo Chicken Salad dry mix:
+        ½ cup all-purpose flour
+        ½ tsp garlic powder
+        ½ tsp onion powder
+        ½ tsp smoked paprika
+        » storage: Airtight at room temperature — it keeps for weeks.
+  ×  2. Garlic powder — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)   [104 chars]
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+     2. Slice all red onion   (3 min)   [293 chars]
+        Thinly slice 1 red onion into half-moons.
+        ½ red onion for Classic BBQ Chicken Pizza with Red Onion and Cilantro — into the tub "Thinly sliced red onion — Chicken Pizza, Chicken Salad"
+        ½ red onion for Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch — same tub
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch#8
+     3. Pick the cilantro leaves   (1 min)   [213 chars]
+        Pick the leaves from the fresh cilantro until you have ¼ cup.
+        ¼ cup for Classic BBQ Chicken Pizza with Red Onion and Cilantro — into the tub "Classic BBQ Chicken Pizza with Red Onion and Cilantro — fresh cilantro"
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+     4. Chop the romaine hearts   (1 min)   [298 chars]
+        Chop 3 romaine lettuce hearts into bite-sized pieces.
+        3 romaine lettuce hearts for Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch — into the tub "Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch — chopped romaine lettuce hearts"
+        » storage: Airtight in the fridge — up to 3 days.
+        » covers cook steps: Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch#8
+     5. Slice the celery   (2 min)   [274 chars]
+        Thinly slice 4 celery stalks on the bias.
+        4 celery stalks for Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch — into the tub "Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch — thinly sliced celery stalks"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch#8
+     6. Halve the cherry tomatoes   (1 min)   [246 chars]
+        Halve 1 cup cherry tomatoes.
+        1 cup for Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch — into the tub "Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch — halved cherry tomatoes"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch#8
+     7. Slice the chives   (1 min)   [256 chars]
+        Thinly slice 2 tbsp fresh chives.
+        2 tbsp for Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch — into the tub "Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch — thinly sliced fresh chives"
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+
+  ── sauces_marinades ──
+  ×  1. Bbq sauce — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  2. Frank's RedHot sauce and ranch dressing — cook day   (1 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     HELD: Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch (Thursday, 4 days out) — portion the chicken breasts that morning.
+  ×  1. Boneless skinless chicken breasts — cook day   (8 min)  [RENDER-OMITTED]   [286 chars]
+        Portion the boneless skinless chicken breasts, keeping each dish's chicken in its own wrapping:
+        ¾ lb for the Classic BBQ Chicken Pizza with Red Onion and Cilantro
+        1¾ lb for the Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch — slice into 1-inch strips
+        » storage: This one is 4 days out — leave it for cook day.

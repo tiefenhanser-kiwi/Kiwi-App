@@ -1,0 +1,113 @@
+PLAN 1e41fc0c-7294-4bd3-a14a-302e44bbcd7c  [E-1e41fc0c]  HTTP 200
+  HEADER: 14 containers · about 75 min · prompt v20
+
+  ── seasonings_dry ──
+     1. Measure the Citrus-Marinated Carne Asada marinade bowl spices   (3 min)   [163 chars]
+        Into the Citrus-Marinated Carne Asada marinade bowl:
+        1 tsp ground cumin
+        1 tsp chili powder
+        ½ tsp smoked paprika
+        ½ tsp dried oregano
+        Set aside for the produce step.
+     2. Measure the Beef Enchiladas Verdes spice blend   (2 min)   [103 chars]
+        Into the Beef Enchiladas Verdes spice blend:
+        1½ tsp ground cumin
+        1 tsp chili powder
+        ½ tsp garlic powder
+        » storage: Airtight at room temperature — it keeps for weeks.
+     3. Measure the White Chicken Chili Mac seasoning   (3 min)   [144 chars]
+        Into the White Chicken Chili Mac seasoning:
+        1½ tsp ground cumin
+        1 tsp chili powder
+        ½ tsp smoked paprika
+        ½ tsp dried oregano
+        ¼ tsp cayenne pepper
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » covers cook steps: White Chicken Chili Mac#3
+  ×  4. Ground cumin — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  5. Elbow macaroni — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)   [104 chars]
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+     2. Measure the orange juice   (2 min)   [120 chars]
+        Measure ¼ cup orange juice.
+        ¼ cup for Citrus-Marinated Carne Asada — into the Citrus-Marinated Carne Asada marinade bowl
+  ×  3. Lime juice and lime — cook day   (7 min)  [RENDER-OMITTED]   [39 chars]
+        Citrus wedges keep best cut on the day.
+     4. Mince all garlic   (5 min)   [354 chars]
+        Mince 13 cloves of garlic.
+        4 cloves for Citrus-Marinated Carne Asada — into the Citrus-Marinated Carne Asada marinade bowl
+        2 cloves for Mexican Rice — into the tub "Minced garlic — Mexican Rice, Beef Stroganoff Noodle Skillet, White Chicken Chili Mac"
+        3 cloves for Beef Stroganoff Noodle Skillet — same tub
+        4 cloves for White Chicken Chili Mac — same tub
+        » storage: Citrus-Marinated Carne Asada marinade bowl: Covered in the fridge — up to 3 days. Airtight in the fridge — up to 4 days. The skirt steak go in at the proteins step and marinate until cook day.
+        » covers cook steps: Beef Stroganoff Noodle Skillet#1, White Chicken Chili Mac#0
+     5. Dice all roma tomatoes   (8 min)   [156 chars]
+        Dice 3 roma tomatoes.
+        3 roma tomatoes for Fresh Pico de Gallo — into the tub "Fresh Pico de Gallo — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        » covers cook steps: Fresh Pico de Gallo#0
+     6. Dice all white onion   (5 min)   [425 chars]
+        Work through 1¾ white onion two ways: finely diced and diced.
+        ½ white onion finely diced for Fresh Pico de Gallo — into the tub "Fresh Pico de Gallo — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        ¼ white onion finely diced for Simple Guacamole — into the tub "Simple Guacamole — finely diced white onion"
+        1 white onion diced for White Chicken Chili Mac — into the tub "White Chicken Chili Mac — diced white onion"
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Fresh Pico de Gallo#0
+     7. Chop all fresh cilantro   (5 min)   [422 chars]
+        Chop 1¼ cup fresh cilantro.
+        ¼ cup for Fresh Pico de Gallo — into the tub "Fresh Pico de Gallo — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        2 tbsp for Simple Guacamole — into the tub "Chopped fresh cilantro — Simple Guacamole, Beef Enchiladas Verdes, White Chicken Chili Mac"
+        ½ cup for Beef Enchiladas Verdes — same tub
+        2 tbsp for Beef Enchiladas Verdes — same tub
+        ¼ cup for White Chicken Chili Mac — same tub
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » covers cook steps: Fresh Pico de Gallo#0
+     8. Prep all jalapeño   (5 min)   [302 chars]
+        Work through 1½ jalapeño two ways: seeded and minced, and halved.
+        ½ jalapeño minced for Fresh Pico de Gallo — into the tub "Fresh Pico de Gallo — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        1 jalapeño halved for Beef Enchiladas Verdes — into the Beef Enchiladas Verdes vegetables container
+        » storage: Fresh Pico de Gallo: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Stir in the Fresh Pico de Gallo, Simple Guacamole now — it is eaten within a day.
+        » covers cook steps: Fresh Pico de Gallo#0
+  ×  9. Ripe avocado — cook day   (1 min)  [RENDER-OMITTED]   [53 chars]
+        This browns once it is cut, so it is cut on cook day.
+    10. Husk and halve the tomatillos   (3 min)   [153 chars]
+        Husk 1¼ lb tomatillos, rinse off the stickiness, then halve them.
+        1¼ lb for Beef Enchiladas Verdes — into the Beef Enchiladas Verdes vegetables container
+    11. Halve and seed the poblano peppers   (1 min)   [145 chars]
+        Halve 2 poblano peppers and remove the seeds.
+        2 poblano peppers for Beef Enchiladas Verdes — into the Beef Enchiladas Verdes vegetables container
+    12. Prep all yellow onion   (1 min)   [312 chars]
+        Work through 2 yellow onions two ways: quartered and finely diced.
+        1 yellow onion quartered for Beef Enchiladas Verdes — into the Beef Enchiladas Verdes vegetables container
+        1 yellow onion finely diced for Beef Stroganoff Noodle Skillet — into the tub "Beef Stroganoff Noodle Skillet — finely diced yellow onion"
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+    13. Slice the cremini mushrooms   (3 min)   [146 chars]
+        Slice 10 oz cremini mushrooms.
+        10 oz for Beef Stroganoff Noodle Skillet — into the tub "Beef Stroganoff Noodle Skillet — sliced cremini mushrooms"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Beef Stroganoff Noodle Skillet#2
+  × 14. Fresh flat-leaf parsley — cook day   (1 min)  [RENDER-OMITTED]   [61 chars]
+        A single garnish portion saves the least — cut it on the day.
+  × 15. Bagged Caesar kit (romaine, croutons, dressing, Parmesan) — cook day   (1 min)  [RENDER-OMITTED]   [40 chars]
+        Nothing to cut — it goes in as it comes.
+
+  ── sauces_marinades ──
+  ×  1. Worcestershire sauce and dijon mustard — cook day   (1 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+  ×  1. Skirt steak — cook day   (5 min)  [RENDER-OMITTED]   [86 chars]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+     2. Cut the beef sirloin into strips for Beef Stroganoff Noodle Skillet   (6 min)   [73 chars]
+        Cut 1½ lb beef sirloin steak into thin strips, slicing against the grain.
+        » storage: Covered in the fridge — cook within 2 days.
+     3. Skin and shred the rotisserie chicken for Chicken Caesar Salad   (3 min)   [85 chars]
+        Skin 1 rotisserie chicken, then shred the meat into bite-sized pieces — about 3 cups.
+        » storage: Covered in the fridge — cook within 2 days.
+     4. Cube the chicken breasts for White Chicken Chili Mac   (6 min)   [64 chars]
+        Cube 1½ lb boneless skinless chicken breasts into ¾-inch pieces.
+        » storage: Covered in the fridge — cook within 2 days.

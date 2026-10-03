@@ -1,0 +1,153 @@
+PLAN 3f9d46e8-b078-4bd4-b479-9f93cb8c76cd  [A10]  HTTP 200
+  HEADER: 16 containers · about 85 min · prompt v20
+
+  ── seasonings_dry ──
+     1. Measure the Classic Supreme Pizza dough bowl spices   (2 min)   [92 chars]
+        Into the Classic Supreme Pizza dough bowl:
+        1 tsp dried oregano
+        ½ tsp dried basil
+        ½ tsp sugar
+        » storage: Airtight in the fridge — up to 3 days.
+     2. Measure the Flaky Drop Biscuits dough bowl   (2 min)   [115 chars]
+        Into the Flaky Drop Biscuits dough bowl:
+        2 cup All-purpose flour
+        1 tbsp baking powder
+        ¼ tsp baking soda
+        1 tsp sugar
+        » storage: Airtight at room temperature — it keeps for weeks.
+     3. Measure the Flaky Buttermilk Drop Biscuits dough bowl   (2 min)   [108 chars]
+        Into the Flaky Buttermilk Drop Biscuits dough bowl:
+        2 cup All-purpose flour
+        1 tbsp baking powder
+        1 tsp sugar
+        » storage: Airtight at room temperature — it keeps for weeks.
+     4. Measure the Buttermilk Fried Chicken dry mix   (4 min)   [184 chars]
+        Into the Buttermilk Fried Chicken dry mix:
+        2 cup All-purpose flour
+        ¼ cup cornstarch
+        1½ tsp garlic powder
+        1 tsp onion powder
+        1½ tsp smoked paprika
+        ½ tsp cayenne pepper
+        ½ tsp dried thyme
+        » storage: Airtight at room temperature — it keeps for weeks.
+     5. Measure the Herb Falafel dry mix   (3 min)   [139 chars]
+        Into the Herb Falafel dry mix:
+        3 tbsp All-purpose flour
+        1 tsp baking powder
+        1½ tsp ground cumin
+        1 tsp ground coriander
+        ¼ tsp cayenne pepper
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » covers cook steps: Herb Falafel#2
+     6. Measure the Creamy Hummus sauce bowl   (2 min)   [131 chars]
+        Into the Creamy Hummus sauce bowl:
+        ¼ tsp ground cumin
+        4 tbsp ice water, added gradually for texture
+        Set aside for the produce step.
+        » covers cook steps: Creamy Hummus#2
+  ×  7. Pepperoni and crushed red pepper flakes — cook day   (1 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+  ×  8. Crushed red pepper flakes — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  9. All-purpose flour, garlic powder and onion powder — cook day   (2 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+  × 10. Smoked paprika — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)   [104 chars]
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+     2. Mince all garlic   (4 min)   [373 chars]
+        Mince 10 cloves of garlic.
+        2 cloves for Classic Supreme Pizza — into the tub "Minced garlic — Classic Supreme Pizza, Slow-Braised Collard Greens with Bacon, Creamy Country Chicken and Gravy"
+        3 cloves for Slow-Braised Collard Greens with Bacon — same tub
+        3 cloves for Creamy Country Chicken and Gravy — same tub
+        2 cloves for Creamy Hummus — into the Creamy Hummus sauce bowl
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Creamy Country Chicken and Gravy#2, Creamy Country Chicken and Gravy#5
+     3. Thinly slice the green bell pepper   (3 min)   [133 chars]
+        Thinly slice 1 green bell pepper.
+        1 green bell pepper for Classic Supreme Pizza — into the Classic Supreme Pizza vegetables container
+     4. Thinly slice the red onion   (3 min)   [117 chars]
+        Thinly slice ½ red onion.
+        ½ red onion for Classic Supreme Pizza — into the Classic Supreme Pizza vegetables container
+     5. Thinly slice the cremini mushrooms   (3 min)   [121 chars]
+        Thinly slice 4 oz cremini mushrooms.
+        4 oz for Classic Supreme Pizza — into the Classic Supreme Pizza vegetables container
+        » storage: Classic Supreme Pizza vegetables: Airtight in the fridge — up to 4 days.
+     6. Cut all yellow onion   (8 min)   [518 chars]
+        Work through 3 yellow onions three ways: thinly sliced, finely diced and roughly chopped.
+        1 yellow onion thinly sliced for Slow-Braised Collard Greens with Bacon — into the tub "Slow-Braised Collard Greens with Bacon — thinly sliced yellow onion"
+        1 yellow onion finely diced for Creamy Country Chicken and Gravy — into the tub "Creamy Country Chicken and Gravy — finely diced yellow onion"
+        1 yellow onion chopped for Herb Falafel — into the tub "Herb Falafel — yellow onion, fresh flat-leaf parsley and fresh cilantro"
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+  ×  7. Fresh thyme — cook day   (1 min)  [RENDER-OMITTED]   [40 chars]
+        Nothing to cut — it goes in as it comes.
+     8. Trim the green beans   (2 min)   [181 chars]
+        Trim the stem ends from 12 oz fresh green beans.
+        12 oz for Simple Steamed Green Beans with Butter — into the tub "Simple Steamed Green Beans with Butter — trimmed fresh green beans"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Simple Steamed Green Beans with Butter#0
+     9. Prep the lemon juice   (4 min)   [367 chars]
+        Juice enough lemons for 6 tbsp fresh lemon juice, and cut 4 lemon wedges.
+        4 lemon wedges for Simple Steamed Green Beans with Butter — into the tub "Simple Steamed Green Beans with Butter — lemon wedges"
+        3 tbsp fresh lemon juice for Creamy Hummus — into the Creamy Hummus sauce bowl
+        3 tbsp fresh lemon juice for Tabbouleh — into the tub "Tabbouleh — fresh lemon juice"
+        » storage: Airtight in the fridge — up to 3 days. Covered in the fridge — up to 3 days.
+    10. Chop all parsley   (12 min)   [357 chars]
+        Chop 3 cup fresh flat-leaf parsley two ways: roughly chopped and finely chopped.
+        1 cup chopped for Herb Falafel — into the tub "Herb Falafel — yellow onion, fresh flat-leaf parsley and fresh cilantro"
+        2 cup finely chopped for Tabbouleh — into the tub "Tabbouleh — fresh flat-leaf parsley, fresh mint leaves, roma tomatoes, english cucumber and green onions"
+        » covers cook steps: Tabbouleh#1
+    11. Chop the cilantro   (2 min)   [146 chars]
+        Roughly chop ½ cup fresh cilantro.
+        ½ cup for Herb Falafel — into the tub "Herb Falafel — yellow onion, fresh flat-leaf parsley and fresh cilantro"
+        » storage: Herb Falafel: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Herb Falafel dry mix separate; combine on cook day (Saturday).
+    12. Finely chop the mint   (1 min)   [178 chars]
+        Finely chop ¼ cup fresh mint leaves.
+        ¼ cup for Tabbouleh — into the tub "Tabbouleh — fresh flat-leaf parsley, fresh mint leaves, roma tomatoes, english cucumber and green onions"
+        » covers cook steps: Tabbouleh#1
+    13. Dice the roma tomatoes   (8 min)   [213 chars]
+        Remove the seeds from 3 roma tomatoes, then finely dice them.
+        3 roma tomatoes for Tabbouleh — into the tub "Tabbouleh — fresh flat-leaf parsley, fresh mint leaves, roma tomatoes, english cucumber and green onions"
+        » covers cook steps: Tabbouleh#1
+    14. Dice the English cucumber   (3 min)   [186 chars]
+        Finely dice ½ English cucumber.
+        ½ english cucumber for Tabbouleh — into the tub "Tabbouleh — fresh flat-leaf parsley, fresh mint leaves, roma tomatoes, english cucumber and green onions"
+        » covers cook steps: Tabbouleh#1
+    15. Slice the green onions   (1 min)   [179 chars]
+        Thinly slice 4 green onions.
+        4 green onions for Tabbouleh — into the tub "Tabbouleh — fresh flat-leaf parsley, fresh mint leaves, roma tomatoes, english cucumber and green onions"
+        » storage: Tabbouleh: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the fresh lemon juice separate; combine on cook day (Saturday).
+        » covers cook steps: Tabbouleh#1
+
+  ── sauces_marinades ──
+     1. Finish the Creamy Hummus sauce bowl   (2 min)   [153 chars]
+        Creamy Hummus sauce bowl (ground cumin, ice water, garlic and the fresh lemon juice from produce step 9 already in it): add
+        ½ cup tahini
+        Stir to combine.
+        » storage: Covered in the fridge — up to 3 days.
+  ×  2. Black olives — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  3. Hot sauce and honey — cook day   (1 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+  ×  4. Apple cider vinegar — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  5. Worcestershire sauce — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  6. Boiling water — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+  ×  1. Italian sausage — cook day   (1 min)  [RENDER-OMITTED]   [86 chars]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+  ×  2. Bone-in chicken pieces (thighs and drumsticks) — cook day   (11 min)  [RENDER-OMITTED]   [86 chars]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+     3. Cut the bacon into lardons   (1 min)   [38 chars]
+        Cut 4 oz thick-cut bacon into lardons.
+        » storage: Covered in the fridge — cook within 2 days.
+        » covers cook steps: Slow-Braised Collard Greens with Bacon#1
+  ×  4. Boneless skinless chicken thighs — cook day   (5 min)  [RENDER-OMITTED]   [86 chars]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.

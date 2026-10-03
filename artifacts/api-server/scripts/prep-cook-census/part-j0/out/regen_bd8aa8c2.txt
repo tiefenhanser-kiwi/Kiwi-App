@@ -1,0 +1,175 @@
+PLAN bd8aa8c2-bff4-42cf-84b8-ff24fbf3793d  [A13]  HTTP 200
+  HEADER: 25 containers · about 115 min · prompt v20
+
+  ── seasonings_dry ──
+     1. Measure the Smoky Chipotle Carne Asada marinade bowl spices   (3 min)   [142 chars]
+        Into the Smoky Chipotle Carne Asada marinade bowl:
+        1 tsp ground cumin
+        1 tsp smoked paprika
+        ½ tsp dried oregano
+        Set aside for the produce step.
+     2. Measure the Citrus-Braised Pork Carnitas spice blend   (2 min)   [109 chars]
+        Into the Citrus-Braised Pork Carnitas spice blend:
+        1½ tsp ground cumin
+        1 tsp dried oregano
+        1 tsp chili powder
+        » storage: Airtight at room temperature — it keeps for weeks.
+     3. Measure the Crispy Citrus-Braised Pork spice blend   (2 min)   [107 chars]
+        Into the Crispy Citrus-Braised Pork spice blend:
+        1½ tsp ground cumin
+        1 tsp dried oregano
+        1 tsp chili powder
+        » storage: Airtight at room temperature — it keeps for weeks.
+     4. Measure the Blackened Tilapia seasoning   (3 min)   [158 chars]
+        Into the Blackened Tilapia seasoning:
+        ½ tsp ground cumin
+        1½ tsp smoked paprika
+        ½ tsp dried oregano
+        1 tsp garlic powder
+        ½ tsp onion powder
+        ½ tsp cayenne pepper
+        » storage: Airtight at room temperature — it keeps for weeks.
+  ×  5. Ground cumin and smoked paprika — cook day   (1 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+  ×  6. Bay leaves — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)   [104 chars]
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+     2. Mince all garlic   (2 min)   [205 chars]
+        Mince 6 cloves of garlic.
+        4 cloves for Smoky Chipotle Carne Asada — into the Smoky Chipotle Carne Asada marinade bowl
+        2 cloves for Seasoned Black Beans — into the tub "Seasoned Black Beans — minced garlic"
+        » storage: Airtight in the fridge — up to 4 days.
+     3. Juice all oranges   (5 min)   [368 chars]
+        Juice 2 oranges, plus measure out ¼ cup fresh orange juice.
+        ¼ cup fresh orange juice for Smoky Chipotle Carne Asada — into the Smoky Chipotle Carne Asada marinade bowl
+        1 Orange for Citrus-Braised Pork Carnitas — into the tub "Juiced Orange — Citrus-Braised Pork Carnitas, Crispy Citrus-Braised Pork Carnitas"
+        1 Orange for Crispy Citrus-Braised Pork Carnitas — same tub
+        » storage: Airtight in the fridge — up to 3 days.
+     4. Prep all limes   (15 min)   [783 chars]
+        Zest the limes that need it, then juice all 5 limes to make 10½ tbsp fresh lime juice.
+        3 tbsp fresh lime juice — into the Smoky Chipotle Carne Asada marinade bowl
+        2 tbsp fresh lime juice for Pico de Gallo — into the Fresh lime juice tub
+        2 tbsp fresh lime juice for Mango Salsa — same tub
+        2 tbsp fresh lime juice — into the Cilantro-Lime Slaw mix-ins bowl
+        1½ tbsp fresh lime juice — into the Jalapeño Slaw mix-ins bowl
+        1 lime juiced for Citrus-Braised Pork Carnitas — into the Juiced lime tub
+        1 lime juiced for Crispy Citrus-Braised Pork Carnitas — same tub
+        1 lime juiced — into the Charred Corn Salsa tub
+        1 lime juiced — into the tub "Fresh Pico de Gallo — fresh cilantro, white onion, roma tomatoes, jalapeño and lime"
+        1 lime zested — into the tub "Cilantro-Lime Rice — zested lime"
+        » storage: Covered in the fridge — up to 3 days. Airtight in the fridge — up to 3 days.
+        » covers cook steps: Fresh Pico de Gallo#1
+     5. Chop all cilantro   (9 min)   [711 chars]
+        Roughly chop and finely chop 2⅛ cups of fresh cilantro, keeping the two cuts separate.
+        ¼ cup chopped for Carne Asada — into the Chopped fresh cilantro tub
+        3 tbsp chopped for Cilantro-Lime Slaw — same tub
+        ¼ cup chopped for Pork Carnitas — same tub
+        2 tbsp chopped for Black Beans — same tub
+        2 tbsp chopped — into the Charred Corn Salsa tub
+        ¼ cup chopped — into the Fresh Mango Salsa tub
+        ¼ cup finely chopped — into the tub "Fresh Pico de Gallo — fresh cilantro, white onion, roma tomatoes and jalapeño"
+        ⅜ cup finely chopped — into the tub "Cilantro-Lime Rice — finely chopped fresh cilantro"
+        ¼ cup finely chopped — into the tub "Fresh Pico de Gallo — fresh cilantro, white onion, roma tomatoes, jalapeño and lime"
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » covers cook steps: Fresh Pico de Gallo#0, Charred Corn Salsa#0, Cilantro-Lime Rice#1, Fresh Pico de Gallo#1, Fresh Mango Salsa#1
+     6. Cut all white onion   (8 min)   [719 chars]
+        Work through 2¾ white onions two ways: finely diced and quartered.
+        ¼ white onion finely diced for Smoky Chipotle Carne Asada — into the tub "Finely diced white onion — Smoky Chipotle Carne Asada, Seasoned Black Beans"
+        ½ white onion finely diced for Seasoned Black Beans — same tub
+        ½ white onion finely diced for Fresh Pico de Gallo — into the tub "Fresh Pico de Gallo — fresh cilantro, white onion, roma tomatoes and jalapeño"
+        ½ white onion finely diced for Fresh Pico de Gallo — into the tub "Fresh Pico de Gallo — fresh cilantro, white onion, roma tomatoes, jalapeño and lime"
+        1 white onion quartered for Crispy Citrus-Braised Pork Carnitas — into the tub "Crispy Citrus-Braised Pork Carnitas — quartered white onion"
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Fresh Pico de Gallo#0, Fresh Pico de Gallo#0
+     7. Core and dice all roma tomatoes   (15 min)   [449 chars]
+        Core and finely dice 8 roma tomatoes.
+        3 roma tomatoes for Fresh Pico de Gallo — into the tub "Fresh Pico de Gallo — fresh cilantro, white onion, roma tomatoes and jalapeño"
+        1 roma tomato for Charred Corn Salsa — into the tub "Charred Corn Salsa — fresh cilantro, roma tomatoes, lime, corn ears and red onion"
+        4 roma tomatoes for Fresh Pico de Gallo — into the tub "Fresh Pico de Gallo — fresh cilantro, white onion, roma tomatoes, jalapeño and lime"
+        » covers cook steps: Fresh Pico de Gallo#0, Charred Corn Salsa#0, Fresh Pico de Gallo#0
+     8. Prep all jalapeños   (13 min)   [664 chars]
+        Seed 5 jalapeños, then mince some and thinly slice the rest.
+        1 jalapeño minced for Fresh Pico de Gallo — into the tub "Fresh Pico de Gallo — fresh cilantro, white onion, roma tomatoes and jalapeño"
+        1 jalapeño minced for Fresh Pico de Gallo — into the tub "Fresh Pico de Gallo — fresh cilantro, white onion, roma tomatoes, jalapeño and lime"
+        1 jalapeño minced for Fresh Mango Salsa — into the tub "Fresh Mango Salsa — fresh cilantro, jalapeño, red onion and ripe mango"
+        1 jalapeño thinly sliced for Jalapeño Slaw — into the tub "Jalapeño Slaw — jalapeño and carrots"
+        1 jalapeño thinly sliced for Jalapeño Slaw — into the tub "Jalapeño Slaw — jalapeño and carrots 2"
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Fresh Pico de Gallo, Fresh Mango Salsa separate; combine on cook day (Saturday).
+        » covers cook steps: Fresh Pico de Gallo#0, Jalapeño Slaw#2, Fresh Pico de Gallo#0, Fresh Mango Salsa#1, Jalapeño Slaw#2
+     9. Shred all green cabbage   (1 min)   [241 chars]
+        Thinly shred 8 cups of green cabbage.
+        3 cup for Cilantro-Lime Slaw — into the tub "Shredded green cabbage — Cilantro-Lime Slaw, Jalapeño Slaw"
+        2 cup for Jalapeño Slaw — same tub
+        3 cup for Jalapeño Slaw — into the tub "Jalapeño Slaw — greens"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Cilantro-Lime Slaw#0, Jalapeño Slaw#0, Jalapeño Slaw#0
+    10. Shred all red cabbage   (1 min)   [187 chars]
+        Thinly shred 2 cups of red cabbage.
+        1 cup for Cilantro-Lime Slaw — into the tub "Cilantro-Lime Slaw — shredded red cabbage"
+        1 cup for Jalapeño Slaw — into the tub "Jalapeño Slaw — greens"
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Cilantro-Lime Slaw#0, Jalapeño Slaw#0
+    11. Husk the corn   (1 min)   [154 chars]
+        Husk 2 ears of corn.
+        2 corn ears for Charred Corn Salsa — into the tub "Charred Corn Salsa — fresh cilantro, roma tomatoes, lime, corn ears and red onion"
+    12. Dice the red onion   (3 min)   [280 chars]
+        Finely dice ½ red onion.
+        ¼ red onion for Charred Corn Salsa — into the tub "Charred Corn Salsa — fresh cilantro, roma tomatoes, lime, corn ears and red onion"
+        ¼ red onion for Fresh Mango Salsa — into the tub "Fresh Mango Salsa — fresh cilantro, jalapeño, red onion and ripe mango"
+        » storage: Charred Corn Salsa: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » covers cook steps: Charred Corn Salsa#0, Fresh Mango Salsa#1
+    13. Prep all carrots   (1 min)   [244 chars]
+        Peel 2 carrots, then coarsely grate one and julienne the other.
+        1 carrot grated for Jalapeño Slaw — into the tub "Jalapeño Slaw — jalapeño and carrots"
+        1 carrot julienned for Jalapeño Slaw — into the tub "Jalapeño Slaw — jalapeño and carrots 2"
+        » storage: Both containers: Airtight in the fridge — up to 4 days. Keep the Jalapeño Slaw mix-ins bowl separate; combine on cook day (Saturday).
+        » covers cook steps: Jalapeño Slaw#0, Jalapeño Slaw#0
+    14. Dice the mangoes   (1 min)   [177 chars]
+        Peel and dice 2 ripe mangoes into small ¼-inch cubes.
+        2 ripe mangos for Fresh Mango Salsa — into the tub "Fresh Mango Salsa — fresh cilantro, jalapeño, red onion and ripe mango"
+        » storage: Fresh Mango Salsa — fresh cilantro, jalapeño, red onion and ripe mango: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Fresh Pico de Gallo, Fresh Mango Salsa separate…
+        » covers cook steps: Fresh Mango Salsa#0
+
+  ── sauces_marinades ──
+     1. Finish the Smoky Chipotle Carne Asada marinade bowl   (6 min)   [292 chars]
+        Smoky Chipotle Carne Asada marinade bowl (ground cumin, smoked paprika, dried oregano, garlic, the fresh orange juice from produce step 3 and the fresh lime juice from produce step 4 already in it): add
+        2 chipotle chiles in adobo sauce, minced, plus 1 tablespoon adobo sauce
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 3 days. The skirt steak go in at the proteins step and marinate until cook day.
+     2. Finish the Cilantro-Lime Slaw mix-ins bowl   (2 min)   [168 chars]
+        Cilantro-Lime Slaw mix-ins bowl (the fresh lime juice from produce step 4 already in it): add
+        2 tbsp mayonnaise
+        1 tbsp apple cider vinegar
+        1 tsp honey
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 3 days.
+     3. Finish the Jalapeño Slaw mix-ins bowl   (2 min)   [162 chars]
+        Jalapeño Slaw mix-ins bowl (the fresh lime juice from produce step 4 already in it): add
+        3 tbsp mayonnaise
+        1 tsp apple cider vinegar
+        1 tsp honey
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 3 days.
+  ×  4. Mayonnaise, apple cider vinegar and honey — cook day   (2 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+  ×  5. Lard or vegetable oil — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     HELD: Pork Carnitas Bowl with Cilantro-Lime Rice, Black Beans, and Pico de Gallo (Thursday, 4 days out) — cut the pork shoulder into chunks that morning.
+     HELD: Blackened Fish Tacos with Mango Salsa and Jalapeño Slaw (Saturday, 6 days out) — tilapia fillets that morning.
+     1. Trim the skirt steak   (5 min)   [37 chars]
+        Trim 1½ lb skirt steak of excess fat.
+        » storage: Then into the Smoky Chipotle Carne Asada marinade bowl to marinate — covered in the fridge, cook within 1 day.
+  ×  2. Boneless pork shoulder — cook day   (15 min)  [RENDER-OMITTED]   [134 chars]
+        Cut the boneless pork shoulder into 2-inch chunks:
+        2 lb for Citrus-Braised Pork Carnitas
+        2½ lb for Crispy Citrus-Braised Pork Carnitas
+        » storage: This one is 4 days out — leave it for cook day.
+  ×  3. Tilapia fillets — cook day   (5 min)  [RENDER-OMITTED]   [48 chars]
+        Pat 24 oz tilapia fillets dry with paper towels.
+        » storage: This one is 6 days out — leave it for cook day.

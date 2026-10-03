@@ -187,12 +187,12 @@ describe("loadPrepStepSet — demoted-step exclusion (BUG-013 / BUG-015)", () =>
     assert.ok(keys.includes(BLEND_KEY), "blend step present");
   });
 
-  it("excludes a genuinely demoted step while the mixed-blend step stays required (D-WS7-183 guard)", async () => {
-    // Structure demotes the onion (skipSuggested: true); the blend carries NO
-    // flag (as the narrator guarantees). loadPrepStepSet must drop the onion and
-    // keep the blend — so a meal whose only remaining required step is the blend
-    // still gates on it (guard holds), and the demoted-and-unchecked onion can
-    // never nag forever (the BUG-013 fix).
+  it("Part J.0 — the cached blob no longer decides: a stale skipSuggested in it cannot drop a step the engine renders", async () => {
+    // The narrator's flag has been ignored since H7 2c, and the blob is written
+    // before the date overlay, so it was never the authority on what renders.
+    // loadPrepStepSet now computes every demotion itself (prepWeekBuild.isTickable)
+    // and does not read the blob at all. The onion the engine renders stays
+    // required whatever an old blob says; the blend stays required as before.
     const refs = await loadPrepStepSet({
       planId: PLAN_ID,
       userId: USER_ID,
@@ -205,7 +205,7 @@ describe("loadPrepStepSet — demoted-step exclusion (BUG-013 / BUG-015)", () =>
       loadPrepWeekInput: blendLoaderStub(),
     });
     const keys = refs.map((r) => r.stepKey);
-    assert.ok(!keys.includes(ONION_KEY), "demoted onion excluded from required-set");
+    assert.ok(keys.includes(ONION_KEY), "the blob's flag is not read — the rendered onion stays required");
     assert.ok(keys.includes(BLEND_KEY), "mixed-blend step stays required");
   });
 

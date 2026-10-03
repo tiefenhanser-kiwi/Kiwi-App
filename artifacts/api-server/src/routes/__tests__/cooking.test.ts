@@ -1638,11 +1638,13 @@ async function spinTwoProduce(cache: ReturnType<typeof makeCacheStub>) {
 }
 
 describe("prep-week completions — demoted-step exclusion (D-WS7-184)", () => {
-  it("a demoted-and-unchecked step is excluded; checking the real required step reaches prepped", async () => {
+  it("Part J.0 — a stale blob flag no longer excludes a step the engine renders", async () => {
     const cache = completionHarness();
     // structureJson demotes the ONION step (skipSuggested); the carrot step is
-    // kept (no flag). This is the persisted narration artifact loadPrepStepSet
-    // overlays onto the recomputed set.
+    // kept (no flag). loadPrepStepSet used to overlay this blob; it now computes
+    // every demotion itself (prepWeekBuild.isTickable), so the onion — which the
+    // engine renders — stays required and the meal is not prepped on the carrot
+    // alone. The engine's own demotions are pinned in prepWeekBuild.test.ts.
     cache.rows.set(PLAN_ID, {
       id: "row-demoted",
       planId: PLAN_ID,
@@ -1688,8 +1690,8 @@ describe("prep-week completions — demoted-step exclusion (D-WS7-184)", () => {
       assert.equal(checkRes.status, 200);
 
       const afterCheck = await read();
-      assert.equal(afterCheck.perMeal[MEAL_ID_X], true, "meal reaches prepped with the demoted step unchecked");
-      assert.equal(afterCheck.derivedPrepStatus, "prepped");
+      assert.equal(afterCheck.perMeal[MEAL_ID_X], false, "the blob's flag is not read — the onion is still required");
+      assert.equal(afterCheck.derivedPrepStatus, "not_prepped");
     } finally {
       await harness.close();
     }

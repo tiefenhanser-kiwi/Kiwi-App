@@ -1,0 +1,226 @@
+PLAN da372b54-d561-4e06-b653-5a5aea933ef0  [A06]  HTTP 200
+  HEADER: 27 containers · about 115 min · prompt v20
+
+  ── seasonings_dry ──
+     1. Measure the Tomato and Onion Slow-Cooker Pot sauce bowl spices   (3 min)   [137 chars]
+        Into the Tomato and Onion Slow-Cooker Pot sauce bowl:
+        1 tsp dried thyme
+        ½ tsp dried rosemary
+        2 bay leaves
+        Set aside for the produce step.
+     2. Measure the Pulled Pork Sliders rub bowl   (2 min)   [118 chars]
+        Into the Pulled Pork Sliders rub bowl:
+        1 tsp garlic powder
+        1½ tsp smoked paprika
+        1 tsp onion powder
+        1 tbsp brown sugar
+        » storage: Airtight at room temperature — it keeps for weeks.
+     3. Measure the Southwest Chicken Salad rub bowl   (2 min)   [121 chars]
+        Into the Southwest Chicken Salad rub bowl:
+        ½ tsp garlic powder
+        ½ tsp smoked paprika
+        1 tsp chili powder
+        ½ tsp ground cumin
+        » storage: Airtight at room temperature — it keeps for weeks.
+     4. Measure the Chipotle Ranch Dressing jar spices   (3 min)   [125 chars]
+        Into the Chipotle Ranch Dressing jar:
+        ¼ tsp garlic powder
+        ¼ tsp onion powder
+        ¼ tsp dried dill
+        Set aside for the produce step.
+     5. Measure the Smoky Baked Beans mix-ins bowl   (2 min)   [143 chars]
+        Into the Smoky Baked Beans mix-ins bowl:
+        ½ tsp smoked paprika
+        2 tbsp brown sugar
+        ½ tsp dry mustard
+        Set aside for the sauces and marinades step.
+     6. Measure the Thai Cucumber Salad dressing jar   (2 min)   [97 chars]
+        Into the Thai Cucumber Salad dressing jar:
+        2 tsp Granulated sugar
+        Set aside for the produce step.
+        » covers cook steps: Thai Cucumber Salad#0
+  ×  7. Dried thyme and garlic powder — cook day   (1 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+  ×  8. Bay leaves — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  9. Granulated sugar — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  × 10. Fresh red chili and roasted peanuts — cook day   (3 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)   [104 chars]
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+     2. Prep all yellow onion   (10 min)   [477 chars]
+        Work through 3½ yellow onion three ways: thinly sliced, finely diced and diced.
+        2 yellow onions thinly sliced for Tomato and Onion Slow-Cooker Pot Roast — into the tub "Tomato and Onion Slow-Cooker Pot Roast — thinly sliced yellow onion"
+        ½ yellow onion finely diced for Smoky Baked Beans — into the tub "Smoky Baked Beans — finely diced yellow onion"
+        1 yellow onion diced for Beef Stew with Mushrooms and Pearl Onions — into the tub "Beef Stew — yellow onion and celery stalks"
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Tomato and Onion Slow-Cooker Pot Roast#1, Beef Stew with Mushrooms and Pearl Onions#2
+     3. Prep all garlic   (5 min)   [555 chars]
+        Work through 14 garlic cloves two ways: minced and thinly sliced.
+        4 garlic cloves minced for Tomato and Onion Slow-Cooker Pot Roast — into the Tomato and Onion Slow-Cooker Pot sauce bowl
+        4 garlic cloves minced for Thai Shrimp Red Curry — into the tub "Minced garlic cloves — Thai Shrimp Red Curry, Beef Stew with Mushrooms and Pearl Onions"
+        4 garlic cloves minced for Beef Stew with Mushrooms and Pearl Onions — same tub
+        2 garlic cloves thinly sliced for Sautéed Garlic Green Beans — into the tub "Sautéed Garlic Green Beans — thinly sliced garlic cloves"
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Tomato and Onion Slow-Cooker Pot Roast#1, Sautéed Garlic Green Beans#0, Thai Shrimp Red Curry#0, Beef Stew with Mushrooms and Pearl Onions#2
+     4. Chop all parsley   (1 min)   [291 chars]
+        Roughly chop 4 tbsp fresh flat-leaf parsley.
+        2 tbsp for Tomato and Onion Slow-Cooker Pot Roast — into the tub "Chopped fresh flat-leaf parsley — Tomato and Onion Slow-Cooker Pot Roast, Beef Stew with Mushrooms and Pearl Onions"
+        2 tbsp for Beef Stew with Mushrooms and Pearl Onions — same tub
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+  ×  5. Yukon gold potatoes — cook day   (3 min)  [RENDER-OMITTED]   [53 chars]
+        This browns once it is cut, so it is cut on cook day.
+     6. Trim the green beans   (2 min)   [155 chars]
+        Trim the stem ends from 1 lb fresh green beans.
+        1 lb for Sautéed Garlic Green Beans — into the tub "Sautéed Garlic Green Beans — trimmed fresh green beans"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Sautéed Garlic Green Beans#0
+     7. Squeeze the lemon juice   (2 min)   [141 chars]
+        Squeeze 1 tbsp lemon juice, freshly squeezed.
+        1 tbsp for Sautéed Garlic Green Beans — into the tub "Sautéed Garlic Green Beans — lemon juice"
+        » storage: Covered in the fridge — up to 3 days.
+     8. Shred the green cabbage   (1 min)   [123 chars]
+        Finely shred 4 cup green cabbage.
+        4 cup for Tangy Vinegar Slaw — into the tub "Tangy Vinegar Slaw — shredded green cabbage"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Tangy Vinegar Slaw#0
+     9. Prep all carrots   (1 min)   [255 chars]
+        Peel 4 carrots, then grate them.
+        1 carrot grated for Tangy Vinegar Slaw — into the tub "Tangy Vinegar Slaw — carrots and celery seed"
+        3 carrots peeled for Beef Stew with Mushrooms and Pearl Onions — into the tub "Beef Stew — carrots and cremini mushrooms"
+        » covers cook steps: Tangy Vinegar Slaw#0, Beef Stew with Mushrooms and Pearl Onions#2
+    10. Measure the celery seed   (1 min)   [117 chars]
+        Measure ¼ tsp celery seed.
+        ¼ tsp for Tangy Vinegar Slaw — into the tub "Tangy Vinegar Slaw — carrots and celery seed"
+        » storage: Tangy Vinegar Slaw — carrots and celery seed: Airtight in the fridge — up to 4 days.
+    11. Chop the romaine hearts   (1 min)   [238 chars]
+        Chop 3 romaine lettuce hearts into bite-sized pieces.
+        3 romaine lettuce hearts for Southwest Chicken Salad with Avocado and Black Beans — into the tub "Southwest Chicken Salad with Avocado and Black Beans — chopped romaine lettuce hearts"
+        » storage: Airtight in the fridge — up to 3 days.
+  × 12. Ripe avocado — cook day   (1 min)  [RENDER-OMITTED]   [53 chars]
+        This browns once it is cut, so it is cut on cook day.
+    13. Halve the cherry tomatoes   (1 min)   [211 chars]
+        Halve 1½ cup cherry tomatoes.
+        1½ cup for Southwest Chicken Salad with Avocado and Black Beans — into the tub "Southwest Chicken Salad with Avocado and Black Beans — cherry tomatoes, red onion and fresh cilantro"
+    14. Slice the red onion   (3 min)   [212 chars]
+        Thinly slice ½ red onion.
+        ½ red onion for Southwest Chicken Salad with Avocado and Black Beans — into the tub "Southwest Chicken Salad with Avocado and Black Beans — cherry tomatoes, red onion and fresh cilantro"
+    15. Pick all cilantro leaves   (1 min)   [337 chars]
+        Pick the leaves from ½ cup fresh cilantro.
+        ¼ cup for Southwest Chicken Salad with Avocado and Black Beans — into the tub "Southwest Chicken Salad with Avocado and Black Beans — cherry tomatoes, red onion and fresh cilantro"
+        ¼ cup for Thai Cucumber Salad — into the tub "Thai Cucumber Salad — fresh cilantro, english cucumber and shallot"
+        » storage: Southwest Chicken Salad with Avocado and Black Beans: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Southwest Chicken Salad rub bowl separate; combine on cook day (F…
+    16. Juice the limes   (3 min)   [287 chars]
+        Juice enough limes for 3 tbsp fresh lime juice.
+        1 tbsp for Chipotle Ranch Dressing — into the Chipotle Ranch Dressing jar
+        1 tbsp for Thai Shrimp Red Curry — into the tub "Thai Shrimp Red Curry — fresh lime juice"
+        1 tbsp for Thai Cucumber Salad — into the Thai Cucumber Salad dressing jar
+        » storage: Covered in the fridge — up to 3 days.
+        » covers cook steps: Thai Cucumber Salad#0
+    17. Grate the ginger   (1 min)   [127 chars]
+        Finely grate 1 tbsp fresh ginger.
+        1 tbsp for Thai Shrimp Red Curry — into the tub "Thai Shrimp Red Curry — grated fresh ginger"
+        » storage: Airtight in the fridge — up to 3 days.
+        » covers cook steps: Thai Shrimp Red Curry#0
+    18. Prep the kaffir lime leaves   (1 min)   [158 chars]
+        Tear 4 kaffir lime leaves, removing the stems.
+        4 kaffir lime leaves for Thai Shrimp Red Curry — into the tub "Thai Shrimp Red Curry — torn kaffir lime leaves"
+        » storage: Airtight in the fridge — up to 3 days.
+    19. Slice the red bell pepper   (3 min)   [129 chars]
+        Thinly slice 1 red bell pepper.
+        1 red bell pepper for Thai Shrimp Red Curry — into the Thai Shrimp Red Curry vegetables container
+    20. Slice the zucchini   (3 min)   [147 chars]
+        Halve 1 zucchini lengthwise, then slice into half-moons.
+        1 zucchini for Thai Shrimp Red Curry — into the Thai Shrimp Red Curry vegetables container
+        » storage: Thai Shrimp Red Curry vegetables: Airtight in the fridge — up to 4 days.
+    21. Measure the baby spinach   (1 min)   [113 chars]
+        Measure 2 cup baby spinach.
+        2 cup for Thai Shrimp Red Curry — into the tub "Thai Shrimp Red Curry — Baby spinach"
+        » storage: Airtight in the fridge — up to 3 days.
+  × 22. Fresh Thai basil leaves — cook day   (1 min)  [RENDER-OMITTED]   [40 chars]
+        Nothing to cut — it goes in as it comes.
+    23. Slice the English cucumbers   (5 min)   [172 chars]
+        Thinly slice 2 english cucumber into rounds.
+        2 english cucumbers for Thai Cucumber Salad — into the tub "Thai Cucumber Salad — fresh cilantro, english cucumber and shallot"
+        » covers cook steps: Thai Cucumber Salad#1
+    24. Slice the shallot   (3 min)   [141 chars]
+        Thinly slice 1 shallot.
+        1 shallot for Thai Cucumber Salad — into the tub "Thai Cucumber Salad — fresh cilantro, english cucumber and shallot"
+        » storage: Thai Cucumber Salad — fresh cilantro, english cucumber and shallot: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Thai Cucumber Salad dressing jar separate; combine…
+    25. Halve the cremini mushrooms   (1 min)   [161 chars]
+        Halve or quarter 10 oz cremini mushrooms if large.
+        10 oz for Beef Stew with Mushrooms and Pearl Onions — into the tub "Beef Stew — carrots and cremini mushrooms"
+        » storage: Beef Stew — carrots and cremini mushrooms: Airtight in the fridge — up to 4 days.
+    26. Cut the celery   (1 min)   [161 chars]
+        Cut 2 celery stalks into 1-inch pieces.
+        2 celery stalks for Beef Stew with Mushrooms and Pearl Onions — into the tub "Beef Stew — yellow onion and celery stalks"
+        » storage: Beef Stew — yellow onion and celery stalks: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Beef Stew with Mushrooms and Pearl Onions#2
+  × 27. Fresh thyme sprigs — cook day   (1 min)  [RENDER-OMITTED]   [40 chars]
+        Nothing to cut — it goes in as it comes.
+
+  ── sauces_marinades ──
+     1. Finish the Tomato and Onion Slow-Cooker Pot sauce bowl   (2 min)   [167 chars]
+        Tomato and Onion Slow-Cooker Pot sauce bowl (dried thyme, dried rosemary, bay leaves and garlic cloves already in it): add
+        1 tbsp worcestershire sauce
+        Stir to combine.
+        » storage: Covered in the fridge — up to 4 days.
+     2. Finish the Chipotle Ranch Dressing jar   (7 min)   [258 chars]
+        Chipotle Ranch Dressing jar (garlic powder, onion powder, dried dill and the fresh lime juice from produce step 16 already in it): add
+        ½ cup Mayonnaise
+        2 chipotle peppers in adobo sauce, finely minced
+        1 tsp adobo sauce from the chipotle can
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 3 days.
+        » covers cook steps: Chipotle Ranch Dressing#0
+     3. Finish the Smoky Baked Beans mix-ins bowl   (1 min)   [153 chars]
+        Smoky Baked Beans mix-ins bowl (smoked paprika, brown sugar and dry mustard already in it): add
+        1 tsp worcestershire sauce
+        ⅜ cup Ketchup
+        Stir to combine.
+        » storage: Covered in the fridge — up to 5 days.
+     4. Finish the Thai Cucumber Salad dressing jar   (5 min)   [189 chars]
+        Thai Cucumber Salad dressing jar (Granulated sugar and the fresh lime juice from produce step 16 already in it): add
+        1 tbsp fish sauce
+        3 tbsp rice vinegar
+        ½ tsp sesame oil
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 2 days.
+        » covers cook steps: Thai Cucumber Salad#0
+  ×  5. Worcestershire sauce and dry red wine — cook day   (1 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+  ×  6. Apple cider vinegar and bbq sauce — cook day   (1 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+  ×  7. Apple cider vinegar and dijon mustard — cook day   (1 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+  ×  8. Apple cider vinegar — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  9. Coconut oil, Thai red curry paste and fish sauce — cook day   (4 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+  × 10. Warm water — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     HELD: Southwest Chicken Salad with Avocado, Black Beans, and Chipotle Ranch (Thursday, 4 days out) — pound the chicken breasts that morning.
+     HELD: Beef Stew with Mushrooms and Pearl Onions (Saturday, 6 days out) — cube the beef chuck that morning.
+     1. Pound the beef chuck roast   (9 min)   [87 chars]
+        Pound 3 lb beef chuck roast to an even thickness, trimmed of excess fat and patted dry.
+        » storage: Covered in the fridge — cook within 2 days.
+     2. Trim the pork shoulder   (8 min)   [76 chars]
+        Trim 2 lb boneless pork shoulder of excess fat, then cut into 3-inch chunks.
+        » storage: Covered in the fridge — cook within 2 days.
+        » covers cook steps: Pulled Pork Sliders#2
+  ×  3. Bacon — cook day   (1 min)  [RENDER-OMITTED]   [86 chars]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+  ×  4. Boneless skinless chicken breasts — cook day   (5 min)  [RENDER-OMITTED]   [64 chars]
+        Pound 1½ lb boneless skinless chicken breasts to even thickness.
+        » storage: This one is 4 days out — leave it for cook day.
+  ×  5. Large shrimp, peeled and deveined — cook day   (5 min)  [RENDER-OMITTED]   [86 chars]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+  ×  6. Beef chuck — cook day   (8 min)  [RENDER-OMITTED]   [53 chars]
+        Cube 2 lb beef chuck into 1½-inch pieces and pat dry.
+        » storage: This one is 6 days out — leave it for cook day.

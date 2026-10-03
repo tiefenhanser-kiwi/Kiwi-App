@@ -552,6 +552,34 @@ export function closingNote(
 }
 
 /**
+ * BUG-340 — a shelf-stable form in the Proteins phase is not raw flesh, whatever
+ * the phase says. The phase classifier also keeps these out of the phase; this is
+ * the second half of the same fix, and it is the half the user is protected by: a
+ * category the catalog gets wrong tomorrow must not be able to put "cook within 2
+ * days" on a jar.
+ */
+function isRawProteinStep(ctx: StorageContext): boolean {
+  const identityHere = ctx.ingredientNames.join(" ");
+  return ctx.phase === "proteins" && stripShelfStable(identityHere) === identityHere;
+}
+
+/**
+ * Part J.0 — DOES THE OVERLAY HOLD THIS STEP FOR COOK DAY? The one predicate the
+ * overlay below demotes by and `isTickable` (prepWeekBuild.ts) excludes by, so the
+ * screen and `isPrepped` cannot disagree about a held protein.
+ *
+ * Mirrors the overlay's own order: a step that holds no container or whose
+ * storage is suppressed is returned untouched before the protein rule runs.
+ */
+export function overlayHoldsForCookDay(
+  flags: { holdsNoContainer?: boolean; suppressStorage?: boolean },
+  ctx: StorageContext | undefined,
+): boolean {
+  if (flags.holdsNoContainer === true || flags.suppressStorage === true || !ctx) return false;
+  return isRawProteinStep(ctx) && judgeProteinStep(ctx.daysUntilCook).kind === "demote";
+}
+
+/**
  * D-WS9-298 — rewrite every storage note, demote the proteins that will not
  * keep, and add the Proteins phase line.
  *
@@ -619,14 +647,7 @@ export function applyStorageOverlay(
           const { storageNote: _drop, ...rest } = step;
           return rest;
         }
-        // BUG-340 — a shelf-stable form in the Proteins phase is not raw flesh,
-        // whatever the phase says. The phase classifier below also keeps these
-        // out of the phase; this is the second half of the same fix, and it is
-        // the half the user is protected by: a category the catalog gets wrong
-        // tomorrow must not be able to put "cook within 2 days" on a jar.
-        const identityHere = ctx.ingredientNames.join(" ");
-        const shelfStableHere = stripShelfStable(identityHere) !== identityHere;
-        if (ctx.phase === "proteins" && !shelfStableHere) {
+        if (isRawProteinStep(ctx)) {
           const verdict = judgeProteinStep(ctx.daysUntilCook);
           if (verdict.kind === "demote") {
             // Rule 13 — "shown instead of silently dropped".

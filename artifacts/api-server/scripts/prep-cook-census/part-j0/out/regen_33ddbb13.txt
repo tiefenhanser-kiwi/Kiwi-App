@@ -1,0 +1,152 @@
+PLAN 33ddbb13-7f30-418f-ab5b-c547484d4461  [A11]  HTTP 200
+  HEADER: 16 containers · about 75 min · prompt v20
+
+  ── seasonings_dry ──
+     1. Measure the Shrimp and Crab Jambalaya sauce bowl spices   (4 min)   [206 chars]
+        Into the Shrimp and Crab Jambalaya sauce bowl:
+        2 tsp Cajun seasoning
+        1 tsp smoked paprika
+        ½ tsp dried thyme
+        ½ tsp dried oregano
+        ¼ tsp cayenne pepper
+        2 bay leaves
+        Set aside for the sauces and marinades step.
+        » covers cook steps: Shrimp and Crab Jambalaya#1
+     2. Measure the Sheet-Pan Shrimp Boil seasoning   (3 min)   [147 chars]
+        Into the Sheet-Pan Shrimp Boil seasoning:
+        2 tbsp Old Bay seasoning
+        1 tsp smoked paprika
+        1 tsp garlic powder
+        ½ tsp onion powder
+        ¼ tsp cayenne pepper
+        » storage: Small airtight container at room temperature — it keeps for weeks.
+     3. Measure the Layered Tortilla Beef Taco seasoning   (2 min)   [126 chars]
+        Into the Layered Tortilla Beef Taco seasoning:
+        2 tsp chili powder
+        1½ tsp ground cumin
+        1 tsp smoked paprika
+        ½ tsp dried oregano
+        » storage: Airtight at room temperature — it keeps for weeks.
+     4. Measure the Hyderabadi Dum Chicken Biryani sauce bowl spices   (7 min)   [350 chars]
+        Into the Hyderabadi Dum Chicken Biryani sauce bowl:
+        1½ tsp Kashmiri red chili powder
+        1 tsp ground coriander
+        ½ tsp ground cumin
+        1 tsp garam masala
+        ½ tsp turmeric
+        ½ tsp black peppercorns
+        5 whole green cardamom pods
+        1 cinnamon stick, 2-inch piece
+        1 star anise
+        2 bay leaves
+        3 green chili, slit lengthwise (serrano or Thai)
+        Set aside for the produce step.
+  ×  5. Plain breadcrumbs, parmigiano-reggiano, escarole, acini di pepe pasta, Parmigiano-Reggiano rind and red pepper flakes —    (3 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+  ×  6. Long-grain white rice — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  7. Basmati rice, whole cloves and saffron — cook day   (2 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)   [104 chars]
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+     2. Prep all garlic   (8 min)   [782 chars]
+        Work through 22 cloves of garlic two ways: minced and thinly sliced.
+        2 cloves minced for Sausage and Escarole Wedding Soup — into the tub "Sausage and Escarole Wedding Soup — aromatics"
+        4 cloves minced for Shrimp and Crab Jambalaya — into the Shrimp and Crab Jambalaya vegetables container
+        6 cloves minced for Hyderabadi Dum Chicken Biryani — into the tub "Hyderabadi Dum Chicken Biryani — garlic, yellow onion and fresh ginger"
+        4 cloves minced for Sheet-Pan Shrimp Boil with Sausage, Corn, and Potatoes — into the tub "Minced garlic — Sheet-Pan Shrimp Boil with Sausage, Corn, and Potatoes, Layered Tortilla Beef Taco Casserole"
+        3 cloves minced for Layered Tortilla Beef Taco Casserole — same tub
+        3 cloves thinly sliced for Sausage and Escarole Wedding Soup — the same tub as above
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Sausage and Escarole Wedding Soup#2, Layered Tortilla Beef Taco Casserole#1
+     3. Chop all parsley   (3 min)   [475 chars]
+        Chop 9 tbsp fresh flat-leaf parsley, finely for some portions and more roughly for others.
+        2 tbsp finely chopped for Sausage and Escarole Wedding Soup — into the tub "Sausage and Escarole Wedding Soup — aromatics"
+        ¼ cup chopped for Shrimp and Crab Jambalaya — into the tub "Chopped fresh flat-leaf parsley — Shrimp and Crab Jambalaya, Sheet-Pan Shrimp Boil with Sausage, Corn, and Potatoes"
+        3 tbsp chopped for Sheet-Pan Shrimp Boil with Sausage, Corn, and Potatoes — same tub
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+     4. Prep all yellow onion   (13 min)   [619 chars]
+        Work through 5 yellow onions three ways: finely diced, diced and thinly sliced.
+        1 yellow onion finely diced for Sausage and Escarole Wedding Soup — into the Sausage and Escarole Wedding vegetables container
+        1 yellow onion finely diced for Layered Tortilla Beef Taco Casserole — into the tub "Layered Tortilla Beef Taco Casserole — finely diced yellow onion"
+        1 yellow onion diced for Shrimp and Crab Jambalaya — into the Shrimp and Crab Jambalaya vegetables container
+        2 yellow onions thinly sliced for Hyderabadi Dum Chicken Biryani — into the tub "Hyderabadi Dum Chicken Biryani — garlic, yellow onion and fresh ginger"
+        » storage: Airtight in the fridge — up to 4 days.
+     5. Dice all celery   (2 min)   [317 chars]
+        Dice 2 stalks celery + 2 celery stalks, some finely and some in a regular dice.
+        2 stalks celery finely diced for Sausage and Escarole Wedding Soup — into the Sausage and Escarole Wedding vegetables container
+        2 celery stalks diced for Shrimp and Crab Jambalaya — into the Shrimp and Crab Jambalaya vegetables container
+        » covers cook steps: Sausage and Escarole Wedding Soup#2
+     6. Dice the carrots   (2 min)   [131 chars]
+        Finely dice 2 carrots.
+        2 carrots for Sausage and Escarole Wedding Soup — into the Sausage and Escarole Wedding vegetables container
+        » storage: Sausage and Escarole Wedding vegetables: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Sausage and Escarole Wedding Soup#2
+     7. Dice the green bell pepper   (3 min)   [133 chars]
+        Dice 1 green bell pepper.
+        1 green bell pepper for Shrimp and Crab Jambalaya — into the Shrimp and Crab Jambalaya vegetables container
+        » storage: Shrimp and Crab Jambalaya vegetables: Airtight in the fridge — up to 4 days.
+     8. Prep the fried onions (birista)   (3 min)   [230 chars]
+        Thinly slice yellow onion and deep-fry until golden and crisp to make 1 cup of fried onions (birista).
+        1 cup for Hyderabadi Dum Chicken Biryani — into the tub "Hyderabadi Dum Chicken Biryani — thinly sliced fried onions (birista)"
+        » storage: Airtight in the fridge — up to 4 days.
+     9. Grate the ginger   (1 min)   [173 chars]
+        Finely grate fresh ginger to make 1½ tbsp.
+        1½ tbsp for Hyderabadi Dum Chicken Biryani — into the tub "Hyderabadi Dum Chicken Biryani — garlic, yellow onion and fresh ginger"
+        » storage: Hyderabadi Dum Chicken Biryani — garlic, yellow onion and fresh ginger: Airtight in the fridge — up to 4 days. Keep the Hyderabadi Dum Chicken Biryani sauce bowl separate; combine on cook day (Wednes…
+    10. Tear the mint   (1 min)   [166 chars]
+        Roughly tear ½ cup loosely packed fresh mint leaves.
+        ½ cup for Hyderabadi Dum Chicken Biryani — into the tub "Hyderabadi Dum Chicken Biryani — torn fresh mint leaves"
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+    11. Chop all cilantro   (3 min)   [259 chars]
+        Roughly chop ¾ cup loosely packed fresh cilantro.
+        ½ cup for Hyderabadi Dum Chicken Biryani — into the tub "Chopped fresh cilantro — Hyderabadi Dum Chicken Biryani, Layered Tortilla Beef Taco Casserole"
+        ¼ cup for Layered Tortilla Beef Taco Casserole — same tub
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+    12. Juice the lemon   (2 min)   [134 chars]
+        Juice lemon to make 2 tbsp lemon juice.
+        2 tbsp for Hyderabadi Dum Chicken Biryani — into the Hyderabadi Dum Chicken Biryani sauce bowl
+        » storage: Hyderabadi Dum Chicken Biryani sauce bowl: Covered in the fridge — up to 3 days.
+  × 13. Baby red potatoes — cook day   (3 min)  [RENDER-OMITTED]   [53 chars]
+        This browns once it is cut, so it is cut on cook day.
+    14. Cut the corn   (1 min)   [222 chars]
+        Husk 3 ears of corn and cut them into 1½-inch rounds.
+        3 ears of corns for Sheet-Pan Shrimp Boil with Sausage, Corn, and Potatoes — into the tub "Sheet-Pan Shrimp Boil with Sausage, Corn, and Potatoes — husked ears of corn"
+        » storage: Airtight in the fridge — up to 3 days.
+
+  ── sauces_marinades ──
+     1. Finish the Shrimp and Crab Jambalaya sauce bowl   (3 min)   [267 chars]
+        Shrimp and Crab Jambalaya sauce bowl (Cajun seasoning, smoked paprika, dried thyme, dried oregano, cayenne pepper and bay leaves already in it): add
+        2 tbsp extra-virgin olive oil
+        1 tbsp worcestershire sauce
+        1 tsp hot sauce, such as Crystal or Tabasco
+        Stir to combine.
+        » storage: Covered in the fridge — up to 5 days.
+  ×  2. Extra-virgin olive oil — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  3. Extra-virgin olive oil — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  4. Chunky salsa — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     HELD: Sheet-Pan Shrimp Boil with Sausage, Corn, and Potatoes (Thursday, 4 days out) — slice all andouille sausage that morning.
+     HELD: Hyderabadi Dum Chicken Biryani (Wednesday, 3 days out) — cut the Hyderabadi Dum Chicken Biryani chicken thighs that morning.
+  ×  1. Sweet Italian pork sausage — cook day   (3 min)  [RENDER-OMITTED]   [86 chars]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+  ×  2. Large shrimp, peeled and deveined — cook day   (8 min)  [RENDER-OMITTED]   [86 chars]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+     3. Pick over the crab for the Shrimp and Crab Jambalaya   (1 min)   [54 chars]
+        Pick over 8 oz lump crab meat for any shell fragments.
+        » storage: Covered in the fridge — cook within 2 days.
+  ×  4. Andouille sausage — cook day   (1 min)  [RENDER-OMITTED]   [202 chars]
+        Slice the andouille sausage into rounds:
+        8 oz for the Shrimp and Crab Jambalaya, sliced into ¼-inch rounds
+        12 oz for the Sheet-Pan Shrimp Boil with Sausage, Corn, and Potatoes, sliced into ½-inch rounds
+        » storage: This one is 4 days out — leave it for cook day.
+  ×  5. Bone-in chicken thighs — cook day   (10 min)  [RENDER-OMITTED]   [51 chars]
+        Cut 2½ lb bone-in chicken thighs into large pieces.
+        » storage: This one is 3 days out — leave it for cook day.

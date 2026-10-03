@@ -209,6 +209,17 @@ export interface PlannedStep {
    * every day reassignment a cache miss for prose that would not have changed.
    */
   daysUntilCook?: number;
+  /**
+   * Part J.0 (census finding 2) — the PORTION LINES, rendered by code. Present on
+   * a produce step whose portions go somewhere: "4 cloves for Beef Enchiladas
+   * Verdes — into the tub "Minced garlic — …"". The narrator writes only the
+   * opening sentence; assembly puts these under it. See `renderPortionLines`.
+   */
+  portionLines?: string[];
+  /** What the narrator is told about a portion step instead of its measures. */
+  portionsByApp?: { food: string; total: string; cuts: string[]; portionCount: number };
+  /** Part J.0 (A4) — see PrepWeekStepSchema.coversCookSteps. Set by prepWeekBuild. */
+  coversCookSteps?: { mealId: string; dishId: string; stepIndex: number }[];
 }
 
 export interface StepPlan {
@@ -220,6 +231,8 @@ export interface StepPlan {
    * so a hand-built plan in a test still type-checks.
    */
   containerExtras?: ReadonlyMap<string, ContainerExtra>;
+  /** Part J.0 — see renderPortionLines; assembly re-renders with the real opening. */
+  shortTubRef?: ReadonlyMap<string, string>;
 }
 
 /**
@@ -298,17 +311,36 @@ function kindOf(entry: PrepIngredientGroup): MemberKind {
 
 /**
  * H6.1-B — a container label the cook can read off a lid, inside the wire's
- * 120-character cap. Three dishes named, the rest counted, and a hard trim as the
- * last resort so a single very long dish title cannot overflow it either.
+ * 120-character cap (the client's PrepWeekStepSchema holds it there too).
+ *
+ * 🔴 Part J.0 — EVERY DISH, NEVER "+N more". A lid that says "+2 more" sends the
+ * cook to the recipe to find out which. Now that each portion line names its full
+ * dish, the label can afford SHORT dish names when the full ones do not fit:
+ * "Minced garlic — Enchiladas Verdes, Street-Style Rice, Beef Chili". Shortening
+ * runs only when it has to, and the hard trim is the last resort for one title
+ * that is too long on its own.
+ *
+ * `tailIsDishes` — true for rule 5's shared tub (noun — its dishes); false for a
+ * dish's own container (dish — its contents), where the DISH is what shortens.
  */
 const LABEL_MAX = 120;
-function containerLabel(noun: string, dishes: readonly string[]): string {
-  const named = dishes.slice(0, 3);
-  const rest = dishes.length - named.length;
-  const tail = rest > 0 ? `${named.join(", ")} +${rest} more` : named.join(", ");
-  const full = `${noun} — ${tail}`;
-  if (full.length <= LABEL_MAX) return full;
-  return `${full.slice(0, LABEL_MAX - 1).trimEnd()}…`;
+function shortDishName(name: string): string {
+  const head = name.split(/\s+(?:with|over)\s+|,\s*|:\s*|\s*\(/i)[0].trim();
+  const words = head.split(/\s+/);
+  // "Chicken and Dumplings", "Pico de Gallo": a pair that opens on a connector
+  // keeps the word before it.
+  const two = words.slice(-2);
+  return /^(?:and|&|de|del|of|in|the|a|on)$/i.test(two[0] ?? "") ? words.slice(-3).join(" ") : two.join(" ");
+}
+function containerLabel(head: string, tail: readonly string[], tailIsDishes = false): string {
+  const fit = (h: string, t: readonly string[]) => `${h} — ${t.join(", ")}`;
+  const tries = tailIsDishes
+    ? [fit(head, tail), fit(head, dedupe(tail.map(shortDishName))), fit(head, dedupe(tail.map((d) => shortDishName(d).split(" ").at(-1)!)))]
+    : [fit(head, tail), fit(shortDishName(head), tail)];
+  for (const t of tries) if (t.length <= LABEL_MAX) return t;
+  const last = tries[tries.length - 1].replace(/\bfresh\s+/gi, "");
+  if (last.length <= LABEL_MAX) return last;
+  return `${last.slice(0, LABEL_MAX - 1).trimEnd()}…`;
 }
 
 /** "diced onion" → "Diced onion", for the head of a container label. */
@@ -562,6 +594,11 @@ function componentsOfUnclaimed(
         amount: formatMeasure(c.quantity, c.unit),
         forDish: c.dishName,
         dishRole: c.dishRole,
+        mealId: c.mealId,
+        dishId: c.dishId,
+        ingredientId: entry.ingredientId,
+        qty: c.quantity,
+        unit: c.unit,
         ...(destinationFor ? { destination: destinationFor(c.dishId, entry.ingredientId) } : {}),
           ...((c.preparationNote ?? "").trim()
           ? { preparationNote: (c.preparationNote ?? "").trim() }
@@ -590,6 +627,11 @@ function componentsOf(
         amount: formatMeasure(c.quantity, c.unit),
         forDish: c.dishName,
         dishRole: c.dishRole,
+        mealId: c.mealId,
+        dishId: c.dishId,
+        ingredientId: entry.ingredientId,
+        qty: c.quantity,
+        unit: c.unit,
         ...(destinationFor ? { destination: destinationFor(c.dishId, entry.ingredientId) } : {}),
           ...((c.preparationNote ?? "").trim()
           ? { preparationNote: (c.preparationNote ?? "").trim() }
@@ -628,6 +670,11 @@ function componentsForDish(
         amount: formatMeasure(c.quantity, c.unit),
         forDish: c.dishName,
         dishRole: c.dishRole,
+        mealId: c.mealId,
+        dishId: c.dishId,
+        ingredientId: entry.ingredientId,
+        qty: c.quantity,
+        unit: c.unit,
         ...(destinationFor ? { destination: destinationFor(c.dishId, entry.ingredientId) } : {}),
           ...((c.preparationNote ?? "").trim()
           ? { preparationNote: (c.preparationNote ?? "").trim() }
@@ -666,6 +713,14 @@ export function buildStepPlan(
   // `assignedDate`. Defaults empty, so `loadPrepStepSet` (which only needs step
   // keys) and every existing test are untouched.
   cookLagByMealId: ReadonlyMap<string, number> = new Map(),
+  /**
+   * Part J.0 (A3) — Prep Selected Meals. The plan is built WHOLE — food identity,
+   * shared cuts, container floors and names, the drop pass — and only then scoped
+   * to these meals, so a subset step has the full plan's stepKey, container names
+   * and per-dish quantities. Built over the subset alone, a food in only some
+   * meals got a different key and the subset's ticks never reached `isPrepped`.
+   */
+  opts: { scopeMealIds?: ReadonlySet<string> } = {},
 ): StepPlan {
   const steps: PlannedStep[] = [];
 
@@ -1174,7 +1229,7 @@ export function buildStepPlan(
         const dishes = [...new Set(group.map((p) => p.dishName))];
         for (const p of group) {
           const label =
-            dishes.length > 1 ? containerLabel(upperFirst(noun), dishes) : containerLabel(p.dishName, [noun]);
+            dishes.length > 1 ? containerLabel(upperFirst(noun), dishes, true) : containerLabel(p.dishName, [noun]);
           tubLabel.set(`${p.dishId}|${p.entry.ingredientId}`, label);
         }
       }
@@ -1523,6 +1578,50 @@ export function buildStepPlan(
   // later step was dropped must read as finished on the step that remains.
   dropLowValueSteps(steps);
 
+  // ── Part J.0 (A3) — SCOPE TO THE SELECTED MEALS, AFTER THE WHOLE PLAN IS BUILT ──
+  //
+  // Each kept step keeps its key, its container names and its demotion (the drop
+  // pass ran over the whole plan); it loses the portions and meals outside the
+  // selection, and its minutes and cook-day lag are recomputed for what is left.
+  // Everything below — closes, openings, the narration input — runs on the scoped
+  // steps, so a subset never closes a bowl on another meal's portion.
+  if (opts.scopeMealIds) {
+    const inScope = opts.scopeMealIds;
+    const kept: PlannedStep[] = [];
+    for (const st of steps) {
+      const meals = st.contributesToMealIds.filter((id) => inScope.has(id));
+      if (meals.length === 0) continue;
+      if (st.components.length > 0) {
+        const comps = st.components
+          .map((c) => ({ ...c, measures: c.measures.filter((m) => m.mealId === undefined || inScope.has(m.mealId)) }))
+          .filter((c) => c.measures.length > 0);
+        if (comps.length === 0) continue;
+        const dishNames = new Set(comps.flatMap((c) => c.measures.map((m) => m.forDish)));
+        st.components = comps;
+        st.relevantDishes = st.relevantDishes.filter((n) => dishNames.has(n));
+        const timing = timeStep({ components: st.components, bowlName: st.bowlName }, yieldFor);
+        st.estimatedMinutes = timing.minutes;
+        if (timing.overCap) st.minutesOverCap = true;
+        else delete st.minutesOverCap;
+      }
+      st.contributesToMealIds = meals;
+      const lags = meals.map((id) => cookLagByMealId.get(id)).filter((n): n is number => n !== undefined);
+      if (lags.length > 0) st.daysUntilCook = Math.max(...lags);
+      else delete st.daysUntilCook;
+      kept.push(st);
+    }
+    // Renumber within each phase: the cook reads "produce step 4", and a gap left
+    // by an unselected meal's step would point at nothing.
+    const perPhase = new Map<PrepPhaseKey, number>();
+    for (const st of kept) {
+      const n = (perPhase.get(st.phase) ?? 0) + 1;
+      perPhase.set(st.phase, n);
+      st.number = n;
+      st.stepId = `${st.phase}#${n}`;
+    }
+    steps.splice(0, steps.length, ...kept);
+  }
+
   // Emit dishSteps ONLY for dishes actually referenced by some step, in
   // first-referenced order, so the map carries no unused prose.
   const dishSteps: Record<string, string[]> = {};
@@ -1650,6 +1749,33 @@ export function buildStepPlan(
     };
   }
 
+  // ── Part J.0 — a produce step's portion lines are rendered here, not narrated ──
+  // A dish's own content tub ("Tabbouleh — parsley, mint …") may be pointed at as
+  // "the Tabbouleh tub" on a step that would not fit otherwise — only when no
+  // other container on the plan opens with that dish.
+  const shortTubRef = new Map<string, string>();
+  {
+    const all = dedupe(steps.flatMap((s) => containerNamesOf(s)));
+    const heads = new Map<string, number>();
+    for (const n of all) {
+      const h = n.split(" — ")[0];
+      heads.set(h, (heads.get(h) ?? 0) + 1);
+    }
+    for (const n of all) {
+      const h = n.split(" — ")[0];
+      if (n.includes(" — ") && heads.get(h) === 1 && !all.some((o) => o !== n && o.startsWith(h))) {
+        shortTubRef.set(n, `the ${h} tub`);
+      }
+    }
+  }
+  for (const st of steps) {
+    if (st.phase !== "produce" || st.demoted || st.fixedProse) continue;
+    const r = renderPortionLines(st, shortTubRef);
+    if (!r) continue;
+    st.portionLines = r.lines;
+    st.portionsByApp = r.meta;
+  }
+
   const narrationInput: PrepNarrationInput = {
     planName,
     dishSteps,
@@ -1659,7 +1785,17 @@ export function buildStepPlan(
       stepId: s.stepId,
       phase: s.phase,
       isBlend: s.isBlend,
-      components: s.components,
+      // Part J.0 — a portion step's components go WITHOUT their measures: the
+      // model writes the opening only, and an amount it cannot see is an amount it
+      // cannot write a second time.
+      components: s.portionsByApp
+        ? s.components.map((c) => ({
+            ingredientName: c.ingredientName,
+            ...(c.preparationNote ? { preparationNote: c.preparationNote } : {}),
+            measures: [],
+          }))
+        : narrationComponents(s.components),
+      ...(s.portionsByApp ? { portionsByApp: s.portionsByApp } : {}),
       relevantDishes: s.relevantDishes,
       ...(s.bowlName ? { bowlName: s.bowlName } : {}),
       ...(s.cookDaySentence ? { cookDaySentence: s.cookDaySentence } : {}),
@@ -1675,7 +1811,7 @@ export function buildStepPlan(
     })),
   };
 
-  return { steps, narrationInput, containerExtras };
+  return { steps, narrationInput, containerExtras, shortTubRef };
 }
 
 // ── H7.1 vocabulary. Every pattern reads its OWN subject — a step's text for a verb,
@@ -1747,6 +1883,218 @@ const DEMOTE_PROSE: Record<string, string> = {
   "rule 7 — over the container target; a single-dish garnish portion saves the least":
     "A single garnish portion saves the least — cut it on the day.",
 };
+
+// ── Part J.0 (census finding 2) — THE PORTION LINES ARE THE CODE'S ─────────────
+//
+// 8 of 25 census plans 502'd because the narrator's "Mince all garlic" ran past the
+// 800-character cap: it wrote every portion line itself and repeated a 120-character
+// tub label on each one. Those lines are facts — an amount, a dish, a destination —
+// so code writes them, once, and the narrator writes only the opening sentence.
+//
+//   4 cloves for Beef Enchiladas Verdes — into the tub "Minced garlic — Enchiladas …"
+//   2 cloves for Mexican Street-Style Rice — same tub
+//
+// A label is printed in full ONCE per step; a repeat reads "same tub" / "same bowl".
+// Portions are grouped by cut, then by destination, so a repeat is adjacent and
+// "same" can only mean the line above. The renderer owns the cap: what it returns
+// fits PORTION_LINES_MAX, which leaves the opening OPENING_MAX of the 800.
+
+/**
+ * The narrator's opening sentence, at most. Longer is cut at a sentence end. The
+ * longest shape the prompt asks for ("Work through 3 yellow onions three ways:
+ * thinly sliced, finely diced and roughly chopped.") is 88 characters.
+ */
+export const OPENING_MAX = 160;
+/** The wire caps `instructions` at 800 (both schemas); the opening and a newline take the rest. */
+export const PORTION_LINES_MAX = 800 - OPENING_MAX - 1;
+
+const VESSEL_NOUN = /\b(bowl|jar|container|tub|bag|tray|dish|pot)\b(?:\s+\d+)?$/i;
+
+/** "the tub "…"" / "the Creamy Hummus sauce bowl", and what a repeat calls it. */
+function destinationPhrase(dest: string): { first: string; noun: string } {
+  if (dest.includes(" — ")) return { first: `into the tub "${dest}"`, noun: "tub" };
+  const m = VESSEL_NOUN.exec(dest);
+  if (m) return { first: `into the ${dest}`, noun: m[1].toLowerCase() };
+  return { first: `into the ${dest} container`, noun: "container" };
+}
+
+function leadingNumber(amount: string): number | null {
+  const m = /^(\d+)?\s*([¼½¾⅓⅔⅛⅜⅝⅞])?/.exec(amount.trim());
+  if (!m || (!m[1] && !m[2])) return null;
+  const frac: Record<string, number> = { "¼": 0.25, "½": 0.5, "¾": 0.75, "⅓": 1 / 3, "⅔": 2 / 3, "⅛": 0.125, "⅜": 0.375, "⅝": 0.625, "⅞": 0.875 };
+  return (m[1] ? Number(m[1]) : 0) + (m[2] ? frac[m[2]] : 0);
+}
+
+/** The step's whole amount per component, as a finished string ("11 cloves", "1 lemon + 6 tbsp lemon juice"). */
+function totalOf(components: readonly PrepNarrationComponent[], named: boolean): string {
+  const parts: string[] = [];
+  for (const c of components) {
+    const byToken = new Map<string, { q: number; unit: string }>();
+    for (const m of c.measures) {
+      if (m.qty === undefined || m.unit === undefined) continue;
+      const { token } = canonicalizeUnit(m.unit);
+      const first = [...byToken.keys()][0];
+      const conv = first !== undefined && first !== token ? convertWithinDimension(m.qty, token, first) : null;
+      const key = conv !== null && first !== undefined ? first : token;
+      const have = byToken.get(key) ?? { q: 0, unit: m.unit };
+      have.q += conv !== null ? conv : m.qty;
+      byToken.set(key, have);
+    }
+    for (const { q, unit } of byToken.values()) {
+      const amount = formatMeasure(q, unit);
+      const countOnly = canonicalizeUnit(unit).token === "" || PLACEHOLDER_COUNT_UNITS.has(canonicalizeUnit(unit).token);
+      parts.push(named || countOnly ? `${amount} ${c.ingredientName}` : amount);
+    }
+  }
+  return parts.join(" + ");
+}
+
+export interface RenderedPortions {
+  lines: string[];
+  meta: { food: string; total: string; cuts: string[]; portionCount: number };
+}
+
+/**
+ * The portion lines for one produce step, or null when it has nothing to portion.
+ * Pure: reads only the step's components.
+ */
+export function renderPortionLines(
+  step: Pick<PlannedStep, "components">,
+  /**
+   * Last resort before any trim: full label → "the <Dish> tub", for a dish's own
+   * content tub whose head no other container on the plan shares. The lid carries
+   * the full label; the line can point at it by its dish when the step will not
+   * fit otherwise. Built by buildStepPlan from every container name on the plan.
+   */
+  shortTubRef: ReadonlyMap<string, string> = new Map(),
+  /** Characters the lines may take. Assembly passes 800 minus the real opening. */
+  budget: number = PORTION_LINES_MAX,
+): RenderedPortions | null {
+  const names = dedupe(step.components.map((c) => c.ingredientName));
+  const named = names.length > 1;
+  type P = { qty: string; amount: string; cut: string; dish: string; dest: string | undefined };
+  const portions: P[] = [];
+  for (const c of step.components) {
+    for (const m of c.measures) {
+      const countOnly = (() => {
+        const t = canonicalizeUnit(m.unit ?? "").token;
+        return t === "" || PLACEHOLDER_COUNT_UNITS.has(t);
+      })();
+      let qty = m.amount;
+      if (named || countOnly) {
+        const n = leadingNumber(m.amount);
+        // The catalog name's number is whatever it was filed under ("roma tomatoes",
+        // "jalapeño"); the count decides it here.
+        const noun = !countOnly || n === null
+          ? c.ingredientName
+          : n > 1
+            ? (/s$/i.test(c.ingredientName) ? c.ingredientName : pluralizeSourceNoun(c.ingredientName))
+            : c.ingredientName.replace(/(tomato|potato)es$/i, "$1").replace(/([^se])s$/i, "$1");
+        qty = `${m.amount} ${noun}`;
+      }
+      // The CUT only ("finely diced"), never the whole note: "freshly squeezed",
+      // "leaves picked" and "for garnish" are not a second way to work the food,
+      // and printed on every line they pushed shared steps past the cap.
+      const cut = cutOf([m.preparationNote ?? c.preparationNote ?? ""]) ?? "";
+      portions.push({ qty, amount: m.amount, cut, dish: m.forDish, dest: m.destination });
+    }
+  }
+  if (portions.length === 0) return null;
+
+  // Group by cut, then by destination, first appearance first — so a repeated
+  // destination is always the line directly above.
+  const cuts = dedupe(portions.map((p) => p.cut));
+  const dests = dedupe(portions.map((p) => p.dest ?? ""));
+  const ordered = portions
+    .map((p, i) => ({ p, i }))
+    .sort((a, b) => cuts.indexOf(a.p.cut) - cuts.indexOf(b.p.cut) || dests.indexOf(a.p.dest ?? "") - dests.indexOf(b.p.dest ?? "") || a.i - b.i)
+    .map((x) => x.p);
+  const showCut = cuts.filter((c) => c !== "").length > 1;
+
+  const build = (dishOf: (p: P) => string | null, shortTubs: boolean, plain = false): string[] => {
+    const seen = new Set<string>();
+    let prev: string | undefined;
+    return ordered.map((p) => {
+      // "4 cloves for Beef Chili", "½ white onion finely diced for Guacamole".
+      const head = plain ? p.amount : `${p.qty}${showCut && p.cut ? ` ${p.cut}` : ""}`;
+      const dish = dishOf(p);
+      const who = dish ? `${head} for ${dish}` : head;
+      if (!p.dest) {
+        prev = undefined;
+        return who;
+      }
+      const { first, noun } = destinationPhrase(p.dest);
+      const short = shortTubs ? shortTubRef.get(p.dest) : undefined;
+      const where = !seen.has(p.dest)
+        ? (short ? `into ${short}` : first)
+        : prev === p.dest ? `same ${noun}` : `the same ${noun} as above`;
+      seen.add(p.dest);
+      prev = p.dest;
+      return `${who} — ${where}`;
+    });
+  };
+  const fits = (ls: string[]) => ls.join("\n").length <= budget;
+  // A short dish name only where it stays unique in this step: "Citrus-Braised
+  // Pork Carnitas" and "Crispy Citrus-Braised Pork Carnitas" both shorten to
+  // "Pork Carnitas", and two lines saying so are two portions nobody can tell apart.
+  const shortCount = new Map<string, number>();
+  for (const d of dedupe(portions.map((p) => p.dish))) shortCount.set(shortDishName(d), (shortCount.get(shortDishName(d)) ?? 0) + 1);
+  const shortOf = (d: string) => (shortCount.get(shortDishName(d)) === 1 ? shortDishName(d) : d);
+  // The lid NAMES the dish when the dish is its head: "Tabbouleh — lemon juice",
+  // "Smoky Carne Asada marinade bowl". A shared tub's head is the food, and its
+  // tail lists every dish — that tub needs "for <dish>" on each line, or the cook
+  // cannot tell the portions apart.
+  const lidNamesDish = (p: P) => {
+    if (!p.dest) return false;
+    const head = p.dest.split(" — ")[0];
+    return head.includes(p.dish) || head.includes(shortDishName(p.dish));
+  };
+  // 1. as is; 2. drop "for <dish>" where the lid's head is the dish; 3. short dish
+  //    names on the rest; 4. a dish's own content tub by its dish ("the Tabbouleh
+  //    tub") where that is unambiguous on the plan.
+  let lines = build((p) => p.dish, false);
+  if (!fits(lines)) lines = build((p) => (lidNamesDish(p) ? null : p.dish), false);
+  if (!fits(lines)) lines = build((p) => (lidNamesDish(p) ? null : shortOf(p.dish)), false);
+  if (!fits(lines)) lines = build((p) => (lidNamesDish(p) ? null : shortOf(p.dish)), true);
+  // 5. plain amounts: the cut and the food are the opening sentence's to say.
+  if (!fits(lines)) lines = build((p) => (lidNamesDish(p) ? null : shortOf(p.dish)), true, true);
+  if (!fits(lines)) {
+    // Never reached on the census corpus (Part J.0 measured it): keep every line,
+    // trim the tail, so the wire's 800 can never 502 the week.
+    const all = lines.join("\n");
+    lines = `${all.slice(0, budget - 1).trimEnd()}…`.split("\n");
+  }
+  return {
+    lines,
+    meta: {
+      food: names.length === 1 ? names[0] : listOf(names),
+      total: totalOf(step.components, named),
+      cuts: showCut ? cuts.filter((c) => c !== "") : [],
+      portionCount: portions.length,
+    },
+  };
+}
+
+/**
+ * The narrator's text for a portion step, reduced to its opening sentence: the
+ * first line, cut at a sentence end inside OPENING_MAX. Anything after the first
+ * line is a portion list the app already writes.
+ */
+export function openingSentence(text: string): string {
+  const first = text.split("\n")[0].trim().replace(/:$/, ".");
+  if (first.length <= OPENING_MAX) return first;
+  const cut = first.slice(0, OPENING_MAX);
+  const end = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("; "));
+  return end > 40 ? cut.slice(0, end + 1) : `${cut.slice(0, OPENING_MAX - 1).trimEnd()}…`;
+}
+
+/** The narration input's view of components: the code-only attribution removed. */
+function narrationComponents(components: readonly PrepNarrationComponent[]): PrepNarrationComponent[] {
+  return components.map((c) => ({
+    ...c,
+    measures: c.measures.map(({ mealId: _m, dishId: _d, ingredientId: _i, qty: _q, unit: _u, ...rest }) => rest),
+  }));
+}
 
 /** Rule 7's two droppable classes, lowest value first. Null = never dropped. */
 export function lowValueClass(step: PlannedStep): "garnish" | "citrus-wedge" | null {
@@ -2002,7 +2350,16 @@ export function assemblePrepWeekResult(
       number: planned.number, // CODE
       stepKey: planned.stepKey, // CODE — stable persistence identity
       title: prose.title, // AI
-      instructions: prose.instructions, // AI
+      // Part J.0 — a portion step is the AI's opening sentence over the CODE's lines,
+      // re-rendered for the room the real opening leaves (the plan-time lines
+      // assumed the longest opening allowed).
+      instructions: planned.portionLines
+        ? (() => {
+            const opening = openingSentence(prose.instructions);
+            const lines = renderPortionLines(planned, plan.shortTubRef, 800 - opening.length - 1)?.lines ?? planned.portionLines;
+            return `${opening}\n${lines.join("\n")}`;
+          })()
+        : prose.instructions, // AI
       estimatedMinutes: planned.estimatedMinutes, // CODE (BUG-204 — prepStepMinutes.ts)
       contributesToMealIds: planned.contributesToMealIds, // CODE — never from prose
       ...(prose.storageNote ? { storageNote: prose.storageNote } : {}),
@@ -2031,6 +2388,10 @@ export function assemblePrepWeekResult(
       // was true of every ingredient step and collapsed the count.
       ...(containerNamesOf(planned).length > 0
         ? { containerNames: containerNamesOf(planned) }
+        : {}),
+      // Part J.0 (A4) — the cook steps this prep step did the work of.
+      ...(planned.coversCookSteps && planned.coversCookSteps.length > 0
+        ? { coversCookSteps: planned.coversCookSteps }
         : {}),
     });
   }

@@ -32,10 +32,8 @@ export interface ModelRequestShape {
   // message (auto does not guarantee a call; a missing tool_use block is an
   // extraction failure, which runAICall already retries).
   forcesToolChoice: boolean;
-  // Spread into the request when present. AI_SONNET55_THINKING=between_tools
-  // turns thinking off (the closest match to Sonnet 4.6, which ran
-  // thinking-off by omission); anything else leaves the model default
-  // (adaptive).
+  // Spread into the request when present. `between_tools` is how thinking is
+  // turned OFF on claude-sonnet-5-5 (`disabled` is a 400 there).
   thinking?: { type: "between_tools" };
 }
 
@@ -44,12 +42,20 @@ export const LEGACY_SHAPE: ModelRequestShape = {
   forcesToolChoice: true,
 };
 
+// 🔴 Part J.0 (D1) — THINKING OFF IS THE CODED DEFAULT for claude-sonnet-5-5.
+// Omitting `thinking` on that model runs ADAPTIVE thinking, and the compare lane
+// measured what that does to Kiwi's calls (scripts/_scratch/sonnet55/p5-out.md):
+// 0/3 set_preferences and 0/1 directed.generate passed (every one max_tokens),
+// prep.narrate_steps output 2.1× and cost 1.5× the thinking-off arm. So a DB row
+// flipped to claude-sonnet-5-5 must never, by itself, produce adaptive thinking.
+// AI_SONNET55_THINKING=adaptive is the only way back to the model default; any
+// other value (unset included) sends between_tools.
 export function requestShapeForModel(model: string): ModelRequestShape {
   if (!NO_SAMPLING_NO_FORCED_TOOL.has(model)) return LEGACY_SHAPE;
-  const betweenTools = process.env.AI_SONNET55_THINKING?.trim() === "between_tools";
+  const adaptive = process.env.AI_SONNET55_THINKING?.trim() === "adaptive";
   return {
     sendsTemperature: false,
     forcesToolChoice: false,
-    ...(betweenTools ? { thinking: { type: "between_tools" as const } } : {}),
+    ...(adaptive ? {} : { thinking: { type: "between_tools" as const } }),
   };
 }

@@ -1,0 +1,120 @@
+PLAN 8a0de6e6-ec8a-453f-994a-6a973c5bcd32  [A18]  HTTP 200
+  HEADER: 19 containers · about 65 min · prompt v20
+
+  ── seasonings_dry ──
+     1. Measure the Breaded Chicken Cutlets breading bowl   (2 min)   [117 chars]
+        Into the Breaded Chicken Cutlets breading bowl:
+        ½ tsp garlic powder
+        ½ cup All-purpose flour
+        1 cup Italian breadcrumbs
+        » storage: Airtight at room temperature — it keeps for weeks.
+     2. Measure the Roasted Spaghetti Squash dry mix   (2 min)   [92 chars]
+        Into the Roasted Spaghetti Squash dry mix:
+        1 tsp dried oregano
+        1 tsp dried basil
+        ½ tsp sugar
+        » storage: Airtight in the fridge — up to 3 days.
+  ×  3. Garlic powder — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  4. All-purpose flour — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  5. Dried oregano and dried basil — cook day   (1 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)   [104 chars]
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+     2. Prep all yellow onion   (8 min)   [503 chars]
+        Work through 3 yellow onion two ways: halved and thinly sliced, and finely diced.
+        1 yellow onion thinly sliced for Red Wine and Herb Slow-Cooker Chuck Roast — into the Red Wine and Herb Slow-Cooker vegetables container
+        1 yellow onion finely diced for Ground Turkey and Tomato Meat Sauce — into the Ground Turkey and Tomato Meat vegetables container
+        1 yellow onion finely diced for Roasted Spaghetti Squash with Marinara — into the tub "Roasted Spaghetti Squash with Marinara — finely diced yellow onion"
+        » storage: Airtight in the fridge — up to 4 days.
+     3. Prep all garlic cloves   (8 min)   [685 chars]
+        Work through 22 garlic cloves three ways: smashed and peeled, minced and thinly sliced.
+        5 garlic cloves peeled — into the tub "Red Wine and Herb Slow-Cooker Chuck Roast — peeled garlic cloves"
+        4 garlic cloves minced for Ground Turkey and Tomato Meat Sauce — into the tub "Minced garlic cloves — Ground Turkey and Tomato Meat Sauce, Roasted Spaghetti Squash with Marinara, Garlic Bread"
+        4 garlic cloves minced for Roasted Spaghetti Squash with Marinara — same tub
+        3 garlic cloves minced for Garlic Bread — same tub
+        4 garlic cloves minced — into the Breaded Chicken Cutlets sauce jar
+        2 garlic cloves thinly sliced — into the tub "Garlic Sautéed Green Beans — thinly sliced garlic cloves"
+        » storage: All 3 containers: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Red Wine and Herb Slow-Cooker Chuck Roast#1, Ground Turkey and Tomato Meat Sauce#0, Garlic Sautéed Green Beans#0, Breaded Chicken Cutlets with Vodka Sauce and Melted Mozzarella#3, Roasted Spaghetti Squash with Marinara#2
+  ×  4. Fresh thyme sprigs and fresh thyme leaves — cook day   (1 min)  [RENDER-OMITTED]   [40 chars]
+        Nothing to cut — it goes in as it comes.
+  ×  5. Fresh rosemary sprigs — cook day   (1 min)  [RENDER-OMITTED]   [40 chars]
+        Nothing to cut — it goes in as it comes.
+     6. Cut all celery stalks   (1 min)   [280 chars]
+        Cut 3 celery stalks into 2-inch pieces.
+        2 celery stalks for Red Wine and Herb Slow-Cooker Chuck Roast — into the Red Wine and Herb Slow-Cooker vegetables container
+        1 celery stalk for Ground Turkey and Tomato Meat Sauce — into the Ground Turkey and Tomato Meat vegetables container
+        » storage: Red Wine and Herb Slow-Cooker vegetables: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Red Wine and Herb Slow-Cooker Chuck Roast#1
+  ×  7. Yukon gold potatoes — cook day   (3 min)  [RENDER-OMITTED]   [53 chars]
+        This browns once it is cut, so it is cut on cook day.
+     8. Chop all fresh flat-leaf parsley   (1 min)   [321 chars]
+        Chop 4 tbsp fresh flat-leaf parsley, roughly for some portions and finely for others.
+        2 tbsp chopped for Roasted Yukon Gold Potatoes — into the tub "Roasted Yukon Gold Potatoes — chopped fresh flat-leaf parsley"
+        2 tbsp finely chopped for Garlic Bread — into the tub "Garlic Bread — finely chopped fresh flat-leaf parsley"
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+     9. Prep all carrots   (2 min)   [313 chars]
+        Peel 1 lb + 1 carrots, then cut some into 2-inch batons and finely dice the rest.
+        1 lb peeled for Honey-Glazed Roasted Carrots — into the tub "Honey-Glazed Roasted Carrots — peeled carrots"
+        1 carrot finely diced for Ground Turkey and Tomato Meat Sauce — into the Ground Turkey and Tomato Meat vegetables container
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Honey-Glazed Roasted Carrots#0
+    10. Slice the fresh chives   (1 min)   [120 chars]
+        Thinly slice 2 tbsp fresh chives.
+        2 tbsp for Scrambled Eggs — into the tub "Scrambled Eggs — thinly sliced fresh chives"
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+    11. Tear all fresh basil   (1 min)   [311 chars]
+        Tear ¾ cup fresh basil leaves.
+        ¼ cup for Ground Turkey and Tomato Meat Sauce — into the tub "Torn fresh basil (leaves) — Meat Sauce, Chicken Cutlets, Spaghetti Squash"
+        ¼ cup for Breaded Chicken Cutlets with Vodka Sauce and Melted Mozzarella — same tub
+        ¼ cup for Roasted Spaghetti Squash with Marinara — same tub
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+    12. Trim the green beans   (2 min)   [155 chars]
+        Trim the stem ends from 1 lb fresh green beans.
+        1 lb for Garlic Sautéed Green Beans — into the tub "Garlic Sautéed Green Beans — trimmed fresh green beans"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Garlic Sautéed Green Beans#0
+    13. Juice the lemon   (3 min)   [300 chars]
+        Juice ½ lemon, then measure 1 tbsp fresh lemon juice.
+        ½ lemon for Garlic Sautéed Green Beans — into the tub "Garlic Sautéed Green Beans — lemon"
+        1 tbsp fresh lemon juice for Simple Arugula Salad with Lemon and Parmesan — into the tub "Simple Arugula Salad with Lemon and Parmesan — fresh lemon juice"
+        » storage: Airtight in the fridge — up to 3 days. Covered in the fridge — up to 3 days.
+    14. Dice the shallots   (5 min)   [145 chars]
+        Finely dice 2 shallot.
+        2 shallots for Breaded Chicken Cutlets with Vodka Sauce and Melted Mozzarella — into the Breaded Chicken Cutlets sauce jar
+        » covers cook steps: Breaded Chicken Cutlets with Vodka Sauce and Melted Mozzarella#3
+  × 15. Baby arugula — cook day   (1 min)  [RENDER-OMITTED]   [40 chars]
+        Nothing to cut — it goes in as it comes.
+    16. Prep the spaghetti squash   (5 min)   [206 chars]
+        Halve 2 spaghetti squash lengthwise and scoop out the seeds.
+        2 spaghetti squashes for Roasted Spaghetti Squash with Marinara — into the tub "Roasted Spaghetti Squash with Marinara — halved spaghetti squash"
+        » storage: Airtight in the fridge — up to 4 days.
+
+  ── sauces_marinades ──
+     1. Finish the Breaded Chicken Cutlets sauce jar   (2 min)   [109 chars]
+        Breaded Chicken Cutlets sauce jar (garlic cloves and shallot already in it): add
+        ⅜ cup vodka
+        Stir to combine.
+        » storage: Airtight in the fridge — up to 4 days.
+  ×  2. Dry red wine and worcestershire sauce — cook day   (1 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+  ×  3. Dry red wine — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  4. Honey — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     HELD: Chicken Parmesan with Vodka Sauce (Friday, 5 days out) — pound the chicken breasts that morning.
+     1. Pound the chuck roast   (9 min)   [88 chars]
+        Pound 3 lb beef chuck roast to even thickness, trimming off excess fat, then pat it dry.
+        » storage: Covered in the fridge — cook within 2 days.
+  ×  2. Bulk breakfast pork sausage — cook day   (3 min)  [RENDER-OMITTED]   [86 chars]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+  ×  3. Boneless skinless chicken breasts — cook day   (6 min)  [RENDER-OMITTED]   [120 chars]
+        Pound 2 lb boneless skinless chicken breasts: halve them horizontally into 4 cutlets and pound each to ½-inch thickness.
+        » storage: This one is 5 days out — leave it for cook day.

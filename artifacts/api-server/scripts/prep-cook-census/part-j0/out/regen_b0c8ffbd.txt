@@ -1,0 +1,197 @@
+PLAN b0c8ffbd-b167-4265-8fb3-2782bc72092e  [A16]  HTTP 200
+  HEADER: 21 containers · about 95 min · prompt v20
+
+  ── seasonings_dry ──
+     1. Measure the Chili-Lime Sautéed Shrimp spice blend   (3 min)   [167 chars]
+        Into the Chili-Lime Sautéed Shrimp spice blend:
+        1½ tsp chili powder
+        1 tsp smoked paprika
+        ¾ tsp ground cumin
+        ½ tsp garlic powder
+        ½ tsp onion powder
+        ⅛ tsp cayenne pepper
+        » storage: Airtight at room temperature — it keeps for weeks.
+     2. Measure the Blackened Catfish spice blend   (3 min)   [159 chars]
+        Into the Blackened Catfish spice blend:
+        1½ tsp smoked paprika
+        1 tsp garlic powder
+        ¾ tsp onion powder
+        ½ tsp cayenne pepper
+        ½ tsp dried thyme
+        ½ tsp dried oregano
+        » storage: Airtight at room temperature — it keeps for weeks.
+     3. Measure the Dirty Rice spice blend   (2 min)   [92 chars]
+        Into the Dirty Rice spice blend:
+        ½ tsp smoked paprika
+        ¼ tsp cayenne pepper
+        ½ tsp dried thyme
+        » storage: Airtight at room temperature — it keeps for weeks.
+     4. Measure the Sesame-Crusted Seared Ahi Tuna marinade bowl   (2 min)   [146 chars]
+        Into the Sesame-Crusted Seared Ahi Tuna marinade bowl:
+        4 tbsp sesame seeds (a mix of white and black if available)
+        Set aside for the produce step.
+        » covers cook steps: Sesame-Crusted Seared Ahi Tuna Steaks#4
+     5. Measure the Teriyaki-Glazed Baked Salmon sauce bowl   (2 min)   [123 chars]
+        Into the Teriyaki-Glazed Baked Salmon sauce bowl:
+        1 tbsp light brown sugar
+        1 tsp cornstarch
+        Set aside for the produce step.
+        » covers cook steps: Teriyaki-Glazed Baked Salmon#1
+  ×  6. Smoked paprika — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  7. Long-grain white rice — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  8. Long-grain white rice — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  9. Sesame seeds — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  × 10. Sesame seeds — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  × 11. Sesame seeds — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  × 12. Catfish fillets — cook day   (2 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)   [104 chars]
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+     2. Prep all limes   (9 min)   [582 chars]
+        Zest ½ tsp from the limes, then juice them for 8½ tbsp fresh lime juice in total.
+        2 tbsp lime juice, fresh for Chili-Lime Sautéed Shrimp — into the tub "Lime juice, fresh — Sautéed Shrimp, Cilantro-Lime Rice, Peppers and Onions, Corn Salsa, Avocado Crema"
+        2 tbsp lime juice, fresh for Cilantro-Lime Rice — same tub
+        1 tbsp lime juice, fresh for Sautéed Peppers and Onions — same tub
+        1½ tbsp lime juice, fresh for Charred Corn Salsa — same tub
+        2 tbsp lime juice, fresh for Avocado Crema — same tub
+        ½ tsp lime zest for Cilantro-Lime Rice — into the tub "Cilantro-Lime Rice — lime zest"
+        » storage: Both containers: Covered in the fridge — up to 3 days.
+     3. Chop all cilantro   (4 min)   [522 chars]
+        Chop 1 cup of fresh cilantro two ways: finely chopped and roughly chopped.
+        ⅜ cup finely chopped for Cilantro-Lime Rice — into the tub "Cilantro-Lime Rice — finely chopped fresh cilantro"
+        2 tbsp finely chopped for Avocado Crema — into the tub "Avocado Crema — fresh cilantro"
+        3 tbsp chopped for Charred Corn Salsa — into the tub "Charred Corn Salsa — fresh cilantro, cherry tomatoes, jalapeño and red onion"
+        ¼ cup chopped for Sesame-Ginger Slaw — into the tub "Sesame-Ginger Slaw — fresh cilantro, fresh ginger and carrots"
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » covers cook steps: Avocado Crema#0, Sesame-Ginger Slaw#2
+     4. Slice the red bell peppers   (5 min)   [167 chars]
+        Seed and thinly slice 2 red bell peppers.
+        2 red bell peppers for Sautéed Peppers and Onions — into the tub "Sautéed Peppers and Onions — thinly sliced red bell pepper"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Sautéed Peppers and Onions#0
+     5. Slice the yellow bell pepper   (3 min)   [174 chars]
+        Seed and thinly slice 1 yellow bell pepper.
+        1 yellow bell pepper for Sautéed Peppers and Onions — into the tub "Sautéed Peppers and Onions — thinly sliced yellow bell pepper"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Sautéed Peppers and Onions#0
+     6. Prep all green bell pepper   (5 min)   [316 chars]
+        Seed 2 green bell peppers, then cut them two ways: thinly sliced and finely diced.
+        1 green bell pepper thinly sliced for Sautéed Peppers and Onions — into the tub "Sautéed Peppers and Onions — thinly sliced green bell pepper"
+        1 green bell pepper finely diced for Dirty Rice — into the Dirty Rice vegetables container
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Sautéed Peppers and Onions#0
+     7. Prep all yellow onion   (8 min)   [393 chars]
+        Work through 2½ yellow onions two ways: halved and thinly sliced, and finely diced.
+        1 yellow onion thinly sliced for Sautéed Peppers and Onions — into the tub "Thinly sliced yellow onion — Sautéed Peppers and Onions, Braised Collard Greens"
+        ½ yellow onion thinly sliced for Braised Collard Greens — same tub
+        1 yellow onion finely diced for Dirty Rice — into the Dirty Rice vegetables container
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Sautéed Peppers and Onions#0
+     8. Quarter the cherry tomatoes   (1 min)   [153 chars]
+        Quarter ¾ cup cherry tomatoes.
+        ¾ cup for Charred Corn Salsa — into the tub "Charred Corn Salsa — fresh cilantro, cherry tomatoes, jalapeño and red onion"
+        » covers cook steps: Charred Corn Salsa#0
+     9. Dice the jalapeño   (3 min)   [160 chars]
+        Seed and finely dice 1 jalapeño.
+        1 jalapeño for Charred Corn Salsa — into the tub "Charred Corn Salsa — fresh cilantro, cherry tomatoes, jalapeño and red onion"
+        » covers cook steps: Charred Corn Salsa#0
+    10. Dice the red onion   (3 min)   [151 chars]
+        Finely dice ¼ cup red onion.
+        ¼ cup for Charred Corn Salsa — into the tub "Charred Corn Salsa — fresh cilantro, cherry tomatoes, jalapeño and red onion"
+        » storage: Charred Corn Salsa: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Stir in the Sautéed Shrimp, Cilantro-Lime Rice, Peppers and Onions, Corn Salsa, Avocado Crema now — it is ea…
+        » covers cook steps: Charred Corn Salsa#0
+  × 11. Ripe avocado — cook day   (1 min)  [RENDER-OMITTED]   [53 chars]
+        This browns once it is cut, so it is cut on cook day.
+    12. Prep all garlic   (4 min)   [604 chars]
+        Work through 11 cloves of garlic two ways: minced and thinly sliced.
+        1 clove minced for Avocado Crema — into the tub "Avocado Crema — minced garlic cloves"
+        2 cloves minced for Sesame-Crusted Seared Ahi Tuna Steaks — into the Sesame-Crusted Seared Ahi Tuna marinade bowl
+        3 cloves minced for Dirty Rice — into the Dirty Rice vegetables container
+        2 cloves minced for Teriyaki-Glazed Baked Salmon — into the Teriyaki-Glazed Baked Salmon sauce bowl
+        3 cloves thinly sliced for Roasted Broccoli with Garlic and Sesame — into the tub "Roasted Broccoli with Garlic and Sesame — garlic cloves and broccoli florets"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Avocado Crema#0, Sesame-Crusted Seared Ahi Tuna Steaks#0, Teriyaki-Glazed Baked Salmon#1
+    13. Grate all fresh ginger   (1 min)   [334 chars]
+        Finely grate 3 tsp fresh ginger.
+        1 tsp for Sesame-Crusted Seared Ahi Tuna Steaks — into the Sesame-Crusted Seared Ahi Tuna marinade bowl
+        1 tsp for Sesame-Ginger Slaw — into the tub "Sesame-Ginger Slaw — fresh cilantro, fresh ginger and carrots"
+        1 tsp for Teriyaki-Glazed Baked Salmon — into the Teriyaki-Glazed Baked Salmon sauce bowl
+        » covers cook steps: Sesame-Crusted Seared Ahi Tuna Steaks#0, Sesame-Ginger Slaw#2, Teriyaki-Glazed Baked Salmon#1
+    14. Shred the green cabbage   (1 min)   [108 chars]
+        Finely shred 4 cups green cabbage.
+        4 cup for Sesame-Ginger Slaw — into the tub "Sesame-Ginger Slaw — greens"
+        » covers cook steps: Sesame-Ginger Slaw#0
+    15. Shred the red cabbage   (1 min)   [105 chars]
+        Finely shred 1 cup red cabbage.
+        1 cup for Sesame-Ginger Slaw — into the tub "Sesame-Ginger Slaw — greens"
+        » storage: Sesame-Ginger Slaw — greens: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Sesame-Ginger Slaw#0
+    16. Prep the carrots   (1 min)   [156 chars]
+        Peel 2 carrots, then julienne or grate them.
+        2 carrots for Sesame-Ginger Slaw — into the tub "Sesame-Ginger Slaw — fresh cilantro, fresh ginger and carrots"
+        » storage: Sesame-Ginger Slaw — fresh cilantro, fresh ginger and carrots: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Sesame-Ginger Slaw sauce bowl separate; combine on cook…
+        » covers cook steps: Sesame-Ginger Slaw#0
+    17. Dice the celery   (1 min)   [102 chars]
+        Finely dice 2 celery stalks.
+        2 celery stalks for Dirty Rice — into the Dirty Rice vegetables container
+        » storage: Dirty Rice vegetables: Airtight in the fridge — up to 4 days.
+    18. Cut the broccoli florets   (3 min)   [181 chars]
+        Cut 1½ lb broccoli into even florets.
+        1½ lb for Roasted Broccoli with Garlic and Sesame — into the tub "Roasted Broccoli with Garlic and Sesame — garlic cloves and broccoli florets"
+        » storage: Roasted Broccoli with Garlic and Sesame: Airtight in the fridge — up to 4 days.
+
+  ── sauces_marinades ──
+     1. Finish the Sesame-Crusted Seared Ahi Tuna marinade bowl   (2 min)   [171 chars]
+        Sesame-Crusted Seared Ahi Tuna marinade bowl (sesame seeds, garlic cloves and fresh ginger already in it): add
+        2 tbsp soy sauce
+        1 tbsp toasted sesame oil
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 4 days.
+        » covers cook steps: Sesame-Crusted Seared Ahi Tuna Steaks#2
+     2. Finish the Teriyaki-Glazed Baked Salmon sauce bowl   (4 min)   [210 chars]
+        Teriyaki-Glazed Baked Salmon sauce bowl (light brown sugar, cornstarch, garlic cloves and fresh ginger already in it): add
+        ¼ cup soy sauce
+        2 tbsp honey
+        3 tbsp mirin
+        2 tbsp sake
+        1 tsp sesame oil
+        Stir to combine.
+        » storage: Covered in the fridge — up to 4 days.
+        » covers cook steps: Teriyaki-Glazed Baked Salmon#1
+     3. Measure the Sesame-Ginger Slaw sauce bowl   (3 min)   [133 chars]
+        Into the Sesame-Ginger Slaw sauce bowl:
+        1 tbsp soy sauce
+        1 tbsp toasted sesame oil
+        3 tbsp rice vinegar
+        1 tbsp honey
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 4 days.
+  ×  4. Soy sauce — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  5. Apple cider vinegar — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     HELD: Baked Salmon Teriyaki with Steamed Rice and Roasted Broccoli (Saturday, 6 days out) — portion the salmon fillets that morning.
+     1. Pat dry the shrimp   (5 min)   [79 chars]
+        Pat 1½ lb large shrimp (peeled, deveined, tails removed) dry with paper towels.
+        » storage: Covered in the fridge — cook within 2 days.
+        » covers cook steps: Chili-Lime Sautéed Shrimp#2
+  ×  2. Chicken livers — cook day   (1 min)  [RENDER-OMITTED]   [86 chars]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+  ×  3. Andouille sausage — cook day   (1 min)  [RENDER-OMITTED]   [86 chars]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+  ×  4. Smoked ham hock — cook day   (1 min)  [RENDER-OMITTED]   [86 chars]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+  ×  5. Salmon fillets — cook day   (5 min)  [RENDER-OMITTED]   [79 chars]
+        Portion 24 oz salmon into four 6-oz fillets and pat them dry with paper towels.
+        » storage: This one is 6 days out — leave it for cook day.

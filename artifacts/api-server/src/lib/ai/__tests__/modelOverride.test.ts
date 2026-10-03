@@ -125,7 +125,7 @@ describe("AI_MODEL_OVERRIDE_SONNET — runAICall", () => {
     assert.equal(p.model, "claude-sonnet-5-5");
     assert.equal("temperature" in p, false, "temperature 400s on sonnet 5.5");
     assert.deepEqual(p.tool_choice, { type: "auto" });
-    assert.equal("thinking" in p, false, "default = model default (adaptive)");
+    assert.deepEqual(p.thinking, { type: "between_tools" }, "Part J.0 D1 — thinking off by default");
     assert.equal(
       p.messages[0].content,
       "Plan dinners for two.\n\nRespond by calling the kiwi_response tool. Do not reply in plain text.",
@@ -162,6 +162,44 @@ describe("AI_MODEL_OVERRIDE_SONNET — runAICall", () => {
     const { client, calls } = makeClient(toolPong);
     await runAICall(SONNET_TOOL_KEY, { who: "two" }, PongSchema, { client, prisma });
     assert.deepEqual(calls[0].thinking, { type: "between_tools" });
+  });
+
+  it("Part J.0 D1 — a DB row flipped to claude-sonnet-5-5, with NO env set, never runs adaptive thinking", async () => {
+    // No override, no thinking flag: the switch is the AIPrompt row alone.
+    const { prisma, logs } = makePrisma("claude-sonnet-5-5", "tool");
+    const { client, calls } = makeClient(toolPong);
+    const r = await runAICall(SONNET_TOOL_KEY, { who: "two" }, PongSchema, { client, prisma });
+    assert.equal(r.success, true);
+    assert.equal(calls[0].model, "claude-sonnet-5-5");
+    assert.deepEqual(calls[0].thinking, { type: "between_tools" });
+    assert.equal("temperature" in calls[0], false);
+    assert.deepEqual(calls[0].tool_choice, { type: "auto" });
+    assert.equal(logs[0].model, "claude-sonnet-5-5");
+  });
+
+  it("Part J.0 D1 — the streaming door too", async () => {
+    const { prisma } = makePrisma("claude-sonnet-5-5", "tool");
+    let params: any;
+    const s: any = {
+      on: () => s,
+      finalMessage: async () => ({
+        model: params.model, stop_reason: "end_turn",
+        content: [{ type: "text", text: JSON.stringify({ candidates: [], cannotGenerateMore: true }) }],
+        usage: { input_tokens: 1, output_tokens: 1 },
+      }),
+    };
+    const client = { stream: (p: any) => ((params = p), s) } as unknown as StreamCapableMessages;
+    await streamPlanCandidates(SONNET_TOOL_KEY, { who: "two" }, { prisma, client });
+    assert.deepEqual(params.thinking, { type: "between_tools" });
+    assert.equal("temperature" in params, false);
+  });
+
+  it("Part J.0 D1 — AI_SONNET55_THINKING=adaptive is the only way back to the model default", async () => {
+    process.env.AI_SONNET55_THINKING = "adaptive";
+    const { prisma } = makePrisma("claude-sonnet-5-5", "tool");
+    const { client, calls } = makeClient(toolPong);
+    await runAICall(SONNET_TOOL_KEY, { who: "two" }, PongSchema, { client, prisma });
+    assert.equal("thinking" in calls[0], false);
   });
 });
 

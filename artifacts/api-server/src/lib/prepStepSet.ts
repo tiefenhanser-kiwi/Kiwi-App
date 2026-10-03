@@ -23,15 +23,10 @@ import {
   PrepWeekEmptyPlanError,
   PrepWeekNotFoundError,
 } from "./prepWeekAggregation";
-import { buildPrepCombineInput } from "./prepCombineAdapter";
-import { combinePrep } from "./prepCombineEngine";
-import { buildStepPlan } from "./prepWeekAssembly";
+import { buildPrepWeekPlan, tickableStepRefs, type PrepStepRef } from "./prepWeekBuild";
 
 // Minimal per-step shape the derivation needs (matches derivePrepCompletion).
-export interface PrepStepRef {
-  stepKey: string;
-  contributesToMealIds: string[];
-}
+export type { PrepStepRef };
 
 export interface LoadPrepStepSetParams {
   planId: string;
@@ -62,6 +57,10 @@ export interface LoadPrepStepSetParams {
 // `skipSuggested` on an `isBlend` step (aiPrompts.ts), so a
 // `seasonings_dry#dish#<dishId>` blend key can never carry the flag and is never
 // added here. We only ever collect keys where `skipSuggested === true`.
+//
+// ⚠️ Part J.0 — NO LONGER READ by loadPrepStepSet, which now computes every
+// demotion (prepWeekBuild.isTickable). Kept, with its tests, for one part so a
+// rollback is a one-line revert; delete in J.1.
 export function demotedStepKeysFromStructure(structureJson: unknown): Set<string> {
   const demoted = new Set<string>();
   const structure = structureJson as
@@ -104,50 +103,22 @@ export async function loadPrepStepSet(
 ): Promise<PrepStepRef[]> {
   const load = params.loadPrepWeekInput ?? productionLoadPrepWeekInput;
   try {
-    const { input, identity } = await load({
+    // 🔴 Part J.0 (A1) — THE SAME BUILD THE ROUTE RENDERS FROM: step text, day
+    // lags and today included. This used to call buildStepPlan WITHOUT step text
+    // or lags (D-WS9-049 A2.1 skipped the two step queries), which keyed a
+    // different plan — `seasonings_dry#dish#…` blends no screen showed — and read
+    // demotions from the cached blob, which is written before the date overlay and
+    // so never held a protein. 12 of 14 census meals stayed "not prepped" after
+    // every step on screen was ticked. The two queries are the price of agreeing.
+    const loaded = await load({
       planId: params.planId,
       userId: params.userId,
       prisma: params.prisma,
-      // D-WS9-049 A2.1 — this path builds the step set from ingredients only
-      // (buildStepPlan below is called WITHOUT step text), so skip the two
-      // RecipeInstructionStep queries loadPrepWeekInput would otherwise run.
-      includeStepTexts: false,
     });
-    const stepPlan = buildStepPlan(
-      // H6.1 — the SAME fold the route uses. If these two disagree the rollup
-      // computes stepKeys the cached structure never had, and no meal can ever
-      // read "prepped".
-      combinePrep(buildPrepCombineInput(input), identity?.foldedIdByIngredientId),
-      input.planName,
-    );
-    // D-WS9-301 rule 10 — a step that holds no container is dropped HERE, at
-    // the source, rather than relying on the stored blob to carry the flag. The
-    // wash step contributes to every meal with produce, so leaving it required
-    // means no meal reads "prepped" until it is ticked — and a cook who buys
-    // washed greens never ticks it.
-    const refs = stepPlan.steps
-      .filter((s) => !s.holdsNoContainer)
-      .map((s) => ({
-        stepKey: s.stepKey,
-        contributesToMealIds: s.contributesToMealIds,
-      }));
-
-    // WS7-8b Block 2 (D-WS7-184) — overlay the persisted `skipSuggested` flags
-    // from the cached structure and drop demoted steps from the required-set.
-    // The read is best-effort: a failure to reach the cache must not 5xx the
-    // rollup, so treat any error as "no demotions" (KEEP-default).
-    let demoted: Set<string>;
-    try {
-      const cached = await params.prisma.prepWeekStructure.findUnique({
-        where: { planId: params.planId },
-      });
-      demoted = demotedStepKeysFromStructure(cached?.structureJson);
-    } catch {
-      demoted = new Set<string>();
-    }
-    return demoted.size === 0
-      ? refs
-      : refs.filter((r) => !demoted.has(r.stepKey));
+    // A2 — only what the cook can tick: no engine demotion, no wash or cook-day
+    // line (D-WS9-301 rule 10), no protein the overlay holds for cook day.
+    // Everything is computed, so the cached blob is no longer read here.
+    return tickableStepRefs(buildPrepWeekPlan(loaded));
   } catch (err) {
     // No cookable meals (empty) or non-owner/missing → no prep steps. The
     // caller's meal universe still drives the (vacuous) per-meal rollup; an

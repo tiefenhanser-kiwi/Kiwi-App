@@ -1,0 +1,141 @@
+PLAN 11623bcd-bc82-4aa4-ad88-80aaa075b19a  [A14]  HTTP 200
+  HEADER: 18 containers · about 75 min · prompt v20
+
+  ── seasonings_dry ──
+     1. Measure the Chicken Tikka Masala marinade bowl spices   (4 min)   [202 chars]
+        Into the Chicken Tikka Masala marinade bowl:
+        1½ tsp ground cumin
+        1 tsp ground coriander
+        2 tsp garam masala
+        1 tsp smoked paprika
+        ½ tsp ground turmeric
+        ¼ tsp cayenne pepper
+        Set aside for the produce step.
+        » covers cook steps: Chicken Tikka Masala#1
+     2. Measure the Chana Masala spice blend   (3 min)   [171 chars]
+        Into the Chana Masala spice blend:
+        2 tsp ground cumin
+        2 tsp ground coriander
+        1½ tsp garam masala
+        ½ tsp ground turmeric
+        1 tsp chili powder
+        1 tsp amchur (dried mango powder)
+        » storage: Airtight in the fridge — up to 3 days.
+        » covers cook steps: Chana Masala#1
+     3. Measure the Butter Chicken marinade bowl spices   (4 min)   [203 chars]
+        Into the Butter Chicken marinade bowl:
+        1 tsp ground cumin
+        1 tsp ground coriander
+        1½ tsp garam masala
+        ½ tsp ground turmeric
+        1 tsp Kashmiri chili powder
+        1¼ tsp fine sea salt
+        Set aside for the produce step.
+     4. Measure the Cumin-Spiced Roasted Cauliflower spice blend   (2 min)   [144 chars]
+        Into the Cumin-Spiced Roasted Cauliflower spice blend:
+        1 tsp ground cumin
+        ½ tsp ground coriander
+        ½ tsp Kashmiri chili powder
+        ½ tsp fine sea salt
+        » storage: Airtight at room temperature — it keeps for weeks.
+     5. Measure the Coconut Chicken Korma sauce jar   (4 min)   [158 chars]
+        Into the Coconut Chicken Korma sauce jar:
+        1 tsp ground cumin
+        1½ tsp ground coriander
+        1½ tsp garam masala
+        ½ tsp ground turmeric
+        ½ tsp sugar
+        ½ tsp sweet paprika
+        » storage: Airtight at room temperature — it keeps for weeks.
+  ×  6. Ground cumin — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  7. Fine sea salt — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  8. Sugar and dried fenugreek leaves (kasuri methi) — cook day   (1 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+  ×  9. Raw cashews — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)   [104 chars]
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+     2. Prep all lemons   (5 min)   [532 chars]
+        Juice lemons for 4 tbsp fresh lemon juice, plus 1 lemon juiced.
+        1 tbsp fresh lemon juice for Chicken Tikka Masala — into the Chicken Tikka Masala marinade bowl
+        1 tbsp fresh lemon juice for Cucumber Raita — into the tub "Fresh lemon juice — Cucumber Raita, Cumin-Spiced Roasted Cauliflower"
+        1 tbsp fresh lemon juice for Cumin-Spiced Roasted Cauliflower — same tub
+        1 tbsp fresh lemon juice for Butter Chicken (Murgh Makhani) — into the Butter Chicken marinade bowl
+        1 lemon for Chana Masala — into the tub "Chana Masala — juiced lemon"
+        » storage: Chicken Tikka Masala marinade bowl: Covered in the fridge — up to 3 days. Butter Chicken marinade bowl: Covered in the fridge — up to 3 days. Covered in the fridge — up to 3 days. Airtight in the fri…
+     3. Dice and chop all yellow onion   (13 min)   [479 chars]
+        Work through 5 yellow onions two ways: finely diced and roughly chopped.
+        1 yellow onion finely diced for Chicken Tikka Masala — into the tub "Finely diced yellow onion — Chicken Tikka Masala, Chana Masala, Butter Chicken (Murgh Makhani)"
+        2 yellow onions finely diced for Chana Masala — same tub
+        1 yellow onion finely diced for Butter Chicken (Murgh Makhani) — same tub
+        1 yellow onion chopped for Coconut Chicken Korma — into the tub "Coconut Chicken Korma — chopped yellow onion"
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Chana Masala#0, Butter Chicken (Murgh Makhani)#3
+     4. Mince all garlic   (8 min)   [540 chars]
+        Work through 24 cloves of garlic two ways: minced and roughly chopped.
+        5 cloves minced for Chicken Tikka Masala — into the tub "Minced garlic cloves — Chicken Tikka Masala, Garlic Naan, Chana Masala, Butter Chicken (Murgh Makhani), Warm Garlic Naan"
+        2 cloves minced for Garlic Naan — same tub
+        6 cloves minced for Chana Masala — same tub
+        5 cloves minced for Butter Chicken (Murgh Makhani) — same tub
+        2 cloves minced for Warm Garlic Naan — same tub
+        4 cloves chopped for Coconut Chicken Korma — into the tub "Coconut Chicken Korma — aromatics"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Chicken Tikka Masala#4, Chana Masala#0, Butter Chicken (Murgh Makhani)#3
+     5. Grate and chop all fresh ginger   (1 min)   [448 chars]
+        Work through the fresh ginger two ways: finely grated (4 tbsp) and peeled and roughly chopped (1½ inches).
+        1 tbsp grated for Chicken Tikka Masala — into the tub "Grated fresh ginger — Chicken Tikka Masala, Chana Masala, Butter Chicken (Murgh Makhani)"
+        2 tbsp grated for Chana Masala — same tub
+        1 tbsp grated for Butter Chicken (Murgh Makhani) — same tub
+        1½ inches chopped for Coconut Chicken Korma — into the tub "Coconut Chicken Korma — aromatics"
+        » storage: Coconut Chicken Korma — aromatics: Airtight in the fridge — up to 4 days. Airtight in the fridge — up to 3 days.
+        » covers cook steps: Chicken Tikka Masala#4, Chana Masala#0, Butter Chicken (Murgh Makhani)#3
+     6. Chop all fresh cilantro   (5 min)   [625 chars]
+        Chop 1¼ cup fresh cilantro two ways: roughly chopped and finely chopped.
+        ¼ cup chopped for Chicken Tikka Masala — into the tub "Chopped fresh cilantro — Chicken Tikka Masala, Chana Masala, Butter Chicken (Murgh Makhani), Coconut Chicken Korma"
+        ¼ cup chopped for Chana Masala — same tub
+        ¼ cup chopped for Butter Chicken (Murgh Makhani) — same tub
+        ¼ cup chopped for Coconut Chicken Korma — same tub
+        2 tbsp finely chopped for Garlic Naan — into the tub "Garlic Naan — finely chopped fresh cilantro"
+        2 tbsp finely chopped for Cucumber Raita — into the tub "Cucumber Raita — fresh cilantro, english cucumber and fresh mint leaves"
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » covers cook steps: Cucumber Raita#0
+     7. Chop the serrano chiles   (5 min)   [176 chars]
+        Finely chop 2 green serrano chiles, removing the seeds for less heat.
+        2 green serrano chiles for Chana Masala — into the tub "Chana Masala — finely chopped green serrano chile"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Chana Masala#0
+     8. Dice the cucumber for the raita   (3 min)   [211 chars]
+        Halve 1 english cucumber lengthwise, scrape out the seeds and finely dice the flesh.
+        1 english cucumber for Cucumber Raita — into the tub "Cucumber Raita — fresh cilantro, english cucumber and fresh mint leaves"
+     9. Chop the mint   (1 min)   [152 chars]
+        Finely chop 2 tbsp fresh mint leaves.
+        2 tbsp for Cucumber Raita — into the tub "Cucumber Raita — fresh cilantro, english cucumber and fresh mint leaves"
+        » storage: Cucumber Raita: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Cucumber Raita, Cumin-Spiced Roasted Cauliflower separate; combine on cook day (Wednesday).
+        » covers cook steps: Cucumber Raita#0
+    10. Cut the cauliflower into florets   (2 min)   [153 chars]
+        Cut 1 cauliflower into medium florets.
+        1 cauliflower for Cumin-Spiced Roasted Cauliflower — into the tub "Cumin-Spiced Roasted Cauliflower — cauliflower"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Cumin-Spiced Roasted Cauliflower#1
+    11. Chop the parsley   (1 min)   [126 chars]
+        Finely chop 1 tbsp fresh parsley.
+        1 tbsp for Warm Garlic Naan — into the tub "Warm Garlic Naan — finely chopped fresh parsley"
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+
+  ── sauces_marinades ──
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     HELD: Add the boneless skinless chicken thighs the night before you cook them (Friday).
+     HELD: Add the boneless skinless chicken thighs the night before you cook them (Friday).
+     HELD: Coconut Chicken Korma with Basmati Rice and Garlic Naan (Saturday, 6 days out) — cut the chicken thighs that morning.
+  ×  1. Boneless skinless chicken thighs — cook day   (15 min)  [RENDER-OMITTED]   [212 chars]
+        Cut the boneless skinless chicken thighs into 1½-inch pieces, keeping each dish's portion in its own wrapping:
+        2 lb for Chicken Tikka Masala
+        2 lb for Butter Chicken (Murgh Makhani)
+        1¾ lb for Coconut Chicken Korma
+        » storage: This one is 6 days out — leave it for cook day.

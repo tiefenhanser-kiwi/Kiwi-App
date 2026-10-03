@@ -33,15 +33,12 @@ import {
   PrepWeekResultSchema,
   type PrepWeekResult,
 } from "../lib/ai/schemas/prepWeek";
-import { buildPrepCombineInput } from "../lib/prepCombineAdapter";
-import { combinePrep } from "../lib/prepCombineEngine";
 import {
-  buildStepPlan,
   assemblePrepWeekResult,
   PrepNarrationIncompleteError,
-  storageClosesByStepKey,
   summarizePrepWeek,
 } from "../lib/prepWeekAssembly";
+import { buildPrepWeekPlan } from "../lib/prepWeekBuild";
 import { PrepNarrationResultSchema } from "../lib/ai/schemas/prepNarration";
 import { applyStorageOverlay, type StorageContext } from "../lib/prepStorage";
 import {
@@ -326,66 +323,16 @@ export function createCookingRouter(
       // 4. Cache miss or stale. BLENDED path: deterministic engine does ALL
       //    grouping / summing / scaling / attribution / phase placement; the
       //    AI is called only to narrate the computed step plan into prose.
-      const combineInput = buildPrepCombineInput(input);
-      const combineResult = combinePrep(combineInput, identity?.foldedIdByIngredientId);
-      // WS7-8a B2b — step text per dishId (folded dish + meal owned) so the
-      // narration layer can judge combine-vs-season and demote skip steps.
-      const stepTextByDishId = new Map<string, string[]>();
-      for (const meal of input.meals) {
-        for (const dish of meal.dishes) {
-          stepTextByDishId.set(dish.dishId, dish.stepTexts);
-        }
-      }
-      // WS9 BUG-338 / D-WS9-298 — the lag is computed in the LOADER now, beside
-      // the input rather than inside it, so `prepCompositionFingerprint` never
-      // sees a date and a day reassignment stays a cache hit. B1 had this
-      // arithmetic copied here and in the census harness; one copy remains.
-      const stepPlan = buildStepPlan(
-        combineResult,
-        input.planName,
-        stepTextByDishId,
-        cookDays.lagByMealId,
+      // Part J.0 — ONE builder, shared with the `isPrepped` derivation
+      // (prepStepSet.ts), so the steps rendered here are the steps it waits for.
+      // The lag is the LOADER's (BUG-338 / D-WS9-298), beside the input, so the
+      // fingerprint never sees a date. A subset is built over the WHOLE plan and
+      // then scoped (A3): same keys, same container names as the full week.
+      const { stepPlan, storageContexts } = buildPrepWeekPlan(
+        { input, cookDays, identity },
+        isSubset ? { scopeMealIds: subsetMealIds } : {},
       );
-
-      /**
-       * D-WS9-298 — what the overlay needs, keyed by stepKey. Built from the
-       * STEP PLAN rather than the cached blob, so it is today's dates either way.
-       */
-      const mealNameById = new Map(input.meals.map((m) => [m.mealId, m.mealName]));
-      // H7 2b — which containers each step closes, with their full membership.
-      const closesByStepKey = storageClosesByStepKey(stepPlan.steps, stepPlan.containerExtras);
-      const storageContextFor = (): Map<string, StorageContext> => {
-        const m = new Map<string, StorageContext>();
-        for (const st of stepPlan.steps) {
-          const names = st.components.map((c) => c.ingredientName);
-          const notes = st.components.flatMap((c) => [
-            c.preparationNote ?? "",
-            ...c.measures.map((x) => x.preparationNote ?? ""),
-          ]);
-          // D-WS9-301 rule 13 — the held line names the day and the meal, so
-          // the overlay needs both. The LATEST meal is the one the lag is from.
-          const latest = st.contributesToMealIds
-            .map((id) => ({ id, lag: cookDays.lagByMealId.get(id) ?? -1 }))
-            .sort((x, y) => y.lag - x.lag)[0];
-          const dayName = latest ? cookDays.dayNameByMealId.get(latest.id) : undefined;
-          const mealName = latest ? mealNameById.get(latest.id) : undefined;
-          m.set(st.stepKey, {
-            daysUntilCook: st.daysUntilCook,
-            ...(dayName ? { dayName } : {}),
-            ...(mealName ? { mealName } : {}),
-            phase: st.phase,
-            // The BOWL NAME is part of the text on purpose: "Fajita spice
-            // blend" and "… seasoning" say what the mixture IS, and without it a
-            // dry blend read as loose produce and got a fridge note.
-            text: [...names, ...notes].join(" "),
-            bowlName: st.bowlName,
-            ingredientNames: names,
-            ...(closesByStepKey.has(st.stepKey) ? { closes: closesByStepKey.get(st.stepKey)! } : {}),
-            ...(st.marinadeJoin ? { marinadeJoin: st.marinadeJoin } : {}),
-          });
-        }
-        return m;
-      };
+      const storageContextFor = (): Map<string, StorageContext> => storageContexts;
 
       const cached = isSubset
         ? null

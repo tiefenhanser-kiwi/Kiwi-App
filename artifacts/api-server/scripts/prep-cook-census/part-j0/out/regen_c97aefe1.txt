@@ -1,0 +1,247 @@
+PLAN c97aefe1-a3d2-4f4c-b959-ffd7ba58066a  [A02]  HTTP 200
+  HEADER: 33 containers · about 135 min · prompt v20
+
+  ── seasonings_dry ──
+     1. Measure the Cajun Andouille Sausage and Rice spice blend   (3 min)   [173 chars]
+        Into the Cajun Andouille Sausage and Rice spice blend:
+        ½ tsp dried thyme
+        1 tsp smoked paprika
+        ½ tsp garlic powder
+        ½ tsp onion powder
+        ½ tsp dried oregano
+        ¼ tsp cayenne pepper
+        » storage: Airtight at room temperature — it keeps for weeks.
+     2. Measure the Cast-Iron Skillet Cornbread batter bowl   (3 min)   [157 chars]
+        Into the Cast-Iron Skillet Cornbread batter bowl:
+        ¾ cup All-purpose flour
+        1 tsp baking powder
+        1 cup yellow cornmeal
+        ¼ tsp baking soda
+        1 tbsp Granulated sugar
+        » storage: Airtight at room temperature — it keeps for weeks.
+     3. Measure the Blackened Shrimp spice blend   (3 min)   [159 chars]
+        Into the Blackened Shrimp spice blend:
+        1½ tsp smoked paprika
+        1 tsp garlic powder
+        ½ tsp onion powder
+        ½ tsp dried oregano
+        ½ tsp cayenne pepper
+        ½ tsp ground cumin
+        » storage: Airtight at room temperature — it keeps for weeks.
+     4. Measure the Grilled Mahi-Mahi marinade bowl   (7 min)   [187 chars]
+        Into the Grilled Mahi-Mahi marinade bowl:
+        ½ tsp smoked paprika
+        ½ tsp garlic powder
+        ¼ tsp ground cumin
+        24 oz mahi-mahi fillets (four 6-oz fillets, skin-off)
+        Set aside for the produce step.
+     5. Measure the Herb-Marinated Chicken marinade bowl   (3 min)   [188 chars]
+        Into the Herb-Marinated Chicken marinade bowl:
+        ¾ tsp smoked paprika
+        ¼ tsp red pepper flakes
+        12 wooden or metal skewers (if wooden, soak in water 30 minutes)
+        Set aside for the produce step.
+     6. Measure the Chipotle-Roasted Chicken Thighs marinade bowl   (3 min)   [147 chars]
+        Into the Chipotle-Roasted Chicken Thighs marinade bowl:
+        1 tsp smoked paprika
+        ½ tsp dried oregano
+        1 tsp ground cumin
+        Set aside for the produce step.
+     7. Measure the Lime Crema jar   (2 min)   [76 chars]
+        Into the Lime Crema jar:
+        ¼ tsp garlic powder
+        Set aside for the produce step.
+     8. Measure the Butter Chicken sauce bowl   (4 min)   [178 chars]
+        Into the Butter Chicken sauce bowl:
+        1 tsp ground cumin
+        2 tsp garam masala
+        1 tsp ground coriander
+        ½ tsp ground turmeric
+        1 tsp Kashmiri chili powder
+        Set aside for the produce step.
+     9. Measure the Cucumber Raita sauce bowl   (2 min)   [106 chars]
+        Into the Cucumber Raita sauce bowl:
+        ¼ tsp ground cumin
+        ¼ tsp fine sea salt
+        Set aside for the produce step.
+    10. Measure the Butter Chicken sauce jar   (3 min)   [145 chars]
+        Into the Butter Chicken sauce jar:
+        1 tsp Granulated sugar
+        1½ tsp fine sea salt
+        1 tsp dried fenugreek leaves (kasuri methi), crushed between palms
+        » storage: Airtight at room temperature — it keeps for weeks.
+  × 11. Dried thyme, dried rosemary, All-purpose flour and baking powder — cook day   (2 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+  × 12. Garlic powder, ground cumin and chili powder — cook day   (2 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+  × 13. Long-grain white rice — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  × 14. Long-grain white rice — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  × 15. Granulated sugar — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  × 16. Fine sea salt — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)   [104 chars]
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+     2. Dice all yellow onion   (8 min)   [402 chars]
+        Work through 3 yellow onion two ways: diced and finely diced.
+        1 yellow onion diced for Slow-Cooker Chicken and Dumplings — into the Slow-Cooker Chicken vegetables container
+        1 yellow onion diced for Cajun Andouille Sausage and Rice — into the Cajun Andouille Sausage and Rice vegetables container
+        1 yellow onion finely diced for Butter Chicken — into the tub "Butter Chicken — finely diced yellow onion"
+        » storage: Airtight in the fridge — up to 4 days.
+     3. Slice and dice all celery   (1 min)   [282 chars]
+        Work through 5 stalks of celery two ways: sliced and diced.
+        3 stalks sliced for Slow-Cooker Chicken and Dumplings — into the Slow-Cooker Chicken vegetables container
+        2 stalks diced for Cajun Andouille Sausage and Rice — into the Cajun Andouille Sausage and Rice vegetables container
+        » covers cook steps: Slow-Cooker Chicken and Dumplings#0
+     4. Slice all carrots   (3 min)   [128 chars]
+        Slice 3 carrots into rounds.
+        3 carrots for Slow-Cooker Chicken and Dumplings — into the Slow-Cooker Chicken vegetables container
+        » covers cook steps: Slow-Cooker Chicken and Dumplings#0
+     5. Mince all garlic   (7 min)   [674 chars]
+        Mince 20 cloves of garlic.
+        3 cloves for Slow-Cooker Chicken and Dumplings — into the Slow-Cooker Chicken vegetables container
+        4 cloves for Cajun Andouille Sausage and Rice — into the tub "Minced garlic — Cajun Andouille Sausage and Rice, Butter Chicken"
+        5 cloves for Butter Chicken — same tub
+        4 cloves for Herb-Marinated Chicken and Vegetable Skewers — into the tub "Vegetable Skewers — garlic, fresh parsley, red bell pepper, yellow bell pepper, lemon zest and fresh oregano leaves"
+        1 clove for Tzatziki — into the tub "Tzatziki — garlic, english cucumber and fresh dill"
+        3 cloves for Chipotle-Roasted Chicken Thighs — into the Chipotle-Roasted Chicken Thighs marinade bowl
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Slow-Cooker Chicken and Dumplings#0, Butter Chicken#1
+     6. Chop all parsley   (2 min)   [388 chars]
+        Chop 5 tbsp fresh parsley, some roughly and some finely.
+        2 tbsp chopped for Slow-Cooker Chicken and Dumplings — into the tub "Slow-Cooker Chicken and Dumplings — chopped fresh parsley"
+        3 tbsp finely chopped for Herb-Marinated Chicken and Vegetable Skewers — into the tub "Vegetable Skewers — garlic, fresh parsley, red bell pepper, yellow bell pepper, lemon zest and fresh oregano leaves"
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+     7. Chop all cilantro   (2 min)   [705 chars]
+        Pick the leaves from the fresh cilantro, then chop 1½ cup of them, some finely and some roughly.
+        ¼ cup — into the tub "Blackened Shrimp — fresh cilantro"
+        3 tbsp finely chopped — into the tub "Fresh Mango Salsa — fresh cilantro, ripe mango, red onion and jalapeño"
+        1 tbsp finely chopped — into the tub "Cucumber Raita — fresh cilantro, english cucumber and fresh mint leaves"
+        2 tbsp chopped for Butter Chicken — into the tub "Chopped fresh cilantro — Butter Chicken, Fresh Mango Salsa, Cilantro-Lime Rice"
+        ¼ cup chopped for Fresh Mango Salsa — same tub
+        ⅜ cup chopped for Cilantro-Lime Rice — same tub
+        ¼ cup chopped — into the tub "Street Corn Salsa and Black Beans — fresh cilantro, red onion and jalapeño"
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » covers cook steps: Fresh Mango Salsa#1, Cucumber Raita#1, Fresh Mango Salsa#1, Cilantro-Lime Rice#0
+     8. Dice all mango   (1 min)   [310 chars]
+        Peel 4 ripe mango, then dice them, some finely and some into a standard dice.
+        2 ripe mangos finely diced for Fresh Mango Salsa — into the tub "Fresh Mango Salsa — fresh cilantro, ripe mango, red onion and jalapeño"
+        2 ripe mangos diced for Fresh Mango Salsa — into the tub "Fresh Mango Salsa — diced ripe mango"
+        » storage: Airtight in the fridge — up to 3 days.
+        » covers cook steps: Fresh Mango Salsa#0, Fresh Mango Salsa#0
+     9. Finely dice all red onion   (8 min)   [562 chars]
+        Finely dice the red onion, 1½ red onion in all, with a little extra for the street corn salsa.
+        ¼ red onion for Fresh Mango Salsa — into the tub "Fresh Mango Salsa — fresh cilantro, ripe mango, red onion and jalapeño"
+        ¼ red onion for Fresh Mango Salsa — into the tub "Fresh Mango Salsa — finely diced red onion"
+        ¼ cup for Street Corn Salsa and Black Beans — into the tub "Street Corn Salsa and Black Beans — fresh cilantro, red onion and jalapeño"
+        1 red onion for Herb-Marinated Chicken and Vegetable Skewers — into the Herb-Marinated Chicken vegetables container
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Fresh Mango Salsa#0, Fresh Mango Salsa#1
+    10. Mince all jalapeño   (8 min)   [433 chars]
+        Seed 3 jalapeño, then mince some and finely dice the rest.
+        1 jalapeño minced for Fresh Mango Salsa — into the tub "Fresh Mango Salsa — fresh cilantro, ripe mango, red onion and jalapeño"
+        1 jalapeño minced for Fresh Mango Salsa — into the tub "Fresh Mango Salsa — minced jalapeño"
+        1 jalapeño finely diced for Street Corn Salsa and Black Beans — into the tub "Street Corn Salsa and Black Beans — fresh cilantro, red onion and jalapeño"
+        » storage: Fresh Mango Salsa — fresh cilantro, ripe mango, red onion and jalapeño: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Street Corn Salsa and Black Beans: Airtight in the fridg…
+        » covers cook steps: Fresh Mango Salsa#0, Fresh Mango Salsa#1
+    11. Zest and juice all limes   (11 min)   [752 chars]
+        Zest the limes first, then juice them to make 12½ tbsp lime juice and 3 tsp lime zest.
+        2 tbsp lime juice for Fresh Mango Salsa — into the tub "Lime juice — Fresh Mango Salsa, Cilantro-Lime Rice, Street Corn Salsa and Black Beans"
+        2 tbsp lime juice for Fresh Mango Salsa — same tub
+        2 tbsp lime juice for Cilantro-Lime Rice — same tub
+        1 tbsp lime juice for Street Corn Salsa and Black Beans — same tub
+        1½ tbsp lime juice — into the Lime Crema jar
+        1 tsp lime zest — same jar
+        2 tbsp lime juice — into the Grilled Mahi-Mahi marinade bowl
+        2 tbsp lime juice — into the Chipotle-Roasted Chicken Thighs marinade bowl
+        1 tsp lime zest for Coconut Rice — into the tub "Lime zest — Coconut Rice, Cilantro-Lime Rice"
+        1 tsp lime zest for Cilantro-Lime Rice — same tub
+        » storage: Grilled Mahi-Mahi marinade bowl: Covered in the fridge — cook within 2 days. Covered in the fridge — up to 3 days.
+        » covers cook steps: Fresh Mango Salsa#1, Lime Crema#0, Cilantro-Lime Rice#0
+    12. Dice the green bell pepper   (3 min)   [147 chars]
+        Dice 1 green bell pepper.
+        1 green bell pepper for Cajun Andouille Sausage and Rice — into the Cajun Andouille Sausage and Rice vegetables container
+        » storage: Cajun Andouille Sausage and Rice vegetables: Airtight in the fridge — up to 4 days.
+    13. Zest and juice all lemons   (3 min)   [624 chars]
+        Zest the lemons first, then juice them to make 5⅜ tbsp lemon juice and 1 tsp lemon zest.
+        1 tbsp lemon juice for Butter Chicken — into the Butter Chicken sauce bowl
+        1 tsp lemon juice for Cucumber Raita — into the Cucumber Raita sauce bowl
+        3 tbsp lemon juice for Herb-Marinated Chicken and Vegetable Skewers — into the Herb-Marinated Chicken marinade bowl
+        1 tbsp lemon juice for Tzatziki — into the tub "Tzatziki — lemon juice"
+        1 tsp lemon zest for Herb-Marinated Chicken and Vegetable Skewers — into the tub "Vegetable Skewers — garlic, fresh parsley, red bell pepper, yellow bell pepper, lemon zest and fresh oregano leaves"
+        » storage: All 4 containers: Covered in the fridge — up to 3 days.
+    14. Grate the fresh ginger   (1 min)   [113 chars]
+        Finely grate 1 tbsp fresh ginger.
+        1 tbsp for Butter Chicken — into the tub "Butter Chicken — grated fresh ginger"
+        » storage: Airtight in the fridge — up to 3 days.
+        » covers cook steps: Butter Chicken#1
+    15. Grate and squeeze the cucumber   (1 min)   [354 chars]
+        Grate 1 english cucumber on the large holes of a box grater, then wrap it in a clean towel and squeeze out the excess moisture.
+        ½ english cucumber for Cucumber Raita — into the tub "Cucumber Raita — fresh cilantro, english cucumber and fresh mint leaves"
+        ½ english cucumber for Tzatziki — into the tub "Tzatziki — garlic, english cucumber and fresh dill"
+        » covers cook steps: Cucumber Raita#0, Tzatziki#0
+    16. Chop the fresh mint   (1 min)   [152 chars]
+        Finely chop 2 tbsp fresh mint leaves.
+        2 tbsp for Cucumber Raita — into the tub "Cucumber Raita — fresh cilantro, english cucumber and fresh mint leaves"
+        » storage: Cucumber Raita: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Cucumber Raita sauce bowl separate; combine on cook day (Wednesday).
+        » covers cook steps: Cucumber Raita#1
+    17. Dice all red bell pepper   (8 min)   [389 chars]
+        Work through 3 red bell pepper two ways: finely diced and cut into 1½-inch pieces.
+        1 red bell pepper for Fresh Mango Salsa — into the tub "Fresh Mango Salsa — finely diced red bell pepper"
+        2 red bell peppers for Herb-Marinated Chicken and Vegetable Skewers — into the tub "Vegetable Skewers — garlic, fresh parsley, red bell pepper, yellow bell pepper, lemon zest and fresh oregano leaves"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Fresh Mango Salsa#1
+    18. Cut the yellow bell pepper   (1 min)   [248 chars]
+        Cut 1 yellow bell pepper into 1½-inch pieces.
+        1 yellow bell pepper for Herb-Marinated Chicken and Vegetable Skewers — into the tub "Vegetable Skewers — garlic, fresh parsley, red bell pepper, yellow bell pepper, lemon zest and fresh oregano leaves"
+    19. Slice the zucchini   (1 min)   [152 chars]
+        Slice 2 zucchini into ¾-inch rounds.
+        2 zucchinis for Herb-Marinated Chicken and Vegetable Skewers — into the Herb-Marinated Chicken vegetables container
+        » storage: Herb-Marinated Chicken vegetables: Airtight in the fridge — up to 4 days.
+    20. Chop the fresh oregano   (1 min)   [229 chars]
+        Finely chop 2 tbsp fresh oregano leaves.
+        2 tbsp for Herb-Marinated Chicken and Vegetable Skewers — into the tub "Vegetable Skewers — garlic, fresh parsley, red bell pepper, yellow bell pepper, lemon zest and fresh oregano leaves"
+        » storage: Vegetable Skewers: Covered in the fridge — up to 3 days. Keep the Herb-Marinated Chicken marinade bowl separate; combine on cook day (Friday).
+  × 21. Fresh thyme leaves — cook day   (1 min)  [RENDER-OMITTED]   [40 chars]
+        Nothing to cut — it goes in as it comes.
+    22. Chop the fresh dill   (1 min)   [118 chars]
+        Finely chop 2 tbsp fresh dill.
+        2 tbsp for Tzatziki — into the tub "Tzatziki — garlic, english cucumber and fresh dill"
+        » storage: Tzatziki — garlic, english cucumber and fresh dill: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the lemon juice separate; combine on cook day (Friday).
+
+  ── sauces_marinades ──
+     1. Finish the Chipotle-Roasted Chicken Thighs marinade bowl   (6 min)   [262 chars]
+        Chipotle-Roasted Chicken Thighs marinade bowl (smoked paprika, dried oregano, ground cumin, garlic and the lime juice from produce step 11 already in it): add
+        2 chipotle peppers in adobo sauce, minced, plus 1 tablespoon adobo sauce from the can
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 3 days. Add the boneless skinless chicken thighs the night before you cook them (Saturday).
+     2. Finish the Lime Crema jar   (2 min)   [160 chars]
+        Lime Crema jar (garlic powder, the lime juice from produce step 11 and the lime zest from produce step 11 already in it): add
+        2 tbsp Mayonnaise
+        Stir to combine.
+        » storage: Covered in the fridge — up to 3 days.
+  ×  3. Mayonnaise — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     HELD: Add the boneless skinless chicken thighs the night before you cook them (Saturday).
+     HELD: Chipotle-Roasted Chicken Bowl with Street Corn Salsa, Black Beans, and Cilantro-Lime Rice (Saturday, 6 days out) — cut the chicken thighs that morning.
+  ×  1. Boneless skinless chicken thighs — cook day   (15 min)  [RENDER-OMITTED]   [278 chars]
+        Trim and cut the boneless skinless chicken thighs for each dish:
+        1½ lb for Slow-Cooker Chicken and Dumplings
+        2 lb for Butter Chicken, cut into 2-inch pieces
+        1¾ lb for Herb-Marinated Chicken and Vegetable Skewers, cut into 1.5-inch chunks
+        2 lb for Chipotle-Roasted Chicken Thighs
+        » storage: This one is 6 days out — leave it for cook day.
+     2. Pat the shrimp dry   (5 min)   [67 chars]
+        Pat 1½ lb large shrimp, peeled and deveined, dry with paper towels.
+        » storage: Covered in the fridge — cook within 2 days.
+        » covers cook steps: Blackened Shrimp#2
+     3. Slice the andouille sausage   (1 min)   [49 chars]
+        Slice 14 oz andouille sausage into ½-inch rounds.
+        » storage: Covered in the fridge — cook within 2 days.

@@ -1,0 +1,174 @@
+PLAN 04a25763-bd01-4103-ba11-d5420ca0e6d8  [A05]  HTTP 200
+  HEADER: 22 containers · about 85 min · prompt v20
+
+  ── seasonings_dry ──
+     1. Measure the Texas-Style Smoked Brisket rub bowl   (2 min)   [148 chars]
+        Into the Texas-Style Smoked Brisket rub bowl:
+        2 tbsp coarse kosher salt
+        2 tbsp coarsely ground black pepper
+        1 tsp garlic powder
+        1 tsp smoked paprika
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » covers cook steps: Texas-Style Smoked Brisket#1
+     2. Measure the Blackened Salmon spice blend   (4 min)   [193 chars]
+        Into the Blackened Salmon spice blend:
+        1 tsp garlic powder
+        1½ tsp smoked paprika
+        ½ tsp dried oregano
+        ½ tsp dried thyme
+        ½ tsp onion powder
+        ¼ tsp cayenne pepper
+        ½ tsp black pepper, freshly ground
+        » storage: Airtight at room temperature — it keeps for weeks.
+     3. Measure the Lemon-Herb Chicken Gyros marinade bowl   (6 min)   [223 chars]
+        Into the Lemon-Herb Chicken Gyros marinade bowl:
+        ½ tsp smoked paprika
+        1½ tsp dried oregano
+        ½ tsp ground cumin
+        ½ tsp dried thyme
+        6 oz jarred roasted red peppers, drained and sliced into strips
+        Set aside for the produce step.
+        » covers cook steps: Lemon-Herb Chicken Gyros#3
+     4. Measure the Slow-Cooked Pinto Beans spice blend   (2 min)   [95 chars]
+        Into the Slow-Cooked Pinto Beans spice blend:
+        ½ tsp dried oregano
+        ½ tsp ground cumin
+        1 bay leaf
+        » storage: Airtight in the fridge — up to 3 days.
+  ×  5. Garlic powder and dried oregano — cook day   (1 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+  ×  6. Liquid smoke — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  7. Bay leaves — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  8. Hummus — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)   [104 chars]
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+     2. Roughly chop all yellow onion   (5 min)   [245 chars]
+        Roughly chop 2 yellow onions.
+        1 yellow onion for Slow-Cooked Pinto Beans — into the tub "Slow-Cooked Pinto Beans — chopped yellow onion"
+        1 yellow onion for Red Wine Braised Lamb Shanks — into the Red Wine Braised Lamb Shanks vegetables container
+        » storage: Airtight in the fridge — up to 4 days.
+     3. Prep all garlic   (6 min)   [677 chars]
+        Work through 18 cloves of garlic three ways: thinly sliced, peeled and minced.
+        2 cloves thinly sliced for Pickled Jalapeños — into the Pickled Jalapeños sauce bowl
+        6 cloves peeled for Red Wine Braised Lamb Shanks — into the tub "Red Wine Braised Lamb Shanks — peeled garlic cloves"
+        3 cloves minced for Creamy White Bean Mash — into the tub "Minced garlic cloves — Creamy White Bean Mash, Lemon-Parsley Gremolata"
+        2 cloves minced for Lemon-Parsley Gremolata — same tub
+        4 cloves minced for Lemon-Herb Chicken Gyros — into the Lemon-Herb Chicken Gyros marinade bowl
+        1 clove minced for Tzatziki Sauce — into the tub "Tzatziki Sauce — garlic cloves, english cucumber and fresh dill"
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Pickled Jalapeños#0, Red Wine Braised Lamb Shanks#1, Lemon-Parsley Gremolata#0
+     4. Prep all jalapeños   (15 min)   [327 chars]
+        Work through 7 fresh jalapeños two ways: sliced into ¼-inch rounds and seeded and finely minced.
+        6 fresh jalapeños sliced for Pickled Jalapeños — into the Pickled Jalapeños sauce bowl
+        1 fresh jalapeño minced for Mango Avocado Salsa — into the tub "Mango Avocado Salsa — fresh jalapeño, red onion, ripe mango and fresh cilantro"
+        » covers cook steps: Pickled Jalapeños#0, Mango Avocado Salsa#1
+     5. Chop all carrots   (3 min)   [136 chars]
+        Peel and roughly chop 2 carrots.
+        2 carrots for Red Wine Braised Lamb Shanks — into the Red Wine Braised Lamb Shanks vegetables container
+        » covers cook steps: Red Wine Braised Lamb Shanks#1
+     6. Chop all celery   (1 min)   [139 chars]
+        Roughly chop 2 celery stalks.
+        2 celery stalks for Red Wine Braised Lamb Shanks — into the Red Wine Braised Lamb Shanks vegetables container
+        » storage: Red Wine Braised Lamb Shanks vegetables: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Red Wine Braised Lamb Shanks#1
+     7. Mince the fresh rosemary   (1 min)   [131 chars]
+        Finely mince 1 tsp fresh rosemary.
+        1 tsp for Creamy White Bean Mash — into the tub "Creamy White Bean Mash — minced fresh rosemary"
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+  ×  8. Fresh thyme sprigs — cook day   (1 min)  [RENDER-OMITTED]   [40 chars]
+        Nothing to cut — it goes in as it comes.
+     9. Chop all flat-leaf parsley   (4 min)   [410 chars]
+        Chop ⅞ cup flat-leaf parsley two ways: finely chopped (packed) and roughly chopped.
+        ½ cup finely chopped for Lemon-Parsley Gremolata — into the tub "Lemon-Parsley Gremolata — finely chopped fresh flat-leaf parsley"
+        ¼ cup chopped for Lemon-Herb Chicken Gyros — into the tub "Chopped fresh flat-leaf parsley — Lemon-Herb Chicken Gyros, Greek Lemon-Herb Fries"
+        2 tbsp chopped for Greek Lemon-Herb Fries — same tub
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » covers cook steps: Lemon-Parsley Gremolata#0, Lemon-Herb Chicken Gyros#3
+    10. Prep all lemons   (5 min)   [527 chars]
+        Zest the lemons for 3 tsp lemon zest, then juice them for 5 tbsp fresh lemon juice.
+        2 tsp lemon zest for Lemon-Parsley Gremolata — into the tub "Lemon-Parsley Gremolata — lemon zest"
+        1 tsp lemon zest for Lemon-Herb Chicken Gyros — into the Lemon-Herb Chicken Gyros marinade bowl
+        3 tbsp fresh lemon juice for Lemon-Herb Chicken Gyros — same bowl
+        1 tbsp fresh lemon juice for Tzatziki Sauce — into the tub "Fresh lemon juice — Tzatziki Sauce, Greek Lemon-Herb Fries"
+        1 tbsp fresh lemon juice for Greek Lemon-Herb Fries — same tub
+        » storage: All 3 containers: Covered in the fridge — up to 3 days. Add the boneless skinless chicken thighs the night before you cook them (Friday).
+        » covers cook steps: Lemon-Parsley Gremolata#0
+    11. Prep the English cucumber   (3 min)   [417 chars]
+        Work through 1 English cucumber two ways: thinly sliced into half-moons and grated on the large holes of a box grater, then squeezed dry in a clean towel.
+        ½ english cucumber thinly sliced for Lemon-Herb Chicken Gyros — into the tub "Lemon-Herb Chicken Gyros — thinly sliced english cucumber"
+        ½ english cucumber grated for Tzatziki Sauce — into the tub "Tzatziki Sauce — garlic cloves, english cucumber and fresh dill"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Lemon-Herb Chicken Gyros#3, Tzatziki Sauce#0
+    12. Slice all roma tomatoes   (5 min)   [146 chars]
+        Thinly slice 2 roma tomatoes.
+        2 roma tomatoes for Lemon-Herb Chicken Gyros — into the tub "Lemon-Herb Chicken Gyros — thinly sliced roma tomatoes"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Lemon-Herb Chicken Gyros#3
+    13. Prep all red onion   (3 min)   [325 chars]
+        Cut ¾ red onion two ways: thinly sliced and finely diced.
+        ½ red onion thinly sliced for Lemon-Herb Chicken Gyros — into the tub "Lemon-Herb Chicken Gyros — thinly sliced red onion"
+        ¼ red onion finely diced for Mango Avocado Salsa — into the tub "Mango Avocado Salsa — fresh jalapeño, red onion, ripe mango and fresh cilantro"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Lemon-Herb Chicken Gyros#3, Mango Avocado Salsa#0
+    14. Chop the fresh dill   (1 min)   [137 chars]
+        Finely chop 2 tbsp fresh dill.
+        2 tbsp for Tzatziki Sauce — into the tub "Tzatziki Sauce — garlic cloves, english cucumber and fresh dill"
+        » storage: Tzatziki Sauce — garlic cloves, english cucumber and fresh dill: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Tzatziki Sauce, Greek Lemon-Herb Fries separate; combi…
+  × 15. Russet potatoes — cook day   (3 min)  [RENDER-OMITTED]   [53 chars]
+        This browns once it is cut, so it is cut on cook day.
+    16. Dice the mango   (1 min)   [178 chars]
+        Peel and dice 1 ripe mango into ½-inch cubes.
+        1 ripe mango for Mango Avocado Salsa — into the tub "Mango Avocado Salsa — fresh jalapeño, red onion, ripe mango and fresh cilantro"
+        » covers cook steps: Mango Avocado Salsa#0
+  × 17. Ripe avocado — cook day   (1 min)  [RENDER-OMITTED]   [53 chars]
+        This browns once it is cut, so it is cut on cook day.
+    18. Chop all cilantro   (2 min)   [319 chars]
+        Chop 7 tbsp fresh cilantro two ways: roughly chopped and finely chopped.
+        3 tbsp chopped for Mango Avocado Salsa — into the tub "Mango Avocado Salsa — fresh jalapeño, red onion, ripe mango and fresh cilantro"
+        ¼ cup finely chopped for Cilantro-Lime Rice — into the tub "Cilantro-Lime Rice — finely chopped fresh cilantro"
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Mango Avocado Salsa, Cilantro-Lime Rice separate; combine on cook day (Saturday).
+        » covers cook steps: Mango Avocado Salsa#1
+    19. Prep all limes   (3 min)   [396 chars]
+        Zest the limes for ½ tsp lime zest, then juice them for 4 tbsp freshly squeezed lime juice.
+        2 tbsp lime juice, freshly squeezed for Mango Avocado Salsa — into the tub "Lime juice, freshly squeezed — Mango Avocado Salsa, Cilantro-Lime Rice"
+        2 tbsp lime juice, freshly squeezed for Cilantro-Lime Rice — same tub
+        ½ tsp lime zest for Cilantro-Lime Rice — into the tub "Cilantro-Lime Rice — lime zest"
+        » storage: Both containers: Covered in the fridge — up to 3 days.
+
+  ── sauces_marinades ──
+     1. Finish the Pickled Jalapeños sauce bowl   (2 min)   [129 chars]
+        Pickled Jalapeños sauce bowl (garlic cloves and fresh jalapeño already in it): add
+        ½ cup white distilled vinegar
+        Stir to combine.
+        » storage: Covered in the fridge — up to 4 days.
+  ×  2. Worcestershire sauce — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  3. Dry red wine — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     HELD: Add the boneless skinless chicken thighs the night before you cook them (Friday).
+     HELD: Texas-Style Smoked Brisket with Pinto Beans and Pickled Jalapeños (Wednesday, 3 days out) — pound the brisket flat that morning.
+     HELD: Braised Lamb Shanks with Creamy White Bean Mash and Gremolata (Thursday, 4 days out) — trim the lamb shanks that morning.
+     HELD: Lemon-Herb Chicken Gyros with Roasted Red Pepper and Hummus (Friday, 5 days out) — cut and trim the chicken thighs that morning.
+     HELD: Blackened Salmon with Mango Avocado Salsa and Cilantro Rice (Saturday, 6 days out) — salmon fillets that morning.
+  ×  1. Beef brisket flat — cook day   (8 min)  [RENDER-OMITTED]   [81 chars]
+        Pound 2½ lb beef brisket flat, trimmed to a ¼-inch fat cap, to an even thickness.
+        » storage: This one is 3 days out — leave it for cook day.
+  ×  2. Smoked ham hock — cook day   (1 min)  [RENDER-OMITTED]   [86 chars]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+  ×  3. Lamb shanks — cook day   (3 min)  [RENDER-OMITTED]   [41 chars]
+        Trim 4 bone-in lamb shanks of excess fat.
+        » storage: This one is 4 days out — leave it for cook day.
+  ×  4. Boneless skinless chicken thighs — cook day   (6 min)  [RENDER-OMITTED]   [69 chars]
+        Cut 1¾ lb boneless skinless chicken thighs into strips and trim them.
+        » storage: This one is 5 days out — leave it for cook day.
+  ×  5. Salmon fillets — cook day   (5 min)  [RENDER-OMITTED]   [67 chars]
+        Pat 24 oz salmon fillets (four 6-oz fillets) dry with paper towels.
+        » storage: This one is 6 days out — leave it for cook day.

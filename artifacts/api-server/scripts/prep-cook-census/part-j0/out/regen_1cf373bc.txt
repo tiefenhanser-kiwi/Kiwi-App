@@ -1,0 +1,179 @@
+PLAN 1cf373bc-a2cb-4469-90ef-bb87d0327343  [E-1cf373bc]  HTTP 200
+  HEADER: 25 containers · about 115 min · prompt v20
+
+  ── seasonings_dry ──
+     1. Measure the Sheet-Pan Chicken Fajitas spice blend   (3 min)   [147 chars]
+        Into the Sheet-Pan Chicken Fajitas spice blend:
+        2 tsp chili powder
+        1½ tsp ground cumin
+        1 tsp smoked paprika
+        1 tsp garlic powder
+        ½ tsp dried oregano
+        » storage: Airtight at room temperature — it keeps for weeks.
+     2. Measure the Seasoned Ground Beef Taco spice blend   (3 min)   [166 chars]
+        Into the Seasoned Ground Beef Taco spice blend:
+        2 tbsp chili powder
+        1 tsp ground cumin
+        ½ tsp smoked paprika
+        ½ tsp garlic powder
+        ½ tsp dried oregano
+        ½ tsp onion powder
+        » storage: Airtight at room temperature — it keeps for weeks.
+     3. Measure the Texas-Style Beef Chili spice blend   (2 min)   [104 chars]
+        Into the Texas-Style Beef Chili spice blend:
+        2 tsp ground cumin
+        1 tsp smoked paprika
+        1 tsp dried oregano
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » covers cook steps: Texas-Style Beef Chili#3
+     4. Measure the Italian Herb Meatloaf sauce jar   (3 min)   [142 chars]
+        Into the Italian Herb Meatloaf sauce jar:
+        1 tsp dried oregano
+        ½ cup breadcrumbs
+        1 tsp dried basil
+        Set aside for the sauces and marinades step.
+     5. Measure the Texas-Style Beef Chili — dried chiles, stemmed and seeded   (1 min)   [152 chars]
+        Into the Texas-Style Beef Chili — dried chiles, stemmed and seeded:
+        3 dried ancho chiles, stemmed and seeded
+        2 dried guajillo chiles, stemmed and seeded
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » covers cook steps: Texas-Style Beef Chili#0
+  ×  6. Smoked paprika — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  7. Masa harina — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)   [104 chars]
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+     2. Slice the red bell peppers   (5 min)   [192 chars]
+        Thinly slice 2 red bell peppers.
+        2 red bell peppers for Sheet-Pan Chicken Fajitas — into the tub "Sheet-Pan Chicken Fajitas — red bell pepper, green bell pepper, yellow onion, lime and garlic"
+        » covers cook steps: Sheet-Pan Chicken Fajitas#2
+     3. Slice the green bell pepper   (3 min)   [194 chars]
+        Thinly slice 1 green bell pepper.
+        1 green bell pepper for Sheet-Pan Chicken Fajitas — into the tub "Sheet-Pan Chicken Fajitas — red bell pepper, green bell pepper, yellow onion, lime and garlic"
+        » covers cook steps: Sheet-Pan Chicken Fajitas#2
+     4. Cut all yellow onion   (10 min)   [647 chars]
+        Work through 4 yellow onions three ways: thinly sliced, diced and finely diced.
+        1 yellow onion thinly sliced for Sheet-Pan Chicken Fajitas — into the tub "Sheet-Pan Chicken Fajitas — red bell pepper, green bell pepper, yellow onion, lime and garlic"
+        1 yellow onion diced for Texas-Style Beef Chili — into the tub "Texas-Style Beef Chili — diced yellow onion"
+        1 yellow onion finely diced for Italian Herb Meatloaf — into the tub "Italian Herb Meatloaf — yellow onion, garlic and fresh flat-leaf parsley"
+        1 yellow onion finely diced for Seasoned Ground Beef Taco Filling — into the tub "Seasoned Ground Beef Taco Filling — finely diced yellow onion"
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Sheet-Pan Chicken Fajitas#2
+  ×  5. Lime — cook day   (12 min)  [RENDER-OMITTED]   [39 chars]
+        Citrus wedges keep best cut on the day.
+     6. Prep all garlic   (10 min)   [786 chars]
+        Work through 28 cloves and 1 head of garlic three ways: mince, thinly slice, and trim the top off the head for roasting.
+        3 cloves minced — into the tub "Sheet-Pan Chicken Fajitas — red bell pepper, green bell pepper, yellow onion, lime and garlic"
+        1 clove minced — into the Guacamole tub
+        4 cloves minced — into the Lemon-Herb Baked Chicken Breast marinade bowl
+        4 cloves minced for Baby Potatoes — into the Minced garlic tub
+        6 cloves minced for Beef Chili — same tub
+        3 cloves minced for Taco Filling — same tub
+        4 cloves minced — into the tub "Italian Herb Meatloaf — yellow onion, garlic and fresh flat-leaf parsley"
+        3 cloves thinly sliced — into the tub "Sautéed Broccolini with Garlic and Chili Flake — thinly sliced garlic"
+        1 head trimmed — into the Roasted Garlic Mashed Potatoes tub
+        » storage: All 4 containers: Airtight in the fridge — up to 4 days. Stir in the Sheet-Pan Chicken Fajitas spice blend now — it is eaten within a day.
+        » covers cook steps: Lemon-Herb Baked Chicken Breast#0, Texas-Style Beef Chili#3, Italian Herb Meatloaf#1, Sautéed Broccolini with Garlic and Chili Flake#0, Seasoned Ground Beef Taco Filling#0
+  ×  7. Ripe avocado — cook day   (1 min)  [RENDER-OMITTED]   [53 chars]
+        This browns once it is cut, so it is cut on cook day.
+     8. Seed and mince the jalapeños   (5 min)   [270 chars]
+        Seed and mince 2 jalapeños.
+        1 jalapeño for Guacamole — into the tub "Guacamole — lime, garlic, jalapeño, fresh cilantro and red onion"
+        1 jalapeño for Fresh Pico de Gallo — into the tub "Fresh Pico de Gallo — lime, jalapeño, fresh cilantro, white onion and roma tomatoes"
+        » covers cook steps: Fresh Pico de Gallo#0
+     9. Chop all cilantro   (4 min)   [414 chars]
+        Chop 1 cup of fresh cilantro.
+        ¼ cup for Guacamole — into the tub "Guacamole — lime, garlic, jalapeño, fresh cilantro and red onion"
+        ¼ cup for Fajita Toppings — into the tub "Chopped fresh cilantro — Fajita Toppings, Texas-Style Beef Chili"
+        ¼ cup for Texas-Style Beef Chili — same tub
+        ¼ cup for Fresh Pico de Gallo — into the tub "Fresh Pico de Gallo — lime, jalapeño, fresh cilantro, white onion and roma tomatoes"
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » covers cook steps: Fresh Pico de Gallo#1
+    10. Finely dice the red onion   (3 min)   [133 chars]
+        Finely dice ¼ cup of red onion.
+        ¼ cup for Guacamole — into the tub "Guacamole — lime, garlic, jalapeño, fresh cilantro and red onion"
+        » storage: Guacamole — lime, garlic, jalapeño, fresh cilantro and red onion: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+    11. Prep all lemons   (5 min)   [302 chars]
+        Zest 2 lemons, then juice them and ½ lemon more.
+        2 lemons zested for Lemon-Herb Baked Chicken Breast — into the Lemon-Herb Baked Chicken Breast marinade bowl
+        ½ lemon juiced for Sautéed Broccolini with Garlic and Chili Flake — into the tub "Sautéed Broccolini with Garlic and Chili Flake — juiced lemon"
+        » storage: Airtight in the fridge — up to 3 days.
+    12. Prep the fresh rosemary   (2 min)   [271 chars]
+        Strip the leaves from 3 sprigs of fresh rosemary and chop them.
+        2 sprigs for Lemon-Herb Baked Chicken Breast — into the Lemon-Herb Baked Chicken Breast marinade bowl
+        1 sprig for Garlic Herb Baby Potatoes — into the tub "Garlic Herb Baby Potatoes — chopped fresh rosemary"
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » covers cook steps: Lemon-Herb Baked Chicken Breast#0
+    13. Prep the fresh thyme   (1 min)   [253 chars]
+        Strip the leaves from 7 sprigs of fresh thyme.
+        4 sprigs for Lemon-Herb Baked Chicken Breast — into the Lemon-Herb Baked Chicken Breast marinade bowl
+        3 sprigs for Garlic Herb Baby Potatoes — into the tub "Garlic Herb Baby Potatoes — stripped fresh thyme"
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » covers cook steps: Lemon-Herb Baked Chicken Breast#0
+    14. Chop all flat-leaf parsley   (2 min)   [338 chars]
+        Chop ½ cup of fresh flat-leaf parsley, some roughly and some finely.
+        ¼ cup chopped for Lemon-Herb Baked Chicken Breast — into the tub "Lemon-Herb Baked Chicken Breast — chopped fresh flat-leaf parsley"
+        ¼ cup finely chopped for Italian Herb Meatloaf — into the tub "Italian Herb Meatloaf — yellow onion, garlic and fresh flat-leaf parsley"
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Stir in the Italian Herb Meatloaf sauce jar now — it is eaten within a day.
+        » covers cook steps: Italian Herb Meatloaf#1
+    15. Trim the asparagus   (3 min)   [124 chars]
+        Trim the tough ends from 1½ lb asparagus.
+        1½ lb for Roasted Asparagus — into the tub "Roasted Asparagus — trimmed asparagus"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Roasted Asparagus#0
+  × 16. Baby yellow potato — cook day   (1 min)  [RENDER-OMITTED]   [53 chars]
+        This browns once it is cut, so it is cut on cook day.
+    17. Finely dice the white onion   (3 min)   [273 chars]
+        Finely dice 1 white onion.
+        ½ white onion for Texas-Style Beef Chili — into the tub "Texas-Style Beef Chili — finely diced white onion"
+        ½ white onion for Fresh Pico de Gallo — into the tub "Fresh Pico de Gallo — lime, jalapeño, fresh cilantro, white onion and roma tomatoes"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Fresh Pico de Gallo#0
+  × 18. Fennel seeds — cook day   (1 min)  [RENDER-OMITTED]   [40 chars]
+        Nothing to cut — it goes in as it comes.
+  × 19. Russet potatoes — cook day   (5 min)  [RENDER-OMITTED]   [53 chars]
+        This browns once it is cut, so it is cut on cook day.
+    20. Trim the broccolini   (1 min)   [199 chars]
+        Trim 1 lb broccolini and halve any thick stalks lengthwise.
+        1 lb for Sautéed Broccolini with Garlic and Chili Flake — into the tub "Sautéed Broccolini with Garlic and Chili Flake — halved broccolini"
+        » storage: Airtight in the fridge — up to 3 days.
+        » covers cook steps: Sautéed Broccolini with Garlic and Chili Flake#0
+    21. Dice the roma tomatoes   (8 min)   [178 chars]
+        Seed and finely dice 3 roma tomatoes.
+        3 roma tomatoes for Fresh Pico de Gallo — into the tub "Fresh Pico de Gallo — lime, jalapeño, fresh cilantro, white onion and roma tomatoes"
+        » storage: Fresh Pico de Gallo: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » covers cook steps: Fresh Pico de Gallo#0
+
+  ── sauces_marinades ──
+     1. Finish the Italian Herb Meatloaf sauce jar   (2 min)   [140 chars]
+        Italian Herb Meatloaf sauce jar (dried oregano, breadcrumbs and dried basil already in it): add
+        1 tbsp worcestershire sauce
+        Stir to combine.
+        » storage: Covered in the fridge — up to 3 days.
+     2. Finish the Lemon-Herb Baked Chicken Breast marinade bowl   (2 min)   [176 chars]
+        Lemon-Herb Baked Chicken Breast marinade bowl (garlic, the lemon from produce step 11, fresh rosemary and fresh thyme already in it): add
+        1 tbsp dijon mustard
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 4 days. Add the boneless skinless chicken breasts the night before you cook them (Saturday).
+  ×  3. Salsa — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  4. Chipotle chile in adobo — cook day   (5 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  5. Hot sauce — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     HELD: Add the boneless skinless chicken breasts the night before you cook them (Saturday).
+     1. Slice the chicken breasts   (11 min)   [204 chars]
+        Slice the boneless skinless chicken breasts against the grain where noted:
+        1½ lb for the Sheet-Pan Chicken Fajitas, thinly sliced against the grain
+        2 lb for the Lemon-Herb Baked Chicken Breast, left whole
+        » storage: Covered in the fridge — cook within 2 days.
+        » covers cook steps: Sheet-Pan Chicken Fajitas#2, Lemon-Herb Baked Chicken Breast#2
+     2. Cube the beef chuck   (8 min)   [42 chars]
+        Cube 2 lb beef chuck into 3/4-inch pieces.
+        » storage: Covered in the fridge — cook within 2 days.

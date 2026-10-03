@@ -212,20 +212,16 @@ export interface LoadPrepWeekInputParams {
   planId: string;
   userId: string;
   prisma: PrismaClient;
-  // WS9 — Prep Selected Meals. When present, the aggregation runs over ONLY
-  // these plan meals; absent (the default) is the unchanged full-week path.
-  // Filtering lives HERE rather than in the route so one code path serves both
-  // — the engine, the step plan, the narration input and the assembled result
-  // are all built from whatever `meals` this loader returns, and none of them
-  // needs to know a subset happened. Every id must belong to the plan
-  // (PrepWeekUnknownMealError otherwise).
+  // WS9 — Prep Selected Meals. Every id must belong to the plan
+  // (PrepWeekUnknownMealError otherwise). Part J.0 (A3): VALIDATION ONLY — the
+  // whole plan is still loaded, and the route scopes the built step plan to
+  // these meals (prepWeekBuild `scopeMealIds`).
   mealIds?: string[];
-  // D-WS9-049 A2.1 — the isPrepped/prepStatus derivation (loadPrepStepSet →
-  // GET /plans/:id) only needs stepKey + contributesToMealIds, which come from
-  // ingredients alone; it calls buildStepPlan WITHOUT step text. On that path
-  // the two per-owner RecipeInstructionStep queries below are pure waste. Pass
-  // false to skip them (each dish keeps stepTexts=[]). Defaults true so the
-  // narration generate path (which DOES judge combine-vs-season) is unchanged.
+  // D-WS9-049 A2.1 — skips the two RecipeInstructionStep queries (each dish keeps
+  // stepTexts=[]). 🔴 Part J.0: `loadPrepStepSet` no longer passes false — a step
+  // set built without step text keys different steps than the screen shows,
+  // which is why no census meal could read prepped. Kept for callers that only
+  // need ingredients.
   includeStepTexts?: boolean;
   /**
    * H5.0 — "now", for the prep-day anchor only. Injectable because the anchor is
@@ -339,9 +335,12 @@ export async function loadPrepWeekInput(
   const dayNameByMealId = new Map<string, string>();
   for (const item of plan.items) {
     const meal = item.meal;
-    // WS9 — the subset filter. The ONLY place a subset differs from a full
-    // week; everything downstream consumes `meals` and is untouched.
-    if (selectedMealIds && !selectedMealIds.has(item.mealId)) continue;
+    // 🔴 Part J.0 (A3) — A SUBSET NO LONGER NARROWS THE LOAD. It used to `continue`
+    // here, and then the food-identity fold below ran over the selected meals
+    // only: a food in only some meals got a different representative id, so the
+    // subset minted stepKeys the full plan never had and its ticks never counted.
+    // The whole plan is loaded; `buildStepPlan`'s `scopeMealIds` scopes it after
+    // the plan is built. `mealIds` is now membership validation alone (above).
     if (meal.dishLinks.length === 0) continue;
     if (item.assignedDayOfWeek && !dayNameByMealId.has(item.mealId)) {
       dayNameByMealId.set(item.mealId, item.assignedDayOfWeek);

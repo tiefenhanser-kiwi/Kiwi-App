@@ -32,6 +32,8 @@ interface PromptSeed {
 
 const MODEL_SONNET = "claude-sonnet-4-6";
 const MODEL_HAIKU = "claude-haiku-4-5-20251001";
+// Part J.0 (D2) — mirrors promptRegistry.MODEL_SONNET_55; see the ruling there.
+const MODEL_SONNET_55 = "claude-sonnet-5-5";
 
 // 6c-5: prompt keys retired from the registry. seedAIPrompts hard-deletes
 // any AIPrompt row whose key appears here after the upsert pass, so orphan
@@ -1503,6 +1505,22 @@ A 'planName', a 'dishSteps' map (each dish name → that dish's recipe instructi
 - 'setAsideFor' — present when this step's container is worked AGAIN later in the same session ("produce", "sauces and marinades"). Close the step with exactly that: "Set aside for the produce step." / "Set aside for the sauces and marinades step." The bowl stays out, so do not send it to the fridge and do not write a storage line — the app puts one on the step that finishes the container, not on this one.
 - 'knifeVerbs' — present on a whole-protein step whose recipe names the knife work: ["pound"], ["trim"], ["cube","trim"]. OPEN the step with it, as an instruction: "Pound 4 chicken breasts to even thickness", "Trim 2 lb boneless thighs". A bare ingredient line on a protein step is the defect this replaces — the cook needs the action, not the shopping name.
 - 'cookDaySentence' — present ONLY on a raw-protein step whose protein joins a bowl on cook day. It is already written for you. Echo it VERBATIM as the step's instruction and add nothing to it: it states a fact about the schedule, not a suggestion.
+- 'portionsByApp' — present on a produce step. See "# A step whose portions the app writes".
+
+# A step whose portions the app writes
+
+🔴 On a step carrying 'portionsByApp', THE APP WRITES EVERY PORTION LINE ITSELF — each amount, each dish, each container and tub label — and prints them directly under your text:
+4 cloves for Beef Enchiladas Verdes — into the tub "Minced garlic — Enchiladas Verdes, Street-Style Rice, Beef Chili"
+2 cloves for Mexican Street-Style Rice — same tub
+That is why its components arrive with an EMPTY 'measures' list.
+
+Your 'instructions' on such a step is ONE opening sentence and nothing else: the knife work — verb, food, technique. 'portionsByApp' gives you 'food' (name it), 'total' (a finished amount you may state verbatim, never change) and, when the portions take more than one cut, 'cuts'. Read the recipe steps in 'dishSteps' for the verb the recipe uses. Verbatim shapes:
+"Mince 11 cloves of garlic."
+"Work through 3 yellow onions three ways: thinly sliced, finely diced and roughly chopped."
+"Zest 1 lemon, then juice it and the rest."
+"Trim the stem ends from 12 oz green beans."
+
+NEVER write on such a step: a per-dish amount, a dish name, a container, a tub label, "same tub", a list, or a second line. ≤200 characters. The app's lines follow your sentence, so anything you add there is printed twice.
 
 # How to write the measures (this is the core of the job)
 
@@ -1527,6 +1545,8 @@ title: "Measure the pork chop glaze"
 1 tsp apple cider vinegar"
 - NEVER add two dishes' amounts into one number, and NEVER tell the user to measure a total and split it.
 - 🔴 A DESTINATION CONTAINING " — " IS A LABEL FOR A LID, NOT A NOUN PHRASE. "Minced garlic — Enchiladas, Rice, Chili Fixings" is what the cook writes on the tub; do not wrap it in "the … container". Write: 'into a tub labelled "Minced garlic — Enchiladas, Rice, Chili Fixings"'. A destination with no dash is a real vessel name and reads normally: "into the Carne asada marinade bowl".
+
+(Everything in this section is for a step WITHOUT 'portionsByApp'. A step with it gets one opening sentence — see above.)
 
 🔴 WHEN A MEASURE HAS A 'destination', SAY WHERE IT GOES, WITH ITS AMOUNT. The container name is the only thing on the screen that tells the cook which dish a portion belongs to — the recipe is not in front of them. Write "— 1 into the Beef Enchiladas container, ¾ into the Mexican rice container, ¼ into the chili fixings container". Every cut or squeezed portion carries a 'destination' — write every one, and never write "no container needed" or "its own portion". Only a raw protein has none: it stays in its own wrapping.
 - 🔴 IN THE PRODUCE PHASE, WORK ONE INGREDIENT AT A TIME AND GROUP BY CUT. All the onions before any of the carrots, and within one ingredient all of one cut before the next: "Finely dice 2 white onions — 1 into the enchilada container, ¾ into the Mexican rice container. Cut ½ onion into wedges — tomatillo sauce container." That is how a cook works a board with one knife, and it is what the phase is for.
@@ -1564,11 +1584,9 @@ A step with NO 'bowlName' is a plain portion of a single ingredient. Do not inve
 
 A whole lemon or lime is PRODUCE and it is worked at the board in the produce phase, exactly like an onion: ONE step for the fruit, and every portion says where it goes and how much. It is never zested or juiced inside a sauce bowl — the cook has put the board away by then.
 
-🔴 ONE FRUIT, ONE STEP. A citrus step may carry the whole fruit, its juice and its zest as separate components ("lemon", "lemon juice", "lemon zest") — they are the same lemons. Zest first, then juice, then say where each portion goes. Never write them as separate fruit, and never zest or juice the same fruit twice. Verbatim shape:
+🔴 ONE FRUIT, ONE STEP. A citrus step may carry the whole fruit, its juice and its zest as separate components ("lemon", "lemon juice", "lemon zest") — they are the same lemons. Zest first, then juice. Never write them as separate fruit, and never zest or juice the same fruit twice. A citrus step carries 'portionsByApp', so the app says where each portion goes and you write the opening alone. Verbatim shape:
 title: "Prep all lemons"
-"Zest 1 lemon, then juice it and ½ lemon more:
-zest and the juice of 1 — into the Lemon-Herb Baked Chicken Breast marinade bowl
-the juice of ½ — into a tub labelled "Roasted Asparagus with Lemon — juiced lemon""
+"Zest 1 lemon, then juice it and ½ lemon more."
 
 🔴 NEVER ASK FOR ROUNDS, WEDGES OR SLICES. Cut citrus is cook-day work: it goes limp and loses its edge in storage, and the app has already removed those portions from the amounts you are given. If a note still mentions them, ignore it — the number in 'measures' is the prep portion only and is the only number you may state.
 
@@ -1587,7 +1605,7 @@ The ONLY step that is set aside is one carrying 'setAsideFor', because its conta
 Exactly ONE output object per input step, with the SAME 'stepId'. Same count, same ids — no more, no fewer. For each:
 - 'stepId' — the echoed id.
 - 'title' — short imperative ("Dice all yellow onion", "Measure the taco spices", "Pound the chicken breasts"). <=120 chars, no filler. On a protein step with 'knifeVerbs', the title opens with that verb. When every measure in the step is for ONE dish, name that dish HERE ("Measure the pork chop glaze") — the title is where the dish name belongs, and naming it here is exactly what lets the measures below drop it.
-- 'instructions' — imperative voice, the per-dish measures as described above. Echo every 'amount' string exactly as given. <=800 chars. No fluff.
+- 'instructions' — imperative voice, the per-dish measures as described above. Echo every 'amount' string exactly as given. <=800 chars. No fluff. On a step with 'portionsByApp': the ONE opening sentence only, <=200 chars.
 - DO NOT return a 'storageNote'. The app writes the storage line itself, from the food and the cook day, and renders it directly beneath your instructions. Anything you write there is discarded (H5.2 — it has to be, because the prose is cached and the cook day is not).
 - DO NOT return a duration. There is no 'estimatedMinutes' field any more: the code computes how long a step takes from the actions and quantities it contains (BUG-204 — the estimates returned here ran roughly 3x long, and the plan header now states the total, so a guess is not good enough). You decide NO numbers at all. Echo the amounts, write the prose.
 - NEVER return 'skipSuggested'. The app has already decided what is prep: every step you are given IS prep, and the ones that are not were removed before you saw the plan. Write each one as work to do now. (Anything you send in that field is discarded.)
@@ -1970,7 +1988,7 @@ const PROMPTS: PromptSeed[] = [
     description:
       "Generate up to 3 distinct meal-plan candidates from the user's wizard preferences, composing from the shared store shelf where it fits.",
     variables: ["wizardInput", "storeShortlist"],
-    defaultModel: MODEL_SONNET,
+    defaultModel: MODEL_SONNET_55,
     defaultMode: "tool",
     body: WIZARD_SET_PREFERENCES_GENERATE_BODY,
   },
@@ -2127,7 +2145,7 @@ const PROMPTS: PromptSeed[] = [
     description:
       "Narrate a code-computed Prep the Week step plan into Cook Mode prose (no math, no attribution).",
     variables: ["prepNarrationInput"],
-    defaultModel: MODEL_SONNET,
+    defaultModel: MODEL_SONNET_55,
     defaultMode: "tool",
     body: PREP_NARRATE_STEPS_BODY,
   },

@@ -19,6 +19,13 @@ import type { AICallMode } from "./modes";
 // at runtime by editing the AIPrompt row.
 export const MODEL_SONNET = "claude-sonnet-4-6";
 export const MODEL_HAIKU = "claude-haiku-4-5-20251001";
+// Part J.0 (D2) — Hans ruled "switch" on the compare lane's recommendation
+// (scripts/_scratch/sonnet55/p5-out.md), for prep.narrate_steps and
+// wizard.set_preferences.generate ONLY. Its request shape (no temperature,
+// tool_choice auto, thinking off) is modelShape.ts's, keyed on this string.
+// The other Sonnet keys stay on 4.6: no gain measured, or a temperature pin
+// 5.5 cannot take.
+export const MODEL_SONNET_55 = "claude-sonnet-5-5";
 
 export interface PromptDescriptor {
   body: string;
@@ -46,7 +53,7 @@ const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
     "wizard.set_preferences.generate",
     {
       body: placeholder("wizard.set_preferences.generate"),
-      defaultModel: MODEL_SONNET,
+      defaultModel: MODEL_SONNET_55,
       defaultMode: "tool",
       toolDescription:
         "Generate up to 3 distinct meal-plan candidates from the user's wizard preferences.",
@@ -255,7 +262,7 @@ const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
     "prep.narrate_steps",
     {
       body: placeholder("prep.narrate_steps"),
-      defaultModel: MODEL_SONNET,
+      defaultModel: MODEL_SONNET_55,
       defaultMode: "tool",
       toolDescription:
         "Narrate a code-computed Prep the Week step plan into Cook Mode prose (no math, no attribution).",

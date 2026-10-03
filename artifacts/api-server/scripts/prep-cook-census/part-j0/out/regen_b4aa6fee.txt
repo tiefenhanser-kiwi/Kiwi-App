@@ -1,0 +1,178 @@
+PLAN b4aa6fee-70b1-4990-a596-05087ac904c5  [E-b4aa6fee]  HTTP 200
+  HEADER: 22 containers · about 110 min · prompt v20
+
+  ── seasonings_dry ──
+     1. Measure the Sheet-Pan Chicken Fajitas spice blend   (3 min)   [165 chars]
+        Into the Sheet-Pan Chicken Fajitas spice blend:
+        2 tsp chili powder
+        1 tsp ground cumin
+        1 tsp smoked paprika
+        ½ tsp garlic powder
+        ½ tsp onion powder
+        ½ tsp dried oregano
+        » storage: Airtight at room temperature — it keeps for weeks.
+     2. Measure the Carne Asada marinade bowl   (3 min)   [146 chars]
+        Into the Carne Asada marinade bowl:
+        1 tsp chili powder
+        1 tsp ground cumin
+        ½ tsp smoked paprika
+        ½ tsp dried oregano
+        Set aside for the produce step.
+     3. Measure the Seasoned Ground Beef Filling spice blend   (2 min)   [109 chars]
+        Into the Seasoned Ground Beef Filling spice blend:
+        1 tsp chili powder
+        1½ tsp ground cumin
+        ½ tsp dried oregano
+        » storage: Airtight at room temperature — it keeps for weeks.
+  ×  4. Ground cumin — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  5. Dried oregano — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)   [104 chars]
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+     2. Slice all red bell pepper   (5 min)   [184 chars]
+        Thinly slice 2 red bell peppers.
+        2 red bell peppers for Sheet-Pan Chicken Fajitas — into the tub "Sheet-Pan Chicken Fajitas — red bell pepper, green bell pepper, yellow onion and lime"
+        » covers cook steps: Sheet-Pan Chicken Fajitas#2
+     3. Slice all green bell pepper   (3 min)   [186 chars]
+        Thinly slice 1 green bell pepper.
+        1 green bell pepper for Sheet-Pan Chicken Fajitas — into the tub "Sheet-Pan Chicken Fajitas — red bell pepper, green bell pepper, yellow onion and lime"
+        » covers cook steps: Sheet-Pan Chicken Fajitas#2
+     4. Slice all yellow onion   (3 min)   [176 chars]
+        Thinly slice 1 yellow onion.
+        1 yellow onion for Sheet-Pan Chicken Fajitas — into the tub "Sheet-Pan Chicken Fajitas — red bell pepper, green bell pepper, yellow onion and lime"
+        » storage: Sheet-Pan Chicken Fajitas: Airtight in the fridge — up to 4 days. Keep the Sheet-Pan Chicken Fajitas spice blend separate; combine on cook day (Monday).
+        » covers cook steps: Sheet-Pan Chicken Fajitas#2
+  ×  5. Lime and lime juice — cook day   (14 min)  [RENDER-OMITTED]   [39 chars]
+        Citrus wedges keep best cut on the day.
+     6. Chop all fresh cilantro   (5 min)   [461 chars]
+        Roughly chop ¼ bunch + ⅞ cup fresh cilantro.
+        ¼ bunch for Fajita Toppings — into the tub "Chopped fresh cilantro — Fajita Toppings, Carne Asada, Seasoned Ground Beef Filling"
+        ¼ cup for Carne Asada — same tub
+        2 tbsp for Seasoned Ground Beef Filling — same tub
+        ¼ cup for Pico de Gallo — into the tub "Pico de Gallo — fresh cilantro, jalapeño, roma tomatoes and white onion"
+        3 tbsp for Guacamole — into the tub "Guacamole — fresh cilantro, jalapeño and white onion"
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » covers cook steps: Fajita Toppings#0, Carne Asada#2, Pico de Gallo#1, Guacamole#0
+     7. Prep all jalapeño   (10 min)   [502 chars]
+        Work through 4 jalapeños three ways: thinly sliced, minced and halved.
+        1 jalapeño thinly sliced for Fajita Toppings — into the tub "Fajita Toppings — thinly sliced jalapeño"
+        1 jalapeño minced for Pico de Gallo — into the tub "Pico de Gallo — fresh cilantro, jalapeño, roma tomatoes and white onion"
+        1 jalapeño minced for Guacamole — into the tub "Guacamole — fresh cilantro, jalapeño and white onion"
+        1 jalapeño halved for Roasted Tomatillo Sauce — into the Roasted Tomatillo Sauce vegetables container
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Fajita Toppings#0, Pico de Gallo#1, Guacamole#0
+     8. Prep all lemons   (5 min)   [261 chars]
+        Zest the lemons, then juice them, 2½ lemons in all.
+        2 lemons zested for Lemon-Herb Baked Chicken Breast — into the tub "Lemon-Herb Baked Chicken Breast — zested lemon"
+        ½ lemon juiced for Roasted Asparagus — into the tub "Roasted Asparagus — lemon and asparagus"
+        » storage: Airtight in the fridge — up to 3 days.
+        » covers cook steps: Roasted Asparagus#0
+     9. Mince all garlic   (6 min)   [424 chars]
+        Mince 16 cloves of garlic.
+        4 cloves for Lemon-Herb Baked Chicken Breast — into the tub "Minced garlic — Lemon-Herb Baked Chicken Breast, Garlic Herb Baby Potatoes, Seasoned Ground Beef Filling"
+        3 cloves for Garlic Herb Baby Potatoes — same tub
+        3 cloves for Seasoned Ground Beef Filling — same tub
+        4 cloves for Carne Asada — into the Carne Asada marinade bowl
+        2 cloves for Teriyaki Salmon — into the Teriyaki Salmon glaze jar
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Lemon-Herb Baked Chicken Breast#1, Teriyaki Salmon#0, Seasoned Ground Beef Filling#1
+    10. Prep all fresh rosemary   (2 min)   [258 chars]
+        Strip the leaves from 3 sprigs of fresh rosemary and chop them.
+        2 sprigs for Lemon-Herb Baked Chicken Breast — into the tub "Chopped fresh rosemary — Lemon-Herb Baked Chicken Breast, Garlic Herb Baby Potatoes"
+        1 sprig for Garlic Herb Baby Potatoes — same tub
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » covers cook steps: Lemon-Herb Baked Chicken Breast#1
+    11. Prep all fresh thyme   (1 min)   [240 chars]
+        Strip the leaves from 7 sprigs of fresh thyme.
+        4 sprigs for Lemon-Herb Baked Chicken Breast — into the tub "Stripped fresh thyme — Lemon-Herb Baked Chicken Breast, Garlic Herb Baby Potatoes"
+        3 sprigs for Garlic Herb Baby Potatoes — same tub
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » covers cook steps: Lemon-Herb Baked Chicken Breast#1
+    12. Chop the fresh parsley   (1 min)   [140 chars]
+        Chop ¼ cup fresh parsley.
+        ¼ cup for Lemon-Herb Baked Chicken Breast — into the tub "Lemon-Herb Baked Chicken Breast — chopped fresh parsley"
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+  × 13. Baby yellow potato — cook day   (1 min)  [RENDER-OMITTED]   [53 chars]
+        This browns once it is cut, so it is cut on cook day.
+    14. Trim the asparagus   (2 min)   [124 chars]
+        Trim the woody ends from 1 lb asparagus.
+        1 lb for Roasted Asparagus — into the tub "Roasted Asparagus — lemon and asparagus"
+        » storage: Roasted Asparagus — lemon and asparagus: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Roasted Asparagus#0
+    15. Juice the oranges   (2 min)   [101 chars]
+        Juice oranges to yield ¼ cup orange juice.
+        ¼ cup for Carne Asada — into the Carne Asada marinade bowl
+        » storage: Carne Asada marinade bowl: Covered in the fridge — up to 3 days. The skirt steak go in at the proteins step and marinate until cook day.
+    16. Dice all roma tomatoes   (8 min)   [144 chars]
+        Dice 3 roma tomatoes.
+        3 roma tomatoes for Pico de Gallo — into the tub "Pico de Gallo — fresh cilantro, jalapeño, roma tomatoes and white onion"
+        » covers cook steps: Pico de Gallo#0
+    17. Prep all white onion   (5 min)   [552 chars]
+        Work through 1¾ white onions two ways: finely diced and quartered.
+        ½ white onion finely diced for Pico de Gallo — into the tub "Pico de Gallo — fresh cilantro, jalapeño, roma tomatoes and white onion"
+        ¼ white onion finely diced for Guacamole — into the tub "Guacamole — fresh cilantro, jalapeño and white onion"
+        ½ white onion finely diced for Seasoned Ground Beef Filling — into the tub "Seasoned Ground Beef Filling — finely diced white onion"
+        ½ white onion quartered for Roasted Tomatillo Sauce — into the Roasted Tomatillo Sauce vegetables container
+        » storage: Pico de Gallo: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Guacamole — fresh cilantro, jalapeño and white onion: Airtight in the fridge, with a barely damp paper towel — up…
+        » covers cook steps: Pico de Gallo#0, Guacamole#0, Seasoned Ground Beef Filling#1
+  × 18. Ripe avocado — cook day   (1 min)  [RENDER-OMITTED]   [53 chars]
+        This browns once it is cut, so it is cut on cook day.
+    19. Grate the fresh ginger   (1 min)   [88 chars]
+        Grate 1 tsp fresh ginger.
+        1 tsp for Teriyaki Salmon — into the Teriyaki Salmon glaze jar
+        » covers cook steps: Teriyaki Salmon#0
+    20. Slice the scallions   (1 min)   [116 chars]
+        Thinly slice 2 scallions.
+        2 scallions for Teriyaki Salmon — into the tub "Teriyaki Salmon — thinly sliced scallions"
+        » storage: Airtight in the fridge — up to 3 days.
+    21. Slice the English cucumber   (3 min)   [149 chars]
+        Thinly slice 1 English cucumber.
+        1 english cucumber for Sesame Cucumber Salad — into the tub "Sesame Cucumber Salad — thinly sliced english cucumber"
+        » storage: Airtight in the fridge — up to 4 days.
+    22. Prep all tomatillos   (3 min)   [122 chars]
+        Husk and halve 1¼ lb tomatillos.
+        1¼ lb for Roasted Tomatillo Sauce — into the Roasted Tomatillo Sauce vegetables container
+    23. Prep all poblano pepper   (1 min)   [135 chars]
+        Halve and seed 2 poblano peppers.
+        2 poblano peppers for Roasted Tomatillo Sauce — into the Roasted Tomatillo Sauce vegetables container
+        » storage: Roasted Tomatillo Sauce vegetables: Airtight in the fridge — up to 4 days.
+
+  ── sauces_marinades ──
+     1. Finish the Teriyaki Salmon glaze jar   (4 min)   [159 chars]
+        Teriyaki Salmon glaze jar (garlic and fresh ginger already in it): add
+        ¼ cup soy sauce
+        3 tbsp mirin
+        2 tbsp sake
+        2 tbsp honey
+        1 tsp sesame oil
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 4 days.
+        » covers cook steps: Teriyaki Salmon#0
+     2. Mix the Sesame Cucumber Salad dressing jar   (3 min)   [129 chars]
+        Into the Sesame Cucumber Salad dressing jar:
+        1 tbsp soy sauce
+        1 tsp honey
+        1 tbsp sesame oil
+        2 tbsp rice vinegar
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 4 days.
+  ×  3. Salsa — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  4. Hot sauce — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     1. Cut the chicken thighs into strips   (6 min)   [62 chars]
+        Cut 1½ lb boneless skinless chicken thighs into ½-inch strips.
+        » storage: Covered in the fridge — cook within 2 days.
+  ×  2. Boneless skinless chicken breasts — cook day   (6 min)  [RENDER-OMITTED]   [86 chars]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+  ×  3. Skirt steak — cook day   (5 min)  [RENDER-OMITTED]   [86 chars]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+     4. Portion the salmon fillets   (6 min)   [53 chars]
+        Portion 1½ lb skin-on salmon fillets into 4 portions.
+        » storage: Covered in the fridge — cook within 2 days.

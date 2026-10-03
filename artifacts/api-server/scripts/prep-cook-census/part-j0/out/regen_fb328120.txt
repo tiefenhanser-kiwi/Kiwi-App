@@ -1,0 +1,226 @@
+PLAN fb328120-721e-47f3-b21c-dce1aba27939  [A07]  HTTP 200
+  HEADER: 27 containers · about 130 min · prompt v20
+
+  ── seasonings_dry ──
+     1. Measure the Sheet-Pan Spiced Chicken Thighs seasoning   (3 min)   [151 chars]
+        Into the Sheet-Pan Spiced Chicken Thighs seasoning:
+        2 tsp chili powder
+        1½ tsp ground cumin
+        1 tsp smoked paprika
+        ¾ tsp garlic powder
+        ½ tsp dried oregano
+        » storage: Airtight at room temperature — it keeps for weeks.
+     2. Measure the Spicy King Ranch Chicken sauce jar   (4 min)   [150 chars]
+        Into the Spicy King Ranch Chicken sauce jar:
+        1½ tsp chili powder
+        1 tsp ground cumin
+        ½ tsp smoked paprika
+        2 tbsp All-purpose flour
+        ¼ tsp cayenne pepper
+        » storage: Airtight at room temperature — it keeps for weeks.
+     3. Measure the Carne Asada Skirt Steak marinade bowl   (3 min)   [143 chars]
+        Into the Carne Asada Skirt Steak marinade bowl:
+        1 tsp ground cumin
+        ½ tsp dried oregano
+        1 tsp ancho chili powder
+        Set aside for the produce step.
+     4. Measure the Crisp Green Salad vinaigrette jar   (2 min)   [94 chars]
+        Into the Crisp Green Salad vinaigrette jar:
+        ¼ tsp ground cumin
+        Set aside for the produce step.
+     5. Measure the Smash Burgers sauce jar   (3 min)   [146 chars]
+        Into the Smash Burgers sauce jar:
+        ¼ tsp smoked paprika
+        ¼ tsp garlic powder
+        2 tbsp sweet pickle relish
+        Set aside for the sauces and marinades step.
+        » covers cook steps: Smash Burgers with American Cheese and Special Sauce#0
+     6. Measure the Pickled Red Onion and Radish mix-ins bowl   (1 min)   [103 chars]
+        Into the Pickled Red Onion and Radish mix-ins bowl:
+        ¼ tsp dried oregano
+        Set aside for the produce step.
+  ×  7. Smoked paprika and garlic powder — cook day   (1 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+  ×  8. Flaky sea salt — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)   [104 chars]
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+     2. Grate the fresh ginger   (1 min)   [144 chars]
+        Peel and finely grate 1½ tbsp fresh ginger.
+        1½ tbsp for Soy-Ginger Marinated Pork Chops — into the Soy-Ginger Marinated Pork Chops marinade bowl
+     3. Mince all garlic   (2 min)   [243 chars]
+        Mince 6 cloves of garlic.
+        3 cloves for Soy-Ginger Marinated Pork Chops — into the Soy-Ginger Marinated Pork Chops marinade bowl
+        3 cloves for Spicy King Ranch Chicken Casserole — into the tub "Spicy King Ranch Chicken Casserole — minced garlic"
+        » storage: Airtight in the fridge — up to 4 days.
+     4. Slice the english cucumbers   (5 min)   [154 chars]
+        Thinly slice 2 english cucumbers into rounds.
+        2 english cucumbers for Cucumber Salad — into the tub "Cucumber Salad — english cucumber and fresh cilantro"
+        » covers cook steps: Cucumber Salad#0
+     5. Chop all cilantro   (5 min)   [760 chars]
+        Work through 12 tbsp fresh cilantro and ½ cup fresh cilantro leaves, chopped roughly or finely as the portions below call for.
+        2 tbsp fresh cilantro chopped — into the tub "Cucumber Salad — english cucumber and fresh cilantro"
+        ¼ cup fresh cilantro chopped — into the tub "Chicken Thighs — fresh cilantro, red bell pepper, green bell pepper and yellow onion"
+        ¼ cup fresh cilantro chopped — into the tub "Spicy King Ranch Chicken Casserole — chopped fresh cilantro"
+        ½ cup fresh cilantro leaves chopped — into the tub "Carne Asada Skirt Steak — white onion, jalapeño and fresh cilantro leaves"
+        2 tbsp fresh cilantro finely chopped — into the tub "Fajita Toppings: Guacamole, Sour Cream, and Pico de Gallo — fresh cilantro, roma tomatoes, white onion and jalapeño"
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Cucumber Salad sauce bowl separate; combine on cook day (Saturday).
+        » covers cook steps: Fajita Toppings: Guacamole, Sour Cream, and Pico de Gallo#4, Carne Asada Skirt Steak#3
+     6. Slice the red bell peppers   (5 min)   [234 chars]
+        Seed and slice 2 red bell peppers into ½-inch strips.
+        2 red bell peppers for Sheet-Pan Spiced Chicken Thighs with Peppers and Onions — into the tub "Chicken Thighs — fresh cilantro, red bell pepper, green bell pepper and yellow onion"
+     7. Slice the green bell pepper   (3 min)   [236 chars]
+        Seed and slice 1 green bell pepper into ½-inch strips.
+        1 green bell pepper for Sheet-Pan Spiced Chicken Thighs with Peppers and Onions — into the tub "Chicken Thighs — fresh cilantro, red bell pepper, green bell pepper and yellow onion"
+     8. Slice and dice all yellow onion   (5 min)   [404 chars]
+        Work through 2 yellow onions two ways: halved and sliced into ½-inch strips, and diced.
+        1 yellow onion sliced for Sheet-Pan Spiced Chicken Thighs with Peppers and Onions — into the tub "Chicken Thighs — fresh cilantro, red bell pepper, green bell pepper and yellow onion"
+        1 yellow onion diced for Spicy King Ranch Chicken Casserole — into the tub "Spicy King Ranch Chicken Casserole — diced yellow onion"
+        » storage: Chicken Thighs: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Airtight in the fridge — up to 4 days. Keep the Sheet-Pan Spiced Chicken Thighs seasoning and Chicken Thighs, Fa…
+     9. Juice all limes   (9 min)   [610 chars]
+        Juice enough limes to make 11 tbsp fresh lime juice.
+        2 tbsp for Sheet-Pan Spiced Chicken Thighs with Peppers and Onions — into the tub "Lime juice — Chicken Thighs, Fajita Toppings, Salsa Verde"
+        1 tbsp for Fajita Toppings: Guacamole, Sour Cream, and Pico de Gallo — same tub
+        1 tbsp for Charred Tomatillo Salsa Verde — same tub
+        3 tbsp for Carne Asada Skirt Steak — into the Carne Asada Skirt Steak marinade bowl
+        2 tbsp for Pickled Red Onion and Radish Slaw — into the Pickled Red Onion and Radish mix-ins bowl
+        2 tbsp for Crisp Green Salad with Lime-Cumin Vinaigrette — into the Crisp Green Salad vinaigrette jar
+        » storage: Covered in the fridge — up to 3 days.
+  × 10. Ripe avocado — cook day   (1 min)  [RENDER-OMITTED]   [53 chars]
+        This browns once it is cut, so it is cut on cook day.
+    11. Dice the roma tomatoes   (5 min)   [239 chars]
+        Finely dice 2 roma tomatoes.
+        2 roma tomatoes for Fajita Toppings: Guacamole, Sour Cream, and Pico de Gallo — into the tub "Fajita Toppings: Guacamole, Sour Cream, and Pico de Gallo — fresh cilantro, roma tomatoes, white onion and jalapeño"
+        » covers cook steps: Fajita Toppings: Guacamole, Sour Cream, and Pico de Gallo#3
+    12. Dice all white onion   (5 min)   [598 chars]
+        Work through the white onion two ways: finely diced and roughly chopped, 1 cup plus 1 onion in all.
+        ¼ cup finely diced — into the tub "Fajita Toppings: Guacamole, Sour Cream, and Pico de Gallo — fresh cilantro, roma tomatoes, white onion and jalapeño"
+        ½ cup finely diced — into the tub "Carne Asada Skirt Steak — white onion, jalapeño and fresh cilantro leaves"
+        ½ white onion finely diced — into the tub "Smash Burgers with American Cheese and Special Sauce — finely diced white onion"
+        ¼ cup chopped — the same tub as above
+        ½ white onion — into the tub "Charred Tomatillo Salsa Verde — white onion"
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Fajita Toppings: Guacamole, Sour Cream, and Pico de Gallo#3, Carne Asada Skirt Steak#3
+    13. Prep all jalapeños   (8 min)   [542 chars]
+        Work through 3 jalapeños two ways: seeded and minced, and halved.
+        1 jalapeño minced for Fajita Toppings: Guacamole, Sour Cream, and Pico de Gallo — into the tub "Fajita Toppings: Guacamole, Sour Cream, and Pico de Gallo — fresh cilantro, roma tomatoes, white onion and jalapeño"
+        1 jalapeño minced for Spicy King Ranch Chicken Casserole — into the tub "Spicy King Ranch Chicken Casserole — minced jalapeño"
+        1 jalapeño halved for Carne Asada Skirt Steak — into the tub "Carne Asada Skirt Steak — white onion, jalapeño and fresh cilantro leaves"
+        » storage: Fajita Toppings: Guacamole, Sour Cream, and Pico de Gallo: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Carne Asada Skirt Steak: Airtight in the fridge, with a barely damp p…
+    14. Shred all iceberg lettuce   (1 min)   [332 chars]
+        Core and finely shred iceberg lettuce, 1 cup plus ½ in all.
+        1 cup for Smash Burgers with American Cheese and Special Sauce — into the tub "Smash Burgers with American Cheese and Special Sauce — shredded iceberg lettuce"
+        ½ shredded iceberg lettuce for Crisp Iceberg and Dill Slaw — into the tub "Crisp Iceberg and Dill Slaw — greens"
+        » storage: Airtight in the fridge — up to 3 days.
+        » covers cook steps: Crisp Iceberg and Dill Slaw#0
+  × 15. Dill pickle slices — cook day   (1 min)  [RENDER-OMITTED]   [52 chars]
+        Ready to use from the package — nothing to do ahead.
+  × 16. Russet potatoes — cook day   (5 min)  [RENDER-OMITTED]   [53 chars]
+        This browns once it is cut, so it is cut on cook day.
+    17. Shred the green cabbage   (1 min)   [126 chars]
+        Finely shred 2 cups green cabbage.
+        2 cup for Crisp Iceberg and Dill Slaw — into the tub "Crisp Iceberg and Dill Slaw — greens"
+        » storage: Crisp Iceberg and Dill Slaw — greens: Airtight in the fridge — up to 3 days.
+        » covers cook steps: Crisp Iceberg and Dill Slaw#0
+    18. Grate the carrot   (1 min)   [135 chars]
+        Peel and grate 1 carrot.
+        1 carrot for Crisp Iceberg and Dill Slaw — into the tub "Crisp Iceberg and Dill Slaw — carrots and fresh dill"
+        » covers cook steps: Crisp Iceberg and Dill Slaw#0
+    19. Chop the fresh dill   (1 min)   [140 chars]
+        Roughly chop 2 tbsp fresh dill.
+        2 tbsp for Crisp Iceberg and Dill Slaw — into the tub "Crisp Iceberg and Dill Slaw — carrots and fresh dill"
+        » storage: Crisp Iceberg and Dill Slaw — carrots and fresh dill: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » covers cook steps: Crisp Iceberg and Dill Slaw#2
+    20. Juice the oranges   (2 min)   [137 chars]
+        Juice enough oranges to make ¼ cup fresh orange juice.
+        ¼ cup for Carne Asada Skirt Steak — into the Carne Asada Skirt Steak marinade bowl
+        » storage: Carne Asada Skirt Steak marinade bowl: Covered in the fridge — up to 3 days. Add the skirt steak the night before you cook them (Friday).
+    21. Prep the tomatillos   (2 min)   [137 chars]
+        Husk and rinse ¾ lb tomatillos.
+        ¾ lb for Charred Tomatillo Salsa Verde — into the tub "Charred Tomatillo Salsa Verde — husked tomatillos"
+        » storage: Airtight in the fridge — up to 4 days.
+  × 22. Serrano chile — cook day   (1 min)  [RENDER-OMITTED]   [40 chars]
+        Nothing to cut — it goes in as it comes.
+    23. Slice all red onion   (3 min)   [336 chars]
+        Thinly slice 1¼ red onions into half-moons.
+        1 red onion for Pickled Red Onion and Radish Slaw — into the tub "Pickled Red Onion and Radish Slaw — red onion and radishes"
+        ¼ red onion for Crisp Green Salad with Lime-Cumin Vinaigrette — into the tub "Crisp Green Salad with Lime-Cumin Vinaigrette — red onion, radishes and cherry tomatoes"
+        » covers cook steps: Pickled Red Onion and Radish Slaw#0, Crisp Green Salad with Lime-Cumin Vinaigrette#1
+    24. Slice all radishes   (15 min)   [328 chars]
+        Thinly slice 10 radishes into rounds.
+        6 radishes for Pickled Red Onion and Radish Slaw — into the tub "Pickled Red Onion and Radish Slaw — red onion and radishes"
+        4 radishes for Crisp Green Salad with Lime-Cumin Vinaigrette — into the tub "Crisp Green Salad with Lime-Cumin Vinaigrette — red onion, radishes and cherry tomatoes"
+        » storage: Pickled Red Onion and Radish Slaw — red onion and radishes: Airtight in the fridge — up to 4 days. Keep the Pickled Red Onion and Radish mix-ins bowl separate; combine on cook day (Saturday).
+        » covers cook steps: Pickled Red Onion and Radish Slaw#0, Crisp Green Salad with Lime-Cumin Vinaigrette#1
+    25. Roast and dice the poblanos   (5 min)   [210 chars]
+        Roast 2 poblano peppers until charred all over, then peel, seed and dice them.
+        2 poblano peppers for Spicy King Ranch Chicken Casserole — into the tub "Spicy King Ranch Chicken Casserole — diced poblano pepper"
+        » storage: Airtight in the fridge — up to 4 days.
+    26. Chop the romaine hearts   (1 min)   [224 chars]
+        Chop 2 romaine lettuce hearts into bite-sized pieces.
+        2 romaine lettuce hearts for Crisp Green Salad with Lime-Cumin Vinaigrette — into the tub "Crisp Green Salad with Lime-Cumin Vinaigrette — chopped romaine lettuce hearts"
+        » storage: Airtight in the fridge — up to 3 days.
+        » covers cook steps: Crisp Green Salad with Lime-Cumin Vinaigrette#1
+    27. Halve the cherry tomatoes   (1 min)   [189 chars]
+        Halve 1 cup cherry tomatoes.
+        1 cup for Crisp Green Salad with Lime-Cumin Vinaigrette — into the tub "Crisp Green Salad with Lime-Cumin Vinaigrette — red onion, radishes and cherry tomatoes"
+        » storage: Crisp Green Salad with Lime-Cumin Vinaigrette: Airtight in the fridge — up to 4 days. Keep the Crisp Green Salad vinaigrette jar separate; combine on cook day (Saturday).
+        » covers cook steps: Crisp Green Salad with Lime-Cumin Vinaigrette#1
+
+  ── sauces_marinades ──
+     1. Finish the Crisp Green Salad vinaigrette jar   (2 min)   [136 chars]
+        Crisp Green Salad vinaigrette jar (ground cumin and the lime juice from produce step 9 already in it): add
+        ½ tsp honey
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 3 days.
+     2. Finish the Smash Burgers sauce jar   (3 min)   [194 chars]
+        Smash Burgers sauce jar (smoked paprika, garlic powder and sweet pickle relish already in it): add
+        ⅜ cup Mayonnaise
+        2 tbsp Ketchup
+        1 tbsp yellow mustard
+        1 tsp white wine vinegar
+        Stir to combine.
+        » storage: Covered in the fridge — up to 5 days.
+        » covers cook steps: Smash Burgers with American Cheese and Special Sauce#0
+     3. Finish the Pickled Red Onion and Radish mix-ins bowl   (1 min)   [158 chars]
+        Pickled Red Onion and Radish mix-ins bowl (dried oregano and the lime juice from produce step 9 already in it): add
+        ⅜ cup apple cider vinegar
+        Stir to combine.
+        » storage: Covered in the fridge — up to 3 days.
+     4. Finish the Soy-Ginger Marinated Pork Chops marinade bowl   (3 min)   [184 chars]
+        Soy-Ginger Marinated Pork Chops marinade bowl (fresh ginger and garlic already in it): add
+        3 tbsp soy sauce
+        1 tbsp toasted sesame oil
+        1 tbsp honey
+        1 tbsp rice vinegar
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 4 days. Add the boneless center-cut pork chops the night before you cook them (Sunday).
+     5. Build the Cucumber Salad sauce bowl   (3 min)   [126 chars]
+        Into the Cucumber Salad sauce bowl:
+        1 tsp soy sauce
+        1 tsp toasted sesame oil
+        ½ tsp honey
+        2 tbsp rice vinegar
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 4 days.
+  ×  6. Mayonnaise and apple cider vinegar — cook day   (1 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     HELD: Add the skirt steak the night before you cook them (Friday).
+     HELD: Add the boneless center-cut pork chops the night before you cook them (Sunday).
+     HELD: Spicy King Ranch Chicken Casserole (Saturday, 6 days out) — cut the chicken thighs into strips that morning.
+     HELD: Charred Salsa Verde Carne Asada Tacos (Friday, 5 days out) — trim the skirt steak for Carne Asada that morning.
+  ×  1. Boneless center-cut pork chops — cook day   (5 min)  [RENDER-OMITTED]   [86 chars]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+  ×  2. Boneless skinless chicken thighs — cook day   (14 min)  [RENDER-OMITTED]   [275 chars]
+        Cut the boneless skinless chicken thighs into strips, then measure each dish's portion:
+        2 lb for the Sheet-Pan Spiced Chicken Thighs with Peppers and Onions, sliced into ½-inch strips
+        1½ lb for the Spicy King Ranch Chicken Casserole, left whole to poach and shred on cook day
+        » storage: This one is 6 days out — leave it for cook day.
+  ×  3. Skirt steak — cook day   (6 min)  [RENDER-OMITTED]   [37 chars]
+        Trim 1¾ lb skirt steak of excess fat.
+        » storage: This one is 5 days out — leave it for cook day.

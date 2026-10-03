@@ -1,0 +1,167 @@
+PLAN f0c56d0c-7182-428b-86d5-230689438919  [A09]  HTTP 200
+  HEADER: 11 containers · about 90 min · prompt v20
+
+  ── seasonings_dry ──
+     1. Measure the Shoyu Marinated Ahi Tuna Poke marinade bowl spices   (3 min)   [192 chars]
+        Into the Shoyu Marinated Ahi Tuna Poke marinade bowl:
+        1 tbsp black sesame seeds
+        ¼ tsp crushed red pepper flakes
+        2 nori sheets, cut into thin strips
+        Set aside for the sauces and marinades step.
+        » covers cook steps: Shoyu Marinated Ahi Tuna Poke#7
+     2. Measure the Classic Crispy Orange Chicken sauce jar dry items   (4 min)   [229 chars]
+        Into the Classic Crispy Orange Chicken sauce jar:
+        3 tbsp granulated sugar
+        ¾ cup cornstarch
+        1 tbsp cornstarch, for the slurry
+        ¼ cup all-purpose flour
+        ½ tsp baking powder
+        ½ tsp dried red chili flakes
+        Set aside for the produce step.
+        » covers cook steps: Classic Crispy Orange Chicken#2, Classic Crispy Orange Chicken#4
+     3. Measure the General Tso's Crispy Tofu sauce jar dry items   (3 min)   [187 chars]
+        Into the General Tso's Crispy Tofu sauce jar:
+        2 tbsp granulated sugar
+        5 tbsp cornstarch
+        1 tsp cornstarch, for the sauce slurry
+        ½ tsp dried red chili flakes
+        Set aside for the produce step.
+     4. Measure the Sticky Honey Garlic Chicken glaze jar cornstarch   (2 min)   [96 chars]
+        Into the Sticky Honey Garlic Chicken glaze jar:
+        1 tsp cornstarch
+        Set aside for the produce step.
+        » covers cook steps: Sticky Honey Garlic Chicken Thighs#1
+  ×  5. White sesame seeds — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  6. Crushed red pepper flakes — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  7. Granulated sugar — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  8. Sesame seeds — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  9. Sesame seeds — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  × 10. Toasted sesame seeds — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)   [104 chars]
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+     2. Grate all fresh ginger   (1 min)   [458 chars]
+        Finely grate 4 tsp of fresh ginger.
+        1 tsp for Shoyu Marinated Ahi Tuna Poke — into the tub "Shoyu Marinated Ahi Tuna Poke — fresh ginger, garlic, green onions, english cucumber and radishes"
+        1 tsp for Sticky Honey Garlic Chicken Thighs — into the Sticky Honey Garlic Chicken glaze jar
+        1 tsp for Classic Crispy Orange Chicken — into the Classic Crispy Orange Chicken sauce jar
+        1 tsp for General Tso's Crispy Tofu — into the General Tso's Crispy Tofu sauce jar
+        » covers cook steps: Shoyu Marinated Ahi Tuna Poke#1, Sticky Honey Garlic Chicken Thighs#1, Classic Crispy Orange Chicken#2, General Tso's Crispy Tofu#1
+     3. Mince and slice all garlic   (7 min)   [773 chars]
+        Work through 21 cloves of garlic two ways: minced and thinly sliced.
+        2 cloves minced — into the tub "Shoyu Marinated Ahi Tuna Poke — fresh ginger, garlic, green onions, english cucumber and radishes"
+        6 cloves minced for Sticky Honey Garlic Chicken Thighs — into the Sticky Honey Garlic Chicken glaze jar
+        3 cloves minced — into the Classic Crispy Orange Chicken sauce jar
+        3 cloves minced — into the General Tso's Crispy Tofu sauce jar
+        2 cloves thinly sliced — into the tub "Roasted Broccoli with Garlic and Lemon — garlic, broccoli florets and lemon"
+        2 cloves thinly sliced for Stir-Fried Broccoli with Garlic — into the tub "Thinly sliced garlic — Stir-Fried Broccoli with Garlic, Garlic Stir-Fried Bok Choy"
+        3 cloves thinly sliced for Garlic Stir-Fried Bok Choy — same tub
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Shoyu Marinated Ahi Tuna Poke#1, Sticky Honey Garlic Chicken Thighs#1, Classic Crispy Orange Chicken#2, Stir-Fried Broccoli with Garlic#0, General Tso's Crispy Tofu#1, Garlic Stir-Fried Bok Choy#0
+     4. Slice the green onions   (1 min)   [232 chars]
+        Thinly slice 4 green onions, keeping the whites and greens separate.
+        4 green onions for Shoyu Marinated Ahi Tuna Poke — into the tub "Shoyu Marinated Ahi Tuna Poke — fresh ginger, garlic, green onions, english cucumber and radishes"
+        » covers cook steps: Shoyu Marinated Ahi Tuna Poke#1
+  ×  5. Avocado — cook day   (1 min)  [RENDER-OMITTED]   [53 chars]
+        This browns once it is cut, so it is cut on cook day.
+     6. Slice the English cucumber   (3 min)   [216 chars]
+        Thinly slice 1 English cucumber into half-moons.
+        1 english cucumber for Shoyu Marinated Ahi Tuna Poke — into the tub "Shoyu Marinated Ahi Tuna Poke — fresh ginger, garlic, green onions, english cucumber and radishes"
+        » covers cook steps: Shoyu Marinated Ahi Tuna Poke#7
+  ×  7. Edamame — cook day   (1 min)  [RENDER-OMITTED]   [40 chars]
+        Nothing to cut — it goes in as it comes.
+     8. Slice the radishes   (15 min)   [184 chars]
+        Thinly slice 6 radishes.
+        6 radishes for Shoyu Marinated Ahi Tuna Poke — into the tub "Shoyu Marinated Ahi Tuna Poke — fresh ginger, garlic, green onions, english cucumber and radishes"
+        » storage: Shoyu Marinated Ahi Tuna Poke: Airtight in the fridge — up to 3 days. Stir in the Shoyu Marinated Ahi Tuna Poke marinade bowl now — it is eaten within a day.
+        » covers cook steps: Shoyu Marinated Ahi Tuna Poke#7
+     9. Juice the lime for the Sriracha Mayo Drizzle   (2 min)   [118 chars]
+        Squeeze 1 tsp of fresh lime juice.
+        1 tsp for Sriracha Mayo Drizzle — into the tub "Sriracha Mayo Drizzle — lime juice"
+        » storage: Covered in the fridge — up to 3 days.
+    10. Cut all broccoli florets   (5 min)   [288 chars]
+        Cut 2¼ lb broccoli into even florets.
+        1¼ lb for Roasted Broccoli with Garlic and Lemon — into the tub "Roasted Broccoli with Garlic and Lemon — garlic, broccoli florets and lemon"
+        1 lb for Stir-Fried Broccoli with Garlic — into the tub "Stir-Fried Broccoli with Garlic — broccoli florets"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Stir-Fried Broccoli with Garlic#0
+    11. Juice the lemon   (2 min)   [158 chars]
+        Juice ½ lemon.
+        ½ lemon for Roasted Broccoli with Garlic and Lemon — into the tub "Roasted Broccoli with Garlic and Lemon — garlic, broccoli florets and lemon"
+        » storage: Roasted Broccoli with Garlic and Lemon: Airtight in the fridge — up to 4 days.
+    12. Zest and juice the oranges   (5 min)   [260 chars]
+        Zest the oranges for 1 tbsp orange zest, then juice them for ¾ cup fresh orange juice.
+        ¾ cup fresh orange juice for Classic Crispy Orange Chicken — into the Classic Crispy Orange Chicken sauce jar
+        1 tbsp orange zest for Classic Crispy Orange Chicken — same jar
+        » covers cook steps: Classic Crispy Orange Chicken#2
+    13. Prep the baby bok choy   (1 min)   [173 chars]
+        Halve 1½ lb baby bok choy lengthwise and rinse well under cold water.
+        1½ lb for Garlic Stir-Fried Bok Choy — into the tub "Garlic Stir-Fried Bok Choy — halved baby bok choy"
+        » storage: Airtight in the fridge — up to 3 days.
+        » covers cook steps: Garlic Stir-Fried Bok Choy#0
+
+  ── sauces_marinades ──
+     1. Finish the Shoyu Marinated Ahi Tuna Poke marinade bowl   (3 min)   [212 chars]
+        Shoyu Marinated Ahi Tuna Poke marinade bowl (black sesame seeds, crushed red pepper flakes and nori sheets already in it): add
+        3 tbsp soy sauce
+        1½ tbsp sesame oil
+        1 tbsp rice vinegar
+        1 tsp honey
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 4 days.
+        » covers cook steps: Shoyu Marinated Ahi Tuna Poke#2
+     2. Finish the Classic Crispy Orange Chicken sauce jar   (3 min)   [347 chars]
+        Classic Crispy Orange Chicken sauce jar (Granulated sugar, cornstarch, All-purpose flour, baking powder, dried red chili flakes, fresh ginger, garlic, the fresh orange juice from produce step 12 and the orange zest from produce step 12 already in it): add
+        3 tbsp soy sauce
+        1 tsp sesame oil
+        2 tbsp rice vinegar
+        1 tbsp hoisin sauce
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 3 days.
+        » covers cook steps: Classic Crispy Orange Chicken#2
+     3. Finish the General Tso's Crispy Tofu sauce jar   (3 min)   [234 chars]
+        General Tso's Crispy Tofu sauce jar (Granulated sugar, cornstarch, dried red chili flakes, fresh ginger and garlic already in it): add
+        3 tbsp soy sauce
+        2 tbsp rice vinegar
+        2 tbsp hoisin sauce
+        1 tsp toasted sesame oil
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 4 days.
+     4. Finish the Sticky Honey Garlic Chicken glaze jar   (3 min)   [178 chars]
+        Sticky Honey Garlic Chicken glaze jar (cornstarch, fresh ginger and garlic already in it): add
+        3 tbsp soy sauce
+        1 tsp sesame oil
+        1 tbsp rice vinegar
+        ⅜ cup honey
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 4 days.
+        » covers cook steps: Sticky Honey Garlic Chicken Thighs#1
+  ×  5. Soy sauce and sesame oil — cook day   (1 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+  ×  6. Soy sauce and toasted sesame oil — cook day   (1 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+  ×  7. Rice vinegar — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  8. Sriracha — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     HELD: Classic Crispy Orange Chicken with Steamed Jasmine Rice and Stir-Fried Broccoli (Wednesday, 3 days out) — cut the chicken thighs for Classic Crispy Orange Chicken that morning.
+     HELD: General Tso's Tofu with Steamed Jasmine Rice and Stir-Fried Bok Choy (Friday, 5 days out) — cube the tofu that morning.
+     1. Pat the chicken thighs dry   (9 min)   [54 chars]
+        Pat 3 lb bone-in chicken thighs dry with paper towels.
+        » storage: Covered in the fridge — cook within 2 days.
+  ×  2. Boneless skinless chicken thighs — cook day   (8 min)  [RENDER-OMITTED]   [62 chars]
+        Cut 2 lb boneless skinless chicken thighs into 1½-inch pieces.
+        » storage: This one is 3 days out — leave it for cook day.
+  ×  3. Extra-firm tofu — cook day   (1 min)  [RENDER-OMITTED]   [60 chars]
+        Cube 28 oz extra-firm tofu into 1-inch cubes, pressed first.
+        » storage: This one is 5 days out — leave it for cook day.

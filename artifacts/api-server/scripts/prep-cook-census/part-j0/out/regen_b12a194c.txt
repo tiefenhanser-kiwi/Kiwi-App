@@ -1,0 +1,123 @@
+PLAN b12a194c-ba07-4e30-ba35-71ae1442a87e  [A12]  HTTP 200
+  HEADER: 18 containers · about 60 min · prompt v20
+
+  ── seasonings_dry ──
+     1. Measure the Smoky Salisbury Steak gravy bowl dry items   (3 min)   [218 chars]
+        Into the Smoky Salisbury Steak gravy bowl:
+        ⅜ cup plain breadcrumbs
+        1½ tsp smoked paprika
+        ½ tsp smoked paprika
+        ½ tsp garlic powder
+        ½ tsp onion powder
+        2 tbsp All-purpose flour
+        Set aside for the sauces and marinades step.
+     2. Measure the Spatchcocked Roast Chicken rub bowl   (3 min)   [143 chars]
+        Into the Spatchcocked Roast Chicken rub bowl:
+        2 tsp smoked paprika
+        1 tsp garlic powder
+        ½ tsp onion powder
+        ½ tsp dried thyme
+        ½ tsp dried oregano
+        » storage: Airtight at room temperature — it keeps for weeks.
+     3. Measure the Crispy Garlic-Herb Baked dry mix   (2 min)   [140 chars]
+        Into the Crispy Garlic-Herb Baked dry mix:
+        1 tsp smoked paprika
+        ½ tsp onion powder
+        1 tsp baking powder (aluminum-free; helps crisp the skin)
+        » storage: Airtight at room temperature — it keeps for weeks.
+  ×  4. Smoked paprika and garlic powder — cook day   (1 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+  ×  5. Smoked paprika — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)   [104 chars]
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+     2. Prep all garlic   (9 min)   [646 chars]
+        Trim the top off the whole garlic head, then mince and thinly slice the rest of the 25 cloves.
+        1 clove trimmed — into the tub "Smoky Salisbury Steak with Roasted Garlic Gravy — trimmed whole garlic head"
+        2 cloves minced for Garlic-Buttered Green Beans — into the Minced whole garlic head tub
+        4 cloves minced for Roast Chicken — same tub
+        4 cloves minced for Chicken Thighs — same tub
+        3 cloves minced for Roasted Potatoes — same tub
+        4 cloves minced for Baked Drumsticks — same tub
+        2 cloves minced for Baby Potatoes — same tub
+        3 cloves thinly sliced — into the Garlic Sautéed Green Beans tub
+        2 cloves thinly sliced — into the Roasted Green Beans tub
+        » storage: All 3 containers: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Garlic-Buttered Green Beans#0, Garlic Sautéed Green Beans#0, Crispy Garlic-Herb Baked Drumsticks#1
+     3. Slice the yellow onion   (3 min)   [189 chars]
+        Thinly slice 1 yellow onion.
+        1 yellow onion for Smoky Salisbury Steak with Roasted Garlic Gravy — into the tub "Smoky Salisbury Steak with Roasted Garlic Gravy — thinly sliced yellow onion"
+        » storage: Airtight in the fridge — up to 4 days.
+     4. Slice the cremini mushrooms   (3 min)   [192 chars]
+        Thinly slice 8 oz cremini mushrooms.
+        8 oz for Smoky Salisbury Steak with Roasted Garlic Gravy — into the tub "Smoky Salisbury Steak with Roasted Garlic Gravy — thinly sliced cremini mushrooms"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Smoky Salisbury Steak with Roasted Garlic Gravy#3
+     5. Chop all fresh thyme   (1 min)   [278 chars]
+        Finely chop 2⅜ tbsp fresh thyme.
+        1 tbsp for Crispy Herb-Roasted Chicken Thighs — into the tub "Finely chopped fresh thyme — Chicken Thighs, Baked Drumsticks, Baby Potatoes"
+        1 tbsp for Crispy Garlic-Herb Baked Drumsticks — same tub
+        1 tsp for Herb-Roasted Baby Potatoes — same tub
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » covers cook steps: Crispy Garlic-Herb Baked Drumsticks#1
+     6. Trim all green beans   (8 min)   [361 chars]
+        Trim the stem ends from 4 lb fresh green beans.
+        1 lb for Garlic-Buttered Green Beans — into the tub "Trimmed fresh green beans — Green Beans"
+        1 lb for Garlic Sautéed Green Beans — same tub
+        1 lb for Steamed Green Beans with Lemon and Olive Oil — same tub
+        1 lb for Roasted Green Beans — into the tub "Roasted Green Beans — whole garlic head and fresh green beans"
+        » storage: Both containers: Airtight in the fridge — up to 4 days. Keep the Green Beans separate; combine on cook day (Saturday).
+        » covers cook steps: Garlic-Buttered Green Beans#0, Garlic Sautéed Green Beans#0, Steamed Green Beans with Lemon and Olive Oil#0
+     7. Prep all lemons   (2 min)   [631 chars]
+        Zest 1 lemon, then juice it and the rest, and halve 1 lemon for squeezing at serving.
+        1 tsp lemon juice for Garlic-Buttered Green Beans — into the tub "Lemon juice — Green Beans"
+        1 tbsp lemon juice for Garlic Sautéed Green Beans — same tub
+        1 tbsp lemon juice for Roasted Green Beans — same tub
+        1 tbsp lemon juice for Steamed Green Beans with Lemon and Olive Oil — same tub
+        1 tsp lemon zest for Crispy Herb-Roasted Chicken Thighs — into the tub "Crispy Herb-Roasted Chicken Thighs — lemon zest"
+        1 lemon for Spatchcocked Roast Chicken with Smoked Paprika — into the tub "Spatchcocked Roast Chicken with Smoked Paprika — halved lemon"
+        » storage: Covered in the fridge — up to 3 days. Airtight in the fridge — up to 3 days.
+  ×  8. Yukon gold potatoes — cook day   (7 min)  [RENDER-OMITTED]   [53 chars]
+        This browns once it is cut, so it is cut on cook day.
+     9. Chop all parsley   (2 min)   [448 chars]
+        Work through 5 tbsp fresh flat-leaf parsley two ways: roughly chopped and finely chopped.
+        2 tbsp chopped for Crispy Roasted Potatoes — into the tub "Chopped fresh flat-leaf parsley — Crispy Roasted Potatoes, Herb-Roasted Baby Potatoes"
+        1 tbsp chopped for Herb-Roasted Baby Potatoes — same tub
+        2 tbsp finely chopped for Crispy Garlic-Herb Baked Drumsticks — into the tub "Crispy Garlic-Herb Baked Drumsticks — finely chopped fresh flat-leaf parsley"
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » covers cook steps: Crispy Roasted Potatoes#1
+    10. Chop all rosemary   (1 min)   [349 chars]
+        Finely chop 2¾ tbsp fresh rosemary.
+        1 tbsp for Crispy Herb-Roasted Chicken Thighs — into the tub "Finely chopped fresh rosemary — Chicken Thighs, Roasted Potatoes, Baked Drumsticks, Baby Potatoes"
+        1 tsp for Garlicky Roasted Potatoes — same tub
+        1 tbsp for Crispy Garlic-Herb Baked Drumsticks — same tub
+        1 tsp for Herb-Roasted Baby Potatoes — same tub
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » covers cook steps: Crispy Garlic-Herb Baked Drumsticks#1
+  × 11. Baby Yukon gold potatoes — cook day   (6 min)  [RENDER-OMITTED]   [53 chars]
+        This browns once it is cut, so it is cut on cook day.
+
+  ── sauces_marinades ──
+     1. Finish the Smoky Salisbury Steak gravy bowl   (1 min)   [210 chars]
+        Smoky Salisbury Steak gravy bowl (plain breadcrumbs, smoked paprika, garlic powder, onion powder and All-purpose flour already in it): add
+        1 tbsp worcestershire sauce
+        1 tsp worcestershire sauce
+        Stir to combine.
+        » storage: Covered in the fridge — up to 5 days.
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     HELD: Crispy Herb-Roasted Chicken Thighs with Roasted Potatoes and Green Beans (Thursday, 4 days out) — bone-in chicken thighs that morning.
+     HELD: Crispy Garlic-Herb Baked Drumsticks with Roasted Baby Potatoes and Steamed Green Beans (Saturday, 6 days out) — chicken drumsticks that morning.
+     1. Pound the whole chicken   (12 min)   [86 chars]
+        Pound the 4 lb whole chicken, backbone removed and spatchcocked, to an even thickness.
+        » storage: Covered in the fridge — cook within 2 days.
+        » covers cook steps: Spatchcocked Roast Chicken with Smoked Paprika#0
+  ×  2. Bone-in chicken thighs — cook day   (3 min)  [RENDER-OMITTED]   [51 chars]
+        Pat 8 bone-in chicken thighs dry with paper towels.
+        » storage: This one is 4 days out — leave it for cook day.
+  ×  3. Chicken drumsticks — cook day   (3 min)  [RENDER-OMITTED]   [47 chars]
+        Pat 8 chicken drumsticks dry with paper towels.
+        » storage: This one is 6 days out — leave it for cook day.

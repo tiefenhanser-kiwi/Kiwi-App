@@ -1,0 +1,141 @@
+PLAN 2539d94d-80df-4f05-b62e-0d3d9167806a  [A15]  HTTP 200
+  HEADER: 16 containers · about 65 min · prompt v20
+
+  ── seasonings_dry ──
+     1. Measure the Chipotle-Spiced Pulled Pork spice blend   (2 min)   [130 chars]
+        Into the Chipotle-Spiced Pulled Pork spice blend:
+        1½ tsp ground cumin
+        1 tsp smoked paprika
+        ½ tsp dried oregano
+        ½ tsp garlic powder
+        » storage: Airtight at room temperature — it keeps for weeks.
+     2. Measure the Slow-Roasted Pulled Pork sauce bowl   (5 min)   [230 chars]
+        Into the Slow-Roasted Pulled Pork sauce bowl:
+        ½ tsp ground cumin
+        1½ tsp smoked paprika
+        ½ tsp dried oregano
+        1 tsp garlic powder
+        1 tsp onion powder
+        ¼ tsp cayenne pepper
+        2 tbsp brown sugar
+        Set aside for the sauces and marinades step.
+     3. Measure the Carolina Vinegar Pulled Pork rub bowl   (2 min)   [128 chars]
+        Into the Carolina Vinegar Pulled Pork rub bowl:
+        1 tsp smoked paprika
+        ½ tsp garlic powder
+        ½ tsp onion powder
+        ¼ tsp cayenne pepper
+        » storage: Airtight at room temperature — it keeps for weeks.
+     4. Measure the Alabama White Sauce sauce bowl   (2 min)   [120 chars]
+        Into the Alabama White Sauce sauce bowl:
+        ¼ tsp garlic powder
+        1 tbsp prepared horseradish
+        Set aside for the produce step.
+     5. Measure the Carolina Vinegar Pulled Pork sauce bowl   (2 min)   [145 chars]
+        Into the Carolina Vinegar Pulled Pork sauce bowl:
+        1 tbsp brown sugar
+        ½ tsp crushed red pepper flakes
+        Set aside for the sauces and marinades step.
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)   [104 chars]
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+     2. Roughly chop the white onion   (3 min)   [140 chars]
+        Roughly chop 1 white onion.
+        1 white onion for Chipotle-Spiced Pulled Pork — into the tub "Chipotle-Spiced Pulled Pork — chopped white onion"
+        » storage: Airtight in the fridge — up to 4 days.
+  ×  3. Garlic cloves — cook day   (2 min)  [RENDER-OMITTED]   [40 chars]
+        Nothing to cut — it goes in as it comes.
+     4. Squeeze the orange juice   (3 min)   [150 chars]
+        Juice oranges to get ½ cup fresh orange juice.
+        ½ cup for Chipotle-Spiced Pulled Pork — into the tub "Chipotle-Spiced Pulled Pork — fresh orange juice"
+        » storage: Covered in the fridge — up to 3 days.
+     5. Roughly chop the cilantro   (2 min)   [214 chars]
+        Roughly chop ½ cup fresh cilantro.
+        ¼ cup for Chipotle-Spiced Pulled Pork — into the tub "Chipotle-Spiced Pulled Pork — chopped fresh cilantro"
+        ¼ cup for Cilantro-Lime Slaw — into the Cilantro-Lime Slaw dressing jar
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » covers cook steps: Cilantro-Lime Slaw#2
+     6. Slice the red onion   (3 min)   [136 chars]
+        Thinly slice 1 red onion into half-moons.
+        1 red onion for Pickled Red Onion — into the tub "Pickled Red Onion — thinly sliced red onion"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Pickled Red Onion#0
+     7. Shred all green cabbage   (2 min)   [306 chars]
+        Finely shred the green cabbage: 3 cup + ½ head + ½ lb.
+        3 cup for Cilantro-Lime Slaw — into the tub "Cilantro-Lime Slaw — shredded green cabbage"
+        ½ head for Creamy Vinegar Cabbage Slaw — into the tub "Creamy Vinegar Cabbage Slaw — greens"
+        ½ lb for Vinegar Coleslaw — into the tub "Vinegar Coleslaw — greens"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Cilantro-Lime Slaw#0, Creamy Vinegar Cabbage Slaw#0, Vinegar Coleslaw#0
+     8. Squeeze the lime juice   (3 min)   [116 chars]
+        Juice limes to get 3 tbsp fresh lime juice.
+        3 tbsp for Cilantro-Lime Slaw — into the Cilantro-Lime Slaw dressing jar
+     9. Mince the jalapeño   (3 min)   [110 chars]
+        Seed and finely mince 1 jalapeño.
+        1 jalapeño for Cilantro-Lime Slaw — into the Cilantro-Lime Slaw dressing jar
+        » covers cook steps: Cilantro-Lime Slaw#2
+    10. Shred all red cabbage   (1 min)   [206 chars]
+        Finely shred the red cabbage: ¼ head + ¼ lb.
+        ¼ head for Creamy Vinegar Cabbage Slaw — into the tub "Creamy Vinegar Cabbage Slaw — greens"
+        ¼ lb for Vinegar Coleslaw — into the tub "Vinegar Coleslaw — greens"
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Creamy Vinegar Cabbage Slaw#0, Vinegar Coleslaw#0
+    11. Grate all carrots   (1 min)   [268 chars]
+        Peel and grate the large carrots, 3 in all.
+        1 large carrot for Creamy Vinegar Cabbage Slaw — into the tub "Creamy Vinegar Cabbage Slaw — large carrot and celery seed"
+        2 large carrots for Vinegar Coleslaw — into the tub "Vinegar Coleslaw — large carrot and celery seed"
+        » covers cook steps: Creamy Vinegar Cabbage Slaw#0, Vinegar Coleslaw#0
+    12. Measure the celery seed   (1 min)   [232 chars]
+        Measure ¾ tsp celery seed.
+        ¼ tsp for Creamy Vinegar Cabbage Slaw — into the tub "Creamy Vinegar Cabbage Slaw — large carrot and celery seed"
+        ½ tsp for Vinegar Coleslaw — into the tub "Vinegar Coleslaw — large carrot and celery seed"
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+    13. Squeeze the lemon juice   (2 min)   [113 chars]
+        Squeeze fresh lemon juice to get 1 tbsp.
+        1 tbsp for Alabama White Sauce — into the Alabama White Sauce sauce bowl
+
+  ── sauces_marinades ──
+     1. Finish the Slow-Roasted Pulled Pork sauce bowl   (2 min)   [200 chars]
+        Slow-Roasted Pulled Pork sauce bowl (ground cumin, smoked paprika, dried oregano, garlic powder, onion powder, cayenne pepper and brown sugar already in it): add
+        1 tbsp yellow mustard
+        Stir to combine.
+        » storage: Airtight at room temperature — it keeps for weeks.
+     2. Finish the Alabama White Sauce sauce bowl   (3 min)   [209 chars]
+        Alabama White Sauce sauce bowl (garlic powder, prepared horseradish and the lemon juice from produce step 13 already in it): add
+        2 tbsp apple cider vinegar
+        ½ cup mayonnaise
+        1 tsp dijon mustard
+        Stir to combine.
+        » storage: Covered in the fridge — up to 3 days.
+     3. Finish the Carolina Vinegar Pulled Pork sauce bowl   (2 min)   [145 chars]
+        Carolina Vinegar Pulled Pork sauce bowl (brown sugar and crushed red pepper flakes already in it): add
+        ¾ cup apple cider vinegar
+        Stir to combine.
+        » storage: Airtight at room temperature — it keeps for weeks.
+     4. Finish the Cilantro-Lime Slaw dressing jar   (2 min)   [158 chars]
+        Cilantro-Lime Slaw dressing jar (fresh cilantro, the fresh lime juice from produce step 8 and jalapeño already in it): add
+        2 tbsp mayonnaise
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 3 days.
+  ×  5. Chipotle peppers in adobo sauce — cook day   (8 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  6. Apple cider vinegar — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  7. Apple cider vinegar and Mayonnaise — cook day   (1 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+  ×  8. Apple cider vinegar — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  9. Apple cider vinegar — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     HELD: Slow-Roasted Pulled Pork with Alabama White Sauce (Saturday, 6 days out) — pound the bone-in pork shoulders that morning.
+     1. Pound the pork shoulder for Chipotle-Spiced Pulled Pork   (8 min)   [58 chars]
+        Pound 2 lb boneless pork shoulder, cut into 3-inch chunks.
+        » storage: Covered in the fridge — cook within 2 days.
+  ×  2. Bone-in pork shoulder (Boston butt) — cook day   (15 min)  [RENDER-OMITTED]   [196 chars]
+        Pound 3 lb bone-in pork shoulder (Boston butt) for the Carolina Vinegar Pulled Pork
+        Pound 3 lb bone-in pork shoulder (Boston butt), excess fat trimmed to 1/4 inch, for the Slow-Roasted Pulled Pork
+        » storage: This one is 6 days out — leave it for cook day.

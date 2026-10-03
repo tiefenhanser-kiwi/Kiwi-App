@@ -57,6 +57,19 @@ export interface PrepMeasure {
    */
   destination?: string;
   preparationNote?: string;
+  /**
+   * Part J.0 — CODE-ONLY attribution of this one portion: the meal and dish it
+   * feeds and the engine ingredient it is. A subset scopes a whole-plan step
+   * down to its meals by these, and `coversCookSteps` joins them to the cook
+   * steps' amountRefs. 🔴 STRIPPED before the narration input is built
+   * (`narrationComponents`): ids are not prose and cost tokens.
+   */
+  mealId?: string;
+  dishId?: string;
+  ingredientId?: string;
+  /** Code-only — the raw quantity and unit `amount` was formatted from (for a step's total). */
+  qty?: number;
+  unit?: string;
 }
 
 export interface PrepNarrationComponent {
@@ -157,6 +170,18 @@ export interface PrepNarrationStepInput {
    * device.
    */
   setAsideFor?: string;
+  /**
+   * Part J.0 (census finding 2) — present on a produce step whose PORTION LINES
+   * the app renders itself: "4 cloves for Beef Enchiladas Verdes — into the tub
+   * …". The narrator writes ONLY the step's opening sentence (verb + food +
+   * technique) and must not write a single portion, amount-per-dish or
+   * destination. Its components arrive with `measures: []` for that reason.
+   *
+   *   food  — what the step works, as the opening should name it;
+   *   total — the whole amount, a finished string the opening may state verbatim;
+   *   cuts  — the distinct cuts the portions take, when more than one.
+   */
+  portionsByApp?: { food: string; total: string; cuts: string[]; portionCount: number };
 }
 
 export interface PrepNarrationInput {

@@ -1,0 +1,627 @@
+[
+  {
+    "code": "E-b5263268",
+    "planId": "b5263268-64c7-41ff-a8f2-20c01a2b905e",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 20,
+    "containerCount": 18,
+    "estimatedMinutes": 90,
+    "maxInstructions": 661,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 20,
+        "inputTokens": 17151,
+        "outputTokens": 2717,
+        "costEstimateUsd": "0.061472",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 15878
+      }
+    ],
+    "costUsd": 0.0615
+  },
+  {
+    "code": "E-1cf373bc",
+    "planId": "1cf373bc-a2cb-4469-90ef-bb87d0327343",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 20,
+    "containerCount": 25,
+    "estimatedMinutes": 115,
+    "maxInstructions": 786,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 20,
+        "inputTokens": 17537,
+        "outputTokens": 2718,
+        "costEstimateUsd": "0.062254",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 15079
+      }
+    ],
+    "costUsd": 0.0623
+  },
+  {
+    "code": "A02",
+    "planId": "c97aefe1-a3d2-4f4c-b959-ffd7ba58066a",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 20,
+    "containerCount": 33,
+    "estimatedMinutes": 135,
+    "maxInstructions": 752,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 20,
+        "inputTokens": 23000,
+        "outputTokens": 3362,
+        "costEstimateUsd": "0.07962",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 18392
+      }
+    ],
+    "costUsd": 0.0796
+  },
+  {
+    "code": "A07",
+    "planId": "fb328120-721e-47f3-b21c-dce1aba27939",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 20,
+    "containerCount": 27,
+    "estimatedMinutes": 130,
+    "maxInstructions": 760,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 20,
+        "inputTokens": 21243,
+        "outputTokens": 3272,
+        "costEstimateUsd": "0.075206",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 17863
+      }
+    ],
+    "costUsd": 0.0752
+  },
+  {
+    "code": "A09",
+    "planId": "f0c56d0c-7182-428b-86d5-230689438919",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 20,
+    "containerCount": 11,
+    "estimatedMinutes": 90,
+    "maxInstructions": 773,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 20,
+        "inputTokens": 17365,
+        "outputTokens": 2113,
+        "costEstimateUsd": "0.05586",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 10886
+      }
+    ],
+    "costUsd": 0.0559
+  },
+  {
+    "code": "A10",
+    "planId": "3f9d46e8-b078-4bd4-b479-9f93cb8c76cd",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 20,
+    "containerCount": 16,
+    "estimatedMinutes": 85,
+    "maxInstructions": 518,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 20,
+        "inputTokens": 16900,
+        "outputTokens": 1659,
+        "costEstimateUsd": "0.05039",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 8982
+      }
+    ],
+    "costUsd": 0.0504
+  },
+  {
+    "code": "A12",
+    "planId": "b12a194c-ba07-4e30-ba35-71ae1442a87e",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 20,
+    "containerCount": 18,
+    "estimatedMinutes": 60,
+    "maxInstructions": 646,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 20,
+        "inputTokens": 16141,
+        "outputTokens": 1271,
+        "costEstimateUsd": "0.044992",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 6974
+      }
+    ],
+    "costUsd": 0.045
+  },
+  {
+    "code": "A13",
+    "planId": "bd8aa8c2-bff4-42cf-84b8-ff24fbf3793d",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 20,
+    "containerCount": 25,
+    "estimatedMinutes": 115,
+    "maxInstructions": 783,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 20,
+        "inputTokens": 17645,
+        "outputTokens": 1977,
+        "costEstimateUsd": "0.05506",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 12202
+      }
+    ],
+    "costUsd": 0.0551
+  },
+  {
+    "code": "A21",
+    "planId": "297794a0-569d-4af8-9506-0fe4cc43999a",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 20,
+    "containerCount": 24,
+    "estimatedMinutes": 100,
+    "maxInstructions": 764,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 20,
+        "inputTokens": 19094,
+        "outputTokens": 1899,
+        "costEstimateUsd": "0.057178",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 9895
+      }
+    ],
+    "costUsd": 0.0572
+  },
+  {
+    "code": "E-1e41fc0c",
+    "planId": "1e41fc0c-7294-4bd3-a14a-302e44bbcd7c",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 20,
+    "containerCount": 14,
+    "estimatedMinutes": 75,
+    "maxInstructions": 425,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 20,
+        "inputTokens": 14470,
+        "outputTokens": 1834,
+        "costEstimateUsd": "0.04728",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 10766
+      }
+    ],
+    "costUsd": 0.0473
+  },
+  {
+    "code": "E-b4aa6fee",
+    "planId": "b4aa6fee-70b1-4990-a596-05087ac904c5",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 20,
+    "containerCount": 22,
+    "estimatedMinutes": 110,
+    "maxInstructions": 552,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 20,
+        "inputTokens": 17239,
+        "outputTokens": 2805,
+        "costEstimateUsd": "0.062528",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 15363
+      }
+    ],
+    "costUsd": 0.0625
+  },
+  {
+    "code": "A01",
+    "planId": "873796cd-4e7e-4a4a-bdfe-28a802f295d7",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 20,
+    "containerCount": 30,
+    "estimatedMinutes": 150,
+    "maxInstructions": 795,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 20,
+        "inputTokens": 23045,
+        "outputTokens": 3379,
+        "costEstimateUsd": "0.07988",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 17820
+      }
+    ],
+    "costUsd": 0.0799
+  },
+  {
+    "code": "A03",
+    "planId": "53abd5b6-156d-490e-b1db-6bc04626c027",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 20,
+    "containerCount": 7,
+    "estimatedMinutes": 20,
+    "maxInstructions": 298,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 20,
+        "inputTokens": 10820,
+        "outputTokens": 1128,
+        "costEstimateUsd": "0.03292",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 7004
+      }
+    ],
+    "costUsd": 0.0329
+  },
+  {
+    "code": "A04",
+    "planId": "7f206a48-f9ca-46c3-b4ba-94c35a320da2",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 20,
+    "containerCount": 13,
+    "estimatedMinutes": 65,
+    "maxInstructions": 519,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 20,
+        "inputTokens": 12924,
+        "outputTokens": 1295,
+        "costEstimateUsd": "0.038798",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 7124
+      }
+    ],
+    "costUsd": 0.0388
+  },
+  {
+    "code": "A05",
+    "planId": "04a25763-bd01-4103-ba11-d5420ca0e6d8",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 20,
+    "containerCount": 22,
+    "estimatedMinutes": 85,
+    "maxInstructions": 677,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 20,
+        "inputTokens": 17572,
+        "outputTokens": 2215,
+        "costEstimateUsd": "0.057294",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 12249
+      }
+    ],
+    "costUsd": 0.0573
+  },
+  {
+    "code": "A06",
+    "planId": "da372b54-d561-4e06-b653-5a5aea933ef0",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 20,
+    "containerCount": 27,
+    "estimatedMinutes": 115,
+    "maxInstructions": 555,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 20,
+        "inputTokens": 20152,
+        "outputTokens": 2735,
+        "costEstimateUsd": "0.067654",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 13178
+      }
+    ],
+    "costUsd": 0.0677
+  },
+  {
+    "code": "A08",
+    "planId": "27a03273-6732-4ad0-a6a6-7b76ee5eea7e",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 20,
+    "containerCount": 14,
+    "estimatedMinutes": 40,
+    "maxInstructions": 241,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 20,
+        "inputTokens": 12507,
+        "outputTokens": 1083,
+        "costEstimateUsd": "0.035844",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 6281
+      }
+    ],
+    "costUsd": 0.0358
+  },
+  {
+    "code": "A11",
+    "planId": "33ddbb13-7f30-418f-ab5b-c547484d4461",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 20,
+    "containerCount": 16,
+    "estimatedMinutes": 75,
+    "maxInstructions": 782,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 20,
+        "inputTokens": 17695,
+        "outputTokens": 3029,
+        "costEstimateUsd": "0.06568",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 17329
+      }
+    ],
+    "costUsd": 0.0657
+  },
+  {
+    "code": "A14",
+    "planId": "11623bcd-bc82-4aa4-ad88-80aaa075b19a",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 20,
+    "containerCount": 18,
+    "estimatedMinutes": 75,
+    "maxInstructions": 625,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 20,
+        "inputTokens": 16504,
+        "outputTokens": 2604,
+        "costEstimateUsd": "0.059048",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 15162
+      }
+    ],
+    "costUsd": 0.059
+  },
+  {
+    "code": "A15",
+    "planId": "2539d94d-80df-4f05-b62e-0d3d9167806a",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 20,
+    "containerCount": 16,
+    "estimatedMinutes": 65,
+    "maxInstructions": 306,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 20,
+        "inputTokens": 15981,
+        "outputTokens": 3113,
+        "costEstimateUsd": "0.063092",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 17474
+      }
+    ],
+    "costUsd": 0.0631
+  },
+  {
+    "code": "A16",
+    "planId": "b0c8ffbd-b167-4265-8fb3-2782bc72092e",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 20,
+    "containerCount": 21,
+    "estimatedMinutes": 95,
+    "maxInstructions": 604,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 20,
+        "inputTokens": 18427,
+        "outputTokens": 2188,
+        "costEstimateUsd": "0.058734",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 11450
+      }
+    ],
+    "costUsd": 0.0587
+  },
+  {
+    "code": "A17",
+    "planId": "2730c4b1-7648-404a-a7bf-692fb89faa03",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 20,
+    "containerCount": 18,
+    "estimatedMinutes": 70,
+    "maxInstructions": 793,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 20,
+        "inputTokens": 16587,
+        "outputTokens": 1695,
+        "costEstimateUsd": "0.050124",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 8719
+      }
+    ],
+    "costUsd": 0.0501
+  },
+  {
+    "code": "A18",
+    "planId": "8a0de6e6-ec8a-453f-994a-6a973c5bcd32",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 20,
+    "containerCount": 19,
+    "estimatedMinutes": 65,
+    "maxInstructions": 685,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 20,
+        "inputTokens": 15209,
+        "outputTokens": 1151,
+        "costEstimateUsd": "0.041928",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 6782
+      }
+    ],
+    "costUsd": 0.0419
+  },
+  {
+    "code": "A19",
+    "planId": "d26e6ae6-3dcd-42ce-9f77-b3962697fff5",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 20,
+    "containerCount": 20,
+    "estimatedMinutes": 70,
+    "maxInstructions": 707,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 20,
+        "inputTokens": 17254,
+        "outputTokens": 3001,
+        "costEstimateUsd": "0.064518",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 16938
+      }
+    ],
+    "costUsd": 0.0645
+  },
+  {
+    "code": "A20",
+    "planId": "2faff60f-9a4e-4afb-897e-35422c5e8c34",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 20,
+    "containerCount": 15,
+    "estimatedMinutes": 75,
+    "maxInstructions": 531,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 20,
+        "inputTokens": 14999,
+        "outputTokens": 1438,
+        "costEstimateUsd": "0.044378",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 7589
+      }
+    ],
+    "costUsd": 0.0444
+  }
+]

@@ -1,0 +1,232 @@
+PLAN 873796cd-4e7e-4a4a-bdfe-28a802f295d7  [A01]  HTTP 200
+  HEADER: 30 containers · about 150 min · prompt v20
+
+  ── seasonings_dry ──
+     1. Measure the Citrus-Marinated Carne Asada marinade bowl spices   (3 min)   [163 chars]
+        Into the Citrus-Marinated Carne Asada marinade bowl:
+        1 tsp ground cumin
+        1 tsp chili powder
+        ½ tsp smoked paprika
+        ½ tsp dried oregano
+        Set aside for the produce step.
+     2. Measure the Texas-Style Beef Chili spice blend   (2 min)   [104 chars]
+        Into the Texas-Style Beef Chili spice blend:
+        2 tsp ground cumin
+        1 tsp smoked paprika
+        1 tsp dried oregano
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » covers cook steps: Texas-Style Beef Chili#3
+     3. Measure the Lime-Marinated Chicken Fajitas marinade bowl spices   (4 min)   [154 chars]
+        Into the Lime-Marinated Chicken Fajitas marinade bowl:
+        1 tsp ground cumin
+        1½ tsp chili powder
+        ¾ tsp smoked paprika
+        ½ tsp dried oregano
+        ½ tsp garlic powder
+        » storage: Airtight at room temperature — it keeps for weeks.
+     4. Measure the Smoky Carne Asada marinade bowl spices   (3 min)   [134 chars]
+        Into the Smoky Carne Asada marinade bowl:
+        1½ tsp ground cumin
+        1 tsp smoked paprika
+        ½ tsp dried oregano
+        Set aside for the produce step.
+     5. Measure the Beer-Battered Cod Fish Tacos batter bowl   (4 min)   [232 chars]
+        Into the Beer-Battered Cod Fish Tacos batter bowl:
+        1 cup all-purpose flour
+        ¼ cup cornstarch
+        1 tsp baking powder
+        1 tsp smoked paprika
+        ½ tsp garlic powder
+        ¼ tsp cayenne pepper
+        Then measure the wet base alongside:
+        1 cup cold lager beer
+        » storage: Airtight at room temperature — it keeps for weeks.
+     6. Measure the Dry-Rubbed Roast Chicken dry mix   (3 min)   [160 chars]
+        Into the Dry-Rubbed Roast Chicken dry mix:
+        1½ tsp smoked paprika
+        1 tsp garlic powder
+        ¾ tsp onion powder
+        ½ tsp dried thyme
+        ¼ tsp cayenne pepper
+        1 tsp brown sugar
+        » storage: Airtight at room temperature — it keeps for weeks.
+     7. Gather the Texas-Style Beef Chili — dried chiles, stemmed and seeded   (1 min)   [112 chars]
+        Into the Texas-Style Beef Chili — dried chiles, stemmed and seeded:
+        3 dried ancho chiles
+        2 dried guajillo chiles
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » covers cook steps: Texas-Style Beef Chili#0
+  ×  8. Ground cumin — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  9. Masa harina — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)   [104 chars]
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+     2. Measure the orange juice   (2 min)   [192 chars]
+        Measure ½ cup orange juice.
+        ¼ cup for Citrus-Marinated Carne Asada — into the Citrus-Marinated Carne Asada marinade bowl
+        3 tbsp for Smoky Carne Asada — into the Smoky Carne Asada marinade bowl
+  ×  3. Lime juice, lime and lime zest — cook day   (15 min)  [RENDER-OMITTED]   [39 chars]
+        Citrus wedges keep best cut on the day.
+     4. Prep all garlic   (8 min)   [795 chars]
+        Mince the garlic cloves, then thinly slice the cloves that are called for sliced — 24 cloves in all.
+        4 cloves minced for Citrus-Marinated Carne Asada — into the Citrus-Marinated Carne Asada marinade bowl
+        6 cloves minced for Texas-Style Beef Chili — into the tub "Minced garlic — Texas-Style Beef Chili, Garlic Roasted Potatoes"
+        3 cloves minced for Garlic Roasted Potatoes — same tub
+        2 cloves minced for Teriyaki Salmon — into the Teriyaki Salmon glaze jar
+        3 cloves minced for Lime-Marinated Chicken Fajitas with Peppers and Onions — into the Lime-Marinated Chicken Fajitas vegetables container
+        4 cloves minced for Smoky Carne Asada — into the Smoky Carne Asada marinade bowl
+        2 cloves thinly sliced for Sautéed Garlic Green Beans — into the tub "Sautéed Garlic Green Beans — thinly sliced garlic"
+        » storage: Citrus-Marinated Carne Asada marinade bowl: Covered in the fridge — up to 3 days. Airtight in the fridge — up to 4 days. Add the skirt steak the night before you cook them (Saturday).
+        » covers cook steps: Texas-Style Beef Chili#3, Sautéed Garlic Green Beans#0, Teriyaki Salmon#0, Lime-Marinated Chicken Fajitas with Peppers and Onions#4
+     5. Dice all roma tomatoes   (15 min)   [562 chars]
+        Work through 8 roma tomatoes two ways: diced and finely diced.
+        3 roma tomatoes diced for Fresh Pico de Gallo — into the tub "Fresh Pico de Gallo — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        2 roma tomatoes diced for Black Bean Salsa — into the tub "Black Bean Salsa — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        3 roma tomatoes finely diced for Fajita Toppings: Pico de Gallo, Guacamole, and Sour Cream — into the tub "Fajita Toppings: Pico de Gallo, Guacamole, and Sour Cream — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        » covers cook steps: Fresh Pico de Gallo#0, Fajita Toppings: Pico de Gallo, Guacamole, and Sour Cream#0, Black Bean Salsa#1
+     6. Finely dice all white onion   (8 min)   [676 chars]
+        Finely dice 1¾ white onion plus ¼ cup more.
+        ½ white onion for Fresh Pico de Gallo — into the tub "Fresh Pico de Gallo — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        ¼ white onion for Simple Guacamole — into the tub "Finely diced white onion — Simple Guacamole, Texas-Style Beef Chili"
+        ½ white onion for Texas-Style Beef Chili — same tub
+        ½ white onion for Black Bean Salsa — into the tub "Black Bean Salsa — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        ¼ cup for Fajita Toppings: Pico de Gallo, Guacamole, and Sour Cream — into the tub "Fajita Toppings: Pico de Gallo, Guacamole, and Sour Cream — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Fresh Pico de Gallo#0, Fajita Toppings: Pico de Gallo, Guacamole, and Sour Cream#0, Black Bean Salsa#1
+     7. Chop all fresh cilantro   (8 min)   [779 chars]
+        Work through 2 cup fresh cilantro two ways: chopped and finely chopped.
+        ¼ cup chopped — into the tub "Fresh Pico de Gallo — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        2 tbsp chopped for Simple Guacamole — into the tub "Chopped fresh cilantro — Simple Guacamole, Beef Chili, Chicken Fajitas, Fresh Toppings"
+        ¼ cup chopped for Beef Chili — same tub
+        ¼ cup chopped for Chicken Fajitas — same tub
+        ¼ cup chopped for Fresh Toppings — same tub
+        ¼ cup chopped — into the tub "Black Bean Salsa — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        ½ cup — into the tub "Beer-Battered Cod Fish Tacos — fresh cilantro"
+        2 tbsp finely chopped — into the tub "Fajita Toppings: Pico de Gallo, Guacamole, and Sour Cream — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » covers cook steps: Fresh Pico de Gallo#0, Lime-Marinated Chicken Fajitas with Peppers and Onions#4, Fajita Toppings: Pico de Gallo, Guacamole, and Sour Cream#0, Black Bean Salsa#1, Fresh Toppings#0
+     8. Prep all jalapeños   (15 min)   [685 chars]
+        Work through 6½ jalapeño two ways: seeded and minced, and thinly sliced into rounds.
+        ½ jalapeño minced for Fresh Pico de Gallo — into the tub "Fresh Pico de Gallo — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        1 jalapeño minced for Fajita Toppings: Pico de Gallo, Guacamole, and Sour Cream — into the tub "Fajita Toppings: Pico de Gallo, Guacamole, and Sour Cream — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        1 jalapeño minced for Black Bean Salsa — into the tub "Black Bean Salsa — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        4 jalapeños thinly sliced for Quick Pickled Jalapeños — into the tub "Quick Pickled Jalapeños — thinly sliced jalapeño"
+        » storage: Fresh Pico de Gallo: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Fajita Toppings: Pico de Gallo, Guacamole, and Sour Cream: Airtight in the fridge, with a barely damp paper…
+        » covers cook steps: Fresh Pico de Gallo#0, Black Bean Salsa#1, Quick Pickled Jalapeños#0
+  ×  9. Ripe avocado — cook day   (1 min)  [RENDER-OMITTED]   [53 chars]
+        This browns once it is cut, so it is cut on cook day.
+    10. Prep all yellow onion   (5 min)   [308 chars]
+        Work through 2 yellow onion two ways: diced and sliced.
+        1 yellow onion diced for Texas-Style Beef Chili — into the tub "Texas-Style Beef Chili — diced yellow onion"
+        1 yellow onion sliced for Lime-Marinated Chicken Fajitas with Peppers and Onions — into the Lime-Marinated Chicken Fajitas vegetables container
+        » storage: Airtight in the fridge — up to 4 days.
+    11. Prep all lemons   (2 min)   [333 chars]
+        Halve 1 fresh lemon, then juice the rest to get 1 tbsp fresh lemon juice.
+        1 fresh lemon for Dry-Rubbed Roast Chicken with Crispy Skin — into the tub "Dry-Rubbed Roast Chicken with Crispy Skin — halved fresh lemon"
+        1 tbsp fresh lemon juice for Sautéed Garlic Green Beans — into the tub "Sautéed Garlic Green Beans — fresh lemon juice"
+        » storage: Airtight in the fridge — up to 3 days. Covered in the fridge — up to 3 days.
+  × 12. Fresh thyme sprigs — cook day   (1 min)  [RENDER-OMITTED]   [40 chars]
+        Nothing to cut — it goes in as it comes.
+  × 13. Baby Yukon gold potatoes — cook day   (3 min)  [RENDER-OMITTED]   [53 chars]
+        This browns once it is cut, so it is cut on cook day.
+    14. Chop the fresh rosemary   (1 min)   [140 chars]
+        Finely chop 1 tsp fresh rosemary.
+        1 tsp for Garlic Roasted Potatoes — into the tub "Garlic Roasted Potatoes — finely chopped fresh rosemary"
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+    15. Trim the green beans   (2 min)   [155 chars]
+        Trim the stem ends from 1 lb fresh green beans.
+        1 lb for Sautéed Garlic Green Beans — into the tub "Sautéed Garlic Green Beans — trimmed fresh green beans"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Sautéed Garlic Green Beans#0
+    16. Grate the fresh ginger   (1 min)   [88 chars]
+        Grate 1 tsp fresh ginger.
+        1 tsp for Teriyaki Salmon — into the Teriyaki Salmon glaze jar
+        » covers cook steps: Teriyaki Salmon#0
+    17. Slice the scallions   (1 min)   [116 chars]
+        Thinly slice 2 scallions.
+        2 scallions for Teriyaki Salmon — into the tub "Teriyaki Salmon — thinly sliced scallions"
+        » storage: Airtight in the fridge — up to 3 days.
+    18. Slice the english cucumber   (3 min)   [149 chars]
+        Thinly slice 1 english cucumber.
+        1 english cucumber for Sesame Cucumber Salad — into the tub "Sesame Cucumber Salad — thinly sliced english cucumber"
+        » storage: Airtight in the fridge — up to 4 days.
+    19. Slice the red bell peppers   (5 min)   [204 chars]
+        Core and seed 2 red bell pepper, then slice into ¼-inch strips.
+        2 red bell peppers for Lime-Marinated Chicken Fajitas with Peppers and Onions — into the Lime-Marinated Chicken Fajitas vegetables container
+    20. Slice the green bell pepper   (3 min)   [207 chars]
+        Core and seed 1 green bell pepper, then slice into ¼-inch strips.
+        1 green bell pepper for Lime-Marinated Chicken Fajitas with Peppers and Onions — into the Lime-Marinated Chicken Fajitas vegetables container
+        » storage: Lime-Marinated Chicken Fajitas vegetables: Airtight in the fridge — up to 4 days.
+  × 21. Avocado oil — cook day   (1 min)  [RENDER-OMITTED]   [53 chars]
+        This browns once it is cut, so it is cut on cook day.
+    22. Slice the radishes   (1 min)   [137 chars]
+        Thinly slice 4 radishes.
+        4 thinly sliced radishes for Fresh Toppings — into the tub "Fresh Toppings — thinly sliced thinly sliced radish"
+        » storage: Airtight in the fridge — up to 3 days.
+        » covers cook steps: Fresh Toppings#0
+
+  ── sauces_marinades ──
+     1. Finish the Smoky Carne Asada marinade bowl   (6 min)   [197 chars]
+        Smoky Carne Asada marinade bowl (ground cumin, smoked paprika, dried oregano, the orange juice from produce step 2 and garlic already in it): add
+        2 chipotle chile in adobo, minced
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 3 days. Add the skirt steak the night before you cook them (Saturday).
+     2. Mix the Quick Cabbage Slaw and Lime mix-ins bowl   (2 min)   [157 chars]
+        Into the Quick Cabbage Slaw and Lime mix-ins bowl:
+        ¼ cup mayonnaise
+        1 tbsp apple cider vinegar
+        1 tsp honey
+        1 tsp hot sauce, such as Cholula
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 5 days.
+     3. Finish the Teriyaki Salmon glaze jar   (4 min)   [159 chars]
+        Teriyaki Salmon glaze jar (garlic and fresh ginger already in it): add
+        2 tbsp honey
+        ¼ cup soy sauce
+        3 tbsp mirin
+        2 tbsp sake
+        1 tsp sesame oil
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 4 days.
+        » covers cook steps: Teriyaki Salmon#0
+     4. Mix the Sesame Cucumber Salad dressing jar   (3 min)   [129 chars]
+        Into the Sesame Cucumber Salad dressing jar:
+        1 tsp honey
+        1 tbsp soy sauce
+        1 tbsp sesame oil
+        2 tbsp rice vinegar
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 4 days.
+  ×  5. Chipotle chile in adobo — cook day   (5 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  6. White wine vinegar — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     HELD: Add the skirt steak the night before you cook them (Saturday).
+     HELD: Add the skirt steak the night before you cook them (Saturday).
+     HELD: Dry-Rubbed Roast Chicken with Crispy Skin, Roasted Potatoes, and Green Beans (Wednesday, 3 days out) — whole chicken that morning.
+     HELD: Teriyaki Salmon Dinner (Thursday, 4 days out) — portion the salmon for the Teriyaki Salmon that morning.
+     HELD: Classic Sizzling Chicken Fajitas (Friday, 5 days out) — cut the chicken breasts for the Lime-Marinated Chicken Fajitas into strips that morning.
+  ×  1. Skirt steak — cook day   (9 min)  [RENDER-OMITTED]   [86 chars]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+     2. Cube the beef chuck for the Texas-Style Beef Chili   (8 min)   [82 chars]
+        Cube 2 lb beef chuck into ¾-inch pieces. Keep it in its own wrapping or container.
+        » storage: Covered in the fridge — cook within 2 days.
+     3. Cut the cod for the Beer-Battered Cod Fish Tacos into strips   (6 min)   [87 chars]
+        Cut 1½ lb cod fillets into 1-inch strips. Keep them in their own wrapping or container.
+        » storage: Covered in the fridge — cook within 2 days.
+        » covers cook steps: Beer-Battered Cod Fish Tacos#0
+  ×  4. Whole chicken — cook day   (12 min)  [RENDER-OMITTED]   [83 chars]
+        Pat the 4 lb whole chicken completely dry with paper towels, inside the cavity too.
+        » storage: This one is 3 days out — leave it for cook day.
+  ×  5. Salmon fillets — cook day   (6 min)  [RENDER-OMITTED]   [97 chars]
+        Portion 1½ lb skin-on salmon fillets into 4 pieces. Keep them in their own wrapping or container.
+        » storage: This one is 4 days out — leave it for cook day.
+  ×  6. Boneless skinless chicken breasts — cook day   (7 min)  [RENDER-OMITTED]   [127 chars]
+        Cut 1¾ lb boneless skinless chicken breasts into ½-inch strips against the grain. Keep them in their own wrapping or container.
+        » storage: This one is 5 days out — leave it for cook day.

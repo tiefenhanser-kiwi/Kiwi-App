@@ -1,0 +1,102 @@
+PLAN 7f206a48-f9ca-46c3-b4ba-94c35a320da2  [A04]  HTTP 200
+  HEADER: 13 containers · about 65 min · prompt v20
+
+  ── seasonings_dry ──
+     1. Measure the Baja Chili-Lime Shrimp Tacos spice blend   (2 min)   [130 chars]
+        Into the Baja Chili-Lime Shrimp Tacos spice blend:
+        1½ tsp chili powder
+        1 tsp ground cumin
+        ½ tsp smoked paprika
+        ½ tsp garlic powder
+        » storage: Airtight at room temperature — it keeps for weeks.
+     2. Measure the Al Pastor Pork Strips marinade bowl spices   (3 min)   [143 chars]
+        Into the Al Pastor Pork Strips marinade bowl:
+        1 tsp ground cumin
+        1 tsp smoked paprika
+        1½ tsp ancho chili powder
+        Set aside for the produce step.
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)   [104 chars]
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+     2. Prep all limes   (11 min)   [519 chars]
+        Zest 1 lime, then juice it and the rest of the limes you need.
+        1 lime for Baja Chili-Lime Shrimp Tacos — into the tub "Baja Chili-Lime Shrimp Tacos — zested lime"
+        2 limes for Warm Corn Tortillas with Cotija — into the tub "Warm Corn Tortillas with Cotija — lime"
+        1 tbsp lime juice, fresh for Chipotle Crema — into the Chipotle Crema jar
+        3 tbsp lime juice, fresh for Tangy Cabbage Slaw — into the tub "Lime juice, fresh — Tangy Cabbage Slaw, Cilantro-Lime Slaw"
+        3 tbsp lime juice, fresh for Cilantro-Lime Slaw — same tub
+        » storage: Airtight in the fridge — up to 3 days. Covered in the fridge — up to 3 days.
+     3. Chop all fresh cilantro   (4 min)   [277 chars]
+        Roughly chop 1 cup of fresh cilantro.
+        ¼ cup for Baja Chili-Lime Shrimp Tacos — into the tub "Chopped fresh cilantro — Baja Chili-Lime Shrimp Tacos, Cilantro-Lime Slaw"
+        ½ cup for Cilantro-Lime Slaw — same tub
+        ¼ cup for Tangy Cabbage Slaw — into the Tangy Cabbage Slaw sauce bowl
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » covers cook steps: Tangy Cabbage Slaw#2, Cilantro-Lime Slaw#0
+  ×  4. Avocado — cook day   (1 min)  [RENDER-OMITTED]   [53 chars]
+        This browns once it is cut, so it is cut on cook day.
+     5. Prep all garlic   (2 min)   [222 chars]
+        Grate and mince 4 cloves of garlic, working through each cut in turn.
+        1 clove grated for Chipotle Crema — into the Chipotle Crema jar
+        3 cloves minced for Al Pastor Pork Strips — into the Al Pastor Pork Strips marinade bowl
+        » covers cook steps: Chipotle Crema#0
+     6. Shred all green cabbage   (1 min)   [187 chars]
+        Finely shred 6 cups of green cabbage.
+        3 cup for Tangy Cabbage Slaw — into the tub "Shredded green cabbage — Tangy Cabbage Slaw, Cilantro-Lime Slaw"
+        3 cup for Cilantro-Lime Slaw — same tub
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Tangy Cabbage Slaw#0, Cilantro-Lime Slaw#0
+     7. Shred the red cabbage   (1 min)   [122 chars]
+        Finely shred 1 cup of red cabbage.
+        1 cup for Tangy Cabbage Slaw — into the tub "Tangy Cabbage Slaw — shredded red cabbage"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Tangy Cabbage Slaw#0
+     8. Slice all jalapeños   (5 min)   [204 chars]
+        Seed and thinly slice 2 jalapeños.
+        1 jalapeño for Tangy Cabbage Slaw — into the Tangy Cabbage Slaw sauce bowl
+        1 jalapeño for Cilantro-Lime Slaw — into the tub "Cilantro-Lime Slaw — thinly sliced jalapeño"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Tangy Cabbage Slaw#2, Cilantro-Lime Slaw#0
+     9. Juice the oranges   (2 min)   [130 chars]
+        Juice fresh oranges to yield ¼ cup of orange juice.
+        ¼ cup for Al Pastor Pork Strips — into the Al Pastor Pork Strips marinade bowl
+    10. Cut the pineapple   (1 min)   [131 chars]
+        Cut 1½ cups of fresh pineapple into small chunks.
+        1½ cup for Charred Pineapple — into the tub "Charred Pineapple — fresh pineapple"
+        » storage: Airtight in the fridge — up to 3 days.
+
+  ── sauces_marinades ──
+     1. Finish the Al Pastor Pork Strips marinade bowl   (7 min)   [260 chars]
+        Al Pastor Pork Strips marinade bowl (ground cumin, smoked paprika, ancho chili powder, garlic and the fresh orange juice from produce step 9 already in it): add
+        2 chipotle peppers in adobo sauce, minced
+        2 tbsp adobo sauce
+        1 tbsp white vinegar
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 3 days.
+     2. Finish the Tangy Cabbage Slaw sauce bowl   (2 min)   [122 chars]
+        Tangy Cabbage Slaw sauce bowl (fresh cilantro and jalapeño already in it): add
+        1 tbsp apple cider vinegar
+        Stir to combine.
+        » storage: Covered in the fridge — up to 3 days.
+     3. Finish the Chipotle Crema jar   (7 min)   [197 chars]
+        Chipotle Crema jar (the lime juice, fresh from produce step 2 and garlic already in it): add
+        ¼ cup mayonnaise
+        2 chipotle peppers in adobo sauce, minced, plus 1 teaspoon adobo sauce
+        Stir to combine.
+        » storage: Covered in the fridge — up to 3 days.
+        » covers cook steps: Chipotle Crema#0
+  ×  4. Honey — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  5. Honey — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     HELD: Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw (Saturday, 6 days out) — cut the pork tenderloin into strips for Al Pastor Pork Strips that morning.
+     1. Pat dry the shrimp for the Baja Chili-Lime Shrimp Tacos   (5 min)   [67 chars]
+        Pat 1½ lb large shrimp, peeled and deveined, dry with paper towels.
+        » storage: Covered in the fridge — cook within 2 days.
+  ×  2. Pork tenderloin — cook day   (6 min)  [RENDER-OMITTED]   [43 chars]
+        Cut 1½ lb pork tenderloin into thin strips.
+        » storage: This one is 6 days out — leave it for cook day.

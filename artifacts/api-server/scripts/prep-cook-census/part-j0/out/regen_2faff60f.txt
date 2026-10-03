@@ -1,0 +1,122 @@
+PLAN 2faff60f-9a4e-4afb-897e-35422c5e8c34  [A20]  HTTP 200
+  HEADER: 15 containers · about 75 min · prompt v20
+
+  ── seasonings_dry ──
+     1. Measure the Cajun Shrimp Pasta in Spicy spice blend   (3 min)   [169 chars]
+        Into the Cajun Shrimp Pasta in Spicy spice blend:
+        1½ tsp smoked paprika
+        ½ tsp cayenne pepper
+        ¾ tsp dried oregano
+        ½ tsp dried thyme
+        ½ tsp onion powder
+        ½ tsp garlic powder
+        » storage: Airtight at room temperature — it keeps for weeks.
+     2. Measure the Smoky Chipotle Flank Steak marinade bowl spices   (3 min)   [142 chars]
+        Into the Smoky Chipotle Flank Steak marinade bowl:
+        1 tsp smoked paprika
+        ½ tsp dried oregano
+        1 tsp ground cumin
+        Set aside for the produce step.
+     3. Measure the Chicken Fajitas spice blend   (2 min)   [118 chars]
+        Into the Chicken Fajitas spice blend:
+        1 tsp smoked paprika
+        ½ tsp dried oregano
+        1½ tsp ground cumin
+        1½ tsp chili powder
+        » storage: Airtight at room temperature — it keeps for weeks.
+     4. Measure the Classic Chicken Tetrazzini sauce jar   (3 min)   [139 chars]
+        Into the Classic Chicken Tetrazzini sauce jar:
+        8 oz spaghetti, broken in half
+        3 tbsp All-purpose flour
+        ⅛ tsp nutmeg
+        ½ cup panko breadcrumbs
+        » storage: Airtight at room temperature — it keeps for weeks.
+  ×  5. Fettuccine and reserved pasta cooking water — cook day   (1 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+  ×  6. Fresh salsa — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)   [104 chars]
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+     2. Prep all yellow onion   (8 min)   [453 chars]
+        Work through 3 yellow onions two ways: finely diced and sliced.
+        1 yellow onion finely diced for Cajun Shrimp Pasta in Spicy Cream Sauce — into the tub "Finely diced yellow onion — Cajun Shrimp Pasta in Spicy Cream Sauce, Classic Chicken Tetrazzini"
+        1 yellow onion finely diced for Classic Chicken Tetrazzini — same tub
+        1 yellow onion sliced for Smoky Chipotle Flank Steak Fajitas — into the tub "Smoky Chipotle Flank Steak Fajitas — sliced yellow onion"
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Smoky Chipotle Flank Steak Fajitas#3, Classic Chicken Tetrazzini#3
+     3. Prep all red bell pepper   (10 min)   [519 chars]
+        Work through 4 red bell peppers two ways: thinly sliced and sliced into strips.
+        1 red bell pepper thinly sliced for Cajun Shrimp Pasta in Spicy Cream Sauce — into the tub "Cajun Shrimp Pasta in Spicy Cream Sauce — thinly sliced red bell pepper"
+        2 red bell peppers sliced for Smoky Chipotle Flank Steak Fajitas — into the tub "Sliced red bell pepper — Smoky Chipotle Flank Steak Fajitas, Chicken Fajitas with Roasted Poblano and Corn"
+        1 red bell pepper sliced for Chicken Fajitas with Roasted Poblano and Corn — same tub
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Smoky Chipotle Flank Steak Fajitas#3
+     4. Mince all garlic   (5 min)   [531 chars]
+        Mince 14 cloves of garlic.
+        5 cloves for Cajun Shrimp Pasta in Spicy Cream Sauce — into the tub "Minced garlic cloves — Cajun Shrimp Pasta in Spicy Cream Sauce, Classic Chicken Tetrazzini"
+        3 cloves for Classic Chicken Tetrazzini — same tub
+        3 cloves for Smoky Chipotle Flank Steak Fajitas — into the Smoky Chipotle Flank Steak marinade bowl
+        3 cloves for Chicken Fajitas with Roasted Poblano and Corn — into the tub "Chicken Fajitas with Roasted Poblano and Corn — garlic cloves, fresh cilantro, poblano pepper and fresh corn kernels"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Cajun Shrimp Pasta in Spicy Cream Sauce#1, Classic Chicken Tetrazzini#3
+  ×  5. Fresh flat-leaf parsley — cook day   (1 min)  [RENDER-OMITTED]   [61 chars]
+        A single garnish portion saves the least — cut it on the day.
+     6. Juice the limes   (5 min)   [276 chars]
+        Juice enough limes to make 6 tbsp lime juice.
+        3 tbsp for Smoky Chipotle Flank Steak Fajitas — into the Smoky Chipotle Flank Steak marinade bowl
+        3 tbsp for Chicken Fajitas with Roasted Poblano and Corn — into the tub "Chicken Fajitas with Roasted Poblano and Corn — lime juice"
+        » storage: Covered in the fridge — up to 3 days.
+     7. Slice the yellow bell pepper   (3 min)   [188 chars]
+        Seed and slice 1 yellow bell pepper into strips.
+        1 yellow bell pepper for Smoky Chipotle Flank Steak Fajitas — into the tub "Smoky Chipotle Flank Steak Fajitas — sliced yellow bell pepper"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Smoky Chipotle Flank Steak Fajitas#3
+     8. Chop all cilantro   (2 min)   [346 chars]
+        Roughly chop ½ cup fresh cilantro.
+        ¼ cup for Smoky Chipotle Flank Steak Fajitas — into the tub "Smoky Chipotle Flank Steak Fajitas — chopped fresh cilantro"
+        ¼ cup for Chicken Fajitas with Roasted Poblano and Corn — into the tub "Chicken Fajitas with Roasted Poblano and Corn — garlic cloves, fresh cilantro, poblano pepper and fresh corn kernels"
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+     9. Slice the poblano peppers   (8 min)   [247 chars]
+        Seed and slice 3 poblano peppers into strips.
+        3 poblano peppers for Chicken Fajitas with Roasted Poblano and Corn — into the tub "Chicken Fajitas with Roasted Poblano and Corn — garlic cloves, fresh cilantro, poblano pepper and fresh corn kernels"
+        » covers cook steps: Chicken Fajitas with Roasted Poblano and Corn#2
+    10. Cut the corn kernels   (1 min)   [258 chars]
+        Cut 1½ cup fresh corn kernels from the cob, or thaw frozen kernels.
+        1½ cup for Chicken Fajitas with Roasted Poblano and Corn — into the tub "Chicken Fajitas with Roasted Poblano and Corn — garlic cloves, fresh cilantro, poblano pepper and fresh corn kernels"
+        » storage: Chicken Fajitas with Roasted Poblano and Corn: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Chicken Fajitas spice blend and lime juice separate; combine on cook day…
+    11. Slice the white onion   (3 min)   [192 chars]
+        Halve and thinly slice 1 white onion.
+        1 white onion for Chicken Fajitas with Roasted Poblano and Corn — into the tub "Chicken Fajitas with Roasted Poblano and Corn — thinly sliced white onion"
+        » storage: Airtight in the fridge — up to 4 days.
+    12. Slice the cremini mushrooms   (3 min)   [136 chars]
+        Slice 8 oz cremini mushrooms.
+        8 oz for Classic Chicken Tetrazzini — into the tub "Classic Chicken Tetrazzini — sliced cremini mushrooms"
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Classic Chicken Tetrazzini#3
+
+  ── sauces_marinades ──
+     1. Finish the Smoky Chipotle Flank Steak marinade bowl   (6 min)   [250 chars]
+        Smoky Chipotle Flank Steak marinade bowl (smoked paprika, dried oregano, ground cumin, garlic cloves and the lime juice from produce step 6 already in it): add
+        2 chipotle peppers in adobo sauce, minced, plus 1 tablespoon adobo sauce
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 3 days. Add the flank steak the night before you cook them (Tuesday).
+  ×  2. Dry white wine — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  3. Dry sherry — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     HELD: Add the flank steak the night before you cook them (Tuesday).
+     HELD: Classic Chicken Tetrazzini (Saturday, 6 days out) — cut the chicken breasts into strips that morning.
+  ×  1. Large shrimp, peeled and deveined (16/20 count) — cook day   (5 min)  [RENDER-OMITTED]   [86 chars]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+  ×  2. Flank steak — cook day   (5 min)  [RENDER-OMITTED]   [86 chars]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+  ×  3. Boneless skinless chicken breasts — cook day   (13 min)  [RENDER-OMITTED]   [300 chars]
+        Cut into strips the chicken breasts, keeping each dish's portion in its own wrapping:
+        1¾ lb boneless skinless chicken breasts for Chicken Fajitas with Roasted Poblano and Corn, sliced into ½-inch strips
+        1½ lb boneless skinless chicken breasts for Classic Chicken Tetrazzini, to be cooked and shredded
+        » storage: This one is 6 days out — leave it for cook day.

@@ -146,6 +146,27 @@ export const PrepWeekStepSchema = z.object({
    * is about to add to is the contradiction Hans read on the device.
    */
   suppressStorage: z.boolean().optional(),
+  /**
+   * Part J.0 (D-WS7-153 carry b) — CODE-OWNED. The cook steps whose knife or
+   * mixing work THIS prep step did, by the cook step's own identity. Derived from
+   * the cook steps' `amountRefs`: a `prep`-phase cook step is listed when every
+   * ingredient it states an amount for is handled by a prep step that renders.
+   *
+   * The client's prepped path reads it: a cook step shows as "done in prep" only
+   * when every prep step listing it is complete. Absent on a step that covers none
+   * (and on any blob cached before this shipped). The cooking-sequence route stays
+   * plan-agnostic; the plan payload carries the join.
+   */
+  coversCookSteps: z
+    .array(
+      z.object({
+        mealId: z.string().uuid(),
+        dishId: z.string().uuid(),
+        stepIndex: z.number().int().min(0),
+      }),
+    )
+    .max(60)
+    .optional(),
 });
 export type PrepWeekStep = z.infer<typeof PrepWeekStepSchema>;
 
