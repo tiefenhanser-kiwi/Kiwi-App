@@ -125,3 +125,34 @@ The table alone moves the count little; the holds clear it. How a portion is dec
 | Hans e55a9305 | 23 · 110 (cached v19 blob) → 25 · 105 · 0 completion rows before and after |
 
 Full texts: `out/regen_*.txt`.
+
+---
+
+# Part J.1b — the audit's follow-ups
+
+Run 2026-10-03 on `next`. Prep engine version **4**: a protein's knife verbs changed for the same composition, so warm caches regenerate once. Spend **$0.11** of $1.50, all of it the two engine-v4 regenerations; the final re-renders were cache hits at $0. No migrations; `artifacts/kiwi/**` untouched.
+
+1. **Plates hold per pile; bowls hold whole.** `computeHolds` gives a plate portion its own pile's window, and gives any other portion its container's window. On a plate, a held pile leaves and the rest go on Sunday. The plate's line names the piles that are on it: "Separate piles (iceberg lettuce and white onion) on a small plate…". A mixed bowl (pico) is held entire when any member expires. Both cases are tested.
+2. **The cook-day list has one line per meal, and prep only.** Members are joined in one sentence, with the weekday once. These never appear: a lone measure, a held sauce jar's measures, a package protein, and a protein that joins its marinade (the marinade clause says it).
+   - The line fits by naming things briefly: actions → foods → short food and protein names → the first foods plus "and N more" → the meal's own dish name before " with …". It is never cut mid-word.
+   - Corpus cook-day lines: 178 → 73.
+3. **"Cube and trim the chicken thighs"** came from the dumpling butter's "cubed" sentence. A protein's verbs now come only from prose sentences that name the protein. Hans's plan now reads "Trim the chicken thighs".
+4. **`GET /plans/:planId/prep-week/structure`** returns the engine's step set:
+   - Fields: stepKey, engine title, phase, containerNames, contributesToMealIds, coversCookSteps, skipSuggested, heldForCookDay.
+   - It makes no AI call and writes no cache row. Auth and ownership-as-404 match the prep-week route.
+   - Tested: zero LLMCallLog rows and no cache write or prune.
+   - **Client lane:** Cook Mode can switch to this route. Its titles are engine-made ("Dice the yellow onion") and differ from the narrator's.
+5. **Storage-line labels are said in words**, for example "The herb tub for the Herb Rice: airtight…". A partly held step's opening lists only the cuts the step still does (`dropHeldCuts`).
+
+Found and fixed in Hans's re-render:
+- The Lemon-Herb cook-day line was cut mid-word ("…to the mar"). The fit ladder above replaced the slice.
+- The cilantro step printed "Plate, wrapped, fridge, up to 3 days." twice. Plates that keep alike now collapse to "Both containers: …" whatever their piles, and `fitNote` says identical compact sentences once.
+
+Behaviour change to note: package proteins are off the cook-day list. They are no-work items.
+
+| plan | header J.1 → J.1b |
+|---|---|
+| A10 3f9d46e8 | 15 containers · 50 min → 15 · 50 (Falafel line is now one line) |
+| Hans e55a9305 | 25 · 105 → 25 · 105, v21 |
+
+`out/regen.json` holds the last run only (Hans's). The J.1 runs are in git at 364021e.

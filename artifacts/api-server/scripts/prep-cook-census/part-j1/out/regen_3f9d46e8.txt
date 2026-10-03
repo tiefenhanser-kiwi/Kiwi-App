@@ -75,8 +75,8 @@ PLAN 3f9d46e8-b078-4bd4-b479-9f93cb8c76cd  [A10]  HTTP 200
         Thinly slice 4 oz cremini mushrooms.
         4 oz for Classic Supreme Pizza — into the Classic Supreme Pizza vegetables container
         » storage: Classic Supreme Pizza vegetables: Airtight in the fridge — up to 3 days.
-     6. Prep all yellow onion   (8 min)   [298 chars]
-        Work through 2 yellow onions: thinly sliced, finely diced and chopped.
+     6. Cut all yellow onions   (8 min)   [289 chars]
+        Work through 2 yellow onions: thinly sliced and finely diced.
         1 yellow onion thinly sliced — into the thinly sliced yellow onion tub for the Slow-Braised Collard Greens with Bacon
         1 yellow onion finely diced — into the finely diced yellow onion tub for the Creamy Country Chicken and Gravy
         » storage: Both containers: Airtight in the fridge — up to 4 days.
@@ -87,8 +87,8 @@ PLAN 3f9d46e8-b078-4bd4-b479-9f93cb8c76cd  [A10]  HTTP 200
         12 oz — into the trimmed fresh green beans tub for the Simple Steamed Green Beans with Butter
         » storage: Airtight in the fridge — up to 4 days.
         » covers cook steps: Simple Steamed Green Beans with Butter#0
-     9. Juice the lemons   (4 min)   [218 chars]
-        Juice enough lemons to make 3 tbsp fresh lemon juice.
+     9. Prep the lemons   (4 min)   [236 chars]
+        Cut 4 lemon wedges, then juice lemons to make 3 tbsp fresh lemon juice.
         4 lemon wedges — into the lemon-wedge tub for the Simple Steamed Green Beans with Butter
         3 tbsp fresh lemon juice — into the fresh-lemon-juice tub for the Tabbouleh
         » storage: Airtight in the fridge — up to 4 days. Covered in the fridge — up to 6 days.
@@ -105,8 +105,8 @@ PLAN 3f9d46e8-b078-4bd4-b479-9f93cb8c76cd  [A10]  HTTP 200
         Finely chop ¼ cup fresh mint leaves.
         ¼ cup — into the finely chopped fresh mint leaves tub for the Tabbouleh
         » storage: This one is 6 days out — leave it for cook day.
-  × 13. Roma tomatoes — cook day   (8 min)  [RENDER-OMITTED]   [124 chars]
-        Finely dice 3 roma tomatoes, removing the seeds.
+  × 13. Roma tomatoes — cook day   (8 min)  [RENDER-OMITTED]   [113 chars]
+        Seed and finely dice 3 roma tomatoes.
         3 roma tomatoes — into the finely diced roma tomatoes tub for the Tabbouleh
         » storage: This one is 6 days out — leave it for cook day.
   × 14. English cucumber — cook day   (3 min)  [RENDER-OMITTED]   [113 chars]
@@ -137,13 +137,7 @@ PLAN 3f9d46e8-b078-4bd4-b479-9f93cb8c76cd  [A10]  HTTP 200
 
   ── proteins ──
      » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
-     HELD: Classic Supreme Pizza (Sunday, today) — straight from the package: the Italian sausage.
-     HELD: Buttermilk Fried Chicken with Honey, Biscuits, and Collard Greens (Tuesday, 2 days out) — straight from the package: the bone-in chicken pieces (thighs and drumsticks).
-     HELD: Creamy Country Chicken and Gravy over Biscuits (Thursday, 4 days out) — straight from the package: the boneless skinless chicken thighs.
-     HELD: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday, 6 days out) — measure the ground cumin, measure the ice water, mince the garlic and chop the yellow onion that morning.
-     HELD: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday, 6 days out) — squeeze the fresh lemon juice, chop the fresh flat-leaf parsley and chop the fresh cilantro that morning.
-     HELD: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday, 6 days out) — finely chop the fresh mint leaves, finely dice the roma tomatoes and finely dice the english cucumber that morning.
-     HELD: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday, 6 days out) — thinly slice the green onions and measure the tahini that morning.
+     HELD: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday, 6 days out) — prep the garlic, yellow onion, lemon juice, parsley, cilantro, mint, tomatoes, cucumber and green onions that morning.
   ×  1. Italian sausage — cook day   (1 min)  [RENDER-OMITTED]   [86 chars]
         Nothing to do to it before the pan — it goes in straight from the package on cook day.
   ×  2. Bone-in chicken pieces (thighs and drumsticks) — cook day   (11 min)  [RENDER-OMITTED]   [86 chars]

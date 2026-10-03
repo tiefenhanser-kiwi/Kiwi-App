@@ -42,6 +42,7 @@ import {
 import {
   applyStorageOverlay,
   containerWindowDays,
+  marinadeCookDayAction,
   nounFormTitle,
   storageClassFor,
   type StorageContext,
@@ -60,7 +61,7 @@ export interface StepHold {
   /** The components with the held portions removed (the partial-step render). */
   keptComponents: PrepNarrationComponent[];
   /** The held portions, for the cook-day list. */
-  heldPortions: { mealId: string; ingredientName: string; cut: string | null; window: number; lag: number }[];
+  heldPortions: { mealId: string; ingredientName: string; cut: string | null; window: number; lag: number; dest?: string }[];
 }
 
 export interface PrepWeekBuild {
@@ -102,10 +103,18 @@ export function buildPrepWeekPlan(load: Load, opts: BuildPrepWeekOptions = {}): 
     opts.scopeMealIds ? { scopeMealIds: new Set(opts.scopeMealIds) } : {},
   );
 
-  const closesByStepKey = storageClosesByStepKey(stepPlan.steps, stepPlan.containerExtras);
+  const closesByStepKey = storageClosesByStepKey(stepPlan.steps, stepPlan.containerExtras, stepPlan.labelKinds);
   const holds = opts.noHolds ? new Map<string, StepHold>() : computeHolds(stepPlan, closesByStepKey, cookDays.lagByMealId);
 
   const mealNameById = new Map(input.meals.map((m) => [m.mealId, m.mealName]));
+  /** Plate name → the piles held for cook day today. */
+  const heldPiles = new Map<string, Set<string>>();
+  for (const h of holds.values()) {
+    for (const p of h.heldPortions) {
+      if (!p.dest || !isPlate(p.dest)) continue;
+      heldPiles.set(p.dest, (heldPiles.get(p.dest) ?? new Set()).add(p.ingredientName));
+    }
+  }
   // A step's meals TODAY: the kept ones when something is held.
   const mealsOf = (st: PlannedStep) => {
     const h = holds.get(st.stepKey);
@@ -144,6 +153,13 @@ export function buildPrepWeekPlan(load: Load, opts: BuildPrepWeekOptions = {}): 
       : null;
     const closes = closesByStepKey.get(st.stepKey)?.filter((c) => !stillFilled || stillFilled.has(c.name)).map((c) => ({
       ...c,
+      // J.1b — a plate's line names the piles on it TODAY; a held pile is not.
+      ...(isPlate(c.name) && heldPiles.has(c.name)
+        ? (() => {
+            const names = c.ingredientNames.filter((n) => !heldPiles.get(c.name)!.has(n));
+            return { ingredientNames: names, text: names.join(" ") };
+          })()
+        : {}),
       // J.1 §2 — the marinade's close may point at the proteins step only when it renders.
       ...(c.joins ? { joins: c.joins.map((j) => ({ ...j, proteinVisible: !!j.proteinStepKey && visible(j.proteinStepKey, meals) })) } : {}),
     }));
@@ -207,9 +223,13 @@ function computeHolds(
         touched.add(m.mealId);
         const lag = lagByMealId.get(m.mealId);
         const dest = m.destination ?? st.bowlName;
-        const window = dest !== undefined && windowByName.has(dest) ? windowByName.get(dest)! : ownWindow(st, c);
+        // 🔴 Part J.1b — A PLATE HOLDS PER PILE; A BOWL HOLDS WHOLE. A toppings plate is
+        // separate piles, so each member keeps on its own window: the lettuce and
+        // cilantro go on the plate Sunday and only the tomatoes wait. A mixed bowl (pico,
+        // slaw, a marinade) is one mixture and keeps as its strictest member.
+        const window = dest !== undefined && windowByName.has(dest) && !isPlate(dest) ? windowByName.get(dest)! : ownWindow(st, c);
         const held = lag !== undefined && lag > window;
-        if (held) heldPortions.push({ mealId: m.mealId, ingredientName: c.ingredientName, cut: cutOf([m.preparationNote ?? c.preparationNote ?? ""]), window, lag: lag! });
+        if (held) heldPortions.push({ mealId: m.mealId, ingredientName: c.ingredientName, cut: cutOf([m.preparationNote ?? c.preparationNote ?? ""]), window, lag: lag!, dest });
         else kept.add(m.mealId);
         return !held;
       });
@@ -231,6 +251,9 @@ function computeHolds(
   return out;
 }
 
+/** A toppings plate (R2): its members are separate piles. */
+const isPlate = (name: string) => /\bplate$/i.test(name);
+
 /** "finely diced" → "finely dice", for the cook-day list's verbs. */
 const CUT_VERB: ReadonlyArray<[RegExp, string]> = [
   [/minced/, "mince"], [/diced/, "dice"], [/chopped/, "chop"], [/sliced/, "slice"], [/shredded/, "shred"],
@@ -238,13 +261,9 @@ const CUT_VERB: ReadonlyArray<[RegExp, string]> = [
   [/quartered/, "quarter"], [/trimmed/, "trim"], [/cubed/, "cube"], [/peeled/, "peel"], [/crushed/, "crush"],
   [/torn/, "tear"], [/cut/, "cut"],
 ];
-/**
- * The verb a held item takes on the cook-day list. A measure is measured and a
- * juice squeezed — "cut the ground cumin" and "cut the tahini" were the first draft.
- */
+/** The verb a held item takes: knife work, a squeeze, a zest, or the protein's own verb. */
 function actionFor(cut: string | null, ingredientName: string, phase: string, verbs?: readonly string[]): string {
   if (phase === "proteins") return verbs && verbs.length > 0 ? `${verbs[0]} the ${ingredientName}` : `prep the ${ingredientName}`;
-  if (phase === "seasonings_dry" || phase === "sauces_marinades") return `measure the ${ingredientName}`;
   if (cut) {
     const adverb = /^(finely|thinly|roughly|coarsely)\s/.exec(cut)?.[1];
     const v = CUT_VERB.find(([re]) => re.test(cut))?.[1];
@@ -256,19 +275,25 @@ function actionFor(cut: string | null, ingredientName: string, phase: string, ve
 }
 const listOf = (items: readonly string[]) =>
   items.length <= 1 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+/** "fresh flat-leaf parsley" → "parsley", for the tightest rung of the fit ladder. */
+const bareName = (n: string) =>
+  n.replace(/\b(fresh|boneless|skinless|bone-in|large|small|medium|ripe|english|roma|flat-leaf|leaves?)\b\s*/gi, "").trim() || n;
 
 /** The wire caps each cook-day line at 200 characters and the list at 20. */
 const LINE_MAX = 200;
 const LIST_MAX = 20;
 
 /**
- * 0c — ONE cook-day list, every cook-day item, no duplicates: the portions held for
- * their window (R1), the proteins the engine leaves for cook day, and the produce
- * that browns once cut. Per meal: "Fresh Pico de Gallo (Saturday, 6 days out) — dice
- * the roma tomatoes and the white onion that morning." and, for a protein with no
- * knife work, "Supreme Pizza (Sunday, today) — straight from the package: the Italian
- * sausage." One food is named once per meal. A line that would pass 200 characters is
- * split at an item, never mid-word.
+ * 0c / Part J.1b — ONE cook-day list, ONE LINE PER MEAL, PREP ONLY.
+ *
+ * It carries what would have been a prep step and waits for the cook day: a portion
+ * held for its window (R1), produce that browns once cut, and the marinade's cook-day
+ * action. Never a lone measure, never a no-work item — D-WS9-299 says neither is prep,
+ * and A10's Falafel Plate printed "measure the ground cumin" and "measure the ice
+ * water" across four lines. Members are joined in one sentence with the weekday once:
+ *   "Fresh Pico de Gallo (Saturday, 6 days out) — dice the roma tomatoes and the white
+ *    onion that morning; add the skirt steak to the marinade the night before."
+ * A line over 200 characters is fitted by naming the foods more briefly, never split.
  */
 function heldLinesFor(
   plan: StepPlan,
@@ -276,48 +301,51 @@ function heldLinesFor(
   cookDays: { lagByMealId: ReadonlyMap<string, number>; dayNameByMealId: ReadonlyMap<string, string> },
   mealNameById: ReadonlyMap<string, string>,
 ): string[] {
-  const work = new Map<string, Map<string, string>>(); // mealId → food → action
-  const pkg = new Map<string, string[]>();
-  const addWork = (mealId: string, food: string, action: string) => {
-    const m = work.get(mealId) ?? new Map<string, string>();
-    if (!m.has(food)) m.set(food, action);
-    work.set(mealId, m);
+  type Item = { food: string; action: string; dest?: string };
+  const work = new Map<string, Item[]>(); // mealId → prep items, first action per food
+  const marinade = new Map<string, string[]>(); // mealId → marinade clauses
+  const addWork = (mealId: string, it: Item) => {
+    const l = work.get(mealId) ?? [];
+    if (!l.some((x) => x.food === it.food)) l.push(it);
+    work.set(mealId, l);
   };
   for (const st of plan.steps) {
     const h = holds.get(st.stepKey);
     if (h) {
-      for (const p of h.heldPortions) addWork(p.mealId, p.ingredientName, actionFor(p.cut, p.ingredientName, st.phase, st.knifeVerbs));
+      // A held MEASURE (a dry blend's, a sauce jar's) is not prep work on cook day.
+      if (st.phase === "seasonings_dry" || st.phase === "sauces_marinades") continue;
+      for (const p of h.heldPortions) {
+        addWork(p.mealId, { food: p.ingredientName, action: actionFor(p.cut, p.ingredientName, st.phase, st.knifeVerbs), ...(p.dest && isPlate(p.dest) ? { dest: p.dest } : {}) });
+      }
       continue;
     }
-    if (!st.demoted) continue;
-    for (const c of st.components) {
-      for (const id of [...new Set(c.measures.map((m) => m.mealId).filter((x): x is string => !!x))]) {
-        if (st.phase === "proteins") {
-          const l = pkg.get(id) ?? [];
-          if (!l.includes(`the ${c.ingredientName}`)) l.push(`the ${c.ingredientName}`);
-          pkg.set(id, l);
-        } else if (st.demoted.reason === "does-not-hold") {
-          addWork(id, c.ingredientName, `cut the ${c.ingredientName} (it browns once cut)`);
+    // Held for its CLASS: cut produce that browns once cut. A protein the engine
+    // leaves for cook day has no knife work — a no-work item, so it is not listed.
+    if (st.demoted?.reason === "does-not-hold") {
+      for (const c of st.components) {
+        for (const id of [...new Set(c.measures.map((m) => m.mealId).filter((x): x is string => !!x))]) {
+          addWork(id, { food: c.ingredientName, action: `cut the ${c.ingredientName} (it browns once cut)` });
         }
       }
     }
   }
+  // The marinade's cook-day action, folded into its meal's line.
+  for (const [name, extra] of plan.containerExtras ?? new Map()) {
+    if (!extra.joins?.length) continue;
+    const meals = [...new Set(plan.steps.filter((s) => s.bowlName === name).flatMap((s) => s.contributesToMealIds))];
+    for (const mealId of meals) {
+      for (const j of extra.joins) {
+        const clause = marinadeCookDayAction(j, cookDays.lagByMealId.get(mealId));
+        if (!clause) continue;
+        const l = marinade.get(mealId) ?? [];
+        if (!l.includes(clause)) l.push(clause);
+        marinade.set(mealId, l);
+      }
+    }
+  }
+
   const lines: string[] = [];
-  const fit = (head: string, items: readonly string[], tail: string) => {
-    let chunk: string[] = [];
-    for (const it of items) {
-      if (`${head}${listOf([...chunk, it])}${tail}`.length > LINE_MAX && chunk.length > 0) {
-        lines.push(`${head}${listOf(chunk)}${tail}`);
-        chunk = [it];
-      } else chunk.push(it);
-    }
-    if (chunk.length > 0) {
-      const line = `${head}${listOf(chunk)}${tail}`;
-      lines.push(line.length <= LINE_MAX ? line : `${line.slice(0, LINE_MAX - 1).replace(/\s+\S*$/, "")}…`);
-    }
-  };
-  // In cook-day order, so the list reads like the week.
-  const meals = [...new Set([...work.keys(), ...pkg.keys()])].sort(
+  const meals = [...new Set([...work.keys(), ...marinade.keys()])].sort(
     (a, b) => (cookDays.lagByMealId.get(a) ?? 99) - (cookDays.lagByMealId.get(b) ?? 99),
   );
   for (const mealId of meals) {
@@ -326,12 +354,43 @@ function heldLinesFor(
     const ago = lag === 0 ? "today" : `${lag} ${lag === 1 ? "day" : "days"} out`;
     const when = lag === undefined ? (day ? ` (${day})` : "") : ` (${day ? `${day}, ` : ""}${ago})`;
     const head = `${mealNameById.get(mealId) ?? "A planned meal"}${when} — `;
-    const w = [...(work.get(mealId)?.values() ?? [])];
-    if (w.length > 0) fit(head, w, lag === undefined ? " on cook day." : " that morning.");
-    const p = pkg.get(mealId) ?? [];
-    if (p.length > 0) fit(`${head}straight from the package: `, p, ".");
+    const marinadeClauses = marinade.get(mealId) ?? [];
+    // A protein that joins its marinade the night before (or hours before) is handled
+    // then, not "that morning" — one instruction per food.
+    const items = (work.get(mealId) ?? []).filter((i) => !marinadeClauses.some((c) => c.includes(`add the ${i.food} `)));
+    const plates = [...new Set(items.map((i) => i.dest))];
+    const onePlate = items.length > 0 && plates.length === 1 && plates[0] !== undefined ? plates[0] : null;
+    const moment = lag === undefined ? "on cook day" : "that morning";
+    const prepClause = (names: string[]) =>
+      names.length === 0 ? "" : `${listOf(names)} ${moment}${onePlate ? ` and add ${items.length === 1 && !/s$/i.test(items[0].food) ? "it" : "them"} to the ${onePlate}` : ""}`;
+    const sentence = (h: string, names: string[], marinades: string[]) =>
+      `${h}${[prepClause(names), ...marinades].filter(Boolean).join("; ")}.`;
+    const marinades = marinadeClauses;
+    // The protein named briefly in its clause, for the tighter rungs.
+    const bareMarinades = marinades.map((c) => c.replace(/^add the (.+?) to the marinade/, (_m, who: string) => `add the ${bareName(who)} to the marinade`));
+    // The meal named briefly: its own dish, before " with …".
+    const mealName = mealNameById.get(mealId) ?? "A planned meal";
+    const shortHead = `${mealName.split(/\s+with\s+|,\s*/)[0]}${when} — `;
+    // The fit ladder, under each head: the actions; the foods named plainly; the foods
+    // and the protein named briefly; the first foods and a count. One line, whole
+    // words, whatever happens.
+    const ladder = (h: string): string[] => {
+      const out = [
+        sentence(h, items.map((i) => i.action), marinades),
+        sentence(h, items.length ? [`prep the ${listOf(items.map((i) => i.food))}`] : [], marinades),
+        sentence(h, items.length ? [`prep the ${listOf(items.map((i) => bareName(i.food)))}`] : [], bareMarinades),
+      ];
+      for (let k = items.length - 1; k >= 1; k--) {
+        out.push(sentence(h, [`prep the ${items.slice(0, k).map((i) => bareName(i.food)).join(", ")} and ${items.length - k} more`], bareMarinades));
+      }
+      return out;
+    };
+    const rungs = [...ladder(head), ...ladder(shortHead)];
+    const line = rungs.find((r) => r.length <= LINE_MAX)
+      ?? `${rungs[rungs.length - 1].slice(0, LINE_MAX - 1).replace(/\s+\S*$/, "")}…`;
+    lines.push(line);
   }
-  return lines;
+  return lines.slice(0, LIST_MAX);
 }
 
 /**
@@ -381,6 +440,35 @@ function retotal(opening: string, before: PrepNarrationComponent[], after: PrepN
 }
 
 /**
+ * Part J.1b — the opening names the cuts the step does ("Work through 2 yellow
+ * onions: thinly sliced, finely diced and chopped."). A cut whose every portion is
+ * held for cook day is not done today, so it leaves the list: "…thinly sliced and
+ * finely diced." Only the "<verb> …: a, b and c." shape is rewritten.
+ */
+export function dropHeldCuts(opening: string, before: PrepNarrationComponent[], after: PrepNarrationComponent[]): string {
+  const cutsOf = (cs: PrepNarrationComponent[]) =>
+    new Set(cs.flatMap((c) => c.measures.map((m) => cutOf([m.preparationNote ?? c.preparationNote ?? ""]))).filter((x): x is string => !!x));
+  const was = cutsOf(before);
+  const now = cutsOf(after);
+  const gone = [...was].filter((c) => !now.has(c));
+  if (gone.length === 0) return opening;
+  const m = /^(.*?:\s*)(.+?)(\.?)$/.exec(opening);
+  if (!m) return opening;
+  const items = m[2].split(/,\s*|\s+and\s+/).map((x) => x.trim()).filter(Boolean);
+  // An item is the cut it names exactly, else the longest cut it ends with — the
+  // narrator writes "roughly chopped" where the engine's cut is "chopped", and a kept
+  // "finely diced" must not be dropped for a held "diced".
+  const all = [...new Set([...was, ...now])];
+  const cutOfItem = (it: string) => {
+    const t = it.toLowerCase();
+    return all.find((c) => c === t) ?? all.filter((c) => t.endsWith(` ${c}`)).sort((a, b) => b.length - a.length)[0];
+  };
+  const kept = items.filter((it) => !gone.includes(cutOfItem(it) ?? ""));
+  if (kept.length === items.length || kept.length === 0) return opening;
+  return `${m[1]}${listOf(kept)}${m[3] || "."}`;
+}
+
+/**
  * Part J.1 — everything that depends on TODAY, applied to an assembled (or cached)
  * result: the holds (R1), the portion lines re-rendered from the plan, the protein
  * titles (0f), the storage overlay, and ONE cook-day list (0c). The route calls this
@@ -401,7 +489,9 @@ export function finishPrepWeek(result: PrepWeekResult, build: PrepWeekBuild): Pr
       let out: PrepWeekStep = w;
       if (planned.portionLines) {
         const components = h ? h.keptComponents : planned.components;
-        const opening = h ? retotal(openingSentence(w.instructions), planned.components, components) : openingSentence(w.instructions);
+        const opening = h
+          ? dropHeldCuts(retotal(openingSentence(w.instructions), planned.components, components), planned.components, components)
+          : openingSentence(w.instructions);
         const lines = renderPortionLines({ components }, build.stepPlan.labelKinds, 800 - opening.length - 1)?.lines ?? [];
         out = {
           ...out,

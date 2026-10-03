@@ -2433,3 +2433,65 @@ describe("POST /api/plans/:planId/prep-week — G1: a day move rewrites the advi
     assert.match(none.step.storageNote!, /prep this the day before you cook/);
   });
 });
+
+// ── Part J.1b — GET …/prep-week/structure: the step set for Cook Mode, free ──
+describe("GET /api/plans/:planId/prep-week/structure (J.1b)", () => {
+  const structureUrl = (base: string) => `${base}/plans/${PLAN_ID}/prep-week/structure`;
+  async function spinStructure(cache: ReturnType<typeof makeCacheStub>, counters: { ai: number; log: number }) {
+    const twoProduce = makeTwoProduceLoaderStub(1) as unknown as (p: { planId: string; userId: string }) => Promise<unknown>;
+    // Every LLMCallLog write is counted: the route must make none.
+    const prisma = new Proxy(cache.prisma as object, {
+      get(t, prop) {
+        if (prop === "lLMCallLog") return { create: async () => { counters.log++; return {}; } };
+        return Reflect.get(t, prop);
+      },
+    });
+    return spinUp({
+      loadPrepWeekInput: (async (p: { planId: string; userId: string }) => {
+        if (p.userId !== COMPLETION_OWNER) throw new PrepWeekNotFoundError(p.planId);
+        return twoProduce(p);
+      }) as never,
+      runAICall: makeAICallStub({ onCall: () => { counters.ai++; } }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prisma: prisma as any,
+      subscriptionService: { can: async () => ({ allowed: true }) },
+    });
+  }
+
+  it("returns the engine's step set with ZERO AI calls, ZERO LLMCallLog rows and no cache write", async () => {
+    const cache = completionHarness();
+    const counters = { ai: 0, log: 0 };
+    const harness = await spinStructure(cache, counters);
+    try {
+      const res = await fetch(structureUrl(harness.baseUrl), { headers: { Authorization: `Bearer ${signToken(COMPLETION_OWNER)}` } });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { steps: { stepKey: string; title: string; phase: string; containerNames: string[]; contributesToMealIds: string[]; coversCookSteps: unknown[]; skipSuggested: boolean }[]; heldForCookDay: string[] };
+      assert.equal(counters.ai, 0, "no narration call");
+      assert.equal(counters.log, 0, "no LLMCallLog row");
+      assert.equal(cache.writeCount(), 0, "no cache write");
+      assert.equal(cache.pruneCalls(), 0, "no completion prune");
+      const keys = body.steps.map((s) => s.stepKey);
+      assert.ok(keys.includes(ONION_STEP_KEY) && keys.includes(CARROT_STEP_KEY), keys.join(" | "));
+      const onion = body.steps.find((s) => s.stepKey === ONION_STEP_KEY)!;
+      assert.equal(onion.title, "Dice the yellow onion", "the engine's title, not a narrator's");
+      assert.equal(onion.phase, "produce");
+      assert.deepEqual(onion.contributesToMealIds, [MEAL_ID_X]);
+      assert.ok(Array.isArray(onion.coversCookSteps) && Array.isArray(body.heldForCookDay));
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("404 for a plan the caller does not own, 401 without auth", async () => {
+    const cache = completionHarness();
+    const harness = await spinStructure(cache, { ai: 0, log: 0 });
+    try {
+      const other = await fetch(structureUrl(harness.baseUrl), { headers: { Authorization: `Bearer ${signToken("someone-else")}` } });
+      assert.equal(other.status, 404);
+      const none = await fetch(structureUrl(harness.baseUrl));
+      assert.equal(none.status, 401);
+    } finally {
+      await harness.close();
+    }
+  });
+});

@@ -80,8 +80,9 @@ const FINGERPRINT_ALGO_VERSION = 1;
  *   2 — J.1: R2 container names, toppings plates, component raw mixes, protein
  *       portion steps, dash labels spoken in words.
  *   3 — J.1: count totals take the count's number ("3 yellow onions").
+ *   4 — J.1b: a protein's knife verbs come only from sentences that name it.
  */
-export const PREP_ENGINE_VERSION = 3;
+export const PREP_ENGINE_VERSION = 4;
 
 /**
  * Digest of the loaded plan composition — everything the prep payload is built

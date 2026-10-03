@@ -1435,7 +1435,15 @@ export function buildStepPlan(
         key === "proteins" && !step.cookDaySentence
           ? proteinVerbsFor(
               step.components.map((c) => c.preparationNote ?? "").join(" "),
-              step.relevantDishes.flatMap((d) => dishStepsByName.get(d) ?? []).join(" "),
+              // 🔴 Part J.1b — ONLY THE SENTENCES THAT NAME THIS PROTEIN. The whole dish's
+              // prose was read, so the dumplings' "cold cubed unsalted butter" made the
+              // slow-cooker thighs "Cube and trim" — they go in whole and are shredded
+              // after cooking; the recipe's own verb for them is "the trimmed … thighs".
+              step.relevantDishes
+                .flatMap((d) => dishStepsByName.get(d) ?? [])
+                .flatMap((t) => t.split(/(?<=[.;])\s+/))
+                .filter((s) => step.components.some((c) => proseNames(s, c.ingredientName)))
+                .join(" "),
             )
           : [];
       // D-WS9-297 ruling 13 — the LATEST cook day this step has to survive to.
@@ -2080,6 +2088,12 @@ function attributive(contents: string): string {
  * Texas-Style Beef Chili", "into the shared minced-garlic tub". `namesDish` is the
  * dish the phrase already names, so the line need not say "for <dish>" again.
  */
+/** "the lime-juice tub for the Fresh Pico de Gallo" → "The lime-juice tub for the Fresh Pico de Gallo". */
+export function spokenContainer(name: string, kind?: LabelKind): string {
+  const t = destinationPhrase(name, kind).first.replace(/^into /, "");
+  return `${t.charAt(0).toUpperCase()}${t.slice(1)}`;
+}
+
 export function destinationPhrase(
   dest: string,
   kind?: LabelKind,
@@ -2286,6 +2300,30 @@ export function openingSentence(text: string): string {
   return end > 40 ? cut.slice(0, end + 1) : `${cut.slice(0, OPENING_MAX - 1).trimEnd()}…`;
 }
 
+/**
+ * Part J.1b — THE ENGINE'S OWN TITLE for a step, before any narration. The narrator
+ * writes the titles the Prep the Week screen shows; this is what the free structure
+ * endpoint (GET /plans/:id/prep-week/structure) returns instead, so Cook Mode can
+ * read the step set without a live narration call. Plain and deterministic:
+ * "Measure the Fish Tacos spice blend", "Finish the … marinade bowl", "Mince the
+ * garlic", "Prep the yellow onion", "Trim the chicken thighs".
+ */
+export function engineTitle(st: PlannedStep): string {
+  if (st.fixedProse) return st.fixedProse.title;
+  const cap = (t: string) => `${t.charAt(0).toUpperCase()}${t.slice(1)}`;
+  const names = dedupe(st.components.map((c) => c.ingredientName));
+  const food = listOf(names);
+  if (st.bowlName) return `${st.phase === "sauces_marinades" ? "Finish" : "Measure"} the ${st.bowlName}`.slice(0, 120);
+  if (st.phase === "proteins") return `${cap(st.knifeVerbs?.[0] ?? "prep")} the ${food}`.slice(0, 120);
+  const cuts = dedupe(st.components.flatMap((c) => c.measures.map((m) => cutOf([m.preparationNote ?? c.preparationNote ?? ""]) ?? "")));
+  const verb = cuts.length === 1 && cuts[0] ? CUT_TITLE_VERB.find(([re]) => re.test(cuts[0]))?.[1] : undefined;
+  return `${verb ?? "Prep"} the ${food}`.slice(0, 120);
+}
+const CUT_TITLE_VERB: ReadonlyArray<[RegExp, string]> = [
+  [/minced/, "Mince"], [/diced/, "Dice"], [/chopped/, "Chop"], [/sliced/, "Slice"], [/shredded/, "Shred"],
+  [/grated/, "Grate"], [/juiced/, "Juice"], [/zested/, "Zest"], [/halved/, "Halve"], [/trimmed/, "Trim"], [/peeled/, "Peel"],
+];
+
 /** The narration input's view of components: the code-only attribution removed. */
 function narrationComponents(components: readonly PrepNarrationComponent[]): PrepNarrationComponent[] {
   return components.map((c) => ({
@@ -2362,6 +2400,11 @@ export interface StorageClose {
    * the step IS the container), so the line needs no name in front of it.
    */
   own: boolean;
+  /**
+   * Part J.1b — the container said in words, for the storage line: "The lime-juice
+   * tub for the Fresh Pico de Gallo". Present only for a `<head> — <tail>` label.
+   */
+  spoken?: string;
   /** H7.1 — see ContainerExtra. */
   combineWith?: string[];
   joins?: (MarinadeJoin & { protein: string })[];
@@ -2378,6 +2421,8 @@ export function storageClosesByStepKey(
   steps: readonly PlannedStep[],
   /** H7.1 — `StepPlan.containerExtras`; absent means nothing beyond the storage line. */
   extras: ReadonlyMap<string, ContainerExtra> = new Map(),
+  /** Part J.1b — the plan's label kinds, so a storage line can say a dash label in words. */
+  labelKinds: ReadonlyMap<string, LabelKind> = new Map(),
 ): Map<string, StorageClose[]> {
   const members = new Map<string, { names: Set<string>; notes: string[] }>();
   for (const st of steps) {
@@ -2407,6 +2452,7 @@ export function storageClosesByStepKey(
           ingredientNames,
           text: [...ingredientNames, ...m.notes].join(" "),
           own: st.bowlName === name || ingredientNames.every((x) => mine.has(x)),
+          ...(name.includes(" — ") ? { spoken: spokenContainer(name, labelKinds.get(name)) } : {}),
           ...(extras.get(name) ?? {}),
         };
       }),

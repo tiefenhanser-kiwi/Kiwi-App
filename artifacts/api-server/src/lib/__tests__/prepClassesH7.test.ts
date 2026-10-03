@@ -782,12 +782,15 @@ describe("H7.1 2b — marinades", () => {
     assert.doesNotMatch(proteinNote(overlayAt(marinated("chicken thighs", "2h"), 1).wire), /Then into/);
   });
 
-  it("🔴 the marinade's close names the night-before weekday, and the held list carries it", () => {
+  it("🔴 the marinade's close names the night-before weekday", () => {
     const { wire } = overlayAt(marinated("chicken thighs", true), 3);
     const line = "Add the chicken thighs the night before you cook them (Tuesday).";
     assert.ok(notes(wire).includes(line), notes(wire));
+    // J.1b — the cook-day list has ONE source now (prepWeekBuild.heldLinesFor), which
+    // folds this into the meal's line; the overlay alone no longer writes it. The list
+    // side is pinned in prepWeekJ1.test.ts ("0c — one cook-day list").
     const held = wire.phases.find((p) => p.phase === "proteins")!.heldForCookDay ?? [];
-    assert.ok(held.includes(line), `held: ${held.join(" | ")}`);
+    assert.ok(!held.includes(line), `held: ${held.join(" | ")}`);
   });
 });
 

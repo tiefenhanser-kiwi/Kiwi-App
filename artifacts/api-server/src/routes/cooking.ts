@@ -35,6 +35,7 @@ import {
 } from "../lib/ai/schemas/prepWeek";
 import {
   assemblePrepWeekResult,
+  engineTitle,
   PrepNarrationIncompleteError,
   summarizePrepWeek,
 } from "../lib/prepWeekAssembly";
@@ -734,6 +735,65 @@ export function createCookingRouter(
       await prisma.prepStepCompletion.deleteMany({ where: { planId, stepKey } });
 
       return res.json({ stepKey, checked: false });
+    },
+  );
+
+  // ── Part J.1b — GET …/prep-week/structure: the step set, FREE ────────────
+  //
+  // Cook Mode's prepped view needs the plan's prep steps (the recap) and their
+  // `coversCookSteps`, and fetching them from POST …/prep-week costs a live
+  // narration whenever nothing is cached — a plan edit, a never-prepped plan, a
+  // subset-only user. This is the engine's step set alone: no AI call, no cache
+  // read or write, no completion prune. Same auth and ownership-as-404 as the prep
+  // route; no Premium gate, because nothing here is generated.
+  //
+  // ⚠️ `title` is the ENGINE's (prepWeekAssembly.engineTitle) — the narrator writes
+  // the titles the Prep the Week screen shows, so these read plainer ("Mince the
+  // garlic") and can differ from that screen's wording. Keys, phases, containers,
+  // meals, coverage, holds and the cook-day list are identical to the prep route's:
+  // both go through `buildPrepWeekPlan` and `finishPrepWeek`.
+  router.get(
+    "/plans/:planId/prep-week/structure",
+    requireAuth,
+    completionLimiter,
+    async (req, res) => {
+      const userId = req.userId;
+      if (!userId) return res.status(401).json({ error: "unauthenticated" });
+      const planId = readPlanId(req);
+      if (!planId) return res.status(400).json({ error: "invalid plan id" });
+
+      let loaded;
+      try {
+        loaded = await loadPrepWeekInput({ planId, userId, prisma });
+      } catch (err) {
+        if (err instanceof PrepWeekNotFoundError) return res.status(404).json({ error: "plan not found" });
+        if (err instanceof PrepWeekEmptyPlanError) return res.json({ planId, steps: [], heldForCookDay: [] });
+        logger.error({ event: "prep_week_structure_failed", userId, planId, err }, "Prep structure load failed");
+        return res.status(500).json({ error: "internal server error" });
+      }
+      const build = buildPrepWeekPlan(loaded);
+      const titled = {
+        steps: build.stepPlan.narrationInput.steps.map((s) => {
+          const planned = build.stepPlan.steps.find((p) => p.stepId === s.stepId)!;
+          return { stepId: s.stepId, title: engineTitle(planned), instructions: "-" };
+        }),
+      };
+      const result = finishPrepWeek(assemblePrepWeekResult(build.stepPlan, titled), build);
+      return res.json({
+        planId,
+        steps: result.phases.flatMap((ph) =>
+          ph.steps.map((s) => ({
+            stepKey: s.stepKey,
+            title: s.title,
+            phase: ph.phase,
+            containerNames: s.containerNames ?? [],
+            contributesToMealIds: s.contributesToMealIds,
+            coversCookSteps: s.coversCookSteps ?? [],
+            skipSuggested: s.skipSuggested === true,
+          })),
+        ),
+        heldForCookDay: result.phases.find((p) => p.phase === "proteins")?.heldForCookDay ?? [],
+      });
     },
   );
 

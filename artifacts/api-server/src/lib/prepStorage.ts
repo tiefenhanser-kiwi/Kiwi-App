@@ -509,6 +509,8 @@ export interface StorageContext {
     ingredientNames: readonly string[];
     text: string;
     own: boolean;
+    /** Part J.1b — the container said in words, for a dash label. */
+    spoken?: string;
     /** H7.1 2a — a cold mixture's dressing containers. */
     combineWith?: readonly string[];
     /** H7.1 2b — the proteins that belong with this marinade. */
@@ -562,6 +564,24 @@ export function joinsAtPrep(j: MarinadeJoinFacts, daysUntilCook: number | undefi
   return soon && j.marinates;
 }
 
+/**
+ * Part J.1b — the marinade's cook-day action for the cook-day list, as a clause:
+ * "add the skirt steak to the marinade the night before", "add the chicken breasts to
+ * the marinade 20 minutes before cooking". Null when the protein joins at prep, or
+ * when it is seafood in acid (that sentence lives on the storage line only). The
+ * same decision `timingLines` writes on the storage line.
+ */
+export function marinadeCookDayAction(j: MarinadeJoinFacts, daysUntilCook: number | undefined): string | null {
+  if (j.seafood && j.acidic) return null;
+  if (joinsAtPrep(j, daysUntilCook)) return null;
+  const who = j.protein ?? "protein";
+  const stated = j.windowHours !== undefined && j.windowHours !== null;
+  const long = j.overnight === true || (stated && j.windowHours! >= 8);
+  return stated && !long
+    ? `add the ${who} to the marinade ${hoursPhrase(j.windowHours!)} before cooking`
+    : `add the ${who} to the marinade the night before`;
+}
+
 /** "2 hours", "30 minutes", "1½ hours". */
 function hoursPhrase(h: number): string {
   if (h < 1) return `${Math.round(h * 60)} minutes`;
@@ -613,7 +633,9 @@ function timingLines(
         ? `Add the ${who} ${hoursPhrase(j.windowHours!)} before cooking${when}.`
         : `Add the ${who} the night before you cook them${when}.`;
       out.push(line);
-      held.push(line);
+      // Part J.1b — the cook-day list has ONE source (prepWeekBuild.heldLinesFor),
+      // which folds this into the meal's own line via `marinadeCookDayAction`.
+      void held;
     }
   }
   return out;
@@ -624,10 +646,15 @@ const NOTE_MAX = 200;
 
 /** Part J.1 (R2) — a toppings plate keeps as its strictest pile, under plastic wrap. */
 const PLATE = /\bplate$/i;
+/** The piles parenthetical of a plate note. */
+const PILES = /(?<=^Separate piles) \([^)]*\)/;
 function noteFor(c: { name: string; text: string; ingredientNames: readonly string[] }): string {
   const cls = storageClassFor(c.text, c.name, c.ingredientNames);
   if (PLATE.test(c.name) && !cls.roomTemp) {
-    return `Separate piles on a small plate, under plastic wrap in the fridge — up to ${cls.days} days.`;
+    // Part J.1b — the piles present today, by name: a pile held for cook day is not on it.
+    const piles = [...new Set(c.ingredientNames)];
+    const named = piles.length > 0 && piles.length <= 4 ? ` (${piles.length === 1 ? piles[0] : `${piles.slice(0, -1).join(", ")} and ${piles[piles.length - 1]}`})` : "";
+    return `Separate piles${named} on a small plate, under plastic wrap in the fridge — up to ${cls.days} days.`;
   }
   return cls.note;
 }
@@ -642,7 +669,7 @@ export function containerWindowDays(c: { name: string; text: string; ingredientN
 const COMPACT: ReadonlyArray<[RegExp, string]> = [
   [/Airtight in the fridge, with a barely damp paper towel — /g, "Fridge, damp towel, "],
   [/(?:Airtight|Covered|Sealed jar|Small sealed jar) in the fridge — /g, "Fridge, "],
-  [/Separate piles on a small plate, under plastic wrap in the fridge — /g, "Plate, wrapped, fridge, "],
+  [/Separate piles(?: \([^)]*\))? on a small plate, under plastic wrap in the fridge — /g, "Plate, wrapped, fridge, "],
   [/Small airtight container at room temperature — it keeps for weeks\./g, "Room temperature, weeks."],
   [/Airtight at room temperature — it keeps for weeks\./g, "Room temperature, weeks."],
   [/ It will scent the shelf; a sealed jar helps\./g, ""],
@@ -658,7 +685,8 @@ const COMPACT: ReadonlyArray<[RegExp, string]> = [
 export function fitNote(sentences: readonly string[]): string {
   const full = sentences.join(" ");
   if (full.length <= NOTE_MAX) return full;
-  const compact = sentences.map((s) => COMPACT.reduce((t, [re, to]) => t.replace(re, to), s)).filter((s) => s.trim() !== "");
+  // Part J.1b — two sentences that compact to the same words are said once.
+  const compact = [...new Set(sentences.map((s) => COMPACT.reduce((t, [re, to]) => t.replace(re, to), s)).filter((s) => s.trim() !== ""))];
   const joined = compact.join(" ");
   if (joined.length <= NOTE_MAX) return joined;
   const kept: string[] = [];
@@ -690,8 +718,11 @@ export function closingNote(
   // jalapeño step closing the tomatillo tray AND the cornbread's jalapeño tub read
   // "…up to 4 days. Airtight in the fridge — up to 4 days." twice over.
   const notes = closes.map((c) => noteFor(c));
-  if (closes.length > 1 && notes.every((n) => n === notes[0])) {
-    return finish(`${closes.length === 2 ? "Both containers" : `All ${closes.length} containers`}: ${notes[0]}`);
+  // Part J.1b — two plates that keep alike are alike: the pile names differ, the
+  // window does not, and the compact form would print the same sentence twice.
+  const alike = notes.map((n) => n.replace(PILES, ""));
+  if (closes.length > 1 && alike.every((n) => n === alike[0])) {
+    return finish(`${closes.length === 2 ? "Both containers" : `All ${closes.length} containers`}: ${alike[0]}`);
   }
   const parts: string[] = [];
   for (const [i, c] of closes.entries()) {
@@ -699,8 +730,10 @@ export function closingNote(
     // The full name, so two containers of one dish ("Classic Chicken Noodle Soup —
     // carrots and celery stalks" / "— yellow onion…") stay two. Only a long tub label
     // is cut at its dash, where the list of dinners begins.
-    const label = c.name.length <= 70 ? c.name : c.name.split(" — ")[0];
-    const line = c.own ? note : `${label}: ${note}`;
+    // Part J.1b — a dash label is said in words ("The lime-juice tub for the Fresh Pico
+    // de Gallo: covered in the fridge…"), never printed raw inside the sentence.
+    const label = c.spoken ?? (c.name.length <= 70 ? c.name : c.name.split(" — ")[0]);
+    const line = c.own ? note : `${label}: ${c.spoken ? note.charAt(0).toLowerCase() + note.slice(1) : note}`;
     if (!parts.includes(line)) parts.push(line);
   }
   return finish(parts.join(" "));

@@ -6,9 +6,9 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import type { LoadPrepWeekInputResult, PrepLoadedPlan } from "../prepWeekAggregation";
-import { buildPrepWeekPlan, finishPrepWeek, tickableStepRefs, type PrepWeekBuild } from "../prepWeekBuild";
+import { buildPrepWeekPlan, dropHeldCuts, finishPrepWeek, tickableStepRefs, type PrepWeekBuild } from "../prepWeekBuild";
 import { assemblePrepWeekResult, marinadeWindow, renderPortionLines, summarizePrepWeek } from "../prepWeekAssembly";
-import { fitNote, STORAGE_TABLE, storageClassFor } from "../prepStorage";
+import { closingNote, fitNote, STORAGE_TABLE, storageClassFor } from "../prepStorage";
 import { derivePrepCompletion } from "../prepCompletion";
 import { PrepWeekResultSchema, type PrepWeekResult } from "../ai/schemas/prepWeek";
 
@@ -175,7 +175,7 @@ describe("J.1 R2 — raw parts of a cooked dish", () => {
     }
     const r = wire(b);
     const plateNote = allSteps(r).map((s) => s.storageNote ?? "").find((n) => /plate/.test(n));
-    assert.match(plateNote ?? "", /(?:^|: )Separate piles on a small plate, under plastic wrap in the fridge — up to \d days\.$/);
+    assert.match(plateNote ?? "", /(?:^|: )Separate piles \(iceberg lettuce, roma tomatoes and white onion\) on a small plate, under plastic wrap in the fridge — up to \d days\.$/);
   });
 
   it("container names come from class and form; dry pasta is no-work", () => {
@@ -248,6 +248,122 @@ describe("J.1 R2 — raw parts of a cooked dish", () => {
   });
 });
 
+describe("J.1b — the audit's follow-ups", () => {
+  const tacos = (lag: number): Meal => ({
+    id: uuid(140), name: "Beef Tacos", day: "Tuesday", lag,
+    dishes: [{
+      id: uuid(141), name: "Beef Tacos",
+      ings: [
+        { id: uuid(1401), name: "ground beef", category: "Protein", quantity: 1, unit: "lb" },
+        { id: uuid(1402), name: "iceberg lettuce", category: "Produce", quantity: 2, unit: "cup", note: "shredded, for topping" },
+        { id: uuid(1403), name: "roma tomatoes", category: "Produce", quantity: 2, unit: "each", note: "diced, for topping" },
+        { id: uuid(1404), name: "white onion", category: "Produce", quantity: 0.5, unit: "each", note: "finely diced, to serve" },
+      ],
+      steps: [{ i: 0, phase: "cook", text: "Brown the ground beef for 8 minutes.", ids: [uuid(1401)] }, { i: 1, phase: "assemble", text: "Fill the shells and top with lettuce, tomato and onion.", ids: [uuid(1402), uuid(1403), uuid(1404)] }],
+    }],
+  });
+
+  it("1 — a plate holds per pile: lettuce and onion go on Sunday, only the tomatoes wait, and the plate's line names its piles", () => {
+    const b = buildPrepWeekPlan(load([tacos(3)]));
+    const r = wire(b);
+    const live = allSteps(r).filter((s) => !s.skipSuggested);
+    const liveKey = (id: number) => live.some((s) => s.stepKey === `produce#${uuid(id)}`);
+    assert.ok(liveKey(1402), "the lettuce (3 days) is on the plate Sunday");
+    assert.ok(liveKey(1404), "the onion (4 days) is on the plate Sunday");
+    assert.ok(!liveKey(1403), "the tomatoes (2 days) wait");
+    assert.deepEqual(held(r), ["Beef Tacos (Tuesday, 3 days out) — dice the roma tomatoes that morning and add them to the Beef Tacos toppings plate."]);
+    const plateNote = live.map((s) => s.storageNote ?? "").find((n) => /plate/.test(n))!;
+    assert.match(plateNote, /Separate piles \((?:iceberg lettuce and white onion|white onion and iceberg lettuce)\) on a small plate/);
+    assert.doesNotMatch(plateNote, /tomato/);
+  });
+
+  it("1 — a mixed bowl holds whole: Saturday's pico waits entire, onion and jalapeño with the tomatoes", () => {
+    const r = wire(buildPrepWeekPlan(load([pico(3, "Tuesday")])));
+    for (const ing of ["roma tomato", "white onion", "jalapeño"]) {
+      assert.ok(!allSteps(r).some((s) => !s.skipSuggested && s.instructions.includes(ing) && s.instructions.includes("pico de gallo bowl")), `${ing} is cut Sunday into a bowl that will not keep`);
+    }
+  });
+
+  it("2 — one line per meal, prep only: three held members in one sentence, no lone measure", () => {
+    const r = wire(buildPrepWeekPlan(load([pico(6, "Saturday")])));
+    const lines = held(r).filter((l) => l.startsWith("Fish Tacos"));
+    assert.equal(lines.length, 1, held(r).join(" | "));
+    assert.match(lines[0], /^Fish Tacos \(Saturday, 6 days out\) — .*roma tomatoes.*white onion.*jalapeño.* that morning\.$/);
+    assert.equal((lines[0].match(/Saturday/g) ?? []).length, 1, "the weekday once");
+    for (const l of held(r)) assert.doesNotMatch(l, /\bmeasure\b|ground cumin|chili powder|smoked paprika/, l);
+  });
+
+  it("2 — a held sauce jar's measures and a package protein never reach the list", () => {
+    const r = wire(buildPrepWeekPlan(load([{
+      id: uuid(150), name: "Hummus Night", day: "Sunday", lag: 7,
+      dishes: [{
+        id: uuid(151), name: "Sesame Noodles",
+        ings: [
+          { id: uuid(1502), name: "soy sauce", category: "Pantry", quantity: 2, unit: "tbsp" },
+          { id: uuid(1503), name: "rice vinegar", category: "Pantry", quantity: 1, unit: "tbsp" },
+          { id: uuid(1504), name: "toasted sesame oil", category: "Pantry", quantity: 1, unit: "tsp" },
+          { id: uuid(1505), name: "italian sausage", category: "Protein", quantity: 1, unit: "lb" },
+        ],
+        steps: [
+          { i: 0, phase: "prep", text: "Whisk the soy sauce, rice vinegar and sesame oil into a sauce.", ids: [uuid(1502), uuid(1503), uuid(1504)], key: "sauce" },
+          { i: 1, phase: "cook", text: "Brown the italian sausage for 8 minutes.", ids: [uuid(1505)] },
+        ],
+      }],
+    }])));
+    // The jar keeps 5 days and the meal is 7 out, so the jar IS held — and still not listed.
+    assert.ok(allSteps(r).some((x) => x.skipSuggested && /sauce jar/.test(x.containerNames?.join(" ") ?? "")), "fixture: the sauce jar is held");
+    for (const l of held(r)) assert.doesNotMatch(l, /measure|soy sauce|vinegar|sesame|sausage|package/, l);
+  });
+
+  it("3 — a protein's verb comes from the sentences that NAME it, not from the butter", () => {
+    const b = buildPrepWeekPlan(load([{
+      id: uuid(160), name: "Dumplings", day: "Monday", lag: 1,
+      dishes: [{
+        id: uuid(161), name: "Slow-Cooker Chicken and Dumplings",
+        ings: [
+          { id: uuid(1601), name: "boneless skinless chicken thighs", category: "Protein", quantity: 1.75, unit: "lb", note: "trimmed of excess fat" },
+          { id: uuid(1602), name: "unsalted butter", category: "Dairy", quantity: 4, unit: "tbsp", note: "cold, cubed" },
+        ],
+        steps: [
+          { i: 0, phase: "cook", text: "Place the trimmed 1¾ lb chicken thighs in the slow cooker.", ids: [uuid(1601)] },
+          { i: 1, phase: "cook", text: "Remove the chicken thighs, shred them with two forks and return them.", ids: [] },
+          { i: 2, phase: "prep", text: "Cut in 4 tablespoons cold cubed unsalted butter until the mixture resembles coarse crumbs.", ids: [uuid(1602)] },
+        ],
+      }],
+    }]));
+    const thighs = b.stepPlan.steps.find((s) => s.phase === "proteins")!;
+    assert.deepEqual(thighs.knifeVerbs, ["trim"]);
+  });
+
+  it("5 — a storage line says a dash label in words", () => {
+    const r = wire(buildPrepWeekPlan(load([{
+      id: uuid(170), name: "Rice Night", day: "Monday", lag: 1,
+      dishes: [{
+        id: uuid(171), name: "Herb Rice",
+        ings: [
+          { id: uuid(1701), name: "fresh parsley", category: "Produce", quantity: 0.25, unit: "cup", note: "chopped" },
+          { id: uuid(1702), name: "fresh cilantro", category: "Produce", quantity: 0.25, unit: "cup", note: "chopped" },
+        ],
+        steps: [{ i: 0, phase: "cook", text: "Simmer the rice for 18 minutes.", ids: [] }],
+      }],
+    }])));
+    const notes = allSteps(r).map((s) => s.storageNote ?? "").filter(Boolean);
+    assert.ok(notes.some((n) => n.startsWith("The herb tub for the Herb Rice: airtight in the fridge")), notes.join(" | "));
+    assert.ok(!notes.some((n) => n.includes("Herb Rice — herbs")), "a raw label inside a storage sentence");
+  });
+
+  it("5 — a partly held step's opening lists only the cuts it still does", () => {
+    const c = (cut: string, mealId: string) => ({ ingredientName: "yellow onion", measures: [{ amount: "1", forDish: "D", dishRole: "main" as const, preparationNote: cut, mealId }] });
+    const before = [c("thinly sliced", "a"), c("finely diced", "b"), c("roughly chopped", "c")];
+    const after = [c("thinly sliced", "a"), c("finely diced", "b")];
+    assert.equal(
+      dropHeldCuts("Work through 2 yellow onions: thinly sliced, finely diced and roughly chopped.", before, after),
+      "Work through 2 yellow onions: thinly sliced and finely diced.",
+    );
+    assert.equal(dropHeldCuts("Mince 8 cloves of garlic.", before, after), "Mince 8 cloves of garlic.", "no list, nothing to drop");
+  });
+});
+
 describe("J.1 §2 — the smaller defects", () => {
   it("one citrus, one step, one tub: a dish's zest and juice go together", () => {
     const b = buildPrepWeekPlan(load([{
@@ -284,6 +400,47 @@ describe("J.1 §2 — the smaller defects", () => {
     assert.match(jal.instructions, /into the diced-jalapeño tub for the Jalapeño Cheddar Cornbread/);
   });
 
+  it("J.1b — a long cook-day line fits by naming briefly, never by cutting a word", () => {
+    const name = "Lemon-Herb Roasted Chicken Breasts with Baby Yukon Gold Potatoes and Tomato Relish";
+    const ing = (n: number, nm: string, note: string): Ing => ({ id: uuid(n), name: nm, category: "Produce", quantity: 2, unit: "each", note });
+    const r = wire(buildPrepWeekPlan(load([{
+      id: uuid(90), name, day: "Wednesday", lag: 4,
+      dishes: [{
+        id: uuid(91), name,
+        ings: [
+          { id: uuid(901), name: "boneless skinless chicken breasts", category: "Protein", quantity: 2, unit: "lb", note: "patted dry" },
+          { id: uuid(902), name: "fresh lemon juice", category: "Produce", quantity: 2, unit: "tbsp" },
+          { id: uuid(903), name: "extra-virgin olive oil", category: "Pantry", quantity: 2, unit: "tbsp", pack: "bottle" },
+          ing(904, "heirloom roma tomatoes", "diced, for topping"),
+          ing(905, "ripe hass avocados", "diced, for topping"),
+          ing(906, "english cucumbers", "diced, for topping"),
+          ing(907, "baby yukon gold potatoes", "halved"),
+        ],
+        steps: [
+          { i: 0, phase: "prep", text: "Whisk the lemon juice and olive oil into a marinade.", ids: [uuid(902), uuid(903)], key: "marinade" },
+          { i: 1, phase: "prep", text: "Coat the chicken breasts in the marinade and refrigerate overnight.", ids: [uuid(901)] },
+          { i: 2, phase: "cook", text: "Roast the chicken and potatoes at 425°F for 30 minutes.", ids: [uuid(907)] },
+          { i: 3, phase: "assemble", text: "Top with the tomatoes, avocado and cucumber.", ids: [uuid(904), uuid(905), uuid(906)] },
+        ],
+      }],
+    }])));
+    assert.ok(held(r).length >= 1, "the meal has a cook-day line");
+    for (const l of held(r)) {
+      assert.ok(l.length <= 200, `${l.length}: ${l}`);
+      assert.match(l, /[.…]$/, `a cut line: ${l}`);
+      assert.doesNotMatch(l, /\bthe mar$|\bmar\.$/, l);
+    }
+  });
+
+  it("J.1b — two plates that keep alike say it once, whatever their piles", () => {
+    const note = closingNote([
+      { name: "Classic Chili Fixings plate", text: "", ingredientNames: ["fresh cilantro"], own: false },
+      { name: "Taco Toppings plate", text: "", ingredientNames: ["fresh cilantro", "white onion"], own: true },
+    ]);
+    assert.match(note, /^Both containers: Separate piles on a small plate, under plastic wrap in the fridge — up to \d days\.$/, note);
+    assert.equal(fitNote(["Plate, wrapped, fridge, up to 3 days.", "Plate, wrapped, fridge, up to 3 days.", "x".repeat(199) + "."]).split("Plate,").length, 2, "an identical compact sentence is said once");
+  });
+
   it("0c — one cook-day list, no duplicates: two marinades for one protein print its line once", () => {
     const harissa = (n: number, name: string): Dish => ({
       id: uuid(n), name,
@@ -300,8 +457,9 @@ describe("J.1 §2 — the smaller defects", () => {
       ],
     });
     const r = wire(buildPrepWeekPlan(load([{ id: uuid(85), name: "Harissa Night", day: "Tuesday", lag: 3, dishes: [harissa(860, "Harissa Chicken"), harissa(870, "Harissa Chicken Bowls")] }])));
-    const line = "Add the chicken thighs the night before you cook them (Tuesday).";
-    assert.equal(held(r).filter((l) => l === line).length, 1, held(r).join(" | "));
+    // J.1b — one line for the meal, the clause once, and no "that morning" for a protein
+    // that is handled the night before.
+    assert.deepEqual(held(r), ["Harissa Night (Tuesday, 3 days out) — add the chicken thighs to the marinade the night before."]);
   });
 
   it("the marinade window is the recipe's: parsed from its own steps", () => {
