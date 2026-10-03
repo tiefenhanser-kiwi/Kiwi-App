@@ -47,7 +47,7 @@ import { PrismaClient } from "@prisma/client";
 import { loadPrepWeekInput } from "../../src/lib/prepWeekAggregation";
 import { buildPrepCombineInput } from "../../src/lib/prepCombineAdapter";
 import { combinePrep } from "../../src/lib/prepCombineEngine";
-import { buildStepPlan, assemblePrepWeekResult, summarizePrepWeek } from "../../src/lib/prepWeekAssembly";
+import { buildStepPlan, assemblePrepWeekResult, summarizePrepWeek, storageClosesByStepKey } from "../../src/lib/prepWeekAssembly";
 import { PrepNarrationResultSchema } from "../../src/lib/ai/schemas/prepNarration";
 import { PrepWeekResultSchema } from "../../src/lib/ai/schemas/prepWeek";
 import { runAICall } from "../../src/lib/ai/runAICall";
@@ -344,8 +344,10 @@ async function runPlan(planId: string): Promise<PlanRecord> {
 
   // ── Prep the Week (the blended path, cache bypassed on both sides) ────────
   try {
-    const { input, cookDays } = await loadPrepWeekInput({ planId: plan.id, userId: plan.userId, prisma });
-    const combineResult = combinePrep(buildPrepCombineInput(input));
+    const { input, cookDays, identity } = await loadPrepWeekInput({ planId: plan.id, userId: plan.userId, prisma });
+    // H7 — WITH the identity fold, as the route does. Without it the census has shown
+    // two steps for one food since H6 (the d06a721d parsley pair).
+    const combineResult = combinePrep(buildPrepCombineInput(input), identity?.foldedIdByIngredientId);
     const stepTextByDishId = new Map<string, string[]>();
     for (const meal of input.meals) {
       for (const dish of meal.dishes) stepTextByDishId.set(dish.dishId, dish.stepTexts);
@@ -370,6 +372,8 @@ async function runPlan(planId: string): Promise<PlanRecord> {
         // notes and the protein demotions are computed, not narrated.
         const mealNameById = new Map(input.meals.map((m) => [m.mealId, m.mealName]));
         const storageContext = new Map<string, StorageContext>();
+        // H7 2b — the same closes the route hands the overlay.
+        const closesByStepKey = storageClosesByStepKey(stepPlan.steps);
         for (const st of stepPlan.steps) {
           const names = st.components.map((c) => c.ingredientName);
           const notes = st.components.flatMap((c) => [
@@ -396,6 +400,7 @@ async function runPlan(planId: string): Promise<PlanRecord> {
             text: [...names, ...notes].join(" "),
             bowlName: st.bowlName,
             ingredientNames: names,
+            ...(closesByStepKey.has(st.stepKey) ? { closes: closesByStepKey.get(st.stepKey)! } : {}),
           });
         }
         const assembled = PrepWeekResultSchema.parse(

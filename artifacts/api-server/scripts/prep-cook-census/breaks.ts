@@ -1130,6 +1130,177 @@ const BREAKS: Break[] = [
     runner: "api",
     expect: "the blender's cilantro rides on the roasting tray and the cook has to pick it back out",
   },
+  // ── [prepcook] H7 — Hans's October 2 ruling, one break per test ─────────────
+  {
+    n: 84,
+    ruling: "H7 1 — no container mixes classes A/B/C",
+    file: join(API, "src/lib/prepWeekAssembly.ts"),
+    cwd: API,
+    edits: [{ from: '    if (p.cls === "B") return heat ? "B" : null;', to: '    if (p.cls === "B") return heat ? "A" : null;' }],
+    test: "src/lib/__tests__/prepClassesH7.test.ts",
+    runner: "api",
+    expect: "the taco pan's diced onion joins its spice blend — a vegetable in a seasoning container",
+  },
+  {
+    n: 85,
+    ruling: "H7 2 — a serve-time step groups nothing",
+    file: join(API, "src/lib/prepMoments.ts"),
+    cwd: API,
+    edits: [
+      {
+        from: "    if (!isHeatMoment(named, ordered)) {\n      serveStep.set(ing.ingredientId, named.stepIndex);\n      continue;\n    }",
+        to: "    void serveStep;",
+      },
+    ],
+    test: "src/lib/__tests__/prepClassesH7.test.ts",
+    runner: "api",
+    expect: "the table-side toss becomes a moment and the tomatoes and cucumber share a container",
+  },
+  {
+    n: 86,
+    ruling: "H7 3 (2a) — a lone cut portion gets a `<Dish> — <item>` container",
+    file: join(API, "src/lib/prepWeekAssembly.ts"),
+    cwd: API,
+    edits: [
+      {
+        from: "            dishes.length > 1 ? containerLabel(upperFirst(noun), dishes) : containerLabel(p.dishName, [noun]);",
+        to: "            dishes.length > 1 ? containerLabel(upperFirst(noun), dishes) : (undefined as unknown as string);",
+      },
+    ],
+    test: "src/lib/__tests__/prepClassesH7.test.ts",
+    runner: "api",
+    expect: "the cornbread's diced jalapeño has no lid again",
+  },
+  {
+    n: 87,
+    ruling: "H7 4 (2b) — every container closes exactly once, on its last step",
+    file: join(API, "src/lib/prepWeekAssembly.ts"),
+    cwd: API,
+    edits: [{ from: "    const last = l[l.length - 1];\n    last.closes", to: "    const last = l[0];\n    last.closes" }],
+    test: "src/lib/__tests__/prepClassesH7.test.ts",
+    runner: "api",
+    expect: "the slow cooker's vegetables are closed by the FIRST knife step, before the carrots go in",
+  },
+  {
+    n: 88,
+    ruling: "H7 5 (2c) — a heated step is never prep",
+    file: join(API, "src/lib/prepWeekAssembly.ts"),
+    cwd: API,
+    edits: [{ from: '        if (!worked) planned.demoted = { reason: "heat-or-no-knife-work" };', to: "        void worked;" }],
+    test: "src/lib/__tests__/prepClassesH7.test.ts",
+    runner: "api",
+    expect: "'Brown the Italian sausage' is back on the prep list",
+  },
+  {
+    n: 89,
+    ruling: "H7 6 (2c) — a single-item measure is never prep",
+    file: join(API, "src/lib/prepWeekAssembly.ts"),
+    cwd: API,
+    edits: [{ from: '          measured <= 1 ? "single-item" : "below-floor-or-not-one-moment",', to: "          undefined," }],
+    test: "src/lib/__tests__/prepClassesH7.test.ts",
+    runner: "api",
+    expect: "the lone hot sauce and the two-item Alfredo 'seasoning' are prep again",
+  },
+  {
+    n: 90,
+    ruling: "H7 7 (2c) — the narrator cannot flip skipSuggested",
+    file: join(API, "src/lib/prepWeekAssembly.ts"),
+    cwd: API,
+    edits: [
+      {
+        from: "      // D-WS9-301 rule 7 — the engine's own demotion has to reach the wire, not",
+        to: "      ...(prose.skipSuggested ? { skipSuggested: true } : {}),\n      // D-WS9-301 rule 7 — the engine's own demotion has to reach the wire, not",
+      },
+    ],
+    test: "src/lib/__tests__/prepWeekAssembly.test.ts",
+    runner: "api",
+    expect: "the model's demotion of the cubed chuck reaches the wire",
+  },
+  {
+    n: 91,
+    ruling: "H7 8 (2d) — one produce step per food, citrus included",
+    file: join(API, "src/lib/prepClasses.ts"),
+    cwd: API,
+    edits: [{ from: "  const base = sourceYield?.fromName ?? ingredientName;", to: "  const base = ingredientName;" }],
+    test: "src/lib/__tests__/prepClassesH7.test.ts",
+    runner: "api",
+    expect: "the lemon is zested in one step and juiced in two more",
+  },
+  {
+    n: 92,
+    ruling: "H7 8 (2d) — the parsley pair folds when the grocery lane folds it",
+    file: join(API, "src/lib/ingredientRelations.ts"),
+    cwd: API,
+    edits: [{ from: '  return v.kind === "admit" ? { target: v.target, member: v.member } : null;', to: "  void v;\n  return null;" }],
+    test: "src/lib/__tests__/prepClassesH7.test.ts",
+    runner: "api",
+    expect: "fresh parsley and fresh flat-leaf parsley are two steps again",
+  },
+  {
+    n: 93,
+    ruling: "H7 9 (2e) — no condiment in the dry phase",
+    file: join(API, "src/lib/prepCombineEngine.ts"),
+    cwd: API,
+    edits: [
+      {
+        from: '    if (purchaseUnit && WET_PACKS.has(purchaseUnit.trim().toLowerCase())) return "sauces_marinades";\n',
+        to: "",
+      },
+    ],
+    test: "src/lib/__tests__/prepClassesH7.test.ts",
+    runner: "api",
+    expect: "dijon and mayonnaise are measured with the dry spices again",
+  },
+  {
+    n: 94,
+    ruling: "H7 10 (2f) — the 'already in it' list equals the container's members",
+    file: join(API, "src/lib/prepWeekAssembly.ts"),
+    cwd: API,
+    edits: [
+      {
+        from: "    if (holds.length > 0) st.containerHolds = holds;",
+        to: '    if (holds.length > 0) st.containerHolds = [...holds, "baby Yukon gold potatoes"];',
+      },
+    ],
+    test: "src/lib/__tests__/prepClassesH7.test.ts",
+    runner: "api",
+    expect: "the potatoes moved to cook day are 'already in it' again",
+  },
+  {
+    n: 95,
+    ruling: "H7 10 (2f) — the closing verb is the code's",
+    file: join(API, "src/lib/prepWeekAssembly.ts"),
+    cwd: API,
+    edits: [
+      {
+        from: '        st.closingLine = emulsion ? "Whisk to combine." : "Stir to combine.";',
+        to: '        st.closingLine = emulsion ? "Toss to coat." : "Stir to combine.";',
+      },
+    ],
+    test: "src/lib/__tests__/prepClassesH7.test.ts",
+    runner: "api",
+    expect: "a bowl of oil, lemon and aromatics is told to 'toss to coat'",
+  },
+  {
+    n: 96,
+    ruling: "H7 found — a weight is not the verb 'pound'",
+    file: join(API, "src/lib/prepComponents.ts"),
+    cwd: API,
+    edits: [{ from: "  [/(?<![\\d½¼¾⅓⅔⅛⅜⅝⅞]\\s?|\\b(?:a|one|two|three|four|half a)\\s)\\bpound(?:s|ed|ing)?\\b/i, \"pound\"],", to: "  [/\\bpound(?:s|ed|ing)?\\b/i, \"pound\"]," }],
+    test: "src/lib/__tests__/prepClassesH7.test.ts",
+    runner: "api",
+    expect: "'1½ pounds shrimp' becomes 'Pound the shrimp' again",
+  },
+  {
+    n: 97,
+    ruling: "H7 found — a cook-day line only into a bowl that exists",
+    file: join(API, "src/lib/prepWeekAssembly.ts"),
+    cwd: API,
+    edits: [{ from: "          const bowl = c.cookDayInto ? liveBowl.get(`${c.dishId}|${c.cookDayInto}`) : undefined;", to: "          const bowl = c.cookDayInto ?? undefined;" }],
+    test: "src/lib/__tests__/prepClassesH7.test.ts",
+    runner: "api",
+    expect: "the Alfredo chicken goes 'into the Alfredo seasoning' that no longer exists",
+  },
 ];
 
 function runTest(b: Break): { pass: boolean; tail: string } {
@@ -1168,7 +1339,12 @@ function runTest(b: Break): { pass: boolean; tail: string } {
 const results: string[] = [];
 let allRed = true;
 
-for (const b of BREAKS) {
+// H7 — `--only=H7` runs one round's breaks. An earlier round's anchors can move with
+// a later round's rewrite; that is reported by a full run, not hidden by a filter.
+const ONLY = process.argv.find((a) => a.startsWith("--only="))?.slice("--only=".length);
+const SELECTED = ONLY ? BREAKS.filter((b) => b.ruling.startsWith(ONLY)) : BREAKS;
+
+for (const b of SELECTED) {
   const original = readFileSync(b.file, "utf8");
   const before = sha(original);
   const missing = b.edits.filter((e) => !original.includes(e.from));
@@ -1204,5 +1380,5 @@ for (const b of BREAKS) {
 }
 
 console.log(results.join("\n\n"));
-console.log(`\n${allRed ? `All ${BREAKS.length} breaks RED and restored.` : "⚠️ NOT every break was red — see above."}`);
+console.log(`\n${allRed ? `All ${SELECTED.length} breaks RED and restored.` : "⚠️ NOT every break was red — see above."}`);
 if (!allRed) process.exitCode = 1;
