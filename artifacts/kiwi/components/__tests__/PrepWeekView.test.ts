@@ -437,6 +437,104 @@ test("footer line: an empty phase names the next one and promises no minutes", (
   assert.ok(!texts.includes("This step:"), `an empty phase shows minutes: ${texts}`);
 });
 
+// ── D-WS9-298 note + D-WS9-301 rule 13 "On cook day" list ─────────────────────
+
+const HELD = [
+  "Chicken fajitas (Friday, 6 days out) — trim the thighs that morning.",
+  "Tomatoes for the salsa — they would not hold.",
+];
+const NOTE = "Proteins stay whole until two days out.";
+
+/** `note: null` sends no note (an explicit `undefined` would take the default). */
+function heldResult(held: string[] = HELD, note: string | null = NOTE): PrepWeekResult {
+  const r = result();
+  r.phases[3] = { ...r.phases[3], heldForCookDay: held, note: note ?? undefined };
+  return r;
+}
+
+/** The View that directly holds the "On cook day" heading (null: none). */
+function findHeldList(node: RenderedNode | string | null): RenderedNode | null {
+  if (node == null || typeof node === "string") return null;
+  const kids = node.children ?? [];
+  if (
+    node.type === "rn-view" &&
+    kids.some((c) => typeof c !== "string" && c.type === "rn-text" && flat(c) === "On cook day")
+  ) {
+    return node;
+  }
+  for (const c of kids) {
+    const hit = findHeldList(c);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+function countWhere(node: RenderedNode | string | null, pred: (n: RenderedNode) => boolean): number {
+  if (node == null || typeof node === "string") return 0;
+  return (pred(node) ? 1 : 0) + (node.children ?? []).reduce((n, c) => n + countWhere(c, pred), 0);
+}
+const isCheckbox = (n: RenderedNode) =>
+  (n.props as { accessibilityRole?: unknown } | undefined)?.accessibilityRole === "checkbox";
+
+test("held list: renders under 'On cook day' at the end of the phase that carries it", () => {
+  const tree = renderView({
+    resultOverride: heldResult(),
+    phaseIndex: 3,
+  }).toJSON() as RenderedNode | null;
+  const list = findHeldList(tree);
+  assert.ok(list, `no "On cook day" list: ${flat(tree)}`);
+  for (const line of HELD) assert.ok(flat(list).includes(line), `missing held line: ${line}`);
+  // One Text per item, after the heading.
+  assert.equal((list!.children ?? []).length, 1 + HELD.length);
+  // At the END of the phase: after the step cards, before the make-ahead note.
+  const all = flat(tree);
+  assert.ok(all.indexOf("Trim chicken") < all.indexOf("On cook day"), all);
+  assert.ok(all.indexOf("On cook day") < all.indexOf("Kiwi skips the prep"), all);
+});
+
+test("held list: untickable — no checkbox, no press target, and outside the phase's progress", () => {
+  const onToggle: string[] = [];
+  const plainTree = renderView({ phaseIndex: 3, onToggleStep: (k) => onToggle.push(k) })
+    .toJSON() as RenderedNode | null;
+  const heldTree = renderView({
+    resultOverride: heldResult(),
+    phaseIndex: 3,
+    onToggleStep: (k) => onToggle.push(k),
+  }).toJSON() as RenderedNode | null;
+
+  const list = findHeldList(heldTree)!;
+  assert.equal(countWhere(list, isCheckbox), 0, "a held line carries a checkbox");
+  assert.equal(
+    countWhere(list, (n) => typeof (n.props as { onPress?: unknown })?.onPress === "function"),
+    0,
+    "a held line is pressable",
+  );
+  // The same checkboxes, the same footer minutes, with or without the list.
+  assert.equal(countWhere(heldTree, isCheckbox), countWhere(plainTree, isCheckbox));
+  assert.ok(flat(heldTree).includes("Last step · This step: ~10 min"), flat(heldTree));
+});
+
+test("held list: an empty list renders nothing — no heading", () => {
+  const empty = renderView({ resultOverride: heldResult([]), phaseIndex: 3 }).toJSON() as RenderedNode | null;
+  assert.equal(findHeldList(empty), null);
+  assert.ok(!flat(empty).includes("On cook day"), flat(empty));
+  // And a phase that never carried one shows none either.
+  assert.ok(!flat(renderView({ phaseIndex: 2 }).toJSON() as RenderedNode | null).includes("On cook day"));
+});
+
+test("phase note: one quiet line under the phase card when present; nothing when absent", () => {
+  const withNote = renderView({ resultOverride: heldResult(), phaseIndex: 3 }).toJSON() as RenderedNode | null;
+  const all = flat(withNote);
+  assert.ok(all.includes(NOTE), `missing phase note: ${all}`);
+  assert.ok(all.indexOf("Proteins") < all.indexOf(NOTE), "note is not under the title");
+  assert.ok(all.indexOf(NOTE) < all.indexOf("Trim chicken"), "note is not above the steps");
+
+  const without = flat(
+    renderView({ resultOverride: heldResult(HELD, null), phaseIndex: 3 }).toJSON() as RenderedNode | null,
+  );
+  assert.ok(!without.includes(NOTE), without);
+});
+
 // ── Empty phase ───────────────────────────────────────────────────────────────
 
 test("empty phase: a phase with zero steps shows the all-set note", () => {

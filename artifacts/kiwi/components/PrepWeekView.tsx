@@ -301,6 +301,12 @@ export function PrepWeekView({
           </View>
         )}
 
+        {/* D-WS9-298 — the server's quiet line about this phase (today: why
+            Proteins is short). The storage-note tier, not an alert: no icon, no
+            colour. It sits just under the sage card rather than inside it,
+            because that tier's ink does not read on sage[700]. */}
+        {phase?.note ? <Text style={s.storageNote}>{phase.note}</Text> : null}
+
         {/* Numbered combined-step cards, or an empty-phase note. */}
         {phase && phase.steps.length > 0 ? (
           phase.steps.map((step) => (
@@ -315,6 +321,22 @@ export function PrepWeekView({
             Nothing to prep ahead in this phase — you&apos;re all set here.
           </Text>
         )}
+
+        {/* D-WS9-301 rule 13 — what Prep the Week leaves for the night of
+            cooking (a chicken for Friday; tomatoes that would not hold). Lines,
+            not steps: no checkbox, no Pressable, and none of it counts toward
+            the phase's progress or the footer's minutes (prepWeekModel keeps
+            it out of `steps`). Rendered on whichever phase carries it. */}
+        {phase && phase.heldForCookDay.length > 0 ? (
+          <View style={s.heldList}>
+            <Text style={s.whereHeading}>On cook day</Text>
+            {phase.heldForCookDay.map((line, i) => (
+              <Text key={i} style={s.storageNote}>
+                {line}
+              </Text>
+            ))}
+          </View>
+        ) : null}
 
         <Text style={s.footerNote}>{FOOTER_NOTE}</Text>
       </ScrollView>
@@ -561,6 +583,12 @@ const s = StyleSheet.create({
     fontStyle: "italic",
   },
 
+  // D-WS9-301 rule 13 — the "On cook day" list: an eyebrow (whereHeading) over
+  // storage-note lines. No card, no border: it is information, not a task.
+  heldList: {
+    gap: Spacing[1],
+    paddingHorizontal: Spacing[1],
+  },
   emptyPhase: {
     fontSize: Typography.fontSize.md,
     color: Colors.neutral[700],

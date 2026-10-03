@@ -267,6 +267,24 @@ const PrepWeekStepSchema = z.object({
    * is about to add to is the contradiction Hans read on the device.
    */
   suppressStorage: z.boolean().optional(),
+  /**
+   * Part J.0 — CODE-OWNED. The cook steps whose knife or mixing work THIS prep
+   * step did, by the cook step's own identity (`stepIndex` is the persisted
+   * recipe step index, the same one the Cooking Sequencer joins on). Cook Mode
+   * shows a cook step as "done in prep" only when every prep step listing it is
+   * complete. Absent on a step that covers none, and on a blob cached before the
+   * server sent it. Looser than the server's (no uuid / max) on purpose: this
+   * side only joins on it.
+   */
+  coversCookSteps: z
+    .array(
+      z.object({
+        mealId: z.string(),
+        dishId: z.string(),
+        stepIndex: z.number().int(),
+      }),
+    )
+    .optional(),
 });
 export type PrepWeekStep = z.infer<typeof PrepWeekStepSchema>;
 
@@ -274,6 +292,13 @@ const PrepWeekPhaseSchema = z.object({
   phase: PrepWeekPhaseKeySchema,
   title: z.string().min(1).max(80),
   skippable: z.boolean(),
+  // WS9 D-WS9-298 item 3 — one quiet line under the phase title (today only
+  // Proteins carries one, saying why it is short). Code-owned, every read.
+  note: z.string().max(200).optional(),
+  // D-WS9-301 rule 13 — what Prep the Week deliberately leaves for the night of
+  // cooking ("Texas-style chili (Saturday, 5 days out) — cube the chuck that
+  // morning."). Lines of text, NOT steps: no stepKey, no checkbox, no minutes.
+  heldForCookDay: z.array(z.string().max(200)).max(20).optional(),
   // A phase may be emitted with zero steps to keep the 4-phase shape stable.
   steps: z.array(PrepWeekStepSchema).min(0).max(30),
 });

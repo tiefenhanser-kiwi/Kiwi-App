@@ -73,6 +73,16 @@ export interface PrepPhaseVM {
   phase: PrepWeekPhaseKey;
   title: string;
   skippable: boolean;
+  /** D-WS9-298 — the quiet line under the phase title; absent when the server
+   *  sends none. */
+  note?: string;
+  /**
+   * D-WS9-301 rule 13 — what this phase leaves for the night of cooking. TEXT,
+   * not steps: outside `steps`, so it never reaches the checkboxes, the
+   * done/total rollups, `allDone` (auto-advance), "Mark all complete"'s batch or
+   * the footer's minutes. Empty when the server sends none.
+   */
+  heldForCookDay: string[];
   steps: PrepStepVM[];
   /** Checked steps in this phase. */
   doneCount: number;
@@ -193,6 +203,8 @@ export function buildPrepWeekModel(
       phase: phase.phase,
       title: phase.title,
       skippable: phase.skippable,
+      note: phase.note,
+      heldForCookDay: phase.heldForCookDay ?? [],
       steps,
       doneCount,
       totalCount,

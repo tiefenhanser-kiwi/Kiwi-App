@@ -416,6 +416,42 @@ test("getPrepWeek POSTs to the prep-week path with NO body and parses the cache-
   assert.equal(protein.storageNote, "Airtight, 2 days max");
 });
 
+// Part J.0 / D-WS9-298 / D-WS9-301 rule 13 — the three fields the mirror used to
+// strip. Zod drops unknown keys silently, so "it parsed" proves nothing: each
+// field is asserted to come OUT the other side.
+test("getPrepWeek keeps the phase note, the held-for-cook-day list and coversCookSteps", async () => {
+  const covers = [{ mealId: M1, dishId: "33333333-3333-4333-8333-333333333333", stepIndex: 4 }];
+  const result = structuredClone(PREP_RESULT) as typeof PREP_RESULT & {
+    phases: Array<Record<string, unknown> & { steps: Array<Record<string, unknown>> }>;
+  };
+  result.phases[1].steps[0].coversCookSteps = covers;
+  result.phases[3].note = "Proteins stay whole until two days out.";
+  result.phases[3].heldForCookDay = [
+    "Texas-style chili (Saturday, 5 days out) — cube the chuck that morning.",
+  ];
+  nextResponse = () => mockJson({ ...HIT_ENVELOPE, result });
+
+  const out = await getPrepWeek("plan-1");
+  assert.equal(out.kind, "ok");
+  if (out.kind !== "ok") return;
+  const [, produce, , proteins] = out.envelope.result.phases;
+  assert.deepEqual(produce.steps[0].coversCookSteps, covers);
+  assert.equal(proteins.note, "Proteins stay whole until two days out.");
+  assert.deepEqual(proteins.heldForCookDay, [
+    "Texas-style chili (Saturday, 5 days out) — cube the chuck that morning.",
+  ]);
+});
+
+test("getPrepWeek still parses a payload WITHOUT the three fields (an older cached blob)", async () => {
+  nextResponse = () => mockJson(HIT_ENVELOPE); // PREP_RESULT carries none of them
+  const out = await getPrepWeek("plan-1");
+  assert.equal(out.kind, "ok");
+  if (out.kind !== "ok") return;
+  const phases = out.envelope.result.phases;
+  assert.ok(phases.every((p) => p.note === undefined && p.heldForCookDay === undefined));
+  assert.ok(phases.flatMap((p) => p.steps).every((s) => s.coversCookSteps === undefined));
+});
+
 test("getPrepWeek parses the cache-MISS envelope (metadata.latencyMs present)", async () => {
   nextResponse = () => mockJson(MISS_ENVELOPE);
   const out = await getPrepWeek("plan-1");

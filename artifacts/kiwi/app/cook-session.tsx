@@ -6,10 +6,10 @@
 // Block 4 (Week Prep) and is intentionally untouched here.
 //
 // CRITICAL INVARIANT: prep state is READ only from plan/instance context
-// (PlanDetailItem.isPrepped via usePlan). The Meal/Dish recipe (useMeal/useDish)
-// is render-only. Nothing here writes a prep mark — per-meal prep write-back is
-// D-WS7-157 (Block 4), where the prep-week step-keys are in scope. The gate
-// reads + filters in memory only.
+// (PlanDetailItem.isPrepped via usePlan, plus the plan's prep-week payload and
+// completions for the K-R7 prepped view). The Meal/Dish recipe (useMeal/useDish)
+// is render-only. Nothing here writes a prep mark, and nothing here removes a
+// cook step: the ones Prep the Week already did are drawn collapsed.
 
 import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
@@ -24,17 +24,23 @@ import { useCookingSequence } from "@/hooks/useCookingSequence";
 import { useDish } from "@/hooks/useDish";
 import { useMeal } from "@/hooks/useMeal";
 import { usePlan } from "@/hooks/usePlan";
+import { usePrepWeek } from "@/hooks/usePrepWeek";
+import { usePrepWeekCompletions } from "@/hooks/usePrepWeekCompletions";
 import {
-  applyPrepFilter,
+  doneInPrepStepKeys,
+  firstLiveIndex,
   flattenDishSteps,
   flattenMealSteps,
-  misePlaceItems,
+  nextLiveIndex,
+  prepRecap,
+  prevLiveIndex,
   remainingMinutes,
   remainingMinutesToServe,
   resolveAmountMultiplier,
   resolveCookRender,
   resolvePrepGate,
   sequenceMealSteps,
+  shouldLoadPrepForCook,
   type CookStep,
 } from "@/lib/cooking/cookSession";
 import { Colors, Spacing, Typography } from "@/constants/tokens";
@@ -93,7 +99,10 @@ export default function CookSession() {
     }
   }, [seqQuery.isError, seqQuery.error]);
 
-  const [currentIndex, setCurrentIndex] = useState(0);
+  // null = not yet moved by the cook: the anchor follows the first live (not
+  // done-in-prep) step, so it lands right when the prep payload arrives after
+  // the recipe. Any navigation pins it to a real index.
+  const [currentIndex, setCurrentIndex] = useState<number | null>(null);
   const [prepAnswer, setPrepAnswer] = useState<boolean | null>(null);
   const [toastVisible, setToastVisible] = useState(false);
 
@@ -143,16 +152,41 @@ export default function CookSession() {
   const gate = resolvePrepGate(hasPlanContext, planItem?.isPrepped ?? false);
 
   const needsGatePrompt = gate === "unknown" && prepAnswer === null;
-  const skipPrep =
+  const prepped =
     gate === "prepped" || (gate === "unknown" && prepAnswer === true);
-  const prepped = skipPrep;
   const showSkipBar = gate === "prepped";
 
-  const activeSteps = useMemo(
-    () => applyPrepFilter(allSteps, skipPrep),
-    [allSteps, skipPrep],
+  // ── K-R7 — the prepped view, from the plan's PREP steps ────────────────────
+  // Completions are a cheap read; the prep-week payload is the same POST Prep
+  // the Week makes (and the same query key, so a session that just prepped
+  // reads it from cache). It is fetched only once a completion exists — see
+  // shouldLoadPrepForCook for why — and never blocks the cook screen: the
+  // collapse and the recap fill in when it lands.
+  const completionsQuery = usePrepWeekCompletions(planId, wantPlan);
+  const completionRows = completionsQuery.data?.completions;
+  const prepQuery = usePrepWeek(
+    planId,
+    shouldLoadPrepForCook(wantPlan, completionRows?.length ?? 0),
   );
-  const recapItems = useMemo(() => misePlaceItems(allSteps), [allSteps]);
+  const prepResult =
+    prepQuery.data?.kind === "ok" ? prepQuery.data.envelope.result : undefined;
+
+  // Every step, always (no filter). Which of them Prep the Week already did:
+  const activeSteps = allSteps;
+  const doneInPrepKeys = useMemo(
+    () =>
+      doneInPrepStepKeys(
+        allSteps,
+        prepResult,
+        mealId,
+        new Set(completionRows?.map((c) => c.stepKey) ?? []),
+      ),
+    [allSteps, prepResult, mealId, completionRows],
+  );
+  const recap = useMemo(
+    () => prepRecap(prepResult, mealId, completionRows ?? [], new Date()),
+    [prepResult, mealId, completionRows],
+  );
 
   const title = resolveDisplayTitle(mealQuery.data ?? dishQuery.data, "Cook");
 
@@ -246,15 +280,19 @@ export default function CookSession() {
   // is driven by `gatePromptVisible={needsGatePrompt}`, so an empty `activeSteps`
   // while the recipe loads behind the gate is fine.
 
-  // Clamp the anchor index to the (possibly filtered) active list.
+  // Clamp the anchor to the list. Unmoved (null) → the first live step, so a
+  // run of done-in-prep steps at the top is never where the cook starts.
+  const startIndex = firstLiveIndex(activeSteps, doneInPrepKeys);
   const safeIndex =
     activeSteps.length === 0
       ? 0
-      : Math.min(Math.max(0, currentIndex), activeSteps.length - 1);
+      : Math.min(Math.max(0, currentIndex ?? startIndex), activeSteps.length - 1);
 
+  // Advance / back step over done-in-prep rows; they open by a tap instead.
   const advance = () =>
-    setCurrentIndex((i) => Math.min(i + 1, Math.max(0, activeSteps.length - 1)));
-  const prev = () => setCurrentIndex((i) => Math.max(0, i - 1));
+    setCurrentIndex(nextLiveIndex(activeSteps, doneInPrepKeys, safeIndex));
+  const prev = () =>
+    setCurrentIndex(prevLiveIndex(activeSteps, doneInPrepKeys, safeIndex));
   const selectStep = (i: number) => {
     // Tap the current step → advance; tap any other → jump to it (free nav).
     if (i === safeIndex) advance();
@@ -262,7 +300,7 @@ export default function CookSession() {
   };
   const onPrepAnswer = (didPrep: boolean) => {
     setPrepAnswer(didPrep);
-    setCurrentIndex(0);
+    setCurrentIndex(null);
     if (didPrep) setToastVisible(true); // verbatim toast fires on the "Yes" tap
   };
 
@@ -270,11 +308,13 @@ export default function CookSession() {
     <CookSessionView
       title={title}
       steps={activeSteps}
+      doneInPrepKeys={doneInPrepKeys}
       amountMultiplier={amountMultiplier}
       currentIndex={safeIndex}
       prepped={prepped}
       showSkipBar={showSkipBar}
-      recapItems={recapItems}
+      recapHeading={recap.heading}
+      recapItems={recap.items}
       // D-WS9-297 ruling 5 — the scheduler's wall clock, not a sum of step
       // minutes. remainingMinutes is the fallback for the unsequenced paths,
       // where no serve-anchored offset exists. Never both.
@@ -285,7 +325,7 @@ export default function CookSession() {
       onAdvance={advance}
       onPrevStep={prev}
       onSelectStep={selectStep}
-      onSkipToCooking={() => setCurrentIndex(0)}
+      onSkipToCooking={() => setCurrentIndex(startIndex)}
       gatePromptVisible={needsGatePrompt}
       onPrepAnswer={onPrepAnswer}
       toastVisible={toastVisible}

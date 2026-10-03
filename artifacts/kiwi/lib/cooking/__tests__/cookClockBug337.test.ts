@@ -83,9 +83,9 @@ function carneAsadaSequence(): SequencedStep[] {
 
 test("remainingMinutesToServe: reads the serve-anchored offset, not a sum of minutes", () => {
   const steps: CookStep[] = [
-    { key: "a", text: "x", phaseType: "prep", estimatedMinutes: 5, isPrep: true, isTimingSensitive: false, startOffsetMinutes: -88 },
-    { key: "b", text: "y", phaseType: "rest", estimatedMinutes: 30, isPrep: false, isTimingSensitive: false, startOffsetMinutes: -83 },
-    { key: "c", text: "z", phaseType: "assemble", estimatedMinutes: 2, isPrep: false, isTimingSensitive: false, startOffsetMinutes: -2 },
+    { key: "a", text: "x", phaseType: "prep", estimatedMinutes: 5, isTimingSensitive: false, startOffsetMinutes: -88 },
+    { key: "b", text: "y", phaseType: "rest", estimatedMinutes: 30, isTimingSensitive: false, startOffsetMinutes: -83 },
+    { key: "c", text: "z", phaseType: "assemble", estimatedMinutes: 2, isTimingSensitive: false, startOffsetMinutes: -2 },
   ];
   assert.equal(remainingMinutesToServe(steps, 0), 88);
   assert.equal(remainingMinutesToServe(steps, 1), 83);
@@ -96,7 +96,7 @@ test("remainingMinutesToServe: reads the serve-anchored offset, not a sum of min
 
 test("remainingMinutesToServe: null when the step carries no offset, so the caller can fall back", () => {
   const noOffset: CookStep[] = [
-    { key: "a", text: "x", phaseType: "prep", estimatedMinutes: 5, isPrep: true, isTimingSensitive: false },
+    { key: "a", text: "x", phaseType: "prep", estimatedMinutes: 5, isTimingSensitive: false },
   ];
   assert.equal(remainingMinutesToServe(noOffset, 0), null);
   // An explicit null (the §27 append shape) is treated the same as absent.
