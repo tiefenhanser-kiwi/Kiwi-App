@@ -147,6 +147,20 @@ const SETTINGS: SettingSeed[] = [
     defaultValue: 15,
     description: "Output USD per million tokens for claude-sonnet-4-6.",
   },
+  // Sonnet 5.5 side-by-side — published 2026-10: $2 / $10 (cache reads $0.20,
+  // the 0.1× the cache-aware estimator already applies).
+  {
+    key: "ai.model_rate.claude-sonnet-5-5.input_per_mtok",
+    value: 2,
+    defaultValue: 2,
+    description: "Input USD per million tokens for claude-sonnet-5-5.",
+  },
+  {
+    key: "ai.model_rate.claude-sonnet-5-5.output_per_mtok",
+    value: 10,
+    defaultValue: 10,
+    description: "Output USD per million tokens for claude-sonnet-5-5.",
+  },
   {
     key: "ai.model_rate.claude-haiku-4-5-20251001.input_per_mtok",
     value: 1,

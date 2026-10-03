@@ -1,0 +1,5 @@
+OK   plain (no temperature, no tools) · 2237ms · model=claude-sonnet-5-5 stop=end_turn blocks=thinking,text in=22 out=87
+FAIL temperature 0.7 (Kiwi default) · 400 400 {"type":"error","error":{"type":"invalid_request_error","message":"`temperature` is deprecated for this model."},"request_id":"req_011CffSVjEDSPsJGVEVR331y"}
+FAIL forced tool_choice {type:tool} (Kiwi tool mode) · 400 400 {"type":"error","error":{"type":"invalid_request_error","message":"tool_choice: type \"tool\" and \"any\" are not supported for this model."},"request_id":"req_011CffSVkBm6n5rvmkRTbdCn"}
+OK   tool_choice auto, adaptive (default) · 1560ms · model=claude-sonnet-5-5 stop=tool_use blocks=tool_use in=377 out=49
+OK   tool_choice auto, thinking between_tools · 1631ms · model=claude-sonnet-5-5 stop=tool_use blocks=tool_use in=376 out=49

@@ -32,6 +32,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 
 import { logger } from "../logger";
 import { extractPayload } from "./modes";
+import { requestShapeForModel, resolveCallModel } from "./modelShape";
 import { userFacingMessage, type AICallFailureReason } from "./errors";
 import { checkSpendGuard } from "../spendGuard";
 import { getSharedAnthropicClient } from "./runAICall";
@@ -138,7 +139,9 @@ export async function streamPlanCandidates(
 
   const descriptor = await resolvePromptDescriptorFromDb(promptKey, prisma);
   const promptVersion = descriptor.version;
-  const model = opts.model ?? descriptor.defaultModel;
+  // Sonnet 5.5 side-by-side — same override + request shape as runAICall.
+  const model = resolveCallModel(opts.model ?? descriptor.defaultModel);
+  const shape = requestShapeForModel(model);
   const maxTokens = opts.maxTokens ?? DEFAULT_MAX_TOKENS;
   const temperature = opts.temperature ?? DEFAULT_TEMPERATURE;
 
@@ -225,7 +228,7 @@ export async function streamPlanCandidates(
     const stream = messages.stream({
       model,
       max_tokens: maxTokens,
-      temperature,
+      ...(shape.sendsTemperature ? { temperature } : {}),
       ...(prefix != null
         ? {
             system: [
@@ -238,6 +241,10 @@ export async function streamPlanCandidates(
           }
         : {}),
       messages: [{ role: "user", content: userContent }],
+      // SDK 0.90.0 does not type `between_tools`; the API accepts it.
+      ...(shape.thinking
+        ? ({ thinking: shape.thinking } as unknown as Pick<Anthropic.MessageCreateParams, "thinking">)
+        : {}),
     });
     stream.on("text", (delta: string) => {
       acc += delta;

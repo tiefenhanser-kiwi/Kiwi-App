@@ -60,6 +60,17 @@ export function forcedToolChoice(): Anthropic.ToolChoiceTool {
   return { type: "tool", name: TOOL_NAME };
 }
 
+// Sonnet 5.5 side-by-side — for a model that rejects a forced tool_choice
+// (modelShape.ts). auto does not guarantee the call, so the user message
+// carries this line naming the tool.
+export function autoToolChoice(): Anthropic.ToolChoiceAuto {
+  return { type: "auto" };
+}
+
+export function toolCallInstruction(): string {
+  return `Respond by calling the ${TOOL_NAME} tool. Do not reply in plain text.`;
+}
+
 // For text mode: append a JSON-only instruction to the prompt body.
 // Caller is responsible for prompt engineering; this is a default suffix
 // that callers can override by setting a custom textModeSuffix in opts.

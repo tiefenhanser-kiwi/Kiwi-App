@@ -616,6 +616,8 @@ export interface ModelRate {
 // fails, we fall back here so cost calculation never throws.
 const FALLBACK_MODEL_RATES: Record<string, ModelRate> = {
   "claude-sonnet-4-6": { inputPerMtokUsd: 3, outputPerMtokUsd: 15 },
+  // Sonnet 5.5 side-by-side — $2 / $10 (cache reads $0.20 = the 0.1× below).
+  "claude-sonnet-5-5": { inputPerMtokUsd: 2, outputPerMtokUsd: 10 },
   "claude-haiku-4-5-20251001": { inputPerMtokUsd: 1, outputPerMtokUsd: 5 },
   // Row 5 · Block 1 — OpenAI gpt-image-1-mini: text input $2/M, image output
   // $8/M (published October 2025). A 1024×1024 medium image is ~1,000 output

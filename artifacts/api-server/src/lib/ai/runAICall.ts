@@ -16,12 +16,15 @@ import type { z } from "zod";
 
 import { logger } from "../logger";
 import {
+  autoToolChoice,
   buildToolForSchema,
   defaultTextModeSuffix,
   extractPayload,
   forcedToolChoice,
+  toolCallInstruction,
   type AICallMode,
 } from "./modes";
+import { requestShapeForModel, resolveCallModel } from "./modelShape";
 import { userFacingMessage, type AICallFailureReason } from "./errors";
 import { checkSpendGuard } from "../spendGuard";
 import {
@@ -150,7 +153,10 @@ export async function runAICall<T extends z.ZodTypeAny>(
   const prismaClient = opts.prisma ?? null;
   const descriptor = await resolvePromptDescriptorFromDb(promptKey, prismaClient);
   const promptVersion = descriptor.version;
-  const model = opts.model ?? descriptor.defaultModel;
+  // Sonnet 5.5 side-by-side — AI_MODEL_OVERRIDE_SONNET swaps MODEL_SONNET at
+  // call time; `model` is what runs AND what every log row below records.
+  const model = resolveCallModel(opts.model ?? descriptor.defaultModel);
+  const shape = requestShapeForModel(model);
   const mode: AICallMode = opts.mode ?? descriptor.defaultMode;
   const maxTokens = opts.maxTokens ?? 4096;
   const temperature = opts.temperature ?? 0.7;
@@ -218,7 +224,11 @@ export async function runAICall<T extends z.ZodTypeAny>(
     });
   }
 
-  const baseBody = renderPromptBody(descriptor.body, vars);
+  const rendered = renderPromptBody(descriptor.body, vars);
+  const baseBody =
+    mode === "tool" && !shape.forcesToolChoice
+      ? `${rendered}\n\n${toolCallInstruction()}`
+      : rendered;
 
   let attempt = 0;
   // BUG-100 — holds the FULL-PATH issue list (see formatZodIssues), not
@@ -260,7 +270,7 @@ export async function runAICall<T extends z.ZodTypeAny>(
       message = await callMessagesCreateWithConnectionRetry(client, {
         model,
         max_tokens: maxTokens,
-        temperature,
+        ...(shape.sendsTemperature ? { temperature } : {}),
         // Plan-Gen Arc · Block 3 (R2) — cached stable prefix as its own system
         // block. Spread ONLY when set, so a legacy call (no cachedSystemPrefix)
         // emits no `system` key at all — byte-identical to before.
@@ -279,8 +289,12 @@ export async function runAICall<T extends z.ZodTypeAny>(
         ...(mode === "tool"
           ? {
               tools: buildToolForSchema(schema, descriptor.toolDescription),
-              tool_choice: forcedToolChoice(),
+              tool_choice: shape.forcesToolChoice ? forcedToolChoice() : autoToolChoice(),
             }
+          : {}),
+        // SDK 0.90.0 does not type `between_tools`; the API accepts it.
+        ...(shape.thinking
+          ? ({ thinking: shape.thinking } as unknown as Pick<Anthropic.MessageCreateParams, "thinking">)
           : {}),
       });
     } catch (err) {
