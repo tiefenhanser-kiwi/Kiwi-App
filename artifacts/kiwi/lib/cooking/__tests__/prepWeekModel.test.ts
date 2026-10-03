@@ -274,6 +274,46 @@ test("buildPrepWeekModel: storageNote passes through (and is undefined when abse
 
 // ── Checked-set → done rollups ────────────────────────────────────────────────
 
+// D-WS9-298 / D-WS9-301 rule 13 — the phase note and the held-for-cook-day list.
+function withHeld(): PrepWeekResult {
+  const r = result();
+  r.phases[3] = {
+    ...r.phases[3],
+    note: "Proteins stay whole until two days out.",
+    heldForCookDay: [
+      "Chicken fajitas (Friday, 6 days out) — trim the thighs that morning.",
+      "Tomatoes for the salsa — they would not hold.",
+    ],
+  };
+  return r;
+}
+
+test("buildPrepWeekModel: the phase note and held list pass through; absent → none", () => {
+  const vm = buildPrepWeekModel(withHeld(), { mealLabel: lookup });
+  assert.equal(vm.phases[3].note, "Proteins stay whole until two days out.");
+  assert.equal(vm.phases[3].heldForCookDay.length, 2);
+  // The other three phases sent neither.
+  for (const i of [0, 1, 2]) {
+    assert.equal(vm.phases[i].note, undefined);
+    assert.deepEqual(vm.phases[i].heldForCookDay, []);
+  }
+});
+
+test("buildPrepWeekModel: held lines are not steps — no progress, no rollup, no minutes", () => {
+  const plain = buildPrepWeekModel(result(), { mealLabel: lookup });
+  // Every rendered step checked: the held lines must not hold the phase open.
+  const held = buildPrepWeekModel(withHeld(), {
+    mealLabel: lookup,
+    checkedStepKeys: new Set([`produce#${M1}`, `proteins#${M1}`]),
+  });
+  assert.equal(held.phases[3].totalCount, plain.phases[3].totalCount);
+  assert.equal(held.phases[3].steps.length, plain.phases[3].steps.length);
+  assert.equal(held.phases[3].allDone, true);
+  assert.equal(held.allDone, true);
+  assert.equal(held.totalCount, plain.totalCount);
+  assert.equal(held.totalEstimatedMinutes, plain.totalEstimatedMinutes);
+});
+
 test("buildPrepWeekModel: no checked set → nothing done", () => {
   const vm = buildPrepWeekModel(result());
   assert.equal(vm.phases[1].steps[0].done, false);
