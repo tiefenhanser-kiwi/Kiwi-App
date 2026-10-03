@@ -74,6 +74,8 @@ export interface PrepCombineIngredient {
    * of the three signals that produce it, and the strongest.
    */
   momentKey?: string | null;
+  /** H6.2 — the cook step that names this portion, or null when none does. */
+  entryStep?: number | null;
 }
 
 /** D-WS9-296 — a mixture's identity and its bowl, as the engine carries it. */
@@ -167,6 +169,8 @@ export interface PrepContribution {
    * and each dish's share enters its own dish at its own moment.
    */
   momentKey?: string | null;
+  /** H6.2 — the cook step that names this portion, or null when none does. */
+  entryStep?: number | null;
 }
 
 // A summed line within an ingredient group. Multiple lines exist ONLY when an
@@ -619,6 +623,8 @@ export function combinePrep(
           // D-WS9-301 rule 1 — carried, never interpreted here. The assembly
           // layer buckets on it; the engine only has to not lose it.
           ...(ing.momentKey ? { momentKey: ing.momentKey } : {}),
+          // H6.2 follow-up — carried, never interpreted here, exactly as momentKey is.
+          ...(ing.entryStep != null ? { entryStep: ing.entryStep } : {}),
         });
       }
     }

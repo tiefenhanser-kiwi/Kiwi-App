@@ -312,6 +312,15 @@ export function buildPrepCombineInput(loaded: PrepLoadedPlan): PrepCombineInput 
                 ? { key: comp.key, noun: comp.noun, bowlName: comp.bowlName }
                 : null,
               cookDayInto,
+              // H6.2 follow-up — THE COOK STEP THAT NAMES THIS PORTION, when one does.
+              // The moment says which mixture it belongs to; this says whether it goes
+              // into the pot later than the things it was cut beside, which is the one
+              // case where sharing a bowl would make the cook unpack it.
+              entryStep: (() => {
+                const k = moments.keyByIngredientId.get(ing.ingredientId);
+                const m = k ? /^s:(\d+)$/.exec(k) : null;
+                return m ? Number(m[1]) : null;
+              })(),
               momentKey: momentKeyFor({
                 ingredientId: ing.ingredientId,
                 category,

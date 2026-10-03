@@ -1026,6 +1026,8 @@ export function buildStepPlan(
     dishId: string;
     dishName: string;
     momentKey: string;
+    /** The cook step that names this portion, when one does. H6.2 follow-up. */
+    entryStep: number | null;
     ingredientId: string;
     phase: PrepPhaseKey;
   }[] = [];
@@ -1103,11 +1105,19 @@ export function buildStepPlan(
             momentOrphans.push({
               dishId: c.dishId,
               dishName: c.dishName,
-              // 🔴 THE PHASE, NOT THE RESOLVED MOMENT. See the header note: the
-              // override moves a vegetable to the step that cooks it, which split the
-              // tomatillo sauce's one prep sentence into five bowls. The kind of work
-              // is what the board shares.
+              // 🔴 THE RUN — the board moment. Not the resolved moment, which moves a
+              // vegetable to the step that COOKS it and split the tomatillo tray five
+              // ways; and not the phase, which was too coarse and put the blender's
+              // cilantro on the tray with the tomatillos. Things cut in one breath share
+              // a bowl; an ingredient with no stated amount anywhere stands alone.
+              // 🔴 THE PHASE, and not the run. The run looks like the better key — things
+              // cut in one breath — and it is not, because `amountRefs` are incomplete:
+              // on the tomatillo sauce the tray's poblano and jalapeño have NO ref at all,
+              // so keying on the run dropped two of its four members. The phase survives
+              // thin data. What the run WOULD have added is handled below, from the named
+              // entry step, which is evidence rather than an absence.
               momentKey: phase.phase,
+              entryStep: c.entryStep ?? null,
               ingredientId: entry.ingredientId,
               phase: phase.phase,
             });
@@ -1134,6 +1144,22 @@ export function buildStepPlan(
       const l = groups.get(k) ?? [];
       l.push(o);
       groups.set(k, l);
+    }
+    // 🔴 A MEMBER THAT GOES IN LATER LEAVES THE BOWL. Hans's rule 1 exists so the cook
+    // never picks something back out at the stove, and the tomatillo sauce had the shape:
+    // the tray is broiled at step 2 and the cilantro joins the BLENDER at step 4. A
+    // member whose own named entry step is later than the earliest named one in its group
+    // is split out; a member the recipe never places is no evidence and stays.
+    for (const [k, group] of [...groups]) {
+      const named = group
+        .map((o) => o.entryStep)
+        .filter((n): n is number => typeof n === "number");
+      if (named.length === 0) continue;
+      const earliest = Math.min(...named);
+      const later = group.filter((o) => typeof o.entryStep === "number" && o.entryStep > earliest);
+      if (later.length === 0) continue;
+      groups.set(k, group.filter((o) => !later.includes(o)));
+      for (const o of later) groups.set(`${k}|late:${o.entryStep}`, [o]);
     }
     const perDish = new Map<string, Map<string, string>>();
     for (const [, group] of groups) {

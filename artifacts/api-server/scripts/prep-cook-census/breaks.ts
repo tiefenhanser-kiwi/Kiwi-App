@@ -1120,6 +1120,16 @@ const BREAKS: Break[] = [
     runner: "api",
     expect: "a step pouring into six containers says \"Set aside for the sauces step\" about somebody else's bowl",
   },
+  {
+    n: 83,
+    ruling: "H6.2 follow-up — a member that goes in later leaves the bowl",
+    file: join(API, "src/lib/prepWeekAssembly.ts"),
+    cwd: API,
+    edits: [{ from: "      if (later.length === 0) continue;", to: "      if (later.length >= 0) continue;" }],
+    test: "src/lib/__tests__/prepIdentityAndNames.test.ts",
+    runner: "api",
+    expect: "the blender's cilantro rides on the roasting tray and the cook has to pick it back out",
+  },
 ];
 
 function runTest(b: Break): { pass: boolean; tail: string } {

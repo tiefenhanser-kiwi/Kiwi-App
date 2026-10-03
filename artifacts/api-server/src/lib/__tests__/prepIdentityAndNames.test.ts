@@ -349,6 +349,49 @@ describe("H6.1-B — every portion names a container", () => {
   });
 });
 
+describe("H6.2 follow-up — a member that goes in LATER leaves the bowl", () => {
+  /** The tomatillo sauce: a tray broiled at step 2, and cilantro into the blender at 4. */
+  const trayAndBlender = (): PrepCombineInput => ({
+    meals: [
+      {
+        mealId: MEAL_A,
+        mealName: "Mexican Week",
+        dishes: [
+          {
+            dishId: "d1",
+            dishName: "Roasted Tomatillo Sauce",
+            dishRole: "sauce",
+            ingredients: [
+              { ingredientId: "tomatillo", ingredientName: "fresh tomatillos", category: "Produce", quantity: 4, unit: "each", preparationNote: "husked and halved", entryStep: 2 },
+              { ingredientId: "poblano", ingredientName: "poblano pepper", category: "Produce", quantity: 1, unit: "each", preparationNote: "halved and seeded", entryStep: null },
+              { ingredientId: "cilantro", ingredientName: "fresh cilantro", category: "Produce", quantity: 0.25, unit: "cup", preparationNote: "roughly chopped", entryStep: 4 },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+  it("🔴 the tray keeps what is cut with it; the blender's cilantro splits off", () => {
+    // Rule 1 exists so the cook never picks something back out at the stove. The tray is
+    // broiled whole; the cilantro joins the blender two steps later.
+    const sp = buildStepPlan(combinePrep(trayAndBlender()), "Test Plan");
+    const dest = (name: string) =>
+      sp.steps
+        .filter((s) => !s.demoted)
+        .flatMap((s) => s.components.filter((c) => c.ingredientName === name))
+        .flatMap((c) => c.measures.map((m) => m.destination))[0];
+    assert.equal(dest("fresh tomatillos"), "Roasted Tomatillo Sauce prep bowl");
+    // 🔴 A MEMBER THE RECIPE NEVER PLACES IS NO EVIDENCE, and stays on the tray. On the
+    // real plan the poblano and the jalapeño have no amountRef at all, so keying this on
+    // the RUN dropped two of the tray's four members — the phase survives thin data.
+    assert.equal(dest("poblano pepper"), "Roasted Tomatillo Sauce prep bowl");
+    // …and the cilantro is not on it. Alone, it falls under the one-portion floor and
+    // becomes a plain produce line.
+    assert.notEqual(dest("fresh cilantro"), "Roasted Tomatillo Sauce prep bowl");
+  });
+});
+
 describe("H6.2 item 2 — a portion that needs no action is not prep", () => {
   it("🔴 whole, unpeeled, left whole: no line and no container", () => {
     for (const note of ["unpeeled", "left whole", "whole", "skin-on", "left whole, unpeeled"]) {
