@@ -1,0 +1,584 @@
+PLAN b0c8ffbd-b167-4265-8fb3-2782bc72092e  [A16]  Part I · A16 · seafood: shrimp bowl, seared tuna, catfish, salmon
+  range 2026-10-04 .. 2026-10-10   meals 4   prep day 2026-10-04   shapes: days-5-7, seafood, cold, long-passive, multi-3plus, aromatics, two-cuts, marinate
+
+══════════ PREP THE WEEK — full plan, as Screen 3 renders it ══════════
+  HEADER: 21 containers · about 95 min   (server total 101 · phone 82) · cacheHit=false · prompt v19
+  HELD: Baked Salmon Teriyaki with Steamed Rice and Roasted Broccoli (Saturday, 6 days out) — portion the salmon fillets that morning.
+
+  ── seasonings_dry ──
+     1. Measure the Chili-Lime Sautéed Shrimp spice blend   (3 min)
+        Into the Chili-Lime Sautéed Shrimp spice blend:
+        1½ tsp chili powder
+        1 tsp smoked paprika
+        ¾ tsp ground cumin
+        ½ tsp garlic powder
+        ½ tsp onion powder
+        ⅛ tsp cayenne pepper
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema (Monday)
+     2. Measure the Blackened Catfish spice blend   (3 min)
+        Into the Blackened Catfish spice blend:
+        1½ tsp smoked paprika
+        1 tsp garlic powder
+        ¾ tsp onion powder
+        ½ tsp cayenne pepper
+        ½ tsp dried thyme
+        ½ tsp dried oregano
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Blackened Catfish with Dirty Rice and Braised Greens (Thursday)
+     3. Measure the Dirty Rice spice blend   (2 min)
+        Into the Dirty Rice spice blend:
+        ½ tsp smoked paprika
+        ¼ tsp cayenne pepper
+        ½ tsp dried thyme
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Blackened Catfish with Dirty Rice and Braised Greens (Thursday)
+     4. Measure the Sesame-Crusted Seared Ahi Tuna marinade bowl   (2 min)
+        Into the Sesame-Crusted Seared Ahi Tuna marinade bowl:
+        4 tbsp sesame seeds (mix of white and black if available)
+        
+        Set aside for the produce step.
+        » for: Seared Tuna Steak with Sesame-Ginger Slaw and Steamed Jasmine Rice (Wednesday)
+     5. Measure the Teriyaki-Glazed Baked Salmon sauce bowl   (2 min)
+        Into the Teriyaki-Glazed Baked Salmon sauce bowl:
+        1 tbsp light brown sugar
+        1 tsp cornstarch
+        
+        Set aside for the produce step.
+        » for: Baked Salmon Teriyaki with Steamed Rice and Roasted Broccoli (Saturday)
+  ×  6. Smoked paprika — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema (Monday)
+  ×  7. Long-grain white rice — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema (Monday)
+  ×  8. Long-grain white rice — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Blackened Catfish with Dirty Rice and Braised Greens (Thursday)
+  ×  9. Sesame seeds — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Seared Tuna Steak with Sesame-Ginger Slaw and Steamed Jasmine Rice (Wednesday)
+  × 10. Sesame seeds — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Baked Salmon Teriyaki with Steamed Rice and Roasted Broccoli (Saturday)
+  × 11. Sesame seeds — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Baked Salmon Teriyaki with Steamed Rice and Roasted Broccoli (Saturday)
+  × 12. Catfish fillets — cook day   (2 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Blackened Catfish with Dirty Rice and Braised Greens (Thursday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema (Monday), Seared Tuna Steak with Sesame-Ginger Slaw and Steamed Jasmine Rice (Wednesday), Blackened Catfish with Dirty Rice and Braised Greens (Thursday), Baked Salmon Teriyaki with Steamed Rice and Roasted Broccoli (Saturday)
+     2. Juice all limes   (9 min)
+        Juice your limes and zest one before squeezing it. Portion as follows:
+        
+        Lime juice — into a tub labelled "Lime juice, fresh — Chili-Lime Sautéed Shrimp, Cilantro-Lime Rice, Sautéed Peppers and Onions +2 more":
+        2 tbsp for the Chili-Lime Sautéed Shrimp
+        2 tbsp for the Cilantro-Lime Rice
+        1 tbsp for the Sautéed Peppers and Onions
+        1½ tbsp for the Charred Corn Salsa
+        2 tbsp for the Avocado Crema
+        
+        Lime zest — ½ tsp into a tub labelled "Cilantro-Lime Rice — lime zest"
+        » storage: Both containers: Covered in the fridge — up to 3 days.
+        » for: Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema (Monday)
+     3. Chop all fresh cilantro   (4 min)
+        Finely chop the cilantro, keeping portions separate by destination:
+        ⅜ cup — into a tub labelled "Cilantro-Lime Rice — finely chopped fresh cilantro"
+        3 tbsp, chopped — into a tub labelled "Charred Corn Salsa — fresh cilantro, cherry tomatoes, jalapeño and red onion"
+        2 tbsp — into a tub labelled "Avocado Crema — fresh cilantro"
+        ¼ cup, roughly chopped — into a tub labelled "Sesame-Ginger Slaw — fresh cilantro, fresh ginger and carrots"
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema (Monday), Seared Tuna Steak with Sesame-Ginger Slaw and Steamed Jasmine Rice (Wednesday)
+     4. Slice all red bell peppers   (5 min)
+        Seed and thinly slice 2 red bell peppers — into a tub labelled "Sautéed Peppers and Onions — thinly sliced red bell pepper".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema (Monday)
+     5. Slice the yellow bell pepper   (3 min)
+        Seed and thinly slice 1 yellow bell pepper — into a tub labelled "Sautéed Peppers and Onions — thinly sliced yellow bell pepper".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema (Monday)
+     6. Prep all green bell pepper   (5 min)
+        Seed and thinly slice 1 green bell pepper — into a tub labelled "Sautéed Peppers and Onions — thinly sliced green bell pepper".
+        Finely dice 1 green bell pepper — into a tub labelled "Dirty Rice vegetables".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema (Monday), Blackened Catfish with Dirty Rice and Braised Greens (Thursday)
+     7. Prep all yellow onion   (8 min)
+        Halve and thinly slice 1 yellow onion — into a tub labelled "Thinly sliced yellow onion — Sautéed Peppers and Onions, Braised Collard Greens".
+        Finely dice 1 yellow onion — into a tub labelled "Dirty Rice vegetables".
+        Thinly slice ½ yellow onion — into the same tub labelled "Thinly sliced yellow onion — Sautéed Peppers and Onions, Braised Collard Greens".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema (Monday), Blackened Catfish with Dirty Rice and Braised Greens (Thursday)
+     8. Quarter the cherry tomatoes   (1 min)
+        Quarter ¾ cup cherry tomatoes — into a tub labelled "Charred Corn Salsa — fresh cilantro, cherry tomatoes, jalapeño and red onion".
+        » for: Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema (Monday)
+     9. Dice the jalapeño   (3 min)
+        Seed and finely dice 1 jalapeño — into a tub labelled "Charred Corn Salsa — fresh cilantro, cherry tomatoes, jalapeño and red onion".
+        » for: Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema (Monday)
+    10. Dice the red onion   (3 min)
+        Finely dice ¼ cup red onion — into a tub labelled "Charred Corn Salsa — fresh cilantro, cherry tomatoes, jalapeño and red onion".
+        » storage: Charred Corn Salsa: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Stir in the Chili-Lime Sautéed Shrimp, Cilantro-Lime Rice, Sautéed Peppers and Onions +2 more now — it is ea…
+        » for: Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema (Monday)
+  × 11. Ripe avocado — cook day   (1 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema (Monday)
+    12. Mince and slice all garlic   (4 min)
+        Mince all garlic, then thinly slice the portion for the broccoli. Portion by destination:
+        1 clove, minced — into a tub labelled "Avocado Crema — minced garlic cloves"
+        2 cloves, minced — into the Sesame-Crusted Seared Ahi Tuna marinade bowl
+        3 cloves, minced — into a tub labelled "Dirty Rice vegetables"
+        2 cloves, minced — into the Teriyaki-Glazed Baked Salmon sauce bowl
+        3 cloves, thinly sliced — into a tub labelled "Roasted Broccoli with Garlic and Sesame — garlic cloves and broccoli florets"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema (Monday), Seared Tuna Steak with Sesame-Ginger Slaw and Steamed Jasmine Rice (Wednesday), Blackened Catfish with Dirty Rice and Braised Greens (Thursday), Baked Salmon Teriyaki with Steamed Rice and Roasted Broccoli (Saturday)
+    13. Grate all fresh ginger   (1 min)
+        Finely grate all the fresh ginger and portion by destination:
+        1 tsp — into the Sesame-Crusted Seared Ahi Tuna marinade bowl
+        1 tsp — into a tub labelled "Sesame-Ginger Slaw — fresh cilantro, fresh ginger and carrots"
+        1 tsp — into the Teriyaki-Glazed Baked Salmon sauce bowl
+        » for: Seared Tuna Steak with Sesame-Ginger Slaw and Steamed Jasmine Rice (Wednesday), Baked Salmon Teriyaki with Steamed Rice and Roasted Broccoli (Saturday)
+    14. Shred the green cabbage   (1 min)
+        Finely shred 4 cup green cabbage — into a tub labelled "Sesame-Ginger Slaw — greens".
+        » for: Seared Tuna Steak with Sesame-Ginger Slaw and Steamed Jasmine Rice (Wednesday)
+    15. Shred the red cabbage   (1 min)
+        Finely shred 1 cup red cabbage — into a tub labelled "Sesame-Ginger Slaw — greens".
+        » storage: Sesame-Ginger Slaw — greens: Airtight in the fridge — up to 4 days.
+        » for: Seared Tuna Steak with Sesame-Ginger Slaw and Steamed Jasmine Rice (Wednesday)
+    16. Julienne the carrots   (1 min)
+        Peel and julienne or grate 2 carrots — into a tub labelled "Sesame-Ginger Slaw — fresh cilantro, fresh ginger and carrots".
+        » storage: Sesame-Ginger Slaw — fresh cilantro, fresh ginger and carrots: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Sesame-Ginger Slaw sauce bowl separate; combine on cook…
+        » for: Seared Tuna Steak with Sesame-Ginger Slaw and Steamed Jasmine Rice (Wednesday)
+    17. Dice the celery stalks   (1 min)
+        Finely dice 2 celery stalks — into a tub labelled "Dirty Rice vegetables".
+        » storage: Dirty Rice vegetables: Airtight in the fridge — up to 4 days.
+        » for: Blackened Catfish with Dirty Rice and Braised Greens (Thursday)
+    18. Cut the broccoli florets   (3 min)
+        Cut 1½ lb broccoli into even florets — into a tub labelled "Roasted Broccoli with Garlic and Sesame — garlic cloves and broccoli florets".
+        » storage: Roasted Broccoli with Garlic and Sesame: Airtight in the fridge — up to 4 days.
+        » for: Baked Salmon Teriyaki with Steamed Rice and Roasted Broccoli (Saturday)
+
+  ── sauces_marinades ──
+     1. Finish the Sesame-Crusted Seared Ahi Tuna marinade bowl   (2 min)
+        Sesame-Crusted Seared Ahi Tuna marinade bowl (sesame seeds, garlic cloves and fresh ginger already in it): add
+        2 tbsp soy sauce
+        1 tbsp toasted sesame oil
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 4 days.
+        » for: Seared Tuna Steak with Sesame-Ginger Slaw and Steamed Jasmine Rice (Wednesday)
+     2. Finish the Teriyaki-Glazed Baked Salmon sauce bowl   (4 min)
+        Teriyaki-Glazed Baked Salmon sauce bowl (light brown sugar, cornstarch, garlic cloves and fresh ginger already in it): add
+        ¼ cup soy sauce
+        2 tbsp honey
+        3 tbsp mirin
+        2 tbsp sake
+        1 tsp sesame oil
+        Stir to combine.
+        » storage: Covered in the fridge — up to 4 days.
+        » for: Baked Salmon Teriyaki with Steamed Rice and Roasted Broccoli (Saturday)
+     3. Build the Sesame-Ginger Slaw sauce bowl   (3 min)
+        Into the Sesame-Ginger Slaw sauce bowl:
+        1 tbsp soy sauce
+        1 tbsp toasted sesame oil
+        3 tbsp rice vinegar
+        1 tbsp honey
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 4 days.
+        » for: Seared Tuna Steak with Sesame-Ginger Slaw and Steamed Jasmine Rice (Wednesday)
+  ×  4. Soy sauce — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Baked Salmon Teriyaki with Steamed Rice and Roasted Broccoli (Saturday)
+  ×  5. Apple cider vinegar — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Blackened Catfish with Dirty Rice and Braised Greens (Thursday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     1. Pat dry the shrimp   (5 min)
+        Remove the tails from 1½ lb large shrimp, then pat them thoroughly dry with paper towels.
+        » storage: Covered in the fridge — cook within 2 days.
+        » for: Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema (Monday)
+  ×  2. Chicken livers — cook day   (1 min)  [RENDER-OMITTED]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+        » for: Blackened Catfish with Dirty Rice and Braised Greens (Thursday)
+  ×  3. Andouille sausage — cook day   (1 min)  [RENDER-OMITTED]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+        » for: Blackened Catfish with Dirty Rice and Braised Greens (Thursday)
+  ×  4. Smoked ham hock — cook day   (1 min)  [RENDER-OMITTED]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+        » for: Blackened Catfish with Dirty Rice and Braised Greens (Thursday)
+  ×  5. Salmon fillets — cook day   (5 min)  [RENDER-OMITTED]
+        Portion 24 oz salmon into four 6-oz fillets, then pat each one thoroughly dry with paper towels.
+        » storage: This one is 6 days out — leave it for cook day.
+        » for: Baked Salmon Teriyaki with Steamed Rice and Roasted Broccoli (Saturday)
+
+══════════ PREP SELECTED MEALS — Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema + Baked Salmon Teriyaki with Steamed Rice and Roasted Broccoli ══════════
+  HEADER: 14 containers · about 65 min   (server total 66 · phone 56) · cacheHit=false · prompt v19
+  HELD: Baked Salmon Teriyaki with Steamed Rice and Roasted Broccoli (Saturday, 6 days out) — portion the salmon fillets that morning.
+
+  ── seasonings_dry ──
+     1. Measure the Chili-Lime Sautéed Shrimp spice blend   (3 min)
+        Into the Chili-Lime Sautéed Shrimp spice blend:
+        1½ tsp chili powder
+        1 tsp smoked paprika
+        ¾ tsp ground cumin
+        ½ tsp garlic powder
+        ½ tsp onion powder
+        ⅛ tsp cayenne pepper
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema (Monday)
+     2. Measure the Teriyaki-Glazed Baked Salmon sauce bowl dry ingredients   (2 min)
+        Into the Teriyaki-Glazed Baked Salmon sauce bowl:
+        1 tbsp light brown sugar
+        1 tsp cornstarch
+        Set aside for the produce step.
+        » for: Baked Salmon Teriyaki with Steamed Rice and Roasted Broccoli (Saturday)
+  ×  3. Smoked paprika — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema (Monday)
+  ×  4. Sesame seeds — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Baked Salmon Teriyaki with Steamed Rice and Roasted Broccoli (Saturday)
+  ×  5. Sesame seeds — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Baked Salmon Teriyaki with Steamed Rice and Roasted Broccoli (Saturday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema (Monday), Baked Salmon Teriyaki with Steamed Rice and Roasted Broccoli (Saturday)
+     2. Juice all limes   (9 min)
+        Juice your limes, then zest one before you squeeze it. Collect everything into a tub labelled "Lime juice, fresh — Chili-Lime Sautéed Shrimp, Cilantro-Lime Rice, Sautéed Peppers and Onions +2 more", portioning as you go:
+        2 tbsp for the Chili-Lime Sautéed Shrimp
+        2 tbsp for the Cilantro-Lime Rice
+        1 tbsp for the Sautéed Peppers and Onions
+        1½ tbsp for the Charred Corn Salsa
+        2 tbsp for the Avocado Crema
+        
+        Then measure the zest:
+        ½ tsp lime zest — into a tub labelled "Cilantro-Lime Rice — lime zest"
+        » storage: Both containers: Covered in the fridge — up to 3 days.
+        » for: Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema (Monday)
+     3. Chop all fresh cilantro   (3 min)
+        Finely chop all the cilantro you need, then portion it out:
+        ⅜ cup finely chopped — into a tub labelled "Cilantro-Lime Rice — finely chopped fresh cilantro"
+        3 tbsp chopped — into a tub labelled "Charred Corn Salsa — fresh cilantro, cherry tomatoes, jalapeño and red onion"
+        2 tbsp — into a tub labelled "Avocado Crema — fresh cilantro"
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema (Monday)
+     4. Slice the red bell peppers   (5 min)
+        Seed and thinly slice 2 red bell peppers — into a tub labelled "Sautéed Peppers and Onions — thinly sliced red bell pepper".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema (Monday)
+     5. Slice the yellow bell pepper   (3 min)
+        Seed and thinly slice 1 yellow bell pepper — into a tub labelled "Sautéed Peppers and Onions — thinly sliced yellow bell pepper".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema (Monday)
+     6. Slice the green bell pepper   (3 min)
+        Seed and thinly slice 1 green bell pepper — into a tub labelled "Sautéed Peppers and Onions — thinly sliced green bell pepper".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema (Monday)
+     7. Slice the yellow onion   (3 min)
+        Halve and thinly slice 1 yellow onion — into a tub labelled "Sautéed Peppers and Onions — thinly sliced yellow onion".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema (Monday)
+     8. Quarter the cherry tomatoes   (1 min)
+        Quarter ¾ cup cherry tomatoes — into a tub labelled "Charred Corn Salsa — fresh cilantro, cherry tomatoes, jalapeño and red onion".
+        » for: Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema (Monday)
+     9. Dice the jalapeño   (3 min)
+        Seed and finely dice 1 jalapeño — into a tub labelled "Charred Corn Salsa — fresh cilantro, cherry tomatoes, jalapeño and red onion".
+        » for: Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema (Monday)
+    10. Dice the red onion   (3 min)
+        Finely dice ¼ cup red onion — into a tub labelled "Charred Corn Salsa — fresh cilantro, cherry tomatoes, jalapeño and red onion".
+        » storage: Charred Corn Salsa: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Stir in the Chili-Lime Sautéed Shrimp, Cilantro-Lime Rice, Sautéed Peppers and Onions +2 more now — it is ea…
+        » for: Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema (Monday)
+  × 11. Ripe avocado — cook day   (1 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema (Monday)
+    12. Mince and slice all garlic   (2 min)
+        Mince all the garlic cloves, keeping portions separate:
+        1 clove minced — into a tub labelled "Avocado Crema — minced garlic cloves"
+        2 cloves minced — into the Teriyaki-Glazed Baked Salmon sauce bowl
+        
+        Then thinly slice:
+        3 cloves thinly sliced — into a tub labelled "Roasted Broccoli with Garlic and Sesame — garlic cloves and broccoli florets"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema (Monday), Baked Salmon Teriyaki with Steamed Rice and Roasted Broccoli (Saturday)
+    13. Grate the fresh ginger   (1 min)
+        Finely grate 1 tsp fresh ginger — into the Teriyaki-Glazed Baked Salmon sauce bowl.
+        » for: Baked Salmon Teriyaki with Steamed Rice and Roasted Broccoli (Saturday)
+    14. Cut the broccoli florets   (3 min)
+        Cut 1½ lb broccoli into even florets — into a tub labelled "Roasted Broccoli with Garlic and Sesame — garlic cloves and broccoli florets".
+        » storage: Roasted Broccoli with Garlic and Sesame: Airtight in the fridge — up to 4 days.
+        » for: Baked Salmon Teriyaki with Steamed Rice and Roasted Broccoli (Saturday)
+
+  ── sauces_marinades ──
+     1. Finish the Teriyaki-Glazed Baked Salmon sauce bowl   (4 min)
+        Teriyaki-Glazed Baked Salmon sauce bowl (light brown sugar, cornstarch, garlic cloves and fresh ginger already in it): add
+        ¼ cup soy sauce
+        3 tbsp mirin
+        2 tbsp sake
+        2 tbsp honey
+        1 tsp sesame oil
+        Stir to combine.
+        » storage: Covered in the fridge — up to 4 days.
+        » for: Baked Salmon Teriyaki with Steamed Rice and Roasted Broccoli (Saturday)
+  ×  2. Soy sauce — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Baked Salmon Teriyaki with Steamed Rice and Roasted Broccoli (Saturday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     1. Pat dry the shrimp   (5 min)
+        Remove the tails from 1½ lb large peeled and deveined shrimp, then pat them completely dry with paper towels.
+        » storage: Covered in the fridge — cook within 2 days.
+        » for: Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema (Monday)
+  ×  2. Salmon fillets — cook day   (5 min)  [RENDER-OMITTED]
+        Portion 24 oz salmon into four 6-oz fillets and pat them completely dry with paper towels.
+        » storage: This one is 6 days out — leave it for cook day.
+        » for: Baked Salmon Teriyaki with Steamed Rice and Roasted Broccoli (Saturday)
+
+  subset ticks: 17 keys, 0 not in the full plan; required for these meals 17, uncovered 4; isPrepped {"Shrimp Fajita Bowl with Cilant":false,"Baked Salmon Teriyaki with Ste":false}
+
+══════════ COOK MODE (cook-session.tsx: sequenced if multi-dish, flattened if single) ══════════
+
+  ▸ Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema   [Monday]  SEQUENCED
+    footer 58 min | scheduler 58 | card 58 | fresh derive 58 | dishes 5
+      1. [ T-58] (  5m cook) Cilantro-Lime Rice
+         Combine 1½ cups long-grain white rice, 2¼ cups water, ½ cup chicken broth, 1 tablespoon olive oil, and ¾ teaspoon kosher salt in a medium saucepan and bring to a boil over high heat.
+      2. [ T-53] ( 18m cook) Cilantro-Lime Rice
+         Stir once, reduce heat to low, cover tightly, and simmer for 18 minutes until all liquid is absorbed.
+      3. [ T-53] (  3m prep) Avocado Crema
+         ⟶ With the Cilantro-Lime Rice cooking, start on the Avocado Crema.
+         Mince 1 garlic clove and roughly chop 2 tablespoons fresh cilantro.
+      4. [ T-50] (  2m assemble) Avocado Crema
+         Add the flesh of 2 ripe avocados, ⅓ cup sour cream, 2 tablespoons fresh lime juice, the minced garlic, 2 tablespoons cilantro, and ¼ teaspoon kosher salt to a blender or food processor.
+      5. [ T-48] (  8m prep) Sautéed Peppers and Onions
+         ⟶ With the Cilantro-Lime Rice cooking, start on the Sautéed Peppers and Onions.
+         Seed and thinly slice 2 red bell peppers, 1 yellow bell pepper, and 1 green bell pepper; halve and thinly slice 1 yellow onion.
+      6. [ T-40] (  2m assemble) Avocado Crema
+         ⟶ With the Cilantro-Lime Rice cooking, start on the Avocado Crema.
+         Blend until completely smooth, adding up to 2 tablespoons water one tablespoon at a time to reach a pourable, drizzleable consistency.
+      7. [ T-38] (  6m prep) Charred Corn Salsa
+         ⟶ With the Cilantro-Lime Rice cooking, start on the Charred Corn Salsa.
+         Quarter ¾ cup cherry tomatoes, seed and finely dice 1 jalapeño, and finely dice ¼ cup red onion; set aside.
+      8. [ T-38] (  5m rest) Avocado Crema
+         ⟶ With the Cilantro-Lime Rice cooking, start on the Avocado Crema.
+         Taste and adjust salt or lime juice, then transfer to a squeeze bottle or small bowl and refrigerate until ready to serve.
+      9. [ T-35] (  5m rest) Cilantro-Lime Rice
+         ⟶ With the Avocado Crema chilling, start on the Cilantro-Lime Rice.
+         Remove from heat and let the rice steam, covered, for 5 minutes.
+     10. [ T-32] (  3m prep) Chili-Lime Sautéed Shrimp
+         ⟶ With the Cilantro-Lime Rice cooking, start on the Chili-Lime Sautéed Shrimp.
+         In a large bowl, combine 1½ teaspoons chili powder, 1 teaspoon smoked paprika, ¾ teaspoon cumin, ½ teaspoon garlic powder, ½ teaspoon onion powder, ⅛ teaspoon cayenne, ¾ teaspoon kosher salt, and ¼ teaspoon black pepper.
+     11. [ T-29] (  2m prep) Chili-Lime Sautéed Shrimp
+         Add the 1½ pounds of patted-dry shrimp to the spice mixture and toss until every piece is evenly coated.
+     12. [ T-29] (  2m preheat) Sautéed Peppers and Onions
+         Heat 1½ tablespoons olive oil in a large skillet or cast-iron pan over medium-high heat until shimmering.
+     13. [ T-27] (  3m cook) Sautéed Peppers and Onions
+         Add the onion and cook, stirring occasionally, for 3 minutes until it begins to soften and char at the edges.
+     14. [ T-24] (  2m preheat) Chili-Lime Sautéed Shrimp
+         Heat 2 tablespoons olive oil in a large skillet over medium-high heat until shimmering.
+     15. [ T-24] (  7m cook) Sautéed Peppers and Onions
+         ⟶ With the Chili-Lime Sautéed Shrimp heating up, start on the Sautéed Peppers and Onions.
+         Add all the sliced peppers, ½ teaspoon smoked paprika, ½ teaspoon kosher salt, and ¼ teaspoon black pepper; cook, stirring every minute or so, for 6–8 minutes until the peppers are tender and blistered.
+     16. [ T-17] (  4m cook) Charred Corn Salsa
+         Heat 1 teaspoon olive oil in a skillet over high heat; add 2 cups thawed, patted-dry corn kernels in a single layer and cook without stirring for 3–4 minutes until deeply charred on one side.
+     17. [ T-13] (  1m assemble) Sautéed Peppers and Onions
+         Remove from heat and squeeze 1 tablespoon fresh lime juice over the peppers and onions; toss and serve.
+     18. [ T-12] (  4m cook) Chili-Lime Sautéed Shrimp
+         Add the shrimp in a single layer and cook undisturbed for 2 minutes, then flip and cook 1–2 minutes more until pink, curled, and lightly charred at the edges.
+     19. [  T-8] (  2m cook) Charred Corn Salsa
+         Stir the corn and cook 1–2 minutes more until charred in spots all over, then transfer to a bowl and let cool for 5 minutes.
+     20. [  T-6] (  1m assemble) Chili-Lime Sautéed Shrimp
+         Remove the pan from heat, squeeze 2 tablespoons fresh lime juice over the shrimp, and toss to coat.
+     21. [  T-5] (  2m assemble) Cilantro-Lime Rice
+         Fluff the rice with a fork, then fold in 2 tablespoons fresh lime juice, ½ teaspoon lime zest, and ⅓ cup finely chopped fresh cilantro.
+     22. [  T-3] (  2m assemble) Charred Corn Salsa
+         Add the cherry tomatoes, jalapeño, red onion, 3 tablespoons chopped cilantro, 1½ tablespoons fresh lime juice, and ¼ teaspoon kosher salt to the cooled corn and stir to combine.
+     23. [  T-1] (  1m assemble) Chili-Lime Sautéed Shrimp
+         Serve immediately with lime wedges alongside.
+
+  ▸ Seared Tuna Steak with Sesame-Ginger Slaw and Steamed Jasmine Rice   [Wednesday]  SEQUENCED
+    footer 50 min | scheduler 50 | card 50 | fresh derive 50 | dishes 3
+      1. [ T-50] ( 10m prep) Sesame-Ginger Slaw
+         Finely shred 4 cups green cabbage and 1 cup red cabbage, then peel and julienne or grate 2 carrots; place all in a large bowl.
+      2. [ T-40] (  3m prep) Steamed Jasmine Rice
+         Rinse 1½ cups jasmine rice in a fine-mesh strainer under cold running water, stirring with your hand, until the water runs clear — about 60 seconds.
+      3. [ T-37] (  4m prep) Sesame-Crusted Seared Ahi Tuna Steaks
+         Finely grate 1 teaspoon fresh ginger and mince 2 cloves garlic.
+      4. [ T-33] (  3m prep) Sesame-Crusted Seared Ahi Tuna Steaks
+         Whisk together 2 tablespoons soy sauce, 1 tablespoon toasted sesame oil, the ginger, and the minced garlic in a small bowl to make the marinade.
+      5. [ T-33] (  4m cook) Steamed Jasmine Rice
+         Combine the rinsed rice, 2¼ cups water, and ½ teaspoon kosher salt in a medium saucepan and bring to a boil over high heat.
+      6. [ T-30] (  4m prep) Sesame-Ginger Slaw
+         ⟶ With the Steamed Jasmine Rice marinating, start on the Sesame-Ginger Slaw.
+         Finely grate 1 teaspoon fresh ginger and roughly chop ¼ cup fresh cilantro.
+      7. [ T-29] ( 15m cook) Steamed Jasmine Rice
+         Reduce the heat to the lowest setting, cover tightly with a lid, and cook for 15 minutes without lifting the lid.
+      8. [ T-26] (  4m prep) Sesame-Crusted Seared Ahi Tuna Steaks
+         ⟶ With the Steamed Jasmine Rice cooking, start on the Sesame-Crusted Seared Ahi Tuna Steaks.
+         Pat the 4 ahi tuna steaks dry with paper towels, season both sides with ½ teaspoon kosher salt and ¼ teaspoon black pepper, then brush all over with the marinade.
+      9. [ T-22] (  3m prep) Sesame-Ginger Slaw
+         ⟶ With the Steamed Jasmine Rice cooking, start on the Sesame-Ginger Slaw.
+         Whisk together 3 tablespoons rice vinegar, 1 tablespoon toasted sesame oil, 1 tablespoon soy sauce, 1 tablespoon honey, the grated ginger, and ¼ teaspoon kosher salt in a small bowl until the honey dissolves.
+     10. [ T-19] (  3m prep) Sesame-Crusted Seared Ahi Tuna Steaks
+         ⟶ With the Steamed Jasmine Rice cooking, start on the Sesame-Crusted Seared Ahi Tuna Steaks.
+         Spread 4 tablespoons sesame seeds on a flat plate and press each tuna steak firmly into the seeds to coat both flat sides.
+     11. [ T-16] (  3m assemble) Sesame-Ginger Slaw
+         ⟶ With the Steamed Jasmine Rice cooking, start on the Sesame-Ginger Slaw.
+         Pour the dressing over the slaw base and toss thoroughly to coat, then scatter 1 tablespoon sesame seeds and the chopped cilantro over the top and toss once more.
+     12. [ T-14] (  5m rest) Steamed Jasmine Rice
+         Remove the saucepan from the heat and let the rice steam, still covered, for 5 minutes.
+     13. [ T-13] (  3m prep) Sesame-Crusted Seared Ahi Tuna Steaks
+         ⟶ With the Steamed Jasmine Rice cooking, start on the Sesame-Crusted Seared Ahi Tuna Steaks.
+         Thinly slice 3 scallions and cut 1 lime into wedges; set aside for serving.
+     14. [ T-10] (  2m preheat) Sesame-Crusted Seared Ahi Tuna Steaks
+         Heat 2 tablespoons neutral oil in a large cast-iron or heavy skillet over high heat until shimmering and just beginning to smoke.
+     15. [ T-10] ( 10m rest) Sesame-Ginger Slaw
+         ⟶ With the Steamed Jasmine Rice cooking, start on the Sesame-Ginger Slaw.
+         Let the slaw sit at room temperature for at least 10 minutes before serving so the vegetables soften slightly and absorb the dressing.
+     16. [  T-9] (  1m assemble) Steamed Jasmine Rice
+         ⟶ With the Sesame-Crusted Seared Ahi Tuna Steaks cooking, start on the Steamed Jasmine Rice.
+         Uncover and fluff the rice with a fork before serving.
+     17. [  T-8] (  3m cook) Sesame-Crusted Seared Ahi Tuna Steaks
+         ⟶ With the Sesame-Ginger Slaw resting, start on the Sesame-Crusted Seared Ahi Tuna Steaks.
+         Sear the tuna steaks 90 seconds per side, pressing gently so the sesame crust makes full contact with the pan — the center should remain rare and the crust deep golden.
+     18. [  T-5] (  2m rest) Sesame-Crusted Seared Ahi Tuna Steaks
+         Transfer the tuna steaks to a cutting board and rest 2 minutes, then slice each steak against the grain into ½-inch slices.
+     19. [  T-3] (  2m assemble) Sesame-Crusted Seared Ahi Tuna Steaks
+         Plate the sliced tuna, scatter the sliced scallions over the top, and serve with lime wedges alongside.
+
+  ▸ Blackened Catfish with Dirty Rice and Braised Greens   [Thursday]  SEQUENCED
+    footer 69 min | scheduler 69 | card 69 | fresh derive 69 | dishes 3
+      1. [ T-69] (  8m prep) Braised Collard Greens
+         Remove the stems from 1½ pounds of collard greens and cut the leaves into 1-inch ribbons; thinly slice the ½ yellow onion and smash the 3 garlic cloves.
+      2. [ T-61] ( 10m prep) Dirty Rice
+         Finely dice the yellow onion, 2 celery stalks, and green bell pepper; mince the 3 garlic cloves; finely chop the 3 oz chicken livers; and finely dice the 3 oz andouille sausage.
+      3. [ T-51] (  3m cook) Dirty Rice
+         Heat 1 tablespoon neutral oil in a heavy-bottomed pot or Dutch oven over medium-high heat, then add the andouille sausage and cook, stirring frequently, for 3 minutes until lightly browned.
+      4. [ T-51] (  5m cook) Braised Collard Greens
+         Heat 1 tablespoon neutral oil in a large, deep pot or Dutch oven over medium heat, add the onion, and cook, stirring occasionally, for 5 minutes until softened and translucent.
+      5. [ T-46] (  1m cook) Braised Collard Greens
+         Add the smashed garlic and ¼ teaspoon red pepper flakes and cook, stirring, for 1 minute until fragrant.
+      6. [ T-45] (  5m cook) Dirty Rice
+         Add the ground pork and chicken livers to the pot and cook, breaking up the meat, for 5 minutes until no pink remains.
+      7. [ T-45] (  4m cook) Braised Collard Greens
+         Add the collard ribbons in large handfuls, stirring each batch to wilt slightly before adding the next, until all the greens are in the pot.
+      8. [ T-41] (  2m cook) Braised Collard Greens
+         Nestle the smoked ham hock into the greens, pour in 2 cups chicken broth, and season with ½ teaspoon kosher salt and ¼ teaspoon black pepper.
+      9. [ T-40] (  6m cook) Dirty Rice
+         ⟶ With the Braised Collard Greens cooking, start on the Dirty Rice.
+         Add the onion, celery, and green bell pepper and sauté for 5 minutes until softened, then stir in the garlic, ½ teaspoon smoked paprika, ¼ teaspoon cayenne, ½ teaspoon dried thyme, ¾ teaspoon kosher salt, and ¼ teaspoon black pepper and cook 1 minute until fragrant.
+     10. [ T-39] ( 35m cook) Braised Collard Greens
+         Bring to a simmer, then reduce heat to low, cover, and braise for 35 minutes, stirring once or twice, until the greens are completely tender and silky.
+     11. [ T-34] (  2m cook) Dirty Rice
+         ⟶ With the Braised Collard Greens marinating, start on the Dirty Rice.
+         Stir in the 1½ cups rinsed long-grain white rice, then pour in 2¾ cups chicken broth, scraping up any browned bits from the bottom of the pot.
+     12. [ T-32] ( 20m cook) Dirty Rice
+         Bring to a boil, then reduce heat to low, cover tightly, and cook for 18 minutes until the rice has absorbed all the liquid.
+     13. [ T-31] (  3m prep) Blackened Catfish
+         ⟶ With the Braised Collard Greens marinating, start on the Blackened Catfish.
+         In a small bowl, combine 1½ teaspoons smoked paprika, 1 teaspoon garlic powder, ¾ teaspoon onion powder, ½ teaspoon dried thyme, ½ teaspoon dried oregano, ½ teaspoon cayenne pepper, ½ teaspoon freshly ground black pepper, and ¾ teaspoon kosher salt.
+     14. [ T-28] (  3m prep) Blackened Catfish
+         Pat the 4 catfish fillets thoroughly dry with paper towels, then brush both sides generously with 3 tablespoons melted unsalted butter.
+     15. [ T-25] (  2m prep) Blackened Catfish
+         Press the spice blend firmly onto both sides of each buttered fillet, coating evenly.
+     16. [ T-23] (  5m preheat) Blackened Catfish
+         Heat a cast-iron skillet over high heat for 4–5 minutes until smoking hot, then add 1 tablespoon neutral oil and swirl to coat.
+     17. [ T-18] (  4m cook) Blackened Catfish
+         Lay the fillets in the skillet and sear undisturbed for 3–4 minutes until a dark, charred crust forms on the bottom — do not move them.
+     18. [ T-14] (  3m cook) Blackened Catfish
+         Flip each fillet once and cook a further 3 minutes until the fish is opaque through and flakes easily at the thickest point.
+     19. [ T-12] (  5m rest) Dirty Rice
+         ⟶ With the Braised Collard Greens marinating, start on the Dirty Rice.
+         Remove from heat and let the rice steam, covered, for 5 minutes, then fluff with a fork.
+     20. [ T-11] (  1m assemble) Blackened Catfish
+         ⟶ With the Braised Collard Greens marinating, start on the Blackened Catfish.
+         Transfer the fillets to a plate and serve immediately with lemon wedges alongside.
+     21. [  T-7] (  2m assemble) Dirty Rice
+         ⟶ With the Braised Collard Greens marinating, start on the Dirty Rice.
+         Taste and adjust seasoning, then garnish with thinly sliced scallions before serving.
+     22. [  T-4] (  3m cook) Braised Collard Greens
+         Remove the ham hock, pull any meat from the bone, shred it, and stir it back into the greens along with 1 tablespoon apple cider vinegar.
+     23. [  T-1] (  1m assemble) Braised Collard Greens
+         Taste for seasoning, then transfer to a serving bowl and serve warm.
+
+  ▸ Baked Salmon Teriyaki with Steamed Rice and Roasted Broccoli   [Saturday]  SEQUENCED
+    footer 45 min | scheduler 45 | card 45 | fresh derive 45 | dishes 3
+      1. [ T-45] (  2m prep) Teriyaki-Glazed Baked Salmon
+         Pat the four 6-oz salmon fillets completely dry with paper towels and set aside.
+      2. [ T-43] (  5m prep) Teriyaki-Glazed Baked Salmon
+         Whisk together ¼ cup soy sauce, 3 tablespoons mirin, 2 tablespoons sake, 2 tablespoons honey, 1 tablespoon light brown sugar, 1 teaspoon finely grated fresh ginger, 2 minced garlic cloves, 1 teaspoon cornstarch, and 1 teaspoon sesame oil in a small bowl until the sugar and cornstarch dissolve.
+      3. [ T-38] ( 15m rest) Teriyaki-Glazed Baked Salmon
+         Pour half the teriyaki sauce into a shallow dish, add the salmon skin-side up, and let it marinate for 15 minutes at room temperature.
+      4. [ T-38] ( 10m preheat) Teriyaki-Glazed Baked Salmon
+         Preheat the oven to 425°F and brush a rimmed baking sheet with 1 tablespoon neutral oil.
+      5. [ T-37] (  3m prep) Steamed Japanese Short-Grain Rice
+         ⟶ With the Teriyaki-Glazed Baked Salmon marinating, start on the Steamed Japanese Short-Grain Rice.
+         Place 1½ cups Japanese short-grain white rice in a fine-mesh strainer and rinse under cold running water, swirling with your hand, until the water runs clear, about 60 seconds.
+      6. [ T-34] (  4m cook) Steamed Japanese Short-Grain Rice
+         Combine the rinsed rice, 1¾ cups water, and ¼ teaspoon kosher salt in a medium saucepan with a tight-fitting lid and bring to a boil over high heat.
+      7. [ T-31] (  5m prep) Roasted Broccoli with Garlic and Sesame
+         ⟶ With the Teriyaki-Glazed Baked Salmon marinating, start on the Roasted Broccoli with Garlic and Sesame.
+         Toss 1½ pounds broccoli florets with 2 tablespoons olive oil, 3 thinly sliced garlic cloves, ¼ teaspoon red pepper flakes, ½ teaspoon kosher salt, and ¼ teaspoon black pepper on a large rimmed baking sheet, spreading into a single layer.
+      8. [ T-26] ( 15m cook) Steamed Japanese Short-Grain Rice
+         ⟶ With the Teriyaki-Glazed Baked Salmon marinating, start on the Steamed Japanese Short-Grain Rice.
+         Once boiling, reduce the heat to the lowest setting, cover tightly, and cook for 15 minutes without lifting the lid.
+      9. [ T-26] ( 20m cook) Roasted Broccoli with Garlic and Sesame
+         ⟶ With the Teriyaki-Glazed Baked Salmon marinating, start on the Roasted Broccoli with Garlic and Sesame.
+         Roast the broccoli in the 425°F oven for 18–22 minutes, flipping once halfway through, until the florets are deeply browned and caramelized at the edges.
+     10. [ T-23] (  3m cook) Teriyaki-Glazed Baked Salmon
+         ⟶ With the Steamed Japanese Short-Grain Rice cooking, start on the Teriyaki-Glazed Baked Salmon.
+         Lift the salmon from the marinade (discard used marinade), place fillets skin-side down on the prepared baking sheet, and spoon half the reserved teriyaki sauce over the top of each fillet.
+     11. [ T-20] ( 14m cook) Teriyaki-Glazed Baked Salmon
+         Bake the salmon at 425°F for 8 minutes, then spoon the remaining reserved teriyaki sauce over each fillet and continue baking for 4–6 more minutes until the glaze is caramelized and the salmon flakes easily at its thickest point.
+     12. [ T-11] ( 10m rest) Steamed Japanese Short-Grain Rice
+         ⟶ With the Roasted Broccoli with Garlic and Sesame cooking, start on the Steamed Japanese Short-Grain Rice.
+         Remove the pan from heat and let the rice steam, still covered, for 10 minutes.
+     13. [  T-6] (  2m assemble) Teriyaki-Glazed Baked Salmon
+         ⟶ With the Steamed Japanese Short-Grain Rice cooking, start on the Teriyaki-Glazed Baked Salmon.
+         Transfer the salmon to a serving platter and garnish each fillet with 1 tablespoon toasted sesame seeds and 2 thinly sliced scallions.
+     14. [  T-4] (  1m assemble) Roasted Broccoli with Garlic and Sesame
+         ⟶ With the Steamed Japanese Short-Grain Rice cooking, start on the Roasted Broccoli with Garlic and Sesame.
+         Remove the pan from the oven and immediately drizzle 1 teaspoon soy sauce over the broccoli, tossing to coat.
+     15. [  T-3] (  1m assemble) Roasted Broccoli with Garlic and Sesame
+         Transfer to a serving dish and sprinkle with 1 teaspoon toasted sesame seeds, if using.
+     16. [  T-1] (  1m assemble) Steamed Japanese Short-Grain Rice
+         Uncover, fluff the rice gently with a fork or rice paddle, and serve immediately.
+
+══════════ COOK MODE — PREPPED PATH: Seared Tuna Steak with Sesame-Ginger Slaw and Steamed Jasmine Rice ══════════
+  ticked 10 rendered prep steps → isPrepped=false; + every wire step for the meal (11) → isPrepped=false; blockers [{"stepKey":"seasonings_dry#left#14181504-afdc-4bae-9d2b-6544eb6d2272","onWire":false,"rendered":false,"title":null,"skipSuggested":null},{"stepKey":"sauces_marinades#dish#d6eab803-9268-45f5-9542-3c1152ae1938","onWire":false,"rendered":false,"title":null,"skipSuggested":null},{"stepKey":"sauces_marinades#left#14181504-afdc-4bae-9d2b-6544eb6d2272","onWire":false,"rendered":false,"title":null,"skipSuggested":null}]
+  recap ("You already prepped this — get your:"):
+    · Finely shred 4 cups green cabbage and 1 cup red cabbage, then peel and julienne or grate 2 carrots; place all in a large bowl.
+    · Rinse 1½ cups jasmine rice in a fine-mesh strainer under cold running water, stirring with your hand, until the water runs clear — about 60 seconds.
+    · Finely grate 1 teaspoon fresh ginger and mince 2 cloves garlic.
+    · Whisk together 2 tablespoons soy sauce, 1 tablespoon toasted sesame oil, the ginger, and the minced garlic in a small bowl to make the marinade.
+    · Finely grate 1 teaspoon fresh ginger and roughly chop ¼ cup fresh cilantro.
+    · Pat the 4 ahi tuna steaks dry with paper towels, season both sides with ½ teaspoon kosher salt and ¼ teaspoon black pepper, then brush all over with the marinade.
+    · Whisk together 3 tablespoons rice vinegar, 1 tablespoon toasted sesame oil, 1 tablespoon soy sauce, 1 tablespoon honey, the grated ginger, and ¼ teaspoon kosher salt in a small bowl until the honey dissolves.
+    · Spread 4 tablespoons sesame seeds on a flat plate and press each tuna steak firmly into the seeds to coat both flat sides.
+    · Thinly slice 3 scallions and cut 1 lime into wedges; set aside for serving.
+  footer 33 min; steps after the prep filter:
+      1. [T-33] (cook) Steamed Jasmine Rice
+         Combine the rinsed rice, 2¼ cups water, and ½ teaspoon kosher salt in a medium saucepan and bring to a boil over high heat.
+      2. [T-29] (cook) Steamed Jasmine Rice
+         Reduce the heat to the lowest setting, cover tightly with a lid, and cook for 15 minutes without lifting the lid.
+      3. [T-16] (assemble) Sesame-Ginger Slaw  ⟶ With the Steamed Jasmine Rice cooking, start on the Sesame-Ginger Slaw.
+         Pour the dressing over the slaw base and toss thoroughly to coat, then scatter 1 tablespoon sesame seeds and the chopped cilantro over the top and toss once more.
+      4. [T-14] (rest) Steamed Jasmine Rice
+         Remove the saucepan from the heat and let the rice steam, still covered, for 5 minutes.
+      5. [T-10] (preheat) Sesame-Crusted Seared Ahi Tuna Steaks
+         Heat 2 tablespoons neutral oil in a large cast-iron or heavy skillet over high heat until shimmering and just beginning to smoke.
+      6. [T-10] (rest) Sesame-Ginger Slaw  ⟶ With the Steamed Jasmine Rice cooking, start on the Sesame-Ginger Slaw.
+         Let the slaw sit at room temperature for at least 10 minutes before serving so the vegetables soften slightly and absorb the dressing.
+      7. [T-9] (assemble) Steamed Jasmine Rice  ⟶ With the Sesame-Crusted Seared Ahi Tuna Steaks cooking, start on the Steamed Jasmine Rice.
+         Uncover and fluff the rice with a fork before serving.
+      8. [T-8] (cook) Sesame-Crusted Seared Ahi Tuna Steaks  ⟶ With the Sesame-Ginger Slaw resting, start on the Sesame-Crusted Seared Ahi Tuna Steaks.
+         Sear the tuna steaks 90 seconds per side, pressing gently so the sesame crust makes full contact with the pan — the center should remain rare and the crust deep golden.
+      9. [T-5] (rest) Sesame-Crusted Seared Ahi Tuna Steaks
+         Transfer the tuna steaks to a cutting board and rest 2 minutes, then slice each steak against the grain into ½-inch slices.
+     10. [T-3] (assemble) Sesame-Crusted Seared Ahi Tuna Steaks
+         Plate the sliced tuna, scatter the sliced scallions over the top, and serve with lime wedges alongside.

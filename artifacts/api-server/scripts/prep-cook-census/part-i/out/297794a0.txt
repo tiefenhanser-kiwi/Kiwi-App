@@ -1,0 +1,352 @@
+PLAN 297794a0-569d-4af8-9506-0fe4cc43999a  [A21]  Part I · A21 · braises + flautas
+  range 2026-10-04 .. 2026-10-10   meals 5   prep day 2026-10-04   shapes: days-5-7, long-passive, multi-3plus, aromatics, two-cuts, cold, toss-no-heat
+
+══════════ PREP THE WEEK — full plan, as Screen 3 renders it ══════════
+  (HTTP 502: validation_failed Kiwi got distracted. Try again?)
+
+══════════ PREP SELECTED MEALS — Chipotle-Braised Beef Burrito Bowl + Chicken Flautas with Guacamole and Mexican Rice ══════════
+  HEADER: 14 containers · about 65 min   (server total 76 · phone 59) · cacheHit=false · prompt v19
+  HELD: Chicken Flautas with Guacamole and Mexican Rice (Saturday, 6 days out) — portion the chicken breasts for Crispy Chicken Flautas that morning.
+
+  ── seasonings_dry ──
+     1. Measure the Chipotle-Braised Beef spice blend   (2 min)
+        Into the Chipotle-Braised Beef spice blend:
+        1½ tsp ground cumin
+        1 tsp smoked paprika
+        ½ tsp dried oregano
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Chipotle-Braised Beef Burrito Bowl (Sunday)
+     2. Measure the Crispy Chicken Flautas sauce bowl spices   (4 min)
+        Into the Crispy Chicken Flautas sauce bowl:
+        1 tsp ground cumin
+        ½ tsp dried oregano
+        2 bay leaves
+        1 tsp chili powder
+        ½ tsp garlic powder
+        Set aside for the sauces and marinades step.
+        » for: Chicken Flautas with Guacamole and Mexican Rice (Saturday)
+  ×  3. Ground cumin — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Chipotle-Braised Beef Burrito Bowl (Sunday)
+  ×  4. Ground cumin — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Chicken Flautas with Guacamole and Mexican Rice (Saturday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Chipotle-Braised Beef Burrito Bowl (Sunday), Chicken Flautas with Guacamole and Mexican Rice (Saturday)
+     2. Dice the yellow onion for Chipotle-Braised Beef   (3 min)
+        Dice 1 yellow onion — into a tub labelled "Chipotle-Braised Beef — yellow onion and garlic cloves".
+        » for: Chipotle-Braised Beef Burrito Bowl (Sunday)
+     3. Mince all garlic cloves   (3 min)
+        Mince all garlic cloves:
+        4 for the Chipotle-Braised Beef — into a tub labelled "Chipotle-Braised Beef — yellow onion and garlic cloves"
+        2 for the Mexican Rice — into a tub labelled "Minced garlic cloves — Black Beans, Roasted Corn, and Fresh Toppings, Mexican Rice"
+        1 for the Black Beans, Roasted Corn, and Fresh Toppings — into a tub labelled "Minced garlic cloves — Black Beans, Roasted Corn, and Fresh Toppings, Mexican Rice"
+        1 for the Chunky Guacamole — into a tub labelled "Chunky Guacamole — garlic cloves, fresh cilantro, roma tomatoes, white onion and jalapeño"
+        » storage: Both containers: Airtight in the fridge — up to 4 days. Keep the Chipotle-Braised Beef spice blend and Chipotle-Braised Beef, Cilantro-Lime Rice, Black Beans, Roasted Corn, and Fresh Toppings +1 more…
+        » for: Chipotle-Braised Beef Burrito Bowl (Sunday), Chicken Flautas with Guacamole and Mexican Rice (Saturday)
+     4. Juice all limes and zest for Cilantro-Lime Rice   (10 min)
+        Zest 1 tsp lime zest — into a tub labelled "Cilantro-Lime Rice — lime zest".
+        
+        Juice the limes for all dishes, portioning into a tub labelled "Fresh lime juice — Chipotle-Braised Beef, Cilantro-Lime Rice, Black Beans, Roasted Corn, and Fresh Toppings +1 more":
+        2 tbsp for the Chipotle-Braised Beef
+        2 tbsp for the Cilantro-Lime Rice
+        2 tbsp for the Chunky Guacamole
+        1 tbsp for the Black Beans, Roasted Corn, and Fresh Toppings
+        
+        Cut 2 limes into wedges — into a tub labelled "Crispy Chicken Flautas — fresh cilantro, white onion and lime".
+        » storage: Both containers: Covered in the fridge — up to 3 days.
+        » for: Chipotle-Braised Beef Burrito Bowl (Sunday), Chicken Flautas with Guacamole and Mexican Rice (Saturday)
+     5. Chop all fresh cilantro   (5 min)
+        Chop all fresh cilantro and portion by dish:
+        ¼ cup finely chopped for the Cilantro-Lime Rice — into a tub labelled "Cilantro-Lime Rice — finely chopped fresh cilantro"
+        ¼ cup roughly chopped for the Black Beans, Roasted Corn, and Fresh Toppings — into a tub labelled "Chopped fresh cilantro — Black Beans, Roasted Corn, and Fresh Toppings, Mexican Rice"
+        2 tbsp chopped for the Mexican Rice — into a tub labelled "Chopped fresh cilantro — Black Beans, Roasted Corn, and Fresh Toppings, Mexican Rice"
+        ¼ cup roughly chopped for the Crispy Chicken Flautas — into a tub labelled "Crispy Chicken Flautas — fresh cilantro, white onion and lime"
+        3 tbsp finely chopped for the Chunky Guacamole — into a tub labelled "Chunky Guacamole — garlic cloves, fresh cilantro, roma tomatoes, white onion and jalapeño"
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Chipotle-Braised Beef Burrito Bowl (Sunday), Chicken Flautas with Guacamole and Mexican Rice (Saturday)
+     6. Dice all roma tomatoes   (8 min)
+        Dice the roma tomatoes by dish:
+        2 diced for the Black Beans, Roasted Corn, and Fresh Toppings — into a tub labelled "Black Beans, Roasted Corn, and Fresh Toppings — diced roma tomatoes"
+        1 seeded and diced for the Chunky Guacamole — into a tub labelled "Chunky Guacamole — garlic cloves, fresh cilantro, roma tomatoes, white onion and jalapeño"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Chipotle-Braised Beef Burrito Bowl (Sunday), Chicken Flautas with Guacamole and Mexican Rice (Saturday)
+     7. Finely dice the red onion for Black Beans, Roasted Corn, and Fresh Toppings   (3 min)
+        Finely dice ¼ red onion — into a tub labelled "Black Beans, Roasted Corn, and Fresh Toppings — finely diced red onion".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Chipotle-Braised Beef Burrito Bowl (Sunday)
+  ×  8. Avocado — cook day   (1 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Chipotle-Braised Beef Burrito Bowl (Sunday)
+     9. Prep all white onion   (3 min)
+        Halve ½ white onion for poaching — into a tub labelled "Crispy Chicken Flautas — fresh cilantro, white onion and lime".
+        Finely dice ½ white onion — into a tub labelled "Mexican Rice — finely diced white onion".
+        Finely dice ¼ cup white onion for the Chunky Guacamole — into a tub labelled "Chunky Guacamole — garlic cloves, fresh cilantro, roma tomatoes, white onion and jalapeño".
+        » storage: Crispy Chicken Flautas — fresh cilantro, white onion and lime: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Airtight in the fridge — up to 4 days. Keep the Crispy Chicken Fl…
+        » for: Chicken Flautas with Guacamole and Mexican Rice (Saturday)
+  × 10. Ripe Hass avocados — cook day   (1 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Chicken Flautas with Guacamole and Mexican Rice (Saturday)
+    11. Prep the jalapeño for Chunky Guacamole   (3 min)
+        Seed and mince 1 jalapeño — into a tub labelled "Chunky Guacamole — garlic cloves, fresh cilantro, roma tomatoes, white onion and jalapeño".
+        » storage: Chunky Guacamole: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Chipotle-Braised Beef, Cilantro-Lime Rice, Black Beans, Roasted Corn, and Fresh Toppings +1 more sepa…
+        » for: Chicken Flautas with Guacamole and Mexican Rice (Saturday)
+
+  ── sauces_marinades ──
+     1. Finish the Crispy Chicken Flautas sauce bowl   (4 min)
+        Crispy Chicken Flautas sauce bowl (ground cumin, dried oregano, bay leaves, chili powder and garlic powder already in it): add
+        1 minced chipotle pepper in adobo sauce
+        Stir to combine.
+        » storage: Covered in the fridge — up to 5 days.
+        » for: Chicken Flautas with Guacamole and Mexican Rice (Saturday)
+  ×  2. Chipotle chiles in adobo sauce — cook day   (8 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Chipotle-Braised Beef Burrito Bowl (Sunday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     1. Cut the beef chuck roast for Chipotle-Braised Beef   (8 min)
+        Cut 2 lb beef chuck roast into 2-inch chunks.
+        » storage: Covered in the fridge — cook within 2 days.
+        » for: Chipotle-Braised Beef Burrito Bowl (Sunday)
+  ×  2. Boneless skinless chicken breasts — cook day   (5 min)  [RENDER-OMITTED]
+        Portion out 1½ lb boneless skinless chicken breasts.
+        » storage: This one is 6 days out — leave it for cook day.
+        » for: Chicken Flautas with Guacamole and Mexican Rice (Saturday)
+
+  subset ticks: 13 keys, 13 not in the full plan; required for these meals 18, uncovered 10; isPrepped {"Chipotle-Braised Beef Burrito ":false,"Chicken Flautas with Guacamole":false}
+
+══════════ COOK MODE (cook-session.tsx: sequenced if multi-dish, flattened if single) ══════════
+
+  ▸ Chipotle-Braised Beef Burrito Bowl   [Sunday]  SEQUENCED
+    footer 86 min | scheduler 86 | card 86 | fresh derive 86 | dishes 3
+      1. [ T-86] (  4m prep) Chipotle-Braised Beef
+         Pat the 2 pounds of beef chuck chunks dry with paper towels, then season all over with 1½ teaspoons kosher salt and ½ teaspoon black pepper.
+      2. [ T-82] (  6m prep) Chipotle-Braised Beef
+         Mince 3 chipotle chiles in adobo and measure 2 tablespoons of the adobo sauce; dice the yellow onion and mince 4 garlic cloves.
+      3. [ T-76] (  2m prep) Chipotle-Braised Beef
+         In a small bowl, stir together 1½ teaspoons ground cumin, 1 teaspoon smoked paprika, and ½ teaspoon dried oregano; set aside.
+      4. [ T-74] ( 14m cook) Chipotle-Braised Beef
+         Heat 2 tablespoons neutral oil in a large Dutch oven over medium-high until shimmering, then sear the beef chunks in a single layer for 3–4 minutes per side until deeply browned; work in two batches to avoid crowding.
+      5. [ T-60] (  4m cook) Chipotle-Braised Beef
+         Remove the seared beef and reduce heat to medium; add the diced onion to the pot and cook, stirring occasionally, for 4 minutes until softened.
+      6. [ T-56] (  1m cook) Chipotle-Braised Beef
+         Add the minced garlic, minced chipotles, adobo sauce, and the spice blend to the pot and stir for 1 minute until fragrant.
+      7. [ T-55] ( 48m cook) Chipotle-Braised Beef
+         Return the beef to the pot and pour in 1 cup beef broth and ½ cup crushed tomatoes; stir to combine, bring to a boil, then reduce heat to low, cover, and braise for 45 minutes until the beef is fork-tender.
+      8. [ T-35] (  4m prep) Cilantro-Lime Rice
+         ⟶ With the Chipotle-Braised Beef marinating, start on the Cilantro-Lime Rice.
+         Zest 1 teaspoon of lime zest and juice 2 tablespoons of fresh lime juice; finely chop ¼ cup fresh cilantro.
+      9. [ T-31] (  2m cook) Cilantro-Lime Rice
+         Heat 1 tablespoon neutral oil in a medium saucepan over medium-high, add 1½ cups long-grain white rice, and stir for 2 minutes until the grains are lightly toasted.
+     10. [ T-29] ( 20m cook) Cilantro-Lime Rice
+         Pour in 2¼ cups water and ¾ teaspoon kosher salt, bring to a boil, then reduce heat to low, cover, and cook for 18 minutes until the water is fully absorbed.
+     11. [ T-24] (  5m prep) Black Beans, Roasted Corn, and Fresh Toppings
+         ⟶ With the Chipotle-Braised Beef marinating, start on the Black Beans, Roasted Corn, and Fresh Toppings.
+         Dice 2 roma tomatoes and finely dice ¼ red onion; roughly chop ¼ cup fresh cilantro.
+     12. [ T-19] (  2m assemble) Black Beans, Roasted Corn, and Fresh Toppings
+         In a small bowl, toss the diced tomatoes, red onion, and cilantro with 1 tablespoon fresh lime juice and a pinch of salt; set aside.
+     13. [ T-17] (  3m prep) Black Beans, Roasted Corn, and Fresh Toppings
+         Drain and rinse the 15-ounce can of black beans; mince 1 garlic clove.
+     14. [ T-14] (  1m cook) Black Beans, Roasted Corn, and Fresh Toppings
+         Heat 1 tablespoon neutral oil in a small saucepan over medium, add the minced garlic and ½ teaspoon ground cumin, and stir for 30 seconds until fragrant.
+     15. [ T-13] (  4m cook) Black Beans, Roasted Corn, and Fresh Toppings
+         Add the black beans and ½ teaspoon kosher salt, stir to coat, and cook over medium-low for 4 minutes until heated through; keep warm.
+     16. [ T-13] (  4m cook) Black Beans, Roasted Corn, and Fresh Toppings
+         In a dry skillet over high heat, spread 1 cup thawed corn kernels in a single layer and char without stirring for 3–4 minutes until the kernels are blistered and golden in spots.
+     17. [  T-9] (  5m rest) Cilantro-Lime Rice
+         ⟶ With the Chipotle-Braised Beef marinating, start on the Cilantro-Lime Rice.
+         Remove the pot from heat and let the rice steam, covered, for 5 minutes.
+     18. [  T-9] (  3m assemble) Black Beans, Roasted Corn, and Fresh Toppings
+         ⟶ With the Chipotle-Braised Beef marinating, start on the Black Beans, Roasted Corn, and Fresh Toppings.
+         Slice or cube 2 avocados just before serving.
+     19. [  T-6] (  5m cook) Chipotle-Braised Beef
+         ⟶ With the Cilantro-Lime Rice cooking, start on the Chipotle-Braised Beef.
+         Using two forks, shred the beef directly in the braising liquid, stir in 2 tablespoons fresh lime juice, and simmer uncovered for 5 minutes to let the sauce reduce and coat the meat.
+     20. [  T-6] (  4m assemble) Black Beans, Roasted Corn, and Fresh Toppings
+         ⟶ With the Cilantro-Lime Rice cooking, start on the Black Beans, Roasted Corn, and Fresh Toppings.
+         Build each bowl with a scoop of cilantro-lime rice, a portion of chipotle beef, black beans, roasted corn, and pico de gallo, then top with avocado, a dollop of sour cream, ¼ cup shredded Mexican cheese blend divided among bowls, and pickled jalapeño slices if desired.
+     21. [  T-2] (  2m assemble) Cilantro-Lime Rice
+         ⟶ With the Chipotle-Braised Beef cooking, start on the Cilantro-Lime Rice.
+         Fluff the rice with a fork, then fold in the lime juice, lime zest, and chopped cilantro until evenly distributed.
+
+  ▸ Salsa Verde Braised Chicken Thighs with Mexican Rice and Refried Beans   [Monday]  SEQUENCED
+    footer 64 min | scheduler 64 | card 64 | fresh derive 64 | dishes 3
+      1. [ T-64] (  4m prep) Salsa Verde Braised Chicken Thighs
+         Pat the 2½ pounds of bone-in skin-on chicken thighs dry with paper towels, then season all over with 1½ teaspoons kosher salt and ½ teaspoon black pepper.
+      2. [ T-60] (  3m prep) Salsa Verde Braised Chicken Thighs
+         Separate the cilantro stems from the leaves; roughly chop the stems and set the leaves aside for garnish.
+      3. [ T-57] (  2m preheat) Salsa Verde Braised Chicken Thighs
+         Heat 2 tablespoons neutral oil in a large oven-safe skillet or Dutch oven over medium-high until shimmering.
+      4. [ T-55] ( 10m cook) Salsa Verde Braised Chicken Thighs
+         Sear the chicken thighs skin-side down for 5–6 minutes until the skin is deep golden brown, then flip and sear the other side for 3 minutes; transfer to a plate.
+      5. [ T-45] (  4m cook) Salsa Verde Braised Chicken Thighs
+         Add the 1¼ pounds husked and halved tomatillos, 1 roughly chopped white onion, 2 stemmed and halved jalapeños, 5 smashed garlic cloves, and the cilantro stems to a blender with 1 cup chicken broth; blend until smooth.
+      6. [ T-45] (  4m prep) Mexican Red Rice
+         Combine 2 quartered roma tomatoes, ¼ roughly chopped white onion, and 2 garlic cloves in a blender and blend until smooth; set the tomato purée aside.
+      7. [ T-41] (  3m cook) Salsa Verde Braised Chicken Thighs
+         Pour the blended salsa verde into the same skillet, stir in 1½ teaspoons ground cumin and 1 teaspoon dried oregano, and bring to a simmer over medium heat.
+      8. [ T-41] (  5m cook) Mexican Red Rice
+         ⟶ With the Salsa Verde Braised Chicken Thighs marinating, start on the Mexican Red Rice.
+         Heat 2 tablespoons neutral oil in a medium saucepan over medium-high until shimmering, then add 1½ cups long-grain white rice and toast, stirring frequently, for 3–4 minutes until the grains turn golden.
+      9. [ T-36] ( 30m cook) Salsa Verde Braised Chicken Thighs
+         Nestle the seared chicken thighs skin-side up into the salsa verde, cover the skillet, reduce heat to medium-low, and braise for 30 minutes until the chicken is cooked through and tender.
+     10. [ T-36] (  3m cook) Mexican Red Rice
+         ⟶ With the Salsa Verde Braised Chicken Thighs cooking, start on the Mexican Red Rice.
+         Pour the tomato purée into the toasted rice and stir in 1 tablespoon tomato paste and ½ teaspoon ground cumin; cook, stirring, for 2 minutes until the purée is absorbed and fragrant.
+     11. [ T-33] ( 22m cook) Mexican Red Rice
+         Add 2 cups chicken broth and 1 teaspoon kosher salt, stir once, and bring to a boil; then reduce heat to the lowest setting, cover tightly, and cook for 18 minutes.
+     12. [ T-27] (  5m prep) Creamy Refried Pinto Beans
+         ⟶ With the Salsa Verde Braised Chicken Thighs cooking, start on the Creamy Refried Pinto Beans.
+         Drain and rinse 2 cans of pinto beans, finely dice ½ white onion, and mince 3 garlic cloves.
+     13. [ T-22] (  6m cook) Creamy Refried Pinto Beans
+         Heat 2 tablespoons neutral oil in a medium skillet over medium heat, then add the diced onion and cook, stirring occasionally, for 5 minutes until softened and translucent.
+     14. [ T-16] (  2m cook) Creamy Refried Pinto Beans
+         Add the minced garlic, 1 teaspoon ground cumin, and ½ teaspoon smoked paprika; cook, stirring constantly, for 1 minute until fragrant.
+     15. [ T-14] (  5m cook) Creamy Refried Pinto Beans
+         Add the drained pinto beans and ½ cup chicken broth, stir to combine, and cook over medium heat for 5 minutes until the beans are heated through and the broth has reduced slightly.
+     16. [ T-11] (  5m rest) Mexican Red Rice
+         ⟶ With the Salsa Verde Braised Chicken Thighs cooking, start on the Mexican Red Rice.
+         Remove the saucepan from heat, scatter ½ cup frozen peas (optional) over the top without stirring, replace the lid, and let the rice steam for 5 minutes.
+     17. [  T-9] (  3m cook) Creamy Refried Pinto Beans
+         ⟶ With the Salsa Verde Braised Chicken Thighs cooking, start on the Creamy Refried Pinto Beans.
+         Use a potato masher or the back of a wooden spoon to mash the beans to your desired consistency — chunky or smooth — then stir in ¾ teaspoon kosher salt and taste to adjust.
+     18. [  T-6] (  2m cook) Salsa Verde Braised Chicken Thighs
+         Uncover the skillet and squeeze the juice of 1 lime over the chicken, then taste the braising liquid and adjust salt as needed.
+     19. [  T-6] (  2m assemble) Mexican Red Rice
+         Fluff the rice gently with a fork, folding in the peas if used, and serve immediately.
+     20. [  T-4] (  2m assemble) Salsa Verde Braised Chicken Thighs
+         Serve the chicken thighs topped with the reserved cilantro leaves and a dollop of sour cream (optional) alongside the rice and beans.
+     21. [  T-2] (  2m assemble) Creamy Refried Pinto Beans
+         Transfer the refried beans to a serving dish and top with 2 ounces crumbled cotija cheese (optional) before serving.
+
+  ▸ Chipotle Braised Chicken Tacos with Pickled Jalapeños and Cotija   [Wednesday]  SEQUENCED
+    footer 88 min | scheduler 88 | card 88 | fresh derive 88 | dishes 3
+      1. [ T-88] (  3m prep) Chipotle Braised Pulled Chicken
+         Pat the 2½ pounds of bone-in, skin-on chicken thighs dry, then season all over with 1½ teaspoons kosher salt and ½ teaspoon black pepper.
+      2. [ T-85] (  5m prep) Chipotle Braised Pulled Chicken
+         Halve and thinly slice the white onion, smash 4 garlic cloves, and roughly chop 3 chipotle chiles, reserving 2 tablespoons of the adobo sauce.
+      3. [ T-80] (  2m prep) Chipotle Braised Pulled Chicken
+         In a small bowl, stir together 1 teaspoon dried oregano, 1 teaspoon ground cumin, and ½ teaspoon smoked paprika.
+      4. [ T-78] (  2m preheat) Chipotle Braised Pulled Chicken
+         Heat 2 tablespoons neutral oil in a large Dutch oven or heavy pot over medium-high until shimmering.
+      5. [ T-76] ( 10m cook) Chipotle Braised Pulled Chicken
+         Sear the chicken thighs skin-side down for 5–6 minutes until deep golden brown, then flip and sear the other side for 3 minutes; transfer to a plate.
+      6. [ T-66] (  5m cook) Chipotle Braised Pulled Chicken
+         Reduce the heat to medium, add the sliced onion to the pot, and cook, stirring occasionally, for 4 minutes until softened, then add the smashed garlic and cook 1 minute more.
+      7. [ T-61] (  3m cook) Chipotle Braised Pulled Chicken
+         Stir in the chopped chipotles, 2 tablespoons adobo sauce, the spice blend (scratch) or the full seasoning packet (bought), the 14.5-ounce can of fire-roasted diced tomatoes, and ½ cup chicken stock; bring to a simmer.
+      8. [ T-58] ( 35m cook) Chipotle Braised Pulled Chicken
+         Nestle the seared chicken thighs back into the pot, cover, and braise over low heat for 35 minutes until the chicken is fall-off-the-bone tender; while it braises, finely dice the ½ white onion for topping and pick ¼ cup cilantro leaves.
+      9. [ T-36] (  4m prep) Quick Pickled Jalapeños
+         ⟶ With the Chipotle Braised Pulled Chicken cooking, start on the Quick Pickled Jalapeños.
+         Thinly slice 4 fresh jalapeños into rounds and smash 1 garlic clove.
+     10. [ T-32] (  3m cook) Quick Pickled Jalapeños
+         Combine ½ cup white wine vinegar, ½ cup water, 1 teaspoon granulated sugar, and 1 teaspoon kosher salt in a small saucepan over medium heat and stir until the sugar and salt dissolve, about 2 minutes.
+     11. [ T-29] ( 20m rest) Quick Pickled Jalapeños
+         Pack the jalapeño rounds and smashed garlic into a heatproof jar or bowl, pour the hot brine over them, and let cool to room temperature for at least 20 minutes before serving.
+     12. [ T-25] (  6m prep) Charred Corn and Black Bean Salad
+         ⟶ With the Chipotle Braised Pulled Chicken cooking, start on the Charred Corn and Black Bean Salad.
+         Drain and rinse the 15-ounce can of black beans; finely dice the red bell pepper; roughly chop 2 tablespoons of cilantro leaves.
+     13. [ T-19] (  5m cook) Chipotle Braised Pulled Chicken
+         ⟶ With the Quick Pickled Jalapeños marinating, start on the Chipotle Braised Pulled Chicken.
+         Transfer the chicken to a cutting board, discard the skin and bones, and shred the meat with two forks; return it to the braising liquid and stir in 2 tablespoons fresh lime juice.
+     14. [ T-19] (  5m cook) Charred Corn and Black Bean Salad
+         ⟶ With the Quick Pickled Jalapeños marinating, start on the Charred Corn and Black Bean Salad.
+         Heat a dry cast-iron skillet or heavy pan over high heat until very hot, add 2 cups corn kernels in a single layer, and cook undisturbed for 3–4 minutes until charred in spots, then stir and cook 1 minute more.
+     15. [ T-14] (  3m assemble) Charred Corn and Black Bean Salad
+         Transfer the charred corn to a large bowl and add the black beans, diced red bell pepper, 2 tablespoons fresh lime juice, 1 tablespoon extra-virgin olive oil, ¼ teaspoon ground cumin, and ½ teaspoon kosher salt; toss to combine.
+     16. [ T-11] (  6m cook) Chipotle Braised Pulled Chicken
+         ⟶ With the Quick Pickled Jalapeños marinating, start on the Chipotle Braised Pulled Chicken.
+         Warm 12 corn tortillas one at a time in a dry skillet over medium-high heat for 30 seconds per side, or directly over an open gas flame, keeping them wrapped in a clean towel.
+     17. [  T-5] (  3m assemble) Chipotle Braised Pulled Chicken
+         Pile the pulled chicken onto the warm tortillas and top each with pickled jalapeños, crumbled cotija, diced white onion, and fresh cilantro; serve with lime wedges.
+     18. [  T-2] (  2m assemble) Charred Corn and Black Bean Salad
+         Fold in the chopped cilantro and taste, adjusting salt or lime juice as needed before serving.
+
+  ▸ Chicken Flautas with Crema, Shredded Cabbage Slaw, and Pico de Gallo   [Friday]  SEQUENCED
+    footer 98 min | scheduler 98 | card 98 | fresh derive 98 | dishes 3
+      1. [ T-98] (  8m cook) Crispy Chicken Flautas with Crema
+         Place 1½ pounds boneless skinless chicken breasts in a medium saucepan, cover with cold water by 1 inch, and bring to a boil over high heat.
+      2. [ T-90] ( 16m cook) Crispy Chicken Flautas with Crema
+         Reduce heat to medium and simmer the chicken 14–16 minutes until cooked through, then transfer to a cutting board and shred with two forks.
+      3. [ T-74] (  3m prep) Crispy Chicken Flautas with Crema
+         In a large bowl, toss the shredded chicken with 1 teaspoon ground cumin, 1 teaspoon chili powder, ½ teaspoon garlic powder, ½ teaspoon onion powder, 1 teaspoon kosher salt, and ½ teaspoon black pepper until evenly coated.
+      4. [ T-71] (  1m prep) Crispy Chicken Flautas with Crema
+         Stir 1 cup shredded Mexican cheese blend into the seasoned chicken filling.
+      5. [ T-70] (  2m prep) Crispy Chicken Flautas with Crema
+         Wrap the 16 corn tortillas in a damp paper towel and microwave in two batches for 45 seconds each to make them pliable.
+      6. [ T-68] (  8m assemble) Crispy Chicken Flautas with Crema
+         Spoon about 2 tablespoons of chicken filling along the lower third of each tortilla, roll tightly, and secure with a toothpick.
+      7. [ T-60] (  3m preheat) Crispy Chicken Flautas with Crema
+         Heat ½ cup vegetable oil in a large heavy skillet over medium-high until shimmering (about 350°F).
+      8. [ T-57] ( 20m cook) Crispy Chicken Flautas with Crema
+         Fry the flautas seam-side down in batches of 4–5, turning with tongs every 1–2 minutes, for 4–5 minutes total per batch until golden and crispy on all sides — do not crowd the pan.
+      9. [ T-37] (  3m assemble) Crispy Chicken Flautas with Crema
+         Transfer the fried flautas to a paper-towel-lined plate, remove the toothpicks, and whisk ¾ cup Mexican crema with 1 tablespoon fresh lime juice in a small bowl for drizzling.
+     10. [ T-34] (  8m prep) Shredded Cabbage Slaw
+         Core and thinly shred 4 cups green cabbage and 1 cup red cabbage with a sharp knife or mandoline.
+     11. [ T-26] (  6m prep) Fresh Pico de Gallo
+         Seed and finely dice 4 roma tomatoes and finely dice ½ white onion.
+     12. [ T-20] (  4m prep) Fresh Pico de Gallo
+         Seed and mince 1 jalapeño and finely chop ¼ cup fresh cilantro.
+     13. [ T-16] (  2m prep) Shredded Cabbage Slaw
+         Roughly chop ¼ cup fresh cilantro and add it to the cabbage.
+     14. [ T-14] (  2m prep) Shredded Cabbage Slaw
+         Whisk together 2 tablespoons fresh lime juice, 1 tablespoon olive oil, 1 teaspoon honey, ½ teaspoon kosher salt, and ¼ teaspoon black pepper in a small bowl.
+     15. [ T-12] (  2m assemble) Fresh Pico de Gallo
+         Combine the tomatoes, onion, jalapeño, and cilantro in a bowl, then stir in 2 tablespoons fresh lime juice and ½ teaspoon kosher salt.
+     16. [ T-10] ( 10m rest) Shredded Cabbage Slaw
+         Pour the dressing over the cabbage and cilantro and toss well to coat; let sit at room temperature for at least 10 minutes before serving so the cabbage softens slightly.
+     17. [ T-10] ( 10m rest) Fresh Pico de Gallo
+         ⟶ With the Shredded Cabbage Slaw resting, start on the Fresh Pico de Gallo.
+         Taste and adjust salt, then let the pico de gallo sit for at least 10 minutes to allow the flavors to meld before serving.
+
+  ▸ Chicken Flautas with Guacamole and Mexican Rice   [Saturday]  SEQUENCED
+    footer 81 min | scheduler 81 | card 81 | fresh derive 81 | dishes 3
+      1. [ T-81] (  4m prep) Crispy Chicken Flautas
+         Place 1½ pounds chicken breast in a saucepan with the halved onion, 3 smashed garlic cloves, 2 bay leaves, and 1 teaspoon kosher salt; cover with cold water by 2 inches.
+      2. [ T-77] ( 25m cook) Crispy Chicken Flautas
+         Bring the pot to a boil over high heat, then reduce to a gentle simmer and poach the chicken for 18 minutes until cooked through; remove the chicken and let it cool 5 minutes, then shred with two forks.
+      3. [ T-77] (  8m prep) Chunky Guacamole
+         ⟶ With the Crispy Chicken Flautas marinating, start on the Chunky Guacamole.
+         Finely dice ¼ cup white onion, seed and mince 1 jalapeño, mince 1 garlic clove, finely chop 3 tablespoons cilantro, and seed and dice 1 Roma tomato; set everything aside.
+      4. [ T-69] (  3m assemble) Chunky Guacamole
+         Halve and pit 3 ripe Hass avocados, scoop the flesh into a large bowl, and squeeze in 2 tablespoons fresh lime juice immediately to prevent browning.
+      5. [ T-66] (  2m assemble) Chunky Guacamole
+         Using a fork, mash the avocado to a chunky texture — leave visible pieces for body.
+      6. [ T-64] (  2m assemble) Chunky Guacamole
+         Fold in the diced onion, jalapeño, garlic, cilantro, and Roma tomato, then season with ¾ teaspoon kosher salt; taste and adjust lime or salt as needed.
+      7. [ T-62] ( 10m rest) Chunky Guacamole
+         Press a piece of plastic wrap directly onto the surface of the guacamole and refrigerate until ready to serve (up to 1 hour).
+      8. [ T-55] (  6m prep) Mexican Rice
+         ⟶ With the Crispy Chicken Flautas marinating, start on the Mexican Rice.
+         Blend 2 Roma tomatoes in a blender until smooth and set aside; finely dice ½ white onion and mince 2 garlic cloves.
+      9. [ T-49] (  4m prep) Crispy Chicken Flautas
+         In a large bowl, toss the shredded chicken with 1 teaspoon cumin, 1 teaspoon chili powder, ½ teaspoon garlic powder, ½ teaspoon dried oregano, ½ teaspoon kosher salt, and 1 minced chipotle pepper in adobo until evenly coated.
+     10. [ T-45] (  5m cook) Mexican Rice
+         Heat 2 tablespoons vegetable oil in a medium heavy-bottomed saucepan over medium-high heat; add 1½ cups long-grain white rice and toast, stirring frequently, for 4–5 minutes until the grains turn golden and smell nutty.
+     11. [ T-40] (  3m cook) Mexican Rice
+         Add the diced onion to the rice and sauté for 2 minutes until softened, then stir in the minced garlic and cook 30 seconds more.
+     12. [ T-37] (  3m prep) Crispy Chicken Flautas
+         Wrap 16 corn tortillas in a damp paper towel and microwave in two batches for 45 seconds each to make them pliable.
+     13. [ T-37] (  3m cook) Mexican Rice
+         Stir in 2 tablespoons tomato paste and cook for 1 minute until it darkens slightly and coats the rice, then pour in the blended tomato purée, 2 cups chicken broth, ½ teaspoon cumin, and ¾ teaspoon kosher salt; stir to combine.
+     14. [ T-34] ( 10m assemble) Crispy Chicken Flautas
+         Lay a tortilla flat, place 2 heaping tablespoons of the seasoned chicken across the lower third, roll it tightly, and secure with a toothpick; repeat with all 16 tortillas.
+     15. [ T-34] ( 18m cook) Mexican Rice
+         Bring the liquid to a boil, then reduce the heat to the lowest setting, cover tightly, and cook undisturbed for 18 minutes.
+     16. [ T-24] (  4m preheat) Crispy Chicken Flautas
+         ⟶ With the Mexican Rice marinating, start on the Crispy Chicken Flautas.
+         Pour 1½ cups vegetable oil into a large heavy skillet (cast iron preferred) and heat over medium-high until it reaches 350°F, about 4 minutes.
+     17. [ T-20] ( 16m cook) Crispy Chicken Flautas
+         Working in batches of 4, fry the flautas seam-side down for 2 minutes, turn with tongs, and fry 1–2 minutes more until deep golden and crisp all around; transfer to a paper-towel-lined plate.
+     18. [ T-16] (  5m rest) Mexican Rice
+         Uncover, scatter ½ cup frozen peas (optional) over the surface, re-cover, and let the rice steam off the heat for 5 minutes.
+     19. [  T-4] (  2m assemble) Crispy Chicken Flautas
+         Remove the toothpicks, arrange the flautas on a platter, garnish with ¼ cup roughly chopped cilantro, and serve with lime wedges and sour cream (optional) alongside.
+     20. [  T-2] (  2m assemble) Mexican Rice
+         Fluff the rice with a fork, taste for salt, and garnish with 2 tablespoons chopped cilantro before serving.

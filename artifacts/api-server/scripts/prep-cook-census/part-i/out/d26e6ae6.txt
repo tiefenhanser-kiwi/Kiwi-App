@@ -1,0 +1,469 @@
+PLAN d26e6ae6-3dcd-42ce-9f77-b3962697fff5  [A19]  Part I · A19 · grill: halves, skewers, spatchcock, shrimp tacos
+  range 2026-10-04 .. 2026-10-10   meals 4   prep day 2026-10-04   shapes: days-5-7, long-passive, multi-3plus, seafood, toss-no-heat, aromatics, two-cuts, cold
+
+══════════ PREP THE WEEK — full plan, as Screen 3 renders it ══════════
+  HEADER: 20 containers · about 70 min   (server total 99 · phone 62) · cacheHit=false · prompt v19
+  HELD: Add the large shrimp the night before you cook them (Tuesday).
+  HELD: BBQ-Glazed Spatchcock Grilled Chicken with Grilled Corn and Creamy Coleslaw (Thursday, 4 days out) — pound and prep the chicken that morning.
+  HELD: Grilled Shrimp Tacos with Mexican Street Corn (Saturday, 6 days out) — large shrimp, peeled and deveined that morning.
+
+  ── seasonings_dry ──
+     1. Measure the Classic Sauced BBQ Chicken rub bowl spices   (2 min)
+        Into the Classic Sauced BBQ Chicken rub bowl:
+        1 tsp garlic powder
+        1 tsp smoked paprika
+        ½ tsp onion powder
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Classic Sauced BBQ Chicken Halves with Grilled Corn and Creamy Coleslaw (Sunday)
+     2. Measure the BBQ-Glazed Spatchcock Grilled sauce bowl spices   (4 min)
+        Into the BBQ-Glazed Spatchcock Grilled sauce bowl:
+        1 tsp garlic powder
+        1½ tsp smoked paprika
+        ½ tsp onion powder
+        ¼ tsp cayenne pepper
+        2 tbsp brown sugar (packed)
+        
+        Set aside for the sauces and marinades step.
+        » for: BBQ-Glazed Spatchcock Grilled Chicken with Grilled Corn and Creamy Coleslaw (Thursday)
+     3. Measure the Grilled Shrimp Tacos seasoning spices   (2 min)
+        Into the Grilled Shrimp Tacos seasoning:
+        ½ tsp garlic powder
+        ½ tsp smoked paprika
+        ½ tsp ground cumin
+        1 tsp chili powder
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Grilled Shrimp Tacos with Mexican Street Corn (Saturday)
+     4. Measure the Grilled Shrimp Skewers marinade bowl spices   (3 min)
+        Into the Grilled Shrimp Skewers marinade bowl:
+        1 tsp smoked paprika
+        1½ tsp chipotle chili powder
+        ½ tsp ground cumin
+        » storage: Airtight at room temperature — it keeps for weeks. Add the large shrimp the night before you cook them (Tuesday).
+        » for: Grilled Shrimp Skewers with Charred Corn, Avocado, and Lime Vinaigrette (Tuesday)
+     5. Measure the Mexican Street Corn sauce jar spices   (3 min)
+        Into the Mexican Street Corn sauce jar:
+        ¼ tsp smoked paprika
+        ⅛ tsp cayenne pepper
+        ½ tsp chili powder
+        
+        Set aside for the sauces and marinades step.
+        » for: Grilled Shrimp Tacos with Mexican Street Corn (Saturday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Classic Sauced BBQ Chicken Halves with Grilled Corn and Creamy Coleslaw (Sunday), Grilled Shrimp Tacos with Mexican Street Corn (Saturday), BBQ-Glazed Spatchcock Grilled Chicken with Grilled Corn and Creamy Coleslaw (Thursday), Grilled Shrimp Skewers with Charred Corn, Avocado, and Lime Vinaigrette (Tuesday)
+  ×  2. Ears of corn — cook day   (1 min)  [RENDER-OMITTED]
+        Nothing to cut — it goes in as it comes.
+        » for: Classic Sauced BBQ Chicken Halves with Grilled Corn and Creamy Coleslaw (Sunday), Grilled Shrimp Tacos with Mexican Street Corn (Saturday)
+     3. Shred all green cabbage   (1 min)
+        Thinly shred then finely shred green cabbage for two Creamy Coleslaw portions:
+        4 cup thinly shredded — into a tub labelled "Creamy Coleslaw — shredded green cabbage"
+        4 cup finely shredded — into a tub labelled "Creamy Coleslaw — greens"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Classic Sauced BBQ Chicken Halves with Grilled Corn and Creamy Coleslaw (Sunday), BBQ-Glazed Spatchcock Grilled Chicken with Grilled Corn and Creamy Coleslaw (Thursday)
+     4. Shred all red cabbage   (1 min)
+        Thinly shred and finely shred the red cabbage:
+        1 cup thinly shredded — into a tub labelled "Shredded red cabbage — Creamy Coleslaw, Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo"
+        1 cup finely shredded — into a tub labelled "Creamy Coleslaw — greens"
+        1½ cup thinly shredded — into a tub labelled "Shredded red cabbage — Creamy Coleslaw, Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo"
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » for: Classic Sauced BBQ Chicken Halves with Grilled Corn and Creamy Coleslaw (Sunday), BBQ-Glazed Spatchcock Grilled Chicken with Grilled Corn and Creamy Coleslaw (Thursday), Grilled Shrimp Tacos with Mexican Street Corn (Saturday)
+     5. Grate all carrots for Creamy Coleslaw   (1 min)
+        Peel and grate the carrots:
+        2 peeled and grated — into a tub labelled "Creamy Coleslaw — grated large carrot"
+        2 peeled and grated — into a tub labelled "Creamy Coleslaw — large carrot and celery seed"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Classic Sauced BBQ Chicken Halves with Grilled Corn and Creamy Coleslaw (Sunday), BBQ-Glazed Spatchcock Grilled Chicken with Grilled Corn and Creamy Coleslaw (Thursday)
+     6. Mince all garlic   (2 min)
+        Mince the garlic:
+        4 cloves for the Grilled Shrimp Skewers — into a tub labelled "Grilled Shrimp Skewers — minced garlic"
+        1 clove for the Grilled Shrimp Tacos — into a tub labelled "Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — garlic, lime, fresh cilantro, jalapeño, roma tomatoes…"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Grilled Shrimp Skewers with Charred Corn, Avocado, and Lime Vinaigrette (Tuesday), Grilled Shrimp Tacos with Mexican Street Corn (Saturday)
+     7. Prep all limes   (8 min)
+        Zest then juice the limes:
+        1 lime — zest and juice into a tub labelled "Grilled Shrimp Skewers — zested lime"
+        1 lime — zest and juice into a tub labelled "Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — garlic, lime, fresh cilantro, jalapeño, roma tomatoes…"
+        2 limes — juice into a tub labelled "Charred Corn and Avocado Salad with Lime Vinaigrette — lime, fresh cilantro, red onion and jalapeño"
+        
+        From the Shrimp Tacos lime, measure out 1 tbsp lime juice — into a tub labelled "Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — lime juice" (for the pico de gallo).
+        » storage: Airtight in the fridge — up to 3 days. Covered in the fridge — up to 3 days.
+        » for: Grilled Shrimp Skewers with Charred Corn, Avocado, and Lime Vinaigrette (Tuesday), Grilled Shrimp Tacos with Mexican Street Corn (Saturday)
+     8. Chop all fresh cilantro   (3 min)
+        Chop the cilantro in batches by cut:
+        2 tbsp chopped for the Grilled Shrimp Skewers — into a tub labelled "Grilled Shrimp Skewers — chopped fresh cilantro"
+        ¼ cup roughly chopped for the Charred Corn and Avocado Salad — into a tub labelled "Charred Corn and Avocado Salad with Lime Vinaigrette — lime, fresh cilantro, red onion and jalapeño"
+        ¼ cup roughly chopped for the Grilled Shrimp Tacos — into a tub labelled "Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — garlic, lime, fresh cilantro, jalapeño, roma tomatoes…"
+        2 tbsp finely chopped for the Mexican Street Corn — into a tub labelled "Mexican Street Corn (Elotes) — finely chopped fresh cilantro"
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Grilled Shrimp Skewers with Charred Corn, Avocado, and Lime Vinaigrette (Tuesday), Grilled Shrimp Tacos with Mexican Street Corn (Saturday)
+     9. Husk the corn for Charred Corn and Avocado Salad   (1 min)
+        Husk 4 ears of fresh corn — into a tub labelled "Charred Corn and Avocado Salad with Lime Vinaigrette — husked fresh corn".
+        » storage: Airtight in the fridge — up to 3 days.
+        » for: Grilled Shrimp Skewers with Charred Corn, Avocado, and Lime Vinaigrette (Tuesday)
+  × 10. Avocado — cook day   (1 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Grilled Shrimp Skewers with Charred Corn, Avocado, and Lime Vinaigrette (Tuesday), Grilled Shrimp Tacos with Mexican Street Corn (Saturday)
+    11. Dice the red onion for Charred Corn and Avocado Salad   (3 min)
+        Finely dice ½ red onion — into a tub labelled "Charred Corn and Avocado Salad with Lime Vinaigrette — lime, fresh cilantro, red onion and jalapeño".
+        » for: Grilled Shrimp Skewers with Charred Corn, Avocado, and Lime Vinaigrette (Tuesday)
+    12. Seed and mince all jalapeños   (5 min)
+        Seed and mince the jalapeños:
+        1 for the Charred Corn and Avocado Salad — into a tub labelled "Charred Corn and Avocado Salad with Lime Vinaigrette — lime, fresh cilantro, red onion and jalapeño"
+        1 for the Grilled Shrimp Tacos — into a tub labelled "Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — garlic, lime, fresh cilantro, jalapeño, roma tomatoes…"
+        » storage: Charred Corn and Avocado Salad with Lime Vinaigrette: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Grilled Shrimp Skewers with Charred Corn, Avocado, and Lime Vinaigrette (Tuesday), Grilled Shrimp Tacos with Mexican Street Corn (Saturday)
+    13. Husk the corn on the cob for Charred Grilled Corn on the Cob   (1 min)
+        Husk 4 ears of corn on the cob — into a tub labelled "Charred Grilled Corn on the Cob — husked corn on the cob".
+        » storage: Airtight in the fridge — up to 3 days.
+        » for: BBQ-Glazed Spatchcock Grilled Chicken with Grilled Corn and Creamy Coleslaw (Thursday)
+    14. Slice the chives for Charred Grilled Corn on the Cob   (1 min)
+        Thinly slice 1 tbsp fresh chives — into a tub labelled "Charred Grilled Corn on the Cob — thinly sliced fresh chives".
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: BBQ-Glazed Spatchcock Grilled Chicken with Grilled Corn and Creamy Coleslaw (Thursday)
+    15. Measure the celery seed for Creamy Coleslaw   (1 min)
+        Measure ½ tsp celery seed — into a tub labelled "Creamy Coleslaw — large carrot and celery seed".
+        » storage: Creamy Coleslaw — large carrot and celery seed: Airtight in the fridge — up to 4 days.
+        » for: BBQ-Glazed Spatchcock Grilled Chicken with Grilled Corn and Creamy Coleslaw (Thursday)
+    16. Dice the roma tomatoes for Grilled Shrimp Tacos   (8 min)
+        Dice 3 roma tomatoes small — into a tub labelled "Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — garlic, lime, fresh cilantro, jalapeño, roma tomatoes…".
+        » for: Grilled Shrimp Tacos with Mexican Street Corn (Saturday)
+    17. Dice the white onion for Grilled Shrimp Tacos   (3 min)
+        Finely dice ½ white onion — into a tub labelled "Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — garlic, lime, fresh cilantro, jalapeño, roma tomatoes…".
+        » storage: Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Grilled Shrimp Tacos seasoning and lime juice separate…
+        » for: Grilled Shrimp Tacos with Mexican Street Corn (Saturday)
+
+  ── sauces_marinades ──
+     1. Finish the BBQ-Glazed Spatchcock Grilled sauce bowl   (4 min)
+        BBQ-Glazed Spatchcock Grilled sauce bowl (garlic powder, smoked paprika, onion powder, cayenne pepper and brown sugar already in it): add
+        ½ cup Ketchup
+        2 tbsp apple cider vinegar
+        1 tbsp worcestershire sauce
+        1 tsp yellow mustard
+        1 tsp hot sauce
+        Stir to combine.
+        » storage: Covered in the fridge — up to 5 days.
+        » for: BBQ-Glazed Spatchcock Grilled Chicken with Grilled Corn and Creamy Coleslaw (Thursday)
+     2. Finish the Mexican Street Corn sauce jar   (2 min)
+        Mexican Street Corn sauce jar (smoked paprika, cayenne pepper and chili powder already in it): add
+        3 tbsp Mayonnaise
+        Stir to combine.
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Grilled Shrimp Tacos with Mexican Street Corn (Saturday)
+  ×  3. Bbq sauce — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Classic Sauced BBQ Chicken Halves with Grilled Corn and Creamy Coleslaw (Sunday)
+  ×  4. Mayonnaise, apple cider vinegar and dijon mustard — cook day   (2 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: Classic Sauced BBQ Chicken Halves with Grilled Corn and Creamy Coleslaw (Sunday)
+  ×  5. Mayonnaise, apple cider vinegar and dijon mustard — cook day   (2 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: BBQ-Glazed Spatchcock Grilled Chicken with Grilled Corn and Creamy Coleslaw (Thursday)
+  ×  6. Honey — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Grilled Shrimp Skewers with Charred Corn, Avocado, and Lime Vinaigrette (Tuesday)
+  ×  7. Chipotle chile in adobo — cook day   (3 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Grilled Shrimp Tacos with Mexican Street Corn (Saturday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+  ×  1. Whole chicken halves (bone-in) — cook day   (15 min)  [RENDER-OMITTED]
+        Pound and prep both chicken portions:
+        Pat dry 4 bone-in chicken halves (about 1.5 lb each) for the Classic Sauced BBQ Chicken Halves.
+        Pat dry the 4 lb spatchcocked chicken (backbone removed) for the BBQ-Glazed Spatchcock Grilled Chicken.
+        » storage: This one is 4 days out — leave it for cook day.
+        » for: Classic Sauced BBQ Chicken Halves with Grilled Corn and Creamy Coleslaw (Sunday), BBQ-Glazed Spatchcock Grilled Chicken with Grilled Corn and Creamy Coleslaw (Thursday)
+  ×  2. Large shrimp — cook day   (6 min)  [RENDER-OMITTED]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+        » for: Grilled Shrimp Skewers with Charred Corn, Avocado, and Lime Vinaigrette (Tuesday)
+  ×  3. Large shrimp, peeled and deveined — cook day   (5 min)  [RENDER-OMITTED]
+        Pat 1½ lb large shrimp, peeled and deveined, thoroughly dry with paper towels.
+        » storage: This one is 6 days out — leave it for cook day.
+        » for: Grilled Shrimp Tacos with Mexican Street Corn (Saturday)
+
+══════════ PREP SELECTED MEALS — Classic Sauced BBQ Chicken Halves with Grilled Corn and Creamy Coleslaw + Grilled Shrimp Tacos with Mexican Street Corn ══════════
+  HEADER: 10 containers · about 45 min   (server total 51 · phone 38) · cacheHit=false · prompt v19
+  HELD: Grilled Shrimp Tacos with Mexican Street Corn (Saturday, 6 days out) — large shrimp, peeled and deveined that morning.
+
+  ── seasonings_dry ──
+     1. Measure the Classic Sauced BBQ Chicken rub bowl spices   (2 min)
+        Into the Classic Sauced BBQ Chicken rub bowl:
+        1 tsp garlic powder
+        1 tsp smoked paprika
+        ½ tsp onion powder
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Classic Sauced BBQ Chicken Halves with Grilled Corn and Creamy Coleslaw (Sunday)
+     2. Measure the Grilled Shrimp Tacos seasoning spices   (2 min)
+        Into the Grilled Shrimp Tacos seasoning:
+        ½ tsp garlic powder
+        ½ tsp smoked paprika
+        1 tsp chili powder
+        ½ tsp ground cumin
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Grilled Shrimp Tacos with Mexican Street Corn (Saturday)
+     3. Measure the Mexican Street Corn sauce jar spices   (3 min)
+        Into the Mexican Street Corn sauce jar:
+        ¼ tsp smoked paprika
+        ½ tsp chili powder
+        ⅛ tsp cayenne pepper
+        Set aside for the sauces and marinades step.
+        » for: Grilled Shrimp Tacos with Mexican Street Corn (Saturday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Classic Sauced BBQ Chicken Halves with Grilled Corn and Creamy Coleslaw (Sunday), Grilled Shrimp Tacos with Mexican Street Corn (Saturday)
+  ×  2. Ears of corn — cook day   (1 min)  [RENDER-OMITTED]
+        Nothing to cut — it goes in as it comes.
+        » for: Classic Sauced BBQ Chicken Halves with Grilled Corn and Creamy Coleslaw (Sunday), Grilled Shrimp Tacos with Mexican Street Corn (Saturday)
+     3. Shred the green cabbage for Creamy Coleslaw   (1 min)
+        Thinly shred 4 cup green cabbage — into a tub labelled "Creamy Coleslaw — shredded green cabbage".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Classic Sauced BBQ Chicken Halves with Grilled Corn and Creamy Coleslaw (Sunday)
+     4. Shred all red cabbage   (1 min)
+        Thinly shred the red cabbage:
+        1 cup for the Creamy Coleslaw
+        1½ cup for the Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo
+        Combine both portions into a tub labelled "Shredded red cabbage — Creamy Coleslaw, Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Classic Sauced BBQ Chicken Halves with Grilled Corn and Creamy Coleslaw (Sunday), Grilled Shrimp Tacos with Mexican Street Corn (Saturday)
+     5. Grate the carrots for Creamy Coleslaw   (1 min)
+        Peel and grate 2 large carrots — into a tub labelled "Creamy Coleslaw — grated large carrot".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Classic Sauced BBQ Chicken Halves with Grilled Corn and Creamy Coleslaw (Sunday)
+     6. Prep the limes for Grilled Shrimp Tacos   (3 min)
+        Zest 1 lime, then juice it:
+        the zest and juice of 1 — into a tub labelled "Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — lime, garlic, roma tomatoes, white onion, fresh cilan…"
+        Then squeeze 1 tbsp lime juice for the pico de gallo — into a tub labelled "Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — lime juice".
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Grilled Shrimp Tacos with Mexican Street Corn (Saturday)
+     7. Mince the garlic for Grilled Shrimp Tacos   (1 min)
+        Mince 1 clove garlic — into a tub labelled "Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — lime, garlic, roma tomatoes, white onion, fresh cilan…".
+        » for: Grilled Shrimp Tacos with Mexican Street Corn (Saturday)
+     8. Dice the roma tomatoes for Grilled Shrimp Tacos   (8 min)
+        Dice 3 roma tomatoes small — into a tub labelled "Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — lime, garlic, roma tomatoes, white onion, fresh cilan…".
+        » for: Grilled Shrimp Tacos with Mexican Street Corn (Saturday)
+     9. Dice the white onion for Grilled Shrimp Tacos   (3 min)
+        Finely dice ½ white onion — into a tub labelled "Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — lime, garlic, roma tomatoes, white onion, fresh cilan…".
+        » for: Grilled Shrimp Tacos with Mexican Street Corn (Saturday)
+    10. Chop all fresh cilantro   (2 min)
+        Roughly chop ¼ cup fresh cilantro for the Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — into a tub labelled "Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — lime, garlic, roma tomatoes, white onion, fresh cilan…".
+        Finely chop 2 tbsp fresh cilantro for the Mexican Street Corn (Elotes) — into a tub labelled "Mexican Street Corn (Elotes) — finely chopped fresh cilantro".
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Grilled Shrimp Tacos with Mexican Street Corn (Saturday)
+    11. Prep the jalapeño for Grilled Shrimp Tacos   (3 min)
+        Seed and mince 1 jalapeño — into a tub labelled "Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — lime, garlic, roma tomatoes, white onion, fresh cilan…".
+        » storage: Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Grilled Shrimp Tacos seasoning and lime juice separate…
+        » for: Grilled Shrimp Tacos with Mexican Street Corn (Saturday)
+  × 12. Avocado — cook day   (1 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Grilled Shrimp Tacos with Mexican Street Corn (Saturday)
+
+  ── sauces_marinades ──
+     1. Finish the Mexican Street Corn sauce jar   (2 min)
+        Mexican Street Corn sauce jar (smoked paprika, chili powder and cayenne pepper already in it): add
+        3 tbsp Mayonnaise
+        Stir to combine.
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Grilled Shrimp Tacos with Mexican Street Corn (Saturday)
+  ×  2. Bbq sauce — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Classic Sauced BBQ Chicken Halves with Grilled Corn and Creamy Coleslaw (Sunday)
+  ×  3. Mayonnaise, apple cider vinegar and dijon mustard — cook day   (2 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: Classic Sauced BBQ Chicken Halves with Grilled Corn and Creamy Coleslaw (Sunday)
+  ×  4. Chipotle chile in adobo — cook day   (3 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Grilled Shrimp Tacos with Mexican Street Corn (Saturday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     1. Pat dry the chicken halves for Classic Sauced BBQ Chicken Halves   (3 min)
+        Pat 4 whole chicken halves (bone-in) thoroughly dry with paper towels — about 1.5 lb each.
+        » storage: Covered in the fridge — cook within 2 days.
+        » for: Classic Sauced BBQ Chicken Halves with Grilled Corn and Creamy Coleslaw (Sunday)
+  ×  2. Large shrimp, peeled and deveined — cook day   (5 min)  [RENDER-OMITTED]
+        Pat 1½ lb large shrimp (peeled and deveined) thoroughly dry with paper towels.
+        » storage: This one is 6 days out — leave it for cook day.
+        » for: Grilled Shrimp Tacos with Mexican Street Corn (Saturday)
+
+  subset ticks: 15 keys, 1 not in the full plan; required for these meals 16, uncovered 7; isPrepped {"Classic Sauced BBQ Chicken Hal":false,"Grilled Shrimp Tacos with Mexi":false}
+
+══════════ COOK MODE (cook-session.tsx: sequenced if multi-dish, flattened if single) ══════════
+
+  ▸ Classic Sauced BBQ Chicken Halves with Grilled Corn and Creamy Coleslaw   [Sunday]  SEQUENCED
+    footer 77 min | scheduler 77 | card 77 | fresh derive 77 | dishes 3
+      1. [ T-77] (  2m prep) Classic Sauced BBQ Chicken Halves
+         Pat the 4 chicken halves thoroughly dry with paper towels.
+      2. [ T-75] (  3m prep) Classic Sauced BBQ Chicken Halves
+         In a small bowl, combine 2 teaspoons kosher salt, 1 teaspoon black pepper, 1 teaspoon garlic powder, 1 teaspoon smoked paprika, and ½ teaspoon onion powder.
+      3. [ T-72] (  4m prep) Classic Sauced BBQ Chicken Halves
+         Brush each chicken half all over with 2 tablespoons neutral oil, then coat evenly with the spice rub on all sides.
+      4. [ T-68] ( 10m preheat) Classic Sauced BBQ Chicken Halves
+         Preheat a gas or charcoal grill to medium heat (about 375°F), setting up a two-zone fire with direct and indirect heat.
+      5. [ T-58] ( 10m cook) Classic Sauced BBQ Chicken Halves
+         Place the chicken halves skin-side down over direct heat and grill 5 minutes until the skin is lightly charred, then flip and grill 5 minutes on the bone side.
+      6. [ T-48] ( 28m cook) Classic Sauced BBQ Chicken Halves
+         Move the chicken to indirect heat, close the lid, and cook 25–30 minutes until an instant-read thermometer inserted in the thickest part reads 155°F.
+      7. [ T-46] ( 10m prep) Creamy Coleslaw
+         ⟶ With the Classic Sauced BBQ Chicken Halves cooking, start on the Creamy Coleslaw.
+         Thinly shred 4 cups green cabbage and 1 cup red cabbage, then peel and grate the 2 large carrots; add everything to a large bowl.
+      8. [ T-36] (  4m prep) Creamy Coleslaw
+         In a separate small bowl, whisk together ½ cup mayonnaise, 2 tablespoons apple cider vinegar, 1 tablespoon granulated sugar, 1 teaspoon Dijon mustard, ½ teaspoon kosher salt, and ¼ teaspoon black pepper until smooth.
+      9. [ T-32] (  2m assemble) Creamy Coleslaw
+         Pour the dressing over the slaw and toss thoroughly to coat every strand.
+     10. [ T-30] ( 20m rest) Creamy Coleslaw
+         Cover and refrigerate the coleslaw for at least 20 minutes before serving to allow the flavors to meld and the cabbage to soften slightly.
+     11. [ T-29] (  4m prep) Grilled Corn on the Cob
+         ⟶ With the Classic Sauced BBQ Chicken Halves cooking, start on the Grilled Corn on the Cob.
+         Husk the 4 ears of corn and rub each one with ½ tablespoon softened unsalted butter, then season with ½ teaspoon kosher salt and ¼ teaspoon black pepper.
+     12. [ T-20] (  5m cook) Classic Sauced BBQ Chicken Halves
+         ⟶ With the Creamy Coleslaw chilling, start on the Classic Sauced BBQ Chicken Halves.
+         Brush the chicken generously with 1 cup of BBQ sauce, flip, and brush the other side; cook over indirect heat 5 more minutes until the glaze is set and the internal temperature reaches 165°F.
+     13. [ T-15] (  5m rest) Classic Sauced BBQ Chicken Halves
+         Transfer the chicken to a cutting board and rest 5 minutes, then serve with the remaining ½ cup BBQ sauce on the side.
+     14. [ T-15] ( 14m cook) Grilled Corn on the Cob
+         ⟶ With the Creamy Coleslaw chilling, start on the Grilled Corn on the Cob.
+         Place the corn directly over the medium-heat grill grates and cook, turning every 3–4 minutes, for 12–15 minutes total until kernels are tender and charred in spots.
+     15. [  T-1] (  1m assemble) Grilled Corn on the Cob
+         Transfer the corn to a platter and serve immediately.
+
+  ▸ Grilled Shrimp Skewers with Charred Corn, Avocado, and Lime Vinaigrette   [Tuesday]  SEQUENCED
+    footer 54 min | scheduler 54 | card 54 | fresh derive 54 | dishes 3
+      1. [ T-54] (  3m prep) Charred Corn and Avocado Salad with Lime Vinaigrette
+         Whisk together the juice of 2 limes, 3 tablespoons olive oil, 1 teaspoon honey, ¾ teaspoon kosher salt, and ¼ teaspoon black pepper in a small bowl to make the vinaigrette; set aside.
+      2. [ T-51] (  3m prep) Grilled Shrimp Skewers
+         Pat 1¾ pounds of peeled and deveined shrimp dry with paper towels, then place them in a large bowl.
+      3. [ T-48] (  5m prep) Charred Corn and Avocado Salad with Lime Vinaigrette
+         Finely dice ½ red onion, seed and mince 1 jalapeño, and roughly chop ¼ cup fresh cilantro; combine in a large bowl.
+      4. [ T-43] (  5m prep) Grilled Shrimp Skewers
+         Mince 4 cloves of garlic and whisk together with 3 tablespoons olive oil, 1½ teaspoons chipotle chili powder, 1 teaspoon smoked paprika, ½ teaspoon ground cumin, 1 teaspoon kosher salt, ½ teaspoon black pepper, and the zest and juice of 1 lime.
+      5. [ T-38] ( 10m cook) Charred Corn and Avocado Salad with Lime Vinaigrette
+         Husk 4 ears of corn and place them directly on the preheated grill grates over medium-high heat.
+      6. [ T-28] (  5m prep) Grilled Shrimp Skewers
+         Toss the shrimp in the marinade until evenly coated, then thread them onto skewers leaving a small gap between each shrimp.
+      7. [ T-28] (  5m rest) Charred Corn and Avocado Salad with Lime Vinaigrette
+         Turn the corn every 2–3 minutes until kernels are charred in spots all around, about 10 minutes total, then remove and let cool for 5 minutes.
+      8. [ T-23] (  8m preheat) Grilled Shrimp Skewers
+         Preheat the grill to medium-high heat (about 450°F) and oil the grates well.
+      9. [ T-23] (  4m assemble) Charred Corn and Avocado Salad with Lime Vinaigrette
+         ⟶ With the Grilled Shrimp Skewers heating up, start on the Charred Corn and Avocado Salad with Lime Vinaigrette.
+         Stand each ear upright and cut the kernels off the cob with a sharp knife; add the kernels to the bowl with the onion mixture.
+     10. [ T-19] (  3m assemble) Charred Corn and Avocado Salad with Lime Vinaigrette
+         Pit and dice 2 avocados and add them to the bowl, then pour the lime vinaigrette over the top and toss gently to combine.
+     11. [ T-16] (  1m assemble) Charred Corn and Avocado Salad with Lime Vinaigrette
+         Taste and adjust salt, then serve immediately alongside the shrimp skewers.
+     12. [ T-15] (  6m cook) Grilled Shrimp Skewers
+         Grill the shrimp skewers for 2–3 minutes per side, turning once, until the shrimp are pink, opaque, and lightly charred.
+     13. [  T-9] (  2m assemble) Grilled Shrimp Skewers
+         Transfer the skewers to a platter and garnish with 2 tablespoons of chopped fresh cilantro (optional) before serving.
+     14. [  T-7] (  5m cook) Warm Corn Tortillas
+         Heat a dry cast-iron skillet or griddle over medium heat, then warm 12 corn tortillas in batches of 3–4 for about 30 seconds per side until pliable and lightly toasted.
+     15. [  T-2] (  2m hold) Warm Corn Tortillas
+         Stack the warmed tortillas and wrap them in a clean kitchen towel or foil to keep warm until serving.
+
+  ▸ BBQ-Glazed Spatchcock Grilled Chicken with Grilled Corn and Creamy Coleslaw   [Thursday]  SEQUENCED
+    footer 87 min | scheduler 87 | card 87 | fresh derive 87 | dishes 3
+      1. [ T-87] (  3m prep) BBQ-Glazed Spatchcock Grilled Chicken
+         Pat the 4-pound spatchcocked chicken dry and rub all over with 2 tablespoons olive oil.
+      2. [ T-84] (  4m prep) BBQ-Glazed Spatchcock Grilled Chicken
+         Mix 1½ teaspoons smoked paprika, 1 teaspoon garlic powder, ½ teaspoon onion powder, ¼ teaspoon cayenne, 1½ teaspoons kosher salt, and 1 teaspoon black pepper in a small bowl, then rub the blend all over both sides of the chicken.
+      3. [ T-80] (  7m cook) BBQ-Glazed Spatchcock Grilled Chicken
+         Stir together ½ cup ketchup, 2 tablespoons apple cider vinegar, 2 tablespoons packed brown sugar, 1 tablespoon Worcestershire sauce, 1 teaspoon yellow mustard, and 1 teaspoon hot sauce in a small saucepan over medium heat; simmer 5 minutes, stirring occasionally, until slightly thickened, then set aside.
+      4. [ T-73] ( 10m preheat) BBQ-Glazed Spatchcock Grilled Chicken
+         Set up the grill for two-zone cooking — high heat on one side, no heat on the other — and preheat to medium-high (about 425°F).
+      5. [ T-63] ( 10m cook) BBQ-Glazed Spatchcock Grilled Chicken
+         Place the chicken skin-side down over direct heat and grill 5 minutes until the skin is well marked and beginning to crisp, then flip and grill 5 minutes more.
+      6. [ T-53] ( 33m cook) BBQ-Glazed Spatchcock Grilled Chicken
+         Move the chicken to the indirect side, close the lid, and grill 30–35 minutes until a thermometer in the thickest part of the thigh reads 155°F.
+      7. [ T-41] ( 10m prep) Creamy Coleslaw
+         ⟶ With the BBQ-Glazed Spatchcock Grilled Chicken cooking, start on the Creamy Coleslaw.
+         Finely shred 4 cups green cabbage and 1 cup red cabbage, then peel and grate 2 carrots; combine in a large bowl.
+      8. [ T-31] (  4m prep) Creamy Coleslaw
+         Whisk together ⅓ cup mayonnaise, 1½ tablespoons apple cider vinegar, 1 teaspoon granulated sugar, 1 teaspoon Dijon mustard, ½ teaspoon celery seed, ½ teaspoon kosher salt, and ¼ teaspoon black pepper in a small bowl until smooth.
+      9. [ T-27] (  2m assemble) Creamy Coleslaw
+         Pour the dressing over the cabbage mixture and toss thoroughly to coat.
+     10. [ T-25] ( 20m rest) Creamy Coleslaw
+         Cover and refrigerate the slaw for at least 20 minutes to allow the flavors to meld, then toss once more before serving.
+     11. [ T-21] (  3m prep) Charred Grilled Corn on the Cob
+         ⟶ With the BBQ-Glazed Spatchcock Grilled Chicken cooking, start on the Charred Grilled Corn on the Cob.
+         Rub 4 husked ears of corn with 2 tablespoons softened unsalted butter, then season with ½ teaspoon kosher salt and ¼ teaspoon black pepper.
+     12. [ T-18] (  5m cook) BBQ-Glazed Spatchcock Grilled Chicken
+         ⟶ With the Creamy Coleslaw chilling, start on the BBQ-Glazed Spatchcock Grilled Chicken.
+         Brush the chicken generously with the BBQ glaze and move back over direct heat for 2–3 minutes per side until the glaze is caramelized and the thigh registers 165°F.
+     13. [ T-13] ( 10m rest) BBQ-Glazed Spatchcock Grilled Chicken
+         Transfer the chicken to a cutting board and rest 10 minutes before carving into quarters.
+     14. [ T-13] ( 12m cook) Charred Grilled Corn on the Cob
+         ⟶ With the Creamy Coleslaw chilling, start on the Charred Grilled Corn on the Cob.
+         Place the corn directly over the direct-heat zone of the grill and cook, turning every 2–3 minutes, for 10–12 minutes total until kernels are charred in spots and tender.
+     15. [  T-1] (  1m assemble) Charred Grilled Corn on the Cob
+         Transfer the corn to a platter and scatter 1 tablespoon thinly sliced fresh chives over the top, if using.
+
+  ▸ Grilled Shrimp Tacos with Mexican Street Corn   [Saturday]  SEQUENCED
+    footer 52 min | scheduler 52 | card 52 | fresh derive 52 | dishes 2
+      1. [ T-52] (  2m prep) Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo
+         Pat 1½ pounds shrimp dry and set aside.
+      2. [ T-50] (  2m prep) Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo
+         In a small bowl, combine 1 teaspoon chili powder, ½ teaspoon smoked paprika, ½ teaspoon garlic powder, ½ teaspoon cumin, ¾ teaspoon kosher salt, and ¼ teaspoon black pepper.
+      3. [ T-48] (  3m prep) Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo
+         Toss the shrimp with 2 tablespoons olive oil and the spice blend, then zest and juice 1 lime, adding the zest to the shrimp and reserving the juice for the crema.
+      4. [ T-45] (  8m prep) Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo
+         Dice 3 roma tomatoes small, finely dice ½ white onion, seed and mince 1 jalapeño, and roughly chop ¼ cup cilantro; toss together with 1 tablespoon lime juice and a pinch of salt to make the pico de gallo.
+      5. [ T-37] (  4m prep) Mexican Street Corn (Elotes)
+         Crumble ½ cup cotija cheese and finely chop 2 tablespoons cilantro; cut 2 limes into wedges and set everything aside for finishing.
+      6. [ T-33] (  4m prep) Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo
+         Mince 1 chipotle chile in adobo and 1 garlic clove, then whisk together with ½ cup sour cream, 1 teaspoon adobo sauce, and the reserved lime juice to make the chipotle-lime crema.
+      7. [ T-29] (  3m prep) Mexican Street Corn (Elotes)
+         Stir together 3 tablespoons mayonnaise, 2 tablespoons sour cream, ½ teaspoon chili powder, ¼ teaspoon smoked paprika, ¼ teaspoon kosher salt, and ⅛ teaspoon cayenne (if using) in a small bowl to make the elote sauce.
+      8. [ T-26] (  3m prep) Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo
+         Thinly shred 1½ cups red cabbage and set aside.
+      9. [ T-23] (  5m preheat) Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo
+         Heat a grill or grill pan over high heat until very hot.
+     10. [ T-23] (  5m preheat) Mexican Street Corn (Elotes)
+         ⟶ With the Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo cooking, start on the Mexican Street Corn (Elotes).
+         Heat the grill or grill pan to high heat.
+     11. [ T-18] (  5m cook) Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo
+         Grill the shrimp in a single layer for 2 minutes per side until pink, lightly charred, and just cooked through, then transfer to a plate.
+     12. [ T-18] ( 12m cook) Mexican Street Corn (Elotes)
+         Grill 4 ears of husked corn, turning every 2–3 minutes, for 10–12 minutes total until kernels are charred in spots and tender throughout.
+     13. [ T-13] (  5m cook) Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo
+         ⟶ With the Mexican Street Corn (Elotes) cooking, start on the Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo.
+         Char 12 corn tortillas directly over a gas flame or in a dry skillet for 20–30 seconds per side until warmed and lightly blistered, then wrap in a clean towel to keep warm.
+     14. [  T-8] (  4m assemble) Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo
+         Lay 2–3 tortillas per serving and top each with a pinch of shredded red cabbage, 3–4 shrimp, a spoonful of pico de gallo, and a drizzle of chipotle-lime crema; add sliced avocado if using.
+     15. [  T-4] (  3m assemble) Mexican Street Corn (Elotes)
+         While the corn is still hot, brush each ear generously with the elote sauce, then roll in the crumbled cotija cheese.
+     16. [  T-1] (  1m assemble) Mexican Street Corn (Elotes)
+         Scatter the chopped cilantro over the corn and serve immediately with lime wedges alongside.
+
+══════════ COOK MODE — PREPPED PATH: Grilled Shrimp Skewers with Charred Corn, Avocado, and Lime Vinaigrette ══════════
+  ticked 8 rendered prep steps → isPrepped=false; + every wire step for the meal (11) → isPrepped=false; blockers [{"stepKey":"seasonings_dry#dish#9818730c-264a-45c5-a225-e9ad4ba125d0","onWire":false,"rendered":false,"title":null,"skipSuggested":null}]
+  recap ("You already prepped this — get your:"):
+    · Whisk together the juice of 2 limes, 3 tablespoons olive oil, 1 teaspoon honey, ¾ teaspoon kosher salt, and ¼ teaspoon black pepper in a small bowl to make the vinaigrette; set aside.
+    · Pat 1¾ pounds of peeled and deveined shrimp dry with paper towels, then place them in a large bowl.
+    · Finely dice ½ red onion, seed and mince 1 jalapeño, and roughly chop ¼ cup fresh cilantro; combine in a large bowl.
+    · Mince 4 cloves of garlic and whisk together with 3 tablespoons olive oil, 1½ teaspoons chipotle chili powder, 1 teaspoon smoked paprika, ½ teaspoon ground cumin, 1 teaspoon kosher salt, ½ teaspoon black pepper, and the zest and juice of 1 lime.
+    · Toss the shrimp in the marinade until evenly coated, then thread them onto skewers leaving a small gap between each shrimp.
+  footer 38 min; steps after the prep filter:
+      1. [T-38] (cook) Charred Corn and Avocado Salad with Lime Vinaigrette
+         Husk 4 ears of corn and place them directly on the preheated grill grates over medium-high heat.
+      2. [T-28] (rest) Charred Corn and Avocado Salad with Lime Vinaigrette
+         Turn the corn every 2–3 minutes until kernels are charred in spots all around, about 10 minutes total, then remove and let cool for 5 minutes.
+      3. [T-23] (preheat) Grilled Shrimp Skewers
+         Preheat the grill to medium-high heat (about 450°F) and oil the grates well.
+      4. [T-23] (assemble) Charred Corn and Avocado Salad with Lime Vinaigrette  ⟶ With the Grilled Shrimp Skewers heating up, start on the Charred Corn and Avocado Salad with Lime Vinaigrette.
+         Stand each ear upright and cut the kernels off the cob with a sharp knife; add the kernels to the bowl with the onion mixture.
+      5. [T-19] (assemble) Charred Corn and Avocado Salad with Lime Vinaigrette
+         Pit and dice 2 avocados and add them to the bowl, then pour the lime vinaigrette over the top and toss gently to combine.
+      6. [T-16] (assemble) Charred Corn and Avocado Salad with Lime Vinaigrette
+         Taste and adjust salt, then serve immediately alongside the shrimp skewers.
+      7. [T-15] (cook) Grilled Shrimp Skewers
+         Grill the shrimp skewers for 2–3 minutes per side, turning once, until the shrimp are pink, opaque, and lightly charred.
+      8. [T-9] (assemble) Grilled Shrimp Skewers
+         Transfer the skewers to a platter and garnish with 2 tablespoons of chopped fresh cilantro (optional) before serving.
+      9. [T-7] (cook) Warm Corn Tortillas
+         Heat a dry cast-iron skillet or griddle over medium heat, then warm 12 corn tortillas in batches of 3–4 for about 30 seconds per side until pliable and lightly toasted.
+     10. [T-2] (hold) Warm Corn Tortillas
+         Stack the warmed tortillas and wrap them in a clean kitchen towel or foil to keep warm until serving.

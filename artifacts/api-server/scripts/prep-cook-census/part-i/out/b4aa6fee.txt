@@ -1,0 +1,516 @@
+PLAN b4aa6fee-70b1-4990-a596-05087ac904c5  [E-b4aa6fee]  Your 5 Meals, Exactly as You Planned Them
+  range 2026-09-30 .. 2026-10-05   meals 5   prep day 2026-10-03   shapes: days-5-7, long-passive, aromatics, two-cuts, toss-no-heat, multi-3plus, cold, seafood, marinate
+  CACHE BEFORE RUN: hit=false v19 · blob 36 keys vs HEAD 36 · 0 HEAD keys absent from blob · 0 blob keys HEAD no longer emits
+
+══════════ PREP THE WEEK — full plan, as Screen 3 renders it ══════════
+  HEADER: 22 containers · about 110 min   (server total 128 · phone 97) · cacheHit=true · prompt v19
+
+  ── seasonings_dry ──
+     1. Measure the Sheet-Pan Chicken Fajitas spice blend   (3 min)
+        Into the Sheet-Pan Chicken Fajitas spice blend:
+        2 tsp chili powder
+        1 tsp ground cumin
+        1 tsp smoked paprika
+        ½ tsp garlic powder
+        ½ tsp onion powder
+        ½ tsp dried oregano
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Monday)
+     2. Measure the Carne Asada marinade bowl spices   (3 min)
+        Into the Carne Asada marinade bowl:
+        1 tsp chili powder
+        1 tsp ground cumin
+        ½ tsp smoked paprika
+        ½ tsp dried oregano
+        Set aside for the produce step.
+        » for: Carne Asada Tacos (Friday)
+     3. Measure the Seasoned Ground Beef Filling spice blend   (2 min)
+        Into the Seasoned Ground Beef Filling spice blend:
+        1 tsp chili powder
+        1½ tsp ground cumin
+        ½ tsp dried oregano
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Beef Enchiladas Verdes with Roasted Tomatillo Sauce (Saturday)
+  ×  4. Ground cumin — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Beef Enchiladas Verdes with Roasted Tomatillo Sauce (Saturday)
+  ×  5. Dried oregano — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Lemon-Herb Baked Chicken Breast with Roasted Asparagus and Garlic Herb Potatoes (Sunday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Monday), Carne Asada Tacos (Friday), Beef Enchiladas Verdes with Roasted Tomatillo Sauce (Saturday), Lemon-Herb Baked Chicken Breast with Roasted Asparagus and Garlic Herb Potatoes (Sunday), Teriyaki Salmon Dinner (Thursday)
+     2. Slice the red bell peppers for Sheet-Pan Chicken Fajitas   (5 min)
+        Thinly slice 2 red bell peppers — into a tub labelled "Sheet-Pan Chicken Fajitas — red bell pepper, green bell pepper, yellow onion and lime".
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Monday)
+     3. Slice the green bell pepper for Sheet-Pan Chicken Fajitas   (3 min)
+        Thinly slice 1 green bell pepper — into a tub labelled "Sheet-Pan Chicken Fajitas — red bell pepper, green bell pepper, yellow onion and lime".
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Monday)
+     4. Slice the yellow onion for Sheet-Pan Chicken Fajitas   (3 min)
+        Thinly slice 1 yellow onion — into a tub labelled "Sheet-Pan Chicken Fajitas — red bell pepper, green bell pepper, yellow onion and lime".
+        » storage: Sheet-Pan Chicken Fajitas: Airtight in the fridge — up to 4 days. Keep the Sheet-Pan Chicken Fajitas spice blend separate; combine on cook day (Monday).
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Monday)
+  ×  5. Lime and lime juice — cook day   (14 min)  [RENDER-OMITTED]
+        Citrus wedges keep best cut on the day.
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Monday), Carne Asada Tacos (Friday), Beef Enchiladas Verdes with Roasted Tomatillo Sauce (Saturday)
+     6. Chop all fresh cilantro   (5 min)
+        Roughly chop all the cilantro, then portion it out:
+        ¼ bunch for Fajita Toppings — into a tub labelled "Chopped fresh cilantro — Fajita Toppings, Carne Asada, Seasoned Ground Beef Filling"
+        ¼ cup for Carne Asada — into the same tub labelled "Chopped fresh cilantro — Fajita Toppings, Carne Asada, Seasoned Ground Beef Filling"
+        2 tbsp for Seasoned Ground Beef Filling — into that same tub
+        ¼ cup for Pico de Gallo — into a tub labelled "Pico de Gallo — fresh cilantro, jalapeño, roma tomatoes and white onion"
+        3 tbsp for Guacamole — into a tub labelled "Guacamole — fresh cilantro, jalapeño and white onion"
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Monday), Carne Asada Tacos (Friday), Beef Enchiladas Verdes with Roasted Tomatillo Sauce (Saturday)
+     7. Prep all jalapeños   (10 min)
+        Work through all four jalapeños, prepping each to its dish:
+        1 thinly sliced for Fajita Toppings — into a tub labelled "Fajita Toppings — thinly sliced jalapeño"
+        1 seeded and minced for Pico de Gallo — into a tub labelled "Pico de Gallo — fresh cilantro, jalapeño, roma tomatoes and white onion"
+        1 seeded and minced for Guacamole — into a tub labelled "Guacamole — fresh cilantro, jalapeño and white onion"
+        1 halved for Roasted Tomatillo Sauce — into a tub labelled "Roasted Tomatillo Sauce vegetables"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Monday), Carne Asada Tacos (Friday), Beef Enchiladas Verdes with Roasted Tomatillo Sauce (Saturday)
+     8. Zest and juice all lemons   (5 min)
+        Zest 2 lemons first, then juice them along with ½ lemon more:
+        Zest and juice of 2 for Lemon-Herb Baked Chicken Breast — into a tub labelled "Lemon-Herb Baked Chicken Breast — zested lemon"
+        Juice of ½ for Roasted Asparagus — into a tub labelled "Roasted Asparagus — lemon and asparagus"
+        » storage: Airtight in the fridge — up to 3 days.
+        » for: Lemon-Herb Baked Chicken Breast with Roasted Asparagus and Garlic Herb Potatoes (Sunday)
+     9. Mince all garlic   (6 min)
+        Mince all the garlic and portion it into its containers:
+        4 cloves for Lemon-Herb Baked Chicken Breast — into a tub labelled "Minced garlic — Lemon-Herb Baked Chicken Breast, Garlic Herb Baby Potatoes, Seasoned Ground Beef Filling"
+        3 cloves for Garlic Herb Baby Potatoes — into that same tub
+        3 cloves for Seasoned Ground Beef Filling — into that same tub
+        4 cloves for Carne Asada — into the Carne Asada marinade bowl
+        2 cloves for Teriyaki Salmon — into the Teriyaki Salmon glaze jar
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Lemon-Herb Baked Chicken Breast with Roasted Asparagus and Garlic Herb Potatoes (Sunday), Carne Asada Tacos (Friday), Teriyaki Salmon Dinner (Thursday), Beef Enchiladas Verdes with Roasted Tomatillo Sauce (Saturday)
+    10. Strip and chop all fresh rosemary   (2 min)
+        Strip the leaves from all the rosemary sprigs and chop them:
+        2 sprigs for Lemon-Herb Baked Chicken Breast — into a tub labelled "Chopped fresh rosemary — Lemon-Herb Baked Chicken Breast, Garlic Herb Baby Potatoes"
+        1 sprig for Garlic Herb Baby Potatoes — into that same tub
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Lemon-Herb Baked Chicken Breast with Roasted Asparagus and Garlic Herb Potatoes (Sunday)
+    11. Strip all fresh thyme leaves   (1 min)
+        Strip the leaves from all the thyme sprigs:
+        4 sprigs for Lemon-Herb Baked Chicken Breast — into a tub labelled "Stripped fresh thyme — Lemon-Herb Baked Chicken Breast, Garlic Herb Baby Potatoes"
+        3 sprigs for Garlic Herb Baby Potatoes — into that same tub
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Lemon-Herb Baked Chicken Breast with Roasted Asparagus and Garlic Herb Potatoes (Sunday)
+    12. Chop the fresh parsley for Lemon-Herb Baked Chicken Breast   (1 min)
+        Chop ¼ cup fresh parsley — into a tub labelled "Lemon-Herb Baked Chicken Breast — chopped fresh parsley".
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Lemon-Herb Baked Chicken Breast with Roasted Asparagus and Garlic Herb Potatoes (Sunday)
+  × 13. Baby yellow potato — cook day   (1 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Lemon-Herb Baked Chicken Breast with Roasted Asparagus and Garlic Herb Potatoes (Sunday)
+    14. Trim the asparagus for Roasted Asparagus   (2 min)
+        Trim the woody ends from 1 lb asparagus — into a tub labelled "Roasted Asparagus — lemon and asparagus".
+        » storage: Roasted Asparagus — lemon and asparagus: Airtight in the fridge — up to 4 days.
+        » for: Lemon-Herb Baked Chicken Breast with Roasted Asparagus and Garlic Herb Potatoes (Sunday)
+    15. Measure the orange juice for Carne Asada   (2 min)
+        Measure ¼ cup orange juice — into the Carne Asada marinade bowl.
+        » storage: Carne Asada marinade bowl: Covered in the fridge — up to 3 days. The skirt steak go in at the proteins step and marinate until cook day.
+        » for: Carne Asada Tacos (Friday)
+    16. Dice the roma tomatoes for Pico de Gallo   (8 min)
+        Dice 3 roma tomatoes — into a tub labelled "Pico de Gallo — fresh cilantro, jalapeño, roma tomatoes and white onion".
+        » for: Carne Asada Tacos (Friday)
+    17. Dice all white onion   (5 min)
+        Finely dice all the white onion and portion it out:
+        ½ finely diced for Pico de Gallo — into a tub labelled "Pico de Gallo — fresh cilantro, jalapeño, roma tomatoes and white onion"
+        ¼ finely diced for Guacamole — into a tub labelled "Guacamole — fresh cilantro, jalapeño and white onion"
+        ½ finely diced for Seasoned Ground Beef Filling — into a tub labelled "Seasoned Ground Beef Filling — finely diced white onion"
+        ½ quartered for Roasted Tomatillo Sauce — into a tub labelled "Roasted Tomatillo Sauce vegetables"
+        » storage: Pico de Gallo: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Guacamole — fresh cilantro, jalapeño and white onion: Airtight in the fridge, with a barely damp paper towel — up…
+        » for: Carne Asada Tacos (Friday), Beef Enchiladas Verdes with Roasted Tomatillo Sauce (Saturday)
+  × 18. Ripe avocado — cook day   (1 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Carne Asada Tacos (Friday)
+    19. Grate the fresh ginger for Teriyaki Salmon   (1 min)
+        Grate 1 tsp fresh ginger — into the Teriyaki Salmon glaze jar.
+        » for: Teriyaki Salmon Dinner (Thursday)
+    20. Slice the scallions for Teriyaki Salmon   (1 min)
+        Thinly slice 2 scallions — into a tub labelled "Teriyaki Salmon — thinly sliced scallions".
+        » storage: Airtight in the fridge — up to 3 days.
+        » for: Teriyaki Salmon Dinner (Thursday)
+    21. Slice the cucumber for Sesame Cucumber Salad   (3 min)
+        Thinly slice 1 English cucumber — into a tub labelled "Sesame Cucumber Salad — thinly sliced english cucumber".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Teriyaki Salmon Dinner (Thursday)
+    22. Husk and halve the tomatillos for Roasted Tomatillo Sauce   (3 min)
+        Husk and halve 1¼ lb tomatillos — into a tub labelled "Roasted Tomatillo Sauce vegetables".
+        » for: Beef Enchiladas Verdes with Roasted Tomatillo Sauce (Saturday)
+    23. Halve and seed the poblano peppers for Roasted Tomatillo Sauce   (1 min)
+        Halve and seed 2 poblano peppers — into a tub labelled "Roasted Tomatillo Sauce vegetables".
+        » storage: Roasted Tomatillo Sauce vegetables: Airtight in the fridge — up to 4 days.
+        » for: Beef Enchiladas Verdes with Roasted Tomatillo Sauce (Saturday)
+
+  ── sauces_marinades ──
+     1. Finish the Teriyaki Salmon glaze jar   (4 min)
+        Teriyaki Salmon glaze jar (garlic and fresh ginger already in it): add
+        ¼ cup soy sauce
+        3 tbsp mirin
+        2 tbsp sake
+        2 tbsp honey
+        1 tsp sesame oil
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 4 days.
+        » for: Teriyaki Salmon Dinner (Thursday)
+     2. Build the Sesame Cucumber Salad dressing jar   (3 min)
+        Into the Sesame Cucumber Salad dressing jar:
+        1 tbsp soy sauce
+        1 tsp honey
+        1 tbsp sesame oil
+        2 tbsp rice vinegar
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 4 days.
+        » for: Teriyaki Salmon Dinner (Thursday)
+  ×  3. Salsa — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Monday)
+  ×  4. Hot sauce — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Carne Asada Tacos (Friday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     1. Cut the chicken thighs into strips for Sheet-Pan Chicken Fajitas   (6 min)
+        Cut into strips 1½ lb boneless skinless chicken thighs — slice each thigh into ½-inch strips.
+        » storage: Covered in the fridge — cook within 2 days.
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Monday)
+  ×  2. Boneless skinless chicken breasts — cook day   (6 min)  [RENDER-OMITTED]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+        » for: Lemon-Herb Baked Chicken Breast with Roasted Asparagus and Garlic Herb Potatoes (Sunday)
+  ×  3. Skirt steak — cook day   (5 min)  [RENDER-OMITTED]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+        » for: Carne Asada Tacos (Friday)
+     4. Portion the salmon fillets for Teriyaki Salmon   (6 min)
+        Portion 1½ lb skin-on salmon into 4 equal pieces.
+        » storage: Covered in the fridge — cook within 2 days.
+        » for: Teriyaki Salmon Dinner (Thursday)
+
+══════════ PREP SELECTED MEALS — Classic Tex-Mex Sheet-Pan Chicken Fajitas + Beef Enchiladas Verdes with Roasted Tomatillo Sauce ══════════
+  HEADER: 10 containers · about 50 min   (server total 45 · phone 43) · cacheHit=false · prompt v19
+
+  ── seasonings_dry ──
+     1. Measure the Sheet-Pan Chicken Fajitas spice blend   (3 min)
+        Into the Sheet-Pan Chicken Fajitas spice blend:
+        2 tsp chili powder
+        1 tsp ground cumin
+        1 tsp smoked paprika
+        ½ tsp garlic powder
+        ½ tsp onion powder
+        ½ tsp dried oregano
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Monday)
+     2. Measure the Seasoned Ground Beef Filling spice blend   (2 min)
+        Into the Seasoned Ground Beef Filling spice blend:
+        1 tsp chili powder
+        1½ tsp ground cumin
+        ½ tsp dried oregano
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Beef Enchiladas Verdes with Roasted Tomatillo Sauce (Saturday)
+  ×  3. Ground cumin — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Beef Enchiladas Verdes with Roasted Tomatillo Sauce (Saturday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Monday), Beef Enchiladas Verdes with Roasted Tomatillo Sauce (Saturday)
+     2. Slice the red bell peppers for Sheet-Pan Chicken Fajitas   (5 min)
+        Thinly slice 2 red bell peppers — into a tub labelled "Sheet-Pan Chicken Fajitas — red bell pepper, green bell pepper, yellow onion and lime".
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Monday)
+     3. Slice the green bell pepper for Sheet-Pan Chicken Fajitas   (3 min)
+        Thinly slice 1 green bell pepper — into a tub labelled "Sheet-Pan Chicken Fajitas — red bell pepper, green bell pepper, yellow onion and lime".
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Monday)
+     4. Slice the yellow onion for Sheet-Pan Chicken Fajitas   (3 min)
+        Thinly slice 1 yellow onion — into a tub labelled "Sheet-Pan Chicken Fajitas — red bell pepper, green bell pepper, yellow onion and lime".
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Monday)
+     5. Prep all limes   (5 min)
+        Juice 1 lime and cut 2 more into wedges:
+        the juice of 1 — into a tub labelled "Sheet-Pan Chicken Fajitas — red bell pepper, green bell pepper, yellow onion and lime"
+        1 cut into wedges and 1 cut into wedges — into a tub labelled "Lime — Fajita Toppings, Seasoned Ground Beef Filling"
+        » storage: Sheet-Pan Chicken Fajitas: Airtight in the fridge — up to 4 days. Airtight in the fridge — up to 3 days. Keep the Sheet-Pan Chicken Fajitas spice blend separate; combine on cook day (Monday).
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Monday), Beef Enchiladas Verdes with Roasted Tomatillo Sauce (Saturday)
+     6. Chop the fresh cilantro   (2 min)
+        Roughly chop the fresh cilantro:
+        ¼ bunch for Fajita Toppings — into a tub labelled "Chopped fresh cilantro — Fajita Toppings, Seasoned Ground Beef Filling"
+        2 tbsp for Seasoned Ground Beef Filling — into a tub labelled "Chopped fresh cilantro — Fajita Toppings, Seasoned Ground Beef Filling"
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Monday), Beef Enchiladas Verdes with Roasted Tomatillo Sauce (Saturday)
+     7. Prep all jalapeños   (5 min)
+        Thinly slice 1 jalapeño — into a tub labelled "Fajita Toppings — thinly sliced jalapeño".
+        Halve 1 jalapeño — into a tub labelled "Roasted Tomatillo Sauce vegetables".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Monday), Beef Enchiladas Verdes with Roasted Tomatillo Sauce (Saturday)
+     8. Prep the tomatillos for Roasted Tomatillo Sauce   (3 min)
+        Husk and halve 1¼ lb tomatillos — into a tub labelled "Roasted Tomatillo Sauce vegetables".
+        » for: Beef Enchiladas Verdes with Roasted Tomatillo Sauce (Saturday)
+     9. Prep the poblano peppers for Roasted Tomatillo Sauce   (1 min)
+        Halve and seed 2 poblano peppers — into a tub labelled "Roasted Tomatillo Sauce vegetables".
+        » for: Beef Enchiladas Verdes with Roasted Tomatillo Sauce (Saturday)
+    10. Prep all white onion   (1 min)
+        Quarter ½ white onion for Roasted Tomatillo Sauce — into a tub labelled "Roasted Tomatillo Sauce vegetables".
+        Finely dice ½ white onion for Seasoned Ground Beef Filling — into a tub labelled "Seasoned Ground Beef Filling — finely diced white onion".
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » for: Beef Enchiladas Verdes with Roasted Tomatillo Sauce (Saturday)
+    11. Mince the garlic for Seasoned Ground Beef Filling   (1 min)
+        Mince 3 cloves garlic — into a tub labelled "Seasoned Ground Beef Filling — minced garlic".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Beef Enchiladas Verdes with Roasted Tomatillo Sauce (Saturday)
+
+  ── sauces_marinades ──
+  ×  1. Salsa — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Monday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     1. Cut the chicken thighs into strips   (6 min)
+        Cut into strips 1½ lb boneless skinless chicken thighs into ½-inch strips.
+        » storage: Covered in the fridge — cook within 2 days.
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Monday)
+
+  subset ticks: 14 keys, 0 not in the full plan; required for these meals 12, uncovered 2; isPrepped {"Classic Tex-Mex Sheet-Pan Chic":false,"Beef Enchiladas Verdes with Ro":false}
+
+══════════ COOK MODE (cook-session.tsx: sequenced if multi-dish, flattened if single) ══════════
+
+  ▸ Classic Tex-Mex Sheet-Pan Chicken Fajitas   [Monday]  SEQUENCED
+    footer 46 min | scheduler 46 | card 46 | fresh derive 46 | dishes 2
+      1. [ T-46] ( 12m preheat) Sheet-Pan Chicken Fajitas
+         Preheat the oven to 425°F and position a rack in the upper third.
+      2. [ T-46] (  3m prep) Sheet-Pan Chicken Fajitas
+         In a large bowl, whisk together 3 tablespoons olive oil, 2 teaspoons chili powder, 1 teaspoon cumin, 1 teaspoon smoked paprika, ½ teaspoon garlic powder, ½ teaspoon onion powder, ½ teaspoon dried oregano, 1 teaspoon kosher salt, and ½ teaspoon black pepper.
+      3. [ T-43] (  8m prep) Sheet-Pan Chicken Fajitas
+         Cut the chicken thighs into ½-inch strips, thinly slice 2 red bell peppers, 1 green bell pepper, and 1 yellow onion, then add everything to the bowl and toss well to coat.
+      4. [ T-34] (  2m cook) Sheet-Pan Chicken Fajitas
+         Spread the chicken and vegetables in a single layer across one or two large sheet pans, making sure not to crowd them.
+      5. [ T-32] ( 22m cook) Sheet-Pan Chicken Fajitas
+         Roast at 425°F for 20–22 minutes, until the chicken is cooked through and the edges of the peppers and onions are lightly charred.
+      6. [ T-32] (  5m cook) Sheet-Pan Chicken Fajitas
+         While the fajita filling roasts, wrap the 8 flour tortillas in foil and place them in the oven for the last 5 minutes to warm through.
+      7. [ T-10] (  2m assemble) Sheet-Pan Chicken Fajitas
+         Remove the sheet pan from the oven, squeeze the juice of 1 lime over the chicken and vegetables, and toss to combine.
+      8. [  T-8] (  4m prep) Fajita Toppings
+         Roughly chop ¼ bunch of fresh cilantro and thinly slice 1 jalapeño (optional), then arrange in small serving bowls.
+      9. [  T-4] (  2m assemble) Sheet-Pan Chicken Fajitas
+         Transfer the fajita filling to a serving platter and bring to the table with the warm tortillas and toppings.
+     10. [  T-2] (  2m assemble) Fajita Toppings
+         Cut 1 lime into wedges and set out alongside ½ cup sour cream, ¾ cup salsa, and 1 cup shredded Mexican cheese blend so all toppings are ready to serve.
+
+  ▸ Lemon-Herb Baked Chicken Breast with Roasted Asparagus and Garlic Herb Potatoes   [Sunday]  SEQUENCED
+    footer 51 min | scheduler 51 | card 51 | fresh derive 51 | dishes 3
+      1. [ T-51] ( 12m preheat) Garlic Herb Baby Potatoes
+         Preheat the oven to 425°F (shares the oven with the chicken).
+      2. [ T-51] (  6m prep) Garlic Herb Baby Potatoes
+         Halve 1½ pounds baby yellow potatoes, mince 3 garlic cloves, and strip and chop the rosemary leaves from 1 sprig and thyme leaves from 3 sprigs.
+      3. [ T-45] ( 12m preheat) Lemon-Herb Baked Chicken Breast
+         ⟶ With the Garlic Herb Baby Potatoes heating up, start on the Lemon-Herb Baked Chicken Breast.
+         Preheat the oven to 425°F.
+      4. [ T-45] (  6m prep) Lemon-Herb Baked Chicken Breast
+         Zest and juice both lemons, then mince 4 garlic cloves, strip and chop the rosemary leaves from 2 sprigs, and strip the thyme leaves from 4 sprigs.
+      5. [ T-39] (  3m prep) Lemon-Herb Baked Chicken Breast
+         Whisk together 3 tablespoons olive oil, the lemon zest and juice, minced garlic, rosemary, thyme, 1 teaspoon dried oregano, 1½ teaspoons kosher salt, and ¾ teaspoon freshly ground black pepper in a small bowl to form the marinade.
+      6. [ T-36] (  3m prep) Garlic Herb Baby Potatoes
+         ⟶ With the Lemon-Herb Baked Chicken Breast heating up, start on the Garlic Herb Baby Potatoes.
+         Toss the halved potatoes with 2 tablespoons olive oil, the minced garlic, rosemary, thyme, 1 teaspoon kosher salt, and ½ teaspoon black pepper until evenly coated.
+      7. [ T-33] (  2m cook) Lemon-Herb Baked Chicken Breast
+         Place the 1¾ pounds boneless skinless chicken breasts in a baking dish, pour the marinade over them, and turn to coat evenly.
+      8. [ T-33] ( 30m cook) Garlic Herb Baby Potatoes
+         ⟶ With the Lemon-Herb Baked Chicken Breast cooking, start on the Garlic Herb Baby Potatoes.
+         Spread the potatoes cut-side down in a single layer on a sheet pan and roast at 425°F for 28–32 minutes, flipping once halfway, until golden and crisp at the edges.
+      9. [ T-31] ( 24m cook) Lemon-Herb Baked Chicken Breast
+         ⟶ With the Garlic Herb Baby Potatoes cooking, start on the Lemon-Herb Baked Chicken Breast.
+         Bake the chicken at 425°F for 22–25 minutes, until an instant-read thermometer inserted into the thickest part reads 165°F.
+     10. [ T-23] (  3m prep) Roasted Asparagus
+         ⟶ With the Garlic Herb Baby Potatoes cooking, start on the Roasted Asparagus.
+         Trim the woody ends from 1 pound asparagus and juice ½ lemon.
+     11. [ T-20] (  2m prep) Roasted Asparagus
+         Toss the asparagus with 1½ tablespoons olive oil, ½ teaspoon kosher salt, and ¼ teaspoon black pepper on a sheet pan and spread in a single layer.
+     12. [ T-18] ( 11m cook) Roasted Asparagus
+         Roast the asparagus at 425°F for 10–12 minutes, until tender and lightly caramelized at the tips.
+     13. [  T-7] (  5m rest) Lemon-Herb Baked Chicken Breast
+         ⟶ With the Garlic Herb Baby Potatoes cooking, start on the Lemon-Herb Baked Chicken Breast.
+         Rest the chicken in the baking dish for 5 minutes before slicing.
+     14. [  T-7] (  2m assemble) Roasted Asparagus
+         ⟶ With the Garlic Herb Baby Potatoes cooking, start on the Roasted Asparagus.
+         Transfer the asparagus to a platter, squeeze the lemon juice over the top, and finish with 1 ounce finely grated parmesan if using.
+     15. [  T-3] (  1m assemble) Garlic Herb Baby Potatoes
+         ⟶ With the Lemon-Herb Baked Chicken Breast resting, start on the Garlic Herb Baby Potatoes.
+         Transfer the potatoes to a serving bowl.
+     16. [  T-2] (  2m assemble) Lemon-Herb Baked Chicken Breast
+         Slice the chicken and transfer to a platter; scatter with ¼ cup chopped fresh parsley if using.
+
+  ▸ Carne Asada Tacos   [Friday]  SEQUENCED
+    footer 67 min | scheduler 67 | card 67 | fresh derive 67 | dishes 5
+      1. [ T-67] (  5m prep) Carne Asada
+         In a bowl, whisk together ¼ cup orange juice, 3 tablespoons lime juice, 4 minced garlic cloves, 2 tablespoons olive oil, 1 teaspoon cumin, 1 teaspoon chili powder, ½ teaspoon smoked paprika, ½ teaspoon dried oregano, 1 teaspoon kosher salt, and ½ teaspoon black pepper.
+      2. [ T-62] ( 30m rest) Carne Asada
+         Place 1½ pounds skirt steak in a zip-top bag or shallow dish, pour the marinade over it, seal, and refrigerate for at least 30 minutes (up to 4 hours).
+      3. [ T-62] (  3m prep) Carne Asada
+         While the steak marinates, roughly chop ¼ cup fresh cilantro and set aside for garnish.
+      4. [ T-59] (  5m prep) Pico de Gallo
+         ⟶ With the Carne Asada chilling, start on the Pico de Gallo.
+         Dice 3 roma tomatoes and finely dice ½ white onion.
+      5. [ T-54] (  4m prep) Guacamole
+         ⟶ With the Carne Asada chilling, start on the Guacamole.
+         Seed and mince 1 jalapeño and finely dice ¼ white onion, then chop 3 tablespoons fresh cilantro.
+      6. [ T-50] (  3m assemble) Guacamole
+         Halve and pit 3 ripe avocados, scoop the flesh into a bowl, and mash with a fork to your preferred texture — chunky or smooth.
+      7. [ T-47] (  3m prep) Pico de Gallo
+         ⟶ With the Carne Asada chilling, start on the Pico de Gallo.
+         Seed and mince 1 jalapeño and chop ¼ cup fresh cilantro.
+      8. [ T-44] (  2m assemble) Guacamole
+         ⟶ With the Carne Asada chilling, start on the Guacamole.
+         Fold in the jalapeño, onion, cilantro, 2 tablespoons lime juice, and ½ teaspoon kosher salt until evenly combined.
+      9. [ T-42] (  2m assemble) Pico de Gallo
+         ⟶ With the Carne Asada chilling, start on the Pico de Gallo.
+         Combine the tomatoes, onion, jalapeño, and cilantro in a bowl, then stir in 2 tablespoons lime juice and ½ teaspoon kosher salt.
+     10. [ T-40] ( 10m rest) Pico de Gallo
+         Taste and adjust salt, then let the pico sit at room temperature for at least 10 minutes before serving to allow the flavors to meld.
+     11. [ T-40] (  5m hold) Guacamole
+         ⟶ With the Carne Asada chilling, start on the Guacamole.
+         Press plastic wrap directly onto the surface of the guacamole and refrigerate until ready to serve (up to 1 hour).
+     12. [ T-35] (  1m assemble) Guacamole
+         Transfer to a serving bowl and serve alongside the tacos.
+     13. [ T-32] (  5m preheat) Carne Asada
+         ⟶ With the Pico de Gallo resting, start on the Carne Asada.
+         Heat a grill or cast-iron skillet over high heat until very hot, then remove the steak from the marinade, letting the excess drip off.
+     14. [ T-30] (  1m assemble) Pico de Gallo
+         ⟶ With the Carne Asada cooking, start on the Pico de Gallo.
+         Give the pico a final stir and transfer to a serving bowl.
+     15. [ T-27] (  8m cook) Carne Asada
+         Grill or sear the skirt steak 3–4 minutes per side over high heat until charred at the edges and cooked to medium (internal temperature 130–135°F).
+     16. [ T-19] (  5m rest) Carne Asada
+         Transfer the steak to a cutting board and rest for 5 minutes.
+     17. [ T-19] (  8m cook) Warm Corn Tortillas
+         ⟶ With the Carne Asada resting, start on the Warm Corn Tortillas.
+         Heat a dry skillet or comal over medium-high heat, then warm 12 corn tortillas one at a time for about 30 seconds per side until pliable and lightly charred.
+     18. [ T-11] (  3m hold) Carne Asada
+         Leave the steak tented on the cutting board while the tortillas and toppings come together.
+     19. [ T-11] (  2m hold) Warm Corn Tortillas
+         ⟶ With the Carne Asada staying warm, start on the Warm Corn Tortillas.
+         Stack the warmed tortillas and wrap in a clean kitchen towel or foil to keep warm until serving.
+     20. [ T-11] (  3m prep) Taco Toppings
+         ⟶ With the Carne Asada staying warm, start on the Taco Toppings.
+         Cut 2 limes into wedges (optional) and crumble 3 ounces cotija cheese into a small bowl (optional).
+     21. [  T-8] (  3m assemble) Carne Asada
+         Slice the rested steak thinly against the grain, then chop into bite-sized pieces.
+     22. [  T-5] (  2m assemble) Carne Asada
+         Scatter the chopped cilantro over the sliced carne asada and serve immediately with warm tortillas and toppings.
+     23. [  T-3] (  2m assemble) Taco Toppings
+         Set out ½ cup sour cream (optional), 2 tablespoons hot sauce (optional), cotija, and lime wedges in small bowls on the table for guests to add as desired.
+     24. [  T-1] (  1m assemble) Warm Corn Tortillas
+         Set the wrapped tortillas on the table for guests to build their tacos.
+
+  ▸ Teriyaki Salmon Dinner   [Thursday]  SEQUENCED
+    footer 32 min | scheduler 32 | card 32 | fresh derive 32 | dishes 3
+      1. [ T-32] (  5m prep) Teriyaki Salmon
+         In a small bowl, whisk together ¼ cup soy sauce, 3 tablespoons mirin, 2 tablespoons sake, 2 tablespoons honey, 2 minced garlic cloves, 1 teaspoon grated fresh ginger, and 1 teaspoon sesame oil to make the teriyaki glaze.
+      2. [ T-27] (  2m prep) Steamed Jasmine Rice
+         Rinse 1 cup jasmine rice under cold water until the water runs clear.
+      3. [ T-25] ( 10m rest) Teriyaki Salmon
+         Pat the 4 salmon portions dry with paper towels and pour half the glaze over them in a shallow dish; let them marinate at room temperature for 10 minutes.
+      4. [ T-25] (  4m cook) Teriyaki Salmon
+         While the salmon marinates, pour the remaining glaze into a small saucepan and simmer over medium heat for 3–4 minutes, stirring occasionally, until slightly thickened; set aside.
+      5. [ T-25] (  3m cook) Steamed Jasmine Rice
+         ⟶ With the Teriyaki Salmon marinating, start on the Steamed Jasmine Rice.
+         Combine the rinsed rice, 1½ cups water, and ¼ teaspoon kosher salt in a medium saucepan and bring to a boil over high heat.
+      6. [ T-25] (  3m prep) Sesame Cucumber Salad
+         ⟶ With the Teriyaki Salmon marinating, start on the Sesame Cucumber Salad.
+         In a large bowl, whisk together 2 tablespoons rice vinegar, 1 tablespoon sesame oil, 1 tablespoon soy sauce, 1 teaspoon honey, and ¼ teaspoon red pepper flakes (if using).
+      7. [ T-22] ( 15m cook) Steamed Jasmine Rice
+         ⟶ With the Teriyaki Salmon marinating, start on the Steamed Jasmine Rice.
+         Reduce the heat to the lowest setting, cover tightly, and cook for 15 minutes without lifting the lid.
+      8. [ T-22] (  3m assemble) Sesame Cucumber Salad
+         ⟶ With the Teriyaki Salmon marinating, start on the Sesame Cucumber Salad.
+         Thinly slice 1 English cucumber and add it to the bowl with the dressing; toss well to coat.
+      9. [ T-19] (  1m assemble) Sesame Cucumber Salad
+         Sprinkle with 1 teaspoon sesame seeds and serve immediately or refrigerate for up to 20 minutes before serving.
+     10. [ T-15] (  2m preheat) Teriyaki Salmon
+         ⟶ With the Steamed Jasmine Rice cooking, start on the Teriyaki Salmon.
+         Heat 1 tablespoon neutral oil in a large nonstick or cast-iron skillet over medium-high heat until shimmering.
+     11. [ T-13] (  7m cook) Teriyaki Salmon
+         Place the salmon skin-side up in the hot skillet and sear for 3–4 minutes until a deep golden crust forms; flip and cook skin-side down for 2–3 minutes more until the fish is just cooked through.
+     12. [  T-6] (  1m cook) Teriyaki Salmon
+         Brush the salmon generously with the reduced teriyaki glaze and cook for 30 seconds more, letting it caramelize.
+     13. [  T-6] (  5m rest) Steamed Jasmine Rice
+         Remove the saucepan from the heat and let the rice steam, still covered, for 5 minutes.
+     14. [  T-5] (  2m assemble) Teriyaki Salmon
+         ⟶ With the Steamed Jasmine Rice cooking, start on the Teriyaki Salmon.
+         Transfer the salmon to plates and garnish with 1 tablespoon sesame seeds and 2 thinly sliced scallions, if using.
+     15. [  T-1] (  1m assemble) Steamed Jasmine Rice
+         Fluff the rice with a fork and serve immediately.
+
+  ▸ Beef Enchiladas Verdes with Roasted Tomatillo Sauce   [Saturday]  SEQUENCED
+    footer 71 min | scheduler 71 | card 71 | fresh derive 71 | dishes 2
+      1. [ T-71] ( 10m preheat) Seasoned Ground Beef Filling
+         Preheat the oven to 375°F.
+      2. [ T-71] (  4m prep) Seasoned Ground Beef Filling
+         Finely dice ½ white onion and mince 3 garlic cloves.
+      3. [ T-67] (  3m prep) Seasoned Ground Beef Filling
+         Shred 8 ounces Monterey Jack cheese and set aside.
+      4. [ T-64] (  4m cook) Seasoned Ground Beef Filling
+         Heat 2 tablespoons neutral oil in a large skillet over medium-high, add the diced onion, and cook, stirring frequently, 3 minutes until softened.
+      5. [ T-60] (  1m cook) Seasoned Ground Beef Filling
+         Add the minced garlic, 1½ teaspoons ground cumin, 1 teaspoon chili powder, ½ teaspoon dried oregano, ¾ teaspoon kosher salt, and ¼ teaspoon black pepper; stir constantly 30 seconds until fragrant.
+      6. [ T-59] (  8m cook) Seasoned Ground Beef Filling
+         Add 1¼ pounds lean ground beef and cook, breaking it up, 6–8 minutes until no pink remains; drain any excess fat.
+      7. [ T-51] (  6m cook) Seasoned Ground Beef Filling
+         Warm 12 corn tortillas directly over a gas flame or in a dry skillet for 20–30 seconds per side until pliable, then stack and cover with a damp towel.
+      8. [ T-45] (  8m assemble) Seasoned Ground Beef Filling
+         Spread ½ cup of the roasted tomatillo sauce across the bottom of a 9×13-inch baking dish, then fill each tortilla with about 3 tablespoons of the beef filling, roll tightly, and place seam-side down in the dish.
+      9. [ T-37] (  5m preheat) Roasted Tomatillo Sauce
+         Position an oven rack 6 inches from the broiler and preheat the broiler to high.
+     10. [ T-37] (  8m prep) Roasted Tomatillo Sauce
+         Husk and halve 1¼ pounds tomatillos, halve and seed 2 poblano peppers, halve 1 jalapeño, quarter ½ white onion, and leave 4 garlic cloves unpeeled; arrange everything cut-side down on a foil-lined sheet pan and drizzle with 2 tablespoons olive oil.
+     11. [ T-29] (  2m assemble) Seasoned Ground Beef Filling
+         Pour the remaining verde sauce evenly over the enchiladas and scatter the shredded Monterey Jack cheese over the top.
+     12. [ T-27] ( 12m cook) Roasted Tomatillo Sauce
+         Broil the vegetables 10–12 minutes until the tomatillos are blistered and charred in spots, then remove from the oven and let cool 5 minutes.
+     13. [ T-27] ( 22m cook) Seasoned Ground Beef Filling
+         ⟶ With the Roasted Tomatillo Sauce cooking, start on the Seasoned Ground Beef Filling.
+         Bake uncovered at 375°F for 20–22 minutes until the cheese is melted and bubbling at the edges.
+     14. [ T-15] (  4m assemble) Roasted Tomatillo Sauce
+         ⟶ With the Seasoned Ground Beef Filling cooking, start on the Roasted Tomatillo Sauce.
+         Peel the garlic cloves and transfer all broiled vegetables to a blender with ½ cup fresh cilantro, ½ cup chicken broth, 1 teaspoon kosher salt, and ½ teaspoon ground cumin; blend until smooth.
+     15. [ T-11] (  5m hold) Roasted Tomatillo Sauce
+         Taste and adjust salt, then hold the sauce warm in a small saucepan over low heat until the enchiladas are ready to assemble.
+     16. [  T-5] (  3m assemble) Seasoned Ground Beef Filling
+         Serve straight from the dish, topped with a dollop of sour cream (optional), a scatter of roughly chopped cilantro (optional), and lime wedges on the side (optional).
+     17. [  T-2] (  2m assemble) Roasted Tomatillo Sauce
+         Pour the finished verde sauce over the assembled enchiladas just before baking.
+
+══════════ COOK MODE — PREPPED PATH: Lemon-Herb Baked Chicken Breast with Roasted Asparagus and Garlic Herb Potatoes ══════════
+  ticked 7 rendered prep steps → isPrepped=true; + every wire step for the meal (10) → isPrepped=true; blockers []
+  recap ("You already prepped this — get your:"):
+    · Halve 1½ pounds baby yellow potatoes, mince 3 garlic cloves, and strip and chop the rosemary leaves from 1 sprig and thyme leaves from 3 sprigs.
+    · Zest and juice both lemons, then mince 4 garlic cloves, strip and chop the rosemary leaves from 2 sprigs, and strip the thyme leaves from 4 sprigs.
+    · Whisk together 3 tablespoons olive oil, the lemon zest and juice, minced garlic, rosemary, thyme, 1 teaspoon dried oregano, 1½ teaspoons kosher salt, and ¾ teaspoon freshly ground black pepper in a small bowl to form the marinade.
+    · Toss the halved potatoes with 2 tablespoons olive oil, the minced garlic, rosemary, thyme, 1 teaspoon kosher salt, and ½ teaspoon black pepper until evenly coated.
+    · Trim the woody ends from 1 pound asparagus and juice ½ lemon.
+    · Toss the asparagus with 1½ tablespoons olive oil, ½ teaspoon kosher salt, and ¼ teaspoon black pepper on a sheet pan and spread in a single layer.
+  footer 51 min; steps after the prep filter:
+      1. [T-51] (preheat) Garlic Herb Baby Potatoes
+         Preheat the oven to 425°F (shares the oven with the chicken).
+      2. [T-45] (preheat) Lemon-Herb Baked Chicken Breast  ⟶ With the Garlic Herb Baby Potatoes heating up, start on the Lemon-Herb Baked Chicken Breast.
+         Preheat the oven to 425°F.
+      3. [T-33] (cook) Lemon-Herb Baked Chicken Breast
+         Place the 1¾ pounds boneless skinless chicken breasts in a baking dish, pour the marinade over them, and turn to coat evenly.
+      4. [T-33] (cook) Garlic Herb Baby Potatoes  ⟶ With the Lemon-Herb Baked Chicken Breast cooking, start on the Garlic Herb Baby Potatoes.
+         Spread the potatoes cut-side down in a single layer on a sheet pan and roast at 425°F for 28–32 minutes, flipping once halfway, until golden and crisp at the edges.
+      5. [T-31] (cook) Lemon-Herb Baked Chicken Breast  ⟶ With the Garlic Herb Baby Potatoes cooking, start on the Lemon-Herb Baked Chicken Breast.
+         Bake the chicken at 425°F for 22–25 minutes, until an instant-read thermometer inserted into the thickest part reads 165°F.
+      6. [T-18] (cook) Roasted Asparagus
+         Roast the asparagus at 425°F for 10–12 minutes, until tender and lightly caramelized at the tips.
+      7. [T-7] (rest) Lemon-Herb Baked Chicken Breast  ⟶ With the Garlic Herb Baby Potatoes cooking, start on the Lemon-Herb Baked Chicken Breast.
+         Rest the chicken in the baking dish for 5 minutes before slicing.
+      8. [T-7] (assemble) Roasted Asparagus  ⟶ With the Garlic Herb Baby Potatoes cooking, start on the Roasted Asparagus.
+         Transfer the asparagus to a platter, squeeze the lemon juice over the top, and finish with 1 ounce finely grated parmesan if using.
+      9. [T-3] (assemble) Garlic Herb Baby Potatoes  ⟶ With the Lemon-Herb Baked Chicken Breast resting, start on the Garlic Herb Baby Potatoes.
+         Transfer the potatoes to a serving bowl.
+     10. [T-2] (assemble) Lemon-Herb Baked Chicken Breast
+         Slice the chicken and transfer to a platter; scatter with ¼ cup chopped fresh parsley if using.

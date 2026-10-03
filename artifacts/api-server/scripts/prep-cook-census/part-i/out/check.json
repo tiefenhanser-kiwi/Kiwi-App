@@ -1,0 +1,3290 @@
+{
+  "denom": {
+    "P-R1 header outside 10–15": 17,
+    "P-R1 single-member container": 308,
+    "H7 class mix in one container": 292,
+    "H7 two cooking moments in one container": 135,
+    "H7.1 raw-mix grouping on a heated dish": 34,
+    "H7.1 cut veg in a leafy-greens container": 34,
+    "H6 one food in >1 produce step": 218,
+    "H7 one citrus in >1 step": 23,
+    "H6 portion without a named container": 329,
+    "H6 '+N more' / truncated label": 329,
+    "H6 duplicate portion line in one step": 329,
+    "H7 container not closed exactly once on its last step": 292,
+    "H7 heat action inside a prep step": 329,
+    "H7 dry blend under 3": 43,
+    "H7 single-item measure as its own step": 313,
+    "H7 wet/jarred item in the dry phase": 279,
+    "D-WS9-298 protein held although a meal is ≤ 2 days out": 42,
+    "H7.1 marinade close points at a protein step not on screen": 7,
+    "H7.1 marinade timing contradicts the recipe or the day": 7,
+    "Storage: one note gives two different windows": 346,
+    "D-WS9-301 heldForCookDay empty with a late protein": 15,
+    "D-WS9-301 heldForCookDay stripped by the client schema": 15,
+    "BUG-346a protein storage line on a non-protein step": 242,
+    "BUG-346e herb count without a unit": 346,
+    "P-R5 decimal quantity": 346,
+    "Minutes: header ≠ rounded engine sum of rendered steps": 17,
+    "Minutes: three numbers disagree (header / phone / server)": 17,
+    "Minutes: onion vs 2.5 min/onion": 18,
+    "Minutes: garlic vs ⅓ min/clove": 15,
+    "Wire stepKeys ≠ engine stepKeys": 17,
+    "P0 route error": 0,
+    "H3 protein step title does not name its dish": 16,
+    "D-WS9-298 protein rendered > 2 days out": 16,
+    "H7 wet mix under 3 (not a sitting pair)": 11,
+    "Cache served a blob HEAD's engine would not write": 1,
+    "S1 subset step not in the full plan": 186,
+    "S2 container names differ from the full plan": 178,
+    "S3 unselected meal attributed in the subset": 178,
+    "S4a subset quantity ≠ the full plan's for the same dish": 395,
+    "S4b subset drops the unit the full plan prints": 395,
+    "S5 subset ticks do not make the selected meals prepped": 17,
+    "K-R6 footer ≠ card (sequenced)": 91,
+    "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)": 71,
+    "Prepped path: ticking every rendered prep step leaves isPrepped false": 14,
+    "Prepped path: recap is not built from the prep steps": 14,
+    "Prepped path: cook steps that redo prep work after the filter": 14,
+    "Prepped path: kept cook steps that lost their quantity": 14,
+    "K-R6 footer ≠ card (flattened single-dish)": 19,
+    "BUG-344 single-dish meal never sequenced": 19,
+    "D-WS7-152 single-dish shows a dish/meal label": 19
+  },
+  "found": [
+    {
+      "surface": "prep",
+      "rule": "P-R1 header outside 10–15",
+      "plan": "04a25763 A05",
+      "where": "4 meals",
+      "text": "header 22 containers · 85 min"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "04a25763 A05",
+      "where": "Slow-Cooked Pinto Beans — chopped yellow onion",
+      "text": "holds only yellow onion (Slow-Cooked Pinto Beans)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "04a25763 A05",
+      "where": "Red Wine Braised Lamb Shanks — peeled garlic cloves",
+      "text": "holds only garlic cloves (Red Wine Braised Lamb Shanks)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "04a25763 A05",
+      "where": "Creamy White Bean Mash — minced fresh rosemary",
+      "text": "holds only fresh rosemary (Creamy White Bean Mash)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "04a25763 A05",
+      "where": "Lemon-Parsley Gremolata — finely chopped fresh flat-leaf parsley",
+      "text": "holds only fresh flat-leaf parsley (Lemon-Parsley Gremolata)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "04a25763 A05",
+      "where": "Lemon-Parsley Gremolata — lemon zest",
+      "text": "holds only lemon zest (Lemon-Parsley Gremolata)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "04a25763 A05",
+      "where": "Lemon-Herb Chicken Gyros — thinly sliced english cucumber",
+      "text": "holds only english cucumber (Lemon-Herb Chicken Gyros)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "04a25763 A05",
+      "where": "Lemon-Herb Chicken Gyros — thinly sliced roma tomatoes",
+      "text": "holds only roma tomatoes (Lemon-Herb Chicken Gyros)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "04a25763 A05",
+      "where": "Lemon-Herb Chicken Gyros — thinly sliced red onion",
+      "text": "holds only red onion (Lemon-Herb Chicken Gyros)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "04a25763 A05",
+      "where": "Cilantro-Lime Rice — finely chopped fresh cilantro",
+      "text": "holds only fresh cilantro (Cilantro-Lime Rice)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "04a25763 A05",
+      "where": "Cilantro-Lime Rice — lime zest",
+      "text": "holds only lime zest (Cilantro-Lime Rice)"
+    },
+    {
+      "surface": "prep",
+      "rule": "H7.1 marinade timing contradicts the recipe or the day",
+      "plan": "04a25763 A05",
+      "where": "Lemon-Herb Chicken Gyros marinade bowl",
+      "text": "recipe caps it at 4 h (\"…at room temperature for at least 15 minutes (or refrigerate up to 4 hours). Drai\"); prep says \"All 3 containers: Covered in the fridge — up to 3 days. Add the boneless skinless chicken thighs the night bef\""
+    },
+    {
+      "surface": "prep",
+      "rule": "D-WS9-301 heldForCookDay stripped by the client schema",
+      "plan": "04a25763 A05",
+      "where": "",
+      "text": "server sends 5 line(s) — e.g. \"Add the boneless skinless chicken thighs the night before you cook them (Friday).\" — kiwi/lib/api/cooking.ts PrepWeekPhaseSchema has no heldForCookDay, so Zod drops it"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: header ≠ rounded engine sum of rendered steps",
+      "plan": "04a25763 A05",
+      "where": "",
+      "text": "header 85 · engine Σ rendered 77 (→80) · phone total 77 · server total 111"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: three numbers disagree (header / phone / server)",
+      "plan": "04a25763 A05",
+      "where": "",
+      "text": "header 85 · phone 77 · server 111"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 header outside 10–15",
+      "plan": "11623bcd A14",
+      "where": "4 meals",
+      "text": "header 18 containers · 75 min"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "11623bcd A14",
+      "where": "Chana Masala — juiced lemon",
+      "text": "holds only lemon (Chana Masala)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "11623bcd A14",
+      "where": "Coconut Chicken Korma — chopped yellow onion",
+      "text": "holds only yellow onion (Coconut Chicken Korma)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "11623bcd A14",
+      "where": "Garlic Naan — finely chopped fresh cilantro",
+      "text": "holds only fresh cilantro (Garlic Naan)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "11623bcd A14",
+      "where": "Chana Masala — finely chopped green serrano chile",
+      "text": "holds only green serrano chile (Chana Masala)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "11623bcd A14",
+      "where": "Cumin-Spiced Roasted Cauliflower — cauliflower",
+      "text": "holds only cauliflower (Cumin-Spiced Roasted Cauliflower)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "11623bcd A14",
+      "where": "Warm Garlic Naan — finely chopped fresh parsley",
+      "text": "holds only fresh parsley (Warm Garlic Naan)"
+    },
+    {
+      "surface": "prep",
+      "rule": "H6 duplicate portion line in one step",
+      "plan": "11623bcd A14",
+      "where": "produce 2. Juice all lemons",
+      "text": "\"1 tbsp — into a tub labelled \"Fresh lemon juice — Cucumber Raita, Cumin-Spiced Roasted Cauliflower\"\" printed twice"
+    },
+    {
+      "surface": "prep",
+      "rule": "H6 portion without a named container",
+      "plan": "11623bcd A14",
+      "where": "produce 3. Dice and chop all yellow onion",
+      "text": "\"…)\" 2 onions for Chana Masala — into the same tub 1 onion for Butter Chicken (Murgh Makhani) — into t…\""
+    },
+    {
+      "surface": "prep",
+      "rule": "H6 '+N more' / truncated label",
+      "plan": "11623bcd A14",
+      "where": "produce 4. Mince and chop all garlic",
+      "text": "\"Minced garlic cloves — Chicken Tikka Masala, Garlic Naan, Chana Masala +2 more\""
+    },
+    {
+      "surface": "prep",
+      "rule": "H6 '+N more' / truncated label",
+      "plan": "11623bcd A14",
+      "where": "produce 6. Chop all fresh cilantro",
+      "text": "\"Chopped fresh cilantro — Chicken Tikka Masala, Chana Masala, Butter Chicken (Murgh Makhani) +1 more\""
+    },
+    {
+      "surface": "prep",
+      "rule": "D-WS9-298 protein held although a meal is ≤ 2 days out",
+      "plan": "11623bcd A14",
+      "where": "Boneless skinless chicken thighs — cook day",
+      "text": "lags Classic Chicken Tikka Masa=0, Butter Chicken with Whole =5, Coconut Chicken Korma with=6"
+    },
+    {
+      "surface": "prep",
+      "rule": "H7.1 marinade timing contradicts the recipe or the day",
+      "plan": "11623bcd A14",
+      "where": "Chicken Tikka Masala marinade bowl",
+      "text": "cook day 6 out, no \"night before\" line — close \"Chicken Tikka Masala marinade bowl: Covered in the fridge — up to 3 days. Butter Chicken marinade bowl: Covered in the f\""
+    },
+    {
+      "surface": "prep",
+      "rule": "Storage: one note gives two different windows",
+      "plan": "11623bcd A14",
+      "where": "produce 5. Grate and chop all fresh ginger",
+      "text": "\"Coconut Chicken Korma — aromatics: Airtight in the fridge — up to 4 days. Airtight in the fridge — up to 3 days.\""
+    },
+    {
+      "surface": "prep",
+      "rule": "D-WS9-301 heldForCookDay stripped by the client schema",
+      "plan": "11623bcd A14",
+      "where": "",
+      "text": "server sends 3 line(s) — e.g. \"Add the boneless skinless chicken thighs the night before you cook them (Friday).\" — kiwi/lib/api/cooking.ts PrepWeekPhaseSchema has no heldForCookDay, so Zod drops it"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: header ≠ rounded engine sum of rendered steps",
+      "plan": "11623bcd A14",
+      "where": "",
+      "text": "header 75 · engine Σ rendered 64 (→65) · phone total 64 · server total 83"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: three numbers disagree (header / phone / server)",
+      "plan": "11623bcd A14",
+      "where": "",
+      "text": "header 75 · phone 64 · server 83"
+    },
+    {
+      "surface": "prep",
+      "rule": "P0 route error",
+      "plan": "1cf373bc E-1cf373bc",
+      "where": "full",
+      "text": "HTTP 502: validation_failed Kiwi got distracted. Try again?"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "1e41fc0c E-1e41fc0c",
+      "where": "Simple Guacamole — finely diced white onion",
+      "text": "holds only white onion (Simple Guacamole)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "1e41fc0c E-1e41fc0c",
+      "where": "White Chicken Chili Mac — diced white onion",
+      "text": "holds only white onion (White Chicken Chili Mac)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "1e41fc0c E-1e41fc0c",
+      "where": "Beef Stroganoff Noodle Skillet — finely diced yellow onion",
+      "text": "holds only yellow onion (Beef Stroganoff Noodle Skillet)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "1e41fc0c E-1e41fc0c",
+      "where": "Beef Stroganoff Noodle Skillet — sliced cremini mushrooms",
+      "text": "holds only cremini mushrooms (Beef Stroganoff Noodle Skillet)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "1e41fc0c E-1e41fc0c",
+      "where": "(own) beef sirloin steak — Beef Stroganoff Noodle Skillet",
+      "text": "holds only beef sirloin steak (Beef Stroganoff Noodle Skillet)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "1e41fc0c E-1e41fc0c",
+      "where": "(own) rotisserie chicken — Chicken Caesar Salad",
+      "text": "holds only rotisserie chicken (Chicken Caesar Salad)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "1e41fc0c E-1e41fc0c",
+      "where": "(own) boneless skinless chicken breasts — White Chicken Chili Mac",
+      "text": "holds only boneless skinless chicken breasts (White Chicken Chili Mac)"
+    },
+    {
+      "surface": "prep",
+      "rule": "H7.1 marinade close points at a protein step not on screen",
+      "plan": "1e41fc0c E-1e41fc0c",
+      "where": "Citrus-Marinated Carne Asada marinade bowl",
+      "text": "protein step \"Skirt steak — cook day\" is render-omitted (heat-or-no-knife-work); close reads \"Citrus-Marinated Carne Asada marinade bowl: Covered in the fridge — up to 3 days. Airtight in the fridge — up to 4 days. The skirt steak go in at the \""
+    },
+    {
+      "surface": "prep",
+      "rule": "H7.1 marinade timing contradicts the recipe or the day",
+      "plan": "1e41fc0c E-1e41fc0c",
+      "where": "Citrus-Marinated Carne Asada marinade bowl",
+      "text": "recipe caps it at 4 h (\"…marinate at room temperature for 30 minutes (or refrigerate up to 4 hours). Whil\"); prep says \"Citrus-Marinated Carne Asada marinade bowl: Covered in the fridge — up to 3 days. Airtight in the fridge — up \""
+    },
+    {
+      "surface": "prep",
+      "rule": "Storage: one note gives two different windows",
+      "plan": "1e41fc0c E-1e41fc0c",
+      "where": "produce 4. Mince all garlic",
+      "text": "\"Citrus-Marinated Carne Asada marinade bowl: Covered in the fridge — up to 3 days. Airtight in the fridge — up to 4 days. The skirt steak go in at the proteins step and ma\""
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: header ≠ rounded engine sum of rendered steps",
+      "plan": "1e41fc0c E-1e41fc0c",
+      "where": "",
+      "text": "header 75 · engine Σ rendered 64 (→65) · phone total 64 · server total 82"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: three numbers disagree (header / phone / server)",
+      "plan": "1e41fc0c E-1e41fc0c",
+      "where": "",
+      "text": "header 75 · phone 64 · server 82"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: onion vs 2.5 min/onion",
+      "plan": "1e41fc0c E-1e41fc0c",
+      "where": "6. Dice all white onion",
+      "text": "1 onion(s) → 5 min (2.5/onion ⇒ 3)"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: onion vs 2.5 min/onion",
+      "plan": "1e41fc0c E-1e41fc0c",
+      "where": "12. Prep all yellow onion",
+      "text": "2 onion(s) → 1 min (2.5/onion ⇒ 5)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 header outside 10–15",
+      "plan": "2539d94d A15",
+      "where": "3 meals",
+      "text": "header 16 containers · 65 min"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "2539d94d A15",
+      "where": "Chipotle-Spiced Pulled Pork — chopped white onion",
+      "text": "holds only white onion (Chipotle-Spiced Pulled Pork)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "2539d94d A15",
+      "where": "Chipotle-Spiced Pulled Pork — fresh orange juice",
+      "text": "holds only fresh orange juice (Chipotle-Spiced Pulled Pork)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "2539d94d A15",
+      "where": "Chipotle-Spiced Pulled Pork — chopped fresh cilantro",
+      "text": "holds only fresh cilantro (Chipotle-Spiced Pulled Pork)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "2539d94d A15",
+      "where": "Pickled Red Onion — thinly sliced red onion",
+      "text": "holds only red onion (Pickled Red Onion)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "2539d94d A15",
+      "where": "Cilantro-Lime Slaw — shredded green cabbage",
+      "text": "holds only green cabbage (Cilantro-Lime Slaw)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "2539d94d A15",
+      "where": "(own) boneless pork shoulder — Chipotle-Spiced Pulled Pork",
+      "text": "holds only boneless pork shoulder (Chipotle-Spiced Pulled Pork)"
+    },
+    {
+      "surface": "prep",
+      "rule": "H7 class mix in one container",
+      "plan": "2539d94d A15",
+      "where": "Vinegar Coleslaw — large carrot and celery seed",
+      "text": "classes A+V: large carrot[A], celery seed[V]"
+    },
+    {
+      "surface": "prep",
+      "rule": "H7.1 cut veg in a leafy-greens container",
+      "plan": "2539d94d A15",
+      "where": "Creamy Vinegar Cabbage Slaw — greens",
+      "text": "members green cabbage, red cabbage"
+    },
+    {
+      "surface": "prep",
+      "rule": "H7.1 cut veg in a leafy-greens container",
+      "plan": "2539d94d A15",
+      "where": "Vinegar Coleslaw — greens",
+      "text": "members green cabbage, red cabbage"
+    },
+    {
+      "surface": "prep",
+      "rule": "D-WS9-301 heldForCookDay stripped by the client schema",
+      "plan": "2539d94d A15",
+      "where": "",
+      "text": "server sends 1 line(s) — e.g. \"Slow-Roasted Pulled Pork with Alabama White Sauce (Saturday, 6 days out) — trim the bone-in pork shoulder for Carolina V\" — kiwi/lib/api/cooking.ts PrepWeekPhaseSchema has no heldForCookDay, so Zod drops it"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: header ≠ rounded engine sum of rendered steps",
+      "plan": "2539d94d A15",
+      "where": "",
+      "text": "header 65 · engine Σ rendered 57 (→60) · phone total 57 · server total 86"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: three numbers disagree (header / phone / server)",
+      "plan": "2539d94d A15",
+      "where": "",
+      "text": "header 65 · phone 57 · server 86"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 header outside 10–15",
+      "plan": "2730c4b1 A17",
+      "where": "4 meals",
+      "text": "header 18 containers · 70 min"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "2730c4b1 A17",
+      "where": "Warm Herbed Bulgur — finely chopped fresh flat-leaf parsley",
+      "text": "holds only fresh flat-leaf parsley (Warm Herbed Bulgur)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "2730c4b1 A17",
+      "where": "Warm Herbed Bulgur — lemon zest",
+      "text": "holds only lemon zest (Warm Herbed Bulgur)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "2730c4b1 A17",
+      "where": "Pickled Onions and Charred Flatbread — thinly sliced red onion",
+      "text": "holds only red onion (Pickled Onions and Charred Flatbread)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "2730c4b1 A17",
+      "where": "Warm Herbed Bulgur — finely chopped fresh mint leaves",
+      "text": "holds only fresh mint leaves (Warm Herbed Bulgur)"
+    },
+    {
+      "surface": "prep",
+      "rule": "H7.1 raw-mix grouping on a heated dish",
+      "plan": "2730c4b1 A17",
+      "where": "Marinated Chicken Gyro Filling — fresh flat-leaf parsley, garlic, red onion and roma tomatoes",
+      "text": "Marinated Chicken Gyro Filling has heat steps; members red onion, roma tomatoes enter at no heat step"
+    },
+    {
+      "surface": "prep",
+      "rule": "H7.1 raw-mix grouping on a heated dish",
+      "plan": "2730c4b1 A17",
+      "where": "Roasted Vegetables and Hummus — red onion, zucchini and red bell pepper",
+      "text": "Roasted Vegetables and Hummus has heat steps; members red onion, zucchini, red bell pepper enter at no heat step"
+    },
+    {
+      "surface": "prep",
+      "rule": "H6 '+N more' / truncated label",
+      "plan": "2730c4b1 A17",
+      "where": "produce 2. Prep all yellow onion",
+      "text": "\"Herb and Rice Stuffed Grape Leaves (Dolmades) — yellow onion, fresh flat-leaf parsley, garlic, fresh mint leaves, fresh…\""
+    },
+    {
+      "surface": "prep",
+      "rule": "H6 '+N more' / truncated label",
+      "plan": "2730c4b1 A17",
+      "where": "produce 3. Chop all fresh flat-leaf parsley",
+      "text": "\"Herb and Rice Stuffed Grape Leaves (Dolmades) — yellow onion, fresh flat-leaf parsley, garlic, fresh mint leaves, fresh…\""
+    },
+    {
+      "surface": "prep",
+      "rule": "H6 '+N more' / truncated label",
+      "plan": "2730c4b1 A17",
+      "where": "produce 4. Mince all garlic",
+      "text": "\"Herb and Rice Stuffed Grape Leaves (Dolmades) — yellow onion, fresh flat-leaf parsley, garlic, fresh mint leaves, fresh…\""
+    },
+    {
+      "surface": "prep",
+      "rule": "H6 '+N more' / truncated label",
+      "plan": "2730c4b1 A17",
+      "where": "produce 5. Juice all lemons and prep lemon zest",
+      "text": "\"Herb and Rice Stuffed Grape Leaves (Dolmades) — yellow onion, fresh flat-leaf parsley, garlic, fresh mint leaves, fresh…\""
+    },
+    {
+      "surface": "prep",
+      "rule": "H6 duplicate portion line in one step",
+      "plan": "2730c4b1 A17",
+      "where": "produce 5. Juice all lemons and prep lemon zest",
+      "text": "\"1 tbsp — into a tub labelled \"Fresh lemon juice — Tzatziki, Tzatziki Sauce\"\" printed twice"
+    },
+    {
+      "surface": "prep",
+      "rule": "H6 '+N more' / truncated label",
+      "plan": "2730c4b1 A17",
+      "where": "produce 8. Chop all fresh mint leaves",
+      "text": "\"Herb and Rice Stuffed Grape Leaves (Dolmades) — yellow onion, fresh flat-leaf parsley, garlic, fresh mint leaves, fresh…\""
+    },
+    {
+      "surface": "prep",
+      "rule": "H6 '+N more' / truncated label",
+      "plan": "2730c4b1 A17",
+      "where": "produce 9. Chop all fresh dill",
+      "text": "\"Herb and Rice Stuffed Grape Leaves (Dolmades) — yellow onion, fresh flat-leaf parsley, garlic, fresh mint leaves, fresh…\""
+    },
+    {
+      "surface": "prep",
+      "rule": "D-WS9-301 heldForCookDay stripped by the client schema",
+      "plan": "2730c4b1 A17",
+      "where": "",
+      "text": "server sends 3 line(s) — e.g. \"Add the boneless skinless chicken thighs the night before you cook them (Friday).\" — kiwi/lib/api/cooking.ts PrepWeekPhaseSchema has no heldForCookDay, so Zod drops it"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: header ≠ rounded engine sum of rendered steps",
+      "plan": "2730c4b1 A17",
+      "where": "",
+      "text": "header 70 · engine Σ rendered 63 (→65) · phone total 63 · server total 80"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: three numbers disagree (header / phone / server)",
+      "plan": "2730c4b1 A17",
+      "where": "",
+      "text": "header 70 · phone 63 · server 80"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: onion vs 2.5 min/onion",
+      "plan": "2730c4b1 A17",
+      "where": "2. Prep all yellow onion",
+      "text": "1 onion(s) → 1 min (2.5/onion ⇒ 3)"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: onion vs 2.5 min/onion",
+      "plan": "2730c4b1 A17",
+      "where": "6. Prep all red onion",
+      "text": "2 onion(s) → 8 min (2.5/onion ⇒ 5)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "27a03273 A08",
+      "where": "Tortilla Soup — minced garlic cloves",
+      "text": "holds only garlic cloves (Tortilla Soup)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "27a03273 A08",
+      "where": "Tortilla Soup — fresh lime juice",
+      "text": "holds only fresh lime juice (Tortilla Soup)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "27a03273 A08",
+      "where": "Toppings — fresh lime wedges",
+      "text": "holds only fresh lime wedges (Toppings)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "27a03273 A08",
+      "where": "Tortilla Soup — chopped fresh cilantro",
+      "text": "holds only fresh cilantro (Tortilla Soup)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "27a03273 A08",
+      "where": "Cobb Salad with Rotisserie Chicken — chopped romaine lettuce hearts",
+      "text": "holds only romaine lettuce hearts (Cobb Salad with Rotisserie Chicken)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "27a03273 A08",
+      "where": "Cobb Salad with Rotisserie Chicken — halved cherry tomatoes",
+      "text": "holds only cherry tomatoes (Cobb Salad with Rotisserie Chicken)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "27a03273 A08",
+      "where": "Cobb Salad with Rotisserie Chicken — diced english cucumber",
+      "text": "holds only english cucumber (Cobb Salad with Rotisserie Chicken)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "27a03273 A08",
+      "where": "Cobb Salad with Rotisserie Chicken — thinly sliced red onion",
+      "text": "holds only red onion (Cobb Salad with Rotisserie Chicken)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "27a03273 A08",
+      "where": "(own) rotisserie chicken, meat shredded — Tortilla Soup",
+      "text": "holds only rotisserie chicken, meat shredded (Tortilla Soup)"
+    },
+    {
+      "surface": "prep",
+      "rule": "D-WS9-301 heldForCookDay stripped by the client schema",
+      "plan": "27a03273 A08",
+      "where": "",
+      "text": "server sends 1 line(s) — e.g. \"BBQ Chicken Sandwiches with Slaw and Chips (Saturday, 6 days out) — rotisserie chicken that morning.\" — kiwi/lib/api/cooking.ts PrepWeekPhaseSchema has no heldForCookDay, so Zod drops it"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: header ≠ rounded engine sum of rendered steps",
+      "plan": "27a03273 A08",
+      "where": "",
+      "text": "header 40 · engine Σ rendered 33 (→35) · phone total 33 · server total 45"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: three numbers disagree (header / phone / server)",
+      "plan": "27a03273 A08",
+      "where": "",
+      "text": "header 40 · phone 33 · server 45"
+    },
+    {
+      "surface": "prep",
+      "rule": "P0 route error",
+      "plan": "297794a0 A21",
+      "where": "full",
+      "text": "HTTP 502: validation_failed Kiwi got distracted. Try again?"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "2faff60f A20",
+      "where": "Smoky Chipotle Flank Steak Fajitas — sliced yellow onion",
+      "text": "holds only yellow onion (Smoky Chipotle Flank Steak Fajitas)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "2faff60f A20",
+      "where": "Cajun Shrimp Pasta in Spicy Cream Sauce — thinly sliced red bell pepper",
+      "text": "holds only red bell pepper (Cajun Shrimp Pasta in Spicy Cream Sauce)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "2faff60f A20",
+      "where": "Chicken Fajitas with Roasted Poblano and Corn — lime juice",
+      "text": "holds only lime juice (Chicken Fajitas with Roasted Poblano and Corn)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "2faff60f A20",
+      "where": "Smoky Chipotle Flank Steak Fajitas — sliced yellow bell pepper",
+      "text": "holds only yellow bell pepper (Smoky Chipotle Flank Steak Fajitas)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "2faff60f A20",
+      "where": "Smoky Chipotle Flank Steak Fajitas — chopped fresh cilantro",
+      "text": "holds only fresh cilantro (Smoky Chipotle Flank Steak Fajitas)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "2faff60f A20",
+      "where": "Chicken Fajitas with Roasted Poblano and Corn — thinly sliced white onion",
+      "text": "holds only white onion (Chicken Fajitas with Roasted Poblano and Corn)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "2faff60f A20",
+      "where": "Classic Chicken Tetrazzini — sliced cremini mushrooms",
+      "text": "holds only cremini mushrooms (Classic Chicken Tetrazzini)"
+    },
+    {
+      "surface": "prep",
+      "rule": "H7 two cooking moments in one container",
+      "plan": "2faff60f A20",
+      "where": "Classic Chicken Tetrazzini sauce jar",
+      "text": "Classic Chicken Tetrazzini: spaghetti→step 4 \"Cook 8 ounces spaghetti (broken in half) in a larg\" | All-purpose flour→step 7 \"Sprinkle 3 tablespoons all-purpose flour over the \" | nutmeg→step 8 \"Remove the pan from heat and stir in ¾ cup of the \" | panko breadcrumbs→step 10 \"Toss ½ cup panko breadcrumbs with 1 tablespoon oli\""
+    },
+    {
+      "surface": "prep",
+      "rule": "H7 two cooking moments in one container",
+      "plan": "2faff60f A20",
+      "where": "Chicken Fajitas with Roasted Poblano and Corn — garlic cloves, fresh cilantro, poblano pepper and fresh corn kernels",
+      "text": "Chicken Fajitas with Roasted Poblano and Corn: fresh cilantro→step 10 \"Pile the chicken and vegetable mixture into the wa\" | fresh corn kernels→step 8 \"Add the 1½ cups fresh corn kernels to the skillet \""
+    },
+    {
+      "surface": "prep",
+      "rule": "H7.1 marinade timing contradicts the recipe or the day",
+      "plan": "2faff60f A20",
+      "where": "Smoky Chipotle Flank Steak marinade bowl",
+      "text": "recipe caps it at 8 h (\"…inate at room temperature for 20–30 minutes (or refrigerate up to 8 hours). Seed\"); prep says \"Covered in the fridge — up to 3 days. Add the flank steak the night before you cook them (Tuesday).\""
+    },
+    {
+      "surface": "prep",
+      "rule": "D-WS9-301 heldForCookDay stripped by the client schema",
+      "plan": "2faff60f A20",
+      "where": "",
+      "text": "server sends 2 line(s) — e.g. \"Add the flank steak the night before you cook them (Tuesday).\" — kiwi/lib/api/cooking.ts PrepWeekPhaseSchema has no heldForCookDay, so Zod drops it"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: header ≠ rounded engine sum of rendered steps",
+      "plan": "2faff60f A20",
+      "where": "",
+      "text": "header 75 · engine Σ rendered 68 (→70) · phone total 68 · server total 96"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: three numbers disagree (header / phone / server)",
+      "plan": "2faff60f A20",
+      "where": "",
+      "text": "header 75 · phone 68 · server 96"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 header outside 10–15",
+      "plan": "33ddbb13 A11",
+      "where": "5 meals",
+      "text": "header 16 containers · 75 min"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "33ddbb13 A11",
+      "where": "Layered Tortilla Beef Taco Casserole — finely diced yellow onion",
+      "text": "holds only yellow onion (Layered Tortilla Beef Taco Casserole)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "33ddbb13 A11",
+      "where": "Hyderabadi Dum Chicken Biryani — thinly sliced fried onions (birista)",
+      "text": "holds only fried onions (birista) (Hyderabadi Dum Chicken Biryani)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "33ddbb13 A11",
+      "where": "Hyderabadi Dum Chicken Biryani — torn fresh mint leaves",
+      "text": "holds only fresh mint leaves (Hyderabadi Dum Chicken Biryani)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "33ddbb13 A11",
+      "where": "Sheet-Pan Shrimp Boil with Sausage, Corn, and Potatoes — husked ears of corn",
+      "text": "holds only ears of corn (Sheet-Pan Shrimp Boil with Sausage, Corn, and Potatoes)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "33ddbb13 A11",
+      "where": "(own) lump crab meat — Shrimp and Crab Jambalaya",
+      "text": "holds only lump crab meat (Shrimp and Crab Jambalaya)"
+    },
+    {
+      "surface": "prep",
+      "rule": "H7 two cooking moments in one container",
+      "plan": "33ddbb13 A11",
+      "where": "Hyderabadi Dum Chicken Biryani sauce bowl",
+      "text": "Hyderabadi Dum Chicken Biryani: bay leaves→step 5 \"In the pot with the reserved onion oil (or ghee), \" | Kashmiri red chili powder→step 6 \"Add 1½ teaspoons Kashmiri red chili powder, 1 teas\" | ground coriander→step 6 \"Add 1½ teaspoons Kashmiri red chili powder, 1 teas\" | ground cumin→step 6 \"Add 1½ teaspoons Kashmiri red chili powder, 1 teas\" | garam masala→step 6 \"Add 1½ teaspoons Kashmiri red chili powder, 1 teas\" | turmeric→step 6 \"Add 1½ teaspoons Kashmiri red chili powder, 1 teas\" | whole green cardamom pods→step 5 \"In the pot with the reserved onion oil (or ghee), \" | cinnamon stick→step 5 \"In the pot with the reserved onion oil (or ghee), \" | black peppercorns→step 5 \"In the pot with the reserved onion oil (or ghee), \" | star anise→step 5 \"In the pot with the reserved onion oil (or ghee), \""
+    },
+    {
+      "surface": "prep",
+      "rule": "H6 portion without a named container",
+      "plan": "33ddbb13 A11",
+      "where": "produce 2. Mince and slice all garlic",
+      "text": "\"…ge and Escarole Wedding Soup — into the same tub Mince 4 cloves for the Shrimp and Crab Jambalaya —…\""
+    },
+    {
+      "surface": "prep",
+      "rule": "H7 heat action inside a prep step",
+      "plan": "33ddbb13 A11",
+      "where": "produce 8. Fry the birista for Hyderabadi Dum Chicken Biryani",
+      "text": "\"…Thinly slice 1 cup worth of yellow onion and deep-fry until golden and…\""
+    },
+    {
+      "surface": "prep",
+      "rule": "D-WS9-298 protein held although a meal is ≤ 2 days out",
+      "plan": "33ddbb13 A11",
+      "where": "Large shrimp, peeled and deveined — cook day",
+      "text": "lags Shrimp and Crab Jambalaya=1, Sheet-Pan Shrimp Boil with=4"
+    },
+    {
+      "surface": "prep",
+      "rule": "D-WS9-298 protein held although a meal is ≤ 2 days out",
+      "plan": "33ddbb13 A11",
+      "where": "Andouille sausage — cook day",
+      "text": "lags Shrimp and Crab Jambalaya=1, Sheet-Pan Shrimp Boil with=4"
+    },
+    {
+      "surface": "prep",
+      "rule": "D-WS9-301 heldForCookDay stripped by the client schema",
+      "plan": "33ddbb13 A11",
+      "where": "",
+      "text": "server sends 2 line(s) — e.g. \"Sheet-Pan Shrimp Boil with Sausage, Corn, and Potatoes (Thursday, 4 days out) — slice the andouille sausage that morning\" — kiwi/lib/api/cooking.ts PrepWeekPhaseSchema has no heldForCookDay, so Zod drops it"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: header ≠ rounded engine sum of rendered steps",
+      "plan": "33ddbb13 A11",
+      "where": "",
+      "text": "header 75 · engine Σ rendered 65 (→65) · phone total 65 · server total 99"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: three numbers disagree (header / phone / server)",
+      "plan": "33ddbb13 A11",
+      "where": "",
+      "text": "header 75 · phone 65 · server 99"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 header outside 10–15",
+      "plan": "3f9d46e8 A10",
+      "where": "4 meals",
+      "text": "header 16 containers · 85 min"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "3f9d46e8 A10",
+      "where": "Slow-Braised Collard Greens with Bacon — thinly sliced yellow onion",
+      "text": "holds only yellow onion (Slow-Braised Collard Greens with Bacon)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "3f9d46e8 A10",
+      "where": "Creamy Country Chicken and Gravy — finely diced yellow onion",
+      "text": "holds only yellow onion (Creamy Country Chicken and Gravy)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "3f9d46e8 A10",
+      "where": "Simple Steamed Green Beans with Butter — trimmed fresh green beans",
+      "text": "holds only fresh green beans (Simple Steamed Green Beans with Butter)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "3f9d46e8 A10",
+      "where": "Simple Steamed Green Beans with Butter — lemon wedges",
+      "text": "holds only lemon wedges (Simple Steamed Green Beans with Butter)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "3f9d46e8 A10",
+      "where": "Tabbouleh — fresh lemon juice",
+      "text": "holds only fresh lemon juice (Tabbouleh)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "3f9d46e8 A10",
+      "where": "(own) thick-cut bacon — Slow-Braised Collard Greens with Bacon",
+      "text": "holds only thick-cut bacon (Slow-Braised Collard Greens with Bacon)"
+    },
+    {
+      "surface": "prep",
+      "rule": "H7.1 raw-mix grouping on a heated dish",
+      "plan": "3f9d46e8 A10",
+      "where": "Classic Supreme Pizza vegetables",
+      "text": "Classic Supreme Pizza has heat steps; members green bell pepper, red onion, cremini mushrooms enter at no heat step"
+    },
+    {
+      "surface": "prep",
+      "rule": "H7.1 raw-mix grouping on a heated dish",
+      "plan": "3f9d46e8 A10",
+      "where": "Tabbouleh — fresh flat-leaf parsley, fresh mint leaves, roma tomatoes, english cucumber and green onions",
+      "text": "Tabbouleh has heat steps; members roma tomatoes, english cucumber enter at no heat step"
+    },
+    {
+      "surface": "prep",
+      "rule": "D-WS9-301 heldForCookDay empty with a late protein",
+      "plan": "3f9d46e8 A10",
+      "where": "",
+      "text": "server phase carries no held list"
+    },
+    {
+      "surface": "prep",
+      "rule": "D-WS9-301 heldForCookDay stripped by the client schema",
+      "plan": "3f9d46e8 A10",
+      "where": "",
+      "text": "server sends 0 line(s) — e.g. \"\" — kiwi/lib/api/cooking.ts PrepWeekPhaseSchema has no heldForCookDay, so Zod drops it"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: header ≠ rounded engine sum of rendered steps",
+      "plan": "3f9d46e8 A10",
+      "where": "",
+      "text": "header 85 · engine Σ rendered 75 (→75) · phone total 75 · server total 103"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: three numbers disagree (header / phone / server)",
+      "plan": "3f9d46e8 A10",
+      "where": "",
+      "text": "header 85 · phone 75 · server 103"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 header outside 10–15",
+      "plan": "53abd5b6 A03",
+      "where": "2 meals",
+      "text": "header 7 containers · 20 min"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "53abd5b6 A03",
+      "where": "Classic BBQ Chicken Pizza with Red Onion and Cilantro — fresh cilantro",
+      "text": "holds only fresh cilantro (Classic BBQ Chicken Pizza with Red Onion and Cilantro)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "53abd5b6 A03",
+      "where": "Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch — chopped romaine lettuce hearts",
+      "text": "holds only romaine lettuce hearts (Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "53abd5b6 A03",
+      "where": "Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch — thinly sliced celery stalks",
+      "text": "holds only celery stalks (Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "53abd5b6 A03",
+      "where": "Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch — halved cherry tomatoes",
+      "text": "holds only cherry tomatoes (Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "53abd5b6 A03",
+      "where": "Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch — thinly sliced fresh chives",
+      "text": "holds only fresh chives (Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch)"
+    },
+    {
+      "surface": "prep",
+      "rule": "H6 '+N more' / truncated label",
+      "plan": "53abd5b6 A03",
+      "where": "produce 2. Slice all red onion",
+      "text": "\"Thinly sliced red onion — Classic BBQ Chicken Pizza with Red Onion and Cilantro, Buffalo Chicken Salad with Crispy Chic…\""
+    },
+    {
+      "surface": "prep",
+      "rule": "D-WS9-298 protein held although a meal is ≤ 2 days out",
+      "plan": "53abd5b6 A03",
+      "where": "Boneless skinless chicken breasts — cook day",
+      "text": "lags Classic BBQ Chicken Pizza =0, Buffalo Chicken Salad with=4"
+    },
+    {
+      "surface": "prep",
+      "rule": "D-WS9-301 heldForCookDay stripped by the client schema",
+      "plan": "53abd5b6 A03",
+      "where": "",
+      "text": "server sends 1 line(s) — e.g. \"Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch (Thursday, 4 days out) — portion the \" — kiwi/lib/api/cooking.ts PrepWeekPhaseSchema has no heldForCookDay, so Zod drops it"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: header ≠ rounded engine sum of rendered steps",
+      "plan": "53abd5b6 A03",
+      "where": "",
+      "text": "header 20 · engine Σ rendered 14 (→15) · phone total 14 · server total 25"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: three numbers disagree (header / phone / server)",
+      "plan": "53abd5b6 A03",
+      "where": "",
+      "text": "header 20 · phone 14 · server 25"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "7f206a48 A04",
+      "where": "Baja Chili-Lime Shrimp Tacos — zested lime",
+      "text": "holds only lime (Baja Chili-Lime Shrimp Tacos)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "7f206a48 A04",
+      "where": "Warm Corn Tortillas with Cotija — lime",
+      "text": "holds only lime (Warm Corn Tortillas with Cotija)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "7f206a48 A04",
+      "where": "Tangy Cabbage Slaw — shredded red cabbage",
+      "text": "holds only red cabbage (Tangy Cabbage Slaw)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "7f206a48 A04",
+      "where": "Cilantro-Lime Slaw — thinly sliced jalapeño",
+      "text": "holds only jalapeño (Cilantro-Lime Slaw)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "7f206a48 A04",
+      "where": "Charred Pineapple — fresh pineapple",
+      "text": "holds only fresh pineapple (Charred Pineapple)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "7f206a48 A04",
+      "where": "(own) large shrimp, peeled and deveined — Baja Chili-Lime Shrimp Tacos",
+      "text": "holds only large shrimp, peeled and deveined (Baja Chili-Lime Shrimp Tacos)"
+    },
+    {
+      "surface": "prep",
+      "rule": "D-WS9-301 heldForCookDay stripped by the client schema",
+      "plan": "7f206a48 A04",
+      "where": "",
+      "text": "server sends 1 line(s) — e.g. \"Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw (Saturday, 6 days out) — cut the pork tender\" — kiwi/lib/api/cooking.ts PrepWeekPhaseSchema has no heldForCookDay, so Zod drops it"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: header ≠ rounded engine sum of rendered steps",
+      "plan": "7f206a48 A04",
+      "where": "",
+      "text": "header 65 · engine Σ rendered 56 (→60) · phone total 56 · server total 65"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 header outside 10–15",
+      "plan": "873796cd A01",
+      "where": "7 meals",
+      "text": "header 30 containers · 150 min"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "873796cd A01",
+      "where": "Sautéed Garlic Green Beans — thinly sliced garlic",
+      "text": "holds only garlic (Sautéed Garlic Green Beans)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "873796cd A01",
+      "where": "Beer-Battered Cod Fish Tacos — fresh cilantro",
+      "text": "holds only fresh cilantro (Beer-Battered Cod Fish Tacos)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "873796cd A01",
+      "where": "Quick Pickled Jalapeños — thinly sliced jalapeño",
+      "text": "holds only jalapeño (Quick Pickled Jalapeños)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "873796cd A01",
+      "where": "Texas-Style Beef Chili — diced yellow onion",
+      "text": "holds only yellow onion (Texas-Style Beef Chili)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "873796cd A01",
+      "where": "Dry-Rubbed Roast Chicken with Crispy Skin — halved fresh lemon",
+      "text": "holds only fresh lemon (Dry-Rubbed Roast Chicken with Crispy Skin)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "873796cd A01",
+      "where": "Sautéed Garlic Green Beans — fresh lemon juice",
+      "text": "holds only fresh lemon juice (Sautéed Garlic Green Beans)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "873796cd A01",
+      "where": "Garlic Roasted Potatoes — finely chopped fresh rosemary",
+      "text": "holds only fresh rosemary (Garlic Roasted Potatoes)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "873796cd A01",
+      "where": "Sautéed Garlic Green Beans — trimmed fresh green beans",
+      "text": "holds only fresh green beans (Sautéed Garlic Green Beans)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "873796cd A01",
+      "where": "Teriyaki Salmon — thinly sliced scallions",
+      "text": "holds only scallions (Teriyaki Salmon)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "873796cd A01",
+      "where": "Sesame Cucumber Salad — thinly sliced english cucumber",
+      "text": "holds only english cucumber (Sesame Cucumber Salad)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "873796cd A01",
+      "where": "Fresh Toppings — thinly sliced thinly sliced radish",
+      "text": "holds only thinly sliced radish (Fresh Toppings)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "873796cd A01",
+      "where": "(own) beef chuck — Texas-Style Beef Chili",
+      "text": "holds only beef chuck (Texas-Style Beef Chili)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "873796cd A01",
+      "where": "(own) cod fillets — Beer-Battered Cod Fish Tacos",
+      "text": "holds only cod fillets (Beer-Battered Cod Fish Tacos)"
+    },
+    {
+      "surface": "prep",
+      "rule": "H6 '+N more' / truncated label",
+      "plan": "873796cd A01",
+      "where": "produce 7. Chop all fresh cilantro",
+      "text": "\"Chopped fresh cilantro — Simple Guacamole, Texas-Style Beef Chili, Lime-Marinated Chicken Fajitas with Peppers and Onio…\""
+    },
+    {
+      "surface": "prep",
+      "rule": "D-WS9-298 protein held although a meal is ≤ 2 days out",
+      "plan": "873796cd A01",
+      "where": "Skirt steak — cook day",
+      "text": "lags Carne Asada Tacos=0, Smoky Carne Asada Tostadas=6"
+    },
+    {
+      "surface": "prep",
+      "rule": "H7.1 marinade timing contradicts the recipe or the day",
+      "plan": "873796cd A01",
+      "where": "Citrus-Marinated Carne Asada marinade bowl",
+      "text": "recipe caps it at 4 h (\"…marinate at room temperature for 30 minutes (or refrigerate up to 4 hours). Whil\"); prep says \"Citrus-Marinated Carne Asada marinade bowl: Covered in the fridge — up to 3 days. Airtight in the fridge — up \""
+    },
+    {
+      "surface": "prep",
+      "rule": "Storage: one note gives two different windows",
+      "plan": "873796cd A01",
+      "where": "produce 4. Prep all garlic",
+      "text": "\"Citrus-Marinated Carne Asada marinade bowl: Covered in the fridge — up to 3 days. Airtight in the fridge — up to 4 days. Add the skirt steak the night before you cook the\""
+    },
+    {
+      "surface": "prep",
+      "rule": "D-WS9-301 heldForCookDay stripped by the client schema",
+      "plan": "873796cd A01",
+      "where": "",
+      "text": "server sends 5 line(s) — e.g. \"Add the skirt steak the night before you cook them (Saturday).\" — kiwi/lib/api/cooking.ts PrepWeekPhaseSchema has no heldForCookDay, so Zod drops it"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: header ≠ rounded engine sum of rendered steps",
+      "plan": "873796cd A01",
+      "where": "",
+      "text": "header 150 · engine Σ rendered 132 (→135) · phone total 132 · server total 195"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: three numbers disagree (header / phone / server)",
+      "plan": "873796cd A01",
+      "where": "",
+      "text": "header 150 · phone 132 · server 195"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 header outside 10–15",
+      "plan": "8a0de6e6 A18",
+      "where": "5 meals",
+      "text": "header 19 containers · 65 min"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "8a0de6e6 A18",
+      "where": "Roasted Spaghetti Squash with Marinara — finely diced yellow onion",
+      "text": "holds only yellow onion (Roasted Spaghetti Squash with Marinara)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "8a0de6e6 A18",
+      "where": "Red Wine and Herb Slow-Cooker Chuck Roast — peeled garlic cloves",
+      "text": "holds only garlic cloves (Red Wine and Herb Slow-Cooker Chuck Roast)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "8a0de6e6 A18",
+      "where": "Garlic Sautéed Green Beans — thinly sliced garlic cloves",
+      "text": "holds only garlic cloves (Garlic Sautéed Green Beans)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "8a0de6e6 A18",
+      "where": "Roasted Yukon Gold Potatoes — chopped fresh flat-leaf parsley",
+      "text": "holds only fresh flat-leaf parsley (Roasted Yukon Gold Potatoes)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "8a0de6e6 A18",
+      "where": "Garlic Bread — finely chopped fresh flat-leaf parsley",
+      "text": "holds only fresh flat-leaf parsley (Garlic Bread)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "8a0de6e6 A18",
+      "where": "Honey-Glazed Roasted Carrots — peeled carrots",
+      "text": "holds only carrots (Honey-Glazed Roasted Carrots)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "8a0de6e6 A18",
+      "where": "Scrambled Eggs — thinly sliced fresh chives",
+      "text": "holds only fresh chives (Scrambled Eggs)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "8a0de6e6 A18",
+      "where": "Garlic Sautéed Green Beans — trimmed fresh green beans",
+      "text": "holds only fresh green beans (Garlic Sautéed Green Beans)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "8a0de6e6 A18",
+      "where": "Garlic Sautéed Green Beans — lemon",
+      "text": "holds only lemon (Garlic Sautéed Green Beans)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "8a0de6e6 A18",
+      "where": "Simple Arugula Salad with Lemon and Parmesan — fresh lemon juice",
+      "text": "holds only fresh lemon juice (Simple Arugula Salad with Lemon and Parmesan)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "8a0de6e6 A18",
+      "where": "Roasted Spaghetti Squash with Marinara — halved spaghetti squash",
+      "text": "holds only spaghetti squash (Roasted Spaghetti Squash with Marinara)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "8a0de6e6 A18",
+      "where": "(own) beef chuck roast — Red Wine and Herb Slow-Cooker Chuck Roast",
+      "text": "holds only beef chuck roast (Red Wine and Herb Slow-Cooker Chuck Roast)"
+    },
+    {
+      "surface": "prep",
+      "rule": "H6 '+N more' / truncated label",
+      "plan": "8a0de6e6 A18",
+      "where": "produce 11. Prep all fresh basil leaves",
+      "text": "\"Torn fresh basil (leaves) — Ground Turkey and Tomato Meat Sauce, Breaded Chicken Cutlets with Vodka Sauce and Melted Mo…\""
+    },
+    {
+      "surface": "prep",
+      "rule": "H3 protein step title does not name its dish",
+      "plan": "8a0de6e6 A18",
+      "where": "1. Trim the beef chuck roast",
+      "text": "for Red Wine and Herb Slow-Cooker Chuck Roast"
+    },
+    {
+      "surface": "prep",
+      "rule": "D-WS9-301 heldForCookDay stripped by the client schema",
+      "plan": "8a0de6e6 A18",
+      "where": "",
+      "text": "server sends 1 line(s) — e.g. \"Chicken Parmesan with Vodka Sauce (Friday, 5 days out) — pound the chicken breasts for Breaded Chicken Cutlets with Vodk\" — kiwi/lib/api/cooking.ts PrepWeekPhaseSchema has no heldForCookDay, so Zod drops it"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: header ≠ rounded engine sum of rendered steps",
+      "plan": "8a0de6e6 A18",
+      "where": "",
+      "text": "header 65 · engine Σ rendered 55 (→55) · phone total 55 · server total 76"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: three numbers disagree (header / phone / server)",
+      "plan": "8a0de6e6 A18",
+      "where": "",
+      "text": "header 65 · phone 55 · server 76"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 header outside 10–15",
+      "plan": "b0c8ffbd A16",
+      "where": "4 meals",
+      "text": "header 21 containers · 95 min"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "b0c8ffbd A16",
+      "where": "Cilantro-Lime Rice — lime zest",
+      "text": "holds only lime zest (Cilantro-Lime Rice)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "b0c8ffbd A16",
+      "where": "Cilantro-Lime Rice — finely chopped fresh cilantro",
+      "text": "holds only fresh cilantro (Cilantro-Lime Rice)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "b0c8ffbd A16",
+      "where": "Avocado Crema — fresh cilantro",
+      "text": "holds only fresh cilantro (Avocado Crema)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "b0c8ffbd A16",
+      "where": "Sautéed Peppers and Onions — thinly sliced red bell pepper",
+      "text": "holds only red bell pepper (Sautéed Peppers and Onions)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "b0c8ffbd A16",
+      "where": "Sautéed Peppers and Onions — thinly sliced yellow bell pepper",
+      "text": "holds only yellow bell pepper (Sautéed Peppers and Onions)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "b0c8ffbd A16",
+      "where": "Sautéed Peppers and Onions — thinly sliced green bell pepper",
+      "text": "holds only green bell pepper (Sautéed Peppers and Onions)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "b0c8ffbd A16",
+      "where": "Avocado Crema — minced garlic cloves",
+      "text": "holds only garlic cloves (Avocado Crema)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "b0c8ffbd A16",
+      "where": "(own) large shrimp, peeled and deveined — Chili-Lime Sautéed Shrimp",
+      "text": "holds only large shrimp, peeled and deveined (Chili-Lime Sautéed Shrimp)"
+    },
+    {
+      "surface": "prep",
+      "rule": "H7.1 raw-mix grouping on a heated dish",
+      "plan": "b0c8ffbd A16",
+      "where": "Charred Corn Salsa — fresh cilantro, cherry tomatoes, jalapeño and red onion",
+      "text": "Charred Corn Salsa has heat steps; members cherry tomatoes, red onion enter at no heat step"
+    },
+    {
+      "surface": "prep",
+      "rule": "H7.1 cut veg in a leafy-greens container",
+      "plan": "b0c8ffbd A16",
+      "where": "Sesame-Ginger Slaw — greens",
+      "text": "members green cabbage, red cabbage"
+    },
+    {
+      "surface": "prep",
+      "rule": "H6 '+N more' / truncated label",
+      "plan": "b0c8ffbd A16",
+      "where": "produce 2. Juice all limes",
+      "text": "\"Lime juice, fresh — Chili-Lime Sautéed Shrimp, Cilantro-Lime Rice, Sautéed Peppers and Onions +2 more\""
+    },
+    {
+      "surface": "prep",
+      "rule": "H3 protein step title does not name its dish",
+      "plan": "b0c8ffbd A16",
+      "where": "1. Pat dry the shrimp",
+      "text": "for Chili-Lime Sautéed Shrimp"
+    },
+    {
+      "surface": "prep",
+      "rule": "D-WS9-301 heldForCookDay stripped by the client schema",
+      "plan": "b0c8ffbd A16",
+      "where": "",
+      "text": "server sends 1 line(s) — e.g. \"Baked Salmon Teriyaki with Steamed Rice and Roasted Broccoli (Saturday, 6 days out) — portion the salmon fillets that mo\" — kiwi/lib/api/cooking.ts PrepWeekPhaseSchema has no heldForCookDay, so Zod drops it"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: header ≠ rounded engine sum of rendered steps",
+      "plan": "b0c8ffbd A16",
+      "where": "",
+      "text": "header 95 · engine Σ rendered 82 (→85) · phone total 82 · server total 101"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: three numbers disagree (header / phone / server)",
+      "plan": "b0c8ffbd A16",
+      "where": "",
+      "text": "header 95 · phone 82 · server 101"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: onion vs 2.5 min/onion",
+      "plan": "b0c8ffbd A16",
+      "where": "7. Prep all yellow onion",
+      "text": "2 onion(s) → 8 min (2.5/onion ⇒ 5)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P0 route error",
+      "plan": "b12a194c A12",
+      "where": "full",
+      "text": "HTTP 502: validation_failed Kiwi got distracted. Try again?"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 header outside 10–15",
+      "plan": "b4aa6fee E-b4aa6fee",
+      "where": "5 meals",
+      "text": "header 22 containers · 110 min"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "b4aa6fee E-b4aa6fee",
+      "where": "Fajita Toppings — thinly sliced jalapeño",
+      "text": "holds only jalapeño (Fajita Toppings)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "b4aa6fee E-b4aa6fee",
+      "where": "Lemon-Herb Baked Chicken Breast — zested lemon",
+      "text": "holds only lemon (Lemon-Herb Baked Chicken Breast)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "b4aa6fee E-b4aa6fee",
+      "where": "Lemon-Herb Baked Chicken Breast — chopped fresh parsley",
+      "text": "holds only fresh parsley (Lemon-Herb Baked Chicken Breast)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "b4aa6fee E-b4aa6fee",
+      "where": "Seasoned Ground Beef Filling — finely diced white onion",
+      "text": "holds only white onion (Seasoned Ground Beef Filling)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "b4aa6fee E-b4aa6fee",
+      "where": "Teriyaki Salmon — thinly sliced scallions",
+      "text": "holds only scallions (Teriyaki Salmon)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "b4aa6fee E-b4aa6fee",
+      "where": "Sesame Cucumber Salad — thinly sliced english cucumber",
+      "text": "holds only english cucumber (Sesame Cucumber Salad)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "b4aa6fee E-b4aa6fee",
+      "where": "(own) boneless skinless chicken thighs — Sheet-Pan Chicken Fajitas",
+      "text": "holds only boneless skinless chicken thighs (Sheet-Pan Chicken Fajitas)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "b4aa6fee E-b4aa6fee",
+      "where": "(own) salmon fillets — Teriyaki Salmon",
+      "text": "holds only salmon fillets (Teriyaki Salmon)"
+    },
+    {
+      "surface": "prep",
+      "rule": "H6 portion without a named container",
+      "plan": "b4aa6fee E-b4aa6fee",
+      "where": "produce 6. Chop all fresh cilantro",
+      "text": "\"…easoned Ground Beef Filling — into that same tub ¼ cup for Pico de Gallo — into a tub labelled \"Pico…\""
+    },
+    {
+      "surface": "prep",
+      "rule": "H6 portion without a named container",
+      "plan": "b4aa6fee E-b4aa6fee",
+      "where": "produce 9. Mince all garlic",
+      "text": "\"…r Garlic Herb Baby Potatoes — into that same tub 3 cloves for Seasoned Ground Beef Filling — into th…\""
+    },
+    {
+      "surface": "prep",
+      "rule": "H6 portion without a named container",
+      "plan": "b4aa6fee E-b4aa6fee",
+      "where": "produce 10. Strip and chop all fresh rosemary",
+      "text": "\"…r Garlic Herb Baby Potatoes — into that same tub…\""
+    },
+    {
+      "surface": "prep",
+      "rule": "H6 portion without a named container",
+      "plan": "b4aa6fee E-b4aa6fee",
+      "where": "produce 11. Strip all fresh thyme leaves",
+      "text": "\"…r Garlic Herb Baby Potatoes — into that same tub…\""
+    },
+    {
+      "surface": "prep",
+      "rule": "H7.1 marinade close points at a protein step not on screen",
+      "plan": "b4aa6fee E-b4aa6fee",
+      "where": "Carne Asada marinade bowl",
+      "text": "protein step \"Skirt steak — cook day\" is render-omitted (heat-or-no-knife-work); close reads \"Carne Asada marinade bowl: Covered in the fridge — up to 3 days. The skirt steak go in at the proteins step and marinate until cook day.\""
+    },
+    {
+      "surface": "prep",
+      "rule": "H7.1 marinade timing contradicts the recipe or the day",
+      "plan": "b4aa6fee E-b4aa6fee",
+      "where": "Carne Asada marinade bowl",
+      "text": "recipe caps it at 4 h (\"…ade over it, seal, and refrigerate for at least 30 minutes (up to 4 hours). Whil\"); prep says \"Carne Asada marinade bowl: Covered in the fridge — up to 3 days. The skirt steak go in at the proteins step an\""
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: header ≠ rounded engine sum of rendered steps",
+      "plan": "b4aa6fee E-b4aa6fee",
+      "where": "",
+      "text": "header 110 · engine Σ rendered 97 (→100) · phone total 97 · server total 128"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: three numbers disagree (header / phone / server)",
+      "plan": "b4aa6fee E-b4aa6fee",
+      "where": "",
+      "text": "header 110 · phone 97 · server 128"
+    },
+    {
+      "surface": "prep",
+      "rule": "P0 route error",
+      "plan": "b5263268 E-b5263268",
+      "where": "full",
+      "text": "HTTP 502: validation_failed Kiwi got distracted. Try again?"
+    },
+    {
+      "surface": "prep",
+      "rule": "P0 route error",
+      "plan": "bd8aa8c2 A13",
+      "where": "full",
+      "text": "HTTP 502: validation_failed Kiwi got distracted. Try again?"
+    },
+    {
+      "surface": "prep",
+      "rule": "P0 route error",
+      "plan": "c97aefe1 A02",
+      "where": "full",
+      "text": "HTTP 502: validation_failed Kiwi got distracted. Try again?"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 header outside 10–15",
+      "plan": "d26e6ae6 A19",
+      "where": "4 meals",
+      "text": "header 20 containers · 70 min"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "d26e6ae6 A19",
+      "where": "Creamy Coleslaw — shredded green cabbage",
+      "text": "holds only green cabbage (Creamy Coleslaw)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "d26e6ae6 A19",
+      "where": "Creamy Coleslaw — grated large carrot",
+      "text": "holds only large carrot (Creamy Coleslaw)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "d26e6ae6 A19",
+      "where": "Grilled Shrimp Skewers — minced garlic",
+      "text": "holds only garlic (Grilled Shrimp Skewers)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "d26e6ae6 A19",
+      "where": "Grilled Shrimp Skewers — zested lime",
+      "text": "holds only lime (Grilled Shrimp Skewers)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "d26e6ae6 A19",
+      "where": "Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — lime juice",
+      "text": "holds only lime juice (Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "d26e6ae6 A19",
+      "where": "Grilled Shrimp Skewers — chopped fresh cilantro",
+      "text": "holds only fresh cilantro (Grilled Shrimp Skewers)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "d26e6ae6 A19",
+      "where": "Mexican Street Corn (Elotes) — finely chopped fresh cilantro",
+      "text": "holds only fresh cilantro (Mexican Street Corn (Elotes))"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "d26e6ae6 A19",
+      "where": "Charred Corn and Avocado Salad with Lime Vinaigrette — husked fresh corn",
+      "text": "holds only fresh corn (Charred Corn and Avocado Salad with Lime Vinaigrette)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "d26e6ae6 A19",
+      "where": "Charred Grilled Corn on the Cob — husked corn on the cob",
+      "text": "holds only corn on the cob (Charred Grilled Corn on the Cob)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "d26e6ae6 A19",
+      "where": "Charred Grilled Corn on the Cob — thinly sliced fresh chives",
+      "text": "holds only fresh chives (Charred Grilled Corn on the Cob)"
+    },
+    {
+      "surface": "prep",
+      "rule": "H7.1 cut veg in a leafy-greens container",
+      "plan": "d26e6ae6 A19",
+      "where": "Creamy Coleslaw — greens",
+      "text": "members green cabbage, red cabbage"
+    },
+    {
+      "surface": "prep",
+      "rule": "H7.1 raw-mix grouping on a heated dish",
+      "plan": "d26e6ae6 A19",
+      "where": "Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — garlic, lime, fresh cilantro, jalapeño, roma tomatoes…",
+      "text": "Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo has heat steps; members roma tomatoes, white onion enter at no heat step"
+    },
+    {
+      "surface": "prep",
+      "rule": "H6 '+N more' / truncated label",
+      "plan": "d26e6ae6 A19",
+      "where": "produce 6. Mince all garlic",
+      "text": "\"Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — garlic, lime, fresh cilantro, jalapeño, roma tomatoes…\""
+    },
+    {
+      "surface": "prep",
+      "rule": "H6 '+N more' / truncated label",
+      "plan": "d26e6ae6 A19",
+      "where": "produce 7. Prep all limes",
+      "text": "\"Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — garlic, lime, fresh cilantro, jalapeño, roma tomatoes…\""
+    },
+    {
+      "surface": "prep",
+      "rule": "H6 '+N more' / truncated label",
+      "plan": "d26e6ae6 A19",
+      "where": "produce 8. Chop all fresh cilantro",
+      "text": "\"Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — garlic, lime, fresh cilantro, jalapeño, roma tomatoes…\""
+    },
+    {
+      "surface": "prep",
+      "rule": "H6 '+N more' / truncated label",
+      "plan": "d26e6ae6 A19",
+      "where": "produce 12. Seed and mince all jalapeños",
+      "text": "\"Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — garlic, lime, fresh cilantro, jalapeño, roma tomatoes…\""
+    },
+    {
+      "surface": "prep",
+      "rule": "H6 '+N more' / truncated label",
+      "plan": "d26e6ae6 A19",
+      "where": "produce 16. Dice the roma tomatoes for Grilled Shrimp Tacos",
+      "text": "\"Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — garlic, lime, fresh cilantro, jalapeño, roma tomatoes…\""
+    },
+    {
+      "surface": "prep",
+      "rule": "H6 '+N more' / truncated label",
+      "plan": "d26e6ae6 A19",
+      "where": "produce 17. Dice the white onion for Grilled Shrimp Tacos",
+      "text": "\"Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — garlic, lime, fresh cilantro, jalapeño, roma tomatoes…\""
+    },
+    {
+      "surface": "prep",
+      "rule": "D-WS9-298 protein held although a meal is ≤ 2 days out",
+      "plan": "d26e6ae6 A19",
+      "where": "Whole chicken halves (bone-in) — cook day",
+      "text": "lags Classic Sauced BBQ Chicken=0, BBQ-Glazed Spatchcock Gril=4"
+    },
+    {
+      "surface": "prep",
+      "rule": "D-WS9-301 heldForCookDay stripped by the client schema",
+      "plan": "d26e6ae6 A19",
+      "where": "",
+      "text": "server sends 3 line(s) — e.g. \"Add the large shrimp the night before you cook them (Tuesday).\" — kiwi/lib/api/cooking.ts PrepWeekPhaseSchema has no heldForCookDay, so Zod drops it"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: header ≠ rounded engine sum of rendered steps",
+      "plan": "d26e6ae6 A19",
+      "where": "",
+      "text": "header 70 · engine Σ rendered 62 (→65) · phone total 62 · server total 99"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: three numbers disagree (header / phone / server)",
+      "plan": "d26e6ae6 A19",
+      "where": "",
+      "text": "header 70 · phone 62 · server 99"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 header outside 10–15",
+      "plan": "da372b54 A06",
+      "where": "5 meals",
+      "text": "header 27 containers · 115 min"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "da372b54 A06",
+      "where": "Tomato and Onion Slow-Cooker Pot Roast — thinly sliced yellow onion",
+      "text": "holds only yellow onion (Tomato and Onion Slow-Cooker Pot Roast)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "da372b54 A06",
+      "where": "Smoky Baked Beans — finely diced yellow onion",
+      "text": "holds only yellow onion (Smoky Baked Beans)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "da372b54 A06",
+      "where": "Sautéed Garlic Green Beans — thinly sliced garlic cloves",
+      "text": "holds only garlic cloves (Sautéed Garlic Green Beans)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "da372b54 A06",
+      "where": "Sautéed Garlic Green Beans — trimmed fresh green beans",
+      "text": "holds only fresh green beans (Sautéed Garlic Green Beans)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "da372b54 A06",
+      "where": "Sautéed Garlic Green Beans — lemon juice",
+      "text": "holds only lemon juice (Sautéed Garlic Green Beans)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "da372b54 A06",
+      "where": "Tangy Vinegar Slaw — shredded green cabbage",
+      "text": "holds only green cabbage (Tangy Vinegar Slaw)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "da372b54 A06",
+      "where": "Southwest Chicken Salad with Avocado and Black Beans — chopped romaine lettuce hearts",
+      "text": "holds only romaine lettuce hearts (Southwest Chicken Salad with Avocado and Black Beans)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "da372b54 A06",
+      "where": "Thai Shrimp Red Curry — fresh lime juice",
+      "text": "holds only fresh lime juice (Thai Shrimp Red Curry)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "da372b54 A06",
+      "where": "Thai Shrimp Red Curry — grated fresh ginger",
+      "text": "holds only fresh ginger (Thai Shrimp Red Curry)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "da372b54 A06",
+      "where": "Thai Shrimp Red Curry — torn kaffir lime leaves",
+      "text": "holds only kaffir lime leaves (Thai Shrimp Red Curry)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "da372b54 A06",
+      "where": "Thai Shrimp Red Curry — Baby spinach",
+      "text": "holds only Baby spinach (Thai Shrimp Red Curry)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "da372b54 A06",
+      "where": "(own) beef chuck roast — Tomato and Onion Slow-Cooker Pot Roast",
+      "text": "holds only beef chuck roast (Tomato and Onion Slow-Cooker Pot Roast)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P-R1 single-member container",
+      "plan": "da372b54 A06",
+      "where": "(own) boneless pork shoulder — Pulled Pork Sliders",
+      "text": "holds only boneless pork shoulder (Pulled Pork Sliders)"
+    },
+    {
+      "surface": "prep",
+      "rule": "H7.1 raw-mix grouping on a heated dish",
+      "plan": "da372b54 A06",
+      "where": "Southwest Chicken Salad with Avocado and Black Beans — cherry tomatoes, red onion and fresh cilantro",
+      "text": "Southwest Chicken Salad with Avocado and Black Beans has heat steps; members cherry tomatoes, red onion enter at no heat step"
+    },
+    {
+      "surface": "prep",
+      "rule": "H3 protein step title does not name its dish",
+      "plan": "da372b54 A06",
+      "where": "1. Pat dry the beef chuck roast",
+      "text": "for Tomato and Onion Slow-Cooker Pot Roast"
+    },
+    {
+      "surface": "prep",
+      "rule": "H3 protein step title does not name its dish",
+      "plan": "da372b54 A06",
+      "where": "2. Trim the boneless pork shoulder",
+      "text": "for Pulled Pork Sliders"
+    },
+    {
+      "surface": "prep",
+      "rule": "D-WS9-301 heldForCookDay stripped by the client schema",
+      "plan": "da372b54 A06",
+      "where": "",
+      "text": "server sends 2 line(s) — e.g. \"Southwest Chicken Salad with Avocado, Black Beans, and Chipotle Ranch (Thursday, 4 days out) — pound the chicken breasts\" — kiwi/lib/api/cooking.ts PrepWeekPhaseSchema has no heldForCookDay, so Zod drops it"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: header ≠ rounded engine sum of rendered steps",
+      "plan": "da372b54 A06",
+      "where": "",
+      "text": "header 115 · engine Σ rendered 100 (→100) · phone total 100 · server total 140"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: three numbers disagree (header / phone / server)",
+      "plan": "da372b54 A06",
+      "where": "",
+      "text": "header 115 · phone 100 · server 140"
+    },
+    {
+      "surface": "prep",
+      "rule": "Minutes: onion vs 2.5 min/onion",
+      "plan": "da372b54 A06",
+      "where": "2. Prep all yellow onion",
+      "text": "3 onion(s) → 10 min (2.5/onion ⇒ 8)"
+    },
+    {
+      "surface": "prep",
+      "rule": "P0 route error",
+      "plan": "f0c56d0c A09",
+      "where": "full",
+      "text": "HTTP 502: validation_failed Kiwi got distracted. Try again?"
+    },
+    {
+      "surface": "prep",
+      "rule": "P0 route error",
+      "plan": "fb328120 A07",
+      "where": "full",
+      "text": "HTTP 502: validation_failed Kiwi got distracted. Try again?"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "04a25763 A05",
+      "where": "produce 2. Roughly chop the yellow onion for Slow-Cooked Pinto Beans",
+      "text": "subset [Slow-Cooked Pinto Beans — chopped yellow onion] vs full [Red Wine Braised Lamb Shanks vegetables | Slow-Cooked Pinto Beans — chopped yellow onion]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "04a25763 A05",
+      "where": "produce 3. Thinly slice garlic for Pickled Jalapeños",
+      "text": "subset [Pickled Jalapeños sauce bowl] vs full [Lemon-Herb Chicken Gyros marinade bowl | Minced garlic cloves — Creamy White Bean Mash, Lemon-Parsley Gremolat]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "04a25763 A05",
+      "where": "produce 4. Prep all fresh jalapeños",
+      "text": "subset [Mango Avocado Salsa — fresh jalapeño, ripe mango, red onion and fresh cilantro | Pickled Jalapeños sauce bowl] vs full [Mango Avocado Salsa — fresh jalapeño, red onion, ripe mango and fresh cilantro | Pickled Jalapeños sauce bowl]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "04a25763 A05",
+      "where": "produce 5. Dice the mango for Mango Avocado Salsa",
+      "text": "subset [Mango Avocado Salsa — fresh jalapeño, ripe mango, red onion and fresh cilantro] vs full [Mango Avocado Salsa — fresh jalapeño, red onion, ripe mango and fresh cilantro]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "04a25763 A05",
+      "where": "produce 7. Finely dice the red onion for Mango Avocado Salsa",
+      "text": "subset [Mango Avocado Salsa — fresh jalapeño, ripe mango, red onion and fresh cilantro] vs full [Lemon-Herb Chicken Gyros — thinly sliced red onion | Mango Avocado Salsa — fresh jalapeño, red onion, ripe man]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "04a25763 A05",
+      "where": "produce 8. Chop all fresh cilantro",
+      "text": "subset [Cilantro-Lime Rice — finely chopped fresh cilantro | Mango Avocado Salsa — fresh jalapeño, ripe mango, red oni] vs full [Cilantro-Lime Rice — finely chopped fresh cilantro | Mango Avocado Salsa — fresh jalapeño, red onion, ripe man]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S4b subset drops the unit the full plan prints",
+      "plan": "04a25763 A05",
+      "where": "garlic cloves for Pickled Jalapeños",
+      "text": "subset \"2\" vs full \"2 cloves\""
+    },
+    {
+      "surface": "subset",
+      "rule": "S5 subset ticks do not make the selected meals prepped",
+      "plan": "04a25763 A05",
+      "where": "Texas-Style Smoked Brisket with Pinto Be + Blackened Salmon with Mango Avocado Sals",
+      "text": "ticked 12 rendered subset keys; 6 of 13 required keys uncovered: seasonings_dry#dish#3e552f0c-0262-4003-9fee-8c8166b37bb7, seasonings_dry#dish#a632615c-2e99-4291-8a18-a2cf2a984f84, seasonings_dry#dish#4d3d8d4d-3ee2-4307-b579-706b677498a5"
+    },
+    {
+      "surface": "subset",
+      "rule": "S1 subset step not in the full plan",
+      "plan": "11623bcd A14",
+      "where": "produce 2. Juice the lemon for Chicken Tikka Masala",
+      "text": "stepKey produce#acc8ebfc-1a5c-4d38-8c38-6674178e028d"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "11623bcd A14",
+      "where": "produce 3. Prep all yellow onion",
+      "text": "subset [Chicken Tikka Masala — finely diced yellow onion | Coconut Chicken Korma — chopped yellow onion] vs full [Coconut Chicken Korma — chopped yellow onion | Finely diced yellow onion — Chicken Tikka Masala, Chana Masala,]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "11623bcd A14",
+      "where": "produce 4. Prep all garlic cloves",
+      "text": "subset [Coconut Chicken Korma — aromatics | Minced garlic cloves — Chicken Tikka Masala, Garlic Naan, Warm Garlic Naan] vs full [Coconut Chicken Korma — aromatics | Minced garlic cloves — Chicken Tikka Masala, Garlic Naan, Chana Masala +2 ]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "11623bcd A14",
+      "where": "produce 5. Prep all fresh ginger",
+      "text": "subset [Chicken Tikka Masala — grated fresh ginger | Coconut Chicken Korma — aromatics] vs full [Coconut Chicken Korma — aromatics | Grated fresh ginger — Chicken Tikka Masala, Chana Masala, Butter Chicken (]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "11623bcd A14",
+      "where": "produce 6. Chop all fresh cilantro",
+      "text": "subset [Chopped fresh cilantro — Chicken Tikka Masala, Coconut Chicken Korma | Garlic Naan — finely chopped fresh cila] vs full [Chopped fresh cilantro — Chicken Tikka Masala, Chana Masala, Butter Chicken (Murgh Makhani) +1 more | Cucumber]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S4b subset drops the unit the full plan prints",
+      "plan": "11623bcd A14",
+      "where": "garlic cloves for Chicken Tikka Masala",
+      "text": "subset \"5\" vs full \"5 cloves\""
+    },
+    {
+      "surface": "subset",
+      "rule": "S4b subset drops the unit the full plan prints",
+      "plan": "11623bcd A14",
+      "where": "garlic cloves for Garlic Naan",
+      "text": "subset \"2\" vs full \"2 cloves\""
+    },
+    {
+      "surface": "subset",
+      "rule": "S4b subset drops the unit the full plan prints",
+      "plan": "11623bcd A14",
+      "where": "garlic cloves for Coconut Chicken Korma",
+      "text": "subset \"4\" vs full \"4 cloves\""
+    },
+    {
+      "surface": "subset",
+      "rule": "S4b subset drops the unit the full plan prints",
+      "plan": "11623bcd A14",
+      "where": "garlic cloves for Warm Garlic Naan",
+      "text": "subset \"2\" vs full \"2 cloves\""
+    },
+    {
+      "surface": "subset",
+      "rule": "S5 subset ticks do not make the selected meals prepped",
+      "plan": "11623bcd A14",
+      "where": "Classic Chicken Tikka Masala with Basmat + Coconut Chicken Korma with Basmati Rice ",
+      "text": "ticked 9 rendered subset keys; 4 of 9 required keys uncovered: seasonings_dry#dish#616ebd16-6ea8-4cd9-aaf2-d116402f1f48, seasonings_dry#dish#429e012f-e294-482d-bd7b-e7ebb1d1983f, produce#057e48fd-245a-4ce2-a22b-37c7a6881ad3"
+    },
+    {
+      "surface": "subset",
+      "rule": "S1 subset step not in the full plan",
+      "plan": "1e41fc0c E-1e41fc0c",
+      "where": "produce 3. Juice all limes",
+      "text": "stepKey produce#ecd2a410-0015-4aa6-b980-8331f507b4c4"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "1e41fc0c E-1e41fc0c",
+      "where": "produce 4. Mince all garlic",
+      "text": "subset [Citrus-Marinated Carne Asada marinade bowl | White Chicken Chili Mac — minced garlic] vs full [Citrus-Marinated Carne Asada marinade bowl | Minced garlic — Mexican Rice, Beef Stroganoff Noodle Skillet, Whi]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "1e41fc0c E-1e41fc0c",
+      "where": "produce 7. Chop all fresh cilantro",
+      "text": "subset [Chopped fresh cilantro — Simple Guacamole, White Chicken Chili Mac | Fresh Pico de Gallo — roma tomatoes, whit] vs full [Chopped fresh cilantro — Simple Guacamole, Beef Enchiladas Verdes, White Chicken Chili Mac | Fresh Pico de Gal]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "1e41fc0c E-1e41fc0c",
+      "where": "produce 8. Prep the jalapeño for Fresh Pico de Gallo",
+      "text": "subset [Fresh Pico de Gallo — roma tomatoes, white onion, fresh cilantro and jalapeño] vs full [Beef Enchiladas Verdes vegetables | Fresh Pico de Gallo — roma tomatoes, white onion, fresh cilantro and jalap]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S5 subset ticks do not make the selected meals prepped",
+      "plan": "1e41fc0c E-1e41fc0c",
+      "where": "Carne Asada Tacos + White Chicken Chili Mac",
+      "text": "ticked 11 rendered subset keys; 2 of 9 required keys uncovered: seasonings_dry#dish#aa94c891-11e0-4853-8161-51bf6aeb3661, seasonings_dry#dish#b314bfa9-a4d2-402d-a0ef-b1ce684311cf"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "2539d94d A15",
+      "where": "produce 7. Shred the green cabbage",
+      "text": "subset [Cilantro-Lime Slaw — shredded green cabbage | Vinegar Coleslaw — greens] vs full [Cilantro-Lime Slaw — shredded green cabbage | Creamy Vinegar Cabbage Slaw — greens | Vinegar Coleslaw — greens]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "2539d94d A15",
+      "where": "produce 11. Shred the red cabbage for Vinegar Coleslaw",
+      "text": "subset [Vinegar Coleslaw — greens] vs full [Creamy Vinegar Cabbage Slaw — greens | Vinegar Coleslaw — greens]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S1 subset step not in the full plan",
+      "plan": "2539d94d A15",
+      "where": "produce 12. Grate the carrots for Vinegar Coleslaw",
+      "text": "stepKey produce#46f8a102-3c8f-4201-a012-87c4c094e284"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "2539d94d A15",
+      "where": "produce 13. Measure the celery seed for Vinegar Coleslaw",
+      "text": "subset [Vinegar Coleslaw — carrots and celery seed] vs full [Creamy Vinegar Cabbage Slaw — large carrot and celery seed | Vinegar Coleslaw — large carrot and celery seed]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S5 subset ticks do not make the selected meals prepped",
+      "plan": "2539d94d A15",
+      "where": "Chipotle-Spiced Pulled Pork Tacos with P + Slow-Roasted Pulled Pork with Alabama Wh",
+      "text": "ticked 19 rendered subset keys; 7 of 18 required keys uncovered: seasonings_dry#dish#3f9fec79-23f6-402b-859f-8bb6a59d87bd, seasonings_dry#dish#8d4b9f33-c169-4eb7-948b-c9dfc304a829, seasonings_dry#left#d084b2e0-c414-426f-b28d-9f0bf4bfca98"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "2730c4b1 A17",
+      "where": "produce 2. Grate the yellow onion for Spiced Beef Kofta",
+      "text": "subset [Spiced Beef Kofta — yellow onion, fresh flat-leaf parsley and garlic] vs full [Herb and Rice Stuffed Grape Leaves (Dolmades) — yellow onion, fresh flat-leaf parsley, garlic, fresh mint leav]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "2730c4b1 A17",
+      "where": "produce 3. Chop all flat-leaf parsley",
+      "text": "subset [Marinated Chicken Gyro Filling — fresh flat-leaf parsley, garlic, red onion and roma tomatoes | Pickled Onions] vs full [Chopped fresh flat-leaf parsley — Pickled Onions and Charred Flatbread, Harissa-Spiced Chicken Shawarma | Herb]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "2730c4b1 A17",
+      "where": "produce 4. Mince all garlic",
+      "text": "subset [Marinated Chicken Gyro Filling — fresh flat-leaf parsley, garlic, red onion and roma tomatoes | Spiced Beef Ko] vs full [Harissa-Spiced Chicken Shawarma marinade bowl | Herb and Rice Stuffed Grape Leaves (Dolmades) — yellow onion, ]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S1 subset step not in the full plan",
+      "plan": "2730c4b1 A17",
+      "where": "produce 5. Juice all lemons",
+      "text": "stepKey produce#acc8ebfc-1a5c-4d38-8c38-6674178e028d"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "2730c4b1 A17",
+      "where": "produce 6. Slice all red onion",
+      "text": "subset [Marinated Chicken Gyro Filling — fresh flat-leaf parsley, garlic, red onion and roma tomatoes | Pickled Onions] vs full [Marinated Chicken Gyro Filling — fresh flat-leaf parsley, garlic, red onion and roma tomatoes | Pickled Onions]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "2730c4b1 A17",
+      "where": "produce 8. Grate and squeeze the cucumber for Tzatziki Sauce",
+      "text": "subset [Tzatziki Sauce — garlic, english cucumber and fresh dill] vs full [Tzatziki Sauce — garlic, fresh dill and english cucumber | Tzatziki — garlic, fresh dill and english cucumber]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "2730c4b1 A17",
+      "where": "produce 9. Chop the fresh dill for Tzatziki Sauce",
+      "text": "subset [Tzatziki Sauce — garlic, english cucumber and fresh dill] vs full [Herb and Rice Stuffed Grape Leaves (Dolmades) — yellow onion, fresh flat-leaf parsley, garlic, fresh mint leav]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S5 subset ticks do not make the selected meals prepped",
+      "plan": "2730c4b1 A17",
+      "where": "Beef Kofta with Hummus, Pickled Onions,  + Classic Chicken Gyros with Tzatziki, Tom",
+      "text": "ticked 13 rendered subset keys; 6 of 13 required keys uncovered: seasonings_dry#dish#c27afbe4-4f58-4514-a1fe-b61180be93f8, seasonings_dry#dish#17ada924-cc6a-4c37-8d99-c2d80b85f435, seasonings_dry#left#9824095c-e63e-4e48-90c1-fed7b7cd61a6"
+    },
+    {
+      "surface": "subset",
+      "rule": "S5 subset ticks do not make the selected meals prepped",
+      "plan": "27a03273 A08",
+      "where": "Crispy Chicken Tenders with Oven Fries a + BBQ Chicken Sandwiches with Slaw and Chi",
+      "text": "ticked 3 rendered subset keys; 2 of 3 required keys uncovered: sauces_marinades#dish#6bce6dc5-9619-4997-a3b7-9b298e4ad81b, proteins#0ee25c3c-57ea-4036-a6d2-0c9a600a684b"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "2faff60f A20",
+      "where": "produce 2. Finely dice all yellow onion",
+      "text": "subset [Finely diced yellow onion — Cajun Shrimp Pasta in Spicy Cream Sauce, Classic Chicken Tetrazzini] vs full [Finely diced yellow onion — Cajun Shrimp Pasta in Spicy Cream Sauce, Classic Chicken Tetrazzini | Smoky Chipot]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "2faff60f A20",
+      "where": "produce 3. Thinly slice the red bell pepper for Cajun Shrimp Pasta",
+      "text": "subset [Cajun Shrimp Pasta in Spicy Cream Sauce — thinly sliced red bell pepper] vs full [Cajun Shrimp Pasta in Spicy Cream Sauce — thinly sliced red bell pepper | Sliced red bell pepper — Smoky Chipo]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "2faff60f A20",
+      "where": "produce 4. Mince all garlic cloves",
+      "text": "subset [Minced garlic cloves — Cajun Shrimp Pasta in Spicy Cream Sauce, Classic Chicken Tetrazzini] vs full [Chicken Fajitas with Roasted Poblano and Corn — garlic cloves, fresh cilantro, poblano pepper and fresh corn k]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S5 subset ticks do not make the selected meals prepped",
+      "plan": "2faff60f A20",
+      "where": "Cajun Shrimp Pasta in Spicy Cream Sauce + Classic Chicken Tetrazzini",
+      "text": "ticked 8 rendered subset keys; 3 of 7 required keys uncovered: seasonings_dry#dish#051b7d65-5509-44ac-b351-6989c3ebf266, seasonings_dry#dish#d4c78022-0755-406e-9381-f0295014cb4b, proteins#dafcbde7-d7b4-4e55-ba0c-421e3e8e5e63"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "33ddbb13 A11",
+      "where": "produce 2. Prep all garlic",
+      "text": "subset [Layered Tortilla Beef Taco Casserole — minced garlic | Sausage and Escarole Wedding Soup — aromatics] vs full [Hyderabadi Dum Chicken Biryani — garlic, yellow onion and fresh ginger | Minced garlic — Sheet-Pan Shrimp Boil]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "33ddbb13 A11",
+      "where": "produce 3. Chop the parsley for Sausage and Escarole Wedding Soup",
+      "text": "subset [Sausage and Escarole Wedding Soup — aromatics] vs full [Chopped fresh flat-leaf parsley — Shrimp and Crab Jambalaya, Sheet-Pan Shrimp Boil with Sausage, Corn, and Pot]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "33ddbb13 A11",
+      "where": "produce 4. Dice all yellow onion",
+      "text": "subset [Layered Tortilla Beef Taco Casserole — finely diced yellow onion | Sausage and Escarole Wedding vegetables] vs full [Hyderabadi Dum Chicken Biryani — garlic, yellow onion and fresh ginger | Layered Tortilla Beef Taco Casserole ]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "33ddbb13 A11",
+      "where": "produce 5. Dice the celery for Sausage and Escarole Wedding Soup",
+      "text": "subset [Sausage and Escarole Wedding vegetables] vs full [Sausage and Escarole Wedding vegetables | Shrimp and Crab Jambalaya vegetables]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "33ddbb13 A11",
+      "where": "produce 7. Chop the cilantro for Layered Tortilla Beef Taco Casserole",
+      "text": "subset [Layered Tortilla Beef Taco Casserole — chopped fresh cilantro] vs full [Chopped fresh cilantro — Hyderabadi Dum Chicken Biryani, Layered Tortilla Beef Taco Casserole]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S4a subset quantity ≠ the full plan's for the same dish",
+      "plan": "33ddbb13 A11",
+      "where": "garlic for Sausage and Escarole Wedding Soup",
+      "text": "subset 2 cloves vs full 3 cloves"
+    },
+    {
+      "surface": "subset",
+      "rule": "S5 subset ticks do not make the selected meals prepped",
+      "plan": "33ddbb13 A11",
+      "where": "Sausage and Escarole Wedding Soup + Layered Tortilla Beef Taco Casserole",
+      "text": "ticked 8 rendered subset keys; 2 of 8 required keys uncovered: seasonings_dry#dish#0177e205-fc7f-4f56-ac89-6447e1175f83, seasonings_dry#dish#3c62402a-8ec6-40a2-bfc7-ec9092b05741"
+    },
+    {
+      "surface": "subset",
+      "rule": "S1 subset step not in the full plan",
+      "plan": "3f9d46e8 A10",
+      "where": "produce 2. Mince all garlic",
+      "text": "stepKey produce#e6753984-d315-4484-bf78-783c61f197ab"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "3f9d46e8 A10",
+      "where": "produce 6. Chop the yellow onion for Herb Falafel",
+      "text": "subset [Herb Falafel — yellow onion, fresh flat-leaf parsley and fresh cilantro] vs full [Creamy Country Chicken and Gravy — finely diced yellow onion | Herb Falafel — yellow onion, fresh flat-leaf pa]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S1 subset step not in the full plan",
+      "plan": "3f9d46e8 A10",
+      "where": "produce 9. Juice all lemons",
+      "text": "stepKey produce#acc8ebfc-1a5c-4d38-8c38-6674178e028d"
+    },
+    {
+      "surface": "subset",
+      "rule": "S5 subset ticks do not make the selected meals prepped",
+      "plan": "3f9d46e8 A10",
+      "where": "Classic Supreme Pizza + Falafel Plate with Hummus, Tabbouleh, an",
+      "text": "ticked 17 rendered subset keys; 6 of 16 required keys uncovered: seasonings_dry#dish#d2c0f9dd-898b-47a3-909c-6457560f4e06, seasonings_dry#dish#e1e17b23-95e5-4e5e-96f6-3a846b11b0d8, seasonings_dry#dish#d97dd372-aa21-41e8-92c2-4ecc22b3114b"
+    },
+    {
+      "surface": "subset",
+      "rule": "S5 subset ticks do not make the selected meals prepped",
+      "plan": "53abd5b6 A03",
+      "where": "Classic BBQ Chicken Pizza with Red Onion + Buffalo Chicken Salad with Crispy Chicke",
+      "text": "ticked 8 rendered subset keys; 2 of 8 required keys uncovered: seasonings_dry#dish#23ba3769-1857-4472-9197-dc6fa469c278, proteins#dafcbde7-d7b4-4e55-ba0c-421e3e8e5e63"
+    },
+    {
+      "surface": "subset",
+      "rule": "S5 subset ticks do not make the selected meals prepped",
+      "plan": "7f206a48 A04",
+      "where": "Baja Shrimp Tacos with Chipotle Crema an + Al Pastor Pork Tacos with Charred Pineap",
+      "text": "ticked 15 rendered subset keys; 6 of 15 required keys uncovered: seasonings_dry#dish#29d2ed70-f0bf-4120-bbc6-c8fabdcb9347, seasonings_dry#dish#23a70ab3-2202-41bb-8b7d-54762f35471c, sauces_marinades#dish#da1f4aff-4ea1-4f53-b7e3-dc336c18a9d1"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "873796cd A01",
+      "where": "produce 3. Juice the limes and prep lime wedges",
+      "text": "subset [Citrus-Marinated Carne Asada marinade bowl | Fresh Toppings — lime | Lime juice — Fresh Pico de Gallo, Simple ] vs full [Citrus-Marinated Carne Asada marinade bowl | Lime juice — Fresh Pico de Gallo, Simple Guacamole, Fajita Toppin]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S1 subset step not in the full plan",
+      "plan": "873796cd A01",
+      "where": "produce 4. Mince all garlic",
+      "text": "stepKey produce#e6753984-d315-4484-bf78-783c61f197ab"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "873796cd A01",
+      "where": "produce 5. Dice all roma tomatoes",
+      "text": "subset [Black Bean Salsa — roma tomatoes, white onion, fresh cilantro and jalapeño | Fresh Pico de Gallo — roma tomato] vs full [Black Bean Salsa — roma tomatoes, white onion, fresh cilantro and jalapeño | Fajita Toppings: Pico de Gallo, G]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "873796cd A01",
+      "where": "produce 6. Finely dice all white onion",
+      "text": "subset [Black Bean Salsa — roma tomatoes, white onion, fresh cilantro and jalapeño | Fresh Pico de Gallo — roma tomato] vs full [Black Bean Salsa — roma tomatoes, white onion, fresh cilantro and jalapeño | Fajita Toppings: Pico de Gallo, G]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "873796cd A01",
+      "where": "produce 7. Chop all fresh cilantro",
+      "text": "subset [Black Bean Salsa — roma tomatoes, white onion, fresh cilantro and jalapeño | Chopped fresh cilantro — Simple G] vs full [Beer-Battered Cod Fish Tacos — fresh cilantro | Black Bean Salsa — roma tomatoes, white onion, fresh cilantro ]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "873796cd A01",
+      "where": "produce 8. Prep all jalapeños",
+      "text": "subset [Black Bean Salsa — roma tomatoes, white onion, fresh cilantro and jalapeño | Fresh Pico de Gallo — roma tomato] vs full [Black Bean Salsa — roma tomatoes, white onion, fresh cilantro and jalapeño | Fajita Toppings: Pico de Gallo, G]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S5 subset ticks do not make the selected meals prepped",
+      "plan": "873796cd A01",
+      "where": "Carne Asada Tacos + Smoky Carne Asada Tostadas with Black Be",
+      "text": "ticked 12 rendered subset keys; 4 of 10 required keys uncovered: seasonings_dry#dish#e66e236e-c847-4d04-8729-614a90a9268b, seasonings_dry#dish#a95c888f-2cc1-4a47-bd85-275f810cf1e0, produce#7835b896-5d7f-44fe-82e9-d3e0d247b77f"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "8a0de6e6 A18",
+      "where": "produce 2. Prep all yellow onion",
+      "text": "subset [Red Wine and Herb Slow-Cooker vegetables | Roasted Spaghetti Squash with Marinara — finely diced yellow onion] vs full [Ground Turkey and Tomato Meat vegetables | Red Wine and Herb Slow-Cooker vegetables | Roasted Spaghetti Squash]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "8a0de6e6 A18",
+      "where": "produce 3. Prep all garlic cloves",
+      "text": "subset [Minced garlic cloves — Roasted Spaghetti Squash with Marinara, Garlic Bread | Red Wine and Herb Slow-Cooker Ch] vs full [Breaded Chicken Cutlets sauce jar | Garlic Sautéed Green Beans — thinly sliced garlic cloves | Minced garlic c]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "8a0de6e6 A18",
+      "where": "produce 6. Prep the celery for the Chuck Roast",
+      "text": "subset [Red Wine and Herb Slow-Cooker vegetables] vs full [Ground Turkey and Tomato Meat vegetables | Red Wine and Herb Slow-Cooker vegetables]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "8a0de6e6 A18",
+      "where": "produce 9. Prep the carrots for Honey-Glazed Roasted Carrots",
+      "text": "subset [Honey-Glazed Roasted Carrots — peeled carrots] vs full [Ground Turkey and Tomato Meat vegetables | Honey-Glazed Roasted Carrots — peeled carrots]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "8a0de6e6 A18",
+      "where": "produce 11. Tear the fresh basil for the Roasted Spaghetti Squash with Marinara",
+      "text": "subset [Roasted Spaghetti Squash with Marinara — torn fresh basil (leaves)] vs full [Torn fresh basil (leaves) — Ground Turkey and Tomato Meat Sauce, Breaded Chicken Cutlets with Vodka Sauce and ]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S5 subset ticks do not make the selected meals prepped",
+      "plan": "8a0de6e6 A18",
+      "where": "Spaghetti Squash with Marinara and Garli",
+      "text": "ticked 10 rendered subset keys; 1 of 9 required keys uncovered: seasonings_dry#dish#9eb12218-0c3d-48eb-8460-a3cd01501ece"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "b0c8ffbd A16",
+      "where": "produce 3. Chop all fresh cilantro",
+      "text": "subset [Avocado Crema — fresh cilantro | Charred Corn Salsa — fresh cilantro, cherry tomatoes, jalapeño and red onion ] vs full [Avocado Crema — fresh cilantro | Charred Corn Salsa — fresh cilantro, cherry tomatoes, jalapeño and red onion ]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "b0c8ffbd A16",
+      "where": "produce 6. Slice the green bell pepper",
+      "text": "subset [Sautéed Peppers and Onions — thinly sliced green bell pepper] vs full [Dirty Rice vegetables | Sautéed Peppers and Onions — thinly sliced green bell pepper]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "b0c8ffbd A16",
+      "where": "produce 7. Slice the yellow onion",
+      "text": "subset [Sautéed Peppers and Onions — thinly sliced yellow onion] vs full [Dirty Rice vegetables | Thinly sliced yellow onion — Sautéed Peppers and Onions, Braised Collard Greens]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "b0c8ffbd A16",
+      "where": "produce 12. Mince and slice all garlic",
+      "text": "subset [Avocado Crema — minced garlic cloves | Roasted Broccoli with Garlic and Sesame — garlic cloves and broccoli fl] vs full [Avocado Crema — minced garlic cloves | Dirty Rice vegetables | Roasted Broccoli with Garlic and Sesame — garli]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "b0c8ffbd A16",
+      "where": "produce 13. Grate the fresh ginger",
+      "text": "subset [Teriyaki-Glazed Baked Salmon sauce bowl] vs full [Sesame-Crusted Seared Ahi Tuna marinade bowl | Sesame-Ginger Slaw — fresh cilantro, fresh ginger and carrots |]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S5 subset ticks do not make the selected meals prepped",
+      "plan": "b0c8ffbd A16",
+      "where": "Shrimp Fajita Bowl with Cilantro-Lime Ri + Baked Salmon Teriyaki with Steamed Rice ",
+      "text": "ticked 17 rendered subset keys; 4 of 17 required keys uncovered: seasonings_dry#dish#1dbf4b9a-6027-4ecc-9ce6-f532d6af8e4e, seasonings_dry#dish#d7241a37-e673-43c3-857a-146bcbd0f7e0, sauces_marinades#dish#d7241a37-e673-43c3-857a-146bcbd0f7e0"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "b4aa6fee E-b4aa6fee",
+      "where": "produce 5. Prep all limes",
+      "text": "subset [Lime — Fajita Toppings, Seasoned Ground Beef Filling | Sheet-Pan Chicken Fajitas — red bell pepper, green bell] vs full [Carne Asada marinade bowl | Lime juice — Pico de Gallo, Guacamole | Lime — Fajita Toppings, Taco Toppings, Sea]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "b4aa6fee E-b4aa6fee",
+      "where": "produce 6. Chop the fresh cilantro",
+      "text": "subset [Chopped fresh cilantro — Fajita Toppings, Seasoned Ground Beef Filling] vs full [Chopped fresh cilantro — Fajita Toppings, Carne Asada, Seasoned Ground Beef Filling | Guacamole — fresh cilant]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "b4aa6fee E-b4aa6fee",
+      "where": "produce 7. Prep all jalapeños",
+      "text": "subset [Fajita Toppings — thinly sliced jalapeño | Roasted Tomatillo Sauce vegetables] vs full [Fajita Toppings — thinly sliced jalapeño | Guacamole — fresh cilantro, jalapeño and white onion | Pico de Gall]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "b4aa6fee E-b4aa6fee",
+      "where": "produce 10. Prep all white onion",
+      "text": "subset [Roasted Tomatillo Sauce vegetables | Seasoned Ground Beef Filling — finely diced white onion] vs full [Guacamole — fresh cilantro, jalapeño and white onion | Pico de Gallo — fresh cilantro, jalapeño, roma tomatoes]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "b4aa6fee E-b4aa6fee",
+      "where": "produce 11. Mince the garlic for Seasoned Ground Beef Filling",
+      "text": "subset [Seasoned Ground Beef Filling — minced garlic] vs full [Carne Asada marinade bowl | Minced garlic — Lemon-Herb Baked Chicken Breast, Garlic Herb Baby Potatoes, Season]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S5 subset ticks do not make the selected meals prepped",
+      "plan": "b4aa6fee E-b4aa6fee",
+      "where": "Classic Tex-Mex Sheet-Pan Chicken Fajita + Beef Enchiladas Verdes with Roasted Toma",
+      "text": "ticked 14 rendered subset keys; 2 of 12 required keys uncovered: seasonings_dry#dish#10a840c2-0b9c-4ca5-8ee5-6fd4dd5f4f9e, seasonings_dry#dish#9fcdad03-8487-468f-8223-daa7af37c7d1"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "d26e6ae6 A19",
+      "where": "produce 3. Shred the green cabbage for Creamy Coleslaw",
+      "text": "subset [Creamy Coleslaw — shredded green cabbage] vs full [Creamy Coleslaw — greens | Creamy Coleslaw — shredded green cabbage]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "d26e6ae6 A19",
+      "where": "produce 4. Shred all red cabbage",
+      "text": "subset [Shredded red cabbage — Creamy Coleslaw, Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo] vs full [Creamy Coleslaw — greens | Shredded red cabbage — Creamy Coleslaw, Grilled Shrimp Tacos with Chipotle-Lime Cre]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "d26e6ae6 A19",
+      "where": "produce 5. Grate the carrots for Creamy Coleslaw",
+      "text": "subset [Creamy Coleslaw — grated large carrot] vs full [Creamy Coleslaw — grated large carrot | Creamy Coleslaw — large carrot and celery seed]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "d26e6ae6 A19",
+      "where": "produce 6. Prep the limes for Grilled Shrimp Tacos",
+      "text": "subset [Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — lime juice | Grilled Shrimp Tacos with Chipo] vs full [Charred Corn and Avocado Salad with Lime Vinaigrette — lime, fresh cilantro, red onion and jalapeño | Grilled ]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "d26e6ae6 A19",
+      "where": "produce 7. Mince the garlic for Grilled Shrimp Tacos",
+      "text": "subset [Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — lime, garlic, roma tomatoes, white onion, fr] vs full [Grilled Shrimp Skewers — minced garlic | Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — gar]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "d26e6ae6 A19",
+      "where": "produce 8. Dice the roma tomatoes for Grilled Shrimp Tacos",
+      "text": "subset [Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — lime, garlic, roma tomatoes, white onion, fr] vs full [Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — garlic, lime, fresh cilantro, jalapeño, roma]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "d26e6ae6 A19",
+      "where": "produce 9. Dice the white onion for Grilled Shrimp Tacos",
+      "text": "subset [Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — lime, garlic, roma tomatoes, white onion, fr] vs full [Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — garlic, lime, fresh cilantro, jalapeño, roma]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "d26e6ae6 A19",
+      "where": "produce 10. Chop all fresh cilantro",
+      "text": "subset [Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — lime, garlic, roma tomatoes, white onion, fr] vs full [Charred Corn and Avocado Salad with Lime Vinaigrette — lime, fresh cilantro, red onion and jalapeño | Grilled ]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "d26e6ae6 A19",
+      "where": "produce 11. Prep the jalapeño for Grilled Shrimp Tacos",
+      "text": "subset [Grilled Shrimp Tacos with Chipotle-Lime Crema and Pico de Gallo — lime, garlic, roma tomatoes, white onion, fr] vs full [Charred Corn and Avocado Salad with Lime Vinaigrette — lime, fresh cilantro, red onion and jalapeño | Grilled ]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S1 subset step not in the full plan",
+      "plan": "d26e6ae6 A19",
+      "where": "proteins 1. Pat dry the chicken halves for Classic Sauced BBQ Chicken Halves",
+      "text": "stepKey proteins#b922028b-4a84-47a1-9d72-1fd459e2bc5b"
+    },
+    {
+      "surface": "subset",
+      "rule": "S5 subset ticks do not make the selected meals prepped",
+      "plan": "d26e6ae6 A19",
+      "where": "Classic Sauced BBQ Chicken Halves with G + Grilled Shrimp Tacos with Mexican Street",
+      "text": "ticked 15 rendered subset keys; 7 of 16 required keys uncovered: seasonings_dry#dish#bd255af8-981a-49d2-8c36-9479feb2e1f3, seasonings_dry#dish#bb74badb-b835-4e55-b0dd-022b2327ffc0, seasonings_dry#dish#11e57044-12d5-497e-9532-46bd1db0deef"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "da372b54 A06",
+      "where": "produce 2. Prep all yellow onion",
+      "text": "subset [Beef Stew — yellow onion and celery stalks | Tomato and Onion Slow-Cooker Pot Roast — thinly sliced yellow oni] vs full [Beef Stew — yellow onion and celery stalks | Smoky Baked Beans — finely diced yellow onion | Tomato and Onion ]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "da372b54 A06",
+      "where": "produce 3. Prep all garlic cloves",
+      "text": "subset [Beef Stew with Mushrooms and Pearl Onions — minced garlic cloves | Sautéed Garlic Green Beans — thinly sliced ] vs full [Minced garlic cloves — Thai Shrimp Red Curry, Beef Stew with Mushrooms and Pearl Onions | Sautéed Garlic Green]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "da372b54 A06",
+      "where": "produce 8. Prep the cremini mushrooms",
+      "text": "subset [Beef Stew — cremini mushrooms and carrots] vs full [Beef Stew — carrots and cremini mushrooms]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S2 container names differ from the full plan",
+      "plan": "da372b54 A06",
+      "where": "produce 9. Prep the carrots",
+      "text": "subset [Beef Stew — cremini mushrooms and carrots] vs full [Beef Stew — carrots and cremini mushrooms | Tangy Vinegar Slaw — carrots and celery seed]"
+    },
+    {
+      "surface": "subset",
+      "rule": "S5 subset ticks do not make the selected meals prepped",
+      "plan": "da372b54 A06",
+      "where": "Tomato and Onion Slow-Cooker Pot Roast w + Beef Stew with Mushrooms and Pearl Onion",
+      "text": "ticked 12 rendered subset keys; 3 of 12 required keys uncovered: seasonings_dry#dish#8d61d78b-b43f-4602-8552-82f2d926ca62, sauces_marinades#left#8d61d78b-b43f-4602-8552-82f2d926ca62, proteins#8e2e32a0-bbe4-453b-9e05-429f7978e33a"
+    },
+    {
+      "surface": "cook",
+      "rule": "Prepped path: ticking every rendered prep step leaves isPrepped false",
+      "plan": "04a25763 A05",
+      "where": "Braised Lamb Shanks with Creamy White Bean Mash and Gremolata",
+      "text": "8 rendered keys ticked; blockers: Lamb shanks — cook day (render-omitted); after ticking all 12 wire keys → true"
+    },
+    {
+      "surface": "cook",
+      "rule": "Prepped path: recap is not built from the prep steps",
+      "plan": "04a25763 A05",
+      "where": "Braised Lamb Shanks with Creamy White Bean Mash and Gremolata",
+      "text": "recap = 4 cook-side phaseType=prep step text(s) (e.g. \"Pat the 4 lamb shanks dry with paper towels, then season all over with 2 teaspoons kosher \"); the plan's 8 prep steps for it (e.g. \"Wash and dry all the produce\") are not read"
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "11623bcd A14",
+      "where": "Chana Masala with Naan and Cucumber Rait · Cucumber Raita",
+      "text": "made T-20..T-10 inside \"Chana Masala\" cook T-20..T-10 — first step \"Halve the English cucumber lengthwise, scrape out the seeds with a spoon, and fi\""
+    },
+    {
+      "surface": "cook",
+      "rule": "Prepped path: ticking every rendered prep step leaves isPrepped false",
+      "plan": "11623bcd A14",
+      "where": "Chana Masala with Naan and Cucumber Raita",
+      "text": "10 rendered keys ticked; blockers: seasonings_dry#dish#138a0c89-eb33-4a4c-81fe-491adcfb6b17 (not on the wire); after ticking all 11 wire keys → false"
+    },
+    {
+      "surface": "cook",
+      "rule": "Prepped path: recap is not built from the prep steps",
+      "plan": "11623bcd A14",
+      "where": "Chana Masala with Naan and Cucumber Raita",
+      "text": "recap = 5 cook-side phaseType=prep step text(s) (e.g. \"Finely dice the 2 yellow onions, mince the 6 garlic cloves, grate 2 tablespoons fresh ging\"); the plan's 10 prep steps for it (e.g. \"Measure the Chana Masala spice blend\") are not read"
+    },
+    {
+      "surface": "cook",
+      "rule": "Prepped path: kept cook steps that lost their quantity",
+      "plan": "11623bcd A14",
+      "where": "Chana Masala with Naan and Cucumber Raita",
+      "text": "1 step(s), e.g. \"Fold in the diced cucumber, mint, and cilantro, then cover and refrigerate until ready to serve.\""
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "1cf373bc E-1cf373bc",
+      "where": "Classic Tex-Mex Sheet-Pan Chicken Fajita · Guacamole",
+      "text": "made T-37..T-22 inside \"Sheet-Pan Chicken Fajitas\" preheat T-41..T-29 — first step \"Halve and pit the 3 ripe avocados, scoop the flesh into a medium bowl, and mash \""
+    },
+    {
+      "surface": "cook",
+      "rule": "BUG-344 single-dish meal never sequenced",
+      "plan": "1cf373bc E-1cf373bc",
+      "where": "Texas-Style Beef Chili",
+      "text": "flattened: 11 steps, no offsets, no cues; the scheduler had 0 cue(s) and a 141-min plan"
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "1e41fc0c E-1e41fc0c",
+      "where": "Carne Asada Tacos · Fresh Pico de Gallo",
+      "text": "made T-46..T-25 inside \"Citrus-Marinated Carne Asada\" rest T-46..T-16 — first step \"Dice 3 roma tomatoes, finely dice ½ white onion, chop ¼ cup fresh cilantro, and \""
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "1e41fc0c E-1e41fc0c",
+      "where": "Carne Asada Tacos · Simple Guacamole",
+      "text": "made T-40..T-33 inside \"Citrus-Marinated Carne Asada\" rest T-46..T-16 — first step \"Halve and pit 3 ripe avocados, scoop the flesh into a bowl, and mash with a fork\""
+    },
+    {
+      "surface": "cook",
+      "rule": "BUG-344 single-dish meal never sequenced",
+      "plan": "1e41fc0c E-1e41fc0c",
+      "where": "Beef Stroganoff Noodle Skillet",
+      "text": "flattened: 11 steps, no offsets, no cues; the scheduler had 0 cue(s) and a 46-min plan"
+    },
+    {
+      "surface": "cook",
+      "rule": "BUG-344 single-dish meal never sequenced",
+      "plan": "1e41fc0c E-1e41fc0c",
+      "where": "White Chicken Chili Mac",
+      "text": "flattened: 12 steps, no offsets, no cues; the scheduler had 0 cue(s) and a 46-min plan"
+    },
+    {
+      "surface": "cook",
+      "rule": "Prepped path: ticking every rendered prep step leaves isPrepped false",
+      "plan": "1e41fc0c E-1e41fc0c",
+      "where": "Beef Enchiladas Verdes with Roasted Tomatillo Sauce",
+      "text": "8 rendered keys ticked; blockers: seasonings_dry#dish#d698e2f2-3c0b-4e0a-b145-573551404be0 (not on the wire); after ticking all 10 wire keys → false"
+    },
+    {
+      "surface": "cook",
+      "rule": "Prepped path: recap is not built from the prep steps",
+      "plan": "1e41fc0c E-1e41fc0c",
+      "where": "Beef Enchiladas Verdes with Roasted Tomatillo Sauce",
+      "text": "recap = 3 cook-side phaseType=prep step text(s) (e.g. \"Arrange the tomatillos (cut-side down), poblano halves, jalapeño halves, onion quarters, a\"); the plan's 8 prep steps for it (e.g. \"Measure the Beef Enchiladas Verdes spice blend\") are not read"
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "2539d94d A15",
+      "where": "Chipotle-Spiced Pulled Pork Tacos with P · Cilantro-Lime Slaw",
+      "text": "made T-104..T-87 inside \"Chipotle-Spiced Pulled Pork\" cook T-104..T-14 — first step \"Finely shred 3 cups green cabbage and place in a large bowl.\""
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "2539d94d A15",
+      "where": "Carolina Vinegar Pulled Pork with Tangy  · Creamy Vinegar Cabbage Slaw",
+      "text": "made T-493..T-458 inside \"Carolina Vinegar Pulled Pork\" cook T-493..T-13 — first step \"Finely shred ½ head green cabbage and ¼ head red cabbage, then peel and grate 1 \""
+    },
+    {
+      "surface": "cook",
+      "rule": "Prepped path: ticking every rendered prep step leaves isPrepped false",
+      "plan": "2539d94d A15",
+      "where": "Carolina Vinegar Pulled Pork with Tangy Slaw",
+      "text": "8 rendered keys ticked; blockers: seasonings_dry#dish#67a1fa4b-889a-46ba-8a5c-f8a86f94826c (not on the wire); sauces_marinades#left#67a1fa4b-889a-46ba-8a5c-f8a86f94826c (not on the wire); Bone-in pork shoulder (Boston butt) — cook day (render-omitted); after ticking all 10 wire keys → false"
+    },
+    {
+      "surface": "cook",
+      "rule": "Prepped path: recap is not built from the prep steps",
+      "plan": "2539d94d A15",
+      "where": "Carolina Vinegar Pulled Pork with Tangy Slaw",
+      "text": "recap = 5 cook-side phaseType=prep step text(s) (e.g. \"Mix 1½ teaspoons kosher salt, 1 teaspoon black pepper, 1 teaspoon smoked paprika, ½ teaspo\"); the plan's 8 prep steps for it (e.g. \"Measure the Carolina Vinegar Pulled Pork rub bowl\") are not read"
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "2730c4b1 A17",
+      "where": "Stuffed Grape Leaves with Tzatziki and W · Tzatziki",
+      "text": "made T-55..T-30 inside \"Herb and Rice Stuffed Grape Leaves (Dolmades)\" cook T-55..T-10 — first step \"Grate ½ English cucumber on the coarse side of a box grater, wrap in a clean kit\""
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "2730c4b1 A17",
+      "where": "Classic Chicken Gyros with Tzatziki, Tom · Tzatziki Sauce",
+      "text": "made T-40..T-20 inside \"Marinated Chicken Gyro Filling\" rest T-45..T-25 — first step \"Grate the ½ English cucumber on the large holes of a box grater, then gather it \""
+    },
+    {
+      "surface": "cook",
+      "rule": "Prepped path: ticking every rendered prep step leaves isPrepped false",
+      "plan": "2730c4b1 A17",
+      "where": "Stuffed Grape Leaves with Tzatziki and Warm Pita",
+      "text": "9 rendered keys ticked; blockers: seasonings_dry#dish#5dc1a55e-4ba0-49d7-a7f4-9369da2ff18a (not on the wire); after ticking all 10 wire keys → false"
+    },
+    {
+      "surface": "cook",
+      "rule": "Prepped path: recap is not built from the prep steps",
+      "plan": "2730c4b1 A17",
+      "where": "Stuffed Grape Leaves with Tzatziki and Warm Pita",
+      "text": "recap = 5 cook-side phaseType=prep step text(s) (e.g. \"Rinse 40 grape leaves under cold water, pat dry, and lay flat on a clean work surface; tri\"); the plan's 9 prep steps for it (e.g. \"Measure the Herb and Rice Stuffed Grape spice blend\") are not read"
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "27a03273 A08",
+      "where": "Crispy Chicken Tenders with Oven Fries a · Slaw",
+      "text": "made T-46..T-23 inside \"Oven Fries\" preheat T-46..T-34 — first step \"Whisk together ⅓ cup mayonnaise, 2 tablespoons apple cider vinegar, 1 tablespoon\""
+    },
+    {
+      "surface": "cook",
+      "rule": "Prepped path: ticking every rendered prep step leaves isPrepped false",
+      "plan": "27a03273 A08",
+      "where": "Tortilla Soup with Rotisserie Chicken and Classic Toppings",
+      "text": "8 rendered keys ticked; blockers: seasonings_dry#dish#1e24953a-ab21-4a12-a49c-5178ffd082a9 (not on the wire); after ticking all 10 wire keys → false"
+    },
+    {
+      "surface": "cook",
+      "rule": "Prepped path: recap is not built from the prep steps",
+      "plan": "27a03273 A08",
+      "where": "Tortilla Soup with Rotisserie Chicken and Classic Toppings",
+      "text": "recap = 3 cook-side phaseType=prep step text(s) (e.g. \"Dice the yellow onion, seed and mince the jalapeño, mince the 4 garlic cloves, and mince t\"); the plan's 8 prep steps for it (e.g. \"Measure the Tortilla Soup spice blend\") are not read"
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "297794a0 A21",
+      "where": "Chipotle Braised Chicken Tacos with Pick · Quick Pickled Jalapeños",
+      "text": "made T-36..T-9 inside \"Chipotle Braised Pulled Chicken\" cook T-58..T-23 — first step \"Thinly slice 4 fresh jalapeños into rounds and smash 1 garlic clove.\""
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "297794a0 A21",
+      "where": "Chicken Flautas with Guacamole and Mexic · Chunky Guacamole",
+      "text": "made T-77..T-52 inside \"Crispy Chicken Flautas\" cook T-77..T-52 — first step \"Finely dice ¼ cup white onion, seed and mince 1 jalapeño, mince 1 garlic clove, \""
+    },
+    {
+      "surface": "cook",
+      "rule": "K-R6 footer ≠ card (flattened single-dish)",
+      "plan": "2faff60f A20",
+      "where": "Cajun Shrimp Pasta in Spicy Cream Sauce",
+      "text": "footer 53 min vs card 33 (scheduler 33, fresh derive 33)"
+    },
+    {
+      "surface": "cook",
+      "rule": "BUG-344 single-dish meal never sequenced",
+      "plan": "2faff60f A20",
+      "where": "Cajun Shrimp Pasta in Spicy Cream Sauce",
+      "text": "flattened: 13 steps, no offsets, no cues; the scheduler had 0 cue(s) and a 33-min plan"
+    },
+    {
+      "surface": "cook",
+      "rule": "K-R6 footer ≠ card (flattened single-dish)",
+      "plan": "2faff60f A20",
+      "where": "Smoky Chipotle Flank Steak Fajitas with Peppers and Onions",
+      "text": "footer 66 min vs card 49 (scheduler 49, fresh derive 49)"
+    },
+    {
+      "surface": "cook",
+      "rule": "BUG-344 single-dish meal never sequenced",
+      "plan": "2faff60f A20",
+      "where": "Smoky Chipotle Flank Steak Fajitas with Peppers and Onions",
+      "text": "flattened: 8 steps, no offsets, no cues; the scheduler had 0 cue(s) and a 49-min plan"
+    },
+    {
+      "surface": "cook",
+      "rule": "BUG-344 single-dish meal never sequenced",
+      "plan": "2faff60f A20",
+      "where": "Chicken Fajitas with Roasted Poblano and Corn",
+      "text": "flattened: 9 steps, no offsets, no cues; the scheduler had 0 cue(s) and a 38-min plan"
+    },
+    {
+      "surface": "cook",
+      "rule": "K-R6 footer ≠ card (flattened single-dish)",
+      "plan": "2faff60f A20",
+      "where": "Classic Chicken Tetrazzini",
+      "text": "footer 108 min vs card 82 (scheduler 82, fresh derive 82)"
+    },
+    {
+      "surface": "cook",
+      "rule": "BUG-344 single-dish meal never sequenced",
+      "plan": "2faff60f A20",
+      "where": "Classic Chicken Tetrazzini",
+      "text": "flattened: 12 steps, no offsets, no cues; the scheduler had 0 cue(s) and a 82-min plan"
+    },
+    {
+      "surface": "cook",
+      "rule": "BUG-344 single-dish meal never sequenced",
+      "plan": "33ddbb13 A11",
+      "where": "Sausage and Escarole Wedding Soup",
+      "text": "flattened: 11 steps, no offsets, no cues; the scheduler had 0 cue(s) and a 66-min plan"
+    },
+    {
+      "surface": "cook",
+      "rule": "BUG-344 single-dish meal never sequenced",
+      "plan": "33ddbb13 A11",
+      "where": "Shrimp and Crab Jambalaya",
+      "text": "flattened: 11 steps, no offsets, no cues; the scheduler had 0 cue(s) and a 66-min plan"
+    },
+    {
+      "surface": "cook",
+      "rule": "BUG-344 single-dish meal never sequenced",
+      "plan": "33ddbb13 A11",
+      "where": "Hyderabadi Dum Chicken Biryani",
+      "text": "flattened: 13 steps, no offsets, no cues; the scheduler had 0 cue(s) and a 101-min plan"
+    },
+    {
+      "surface": "cook",
+      "rule": "K-R6 footer ≠ card (flattened single-dish)",
+      "plan": "33ddbb13 A11",
+      "where": "Sheet-Pan Shrimp Boil with Sausage, Corn, and Potatoes",
+      "text": "footer 68 min vs card 49 (scheduler 49, fresh derive 49)"
+    },
+    {
+      "surface": "cook",
+      "rule": "BUG-344 single-dish meal never sequenced",
+      "plan": "33ddbb13 A11",
+      "where": "Sheet-Pan Shrimp Boil with Sausage, Corn, and Potatoes",
+      "text": "flattened: 8 steps, no offsets, no cues; the scheduler had 0 cue(s) and a 49-min plan"
+    },
+    {
+      "surface": "cook",
+      "rule": "K-R6 footer ≠ card (flattened single-dish)",
+      "plan": "33ddbb13 A11",
+      "where": "Layered Tortilla Beef Taco Casserole",
+      "text": "footer 82 min vs card 70 (scheduler 70, fresh derive 70)"
+    },
+    {
+      "surface": "cook",
+      "rule": "BUG-344 single-dish meal never sequenced",
+      "plan": "33ddbb13 A11",
+      "where": "Layered Tortilla Beef Taco Casserole",
+      "text": "flattened: 14 steps, no offsets, no cues; the scheduler had 0 cue(s) and a 70-min plan"
+    },
+    {
+      "surface": "cook",
+      "rule": "K-R6 footer ≠ card (flattened single-dish)",
+      "plan": "3f9d46e8 A10",
+      "where": "Classic Supreme Pizza",
+      "text": "footer 60 min vs card 40 (scheduler 40, fresh derive 40)"
+    },
+    {
+      "surface": "cook",
+      "rule": "BUG-344 single-dish meal never sequenced",
+      "plan": "3f9d46e8 A10",
+      "where": "Classic Supreme Pizza",
+      "text": "flattened: 9 steps, no offsets, no cues; the scheduler had 0 cue(s) and a 40-min plan"
+    },
+    {
+      "surface": "cook",
+      "rule": "Prepped path: ticking every rendered prep step leaves isPrepped false",
+      "plan": "3f9d46e8 A10",
+      "where": "Creamy Country Chicken and Gravy over Biscuits",
+      "text": "6 rendered keys ticked; blockers: seasonings_dry#dish#c9d2dd05-df21-40b4-b9ca-58b8c3861192 (not on the wire); seasonings_dry#dish#6e55f8dd-d714-4d7b-862b-0667555644bf (not on the wire); after ticking all 10 wire keys → false"
+    },
+    {
+      "surface": "cook",
+      "rule": "Prepped path: recap is not built from the prep steps",
+      "plan": "3f9d46e8 A10",
+      "where": "Creamy Country Chicken and Gravy over Biscuits",
+      "text": "recap = 8 cook-side phaseType=prep step text(s) (e.g. \"Pat 1½ pounds boneless skinless chicken thighs dry, then season all over with 1 teaspoon k\"); the plan's 6 prep steps for it (e.g. \"Measure the Flaky Buttermilk Drop Biscuits dough bowl dry mix\") are not read"
+    },
+    {
+      "surface": "cook",
+      "rule": "K-R6 footer ≠ card (flattened single-dish)",
+      "plan": "53abd5b6 A03",
+      "where": "Classic BBQ Chicken Pizza with Red Onion and Cilantro",
+      "text": "footer 70 min vs card 60 (scheduler 60, fresh derive 60)"
+    },
+    {
+      "surface": "cook",
+      "rule": "BUG-344 single-dish meal never sequenced",
+      "plan": "53abd5b6 A03",
+      "where": "Classic BBQ Chicken Pizza with Red Onion and Cilantro",
+      "text": "flattened: 11 steps, no offsets, no cues; the scheduler had 0 cue(s) and a 60-min plan"
+    },
+    {
+      "surface": "cook",
+      "rule": "BUG-344 single-dish meal never sequenced",
+      "plan": "53abd5b6 A03",
+      "where": "Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch",
+      "text": "flattened: 9 steps, no offsets, no cues; the scheduler had 0 cue(s) and a 40-min plan"
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "7f206a48 A04",
+      "where": "Baja Shrimp Tacos with Chipotle Crema an · Chipotle Crema",
+      "text": "made T-41..T-16 inside \"Baja Chili-Lime Shrimp Tacos\" rest T-41..T-31 — first step \"Mince 2 chipotle peppers in adobo and finely grate 1 clove of garlic.\""
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "7f206a48 A04",
+      "where": "Al Pastor Pork Tacos with Charred Pineap · Cilantro-Lime Slaw",
+      "text": "made T-36..T-26 inside \"Al Pastor Pork Strips\" rest T-36..T-26 — first step \"Thinly shred 3 cups green cabbage, roughly chop ½ cup fresh cilantro, and thinly\""
+    },
+    {
+      "surface": "cook",
+      "rule": "Prepped path: ticking every rendered prep step leaves isPrepped false",
+      "plan": "7f206a48 A04",
+      "where": "Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw",
+      "text": "10 rendered keys ticked; blockers: seasonings_dry#dish#23a70ab3-2202-41bb-8b7d-54762f35471c (not on the wire); sauces_marinades#dish#23a70ab3-2202-41bb-8b7d-54762f35471c (not on the wire); Pork tenderloin — cook day (render-omitted); after ticking all 12 wire keys → false"
+    },
+    {
+      "surface": "cook",
+      "rule": "Prepped path: recap is not built from the prep steps",
+      "plan": "7f206a48 A04",
+      "where": "Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw",
+      "text": "recap = 6 cook-side phaseType=prep step text(s) (e.g. \"Slice the pork tenderloin into thin strips and pat dry with paper towels.\"); the plan's 10 prep steps for it (e.g. \"Measure the Al Pastor Pork Strips marinade bowl spices\") are not read"
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "873796cd A01",
+      "where": "Carne Asada Tacos · Fresh Pico de Gallo",
+      "text": "made T-46..T-25 inside \"Citrus-Marinated Carne Asada\" rest T-46..T-16 — first step \"Dice 3 roma tomatoes, finely dice ½ white onion, chop ¼ cup fresh cilantro, and \""
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "873796cd A01",
+      "where": "Carne Asada Tacos · Simple Guacamole",
+      "text": "made T-40..T-33 inside \"Citrus-Marinated Carne Asada\" rest T-46..T-16 — first step \"Halve and pit 3 ripe avocados, scoop the flesh into a bowl, and mash with a fork\""
+    },
+    {
+      "surface": "cook",
+      "rule": "BUG-344 single-dish meal never sequenced",
+      "plan": "873796cd A01",
+      "where": "Texas-Style Beef Chili",
+      "text": "flattened: 11 steps, no offsets, no cues; the scheduler had 0 cue(s) and a 141-min plan"
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "873796cd A01",
+      "where": "Teriyaki Salmon Dinner · Sesame Cucumber Salad",
+      "text": "made T-25..T-18 inside \"Teriyaki Salmon\" rest T-25..T-15 — first step \"In a large bowl, whisk together 2 tablespoons rice vinegar, 1 tablespoon sesame \""
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "873796cd A01",
+      "where": "Classic Sizzling Chicken Fajitas · Fajita Toppings: Pico de Gallo, Guacamole, and Sour Cream",
+      "text": "made T-39..T-20 inside \"Lime-Marinated Chicken Fajitas with Peppers and Onions\" rest T-39..T-24 — first step \"Finely dice the 3 roma tomatoes and ¼ cup white onion, seed and mince the jalape\""
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "873796cd A01",
+      "where": "Smoky Carne Asada Tostadas with Black Be · Black Bean Salsa",
+      "text": "made T-43..T-25 inside \"Smoky Carne Asada\" rest T-43..T-23 — first step \"Drain and rinse the can of black beans thoroughly under cold water and let them \""
+    },
+    {
+      "surface": "cook",
+      "rule": "Prepped path: ticking every rendered prep step leaves isPrepped false",
+      "plan": "873796cd A01",
+      "where": "Baja Fish Tacos with Quick Slaw and Lime Crema",
+      "text": "5 rendered keys ticked; blockers: seasonings_dry#dish#e2f50011-d227-43f5-b524-0fdb613d6963 (not on the wire); sauces_marinades#dish#d2d5ad6a-30d3-41dd-ac87-54d8fd1a912e (not on the wire); after ticking all 6 wire keys → false"
+    },
+    {
+      "surface": "cook",
+      "rule": "Prepped path: recap is not built from the prep steps",
+      "plan": "873796cd A01",
+      "where": "Baja Fish Tacos with Quick Slaw and Lime Crema",
+      "text": "recap = 4 cook-side phaseType=prep step text(s) (e.g. \"Pat the 1½ pounds of cod strips dry with paper towels, then season lightly with a pinch of\"); the plan's 5 prep steps for it (e.g. \"Measure the Beer-Battered Cod Fish Tacos batter bowl\") are not read"
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "8a0de6e6 A18",
+      "where": "Chicken Parmesan with Vodka Sauce · Simple Arugula Salad with Lemon and Parmesan",
+      "text": "made T-22..T-16 inside \"Spaghetti\" preheat T-26..T-16 — first step \"Whisk together 2 tablespoons extra-virgin olive oil, 1 tablespoon fresh lemon ju\""
+    },
+    {
+      "surface": "cook",
+      "rule": "Prepped path: recap is not built from the prep steps",
+      "plan": "8a0de6e6 A18",
+      "where": "Biscuits and Sausage Gravy with Scrambled Eggs",
+      "text": "recap = 1 cook-side phaseType=prep step text(s) (e.g. \"Crack 8 large eggs into a bowl, add 3 tablespoons whole milk, ¼ teaspoon kosher salt, and \"); the plan's 2 prep steps for it (e.g. \"Wash and dry all the produce\") are not read"
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "b0c8ffbd A16",
+      "where": "Shrimp Fajita Bowl with Cilantro-Lime Ri · Avocado Crema",
+      "text": "made T-53..T-33 inside \"Cilantro-Lime Rice\" cook T-53..T-35 — first step \"Mince 1 garlic clove and roughly chop 2 tablespoons fresh cilantro.\""
+    },
+    {
+      "surface": "cook",
+      "rule": "Prepped path: ticking every rendered prep step leaves isPrepped false",
+      "plan": "b0c8ffbd A16",
+      "where": "Seared Tuna Steak with Sesame-Ginger Slaw and Steamed Jasmine Rice",
+      "text": "10 rendered keys ticked; blockers: seasonings_dry#left#14181504-afdc-4bae-9d2b-6544eb6d2272 (not on the wire); sauces_marinades#dish#d6eab803-9268-45f5-9542-3c1152ae1938 (not on the wire); sauces_marinades#left#14181504-afdc-4bae-9d2b-6544eb6d2272 (not on the wire); after ticking all 11 wire keys → false"
+    },
+    {
+      "surface": "cook",
+      "rule": "Prepped path: recap is not built from the prep steps",
+      "plan": "b0c8ffbd A16",
+      "where": "Seared Tuna Steak with Sesame-Ginger Slaw and Steamed Jasmine Rice",
+      "text": "recap = 9 cook-side phaseType=prep step text(s) (e.g. \"Finely shred 4 cups green cabbage and 1 cup red cabbage, then peel and julienne or grate 2\"); the plan's 10 prep steps for it (e.g. \"Measure the Sesame-Crusted Seared Ahi Tuna marinade bowl\") are not read"
+    },
+    {
+      "surface": "cook",
+      "rule": "Prepped path: kept cook steps that lost their quantity",
+      "plan": "b0c8ffbd A16",
+      "where": "Seared Tuna Steak with Sesame-Ginger Slaw and Steamed Jasmine Rice",
+      "text": "1 step(s), e.g. \"Plate the sliced tuna, scatter the sliced scallions over the top, and serve with lime wedges alongsi\""
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "b4aa6fee E-b4aa6fee",
+      "where": "Carne Asada Tacos · Pico de Gallo",
+      "text": "made T-59..T-29 inside \"Carne Asada\" rest T-62..T-32 — first step \"Dice 3 roma tomatoes and finely dice ½ white onion.\""
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "b4aa6fee E-b4aa6fee",
+      "where": "Carne Asada Tacos · Guacamole",
+      "text": "made T-54..T-34 inside \"Carne Asada\" rest T-62..T-32 — first step \"Seed and mince 1 jalapeño and finely dice ¼ white onion, then chop 3 tablespoons\""
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "b4aa6fee E-b4aa6fee",
+      "where": "Teriyaki Salmon Dinner · Sesame Cucumber Salad",
+      "text": "made T-25..T-18 inside \"Teriyaki Salmon\" rest T-25..T-15 — first step \"In a large bowl, whisk together 2 tablespoons rice vinegar, 1 tablespoon sesame \""
+    },
+    {
+      "surface": "cook",
+      "rule": "Prepped path: recap is not built from the prep steps",
+      "plan": "b4aa6fee E-b4aa6fee",
+      "where": "Lemon-Herb Baked Chicken Breast with Roasted Asparagus and Garlic Herb Potatoes",
+      "text": "recap = 6 cook-side phaseType=prep step text(s) (e.g. \"Halve 1½ pounds baby yellow potatoes, mince 3 garlic cloves, and strip and chop the rosema\"); the plan's 7 prep steps for it (e.g. \"Wash and dry all the produce\") are not read"
+    },
+    {
+      "surface": "cook",
+      "rule": "Prepped path: cook steps that redo prep work after the filter",
+      "plan": "b4aa6fee E-b4aa6fee",
+      "where": "Lemon-Herb Baked Chicken Breast with Roasted Asparagus and Garlic Herb Potatoes",
+      "text": "assemble step kept: \"Slice the chicken and transfer to a platter; scatter with ¼ cup chopped fresh parsley if using.\""
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "b5263268 E-b5263268",
+      "where": "Smoky Chipotle Ground Beef Tacos with Av · Avocado Crema",
+      "text": "made T-33..T-13 inside \"Quick Pickled Red Onions\" rest T-38..T-18 — first step \"Halve and pit 2 ripe avocados and scoop the flesh into a blender or food process\""
+    },
+    {
+      "surface": "cook",
+      "rule": "K-R6 footer ≠ card (flattened single-dish)",
+      "plan": "b5263268 E-b5263268",
+      "where": "Slow-Cooker Chicken and Dumplings",
+      "text": "footer 446 min vs card 441 (scheduler 441, fresh derive 441)"
+    },
+    {
+      "surface": "cook",
+      "rule": "BUG-344 single-dish meal never sequenced",
+      "plan": "b5263268 E-b5263268",
+      "where": "Slow-Cooker Chicken and Dumplings",
+      "text": "flattened: 8 steps, no offsets, no cues; the scheduler had 0 cue(s) and a 441-min plan"
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "bd8aa8c2 A13",
+      "where": "Smoky Chipotle Carne Asada Tacos with Pi · Fresh Pico de Gallo",
+      "text": "made T-42..T-7 inside \"Smoky Chipotle Carne Asada\" rest T-42..T-22 — first step \"Core and finely dice 3 roma tomatoes, finely dice ½ white onion, seed and mince \""
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "bd8aa8c2 A13",
+      "where": "Smoky Chipotle Carne Asada Tacos with Pi · Cilantro-Lime Slaw",
+      "text": "made T-32..T-7 inside \"Smoky Chipotle Carne Asada\" rest T-42..T-22 — first step \"Thinly shred 3 cups green cabbage and 1 cup red cabbage and place in a large bow\""
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "bd8aa8c2 A13",
+      "where": "Carnitas Tacos with Charred Corn Salsa a · Jalapeño Slaw",
+      "text": "made T-74..T-52 inside \"Citrus-Braised Pork Carnitas\" cook T-74..T-42 — first step \"Thinly shred 2 cups green cabbage and peel and julienne or coarsely grate 1 carr\""
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "bd8aa8c2 A13",
+      "where": "Pork Carnitas Bowl with Cilantro-Lime Ri · Fresh Pico de Gallo",
+      "text": "made T-71..T-48 inside \"Crispy Citrus-Braised Pork Carnitas\" cook T-71..T-24 — first step \"Core and finely dice 4 roma tomatoes, finely dice ½ white onion, and seed and mi\""
+    },
+    {
+      "surface": "cook",
+      "rule": "K-R6 footer ≠ card (flattened single-dish)",
+      "plan": "c97aefe1 A02",
+      "where": "Slow-Cooker Chicken and Dumplings",
+      "text": "footer 446 min vs card 441 (scheduler 441, fresh derive 441)"
+    },
+    {
+      "surface": "cook",
+      "rule": "BUG-344 single-dish meal never sequenced",
+      "plan": "c97aefe1 A02",
+      "where": "Slow-Cooker Chicken and Dumplings",
+      "text": "flattened: 8 steps, no offsets, no cues; the scheduler had 0 cue(s) and a 441-min plan"
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "c97aefe1 A02",
+      "where": "Grilled Mahi-Mahi with Mango Salsa and C · Fresh Mango Salsa",
+      "text": "made T-27..T-9 inside \"Grilled Mahi-Mahi\" rest T-27..T-17 — first step \"Peel and dice 2 ripe mangoes into ¼-inch pieces and place them in a medium mixin\""
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "c97aefe1 A02",
+      "where": "Herb-Marinated Chicken and Vegetable Ske · Tzatziki",
+      "text": "made T-44..T-15 inside \"Herb-Marinated Chicken and Vegetable Skewers\" rest T-44..T-24 — first step \"Grate the ½ English cucumber on the large holes of a box grater, then wrap it in\""
+    },
+    {
+      "surface": "cook",
+      "rule": "Prepped path: ticking every rendered prep step leaves isPrepped false",
+      "plan": "d26e6ae6 A19",
+      "where": "Grilled Shrimp Skewers with Charred Corn, Avocado, and Lime Vinaigrette",
+      "text": "8 rendered keys ticked; blockers: seasonings_dry#dish#9818730c-264a-45c5-a225-e9ad4ba125d0 (not on the wire); after ticking all 11 wire keys → false"
+    },
+    {
+      "surface": "cook",
+      "rule": "Prepped path: recap is not built from the prep steps",
+      "plan": "d26e6ae6 A19",
+      "where": "Grilled Shrimp Skewers with Charred Corn, Avocado, and Lime Vinaigrette",
+      "text": "recap = 5 cook-side phaseType=prep step text(s) (e.g. \"Whisk together the juice of 2 limes, 3 tablespoons olive oil, 1 teaspoon honey, ¾ teaspoon\"); the plan's 8 prep steps for it (e.g. \"Measure the Grilled Shrimp Skewers marinade bowl spices\") are not read"
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "da372b54 A06",
+      "where": "Pulled Pork Sliders with Vinegar Slaw an · Tangy Vinegar Slaw",
+      "text": "made T-493..T-460 inside \"Pulled Pork Sliders\" cook T-493..T-13 — first step \"Finely shred 4 cups of green cabbage and grate 1 carrot, then add both to a larg\""
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "da372b54 A06",
+      "where": "Shrimp Red Curry with Roti and Cucumber  · Thai Cucumber Salad",
+      "text": "made T-68..T-43 inside \"Warm Roti\" rest T-68..T-49 — first step \"Whisk together 3 tablespoons rice vinegar, 1 tablespoon fish sauce, 2 teaspoons \""
+    },
+    {
+      "surface": "cook",
+      "rule": "BUG-344 single-dish meal never sequenced",
+      "plan": "da372b54 A06",
+      "where": "Beef Stew with Mushrooms and Pearl Onions",
+      "text": "flattened: 12 steps, no offsets, no cues; the scheduler had 0 cue(s) and a 134-min plan"
+    },
+    {
+      "surface": "cook",
+      "rule": "Prepped path: ticking every rendered prep step leaves isPrepped false",
+      "plan": "da372b54 A06",
+      "where": "Pulled Pork Sliders with Vinegar Slaw and Baked Beans",
+      "text": "9 rendered keys ticked; blockers: seasonings_dry#dish#4a03b4bf-63d1-49f5-b3c5-158e12342813 (not on the wire); seasonings_dry#dish#eb85f6e4-e57d-4c50-a09f-3ca21abb710c (not on the wire); sauces_marinades#dish#eb85f6e4-e57d-4c50-a09f-3ca21abb710c (not on the wire); after ticking all 14 wire keys → false"
+    },
+    {
+      "surface": "cook",
+      "rule": "Prepped path: recap is not built from the prep steps",
+      "plan": "da372b54 A06",
+      "where": "Pulled Pork Sliders with Vinegar Slaw and Baked Beans",
+      "text": "recap = 5 cook-side phaseType=prep step text(s) (e.g. \"Mix 1½ teaspoons smoked paprika, 1 teaspoon garlic powder, 1 teaspoon onion powder, 1 tabl\"); the plan's 9 prep steps for it (e.g. \"Measure the Pulled Pork Sliders rub bowl\") are not read"
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "fb328120 A07",
+      "where": "Soy-Ginger Marinated Pork Chops with Ste · Cucumber Salad",
+      "text": "made T-35..T-10 inside \"Soy-Ginger Marinated Pork Chops\" rest T-37..T-22 — first step \"Thinly slice 2 English cucumbers into rounds and place them in a large bowl.\""
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "fb328120 A07",
+      "where": "Smash Burgers with American Cheese and S · Crisp Iceberg and Dill Slaw",
+      "text": "made T-59..T-23 inside \"Crispy Oven Fries\" preheat T-71..T-56 — first step \"Core and finely shred the ½ head of iceberg lettuce, finely shred 2 cups green c\""
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "fb328120 A07",
+      "where": "Charred Salsa Verde Carne Asada Tacos · Pickled Red Onion and Radish Slaw",
+      "text": "made T-58..T-27 inside \"Carne Asada Skirt Steak\" rest T-63..T-33 — first step \"Thinly slice 1 red onion into half-moons and thinly slice 6 radishes into rounds\""
+    },
+    {
+      "surface": "cook",
+      "rule": "D-WS9-297 cold dish pulled into a passive window (for Hans to rule)",
+      "plan": "fb328120 A07",
+      "where": "Spicy King Ranch Chicken Casserole · Crisp Green Salad with Lime-Cumin Vinaigrette",
+      "text": "made T-93..T-81 inside \"Spicy King Ranch Chicken Casserole\" cook T-93..T-68 — first step \"Whisk together 2 tablespoons fresh lime juice, 3 tablespoons extra-virgin olive \""
+    }
+  ]
+}

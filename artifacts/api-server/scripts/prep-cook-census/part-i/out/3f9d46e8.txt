@@ -1,0 +1,491 @@
+PLAN 3f9d46e8-b078-4bd4-b479-9f93cb8c76cd  [A10]  Part I · A10 · doughs and breads: pizza, biscuits, flatbread
+  range 2026-10-04 .. 2026-10-10   meals 4   prep day 2026-10-04   shapes: days-5-7, long-passive, single-dish, bought-path, multi-3plus, aromatics
+
+══════════ PREP THE WEEK — full plan, as Screen 3 renders it ══════════
+  HEADER: 16 containers · about 85 min   (server total 103 · phone 75) · cacheHit=false · prompt v19
+
+  ── seasonings_dry ──
+     1. Measure the Classic Supreme Pizza dough bowl spices   (2 min)
+        Into the Classic Supreme Pizza dough bowl:
+        1 tsp dried oregano
+        ½ tsp dried basil
+        ½ tsp sugar
+        » storage: Airtight in the fridge — up to 3 days.
+        » for: Classic Supreme Pizza (Sunday)
+     2. Measure the Flaky Drop Biscuits dough bowl dry mix   (2 min)
+        Into the Flaky Drop Biscuits dough bowl:
+        2 cup all-purpose flour
+        1 tbsp baking powder
+        ¼ tsp baking soda
+        1 tsp sugar
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Buttermilk Fried Chicken with Honey, Biscuits, and Collard Greens (Tuesday)
+     3. Measure the Flaky Buttermilk Drop Biscuits dough bowl dry mix   (2 min)
+        Into the Flaky Buttermilk Drop Biscuits dough bowl:
+        2 cup all-purpose flour
+        1 tbsp baking powder
+        1 tsp sugar
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Creamy Country Chicken and Gravy over Biscuits (Thursday)
+     4. Measure the Buttermilk Fried Chicken dry mix   (4 min)
+        Into the Buttermilk Fried Chicken dry mix:
+        2 cup all-purpose flour
+        ¼ cup cornstarch
+        1½ tsp garlic powder
+        1 tsp onion powder
+        1½ tsp smoked paprika
+        ½ tsp cayenne pepper
+        ½ tsp dried thyme
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Buttermilk Fried Chicken with Honey, Biscuits, and Collard Greens (Tuesday)
+     5. Measure the Herb Falafel dry mix   (3 min)
+        Into the Herb Falafel dry mix:
+        3 tbsp all-purpose flour
+        1 tsp baking powder
+        1½ tsp ground cumin
+        1 tsp ground coriander
+        ¼ tsp cayenne pepper
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday)
+     6. Measure the Creamy Hummus sauce bowl dry start   (2 min)
+        Into the Creamy Hummus sauce bowl:
+        ¼ tsp ground cumin
+        4 tbsp ice water (added gradually for texture)
+        Set aside for the produce step.
+        » for: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday)
+  ×  7. Pepperoni and crushed red pepper flakes — cook day   (1 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: Classic Supreme Pizza (Sunday)
+  ×  8. Crushed red pepper flakes — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Buttermilk Fried Chicken with Honey, Biscuits, and Collard Greens (Tuesday)
+  ×  9. All-purpose flour, garlic powder and onion powder — cook day   (2 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: Creamy Country Chicken and Gravy over Biscuits (Thursday)
+  × 10. Smoked paprika — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Classic Supreme Pizza (Sunday), Buttermilk Fried Chicken with Honey, Biscuits, and Collard Greens (Tuesday), Creamy Country Chicken and Gravy over Biscuits (Thursday), Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday)
+     2. Mince all garlic   (4 min)
+        Mince all the garlic:
+        2 cloves for the Classic Supreme Pizza
+        3 cloves for the Slow-Braised Collard Greens with Bacon
+        3 cloves for the Creamy Country Chicken and Gravy
+        — combine all three portions into a tub labelled "Minced garlic — Classic Supreme Pizza, Slow-Braised Collard Greens with Bacon, Creamy Country Chicken and Gravy"
+        2 cloves for the Creamy Hummus — into the Creamy Hummus sauce bowl
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Classic Supreme Pizza (Sunday), Buttermilk Fried Chicken with Honey, Biscuits, and Collard Greens (Tuesday), Creamy Country Chicken and Gravy over Biscuits (Thursday), Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday)
+     3. Slice the green bell pepper for Classic Supreme Pizza   (3 min)
+        Thinly slice 1 green bell pepper — into the Classic Supreme Pizza vegetables container.
+        » for: Classic Supreme Pizza (Sunday)
+     4. Slice the red onion for Classic Supreme Pizza   (3 min)
+        Thinly slice ½ red onion — into the Classic Supreme Pizza vegetables container.
+        » for: Classic Supreme Pizza (Sunday)
+     5. Slice the cremini mushrooms for Classic Supreme Pizza   (3 min)
+        Thinly slice 4 oz cremini mushrooms — into the Classic Supreme Pizza vegetables container.
+        » storage: Classic Supreme Pizza vegetables: Airtight in the fridge — up to 4 days.
+        » for: Classic Supreme Pizza (Sunday)
+     6. Prep all yellow onion   (8 min)
+        Work through the yellow onion three ways:
+        Thinly slice 1 — into a tub labelled "Slow-Braised Collard Greens with Bacon — thinly sliced yellow onion"
+        Finely dice 1 — into a tub labelled "Creamy Country Chicken and Gravy — finely diced yellow onion"
+        Roughly chop 1 — into a tub labelled "Herb Falafel — yellow onion, fresh flat-leaf parsley and fresh cilantro"
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » for: Buttermilk Fried Chicken with Honey, Biscuits, and Collard Greens (Tuesday), Creamy Country Chicken and Gravy over Biscuits (Thursday), Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday)
+  ×  7. Fresh thyme — cook day   (1 min)  [RENDER-OMITTED]
+        Nothing to cut — it goes in as it comes.
+        » for: Creamy Country Chicken and Gravy over Biscuits (Thursday)
+     8. Trim the green beans for Simple Steamed Green Beans with Butter   (2 min)
+        Trim the stem ends from 12 oz fresh green beans — into a tub labelled "Simple Steamed Green Beans with Butter — trimmed fresh green beans".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Creamy Country Chicken and Gravy over Biscuits (Thursday)
+     9. Prep all lemon   (4 min)
+        Juice the lemons:
+        3 tbsp fresh lemon juice for the Creamy Hummus — into the Creamy Hummus sauce bowl
+        3 tbsp fresh lemon juice for the Tabbouleh — into a tub labelled "Tabbouleh — fresh lemon juice"
+        Cut 4 lemon wedges for the Simple Steamed Green Beans with Butter — into a tub labelled "Simple Steamed Green Beans with Butter — lemon wedges"
+        » storage: Airtight in the fridge — up to 3 days. Covered in the fridge — up to 3 days.
+        » for: Creamy Country Chicken and Gravy over Biscuits (Thursday), Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday)
+    10. Chop all fresh flat-leaf parsley   (12 min)
+        Roughly chop 1 cup fresh flat-leaf parsley (loosely packed) for the Herb Falafel — into a tub labelled "Herb Falafel — yellow onion, fresh flat-leaf parsley and fresh cilantro"
+        Finely chop 2 cup fresh flat-leaf parsley (loosely packed) for the Tabbouleh — into a tub labelled "Tabbouleh — fresh flat-leaf parsley, fresh mint leaves, roma tomatoes, english cucumber and green onions"
+        » for: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday)
+    11. Chop the fresh cilantro for Herb Falafel   (2 min)
+        Roughly chop ½ cup fresh cilantro (loosely packed) — into a tub labelled "Herb Falafel — yellow onion, fresh flat-leaf parsley and fresh cilantro".
+        » storage: Herb Falafel: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Herb Falafel dry mix separate; combine on cook day (Saturday).
+        » for: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday)
+    12. Chop the fresh mint leaves for Tabbouleh   (1 min)
+        Finely chop ¼ cup fresh mint leaves — into a tub labelled "Tabbouleh — fresh flat-leaf parsley, fresh mint leaves, roma tomatoes, english cucumber and green onions".
+        » for: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday)
+    13. Dice the roma tomatoes for Tabbouleh   (8 min)
+        Seed and finely dice 3 roma tomatoes — into a tub labelled "Tabbouleh — fresh flat-leaf parsley, fresh mint leaves, roma tomatoes, english cucumber and green onions".
+        » for: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday)
+    14. Dice the english cucumber for Tabbouleh   (3 min)
+        Finely dice ½ english cucumber — into a tub labelled "Tabbouleh — fresh flat-leaf parsley, fresh mint leaves, roma tomatoes, english cucumber and green onions".
+        » for: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday)
+    15. Slice the green onions for Tabbouleh   (1 min)
+        Thinly slice 4 green onions — into a tub labelled "Tabbouleh — fresh flat-leaf parsley, fresh mint leaves, roma tomatoes, english cucumber and green onions".
+        » storage: Tabbouleh: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the fresh lemon juice separate; combine on cook day (Saturday).
+        » for: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday)
+
+  ── sauces_marinades ──
+     1. Finish the Creamy Hummus sauce bowl   (2 min)
+        Creamy Hummus sauce bowl (ground cumin, ice water, garlic and the fresh lemon juice from produce step 9 already in it): add
+        ½ cup tahini
+        Stir to combine.
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday)
+  ×  2. Black olives — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Classic Supreme Pizza (Sunday)
+  ×  3. Hot sauce and honey — cook day   (1 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: Buttermilk Fried Chicken with Honey, Biscuits, and Collard Greens (Tuesday)
+  ×  4. Apple cider vinegar — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Buttermilk Fried Chicken with Honey, Biscuits, and Collard Greens (Tuesday)
+  ×  5. Worcestershire sauce — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Creamy Country Chicken and Gravy over Biscuits (Thursday)
+  ×  6. Boiling water — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+  ×  1. Italian sausage — cook day   (1 min)  [RENDER-OMITTED]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+        » for: Classic Supreme Pizza (Sunday)
+  ×  2. Bone-in chicken pieces (thighs and drumsticks) — cook day   (11 min)  [RENDER-OMITTED]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+        » for: Buttermilk Fried Chicken with Honey, Biscuits, and Collard Greens (Tuesday)
+     3. Cut the bacon for Slow-Braised Collard Greens with Bacon   (1 min)
+        Cut 4 oz thick-cut bacon into lardons (½-inch pieces).
+        » storage: Covered in the fridge — cook within 2 days.
+        » for: Buttermilk Fried Chicken with Honey, Biscuits, and Collard Greens (Tuesday)
+  ×  4. Boneless skinless chicken thighs — cook day   (5 min)  [RENDER-OMITTED]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+        » for: Creamy Country Chicken and Gravy over Biscuits (Thursday)
+
+══════════ PREP SELECTED MEALS — Classic Supreme Pizza + Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread ══════════
+  HEADER: 8 containers · about 65 min   (server total 61 · phone 56) · cacheHit=false · prompt v19
+
+  ── seasonings_dry ──
+     1. Measure the Classic Supreme Pizza dough bowl spices   (2 min)
+        Into the Classic Supreme Pizza dough bowl:
+        1 tsp dried oregano
+        ½ tsp dried basil
+        ½ tsp sugar
+        » storage: Airtight in the fridge — up to 3 days.
+        » for: Classic Supreme Pizza (Sunday)
+     2. Measure the Herb Falafel dry mix   (3 min)
+        Into the Herb Falafel dry mix:
+        1½ tsp ground cumin
+        1 tsp ground coriander
+        ¼ tsp cayenne pepper
+        1 tsp baking powder
+        3 tbsp all-purpose flour
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday)
+     3. Measure the Creamy Hummus sauce bowl base   (2 min)
+        Into the Creamy Hummus sauce bowl:
+        ¼ tsp ground cumin
+        4 tbsp ice water
+        Set aside for the produce step.
+        » for: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday)
+  ×  4. Pepperoni and crushed red pepper flakes — cook day   (1 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: Classic Supreme Pizza (Sunday)
+  ×  5. Smoked paprika — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Classic Supreme Pizza (Sunday), Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday)
+     2. Mince all garlic   (2 min)
+        Mince the garlic:
+        2 cloves for the Classic Supreme Pizza — into a tub labelled "Classic Supreme Pizza — minced garlic"
+        2 cloves for the Creamy Hummus — into the Creamy Hummus sauce bowl
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Classic Supreme Pizza (Sunday), Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday)
+     3. Slice the green bell pepper for Classic Supreme Pizza   (3 min)
+        Thinly slice 1 green bell pepper — into a tub labelled "Classic Supreme Pizza vegetables".
+        » for: Classic Supreme Pizza (Sunday)
+     4. Slice the red onion for Classic Supreme Pizza   (3 min)
+        Thinly slice ½ red onion — into the tub labelled "Classic Supreme Pizza vegetables".
+        » for: Classic Supreme Pizza (Sunday)
+     5. Slice the cremini mushrooms for Classic Supreme Pizza   (3 min)
+        Thinly slice 4 oz cremini mushrooms — into the tub labelled "Classic Supreme Pizza vegetables".
+        » storage: Classic Supreme Pizza vegetables: Airtight in the fridge — up to 4 days.
+        » for: Classic Supreme Pizza (Sunday)
+     6. Chop the yellow onion for Herb Falafel   (3 min)
+        Roughly chop 1 yellow onion — into a tub labelled "Herb Falafel — yellow onion, fresh flat-leaf parsley and fresh cilantro".
+        » for: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday)
+     7. Chop all flat-leaf parsley   (12 min)
+        Roughly chop 1 cup flat-leaf parsley (loosely packed) for the Herb Falafel — into the tub labelled "Herb Falafel — yellow onion, fresh flat-leaf parsley and fresh cilantro"
+        Finely chop 2 cup flat-leaf parsley (loosely packed) for the Tabbouleh — into a tub labelled "Tabbouleh — fresh flat-leaf parsley, fresh mint leaves, roma tomatoes, english cucumber and green onions"
+        » for: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday)
+     8. Chop the cilantro for Herb Falafel   (2 min)
+        Roughly chop ½ cup fresh cilantro (loosely packed) — into the tub labelled "Herb Falafel — yellow onion, fresh flat-leaf parsley and fresh cilantro".
+        » storage: Herb Falafel: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Herb Falafel dry mix separate; combine on cook day (Saturday).
+        » for: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday)
+     9. Juice all lemons   (3 min)
+        Juice the lemons:
+        3 tbsp fresh lemon juice for the Creamy Hummus — into the Creamy Hummus sauce bowl
+        3 tbsp fresh lemon juice for the Tabbouleh — into a tub labelled "Tabbouleh — fresh lemon juice"
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday)
+    10. Chop the mint leaves for Tabbouleh   (1 min)
+        Finely chop ¼ cup fresh mint leaves — into the tub labelled "Tabbouleh — fresh flat-leaf parsley, fresh mint leaves, roma tomatoes, english cucumber and green onions".
+        » for: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday)
+    11. Dice the roma tomatoes for Tabbouleh   (8 min)
+        Finely dice 3 roma tomatoes, seeds removed — into the tub labelled "Tabbouleh — fresh flat-leaf parsley, fresh mint leaves, roma tomatoes, english cucumber and green onions".
+        » for: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday)
+    12. Dice the cucumber for Tabbouleh   (3 min)
+        Finely dice ½ English cucumber — into the tub labelled "Tabbouleh — fresh flat-leaf parsley, fresh mint leaves, roma tomatoes, english cucumber and green onions".
+        » for: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday)
+    13. Slice the green onions for Tabbouleh   (1 min)
+        Thinly slice 4 green onions — into the tub labelled "Tabbouleh — fresh flat-leaf parsley, fresh mint leaves, roma tomatoes, english cucumber and green onions".
+        » storage: Tabbouleh: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the fresh lemon juice separate; combine on cook day (Saturday).
+        » for: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday)
+
+  ── sauces_marinades ──
+     1. Finish the Creamy Hummus sauce bowl   (2 min)
+        Creamy Hummus sauce bowl (ground cumin, ice water, garlic and the fresh lemon juice from produce step 9 already in it): add
+        ½ cup tahini
+        Stir to combine.
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday)
+  ×  2. Black olives — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Classic Supreme Pizza (Sunday)
+  ×  3. Boiling water — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+  ×  1. Italian sausage — cook day   (1 min)  [RENDER-OMITTED]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+        » for: Classic Supreme Pizza (Sunday)
+
+  subset ticks: 17 keys, 2 not in the full plan; required for these meals 16, uncovered 6; isPrepped {"Classic Supreme Pizza":false,"Falafel Plate with Hummus, Tab":false}
+
+══════════ COOK MODE (cook-session.tsx: sequenced if multi-dish, flattened if single) ══════════
+
+  ▸ Classic Supreme Pizza   [Sunday]  FLATTENED (single-dish)
+    footer 60 min | scheduler 40 | card 40 | fresh derive 40 | dishes 1
+      1. [ T-40] ( 20m preheat) 
+         Place a rack in the lowest position of the oven and preheat to 500°F (or as high as your oven will go); if you have a baking stone or steel, put it on the rack now.
+      2. [ T-40] (  7m cook) 
+         Crumble the 6 oz Italian sausage (casings removed) into a skillet over medium-high heat and cook, breaking it up, until browned through, about 6 minutes; transfer to a paper-towel-lined plate and set aside.
+      3. [ T-33] (  4m prep) 
+         While the oven preheats, combine ¾ cup canned crushed tomatoes, 2 minced garlic cloves, 1 teaspoon dried oregano, ½ teaspoon dried basil, ½ teaspoon kosher salt, and ½ teaspoon sugar in a small bowl and stir well to make the sauce.
+      4. [    —] (  5m prep) 
+         On a lightly floured surface, stretch the 16 oz room-temperature pizza dough into a 14-inch round (or press it into a rimmed baking sheet); transfer to a parchment-lined baking sheet or hot stone.
+      5. [ T-29] (  2m assemble) 
+         Brush the dough edge with 2 tablespoons olive oil, then spread the sauce evenly over the dough, leaving a ¾-inch border.
+      6. [ T-24] (  4m assemble) 
+         Scatter half the 8 oz shredded mozzarella over the sauce, then evenly distribute the browned sausage, 2 oz sliced pepperoni, 1 thinly sliced green bell pepper, ½ thinly sliced red onion, 4 oz thinly sliced cremini mushrooms, and 2 oz sliced black olives.
+      7. [ T-22] (  2m assemble) 
+         Top with the remaining mozzarella, 2 tablespoons grated Parmesan, and ¼ teaspoon crushed red pepper flakes if using.
+      8. [ T-18] ( 13m cook) 
+         Bake on the lowest rack for 12–15 minutes until the crust is deep golden and the cheese is bubbling and spotted brown.
+      9. [ T-16] (  3m rest) 
+         Let the pizza rest 3 minutes before slicing into 8 pieces and serving.
+
+  ▸ Buttermilk Fried Chicken with Honey, Biscuits, and Collard Greens   [Tuesday]  SEQUENCED
+    footer 94 min | scheduler 94 | card 94 | fresh derive 94 | dishes 3
+      1. [ T-94] (  8m prep) Slow-Braised Collard Greens with Bacon
+         Remove the stems from 1½ pounds collard greens and roughly chop the leaves; thinly slice the yellow onion and mince 3 garlic cloves.
+      2. [ T-86] (  3m prep) Slow-Braised Collard Greens with Bacon
+         Cut 4 ounces thick-cut bacon into lardons (½-inch pieces).
+      3. [ T-83] (  7m cook) Slow-Braised Collard Greens with Bacon
+         Cook the bacon lardons in a large, heavy pot over medium heat, stirring occasionally, for 6–7 minutes until the fat has rendered and the bacon is lightly crisp.
+      4. [ T-81] ( 30m rest) Buttermilk Fried Chicken with Honey
+         ⟶ With the Slow-Braised Collard Greens with Bacon cooking, start on the Buttermilk Fried Chicken with Honey.
+         Combine 2 cups buttermilk and 1 tablespoon hot sauce in a large bowl, add the 3½ pounds chicken pieces, turn to coat, cover, and refrigerate for at least 30 minutes (or up to 8 hours).
+      5. [ T-81] (  4m prep) Buttermilk Fried Chicken with Honey
+         Whisk together 2 cups all-purpose flour, ¼ cup cornstarch, 1½ teaspoons garlic powder, 1 teaspoon onion powder, 1½ teaspoons smoked paprika, ½ teaspoon cayenne, ½ teaspoon dried thyme, 2 teaspoons kosher salt, and 1 teaspoon black pepper in a shallow dish.
+      6. [ T-77] (  8m preheat) Buttermilk Fried Chicken with Honey
+         Pour 4 cups vegetable oil into a large, deep skillet or Dutch oven and heat over medium-high until it reaches 350°F on an instant-read thermometer.
+      7. [ T-76] (  5m cook) Slow-Braised Collard Greens with Bacon
+         ⟶ With the Buttermilk Fried Chicken with Honey chilling, start on the Slow-Braised Collard Greens with Bacon.
+         Add the sliced onion to the pot and cook in the bacon fat over medium heat, stirring frequently, for 5 minutes until softened and translucent.
+      8. [ T-71] (  1m cook) Slow-Braised Collard Greens with Bacon
+         Stir in the minced garlic and ¼ teaspoon crushed red pepper flakes and cook for 1 minute until fragrant.
+      9. [ T-70] (  4m cook) Slow-Braised Collard Greens with Bacon
+         Add the chopped collard greens in large handfuls, stirring each addition until slightly wilted before adding the next.
+     10. [ T-66] (  3m cook) Slow-Braised Collard Greens with Bacon
+         Pour in 1½ cups chicken broth and 1 tablespoon apple cider vinegar, season with ½ teaspoon kosher salt and ¼ teaspoon black pepper, stir to combine, and bring to a simmer.
+     11. [ T-63] ( 38m cook) Slow-Braised Collard Greens with Bacon
+         Reduce heat to low, cover the pot, and braise the collards for 35–40 minutes, stirring once or twice, until very tender and deeply flavored.
+     12. [ T-51] (  5m prep) Buttermilk Fried Chicken with Honey
+         ⟶ With the Slow-Braised Collard Greens with Bacon cooking, start on the Buttermilk Fried Chicken with Honey.
+         Lift each chicken piece from the buttermilk, letting the excess drip off, then dredge thoroughly in the seasoned flour mixture, pressing firmly so the coating adheres; place on a wire rack.
+     13. [ T-46] ( 10m preheat) Flaky Drop Biscuits
+         ⟶ With the Slow-Braised Collard Greens with Bacon cooking, start on the Flaky Drop Biscuits.
+         Preheat the oven to 450°F and line a baking sheet with parchment paper.
+     14. [ T-46] (  3m prep) Flaky Drop Biscuits
+         Whisk together 2 cups all-purpose flour, 1 tablespoon baking powder, ¼ teaspoon baking soda, ¾ teaspoon kosher salt, and 1 teaspoon sugar in a large bowl.
+     15. [ T-43] (  4m prep) Flaky Drop Biscuits
+         Add the 6 tablespoons cold cubed butter to the flour mixture and work it in with your fingertips until the mixture resembles coarse crumbs with some pea-sized butter pieces remaining.
+     16. [ T-39] (  2m prep) Flaky Drop Biscuits
+         Pour in ¾ cup cold buttermilk and stir with a fork just until a shaggy, sticky dough forms — do not overwork.
+     17. [ T-36] (  3m assemble) Flaky Drop Biscuits
+         Using a large spoon or ¼-cup scoop, drop the dough in 8 mounds onto the prepared baking sheet, spacing them about 2 inches apart.
+     18. [ T-33] ( 13m cook) Flaky Drop Biscuits
+         Bake at 450°F for 12–14 minutes until the tops are golden brown and a toothpick inserted in the center comes out clean.
+     19. [ T-25] (  2m assemble) Slow-Braised Collard Greens with Bacon
+         ⟶ With the Flaky Drop Biscuits cooking, start on the Slow-Braised Collard Greens with Bacon.
+         Taste and adjust seasoning, then transfer to a serving bowl with some of the pot likker spooned over the top.
+     20. [ T-23] ( 16m cook) Buttermilk Fried Chicken with Honey
+         ⟶ With the Flaky Drop Biscuits cooking, start on the Buttermilk Fried Chicken with Honey.
+         Working in two batches, lower the chicken into the hot oil and fry, turning once halfway through, for 14–16 minutes total until deep golden brown and the internal temperature reaches 165°F; maintain oil temperature between 325°F and 350°F throughout.
+     21. [  T-7] (  5m rest) Buttermilk Fried Chicken with Honey
+         Transfer the fried chicken to a clean wire rack set over a baking sheet and rest for 5 minutes so the crust sets and the juices redistribute.
+     22. [  T-7] (  1m assemble) Flaky Drop Biscuits
+         ⟶ With the Buttermilk Fried Chicken with Honey resting, start on the Flaky Drop Biscuits.
+         Remove the biscuits from the oven and serve warm.
+     23. [  T-2] (  2m assemble) Buttermilk Fried Chicken with Honey
+         Arrange the chicken on a platter and drizzle 3 tablespoons honey evenly over the top just before serving.
+
+  ▸ Creamy Country Chicken and Gravy over Biscuits   [Thursday]  SEQUENCED
+    footer 64 min | scheduler 64 | card 64 | fresh derive 64 | dishes 3
+      1. [ T-64] (  4m prep) Creamy Country Chicken and Gravy
+         Pat 1½ pounds boneless skinless chicken thighs dry, then season all over with 1 teaspoon kosher salt, ¾ teaspoon black pepper, ½ teaspoon garlic powder, and ½ teaspoon onion powder.
+      2. [ T-60] ( 11m cook) Creamy Country Chicken and Gravy
+         Heat 1 tablespoon neutral oil in a large skillet or Dutch oven over medium-high heat until shimmering, then sear the chicken thighs 5 minutes per side until golden and cooked through, then transfer to a plate.
+      3. [ T-49] (  5m prep) Creamy Country Chicken and Gravy
+         While the chicken rests, finely dice the yellow onion and mince 3 garlic cloves.
+      4. [ T-44] (  3m prep) Creamy Country Chicken and Gravy
+         Use two forks to pull the rested chicken thighs into bite-sized shreds.
+      5. [ T-41] ( 10m preheat) Flaky Buttermilk Drop Biscuits
+         Preheat the oven to 450°F and line a baking sheet with parchment paper.
+      6. [ T-41] (  3m prep) Flaky Buttermilk Drop Biscuits
+         Whisk together 2 cups all-purpose flour, 1 tablespoon baking powder, ¾ teaspoon kosher salt, and 1 teaspoon granulated sugar in a large bowl.
+      7. [ T-38] (  5m prep) Creamy Country Chicken and Gravy
+         ⟶ With the Flaky Buttermilk Drop Biscuits heating up, start on the Creamy Country Chicken and Gravy.
+         Finely dice the yellow onion and mince 3 garlic cloves.
+      8. [ T-33] (  4m prep) Flaky Buttermilk Drop Biscuits
+         Add 6 tablespoons cold cubed unsalted butter to the flour mixture and work it in with your fingertips until the mixture resembles coarse, pea-sized crumbs.
+      9. [ T-29] (  5m cook) Creamy Country Chicken and Gravy
+         Melt 3 tablespoons unsalted butter in the skillet over medium heat, add the diced onion, and cook, stirring frequently, for 4–5 minutes until softened and translucent.
+     10. [ T-24] (  2m prep) Flaky Buttermilk Drop Biscuits
+         Pour in ¾ cup cold buttermilk and stir with a fork just until a shaggy, sticky dough forms — do not overmix.
+     11. [ T-22] (  2m assemble) Flaky Buttermilk Drop Biscuits
+         Drop the dough in 8 equal mounds onto the prepared baking sheet, spacing them 2 inches apart.
+     12. [ T-20] (  1m cook) Creamy Country Chicken and Gravy
+         Add the minced garlic and cook, stirring constantly, for 1 minute until fragrant.
+     13. [ T-20] ( 14m cook) Flaky Buttermilk Drop Biscuits
+         Bake for 13–15 minutes until the biscuits are deep golden brown on top.
+     14. [ T-19] (  2m cook) Creamy Country Chicken and Gravy
+         ⟶ With the Flaky Buttermilk Drop Biscuits cooking, start on the Creamy Country Chicken and Gravy.
+         Sprinkle 3 tablespoons all-purpose flour over the onions and stir continuously for 1–2 minutes to cook out the raw flour taste.
+     15. [ T-17] (  3m cook) Creamy Country Chicken and Gravy
+         Pour in 1½ cups low-sodium chicken broth in a slow stream, whisking constantly to prevent lumps, then whisk in 1 cup whole milk, ¼ cup heavy cream, and 1 teaspoon Worcestershire sauce.
+     16. [ T-14] (  4m prep) Simple Steamed Green Beans with Butter
+         ⟶ With the Flaky Buttermilk Drop Biscuits cooking, start on the Simple Steamed Green Beans with Butter.
+         Trim the stem ends from 12 ounces of fresh green beans.
+     17. [ T-10] (  8m cook) Creamy Country Chicken and Gravy
+         ⟶ With the Flaky Buttermilk Drop Biscuits cooking, start on the Creamy Country Chicken and Gravy.
+         Add 4 sprigs of fresh thyme and bring the gravy to a gentle simmer over medium heat, stirring occasionally, for 6–8 minutes until thickened enough to coat a spoon.
+     18. [ T-10] (  6m cook) Simple Steamed Green Beans with Butter
+         ⟶ With the Flaky Buttermilk Drop Biscuits cooking, start on the Simple Steamed Green Beans with Butter.
+         Bring 1 inch of water to a boil in a large saucepan fitted with a steamer basket over medium-high heat, add the green beans, cover, and steam for 5–6 minutes until bright green and just tender-crisp.
+     19. [  T-6] (  3m assemble) Flaky Buttermilk Drop Biscuits
+         ⟶ With the Creamy Country Chicken and Gravy marinating, start on the Flaky Buttermilk Drop Biscuits.
+         Transfer the biscuits to a wire rack and let them cool for 2 minutes, then split each one in half to serve.
+     20. [  T-3] (  2m assemble) Simple Steamed Green Beans with Butter
+         ⟶ With the Creamy Country Chicken and Gravy marinating, start on the Simple Steamed Green Beans with Butter.
+         Transfer the green beans to a serving bowl, toss with 1 tablespoon unsalted butter, ¼ teaspoon kosher salt, and ⅛ teaspoon black pepper, and serve with lemon wedges on the side if desired.
+     21. [  T-2] (  2m cook) Creamy Country Chicken and Gravy
+         Remove and discard the thyme sprigs, fold in the shredded chicken, and simmer 2 minutes more to heat through; taste and adjust salt and pepper.
+
+  ▸ Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread   [Saturday]  SEQUENCED
+    footer 100 min | scheduler 100 | card 100 | fresh derive 100 | dishes 4
+      1. [T-100] (  3m prep) Herb Falafel
+         Drain the soaked chickpeas well and pat them dry with a clean kitchen towel — excess moisture will make the falafel fall apart.
+      2. [ T-97] (  5m prep) Herb Falafel
+         Add the chickpeas, roughly chopped yellow onion, 1 cup parsley, ½ cup cilantro, 4 garlic cloves, 1½ teaspoons cumin, 1 teaspoon coriander, ¼ teaspoon cayenne, 1¼ teaspoons kosher salt, and 1 teaspoon baking powder to a food processor and pulse 25–30 times until the mixture is coarse and crumbly — not a paste.
+      3. [ T-92] (  3m prep) Herb Falafel
+         Sprinkle 3 tablespoons flour over the mixture and pulse 5 more times to combine, then transfer to a bowl, cover, and refrigerate for 30 minutes to firm up.
+      4. [ T-89] ( 30m rest) Herb Falafel
+         Chill the falafel mixture in the refrigerator for 30 minutes so it holds its shape when formed.
+      5. [ T-59] (  6m prep) Herb Falafel
+         Scoop the chilled mixture and firmly press into 16 golf ball-sized patties (about 1½ inches wide and ¾ inch thick), compacting each well so they don't crack during frying.
+      6. [ T-53] ( 15m cook) Tabbouleh
+         Place ½ cup fine bulgur wheat in a heatproof bowl and pour ¾ cup boiling water over it, stir once, cover with a plate, and let it steam for 15 minutes until tender.
+      7. [ T-53] ( 10m prep) Tabbouleh
+         While the bulgur steams, finely chop 2 cups parsley and ¼ cup fresh mint leaves, thinly slice 4 green onions, finely dice 3 seeded roma tomatoes, and finely dice ½ English cucumber.
+      8. [ T-43] (  4m preheat) Herb Falafel
+         ⟶ With the Tabbouleh cooking, start on the Herb Falafel.
+         Pour 2 cups neutral oil into a large heavy skillet (cast iron works well) and heat over medium-high until the oil reaches 350°F — a small piece of mixture dropped in should sizzle immediately.
+      9. [ T-43] (  3m prep) Creamy Hummus
+         ⟶ With the Tabbouleh cooking, start on the Creamy Hummus.
+         Drain the two 15-oz cans of chickpeas, reserving the liquid, and peel the 2 garlic cloves.
+     10. [ T-39] ( 16m cook) Herb Falafel
+         ⟶ With the Tabbouleh cooking, start on the Herb Falafel.
+         Working in two batches, fry the falafel patties for 3–4 minutes per side, turning once, until deep golden-brown and crisp on both sides, then transfer to a paper-towel-lined plate.
+     11. [ T-23] (  2m prep) Warm Flatbread
+         Brush both sides of each pita with 1 tablespoon extra-virgin olive oil divided evenly across the 4 pieces.
+     12. [ T-21] (  3m prep) Creamy Hummus
+         Add the garlic cloves to a food processor and pulse until minced, then add the drained chickpeas, ½ cup tahini, 3 tablespoons lemon juice, ¾ teaspoon kosher salt, and ¼ teaspoon cumin and process for 1 minute.
+     13. [ T-18] (  5m rest) Tabbouleh
+         Fluff the cooked bulgur with a fork, spread it on a plate to cool for 5 minutes, then transfer to a large bowl.
+     14. [ T-18] (  8m cook) Warm Flatbread
+         ⟶ With the Tabbouleh cooking, start on the Warm Flatbread.
+         Heat a dry skillet over medium-high and warm each pita for 1–2 minutes per side until lightly toasted and pliable, then wrap in a clean kitchen towel to keep warm until serving.
+     15. [ T-10] (  4m prep) Creamy Hummus
+         With the processor running, drizzle in 4 tablespoons ice water one tablespoon at a time, then continue processing for 2–3 minutes until the hummus is very smooth and creamy.
+     16. [  T-6] (  2m assemble) Tabbouleh
+         Add the parsley, mint, tomatoes, cucumber, and green onions to the bulgur, then drizzle with 3 tablespoons lemon juice and 3 tablespoons extra-virgin olive oil.
+     17. [  T-4] (  2m assemble) Creamy Hummus
+         Spread the hummus into a wide shallow bowl, use the back of a spoon to create a swirl, drizzle with 2 tablespoons extra-virgin olive oil, and dust with smoked paprika (optional).
+     18. [  T-2] (  2m assemble) Tabbouleh
+         Season with ¾ teaspoon kosher salt and ¼ teaspoon black pepper, toss well to combine, and taste and adjust lemon or salt as needed before serving.
+
+══════════ COOK MODE — PREPPED PATH: Creamy Country Chicken and Gravy over Biscuits ══════════
+  ticked 6 rendered prep steps → isPrepped=false; + every wire step for the meal (10) → isPrepped=false; blockers [{"stepKey":"seasonings_dry#dish#c9d2dd05-df21-40b4-b9ca-58b8c3861192","onWire":false,"rendered":false,"title":null,"skipSuggested":null},{"stepKey":"seasonings_dry#dish#6e55f8dd-d714-4d7b-862b-0667555644bf","onWire":false,"rendered":false,"title":null,"skipSuggested":null}]
+  recap ("You already prepped this — get your:"):
+    · Pat 1½ pounds boneless skinless chicken thighs dry, then season all over with 1 teaspoon kosher salt, ¾ teaspoon black pepper, ½ teaspoon garlic powder, and ½ teaspoon onion powder.
+    · While the chicken rests, finely dice the yellow onion and mince 3 garlic cloves.
+    · Use two forks to pull the rested chicken thighs into bite-sized shreds.
+    · Whisk together 2 cups all-purpose flour, 1 tablespoon baking powder, ¾ teaspoon kosher salt, and 1 teaspoon granulated sugar in a large bowl.
+    · Finely dice the yellow onion and mince 3 garlic cloves.
+    · Add 6 tablespoons cold cubed unsalted butter to the flour mixture and work it in with your fingertips until the mixture resembles coarse, pea-sized crumbs.
+    · Pour in ¾ cup cold buttermilk and stir with a fork just until a shaggy, sticky dough forms — do not overmix.
+    · Trim the stem ends from 12 ounces of fresh green beans.
+  footer 60 min; steps after the prep filter:
+      1. [T-60] (cook) Creamy Country Chicken and Gravy
+         Heat 1 tablespoon neutral oil in a large skillet or Dutch oven over medium-high heat until shimmering, then sear the chicken thighs 5 minutes per side until golden and cooked through, then transfer to a plate.
+      2. [T-41] (preheat) Flaky Buttermilk Drop Biscuits
+         Preheat the oven to 450°F and line a baking sheet with parchment paper.
+      3. [T-29] (cook) Creamy Country Chicken and Gravy
+         Melt 3 tablespoons unsalted butter in the skillet over medium heat, add the diced onion, and cook, stirring frequently, for 4–5 minutes until softened and translucent.
+      4. [T-22] (assemble) Flaky Buttermilk Drop Biscuits
+         Drop the dough in 8 equal mounds onto the prepared baking sheet, spacing them 2 inches apart.
+      5. [T-20] (cook) Creamy Country Chicken and Gravy
+         Add the minced garlic and cook, stirring constantly, for 1 minute until fragrant.
+      6. [T-20] (cook) Flaky Buttermilk Drop Biscuits
+         Bake for 13–15 minutes until the biscuits are deep golden brown on top.
+      7. [T-19] (cook) Creamy Country Chicken and Gravy  ⟶ With the Flaky Buttermilk Drop Biscuits cooking, start on the Creamy Country Chicken and Gravy.
+         Sprinkle 3 tablespoons all-purpose flour over the onions and stir continuously for 1–2 minutes to cook out the raw flour taste.
+      8. [T-17] (cook) Creamy Country Chicken and Gravy
+         Pour in 1½ cups low-sodium chicken broth in a slow stream, whisking constantly to prevent lumps, then whisk in 1 cup whole milk, ¼ cup heavy cream, and 1 teaspoon Worcestershire sauce.
+      9. [T-10] (cook) Creamy Country Chicken and Gravy  ⟶ With the Flaky Buttermilk Drop Biscuits cooking, start on the Creamy Country Chicken and Gravy.
+         Add 4 sprigs of fresh thyme and bring the gravy to a gentle simmer over medium heat, stirring occasionally, for 6–8 minutes until thickened enough to coat a spoon.
+     10. [T-10] (cook) Simple Steamed Green Beans with Butter  ⟶ With the Flaky Buttermilk Drop Biscuits cooking, start on the Simple Steamed Green Beans with Butter.
+         Bring 1 inch of water to a boil in a large saucepan fitted with a steamer basket over medium-high heat, add the green beans, cover, and steam for 5–6 minutes until bright green and just tender-crisp.
+     11. [T-6] (assemble) Flaky Buttermilk Drop Biscuits  ⟶ With the Creamy Country Chicken and Gravy marinating, start on the Flaky Buttermilk Drop Biscuits.
+         Transfer the biscuits to a wire rack and let them cool for 2 minutes, then split each one in half to serve.
+     12. [T-3] (assemble) Simple Steamed Green Beans with Butter  ⟶ With the Creamy Country Chicken and Gravy marinating, start on the Simple Steamed Green Beans with Butter.
+         Transfer the green beans to a serving bowl, toss with 1 tablespoon unsalted butter, ¼ teaspoon kosher salt, and ⅛ teaspoon black pepper, and serve with lemon wedges on the side if desired.
+     13. [T-2] (cook) Creamy Country Chicken and Gravy
+         Remove and discard the thyme sprigs, fold in the shredded chicken, and simmer 2 minutes more to heat through; taste and adjust salt and pepper.

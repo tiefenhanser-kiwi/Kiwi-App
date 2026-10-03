@@ -1,0 +1,561 @@
+PLAN da372b54-d561-4e06-b653-5a5aea933ef0  [A06]  Part I · A06 · slow cooker + slaws + curry + stew
+  range 2026-10-04 .. 2026-10-10   meals 5   prep day 2026-10-04   shapes: days-5-7, toss-no-heat, long-passive, multi-3plus, two-cuts, cold, seafood, aromatics, single-dish
+
+══════════ PREP THE WEEK — full plan, as Screen 3 renders it ══════════
+  HEADER: 27 containers · about 115 min   (server total 140 · phone 100) · cacheHit=false · prompt v19
+  HELD: Southwest Chicken Salad with Avocado, Black Beans, and Chipotle Ranch (Thursday, 4 days out) — pound the chicken breasts for Southwest Chicken Salad that morning.
+  HELD: Beef Stew with Mushrooms and Pearl Onions (Saturday, 6 days out) — cube the beef chuck for Beef Stew that morning.
+
+  ── seasonings_dry ──
+     1. Measure the Tomato and Onion Slow-Cooker Pot sauce bowl spices   (3 min)
+        Into the Tomato and Onion Slow-Cooker Pot sauce bowl:
+        1 tsp dried thyme
+        ½ tsp dried rosemary
+        2 bay leaves
+        
+        Set aside for the produce step.
+        » for: Tomato and Onion Slow-Cooker Pot Roast with Roasted Potatoes and Green Beans (Sunday)
+     2. Measure the Pulled Pork Sliders rub bowl   (2 min)
+        Into the Pulled Pork Sliders rub bowl:
+        1 tsp garlic powder
+        1½ tsp smoked paprika
+        1 tsp onion powder
+        1 tbsp brown sugar
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Pulled Pork Sliders with Vinegar Slaw and Baked Beans (Tuesday)
+     3. Measure the Southwest Chicken Salad rub bowl   (2 min)
+        Into the Southwest Chicken Salad rub bowl:
+        ½ tsp garlic powder
+        ½ tsp smoked paprika
+        1 tsp chili powder
+        ½ tsp ground cumin
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Southwest Chicken Salad with Avocado, Black Beans, and Chipotle Ranch (Thursday)
+     4. Measure the Chipotle Ranch Dressing jar spices   (3 min)
+        Into the Chipotle Ranch Dressing jar:
+        ¼ tsp garlic powder
+        ¼ tsp onion powder
+        ¼ tsp dried dill
+        
+        Set aside for the produce step.
+        » for: Southwest Chicken Salad with Avocado, Black Beans, and Chipotle Ranch (Thursday)
+     5. Measure the Smoky Baked Beans mix-ins bowl spices   (2 min)
+        Into the Smoky Baked Beans mix-ins bowl:
+        ½ tsp smoked paprika
+        2 tbsp brown sugar
+        ½ tsp dry mustard
+        
+        Set aside for the sauces and marinades step.
+        » for: Pulled Pork Sliders with Vinegar Slaw and Baked Beans (Tuesday)
+     6. Measure the Thai Cucumber Salad dressing jar   (2 min)
+        Into the Thai Cucumber Salad dressing jar:
+        2 tsp Granulated sugar
+        
+        Set aside for the produce step.
+        » for: Shrimp Red Curry with Roti and Cucumber Salad (Friday)
+  ×  7. Dried thyme and garlic powder — cook day   (1 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: Tomato and Onion Slow-Cooker Pot Roast with Roasted Potatoes and Green Beans (Sunday)
+  ×  8. Bay leaves — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Beef Stew with Mushrooms and Pearl Onions (Saturday)
+  ×  9. Granulated sugar — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Pulled Pork Sliders with Vinegar Slaw and Baked Beans (Tuesday)
+  × 10. Fresh red chili and roasted peanuts — cook day   (3 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: Shrimp Red Curry with Roti and Cucumber Salad (Friday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Tomato and Onion Slow-Cooker Pot Roast with Roasted Potatoes and Green Beans (Sunday), Pulled Pork Sliders with Vinegar Slaw and Baked Beans (Tuesday), Beef Stew with Mushrooms and Pearl Onions (Saturday), Shrimp Red Curry with Roti and Cucumber Salad (Friday), Southwest Chicken Salad with Avocado, Black Beans, and Chipotle Ranch (Thursday)
+     2. Prep all yellow onion   (10 min)
+        Halve and thinly slice 2 yellow onions — into a tub labelled "Tomato and Onion Slow-Cooker Pot Roast — thinly sliced yellow onion".
+        Finely dice ½ yellow onion — into a tub labelled "Smoky Baked Beans — finely diced yellow onion".
+        Dice 1 yellow onion — into a tub labelled "Beef Stew — yellow onion and celery stalks".
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » for: Tomato and Onion Slow-Cooker Pot Roast with Roasted Potatoes and Green Beans (Sunday), Pulled Pork Sliders with Vinegar Slaw and Baked Beans (Tuesday), Beef Stew with Mushrooms and Pearl Onions (Saturday)
+     3. Prep all garlic cloves   (5 min)
+        Mince 4 garlic cloves for the Tomato and Onion Slow-Cooker Pot Roast — into the Tomato and Onion Slow-Cooker Pot sauce bowl.
+        Thinly slice 2 garlic cloves for the Sautéed Garlic Green Beans — into a tub labelled "Sautéed Garlic Green Beans — thinly sliced garlic cloves".
+        Mince 4 cloves for the Thai Shrimp Red Curry and 4 cloves for the Beef Stew with Mushrooms and Pearl Onions — into a tub labelled "Minced garlic cloves — Thai Shrimp Red Curry, Beef Stew with Mushrooms and Pearl Onions".
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » for: Tomato and Onion Slow-Cooker Pot Roast with Roasted Potatoes and Green Beans (Sunday), Shrimp Red Curry with Roti and Cucumber Salad (Friday), Beef Stew with Mushrooms and Pearl Onions (Saturday)
+     4. Chop all fresh flat-leaf parsley   (1 min)
+        Roughly chop 2 tbsp fresh flat-leaf parsley for the Tomato and Onion Slow-Cooker Pot Roast and 2 tbsp for the Beef Stew with Mushrooms and Pearl Onions — into a tub labelled "Chopped fresh flat-leaf parsley — Tomato and Onion Slow-Cooker Pot Roast, Beef Stew with Mushrooms and Pearl Onions".
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Tomato and Onion Slow-Cooker Pot Roast with Roasted Potatoes and Green Beans (Sunday), Beef Stew with Mushrooms and Pearl Onions (Saturday)
+  ×  5. Yukon gold potatoes — cook day   (3 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Tomato and Onion Slow-Cooker Pot Roast with Roasted Potatoes and Green Beans (Sunday)
+     6. Trim the fresh green beans   (2 min)
+        Trim the ends from 1 lb fresh green beans — into a tub labelled "Sautéed Garlic Green Beans — trimmed fresh green beans".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Tomato and Onion Slow-Cooker Pot Roast with Roasted Potatoes and Green Beans (Sunday)
+     7. Juice the lemon for Sautéed Garlic Green Beans   (2 min)
+        Juice enough lemon to yield 1 tbsp fresh lemon juice — into a tub labelled "Sautéed Garlic Green Beans — lemon juice".
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Tomato and Onion Slow-Cooker Pot Roast with Roasted Potatoes and Green Beans (Sunday)
+     8. Shred the green cabbage for Tangy Vinegar Slaw   (1 min)
+        Finely shred 4 cup green cabbage — into a tub labelled "Tangy Vinegar Slaw — shredded green cabbage".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Pulled Pork Sliders with Vinegar Slaw and Baked Beans (Tuesday)
+     9. Prep all carrots   (1 min)
+        Peel and grate 1 carrot for the Tangy Vinegar Slaw — into a tub labelled "Tangy Vinegar Slaw — carrots and celery seed".
+        Peel and cut 3 carrots into 1-inch pieces for the Beef Stew with Mushrooms and Pearl Onions — into a tub labelled "Beef Stew — carrots and cremini mushrooms".
+        » for: Pulled Pork Sliders with Vinegar Slaw and Baked Beans (Tuesday), Beef Stew with Mushrooms and Pearl Onions (Saturday)
+    10. Measure the celery seed for Tangy Vinegar Slaw   (1 min)
+        Measure ¼ tsp celery seed — into a tub labelled "Tangy Vinegar Slaw — carrots and celery seed".
+        » storage: Tangy Vinegar Slaw — carrots and celery seed: Airtight in the fridge — up to 4 days.
+        » for: Pulled Pork Sliders with Vinegar Slaw and Baked Beans (Tuesday)
+    11. Chop the romaine lettuce hearts for Southwest Chicken Salad   (1 min)
+        Chop 3 romaine lettuce hearts into bite-sized pieces — into a tub labelled "Southwest Chicken Salad with Avocado and Black Beans — chopped romaine lettuce hearts".
+        » storage: Airtight in the fridge — up to 3 days.
+        » for: Southwest Chicken Salad with Avocado, Black Beans, and Chipotle Ranch (Thursday)
+  × 12. Ripe avocado — cook day   (1 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Southwest Chicken Salad with Avocado, Black Beans, and Chipotle Ranch (Thursday)
+    13. Halve the cherry tomatoes for Southwest Chicken Salad   (1 min)
+        Halve 1½ cup cherry tomatoes — into a tub labelled "Southwest Chicken Salad with Avocado and Black Beans — cherry tomatoes, red onion and fresh cilantro".
+        » for: Southwest Chicken Salad with Avocado, Black Beans, and Chipotle Ranch (Thursday)
+    14. Slice the red onion for Southwest Chicken Salad   (3 min)
+        Thinly slice ½ red onion — into a tub labelled "Southwest Chicken Salad with Avocado and Black Beans — cherry tomatoes, red onion and fresh cilantro".
+        » for: Southwest Chicken Salad with Avocado, Black Beans, and Chipotle Ranch (Thursday)
+    15. Prep all fresh cilantro   (1 min)
+        Pick ¼ cup fresh cilantro leaves for the Southwest Chicken Salad with Avocado and Black Beans — into a tub labelled "Southwest Chicken Salad with Avocado and Black Beans — cherry tomatoes, red onion and fresh cilantro".
+        Roughly chop ¼ cup fresh cilantro for the Thai Cucumber Salad — into a tub labelled "Thai Cucumber Salad — fresh cilantro, english cucumber and shallot".
+        » storage: Southwest Chicken Salad with Avocado and Black Beans: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Southwest Chicken Salad rub bowl separate; combine on cook day (F…
+        » for: Southwest Chicken Salad with Avocado, Black Beans, and Chipotle Ranch (Thursday), Shrimp Red Curry with Roti and Cucumber Salad (Friday)
+    16. Juice all limes   (3 min)
+        Juice enough limes to yield:
+        1 tbsp fresh lime juice for the Chipotle Ranch Dressing — into the Chipotle Ranch Dressing jar
+        1 tbsp fresh lime juice for the Thai Shrimp Red Curry — into a tub labelled "Thai Shrimp Red Curry — fresh lime juice"
+        1 tbsp fresh lime juice for the Thai Cucumber Salad — into the Thai Cucumber Salad dressing jar
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Southwest Chicken Salad with Avocado, Black Beans, and Chipotle Ranch (Thursday), Shrimp Red Curry with Roti and Cucumber Salad (Friday)
+    17. Grate the fresh ginger for Thai Shrimp Red Curry   (1 min)
+        Finely grate 1 tbsp fresh ginger — into a tub labelled "Thai Shrimp Red Curry — grated fresh ginger".
+        » storage: Airtight in the fridge — up to 3 days.
+        » for: Shrimp Red Curry with Roti and Cucumber Salad (Friday)
+    18. Prep the kaffir lime leaves for Thai Shrimp Red Curry   (1 min)
+        Tear 4 kaffir lime leaves, removing the stems — into a tub labelled "Thai Shrimp Red Curry — torn kaffir lime leaves".
+        » storage: Airtight in the fridge — up to 3 days.
+        » for: Shrimp Red Curry with Roti and Cucumber Salad (Friday)
+    19. Slice the red bell pepper for Thai Shrimp Red Curry   (3 min)
+        Thinly slice 1 red bell pepper — into a tub labelled "Thai Shrimp Red Curry vegetables".
+        » for: Shrimp Red Curry with Roti and Cucumber Salad (Friday)
+    20. Slice the zucchini for Thai Shrimp Red Curry   (3 min)
+        Halve 1 zucchini lengthwise, then slice into half-moons — into a tub labelled "Thai Shrimp Red Curry vegetables".
+        » storage: Thai Shrimp Red Curry vegetables: Airtight in the fridge — up to 4 days.
+        » for: Shrimp Red Curry with Roti and Cucumber Salad (Friday)
+    21. Portion the baby spinach for Thai Shrimp Red Curry   (1 min)
+        Measure out 2 cup baby spinach — into a tub labelled "Thai Shrimp Red Curry — Baby spinach".
+        » storage: Airtight in the fridge — up to 3 days.
+        » for: Shrimp Red Curry with Roti and Cucumber Salad (Friday)
+  × 22. Fresh Thai basil leaves — cook day   (1 min)  [RENDER-OMITTED]
+        Nothing to cut — it goes in as it comes.
+        » for: Shrimp Red Curry with Roti and Cucumber Salad (Friday)
+    23. Slice the english cucumber for Thai Cucumber Salad   (5 min)
+        Thinly slice 2 english cucumbers into rounds — into a tub labelled "Thai Cucumber Salad — fresh cilantro, english cucumber and shallot".
+        » for: Shrimp Red Curry with Roti and Cucumber Salad (Friday)
+    24. Slice the shallot for Thai Cucumber Salad   (3 min)
+        Thinly slice 1 shallot — into a tub labelled "Thai Cucumber Salad — fresh cilantro, english cucumber and shallot".
+        » storage: Thai Cucumber Salad — fresh cilantro, english cucumber and shallot: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Thai Cucumber Salad dressing jar separate; combine…
+        » for: Shrimp Red Curry with Roti and Cucumber Salad (Friday)
+    25. Prep the cremini mushrooms for Beef Stew   (1 min)
+        Halve or quarter 10 oz cremini mushrooms if large — into a tub labelled "Beef Stew — carrots and cremini mushrooms".
+        » storage: Beef Stew — carrots and cremini mushrooms: Airtight in the fridge — up to 4 days.
+        » for: Beef Stew with Mushrooms and Pearl Onions (Saturday)
+    26. Cut the celery stalks for Beef Stew   (1 min)
+        Cut 2 celery stalks into 1-inch pieces — into a tub labelled "Beef Stew — yellow onion and celery stalks".
+        » storage: Beef Stew — yellow onion and celery stalks: Airtight in the fridge — up to 4 days.
+        » for: Beef Stew with Mushrooms and Pearl Onions (Saturday)
+  × 27. Fresh thyme sprigs — cook day   (1 min)  [RENDER-OMITTED]
+        Nothing to cut — it goes in as it comes.
+        » for: Beef Stew with Mushrooms and Pearl Onions (Saturday)
+
+  ── sauces_marinades ──
+     1. Finish the Tomato and Onion Slow-Cooker Pot sauce bowl   (2 min)
+        Tomato and Onion Slow-Cooker Pot sauce bowl (dried thyme, dried rosemary, bay leaves and garlic cloves already in it): add
+        1 tbsp worcestershire sauce
+        Stir to combine.
+        » storage: Covered in the fridge — up to 4 days.
+        » for: Tomato and Onion Slow-Cooker Pot Roast with Roasted Potatoes and Green Beans (Sunday)
+     2. Finish the Chipotle Ranch Dressing jar   (7 min)
+        Chipotle Ranch Dressing jar (garlic powder, onion powder, dried dill and the fresh lime juice from produce step 16 already in it): add
+        ½ cup Mayonnaise
+        2 chipotle peppers in adobo sauce, finely minced
+        1 tsp adobo sauce (from the chipotle can)
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Southwest Chicken Salad with Avocado, Black Beans, and Chipotle Ranch (Thursday)
+     3. Finish the Smoky Baked Beans mix-ins bowl   (1 min)
+        Smoky Baked Beans mix-ins bowl (smoked paprika, brown sugar and dry mustard already in it): add
+        1 tsp worcestershire sauce
+        ⅜ cup Ketchup
+        Stir to combine.
+        » storage: Covered in the fridge — up to 5 days.
+        » for: Pulled Pork Sliders with Vinegar Slaw and Baked Beans (Tuesday)
+     4. Finish the Thai Cucumber Salad dressing jar   (5 min)
+        Thai Cucumber Salad dressing jar (Granulated sugar and the fresh lime juice from produce step 16 already in it): add
+        1 tbsp fish sauce
+        3 tbsp rice vinegar
+        ½ tsp sesame oil
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 2 days.
+        » for: Shrimp Red Curry with Roti and Cucumber Salad (Friday)
+  ×  5. Worcestershire sauce and dry red wine — cook day   (1 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: Beef Stew with Mushrooms and Pearl Onions (Saturday)
+  ×  6. Apple cider vinegar and bbq sauce — cook day   (1 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: Pulled Pork Sliders with Vinegar Slaw and Baked Beans (Tuesday)
+  ×  7. Apple cider vinegar and dijon mustard — cook day   (1 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: Pulled Pork Sliders with Vinegar Slaw and Baked Beans (Tuesday)
+  ×  8. Apple cider vinegar — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Pulled Pork Sliders with Vinegar Slaw and Baked Beans (Tuesday)
+  ×  9. Coconut oil, Thai red curry paste and fish sauce — cook day   (4 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: Shrimp Red Curry with Roti and Cucumber Salad (Friday)
+  × 10. Warm water — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Shrimp Red Curry with Roti and Cucumber Salad (Friday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     1. Pat dry the beef chuck roast   (9 min)
+        Pat 3 lb beef chuck roast dry and trim of excess fat.
+        » storage: Covered in the fridge — cook within 2 days.
+        » for: Tomato and Onion Slow-Cooker Pot Roast with Roasted Potatoes and Green Beans (Sunday)
+     2. Trim the boneless pork shoulder   (8 min)
+        Trim 2 lb boneless pork shoulder of excess fat, then cut into 3-inch chunks.
+        » storage: Covered in the fridge — cook within 2 days.
+        » for: Pulled Pork Sliders with Vinegar Slaw and Baked Beans (Tuesday)
+  ×  3. Bacon — cook day   (1 min)  [RENDER-OMITTED]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+        » for: Pulled Pork Sliders with Vinegar Slaw and Baked Beans (Tuesday)
+  ×  4. Boneless skinless chicken breasts — cook day   (5 min)  [RENDER-OMITTED]
+        Pound 1½ lb boneless skinless chicken breasts to an even thickness.
+        » storage: This one is 4 days out — leave it for cook day.
+        » for: Southwest Chicken Salad with Avocado, Black Beans, and Chipotle Ranch (Thursday)
+  ×  5. Large shrimp, peeled and deveined — cook day   (5 min)  [RENDER-OMITTED]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+        » for: Shrimp Red Curry with Roti and Cucumber Salad (Friday)
+  ×  6. Beef chuck — cook day   (8 min)  [RENDER-OMITTED]
+        Cut 2 lb beef chuck into 1½-inch cubes, then pat thoroughly dry with paper towels.
+        » storage: This one is 6 days out — leave it for cook day.
+        » for: Beef Stew with Mushrooms and Pearl Onions (Saturday)
+
+══════════ PREP SELECTED MEALS — Tomato and Onion Slow-Cooker Pot Roast with Roasted Potatoes and Green Beans + Beef Stew with Mushrooms and Pearl Onions ══════════
+  HEADER: 10 containers · about 45 min   (server total 52 · phone 37) · cacheHit=false · prompt v19
+  HELD: Beef Stew with Mushrooms and Pearl Onions (Saturday, 6 days out) — cube the beef chuck that morning.
+
+  ── seasonings_dry ──
+     1. Measure the Tomato and Onion Slow-Cooker Pot sauce bowl spices   (3 min)
+        Into the Tomato and Onion Slow-Cooker Pot sauce bowl:
+        1 tsp dried thyme
+        ½ tsp dried rosemary
+        2 bay leaves
+        Set aside for the produce step.
+        » for: Tomato and Onion Slow-Cooker Pot Roast with Roasted Potatoes and Green Beans (Sunday)
+  ×  2. Dried thyme — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Tomato and Onion Slow-Cooker Pot Roast with Roasted Potatoes and Green Beans (Sunday)
+  ×  3. Bay leaves — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Beef Stew with Mushrooms and Pearl Onions (Saturday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Tomato and Onion Slow-Cooker Pot Roast with Roasted Potatoes and Green Beans (Sunday), Beef Stew with Mushrooms and Pearl Onions (Saturday)
+     2. Prep all yellow onion   (8 min)
+        Halve and thinly slice 2 yellow onions for the Tomato and Onion Slow-Cooker Pot Roast — into a tub labelled "Tomato and Onion Slow-Cooker Pot Roast — thinly sliced yellow onion".
+        Dice 1 yellow onion for the Beef Stew with Mushrooms and Pearl Onions — into a tub labelled "Beef Stew — yellow onion and celery stalks".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Tomato and Onion Slow-Cooker Pot Roast with Roasted Potatoes and Green Beans (Sunday), Beef Stew with Mushrooms and Pearl Onions (Saturday)
+     3. Prep all garlic cloves   (4 min)
+        Mince 4 garlic cloves for the Tomato and Onion Slow-Cooker Pot Roast — into the Tomato and Onion Slow-Cooker Pot sauce bowl.
+        Thinly slice 2 garlic cloves for the Sautéed Garlic Green Beans — into a tub labelled "Sautéed Garlic Green Beans — thinly sliced garlic cloves".
+        Mince 4 garlic cloves for the Beef Stew with Mushrooms and Pearl Onions — into a tub labelled "Beef Stew with Mushrooms and Pearl Onions — minced garlic cloves".
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » for: Tomato and Onion Slow-Cooker Pot Roast with Roasted Potatoes and Green Beans (Sunday), Beef Stew with Mushrooms and Pearl Onions (Saturday)
+     4. Chop all fresh flat-leaf parsley   (1 min)
+        Roughly chop enough flat-leaf parsley for both dishes — 2 tbsp for the Tomato and Onion Slow-Cooker Pot Roast and 2 tbsp for the Beef Stew with Mushrooms and Pearl Onions — into a tub labelled "Chopped fresh flat-leaf parsley — Tomato and Onion Slow-Cooker Pot Roast, Beef Stew with Mushrooms and Pearl Onions".
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Tomato and Onion Slow-Cooker Pot Roast with Roasted Potatoes and Green Beans (Sunday), Beef Stew with Mushrooms and Pearl Onions (Saturday)
+  ×  5. Yukon gold potatoes — cook day   (3 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Tomato and Onion Slow-Cooker Pot Roast with Roasted Potatoes and Green Beans (Sunday)
+     6. Trim the fresh green beans   (2 min)
+        Trim the ends from 1 lb fresh green beans — into a tub labelled "Sautéed Garlic Green Beans — trimmed fresh green beans".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Tomato and Onion Slow-Cooker Pot Roast with Roasted Potatoes and Green Beans (Sunday)
+     7. Juice the lemon for Sautéed Garlic Green Beans   (2 min)
+        Juice the lemon and measure 1 tbsp — into a tub labelled "Sautéed Garlic Green Beans — lemon juice".
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Tomato and Onion Slow-Cooker Pot Roast with Roasted Potatoes and Green Beans (Sunday)
+     8. Prep the cremini mushrooms   (1 min)
+        Halve or quarter 10 oz cremini mushrooms if large — into a tub labelled "Beef Stew — cremini mushrooms and carrots".
+        » for: Beef Stew with Mushrooms and Pearl Onions (Saturday)
+     9. Prep the carrots   (1 min)
+        Peel and cut 3 carrots into 1-inch pieces — into a tub labelled "Beef Stew — cremini mushrooms and carrots".
+        » storage: Beef Stew — cremini mushrooms and carrots: Airtight in the fridge — up to 4 days.
+        » for: Beef Stew with Mushrooms and Pearl Onions (Saturday)
+    10. Prep the celery stalks   (1 min)
+        Cut 2 celery stalks into 1-inch pieces — into a tub labelled "Beef Stew — yellow onion and celery stalks".
+        » storage: Beef Stew — yellow onion and celery stalks: Airtight in the fridge — up to 4 days.
+        » for: Beef Stew with Mushrooms and Pearl Onions (Saturday)
+  × 11. Fresh thyme sprigs — cook day   (1 min)  [RENDER-OMITTED]
+        Nothing to cut — it goes in as it comes.
+        » for: Beef Stew with Mushrooms and Pearl Onions (Saturday)
+
+  ── sauces_marinades ──
+     1. Finish the Tomato and Onion Slow-Cooker Pot sauce bowl   (2 min)
+        Tomato and Onion Slow-Cooker Pot sauce bowl (dried thyme, dried rosemary, bay leaves and garlic cloves already in it): add
+        1 tbsp Worcestershire sauce
+        Stir to combine.
+        » storage: Covered in the fridge — up to 4 days.
+        » for: Tomato and Onion Slow-Cooker Pot Roast with Roasted Potatoes and Green Beans (Sunday)
+  ×  2. Worcestershire sauce and dry red wine — cook day   (1 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: Beef Stew with Mushrooms and Pearl Onions (Saturday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     1. Trim the beef chuck roast   (9 min)
+        Trim 3 lb beef chuck roast of excess fat, then pat it thoroughly dry with paper towels.
+        » storage: Covered in the fridge — cook within 2 days.
+        » for: Tomato and Onion Slow-Cooker Pot Roast with Roasted Potatoes and Green Beans (Sunday)
+  ×  2. Beef chuck — cook day   (8 min)  [RENDER-OMITTED]
+        Cube 2 lb beef chuck into 1½-inch pieces, then pat them thoroughly dry with paper towels.
+        » storage: This one is 6 days out — leave it for cook day.
+        » for: Beef Stew with Mushrooms and Pearl Onions (Saturday)
+
+  subset ticks: 12 keys, 0 not in the full plan; required for these meals 12, uncovered 3; isPrepped {"Tomato and Onion Slow-Cooker P":false,"Beef Stew with Mushrooms and P":false}
+
+══════════ COOK MODE (cook-session.tsx: sequenced if multi-dish, flattened if single) ══════════
+
+  ▸ Tomato and Onion Slow-Cooker Pot Roast with Roasted Potatoes and Green Beans   [Sunday]  SEQUENCED
+    footer 497 min | scheduler 497 | card 497 | fresh derive 497 | dishes 3
+      1. [T-497] (  3m prep) Tomato and Onion Slow-Cooker Pot Roast
+         Pat the 3-pound chuck roast dry and season all over with 1½ teaspoons kosher salt and 1 teaspoon freshly ground black pepper.
+      2. [T-494] (  6m prep) Tomato and Onion Slow-Cooker Pot Roast
+         Halve and thinly slice the 2 yellow onions and mince the 4 garlic cloves.
+      3. [T-488] ( 10m cook) Tomato and Onion Slow-Cooker Pot Roast
+         Heat 2 tablespoons vegetable oil in a large heavy skillet over medium-high until shimmering, then sear the roast 4 minutes per side until a deep brown crust forms.
+      4. [T-478] (  8m cook) Tomato and Onion Slow-Cooker Pot Roast
+         Reduce heat to medium, add the sliced onions to the same skillet, and cook, stirring frequently, for 6 minutes until softened and lightly golden, then stir in the minced garlic and 2 tablespoons tomato paste and cook 1 minute more.
+      5. [T-470] (  4m cook) Tomato and Onion Slow-Cooker Pot Roast
+         Transfer the seared roast to the slow cooker, scrape in the onion-garlic mixture, then pour in the 14.5-ounce can of crushed tomatoes, ½ cup beef broth, and 1 tablespoon Worcestershire sauce; add 1 teaspoon dried thyme, ½ teaspoon dried rosemary, and 2 bay leaves.
+      6. [T-466] (450m cook) Tomato and Onion Slow-Cooker Pot Roast
+         Cover and cook on low for 7–8 hours, or until the roast is completely fork-tender and falling apart.
+      7. [ T-59] ( 15m preheat) Garlic Herb Roasted Potatoes
+         ⟶ With the Tomato and Onion Slow-Cooker Pot Roast cooking, start on the Garlic Herb Roasted Potatoes.
+         Preheat the oven to 425°F and line a large rimmed baking sheet with foil.
+      8. [ T-59] (  6m prep) Garlic Herb Roasted Potatoes
+         Cut the 1½ pounds Yukon Gold potatoes into 1-inch chunks and pat them dry with paper towels.
+      9. [ T-53] (  3m prep) Garlic Herb Roasted Potatoes
+         Toss the potato chunks with 2 tablespoons olive oil, ½ teaspoon garlic powder, ½ teaspoon dried thyme, ¾ teaspoon kosher salt, and ½ teaspoon black pepper until evenly coated.
+     10. [ T-44] ( 33m cook) Garlic Herb Roasted Potatoes
+         Spread the potatoes in a single layer on the prepared baking sheet, cut-side down where possible, and roast at 425°F for 30–35 minutes, flipping once halfway through, until golden and crispy.
+     11. [ T-25] (  5m prep) Sautéed Garlic Green Beans
+         ⟶ With the Tomato and Onion Slow-Cooker Pot Roast cooking, start on the Sautéed Garlic Green Beans.
+         Trim the ends from 1 pound fresh green beans and thinly slice the 2 garlic cloves.
+     12. [ T-20] (  2m cook) Sautéed Garlic Green Beans
+         Heat 1 tablespoon olive oil in a large skillet over medium-high until shimmering, add the sliced garlic, and stir constantly for 45 seconds until fragrant and just beginning to turn golden.
+     13. [ T-16] (  4m assemble) Tomato and Onion Slow-Cooker Pot Roast
+         ⟶ With the Garlic Herb Roasted Potatoes cooking, start on the Tomato and Onion Slow-Cooker Pot Roast.
+         Discard the bay leaves, then use two forks to pull the roast into large chunks in the braising liquid.
+     14. [ T-11] (  1m assemble) Garlic Herb Roasted Potatoes
+         Transfer the roasted potatoes to a serving bowl.
+     15. [ T-10] (  6m cook) Sautéed Garlic Green Beans
+         Add the green beans, ½ teaspoon kosher salt, and ¼ teaspoon black pepper; toss to coat and cook, stirring occasionally, for 5–6 minutes until the beans are bright green and tender-crisp.
+     16. [  T-4] (  2m assemble) Sautéed Garlic Green Beans
+         Remove the skillet from heat, drizzle 1 tablespoon freshly squeezed lemon juice over the beans, toss once, and transfer to a serving dish.
+     17. [  T-2] (  2m assemble) Tomato and Onion Slow-Cooker Pot Roast
+         Ladle the roast and gravy into a serving dish and garnish with 2 tablespoons roughly chopped fresh flat-leaf parsley, if using.
+
+  ▸ Pulled Pork Sliders with Vinegar Slaw and Baked Beans   [Tuesday]  SEQUENCED
+    footer 502 min | scheduler 502 | card 502 | fresh derive 502 | dishes 3
+      1. [T-502] (  3m prep) Pulled Pork Sliders
+         Mix 1½ teaspoons smoked paprika, 1 teaspoon garlic powder, 1 teaspoon onion powder, 1 tablespoon brown sugar, 1 teaspoon kosher salt, and ½ teaspoon black pepper together in a small bowl.
+      2. [T-499] (  4m prep) Pulled Pork Sliders
+         Pat the 2 pounds of pork shoulder chunks dry with paper towels, then coat all sides evenly with the dry rub.
+      3. [T-495] (  2m cook) Pulled Pork Sliders
+         Pour ½ cup chicken broth and 2 tablespoons apple cider vinegar into the slow cooker, then nestle the seasoned pork chunks in a single layer.
+      4. [T-493] (480m cook) Pulled Pork Sliders
+         Cover and cook on low for 8 hours (or high for 4–5 hours) until the pork is fall-apart tender; while it cooks, prepare the slaw and baked beans.
+      5. [T-493] (  8m prep) Tangy Vinegar Slaw
+         ⟶ With the Pulled Pork Sliders cooking, start on the Tangy Vinegar Slaw.
+         Finely shred 4 cups of green cabbage and grate 1 carrot, then add both to a large mixing bowl.
+      6. [T-485] (  3m prep) Tangy Vinegar Slaw
+         Whisk together 3 tablespoons apple cider vinegar, 1 tablespoon granulated sugar, 1 teaspoon dijon mustard, ¼ teaspoon celery seed, ½ teaspoon kosher salt, ¼ teaspoon black pepper, and 2 tablespoons neutral oil until the sugar dissolves.
+      7. [T-482] (  2m assemble) Tangy Vinegar Slaw
+         Pour the dressing over the slaw base and toss thoroughly to coat every strand.
+      8. [T-480] ( 20m rest) Tangy Vinegar Slaw
+         Cover and refrigerate the slaw for at least 20 minutes to allow the flavors to meld before serving.
+      9. [ T-44] (  5m prep) Smoky Baked Beans
+         ⟶ With the Pulled Pork Sliders cooking, start on the Smoky Baked Beans.
+         Finely dice ½ yellow onion and chop 3 slices of bacon into small pieces.
+     10. [ T-39] (  5m cook) Smoky Baked Beans
+         Cook the bacon in a medium saucepan over medium heat for 4–5 minutes, stirring occasionally, until the fat has rendered and the bacon is lightly crisp.
+     11. [ T-34] (  5m cook) Smoky Baked Beans
+         Add the diced onion to the bacon fat and cook over medium heat for 5 minutes, stirring occasionally, until softened and translucent.
+     12. [ T-29] (  2m cook) Smoky Baked Beans
+         Stir in ⅓ cup ketchup, 2 tablespoons brown sugar, 1 tablespoon apple cider vinegar, 1 teaspoon worcestershire sauce, ½ teaspoon smoked paprika, ½ teaspoon dry mustard, and ¼ teaspoon kosher salt.
+     13. [ T-27] (  2m cook) Smoky Baked Beans
+         Add the drained and rinsed 30 ounces of navy beans and stir to combine, then reduce heat to low.
+     14. [ T-25] ( 20m cook) Smoky Baked Beans
+         Simmer uncovered on low for 20 minutes, stirring every 5 minutes, until the sauce thickens and coats the beans.
+     15. [ T-13] (  5m cook) Pulled Pork Sliders
+         ⟶ With the Smoky Baked Beans cooking, start on the Pulled Pork Sliders.
+         Transfer the pork to a cutting board and use two forks to shred it into pulled strands, discarding any large fat pieces.
+     16. [  T-8] (  5m hold) Pulled Pork Sliders
+         Return the shredded pork to the slow cooker, stir in ½ cup BBQ sauce, and toss to coat; hold on warm until ready to serve.
+     17. [  T-5] (  5m hold) Smoky Baked Beans
+         ⟶ With the Pulled Pork Sliders cooking, start on the Smoky Baked Beans.
+         Taste and adjust seasoning if needed, then hold on the lowest heat setting until ready to serve alongside the sliders.
+     18. [  T-3] (  3m assemble) Pulled Pork Sliders
+         Pile the pulled pork onto the 12 slider buns and serve immediately.
+
+  ▸ Southwest Chicken Salad with Avocado, Black Beans, and Chipotle Ranch   [Thursday]  SEQUENCED
+    footer 47 min | scheduler 47 | card 47 | fresh derive 47 | dishes 2
+      1. [ T-47] (  3m prep) Southwest Chicken Salad with Avocado and Black Beans
+         In a small bowl, combine 1 teaspoon chili powder, ½ teaspoon ground cumin, ½ teaspoon smoked paprika, ½ teaspoon garlic powder, ¾ teaspoon kosher salt, and ¼ teaspoon black pepper.
+      2. [ T-44] (  4m prep) Southwest Chicken Salad with Avocado and Black Beans
+         Pat the 1½ pounds of pounded chicken breasts dry, rub with 2 tablespoons olive oil, then coat evenly with the spice mixture.
+      3. [ T-40] ( 12m cook) Southwest Chicken Salad with Avocado and Black Beans
+         Heat a grill pan or skillet over medium-high heat and cook the chicken 5–6 minutes per side until cooked through and the internal temperature reaches 165°F.
+      4. [ T-28] (  5m rest) Southwest Chicken Salad with Avocado and Black Beans
+         Transfer the chicken to a cutting board and rest 5 minutes, then slice crosswise into strips.
+      5. [ T-25] (  3m prep) Chipotle Ranch Dressing
+         ⟶ With the Southwest Chicken Salad with Avocado and Black Beans resting, start on the Chipotle Ranch Dressing.
+         Finely mince 2 chipotle peppers in adobo sauce.
+      6. [ T-22] (  5m cook) Southwest Chicken Salad with Avocado and Black Beans
+         If charring the corn, heat a dry skillet over high heat and cook the 1½ cups thawed corn kernels, stirring occasionally, for 4–5 minutes until lightly charred; remove from heat.
+      7. [ T-22] (  5m prep) Southwest Chicken Salad with Avocado and Black Beans
+         Drain and rinse the 15-ounce can of black beans, halve the 1½ cups cherry tomatoes, and thinly slice the ½ red onion.
+      8. [ T-17] (  4m prep) Chipotle Ranch Dressing
+         In a medium bowl, whisk together ½ cup mayonnaise, ¼ cup sour cream, 3 tablespoons buttermilk, the minced chipotles, 1 teaspoon adobo sauce, ¼ teaspoon garlic powder, ¼ teaspoon onion powder, ¼ teaspoon dried dill, 1 tablespoon fresh lime juice, and ¼ teaspoon kosher salt until smooth.
+      9. [ T-13] (  3m assemble) Southwest Chicken Salad with Avocado and Black Beans
+         Chop the 3 romaine hearts into bite-sized pieces and divide among 4 wide bowls or plates.
+     10. [ T-10] (  3m assemble) Southwest Chicken Salad with Avocado and Black Beans
+         Pit, peel, and slice the 2 ripe avocados just before serving to prevent browning.
+     11. [ T-10] ( 10m rest) Chipotle Ranch Dressing
+         Taste and adjust seasoning, then refrigerate the dressing until ready to serve (at least 10 minutes for flavors to meld).
+     12. [  T-7] (  4m assemble) Southwest Chicken Salad with Avocado and Black Beans
+         ⟶ With the Chipotle Ranch Dressing chilling, start on the Southwest Chicken Salad with Avocado and Black Beans.
+         Arrange the sliced chicken, black beans, corn, cherry tomatoes, red onion, avocado slices, ¾ cup shredded Mexican cheese blend, and 1 cup tortilla strips over the romaine; garnish with ¼ cup fresh cilantro leaves (optional) and lime wedges, then drizzle with chipotle ranch dressing.
+
+  ▸ Shrimp Red Curry with Roti and Cucumber Salad   [Friday]  SEQUENCED
+    footer 70 min | scheduler 70 | card 70 | fresh derive 70 | dishes 3
+      1. [ T-70] (  2m prep) Warm Roti
+         Whisk together 2 cups all-purpose flour, ¾ teaspoon salt, and ½ teaspoon baking powder in a large bowl.
+      2. [ T-68] ( 19m rest) Warm Roti
+         Drizzle in 2 tablespoons neutral oil and ¾ cup warm water, mixing with a fork then kneading by hand for 3–4 minutes until a smooth, soft dough forms; cover and rest for 15 minutes.
+      3. [ T-68] (  3m prep) Thai Cucumber Salad
+         ⟶ With the Warm Roti resting, start on the Thai Cucumber Salad.
+         Whisk together 3 tablespoons rice vinegar, 1 tablespoon fish sauce, 2 teaspoons granulated sugar, 1 tablespoon fresh lime juice, and ½ teaspoon sesame oil in a large bowl until the sugar dissolves.
+      4. [ T-65] (  5m prep) Thai Cucumber Salad
+         Thinly slice the 2 English cucumbers into rounds and thinly slice the shallot; add both to the bowl with the dressing.
+      5. [ T-60] ( 10m rest) Thai Cucumber Salad
+         Toss the cucumbers and shallot with the dressing and let sit for at least 10 minutes to lightly pickle.
+      6. [ T-55] ( 10m prep) Thai Shrimp Red Curry
+         ⟶ With the Warm Roti resting, start on the Thai Shrimp Red Curry.
+         Mince the 4 garlic cloves, finely grate 1 tablespoon fresh ginger, bruise the lemongrass stalk and cut into 2-inch pieces, thinly slice the red bell pepper, and halve and slice the zucchini into half-moons.
+      7. [ T-45] (  2m assemble) Thai Cucumber Salad
+         Just before serving, top the salad with ¼ cup roughly chopped cilantro, 3 tablespoons roughly chopped roasted peanuts, and sliced fresh red chili (optional).
+      8. [ T-43] (  8m prep) Warm Roti
+         Divide the rested dough into 8 equal balls and roll each out on a lightly floured surface to a thin round, about 7 inches in diameter.
+      9. [ T-35] (  2m prep) Thai Shrimp Red Curry
+         Pat the 1½ pounds shrimp dry and set aside.
+     10. [ T-33] (  2m preheat) Thai Shrimp Red Curry
+         Heat 1½ tablespoons coconut oil in a large wok or deep skillet over medium heat.
+     11. [ T-33] (  3m preheat) Warm Roti
+         ⟶ With the Thai Shrimp Red Curry heating up, start on the Warm Roti.
+         Heat a dry cast-iron skillet or non-stick pan over medium-high heat until very hot.
+     12. [ T-31] (  1m cook) Thai Shrimp Red Curry
+         ⟶ With the Warm Roti heating up, start on the Thai Shrimp Red Curry.
+         Add the minced garlic, grated ginger, and lemongrass pieces and stir-fry for 1 minute until fragrant.
+     13. [ T-30] (  2m cook) Thai Shrimp Red Curry
+         Add 3 tablespoons Thai red curry paste and fry, stirring constantly, for 2 minutes until the paste darkens slightly and is very fragrant.
+     14. [ T-28] (  4m cook) Thai Shrimp Red Curry
+         Pour in the 13.5-ounce can of shaken coconut milk and ½ cup chicken stock, then stir in 2 tablespoons fish sauce and 1 tablespoon palm sugar; add the torn kaffir lime leaves (optional) and bring to a gentle simmer.
+     15. [ T-28] ( 16m cook) Warm Roti
+         ⟶ With the Thai Shrimp Red Curry marinating, start on the Warm Roti.
+         Cook each roti for 1–2 minutes per side, brushing lightly with neutral oil, until golden spots appear and the bread puffs slightly; keep warm wrapped in a clean towel while you cook the rest.
+     16. [ T-12] (  5m cook) Thai Shrimp Red Curry
+         Add the sliced red bell pepper and zucchini and simmer for 5 minutes until just tender.
+     17. [  T-7] (  4m cook) Thai Shrimp Red Curry
+         Add the shrimp and cook, stirring occasionally, for 3–4 minutes until they are pink and just cooked through; do not overcook.
+     18. [  T-3] (  1m cook) Thai Shrimp Red Curry
+         Remove the lemongrass pieces, stir in 2 cups baby spinach and 1 tablespoon fresh lime juice, and cook for 30 seconds until the spinach wilts.
+     19. [  T-2] (  2m assemble) Thai Shrimp Red Curry
+         Ladle the curry into bowls and top with ¼ cup fresh Thai basil leaves and sliced red chili (optional).
+
+  ▸ Beef Stew with Mushrooms and Pearl Onions   [Saturday]  FLATTENED (single-dish)
+    footer 134 min | scheduler 134 | card 134 | fresh derive 134 | dishes 1
+      1. [T-134] (  6m prep) 
+         Cut 2 pounds beef chuck into 1½-inch cubes and pat thoroughly dry with paper towels; season all over with 1½ teaspoons kosher salt and ¾ teaspoon freshly ground black pepper.
+      2. [    —] ( 10m prep) 
+         Peel and cut 3 carrots into 1-inch pieces, cut 2 celery stalks into 1-inch pieces, dice 1 yellow onion, and mince 4 garlic cloves.
+      3. [T-128] (  5m prep) 
+         Halve or quarter 10 ounces cremini mushrooms if large; thaw and pat dry 10 ounces frozen pearl onions.
+      4. [T-118] (  3m prep) 
+         Toss the beef cubes in 3 tablespoons all-purpose flour until evenly coated, shaking off any excess.
+      5. [T-113] ( 16m cook) 
+         Heat 2 tablespoons vegetable oil in a large Dutch oven over medium-high until shimmering, then sear the beef in two batches, 3–4 minutes per side, until deep brown on all sides; transfer to a plate.
+      6. [T-110] (  5m cook) 
+         Reduce heat to medium, add 1 tablespoon unsalted butter to the pot, and sauté the diced yellow onion and celery for 4 minutes until softened, scraping up the browned bits.
+      7. [ T-94] (  2m cook) 
+         Add the minced garlic and 2 tablespoons tomato paste; stir and cook 2 minutes until the paste darkens slightly.
+      8. [ T-89] (  3m cook) 
+         Pour in 1 cup dry red wine and scrape up any remaining fond; let it bubble and reduce by half, about 3 minutes.
+      9. [ T-87] (  2m cook) 
+         Return the seared beef to the pot along with 2½ cups low-sodium beef broth, 1 tablespoon Worcestershire sauce, 4 fresh thyme sprigs, and 2 bay leaves; stir to combine.
+     10. [ T-84] ( 78m cook) 
+         Add the carrots, cremini mushrooms, and pearl onions; bring the stew to a boil, then reduce heat to low, cover, and simmer for 75 minutes until the beef is fork-tender.
+     11. [    —] (  2m cook) 
+         Remove and discard the thyme sprigs and bay leaves, taste for seasoning, and adjust salt and pepper as needed.
+     12. [ T-82] (  2m assemble) 
+         Ladle the stew into bowls and garnish each with a pinch of chopped fresh flat-leaf parsley.
+
+══════════ COOK MODE — PREPPED PATH: Pulled Pork Sliders with Vinegar Slaw and Baked Beans ══════════
+  ticked 9 rendered prep steps → isPrepped=false; + every wire step for the meal (14) → isPrepped=false; blockers [{"stepKey":"seasonings_dry#dish#4a03b4bf-63d1-49f5-b3c5-158e12342813","onWire":false,"rendered":false,"title":null,"skipSuggested":null},{"stepKey":"seasonings_dry#dish#eb85f6e4-e57d-4c50-a09f-3ca21abb710c","onWire":false,"rendered":false,"title":null,"skipSuggested":null},{"stepKey":"sauces_marinades#dish#eb85f6e4-e57d-4c50-a09f-3ca21abb710c","onWire":false,"rendered":false,"title":null,"skipSuggested":null}]
+  recap ("You already prepped this — get your:"):
+    · Mix 1½ teaspoons smoked paprika, 1 teaspoon garlic powder, 1 teaspoon onion powder, 1 tablespoon brown sugar, 1 teaspoon kosher salt, and ½ teaspoon black pepper together in a small bowl.
+    · Pat the 2 pounds of pork shoulder chunks dry with paper towels, then coat all sides evenly with the dry rub.
+    · Finely shred 4 cups of green cabbage and grate 1 carrot, then add both to a large mixing bowl.
+    · Whisk together 3 tablespoons apple cider vinegar, 1 tablespoon granulated sugar, 1 teaspoon dijon mustard, ¼ teaspoon celery seed, ½ teaspoon kosher salt, ¼ teaspoon black pepper, and 2 tablespoons neutral oil until the sugar dissolves.
+    · Finely dice ½ yellow onion and chop 3 slices of bacon into small pieces.
+  footer 495 min; steps after the prep filter:
+      1. [T-495] (cook) Pulled Pork Sliders
+         Pour ½ cup chicken broth and 2 tablespoons apple cider vinegar into the slow cooker, then nestle the seasoned pork chunks in a single layer.
+      2. [T-493] (cook) Pulled Pork Sliders
+         Cover and cook on low for 8 hours (or high for 4–5 hours) until the pork is fall-apart tender; while it cooks, prepare the slaw and baked beans.
+      3. [T-482] (assemble) Tangy Vinegar Slaw
+         Pour the dressing over the slaw base and toss thoroughly to coat every strand.
+      4. [T-480] (rest) Tangy Vinegar Slaw
+         Cover and refrigerate the slaw for at least 20 minutes to allow the flavors to meld before serving.
+      5. [T-39] (cook) Smoky Baked Beans
+         Cook the bacon in a medium saucepan over medium heat for 4–5 minutes, stirring occasionally, until the fat has rendered and the bacon is lightly crisp.
+      6. [T-34] (cook) Smoky Baked Beans
+         Add the diced onion to the bacon fat and cook over medium heat for 5 minutes, stirring occasionally, until softened and translucent.
+      7. [T-29] (cook) Smoky Baked Beans
+         Stir in ⅓ cup ketchup, 2 tablespoons brown sugar, 1 tablespoon apple cider vinegar, 1 teaspoon worcestershire sauce, ½ teaspoon smoked paprika, ½ teaspoon dry mustard, and ¼ teaspoon kosher salt.
+      8. [T-27] (cook) Smoky Baked Beans
+         Add the drained and rinsed 30 ounces of navy beans and stir to combine, then reduce heat to low.
+      9. [T-25] (cook) Smoky Baked Beans
+         Simmer uncovered on low for 20 minutes, stirring every 5 minutes, until the sauce thickens and coats the beans.
+     10. [T-13] (cook) Pulled Pork Sliders  ⟶ With the Smoky Baked Beans cooking, start on the Pulled Pork Sliders.
+         Transfer the pork to a cutting board and use two forks to shred it into pulled strands, discarding any large fat pieces.
+     11. [T-8] (hold) Pulled Pork Sliders
+         Return the shredded pork to the slow cooker, stir in ½ cup BBQ sauce, and toss to coat; hold on warm until ready to serve.
+     12. [T-5] (hold) Smoky Baked Beans  ⟶ With the Pulled Pork Sliders cooking, start on the Smoky Baked Beans.
+         Taste and adjust seasoning if needed, then hold on the lowest heat setting until ready to serve alongside the sliders.
+     13. [T-3] (assemble) Pulled Pork Sliders
+         Pile the pulled pork onto the 12 slider buns and serve immediately.

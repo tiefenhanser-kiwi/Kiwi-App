@@ -1,0 +1,656 @@
+PLAN 873796cd-4e7e-4a4a-bdfe-28a802f295d7  [A01]  Part I · A01 · 7 meals, Sun–Sat: marinades, seafood, slaw
+  range 2026-10-04 .. 2026-10-10   meals 7   prep day 2026-10-04   shapes: plan-7-meals, days-5-7, cold, long-passive, multi-3plus, marinate, aromatics, single-dish, seafood, bought-path, two-cuts, toss-no-heat
+
+══════════ PREP THE WEEK — full plan, as Screen 3 renders it ══════════
+  HEADER: 30 containers · about 150 min   (server total 195 · phone 132) · cacheHit=false · prompt v19
+  HELD: Add the skirt steak the night before you cook them (Saturday).
+  HELD: Add the skirt steak the night before you cook them (Saturday).
+  HELD: Dry-Rubbed Roast Chicken with Crispy Skin, Roasted Potatoes, and Green Beans (Wednesday, 3 days out) — whole chicken that morning.
+  HELD: Teriyaki Salmon Dinner (Thursday, 4 days out) — portion the salmon for Teriyaki Salmon that morning.
+  HELD: Classic Sizzling Chicken Fajitas (Friday, 5 days out) — cut the chicken breasts into strips for Lime-Marinated Chicken Fajitas that morning.
+
+  ── seasonings_dry ──
+     1. Measure the Citrus-Marinated Carne Asada marinade spices   (3 min)
+        Into the Citrus-Marinated Carne Asada marinade bowl:
+        1 tsp ground cumin
+        1 tsp chili powder
+        ½ tsp smoked paprika
+        ½ tsp dried oregano
+        Set aside for the produce step.
+        » for: Carne Asada Tacos (Sunday)
+     2. Measure the Texas-Style Beef Chili spice blend   (2 min)
+        Into the Texas-Style Beef Chili spice blend:
+        2 tsp ground cumin
+        1 tsp smoked paprika
+        1 tsp dried oregano
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Texas-Style Beef Chili (Monday)
+     3. Measure the Lime-Marinated Chicken Fajitas marinade bowl spices   (4 min)
+        Into the Lime-Marinated Chicken Fajitas marinade bowl:
+        1 tsp ground cumin
+        1½ tsp chili powder
+        ¾ tsp smoked paprika
+        ½ tsp dried oregano
+        ½ tsp garlic powder
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Classic Sizzling Chicken Fajitas (Friday)
+     4. Measure the Smoky Carne Asada marinade spices   (3 min)
+        Into the Smoky Carne Asada marinade bowl:
+        1½ tsp ground cumin
+        1 tsp smoked paprika
+        ½ tsp dried oregano
+        Set aside for the produce step.
+        » for: Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday)
+     5. Measure the Beer-Battered Cod Fish Tacos batter bowl   (4 min)
+        Into the Beer-Battered Cod Fish Tacos batter bowl:
+        1 cup all-purpose flour
+        ¼ cup cornstarch
+        1 tsp baking powder
+        1 tsp smoked paprika
+        ½ tsp garlic powder
+        ¼ tsp cayenne pepper
+        Then pour in 1 cup cold lager beer and whisk until a smooth, thick batter forms.
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Baja Fish Tacos with Quick Slaw and Lime Crema (Tuesday)
+     6. Measure the Dry-Rubbed Roast Chicken dry mix   (3 min)
+        Into the Dry-Rubbed Roast Chicken dry mix:
+        1½ tsp smoked paprika
+        1 tsp garlic powder
+        ¾ tsp onion powder
+        ½ tsp dried thyme
+        ¼ tsp cayenne pepper
+        1 tsp brown sugar
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Dry-Rubbed Roast Chicken with Crispy Skin, Roasted Potatoes, and Green Beans (Wednesday)
+     7. Prep the Texas-Style Beef Chili dried chiles   (1 min)
+        Into the Texas-Style Beef Chili — dried chiles, stemmed and seeded:
+        3 dried ancho chiles, stemmed and seeded
+        2 dried guajillo chiles, stemmed and seeded
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Texas-Style Beef Chili (Monday)
+  ×  8. Ground cumin — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday)
+  ×  9. Masa harina — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Texas-Style Beef Chili (Monday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Carne Asada Tacos (Sunday), Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday), Baja Fish Tacos with Quick Slaw and Lime Crema (Tuesday), Classic Sizzling Chicken Fajitas (Friday), Texas-Style Beef Chili (Monday), Dry-Rubbed Roast Chicken with Crispy Skin, Roasted Potatoes, and Green Beans (Wednesday), Teriyaki Salmon Dinner (Thursday)
+     2. Measure the orange juice   (2 min)
+        Measure the orange juice and pour each portion into its container:
+        ¼ cup for the Citrus-Marinated Carne Asada — into the Citrus-Marinated Carne Asada marinade bowl
+        3 tbsp for the Smoky Carne Asada — into the Smoky Carne Asada marinade bowl
+        » for: Carne Asada Tacos (Sunday), Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday)
+  ×  3. Lime juice, lime and lime zest — cook day   (15 min)  [RENDER-OMITTED]
+        Citrus wedges keep best cut on the day.
+        » for: Carne Asada Tacos (Sunday), Baja Fish Tacos with Quick Slaw and Lime Crema (Tuesday), Classic Sizzling Chicken Fajitas (Friday), Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday), Texas-Style Beef Chili (Monday)
+     4. Prep all garlic   (8 min)
+        Mince, then thinly slice the garlic as noted, and portion into each container:
+        4 cloves minced — into the Citrus-Marinated Carne Asada marinade bowl
+        6 cloves minced + 3 cloves minced — into a tub labelled "Minced garlic — Texas-Style Beef Chili, Garlic Roasted Potatoes"
+        3 cloves minced — into the Lime-Marinated Chicken Fajitas vegetables
+        4 cloves minced — into the Smoky Carne Asada marinade bowl
+        2 cloves minced — into the Teriyaki Salmon glaze jar
+        2 cloves thinly sliced — into a tub labelled "Sautéed Garlic Green Beans — thinly sliced garlic"
+        » storage: Citrus-Marinated Carne Asada marinade bowl: Covered in the fridge — up to 3 days. Airtight in the fridge — up to 4 days. Add the skirt steak the night before you cook them (Saturday).
+        » for: Carne Asada Tacos (Sunday), Texas-Style Beef Chili (Monday), Dry-Rubbed Roast Chicken with Crispy Skin, Roasted Potatoes, and Green Beans (Wednesday), Teriyaki Salmon Dinner (Thursday), Classic Sizzling Chicken Fajitas (Friday), Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday)
+     5. Dice all roma tomatoes   (15 min)
+        Dice all roma tomatoes and portion into each container:
+        3 diced — into a tub labelled "Fresh Pico de Gallo — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        3 finely diced — into a tub labelled "Fajita Toppings: Pico de Gallo, Guacamole, and Sour Cream — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        2 diced — into a tub labelled "Black Bean Salsa — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        » for: Carne Asada Tacos (Sunday), Classic Sizzling Chicken Fajitas (Friday), Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday)
+     6. Dice all white onion   (8 min)
+        Finely dice the white onion and portion:
+        ½ — into a tub labelled "Fresh Pico de Gallo — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        ¼ — into a tub labelled "Finely diced white onion — Simple Guacamole, Texas-Style Beef Chili"
+        ½ (for garnish) — into a tub labelled "Finely diced white onion — Simple Guacamole, Texas-Style Beef Chili"
+        ½ — into a tub labelled "Black Bean Salsa — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        ¼ cup — into a tub labelled "Fajita Toppings: Pico de Gallo, Guacamole, and Sour Cream — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Carne Asada Tacos (Sunday), Texas-Style Beef Chili (Monday), Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday), Classic Sizzling Chicken Fajitas (Friday)
+     7. Chop all fresh cilantro   (8 min)
+        Chop the cilantro as noted per dish and portion:
+        ¼ cup chopped — into a tub labelled "Fresh Pico de Gallo — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        2 tbsp chopped + ¼ cup roughly chopped + ¼ cup roughly chopped + ¼ cup roughly chopped — into a tub labelled "Chopped fresh cilantro — Simple Guacamole, Texas-Style Beef Chili, Lime-Marinated Chicken Fajitas with Peppers and Onio…"
+        ½ cup leaves picked — into a tub labelled "Beer-Battered Cod Fish Tacos — fresh cilantro"
+        2 tbsp finely chopped — into a tub labelled "Fajita Toppings: Pico de Gallo, Guacamole, and Sour Cream — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        ¼ cup roughly chopped — into a tub labelled "Black Bean Salsa — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Carne Asada Tacos (Sunday), Texas-Style Beef Chili (Monday), Baja Fish Tacos with Quick Slaw and Lime Crema (Tuesday), Classic Sizzling Chicken Fajitas (Friday), Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday)
+     8. Prep all jalapeños   (15 min)
+        Seed and mince, then thinly slice as noted, and portion:
+        ½ seeded and minced — into a tub labelled "Fresh Pico de Gallo — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        1 seeded and minced — into a tub labelled "Fajita Toppings: Pico de Gallo, Guacamole, and Sour Cream — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        1 seeded and minced — into a tub labelled "Black Bean Salsa — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        4 thinly sliced — into a tub labelled "Quick Pickled Jalapeños — thinly sliced jalapeño"
+        » storage: Fresh Pico de Gallo: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Fajita Toppings: Pico de Gallo, Guacamole, and Sour Cream: Airtight in the fridge, with a barely damp paper…
+        » for: Carne Asada Tacos (Sunday), Classic Sizzling Chicken Fajitas (Friday), Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday)
+  ×  9. Ripe avocado — cook day   (1 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Carne Asada Tacos (Sunday), Classic Sizzling Chicken Fajitas (Friday), Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday)
+    10. Prep all yellow onion   (5 min)
+        Dice and slice the yellow onion as noted per dish:
+        1 diced — into a tub labelled "Texas-Style Beef Chili — diced yellow onion"
+        1 halved and sliced into ¼-inch half-moons — into the Lime-Marinated Chicken Fajitas vegetables
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Texas-Style Beef Chili (Monday), Classic Sizzling Chicken Fajitas (Friday)
+    11. Prep all lemons   (2 min)
+        Halve 1 lemon and juice ½ more:
+        1 halved — into a tub labelled "Dry-Rubbed Roast Chicken with Crispy Skin — halved fresh lemon"
+        1 tbsp juice — into a tub labelled "Sautéed Garlic Green Beans — fresh lemon juice"
+        » storage: Airtight in the fridge — up to 3 days. Covered in the fridge — up to 3 days.
+        » for: Dry-Rubbed Roast Chicken with Crispy Skin, Roasted Potatoes, and Green Beans (Wednesday)
+  × 12. Fresh thyme sprigs — cook day   (1 min)  [RENDER-OMITTED]
+        Nothing to cut — it goes in as it comes.
+        » for: Dry-Rubbed Roast Chicken with Crispy Skin, Roasted Potatoes, and Green Beans (Wednesday)
+  × 13. Baby Yukon gold potatoes — cook day   (3 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Dry-Rubbed Roast Chicken with Crispy Skin, Roasted Potatoes, and Green Beans (Wednesday)
+    14. Chop the fresh rosemary for Garlic Roasted Potatoes   (1 min)
+        Finely chop the fresh rosemary:
+        1 tsp — into a tub labelled "Garlic Roasted Potatoes — finely chopped fresh rosemary"
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Dry-Rubbed Roast Chicken with Crispy Skin, Roasted Potatoes, and Green Beans (Wednesday)
+    15. Trim the green beans for Sautéed Garlic Green Beans   (2 min)
+        Trim the ends from the green beans:
+        1 lb — into a tub labelled "Sautéed Garlic Green Beans — trimmed fresh green beans"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Dry-Rubbed Roast Chicken with Crispy Skin, Roasted Potatoes, and Green Beans (Wednesday)
+    16. Grate the fresh ginger for Teriyaki Salmon   (1 min)
+        Grate the fresh ginger:
+        1 tsp — into the Teriyaki Salmon glaze jar
+        » for: Teriyaki Salmon Dinner (Thursday)
+    17. Slice the scallions for Teriyaki Salmon   (1 min)
+        Thinly slice the scallions:
+        2 — into a tub labelled "Teriyaki Salmon — thinly sliced scallions"
+        » storage: Airtight in the fridge — up to 3 days.
+        » for: Teriyaki Salmon Dinner (Thursday)
+    18. Slice the cucumber for Sesame Cucumber Salad   (3 min)
+        Thinly slice the English cucumber:
+        1 — into a tub labelled "Sesame Cucumber Salad — thinly sliced english cucumber"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Teriyaki Salmon Dinner (Thursday)
+    19. Slice the red bell peppers for Lime-Marinated Chicken Fajitas   (5 min)
+        Core, seed, and slice the red bell peppers into ¼-inch strips:
+        2 — into the Lime-Marinated Chicken Fajitas vegetables
+        » for: Classic Sizzling Chicken Fajitas (Friday)
+    20. Slice the green bell pepper for Lime-Marinated Chicken Fajitas   (3 min)
+        Core, seed, and slice the green bell pepper into ¼-inch strips:
+        1 — into the Lime-Marinated Chicken Fajitas vegetables
+        » storage: Lime-Marinated Chicken Fajitas vegetables: Airtight in the fridge — up to 4 days.
+        » for: Classic Sizzling Chicken Fajitas (Friday)
+  × 21. Avocado oil — cook day   (1 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday)
+    22. Slice the radishes for Fresh Toppings   (1 min)
+        Thinly slice the radishes:
+        4 — into a tub labelled "Fresh Toppings — thinly sliced thinly sliced radish"
+        » storage: Airtight in the fridge — up to 3 days.
+        » for: Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday)
+
+  ── sauces_marinades ──
+     1. Finish the Smoky Carne Asada marinade bowl   (6 min)
+        Smoky Carne Asada marinade bowl (ground cumin, smoked paprika, dried oregano, the orange juice from produce step 2 and garlic already in it): add
+        2 minced chipotle chiles in adobo
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 3 days. Add the skirt steak the night before you cook them (Saturday).
+        » for: Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday)
+     2. Build the Quick Cabbage Slaw and Lime mix-ins bowl   (2 min)
+        Into the Quick Cabbage Slaw and Lime mix-ins bowl:
+        ¼ cup mayonnaise
+        1 tbsp apple cider vinegar
+        1 tsp honey
+        1 tsp hot sauce (such as Cholula)
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 5 days.
+        » for: Baja Fish Tacos with Quick Slaw and Lime Crema (Tuesday)
+     3. Finish the Teriyaki Salmon glaze jar   (4 min)
+        Teriyaki Salmon glaze jar (garlic and fresh ginger already in it): add
+        2 tbsp honey
+        ¼ cup soy sauce
+        3 tbsp mirin
+        2 tbsp sake
+        1 tsp sesame oil
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 4 days.
+        » for: Teriyaki Salmon Dinner (Thursday)
+     4. Build the Sesame Cucumber Salad dressing jar   (3 min)
+        Into the Sesame Cucumber Salad dressing jar:
+        1 tsp honey
+        1 tbsp soy sauce
+        1 tbsp sesame oil
+        2 tbsp rice vinegar
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 4 days.
+        » for: Teriyaki Salmon Dinner (Thursday)
+  ×  5. Chipotle chile in adobo — cook day   (5 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Texas-Style Beef Chili (Monday)
+  ×  6. White wine vinegar — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+  ×  1. Skirt steak — cook day   (9 min)  [RENDER-OMITTED]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+        » for: Carne Asada Tacos (Sunday), Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday)
+     2. Cube the beef chuck for Texas-Style Beef Chili   (8 min)
+        Cube 2 lb beef chuck into ¾-inch pieces, pat dry, and set in its storage container.
+        » storage: Covered in the fridge — cook within 2 days.
+        » for: Texas-Style Beef Chili (Monday)
+     3. Cut the cod into strips for Beer-Battered Cod Fish Tacos   (6 min)
+        Cut 1½ lb cod fillets into 1-inch strips and set in their storage container.
+        » storage: Covered in the fridge — cook within 2 days.
+        » for: Baja Fish Tacos with Quick Slaw and Lime Crema (Tuesday)
+  ×  4. Whole chicken — cook day   (12 min)  [RENDER-OMITTED]
+        Pat 4 lb whole chicken completely dry with paper towels, including inside the cavity — thorough drying is the key to crispy skin.
+        » storage: This one is 3 days out — leave it for cook day.
+        » for: Dry-Rubbed Roast Chicken with Crispy Skin, Roasted Potatoes, and Green Beans (Wednesday)
+  ×  5. Salmon fillets — cook day   (6 min)  [RENDER-OMITTED]
+        Portion 1½ lb skin-on salmon into 4 equal pieces and set in their storage container.
+        » storage: This one is 4 days out — leave it for cook day.
+        » for: Teriyaki Salmon Dinner (Thursday)
+  ×  6. Boneless skinless chicken breasts — cook day   (7 min)  [RENDER-OMITTED]
+        Cut 1¾ lb boneless skinless chicken breasts into ½-inch strips against the grain and set in their storage container.
+        » storage: This one is 5 days out — leave it for cook day.
+        » for: Classic Sizzling Chicken Fajitas (Friday)
+
+══════════ PREP SELECTED MEALS — Carne Asada Tacos + Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños ══════════
+  HEADER: 10 containers · about 75 min   (server total 80 · phone 67) · cacheHit=false · prompt v19
+  HELD: Add the skirt steak the night before you cook them (Saturday).
+  HELD: Add the skirt steak the night before you cook them (Saturday).
+
+  ── seasonings_dry ──
+     1. Measure the Citrus-Marinated Carne Asada marinade bowl spices   (3 min)
+        Into the Citrus-Marinated Carne Asada marinade bowl:
+        1 tsp ground cumin
+        1 tsp chili powder
+        ½ tsp smoked paprika
+        ½ tsp dried oregano
+        
+        Set aside for the produce step.
+        » for: Carne Asada Tacos (Sunday)
+     2. Measure the Smoky Carne Asada marinade bowl spices   (3 min)
+        Into the Smoky Carne Asada marinade bowl:
+        1½ tsp ground cumin
+        1 tsp smoked paprika
+        ½ tsp dried oregano
+        
+        Set aside for the produce step.
+        » for: Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday)
+  ×  3. Ground cumin — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Carne Asada Tacos (Sunday), Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday)
+     2. Measure the orange juice   (2 min)
+        Pour the orange juice into its bowls:
+        ¼ cup for the Citrus-Marinated Carne Asada — into the Citrus-Marinated Carne Asada marinade bowl
+        3 tbsp for the Smoky Carne Asada — into the Smoky Carne Asada marinade bowl
+        » for: Carne Asada Tacos (Sunday), Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday)
+     3. Juice the limes and prep lime wedges   (11 min)
+        Juice the limes and portion the juice:
+        3 tbsp for the Citrus-Marinated Carne Asada — into the Citrus-Marinated Carne Asada marinade bowl
+        3 tbsp for the Smoky Carne Asada — into the Smoky Carne Asada marinade bowl
+        2 tbsp for the Fresh Pico de Gallo — into a tub labelled "Lime juice — Fresh Pico de Gallo, Simple Guacamole, Black Bean Salsa"
+        2 tbsp for the Simple Guacamole — into a tub labelled "Lime juice — Fresh Pico de Gallo, Simple Guacamole, Black Bean Salsa"
+        2 tbsp for the Black Bean Salsa — into a tub labelled "Lime juice — Fresh Pico de Gallo, Simple Guacamole, Black Bean Salsa"
+        
+        Cut 2 limes into wedges — into a tub labelled "Fresh Toppings — lime"
+        » storage: Covered in the fridge — up to 3 days. Airtight in the fridge — up to 3 days.
+        » for: Carne Asada Tacos (Sunday), Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday)
+     4. Mince all garlic   (3 min)
+        Mince the garlic and portion it into its bowls:
+        4 cloves for the Citrus-Marinated Carne Asada — into the Citrus-Marinated Carne Asada marinade bowl
+        4 cloves for the Smoky Carne Asada — into the Smoky Carne Asada marinade bowl
+        » storage: Citrus-Marinated Carne Asada marinade bowl: Covered in the fridge — up to 3 days. Add the skirt steak the night before you cook them (Saturday).
+        » for: Carne Asada Tacos (Sunday), Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday)
+     5. Dice all roma tomatoes   (13 min)
+        Dice the roma tomatoes and portion them:
+        3 for the Fresh Pico de Gallo — into a tub labelled "Fresh Pico de Gallo — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        2 for the Black Bean Salsa — into a tub labelled "Black Bean Salsa — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        » for: Carne Asada Tacos (Sunday), Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday)
+     6. Finely dice all white onion   (3 min)
+        Finely dice the white onion and portion it:
+        ½ for the Fresh Pico de Gallo — into a tub labelled "Fresh Pico de Gallo — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        ½ for the Black Bean Salsa — into a tub labelled "Black Bean Salsa — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        ¼ for the Simple Guacamole — into a tub labelled "Simple Guacamole — finely diced white onion"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Carne Asada Tacos (Sunday), Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday)
+     7. Chop all fresh cilantro   (4 min)
+        Chop the cilantro and portion it:
+        ¼ cup for the Fresh Pico de Gallo — into a tub labelled "Fresh Pico de Gallo — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        ¼ cup for the Black Bean Salsa — into a tub labelled "Black Bean Salsa — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        2 tbsp for the Simple Guacamole — into a tub labelled "Chopped fresh cilantro — Simple Guacamole, Fresh Toppings"
+        ¼ cup for the Fresh Toppings — into a tub labelled "Chopped fresh cilantro — Simple Guacamole, Fresh Toppings"
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Carne Asada Tacos (Sunday), Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday)
+     8. Prep all jalapeños   (15 min)
+        Seed and mince the jalapeños for the salsas first:
+        ½ seeded and minced for the Fresh Pico de Gallo — into a tub labelled "Fresh Pico de Gallo — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        1 seeded and minced for the Black Bean Salsa — into a tub labelled "Black Bean Salsa — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        
+        Then thinly slice the remaining jalapeños:
+        4 thinly sliced for the Quick Pickled Jalapeños — into a tub labelled "Quick Pickled Jalapeños — thinly sliced jalapeño"
+        » storage: Fresh Pico de Gallo: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Black Bean Salsa: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Airtight in the fr…
+        » for: Carne Asada Tacos (Sunday), Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday)
+  ×  9. Ripe avocado — cook day   (1 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Carne Asada Tacos (Sunday), Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday)
+  × 10. Avocado oil — cook day   (1 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday)
+    11. Slice all radishes for Fresh Toppings   (1 min)
+        Thinly slice 4 radishes — into a tub labelled "Fresh Toppings — thinly sliced thinly sliced radish"
+        » storage: Airtight in the fridge — up to 3 days.
+        » for: Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday)
+
+  ── sauces_marinades ──
+     1. Finish the Smoky Carne Asada marinade bowl   (6 min)
+        Smoky Carne Asada marinade bowl (ground cumin, smoked paprika, dried oregano, the orange juice from produce step 2, the lime juice from produce step 3 and garlic already in it): add
+        2 chipotle chiles in adobo sauce, minced
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 3 days. Add the skirt steak the night before you cook them (Saturday).
+        » for: Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday)
+  ×  2. White wine vinegar — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+  ×  1. Skirt steak — cook day   (9 min)  [RENDER-OMITTED]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+        » for: Carne Asada Tacos (Sunday), Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños (Saturday)
+
+  subset ticks: 12 keys, 1 not in the full plan; required for these meals 10, uncovered 4; isPrepped {"Carne Asada Tacos":false,"Smoky Carne Asada Tostadas wit":false}
+
+══════════ COOK MODE (cook-session.tsx: sequenced if multi-dish, flattened if single) ══════════
+
+  ▸ Carne Asada Tacos   [Sunday]  SEQUENCED
+    footer 51 min | scheduler 51 | card 51 | fresh derive 51 | dishes 3
+      1. [ T-51] (  5m prep) Citrus-Marinated Carne Asada
+         In a bowl or zip-top bag, whisk together ¼ cup orange juice, 3 tablespoons lime juice, 4 minced garlic cloves, 2 tablespoons olive oil, 1 teaspoon cumin, 1 teaspoon chili powder, ½ teaspoon smoked paprika, ½ teaspoon dried oregano, 1 teaspoon kosher salt, and ½ teaspoon black pepper to form the marinade.
+      2. [ T-46] ( 30m rest) Citrus-Marinated Carne Asada
+         Add the 1½ pounds skirt steak to the marinade, turn to coat, and let it marinate at room temperature for 30 minutes (or refrigerate up to 4 hours).
+      3. [ T-46] (  5m preheat) Citrus-Marinated Carne Asada
+         While the steak marinates, heat a grill or cast-iron skillet over high heat until very hot.
+      4. [ T-46] (  6m prep) Fresh Pico de Gallo
+         ⟶ With the Citrus-Marinated Carne Asada chilling, start on the Fresh Pico de Gallo.
+         Dice 3 roma tomatoes, finely dice ½ white onion, chop ¼ cup fresh cilantro, and (if using) seed and mince ½ jalapeño.
+      5. [ T-40] (  3m assemble) Simple Guacamole
+         ⟶ With the Citrus-Marinated Carne Asada chilling, start on the Simple Guacamole.
+         Halve and pit 3 ripe avocados, scoop the flesh into a bowl, and mash with a fork to your preferred texture (chunky or smooth).
+      6. [ T-37] (  2m assemble) Simple Guacamole
+         Stir in 2 tablespoons lime juice, ¼ finely diced white onion, 2 tablespoons chopped fresh cilantro, and ½ teaspoon kosher salt until fully combined.
+      7. [ T-35] (  2m assemble) Simple Guacamole
+         Taste and adjust salt or lime, then transfer to a serving bowl and top with 2 ounces crumbled cotija cheese (optional) before serving.
+      8. [ T-33] (  2m assemble) Fresh Pico de Gallo
+         ⟶ With the Citrus-Marinated Carne Asada chilling, start on the Fresh Pico de Gallo.
+         Combine the tomatoes, onion, cilantro, optional jalapeño, 2 tablespoons lime juice, and ½ teaspoon kosher salt in a bowl and stir to combine.
+      9. [ T-31] (  5m rest) Fresh Pico de Gallo
+         Taste and adjust salt, then let the pico sit for at least 5 minutes before serving so the flavors meld.
+     10. [ T-26] (  1m assemble) Fresh Pico de Gallo
+         Give the pico a final stir and serve alongside the tacos.
+     11. [ T-16] (  8m cook) Citrus-Marinated Carne Asada
+         Remove the steak from the marinade, shake off the excess, and grill 3–4 minutes per side over high heat until charred and cooked to medium (internal temperature 135°F).
+     12. [  T-8] (  5m rest) Citrus-Marinated Carne Asada
+         Transfer the steak to a cutting board and let it rest for 5 minutes.
+     13. [  T-8] (  4m cook) Citrus-Marinated Carne Asada
+         While the steak rests, warm the 12 corn tortillas in a dry skillet over medium heat for about 30 seconds per side, then wrap in a clean towel to keep warm.
+     14. [  T-3] (  3m assemble) Citrus-Marinated Carne Asada
+         Slice the rested steak thinly against the grain and serve in the warm corn tortillas.
+
+  ▸ Texas-Style Beef Chili   [Monday]  FLATTENED (single-dish)
+    footer 141 min | scheduler 141 | card 141 | fresh derive 141 | dishes 1
+      1. [T-141] ( 18m prep) 
+         Toast the 3 ancho and 2 guajillo chiles in a dry skillet over medium heat for 30 seconds per side, then soak them in 1 cup of hot water for 15 minutes until softened.
+      2. [T-123] (  8m prep) 
+         While the chiles soak, cut the 2 pounds of beef chuck into ¾-inch cubes, pat dry, and season with 1½ teaspoons kosher salt and ½ teaspoon black pepper.
+      3. [T-115] (  4m prep) 
+         Drain the soaked chiles and blend them with ½ cup of the beef broth and the 2 minced chipotle chiles in adobo until completely smooth; set aside.
+      4. [T-111] (  5m prep) 
+         Dice the yellow onion, mince the 6 garlic cloves, and measure out 2 teaspoons cumin, 1 teaspoon smoked paprika, and 1 teaspoon dried oregano.
+      5. [T-106] ( 14m cook) 
+         Heat 2 tablespoons vegetable oil in a large heavy pot or Dutch oven over medium-high, then sear the beef in a single layer — working in 2–3 batches — for about 4 minutes per batch, turning once, until deeply browned on all sides; transfer each batch to a plate.
+      6. [ T-92] (  4m cook) 
+         Reduce heat to medium, add the diced yellow onion to the same pot, and cook for 4 minutes, stirring frequently, until softened and lightly golden.
+      7. [ T-88] (  1m cook) 
+         Add the minced garlic, cumin, smoked paprika, and oregano and cook for 1 minute, stirring constantly, until fragrant.
+      8. [ T-87] (  4m cook) 
+         Return the seared beef to the pot, pour in the chile purée, the remaining 1½ cups beef broth, and the 14.5-ounce can of crushed tomatoes; stir to combine and bring to a boil.
+      9. [ T-83] ( 75m cook) 
+         Reduce heat to low, cover, and simmer the chili for 1 hour 15 minutes, stirring occasionally, until the beef is very tender.
+     10. [  T-8] (  5m cook) 
+         Whisk the 2 tablespoons masa harina with 3 tablespoons of cold water until smooth, then stir it into the chili and simmer uncovered for 5 minutes until thickened.
+     11. [  T-3] (  3m assemble) 
+         Ladle the chili into bowls and top with optional roughly chopped cilantro, finely diced white onion, shredded cheddar, sour cream, and lime wedges as desired.
+
+  ▸ Baja Fish Tacos with Quick Slaw and Lime Crema   [Tuesday]  SEQUENCED
+    footer 50 min | scheduler 50 | card 50 | fresh derive 50 | dishes 2
+      1. [ T-50] (  3m prep) Beer-Battered Cod Fish Tacos
+         Pat the 1½ pounds of cod strips dry with paper towels, then season lightly with a pinch of the kosher salt.
+      2. [ T-47] (  5m prep) Beer-Battered Cod Fish Tacos
+         Whisk together 1 cup all-purpose flour, ¼ cup cornstarch, 1 teaspoon baking powder, 1 teaspoon kosher salt, 1 teaspoon smoked paprika, ½ teaspoon garlic powder, and ¼ teaspoon cayenne in a large bowl, then pour in 1 cup cold lager beer and whisk until a smooth, thick batter forms.
+      3. [ T-42] (  8m preheat) Beer-Battered Cod Fish Tacos
+         Pour 3 cups neutral oil into a deep, heavy skillet or Dutch oven and heat over medium-high until it reaches 375°F on an instant-read thermometer.
+      4. [ T-34] ( 12m cook) Beer-Battered Cod Fish Tacos
+         Working in 2–3 batches, dip each cod strip into the batter, let the excess drip off, and lower carefully into the hot oil; fry 3–4 minutes, turning once, until deeply golden and cooked through, then transfer to a wire rack or paper-towel-lined plate.
+      5. [ T-22] (  4m prep) Quick Cabbage Slaw and Lime Crema
+         In a medium bowl, whisk together ½ cup sour cream, ¼ cup mayonnaise, 3 tablespoons fresh lime juice, 1 teaspoon lime zest, 1 tablespoon apple cider vinegar, 1 teaspoon honey, ½ teaspoon kosher salt, ¼ teaspoon black pepper, and 1 teaspoon hot sauce (optional) until smooth.
+      6. [ T-18] (  4m cook) Beer-Battered Cod Fish Tacos
+         Warm the 12 corn tortillas directly over a gas flame or in a dry skillet for 30 seconds per side until pliable and lightly charred, then stack in a clean towel to keep warm.
+      7. [ T-14] (  2m prep) Quick Cabbage Slaw and Lime Crema
+         Add the 14-ounce bag of coleslaw mix to the bowl and toss thoroughly until every strand is coated in the dressing.
+      8. [ T-12] (  2m assemble) Beer-Battered Cod Fish Tacos
+         Set out the fried cod, warm tortillas, ½ cup cilantro leaves, ¼ cup pickled jalapeño slices (optional), and lime wedges from 2 limes so everyone can build their own tacos.
+      9. [ T-12] ( 10m rest) Quick Cabbage Slaw and Lime Crema
+         Cover and refrigerate the slaw for at least 10 minutes to allow the cabbage to soften slightly and the flavors to meld.
+     10. [  T-2] (  2m assemble) Quick Cabbage Slaw and Lime Crema
+         Give the slaw a final toss, taste for seasoning, and transfer to a serving bowl alongside the lime crema — spoon directly onto tacos at the table.
+
+  ▸ Dry-Rubbed Roast Chicken with Crispy Skin, Roasted Potatoes, and Green Beans   [Wednesday]  SEQUENCED
+    footer 104 min | scheduler 104 | card 104 | fresh derive 104 | dishes 3
+      1. [T-104] (  3m prep) Dry-Rubbed Roast Chicken with Crispy Skin
+         Pat the 4-pound chicken completely dry with paper towels, including inside the cavity — thorough drying is the key to crispy skin.
+      2. [T-101] (  3m prep) Dry-Rubbed Roast Chicken with Crispy Skin
+         Mix 1½ teaspoons kosher salt, 1½ teaspoons smoked paprika, 1 teaspoon garlic powder, ¾ teaspoon onion powder, ½ teaspoon dried thyme, ½ teaspoon black pepper, ¼ teaspoon cayenne, and 1 teaspoon brown sugar in a small bowl.
+      3. [ T-98] (  4m prep) Dry-Rubbed Roast Chicken with Crispy Skin
+         Rub 2 tablespoons olive oil all over the chicken, then press the spice rub onto every surface — top, bottom, wings, and legs — and tuck the wing tips behind the back.
+      4. [ T-94] (  2m prep) Dry-Rubbed Roast Chicken with Crispy Skin
+         Stuff the cavity with the halved lemon, 4 smashed garlic cloves, and 4 fresh thyme sprigs.
+      5. [ T-92] ( 15m preheat) Dry-Rubbed Roast Chicken with Crispy Skin
+         Place the oven rack in the lower-middle position and preheat the oven to 425°F.
+      6. [ T-77] ( 55m cook) Dry-Rubbed Roast Chicken with Crispy Skin
+         Set the chicken breast-side up on a wire rack set inside a roasting pan and roast at 425°F for 50–60 minutes, until the thickest part of the thigh registers 165°F and the skin is deep golden brown.
+      7. [ T-51] (  6m prep) Garlic Roasted Potatoes
+         ⟶ With the Dry-Rubbed Roast Chicken with Crispy Skin cooking, start on the Garlic Roasted Potatoes.
+         Halve the 1½ pounds of baby Yukon Gold potatoes and mince 3 garlic cloves and finely chop 1 teaspoon fresh rosemary.
+      8. [ T-45] (  3m prep) Garlic Roasted Potatoes
+         Toss the halved potatoes with 2 tablespoons olive oil, the minced garlic, ¾ teaspoon kosher salt, ¼ teaspoon black pepper, and the rosemary until evenly coated.
+      9. [ T-42] ( 33m cook) Garlic Roasted Potatoes
+         Spread the potatoes cut-side down in a single layer on a rimmed baking sheet and roast at 425°F for 30–35 minutes, until golden and crispy on the cut side, flipping once halfway through.
+     10. [ T-22] ( 10m rest) Dry-Rubbed Roast Chicken with Crispy Skin
+         ⟶ With the Garlic Roasted Potatoes cooking, start on the Dry-Rubbed Roast Chicken with Crispy Skin.
+         Transfer the chicken to a cutting board and rest, uncovered, for 10 minutes before carving.
+     11. [ T-21] (  5m prep) Sautéed Garlic Green Beans
+         ⟶ With the Garlic Roasted Potatoes cooking, start on the Sautéed Garlic Green Beans.
+         Trim the ends from 1 pound fresh green beans and thinly slice 2 garlic cloves.
+     12. [ T-16] (  2m preheat) Sautéed Garlic Green Beans
+         Heat 1 tablespoon olive oil in a large skillet over medium-high until shimmering.
+     13. [ T-14] (  4m cook) Sautéed Garlic Green Beans
+         Add the green beans and cook, tossing frequently, for 4 minutes until bright green and beginning to blister at the edges.
+     14. [ T-10] (  5m assemble) Dry-Rubbed Roast Chicken with Crispy Skin
+         ⟶ With the Garlic Roasted Potatoes cooking, start on the Dry-Rubbed Roast Chicken with Crispy Skin.
+         Carve the chicken and arrange on a platter, squeezing the roasted lemon from the cavity over the top before serving.
+     15. [  T-5] (  1m cook) Sautéed Garlic Green Beans
+         Add the sliced garlic and ¼ teaspoon red pepper flakes (optional) and cook, stirring constantly, for 1 minute until the garlic is fragrant and just golden.
+     16. [  T-4] (  2m assemble) Garlic Roasted Potatoes
+         Transfer the roasted potatoes to a serving bowl and serve immediately.
+     17. [  T-2] (  2m assemble) Sautéed Garlic Green Beans
+         Season with ½ teaspoon kosher salt and ¼ teaspoon black pepper, drizzle with 1 tablespoon fresh lemon juice, toss to coat, and transfer to a serving dish.
+
+  ▸ Teriyaki Salmon Dinner   [Thursday]  SEQUENCED
+    footer 32 min | scheduler 32 | card 32 | fresh derive 32 | dishes 3
+      1. [ T-32] (  5m prep) Teriyaki Salmon
+         In a small bowl, whisk together ¼ cup soy sauce, 3 tablespoons mirin, 2 tablespoons sake, 2 tablespoons honey, 2 minced garlic cloves, 1 teaspoon grated fresh ginger, and 1 teaspoon sesame oil to make the teriyaki glaze.
+      2. [ T-27] (  2m prep) Steamed Jasmine Rice
+         Rinse 1 cup jasmine rice under cold water until the water runs clear.
+      3. [ T-25] ( 10m rest) Teriyaki Salmon
+         Pat the 4 salmon portions dry with paper towels and pour half the glaze over them in a shallow dish; let them marinate at room temperature for 10 minutes.
+      4. [ T-25] (  4m cook) Teriyaki Salmon
+         While the salmon marinates, pour the remaining glaze into a small saucepan and simmer over medium heat for 3–4 minutes, stirring occasionally, until slightly thickened; set aside.
+      5. [ T-25] (  3m cook) Steamed Jasmine Rice
+         ⟶ With the Teriyaki Salmon marinating, start on the Steamed Jasmine Rice.
+         Combine the rinsed rice, 1½ cups water, and ¼ teaspoon kosher salt in a medium saucepan and bring to a boil over high heat.
+      6. [ T-25] (  3m prep) Sesame Cucumber Salad
+         ⟶ With the Teriyaki Salmon marinating, start on the Sesame Cucumber Salad.
+         In a large bowl, whisk together 2 tablespoons rice vinegar, 1 tablespoon sesame oil, 1 tablespoon soy sauce, 1 teaspoon honey, and ¼ teaspoon red pepper flakes (if using).
+      7. [ T-22] ( 15m cook) Steamed Jasmine Rice
+         ⟶ With the Teriyaki Salmon marinating, start on the Steamed Jasmine Rice.
+         Reduce the heat to the lowest setting, cover tightly, and cook for 15 minutes without lifting the lid.
+      8. [ T-22] (  3m assemble) Sesame Cucumber Salad
+         ⟶ With the Teriyaki Salmon marinating, start on the Sesame Cucumber Salad.
+         Thinly slice 1 English cucumber and add it to the bowl with the dressing; toss well to coat.
+      9. [ T-19] (  1m assemble) Sesame Cucumber Salad
+         Sprinkle with 1 teaspoon sesame seeds and serve immediately or refrigerate for up to 20 minutes before serving.
+     10. [ T-15] (  2m preheat) Teriyaki Salmon
+         ⟶ With the Steamed Jasmine Rice cooking, start on the Teriyaki Salmon.
+         Heat 1 tablespoon neutral oil in a large nonstick or cast-iron skillet over medium-high heat until shimmering.
+     11. [ T-13] (  7m cook) Teriyaki Salmon
+         Place the salmon skin-side up in the hot skillet and sear for 3–4 minutes until a deep golden crust forms; flip and cook skin-side down for 2–3 minutes more until the fish is just cooked through.
+     12. [  T-6] (  1m cook) Teriyaki Salmon
+         Brush the salmon generously with the reduced teriyaki glaze and cook for 30 seconds more, letting it caramelize.
+     13. [  T-6] (  5m rest) Steamed Jasmine Rice
+         Remove the saucepan from the heat and let the rice steam, still covered, for 5 minutes.
+     14. [  T-5] (  2m assemble) Teriyaki Salmon
+         ⟶ With the Steamed Jasmine Rice cooking, start on the Teriyaki Salmon.
+         Transfer the salmon to plates and garnish with 1 tablespoon sesame seeds and 2 thinly sliced scallions, if using.
+     15. [  T-1] (  1m assemble) Steamed Jasmine Rice
+         Fluff the rice with a fork and serve immediately.
+
+  ▸ Classic Sizzling Chicken Fajitas   [Friday]  SEQUENCED
+    footer 52 min | scheduler 52 | card 52 | fresh derive 52 | dishes 3
+      1. [ T-52] ( 10m prep) Lime-Marinated Chicken Fajitas with Peppers and Onions
+         Slice the 1¾ lb chicken breasts into ½-inch strips against the grain, then slice the 2 red bell peppers, 1 green bell pepper, and yellow onion into ¼-inch strips and half-moons respectively.
+      2. [ T-42] (  3m prep) Lime-Marinated Chicken Fajitas with Peppers and Onions
+         In a large bowl, whisk together 3 tablespoons lime juice, 1½ tablespoons olive oil, 1½ teaspoons chili powder, 1 teaspoon cumin, ¾ teaspoon smoked paprika, ½ teaspoon garlic powder, ½ teaspoon dried oregano, 1 teaspoon kosher salt, and ½ teaspoon black pepper to make the marinade.
+      3. [ T-39] ( 15m rest) Lime-Marinated Chicken Fajitas with Peppers and Onions
+         Add the chicken strips to the marinade, toss to coat evenly, and let sit for 15 minutes at room temperature while you prepare the remaining ingredients.
+      4. [ T-39] (  7m prep) Fajita Toppings: Pico de Gallo, Guacamole, and Sour Cream
+         Finely dice the 3 roma tomatoes and ¼ cup white onion, seed and mince the jalapeño, and finely chop the 2 tablespoons cilantro.
+      5. [ T-32] (  2m assemble) Fajita Toppings: Pico de Gallo, Guacamole, and Sour Cream
+         Combine the diced tomatoes, white onion, jalapeño, and cilantro in a bowl, stir in 1 tablespoon lime juice and ¼ teaspoon kosher salt, and set aside.
+      6. [ T-30] (  4m assemble) Fajita Toppings: Pico de Gallo, Guacamole, and Sour Cream
+         Halve, pit, and peel the 2 ripe avocados, then mash them in a bowl with a fork until mostly smooth with some texture.
+      7. [ T-26] (  2m assemble) Fajita Toppings: Pico de Gallo, Guacamole, and Sour Cream
+         Spoon ½ cup sour cream into a small serving bowl, and if using, place ½ cup shredded Mexican cheese blend in a separate bowl.
+      8. [ T-24] (  3m prep) Lime-Marinated Chicken Fajitas with Peppers and Onions
+         Mince the 3 garlic cloves and roughly chop the ¼ cup fresh cilantro; set both aside.
+      9. [ T-21] (  1m assemble) Fajita Toppings: Pico de Gallo, Guacamole, and Sour Cream
+         Set out the pico de gallo, guacamole, sour cream, and optional cheese as a toppings spread alongside the fajitas.
+     10. [ T-20] (  2m preheat) Lime-Marinated Chicken Fajitas with Peppers and Onions
+         Heat 1 tablespoon olive oil in a large cast-iron skillet or heavy skillet over high heat until just smoking.
+     11. [ T-19] ( 10m cook) Warm Flour Tortillas
+         ⟶ With the Lime-Marinated Chicken Fajitas with Peppers and Onions cooking, start on the Warm Flour Tortillas.
+         Wrap the 12 flour tortillas in foil and place in a 300°F oven for 10 minutes until warmed through, or warm them one at a time in a dry skillet over medium heat for 30 seconds per side.
+     12. [ T-18] (  8m cook) Lime-Marinated Chicken Fajitas with Peppers and Onions
+         Sear the marinated chicken strips in a single layer for 3–4 minutes per side until cooked through and charred at the edges, working in two batches if needed to avoid crowding; transfer to a plate.
+     13. [ T-10] (  5m cook) Lime-Marinated Chicken Fajitas with Peppers and Onions
+         Add the remaining ½ tablespoon olive oil to the same skillet, then sauté the bell pepper strips, onion, and minced garlic over high heat for 4–5 minutes, stirring frequently, until softened with good char.
+     14. [  T-5] (  2m assemble) Lime-Marinated Chicken Fajitas with Peppers and Onions
+         Return the chicken to the skillet, toss with the peppers and onions for 1 minute to heat through, then scatter the cilantro over the top and serve with 4 lime wedges for squeezing.
+     15. [  T-5] (  5m hold) Warm Flour Tortillas
+         Keep the wrapped tortillas in the foil or a clean kitchen towel to stay warm until serving.
+
+  ▸ Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños   [Saturday]  SEQUENCED
+    footer 51 min | scheduler 51 | card 51 | fresh derive 51 | dishes 5
+      1. [ T-51] (  6m prep) Smoky Carne Asada
+         In a bowl, whisk together 3 tablespoons lime juice, 3 tablespoons orange juice, 4 minced garlic cloves, 2 minced chipotle chiles in adobo, 1½ teaspoons ground cumin, 1 teaspoon smoked paprika, ½ teaspoon dried oregano, 1 teaspoon kosher salt, ½ teaspoon black pepper, and 2 tablespoons olive oil.
+      2. [ T-45] (  2m prep) Smoky Carne Asada
+         Place the 1½ pounds skirt steak in a shallow dish or zip-top bag, pour the marinade over it, and turn to coat completely.
+      3. [ T-43] ( 20m rest) Smoky Carne Asada
+         Let the steak marinate at room temperature for at least 20 minutes (or refrigerate up to 4 hours).
+      4. [ T-43] (  5m preheat) Smoky Carne Asada
+         Preheat a grill or grill pan to high heat until very hot, about 5 minutes.
+      5. [ T-43] (  2m prep) Black Bean Salsa
+         ⟶ With the Smoky Carne Asada chilling, start on the Black Bean Salsa.
+         Drain and rinse the can of black beans thoroughly under cold water and let them drain in a colander.
+      6. [ T-41] (  6m prep) Black Bean Salsa
+         Dice 2 roma tomatoes, finely dice ½ white onion, seed and mince 1 jalapeño, and roughly chop ¼ cup fresh cilantro.
+      7. [ T-35] (  4m prep) Quick Pickled Jalapeños
+         ⟶ With the Smoky Carne Asada chilling, start on the Quick Pickled Jalapeños.
+         Thinly slice all 4 jalapeños into rounds (about ⅛-inch thick) and pack them into a clean pint jar or heatproof bowl.
+      8. [ T-31] (  2m assemble) Black Bean Salsa
+         ⟶ With the Smoky Carne Asada chilling, start on the Black Bean Salsa.
+         In a medium bowl, combine the drained black beans, diced tomatoes, diced onion, minced jalapeño, and chopped cilantro.
+      9. [ T-29] (  2m assemble) Black Bean Salsa
+         Add 2 tablespoons lime juice, ½ teaspoon ground cumin, and ½ teaspoon kosher salt, then stir well to combine.
+     10. [ T-27] (  8m preheat) Crispy Tostada Shells
+         ⟶ With the Smoky Carne Asada chilling, start on the Crispy Tostada Shells.
+         Preheat the oven to 400 °F.
+     11. [ T-27] (  4m prep) Crispy Tostada Shells
+         Arrange all 8 corn tortillas in a single layer on two rimmed baking sheets, brush both sides lightly with 2 tablespoons avocado oil, and sprinkle evenly with ¼ teaspoon kosher salt.
+     12. [ T-27] (  2m hold) Black Bean Salsa
+         ⟶ With the Smoky Carne Asada chilling, start on the Black Bean Salsa.
+         Taste and adjust salt or lime juice as needed, then set aside at room temperature until ready to serve.
+     13. [ T-27] (  4m cook) Quick Pickled Jalapeños
+         ⟶ With the Smoky Carne Asada chilling, start on the Quick Pickled Jalapeños.
+         In a small saucepan, combine ½ cup white wine vinegar, ½ cup water, 1 teaspoon granulated sugar, and 1 teaspoon kosher salt and bring to a boil over medium-high heat, stirring until the sugar and salt dissolve.
+     14. [ T-23] (  1m assemble) Quick Pickled Jalapeños
+         Pour the hot brine over the sliced jalapeños, making sure they are fully submerged.
+     15. [ T-22] (  8m cook) Smoky Carne Asada
+         ⟶ With the Crispy Tostada Shells heating up, start on the Smoky Carne Asada.
+         Remove the steak from the marinade, shake off any excess, and grill over high heat for 3–4 minutes per side, turning once, until charred at the edges and cooked to medium (internal temp 130–135 °F for medium-rare, 145 °F for medium).
+     16. [ T-22] ( 20m rest) Quick Pickled Jalapeños
+         ⟶ With the Crispy Tostada Shells heating up, start on the Quick Pickled Jalapeños.
+         Let the jalapeños pickle at room temperature for at least 20 minutes before serving — they improve the longer they sit.
+     17. [ T-14] (  5m rest) Smoky Carne Asada
+         ⟶ With the Quick Pickled Jalapeños resting, start on the Smoky Carne Asada.
+         Transfer the steak to a cutting board and let it rest for 5 minutes before slicing.
+     18. [ T-14] ( 12m cook) Crispy Tostada Shells
+         ⟶ With the Quick Pickled Jalapeños resting, start on the Crispy Tostada Shells.
+         Bake at 400 °F for 10–12 minutes, flipping once halfway through, until the tortillas are golden and crisp.
+     19. [ T-14] (  4m prep) Fresh Toppings
+         ⟶ With the Quick Pickled Jalapeños resting, start on the Fresh Toppings.
+         Thinly slice all 4 radishes and roughly chop ¼ cup fresh cilantro, then arrange them in small prep bowls for the table.
+     20. [ T-10] (  2m prep) Fresh Toppings
+         Cut 2 limes into wedges and place them in a small bowl.
+     21. [  T-8] (  3m assemble) Fresh Toppings
+         Just before serving, halve, pit, and slice 2 avocados into thin slices and arrange on a plate.
+     22. [  T-5] (  3m assemble) Smoky Carne Asada
+         ⟶ With the Quick Pickled Jalapeños resting, start on the Smoky Carne Asada.
+         Slice the rested steak thinly against the grain into bite-sized strips for topping the tostadas.
+     23. [  T-2] (  2m rest) Crispy Tostada Shells
+         Remove the tostada shells from the oven and let them cool on the pan for 2 minutes — they will continue to crisp as they cool.
+     24. [  T-2] (  1m assemble) Fresh Toppings
+         ⟶ With the Crispy Tostada Shells resting, start on the Fresh Toppings.
+         Set all toppings — sliced avocado, radishes, cilantro, and lime wedges — on the table for guests to build their own tostadas.
+
+══════════ COOK MODE — PREPPED PATH: Baja Fish Tacos with Quick Slaw and Lime Crema ══════════
+  ticked 5 rendered prep steps → isPrepped=false; + every wire step for the meal (6) → isPrepped=false; blockers [{"stepKey":"seasonings_dry#dish#e2f50011-d227-43f5-b524-0fdb613d6963","onWire":false,"rendered":false,"title":null,"skipSuggested":null},{"stepKey":"sauces_marinades#dish#d2d5ad6a-30d3-41dd-ac87-54d8fd1a912e","onWire":false,"rendered":false,"title":null,"skipSuggested":null}]
+  recap ("You already prepped this — get your:"):
+    · Pat the 1½ pounds of cod strips dry with paper towels, then season lightly with a pinch of the kosher salt.
+    · Whisk together 1 cup all-purpose flour, ¼ cup cornstarch, 1 teaspoon baking powder, 1 teaspoon kosher salt, 1 teaspoon smoked paprika, ½ teaspoon garlic powder, and ¼ teaspoon cayenne in a large bowl, then pour in 1 cup cold lager beer and whisk until a smooth, thick batter forms.
+    · In a medium bowl, whisk together ½ cup sour cream, ¼ cup mayonnaise, 3 tablespoons fresh lime juice, 1 teaspoon lime zest, 1 tablespoon apple cider vinegar, 1 teaspoon honey, ½ teaspoon kosher salt, ¼ teaspoon black pepper, and 1 teaspoon hot sauce (optional) until smooth.
+    · Add the 14-ounce bag of coleslaw mix to the bowl and toss thoroughly until every strand is coated in the dressing.
+  footer 42 min; steps after the prep filter:
+      1. [T-42] (preheat) Beer-Battered Cod Fish Tacos
+         Pour 3 cups neutral oil into a deep, heavy skillet or Dutch oven and heat over medium-high until it reaches 375°F on an instant-read thermometer.
+      2. [T-34] (cook) Beer-Battered Cod Fish Tacos
+         Working in 2–3 batches, dip each cod strip into the batter, let the excess drip off, and lower carefully into the hot oil; fry 3–4 minutes, turning once, until deeply golden and cooked through, then transfer to a wire rack or paper-towel-lined plate.
+      3. [T-18] (cook) Beer-Battered Cod Fish Tacos
+         Warm the 12 corn tortillas directly over a gas flame or in a dry skillet for 30 seconds per side until pliable and lightly charred, then stack in a clean towel to keep warm.
+      4. [T-12] (assemble) Beer-Battered Cod Fish Tacos
+         Set out the fried cod, warm tortillas, ½ cup cilantro leaves, ¼ cup pickled jalapeño slices (optional), and lime wedges from 2 limes so everyone can build their own tacos.
+      5. [T-12] (rest) Quick Cabbage Slaw and Lime Crema
+         Cover and refrigerate the slaw for at least 10 minutes to allow the cabbage to soften slightly and the flavors to meld.
+      6. [T-2] (assemble) Quick Cabbage Slaw and Lime Crema
+         Give the slaw a final toss, taste for seasoning, and transfer to a serving bowl alongside the lime crema — spoon directly onto tacos at the table.

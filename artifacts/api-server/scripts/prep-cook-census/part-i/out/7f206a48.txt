@@ -1,0 +1,333 @@
+PLAN 7f206a48-f9ca-46c3-b4ba-94c35a320da2  [A04]  Part I · A04 · 2 meals: shrimp tacos + al pastor (late)
+  range 2026-10-04 .. 2026-10-10   meals 2   prep day 2026-10-04   shapes: plan-2-meals, days-5-7, seafood, cold, long-passive, multi-3plus, aromatics, two-cuts, toss-no-heat, marinate
+
+══════════ PREP THE WEEK — full plan, as Screen 3 renders it ══════════
+  HEADER: 13 containers · about 65 min   (server total 65 · phone 56) · cacheHit=false · prompt v19
+  HELD: Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw (Saturday, 6 days out) — cut the pork tenderloin into strips for Al Pastor Pork Strips that morning.
+
+  ── seasonings_dry ──
+     1. Measure the Baja Chili-Lime Shrimp Tacos spice blend   (2 min)
+        Into the Baja Chili-Lime Shrimp Tacos spice blend:
+        1½ tsp chili powder
+        1 tsp ground cumin
+        ½ tsp smoked paprika
+        ½ tsp garlic powder
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Baja Shrimp Tacos with Chipotle Crema and Cabbage Slaw (Monday)
+     2. Measure the Al Pastor Pork Strips marinade bowl spices   (3 min)
+        Into the Al Pastor Pork Strips marinade bowl:
+        1 tsp ground cumin
+        1 tsp smoked paprika
+        1½ tsp ancho chili powder
+        Set aside for the produce step.
+        » for: Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw (Saturday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Baja Shrimp Tacos with Chipotle Crema and Cabbage Slaw (Monday), Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw (Saturday)
+     2. Prep all limes   (11 min)
+        Zest 1 lime, then juice it — zest and juice go into a tub labelled "Baja Chili-Lime Shrimp Tacos — zested lime".
+        
+        Juice enough limes for the remaining portions:
+        1 tbsp — into the Chipotle Crema jar
+        3 tbsp and 3 tbsp — into a tub labelled "Lime juice, fresh — Tangy Cabbage Slaw, Cilantro-Lime Slaw"
+        
+        For the 2 limes going to Warm Corn Tortillas with Cotija, those are cook-day — store them in a tub labelled "Warm Corn Tortillas with Cotija — lime".
+        » storage: Airtight in the fridge — up to 3 days. Covered in the fridge — up to 3 days.
+        » for: Baja Shrimp Tacos with Chipotle Crema and Cabbage Slaw (Monday), Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw (Saturday)
+     3. Roughly chop all fresh cilantro   (4 min)
+        Roughly chop all the cilantro, then portion it out:
+        ¼ cup for Baja Chili-Lime Shrimp Tacos and ½ cup for Cilantro-Lime Slaw — into a tub labelled "Chopped fresh cilantro — Baja Chili-Lime Shrimp Tacos, Cilantro-Lime Slaw"
+        ¼ cup for Tangy Cabbage Slaw — into the Tangy Cabbage Slaw sauce bowl
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Baja Shrimp Tacos with Chipotle Crema and Cabbage Slaw (Monday), Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw (Saturday)
+  ×  4. Avocado — cook day   (1 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Baja Shrimp Tacos with Chipotle Crema and Cabbage Slaw (Monday)
+     5. Prep all garlic   (2 min)
+        Finely grate 1 clove garlic — into the Chipotle Crema jar.
+        Mince 3 cloves garlic — into the Al Pastor Pork Strips marinade bowl.
+        » for: Baja Shrimp Tacos with Chipotle Crema and Cabbage Slaw (Monday), Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw (Saturday)
+     6. Shred all green cabbage   (1 min)
+        Finely shred 3 cups green cabbage for Tangy Cabbage Slaw and thinly shred 3 cups for Cilantro-Lime Slaw — all 6 cups go into a tub labelled "Shredded green cabbage — Tangy Cabbage Slaw, Cilantro-Lime Slaw".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Baja Shrimp Tacos with Chipotle Crema and Cabbage Slaw (Monday), Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw (Saturday)
+     7. Shred the red cabbage for Tangy Cabbage Slaw   (1 min)
+        Finely shred 1 cup red cabbage — into a tub labelled "Tangy Cabbage Slaw — shredded red cabbage".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Baja Shrimp Tacos with Chipotle Crema and Cabbage Slaw (Monday)
+     8. Slice all jalapeño   (5 min)
+        Seed and thinly slice 1 jalapeño — into the Tangy Cabbage Slaw sauce bowl.
+        Thinly slice 1 jalapeño — into a tub labelled "Cilantro-Lime Slaw — thinly sliced jalapeño".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Baja Shrimp Tacos with Chipotle Crema and Cabbage Slaw (Monday), Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw (Saturday)
+     9. Juice the orange for Al Pastor Pork Strips   (2 min)
+        Squeeze ¼ cup fresh orange juice — into the Al Pastor Pork Strips marinade bowl.
+        » for: Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw (Saturday)
+    10. Cut the fresh pineapple for Charred Pineapple   (1 min)
+        Cut 1½ cup fresh pineapple into small chunks — into a tub labelled "Charred Pineapple — fresh pineapple".
+        » storage: Airtight in the fridge — up to 3 days.
+        » for: Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw (Saturday)
+
+  ── sauces_marinades ──
+     1. Finish the Al Pastor Pork Strips marinade bowl   (7 min)
+        Al Pastor Pork Strips marinade bowl (ground cumin, smoked paprika, ancho chili powder, garlic and the fresh orange juice from produce step 9 already in it): add
+        2 chipotle peppers in adobo sauce, minced
+        2 tbsp adobo sauce
+        1 tbsp white vinegar
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw (Saturday)
+     2. Finish the Tangy Cabbage Slaw sauce bowl   (2 min)
+        Tangy Cabbage Slaw sauce bowl (fresh cilantro and jalapeño already in it): add
+        1 tbsp apple cider vinegar
+        Stir to combine.
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Baja Shrimp Tacos with Chipotle Crema and Cabbage Slaw (Monday)
+     3. Finish the Chipotle Crema jar   (7 min)
+        Chipotle Crema jar (the lime juice, fresh from produce step 2 and garlic already in it): add
+        ¼ cup mayonnaise
+        2 chipotle peppers in adobo sauce, minced, plus 1 teaspoon adobo sauce
+        Stir to combine.
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Baja Shrimp Tacos with Chipotle Crema and Cabbage Slaw (Monday)
+  ×  4. Honey — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Baja Shrimp Tacos with Chipotle Crema and Cabbage Slaw (Monday)
+  ×  5. Honey — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw (Saturday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     1. Pat dry the shrimp for Baja Chili-Lime Shrimp Tacos   (5 min)
+        Pat 1½ lb large shrimp dry with paper towels.
+        » storage: Covered in the fridge — cook within 2 days.
+        » for: Baja Shrimp Tacos with Chipotle Crema and Cabbage Slaw (Monday)
+  ×  2. Pork tenderloin — cook day   (6 min)  [RENDER-OMITTED]
+        Cut 1½ lb pork tenderloin into thin strips and pat dry with paper towels.
+        » storage: This one is 6 days out — leave it for cook day.
+        » for: Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw (Saturday)
+
+══════════ PREP SELECTED MEALS — Baja Shrimp Tacos with Chipotle Crema and Cabbage Slaw + Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw ══════════
+  HEADER: 13 containers · about 65 min   (server total 65 · phone 56) · cacheHit=false · prompt v19
+  HELD: Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw (Saturday, 6 days out) — cut the pork tenderloin into strips for Al Pastor Pork Strips that morning.
+
+  ── seasonings_dry ──
+     1. Measure the Baja Chili-Lime Shrimp Tacos spice blend   (2 min)
+        Into the Baja Chili-Lime Shrimp Tacos spice blend:
+        1½ tsp chili powder
+        1 tsp ground cumin
+        ½ tsp smoked paprika
+        ½ tsp garlic powder
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Baja Shrimp Tacos with Chipotle Crema and Cabbage Slaw (Monday)
+     2. Measure the Al Pastor Pork Strips marinade bowl spices   (3 min)
+        Into the Al Pastor Pork Strips marinade bowl:
+        1 tsp ground cumin
+        1 tsp smoked paprika
+        1½ tsp ancho chili powder
+        Set aside for the produce step.
+        » for: Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw (Saturday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Baja Shrimp Tacos with Chipotle Crema and Cabbage Slaw (Monday), Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw (Saturday)
+     2. Prep all limes   (11 min)
+        Zest 1 lime, then juice it; juice enough additional limes for the remaining portions:
+        zest and juice of 1 — into a tub labelled "Baja Chili-Lime Shrimp Tacos — zested lime"
+        2 limes cut into wedges for Warm Corn Tortillas with Cotija — into a tub labelled "Warm Corn Tortillas with Cotija — lime"
+        
+        Juice the remaining limes for the fresh lime juice portions:
+        1 tbsp — into the Chipotle Crema jar
+        3 tbsp for Tangy Cabbage Slaw and 3 tbsp for Cilantro-Lime Slaw — into a tub labelled "Lime juice, fresh — Tangy Cabbage Slaw, Cilantro-Lime Slaw"
+        » storage: Airtight in the fridge — up to 3 days. Covered in the fridge — up to 3 days.
+        » for: Baja Shrimp Tacos with Chipotle Crema and Cabbage Slaw (Monday), Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw (Saturday)
+     3. Roughly chop all fresh cilantro   (4 min)
+        Roughly chop all the fresh cilantro:
+        ¼ cup for Baja Chili-Lime Shrimp Tacos and ½ cup for Cilantro-Lime Slaw — into a tub labelled "Chopped fresh cilantro — Baja Chili-Lime Shrimp Tacos, Cilantro-Lime Slaw"
+        ¼ cup for Tangy Cabbage Slaw — into the Tangy Cabbage Slaw sauce bowl
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Baja Shrimp Tacos with Chipotle Crema and Cabbage Slaw (Monday), Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw (Saturday)
+  ×  4. Avocado — cook day   (1 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Baja Shrimp Tacos with Chipotle Crema and Cabbage Slaw (Monday)
+     5. Prep all garlic   (2 min)
+        Finely grate 1 clove garlic — into the Chipotle Crema jar
+        Mince 3 cloves garlic — into the Al Pastor Pork Strips marinade bowl
+        » for: Baja Shrimp Tacos with Chipotle Crema and Cabbage Slaw (Monday), Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw (Saturday)
+     6. Shred all green cabbage   (1 min)
+        Finely shred all the green cabbage:
+        3 cup for Tangy Cabbage Slaw and 3 cup for Cilantro-Lime Slaw — into a tub labelled "Shredded green cabbage — Tangy Cabbage Slaw, Cilantro-Lime Slaw"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Baja Shrimp Tacos with Chipotle Crema and Cabbage Slaw (Monday), Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw (Saturday)
+     7. Shred the red cabbage for Tangy Cabbage Slaw   (1 min)
+        Finely shred the red cabbage:
+        1 cup — into a tub labelled "Tangy Cabbage Slaw — shredded red cabbage"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Baja Shrimp Tacos with Chipotle Crema and Cabbage Slaw (Monday)
+     8. Slice all jalapeño   (5 min)
+        Seed and thinly slice the jalapeños:
+        1 seeded and thinly sliced for Tangy Cabbage Slaw — into the Tangy Cabbage Slaw sauce bowl
+        1 thinly sliced for Cilantro-Lime Slaw — into a tub labelled "Cilantro-Lime Slaw — thinly sliced jalapeño"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Baja Shrimp Tacos with Chipotle Crema and Cabbage Slaw (Monday), Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw (Saturday)
+     9. Squeeze fresh orange juice for Al Pastor Pork Strips   (2 min)
+        Squeeze fresh orange juice:
+        ¼ cup — into the Al Pastor Pork Strips marinade bowl
+        » for: Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw (Saturday)
+    10. Cut fresh pineapple for Charred Pineapple   (1 min)
+        Cut the fresh pineapple into small chunks:
+        1½ cup — into a tub labelled "Charred Pineapple — fresh pineapple"
+        » storage: Airtight in the fridge — up to 3 days.
+        » for: Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw (Saturday)
+
+  ── sauces_marinades ──
+     1. Finish the Al Pastor Pork Strips marinade bowl   (7 min)
+        Al Pastor Pork Strips marinade bowl (ground cumin, smoked paprika, ancho chili powder, garlic and the fresh orange juice from produce step 9 already in it): add
+        2 chipotle peppers in adobo sauce, minced
+        2 tbsp adobo sauce
+        1 tbsp white vinegar
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw (Saturday)
+     2. Finish the Tangy Cabbage Slaw sauce bowl   (2 min)
+        Tangy Cabbage Slaw sauce bowl (fresh cilantro and jalapeño already in it): add
+        1 tbsp apple cider vinegar
+        Stir to combine.
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Baja Shrimp Tacos with Chipotle Crema and Cabbage Slaw (Monday)
+     3. Finish the Chipotle Crema jar   (7 min)
+        Chipotle Crema jar (the lime juice, fresh from produce step 2 and garlic already in it): add
+        ¼ cup mayonnaise
+        2 chipotle peppers in adobo sauce, minced, plus 1 teaspoon adobo sauce
+        Stir to combine.
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Baja Shrimp Tacos with Chipotle Crema and Cabbage Slaw (Monday)
+  ×  4. Honey — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Baja Shrimp Tacos with Chipotle Crema and Cabbage Slaw (Monday)
+  ×  5. Honey — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw (Saturday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     1. Pat dry the shrimp for Baja Chili-Lime Shrimp Tacos   (5 min)
+        Pat 1½ lb large shrimp dry with paper towels.
+        » storage: Covered in the fridge — cook within 2 days.
+        » for: Baja Shrimp Tacos with Chipotle Crema and Cabbage Slaw (Monday)
+  ×  2. Pork tenderloin — cook day   (6 min)  [RENDER-OMITTED]
+        Cut 1½ lb pork tenderloin into thin strips, then pat dry with paper towels.
+        » storage: This one is 6 days out — leave it for cook day.
+        » for: Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw (Saturday)
+
+  subset ticks: 15 keys, 0 not in the full plan; required for these meals 15, uncovered 6; isPrepped {"Baja Shrimp Tacos with Chipotl":false,"Al Pastor Pork Tacos with Char":false}
+
+══════════ COOK MODE (cook-session.tsx: sequenced if multi-dish, flattened if single) ══════════
+
+  ▸ Baja Shrimp Tacos with Chipotle Crema and Cabbage Slaw   [Monday]  SEQUENCED
+    footer 44 min | scheduler 44 | card 44 | fresh derive 44 | dishes 3
+      1. [ T-44] (  3m prep) Baja Chili-Lime Shrimp Tacos
+         In a large bowl, combine 1½ teaspoons chili powder, 1 teaspoon cumin, ½ teaspoon smoked paprika, ½ teaspoon garlic powder, ¾ teaspoon kosher salt, and ¼ teaspoon black pepper.
+      2. [ T-41] ( 10m rest) Baja Chili-Lime Shrimp Tacos
+         Add 2 tablespoons olive oil, the zest and juice of 1 lime, and 1½ pounds patted-dry shrimp to the seasoning bowl; toss to coat evenly and let sit for 10 minutes.
+      3. [ T-41] (  4m prep) Chipotle Crema
+         ⟶ With the Baja Chili-Lime Shrimp Tacos resting, start on the Chipotle Crema.
+         Mince 2 chipotle peppers in adobo and finely grate 1 clove of garlic.
+      4. [ T-37] (  8m prep) Tangy Cabbage Slaw
+         ⟶ With the Baja Chili-Lime Shrimp Tacos resting, start on the Tangy Cabbage Slaw.
+         Finely shred 3 cups green cabbage and 1 cup red cabbage and add to a large bowl.
+      5. [ T-29] (  3m assemble) Chipotle Crema
+         In a small bowl, whisk together ½ cup sour cream, ¼ cup mayonnaise, the minced chipotles, 1 teaspoon adobo sauce, 1 tablespoon fresh lime juice, the grated garlic, and ¼ teaspoon kosher salt until smooth.
+      6. [ T-26] ( 10m rest) Chipotle Crema
+         Taste and adjust salt or lime juice, then refrigerate the crema until ready to serve — it can be made up to 2 days ahead.
+      7. [ T-26] (  4m prep) Tangy Cabbage Slaw
+         ⟶ With the Chipotle Crema chilling, start on the Tangy Cabbage Slaw.
+         Seed and thinly slice 1 jalapeño and roughly chop ¼ cup fresh cilantro; add both to the cabbage bowl.
+      8. [ T-22] (  2m preheat) Baja Chili-Lime Shrimp Tacos
+         ⟶ With the Chipotle Crema chilling, start on the Baja Chili-Lime Shrimp Tacos.
+         Heat a large cast-iron skillet or heavy pan over medium-high heat until very hot.
+      9. [ T-20] (  5m cook) Baja Chili-Lime Shrimp Tacos
+         Add the shrimp in a single layer and cook 1½–2 minutes per side, until pink, curled, and lightly charred at the edges — work in batches if needed to avoid crowding.
+     10. [ T-15] (  3m prep) Tangy Cabbage Slaw
+         In a small bowl or jar, whisk together 3 tablespoons fresh lime juice, 1 tablespoon apple cider vinegar, 1 teaspoon honey, 1 tablespoon olive oil, ½ teaspoon kosher salt, and ⅛ teaspoon black pepper.
+     11. [ T-12] (  5m cook) Baja Chili-Lime Shrimp Tacos
+         Transfer the cooked shrimp to a plate and wipe the skillet clean; warm the 12 corn tortillas directly in the dry skillet, 30 seconds per side, stacking them in a clean towel to keep warm.
+     12. [ T-12] ( 10m rest) Tangy Cabbage Slaw
+         Pour the dressing over the cabbage mixture and toss well to coat; let the slaw sit at least 10 minutes before serving so it softens slightly and the flavors meld.
+     13. [  T-7] (  3m assemble) Baja Chili-Lime Shrimp Tacos
+         ⟶ With the Tangy Cabbage Slaw resting, start on the Baja Chili-Lime Shrimp Tacos.
+         Slice 2 avocados just before serving and roughly chop ¼ cup fresh cilantro; cut the remaining lime into wedges.
+     14. [  T-4] (  4m assemble) Baja Chili-Lime Shrimp Tacos
+         Build each taco: lay shrimp on a warm tortilla, top with slaw, a drizzle of chipotle crema, avocado slices, and a scatter of cilantro; serve with lime wedges.
+
+  ▸ Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw   [Saturday]  SEQUENCED
+    footer 45 min | scheduler 45 | card 45 | fresh derive 45 | dishes 4
+      1. [ T-45] (  5m prep) Al Pastor Pork Strips
+         Slice the pork tenderloin into thin strips and pat dry with paper towels.
+      2. [ T-40] (  4m prep) Al Pastor Pork Strips
+         In a bowl, whisk together the 2 minced chipotle peppers, 2 tablespoons adobo sauce, 1½ teaspoons ancho chili powder, 1 teaspoon cumin, 1 teaspoon smoked paprika, 3 minced garlic cloves, ¼ cup fresh orange juice, 1 tablespoon white vinegar, and 1 teaspoon kosher salt.
+      3. [ T-36] ( 10m rest) Al Pastor Pork Strips
+         Add the pork strips to the marinade and toss to coat evenly; let sit for at least 10 minutes while you prepare the other components.
+      4. [ T-36] (  2m preheat) Al Pastor Pork Strips
+         Heat 1 tablespoon neutral oil in a large cast-iron or heavy skillet over medium-high until shimmering.
+      5. [ T-36] (  6m prep) Cilantro-Lime Slaw
+         ⟶ With the Al Pastor Pork Strips resting, start on the Cilantro-Lime Slaw.
+         Thinly shred 3 cups green cabbage, roughly chop ½ cup fresh cilantro, and thinly slice 1 jalapeño.
+      6. [ T-30] (  2m prep) Cilantro-Lime Slaw
+         In a large bowl, whisk together 3 tablespoons freshly squeezed lime juice, 1 teaspoon honey, ½ teaspoon kosher salt, and 1 tablespoon neutral oil.
+      7. [ T-28] (  2m assemble) Cilantro-Lime Slaw
+         Add the cabbage, cilantro, and jalapeño to the bowl and toss until evenly coated; taste and adjust salt if needed.
+      8. [ T-26] (  8m cook) Al Pastor Pork Strips
+         Add the marinated pork strips in a single layer — work in two batches if needed — and cook for 3–4 minutes per side, turning once, until caramelized and cooked through to 145 °F.
+      9. [ T-18] (  2m prep) Charred Pineapple
+         Toss 1½ cups fresh pineapple chunks with ½ teaspoon neutral oil.
+     10. [ T-16] (  2m rest) Al Pastor Pork Strips
+         Transfer the cooked pork to a cutting board and let it rest for 2 minutes, then roughly chop into bite-sized pieces.
+     11. [ T-16] (  3m prep) Warm Corn Tortillas with Cotija
+         ⟶ With the Al Pastor Pork Strips resting, start on the Warm Corn Tortillas with Cotija.
+         Cut 2 limes into wedges (optional) and crumble 3 ounces cotija cheese; set both aside.
+     12. [ T-13] (  2m preheat) Charred Pineapple
+         Heat a dry cast-iron skillet or grill pan over high heat until very hot, about 2 minutes.
+     13. [ T-11] (  5m cook) Charred Pineapple
+         Add the pineapple chunks in a single layer and cook undisturbed for 2–3 minutes per side until deeply charred grill marks form.
+     14. [  T-6] (  5m cook) Warm Corn Tortillas with Cotija
+         Warm 12 corn tortillas directly over a gas flame or in a dry skillet over medium heat, about 30 seconds per side, until pliable and lightly charred; wrap in a clean towel to keep warm.
+     15. [  T-1] (  1m hold) Charred Pineapple
+         Remove from heat and set aside until ready to serve.
+     16. [  T-1] (  1m assemble) Warm Corn Tortillas with Cotija
+         Set out the warm tortillas, crumbled cotija, and lime wedges (if using) for building tacos at the table.
+
+══════════ COOK MODE — PREPPED PATH: Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw ══════════
+  ticked 10 rendered prep steps → isPrepped=false; + every wire step for the meal (12) → isPrepped=false; blockers [{"stepKey":"seasonings_dry#dish#23a70ab3-2202-41bb-8b7d-54762f35471c","onWire":false,"rendered":false,"title":null,"skipSuggested":null},{"stepKey":"sauces_marinades#dish#23a70ab3-2202-41bb-8b7d-54762f35471c","onWire":false,"rendered":false,"title":null,"skipSuggested":null},{"stepKey":"proteins#2e221412-4eb9-4352-a010-78d8697257fe","onWire":true,"rendered":false,"title":"Pork tenderloin — cook day","skipSuggested":true}]
+  recap ("You already prepped this — get your:"):
+    · Slice the pork tenderloin into thin strips and pat dry with paper towels.
+    · In a bowl, whisk together the 2 minced chipotle peppers, 2 tablespoons adobo sauce, 1½ teaspoons ancho chili powder, 1 teaspoon cumin, 1 teaspoon smoked paprika, 3 minced garlic cloves, ¼ cup fresh orange juice, 1 tablespoon white vinegar, and 1 teaspoon kosher salt.
+    · Thinly shred 3 cups green cabbage, roughly chop ½ cup fresh cilantro, and thinly slice 1 jalapeño.
+    · In a large bowl, whisk together 3 tablespoons freshly squeezed lime juice, 1 teaspoon honey, ½ teaspoon kosher salt, and 1 tablespoon neutral oil.
+    · Toss 1½ cups fresh pineapple chunks with ½ teaspoon neutral oil.
+    · Cut 2 limes into wedges (optional) and crumble 3 ounces cotija cheese; set both aside.
+  footer 36 min; steps after the prep filter:
+      1. [T-36] (rest) Al Pastor Pork Strips
+         Add the pork strips to the marinade and toss to coat evenly; let sit for at least 10 minutes while you prepare the other components.
+      2. [T-36] (preheat) Al Pastor Pork Strips
+         Heat 1 tablespoon neutral oil in a large cast-iron or heavy skillet over medium-high until shimmering.
+      3. [T-28] (assemble) Cilantro-Lime Slaw
+         Add the cabbage, cilantro, and jalapeño to the bowl and toss until evenly coated; taste and adjust salt if needed.
+      4. [T-26] (cook) Al Pastor Pork Strips
+         Add the marinated pork strips in a single layer — work in two batches if needed — and cook for 3–4 minutes per side, turning once, until caramelized and cooked through to 145 °F.
+      5. [T-16] (rest) Al Pastor Pork Strips
+         Transfer the cooked pork to a cutting board and let it rest for 2 minutes, then roughly chop into bite-sized pieces.
+      6. [T-13] (preheat) Charred Pineapple
+         Heat a dry cast-iron skillet or grill pan over high heat until very hot, about 2 minutes.
+      7. [T-11] (cook) Charred Pineapple
+         Add the pineapple chunks in a single layer and cook undisturbed for 2–3 minutes per side until deeply charred grill marks form.
+      8. [T-6] (cook) Warm Corn Tortillas with Cotija
+         Warm 12 corn tortillas directly over a gas flame or in a dry skillet over medium heat, about 30 seconds per side, until pliable and lightly charred; wrap in a clean towel to keep warm.
+      9. [T-1] (hold) Charred Pineapple
+         Remove from heat and set aside until ready to serve.
+     10. [T-1] (assemble) Warm Corn Tortillas with Cotija
+         Set out the warm tortillas, crumbled cotija, and lime wedges (if using) for building tacos at the table.

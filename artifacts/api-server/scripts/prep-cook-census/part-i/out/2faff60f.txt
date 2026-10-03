@@ -1,0 +1,312 @@
+PLAN 2faff60f-9a4e-4afb-897e-35422c5e8c34  [A20]  Part I · A20 · single-dish fajitas, pasta, casserole
+  range 2026-10-04 .. 2026-10-10   meals 4   prep day 2026-10-04   shapes: days-5-7, seafood, long-passive, single-dish, aromatics, marinate, two-cuts, toss-no-heat
+
+══════════ PREP THE WEEK — full plan, as Screen 3 renders it ══════════
+  HEADER: 15 containers · about 75 min   (server total 96 · phone 68) · cacheHit=false · prompt v19
+  HELD: Add the flank steak the night before you cook them (Tuesday).
+  HELD: Classic Chicken Tetrazzini (Saturday, 6 days out) — cut into strips all chicken breasts that morning.
+
+  ── seasonings_dry ──
+     1. Measure the Cajun Shrimp Pasta in Spicy spice blend   (3 min)
+        Into the Cajun Shrimp Pasta in Spicy spice blend:
+        1½ tsp smoked paprika
+        ½ tsp cayenne pepper
+        ¾ tsp dried oregano
+        ½ tsp dried thyme
+        ½ tsp onion powder
+        ½ tsp garlic powder
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Cajun Shrimp Pasta in Spicy Cream Sauce (Sunday)
+     2. Measure the Smoky Chipotle Flank Steak marinade bowl spices   (3 min)
+        Into the Smoky Chipotle Flank Steak marinade bowl:
+        1 tsp smoked paprika
+        ½ tsp dried oregano
+        1 tsp ground cumin
+        
+        Set aside for the produce step.
+        » for: Smoky Chipotle Flank Steak Fajitas with Peppers and Onions (Tuesday)
+     3. Measure the Chicken Fajitas spice blend   (2 min)
+        Into the Chicken Fajitas spice blend:
+        1 tsp smoked paprika
+        ½ tsp dried oregano
+        1½ tsp ground cumin
+        1½ tsp chili powder
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Chicken Fajitas with Roasted Poblano and Corn (Thursday)
+     4. Measure the Classic Chicken Tetrazzini sauce jar   (3 min)
+        Into the Classic Chicken Tetrazzini sauce jar:
+        8 oz spaghetti, broken in half
+        3 tbsp all-purpose flour
+        ⅛ tsp nutmeg
+        ½ cup panko breadcrumbs
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Classic Chicken Tetrazzini (Saturday)
+  ×  5. Fettuccine and reserved pasta cooking water — cook day   (1 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: Cajun Shrimp Pasta in Spicy Cream Sauce (Sunday)
+  ×  6. Fresh salsa — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Smoky Chipotle Flank Steak Fajitas with Peppers and Onions (Tuesday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Cajun Shrimp Pasta in Spicy Cream Sauce (Sunday), Smoky Chipotle Flank Steak Fajitas with Peppers and Onions (Tuesday), Classic Chicken Tetrazzini (Saturday), Chicken Fajitas with Roasted Poblano and Corn (Thursday)
+     2. Prep all yellow onion   (8 min)
+        Finely dice 2 yellow onions — into a tub labelled "Finely diced yellow onion — Cajun Shrimp Pasta in Spicy Cream Sauce, Classic Chicken Tetrazzini":
+        1 for the Cajun Shrimp Pasta in Spicy Cream Sauce
+        1 for the Classic Chicken Tetrazzini
+        
+        Halve and slice 1 yellow onion into half-moons — into a tub labelled "Smoky Chipotle Flank Steak Fajitas — sliced yellow onion":
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » for: Cajun Shrimp Pasta in Spicy Cream Sauce (Sunday), Smoky Chipotle Flank Steak Fajitas with Peppers and Onions (Tuesday), Classic Chicken Tetrazzini (Saturday)
+     3. Prep all red bell pepper   (10 min)
+        Thinly slice 1 red bell pepper — into a tub labelled "Cajun Shrimp Pasta in Spicy Cream Sauce — thinly sliced red bell pepper".
+        
+        Seed and slice into strips:
+        2 for the Smoky Chipotle Flank Steak Fajitas
+        1 for the Chicken Fajitas with Roasted Poblano and Corn
+        — both into a tub labelled "Sliced red bell pepper — Smoky Chipotle Flank Steak Fajitas, Chicken Fajitas with Roasted Poblano and Corn"
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » for: Cajun Shrimp Pasta in Spicy Cream Sauce (Sunday), Smoky Chipotle Flank Steak Fajitas with Peppers and Onions (Tuesday), Chicken Fajitas with Roasted Poblano and Corn (Thursday)
+     4. Mince all garlic cloves   (5 min)
+        Mince all garlic cloves:
+        5 cloves for the Cajun Shrimp Pasta in Spicy Cream Sauce — into a tub labelled "Minced garlic cloves — Cajun Shrimp Pasta in Spicy Cream Sauce, Classic Chicken Tetrazzini"
+        3 cloves for the Classic Chicken Tetrazzini — into the same tub labelled "Minced garlic cloves — Cajun Shrimp Pasta in Spicy Cream Sauce, Classic Chicken Tetrazzini"
+        3 cloves for the Smoky Chipotle Flank Steak Fajitas — into the Smoky Chipotle Flank Steak marinade bowl
+        3 cloves for the Chicken Fajitas with Roasted Poblano and Corn — into a tub labelled "Chicken Fajitas with Roasted Poblano and Corn — garlic cloves, fresh cilantro, poblano pepper and fresh corn kernels"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Cajun Shrimp Pasta in Spicy Cream Sauce (Sunday), Smoky Chipotle Flank Steak Fajitas with Peppers and Onions (Tuesday), Chicken Fajitas with Roasted Poblano and Corn (Thursday), Classic Chicken Tetrazzini (Saturday)
+  ×  5. Fresh flat-leaf parsley — cook day   (1 min)  [RENDER-OMITTED]
+        A single garnish portion saves the least — cut it on the day.
+        » for: Cajun Shrimp Pasta in Spicy Cream Sauce (Sunday)
+     6. Squeeze all lime juice   (5 min)
+        Juice enough limes for both fajita dishes:
+        3 tbsp for the Smoky Chipotle Flank Steak Fajitas — into the Smoky Chipotle Flank Steak marinade bowl
+        3 tbsp for the Chicken Fajitas with Roasted Poblano and Corn — into a tub labelled "Chicken Fajitas with Roasted Poblano and Corn — lime juice"
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Smoky Chipotle Flank Steak Fajitas with Peppers and Onions (Tuesday), Chicken Fajitas with Roasted Poblano and Corn (Thursday)
+     7. Prep the yellow bell pepper   (3 min)
+        Seed and slice 1 yellow bell pepper into strips — into a tub labelled "Smoky Chipotle Flank Steak Fajitas — sliced yellow bell pepper".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Smoky Chipotle Flank Steak Fajitas with Peppers and Onions (Tuesday)
+     8. Chop all fresh cilantro   (2 min)
+        Roughly chop all cilantro:
+        ¼ cup for the Smoky Chipotle Flank Steak Fajitas — into a tub labelled "Smoky Chipotle Flank Steak Fajitas — chopped fresh cilantro"
+        ¼ cup for the Chicken Fajitas with Roasted Poblano and Corn — into a tub labelled "Chicken Fajitas with Roasted Poblano and Corn — garlic cloves, fresh cilantro, poblano pepper and fresh corn kernels"
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Smoky Chipotle Flank Steak Fajitas with Peppers and Onions (Tuesday), Chicken Fajitas with Roasted Poblano and Corn (Thursday)
+     9. Prep the poblano peppers   (8 min)
+        Seed and slice 3 poblano peppers into strips — into a tub labelled "Chicken Fajitas with Roasted Poblano and Corn — garlic cloves, fresh cilantro, poblano pepper and fresh corn kernels".
+        » for: Chicken Fajitas with Roasted Poblano and Corn (Thursday)
+    10. Prep the fresh corn kernels   (1 min)
+        Cut 1½ cup corn kernels from 2 ears, or measure thawed frozen kernels — into a tub labelled "Chicken Fajitas with Roasted Poblano and Corn — garlic cloves, fresh cilantro, poblano pepper and fresh corn kernels".
+        » storage: Chicken Fajitas with Roasted Poblano and Corn: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Chicken Fajitas spice blend and lime juice separate; combine on cook day…
+        » for: Chicken Fajitas with Roasted Poblano and Corn (Thursday)
+    11. Prep the white onion   (3 min)
+        Halve and thinly slice 1 white onion — into a tub labelled "Chicken Fajitas with Roasted Poblano and Corn — thinly sliced white onion".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Chicken Fajitas with Roasted Poblano and Corn (Thursday)
+    12. Slice the cremini mushrooms   (3 min)
+        Slice 8 oz cremini mushrooms — into a tub labelled "Classic Chicken Tetrazzini — sliced cremini mushrooms".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Classic Chicken Tetrazzini (Saturday)
+
+  ── sauces_marinades ──
+     1. Finish the Smoky Chipotle Flank Steak marinade bowl   (6 min)
+        Smoky Chipotle Flank Steak marinade bowl (smoked paprika, dried oregano, ground cumin, garlic cloves and the lime juice from produce step 6 already in it): add
+        2 chipotle peppers in adobo, minced, plus 1 tablespoon adobo sauce
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 3 days. Add the flank steak the night before you cook them (Tuesday).
+        » for: Smoky Chipotle Flank Steak Fajitas with Peppers and Onions (Tuesday)
+  ×  2. Dry white wine — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Cajun Shrimp Pasta in Spicy Cream Sauce (Sunday)
+  ×  3. Dry sherry — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Classic Chicken Tetrazzini (Saturday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+  ×  1. Large shrimp, peeled and deveined (16/20 count) — cook day   (5 min)  [RENDER-OMITTED]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+        » for: Cajun Shrimp Pasta in Spicy Cream Sauce (Sunday)
+  ×  2. Flank steak — cook day   (5 min)  [RENDER-OMITTED]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+        » for: Smoky Chipotle Flank Steak Fajitas with Peppers and Onions (Tuesday)
+  ×  3. Boneless skinless chicken breasts — cook day   (13 min)  [RENDER-OMITTED]
+        Cut into strips 1¾ lb boneless skinless chicken breasts for the Chicken Fajitas with Roasted Poblano and Corn — sliced into ½-inch strips.
+        
+        Leave 1½ lb boneless skinless chicken breasts whole for the Classic Chicken Tetrazzini — they will be poached and shredded on cook day.
+        » storage: This one is 6 days out — leave it for cook day.
+        » for: Chicken Fajitas with Roasted Poblano and Corn (Thursday), Classic Chicken Tetrazzini (Saturday)
+
+══════════ PREP SELECTED MEALS — Cajun Shrimp Pasta in Spicy Cream Sauce + Classic Chicken Tetrazzini ══════════
+  HEADER: 7 containers · about 30 min   (server total 37 · phone 24) · cacheHit=false · prompt v19
+
+  ── seasonings_dry ──
+     1. Measure the Cajun Shrimp Pasta in Spicy spice blend   (3 min)
+        Into the Cajun Shrimp Pasta in Spicy spice blend:
+        1½ tsp smoked paprika
+        ½ tsp cayenne pepper
+        ¾ tsp dried oregano
+        ½ tsp dried thyme
+        ½ tsp onion powder
+        ½ tsp garlic powder
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Cajun Shrimp Pasta in Spicy Cream Sauce (Sunday)
+     2. Measure the Classic Chicken Tetrazzini sauce jar   (3 min)
+        Into the Classic Chicken Tetrazzini sauce jar:
+        8 oz spaghetti, broken in half
+        3 tbsp all-purpose flour
+        ⅛ tsp nutmeg
+        ½ cup panko breadcrumbs
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Classic Chicken Tetrazzini (Saturday)
+  ×  3. Fettuccine and reserved pasta cooking water — cook day   (1 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: Cajun Shrimp Pasta in Spicy Cream Sauce (Sunday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Cajun Shrimp Pasta in Spicy Cream Sauce (Sunday), Classic Chicken Tetrazzini (Saturday)
+     2. Finely dice all yellow onion   (5 min)
+        Finely dice 2 yellow onions — both into a tub labelled "Finely diced yellow onion — Cajun Shrimp Pasta in Spicy Cream Sauce, Classic Chicken Tetrazzini": 1 for the Cajun Shrimp Pasta in Spicy Cream Sauce and 1 for the Classic Chicken Tetrazzini.
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Cajun Shrimp Pasta in Spicy Cream Sauce (Sunday), Classic Chicken Tetrazzini (Saturday)
+     3. Thinly slice the red bell pepper for Cajun Shrimp Pasta   (3 min)
+        Thinly slice 1 red bell pepper — into a tub labelled "Cajun Shrimp Pasta in Spicy Cream Sauce — thinly sliced red bell pepper".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Cajun Shrimp Pasta in Spicy Cream Sauce (Sunday)
+     4. Mince all garlic cloves   (3 min)
+        Mince 8 cloves garlic total — all into a tub labelled "Minced garlic cloves — Cajun Shrimp Pasta in Spicy Cream Sauce, Classic Chicken Tetrazzini":
+        5 cloves for the Cajun Shrimp Pasta in Spicy Cream Sauce
+        3 cloves for the Classic Chicken Tetrazzini
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Cajun Shrimp Pasta in Spicy Cream Sauce (Sunday), Classic Chicken Tetrazzini (Saturday)
+     5. Roughly chop the parsley for Cajun Shrimp Pasta   (1 min)
+        Roughly chop enough flat-leaf parsley to yield ¼ cup — into a tub labelled "Cajun Shrimp Pasta in Spicy Cream Sauce — chopped fresh flat-leaf parsley".
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Cajun Shrimp Pasta in Spicy Cream Sauce (Sunday)
+     6. Slice the cremini mushrooms for Classic Chicken Tetrazzini   (3 min)
+        Slice 8 oz cremini mushrooms — into a tub labelled "Classic Chicken Tetrazzini — sliced cremini mushrooms".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Classic Chicken Tetrazzini (Saturday)
+
+  ── sauces_marinades ──
+  ×  1. Dry white wine — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Cajun Shrimp Pasta in Spicy Cream Sauce (Sunday)
+  ×  2. Dry sherry — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Classic Chicken Tetrazzini (Saturday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+  ×  1. Large shrimp, peeled and deveined (16/20 count) — cook day   (5 min)  [RENDER-OMITTED]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+        » for: Cajun Shrimp Pasta in Spicy Cream Sauce (Sunday)
+  ×  2. Boneless skinless chicken breasts — cook day   (5 min)  [RENDER-OMITTED]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+        » for: Classic Chicken Tetrazzini (Saturday)
+
+  subset ticks: 8 keys, 0 not in the full plan; required for these meals 7, uncovered 3; isPrepped {"Cajun Shrimp Pasta in Spicy Cr":false,"Classic Chicken Tetrazzini":false}
+
+══════════ COOK MODE (cook-session.tsx: sequenced if multi-dish, flattened if single) ══════════
+
+  ▸ Cajun Shrimp Pasta in Spicy Cream Sauce   [Sunday]  FLATTENED (single-dish)
+    footer 53 min | scheduler 33 | card 33 | fresh derive 33 | dishes 1
+      1. [ T-33] (  8m preheat) 
+         Bring a large pot of heavily salted water to a boil.
+      2. [ T-33] (  7m prep) 
+         Finely dice the yellow onion, thinly slice the red bell pepper, and mince the 5 garlic cloves.
+      3. [ T-26] (  3m prep) 
+         In a small bowl, combine 1½ teaspoons smoked paprika, ½ teaspoon cayenne pepper, ¾ teaspoon dried oregano, ½ teaspoon dried thyme, ½ teaspoon onion powder, ½ teaspoon garlic powder, 1¼ teaspoons kosher salt, and ½ teaspoon black pepper to make the Cajun spice blend.
+      4. [    —] (  3m prep) 
+         Pat the 1½ pounds shrimp dry and toss with half the Cajun spice blend until evenly coated; set aside.
+      5. [ T-23] ( 10m cook) 
+         Cook the 12 ounces fettuccine in the boiling salted water according to package directions until al dente, then scoop out ½ cup pasta cooking water before draining; set both aside.
+      6. [ T-20] (  4m cook) 
+         While the pasta cooks, melt 1 tablespoon butter with 1 tablespoon olive oil in a large deep skillet over medium-high heat; add the seasoned shrimp in a single layer and sear 1½ minutes per side until just pink and lightly charred, then transfer to a plate.
+      7. [ T-20] (  4m cook) 
+         Reduce heat to medium, add the remaining 1 tablespoon butter to the same skillet, then sauté the diced onion and sliced red bell pepper for 4 minutes until softened.
+      8. [ T-16] (  1m cook) 
+         Add the minced garlic and the remaining Cajun spice blend and cook, stirring constantly, for 1 minute until fragrant.
+      9. [ T-12] (  2m cook) 
+         Pour in ½ cup dry white wine and scrape up any browned bits from the pan; simmer for 2 minutes until reduced by half.
+     10. [ T-11] (  5m cook) 
+         Stir in 1½ cups heavy cream, ½ cup chicken broth, and ½ cup crushed tomatoes; bring to a gentle simmer and cook for 5 minutes, stirring occasionally, until the sauce thickens slightly.
+     11. [ T-11] (  2m cook) 
+         Add the drained fettuccine to the skillet and toss to coat, splashing in the reserved pasta cooking water a little at a time until the sauce clings loosely to the noodles.
+     12. [  T-6] (  2m assemble) 
+         Remove from heat, stir in the 2 ounces finely grated Parmesan until melted, then nestle the seared shrimp back into the pasta and toss gently.
+     13. [  T-4] (  2m assemble) 
+         Divide among four bowls, scatter ¼ cup roughly chopped flat-leaf parsley over the top, add extra Parmesan, and serve with lemon wedges alongside.
+
+  ▸ Smoky Chipotle Flank Steak Fajitas with Peppers and Onions   [Tuesday]  FLATTENED (single-dish)
+    footer 66 min | scheduler 49 | card 49 | fresh derive 49 | dishes 1
+      1. [ T-49] (  6m prep) 
+         Mince 2 chipotle peppers in adobo and 3 garlic cloves, then whisk together with 1 tablespoon adobo sauce, 3 tablespoons lime juice, 1 teaspoon cumin, 1 teaspoon smoked paprika, ½ teaspoon dried oregano, 1 teaspoon kosher salt, and ½ teaspoon black pepper to form the marinade.
+      2. [    —] ( 25m rest) 
+         Add the 1½ lb flank steak to the marinade, turn to coat, cover, and let it marinate at room temperature for 20–30 minutes (or refrigerate up to 8 hours).
+      3. [ T-43] (  7m prep) 
+         Seed and slice 2 red bell peppers and 1 yellow bell pepper into strips, and halve and slice 1 yellow onion into half-moons.
+      4. [ T-43] (  8m cook) 
+         Heat 1 tablespoon olive oil in a large cast-iron skillet over high heat until just smoking, then add the peppers and onions and cook, stirring occasionally, for 6–8 minutes until charred at the edges and tender; transfer to a plate.
+      5. [    —] (  9m cook) 
+         Remove the steak from the marinade, pat lightly dry, and add the remaining 1 tablespoon olive oil to the same skillet over high heat; sear the steak 4 minutes per side for medium-rare, or until it reaches your desired doneness.
+      6. [ T-36] (  5m rest) 
+         Transfer the steak to a cutting board and rest for 5 minutes.
+      7. [ T-18] (  2m hold) 
+         Wrap the 8 flour tortillas in a damp paper towel and microwave for 45–60 seconds until warm and pliable, then keep wrapped until serving.
+      8. [  T-9] (  4m assemble) 
+         Slice the rested steak thinly against the grain, then pile it onto the warm tortillas with the charred peppers and onions, top with ½ cup fresh salsa, ½ cup sour cream, and ¼ cup roughly chopped cilantro, and serve with lime wedges alongside.
+
+  ▸ Chicken Fajitas with Roasted Poblano and Corn   [Thursday]  FLATTENED (single-dish)
+    footer 38 min | scheduler 38 | card 38 | fresh derive 38 | dishes 1
+      1. [ T-38] (  3m prep) 
+         In a large bowl, combine 1½ teaspoons ground cumin, 1½ teaspoons chili powder, 1 teaspoon smoked paprika, ½ teaspoon dried oregano, 1 teaspoon kosher salt, and ½ teaspoon black pepper.
+      2. [    —] (  8m prep) 
+         Halve and thinly slice the white onion, seed and slice the red bell pepper into strips, and seed and slice the 3 poblano peppers into strips.
+      3. [ T-35] (  5m prep) 
+         Add 1¾ pounds chicken breast strips, 3 minced garlic cloves, 2 tablespoons olive oil, and 2 tablespoons lime juice to the seasoning bowl and toss well to coat; set aside to marinate while you prep the remaining ingredients.
+      4. [    —] (  2m preheat) 
+         Heat a large cast-iron skillet or heavy skillet over high heat until very hot, about 2 minutes.
+      5. [ T-27] (  6m cook) 
+         Add 1 tablespoon olive oil to the hot skillet, then spread the marinated chicken strips in a single layer and cook undisturbed for 3 minutes, then toss and cook 2–3 minutes more until charred at the edges and cooked through; transfer to a plate.
+      6. [ T-22] (  6m cook) 
+         In the same skillet over high heat, add the poblano strips, onion, and red bell pepper (or the fajita vegetable mix and poblano strips) and cook, tossing occasionally, for 5–6 minutes until the vegetables are blistered and tender.
+      7. [ T-20] (  3m cook) 
+         Add the 1½ cups fresh corn kernels to the skillet and cook, stirring, for 2 minutes until lightly charred; return the chicken and any resting juices to the pan, drizzle with the remaining 1 tablespoon lime juice, and toss everything together for 1 minute.
+      8. [ T-14] (  2m cook) 
+         Wrap the 12 flour tortillas in a damp paper towel and microwave for 45–60 seconds until warm and pliable, or wrap in foil and warm in a 300°F oven for 10 minutes.
+      9. [  T-8] (  3m assemble) 
+         Pile the chicken and vegetable mixture into the warm tortillas and finish with ½ cup sour cream (optional), ¼ cup roughly chopped cilantro (optional), and lime wedges for squeezing over.
+
+  ▸ Classic Chicken Tetrazzini   [Saturday]  FLATTENED (single-dish)
+    footer 108 min | scheduler 82 | card 82 | fresh derive 82 | dishes 1
+      1. [ T-82] ( 22m cook) 
+         Poach 1½ pounds boneless skinless chicken breast in a pot of salted simmering water for 18–20 minutes until cooked through, then transfer to a cutting board and shred with two forks.
+      2. [    —] ( 15m preheat) 
+         Preheat the oven to 375 °F and grease a 9×13-inch baking dish.
+      3. [ T-60] (  8m prep) 
+         Finely dice 1 yellow onion, mince 3 garlic cloves, and slice 8 ounces cremini mushrooms.
+      4. [ T-60] (  9m cook) 
+         Cook 8 ounces spaghetti (broken in half) in a large pot of well-salted boiling water for 2 minutes less than package directions, then drain and set aside.
+      5. [ T-52] (  7m cook) 
+         Melt 4 tablespoons unsalted butter in a large oven-safe skillet or Dutch oven over medium-high heat, add the diced onion and sliced mushrooms, and sauté, stirring frequently, for 6–7 minutes until the mushrooms are golden and any liquid has evaporated.
+      6. [ T-52] (  2m cook) 
+         Add the minced garlic and cook, stirring constantly, for 1 minute until fragrant, then pour in ¼ cup dry sherry and scrape up any browned bits from the bottom of the pan.
+      7. [ T-45] (  5m cook) 
+         Sprinkle 3 tablespoons all-purpose flour over the mushroom mixture and stir for 1 minute to cook off the raw flour taste, then gradually whisk in 1½ cups chicken broth, 1 cup whole milk, and ½ cup heavy cream, whisking constantly until the sauce is smooth and begins to thicken, about 4 minutes.
+      8. [ T-43] (  2m cook) 
+         Remove the pan from heat and stir in ¾ cup of the grated Parmesan, 1 teaspoon salt, ½ teaspoon black pepper, and ⅛ teaspoon nutmeg until the cheese is fully melted into the sauce.
+      9. [ T-38] (  3m assemble) 
+         Fold the shredded chicken, drained spaghetti, and ¾ cup frozen peas into the sauce until everything is evenly coated, then transfer the mixture to the prepared baking dish.
+     10. [ T-38] (  2m assemble) 
+         Toss ½ cup panko breadcrumbs with 1 tablespoon olive oil and the remaining ¼ cup Parmesan, then scatter the mixture evenly over the top of the casserole.
+     11. [ T-35] ( 28m cook) 
+         Bake uncovered at 375 °F for 25–30 minutes until the topping is deep golden and the sauce is bubbling around the edges.
+     12. [ T-33] (  5m rest) 
+         Let the casserole rest for 5 minutes before serving so the sauce firms up slightly.

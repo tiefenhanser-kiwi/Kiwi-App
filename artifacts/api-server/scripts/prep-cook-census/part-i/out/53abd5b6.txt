@@ -1,0 +1,178 @@
+PLAN 53abd5b6-156d-490e-b1db-6bc04626c027  [A03]  Part I · A03 · 2 meals: pizza + chicken salad (single-dish)
+  range 2026-10-04 .. 2026-10-10   meals 2   prep day 2026-10-04   shapes: plan-2-meals, days-5-7, toss-no-heat, long-passive, single-dish, bought-path, cold
+
+══════════ PREP THE WEEK — full plan, as Screen 3 renders it ══════════
+  HEADER: 7 containers · about 20 min   (server total 25 · phone 14) · cacheHit=false · prompt v19
+  HELD: Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch (Thursday, 4 days out) — portion the chicken breasts that morning.
+
+  ── seasonings_dry ──
+     1. Measure the Buffalo Chicken Salad dry mix   (2 min)
+        Into the Buffalo Chicken Salad dry mix:
+        ½ cup all-purpose flour
+        ½ tsp garlic powder
+        ½ tsp onion powder
+        ½ tsp smoked paprika
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch (Thursday)
+  ×  2. Garlic powder — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Classic BBQ Chicken Pizza with Red Onion and Cilantro (Sunday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Classic BBQ Chicken Pizza with Red Onion and Cilantro (Sunday), Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch (Thursday)
+     2. Slice all red onion   (3 min)
+        Thinly slice 1 red onion into half-moons — ½ for the pizza, ½ for the salad — into a tub labelled "Thinly sliced red onion — Classic BBQ Chicken Pizza with Red Onion and Cilantro, Buffalo Chicken Salad with Crispy Chic…".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Classic BBQ Chicken Pizza with Red Onion and Cilantro (Sunday), Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch (Thursday)
+     3. Pick the cilantro for Classic BBQ Chicken Pizza with Red Onion and Cilantro   (1 min)
+        Pick ¼ cup fresh cilantro leaves into a tub labelled "Classic BBQ Chicken Pizza with Red Onion and Cilantro — fresh cilantro". These go on after baking, so keep them separate.
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Classic BBQ Chicken Pizza with Red Onion and Cilantro (Sunday)
+     4. Chop the romaine for Buffalo Chicken Salad   (1 min)
+        Chop 3 romaine lettuce hearts into bite-sized pieces into a tub labelled "Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch — chopped romaine lettuce hearts".
+        » storage: Airtight in the fridge — up to 3 days.
+        » for: Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch (Thursday)
+     5. Slice the celery for Buffalo Chicken Salad   (2 min)
+        Thinly slice 4 celery stalks on the bias into a tub labelled "Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch — thinly sliced celery stalks".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch (Thursday)
+     6. Halve the cherry tomatoes for Buffalo Chicken Salad   (1 min)
+        Halve 1 cup cherry tomatoes into a tub labelled "Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch — halved cherry tomatoes".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch (Thursday)
+     7. Slice the chives for Buffalo Chicken Salad   (1 min)
+        Thinly slice 2 tbsp fresh chives into a tub labelled "Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch — thinly sliced fresh chives".
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch (Thursday)
+
+  ── sauces_marinades ──
+  ×  1. Bbq sauce — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Classic BBQ Chicken Pizza with Red Onion and Cilantro (Sunday)
+  ×  2. Frank's RedHot sauce and ranch dressing — cook day   (1 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch (Thursday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+  ×  1. Boneless skinless chicken breasts — cook day   (8 min)  [RENDER-OMITTED]
+        Portion the chicken breasts into two groups — keep them separate, as each is prepped differently on cook day:
+        ¾ lb for the Classic BBQ Chicken Pizza with Red Onion and Cilantro — cooked and shredded on cook day
+        1¾ lb for the Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch — sliced into 1-inch strips on cook day
+        » storage: This one is 4 days out — leave it for cook day.
+        » for: Classic BBQ Chicken Pizza with Red Onion and Cilantro (Sunday), Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch (Thursday)
+
+══════════ PREP SELECTED MEALS — Classic BBQ Chicken Pizza with Red Onion and Cilantro + Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch ══════════
+  HEADER: 7 containers · about 20 min   (server total 25 · phone 14) · cacheHit=false · prompt v19
+  HELD: Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch (Thursday, 4 days out) — portion the chicken breasts that morning.
+
+  ── seasonings_dry ──
+     1. Measure the Buffalo Chicken Salad dry mix   (2 min)
+        Into the Buffalo Chicken Salad dry mix:
+        ½ cup all-purpose flour
+        ½ tsp garlic powder
+        ½ tsp onion powder
+        ½ tsp smoked paprika
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch (Thursday)
+  ×  2. Garlic powder — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Classic BBQ Chicken Pizza with Red Onion and Cilantro (Sunday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Classic BBQ Chicken Pizza with Red Onion and Cilantro (Sunday), Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch (Thursday)
+     2. Slice all red onion   (3 min)
+        Thinly slice 1 red onion into half-moons — ½ for the pizza and ½ for the salad go together into a tub labelled "Thinly sliced red onion — Classic BBQ Chicken Pizza with Red Onion and Cilantro, Buffalo Chicken Salad with Crispy Chic…"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Classic BBQ Chicken Pizza with Red Onion and Cilantro (Sunday), Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch (Thursday)
+     3. Pick the cilantro for Classic BBQ Chicken Pizza   (1 min)
+        Pick the leaves from the cilantro — ¼ cup into a tub labelled "Classic BBQ Chicken Pizza with Red Onion and Cilantro — fresh cilantro". These go on after baking, so keep them separate.
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Classic BBQ Chicken Pizza with Red Onion and Cilantro (Sunday)
+     4. Chop the romaine for Buffalo Chicken Salad   (1 min)
+        Chop 3 romaine lettuce hearts into bite-sized pieces — into a tub labelled "Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch — chopped romaine lettuce hearts".
+        » storage: Airtight in the fridge — up to 3 days.
+        » for: Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch (Thursday)
+     5. Slice the celery for Buffalo Chicken Salad   (2 min)
+        Thinly slice 4 celery stalks on the bias — into a tub labelled "Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch — thinly sliced celery stalks".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch (Thursday)
+     6. Halve the cherry tomatoes for Buffalo Chicken Salad   (1 min)
+        Halve 1 cup cherry tomatoes — into a tub labelled "Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch — halved cherry tomatoes".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch (Thursday)
+     7. Slice the chives for Buffalo Chicken Salad   (1 min)
+        Thinly slice 2 tbsp fresh chives — into a tub labelled "Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch — thinly sliced fresh chives".
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch (Thursday)
+
+  ── sauces_marinades ──
+  ×  1. Bbq sauce — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Classic BBQ Chicken Pizza with Red Onion and Cilantro (Sunday)
+  ×  2. Frank's RedHot sauce and ranch dressing — cook day   (1 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch (Thursday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+  ×  1. Boneless skinless chicken breasts — cook day   (8 min)  [RENDER-OMITTED]
+        Portion the chicken breasts:
+        ¾ lb for the Classic BBQ Chicken Pizza with Red Onion and Cilantro — this piece gets cooked and shredded on cook day.
+        1¾ lb for the Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch — slice into 1-inch strips on cook day before dredging.
+        » storage: This one is 4 days out — leave it for cook day.
+        » for: Classic BBQ Chicken Pizza with Red Onion and Cilantro (Sunday), Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch (Thursday)
+
+  subset ticks: 8 keys, 0 not in the full plan; required for these meals 8, uncovered 2; isPrepped {"Classic BBQ Chicken Pizza with":false,"Buffalo Chicken Salad with Cri":false}
+
+══════════ COOK MODE (cook-session.tsx: sequenced if multi-dish, flattened if single) ══════════
+
+  ▸ Classic BBQ Chicken Pizza with Red Onion and Cilantro   [Sunday]  FLATTENED (single-dish)
+    footer 70 min | scheduler 60 | card 60 | fresh derive 60 | dishes 1
+      1. [ T-60] (  2m prep) 
+         Pull the store-bought pizza dough from the fridge and let it sit at room temperature for at least 30 minutes so it stretches easily.
+      2. [ T-58] (  3m prep) 
+         Season the ¾ pound boneless skinless chicken breasts on both sides with ½ teaspoon kosher salt, ¼ teaspoon black pepper, and ½ teaspoon garlic powder.
+      3. [    —] ( 17m cook) 
+         Heat a lightly oiled skillet over medium-high and cook the seasoned chicken breasts 6 minutes per side until cooked through, then transfer to a cutting board and let rest 5 minutes before shredding with two forks.
+      4. [ T-55] (  2m prep) 
+         Toss the shredded chicken with ⅓ cup of the BBQ sauce in a bowl until evenly coated and set aside.
+      5. [ T-38] (  5m prep) 
+         Thinly slice the ½ red onion into half-moons and shred the 8 oz mozzarella and 2 oz smoked gouda if not pre-shredded.
+      6. [ T-36] ( 15m preheat) 
+         Place a rack in the lowest position and preheat the oven to 475°F (or as high as your oven goes), setting a baking sheet or pizza stone inside to heat.
+      7. [ T-31] (  5m prep) 
+         On a lightly floured surface, stretch and press the 16 oz pizza dough into a roughly 12-inch round, then transfer it to a piece of parchment paper.
+      8. [ T-31] (  2m assemble) 
+         Spread the remaining ⅓ cup BBQ sauce evenly over the dough, leaving a ¾-inch border, then brush the border with 1 tablespoon olive oil.
+      9. [ T-26] (  3m assemble) 
+         Scatter the shredded mozzarella and smoked gouda evenly over the sauce, then distribute the BBQ chicken and red onion slices across the top; sprinkle with crushed red pepper flakes if using.
+     10. [ T-24] ( 14m cook) 
+         Slide the pizza (on its parchment) onto the preheated baking sheet or stone and bake at 475°F for 12–15 minutes until the crust is deep golden and the cheese is bubbling and lightly browned in spots.
+     11. [ T-16] (  2m assemble) 
+         Remove the pizza from the oven, scatter ¼ cup fresh cilantro leaves over the top, slice into 8 pieces, and serve immediately.
+
+  ▸ Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch   [Thursday]  FLATTENED (single-dish)
+    footer 40 min | scheduler 40 | card 40 | fresh derive 40 | dishes 1
+      1. [ T-40] (  5m prep) 
+         Slice 1¾ pounds boneless skinless chicken breasts into 1-inch strips and pat dry with paper towels.
+      2. [ T-35] (  3m prep) 
+         In a shallow bowl, whisk together ½ cup all-purpose flour, ½ teaspoon garlic powder, ½ teaspoon onion powder, ½ teaspoon smoked paprika, ¾ teaspoon kosher salt, and ¼ teaspoon black pepper.
+      3. [ T-32] (  4m prep) 
+         Dredge each chicken strip in the seasoned flour, pressing to coat evenly, and shake off any excess.
+      4. [ T-28] ( 10m cook) 
+         Heat 3 tablespoons vegetable oil in a large skillet over medium-high until shimmering, then sear the chicken strips in a single layer for 3–4 minutes per side until golden and cooked through — work in batches to avoid crowding.
+      5. [    —] (  3m cook) 
+         In a small saucepan over low heat, melt 2 tablespoons unsalted butter with ½ cup Frank's RedHot sauce, stirring until smooth and combined, about 2 minutes.
+      6. [    —] (  8m prep) 
+         Chop 3 romaine lettuce hearts into bite-sized pieces, thinly slice 4 celery stalks on the bias, halve 1 cup cherry tomatoes, and thinly slice ½ red onion.
+      7. [ T-18] (  2m assemble) 
+         Toss the cooked chicken strips in the buffalo sauce until evenly coated.
+      8. [    —] (  3m assemble) 
+         Divide the romaine, celery, cherry tomatoes, and red onion among 4 serving bowls.
+      9. [ T-15] (  2m assemble) 
+         Top each bowl with the buffalo chicken strips, 1 oz blue cheese crumbles, and 2 tablespoons ranch dressing, then garnish with fresh chives (optional) and serve immediately.

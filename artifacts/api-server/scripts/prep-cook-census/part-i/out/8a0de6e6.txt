@@ -1,0 +1,432 @@
+PLAN 8a0de6e6-ec8a-453f-994a-6a973c5bcd32  [A18]  Part I · A18 · comfort: pot roast, biscuits, pasta, chicken parm
+  range 2026-10-04 .. 2026-10-10   meals 5   prep day 2026-10-04   shapes: days-5-7, long-passive, multi-3plus, two-cuts, aromatics
+
+══════════ PREP THE WEEK — full plan, as Screen 3 renders it ══════════
+  HEADER: 19 containers · about 65 min   (server total 76 · phone 55) · cacheHit=false · prompt v19
+  HELD: Chicken Parmesan with Vodka Sauce (Friday, 5 days out) — pound the chicken breasts for Breaded Chicken Cutlets with Vodka Sauce and Melted Mozzarella that morning.
+
+  ── seasonings_dry ──
+     1. Measure the Breaded Chicken Cutlets breading bowl   (2 min)
+        Into the Breaded Chicken Cutlets breading bowl:
+        ½ tsp garlic powder
+        ½ cup All-purpose flour
+        1 cup Italian breadcrumbs
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Chicken Parmesan with Vodka Sauce (Friday)
+     2. Measure the Roasted Spaghetti Squash dry mix   (2 min)
+        Into the Roasted Spaghetti Squash dry mix:
+        1 tsp dried oregano
+        1 tsp dried basil
+        ½ tsp sugar
+        » storage: Airtight in the fridge — up to 3 days.
+        » for: Spaghetti Squash with Marinara and Garlic Bread (Saturday)
+  ×  3. Garlic powder — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Red Wine and Herb Slow-Cooker Pot Roast with Roasted Carrots and Potatoes (Sunday)
+  ×  4. All-purpose flour — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Biscuits and Sausage Gravy with Scrambled Eggs (Tuesday)
+  ×  5. Dried oregano and dried basil — cook day   (1 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: Ground Turkey and Tomato Meat Sauce over Spaghetti with Garlic Green Beans (Wednesday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Red Wine and Herb Slow-Cooker Pot Roast with Roasted Carrots and Potatoes (Sunday), Ground Turkey and Tomato Meat Sauce over Spaghetti with Garlic Green Beans (Wednesday), Spaghetti Squash with Marinara and Garlic Bread (Saturday), Chicken Parmesan with Vodka Sauce (Friday), Biscuits and Sausage Gravy with Scrambled Eggs (Tuesday)
+     2. Prep all yellow onion   (8 min)
+        Halve and thinly slice 1 yellow onion — into a tub labelled "Red Wine and Herb Slow-Cooker vegetables".
+        Finely dice 2 yellow onions:
+        1 — into a tub labelled "Ground Turkey and Tomato Meat vegetables"
+        1 — into a tub labelled "Roasted Spaghetti Squash with Marinara — finely diced yellow onion"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Red Wine and Herb Slow-Cooker Pot Roast with Roasted Carrots and Potatoes (Sunday), Ground Turkey and Tomato Meat Sauce over Spaghetti with Garlic Green Beans (Wednesday), Spaghetti Squash with Marinara and Garlic Bread (Saturday)
+     3. Prep all garlic cloves   (8 min)
+        Smash and peel 5 cloves — into a tub labelled "Red Wine and Herb Slow-Cooker Chuck Roast — peeled garlic cloves".
+        Mince the remaining garlic:
+        4 for the Ground Turkey and Tomato Meat Sauce
+        4 for the Roasted Spaghetti Squash with Marinara
+        3 for the Garlic Bread
+        — combine all 11 minced cloves into a tub labelled "Minced garlic cloves — Ground Turkey and Tomato Meat Sauce, Roasted Spaghetti Squash with Marinara, Garlic Bread".
+        Mince 4 more cloves — into the Breaded Chicken Cutlets sauce jar.
+        Thinly slice 2 cloves — into a tub labelled "Garlic Sautéed Green Beans — thinly sliced garlic cloves".
+        » storage: All 3 containers: Airtight in the fridge — up to 4 days.
+        » for: Red Wine and Herb Slow-Cooker Pot Roast with Roasted Carrots and Potatoes (Sunday), Ground Turkey and Tomato Meat Sauce over Spaghetti with Garlic Green Beans (Wednesday), Chicken Parmesan with Vodka Sauce (Friday), Spaghetti Squash with Marinara and Garlic Bread (Saturday)
+  ×  4. Fresh thyme sprigs and fresh thyme leaves — cook day   (1 min)  [RENDER-OMITTED]
+        Nothing to cut — it goes in as it comes.
+        » for: Red Wine and Herb Slow-Cooker Pot Roast with Roasted Carrots and Potatoes (Sunday)
+  ×  5. Fresh rosemary sprigs — cook day   (1 min)  [RENDER-OMITTED]
+        Nothing to cut — it goes in as it comes.
+        » for: Red Wine and Herb Slow-Cooker Pot Roast with Roasted Carrots and Potatoes (Sunday)
+     6. Prep all celery stalks   (1 min)
+        Cut 2 celery stalks into 2-inch pieces — into a tub labelled "Red Wine and Herb Slow-Cooker vegetables".
+        Finely dice 1 celery stalk — into a tub labelled "Ground Turkey and Tomato Meat vegetables".
+        » storage: Red Wine and Herb Slow-Cooker vegetables: Airtight in the fridge — up to 4 days.
+        » for: Red Wine and Herb Slow-Cooker Pot Roast with Roasted Carrots and Potatoes (Sunday), Ground Turkey and Tomato Meat Sauce over Spaghetti with Garlic Green Beans (Wednesday)
+  ×  7. Yukon gold potatoes — cook day   (3 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Red Wine and Herb Slow-Cooker Pot Roast with Roasted Carrots and Potatoes (Sunday)
+     8. Prep all fresh flat-leaf parsley   (1 min)
+        Roughly chop enough parsley to measure 2 tbsp — into a tub labelled "Roasted Yukon Gold Potatoes — chopped fresh flat-leaf parsley".
+        Finely chop enough parsley to measure 2 tbsp — into a tub labelled "Garlic Bread — finely chopped fresh flat-leaf parsley".
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Red Wine and Herb Slow-Cooker Pot Roast with Roasted Carrots and Potatoes (Sunday), Spaghetti Squash with Marinara and Garlic Bread (Saturday)
+     9. Prep all carrots   (2 min)
+        Peel and cut 1 lb carrots into 2-inch batons — into a tub labelled "Honey-Glazed Roasted Carrots — peeled carrots".
+        Finely dice 1 carrot — into a tub labelled "Ground Turkey and Tomato Meat vegetables".
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » for: Red Wine and Herb Slow-Cooker Pot Roast with Roasted Carrots and Potatoes (Sunday), Ground Turkey and Tomato Meat Sauce over Spaghetti with Garlic Green Beans (Wednesday)
+    10. Prep the fresh chives for Scrambled Eggs   (1 min)
+        Thinly slice enough fresh chives to measure 2 tbsp — into a tub labelled "Scrambled Eggs — thinly sliced fresh chives".
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Biscuits and Sausage Gravy with Scrambled Eggs (Tuesday)
+    11. Prep all fresh basil leaves   (1 min)
+        Tear the basil leaves into three portions:
+        ¼ cup for the Ground Turkey and Tomato Meat Sauce
+        ¼ cup for the Breaded Chicken Cutlets with Vodka Sauce and Melted Mozzarella
+        ¼ cup for the Roasted Spaghetti Squash with Marinara
+        — combine all torn leaves into a tub labelled "Torn fresh basil (leaves) — Ground Turkey and Tomato Meat Sauce, Breaded Chicken Cutlets with Vodka Sauce and Melted Mo…".
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Ground Turkey and Tomato Meat Sauce over Spaghetti with Garlic Green Beans (Wednesday), Chicken Parmesan with Vodka Sauce (Friday), Spaghetti Squash with Marinara and Garlic Bread (Saturday)
+    12. Trim the fresh green beans for Garlic Sautéed Green Beans   (2 min)
+        Trim the ends from 1 lb fresh green beans — into a tub labelled "Garlic Sautéed Green Beans — trimmed fresh green beans".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Ground Turkey and Tomato Meat Sauce over Spaghetti with Garlic Green Beans (Wednesday)
+    13. Prep all lemon   (3 min)
+        Juice ½ lemon — into a tub labelled "Garlic Sautéed Green Beans — lemon".
+        Juice enough lemon to measure 1 tbsp — into a tub labelled "Simple Arugula Salad with Lemon and Parmesan — fresh lemon juice".
+        » storage: Airtight in the fridge — up to 3 days. Covered in the fridge — up to 3 days.
+        » for: Ground Turkey and Tomato Meat Sauce over Spaghetti with Garlic Green Beans (Wednesday), Chicken Parmesan with Vodka Sauce (Friday)
+    14. Prep the shallots for Breaded Chicken Cutlets with Vodka Sauce and Melted Mozzarella   (5 min)
+        Finely dice 2 shallots — into the Breaded Chicken Cutlets sauce jar.
+        » for: Chicken Parmesan with Vodka Sauce (Friday)
+  × 15. Baby arugula — cook day   (1 min)  [RENDER-OMITTED]
+        Nothing to cut — it goes in as it comes.
+        » for: Chicken Parmesan with Vodka Sauce (Friday)
+    16. Prep the spaghetti squash for Roasted Spaghetti Squash with Marinara   (5 min)
+        Halve 2 spaghetti squash lengthwise and scoop out the seeds — into a tub labelled "Roasted Spaghetti Squash with Marinara — halved spaghetti squash".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Spaghetti Squash with Marinara and Garlic Bread (Saturday)
+
+  ── sauces_marinades ──
+     1. Finish the Breaded Chicken Cutlets sauce jar   (2 min)
+        Breaded Chicken Cutlets sauce jar (garlic cloves and shallot already in it): add
+        ⅜ cup vodka
+        Stir to combine.
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Chicken Parmesan with Vodka Sauce (Friday)
+  ×  2. Dry red wine and worcestershire sauce — cook day   (1 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: Red Wine and Herb Slow-Cooker Pot Roast with Roasted Carrots and Potatoes (Sunday)
+  ×  3. Dry red wine — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Ground Turkey and Tomato Meat Sauce over Spaghetti with Garlic Green Beans (Wednesday)
+  ×  4. Honey — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Red Wine and Herb Slow-Cooker Pot Roast with Roasted Carrots and Potatoes (Sunday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     1. Trim the beef chuck roast   (9 min)
+        Trim 3 lb beef chuck roast of excess fat and pat dry.
+        » storage: Covered in the fridge — cook within 2 days.
+        » for: Red Wine and Herb Slow-Cooker Pot Roast with Roasted Carrots and Potatoes (Sunday)
+  ×  2. Bulk breakfast pork sausage — cook day   (3 min)  [RENDER-OMITTED]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+        » for: Biscuits and Sausage Gravy with Scrambled Eggs (Tuesday)
+  ×  3. Boneless skinless chicken breasts — cook day   (6 min)  [RENDER-OMITTED]
+        Pound 2 lb boneless skinless chicken breasts: halve each breast horizontally into cutlets, then pound each to ½-inch thickness.
+        » storage: This one is 5 days out — leave it for cook day.
+        » for: Chicken Parmesan with Vodka Sauce (Friday)
+
+══════════ PREP SELECTED MEALS — Red Wine and Herb Slow-Cooker Pot Roast with Roasted Carrots and Potatoes + Spaghetti Squash with Marinara and Garlic Bread ══════════
+  HEADER: 11 containers · about 40 min   (server total 39 · phone 32) · cacheHit=false · prompt v19
+
+  ── seasonings_dry ──
+     1. Measure the Roasted Spaghetti Squash dry mix   (2 min)
+        Into the Roasted Spaghetti Squash dry mix:
+        1 tsp dried oregano
+        1 tsp dried basil
+        ¼ tsp red pepper flakes
+        ½ tsp sugar
+        » storage: Airtight in the fridge — up to 3 days.
+        » for: Spaghetti Squash with Marinara and Garlic Bread (Saturday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Red Wine and Herb Slow-Cooker Pot Roast with Roasted Carrots and Potatoes (Sunday), Spaghetti Squash with Marinara and Garlic Bread (Saturday)
+     2. Prep all yellow onion   (5 min)
+        Halve and thinly slice 1 yellow onion — into the Red Wine and Herb Slow-Cooker vegetables container.
+        Finely dice 1 yellow onion — into a tub labelled "Roasted Spaghetti Squash with Marinara — finely diced yellow onion".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Red Wine and Herb Slow-Cooker Pot Roast with Roasted Carrots and Potatoes (Sunday), Spaghetti Squash with Marinara and Garlic Bread (Saturday)
+     3. Prep all garlic cloves   (4 min)
+        Smash and peel 5 garlic cloves — into a tub labelled "Red Wine and Herb Slow-Cooker Chuck Roast — peeled garlic cloves".
+        Mince 4 cloves for the Roasted Spaghetti Squash with Marinara and 3 cloves for the Garlic Bread — combine into a tub labelled "Minced garlic cloves — Roasted Spaghetti Squash with Marinara, Garlic Bread".
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » for: Red Wine and Herb Slow-Cooker Pot Roast with Roasted Carrots and Potatoes (Sunday), Spaghetti Squash with Marinara and Garlic Bread (Saturday)
+  ×  4. Fresh thyme sprigs and fresh thyme leaves — cook day   (1 min)  [RENDER-OMITTED]
+        Nothing to cut — it goes in as it comes.
+        » for: Red Wine and Herb Slow-Cooker Pot Roast with Roasted Carrots and Potatoes (Sunday)
+  ×  5. Fresh rosemary sprigs — cook day   (1 min)  [RENDER-OMITTED]
+        Nothing to cut — it goes in as it comes.
+        » for: Red Wine and Herb Slow-Cooker Pot Roast with Roasted Carrots and Potatoes (Sunday)
+     6. Prep the celery for the Chuck Roast   (1 min)
+        Cut 2 celery stalks into 2-inch pieces — into the Red Wine and Herb Slow-Cooker vegetables container.
+        » storage: Red Wine and Herb Slow-Cooker vegetables: Airtight in the fridge — up to 4 days.
+        » for: Red Wine and Herb Slow-Cooker Pot Roast with Roasted Carrots and Potatoes (Sunday)
+  ×  7. Yukon gold potatoes — cook day   (3 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Red Wine and Herb Slow-Cooker Pot Roast with Roasted Carrots and Potatoes (Sunday)
+     8. Chop all fresh flat-leaf parsley   (1 min)
+        Roughly chop 2 tbsp fresh flat-leaf parsley for the Roasted Yukon Gold Potatoes — into a tub labelled "Roasted Yukon Gold Potatoes — chopped fresh flat-leaf parsley".
+        Finely chop 2 tbsp fresh flat-leaf parsley for the Garlic Bread — into a tub labelled "Garlic Bread — finely chopped fresh flat-leaf parsley".
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Red Wine and Herb Slow-Cooker Pot Roast with Roasted Carrots and Potatoes (Sunday), Spaghetti Squash with Marinara and Garlic Bread (Saturday)
+     9. Prep the carrots for Honey-Glazed Roasted Carrots   (1 min)
+        Peel and cut 1 lb carrots into 2-inch batons of roughly equal thickness — into a tub labelled "Honey-Glazed Roasted Carrots — peeled carrots".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Red Wine and Herb Slow-Cooker Pot Roast with Roasted Carrots and Potatoes (Sunday)
+    10. Prep the spaghetti squash   (5 min)
+        Halve 2 spaghetti squash lengthwise and scoop out the seeds — into a tub labelled "Roasted Spaghetti Squash with Marinara — halved spaghetti squash".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Spaghetti Squash with Marinara and Garlic Bread (Saturday)
+    11. Tear the fresh basil for the Roasted Spaghetti Squash with Marinara   (1 min)
+        Tear ¼ cup fresh basil leaves — into a tub labelled "Roasted Spaghetti Squash with Marinara — torn fresh basil (leaves)".
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Spaghetti Squash with Marinara and Garlic Bread (Saturday)
+
+  ── sauces_marinades ──
+  ×  1. Dry red wine and worcestershire sauce — cook day   (1 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: Red Wine and Herb Slow-Cooker Pot Roast with Roasted Carrots and Potatoes (Sunday)
+  ×  2. Honey — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Red Wine and Herb Slow-Cooker Pot Roast with Roasted Carrots and Potatoes (Sunday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     1. Trim the beef chuck roast   (9 min)
+        Trim 3 lb beef chuck roast of excess fat, then pat it dry.
+        » storage: Covered in the fridge — cook within 2 days.
+        » for: Red Wine and Herb Slow-Cooker Pot Roast with Roasted Carrots and Potatoes (Sunday)
+
+  subset ticks: 10 keys, 0 not in the full plan; required for these meals 9, uncovered 1; isPrepped {"Red Wine and Herb Slow-Cooker ":true,"Spaghetti Squash with Marinara":false}
+
+══════════ COOK MODE (cook-session.tsx: sequenced if multi-dish, flattened if single) ══════════
+
+  ▸ Red Wine and Herb Slow-Cooker Pot Roast with Roasted Carrots and Potatoes   [Sunday]  SEQUENCED
+    footer 521 min | scheduler 521 | card 521 | fresh derive 521 | dishes 3
+      1. [T-521] (  3m prep) Red Wine and Herb Slow-Cooker Chuck Roast
+         Pat the 3-pound chuck roast dry, then season all over with 1½ teaspoons kosher salt and 1 teaspoon freshly ground black pepper.
+      2. [T-518] (  6m prep) Red Wine and Herb Slow-Cooker Chuck Roast
+         Halve and thinly slice the yellow onion, smash and peel the 5 garlic cloves, and cut the 2 celery stalks into 2-inch pieces.
+      3. [T-512] ( 10m cook) Red Wine and Herb Slow-Cooker Chuck Roast
+         Heat 2 tablespoons vegetable oil in a large heavy skillet over medium-high until shimmering, then sear the roast 4 minutes per side until a deep brown crust forms.
+      4. [T-502] (  4m cook) Red Wine and Herb Slow-Cooker Chuck Roast
+         Reduce heat to medium, add the onion and celery to the same skillet, and cook 3 minutes until slightly softened, then stir in 2 tablespoons tomato paste and cook 1 minute more.
+      5. [T-498] (  3m cook) Red Wine and Herb Slow-Cooker Chuck Roast
+         Pour in ¾ cup dry red wine and scrape up any browned bits from the bottom of the skillet, then cook 2 minutes until slightly reduced.
+      6. [T-495] (  2m prep) Red Wine and Herb Slow-Cooker Chuck Roast
+         Measure 1 cup beef broth and stir in 1 tablespoon Worcestershire sauce.
+      7. [T-493] (  3m cook) Red Wine and Herb Slow-Cooker Chuck Roast
+         Transfer the seared roast to the slow cooker, pour the wine-onion mixture and broth over it, then tuck in the 5 garlic cloves, 4 thyme sprigs, 2 rosemary sprigs, and 2 bay leaves.
+      8. [T-490] (480m cook) Red Wine and Herb Slow-Cooker Chuck Roast
+         Cover and cook on low for 8 hours (or high for 4½ hours) until the roast is completely fall-apart tender.
+      9. [ T-56] ( 15m preheat) Roasted Yukon Gold Potatoes
+         ⟶ With the Red Wine and Herb Slow-Cooker Chuck Roast cooking, start on the Roasted Yukon Gold Potatoes.
+         Preheat the oven to 425°F and line a large rimmed baking sheet with parchment paper.
+     10. [ T-56] (  8m prep) Roasted Yukon Gold Potatoes
+         Cut the 1½ pounds Yukon Gold potatoes into 1½-inch chunks and toss on the prepared baking sheet with 2 tablespoons olive oil, ¾ teaspoon kosher salt, ½ teaspoon black pepper, and ½ teaspoon garlic powder until evenly coated.
+     11. [ T-42] (  7m prep) Honey-Glazed Roasted Carrots
+         ⟶ With the Red Wine and Herb Slow-Cooker Chuck Roast cooking, start on the Honey-Glazed Roasted Carrots.
+         Peel the 1 pound carrots and cut them into 2-inch batons of roughly equal thickness.
+     12. [ T-35] ( 33m cook) Roasted Yukon Gold Potatoes
+         ⟶ With the Red Wine and Herb Slow-Cooker Chuck Roast cooking, start on the Roasted Yukon Gold Potatoes.
+         Spread the potatoes in a single layer and roast at 425°F for 30–35 minutes, flipping once halfway through, until golden and crisp on the edges.
+     13. [ T-35] (  4m prep) Honey-Glazed Roasted Carrots
+         ⟶ With the Red Wine and Herb Slow-Cooker Chuck Roast cooking, start on the Honey-Glazed Roasted Carrots.
+         In a large bowl, whisk together 1½ tablespoons olive oil, 1 tablespoon honey, ½ teaspoon kosher salt, ¼ teaspoon black pepper, and 1 teaspoon fresh thyme leaves, then toss the carrots in the glaze until fully coated.
+     14. [ T-31] ( 24m cook) Honey-Glazed Roasted Carrots
+         Spread the glazed carrots in a single layer on a rimmed baking sheet and roast at 425°F for 22–25 minutes, turning once halfway through, until tender and caramelized at the edges.
+     15. [ T-10] (  4m assemble) Red Wine and Herb Slow-Cooker Chuck Roast
+         ⟶ With the Roasted Yukon Gold Potatoes cooking, start on the Red Wine and Herb Slow-Cooker Chuck Roast.
+         Discard the bay leaves, thyme, and rosemary sprigs, then use two forks to pull the roast into large chunks in the braising liquid and serve.
+     16. [  T-6] (  1m assemble) Honey-Glazed Roasted Carrots
+         ⟶ With the Roasted Yukon Gold Potatoes cooking, start on the Honey-Glazed Roasted Carrots.
+         Transfer the roasted carrots to a serving platter and serve immediately.
+     17. [  T-2] (  2m assemble) Roasted Yukon Gold Potatoes
+         Transfer the roasted potatoes to a serving dish and scatter 2 tablespoons roughly chopped fresh flat-leaf parsley over the top, if using.
+
+  ▸ Biscuits and Sausage Gravy with Scrambled Eggs   [Tuesday]  SEQUENCED
+    footer 31 min | scheduler 31 | card 31 | fresh derive 31 | dishes 3
+      1. [ T-31] ( 10m preheat) Biscuits
+         Preheat the oven to 375°F (or the temperature on the Pillsbury Grands can).
+      2. [ T-26] (  7m cook) Sausage Gravy
+         ⟶ With the Biscuits heating up, start on the Sausage Gravy.
+         Cook 1 pound of bulk breakfast sausage in a large skillet over medium-high heat, breaking it up with a wooden spoon, for 6–7 minutes until browned and cooked through with no pink remaining.
+      3. [ T-19] ( 14m cook) Biscuits
+         Pop open the 16.3 oz can, separate the 8 biscuits, and arrange them 2 inches apart on an ungreased baking sheet; bake 13–15 minutes until deep golden brown.
+      4. [ T-19] (  2m cook) Sausage Gravy
+         ⟶ With the Biscuits cooking, start on the Sausage Gravy.
+         Reduce the heat to medium, sprinkle ¼ cup all-purpose flour evenly over the sausage, and stir constantly for 2 minutes to cook out the raw flour taste.
+      5. [ T-17] (  6m cook) Sausage Gravy
+         Pour in 2½ cups whole milk in a steady stream, stirring constantly; cook over medium heat for 5–6 minutes, stirring frequently, until the gravy is thick and bubbling.
+      6. [ T-11] (  3m prep) Scrambled Eggs
+         ⟶ With the Biscuits cooking, start on the Scrambled Eggs.
+         Crack 8 large eggs into a bowl, add 3 tablespoons whole milk, ¼ teaspoon kosher salt, and ⅛ teaspoon black pepper, and whisk until the yolks and whites are fully combined and slightly frothy.
+      7. [  T-8] (  5m hold) Sausage Gravy
+         ⟶ With the Biscuits cooking, start on the Sausage Gravy.
+         Season with ¾ teaspoon black pepper, ¼ teaspoon kosher salt, and ¼ teaspoon crushed red pepper flakes (optional); taste and adjust seasoning, then reduce heat to the lowest setting to keep warm.
+      8. [  T-8] (  4m cook) Scrambled Eggs
+         ⟶ With the Biscuits cooking, start on the Scrambled Eggs.
+         Melt 1 tablespoon unsalted butter in a nonstick skillet over medium-low heat, pour in the egg mixture, and cook for 3–4 minutes, folding gently with a silicone spatula every 30 seconds, pulling the curds from the edges until just set and still glossy.
+      9. [  T-4] (  2m assemble) Biscuits
+         ⟶ With the Sausage Gravy staying warm, start on the Biscuits.
+         Transfer the biscuits to a wire rack and split each one in half before serving.
+     10. [  T-2] (  1m assemble) Sausage Gravy
+         Ladle the gravy generously over the split biscuits and serve immediately.
+     11. [  T-1] (  1m assemble) Scrambled Eggs
+         Slide the eggs onto a plate and scatter 2 tablespoons thinly sliced fresh chives over the top (optional).
+
+  ▸ Ground Turkey and Tomato Meat Sauce over Spaghetti with Garlic Green Beans   [Wednesday]  SEQUENCED
+    footer 54 min | scheduler 54 | card 54 | fresh derive 54 | dishes 3
+      1. [ T-54] (  8m prep) Ground Turkey and Tomato Meat Sauce
+         Finely dice the yellow onion, carrot, and celery stalk, and mince the 4 garlic cloves.
+      2. [ T-46] (  2m preheat) Ground Turkey and Tomato Meat Sauce
+         Heat 2 tablespoons olive oil in a large, deep skillet or Dutch oven over medium-high heat until shimmering.
+      3. [ T-44] (  5m cook) Ground Turkey and Tomato Meat Sauce
+         Add the diced onion, carrot, and celery and cook, stirring frequently, for 5 minutes until softened and lightly golden.
+      4. [ T-39] (  1m cook) Ground Turkey and Tomato Meat Sauce
+         Add the minced garlic and cook, stirring constantly, for 1 minute until fragrant.
+      5. [ T-38] (  6m cook) Ground Turkey and Tomato Meat Sauce
+         Add the 1¼ pounds ground turkey and cook, breaking it up with a spoon, for 5–6 minutes until no pink remains and the meat is lightly browned.
+      6. [ T-32] (  2m cook) Ground Turkey and Tomato Meat Sauce
+         Push the meat to the sides, add the 2 tablespoons tomato paste to the center, and stir it into the meat for 1–2 minutes until it darkens slightly.
+      7. [ T-30] (  2m cook) Ground Turkey and Tomato Meat Sauce
+         Pour in ¼ cup dry red wine and scrape up any browned bits from the bottom of the pan; let it reduce for 2 minutes.
+      8. [ T-28] (  2m cook) Ground Turkey and Tomato Meat Sauce
+         Stir in 1 teaspoon dried oregano and ½ teaspoon dried basil (plus ¼ teaspoon red pepper flakes if using), then pour in the 28-oz can of crushed San Marzano tomatoes, 1 teaspoon kosher salt, and ½ teaspoon black pepper.
+      9. [ T-26] ( 20m cook) Ground Turkey and Tomato Meat Sauce
+         Reduce heat to medium-low and simmer the sauce, stirring occasionally, for 20 minutes until thickened and deeply flavored.
+     10. [ T-26] ( 10m preheat) Spaghetti
+         ⟶ With the Ground Turkey and Tomato Meat Sauce cooking, start on the Spaghetti.
+         Bring a large pot of water to a boil over high heat and add 1 tablespoon kosher salt.
+     11. [ T-18] (  5m prep) Garlic Sautéed Green Beans
+         ⟶ With the Ground Turkey and Tomato Meat Sauce cooking, start on the Garlic Sautéed Green Beans.
+         Trim the ends from 1 pound fresh green beans and thinly slice the 2 garlic cloves.
+     12. [ T-13] ( 10m cook) Spaghetti
+         ⟶ With the Ground Turkey and Tomato Meat Sauce cooking, start on the Spaghetti.
+         Add the 12 oz spaghetti and cook according to package directions until al dente, about 9–11 minutes, reserving ½ cup pasta water before draining.
+     13. [ T-13] (  2m preheat) Garlic Sautéed Green Beans
+         ⟶ With the Ground Turkey and Tomato Meat Sauce cooking, start on the Garlic Sautéed Green Beans.
+         Heat 1 tablespoon olive oil in a large skillet over medium-high heat until shimmering.
+     14. [ T-11] (  5m cook) Garlic Sautéed Green Beans
+         Add the green beans and cook, tossing occasionally, for 4–5 minutes until bright green and tender-crisp with a few charred spots.
+     15. [  T-6] (  2m assemble) Ground Turkey and Tomato Meat Sauce
+         ⟶ With the Spaghetti cooking, start on the Ground Turkey and Tomato Meat Sauce.
+         Taste and adjust seasoning, then stir in the torn fresh basil leaves if using, and serve topped with the 2 oz grated Parmesan.
+     16. [  T-4] (  1m cook) Garlic Sautéed Green Beans
+         ⟶ With the Spaghetti cooking, start on the Garlic Sautéed Green Beans.
+         Add the sliced garlic, ½ teaspoon kosher salt, and ¼ teaspoon black pepper and toss constantly for 1 minute until the garlic is golden and fragrant.
+     17. [  T-3] (  2m assemble) Spaghetti
+         Drain the spaghetti and serve immediately with the meat sauce ladled on top.
+     18. [  T-1] (  1m assemble) Garlic Sautéed Green Beans
+         Remove from heat, squeeze the juice of ½ lemon over the beans, toss to coat, and serve immediately.
+
+  ▸ Chicken Parmesan with Vodka Sauce   [Friday]  SEQUENCED
+    footer 56 min | scheduler 56 | card 56 | fresh derive 56 | dishes 3
+      1. [ T-56] (  8m prep) Breaded Chicken Cutlets with Vodka Sauce and Melted Mozzarella
+         Halve the 2 pounds of chicken breasts horizontally into 4 cutlets and pound each to ½-inch thickness; pat dry with paper towels.
+      2. [ T-48] (  5m prep) Breaded Chicken Cutlets with Vodka Sauce and Melted Mozzarella
+         Set up a breading station: spread ½ cup flour in one shallow dish, beat 2 eggs in a second, and combine 1 cup Italian breadcrumbs, ¼ cup grated Parmesan, ½ teaspoon garlic powder, 1 teaspoon kosher salt, and ½ teaspoon black pepper in a third.
+      3. [ T-43] (  5m prep) Breaded Chicken Cutlets with Vodka Sauce and Melted Mozzarella
+         Dredge each cutlet in flour (shaking off excess), dip in egg, then press firmly into the breadcrumb mixture to coat both sides; set on a plate.
+      4. [ T-38] (  4m prep) Breaded Chicken Cutlets with Vodka Sauce and Melted Mozzarella
+         Finely dice the 2 shallots and mince the 4 garlic cloves.
+      5. [ T-34] (  8m cook) Breaded Chicken Cutlets with Vodka Sauce and Melted Mozzarella
+         Heat 4 tablespoons olive oil in a large oven-safe skillet over medium-high; sear the cutlets 3–4 minutes per side until deep golden brown, then transfer to a plate.
+      6. [ T-26] (  4m cook) Breaded Chicken Cutlets with Vodka Sauce and Melted Mozzarella
+         Reduce heat to medium; add the shallots to the same skillet and sauté 2 minutes until softened, then add the minced garlic and 2 tablespoons tomato paste and cook 1 minute until fragrant.
+      7. [ T-26] ( 10m preheat) Spaghetti
+         Bring a large pot of water to a boil over high heat and stir in 1 tablespoon kosher salt.
+      8. [ T-22] (  3m prep) Simple Arugula Salad with Lemon and Parmesan
+         ⟶ With the Spaghetti marinating, start on the Simple Arugula Salad with Lemon and Parmesan.
+         Whisk together 2 tablespoons extra-virgin olive oil, 1 tablespoon fresh lemon juice, ¼ teaspoon kosher salt, and ⅛ teaspoon black pepper in a large bowl.
+      9. [ T-19] (  2m assemble) Simple Arugula Salad with Lemon and Parmesan
+         Add 4 oz baby arugula to the bowl and toss to coat evenly with the dressing just before serving.
+     10. [ T-17] (  8m cook) Breaded Chicken Cutlets with Vodka Sauce and Melted Mozzarella
+         ⟶ With the Spaghetti marinating, start on the Breaded Chicken Cutlets with Vodka Sauce and Melted Mozzarella.
+         Pour in ⅓ cup vodka and stir, scraping up any browned bits; let it reduce for 2 minutes, then stir in the 14-oz can of crushed San Marzano tomatoes, ¼ teaspoon red pepper flakes, and ½ cup heavy cream; simmer 5 minutes until slightly thickened.
+     11. [ T-17] (  1m assemble) Simple Arugula Salad with Lemon and Parmesan
+         ⟶ With the Spaghetti marinating, start on the Simple Arugula Salad with Lemon and Parmesan.
+         Divide the salad among plates and top each with shaved Parmesan, using 1 oz total.
+     12. [ T-16] ( 10m cook) Spaghetti
+         ⟶ With the Breaded Chicken Cutlets with Vodka Sauce and Melted Mozzarella cooking, start on the Spaghetti.
+         Cook 12 oz spaghetti in the boiling salted water according to package directions until al dente, about 9–11 minutes; reserve ½ cup pasta water before draining.
+     13. [  T-9] (  3m preheat) Breaded Chicken Cutlets with Vodka Sauce and Melted Mozzarella
+         ⟶ With the Spaghetti cooking, start on the Breaded Chicken Cutlets with Vodka Sauce and Melted Mozzarella.
+         Preheat the broiler to high.
+     14. [  T-9] (  3m assemble) Breaded Chicken Cutlets with Vodka Sauce and Melted Mozzarella
+         Stir ¼ cup torn fresh basil leaves into the sauce, then nestle the seared cutlets back into the skillet; spoon sauce over each cutlet and top evenly with 6 oz shredded mozzarella and the remaining ¼ cup grated Parmesan.
+     15. [  T-6] (  4m cook) Breaded Chicken Cutlets with Vodka Sauce and Melted Mozzarella
+         Broil the skillet 3–4 minutes until the cheese is melted, bubbling, and lightly browned; garnish with additional torn basil and serve immediately.
+     16. [  T-2] (  2m assemble) Spaghetti
+         Drain the spaghetti and toss immediately with 1 tablespoon olive oil to prevent sticking; portion into bowls as the base for the chicken.
+
+  ▸ Spaghetti Squash with Marinara and Garlic Bread   [Saturday]  SEQUENCED
+    footer 70 min | scheduler 70 | card 70 | fresh derive 70 | dishes 2
+      1. [ T-70] ( 10m preheat) Roasted Spaghetti Squash with Marinara
+         Preheat the oven to 400°F.
+      2. [ T-70] (  3m prep) Roasted Spaghetti Squash with Marinara
+         Brush the cut sides of the 2 spaghetti squash halves with 2 tablespoons olive oil and season evenly with 1 teaspoon kosher salt and ½ teaspoon black pepper.
+      3. [ T-67] (  5m prep) Roasted Spaghetti Squash with Marinara
+         Finely dice the yellow onion and mince the 4 garlic cloves.
+      4. [ T-60] ( 40m cook) Roasted Spaghetti Squash with Marinara
+         Place the squash cut-side down on a parchment-lined baking sheet and roast at 400°F for 40 minutes, until the flesh is tender and easily pierced with a fork.
+      5. [ T-60] (  6m cook) Roasted Spaghetti Squash with Marinara
+         While the squash roasts, heat 3 tablespoons olive oil in a medium saucepan over medium heat, then add the diced onion and cook, stirring occasionally, for 6 minutes until softened and translucent.
+      6. [ T-60] (  1m cook) Roasted Spaghetti Squash with Marinara
+         Add the minced garlic and 2 tablespoons tomato paste and stir constantly for 1 minute until fragrant and the paste darkens slightly.
+      7. [ T-59] ( 20m cook) Roasted Spaghetti Squash with Marinara
+         Pour in the 28 oz canned crushed San Marzano tomatoes, then stir in 1 teaspoon dried oregano, 1 teaspoon dried basil, ¼ teaspoon red pepper flakes (optional), ¾ teaspoon kosher salt, and ½ teaspoon sugar; simmer uncovered over medium-low heat for 20 minutes, stirring occasionally, until the sauce thickens.
+      8. [ T-35] (  4m prep) Garlic Bread
+         ⟶ With the Roasted Spaghetti Squash with Marinara cooking, start on the Garlic Bread.
+         In a small bowl, mash together 4 tablespoons softened unsalted butter, 3 minced garlic cloves, 2 tablespoons finely chopped fresh parsley, and ¼ teaspoon kosher salt until fully combined.
+      9. [ T-31] (  3m prep) Garlic Bread
+         Spread the garlic butter evenly over the cut sides of the Italian bread loaf halves, then sprinkle with 1 oz grated Parmesan (optional) and place cut-side up on a baking sheet.
+     10. [ T-20] (  4m assemble) Roasted Spaghetti Squash with Marinara
+         Flip the roasted squash cut-side up and use a fork to scrape the flesh into long spaghetti-like strands, leaving them in the shells or transferring to a serving platter.
+     11. [ T-16] ( 12m cook) Garlic Bread
+         Bake at 400°F for 10 minutes until the edges are golden and crisp, then broil on high for 1–2 minutes to brown the top.
+     12. [  T-4] (  2m assemble) Garlic Bread
+         Slice the garlic bread into individual portions and serve alongside the spaghetti squash.
+     13. [  T-2] (  2m assemble) Roasted Spaghetti Squash with Marinara
+         Ladle the marinara generously over the squash strands, then top with torn fresh basil leaves and grated Parmesan cheese and serve immediately.
+
+══════════ COOK MODE — PREPPED PATH: Biscuits and Sausage Gravy with Scrambled Eggs ══════════
+  ticked 2 rendered prep steps → isPrepped=true; + every wire step for the meal (4) → isPrepped=true; blockers []
+  recap ("You already prepped this — get your:"):
+    · Crack 8 large eggs into a bowl, add 3 tablespoons whole milk, ¼ teaspoon kosher salt, and ⅛ teaspoon black pepper, and whisk until the yolks and whites are fully combined and slightly frothy.
+  footer 31 min; steps after the prep filter:
+      1. [T-31] (preheat) Biscuits
+         Preheat the oven to 375°F (or the temperature on the Pillsbury Grands can).
+      2. [T-26] (cook) Sausage Gravy  ⟶ With the Biscuits heating up, start on the Sausage Gravy.
+         Cook 1 pound of bulk breakfast sausage in a large skillet over medium-high heat, breaking it up with a wooden spoon, for 6–7 minutes until browned and cooked through with no pink remaining.
+      3. [T-19] (cook) Biscuits
+         Pop open the 16.3 oz can, separate the 8 biscuits, and arrange them 2 inches apart on an ungreased baking sheet; bake 13–15 minutes until deep golden brown.
+      4. [T-19] (cook) Sausage Gravy  ⟶ With the Biscuits cooking, start on the Sausage Gravy.
+         Reduce the heat to medium, sprinkle ¼ cup all-purpose flour evenly over the sausage, and stir constantly for 2 minutes to cook out the raw flour taste.
+      5. [T-17] (cook) Sausage Gravy
+         Pour in 2½ cups whole milk in a steady stream, stirring constantly; cook over medium heat for 5–6 minutes, stirring frequently, until the gravy is thick and bubbling.
+      6. [T-8] (hold) Sausage Gravy  ⟶ With the Biscuits cooking, start on the Sausage Gravy.
+         Season with ¾ teaspoon black pepper, ¼ teaspoon kosher salt, and ¼ teaspoon crushed red pepper flakes (optional); taste and adjust seasoning, then reduce heat to the lowest setting to keep warm.
+      7. [T-8] (cook) Scrambled Eggs  ⟶ With the Biscuits cooking, start on the Scrambled Eggs.
+         Melt 1 tablespoon unsalted butter in a nonstick skillet over medium-low heat, pour in the egg mixture, and cook for 3–4 minutes, folding gently with a silicone spatula every 30 seconds, pulling the curds from the edges until just set and still glossy.
+      8. [T-4] (assemble) Biscuits  ⟶ With the Sausage Gravy staying warm, start on the Biscuits.
+         Transfer the biscuits to a wire rack and split each one in half before serving.
+      9. [T-2] (assemble) Sausage Gravy
+         Ladle the gravy generously over the split biscuits and serve immediately.
+     10. [T-1] (assemble) Scrambled Eggs
+         Slide the eggs onto a plate and scatter 2 tablespoons thinly sliced fresh chives over the top (optional).

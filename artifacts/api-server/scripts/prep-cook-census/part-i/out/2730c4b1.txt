@@ -1,0 +1,438 @@
+PLAN 2730c4b1-7648-404a-a7bf-692fb89faa03  [A17]  Part I · A17 · Mediterranean: kofta, dolmades, shawarma, gyros
+  range 2026-10-04 .. 2026-10-10   meals 4   prep day 2026-10-04   shapes: days-5-7, long-passive, multi-3plus, bought-path, two-cuts, cold, marinate
+
+══════════ PREP THE WEEK — full plan, as Screen 3 renders it ══════════
+  HEADER: 18 containers · about 70 min   (server total 80 · phone 63) · cacheHit=false · prompt v19
+  HELD: Add the boneless skinless chicken thighs the night before you cook them (Friday).
+  HELD: Add the boneless skinless chicken thighs the night before you cook them (Thursday).
+  HELD: Classic Chicken Gyros with Tzatziki, Tomato, and Red Onion (Friday, 5 days out) — trim the chicken thighs that morning.
+
+  ── seasonings_dry ──
+     1. Measure the Spiced Beef Kofta spice blend   (3 min)
+        Into the Spiced Beef Kofta spice blend:
+        1½ tsp ground cumin
+        1 tsp ground coriander
+        1 tsp smoked paprika
+        ¼ tsp ground cinnamon
+        ¼ tsp cayenne pepper
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Beef Kofta with Hummus, Pickled Onions, and Charred Flatbread (Sunday)
+     2. Measure the Creamy Hummus sauce bowl   (2 min)
+        Into the Creamy Hummus sauce bowl:
+        ½ tsp ground cumin
+        
+        Set aside for the produce step.
+        » for: Beef Kofta with Hummus, Pickled Onions, and Charred Flatbread (Sunday)
+     3. Measure the Harissa-Spiced Chicken Shawarma spice blend   (3 min)
+        Into the Harissa-Spiced Chicken Shawarma spice blend:
+        1½ tsp ground cumin
+        1 tsp ground coriander
+        1 tsp smoked paprika
+        ¼ tsp ground cinnamon
+        ½ tsp ground turmeric
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Harissa-Spiced Chicken Shawarma Bowl with Roasted Vegetables and Hummus (Thursday)
+     4. Measure the Marinated Chicken Gyro Filling marinade bowl   (3 min)
+        Into the Marinated Chicken Gyro Filling marinade bowl:
+        ½ tsp ground cumin
+        ½ tsp smoked paprika
+        1½ tsp dried oregano
+        
+        Set aside for the produce step.
+        » for: Classic Chicken Gyros with Tzatziki, Tomato, and Red Onion (Friday)
+     5. Measure the Herb and Rice Stuffed Grape spice blend   (2 min)
+        Into the Herb and Rice Stuffed Grape spice blend:
+        ¼ tsp ground cinnamon
+        1 cup long-grain white rice (uncooked)
+        ½ tsp ground allspice
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Stuffed Grape Leaves with Tzatziki and Warm Pita (Tuesday)
+  ×  6. Ground cumin, smoked paprika, store-bought hummus and pitted Kalamata olives — cook day   (2 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: Harissa-Spiced Chicken Shawarma Bowl with Roasted Vegetables and Hummus (Thursday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Beef Kofta with Hummus, Pickled Onions, and Charred Flatbread (Sunday), Stuffed Grape Leaves with Tzatziki and Warm Pita (Tuesday), Harissa-Spiced Chicken Shawarma Bowl with Roasted Vegetables and Hummus (Thursday), Classic Chicken Gyros with Tzatziki, Tomato, and Red Onion (Friday)
+     2. Prep all yellow onion   (1 min)
+        Grate ½ yellow onion on the large holes of a box grater, squeeze out as much liquid as possible, and discard the liquid — into a tub labelled "Spiced Beef Kofta — yellow onion, fresh flat-leaf parsley and garlic".
+        Finely dice 1 yellow onion — into a tub labelled "Herb and Rice Stuffed Grape Leaves (Dolmades) — yellow onion, fresh flat-leaf parsley, garlic, fresh mint leaves, fresh…".
+        » for: Beef Kofta with Hummus, Pickled Onions, and Charred Flatbread (Sunday), Stuffed Grape Leaves with Tzatziki and Warm Pita (Tuesday)
+     3. Chop all fresh flat-leaf parsley   (7 min)
+        Finely chop ¼ cup — into a tub labelled "Spiced Beef Kofta — yellow onion, fresh flat-leaf parsley and garlic".
+        Finely chop ½ cup — into a tub labelled "Herb and Rice Stuffed Grape Leaves (Dolmades) — yellow onion, fresh flat-leaf parsley, garlic, fresh mint leaves, fresh…".
+        Finely chop 3 tbsp — into a tub labelled "Warm Herbed Bulgur — finely chopped fresh flat-leaf parsley".
+        Roughly chop 2 tbsp for the Pickled Onions and Charred Flatbread and ¼ cup for the Harissa-Spiced Chicken Shawarma — both into a tub labelled "Chopped fresh flat-leaf parsley — Pickled Onions and Charred Flatbread, Harissa-Spiced Chicken Shawarma".
+        Roughly chop ¼ cup — into a tub labelled "Marinated Chicken Gyro Filling — fresh flat-leaf parsley, garlic, red onion and roma tomatoes".
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Beef Kofta with Hummus, Pickled Onions, and Charred Flatbread (Sunday), Stuffed Grape Leaves with Tzatziki and Warm Pita (Tuesday), Harissa-Spiced Chicken Shawarma Bowl with Roasted Vegetables and Hummus (Thursday), Classic Chicken Gyros with Tzatziki, Tomato, and Red Onion (Friday)
+     4. Mince all garlic   (6 min)
+        Mince 3 cloves — into a tub labelled "Spiced Beef Kofta — yellow onion, fresh flat-leaf parsley and garlic".
+        3 cloves — into a tub labelled "Herb and Rice Stuffed Grape Leaves (Dolmades) — yellow onion, fresh flat-leaf parsley, garlic, fresh mint leaves, fresh…".
+        1 clove — into a tub labelled "Tzatziki — garlic, fresh dill and english cucumber".
+        4 cloves — into the Harissa-Spiced Chicken Shawarma marinade bowl.
+        4 cloves — into a tub labelled "Marinated Chicken Gyro Filling — fresh flat-leaf parsley, garlic, red onion and roma tomatoes".
+        2 cloves — into a tub labelled "Tzatziki Sauce — garlic, fresh dill and english cucumber".
+        » storage: Spiced Beef Kofta — yellow onion, fresh flat-leaf parsley and garlic: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Spiced Beef Kofta spice blend separate; combine o…
+        » for: Beef Kofta with Hummus, Pickled Onions, and Charred Flatbread (Sunday), Stuffed Grape Leaves with Tzatziki and Warm Pita (Tuesday), Harissa-Spiced Chicken Shawarma Bowl with Roasted Vegetables and Hummus (Thursday), Classic Chicken Gyros with Tzatziki, Tomato, and Red Onion (Friday)
+     5. Juice all lemons and prep lemon zest   (9 min)
+        Squeeze fresh lemon juice:
+        3 tbsp — into the Creamy Hummus sauce bowl
+        2 tbsp — into the Harissa-Spiced Chicken Shawarma marinade bowl
+        2 tbsp — into the Marinated Chicken Gyro Filling marinade bowl
+        1 tbsp — into a tub labelled "Fresh lemon juice — Tzatziki, Tzatziki Sauce"
+        1 tbsp — into a tub labelled "Fresh lemon juice — Tzatziki, Tzatziki Sauce"
+        
+        For the Dolmades: juice 1 lemon and slice the second into thin rounds — both into a tub labelled "Herb and Rice Stuffed Grape Leaves (Dolmades) — yellow onion, fresh flat-leaf parsley, garlic, fresh mint leaves, fresh…".
+        
+        Zest 1 tsp lemon zest — into a tub labelled "Warm Herbed Bulgur — lemon zest".
+        » storage: All 3 containers: Covered in the fridge — up to 3 days. Add the boneless skinless chicken thighs the night before you cook them (Friday).
+        » for: Beef Kofta with Hummus, Pickled Onions, and Charred Flatbread (Sunday), Stuffed Grape Leaves with Tzatziki and Warm Pita (Tuesday), Harissa-Spiced Chicken Shawarma Bowl with Roasted Vegetables and Hummus (Thursday), Classic Chicken Gyros with Tzatziki, Tomato, and Red Onion (Friday)
+     6. Prep all red onion   (8 min)
+        Thinly slice 1 red onion into half-moons — into a tub labelled "Pickled Onions and Charred Flatbread — thinly sliced red onion".
+        Cut 1 red onion into 1-inch wedges — into a tub labelled "Roasted Vegetables and Hummus — red onion, zucchini and red bell pepper".
+        Thinly slice ½ red onion — into a tub labelled "Marinated Chicken Gyro Filling — fresh flat-leaf parsley, garlic, red onion and roma tomatoes".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Beef Kofta with Hummus, Pickled Onions, and Charred Flatbread (Sunday), Harissa-Spiced Chicken Shawarma Bowl with Roasted Vegetables and Hummus (Thursday), Classic Chicken Gyros with Tzatziki, Tomato, and Red Onion (Friday)
+  ×  7. Jarred grape leaves in brine — cook day   (1 min)  [RENDER-OMITTED]
+        Nothing to cut — it goes in as it comes.
+        » for: Stuffed Grape Leaves with Tzatziki and Warm Pita (Tuesday)
+     8. Chop all fresh mint leaves   (2 min)
+        Finely chop ¼ cup — into a tub labelled "Herb and Rice Stuffed Grape Leaves (Dolmades) — yellow onion, fresh flat-leaf parsley, garlic, fresh mint leaves, fresh…".
+        Finely chop 2 tbsp — into a tub labelled "Warm Herbed Bulgur — finely chopped fresh mint leaves".
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Stuffed Grape Leaves with Tzatziki and Warm Pita (Tuesday), Harissa-Spiced Chicken Shawarma Bowl with Roasted Vegetables and Hummus (Thursday)
+     9. Chop all fresh dill   (2 min)
+        Finely chop 2 tbsp — into a tub labelled "Herb and Rice Stuffed Grape Leaves (Dolmades) — yellow onion, fresh flat-leaf parsley, garlic, fresh mint leaves, fresh…".
+        Finely chop 2 tbsp — into a tub labelled "Tzatziki — garlic, fresh dill and english cucumber".
+        Finely chop 2 tbsp — into a tub labelled "Tzatziki Sauce — garlic, fresh dill and english cucumber".
+        » storage: Herb and Rice Stuffed Grape Leaves (Dolmades): Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Herb and Rice Stuffed Grape spice blend separate; combine on cook day (F…
+        » for: Stuffed Grape Leaves with Tzatziki and Warm Pita (Tuesday), Classic Chicken Gyros with Tzatziki, Tomato, and Red Onion (Friday)
+    10. Grate and squeeze all English cucumber   (1 min)
+        Grate ½ English cucumber on the coarse side of a box grater, then gather in a clean kitchen towel and squeeze firmly until very dry — into a tub labelled "Tzatziki — garlic, fresh dill and english cucumber".
+        Grate ½ English cucumber the same way and squeeze dry — into a tub labelled "Tzatziki Sauce — garlic, fresh dill and english cucumber".
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Tzatziki, Tzatziki Sauce separate; combine on cook day (Friday). Keep the Tzatziki, Tzatziki Sauce sep…
+        » for: Stuffed Grape Leaves with Tzatziki and Warm Pita (Tuesday), Classic Chicken Gyros with Tzatziki, Tomato, and Red Onion (Friday)
+    11. Cut all zucchini for Roasted Vegetables and Hummus   (1 min)
+        Halve 2 zucchini lengthwise, then cut into 1-inch half-moons — into a tub labelled "Roasted Vegetables and Hummus — red onion, zucchini and red bell pepper".
+        » for: Harissa-Spiced Chicken Shawarma Bowl with Roasted Vegetables and Hummus (Thursday)
+    12. Cut all red bell pepper for Roasted Vegetables and Hummus   (1 min)
+        Seed 2 red bell peppers and cut into 1-inch strips — into a tub labelled "Roasted Vegetables and Hummus — red onion, zucchini and red bell pepper".
+        » storage: Roasted Vegetables and Hummus: Airtight in the fridge — up to 4 days.
+        » for: Harissa-Spiced Chicken Shawarma Bowl with Roasted Vegetables and Hummus (Thursday)
+  × 13. Cherry tomatoes — cook day   (1 min)  [RENDER-OMITTED]
+        Nothing to cut — it goes in as it comes.
+        » for: Harissa-Spiced Chicken Shawarma Bowl with Roasted Vegetables and Hummus (Thursday)
+    14. Slice all roma tomatoes for Marinated Chicken Gyro Filling   (5 min)
+        Slice or dice 2 roma tomatoes — into a tub labelled "Marinated Chicken Gyro Filling — fresh flat-leaf parsley, garlic, red onion and roma tomatoes".
+        » storage: Marinated Chicken Gyro Filling: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Marinated Chicken Gyro Filling marinade bowl separate; combine on cook day (Friday).
+        » for: Classic Chicken Gyros with Tzatziki, Tomato, and Red Onion (Friday)
+
+  ── sauces_marinades ──
+     1. Finish the Creamy Hummus sauce bowl   (2 min)
+        Creamy Hummus sauce bowl (ground cumin and the fresh lemon juice from produce step 5 already in it): add
+        ⅜ cup tahini
+        Stir to combine.
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Beef Kofta with Hummus, Pickled Onions, and Charred Flatbread (Sunday)
+     2. Finish the Harissa-Spiced Chicken Shawarma marinade bowl   (2 min)
+        Harissa-Spiced Chicken Shawarma marinade bowl (garlic and the fresh lemon juice from produce step 5 already in it): add
+        3 tbsp harissa paste
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 3 days. Add the boneless skinless chicken thighs the night before you cook them (Thursday).
+        » for: Harissa-Spiced Chicken Shawarma Bowl with Roasted Vegetables and Hummus (Thursday)
+  ×  3. Red wine vinegar — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Beef Kofta with Hummus, Pickled Onions, and Charred Flatbread (Sunday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+  ×  1. Boneless skinless chicken thighs — cook day   (12 min)  [RENDER-OMITTED]
+        Trim 2 lb boneless skinless chicken thighs of excess fat for the Harissa-Spiced Chicken Shawarma.
+        Trim 1¾ lb boneless skinless chicken thighs for the Marinated Chicken Gyro Filling.
+        » storage: This one is 5 days out — leave it for cook day.
+        » for: Harissa-Spiced Chicken Shawarma Bowl with Roasted Vegetables and Hummus (Thursday), Classic Chicken Gyros with Tzatziki, Tomato, and Red Onion (Friday)
+
+══════════ PREP SELECTED MEALS — Beef Kofta with Hummus, Pickled Onions, and Charred Flatbread + Classic Chicken Gyros with Tzatziki, Tomato, and Red Onion ══════════
+  HEADER: 9 containers · about 40 min   (server total 42 · phone 35) · cacheHit=false · prompt v19
+  HELD: Add the boneless skinless chicken thighs the night before you cook them (Friday).
+
+  ── seasonings_dry ──
+     1. Measure the Spiced Beef Kofta spice blend   (3 min)
+        Into the Spiced Beef Kofta spice blend:
+        1½ tsp ground cumin
+        1 tsp ground coriander
+        1 tsp smoked paprika
+        ¼ tsp ground cinnamon
+        ¼ tsp cayenne pepper
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Beef Kofta with Hummus, Pickled Onions, and Charred Flatbread (Sunday)
+     2. Measure the Creamy Hummus sauce bowl   (2 min)
+        Into the Creamy Hummus sauce bowl:
+        ½ tsp ground cumin
+        
+        Set aside for the produce step.
+        » for: Beef Kofta with Hummus, Pickled Onions, and Charred Flatbread (Sunday)
+     3. Measure the Marinated Chicken Gyro Filling marinade bowl   (3 min)
+        Into the Marinated Chicken Gyro Filling marinade bowl:
+        ½ tsp ground cumin
+        ½ tsp smoked paprika
+        1½ tsp dried oregano
+        
+        Set aside for the produce step.
+        » for: Classic Chicken Gyros with Tzatziki, Tomato, and Red Onion (Friday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Beef Kofta with Hummus, Pickled Onions, and Charred Flatbread (Sunday), Classic Chicken Gyros with Tzatziki, Tomato, and Red Onion (Friday)
+     2. Grate the yellow onion for Spiced Beef Kofta   (1 min)
+        Grate ½ yellow onion on the large holes of a box grater, then gather it in your hands and squeeze out as much liquid as possible — discard the liquid. Place the grated onion into a tub labelled "Spiced Beef Kofta — yellow onion, fresh flat-leaf parsley and garlic".
+        » for: Beef Kofta with Hummus, Pickled Onions, and Charred Flatbread (Sunday)
+     3. Chop all flat-leaf parsley   (3 min)
+        Finely chop ¼ cup flat-leaf parsley — into a tub labelled "Spiced Beef Kofta — yellow onion, fresh flat-leaf parsley and garlic".
+        Roughly chop 2 tbsp flat-leaf parsley for garnish — into a tub labelled "Pickled Onions and Charred Flatbread — chopped fresh flat-leaf parsley".
+        Roughly chop ¼ cup flat-leaf parsley — into a tub labelled "Marinated Chicken Gyro Filling — fresh flat-leaf parsley, garlic, red onion and roma tomatoes".
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Beef Kofta with Hummus, Pickled Onions, and Charred Flatbread (Sunday), Classic Chicken Gyros with Tzatziki, Tomato, and Red Onion (Friday)
+     4. Mince all garlic   (3 min)
+        Mince 3 cloves garlic — into a tub labelled "Spiced Beef Kofta — yellow onion, fresh flat-leaf parsley and garlic".
+        Mince 4 cloves garlic — into a tub labelled "Marinated Chicken Gyro Filling — fresh flat-leaf parsley, garlic, red onion and roma tomatoes".
+        Mince or grate 2 cloves garlic — into a tub labelled "Tzatziki Sauce — garlic, english cucumber and fresh dill".
+        » storage: Spiced Beef Kofta — yellow onion, fresh flat-leaf parsley and garlic: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Spiced Beef Kofta spice blend separate; combine o…
+        » for: Beef Kofta with Hummus, Pickled Onions, and Charred Flatbread (Sunday), Classic Chicken Gyros with Tzatziki, Tomato, and Red Onion (Friday)
+     5. Juice all lemons   (3 min)
+        Juice enough lemons for all three dishes:
+        3 tbsp fresh lemon juice — into the Creamy Hummus sauce bowl
+        2 tbsp fresh lemon juice — into the Marinated Chicken Gyro Filling marinade bowl
+        1 tbsp fresh lemon juice — into a tub labelled "Tzatziki Sauce — fresh lemon juice"
+        » storage: Both containers: Covered in the fridge — up to 3 days. Add the boneless skinless chicken thighs the night before you cook them (Friday).
+        » for: Beef Kofta with Hummus, Pickled Onions, and Charred Flatbread (Sunday), Classic Chicken Gyros with Tzatziki, Tomato, and Red Onion (Friday)
+     6. Slice all red onion   (5 min)
+        Thinly slice 1 red onion into half-moons — into a tub labelled "Pickled Onions and Charred Flatbread — thinly sliced red onion".
+        Thinly slice ½ red onion — into a tub labelled "Marinated Chicken Gyro Filling — fresh flat-leaf parsley, garlic, red onion and roma tomatoes".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Beef Kofta with Hummus, Pickled Onions, and Charred Flatbread (Sunday), Classic Chicken Gyros with Tzatziki, Tomato, and Red Onion (Friday)
+     7. Slice the roma tomatoes for Marinated Chicken Gyro Filling   (5 min)
+        Slice or dice 2 roma tomatoes — into a tub labelled "Marinated Chicken Gyro Filling — fresh flat-leaf parsley, garlic, red onion and roma tomatoes".
+        » storage: Marinated Chicken Gyro Filling: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Marinated Chicken Gyro Filling marinade bowl separate; combine on cook day (Friday).
+        » for: Classic Chicken Gyros with Tzatziki, Tomato, and Red Onion (Friday)
+     8. Grate and squeeze the cucumber for Tzatziki Sauce   (1 min)
+        Grate ½ English cucumber on the large holes of a box grater, then gather it in a clean kitchen towel and squeeze firmly until very dry. Transfer the squeezed cucumber into a tub labelled "Tzatziki Sauce — garlic, english cucumber and fresh dill".
+        » for: Classic Chicken Gyros with Tzatziki, Tomato, and Red Onion (Friday)
+     9. Chop the fresh dill for Tzatziki Sauce   (1 min)
+        Finely chop 2 tbsp fresh dill — into a tub labelled "Tzatziki Sauce — garlic, english cucumber and fresh dill".
+        » storage: Tzatziki Sauce — garlic, english cucumber and fresh dill: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the fresh lemon juice separate; combine on cook day (Friday).
+        » for: Classic Chicken Gyros with Tzatziki, Tomato, and Red Onion (Friday)
+
+  ── sauces_marinades ──
+     1. Finish the Creamy Hummus sauce bowl   (2 min)
+        Creamy Hummus sauce bowl (ground cumin and the fresh lemon juice from produce step 5 already in it): add
+        ⅜ cup tahini
+        Stir to combine.
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Beef Kofta with Hummus, Pickled Onions, and Charred Flatbread (Sunday)
+  ×  2. Red wine vinegar — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Beef Kofta with Hummus, Pickled Onions, and Charred Flatbread (Sunday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+  ×  1. Boneless skinless chicken thighs — cook day   (6 min)  [RENDER-OMITTED]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+        » for: Classic Chicken Gyros with Tzatziki, Tomato, and Red Onion (Friday)
+
+  subset ticks: 13 keys, 1 not in the full plan; required for these meals 13, uncovered 6; isPrepped {"Beef Kofta with Hummus, Pickle":false,"Classic Chicken Gyros with Tza":false}
+
+══════════ COOK MODE (cook-session.tsx: sequenced if multi-dish, flattened if single) ══════════
+
+  ▸ Beef Kofta with Hummus, Pickled Onions, and Charred Flatbread   [Sunday]  SEQUENCED
+    footer 57 min | scheduler 57 | card 57 | fresh derive 57 | dishes 3
+      1. [ T-57] (  4m prep) Spiced Beef Kofta
+         Grate half a yellow onion on the large holes of a box grater, then squeeze out as much liquid as possible with your hands and discard the liquid.
+      2. [ T-53] (  4m prep) Spiced Beef Kofta
+         Finely chop ¼ cup flat-leaf parsley and mince 3 garlic cloves.
+      3. [ T-49] (  4m prep) Pickled Onions and Charred Flatbread
+         Thinly slice 1 red onion into half-moons.
+      4. [ T-45] (  2m prep) Spiced Beef Kofta
+         In a large bowl, combine 1½ teaspoons cumin, 1 teaspoon coriander, 1 teaspoon smoked paprika, ¼ teaspoon cinnamon, and ¼ teaspoon cayenne.
+      5. [ T-43] (  4m prep) Spiced Beef Kofta
+         Add the grated onion, parsley, garlic, spices, 1 teaspoon kosher salt, and ½ teaspoon black pepper to 1½ pounds ground beef and mix firmly with your hands until fully combined — do not overwork.
+      6. [ T-43] (  3m cook) Pickled Onions and Charred Flatbread
+         In a small saucepan, combine ½ cup red wine vinegar, ¼ cup water, 1 teaspoon sugar, and ½ teaspoon kosher salt; bring to a simmer over medium heat, stirring until the sugar and salt dissolve, about 2 minutes.
+      7. [ T-39] ( 20m rest) Pickled Onions and Charred Flatbread
+         Pour the hot brine over the sliced onions in a heatproof bowl or jar, press them down to submerge, and let sit at room temperature for at least 20 minutes.
+      8. [ T-39] (  2m prep) Pickled Onions and Charred Flatbread
+         Brush both sides of 4 flatbreads with 2 tablespoons olive oil.
+      9. [ T-37] (  8m cook) Pickled Onions and Charred Flatbread
+         Heat a dry cast-iron skillet or grill pan over high heat and char the flatbreads one at a time, 1–2 minutes per side, until dark grill marks appear and the edges blister.
+     10. [ T-29] (  6m prep) Spiced Beef Kofta
+         ⟶ With the Pickled Onions and Charred Flatbread marinating, start on the Spiced Beef Kofta.
+         Divide the mixture into 12 equal portions and shape each into a 4-inch oval patty about ¾ inch thick; brush both sides lightly with 1 tablespoon olive oil.
+     11. [ T-23] (  2m preheat) Spiced Beef Kofta
+         Heat a large cast-iron skillet or grill pan over medium-high heat for 2 minutes until very hot.
+     12. [ T-23] (  5m hold) Pickled Onions and Charred Flatbread
+         ⟶ With the Spiced Beef Kofta cooking, start on the Pickled Onions and Charred Flatbread.
+         Stack the charred flatbreads and wrap loosely in foil to keep warm while finishing the kofta.
+     13. [ T-21] (  8m cook) Spiced Beef Kofta
+         ⟶ With the Pickled Onions and Charred Flatbread marinating, start on the Spiced Beef Kofta.
+         Cook the kofta in batches without crowding, 3–4 minutes per side, until deeply browned and cooked through to 160 °F — do not press or move them until ready to flip.
+     14. [ T-13] (  3m prep) Creamy Hummus
+         Drain two 15-oz cans of chickpeas, reserving the liquid, and add the chickpeas to a food processor with 2 garlic cloves; process for 1 minute until broken down.
+     15. [ T-10] (  3m rest) Spiced Beef Kofta
+         Transfer the cooked kofta to a plate and rest for 3 minutes before serving.
+     16. [ T-10] (  2m prep) Creamy Hummus
+         ⟶ With the Spiced Beef Kofta resting, start on the Creamy Hummus.
+         Add ⅓ cup tahini, 3 tablespoons fresh lemon juice, ½ teaspoon cumin, and ¾ teaspoon kosher salt; process for 1 minute.
+     17. [  T-8] (  4m prep) Creamy Hummus
+         With the processor running, drizzle in 3 tablespoons olive oil, then add 3 tablespoons of the reserved chickpea liquid (or ice water) one tablespoon at a time; process for 2–3 minutes until very smooth and creamy.
+     18. [  T-4] (  2m assemble) Creamy Hummus
+         Spread the hummus into a wide, shallow bowl using the back of a spoon to create a deep well in the center, then drizzle with olive oil.
+     19. [  T-2] (  2m assemble) Pickled Onions and Charred Flatbread
+         Drain the pickled onions and pile them alongside the kofta and hummus; garnish with 2 tablespoons roughly chopped parsley and ½ teaspoon sumac (both optional) and serve immediately with the charred flatbread.
+
+  ▸ Stuffed Grape Leaves with Tzatziki and Warm Pita   [Tuesday]  SEQUENCED
+    footer 102 min | scheduler 102 | card 102 | fresh derive 102 | dishes 3
+      1. [T-102] (  8m prep) Herb and Rice Stuffed Grape Leaves (Dolmades)
+         Rinse 40 grape leaves under cold water, pat dry, and lay flat on a clean work surface; trim any tough stems flush with the leaf.
+      2. [ T-94] ( 10m prep) Herb and Rice Stuffed Grape Leaves (Dolmades)
+         Finely dice the yellow onion, mince 3 cloves of garlic, finely chop ½ cup flat-leaf parsley, ¼ cup mint leaves, and 2 tablespoons fresh dill; juice 1 lemon and slice the second lemon into thin rounds.
+      3. [ T-84] (  5m prep) Herb and Rice Stuffed Grape Leaves (Dolmades)
+         In a large bowl, combine 1 pound ground lamb, 1 cup uncooked long-grain white rice, the diced onion, minced garlic, parsley, mint, dill, the juice of 1 lemon, 3 tablespoons olive oil, ½ teaspoon allspice, ¼ teaspoon cinnamon, 1 teaspoon kosher salt, and ½ teaspoon black pepper; mix until just combined.
+      4. [ T-79] ( 18m assemble) Herb and Rice Stuffed Grape Leaves (Dolmades)
+         Place a grape leaf vein-side up, add 1 heaping tablespoon of filling near the stem end, fold the sides in, and roll tightly into a small cylinder; repeat with remaining leaves and filling.
+      5. [ T-61] (  3m assemble) Herb and Rice Stuffed Grape Leaves (Dolmades)
+         Line the bottom of a large, heavy pot with 4–5 flat grape leaves to prevent sticking, then arrange the dolmades seam-side down in tight snug layers.
+      6. [ T-58] (  3m cook) Herb and Rice Stuffed Grape Leaves (Dolmades)
+         Lay the lemon slices over the top layer of dolmades, pour in 1½ cups low-sodium chicken broth, and drizzle with any remaining olive oil; place a heavy plate on top to keep the rolls from unraveling.
+      7. [ T-55] ( 45m cook) Herb and Rice Stuffed Grape Leaves (Dolmades)
+         Bring to a gentle boil over medium heat, then reduce to low, cover tightly, and steam for 45 minutes until the rice is cooked through and the leaves are tender; check at 30 minutes and add a splash of broth if the pot looks dry.
+      8. [ T-55] (  5m prep) Tzatziki
+         ⟶ With the Herb and Rice Stuffed Grape Leaves (Dolmades) marinating, start on the Tzatziki.
+         Grate ½ English cucumber on the coarse side of a box grater, wrap in a clean kitchen towel, and squeeze firmly to remove as much liquid as possible.
+      9. [ T-50] (  4m assemble) Tzatziki
+         In a medium bowl, stir together 1½ cups full-fat Greek yogurt, the squeezed cucumber, 1 minced garlic clove, 2 tablespoons fresh dill, 1 tablespoon lemon juice, 1 tablespoon extra-virgin olive oil, and ¼ teaspoon kosher salt until smooth.
+     10. [ T-46] ( 15m rest) Tzatziki
+         Cover and refrigerate the tzatziki until ready to serve — at least 15 minutes for the flavors to meld.
+     11. [ T-31] (  1m assemble) Tzatziki
+         Drizzle the chilled tzatziki with a thin thread of olive oil and a small sprig of dill before serving alongside the dolmades.
+     12. [ T-10] ( 10m rest) Herb and Rice Stuffed Grape Leaves (Dolmades)
+         Remove from heat and let the dolmades rest, covered, for 10 minutes before lifting them out with a slotted spoon and arranging on a serving platter.
+     13. [  T-7] (  2m preheat) Warm Pita Bread
+         ⟶ With the Herb and Rice Stuffed Grape Leaves (Dolmades) resting, start on the Warm Pita Bread.
+         Heat a dry cast-iron skillet or grill pan over medium-high heat for 2 minutes.
+     14. [  T-7] (  2m prep) Warm Pita Bread
+         Brush each of the 4 pita rounds lightly with 1 tablespoon extra-virgin olive oil (optional) and sprinkle with ¼ teaspoon flaky sea salt (optional).
+     15. [  T-5] (  5m cook) Warm Pita Bread
+         Toast each pita in the hot pan for 1–2 minutes per side until warmed through with light char marks; wrap in a clean towel to keep soft and serve immediately alongside the dolmades and tzatziki.
+
+  ▸ Harissa-Spiced Chicken Shawarma Bowl with Roasted Vegetables and Hummus   [Thursday]  SEQUENCED
+    footer 52 min | scheduler 52 | card 52 | fresh derive 52 | dishes 3
+      1. [ T-52] (  4m prep) Harissa-Spiced Chicken Shawarma
+         In a large bowl, combine 3 tablespoons harissa paste, 3 tablespoons yogurt, 2 tablespoons olive oil, 4 minced garlic cloves, 2 tablespoons fresh lemon juice, and 1¼ teaspoons kosher salt and ½ teaspoon black pepper.
+      2. [ T-48] ( 10m preheat) Roasted Vegetables and Hummus
+         Preheat the oven to 425°F with a rack in the upper-middle position.
+      3. [ T-48] (  8m prep) Roasted Vegetables and Hummus
+         Halve and cut 2 zucchini into 1-inch half-moons, seed and cut 2 red bell peppers into 1-inch strips, cut 1 red onion into 1-inch wedges, and leave 1 cup cherry tomatoes whole.
+      4. [ T-40] (  2m prep) Harissa-Spiced Chicken Shawarma
+         ⟶ With the Roasted Vegetables and Hummus heating up, start on the Harissa-Spiced Chicken Shawarma.
+         Add 1½ teaspoons ground cumin, 1 teaspoon ground coriander, 1 teaspoon smoked paprika, ½ teaspoon ground turmeric, and ¼ teaspoon ground cinnamon to the bowl and stir the marinade until fully combined.
+      5. [ T-38] ( 15m rest) Harissa-Spiced Chicken Shawarma
+         Add the 2 pounds trimmed chicken thighs to the marinade, turn to coat thoroughly, and let sit at room temperature for at least 15 minutes (or cover and refrigerate up to 24 hours).
+      6. [ T-38] (  5m preheat) Harissa-Spiced Chicken Shawarma
+         Preheat the oven broiler to high and position a rack 6 inches from the element; line a rimmed baking sheet with foil.
+      7. [ T-38] (  3m prep) Roasted Vegetables and Hummus
+         ⟶ With the Harissa-Spiced Chicken Shawarma chilling, start on the Roasted Vegetables and Hummus.
+         Toss all the cut vegetables with 2½ tablespoons olive oil, ½ teaspoon kosher salt, ¼ teaspoon black pepper, and ½ teaspoon ground cumin until evenly coated, then spread in a single layer on a large rimmed baking sheet.
+      8. [ T-35] ( 27m cook) Roasted Vegetables and Hummus
+         Roast the vegetables for 25–28 minutes, stirring once halfway through, until caramelized and tender at the edges.
+      9. [ T-35] (  3m prep) Roasted Vegetables and Hummus
+         Thinly slice 1 cucumber and set aside for serving.
+     10. [ T-32] (  5m prep) Warm Herbed Bulgur
+         ⟶ With the Harissa-Spiced Chicken Shawarma chilling, start on the Warm Herbed Bulgur.
+         Finely chop 3 tablespoons flat-leaf parsley and 2 tablespoons fresh mint leaves, and zest 1 lemon to get 1 teaspoon zest; set aside.
+     11. [ T-27] (  2m assemble) Roasted Vegetables and Hummus
+         ⟶ With the Harissa-Spiced Chicken Shawarma chilling, start on the Roasted Vegetables and Hummus.
+         Spoon 1 cup store-bought hummus into a shallow serving bowl or divide among the four bowls, drizzle with 1 tablespoon olive oil, and dust with ¼ teaspoon smoked paprika.
+     12. [ T-25] (  4m cook) Warm Herbed Bulgur
+         ⟶ With the Harissa-Spiced Chicken Shawarma chilling, start on the Warm Herbed Bulgur.
+         Bring 2¼ cups low-sodium chicken broth, 1 tablespoon olive oil, and ½ teaspoon kosher salt to a boil in a medium saucepan over high heat.
+     13. [ T-23] ( 14m cook) Harissa-Spiced Chicken Shawarma
+         ⟶ With the Roasted Vegetables and Hummus cooking, start on the Harissa-Spiced Chicken Shawarma.
+         Arrange the marinated chicken thighs in a single layer on the prepared baking sheet and broil for 12–14 minutes, flipping once halfway through, until the edges are charred and an instant-read thermometer reads 165°F in the thickest part.
+     14. [ T-21] ( 12m cook) Warm Herbed Bulgur
+         ⟶ With the Roasted Vegetables and Hummus cooking, start on the Warm Herbed Bulgur.
+         Stir in 1½ cups medium-grain bulgur wheat, cover tightly, reduce heat to low, and cook for 12 minutes until the broth is fully absorbed.
+     15. [  T-9] (  5m rest) Harissa-Spiced Chicken Shawarma
+         ⟶ With the Roasted Vegetables and Hummus cooking, start on the Harissa-Spiced Chicken Shawarma.
+         Transfer the chicken to a cutting board and rest for 5 minutes, then slice thinly against the grain.
+     16. [  T-9] (  5m rest) Warm Herbed Bulgur
+         ⟶ With the Roasted Vegetables and Hummus cooking, start on the Warm Herbed Bulgur.
+         Remove from heat and let the bulgur steam, covered, for 5 minutes, then fluff with a fork.
+     17. [  T-8] (  2m assemble) Roasted Vegetables and Hummus
+         ⟶ With the Harissa-Spiced Chicken Shawarma resting, start on the Roasted Vegetables and Hummus.
+         Pile the roasted vegetables alongside the hummus and fan the cucumber slices around the bowl; scatter ⅓ cup Kalamata olives over the top if using.
+     18. [  T-4] (  2m assemble) Harissa-Spiced Chicken Shawarma
+         Arrange the sliced chicken over the bowls and garnish with ¼ cup roughly chopped flat-leaf parsley and lemon wedges for squeezing.
+     19. [  T-2] (  2m assemble) Warm Herbed Bulgur
+         Fold in the chopped parsley, mint, and lemon zest, then taste and adjust salt; keep warm until serving.
+
+  ▸ Classic Chicken Gyros with Tzatziki, Tomato, and Red Onion   [Friday]  SEQUENCED
+    footer 50 min | scheduler 50 | card 50 | fresh derive 50 | dishes 2
+      1. [ T-50] (  5m prep) Marinated Chicken Gyro Filling
+         In a large bowl, whisk together ¼ cup Greek yogurt, 3 tablespoons olive oil, 2 tablespoons lemon juice, 4 minced garlic cloves, 1½ teaspoons dried oregano, ½ teaspoon cumin, ½ teaspoon smoked paprika, 1 teaspoon kosher salt, and ½ teaspoon black pepper into a marinade.
+      2. [ T-45] ( 20m rest) Marinated Chicken Gyro Filling
+         Add the 1¾ pounds of chicken thighs to the marinade, toss to coat thoroughly, cover, and refrigerate for at least 20 minutes (or up to 8 hours).
+      3. [ T-45] (  5m prep) Marinated Chicken Gyro Filling
+         Slice the 2 roma tomatoes and thinly slice the ½ red onion; roughly chop the ¼ cup flat-leaf parsley if using.
+      4. [ T-40] (  5m prep) Tzatziki Sauce
+         ⟶ With the Marinated Chicken Gyro Filling chilling, start on the Tzatziki Sauce.
+         Grate the ½ English cucumber on the large holes of a box grater, then gather it in a clean kitchen towel and squeeze firmly until very dry.
+      5. [ T-35] (  2m preheat) Marinated Chicken Gyro Filling
+         Heat a large cast-iron skillet or grill pan over medium-high heat until very hot, about 2 minutes.
+      6. [ T-35] (  4m prep) Tzatziki Sauce
+         ⟶ With the Marinated Chicken Gyro Filling chilling, start on the Tzatziki Sauce.
+         In a medium bowl, stir together 1 cup Greek yogurt, the squeezed cucumber, 2 minced garlic cloves, 1 tablespoon lemon juice, 1 tablespoon olive oil, 2 tablespoons finely chopped fresh dill, and ¼ teaspoon kosher salt until smooth.
+      7. [ T-31] ( 10m rest) Tzatziki Sauce
+         Cover the tzatziki and refrigerate until ready to serve — at least 10 minutes for the flavors to meld.
+      8. [ T-21] (  1m assemble) Tzatziki Sauce
+         Spoon the tzatziki generously over the assembled gyros or serve alongside as a dipping sauce.
+      9. [ T-20] ( 12m cook) Marinated Chicken Gyro Filling
+         Cook the marinated chicken thighs in a single layer for 5–6 minutes per side until deeply browned and cooked through to 165°F internal temperature.
+     10. [  T-8] (  5m rest) Marinated Chicken Gyro Filling
+         Transfer the chicken to a cutting board and rest for 5 minutes, then slice thinly against the grain.
+     11. [  T-8] (  3m cook) Marinated Chicken Gyro Filling
+         Warm the 4 pita breads directly over a gas flame or in a dry skillet for about 30 seconds per side, then wrap in a clean towel to keep soft.
+     12. [  T-3] (  3m assemble) Marinated Chicken Gyro Filling
+         Lay the sliced chicken down the center of each warm pita, top with tomato, red onion, and parsley (optional), then fold and serve immediately.
+
+══════════ COOK MODE — PREPPED PATH: Stuffed Grape Leaves with Tzatziki and Warm Pita ══════════
+  ticked 9 rendered prep steps → isPrepped=false; + every wire step for the meal (10) → isPrepped=false; blockers [{"stepKey":"seasonings_dry#dish#5dc1a55e-4ba0-49d7-a7f4-9369da2ff18a","onWire":false,"rendered":false,"title":null,"skipSuggested":null}]
+  recap ("You already prepped this — get your:"):
+    · Rinse 40 grape leaves under cold water, pat dry, and lay flat on a clean work surface; trim any tough stems flush with the leaf.
+    · Finely dice the yellow onion, mince 3 cloves of garlic, finely chop ½ cup flat-leaf parsley, ¼ cup mint leaves, and 2 tablespoons fresh dill; juice 1 lemon and slice the second lemon into thin rounds.
+    · In a large bowl, combine 1 pound ground lamb, 1 cup uncooked long-grain white rice, the diced onion, minced garlic, parsley, mint, dill, the juice of 1 lemon, 3 tablespoons olive oil, ½ teaspoon allspice, ¼ teaspoon cinnamon, 1 teaspoon kosher salt, and ½ teaspoon black pepper; mix until just combined.
+    · Grate ½ English cucumber on the coarse side of a box grater, wrap in a clean kitchen towel, and squeeze firmly to remove as much liquid as possible.
+    · Brush each of the 4 pita rounds lightly with 1 tablespoon extra-virgin olive oil (optional) and sprinkle with ¼ teaspoon flaky sea salt (optional).
+  footer 79 min; steps after the prep filter:
+      1. [T-79] (assemble) Herb and Rice Stuffed Grape Leaves (Dolmades)
+         Place a grape leaf vein-side up, add 1 heaping tablespoon of filling near the stem end, fold the sides in, and roll tightly into a small cylinder; repeat with remaining leaves and filling.
+      2. [T-61] (assemble) Herb and Rice Stuffed Grape Leaves (Dolmades)
+         Line the bottom of a large, heavy pot with 4–5 flat grape leaves to prevent sticking, then arrange the dolmades seam-side down in tight snug layers.
+      3. [T-58] (cook) Herb and Rice Stuffed Grape Leaves (Dolmades)
+         Lay the lemon slices over the top layer of dolmades, pour in 1½ cups low-sodium chicken broth, and drizzle with any remaining olive oil; place a heavy plate on top to keep the rolls from unraveling.
+      4. [T-55] (cook) Herb and Rice Stuffed Grape Leaves (Dolmades)
+         Bring to a gentle boil over medium heat, then reduce to low, cover tightly, and steam for 45 minutes until the rice is cooked through and the leaves are tender; check at 30 minutes and add a splash of broth if the pot looks dry.
+      5. [T-50] (assemble) Tzatziki
+         In a medium bowl, stir together 1½ cups full-fat Greek yogurt, the squeezed cucumber, 1 minced garlic clove, 2 tablespoons fresh dill, 1 tablespoon lemon juice, 1 tablespoon extra-virgin olive oil, and ¼ teaspoon kosher salt until smooth.
+      6. [T-46] (rest) Tzatziki
+         Cover and refrigerate the tzatziki until ready to serve — at least 15 minutes for the flavors to meld.
+      7. [T-31] (assemble) Tzatziki
+         Drizzle the chilled tzatziki with a thin thread of olive oil and a small sprig of dill before serving alongside the dolmades.
+      8. [T-10] (rest) Herb and Rice Stuffed Grape Leaves (Dolmades)
+         Remove from heat and let the dolmades rest, covered, for 10 minutes before lifting them out with a slotted spoon and arranging on a serving platter.
+      9. [T-7] (preheat) Warm Pita Bread  ⟶ With the Herb and Rice Stuffed Grape Leaves (Dolmades) resting, start on the Warm Pita Bread.
+         Heat a dry cast-iron skillet or grill pan over medium-high heat for 2 minutes.
+     10. [T-5] (cook) Warm Pita Bread
+         Toast each pita in the hot pan for 1–2 minutes per side until warmed through with light char marks; wrap in a clean towel to keep soft and serve immediately alongside the dolmades and tzatziki.

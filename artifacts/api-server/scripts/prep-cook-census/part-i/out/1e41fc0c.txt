@@ -1,0 +1,398 @@
+PLAN 1e41fc0c-7294-4bd3-a14a-302e44bbcd7c  [E-1e41fc0c]  Tacos & Enchiladas + Three Easy Fall Weeknights
+  range 2026-09-30 .. 2026-10-05   meals 5   prep day 2026-10-03   shapes: days-5-7, cold, long-passive, multi-3plus, marinate, aromatics, two-cuts, single-dish, bought-path
+
+══════════ PREP THE WEEK — full plan, as Screen 3 renders it ══════════
+  HEADER: 14 containers · about 75 min   (server total 82 · phone 64) · cacheHit=false · prompt v19
+
+  ── seasonings_dry ──
+     1. Measure the Citrus-Marinated Carne Asada marinade bowl spices   (3 min)
+        Into the Citrus-Marinated Carne Asada marinade bowl:
+        1 tsp ground cumin
+        1 tsp chili powder
+        ½ tsp smoked paprika
+        ½ tsp dried oregano
+        
+        Set aside for the produce step.
+        » for: Carne Asada Tacos (Sunday)
+     2. Measure the Beef Enchiladas Verdes spice blend   (2 min)
+        Into the Beef Enchiladas Verdes spice blend:
+        1½ tsp ground cumin
+        1 tsp chili powder
+        ½ tsp garlic powder
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Beef Enchiladas Verdes with Roasted Tomatillo Sauce (Thursday)
+     3. Measure the White Chicken Chili Mac seasoning   (3 min)
+        Into the White Chicken Chili Mac seasoning:
+        1½ tsp ground cumin
+        1 tsp chili powder
+        ½ tsp smoked paprika
+        ½ tsp dried oregano
+        ¼ tsp cayenne pepper
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: White Chicken Chili Mac (Friday)
+  ×  4. Ground cumin — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Beef Enchiladas Verdes with Roasted Tomatillo Sauce (Thursday)
+  ×  5. Elbow macaroni — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: White Chicken Chili Mac (Friday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Carne Asada Tacos (Sunday), Beef Enchiladas Verdes with Roasted Tomatillo Sauce (Thursday), Beef Stroganoff Noodle Skillet (Saturday), White Chicken Chili Mac (Friday), Chicken Caesar Salad with Garlic Bread (Monday)
+     2. Add orange juice to the Citrus-Marinated Carne Asada marinade bowl   (2 min)
+        Pour ¼ cup orange juice into the Citrus-Marinated Carne Asada marinade bowl.
+        » for: Carne Asada Tacos (Sunday)
+  ×  3. Lime juice and lime — cook day   (7 min)  [RENDER-OMITTED]
+        Citrus wedges keep best cut on the day.
+        » for: Carne Asada Tacos (Sunday), Beef Enchiladas Verdes with Roasted Tomatillo Sauce (Thursday)
+     4. Mince all garlic   (5 min)
+        Mince all the garlic:
+        4 cloves for the Citrus-Marinated Carne Asada — into the Citrus-Marinated Carne Asada marinade bowl
+        2 cloves for the Mexican Rice, 3 cloves for the Beef Stroganoff Noodle Skillet, and 4 cloves for the White Chicken Chili Mac — all into a tub labelled "Minced garlic — Mexican Rice, Beef Stroganoff Noodle Skillet, White Chicken Chili Mac"
+        » storage: Citrus-Marinated Carne Asada marinade bowl: Covered in the fridge — up to 3 days. Airtight in the fridge — up to 4 days. The skirt steak go in at the proteins step and marinate until cook day.
+        » for: Carne Asada Tacos (Sunday), Beef Enchiladas Verdes with Roasted Tomatillo Sauce (Thursday), Beef Stroganoff Noodle Skillet (Saturday), White Chicken Chili Mac (Friday)
+     5. Dice the roma tomatoes for Fresh Pico de Gallo   (8 min)
+        Dice 3 roma tomatoes and add them into a tub labelled "Fresh Pico de Gallo — roma tomatoes, white onion, fresh cilantro and jalapeño".
+        » for: Carne Asada Tacos (Sunday)
+     6. Dice all white onion   (5 min)
+        Finely dice the white onion:
+        ½ for the Fresh Pico de Gallo — into a tub labelled "Fresh Pico de Gallo — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        ¼ for the Simple Guacamole — into a tub labelled "Simple Guacamole — finely diced white onion"
+        1 for the White Chicken Chili Mac (diced) — into a tub labelled "White Chicken Chili Mac — diced white onion"
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » for: Carne Asada Tacos (Sunday), White Chicken Chili Mac (Friday)
+     7. Chop all fresh cilantro   (5 min)
+        Chop all the fresh cilantro:
+        ¼ cup for the Fresh Pico de Gallo — into a tub labelled "Fresh Pico de Gallo — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        2 tbsp for the Simple Guacamole, ½ cup roughly chopped for the Beef Enchiladas Verdes, 2 tbsp chopped for the Beef Enchiladas Verdes garnish, and ¼ cup roughly chopped for the White Chicken Chili Mac garnish — all into a tub labelled "Chopped fresh cilantro — Simple Guacamole, Beef Enchiladas Verdes, White Chicken Chili Mac"
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Carne Asada Tacos (Sunday), Beef Enchiladas Verdes with Roasted Tomatillo Sauce (Thursday), White Chicken Chili Mac (Friday)
+     8. Prep all jalapeño   (5 min)
+        Seed and prep the jalapeños:
+        ½ jalapeño seeded and minced for the Fresh Pico de Gallo — into a tub labelled "Fresh Pico de Gallo — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        1 jalapeño halved and seeded for the Beef Enchiladas Verdes — into a tub labelled "Beef Enchiladas Verdes vegetables"
+        » storage: Fresh Pico de Gallo: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Stir in the Fresh Pico de Gallo, Simple Guacamole now — it is eaten within a day.
+        » for: Carne Asada Tacos (Sunday), Beef Enchiladas Verdes with Roasted Tomatillo Sauce (Thursday)
+  ×  9. Ripe avocado — cook day   (1 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Carne Asada Tacos (Sunday)
+    10. Husk and halve the tomatillos for Beef Enchiladas Verdes   (3 min)
+        Husk and halve 1¼ lb tomatillos, then add them into a tub labelled "Beef Enchiladas Verdes vegetables".
+        » for: Beef Enchiladas Verdes with Roasted Tomatillo Sauce (Thursday)
+    11. Halve and seed the poblano peppers for Beef Enchiladas Verdes   (1 min)
+        Halve and seed 2 poblano peppers, then add them into a tub labelled "Beef Enchiladas Verdes vegetables".
+        » for: Beef Enchiladas Verdes with Roasted Tomatillo Sauce (Thursday)
+    12. Prep all yellow onion   (1 min)
+        Quarter 1 yellow onion for the Beef Enchiladas Verdes — into a tub labelled "Beef Enchiladas Verdes vegetables"
+        Finely dice 1 yellow onion for the Beef Stroganoff Noodle Skillet — into a tub labelled "Beef Stroganoff Noodle Skillet — finely diced yellow onion"
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » for: Beef Enchiladas Verdes with Roasted Tomatillo Sauce (Thursday), Beef Stroganoff Noodle Skillet (Saturday)
+    13. Slice the cremini mushrooms for Beef Stroganoff Noodle Skillet   (3 min)
+        Slice 10 oz cremini mushrooms and add them into a tub labelled "Beef Stroganoff Noodle Skillet — sliced cremini mushrooms".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Beef Stroganoff Noodle Skillet (Saturday)
+  × 14. Fresh flat-leaf parsley — cook day   (1 min)  [RENDER-OMITTED]
+        A single garnish portion saves the least — cut it on the day.
+        » for: Beef Stroganoff Noodle Skillet (Saturday)
+  × 15. Bagged Caesar kit (romaine, croutons, dressing, Parmesan) — cook day   (1 min)  [RENDER-OMITTED]
+        Nothing to cut — it goes in as it comes.
+        » for: Chicken Caesar Salad with Garlic Bread (Monday)
+
+  ── sauces_marinades ──
+  ×  1. Worcestershire sauce and dijon mustard — cook day   (1 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: Beef Stroganoff Noodle Skillet (Saturday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+  ×  1. Skirt steak — cook day   (5 min)  [RENDER-OMITTED]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+        » for: Carne Asada Tacos (Sunday)
+     2. Cut into strips the beef sirloin steak for Beef Stroganoff Noodle Skillet   (6 min)
+        Cut into strips 1½ lb beef sirloin steak, slicing thinly against the grain.
+        » storage: Covered in the fridge — cook within 2 days.
+        » for: Beef Stroganoff Noodle Skillet (Saturday)
+     3. Skin the rotisserie chicken for Chicken Caesar Salad   (3 min)
+        Skin 1 rotisserie chicken, then shred the meat into bite-sized pieces — you should have about 3 cups.
+        » storage: Covered in the fridge — cook within 2 days.
+        » for: Chicken Caesar Salad with Garlic Bread (Monday)
+     4. Cube the chicken breasts for White Chicken Chili Mac   (6 min)
+        Cube 1½ lb boneless skinless chicken breasts into ¾-inch pieces.
+        » storage: Covered in the fridge — cook within 2 days.
+        » for: White Chicken Chili Mac (Friday)
+
+══════════ PREP SELECTED MEALS — Carne Asada Tacos + White Chicken Chili Mac ══════════
+  HEADER: 9 containers · about 50 min   (server total 52 · phone 45) · cacheHit=false · prompt v19
+
+  ── seasonings_dry ──
+     1. Measure the Citrus-Marinated Carne Asada marinade bowl spices   (3 min)
+        Into the Citrus-Marinated Carne Asada marinade bowl:
+        1 tsp ground cumin
+        1 tsp chili powder
+        ½ tsp smoked paprika
+        ½ tsp dried oregano
+        
+        Set aside for the produce step.
+        » for: Carne Asada Tacos (Sunday)
+     2. Measure the White Chicken Chili Mac seasoning   (3 min)
+        Into the White Chicken Chili Mac seasoning:
+        1½ tsp ground cumin
+        1 tsp chili powder
+        ½ tsp smoked paprika
+        ½ tsp dried oregano
+        ¼ tsp cayenne pepper
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: White Chicken Chili Mac (Friday)
+  ×  3. Elbow macaroni — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: White Chicken Chili Mac (Friday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Carne Asada Tacos (Sunday), White Chicken Chili Mac (Friday)
+     2. Add the orange juice to the Citrus-Marinated Carne Asada marinade bowl   (2 min)
+        Pour ¼ cup orange juice into the Citrus-Marinated Carne Asada marinade bowl.
+        » for: Carne Asada Tacos (Sunday)
+     3. Juice all limes   (6 min)
+        Juice your limes and portion as follows:
+        3 tbsp — into the Citrus-Marinated Carne Asada marinade bowl
+        2 tbsp — into a tub labelled "Lime juice — Fresh Pico de Gallo, Simple Guacamole" for the Fresh Pico de Gallo
+        2 tbsp — into the same tub labelled "Lime juice — Fresh Pico de Gallo, Simple Guacamole" for the Simple Guacamole
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Carne Asada Tacos (Sunday)
+     4. Mince all garlic   (3 min)
+        Mince all garlic cloves:
+        4 cloves for the Citrus-Marinated Carne Asada — into the Citrus-Marinated Carne Asada marinade bowl
+        4 cloves for the White Chicken Chili Mac — into a tub labelled "White Chicken Chili Mac — minced garlic"
+        » storage: Citrus-Marinated Carne Asada marinade bowl: Covered in the fridge — up to 3 days. Airtight in the fridge — up to 4 days. The skirt steak go in at the proteins step and marinate until cook day.
+        » for: Carne Asada Tacos (Sunday), White Chicken Chili Mac (Friday)
+     5. Dice the roma tomatoes for Fresh Pico de Gallo   (8 min)
+        Dice 3 roma tomatoes — into a tub labelled "Fresh Pico de Gallo — roma tomatoes, white onion, fresh cilantro and jalapeño".
+        » for: Carne Asada Tacos (Sunday)
+     6. Dice all white onion   (5 min)
+        Finely dice the white onion:
+        ½ for the Fresh Pico de Gallo — into the tub labelled "Fresh Pico de Gallo — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        ¼ for the Simple Guacamole — into a tub labelled "Simple Guacamole — finely diced white onion"
+        1 for the White Chicken Chili Mac, diced — into a tub labelled "White Chicken Chili Mac — diced white onion"
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » for: Carne Asada Tacos (Sunday), White Chicken Chili Mac (Friday)
+     7. Chop all fresh cilantro   (3 min)
+        Chop all the fresh cilantro:
+        ¼ cup for the Fresh Pico de Gallo — into the tub labelled "Fresh Pico de Gallo — roma tomatoes, white onion, fresh cilantro and jalapeño"
+        2 tbsp for the Simple Guacamole — into a tub labelled "Chopped fresh cilantro — Simple Guacamole, White Chicken Chili Mac"
+        ¼ cup for the White Chicken Chili Mac, roughly chopped for garnish — into the same tub labelled "Chopped fresh cilantro — Simple Guacamole, White Chicken Chili Mac"
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Carne Asada Tacos (Sunday), White Chicken Chili Mac (Friday)
+     8. Prep the jalapeño for Fresh Pico de Gallo   (3 min)
+        Seed and mince ½ jalapeño — into the tub labelled "Fresh Pico de Gallo — roma tomatoes, white onion, fresh cilantro and jalapeño".
+        » storage: Fresh Pico de Gallo: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Stir in the Fresh Pico de Gallo, Simple Guacamole now — it is eaten within a day.
+        » for: Carne Asada Tacos (Sunday)
+  ×  9. Ripe avocado — cook day   (1 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Carne Asada Tacos (Sunday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+  ×  1. Skirt steak — cook day   (5 min)  [RENDER-OMITTED]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+        » for: Carne Asada Tacos (Sunday)
+     2. Cube the chicken breasts for White Chicken Chili Mac   (6 min)
+        Cube 1½ lb boneless skinless chicken breasts into ¾-inch pieces.
+        » storage: Covered in the fridge — cook within 2 days.
+        » for: White Chicken Chili Mac (Friday)
+
+  subset ticks: 11 keys, 1 not in the full plan; required for these meals 9, uncovered 2; isPrepped {"Carne Asada Tacos":false,"White Chicken Chili Mac":false}
+
+══════════ COOK MODE (cook-session.tsx: sequenced if multi-dish, flattened if single) ══════════
+
+  ▸ Carne Asada Tacos   [Sunday]  SEQUENCED
+    footer 51 min | scheduler 51 | card 51 | fresh derive 51 | dishes 3
+      1. [ T-51] (  5m prep) Citrus-Marinated Carne Asada
+         In a bowl or zip-top bag, whisk together ¼ cup orange juice, 3 tablespoons lime juice, 4 minced garlic cloves, 2 tablespoons olive oil, 1 teaspoon cumin, 1 teaspoon chili powder, ½ teaspoon smoked paprika, ½ teaspoon dried oregano, 1 teaspoon kosher salt, and ½ teaspoon black pepper to form the marinade.
+      2. [ T-46] ( 30m rest) Citrus-Marinated Carne Asada
+         Add the 1½ pounds skirt steak to the marinade, turn to coat, and let it marinate at room temperature for 30 minutes (or refrigerate up to 4 hours).
+      3. [ T-46] (  5m preheat) Citrus-Marinated Carne Asada
+         While the steak marinates, heat a grill or cast-iron skillet over high heat until very hot.
+      4. [ T-46] (  6m prep) Fresh Pico de Gallo
+         ⟶ With the Citrus-Marinated Carne Asada chilling, start on the Fresh Pico de Gallo.
+         Dice 3 roma tomatoes, finely dice ½ white onion, chop ¼ cup fresh cilantro, and (if using) seed and mince ½ jalapeño.
+      5. [ T-40] (  3m assemble) Simple Guacamole
+         ⟶ With the Citrus-Marinated Carne Asada chilling, start on the Simple Guacamole.
+         Halve and pit 3 ripe avocados, scoop the flesh into a bowl, and mash with a fork to your preferred texture (chunky or smooth).
+      6. [ T-37] (  2m assemble) Simple Guacamole
+         Stir in 2 tablespoons lime juice, ¼ finely diced white onion, 2 tablespoons chopped fresh cilantro, and ½ teaspoon kosher salt until fully combined.
+      7. [ T-35] (  2m assemble) Simple Guacamole
+         Taste and adjust salt or lime, then transfer to a serving bowl and top with 2 ounces crumbled cotija cheese (optional) before serving.
+      8. [ T-33] (  2m assemble) Fresh Pico de Gallo
+         ⟶ With the Citrus-Marinated Carne Asada chilling, start on the Fresh Pico de Gallo.
+         Combine the tomatoes, onion, cilantro, optional jalapeño, 2 tablespoons lime juice, and ½ teaspoon kosher salt in a bowl and stir to combine.
+      9. [ T-31] (  5m rest) Fresh Pico de Gallo
+         Taste and adjust salt, then let the pico sit for at least 5 minutes before serving so the flavors meld.
+     10. [ T-26] (  1m assemble) Fresh Pico de Gallo
+         Give the pico a final stir and serve alongside the tacos.
+     11. [ T-16] (  8m cook) Citrus-Marinated Carne Asada
+         Remove the steak from the marinade, shake off the excess, and grill 3–4 minutes per side over high heat until charred and cooked to medium (internal temperature 135°F).
+     12. [  T-8] (  5m rest) Citrus-Marinated Carne Asada
+         Transfer the steak to a cutting board and let it rest for 5 minutes.
+     13. [  T-8] (  4m cook) Citrus-Marinated Carne Asada
+         While the steak rests, warm the 12 corn tortillas in a dry skillet over medium heat for about 30 seconds per side, then wrap in a clean towel to keep warm.
+     14. [  T-3] (  3m assemble) Citrus-Marinated Carne Asada
+         Slice the rested steak thinly against the grain and serve in the warm corn tortillas.
+
+  ▸ Beef Enchiladas Verdes with Roasted Tomatillo Sauce   [Thursday]  SEQUENCED
+    footer 91 min | scheduler 91 | card 91 | fresh derive 91 | dishes 2
+      1. [ T-91] (  8m preheat) Beef Enchiladas Verdes
+         Position an oven rack 6 inches from the broiler and preheat the broiler to high.
+      2. [ T-83] (  5m prep) Beef Enchiladas Verdes
+         Arrange the tomatillos (cut-side down), poblano halves, jalapeño halves, onion quarters, and unpeeled garlic cloves on a foil-lined baking sheet.
+      3. [ T-78] ( 12m cook) Beef Enchiladas Verdes
+         Broil the vegetables 10–12 minutes until charred and softened, then remove from the oven and let cool 5 minutes.
+      4. [ T-66] (  5m prep) Beef Enchiladas Verdes
+         Peel the garlic cloves, then transfer all broiled vegetables to a blender with ½ cup fresh cilantro and ½ cup chicken broth; blend until smooth and season with a pinch of salt.
+      5. [ T-61] ( 12m preheat) Beef Enchiladas Verdes
+         Preheat the oven to 375°F.
+      6. [ T-61] (  7m cook) Beef Enchiladas Verdes
+         Brown 1¼ pounds ground beef in a large skillet over medium-high heat, breaking it up, about 7 minutes; drain excess fat.
+      7. [ T-54] (  2m cook) Beef Enchiladas Verdes
+         Stir 1½ teaspoons ground cumin, 1 teaspoon chili powder, ½ teaspoon garlic powder, 1 teaspoon kosher salt, and ¼ teaspoon black pepper into the beef and cook 1 minute more, then remove from heat.
+      8. [ T-49] (  3m cook) Beef Enchiladas Verdes
+         Warm the 12 corn tortillas in a dry skillet or microwave (30 seconds wrapped in a damp paper towel) until pliable.
+      9. [ T-46] (  8m assemble) Beef Enchiladas Verdes
+         Spread ½ cup of the verde sauce on the bottom of a 9×13-inch baking dish, then fill each tortilla with about 2 tablespoons of the beef mixture, roll tightly, and place seam-side down in the dish.
+     10. [ T-38] (  4m prep) Mexican Rice
+         Mince 2 garlic cloves and measure out 2 tablespoons tomato paste, ½ teaspoon ground cumin, and ½ teaspoon kosher salt.
+     11. [ T-34] (  2m cook) Mexican Rice
+         Heat 1 tablespoon vegetable oil in a medium saucepan over medium heat, add the minced garlic, and cook 1 minute until fragrant.
+     12. [ T-32] (  2m assemble) Beef Enchiladas Verdes
+         Pour the remaining verde sauce evenly over the enchiladas and sprinkle all 8 ounces of shredded Monterey Jack cheese on top.
+     13. [ T-30] (  1m cook) Mexican Rice
+         Stir in 2 tablespoons tomato paste and cook 1 minute until it darkens slightly.
+     14. [ T-29] (  2m cook) Mexican Rice
+         Add 1 cup long-grain white rice and stir to coat in the oil and tomato paste, toasting 2 minutes.
+     15. [ T-27] ( 25m cook) Beef Enchiladas Verdes
+         Bake uncovered at 375°F for 22–25 minutes until the cheese is melted and bubbling at the edges.
+     16. [ T-27] (  3m cook) Mexican Rice
+         ⟶ With the Beef Enchiladas Verdes cooking, start on the Mexican Rice.
+         Pour in 2 cups chicken broth, add ½ teaspoon ground cumin and ½ teaspoon kosher salt, and bring to a boil.
+     17. [ T-24] ( 18m cook) Mexican Rice
+         Reduce heat to low, cover tightly, and simmer 18 minutes until the liquid is fully absorbed.
+     18. [  T-6] (  5m rest) Mexican Rice
+         Remove from heat, keep covered, and let the rice steam undisturbed for 5 minutes, then fluff with a fork and serve.
+     19. [  T-2] (  2m assemble) Beef Enchiladas Verdes
+         ⟶ With the Mexican Rice cooking, start on the Beef Enchiladas Verdes.
+         Garnish with 2 tablespoons chopped cilantro, dollops of ¼ cup sour cream (optional), and lime wedges (optional), then serve immediately.
+
+  ▸ Beef Stroganoff Noodle Skillet   [Saturday]  FLATTENED (single-dish)
+    footer 46 min | scheduler 46 | card 46 | fresh derive 46 | dishes 1
+      1. [ T-46] (  6m prep) 
+         Thinly slice 1½ pounds beef sirloin against the grain into strips, then season with ½ teaspoon kosher salt and ¼ teaspoon black pepper.
+      2. [ T-40] (  4m prep) 
+         Finely dice the yellow onion and mince 3 garlic cloves.
+      3. [ T-36] (  3m prep) 
+         Slice 10 ounces cremini mushrooms and set aside.
+      4. [    —] (  6m cook) 
+         Heat 1 tablespoon neutral oil in a large skillet over high heat until shimmering, then sear the beef strips in a single layer for 2–3 minutes, turning once, until browned; work in batches if needed and transfer to a plate.
+      5. [ T-33] (  4m cook) 
+         Reduce heat to medium, add 2 tablespoons butter to the same skillet, and sauté the onion for 3 minutes until softened, then add the garlic and cook 1 minute more.
+      6. [ T-27] (  5m cook) 
+         Add the sliced mushrooms to the skillet and cook, stirring occasionally, for 5 minutes until they release their liquid and begin to brown.
+      7. [ T-23] (  1m cook) 
+         Sprinkle 2 tablespoons flour over the mushroom-onion mixture and stir for 1 minute to coat.
+      8. [ T-18] (  3m cook) 
+         Pour in 2½ cups beef broth, then stir in 1 tablespoon Worcestershire sauce and 1 teaspoon Dijon mustard; bring to a boil over medium-high heat.
+      9. [    —] ( 10m cook) 
+         Add 8 ounces wide egg noodles to the boiling broth, stir to submerge, then reduce heat to medium and simmer uncovered for 8–10 minutes, stirring occasionally, until the noodles are tender and most of the liquid is absorbed.
+     10. [ T-17] (  2m cook) 
+         Return the seared beef and any resting juices to the skillet, reduce heat to low, and stir in ¾ cup sour cream along with the remaining ½ teaspoon kosher salt and ¼ teaspoon black pepper; heat gently for 2 minutes — do not boil.
+     11. [ T-14] (  2m assemble) 
+         Divide among bowls and garnish with 2 tablespoons chopped flat-leaf parsley, if using.
+
+  ▸ Chicken Caesar Salad with Garlic Bread   [Monday]  SEQUENCED
+    footer 36 min | scheduler 36 | card 36 | fresh derive 36 | dishes 2
+      1. [ T-36] ( 10m preheat) Frozen Garlic Bread
+         Preheat the oven to 375°F (or the temperature on the garlic bread package).
+      2. [ T-26] ( 22m cook) Frozen Garlic Bread
+         Place the frozen garlic bread loaf cut-side up on a baking sheet and bake for 20–25 minutes until the edges are golden and the butter is bubbling.
+      3. [ T-14] (  5m prep) Chicken Caesar Salad
+         ⟶ With the Frozen Garlic Bread cooking, start on the Chicken Caesar Salad.
+         Remove the skin from the rotisserie chicken and shred the meat into bite-sized pieces — you need about 3 cups.
+      4. [  T-9] (  2m assemble) Chicken Caesar Salad
+         Open both Caesar kits and add the romaine from each into a large salad bowl.
+      5. [  T-7] (  2m assemble) Chicken Caesar Salad
+         Drizzle the dressing packets from both kits over the romaine and toss well to coat every leaf.
+      6. [  T-5] (  2m assemble) Chicken Caesar Salad
+         Add the shredded chicken, the croutons from both kits, and the Parmesan from both kits, then toss gently to combine.
+      7. [  T-3] (  2m assemble) Frozen Garlic Bread
+         Remove from the oven, slice into individual portions, and serve warm alongside the salad.
+      8. [  T-1] (  1m assemble) Chicken Caesar Salad
+         Top with the 2 oz shaved Parmesan and finish with ½ teaspoon freshly ground black pepper, then serve immediately.
+
+  ▸ White Chicken Chili Mac   [Friday]  FLATTENED (single-dish)
+    footer 46 min | scheduler 46 | card 46 | fresh derive 46 | dishes 1
+      1. [ T-46] (  5m prep) 
+         Dice the white onion and mince the 4 garlic cloves.
+      2. [ T-41] (  5m prep) 
+         Cut 1½ pounds boneless skinless chicken breasts into ¾-inch cubes and pat dry; season with ½ teaspoon kosher salt and ¼ teaspoon black pepper.
+      3. [    —] (  2m prep) 
+         Measure out 1½ teaspoons ground cumin, 1 teaspoon chili powder, ½ teaspoon dried oregano, ½ teaspoon smoked paprika, and ¼ teaspoon cayenne pepper (optional) into a small bowl.
+      4. [ T-36] (  3m prep) 
+         Cube the 4 oz cream cheese and leave it at room temperature; drain and rinse the two 15-oz cans of cannellini beans.
+      5. [    —] (  6m cook) 
+         Heat 2 tablespoons olive oil in a large Dutch oven or heavy pot over medium-high; sear the chicken cubes in a single layer for 4–5 minutes, turning once, until golden and just cooked through, then transfer to a plate.
+      6. [ T-34] (  5m cook) 
+         Reduce the heat to medium, add the diced onion to the pot, and cook for 4 minutes, stirring occasionally, until softened; add the minced garlic and cook 1 minute more until fragrant.
+      7. [ T-31] (  1m cook) 
+         Stir in the spice blend (or seasoning packet), ½ teaspoon remaining kosher salt, and ¼ teaspoon black pepper; cook 30 seconds until the spices are fragrant.
+      8. [    —] (  2m cook) 
+         Pour in the 3 cups chicken broth and the 7-oz can of undrained diced green chiles, scraping up any browned bits from the bottom of the pot; stir in the drained cannellini beans.
+      9. [ T-25] ( 10m cook) 
+         Bring the pot to a boil, stir in the 8 oz dry elbow macaroni, then reduce to a steady simmer and cook uncovered for 8–9 minutes, stirring every 2 minutes, until the pasta is just tender and has absorbed most of the liquid.
+     10. [ T-20] (  3m cook) 
+         Reduce the heat to low; return the seared chicken (or stir in the rotisserie chicken) to the pot, then add the cubed cream cheese and stir continuously for 2–3 minutes until it is fully melted and the broth is creamy.
+     11. [ T-19] (  2m assemble) 
+         Remove the pot from the heat and stir in ½ cup sour cream and ¾ cup of the shredded Monterey Jack until melted through; taste and adjust salt.
+     12. [ T-17] (  2m assemble) 
+         Ladle into bowls and top each with the remaining Monterey Jack, fresh cilantro (optional), sliced jalapeño (optional), and a lime wedge for squeezing.
+
+══════════ COOK MODE — PREPPED PATH: Beef Enchiladas Verdes with Roasted Tomatillo Sauce ══════════
+  ticked 8 rendered prep steps → isPrepped=false; + every wire step for the meal (10) → isPrepped=false; blockers [{"stepKey":"seasonings_dry#dish#d698e2f2-3c0b-4e0a-b145-573551404be0","onWire":false,"rendered":false,"title":null,"skipSuggested":null}]
+  recap ("You already prepped this — get your:"):
+    · Arrange the tomatillos (cut-side down), poblano halves, jalapeño halves, onion quarters, and unpeeled garlic cloves on a foil-lined baking sheet.
+    · Peel the garlic cloves, then transfer all broiled vegetables to a blender with ½ cup fresh cilantro and ½ cup chicken broth; blend until smooth and season with a pinch of salt.
+    · Mince 2 garlic cloves and measure out 2 tablespoons tomato paste, ½ teaspoon ground cumin, and ½ teaspoon kosher salt.
+  footer 91 min; steps after the prep filter:
+      1. [T-91] (preheat) Beef Enchiladas Verdes
+         Position an oven rack 6 inches from the broiler and preheat the broiler to high.
+      2. [T-78] (cook) Beef Enchiladas Verdes
+         Broil the vegetables 10–12 minutes until charred and softened, then remove from the oven and let cool 5 minutes.
+      3. [T-61] (preheat) Beef Enchiladas Verdes
+         Preheat the oven to 375°F.
+      4. [T-61] (cook) Beef Enchiladas Verdes
+         Brown 1¼ pounds ground beef in a large skillet over medium-high heat, breaking it up, about 7 minutes; drain excess fat.
+      5. [T-54] (cook) Beef Enchiladas Verdes
+         Stir 1½ teaspoons ground cumin, 1 teaspoon chili powder, ½ teaspoon garlic powder, 1 teaspoon kosher salt, and ¼ teaspoon black pepper into the beef and cook 1 minute more, then remove from heat.
+      6. [T-49] (cook) Beef Enchiladas Verdes
+         Warm the 12 corn tortillas in a dry skillet or microwave (30 seconds wrapped in a damp paper towel) until pliable.
+      7. [T-46] (assemble) Beef Enchiladas Verdes
+         Spread ½ cup of the verde sauce on the bottom of a 9×13-inch baking dish, then fill each tortilla with about 2 tablespoons of the beef mixture, roll tightly, and place seam-side down in the dish.
+      8. [T-34] (cook) Mexican Rice
+         Heat 1 tablespoon vegetable oil in a medium saucepan over medium heat, add the minced garlic, and cook 1 minute until fragrant.
+      9. [T-32] (assemble) Beef Enchiladas Verdes
+         Pour the remaining verde sauce evenly over the enchiladas and sprinkle all 8 ounces of shredded Monterey Jack cheese on top.
+     10. [T-30] (cook) Mexican Rice
+         Stir in 2 tablespoons tomato paste and cook 1 minute until it darkens slightly.
+     11. [T-29] (cook) Mexican Rice
+         Add 1 cup long-grain white rice and stir to coat in the oil and tomato paste, toasting 2 minutes.
+     12. [T-27] (cook) Beef Enchiladas Verdes
+         Bake uncovered at 375°F for 22–25 minutes until the cheese is melted and bubbling at the edges.
+     13. [T-27] (cook) Mexican Rice  ⟶ With the Beef Enchiladas Verdes cooking, start on the Mexican Rice.
+         Pour in 2 cups chicken broth, add ½ teaspoon ground cumin and ½ teaspoon kosher salt, and bring to a boil.
+     14. [T-24] (cook) Mexican Rice
+         Reduce heat to low, cover tightly, and simmer 18 minutes until the liquid is fully absorbed.
+     15. [T-6] (rest) Mexican Rice
+         Remove from heat, keep covered, and let the rice steam undisturbed for 5 minutes, then fluff with a fork and serve.
+     16. [T-2] (assemble) Beef Enchiladas Verdes  ⟶ With the Mexican Rice cooking, start on the Beef Enchiladas Verdes.
+         Garnish with 2 tablespoons chopped cilantro, dollops of ¼ cup sour cream (optional), and lime wedges (optional), then serve immediately.

@@ -1,0 +1,438 @@
+PLAN 11623bcd-bc82-4aa4-ad88-80aaa075b19a  [A14]  Part I · A14 · curries: marinades, raita, naan
+  range 2026-10-04 .. 2026-10-10   meals 4   prep day 2026-10-04   shapes: days-5-7, long-passive, multi-3plus, bought-path, marinate, aromatics, two-cuts, cold
+
+══════════ PREP THE WEEK — full plan, as Screen 3 renders it ══════════
+  HEADER: 18 containers · about 75 min   (server total 83 · phone 64) · cacheHit=false · prompt v19
+  HELD: Add the boneless skinless chicken thighs the night before you cook them (Friday).
+  HELD: Add the boneless skinless chicken thighs the night before you cook them (Friday).
+  HELD: Coconut Chicken Korma with Basmati Rice and Garlic Naan (Saturday, 6 days out) — cut the chicken thighs that morning.
+
+  ── seasonings_dry ──
+     1. Measure the Chicken Tikka Masala marinade bowl spices   (4 min)
+        Into the Chicken Tikka Masala marinade bowl:
+        1½ tsp ground cumin
+        1 tsp ground coriander
+        2 tsp garam masala
+        1 tsp smoked paprika
+        ½ tsp ground turmeric
+        ¼ tsp cayenne pepper
+        » for: Classic Chicken Tikka Masala with Basmati Rice and Garlic Naan (Sunday)
+     2. Measure the Chana Masala spice blend   (3 min)
+        Into the Chana Masala spice blend:
+        2 tsp ground cumin
+        2 tsp ground coriander
+        1½ tsp garam masala
+        ½ tsp ground turmeric
+        1 tsp chili powder
+        1 tsp amchur (dried mango powder)
+        » storage: Airtight in the fridge — up to 3 days.
+        » for: Chana Masala with Naan and Cucumber Raita (Wednesday)
+     3. Measure the Butter Chicken marinade bowl spices   (4 min)
+        Into the Butter Chicken marinade bowl:
+        1 tsp ground cumin
+        1 tsp ground coriander
+        1½ tsp garam masala
+        ½ tsp ground turmeric
+        1 tsp Kashmiri chili powder
+        1¼ tsp fine sea salt
+        » for: Butter Chicken with Whole Wheat Roti and Roasted Cauliflower (Friday)
+     4. Measure the Cumin-Spiced Roasted Cauliflower spice blend   (2 min)
+        Into the Cumin-Spiced Roasted Cauliflower spice blend:
+        1 tsp ground cumin
+        ½ tsp ground coriander
+        ½ tsp Kashmiri chili powder
+        ½ tsp fine sea salt
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Butter Chicken with Whole Wheat Roti and Roasted Cauliflower (Friday)
+     5. Measure the Coconut Chicken Korma sauce jar spices   (4 min)
+        Into the Coconut Chicken Korma sauce jar:
+        1 tsp ground cumin
+        1½ tsp ground coriander
+        1½ tsp garam masala
+        ½ tsp ground turmeric
+        ½ tsp sugar
+        ½ tsp sweet paprika
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Coconut Chicken Korma with Basmati Rice and Garlic Naan (Saturday)
+  ×  6. Ground cumin — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Chana Masala with Naan and Cucumber Raita (Wednesday)
+  ×  7. Fine sea salt — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Butter Chicken with Whole Wheat Roti and Roasted Cauliflower (Friday)
+  ×  8. Sugar and dried fenugreek leaves (kasuri methi) — cook day   (1 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: Butter Chicken with Whole Wheat Roti and Roasted Cauliflower (Friday)
+  ×  9. Raw cashews — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Coconut Chicken Korma with Basmati Rice and Garlic Naan (Saturday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Classic Chicken Tikka Masala with Basmati Rice and Garlic Naan (Sunday), Chana Masala with Naan and Cucumber Raita (Wednesday), Butter Chicken with Whole Wheat Roti and Roasted Cauliflower (Friday), Coconut Chicken Korma with Basmati Rice and Garlic Naan (Saturday)
+     2. Juice all lemons   (5 min)
+        Juice the lemons, portioning as you go:
+        1 tbsp — into the Chicken Tikka Masala marinade bowl
+        1 tbsp — into a tub labelled "Fresh lemon juice — Cucumber Raita, Cumin-Spiced Roasted Cauliflower"
+        1 tbsp — into the Butter Chicken marinade bowl
+        1 tbsp — into a tub labelled "Fresh lemon juice — Cucumber Raita, Cumin-Spiced Roasted Cauliflower"
+        
+        Juice 1 whole lemon — into a tub labelled "Chana Masala — juiced lemon"
+        » storage: Chicken Tikka Masala marinade bowl: Covered in the fridge — up to 3 days. Butter Chicken marinade bowl: Covered in the fridge — up to 3 days. Covered in the fridge — up to 3 days. Airtight in the fri…
+        » for: Classic Chicken Tikka Masala with Basmati Rice and Garlic Naan (Sunday), Chana Masala with Naan and Cucumber Raita (Wednesday), Butter Chicken with Whole Wheat Roti and Roasted Cauliflower (Friday)
+     3. Dice and chop all yellow onion   (13 min)
+        Finely dice the yellow onions:
+        1 onion for Chicken Tikka Masala — into a tub labelled "Finely diced yellow onion — Chicken Tikka Masala, Chana Masala, Butter Chicken (Murgh Makhani)"
+        2 onions for Chana Masala — into the same tub
+        1 onion for Butter Chicken (Murgh Makhani) — into the same tub
+        
+        Roughly chop 1 onion for Coconut Chicken Korma — into a tub labelled "Coconut Chicken Korma — chopped yellow onion"
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » for: Classic Chicken Tikka Masala with Basmati Rice and Garlic Naan (Sunday), Chana Masala with Naan and Cucumber Raita (Wednesday), Butter Chicken with Whole Wheat Roti and Roasted Cauliflower (Friday), Coconut Chicken Korma with Basmati Rice and Garlic Naan (Saturday)
+     4. Mince and chop all garlic   (8 min)
+        Mince the garlic, portioning by dish into a tub labelled "Minced garlic cloves — Chicken Tikka Masala, Garlic Naan, Chana Masala +2 more":
+        5 cloves for Chicken Tikka Masala
+        2 cloves for Garlic Naan
+        6 cloves for Chana Masala
+        5 cloves for Butter Chicken (Murgh Makhani)
+        2 cloves finely minced for Warm Garlic Naan
+        
+        Roughly chop 4 cloves for Coconut Chicken Korma — into a tub labelled "Coconut Chicken Korma — aromatics"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Classic Chicken Tikka Masala with Basmati Rice and Garlic Naan (Sunday), Chana Masala with Naan and Cucumber Raita (Wednesday), Butter Chicken with Whole Wheat Roti and Roasted Cauliflower (Friday), Coconut Chicken Korma with Basmati Rice and Garlic Naan (Saturday)
+     5. Grate and chop all fresh ginger   (1 min)
+        Finely grate the ginger into a tub labelled "Grated fresh ginger — Chicken Tikka Masala, Chana Masala, Butter Chicken (Murgh Makhani)":
+        1 tbsp for Chicken Tikka Masala
+        2 tbsp for Chana Masala
+        1 tbsp for Butter Chicken (Murgh Makhani)
+        
+        Peel and roughly chop 1½ inches of ginger for Coconut Chicken Korma — into a tub labelled "Coconut Chicken Korma — aromatics"
+        » storage: Coconut Chicken Korma — aromatics: Airtight in the fridge — up to 4 days. Airtight in the fridge — up to 3 days.
+        » for: Classic Chicken Tikka Masala with Basmati Rice and Garlic Naan (Sunday), Chana Masala with Naan and Cucumber Raita (Wednesday), Butter Chicken with Whole Wheat Roti and Roasted Cauliflower (Friday), Coconut Chicken Korma with Basmati Rice and Garlic Naan (Saturday)
+     6. Chop all fresh cilantro   (5 min)
+        Roughly chop the cilantro for garnish into a tub labelled "Chopped fresh cilantro — Chicken Tikka Masala, Chana Masala, Butter Chicken (Murgh Makhani) +1 more":
+        ¼ cup for Chicken Tikka Masala
+        ¼ cup for Chana Masala
+        ¼ cup for Butter Chicken (Murgh Makhani)
+        ¼ cup for Coconut Chicken Korma
+        
+        Finely chop 2 tbsp — into a tub labelled "Garlic Naan — finely chopped fresh cilantro"
+        Finely chop 2 tbsp — into a tub labelled "Cucumber Raita — fresh cilantro, english cucumber and fresh mint leaves"
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Classic Chicken Tikka Masala with Basmati Rice and Garlic Naan (Sunday), Chana Masala with Naan and Cucumber Raita (Wednesday), Butter Chicken with Whole Wheat Roti and Roasted Cauliflower (Friday), Coconut Chicken Korma with Basmati Rice and Garlic Naan (Saturday)
+     7. Chop the serrano chiles for Chana Masala   (5 min)
+        Finely chop 2 green serrano chiles, removing the seeds for less heat — into a tub labelled "Chana Masala — finely chopped green serrano chile"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Chana Masala with Naan and Cucumber Raita (Wednesday)
+     8. Prep the cucumber for Cucumber Raita   (3 min)
+        Halve 1 English cucumber lengthwise, scrape out the seeds, and finely dice the flesh — into a tub labelled "Cucumber Raita — fresh cilantro, english cucumber and fresh mint leaves"
+        » for: Chana Masala with Naan and Cucumber Raita (Wednesday)
+     9. Chop the fresh mint for Cucumber Raita   (1 min)
+        Finely chop 2 tbsp fresh mint leaves — into a tub labelled "Cucumber Raita — fresh cilantro, english cucumber and fresh mint leaves"
+        » storage: Cucumber Raita: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Cucumber Raita, Cumin-Spiced Roasted Cauliflower separate; combine on cook day (Wednesday).
+        » for: Chana Masala with Naan and Cucumber Raita (Wednesday)
+    10. Cut the cauliflower for Cumin-Spiced Roasted Cauliflower   (2 min)
+        Cut 1 head of cauliflower into medium florets (about 6 cups) — into a tub labelled "Cumin-Spiced Roasted Cauliflower — cauliflower"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Butter Chicken with Whole Wheat Roti and Roasted Cauliflower (Friday)
+    11. Chop the parsley for Warm Garlic Naan   (1 min)
+        Finely chop 1 tbsp fresh parsley — into a tub labelled "Warm Garlic Naan — finely chopped fresh parsley"
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Coconut Chicken Korma with Basmati Rice and Garlic Naan (Saturday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+  ×  1. Boneless skinless chicken thighs — cook day   (15 min)  [RENDER-OMITTED]
+        Cut all boneless skinless chicken thighs into pieces:
+        2 lb into 1½-inch pieces for Chicken Tikka Masala
+        2 lb into 1½-inch pieces for Butter Chicken (Murgh Makhani)
+        1¾ lb into 1½-inch pieces for Coconut Chicken Korma
+        
+        Keep each portion separate in its own wrapping.
+        » storage: This one is 6 days out — leave it for cook day.
+        » for: Classic Chicken Tikka Masala with Basmati Rice and Garlic Naan (Sunday), Butter Chicken with Whole Wheat Roti and Roasted Cauliflower (Friday), Coconut Chicken Korma with Basmati Rice and Garlic Naan (Saturday)
+
+══════════ PREP SELECTED MEALS — Classic Chicken Tikka Masala with Basmati Rice and Garlic Naan + Coconut Chicken Korma with Basmati Rice and Garlic Naan ══════════
+  HEADER: 10 containers · about 35 min   (server total 44 · phone 28) · cacheHit=false · prompt v19
+  HELD: Coconut Chicken Korma with Basmati Rice and Garlic Naan (Saturday, 6 days out) — cut the chicken thighs that morning.
+
+  ── seasonings_dry ──
+     1. Measure the Chicken Tikka Masala marinade bowl spices   (4 min)
+        Into the Chicken Tikka Masala marinade bowl:
+        1½ tsp ground cumin
+        1 tsp ground coriander
+        2 tsp garam masala
+        1 tsp smoked paprika
+        ½ tsp ground turmeric
+        ¼ tsp cayenne pepper
+        Set aside for the produce step.
+        » for: Classic Chicken Tikka Masala with Basmati Rice and Garlic Naan (Sunday)
+     2. Measure the Coconut Chicken Korma sauce jar spices   (4 min)
+        Into the Coconut Chicken Korma sauce jar:
+        1 tsp ground cumin
+        1½ tsp ground coriander
+        1½ tsp garam masala
+        ½ tsp ground turmeric
+        ½ tsp sweet paprika
+        ½ tsp sugar
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Coconut Chicken Korma with Basmati Rice and Garlic Naan (Saturday)
+  ×  3. Raw cashews — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Coconut Chicken Korma with Basmati Rice and Garlic Naan (Saturday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Classic Chicken Tikka Masala with Basmati Rice and Garlic Naan (Sunday), Coconut Chicken Korma with Basmati Rice and Garlic Naan (Saturday)
+     2. Juice the lemon for Chicken Tikka Masala   (2 min)
+        Juice the lemon:
+        1 tbsp — into the Chicken Tikka Masala marinade bowl
+        » storage: Chicken Tikka Masala marinade bowl: Covered in the fridge — up to 3 days. The boneless skinless chicken thighs go in at the proteins step and marinate until cook day.
+        » for: Classic Chicken Tikka Masala with Basmati Rice and Garlic Naan (Sunday)
+     3. Prep all yellow onion   (5 min)
+        Finely dice 1 yellow onion — into a tub labelled "Chicken Tikka Masala — finely diced yellow onion"
+        Roughly chop 1 yellow onion — into a tub labelled "Coconut Chicken Korma — chopped yellow onion"
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » for: Classic Chicken Tikka Masala with Basmati Rice and Garlic Naan (Sunday), Coconut Chicken Korma with Basmati Rice and Garlic Naan (Saturday)
+     4. Prep all garlic cloves   (5 min)
+        Mince the garlic cloves:
+        5 minced — into a tub labelled "Minced garlic cloves — Chicken Tikka Masala, Garlic Naan, Warm Garlic Naan"
+        2 minced — into the same tub labelled "Minced garlic cloves — Chicken Tikka Masala, Garlic Naan, Warm Garlic Naan"
+        2 finely minced — into the same tub labelled "Minced garlic cloves — Chicken Tikka Masala, Garlic Naan, Warm Garlic Naan"
+        Roughly chop the remaining garlic:
+        4 roughly chopped — into a tub labelled "Coconut Chicken Korma — aromatics"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Classic Chicken Tikka Masala with Basmati Rice and Garlic Naan (Sunday), Coconut Chicken Korma with Basmati Rice and Garlic Naan (Saturday)
+     5. Prep all fresh ginger   (1 min)
+        Finely grate 1 tbsp fresh ginger — into a tub labelled "Chicken Tikka Masala — grated fresh ginger"
+        Peel and roughly chop 1½ inches fresh ginger — into a tub labelled "Coconut Chicken Korma — aromatics"
+        » storage: Coconut Chicken Korma — aromatics: Airtight in the fridge — up to 4 days. Airtight in the fridge — up to 3 days.
+        » for: Classic Chicken Tikka Masala with Basmati Rice and Garlic Naan (Sunday), Coconut Chicken Korma with Basmati Rice and Garlic Naan (Saturday)
+     6. Chop all fresh cilantro   (3 min)
+        Roughly chop the cilantro for the curries:
+        ¼ cup for Chicken Tikka Masala — into a tub labelled "Chopped fresh cilantro — Chicken Tikka Masala, Coconut Chicken Korma"
+        ¼ cup for Coconut Chicken Korma — into the same tub labelled "Chopped fresh cilantro — Chicken Tikka Masala, Coconut Chicken Korma"
+        Finely chop the cilantro for the naan:
+        2 tbsp — into a tub labelled "Garlic Naan — finely chopped fresh cilantro"
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Classic Chicken Tikka Masala with Basmati Rice and Garlic Naan (Sunday), Coconut Chicken Korma with Basmati Rice and Garlic Naan (Saturday)
+     7. Chop the fresh parsley for Warm Garlic Naan   (1 min)
+        Finely chop 1 tbsp fresh parsley — into a tub labelled "Warm Garlic Naan — finely chopped fresh parsley"
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Coconut Chicken Korma with Basmati Rice and Garlic Naan (Saturday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+  ×  1. Boneless skinless chicken thighs — cook day   (15 min)  [RENDER-OMITTED]
+        Cut all boneless skinless chicken thighs into pieces:
+        2 lb into 1½-inch pieces for Chicken Tikka Masala
+        1¾ lb into 1½-inch pieces for Coconut Chicken Korma
+        » storage: This one is 6 days out — leave it for cook day.
+        » for: Classic Chicken Tikka Masala with Basmati Rice and Garlic Naan (Sunday), Coconut Chicken Korma with Basmati Rice and Garlic Naan (Saturday)
+
+  subset ticks: 9 keys, 1 not in the full plan; required for these meals 9, uncovered 4; isPrepped {"Classic Chicken Tikka Masala w":false,"Coconut Chicken Korma with Bas":false}
+
+══════════ COOK MODE (cook-session.tsx: sequenced if multi-dish, flattened if single) ══════════
+
+  ▸ Classic Chicken Tikka Masala with Basmati Rice and Garlic Naan   [Sunday]  SEQUENCED
+    footer 55 min | scheduler 55 | card 55 | fresh derive 55 | dishes 3
+      1. [ T-55] (  3m prep) Chicken Tikka Masala
+         In a large bowl, combine ½ cup whole-milk yogurt, 1 tablespoon fresh lemon juice, 1 teaspoon kosher salt, and the marinade spices.
+      2. [ T-52] (  2m prep) Chicken Tikka Masala
+         Measure ½ teaspoon cumin, ½ teaspoon coriander, 1 teaspoon garam masala, ½ teaspoon smoked paprika, ¼ teaspoon turmeric, and ¼ teaspoon cayenne into the yogurt mixture and stir to combine.
+      3. [ T-50] ( 10m rest) Chicken Tikka Masala
+         Add the 2 pounds of chicken thigh pieces to the marinade, toss to coat thoroughly, and let sit at room temperature while you prepare the sauce (at least 10 minutes).
+      4. [ T-50] (  6m prep) Chicken Tikka Masala
+         Finely dice the yellow onion, mince the 5 garlic cloves, and finely grate 1 tablespoon fresh ginger.
+      5. [ T-40] (  8m cook) Chicken Tikka Masala
+         Heat 2 tablespoons neutral oil in a large heavy skillet or Dutch oven over high heat until shimmering, then cook the marinated chicken pieces in a single layer for 4–5 minutes, turning once, until charred in spots and just cooked through; transfer to a plate.
+      6. [ T-32] (  6m cook) Chicken Tikka Masala
+         Reduce heat to medium, add 2 tablespoons butter to the same pan, and sauté the diced onion for 6 minutes until softened and golden.
+      7. [ T-26] (  2m prep) Steamed Basmati Rice
+         Rinse 1½ cups basmati rice in a fine-mesh strainer under cold water, swishing until the water runs clear, about 30 seconds.
+      8. [ T-24] (  3m cook) Chicken Tikka Masala
+         Add the minced garlic and grated ginger and cook 1 minute until fragrant, then stir in 2 tablespoons tomato paste and cook a further 2 minutes until the paste darkens slightly.
+      9. [ T-24] (  4m cook) Steamed Basmati Rice
+         Combine the rinsed rice, 2¼ cups water, ½ teaspoon kosher salt, and 1 tablespoon unsalted butter in a medium saucepan and bring to a boil over high heat.
+     10. [ T-21] (  1m cook) Chicken Tikka Masala
+         ⟶ With the Steamed Basmati Rice marinating, start on the Chicken Tikka Masala.
+         Stir in 1 teaspoon cumin, ½ teaspoon coriander, 1 teaspoon garam masala, ½ teaspoon smoked paprika, ¼ teaspoon turmeric, and ¼ teaspoon cayenne and cook 30 seconds until fragrant.
+     11. [ T-20] ( 10m cook) Chicken Tikka Masala
+         Pour in the 14 oz crushed San Marzano tomatoes, stir well, and simmer over medium-low heat for 10 minutes until the sauce thickens and the oil begins to separate at the edges.
+     12. [ T-20] ( 15m cook) Steamed Basmati Rice
+         ⟶ With the Chicken Tikka Masala cooking, start on the Steamed Basmati Rice.
+         Once boiling, stir once, reduce heat to the lowest setting, cover tightly, and cook for 15 minutes without lifting the lid.
+     13. [ T-16] (  3m prep) Garlic Naan
+         ⟶ With the Chicken Tikka Masala cooking, start on the Garlic Naan.
+         Melt 2 tablespoons unsalted butter and stir in 2 minced garlic cloves and 2 tablespoons finely chopped fresh cilantro to make the garlic butter.
+     14. [ T-13] (  6m cook) Garlic Naan
+         Heat a large dry skillet or grill pan over medium-high heat and warm each of the 4 naan breads for 1–2 minutes per side until lightly toasted and pliable.
+     15. [  T-7] (  5m cook) Chicken Tikka Masala
+         ⟶ With the Steamed Basmati Rice cooking, start on the Chicken Tikka Masala.
+         Stir in ½ cup heavy cream, return the cooked chicken and any resting juices to the pan, and simmer gently for 5 minutes until the chicken is warmed through and the sauce coats it richly.
+     16. [  T-7] (  2m assemble) Garlic Naan
+         ⟶ With the Steamed Basmati Rice cooking, start on the Garlic Naan.
+         Immediately brush each warm naan with the garlic-cilantro butter and sprinkle with ¼ teaspoon flaky sea salt; serve at once.
+     17. [  T-5] (  5m rest) Steamed Basmati Rice
+         ⟶ With the Chicken Tikka Masala resting, start on the Steamed Basmati Rice.
+         Remove from heat and let the rice steam, still covered, for 5 minutes, then fluff with a fork and serve.
+     18. [  T-2] (  2m assemble) Chicken Tikka Masala
+         ⟶ With the Steamed Basmati Rice cooking, start on the Chicken Tikka Masala.
+         Taste and adjust salt with the remaining ¼ teaspoon kosher salt if needed, then ladle into bowls and top with ¼ cup roughly chopped fresh cilantro.
+
+  ▸ Chana Masala with Naan and Cucumber Raita   [Wednesday]  SEQUENCED
+    footer 54 min | scheduler 54 | card 54 | fresh derive 54 | dishes 3
+      1. [ T-54] ( 10m prep) Chana Masala
+         Finely dice the 2 yellow onions, mince the 6 garlic cloves, grate 2 tablespoons fresh ginger, and finely chop the 2 serrano chiles (remove seeds for less heat).
+      2. [ T-44] (  2m prep) Chana Masala
+         Measure out 2 teaspoons ground cumin, 2 teaspoons ground coriander, 1½ teaspoons garam masala, ½ teaspoon turmeric, 1 teaspoon chili powder, and 1 teaspoon amchur into a small bowl and set aside.
+      3. [ T-42] (  2m prep) Chana Masala
+         Drain and rinse the three 20 oz cans of chickpeas and set aside.
+      4. [ T-40] (  9m cook) Chana Masala
+         Heat 3 tablespoons neutral oil in a large, deep skillet or Dutch oven over medium-high heat until shimmering, then add the onions and cook, stirring frequently, for 8 minutes until deep golden.
+      5. [ T-31] (  2m cook) Chana Masala
+         Add the garlic, ginger, and serranos and cook, stirring constantly, for 2 minutes until fragrant.
+      6. [ T-29] (  1m cook) Chana Masala
+         Add the spice blend and 1½ teaspoons kosher salt to the pan and stir for 1 minute to toast the spices directly into the oil.
+      7. [ T-28] (  8m cook) Chana Masala
+         Pour in the 28 oz crushed tomatoes and ½ cup water, stir well, and simmer over medium heat for 8 minutes until the sauce thickens and the oil begins to separate at the edges.
+      8. [ T-20] ( 10m cook) Chana Masala
+         Add the drained chickpeas, stir to coat in the sauce, and simmer over medium-low heat for 10 minutes, stirring occasionally, until the chickpeas are heated through and the curry is thick.
+      9. [ T-20] (  6m prep) Cucumber Raita
+         ⟶ With the Chana Masala cooking, start on the Cucumber Raita.
+         Halve the English cucumber lengthwise, scrape out the seeds with a spoon, and finely dice the flesh; finely chop 2 tablespoons fresh mint leaves and 2 tablespoons fresh cilantro.
+     10. [ T-14] (  2m prep) Cucumber Raita
+         In a medium bowl, whisk together 2 cups plain whole-milk yogurt, 1 tablespoon lemon juice, ¼ teaspoon ground cumin, and ½ teaspoon kosher salt until smooth.
+     11. [ T-12] (  2m assemble) Cucumber Raita
+         Fold in the diced cucumber, mint, and cilantro, then cover and refrigerate until ready to serve.
+     12. [ T-10] (  2m assemble) Chana Masala
+         Remove from heat, squeeze in the juice of 1 lemon, stir, and taste for salt; ladle into bowls and scatter ¼ cup roughly chopped fresh cilantro over the top.
+     13. [  T-8] (  6m cook) Store Naan
+         Heat a dry skillet or cast-iron pan over medium-high heat until very hot, then warm each of the 8 naan pieces for 30–60 seconds per side until lightly charred and pliable (or hold them directly over a gas flame for the same time).
+     14. [  T-2] (  2m assemble) Store Naan
+         Brush each warm naan with a little of the 2 tablespoons unsalted butter (optional) and stack under a clean kitchen towel to keep warm until serving.
+
+  ▸ Butter Chicken with Whole Wheat Roti and Roasted Cauliflower   [Friday]  SEQUENCED
+    footer 84 min | scheduler 84 | card 84 | fresh derive 84 | dishes 3
+      1. [ T-84] (  4m prep) Butter Chicken (Murgh Makhani)
+         In a large bowl, combine ½ cup plain whole-milk yogurt, 1 tablespoon lemon juice, 1 teaspoon fine sea salt, and the marinade spices (1½ teaspoons garam masala, 1 teaspoon each ground cumin and ground coriander, 1 teaspoon kashmiri chili powder, and ½ teaspoon ground turmeric); whisk until smooth.
+      2. [ T-80] ( 15m rest) Butter Chicken (Murgh Makhani)
+         Add 2 pounds of chicken thigh pieces to the marinade, toss to coat thoroughly, and set aside while you prepare the sauce (at least 15 minutes, or cover and refrigerate up to 8 hours).
+      3. [ T-80] (  6m prep) Butter Chicken (Murgh Makhani)
+         Finely dice 1 yellow onion, mince 5 garlic cloves, and grate 1 tablespoon fresh ginger.
+      4. [ T-70] (  3m prep) Whole Wheat Roti
+         ⟶ With the Butter Chicken (Murgh Makhani) chilling, start on the Whole Wheat Roti.
+         In a large bowl, whisk together 2 cups whole wheat flour (atta) and ½ teaspoon fine sea salt, then drizzle in 1 tablespoon neutral oil and rub it into the flour until it resembles coarse crumbs.
+      5. [ T-67] ( 25m rest) Whole Wheat Roti
+         Add ¾ cup warm water gradually, mixing with your hand, until a soft, pliable dough forms; knead on a lightly floured surface for 5 minutes until smooth, then cover with a damp cloth and rest for 20 minutes.
+      6. [ T-65] ( 12m cook) Butter Chicken (Murgh Makhani)
+         ⟶ With the Whole Wheat Roti resting, start on the Butter Chicken (Murgh Makhani).
+         Heat 2 tablespoons neutral oil in a large heavy-bottomed skillet or Dutch oven over medium-high; cook the marinated chicken in a single layer (in batches if needed) for 4–5 minutes per side until charred at the edges and just cooked through, then transfer to a plate.
+      7. [ T-53] (  7m cook) Butter Chicken (Murgh Makhani)
+         Reduce heat to medium, add 3 tablespoons unsalted butter to the same pan, and sauté the diced onion for 6–7 minutes until soft and golden, stirring frequently.
+      8. [ T-46] ( 12m cook) Butter Chicken (Murgh Makhani)
+         Add the minced garlic and grated ginger and cook for 1 minute until fragrant, then pour in the 14 oz can of crushed tomatoes, add 1 teaspoon sugar, and ¼ teaspoon fine sea salt; stir and simmer uncovered for 10 minutes until the sauce thickens and the tomatoes deepen in color.
+      9. [ T-46] ( 10m preheat) Cumin-Spiced Roasted Cauliflower
+         ⟶ With the Whole Wheat Roti resting, start on the Cumin-Spiced Roasted Cauliflower.
+         Preheat the oven to 425°F and line a large rimmed baking sheet with parchment.
+     10. [ T-46] (  6m prep) Cumin-Spiced Roasted Cauliflower
+         Cut 1 head of cauliflower into medium florets (about 6 cups) and spread them on the prepared baking sheet.
+     11. [ T-40] (  3m prep) Cumin-Spiced Roasted Cauliflower
+         Drizzle 3 tablespoons neutral oil over the florets, then sprinkle with 1 teaspoon ground cumin, ½ teaspoon ground coriander, ½ teaspoon kashmiri chili powder, and ½ teaspoon fine sea salt; toss well to coat evenly and spread into a single layer.
+     12. [ T-37] (  8m prep) Whole Wheat Roti
+         ⟶ With the Butter Chicken (Murgh Makhani) cooking, start on the Whole Wheat Roti.
+         Divide the rested dough into 8 equal balls and roll each out on a lightly floured surface into a thin round, about 7 inches in diameter.
+     13. [ T-36] ( 28m cook) Cumin-Spiced Roasted Cauliflower
+         ⟶ With the Butter Chicken (Murgh Makhani) cooking, start on the Cumin-Spiced Roasted Cauliflower.
+         Roast at 425°F for 25–30 minutes, flipping the florets once halfway through, until the edges are deeply golden and caramelized.
+     14. [ T-29] (  3m cook) Butter Chicken (Murgh Makhani)
+         ⟶ With the Cumin-Spiced Roasted Cauliflower cooking, start on the Butter Chicken (Murgh Makhani).
+         Use an immersion blender (or carefully transfer to a blender) to purée the tomato-onion sauce until completely smooth, then return to the pan over medium-low heat.
+     15. [ T-29] ( 15m cook) Whole Wheat Roti
+         ⟶ With the Cumin-Spiced Roasted Cauliflower cooking, start on the Whole Wheat Roti.
+         Heat a dry cast-iron skillet or tawa over medium-high until very hot; cook each roti (scratch-made or store-bought) for 60–90 seconds per side until brown spots appear and the roti puffs slightly.
+     16. [ T-14] (  2m cook) Butter Chicken (Murgh Makhani)
+         ⟶ With the Cumin-Spiced Roasted Cauliflower cooking, start on the Butter Chicken (Murgh Makhani).
+         Stir in ½ cup heavy cream and 1 teaspoon dried fenugreek leaves (kasuri methi), crushing the fenugreek between your palms as you add it; return the cooked chicken and any resting juices to the pan.
+     17. [ T-14] (  2m hold) Whole Wheat Roti
+         ⟶ With the Cumin-Spiced Roasted Cauliflower cooking, start on the Whole Wheat Roti.
+         Brush each hot roti with a little unsalted butter (optional) and stack under a clean kitchen towel to keep warm until serving.
+     18. [ T-12] ( 10m cook) Butter Chicken (Murgh Makhani)
+         ⟶ With the Cumin-Spiced Roasted Cauliflower cooking, start on the Butter Chicken (Murgh Makhani).
+         Simmer the butter chicken over low heat for 8–10 minutes, stirring occasionally, until the sauce clings to the chicken and the oil just begins to separate at the edges.
+     19. [  T-8] (  1m assemble) Cumin-Spiced Roasted Cauliflower
+         ⟶ With the Butter Chicken (Murgh Makhani) cooking, start on the Cumin-Spiced Roasted Cauliflower.
+         Transfer the roasted cauliflower to a serving platter and squeeze 1 tablespoon lemon juice over the top just before serving.
+     20. [  T-2] (  2m assemble) Butter Chicken (Murgh Makhani)
+         Taste and adjust salt, then ladle into a serving bowl and garnish with roughly chopped fresh cilantro (optional).
+
+  ▸ Coconut Chicken Korma with Basmati Rice and Garlic Naan   [Saturday]  SEQUENCED
+    footer 54 min | scheduler 54 | card 54 | fresh derive 54 | dishes 3
+      1. [ T-54] ( 12m prep) Coconut Chicken Korma
+         Soak ½ cup raw cashews in ½ cup boiling water for 10 minutes, then drain and transfer to a blender with the roughly chopped yellow onion, 4 garlic cloves, and 1½-inch piece of ginger; blend to a smooth paste, adding 2–3 tablespoons of water if needed.
+      2. [ T-42] (  3m prep) Coconut Chicken Korma
+         Pat the 1¾ lb chicken thigh pieces dry and season with ¾ teaspoon kosher salt.
+      3. [ T-39] (  2m preheat) Coconut Chicken Korma
+         Heat 2 tablespoons neutral oil in a large, deep skillet or Dutch oven over medium-high heat until shimmering.
+      4. [ T-37] (  6m cook) Coconut Chicken Korma
+         Add the onion-cashew paste to the hot oil and cook, stirring frequently, for 5–6 minutes until the paste turns golden and the raw onion smell cooks off.
+      5. [ T-31] (  1m cook) Coconut Chicken Korma
+         Add 1½ teaspoons ground coriander, 1 teaspoon ground cumin, 1½ teaspoons garam masala, ½ teaspoon ground turmeric, and ½ teaspoon sweet paprika; stir constantly for 1 minute until fragrant.
+      6. [ T-30] (  3m cook) Coconut Chicken Korma
+         Add the seasoned chicken pieces and stir to coat in the paste; cook for 3 minutes, turning occasionally, until the chicken is lightly browned on the outside.
+      7. [ T-27] (  3m prep) Steamed Basmati Rice
+         Rinse 1½ cups basmati rice under cold water, swirling, until the water runs clear; drain well.
+      8. [ T-24] (  2m cook) Coconut Chicken Korma
+         Pour in the 13.5 oz can of full-fat coconut milk and ½ cup plain yogurt, then add ½ teaspoon sugar and the remaining ½ teaspoon kosher salt; stir well to combine.
+      9. [ T-24] (  4m cook) Steamed Basmati Rice
+         Combine the rinsed rice, 2¼ cups water, ½ teaspoon kosher salt, and 1 tablespoon unsalted butter in a medium saucepan and bring to a boil over medium-high heat.
+     10. [ T-22] ( 20m cook) Coconut Chicken Korma
+         ⟶ With the Steamed Basmati Rice marinating, start on the Coconut Chicken Korma.
+         Reduce heat to medium-low and simmer uncovered for 18–20 minutes, stirring occasionally, until the chicken is cooked through and the sauce has thickened to a creamy consistency.
+     11. [ T-20] ( 15m cook) Steamed Basmati Rice
+         ⟶ With the Coconut Chicken Korma cooking, start on the Steamed Basmati Rice.
+         Once boiling, reduce heat to the lowest setting, cover tightly, and cook for 15 minutes — do not lift the lid.
+     12. [ T-14] (  3m prep) Warm Garlic Naan
+         ⟶ With the Coconut Chicken Korma cooking, start on the Warm Garlic Naan.
+         Stir 2 finely minced garlic cloves and 1 tablespoon finely chopped fresh parsley into 2 tablespoons melted unsalted butter.
+     13. [ T-11] (  6m cook) Warm Garlic Naan
+         Heat a large dry skillet or griddle over medium-high heat and warm each of the 4 naan breads for 1–2 minutes per side until lightly toasted and heated through.
+     14. [  T-5] (  5m rest) Steamed Basmati Rice
+         ⟶ With the Coconut Chicken Korma cooking, start on the Steamed Basmati Rice.
+         Remove from heat and let the rice steam, covered, for 5 minutes, then fluff with a fork and serve.
+     15. [  T-5] (  2m assemble) Warm Garlic Naan
+         ⟶ With the Coconut Chicken Korma cooking, start on the Warm Garlic Naan.
+         Brush the hot naan generously with the garlic-parsley butter and serve immediately.
+     16. [  T-2] (  2m assemble) Coconut Chicken Korma
+         ⟶ With the Steamed Basmati Rice cooking, start on the Coconut Chicken Korma.
+         Taste and adjust salt, then ladle into bowls and garnish with ¼ cup roughly chopped fresh cilantro.
+
+══════════ COOK MODE — PREPPED PATH: Chana Masala with Naan and Cucumber Raita ══════════
+  ticked 10 rendered prep steps → isPrepped=false; + every wire step for the meal (11) → isPrepped=false; blockers [{"stepKey":"seasonings_dry#dish#138a0c89-eb33-4a4c-81fe-491adcfb6b17","onWire":false,"rendered":false,"title":null,"skipSuggested":null}]
+  recap ("You already prepped this — get your:"):
+    · Finely dice the 2 yellow onions, mince the 6 garlic cloves, grate 2 tablespoons fresh ginger, and finely chop the 2 serrano chiles (remove seeds for less heat).
+    · Measure out 2 teaspoons ground cumin, 2 teaspoons ground coriander, 1½ teaspoons garam masala, ½ teaspoon turmeric, 1 teaspoon chili powder, and 1 teaspoon amchur into a small bowl and set aside.
+    · Drain and rinse the three 20 oz cans of chickpeas and set aside.
+    · Halve the English cucumber lengthwise, scrape out the seeds with a spoon, and finely dice the flesh; finely chop 2 tablespoons fresh mint leaves and 2 tablespoons fresh cilantro.
+    · In a medium bowl, whisk together 2 cups plain whole-milk yogurt, 1 tablespoon lemon juice, ¼ teaspoon ground cumin, and ½ teaspoon kosher salt until smooth.
+  footer 40 min; steps after the prep filter:
+      1. [T-40] (cook) Chana Masala
+         Heat 3 tablespoons neutral oil in a large, deep skillet or Dutch oven over medium-high heat until shimmering, then add the onions and cook, stirring frequently, for 8 minutes until deep golden.
+      2. [T-31] (cook) Chana Masala
+         Add the garlic, ginger, and serranos and cook, stirring constantly, for 2 minutes until fragrant.
+      3. [T-29] (cook) Chana Masala
+         Add the spice blend and 1½ teaspoons kosher salt to the pan and stir for 1 minute to toast the spices directly into the oil.
+      4. [T-28] (cook) Chana Masala
+         Pour in the 28 oz crushed tomatoes and ½ cup water, stir well, and simmer over medium heat for 8 minutes until the sauce thickens and the oil begins to separate at the edges.
+      5. [T-20] (cook) Chana Masala
+         Add the drained chickpeas, stir to coat in the sauce, and simmer over medium-low heat for 10 minutes, stirring occasionally, until the chickpeas are heated through and the curry is thick.
+      6. [T-12] (assemble) Cucumber Raita
+         Fold in the diced cucumber, mint, and cilantro, then cover and refrigerate until ready to serve.
+      7. [T-10] (assemble) Chana Masala
+         Remove from heat, squeeze in the juice of 1 lemon, stir, and taste for salt; ladle into bowls and scatter ¼ cup roughly chopped fresh cilantro over the top.
+      8. [T-8] (cook) Store Naan
+         Heat a dry skillet or cast-iron pan over medium-high heat until very hot, then warm each of the 8 naan pieces for 30–60 seconds per side until lightly charred and pliable (or hold them directly over a gas flame for the same time).
+      9. [T-2] (assemble) Store Naan
+         Brush each warm naan with a little of the 2 tablespoons unsalted butter (optional) and stack under a clean kitchen towel to keep warm until serving.

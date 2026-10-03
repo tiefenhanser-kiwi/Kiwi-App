@@ -1,0 +1,59 @@
+THE PREP & COOK CENSUS — checker, tag=parti
+25 plans · 110 meals · 507 prep steps · 1699 cook steps
+
+K-R6 population arm: 0 stale of 2067 scanned (sweep 2026-10-01T20:42:50.700Z, scope "all non-archived meals")
+
+| rule | hits | of | plans affected |
+|---|---|---|---|
+| K-R1 | 2 | 77 | 2/25 |
+| K-R2 | 21 | 463 | 12/25 |
+| K-R3 | 0 | 433 | 0/25 |
+| K-R4 | 4 | 8005 | 4/25 |
+| K-R5 | 35 | 269 | 15/25 |
+| K-R6 | 0 | 2177 | 0/25 |
+| P-R1 | 31 | 17 | 17/25 |
+| P-R2 | 143 | 126 | 17/25 |
+| P-R3 | 111 | 202 | 17/25 |
+| P-R4 | 0 | 507 | 0/25 |
+| P-R5 | 0 | 346 | 0/25 |
+| P-R6 | 7 | 7 | 6/25 |
+
+── K-R1 — 2 finding(s) over 77 candidate(s) ──────────────────────────────
+  • [2730c4b1 · Beef Kofta with Hummus, Pickled Onions, and Char] Spiced Beef Kofta: rest at T-10 is 3 min after its cook step finished (T-13) — "Transfer the cooked kofta to a plate and rest for 3 minutes before serving."
+  • [bd8aa8c2 · Pork Carnitas Bowl with Cilantro-Lime Rice, Blac] Cilantro-Lime Rice: rest at T-12 is 4 min after its cook step finished (T-16) — "Remove from heat and let the rice steam, still covered, for 5 minutes."
+
+── K-R2 — 21 finding(s) over 463 candidate(s) ──────────────────────────────
+  • [11623bcd · Butter Chicken with Whole Wheat Roti and Roasted] Butter Chicken (Murgh Makhani): holds 12 min between "Use an immersion blender (or carefully transfer to a blender" (ends T-26) and "Stir in ½ cup heavy cream and 1 teaspoon dried fenugreek lea" (T-14)
+  • [1cf373bc · Classic Tex-Mex Sheet-Pan Chicken Fajitas] Sheet-Pan Chicken Fajitas: holds 14 min between "While the fajita filling roasts, wrap the 12 flour tortillas" (ends T-18) and "Transfer the roasted chicken and vegetables to a large platt" (T-4)
+
+── K-R3 — 0 finding(s) over 433 candidate(s) ──────────────────────────────
+
+── K-R4 — 4 finding(s) over 8005 candidate(s) ──────────────────────────────
+  • [27a03273 · Crispy Chicken Tenders with Oven Fries and Slaw] duplicate action across dishes (60% overlap): "Oven Fries" #1 "Preheat the oven to 425°F (shares the oven with the chicken tenders) a" ∥ "Chicken Tenders" #4 "Preheat the oven to 425°F and line a large rimmed baking sheet with fo"
+  • [8a0de6e6 · Ground Turkey and Tomato Meat Sauce over Spaghet] duplicate action across dishes (62% overlap): "Ground Turkey and Tomato Meat Sauce" #2 "Heat 2 tablespoons olive oil in a large, deep skillet or Dutch oven ov" ∥ "Garlic Sautéed Green Beans" #13 "Heat 1 tablespoon olive oil in a large skillet over medium-high heat u"
+
+── K-R5 — 35 finding(s) over 269 candidate(s) ──────────────────────────────
+  • [04a25763 · Braised Lamb Shanks with Creamy White Bean Mash ] Red Wine Braised Lamb Shanks: 150-min cook window (T-168..T-18) is 146 min idle while 1 later prep step(s) were already startable — e.g. "Lemon-Parsley Gremolata: Finely chop ½ cup packed flat-leaf parsley leaves, finely mi"
+  • [1cf373bc · Italian Meatloaf with Roasted Garlic Mashed Pota] Italian Herb Meatloaf: 12-min preheat window (T-97..T-85) is 6 min idle while 1 later prep step(s) were already startable — e.g. "Sautéed Broccolini with Garlic and Chili Flake: Trim 1 lb broccolini and halve any thick stalks lengthwise, "
+
+── K-R6 — 0 finding(s) over 2177 candidate(s) ──────────────────────────────
+
+── P-R1 — 31 finding(s) over 17 candidate(s) ──────────────────────────────
+  • [04a25763 · 4 meals] 22 containers · about 85 min — 7 OVER the 15 target (reported, not forced: the drop pass stops after garnish portions and citrus wedges); phases seas 4/prod 16/sauc 1/prot 0; held 5; per-(ingredient,dish) portions would be 42 across 24 steps; 4 hold a single ingredient under 1 tbsp — e.g. "1 tsp fresh rosemary (for Creamy White Bean Mash)", "2 tsp lemon zest (for Lemon-Parsley Gremolata)", "1 tsp lemon zest (for Lemon-Herb Chicken Gyros)"
+  • [11623bcd · 4 meals] 18 containers · about 75 min — 3 OVER the 15 target (reported, not forced: the drop pass stops after garnish portions and citrus wedges); phases seas 5/prod 11/sauc 0/prot 0; held 3; per-(ingredient,dish) portions would be 38 across 16 steps; 0 hold a single ingredient under 1 tbsp
+
+── P-R2 — 143 finding(s) over 126 candidate(s) ──────────────────────────────
+  • [04a25763 · Lemon-Herb Chicken Gyros] 7 separate piles across 2 phase(s), NO join anywhere — seasonings_dry:{smoked paprika+dried oregano+ground cumin+dried thyme+jarred roasted red peppers} | produce:{garlic cloves} | produce:{fresh flat-leaf parsley} | produce:{lemon zest+fresh lemon juice} | produce:{english 
+  • [11623bcd · Chicken Tikka Masala] 6 separate piles across 2 phase(s), NO join anywhere — seasonings_dry:{ground cumin+ground coriander+garam masala+smoked paprika+ground turmeric+cayenne pepper} | produce:{fresh lemon juice} | produce:{yellow onion} | produce:{garlic cloves} | produce:{fresh ginger} | produc
+
+── P-R3 — 111 finding(s) over 202 candidate(s) ──────────────────────────────
+  • [04a25763 · Prep all garlic cloves] storage "4 days" but the cook day is 5 days after prep (2026-10-04 → 2026-10-09)
+  • [11623bcd · Juice all lemons] storage "3 days" but the cook day is 5 days after prep (2026-10-04 → 2026-10-09)
+
+── P-R4 — 0 finding(s) over 507 candidate(s) ──────────────────────────────
+
+── P-R5 — 0 finding(s) over 346 candidate(s) ──────────────────────────────
+
+── P-R6 — 7 finding(s) over 7 candidate(s) ──────────────────────────────
+  • [04a25763 · lime] counted in 1 whole-fruit step(s) ("Chop all fresh cilantro") AND measured as juice in 1 step(s) ("Juice all limes")
+  • [2539d94d · lime] counted in 3 whole-fruit step(s) ("Chop fresh cilantro for Chipotle-Spiced Pulle") AND measured as juice in 2 step(s) ("Juice limes for Cilantro-Lime Slaw")

@@ -1,0 +1,1609 @@
+[
+  {
+    "planId": "1e41fc0c-7294-4bd3-a14a-302e44bbcd7c",
+    "code": "E-1e41fc0c",
+    "label": "Tacos & Enchiladas + Three Easy Fall Weeknights",
+    "startDate": "2026-09-30",
+    "meals": [
+      {
+        "mealId": "a66396ef-084f-4000-a1ab-0dd7b2b50069",
+        "title": "Carne Asada Tacos",
+        "day": "Sunday",
+        "dishCount": 3,
+        "shapes": [
+          "cold",
+          "long-passive",
+          "multi-3plus",
+          "marinate",
+          "aromatics"
+        ]
+      },
+      {
+        "mealId": "63014187-8f39-4b3d-a8a1-9ce80c7b632d",
+        "title": "Beef Enchiladas Verdes with Roasted Tomatillo Sauce",
+        "day": "Thursday",
+        "dishCount": 2,
+        "shapes": [
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "b036421a-015d-4004-a257-95e8f64c071c",
+        "title": "Beef Stroganoff Noodle Skillet",
+        "day": "Saturday",
+        "dishCount": 1,
+        "shapes": [
+          "single-dish"
+        ]
+      },
+      {
+        "mealId": "578796c8-b4b1-44ea-b3cb-75c9c55e8b42",
+        "title": "Chicken Caesar Salad with Garlic Bread",
+        "day": "Monday",
+        "dishCount": 2,
+        "shapes": [
+          "long-passive",
+          "bought-path"
+        ]
+      },
+      {
+        "mealId": "398fde90-8554-44a0-9896-69360d036cdd",
+        "title": "White Chicken Chili Mac",
+        "day": "Friday",
+        "dishCount": 1,
+        "shapes": [
+          "long-passive",
+          "single-dish",
+          "aromatics"
+        ]
+      }
+    ],
+    "planShapes": [
+      "days-5-7"
+    ]
+  },
+  {
+    "planId": "b4aa6fee-70b1-4990-a596-05087ac904c5",
+    "code": "E-b4aa6fee",
+    "label": "Your 5 Meals, Exactly as You Planned Them",
+    "startDate": "2026-09-30",
+    "meals": [
+      {
+        "mealId": "4798092f-704f-46f0-b5ec-276849308381",
+        "title": "Classic Tex-Mex Sheet-Pan Chicken Fajitas",
+        "day": "Monday",
+        "dishCount": 2,
+        "shapes": [
+          "long-passive",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "663274f6-a42f-4e4d-9ee6-1783b2b0bf14",
+        "title": "Lemon-Herb Baked Chicken Breast with Roasted Asparagus and Garlic Herb Potatoes",
+        "day": "Sunday",
+        "dishCount": 3,
+        "shapes": [
+          "toss-no-heat",
+          "multi-3plus",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "7bf3c3c9-a84b-4ada-9271-c1a3741a6991",
+        "title": "Carne Asada Tacos",
+        "day": "Friday",
+        "dishCount": 5,
+        "shapes": [
+          "cold",
+          "long-passive",
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "31553418-15b2-4493-8545-193f4d75068e",
+        "title": "Teriyaki Salmon Dinner",
+        "day": "Thursday",
+        "dishCount": 3,
+        "shapes": [
+          "seafood",
+          "cold",
+          "multi-3plus",
+          "marinate",
+          "aromatics"
+        ]
+      },
+      {
+        "mealId": "176e3e46-8d41-4044-81be-6ed5b6b43a00",
+        "title": "Beef Enchiladas Verdes with Roasted Tomatillo Sauce",
+        "day": "Saturday",
+        "dishCount": 2,
+        "shapes": [
+          "aromatics",
+          "two-cuts"
+        ]
+      }
+    ],
+    "planShapes": [
+      "days-5-7"
+    ]
+  },
+  {
+    "planId": "b5263268-64c7-41ff-a8f2-20c01a2b905e",
+    "code": "E-b5263268",
+    "label": "Your 5-Meal Lineup — Exactly as You Described",
+    "startDate": "2026-09-29",
+    "meals": [
+      {
+        "mealId": "ff5f0624-a2c0-434d-9b0c-8afc77d8b92c",
+        "title": "Smoky Chipotle Ground Beef Tacos with Avocado Crema",
+        "day": "Thursday",
+        "dishCount": 4,
+        "shapes": [
+          "cold",
+          "long-passive",
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "1bc9ab57-a80f-4d62-9ce6-deffde4ac6ce",
+        "title": "Classic Tex-Mex Ground Beef Tacos",
+        "day": "Saturday",
+        "dishCount": 4,
+        "shapes": [
+          "cold",
+          "long-passive",
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "b52fd852-28ec-4f41-9d15-c409e89d3f73",
+        "title": "Slow-Cooker Chicken and Dumplings",
+        "day": "Sunday",
+        "dishCount": 1,
+        "shapes": [
+          "long-passive",
+          "single-dish"
+        ]
+      },
+      {
+        "mealId": "1bf37700-da36-4fbc-90be-6454c7d320a0",
+        "title": "Beef Enchiladas Verdes with Roasted Tomatillo Sauce",
+        "day": "Wednesday",
+        "dishCount": 3,
+        "shapes": [
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "36c91ba6-bb0b-444d-a723-54a3962377a7",
+        "title": "Classic Glazed Meatloaf with Mashed Potatoes and Green Beans",
+        "day": "Friday",
+        "dishCount": 3,
+        "shapes": [
+          "multi-3plus"
+        ]
+      }
+    ],
+    "planShapes": [
+      "days-5-7"
+    ]
+  },
+  {
+    "planId": "1cf373bc-a2cb-4469-90ef-bb87d0327343",
+    "code": "E-1cf373bc",
+    "label": "Your 5-Meal Lineup",
+    "startDate": "2026-09-29",
+    "meals": [
+      {
+        "mealId": "c36ce4db-449d-4d2a-b4be-3236e852c524",
+        "title": "Classic Tex-Mex Sheet-Pan Chicken Fajitas",
+        "day": "Sunday",
+        "dishCount": 3,
+        "shapes": [
+          "cold",
+          "long-passive",
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "70b8f5c8-17c3-43cb-9cfc-3ef15f0c9e4f",
+        "title": "Lemon-Herb Baked Chicken Breast with Roasted Asparagus and Garlic Herb Potatoes",
+        "day": "Saturday",
+        "dishCount": 3,
+        "shapes": [
+          "long-passive",
+          "multi-3plus",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "1f29c7d6-71e8-460a-8817-564bf0e62196",
+        "title": "Texas-Style Beef Chili",
+        "day": "Wednesday",
+        "dishCount": 1,
+        "shapes": [
+          "long-passive",
+          "single-dish",
+          "aromatics"
+        ]
+      },
+      {
+        "mealId": "fd71fd2a-ba86-4e65-b38c-0db551b948c6",
+        "title": "Italian Meatloaf with Roasted Garlic Mashed Potatoes and Sauteed Broccolini",
+        "day": "Friday",
+        "dishCount": 3,
+        "shapes": [
+          "multi-3plus",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "a6f08891-f313-41eb-98d7-c7264da8dc16",
+        "title": "Classic Tex-Mex Ground Beef Tacos",
+        "day": "Thursday",
+        "dishCount": 3,
+        "shapes": [
+          "cold",
+          "long-passive",
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      }
+    ],
+    "planShapes": [
+      "days-5-7"
+    ]
+  },
+  {
+    "planId": "873796cd-4e7e-4a4a-bdfe-28a802f295d7",
+    "code": "A01",
+    "label": "7 meals, Sun–Sat: marinades, seafood, slaw",
+    "startDate": "2026-10-04",
+    "meals": [
+      {
+        "mealId": "3fc5e05a-c441-4634-ac61-05cb2f4eadd9",
+        "title": "Carne Asada Tacos",
+        "day": "Sunday",
+        "dishCount": 3,
+        "shapes": [
+          "cold",
+          "long-passive",
+          "multi-3plus",
+          "marinate",
+          "aromatics"
+        ]
+      },
+      {
+        "mealId": "6d90312d-633c-4753-a419-e86d4494bed2",
+        "title": "Texas-Style Beef Chili",
+        "day": "Monday",
+        "dishCount": 1,
+        "shapes": [
+          "long-passive",
+          "single-dish",
+          "aromatics"
+        ]
+      },
+      {
+        "mealId": "183807be-faad-4021-a1b4-daca86f6a80d",
+        "title": "Baja Fish Tacos with Quick Slaw and Lime Crema",
+        "day": "Tuesday",
+        "dishCount": 2,
+        "shapes": [
+          "seafood",
+          "cold",
+          "long-passive",
+          "bought-path",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "354dbaa0-89d2-458c-ac9e-0f2a8f31cea9",
+        "title": "Dry-Rubbed Roast Chicken with Crispy Skin, Roasted Potatoes, and Green Beans",
+        "day": "Wednesday",
+        "dishCount": 3,
+        "shapes": [
+          "toss-no-heat",
+          "long-passive",
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "c408e949-b1cc-4ccc-bbe4-33b0c98f0c87",
+        "title": "Teriyaki Salmon Dinner",
+        "day": "Thursday",
+        "dishCount": 3,
+        "shapes": [
+          "seafood",
+          "cold",
+          "multi-3plus",
+          "marinate",
+          "aromatics"
+        ]
+      },
+      {
+        "mealId": "7096250b-810f-488b-a5d0-8f143136e6e3",
+        "title": "Classic Sizzling Chicken Fajitas",
+        "day": "Friday",
+        "dishCount": 3,
+        "shapes": [
+          "cold",
+          "long-passive",
+          "multi-3plus",
+          "marinate",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "19c3d489-82b4-4dfa-a732-3f6ed28d5ec3",
+        "title": "Smoky Carne Asada Tostadas with Black Bean Salsa and Pickled Jalapeños",
+        "day": "Saturday",
+        "dishCount": 5,
+        "shapes": [
+          "cold",
+          "long-passive",
+          "multi-3plus",
+          "marinate",
+          "aromatics",
+          "two-cuts"
+        ]
+      }
+    ],
+    "planShapes": [
+      "plan-7-meals",
+      "days-5-7"
+    ]
+  },
+  {
+    "planId": "c97aefe1-a3d2-4f4c-b959-ffd7ba58066a",
+    "code": "A02",
+    "label": "7 meals, Sun–Sat: slow cooker, cornbread, seafood late",
+    "startDate": "2026-10-04",
+    "meals": [
+      {
+        "mealId": "73b62c74-c2c3-4ac2-bfaa-bfe18d74b1b7",
+        "title": "Slow-Cooker Chicken and Dumplings",
+        "day": "Sunday",
+        "dishCount": 1,
+        "shapes": [
+          "long-passive",
+          "single-dish"
+        ]
+      },
+      {
+        "mealId": "0c900348-3025-46a6-b596-571938cce99e",
+        "title": "Blackened Shrimp Tacos with Mango Salsa and Lime Crema",
+        "day": "Monday",
+        "dishCount": 3,
+        "shapes": [
+          "seafood",
+          "cold",
+          "long-passive",
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "6b780599-e2c2-4909-b204-5ea8631eef26",
+        "title": "Cajun Sausage and Rice with Skillet Cornbread",
+        "day": "Tuesday",
+        "dishCount": 2,
+        "shapes": [
+          "long-passive",
+          "aromatics"
+        ]
+      },
+      {
+        "mealId": "822261c3-bdba-4b93-aa62-ad85806a96f0",
+        "title": "Butter Chicken with Steamed Basmati Rice and Cucumber Raita",
+        "day": "Wednesday",
+        "dishCount": 3,
+        "shapes": [
+          "cold",
+          "long-passive",
+          "multi-3plus",
+          "marinate",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "e33227e5-e52b-4aeb-8c00-386b000f6b72",
+        "title": "Grilled Mahi-Mahi with Mango Salsa and Coconut Rice",
+        "day": "Thursday",
+        "dishCount": 3,
+        "shapes": [
+          "seafood",
+          "cold",
+          "long-passive",
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "5df3314d-5ab6-40cb-a814-964a2dd2b8e4",
+        "title": "Herb-Marinated Chicken and Vegetable Skewers with Tzatziki and Warm Pita",
+        "day": "Friday",
+        "dishCount": 3,
+        "shapes": [
+          "cold",
+          "long-passive",
+          "multi-3plus",
+          "marinate",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "22614b9f-9b8f-4e8f-a550-fbbe858e3f47",
+        "title": "Chipotle-Roasted Chicken Bowl with Street Corn Salsa, Black Beans, and Cilantro-Lime Rice",
+        "day": "Saturday",
+        "dishCount": 3,
+        "shapes": [
+          "cold",
+          "long-passive",
+          "multi-3plus",
+          "marinate",
+          "aromatics",
+          "two-cuts"
+        ]
+      }
+    ],
+    "planShapes": [
+      "plan-7-meals",
+      "days-5-7"
+    ]
+  },
+  {
+    "planId": "53abd5b6-156d-490e-b1db-6bc04626c027",
+    "code": "A03",
+    "label": "2 meals: pizza + chicken salad (single-dish)",
+    "startDate": "2026-10-04",
+    "meals": [
+      {
+        "mealId": "51b9629a-fa58-4e71-b5eb-7b95ed878858",
+        "title": "Classic BBQ Chicken Pizza with Red Onion and Cilantro",
+        "day": "Sunday",
+        "dishCount": 1,
+        "shapes": [
+          "toss-no-heat",
+          "long-passive",
+          "single-dish",
+          "bought-path"
+        ]
+      },
+      {
+        "mealId": "64a266c6-3ab7-47da-bd04-cbcbd6dc2c81",
+        "title": "Buffalo Chicken Salad with Crispy Chicken, Romaine, Celery, Blue Cheese, and Ranch",
+        "day": "Thursday",
+        "dishCount": 1,
+        "shapes": [
+          "cold",
+          "long-passive",
+          "single-dish"
+        ]
+      }
+    ],
+    "planShapes": [
+      "plan-2-meals",
+      "days-5-7"
+    ]
+  },
+  {
+    "planId": "7f206a48-f9ca-46c3-b4ba-94c35a320da2",
+    "code": "A04",
+    "label": "2 meals: shrimp tacos + al pastor (late)",
+    "startDate": "2026-10-04",
+    "meals": [
+      {
+        "mealId": "3d589ae1-6bca-4f02-9802-e30a0be16440",
+        "title": "Baja Shrimp Tacos with Chipotle Crema and Cabbage Slaw",
+        "day": "Monday",
+        "dishCount": 3,
+        "shapes": [
+          "seafood",
+          "cold",
+          "long-passive",
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "a88f5064-9bf7-488f-a6fe-5384394f7133",
+        "title": "Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw",
+        "day": "Saturday",
+        "dishCount": 4,
+        "shapes": [
+          "cold",
+          "toss-no-heat",
+          "long-passive",
+          "multi-3plus",
+          "marinate",
+          "aromatics",
+          "two-cuts"
+        ]
+      }
+    ],
+    "planShapes": [
+      "plan-2-meals",
+      "days-5-7"
+    ]
+  },
+  {
+    "planId": "04a25763-bd01-4103-ba11-d5420ca0e6d8",
+    "code": "A05",
+    "label": "late-week proteins: smoker, braise, gyros, salmon",
+    "startDate": "2026-10-04",
+    "meals": [
+      {
+        "mealId": "b014a9b3-9886-4b1d-a52a-896df96eee58",
+        "title": "Texas-Style Smoked Brisket with Pinto Beans and Pickled Jalapeños",
+        "day": "Wednesday",
+        "dishCount": 3,
+        "shapes": [
+          "long-passive",
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "2d05fb39-0add-4221-bc8f-34532c94083f",
+        "title": "Braised Lamb Shanks with Creamy White Bean Mash and Gremolata",
+        "day": "Thursday",
+        "dishCount": 3,
+        "shapes": [
+          "long-passive",
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "7f104a58-2bab-4f5a-ab3f-df0f3a592661",
+        "title": "Lemon-Herb Chicken Gyros with Roasted Red Pepper and Hummus",
+        "day": "Friday",
+        "dishCount": 3,
+        "shapes": [
+          "cold",
+          "toss-no-heat",
+          "long-passive",
+          "multi-3plus",
+          "bought-path",
+          "marinate",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "e32ec6dd-a742-4c3f-b8a2-1c71ec9b7beb",
+        "title": "Blackened Salmon with Mango Avocado Salsa and Cilantro Rice",
+        "day": "Saturday",
+        "dishCount": 3,
+        "shapes": [
+          "seafood",
+          "cold",
+          "long-passive",
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      }
+    ],
+    "planShapes": [
+      "days-5-7"
+    ]
+  },
+  {
+    "planId": "da372b54-d561-4e06-b653-5a5aea933ef0",
+    "code": "A06",
+    "label": "slow cooker + slaws + curry + stew",
+    "startDate": "2026-10-04",
+    "meals": [
+      {
+        "mealId": "de07e9c7-9139-45d1-9799-e05289b2c6dd",
+        "title": "Tomato and Onion Slow-Cooker Pot Roast with Roasted Potatoes and Green Beans",
+        "day": "Sunday",
+        "dishCount": 3,
+        "shapes": [
+          "toss-no-heat",
+          "long-passive",
+          "multi-3plus",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "aeb89b37-6803-4370-9354-ca72c1804574",
+        "title": "Pulled Pork Sliders with Vinegar Slaw and Baked Beans",
+        "day": "Tuesday",
+        "dishCount": 3,
+        "shapes": [
+          "cold",
+          "long-passive",
+          "multi-3plus"
+        ]
+      },
+      {
+        "mealId": "3e205257-f9ed-43a4-a53d-5ca857f3dc5f",
+        "title": "Southwest Chicken Salad with Avocado, Black Beans, and Chipotle Ranch",
+        "day": "Thursday",
+        "dishCount": 2,
+        "shapes": [
+          "cold",
+          "long-passive"
+        ]
+      },
+      {
+        "mealId": "293ceff5-b909-4ff2-8abc-4fdb1da3b1e6",
+        "title": "Shrimp Red Curry with Roti and Cucumber Salad",
+        "day": "Friday",
+        "dishCount": 3,
+        "shapes": [
+          "seafood",
+          "cold",
+          "toss-no-heat",
+          "long-passive",
+          "multi-3plus",
+          "aromatics"
+        ]
+      },
+      {
+        "mealId": "4f738c95-767e-4761-a52c-1d819039d6fa",
+        "title": "Beef Stew with Mushrooms and Pearl Onions",
+        "day": "Saturday",
+        "dishCount": 1,
+        "shapes": [
+          "toss-no-heat",
+          "long-passive",
+          "single-dish",
+          "aromatics"
+        ]
+      }
+    ],
+    "planShapes": [
+      "days-5-7"
+    ]
+  },
+  {
+    "planId": "fb328120-721e-47f3-b21c-dce1aba27939",
+    "code": "A07",
+    "label": "bought paths: bottled marinades, store guac, slaw mix, rotisserie",
+    "startDate": "2026-10-04",
+    "meals": [
+      {
+        "mealId": "bdda7211-b49b-4e74-a6ad-e1aaea9b3a0e",
+        "title": "Soy-Ginger Marinated Pork Chops with Steamed Jasmine Rice and Cucumber Salad",
+        "day": "Sunday",
+        "dishCount": 3,
+        "shapes": [
+          "cold",
+          "multi-3plus",
+          "aromatics"
+        ]
+      },
+      {
+        "mealId": "08c7483a-b5b4-4424-9917-066529776167",
+        "title": "Classic Tex-Mex Sheet-Pan Chicken Fajitas",
+        "day": "Monday",
+        "dishCount": 3,
+        "shapes": [
+          "cold",
+          "long-passive",
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "c7947a22-575f-4feb-8d0e-67afdfb2a46c",
+        "title": "Smash Burgers with American Cheese and Special Sauce",
+        "day": "Wednesday",
+        "dishCount": 3,
+        "shapes": [
+          "cold",
+          "long-passive",
+          "multi-3plus"
+        ]
+      },
+      {
+        "mealId": "558f0469-96d7-46dd-a620-557ff967ff14",
+        "title": "Charred Salsa Verde Carne Asada Tacos",
+        "day": "Friday",
+        "dishCount": 3,
+        "shapes": [
+          "cold",
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "9cd9315a-0d3e-4c9c-be73-c5da5bbab398",
+        "title": "Spicy King Ranch Chicken Casserole",
+        "day": "Saturday",
+        "dishCount": 2,
+        "shapes": [
+          "long-passive",
+          "aromatics"
+        ]
+      }
+    ],
+    "planShapes": [
+      "days-5-7"
+    ]
+  },
+  {
+    "planId": "27a03273-6732-4ad0-a6a6-7b76ee5eea7e",
+    "code": "A08",
+    "label": "rotisserie + bagged slaw",
+    "startDate": "2026-10-04",
+    "meals": [
+      {
+        "mealId": "6263e796-64ab-40f7-86b9-3829380f2d0c",
+        "title": "Crispy Chicken Tenders with Oven Fries and Slaw",
+        "day": "Monday",
+        "dishCount": 3,
+        "shapes": [
+          "cold",
+          "long-passive",
+          "multi-3plus",
+          "bought-path"
+        ]
+      },
+      {
+        "mealId": "e96ee78f-2657-48bf-b27b-8a3ea9aae813",
+        "title": "Tortilla Soup with Rotisserie Chicken and Classic Toppings",
+        "day": "Tuesday",
+        "dishCount": 2,
+        "shapes": [
+          "long-passive",
+          "bought-path",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "d699cd4a-3e53-466a-bfda-29f175af4025",
+        "title": "Cobb Salad with Rotisserie Chicken and Bread and Butter",
+        "day": "Thursday",
+        "dishCount": 2,
+        "shapes": [
+          "long-passive",
+          "bought-path",
+          "aromatics"
+        ]
+      },
+      {
+        "mealId": "cd98969a-ea1b-4c3b-ad79-8d0518b7013a",
+        "title": "BBQ Chicken Sandwiches with Slaw and Chips",
+        "day": "Saturday",
+        "dishCount": 2,
+        "shapes": [
+          "cold",
+          "bought-path"
+        ]
+      }
+    ],
+    "planShapes": [
+      "days-5-7"
+    ]
+  },
+  {
+    "planId": "f0c56d0c-7182-428b-86d5-230689438919",
+    "code": "A09",
+    "label": "ginger / scallion / raw tuna",
+    "startDate": "2026-10-04",
+    "meals": [
+      {
+        "mealId": "08c70fd1-611a-4517-8b74-bfcf26743f6f",
+        "title": "Classic Shoyu Tuna Poke Bowl",
+        "day": "Sunday",
+        "dishCount": 3,
+        "shapes": [
+          "multi-3plus",
+          "aromatics"
+        ]
+      },
+      {
+        "mealId": "ea034ba1-72c6-4396-84d7-ed4b5b802a07",
+        "title": "Classic Sticky Honey Garlic Chicken Thighs with Steamed Jasmine Rice and Roasted Broccoli",
+        "day": "Tuesday",
+        "dishCount": 3,
+        "shapes": [
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "cf774d74-5cc6-485f-a7a2-26305a9e59db",
+        "title": "Classic Crispy Orange Chicken with Steamed Jasmine Rice and Stir-Fried Broccoli",
+        "day": "Wednesday",
+        "dishCount": 3,
+        "shapes": [
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "3aff6b9d-e4f9-4781-bfc9-4ed175b00050",
+        "title": "General Tso's Tofu with Steamed Jasmine Rice and Stir-Fried Bok Choy",
+        "day": "Friday",
+        "dishCount": 3,
+        "shapes": [
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      }
+    ],
+    "planShapes": [
+      "days-5-7"
+    ]
+  },
+  {
+    "planId": "3f9d46e8-b078-4bd4-b479-9f93cb8c76cd",
+    "code": "A10",
+    "label": "doughs and breads: pizza, biscuits, flatbread",
+    "startDate": "2026-10-04",
+    "meals": [
+      {
+        "mealId": "443f992c-002c-4438-b04c-e7c3dcdbadfa",
+        "title": "Classic Supreme Pizza",
+        "day": "Sunday",
+        "dishCount": 1,
+        "shapes": [
+          "long-passive",
+          "single-dish",
+          "bought-path"
+        ]
+      },
+      {
+        "mealId": "da57132f-4552-43ad-9820-5d6d0dc60788",
+        "title": "Buttermilk Fried Chicken with Honey, Biscuits, and Collard Greens",
+        "day": "Tuesday",
+        "dishCount": 3,
+        "shapes": [
+          "long-passive",
+          "multi-3plus",
+          "aromatics"
+        ]
+      },
+      {
+        "mealId": "ab06a806-b967-4229-8fe0-07e8952c2e18",
+        "title": "Creamy Country Chicken and Gravy over Biscuits",
+        "day": "Thursday",
+        "dishCount": 3,
+        "shapes": [
+          "long-passive",
+          "multi-3plus",
+          "aromatics"
+        ]
+      },
+      {
+        "mealId": "2b578f56-7154-4aad-a9b3-e703a252dd9f",
+        "title": "Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread",
+        "day": "Saturday",
+        "dishCount": 4,
+        "shapes": [
+          "long-passive",
+          "multi-3plus",
+          "bought-path",
+          "aromatics"
+        ]
+      }
+    ],
+    "planShapes": [
+      "days-5-7"
+    ]
+  },
+  {
+    "planId": "33ddbb13-7f30-418f-ab5b-c547484d4461",
+    "code": "A11",
+    "label": "single-dish week",
+    "startDate": "2026-10-04",
+    "meals": [
+      {
+        "mealId": "4dcf3152-59d1-4d64-9eaf-fda4ca282654",
+        "title": "Sausage and Escarole Wedding Soup",
+        "day": "Sunday",
+        "dishCount": 1,
+        "shapes": [
+          "long-passive",
+          "single-dish",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "8573b172-49fe-4f31-92d5-fdee07ebbca9",
+        "title": "Shrimp and Crab Jambalaya",
+        "day": "Monday",
+        "dishCount": 1,
+        "shapes": [
+          "seafood",
+          "long-passive",
+          "single-dish",
+          "aromatics"
+        ]
+      },
+      {
+        "mealId": "957696fb-c0f4-486c-868d-658036b0db68",
+        "title": "Hyderabadi Dum Chicken Biryani",
+        "day": "Wednesday",
+        "dishCount": 1,
+        "shapes": [
+          "long-passive",
+          "single-dish",
+          "marinate",
+          "aromatics"
+        ]
+      },
+      {
+        "mealId": "409edbca-c923-4a23-b317-a81b100e7d3f",
+        "title": "Sheet-Pan Shrimp Boil with Sausage, Corn, and Potatoes",
+        "day": "Thursday",
+        "dishCount": 1,
+        "shapes": [
+          "seafood",
+          "long-passive",
+          "single-dish",
+          "aromatics"
+        ]
+      },
+      {
+        "mealId": "38690cac-5164-468f-b9b7-36f3ca973add",
+        "title": "Layered Tortilla Beef Taco Casserole",
+        "day": "Saturday",
+        "dishCount": 1,
+        "shapes": [
+          "toss-no-heat",
+          "long-passive",
+          "single-dish",
+          "aromatics"
+        ]
+      }
+    ],
+    "planShapes": [
+      "days-5-7"
+    ]
+  },
+  {
+    "planId": "b12a194c-ba07-4e30-ba35-71ae1442a87e",
+    "code": "A12",
+    "label": "roast chicken + roasted green beans (toss)",
+    "startDate": "2026-10-04",
+    "meals": [
+      {
+        "mealId": "44fdb3f3-9381-4677-a84e-e5497d94ccd4",
+        "title": "Smoky Salisbury Steak with Roasted Garlic Gravy and Green Beans",
+        "day": "Sunday",
+        "dishCount": 3,
+        "shapes": [
+          "long-passive",
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "b873f58d-064f-4244-bf2d-9f236b40de2a",
+        "title": "Spatchcocked Roast Chicken with Smoked Paprika, Roasted Potatoes, and Garlic Green Beans",
+        "day": "Tuesday",
+        "dishCount": 3,
+        "shapes": [
+          "long-passive",
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "e251f17b-752a-4704-8b13-25ae0acae31b",
+        "title": "Crispy Herb-Roasted Chicken Thighs with Roasted Potatoes and Green Beans",
+        "day": "Thursday",
+        "dishCount": 3,
+        "shapes": [
+          "toss-no-heat",
+          "long-passive",
+          "multi-3plus",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "2b92d80e-f93d-4682-bafb-5bbd82579e03",
+        "title": "Crispy Garlic-Herb Baked Drumsticks with Roasted Baby Potatoes and Steamed Green Beans",
+        "day": "Saturday",
+        "dishCount": 3,
+        "shapes": [
+          "long-passive",
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      }
+    ],
+    "planShapes": [
+      "days-5-7"
+    ]
+  },
+  {
+    "planId": "bd8aa8c2-bff4-42cf-84b8-ff24fbf3793d",
+    "code": "A13",
+    "label": "taco week: pico, corn salsa, jalapeño slaw",
+    "startDate": "2026-10-04",
+    "meals": [
+      {
+        "mealId": "c2a53d20-2b52-4639-8652-f428f7fe55bd",
+        "title": "Smoky Chipotle Carne Asada Tacos with Pico de Gallo and Cilantro-Lime Slaw",
+        "day": "Monday",
+        "dishCount": 3,
+        "shapes": [
+          "cold",
+          "long-passive",
+          "multi-3plus",
+          "marinate",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "93abf555-4ada-4a02-8e27-79fafc653ddb",
+        "title": "Carnitas Tacos with Charred Corn Salsa and Jalapeño Slaw",
+        "day": "Tuesday",
+        "dishCount": 3,
+        "shapes": [
+          "cold",
+          "toss-no-heat",
+          "long-passive",
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "c6545fd7-706a-41b0-8264-0ed3865f7c57",
+        "title": "Pork Carnitas Bowl with Cilantro-Lime Rice, Black Beans, and Pico de Gallo",
+        "day": "Thursday",
+        "dishCount": 4,
+        "shapes": [
+          "cold",
+          "toss-no-heat",
+          "long-passive",
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "7720fbf4-c747-47f9-8468-72b9bf2993b0",
+        "title": "Blackened Fish Tacos with Mango Salsa and Jalapeño Slaw",
+        "day": "Saturday",
+        "dishCount": 3,
+        "shapes": [
+          "seafood",
+          "cold",
+          "long-passive",
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      }
+    ],
+    "planShapes": [
+      "days-5-7"
+    ]
+  },
+  {
+    "planId": "11623bcd-bc82-4aa4-ad88-80aaa075b19a",
+    "code": "A14",
+    "label": "curries: marinades, raita, naan",
+    "startDate": "2026-10-04",
+    "meals": [
+      {
+        "mealId": "994049b6-2115-44ba-bc75-c7cb4988c539",
+        "title": "Classic Chicken Tikka Masala with Basmati Rice and Garlic Naan",
+        "day": "Sunday",
+        "dishCount": 3,
+        "shapes": [
+          "long-passive",
+          "multi-3plus",
+          "bought-path",
+          "marinate",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "3203f02d-9e1d-46ad-abb0-c197ebefa18b",
+        "title": "Chana Masala with Naan and Cucumber Raita",
+        "day": "Wednesday",
+        "dishCount": 3,
+        "shapes": [
+          "cold",
+          "long-passive",
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "4f01bac1-bfca-4076-8481-448abf0629c3",
+        "title": "Butter Chicken with Whole Wheat Roti and Roasted Cauliflower",
+        "day": "Friday",
+        "dishCount": 3,
+        "shapes": [
+          "long-passive",
+          "multi-3plus",
+          "marinate",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "5a86456e-79a2-4023-b475-dd938aeefa78",
+        "title": "Coconut Chicken Korma with Basmati Rice and Garlic Naan",
+        "day": "Saturday",
+        "dishCount": 3,
+        "shapes": [
+          "long-passive",
+          "multi-3plus",
+          "bought-path",
+          "aromatics",
+          "two-cuts"
+        ]
+      }
+    ],
+    "planShapes": [
+      "days-5-7"
+    ]
+  },
+  {
+    "planId": "2539d94d-80df-4f05-b62e-0d3d9167806a",
+    "code": "A15",
+    "label": "pulled pork three ways",
+    "startDate": "2026-10-04",
+    "meals": [
+      {
+        "mealId": "a7bd94ec-ead1-4f29-8d09-c1e064b7ab49",
+        "title": "Chipotle-Spiced Pulled Pork Tacos with Pickled Red Onion and Cilantro-Lime Slaw",
+        "day": "Sunday",
+        "dishCount": 3,
+        "shapes": [
+          "cold",
+          "long-passive",
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "71b73681-68f8-4e9c-921d-60c9c5c0c42a",
+        "title": "Carolina Vinegar Pulled Pork with Tangy Slaw",
+        "day": "Wednesday",
+        "dishCount": 2,
+        "shapes": [
+          "cold",
+          "long-passive"
+        ]
+      },
+      {
+        "mealId": "316a9cc7-39da-4bd0-b3f4-1399c5f1b0f0",
+        "title": "Slow-Roasted Pulled Pork with Alabama White Sauce",
+        "day": "Saturday",
+        "dishCount": 3,
+        "shapes": [
+          "long-passive",
+          "multi-3plus"
+        ]
+      }
+    ],
+    "planShapes": [
+      "days-5-7"
+    ]
+  },
+  {
+    "planId": "b0c8ffbd-b167-4265-8fb3-2782bc72092e",
+    "code": "A16",
+    "label": "seafood: shrimp bowl, seared tuna, catfish, salmon",
+    "startDate": "2026-10-04",
+    "meals": [
+      {
+        "mealId": "76159338-ace0-4cf0-92c0-d9317888def0",
+        "title": "Shrimp Fajita Bowl with Cilantro-Lime Rice, Sautéed Peppers and Onions, Corn Salsa, and Avocado Crema",
+        "day": "Monday",
+        "dishCount": 5,
+        "shapes": [
+          "seafood",
+          "cold",
+          "long-passive",
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "d6398bb5-af8c-4f87-83bc-abaa36cfbc18",
+        "title": "Seared Tuna Steak with Sesame-Ginger Slaw and Steamed Jasmine Rice",
+        "day": "Wednesday",
+        "dishCount": 3,
+        "shapes": [
+          "seafood",
+          "cold",
+          "long-passive",
+          "multi-3plus",
+          "aromatics"
+        ]
+      },
+      {
+        "mealId": "a3373d4d-e55c-4a40-8455-90a95bd49100",
+        "title": "Blackened Catfish with Dirty Rice and Braised Greens",
+        "day": "Thursday",
+        "dishCount": 3,
+        "shapes": [
+          "seafood",
+          "long-passive",
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "44e2446d-1694-4aaa-a02c-c7c3aa806764",
+        "title": "Baked Salmon Teriyaki with Steamed Rice and Roasted Broccoli",
+        "day": "Saturday",
+        "dishCount": 3,
+        "shapes": [
+          "seafood",
+          "multi-3plus",
+          "marinate",
+          "aromatics",
+          "two-cuts"
+        ]
+      }
+    ],
+    "planShapes": [
+      "days-5-7"
+    ]
+  },
+  {
+    "planId": "2730c4b1-7648-404a-a7bf-692fb89faa03",
+    "code": "A17",
+    "label": "Mediterranean: kofta, dolmades, shawarma, gyros",
+    "startDate": "2026-10-04",
+    "meals": [
+      {
+        "mealId": "57401f7b-5789-45e5-9b66-fbca67a0f3ff",
+        "title": "Beef Kofta with Hummus, Pickled Onions, and Charred Flatbread",
+        "day": "Sunday",
+        "dishCount": 3,
+        "shapes": [
+          "long-passive",
+          "multi-3plus",
+          "bought-path",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "aed5d088-bc4f-4ba7-8aaf-14c1cc71b95b",
+        "title": "Stuffed Grape Leaves with Tzatziki and Warm Pita",
+        "day": "Tuesday",
+        "dishCount": 3,
+        "shapes": [
+          "cold",
+          "long-passive",
+          "multi-3plus",
+          "bought-path",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "3020b70c-eff1-434e-8a9c-9102cfeeba28",
+        "title": "Harissa-Spiced Chicken Shawarma Bowl with Roasted Vegetables and Hummus",
+        "day": "Thursday",
+        "dishCount": 3,
+        "shapes": [
+          "long-passive",
+          "multi-3plus",
+          "bought-path",
+          "marinate",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "fdc9a12a-7878-471b-93fe-9944898eb0b2",
+        "title": "Classic Chicken Gyros with Tzatziki, Tomato, and Red Onion",
+        "day": "Friday",
+        "dishCount": 2,
+        "shapes": [
+          "cold",
+          "long-passive",
+          "marinate",
+          "two-cuts"
+        ]
+      }
+    ],
+    "planShapes": [
+      "days-5-7"
+    ]
+  },
+  {
+    "planId": "8a0de6e6-ec8a-453f-994a-6a973c5bcd32",
+    "code": "A18",
+    "label": "comfort: pot roast, biscuits, pasta, chicken parm",
+    "startDate": "2026-10-04",
+    "meals": [
+      {
+        "mealId": "29e6318d-93c9-48cf-b073-b92744cf43c1",
+        "title": "Red Wine and Herb Slow-Cooker Pot Roast with Roasted Carrots and Potatoes",
+        "day": "Sunday",
+        "dishCount": 3,
+        "shapes": [
+          "long-passive",
+          "multi-3plus",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "670ae2c2-4218-4731-b255-23d6d5a9ad2c",
+        "title": "Biscuits and Sausage Gravy with Scrambled Eggs",
+        "day": "Tuesday",
+        "dishCount": 3,
+        "shapes": [
+          "long-passive",
+          "multi-3plus",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "6df8789d-e9fa-4758-8ed0-09ecc06ef8e4",
+        "title": "Ground Turkey and Tomato Meat Sauce over Spaghetti with Garlic Green Beans",
+        "day": "Wednesday",
+        "dishCount": 3,
+        "shapes": [
+          "long-passive",
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "32d1510f-28ad-4e86-884f-d4d700b27256",
+        "title": "Chicken Parmesan with Vodka Sauce",
+        "day": "Friday",
+        "dishCount": 3,
+        "shapes": [
+          "multi-3plus"
+        ]
+      },
+      {
+        "mealId": "43bc4656-31ae-4ada-9730-980fa3dd38b0",
+        "title": "Spaghetti Squash with Marinara and Garlic Bread",
+        "day": "Saturday",
+        "dishCount": 2,
+        "shapes": [
+          "long-passive",
+          "aromatics",
+          "two-cuts"
+        ]
+      }
+    ],
+    "planShapes": [
+      "days-5-7"
+    ]
+  },
+  {
+    "planId": "d26e6ae6-3dcd-42ce-9f77-b3962697fff5",
+    "code": "A19",
+    "label": "grill: halves, skewers, spatchcock, shrimp tacos",
+    "startDate": "2026-10-04",
+    "meals": [
+      {
+        "mealId": "3db20bcd-abb6-4b40-a209-bdf94488c9a9",
+        "title": "Classic Sauced BBQ Chicken Halves with Grilled Corn and Creamy Coleslaw",
+        "day": "Sunday",
+        "dishCount": 3,
+        "shapes": [
+          "long-passive",
+          "multi-3plus"
+        ]
+      },
+      {
+        "mealId": "3520fd73-eafb-4069-953f-be436bf51dbe",
+        "title": "Grilled Shrimp Skewers with Charred Corn, Avocado, and Lime Vinaigrette",
+        "day": "Tuesday",
+        "dishCount": 3,
+        "shapes": [
+          "seafood",
+          "toss-no-heat",
+          "long-passive",
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "8a9e026d-c26e-425e-8d9c-56077458a60b",
+        "title": "BBQ-Glazed Spatchcock Grilled Chicken with Grilled Corn and Creamy Coleslaw",
+        "day": "Thursday",
+        "dishCount": 3,
+        "shapes": [
+          "long-passive",
+          "multi-3plus",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "c72731a6-bbc8-4e65-bde0-633afbb04c00",
+        "title": "Grilled Shrimp Tacos with Mexican Street Corn",
+        "day": "Saturday",
+        "dishCount": 2,
+        "shapes": [
+          "seafood",
+          "cold",
+          "toss-no-heat",
+          "long-passive",
+          "aromatics",
+          "two-cuts"
+        ]
+      }
+    ],
+    "planShapes": [
+      "days-5-7"
+    ]
+  },
+  {
+    "planId": "2faff60f-9a4e-4afb-897e-35422c5e8c34",
+    "code": "A20",
+    "label": "single-dish fajitas, pasta, casserole",
+    "startDate": "2026-10-04",
+    "meals": [
+      {
+        "mealId": "01c4f79e-275a-4e2d-a89c-bb8dd9daa6b1",
+        "title": "Cajun Shrimp Pasta in Spicy Cream Sauce",
+        "day": "Sunday",
+        "dishCount": 1,
+        "shapes": [
+          "seafood",
+          "long-passive",
+          "single-dish",
+          "aromatics"
+        ]
+      },
+      {
+        "mealId": "940ac1eb-e3f0-4442-9dcc-218019cc9c47",
+        "title": "Smoky Chipotle Flank Steak Fajitas with Peppers and Onions",
+        "day": "Tuesday",
+        "dishCount": 1,
+        "shapes": [
+          "long-passive",
+          "single-dish",
+          "marinate",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "2d3db7ae-fa15-4a3c-b1cd-b048f749d37e",
+        "title": "Chicken Fajitas with Roasted Poblano and Corn",
+        "day": "Thursday",
+        "dishCount": 1,
+        "shapes": [
+          "long-passive",
+          "single-dish",
+          "marinate",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "4e7b5af5-3319-428c-813f-4b17316027fa",
+        "title": "Classic Chicken Tetrazzini",
+        "day": "Saturday",
+        "dishCount": 1,
+        "shapes": [
+          "toss-no-heat",
+          "long-passive",
+          "single-dish",
+          "aromatics"
+        ]
+      }
+    ],
+    "planShapes": [
+      "days-5-7"
+    ]
+  },
+  {
+    "planId": "297794a0-569d-4af8-9506-0fe4cc43999a",
+    "code": "A21",
+    "label": "braises + flautas",
+    "startDate": "2026-10-04",
+    "meals": [
+      {
+        "mealId": "459a17db-54e8-45c3-84a8-d2dce8f1a977",
+        "title": "Chipotle-Braised Beef Burrito Bowl",
+        "day": "Sunday",
+        "dishCount": 3,
+        "shapes": [
+          "long-passive",
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "489505d3-5fbb-48e5-a877-4fbe1b108286",
+        "title": "Salsa Verde Braised Chicken Thighs with Mexican Rice and Refried Beans",
+        "day": "Monday",
+        "dishCount": 3,
+        "shapes": [
+          "cold",
+          "long-passive",
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "9d0f05c9-774d-42bf-832b-3fd4cf35ee23",
+        "title": "Chipotle Braised Chicken Tacos with Pickled Jalapeños and Cotija",
+        "day": "Wednesday",
+        "dishCount": 3,
+        "shapes": [
+          "long-passive",
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "e2205287-0d03-4ba4-a9e5-04dffaf08b53",
+        "title": "Chicken Flautas with Crema, Shredded Cabbage Slaw, and Pico de Gallo",
+        "day": "Friday",
+        "dishCount": 3,
+        "shapes": [
+          "cold",
+          "toss-no-heat",
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      },
+      {
+        "mealId": "7d39dc40-2f65-4cee-bab0-9640595c6826",
+        "title": "Chicken Flautas with Guacamole and Mexican Rice",
+        "day": "Saturday",
+        "dishCount": 3,
+        "shapes": [
+          "cold",
+          "toss-no-heat",
+          "multi-3plus",
+          "aromatics",
+          "two-cuts"
+        ]
+      }
+    ],
+    "planShapes": [
+      "days-5-7"
+    ]
+  }
+]

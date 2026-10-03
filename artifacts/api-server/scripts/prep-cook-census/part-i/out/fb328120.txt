@@ -1,0 +1,310 @@
+PLAN fb328120-721e-47f3-b21c-dce1aba27939  [A07]  Part I · A07 · bought paths: bottled marinades, store guac, slaw mix, rotisserie
+  range 2026-10-04 .. 2026-10-10   meals 5   prep day 2026-10-04   shapes: days-5-7, cold, multi-3plus, aromatics, long-passive, two-cuts
+
+══════════ PREP THE WEEK — full plan, as Screen 3 renders it ══════════
+  (HTTP 502: validation_failed Kiwi got distracted. Try again?)
+
+══════════ PREP SELECTED MEALS — Soy-Ginger Marinated Pork Chops with Steamed Jasmine Rice and Cucumber Salad + Spicy King Ranch Chicken Casserole ══════════
+  HEADER: 10 containers · about 65 min   (server total 65 · phone 55) · cacheHit=false · prompt v19
+  HELD: Add the boneless center-cut pork chops the night before you cook them (Sunday).
+
+  ── seasonings_dry ──
+     1. Measure the Spicy King Ranch Chicken sauce jar spices   (4 min)
+        Into the Spicy King Ranch Chicken sauce jar:
+        2 tbsp all-purpose flour
+        1½ tsp chili powder
+        1 tsp ground cumin
+        ½ tsp smoked paprika
+        ¼ tsp cayenne pepper
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Spicy King Ranch Chicken Casserole (Saturday)
+     2. Measure the Crisp Green Salad vinaigrette jar spice   (2 min)
+        Into the Crisp Green Salad vinaigrette jar:
+        ¼ tsp ground cumin
+        Set aside for the produce step.
+        » for: Spicy King Ranch Chicken Casserole (Saturday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Soy-Ginger Marinated Pork Chops with Steamed Jasmine Rice and Cucumber Salad (Sunday), Spicy King Ranch Chicken Casserole (Saturday)
+     2. Grate the ginger for Soy-Ginger Marinated Pork Chops   (1 min)
+        Peel and finely grate 1½ tbsp fresh ginger — into the Soy-Ginger Marinated Pork Chops marinade bowl.
+        » for: Soy-Ginger Marinated Pork Chops with Steamed Jasmine Rice and Cucumber Salad (Sunday)
+     3. Mince all garlic   (2 min)
+        Mince all the garlic:
+        3 cloves for the Soy-Ginger Marinated Pork Chops — into the Soy-Ginger Marinated Pork Chops marinade bowl
+        3 cloves for the Spicy King Ranch Chicken Casserole — into the Spicy King Ranch Chicken vegetables
+        » for: Soy-Ginger Marinated Pork Chops with Steamed Jasmine Rice and Cucumber Salad (Sunday), Spicy King Ranch Chicken Casserole (Saturday)
+     4. Slice the cucumber for Cucumber Salad   (5 min)
+        Thinly slice 2 English cucumbers into rounds — into a tub labelled "Cucumber Salad — english cucumber and fresh cilantro".
+        » for: Soy-Ginger Marinated Pork Chops with Steamed Jasmine Rice and Cucumber Salad (Sunday)
+     5. Chop all fresh cilantro   (2 min)
+        Roughly chop all the cilantro:
+        2 tbsp for the Cucumber Salad — into a tub labelled "Cucumber Salad — english cucumber and fresh cilantro"
+        ¼ cup for the Spicy King Ranch Chicken Casserole — into a tub labelled "Spicy King Ranch Chicken Casserole — chopped fresh cilantro"
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Cucumber Salad sauce bowl separate; combine on cook day (Saturday).
+        » for: Soy-Ginger Marinated Pork Chops with Steamed Jasmine Rice and Cucumber Salad (Sunday), Spicy King Ranch Chicken Casserole (Saturday)
+     6. Roast and dice the poblano peppers   (5 min)
+        Roast 2 poblano peppers directly over a gas flame or under the broiler, turning with tongs, until charred all over. Place in a covered bowl for 10 minutes, then peel, seed, and dice — into a tub labelled "Spicy King Ranch Chicken Casserole — diced poblano pepper".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Spicy King Ranch Chicken Casserole (Saturday)
+     7. Dice the yellow onion for Spicy King Ranch Chicken Casserole   (3 min)
+        Dice 1 yellow onion — into the Spicy King Ranch Chicken vegetables.
+        » for: Spicy King Ranch Chicken Casserole (Saturday)
+     8. Mince the jalapeño for Spicy King Ranch Chicken Casserole   (3 min)
+        Seed and mince 1 jalapeño — into the Spicy King Ranch Chicken vegetables.
+        » storage: Spicy King Ranch Chicken vegetables: Airtight in the fridge — up to 4 days.
+        » for: Spicy King Ranch Chicken Casserole (Saturday)
+     9. Chop the romaine for Crisp Green Salad with Lime-Cumin Vinaigrette   (1 min)
+        Chop 2 romaine lettuce hearts into bite-sized pieces — into a tub labelled "Crisp Green Salad with Lime-Cumin Vinaigrette — chopped romaine lettuce hearts".
+        » storage: Airtight in the fridge — up to 3 days.
+        » for: Spicy King Ranch Chicken Casserole (Saturday)
+    10. Halve the cherry tomatoes for Crisp Green Salad with Lime-Cumin Vinaigrette   (1 min)
+        Halve 1 cup cherry tomatoes — into a tub labelled "Crisp Green Salad with Lime-Cumin Vinaigrette — cherry tomatoes, radishes and red onion".
+        » for: Spicy King Ranch Chicken Casserole (Saturday)
+    11. Slice the radishes for Crisp Green Salad with Lime-Cumin Vinaigrette   (10 min)
+        Thinly slice 4 radishes — into a tub labelled "Crisp Green Salad with Lime-Cumin Vinaigrette — cherry tomatoes, radishes and red onion".
+        » for: Spicy King Ranch Chicken Casserole (Saturday)
+    12. Slice the red onion for Crisp Green Salad with Lime-Cumin Vinaigrette   (3 min)
+        Thinly slice ¼ red onion — into a tub labelled "Crisp Green Salad with Lime-Cumin Vinaigrette — cherry tomatoes, radishes and red onion".
+        » storage: Crisp Green Salad with Lime-Cumin Vinaigrette: Airtight in the fridge — up to 4 days. Keep the Crisp Green Salad vinaigrette jar separate; combine on cook day (Saturday).
+        » for: Spicy King Ranch Chicken Casserole (Saturday)
+    13. Juice the limes for Crisp Green Salad with Lime-Cumin Vinaigrette   (2 min)
+        Juice enough limes to yield 2 tbsp fresh lime juice — into the Crisp Green Salad vinaigrette jar.
+        » for: Spicy King Ranch Chicken Casserole (Saturday)
+
+  ── sauces_marinades ──
+     1. Finish the Crisp Green Salad vinaigrette jar   (2 min)
+        Crisp Green Salad vinaigrette jar (ground cumin and the fresh lime juice from produce step 13 already in it): add
+        ½ tsp honey
+        3 tbsp extra-virgin olive oil
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Spicy King Ranch Chicken Casserole (Saturday)
+     2. Finish the Soy-Ginger Marinated Pork Chops marinade bowl   (3 min)
+        Soy-Ginger Marinated Pork Chops marinade bowl (fresh ginger and garlic already in it): add
+        3 tbsp soy sauce
+        1 tbsp toasted sesame oil
+        1 tbsp honey
+        1 tbsp rice vinegar
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 4 days. Add the boneless center-cut pork chops the night before you cook them (Sunday).
+        » for: Soy-Ginger Marinated Pork Chops with Steamed Jasmine Rice and Cucumber Salad (Sunday)
+     3. Build the Cucumber Salad sauce bowl   (3 min)
+        Into the Cucumber Salad sauce bowl:
+        1 tsp soy sauce
+        1 tsp toasted sesame oil
+        ½ tsp honey
+        2 tbsp rice vinegar
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 4 days.
+        » for: Soy-Ginger Marinated Pork Chops with Steamed Jasmine Rice and Cucumber Salad (Sunday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+  ×  1. Boneless center-cut pork chops — cook day   (5 min)  [RENDER-OMITTED]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+        » for: Soy-Ginger Marinated Pork Chops with Steamed Jasmine Rice and Cucumber Salad (Sunday)
+  ×  2. Boneless skinless chicken thighs — cook day   (5 min)  [RENDER-OMITTED]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+        » for: Spicy King Ranch Chicken Casserole (Saturday)
+
+  subset ticks: 18 keys, 18 not in the full plan; required for these meals 19, uncovered 7; isPrepped {"Soy-Ginger Marinated Pork Chop":false,"Spicy King Ranch Chicken Casse":false}
+
+══════════ COOK MODE (cook-session.tsx: sequenced if multi-dish, flattened if single) ══════════
+
+  ▸ Soy-Ginger Marinated Pork Chops with Steamed Jasmine Rice and Cucumber Salad   [Sunday]  SEQUENCED
+    footer 42 min | scheduler 42 | card 42 | fresh derive 42 | dishes 3
+      1. [ T-42] (  5m prep) Soy-Ginger Marinated Pork Chops
+         Whisk together 3 tablespoons soy sauce, 1½ tablespoons grated ginger, 3 minced garlic cloves, 1 tablespoon toasted sesame oil, 1 tablespoon honey, 1 tablespoon rice vinegar, and ¼ teaspoon black pepper in a small bowl.
+      2. [ T-37] ( 15m rest) Soy-Ginger Marinated Pork Chops
+         Pat the 4 boneless pork chops dry with paper towels, place them in a zip-top bag or shallow dish, and pour the marinade over them; seal and turn to coat, then let sit at room temperature for at least 15 minutes.
+      3. [ T-37] (  2m prep) Soy-Ginger Marinated Pork Chops
+         Thinly slice 2 scallions and set aside for garnish.
+      4. [ T-35] (  5m prep) Cucumber Salad
+         ⟶ With the Soy-Ginger Marinated Pork Chops resting, start on the Cucumber Salad.
+         Thinly slice 2 English cucumbers into rounds and place them in a large bowl.
+      5. [ T-30] (  2m preheat) Soy-Ginger Marinated Pork Chops
+         Heat 1 tablespoon neutral oil in a large skillet or grill pan over medium-high heat until shimmering.
+      6. [ T-30] (  3m prep) Steamed Jasmine Rice
+         ⟶ With the Soy-Ginger Marinated Pork Chops resting, start on the Steamed Jasmine Rice.
+         Rinse 1½ cups jasmine rice in a fine-mesh strainer under cold water, swishing with your hand, until the water runs clear.
+      7. [ T-27] (  3m prep) Cucumber Salad
+         ⟶ With the Soy-Ginger Marinated Pork Chops resting, start on the Cucumber Salad.
+         Whisk together 2 tablespoons rice vinegar, 1 teaspoon toasted sesame oil, 1 teaspoon soy sauce, ½ teaspoon honey, ½ teaspoon kosher salt, and ¼ teaspoon red pepper flakes (optional) in a small bowl.
+      8. [ T-24] (  4m cook) Steamed Jasmine Rice
+         ⟶ With the Soy-Ginger Marinated Pork Chops resting, start on the Steamed Jasmine Rice.
+         Combine the rinsed rice, 2¼ cups water, and ½ teaspoon kosher salt in a medium saucepan and bring to a boil over high heat.
+      9. [ T-24] ( 10m rest) Cucumber Salad
+         ⟶ With the Soy-Ginger Marinated Pork Chops resting, start on the Cucumber Salad.
+         Pour the dressing over the cucumbers and toss well to coat; let the salad sit for at least 10 minutes to allow the flavors to meld.
+     10. [ T-22] ( 10m cook) Soy-Ginger Marinated Pork Chops
+         ⟶ With the Steamed Jasmine Rice marinating, start on the Soy-Ginger Marinated Pork Chops.
+         Remove the pork chops from the marinade, letting the excess drip off, and sear 4–5 minutes per side until the internal temperature reaches 145°F and the exterior is deeply caramelized.
+     11. [ T-20] ( 15m cook) Steamed Jasmine Rice
+         ⟶ With the Cucumber Salad resting, start on the Steamed Jasmine Rice.
+         Reduce heat to the lowest setting, cover tightly, and cook for 15 minutes without lifting the lid.
+     12. [ T-12] (  2m assemble) Cucumber Salad
+         ⟶ With the Steamed Jasmine Rice cooking, start on the Cucumber Salad.
+         Scatter 2 tablespoons roughly chopped fresh cilantro over the salad (optional) and serve chilled or at room temperature.
+     13. [ T-10] (  5m rest) Soy-Ginger Marinated Pork Chops
+         ⟶ With the Steamed Jasmine Rice cooking, start on the Soy-Ginger Marinated Pork Chops.
+         Transfer the chops to a cutting board and rest 5 minutes before serving.
+     14. [  T-5] (  2m assemble) Soy-Ginger Marinated Pork Chops
+         Plate the pork chops and garnish with the sliced scallions and 1 teaspoon sesame seeds (optional).
+     15. [  T-5] (  5m rest) Steamed Jasmine Rice
+         Remove from heat and let the rice steam, still covered, for 5 minutes, then fluff with a fork and serve.
+
+  ▸ Classic Tex-Mex Sheet-Pan Chicken Fajitas   [Monday]  SEQUENCED
+    footer 50 min | scheduler 50 | card 50 | fresh derive 50 | dishes 3
+      1. [ T-50] ( 10m preheat) Sheet-Pan Spiced Chicken Thighs with Peppers and Onions
+         Preheat the oven to 425°F and line a large rimmed sheet pan with foil.
+      2. [ T-50] ( 10m prep) Sheet-Pan Spiced Chicken Thighs with Peppers and Onions
+         Slice 2 pounds of chicken thighs into ½-inch strips, seed and slice the 2 red bell peppers and 1 green bell pepper into ½-inch strips, and halve and slice the yellow onion into ½-inch strips.
+      3. [ T-40] (  3m prep) Sheet-Pan Spiced Chicken Thighs with Peppers and Onions
+         In a small bowl, combine 2 teaspoons chili powder, 1½ teaspoons ground cumin, 1 teaspoon smoked paprika, ¾ teaspoon garlic powder, ½ teaspoon dried oregano, 1¼ teaspoons kosher salt, and ½ teaspoon black pepper.
+      4. [ T-37] (  4m prep) Sheet-Pan Spiced Chicken Thighs with Peppers and Onions
+         Spread the chicken strips, bell peppers, and onion on the sheet pan, drizzle with 3 tablespoons olive oil, sprinkle the spice blend evenly over everything, and toss until fully coated.
+      5. [ T-33] ( 24m cook) Sheet-Pan Spiced Chicken Thighs with Peppers and Onions
+         Spread the mixture into a single layer and roast on the top rack for 22–25 minutes, until the chicken is cooked through and the peppers and onions are lightly charred at the edges.
+      6. [ T-21] (  4m prep) Fajita Toppings: Guacamole, Sour Cream, and Pico de Gallo
+         Halve, pit, and scoop the 2 ripe avocados into a bowl, then mash with a fork to your preferred texture.
+      7. [ T-17] (  2m prep) Fajita Toppings: Guacamole, Sour Cream, and Pico de Gallo
+         Stir 1 tablespoon fresh lime juice and ¼ teaspoon kosher salt into the mashed avocado and set aside.
+      8. [ T-15] (  6m prep) Fajita Toppings: Guacamole, Sour Cream, and Pico de Gallo
+         Finely dice the 2 roma tomatoes, finely dice ¼ cup white onion, and seed and mince the jalapeño.
+      9. [  T-9] (  2m assemble) Sheet-Pan Spiced Chicken Thighs with Peppers and Onions
+         Remove the pan from the oven, drizzle 2 tablespoons fresh lime juice over the chicken and vegetables, and toss to coat.
+     10. [  T-9] (  8m cook) Warm Flour Tortillas
+         Warm the 12 flour tortillas in a dry skillet over medium heat for about 30 seconds per side, or wrap them in foil and place in the oven during the last 10 minutes of the chicken's roasting time.
+     11. [  T-7] (  2m prep) Fajita Toppings: Guacamole, Sour Cream, and Pico de Gallo
+         ⟶ With the Warm Flour Tortillas cooking, start on the Fajita Toppings: Guacamole, Sour Cream, and Pico de Gallo.
+         Combine the diced tomatoes, white onion, jalapeño, and 2 tablespoons finely chopped fresh cilantro in a bowl and stir to mix.
+     12. [  T-5] (  2m assemble) Sheet-Pan Spiced Chicken Thighs with Peppers and Onions
+         ⟶ With the Warm Flour Tortillas cooking, start on the Sheet-Pan Spiced Chicken Thighs with Peppers and Onions.
+         Scatter ¼ cup roughly chopped fresh cilantro over the pan and serve with lime wedges on the side.
+     13. [  T-3] (  2m assemble) Fajita Toppings: Guacamole, Sour Cream, and Pico de Gallo
+         ⟶ With the Warm Flour Tortillas cooking, start on the Fajita Toppings: Guacamole, Sour Cream, and Pico de Gallo.
+         Set out ½ cup sour cream in a small bowl, and if using, add 1 cup shredded Mexican cheese blend to a separate bowl for the table.
+     14. [  T-1] (  1m hold) Warm Flour Tortillas
+         Wrap the warmed tortillas in a clean kitchen towel to keep them soft and pliable until serving.
+
+  ▸ Smash Burgers with American Cheese and Special Sauce   [Wednesday]  SEQUENCED
+    footer 71 min | scheduler 71 | card 71 | fresh derive 71 | dishes 3
+      1. [ T-71] ( 15m preheat) Crispy Oven Fries
+         Preheat the oven to 450°F and place two large rimmed baking sheets inside to heat.
+      2. [ T-71] ( 12m prep) Crispy Oven Fries
+         Scrub and cut 2½ pounds russet potatoes into ¼-inch sticks, then soak in a bowl of cold water for 10 minutes to release excess starch.
+      3. [ T-59] ( 10m prep) Crisp Iceberg and Dill Slaw
+         ⟶ With the Crispy Oven Fries heating up, start on the Crisp Iceberg and Dill Slaw.
+         Core and finely shred the ½ head of iceberg lettuce, finely shred 2 cups green cabbage, and peel and grate 1 carrot; add all to a large bowl.
+      4. [ T-49] (  2m prep) Crisp Iceberg and Dill Slaw
+         Roughly chop 2 tablespoons fresh dill and add to the bowl.
+      5. [ T-47] (  3m prep) Crispy Oven Fries
+         Drain the potatoes, spread on a clean kitchen towel, and pat thoroughly dry.
+      6. [ T-44] (  3m prep) Crisp Iceberg and Dill Slaw
+         Whisk together 3 tablespoons mayonnaise, 1 tablespoon apple cider vinegar, 1 teaspoon granulated sugar, ½ teaspoon kosher salt, and ¼ teaspoon black pepper in a small bowl until smooth.
+      7. [ T-41] (  3m prep) Crispy Oven Fries
+         Toss the dried potato sticks with 3 tablespoons olive oil, 1 teaspoon kosher salt, ½ teaspoon black pepper, ½ teaspoon garlic powder, and ½ teaspoon smoked paprika until evenly coated.
+      8. [ T-38] (  5m prep) Smash Burgers with American Cheese and Special Sauce
+         Whisk together ⅓ cup mayonnaise, 2 tablespoons ketchup, 1 tablespoon yellow mustard, 2 tablespoons sweet pickle relish, 1 teaspoon white wine vinegar, ¼ teaspoon garlic powder, and ¼ teaspoon smoked paprika in a small bowl until smooth; refrigerate until needed.
+      9. [ T-38] ( 20m cook) Crispy Oven Fries
+         Carefully remove the hot baking sheets from the oven, divide the fries across both sheets in a single layer without overlapping, and roast for 20 minutes.
+     10. [ T-38] ( 15m rest) Crisp Iceberg and Dill Slaw
+         ⟶ With the Crispy Oven Fries cooking, start on the Crisp Iceberg and Dill Slaw.
+         Pour the dressing over the slaw, toss well to coat, and refrigerate for at least 15 minutes before serving to allow the flavors to meld.
+     11. [ T-33] (  5m prep) Smash Burgers with American Cheese and Special Sauce
+         ⟶ With the Crispy Oven Fries cooking, start on the Smash Burgers with American Cheese and Special Sauce.
+         Finely dice the ½ white onion and divide the 2 pounds of 80/20 ground beef into 8 loose 4-oz balls, keeping them cold.
+     12. [ T-28] (  3m preheat) Smash Burgers with American Cheese and Special Sauce
+         Heat a cast-iron skillet or heavy griddle over high heat for 3 minutes until smoking, then add 1 tablespoon neutral oil and swirl to coat.
+     13. [ T-25] (  2m cook) Smash Burgers with American Cheese and Special Sauce
+         Place 2 beef balls in the skillet, immediately smash each flat with a stiff spatula or burger press to about ¼-inch thick, and season the tops with a pinch of the 1 teaspoon kosher salt and ½ teaspoon black pepper.
+     14. [ T-23] ( 12m cook) Smash Burgers with American Cheese and Special Sauce
+         Cook undisturbed for 2 minutes until the edges are deeply browned and crispy, then flip each patty, immediately lay 1 slice of American cheese on each, and cook 1 minute more; transfer to a plate and repeat with the remaining 6 beef balls in batches of 2.
+     15. [ T-18] ( 17m cook) Crispy Oven Fries
+         Flip the fries, rotate the pans, and roast for another 15–20 minutes until deep golden and crispy.
+     16. [ T-11] (  2m cook) Smash Burgers with American Cheese and Special Sauce
+         ⟶ With the Crispy Oven Fries cooking, start on the Smash Burgers with American Cheese and Special Sauce.
+         Toast the 4 split brioche buns cut-side down in the residual fat in the skillet for 1–2 minutes until golden.
+     17. [  T-9] (  3m assemble) Smash Burgers with American Cheese and Special Sauce
+         Spread a generous layer of special sauce on both cut sides of each bun, then stack 2 double-cheeseburger patties on each bottom bun, top with diced onion, 6 dill pickle slices, and ¼ cup shredded iceberg lettuce, and close with the top bun.
+     18. [  T-1] (  1m assemble) Crispy Oven Fries
+         Taste and adjust salt, then serve immediately.
+
+  ▸ Charred Salsa Verde Carne Asada Tacos   [Friday]  SEQUENCED
+    footer 68 min | scheduler 68 | card 68 | fresh derive 68 | dishes 3
+      1. [ T-68] (  5m prep) Carne Asada Skirt Steak
+         Combine ¼ cup fresh orange juice, 3 tablespoons fresh lime juice, ¼ cup roughly chopped white onion, 4 smashed garlic cloves, the halved jalapeño, ¼ cup cilantro stems, 1 teaspoon ground cumin, 1 teaspoon ancho chili powder, ½ teaspoon dried oregano, 1½ teaspoons kosher salt, and ½ teaspoon black pepper in a blender and blitz until smooth.
+      2. [ T-63] ( 30m rest) Carne Asada Skirt Steak
+         Place the 1¾ pounds trimmed skirt steak in a zip-lock bag or shallow dish, pour the marinade over it, seal, and refrigerate for at least 30 minutes and up to 4 hours.
+      3. [ T-63] (  5m prep) Carne Asada Skirt Steak
+         While the steak marinates, finely dice ½ cup white onion and roughly chop ½ cup cilantro leaves for serving; set aside.
+      4. [ T-58] (  6m prep) Pickled Red Onion and Radish Slaw
+         ⟶ With the Carne Asada Skirt Steak chilling, start on the Pickled Red Onion and Radish Slaw.
+         Thinly slice 1 red onion into half-moons and thinly slice 6 radishes into rounds.
+      5. [ T-52] (  4m preheat) Carne Asada Skirt Steak
+         Heat a cast-iron skillet or grill pan over high heat until smoking, then brush with 2 tablespoons neutral oil.
+      6. [ T-52] (  3m prep) Pickled Red Onion and Radish Slaw
+         ⟶ With the Carne Asada Skirt Steak chilling, start on the Pickled Red Onion and Radish Slaw.
+         Whisk together ⅓ cup apple cider vinegar, 2 tablespoons fresh lime juice, 1 teaspoon granulated sugar, ½ teaspoon kosher salt, and ¼ teaspoon dried oregano in a medium bowl until the sugar and salt dissolve.
+      7. [ T-49] (  2m assemble) Pickled Red Onion and Radish Slaw
+         Add the sliced red onion and radishes to the pickling liquid, toss well to coat, and press them down so they are mostly submerged.
+      8. [ T-47] ( 20m rest) Pickled Red Onion and Radish Slaw
+         Let the slaw sit at room temperature for at least 20 minutes, tossing once halfway through, before serving alongside the tacos.
+      9. [ T-33] (  8m cook) Carne Asada Skirt Steak
+         ⟶ With the Pickled Red Onion and Radish Slaw resting, start on the Carne Asada Skirt Steak.
+         Remove the steak from the marinade, shake off excess, and sear 3–4 minutes per side over high heat until deeply charred and cooked to medium (135 °F internal).
+     10. [ T-25] (  5m rest) Carne Asada Skirt Steak
+         Transfer the steak to a cutting board and rest 5 minutes.
+     11. [ T-25] (  5m preheat) Charred Tomatillo Salsa Verde
+         ⟶ With the Carne Asada Skirt Steak resting, start on the Charred Tomatillo Salsa Verde.
+         Position an oven rack 4 inches below the broiler and heat the broiler to high.
+     12. [ T-25] (  4m prep) Charred Tomatillo Salsa Verde
+         Arrange the ¾ pound husked and rinsed tomatillos, 2 serrano chiles, ½ onion cut into thick wedges, and 3 unpeeled garlic cloves on a foil-lined baking sheet.
+     13. [ T-20] (  3m prep) Carne Asada Skirt Steak
+         Slice the rested steak against the grain into thin strips, then roughly chop into taco-sized pieces.
+     14. [ T-20] ( 10m cook) Charred Tomatillo Salsa Verde
+         Broil the tomatillo mixture for 8–10 minutes, turning once halfway, until the tomatillos are blistered and charred in spots and the chiles are softened.
+     15. [ T-17] (  6m cook) Carne Asada Skirt Steak
+         ⟶ With the Charred Tomatillo Salsa Verde cooking, start on the Carne Asada Skirt Steak.
+         Warm the 12 corn tortillas one at a time in a dry skillet over medium-high heat for about 30 seconds per side, or char directly over an open flame, then wrap in a clean towel to keep warm.
+     16. [ T-10] (  4m assemble) Charred Tomatillo Salsa Verde
+         Peel the roasted garlic cloves, then transfer all the broiled vegetables and any accumulated juices to a blender; add ⅓ cup cilantro, 1 tablespoon fresh lime juice, and ¾ teaspoon kosher salt and pulse to a coarse, slightly chunky salsa.
+     17. [  T-6] (  4m assemble) Carne Asada Skirt Steak
+         Fill each tortilla with chopped carne asada, spoon salsa verde over the top, and finish with finely diced white onion, cilantro leaves, a squeeze of lime, and an optional pinch of flaky sea salt.
+     18. [  T-2] (  2m hold) Charred Tomatillo Salsa Verde
+         Taste the salsa verde and adjust salt or lime if needed, then set aside at room temperature until ready to serve.
+
+  ▸ Spicy King Ranch Chicken Casserole   [Saturday]  SEQUENCED
+    footer 93 min | scheduler 93 | card 93 | fresh derive 93 | dishes 2
+      1. [ T-93] ( 25m cook) Spicy King Ranch Chicken Casserole
+         Place 1½ pounds boneless skinless chicken thighs in a saucepan, cover with cold water by 1 inch, bring to a boil, then reduce heat and simmer 18 minutes until cooked through; transfer to a cutting board and shred with two forks.
+      2. [ T-93] (  4m prep) Crisp Green Salad with Lime-Cumin Vinaigrette
+         ⟶ With the Spicy King Ranch Chicken Casserole marinating, start on the Crisp Green Salad with Lime-Cumin Vinaigrette.
+         Whisk together 2 tablespoons fresh lime juice, 3 tablespoons extra-virgin olive oil, ¼ teaspoon ground cumin, ½ teaspoon honey, ¼ teaspoon kosher salt, and ⅛ teaspoon black pepper in a small bowl until emulsified.
+      3. [ T-89] (  6m prep) Crisp Green Salad with Lime-Cumin Vinaigrette
+         Chop 2 romaine lettuce hearts into bite-sized pieces, halve 1 cup cherry tomatoes, thinly slice 4 radishes, and thinly slice ¼ of a red onion.
+      4. [ T-83] (  2m assemble) Crisp Green Salad with Lime-Cumin Vinaigrette
+         Just before serving, combine the romaine, cherry tomatoes, radishes, and red onion in a large bowl, drizzle with the vinaigrette, and toss to coat evenly.
+      5. [ T-68] ( 20m cook) Spicy King Ranch Chicken Casserole
+         Roast 2 poblano peppers directly over a gas flame or under the broiler, turning with tongs, until charred all over, about 8 minutes; place in a covered bowl for 10 minutes, then peel, seed, and dice.
+      6. [ T-68] (  8m prep) Spicy King Ranch Chicken Casserole
+         Dice 1 yellow onion, mince 3 garlic cloves, and seed and mince 1 jalapeño; drain the 10-ounce can of Rotel tomatoes; cut 12 corn tortillas into quarters.
+      7. [ T-60] ( 10m preheat) Spicy King Ranch Chicken Casserole
+         Preheat the oven to 375°F and lightly grease a 9×13-inch baking dish.
+      8. [ T-60] (  6m cook) Spicy King Ranch Chicken Casserole
+         Heat 1 tablespoon neutral oil in a large skillet over medium-high; sauté the onion and jalapeño for 4 minutes until softened, then add the garlic and cook 1 minute more.
+      9. [ T-54] (  4m cook) Spicy King Ranch Chicken Casserole
+         Push the vegetables to one side, melt 2 tablespoons unsalted butter in the pan, whisk in 2 tablespoons all-purpose flour, and cook the roux 1 minute; gradually whisk in 1 cup chicken broth until smooth.
+     10. [ T-48] (  4m cook) Spicy King Ranch Chicken Casserole
+         Stir in the 10.5-ounce can of cream of mushroom soup, ½ cup sour cream, drained Rotel, diced roasted poblanos, 1½ teaspoons chili powder, 1 teaspoon cumin, ½ teaspoon smoked paprika, ¼ teaspoon cayenne, 1 teaspoon kosher salt, and ½ teaspoon black pepper; simmer 3 minutes until the sauce is cohesive.
+     11. [ T-44] (  2m cook) Spicy King Ranch Chicken Casserole
+         Fold the shredded chicken into the sauce and remove from heat.
+     12. [ T-42] (  7m assemble) Spicy King Ranch Chicken Casserole
+         Spread a thin layer of the chicken-sauce mixture across the bottom of the prepared baking dish; layer one-third of the quartered tortillas over it, then half the remaining chicken-sauce mixture, and ½ cup each of Monterey Jack and cheddar; repeat the tortilla and chicken-sauce layers, then top with the final third of tortillas and the remaining 1 cup Monterey Jack and ½ cup cheddar.
+     13. [ T-35] ( 30m cook) Spicy King Ranch Chicken Casserole
+         Bake uncovered at 375°F for 28–32 minutes until the cheese is melted and bubbling at the edges and the top is lightly golden.
+     14. [  T-5] (  5m rest) Spicy King Ranch Chicken Casserole
+         Let the casserole rest 5 minutes, then scatter ¼ cup roughly chopped fresh cilantro over the top (optional) and serve.

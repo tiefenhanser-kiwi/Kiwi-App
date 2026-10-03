@@ -1,0 +1,423 @@
+PLAN 2539d94d-80df-4f05-b62e-0d3d9167806a  [A15]  Part I · A15 · pulled pork three ways
+  range 2026-10-04 .. 2026-10-10   meals 3   prep day 2026-10-04   shapes: days-5-7, cold, long-passive, multi-3plus, aromatics, two-cuts
+
+══════════ PREP THE WEEK — full plan, as Screen 3 renders it ══════════
+  HEADER: 16 containers · about 65 min   (server total 86 · phone 57) · cacheHit=false · prompt v19
+  HELD: Slow-Roasted Pulled Pork with Alabama White Sauce (Saturday, 6 days out) — trim the bone-in pork shoulder for Carolina Vinegar Pulled Pork and Slow-Roasted Pulled Pork that morning.
+
+  ── seasonings_dry ──
+     1. Measure the Chipotle-Spiced Pulled Pork spice blend   (2 min)
+        Into the Chipotle-Spiced Pulled Pork spice blend:
+        1½ tsp ground cumin
+        1 tsp smoked paprika
+        ½ tsp dried oregano
+        ½ tsp garlic powder
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Chipotle-Spiced Pulled Pork Tacos with Pickled Red Onion and Cilantro-Lime Slaw (Sunday)
+     2. Measure the Slow-Roasted Pulled Pork sauce bowl dry mix   (5 min)
+        Into the Slow-Roasted Pulled Pork sauce bowl:
+        ½ tsp ground cumin
+        1½ tsp smoked paprika
+        ½ tsp dried oregano
+        1 tsp garlic powder
+        1 tsp onion powder
+        ¼ tsp cayenne pepper
+        2 tbsp brown sugar
+        
+        Set aside for the sauces and marinades step.
+        » for: Slow-Roasted Pulled Pork with Alabama White Sauce (Saturday)
+     3. Measure the Carolina Vinegar Pulled Pork rub bowl   (2 min)
+        Into the Carolina Vinegar Pulled Pork rub bowl:
+        1 tsp smoked paprika
+        ½ tsp garlic powder
+        ½ tsp onion powder
+        ¼ tsp cayenne pepper
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Carolina Vinegar Pulled Pork with Tangy Slaw (Wednesday)
+     4. Measure the Alabama White Sauce sauce bowl dry mix   (2 min)
+        Into the Alabama White Sauce sauce bowl:
+        ¼ tsp garlic powder
+        1 tbsp prepared horseradish
+        
+        Set aside for the produce step.
+        » for: Slow-Roasted Pulled Pork with Alabama White Sauce (Saturday)
+     5. Measure the Carolina Vinegar Pulled Pork sauce bowl dry mix   (2 min)
+        Into the Carolina Vinegar Pulled Pork sauce bowl:
+        1 tbsp brown sugar
+        ½ tsp crushed red pepper flakes
+        
+        Set aside for the sauces and marinades step.
+        » for: Carolina Vinegar Pulled Pork with Tangy Slaw (Wednesday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Chipotle-Spiced Pulled Pork Tacos with Pickled Red Onion and Cilantro-Lime Slaw (Sunday), Carolina Vinegar Pulled Pork with Tangy Slaw (Wednesday), Slow-Roasted Pulled Pork with Alabama White Sauce (Saturday)
+     2. Chop the white onion for Chipotle-Spiced Pulled Pork   (3 min)
+        Roughly chop 1 white onion — into a tub labelled "Chipotle-Spiced Pulled Pork — chopped white onion".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Chipotle-Spiced Pulled Pork Tacos with Pickled Red Onion and Cilantro-Lime Slaw (Sunday)
+  ×  3. Garlic cloves — cook day   (2 min)  [RENDER-OMITTED]
+        Nothing to cut — it goes in as it comes.
+        » for: Chipotle-Spiced Pulled Pork Tacos with Pickled Red Onion and Cilantro-Lime Slaw (Sunday)
+     4. Measure the orange juice for Chipotle-Spiced Pulled Pork   (3 min)
+        Measure ½ cup fresh orange juice — into a tub labelled "Chipotle-Spiced Pulled Pork — fresh orange juice".
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Chipotle-Spiced Pulled Pork Tacos with Pickled Red Onion and Cilantro-Lime Slaw (Sunday)
+     5. Chop fresh cilantro for Chipotle-Spiced Pulled Pork and Cilantro-Lime Slaw   (2 min)
+        Roughly chop the fresh cilantro:
+        ¼ cup for the Chipotle-Spiced Pulled Pork — into a tub labelled "Chipotle-Spiced Pulled Pork — chopped fresh cilantro"
+        ¼ cup for the Cilantro-Lime Slaw — into the Cilantro-Lime Slaw dressing jar
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Chipotle-Spiced Pulled Pork Tacos with Pickled Red Onion and Cilantro-Lime Slaw (Sunday)
+     6. Slice the red onion for Pickled Red Onion   (3 min)
+        Thinly slice 1 red onion into half-moons — into a tub labelled "Pickled Red Onion — thinly sliced red onion".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Chipotle-Spiced Pulled Pork Tacos with Pickled Red Onion and Cilantro-Lime Slaw (Sunday)
+     7. Shred all green cabbage   (2 min)
+        Finely shred all the green cabbage:
+        3 cup for the Cilantro-Lime Slaw — into a tub labelled "Cilantro-Lime Slaw — shredded green cabbage"
+        ½ head for the Creamy Vinegar Cabbage Slaw — into a tub labelled "Creamy Vinegar Cabbage Slaw — greens"
+        ½ lb for the Vinegar Coleslaw — into a tub labelled "Vinegar Coleslaw — greens"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Chipotle-Spiced Pulled Pork Tacos with Pickled Red Onion and Cilantro-Lime Slaw (Sunday), Carolina Vinegar Pulled Pork with Tangy Slaw (Wednesday), Slow-Roasted Pulled Pork with Alabama White Sauce (Saturday)
+     8. Juice limes for Cilantro-Lime Slaw   (3 min)
+        Juice the limes and measure 3 tbsp fresh lime juice — into the Cilantro-Lime Slaw dressing jar.
+        » for: Chipotle-Spiced Pulled Pork Tacos with Pickled Red Onion and Cilantro-Lime Slaw (Sunday)
+     9. Mince the jalapeño for Cilantro-Lime Slaw   (3 min)
+        Seed and finely mince 1 jalapeño — into the Cilantro-Lime Slaw dressing jar.
+        » for: Chipotle-Spiced Pulled Pork Tacos with Pickled Red Onion and Cilantro-Lime Slaw (Sunday)
+    10. Shred all red cabbage   (1 min)
+        Finely shred all the red cabbage:
+        ¼ head for the Creamy Vinegar Cabbage Slaw — into a tub labelled "Creamy Vinegar Cabbage Slaw — greens"
+        ¼ lb for the Vinegar Coleslaw — into a tub labelled "Vinegar Coleslaw — greens"
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » for: Carolina Vinegar Pulled Pork with Tangy Slaw (Wednesday), Slow-Roasted Pulled Pork with Alabama White Sauce (Saturday)
+    11. Peel and grate all carrots   (1 min)
+        Peel and grate all the carrots:
+        1 for the Creamy Vinegar Cabbage Slaw — into a tub labelled "Creamy Vinegar Cabbage Slaw — large carrot and celery seed"
+        2 for the Vinegar Coleslaw — into a tub labelled "Vinegar Coleslaw — large carrot and celery seed"
+        » for: Carolina Vinegar Pulled Pork with Tangy Slaw (Wednesday), Slow-Roasted Pulled Pork with Alabama White Sauce (Saturday)
+    12. Measure celery seed for Creamy Vinegar Cabbage Slaw and Vinegar Coleslaw   (1 min)
+        Measure the celery seed:
+        ¼ tsp for the Creamy Vinegar Cabbage Slaw — into a tub labelled "Creamy Vinegar Cabbage Slaw — large carrot and celery seed"
+        ½ tsp for the Vinegar Coleslaw — into a tub labelled "Vinegar Coleslaw — large carrot and celery seed"
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » for: Carolina Vinegar Pulled Pork with Tangy Slaw (Wednesday), Slow-Roasted Pulled Pork with Alabama White Sauce (Saturday)
+    13. Juice the lemon for Alabama White Sauce   (2 min)
+        Juice the lemon and measure 1 tbsp fresh lemon juice — into the Alabama White Sauce sauce bowl.
+        » for: Slow-Roasted Pulled Pork with Alabama White Sauce (Saturday)
+
+  ── sauces_marinades ──
+     1. Finish the Slow-Roasted Pulled Pork sauce bowl   (2 min)
+        Slow-Roasted Pulled Pork sauce bowl (ground cumin, smoked paprika, dried oregano, garlic powder, onion powder, cayenne pepper and brown sugar already in it): add
+        1 tbsp yellow mustard
+        Stir to combine.
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Slow-Roasted Pulled Pork with Alabama White Sauce (Saturday)
+     2. Finish the Alabama White Sauce sauce bowl   (3 min)
+        Alabama White Sauce sauce bowl (garlic powder, prepared horseradish and the lemon juice from produce step 13 already in it): add
+        2 tbsp apple cider vinegar
+        ½ cup Mayonnaise
+        1 tsp dijon mustard
+        Stir to combine.
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Slow-Roasted Pulled Pork with Alabama White Sauce (Saturday)
+     3. Finish the Carolina Vinegar Pulled Pork sauce bowl   (2 min)
+        Carolina Vinegar Pulled Pork sauce bowl (brown sugar and crushed red pepper flakes already in it): add
+        ¾ cup apple cider vinegar
+        Stir to combine.
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Carolina Vinegar Pulled Pork with Tangy Slaw (Wednesday)
+     4. Finish the Cilantro-Lime Slaw dressing jar   (2 min)
+        Cilantro-Lime Slaw dressing jar (fresh cilantro, the fresh lime juice from produce step 8 and jalapeño already in it): add
+        2 tbsp Mayonnaise
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Chipotle-Spiced Pulled Pork Tacos with Pickled Red Onion and Cilantro-Lime Slaw (Sunday)
+  ×  5. Chipotle peppers in adobo sauce — cook day   (8 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Chipotle-Spiced Pulled Pork Tacos with Pickled Red Onion and Cilantro-Lime Slaw (Sunday)
+  ×  6. Apple cider vinegar — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Chipotle-Spiced Pulled Pork Tacos with Pickled Red Onion and Cilantro-Lime Slaw (Sunday)
+  ×  7. Apple cider vinegar and Mayonnaise — cook day   (1 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: Carolina Vinegar Pulled Pork with Tangy Slaw (Wednesday)
+  ×  8. Apple cider vinegar — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Slow-Roasted Pulled Pork with Alabama White Sauce (Saturday)
+  ×  9. Apple cider vinegar — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Slow-Roasted Pulled Pork with Alabama White Sauce (Saturday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     1. Pound the boneless pork shoulder for Chipotle-Spiced Pulled Pork   (8 min)
+        Cut 2 lb boneless pork shoulder into 3-inch chunks. No container needed — wrap and store as-is.
+        » storage: Covered in the fridge — cook within 2 days.
+        » for: Chipotle-Spiced Pulled Pork Tacos with Pickled Red Onion and Cilantro-Lime Slaw (Sunday)
+  ×  2. Bone-in pork shoulder (Boston butt) — cook day   (15 min)  [RENDER-OMITTED]
+        Trim both bone-in pork shoulders, cutting excess fat down to ¼ inch:
+        3 lb for the Carolina Vinegar Pulled Pork
+        3 lb for the Slow-Roasted Pulled Pork
+        » storage: This one is 6 days out — leave it for cook day.
+        » for: Carolina Vinegar Pulled Pork with Tangy Slaw (Wednesday), Slow-Roasted Pulled Pork with Alabama White Sauce (Saturday)
+
+══════════ PREP SELECTED MEALS — Chipotle-Spiced Pulled Pork Tacos with Pickled Red Onion and Cilantro-Lime Slaw + Slow-Roasted Pulled Pork with Alabama White Sauce ══════════
+  HEADER: 12 containers · about 60 min   (server total 72 · phone 50) · cacheHit=false · prompt v19
+  HELD: Slow-Roasted Pulled Pork with Alabama White Sauce (Saturday, 6 days out) — trim the pork shoulder for Slow-Roasted Pulled Pork that morning.
+
+  ── seasonings_dry ──
+     1. Measure the Chipotle-Spiced Pulled Pork spice blend   (2 min)
+        Into the Chipotle-Spiced Pulled Pork spice blend:
+        1½ tsp ground cumin
+        1 tsp smoked paprika
+        ½ tsp dried oregano
+        ½ tsp garlic powder
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Chipotle-Spiced Pulled Pork Tacos with Pickled Red Onion and Cilantro-Lime Slaw (Sunday)
+     2. Measure the Slow-Roasted Pulled Pork sauce bowl spices   (5 min)
+        Into the Slow-Roasted Pulled Pork sauce bowl:
+        ½ tsp ground cumin
+        1½ tsp smoked paprika
+        ½ tsp dried oregano
+        1 tsp garlic powder
+        2 tbsp brown sugar
+        1 tsp onion powder
+        ¼ tsp cayenne pepper
+        
+        Set aside for the sauces and marinades step.
+        » for: Slow-Roasted Pulled Pork with Alabama White Sauce (Saturday)
+     3. Measure the Alabama White Sauce sauce bowl dry base   (2 min)
+        Into the Alabama White Sauce sauce bowl:
+        ¼ tsp garlic powder
+        1 tbsp prepared horseradish
+        
+        Set aside for the produce step.
+        » for: Slow-Roasted Pulled Pork with Alabama White Sauce (Saturday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Chipotle-Spiced Pulled Pork Tacos with Pickled Red Onion and Cilantro-Lime Slaw (Sunday), Slow-Roasted Pulled Pork with Alabama White Sauce (Saturday)
+     2. Chop the white onion for Chipotle-Spiced Pulled Pork   (3 min)
+        Roughly chop 1 white onion — into a tub labelled "Chipotle-Spiced Pulled Pork — chopped white onion".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Chipotle-Spiced Pulled Pork Tacos with Pickled Red Onion and Cilantro-Lime Slaw (Sunday)
+  ×  3. Garlic cloves — cook day   (2 min)  [RENDER-OMITTED]
+        Nothing to cut — it goes in as it comes.
+        » for: Chipotle-Spiced Pulled Pork Tacos with Pickled Red Onion and Cilantro-Lime Slaw (Sunday)
+     4. Measure the orange juice for Chipotle-Spiced Pulled Pork   (3 min)
+        Measure ½ cup fresh orange juice — into a tub labelled "Chipotle-Spiced Pulled Pork — fresh orange juice".
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Chipotle-Spiced Pulled Pork Tacos with Pickled Red Onion and Cilantro-Lime Slaw (Sunday)
+     5. Chop the fresh cilantro   (2 min)
+        Roughly chop the fresh cilantro:
+        ¼ cup for the Chipotle-Spiced Pulled Pork — into a tub labelled "Chipotle-Spiced Pulled Pork — chopped fresh cilantro"
+        ¼ cup for the Cilantro-Lime Slaw — into the Cilantro-Lime Slaw dressing jar
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Chipotle-Spiced Pulled Pork Tacos with Pickled Red Onion and Cilantro-Lime Slaw (Sunday)
+     6. Slice the red onion for Pickled Red Onion   (3 min)
+        Thinly slice 1 red onion into half-moons — into a tub labelled "Pickled Red Onion — thinly sliced red onion".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Chipotle-Spiced Pulled Pork Tacos with Pickled Red Onion and Cilantro-Lime Slaw (Sunday)
+     7. Shred the green cabbage   (1 min)
+        Finely shred the green cabbage:
+        3 cup for the Cilantro-Lime Slaw — into a tub labelled "Cilantro-Lime Slaw — shredded green cabbage"
+        ½ lb for the Vinegar Coleslaw — into a tub labelled "Vinegar Coleslaw — greens"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Chipotle-Spiced Pulled Pork Tacos with Pickled Red Onion and Cilantro-Lime Slaw (Sunday), Slow-Roasted Pulled Pork with Alabama White Sauce (Saturday)
+     8. Juice the limes for Cilantro-Lime Slaw   (3 min)
+        Juice the limes and measure 3 tbsp fresh lime juice — into the Cilantro-Lime Slaw dressing jar.
+        » for: Chipotle-Spiced Pulled Pork Tacos with Pickled Red Onion and Cilantro-Lime Slaw (Sunday)
+     9. Mince the jalapeño for Cilantro-Lime Slaw   (3 min)
+        Seed and finely mince 1 jalapeño — into the Cilantro-Lime Slaw dressing jar.
+        » for: Chipotle-Spiced Pulled Pork Tacos with Pickled Red Onion and Cilantro-Lime Slaw (Sunday)
+    10. Juice the lemon for Alabama White Sauce   (2 min)
+        Juice the lemon and measure 1 tbsp fresh lemon juice — into the Alabama White Sauce sauce bowl.
+        » for: Slow-Roasted Pulled Pork with Alabama White Sauce (Saturday)
+    11. Shred the red cabbage for Vinegar Coleslaw   (1 min)
+        Finely shred ¼ lb red cabbage — into a tub labelled "Vinegar Coleslaw — greens".
+        » storage: Vinegar Coleslaw — greens: Airtight in the fridge — up to 4 days.
+        » for: Slow-Roasted Pulled Pork with Alabama White Sauce (Saturday)
+    12. Grate the carrots for Vinegar Coleslaw   (1 min)
+        Peel and grate 2 carrots — into a tub labelled "Vinegar Coleslaw — carrots and celery seed".
+        » for: Slow-Roasted Pulled Pork with Alabama White Sauce (Saturday)
+    13. Measure the celery seed for Vinegar Coleslaw   (1 min)
+        Measure ½ tsp celery seed — into a tub labelled "Vinegar Coleslaw — carrots and celery seed".
+        » storage: Vinegar Coleslaw — carrots and celery seed: Airtight in the fridge — up to 4 days.
+        » for: Slow-Roasted Pulled Pork with Alabama White Sauce (Saturday)
+
+  ── sauces_marinades ──
+     1. Finish the Slow-Roasted Pulled Pork sauce bowl   (2 min)
+        Slow-Roasted Pulled Pork sauce bowl (ground cumin, smoked paprika, dried oregano, garlic powder, brown sugar, onion powder and cayenne pepper already in it): add
+        1 tbsp yellow mustard
+        Stir to combine.
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Slow-Roasted Pulled Pork with Alabama White Sauce (Saturday)
+     2. Finish the Alabama White Sauce sauce bowl   (3 min)
+        Alabama White Sauce sauce bowl (garlic powder, prepared horseradish and the lemon juice from produce step 10 already in it): add
+        2 tbsp apple cider vinegar
+        ½ cup Mayonnaise
+        1 tsp dijon mustard
+        Stir to combine.
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Slow-Roasted Pulled Pork with Alabama White Sauce (Saturday)
+     3. Finish the Cilantro-Lime Slaw dressing jar   (2 min)
+        Cilantro-Lime Slaw dressing jar (fresh cilantro, the fresh lime juice from produce step 8 and jalapeño already in it): add
+        2 tbsp Mayonnaise
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Chipotle-Spiced Pulled Pork Tacos with Pickled Red Onion and Cilantro-Lime Slaw (Sunday)
+  ×  4. Chipotle peppers in adobo sauce — cook day   (8 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Chipotle-Spiced Pulled Pork Tacos with Pickled Red Onion and Cilantro-Lime Slaw (Sunday)
+  ×  5. Apple cider vinegar — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Chipotle-Spiced Pulled Pork Tacos with Pickled Red Onion and Cilantro-Lime Slaw (Sunday)
+  ×  6. Apple cider vinegar — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Slow-Roasted Pulled Pork with Alabama White Sauce (Saturday)
+  ×  7. Apple cider vinegar — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Slow-Roasted Pulled Pork with Alabama White Sauce (Saturday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     1. Cut the pork shoulder for Chipotle-Spiced Pulled Pork   (8 min)
+        Cut 2 lb boneless pork shoulder into 3-inch chunks.
+        » storage: Covered in the fridge — cook within 2 days.
+        » for: Chipotle-Spiced Pulled Pork Tacos with Pickled Red Onion and Cilantro-Lime Slaw (Sunday)
+  ×  2. Bone-in pork shoulder (Boston butt) — cook day   (9 min)  [RENDER-OMITTED]
+        Trim 3 lb bone-in pork shoulder (Boston butt), leaving no more than ¼ inch of fat on the surface.
+        » storage: This one is 6 days out — leave it for cook day.
+        » for: Slow-Roasted Pulled Pork with Alabama White Sauce (Saturday)
+
+  subset ticks: 19 keys, 1 not in the full plan; required for these meals 18, uncovered 7; isPrepped {"Chipotle-Spiced Pulled Pork Ta":false,"Slow-Roasted Pulled Pork with ":false}
+
+══════════ COOK MODE (cook-session.tsx: sequenced if multi-dish, flattened if single) ══════════
+
+  ▸ Chipotle-Spiced Pulled Pork Tacos with Pickled Red Onion and Cilantro-Lime Slaw   [Sunday]  SEQUENCED
+    footer 132 min | scheduler 132 | card 132 | fresh derive 132 | dishes 3
+      1. [T-132] (  4m prep) Chipotle-Spiced Pulled Pork
+         Roughly chop the white onion and smash 4 garlic cloves; set aside.
+      2. [T-128] (  3m prep) Chipotle-Spiced Pulled Pork
+         In a small bowl, combine 1½ teaspoons ground cumin, 1 teaspoon smoked paprika, ½ teaspoon dried oregano, ½ teaspoon garlic powder, 1½ teaspoons kosher salt, and ½ teaspoon black pepper.
+      3. [T-125] (  5m prep) Chipotle-Spiced Pulled Pork
+         Mince 3 chipotle peppers in adobo and measure 2 tablespoons of the adobo sauce; toss the 2-pound pork shoulder chunks with the spice mixture, minced chipotles, and adobo sauce until evenly coated.
+      4. [T-120] ( 16m cook) Chipotle-Spiced Pulled Pork
+         Heat 2 tablespoons neutral oil in a large heavy skillet or Dutch oven over medium-high; sear the pork chunks in batches, 3–4 minutes per side, until deeply browned on all sides.
+      5. [T-104] ( 90m cook) Chipotle-Spiced Pulled Pork
+         Transfer the seared pork to a Dutch oven or heavy pot; add the chopped onion, smashed garlic, ½ cup fresh orange juice, and ½ cup chicken broth, then cover and braise over low heat for 1½ hours until the pork is fall-apart tender.
+      6. [T-104] (  8m prep) Cilantro-Lime Slaw
+         ⟶ With the Chipotle-Spiced Pulled Pork cooking, start on the Cilantro-Lime Slaw.
+         Finely shred 3 cups green cabbage and place in a large bowl.
+      7. [ T-96] (  4m prep) Cilantro-Lime Slaw
+         Seed and finely mince 1 jalapeño; add it to the bowl with ¼ cup roughly chopped fresh cilantro.
+      8. [ T-92] (  3m prep) Cilantro-Lime Slaw
+         Whisk together 3 tablespoons fresh lime juice, 2 tablespoons mayonnaise, ¼ teaspoon kosher salt, and ⅛ teaspoon black pepper in a small bowl until smooth.
+      9. [ T-89] (  2m assemble) Cilantro-Lime Slaw
+         Pour the dressing over the cabbage mixture and toss well to coat; taste and adjust salt if needed, then serve immediately.
+     10. [ T-39] (  5m prep) Pickled Red Onion
+         ⟶ With the Chipotle-Spiced Pulled Pork cooking, start on the Pickled Red Onion.
+         Thinly slice 1 red onion into half-moons and pack them into a heatproof jar or bowl.
+     11. [ T-34] (  4m cook) Pickled Red Onion
+         Combine ½ cup apple cider vinegar, ¼ cup water, 1 teaspoon granulated sugar, and ½ teaspoon kosher salt in a small saucepan and bring to a boil over medium-high heat, stirring until the sugar and salt dissolve.
+     12. [ T-30] ( 30m rest) Pickled Red Onion
+         Pour the hot brine over the sliced onions, press them down to submerge, and let them pickle at room temperature for at least 30 minutes before serving.
+     13. [ T-14] (  5m cook) Chipotle-Spiced Pulled Pork
+         ⟶ With the Pickled Red Onion marinating, start on the Chipotle-Spiced Pulled Pork.
+         Transfer the pork to a cutting board and use two forks to shred it; return the shredded pork to the pot and stir it into the braising juices.
+     14. [  T-9] (  6m cook) Chipotle-Spiced Pulled Pork
+         Warm 12 corn tortillas directly over a gas flame or in a dry skillet, 30 seconds per side, and wrap in a clean towel to keep warm.
+     15. [  T-3] (  3m assemble) Chipotle-Spiced Pulled Pork
+         Pile the pulled pork into the warm tortillas and garnish with ¼ cup roughly chopped fresh cilantro; serve with lime wedges alongside.
+
+  ▸ Carolina Vinegar Pulled Pork with Tangy Slaw   [Wednesday]  SEQUENCED
+    footer 519 min | scheduler 519 | card 519 | fresh derive 519 | dishes 2
+      1. [T-519] (  3m prep) Carolina Vinegar Pulled Pork
+         Mix 1½ teaspoons kosher salt, 1 teaspoon black pepper, 1 teaspoon smoked paprika, ½ teaspoon garlic powder, ½ teaspoon onion powder, and ¼ teaspoon cayenne together in a small bowl.
+      2. [T-516] (  4m prep) Carolina Vinegar Pulled Pork
+         Pat the 3-pound bone-in pork shoulder completely dry with paper towels, then coat all sides evenly with the dry rub, pressing it into the meat.
+      3. [T-512] (  3m prep) Carolina Vinegar Pulled Pork
+         Whisk together ¾ cup apple cider vinegar, ¼ cup water, 1 tablespoon brown sugar, and ½ teaspoon crushed red pepper flakes in a small bowl until the sugar dissolves; set aside.
+      4. [T-509] ( 16m cook) Carolina Vinegar Pulled Pork
+         Heat 1 tablespoon neutral oil in a large heavy skillet or Dutch oven over medium-high until shimmering, then sear the pork shoulder 3–4 minutes per side on all sides until a deep brown crust forms.
+      5. [T-493] (480m cook) Carolina Vinegar Pulled Pork
+         Transfer the seared pork shoulder to a slow cooker, pour the vinegar sauce over and around it, cover, and cook on low for 8 hours until the meat is fall-apart tender.
+      6. [T-493] ( 10m prep) Creamy Vinegar Cabbage Slaw
+         ⟶ With the Carolina Vinegar Pulled Pork cooking, start on the Creamy Vinegar Cabbage Slaw.
+         Finely shred ½ head green cabbage and ¼ head red cabbage, then peel and grate 1 large carrot; combine all three in a large bowl.
+      7. [T-483] (  3m prep) Creamy Vinegar Cabbage Slaw
+         Whisk together 3 tablespoons mayonnaise, 2 tablespoons apple cider vinegar, 1 teaspoon granulated sugar, ¼ teaspoon celery seed, ½ teaspoon kosher salt, and ¼ teaspoon black pepper in a small bowl until smooth.
+      8. [T-480] (  2m assemble) Creamy Vinegar Cabbage Slaw
+         Pour the dressing over the slaw base and toss thoroughly to coat every strand.
+      9. [T-478] ( 20m rest) Creamy Vinegar Cabbage Slaw
+         Cover and refrigerate the slaw for at least 20 minutes before serving so the flavors meld and the cabbage softens slightly.
+     10. [ T-13] ( 10m rest) Carolina Vinegar Pulled Pork
+         Transfer the pork to a cutting board and let it rest for 10 minutes, then use two forks to pull the meat into shreds, discarding the bone and any large fat pockets.
+     11. [  T-3] (  3m assemble) Carolina Vinegar Pulled Pork
+         Return the pulled pork to the slow cooker and toss it in the cooking juices, then serve piled high alongside the slaw.
+
+  ▸ Slow-Roasted Pulled Pork with Alabama White Sauce   [Saturday]  SEQUENCED
+    footer 283 min | scheduler 283 | card 283 | fresh derive 283 | dishes 3
+      1. [T-283] (  4m prep) Slow-Roasted Pulled Pork
+         Mix 2 tablespoons brown sugar, 1½ teaspoons smoked paprika, 1 teaspoon garlic powder, 1 teaspoon onion powder, ½ teaspoon cumin, ½ teaspoon dried oregano, ¼ teaspoon cayenne, 1½ teaspoons kosher salt, and ¾ teaspoon black pepper together in a small bowl.
+      2. [T-279] (  3m prep) Slow-Roasted Pulled Pork
+         Pat the 3-pound pork shoulder dry with paper towels, then coat all surfaces with 1 tablespoon yellow mustard as a binder.
+      3. [T-276] (  3m prep) Slow-Roasted Pulled Pork
+         Press the dry rub evenly over the entire surface of the mustard-coated pork shoulder.
+      4. [T-273] ( 15m preheat) Slow-Roasted Pulled Pork
+         Preheat the oven to 300°F.
+      5. [T-258] (  3m cook) Slow-Roasted Pulled Pork
+         Pour ¼ cup apple cider vinegar and ¼ cup water into the bottom of a roasting pan or Dutch oven, set the rubbed pork shoulder on top fat-side up, and cover tightly with a lid or heavy-duty foil.
+      6. [T-255] (210m cook) Slow-Roasted Pulled Pork
+         Roast the covered pork at 300°F for 3½ hours, until the meat is completely tender and pulls apart easily with a fork; while it roasts, make the slaw and white sauce.
+      7. [ T-47] ( 10m prep) Vinegar Coleslaw
+         ⟶ With the Slow-Roasted Pulled Pork cooking, start on the Vinegar Coleslaw.
+         Finely shred ½ pound green cabbage and ¼ pound red cabbage, then peel and grate the 2 carrots.
+      8. [ T-45] ( 15m cook) Slow-Roasted Pulled Pork
+         Uncover the pork, increase the oven to 425°F, and roast an additional 15 minutes to crisp and caramelize the bark.
+      9. [ T-37] (  3m prep) Vinegar Coleslaw
+         ⟶ With the Slow-Roasted Pulled Pork cooking, start on the Vinegar Coleslaw.
+         Whisk together 3 tablespoons apple cider vinegar, 1 tablespoon sugar, ½ teaspoon celery seed, ½ teaspoon kosher salt, ¼ teaspoon black pepper, and 2 tablespoons neutral oil in a small bowl until the sugar dissolves.
+     10. [ T-34] ( 30m rest) Vinegar Coleslaw
+         Pour the dressing over the cabbage and carrot, toss thoroughly to coat, then cover and refrigerate for at least 30 minutes to allow the slaw to soften and the flavors to develop.
+     11. [ T-30] ( 20m rest) Slow-Roasted Pulled Pork
+         ⟶ With the Vinegar Coleslaw chilling, start on the Slow-Roasted Pulled Pork.
+         Transfer the pork to a cutting board, tent loosely with foil, and rest for 20 minutes.
+     12. [ T-28] (  4m prep) Alabama White Sauce
+         ⟶ With the Vinegar Coleslaw chilling, start on the Alabama White Sauce.
+         Squeeze 1 tablespoon fresh lemon juice and measure out ½ cup mayonnaise, 2 tablespoons apple cider vinegar, 1 tablespoon prepared horseradish, 1 teaspoon Dijon mustard, ½ teaspoon black pepper, ¼ teaspoon kosher salt, ¼ teaspoon garlic powder, and ½ teaspoon sugar.
+     13. [ T-24] (  2m assemble) Alabama White Sauce
+         Whisk all measured ingredients together until completely smooth and combined.
+     14. [ T-22] ( 20m rest) Alabama White Sauce
+         Taste and adjust seasoning, then cover and refrigerate the sauce until serving — at least 20 minutes for the flavors to meld.
+     15. [ T-10] (  8m assemble) Slow-Roasted Pulled Pork
+         ⟶ With the Vinegar Coleslaw chilling, start on the Slow-Roasted Pulled Pork.
+         Pull the pork into shreds using two forks, discarding the bone and any large fat pieces, then pile onto the 4 brioche buns and serve immediately.
+     16. [  T-2] (  2m assemble) Vinegar Coleslaw
+         Toss the slaw once more just before serving and adjust seasoning with a pinch of salt if needed.
+
+══════════ COOK MODE — PREPPED PATH: Carolina Vinegar Pulled Pork with Tangy Slaw ══════════
+  ticked 8 rendered prep steps → isPrepped=false; + every wire step for the meal (10) → isPrepped=false; blockers [{"stepKey":"seasonings_dry#dish#67a1fa4b-889a-46ba-8a5c-f8a86f94826c","onWire":false,"rendered":false,"title":null,"skipSuggested":null},{"stepKey":"sauces_marinades#left#67a1fa4b-889a-46ba-8a5c-f8a86f94826c","onWire":false,"rendered":false,"title":null,"skipSuggested":null},{"stepKey":"proteins#92da2da9-8afe-448c-bf56-11ab0f293078","onWire":true,"rendered":false,"title":"Bone-in pork shoulder (Boston butt) — cook day","skipSuggested":true}]
+  recap ("You already prepped this — get your:"):
+    · Mix 1½ teaspoons kosher salt, 1 teaspoon black pepper, 1 teaspoon smoked paprika, ½ teaspoon garlic powder, ½ teaspoon onion powder, and ¼ teaspoon cayenne together in a small bowl.
+    · Pat the 3-pound bone-in pork shoulder completely dry with paper towels, then coat all sides evenly with the dry rub, pressing it into the meat.
+    · Whisk together ¾ cup apple cider vinegar, ¼ cup water, 1 tablespoon brown sugar, and ½ teaspoon crushed red pepper flakes in a small bowl until the sugar dissolves; set aside.
+    · Finely shred ½ head green cabbage and ¼ head red cabbage, then peel and grate 1 large carrot; combine all three in a large bowl.
+    · Whisk together 3 tablespoons mayonnaise, 2 tablespoons apple cider vinegar, 1 teaspoon granulated sugar, ¼ teaspoon celery seed, ½ teaspoon kosher salt, and ¼ teaspoon black pepper in a small bowl until smooth.
+  footer 509 min; steps after the prep filter:
+      1. [T-509] (cook) Carolina Vinegar Pulled Pork
+         Heat 1 tablespoon neutral oil in a large heavy skillet or Dutch oven over medium-high until shimmering, then sear the pork shoulder 3–4 minutes per side on all sides until a deep brown crust forms.
+      2. [T-493] (cook) Carolina Vinegar Pulled Pork
+         Transfer the seared pork shoulder to a slow cooker, pour the vinegar sauce over and around it, cover, and cook on low for 8 hours until the meat is fall-apart tender.
+      3. [T-480] (assemble) Creamy Vinegar Cabbage Slaw
+         Pour the dressing over the slaw base and toss thoroughly to coat every strand.
+      4. [T-478] (rest) Creamy Vinegar Cabbage Slaw
+         Cover and refrigerate the slaw for at least 20 minutes before serving so the flavors meld and the cabbage softens slightly.
+      5. [T-13] (rest) Carolina Vinegar Pulled Pork
+         Transfer the pork to a cutting board and let it rest for 10 minutes, then use two forks to pull the meat into shreds, discarding the bone and any large fat pockets.
+      6. [T-3] (assemble) Carolina Vinegar Pulled Pork
+         Return the pulled pork to the slow cooker and toss it in the cooking juices, then serve piled high alongside the slaw.

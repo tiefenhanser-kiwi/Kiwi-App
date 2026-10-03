@@ -1,0 +1,311 @@
+PLAN bd8aa8c2-bff4-42cf-84b8-ff24fbf3793d  [A13]  Part I · A13 · taco week: pico, corn salsa, jalapeño slaw
+  range 2026-10-04 .. 2026-10-10   meals 4   prep day 2026-10-04   shapes: days-5-7, cold, long-passive, multi-3plus, marinate, aromatics, two-cuts, toss-no-heat, seafood
+
+══════════ PREP THE WEEK — full plan, as Screen 3 renders it ══════════
+  (HTTP 502: validation_failed Kiwi got distracted. Try again?)
+
+══════════ PREP SELECTED MEALS — Smoky Chipotle Carne Asada Tacos with Pico de Gallo and Cilantro-Lime Slaw + Blackened Fish Tacos with Mango Salsa and Jalapeño Slaw ══════════
+  HEADER: 14 containers · about 75 min   (server total 72 · phone 67) · cacheHit=false · prompt v19
+  HELD: Blackened Fish Tacos with Mango Salsa and Jalapeño Slaw (Saturday, 6 days out) — tilapia fillets that morning.
+
+  ── seasonings_dry ──
+     1. Measure the Smoky Chipotle Carne Asada marinade bowl spices   (3 min)
+        Into the Smoky Chipotle Carne Asada marinade bowl:
+        1 tsp ground cumin
+        1 tsp smoked paprika
+        ½ tsp dried oregano
+        
+        Set aside for the produce step.
+        » for: Smoky Chipotle Carne Asada Tacos with Pico de Gallo and Cilantro-Lime Slaw (Monday)
+     2. Measure the Blackened Tilapia seasoning   (3 min)
+        Into the Blackened Tilapia seasoning:
+        ½ tsp ground cumin
+        1½ tsp smoked paprika
+        ½ tsp dried oregano
+        1 tsp garlic powder
+        ½ tsp onion powder
+        ½ tsp cayenne pepper
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Blackened Fish Tacos with Mango Salsa and Jalapeño Slaw (Saturday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Smoky Chipotle Carne Asada Tacos with Pico de Gallo and Cilantro-Lime Slaw (Monday), Blackened Fish Tacos with Mango Salsa and Jalapeño Slaw (Saturday)
+     2. Mince garlic for the Smoky Chipotle Carne Asada marinade bowl   (2 min)
+        Mince 4 cloves garlic — into the Smoky Chipotle Carne Asada marinade bowl.
+        » for: Smoky Chipotle Carne Asada Tacos with Pico de Gallo and Cilantro-Lime Slaw (Monday)
+     3. Juice orange for the Smoky Chipotle Carne Asada marinade bowl   (2 min)
+        Squeeze ¼ cup fresh orange juice — into the Smoky Chipotle Carne Asada marinade bowl.
+        » for: Smoky Chipotle Carne Asada Tacos with Pico de Gallo and Cilantro-Lime Slaw (Monday)
+     4. Juice all limes   (9 min)
+        Squeeze fresh lime juice and portion into each destination:
+        3 tbsp for the Smoky Chipotle Carne Asada — into the Smoky Chipotle Carne Asada marinade bowl
+        2 tbsp for the Fresh Pico de Gallo and Fresh Mango Salsa — into a tub labelled "Fresh lime juice — Fresh Pico de Gallo, Fresh Mango Salsa"
+        2 tbsp for the Cilantro-Lime Slaw — into the Cilantro-Lime Slaw mix-ins bowl
+        1½ tbsp for the Jalapeño Slaw — into the Jalapeño Slaw mix-ins bowl
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Smoky Chipotle Carne Asada Tacos with Pico de Gallo and Cilantro-Lime Slaw (Monday), Blackened Fish Tacos with Mango Salsa and Jalapeño Slaw (Saturday)
+     5. Chop all fresh cilantro   (4 min)
+        Roughly chop cilantro for the Smoky Chipotle Carne Asada and Cilantro-Lime Slaw:
+        ¼ cup for the Smoky Chipotle Carne Asada — into a tub labelled "Chopped fresh cilantro — Smoky Chipotle Carne Asada, Cilantro-Lime Slaw"
+        3 tbsp for the Cilantro-Lime Slaw — into the same tub labelled "Chopped fresh cilantro — Smoky Chipotle Carne Asada, Cilantro-Lime Slaw"
+        
+        Finely chop cilantro for the remaining dishes:
+        ¼ cup for the Fresh Pico de Gallo — into a tub labelled "Fresh Pico de Gallo — fresh cilantro, white onion, roma tomatoes and jalapeño"
+        ¼ cup for the Fresh Mango Salsa — into a tub labelled "Fresh Mango Salsa — fresh cilantro, jalapeño, ripe mango and red onion"
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Smoky Chipotle Carne Asada Tacos with Pico de Gallo and Cilantro-Lime Slaw (Monday), Blackened Fish Tacos with Mango Salsa and Jalapeño Slaw (Saturday)
+     6. Dice all white onion   (3 min)
+        Finely dice white onion and portion by dish:
+        ¼ for the Smoky Chipotle Carne Asada — into a tub labelled "Smoky Chipotle Carne Asada — finely diced white onion"
+        ½ for the Fresh Pico de Gallo — into a tub labelled "Fresh Pico de Gallo — fresh cilantro, white onion, roma tomatoes and jalapeño"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Smoky Chipotle Carne Asada Tacos with Pico de Gallo and Cilantro-Lime Slaw (Monday)
+     7. Dice all roma tomatoes for Fresh Pico de Gallo   (8 min)
+        Core and finely dice 3 roma tomatoes — into a tub labelled "Fresh Pico de Gallo — fresh cilantro, white onion, roma tomatoes and jalapeño".
+        » for: Smoky Chipotle Carne Asada Tacos with Pico de Gallo and Cilantro-Lime Slaw (Monday)
+     8. Prep all jalapeños   (8 min)
+        Seed and mince jalapeños for the pico and salsa:
+        1 for the Fresh Pico de Gallo — into a tub labelled "Fresh Pico de Gallo — fresh cilantro, white onion, roma tomatoes and jalapeño"
+        1 for the Fresh Mango Salsa — into a tub labelled "Fresh Mango Salsa — fresh cilantro, jalapeño, ripe mango and red onion"
+        
+        Thinly slice into rings for the slaw:
+        1 for the Jalapeño Slaw — into a tub labelled "Jalapeño Slaw — jalapeño and carrots"
+        » storage: Fresh Pico de Gallo: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Fresh Pico de Gallo, Fresh Mango Salsa separate; combine on cook day (Saturday).
+        » for: Smoky Chipotle Carne Asada Tacos with Pico de Gallo and Cilantro-Lime Slaw (Monday), Blackened Fish Tacos with Mango Salsa and Jalapeño Slaw (Saturday)
+     9. Shred all green cabbage   (1 min)
+        Thinly shred green cabbage and portion by dish:
+        3 cup for the Cilantro-Lime Slaw — into a tub labelled "Cilantro-Lime Slaw — shredded green cabbage"
+        3 cup for the Jalapeño Slaw — into a tub labelled "Jalapeño Slaw — greens"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Smoky Chipotle Carne Asada Tacos with Pico de Gallo and Cilantro-Lime Slaw (Monday), Blackened Fish Tacos with Mango Salsa and Jalapeño Slaw (Saturday)
+    10. Shred all red cabbage   (1 min)
+        Thinly shred red cabbage and portion by dish:
+        1 cup for the Cilantro-Lime Slaw — into a tub labelled "Cilantro-Lime Slaw — shredded red cabbage"
+        1 cup for the Jalapeño Slaw — into a tub labelled "Jalapeño Slaw — greens"
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » for: Smoky Chipotle Carne Asada Tacos with Pico de Gallo and Cilantro-Lime Slaw (Monday), Blackened Fish Tacos with Mango Salsa and Jalapeño Slaw (Saturday)
+    11. Dice all mango for Fresh Mango Salsa   (1 min)
+        Peel and dice 2 ripe mangoes into small pieces — into a tub labelled "Fresh Mango Salsa — fresh cilantro, jalapeño, ripe mango and red onion".
+        » for: Blackened Fish Tacos with Mango Salsa and Jalapeño Slaw (Saturday)
+    12. Dice red onion for Fresh Mango Salsa   (3 min)
+        Finely dice ¼ red onion — into a tub labelled "Fresh Mango Salsa — fresh cilantro, jalapeño, ripe mango and red onion".
+        » storage: Fresh Mango Salsa — fresh cilantro, jalapeño, ripe mango and red onion: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Fresh Pico de Gallo, Fresh Mango Salsa separate…
+        » for: Blackened Fish Tacos with Mango Salsa and Jalapeño Slaw (Saturday)
+    13. Julienne carrots for Jalapeño Slaw   (1 min)
+        Peel and julienne 1 carrot — into a tub labelled "Jalapeño Slaw — jalapeño and carrots".
+        » storage: Jalapeño Slaw — jalapeño and carrots: Airtight in the fridge — up to 4 days. Keep the Jalapeño Slaw mix-ins bowl separate; combine on cook day (Saturday).
+        » for: Blackened Fish Tacos with Mango Salsa and Jalapeño Slaw (Saturday)
+
+  ── sauces_marinades ──
+     1. Finish the Smoky Chipotle Carne Asada marinade bowl   (6 min)
+        Smoky Chipotle Carne Asada marinade bowl (ground cumin, smoked paprika, dried oregano, garlic, the fresh orange juice from produce step 3 and the fresh lime juice from produce step 4 already in it): add
+        2 chipotle chiles in adobo, minced, plus 1 tablespoon adobo sauce
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 3 days. The skirt steak go in at the proteins step and marinate until cook day.
+        » for: Smoky Chipotle Carne Asada Tacos with Pico de Gallo and Cilantro-Lime Slaw (Monday)
+     2. Finish the Cilantro-Lime Slaw mix-ins bowl   (2 min)
+        Cilantro-Lime Slaw mix-ins bowl (the fresh lime juice from produce step 4 already in it): add
+        2 tbsp mayonnaise
+        1 tbsp apple cider vinegar
+        1 tsp honey
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Smoky Chipotle Carne Asada Tacos with Pico de Gallo and Cilantro-Lime Slaw (Monday)
+     3. Finish the Jalapeño Slaw mix-ins bowl   (2 min)
+        Jalapeño Slaw mix-ins bowl (the fresh lime juice from produce step 4 already in it): add
+        3 tbsp mayonnaise
+        1 tsp apple cider vinegar
+        1 tsp honey
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Blackened Fish Tacos with Mango Salsa and Jalapeño Slaw (Saturday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     1. Trim the skirt steak   (5 min)
+        Trim 1½ lb skirt steak of excess fat.
+        » storage: Then into the Smoky Chipotle Carne Asada marinade bowl to marinate — covered in the fridge, cook within 1 day.
+        » for: Smoky Chipotle Carne Asada Tacos with Pico de Gallo and Cilantro-Lime Slaw (Monday)
+  ×  2. Tilapia fillets — cook day   (5 min)  [RENDER-OMITTED]
+        Pat 24 oz tilapia fillets completely dry with paper towels.
+        » storage: This one is 6 days out — leave it for cook day.
+        » for: Blackened Fish Tacos with Mango Salsa and Jalapeño Slaw (Saturday)
+
+  subset ticks: 19 keys, 19 not in the full plan; required for these meals 19, uncovered 9; isPrepped {"Smoky Chipotle Carne Asada Tac":false,"Blackened Fish Tacos with Mang":false}
+
+══════════ COOK MODE (cook-session.tsx: sequenced if multi-dish, flattened if single) ══════════
+
+  ▸ Smoky Chipotle Carne Asada Tacos with Pico de Gallo and Cilantro-Lime Slaw   [Monday]  SEQUENCED
+    footer 50 min | scheduler 50 | card 50 | fresh derive 50 | dishes 3
+      1. [ T-50] (  8m prep) Smoky Chipotle Carne Asada
+         Mince 2 chipotle chiles in adobo plus 4 garlic cloves, then whisk together with 1 tablespoon adobo sauce, ¼ cup fresh orange juice, 3 tablespoons fresh lime juice, 2 tablespoons olive oil, 1 teaspoon ground cumin, 1 teaspoon smoked paprika, ½ teaspoon dried oregano, 1 teaspoon kosher salt, and ½ teaspoon black pepper to form the marinade.
+      2. [ T-42] ( 20m rest) Smoky Chipotle Carne Asada
+         Add the 1½ pounds of trimmed skirt steak to the marinade, turn to coat thoroughly, and let it marinate for at least 20 minutes at room temperature (or up to 4 hours refrigerated).
+      3. [ T-42] (  3m preheat) Smoky Chipotle Carne Asada
+         Heat a cast-iron skillet or grill pan over high heat until smoking hot, about 3 minutes.
+      4. [ T-42] ( 10m prep) Fresh Pico de Gallo
+         ⟶ With the Smoky Chipotle Carne Asada chilling, start on the Fresh Pico de Gallo.
+         Core and finely dice 3 roma tomatoes, finely dice ½ white onion, seed and mince 1 jalapeño, and finely chop ¼ cup fresh cilantro.
+      5. [ T-32] (  8m prep) Cilantro-Lime Slaw
+         ⟶ With the Smoky Chipotle Carne Asada chilling, start on the Cilantro-Lime Slaw.
+         Thinly shred 3 cups green cabbage and 1 cup red cabbage and place in a large bowl.
+      6. [ T-24] (  3m prep) Cilantro-Lime Slaw
+         Whisk together 2 tablespoons fresh lime juice, 2 tablespoons mayonnaise, 1 tablespoon apple cider vinegar, 1 teaspoon honey, and ¼ teaspoon kosher salt in a small bowl until smooth.
+      7. [ T-21] (  2m assemble) Fresh Pico de Gallo
+         Combine the tomatoes, onion, jalapeño, and cilantro in a bowl, add 2 tablespoons fresh lime juice and ½ teaspoon kosher salt, and stir to combine.
+      8. [ T-19] (  2m assemble) Cilantro-Lime Slaw
+         Add 3 tablespoons chopped fresh cilantro to the cabbage, pour the dressing over the top, and toss until everything is evenly coated.
+      9. [ T-17] (  8m cook) Smoky Chipotle Carne Asada
+         Remove the steak from the marinade, shaking off excess, and sear for 3–4 minutes per side for medium-rare, pressing lightly to ensure full contact — do not move the steak between flips.
+     10. [ T-17] ( 10m rest) Fresh Pico de Gallo
+         Let the pico sit for at least 10 minutes before serving so the flavors meld.
+     11. [ T-17] ( 10m rest) Cilantro-Lime Slaw
+         ⟶ With the Fresh Pico de Gallo resting, start on the Cilantro-Lime Slaw.
+         Refrigerate the slaw for at least 10 minutes before serving to allow the cabbage to soften slightly and the flavors to come together.
+     12. [  T-9] (  5m rest) Smoky Chipotle Carne Asada
+         ⟶ With the Fresh Pico de Gallo resting, start on the Smoky Chipotle Carne Asada.
+         Transfer the steak to a cutting board and rest for 5 minutes.
+     13. [  T-9] (  5m cook) Smoky Chipotle Carne Asada
+         While the steak rests, warm the 12 corn tortillas in a dry skillet over medium heat or directly over a gas flame, about 30 seconds per side, then stack and wrap in a clean towel to keep warm.
+     14. [  T-4] (  4m assemble) Smoky Chipotle Carne Asada
+         Slice the rested steak against the grain into thin strips, then pile into the warm tortillas and top with the finely diced ¼ white onion, ¼ cup roughly chopped fresh cilantro, pico de gallo, slaw, and a squeeze of lime wedge.
+
+  ▸ Carnitas Tacos with Charred Corn Salsa and Jalapeño Slaw   [Tuesday]  SEQUENCED
+    footer 94 min | scheduler 94 | card 94 | fresh derive 94 | dishes 3
+      1. [ T-94] (  3m prep) Citrus-Braised Pork Carnitas
+         In a small bowl, combine 1½ teaspoons ground cumin, 1 teaspoon dried oregano, 1 teaspoon chili powder, 1½ teaspoons kosher salt, and ½ teaspoon black pepper.
+      2. [ T-91] (  3m prep) Citrus-Braised Pork Carnitas
+         Toss the 2 pounds of pork shoulder chunks with the spice blend until evenly coated.
+      3. [ T-88] (  2m preheat) Citrus-Braised Pork Carnitas
+         Heat 1 tablespoon vegetable oil in a large, heavy-bottomed pot or Dutch oven over medium-high heat until shimmering.
+      4. [ T-86] ( 12m cook) Citrus-Braised Pork Carnitas
+         Sear the pork in a single layer, undisturbed, for 3–4 minutes per side until deeply browned on at least two sides — work in batches to avoid crowding.
+      5. [ T-74] ( 32m cook) Citrus-Braised Pork Carnitas
+         Add the juice of 1 orange, the juice of 1 lime, 4 smashed garlic cloves, and ½ cup water to the pot; bring to a boil, then reduce heat to low, cover, and braise for 30 minutes until the pork is tender and pulls apart easily.
+      6. [ T-74] (  7m prep) Jalapeño Slaw
+         ⟶ With the Citrus-Braised Pork Carnitas marinating, start on the Jalapeño Slaw.
+         Thinly shred 2 cups green cabbage and peel and julienne or coarsely grate 1 carrot.
+      7. [ T-67] (  2m prep) Jalapeño Slaw
+         Seed and thinly slice 1 jalapeño and add it to the bowl with the slaw base.
+      8. [ T-65] (  3m prep) Jalapeño Slaw
+         In a small bowl, whisk together 2 tablespoons mayonnaise, 2 tablespoons apple cider vinegar, 1 teaspoon honey, ¼ teaspoon kosher salt, and ⅛ teaspoon black pepper until smooth.
+      9. [ T-62] ( 10m rest) Jalapeño Slaw
+         Pour the dressing over the slaw, toss well to coat, and refrigerate for at least 10 minutes before serving to let the flavors meld.
+     10. [ T-42] ( 10m cook) Citrus-Braised Pork Carnitas
+         Uncover, increase heat to medium-high, and cook for 8–10 minutes, stirring occasionally, until the braising liquid has nearly evaporated and the pork is crisping in its own fat.
+     11. [ T-32] (  5m prep) Charred Corn Salsa
+         Finely dice 1 roma tomato and ¼ red onion, and chop 2 tablespoons fresh cilantro; set aside.
+     12. [ T-27] (  3m assemble) Citrus-Braised Pork Carnitas
+         Use two forks to roughly shred the carnitas directly in the pot, tossing to coat all pieces in the caramelized drippings.
+     13. [ T-24] (  2m preheat) Charred Corn Salsa
+         Heat 1 teaspoon vegetable oil in a cast-iron skillet or grill pan over high heat until smoking.
+     14. [ T-22] (  8m cook) Charred Corn Salsa
+         Stand each husked ear of corn upright and char it in the dry hot skillet, turning every 2 minutes, until kernels are blistered and golden in spots, about 8 minutes total; alternatively, spread 1½ cups thawed frozen corn in the skillet and cook undisturbed for 3–4 minutes until charred.
+     15. [ T-14] (  3m prep) Charred Corn Salsa
+         Once cool enough to handle, cut the kernels from the cobs with a sharp knife.
+     16. [ T-11] (  5m cook) Citrus-Braised Pork Carnitas
+         Warm the 12 corn tortillas directly over a gas flame or in a dry skillet for 30 seconds per side, then stack and wrap in a clean kitchen towel to keep warm.
+     17. [  T-6] (  3m assemble) Citrus-Braised Pork Carnitas
+         Pile the carnitas into the warm tortillas and finish with roughly chopped fresh cilantro (optional) and a squeeze from the lime wedges.
+     18. [  T-3] (  3m assemble) Charred Corn Salsa
+         Combine the charred corn, diced tomato, red onion, and cilantro in a bowl; squeeze over the juice of 1 lime, add ¼ teaspoon kosher salt, and toss to combine.
+
+  ▸ Pork Carnitas Bowl with Cilantro-Lime Rice, Black Beans, and Pico de Gallo   [Thursday]  SEQUENCED
+    footer 103 min | scheduler 103 | card 103 | fresh derive 103 | dishes 4
+      1. [T-103] (  5m prep) Crispy Citrus-Braised Pork Carnitas
+         Cut the pork shoulder into 2-inch chunks if not already done, then pat dry with paper towels.
+      2. [ T-98] (  2m prep) Crispy Citrus-Braised Pork Carnitas
+         In a small bowl, combine 1½ teaspoons ground cumin, 1 teaspoon dried oregano, 1 teaspoon chili powder, 1½ teaspoons kosher salt, and ½ teaspoon black pepper.
+      3. [ T-96] (  3m prep) Crispy Citrus-Braised Pork Carnitas
+         Toss the pork chunks with the spice blend until evenly coated.
+      4. [ T-93] (  4m prep) Crispy Citrus-Braised Pork Carnitas
+         Juice the orange and lime, smash the 6 garlic cloves, and quarter the white onion.
+      5. [ T-89] ( 18m cook) Crispy Citrus-Braised Pork Carnitas
+         Heat 2 tablespoons lard or neutral oil in a large, heavy-bottomed pot or Dutch oven over medium-high until shimmering, then sear the pork chunks in a single layer — working in batches — for about 3 minutes per side until deeply browned on two sides.
+      6. [ T-71] ( 47m cook) Crispy Citrus-Braised Pork Carnitas
+         Return all pork to the pot and add the orange juice, lime juice, smashed garlic, quartered onion, 2 bay leaves, and ½ cup water; bring to a boil, then reduce to a low simmer, cover, and braise for 45 minutes until the pork is fork-tender.
+      7. [ T-71] (  8m prep) Fresh Pico de Gallo
+         ⟶ With the Crispy Citrus-Braised Pork Carnitas marinating, start on the Fresh Pico de Gallo.
+         Core and finely dice 4 roma tomatoes, finely dice ½ white onion, and seed and mince 1 jalapeño.
+      8. [ T-63] (  3m prep) Fresh Pico de Gallo
+         Finely chop ¼ cup fresh cilantro and juice 1 lime.
+      9. [ T-60] (  2m assemble) Fresh Pico de Gallo
+         Combine the tomatoes, onion, jalapeño, and cilantro in a bowl; add the lime juice and ½ teaspoon kosher salt and toss well.
+     10. [ T-58] ( 10m rest) Fresh Pico de Gallo
+         Let the pico rest at room temperature for at least 10 minutes before serving so the flavors meld.
+     11. [ T-46] (  3m prep) Cilantro-Lime Rice
+         ⟶ With the Crispy Citrus-Braised Pork Carnitas marinating, start on the Cilantro-Lime Rice.
+         Rinse 1½ cups long-grain white rice under cold water until the water runs clear, then drain well.
+     12. [ T-43] (  4m prep) Cilantro-Lime Rice
+         Zest and juice the lime, and finely chop ⅓ cup fresh cilantro; set both aside.
+     13. [ T-39] (  3m cook) Cilantro-Lime Rice
+         Heat 1 tablespoon neutral oil in a medium saucepan over medium-high, add the rinsed rice, and toast, stirring frequently, for 2 minutes until the grains turn slightly opaque.
+     14. [ T-36] ( 20m cook) Cilantro-Lime Rice
+         Pour in 2¼ cups water and ¾ teaspoon kosher salt, bring to a boil, then reduce heat to the lowest setting, cover tightly, and cook for 18 minutes without lifting the lid.
+     15. [ T-31] (  5m prep) Seasoned Black Beans
+         ⟶ With the Crispy Citrus-Braised Pork Carnitas marinating, start on the Seasoned Black Beans.
+         Drain and rinse the two 15-oz cans of black beans, finely dice ½ white onion, and mince 2 garlic cloves.
+     16. [ T-26] (  5m cook) Seasoned Black Beans
+         Heat 1 tablespoon neutral oil in a medium saucepan over medium heat, add the diced onion, and cook for 4 minutes until softened.
+     17. [ T-24] ( 12m cook) Crispy Citrus-Braised Pork Carnitas
+         ⟶ With the Cilantro-Lime Rice marinating, start on the Crispy Citrus-Braised Pork Carnitas.
+         Remove the lid, discard the bay leaves and onion quarters, and increase heat to medium-high; cook, stirring occasionally, for 10–12 minutes until the braising liquid reduces and the pork crisps and caramelizes in the remaining fat.
+     18. [ T-12] (  5m rest) Cilantro-Lime Rice
+         Remove from heat and let the rice steam, still covered, for 5 minutes.
+     19. [ T-12] (  1m cook) Seasoned Black Beans
+         ⟶ With the Cilantro-Lime Rice cooking, start on the Seasoned Black Beans.
+         Add the minced garlic, ¾ teaspoon ground cumin, and ½ teaspoon smoked paprika; cook, stirring constantly, for 1 minute until fragrant.
+     20. [ T-11] (  3m assemble) Crispy Citrus-Braised Pork Carnitas
+         ⟶ With the Cilantro-Lime Rice cooking, start on the Crispy Citrus-Braised Pork Carnitas.
+         Use two forks to pull the pork into shreds directly in the pot, tossing to coat in the crispy bits and remaining juices.
+     21. [ T-11] (  9m cook) Seasoned Black Beans
+         ⟶ With the Cilantro-Lime Rice cooking, start on the Seasoned Black Beans.
+         Add the drained black beans, ¼ cup chicken stock, and ½ teaspoon kosher salt; stir to combine and simmer over medium-low heat for 8 minutes until the beans are creamy and the liquid is mostly absorbed.
+     22. [  T-7] (  2m assemble) Cilantro-Lime Rice
+         ⟶ With the Seasoned Black Beans cooking, start on the Cilantro-Lime Rice.
+         Fluff the rice with a fork, then fold in the lime juice, lime zest, and chopped cilantro until evenly combined.
+     23. [  T-2] (  2m assemble) Seasoned Black Beans
+         Taste and adjust salt, then transfer to a serving bowl and garnish with 2 tablespoons chopped fresh cilantro if using.
+
+  ▸ Blackened Fish Tacos with Mango Salsa and Jalapeño Slaw   [Saturday]  SEQUENCED
+    footer 54 min | scheduler 54 | card 54 | fresh derive 54 | dishes 3
+      1. [ T-54] ( 10m prep) Jalapeño Slaw
+         Thinly shred 3 cups green cabbage and 1 cup red cabbage, then peel and julienne 1 carrot.
+      2. [ T-44] (  3m prep) Blackened Tilapia
+         In a small bowl, combine 1½ teaspoons smoked paprika, 1 teaspoon garlic powder, ½ teaspoon onion powder, ½ teaspoon dried oregano, ½ teaspoon cayenne pepper, ½ teaspoon ground cumin, ¾ teaspoon kosher salt, and ¼ teaspoon black pepper and stir to blend.
+      3. [ T-41] (  4m prep) Blackened Tilapia
+         Pat the 24 ounces of tilapia fillets completely dry with paper towels, then press the blackening spice blend firmly onto both sides of each fillet to coat evenly.
+      4. [ T-37] (  2m prep) Jalapeño Slaw
+         Thinly slice 1 jalapeño into rings and add it to the cabbage.
+      5. [ T-35] (  3m preheat) Blackened Tilapia
+         Heat 2 tablespoons neutral oil in a large cast-iron or heavy skillet over medium-high until the oil shimmers and just begins to smoke.
+      6. [ T-35] (  3m prep) Jalapeño Slaw
+         ⟶ With the Blackened Tilapia cooking, start on the Jalapeño Slaw.
+         In a small bowl, whisk together 3 tablespoons mayonnaise, 2 tablespoons sour cream, 1½ tablespoons fresh lime juice, 1 teaspoon apple cider vinegar, 1 teaspoon honey, ¼ teaspoon kosher salt, and ⅛ teaspoon black pepper until smooth.
+      7. [ T-32] (  8m cook) Blackened Tilapia
+         Lay the fillets in the hot skillet and cook undisturbed for 3–4 minutes per side until a dark, charred crust forms and the fish flakes easily at its thickest point.
+      8. [ T-24] (  2m assemble) Jalapeño Slaw
+         Pour the dressing over the cabbage and jalapeño and toss until every strand is evenly coated.
+      9. [ T-22] (  2m rest) Blackened Tilapia
+         Transfer the blackened fillets to a cutting board and rest for 2 minutes, then use a fork to break the fish into large chunks.
+     10. [ T-22] (  6m prep) Fresh Mango Salsa
+         ⟶ With the Blackened Tilapia resting, start on the Fresh Mango Salsa.
+         Peel and dice the 2 ripe mangoes into small ¼-inch cubes and place them in a medium bowl.
+     11. [ T-16] (  5m prep) Fresh Mango Salsa
+         Finely dice ¼ of a red onion, seed and mince 1 jalapeño, and roughly chop ¼ cup fresh cilantro.
+     12. [ T-16] ( 15m rest) Jalapeño Slaw
+         Refrigerate the slaw for at least 15 minutes before serving to let the flavors meld and the cabbage soften slightly.
+     13. [ T-11] (  5m cook) Blackened Tilapia
+         ⟶ With the Jalapeño Slaw chilling, start on the Blackened Tilapia.
+         Warm the 12 corn tortillas directly over a gas flame or in a dry skillet for about 30 seconds per side until pliable and lightly charred, then stack under a clean towel to keep warm.
+     14. [  T-6] (  2m assemble) Fresh Mango Salsa
+         ⟶ With the Jalapeño Slaw chilling, start on the Fresh Mango Salsa.
+         Add the red onion, jalapeño, cilantro, 2 tablespoons fresh lime juice, and ¼ teaspoon kosher salt to the mango and toss gently to combine.
+     15. [  T-4] (  2m assemble) Blackened Tilapia
+         ⟶ With the Jalapeño Slaw chilling, start on the Blackened Tilapia.
+         Divide the blackened fish chunks among the warm tortillas and serve with lime wedges alongside.
+     16. [  T-2] (  2m hold) Fresh Mango Salsa
+         ⟶ With the Jalapeño Slaw chilling, start on the Fresh Mango Salsa.
+         Taste and adjust salt or lime juice as needed, then set aside at room temperature until ready to serve.

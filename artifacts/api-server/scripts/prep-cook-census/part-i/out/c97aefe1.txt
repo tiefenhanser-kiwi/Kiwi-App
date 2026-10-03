@@ -1,0 +1,342 @@
+PLAN c97aefe1-a3d2-4f4c-b959-ffd7ba58066a  [A02]  Part I · A02 · 7 meals, Sun–Sat: slow cooker, cornbread, seafood late
+  range 2026-10-04 .. 2026-10-10   meals 7   prep day 2026-10-04   shapes: plan-7-meals, days-5-7, long-passive, single-dish, seafood, cold, multi-3plus, aromatics, two-cuts, marinate
+
+══════════ PREP THE WEEK — full plan, as Screen 3 renders it ══════════
+  (HTTP 502: validation_failed Kiwi got distracted. Try again?)
+
+══════════ PREP SELECTED MEALS — Slow-Cooker Chicken and Dumplings + Chipotle-Roasted Chicken Bowl with Street Corn Salsa, Black Beans, and Cilantro-Lime Rice ══════════
+  HEADER: 7 containers · about 45 min   (server total 53 · phone 37) · cacheHit=false · prompt v19
+  HELD: Add the boneless skinless chicken thighs the night before you cook them (Saturday).
+
+  ── seasonings_dry ──
+     1. Measure the Chipotle-Roasted Chicken Thighs marinade bowl spices   (3 min)
+        Into the Chipotle-Roasted Chicken Thighs marinade bowl:
+        1 tsp ground cumin
+        1 tsp smoked paprika
+        ½ tsp dried oregano
+        
+        Set aside for the produce step.
+        » for: Chipotle-Roasted Chicken Bowl with Street Corn Salsa, Black Beans, and Cilantro-Lime Rice (Saturday)
+  ×  2. Dried thyme, dried rosemary, All-purpose flour and baking powder — cook day   (2 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: Slow-Cooker Chicken and Dumplings (Sunday)
+  ×  3. Ground cumin, garlic powder and chili powder — cook day   (2 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: Chipotle-Roasted Chicken Bowl with Street Corn Salsa, Black Beans, and Cilantro-Lime Rice (Saturday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Slow-Cooker Chicken and Dumplings (Sunday), Chipotle-Roasted Chicken Bowl with Street Corn Salsa, Black Beans, and Cilantro-Lime Rice (Saturday)
+     2. Dice the yellow onion for Slow-Cooker Chicken and Dumplings   (3 min)
+        Dice 1 yellow onion — into the Slow-Cooker Chicken vegetables container.
+        » for: Slow-Cooker Chicken and Dumplings (Sunday)
+     3. Slice the celery for Slow-Cooker Chicken and Dumplings   (2 min)
+        Slice 3 celery stalks — into the Slow-Cooker Chicken vegetables container.
+        » for: Slow-Cooker Chicken and Dumplings (Sunday)
+     4. Slice the carrots for Slow-Cooker Chicken and Dumplings   (3 min)
+        Slice 3 carrots into rounds — into the Slow-Cooker Chicken vegetables container.
+        » for: Slow-Cooker Chicken and Dumplings (Sunday)
+     5. Mince all garlic   (2 min)
+        Mince all the garlic:
+        3 cloves for the Slow-Cooker Chicken and Dumplings — into the Slow-Cooker Chicken vegetables container
+        3 cloves for the Chipotle-Roasted Chicken Thighs — into the Chipotle-Roasted Chicken Thighs marinade bowl
+        » storage: Slow-Cooker Chicken vegetables: Airtight in the fridge — up to 4 days.
+        » for: Slow-Cooker Chicken and Dumplings (Sunday), Chipotle-Roasted Chicken Bowl with Street Corn Salsa, Black Beans, and Cilantro-Lime Rice (Saturday)
+     6. Chop the fresh parsley for Slow-Cooker Chicken and Dumplings   (1 min)
+        Chop 2 tbsp fresh parsley — into a tub labelled "Slow-Cooker Chicken and Dumplings — chopped fresh parsley".
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Slow-Cooker Chicken and Dumplings (Sunday)
+     7. Zest and juice all limes   (5 min)
+        Zest 1 lime first, then juice your limes:
+        1 tsp zest — into a tub labelled "Cilantro-Lime Rice — lime zest"
+        2 tbsp juice for the Chipotle-Roasted Chicken Thighs — into the Chipotle-Roasted Chicken Thighs marinade bowl
+        2 tbsp juice for the Cilantro-Lime Rice — into a tub labelled "Lime juice — Cilantro-Lime Rice, Street Corn Salsa and Black Beans"
+        1 tbsp juice for the Street Corn Salsa and Black Beans — into the same tub labelled "Lime juice — Cilantro-Lime Rice, Street Corn Salsa and Black Beans"
+        » storage: Both containers: Covered in the fridge — up to 3 days.
+        » for: Chipotle-Roasted Chicken Bowl with Street Corn Salsa, Black Beans, and Cilantro-Lime Rice (Saturday)
+     8. Roughly chop all fresh cilantro   (3 min)
+        Roughly chop all the fresh cilantro:
+        ⅜ cup for the Cilantro-Lime Rice — into a tub labelled "Cilantro-Lime Rice — chopped fresh cilantro"
+        ¼ cup for the Street Corn Salsa and Black Beans — into a tub labelled "Street Corn Salsa and Black Beans — fresh cilantro, jalapeño and red onion"
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Chipotle-Roasted Chicken Bowl with Street Corn Salsa, Black Beans, and Cilantro-Lime Rice (Saturday)
+     9. Seed and finely dice the jalapeño for Street Corn Salsa and Black Beans   (3 min)
+        Seed and finely dice 1 jalapeño — into the tub labelled "Street Corn Salsa and Black Beans — fresh cilantro, jalapeño and red onion".
+        » for: Chipotle-Roasted Chicken Bowl with Street Corn Salsa, Black Beans, and Cilantro-Lime Rice (Saturday)
+    10. Finely dice the red onion for Street Corn Salsa and Black Beans   (3 min)
+        Finely dice ¼ cup red onion — into the tub labelled "Street Corn Salsa and Black Beans — fresh cilantro, jalapeño and red onion".
+        » storage: Street Corn Salsa and Black Beans: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Cilantro-Lime Rice, Street Corn Salsa and Black Beans separate; combine on cook day…
+        » for: Chipotle-Roasted Chicken Bowl with Street Corn Salsa, Black Beans, and Cilantro-Lime Rice (Saturday)
+
+  ── sauces_marinades ──
+     1. Finish the Chipotle-Roasted Chicken Thighs marinade bowl   (6 min)
+        Chipotle-Roasted Chicken Thighs marinade bowl (ground cumin, smoked paprika, dried oregano, garlic and the lime juice from produce step 7 already in it): add
+        2 chipotle peppers, minced, plus 1 tablespoon adobo sauce from the can
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 3 days. Add the boneless skinless chicken thighs the night before you cook them (Saturday).
+        » for: Chipotle-Roasted Chicken Bowl with Street Corn Salsa, Black Beans, and Cilantro-Lime Rice (Saturday)
+  ×  2. Mayonnaise — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Chipotle-Roasted Chicken Bowl with Street Corn Salsa, Black Beans, and Cilantro-Lime Rice (Saturday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+  ×  1. Boneless skinless chicken thighs — cook day   (11 min)  [RENDER-OMITTED]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+        » for: Slow-Cooker Chicken and Dumplings (Sunday), Chipotle-Roasted Chicken Bowl with Street Corn Salsa, Black Beans, and Cilantro-Lime Rice (Saturday)
+
+  subset ticks: 12 keys, 12 not in the full plan; required for these meals 16, uncovered 9; isPrepped {"Slow-Cooker Chicken and Dumpli":false,"Chipotle-Roasted Chicken Bowl ":false}
+
+══════════ COOK MODE (cook-session.tsx: sequenced if multi-dish, flattened if single) ══════════
+
+  ▸ Slow-Cooker Chicken and Dumplings   [Sunday]  FLATTENED (single-dish)
+    footer 446 min | scheduler 441 | card 441 | fresh derive 441 | dishes 1
+      1. [T-441] ( 10m prep) 
+         Dice the yellow onion, slice the 3 celery stalks, slice the 3 carrots into rounds, and mince the 3 garlic cloves.
+      2. [T-431] (  2m cook) 
+         Add the chicken thighs, onion, celery, carrots, and garlic to the slow cooker.
+      3. [T-429] (  2m cook) 
+         Stir in the 4 cups chicken broth, 1 can cream of chicken soup, 1 teaspoon dried thyme, ½ teaspoon dried rosemary, ½ teaspoon black pepper, and 1 teaspoon kosher salt until combined.
+      4. [T-427] (360m cook) 
+         Cover and cook on low for 6 hours, until the chicken is very tender and pulls apart easily.
+      5. [ T-67] (  5m cook) 
+         Remove the chicken thighs, shred the meat with two forks, and return it to the slow cooker along with the 1 cup frozen peas.
+      6. [ T-67] (  5m prep) 
+         Whisk together 1½ cups all-purpose flour, 2 teaspoons baking powder, and ½ teaspoon salt in a medium bowl, then stir in ¾ cup whole milk and 3 tablespoons melted unsalted butter until a shaggy dough forms — do not overmix.
+      7. [ T-62] ( 60m cook) 
+         Drop the dumpling dough by heaping tablespoons onto the surface of the hot broth, cover, and cook on high for 1 hour until the dumplings are cooked through and fluffy.
+      8. [  T-2] (  2m assemble) 
+         Ladle into bowls and garnish with 2 tablespoons chopped fresh parsley (optional).
+
+  ▸ Blackened Shrimp Tacos with Mango Salsa and Lime Crema   [Monday]  SEQUENCED
+    footer 39 min | scheduler 39 | card 39 | fresh derive 39 | dishes 3
+      1. [ T-39] (  3m prep) Blackened Shrimp
+         In a small bowl, combine 1½ teaspoons smoked paprika, 1 teaspoon garlic powder, ½ teaspoon onion powder, ½ teaspoon dried oregano, ½ teaspoon cayenne pepper, ½ teaspoon ground cumin, ¾ teaspoon kosher salt, and ¼ teaspoon black pepper; stir to combine.
+      2. [ T-36] (  4m prep) Blackened Shrimp
+         Pat 1½ pounds of peeled, deveined shrimp thoroughly dry with paper towels, then toss them in the blackening spice blend until evenly coated.
+      3. [ T-32] (  8m prep) Fresh Mango Salsa
+         Peel and finely dice 2 ripe mangoes, finely dice ¼ of a red onion, and seed and mince 1 jalapeño.
+      4. [ T-24] (  3m prep) Lime Crema
+         Zest 1 teaspoon of lime zest and squeeze 1½ tablespoons of fresh lime juice.
+      5. [ T-21] (  2m preheat) Blackened Shrimp
+         Heat 2 tablespoons neutral oil in a large cast-iron or heavy skillet over high heat until the oil shimmers and just begins to smoke.
+      6. [ T-21] (  2m assemble) Lime Crema
+         ⟶ With the Blackened Shrimp cooking, start on the Lime Crema.
+         Whisk together ½ cup sour cream, 2 tablespoons mayonnaise, the lime zest, 1½ tablespoons lime juice, ¼ teaspoon garlic powder, and ⅛ teaspoon kosher salt until smooth.
+      7. [ T-19] (  4m cook) Blackened Shrimp
+         Add the shrimp in a single layer and cook undisturbed for 2 minutes until a dark crust forms on the bottom, then flip each shrimp and cook 1–2 minutes more until just opaque and cooked through.
+      8. [ T-15] (  3m prep) Fresh Mango Salsa
+         Finely chop 3 tablespoons of fresh cilantro and squeeze 2 tablespoons of fresh lime juice.
+      9. [ T-12] (  5m cook) Blackened Shrimp
+         Warm 12 corn tortillas directly over a gas flame or in a dry skillet for about 30 seconds per side until pliable and lightly charred.
+     10. [ T-12] ( 10m rest) Lime Crema
+         Refrigerate the crema until ready to serve, or leave at room temperature if serving within 20 minutes.
+     11. [  T-7] (  2m assemble) Fresh Mango Salsa
+         ⟶ With the Lime Crema chilling, start on the Fresh Mango Salsa.
+         Combine the mango, red onion, jalapeño, cilantro, lime juice, and ¼ teaspoon kosher salt in a bowl and toss gently to combine.
+     12. [  T-5] (  3m assemble) Blackened Shrimp
+         ⟶ With the Lime Crema chilling, start on the Blackened Shrimp.
+         Divide the blackened shrimp among the warm tortillas, top with mango salsa and lime crema, scatter ¼ cup cilantro leaves over the top, and serve with lime wedges alongside.
+     13. [  T-5] (  5m rest) Fresh Mango Salsa
+         ⟶ With the Lime Crema chilling, start on the Fresh Mango Salsa.
+         Taste and adjust salt or lime juice as needed, then set aside at room temperature until ready to serve (up to 30 minutes).
+
+  ▸ Cajun Sausage and Rice with Skillet Cornbread   [Tuesday]  SEQUENCED
+    footer 59 min | scheduler 59 | card 59 | fresh derive 59 | dishes 2
+      1. [ T-59] (  8m prep) Cajun Andouille Sausage and Rice
+         Dice the green bell pepper, 2 celery stalks, and yellow onion; mince the 4 garlic cloves; and thinly slice the 3 scallions for garnish.
+      2. [ T-51] (  2m prep) Cajun Andouille Sausage and Rice
+         In a small bowl, combine 1 teaspoon smoked paprika, ½ teaspoon dried oregano, ½ teaspoon dried thyme, ¼ teaspoon cayenne pepper, ½ teaspoon garlic powder, ½ teaspoon onion powder, ¾ teaspoon kosher salt, and ¼ teaspoon black pepper.
+      3. [ T-49] (  7m cook) Cajun Andouille Sausage and Rice
+         Heat 1 tablespoon vegetable oil in a large, deep skillet over medium-high and sear the 14 oz sliced andouille sausage rounds in a single layer for 3 minutes per side until browned, then transfer to a plate.
+      4. [ T-42] ( 15m preheat) Cast-Iron Skillet Cornbread
+         Place a 10-inch cast-iron skillet in the oven and preheat to 425°F.
+      5. [ T-42] (  3m prep) Cast-Iron Skillet Cornbread
+         In a large bowl, whisk together 1 cup yellow cornmeal, ¾ cup all-purpose flour, 1 teaspoon baking powder, ¼ teaspoon baking soda, ½ teaspoon kosher salt, and 1 tablespoon granulated sugar.
+      6. [ T-39] (  5m cook) Cajun Andouille Sausage and Rice
+         ⟶ With the Cast-Iron Skillet Cornbread heating up, start on the Cajun Andouille Sausage and Rice.
+         Reduce heat to medium and add the diced onion, bell pepper, and celery to the skillet; cook, stirring occasionally, for 5 minutes until softened.
+      7. [ T-34] (  1m cook) Cajun Andouille Sausage and Rice
+         Add the minced garlic and the spice blend to the skillet and stir constantly for 1 minute until fragrant.
+      8. [ T-33] (  2m cook) Cajun Andouille Sausage and Rice
+         Stir in 1½ cups long-grain white rice, the drained 14.5 oz diced tomatoes, and 3 cups chicken broth, scraping up any browned bits from the bottom of the pan, then nestle the sausage back in.
+      9. [ T-33] (  3m prep) Cast-Iron Skillet Cornbread
+         In a separate bowl or measuring cup, whisk together 1 cup buttermilk, 2 large eggs, and 3 tablespoons melted unsalted butter.
+     10. [ T-30] (  2m prep) Cast-Iron Skillet Cornbread
+         Pour the wet ingredients into the dry ingredients and stir until just combined — a few lumps are fine; do not overmix.
+     11. [ T-28] (  1m prep) Cast-Iron Skillet Cornbread
+         If using, fold in 2 tablespoons roughly chopped pickled jalapeño slices (optional).
+     12. [ T-27] ( 20m cook) Cajun Andouille Sausage and Rice
+         Bring to a boil, then reduce heat to low, cover tightly, and cook for 20 minutes until the rice has absorbed the liquid and is tender.
+     13. [ T-27] (  2m cook) Cast-Iron Skillet Cornbread
+         ⟶ With the Cajun Andouille Sausage and Rice marinating, start on the Cast-Iron Skillet Cornbread.
+         Using oven mitts, remove the hot skillet from the oven, add a generous pat of butter and swirl to coat the bottom and sides, then immediately pour in the batter.
+     14. [ T-25] ( 20m cook) Cast-Iron Skillet Cornbread
+         Bake at 425°F for 18–20 minutes until the top is deep golden and a toothpick inserted in the center comes out clean.
+     15. [  T-7] (  5m rest) Cajun Andouille Sausage and Rice
+         ⟶ With the Cast-Iron Skillet Cornbread cooking, start on the Cajun Andouille Sausage and Rice.
+         Remove from heat and let the skillet stand, covered, for 5 minutes to finish steaming.
+     16. [  T-5] (  5m rest) Cast-Iron Skillet Cornbread
+         ⟶ With the Cajun Andouille Sausage and Rice cooking, start on the Cast-Iron Skillet Cornbread.
+         Let the cornbread cool in the skillet for 5 minutes, then cut into wedges and serve warm.
+     17. [  T-2] (  2m assemble) Cajun Andouille Sausage and Rice
+         ⟶ With the Cast-Iron Skillet Cornbread resting, start on the Cajun Andouille Sausage and Rice.
+         Fluff the rice with a fork, scatter the sliced scallions over the top, and serve straight from the skillet.
+
+  ▸ Butter Chicken with Steamed Basmati Rice and Cucumber Raita   [Wednesday]  SEQUENCED
+    footer 66 min | scheduler 66 | card 66 | fresh derive 66 | dishes 3
+      1. [ T-66] (  8m prep) Butter Chicken
+         In a large bowl, combine ½ cup plain whole-milk yogurt, 1 tablespoon lemon juice, 2 teaspoons garam masala, 1 teaspoon ground cumin, 1 teaspoon ground coriander, ½ teaspoon ground turmeric, 1 teaspoon Kashmiri chili powder, and 1 teaspoon fine sea salt; add the 2 pounds of chicken thighs cut into 2-inch pieces and toss to coat.
+      2. [ T-58] (  6m prep) Butter Chicken
+         Finely dice the yellow onion, mince the 5 garlic cloves, and grate 1 tablespoon of fresh ginger.
+      3. [ T-52] ( 10m cook) Butter Chicken
+         Heat 2 tablespoons neutral oil in a large heavy-bottomed skillet or Dutch oven over medium-high until shimmering, then sear the marinated chicken pieces in a single layer for 3–4 minutes per side until lightly charred; work in batches if needed, then transfer to a plate.
+      4. [ T-42] (  7m cook) Butter Chicken
+         Reduce heat to medium, melt 3 tablespoons unsalted butter in the same pan, add the diced onion, and cook, stirring frequently, for 6–7 minutes until softened and golden.
+      5. [ T-35] (  3m cook) Butter Chicken
+         Add the minced garlic and grated ginger and cook, stirring constantly, for 1 minute until fragrant, then stir in 2 tablespoons tomato paste and cook for another 2 minutes until it darkens slightly.
+      6. [ T-32] ( 10m cook) Butter Chicken
+         Pour in the 14 oz crushed San Marzano tomatoes, stir to combine, and simmer over medium-low for 10 minutes until the sauce thickens and deepens in color.
+      7. [ T-29] (  3m prep) Steamed Basmati Rice
+         ⟶ With the Butter Chicken cooking, start on the Steamed Basmati Rice.
+         Rinse 1½ cups basmati rice in a fine-mesh strainer under cold running water, swishing until the water runs clear, then drain well.
+      8. [ T-26] (  4m cook) Steamed Basmati Rice
+         Combine the rinsed rice, 2¼ cups water, ¾ teaspoon fine sea salt, and 1 tablespoon unsalted butter in a medium saucepan and bring to a boil over high heat.
+      9. [ T-22] (  2m cook) Butter Chicken
+         Stir in ½ cup heavy cream, 1 teaspoon sugar, and the remaining ½ teaspoon fine sea salt; return the seared chicken and any resting juices to the pan.
+     10. [ T-22] ( 15m cook) Steamed Basmati Rice
+         ⟶ With the Butter Chicken resting, start on the Steamed Basmati Rice.
+         Stir once, reduce heat to the lowest setting, cover tightly, and cook for 15 minutes — do not lift the lid.
+     11. [ T-20] ( 14m cook) Butter Chicken
+         ⟶ With the Steamed Basmati Rice cooking, start on the Butter Chicken.
+         Simmer the chicken in the sauce over medium-low for 12–15 minutes, stirring occasionally, until the chicken is cooked through and the sauce coats a spoon.
+     12. [ T-14] (  5m prep) Cucumber Raita
+         ⟶ With the Steamed Basmati Rice cooking, start on the Cucumber Raita.
+         Grate ½ English cucumber on the large holes of a box grater, then wrap the grated cucumber in a clean kitchen towel and squeeze firmly to remove as much moisture as possible.
+     13. [  T-9] (  3m prep) Cucumber Raita
+         Finely chop 2 tablespoons fresh mint leaves and 1 tablespoon fresh cilantro.
+     14. [  T-6] (  2m cook) Butter Chicken
+         Crush 1 teaspoon dried fenugreek leaves (kasuri methi) between your palms and stir them into the sauce; taste and adjust salt.
+     15. [  T-6] (  5m rest) Steamed Basmati Rice
+         Remove from heat and let the rice steam, still covered, for 5 minutes, then fluff gently with a fork before serving.
+     16. [  T-6] (  2m prep) Cucumber Raita
+         In a bowl, whisk together 1 cup plain whole-milk yogurt, ¼ teaspoon ground cumin, ¼ teaspoon fine sea salt, and 1 teaspoon lemon juice until smooth.
+     17. [  T-4] (  2m assemble) Butter Chicken
+         ⟶ With the Steamed Basmati Rice cooking, start on the Butter Chicken.
+         Ladle the butter chicken into a serving bowl and garnish with 2 tablespoons roughly chopped fresh cilantro.
+     18. [  T-2] (  2m assemble) Cucumber Raita
+         ⟶ With the Steamed Basmati Rice cooking, start on the Cucumber Raita.
+         Fold the squeezed cucumber, chopped mint, and chopped cilantro into the yogurt mixture, then taste and adjust salt; refrigerate until ready to serve.
+
+  ▸ Grilled Mahi-Mahi with Mango Salsa and Coconut Rice   [Thursday]  SEQUENCED
+    footer 34 min | scheduler 34 | card 34 | fresh derive 34 | dishes 3
+      1. [ T-34] (  2m prep) Coconut Rice
+         Rinse 1½ cups jasmine rice in a fine-mesh strainer under cold water until the water runs clear, about 1 minute.
+      2. [ T-32] (  2m prep) Coconut Rice
+         Combine the rinsed rice, one 13.5-oz can full-fat coconut milk, ¾ cup water, ½ teaspoon kosher salt, and 1 teaspoon sugar in a medium saucepan and stir to mix.
+      3. [ T-30] (  3m prep) Grilled Mahi-Mahi
+         In a small bowl, whisk together 2 tablespoons olive oil, 2 tablespoons lime juice, ½ teaspoon garlic powder, ½ teaspoon smoked paprika, ¼ teaspoon ground cumin, ¾ teaspoon kosher salt, and ¼ teaspoon black pepper to make the marinade.
+      4. [ T-27] ( 10m rest) Grilled Mahi-Mahi
+         Pat the four 6-oz mahi-mahi fillets dry with paper towels, then coat them evenly on both sides with the marinade and let them sit for 10 minutes.
+      5. [ T-27] (  5m prep) Fresh Mango Salsa
+         ⟶ With the Grilled Mahi-Mahi resting, start on the Fresh Mango Salsa.
+         Peel and dice 2 ripe mangoes into ¼-inch pieces and place them in a medium mixing bowl.
+      6. [ T-27] ( 20m cook) Coconut Rice
+         ⟶ With the Grilled Mahi-Mahi resting, start on the Coconut Rice.
+         Bring the rice mixture to a boil over medium-high heat, then reduce to the lowest heat, cover tightly, and cook for 18 minutes until the liquid is absorbed.
+      7. [ T-22] (  6m prep) Fresh Mango Salsa
+         ⟶ With the Grilled Mahi-Mahi resting, start on the Fresh Mango Salsa.
+         Finely dice 1 red bell pepper and ¼ red onion, seed and mince 1 jalapeño, and roughly chop ¼ cup fresh cilantro.
+      8. [ T-16] (  5m preheat) Grilled Mahi-Mahi
+         ⟶ With the Coconut Rice marinating, start on the Grilled Mahi-Mahi.
+         Preheat a grill or grill pan over medium-high heat until very hot, about 5 minutes, then lightly oil the grates.
+      9. [ T-16] (  2m assemble) Fresh Mango Salsa
+         ⟶ With the Coconut Rice marinating, start on the Fresh Mango Salsa.
+         Add the red bell pepper, red onion, jalapeño, and cilantro to the bowl with the mango, then squeeze over 2 tablespoons lime juice and season with ¼ teaspoon kosher salt.
+     10. [ T-14] (  5m rest) Fresh Mango Salsa
+         Toss everything gently to combine and set aside at room temperature until ready to serve over the grilled mahi-mahi.
+     11. [ T-11] (  8m cook) Grilled Mahi-Mahi
+         ⟶ With the Coconut Rice marinating, start on the Grilled Mahi-Mahi.
+         Place the fillets on the grill and cook undisturbed for 4 minutes, then flip once and cook a further 3–4 minutes until the fish is opaque through and releases cleanly from the grates.
+     12. [  T-7] (  5m rest) Coconut Rice
+         Remove the pan from the heat and let the rice steam, covered, for 5 minutes, then fluff with a fork.
+     13. [  T-3] (  1m assemble) Grilled Mahi-Mahi
+         ⟶ With the Coconut Rice cooking, start on the Grilled Mahi-Mahi.
+         Transfer the fillets to a plate and serve immediately, topped with the mango salsa.
+     14. [  T-2] (  2m assemble) Coconut Rice
+         Stir ½ teaspoon kosher salt into the cooked rice, then fold in 1 teaspoon lime zest (if using) just before serving.
+
+  ▸ Herb-Marinated Chicken and Vegetable Skewers with Tzatziki and Warm Pita   [Friday]  SEQUENCED
+    footer 63 min | scheduler 63 | card 63 | fresh derive 63 | dishes 3
+      1. [ T-63] (  2m prep) Herb-Marinated Chicken and Vegetable Skewers
+         If using wooden skewers, submerge all 12 in cold water and soak for 30 minutes.
+      2. [ T-61] ( 12m prep) Herb-Marinated Chicken and Vegetable Skewers
+         Cut the 1¾ lb chicken thighs into 1½-inch chunks, cut the 2 red bell peppers and 1 yellow bell pepper into 1½-inch pieces, slice the 2 zucchini into ¾-inch rounds, and cut the red onion into 1½-inch wedges.
+      3. [ T-49] (  5m prep) Herb-Marinated Chicken and Vegetable Skewers
+         In a large bowl, whisk together 4 tablespoons olive oil, 3 tablespoons fresh lemon juice, 1 teaspoon lemon zest, 4 minced garlic cloves, 2 tablespoons chopped fresh oregano, 3 tablespoons chopped flat-leaf parsley, 1 tablespoon fresh thyme, ¾ teaspoon smoked paprika, 1¼ teaspoons kosher salt, ½ teaspoon black pepper, and ¼ teaspoon red pepper flakes (optional).
+      4. [ T-44] ( 20m rest) Herb-Marinated Chicken and Vegetable Skewers
+         Add the chicken chunks to the marinade, toss well to coat, cover, and marinate at room temperature for 20 minutes (or refrigerate up to 4 hours).
+      5. [ T-44] ( 10m preheat) Herb-Marinated Chicken and Vegetable Skewers
+         Preheat the grill to medium-high heat (about 425°F), and lightly oil the grates.
+      6. [ T-44] (  5m prep) Tzatziki
+         ⟶ With the Herb-Marinated Chicken and Vegetable Skewers chilling, start on the Tzatziki.
+         Grate the ½ English cucumber on the large holes of a box grater, then wrap it in a clean kitchen towel and squeeze firmly to remove as much moisture as possible.
+      7. [ T-39] (  4m assemble) Tzatziki
+         In a medium bowl, stir together 1 cup full-fat Greek yogurt, the squeezed cucumber, 1 minced garlic clove, 2 tablespoons chopped fresh dill, 1 tablespoon fresh lemon juice, 1 tablespoon olive oil, ¼ teaspoon kosher salt, and ⅛ teaspoon black pepper until combined.
+      8. [ T-35] ( 20m rest) Tzatziki
+         Cover and refrigerate the tzatziki until ready to serve.
+      9. [ T-24] (  6m assemble) Herb-Marinated Chicken and Vegetable Skewers
+         ⟶ With the Tzatziki chilling, start on the Herb-Marinated Chicken and Vegetable Skewers.
+         Thread the marinated chicken and vegetables onto the 12 skewers, alternating chicken, pepper, zucchini, and onion pieces evenly.
+     10. [ T-18] ( 12m cook) Herb-Marinated Chicken and Vegetable Skewers
+         Grill the skewers over medium-high heat for 5–6 minutes per side, turning once, until the chicken is cooked through and charred at the edges and an instant-read thermometer reads 165°F.
+     11. [  T-6] (  3m rest) Herb-Marinated Chicken and Vegetable Skewers
+         Transfer the skewers to a platter and rest for 3 minutes before serving.
+     12. [  T-6] (  2m prep) Warm Pita Bread
+         ⟶ With the Herb-Marinated Chicken and Vegetable Skewers resting, start on the Warm Pita Bread.
+         Brush each of the 4 pita rounds lightly with the 1 tablespoon olive oil and sprinkle with ¼ teaspoon flaky sea salt.
+     13. [  T-4] (  4m cook) Warm Pita Bread
+         Place the oiled pitas directly on the hot grill grates for 1–2 minutes per side until warmed through and lightly marked, then wrap in foil to keep warm until serving.
+
+  ▸ Chipotle-Roasted Chicken Bowl with Street Corn Salsa, Black Beans, and Cilantro-Lime Rice   [Saturday]  SEQUENCED
+    footer 52 min | scheduler 52 | card 52 | fresh derive 52 | dishes 3
+      1. [ T-52] (  5m prep) Chipotle-Roasted Chicken Thighs
+         In a large bowl, whisk together 2 minced chipotle peppers, 1 tablespoon adobo sauce, 2 tablespoons olive oil, 3 minced garlic cloves, 1 teaspoon ground cumin, 1 teaspoon smoked paprika, ½ teaspoon dried oregano, 1 teaspoon kosher salt, ½ teaspoon black pepper, and 2 tablespoons lime juice into a marinade.
+      2. [ T-47] ( 15m rest) Chipotle-Roasted Chicken Thighs
+         Add 2 pounds boneless skinless chicken thighs to the marinade, toss to coat thoroughly, and let sit for at least 15 minutes at room temperature (or up to 4 hours refrigerated).
+      3. [ T-47] ( 10m preheat) Chipotle-Roasted Chicken Thighs
+         Preheat the oven to 425°F and line a rimmed baking sheet with foil.
+      4. [ T-34] (  4m prep) Cilantro-Lime Rice
+         ⟶ With the Chipotle-Roasted Chicken Thighs chilling, start on the Cilantro-Lime Rice.
+         Zest and juice 1 lime, measure out 1 teaspoon zest and 2 tablespoons juice, and roughly chop ⅓ cup fresh cilantro; set aside.
+      5. [ T-30] ( 24m cook) Chipotle-Roasted Chicken Thighs
+         Arrange the marinated chicken thighs in a single layer on the prepared baking sheet and roast at 425°F for 22–25 minutes, until an instant-read thermometer reads 165°F and the edges are slightly caramelized.
+      6. [ T-30] (  4m cook) Cilantro-Lime Rice
+         ⟶ With the Chipotle-Roasted Chicken Thighs marinating, start on the Cilantro-Lime Rice.
+         Combine 1½ cups long-grain white rice, 2¼ cups water, and ¾ teaspoon kosher salt in a medium saucepan and bring to a boil over high heat.
+      7. [ T-26] ( 15m cook) Cilantro-Lime Rice
+         Reduce heat to low, cover tightly, and cook for 15 minutes until all the water is absorbed.
+      8. [ T-26] (  6m prep) Street Corn Salsa and Black Beans
+         ⟶ With the Chipotle-Roasted Chicken Thighs marinating, start on the Street Corn Salsa and Black Beans.
+         Thaw and pat 2 cups frozen corn kernels thoroughly dry with paper towels; drain and rinse one 15-ounce can of black beans, then finely dice ¼ cup red onion and, if using, seed and finely dice 1 jalapeño.
+      9. [ T-20] (  5m cook) Street Corn Salsa and Black Beans
+         Heat 1 tablespoon neutral oil in a large skillet over high heat until shimmering, add the corn in a single layer, and cook undisturbed for 3 minutes, then stir and cook 2 more minutes until deeply charred in spots.
+     10. [ T-15] (  2m cook) Street Corn Salsa and Black Beans
+         Push the corn to one side of the skillet, add the drained black beans to the empty side with ½ teaspoon ground cumin, ¼ teaspoon garlic powder, and ½ teaspoon kosher salt, and stir the beans over the heat for 2 minutes until warmed through and fragrant.
+     11. [ T-13] (  3m rest) Street Corn Salsa and Black Beans
+         Transfer the charred corn to a bowl and let it cool for 3 minutes, keeping the seasoned beans warm in the skillet over the lowest heat setting.
+     12. [ T-11] (  5m rest) Cilantro-Lime Rice
+         ⟶ With the Chipotle-Roasted Chicken Thighs marinating, start on the Cilantro-Lime Rice.
+         Remove from heat and let the rice steam, covered, for 5 minutes.
+     13. [ T-10] (  4m assemble) Street Corn Salsa and Black Beans
+         ⟶ With the Chipotle-Roasted Chicken Thighs marinating, start on the Street Corn Salsa and Black Beans.
+         Stir 2 tablespoons mayonnaise, 1 tablespoon lime juice, and ½ teaspoon chili powder into the cooled corn, then fold in 3 ounces crumbled cotija, ¼ cup chopped cilantro, the diced red onion, and the jalapeño (if using) to finish the street corn salsa.
+     14. [  T-6] (  5m rest) Chipotle-Roasted Chicken Thighs
+         Rest the chicken on the baking sheet for 5 minutes, then slice each thigh against the grain into thick strips for serving.
+     15. [  T-6] (  3m assemble) Cilantro-Lime Rice
+         ⟶ With the Chipotle-Roasted Chicken Thighs resting, start on the Cilantro-Lime Rice.
+         Fluff the rice with a fork, then fold in 1 tablespoon unsalted butter, 1 teaspoon lime zest, 2 tablespoons lime juice, and ⅓ cup chopped cilantro until evenly combined.
+     16. [  T-3] (  3m assemble) Street Corn Salsa and Black Beans
+         ⟶ With the Chipotle-Roasted Chicken Thighs resting, start on the Street Corn Salsa and Black Beans.
+         Spoon cilantro-lime rice into each bowl, top with sliced chipotle chicken, a generous scoop of street corn salsa, and the seasoned black beans alongside.

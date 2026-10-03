@@ -1,0 +1,204 @@
+PART I CHECKER — 25 plans · 110 meals · 507 full-plan prep steps · 421 subset steps
+
+═══ PREP THE WEEK ═══
+| rule | count | of | plans |
+|---|---|---|---|
+| P-R1 header outside 10–15 | 13 | 17 | 13/25 |
+| P-R1 single-member container | 135 | 308 | 17/25 |
+| H7 class mix in one container | 1 | 292 | 1/25 |
+| H7 two cooking moments in one container | 3 | 135 | 2/25 |
+| H7.1 raw-mix grouping on a heated dish | 7 | 34 | 5/25 |
+| H7.1 cut veg in a leafy-greens container | 4 | 34 | 3/25 |
+| H6 one food in >1 produce step | 0 | 218 | 0/25 |
+| H7 one citrus in >1 step | 0 | 23 | 0/25 |
+| H6 portion without a named container | 6 | 329 | 3/25 |
+| H6 '+N more' / truncated label | 18 | 329 | 7/25 |
+| H6 duplicate portion line in one step | 2 | 329 | 2/25 |
+| H7 container not closed exactly once on its last step | 0 | 292 | 0/25 |
+| H7 heat action inside a prep step | 1 | 329 | 1/25 |
+| H7 dry blend under 3 | 0 | 43 | 0/25 |
+| H7 single-item measure as its own step | 0 | 313 | 0/25 |
+| H7 wet/jarred item in the dry phase | 0 | 279 | 0/25 |
+| D-WS9-298 protein held although a meal is ≤ 2 days out | 6 | 42 | 5/25 |
+| H7.1 marinade close points at a protein step not on screen | 2 | 7 | 2/25 |
+| H7.1 marinade timing contradicts the recipe or the day | 6 | 7 | 6/25 |
+| Storage: one note gives two different windows | 3 | 346 | 3/25 |
+| D-WS9-301 heldForCookDay empty with a late protein | 1 | 15 | 1/25 |
+| D-WS9-301 heldForCookDay stripped by the client schema | 15 | 15 | 15/25 |
+| BUG-346a protein storage line on a non-protein step | 0 | 242 | 0/25 |
+| BUG-346e herb count without a unit | 0 | 346 | 0/25 |
+| P-R5 decimal quantity | 0 | 346 | 0/25 |
+| Minutes: header ≠ rounded engine sum of rendered steps | 17 | 17 | 17/25 |
+| Minutes: three numbers disagree (header / phone / server) | 16 | 17 | 16/25 |
+| Minutes: onion vs 2.5 min/onion | 6 | 18 | 4/25 |
+| Minutes: garlic vs ⅓ min/clove | 0 | 15 | 0/25 |
+| Wire stepKeys ≠ engine stepKeys | 0 | 17 | 0/25 |
+| P0 route error | 8 | — | 8/25 |
+| H3 protein step title does not name its dish | 4 | 16 | 3/25 |
+| D-WS9-298 protein rendered > 2 days out | 0 | 16 | 0/25 |
+| H7 wet mix under 3 (not a sitting pair) | 0 | 11 | 0/25 |
+| Cache served a blob HEAD's engine would not write | 0 | 1 | 0/25 |
+
+── P-R1 header outside 10–15 — 13
+  • 04a25763 A05 · 4 meals — header 22 containers · 85 min
+  • 11623bcd A14 · 4 meals — header 18 containers · 75 min
+
+── P-R1 single-member container — 135
+  • 04a25763 A05 · Slow-Cooked Pinto Beans — chopped yellow onion — holds only yellow onion (Slow-Cooked Pinto Beans)
+  • 11623bcd A14 · Chana Masala — juiced lemon — holds only lemon (Chana Masala)
+
+── H7 class mix in one container — 1
+  • 2539d94d A15 · Vinegar Coleslaw — large carrot and celery seed — classes A+V: large carrot[A], celery seed[V]
+
+── H7 two cooking moments in one container — 3
+  • 2faff60f A20 · Classic Chicken Tetrazzini sauce jar — Classic Chicken Tetrazzini: spaghetti→step 4 "Cook 8 ounces spaghetti (broken in half) in a larg" | All-purpose flour→step 7 "Sprinkle 3 tablespoons all-purpose flour over the " | nutmeg→step 8 "Remove the pan from heat and stir in ¾ cup of the " | panko breadcrumbs→step 10 "Toss ½ cup panko breadcrumbs with 1 tablespoon oli"
+  • 33ddbb13 A11 · Hyderabadi Dum Chicken Biryani sauce bowl — Hyderabadi Dum Chicken Biryani: bay leaves→step 5 "In the pot with the reserved onion oil (or ghee), " | Kashmiri red chili powder→step 6 "Add 1½ teaspoons Kashmiri red chili powder, 1 teas" | ground coriander→step 6 "Add 1½ teaspoons Kashmiri red chili powder, 1 teas" | ground cumin→step 6 "Add 1½ teaspoons Kashmiri red chili powder, 1 teas" | garam masala→step 6 "Add 1½ teaspoons Kashmiri red chili powder, 1 teas" | turmeric→step 6 "Add 1½ teaspoons Kashmiri red chili powder, 1 teas" | whole green cardamom pods→step 5 "In the pot with the reserved onion oil (or ghee), " | cinnamon stick→step 5 "In the pot with the reserved onion oil (or ghee), " | black peppercorns→step 5 "In the pot with the reserved onion oil (or ghee), " | star anise→step 5 "In the pot with the reserved onion oil (or ghee), "
+
+── H7.1 raw-mix grouping on a heated dish — 7
+  • 2730c4b1 A17 · Marinated Chicken Gyro Filling — fresh flat-leaf parsley, garlic, red onion and roma tomatoes — Marinated Chicken Gyro Filling has heat steps; members red onion, roma tomatoes enter at no heat step
+  • 3f9d46e8 A10 · Classic Supreme Pizza vegetables — Classic Supreme Pizza has heat steps; members green bell pepper, red onion, cremini mushrooms enter at no heat step
+
+── H7.1 cut veg in a leafy-greens container — 4
+  • 2539d94d A15 · Creamy Vinegar Cabbage Slaw — greens — members green cabbage, red cabbage
+  • b0c8ffbd A16 · Sesame-Ginger Slaw — greens — members green cabbage, red cabbage
+
+── H6 portion without a named container — 6
+  • 11623bcd A14 · produce 3. Dice and chop all yellow onion — "…)" 2 onions for Chana Masala — into the same tub 1 onion for Butter Chicken (Murgh Makhani) — into t…"
+  • 33ddbb13 A11 · produce 2. Mince and slice all garlic — "…ge and Escarole Wedding Soup — into the same tub Mince 4 cloves for the Shrimp and Crab Jambalaya —…"
+
+── H6 '+N more' / truncated label — 18
+  • 11623bcd A14 · produce 4. Mince and chop all garlic — "Minced garlic cloves — Chicken Tikka Masala, Garlic Naan, Chana Masala +2 more"
+  • 2730c4b1 A17 · produce 2. Prep all yellow onion — "Herb and Rice Stuffed Grape Leaves (Dolmades) — yellow onion, fresh flat-leaf parsley, garlic, fresh mint leaves, fresh…"
+
+── H6 duplicate portion line in one step — 2
+  • 11623bcd A14 · produce 2. Juice all lemons — "1 tbsp — into a tub labelled "Fresh lemon juice — Cucumber Raita, Cumin-Spiced Roasted Cauliflower"" printed twice
+  • 2730c4b1 A17 · produce 5. Juice all lemons and prep lemon zest — "1 tbsp — into a tub labelled "Fresh lemon juice — Tzatziki, Tzatziki Sauce"" printed twice
+
+── H7 heat action inside a prep step — 1
+  • 33ddbb13 A11 · produce 8. Fry the birista for Hyderabadi Dum Chicken Biryani — "…Thinly slice 1 cup worth of yellow onion and deep-fry until golden and…"
+
+── D-WS9-298 protein held although a meal is ≤ 2 days out — 6
+  • 11623bcd A14 · Boneless skinless chicken thighs — cook day — lags Classic Chicken Tikka Masa=0, Butter Chicken with Whole =5, Coconut Chicken Korma with=6
+  • 33ddbb13 A11 · Large shrimp, peeled and deveined — cook day — lags Shrimp and Crab Jambalaya=1, Sheet-Pan Shrimp Boil with=4
+
+── H7.1 marinade close points at a protein step not on screen — 2
+  • 1e41fc0c E-1e41fc0c · Citrus-Marinated Carne Asada marinade bowl — protein step "Skirt steak — cook day" is render-omitted (heat-or-no-knife-work); close reads "Citrus-Marinated Carne Asada marinade bowl: Covered in the fridge — up to 3 days. Airtight in the fridge — up to 4 days. The skirt steak go in at the "
+  • b4aa6fee E-b4aa6fee · Carne Asada marinade bowl — protein step "Skirt steak — cook day" is render-omitted (heat-or-no-knife-work); close reads "Carne Asada marinade bowl: Covered in the fridge — up to 3 days. The skirt steak go in at the proteins step and marinate until cook day."
+
+── H7.1 marinade timing contradicts the recipe or the day — 6
+  • 04a25763 A05 · Lemon-Herb Chicken Gyros marinade bowl — recipe caps it at 4 h ("…at room temperature for at least 15 minutes (or refrigerate up to 4 hours). Drai"); prep says "All 3 containers: Covered in the fridge — up to 3 days. Add the boneless skinless chicken thighs the night bef"
+  • 11623bcd A14 · Chicken Tikka Masala marinade bowl — cook day 6 out, no "night before" line — close "Chicken Tikka Masala marinade bowl: Covered in the fridge — up to 3 days. Butter Chicken marinade bowl: Covered in the f"
+
+── Storage: one note gives two different windows — 3
+  • 11623bcd A14 · produce 5. Grate and chop all fresh ginger — "Coconut Chicken Korma — aromatics: Airtight in the fridge — up to 4 days. Airtight in the fridge — up to 3 days."
+  • 1e41fc0c E-1e41fc0c · produce 4. Mince all garlic — "Citrus-Marinated Carne Asada marinade bowl: Covered in the fridge — up to 3 days. Airtight in the fridge — up to 4 days. The skirt steak go in at the proteins step and ma"
+
+── D-WS9-301 heldForCookDay empty with a late protein — 1
+  • 3f9d46e8 A10 ·  — server phase carries no held list
+
+── D-WS9-301 heldForCookDay stripped by the client schema — 15
+  • 04a25763 A05 ·  — server sends 5 line(s) — e.g. "Add the boneless skinless chicken thighs the night before you cook them (Friday)." — kiwi/lib/api/cooking.ts PrepWeekPhaseSchema has no heldForCookDay, so Zod drops it
+  • 11623bcd A14 ·  — server sends 3 line(s) — e.g. "Add the boneless skinless chicken thighs the night before you cook them (Friday)." — kiwi/lib/api/cooking.ts PrepWeekPhaseSchema has no heldForCookDay, so Zod drops it
+
+── Minutes: header ≠ rounded engine sum of rendered steps — 17
+  • 04a25763 A05 ·  — header 85 · engine Σ rendered 77 (→80) · phone total 77 · server total 111
+  • 11623bcd A14 ·  — header 75 · engine Σ rendered 64 (→65) · phone total 64 · server total 83
+
+── Minutes: three numbers disagree (header / phone / server) — 16
+  • 04a25763 A05 ·  — header 85 · phone 77 · server 111
+  • 11623bcd A14 ·  — header 75 · phone 64 · server 83
+
+── Minutes: onion vs 2.5 min/onion — 6
+  • 1e41fc0c E-1e41fc0c · 6. Dice all white onion — 1 onion(s) → 5 min (2.5/onion ⇒ 3)
+  • 2730c4b1 A17 · 2. Prep all yellow onion — 1 onion(s) → 1 min (2.5/onion ⇒ 3)
+
+── P0 route error — 8
+  • 1cf373bc E-1cf373bc · full — HTTP 502: validation_failed Kiwi got distracted. Try again?
+  • 297794a0 A21 · full — HTTP 502: validation_failed Kiwi got distracted. Try again?
+
+── H3 protein step title does not name its dish — 4
+  • 8a0de6e6 A18 · 1. Trim the beef chuck roast — for Red Wine and Herb Slow-Cooker Chuck Roast
+  • b0c8ffbd A16 · 1. Pat dry the shrimp — for Chili-Lime Sautéed Shrimp
+
+═══ PREP SELECTED MEALS ═══
+| rule | count | of | plans |
+|---|---|---|---|
+| S1 subset step not in the full plan | 8 | 186 | 7/25 |
+| S2 container names differ from the full plan | 64 | 178 | 14/25 |
+| S3 unselected meal attributed in the subset | 0 | 178 | 0/25 |
+| S4a subset quantity ≠ the full plan's for the same dish | 1 | 395 | 1/25 |
+| S4b subset drops the unit the full plan prints | 5 | 395 | 2/25 |
+| S5 subset ticks do not make the selected meals prepped | 17 | 17 | 17/25 |
+
+── S1 subset step not in the full plan — 8
+  • 11623bcd A14 · produce 2. Juice the lemon for Chicken Tikka Masala — stepKey produce#acc8ebfc-1a5c-4d38-8c38-6674178e028d
+  • 1e41fc0c E-1e41fc0c · produce 3. Juice all limes — stepKey produce#ecd2a410-0015-4aa6-b980-8331f507b4c4
+
+── S2 container names differ from the full plan — 64
+  • 04a25763 A05 · produce 2. Roughly chop the yellow onion for Slow-Cooked Pinto Beans — subset [Slow-Cooked Pinto Beans — chopped yellow onion] vs full [Red Wine Braised Lamb Shanks vegetables | Slow-Cooked Pinto Beans — chopped yellow onion]
+  • 11623bcd A14 · produce 3. Prep all yellow onion — subset [Chicken Tikka Masala — finely diced yellow onion | Coconut Chicken Korma — chopped yellow onion] vs full [Coconut Chicken Korma — chopped yellow onion | Finely diced yellow onion — Chicken Tikka Masala, Chana Masala,]
+
+── S4a subset quantity ≠ the full plan's for the same dish — 1
+  • 33ddbb13 A11 · garlic for Sausage and Escarole Wedding Soup — subset 2 cloves vs full 3 cloves
+
+── S4b subset drops the unit the full plan prints — 5
+  • 04a25763 A05 · garlic cloves for Pickled Jalapeños — subset "2" vs full "2 cloves"
+  • 11623bcd A14 · garlic cloves for Chicken Tikka Masala — subset "5" vs full "5 cloves"
+
+── S5 subset ticks do not make the selected meals prepped — 17
+  • 04a25763 A05 · Texas-Style Smoked Brisket with Pinto Be + Blackened Salmon with Mango Avocado Sals — ticked 12 rendered subset keys; 6 of 13 required keys uncovered: seasonings_dry#dish#3e552f0c-0262-4003-9fee-8c8166b37bb7, seasonings_dry#dish#a632615c-2e99-4291-8a18-a2cf2a984f84, seasonings_dry#dish#4d3d8d4d-3ee2-4307-b579-706b677498a5
+  • 11623bcd A14 · Classic Chicken Tikka Masala with Basmat + Coconut Chicken Korma with Basmati Rice  — ticked 9 rendered subset keys; 4 of 9 required keys uncovered: seasonings_dry#dish#616ebd16-6ea8-4cd9-aaf2-d116402f1f48, seasonings_dry#dish#429e012f-e294-482d-bd7b-e7ebb1d1983f, produce#057e48fd-245a-4ce2-a22b-37c7a6881ad3
+
+═══ COOK MODE ═══
+| rule | count | of | plans |
+|---|---|---|---|
+| K-R6 footer ≠ card (sequenced) | 0 | 91 | 0/25 |
+| D-WS9-297 cold dish pulled into a passive window (for Hans to rule) | 36 | 71 | 17/25 |
+| Prepped path: ticking every rendered prep step leaves isPrepped false | 12 | 14 | 12/25 |
+| Prepped path: recap is not built from the prep steps | 14 | 14 | 14/25 |
+| Prepped path: cook steps that redo prep work after the filter | 1 | 14 | 1/25 |
+| Prepped path: kept cook steps that lost their quantity | 2 | 14 | 2/25 |
+| K-R6 footer ≠ card (flattened single-dish) | 9 | 19 | 6/25 |
+| BUG-344 single-dish meal never sequenced | 19 | 19 | 10/25 |
+| D-WS7-152 single-dish shows a dish/meal label | 0 | 19 | 0/25 |
+
+── D-WS9-297 cold dish pulled into a passive window (for Hans to rule) — 36
+  • 11623bcd A14 · Chana Masala with Naan and Cucumber Rait · Cucumber Raita — made T-20..T-10 inside "Chana Masala" cook T-20..T-10 — first step "Halve the English cucumber lengthwise, scrape out the seeds with a spoon, and fi"
+  • 1cf373bc E-1cf373bc · Classic Tex-Mex Sheet-Pan Chicken Fajita · Guacamole — made T-37..T-22 inside "Sheet-Pan Chicken Fajitas" preheat T-41..T-29 — first step "Halve and pit the 3 ripe avocados, scoop the flesh into a medium bowl, and mash "
+
+── Prepped path: ticking every rendered prep step leaves isPrepped false — 12
+  • 04a25763 A05 · Braised Lamb Shanks with Creamy White Bean Mash and Gremolata — 8 rendered keys ticked; blockers: Lamb shanks — cook day (render-omitted); after ticking all 12 wire keys → true
+  • 11623bcd A14 · Chana Masala with Naan and Cucumber Raita — 10 rendered keys ticked; blockers: seasonings_dry#dish#138a0c89-eb33-4a4c-81fe-491adcfb6b17 (not on the wire); after ticking all 11 wire keys → false
+
+── Prepped path: recap is not built from the prep steps — 14
+  • 04a25763 A05 · Braised Lamb Shanks with Creamy White Bean Mash and Gremolata — recap = 4 cook-side phaseType=prep step text(s) (e.g. "Pat the 4 lamb shanks dry with paper towels, then season all over with 2 teaspoons kosher "); the plan's 8 prep steps for it (e.g. "Wash and dry all the produce") are not read
+  • 11623bcd A14 · Chana Masala with Naan and Cucumber Raita — recap = 5 cook-side phaseType=prep step text(s) (e.g. "Finely dice the 2 yellow onions, mince the 6 garlic cloves, grate 2 tablespoons fresh ging"); the plan's 10 prep steps for it (e.g. "Measure the Chana Masala spice blend") are not read
+
+── Prepped path: cook steps that redo prep work after the filter — 1
+  • b4aa6fee E-b4aa6fee · Lemon-Herb Baked Chicken Breast with Roasted Asparagus and Garlic Herb Potatoes — assemble step kept: "Slice the chicken and transfer to a platter; scatter with ¼ cup chopped fresh parsley if using."
+
+── Prepped path: kept cook steps that lost their quantity — 2
+  • 11623bcd A14 · Chana Masala with Naan and Cucumber Raita — 1 step(s), e.g. "Fold in the diced cucumber, mint, and cilantro, then cover and refrigerate until ready to serve."
+  • b0c8ffbd A16 · Seared Tuna Steak with Sesame-Ginger Slaw and Steamed Jasmine Rice — 1 step(s), e.g. "Plate the sliced tuna, scatter the sliced scallions over the top, and serve with lime wedges alongsi"
+
+── K-R6 footer ≠ card (flattened single-dish) — 9
+  • 2faff60f A20 · Cajun Shrimp Pasta in Spicy Cream Sauce — footer 53 min vs card 33 (scheduler 33, fresh derive 33)
+  • 33ddbb13 A11 · Sheet-Pan Shrimp Boil with Sausage, Corn, and Potatoes — footer 68 min vs card 49 (scheduler 49, fresh derive 49)
+
+── BUG-344 single-dish meal never sequenced — 19
+  • 1cf373bc E-1cf373bc · Texas-Style Beef Chili — flattened: 11 steps, no offsets, no cues; the scheduler had 0 cue(s) and a 141-min plan
+  • 1e41fc0c E-1e41fc0c · Beef Stroganoff Noodle Skillet — flattened: 11 steps, no offsets, no cues; the scheduler had 0 cue(s) and a 46-min plan
+
+═══ K-R5 idle passive windows, by cause ═══
+  a cook window with startable prep of another dish: 10
+      • [04a25763 · Braised Lamb Shanks with Creamy White Bean Mash ] Red Wine Braised Lamb Shanks: 150-min cook window (T-168..T-18) is 146 min idle while 1 later prep step(s) were already startable — e.g. "Lemon-Parsley Gremolata: Finely chop ½ cup packed flat-leaf 
+      • [1cf373bc · Italian Meatloaf with Roasted Garlic Mashed Pota] Italian Herb Meatloaf: 60-min cook window (T-78..T-18) is 52 min idle while 1 later prep step(s) were already startable — e.g. "Sautéed Broccolini with Garlic and Chili Flake: Trim 1 lb broccolini a
+  the preheat window: 9
+      • [1cf373bc · Italian Meatloaf with Roasted Garlic Mashed Pota] Italian Herb Meatloaf: 12-min preheat window (T-97..T-85) is 6 min idle while 1 later prep step(s) were already startable — e.g. "Sautéed Broccolini with Garlic and Chili Flake: Trim 1 lb broccolini
+      • [1cf373bc · Italian Meatloaf with Roasted Garlic Mashed Pota] Roasted Garlic Mashed Potatoes: 12-min preheat window (T-66..T-54) is 12 min idle while 1 later prep step(s) were already startable — e.g. "Sautéed Broccolini with Garlic and Chili Flake: Trim 1 lb 
+  a cold dish was available but sat elsewhere: 13
+      • [1e41fc0c · Chicken Caesar Salad with Garlic Bread] Frozen Garlic Bread: 10-min preheat window (T-36..T-26) is 10 min idle while 1 later prep step(s) were already startable — e.g. "Chicken Caesar Salad: Remove the skin from the rotisserie chicken and shred the
+      • [2539d94d · Slow-Roasted Pulled Pork with Alabama White Sauc] Slow-Roasted Pulled Pork: 15-min preheat window (T-273..T-258) is 15 min idle while 2 later prep step(s) were already startable — e.g. "Vinegar Coleslaw: Finely shred ½ pound green cabbage and ¼ pou
+  a rest window with knife work still waiting: 3
+      • [3f9d46e8 · Falafel Plate with Hummus, Tabbouleh, and Warm F] Herb Falafel: 30-min rest window (T-89..T-59) is 30 min idle while 2 later prep step(s) were already startable — e.g. "Creamy Hummus: Drain the two 15-oz cans of chickpeas, reserving the liquid,"
+      • [b4aa6fee · Carne Asada Tacos] Carne Asada: 30-min rest window (T-62..T-32) is 7 min idle while 2 later prep step(s) were already startable — e.g. "Warm Corn Tortillas: Heat a dry skillet or comal over medium-high heat, then warm"

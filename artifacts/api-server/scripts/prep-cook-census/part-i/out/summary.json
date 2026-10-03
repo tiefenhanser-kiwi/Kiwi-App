@@ -1,0 +1,710 @@
+{
+  "generatedAt": "2026-10-03T15:01:08.341Z",
+  "costUsd": 4.614,
+  "calls": [
+    {
+      "label": "E-1e41fc0c full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 11456,
+      "outputTokens": 1832,
+      "costUsd": 0.061848,
+      "ms": 23284
+    },
+    {
+      "label": "E-1e41fc0c subset",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 8877,
+      "outputTokens": 1226,
+      "costUsd": 0.045021,
+      "ms": 14682
+    },
+    {
+      "label": "E-b4aa6fee cached",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 13867,
+      "outputTokens": 3025,
+      "costUsd": 0.086976,
+      "ms": 36962
+    },
+    {
+      "label": "E-b4aa6fee subset",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 9064,
+      "outputTokens": 1319,
+      "costUsd": 0.046977,
+      "ms": 15908
+    },
+    {
+      "label": "E-b5263268 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 13800,
+      "outputTokens": 2639,
+      "costUsd": 0.080985,
+      "ms": 32795
+    },
+    {
+      "label": "E-b5263268 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 13839,
+      "outputTokens": 2787,
+      "costUsd": 0.08332200000000001,
+      "ms": 34391
+    },
+    {
+      "label": "E-b5263268 subset",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 9571,
+      "outputTokens": 1259,
+      "costUsd": 0.047598,
+      "ms": 16908
+    },
+    {
+      "label": "E-1cf373bc full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 14326,
+      "outputTokens": 3091,
+      "costUsd": 0.089343,
+      "ms": 39882
+    },
+    {
+      "label": "E-1cf373bc full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 14365,
+      "outputTokens": 3089,
+      "costUsd": 0.08943,
+      "ms": 37059
+    },
+    {
+      "label": "E-1cf373bc subset",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 9636,
+      "outputTokens": 1587,
+      "costUsd": 0.052713,
+      "ms": 18030
+    },
+    {
+      "label": "A01 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 18666,
+      "outputTokens": 3842,
+      "costUsd": 0.11362799999999999,
+      "ms": 51314
+    },
+    {
+      "label": "A01 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 18705,
+      "outputTokens": 3908,
+      "costUsd": 0.114735,
+      "ms": 49550
+    },
+    {
+      "label": "A01 subset",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 9856,
+      "outputTokens": 1751,
+      "costUsd": 0.055833,
+      "ms": 20414
+    },
+    {
+      "label": "A02 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 19047,
+      "outputTokens": 4939,
+      "costUsd": 0.131226,
+      "ms": 59877
+    },
+    {
+      "label": "A02 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 19105,
+      "outputTokens": 4589,
+      "costUsd": 0.12615,
+      "ms": 57685
+    },
+    {
+      "label": "A02 subset",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 8850,
+      "outputTokens": 1269,
+      "costUsd": 0.045585,
+      "ms": 15114
+    },
+    {
+      "label": "A04 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 10137,
+      "outputTokens": 1660,
+      "costUsd": 0.055311,
+      "ms": 22763
+    },
+    {
+      "label": "A04 subset",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 10137,
+      "outputTokens": 1711,
+      "costUsd": 0.056076,
+      "ms": 22761
+    },
+    {
+      "label": "A05 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 14043,
+      "outputTokens": 2797,
+      "costUsd": 0.08408399999999999,
+      "ms": 38050
+    },
+    {
+      "label": "A05 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 14077,
+      "outputTokens": 2727,
+      "costUsd": 0.08313599999999999,
+      "ms": 35173
+    },
+    {
+      "label": "A05 subset",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 9628,
+      "outputTokens": 1421,
+      "costUsd": 0.050199,
+      "ms": 16956
+    },
+    {
+      "label": "A06 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 15527,
+      "outputTokens": 3635,
+      "costUsd": 0.101106,
+      "ms": 45131
+    },
+    {
+      "label": "A06 subset",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 9106,
+      "outputTokens": 1270,
+      "costUsd": 0.046368,
+      "ms": 16031
+    },
+    {
+      "label": "A07 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 17606,
+      "outputTokens": 4841,
+      "costUsd": 0.12543300000000002,
+      "ms": 55871
+    },
+    {
+      "label": "A07 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 17683,
+      "outputTokens": 4645,
+      "costUsd": 0.122724,
+      "ms": 56650
+    },
+    {
+      "label": "A07 subset",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 10088,
+      "outputTokens": 1751,
+      "costUsd": 0.056528999999999996,
+      "ms": 21361
+    },
+    {
+      "label": "A08 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 9354,
+      "outputTokens": 1357,
+      "costUsd": 0.048416999999999995,
+      "ms": 17628
+    },
+    {
+      "label": "A08 subset",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 6676,
+      "outputTokens": 309,
+      "costUsd": 0.024662999999999997,
+      "ms": 4505
+    },
+    {
+      "label": "A09 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 13507,
+      "outputTokens": 2689,
+      "costUsd": 0.08085600000000001,
+      "ms": 36082
+    },
+    {
+      "label": "A09 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 13546,
+      "outputTokens": 2621,
+      "costUsd": 0.079953,
+      "ms": 33613
+    },
+    {
+      "label": "A09 subset",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 9816,
+      "outputTokens": 1495,
+      "costUsd": 0.051873,
+      "ms": 18449
+    },
+    {
+      "label": "A10 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 12861,
+      "outputTokens": 2169,
+      "costUsd": 0.071118,
+      "ms": 27763
+    },
+    {
+      "label": "A10 subset",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 9262,
+      "outputTokens": 1493,
+      "costUsd": 0.050180999999999996,
+      "ms": 17633
+    },
+    {
+      "label": "A11 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 14072,
+      "outputTokens": 2862,
+      "costUsd": 0.085146,
+      "ms": 35244
+    },
+    {
+      "label": "A11 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 14111,
+      "outputTokens": 2609,
+      "costUsd": 0.08146800000000001,
+      "ms": 31611
+    },
+    {
+      "label": "A11 subset",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 8109,
+      "outputTokens": 809,
+      "costUsd": 0.036462,
+      "ms": 10122
+    },
+    {
+      "label": "A12 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 13920,
+      "outputTokens": 2466,
+      "costUsd": 0.07874999999999999,
+      "ms": 32609
+    },
+    {
+      "label": "A12 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 13959,
+      "outputTokens": 2289,
+      "costUsd": 0.076212,
+      "ms": 30904
+    },
+    {
+      "label": "A12 subset",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 10483,
+      "outputTokens": 1618,
+      "costUsd": 0.055719,
+      "ms": 19979
+    },
+    {
+      "label": "A13 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 15431,
+      "outputTokens": 4531,
+      "costUsd": 0.114258,
+      "ms": 54542
+    },
+    {
+      "label": "A13 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 15489,
+      "outputTokens": 4130,
+      "costUsd": 0.10841699999999999,
+      "ms": 50047
+    },
+    {
+      "label": "A13 subset",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 10993,
+      "outputTokens": 2364,
+      "costUsd": 0.068439,
+      "ms": 28208
+    },
+    {
+      "label": "A14 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 13556,
+      "outputTokens": 2634,
+      "costUsd": 0.080178,
+      "ms": 30821
+    },
+    {
+      "label": "A14 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 13595,
+      "outputTokens": 2278,
+      "costUsd": 0.074955,
+      "ms": 27410
+    },
+    {
+      "label": "A14 subset",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 9047,
+      "outputTokens": 1172,
+      "costUsd": 0.044721,
+      "ms": 13795
+    },
+    {
+      "label": "A15 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 11942,
+      "outputTokens": 2412,
+      "costUsd": 0.072006,
+      "ms": 27937
+    },
+    {
+      "label": "A15 subset",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 10361,
+      "outputTokens": 1826,
+      "costUsd": 0.058473,
+      "ms": 21535
+    },
+    {
+      "label": "A16 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 14836,
+      "outputTokens": 2911,
+      "costUsd": 0.088173,
+      "ms": 36824
+    },
+    {
+      "label": "A16 subset",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 10869,
+      "outputTokens": 1827,
+      "costUsd": 0.060011999999999996,
+      "ms": 23077
+    },
+    {
+      "label": "A17 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 13752,
+      "outputTokens": 2940,
+      "costUsd": 0.085356,
+      "ms": 36509
+    },
+    {
+      "label": "A17 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 13810,
+      "outputTokens": 2774,
+      "costUsd": 0.08304,
+      "ms": 34104
+    },
+    {
+      "label": "A17 subset",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 9385,
+      "outputTokens": 1418,
+      "costUsd": 0.049425,
+      "ms": 17647
+    },
+    {
+      "label": "A17 subset",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 9426,
+      "outputTokens": 1444,
+      "costUsd": 0.049937999999999996,
+      "ms": 17806
+    },
+    {
+      "label": "A18 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 12203,
+      "outputTokens": 1834,
+      "costUsd": 0.06411900000000001,
+      "ms": 25044
+    },
+    {
+      "label": "A18 subset",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 8722,
+      "outputTokens": 967,
+      "costUsd": 0.040671,
+      "ms": 12433
+    },
+    {
+      "label": "A19 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 14036,
+      "outputTokens": 3249,
+      "costUsd": 0.09084300000000001,
+      "ms": 37541
+    },
+    {
+      "label": "A19 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 14075,
+      "outputTokens": 3048,
+      "costUsd": 0.087945,
+      "ms": 37039
+    },
+    {
+      "label": "A19 subset",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 10127,
+      "outputTokens": 1715,
+      "costUsd": 0.056106,
+      "ms": 20431
+    },
+    {
+      "label": "A20 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 11984,
+      "outputTokens": 2146,
+      "costUsd": 0.068142,
+      "ms": 26908
+    },
+    {
+      "label": "A20 subset",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 8529,
+      "outputTokens": 810,
+      "costUsd": 0.037737,
+      "ms": 10050
+    },
+    {
+      "label": "A21 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 15801,
+      "outputTokens": 3567,
+      "costUsd": 0.100908,
+      "ms": 43153
+    },
+    {
+      "label": "A21 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 15878,
+      "outputTokens": 3226,
+      "costUsd": 0.096024,
+      "ms": 40540
+    },
+    {
+      "label": "A21 subset",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 10742,
+      "outputTokens": 1913,
+      "costUsd": 0.060920999999999996,
+      "ms": 23844
+    }
+  ],
+  "summary": [
+    {
+      "code": "E-1e41fc0c",
+      "planId": "1e41fc0c-7294-4bd3-a14a-302e44bbcd7c",
+      "costUsd": 0.10686899999999999,
+      "full": 200,
+      "subset": 200,
+      "meals": 5
+    },
+    {
+      "code": "E-b4aa6fee",
+      "planId": "b4aa6fee-70b1-4990-a596-05087ac904c5",
+      "costUsd": 0.133953,
+      "full": 200,
+      "subset": 200,
+      "meals": 5
+    },
+    {
+      "code": "E-b5263268",
+      "planId": "b5263268-64c7-41ff-a8f2-20c01a2b905e",
+      "costUsd": 0.211905,
+      "full": 502,
+      "subset": 200,
+      "meals": 5
+    },
+    {
+      "code": "E-1cf373bc",
+      "planId": "1cf373bc-a2cb-4469-90ef-bb87d0327343",
+      "costUsd": 0.23148600000000008,
+      "full": 502,
+      "subset": 200,
+      "meals": 5
+    },
+    {
+      "code": "A01",
+      "planId": "873796cd-4e7e-4a4a-bdfe-28a802f295d7",
+      "costUsd": 0.284196,
+      "full": 200,
+      "subset": 200,
+      "meals": 7
+    },
+    {
+      "code": "A02",
+      "planId": "c97aefe1-a3d2-4f4c-b959-ffd7ba58066a",
+      "costUsd": 0.30296100000000004,
+      "full": 502,
+      "subset": 200,
+      "meals": 7
+    },
+    {
+      "code": "A04",
+      "planId": "7f206a48-f9ca-46c3-b4ba-94c35a320da2",
+      "costUsd": 0.11138700000000012,
+      "full": 200,
+      "subset": 200,
+      "meals": 2
+    },
+    {
+      "code": "A05",
+      "planId": "04a25763-bd01-4103-ba11-d5420ca0e6d8",
+      "costUsd": 0.21741900000000003,
+      "full": 200,
+      "subset": 200,
+      "meals": 4
+    },
+    {
+      "code": "A06",
+      "planId": "da372b54-d561-4e06-b653-5a5aea933ef0",
+      "costUsd": 0.14747399999999988,
+      "full": 200,
+      "subset": 200,
+      "meals": 5
+    },
+    {
+      "code": "A07",
+      "planId": "fb328120-721e-47f3-b21c-dce1aba27939",
+      "costUsd": 0.30468600000000023,
+      "full": 502,
+      "subset": 200,
+      "meals": 5
+    },
+    {
+      "code": "A08",
+      "planId": "27a03273-6732-4ad0-a6a6-7b76ee5eea7e",
+      "costUsd": 0.07308000000000003,
+      "full": 200,
+      "subset": 200,
+      "meals": 4
+    },
+    {
+      "code": "A09",
+      "planId": "f0c56d0c-7182-428b-86d5-230689438919",
+      "costUsd": 0.21268200000000004,
+      "full": 502,
+      "subset": 200,
+      "meals": 4
+    },
+    {
+      "code": "A10",
+      "planId": "3f9d46e8-b078-4bd4-b479-9f93cb8c76cd",
+      "costUsd": 0.1212989999999996,
+      "full": 200,
+      "subset": 200,
+      "meals": 4
+    },
+    {
+      "code": "A11",
+      "planId": "33ddbb13-7f30-418f-ab5b-c547484d4461",
+      "costUsd": 0.20307600000000026,
+      "full": 200,
+      "subset": 200,
+      "meals": 5
+    },
+    {
+      "code": "A12",
+      "planId": "b12a194c-ba07-4e30-ba35-71ae1442a87e",
+      "costUsd": 0.21068099999999967,
+      "full": 502,
+      "subset": 200,
+      "meals": 4
+    },
+    {
+      "code": "A13",
+      "planId": "bd8aa8c2-bff4-42cf-84b8-ff24fbf3793d",
+      "costUsd": 0.2911140000000003,
+      "full": 502,
+      "subset": 200,
+      "meals": 4
+    },
+    {
+      "code": "A14",
+      "planId": "11623bcd-bc82-4aa4-ad88-80aaa075b19a",
+      "costUsd": 0.1998540000000002,
+      "full": 200,
+      "subset": 200,
+      "meals": 4
+    },
+    {
+      "code": "A15",
+      "planId": "2539d94d-80df-4f05-b62e-0d3d9167806a",
+      "costUsd": 0.1304789999999998,
+      "full": 200,
+      "subset": 200,
+      "meals": 3
+    },
+    {
+      "code": "A16",
+      "planId": "b0c8ffbd-b167-4265-8fb3-2782bc72092e",
+      "costUsd": 0.1481849999999998,
+      "full": 200,
+      "subset": 200,
+      "meals": 4
+    },
+    {
+      "code": "A17",
+      "planId": "2730c4b1-7648-404a-a7bf-692fb89faa03",
+      "costUsd": 0.26775899999999986,
+      "full": 200,
+      "subset": 200,
+      "meals": 4
+    },
+    {
+      "code": "A18",
+      "planId": "8a0de6e6-ec8a-453f-994a-6a973c5bcd32",
+      "costUsd": 0.1047899999999995,
+      "full": 200,
+      "subset": 200,
+      "meals": 5
+    },
+    {
+      "code": "A19",
+      "planId": "d26e6ae6-3dcd-42ce-9f77-b3962697fff5",
+      "costUsd": 0.2348940000000006,
+      "full": 200,
+      "subset": 200,
+      "meals": 4
+    },
+    {
+      "code": "A20",
+      "planId": "2faff60f-9a4e-4afb-897e-35422c5e8c34",
+      "costUsd": 0.10587899999999983,
+      "full": 200,
+      "subset": 200,
+      "meals": 4
+    },
+    {
+      "code": "A21",
+      "planId": "297794a0-569d-4af8-9506-0fe4cc43999a",
+      "costUsd": 0.257852999999999,
+      "full": 502,
+      "subset": 200,
+      "meals": 5
+    }
+  ],
+  "writes": 626,
+  "writeKinds": [
+    "prepWeekStructure.upsert",
+    "prepStepCompletion.deleteMany",
+    "prepStepCompletion.upsert"
+  ]
+}

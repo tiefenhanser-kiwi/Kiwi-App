@@ -1,0 +1,364 @@
+PLAN 33ddbb13-7f30-418f-ab5b-c547484d4461  [A11]  Part I · A11 · single-dish week
+  range 2026-10-04 .. 2026-10-10   meals 5   prep day 2026-10-04   shapes: days-5-7, long-passive, single-dish, aromatics, two-cuts, seafood, marinate, toss-no-heat
+
+══════════ PREP THE WEEK — full plan, as Screen 3 renders it ══════════
+  HEADER: 16 containers · about 75 min   (server total 99 · phone 65) · cacheHit=false · prompt v19
+  HELD: Sheet-Pan Shrimp Boil with Sausage, Corn, and Potatoes (Thursday, 4 days out) — slice the andouille sausage that morning.
+  HELD: Hyderabadi Dum Chicken Biryani (Wednesday, 3 days out) — cut the chicken for Hyderabadi Dum Chicken Biryani that morning.
+
+  ── seasonings_dry ──
+     1. Measure the Shrimp and Crab Jambalaya sauce bowl spices   (4 min)
+        Into the Shrimp and Crab Jambalaya sauce bowl:
+        2 tsp Cajun seasoning
+        1 tsp smoked paprika
+        ½ tsp dried thyme
+        ½ tsp dried oregano
+        ¼ tsp cayenne pepper
+        2 bay leaves
+        » for: Shrimp and Crab Jambalaya (Monday)
+     2. Measure the Sheet-Pan Shrimp Boil seasoning   (3 min)
+        Into the Sheet-Pan Shrimp Boil seasoning:
+        2 tbsp Old Bay seasoning
+        1 tsp smoked paprika
+        1 tsp garlic powder
+        ½ tsp onion powder
+        ¼ tsp cayenne pepper
+        » storage: Small airtight container at room temperature — it keeps for weeks.
+        » for: Sheet-Pan Shrimp Boil with Sausage, Corn, and Potatoes (Thursday)
+     3. Measure the Layered Tortilla Beef Taco seasoning   (2 min)
+        Into the Layered Tortilla Beef Taco seasoning:
+        2 tsp chili powder
+        1½ tsp ground cumin
+        1 tsp smoked paprika
+        ½ tsp dried oregano
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Layered Tortilla Beef Taco Casserole (Saturday)
+     4. Measure the Hyderabadi Dum Chicken Biryani sauce bowl spices   (7 min)
+        Into the Hyderabadi Dum Chicken Biryani sauce bowl:
+        2 bay leaves
+        3 green chilies, slit lengthwise (serrano or Thai)
+        1½ tsp Kashmiri red chili powder
+        1 tsp ground coriander
+        ½ tsp ground cumin
+        1 tsp garam masala
+        ½ tsp turmeric
+        5 whole green cardamom pods
+        1 cinnamon stick (2-inch piece)
+        ½ tsp black peppercorns
+        1 star anise
+        » for: Hyderabadi Dum Chicken Biryani (Wednesday)
+  ×  5. Plain breadcrumbs, parmigiano-reggiano, escarole, acini di pepe pasta, Parmigiano-Reggiano rind and red pepper flakes —    (3 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: Sausage and Escarole Wedding Soup (Sunday)
+  ×  6. Long-grain white rice — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Shrimp and Crab Jambalaya (Monday)
+  ×  7. Basmati rice, whole cloves and saffron — cook day   (2 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: Hyderabadi Dum Chicken Biryani (Wednesday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Sausage and Escarole Wedding Soup (Sunday), Shrimp and Crab Jambalaya (Monday), Hyderabadi Dum Chicken Biryani (Wednesday), Sheet-Pan Shrimp Boil with Sausage, Corn, and Potatoes (Thursday), Layered Tortilla Beef Taco Casserole (Saturday)
+     2. Mince and slice all garlic   (8 min)
+        Mince 2 cloves for the Sausage and Escarole Wedding Soup — into a tub labelled "Sausage and Escarole Wedding Soup — aromatics"
+        Thinly slice 3 cloves for the Sausage and Escarole Wedding Soup — into the same tub
+        Mince 4 cloves for the Shrimp and Crab Jambalaya — into the Shrimp and Crab Jambalaya vegetables
+        Mince 6 cloves for the Hyderabadi Dum Chicken Biryani — into a tub labelled "Hyderabadi Dum Chicken Biryani — garlic, yellow onion and fresh ginger"
+        Mince 4 cloves for the Sheet-Pan Shrimp Boil and 3 cloves for the Layered Tortilla Beef Taco Casserole — into a tub labelled "Minced garlic — Sheet-Pan Shrimp Boil with Sausage, Corn, and Potatoes, Layered Tortilla Beef Taco Casserole"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Sausage and Escarole Wedding Soup (Sunday), Shrimp and Crab Jambalaya (Monday), Hyderabadi Dum Chicken Biryani (Wednesday), Sheet-Pan Shrimp Boil with Sausage, Corn, and Potatoes (Thursday), Layered Tortilla Beef Taco Casserole (Saturday)
+     3. Chop all flat-leaf parsley   (3 min)
+        Finely chop 2 tbsp for the Sausage and Escarole Wedding Soup — into a tub labelled "Sausage and Escarole Wedding Soup — aromatics"
+        Roughly chop ¼ cup for the Shrimp and Crab Jambalaya and 3 tbsp for the Sheet-Pan Shrimp Boil — into a tub labelled "Chopped fresh flat-leaf parsley — Shrimp and Crab Jambalaya, Sheet-Pan Shrimp Boil with Sausage, Corn, and Potatoes"
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Sausage and Escarole Wedding Soup (Sunday), Shrimp and Crab Jambalaya (Monday), Sheet-Pan Shrimp Boil with Sausage, Corn, and Potatoes (Thursday)
+     4. Dice and slice all yellow onion   (13 min)
+        Finely dice 1 yellow onion for the Sausage and Escarole Wedding Soup — into the Sausage and Escarole Wedding vegetables
+        Dice 1 medium yellow onion for the Shrimp and Crab Jambalaya — into the Shrimp and Crab Jambalaya vegetables
+        Thinly slice 2 yellow onions for the Hyderabadi Dum Chicken Biryani (for frying) — into a tub labelled "Hyderabadi Dum Chicken Biryani — garlic, yellow onion and fresh ginger"
+        Finely dice 1 yellow onion for the Layered Tortilla Beef Taco Casserole — into a tub labelled "Layered Tortilla Beef Taco Casserole — finely diced yellow onion"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Sausage and Escarole Wedding Soup (Sunday), Shrimp and Crab Jambalaya (Monday), Hyderabadi Dum Chicken Biryani (Wednesday), Layered Tortilla Beef Taco Casserole (Saturday)
+     5. Dice all celery   (2 min)
+        Finely dice 2 stalks for the Sausage and Escarole Wedding Soup — into the Sausage and Escarole Wedding vegetables
+        Dice 2 stalks for the Shrimp and Crab Jambalaya — into the Shrimp and Crab Jambalaya vegetables
+        » for: Sausage and Escarole Wedding Soup (Sunday), Shrimp and Crab Jambalaya (Monday)
+     6. Dice the carrots for Sausage and Escarole Wedding Soup   (2 min)
+        Finely dice 2 carrots — into the Sausage and Escarole Wedding vegetables
+        » storage: Sausage and Escarole Wedding vegetables: Airtight in the fridge — up to 4 days.
+        » for: Sausage and Escarole Wedding Soup (Sunday)
+     7. Dice the green bell pepper for Shrimp and Crab Jambalaya   (3 min)
+        Dice 1 green bell pepper — into the Shrimp and Crab Jambalaya vegetables
+        » storage: Shrimp and Crab Jambalaya vegetables: Airtight in the fridge — up to 4 days.
+        » for: Shrimp and Crab Jambalaya (Monday)
+     8. Fry the birista for Hyderabadi Dum Chicken Biryani   (3 min)
+        Thinly slice 1 cup worth of yellow onion and deep-fry until golden and crisp — into a tub labelled "Hyderabadi Dum Chicken Biryani — thinly sliced fried onions (birista)"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Hyderabadi Dum Chicken Biryani (Wednesday)
+     9. Grate the fresh ginger for Hyderabadi Dum Chicken Biryani   (1 min)
+        Finely grate 1½ tbsp fresh ginger — into a tub labelled "Hyderabadi Dum Chicken Biryani — garlic, yellow onion and fresh ginger"
+        » storage: Hyderabadi Dum Chicken Biryani — garlic, yellow onion and fresh ginger: Airtight in the fridge — up to 4 days. Keep the Hyderabadi Dum Chicken Biryani sauce bowl separate; combine on cook day (Wednes…
+        » for: Hyderabadi Dum Chicken Biryani (Wednesday)
+    10. Tear the fresh mint for Hyderabadi Dum Chicken Biryani   (1 min)
+        Loosely pack and roughly tear ½ cup fresh mint leaves — into a tub labelled "Hyderabadi Dum Chicken Biryani — torn fresh mint leaves"
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Hyderabadi Dum Chicken Biryani (Wednesday)
+    11. Chop all fresh cilantro   (3 min)
+        Roughly chop ½ cup for the Hyderabadi Dum Chicken Biryani and ¼ cup for the Layered Tortilla Beef Taco Casserole — into a tub labelled "Chopped fresh cilantro — Hyderabadi Dum Chicken Biryani, Layered Tortilla Beef Taco Casserole"
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Hyderabadi Dum Chicken Biryani (Wednesday), Layered Tortilla Beef Taco Casserole (Saturday)
+    12. Juice the lemon for Hyderabadi Dum Chicken Biryani   (2 min)
+        Juice enough lemon to yield 2 tbsp — into the Hyderabadi Dum Chicken Biryani sauce bowl
+        » storage: Hyderabadi Dum Chicken Biryani sauce bowl: Covered in the fridge — up to 3 days.
+        » for: Hyderabadi Dum Chicken Biryani (Wednesday)
+  × 13. Baby red potatoes — cook day   (3 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Sheet-Pan Shrimp Boil with Sausage, Corn, and Potatoes (Thursday)
+    14. Cut the corn for Sheet-Pan Shrimp Boil   (1 min)
+        Husk 3 ears of corn and cut them into 1½-inch rounds — into a tub labelled "Sheet-Pan Shrimp Boil with Sausage, Corn, and Potatoes — husked ears of corn"
+        » storage: Airtight in the fridge — up to 3 days.
+        » for: Sheet-Pan Shrimp Boil with Sausage, Corn, and Potatoes (Thursday)
+
+  ── sauces_marinades ──
+     1. Finish the Shrimp and Crab Jambalaya sauce bowl   (3 min)
+        Shrimp and Crab Jambalaya sauce bowl (Cajun seasoning, smoked paprika, dried thyme, dried oregano, cayenne pepper and bay leaves already in it): add
+        2 tbsp extra-virgin olive oil
+        1 tbsp Worcestershire sauce
+        1 tsp hot sauce (such as Crystal or Tabasco)
+        Stir to combine.
+        » storage: Covered in the fridge — up to 5 days.
+        » for: Shrimp and Crab Jambalaya (Monday)
+  ×  2. Extra-virgin olive oil — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Sausage and Escarole Wedding Soup (Sunday)
+  ×  3. Extra-virgin olive oil — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Sheet-Pan Shrimp Boil with Sausage, Corn, and Potatoes (Thursday)
+  ×  4. Chunky salsa — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Layered Tortilla Beef Taco Casserole (Saturday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+  ×  1. Sweet Italian pork sausage — cook day   (3 min)  [RENDER-OMITTED]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+        » for: Sausage and Escarole Wedding Soup (Sunday)
+  ×  2. Large shrimp, peeled and deveined — cook day   (8 min)  [RENDER-OMITTED]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+        » for: Shrimp and Crab Jambalaya (Monday), Sheet-Pan Shrimp Boil with Sausage, Corn, and Potatoes (Thursday)
+     3. Pick over the crab meat for Shrimp and Crab Jambalaya   (1 min)
+        Pick over 8 oz lump crab meat carefully for any shell fragments.
+        » storage: Covered in the fridge — cook within 2 days.
+        » for: Shrimp and Crab Jambalaya (Monday)
+  ×  4. Andouille sausage — cook day   (1 min)  [RENDER-OMITTED]
+        Slice 8 oz andouille into ¼-inch rounds for the Shrimp and Crab Jambalaya
+        Slice 12 oz andouille into ½-inch rounds for the Sheet-Pan Shrimp Boil with Sausage, Corn, and Potatoes
+        » storage: This one is 4 days out — leave it for cook day.
+        » for: Shrimp and Crab Jambalaya (Monday), Sheet-Pan Shrimp Boil with Sausage, Corn, and Potatoes (Thursday)
+  ×  5. Bone-in chicken thighs — cook day   (10 min)  [RENDER-OMITTED]
+        Cut 2½ lb bone-in chicken thighs into large pieces.
+        » storage: This one is 3 days out — leave it for cook day.
+        » for: Hyderabadi Dum Chicken Biryani (Wednesday)
+
+══════════ PREP SELECTED MEALS — Sausage and Escarole Wedding Soup + Layered Tortilla Beef Taco Casserole ══════════
+  HEADER: 6 containers · about 20 min   (server total 26 · phone 18) · cacheHit=false · prompt v19
+
+  ── seasonings_dry ──
+     1. Measure the Layered Tortilla Beef Taco seasoning   (2 min)
+        Into the Layered Tortilla Beef Taco seasoning:
+        2 tsp chili powder
+        1½ tsp ground cumin
+        1 tsp smoked paprika
+        ½ tsp dried oregano
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Layered Tortilla Beef Taco Casserole (Saturday)
+  ×  2. Plain breadcrumbs, parmigiano-reggiano, escarole, acini di pepe pasta, Parmigiano-Reggiano rind and red pepper flakes —    (3 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: Sausage and Escarole Wedding Soup (Sunday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Sausage and Escarole Wedding Soup (Sunday), Layered Tortilla Beef Taco Casserole (Saturday)
+     2. Prep all garlic   (3 min)
+        Mince 2 cloves and thinly slice 3 cloves for the Sausage and Escarole Wedding Soup — keep them together in a tub labelled "Sausage and Escarole Wedding Soup — aromatics":
+        2 cloves, minced — into the tub
+        3 cloves, thinly sliced — into the same tub
+        
+        Mince 3 cloves for the Layered Tortilla Beef Taco Casserole — into a tub labelled "Layered Tortilla Beef Taco Casserole — minced garlic"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Sausage and Escarole Wedding Soup (Sunday), Layered Tortilla Beef Taco Casserole (Saturday)
+     3. Chop the parsley for Sausage and Escarole Wedding Soup   (1 min)
+        Finely chop the parsley:
+        2 tbsp — into the tub labelled "Sausage and Escarole Wedding Soup — aromatics"
+        » storage: Sausage and Escarole Wedding Soup — aromatics: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Sausage and Escarole Wedding Soup (Sunday)
+     4. Dice all yellow onion   (5 min)
+        Finely dice the yellow onions:
+        1 for the Sausage and Escarole Wedding Soup — into a tub labelled "Sausage and Escarole Wedding vegetables"
+        1 for the Layered Tortilla Beef Taco Casserole — into a tub labelled "Layered Tortilla Beef Taco Casserole — finely diced yellow onion"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Sausage and Escarole Wedding Soup (Sunday), Layered Tortilla Beef Taco Casserole (Saturday)
+     5. Dice the celery for Sausage and Escarole Wedding Soup   (1 min)
+        Finely dice the celery:
+        2 stalks — into the tub labelled "Sausage and Escarole Wedding vegetables"
+        » for: Sausage and Escarole Wedding Soup (Sunday)
+     6. Dice the carrots for Sausage and Escarole Wedding Soup   (2 min)
+        Finely dice the carrots:
+        2 — into the tub labelled "Sausage and Escarole Wedding vegetables"
+        » storage: Sausage and Escarole Wedding vegetables: Airtight in the fridge — up to 4 days.
+        » for: Sausage and Escarole Wedding Soup (Sunday)
+     7. Chop the cilantro for Layered Tortilla Beef Taco Casserole   (1 min)
+        Roughly chop the cilantro for serving:
+        ¼ cup — into a tub labelled "Layered Tortilla Beef Taco Casserole — chopped fresh cilantro"
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Layered Tortilla Beef Taco Casserole (Saturday)
+
+  ── sauces_marinades ──
+  ×  1. Extra-virgin olive oil — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Sausage and Escarole Wedding Soup (Sunday)
+  ×  2. Chunky salsa — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Layered Tortilla Beef Taco Casserole (Saturday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+  ×  1. Sweet Italian pork sausage — cook day   (3 min)  [RENDER-OMITTED]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+        » for: Sausage and Escarole Wedding Soup (Sunday)
+
+  subset ticks: 8 keys, 0 not in the full plan; required for these meals 8, uncovered 2; isPrepped {"Sausage and Escarole Wedding S":false,"Layered Tortilla Beef Taco Cas":false}
+
+══════════ COOK MODE (cook-session.tsx: sequenced if multi-dish, flattened if single) ══════════
+
+  ▸ Sausage and Escarole Wedding Soup   [Sunday]  FLATTENED (single-dish)
+    footer 66 min | scheduler 66 | card 66 | fresh derive 66 | dishes 1
+      1. [ T-66] (  8m prep) 
+         In a large bowl, combine the 12 oz sweet Italian sausage (casings removed), 4 oz ground pork, 1 lightly beaten egg, ⅓ cup breadcrumbs, 3 tablespoons whole milk, the 2 oz finely grated Parmigiano-Reggiano, 2 minced garlic cloves, 2 tablespoons chopped parsley, 1 teaspoon kosher salt, and ½ teaspoon black pepper; mix gently until just combined.
+      2. [ T-58] ( 10m prep) 
+         Roll the meat mixture into balls about 1 inch in diameter (you should get roughly 28–32) and arrange them on a rimmed baking sheet.
+      3. [ T-48] (  8m prep) 
+         Finely dice the yellow onion, 2 celery stalks, and 2 carrots; thinly slice the 3 remaining garlic cloves.
+      4. [ T-40] (  2m prep) 
+         Measure 8 cups low-sodium chicken broth into a large liquid measuring cup or bowl, and add the Parmigiano-Reggiano rind (optional) to the cup so it's ready to go in.
+      5. [    —] (  7m cook) 
+         Heat 2 tablespoons extra-virgin olive oil in a large Dutch oven or heavy pot over medium heat, then add the diced onion, celery, and carrot and cook, stirring occasionally, until softened, about 7 minutes.
+      6. [ T-38] (  1m cook) 
+         Add the 3 sliced garlic cloves and ¼ teaspoon red pepper flakes (optional) and cook, stirring, until fragrant, about 1 minute.
+      7. [ T-31] (  6m cook) 
+         Pour in all 8 cups of broth (with the Parmigiano rind if using), raise the heat to medium-high, and bring to a gentle boil.
+      8. [ T-30] ( 10m cook) 
+         Gently drop the meatballs one by one into the simmering broth, reduce heat to medium-low, and cook uncovered for 10 minutes until the meatballs are cooked through.
+      9. [ T-24] (  8m cook) 
+         Stir in ½ cup acini di pepe pasta and cook for 8 minutes, stirring occasionally, until the pasta is just tender.
+     10. [ T-14] (  3m cook) 
+         Add the 1 pound of torn escarole leaves in two or three batches, stirring each batch down into the broth until wilted, about 3 minutes total; remove and discard the Parmigiano rind if used.
+     11. [  T-6] (  3m assemble) 
+         Taste the soup and adjust seasoning with kosher salt and black pepper, then ladle into bowls and finish each with a generous grating of Parmigiano-Reggiano.
+
+  ▸ Shrimp and Crab Jambalaya   [Monday]  FLATTENED (single-dish)
+    footer 66 min | scheduler 66 | card 66 | fresh derive 66 | dishes 1
+      1. [ T-66] ( 10m prep) 
+         Dice the yellow onion, green bell pepper, and 2 celery stalks; mince the 4 garlic cloves; and slice the 8 oz andouille sausage into ¼-inch rounds.
+      2. [ T-56] (  2m prep) 
+         In a small bowl, combine 2 teaspoons Cajun seasoning, 1 teaspoon smoked paprika, ½ teaspoon dried thyme, ½ teaspoon dried oregano, and ¼ teaspoon cayenne pepper.
+      3. [    —] (  5m prep) 
+         Pick over the 8 oz lump crab meat for any shell fragments and thinly slice the 3 green onions and roughly chop the ¼ cup parsley; set aside for garnish.
+      4. [ T-54] (  2m preheat) 
+         Heat 2 tablespoons olive oil in a large, heavy-bottomed pot or Dutch oven over medium-high heat until shimmering.
+      5. [ T-49] (  4m cook) 
+         Add the andouille rounds in a single layer and sear 3–4 minutes, turning once, until browned on both sides; transfer to a plate.
+      6. [ T-47] (  6m cook) 
+         Add the onion, bell pepper, and celery to the pot and sauté over medium heat for 5 minutes, stirring frequently, until softened; add the garlic and cook 1 minute more.
+      7. [ T-43] (  3m cook) 
+         Stir in the spice blend, 1 teaspoon kosher salt, and ½ teaspoon black pepper, then add the 14 oz crushed tomatoes, 2½ cups chicken broth, 1 tablespoon Worcestershire sauce, 1 teaspoon hot sauce (if using), and 2 bay leaves; return the sausage to the pot.
+      8. [ T-37] ( 23m cook) 
+         Stir in 1½ cups long-grain white rice, bring to a boil, then reduce heat to low, cover tightly, and cook for 20 minutes without lifting the lid.
+      9. [ T-34] (  6m cook) 
+         Nestle the 1 pound shrimp into the rice, re-cover, and cook on low for 5–6 minutes until the shrimp are pink and just cooked through.
+     10. [ T-11] (  3m rest) 
+         Gently fold in the lump crab meat, remove and discard the 2 bay leaves, and let the pot rest off the heat, covered, for 3 minutes.
+     11. [  T-5] (  2m assemble) 
+         Serve directly from the pot, garnished with the sliced green onions and chopped parsley.
+
+  ▸ Hyderabadi Dum Chicken Biryani   [Wednesday]  FLATTENED (single-dish)
+    footer 101 min | scheduler 101 | card 101 | fresh derive 101 | dishes 1
+      1. [T-101] (  2m prep) 
+         Steep ¼ teaspoon saffron in 3 tablespoons warm whole milk and set aside to bloom for at least 10 minutes.
+      2. [ T-99] (  8m prep) 
+         In a large bowl, combine the chicken pieces with ¾ cup yogurt, 1½ tablespoons grated ginger, 6 minced garlic cloves, 3 slit green chilies, 2 tablespoons lemon juice, 2 teaspoons kosher salt, and half the fried onions (½ cup); toss well, cover, and marinate at room temperature while you prepare everything else.
+      3. [ T-91] ( 25m cook) 
+         Heat ½ cup neutral oil in a wide, heavy-bottomed pot over medium-high; add the 2 thinly sliced yellow onions and fry, stirring frequently, for 20–25 minutes until deep golden and crisp.
+      4. [ T-66] (  2m cook) 
+         Use a slotted spoon to transfer the fried onions to a paper-towel-lined plate; reserve the onion oil in the pot.
+      5. [    —] (  2m cook) 
+         In the pot with the reserved onion oil (or ghee), add 5 cardamom pods, 4 cloves, 1 cinnamon stick, 2 bay leaves, ½ teaspoon black peppercorns, and 1 star anise; fry over medium heat for 1–2 minutes until fragrant.
+      6. [ T-64] (  1m cook) 
+         Add 1½ teaspoons Kashmiri red chili powder, 1 teaspoon ground coriander, ½ teaspoon ground cumin, 1 teaspoon garam masala, and ½ teaspoon turmeric to the pot and stir for 30 seconds.
+      7. [ T-62] ( 10m cook) 
+         Add the marinated chicken (with all its marinade) to the spiced pot; spread into an even layer and cook over medium-high heat, stirring occasionally, for 8–10 minutes until the chicken is no longer pink on the outside and the marinade has reduced and coats the meat.
+      8. [    —] ( 10m cook) 
+         While the chicken cooks, bring 6 cups water to a rolling boil in a large separate pot with 1 teaspoon kosher salt; add the drained basmati rice and parboil for exactly 6 minutes (the rice should be about 70% cooked — still firm in the center), then drain immediately.
+      9. [ T-61] (  3m assemble) 
+         Spread the parboiled rice evenly over the chicken layer in the pot; scatter the remaining ½ cup fried onions, ½ cup torn mint leaves, and ½ cup chopped cilantro over the rice.
+     10. [ T-51] (  1m assemble) 
+         Drizzle the saffron milk and 2 tablespoons ghee over the top of the rice layer.
+     11. [ T-41] ( 25m cook) 
+         Cover the pot with a tight-fitting lid (seal the edge with a strip of dough or foil if needed to trap steam), reduce heat to the lowest setting, and cook on dum for 25 minutes — do not lift the lid.
+     12. [ T-38] ( 10m rest) 
+         Remove from heat and let the biryani rest, lid on, for 10 minutes before opening.
+     13. [ T-37] (  2m assemble) 
+         Gently fluff and mix the rice and chicken together with a wide spoon or spatula, then serve directly from the pot.
+
+  ▸ Sheet-Pan Shrimp Boil with Sausage, Corn, and Potatoes   [Thursday]  FLATTENED (single-dish)
+    footer 68 min | scheduler 49 | card 49 | fresh derive 49 | dishes 1
+      1. [ T-49] ( 15m preheat) 
+         Preheat the oven to 425°F and line a large rimmed sheet pan (or two half-sheet pans) with foil.
+      2. [ T-49] (  8m prep) 
+         Halve the 1¼ lb baby red potatoes and cut 3 husked ears of corn into 1½-inch rounds; mince 4 garlic cloves, slice 1 lemon into rounds, and cut the second lemon into wedges for serving.
+      3. [ T-41] (  3m prep) 
+         In a small bowl, whisk together 2 tablespoons Old Bay seasoning, 1 teaspoon smoked paprika, 1 teaspoon garlic powder, ½ teaspoon onion powder, ¼ teaspoon cayenne pepper, 1 teaspoon kosher salt, and ½ teaspoon black pepper.
+      4. [    —] (  3m prep) 
+         In a large bowl, toss the potato halves and corn rounds with 1 tablespoon melted butter, 1 tablespoon olive oil, and half the spice blend until evenly coated.
+      5. [ T-38] ( 20m cook) 
+         Spread the potatoes cut-side down and the corn in a single layer on the sheet pan; roast for 20 minutes until the potatoes begin to soften and color.
+      6. [ T-34] (  5m prep) 
+         While the potatoes roast, toss the 12 oz andouille rounds, 1½ lb shrimp, minced garlic, lemon rounds, remaining 3 tablespoons melted butter, 1 tablespoon olive oil, and remaining spice blend together in the same bowl.
+      7. [ T-34] ( 12m cook) 
+         Remove the pan from the oven, nestle the sausage, shrimp, and lemon rounds among the potatoes and corn in a single layer, and roast for 10–12 minutes until the shrimp are pink and just cooked through and the sausage is browned at the edges.
+      8. [ T-14] (  2m assemble) 
+         Scatter 3 tablespoons roughly chopped fresh parsley over the pan and serve directly from the sheet pan with lemon wedges alongside.
+
+  ▸ Layered Tortilla Beef Taco Casserole   [Saturday]  FLATTENED (single-dish)
+    footer 82 min | scheduler 70 | card 70 | fresh derive 70 | dishes 1
+      1. [ T-70] ( 10m preheat) 
+         Preheat the oven to 375 °F and grease a 9×13-inch baking dish with the 1 tablespoon neutral oil.
+      2. [ T-70] (  5m prep) 
+         Finely dice the yellow onion and mince the 3 garlic cloves.
+      3. [ T-65] (  3m prep) 
+         Measure out 2 teaspoons chili powder, 1½ teaspoons ground cumin, 1 teaspoon smoked paprika, ½ teaspoon dried oregano, 1 teaspoon kosher salt, and ¼ teaspoon black pepper into a small bowl and set aside.
+      4. [    —] (  3m prep) 
+         Drain and rinse the 15 oz can of black beans and roughly chop the ¼ cup fresh cilantro; set both aside.
+      5. [ T-62] (  6m cook) 
+         Brown the 1¼ lb ground beef in a large skillet over medium-high heat, breaking it up with a spoon, for about 6 minutes until no pink remains; drain excess fat.
+      6. [ T-59] (  4m cook) 
+         Reduce heat to medium, add the diced onion to the beef, and cook 3 minutes until softened, then stir in the minced garlic and cook 1 minute more.
+      7. [ T-53] (  2m cook) 
+         Stir the spice blend (chili powder, cumin, smoked paprika, oregano, salt, and pepper) and 2 tablespoons tomato paste into the beef, coating everything evenly and cooking 1 minute.
+      8. [ T-49] (  2m cook) 
+         Fold the drained black beans and 1½ cups chunky salsa into the beef mixture and stir to combine; remove from heat.
+      9. [    —] (  2m prep) 
+         Toss the 2 cups shredded cheddar and 1 cup Monterey Jack together in a bowl to make the cheese blend.
+     10. [ T-47] (  3m assemble) 
+         Spread a thin layer of the beef mixture across the bottom of the prepared baking dish, then lay 4 corn tortillas in an overlapping single layer on top.
+     11. [ T-47] (  5m assemble) 
+         Spoon half the remaining beef mixture over the tortillas and scatter ⅓ of the cheese blend on top; repeat with 4 more tortillas, the rest of the beef, and another ⅓ of the cheese, then finish with the final 4 tortillas and the remaining cheese.
+     12. [ T-45] ( 30m cook) 
+         Cover the dish tightly with foil and bake at 375 °F for 20 minutes, then uncover and bake a further 10 minutes until the cheese is melted and bubbling at the edges.
+     13. [ T-42] (  5m rest) 
+         Let the casserole rest uncovered for 5 minutes so the layers set before cutting.
+     14. [ T-37] (  2m assemble) 
+         Dollop ½ cup sour cream across the top, scatter the chopped cilantro, and add the 2 tablespoons pickled jalapeño slices (optional) before serving straight from the dish.

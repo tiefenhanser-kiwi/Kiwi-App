@@ -1,0 +1,524 @@
+PLAN 04a25763-bd01-4103-ba11-d5420ca0e6d8  [A05]  Part I · A05 · late-week proteins: smoker, braise, gyros, salmon
+  range 2026-10-04 .. 2026-10-10   meals 4   prep day 2026-10-04   shapes: days-5-7, long-passive, multi-3plus, aromatics, two-cuts, cold, toss-no-heat, bought-path, marinate, seafood
+
+══════════ PREP THE WEEK — full plan, as Screen 3 renders it ══════════
+  HEADER: 22 containers · about 85 min   (server total 111 · phone 77) · cacheHit=false · prompt v19
+  HELD: Add the boneless skinless chicken thighs the night before you cook them (Friday).
+  HELD: Texas-Style Smoked Brisket with Pinto Beans and Pickled Jalapeños (Wednesday, 3 days out) — trim the beef brisket flat that morning.
+  HELD: Braised Lamb Shanks with Creamy White Bean Mash and Gremolata (Thursday, 4 days out) — trim the lamb shanks that morning.
+  HELD: Lemon-Herb Chicken Gyros with Roasted Red Pepper and Hummus (Friday, 5 days out) — trim the boneless skinless chicken thighs that morning.
+  HELD: Blackened Salmon with Mango Avocado Salsa and Cilantro Rice (Saturday, 6 days out) — salmon fillets that morning.
+
+  ── seasonings_dry ──
+     1. Measure the Texas-Style Smoked Brisket rub bowl   (2 min)
+        Into the Texas-Style Smoked Brisket rub bowl:
+        2 tbsp coarse kosher salt
+        2 tbsp coarsely ground black pepper
+        1 tsp garlic powder
+        1 tsp smoked paprika
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Texas-Style Smoked Brisket with Pinto Beans and Pickled Jalapeños (Wednesday)
+     2. Measure the Blackened Salmon spice blend   (4 min)
+        Into the Blackened Salmon spice blend:
+        1½ tsp smoked paprika
+        1 tsp garlic powder
+        ½ tsp dried oregano
+        ½ tsp dried thyme
+        ½ tsp onion powder
+        ¼ tsp cayenne pepper
+        ½ tsp black pepper, freshly ground
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Blackened Salmon with Mango Avocado Salsa and Cilantro Rice (Saturday)
+     3. Measure the Lemon-Herb Chicken Gyros marinade bowl spices   (6 min)
+        Into the Lemon-Herb Chicken Gyros marinade bowl:
+        ½ tsp smoked paprika
+        1½ tsp dried oregano
+        ½ tsp ground cumin
+        ½ tsp dried thyme
+        
+        Also add 6 oz jarred roasted red peppers — drained and sliced into strips — into the Lemon-Herb Chicken Gyros marinade bowl.
+        
+        Set aside for the produce step.
+        » for: Lemon-Herb Chicken Gyros with Roasted Red Pepper and Hummus (Friday)
+     4. Measure the Slow-Cooked Pinto Beans spice blend   (2 min)
+        Into the Slow-Cooked Pinto Beans spice blend:
+        ½ tsp dried oregano
+        ½ tsp ground cumin
+        1 bay leaf
+        » storage: Airtight in the fridge — up to 3 days.
+        » for: Texas-Style Smoked Brisket with Pinto Beans and Pickled Jalapeños (Wednesday)
+  ×  5. Garlic powder and dried oregano — cook day   (1 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: Lemon-Herb Chicken Gyros with Roasted Red Pepper and Hummus (Friday)
+  ×  6. Liquid smoke — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Texas-Style Smoked Brisket with Pinto Beans and Pickled Jalapeños (Wednesday)
+  ×  7. Bay leaves — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Braised Lamb Shanks with Creamy White Bean Mash and Gremolata (Thursday)
+  ×  8. Hummus — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Lemon-Herb Chicken Gyros with Roasted Red Pepper and Hummus (Friday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Texas-Style Smoked Brisket with Pinto Beans and Pickled Jalapeños (Wednesday), Braised Lamb Shanks with Creamy White Bean Mash and Gremolata (Thursday), Lemon-Herb Chicken Gyros with Roasted Red Pepper and Hummus (Friday), Blackened Salmon with Mango Avocado Salsa and Cilantro Rice (Saturday)
+     2. Roughly chop all yellow onion   (5 min)
+        Roughly chop 2 yellow onions:
+        1 — into a tub labelled "Slow-Cooked Pinto Beans — chopped yellow onion"
+        1 — into the Red Wine Braised Lamb Shanks vegetables container
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Texas-Style Smoked Brisket with Pinto Beans and Pickled Jalapeños (Wednesday), Braised Lamb Shanks with Creamy White Bean Mash and Gremolata (Thursday)
+     3. Prep all garlic cloves   (6 min)
+        Thinly slice 2 cloves — into the Pickled Jalapeños sauce bowl.
+        
+        Smash and peel 6 cloves — into a tub labelled "Red Wine Braised Lamb Shanks — peeled garlic cloves".
+        
+        Mince 3 cloves and finely mince 2 cloves — into a tub labelled "Minced garlic cloves — Creamy White Bean Mash, Lemon-Parsley Gremolata".
+        
+        Mince 4 cloves — into the Lemon-Herb Chicken Gyros marinade bowl.
+        
+        Mince 1 clove — into a tub labelled "Tzatziki Sauce — garlic cloves, english cucumber and fresh dill".
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » for: Texas-Style Smoked Brisket with Pinto Beans and Pickled Jalapeños (Wednesday), Braised Lamb Shanks with Creamy White Bean Mash and Gremolata (Thursday), Lemon-Herb Chicken Gyros with Roasted Red Pepper and Hummus (Friday)
+     4. Prep all fresh jalapeños   (15 min)
+        Slice 6 jalapeños into ¼-inch rounds — into the Pickled Jalapeños sauce bowl.
+        
+        Seed and finely mince 1 jalapeño — into a tub labelled "Mango Avocado Salsa — fresh jalapeño, red onion, ripe mango and fresh cilantro".
+        » for: Texas-Style Smoked Brisket with Pinto Beans and Pickled Jalapeños (Wednesday), Blackened Salmon with Mango Avocado Salsa and Cilantro Rice (Saturday)
+     5. Peel and roughly chop the carrots   (3 min)
+        Peel and roughly chop 2 carrots — into the Red Wine Braised Lamb Shanks vegetables container.
+        » for: Braised Lamb Shanks with Creamy White Bean Mash and Gremolata (Thursday)
+     6. Roughly chop the celery stalks   (1 min)
+        Roughly chop 2 celery stalks — into the Red Wine Braised Lamb Shanks vegetables container.
+        » storage: Red Wine Braised Lamb Shanks vegetables: Airtight in the fridge — up to 4 days.
+        » for: Braised Lamb Shanks with Creamy White Bean Mash and Gremolata (Thursday)
+     7. Finely mince the fresh rosemary   (1 min)
+        Finely mince 1 tsp fresh rosemary — into a tub labelled "Creamy White Bean Mash — minced fresh rosemary".
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Braised Lamb Shanks with Creamy White Bean Mash and Gremolata (Thursday)
+  ×  8. Fresh thyme sprigs — cook day   (1 min)  [RENDER-OMITTED]
+        Nothing to cut — it goes in as it comes.
+        » for: Braised Lamb Shanks with Creamy White Bean Mash and Gremolata (Thursday)
+     9. Chop all fresh flat-leaf parsley   (4 min)
+        Finely chop ½ cup packed flat-leaf parsley — into a tub labelled "Lemon-Parsley Gremolata — finely chopped fresh flat-leaf parsley".
+        
+        Roughly chop the remaining parsley:
+        ¼ cup — into a tub labelled "Chopped fresh flat-leaf parsley — Lemon-Herb Chicken Gyros, Greek Lemon-Herb Fries"
+        2 tbsp — into the same tub labelled "Chopped fresh flat-leaf parsley — Lemon-Herb Chicken Gyros, Greek Lemon-Herb Fries"
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Braised Lamb Shanks with Creamy White Bean Mash and Gremolata (Thursday), Lemon-Herb Chicken Gyros with Roasted Red Pepper and Hummus (Friday)
+    10. Zest and juice all lemons   (5 min)
+        Zest 2 lemons, then juice them:
+        2 tsp zest — into a tub labelled "Lemon-Parsley Gremolata — lemon zest"
+        1 tsp zest — into the Lemon-Herb Chicken Gyros marinade bowl
+        3 tbsp juice — into the Lemon-Herb Chicken Gyros marinade bowl
+        1 tbsp juice — into a tub labelled "Fresh lemon juice — Tzatziki Sauce, Greek Lemon-Herb Fries"
+        1 tbsp juice — into the same tub labelled "Fresh lemon juice — Tzatziki Sauce, Greek Lemon-Herb Fries"
+        » storage: All 3 containers: Covered in the fridge — up to 3 days. Add the boneless skinless chicken thighs the night before you cook them (Friday).
+        » for: Braised Lamb Shanks with Creamy White Bean Mash and Gremolata (Thursday), Lemon-Herb Chicken Gyros with Roasted Red Pepper and Hummus (Friday)
+    11. Prep all English cucumber   (3 min)
+        Thinly slice ½ English cucumber into half-moons — into a tub labelled "Lemon-Herb Chicken Gyros — thinly sliced english cucumber".
+        
+        Grate the remaining ½ English cucumber and squeeze it dry in a clean kitchen towel — into a tub labelled "Tzatziki Sauce — garlic cloves, english cucumber and fresh dill".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Lemon-Herb Chicken Gyros with Roasted Red Pepper and Hummus (Friday)
+    12. Slice the roma tomatoes   (5 min)
+        Thinly slice 2 roma tomatoes — into a tub labelled "Lemon-Herb Chicken Gyros — thinly sliced roma tomatoes".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Lemon-Herb Chicken Gyros with Roasted Red Pepper and Hummus (Friday)
+    13. Prep all red onion   (3 min)
+        Thinly slice ½ red onion — into a tub labelled "Lemon-Herb Chicken Gyros — thinly sliced red onion".
+        
+        Finely dice ¼ red onion — into a tub labelled "Mango Avocado Salsa — fresh jalapeño, red onion, ripe mango and fresh cilantro".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Lemon-Herb Chicken Gyros with Roasted Red Pepper and Hummus (Friday), Blackened Salmon with Mango Avocado Salsa and Cilantro Rice (Saturday)
+    14. Finely chop the fresh dill   (1 min)
+        Finely chop 2 tbsp fresh dill — into a tub labelled "Tzatziki Sauce — garlic cloves, english cucumber and fresh dill".
+        » storage: Tzatziki Sauce — garlic cloves, english cucumber and fresh dill: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Tzatziki Sauce, Greek Lemon-Herb Fries separate; combi…
+        » for: Lemon-Herb Chicken Gyros with Roasted Red Pepper and Hummus (Friday)
+  × 15. Russet potatoes — cook day   (3 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Lemon-Herb Chicken Gyros with Roasted Red Pepper and Hummus (Friday)
+    16. Peel and dice the ripe mango   (1 min)
+        Peel and dice 1 ripe mango into ½-inch cubes — into a tub labelled "Mango Avocado Salsa — fresh jalapeño, red onion, ripe mango and fresh cilantro".
+        » for: Blackened Salmon with Mango Avocado Salsa and Cilantro Rice (Saturday)
+  × 17. Ripe avocado — cook day   (1 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Blackened Salmon with Mango Avocado Salsa and Cilantro Rice (Saturday)
+    18. Chop all fresh cilantro   (2 min)
+        Roughly chop 3 tbsp fresh cilantro — into a tub labelled "Mango Avocado Salsa — fresh jalapeño, red onion, ripe mango and fresh cilantro".
+        
+        Finely chop ¼ cup fresh cilantro — into a tub labelled "Cilantro-Lime Rice — finely chopped fresh cilantro".
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Mango Avocado Salsa, Cilantro-Lime Rice separate; combine on cook day (Saturday).
+        » for: Blackened Salmon with Mango Avocado Salsa and Cilantro Rice (Saturday)
+    19. Juice all limes   (3 min)
+        Juice enough limes to yield:
+        2 tbsp lime juice — into a tub labelled "Lime juice, freshly squeezed — Mango Avocado Salsa, Cilantro-Lime Rice"
+        2 tbsp lime juice — into the same tub labelled "Lime juice, freshly squeezed — Mango Avocado Salsa, Cilantro-Lime Rice"
+        
+        Zest the limes before juicing:
+        ½ tsp lime zest — into a tub labelled "Cilantro-Lime Rice — lime zest"
+        » storage: Both containers: Covered in the fridge — up to 3 days.
+        » for: Blackened Salmon with Mango Avocado Salsa and Cilantro Rice (Saturday)
+
+  ── sauces_marinades ──
+     1. Finish the Pickled Jalapeños sauce bowl   (2 min)
+        Pickled Jalapeños sauce bowl (garlic cloves and fresh jalapeño already in it): add
+        ½ cup white distilled vinegar
+        Stir to combine.
+        » storage: Covered in the fridge — up to 4 days.
+        » for: Texas-Style Smoked Brisket with Pinto Beans and Pickled Jalapeños (Wednesday)
+  ×  2. Worcestershire sauce — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Texas-Style Smoked Brisket with Pinto Beans and Pickled Jalapeños (Wednesday)
+  ×  3. Dry red wine — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Braised Lamb Shanks with Creamy White Bean Mash and Gremolata (Thursday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+  ×  1. Beef brisket flat — cook day   (8 min)  [RENDER-OMITTED]
+        Trim 2½ lb beef brisket flat to a ¼-inch fat cap.
+        » storage: This one is 3 days out — leave it for cook day.
+        » for: Texas-Style Smoked Brisket with Pinto Beans and Pickled Jalapeños (Wednesday)
+  ×  2. Smoked ham hock — cook day   (1 min)  [RENDER-OMITTED]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+        » for: Texas-Style Smoked Brisket with Pinto Beans and Pickled Jalapeños (Wednesday)
+  ×  3. Lamb shanks — cook day   (3 min)  [RENDER-OMITTED]
+        Trim 4 bone-in lamb shanks of excess fat.
+        » storage: This one is 4 days out — leave it for cook day.
+        » for: Braised Lamb Shanks with Creamy White Bean Mash and Gremolata (Thursday)
+  ×  4. Boneless skinless chicken thighs — cook day   (6 min)  [RENDER-OMITTED]
+        Trim 1¾ lb boneless skinless chicken thighs of any excess fat and sinew.
+        » storage: This one is 5 days out — leave it for cook day.
+        » for: Lemon-Herb Chicken Gyros with Roasted Red Pepper and Hummus (Friday)
+  ×  5. Salmon fillets — cook day   (5 min)  [RENDER-OMITTED]
+        Pat 24 oz salmon fillets (four 6-oz portions) thoroughly dry with paper towels.
+        » storage: This one is 6 days out — leave it for cook day.
+        » for: Blackened Salmon with Mango Avocado Salsa and Cilantro Rice (Saturday)
+
+══════════ PREP SELECTED MEALS — Texas-Style Smoked Brisket with Pinto Beans and Pickled Jalapeños + Blackened Salmon with Mango Avocado Salsa and Cilantro Rice ══════════
+  HEADER: 9 containers · about 50 min   (server total 58 · phone 41) · cacheHit=false · prompt v19
+  HELD: Texas-Style Smoked Brisket with Pinto Beans and Pickled Jalapeños (Wednesday, 3 days out) — trim the beef brisket flat that morning.
+  HELD: Blackened Salmon with Mango Avocado Salsa and Cilantro Rice (Saturday, 6 days out) — salmon fillets that morning.
+
+  ── seasonings_dry ──
+     1. Measure the Texas-Style Smoked Brisket rub bowl   (2 min)
+        Into the Texas-Style Smoked Brisket rub bowl:
+        2 tbsp coarse kosher salt
+        2 tbsp coarsely ground black pepper
+        1 tsp garlic powder
+        1 tsp smoked paprika
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Texas-Style Smoked Brisket with Pinto Beans and Pickled Jalapeños (Wednesday)
+     2. Measure the Blackened Salmon spice blend   (4 min)
+        Into the Blackened Salmon spice blend:
+        1 tsp garlic powder
+        1½ tsp smoked paprika
+        ½ tsp dried oregano
+        ½ tsp onion powder
+        ½ tsp dried thyme
+        ¼ tsp cayenne pepper
+        ½ tsp black pepper, freshly ground
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Blackened Salmon with Mango Avocado Salsa and Cilantro Rice (Saturday)
+     3. Measure the Slow-Cooked Pinto Beans spice blend   (2 min)
+        Into the Slow-Cooked Pinto Beans spice blend:
+        ½ tsp dried oregano
+        ½ tsp ground cumin
+        1 bay leaf
+        » storage: Airtight in the fridge — up to 3 days.
+        » for: Texas-Style Smoked Brisket with Pinto Beans and Pickled Jalapeños (Wednesday)
+  ×  4. Liquid smoke — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Texas-Style Smoked Brisket with Pinto Beans and Pickled Jalapeños (Wednesday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Texas-Style Smoked Brisket with Pinto Beans and Pickled Jalapeños (Wednesday), Blackened Salmon with Mango Avocado Salsa and Cilantro Rice (Saturday)
+     2. Roughly chop the yellow onion for Slow-Cooked Pinto Beans   (3 min)
+        Roughly chop 1 yellow onion — into a tub labelled "Slow-Cooked Pinto Beans — chopped yellow onion".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Texas-Style Smoked Brisket with Pinto Beans and Pickled Jalapeños (Wednesday)
+     3. Thinly slice garlic for Pickled Jalapeños   (1 min)
+        Thinly slice 2 garlic cloves — into the Pickled Jalapeños sauce bowl.
+        » for: Texas-Style Smoked Brisket with Pinto Beans and Pickled Jalapeños (Wednesday)
+     4. Prep all fresh jalapeños   (15 min)
+        Slice 6 jalapeños into ¼-inch rounds — into the Pickled Jalapeños sauce bowl.
+        Seed and finely mince 1 jalapeño — into a tub labelled "Mango Avocado Salsa — fresh jalapeño, ripe mango, red onion and fresh cilantro".
+        » for: Texas-Style Smoked Brisket with Pinto Beans and Pickled Jalapeños (Wednesday), Blackened Salmon with Mango Avocado Salsa and Cilantro Rice (Saturday)
+     5. Dice the mango for Mango Avocado Salsa   (1 min)
+        Peel and dice 1 ripe mango into ½-inch cubes — into a tub labelled "Mango Avocado Salsa — fresh jalapeño, ripe mango, red onion and fresh cilantro".
+        » for: Blackened Salmon with Mango Avocado Salsa and Cilantro Rice (Saturday)
+  ×  6. Ripe avocado — cook day   (1 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Blackened Salmon with Mango Avocado Salsa and Cilantro Rice (Saturday)
+     7. Finely dice the red onion for Mango Avocado Salsa   (3 min)
+        Finely dice ¼ red onion — into a tub labelled "Mango Avocado Salsa — fresh jalapeño, ripe mango, red onion and fresh cilantro".
+        » for: Blackened Salmon with Mango Avocado Salsa and Cilantro Rice (Saturday)
+     8. Chop all fresh cilantro   (2 min)
+        Roughly chop cilantro for Mango Avocado Salsa:
+        3 tbsp — into a tub labelled "Mango Avocado Salsa — fresh jalapeño, ripe mango, red onion and fresh cilantro"
+        Finely chop cilantro for Cilantro-Lime Rice:
+        ¼ cup — into a tub labelled "Cilantro-Lime Rice — finely chopped fresh cilantro"
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days. Keep the Mango Avocado Salsa, Cilantro-Lime Rice separate; combine on cook day (Saturday).
+        » for: Blackened Salmon with Mango Avocado Salsa and Cilantro Rice (Saturday)
+     9. Juice and zest all limes   (3 min)
+        Juice the limes and zest one:
+        Juice for Mango Avocado Salsa and Cilantro-Lime Rice:
+        2 tbsp for Mango Avocado Salsa — into a tub labelled "Lime juice, freshly squeezed — Mango Avocado Salsa, Cilantro-Lime Rice"
+        2 tbsp for Cilantro-Lime Rice — into a tub labelled "Lime juice, freshly squeezed — Mango Avocado Salsa, Cilantro-Lime Rice"
+        Zest for Cilantro-Lime Rice:
+        ½ tsp — into a tub labelled "Cilantro-Lime Rice — lime zest"
+        » storage: Both containers: Covered in the fridge — up to 3 days.
+        » for: Blackened Salmon with Mango Avocado Salsa and Cilantro Rice (Saturday)
+
+  ── sauces_marinades ──
+     1. Finish the Pickled Jalapeños sauce bowl   (2 min)
+        Pickled Jalapeños sauce bowl (garlic cloves and fresh jalapeño already in it): add
+        ½ cup white distilled vinegar
+        Stir to combine.
+        » storage: Covered in the fridge — up to 4 days.
+        » for: Texas-Style Smoked Brisket with Pinto Beans and Pickled Jalapeños (Wednesday)
+  ×  2. Worcestershire sauce — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Texas-Style Smoked Brisket with Pinto Beans and Pickled Jalapeños (Wednesday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+  ×  1. Beef brisket flat — cook day   (8 min)  [RENDER-OMITTED]
+        Trim 2½ lb beef brisket flat to a ¼-inch fat cap.
+        » storage: This one is 3 days out — leave it for cook day.
+        » for: Texas-Style Smoked Brisket with Pinto Beans and Pickled Jalapeños (Wednesday)
+  ×  2. Smoked ham hock — cook day   (1 min)  [RENDER-OMITTED]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+        » for: Texas-Style Smoked Brisket with Pinto Beans and Pickled Jalapeños (Wednesday)
+  ×  3. Salmon fillets — cook day   (5 min)  [RENDER-OMITTED]
+        Pat 24 oz salmon fillets (four 6-oz fillets) thoroughly dry with paper towels.
+        » storage: This one is 6 days out — leave it for cook day.
+        » for: Blackened Salmon with Mango Avocado Salsa and Cilantro Rice (Saturday)
+
+  subset ticks: 12 keys, 0 not in the full plan; required for these meals 13, uncovered 6; isPrepped {"Texas-Style Smoked Brisket wit":false,"Blackened Salmon with Mango Av":false}
+
+══════════ COOK MODE (cook-session.tsx: sequenced if multi-dish, flattened if single) ══════════
+
+  ▸ Texas-Style Smoked Brisket with Pinto Beans and Pickled Jalapeños   [Wednesday]  SEQUENCED
+    footer 226 min | scheduler 226 | card 226 | fresh derive 226 | dishes 3
+      1. [T-226] (  3m prep) Texas-Style Smoked Brisket
+         Pat the 2½-pound brisket flat dry with paper towels, then rub 1 tablespoon neutral oil evenly over all sides.
+      2. [T-223] (  3m prep) Texas-Style Smoked Brisket
+         Mix 2 tablespoons coarse kosher salt, 2 tablespoons coarsely ground black pepper, 1 teaspoon garlic powder, and 1 teaspoon smoked paprika in a small bowl.
+      3. [T-220] (  3m prep) Texas-Style Smoked Brisket
+         Press the rub firmly onto all sides of the oiled brisket, coating evenly.
+      4. [T-217] ( 15m preheat) Texas-Style Smoked Brisket
+         Preheat the oven to 300°F.
+      5. [T-217] (  2m prep) Texas-Style Smoked Brisket
+         Whisk together ½ cup beef broth, 1 tablespoon Worcestershire sauce, and 1½ teaspoons liquid smoke in a small bowl.
+      6. [T-215] (  8m cook) Texas-Style Smoked Brisket
+         Heat a large oven-safe Dutch oven or heavy skillet over high heat until smoking; sear the brisket fat-side down for 4 minutes, then flip and sear the other side for 3 minutes until a deep brown crust forms.
+      7. [T-202] (180m cook) Texas-Style Smoked Brisket
+         Pour the broth mixture into the bottom of the Dutch oven around (not over) the brisket, cover tightly with a lid or heavy-duty foil, and braise in the oven for 3 hours until fork-tender.
+      8. [T-139] (  4m prep) Slow-Cooked Pinto Beans
+         ⟶ With the Texas-Style Smoked Brisket cooking, start on the Slow-Cooked Pinto Beans.
+         Roughly chop the yellow onion and smash 4 garlic cloves.
+      9. [T-135] (  2m prep) Slow-Cooked Pinto Beans
+         Drain and rinse the overnight-soaked 1½ cups dried pinto beans.
+     10. [T-133] (  3m cook) Slow-Cooked Pinto Beans
+         Combine the drained dried beans, onion, garlic, smoked ham hock, 3 cups beef broth, 1 cup water, ½ teaspoon dried oregano, ½ teaspoon ground cumin, 1 teaspoon kosher salt, ½ teaspoon black pepper, and 1 bay leaf in a large pot.
+     11. [T-130] (120m cook) Slow-Cooked Pinto Beans
+         Bring the pot to a boil over high heat, then reduce to a gentle simmer, cover partially, and cook for 2 hours until the dried beans are completely tender and creamy, adding water ¼ cup at a time if the liquid drops below the beans.
+     12. [ T-34] (  5m prep) Pickled Jalapeños
+         ⟶ With the Texas-Style Smoked Brisket cooking, start on the Pickled Jalapeños.
+         Slice 6 fresh jalapeños into ¼-inch rounds and thinly slice 2 garlic cloves.
+     13. [ T-29] (  5m cook) Pickled Jalapeños
+         Combine ½ cup white distilled vinegar, ½ cup water, 1 teaspoon granulated sugar, 1 teaspoon kosher salt, and ½ teaspoon black peppercorns in a small saucepan and bring to a boil over medium-high heat, stirring until the salt and sugar dissolve.
+     14. [ T-24] ( 20m rest) Pickled Jalapeños
+         Pack the jalapeño rounds and sliced garlic into a heatproof jar or bowl, pour the hot brine over them, and let cool to room temperature for at least 20 minutes before serving.
+     15. [ T-22] ( 15m rest) Texas-Style Smoked Brisket
+         ⟶ With the Slow-Cooked Pinto Beans marinating, start on the Texas-Style Smoked Brisket.
+         Remove the brisket from the oven, tent loosely with foil, and rest for 15 minutes before slicing.
+     16. [ T-10] (  5m cook) Slow-Cooked Pinto Beans
+         ⟶ With the Pickled Jalapeños marinating, start on the Slow-Cooked Pinto Beans.
+         Remove the ham hock and bay leaf; pull any meat from the hock, shred it, and stir it back into the beans.
+     17. [  T-7] (  4m assemble) Texas-Style Smoked Brisket
+         ⟶ With the Pickled Jalapeños marinating, start on the Texas-Style Smoked Brisket.
+         Slice the brisket against the grain into ½-inch-thick slabs and arrange on a serving platter; spoon any pan juices over the top.
+     18. [  T-3] (  2m assemble) Slow-Cooked Pinto Beans
+         Taste and adjust salt, then ladle the beans into a serving bowl.
+     19. [  T-1] (  1m assemble) Pickled Jalapeños
+         Set the jalapeños on the table alongside the brisket and beans for guests to add as desired.
+
+  ▸ Braised Lamb Shanks with Creamy White Bean Mash and Gremolata   [Thursday]  SEQUENCED
+    footer 198 min | scheduler 198 | card 198 | fresh derive 198 | dishes 3
+      1. [T-198] (  4m prep) Red Wine Braised Lamb Shanks
+         Pat the 4 lamb shanks dry with paper towels, then season all over with 2 teaspoons kosher salt and 1 teaspoon freshly ground black pepper.
+      2. [T-194] (  8m prep) Red Wine Braised Lamb Shanks
+         Roughly chop the yellow onion, peel and roughly chop the 2 carrots, roughly chop the 2 celery stalks, and smash and peel the 6 garlic cloves.
+      3. [T-186] ( 15m preheat) Red Wine Braised Lamb Shanks
+         Preheat the oven to 325°F.
+      4. [T-186] ( 12m cook) Red Wine Braised Lamb Shanks
+         Heat 3 tablespoons olive oil in a large Dutch oven over medium-high; sear the lamb shanks in batches, turning every 2–3 minutes, until deeply browned on all sides, about 10–12 minutes total per batch — do not crowd the pot.
+      5. [T-174] (  6m cook) Red Wine Braised Lamb Shanks
+         Transfer the browned shanks to a plate; reduce heat to medium and add the onion, carrot, and celery to the pot, scraping up any browned bits, and cook until softened, about 6 minutes.
+      6. [T-174] (  2m cook) Red Wine Braised Lamb Shanks
+         Add the 6 garlic cloves and 3 tablespoons tomato paste and stir constantly for 2 minutes until the paste darkens slightly and coats the vegetables.
+      7. [T-172] (  4m cook) Red Wine Braised Lamb Shanks
+         Pour in 1½ cups dry red wine and scrape the bottom of the pot clean; let it bubble and reduce by half, about 4 minutes.
+      8. [T-172] (  3m cook) Red Wine Braised Lamb Shanks
+         Add the 14 oz can of crushed San Marzano tomatoes, 2 cups chicken stock, 3 rosemary sprigs, 4 thyme sprigs, and 2 bay leaves; nestle the seared lamb shanks back into the pot, submerging them as much as possible.
+      9. [T-168] (150m cook) Red Wine Braised Lamb Shanks
+         Cover the Dutch oven tightly and braise in the 325°F oven until the lamb is fall-off-the-bone tender, about 2½ hours; flip the shanks once at the halfway point.
+     10. [ T-22] (  4m prep) Creamy White Bean Mash
+         ⟶ With the Red Wine Braised Lamb Shanks cooking, start on the Creamy White Bean Mash.
+         Drain and rinse the three 15 oz cans of cannellini beans and mince the 3 garlic cloves.
+     11. [ T-18] ( 10m cook) Red Wine Braised Lamb Shanks
+         Transfer the shanks to a plate; discard the rosemary sprigs, thyme sprigs, and bay leaves, then simmer the braising liquid over medium-high on the stovetop for 8–10 minutes until slightly thickened into a glossy sauce.
+     12. [ T-18] (  3m cook) Creamy White Bean Mash
+         ⟶ With the Red Wine Braised Lamb Shanks cooking, start on the Creamy White Bean Mash.
+         Warm ½ cup chicken stock in a small saucepan or microwave until just steaming; set aside.
+     13. [ T-18] (  2m cook) Creamy White Bean Mash
+         Heat 3 tablespoons olive oil and 2 tablespoons butter in a medium saucepan over medium; add the minced garlic and 1 teaspoon finely minced fresh rosemary and cook, stirring, for 90 seconds until fragrant but not browned.
+     14. [ T-15] (  4m cook) Creamy White Bean Mash
+         Add the drained cannellini beans and warm chicken stock to the pan; stir to combine and cook over medium for 4 minutes until the beans are heated through.
+     15. [ T-14] (  6m prep) Lemon-Parsley Gremolata
+         ⟶ With the Red Wine Braised Lamb Shanks cooking, start on the Lemon-Parsley Gremolata.
+         Finely chop ½ cup packed flat-leaf parsley leaves, finely mince 2 garlic cloves, and zest 2 lemons to yield 2 teaspoons zest.
+     16. [  T-8] (  5m rest) Red Wine Braised Lamb Shanks
+         Return the shanks to the pot and let them rest in the sauce for 5 minutes before serving.
+     17. [  T-8] (  3m cook) Creamy White Bean Mash
+         ⟶ With the Red Wine Braised Lamb Shanks resting, start on the Creamy White Bean Mash.
+         Using a potato masher or the back of a large spoon, mash the beans to a creamy, slightly chunky consistency — leave some texture rather than pureeing completely smooth.
+     18. [  T-8] (  2m assemble) Lemon-Parsley Gremolata
+         ⟶ With the Red Wine Braised Lamb Shanks resting, start on the Lemon-Parsley Gremolata.
+         Combine the parsley, lemon zest, minced garlic, 1 tablespoon extra-virgin olive oil, and ¼ teaspoon flaky sea salt in a small bowl and stir to mix.
+     19. [  T-6] (  3m assemble) Lemon-Parsley Gremolata
+         Spoon the white bean mash into shallow bowls, lay a braised lamb shank on top, ladle over the braising sauce, and finish each bowl with a generous spoonful of gremolata.
+     20. [  T-5] (  5m hold) Creamy White Bean Mash
+         ⟶ With the Red Wine Braised Lamb Shanks resting, start on the Creamy White Bean Mash.
+         Season with ¾ teaspoon kosher salt and ½ teaspoon freshly ground black pepper, taste and adjust, then keep warm over the lowest heat setting until ready to serve.
+
+  ▸ Lemon-Herb Chicken Gyros with Roasted Red Pepper and Hummus   [Friday]  SEQUENCED
+    footer 62 min | scheduler 62 | card 62 | fresh derive 62 | dishes 3
+      1. [ T-62] ( 15m preheat) Greek Lemon-Herb Fries
+         Preheat the oven to 425 °F and line a large rimmed baking sheet with parchment paper.
+      2. [ T-62] (  8m prep) Greek Lemon-Herb Fries
+         Cut 1½ pounds russet potatoes into thin wedges or sticks (about ½ inch thick), pat completely dry with paper towels, and transfer to a large bowl.
+      3. [ T-54] (  3m prep) Greek Lemon-Herb Fries
+         Toss the potato wedges with 2 tablespoons olive oil, ¾ teaspoon dried oregano, ½ teaspoon garlic powder, ¾ teaspoon kosher salt, and ¼ teaspoon black pepper until evenly coated.
+      4. [ T-51] (  5m prep) Lemon-Herb Chicken Gyros
+         ⟶ With the Greek Lemon-Herb Fries heating up, start on the Lemon-Herb Chicken Gyros.
+         Whisk together 3 tablespoons olive oil, 3 tablespoons fresh lemon juice, 1 teaspoon lemon zest, 4 minced garlic cloves, 1½ teaspoons dried oregano, ½ teaspoon dried thyme, ½ teaspoon ground cumin, ½ teaspoon smoked paprika, 1 teaspoon kosher salt, and ½ teaspoon black pepper in a large bowl.
+      5. [ T-46] ( 15m rest) Lemon-Herb Chicken Gyros
+         Add the 1¾ pounds trimmed chicken thighs to the marinade, turn to coat thoroughly, cover, and let sit at room temperature for at least 15 minutes (or refrigerate up to 4 hours).
+      6. [ T-46] (  8m prep) Lemon-Herb Chicken Gyros
+         Drain the 6 oz jarred roasted red peppers and slice into strips; thinly slice ½ English cucumber into half-moons, slice 2 roma tomatoes, thinly slice ½ red onion, and roughly chop ¼ cup flat-leaf parsley — arrange all on a platter.
+      7. [ T-38] ( 33m cook) Greek Lemon-Herb Fries
+         ⟶ With the Lemon-Herb Chicken Gyros chilling, start on the Greek Lemon-Herb Fries.
+         Spread the seasoned potatoes in a single layer on the prepared baking sheet without overlapping, and roast at 425 °F for 30–35 minutes, flipping once halfway through, until golden and crispy on the edges.
+      8. [ T-36] (  5m prep) Tzatziki Sauce
+         ⟶ With the Lemon-Herb Chicken Gyros chilling, start on the Tzatziki Sauce.
+         Grate ½ English cucumber on the large holes of a box grater, then wrap in a clean kitchen towel and squeeze firmly to remove as much liquid as possible.
+      9. [ T-31] ( 12m cook) Lemon-Herb Chicken Gyros
+         ⟶ With the Greek Lemon-Herb Fries cooking, start on the Lemon-Herb Chicken Gyros.
+         Heat a large cast-iron skillet or grill pan over medium-high heat until very hot, then cook the marinated chicken thighs 5–6 minutes per side until deeply charred and cooked through to 165 °F internal temperature.
+     10. [ T-19] (  5m rest) Lemon-Herb Chicken Gyros
+         Transfer the chicken to a cutting board and rest 5 minutes, then slice thinly across the grain.
+     11. [ T-19] (  4m prep) Tzatziki Sauce
+         ⟶ With the Greek Lemon-Herb Fries cooking, start on the Tzatziki Sauce.
+         Stir together 1 cup full-fat Greek yogurt, the squeezed cucumber, 1 minced garlic clove, 1 tablespoon fresh lemon juice, 2 tablespoons finely chopped fresh dill, 1 tablespoon olive oil, ¼ teaspoon kosher salt, and ⅛ teaspoon black pepper until combined.
+     12. [ T-15] (  3m cook) Lemon-Herb Chicken Gyros
+         ⟶ With the Greek Lemon-Herb Fries cooking, start on the Lemon-Herb Chicken Gyros.
+         Warm the 4 pita breads directly over a gas burner or in a dry skillet for 30–45 seconds per side until soft and pliable.
+     13. [ T-15] ( 15m rest) Tzatziki Sauce
+         ⟶ With the Greek Lemon-Herb Fries cooking, start on the Tzatziki Sauce.
+         Cover and refrigerate the tzatziki for at least 15 minutes to let the flavors meld, then serve chilled alongside the gyros.
+     14. [ T-12] (  4m assemble) Lemon-Herb Chicken Gyros
+         ⟶ With the Greek Lemon-Herb Fries cooking, start on the Lemon-Herb Chicken Gyros.
+         Spread 2 tablespoons hummus across each warm pita, layer with sliced chicken, roasted red pepper strips, cucumber, tomato, red onion, and parsley, then fold and serve immediately.
+     15. [  T-5] (  2m assemble) Greek Lemon-Herb Fries
+         ⟶ With the Tzatziki Sauce chilling, start on the Greek Lemon-Herb Fries.
+         Transfer the fries to a serving platter, squeeze 1 tablespoon fresh lemon juice over the top, and scatter 2 tablespoons roughly chopped flat-leaf parsley over before serving.
+
+  ▸ Blackened Salmon with Mango Avocado Salsa and Cilantro Rice   [Saturday]  SEQUENCED
+    footer 38 min | scheduler 38 | card 38 | fresh derive 38 | dishes 3
+      1. [ T-38] (  3m prep) Cilantro-Lime Rice
+         Rinse 1½ cups long-grain white rice in a fine-mesh strainer under cold water, stirring with your hand, until the water runs clear.
+      2. [ T-35] (  5m cook) Cilantro-Lime Rice
+         Combine the rinsed rice, 2¼ cups water, ½ teaspoon kosher salt, and 1 tablespoon unsalted butter in a medium saucepan and bring to a boil over medium-high heat.
+      3. [ T-30] (  5m prep) Mango Avocado Salsa
+         Peel and dice 1 ripe mango into ½-inch cubes and finely dice ¼ of a red onion; add both to a medium bowl.
+      4. [ T-25] (  3m prep) Blackened Salmon
+         In a small bowl, combine 1½ teaspoons smoked paprika, 1 teaspoon garlic powder, ½ teaspoon onion powder, ½ teaspoon dried oregano, ½ teaspoon dried thyme, ¼ teaspoon cayenne, ½ teaspoon black pepper, and ¾ teaspoon kosher salt; stir together into a blackening rub.
+      5. [ T-25] ( 15m cook) Cilantro-Lime Rice
+         Reduce the heat to the lowest setting, cover tightly, and cook for 15 minutes until all water is absorbed and the rice is tender.
+      6. [ T-22] (  4m prep) Mango Avocado Salsa
+         ⟶ With the Cilantro-Lime Rice cooking, start on the Mango Avocado Salsa.
+         Seed and finely mince 1 jalapeño, then roughly chop 3 tablespoons fresh cilantro; add both to the bowl.
+      7. [ T-18] (  3m prep) Blackened Salmon
+         ⟶ With the Cilantro-Lime Rice cooking, start on the Blackened Salmon.
+         Pat the four 6-oz skin-on salmon fillets thoroughly dry with paper towels, then press the blackening rub firmly onto all flesh-side surfaces of each fillet.
+      8. [ T-15] (  2m prep) Mango Avocado Salsa
+         ⟶ With the Cilantro-Lime Rice cooking, start on the Mango Avocado Salsa.
+         Squeeze 2 tablespoons fresh lime juice over the bowl, add ¼ teaspoon kosher salt, and stir gently to combine.
+      9. [ T-13] (  3m preheat) Blackened Salmon
+         ⟶ With the Cilantro-Lime Rice cooking, start on the Blackened Salmon.
+         Heat 2 tablespoons neutral oil in a large cast-iron or heavy skillet over medium-high until the oil just begins to smoke.
+     10. [ T-13] (  4m assemble) Mango Avocado Salsa
+         ⟶ With the Cilantro-Lime Rice cooking, start on the Mango Avocado Salsa.
+         Just before serving, pit, peel, and dice 2 ripe avocados into ½-inch cubes and fold them gently into the salsa so they stay intact and don't brown.
+     11. [ T-10] (  5m rest) Cilantro-Lime Rice
+         Remove the pan from the heat and let the rice steam, covered and undisturbed, for 5 minutes.
+     12. [  T-9] (  4m cook) Blackened Salmon
+         ⟶ With the Cilantro-Lime Rice cooking, start on the Blackened Salmon.
+         Place the fillets skin-side up in the skillet and cook undisturbed for 3–4 minutes until a dark, charred crust forms on the flesh side.
+     13. [  T-5] (  3m cook) Blackened Salmon
+         Flip the fillets skin-side down and cook a further 2–3 minutes until the skin is crisp and the fish is just cooked through and flakes easily at the thickest point.
+     14. [  T-2] (  2m rest) Blackened Salmon
+         Transfer the salmon to a plate and rest 2 minutes, then serve with lime wedges alongside.
+     15. [  T-2] (  2m assemble) Cilantro-Lime Rice
+         ⟶ With the Blackened Salmon resting, start on the Cilantro-Lime Rice.
+         Uncover, drizzle in 2 tablespoons fresh lime juice, add ½ teaspoon lime zest and ¼ cup finely chopped fresh cilantro, then fluff and fold everything together with a fork.
+
+══════════ COOK MODE — PREPPED PATH: Braised Lamb Shanks with Creamy White Bean Mash and Gremolata ══════════
+  ticked 8 rendered prep steps → isPrepped=false; + every wire step for the meal (12) → isPrepped=true; blockers [{"stepKey":"proteins#3bb3409e-ef22-4a59-9df2-a7d38cf1854c","onWire":true,"rendered":false,"title":"Lamb shanks — cook day","skipSuggested":true}]
+  recap ("You already prepped this — get your:"):
+    · Pat the 4 lamb shanks dry with paper towels, then season all over with 2 teaspoons kosher salt and 1 teaspoon freshly ground black pepper.
+    · Roughly chop the yellow onion, peel and roughly chop the 2 carrots, roughly chop the 2 celery stalks, and smash and peel the 6 garlic cloves.
+    · Drain and rinse the three 15 oz cans of cannellini beans and mince the 3 garlic cloves.
+    · Finely chop ½ cup packed flat-leaf parsley leaves, finely mince 2 garlic cloves, and zest 2 lemons to yield 2 teaspoons zest.
+  footer 186 min; steps after the prep filter:
+      1. [T-186] (preheat) Red Wine Braised Lamb Shanks
+         Preheat the oven to 325°F.
+      2. [T-186] (cook) Red Wine Braised Lamb Shanks
+         Heat 3 tablespoons olive oil in a large Dutch oven over medium-high; sear the lamb shanks in batches, turning every 2–3 minutes, until deeply browned on all sides, about 10–12 minutes total per batch — do not crowd the pot.
+      3. [T-174] (cook) Red Wine Braised Lamb Shanks
+         Transfer the browned shanks to a plate; reduce heat to medium and add the onion, carrot, and celery to the pot, scraping up any browned bits, and cook until softened, about 6 minutes.
+      4. [T-174] (cook) Red Wine Braised Lamb Shanks
+         Add the 6 garlic cloves and 3 tablespoons tomato paste and stir constantly for 2 minutes until the paste darkens slightly and coats the vegetables.
+      5. [T-172] (cook) Red Wine Braised Lamb Shanks
+         Pour in 1½ cups dry red wine and scrape the bottom of the pot clean; let it bubble and reduce by half, about 4 minutes.
+      6. [T-172] (cook) Red Wine Braised Lamb Shanks
+         Add the 14 oz can of crushed San Marzano tomatoes, 2 cups chicken stock, 3 rosemary sprigs, 4 thyme sprigs, and 2 bay leaves; nestle the seared lamb shanks back into the pot, submerging them as much as possible.
+      7. [T-168] (cook) Red Wine Braised Lamb Shanks
+         Cover the Dutch oven tightly and braise in the 325°F oven until the lamb is fall-off-the-bone tender, about 2½ hours; flip the shanks once at the halfway point.
+      8. [T-18] (cook) Red Wine Braised Lamb Shanks
+         Transfer the shanks to a plate; discard the rosemary sprigs, thyme sprigs, and bay leaves, then simmer the braising liquid over medium-high on the stovetop for 8–10 minutes until slightly thickened into a glossy sauce.
+      9. [T-18] (cook) Creamy White Bean Mash  ⟶ With the Red Wine Braised Lamb Shanks cooking, start on the Creamy White Bean Mash.
+         Warm ½ cup chicken stock in a small saucepan or microwave until just steaming; set aside.
+     10. [T-18] (cook) Creamy White Bean Mash
+         Heat 3 tablespoons olive oil and 2 tablespoons butter in a medium saucepan over medium; add the minced garlic and 1 teaspoon finely minced fresh rosemary and cook, stirring, for 90 seconds until fragrant but not browned.
+     11. [T-15] (cook) Creamy White Bean Mash
+         Add the drained cannellini beans and warm chicken stock to the pan; stir to combine and cook over medium for 4 minutes until the beans are heated through.
+     12. [T-8] (rest) Red Wine Braised Lamb Shanks
+         Return the shanks to the pot and let them rest in the sauce for 5 minutes before serving.
+     13. [T-8] (cook) Creamy White Bean Mash  ⟶ With the Red Wine Braised Lamb Shanks resting, start on the Creamy White Bean Mash.
+         Using a potato masher or the back of a large spoon, mash the beans to a creamy, slightly chunky consistency — leave some texture rather than pureeing completely smooth.
+     14. [T-8] (assemble) Lemon-Parsley Gremolata  ⟶ With the Red Wine Braised Lamb Shanks resting, start on the Lemon-Parsley Gremolata.
+         Combine the parsley, lemon zest, minced garlic, 1 tablespoon extra-virgin olive oil, and ¼ teaspoon flaky sea salt in a small bowl and stir to mix.
+     15. [T-6] (assemble) Lemon-Parsley Gremolata
+         Spoon the white bean mash into shallow bowls, lay a braised lamb shank on top, ladle over the braising sauce, and finish each bowl with a generous spoonful of gremolata.
+     16. [T-5] (hold) Creamy White Bean Mash  ⟶ With the Red Wine Braised Lamb Shanks resting, start on the Creamy White Bean Mash.
+         Season with ¾ teaspoon kosher salt and ½ teaspoon freshly ground black pepper, taste and adjust, then keep warm over the lowest heat setting until ready to serve.

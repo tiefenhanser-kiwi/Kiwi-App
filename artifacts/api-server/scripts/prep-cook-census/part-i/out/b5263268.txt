@@ -1,0 +1,309 @@
+PLAN b5263268-64c7-41ff-a8f2-20c01a2b905e  [E-b5263268]  Your 5-Meal Lineup — Exactly as You Described
+  range 2026-09-29 .. 2026-10-04   meals 5   prep day 2026-10-03   shapes: days-5-7, cold, long-passive, multi-3plus, aromatics, two-cuts, single-dish
+
+══════════ PREP THE WEEK — full plan, as Screen 3 renders it ══════════
+  (HTTP 502: validation_failed Kiwi got distracted. Try again?)
+
+══════════ PREP SELECTED MEALS — Smoky Chipotle Ground Beef Tacos with Avocado Crema + Classic Glazed Meatloaf with Mashed Potatoes and Green Beans ══════════
+  HEADER: 12 containers · about 45 min   (server total 45 · phone 39) · cacheHit=false · prompt v19
+
+  ── seasonings_dry ──
+     1. Measure the Smoky Chipotle Ground Beef sauce jar spices   (3 min)
+        Into the Smoky Chipotle Ground Beef sauce jar:
+        1½ tsp ground cumin
+        1 tsp smoked paprika
+        ½ tsp dried oregano
+        Set aside for the produce step.
+        » for: Smoky Chipotle Ground Beef Tacos with Avocado Crema (Thursday)
+     2. Measure the Classic Glazed Meatloaf mix-ins bowl dry ingredients   (2 min)
+        Into the Classic Glazed Meatloaf mix-ins bowl:
+        ½ cup plain breadcrumbs
+        ½ tsp dried thyme
+        1 tbsp brown sugar (for glaze)
+        Set aside for the sauces and marinades step.
+        » for: Classic Glazed Meatloaf with Mashed Potatoes and Green Beans (Friday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Smoky Chipotle Ground Beef Tacos with Avocado Crema (Thursday), Classic Glazed Meatloaf with Mashed Potatoes and Green Beans (Friday)
+     2. Finely dice all yellow onion   (5 min)
+        Finely dice 2 yellow onions:
+        1 — into a tub labelled "Smoky Chipotle Ground Beef — finely diced yellow onion"
+        1 — into a tub labelled "Classic Glazed Meatloaf — yellow onion and garlic"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Smoky Chipotle Ground Beef Tacos with Avocado Crema (Thursday), Classic Glazed Meatloaf with Mashed Potatoes and Green Beans (Friday)
+     3. Mince all garlic   (3 min)
+        Mince 8 cloves of garlic total:
+        4 cloves for the Smoky Chipotle Ground Beef — into the Smoky Chipotle Ground Beef sauce jar
+        2 cloves for the Classic Glazed Meatloaf — into a tub labelled "Classic Glazed Meatloaf — yellow onion and garlic"
+        1 clove for the Avocado Crema and 1 clove for the Buttered Green Beans — into a tub labelled "Minced garlic — Avocado Crema, Buttered Green Beans"
+        » storage: Both containers: Airtight in the fridge — up to 4 days. Stir in the Classic Glazed Meatloaf mix-ins bowl now — it is eaten within a day.
+        » for: Smoky Chipotle Ground Beef Tacos with Avocado Crema (Thursday), Classic Glazed Meatloaf with Mashed Potatoes and Green Beans (Friday)
+  ×  4. Ripe avocado — cook day   (1 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Smoky Chipotle Ground Beef Tacos with Avocado Crema (Thursday)
+     5. Juice limes for Avocado Crema and prep lime wedges for garnish   (4 min)
+        Juice enough limes to get 2 tbsp fresh lime juice — into a tub labelled "Avocado Crema — fresh lime juice".
+        Cut 2 limes into wedges — into a tub labelled "Warm Corn Tortillas & Garnishes — lime".
+        » storage: Covered in the fridge — up to 3 days. Airtight in the fridge — up to 3 days.
+        » for: Smoky Chipotle Ground Beef Tacos with Avocado Crema (Thursday)
+     6. Prep all fresh cilantro   (2 min)
+        Roughly chop enough fresh cilantro to measure ¼ cup — into a tub labelled "Avocado Crema — chopped fresh cilantro".
+        Pick ½ bunch fresh cilantro into sprigs — into a tub labelled "Warm Corn Tortillas & Garnishes — fresh cilantro".
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Smoky Chipotle Ground Beef Tacos with Avocado Crema (Thursday)
+     7. Thinly slice the red onion   (3 min)
+        Thinly slice 1 red onion — into a tub labelled "Quick Pickled Red Onions — thinly sliced red onion".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Smoky Chipotle Ground Beef Tacos with Avocado Crema (Thursday)
+     8. Thinly slice the jalapeño   (3 min)
+        Thinly slice 1 jalapeño — into a tub labelled "Warm Corn Tortillas & Garnishes — thinly sliced jalapeño".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Smoky Chipotle Ground Beef Tacos with Avocado Crema (Thursday)
+  ×  9. Russet potatoes — cook day   (4 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Classic Glazed Meatloaf with Mashed Potatoes and Green Beans (Friday)
+    10. Trim the green beans   (2 min)
+        Trim the stem ends from 12 oz fresh green beans — into a tub labelled "Buttered Green Beans — trimmed fresh green beans".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Classic Glazed Meatloaf with Mashed Potatoes and Green Beans (Friday)
+
+  ── sauces_marinades ──
+     1. Finish the Smoky Chipotle Ground Beef sauce jar   (7 min)
+        Smoky Chipotle Ground Beef sauce jar (ground cumin, smoked paprika, dried oregano and garlic already in it): add
+        2 minced chipotle peppers in adobo sauce
+        1 tbsp adobo sauce
+        Stir to combine.
+        » storage: Covered in the fridge — up to 4 days.
+        » for: Smoky Chipotle Ground Beef Tacos with Avocado Crema (Thursday)
+     2. Finish the Classic Glazed Meatloaf mix-ins bowl   (2 min)
+        Classic Glazed Meatloaf mix-ins bowl (plain breadcrumbs, dried thyme and brown sugar already in it): add
+        For the meat mixture: 2 tbsp ketchup
+        For the glaze: 3 tbsp ketchup, 1 tsp apple cider vinegar
+        1 tbsp Worcestershire sauce
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 5 days.
+        » for: Classic Glazed Meatloaf with Mashed Potatoes and Green Beans (Friday)
+  ×  3. Apple cider vinegar — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Smoky Chipotle Ground Beef Tacos with Avocado Crema (Thursday)
+
+  subset ticks: 12 keys, 12 not in the full plan; required for these meals 14, uncovered 7; isPrepped {"Smoky Chipotle Ground Beef Tac":false,"Classic Glazed Meatloaf with M":false}
+
+══════════ COOK MODE (cook-session.tsx: sequenced if multi-dish, flattened if single) ══════════
+
+  ▸ Smoky Chipotle Ground Beef Tacos with Avocado Crema   [Thursday]  SEQUENCED
+    footer 50 min | scheduler 50 | card 50 | fresh derive 50 | dishes 4
+      1. [ T-50] (  6m prep) Smoky Chipotle Ground Beef
+         Finely dice the yellow onion and mince the 4 garlic cloves; mince 2 chipotle peppers in adobo and measure out 1 tablespoon of adobo sauce.
+      2. [ T-44] (  4m prep) Quick Pickled Red Onions
+         Thinly slice 1 red onion and pack the slices into a pint jar or heatproof bowl.
+      3. [ T-40] (  2m preheat) Smoky Chipotle Ground Beef
+         Heat 1 tablespoon neutral oil in a large skillet over medium-high until shimmering.
+      4. [ T-40] (  2m cook) Quick Pickled Red Onions
+         ⟶ With the Smoky Chipotle Ground Beef heating up, start on the Quick Pickled Red Onions.
+         Combine ½ cup apple cider vinegar, 1 teaspoon granulated sugar, and ½ teaspoon kosher salt in a small saucepan and heat over medium, stirring, until the sugar and salt dissolve, about 2 minutes.
+      5. [ T-38] (  4m cook) Smoky Chipotle Ground Beef
+         Add the diced onion and cook, stirring frequently, for 4 minutes until softened and lightly golden.
+      6. [ T-38] ( 20m rest) Quick Pickled Red Onions
+         Pour the hot brine over the sliced onions, press them down to submerge, and let sit at room temperature for at least 20 minutes before serving.
+      7. [ T-34] (  1m cook) Smoky Chipotle Ground Beef
+         ⟶ With the Quick Pickled Red Onions marinating, start on the Smoky Chipotle Ground Beef.
+         Add the minced garlic and cook, stirring constantly, for 1 minute until fragrant.
+      8. [ T-33] (  4m prep) Avocado Crema
+         ⟶ With the Quick Pickled Red Onions marinating, start on the Avocado Crema.
+         Halve and pit 2 ripe avocados and scoop the flesh into a blender or food processor; mince 1 garlic clove and roughly chop ¼ cup fresh cilantro.
+      9. [ T-29] (  6m cook) Smoky Chipotle Ground Beef
+         ⟶ With the Quick Pickled Red Onions marinating, start on the Smoky Chipotle Ground Beef.
+         Add 1½ pounds 80/20 ground beef and cook, breaking it up with a spoon, for 6 minutes until browned and no pink remains; drain excess fat.
+     10. [ T-23] (  1m cook) Smoky Chipotle Ground Beef
+         Stir in the minced chipotle peppers, 1 tablespoon adobo sauce, 2 tablespoons tomato paste, 1½ teaspoons ground cumin, 1 teaspoon smoked paprika, ½ teaspoon dried oregano, 1 teaspoon kosher salt, and ½ teaspoon black pepper; cook 1 minute.
+     11. [ T-22] (  5m cook) Smoky Chipotle Ground Beef
+         Pour in ¼ cup beef broth, stir to combine, and simmer over medium-low for 5 minutes until the liquid is mostly absorbed and the beef is saucy.
+     12. [ T-22] (  5m prep) Warm Corn Tortillas & Garnishes
+         ⟶ With the Quick Pickled Red Onions marinating, start on the Warm Corn Tortillas & Garnishes.
+         Cut 2 limes into wedges, pick ½ bunch fresh cilantro into sprigs, and, if using, thinly slice 1 jalapeño and crumble 3 ounces cotija cheese.
+     13. [ T-17] (  2m hold) Smoky Chipotle Ground Beef
+         Taste and adjust salt, then remove from heat and keep warm until ready to build tacos.
+     14. [ T-17] (  2m assemble) Avocado Crema
+         ⟶ With the Smoky Chipotle Ground Beef staying warm, start on the Avocado Crema.
+         Add ½ cup sour cream, 2 tablespoons fresh lime juice, the minced garlic, ½ teaspoon kosher salt, and the chopped cilantro to the blender and blend until completely smooth.
+     15. [ T-15] (  2m assemble) Avocado Crema
+         Taste and adjust lime juice or salt, then transfer to a serving bowl and press plastic wrap directly onto the surface until ready to serve.
+     16. [ T-13] (  8m cook) Warm Corn Tortillas & Garnishes
+         Warm 16 corn tortillas in a dry skillet over medium heat for 30 seconds per side, stacking them in a clean kitchen towel to keep warm, working in batches.
+     17. [  T-5] (  2m assemble) Smoky Chipotle Ground Beef
+         Spoon the chipotle beef into warm tortillas and serve immediately.
+     18. [  T-3] (  2m assemble) Warm Corn Tortillas & Garnishes
+         Arrange the warm tortillas, cilantro sprigs, lime wedges, pickled onions, avocado crema, and, if using, cotija cheese and jalapeño slices on the table for guests to build their own tacos.
+     19. [  T-1] (  1m assemble) Quick Pickled Red Onions
+         Drain lightly and transfer to a small serving dish alongside the tacos.
+
+  ▸ Classic Tex-Mex Ground Beef Tacos   [Saturday]  SEQUENCED
+    footer 43 min | scheduler 43 | card 43 | fresh derive 43 | dishes 4
+      1. [ T-43] (  5m prep) Tex-Mex Seasoned Ground Beef
+         Finely dice the yellow onion and mince the 3 garlic cloves.
+      2. [ T-38] (  2m prep) Tex-Mex Seasoned Ground Beef
+         In a small bowl, combine 2 tablespoons chili powder, 1 teaspoon cumin, 1 teaspoon smoked paprika, ½ teaspoon dried oregano, ½ teaspoon garlic powder, ½ teaspoon onion powder, 1 teaspoon kosher salt, and ½ teaspoon black pepper.
+      3. [ T-36] (  2m preheat) Tex-Mex Seasoned Ground Beef
+         Heat 1 tablespoon neutral oil in a large skillet over medium-high until shimmering.
+      4. [ T-34] (  3m cook) Tex-Mex Seasoned Ground Beef
+         Add the diced onion and sauté, stirring frequently, for 3 minutes until softened.
+      5. [ T-31] (  1m cook) Tex-Mex Seasoned Ground Beef
+         Add the minced garlic and cook, stirring constantly, for 30 seconds until fragrant.
+      6. [ T-30] (  7m cook) Tex-Mex Seasoned Ground Beef
+         Add the 1½ pounds lean ground beef and cook, breaking it up with a spoon, for 6–7 minutes until no pink remains.
+      7. [ T-23] (  2m cook) Tex-Mex Seasoned Ground Beef
+         Drain any excess fat from the skillet, then stir in the spice blend and 2 tablespoons tomato paste, coating the beef evenly.
+      8. [ T-21] (  5m cook) Tex-Mex Seasoned Ground Beef
+         Pour in ½ cup beef broth and simmer over medium heat, stirring occasionally, for 4–5 minutes until the liquid is mostly absorbed and the beef is saucy.
+      9. [ T-21] (  8m prep) Fresh Pico de Gallo
+         ⟶ With the Tex-Mex Seasoned Ground Beef cooking, start on the Fresh Pico de Gallo.
+         Finely dice the 3 roma tomatoes, finely dice ½ white onion, seed and mince the jalapeño, and chop ¼ cup fresh cilantro.
+     10. [ T-16] (  2m hold) Tex-Mex Seasoned Ground Beef
+         Remove from heat and keep warm in the skillet until ready to assemble tacos.
+     11. [ T-13] (  6m cook) Warm Corn Tortillas
+         Heat a dry skillet or griddle over medium-high heat, then warm the 12 corn tortillas one at a time for about 30 seconds per side until pliable and lightly charred.
+     12. [  T-7] (  2m assemble) Fresh Pico de Gallo
+         Combine the tomatoes, onion, jalapeño, and cilantro in a bowl, then stir in 2 tablespoons lime juice and ½ teaspoon kosher salt.
+     13. [  T-5] (  1m hold) Warm Corn Tortillas
+         Stack the warmed tortillas and wrap in a clean kitchen towel to keep them warm until serving.
+     14. [  T-5] (  5m rest) Fresh Pico de Gallo
+         ⟶ With the Warm Corn Tortillas staying warm, start on the Fresh Pico de Gallo.
+         Taste and adjust salt, then let the pico sit for at least 5 minutes before serving so the flavors meld.
+     15. [  T-5] (  3m prep) Taco Toppings
+         ⟶ With the Warm Corn Tortillas staying warm, start on the Taco Toppings.
+         Shred 2 cups iceberg lettuce and cut the 2 limes into wedges.
+     16. [  T-2] (  2m assemble) Taco Toppings
+         Arrange 1 cup shredded Mexican cheese blend, ½ cup sour cream, the shredded lettuce, lime wedges, and hot sauce (optional, 1 tablespoon) in small bowls or on a platter for the table.
+
+  ▸ Slow-Cooker Chicken and Dumplings   [Sunday]  FLATTENED (single-dish)
+    footer 446 min | scheduler 441 | card 441 | fresh derive 441 | dishes 1
+      1. [T-441] ( 10m prep) 
+         Dice the yellow onion, slice the 3 celery stalks, slice the 3 carrots into rounds, and mince the 3 garlic cloves.
+      2. [T-431] (  2m cook) 
+         Add the chicken thighs, onion, celery, carrots, and garlic to the slow cooker.
+      3. [T-429] (  2m cook) 
+         Stir in the 4 cups chicken broth, 1 can cream of chicken soup, 1 teaspoon dried thyme, ½ teaspoon dried rosemary, ½ teaspoon black pepper, and 1 teaspoon kosher salt until combined.
+      4. [T-427] (360m cook) 
+         Cover and cook on low for 6 hours, until the chicken is very tender and pulls apart easily.
+      5. [ T-67] (  5m cook) 
+         Remove the chicken thighs, shred the meat with two forks, and return it to the slow cooker along with the 1 cup frozen peas.
+      6. [ T-67] (  5m prep) 
+         Whisk together 1½ cups all-purpose flour, 2 teaspoons baking powder, and ½ teaspoon salt in a medium bowl, then stir in ¾ cup whole milk and 3 tablespoons melted unsalted butter until a shaggy dough forms — do not overmix.
+      7. [ T-62] ( 60m cook) 
+         Drop the dumpling dough by heaping tablespoons onto the surface of the hot broth, cover, and cook on high for 1 hour until the dumplings are cooked through and fluffy.
+      8. [  T-2] (  2m assemble) 
+         Ladle into bowls and garnish with 2 tablespoons chopped fresh parsley (optional).
+
+  ▸ Beef Enchiladas Verdes with Roasted Tomatillo Sauce   [Wednesday]  SEQUENCED
+    footer 81 min | scheduler 81 | card 81 | fresh derive 81 | dishes 3
+      1. [ T-81] (  5m prep) Beef Enchiladas Verdes
+         Finely dice ½ white onion and mince 3 garlic cloves.
+      2. [ T-76] (  4m cook) Beef Enchiladas Verdes
+         Heat 2 tablespoons vegetable oil in a large skillet over medium-high, add the onion, and sauté 3–4 minutes until softened.
+      3. [ T-72] (  7m cook) Beef Enchiladas Verdes
+         Add the minced garlic and cook 30 seconds until fragrant, then add 1¼ pounds 80/20 ground beef and cook, breaking it up, until no pink remains, about 6 minutes.
+      4. [ T-65] ( 15m preheat) Roasted Tomatillo Sauce
+         Preheat the oven to 450°F and position a rack in the upper third.
+      5. [ T-65] (  2m cook) Beef Enchiladas Verdes
+         ⟶ With the Roasted Tomatillo Sauce heating up, start on the Beef Enchiladas Verdes.
+         Stir in 1 teaspoon ground cumin, 1 teaspoon chili powder, ½ teaspoon dried oregano, ¾ teaspoon kosher salt, and ¼ teaspoon black pepper; cook 1 minute, then remove from heat.
+      6. [ T-63] ( 12m preheat) Beef Enchiladas Verdes
+         Preheat the oven to 375°F and lightly grease a 9×13-inch baking dish.
+      7. [ T-63] (  5m cook) Beef Enchiladas Verdes
+         Warm the 12 corn tortillas directly over a gas flame or in a dry skillet for 15 seconds per side until pliable.
+      8. [ T-51] (  1m assemble) Beef Enchiladas Verdes
+         Spread ½ cup of the tomatillo sauce across the bottom of the prepared baking dish.
+      9. [ T-50] (  5m prep) Roasted Tomatillo Sauce
+         Arrange the tomatillos (cut-side down), poblano halves, jalapeño half, onion quarters, and unpeeled garlic cloves on a rimmed baking sheet and drizzle with 2 tablespoons olive oil.
+     10. [ T-45] (  8m assemble) Beef Enchiladas Verdes
+         Fill each tortilla with about 3 tablespoons of the beef mixture and 1 tablespoon of shredded Monterey Jack cheese, roll tightly, and place seam-side down in the baking dish.
+     11. [ T-37] (  2m prep) Mexican Rice
+         Mince 2 garlic cloves.
+     12. [ T-35] (  4m cook) Mexican Rice
+         Heat 1½ tablespoons vegetable oil in a medium saucepan over medium-high, add 1 cup long-grain white rice, and toast, stirring constantly, for 3–4 minutes until the grains turn golden.
+     13. [ T-31] ( 22m cook) Roasted Tomatillo Sauce
+         Roast 20–25 minutes until the tomatillos are blistered and softened and the peppers are charred at the edges.
+     14. [ T-31] (  1m cook) Mexican Rice
+         ⟶ With the Roasted Tomatillo Sauce cooking, start on the Mexican Rice.
+         Stir in the minced garlic and 2 tablespoons tomato paste and cook 1 minute until fragrant.
+     15. [ T-30] (  2m assemble) Beef Enchiladas Verdes
+         ⟶ With the Roasted Tomatillo Sauce cooking, start on the Beef Enchiladas Verdes.
+         Pour the remaining tomatillo sauce evenly over the enchiladas and top with the remaining Monterey Jack cheese (about 6 ounces).
+     16. [ T-30] (  1m cook) Mexican Rice
+         ⟶ With the Roasted Tomatillo Sauce cooking, start on the Mexican Rice.
+         Pour in 1¾ cups chicken broth, add ½ teaspoon kosher salt and ¼ teaspoon ground cumin, and stir to combine.
+     17. [ T-28] ( 22m cook) Beef Enchiladas Verdes
+         ⟶ With the Roasted Tomatillo Sauce cooking, start on the Beef Enchiladas Verdes.
+         Bake uncovered at 375°F for 20–25 minutes until the cheese is melted and bubbling at the edges.
+     18. [ T-28] ( 20m cook) Mexican Rice
+         ⟶ With the Roasted Tomatillo Sauce cooking, start on the Mexican Rice.
+         Bring to a boil, then reduce heat to low, cover tightly, and simmer 18 minutes until the liquid is absorbed.
+     19. [  T-9] (  3m prep) Roasted Tomatillo Sauce
+         ⟶ With the Beef Enchiladas Verdes cooking, start on the Roasted Tomatillo Sauce.
+         Peel the roasted garlic cloves, then transfer all roasted vegetables and any pan juices to a blender.
+     20. [  T-6] (  2m assemble) Roasted Tomatillo Sauce
+         Add ½ cup fresh cilantro, ½ cup chicken broth, 1 teaspoon kosher salt, and ½ teaspoon ground cumin to the blender and blend until smooth.
+     21. [  T-6] (  5m rest) Mexican Rice
+         Remove from heat, scatter ½ cup frozen peas (optional) over the top, replace the lid, and let steam 5 minutes.
+     22. [  T-4] (  2m hold) Roasted Tomatillo Sauce
+         ⟶ With the Mexican Rice cooking, start on the Roasted Tomatillo Sauce.
+         Taste the sauce and adjust salt as needed; set aside until the enchiladas are assembled.
+     23. [  T-4] (  2m assemble) Beef Enchiladas Verdes
+         ⟶ With the Mexican Rice cooking, start on the Beef Enchiladas Verdes.
+         Garnish with sour cream (optional), roughly chopped cilantro (optional), and finely diced white onion (optional), then serve immediately.
+     24. [  T-1] (  1m assemble) Mexican Rice
+         Fluff the rice with a fork and serve alongside the enchiladas.
+
+  ▸ Classic Glazed Meatloaf with Mashed Potatoes and Green Beans   [Friday]  SEQUENCED
+    footer 87 min | scheduler 87 | card 87 | fresh derive 87 | dishes 3
+      1. [ T-87] ( 10m preheat) Classic Glazed Meatloaf
+         Preheat the oven to 350°F.
+      2. [ T-87] (  5m prep) Classic Glazed Meatloaf
+         Finely dice the yellow onion and mince the 2 garlic cloves.
+      3. [ T-82] (  3m prep) Classic Glazed Meatloaf
+         In a small bowl, combine ½ cup plain breadcrumbs with ¼ cup whole milk and let soak for 2 minutes.
+      4. [ T-79] (  4m prep) Classic Glazed Meatloaf
+         In a large bowl, mix the soaked breadcrumbs with the diced onion, minced garlic, 1 lightly beaten egg, 1 tablespoon Worcestershire sauce, 2 tablespoons ketchup, ½ teaspoon dried thyme, 1 teaspoon kosher salt, and ½ teaspoon black pepper until combined.
+      5. [ T-75] (  3m prep) Classic Glazed Meatloaf
+         Add 1½ pounds of 80/20 ground beef to the bowl and mix with your hands just until everything is evenly incorporated — do not overwork.
+      6. [ T-72] (  2m prep) Classic Glazed Meatloaf
+         Shape the meat mixture into a 9×5-inch loaf on a rimmed baking sheet or press it into a 9×5-inch loaf pan.
+      7. [ T-70] (  2m prep) Classic Glazed Meatloaf
+         Whisk together 3 tablespoons ketchup, 1 tablespoon brown sugar, and 1 teaspoon apple cider vinegar in a small bowl to make the glaze.
+      8. [ T-68] ( 40m cook) Classic Glazed Meatloaf
+         Spread half the glaze evenly over the top of the loaf and bake at 350°F for 40 minutes.
+      9. [ T-47] (  8m prep) Creamy Mashed Potatoes
+         ⟶ With the Classic Glazed Meatloaf cooking, start on the Creamy Mashed Potatoes.
+         Peel the 2 pounds of russet potatoes and cut them into 1-inch chunks.
+     10. [ T-39] ( 10m cook) Creamy Mashed Potatoes
+         Place the potato chunks in a large pot, cover with cold water by 1 inch, and bring to a boil over high heat.
+     11. [ T-29] ( 18m cook) Creamy Mashed Potatoes
+         Reduce to a steady boil and cook until the potatoes are completely tender when pierced with a fork, about 18 minutes.
+     12. [ T-29] (  4m cook) Creamy Mashed Potatoes
+         While the potatoes boil, warm ½ cup whole milk in a small saucepan over low heat until steaming, then remove from heat.
+     13. [ T-28] ( 15m cook) Classic Glazed Meatloaf
+         ⟶ With the Creamy Mashed Potatoes cooking, start on the Classic Glazed Meatloaf.
+         Spread the remaining glaze over the loaf and bake for an additional 15 minutes, until the internal temperature reaches 160°F and the glaze is set and caramelized.
+     14. [ T-18] (  5m prep) Buttered Green Beans
+         ⟶ With the Creamy Mashed Potatoes cooking, start on the Buttered Green Beans.
+         Trim the stem ends from 12 ounces of fresh green beans and mince 1 garlic clove if using.
+     15. [ T-13] ( 10m rest) Classic Glazed Meatloaf
+         ⟶ With the Creamy Mashed Potatoes cooking, start on the Classic Glazed Meatloaf.
+         Remove the meatloaf from the oven and let it rest for 10 minutes before slicing into 4 portions and serving.
+     16. [ T-13] (  7m cook) Buttered Green Beans
+         ⟶ With the Creamy Mashed Potatoes cooking, start on the Buttered Green Beans.
+         Bring a large pot of salted water to a boil, add the green beans, and cook for 4 minutes until just tender-crisp.
+     17. [ T-11] (  2m cook) Creamy Mashed Potatoes
+         ⟶ With the Classic Glazed Meatloaf resting, start on the Creamy Mashed Potatoes.
+         Drain the potatoes thoroughly, return them to the pot over low heat for 1 minute to drive off excess moisture, then remove from heat.
+     18. [  T-9] (  3m assemble) Creamy Mashed Potatoes
+         Add 3 tablespoons unsalted butter to the hot potatoes and mash until the butter is melted and no large lumps remain.
+     19. [  T-6] (  3m assemble) Creamy Mashed Potatoes
+         Pour in the warmed milk gradually, mashing and stirring until the potatoes are smooth and creamy, then season with ¾ teaspoon kosher salt and ¼ teaspoon black pepper.
+     20. [  T-3] (  2m cook) Buttered Green Beans
+         Drain the beans and immediately transfer them to a skillet over medium heat with 1 tablespoon unsalted butter; add the minced garlic (optional) and toss for 1 minute until fragrant and coated.
+     21. [  T-1] (  1m assemble) Buttered Green Beans
+         Season with ¼ teaspoon kosher salt and ⅛ teaspoon black pepper and serve immediately.

@@ -1,0 +1,38 @@
+{
+  "generatedAt": "2026-10-03T14:22:17.126Z",
+  "costUsd": 0.0762,
+  "calls": [
+    {
+      "label": "A03 full",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 8256,
+      "outputTokens": 894,
+      "costUsd": 0.038178,
+      "ms": 11912
+    },
+    {
+      "label": "A03 subset",
+      "model": "claude-sonnet-4-6",
+      "inputTokens": 8256,
+      "outputTokens": 881,
+      "costUsd": 0.037982999999999996,
+      "ms": 11419
+    }
+  ],
+  "summary": [
+    {
+      "code": "A03",
+      "planId": "53abd5b6-156d-490e-b1db-6bc04626c027",
+      "costUsd": 0.07616099999999999,
+      "full": 200,
+      "subset": 200,
+      "meals": 2
+    }
+  ],
+  "writes": 11,
+  "writeKinds": [
+    "prepWeekStructure.upsert",
+    "prepStepCompletion.deleteMany",
+    "prepStepCompletion.upsert"
+  ]
+}

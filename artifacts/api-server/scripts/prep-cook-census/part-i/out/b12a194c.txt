@@ -1,0 +1,273 @@
+PLAN b12a194c-ba07-4e30-ba35-71ae1442a87e  [A12]  Part I · A12 · roast chicken + roasted green beans (toss)
+  range 2026-10-04 .. 2026-10-10   meals 4   prep day 2026-10-04   shapes: days-5-7, long-passive, multi-3plus, aromatics, two-cuts, toss-no-heat
+
+══════════ PREP THE WEEK — full plan, as Screen 3 renders it ══════════
+  (HTTP 502: validation_failed Kiwi got distracted. Try again?)
+
+══════════ PREP SELECTED MEALS — Smoky Salisbury Steak with Roasted Garlic Gravy and Green Beans + Crispy Garlic-Herb Baked Drumsticks with Roasted Baby Potatoes and Steamed Green Beans ══════════
+  HEADER: 12 containers · about 30 min   (server total 37 · phone 27) · cacheHit=false · prompt v19
+  HELD: Crispy Garlic-Herb Baked Drumsticks with Roasted Baby Potatoes and Steamed Green Beans (Saturday, 6 days out) — chicken drumsticks that morning.
+
+  ── seasonings_dry ──
+     1. Measure the Smoky Salisbury Steak gravy bowl dry mix   (3 min)
+        Into the Smoky Salisbury Steak gravy bowl:
+        ⅜ cup plain breadcrumbs
+        1½ tsp smoked paprika
+        ½ tsp smoked paprika (for gravy)
+        ½ tsp garlic powder
+        ½ tsp onion powder
+        2 tbsp All-purpose flour
+        Set aside for the sauces and marinades step.
+        » for: Smoky Salisbury Steak with Roasted Garlic Gravy and Green Beans (Sunday)
+     2. Measure the Crispy Garlic-Herb Baked dry mix   (2 min)
+        Into the Crispy Garlic-Herb Baked dry mix:
+        1 tsp smoked paprika
+        ½ tsp onion powder
+        1 tsp baking powder (aluminum-free; helps crisp the skin)
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Crispy Garlic-Herb Baked Drumsticks with Roasted Baby Potatoes and Steamed Green Beans (Saturday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Smoky Salisbury Steak with Roasted Garlic Gravy and Green Beans (Sunday), Crispy Garlic-Herb Baked Drumsticks with Roasted Baby Potatoes and Steamed Green Beans (Saturday)
+     2. Prep all garlic   (3 min)
+        Start with the whole garlic head. Trim the top ¼ inch off 1 clove to expose it for roasting — into a tub labelled "Smoky Salisbury Steak with Roasted Garlic Gravy — trimmed whole garlic head".
+        
+        Mince the remaining cloves:
+        2 cloves for Garlic-Buttered Green Beans — into a tub labelled "Minced whole garlic head — Garlic-Buttered Green Beans, Crispy Garlic-Herb Baked Drumsticks, Herb-Roasted Baby Potatoes"
+        4 cloves for Crispy Garlic-Herb Baked Drumsticks — into the same tub
+        2 cloves for Herb-Roasted Baby Potatoes — into the same tub
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+        » for: Smoky Salisbury Steak with Roasted Garlic Gravy and Green Beans (Sunday), Crispy Garlic-Herb Baked Drumsticks with Roasted Baby Potatoes and Steamed Green Beans (Saturday)
+     3. Slice all yellow onion for Smoky Salisbury Steak with Roasted Garlic Gravy   (3 min)
+        Thinly slice 1 yellow onion — into a tub labelled "Smoky Salisbury Steak with Roasted Garlic Gravy — thinly sliced yellow onion".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Smoky Salisbury Steak with Roasted Garlic Gravy and Green Beans (Sunday)
+     4. Slice all cremini mushrooms for Smoky Salisbury Steak with Roasted Garlic Gravy   (3 min)
+        Thinly slice 8 oz cremini mushrooms — into a tub labelled "Smoky Salisbury Steak with Roasted Garlic Gravy — thinly sliced cremini mushrooms".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Smoky Salisbury Steak with Roasted Garlic Gravy and Green Beans (Sunday)
+     5. Chop all fresh thyme   (1 min)
+        Finely chop the fresh thyme:
+        1 tbsp for Crispy Garlic-Herb Baked Drumsticks — into a tub labelled "Finely chopped fresh thyme — Crispy Garlic-Herb Baked Drumsticks, Herb-Roasted Baby Potatoes"
+        1 tsp for Herb-Roasted Baby Potatoes — into the same tub
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Smoky Salisbury Steak with Roasted Garlic Gravy and Green Beans (Sunday), Crispy Garlic-Herb Baked Drumsticks with Roasted Baby Potatoes and Steamed Green Beans (Saturday)
+     6. Trim all fresh green beans   (4 min)
+        Snap the stem ends off all the green beans:
+        1 lb for Garlic-Buttered Green Beans — into a tub labelled "Trimmed fresh green beans — Garlic-Buttered Green Beans, Steamed Green Beans with Lemon and Olive Oil"
+        1 lb for Steamed Green Beans with Lemon and Olive Oil — into the same tub
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Smoky Salisbury Steak with Roasted Garlic Gravy and Green Beans (Sunday), Crispy Garlic-Herb Baked Drumsticks with Roasted Baby Potatoes and Steamed Green Beans (Saturday)
+     7. Squeeze all lemon juice   (2 min)
+        Juice the lemon(s) and portion:
+        1 tsp for Garlic-Buttered Green Beans — into a tub labelled "Lemon juice — Garlic-Buttered Green Beans, Steamed Green Beans with Lemon and Olive Oil"
+        1 tbsp for Steamed Green Beans with Lemon and Olive Oil — into the same tub
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Smoky Salisbury Steak with Roasted Garlic Gravy and Green Beans (Sunday), Crispy Garlic-Herb Baked Drumsticks with Roasted Baby Potatoes and Steamed Green Beans (Saturday)
+  ×  8. Yukon gold potatoes — cook day   (4 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Smoky Salisbury Steak with Roasted Garlic Gravy and Green Beans (Sunday)
+     9. Chop all fresh rosemary   (1 min)
+        Finely chop the fresh rosemary:
+        1 tbsp for Crispy Garlic-Herb Baked Drumsticks — into a tub labelled "Finely chopped fresh rosemary — Crispy Garlic-Herb Baked Drumsticks, Herb-Roasted Baby Potatoes"
+        1 tsp for Herb-Roasted Baby Potatoes — into the same tub
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Crispy Garlic-Herb Baked Drumsticks with Roasted Baby Potatoes and Steamed Green Beans (Saturday)
+    10. Chop all fresh flat-leaf parsley   (1 min)
+        Finely chop the fresh flat-leaf parsley:
+        2 tbsp for Crispy Garlic-Herb Baked Drumsticks — into a tub labelled "Crispy Garlic-Herb Baked Drumsticks — finely chopped fresh flat-leaf parsley"
+        1 tbsp for Herb-Roasted Baby Potatoes — into a tub labelled "Herb-Roasted Baby Potatoes — chopped fresh flat-leaf parsley"
+        » storage: Both containers: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Crispy Garlic-Herb Baked Drumsticks with Roasted Baby Potatoes and Steamed Green Beans (Saturday)
+  × 11. Baby Yukon gold potatoes — cook day   (3 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Crispy Garlic-Herb Baked Drumsticks with Roasted Baby Potatoes and Steamed Green Beans (Saturday)
+
+  ── sauces_marinades ──
+     1. Finish the Smoky Salisbury Steak gravy bowl   (1 min)
+        Smoky Salisbury Steak gravy bowl (plain breadcrumbs, smoked paprika, garlic powder, onion powder and All-purpose flour already in it): add
+        1 tbsp Worcestershire sauce
+        1 tsp Worcestershire sauce (for gravy)
+        Stir to combine.
+        » storage: Covered in the fridge — up to 5 days.
+        » for: Smoky Salisbury Steak with Roasted Garlic Gravy and Green Beans (Sunday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+  ×  1. Chicken drumsticks — cook day   (3 min)  [RENDER-OMITTED]
+        Pat 8 chicken drumsticks thoroughly dry with paper towels.
+        » storage: This one is 6 days out — leave it for cook day.
+        » for: Crispy Garlic-Herb Baked Drumsticks with Roasted Baby Potatoes and Steamed Green Beans (Saturday)
+
+  subset ticks: 12 keys, 12 not in the full plan; required for these meals 14, uncovered 7; isPrepped {"Smoky Salisbury Steak with Roa":false,"Crispy Garlic-Herb Baked Drums":false}
+
+══════════ COOK MODE (cook-session.tsx: sequenced if multi-dish, flattened if single) ══════════
+
+  ▸ Smoky Salisbury Steak with Roasted Garlic Gravy and Green Beans   [Sunday]  SEQUENCED
+    footer 67 min | scheduler 67 | card 67 | fresh derive 67 | dishes 3
+      1. [ T-67] ( 40m cook) Smoky Salisbury Steak with Roasted Garlic Gravy
+         Trim the top ¼ inch off the whole garlic head to expose the cloves, drizzle with 1 teaspoon olive oil, wrap tightly in foil, and roast at 400°F for 40 minutes until the cloves are golden and completely soft.
+      2. [ T-67] (  6m prep) Smoky Salisbury Steak with Roasted Garlic Gravy
+         While the garlic roasts, combine 1½ lb ground beef, ⅓ cup breadcrumbs, 3 tablespoons whole milk, 1 egg, 1 tablespoon Worcestershire sauce, 1½ teaspoons smoked paprika, ½ teaspoon garlic powder, ½ teaspoon onion powder, ¾ teaspoon kosher salt, and ½ teaspoon black pepper in a large bowl and mix until just combined.
+      3. [ T-61] (  3m prep) Smoky Salisbury Steak with Roasted Garlic Gravy
+         Divide the mixture into 4 equal oval patties, about ¾ inch thick, and set aside on a plate.
+      4. [ T-58] (  5m prep) Smoky Salisbury Steak with Roasted Garlic Gravy
+         Thinly slice the yellow onion and thinly slice the 8 oz cremini mushrooms.
+      5. [ T-53] (  9m cook) Smoky Salisbury Steak with Roasted Garlic Gravy
+         Heat 1 tablespoon neutral oil in a large skillet over medium-high and sear the patties 4 minutes per side until a deep brown crust forms; transfer to a plate and tent with foil.
+      6. [ T-44] (  7m prep) Creamy Mashed Potatoes
+         ⟶ With the Smoky Salisbury Steak with Roasted Garlic Gravy cooking, start on the Creamy Mashed Potatoes.
+         Peel and cut 2 lb Yukon Gold potatoes into 1½-inch chunks.
+      7. [ T-37] (  7m cook) Smoky Salisbury Steak with Roasted Garlic Gravy
+         Reduce heat to medium, add 2 tablespoons butter to the same skillet, and sauté the sliced onion and mushrooms for 7 minutes, stirring often, until softened and golden.
+      8. [ T-30] ( 22m cook) Creamy Mashed Potatoes
+         ⟶ With the Smoky Salisbury Steak with Roasted Garlic Gravy cooking, start on the Creamy Mashed Potatoes.
+         Place the potato chunks in a large pot, cover with cold salted water by 1 inch, bring to a boil, then reduce to a steady simmer and cook for 18 minutes until a fork slides in with no resistance.
+      9. [ T-30] (  2m cook) Creamy Mashed Potatoes
+         Warm ½ cup whole milk in a small saucepan or microwave until steaming.
+     10. [ T-27] (  2m cook) Smoky Salisbury Steak with Roasted Garlic Gravy
+         ⟶ With the Creamy Mashed Potatoes marinating, start on the Smoky Salisbury Steak with Roasted Garlic Gravy.
+         Squeeze the roasted garlic cloves out of their skins into the skillet, sprinkle in 2 tablespoons flour, and stir constantly for 1 minute to cook out the raw flour taste.
+     11. [ T-25] (  5m prep) Garlic-Buttered Green Beans
+         ⟶ With the Creamy Mashed Potatoes marinating, start on the Garlic-Buttered Green Beans.
+         Trim the stem ends from 1 lb fresh green beans and mince 2 garlic cloves.
+     12. [ T-20] (  3m cook) Smoky Salisbury Steak with Roasted Garlic Gravy
+         ⟶ With the Creamy Mashed Potatoes marinating, start on the Smoky Salisbury Steak with Roasted Garlic Gravy.
+         Pour in 2 cups beef broth while scraping up any browned bits, then stir in 1 teaspoon Worcestershire sauce, ½ teaspoon smoked paprika, and 3 sprigs fresh thyme; season with ¼ teaspoon kosher salt and ¼ teaspoon black pepper.
+     13. [ T-20] (  7m cook) Garlic-Buttered Green Beans
+         ⟶ With the Creamy Mashed Potatoes marinating, start on the Garlic-Buttered Green Beans.
+         Bring a large pot of salted water to a boil, add the green beans, and cook for 4 minutes until crisp-tender.
+     14. [ T-17] ( 10m cook) Smoky Salisbury Steak with Roasted Garlic Gravy
+         ⟶ With the Creamy Mashed Potatoes marinating, start on the Smoky Salisbury Steak with Roasted Garlic Gravy.
+         Nestle the seared patties back into the gravy, cover, and simmer over medium-low for 10 minutes until the patties are cooked through and the gravy has thickened; remove thyme sprigs if using.
+     15. [ T-13] (  2m rest) Garlic-Buttered Green Beans
+         ⟶ With the Creamy Mashed Potatoes marinating, start on the Garlic-Buttered Green Beans.
+         Drain the beans and immediately transfer to a bowl of ice water for 2 minutes to stop cooking, then drain again.
+     16. [ T-13] (  2m cook) Garlic-Buttered Green Beans
+         Melt 1½ tablespoons butter in a large skillet over medium heat, add the minced garlic, and sauté for 1 minute until fragrant but not browned.
+     17. [ T-11] (  2m cook) Garlic-Buttered Green Beans
+         Add the drained green beans to the skillet, season with ½ teaspoon kosher salt and ¼ teaspoon black pepper, and toss to coat for 2 minutes until heated through; add ¼ teaspoon red pepper flakes if using.
+     18. [  T-9] (  1m assemble) Garlic-Buttered Green Beans
+         Remove from heat, drizzle with 1 teaspoon lemon juice, toss once more, and serve.
+     19. [  T-8] (  2m cook) Creamy Mashed Potatoes
+         ⟶ With the Smoky Salisbury Steak with Roasted Garlic Gravy cooking, start on the Creamy Mashed Potatoes.
+         Drain the potatoes thoroughly, return them to the pot over low heat for 1 minute to steam off excess moisture, then remove from heat.
+     20. [  T-6] (  4m assemble) Creamy Mashed Potatoes
+         Mash the potatoes with 3 tablespoons butter until the butter is fully melted and absorbed, then stir in the warmed milk, 1 teaspoon kosher salt, ¼ teaspoon black pepper, and 2 tablespoons sour cream if using, until smooth and creamy.
+     21. [  T-2] (  2m assemble) Smoky Salisbury Steak with Roasted Garlic Gravy
+         Spoon the gravy over the patties and serve immediately.
+
+  ▸ Spatchcocked Roast Chicken with Smoked Paprika, Roasted Potatoes, and Garlic Green Beans   [Tuesday]  SEQUENCED
+    footer 91 min | scheduler 91 | card 91 | fresh derive 91 | dishes 3
+      1. [ T-91] (  3m prep) Spatchcocked Roast Chicken with Smoked Paprika
+         Pat the 4-pound spatchcocked chicken completely dry with paper towels and set it breast-side up on a rimmed baking sheet fitted with a wire rack.
+      2. [ T-88] (  3m prep) Spatchcocked Roast Chicken with Smoked Paprika
+         In a small bowl, combine 2 teaspoons smoked paprika, 1 teaspoon garlic powder, ½ teaspoon onion powder, ½ teaspoon dried thyme, ½ teaspoon dried oregano, 1½ teaspoons kosher salt, and ¾ teaspoon black pepper.
+      3. [ T-85] (  3m prep) Spatchcocked Roast Chicken with Smoked Paprika
+         Mix 2 tablespoons olive oil, 1 tablespoon softened unsalted butter, and 4 minced garlic cloves into the spice rub to form a paste.
+      4. [ T-82] (  4m prep) Spatchcocked Roast Chicken with Smoked Paprika
+         Rub the paste all over the chicken — under the breast skin, over the thighs and drumsticks, and across the backbone side.
+      5. [ T-78] ( 15m preheat) Spatchcocked Roast Chicken with Smoked Paprika
+         Preheat the oven to 425°F and let the rubbed chicken sit at room temperature while the oven heats, about 15 minutes.
+      6. [ T-63] ( 43m cook) Spatchcocked Roast Chicken with Smoked Paprika
+         Roast the chicken breast-side up for 40–45 minutes, until the breast registers 160°F and the thigh registers 175°F on an instant-read thermometer.
+      7. [ T-54] (  6m prep) Crispy Roasted Potatoes
+         ⟶ With the Spatchcocked Roast Chicken with Smoked Paprika cooking, start on the Crispy Roasted Potatoes.
+         Cut 1½ pounds Yukon Gold potatoes into 1-inch chunks and toss them in a large bowl with 2 tablespoons olive oil, ½ teaspoon smoked paprika, ½ teaspoon garlic powder, ¾ teaspoon kosher salt, and ¼ teaspoon black pepper until evenly coated.
+      8. [ T-48] (  2m prep) Crispy Roasted Potatoes
+         Roughly chop 2 tablespoons fresh flat-leaf parsley and set aside for garnish.
+      9. [ T-46] ( 38m cook) Crispy Roasted Potatoes
+         Spread the potatoes in a single layer on a rimmed baking sheet (use a second sheet if needed to avoid crowding) and roast at 425°F for 35–40 minutes, flipping once halfway through, until deeply golden and crispy on the edges.
+     10. [ T-22] (  5m prep) Garlic Sautéed Green Beans
+         ⟶ With the Spatchcocked Roast Chicken with Smoked Paprika cooking, start on the Garlic Sautéed Green Beans.
+         Trim 1 pound fresh green beans and thinly slice 3 garlic cloves.
+     11. [ T-20] ( 10m rest) Spatchcocked Roast Chicken with Smoked Paprika
+         ⟶ With the Crispy Roasted Potatoes cooking, start on the Spatchcocked Roast Chicken with Smoked Paprika.
+         Rest the chicken on the rack, uncovered, for 10 minutes to let the juices redistribute.
+     12. [ T-17] (  2m preheat) Garlic Sautéed Green Beans
+         ⟶ With the Crispy Roasted Potatoes cooking, start on the Garlic Sautéed Green Beans.
+         Heat 1 tablespoon olive oil in a large skillet over medium-high until shimmering.
+     13. [ T-15] (  5m cook) Garlic Sautéed Green Beans
+         Add the green beans and cook, tossing occasionally, for 4–5 minutes until bright green and beginning to blister.
+     14. [ T-10] (  2m cook) Garlic Sautéed Green Beans
+         Push the beans to the side, add the sliced garlic to the center of the pan, and cook 60 seconds until fragrant and just golden, then toss everything together.
+     15. [  T-8] (  2m assemble) Crispy Roasted Potatoes
+         Transfer the roasted potatoes to a serving bowl, scatter the chopped parsley over the top, and serve hot.
+     16. [  T-6] (  4m assemble) Spatchcocked Roast Chicken with Smoked Paprika
+         Squeeze the halved lemon over the chicken, carve into pieces, and serve immediately.
+     17. [  T-2] (  2m assemble) Garlic Sautéed Green Beans
+         Season with ½ teaspoon kosher salt, ¼ teaspoon black pepper, and ¼ teaspoon red pepper flakes (optional), then remove from heat and squeeze 1 tablespoon fresh lemon juice over the beans.
+
+  ▸ Crispy Herb-Roasted Chicken Thighs with Roasted Potatoes and Green Beans   [Thursday]  SEQUENCED
+    footer 59 min | scheduler 59 | card 59 | fresh derive 59 | dishes 3
+      1. [ T-59] ( 15m preheat) Crispy Herb-Roasted Chicken Thighs
+         Preheat the oven to 425°F.
+      2. [ T-59] (  3m prep) Crispy Herb-Roasted Chicken Thighs
+         Pat 8 bone-in, skin-on chicken thighs thoroughly dry with paper towels.
+      3. [ T-56] (  4m prep) Crispy Herb-Roasted Chicken Thighs
+         In a small bowl, combine 2 tablespoons olive oil, 4 minced garlic cloves, 1 tablespoon finely chopped rosemary, 1 tablespoon finely chopped thyme, 1 teaspoon lemon zest, 1½ teaspoons kosher salt, ¾ teaspoon black pepper, and ½ teaspoon smoked paprika into a paste.
+      4. [ T-52] (  4m prep) Crispy Herb-Roasted Chicken Thighs
+         Rub the herb paste all over the chicken thighs, getting some under the skin, and arrange them skin-side up on a rimmed baking sheet.
+      5. [ T-44] ( 38m cook) Crispy Herb-Roasted Chicken Thighs
+         Roast the chicken at 425°F for 35–40 minutes, until the skin is deep golden and crispy and an instant-read thermometer inserted into the thickest part reads 165°F.
+      6. [ T-43] (  5m prep) Garlicky Roasted Potatoes
+         ⟶ With the Crispy Herb-Roasted Chicken Thighs cooking, start on the Garlicky Roasted Potatoes.
+         Halve 1½ pounds baby Yukon Gold potatoes and place them in a large bowl.
+      7. [ T-38] (  3m prep) Garlicky Roasted Potatoes
+         Toss the potatoes with 2 tablespoons olive oil, 3 minced garlic cloves, 1 teaspoon finely chopped rosemary, ¾ teaspoon kosher salt, and ½ teaspoon black pepper until evenly coated.
+      8. [ T-35] ( 33m cook) Garlicky Roasted Potatoes
+         Spread the potatoes cut-side down in a single layer on a rimmed baking sheet and roast at 425°F for 30–35 minutes, flipping once halfway through, until golden and fork-tender.
+      9. [ T-24] (  5m prep) Roasted Green Beans
+         ⟶ With the Crispy Herb-Roasted Chicken Thighs cooking, start on the Roasted Green Beans.
+         Trim 1 pound fresh green beans and toss them on a rimmed baking sheet with 1½ tablespoons olive oil, 2 thinly sliced garlic cloves, ½ teaspoon kosher salt, and ¼ teaspoon black pepper.
+     10. [ T-19] ( 17m cook) Roasted Green Beans
+         Spread the green beans in a single layer and roast at 425°F for 15–18 minutes, until tender and lightly blistered at the edges.
+     11. [  T-6] (  5m rest) Crispy Herb-Roasted Chicken Thighs
+         ⟶ With the Garlicky Roasted Potatoes cooking, start on the Crispy Herb-Roasted Chicken Thighs.
+         Rest the chicken thighs on the baking sheet for 5 minutes before serving.
+     12. [  T-2] (  1m assemble) Garlicky Roasted Potatoes
+         ⟶ With the Crispy Herb-Roasted Chicken Thighs resting, start on the Garlicky Roasted Potatoes.
+         Transfer the roasted potatoes to a serving dish.
+     13. [  T-1] (  1m assemble) Roasted Green Beans
+         Transfer the green beans to a serving dish and squeeze 1 tablespoon fresh lemon juice over the top before serving.
+
+  ▸ Crispy Garlic-Herb Baked Drumsticks with Roasted Baby Potatoes and Steamed Green Beans   [Saturday]  SEQUENCED
+    footer 78 min | scheduler 78 | card 78 | fresh derive 78 | dishes 3
+      1. [ T-78] (  3m prep) Crispy Garlic-Herb Baked Drumsticks
+         Pat all 8 drumsticks thoroughly dry with paper towels and set on a wire rack over a rimmed baking sheet.
+      2. [ T-75] (  5m prep) Crispy Garlic-Herb Baked Drumsticks
+         Mince 4 garlic cloves, finely chop 1 tablespoon fresh rosemary and 1 tablespoon fresh thyme, and zest the lemon.
+      3. [ T-70] (  3m prep) Crispy Garlic-Herb Baked Drumsticks
+         In a large bowl, whisk together 2 tablespoons olive oil, the minced garlic, rosemary, thyme, 2 tablespoons finely chopped parsley, 1 teaspoon smoked paprika, ½ teaspoon onion powder, 1½ teaspoons kosher salt, ¾ teaspoon black pepper, 1 teaspoon baking powder, and the lemon zest.
+      4. [ T-67] (  3m prep) Crispy Garlic-Herb Baked Drumsticks
+         Add the dried drumsticks to the bowl and toss until every piece is evenly coated, then arrange them skin-side up on the wire rack.
+      5. [ T-64] ( 15m preheat) Crispy Garlic-Herb Baked Drumsticks
+         Preheat the oven to 425°F (220°C) and position a rack in the upper-middle slot.
+      6. [ T-49] ( 42m cook) Crispy Garlic-Herb Baked Drumsticks
+         Bake the drumsticks for 40–45 minutes, flipping once at the 25-minute mark, until the skin is deep golden and crispy and an instant-read thermometer reads 165°F at the thickest part.
+      7. [ T-47] (  5m prep) Herb-Roasted Baby Potatoes
+         ⟶ With the Crispy Garlic-Herb Baked Drumsticks cooking, start on the Herb-Roasted Baby Potatoes.
+         Halve 1½ pounds baby Yukon Gold potatoes and mince 2 garlic cloves.
+      8. [ T-42] (  3m prep) Herb-Roasted Baby Potatoes
+         In a large bowl, toss the potatoes with 2 tablespoons olive oil, the minced garlic, 1 teaspoon finely chopped fresh thyme, 1 teaspoon finely chopped fresh rosemary, ¾ teaspoon kosher salt, and ½ teaspoon black pepper until well coated.
+      9. [ T-39] (  2m prep) Herb-Roasted Baby Potatoes
+         Spread the potatoes cut-side down in a single layer on a rimmed baking sheet (use a separate sheet from the drumsticks).
+     10. [ T-37] ( 33m cook) Herb-Roasted Baby Potatoes
+         Roast at 425°F for 30–35 minutes, until the cut sides are deeply golden and the potatoes are tender when pierced with a fork — they can share the oven with the drumsticks during the last 35 minutes.
+     11. [ T-18] (  4m prep) Steamed Green Beans with Lemon and Olive Oil
+         ⟶ With the Crispy Garlic-Herb Baked Drumsticks cooking, start on the Steamed Green Beans with Lemon and Olive Oil.
+         Trim 1 pound fresh green beans by snapping off the stem ends.
+     12. [ T-14] (  4m preheat) Steamed Green Beans with Lemon and Olive Oil
+         Bring 1 inch of water to a boil in a large saucepan fitted with a steamer basket over high heat.
+     13. [ T-10] (  6m cook) Steamed Green Beans with Lemon and Olive Oil
+         Add the green beans to the steamer basket, cover, and steam for 5–6 minutes until bright green and just tender-crisp.
+     14. [  T-7] (  5m rest) Crispy Garlic-Herb Baked Drumsticks
+         ⟶ With the Herb-Roasted Baby Potatoes cooking, start on the Crispy Garlic-Herb Baked Drumsticks.
+         Rest the drumsticks on the rack for 5 minutes, then transfer to a platter and serve with lemon wedges alongside.
+     15. [  T-4] (  2m assemble) Herb-Roasted Baby Potatoes
+         ⟶ With the Crispy Garlic-Herb Baked Drumsticks resting, start on the Herb-Roasted Baby Potatoes.
+         Transfer the potatoes to a serving bowl and scatter 1 tablespoon chopped fresh parsley over the top, if using.
+     16. [  T-2] (  2m assemble) Steamed Green Beans with Lemon and Olive Oil
+         Transfer the beans to a serving dish and drizzle with 1 tablespoon olive oil and 1 tablespoon freshly squeezed lemon juice, then season with ½ teaspoon kosher salt, ¼ teaspoon black pepper, and ¼ teaspoon red pepper flakes if using.

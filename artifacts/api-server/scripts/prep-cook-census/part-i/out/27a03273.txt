@@ -1,0 +1,286 @@
+PLAN 27a03273-6732-4ad0-a6a6-7b76ee5eea7e  [A08]  Part I · A08 · rotisserie + bagged slaw
+  range 2026-10-04 .. 2026-10-10   meals 4   prep day 2026-10-04   shapes: days-5-7, cold, long-passive, multi-3plus, bought-path, aromatics, two-cuts
+
+══════════ PREP THE WEEK — full plan, as Screen 3 renders it ══════════
+  HEADER: 14 containers · about 40 min   (server total 45 · phone 33) · cacheHit=false · prompt v19
+  HELD: BBQ Chicken Sandwiches with Slaw and Chips (Saturday, 6 days out) — rotisserie chicken that morning.
+
+  ── seasonings_dry ──
+     1. Measure the Tortilla Soup spice blend   (2 min)
+        Into the Tortilla Soup spice blend:
+        1 tsp ground cumin
+        1 tsp chili powder
+        ½ tsp dried oregano
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Tortilla Soup with Rotisserie Chicken and Classic Toppings (Tuesday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Crispy Chicken Tenders with Oven Fries and Slaw (Monday), BBQ Chicken Sandwiches with Slaw and Chips (Saturday), Tortilla Soup with Rotisserie Chicken and Classic Toppings (Tuesday), Cobb Salad with Rotisserie Chicken and Bread and Butter (Thursday)
+     2. Measure the celery seed   (1 min)
+        Measure the celery seed into a tub labelled "Celery seed — Slaw, Creamy Slaw and Kettle Chips":
+        ¼ tsp for the Slaw
+        ¼ tsp for Creamy Slaw and Kettle Chips
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Crispy Chicken Tenders with Oven Fries and Slaw (Monday), BBQ Chicken Sandwiches with Slaw and Chips (Saturday)
+     3. Dice the yellow onion for Tortilla Soup   (3 min)
+        Dice 1 medium yellow onion and add it into the Tortilla Soup vegetables container.
+        » for: Tortilla Soup with Rotisserie Chicken and Classic Toppings (Tuesday)
+     4. Prep the jalapeño for Tortilla Soup   (3 min)
+        Seed and mince 1 jalapeño, then add it into the Tortilla Soup vegetables container.
+        » storage: Tortilla Soup vegetables: Airtight in the fridge — up to 4 days.
+        » for: Tortilla Soup with Rotisserie Chicken and Classic Toppings (Tuesday)
+     5. Mince all garlic cloves   (2 min)
+        Mince all the garlic cloves:
+        4 cloves — into a tub labelled "Tortilla Soup — minced garlic cloves"
+        1 clove — into the Cobb Salad dressing jar
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Tortilla Soup with Rotisserie Chicken and Classic Toppings (Tuesday), Cobb Salad with Rotisserie Chicken and Bread and Butter (Thursday)
+     6. Prep all limes   (2 min)
+        Juice enough limes to yield 2 tbsp, then cut 8 wedges from the remaining limes:
+        2 tbsp juice — into a tub labelled "Tortilla Soup — fresh lime juice"
+        8 wedges — into a tub labelled "Toppings — fresh lime wedges"
+        » storage: Covered in the fridge — up to 3 days. Airtight in the fridge — up to 3 days.
+        » for: Tortilla Soup with Rotisserie Chicken and Classic Toppings (Tuesday)
+     7. Chop the fresh cilantro for Tortilla Soup   (1 min)
+        Roughly chop the fresh cilantro to yield ¼ cup and add it into a tub labelled "Tortilla Soup — chopped fresh cilantro".
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Tortilla Soup with Rotisserie Chicken and Classic Toppings (Tuesday)
+  ×  8. Avocado — cook day   (1 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Tortilla Soup with Rotisserie Chicken and Classic Toppings (Tuesday), Cobb Salad with Rotisserie Chicken and Bread and Butter (Thursday)
+     9. Chop the romaine for Cobb Salad   (1 min)
+        Chop 3 romaine lettuce hearts into 1-inch pieces and add them into a tub labelled "Cobb Salad with Rotisserie Chicken — chopped romaine lettuce hearts".
+        » storage: Airtight in the fridge — up to 3 days.
+        » for: Cobb Salad with Rotisserie Chicken and Bread and Butter (Thursday)
+    10. Halve the cherry tomatoes for Cobb Salad   (1 min)
+        Halve 1½ cup cherry tomatoes and add them into a tub labelled "Cobb Salad with Rotisserie Chicken — halved cherry tomatoes".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Cobb Salad with Rotisserie Chicken and Bread and Butter (Thursday)
+    11. Dice the cucumber for Cobb Salad   (3 min)
+        Dice 1 English cucumber and add it into a tub labelled "Cobb Salad with Rotisserie Chicken — diced english cucumber".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Cobb Salad with Rotisserie Chicken and Bread and Butter (Thursday)
+    12. Slice the red onion for Cobb Salad   (3 min)
+        Thinly slice ¼ red onion and add it into a tub labelled "Cobb Salad with Rotisserie Chicken — thinly sliced red onion".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Cobb Salad with Rotisserie Chicken and Bread and Butter (Thursday)
+
+  ── sauces_marinades ──
+     1. Finish the Slaw mix-ins bowl   (2 min)
+        Into the Slaw mix-ins bowl:
+        ⅜ cup Mayonnaise
+        2 tbsp apple cider vinegar
+        1 tsp dijon mustard
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Crispy Chicken Tenders with Oven Fries and Slaw (Monday)
+     2. Finish the Cobb Salad dressing jar   (3 min)
+        Cobb Salad dressing jar (garlic cloves already in it): add
+        1 tsp dijon mustard
+        3 tbsp extra-virgin olive oil
+        2 tbsp red wine vinegar
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 4 days.
+        » for: Cobb Salad with Rotisserie Chicken and Bread and Butter (Thursday)
+  ×  3. Mayonnaise and apple cider vinegar — cook day   (1 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: BBQ Chicken Sandwiches with Slaw and Chips (Saturday)
+  ×  4. Chipotle chile in adobo sauce — cook day   (5 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Tortilla Soup with Rotisserie Chicken and Classic Toppings (Tuesday)
+  ×  5. Bottled BBQ sauce — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: BBQ Chicken Sandwiches with Slaw and Chips (Saturday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     1. Skin and pull the Tortilla Soup chicken   (3 min)
+        Skin the rotisserie chicken, then pull the meat into bite-sized pieces to yield 3 cup for the Tortilla Soup.
+        » storage: Covered in the fridge — cook within 2 days.
+        » for: Tortilla Soup with Rotisserie Chicken and Classic Toppings (Tuesday)
+  ×  2. Rotisserie chicken — cook day   (3 min)  [RENDER-OMITTED]
+        Discard the skin from both chickens and pull the meat:
+        1 whole chicken — meat pulled and roughly chopped for the Cobb Salad with Rotisserie Chicken
+        1 whole chicken — meat pulled and shredded for the BBQ Chicken Sandwiches
+        » storage: This one is 6 days out — leave it for cook day.
+        » for: Cobb Salad with Rotisserie Chicken and Bread and Butter (Thursday), BBQ Chicken Sandwiches with Slaw and Chips (Saturday)
+  ×  3. Pre-cooked bacon — cook day   (1 min)  [RENDER-OMITTED]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.
+        » for: Cobb Salad with Rotisserie Chicken and Bread and Butter (Thursday)
+
+══════════ PREP SELECTED MEALS — Crispy Chicken Tenders with Oven Fries and Slaw + BBQ Chicken Sandwiches with Slaw and Chips ══════════
+  HEADER: 2 containers · about 10 min   (server total 11 · phone 6) · cacheHit=false · prompt v19
+  HELD: BBQ Chicken Sandwiches with Slaw and Chips (Saturday, 6 days out) — rotisserie chicken that morning.
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Crispy Chicken Tenders with Oven Fries and Slaw (Monday), BBQ Chicken Sandwiches with Slaw and Chips (Saturday)
+     2. Measure the celery seed   (1 min)
+        Measure ¼ tsp celery seed for the Slaw
+        ¼ tsp celery seed for the Creamy Slaw and Kettle Chips
+        — both portions into a tub labelled "Celery seed — Slaw, Creamy Slaw and Kettle Chips".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Crispy Chicken Tenders with Oven Fries and Slaw (Monday), BBQ Chicken Sandwiches with Slaw and Chips (Saturday)
+
+  ── sauces_marinades ──
+     1. Finish the Slaw mix-ins bowl   (2 min)
+        Into the Slaw mix-ins bowl:
+        ⅜ cup mayonnaise
+        2 tbsp apple cider vinegar
+        1 tsp dijon mustard
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Crispy Chicken Tenders with Oven Fries and Slaw (Monday)
+  ×  2. Mayonnaise and apple cider vinegar — cook day   (1 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: BBQ Chicken Sandwiches with Slaw and Chips (Saturday)
+  ×  3. Bottled BBQ sauce — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: BBQ Chicken Sandwiches with Slaw and Chips (Saturday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+  ×  1. Rotisserie chicken — cook day   (3 min)  [RENDER-OMITTED]
+        Pull and shred all the meat from 1 rotisserie chicken, discarding the skin and bones as you go.
+        » storage: This one is 6 days out — leave it for cook day.
+        » for: BBQ Chicken Sandwiches with Slaw and Chips (Saturday)
+
+  subset ticks: 3 keys, 0 not in the full plan; required for these meals 3, uncovered 2; isPrepped {"Crispy Chicken Tenders with Ov":false,"BBQ Chicken Sandwiches with Sl":false}
+
+══════════ COOK MODE (cook-session.tsx: sequenced if multi-dish, flattened if single) ══════════
+
+  ▸ Crispy Chicken Tenders with Oven Fries and Slaw   [Monday]  SEQUENCED
+    footer 46 min | scheduler 46 | card 46 | fresh derive 46 | dishes 3
+      1. [ T-46] ( 12m preheat) Oven Fries
+         Preheat the oven to 425°F (shares the oven with the chicken tenders) and coat a second large rimmed baking sheet with cooking spray.
+      2. [ T-46] (  4m prep) Slaw
+         ⟶ With the Oven Fries heating up, start on the Slaw.
+         Whisk together ⅓ cup mayonnaise, 2 tablespoons apple cider vinegar, 1 tablespoon granulated sugar, 1 teaspoon Dijon mustard, ¼ teaspoon celery seed, ¼ teaspoon kosher salt, and ⅛ teaspoon freshly ground black pepper in a large bowl until smooth.
+      3. [ T-42] (  3m assemble) Slaw
+         Add the 14 oz bag of coleslaw mix to the bowl and toss thoroughly until every strand is coated in the dressing.
+      4. [ T-39] ( 12m preheat) Chicken Tenders
+         ⟶ With the Oven Fries heating up, start on the Chicken Tenders.
+         Preheat the oven to 425°F and line a large rimmed baking sheet with foil, then coat it with cooking spray.
+      5. [ T-39] ( 15m rest) Slaw
+         ⟶ With the Oven Fries heating up, start on the Slaw.
+         Cover and refrigerate the slaw for at least 15 minutes to let the flavors meld and the cabbage soften slightly before serving.
+      6. [ T-34] (  2m cook) Oven Fries
+         ⟶ With the Chicken Tenders heating up, start on the Oven Fries.
+         Spread the 28 oz of frozen french fries in a single layer on the prepared baking sheet.
+      7. [ T-32] ( 28m cook) Oven Fries
+         Bake the fries for 25–28 minutes, flipping once at the halfway point, until deep golden and crisp at the edges.
+      8. [ T-27] (  3m cook) Chicken Tenders
+         ⟶ With the Slaw chilling, start on the Chicken Tenders.
+         Arrange the 32 oz of frozen chicken tenders in a single layer on the prepared baking sheet, then dust lightly with ½ teaspoon smoked paprika if using.
+      9. [ T-24] ( 22m cook) Chicken Tenders
+         Bake the tenders for 20–22 minutes, flipping once halfway through, until golden brown and cooked through to 165°F.
+     10. [ T-24] (  1m assemble) Slaw
+         ⟶ With the Oven Fries cooking, start on the Slaw.
+         Give the slaw a final toss and transfer to a serving bowl.
+     11. [  T-4] (  2m assemble) Oven Fries
+         ⟶ With the Chicken Tenders cooking, start on the Oven Fries.
+         Immediately season the hot fries with ¼ teaspoon kosher salt and ¼ teaspoon garlic powder (if using), toss briefly on the pan, and serve.
+     12. [  T-2] (  2m assemble) Chicken Tenders
+         Transfer the tenders to a platter and serve immediately alongside the oven fries and slaw.
+
+  ▸ Tortilla Soup with Rotisserie Chicken and Classic Toppings   [Tuesday]  SEQUENCED
+    footer 43 min | scheduler 43 | card 43 | fresh derive 43 | dishes 2
+      1. [ T-43] (  8m prep) Tortilla Soup
+         Dice the yellow onion, seed and mince the jalapeño, mince the 4 garlic cloves, and mince the 2 chipotle chiles; measure out 1 teaspoon of adobo sauce and set aside.
+      2. [ T-35] (  4m prep) Tortilla Soup
+         Drain and rinse the 15 oz can of black beans; pull the rotisserie chicken meat into bite-sized pieces to yield 3 cups.
+      3. [ T-31] (  5m cook) Tortilla Soup
+         Heat 2 tablespoons neutral oil in a large pot or Dutch oven over medium-high until shimmering, then add the onion and jalapeño and sauté, stirring frequently, for 4–5 minutes until softened and lightly golden.
+      4. [ T-26] (  1m cook) Tortilla Soup
+         Add the garlic, chipotle chiles, and adobo sauce and cook, stirring constantly, for 1 minute until fragrant.
+      5. [ T-25] (  4m cook) Tortilla Soup
+         Stir in 1 teaspoon ground cumin, 1 teaspoon chili powder, and ½ teaspoon dried oregano, then pour in the 28 oz can of undrained fire-roasted tomatoes and 4 cups chicken broth; bring to a boil.
+      6. [ T-21] ( 15m cook) Tortilla Soup
+         Add the black beans and shredded chicken, reduce heat to medium-low, and simmer uncovered for 15 minutes to meld the flavors.
+      7. [ T-17] (  3m prep) Toppings
+         ⟶ With the Tortilla Soup cooking, start on the Toppings.
+         Stack the 6 corn tortillas and cut them into ¼-inch strips.
+      8. [ T-14] (  2m cook) Toppings
+         Heat 3 tablespoons neutral oil in a large skillet over medium-high until shimmering and a strip sizzles immediately on contact.
+      9. [ T-12] (  6m cook) Toppings
+         Add the tortilla strips in a single layer and fry, turning occasionally, for 5–6 minutes until golden and crisp; work in two batches if needed.
+     10. [  T-6] (  2m cook) Tortilla Soup
+         Stir in 2 tablespoons fresh lime juice, 1 teaspoon kosher salt, and ¼ teaspoon black pepper; taste and adjust seasoning.
+     11. [  T-6] (  1m cook) Toppings
+         Transfer the strips to a paper-towel-lined plate and immediately season with ¼ teaspoon kosher salt.
+     12. [  T-5] (  3m assemble) Toppings
+         Pit and slice or dice the 2 avocados just before serving; set out the sour cream, ¾ cup shredded Mexican cheese blend, lime wedges, and crispy tortilla strips in small bowls so everyone can top their own soup.
+     13. [  T-2] (  2m assemble) Tortilla Soup
+         Ladle the soup into bowls and scatter ¼ cup roughly chopped fresh cilantro over the top.
+
+  ▸ Cobb Salad with Rotisserie Chicken and Bread and Butter   [Thursday]  SEQUENCED
+    footer 31 min | scheduler 31 | card 31 | fresh derive 31 | dishes 2
+      1. [ T-31] ( 12m cook) Cobb Salad with Rotisserie Chicken
+         Bring a small saucepan of water to a boil, lower the 4 large eggs in gently, and cook 12 minutes for hard-boiled eggs.
+      2. [ T-31] (  8m prep) Cobb Salad with Rotisserie Chicken
+         While the eggs cook, chop the 3 romaine hearts into 1-inch pieces, halve 1½ cups cherry tomatoes, dice the English cucumber, and thinly slice the ¼ red onion.
+      3. [ T-19] (  5m rest) Cobb Salad with Rotisserie Chicken
+         Transfer the eggs to a bowl of ice water for 5 minutes, then peel and quarter them.
+      4. [ T-14] (  3m prep) Cobb Salad with Rotisserie Chicken
+         Whisk together 3 tablespoons extra-virgin olive oil, 2 tablespoons red wine vinegar, 1 teaspoon Dijon mustard, 1 minced garlic clove, ¾ teaspoon kosher salt, and ½ teaspoon black pepper in a small bowl until emulsified.
+      5. [ T-11] (  3m assemble) Cobb Salad with Rotisserie Chicken
+         Pit, peel, and dice the 2 ripe avocados just before assembling.
+      6. [  T-8] (  5m assemble) Cobb Salad with Rotisserie Chicken
+         Spread the romaine over a large platter or divide among 4 bowls, then arrange the pulled rotisserie chicken, crumbled pre-cooked bacon, quartered eggs, diced avocado, cherry tomatoes, cucumber, red onion, and 4 oz crumbled blue cheese in distinct rows or sections over the greens.
+      7. [  T-3] (  2m assemble) Bread and Butter
+         Slice the baguette on the bias into ½-inch pieces and arrange on a board alongside 4 tablespoons softened unsalted butter for spreading at the table.
+      8. [  T-1] (  1m assemble) Cobb Salad with Rotisserie Chicken
+         Drizzle the dressing evenly over the salad and season with an extra pinch of salt and black pepper to taste before serving.
+
+  ▸ BBQ Chicken Sandwiches with Slaw and Chips   [Saturday]  SEQUENCED
+    footer 22 min | scheduler 22 | card 22 | fresh derive 22 | dishes 2
+      1. [ T-22] (  6m prep) BBQ Chicken Sandwiches
+         Pull and shred all the meat from the rotisserie chicken, discarding the skin and bones — you should have about 3–4 cups of shredded chicken.
+      2. [ T-16] (  3m prep) Creamy Slaw and Kettle Chips
+         In a large bowl, whisk together ⅓ cup mayonnaise, 1 tablespoon apple cider vinegar, 1 teaspoon granulated sugar, ¼ teaspoon celery seed, ¼ teaspoon kosher salt, and ⅛ teaspoon black pepper until smooth.
+      3. [ T-13] (  2m assemble) Creamy Slaw and Kettle Chips
+         Add the 14 oz bag of coleslaw mix to the bowl and toss thoroughly to coat every strand in the dressing.
+      4. [ T-11] (  5m cook) BBQ Chicken Sandwiches
+         Combine the shredded chicken with 1 cup BBQ sauce in a medium saucepan and season with ¼ teaspoon kosher salt and ⅛ teaspoon black pepper.
+      5. [ T-11] (  5m cook) BBQ Chicken Sandwiches
+         Warm the chicken over medium heat, stirring occasionally, until heated through and the sauce is bubbling, about 5 minutes.
+      6. [ T-11] ( 10m rest) Creamy Slaw and Kettle Chips
+         Refrigerate the slaw for at least 10 minutes to let the flavors meld and the cabbage soften slightly.
+      7. [  T-6] (  3m cook) BBQ Chicken Sandwiches
+         ⟶ With the Creamy Slaw and Kettle Chips chilling, start on the BBQ Chicken Sandwiches.
+         Spread 1 tablespoon softened butter across the cut sides of all 4 brioche buns and toast them in a dry skillet over medium heat for 1–2 minutes until golden.
+      8. [  T-3] (  2m assemble) BBQ Chicken Sandwiches
+         Pile the BBQ chicken onto the toasted bun bottoms, top each with a few dill pickle chips, close with the bun tops, and serve immediately.
+      9. [  T-1] (  1m assemble) Creamy Slaw and Kettle Chips
+         Serve the slaw alongside the sandwiches with the 8 oz bag of kettle-cooked potato chips on the side.
+
+══════════ COOK MODE — PREPPED PATH: Tortilla Soup with Rotisserie Chicken and Classic Toppings ══════════
+  ticked 8 rendered prep steps → isPrepped=false; + every wire step for the meal (10) → isPrepped=false; blockers [{"stepKey":"seasonings_dry#dish#1e24953a-ab21-4a12-a49c-5178ffd082a9","onWire":false,"rendered":false,"title":null,"skipSuggested":null}]
+  recap ("You already prepped this — get your:"):
+    · Dice the yellow onion, seed and mince the jalapeño, mince the 4 garlic cloves, and mince the 2 chipotle chiles; measure out 1 teaspoon of adobo sauce and set aside.
+    · Drain and rinse the 15 oz can of black beans; pull the rotisserie chicken meat into bite-sized pieces to yield 3 cups.
+    · Stack the 6 corn tortillas and cut them into ¼-inch strips.
+  footer 31 min; steps after the prep filter:
+      1. [T-31] (cook) Tortilla Soup
+         Heat 2 tablespoons neutral oil in a large pot or Dutch oven over medium-high until shimmering, then add the onion and jalapeño and sauté, stirring frequently, for 4–5 minutes until softened and lightly golden.
+      2. [T-26] (cook) Tortilla Soup
+         Add the garlic, chipotle chiles, and adobo sauce and cook, stirring constantly, for 1 minute until fragrant.
+      3. [T-25] (cook) Tortilla Soup
+         Stir in 1 teaspoon ground cumin, 1 teaspoon chili powder, and ½ teaspoon dried oregano, then pour in the 28 oz can of undrained fire-roasted tomatoes and 4 cups chicken broth; bring to a boil.
+      4. [T-21] (cook) Tortilla Soup
+         Add the black beans and shredded chicken, reduce heat to medium-low, and simmer uncovered for 15 minutes to meld the flavors.
+      5. [T-14] (cook) Toppings
+         Heat 3 tablespoons neutral oil in a large skillet over medium-high until shimmering and a strip sizzles immediately on contact.
+      6. [T-12] (cook) Toppings
+         Add the tortilla strips in a single layer and fry, turning occasionally, for 5–6 minutes until golden and crisp; work in two batches if needed.
+      7. [T-6] (cook) Tortilla Soup
+         Stir in 2 tablespoons fresh lime juice, 1 teaspoon kosher salt, and ¼ teaspoon black pepper; taste and adjust seasoning.
+      8. [T-6] (cook) Toppings
+         Transfer the strips to a paper-towel-lined plate and immediately season with ¼ teaspoon kosher salt.
+      9. [T-5] (assemble) Toppings
+         Pit and slice or dice the 2 avocados just before serving; set out the sour cream, ¾ cup shredded Mexican cheese blend, lime wedges, and crispy tortilla strips in small bowls so everyone can top their own soup.
+     10. [T-2] (assemble) Tortilla Soup
+         Ladle the soup into bowls and scatter ¼ cup roughly chopped fresh cilantro over the top.

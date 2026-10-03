@@ -1,0 +1,288 @@
+PLAN 1cf373bc-a2cb-4469-90ef-bb87d0327343  [E-1cf373bc]  Your 5-Meal Lineup
+  range 2026-09-29 .. 2026-10-04   meals 5   prep day 2026-10-03   shapes: days-5-7, cold, long-passive, multi-3plus, aromatics, two-cuts, single-dish
+
+══════════ PREP THE WEEK — full plan, as Screen 3 renders it ══════════
+  (HTTP 502: validation_failed Kiwi got distracted. Try again?)
+
+══════════ PREP SELECTED MEALS — Classic Tex-Mex Sheet-Pan Chicken Fajitas + Classic Tex-Mex Ground Beef Tacos ══════════
+  HEADER: 10 containers · about 70 min   (server total 64 · phone 61) · cacheHit=false · prompt v19
+
+  ── seasonings_dry ──
+     1. Measure the Sheet-Pan Chicken Fajitas spice blend   (3 min)
+        Into the Sheet-Pan Chicken Fajitas spice blend:
+        2 tsp chili powder
+        1½ tsp ground cumin
+        1 tsp smoked paprika
+        1 tsp garlic powder
+        ½ tsp dried oregano
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Sunday)
+     2. Measure the Seasoned Ground Beef Taco spice blend   (3 min)
+        Into the Seasoned Ground Beef Taco spice blend:
+        2 tbsp chili powder
+        1 tsp ground cumin
+        ½ tsp smoked paprika
+        ½ tsp garlic powder
+        ½ tsp dried oregano
+        ½ tsp onion powder
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » for: Classic Tex-Mex Ground Beef Tacos (Thursday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Sunday), Classic Tex-Mex Ground Beef Tacos (Thursday)
+     2. Slice the red bell peppers for Sheet-Pan Chicken Fajitas   (5 min)
+        Thinly slice 2 red bell peppers — into a tub labelled "Sheet-Pan Chicken Fajitas — red bell pepper, green bell pepper, yellow onion, lime and garlic".
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Sunday)
+     3. Slice the green bell pepper for Sheet-Pan Chicken Fajitas   (3 min)
+        Thinly slice 1 green bell pepper — into a tub labelled "Sheet-Pan Chicken Fajitas — red bell pepper, green bell pepper, yellow onion, lime and garlic".
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Sunday)
+     4. Prep all yellow onion   (5 min)
+        Thinly slice 1 yellow onion — into a tub labelled "Sheet-Pan Chicken Fajitas — red bell pepper, green bell pepper, yellow onion, lime and garlic".
+        Finely dice 1 yellow onion — into a tub labelled "Seasoned Ground Beef Taco Filling — finely diced yellow onion".
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Sunday), Classic Tex-Mex Ground Beef Tacos (Thursday)
+     5. Prep all limes   (9 min)
+        Juice 2 limes — into a tub labelled "Sheet-Pan Chicken Fajitas — red bell pepper, green bell pepper, yellow onion, lime and garlic".
+        Juice 1 lime — into a tub labelled "Guacamole — lime, garlic, jalapeño, fresh cilantro and red onion".
+        Juice 1 lime — into a tub labelled "Fresh Pico de Gallo — lime, jalapeño, fresh cilantro, roma tomatoes and white onion".
+        Cut 2 limes into wedges — into a tub labelled "Lime — Fajita Toppings, Warm Corn Tortillas with Toppings".
+        » storage: Airtight in the fridge — up to 3 days.
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Sunday), Classic Tex-Mex Ground Beef Tacos (Thursday)
+     6. Mince all garlic   (3 min)
+        Mince 3 cloves garlic — into a tub labelled "Sheet-Pan Chicken Fajitas — red bell pepper, green bell pepper, yellow onion, lime and garlic".
+        Mince 1 clove garlic — into a tub labelled "Guacamole — lime, garlic, jalapeño, fresh cilantro and red onion".
+        Mince 3 cloves garlic — into a tub labelled "Seasoned Ground Beef Taco Filling — minced garlic".
+        » storage: Both containers: Airtight in the fridge — up to 4 days. Stir in the Sheet-Pan Chicken Fajitas spice blend now — it is eaten within a day.
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Sunday), Classic Tex-Mex Ground Beef Tacos (Thursday)
+  ×  7. Ripe avocado — cook day   (1 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Sunday), Classic Tex-Mex Ground Beef Tacos (Thursday)
+     8. Prep all jalapeños   (5 min)
+        Seed and mince 1 jalapeño — into a tub labelled "Guacamole — lime, garlic, jalapeño, fresh cilantro and red onion".
+        Seed and mince 1 jalapeño — into a tub labelled "Fresh Pico de Gallo — lime, jalapeño, fresh cilantro, roma tomatoes and white onion".
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Sunday), Classic Tex-Mex Ground Beef Tacos (Thursday)
+     9. Chop all fresh cilantro   (3 min)
+        Chop ¼ cup fresh cilantro — into a tub labelled "Guacamole — lime, garlic, jalapeño, fresh cilantro and red onion".
+        Roughly chop ¼ cup fresh cilantro — into a tub labelled "Fajita Toppings — chopped fresh cilantro".
+        Roughly chop ¼ cup fresh cilantro — into a tub labelled "Fresh Pico de Gallo — lime, jalapeño, fresh cilantro, roma tomatoes and white onion".
+        » storage: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Sunday), Classic Tex-Mex Ground Beef Tacos (Thursday)
+    10. Dice the red onion for Guacamole   (3 min)
+        Finely dice ¼ cup red onion — into a tub labelled "Guacamole — lime, garlic, jalapeño, fresh cilantro and red onion".
+        » storage: Guacamole — lime, garlic, jalapeño, fresh cilantro and red onion: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Sunday)
+    11. Dice the roma tomatoes for Fresh Pico de Gallo   (8 min)
+        Seed and finely dice 3 roma tomatoes — into a tub labelled "Fresh Pico de Gallo — lime, jalapeño, fresh cilantro, roma tomatoes and white onion".
+        » for: Classic Tex-Mex Ground Beef Tacos (Thursday)
+    12. Dice the white onion for Fresh Pico de Gallo   (3 min)
+        Finely dice ½ white onion — into a tub labelled "Fresh Pico de Gallo — lime, jalapeño, fresh cilantro, roma tomatoes and white onion".
+        » storage: Fresh Pico de Gallo: Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » for: Classic Tex-Mex Ground Beef Tacos (Thursday)
+
+  ── sauces_marinades ──
+  ×  1. Salsa — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Sunday)
+  ×  2. Hot sauce — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Classic Tex-Mex Ground Beef Tacos (Thursday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     1. Slice the chicken breasts for Sheet-Pan Chicken Fajitas   (5 min)
+        Thinly slice 1½ lb boneless skinless chicken breasts against the grain.
+        » storage: Covered in the fridge — cook within 2 days.
+        » for: Classic Tex-Mex Sheet-Pan Chicken Fajitas (Sunday)
+
+  subset ticks: 14 keys, 14 not in the full plan; required for these meals 16, uncovered 5; isPrepped {"Classic Tex-Mex Sheet-Pan Chic":false,"Classic Tex-Mex Ground Beef Ta":false}
+
+══════════ COOK MODE (cook-session.tsx: sequenced if multi-dish, flattened if single) ══════════
+
+  ▸ Classic Tex-Mex Sheet-Pan Chicken Fajitas   [Sunday]  SEQUENCED
+    footer 41 min | scheduler 41 | card 41 | fresh derive 41 | dishes 3
+      1. [ T-41] ( 12m preheat) Sheet-Pan Chicken Fajitas
+         Preheat the oven to 425°F and position a rack in the upper third.
+      2. [ T-41] (  4m prep) Sheet-Pan Chicken Fajitas
+         In a large bowl, whisk together 3 tablespoons olive oil, 2 teaspoons chili powder, 1½ teaspoons ground cumin, 1 teaspoon smoked paprika, 1 teaspoon garlic powder, ½ teaspoon dried oregano, 1 teaspoon kosher salt, ½ teaspoon black pepper, 3 minced garlic cloves, and the juice of 2 limes.
+      3. [ T-37] (  3m assemble) Guacamole
+         ⟶ With the Sheet-Pan Chicken Fajitas heating up, start on the Guacamole.
+         Halve and pit the 3 ripe avocados, scoop the flesh into a medium bowl, and mash with a fork to your preferred texture.
+      4. [ T-34] (  2m assemble) Guacamole
+         Fold in the juice of 1 lime, 1 seeded and minced jalapeño, ¼ cup chopped fresh cilantro, ¼ cup finely diced red onion, 1 minced garlic clove, and ½ teaspoon kosher salt.
+      5. [ T-32] (  4m prep) Sheet-Pan Chicken Fajitas
+         Add the 1½ pounds thinly sliced chicken breast, 2 sliced red bell peppers, 1 sliced green bell pepper, and 1 sliced yellow onion to the bowl and toss until everything is evenly coated.
+      6. [ T-28] (  2m cook) Sheet-Pan Chicken Fajitas
+         Spread the chicken and vegetables in a single layer across one or two large sheet pans, making sure nothing is overlapping.
+      7. [ T-28] (  5m hold) Guacamole
+         Taste and adjust salt or lime juice as needed, then press plastic wrap directly onto the surface and refrigerate until ready to serve.
+      8. [ T-26] ( 22m cook) Sheet-Pan Chicken Fajitas
+         ⟶ With the Guacamole chilling, start on the Sheet-Pan Chicken Fajitas.
+         Roast at 425°F for 20–22 minutes, until the chicken is cooked through and the peppers and onions are charred at the edges.
+      9. [ T-26] (  8m cook) Sheet-Pan Chicken Fajitas
+         While the fajita filling roasts, wrap the 12 flour tortillas in foil and place them in the oven for the last 8 minutes to warm through.
+     10. [ T-23] (  1m assemble) Guacamole
+         ⟶ With the Sheet-Pan Chicken Fajitas cooking, start on the Guacamole.
+         Transfer the guacamole to a serving bowl just before bringing it to the table.
+     11. [  T-7] (  2m assemble) Fajita Toppings
+         ⟶ With the Sheet-Pan Chicken Fajitas cooking, start on the Fajita Toppings.
+         Set out ½ cup sour cream, 1 cup salsa, and 1 cup shredded Mexican cheese blend in individual small bowls.
+     12. [  T-4] (  2m assemble) Sheet-Pan Chicken Fajitas
+         Transfer the roasted chicken and vegetables to a large platter and serve immediately with the warm tortillas.
+     13. [  T-2] (  2m assemble) Fajita Toppings
+         Roughly chop ¼ cup fresh cilantro (optional) and cut 1 lime into wedges (optional), then arrange them alongside the other toppings for guests to add as they like.
+
+  ▸ Lemon-Herb Baked Chicken Breast with Roasted Asparagus and Garlic Herb Potatoes   [Saturday]  SEQUENCED
+    footer 60 min | scheduler 60 | card 60 | fresh derive 60 | dishes 3
+      1. [ T-60] (  6m prep) Lemon-Herb Baked Chicken Breast
+         Zest and juice both lemons, then mince the 4 garlic cloves, strip and chop the rosemary leaves from 2 sprigs, and strip the thyme leaves from 4 sprigs.
+      2. [ T-54] (  3m prep) Lemon-Herb Baked Chicken Breast
+         Whisk together 3 tablespoons olive oil, the lemon zest and juice, minced garlic, chopped rosemary, thyme leaves, 1 tablespoon Dijon mustard, 1½ teaspoons kosher salt, and ¾ teaspoon freshly ground black pepper in a small bowl.
+      3. [ T-51] (  3m prep) Lemon-Herb Baked Chicken Breast
+         Pat the 2 pounds of chicken breasts dry, place them in a baking dish, and pour the marinade over, turning to coat; let sit at room temperature while the oven preheats.
+      4. [ T-48] ( 12m preheat) Lemon-Herb Baked Chicken Breast
+         Preheat the oven to 425°F.
+      5. [ T-47] (  6m prep) Garlic Herb Baby Potatoes
+         ⟶ With the Lemon-Herb Baked Chicken Breast heating up, start on the Garlic Herb Baby Potatoes.
+         Halve 1½ pounds of baby yellow potatoes and mince the 4 garlic cloves, strip and chop the rosemary leaves from 1 sprig, and strip the thyme leaves from 3 sprigs.
+      6. [ T-41] (  3m prep) Garlic Herb Baby Potatoes
+         Toss the halved potatoes with 2½ tablespoons olive oil, the minced garlic, chopped rosemary, thyme leaves, ¾ teaspoon kosher salt, ½ teaspoon black pepper, and ½ teaspoon smoked paprika until evenly coated.
+      7. [ T-38] (  2m prep) Garlic Herb Baby Potatoes
+         Spread the potatoes cut-side down in a single layer on a sheet pan.
+      8. [ T-36] ( 24m cook) Lemon-Herb Baked Chicken Breast
+         Bake the chicken uncovered for 22–25 minutes, until the internal temperature reaches 165°F.
+      9. [ T-36] ( 30m cook) Garlic Herb Baby Potatoes
+         ⟶ With the Lemon-Herb Baked Chicken Breast cooking, start on the Garlic Herb Baby Potatoes.
+         Roast at 425°F for 28–32 minutes, flipping once halfway through, until golden and crispy on the cut sides.
+     10. [ T-25] (  4m prep) Roasted Asparagus
+         ⟶ With the Lemon-Herb Baked Chicken Breast cooking, start on the Roasted Asparagus.
+         Trim the tough ends from 1½ pounds of asparagus and arrange the spears in a single layer on a sheet pan.
+     11. [ T-21] (  2m prep) Roasted Asparagus
+         Drizzle with 2 tablespoons olive oil, sprinkle with ½ teaspoon kosher salt and ¼ teaspoon black pepper, and toss to coat.
+     12. [ T-19] ( 13m cook) Roasted Asparagus
+         Roast the asparagus at 425°F for 12–15 minutes until tender and lightly charred at the tips.
+     13. [ T-12] (  5m rest) Lemon-Herb Baked Chicken Breast
+         ⟶ With the Garlic Herb Baby Potatoes cooking, start on the Lemon-Herb Baked Chicken Breast.
+         Rest the chicken for 5 minutes before slicing.
+     14. [  T-7] (  3m assemble) Lemon-Herb Baked Chicken Breast
+         Slice the chicken and plate it, then scatter ¼ cup chopped fresh flat-leaf parsley over the top (optional).
+     15. [  T-4] (  2m assemble) Roasted Asparagus
+         Transfer to a platter, squeeze ½ lemon over the top (optional), and scatter 2 tablespoons finely grated parmesan over (optional).
+     16. [  T-2] (  2m assemble) Garlic Herb Baby Potatoes
+         Transfer the potatoes to a serving bowl and serve immediately.
+
+  ▸ Texas-Style Beef Chili   [Wednesday]  FLATTENED (single-dish)
+    footer 141 min | scheduler 141 | card 141 | fresh derive 141 | dishes 1
+      1. [T-141] ( 18m prep) 
+         Toast the 3 ancho and 2 guajillo chiles in a dry skillet over medium heat for 30 seconds per side, then soak them in 1 cup of hot water for 15 minutes until softened.
+      2. [T-123] (  8m prep) 
+         While the chiles soak, cut the 2 pounds of beef chuck into ¾-inch cubes, pat dry, and season with 1½ teaspoons kosher salt and ½ teaspoon black pepper.
+      3. [T-115] (  4m prep) 
+         Drain the soaked chiles and blend them with ½ cup of the beef broth and the 2 minced chipotle chiles in adobo until completely smooth; set aside.
+      4. [T-111] (  5m prep) 
+         Dice the yellow onion, mince the 6 garlic cloves, and measure out 2 teaspoons cumin, 1 teaspoon smoked paprika, and 1 teaspoon dried oregano.
+      5. [T-106] ( 14m cook) 
+         Heat 2 tablespoons vegetable oil in a large heavy pot or Dutch oven over medium-high, then sear the beef in a single layer — working in 2–3 batches — for about 4 minutes per batch, turning once, until deeply browned on all sides; transfer each batch to a plate.
+      6. [ T-92] (  4m cook) 
+         Reduce heat to medium, add the diced yellow onion to the same pot, and cook for 4 minutes, stirring frequently, until softened and lightly golden.
+      7. [ T-88] (  1m cook) 
+         Add the minced garlic, cumin, smoked paprika, and oregano and cook for 1 minute, stirring constantly, until fragrant.
+      8. [ T-87] (  4m cook) 
+         Return the seared beef to the pot, pour in the chile purée, the remaining 1½ cups beef broth, and the 14.5-ounce can of crushed tomatoes; stir to combine and bring to a boil.
+      9. [ T-83] ( 75m cook) 
+         Reduce heat to low, cover, and simmer the chili for 1 hour 15 minutes, stirring occasionally, until the beef is very tender.
+     10. [  T-8] (  5m cook) 
+         Whisk the 2 tablespoons masa harina with 3 tablespoons of cold water until smooth, then stir it into the chili and simmer uncovered for 5 minutes until thickened.
+     11. [  T-3] (  3m assemble) 
+         Ladle the chili into bowls and top with optional roughly chopped cilantro, finely diced white onion, shredded cheddar, sour cream, and lime wedges as desired.
+
+  ▸ Italian Meatloaf with Roasted Garlic Mashed Potatoes and Sauteed Broccolini   [Friday]  SEQUENCED
+    footer 97 min | scheduler 97 | card 97 | fresh derive 97 | dishes 3
+      1. [ T-97] ( 12m preheat) Italian Herb Meatloaf
+         Preheat the oven to 350°F and lightly grease a 9×5-inch loaf pan with 1 tablespoon olive oil.
+      2. [ T-97] (  6m prep) Italian Herb Meatloaf
+         Finely dice the yellow onion, mince 4 garlic cloves, and finely chop ¼ cup flat-leaf parsley.
+      3. [ T-85] (  5m prep) Italian Herb Meatloaf
+         In a large bowl, combine 1½ lb ground beef, ½ lb ground pork, the onion, garlic, parsley, 2 eggs, ⅓ cup whole milk, ½ cup breadcrumbs, ½ cup Parmesan, 1 tsp dried oregano, 1 tsp dried basil, ½ tsp fennel seeds, 1½ tsp kosher salt, ½ tsp black pepper, 1 tbsp Worcestershire sauce, and ½ cup marinara; mix until just combined.
+      4. [ T-80] (  2m assemble) Italian Herb Meatloaf
+         Press the meat mixture evenly into the prepared loaf pan and spread the remaining ½ cup marinara over the top.
+      5. [ T-78] ( 60m cook) Italian Herb Meatloaf
+         Bake the meatloaf for 60 minutes, until the internal temperature reaches 160°F.
+      6. [ T-66] ( 12m preheat) Roasted Garlic Mashed Potatoes
+         ⟶ With the Italian Herb Meatloaf cooking, start on the Roasted Garlic Mashed Potatoes.
+         Preheat the oven to 400°F.
+      7. [ T-54] ( 40m cook) Roasted Garlic Mashed Potatoes
+         Trim the top ¼ inch off 1 head of garlic to expose the cloves, drizzle with 1 tablespoon olive oil, wrap tightly in foil, and roast for 40 minutes until golden and soft.
+      8. [ T-54] (  8m prep) Roasted Garlic Mashed Potatoes
+         Peel and quarter 2½ lb russet potatoes and place them in a large pot of cold salted water.
+      9. [ T-46] ( 22m cook) Roasted Garlic Mashed Potatoes
+         Bring the pot to a boil over high heat and cook the potatoes for 18 minutes until fork-tender, then drain.
+     10. [ T-18] ( 10m rest) Italian Herb Meatloaf
+         ⟶ With the Roasted Garlic Mashed Potatoes cooking, start on the Italian Herb Meatloaf.
+         Rest the meatloaf in the pan for 10 minutes before slicing.
+     11. [ T-18] (  4m prep) Sautéed Broccolini with Garlic and Chili Flake
+         ⟶ With the Roasted Garlic Mashed Potatoes cooking, start on the Sautéed Broccolini with Garlic and Chili Flake.
+         Trim 1 lb broccolini and halve any thick stalks lengthwise, then thinly slice 3 garlic cloves.
+     12. [ T-14] (  4m cook) Roasted Garlic Mashed Potatoes
+         ⟶ With the Italian Herb Meatloaf resting, start on the Roasted Garlic Mashed Potatoes.
+         Warm ¾ cup whole milk and 4 tablespoons unsalted butter in a small saucepan over low heat until the butter melts.
+     13. [ T-14] (  2m preheat) Sautéed Broccolini with Garlic and Chili Flake
+         ⟶ With the Italian Herb Meatloaf resting, start on the Sautéed Broccolini with Garlic and Chili Flake.
+         Heat 2 tablespoons olive oil in a large skillet over medium-high heat until shimmering.
+     14. [ T-12] (  4m cook) Sautéed Broccolini with Garlic and Chili Flake
+         Add the broccolini in a single layer and sauté, turning occasionally, for 4 minutes until bright green and lightly charred at the edges.
+     15. [  T-8] (  1m cook) Sautéed Broccolini with Garlic and Chili Flake
+         Push the broccolini to the edges of the pan, add the sliced garlic and ¼ tsp red pepper flakes to the center, and stir for 30 seconds until fragrant.
+     16. [  T-7] (  1m assemble) Sautéed Broccolini with Garlic and Chili Flake
+         Season with ½ tsp kosher salt, squeeze the juice of ½ lemon over the top, toss to combine, and transfer to a serving platter.
+     17. [  T-6] (  4m assemble) Roasted Garlic Mashed Potatoes
+         Squeeze the roasted garlic cloves out of their skins into the drained potatoes, pour in the warm milk and butter, add ¼ cup Parmesan, 1½ tsp kosher salt, and ¼ tsp black pepper, and mash until smooth and creamy.
+     18. [  T-2] (  2m assemble) Italian Herb Meatloaf
+         Slice the meatloaf and serve with the remaining pan juices spooned over the top.
+
+  ▸ Classic Tex-Mex Ground Beef Tacos   [Thursday]  SEQUENCED
+    footer 46 min | scheduler 46 | card 46 | fresh derive 46 | dishes 3
+      1. [ T-46] (  5m prep) Seasoned Ground Beef Taco Filling
+         Finely dice the yellow onion and mince the 3 garlic cloves.
+      2. [ T-41] (  2m prep) Seasoned Ground Beef Taco Filling
+         In a small bowl, combine 2 tablespoons chili powder, 1 teaspoon cumin, ½ teaspoon smoked paprika, ½ teaspoon dried oregano, ½ teaspoon garlic powder, ½ teaspoon onion powder, 1 teaspoon kosher salt, and ½ teaspoon black pepper.
+      3. [ T-39] (  2m preheat) Seasoned Ground Beef Taco Filling
+         Heat 1 tablespoon neutral oil in a large skillet over medium-high until shimmering.
+      4. [ T-37] (  3m cook) Seasoned Ground Beef Taco Filling
+         Add the diced onion and sauté, stirring frequently, for 3 minutes until softened.
+      5. [ T-34] (  1m cook) Seasoned Ground Beef Taco Filling
+         Add the minced garlic and cook, stirring constantly, for 30 seconds until fragrant.
+      6. [ T-33] (  7m cook) Seasoned Ground Beef Taco Filling
+         Add 1½ pounds lean ground beef and cook, breaking it apart, for 6–7 minutes until no pink remains.
+      7. [ T-26] (  2m cook) Seasoned Ground Beef Taco Filling
+         Drain excess fat from the skillet, then stir in the spice blend and 2 tablespoons tomato paste, coating the beef evenly.
+      8. [ T-24] (  5m cook) Seasoned Ground Beef Taco Filling
+         Pour in ½ cup beef broth, stir to combine, and simmer over medium-low for 5 minutes until the liquid reduces and the filling is saucy.
+      9. [ T-24] (  6m prep) Fresh Pico de Gallo
+         ⟶ With the Seasoned Ground Beef Taco Filling cooking, start on the Fresh Pico de Gallo.
+         Seed and finely dice 3 roma tomatoes and ½ white onion, and seed and mince 1 jalapeño.
+     10. [ T-18] (  2m hold) Seasoned Ground Beef Taco Filling
+         Remove from heat and keep warm in the skillet until ready to serve.
+     11. [ T-18] (  2m prep) Fresh Pico de Gallo
+         ⟶ With the Seasoned Ground Beef Taco Filling staying warm, start on the Fresh Pico de Gallo.
+         Roughly chop ¼ cup fresh cilantro.
+     12. [ T-16] (  2m assemble) Fresh Pico de Gallo
+         Combine the tomatoes, onion, jalapeño, and cilantro in a bowl, squeeze in the juice of 1 lime, and season with ½ teaspoon kosher salt.
+     13. [ T-14] (  3m assemble) Warm Corn Tortillas with Toppings
+         Slice 2 avocados and cut 1 lime into wedges just before serving.
+     14. [ T-11] ( 10m rest) Fresh Pico de Gallo
+         Stir to combine and let the pico sit at room temperature for at least 10 minutes before serving to allow the flavors to meld.
+     15. [ T-11] (  5m cook) Warm Corn Tortillas with Toppings
+         ⟶ With the Fresh Pico de Gallo resting, start on the Warm Corn Tortillas with Toppings.
+         Warm 12 corn tortillas directly over a gas flame or in a dry skillet over medium heat, about 30 seconds per side, until pliable and lightly charred.
+     16. [  T-6] (  2m assemble) Seasoned Ground Beef Taco Filling
+         ⟶ With the Fresh Pico de Gallo resting, start on the Seasoned Ground Beef Taco Filling.
+         Spoon the seasoned beef filling into warm tortillas and serve immediately.
+     17. [  T-6] (  2m hold) Warm Corn Tortillas with Toppings
+         ⟶ With the Fresh Pico de Gallo resting, start on the Warm Corn Tortillas with Toppings.
+         Stack the warm tortillas under a clean kitchen towel to keep them pliable.
+     18. [  T-4] (  2m assemble) Warm Corn Tortillas with Toppings
+         Set out 1 cup shredded Mexican cheese blend, ½ cup sour cream, the sliced avocado, lime wedges, and hot sauce (optional) in small bowls for a toppings spread.
+     19. [  T-1] (  1m assemble) Fresh Pico de Gallo
+         Taste and adjust salt, then serve alongside the taco filling.

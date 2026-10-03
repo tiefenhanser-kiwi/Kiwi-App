@@ -1,0 +1,288 @@
+PLAN f0c56d0c-7182-428b-86d5-230689438919  [A09]  Part I · A09 · ginger / scallion / raw tuna
+  range 2026-10-04 .. 2026-10-10   meals 4   prep day 2026-10-04   shapes: days-5-7, multi-3plus, aromatics, two-cuts
+
+══════════ PREP THE WEEK — full plan, as Screen 3 renders it ══════════
+  (HTTP 502: validation_failed Kiwi got distracted. Try again?)
+
+══════════ PREP SELECTED MEALS — Classic Shoyu Tuna Poke Bowl + General Tso's Tofu with Steamed Jasmine Rice and Stir-Fried Bok Choy ══════════
+  HEADER: 6 containers · about 50 min   (server total 51 · phone 41) · cacheHit=false · prompt v19
+  HELD: General Tso's Tofu with Steamed Jasmine Rice and Stir-Fried Bok Choy (Friday, 5 days out) — cube the tofu for General Tso's Crispy Tofu that morning.
+
+  ── seasonings_dry ──
+     1. Measure the Shoyu Marinated Ahi Tuna Poke marinade bowl dry blend   (3 min)
+        Into the Shoyu Marinated Ahi Tuna Poke marinade bowl:
+        1 tbsp black sesame seeds
+        ¼ tsp crushed red pepper flakes
+        2 nori sheets, cut into thin strips
+        » for: Classic Shoyu Tuna Poke Bowl (Sunday)
+     2. Measure the General Tso's Crispy Tofu sauce jar dry blend   (3 min)
+        Into the General Tso's Crispy Tofu sauce jar:
+        2 tbsp Granulated sugar
+        5 tbsp cornstarch
+        1 tsp cornstarch (for sauce slurry)
+        ½ tsp dried red chili flakes
+        » for: General Tso's Tofu with Steamed Jasmine Rice and Stir-Fried Bok Choy (Friday)
+  ×  3. White sesame seeds — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Classic Shoyu Tuna Poke Bowl (Sunday)
+  ×  4. Crushed red pepper flakes — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: General Tso's Tofu with Steamed Jasmine Rice and Stir-Fried Bok Choy (Friday)
+  ×  5. Granulated sugar — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Classic Shoyu Tuna Poke Bowl (Sunday)
+  ×  6. Toasted sesame seeds — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: General Tso's Tofu with Steamed Jasmine Rice and Stir-Fried Bok Choy (Friday)
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+        » for: Classic Shoyu Tuna Poke Bowl (Sunday), General Tso's Tofu with Steamed Jasmine Rice and Stir-Fried Bok Choy (Friday)
+     2. Grate all fresh ginger   (1 min)
+        Finely grate all the fresh ginger:
+        1 tsp for the Shoyu Marinated Ahi Tuna Poke — into a tub labelled "Shoyu Marinated Ahi Tuna Poke — fresh ginger, garlic, green onions, english cucumber and radishes"
+        1 tsp for the General Tso's Crispy Tofu — into the General Tso's Crispy Tofu sauce jar
+        » for: Classic Shoyu Tuna Poke Bowl (Sunday), General Tso's Tofu with Steamed Jasmine Rice and Stir-Fried Bok Choy (Friday)
+     3. Prep all garlic   (3 min)
+        Work through all the garlic now:
+        Mince 2 cloves for the Shoyu Marinated Ahi Tuna Poke — into a tub labelled "Shoyu Marinated Ahi Tuna Poke — fresh ginger, garlic, green onions, english cucumber and radishes"
+        Mince 3 cloves for the General Tso's Crispy Tofu — into the General Tso's Crispy Tofu sauce jar
+        Thinly slice 3 cloves for the Garlic Stir-Fried Bok Choy — into a tub labelled "Garlic Stir-Fried Bok Choy — thinly sliced garlic"
+        » storage: Airtight in the fridge — up to 4 days.
+        » for: Classic Shoyu Tuna Poke Bowl (Sunday), General Tso's Tofu with Steamed Jasmine Rice and Stir-Fried Bok Choy (Friday)
+     4. Slice the green onions for Shoyu Marinated Ahi Tuna Poke   (1 min)
+        Thinly slice 4 green onions, keeping the whites and greens separated — into a tub labelled "Shoyu Marinated Ahi Tuna Poke — fresh ginger, garlic, green onions, english cucumber and radishes"
+        » for: Classic Shoyu Tuna Poke Bowl (Sunday)
+  ×  5. Avocado — cook day   (1 min)  [RENDER-OMITTED]
+        This browns once it is cut, so it is cut on cook day.
+        » for: Classic Shoyu Tuna Poke Bowl (Sunday)
+     6. Slice the cucumber for Shoyu Marinated Ahi Tuna Poke   (3 min)
+        Thinly slice 1 english cucumber into half-moons — into a tub labelled "Shoyu Marinated Ahi Tuna Poke — fresh ginger, garlic, green onions, english cucumber and radishes"
+        » for: Classic Shoyu Tuna Poke Bowl (Sunday)
+  ×  7. Edamame — cook day   (1 min)  [RENDER-OMITTED]
+        Nothing to cut — it goes in as it comes.
+        » for: Classic Shoyu Tuna Poke Bowl (Sunday)
+     8. Slice the radishes for Shoyu Marinated Ahi Tuna Poke   (15 min)
+        Thinly slice 6 radishes — into a tub labelled "Shoyu Marinated Ahi Tuna Poke — fresh ginger, garlic, green onions, english cucumber and radishes"
+        » storage: Shoyu Marinated Ahi Tuna Poke: Airtight in the fridge — up to 3 days. Stir in the Shoyu Marinated Ahi Tuna Poke marinade bowl now — it is eaten within a day.
+        » for: Classic Shoyu Tuna Poke Bowl (Sunday)
+     9. Juice the lime for Sriracha Mayo Drizzle   (2 min)
+        Squeeze 1 tsp fresh lime juice — into a tub labelled "Sriracha Mayo Drizzle — lime juice"
+        » storage: Covered in the fridge — up to 3 days.
+        » for: Classic Shoyu Tuna Poke Bowl (Sunday)
+    10. Prep the bok choy for Garlic Stir-Fried Bok Choy   (1 min)
+        Halve 1½ lb baby bok choy lengthwise, then rinse well under cold water and shake off excess moisture — into a tub labelled "Garlic Stir-Fried Bok Choy — halved baby bok choy"
+        » storage: Airtight in the fridge — up to 3 days.
+        » for: General Tso's Tofu with Steamed Jasmine Rice and Stir-Fried Bok Choy (Friday)
+
+  ── sauces_marinades ──
+     1. Finish the Shoyu Marinated Ahi Tuna Poke marinade bowl   (3 min)
+        Shoyu Marinated Ahi Tuna Poke marinade bowl (black sesame seeds, crushed red pepper flakes and nori sheets already in it): add
+        3 tbsp soy sauce
+        1½ tbsp sesame oil
+        1 tbsp rice vinegar
+        1 tsp honey
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 4 days.
+        » for: Classic Shoyu Tuna Poke Bowl (Sunday)
+     2. Finish the General Tso's Crispy Tofu sauce jar   (3 min)
+        General Tso's Crispy Tofu sauce jar (Granulated sugar, cornstarch, dried red chili flakes, fresh ginger and garlic already in it): add
+        3 tbsp soy sauce
+        2 tbsp rice vinegar
+        2 tbsp hoisin sauce
+        1 tsp toasted sesame oil
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 4 days.
+        » for: General Tso's Tofu with Steamed Jasmine Rice and Stir-Fried Bok Choy (Friday)
+  ×  3. Soy sauce and toasted sesame oil — cook day   (1 min)  [RENDER-OMITTED]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+        » for: General Tso's Tofu with Steamed Jasmine Rice and Stir-Fried Bok Choy (Friday)
+  ×  4. Rice vinegar — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Classic Shoyu Tuna Poke Bowl (Sunday)
+  ×  5. Sriracha — cook day   (1 min)  [RENDER-OMITTED]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+        » for: Classic Shoyu Tuna Poke Bowl (Sunday)
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+  ×  1. Extra-firm tofu — cook day   (1 min)  [RENDER-OMITTED]
+        Cube 28 oz pressed extra-firm tofu into 1-inch pieces, patting dry with paper towels as you go.
+        » storage: This one is 5 days out — leave it for cook day.
+        » for: General Tso's Tofu with Steamed Jasmine Rice and Stir-Fried Bok Choy (Friday)
+
+  subset ticks: 12 keys, 12 not in the full plan; required for these meals 19, uncovered 13; isPrepped {"Classic Shoyu Tuna Poke Bowl":false,"General Tso's Tofu with Steame":false}
+
+══════════ COOK MODE (cook-session.tsx: sequenced if multi-dish, flattened if single) ══════════
+
+  ▸ Classic Shoyu Tuna Poke Bowl   [Sunday]  SEQUENCED
+    footer 47 min | scheduler 47 | card 47 | fresh derive 47 | dishes 3
+      1. [ T-47] (  3m prep) Seasoned Sushi Rice
+         Rinse 2 cups short-grain sushi rice in a fine-mesh strainer under cold running water, swirling with your hand, until the water runs clear, about 2 minutes.
+      2. [ T-44] (  5m prep) Shoyu Marinated Ahi Tuna Poke
+         Cut the 1½ lb sushi-grade ahi tuna into ¾-inch cubes and pat dry with paper towels; set aside in a medium bowl.
+      3. [ T-39] (  5m prep) Shoyu Marinated Ahi Tuna Poke
+         Finely grate 1 teaspoon fresh ginger and mince 2 garlic cloves; thinly slice 4 green onions, keeping whites and greens separated.
+      4. [ T-39] ( 18m cook) Seasoned Sushi Rice
+         Combine the rinsed rice and 2½ cups water in a medium saucepan, bring to a boil over high heat, then reduce heat to the lowest setting, cover tightly, and cook for 15 minutes.
+      5. [ T-34] (  3m prep) Shoyu Marinated Ahi Tuna Poke
+         ⟶ With the Seasoned Sushi Rice marinating, start on the Shoyu Marinated Ahi Tuna Poke.
+         Whisk together 3 tablespoons soy sauce, 1½ tablespoons sesame oil, 1 tablespoon rice vinegar, 1 teaspoon honey, the grated ginger, minced garlic, and the green onion whites in a bowl to form the marinade.
+      6. [ T-31] (  2m prep) Shoyu Marinated Ahi Tuna Poke
+         Add the tuna cubes to the marinade and toss gently to coat; fold in 1 tablespoon white sesame seeds, 1 tablespoon black sesame seeds, and ¼ teaspoon crushed red pepper flakes (optional).
+      7. [ T-29] ( 15m rest) Shoyu Marinated Ahi Tuna Poke
+         Cover the bowl and refrigerate the tuna for at least 15 minutes to marinate.
+      8. [ T-29] (  6m prep) Shoyu Marinated Ahi Tuna Poke
+         While the tuna marinates, thinly slice 1 English cucumber into half-moons, thinly slice 6 radishes, and cut 2 nori sheets into thin strips.
+      9. [ T-23] (  3m assemble) Shoyu Marinated Ahi Tuna Poke
+         Just before serving, halve, pit, and slice 2 avocados.
+     10. [ T-21] ( 10m rest) Seasoned Sushi Rice
+         ⟶ With the Shoyu Marinated Ahi Tuna Poke chilling, start on the Seasoned Sushi Rice.
+         Remove from heat and let the rice steam, covered, for 10 minutes; do not lift the lid.
+     11. [ T-15] (  2m prep) Sriracha Mayo Drizzle
+         ⟶ With the Shoyu Marinated Ahi Tuna Poke chilling, start on the Sriracha Mayo Drizzle.
+         Squeeze 1 teaspoon fresh lime juice and measure 4 tablespoons Kewpie mayonnaise and 2 teaspoons sriracha.
+     12. [ T-13] (  2m assemble) Sriracha Mayo Drizzle
+         Whisk together the Kewpie mayonnaise, sriracha, and lime juice in a small bowl until smooth and fully combined.
+     13. [ T-11] (  4m assemble) Seasoned Sushi Rice
+         Stir together 3 tablespoons rice vinegar, 1½ tablespoons granulated sugar, and 1 teaspoon kosher salt in a small bowl until dissolved; fold gently into the hot rice with a rice paddle or spatula, fanning to cool slightly.
+     14. [  T-7] (  4m assemble) Shoyu Marinated Ahi Tuna Poke
+         Spoon the marinated tuna over the seasoned sushi rice in each bowl and arrange the avocado slices, cucumber, edamame, radishes, and nori strips around the tuna; garnish with the green onion greens, remaining sesame seeds, and ¼ cup pickled ginger, then drizzle with the sriracha mayo.
+     15. [  T-3] (  2m assemble) Seasoned Sushi Rice
+         Divide the seasoned sushi rice evenly among 4 bowls, spreading it in an even layer as the base for the poke toppings.
+     16. [  T-1] (  1m assemble) Sriracha Mayo Drizzle
+         Transfer the sriracha mayo to a small squeeze bottle or spoon it into a zip-lock bag with one corner snipped for easy drizzling over the assembled poke bowls.
+
+  ▸ Classic Sticky Honey Garlic Chicken Thighs with Steamed Jasmine Rice and Roasted Broccoli   [Tuesday]  SEQUENCED
+    footer 52 min | scheduler 52 | card 52 | fresh derive 52 | dishes 3
+      1. [ T-52] (  4m prep) Sticky Honey Garlic Chicken Thighs
+         Pat 3 pounds bone-in skin-on chicken thighs thoroughly dry with paper towels, then season all over with 1 teaspoon kosher salt and ½ teaspoon black pepper.
+      2. [ T-48] (  5m prep) Sticky Honey Garlic Chicken Thighs
+         Whisk together ⅓ cup honey, 3 tablespoons soy sauce, 6 minced garlic cloves, 1 teaspoon finely grated fresh ginger, 1 tablespoon rice vinegar, 1 teaspoon sesame oil, and 1 teaspoon cornstarch in a small bowl until smooth; set aside.
+      3. [ T-43] (  2m preheat) Sticky Honey Garlic Chicken Thighs
+         Heat 1 tablespoon neutral oil in a large oven-safe skillet over medium-high heat until shimmering.
+      4. [ T-43] ( 10m preheat) Roasted Broccoli with Garlic and Lemon
+         ⟶ With the Sticky Honey Garlic Chicken Thighs heating up, start on the Roasted Broccoli with Garlic and Lemon.
+         Preheat the oven to 425°F and line a large rimmed baking sheet with foil.
+      5. [ T-41] (  7m cook) Sticky Honey Garlic Chicken Thighs
+         ⟶ With the Roasted Broccoli with Garlic and Lemon heating up, start on the Sticky Honey Garlic Chicken Thighs.
+         Place chicken thighs skin-side down in the skillet and sear undisturbed for 6–7 minutes until the skin is deep golden and releases cleanly from the pan.
+      6. [ T-34] ( 22m cook) Sticky Honey Garlic Chicken Thighs
+         Flip the thighs, pour the glaze evenly over the chicken, and transfer the skillet to a 400°F oven; roast for 20–22 minutes until an instant-read thermometer inserted near the bone reads 165°F and the glaze is bubbling and lacquered.
+      7. [ T-33] (  3m prep) Steamed Jasmine Rice
+         ⟶ With the Sticky Honey Garlic Chicken Thighs cooking, start on the Steamed Jasmine Rice.
+         Rinse 1½ cups jasmine rice under cold running water in a fine-mesh sieve, swishing until the water runs clear, about 1 minute.
+      8. [ T-30] (  5m prep) Roasted Broccoli with Garlic and Lemon
+         ⟶ With the Sticky Honey Garlic Chicken Thighs cooking, start on the Roasted Broccoli with Garlic and Lemon.
+         Toss 1¼ pounds broccoli florets and 2 thinly sliced garlic cloves with 2 tablespoons olive oil, ½ teaspoon kosher salt, and ¼ teaspoon black pepper until evenly coated, then spread in a single layer on the prepared baking sheet.
+      9. [ T-25] (  4m cook) Steamed Jasmine Rice
+         ⟶ With the Sticky Honey Garlic Chicken Thighs cooking, start on the Steamed Jasmine Rice.
+         Combine the rinsed rice, 2¼ cups water, and ½ teaspoon kosher salt in a medium saucepan and bring to a full boil over medium-high heat.
+     10. [ T-25] ( 22m cook) Roasted Broccoli with Garlic and Lemon
+         ⟶ With the Sticky Honey Garlic Chicken Thighs cooking, start on the Roasted Broccoli with Garlic and Lemon.
+         Roast at 425°F for 20–22 minutes, flipping once halfway through, until the florets are deeply caramelized at the edges and tender at the stem.
+     11. [ T-21] ( 15m cook) Steamed Jasmine Rice
+         ⟶ With the Sticky Honey Garlic Chicken Thighs cooking, start on the Steamed Jasmine Rice.
+         Stir once, reduce heat to the lowest setting, cover tightly with a lid, and cook for 15 minutes without lifting the lid.
+     12. [ T-12] (  5m rest) Sticky Honey Garlic Chicken Thighs
+         ⟶ With the Roasted Broccoli with Garlic and Lemon cooking, start on the Sticky Honey Garlic Chicken Thighs.
+         Rest the chicken in the skillet for 5 minutes so the juices redistribute.
+     13. [  T-7] (  2m assemble) Sticky Honey Garlic Chicken Thighs
+         Spoon the pan glaze over the thighs, then scatter 3 thinly sliced scallions and 1 teaspoon sesame seeds (optional) over the top before serving.
+     14. [  T-6] (  5m rest) Steamed Jasmine Rice
+         ⟶ With the Roasted Broccoli with Garlic and Lemon cooking, start on the Steamed Jasmine Rice.
+         Remove from heat and let the rice steam, still covered, for 5 minutes.
+     15. [  T-3] (  1m assemble) Roasted Broccoli with Garlic and Lemon
+         ⟶ With the Steamed Jasmine Rice cooking, start on the Roasted Broccoli with Garlic and Lemon.
+         Squeeze the juice of ½ lemon over the roasted broccoli and transfer to a serving dish.
+     16. [  T-1] (  1m assemble) Steamed Jasmine Rice
+         Uncover and fluff the rice with a fork before serving.
+
+  ▸ Classic Crispy Orange Chicken with Steamed Jasmine Rice and Stir-Fried Broccoli   [Wednesday]  SEQUENCED
+    footer 51 min | scheduler 51 | card 51 | fresh derive 51 | dishes 3
+      1. [ T-51] (  3m prep) Classic Crispy Orange Chicken
+         In a large bowl, whisk together ¾ cup cornstarch, ¼ cup all-purpose flour, ½ teaspoon baking powder, 1 teaspoon kosher salt, and ½ teaspoon black pepper.
+      2. [ T-48] (  5m prep) Classic Crispy Orange Chicken
+         Beat 2 eggs in a separate bowl, then add the 2 pounds of chicken thigh pieces and toss to coat; transfer the chicken to the dry coating mixture and toss until each piece is well dredged.
+      3. [ T-43] (  5m prep) Classic Crispy Orange Chicken
+         In a small saucepan, combine ¾ cup fresh orange juice, 1 tablespoon orange zest, 3 tablespoons soy sauce, 2 tablespoons rice vinegar, 3 tablespoons granulated sugar, 1 tablespoon hoisin sauce, 1 teaspoon sesame oil, 1 teaspoon grated ginger, and 3 minced garlic cloves; stir to combine.
+      4. [ T-38] (  2m prep) Classic Crispy Orange Chicken
+         Mix 1 tablespoon cornstarch with 2 tablespoons cold water in a small bowl to form a slurry; set aside.
+      5. [ T-36] (  5m preheat) Classic Crispy Orange Chicken
+         Heat 3 cups vegetable oil in a large heavy-bottomed pot or wok over medium-high heat until it reaches 350°F.
+      6. [ T-35] (  3m prep) Steamed Jasmine Rice
+         ⟶ With the Classic Crispy Orange Chicken heating up, start on the Steamed Jasmine Rice.
+         Rinse 1½ cups jasmine rice under cold water, swirling until the water runs clear, then drain well.
+      7. [ T-32] (  4m cook) Steamed Jasmine Rice
+         Combine the rinsed rice, 2¼ cups water, and ½ teaspoon kosher salt in a medium saucepan; bring to a boil over high heat.
+      8. [ T-31] ( 15m cook) Classic Crispy Orange Chicken
+         ⟶ With the Steamed Jasmine Rice marinating, start on the Classic Crispy Orange Chicken.
+         Fry the chicken in 3 batches, turning occasionally, for 4–5 minutes per batch until deep golden and cooked through; transfer to a wire rack or paper-towel-lined tray.
+      9. [ T-28] ( 15m cook) Steamed Jasmine Rice
+         Reduce heat to the lowest setting, cover tightly, and cook for 15 minutes until all water is absorbed; do not lift the lid.
+     10. [ T-16] (  4m prep) Stir-Fried Broccoli with Garlic
+         ⟶ With the Steamed Jasmine Rice cooking, start on the Stir-Fried Broccoli with Garlic.
+         Cut 1 pound broccoli into bite-sized florets and thinly slice 2 garlic cloves.
+     11. [ T-13] (  5m rest) Steamed Jasmine Rice
+         Remove from heat and let the rice steam, still covered, for 5 minutes, then fluff with a fork before serving.
+     12. [ T-12] (  4m cook) Classic Crispy Orange Chicken
+         ⟶ With the Steamed Jasmine Rice cooking, start on the Classic Crispy Orange Chicken.
+         While the last batch of chicken drains, bring the orange sauce mixture to a simmer in the small saucepan over medium heat, then stir in the cornstarch slurry and cook 1–2 minutes, stirring constantly, until thickened and glossy.
+     13. [  T-8] (  2m cook) Classic Crispy Orange Chicken
+         Add all the fried chicken to the sauce and toss over medium heat for 1–2 minutes until every piece is evenly coated; add ½ teaspoon dried red chili flakes if using.
+     14. [  T-8] (  2m preheat) Stir-Fried Broccoli with Garlic
+         Heat 1 tablespoon vegetable oil in a wok or large skillet over high heat until shimmering.
+     15. [  T-6] (  3m cook) Stir-Fried Broccoli with Garlic
+         Add the sliced garlic and stir-fry for 30 seconds until fragrant, then add the broccoli florets and toss constantly for 2 minutes.
+     16. [  T-3] (  2m assemble) Classic Crispy Orange Chicken
+         Transfer to a serving platter and garnish with 2 sliced scallions and 1 tablespoon sesame seeds.
+     17. [  T-3] (  2m cook) Stir-Fried Broccoli with Garlic
+         Add 2 tablespoons water to the wok, cover immediately, and steam for 2 minutes until the broccoli is bright green and tender-crisp.
+     18. [  T-1] (  1m assemble) Stir-Fried Broccoli with Garlic
+         Uncover, drizzle in 1 tablespoon soy sauce and ½ teaspoon sesame oil, season with ¼ teaspoon kosher salt, toss to coat, and serve immediately.
+
+  ▸ General Tso's Tofu with Steamed Jasmine Rice and Stir-Fried Bok Choy   [Friday]  SEQUENCED
+    footer 51 min | scheduler 51 | card 51 | fresh derive 51 | dishes 3
+      1. [ T-51] (  6m prep) General Tso's Crispy Tofu
+         Pat the 28 oz pressed tofu dry with paper towels, cut into 1-inch cubes, and toss in a large bowl with 4 tablespoons of the cornstarch until evenly coated.
+      2. [ T-45] (  4m prep) General Tso's Crispy Tofu
+         Mince the 3 garlic cloves and finely grate 1 teaspoon fresh ginger.
+      3. [ T-41] (  3m prep) Steamed Jasmine Rice
+         Rinse 1½ cups jasmine rice in a fine-mesh strainer under cold water, swishing until the water runs clear.
+      4. [ T-38] (  4m prep) General Tso's Crispy Tofu
+         Whisk together 3 tablespoons soy sauce, 2 tablespoons rice vinegar, 2 tablespoons hoisin sauce, 2 tablespoons granulated sugar, 1 teaspoon toasted sesame oil, ½ teaspoon dried red chili flakes, and ¼ cup water in a small bowl; stir in 1 teaspoon cornstarch to make the sauce slurry.
+      5. [ T-34] (  3m prep) General Tso's Crispy Tofu
+         Thinly slice the 3 scallions and set aside with 1 tablespoon toasted sesame seeds for garnish.
+      6. [ T-34] (  4m cook) Steamed Jasmine Rice
+         Combine the rinsed rice, 2¼ cups water, and ¼ teaspoon kosher salt in a medium saucepan and bring to a boil over high heat.
+      7. [ T-31] (  2m preheat) General Tso's Crispy Tofu
+         ⟶ With the Steamed Jasmine Rice marinating, start on the General Tso's Crispy Tofu.
+         Heat 3 tablespoons neutral oil in a large non-stick or cast-iron skillet over medium-high until shimmering.
+      8. [ T-30] ( 15m cook) Steamed Jasmine Rice
+         ⟶ With the General Tso's Crispy Tofu heating up, start on the Steamed Jasmine Rice.
+         Reduce heat to the lowest setting, cover tightly, and cook for 15 minutes without lifting the lid.
+      9. [ T-29] ( 12m cook) General Tso's Crispy Tofu
+         ⟶ With the Steamed Jasmine Rice cooking, start on the General Tso's Crispy Tofu.
+         Add the coated tofu cubes in a single layer and pan-fry, turning every 2–3 minutes, until golden and crisp on all sides, about 10–12 minutes total; transfer to a plate.
+     10. [ T-17] (  5m prep) Garlic Stir-Fried Bok Choy
+         ⟶ With the Steamed Jasmine Rice cooking, start on the Garlic Stir-Fried Bok Choy.
+         Halve 1½ pounds baby bok choy lengthwise, rinse well under cold water, and shake off excess moisture; thinly slice 3 garlic cloves.
+     11. [ T-15] (  5m rest) Steamed Jasmine Rice
+         Remove from heat and let the rice steam, still covered, for 5 minutes, then fluff with a fork before serving.
+     12. [ T-12] (  1m cook) General Tso's Crispy Tofu
+         ⟶ With the Steamed Jasmine Rice cooking, start on the General Tso's Crispy Tofu.
+         Reduce heat to medium, add the garlic and ginger to the same pan, and stir-fry for 30 seconds until fragrant.
+     13. [ T-12] (  2m preheat) Garlic Stir-Fried Bok Choy
+         ⟶ With the Steamed Jasmine Rice cooking, start on the Garlic Stir-Fried Bok Choy.
+         Heat 1½ tablespoons neutral oil in a large wok or skillet over high heat until just smoking.
+     14. [ T-10] (  1m cook) Garlic Stir-Fried Bok Choy
+         Add the sliced garlic and stir-fry for 20–30 seconds until fragrant and just beginning to turn golden.
+     15. [  T-9] (  4m cook) Garlic Stir-Fried Bok Choy
+         Add the bok choy cut-side down and stir-fry over high heat for 3–4 minutes, tossing frequently, until the leaves are wilted and the stems are tender-crisp.
+     16. [  T-5] (  2m cook) General Tso's Crispy Tofu
+         Pour in the sauce slurry and stir constantly for 1–2 minutes until it thickens and turns glossy.
+     17. [  T-3] (  2m assemble) General Tso's Crispy Tofu
+         Return the crispy tofu to the pan and toss to coat evenly in the sauce, then transfer to a serving plate and garnish with the sliced scallions and toasted sesame seeds.
+     18. [  T-1] (  1m assemble) Garlic Stir-Fried Bok Choy
+         Drizzle in 1 tablespoon soy sauce and ½ teaspoon toasted sesame oil, season with ¼ teaspoon kosher salt and ¼ teaspoon red pepper flakes (optional), toss for 30 seconds, and serve immediately.
