@@ -2,16 +2,15 @@
 //
 // All non-React logic lives here so it's unit-testable in node:test: flatten a
 // loaded recipe into an ordered step list, the three-state prep gate, the
-// prep-phase filter, the mise-en-place recap source, and the best-effort
-// inline-quantity highlighter.
+// prepped path (which cook steps Prep the Week already did, and the recap of
+// what was prepped), and the best-effort inline-quantity highlighter.
 //
 // CRITICAL INVARIANT: prep state is read ONLY from plan/instance context
-// (PlanDetailItem.isPrepped via usePlan). The Meal/Dish recipe shapes are
-// RENDER-ONLY — nothing here reads or writes a prep flag on a Meal/Dish, and
-// the recap reads prep-step TEXT for display only. No write-back this block
-// (per-meal prep write-back is D-WS7-157, Block 4).
+// (PlanDetailItem.isPrepped via usePlan, the plan's prep-week payload and its
+// completions). The Meal/Dish recipe shapes are RENDER-ONLY — nothing here
+// reads or writes a prep flag on a Meal/Dish. Nothing here writes at all.
 
-import type { SequencedStep } from "@/lib/api/cooking";
+import type { PrepCompletionRow, PrepWeekResult, SequencedStep } from "@/lib/api/cooking";
 import type { DishDetail } from "@/lib/api/dishes";
 import type { AmountRef, MealDetail, MealStep } from "@/lib/api/meals";
 
@@ -27,8 +26,6 @@ export {
   type ActiveTimer,
 } from "./timer";
 export { remainingMinutes, remainingMinutesToServe } from "./stepTiming";
-
-export const PREP_PHASE = "prep";
 
 /**
  * WS7-8b BUG-006 — the multiplier Cook Mode renders amountRefs through, so the
@@ -74,7 +71,14 @@ export interface CookStep {
   text: string;
   phaseType: string;
   estimatedMinutes: number;
-  isPrep: boolean;
+  /**
+   * K-R7 — the recipe identity of a DISH step: its dish and its persisted
+   * `stepIndex` (the Sequencer's `originalStepIndex`, not the array position).
+   * This is the key a prep step's `coversCookSteps` names. Absent on meal-owned
+   * steps and on a dishId launch, which no prep step can cover.
+   */
+  dishId?: string;
+  stepIndex?: number;
   /** §13.5.2 — the server's timing-sensitive flag; drives the "do this soon"
    *  treatment + an auto-suggested timer chip. */
   isTimingSensitive: boolean;
@@ -102,13 +106,18 @@ export interface CookStep {
   startOffsetMinutes?: number | null;
 }
 
-function toCookStep(s: MealStep, key: string, dishTitle?: string): CookStep {
+function toCookStep(
+  s: MealStep,
+  key: string,
+  dishTitle?: string,
+  dishId?: string,
+): CookStep {
   return {
     key,
     text: s.text,
     phaseType: s.phaseType,
     estimatedMinutes: s.estimatedMinutes,
-    isPrep: s.phaseType === PREP_PHASE,
+    ...(dishId !== undefined ? { dishId, stepIndex: s.stepIndex } : {}),
     isTimingSensitive: s.isTimingSensitive,
     dishTitle,
     amountRefs: s.amountRefs ?? null,
@@ -130,7 +139,9 @@ export function flattenMealSteps(meal: MealDetail): CookStep[] {
   const out: CookStep[] = [];
   meal.dishes.forEach((dish) => {
     dish.steps.forEach((s, i) => {
-      out.push(toCookStep(s, `${dish.dishId}#${i}`, multiDish ? dish.title : undefined));
+      out.push(
+        toCookStep(s, `${dish.dishId}#${i}`, multiDish ? dish.title : undefined, dish.dishId),
+      );
     });
   });
   return out;
@@ -165,13 +176,13 @@ export function sequenceMealSteps(
 ): CookStep[] {
   // Lookup + naive fallback order, both keyed by (dishId, stepIndex). Multi-dish
   // by contract, so a dish label is always attached.
-  const byKey = new Map<string, { step: MealStep; dishTitle: string }>();
+  const byKey = new Map<string, { step: MealStep; dishTitle: string; dishId: string }>();
   const naiveOrder: string[] = [];
   for (const dish of meal.dishes) {
     for (const s of dish.steps) {
       const k = `${dish.dishId}#${s.stepIndex}`;
       if (!byKey.has(k)) {
-        byKey.set(k, { step: s, dishTitle: dish.title });
+        byKey.set(k, { step: s, dishTitle: dish.title, dishId: dish.dishId });
         naiveOrder.push(k);
       }
     }
@@ -188,7 +199,7 @@ export function sequenceMealSteps(
     if (!hit || used.has(k)) continue; // unmappable or duplicate → defer to append.
     used.add(k);
     out.push({
-      ...toCookStep(hit.step, k, hit.dishTitle),
+      ...toCookStep(hit.step, k, hit.dishTitle, hit.dishId),
       cue: entry.reason,
       startOffsetMinutes: entry.startOffsetMinutes,
     });
@@ -225,7 +236,7 @@ export function sequenceMealSteps(
   for (const k of naiveOrder) {
     if (used.has(k)) continue;
     const hit = byKey.get(k);
-    if (hit) out.push(toCookStep(hit.step, k, hit.dishTitle));
+    if (hit) out.push(toCookStep(hit.step, k, hit.dishTitle, hit.dishId));
   }
   return out;
 }
@@ -248,22 +259,193 @@ export function resolvePrepGate(
   return isPrepped ? "prepped" : "not_prepped";
 }
 
-/**
- * The linear session steps. On the prepped path we drop phaseType==='prep'
- * steps and renumber; the prepped ingredients are surfaced instead via the
- * mise-en-place recap. Cook/rest/preheat/assemble/hold always stay.
- */
-export function applyPrepFilter(steps: CookStep[], skipPrep: boolean): CookStep[] {
-  return skipPrep ? steps.filter((s) => !s.isPrep) : steps;
+// ── The prepped path (K-R7) ─────────────────────────────────────────────────
+//
+// 🔴 NO COOK STEP IS EVER REMOVED FROM THE FLOW. This replaced a filter that
+// dropped every cook step tagged `prep` on the prepped path and built the recap
+// from those same cook steps. Both were wrong: a `prep` tag says what KIND of
+// work a step is, not that Prep the Week did it, so a step whose salt or oil was
+// never prepped vanished with the part the cook still had to do. Now:
+//   • a cook step is "done in prep" — collapsed, its text one tap away — only
+//     when every prep step whose `coversCookSteps` names it is complete;
+//   • the recap lists the plan's PREP steps for this meal, not cook steps.
+// The footer's minutes are untouched by either: the Sequencer's serve-anchored
+// offsets are plan-agnostic and still count a collapsed step's time, and a
+// second clock that subtracted it is BUG-337's lesson (see stepTiming.ts).
+
+function coverKey(dishId: string, stepIndex: number): string {
+  return `${dishId}#${stepIndex}`;
 }
 
 /**
- * Mise-en-place recap source: this meal's OWN prep-phase step texts (no
- * contributesToMealIds — that field is absent from mobile and is Block 4
- * territory). Render-only; writes nothing.
+ * The CookStep keys Prep the Week has fully done for `mealId`: every prep step
+ * listing the cook step in `coversCookSteps` has its stepKey in `checked` (the
+ * completions the app already reads). Strict on purpose, like the server's
+ * derivation: one unticked covering step and the cook step renders normally,
+ * because it is the cook step that then tells the cook what still needs
+ * cutting. A cook step no prep step covers never collapses.
  */
-export function misePlaceItems(steps: CookStep[]): string[] {
-  return steps.filter((s) => s.isPrep).map((s) => s.text);
+export function doneInPrepStepKeys(
+  steps: readonly CookStep[],
+  prep: PrepWeekResult | undefined,
+  mealId: string,
+  checked: ReadonlySet<string>,
+): Set<string> {
+  const out = new Set<string>();
+  if (!prep || mealId.length === 0) return out;
+  const coveringStepKeys = new Map<string, string[]>();
+  for (const phase of prep.phases) {
+    for (const step of phase.steps) {
+      for (const c of step.coversCookSteps ?? []) {
+        if (c.mealId !== mealId) continue;
+        const k = coverKey(c.dishId, c.stepIndex);
+        const list = coveringStepKeys.get(k) ?? [];
+        list.push(step.stepKey);
+        coveringStepKeys.set(k, list);
+      }
+    }
+  }
+  for (const st of steps) {
+    if (st.dishId === undefined || st.stepIndex === undefined) continue;
+    const by = coveringStepKeys.get(coverKey(st.dishId, st.stepIndex));
+    if (by && by.length > 0 && by.every((k) => checked.has(k))) out.add(st.key);
+  }
+  return out;
+}
+
+export interface PrepRecap {
+  /** "Prepped on Sunday", or "Already prepped" when the day is unknown. */
+  heading: string;
+  /** One line per prep step (its title), in Prep the Week's order. */
+  items: string[];
+}
+
+const WEEKDAYS = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+] as const;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The "you already prepped this" recap, from the plan's PREP steps for this
+ * meal (those whose `contributesToMealIds` includes it). Two kinds are left
+ * out because the cook never prepped them: a `skipSuggested` step (Prep the
+ * Week does not render it — D-WS7-184) and a `holdsNoContainer` step (the
+ * cook-day protein line or the wash; the server's isPrepped does not wait for
+ * them either).
+ *
+ * The day is the latest `checkedAt` among those steps' completions, named only
+ * when it is today or one of the six days before; older, or no completion at
+ * all (a manual pin), and a weekday would point at the wrong week, so the
+ * heading says "Already prepped".
+ */
+export function prepRecap(
+  prep: PrepWeekResult | undefined,
+  mealId: string,
+  completions: readonly PrepCompletionRow[],
+  now: Date,
+): PrepRecap {
+  const items: string[] = [];
+  const stepKeys = new Set<string>();
+  for (const phase of prep?.phases ?? []) {
+    for (const step of phase.steps) {
+      if (!step.contributesToMealIds.includes(mealId)) continue;
+      if (step.skipSuggested === true || step.holdsNoContainer === true) continue;
+      stepKeys.add(step.stepKey);
+      if (!items.includes(step.title)) items.push(step.title);
+    }
+  }
+
+  let latest: Date | null = null;
+  for (const row of completions) {
+    if (!stepKeys.has(row.stepKey)) continue;
+    const at = new Date(row.checkedAt);
+    if (Number.isNaN(at.getTime())) continue;
+    if (latest === null || at > latest) latest = at;
+  }
+  // Calendar days, local time: 0 (today) … 6. Seven is the same weekday a week
+  // ago, which the weekday alone cannot tell apart from this week.
+  const days =
+    latest === null
+      ? null
+      : Math.round((startOfLocalDay(now) - startOfLocalDay(latest)) / DAY_MS);
+  const heading =
+    latest !== null && days !== null && days >= 0 && days <= 6
+      ? `Prepped on ${WEEKDAYS[latest.getDay()]}`
+      : "Already prepped";
+  return { heading, items };
+}
+
+function startOfLocalDay(d: Date): number {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
+/**
+ * Cook Mode fetches the plan's prep-week payload only when a prep session has
+ * evidently happened (at least one completion row). That payload is a cache hit
+ * for a plan that was prepped — but for one that never was, the same POST is a
+ * live narration call. Without a completion nothing can collapse anyway; the
+ * payload is still used whenever it is already in the client cache.
+ */
+export function shouldLoadPrepForCook(
+  hasPlan: boolean,
+  completionCount: number,
+): boolean {
+  return hasPlan && completionCount > 0;
+}
+
+// ── Navigation over the live (not done-in-prep) steps ──────────────────────
+// A done-in-prep step stays in the list — counted in "step N of M", painted on
+// the progress bar — but the anchor never rests on it: the cook reads it by
+// tapping it open, not by stepping onto it.
+
+/** First step not done in prep (0 when every step is). */
+export function firstLiveIndex(
+  steps: readonly CookStep[],
+  doneInPrep: ReadonlySet<string>,
+): number {
+  const i = steps.findIndex((s) => !doneInPrep.has(s.key));
+  return i === -1 ? 0 : i;
+}
+
+/** Last step not done in prep (the last step when every step is). */
+export function lastLiveIndex(
+  steps: readonly CookStep[],
+  doneInPrep: ReadonlySet<string>,
+): number {
+  for (let i = steps.length - 1; i >= 0; i--) {
+    if (!doneInPrep.has(steps[i].key)) return i;
+  }
+  return Math.max(0, steps.length - 1);
+}
+
+/** The next live step after `from`; `from` itself when there is none. */
+export function nextLiveIndex(
+  steps: readonly CookStep[],
+  doneInPrep: ReadonlySet<string>,
+  from: number,
+): number {
+  for (let i = from + 1; i < steps.length; i++) {
+    if (!doneInPrep.has(steps[i].key)) return i;
+  }
+  return from;
+}
+
+/** The previous live step before `from`; `from` itself when there is none. */
+export function prevLiveIndex(
+  steps: readonly CookStep[],
+  doneInPrep: ReadonlySet<string>,
+  from: number,
+): number {
+  for (let i = from - 1; i >= 0; i--) {
+    if (!doneInPrep.has(steps[i].key)) return i;
+  }
+  return from;
 }
 
 // ── Cook-screen render selector (WS7-8b B3 polish #1) ───────────────────────

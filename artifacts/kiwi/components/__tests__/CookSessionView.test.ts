@@ -118,18 +118,20 @@ function findByA11yLabel(
 }
 
 const STEPS: CookStep[] = [
-  { key: "0", text: "Sear the chicken", phaseType: "cook", estimatedMinutes: 8, isPrep: false, isTimingSensitive: false },
-  { key: "1", text: "Add 2 cups diced tomatoes", phaseType: "cook", estimatedMinutes: 5, isPrep: false, isTimingSensitive: false },
-  { key: "2", text: "Rest 5 minutes", phaseType: "rest", estimatedMinutes: 5, isPrep: false, isTimingSensitive: false },
+  { key: "0", text: "Sear the chicken", phaseType: "cook", estimatedMinutes: 8, isTimingSensitive: false },
+  { key: "1", text: "Add 2 cups diced tomatoes", phaseType: "cook", estimatedMinutes: 5, isTimingSensitive: false },
+  { key: "2", text: "Rest 5 minutes", phaseType: "rest", estimatedMinutes: 5, isTimingSensitive: false },
 ];
 
 const NOOP = () => {};
 
 interface Overrides {
   steps?: CookStep[];
+  doneInPrepKeys?: ReadonlySet<string>;
   currentIndex?: number;
   prepped?: boolean;
   showSkipBar?: boolean;
+  recapHeading?: string;
   recapItems?: string[];
   remainingMins?: number;
   gatePromptVisible?: boolean;
@@ -150,10 +152,12 @@ function renderView(o: Overrides = {}) {
       React.createElement(CookSessionView, {
         title: "Test Meal",
         steps: o.steps ?? STEPS,
+        doneInPrepKeys: o.doneInPrepKeys,
         amountMultiplier: o.amountMultiplier ?? 1,
         currentIndex: o.currentIndex ?? 0,
         prepped: o.prepped ?? false,
         showSkipBar: o.showSkipBar ?? false,
+        recapHeading: o.recapHeading,
         recapItems: o.recapItems ?? [],
         remainingMins: o.remainingMins ?? 18,
         onAdvance: o.onAdvance ?? NOOP,
@@ -198,7 +202,7 @@ const REF_STEPS: CookStep[] = [
     text: "Add 2 cups diced tomatoes",
     phaseType: "cook",
     estimatedMinutes: 5,
-    isPrep: false,
+   
     isTimingSensitive: false,
     // ref covers the "2 cups" span [4,10]
     amountRefs: [
@@ -284,24 +288,133 @@ test("session: step text with a quantity renders in full (8a — qualifier never
 
 // ── Recap (prepped path) ─────────────────────────────────────────────────────
 
-test("recap: prepped path renders the mise-en-place list above the steps", () => {
+test("recap: prepped path renders the prep steps under the day heading, above the steps", () => {
   const texts = flat(
     renderView({
       prepped: true,
       showSkipBar: true,
-      recapItems: ["Mince 3 cloves garlic", "Dice 1 onion"],
+      recapHeading: "Prepped on Sunday",
+      recapItems: ["Onions", "Garlic"],
     }).toJSON() as RenderedNode | null,
   );
-  assert.ok(texts.includes("You already prepped this — get your:"), `missing recap: ${texts}`);
-  assert.ok(texts.includes("Mince 3 cloves garlic"), `missing recap item: ${texts}`);
+  assert.ok(texts.includes("Prepped on Sunday"), `missing recap heading: ${texts}`);
+  assert.ok(texts.includes("Onions") && texts.includes("Garlic"), `missing recap item: ${texts}`);
   assert.ok(texts.includes("Skip to cooking"), `missing skip CTA: ${texts}`);
+  // K-R7 — the old cook-step framing is gone.
+  assert.ok(!texts.includes("get your:"), `old recap heading still renders: ${texts}`);
+});
+
+test("recap: the heading falls back to 'Already prepped' when no day is known", () => {
+  const texts = flat(
+    renderView({ prepped: true, recapItems: ["Onions"] }).toJSON() as RenderedNode | null,
+  );
+  assert.ok(texts.includes("Already prepped"), `missing fallback heading: ${texts}`);
 });
 
 test("recap: not shown on the not-prepped path", () => {
   const texts = flat(
     renderView({ prepped: false }).toJSON() as RenderedNode | null,
   );
-  assert.ok(!texts.includes("You already prepped this"), "recap should be absent");
+  assert.ok(!texts.includes("Already prepped"), "recap should be absent");
+  assert.ok(!texts.includes("Prepped on"), "recap should be absent");
+});
+
+// ── K-R7 — done in prep: collapsed, one tap from its full text, never dropped ──
+
+const PREP_FLOW: CookStep[] = [
+  { key: "dA#0", text: "Dice 1 onion", phaseType: "prep", estimatedMinutes: 4, isTimingSensitive: false, dishId: "dA", stepIndex: 4 },
+  { key: "dA#1", text: "Mince 3 cloves garlic", phaseType: "prep", estimatedMinutes: 3, isTimingSensitive: false, dishId: "dA", stepIndex: 6 },
+  { key: "dA#2", text: "Chop the cilantro", phaseType: "prep", estimatedMinutes: 2, isTimingSensitive: false, dishId: "dA", stepIndex: 7 },
+  { key: "dA#3", text: "Sear the chicken", phaseType: "cook", estimatedMinutes: 8, isTimingSensitive: false, dishId: "dA", stepIndex: 9 },
+];
+const DONE_IN_PREP = new Set(["dA#0", "dA#1"]);
+
+/** numberOfLines on the Text whose own content is exactly `text` (null: none). */
+function linesOf(node: RenderedNode | string | null, text: string): number | null | undefined {
+  if (node == null || typeof node === "string") return undefined;
+  if (node.type === "rn-text" && gatherText(node).join("") === text) {
+    const n = (node.props as { numberOfLines?: unknown } | undefined)?.numberOfLines;
+    return typeof n === "number" ? n : null;
+  }
+  for (const c of node.children ?? []) {
+    const hit = linesOf(c, text);
+    if (hit !== undefined) return hit;
+  }
+  return undefined;
+}
+
+function stepRows(node: RenderedNode | string | null, out: string[] = []): string[] {
+  if (node == null || typeof node === "string") return out;
+  const id = (node.props as { testID?: unknown } | undefined)?.testID;
+  if (typeof id === "string" && id.startsWith("step-")) out.push(id);
+  for (const c of node.children ?? []) stepRows(c, out);
+  return out;
+}
+
+test("K-R7: no cook step is dropped — done-in-prep rows stay in the flow and the count", () => {
+  const tree = renderView({
+    steps: PREP_FLOW,
+    doneInPrepKeys: DONE_IN_PREP,
+    currentIndex: 2,
+  }).toJSON() as RenderedNode | null;
+  assert.deepEqual(stepRows(tree), ["step-0", "step-1", "step-2", "step-3"]);
+  assert.ok(flat(tree).includes("step 3 of 4"), `count changed: ${flat(tree)}`);
+});
+
+test("K-R7: a done-in-prep step is collapsed; a tap opens its full text and a second closes it", () => {
+  const selected: number[] = [];
+  const renderer = renderView({
+    steps: PREP_FLOW,
+    doneInPrepKeys: DONE_IN_PREP,
+    currentIndex: 2,
+    onSelectStep: (i: number) => selected.push(i),
+  });
+  const row = () => findByA11yLabel(renderer.toJSON() as RenderedNode | null, "Done in prep. Show this step");
+  const texts = flat(renderer.toJSON() as RenderedNode | null);
+  assert.ok(texts.includes("Done in prep"), `missing done-in-prep marker: ${texts}`);
+  // Collapsed: a one-line preview, and the uncollapsed steps render as before.
+  assert.ok(row(), "the collapsed row has no open control");
+  assert.equal(linesOf(renderer.toJSON() as RenderedNode | null, "Dice 1 onion"), 1);
+  assert.equal(linesOf(renderer.toJSON() as RenderedNode | null, "Chop the cilantro"), null);
+
+  act(() => (row()!.props!.onPress as () => void)());
+  const opened = findByA11yLabel(
+    renderer.toJSON() as RenderedNode | null,
+    "Done in prep. Hide this step",
+  );
+  assert.ok(opened, "the row did not open");
+  // Opened: the full step text, unclamped.
+  assert.equal(linesOf(renderer.toJSON() as RenderedNode | null, "Dice 1 onion"), null);
+  assert.deepEqual(
+    (opened!.props as { accessibilityState?: unknown }).accessibilityState,
+    { expanded: true },
+  );
+  // Opening READS the step; it does not move the anchor.
+  assert.deepEqual(selected, []);
+
+  act(() => (opened!.props!.onPress as () => void)());
+  assert.equal(
+    findByA11yLabel(renderer.toJSON() as RenderedNode | null, "Done in prep. Show this step") !== null,
+    true,
+    "the row did not close again",
+  );
+  renderer.unmount();
+});
+
+test("K-R7: the footer's next skips done-in-prep steps, and the last LIVE step is last", () => {
+  // Anchor on the cilantro (2); next is the chicken (3), a Cook step.
+  const texts = flat(
+    renderView({ steps: PREP_FLOW, doneInPrepKeys: DONE_IN_PREP, currentIndex: 2 }).toJSON() as RenderedNode | null,
+  );
+  assert.ok(texts.includes("Next · Cook"), `next preview wrong: ${texts}`);
+
+  // A done-in-prep step AFTER the last live one does not keep "next" alive.
+  const trailing: CookStep[] = [PREP_FLOW[3], PREP_FLOW[0]];
+  const last = flat(
+    renderView({ steps: trailing, doneInPrepKeys: DONE_IN_PREP, currentIndex: 0 }).toJSON() as RenderedNode | null,
+  );
+  assert.ok(!last.includes("Done — next step"), `advance shown on the last live step: ${last}`);
+  assert.ok(!last.includes("Next ·"), `next preview points at a done-in-prep step: ${last}`);
 });
 
 // ── Toast (verbatim) ─────────────────────────────────────────────────────────
@@ -327,8 +440,8 @@ test("toast: absent when not visible", () => {
 
 test("timer chip: time-bearing steps show 'Start M:00 timer'; a 0-min step shows none", () => {
   const steps: CookStep[] = [
-    { key: "a", text: "Boil 8 minutes", phaseType: "cook", estimatedMinutes: 8, isPrep: false, isTimingSensitive: false },
-    { key: "b", text: "Plate it", phaseType: "assemble", estimatedMinutes: 0, isPrep: false, isTimingSensitive: false },
+    { key: "a", text: "Boil 8 minutes", phaseType: "cook", estimatedMinutes: 8, isTimingSensitive: false },
+    { key: "b", text: "Plate it", phaseType: "assemble", estimatedMinutes: 0, isTimingSensitive: false },
   ];
   const texts = flat(renderView({ steps }).toJSON() as RenderedNode | null);
   assert.ok(texts.includes("Start 8:00 timer"), `missing chip: ${texts}`);
@@ -338,7 +451,7 @@ test("timer chip: time-bearing steps show 'Start M:00 timer'; a 0-min step shows
 
 test("timer chip: tapping start begins a visible countdown and the active-timer strip appears", () => {
   const steps: CookStep[] = [
-    { key: "a", text: "Boil pasta", phaseType: "cook", estimatedMinutes: 8, isPrep: false, isTimingSensitive: false },
+    { key: "a", text: "Boil pasta", phaseType: "cook", estimatedMinutes: 8, isTimingSensitive: false },
   ];
   const renderer = renderView({ steps });
   const startBtn = findInnermostPressableByText(
@@ -380,7 +493,7 @@ test("cue: a step carrying a cue renders the annotation line verbatim", () => {
       text: "Start the sauce",
       phaseType: "cook",
       estimatedMinutes: 5,
-      isPrep: false,
+     
       isTimingSensitive: false,
       cue: "While the chicken rests, start the sauce",
     },
@@ -406,7 +519,7 @@ test("cue: no annotation line when cue is undefined", () => {
 
 test("timer #4: 'Add a minute' on a RUNNING timer pushes the end out by a minute", () => {
   const steps: CookStep[] = [
-    { key: "a", text: "Boil pasta", phaseType: "cook", estimatedMinutes: 8, isPrep: false, isTimingSensitive: false },
+    { key: "a", text: "Boil pasta", phaseType: "cook", estimatedMinutes: 8, isTimingSensitive: false },
   ];
   const renderer = renderView({ steps });
   act(() =>
@@ -430,7 +543,7 @@ test("timer #4: 'Add a minute' on a DONE timer re-arms a fresh 1:00 from now", (
   mock.timers.enable({ apis: ["setInterval", "Date"] });
   try {
     const steps: CookStep[] = [
-      { key: "a", text: "Boil egg", phaseType: "cook", estimatedMinutes: 1, isPrep: false, isTimingSensitive: false },
+      { key: "a", text: "Boil egg", phaseType: "cook", estimatedMinutes: 1, isTimingSensitive: false },
     ];
     const renderer = renderView({ steps });
     act(() =>
@@ -464,7 +577,7 @@ test("timer #4: 'Add a minute' on a DONE timer re-arms a fresh 1:00 from now", (
 
 test("timer #4: the chip '✕' dismiss control clears the timer (persists until then — no auto-dismiss)", () => {
   const steps: CookStep[] = [
-    { key: "a", text: "Boil pasta", phaseType: "cook", estimatedMinutes: 8, isPrep: false, isTimingSensitive: false },
+    { key: "a", text: "Boil pasta", phaseType: "cook", estimatedMinutes: 8, isTimingSensitive: false },
   ];
   const renderer = renderView({ steps });
   act(() =>
@@ -492,7 +605,7 @@ test("timer #4: the chip '✕' dismiss control clears the timer (persists until 
 
 test("strip #2: the top-strip '✕' dismisses the timer without scrolling to the step", () => {
   const steps: CookStep[] = [
-    { key: "a", text: "Boil pasta", phaseType: "cook", estimatedMinutes: 8, isPrep: false, isTimingSensitive: false },
+    { key: "a", text: "Boil pasta", phaseType: "cook", estimatedMinutes: 8, isTimingSensitive: false },
   ];
   const renderer = renderView({ steps });
   act(() =>
@@ -519,7 +632,7 @@ test("strip #2: the top-strip '✕' dismisses the timer without scrolling to the
 
 test("strip #2: the top-strip '+1 min' extends a running timer (8:00 → 9:00)", () => {
   const steps: CookStep[] = [
-    { key: "a", text: "Boil pasta", phaseType: "cook", estimatedMinutes: 8, isPrep: false, isTimingSensitive: false },
+    { key: "a", text: "Boil pasta", phaseType: "cook", estimatedMinutes: 8, isTimingSensitive: false },
   ];
   const renderer = renderView({ steps });
   act(() =>
@@ -545,7 +658,7 @@ test("strip #2: the top-strip '+1 min' extends a running timer (8:00 → 9:00)",
 
 test("timer chip: timing-sensitive step renders the chip with the warm alert treatment", () => {
   const steps: CookStep[] = [
-    { key: "a", text: "Pull at 9 minutes", phaseType: "cook", estimatedMinutes: 9, isPrep: false, isTimingSensitive: true },
+    { key: "a", text: "Pull at 9 minutes", phaseType: "cook", estimatedMinutes: 9, isTimingSensitive: true },
   ];
   const renderer = renderView({ steps });
   const chip = findInnermostPressableByText(

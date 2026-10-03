@@ -41,7 +41,11 @@ import {
   isTimerDone,
   timerRemainingMs,
 } from "@/lib/cooking/timer";
-import type { CookStep } from "@/lib/cooking/cookSession";
+import {
+  lastLiveIndex,
+  nextLiveIndex,
+  type CookStep,
+} from "@/lib/cooking/cookSession";
 import { buildAmountRefSegments } from "@/lib/cooking/amountSegments";
 import type { AmountRef } from "@/lib/api/meals";
 
@@ -80,8 +84,13 @@ function KeepScreenAwake(): null {
 
 interface Props {
   title: string;
-  /** Active (prep-filtered when on the prepped path) ordered steps. */
+  /** Every ordered step. None is ever filtered out (K-R7); the ones Prep the
+   *  Week already did are named in `doneInPrepKeys` and drawn collapsed. */
   steps: CookStep[];
+  /** K-R7 — CookStep keys whose every covering prep step is complete. Each is
+   *  drawn as a collapsed "done in prep" row, its full text one tap away, and
+   *  the anchor and the footer's next/last skip over it. */
+  doneInPrepKeys?: ReadonlySet<string>;
   /** WS7-8b BUG-006 — multiplier amountRef spans render through, so Cook Mode
    *  scales to the plan's effectiveServings (matching Meal Detail). 1 = base. */
   amountMultiplier: number;
@@ -90,6 +99,9 @@ interface Props {
   prepped: boolean;
   /** State 1 (known prepped) → the recap carries the sage "you prepped" framing. */
   showSkipBar: boolean;
+  /** "Prepped on Sunday" / "Already prepped" (cookSession.prepRecap). */
+  recapHeading?: string;
+  /** The plan's prep steps for this meal, one title per line. */
   recapItems: string[];
   remainingMins: number;
   onAdvance: () => void;
@@ -147,13 +159,17 @@ function StepText({
   return <HighlightedText text={text} style={style} />;
 }
 
+const NO_KEYS: ReadonlySet<string> = new Set();
+
 export function CookSessionView({
   title,
   steps,
+  doneInPrepKeys = NO_KEYS,
   amountMultiplier,
   currentIndex,
   prepped,
   showSkipBar,
+  recapHeading = "Already prepped",
   recapItems,
   remainingMins,
   onAdvance,
@@ -173,6 +189,17 @@ export function CookSessionView({
   // the shared useStepTimers hook (WS7-8b Block 4 extraction); the strip and the
   // chips both read from this one source of truth. ───────────────────────────
   const { timers, nowMs, startTimer, clearTimer, extendTimer } = useStepTimers();
+
+  // K-R7 — which done-in-prep rows the cook has tapped open. Local and
+  // view-only: opening one reads it, it does not make it the current step.
+  const [openedKeys, setOpenedKeys] = React.useState<ReadonlySet<string>>(NO_KEYS);
+  const toggleOpened = (key: string) =>
+    setOpenedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
 
   if (gatePromptVisible) {
     return (
@@ -205,11 +232,14 @@ export function CookSessionView({
   }
 
   const total = steps.length;
-  const next = steps[currentIndex + 1];
+  // K-R7 — "next" and "last" are over the live steps: a done-in-prep step is
+  // never where the advance button takes the cook.
+  const nextIndex = nextLiveIndex(steps, doneInPrepKeys, currentIndex);
+  const next = nextIndex !== currentIndex ? steps[nextIndex] : undefined;
   const nextLabel = next
     ? next.dishTitle ?? capitalize(next.phaseType)
     : null;
-  const onLast = currentIndex >= total - 1;
+  const onLast = currentIndex >= lastLiveIndex(steps, doneInPrepKeys);
 
   // Active-timer strip data (§13.5.1). One compact pill per running/done timer,
   // labelled by its step (dish title, else the first words of the step).
@@ -296,13 +326,11 @@ export function CookSessionView({
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Mise-en-place recap (prepped path). Render-only; reads prep-step
-            text for display. Sits above the steps — scroll-reachable. */}
+        {/* Prepped-path recap (K-R7): the plan's PREP steps for this meal, one
+            title per line. Render-only. Sits above the steps — scroll-reachable. */}
         {prepped && (
           <View style={[s.recap, showSkipBar && s.recapSkip]}>
-            <Text style={s.recapHeading}>
-              You already prepped this — get your:
-            </Text>
+            <Text style={s.recapHeading}>{recapHeading}</Text>
             {recapItems.length > 0 ? (
               /* Sept 29 design review — the "• " prefix is DROPPED, not
                  replaced. It was a literal character inside the <Text>, so it
@@ -328,6 +356,52 @@ export function CookSessionView({
         )}
 
         {steps.map((step, i) => {
+          // K-R7 — done in prep: collapsed to one line, opened by a tap. It
+          // stays in the flow (and in "step N of M") because it is the recovery
+          // path: a prep step the cook missed is still spelled out here.
+          if (doneInPrepKeys.has(step.key)) {
+            const opened = openedKeys.has(step.key);
+            return (
+              <Pressable
+                key={step.key}
+                testID={`step-${i}`}
+                onPress={() => toggleOpened(step.key)}
+                onLayout={(e: LayoutChangeEvent) => {
+                  offsets.current[i] = e.nativeEvent.layout.y;
+                }}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: opened }}
+                accessibilityLabel={
+                  opened ? "Done in prep. Hide this step" : "Done in prep. Show this step"
+                }
+                style={({ pressed }) => [
+                  s.stepCard,
+                  s.stepDoneInPrep,
+                  pressed && { opacity: 0.8 },
+                ]}
+              >
+                <View style={s.doneMarkRow}>
+                  <Feather name="check" size={DONE_ICON} color={Colors.sage[700]} />
+                  <Text style={s.doneInPrepMark}>Done in prep</Text>
+                  <Text style={s.doneInPrepToggle}>{opened ? "Hide" : "Show"}</Text>
+                </View>
+                {step.dishTitle && <Text style={s.dishTag}>{step.dishTitle}</Text>}
+                {opened ? (
+                  <StepText
+                    text={step.text}
+                    amountRefs={step.amountRefs}
+                    amountMultiplier={amountMultiplier}
+                    style={s.stepText}
+                  />
+                ) : (
+                  <Text style={s.doneInPrepPreview} numberOfLines={1}>
+                    {step.text}
+                  </Text>
+                )}
+              </Pressable>
+            );
+          }
+
           const isCurrent = i === currentIndex;
           const isDone = i < currentIndex;
           return (
@@ -523,6 +597,33 @@ const s = StyleSheet.create({
     color: Colors.sage[600],
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.sans[600],
+  },
+  // K-R7 — a done-in-prep row. Tinted sage rather than dimmed: the quiet tier
+  // is out of Cook Mode (BUG-199), and the one-line preview is what tells the
+  // cook WHICH step was done, so it has to read at arm's length.
+  stepDoneInPrep: {
+    backgroundColor: Colors.sage[50],
+    borderWidth: 1,
+    borderColor: Palette.border.sage,
+  },
+  doneInPrepMark: {
+    flex: 1,
+    fontSize: Typography.fontSize.xs,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
+  },
+  doneInPrepToggle: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.face.sans[600],
+    textDecorationLine: "underline",
+  },
+  doneInPrepPreview: {
+    fontSize: Typography.fontSize.md,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
   },
   // ⚠️ WS9 BUG-199 — MOVED to neutral[700]. This carried a BUG-157 STAY comment
   // calling it "ambiguous, so left rather than guessed in the darkening
