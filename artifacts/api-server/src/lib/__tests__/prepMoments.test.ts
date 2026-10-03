@@ -468,20 +468,22 @@ describe("D-WS9-301 H2.2 — an ABSORBED fresh ingredient still strips a dry nam
     const sp = buildStepPlan(combinePrep(input), "Test Plan");
     const bowl = sp.steps.find((s) => s.bowlName)!;
     assert.ok(bowl, "no container was formed");
-    // H4 / rule 11(c) — the garlic still BELONGS to this container, but its
-    // mincing is no longer done inside it: that work is its own produce step,
-    // naming this container as the destination. So membership is proved from the
-    // destination, not from the bowl step's component list.
+    // 🔴 H7 MAKES THE OTHER FIX THE RULE. H2.2 kept the garlic in the container and
+    // renamed it; Hans, October 2: aromatics join a liquid or a vegetable, and rule 2
+    // ("garlic, onion and fresh herbs never join a dry blend") now holds by
+    // construction. So the blend stays dry and keeps its true name, and the garlic is
+    // still on the plan — in its own labelled container.
     const garlic = sp.steps.find((s) => s.components.some((c) => c.ingredientName === "garlic cloves"));
     assert.ok(garlic, "the garlic left the plan entirely — that is not the fix");
     assert.ok(
-      garlic!.components.some((c) => c.measures.some((v) => v.destination === bowl.bowlName)),
-      "the garlic no longer goes into the container — that is not the fix",
+      garlic!.components.every((c) => c.measures.every((v) => v.destination !== bowl.bowlName)),
+      "fresh garlic went into a dry blend",
     );
-    assert.ok(
-      !/\b(seasoning|spice blend|rub)\b/i.test(bowl.bowlName!),
-      `"${bowl.bowlName}" still promises a shelf-stable dry blend`,
+    assert.equal(
+      garlic!.components[0].measures[0].destination,
+      "Texas-Style Beef Chili — minced garlic cloves",
     );
+    assert.equal(bowl.bowlName, BOWL, "an all-dry blend keeps the author's name");
   });
 
   it("…and an all-dry container keeps its name through the same pass", () => {

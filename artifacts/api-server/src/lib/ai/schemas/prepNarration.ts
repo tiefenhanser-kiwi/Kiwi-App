@@ -126,6 +126,26 @@ export interface PrepNarrationStepInput {
    */
   containerHolds?: string[];
   /**
+   * H7 2f — REPLACES `containerHolds` on the wire to the model, which is no longer
+   * sent. The opening of a container step, written by the CODE from what the
+   * earlier steps actually put in it, and echoed verbatim:
+   *
+   *   "Garlic Herb Roasted Potatoes sauce bowl (garlic, fresh rosemary and fresh
+   *    thyme already in it): add"   /   "Into the Tex-Mex Seasoned Ground Beef
+   *    spice blend:"
+   *
+   * The model wrote the list itself before, and kept "potatoes already in it" on a
+   * container whose potatoes had been moved to cook day.
+   */
+  openingClause?: string;
+  /**
+   * H7 2f — the container's closing verb, chosen by the CODE from its members:
+   * "Whisk to combine." (an oil with an acid, or a dressing/marinade) or "Stir to
+   * combine." (anything else wet). Absent on a dry measure and on a step whose
+   * container is worked again later. Echoed verbatim as the last line.
+   */
+  closingLine?: string;
+  /**
    * H5.2 — the NEXT phase that touches this step's container, as a label
    * ("sauces and marinades"). Present only when the container is worked again in
    * the same prep session, which is the one case where the bowl stays on the

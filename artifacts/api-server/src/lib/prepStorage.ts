@@ -438,6 +438,52 @@ export interface StorageContext {
   dayName?: string;
   /** The dish or meal the held line names. */
   mealName?: string;
+  /**
+   * H7 2b — the containers this step is the LAST to touch, each with its full
+   * membership (prepWeekAssembly.storageClosesByStepKey). When present the note is
+   * built from these, not from the step's own contents: the carrots step that
+   * closes the slow cooker's vegetables writes that container's line.
+   */
+  closes?: readonly {
+    name: string;
+    ingredientNames: readonly string[];
+    text: string;
+    own: boolean;
+  }[];
+}
+
+/** The wire caps `storageNote` at 200 characters (PrepWeekStepSchema). */
+const NOTE_MAX = 200;
+
+/**
+ * H7 2b — the storage line for the containers one step closes.
+ *
+ * A container that is the step's own food reads as the plain note, exactly as before.
+ * Anyone else's container is named, because the cook is closing a lid on something
+ * other than what the step was about: "Slow-Cooker Chicken vegetables: Airtight in
+ * the fridge — up to 4 days." The name is the part of a tub label before its dash —
+ * the dinners after it are already on the lid.
+ */
+export function closingNote(closes: NonNullable<StorageContext["closes"]>): string {
+  // One sentence when every container this step closes keeps the same way: the
+  // jalapeño step closing the tomatillo tray AND the cornbread's jalapeño tub read
+  // "…up to 4 days. Airtight in the fridge — up to 4 days." twice over.
+  const notes = closes.map((c) => storageClassFor(c.text, c.name, c.ingredientNames).note);
+  if (closes.length > 1 && notes.every((n) => n === notes[0])) {
+    return `${closes.length === 2 ? "Both containers" : `All ${closes.length} containers`}: ${notes[0]}`;
+  }
+  const parts: string[] = [];
+  for (const c of closes) {
+    const note = storageClassFor(c.text, c.name, c.ingredientNames).note;
+    // The full name, so two containers of one dish ("Classic Chicken Noodle Soup —
+    // carrots and celery stalks" / "— yellow onion…") stay two. Only a long tub label
+    // is cut at its dash, where the list of dinners begins.
+    const label = c.name.length <= 70 ? c.name : c.name.split(" — ")[0];
+    const line = c.own ? note : `${label}: ${note}`;
+    if (!parts.includes(line)) parts.push(line);
+  }
+  const all = parts.join(" ");
+  return all.length <= NOTE_MAX ? all : `${all.slice(0, NOTE_MAX - 1).trimEnd()}…`;
 }
 
 /**
@@ -542,8 +588,14 @@ export function applyStorageOverlay(
         }
         return {
           ...step,
+          // H7 2b — the containers this step closes, when the plan says which. A step
+          // with no list (an older caller, a step that touches nothing named) keeps
+          // the note for its own contents.
           // BUG-346 (a) — the identities, so a note cannot name a protein.
-          storageNote: storageClassFor(ctx.text, ctx.bowlName, ctx.ingredientNames).note,
+          storageNote:
+            ctx.closes && ctx.closes.length > 0
+              ? closingNote(ctx.closes)
+              : storageClassFor(ctx.text, ctx.bowlName, ctx.ingredientNames).note,
         };
       });
 

@@ -403,26 +403,48 @@ describe("buildStepPlan — relevantDishes + dishSteps (B2b / D-WS9-049 A1.2)", 
   });
 });
 
-describe("assemblePrepWeekResult — skipSuggested (B2b)", () => {
-  it("flags the step the AI demoted and omits the field otherwise", () => {
-    const sp = buildStepPlan(combinePrep(plan()), "P");
+describe("assemblePrepWeekResult — skipSuggested (B2b, H7 2c)", () => {
+  it("🔴 H7 2c — the narrator cannot flip skipSuggested, in either direction", () => {
+    // B2b let the model demote a step. On Hans's plans it demoted real prep (a
+    // five-item breading, green-bean trimming, pounding cutlets) and kept cooking
+    // ("Brown the Italian sausage"). The engine decides now, and only the engine.
+    const input = plan();
+    // One step the engine demotes on its own: whole cherry tomatoes, nothing to cut.
+    input.meals[1].dishes[0].ingredients.push({
+      ingredientId: "ing-cherry",
+      ingredientName: "cherry tomatoes",
+      category: "Produce",
+      quantity: 1,
+      unit: "cup",
+    } as never);
+    const sp = buildStepPlan(combinePrep(input), "P");
     const protein = sp.steps.find((s) => s.phase === "proteins")!;
+    assert.equal(protein.demoted, undefined, "fixture: the cubed chuck is prep");
+    const engineDemoted = sp.steps.find((s) => s.demoted)!;
+    assert.ok(engineDemoted, "fixture: the engine must demote something");
+    // The model tries both: demote the chuck, and (were it asked) keep the spice.
     const narration: PrepNarrationResult = {
-      steps: sp.steps.map((s) => ({
+      steps: sp.narrationInput.steps.map((s) => ({
         stepId: s.stepId,
         title: "T",
         instructions: "I",
-        estimatedMinutes: 5,
-        ...(s.stepId === protein.stepId ? { skipSuggested: true } : {}),
+        skipSuggested: s.stepId === protein.stepId,
       })),
     };
+    // An engine-demoted step is never even sent: its prose is the engine's.
+    assert.ok(
+      !sp.narrationInput.steps.some((s) => s.stepId === engineDemoted.stepId),
+      "a demoted step was handed to the narrator",
+    );
     const result = assemblePrepWeekResult(sp, narration);
-    // Wire schema round-trips skipSuggested.
     assert.ok(PrepWeekResultSchema.safeParse(result).success);
-    const proteins = result.phases.find((p) => p.phase === "proteins")!;
-    assert.equal(proteins.steps[0].skipSuggested, true);
-    const produce = result.phases.find((p) => p.phase === "produce")!;
-    assert.equal("skipSuggested" in produce.steps[0], false);
+    const wire = result.phases.flatMap((p) => p.steps);
+    assert.equal(
+      wire.find((s) => s.stepKey === protein.stepKey)!.skipSuggested,
+      undefined,
+      "the model's demotion reached the wire",
+    );
+    assert.equal(wire.find((s) => s.stepKey === engineDemoted.stepKey)!.skipSuggested, true);
   });
 
   it("INVARIANT: demotion never changes code-owned number / attribution", () => {
@@ -696,7 +718,9 @@ describe("buildStepPlan — #5 sauce grouping by dishId", () => {
       .sort();
     assert.deepEqual(sauceKeys, [
       "sauces_marinades#dish#d-dressing",
-      "sauces_marinades#dish#d-salsa",
+      // H7 2c — the salsa's ONE measure (lime juice; the salt is denylisted) is
+      // a single item, never prep: it stays as a demoted `#left#` line.
+      "sauces_marinades#left#d-salsa",
     ]);
     // The grouped sauce step folds many ingredientIds → carries no single one.
     const dressing = sp.steps.find((s) => s.stepKey === "sauces_marinades#dish#d-dressing")!;
@@ -732,7 +756,8 @@ describe("buildStepPlan — #5 sauce grouping by dishId", () => {
     assert.ok(
       dressing.components.every((c) => c.measures.every((m) => m.dishRole === "base")),
     );
-    const salsa = sp.steps.find((s) => s.stepKey === "sauces_marinades#dish#d-salsa")!;
+    const salsa = sp.steps.find((s) => s.stepKey === "sauces_marinades#left#d-salsa")!;
+    assert.ok(salsa.demoted, "a single lime juice is not prep (H7 2c)");
     assert.ok(
       salsa.components.every((c) => c.measures.every((m) => m.dishRole === "sauce")),
     );

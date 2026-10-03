@@ -24,18 +24,25 @@
 
 import { convertWithinDimension, pluralizeCountUnit } from "./ingredientConversions";
 import {
-  judgePrepWorthiness,
   bowlNameFor,
-  useNounFor,
+  mustSit,
   proteinVerbsFor,
   isServedSeparately,
 } from "./prepComponents";
-import { isLoneKey } from "./prepMoments";
+import {
+  classOf,
+  cutOf,
+  foodKeyOf,
+  isWetA,
+  judgeProducePortion,
+  judgeProteinWork,
+  type PrepClass,
+} from "./prepClasses";
 import { timeStep, planMinutes, wholeFruitCount, type SourceYieldLike } from "./prepStepMinutes";
 import {
   PREP_PHASE_ORDER,
   canonicalizeUnit,
-  isNoWorkPortion,
+  type IngredientComponent,
   type PrepPhaseKey,
   type PrepCombineResult,
   type PrepIngredientGroup,
@@ -157,6 +164,20 @@ export interface PlannedStep {
    */
   containerHolds?: string[];
   /**
+   * H7 2f — the step's opening, built in code from `containerHolds`:
+   * "Garlic Herb Roasted Potatoes sauce bowl (garlic, rosemary and thyme already in
+   * it): add" or "Into the … :". Handed to the narrator as fixed text.
+   */
+  openingClause?: string;
+  /** H7 2f — "Whisk to combine." / "Stir to combine.", from the members. Fixed text. */
+  closingLine?: string;
+  /**
+   * H7 2b — the containers whose storage line THIS step carries, because it is the
+   * last step to touch them. Every container on the plan is in exactly one step's
+   * list.
+   */
+  closes?: string[];
+  /**
    * H6.1-C — this step is not the LAST to touch its container(s), so the storage
    * line belongs to a later step and this one closes "Set aside for …" instead.
    */
@@ -236,10 +257,13 @@ export function memberKind(
   if (phase === "proteins") return "protein";
   if (phase === "seasonings_dry") return "dry";
   if (phase === "sauces_marinades") return "wet";
-  // The FORM, and nothing else. "lime juice" is a bottle and belongs with the
-  // oil; "lime" is a fruit and belongs on the board, whatever its note says is
-  // going to be done to it.
-  if (WET_FORM.test(ingredientName)) return "wet";
+  // 🔴 H7 2d — EVERYTHING THE CATALOG CALLS PRODUCE IS BOARD WORK, juice included.
+  // H5.3 sent "lime juice" to phase 3 by its FORM ("a bottle that belongs with the
+  // oil"), and the plan then juiced a lemon in produce and squeezed it again in the
+  // sauces phase. Hans, October 2: "all of one food's knife work — juice and zest
+  // included — is one produce step." A Pantry juice is still `wet` above, by phase.
+  void WET_FORM;
+  void ingredientName;
   void preparationNotes;
   return "produce";
 }
@@ -691,509 +715,331 @@ export function buildStepPlan(
         .filter((name): name is string => !!name && dishStepsByName.has(name)),
     );
 
-  // ── WS9 D-WS9-296 — `blendSpiceDish` IS RETIRED ─────────────────────────
+  // ══ [prepcook] H7 — CONTAINERS BY CLASS AND COOKING MOMENT ═════════════════
   //
-  // WS7-8b #5 built it, and B1's ruling 10 widened it: a per-dish sauce step
-  // whose dish also had spices in the blend carried the dish's NAME, and the
-  // narrator wrote "combine these with the <dish> spices from your seasoning
-  // blend". It was always a pointer between two containers that should have
-  // been one, and it could never reach the case that mattered — a marinade's
-  // orange juice is `produce`, and the field was only ever set on
-  // `sauces_marinades`. Measured in B2 Part A: 74 of 108 multi-pile dishes had
-  // no join at all.
+  // Hans, October 2: "Don't combine seasonings, oil, liquid with protein or
+  // veggies until cook. Veggies + veggies is ok if they go in the pan together."
   //
-  // Components replace it. There is no sentence pointing from one vessel to
-  // another because there is one vessel, and it has a name.
-  // ── WS9 BUG-338 / D-WS9-297 ruling 9 — A BLEND OF ONE IS NOT A BLEND ──────
+  // This replaces the bucket / orphan passes D-WS9-296 through H6.7 built up,
+  // which grouped by MOMENT alone and so put whatever entered together into one
+  // bowl: romaine into the Caesar dressing jar, zucchini into its garlic oil,
+  // tomato and cucumber into lemon juice, raw shrimp into lemon juice, raw thighs
+  // into the slow cooker's vegetables, dry penne in with the broccoli. Measured on
+  // the four plans Hans sent: 11 containers mixed classes.
   //
-  // ⚠️ THE RULING'S LITERAL WORDING HAS NO TARGETS. It asks that "a lone
-  // sub-tablespoon DRY measure folds into its dish's BLEND step". Measured on the
-  // census, all 13 lone dry measures under a tablespoon ARE their dish's blend
-  // step — a per-dish blend (BUG-016 / D-WS7-187) that came out with one
-  // component, because the spice is a blend member on a DIFFERENT dish and so
-  // survives the <3-per-dish noise filter on this one. There is nothing for them
-  // to fold into, so the rule as written would change nothing.
+  // A container is now (dish, cooking moment, CLASS) — see prepClasses.ts:
   //
-  // What the data supports instead: a one-component blend step folds into that
-  // dish's SAUCE step, when the dish has one. "Measure the BBQ Chicken
-  // Drumsticks spice blend: 1 tsp smoked paprika" and "Measure the BBQ sauce"
-  // become one step and one container. Measured: 17 single-component blends, 12
-  // of them foldable; the other 5 (a lone parmesan, a lone cumin) have no sauce
-  // step and are left alone rather than dropped — dropping prep work is Hans's
-  // call, not a floor rule's.
+  //   A  seasonings + liquids  — group at any moment that is one: an authored
+  //                              mixture (`c:`), a heat step (`s:`), the mise run
+  //                              (`r:`), or, for a dish with no step signal at
+  //                              all, the dish's dry or wet measures as before.
+  //   B  vegetables            — group ONLY at a heat step (`s:`): "if they go in
+  //                              the pan together". Never on a run, never in a
+  //                              cold mixture, never at serve time.
+  //   C  protein               — never a member of anything. Its own step, its
+  //                              own close.
+  //   aromatics                — join B when a vegetable enters with them, else
+  //                              join A when a LIQUID does ("garlic whisked into
+  //                              the lemon marinade"), else stand alone. Never a
+  //                              dry blend: rule 2, "garlic, onion and fresh herbs
+  //                              never join a dry blend", still holds.
   //
-  // No sub-tablespoon test: a blend of ONE is the defect at any size, and a
-  // threshold here would just be a number nobody could justify.
+  // Floors, from D-WS9-299 and the ruling's table: a dry blend needs 3; a wet mix
+  // needs 3, or 2 that must sit together (a marinade, a brine); vegetables need 2.
+  // Below the floor a container dissolves and its members are single portions.
   //
-  // This also closes 12 P-R2 splits, which is the same defect seen from the
-  // other side — the wet and dry halves of one sauce in two containers.
-  const seasoningsEntries =
-    result.phases.find((p) => p.phase === "seasonings_dry")?.entries ?? [];
-  const saucesEntries =
-    result.phases.find((p) => p.phase === "sauces_marinades")?.entries ?? [];
-  const dishesWithSauce = new Set(saucesEntries.flatMap((e) => dishIdsOf(e)));
-  /** dishId → the single blend entry to fold into that dish's sauce step. */
-  const foldedBlendByDishId = new Map<string, PrepIngredientGroup>();
-  {
-    const blendEntriesByDish = new Map<string, PrepIngredientGroup[]>();
-    for (const entry of seasoningsEntries) {
-      for (const dishId of new Set(dishIdsOf(entry))) {
-        const list = blendEntriesByDish.get(dishId) ?? [];
-        list.push(entry);
-        blendEntriesByDish.set(dishId, list);
-      }
-    }
-    for (const [dishId, list] of blendEntriesByDish) {
-      if (list.length === 1 && dishesWithSauce.has(dishId)) {
-        foldedBlendByDishId.set(dishId, list[0]);
-      }
-    }
-  }
+  // Every cut portion that joins nothing lands in a labelled container of its own
+  // — "<Dish> — <item, cut>" (2a) — or, when the same cut serves several dishes,
+  // the shared tub rule 5 has always given it.
 
-  // ── WS9 D-WS9-296 — ONE STEP PER COMPONENT PER DISH ───────────────────────
-  //
-  // A mixture's members are scattered across phases by construction: the carne
-  // asada marinade has four spices in seasonings_dry and its juices and garlic
-  // in produce. Hans's Bowl A is one vessel, so it is one STEP — placed in the
-  // EARLIEST phase it touches, holding every member, named for the bowl.
-  //
-  // Claimed contributions are removed from the per-phase steps below, so a
-  // marinade's cumin no longer also appears in the dish's spice blend.
-  // ── D-WS9-301 rule 1 — THE BUCKET KEY IS THE MOMENT, NOT THE COMPONENT ────
-  //
-  // "A container is the set of ingredients that enter the cooking process at the
-  // SAME MOMENT — the same cook step." A component still wins where one exists:
-  // it is the strongest moment signal AND it carries the author's own name for
-  // the mixture. What changes is that an UNNAMED moment holding two or more
-  // ingredients is now equally a container — which is where nearly all of the
-  // reduction comes from. H0 measured it: keying on components alone leaves the
-  // corpus at 13-40 containers per plan, the moment key brings it to 7-28.
-  //
-  // A "lone" key (prepMoments.isLoneKey) means the dish gave no signal at all —
-  // 23 of 148 corpus dishes. Those never bucket; nothing is invented for them.
-  interface ComponentBucket {
+  interface Portion {
     dishId: string;
     dishName: string;
     mealName: string;
-    /**
-     * "" until the naming pass — an unnamed moment cannot be named until its
-     * members are known, and the pass below fills every empty one
-     * unconditionally. Not `null`, so nothing downstream has to narrow a type
-     * for a state that does not survive this function.
-     */
-    bowlName: string;
-    noun: string | null;
-    phase: PrepPhaseKey;
-    entries: Map<string, PrepIngredientGroup>;
     mealIds: Set<string>;
-  }
-  const componentBuckets = new Map<string, ComponentBucket>();
-  /** `${dishId}|${ingredientId}` claimed by a container — skipped per-phase. */
-  const claimed = new Set<string>();
-  /**
-   * D-WS9-301 rule 11(a) — shared portions waiting to see whether their dish's
-   * moment container turns out to have other members. Resolved after the first
-   * pass; the ones nobody takes fall through to rule 5's shared step.
-   */
-  const deferredShared: {
-    dishId: string;
-    momentKey: string;
     entry: PrepIngredientGroup;
-    phase: PrepPhaseKey;
-    mealId: string;
-  }[] = [];
+    cls: PrepClass;
+    wet: boolean;
+    mk: string | null;
+    component: IngredientComponent | null;
+    notes: string[];
+  }
+  const portions = new Map<string, Portion>();
   for (const phase of result.phases) {
     for (const entry of phase.entries) {
       for (const line of entry.lines) {
         for (const c of line.contributions) {
-          // 🔴 THE KEY IS THE MOMENT, FULL STOP — never the component's own key.
-          // The adapter has already folded the resolved component INTO the
-          // moment key (`c:<resolved key>`), including for ingredients that
-          // merely share its run. Keying on `c.component.key` here as well would
-          // put the marinade's members in one bucket and the lemon that shares
-          // their run in another, which is the exact defect rule 1's inverse
-          // case names.
-          // A component IS a moment, so a contribution carrying one but no
-          // explicit `momentKey` still buckets. The adapter always sets both and
-          // sets them consistently, so this fallback never fires in production —
-          // it is what keeps an engine-level fixture (and any caller that builds
-          // `PrepCombineInput` by hand) meaningful instead of silently emitting
-          // no container at all.
-          const mk = c.momentKey ?? (c.component ? `c:${c.component.key}` : null);
-          if (!mk || isLoneKey(mk)) continue;
-          // ── 🔴 RULE 5 BEATS RULE 1 FOR A SHARED INGREDIENT ────────────────
-          //
-          // Rule 1 groups within a DISH, and a moment bucket is by construction
-          // one dish's container. Applied to an ingredient several dishes use,
-          // that produces exactly what rule 5 forbids — "a chopped ingredient
-          // used by several dishes goes in ONE container, labelled with its
-          // dishes. Never one container per dish."
-          //
-          // Measured when this was the other way round: every container on the
-          // sample plan came out single-dish, the cilantro feeding four dishes
-          // split four ways, and the count went UP. Rule 5 is the one with a
-          // number attached to it ("this alone is 18 containers → 5"), so it
-          // wins, and the cook portions the shared container at the stove.
-          //
-          // ⚠️ AN AUTHORED MIXTURE IS THE EXCEPTION, and it is not a new one:
-          // D-WS9-296 already put the carne asada's garlic in its marinade bowl
-          // while the other three dishes' garlic shared a step, and Hans
-          // ratified that. A `c:` key means a resolved component — the author
-          // said these things belong together — so it still claims its share.
-          // D-WS9-301 rule 11(a) REPLACES THE FLAT REFUSAL ABOVE. A shared
-          // ingredient is held back from the FIRST pass and offered to the
-          // buckets afterwards, once "has other members" is answerable. An
-          // authored mixture still claims its share immediately — that is
-          // D-WS9-296 and Hans ratified it.
-          const isAuthoredMixture = mk.startsWith("c:");
-          const isShared = new Set(dishIdsOf(entry)).size > 1;
-          if (!isAuthoredMixture && isShared) {
-            deferredShared.push({ dishId: c.dishId, momentKey: mk, entry, phase: phase.phase, mealId: c.mealId });
+          const k = `${c.dishId}|${entry.ingredientId}`;
+          const have = portions.get(k);
+          if (have) {
+            have.mealIds.add(c.mealId);
+            if ((c.preparationNote ?? "").trim() !== "") have.notes.push(c.preparationNote!.trim());
             continue;
           }
-          // H5.1 — a dish that IS the toppings forms no container by the moment
-          // route either. Without this the run grouping rebuilds exactly the
-          // bucket the resolver refused and rule 8 names it off the dish.
-          if (isServedSeparately(c.dishName)) continue;
-          const k = `${c.dishId}|${mk}`;
-          const b = componentBuckets.get(k) ?? {
+          portions.set(k, {
             dishId: c.dishId,
             dishName: c.dishName,
             mealName: c.mealName,
-            bowlName: c.component?.bowlName ?? "",
-            noun: c.component?.noun ?? null,
-            phase: phase.phase,
-            entries: new Map<string, PrepIngredientGroup>(),
-            mealIds: new Set<string>(),
-          };
-          // Earliest phase wins: PREP_PHASE_ORDER is the fixed order.
-          if (PREP_PHASE_ORDER.indexOf(phase.phase) < PREP_PHASE_ORDER.indexOf(b.phase)) {
-            b.phase = phase.phase;
-          }
-          // The author's own name for the mixture, from whichever member carries
-          // one. An absorbed ingredient (the marinade's lemon) has no component
-          // of its own, so the name can arrive on any member of the bucket.
-          if (b.bowlName === "" && c.component) {
-            b.bowlName = c.component.bowlName;
-            b.noun = c.component.noun;
-          }
-          b.entries.set(entry.ingredientId, entry);
-          b.mealIds.add(c.mealId);
-          componentBuckets.set(k, b);
-          // 🔴 RULE 11(c) — KNIFE WORK IS NEVER CLAIMED. A produce member is cut in
-          // its own ingredient's step and a whole protein is trimmed in its own,
-          // each with this container as the named destination. Only the members
-          // whose work happens IN the container — the dry measure and the wet pour —
-          // are claimed out of the per-ingredient steps.
-          //
-          // 🔴 THE PROTEIN ARM IS H6.2's FIX. H4 left protein members claimed while
-          // the emission loop skipped container steps in the proteins phase, so a
-          // protein that joined a container lost its step altogether: the slow
-          // cooker's thighs are named in the same cook sentence as its aromatics, so
-          // after H6.1 they shared a moment, and "trim 1¾ lb chicken thighs" vanished
-          // from the plan. D-WS9-296 ruling 1 already says raw flesh "has a
-          // destination, not a seat".
-          const kind = kindOf(entry);
-          if (kind === "dry" || kind === "wet") {
-            claimed.add(`${c.dishId}|${entry.ingredientId}`);
-          }
+            mealIds: new Set([c.mealId]),
+            entry,
+            cls: classOf(entry.phase, entry.ingredientName),
+            wet: isWetA(entry.phase, entry.ingredientName),
+            // A component IS a moment, so a contribution carrying one but no
+            // explicit `momentKey` still groups (engine-level fixtures build input
+            // by hand; the adapter always sets both).
+            mk: c.momentKey ?? (c.component ? `c:${c.component.key}` : null),
+            component: c.component ?? null,
+            notes: (c.preparationNote ?? "").trim() !== "" ? [c.preparationNote!.trim()] : [],
+          });
         }
       }
     }
   }
 
-  // ── D-WS9-301 rule 11(a), SECOND PASS ────────────────────────────────────
+  // ── 2c — WHICH PRODUCE PORTIONS ARE PREP AT ALL ─────────────────────────────
   //
-  // Offer each deferred portion to its dish's moment container, and only to one
-  // that ALREADY holds two or more members. That condition is the whole
-  // difference between this and the shape H1 measured going wrong: joining an
-  // existing container moves a portion, where creating one per dish multiplies
-  // them. H3.0 measured the effect over the 14 plans at 206 containers → 148.
-  for (const d of deferredShared) {
-    const k = `${d.dishId}|${d.momentKey}`;
-    const b = componentBuckets.get(k);
-    if (!b || b.entries.size < 2) continue;
-    if (PREP_PHASE_ORDER.indexOf(d.phase) < PREP_PHASE_ORDER.indexOf(b.phase)) b.phase = d.phase;
-    b.entries.set(d.entry.ingredientId, d.entry);
-    b.mealIds.add(d.mealId);
-    // Rule 11(c) again: knife work keeps its own step, produce and protein alike.
-    const dKind = kindOf(d.entry);
-    if (dKind === "dry" || dKind === "wet") {
-      claimed.add(`${d.dishId}|${d.entry.ingredientId}`);
-    }
-  }
-
-  // A container holds at least two things. A moment with one ingredient in it is
-  // a plain portion of that ingredient, and giving it a vessel name would be the
-  // "~30 containers" defect wearing a different label. Dissolving UN-CLAIMS, so
-  // the ingredient falls back to its ordinary per-phase step.
-  for (const [k, b] of [...componentBuckets]) {
-    if (b.entries.size >= 2) continue;
-    for (const ingredientId of b.entries.keys()) claimed.delete(`${b.dishId}|${ingredientId}`);
-    componentBuckets.delete(k);
-  }
-
-  // ── D-WS9-301 rule 2 — "DRY ONLY… fresh herbs never join a dry blend" ─────
-  //
-  // The buckets above place a mixture in the EARLIEST phase it touches
-  // (D-WS9-296), and that put a container holding fresh onion under
-  // "Seasonings & dry ingredients" on the sample plan. The container itself is
-  // right — the slow-cooker's aromatics, dried herbs and liquids are one dump,
-  // which is Hans's own approved example — but the cook reads a skippable dry
-  // phase and the onion is neither dry nor skippable.
-  //
-  // So a bucket holding anything fresh moves to the earliest phase it touches
-  // that is NOT seasonings_dry. Its storage class follows its contents already.
-  for (const b of componentBuckets.values()) {
-    if (b.phase !== "seasonings_dry") continue;
-    const phases = [...b.entries.values()].map((e) => e.phase);
-    if (!phases.some((p) => p === "produce" || p === "proteins")) continue;
-    const firstFresh = PREP_PHASE_ORDER.find((p) => p !== "seasonings_dry" && phases.includes(p));
-    if (firstFresh) b.phase = firstFresh;
-  }
-
-  // ── H2.2, SECOND HALF — THE NAME IS CHECKED WHERE THE MEMBERSHIP IS FINAL ──
-  //
-  // `resolveDishComponents` drops a dry noun when ITS OWN members include
-  // something fresh, and that is the right place for the ingredients the author
-  // grouped. It is the wrong place for the ones the ADAPTER absorbed into the
-  // bucket afterwards (rule 1's run absorption): prepComponents never sees them,
-  // so "Texas-Style Beef Chili spice blend" kept its name while five minced
-  // garlic cloves sat in it. One container out of the 14-plan corpus, found by
-  // asserting the property rather than by re-reading the code.
-  //
-  // This layer knows the final membership, so the check belongs here too. Both
-  // guards stay: dropping the first would let the name reach the narrator wrong
-  // for authored members, and dropping this one leaves the absorbed hole.
-  for (const b of componentBuckets.values()) {
-    if (b.bowlName === "" || !DRY_BOWL_NOUN.test(b.bowlName)) continue;
-    const phases = [...b.entries.values()].map((e) => e.phase);
-    if (!phases.some((p) => p === "produce" || p === "proteins")) continue;
-    b.noun = null;
-    b.bowlName = bowlNameFor(
-      b.dishName, b.mealName, null, 0, false, false, useNounFor(phases),
+  // Judged per portion and BEFORE grouping, so a container is never built around
+  // something the cook will not touch on Sunday. The Garlic Herb Potatoes
+  // container listed "potatoes already in it" after the narrator had moved the
+  // potatoes to cook day; the engine now knows that first.
+  const notPrep = new Map<string, string>();
+  for (const [k, p] of portions) {
+    if (p.entry.phase !== "produce") continue;
+    // The recipe's own sentences count as much as the note: "Trim the ends off
+    // green beans" is the only place the steamed beans' knife work is written.
+    const v = judgeProducePortion(
+      p.entry.ingredientName,
+      p.notes.join(" "),
+      !!p.entry.sourceYield,
+      stepTextByDishId.get(p.dishId) ?? [],
     );
+    if (!v.prep) notPrep.set(k, v.reason);
   }
 
-  // ── D-WS9-301 rule 11 — WHERE EACH PORTION GOES ──────────────────────────
+  // ── RULE 5, SCOPED TO THE CUT ──────────────────────────────────────────────
   //
-  //   (a) its dish's own moment container, when that container has other
-  //       members — the slow-cooker onion joins the carrots, celery and herbs;
-  //   (b) else the shared ingredient container, labelled with its dishes.
-  //
-  // Built from `componentBuckets`, which is final by this point: the key is
-  // (dishId, ingredientId) and the answer is the container's user-facing name,
-  // so the narrator can write "¾ into the Mexican rice container" without
-  // knowing anything about moments.
-  const containerByDishIngredient = new Map<string, string>();
+  // "A chopped ingredient used by several dishes goes in ONE container, labelled
+  // with its dishes." It is the same CUT that makes one tub: the chicken soup's
+  // halved onion is not the broccoli soup's diced onion, and treating every onion
+  // on the plan as shared kept the halved one out of the soup's own pot.
+  const cutGroups = new Map<string, Set<string>>();
+  for (const p of portions.values()) {
+    const ck = `${p.entry.ingredientId}|${cutOf(p.notes) ?? ""}`;
+    const s = cutGroups.get(ck) ?? new Set<string>();
+    s.add(p.dishId);
+    cutGroups.set(ck, s);
+  }
+  const sharedCut = (p: Portion) =>
+    (cutGroups.get(`${p.entry.ingredientId}|${cutOf(p.notes) ?? ""}`)?.size ?? 0) > 1;
 
-  // Rule 8 — name every container the author did not name, by dish and use.
-  for (const b of componentBuckets.values()) {
-    if (b.bowlName !== "") continue;
-    b.bowlName = bowlNameFor(
-      b.dishName,
-      b.mealName,
-      null,
-      0,
-      false,
-      false,
-      useNounFor([...b.entries.values()].map((e) => e.phase)),
-    );
-  }
-  for (const b of componentBuckets.values()) {
-    for (const ingredientId of b.entries.keys()) {
-      containerByDishIngredient.set(`${b.dishId}|${ingredientId}`, b.bowlName);
-    }
-  }
-  /**
-   * Rule 11(a) then (b). Undefined when the portion IS its own container and
-   * pointing at itself would be noise ("dice the onion — into the onion
-   * container").
-   */
-  // ── H6.1-B — RULE 11's (b) AND (c), SO NOTHING IS LEFT UNNAMED ───────────
-  //
-  // (b) A portion of a shared ingredient that joined no dish's mixture goes into
-  //     ONE container for that ingredient-and-cut, labelled with the dishes it
-  //     serves. The cook fills one tub of diced onion and reads which dinners it
-  //     is for, which is rule 5's whole argument applied to the label.
-  // (c) A single-dish portion that joined nothing gets a container named for its
-  //     dish and its use, because "set it aside" is what Hans read on the device
-  //     and could not act on.
-  const sharedLabel = new Map<string, string>();
-  const loneLabel = new Map<string, string>();
-  /** H6.2 item 1 — single-dish portions, to be grouped by (dish, moment) below. */
-  const momentOrphans: {
+  /** The grouping key a portion's moment allows, or null when it groups nothing. */
+  const groupKeyOf = (p: Portion): string | null => {
+    if (p.cls === "C") return null;
+    if (isServedSeparately(p.dishName)) return null;
+    const mk = p.mk;
+    if (mk !== null && mk.startsWith("v:")) return null;
+    // A dish with no step signal at all (`i:`, or no key — an engine-level caller
+    // that never ran the adapter) keeps the one grouping it always had: its dry
+    // measures together and its wet measures together. Nothing else of it groups,
+    // because nothing says what enters with what.
+    if (mk === null || mk.startsWith("i:")) return p.cls === "A" ? `i*${p.wet ? "wet" : "dry"}` : null;
+    return mk;
+  };
+
+  interface Container {
+    key: string;
     dishId: string;
     dishName: string;
-    momentKey: string;
-    /** The cook step that names this portion, when one does. H6.2 follow-up. */
-    entryStep: number | null;
-    ingredientId: string;
-    phase: PrepPhaseKey;
-  }[] = [];
-  {
-    /** The cut, from the notes, so "diced onion" and "sliced onion" stay apart. */
-    const cutOf = (notes: string[]): string | null => {
-      const blob = notes.join(" ").toLowerCase();
-      for (const cut of ["minced", "finely diced", "diced", "finely chopped", "chopped", "thinly sliced", "sliced", "shredded", "grated", "julienned", "halved", "quartered", "cubed", "snapped", "stripped", "zested", "juiced"]) {
-        if (blob.includes(cut)) return cut;
+    mealName: string;
+    cls: "A" | "B";
+    members: Map<string, Portion>;
+    noun: string | null;
+    authoredName: string | null;
+    name: string;
+  }
+  const containers = new Map<string, Container>();
+  const groups = new Map<string, Portion[]>();
+  for (const [k, p] of portions) {
+    if (notPrep.has(k)) continue;
+    const gk = groupKeyOf(p);
+    if (gk === null) continue;
+    const l = groups.get(`${p.dishId}|${gk}`) ?? [];
+    l.push(p);
+    groups.set(`${p.dishId}|${gk}`, l);
+  }
+  /** Which container class a portion would join in its group, or null. */
+  const targetOf = (p: Portion, group: Portion[], gk: string): "A" | "B" | null => {
+    const heat = gk.startsWith("s:");
+    if (p.cls === "A") return "A";
+    if (p.cls === "B") return heat ? "B" : null;
+    // An aromatic goes into the pan with the vegetables it is cooked with; failing
+    // that, into a LIQUID it is whisked into ("garlic whisked into the lemon
+    // marinade"); failing that, it stands alone. Never into a dry blend (rule 2).
+    if (heat && group.some((q) => q.cls === "B")) return "B";
+    if (group.some((q) => q.cls === "A" && q.wet)) return "A";
+    // Aromatics are produce: two or more going onto the same tray with nothing else
+    // to join (the herb potatoes' rosemary, garlic and thyme — the potatoes are cut
+    // on cook day) share one container, like any vegetables into the pan together.
+    if (heat) return "B";
+    return null;
+  };
+  const deferred: { p: Portion; ck: string }[] = [];
+  for (const [gKey, group] of groups) {
+    const gk = gKey.slice(gKey.indexOf("|") + 1);
+    for (const p of group) {
+      const t = targetOf(p, group, gk);
+      if (t === null) continue;
+      const ck = `${gKey}|${t}`;
+      // Rule 5 beats rule 1 for a SHARED cut: it joins its dish's container only
+      // once that container exists on its own, below. An authored mixture still
+      // claims its share at once (D-WS9-296, ratified). 🔴 KNIFE WORK ONLY: rule 5
+      // is one tub of diced onion for three dishes. A measure is never pooled across
+      // dishes — the cumin for the braise and for the rub are two dishes' blends.
+      if (p.cls !== "A" && sharedCut(p) && !gk.startsWith("c:")) {
+        deferred.push({ p, ck });
+        continue;
       }
-      return null;
-    };
-    for (const phase of result.phases) {
-      // A raw protein is its own package and carries its own storage rule
-      // (D-WS9-298). Pointing it at a container named after itself is exactly the
-      // noise rule 11's comment warns about.
-      if (phase.phase === "proteins") continue;
-      for (const entry of phase.entries) {
-        // Only the portions that (a) did not claim, and only the ones that are
-        // actually work (H6.2 item 2).
-        const orphans = entry.lines.flatMap((l) =>
-          l.contributions.filter(
-            (c) =>
-              // The no-work portions are already gone — combinePrep drops them at the
-              // contribution (H6.2 item 2), so nothing reaches here to filter.
-              !containerByDishIngredient.has(`${c.dishId}|${entry.ingredientId}`),
-          ),
-        );
-        if (orphans.length === 0) continue;
-        // 🔴 H6.2 item 1 — RULE 1 APPLIES HERE TOO. A portion that joined no mixture
-        // still shares a container with everything else of its dish entering at the
-        // SAME MOMENT: "Roasted Tomatillo Sauce roasting tray" holds the tomatillos,
-        // the poblano, the jalapeño and the onion wedges, because they go into the
-        // oven together. One tub per ingredient was rule 11(c) read too literally,
-        // and it put 17 single-member containers on the sample plan.
-        //
-        // The shared tub (11b) survives only where the SAME CUT serves SEVERAL
-        // dishes — that is the one case where a per-ingredient vessel is what the
-        // cook actually wants, because the portions are divided at the stove.
-        const byCut = new Map<string, typeof orphans>();
-        for (const c of orphans) {
-          const k = cutOf([c.preparationNote ?? ""]) ?? "";
-          const l = byCut.get(k) ?? [];
-          l.push(c);
-          byCut.set(k, l);
-        }
-        for (const [cut, group] of byCut) {
-          const dishes = [...new Set(group.map((c) => c.dishName))];
-          const noun = cut ? `${cut} ${entry.ingredientName}` : entry.ingredientName;
-          if (dishes.length > 1) {
-            // (b) — one tub per ingredient AND cut, labelled with its dinners.
-            for (const c of group) {
-              sharedLabel.set(
-                `${c.dishId}|${entry.ingredientId}`,
-                containerLabel(upperFirst(noun), dishes),
-              );
-            }
-            continue;
-          }
-          // 🔴 A SERVED-SEPARATELY DISH IS EXEMPT (H5.1). Its members go out in their
-          // own small dishes — that is the ruling — so they keep a container each and
-          // never pool into one bowl.
-          if (isServedSeparately(dishes[0])) {
-            for (const c of group) {
-              loneLabel.set(
-                `${c.dishId}|${entry.ingredientId}`,
-                containerLabel(dishes[0], [noun]),
-              );
-            }
-            continue;
-          }
-          // (c) — one container per DISH and MOMENT, named below once the whole
-          // plan's moments are known. Recorded here; resolved after the loop.
-          for (const c of group) {
-            momentOrphans.push({
-              dishId: c.dishId,
-              dishName: c.dishName,
-              // 🔴 THE RUN — the board moment. Not the resolved moment, which moves a
-              // vegetable to the step that COOKS it and split the tomatillo tray five
-              // ways; and not the phase, which was too coarse and put the blender's
-              // cilantro on the tray with the tomatillos. Things cut in one breath share
-              // a bowl; an ingredient with no stated amount anywhere stands alone.
-              // 🔴 THE PHASE, and not the run. The run looks like the better key — things
-              // cut in one breath — and it is not, because `amountRefs` are incomplete:
-              // on the tomatillo sauce the tray's poblano and jalapeño have NO ref at all,
-              // so keying on the run dropped two of its four members. The phase survives
-              // thin data. What the run WOULD have added is handled below, from the named
-              // entry step, which is evidence rather than an absence.
-              momentKey: phase.phase,
-              entryStep: c.entryStep ?? null,
-              ingredientId: entry.ingredientId,
-              phase: phase.phase,
-            });
-          }
-        }
+      const c = containers.get(ck) ?? {
+        key: ck,
+        dishId: p.dishId,
+        dishName: p.dishName,
+        mealName: p.mealName,
+        cls: t,
+        members: new Map<string, Portion>(),
+        noun: null,
+        authoredName: null,
+        name: "",
+      };
+      c.members.set(p.entry.ingredientId, p);
+      // The author's name only when the author NAMED a mixture: a component with no
+      // noun carries a generated fallback ("Tuna Melts prep container"), which says
+      // nothing about what is in it now that the class split has run.
+      if (p.component?.noun && t === "A" && c.authoredName === null) {
+        c.authoredName = p.component.bowlName;
+        c.noun = p.component.noun;
       }
+      containers.set(ck, c);
     }
   }
+  const allDryA = (c: Container) =>
+    c.cls === "A" && [...c.members.values()].every((p) => p.cls === "A" && !p.wet);
+  const meetsFloor = (c: Container): boolean => {
+    const n = c.members.size;
+    if (c.cls === "B") return n >= 2;
+    if (allDryA(c)) return n >= 3;
+    return n >= 3 || (n >= 2 && c.noun !== null && mustSit(c.noun));
+  };
+  for (const [ck, c] of [...containers]) if (!meetsFloor(c)) containers.delete(ck);
+  for (const { p, ck } of deferred) {
+    const c = containers.get(ck);
+    if (c) c.members.set(p.entry.ingredientId, p);
+  }
 
-  // ── H6.2 item 1 — ONE CONTAINER PER DISH AND MOMENT ──────────────────────
-  //
-  // Named off the dish, with a numeric suffix only when a dish needs more than one.
-  // 🔴 THE SUFFIX ALSO CLOSES A NAME COLLISION I left in H6.1: two different buckets
-  // of one dish could both be named "<Dish> prep container" by rule 8 and then read
-  // as ONE container, because a container is its name. Every name this plan uses is
-  // registered, so a second container of the same dish cannot borrow the first's.
-  {
-    const used = new Set<string>();
-    for (const b of componentBuckets.values()) used.add(b.bowlName);
-    // Group first, so a group's SIZE can decide whether it deserves a vessel.
-    const groups = new Map<string, typeof momentOrphans>();
-    for (const o of momentOrphans) {
-      const k = `${o.dishId}|${o.momentKey}`;
-      const l = groups.get(k) ?? [];
-      l.push(o);
-      groups.set(k, l);
-    }
-    // 🔴 A MEMBER THAT GOES IN LATER LEAVES THE BOWL. Hans's rule 1 exists so the cook
-    // never picks something back out at the stove, and the tomatillo sauce had the shape:
-    // the tray is broiled at step 2 and the cilantro joins the BLENDER at step 4. A
-    // member whose own named entry step is later than the earliest named one in its group
-    // is split out; a member the recipe never places is no evidence and stays.
-    for (const [k, group] of [...groups]) {
-      const named = group
-        .map((o) => o.entryStep)
-        .filter((n): n is number => typeof n === "number");
-      if (named.length === 0) continue;
-      const earliest = Math.min(...named);
-      const later = group.filter((o) => typeof o.entryStep === "number" && o.entryStep > earliest);
-      if (later.length === 0) continue;
-      groups.set(k, group.filter((o) => !later.includes(o)));
-      for (const o of later) groups.set(`${k}|late:${o.entryStep}`, [o]);
-    }
-    const perDish = new Map<string, Map<string, string>>();
-    for (const [, group] of groups) {
-      const distinct = new Set(group.map((o) => o.ingredientId)).size;
-      // 🔴 ONE PORTION IS A PORTION, NOT A CONTAINER — the same rule the authored
-      // mixtures already obey. And a DRY group needs three (D-WS9-299): a blend of two
-      // spices is noise, whether a bowl name is wrapped around it or not.
-      const floor = group[0].phase === "seasonings_dry" ? 3 : 2;
-      if (distinct < floor) continue;
-      const first = group[0];
-      const byMoment = perDish.get(first.dishId) ?? new Map<string, string>();
-      if (!byMoment.has(first.momentKey)) {
-        const base = `${first.dishName} prep bowl`;
-        let name = base;
-        let n = 2;
-        while (used.has(name)) name = `${base} ${n++}`;
-        used.add(name);
-        byMoment.set(first.momentKey, name);
+  // ── NAMES — dish + use, never a number (rule 8) ───────────────────────────
+  const usedNames = new Set<string>();
+  const uniqueName = (base: string): string => {
+    let name = base;
+    let n = 2;
+    while (usedNames.has(name)) name = `${base} ${n++}`;
+    usedNames.add(name);
+    return name;
+  };
+  const vegContainersPerDish = new Map<string, number>();
+  for (const c of containers.values()) {
+    if (c.cls === "B") vegContainersPerDish.set(c.dishId, (vegContainersPerDish.get(c.dishId) ?? 0) + 1);
+  }
+  for (const c of containers.values()) {
+    const dry = allDryA(c);
+    let name: string;
+    if (c.cls === "B") {
+      name = bowlNameFor(c.dishName, c.mealName, null, 0, false, false, "vegetables");
+      // Two vegetable containers for one dish go into the pot at two different
+      // moments (the soup's onion with the chicken, its carrots and celery 20
+      // minutes later), so the lid says WHICH: what is in it, never a number.
+      if ((vegContainersPerDish.get(c.dishId) ?? 0) > 1) {
+        const what = [...c.members.values()].map((p) => p.entry.ingredientName.toLowerCase());
+        name = containerLabel(name.replace(/ vegetables$/, ""), [listOf(what)]);
       }
-      perDish.set(first.dishId, byMoment);
-      for (const o of group) {
-        loneLabel.set(`${o.dishId}|${o.ingredientId}`, byMoment.get(first.momentKey)!);
+    } else if (c.authoredName && !(DRY_BOWL_NOUN.test(c.authoredName) && !dry)) {
+      name = c.authoredName;
+    } else {
+      const names = [...c.members.values()].map((p) => p.entry.ingredientName).join(" ");
+      const use = dry ? (DRY_MIX_MEMBER.test(names) ? "dry mix" : "spice blend") : "sauce bowl";
+      name = bowlNameFor(c.dishName, c.mealName, null, 0, false, false, use);
+    }
+    c.name = uniqueName(name);
+  }
+
+  /** The mixture noun a container carries, for the closing verb (2f). */
+  const nounByBowl = new Map<string, string | null>();
+  for (const c of containers.values()) nounByBowl.set(c.name, c.noun);
+
+  /** `${dishId}|${ingredientId}` → the container it is a member of. */
+  const containerOf = new Map<string, Container>();
+  for (const c of containers.values()) {
+    for (const p of c.members.values()) containerOf.set(`${p.dishId}|${p.entry.ingredientId}`, c);
+  }
+  /**
+   * D-WS9-296 / rule 11(c) — the members whose work happens IN the container (the
+   * dry measure, the wet pour) are taken out of the per-dish steps. Knife work is
+   * never claimed: it is done in its food's own produce step, with the container as
+   * the named destination.
+   */
+  const claimed = new Set<string>();
+  for (const [k, c] of containerOf) {
+    const ph = c.members.get(k.slice(k.indexOf("|") + 1))!.entry.phase;
+    if (ph === "seasonings_dry" || ph === "sauces_marinades") claimed.add(k);
+  }
+
+  // ── 2a — EVERY CUT PORTION LANDS IN A LABELLED CONTAINER ────────────────────
+  //
+  // H6.2's one-portion floor printed "their own portion" and "no destination
+  // container needed" on the sample plan: a diced jalapeño that joins nothing
+  // still has to go somewhere, and "somewhere" has to be written on a lid.
+  //   • the same cut for SEVERAL dishes → one tub, labelled with its dinners (rule 5);
+  //   • anything else → "<Dish> — <item, cut>".
+  // Only knife work gets one. A no-work item is off the list (H6.2), and an A
+  // measure that joins nothing is not prep at all (2c).
+  const tubLabel = new Map<string, string>();
+  {
+    const byEntry = new Map<string, Portion[]>();
+    for (const [k, p] of portions) {
+      // A squeezed juice is board work too: it gets a lid like any cut.
+      if (p.cls === "C" || (p.cls === "A" && p.entry.phase !== "produce")) continue;
+      if (notPrep.has(k) || containerOf.has(k)) continue;
+      const l = byEntry.get(p.entry.ingredientId) ?? [];
+      l.push(p);
+      byEntry.set(p.entry.ingredientId, l);
+    }
+    for (const list of byEntry.values()) {
+      const byCut = new Map<string, Portion[]>();
+      for (const p of list) {
+        const cut = cutOf(p.notes) ?? "";
+        const l = byCut.get(cut) ?? [];
+        l.push(p);
+        byCut.set(cut, l);
+      }
+      for (const [cut, group] of byCut) {
+        const item = group[0].entry.ingredientName;
+        const noun = cut ? `${cut} ${item}` : item;
+        // Rule 5's tub takes every dish wanting this cut, served-separately ones
+        // included — the cilantro for the enchiladas, the chili fixings and the taco
+        // toppings is one tub, as it was in H6. A served-separately dish's OTHER items
+        // still never pool with each other (H5.1): each gets its own lid below.
+        const dishes = [...new Set(group.map((p) => p.dishName))];
+        for (const p of group) {
+          const label =
+            dishes.length > 1 ? containerLabel(upperFirst(noun), dishes) : containerLabel(p.dishName, [noun]);
+          tubLabel.set(`${p.dishId}|${p.entry.ingredientId}`, label);
+        }
       }
     }
   }
 
   const destinationFor: DestinationResolver = (dishId, ingredientId) => {
     if (ingredientId === null) return undefined;
-    const claimed = containerByDishIngredient.get(`${dishId}|${ingredientId}`);
-    if (claimed) return claimed;
-    return (
-      sharedLabel.get(`${dishId}|${ingredientId}`) ??
-      loneLabel.get(`${dishId}|${ingredientId}`)
-    );
+    const k = `${dishId}|${ingredientId}`;
+    return containerOf.get(k)?.name ?? tubLabel.get(k);
   };
 
   // ── D-WS9-296 ruling 1 — the raw protein's cook-day step ─────────────────
@@ -1201,22 +1047,25 @@ export function buildStepPlan(
   // "On cook day: 1½ lb skirt steak into the Carne asada marinade bowl (a
   // zip-top bag works)." The sentence is the ENGINE's, because it states a fact
   // about the schedule; the model may not move it.
+  // 🔴 H7 — ONLY INTO A BOWL THAT STILL EXISTS. The Alfredo's chicken was told to go
+  // "into the Chicken and Broccoli Alfredo seasoning" on cook day — a two-item blend
+  // the floor had dissolved — and the line replaced the chicken's own step. The
+  // component's name is resolved to the container's final name, or dropped.
+  const liveBowl = new Map<string, string>();
+  for (const c of containers.values()) {
+    if (c.authoredName) liveBowl.set(`${c.dishId}|${c.authoredName}`, c.name);
+  }
   const cookDayByDishIngredient = new Map<string, string>();
   for (const phase of result.phases) {
     for (const entry of phase.entries) {
       for (const line of entry.lines) {
         for (const c of line.contributions) {
-          if (c.cookDayInto) cookDayByDishIngredient.set(`${c.dishId}|${entry.ingredientId}`, c.cookDayInto);
+          const bowl = c.cookDayInto ? liveBowl.get(`${c.dishId}|${c.cookDayInto}`) : undefined;
+          if (bowl) cookDayByDishIngredient.set(`${c.dishId}|${entry.ingredientId}`, bowl);
         }
       }
     }
   }
-
-  /** The mixture noun a planned step belongs to, for the must-sit arm. */
-  const nounByBowl = new Map<string, string | null>();
-  for (const b of componentBuckets.values()) nounByBowl.set(b.bowlName, b.noun);
-  const componentNounOf = (st: PlannedStep): string | null =>
-    st.bowlName ? nounByBowl.get(st.bowlName) ?? null : null;
 
   for (const phase of result.phases) {
     const key = phase.phase;
@@ -1224,18 +1073,15 @@ export function buildStepPlan(
     if (entries.length === 0) continue;
 
     let number = 0;
-    /** Rule 10 — set once the wash step has been emitted for this phase. */
-    let washEmitted = false;
     const pushStep = (
       step: Omit<PlannedStep, "stepId" | "number" | "phase" | "estimatedMinutes">,
+      forceDemote?: string,
     ): void => {
       number += 1;
       // WS9 BUG-204 — the clock, computed from what the step holds. Done here so
       // EVERY step gets one by construction and no branch can forget.
       const timing = timeStep({ components: step.components, bowlName: step.bowlName }, yieldFor);
-      // D-WS9-301 rule 12 — the action, for a whole-protein step. Read here so
-      // every branch that emits one gets it, and so a step that is later held
-      // for cook day still says what the cook will be doing on the day.
+      // D-WS9-301 rule 12 — the action, for a whole-protein step.
       const knifeVerbs =
         key === "proteins" && !step.cookDaySentence
           ? proteinVerbsFor(
@@ -1244,8 +1090,6 @@ export function buildStepPlan(
             )
           : [];
       // D-WS9-297 ruling 13 — the LATEST cook day this step has to survive to.
-      // Max, not min: a portion feeding Tuesday and Saturday has to last until
-      // Saturday, and the shorter answer is the one that spoils food.
       const lags = step.contributesToMealIds
         .map((id) => cookLagByMealId.get(id))
         .filter((n): n is number => n !== undefined);
@@ -1259,69 +1103,32 @@ export function buildStepPlan(
         ...(timing.overCap ? { minutesOverCap: true } : {}),
         ...(lags.length > 0 ? { daysUntilCook: Math.max(...lags) } : {}),
       };
-      // ── D-WS9-299 — DOES THIS STEP SAVE WEEKNIGHT TIME? ──────────────────
+      // ── 2c — THE ENGINE DECIDES WHAT IS PREP, AND NOTHING OVERRULES IT ──────
       //
-      // Hans: "measuring 1 thing (condiment, cooking oil, single spice), or
-      // even 2 simple things that don't need to sit and mix together, isn't
-      // part of prep." The judge is in prepComponents.ts; a refusal is a
-      // render-omitted step, exactly as an AI demotion is, and its dish's
-      // cook-day step handles the item.
-      //
-      // ⚠️ A COOK-DAY PROTEIN STEP IS NEVER JUDGED. It carries no measuring at
-      // all — it tells the cook where the steak goes on Friday — so the
-      // weeknight-time test does not apply to it.
-      // ── 🔴 H4 — A STEP THAT FEEDS A CONTAINER IS PART OF A MIXTURE ────────
-      //
-      // D-WS9-299 demotes a step that measures one lone thing. Splitting a
-      // container across phases makes almost every one of its steps look like
-      // that from the inside: the Garlic Herb Potatoes' phase 3 step holds one
-      // olive oil, and the thyme's produce step holds one herb portion — and the
-      // first corpus run after the split demoted both, so the container never
-      // got its oil and the marinades never got their thyme.
-      //
-      // Neither is a lone measure. One FINISHES a container that already holds
-      // four things (`containerHolds`); the other is knife work every one of
-      // whose portions has a destination. Both are mixture work by construction,
-      // which is exactly what the judge's own "mixture" arm exempts — it just
-      // cannot see it one step at a time.
-      // H6.1-B — every portion names a container now, so "all its measures have a
-      // destination" no longer distinguishes mixture work from anything else. What
-      // still does: the step IS a container, it finishes one that already holds
-      // things, or its portions go into a container OTHER than one named for this
-      // ingredient alone (rule 11 (a) — a real mixture, not the (b)/(c) tub that
-      // exists to hold this very ingredient).
-      const ownLabels = new Set(
-        containerNamesOf(planned).filter((n) =>
-          planned.components.some((c) => n.toLowerCase().includes(c.ingredientName.toLowerCase())),
-        ),
-      );
-      const feedsAContainer =
-        planned.containerId != null ||
-        (planned.containerHolds?.length ?? 0) > 0 ||
-        containerNamesOf(planned).some((n) => !ownLabels.has(n));
-      if (!planned.cookDaySentence && !feedsAContainer) {
-        const verdict = judgePrepWorthiness({
-          measuredItems: planned.components.reduce((n, c) => n + c.measures.length, 0),
-          componentNoun: componentNounOf(planned),
-          preparationNotes: planned.components.flatMap((c) => [
-            c.preparationNote ?? "",
-            ...c.measures.map((m) => m.preparationNote ?? ""),
-          ]),
-          text: planned.components.map((c) => c.ingredientName).join(" "),
-          phase: planned.phase,
-        });
-        if (!verdict.worthDoingAhead) planned.demoted = { reason: verdict.reason };
+      // The narrator used to: it demoted the pork chops' five-item breading, the
+      // green-bean trimming and the cutlet pounding, and kept "Brown the Italian
+      // sausage". Its flag is now ignored (assemblePrepWeekResult), and this is the
+      // only place a step is judged.
+      const notes = planned.components.flatMap((c) => [
+        c.preparationNote ?? "",
+        ...c.measures.map((m) => m.preparationNote ?? ""),
+      ]);
+      if (planned.fixedProse || planned.cookDaySentence) {
+        // the wash, a cook-day line — not prep work, never judged
+      } else if (forceDemote) {
+        planned.demoted = { reason: forceDemote };
+      } else if (key === "proteins") {
+        const prose = planned.relevantDishes.flatMap((d) => dishStepsByName.get(d) ?? []);
+        const worked = planned.components.some((c) =>
+          judgeProteinWork(knifeVerbs, notes, prose, c.ingredientName),
+        );
+        if (!worked) planned.demoted = { reason: "heat-or-no-knife-work" };
       }
       steps.push(planned);
     };
 
     // ── D-WS9-301 rule 10 — the produce phase opens with the wash ──────────
-    //
-    // Pushed before anything else in the phase so it is step 1 on the screen.
-    // `contributesToMealIds` is every meal the phase touches: it is work for the
-    // whole week, not for one dish.
-    if (key === "produce" && !washEmitted) {
-      washEmitted = true;
+    if (key === "produce") {
       const everyMealHere = dedupe(
         entries.flatMap((e) =>
           e.lines.flatMap((l) => l.contributions.map((c) => c.mealId)),
@@ -1347,78 +1154,77 @@ export function buildStepPlan(
       }
     }
 
-    // ── D-WS9-296 — this phase's COMPONENT steps, first ────────────────────
+    // ── A containers: one step per container per phase it has work in ──────
     //
-    // One step per (dish, component), placed in the earliest phase the mixture
-    // touches, holding every member across phases. Keyed
-    // `component#${dishId}#${componentKey}` so a checkbox survives a
-    // regenerate exactly as the per-dish blend and sauce keys do (D-WS7-153).
-    for (const [bucketKey, b] of componentBuckets) {
-      // ── H4 / RULE 11(c) — ONE STEP PER CONTAINER PER PHASE ────────────────
-      //
-      // The container no longer IS a step. Its members are split by the kind of
-      // work each needs, and this phase takes only its own kind. A container
-      // with no dry members has no phase 1 step; with no wet members, no phase 3
-      // step; a produce-only container has no step of its own at all — its
-      // members are prepped in their ingredients' steps and it exists as a
-      // destination name, which is the whole point of rule 11(c).
-      // 🔴 A CONTAINER NEVER HAS A STEP IN PRODUCE. "Build the … container"
-      // steps are exactly what rule 11(c) removes: the produce members' work is
-      // done in their own ingredients' steps, one ingredient at a time, with
-      // this container named as the destination. Phase 2 container steps would
-      // put the mincing back inside the marinade.
-      if (key === "produce" || key === "proteins") continue;
-      const mine = [...b.entries.values()].filter(
-        (e) => PHASE_OF_KIND[kindOf(e)] === key,
-      );
-      if (mine.length === 0) continue;
-      // Ruling 3, applied again AFTER the engine's prep-worthy filter: a bucket
-      // whose other members were dropped upstream arrives with one measure and
-      // is a plain portion, not a mixture. Its claim is released so the
-      // per-phase branches below pick the survivor up.
-      //
-      // ⚠️ MEASURED OVER THE WHOLE CONTAINER, not over this phase's share. A
-      // marinade with one oil in phase 3 and four aromatics in phase 2 is a real
-      // mixture of five; counting only the oil would dissolve it.
-      const surviving = [...b.entries.values()]
-        .flatMap((e) => componentsForDish(e, b.dishId, destinationFor))
-        .reduce((n, c) => n + c.measures.length, 0);
-      if (surviving < 2) {
-        for (const e of b.entries.values()) claimed.delete(`${b.dishId}|${e.ingredientId}`);
-        componentBuckets.delete(bucketKey);
-        continue;
+    // The dry measures in phase 1, the poured liquids in phase 3. Its produce
+    // members (aromatics, squeezed juice) are cut in their own food's step with
+    // this container as the destination — rule 11(c). A B container has no step of
+    // its own at all: every member is knife work.
+    if (key === "seasonings_dry" || key === "sauces_marinades") {
+      for (const c of containers.values()) {
+        if (c.cls !== "A") continue;
+        const mine = [...c.members.values()].filter((p) => p.entry.phase === key);
+        if (mine.length === 0) continue;
+        // A dish with no step signal (`i*`) keeps the per-dish key its blend always had
+        // (BUG-016 / D-WS7-187), so a stored tick does not move for nothing.
+        const legacy = c.key.slice(c.dishId.length + 1).startsWith("i*");
+        pushStep({
+          // 🔴 THE SCHEMA CAPS stepKey AT 80 CHARS: `cnt#` + 4 + `#` + 62.
+          stepKey: legacy ? `${key}#dish#${c.dishId}` : `cnt#${key.slice(0, 4)}#${c.key.slice(0, 62)}`,
+          containerId: c.key,
+          ingredientId: null,
+          contributesToMealIds: dedupe(mine.flatMap((p) => [...p.mealIds])),
+          // A mixture IS a blend in the narrator's sense — one pre-measure
+          // action into one vessel — whatever phase it sits in.
+          isBlend: true,
+          components: mine.flatMap((p) => componentsForDish(p.entry, c.dishId, destinationFor)),
+          relevantDishes: relevantDishesFor([c.dishId]),
+          bowlName: c.name,
+        });
       }
-      const dishId = b.dishId;
-      // What the cook already put in it, for the later step's opening clause.
-      const alreadyIn = [...b.entries.values()]
-        .filter((e) => PREP_PHASE_ORDER.indexOf(PHASE_OF_KIND[kindOf(e)]) < PREP_PHASE_ORDER.indexOf(key))
-        .map((e) => e.ingredientName);
-      pushStep({
-        // 🔴 THE SCHEMA CAPS stepKey AT 80 CHARS, and the first keys blew it:
-        // `component#${uuid}#${noun}` is 10 + 36 + 1 + n, and
-        // `cookday#${uuid}#${uuid}` is 81 before the noun even exists. Every
-        // plan 502'd on PrepWeekResultSchema, and no route test caught it because
-        // the stub input has no componentSteps and so emits no component step at
-        // all. Short prefixes, and the noun is capped: the key must still be
-        // STABLE across a regenerate (D-WS7-153), and a deterministic truncation
-        // is.
-        // 🔴 H4 — THE KEY IS THE CONTAINER PLUS THE PHASE. A container now has
-        // up to two steps and each needs its own stable checkbox, so the phase
-        // is part of the key. The container half is unchanged, which is what
-        // keeps a day change a cache HIT: the key does not move when the cook
-        // day does (G1), only when the plan's composition does.
-        stepKey: `cnt#${key.slice(0, 4)}#${bucketKey.slice(0, 62)}`,
-        containerId: bucketKey,
-        ingredientId: null,
-        contributesToMealIds: [...b.mealIds],
-        // A mixture IS a blend in the narrator's sense — one pre-measure
-        // action into one vessel — whatever phase it sits in.
-        isBlend: true,
-        components: mine.flatMap((e) => componentsForDish(e, dishId, destinationFor)),
-        relevantDishes: relevantDishesFor([dishId]),
-        bowlName: b.bowlName,
-        ...(alreadyIn.length > 0 ? { containerHolds: alreadyIn } : {}),
-      });
+      // ── What is left is not prep (2c) ───────────────────────────────────
+      //
+      // Every dry or wet measure that belongs to a container was claimed above. A
+      // measure still here joined nothing: one spice, one oil, two things that go
+      // in at different moments. It stays on the plan as a demoted line so the
+      // census can read it, and the cook's screen never shows it.
+      const dishOrder: string[] = [];
+      const entriesByDish = new Map<string, PrepIngredientGroup[]>();
+      for (const entry of entries) {
+        for (const dishId of [...new Set(dishIdsOf(entry))]) {
+          if (claimed.has(`${dishId}|${entry.ingredientId}`)) continue;
+          let list = entriesByDish.get(dishId);
+          if (!list) {
+            list = [];
+            entriesByDish.set(dishId, list);
+            dishOrder.push(dishId);
+          }
+          list.push(entry);
+        }
+      }
+      for (const dishId of dishOrder) {
+        const dishEntries = entriesByDish.get(dishId)!;
+        const components = dishEntries.flatMap((e) => componentsForDish(e, dishId));
+        const measured = components.reduce((n, cpt) => n + cpt.measures.length, 0);
+        pushStep(
+          {
+            // `#left#`, not `#dish#`: the per-dish key belongs to a no-signal dish's
+            // blend container above, and these lines are never required anyway.
+            stepKey: `${key}#left#${dishId}`,
+            ingredientId: null,
+            contributesToMealIds: dedupe(
+              dishEntries.flatMap((e) =>
+                e.lines.flatMap((l) => l.contributions.filter((x) => x.dishId === dishId).map((x) => x.mealId)),
+              ),
+            ),
+            isBlend: key === "seasonings_dry",
+            components,
+            relevantDishes: relevantDishesFor([dishId]),
+          },
+          measured <= 1 ? "single-item" : "below-floor-or-not-one-moment",
+        );
+      }
+      continue;
     }
 
     // ── D-WS9-296 ruling 1 — the raw proteins that JOIN a bowl on cook day ──
@@ -1445,125 +1251,9 @@ export function buildStepPlan(
           claimed.add(`${dishId}|${entry.ingredientId}`);
         }
       }
-    }
-
-    if (key === "seasonings_dry") {
-      // BUG-016 (D-WS7-187) — split the collapsed blend PER DISH. The B1 ruling
-      // (D-WS7-151) folded every dish's dry-seasoning components into ONE
-      // `seasonings_dry#blend` step; on a big plan (~30 per-dish measures) that
-      // step's single AI `instructions` field can't fit under the 800-char cap
-      // → retry → 502. Keying one blend step per dish keeps each step small and
-      // each checkbox meaningful. Mirrors the sauces_marinades group-by-dishId
-      // pattern below: key `seasonings_dry#dish#${dishId}` (stable across
-      // regenerate, honors D-WS7-153; recomputes identically in loadPrepStepSet).
-      //
-      // D-WS7-187 note: a single dish's dry blend — make-ahead spices AND an
-      // at-cook dredge alike — stays in that ONE dish step (intra-dish integrity
-      // = the genuine D-WS7-183 guard). Only the cross-dish collapse (D-WS7-151)
-      // is reversed here.
-      const dishOrder: string[] = [];
-      const entriesByDish = new Map<string, PrepIngredientGroup[]>();
       for (const entry of entries) {
-        for (const dishId of [...new Set(dishIdsOf(entry))]) {
-          let list = entriesByDish.get(dishId);
-          if (!list) {
-            list = [];
-            entriesByDish.set(dishId, list);
-            dishOrder.push(dishId);
-          }
-          list.push(entry);
-        }
-      }
-      for (const dishId of dishOrder) {
-        // D-WS9-296 — a (dish, ingredient) a component step already took is not
-        // measured twice. When nothing is left, the step is not emitted at all.
-        const dishEntries = (entriesByDish.get(dishId) ?? []).filter(
-          (e) => !claimed.has(`${dishId}|${e.ingredientId}`),
-        );
-        if (dishEntries.length === 0) continue;
-        const mealIds = dedupe(
-          dishEntries.flatMap((e) =>
-            e.lines.flatMap((l) =>
-              l.contributions
-                .filter((c) => c.dishId === dishId)
-                .map((c) => c.mealId),
-            ),
-          ),
-        );
-        // Ruling 9 — this dish's blend is a single component and its sauce step
-        // will carry it instead. No step, no second container.
-        if (foldedBlendByDishId.has(dishId)) continue;
-        pushStep({
-          stepKey: `${key}#dish#${dishId}`,
-          ingredientId: null,
-          contributesToMealIds: mealIds,
-          isBlend: true,
-          components: dishEntries.flatMap((e) => componentsForDish(e, dishId, destinationFor)),
-          relevantDishes: relevantDishesFor([dishId]),
-        });
-      }
-    } else if (key === "sauces_marinades") {
-      // WS7-8b #5 — group by dishId so a sauce's wet components (vinegar +
-      // ketchup + mayo) land in ONE "make the sauce" step instead of stranding
-      // per-ingredient. Entries are ingredient-level groups; an ingredient can
-      // touch >1 dish, so we bucket each entry under every dishId its
-      // contributions reach, then emit one step per dishId (stable first-seen
-      // order). Key on `#dish#${dishId}` (stable across regenerate, honors
-      // D-WS7-153; recomputes identically in loadPrepStepSet).
-      const dishOrder: string[] = [];
-      const entriesByDish = new Map<string, PrepIngredientGroup[]>();
-      for (const entry of entries) {
-        for (const dishId of [...new Set(dishIdsOf(entry))]) {
-          let list = entriesByDish.get(dishId);
-          if (!list) {
-            list = [];
-            entriesByDish.set(dishId, list);
-            dishOrder.push(dishId);
-          }
-          list.push(entry);
-        }
-      }
-      for (const dishId of dishOrder) {
-        // D-WS9-296 — a (dish, ingredient) a component step already took is not
-        // measured twice. When nothing is left, the step is not emitted at all.
-        const dishEntries = (entriesByDish.get(dishId) ?? []).filter(
-          (e) => !claimed.has(`${dishId}|${e.ingredientId}`),
-        );
-        if (dishEntries.length === 0) continue;
-        const mealIds = dedupe(
-          dishEntries.flatMap((e) =>
-            e.lines.flatMap((l) =>
-              l.contributions
-                .filter((c) => c.dishId === dishId)
-                .map((c) => c.mealId),
-            ),
-          ),
-        );
-        // Ruling 9 — the folded one-component blend rides on this step.
-        const folded = foldedBlendByDishId.get(dishId);
-        pushStep({
-          stepKey: `${key}#dish#${dishId}`,
-          ingredientId: null,
-          contributesToMealIds: mealIds,
-          isBlend: false,
-          components: [
-            ...dishEntries.flatMap((e) => componentsForDish(e, dishId, destinationFor)),
-            ...(folded ? componentsForDish(folded, dishId, destinationFor) : []),
-          ],
-          relevantDishes: relevantDishesFor([dishId]),
-        });
-      }
-    } else {
-      // One step per ingredient group (produce, proteins). group[0] === entry,
-      // so entry.ingredientId is its stable identity (D-WS7-153).
-      for (const entry of entries) {
-        // D-WS9-296 — filtered per (dish, ingredient): the carne asada's garlic is
-        // in its marinade bowl, the other three dishes' garlic still needs a step.
-        const unclaimed = componentsOfUnclaimed(entry, claimed, destinationFor);
+        const unclaimed = componentsOfUnclaimed(entry, claimed);
         if (unclaimed.length === 0) continue;
-        const unclaimedDishIds = dishIdsOf(entry).filter(
-          (d) => !claimed.has(`${d}|${entry.ingredientId}`),
-        );
         pushStep({
           stepKey: `${key}#${entry.ingredientId}`,
           ingredientId: entry.ingredientId,
@@ -1576,11 +1266,86 @@ export function buildStepPlan(
           ),
           isBlend: false,
           components: unclaimed,
-          relevantDishes: relevantDishesFor(unclaimedDishIds),
+          relevantDishes: relevantDishesFor(
+            dishIdsOf(entry).filter((d) => !claimed.has(`${d}|${entry.ingredientId}`)),
+          ),
         });
       }
+      continue;
+    }
+
+    // ── produce — 2d: ONE STEP PER FOOD, citrus included ─────────────────────
+    //
+    // "lemon", "lemon juice" and "lemon zest" were three steps on `c62587bb` and
+    // `2251c7f5`: juiced in one, zested in another, squeezed again in the sauces
+    // phase. All of one food's knife work is one step now — the whole fruit and
+    // every catalog component of it — and its juice and zest are portioned to their
+    // containers there, like an onion's dice.
+    //
+    // The key of a merged step is the WHOLE fruit's id when the plan has one, else
+    // the smallest member id, so it does not move with meal order. A single-food
+    // step keeps `produce#<id>`, which is what it always was.
+    const foods = new Map<string, PrepIngredientGroup[]>();
+    for (const entry of entries) {
+      const fk = foodKeyOf(entry.ingredientName, entry.sourceYield);
+      const l = foods.get(fk) ?? [];
+      l.push(entry);
+      foods.set(fk, l);
+    }
+    for (const group of foods.values()) {
+      const skip = new Set<string>(claimed);
+      for (const k of notPrep.keys()) skip.add(k);
+      const work = group.flatMap((e) => componentsOfUnclaimed(e, skip, destinationFor));
+      // A food with no prep portion at all keeps its line, demoted, with the reason.
+      const all = work.length > 0 ? work : group.flatMap((e) => componentsOfUnclaimed(e, claimed));
+      if (all.length === 0) continue;
+      const keyEntry =
+        group.length === 1
+          ? group[0]
+          : (group.find((e) => !e.sourceYield) ??
+            [...group].sort((a, b) => (a.ingredientId < b.ingredientId ? -1 : 1))[0]);
+      const workKeys = group.flatMap((e) =>
+        dishIdsOf(e)
+          .map((d) => `${d}|${e.ingredientId}`)
+          .filter((k) => !claimed.has(k)),
+      );
+      const reason =
+        work.length > 0 ? undefined : (workKeys.map((k) => notPrep.get(k)).find((r) => r) ?? "no-work");
+      pushStep(
+        {
+          stepKey: `${key}#${keyEntry.ingredientId}`,
+          ingredientId: keyEntry.ingredientId,
+          contributesToMealIds: dedupe(
+            group.flatMap((e) =>
+              e.lines.flatMap((l) =>
+                l.contributions
+                  .filter((c) => !claimed.has(`${c.dishId}|${e.ingredientId}`))
+                  .map((c) => c.mealId),
+              ),
+            ),
+          ),
+          isBlend: false,
+          components: all,
+          relevantDishes: relevantDishesFor(workKeys.map((k) => k.slice(0, k.indexOf("|")))),
+        },
+        reason,
+      );
     }
   }
+
+  // ── D-WS9-301 rule 7 — THE DROP PASS, AND WHERE IT STOPS ──────────────────
+  //
+  // "Target 10–15 containers… Over target, drop the lowest-value steps first
+  // (single-dish garnish portions, citrus wedges) rather than splitting
+  // further. Exceeding 15 is allowed when every step clears the test."
+  //
+  // 🔴 SO THIS IS NOT A LOOP TO 15, AND MUST NOT BECOME ONE. It drops only the two
+  // lowest classes and then stops. A plan at 23 containers of real work is 23.
+  //
+  // H7 — RUN BEFORE THE CLOSES AND THE NARRATION INPUT, not after them as it used
+  // to be: a dropped step is not the last to touch anything, and a container whose
+  // later step was dropped must read as finished on the step that remains.
+  dropLowValueSteps(steps);
 
   // Emit dishSteps ONLY for dishes actually referenced by some step, in
   // first-referenced order, so the map carries no unused prose.
@@ -1594,16 +1359,11 @@ export function buildStepPlan(
     }
   }
 
-  /**
-   * H5.2 — the label of the next phase that touches this step's container, or
-   * null when nothing does. A container is the identity (H4 rule 11(c)), so this
-   * is "is there a later step on the same `containerId`".
-   */
   // ── H6.1-C — WHO TOUCHES EACH CONTAINER, AND WHO IS LAST ──────────────────
   //
-  // Keyed on the container NAME, not on `containerId`: the steps that fill a
-  // prep container are the ingredients' own produce steps, which have no id of
-  // their own. Ordered by phase then number, which is the order the cook reads.
+  // Keyed on the container NAME: the steps that fill a container are its members'
+  // own produce steps, which have no id of their own. Ordered by phase then
+  // number, which is the order the cook reads.
   const rank = (st: PlannedStep) => PREP_PHASE_ORDER.indexOf(st.phase) * 1000 + st.number;
   const touchers = new Map<string, PlannedStep[]>();
   for (const st of steps) {
@@ -1616,56 +1376,102 @@ export function buildStepPlan(
   }
   for (const l of touchers.values()) l.sort((x, y) => rank(x) - rank(y));
 
+  // ── 2b — EVERY CONTAINER'S LAST STEP CARRIES ITS CLOSE ─────────────────────
+  //
+  // H6.2 gave the storage line only to a step that IS the container or that filled
+  // a tub nobody else touched. A container filled by several produce steps and
+  // owned by none — the slow cooker's vegetables, the tomatillo tray, the asparagus
+  // bowl — was therefore closed by nobody, and on six containers across the four
+  // plans the last thing the cook read was a knife instruction.
+  //
+  // Now the close belongs to the container, and the container's LAST step carries
+  // it, whoever that step is. A step that closes nothing (because a later step
+  // touches its containers) is suppressed; a step that touches no named container
+  // (a protein on its own) closes itself, as it always did.
+  for (const [n, l] of touchers) {
+    const last = l[l.length - 1];
+    last.closes = [...(last.closes ?? []), n];
+  }
+  for (const st of steps) {
+    if (st.demoted || st.cookDaySentence || st.holdsNoContainer) continue;
+    if (containerNamesOf(st).length > 0 && (st.closes?.length ?? 0) === 0) st.suppressStorage = true;
+  }
+
   /**
    * The phase label of the next step to touch this step's OWN container, or null.
-   *
-   * 🔴 ITS OWN. H6.2 item 5 — a produce step that portions into six containers was
-   * closing "Set aside for the sauces and marinades step", which is a sentence about
-   * somebody else's bowl. A handoff is a thing a container does, so only a step that IS
-   * a container can announce one.
+   * 🔴 ITS OWN: a handoff is a thing a container does, so only a step that IS a
+   * container can announce one (H6.2 item 5).
    */
   const workedAgainAfter = (step: PlannedStep): string | null => {
-    if (!step.containerId && !step.bowlName) return null;
-    let best: PlannedStep | null = null;
+    if (!step.bowlName) return null;
     const here = PREP_PHASE_ORDER.indexOf(step.phase);
-    for (const n of containerNamesOf(step)) {
-      for (const other of touchers.get(n) ?? []) {
-        // 🔴 ACROSS PHASES ONLY. Ranking by phase-then-number told a produce step to
-        // "set aside for the produce step" while the cook was standing in it. A
-        // handoff the cook can act on is one that names a DIFFERENT part of the
-        // session; two steps in the same phase are just two steps.
-        if (PREP_PHASE_ORDER.indexOf(other.phase) <= here) continue;
-        if (rank(other) <= rank(step)) continue;
-        if (best === null || rank(other) < rank(best)) best = other;
-      }
+    let best: PlannedStep | null = null;
+    for (const other of touchers.get(step.bowlName) ?? []) {
+      // 🔴 ACROSS PHASES ONLY. Two steps in the same phase are just two steps.
+      if (PREP_PHASE_ORDER.indexOf(other.phase) <= here) continue;
+      if (best === null || rank(other) < rank(best)) best = other;
     }
     return best ? PHASE_META[best.phase].title.toLowerCase() : null;
   };
 
-  // The storage line goes to the LAST toucher only. A step that touches nothing
-  // named keeps its note — it is its own container by construction.
+  // ── 2f — WHAT IS ALREADY IN IT, AND THE VERB, ARE THE CODE'S ───────────────
+  //
+  // "Garlic Herb Roasted Potatoes prep container (garlic, rosemary, thyme, and
+  // potatoes already in it)… Toss to coat" — the potatoes had been moved to cook
+  // day, and the narrator wrote the list and chose the verb. Both are facts about
+  // the container's members, so both are built here, from the steps that actually
+  // put something in it, and handed to the narrator as fixed text.
   for (const st of steps) {
-    if (st.demoted || st.cookDaySentence || st.holdsNoContainer) continue;
-    const names = containerNamesOf(st);
-    if (names.length === 0) continue;
-    // ── H6.2 item 5 — WHOSE STORAGE LINE IS THIS? ──────────────────────────
-    //
-    // A container's last step states how to keep it. For a step that IS a container
-    // that is its own name; for a step that FILLS containers it is the tub this step's
-    // own portions created — a (b) or (c) label, which is named after the ingredient or
-    // the dish and nothing else touches. A step that only fills OTHER people's
-    // containers says nothing: the marinade's own step will speak for the marinade.
-    const ownNames = st.containerId || st.bowlName
-      ? names.filter((n) => n === st.bowlName)
-      : names.filter((n) => {
-          const l = touchers.get(n) ?? [];
-          return l.length === 1 && l[0] === st;
-        });
-    const isLastForOwn = ownNames.some((n) => {
-      const l = touchers.get(n) ?? [];
-      return l.length > 0 && l[l.length - 1] === st;
-    });
-    if (!isLastForOwn) st.suppressStorage = true;
+    if (!st.bowlName || st.demoted) continue;
+    const before = (touchers.get(st.bowlName) ?? []).filter((o) => rank(o) < rank(st));
+    const holds: string[] = [];
+    for (const o of before) {
+      for (const c of o.components) {
+        const intoThis =
+          o.bowlName === st.bowlName || c.measures.some((m) => m.destination === st.bowlName);
+        if (!intoThis) continue;
+        const label =
+          // Only squeezed or zested citrus says where it came from ("the lemon juice
+          // from produce step 2"); garlic has a catalog parent too (head → cloves), and
+          // "the garlic from produce step 3" is noise.
+          o.phase === "produce" && /\b(juice|zest|lemons?|limes?|oranges?)\b/i.test(c.ingredientName)
+            ? `the ${c.ingredientName} from produce step ${o.number}`
+            : c.ingredientName;
+        if (!holds.includes(label)) holds.push(label);
+      }
+    }
+    if (holds.length > 0) st.containerHolds = holds;
+    st.openingClause =
+      holds.length > 0 ? `${st.bowlName} (${listOf(holds)} already in it): add` : `Into the ${st.bowlName}:`;
+    const after = (touchers.get(st.bowlName) ?? []).some((o) => rank(o) > rank(st));
+    if (!after) {
+      const memberNames = [
+        ...holds,
+        ...st.components.map((c) => c.ingredientName),
+      ].join(" ");
+      const wet = st.phase === "sauces_marinades" || /\bjuice\b/i.test(memberNames);
+      if (wet) {
+        const noun = nounByBowl.get(st.bowlName) ?? null;
+        const emulsion =
+          (noun !== null && EMULSIONS.has(noun)) ||
+          (/\boil\b/i.test(memberNames) && /\b(vinegar|juice|mustard|mayonnaise|mayo|wine)\b/i.test(memberNames));
+        st.closingLine = emulsion ? "Whisk to combine." : "Stir to combine.";
+      }
+    }
+  }
+
+  // ── A DEMOTED STEP IS NOT NARRATED ────────────────────────────────────────
+  //
+  // The client never renders it, and the narrator has nothing to decide about it
+  // any more (2c). It gets fixed, code-owned prose naming the thing and why it
+  // waits — the census reads it — and costs no tokens.
+  for (const st of steps) {
+    if (!st.demoted || st.fixedProse) continue;
+    const names = dedupe(st.components.map((c) => c.ingredientName));
+    st.fixedProse = {
+      title: `${upperFirst(listOf(names.length > 0 ? names : ["Cook day"]))} — cook day`.slice(0, 120),
+      instructions: DEMOTE_PROSE[st.demoted.reason] ?? "Left for cook day.",
+    };
   }
 
   const narrationInput: PrepNarrationInput = {
@@ -1682,41 +1488,50 @@ export function buildStepPlan(
       ...(s.bowlName ? { bowlName: s.bowlName } : {}),
       ...(s.cookDaySentence ? { cookDaySentence: s.cookDaySentence } : {}),
       ...(s.knifeVerbs ? { knifeVerbs: s.knifeVerbs } : {}),
-      // H4 / rule 11(c) — the opening clause's facts. Date-independent by
-      // construction (it is the container's own membership), so it does not
-      // reopen the cache-miss hazard the note below guards.
-      ...(s.containerHolds ? { containerHolds: s.containerHolds } : {}),
-      // H5.2 — is this container worked again later in the session? Computed over
-      // the FINAL step list, so a container whose later step was dropped by the
-      // worthiness filter or by rule 7 correctly reads as finished here.
+      // H7 2f — the opening and the closing verb, fixed text. Date-independent by
+      // construction (the container's own membership), so no cache-miss hazard.
+      ...(s.openingClause ? { openingClause: s.openingClause } : {}),
+      ...(s.closingLine ? { closingLine: s.closingLine } : {}),
+      // H5.2 — is this container worked again later in the session?
       ...(workedAgainAfter(s) ? { setAsideFor: workedAgainAfter(s)! } : {}),
-      // ⚠️ daysUntilCook IS DELIBERATELY NOT HERE. It stays on the step skeleton
-      // (PlannedStep) where the deterministic layers read it; sending it to the
-      // narrator bought nothing the model needed and made the prose day-dependent,
-      // which in turn made every day reassignment a cache miss. D-WS9-298.
+      // ⚠️ daysUntilCook IS DELIBERATELY NOT HERE (D-WS9-298): a day-dependent
+      // prompt input makes every day reassignment a cache miss.
     })),
   };
 
-  // ── D-WS9-301 rule 7 — THE DROP PASS, AND WHERE IT STOPS ──────────────────
-  //
-  // "Target 10–15 containers… Over target, drop the lowest-value steps first
-  // (single-dish garnish portions, citrus wedges) rather than splitting
-  // further. Exceeding 15 is allowed when every step clears the test."
-  //
-  // 🔴 SO THIS IS NOT A LOOP TO 15, AND MUST NOT BECOME ONE. Hans ruled it
-  // explicitly: it drops only the two lowest classes and then stops, even if
-  // the plan is still over. "A plan at 23 containers of real dry blends,
-  // marinades and knife work is 23; the count is reported, not forced." A pass
-  // that kept going would start deleting the knife work that is the entire
-  // reason the screen exists.
-  //
-  // Measured over the 14 plans: six land inside 10–15 on the grouping alone,
-  // and the rest are over by 1–13 — so what this pass must NOT do matters more
-  // than what it does.
-  dropLowValueSteps(steps);
-
   return { steps, narrationInput };
 }
+
+/** "a", "a and b", "a, b and c" — for the opening clause. */
+function listOf(items: readonly string[]): string {
+  if (items.length <= 1) return items.join("");
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
+/** Mixtures the cook emulsifies: their last step closes "Whisk to combine." */
+const EMULSIONS: ReadonlySet<string> = new Set([
+  "dressing", "vinaigrette", "marinade", "aioli", "glaze", "remoulade", "brine",
+]);
+
+/** A dry container of baking or binding goods is a "dry mix", not a "spice blend". */
+const DRY_MIX_MEMBER =
+  /\b(flour|cornmeal|masa|breadcrumbs|panko|sugar|baking powder|baking soda|yeast|oats|cornstarch|semolina|polenta)\b/i;
+
+/** H7 2c — the reason a step left the list, as the census reads it. */
+const DEMOTE_PROSE: Record<string, string> = {
+  "single-item": "One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.",
+  "below-floor-or-not-one-moment":
+    "These go in at different moments, or there are too few to be worth a container — measure them on cook day.",
+  "no-work": "Nothing to cut — it goes in as it comes.",
+  "ready-to-use": "Ready to use from the package — nothing to do ahead.",
+  heat: "This is cooking, not prep — it happens on cook day.",
+  "does-not-hold": "This browns once it is cut, so it is cut on cook day.",
+  "heat-or-no-knife-work": "Nothing to do to it before the pan — it goes in straight from the package on cook day.",
+  "rule 7 — over the container target; citrus wedges keep best cut on the day":
+    "Citrus wedges keep best cut on the day.",
+  "rule 7 — over the container target; a single-dish garnish portion saves the least":
+    "A single garnish portion saves the least — cut it on the day.",
+};
 
 /** Rule 7's two droppable classes, lowest value first. Null = never dropped. */
 export function lowValueClass(step: PlannedStep): "garnish" | "citrus-wedge" | null {
@@ -1771,6 +1586,64 @@ export function containerNamesOf(step: PlannedStep): string[] {
     for (const m of c.measures) if (m.destination) names.add(m.destination);
   }
   return [...names];
+}
+
+/** H7 2b — one container's close, as the storage overlay needs it. */
+export interface StorageClose {
+  /** The container's name, exactly as the steps write it. */
+  name: string;
+  /** Every ingredient that went into it, across every step that filled it. */
+  ingredientNames: string[];
+  /** Those names plus their preparation notes — the overlay's `text`. */
+  text: string;
+  /**
+   * True when the container holds nothing but this step's own food (its own tub, or
+   * the step IS the container), so the line needs no name in front of it.
+   */
+  own: boolean;
+}
+
+/**
+ * H7 2b — stepKey → the containers that step closes, with their FULL membership.
+ *
+ * The storage line describes the container, not the step that happens to close it:
+ * the carrots step closing the slow cooker's vegetables writes the note for onion,
+ * celery, carrots and garlic, and says which container it means.
+ */
+export function storageClosesByStepKey(steps: readonly PlannedStep[]): Map<string, StorageClose[]> {
+  const members = new Map<string, { names: Set<string>; notes: string[] }>();
+  for (const st of steps) {
+    if (st.demoted || st.cookDaySentence || st.holdsNoContainer) continue;
+    for (const n of containerNamesOf(st)) {
+      const m = members.get(n) ?? { names: new Set<string>(), notes: [] };
+      for (const c of st.components) {
+        const into = st.bowlName === n ? c.measures : c.measures.filter((x) => x.destination === n);
+        if (into.length === 0) continue;
+        m.names.add(c.ingredientName);
+        for (const x of into) if (x.preparationNote) m.notes.push(x.preparationNote);
+      }
+      members.set(n, m);
+    }
+  }
+  const out = new Map<string, StorageClose[]>();
+  for (const st of steps) {
+    if (!st.closes || st.closes.length === 0) continue;
+    const mine = new Set(st.components.map((c) => c.ingredientName));
+    out.set(
+      st.stepKey,
+      st.closes.map((name) => {
+        const m = members.get(name) ?? { names: new Set<string>(), notes: [] };
+        const ingredientNames = [...m.names];
+        return {
+          name,
+          ingredientNames,
+          text: [...ingredientNames, ...m.notes].join(" "),
+          own: st.bowlName === name || ingredientNames.every((x) => mine.has(x)),
+        };
+      }),
+    );
+  }
+  return out;
 }
 
 /** Containers in a step plan: every distinct vessel the kept steps fill. */
@@ -1910,9 +1783,11 @@ export function assemblePrepWeekResult(
       estimatedMinutes: planned.estimatedMinutes, // CODE (BUG-204 — prepStepMinutes.ts)
       contributesToMealIds: planned.contributesToMealIds, // CODE — never from prose
       ...(prose.storageNote ? { storageNote: prose.storageNote } : {}),
-      // WS7-8a B2b — AI demotion annotation. Only emit when true so the wire
-      // shape stays minimal; false/undefined → field absent (= keep as prep).
-      ...(prose.skipSuggested ? { skipSuggested: true } : {}),
+      // 🔴 H7 2c — THE NARRATOR'S `skipSuggested` IS IGNORED. It demoted real prep
+      // (a five-item breading, green-bean trimming, pounding cutlets) and kept
+      // cooking ("Brown the Italian sausage"). What is prep is the engine's call
+      // alone, made in buildStepPlan; the field stays in the narration schema only
+      // so an in-flight v18 response still parses.
       // D-WS9-301 rule 7 — the engine's own demotion has to reach the wire, not
       // just the corpus. It used to be folded in by the census harness and by
       // the mobile model separately; the drop pass makes that a correctness

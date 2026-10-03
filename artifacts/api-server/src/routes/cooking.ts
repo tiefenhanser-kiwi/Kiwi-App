@@ -39,6 +39,7 @@ import {
   buildStepPlan,
   assemblePrepWeekResult,
   PrepNarrationIncompleteError,
+  storageClosesByStepKey,
   summarizePrepWeek,
 } from "../lib/prepWeekAssembly";
 import { PrepNarrationResultSchema } from "../lib/ai/schemas/prepNarration";
@@ -351,6 +352,8 @@ export function createCookingRouter(
        * STEP PLAN rather than the cached blob, so it is today's dates either way.
        */
       const mealNameById = new Map(input.meals.map((m) => [m.mealId, m.mealName]));
+      // H7 2b — which containers each step closes, with their full membership.
+      const closesByStepKey = storageClosesByStepKey(stepPlan.steps);
       const storageContextFor = (): Map<string, StorageContext> => {
         const m = new Map<string, StorageContext>();
         for (const st of stepPlan.steps) {
@@ -377,6 +380,7 @@ export function createCookingRouter(
             text: [...names, ...notes].join(" "),
             bowlName: st.bowlName,
             ingredientNames: names,
+            ...(closesByStepKey.has(st.stepKey) ? { closes: closesByStepKey.get(st.stepKey)! } : {}),
           });
         }
         return m;

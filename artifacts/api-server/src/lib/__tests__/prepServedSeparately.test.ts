@@ -215,10 +215,12 @@ describe("H5.3 — the service portion of a row is not prep", () => {
     );
   });
 
-  it("🔴 a whole lemon is produce; a bottle of juice is not", () => {
+  it("🔴 a whole lemon is produce — and H7 2d: so is its juice, squeezed at the board", () => {
     // H5.3 reversed H4 here — see prepContainers.test.ts for the reversal.
     assert.equal(memberKind("produce", "lemon", "zested and juiced"), "produce");
-    assert.equal(memberKind("produce", "lime juice", ""), "wet");
+    // H7 2d reverses H5.3's second half: "all of one food's knife work — juice and
+    // zest included — is one produce step" (Hans, October 2).
+    assert.equal(memberKind("produce", "lime juice", ""), "produce");
   });
 });
 

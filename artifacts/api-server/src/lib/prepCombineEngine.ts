@@ -53,6 +53,8 @@ export interface PrepCombineIngredient {
   // its yield ("lime", 3, "tbsp"). Carried, never interpreted: the engine sums
   // quantities and the assembly layer turns this into a fruit count.
   sourceYield?: SourceYield | null;
+  /** [prepcook] H7 2e — `Ingredient.purchaseUnit`; see WET_PACKS. */
+  purchaseUnit?: string | null;
   /**
    * WS9 D-WS9-296 — the mixture this ingredient belongs to WITHIN ITS DISH, and
    * the bowl it is portioned into. Resolved by the adapter from the dish's steps
@@ -347,11 +349,40 @@ function categoryKey(category: string): string {
 
 // ── phase assignment ───────────────────────────────────────────────────────
 
-// Produce/Protein map cleanly on every row. Pantry splits by a name heuristic
-// (liquid/sauce hint → sauces_marinades, else seasonings_dry). Buy-and-use
-// categories (Dairy/Bakery/Frozen/Canned/unknown) have no prep phase → null.
-export function assignPhase(category: string, name: string): PrepPhaseKey | null {
+// ── [prepcook] H7 2e — THE DRY PHASE HOLDS ONLY DRY THINGS ──────────────────
+//
+// `dijon mustard` sat in the dry phase on two plans — twice on `2251c7f5` — and
+// mayonnaise beside it, because the Pantry split below is a NAME rule and neither
+// name carries a sauce word. Extending the word list is the shape this whole pass
+// keeps paying for (a pattern matching a name instead of its subject), so the
+// catalog answers first: `Ingredient.purchaseUnit` is the pack the thing is bought
+// in, and nothing poured or spooned comes in a spice container.
+//
+// Measured over the whole catalog on 2026-10-02: of the Pantry rows the name rule
+// sends to the dry phase, every one bought by the jar, bottle, tube or can is a
+// condiment, an olive, a liquid or a paste — dijon, whole-grain and creole
+// mustard, mayonnaise, honey, molasses, tahini, salsa, ketchup, sriracha, olives,
+// water. Not one dry spice is bought that way; they come in a container, a bag, a
+// box or a packet.
+//
+// ⚠️ A NULL PACK KEEPS THE NAME RULE. 380 of those rows have no purchaseUnit yet,
+// and "no catalog answer" must not be read as "dry". That gap is the next lane's
+// regex → catalog migration, not this one.
+const WET_PACKS: ReadonlySet<string> = new Set([
+  "jar", "jars", "bottle", "bottles", "tube", "tubes", "can", "cans", "carton", "cartons",
+]);
+
+// Produce/Protein map cleanly on every row. Pantry splits by the catalog pack
+// (above), then by a name heuristic (liquid/sauce hint → sauces_marinades, else
+// seasonings_dry). Buy-and-use categories (Dairy/Bakery/Frozen/Canned/unknown)
+// have no prep phase → null.
+export function assignPhase(
+  category: string,
+  name: string,
+  purchaseUnit?: string | null,
+): PrepPhaseKey | null {
   const pantryPhase = (): PrepPhaseKey => {
+    if (purchaseUnit && WET_PACKS.has(purchaseUnit.trim().toLowerCase())) return "sauces_marinades";
     const nn = normalizeIngredientName(name);
     return SAUCE_NAME_HINTS.some((h) => nn.includes(h))
       ? "sauces_marinades"
@@ -386,6 +417,7 @@ interface GroupAccumulator {
   ingredientName: string;
   category: string;
   sourceYield: SourceYield | null;
+  purchaseUnit: string | null;
   contributions: PrepContribution[];
 }
 
@@ -451,7 +483,7 @@ function detectBlendComponents(input: PrepCombineInput): Set<string> {
       for (const ing of dish.ingredients) {
         if (isDenied(ing.ingredientName)) continue;
         if (categoryKey(ing.category) !== "pantry") continue;
-        if (assignPhase(ing.category, ing.ingredientName) === "seasonings_dry") {
+        if (assignPhase(ing.category, ing.ingredientName, ing.purchaseUnit) === "seasonings_dry") {
           // H6.1 — the blend detector counts DISTINCT FOODS, for the same reason
           // the groups do: two rows for one spice are not two items of a 3+ blend.
           drySeasonings.add(ingredientGroupKey(ing.ingredientName));
@@ -595,6 +627,7 @@ export function combinePrep(
             ingredientName: ing.ingredientName,
             category: ing.category,
             sourceYield: ing.sourceYield ?? null,
+            purchaseUnit: ing.purchaseUnit ?? null,
             contributions: [],
           };
           groups.set(groupId, g);
@@ -666,7 +699,7 @@ export function combinePrep(
 
   for (const id of order) {
     const g = groups.get(id)!;
-    const phase = assignPhase(g.category, g.ingredientName);
+    const phase = assignPhase(g.category, g.ingredientName, g.purchaseUnit);
     // H6.1 — keyed on the FOOD, matching what detectBlendComponents collects. The
     // first draft changed the set to group keys and left this reading ids, which
     // emptied the dry phase on all 14 plans — the table caught it immediately.

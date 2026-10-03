@@ -171,6 +171,10 @@ describe("D-WS9-301 rules 10 and 11 — every portion names its container", () =
               { ingredientId: "onion", ingredientName: "white onion", category: "Produce", quantity: 1, unit: "each", preparationNote: "finely diced" },
               { ingredientId: "oil", ingredientName: "sesame oil", category: "Pantry", quantity: 2, unit: "tbsp", component: { key: "sauce", noun: "sauce", bowlName: "Enchiladas sauce bowl" }, momentKey: "c:sauce" },
               { ingredientId: "vin", ingredientName: "red wine vinegar", category: "Pantry", quantity: 1, unit: "tbsp", component: { key: "sauce", noun: "sauce", bowlName: "Enchiladas sauce bowl" }, momentKey: "c:sauce" },
+              // H7 — a third wet member: the ruling's floor for a sauce base is 3 (or 2
+              // that must SIT, a marinade or a brine). Oil and vinegar alone are two
+              // things poured at the stove, and the container would rightly not exist.
+              { ingredientId: "soy", ingredientName: "soy sauce", category: "Pantry", quantity: 1, unit: "tbsp", component: { key: "sauce", noun: "sauce", bowlName: "Enchiladas sauce bowl" }, momentKey: "c:sauce" },
             ],
           },
         ],

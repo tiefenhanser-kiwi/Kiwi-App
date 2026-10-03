@@ -272,14 +272,12 @@ describe("H6.1-B — every portion names a container", () => {
   it("(c) a single-dish portion gets a container named for its dish and use", () => {
     const sp = buildStepPlan(combinePrep(shared()), "Test Plan");
     const t = sp.steps.find((s) => s.components.some((c) => c.ingredientName === "fresh tomatillos"))!;
-    // The label takes the CUT from the note — "halved". "Husked" is not a cut and is
-    // deliberately not in the vocabulary; the label names the vessel, not the recipe.
-    // 🔴 H6.2 item 1 — ONE PORTION IS NOT A CONTAINER. The tomatillo sauce has a
-    // single unclaimed portion in this fixture, so it gets no tub: "Tomatillo Sauce —
-    // halved fresh tomatillos" was a label on a bowl that exists to hold one thing,
-    // which is the shape Hans struck ("3 cloves (unpeeled) — into a tub labelled …").
-    // Two or more and they share one bowl, which the next test pins.
-    assert.equal(t.components[0].measures[0].destination, undefined);
+    // The label takes the CUT from the note — "halved".
+    // 🔴 H7 2a REVERSES H6.2 item 1. "One portion is not a container" printed "their
+    // own portion" and "no destination container needed" on the sample plan. Hans,
+    // October 2: a cut portion that joins nothing gets a container named
+    // `<Dish> — <item, cut>`. The NO-WORK floor stays (next describe block).
+    assert.equal(t.components[0].measures[0].destination, "Tomatillo Sauce — halved fresh tomatillos");
   });
 
   /** Two unclaimed portions of ONE dish, at the same kind of work. */
@@ -333,19 +331,28 @@ describe("H6.1-B — every portion names a container", () => {
     assert.ok(counted.has(tub!), "a container the step only FILLS is missing from the count");
   });
 
-  it("🔴 …and two or more lone portions of ONE dish share ONE bowl", () => {
+  it("🔴 …two vegetables of ONE dish share a container only when they go into the heat together", () => {
     // Hans's own example: "Roasted Tomatillo Sauce roasting tray: tomatillos, poblano,
-    // jalapeño, onion wedges" — not one tub per ingredient. On his plan the literal
-    // reading of rule 11(c) had produced 17 single-member containers out of 28.
-    const sp = buildStepPlan(combinePrep(twoLonePortions()), "Test Plan");
-    const dests = new Set(
-      sp.steps
-        .filter((s) => !s.demoted && s.phase === "produce" && !s.holdsNoContainer)
-        .flatMap((s) => s.components.flatMap((c) => c.measures.map((m) => m.destination)))
-        .filter((d): d is string => typeof d === "string"),
+    // jalapeño, onion wedges". 🔴 H7 narrows H6.2's reason for it: not "cut in the same
+    // phase" but "veggies + veggies is ok if they go in the pan together" (October 2).
+    // With no evidence of a shared heat step, each is its own labelled container…
+    const dests = (input: PrepCombineInput) =>
+      new Set(
+        buildStepPlan(combinePrep(input), "Test Plan")
+          .steps.filter((s) => !s.demoted && s.phase === "produce" && !s.holdsNoContainer)
+          .flatMap((s) => s.components.flatMap((c) => c.measures.map((m) => m.destination)))
+          .filter((d): d is string => typeof d === "string"),
+      );
+    assert.deepEqual(
+      [...dests(twoLonePortions())].sort(),
+      ["Tomatillo Sauce — halved fresh tomatillos", "Tomatillo Sauce — halved poblano pepper"],
     );
-    assert.equal(dests.size, 1, `expected one bowl, got ${[...dests].join(" | ")}`);
-    assert.match([...dests][0], /^Tomatillo Sauce prep bowl$/);
+    // …and with it (the broil step names both), they share ONE.
+    const onTheTray = twoLonePortions();
+    for (const i of onTheTray.meals[0].dishes[0].ingredients) i.momentKey = "s:2";
+    const tray = dests(onTheTray);
+    assert.equal(tray.size, 1, `expected one tray, got ${[...tray].join(" | ")}`);
+    assert.equal([...tray][0], "Tomatillo Sauce vegetables");
   });
 });
 
@@ -362,9 +369,11 @@ describe("H6.2 follow-up — a member that goes in LATER leaves the bowl", () =>
             dishName: "Roasted Tomatillo Sauce",
             dishRole: "sauce",
             ingredients: [
-              { ingredientId: "tomatillo", ingredientName: "fresh tomatillos", category: "Produce", quantity: 4, unit: "each", preparationNote: "husked and halved", entryStep: 2 },
-              { ingredientId: "poblano", ingredientName: "poblano pepper", category: "Produce", quantity: 1, unit: "each", preparationNote: "halved and seeded", entryStep: null },
-              { ingredientId: "cilantro", ingredientName: "fresh cilantro", category: "Produce", quantity: 0.25, unit: "cup", preparationNote: "roughly chopped", entryStep: 4 },
+              // H7 — the MOMENT carries it now: the tray is broiled at step 2 (the prep
+              // step that spreads it on the sheet names both), the blender is step 4.
+              { ingredientId: "tomatillo", ingredientName: "fresh tomatillos", category: "Produce", quantity: 4, unit: "each", preparationNote: "husked and halved", entryStep: 2, momentKey: "s:2" },
+              { ingredientId: "poblano", ingredientName: "poblano pepper", category: "Produce", quantity: 1, unit: "each", preparationNote: "halved and seeded", entryStep: null, momentKey: "s:2" },
+              { ingredientId: "cilantro", ingredientName: "fresh cilantro", category: "Produce", quantity: 0.25, unit: "cup", preparationNote: "roughly chopped", entryStep: 4, momentKey: "s:4" },
             ],
           },
         ],
@@ -381,14 +390,10 @@ describe("H6.2 follow-up — a member that goes in LATER leaves the bowl", () =>
         .filter((s) => !s.demoted)
         .flatMap((s) => s.components.filter((c) => c.ingredientName === name))
         .flatMap((c) => c.measures.map((m) => m.destination))[0];
-    assert.equal(dest("fresh tomatillos"), "Roasted Tomatillo Sauce prep bowl");
-    // 🔴 A MEMBER THE RECIPE NEVER PLACES IS NO EVIDENCE, and stays on the tray. On the
-    // real plan the poblano and the jalapeño have no amountRef at all, so keying this on
-    // the RUN dropped two of the tray's four members — the phase survives thin data.
-    assert.equal(dest("poblano pepper"), "Roasted Tomatillo Sauce prep bowl");
-    // …and the cilantro is not on it. Alone, it falls under the one-portion floor and
-    // becomes a plain produce line.
-    assert.notEqual(dest("fresh cilantro"), "Roasted Tomatillo Sauce prep bowl");
+    assert.equal(dest("fresh tomatillos"), "Roasted Tomatillo Sauce vegetables");
+    assert.equal(dest("poblano pepper"), "Roasted Tomatillo Sauce vegetables");
+    // …and the cilantro is not on it. H7 2a — alone, it gets its own labelled lid.
+    assert.equal(dest("fresh cilantro"), "Roasted Tomatillo Sauce — chopped fresh cilantro");
   });
 });
 

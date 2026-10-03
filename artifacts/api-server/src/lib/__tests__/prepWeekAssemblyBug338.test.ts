@@ -161,13 +161,22 @@ describe("BUG-338 ruling 9 — a one-component blend folds into its dish's sauce
     assert.equal(blendForD1, undefined, "the one-component blend step should be gone");
   });
 
-  it("its component rides on the sauce step instead, so nothing is lost", () => {
+  it("🔴 H7 2c — and the pair is below the floor, so NEITHER is prep and nothing folds", () => {
+    // Ruling 9 folded the lone paprika into the BBQ sauce step. The October 2 table
+    // sets the floor for a wet mix at 3, or 2 that must SIT (a marinade, a brine): a
+    // teaspoon of paprika and a jar of sauce for brushing are two things that go on
+    // at the grill. Both stay on the plan as demoted lines, so nothing is lost from
+    // the census, and the cook's screen shows neither.
     const steps = plan(drumsticks).steps;
-    const sauce = steps.find((s) => s.stepKey === "sauces_marinades#dish#d1");
-    assert.ok(sauce, "the sauce step should exist");
-    const names = sauce!.components.map((c) => c.ingredientName);
-    assert.ok(names.includes("smoked paprika"), `paprika missing from the sauce step: ${names.join(", ")}`);
-    assert.ok(names.includes("bbq sauce"), `bbq sauce missing: ${names.join(", ")}`);
+    const live = steps.filter((s) => !s.demoted);
+    for (const name of ["smoked paprika", "bbq sauce"]) {
+      const forD1 = live.filter((s) =>
+        s.components.some((c) => c.ingredientName === name && c.measures.some((m) => m.forDish === "BBQ Chicken Drumsticks")),
+      );
+      assert.deepEqual(forD1.map((s) => s.stepKey), [], `${name} for the drumsticks is still a prep step`);
+    }
+    const parked = steps.filter((s) => s.demoted).flatMap((s) => s.components.map((c) => c.ingredientName));
+    assert.ok(parked.includes("bbq sauce"), "the bbq sauce vanished instead of being demoted");
   });
 
   it("🔴 no step points at another container — `blendSpiceDish` is retired", () => {

@@ -168,7 +168,7 @@ export function buildPrepCombineInput(loaded: PrepLoadedPlan): PrepCombineInput 
             preparationNote:
               prepPortion(i.ingredientName, 1, "each", i.preparationNote)?.preparationNote ??
               i.preparationNote,
-            phase: assignPhase(i.category, i.ingredientName),
+            phase: assignPhase(i.category, i.ingredientName, i.purchaseUnit),
           })),
         );
         // ── D-WS9-301 rule 1 — the MOMENT each ingredient enters ───────────
@@ -183,7 +183,7 @@ export function buildPrepCombineInput(loaded: PrepLoadedPlan): PrepCombineInput 
             ingredientId: i.ingredientId,
             ingredientName: i.ingredientName,
             preparationNote: i.preparationNote,
-            phase: assignPhase(i.category, i.ingredientName),
+            phase: assignPhase(i.category, i.ingredientName, i.purchaseUnit),
           })),
         );
         // ── D-WS9-301 rule 1's INVERSE CASE — a component absorbs its run ───
@@ -225,7 +225,7 @@ export function buildPrepCombineInput(loaded: PrepLoadedPlan): PrepCombineInput 
         // The guard stays — it is right about what it can see — and ruling 3's order
         // of authority does the rest: see `momentKeyFor`.
         const phaseOfIngredient = new Map(
-          dish.ingredients.map((i) => [i.ingredientId, assignPhase(i.category, i.ingredientName)]),
+          dish.ingredients.map((i) => [i.ingredientId, assignPhase(i.category, i.ingredientName, i.purchaseUnit)]),
         );
         const componentKeyByRun = new Map<number, string>();
         for (const comp of resolved.components) {
@@ -330,6 +330,9 @@ export function buildPrepCombineInput(loaded: PrepLoadedPlan): PrepCombineInput 
               // split above touches the DEMAND's unit; the yield is a property
               // of the ingredient and is unaffected by it.
               sourceYield: ing.sourceYield,
+              // H7 2e — the catalog pack, so the engine's phase split agrees with
+              // the one computed above for the component and moment passes.
+              purchaseUnit: ing.purchaseUnit ?? null,
             }];
           }),
         };

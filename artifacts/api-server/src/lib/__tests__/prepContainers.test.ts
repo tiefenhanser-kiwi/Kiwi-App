@@ -106,6 +106,15 @@ function slowCooker(): PrepCombineInput {
     component: c,
     momentKey: "c:crock",
   });
+  // H7 — the vegetables enter at the cook step that scatters them into the crock
+  // ("scatter the onion, celery, carrots, and garlic", step 1 on the real plan).
+  // They are a heat moment of their own and never share the dry rub's container.
+  const veg = (
+    ingredientId: string,
+    ingredientName: string,
+    quantity: number,
+    preparationNote: string,
+  ) => ({ ingredientId, ingredientName, category: "Produce", quantity, unit: "each", preparationNote, momentKey: "s:1" });
   return {
     meals: [
       {
@@ -120,9 +129,9 @@ function slowCooker(): PrepCombineInput {
               m("paprika", "smoked paprika", "Pantry", 2, "tsp"),
               m("thyme_d", "dried thyme", "Pantry", 1, "tsp"),
               m("gpowder", "garlic powder", "Pantry", 1, "tsp"),
-              m("onion", "yellow onion", "Produce", 1, "each", "diced"),
-              m("celery", "celery stalks", "Produce", 3, "each", "sliced"),
-              m("carrot", "carrots", "Produce", 2, "each", "sliced"),
+              veg("onion", "yellow onion", 1, "diced"),
+              veg("celery", "celery stalks", 3, "sliced"),
+              veg("carrot", "carrots", 2, "sliced"),
             ],
           },
         ],
@@ -182,13 +191,19 @@ describe("rule 11(c) — the phase 3 step is the liquids, and it says what is al
     // only what it adds here. The FORM decides now, and a lemon is a fruit.
     assert.deepEqual(names(step), ["extra-virgin olive oil"]);
     assert.equal(memberKind("produce", "lemon", "juiced and zested"), "produce");
-    assert.equal(memberKind("produce", "lemon juice", ""), "wet", "a bottle is still a bottle");
+    // H7 2d reverses H5.3 here: "all of one food's knife work — juice and zest
+    // included — is one produce step". A produce juice is board work now.
+    assert.equal(memberKind("produce", "lemon juice", ""), "produce", "juice is squeezed at the board (H7 2d)");
     assert.ok(step.containerHolds, "the finishing step does not say what is in the bowl");
     assert.deepEqual(
       [...step.containerHolds!].sort(),
       // …and the lemon is in the bowl BEFORE the oil now, so it is held, not added.
-      ["dried oregano", "fresh rosemary", "garlic cloves", "ground cumin", "lemon", "smoked paprika"].sort(),
+      // H7 2d — and squeezed citrus says which produce step it came from.
+      ["dried oregano", "fresh rosemary", "garlic cloves", "ground cumin", "smoked paprika"]
+        .concat(step.containerHolds!.filter((h) => /^the lemon from produce step \d+$/.test(h)))
+        .sort(),
     );
+    assert.ok(step.containerHolds!.some((h) => /^the lemon from produce step \d+$/.test(h)), "the lemon is not held");
   });
 
   it("🔴 the dry measure is phase 1 and holds NO knife work", () => {
@@ -243,25 +258,29 @@ describe("rule 11(c) — the counter counts containers, not steps", () => {
 // ── 4 ───────────────────────────────────────────────────────────────────────
 
 describe("rule 11(c) — a container with no liquid has no phase 3 step", () => {
-  it("🔴 dry in phase 1, produce in its own steps, nothing in Sauces, one container", () => {
+  it("🔴 dry in phase 1, produce in its own steps, nothing in Sauces — and H7: two containers", () => {
     const sp = buildStepPlan(combinePrep(slowCooker()), "Test Plan");
     const dry = phaseOf(sp, "seasonings_dry");
     assert.equal(dry.length, 1);
     assert.deepEqual(names(dry[0]), ["dried thyme", "garlic powder", "smoked paprika"]);
+    assert.equal(dry[0].bowlName, "Slow-Cooker Chicken prep container");
 
     const produce = phaseOf(sp, "produce").filter((s) => s.stepKey !== WASH_STEP_KEY);
     assert.deepEqual(
       produce.flatMap(names).sort(),
       ["carrots", "celery stalks", "yellow onion"],
     );
+    // 🔴 H7 — the vegetables go into the pot together, so they share ONE container,
+    // and it is not the dry rub's: "don't combine seasonings … with veggies until
+    // cook" (Hans, October 2). H4 put all six in one bowl.
     for (const s of produce) {
       for (const c of s.components) {
-        for (const m of c.measures) assert.equal(m.destination, "Slow-Cooker Chicken prep container");
+        for (const m of c.measures) assert.equal(m.destination, "Slow-Cooker Chicken vegetables");
       }
     }
 
     assert.equal(phaseOf(sp, "sauces_marinades").length, 0, "a dry container was finished in Sauces");
-    assert.equal(countContainers(sp.steps), 1);
+    assert.equal(countContainers(sp.steps), 2);
   });
 });
 
@@ -318,8 +337,9 @@ describe("rule 11(c) / H5.3 — the form decides, and only the form", () => {
     assert.equal(memberKind("produce", "lemon", "zested and juiced"), "produce");
     assert.equal(memberKind("produce", "lemon", "freshly squeezed"), "produce");
     assert.equal(memberKind("produce", "english cucumber", "grated and squeezed dry"), "produce");
-    assert.equal(memberKind("produce", "lime juice", "freshly squeezed"), "wet");
-    assert.equal(memberKind("produce", "extra-virgin olive oil", ""), "wet");
+    assert.equal(memberKind("produce", "lime juice", "freshly squeezed"), "produce"); // H7 2d
+    // H7 2d — the PHASE decides now; an oil is a Pantry row and its phase is wet.
+    assert.equal(memberKind("sauces_marinades", "extra-virgin olive oil", ""), "wet");
   });
 });
 
@@ -380,8 +400,10 @@ describe("rule 11(c) — a container whose phase 3 share is ONE measure survives
     assert.equal(sauces.length, 1, "the container dissolved on its own single liquid");
     assert.deepEqual(names(sauces[0]), ["extra-virgin olive oil"]);
     assert.equal(sauces[0].bowlName, "Garlic Herb Potatoes prep container");
-    // Four aromatics went in before it, and the step says so.
-    assert.equal(sauces[0].containerHolds?.length, 4);
+    // Three aromatics went in before it, and the step says so. 🔴 H7 2f — NOT the
+    // potatoes: a halved potato browns in the fridge, so it is cut on cook day and
+    // was never put in. The sample plan's prose said "potatoes already in it" here.
+    assert.deepEqual([...(sauces[0].containerHolds ?? [])].sort(), ["fresh rosemary", "fresh thyme", "garlic cloves"]);
     assert.equal(countContainers(sp.steps), 1);
   });
 });

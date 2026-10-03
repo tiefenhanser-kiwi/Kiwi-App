@@ -1495,13 +1495,11 @@ A 'planName', a 'dishSteps' map (each dish name → that dish's recipe instructi
 - 'stepId' — an opaque id. Echo it back EXACTLY on the matching output step. This is how your prose is re-joined to the computed step. Never change, omit, merge, or invent a stepId.
 - 'phase' — one of 'seasonings_dry', 'produce', 'sauces_marinades', 'proteins', and they arrive IN THAT ORDER. They are the KIND OF WORK, in the order a cook works a board: measure the dry things first while the cups and spoons are clean, then do all the knife work on produce, then build the wet mixes those cuts feed, then handle raw protein last. Write each step as work of its phase's kind.
 - 'isBlend' — when true, the step's components are several seasoning/base items meant to be pre-measured together into one blend. Narrate them as a single "get your blend measured ahead" action, still writing each per-dish measure (below). Most blends are all dry spices — call it a spice blend. But a blend can also include a WET base item (a condiment or liquid used as the foundation of a sauce or dressing — e.g. ketchup, mayo, yogurt, a splash of oil). When wet items sit alongside dry spices for the same dish, don't list them flatly as if they were all powders: frame the wet items as that dish's sauce/dressing base and the dry items as the spices measured into it (e.g. "For the burger sauce, measure 2 tbsp ketchup and 3 tbsp mayo as the base, then measure its spices alongside: …"). Keep it ONE pre-measure action; do not split the blend into separate steps.
-- 'components' — the ingredients this step covers. Each has 'ingredientName', an optional 'preparationNote', and a 'measures' array — the ONE thing you narrate the amounts from. Each entry in 'measures' is a single already-computed, kitchen-ready amount for a single dish: 'amount' (a FINISHED string like "1 tbsp" or "½ tsp" — already rounded, already a clean fraction), 'forDish' (the dish that amount is for), 'dishRole' (that dish's role — main/side/sauce/topping/base/optional — used ONLY for the prep-vs-cook judgment below, never spoken aloud), an optional 'destination' (the NAME of the container that portion goes into) and an optional per-dish 'preparationNote'. Write the amounts from 'measures' — that is the only amount source.
-  - 'fromSource' — HOW MANY WHOLE ONES that amount takes, already computed ("2 limes" for 3 tbsp of lime juice). Present only on an ingredient squeezed, zested or otherwise derived from a whole one. When it is there you MUST state it, because the amount alone does not tell the user what to pick up: write "Juice 2 limes to get 3 tbsp for the Carne Asada", not "Measure 3 tbsp lime juice". Echo the 'fromSource' string verbatim like any other number. When it is absent, never invent a count.
-
-⚠️ A WHOLE FRUIT AND ITS JUICE ARE THE SAME FRUIT. If one step preps whole limes and another measures lime juice, the user has ONE pile of limes to serve both. Never write the two as if they were separate shopping. 'fromSource' is what lets you say the real number.
-- 'relevantDishes' — the NAMES of the dish(es) these ingredients are cooked in (a subset of this step's 'forDish' names). Look each name up in the top-level 'dishSteps' map to get that dish's recipe instruction-step text; the combined text of a step's 'relevantDishes' is what the rules below call this step's 'relevantSteps'. Read it to judge prep vs. at-cook (see "# Prep-vs-cook-time rule"). A step with no 'relevantDishes' (or a name absent from 'dishSteps') has no step text — treat its 'relevantSteps' as empty.
+- 'components' — the ingredients this step covers. Each has 'ingredientName', an optional 'preparationNote', and a 'measures' array — the ONE thing you narrate the amounts from. Each entry in 'measures' is a single already-computed, kitchen-ready amount for a single dish: 'amount' (a FINISHED string like "1 tbsp" or "½ tsp" — already rounded, already a clean fraction), 'forDish' (the dish that amount is for), 'dishRole' (that dish's role — never spoken aloud), an optional 'destination' (the NAME of the container that portion goes into) and an optional per-dish 'preparationNote'. Write the amounts from 'measures' — that is the only amount source.
+- 'relevantDishes' — the NAMES of the dish(es) these ingredients are cooked in (a subset of this step's 'forDish' names). Look each name up in the top-level 'dishSteps' map for that dish's recipe steps; read them for the cut and the wording the recipe uses. A step with no 'relevantDishes' has no step text.
 - 'bowlName' — THE VESSEL, present on a step whose items all go into ONE named container: "Carne asada marinade bowl", "Teriyaki Salmon glaze jar", "Fajita spice blend". Use the string EXACTLY as given, every time you name the container, and never invent a different name for it. This is the whole point of such a step: one mixture is built in one named vessel instead of scattered across five. The SAME 'bowlName' can appear on two steps — the dry measure and the liquid finish — and they are one container, not two. See "# A step with a bowl".
-- 'containerHolds' — present on a bowl step that is NOT the first to touch its container: the names of what the cook already put in, from earlier phases. Open with it — "Carne asada marinade bowl (spices and garlic already in it): add …" — because a step that does not say so reads as if a fresh bowl is being started, and the cook ends up with two. Name them in plain words; you do not have to list all of them if there are many ("the spices and aromatics already in it").
+- 'openingClause' — present on every bowl step. It is the step's FIRST LINE, already written by the app from what is actually in the container: "Into the Tex-Mex Seasoned Ground Beef spice blend:" or "Garlic Herb Roasted Potatoes sauce bowl (garlic, fresh rosemary and fresh thyme already in it): add". Echo it VERBATIM, character for character, as the opening of 'instructions'. Never add to its list, drop from it, or reword it — the list is exactly what the cook has put in, and nothing else is.
+- 'closingLine' — present on a bowl step that finishes a wet container: "Whisk to combine." or "Stir to combine.". Echo it VERBATIM as the LAST line of 'instructions'. When it is absent, write no closing verb at all — no "toss", no "whisk", no "mix".
 - 'setAsideFor' — present when this step's container is worked AGAIN later in the same session ("produce", "sauces and marinades"). Close the step with exactly that: "Set aside for the produce step." / "Set aside for the sauces and marinades step." The bowl stays out, so do not send it to the fridge and do not write a storage line — the app puts one on the step that finishes the container, not on this one.
 - 'knifeVerbs' — present on a whole-protein step whose recipe names the knife work: ["pound"], ["trim"], ["cube","trim"]. OPEN the step with it, as an instruction: "Pound 4 chicken breasts to even thickness", "Trim 2 lb boneless thighs". A bare ingredient line on a protein step is the defect this replaces — the cook needs the action, not the shopping name.
 - 'cookDaySentence' — present ONLY on a raw-protein step whose protein joins a bowl on cook day. It is already written for you. Echo it VERBATIM as the step's instruction and add nothing to it: it states a fact about the schedule, not a suggestion.
@@ -1530,31 +1528,28 @@ title: "Measure the pork chop glaze"
 - NEVER add two dishes' amounts into one number, and NEVER tell the user to measure a total and split it.
 - 🔴 A DESTINATION CONTAINING " — " IS A LABEL FOR A LID, NOT A NOUN PHRASE. "Minced garlic — Enchiladas, Rice, Chili Fixings" is what the cook writes on the tub; do not wrap it in "the … container". Write: 'into a tub labelled "Minced garlic — Enchiladas, Rice, Chili Fixings"'. A destination with no dash is a real vessel name and reads normally: "into the Carne asada marinade bowl".
 
-🔴 WHEN A MEASURE HAS A 'destination', SAY WHERE IT GOES, WITH ITS AMOUNT. The container name is the only thing on the screen that tells the cook which dish a portion belongs to — the recipe is not in front of them. Write "— 1 into the Beef Enchiladas container, ¾ into the Mexican rice container, ¼ into the chili fixings container". A portion with no 'destination' is its own container and needs no pointer.
+🔴 WHEN A MEASURE HAS A 'destination', SAY WHERE IT GOES, WITH ITS AMOUNT. The container name is the only thing on the screen that tells the cook which dish a portion belongs to — the recipe is not in front of them. Write "— 1 into the Beef Enchiladas container, ¾ into the Mexican rice container, ¼ into the chili fixings container". Every cut or squeezed portion carries a 'destination' — write every one, and never write "no container needed" or "its own portion". Only a raw protein has none: it stays in its own wrapping.
 - 🔴 IN THE PRODUCE PHASE, WORK ONE INGREDIENT AT A TIME AND GROUP BY CUT. All the onions before any of the carrots, and within one ingredient all of one cut before the next: "Finely dice 2 white onions — 1 into the enchilada container, ¾ into the Mexican rice container. Cut ½ onion into wedges — tomatillo sauce container." That is how a cook works a board with one knife, and it is what the phase is for.
-- 🔴 NO KNIFE WORK IN A DRY OR A SAUCE STEP. Phase 1 measures powders; phase 3 pours liquids into a container whose cut ingredients are ALREADY IN IT from phase 2. Never write "mince the garlic" inside either. If a sauce step's container already holds things, open by saying so: "Lemon-herb marinade container (garlic and herbs already in it): add 3 tbsp olive oil, zest and juice 1 lemon, whisk."
+- 🔴 NO KNIFE WORK IN A DRY OR A SAUCE STEP. Phase 1 measures powders; phase 3 pours liquids into a container whose cut ingredients are ALREADY IN IT from phase 2. Never write "mince the garlic" — or zest or juice anything — inside either. A sauce step opens with its 'openingClause', which already says what is in the container.
 - 🔴 NEVER WRITE A SOURCE PARENTHETICAL. "3 cloves garlic", never "3 cloves garlic (from 1 garlic head)". "3 celery stalks", never "(from 1 celery bunch)". The cook has already shopped; the count belongs to the grocery list.
 
 # A step with a bowl
 
 A step carrying 'bowlName' is work on ONE named container. The container is worked in up to TWO steps and it is still one container: its dry measures in phase 1, then its liquids in phase 3. Its cut produce is NOT in either — that work is done in the produce phase, in each ingredient's own step, with this container named as the destination. Write only the items this step actually gives you.
 
-🔴 THE BOWL IS USUALLY NOT EMPTY WHEN YOU GET TO IT. When 'containerHolds' is present it lists what the cook already put in — say so in the opening clause, then add what this step holds. When it is absent, this is the first thing going in.
-
-Open by naming the bowl, list the per-dish measures beneath it, and close with nothing at all — there is no second container to point at. Verbatim shape, phase 1 (nothing in it yet):
+🔴 THE OPENING AND THE CLOSE ARE THE APP'S. 'openingClause' already says whether the bowl is empty and, if not, exactly what is in it; 'closingLine' already says how to finish it. Echo both verbatim and write only the measures between them. Verbatim shape, phase 1, 'openingClause' = "Into the Carne asada marinade bowl:":
 title: "Measure the Carne asada marinade spices"
 "Into the Carne asada marinade bowl:
 1 tsp chili powder
 1 tsp ground cumin"
 
-…and phase 3, the same bowl, with 'containerHolds' = ["chili powder", "ground cumin", "garlic cloves"]:
+…and phase 3, the same bowl, 'openingClause' = "Carne asada marinade bowl (chili powder, ground cumin, garlic cloves and the lime juice from produce step 4 already in it): add", 'closingLine' = "Whisk to combine.":
 title: "Finish the Carne asada marinade"
-"Carne asada marinade bowl (spices and garlic already in it): add
+"Carne asada marinade bowl (chili powder, ground cumin, garlic cloves and the lime juice from produce step 4 already in it): add
 ¼ cup orange juice
-3 tbsp lime juice
-Whisk."
+Whisk to combine."
 
-🔴 THE CLOSING VERB DESCRIBES WHAT IS IN THE BOWL. "Toss to coat" belongs where there is something to coat; on a bowl holding garlic, herbs and oil it is "Stir to combine". Read the items you are given and the 'containerHolds' list, and choose from: whisk (a dressing or marinade you want emulsified), stir to combine (anything else wet), toss to coat (something solid is in there with it), or nothing at all for a dry measure.
+A container never holds a vegetable and a liquid together, nor raw protein with anything: the app keeps seasonings and liquids, vegetables, and protein in separate containers until the cook brings them together at the stove. So never write that something is tossed, coated or marinated in a container — that happens on cook day.
 
 NEVER write "mince the garlic" or any other knife work in one of these steps, and never list a cut ingredient among its items. The cook put the knife down at the end of the produce phase and rule 11(c) exists so they do not pick it back up.
 
@@ -1567,17 +1562,17 @@ When a LATER step adds to a bowl the user already has, say so plainly: "Add thes
 A step with NO 'bowlName' is a plain portion of a single ingredient. Do not invent a bowl for it.
 # Citrus, and anything else you squeeze
 
-A whole lemon or lime is PRODUCE and it is worked at the board in the produce phase, exactly like an onion: one step, and every portion says where it goes and how much. It is never zested or juiced inside a sauce bowl — the cook has put the board away by then.
+A whole lemon or lime is PRODUCE and it is worked at the board in the produce phase, exactly like an onion: ONE step for the fruit, and every portion says where it goes and how much. It is never zested or juiced inside a sauce bowl — the cook has put the board away by then.
 
-Say the WHOLE-FRUIT count once, then the portions. Verbatim shape:
+🔴 ONE FRUIT, ONE STEP. A citrus step may carry the whole fruit, its juice and its zest as separate components ("lemon", "lemon juice", "lemon zest") — they are the same lemons. Zest first, then juice, then say where each portion goes. Never write them as separate fruit, and never zest or juice the same fruit twice. Verbatim shape:
 title: "Prep all lemons"
-"Zest 1 lemon and juice 1½ lemons:
+"Zest 1 lemon, then juice it and ½ lemon more:
 zest and the juice of 1 — into the Lemon-Herb Baked Chicken Breast marinade bowl
-the juice of ½ — into a small jar for the roasted asparagus"
+the juice of ½ — into a tub labelled "Roasted Asparagus with Lemon — juiced lemon""
 
 🔴 NEVER ASK FOR ROUNDS, WEDGES OR SLICES. Cut citrus is cook-day work: it goes limp and loses its edge in storage, and the app has already removed those portions from the amounts you are given. If a note still mentions them, ignore it — the number in 'measures' is the prep portion only and is the only number you may state.
 
-🔴 AND NEVER SAY "set aside separately". A portion with no 'destination' is its own container; say what it is for, and the app's storage line closes it.
+🔴 AND NEVER SAY "set aside separately". Say where the portion goes; the app's storage line closes the container.
 
 # How a step ENDS
 
@@ -1595,35 +1590,7 @@ Exactly ONE output object per input step, with the SAME 'stepId'. Same count, sa
 - 'instructions' — imperative voice, the per-dish measures as described above. Echo every 'amount' string exactly as given. <=800 chars. No fluff.
 - DO NOT return a 'storageNote'. The app writes the storage line itself, from the food and the cook day, and renders it directly beneath your instructions. Anything you write there is discarded (H5.2 — it has to be, because the prose is cached and the cook day is not).
 - DO NOT return a duration. There is no 'estimatedMinutes' field any more: the code computes how long a step takes from the actions and quantities it contains (BUG-204 — the estimates returned here ran roughly 3x long, and the plan header now states the total, so a guess is not good enough). You decide NO numbers at all. Echo the amounts, write the prose.
-- 'skipSuggested' (optional boolean) — see "# Prep-vs-cook-time rule". Set true ONLY to demote an at-cook application; otherwise omit it (or false).
-
-# Prep-vs-cook-time rule (what to keep as weekly prep, what to demote)
-
-A Prep-the-Week action earns its place ONLY if it BOTH (a) saves real weeknight time by being done in a batch ahead AND (b) survives storage for a few days without degrading. If a step fails EITHER test, it belongs at the stove on cook day, not in weekly prep — demote it (set 'skipSuggested': true).
-
-DEFAULT — KEEP the step as prep. Measuring and portioning ahead IS the whole point of this feature. Keep: measuring dry spices into per-dish piles; mincing/dicing/chopping storage-stable produce (onion, garlic, carrot, celery, peppers); whisking a MULTI-ingredient make-ahead sauce, dressing, or spice blend that gets stored and used later; a recipe's own marinade or brine that soaks ahead of time. When in doubt, KEEP.
-
-STRUCTURAL SIGNAL — 'dishRole' (on each measure) separates "combines into a mix" (KEEP) from "standalone measure headed nowhere but a hot pan" (DEMOTE). A measure whose 'dishRole' is sauce, topping, or base belongs to a mix/sauce/dressing/component dish being ASSEMBLED — the combining IS the saved work, so KEEP it even when it is a single ingredient (a lone vinegar or citrus splash FOR a sauce is KEEP, not a demotable lone condiment). A sauces/marinades step grouping several wet components for one dish is likewise a mix → KEEP. Conversely a LONE cooking fat (oil, butter) whose 'dishRole' is main or side and whose 'relevantSteps' show it poured into a pan is the classic pan-fat case → DEMOTE (category 2). When 'dishRole' is ambiguous, fall back to 'relevantSteps' and the KEEP default. This clause NEVER touches an 'isBlend' step — those are judged solely by the blend rule at the end of this section, never demoted here.
-
-DEMOTE (set 'skipSuggested': true) ONLY when the step clearly matches one of these named categories — judged from 'relevantSteps' and the ingredient/step itself, never a vague hunch:
-
-1. Coating applied then cooked soon. A rub, dredge, breading, or coating applied ONTO meat or vegetables that the recipe then cooks within roughly 20 minutes with no meaningful rest — e.g. "Dredge the chicken in the seasoned flour and fry," "Rub the steak and grill." The coating goes on at the stove. (A real marinade or brine that soaks ~20 min or longer FIRST is the KEEP case above — soaking ahead IS the make-ahead.)
-2. Cooking oil or fat into a pan. Measuring oil, butter, or other cooking fat that just gets poured into a pan to cook in — pour it when you cook. Pre-measuring saves nothing and can't be usefully batched.
-3. Single-ingredient condiment, topping, or drizzle. Portioning ONE ingredient straight from its bottle or jar as a topping, finishing drizzle, or lone sauce (ketchup, a drizzle of olive oil, plain sour cream) — grab it at serving time. No mixing is saved by doing it ahead, and it degrades sitting portioned for days. (Contrast: whisking a MULTI-ingredient sauce or dressing IS kept — the mixing is the saved work.)
-4. Cut food that browns or degrades in storage. Cutting or shaping a food that discolors or goes off once cut — potato of ANY size or shape (russet, baby, new, fingerling, red; diced, sliced, halved, quartered, wedges, fries, shoestrings, or peeled-whole), apple, avocado, banana — must happen on cook day, not sit cut in the fridge. A cut, halved, or peeled potato browns in storage no matter how it's cut, so demote it even when it is NOT a fry-cut (baby/new potatoes halved or quartered count). Also: piercing potatoes for baking (do it just before baking).
-5. Bringing a protein to room temp or tempering. "Pull the steak from the fridge 30 minutes before cooking" and the like — inherently a day-of action at the start of cooking; it cannot be done days ahead. Demote it even though it "rests," because it fails the survives-storage test.
-
-WHEN YOU DEMOTE, THE TITLE MUST NOT COMMAND THE ACTION. A demoted step is shown to nobody as a task, but its title is still text: "Halve the baby yellow potatoes" followed by "keep them whole and uncut until cook day — do not prep these ahead" contradicts itself in two lines. Title a demoted step by the thing, not the verb — "Baby yellow potatoes — cook day" — and let the instruction explain why it waits. Never write an imperative you then withdraw.
-
-The sharper test behind all five: rest-time alone does NOT decide it. A marinade that soaks overnight is genuine make-ahead prep (KEEP); tempering that "rests" 30 minutes on cook day is not (DEMOTE). Ask: does doing this in a batch ahead save weeknight time AND hold up in storage? If not, demote.
-
-Do NOT demote just because a step feels small, and do NOT empty the prep list — if a step does not clearly match a category above, KEEP it.
-
-Categories 2, 3, 4, and 5 are INTRINSIC — you judge them from the ingredient or the step itself (it IS pan oil; it IS a lone condiment; it IS a cut potato; it IS a temper-the-steak step). They fire on that basis even when 'relevantSteps' is empty: a cut potato browns in the fridge regardless of what the recipe steps say, so do not wait for 'relevantSteps' to demote it. Only category 1 (coating-then-cook) needs 'relevantSteps' prose to judge the ~20-minute timing. So the KEEP-when-empty default is narrow: when category 1 is the only possible match and 'relevantSteps' is empty, or you are genuinely unsure which category applies → KEEP.
-
-'isBlend' steps: normally KEEP (a pre-measured blend is prep). Demote an 'isBlend' step ONLY when the ENTIRE blend is a single dish's at-cook coating (a dredge/breading that 'relevantSteps' shows coated on and cooked right away). If a blend mixes a genuine make-ahead spice mix TOGETHER WITH an at-cook coating, KEEP it — do not demote a mixed blend.
-
-Demotion is annotation only. Even when you set 'skipSuggested': true, still write a normal 'title' + per-dish 'instructions' — never change amounts or which dishes they feed.
+- NEVER return 'skipSuggested'. The app has already decided what is prep: every step you are given IS prep, and the ones that are not were removed before you saw the plan. Write each one as work to do now. (Anything you send in that field is discarded.)
 
 # Hard rules (do not break)
 

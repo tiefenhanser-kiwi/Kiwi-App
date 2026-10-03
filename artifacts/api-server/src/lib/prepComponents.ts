@@ -32,6 +32,10 @@
 //   4. A NAME MATCH in a component step, for an ingredient whose amount sits on
 //      a different step (the dice-then-combine shape). Ruling 2 guards it.
 
+// H7 — a VALUE import from prepMoments, which itself imports only types from
+// here, so there is no runtime cycle.
+import { isHeatMoment } from "./prepMoments";
+
 /** One step of a dish, as this module needs it. */
 export interface ComponentStep {
   stepIndex: number;
@@ -128,6 +132,30 @@ const NOUN_SPECIFICITY: Record<string, number> = {
   sauce: 3,
 };
 const specificity = (noun: string) => NOUN_SPECIFICITY[noun] ?? 2;
+
+// ── [prepcook] H7 — A SERVE-TIME STEP COMBINES NOTHING AHEAD ─────────────────
+//
+// Hans, October 2: toss, dress, top, garnish, serve with, spoon over, fold in at
+// the end — those happen at the table. The Caesar's "toss the romaine with the
+// dressing" was a COMBINE step (`toss` is in the verb group below), so the romaine
+// became a member of the dressing and was chopped into its jar on Sunday.
+//
+// A step is serve time when nothing after it goes into heat (`isHeatMoment`) and
+// its verb is one of these. A cold MIXING verb (whisk, stir together, blend) on
+// the same step keeps it a mixture: "whisk the oil, vinegar and mustard" is a
+// dressing made ahead, and that is still prep.
+// 🔴 NOT AFTER A HYPHEN. The first draft read the carne asada's "place the steak
+// in a ZIP-TOP bag, pour the marinade over it" as serve time — `top` inside a
+// compound noun — and the marinade lost its steak. The H6 lesson for the seventh
+// time: a verb pattern will find a noun that contains it unless told not to.
+const SERVE_VERB =
+  /(?<![-\w])(toss(?:es|ed|ing)?|dress(?:es|ed)?\b|tops?\b|topped|garnish(?:es|ed)?|serve[sd]?|spoon(?:s|ed)?\s+(?:it\s+)?over|drizzl(?:e|es|ed)|sprinkl(?:e|es|ed)|scatter(?:s|ed)?|fold(?:s|ed)?\s+in)\b/i;
+const SIT_MIX = /\b(whisk|stir\s+together|blend\s+together|puree|purée|mix\s+together|combine\s+in\s+a\s+(?:bowl|jar))\b/i;
+
+export function isServeTimeStep(step: ComponentStep, ordered: readonly ComponentStep[]): boolean {
+  if (isHeatMoment(step, ordered)) return false;
+  return SERVE_VERB.test(step.text) && !SIT_MIX.test(step.text);
+}
 
 /** A step that COMBINES is one component by construction (signal 3, ruling 2). */
 const COMBINE_VERB =
@@ -387,6 +415,10 @@ export function resolveDishComponents(
 
   for (const st of ordered) {
     if (st.ingredientIds.length === 0) continue;
+    // H7 — serve time builds no mixture. The step's text is still read as a
+    // look-ahead LABEL by the step before it (the whisk step learns it makes a
+    // "dressing" from here), it just contributes no members.
+    if (isServeTimeStep(st, ordered)) continue;
 
     // Signal 1 — componentKey, but only when it names a MIXTURE (ruling 6).
     // H5.1 — the same test on the component's OWN name, for a dish whose title
@@ -461,7 +493,11 @@ export function resolveDishComponents(
     for (const id of b.members) placed.add(id);
     for (const id of b.cookDay) placed.add(id);
   }
-  const combineIdx = new Set(ordered.filter((s) => COMBINE_VERB.test(s.text)).map((s) => s.stepIndex));
+  const combineIdx = new Set(
+    ordered
+      .filter((s) => COMBINE_VERB.test(s.text) && !isServeTimeStep(s, ordered))
+      .map((s) => s.stepIndex),
+  );
   for (const ing of ingredients) {
     if (placed.has(ing.ingredientId)) continue;
     if (isProtein(ing.ingredientId) || isService(ing.ingredientId)) continue;
@@ -583,6 +619,9 @@ export function resolveDishComponents(
 /** Components that MUST sit together, so two members is enough (arm b). */
 const MUST_SIT = new Set(["marinade", "brine", "pickle", "soak"]);
 
+/** H7 — does a mixture with this noun have to SIT, so two members are enough? */
+export const mustSit = (noun: string): boolean => MUST_SIT.has(noun);
+
 /** Arm (c) — the verbs that are knife work or washing. */
 const KNIFE_OR_WASH =
   /\b(chop|chopped|dice|diced|mince|minced|slice|sliced|trim|trimmed|zest|zested|juice|juiced|husk|husked|peel|peeled|shred|shredded|grate|grated|crush|crushed|halve|halved|quarter|quartered|cube|cubed|julienne|wash|washed|rinse|rinsed|clean|cleaned|pit|pitted|seed|seeded|tear|torn|snap|snapped|cut)\b/i;
@@ -649,7 +688,10 @@ export function judgePrepWorthiness(input: PrepWorthinessInput): PrepWorthiness 
 // thin" and its prose says pound and portion, the cook needs to pound.
 const PROTEIN_VERBS: ReadonlyArray<[RegExp, string]> = [
   [/\bbutterfl(?:y|ied|ying)\b/i, "butterfly"],
-  [/\bpound(?:s|ed|ing)?\b/i, "pound"],
+  // 🔴 H7 — NOT THE UNIT. "Place the 2 pounds bone-in chicken thighs in a pot" and
+  // "1½ pounds shrimp" read as the verb, and the plan said "Pound the shrimp". A
+  // quantity in front of it (digits, a glyph, a word number) makes it a weight.
+  [/(?<![\d½¼¾⅓⅔⅛⅜⅝⅞]\s?|\b(?:a|one|two|three|four|half a)\s)\bpound(?:s|ed|ing)?\b/i, "pound"],
   [/\bcub(?:e|es|ed|ing)\b/i, "cube"],
   [/\b(?:cut|slice)[^.]{0,30}\bstrips?\b/i, "cut into strips"],
   [/\b(?:skinned|remove the skin|skin removed)\b/i, "skin"],

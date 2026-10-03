@@ -18,7 +18,8 @@ import type { DishRole, PrismaClient } from "@prisma/client";
 import { resolvePrepCategory } from "./prepCategoryOverride";
 import { selectDefaultPathSteps } from "./cookingScheduler";
 import type { ComponentStep } from "./prepComponents";
-import { ingredientGroupKey } from "./ingredientRelations";
+import { admitSubsumesEdge, ingredientGroupKey } from "./ingredientRelations";
+import { normalizeIngredientName } from "./groceryNormalization";
 
 /**
  * H3 item 14 — weekday name → `Date.getUTCDay()` index. Lowercased on lookup so
@@ -70,6 +71,15 @@ export interface PrepLoadedIngredient {
    * component parent, which is nearly all of them.
    */
   sourceYield: { fromName: string; quantity: number; unit: string } | null;
+  /**
+   * [prepcook] H7 — `Ingredient.purchaseUnit`, the pack the catalog says this is
+   * bought in. A Pantry item bought by the jar, bottle, tube or can is poured or
+   * spooned, never measured with the dry spices — which is how dijon mustard and
+   * mayonnaise reached the dry phase by having no sauce word in their names.
+   * Optional: hand-built fixtures predate it, and absent means "no catalog
+   * answer", which keeps the name rule.
+   */
+  purchaseUnit?: string | null;
 }
 
 export interface PrepLoadedDish {
@@ -357,6 +367,7 @@ export async function loadPrepWeekInput(
             // Filled after the loop — the relation read needs every ingredient
             // id the plan touches, which is not known until the loop is done.
             sourceYield: null,
+            purchaseUnit: di.ingredient.purchaseUnit ?? null,
           }),
         );
         return {
@@ -422,21 +433,64 @@ export async function loadPrepWeekInput(
     // Symmetric edges, stored in canonical order, so both directions are read.
     // Only this plan's ingredients: tens of rows against an index, beside the
     // query above, rather than the whole table.
-    const synEdges = await prisma.ingredientRelation.findMany({
+    // ── [prepcook] H7 2d — AND THE SUBSUMES EDGES THE GROCERY LANE ADMITS ────
+    //
+    // "fresh flat-leaf parsley" and "fresh parsley" were two steps on `d06a721d`
+    // because the catalog joins them with `subsumes` (fresh parsley → fresh
+    // flat-leaf parsley, high confidence), not `synonym`, and this fold read
+    // synonyms only. The grocery list has always made them one line — H3, "where
+    // the two share one bunch the line becomes `1 bunch flat-leaf parsley`". So the
+    // same query takes both labels and a subsumes row folds exactly when
+    // `admitSubsumesEdge` — the grocery lane's own verdict — admits it, with this
+    // plan's names as the demanded set. One query, no extra round trip.
+    const relEdges = await prisma.ingredientRelation.findMany({
       where: {
-        label: "synonym",
+        label: { in: ["synonym", "subsumes"] },
         OR: [
           { fromIngredientId: { in: allIngredientIds } },
           { toIngredientId: { in: allIngredientIds } },
         ],
       },
-      select: { fromIngredientId: true, toIngredientId: true },
+      select: {
+        fromIngredientId: true,
+        toIngredientId: true,
+        label: true,
+        confidence: true,
+        reviewedByHuman: true,
+        from: { select: { canonicalName: true, defaultUnit: true, purchaseUnit: true } },
+        to: { select: { canonicalName: true } },
+      },
     });
-    synonymPairs = synEdges
+    const onPlan = (e: { fromIngredientId: string; toIngredientId: string }) =>
+      allIngredientIds.includes(e.fromIngredientId) && allIngredientIds.includes(e.toIngredientId);
+    const demanded = new Set<string>();
+    const packByName = new Map<string, string | null>();
+    for (const e of relEdges) {
+      if (!onPlan(e)) continue;
+      demanded.add(normalizeIngredientName(e.from.canonicalName));
+      demanded.add(normalizeIngredientName(e.to.canonicalName));
+      packByName.set(normalizeIngredientName(e.from.canonicalName), e.from.purchaseUnit);
+    }
+    synonymPairs = relEdges
+      .filter(onPlan)
       .filter(
         (e) =>
-          allIngredientIds.includes(e.fromIngredientId) &&
-          allIngredientIds.includes(e.toIngredientId),
+          e.label === "synonym" ||
+          admitSubsumesEdge(
+            {
+              label: "subsumes",
+              fromCanonicalName: e.from.canonicalName,
+              toCanonicalName: e.to.canonicalName,
+              yieldQuantity: null,
+              yieldUnit: null,
+              coHarvestable: null,
+              confidence: e.confidence,
+              reviewedByHuman: e.reviewedByHuman,
+              fromDefaultUnit: e.from.defaultUnit,
+              fromPurchaseUnit: e.from.purchaseUnit,
+            },
+            { demanded, packUnitOf: (n) => packByName.get(normalizeIngredientName(n)) },
+          ) !== null,
       )
       .map((e) => [e.fromIngredientId, e.toIngredientId] as [string, string]);
 

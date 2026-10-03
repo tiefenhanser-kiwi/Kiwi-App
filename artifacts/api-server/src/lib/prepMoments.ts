@@ -55,6 +55,43 @@ const HEAT_PHASE = "cook";
 /** Phases whose prose may carry Hans's override — where food meets the pan. */
 const ENTRY_PHASES = new Set(["cook", "assemble"]);
 
+// ── [prepcook] H7 — ONLY A COOKING MOMENT GROUPS ────────────────────────────
+//
+// Hans, October 2: "Don't combine seasonings, oil, liquid with protein or veggies
+// until cook. Veggies + veggies is ok if they go in the pan together."
+//
+// H6.1 ruling 3 made "a cook or assemble step that names it" the moment, and an
+// ASSEMBLE step is very often serve time: "toss the romaine with the dressing",
+// "top the tacos with lettuce and tomato", "dress the tomato and cucumber". Those
+// steps combine things at the table, and grouping on them is how the romaine
+// reached the Caesar dressing jar and the taco lettuce reached the beef.
+//
+// So a step that names an ingredient is a GROUPING moment only when food goes into
+// HEAT there: a `cook` step, or an assembly that a later `cook` step bakes (pizza
+// toppings onto the dough, enchiladas into the dish). An assembly with no heat
+// after it is serve time; its key is `v:` and, like `i:`, it groups nothing.
+/** A `cook` step that opens with one of these is plating, not cooking. */
+const SERVE_LEAD = /^\s*(?:to serve,?\s*)?(?:serve|garnish|plate)\b/i;
+
+/**
+ * H7 — a NON-cook step that puts food into the vessel that is about to be heated.
+ * The tomatillo sauce's step 1 is tagged `prep` — "husk and halve the tomatillos,
+ * halve the poblano… spread everything on the baking sheet" — and step 2 broils
+ * it. The tray goes into the oven as one; the tag alone cannot see that. Only a
+ * HEAT vessel counts: a mixing bowl is not one.
+ */
+const PLACES_IN_HEAT_VESSEL =
+  /\b(?:on(?:to)?|in(?:to)?)\s+(?:a|the)\s+(?:large\s+|prepared\s+|rimmed\s+|foil-lined\s+|lined\s+)*(?:baking\s+sheet|sheet\s+pan|roasting\s+pan|broiler\s+pan|baking\s+dish|casserole|slow\s+cooker|dutch\s+oven|stockpot|pot|skillet|wok|air\s+fryer)\b/i;
+
+/**
+ * Is this step a moment where things go INTO HEAT together? Exported so the
+ * component resolver asks the same question of the same steps.
+ */
+export function isHeatMoment(step: ComponentStep, ordered: readonly ComponentStep[]): boolean {
+  if (step.phaseType === HEAT_PHASE) return !SERVE_LEAD.test(step.text);
+  return ordered.some((s) => s.stepIndex > step.stepIndex && s.phaseType === HEAT_PHASE);
+}
+
 /**
  * Words that are never the identity of an ingredient, so they must not be
  * required when matching its name in prose.
@@ -73,7 +110,29 @@ const NAME_NOISE = new Set([
   // case the ruling is named after. The single-word guard below is what stops
   // "onion" then matching "onion powder".
   "yellow", "white", "red", "green", "purple", "sweet", "russet",
+  // 🔴 H7 — THE PART OF THE PLANT, which recipe prose drops just as it drops the
+  // colour. The catalog says "celery stalks" and "garlic cloves"; the slow cooker's
+  // step says "scatter the onion, celery, carrots, and garlic". Requiring "stalks"
+  // and "cloves" kept both out of the cook step that names them, and the slow
+  // cooker's vegetables fell apart into single tubs. The single-word guard still
+  // stops "garlic" matching "garlic powder".
+  "stalk", "stalks", "clove", "cloves", "sprig", "sprigs", "leaves", "florets",
+  "hearts", "spears",
+  // …and the generic noun after a variety: "halve and seed the poblano" names the
+  // poblano pepper. A name that is ONLY "pepper" keeps nothing and matches nothing.
+  "pepper", "peppers",
 ]);
+
+/**
+ * H7 — the stem a word is searched by, so "carrots" finds "the grated carrot" and
+ * "tomatoes" finds "tomato". Only a plain plural is stripped, and only from a word
+ * long enough that the stem is still that word.
+ */
+function stemOf(w: string): string {
+  if (w.length > 5 && w.endsWith("oes")) return w.slice(0, -2);
+  if (w.length > 4 && w.endsWith("s") && !w.endsWith("ss")) return w.slice(0, -1);
+  return w;
+}
 
 /**
  * 🔴 A HEAD WORD IS NOT A SUFFIX-FREE MATCH. "onion" is in "onion powder" and
@@ -100,13 +159,17 @@ export function proseNames(prose: string, name: string): boolean {
   if (words.length === 0) return false;
   const lower = prose.toLowerCase();
   for (const w of words) {
-    const at = lower.indexOf(w);
+    const stem = stemOf(w);
+    const at = lower.indexOf(stem);
     if (at < 0) return false;
     // Only the LAST identifying word can be followed by a modifier that turns it
     // into something else ("onion powder"); an earlier one is fine ("chili
     // powder" legitimately contains "chili" when the ingredient IS chili powder,
     // which is why the whole word list has to match, not just one).
-    if (words.length === 1 && DIFFERENT_INGREDIENT_AFTER.test(lower.slice(at + w.length))) {
+    // H7 — read past the plural ending the stem dropped, so "onions powder" is
+    // never the question and "garlic, powder" is.
+    const tail = lower.slice(at + stem.length).replace(/^(?:e?s)\b/, "");
+    if (words.length === 1 && DIFFERENT_INGREDIENT_AFTER.test(tail)) {
       return false;
     }
   }
@@ -178,6 +241,8 @@ export function resolveMoments(
   // ── signal 2: Hans's override — the cook step whose prose names it ────────
   const nameById = new Map(ingredients.map((i) => [i.ingredientId, i.ingredientName]));
   const entryStep = new Map<string, number>();
+  /** H7 — ingredients whose first naming step is serve time (no heat). */
+  const serveStep = new Map<string, number>();
   const overrides: MomentOverride[] = [];
   for (const ing of ingredients) {
     // A component's members are one container by ruling; the override exists to
@@ -185,7 +250,10 @@ export function resolveMoments(
     // one. Checked here rather than at the key so the report counts honestly.
     if (componentOf.get(ing.ingredientId)) continue;
     const named = ordered.find(
-      (s) => ENTRY_PHASES.has(s.phaseType) && proseNames(s.text, ing.ingredientName),
+      (s) =>
+        (ENTRY_PHASES.has(s.phaseType) ||
+          (PLACES_IN_HEAT_VESSEL.test(s.text) && isHeatMoment(s, ordered))) &&
+        proseNames(s.text, ing.ingredientName),
     );
     if (!named) continue;
     const wasRun = firstRefStep.has(ing.ingredientId)
@@ -218,6 +286,14 @@ export function resolveMoments(
     //
     // `wasRunMoment` is still reported, so an audit can see what the proxy would
     // have said and how often the two disagree.
+    // H7 — and the step has to be a COOKING moment to be one at all. Serve time
+    // is recorded separately so the key below can say "named, and groups nothing"
+    // rather than falling back to the run proxy, which is what let the romaine
+    // ride the dressing's run into its jar.
+    if (!isHeatMoment(named, ordered)) {
+      serveStep.set(ing.ingredientId, named.stepIndex);
+      continue;
+    }
     entryStep.set(ing.ingredientId, named.stepIndex);
     overrides.push({
       ingredientName: ing.ingredientName,
@@ -268,6 +344,11 @@ export function resolveMoments(
       keyByIngredientId.set(ing.ingredientId, `s:${entry}`);
       continue;
     }
+    const served = serveStep.get(ing.ingredientId);
+    if (served !== undefined) {
+      keyByIngredientId.set(ing.ingredientId, `v:${served}`);
+      continue;
+    }
     const ref = firstRefStep.get(ing.ingredientId);
     if (ref !== undefined) {
       keyByIngredientId.set(ing.ingredientId, `r:${runOfStep.get(ref)}`);
@@ -280,5 +361,8 @@ export function resolveMoments(
   return { keyByIngredientId, runByIngredientId, hasCoverage, overrides };
 }
 
-/** True when a moment key is the "no signal, stands alone" kind. */
-export const isLoneKey = (key: string) => key.startsWith("i:");
+/**
+ * True when a moment key groups nothing: "no signal, stands alone" (`i:`) or, H7,
+ * "named only at serve time" (`v:`).
+ */
+export const isLoneKey = (key: string) => key.startsWith("i:") || key.startsWith("v:");

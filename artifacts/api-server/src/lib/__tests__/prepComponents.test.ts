@@ -226,9 +226,29 @@ describe("D-WS9-296 rulings 3, 5, 6, 7 and 8", () => {
     assert.deepEqual(components, []);
   });
 
-  it("ruling 7 — a mixture whose base is a cook-day item becomes the MIX-INS bowl", () => {
+  it("H7 — a guacamole FOLDED together at the table builds no bowl at all", () => {
+    // Hans, October 2: "toss, dress, top, garnish, serve with, spoon over, fold in
+    // at the end" combine nothing ahead. Nothing here is heated afterwards, so the
+    // fold is serve time and every part is its own portion.
     const steps = [
       step(0, "Mash the avocados, then fold in the cilantro, jalapeño, onion and lime juice.", {
+        ids: ["avocado", "cilantro", "jalapeno", "onion", "lime-juice"],
+      }),
+    ];
+    const ingredients = [
+      ing("avocado", "ripe avocado", "produce", "halved and pitted"),
+      ing("cilantro", "fresh cilantro", "produce", "chopped"),
+      ing("jalapeno", "jalapeño", "produce", "seeded and minced"),
+      ing("onion", "white onion", "produce", "finely diced"),
+      ing("lime-juice", "lime juice", "produce"),
+    ];
+    assert.equal(resolveDishComponents("Guacamole", null, steps, ingredients).components.length, 0);
+  });
+
+  it("ruling 7 — a mixture whose base is a cook-day item becomes the MIX-INS bowl", () => {
+    // H7 — written with a MIXING verb now; the fold-in form above is serve time.
+    const steps = [
+      step(0, "Mash the avocados, then stir together with the cilantro, jalapeño, onion and lime juice.", {
         ids: ["avocado", "cilantro", "jalapeno", "onion", "lime-juice"],
       }),
     ];
