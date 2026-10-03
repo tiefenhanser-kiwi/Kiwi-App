@@ -449,7 +449,63 @@ export interface StorageContext {
     ingredientNames: readonly string[];
     text: string;
     own: boolean;
+    /** H7.1 2a — a cold mixture's dressing containers. */
+    combineWith?: readonly string[];
+    /** H7.1 2b — the proteins that belong with this marinade. */
+    joins?: readonly MarinadeJoinFacts[];
   }[];
+  /** H7.1 2b — on a protein step: the marinade it belongs with. */
+  marinadeJoin?: MarinadeJoinFacts & { bowl: string };
+}
+
+/** H7.1 — the date-free facts; the sentence depends on the cook day. */
+export interface MarinadeJoinFacts {
+  protein?: string;
+  marinates: boolean;
+  seafood: boolean;
+  acidic: boolean;
+}
+
+/**
+ * H7.1 — "within 1 day of prep": the only window in which a dressing goes into its
+ * vegetables, or a protein into its marinade, at the prep session itself.
+ */
+const SOON_DAYS = 1;
+
+/** The part of a tub label that names the food: "Fresh Pico de Gallo — lime juice" → "lime juice". */
+const foodOf = (label: string) => (label.includes(" — ") ? label.split(" — ").slice(1).join(" — ") : label);
+
+/**
+ * H7.1 — the date-dependent half of a close: a cold mixture's dressing, a marinade's
+ * proteins. Computed on every read, like the storage line, because the cached prose
+ * cannot know the cook day.
+ */
+function timingLines(
+  c: NonNullable<StorageContext["closes"]>[number],
+  ctx: Pick<StorageContext, "daysUntilCook" | "dayName">,
+  held: string[],
+): string[] {
+  const out: string[] = [];
+  const soon = ctx.daysUntilCook !== undefined && ctx.daysUntilCook <= SOON_DAYS;
+  const when = ctx.dayName ? ` (${ctx.dayName})` : "";
+  if (c.combineWith && c.combineWith.length > 0) {
+    const what = c.combineWith.map(foodOf).join(" and ");
+    out.push(soon ? `Stir in the ${what} now — it is eaten within a day.` : `Keep the ${what} separate; combine on cook day${when}.`);
+  }
+  for (const j of c.joins ?? []) {
+    const who = j.protein ?? "protein";
+    if (j.seafood && j.acidic) {
+      // Seafood never sits in acid ahead: the acid starts to cook it.
+      out.push(`Add the ${who} just before cooking${when} — acid starts to cook seafood.`);
+    } else if (j.marinates && soon) {
+      out.push(`The ${who} go in at the proteins step and marinate until cook day.`);
+    } else {
+      const line = `Add the ${who} the night before you cook them${when}.`;
+      out.push(line);
+      held.push(line);
+    }
+  }
+  return out;
 }
 
 /** The wire caps `storageNote` at 200 characters (PrepWeekStepSchema). */
@@ -464,13 +520,23 @@ const NOTE_MAX = 200;
  * the fridge — up to 4 days." The name is the part of a tub label before its dash —
  * the dinners after it are already on the lid.
  */
-export function closingNote(closes: NonNullable<StorageContext["closes"]>): string {
+export function closingNote(
+  closes: NonNullable<StorageContext["closes"]>,
+  /** H7.1 — the cook day, for the dressing and marinade lines; absent = unknown. */
+  ctx: Pick<StorageContext, "daysUntilCook" | "dayName"> = {},
+  held: string[] = [],
+): string {
+  const timing = closes.flatMap((c) => timingLines(c, ctx, held));
+  const finish = (s: string) => {
+    const all = [s, ...timing].join(" ");
+    return all.length <= NOTE_MAX ? all : `${all.slice(0, NOTE_MAX - 1).trimEnd()}…`;
+  };
   // One sentence when every container this step closes keeps the same way: the
   // jalapeño step closing the tomatillo tray AND the cornbread's jalapeño tub read
   // "…up to 4 days. Airtight in the fridge — up to 4 days." twice over.
   const notes = closes.map((c) => storageClassFor(c.text, c.name, c.ingredientNames).note);
   if (closes.length > 1 && notes.every((n) => n === notes[0])) {
-    return `${closes.length === 2 ? "Both containers" : `All ${closes.length} containers`}: ${notes[0]}`;
+    return finish(`${closes.length === 2 ? "Both containers" : `All ${closes.length} containers`}: ${notes[0]}`);
   }
   const parts: string[] = [];
   for (const c of closes) {
@@ -482,8 +548,7 @@ export function closingNote(closes: NonNullable<StorageContext["closes"]>): stri
     const line = c.own ? note : `${label}: ${note}`;
     if (!parts.includes(line)) parts.push(line);
   }
-  const all = parts.join(" ");
-  return all.length <= NOTE_MAX ? all : `${all.slice(0, NOTE_MAX - 1).trimEnd()}…`;
+  return finish(parts.join(" "));
 }
 
 /**
@@ -584,6 +649,22 @@ export function applyStorageOverlay(
               skipSuggested: true,
             };
           }
+          // H7.1 2b — a protein that marinates and is cooked within a day goes into
+          // its marinade now; everything else keeps the plain two-day line, and the
+          // marinade's own close says when it joins.
+          const j = ctx.marinadeJoin;
+          if (
+            j &&
+            j.marinates &&
+            !(j.seafood && j.acidic) &&
+            ctx.daysUntilCook !== undefined &&
+            ctx.daysUntilCook <= SOON_DAYS
+          ) {
+            return {
+              ...step,
+              storageNote: `Then into the ${j.bowl} to marinate — covered in the fridge, cook within 1 day.`.slice(0, NOTE_MAX),
+            };
+          }
           return { ...step, storageNote: verdict.note };
         }
         return {
@@ -594,7 +675,7 @@ export function applyStorageOverlay(
           // BUG-346 (a) — the identities, so a note cannot name a protein.
           storageNote:
             ctx.closes && ctx.closes.length > 0
-              ? closingNote(ctx.closes)
+              ? closingNote(ctx.closes, ctx, held)
               : storageClassFor(ctx.text, ctx.bowlName, ctx.ingredientNames).note,
         };
       });

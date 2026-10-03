@@ -445,6 +445,9 @@ describe("D-WS9-296 — every generated stepKey fits the wire", () => {
     // day change a cache HIT (G1) — but a tick stored against an old `cmp#`
     // container step IS orphaned once, and that is the known cost of 11(c).
     assert.ok(sp.steps.some((s) => s.stepKey.startsWith("cnt#")), "no container key in the fixture");
-    assert.ok(sp.steps.some((s) => s.stepKey.startsWith("cd#")), "no cook-day key in the fixture");
+    // H7.1 2b retired the `cd#` cook-day step: the steak keeps its own `proteins#`
+    // step (its knife work) and carries the marinade it belongs with.
+    const steak = sp.steps.find((s) => s.stepKey.startsWith("proteins#"));
+    assert.ok(steak?.marinadeJoin, "the steak lost its link to the marinade");
   });
 });

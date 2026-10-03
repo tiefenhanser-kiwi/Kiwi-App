@@ -373,7 +373,7 @@ async function runPlan(planId: string): Promise<PlanRecord> {
         const mealNameById = new Map(input.meals.map((m) => [m.mealId, m.mealName]));
         const storageContext = new Map<string, StorageContext>();
         // H7 2b — the same closes the route hands the overlay.
-        const closesByStepKey = storageClosesByStepKey(stepPlan.steps);
+        const closesByStepKey = storageClosesByStepKey(stepPlan.steps, stepPlan.containerExtras);
         for (const st of stepPlan.steps) {
           const names = st.components.map((c) => c.ingredientName);
           const notes = st.components.flatMap((c) => [
@@ -401,6 +401,7 @@ async function runPlan(planId: string): Promise<PlanRecord> {
             bowlName: st.bowlName,
             ingredientNames: names,
             ...(closesByStepKey.has(st.stepKey) ? { closes: closesByStepKey.get(st.stepKey)! } : {}),
+            ...(st.marinadeJoin ? { marinadeJoin: st.marinadeJoin } : {}),
           });
         }
         const assembled = PrepWeekResultSchema.parse(

@@ -156,7 +156,11 @@ export function judgeProducePortion(
   // Getting a juice or a zest IS the work. Other derived rows are not: "fresh thyme
   // sprigs" is a catalog component of fresh thyme, and dropping four whole sprigs
   // into a pot is nothing to do on Sunday.
-  if (derived && /\b(juice|zest)\b/i.test(ingredientName)) return { prep: true };
+  // H7.1 — on its own NAME, not only with a catalog parent: a Produce-row juice is
+  // squeezed whether or not `ingredient_relations` links it to a fruit, and judging it
+  // "no work" dropped the acid out of a marinade.
+  void derived;
+  if (/\b(juice|zest)\b/i.test(ingredientName)) return { prep: true };
   if (HEAT_NOTE.test(n)) return { prep: false, reason: "heat" };
   if (BOUGHT_CUT.test(ingredientName)) return { prep: false, reason: "ready-to-use" };
   return { prep: false, reason: "no-work" };

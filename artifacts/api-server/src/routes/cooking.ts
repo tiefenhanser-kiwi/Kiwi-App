@@ -353,7 +353,7 @@ export function createCookingRouter(
        */
       const mealNameById = new Map(input.meals.map((m) => [m.mealId, m.mealName]));
       // H7 2b — which containers each step closes, with their full membership.
-      const closesByStepKey = storageClosesByStepKey(stepPlan.steps);
+      const closesByStepKey = storageClosesByStepKey(stepPlan.steps, stepPlan.containerExtras);
       const storageContextFor = (): Map<string, StorageContext> => {
         const m = new Map<string, StorageContext>();
         for (const st of stepPlan.steps) {
@@ -381,6 +381,7 @@ export function createCookingRouter(
             bowlName: st.bowlName,
             ingredientNames: names,
             ...(closesByStepKey.has(st.stepKey) ? { closes: closesByStepKey.get(st.stepKey)! } : {}),
+            ...(st.marinadeJoin ? { marinadeJoin: st.marinadeJoin } : {}),
           });
         }
         return m;

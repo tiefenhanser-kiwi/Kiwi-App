@@ -235,30 +235,31 @@ describe("H7 2 — a serve-time step groups nothing", () => {
     assert.equal(garlic.components[0].measures[0].destination, dressing!.bowlName);
   });
 
-  it("🔴 tomatoes and cucumber TOSSED at the table share no container", () => {
-    // Two vegetables, so the class rule would let them share — only "serve time
-    // groups nothing" keeps them apart. A heat step would have put them together.
+  it("🔴 a garnish tossed into a COOKED dish at the table shares no container", () => {
+    // H7.1 2a groups a cold RAW mixture (pico, slaw, a chopped salad), so a raw toss
+    // no longer isolates this guard. A cooked dish does: the pasta is boiled, then
+    // tossed with tomatoes and basil to serve. Two produce items, so the class rule
+    // would let them share — only "serve time groups nothing" keeps them apart.
     const l = loaded([
       {
-        id: "d-salad",
-        name: "Tomato-Cucumber Salad",
+        id: "d-pasta",
+        name: "Summer Pasta",
         ings: [
-          // Names the toss step can read: the matcher needs every identifying word, and
-          // "the tomatoes" does not name "cherry tomatoes" (a varietal it does not strip).
           { id: "tom", name: "tomatoes", category: "Produce", quantity: 2, unit: "each", note: "halved" },
-          { id: "cuc", name: "cucumber", category: "Produce", quantity: 1, unit: "each", note: "diced" },
+          { id: "bas", name: "basil", category: "Produce", quantity: 0.25, unit: "cup", note: "torn" },
         ],
         steps: [
-          { i: 0, phase: "prep", text: "Halve the cherry tomatoes and dice the cucumber.", ids: ["tom", "cuc"] },
-          { i: 1, phase: "assemble", text: "Toss the tomatoes and cucumber together with the lemon juice and serve." },
+          { i: 0, phase: "prep", text: "Halve the tomatoes and tear the basil.", ids: ["tom", "bas"] },
+          { i: 1, phase: "cook", text: "Boil the pasta until al dente and drain." },
+          { i: 2, phase: "assemble", text: "Toss the cooked pasta with the tomatoes and basil and serve." },
         ],
       },
     ]);
     const sp = planFrom(l);
     const dest = (n: string) =>
       sp.steps.find((s) => s.components.some((c) => c.ingredientName === n))!.components[0].measures[0].destination;
-    assert.ok(dest("tomatoes") && dest("cucumber"), "fixture: both are cut and labelled");
-    assert.notEqual(dest("tomatoes"), dest("cucumber"), "a table-side toss shared a container");
+    assert.ok(dest("tomatoes") && dest("basil"), "fixture: both are cut and labelled");
+    assert.notEqual(dest("tomatoes"), dest("basil"), "a table-side toss shared a container");
   });
 });
 
@@ -297,7 +298,7 @@ describe("H7 3 (2a) — a lone cut portion gets a `<Dish> — <item>` container"
 // ── 4 ───────────────────────────────────────────────────────────────────────
 
 function overlay(sp: StepPlan) {
-  const closes = storageClosesByStepKey(sp.steps);
+  const closes = storageClosesByStepKey(sp.steps, sp.containerExtras);
   const ctx = new Map<string, StorageContext>();
   for (const st of sp.steps) {
     const names = st.components.map((c) => c.ingredientName);
@@ -308,6 +309,7 @@ function overlay(sp: StepPlan) {
       ingredientNames: names,
       ...(st.phase === "proteins" ? { daysUntilCook: 1 } : {}),
       ...(closes.has(st.stepKey) ? { closes: closes.get(st.stepKey)! } : {}),
+      ...(st.marinadeJoin ? { marinadeJoin: st.marinadeJoin } : {}),
     });
   }
   const narration: PrepNarrationResult = {
@@ -608,5 +610,242 @@ describe("H7 — two defects the regenerated plans showed", () => {
     assert.equal(chicken.length, 1);
     assert.equal(chicken[0].cookDaySentence, undefined, `points at a dissolved bowl: ${chicken[0].cookDaySentence}`);
     assert.equal(chicken[0].demoted, undefined, "the chicken's own knife work was lost");
+  });
+});
+
+// ══ H7.1 — mixtures that are meant to sit ════════════════════════════════════════
+
+/** Step plan + overlay with real cook-day lags, so the "now / on cook day" lines run. */
+function overlayAt(l: PrepLoadedPlan, lag: number, dayName = "Tuesday") {
+  const texts = new Map<string, string[]>();
+  for (const m of l.meals) for (const d of m.dishes) texts.set(d.dishId, d.stepTexts);
+  const sp = buildStepPlan(combinePrep(buildPrepCombineInput(l)), l.planName, texts, new Map([[MEAL, lag]]));
+  const closes = storageClosesByStepKey(sp.steps, sp.containerExtras);
+  const ctx = new Map<string, StorageContext>();
+  for (const st of sp.steps) {
+    const names = st.components.map((c) => c.ingredientName);
+    ctx.set(st.stepKey, {
+      phase: st.phase,
+      text: names.join(" "),
+      bowlName: st.bowlName,
+      ingredientNames: names,
+      daysUntilCook: st.daysUntilCook,
+      dayName,
+      ...(closes.has(st.stepKey) ? { closes: closes.get(st.stepKey)! } : {}),
+      ...(st.marinadeJoin ? { marinadeJoin: st.marinadeJoin } : {}),
+    });
+  }
+  const narration: PrepNarrationResult = {
+    steps: sp.narrationInput.steps.map((s) => ({ stepId: s.stepId, title: "T", instructions: "I" })),
+  };
+  return { sp, wire: applyStorageOverlay(assemblePrepWeekResult(sp, narration), ctx) };
+}
+const notes = (w: ReturnType<typeof overlayAt>["wire"]) =>
+  w.phases.flatMap((p) => p.steps.map((s) => s.storageNote ?? "")).join(" | ");
+const destOf = (sp: StepPlan, n: string) =>
+  sp.steps.find((s) => s.components.some((c) => c.ingredientName === n))?.components[0].measures[0].destination;
+
+const pico = () =>
+  loaded([
+    {
+      id: "d-pico",
+      name: "Fresh Pico de Gallo",
+      ings: [
+        { id: "tom", name: "roma tomatoes", category: "Produce", quantity: 4, unit: "each", note: "seeded and finely diced" },
+        { id: "oni", name: "white onion", category: "Produce", quantity: 0.5, unit: "each", note: "finely diced" },
+        { id: "jal", name: "jalapeño", category: "Produce", quantity: 1, unit: "each", note: "seeded and minced" },
+        { id: "cil", name: "fresh cilantro", category: "Produce", quantity: 0.25, unit: "cup", note: "finely chopped" },
+        { id: "lim", name: "lime juice", category: "Produce", quantity: 2, unit: "tbsp", note: "freshly squeezed" },
+      ],
+      steps: [
+        { i: 0, phase: "prep", text: "Dice the tomatoes and onion, mince the jalapeño and chop the cilantro.", ids: ["tom", "oni", "jal", "cil", "lim"] },
+        { i: 1, phase: "assemble", text: "Combine the tomatoes, onion, jalapeño and cilantro with the lime juice; let sit 10 minutes." },
+      ],
+    },
+  ]);
+
+describe("H7.1 1 — a later-step garlic never joins the onion", () => {
+  it("🔴 onion and pepper at step 1, garlic at step 2: the garlic has its own container", () => {
+    const l = loaded([
+      {
+        id: "d-taco",
+        name: "Taco Filling",
+        ings: [
+          { id: "oni", name: "yellow onion", category: "Produce", quantity: 1, unit: "each", note: "diced" },
+          { id: "pep", name: "green bell pepper", category: "Produce", quantity: 1, unit: "each", note: "diced" },
+          { id: "gar", name: "garlic", category: "Produce", quantity: 3, unit: "clove", note: "minced" },
+        ],
+        steps: [
+          { i: 0, phase: "prep", text: "Dice the onion and pepper and mince the garlic.", ids: ["oni", "pep", "gar"] },
+          { i: 1, phase: "cook", text: "Sauté the onion and bell pepper for 5 minutes until soft." },
+          { i: 2, phase: "cook", text: "Add the garlic and cook 1 minute until fragrant." },
+        ],
+      },
+    ]);
+    const sp = planFrom(l);
+    assert.equal(destOf(sp, "yellow onion"), destOf(sp, "green bell pepper"), "fixture: the onion and pepper share a pan");
+    assert.notEqual(destOf(sp, "garlic"), destOf(sp, "yellow onion"), "the later garlic joined the onion");
+  });
+});
+
+describe("H7.1 2a — a cold raw mixture groups its cut vegetables", () => {
+  it("🔴 the pico's tomato, onion, jalapeño and cilantro are ONE tub; the lime juice is not in it", () => {
+    const sp = planFrom(pico());
+    const tub = destOf(sp, "roma tomatoes");
+    assert.ok(tub, "fixture: the tomatoes have a container");
+    for (const n of ["white onion", "jalapeño", "fresh cilantro"]) assert.equal(destOf(sp, n), tub, `${n} is not in the pico tub`);
+    assert.notEqual(destOf(sp, "lime juice"), tub, "the acid went in with the vegetables");
+  });
+
+  it("🔴 leafy greens never share a container with the wet vegetables", () => {
+    const l = loaded([
+      {
+        id: "d-sal",
+        name: "Chopped Salad",
+        ings: [
+          { id: "rom", name: "romaine lettuce", category: "Produce", quantity: 1, unit: "head", note: "chopped" },
+          { id: "cuc", name: "cucumber", category: "Produce", quantity: 1, unit: "each", note: "diced" },
+          { id: "tom", name: "tomatoes", category: "Produce", quantity: 2, unit: "each", note: "diced" },
+        ],
+        steps: [
+          { i: 0, phase: "prep", text: "Chop the romaine, dice the cucumber and tomatoes.", ids: ["rom", "cuc", "tom"] },
+          { i: 1, phase: "assemble", text: "Toss the romaine, cucumber and tomatoes together." },
+        ],
+      },
+    ]);
+    const sp = planFrom(l);
+    assert.equal(destOf(sp, "cucumber"), destOf(sp, "tomatoes"), "fixture: the cold mix must form");
+    assert.notEqual(destOf(sp, "romaine lettuce"), destOf(sp, "cucumber"), "the lettuce sits against wet vegetables");
+  });
+
+  it("🔴 the dressing combines at prep only when the cook day is within 1 day", () => {
+    const soon = notes(overlayAt(pico(), 1).wire);
+    const later = notes(overlayAt(pico(), 3).wire);
+    assert.match(soon, /Stir in the lime juice now/);
+    assert.match(later, /Keep the lime juice separate; combine on cook day \(Tuesday\)/);
+    assert.doesNotMatch(later, /Stir in the lime juice now/);
+  });
+});
+
+/** A marinade, a protein, and whether the recipe marinates. */
+const marinated = (protein: string, marinates: boolean) =>
+  loaded([
+    {
+      id: "d-har",
+      name: "Harissa Chicken",
+      ings: [
+        { id: "pro", name: protein, category: "Protein", quantity: 2, unit: "lb", note: "patted dry" },
+        { id: "har", name: "harissa paste", category: "Pantry", quantity: 2, unit: "tbsp", pack: "jar" },
+        { id: "oil", name: "extra-virgin olive oil", category: "Pantry", quantity: 2, unit: "tbsp", pack: "bottle" },
+        { id: "lem", name: "lemon juice", category: "Produce", quantity: 2, unit: "tbsp", note: "freshly squeezed" },
+      ],
+      steps: [
+        { i: 0, phase: "prep", text: "Whisk the harissa paste, olive oil and lemon juice into a marinade.", ids: ["har", "oil", "lem"], key: "marinade" },
+        {
+          i: 1,
+          phase: "prep",
+          text: marinates
+            ? `Coat the ${protein} in the marinade and refrigerate for at least 2 hours.`
+            : `Brush the ${protein} with the marinade.`,
+          ids: ["pro"],
+        },
+        { i: 2, phase: "cook", text: `Roast the ${protein} at 425°F for 25 minutes.` },
+      ],
+    },
+  ]);
+
+describe("H7.1 2b — marinades", () => {
+  const proteinNote = (w: ReturnType<typeof overlayAt>["wire"]) =>
+    w.phases.find((p) => p.phase === "proteins")!.steps[0].storageNote ?? "";
+
+  it("🔴 a protein joins its marinade at prep only when the recipe marinates AND it is cooked within a day", () => {
+    assert.match(proteinNote(overlayAt(marinated("chicken thighs", true), 1).wire), /^Then into the .*marinade/);
+    assert.doesNotMatch(proteinNote(overlayAt(marinated("chicken thighs", true), 2).wire), /Then into/, "two days out");
+    assert.doesNotMatch(proteinNote(overlayAt(marinated("chicken thighs", false), 1).wire), /Then into/, "the recipe never marinates");
+  });
+
+  it("🔴 seafood never sits in acid, even cooked tomorrow", () => {
+    const { wire } = overlayAt(marinated("shrimp", true), 1);
+    assert.doesNotMatch(notes(wire), /Then into/);
+    assert.match(notes(wire), /Add the shrimp just before cooking \(Tuesday\) — acid starts to cook seafood/);
+  });
+
+  it("🔴 the marinade's close names the night-before weekday, and the held list carries it", () => {
+    const { wire } = overlayAt(marinated("chicken thighs", true), 3);
+    const line = "Add the chicken thighs the night before you cook them (Tuesday).";
+    assert.ok(notes(wire).includes(line), notes(wire));
+    const held = wire.phases.find((p) => p.phase === "proteins")!.heldForCookDay ?? [];
+    assert.ok(held.includes(line), `held: ${held.join(" | ")}`);
+  });
+});
+
+describe("H7.1 2c — a dish's unplaced aromatics share one container", () => {
+  it("🔴 Herb Roasted Potatoes: rosemary, thyme and garlic in ONE tub", () => {
+    const l = loaded([
+      {
+        id: "d-pot",
+        name: "Herb Roasted Potatoes",
+        ings: [
+          { id: "pot", name: "baby potatoes", category: "Produce", quantity: 2, unit: "lb", note: "halved" },
+          { id: "ros", name: "fresh rosemary", category: "Produce", quantity: 1, unit: "tbsp", note: "finely chopped" },
+          { id: "thy", name: "fresh thyme", category: "Produce", quantity: 1, unit: "tbsp", note: "stripped" },
+          { id: "gar", name: "garlic", category: "Produce", quantity: 3, unit: "clove", note: "minced" },
+        ],
+        steps: [
+          { i: 0, phase: "prep", text: "Halve the potatoes; chop the rosemary, strip the thyme and mince the garlic.", ids: ["pot", "ros", "thy", "gar"] },
+          { i: 1, phase: "cook", text: "Roast everything at 425°F for 35 minutes." },
+        ],
+      },
+    ]);
+    const sp = planFrom(l);
+    const tub = destOf(sp, "fresh rosemary");
+    assert.equal(tub, "Herb Roasted Potatoes — aromatics");
+    assert.equal(destOf(sp, "fresh thyme"), tub);
+    assert.equal(destOf(sp, "garlic"), tub);
+  });
+});
+
+describe("H7.1 2d — whole dried chiles never share a container with ground spices", () => {
+  it("🔴 the chili's anchos and guajillos go in their own bag", () => {
+    const input: PrepCombineInput = {
+      meals: [
+        {
+          mealId: MEAL,
+          mealName: "Chili",
+          dishes: [
+            {
+              dishId: "d-chili",
+              dishName: "Texas-Style Beef Chili",
+              dishRole: "main",
+              ingredients: [
+                ["cum", "ground cumin", null],
+                ["ore", "dried oregano", null],
+                ["chp", "chili powder", null],
+                ["anc", "dried ancho chiles", "stemmed and seeded"],
+                ["gua", "dried guajillo chiles", "stemmed and seeded"],
+              ].map(([id, name, note]) => ({
+                ingredientId: id!,
+                ingredientName: name!,
+                category: "Pantry",
+                quantity: 1,
+                unit: "each",
+                ...(note ? { preparationNote: note } : {}),
+                purchaseUnit: "container",
+                momentKey: "c:spice",
+                component: { key: "spice", noun: "spice blend", bowlName: "Texas-Style Beef Chili spice blend" },
+              })),
+            },
+          ],
+        },
+      ],
+    };
+    const sp = buildStepPlan(combinePrep(input), "P");
+    const bowls = sp.steps.filter((s) => s.bowlName && !s.demoted);
+    const chiles = bowls.find((s) => s.components.some((c) => /ancho/.test(c.ingredientName)));
+    const spices = bowls.find((s) => s.components.some((c) => c.ingredientName === "ground cumin"));
+    assert.ok(chiles && spices, "fixture: both containers form");
+    assert.equal(chiles!.bowlName, "Texas-Style Beef Chili — dried chiles, stemmed and seeded");
+    assert.notEqual(chiles!.bowlName, spices!.bowlName);
+    assert.ok(!spices!.components.some((c) => /chiles/.test(c.ingredientName)), "a dried chile is in the spice blend");
   });
 });

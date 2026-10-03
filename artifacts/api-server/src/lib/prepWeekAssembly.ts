@@ -39,6 +39,7 @@ import {
   type PrepClass,
 } from "./prepClasses";
 import { timeStep, planMinutes, wholeFruitCount, type SourceYieldLike } from "./prepStepMinutes";
+import { proseNames } from "./prepMoments";
 import {
   PREP_PHASE_ORDER,
   canonicalizeUnit,
@@ -178,6 +179,11 @@ export interface PlannedStep {
    */
   closes?: string[];
   /**
+   * H7.1 2b — on a protein step: the marinade it belongs with. Whether it joins at
+   * prep or the night before is the overlay's call, from the cook day.
+   */
+  marinadeJoin?: MarinadeJoin & { bowl: string };
+  /**
    * H6.1-C — this step is not the LAST to touch its container(s), so the storage
    * line belongs to a later step and this one closes "Set aside for …" instead.
    */
@@ -208,6 +214,12 @@ export interface PlannedStep {
 export interface StepPlan {
   steps: PlannedStep[];
   narrationInput: PrepNarrationInput;
+  /**
+   * H7.1 — container name → what its close must add (a cold mix's dressing, a
+   * marinade's proteins). Date-free facts; the overlay writes the sentence. Optional
+   * so a hand-built plan in a test still type-checks.
+   */
+  containerExtras?: ReadonlyMap<string, ContainerExtra>;
 }
 
 /**
@@ -832,9 +844,88 @@ export function buildStepPlan(
   const sharedCut = (p: Portion) =>
     (cutGroups.get(`${p.entry.ingredientId}|${cutOf(p.notes) ?? ""}`)?.size ?? 0) > 1;
 
+  // ── H7.1 2a — A COLD RAW MIXTURE IS ONE CONTAINER OF ITS CUT VEGETABLES ─────
+  //
+  // Hans, October 3: "account for the need to marinade, or mix cole slaw, or whatever
+  // else ahead of time that does combine stuff." Pico, slaw, a chopped salad, a tuna-
+  // salad base: the recipe combines the cut vegetables RAW, with no pan, so the cook
+  // wants them in one tub — "Fresh Pico de Gallo — tomato, onion, jalapeño, cilantro".
+  // H7's B-only-at-heat rule split them one lid per item (425da049: 16 → 31).
+  //
+  // A dish qualifies when one of its steps combines cold (a mixing verb, no heat word)
+  // and it has two or more cut, non-leafy produce portions — at least one a vegetable
+  // — that no heat step places. Leafy greens keep their own container (they wilt
+  // against wet vegetables), and the dressing, acid and salt stay class A: whether
+  // they go in now or on cook day depends on the day, so the storage overlay says it.
+  const coldDishes = new Set<string>();
+  for (const [dishId, texts] of stepTextByDishId) {
+    if (texts.some((t) => COLD_COMBINE.test(t) && !HEAT_TEXT.test(t))) coldDishes.add(dishId);
+  }
+  /** Portion key → a container formed before the moment grouping (2a, 2c, 2d). */
+  const special = new Map<string, string>();
+  const specialSpec = new Map<string, { cls: "A" | "B"; label: string; members: Portion[]; kind: "cold" | "greens" | "herbs" | "chiles" }>();
+  const unplaced = (p: Portion) => p.mk === null || /^(?:i|r|c):/.test(p.mk);
+  {
+    const byDish = new Map<string, Portion[]>();
+    for (const [k, p] of portions) {
+      if (notPrep.has(k) || isServedSeparately(p.dishName)) continue;
+      if (!coldDishes.has(p.dishId) || (p.cls !== "B" && p.cls !== "aromatic")) continue;
+      if (p.mk !== null && p.mk.startsWith("s:")) continue; // placed into heat
+      const l = byDish.get(p.dishId) ?? [];
+      l.push(p);
+      byDish.set(p.dishId, l);
+    }
+    for (const [dishId, list] of byDish) {
+      const greens = list.filter((p) => LEAFY.test(p.entry.ingredientName));
+      const mix = list.filter((p) => !LEAFY.test(p.entry.ingredientName));
+      if (mix.length >= 2 && mix.some((p) => p.cls === "B")) {
+        const key = `${dishId}|cold|B`;
+        specialSpec.set(key, {
+          cls: "B",
+          kind: "cold",
+          members: mix,
+          label: containerLabel(mix[0].dishName, [listOf(mix.map((p) => p.entry.ingredientName.toLowerCase()))]),
+        });
+        for (const p of mix) special.set(`${p.dishId}|${p.entry.ingredientId}`, key);
+        // The greens of a dish that IS a mixture share one container of their own.
+        if (greens.length >= 2) {
+          const gkey = `${dishId}|greens|B`;
+          specialSpec.set(gkey, { cls: "B", kind: "greens", members: greens, label: containerLabel(greens[0].dishName, ["greens"]) });
+          for (const p of greens) special.set(`${p.dishId}|${p.entry.ingredientId}`, gkey);
+        }
+      }
+    }
+  }
+  // ── H7.1 2d — DRIED CHILES ARE NOT GROUND SPICES ─────────────────────────────
+  //
+  // The chili's anchos, guajillos and chipotle are toasted and soaked at cook time —
+  // a different moment from the cumin and oregano — so they go in their own bag,
+  // stemmed and seeded, and never into the spice blend. Knife work, so no 3-floor.
+  {
+    const byDish = new Map<string, Portion[]>();
+    for (const [k, p] of portions) {
+      if (p.cls !== "A" || p.wet || !DRIED_CHILE.test(p.entry.ingredientName) || special.has(k)) continue;
+      const l = byDish.get(p.dishId) ?? [];
+      l.push(p);
+      byDish.set(p.dishId, l);
+    }
+    for (const [dishId, list] of byDish) {
+      const key = `${dishId}|chiles|A`;
+      const worked = list.some((p) => /\b(stemmed|seeded)\b/i.test(p.notes.join(" ")));
+      specialSpec.set(key, {
+        cls: "A",
+        kind: "chiles",
+        members: list,
+        label: containerLabel(list[0].dishName, [worked ? "dried chiles, stemmed and seeded" : "dried chiles"]),
+      });
+      for (const p of list) special.set(`${p.dishId}|${p.entry.ingredientId}`, key);
+    }
+  }
+
   /** The grouping key a portion's moment allows, or null when it groups nothing. */
   const groupKeyOf = (p: Portion): string | null => {
     if (p.cls === "C") return null;
+    if (special.has(`${p.dishId}|${p.entry.ingredientId}`)) return null;
     if (isServedSeparately(p.dishName)) return null;
     const mk = p.mk;
     if (mk !== null && mk.startsWith("v:")) return null;
@@ -856,6 +947,8 @@ export function buildStepPlan(
     noun: string | null;
     authoredName: string | null;
     name: string;
+    /** H7.1 — a container formed by 2a/2c/2d carries its label from the start. */
+    fixedName?: string;
   }
   const containers = new Map<string, Container>();
   const groups = new Map<string, Portion[]>();
@@ -935,6 +1028,55 @@ export function buildStepPlan(
     if (c) c.members.set(p.entry.ingredientId, p);
   }
 
+  // ── H7.1 2c — A DISH'S UNPLACED AROMATICS SHARE ONE CONTAINER ────────────────
+  //
+  // Herb Roasted Potatoes (425da049) printed three herb tubs because the recipe never
+  // names the step its rosemary, thyme and garlic enter — the H6.2 shape for unplaced
+  // members: they go together, in one container for the dish.
+  {
+    const inAny = (p: Portion) => {
+      const k = `${p.dishId}|${p.entry.ingredientId}`;
+      return special.has(k) || [...containers.values()].some((c) => c.members.get(p.entry.ingredientId) === p);
+    };
+    const byDish = new Map<string, Portion[]>();
+    for (const [k, p] of portions) {
+      if (p.cls !== "aromatic" || notPrep.has(k) || sharedCut(p) || isServedSeparately(p.dishName)) continue;
+      if (!unplaced(p) || inAny(p)) continue;
+      const l = byDish.get(p.dishId) ?? [];
+      l.push(p);
+      byDish.set(p.dishId, l);
+    }
+    for (const [dishId, list] of byDish) {
+      if (list.length < 2) continue;
+      const key = `${dishId}|herbs|B`;
+      const allHerbs = list.every((p) => FRESH_HERB.test(p.entry.ingredientName));
+      specialSpec.set(key, {
+        cls: "B",
+        kind: "herbs",
+        members: list,
+        label: containerLabel(list[0].dishName, [allHerbs ? "herbs" : "aromatics"]),
+      });
+      for (const p of list) special.set(`${p.dishId}|${p.entry.ingredientId}`, key);
+    }
+  }
+  /** H7.1 — the kind of each special container, by its final name, for the overlay. */
+  const specialKindByName = new Map<string, "cold" | "greens" | "herbs" | "chiles">();
+  for (const [key, s] of specialSpec) {
+    const c: Container = {
+      key,
+      dishId: s.members[0].dishId,
+      dishName: s.members[0].dishName,
+      mealName: s.members[0].mealName,
+      cls: s.cls,
+      members: new Map(s.members.map((p) => [p.entry.ingredientId, p])),
+      noun: null,
+      authoredName: null,
+      name: "",
+      fixedName: s.label,
+    };
+    containers.set(key, c);
+  }
+
   // ── NAMES — dish + use, never a number (rule 8) ───────────────────────────
   const usedNames = new Set<string>();
   const uniqueName = (base: string): string => {
@@ -946,12 +1088,14 @@ export function buildStepPlan(
   };
   const vegContainersPerDish = new Map<string, number>();
   for (const c of containers.values()) {
-    if (c.cls === "B") vegContainersPerDish.set(c.dishId, (vegContainersPerDish.get(c.dishId) ?? 0) + 1);
+    if (c.cls === "B" && !c.fixedName) vegContainersPerDish.set(c.dishId, (vegContainersPerDish.get(c.dishId) ?? 0) + 1);
   }
   for (const c of containers.values()) {
     const dry = allDryA(c);
     let name: string;
-    if (c.cls === "B") {
+    if (c.fixedName) {
+      name = c.fixedName;
+    } else if (c.cls === "B") {
       name = bowlNameFor(c.dishName, c.mealName, null, 0, false, false, "vegetables");
       // Two vegetable containers for one dish go into the pot at two different
       // moments (the soup's onion with the chicken, its carrots and celery 20
@@ -973,6 +1117,7 @@ export function buildStepPlan(
   /** The mixture noun a container carries, for the closing verb (2f). */
   const nounByBowl = new Map<string, string | null>();
   for (const c of containers.values()) nounByBowl.set(c.name, c.noun);
+  for (const [key, s] of specialSpec) specialKindByName.set(containers.get(key)!.name, s.kind);
 
   /** `${dishId}|${ingredientId}` → the container it is a member of. */
   const containerOf = new Map<string, Container>();
@@ -1065,6 +1210,49 @@ export function buildStepPlan(
         }
       }
     }
+  }
+
+  // ── H7.1 2a / 2b — WHAT THE OVERLAY NEEDS TO SAY "NOW" OR "ON COOK DAY" ───────
+  //
+  // Whether a cold mixture's dressing goes in at prep, and whether the chicken joins
+  // its marinade at prep, both depend on the COOK DAY — so neither may move a
+  // container or a word of the cached prose (D-WS9-298). The plan records the facts;
+  // `applyStorageOverlay` turns them into a sentence on every read.
+  const containerExtras = new Map<string, ContainerExtra>();
+  const proteinJoin = new Map<string, MarinadeJoin & { bowl: string }>();
+  for (const c of containers.values()) {
+    if (specialKindByName.get(c.name) !== "cold") continue;
+    const partners = [...containers.values()]
+      .filter((o) => o.dishId === c.dishId && o.cls === "A" && specialKindByName.get(o.name) !== "chiles")
+      .map((o) => o.name);
+    for (const [k, p] of portions) {
+      if (p.dishId === c.dishId && p.cls === "A" && p.entry.phase === "produce" && tubLabel.has(k)) {
+        partners.push(tubLabel.get(k)!);
+      }
+    }
+    if (partners.length > 0) containerExtras.set(c.name, { combineWith: dedupe(partners) });
+  }
+  for (const c of containers.values()) {
+    if (c.cls !== "A") continue;
+    const isMarinade = c.noun === "marinade" || /\bmarinade\b/i.test(c.name) || (c.noun !== null && mustSit(c.noun));
+    if (!isMarinade) continue;
+    const texts = stepTextByDishId.get(c.dishId) ?? [];
+    const marinates = texts.some((t) => MARINATES.test(t));
+    const memberNames = [...c.members.values()].map((p) => p.entry.ingredientName).join(" ");
+    const acidic = ACIDIC.test(memberNames);
+    const joins: (MarinadeJoin & { protein: string })[] = [];
+    for (const [k, p] of portions) {
+      if (p.dishId !== c.dishId || p.cls !== "C") continue;
+      const name = p.entry.ingredientName;
+      const named =
+        cookDayByDishIngredient.get(k) === c.name ||
+        texts.some((t) => t.split(/[.;]/).some((s) => /\bmarinade|\bmarinat/i.test(s) && proseNames(s, name)));
+      if (!named) continue;
+      const j = { marinates, seafood: SEAFOOD.test(name), acidic };
+      joins.push({ protein: name, ...j });
+      proteinJoin.set(k, { bowl: c.name, ...j });
+    }
+    if (joins.length > 0) containerExtras.set(c.name, { ...(containerExtras.get(c.name) ?? {}), joins });
   }
 
   for (const phase of result.phases) {
@@ -1229,32 +1417,20 @@ export function buildStepPlan(
 
     // ── D-WS9-296 ruling 1 — the raw proteins that JOIN a bowl on cook day ──
     if (key === "proteins") {
-      for (const entry of entries) {
-        for (const dishId of new Set(dishIdsOf(entry))) {
-          const bowl = cookDayByDishIngredient.get(`${dishId}|${entry.ingredientId}`);
-          if (!bowl) continue;
-          const mine = componentsForDish(entry, dishId);
-          const amount = mine[0]?.measures[0]?.amount ?? "";
-          pushStep({
-            stepKey: `cd#${dishId}#${entry.ingredientId}`,
-            ingredientId: entry.ingredientId,
-            contributesToMealIds: dedupe(
-              entry.lines.flatMap((l) =>
-                l.contributions.filter((c) => c.dishId === dishId).map((c) => c.mealId),
-              ),
-            ),
-            isBlend: false,
-            components: mine,
-            relevantDishes: relevantDishesFor([dishId]),
-            cookDaySentence: `On cook day: ${amount} ${entry.ingredientName} into the ${bowl} (a zip-top bag works).`,
-          });
-          claimed.add(`${dishId}|${entry.ingredientId}`);
-        }
-      }
+      // 🔴 H7.1 2b — NO MORE COOK-DAY LINE IN PLACE OF THE PROTEIN. "On cook day: the
+      // steak into the marinade bowl" replaced the steak's own step, so its trimming
+      // vanished. The protein always keeps its knife-work step; WHEN it meets its
+      // marinade is a fact about the cook day, written by the storage overlay from
+      // `marinadeJoin` (here) and the marinade's `joins` (containerExtras).
+      void cookDayByDishIngredient;
       for (const entry of entries) {
         const unclaimed = componentsOfUnclaimed(entry, claimed);
         if (unclaimed.length === 0) continue;
+        const join = dishIdsOf(entry)
+          .map((d) => proteinJoin.get(`${d}|${entry.ingredientId}`))
+          .find((j) => j !== undefined);
         pushStep({
+          ...(join ? { marinadeJoin: join } : {}),
           stepKey: `${key}#${entry.ingredientId}`,
           ingredientId: entry.ingredientId,
           contributesToMealIds: dedupe(
@@ -1499,7 +1675,46 @@ export function buildStepPlan(
     })),
   };
 
-  return { steps, narrationInput };
+  return { steps, narrationInput, containerExtras };
+}
+
+// ── H7.1 vocabulary. Every pattern reads its OWN subject — a step's text for a verb,
+// an ingredient's own name for a food — and the exclusions are written down. ──────
+
+/** A step that mixes things cold. */
+const COLD_COMBINE = /\b(combine|mix|toss|stir together|fold)\b/i;
+/** …and a step that has heat in it is not cold. */
+const HEAT_TEXT =
+  /\b(saut[ée]\w*|cook\w*|simmer\w*|bake\w*|roast\w*|broil\w*|grill\w*|fry|fried|boil\w*|heat\w*|sear\w*|toast\w*|melt\w*)\b/i;
+/** Leafy greens, on the ingredient's own name: they wilt against wet vegetables. */
+const LEAFY = /\b(lettuce|romaine|iceberg|cabbage|spinach|arugula|kale|mesclun|greens|radicchio|endive|chard|frisée|watercress)\b/i;
+/** Whole dried chiles — not chili POWDER, not FLAKES (Pantry rows on their own names). */
+const DRIED_CHILE =
+  /\b(?:dried\s+(?:\w+\s+)?chil(?:e|es|i|is|ies)|(?:ancho|guajillo|chipotle|pasilla|mulato|cascabel|arbol|árbol)\s+chil(?:e|es|i|is|ies))\b(?!\s+(?:powder|flakes))/i;
+/** Fresh herbs, for naming a dish's unplaced aromatics "herbs" rather than "aromatics". */
+const FRESH_HERB = /\b(parsley|cilantro|basil|mint|dill|thyme|rosemary|sage|chives|tarragon|oregano)\b/i;
+/** The recipe marinates: a stated soak, or overnight. */
+const MARINATES = /\b(marinat\w*|overnight|refrigerate for at least|let (?:it )?sit for)\b/i;
+/** An acidic marinade member. */
+const ACIDIC = /\b(juice|vinegar|lemon|lime|orange|wine|yogurt|buttermilk)\b/i;
+/** Seafood, on the protein's own name (prepStorage's raw-fish vocabulary). */
+const SEAFOOD = /\b(salmon|cod|halibut|tilapia|tuna|snapper|trout|bass|shrimp|prawns?|scallops?|fish|fillets?|mahi|catfish|flounder|mussels|clams)\b/i;
+
+/** H7.1 2b — one protein that belongs with a marinade, and the facts that decide when. */
+export interface MarinadeJoin {
+  /** The recipe tells the cook to marinate (a stated soak, or overnight). */
+  marinates: boolean;
+  seafood: boolean;
+  /** The marinade holds an acid (citrus, vinegar, wine, yogurt). */
+  acidic: boolean;
+}
+
+/** H7.1 — what a container's close must say beyond how it keeps. */
+export interface ContainerExtra {
+  /** 2a — a cold mixture's dressing/acid containers, combined now or on cook day. */
+  combineWith?: string[];
+  /** 2b — the proteins that join this marinade. */
+  joins?: (MarinadeJoin & { protein: string })[];
 }
 
 /** "a", "a and b", "a, b and c" — for the opening clause. */
@@ -1601,6 +1816,9 @@ export interface StorageClose {
    * the step IS the container), so the line needs no name in front of it.
    */
   own: boolean;
+  /** H7.1 — see ContainerExtra. */
+  combineWith?: string[];
+  joins?: (MarinadeJoin & { protein: string })[];
 }
 
 /**
@@ -1610,7 +1828,11 @@ export interface StorageClose {
  * the carrots step closing the slow cooker's vegetables writes the note for onion,
  * celery, carrots and garlic, and says which container it means.
  */
-export function storageClosesByStepKey(steps: readonly PlannedStep[]): Map<string, StorageClose[]> {
+export function storageClosesByStepKey(
+  steps: readonly PlannedStep[],
+  /** H7.1 — `StepPlan.containerExtras`; absent means nothing beyond the storage line. */
+  extras: ReadonlyMap<string, ContainerExtra> = new Map(),
+): Map<string, StorageClose[]> {
   const members = new Map<string, { names: Set<string>; notes: string[] }>();
   for (const st of steps) {
     if (st.demoted || st.cookDaySentence || st.holdsNoContainer) continue;
@@ -1639,6 +1861,7 @@ export function storageClosesByStepKey(steps: readonly PlannedStep[]): Map<strin
           ingredientNames,
           text: [...ingredientNames, ...m.notes].join(" "),
           own: st.bowlName === name || ingredientNames.every((x) => mine.has(x)),
+          ...(extras.get(name) ?? {}),
         };
       }),
     );
