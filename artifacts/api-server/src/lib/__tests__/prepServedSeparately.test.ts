@@ -304,12 +304,13 @@ describe("H5.2 — a finished step ends in the fridge, not 'set aside'", () => {
     const sent = new Map(
       sp.narrationInput.steps.map((x) => [x.stepId, (x as { setAsideFor?: string }).setAsideFor]),
     );
-    // 🔴 H6.1-C MOVED THIS ONE, and the new answer is the better one: the garlic is
-    // portioned INTO the marinade bowl, which is opened again in the sauces phase, so
-    // the garlic step is part of the handoff and says so. The storage line belongs to
-    // whichever step closes the bowl, and that is not this one.
-    assert.equal(sent.get(garlic.stepId), "sauces and marinades");
-    assert.equal(garlic.suppressStorage, true, "a step feeding a later bowl kept a storage line");
+    // 🔴 AND H6.2 ITEM 5 MOVED IT BACK, which is where it started. H6.1 had the garlic
+    // step announcing "Set aside for the sauces and marinades step" — a sentence about
+    // the MARINADE, on a step that pours into six different containers. A handoff is
+    // something a container does; a step that fills other people's bowls says nothing
+    // at the end, and the marinade's own step speaks for the marinade.
+    assert.equal(sent.get(garlic.stepId), undefined);
+    assert.equal(garlic.suppressStorage, true, "a step feeding other bowls kept a storage line");
 
     // The step that DOES close the marinade carries it.
     const last = sp.steps.find((x) => x.phase === "sauces_marinades" && x.containerId)!;

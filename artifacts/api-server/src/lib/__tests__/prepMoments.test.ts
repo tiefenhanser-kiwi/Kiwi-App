@@ -135,17 +135,22 @@ describe("D-WS9-301 rule 1 — a moment is closed by heat", () => {
     // H6.1-B — every portion names a container now, so "no destination" is no longer
     // the test. What must be true is that the destination is NOT the spice blend:
     // the onion goes into a tub of its own, named for its dish and its cut.
+    // H6.2 item 1 — the taco's onion is this dish's ONLY unclaimed portion, so it gets
+    // no tub of its own: one portion is not a container. What still must hold, and is
+    // the whole point of Hans's example, is that it is not in the SPICE BLEND.
     for (const c of onionStep.components) {
       for (const v of c.measures) {
-        assert.ok(v.destination, "the diced onion still says nothing about where it goes");
-        assert.doesNotMatch(
-          v.destination!,
-          /seasoning|spice blend|rub\b/i,
-          "the diced onion is portioned into a shelf-stable dry container",
-        );
-        assert.notEqual(v.destination, spiceStep.bowlName);
+        assert.notEqual(v.destination, spiceStep.bowlName, "the onion is in the spice blend");
+        if (v.destination) {
+          assert.doesNotMatch(
+            v.destination,
+            /seasoning|spice blend|rub\b/i,
+            "the diced onion is portioned into a shelf-stable dry container",
+          );
+        }
       }
     }
+    assert.notEqual(onionStep.stepId, spiceStep.stepId);
     // The spices are ONE container, and it is named.
     assert.equal(spiceStep.components.length, 3);
     assert.ok(spiceStep.bowlName, "the spice blend has no name");

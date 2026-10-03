@@ -258,8 +258,8 @@ export interface PrepStepRecord {
    */
   holdsNoContainer: boolean;
   containerId: string | null;
-  /** H4 — knife work whose every portion has a destination: no bowl of its own. */
-  feedsContainersOnly: boolean;
+  /** H6.1-B — the vessels this step fills, by name. The header counts their union. */
+  containerNames: string[];
 }
 
 export interface PlanRecord {
@@ -448,7 +448,7 @@ async function runPlan(planId: string): Promise<PlanRecord> {
               ),
               holdsNoContainer: s.holdsNoContainer === true,
               containerId: s.containerId ?? null,
-              feedsContainersOnly: s.feedsContainersOnly === true,
+              containerNames: s.containerNames ?? [],
             });
           }
         }
@@ -627,25 +627,25 @@ function renderText(rec: PlanRecord): string {
     // corpus prints a count and no way to tell a real rise from a re-sort.
     {
       const live = rec.prep.steps.filter((x) => !x.skipSuggested);
-      const byContainer = new Map<string, number>();
-      let standalone = 0;
-      let feeders = 0;
-      for (const x of live) {
-        if (x.holdsNoContainer) continue;
-        if (x.containerId) {
-          byContainer.set(x.containerId, (byContainer.get(x.containerId) ?? 0) + 1);
-          continue;
+      // H6.2 — MIRROR summarizePrepWeek EXACTLY: distinct container NAMES plus the
+      // steps that name none (each its own container). The earlier version counted
+      // every nameless step as "ingredient" and reported 27 where the header said 20 —
+      // the harness-renders-less-than-the-product lesson, fifth time this pass.
+      const names = new Set<string>();
+      let unnamed = 0;
+      let twoStep = 0;
+      {
+        const perName = new Map<string, number>();
+        for (const x of live) {
+          if (x.holdsNoContainer) continue;
+          const here = x.containerNames ?? [];
+          if (here.length === 0) { unnamed += 1; continue; }
+          for (const n of here) { names.add(n); perName.set(n, (perName.get(n) ?? 0) + 1); }
         }
-        if (x.feedsContainersOnly) {
-          feeders += 1;
-          continue;
-        }
-        standalone += 1;
+        twoStep = [...perName.values()].filter((n) => n > 1).length;
       }
-      const twoStep = [...byContainer.values()].filter((n) => n > 1).length;
       L.push(
-        `  CONTAINERS: ${byContainer.size} named (${twoStep} worked in two steps) + ${standalone} ingredient = ${byContainer.size + standalone}` +
-          `  ·  ${feeders} step(s) fill other containers and add none`,
+        `  CONTAINERS: ${names.size} named (${twoStep} touched by more than one step) + ${unnamed} own = ${names.size + unnamed}`,
       );
     }
     for (const h of rec.prep.heldForCookDay) L.push(`  HELD: ${h}`);

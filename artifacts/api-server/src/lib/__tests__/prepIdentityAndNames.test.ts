@@ -7,7 +7,12 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import { combinePrep, type PrepCombineInput } from "../prepCombineEngine";
-import { buildStepPlan, countContainers, containerNamesOf } from "../prepWeekAssembly";
+import {
+  buildStepPlan,
+  countContainers,
+  containerNamesOf,
+  isNoWorkPortion,
+} from "../prepWeekAssembly";
 import { ingredientGroupKey, buildRelationIndex } from "../ingredientRelations";
 import { timeStep } from "../prepStepMinutes";
 import { storageClassFor } from "../prepStorage";
@@ -176,6 +181,46 @@ describe("H6.1 ruling 3 — the order of authority over a moment", () => {
 
 // ── ruling 5 / H6.1-B ───────────────────────────────────────────────────────
 
+describe("H6.2 item 4 — whole-protein knife work always reaches phase 4", () => {
+  /** One cook sentence names the thighs AND the aromatics, as the slow cooker's does. */
+  const sharedSentence = (): PrepCombineInput => ({
+    meals: [
+      {
+        mealId: MEAL_A,
+        mealName: "Slow-Cooker Night",
+        dishes: [
+          {
+            dishId: "d1",
+            dishName: "Slow-Cooker Chicken",
+            dishRole: "main",
+            ingredients: [
+              { ingredientId: "thighs", ingredientName: "boneless skinless chicken thighs", category: "Protein", quantity: 1.75, unit: "pound", preparationNote: "trimmed of excess fat", momentKey: "s:1" },
+              { ingredientId: "onion", ingredientName: "yellow onion", category: "Produce", quantity: 1, unit: "each", preparationNote: "diced", momentKey: "s:1" },
+              { ingredientId: "celery", ingredientName: "celery stalks", category: "Produce", quantity: 3, unit: "each", preparationNote: "sliced", momentKey: "s:1" },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+  it("🔴 a protein sharing a moment with its aromatics keeps its own trim step", () => {
+    // "Place the trimmed 1¾ lb chicken thighs in the slow cooker and scatter the onion,
+    // celery, carrots, and garlic over and around the chicken." One sentence, so after
+    // H6.1 they shared a moment — and H4 had left protein members CLAIMED while the
+    // emission skipped container steps in the proteins phase, so "trim the thighs"
+    // vanished from the plan. A regression of rule 4 and rule 12; raw flesh has a
+    // destination, not a seat.
+    const sp = buildStepPlan(combinePrep(sharedSentence()), "Test Plan");
+    const thighs = sp.steps.find((s) =>
+      s.components.some((c) => /thighs/i.test(c.ingredientName)),
+    );
+    assert.ok(thighs, "the thighs have no step at all");
+    assert.equal(thighs!.phase, "proteins", "whole-protein knife work left the proteins phase");
+    assert.equal(thighs!.demoted, undefined);
+  });
+});
+
 describe("H6.1-B — every portion names a container", () => {
   const shared = (): PrepCombineInput => ({
     meals: [
@@ -191,15 +236,22 @@ describe("H6.1-B — every portion names a container", () => {
     ],
   });
 
-  it("🔴 no portion line is left without a container name", () => {
+  it("🔴 a portion that goes into a SHARED container always names it", () => {
+    // H6.2 item 1 narrowed H6.1-B. A portion still never says "set aside" — but a
+    // SINGLE lone portion gets no tub of its own, because one portion is not a
+    // container; it IS its own, which is what a missing destination has always meant
+    // ("dice the onion — into the onion container" is the noise rule 11 avoids).
+    // What must never happen is a portion sharing a vessel without saying which.
     const sp = buildStepPlan(combinePrep(shared()), "Test Plan");
     for (const s of sp.steps) {
       if (s.demoted || s.holdsNoContainer || s.phase === "proteins") continue;
       for (const c of s.components) {
+        const dishes = new Set(c.measures.map((m) => m.forDish));
+        if (dishes.size < 2) continue; // its own container, no pointer needed
         for (const m of c.measures) {
           assert.ok(
             m.destination,
-            `"${c.ingredientName}" for ${m.forDish} says nothing about where it goes`,
+            `"${c.ingredientName}" for ${m.forDish} is shared and says nothing about where it goes`,
           );
         }
       }
@@ -222,24 +274,138 @@ describe("H6.1-B — every portion names a container", () => {
     const t = sp.steps.find((s) => s.components.some((c) => c.ingredientName === "fresh tomatillos"))!;
     // The label takes the CUT from the note — "halved". "Husked" is not a cut and is
     // deliberately not in the vocabulary; the label names the vessel, not the recipe.
-    assert.equal(t.components[0].measures[0].destination, "Tomatillo Sauce — halved fresh tomatillos");
+    // 🔴 H6.2 item 1 — ONE PORTION IS NOT A CONTAINER. The tomatillo sauce has a
+    // single unclaimed portion in this fixture, so it gets no tub: "Tomatillo Sauce —
+    // halved fresh tomatillos" was a label on a bowl that exists to hold one thing,
+    // which is the shape Hans struck ("3 cloves (unpeeled) — into a tub labelled …").
+    // Two or more and they share one bowl, which the next test pins.
+    assert.equal(t.components[0].measures[0].destination, undefined);
+  });
+
+  /** Two unclaimed portions of ONE dish, at the same kind of work. */
+  const twoLonePortions = (): PrepCombineInput => ({
+    meals: [
+      {
+        mealId: MEAL_A,
+        mealName: "Mexican Week",
+        dishes: [
+          {
+            dishId: "d3",
+            dishName: "Tomatillo Sauce",
+            dishRole: "sauce",
+            ingredients: [
+              { ingredientId: "tomatillo", ingredientName: "fresh tomatillos", category: "Produce", quantity: 4, unit: "each", preparationNote: "husked and halved" },
+              { ingredientId: "poblano", ingredientName: "poblano pepper", category: "Produce", quantity: 1, unit: "each", preparationNote: "halved and seeded" },
+            ],
+          },
+        ],
+      },
+    ],
   });
 
   it("🔴 the counter counts VESSELS BY NAME — one container, however many steps fill it", () => {
     const sp = buildStepPlan(combinePrep(shared()), "Test Plan");
     // Two ingredient steps, two tubs, and the wash step holds nothing.
-    assert.deepEqual(
-      [...new Set(sp.steps.filter((s) => !s.demoted && !s.holdsNoContainer).flatMap(containerNamesOf))].length,
-      countContainers(sp.steps),
-    );
+    // The count is the distinct NAMES plus the steps that name nothing — which after
+    // H6.2 includes a dish's single lone portion, its own container by construction.
+    const named = new Set(
+      sp.steps.filter((s) => !s.demoted && !s.holdsNoContainer).flatMap(containerNamesOf),
+    ).size;
+    const unnamed = sp.steps.filter(
+      (s) => !s.demoted && !s.holdsNoContainer && containerNamesOf(s).length === 0,
+    ).length;
+    assert.equal(named + unnamed, countContainers(sp.steps));
     // 🔴 AND IT IS NOT ZERO. The predicate this replaced asked "does this step put a
     // bowl out of its own?", which became false for every ingredient step once rule
     // 11 named every destination — and the count collapsed to the mixtures alone.
     assert.ok(countContainers(sp.steps) >= 2, "every container vanished from the count");
+    // 🔴 AND A CONTAINER THIS STEP ONLY FILLS IS STILL COUNTED. The shared onion tub
+    // belongs to no step of its own; a counter reading only a step's OWN vessel would
+    // drop it, which is how the count collapsed to the authored mixtures alone.
+    const onionStep2 = sp.steps.find((s) =>
+      s.components.some((c) => c.ingredientName === "white onion"),
+    )!;
+    const tub = onionStep2.components[0].measures[0].destination;
+    assert.ok(tub, "the shared onion lost its tub");
+    const counted = new Set(
+      sp.steps.filter((s) => !s.demoted && !s.holdsNoContainer).flatMap(containerNamesOf),
+    );
+    assert.ok(counted.has(tub!), "a container the step only FILLS is missing from the count");
+  });
+
+  it("🔴 …and two or more lone portions of ONE dish share ONE bowl", () => {
+    // Hans's own example: "Roasted Tomatillo Sauce roasting tray: tomatillos, poblano,
+    // jalapeño, onion wedges" — not one tub per ingredient. On his plan the literal
+    // reading of rule 11(c) had produced 17 single-member containers out of 28.
+    const sp = buildStepPlan(combinePrep(twoLonePortions()), "Test Plan");
+    const dests = new Set(
+      sp.steps
+        .filter((s) => !s.demoted && s.phase === "produce" && !s.holdsNoContainer)
+        .flatMap((s) => s.components.flatMap((c) => c.measures.map((m) => m.destination)))
+        .filter((d): d is string => typeof d === "string"),
+    );
+    assert.equal(dests.size, 1, `expected one bowl, got ${[...dests].join(" | ")}`);
+    assert.match([...dests][0], /^Tomatillo Sauce prep bowl$/);
+  });
+});
+
+describe("H6.2 item 2 — a portion that needs no action is not prep", () => {
+  it("🔴 whole, unpeeled, left whole: no line and no container", () => {
+    for (const note of ["unpeeled", "left whole", "whole", "skin-on", "left whole, unpeeled"]) {
+      assert.equal(isNoWorkPortion(note), true, `"${note}" should not be prep`);
+    }
+    // 🔴 AND A ROW WITH NO NOTE IS A DIFFERENT CASE — whole produce the narrator still
+    // judges (D-WS9-299 tier 4). It must not be swept up here.
+    assert.equal(isNoWorkPortion(null), false);
+    assert.equal(isNoWorkPortion(""), false);
+    for (const note of ["minced", "halved", "husked and halved", "zested and juiced"]) {
+      assert.equal(isNoWorkPortion(note), false, `"${note}" is work`);
+    }
+  });
+
+  it("🔴 the tomatillo sauce's 3 unpeeled cloves get no tub", () => {
+    // The line Hans struck: "3 cloves (unpeeled) — into a tub labelled 'Roasted
+    // Tomatillo Sauce — garlic'". The recipe roasts them whole; they stay in the bag.
+    const sp = buildStepPlan(combinePrep(unpeeledGarlic()), "Test Plan");
+    const live = sp.steps.filter((s) => !s.demoted && !s.holdsNoContainer);
+    const dests = live.flatMap((s) =>
+      s.components.flatMap((c) => c.measures.map((m) => m.destination)),
+    );
+    void dests;
+    // 🔴 THE PORTION IS GONE, not merely unlabelled. Asserting that no tub is NAMED for
+    // garlic missed the break: with the guard off the cloves simply joined the dish's
+    // prep bowl, whose name says nothing about garlic.
+    const garlicLines = live.flatMap((s) =>
+      s.components
+        .filter((c) => /garlic/i.test(c.ingredientName))
+        .flatMap((c) => c.measures.map((m) => m.amount)),
+    );
+    assert.deepEqual(garlicLines, [], "the 3 unpeeled cloves are still a line on the plan");
   });
 });
 
 // ── ruling 4 / H6.1-C ───────────────────────────────────────────────────────
+
+const unpeeledGarlic = (): PrepCombineInput => ({
+  meals: [
+    {
+      mealId: MEAL_A,
+      mealName: "Mexican Week",
+      dishes: [
+        {
+          dishId: "d1",
+          dishName: "Roasted Tomatillo Sauce",
+          dishRole: "sauce",
+          ingredients: [
+            { ingredientId: "tomatillo", ingredientName: "fresh tomatillos", category: "Produce", quantity: 4, unit: "each", preparationNote: "husked and halved" },
+            { ingredientId: "poblano", ingredientName: "poblano pepper", category: "Produce", quantity: 1, unit: "each", preparationNote: "halved and seeded" },
+            { ingredientId: GARLIC_A, ingredientName: "garlic", category: "Produce", quantity: 3, unit: "clove", preparationNote: "unpeeled" },
+          ],
+        },
+      ],
+    },
+  ],
+});
 
 describe("H6.1-C — the storage line fits the container", () => {
   it("🔴 a flour-and-leavener container is shelf stable", () => {
