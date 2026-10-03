@@ -42,7 +42,7 @@ const BUDGET = Number(process.argv[3] ?? 2.2);
 const OUT = path.resolve(import.meta.dirname, "out");
 fs.mkdirSync(OUT, { recursive: true });
 const RATES: Record<string, [number, number]> = { "claude-sonnet-4-6": [3, 15], "claude-sonnet-5-5": [2, 10] };
-const MODELS = ["claude-sonnet-4-6", "claude-sonnet-5-5"];
+const MODELS = (process.env.P8_MODELS ?? "claude-sonnet-4-6,claude-sonnet-5-5").split(",");
 const GEN_USER = "76f9d078-830e-45ef-beb3-11474dae716e"; // as p2-compare — READ only
 
 const PREF_SETS: Record<string, Record<string, unknown>> = {
@@ -149,7 +149,7 @@ async function main() {
           }),
         };
         rows.push(row);
-        fs.appendFileSync(path.join(OUT, "p8-adherence.jsonl"), JSON.stringify(row) + "\n");
+        fs.appendFileSync(path.join(OUT, process.env.P8_OUT ?? "p8-adherence.jsonl"), JSON.stringify(row) + "\n");
         console.error(`${set} ${model} #${run} ${row.success ? "ok" : `FAIL ${row.reason}`} cands=${row.candidates} playlist=${row.perCandidate.map((p) => p.playlist).join("/")} overCap=${row.perCandidate.map((p) => p.overCap).join("/")} live=${row.perCandidate.map((p) => p.liveSlots).join("/")} [$${spent.toFixed(3)}]`);
       }));
     }

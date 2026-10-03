@@ -134,20 +134,22 @@ describe("Block 2 — the Playlist dial names marked shelf rows in both generate
   it("both generate bodies read the count and the shelf mark", () => {
     for (const [key, body] of GENERATE_BODIES) {
       assert.ok(
-        body.includes("Playlist — `preferencesContext.playlistMealsPerWeek` (an integer, 0 or more)"),
+        body.includes("Playlist — `preferencesContext.playlistMealsPerWeek` (N, an integer, 0 or more)"),
         `${key}: playlist paragraph missing`,
       );
+      // Part J.1 0b — the adopted wording: EVERY plan, min(N, marked), repeats across
+      // plans allowed, never twice in one. 5.5 kept the count in plan 1 only.
       assert.ok(
-        body.includes("the `storeShortlist` entries marked `\"isPlaylist\": true`"),
-        `${key}: the shelf mark is not named`,
+        body.includes("EVERY plan you return carries exactly min(N, number of `storeShortlist` entries marked `\"isPlaylist\": true`)"),
+        `${key}: the per-plan count and the shelf mark are not named`,
       );
       assert.ok(
-        body.includes("Pick the N that fit the plan best"),
-        `${key}: pick-the-N instruction missing`,
+        body.includes("the same playlist meal may appear in more than one plan"),
+        `${key}: repeats across plans are not allowed explicitly`,
       );
       assert.ok(
-        body.includes("if fewer than N are marked, use every marked one"),
-        `${key}: the short-playlist case is unstated`,
+        body.includes("Never place one playlist meal twice within one plan"),
+        `${key}: the within-plan duplicate rule is unstated`,
       );
       assert.ok(
         body.includes("A playlist meal is never a discovery meal"),

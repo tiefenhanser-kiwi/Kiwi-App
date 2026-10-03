@@ -20,11 +20,13 @@ import type { AICallMode } from "./modes";
 export const MODEL_SONNET = "claude-sonnet-4-6";
 export const MODEL_HAIKU = "claude-haiku-4-5-20251001";
 // Part J.0 (D2) — Hans ruled "switch" on the compare lane's recommendation
-// (scripts/_scratch/sonnet55/p5-out.md), for prep.narrate_steps and
-// wizard.set_preferences.generate ONLY. Its request shape (no temperature,
+// (scripts/_scratch/sonnet55/p5-out.md). Its request shape (no temperature,
 // tool_choice auto, thinking off) is modelShape.ts's, keyed on this string.
-// The other Sonnet keys stay on 4.6: no gain measured, or a temperature pin
-// 5.5 cannot take.
+// Part J.1 (0a) — only prep.narrate_steps runs on it. Plan generation went back
+// to 4.6: on the J.0 D3 check 5.5 kept the playlist rule in 8/30 and 10/30
+// candidates against 12/30 and 26/30, and wrote 57 of 150 meals from scratch
+// against 17 (D-WS9-238, catalog first). Switch what measured better, hold what
+// measured worse. The other Sonnet keys stay on 4.6 for the J.0 reasons.
 export const MODEL_SONNET_55 = "claude-sonnet-5-5";
 
 export interface PromptDescriptor {
@@ -53,7 +55,7 @@ const REGISTRY: ReadonlyMap<string, PromptDescriptor> = new Map([
     "wizard.set_preferences.generate",
     {
       body: placeholder("wizard.set_preferences.generate"),
-      defaultModel: MODEL_SONNET_55,
+      defaultModel: MODEL_SONNET,
       defaultMode: "tool",
       toolDescription:
         "Generate up to 3 distinct meal-plan candidates from the user's wizard preferences.",

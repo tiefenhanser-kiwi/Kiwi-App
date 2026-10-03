@@ -351,7 +351,7 @@ For the meals YOU choose to fill gaps, lean on the user's preferred cuisines if 
 
 Discovery — \`preferencesContext.discoveryMealsPerWeek\` (an integer, 0 or more): when it is above 0, that many of the meals YOU choose to fill gaps must be meals this user has NOT been served before — not in \`recentRotation\`, and not a dish family they have already had — while still inside their stated cuisines and preferences. A discovery meal is a NEW DISH this user would already like: never a random pick, never one outside their preferences, never one outside their cuisine steer when they gave one. This is a hard count and a priority claim on the gap-fill slots, not slack-dependent. It applies ONLY to AI-chosen gap-fill meals and NEVER overrides an explicitly-named meal (a named meal is locked regardless). When gap-fill slots are scarce, fill them in this order: (1) the discovery count first, (2) one meal per preferred cuisine, (3) then double up on preferred cuisines. If the user gave no cuisine steer, discovery still applies — choose the new-to-them dishes from the varied-palette default.
 
-Playlist — \`preferencesContext.playlistMealsPerWeek\` (an integer, 0 or more): when it is above 0, that many of the meals YOU choose to fill gaps must be the user's PLAYLIST meals — the \`storeShortlist\` entries marked \`"isPlaylist": true\`, their own declared go-to dinners. Pick the N that fit the plan best and place each as a shelf slot exactly as any other shelf meal (its exact \`title\` in \`mealTitles\`, its \`id\` in \`storeSlots\`); if fewer than N are marked, use every marked one. A playlist meal is never a discovery meal (the two counts claim different slots), and it never overrides an explicitly-named meal. Hard constraints still bind it exactly as they bind every shelf meal.
+Playlist — \`preferencesContext.playlistMealsPerWeek\` (N, an integer, 0 or more): when N is above 0, EVERY plan you return carries exactly min(N, number of \`storeShortlist\` entries marked \`"isPlaylist": true\`) of the user's PLAYLIST meals — their own declared go-to dinners — among the meals YOU choose to fill gaps. Every plan, not only the first: the same playlist meal may appear in more than one plan, which is expected and is not the repetition the distinctness rule forbids. Never place one playlist meal twice within one plan. Place each as a shelf slot exactly as any other shelf meal (its exact \`title\` in \`mealTitles\`, its \`id\` in \`storeSlots\`), choosing the ones that fit the plan best. Before you finish, count the playlist entries in each plan's \`storeSlots\`. A playlist meal is never a discovery meal (the two counts claim different slots), and it never overrides an explicitly-named meal. Hard constraints still bind it exactly as they bind every shelf meal.
 
 # Tone of titles + bullets
 
@@ -957,7 +957,7 @@ If the user supplied \`cuisines\`, weight meals toward those cuisines. Aim for s
 
 Discovery — \`preferencesContext.discoveryMealsPerWeek\` (an integer, 0 or more): when it is above 0, exactly that many dinners in each plan must be meals this user has NOT been served before — not in \`recentRotation\`, and not a dish family they have already had — while still inside their stated cuisines and preferences. A discovery meal is a NEW DISH this user would already like: never a random pick, never one outside their preferences, and when \`cuisines\` is non-empty never one outside those cuisines. This is a hard count and a priority claim on slots, not slack-dependent: honor it even when slots are scarce. When there aren't enough dinners to do everything, fill slots in this priority order — (1) the discovery count first, (2) then one meal per preferred cuisine, (3) then use any remaining slots to double up on the preferred cuisines. Examples: 2 cuisines + 4 dinners + discovery 1 → cuisine A, cuisine B, cuisine B, plus one dinner from cuisine A or B that is new to this user; 3 cuisines + 3 dinners + discovery 1 → 2 familiar dinners from the cuisines + 1 new-to-them dinner from one of the same cuisines (discovery wins over covering every preferred cuisine). If \`cuisines\` is empty, discovery still applies — choose the new-to-them dishes from the varied-palette default.
 
-Playlist — \`preferencesContext.playlistMealsPerWeek\` (an integer, 0 or more): when it is above 0, exactly that many dinners in each plan must be the user's PLAYLIST meals — the \`storeShortlist\` entries marked \`"isPlaylist": true\`, their own declared go-to dinners. Pick the N that fit the plan best and place each as a shelf slot exactly as any other shelf meal (its exact \`title\` in \`mealTitles\`, its \`id\` in \`storeSlots\`); if fewer than N are marked, use every marked one. A playlist meal is never a discovery meal (the two counts claim different slots). Hard constraints still bind it exactly as they bind every shelf meal.
+Playlist — \`preferencesContext.playlistMealsPerWeek\` (N, an integer, 0 or more): when N is above 0, EVERY plan you return carries exactly min(N, number of \`storeShortlist\` entries marked \`"isPlaylist": true\`) of the user's PLAYLIST meals — their own declared go-to dinners. Every plan, not only the first: the same playlist meal may appear in more than one plan, which is expected and is not the repetition the distinctness rule forbids. Never place one playlist meal twice within one plan. Place each as a shelf slot exactly as any other shelf meal (its exact \`title\` in \`mealTitles\`, its \`id\` in \`storeSlots\`), choosing the ones that fit the plan best. Before you finish, count the playlist entries in each plan's \`storeSlots\`. A playlist meal is never a discovery meal (the two counts claim different slots). Hard constraints still bind it exactly as they bind every shelf meal.
 
 Across the candidates (when more than one), keep them distinct: if the user listed three cuisines, ideally each candidate emphasizes a different one (when distinct candidates is the higher priority).
 
@@ -1505,20 +1505,23 @@ A 'planName', a 'dishSteps' map (each dish name → that dish's recipe instructi
 - 'setAsideFor' — present when this step's container is worked AGAIN later in the same session ("produce", "sauces and marinades"). Close the step with exactly that: "Set aside for the produce step." / "Set aside for the sauces and marinades step." The bowl stays out, so do not send it to the fridge and do not write a storage line — the app puts one on the step that finishes the container, not on this one.
 - 'knifeVerbs' — present on a whole-protein step whose recipe names the knife work: ["pound"], ["trim"], ["cube","trim"]. OPEN the step with it, as an instruction: "Pound 4 chicken breasts to even thickness", "Trim 2 lb boneless thighs". A bare ingredient line on a protein step is the defect this replaces — the cook needs the action, not the shopping name.
 - 'cookDaySentence' — present ONLY on a raw-protein step whose protein joins a bowl on cook day. It is already written for you. Echo it VERBATIM as the step's instruction and add nothing to it: it states a fact about the schedule, not a suggestion.
-- 'portionsByApp' — present on a produce step. See "# A step whose portions the app writes".
+- 'portionsByApp' — present on a produce step, and on a protein step that serves more than one dish. See "# A step whose portions the app writes".
 
 # A step whose portions the app writes
 
 🔴 On a step carrying 'portionsByApp', THE APP WRITES EVERY PORTION LINE ITSELF — each amount, each dish, each container and tub label — and prints them directly under your text:
-4 cloves for Beef Enchiladas Verdes — into the tub "Minced garlic — Enchiladas Verdes, Street-Style Rice, Beef Chili"
+4 cloves for Beef Enchiladas Verdes — into the shared minced-garlic tub
 2 cloves for Mexican Street-Style Rice — same tub
 That is why its components arrive with an EMPTY 'measures' list.
 
 Your 'instructions' on such a step is ONE opening sentence and nothing else: the knife work — verb, food, technique. 'portionsByApp' gives you 'food' (name it), 'total' (a finished amount you may state verbatim, never change) and, when the portions take more than one cut, 'cuts'. Read the recipe steps in 'dishSteps' for the verb the recipe uses. Verbatim shapes:
 "Mince 11 cloves of garlic."
-"Work through 3 yellow onions three ways: thinly sliced, finely diced and roughly chopped."
+"Work through 3 yellow onions: thinly sliced, finely diced and roughly chopped."
 "Zest 1 lemon, then juice it and the rest."
 "Trim the stem ends from 12 oz green beans."
+"Trim 3 lb boneless skinless chicken thighs and cut them into 1-inch pieces."
+
+Name the cuts; never COUNT them ("three ways") and never count the dishes. Some portions can be left for cook day on a given week, and the app removes their lines and corrects the total — a count in your sentence would then be wrong.
 
 NEVER write on such a step: a per-dish amount, a dish name, a container, a tub label, "same tub", a list, or a second line. ≤200 characters. The app's lines follow your sentence, so anything you add there is printed twice.
 
@@ -1988,7 +1991,7 @@ const PROMPTS: PromptSeed[] = [
     description:
       "Generate up to 3 distinct meal-plan candidates from the user's wizard preferences, composing from the shared store shelf where it fits.",
     variables: ["wizardInput", "storeShortlist"],
-    defaultModel: MODEL_SONNET_55,
+    defaultModel: MODEL_SONNET,
     defaultMode: "tool",
     body: WIZARD_SET_PREFERENCES_GENERATE_BODY,
   },

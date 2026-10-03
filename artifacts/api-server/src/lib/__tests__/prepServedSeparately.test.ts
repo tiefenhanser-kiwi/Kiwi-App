@@ -119,21 +119,14 @@ describe("H5.1 — toppings are never a mix", () => {
     // Each member is handled on its own, which is the ruling.
     const live = sp.steps.filter((s) => !s.demoted && !s.holdsNoContainer);
     assert.ok(live.length >= 3, "the members lost their steps as well as their jar");
-    // H6.1-B — every portion names a container, so the test is no longer "nothing
-    // named" but "nothing SHARED": each topping goes into a tub of its own, labelled
-    // for its dish, and never into one mixture with the others.
+    // 🔴 Part J.1 (R2) replaces H5.1's one-tub-per-topping: Hans, "garnish and
+    // toppings sit on a small plate in the fridge under plastic wrap". The toppings
+    // are separate piles on ONE plate — still never one MIXTURE (no bowl step, above)
+    // — and the leafy lettuce sits on it too.
     const destinations = new Set(
       live.flatMap((s) => s.components.flatMap((c) => c.measures.map((m) => m.destination))),
     );
-    assert.equal(
-      destinations.size,
-      live.length,
-      `the toppings share a container: ${[...destinations].join(" | ")}`,
-    );
-    for (const d of destinations) {
-      assert.ok(d, "a topping still says nothing about where it goes");
-      assert.match(d!, /Taco Toppings —/, "a topping's tub should be labelled for its dish");
-    }
+    assert.deepEqual([...destinations], ["Taco Toppings plate"]);
   });
 });
 

@@ -70,6 +70,20 @@ import type { PrepLoadedPlan } from "./prepWeekAggregation";
 const FINGERPRINT_ALGO_VERSION = 1;
 
 /**
+ * Part J.1 — THE ENGINE'S VERSION, IN THE GATE. The cached prose names containers
+ * the engine chose ("Fish Tacos pico de gallo bowl", "… dried-chile bag"), and the
+ * gate compared only the composition and the prompt version — so a change to how
+ * the engine NAMES or GROUPS served the old names from every warm cache until the
+ * plan changed (Part I measured the gap; J.1 renamed containers and hit it). Bump
+ * this whenever the narration input changes for the same composition: one
+ * regeneration per plan, the same price as a prompt bump.
+ *   2 — J.1: R2 container names, toppings plates, component raw mixes, protein
+ *       portion steps, dash labels spoken in words.
+ *   3 — J.1: count totals take the count's number ("3 yellow onions").
+ */
+export const PREP_ENGINE_VERSION = 3;
+
+/**
  * Digest of the loaded plan composition — everything the prep payload is built
  * from, and nothing else.
  *
@@ -79,6 +93,6 @@ const FINGERPRINT_ALGO_VERSION = 1;
  */
 export function prepCompositionFingerprint(input: PrepLoadedPlan): string {
   return createHash("sha256")
-    .update(JSON.stringify({ v: FINGERPRINT_ALGO_VERSION, input }))
+    .update(JSON.stringify({ v: FINGERPRINT_ALGO_VERSION, engine: PREP_ENGINE_VERSION, input }))
     .digest("hex");
 }

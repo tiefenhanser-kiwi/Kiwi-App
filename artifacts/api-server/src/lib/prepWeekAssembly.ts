@@ -232,7 +232,7 @@ export interface StepPlan {
    */
   containerExtras?: ReadonlyMap<string, ContainerExtra>;
   /** Part J.0 — see renderPortionLines; assembly re-renders with the real opening. */
-  shortTubRef?: ReadonlyMap<string, string>;
+  labelKinds?: ReadonlyMap<string, LabelKind>;
 }
 
 /**
@@ -882,6 +882,13 @@ export function buildStepPlan(
     );
     if (!v.prep) notPrep.set(k, v.reason);
   }
+  // Part J.1 (R2) — the Tetrazzini "sauce jar" held the spaghetti: a dry pasta is
+  // measured from the box into the pot on cook day, never into a container.
+  for (const [k, p] of portions) {
+    if (p.entry.phase === "seasonings_dry" && DRY_PASTA.test(p.entry.ingredientName) && !/\bsauce\b/i.test(p.entry.ingredientName)) {
+      notPrep.set(k, "ready-to-use");
+    }
+  }
 
   // ── RULE 5, SCOPED TO THE CUT ──────────────────────────────────────────────
   //
@@ -912,43 +919,106 @@ export function buildStepPlan(
   // — that no heat step places. Leafy greens keep their own container (they wilt
   // against wet vegetables), and the dressing, acid and salt stay class A: whether
   // they go in now or on cook day depends on the day, so the storage overlay says it.
+  //
+  // 🔴 Part J.1 (R2) — THE RAW MIX IS KEYED ON THE COMPONENT, NOT THE DISH. Hans,
+  // October 3: "pico stays in the fridge and goes on top." A pico, slaw, salsa or
+  // crema is one mixed bowl whatever the dish around it does with heat, and a
+  // component that has ANY heat step of its own is never one, whatever its combine
+  // step says (the roasted green beans' "toss"). A dish with no component tags is a
+  // raw mix only when none of its own steps has heat.
+  const cookedDishes = new Set<string>();
+  for (const [dishId, texts] of stepTextByDishId) {
+    if (texts.some((t) => HEAT_TEXT.test(t))) cookedDishes.add(dishId);
+  }
   const coldDishes = new Set<string>();
   for (const [dishId, texts] of stepTextByDishId) {
-    if (texts.some((t) => COLD_COMBINE.test(t) && !HEAT_TEXT.test(t))) coldDishes.add(dishId);
+    if (!cookedDishes.has(dishId) && texts.some((t) => COLD_COMBINE.test(t))) coldDishes.add(dishId);
   }
-  /** Portion key → a container formed before the moment grouping (2a, 2c, 2d). */
+  /** Portion key → a container formed before the moment grouping (2a, 2c, 2d, R2). */
   const special = new Map<string, string>();
-  const specialSpec = new Map<string, { cls: "A" | "B"; label: string; members: Portion[]; kind: "cold" | "greens" | "herbs" | "chiles" }>();
+  type SpecialKind = "cold" | "greens" | "herbs" | "chiles" | "plate";
+  const specialSpec = new Map<string, { cls: "A" | "B"; label: string; members: Portion[]; kind: SpecialKind }>();
   const unplaced = (p: Portion) => p.mk === null || /^(?:i|r|c):/.test(p.mk);
+  /** Part J.1 §2 — a dish's citrus whose juice it also takes: zest and juice share one tub. */
+  const citrusWithJuice = (p: Portion) =>
+    CITRUS.test(p.entry.ingredientName) &&
+    !/\bjuice\b/i.test(p.entry.ingredientName) &&
+    [...portions.values()].some(
+      (q) => q !== p && q.dishId === p.dishId && /\bjuice\b/i.test(q.entry.ingredientName) &&
+        foodKeyOf(q.entry.ingredientName, q.entry.sourceYield) === foodKeyOf(p.entry.ingredientName, p.entry.sourceYield),
+    );
+  {
+    /** group key → its members and the bowl's name. */
+    const mixes = new Map<string, { dishId: string; name: string; list: Portion[] }>();
+    for (const [k, p] of portions) {
+      if (notPrep.has(k) || (p.cls !== "B" && p.cls !== "aromatic")) continue;
+      if (p.mk !== null && p.mk.startsWith("s:")) continue; // placed into heat
+      if (citrusWithJuice(p)) continue;
+      let gk: string;
+      let name: string;
+      if (p.component) {
+        if (p.component.heated) continue;
+        gk = `${p.dishId}|c:${p.component.key}`;
+        const noun = p.component.noun;
+        const head = noun && !new RegExp(`\\b${noun.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(p.dishName)
+          ? `${p.dishName} ${noun}`
+          : p.dishName;
+        name = `${head} bowl`;
+      } else {
+        if (isServedSeparately(p.dishName) || !coldDishes.has(p.dishId)) continue;
+        gk = `${p.dishId}|cold`;
+        name = `${p.dishName} bowl`;
+      }
+      const m = mixes.get(gk) ?? { dishId: p.dishId, name, list: [] };
+      m.list.push(p);
+      mixes.set(gk, m);
+    }
+    for (const [gk, { name, list }] of mixes) {
+      const greens = list.filter((p) => LEAFY.test(p.entry.ingredientName));
+      const mix = list.filter((p) => !LEAFY.test(p.entry.ingredientName));
+      if (mix.length >= 2 && mix.some((p) => p.cls === "B")) {
+        const key = `${gk}|cold|B`;
+        specialSpec.set(key, { cls: "B", kind: "cold", members: mix, label: name });
+        for (const p of mix) special.set(`${p.dishId}|${p.entry.ingredientId}`, key);
+        // The greens of a dish that IS a mixture share one container of their own.
+        if (greens.length >= 2) {
+          const gkey = `${gk}|greens|B`;
+          specialSpec.set(gkey, { cls: "B", kind: "greens", members: greens, label: containerLabel(greens[0].dishName, ["greens"]) });
+          for (const p of greens) special.set(`${p.dishId}|${p.entry.ingredientId}`, gkey);
+        }
+      }
+    }
+  }
+  // ── Part J.1 (R2) — ONE TOPPINGS PLATE PER DISH ─────────────────────────────
+  //
+  // Hans: "garnish and toppings sit on a small plate in the fridge under plastic
+  // wrap." A dish's toppings and garnishes — leafy ones included — are separate
+  // piles on ONE covered plate, not a lid each (H5.1's one-container-per-topping,
+  // replaced). A topping is a raw produce portion the dish serves on top: its note
+  // says so, or the dish IS the toppings. Citrus wedges stay cook-day (rule 7).
   {
     const byDish = new Map<string, Portion[]>();
     for (const [k, p] of portions) {
-      if (notPrep.has(k) || isServedSeparately(p.dishName)) continue;
-      if (!coldDishes.has(p.dishId) || (p.cls !== "B" && p.cls !== "aromatic")) continue;
-      if (p.mk !== null && p.mk.startsWith("s:")) continue; // placed into heat
+      if (notPrep.has(k) || special.has(k) || p.entry.phase !== "produce") continue;
+      if (p.cls !== "B" && p.cls !== "aromatic") continue;
+      if (p.mk !== null && p.mk.startsWith("s:")) continue;
+      const notes = p.notes.join(" ");
+      if (/\bwedges?\b/i.test(notes)) continue;
+      if (!isServedSeparately(p.dishName) && !TOPPING_NOTE.test(notes)) continue;
       const l = byDish.get(p.dishId) ?? [];
       l.push(p);
       byDish.set(p.dishId, l);
     }
     for (const [dishId, list] of byDish) {
-      const greens = list.filter((p) => LEAFY.test(p.entry.ingredientName));
-      const mix = list.filter((p) => !LEAFY.test(p.entry.ingredientName));
-      if (mix.length >= 2 && mix.some((p) => p.cls === "B")) {
-        const key = `${dishId}|cold|B`;
-        specialSpec.set(key, {
-          cls: "B",
-          kind: "cold",
-          members: mix,
-          label: containerLabel(mix[0].dishName, [listOf(mix.map((p) => p.entry.ingredientName.toLowerCase()))]),
-        });
-        for (const p of mix) special.set(`${p.dishId}|${p.entry.ingredientId}`, key);
-        // The greens of a dish that IS a mixture share one container of their own.
-        if (greens.length >= 2) {
-          const gkey = `${dishId}|greens|B`;
-          specialSpec.set(gkey, { cls: "B", kind: "greens", members: greens, label: containerLabel(greens[0].dishName, ["greens"]) });
-          for (const p of greens) special.set(`${p.dishId}|${p.entry.ingredientId}`, gkey);
-        }
-      }
+      const key = `${dishId}|plate|B`;
+      const dish = list[0].dishName;
+      specialSpec.set(key, {
+        cls: "B",
+        kind: "plate",
+        members: list,
+        label: /\b(toppings?|garnish(?:es)?|fixin'?s|fixings)\b/i.test(dish) ? `${dish} plate` : `${dish} toppings plate`,
+      });
+      for (const p of list) special.set(`${p.dishId}|${p.entry.ingredientId}`, key);
     }
   }
   // ── H7.1 2d — DRIED CHILES ARE NOT GROUND SPICES ─────────────────────────────
@@ -966,12 +1036,14 @@ export function buildStepPlan(
     }
     for (const [dishId, list] of byDish) {
       const key = `${dishId}|chiles|A`;
-      const worked = list.some((p) => /\b(stemmed|seeded)\b/i.test(p.notes.join(" ")));
       specialSpec.set(key, {
         cls: "A",
         kind: "chiles",
         members: list,
-        label: containerLabel(list[0].dishName, [worked ? "dried chiles, stemmed and seeded" : "dried chiles"]),
+        // J.1 (R2) — named by class and form, never a `<dish> — <contents>` label: the
+        // bag has a step of its own, and its opening line printed the raw label
+        // ("Into the Texas-Style Beef Chili — dried chiles, stemmed and seeded:").
+        label: `${list[0].dishName} dried-chile bag`,
       });
       for (const p of list) special.set(`${p.dishId}|${p.entry.ingredientId}`, key);
     }
@@ -1017,7 +1089,9 @@ export function buildStepPlan(
   }
   /** Which container class a portion would join in its group, or null. */
   const targetOf = (p: Portion, group: Portion[], gk: string): "A" | "B" | null => {
-    const heat = gk.startsWith("s:");
+    // Part J.1 (R2) — a heated component is a pan or oven moment of its own: its
+    // vegetables go in together, whatever words its combine step used.
+    const heat = gk.startsWith("s:") || (gk.startsWith("c:") && group.some((q) => q.component?.heated === true));
     if (p.cls === "A") return "A";
     if (p.cls === "B") return heat ? "B" : null;
     // An aromatic goes into the pan with the vegetables it is cooked with; failing
@@ -1115,7 +1189,7 @@ export function buildStepPlan(
     }
   }
   /** H7.1 — the kind of each special container, by its final name, for the overlay. */
-  const specialKindByName = new Map<string, "cold" | "greens" | "herbs" | "chiles">();
+  const specialKindByName = new Map<string, SpecialKind>();
   for (const [key, s] of specialSpec) {
     const c: Container = {
       key,
@@ -1159,11 +1233,16 @@ export function buildStepPlan(
         const what = [...c.members.values()].map((p) => p.entry.ingredientName.toLowerCase());
         name = containerLabel(name.replace(/ vegetables$/, ""), [listOf(what)]);
       }
-    } else if (c.authoredName && !(DRY_BOWL_NOUN.test(c.authoredName) && !dry)) {
-      name = c.authoredName;
     } else {
+      // 🔴 Part J.1 (R2) — THE NAME COMES FROM THE CLASS AND THE FORM, NEVER FROM A
+      // GUESS: spice blend · dry mix · sauce jar · marinade bowl. An authored noun
+      // ("glaze", "mix-ins", "dough") is not the vessel, and the Tetrazzini "sauce
+      // jar" that held spaghetti, flour and panko was named by one.
       const names = [...c.members.values()].map((p) => p.entry.ingredientName).join(" ");
-      const use = dry ? (DRY_MIX_MEMBER.test(names) ? "dry mix" : "spice blend") : "sauce bowl";
+      const marinade = c.noun === "marinade" || (c.noun !== null && mustSit(c.noun)) || /\bmarinade\b/i.test(c.authoredName ?? "");
+      // A marinade first: its liquid is often squeezed in the produce phase, so its
+      // own phase-1 members read dry, and it is still the bowl the steak meets.
+      const use = marinade ? "marinade bowl" : dry ? (DRY_MIX_MEMBER.test(names) ? "dry mix" : "spice blend") : "sauce jar";
       name = bowlNameFor(c.dishName, c.mealName, null, 0, false, false, use);
     }
     c.name = uniqueName(name);
@@ -1201,6 +1280,8 @@ export function buildStepPlan(
   // Only knife work gets one. A no-work item is off the list (H6.2), and an A
   // measure that joins nothing is not prep at all (2c).
   const tubLabel = new Map<string, string>();
+  /** Part J.1 §2 — rule 5's labels, which a sentence calls "the shared … tub". */
+  const sharedTubLabels = new Set<string>();
   {
     const byEntry = new Map<string, Portion[]>();
     for (const [k, p] of portions) {
@@ -1231,8 +1312,31 @@ export function buildStepPlan(
           const label =
             dishes.length > 1 ? containerLabel(upperFirst(noun), dishes, true) : containerLabel(p.dishName, [noun]);
           tubLabel.set(`${p.dishId}|${p.entry.ingredientId}`, label);
+          if (dishes.length > 1) sharedTubLabels.add(label);
         }
       }
+    }
+  }
+
+  // ── Part J.1 §2 — ONE CITRUS, ONE TUB ─────────────────────────────────────────
+  //
+  // Shrimp Tacos zested a lime into one tub and squeezed its juice into another. One
+  // dish's zest and juice of one fruit go together: "Shrimp Tacos — lime zest and
+  // juice". A shared tub (several dishes) is rule 5's and stays as it is.
+  {
+    const groupsByFruit = new Map<string, string[]>();
+    for (const [k, p] of portions) {
+      const lab = tubLabel.get(k);
+      if (!lab || !CITRUS.test(p.entry.ingredientName) || !lab.startsWith(`${p.dishName} — `)) continue;
+      const g = `${p.dishId}|${foodKeyOf(p.entry.ingredientName, p.entry.sourceYield)}`;
+      groupsByFruit.set(g, [...(groupsByFruit.get(g) ?? []), k]);
+    }
+    for (const keys of groupsByFruit.values()) {
+      if (keys.length < 2) continue;
+      const p = portions.get(keys[0])!;
+      const fruit = (CITRUS.exec(keys.map((k) => portions.get(k)!.entry.ingredientName).join(" "))?.[1] ?? "citrus").replace(/s$/, "").toLowerCase();
+      const label = containerLabel(p.dishName, [`${fruit} zest and juice`]);
+      for (const k of keys) tubLabel.set(k, label);
     }
   }
 
@@ -1293,6 +1397,8 @@ export function buildStepPlan(
     if (!isMarinade) continue;
     const texts = stepTextByDishId.get(c.dishId) ?? [];
     const marinates = texts.some((t) => MARINATES.test(t));
+    // Part J.1 §2 — the window the recipe itself states, when it states one.
+    const stated = marinadeWindow(texts);
     const memberNames = [...c.members.values()].map((p) => p.entry.ingredientName).join(" ");
     const acidic = ACIDIC.test(memberNames);
     const joins: (MarinadeJoin & { protein: string })[] = [];
@@ -1303,7 +1409,7 @@ export function buildStepPlan(
         cookDayByDishIngredient.get(k) === c.name ||
         texts.some((t) => t.split(/[.;]/).some((s) => /\bmarinade|\bmarinat/i.test(s) && proseNames(s, name)));
       if (!named) continue;
-      const j = { marinates, seafood: SEAFOOD.test(name), acidic };
+      const j = { marinates, seafood: SEAFOOD.test(name), acidic, ...stated, proteinStepKey: `proteins#${p.entry.ingredientId}` };
       joins.push({ protein: name, ...j });
       proteinJoin.set(k, { bowl: c.name, ...j });
     }
@@ -1750,27 +1856,21 @@ export function buildStepPlan(
   }
 
   // ── Part J.0 — a produce step's portion lines are rendered here, not narrated ──
-  // A dish's own content tub ("Tabbouleh — parsley, mint …") may be pointed at as
-  // "the Tabbouleh tub" on a step that would not fit otherwise — only when no
-  // other container on the plan opens with that dish.
-  const shortTubRef = new Map<string, string>();
-  {
-    const all = dedupe(steps.flatMap((s) => containerNamesOf(s)));
-    const heads = new Map<string, number>();
-    for (const n of all) {
-      const h = n.split(" — ")[0];
-      heads.set(h, (heads.get(h) ?? 0) + 1);
-    }
-    for (const n of all) {
-      const h = n.split(" — ")[0];
-      if (n.includes(" — ") && heads.get(h) === 1 && !all.some((o) => o !== n && o.startsWith(h))) {
-        shortTubRef.set(n, `the ${h} tub`);
-      }
-    }
+  // Part J.1 §2 — what each dash label is, so the sentence can say it in words.
+  const labelKinds = new Map<string, LabelKind>();
+  for (const l of sharedTubLabels) labelKinds.set(l, "shared");
+  for (const [key, s] of specialSpec) if (s.kind === "chiles") labelKinds.set(containers.get(key)!.name, "own-bag");
+  for (const c of containers.values()) {
+    if (c.cls === "B" && !c.fixedName && c.name.includes(" — ")) labelKinds.set(c.name, "own-container");
   }
+  // Part J.1 (R1) — a protein step that serves two meals is a portion step too: the
+  // near meal's share is prepped and the far one's held, so its amounts are the
+  // code's to write per meal ("1½ lb for Chicken Tikka Masala"), like the produce.
   for (const st of steps) {
-    if (st.phase !== "produce" || st.demoted || st.fixedProse) continue;
-    const r = renderPortionLines(st, shortTubRef);
+    if (st.demoted || st.fixedProse) continue;
+    const portionsHere = st.components.reduce((n, c) => n + c.measures.length, 0);
+    if (st.phase !== "produce" && !(st.phase === "proteins" && portionsHere >= 2)) continue;
+    const r = renderPortionLines(st, labelKinds);
     if (!r) continue;
     st.portionLines = r.lines;
     st.portionsByApp = r.meta;
@@ -1811,7 +1911,7 @@ export function buildStepPlan(
     })),
   };
 
-  return { steps, narrationInput, containerExtras, shortTubRef };
+  return { steps, narrationInput, containerExtras, labelKinds };
 }
 
 // ── H7.1 vocabulary. Every pattern reads its OWN subject — a step's text for a verb,
@@ -1823,7 +1923,15 @@ const COLD_COMBINE = /\b(combine|mix|toss|stir together|fold)\b/i;
 const HEAT_TEXT =
   /\b(saut[ée]\w*|cook\w*|simmer\w*|bake\w*|roast\w*|broil\w*|grill\w*|fry|fried|boil\w*|heat\w*|sear\w*|toast\w*|melt\w*)\b/i;
 /** Leafy greens, on the ingredient's own name: they wilt against wet vegetables. */
-const LEAFY = /\b(lettuce|romaine|iceberg|cabbage|spinach|arugula|kale|mesclun|greens|radicchio|endive|chard|frisée|watercress)\b/i;
+// Part J.1 §2 — LEAFY IS LEAVES: lettuces, spinach, arugula, kale, chard, herbs. Cabbage,
+// fennel and carrot are cut vegetables (four "— greens" tubs held shredded cabbage).
+const LEAFY = /\b(lettuce|romaine|iceberg|spinach|arugula|kale|mesclun|greens|radicchio|endive|chard|frisée|watercress)\b/i;
+/** Part J.1 §2 — a citrus fruit or its zest, for the one-citrus-one-tub rule. */
+const CITRUS = /\b(limes?|lemons?|oranges?|grapefruits?)\b/i;
+/** Part J.1 (R2) — a portion the dish serves on top, by its own note. */
+const TOPPING_NOTE = /\b(garnish\w*|toppings?|to serve|for serving|to top|on top|sprinkl\w+ over)\b/i;
+/** Part J.1 (R2) — dry pasta is a no-work item: it goes from the box to the pot. */
+const DRY_PASTA = /\b(spaghetti|linguine|fettuccine|penne|rigatoni|macaroni|elbows?|fusilli|farfalle|orzo|lasagna|egg noodles|pasta|noodles)\b/i;
 /** Whole dried chiles — not chili POWDER, not FLAKES (Pantry rows on their own names). */
 const DRIED_CHILE =
   /\b(?:dried\s+(?:\w+\s+)?chil(?:e|es|i|is|ies)|(?:ancho|guajillo|chipotle|pasilla|mulato|cascabel|arbol|árbol)\s+chil(?:e|es|i|is|ies))\b(?!\s+(?:powder|flakes))/i;
@@ -1843,6 +1951,40 @@ export interface MarinadeJoin {
   seafood: boolean;
   /** The marinade holds an acid (citrus, vinegar, wine, yogurt). */
   acidic: boolean;
+  /** Part J.1 §2 — the recipe's stated window in hours; null when none. */
+  windowHours?: number | null;
+  /** Part J.1 §2 — the recipe says overnight, or 8 hours or more. */
+  overnight?: boolean;
+  /** Part J.1 §2 — the protein's own step, so a read can ask whether it renders. */
+  proteinStepKey?: string;
+}
+
+const WORD_NUMBERS: Readonly<Record<string, number>> = { one: 1, two: 2, three: 3, four: 4, six: 6, eight: 8, twelve: 12, half: 0.5 };
+
+/**
+ * Part J.1 §2 — the marinating window a dish's own steps state. The FIRST duration in
+ * a sentence about marinating, resting in the marinade or refrigerating, in hours:
+ * "at least 30 minutes or up to 8 hours" → 0.5 (the soonest the protein can go in);
+ * "overnight" → overnight. Null when the steps state no duration.
+ */
+export function marinadeWindow(texts: readonly string[]): { windowHours: number | null; overnight: boolean } {
+  let windowHours: number | null = null;
+  let overnight = false;
+  for (const t of texts) {
+    for (const s of t.split(/(?<=[.;])\s+/)) {
+      if (!/\b(marinat\w*|refrigerate|chill|let (?:it |them )?(?:sit|rest)|in the marinade)\b/i.test(s)) continue;
+      if (/\bovernight\b/i.test(s)) overnight = true;
+      if (windowHours !== null) continue;
+      const m = /\b(\d+(?:\.\d+)?|one|two|three|four|six|eight|twelve|half an?)\s*(?:to\s*\d+\s*|-\s*\d+\s*|–\s*\d+\s*)?(hours?|hrs?|minutes?|mins?)\b/i.exec(s);
+      if (!m) continue;
+      const raw = m[1].toLowerCase().replace(/\s*an?$/, "");
+      const n = WORD_NUMBERS[raw] ?? Number(raw);
+      if (!Number.isFinite(n)) continue;
+      windowHours = /^min/i.test(m[2]) ? n / 60 : n;
+    }
+  }
+  if (windowHours !== null && windowHours >= 8) overnight = true;
+  return { windowHours, overnight };
 }
 
 /** H7.1 — what a container's close must say beyond how it keeps. */
@@ -1908,14 +2050,52 @@ export const OPENING_MAX = 160;
 /** The wire caps `instructions` at 800 (both schemas); the opening and a newline take the rest. */
 export const PORTION_LINES_MAX = 800 - OPENING_MAX - 1;
 
-const VESSEL_NOUN = /\b(bowl|jar|container|tub|bag|tray|dish|pot)\b(?:\s+\d+)?$/i;
+const VESSEL_NOUN = /\b(bowl|jar|container|tub|bag|tray|dish|pot|plate)\b(?:\s+\d+)?$/i;
 
-/** "the tub "…"" / "the Creamy Hummus sauce bowl", and what a repeat calls it. */
-function destinationPhrase(dest: string): { first: string; noun: string } {
-  if (dest.includes(" — ")) return { first: `into the tub "${dest}"`, noun: "tub" };
+/**
+ * Part J.1 §2 — what a `<head> — <tail>` label IS, so a sentence can say it in words.
+ *   shared        rule 5's tub: head = the food, tail = its dinners
+ *   own-tub/bag/container   a dish's own: head = the dish, tail = what is in it
+ */
+export type LabelKind = "shared" | "own-tub" | "own-bag" | "own-container";
+
+/** "diced jalapeño" → "diced-jalapeño", "dried chiles, stemmed and seeded" → "dried-chile". */
+function attributive(contents: string): string {
+  const s = contents.replace(/,\s*(?:stemmed|seeded|trimmed|peeled)\b.*$/i, "").trim();
+  const words = s.split(/\s+/);
+  if (words.length > 3 || /,|\band\b/.test(s)) return s;
+  const last = words[words.length - 1];
+  words[words.length - 1] = /greens$/i.test(last)
+    ? last
+    : last.replace(/leaves$/i, "leaf").replace(/(tomato|potato)es$/i, "$1").replace(/ies$/i, "y").replace(/([^siu])s$/i, "$1"); // asparagus, hummus, couscous keep theirs
+  return words.join("-");
+}
+
+/**
+ * The first mention of a destination, and what a repeat calls it.
+ *
+ * 🔴 Part J.1 §2 — NEVER THE RAW `<Dish> — <contents>` LABEL INSIDE A SENTENCE. The
+ * label is the lid's name and stays on the wire as the container's name; the
+ * sentence says it contents first, dish after: "into the dried-chile bag for the
+ * Texas-Style Beef Chili", "into the shared minced-garlic tub". `namesDish` is the
+ * dish the phrase already names, so the line need not say "for <dish>" again.
+ */
+export function destinationPhrase(
+  dest: string,
+  kind?: LabelKind,
+): { first: string; noun: string; namesDish: string | null } {
+  if (dest.includes(" — ")) {
+    const [head, ...rest] = dest.split(" — ");
+    let tail = rest.join(" — ");
+    const n = /\s(\d+)$/.exec(tail);
+    if (n) tail = tail.slice(0, -n[0].length);
+    if (kind === "shared") return { first: `into the shared ${attributive(head.toLowerCase())} tub`, noun: "tub", namesDish: null };
+    const vessel = kind === "own-bag" ? "bag" : kind === "own-container" ? "container" : "tub";
+    return { first: `into the ${attributive(tail)} ${vessel}${n ? ` ${n[1]}` : ""} for the ${head}`, noun: vessel, namesDish: head };
+  }
   const m = VESSEL_NOUN.exec(dest);
-  if (m) return { first: `into the ${dest}`, noun: m[1].toLowerCase() };
-  return { first: `into the ${dest} container`, noun: "container" };
+  if (m) return { first: `into the ${dest}`, noun: m[1].toLowerCase(), namesDish: null };
+  return { first: `into the ${dest} container`, noun: "container", namesDish: null };
 }
 
 function leadingNumber(amount: string): number | null {
@@ -1923,6 +2103,28 @@ function leadingNumber(amount: string): number | null {
   if (!m || (!m[1] && !m[2])) return null;
   const frac: Record<string, number> = { "¼": 0.25, "½": 0.5, "¾": 0.75, "⅓": 1 / 3, "⅔": 2 / 3, "⅛": 0.125, "⅜": 0.375, "⅝": 0.625, "⅞": 0.875 };
   return (m[1] ? Number(m[1]) : 0) + (m[2] ? frac[m[2]] : 0);
+}
+
+/**
+ * Part J.1 — each component's whole amount, ingredient name → finished amount
+ * ("6 tbsp", "2 yellow onions"). A partial hold changes these, and the opening the
+ * narrator wrote states them: `finishPrepWeek` swaps the old for the new.
+ */
+export function componentTotals(components: readonly PrepNarrationComponent[]): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const c of components) {
+    const parts = totalOf([c], false).split(" + ");
+    out.set(c.ingredientName, [...(out.get(c.ingredientName) ?? []), ...parts]);
+  }
+  return out;
+}
+
+/** "3" + "yellow onion" → "3 yellow onions"; the count decides the noun's number. */
+function countNoun(amount: string, name: string): string {
+  const n = leadingNumber(amount);
+  if (n === null) return name;
+  if (n > 1) return /[sy]$/i.test(name) ? name : pluralizeSourceNoun(name);
+  return name.replace(/(tomato|potato)es$/i, "$1").replace(/([^seiu])s$/i, "$1");
 }
 
 /** The step's whole amount per component, as a finished string ("11 cloves", "1 lemon + 6 tbsp lemon juice"). */
@@ -1943,7 +2145,7 @@ function totalOf(components: readonly PrepNarrationComponent[], named: boolean):
     for (const { q, unit } of byToken.values()) {
       const amount = formatMeasure(q, unit);
       const countOnly = canonicalizeUnit(unit).token === "" || PLACEHOLDER_COUNT_UNITS.has(canonicalizeUnit(unit).token);
-      parts.push(named || countOnly ? `${amount} ${c.ingredientName}` : amount);
+      parts.push(named || countOnly ? `${amount} ${countOnly ? countNoun(amount, c.ingredientName) : c.ingredientName}` : amount);
     }
   }
   return parts.join(" + ");
@@ -1960,13 +2162,8 @@ export interface RenderedPortions {
  */
 export function renderPortionLines(
   step: Pick<PlannedStep, "components">,
-  /**
-   * Last resort before any trim: full label → "the <Dish> tub", for a dish's own
-   * content tub whose head no other container on the plan shares. The lid carries
-   * the full label; the line can point at it by its dish when the step will not
-   * fit otherwise. Built by buildStepPlan from every container name on the plan.
-   */
-  shortTubRef: ReadonlyMap<string, string> = new Map(),
+  /** Part J.1 §2 — what each dash label is (shared tub, a dish's own tub/bag/container). */
+  labelKinds: ReadonlyMap<string, LabelKind> = new Map(),
   /** Characters the lines may take. Assembly passes 800 minus the real opening. */
   budget: number = PORTION_LINES_MAX,
 ): RenderedPortions | null {
@@ -2013,22 +2210,23 @@ export function renderPortionLines(
     .map((x) => x.p);
   const showCut = cuts.filter((c) => c !== "").length > 1;
 
-  const build = (dishOf: (p: P) => string | null, shortTubs: boolean, plain = false): string[] => {
+  const build = (dishOf: (p: P) => string | null, plain = false): string[] => {
     const seen = new Set<string>();
     let prev: string | undefined;
     return ordered.map((p) => {
       // "4 cloves for Beef Chili", "½ white onion finely diced for Guacamole".
       const head = plain ? p.amount : `${p.qty}${showCut && p.cut ? ` ${p.cut}` : ""}`;
-      const dish = dishOf(p);
+      const phrase = p.dest ? destinationPhrase(p.dest, labelKinds.get(p.dest)) : null;
+      // A dish's own tub already says "for the <Dish>" — the line does not repeat it.
+      const dish = phrase?.namesDish === p.dish ? null : dishOf(p);
       const who = dish ? `${head} for ${dish}` : head;
-      if (!p.dest) {
+      if (!p.dest || !phrase) {
         prev = undefined;
         return who;
       }
-      const { first, noun } = destinationPhrase(p.dest);
-      const short = shortTubs ? shortTubRef.get(p.dest) : undefined;
+      const { first, noun } = phrase;
       const where = !seen.has(p.dest)
-        ? (short ? `into ${short}` : first)
+        ? first
         : prev === p.dest ? `same ${noun}` : `the same ${noun} as above`;
       seen.add(p.dest);
       prev = p.dest;
@@ -2051,15 +2249,13 @@ export function renderPortionLines(
     const head = p.dest.split(" — ")[0];
     return head.includes(p.dish) || head.includes(shortDishName(p.dish));
   };
-  // 1. as is; 2. drop "for <dish>" where the lid's head is the dish; 3. short dish
-  //    names on the rest; 4. a dish's own content tub by its dish ("the Tabbouleh
-  //    tub") where that is unambiguous on the plan.
-  let lines = build((p) => p.dish, false);
-  if (!fits(lines)) lines = build((p) => (lidNamesDish(p) ? null : p.dish), false);
-  if (!fits(lines)) lines = build((p) => (lidNamesDish(p) ? null : shortOf(p.dish)), false);
+  // 1. as is; 2. drop "for <dish>" where the vessel's name is the dish's; 3. short
+  //    dish names on the rest; 4. plain amounts — the cut and the food are the
+  //    opening sentence's to say.
+  let lines = build((p) => p.dish);
+  if (!fits(lines)) lines = build((p) => (lidNamesDish(p) ? null : p.dish));
+  if (!fits(lines)) lines = build((p) => (lidNamesDish(p) ? null : shortOf(p.dish)));
   if (!fits(lines)) lines = build((p) => (lidNamesDish(p) ? null : shortOf(p.dish)), true);
-  // 5. plain amounts: the cut and the food are the opening sentence's to say.
-  if (!fits(lines)) lines = build((p) => (lidNamesDish(p) ? null : shortOf(p.dish)), true, true);
   if (!fits(lines)) {
     // Never reached on the census corpus (Part J.0 measured it): keep every line,
     // trim the tail, so the wire's 800 can never 502 the week.
@@ -2239,8 +2435,6 @@ export function countContainers(steps: readonly PlannedStep[]): number {
 
 const CONTAINER_TARGET_MAX = 15;
 
-/** H2.2 — a bowl name that promises a shelf-stable DRY container. */
-const DRY_BOWL_NOUN = /\b(seasoning|spice blend|spice mix|rub|dry rub|dredge)\b/i;
 
 function dropLowValueSteps(steps: PlannedStep[]): void {
   if (countContainers(steps) <= CONTAINER_TARGET_MAX) return;
@@ -2358,7 +2552,7 @@ export function assemblePrepWeekResult(
       instructions: planned.portionLines
         ? (() => {
             const opening = openingSentence(prose.instructions);
-            const lines = renderPortionLines(planned, plan.shortTubRef, 800 - opening.length - 1)?.lines ?? planned.portionLines;
+            const lines = renderPortionLines(planned, plan.labelKinds, 800 - opening.length - 1)?.lines ?? planned.portionLines;
             return `${opening}\n${lines.join("\n")}`;
           })()
         : prose.instructions, // AI

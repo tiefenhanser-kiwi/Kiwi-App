@@ -1,0 +1,1804 @@
+[
+  {
+    "code": "E-1e41fc0c",
+    "planId": "1e41fc0c-7294-4bd3-a14a-302e44bbcd7c",
+    "partIFullStatus": 200,
+    "a1": {
+      "derivedNotRendered": [],
+      "renderedNotDerived": []
+    },
+    "b": {
+      "portionSteps": 10,
+      "maxInstructions": 419,
+      "overCap": 0,
+      "linesWithoutDestination": [],
+      "labelTwice": 0,
+      "shortTubSteps": 1,
+      "trimmed": 0,
+      "plusMore": []
+    },
+    "prepped": {
+      "meal": "Beef Enchiladas Verdes with Roasted Tomatillo Sauce",
+      "before": false,
+      "after": true,
+      "ticked": 8
+    },
+    "subset": {
+      "mealIds": [
+        "a66396ef-084f-4000-a1ab-0dd7b2b50069",
+        "398fde90-8554-44a0-9896-69360d036cdd"
+      ],
+      "before": {
+        "a66396ef-084f-4000-a1ab-0dd7b2b50069": false,
+        "398fde90-8554-44a0-9896-69360d036cdd": false
+      },
+      "after": {
+        "a66396ef-084f-4000-a1ab-0dd7b2b50069": true,
+        "398fde90-8554-44a0-9896-69360d036cdd": true
+      },
+      "notInFull": [],
+      "nameDiffs": [],
+      "qtyDiffs": [],
+      "steps": 14
+    },
+    "a4": {
+      "prepStepsWithCovers": 7,
+      "coveredCookSteps": 5,
+      "sample": [
+        {
+          "stepKey": "cnt#seas#b314bfa9-a4d2-402d-a0ef-b1ce684311cf|c:seasoning|A",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "398fde90-8554-44a0-9896-69360d036cdd",
+              "dishId": "b314bfa9-a4d2-402d-a0ef-b1ce684311cf",
+              "stepIndex": 3
+            }
+          ]
+        },
+        {
+          "stepKey": "produce#7835b896-5d7f-44fe-82e9-d3e0d247b77f",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "b036421a-015d-4004-a257-95e8f64c071c",
+              "dishId": "9c8fbe6b-b3bb-435b-a5d1-3458d00c7c51",
+              "stepIndex": 1
+            },
+            {
+              "mealId": "398fde90-8554-44a0-9896-69360d036cdd",
+              "dishId": "b314bfa9-a4d2-402d-a0ef-b1ce684311cf",
+              "stepIndex": 0
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "code": "E-b4aa6fee",
+    "planId": "b4aa6fee-70b1-4990-a596-05087ac904c5",
+    "partIFullStatus": 200,
+    "a1": {
+      "derivedNotRendered": [],
+      "renderedNotDerived": []
+    },
+    "b": {
+      "portionSteps": 19,
+      "maxInstructions": 435,
+      "overCap": 0,
+      "linesWithoutDestination": [],
+      "labelTwice": 0,
+      "shortTubSteps": 2,
+      "trimmed": 0,
+      "plusMore": []
+    },
+    "prepped": {
+      "meal": "Lemon-Herb Baked Chicken Breast with Roasted Asparagus and Garlic Herb Potatoes",
+      "before": true,
+      "after": true,
+      "ticked": 7
+    },
+    "subset": {
+      "mealIds": [
+        "4798092f-704f-46f0-b5ec-276849308381",
+        "176e3e46-8d41-4044-81be-6ed5b6b43a00"
+      ],
+      "before": {
+        "4798092f-704f-46f0-b5ec-276849308381": false,
+        "176e3e46-8d41-4044-81be-6ed5b6b43a00": false
+      },
+      "after": {
+        "4798092f-704f-46f0-b5ec-276849308381": true,
+        "176e3e46-8d41-4044-81be-6ed5b6b43a00": true
+      },
+      "notInFull": [],
+      "nameDiffs": [],
+      "qtyDiffs": [],
+      "steps": 16
+    },
+    "a4": {
+      "prepStepsWithCovers": 14,
+      "coveredCookSteps": 10,
+      "sample": [
+        {
+          "stepKey": "produce#ef8cc2b5-6b0a-4e35-aead-b5171bb3df0a",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "4798092f-704f-46f0-b5ec-276849308381",
+              "dishId": "10a840c2-0b9c-4ca5-8ee5-6fd4dd5f4f9e",
+              "stepIndex": 2
+            }
+          ]
+        },
+        {
+          "stepKey": "produce#79a002c7-c1bd-4e5f-b1b1-40254c592065",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "4798092f-704f-46f0-b5ec-276849308381",
+              "dishId": "10a840c2-0b9c-4ca5-8ee5-6fd4dd5f4f9e",
+              "stepIndex": 2
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "code": "E-b5263268",
+    "planId": "b5263268-64c7-41ff-a8f2-20c01a2b905e",
+    "partIFullStatus": 502,
+    "a1": {
+      "derivedNotRendered": [],
+      "renderedNotDerived": []
+    },
+    "b": {
+      "portionSteps": 14,
+      "maxInstructions": 624,
+      "overCap": 0,
+      "linesWithoutDestination": [],
+      "labelTwice": 0,
+      "shortTubSteps": 3,
+      "trimmed": 0,
+      "plusMore": []
+    },
+    "prepped": null,
+    "subset": {
+      "mealIds": [
+        "ff5f0624-a2c0-434d-9b0c-8afc77d8b92c",
+        "36c91ba6-bb0b-444d-a723-54a3962377a7"
+      ],
+      "before": {
+        "ff5f0624-a2c0-434d-9b0c-8afc77d8b92c": false,
+        "36c91ba6-bb0b-444d-a723-54a3962377a7": false
+      },
+      "after": {
+        "ff5f0624-a2c0-434d-9b0c-8afc77d8b92c": true,
+        "36c91ba6-bb0b-444d-a723-54a3962377a7": true
+      },
+      "notInFull": [],
+      "nameDiffs": [],
+      "qtyDiffs": [],
+      "steps": 15
+    },
+    "a4": {
+      "prepStepsWithCovers": 11,
+      "coveredCookSteps": 10,
+      "sample": [
+        {
+          "stepKey": "cnt#seas#7ffe2b5b-ea63-47e6-8547-89ae1bd63366|c:glaze|A",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "36c91ba6-bb0b-444d-a723-54a3962377a7",
+              "dishId": "7ffe2b5b-ea63-47e6-8547-89ae1bd63366",
+              "stepIndex": 7
+            }
+          ]
+        },
+        {
+          "stepKey": "produce#e6753984-d315-4484-bf78-783c61f197ab",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "ff5f0624-a2c0-434d-9b0c-8afc77d8b92c",
+              "dishId": "013ee04d-3323-4a3c-b0f5-f7a8bfb4fab3",
+              "stepIndex": 0
+            },
+            {
+              "mealId": "1bc9ab57-a80f-4d62-9ce6-deffde4ac6ce",
+              "dishId": "055b5748-53a4-4448-b387-d236cc495626",
+              "stepIndex": 0
+            },
+            {
+              "mealId": "b52fd852-28ec-4f41-9d15-c409e89d3f73",
+              "dishId": "fa8d95ea-0a15-46a9-acbf-c1696ac77e9d",
+              "stepIndex": 0
+            },
+            {
+              "mealId": "1bf37700-da36-4fbc-90be-6454c7d320a0",
+              "dishId": "d810aa01-b10a-4452-a214-25f6651897c4",
+              "stepIndex": 0
+            },
+            {
+              "mealId": "1bf37700-da36-4fbc-90be-6454c7d320a0",
+              "dishId": "07e0e420-4c4a-485c-9cb5-ae3641c4b9e5",
+              "stepIndex": 0
+            },
+            {
+              "mealId": "36c91ba6-bb0b-444d-a723-54a3962377a7",
+              "dishId": "7ffe2b5b-ea63-47e6-8547-89ae1bd63366",
+              "stepIndex": 1
+            },
+            {
+              "mealId": "36c91ba6-bb0b-444d-a723-54a3962377a7",
+              "dishId": "3b95953a-4124-49da-9d91-00608cfad1a8",
+              "stepIndex": 0
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "code": "E-1cf373bc",
+    "planId": "1cf373bc-a2cb-4469-90ef-bb87d0327343",
+    "partIFullStatus": 502,
+    "a1": {
+      "derivedNotRendered": [],
+      "renderedNotDerived": []
+    },
+    "b": {
+      "portionSteps": 16,
+      "maxInstructions": 730,
+      "overCap": 0,
+      "linesWithoutDestination": [
+        "1½ lb for Sheet-Pan Chicken Fajitas",
+        "2 lb for Lemon-Herb Baked Chicken Breast"
+      ],
+      "labelTwice": 0,
+      "shortTubSteps": 1,
+      "trimmed": 0,
+      "plusMore": []
+    },
+    "prepped": null,
+    "subset": {
+      "mealIds": [
+        "c36ce4db-449d-4d2a-b4be-3236e852c524",
+        "a6f08891-f313-41eb-98d7-c7264da8dc16"
+      ],
+      "before": {
+        "c36ce4db-449d-4d2a-b4be-3236e852c524": false,
+        "a6f08891-f313-41eb-98d7-c7264da8dc16": false
+      },
+      "after": {
+        "c36ce4db-449d-4d2a-b4be-3236e852c524": true,
+        "a6f08891-f313-41eb-98d7-c7264da8dc16": true
+      },
+      "notInFull": [],
+      "nameDiffs": [],
+      "qtyDiffs": [],
+      "steps": 17
+    },
+    "a4": {
+      "prepStepsWithCovers": 16,
+      "coveredCookSteps": 11,
+      "sample": [
+        {
+          "stepKey": "cnt#seas#2b10a967-550b-4bae-835f-7291fb43b344|s:6|A",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "1f29c7d6-71e8-460a-8817-564bf0e62196",
+              "dishId": "2b10a967-550b-4bae-835f-7291fb43b344",
+              "stepIndex": 3
+            }
+          ]
+        },
+        {
+          "stepKey": "cnt#seas#2b10a967-550b-4bae-835f-7291fb43b344|chiles|A",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "1f29c7d6-71e8-460a-8817-564bf0e62196",
+              "dishId": "2b10a967-550b-4bae-835f-7291fb43b344",
+              "stepIndex": 0
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "code": "A01",
+    "planId": "873796cd-4e7e-4a4a-bdfe-28a802f295d7",
+    "partIFullStatus": 200,
+    "a1": {
+      "derivedNotRendered": [],
+      "renderedNotDerived": []
+    },
+    "b": {
+      "portionSteps": 16,
+      "maxInstructions": 474,
+      "overCap": 0,
+      "linesWithoutDestination": [],
+      "labelTwice": 0,
+      "shortTubSteps": 3,
+      "trimmed": 0,
+      "plusMore": []
+    },
+    "prepped": {
+      "meal": "Baja Fish Tacos with Quick Slaw and Lime Crema",
+      "before": false,
+      "after": true,
+      "ticked": 5
+    },
+    "subset": {
+      "mealIds": [
+        "3fc5e05a-c441-4634-ac61-05cb2f4eadd9",
+        "19c3d489-82b4-4dfa-a732-3f6ed28d5ec3"
+      ],
+      "before": {
+        "3fc5e05a-c441-4634-ac61-05cb2f4eadd9": false,
+        "19c3d489-82b4-4dfa-a732-3f6ed28d5ec3": false
+      },
+      "after": {
+        "3fc5e05a-c441-4634-ac61-05cb2f4eadd9": true,
+        "19c3d489-82b4-4dfa-a732-3f6ed28d5ec3": true
+      },
+      "notInFull": [],
+      "nameDiffs": [],
+      "qtyDiffs": [],
+      "steps": 17
+    },
+    "a4": {
+      "prepStepsWithCovers": 11,
+      "coveredCookSteps": 6,
+      "sample": [
+        {
+          "stepKey": "cnt#seas#c07b3672-7dbc-4a32-8ccb-337e62d2b9fb|s:6|A",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "6d90312d-633c-4753-a419-e86d4494bed2",
+              "dishId": "c07b3672-7dbc-4a32-8ccb-337e62d2b9fb",
+              "stepIndex": 3
+            }
+          ]
+        },
+        {
+          "stepKey": "cnt#seas#c07b3672-7dbc-4a32-8ccb-337e62d2b9fb|chiles|A",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "6d90312d-633c-4753-a419-e86d4494bed2",
+              "dishId": "c07b3672-7dbc-4a32-8ccb-337e62d2b9fb",
+              "stepIndex": 0
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "code": "A02",
+    "planId": "c97aefe1-a3d2-4f4c-b959-ffd7ba58066a",
+    "partIFullStatus": 502,
+    "a1": {
+      "derivedNotRendered": [],
+      "renderedNotDerived": []
+    },
+    "b": {
+      "portionSteps": 21,
+      "maxInstructions": 486,
+      "overCap": 0,
+      "linesWithoutDestination": [
+        "1½ lb for Slow-Cooker Chicken and Dumplings"
+      ],
+      "labelTwice": 0,
+      "shortTubSteps": 3,
+      "trimmed": 0,
+      "plusMore": []
+    },
+    "prepped": null,
+    "subset": {
+      "mealIds": [
+        "73b62c74-c2c3-4ac2-bfaa-bfe18d74b1b7",
+        "22614b9f-9b8f-4e8f-a550-fbbe858e3f47"
+      ],
+      "before": {
+        "73b62c74-c2c3-4ac2-bfaa-bfe18d74b1b7": false,
+        "22614b9f-9b8f-4e8f-a550-fbbe858e3f47": false
+      },
+      "after": {
+        "73b62c74-c2c3-4ac2-bfaa-bfe18d74b1b7": true,
+        "22614b9f-9b8f-4e8f-a550-fbbe858e3f47": true
+      },
+      "notInFull": [],
+      "nameDiffs": [],
+      "qtyDiffs": [],
+      "steps": 17
+    },
+    "a4": {
+      "prepStepsWithCovers": 12,
+      "coveredCookSteps": 8,
+      "sample": [
+        {
+          "stepKey": "produce#f925bf0a-cbda-4969-8104-c7f23dae72b5",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "73b62c74-c2c3-4ac2-bfaa-bfe18d74b1b7",
+              "dishId": "afc14d96-14b8-44d8-89c7-b9f0403e811f",
+              "stepIndex": 0
+            }
+          ]
+        },
+        {
+          "stepKey": "produce#46f8a102-3c8f-4201-a012-87c4c094e284",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "73b62c74-c2c3-4ac2-bfaa-bfe18d74b1b7",
+              "dishId": "afc14d96-14b8-44d8-89c7-b9f0403e811f",
+              "stepIndex": 0
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "code": "A03",
+    "planId": "53abd5b6-156d-490e-b1db-6bc04626c027",
+    "partIFullStatus": 200,
+    "a1": {
+      "derivedNotRendered": [],
+      "renderedNotDerived": []
+    },
+    "b": {
+      "portionSteps": 7,
+      "maxInstructions": 296,
+      "overCap": 0,
+      "linesWithoutDestination": [
+        "¾ lb for Classic BBQ Chicken Pizza with Red Onion and Cilantro"
+      ],
+      "labelTwice": 0,
+      "shortTubSteps": 1,
+      "trimmed": 0,
+      "plusMore": []
+    },
+    "prepped": null,
+    "subset": {
+      "mealIds": [
+        "51b9629a-fa58-4e71-b5eb-7b95ed878858",
+        "64a266c6-3ab7-47da-bd04-cbcbd6dc2c81"
+      ],
+      "before": {
+        "51b9629a-fa58-4e71-b5eb-7b95ed878858": false,
+        "64a266c6-3ab7-47da-bd04-cbcbd6dc2c81": false
+      },
+      "after": {
+        "51b9629a-fa58-4e71-b5eb-7b95ed878858": true,
+        "64a266c6-3ab7-47da-bd04-cbcbd6dc2c81": true
+      },
+      "notInFull": [],
+      "nameDiffs": [],
+      "qtyDiffs": [],
+      "steps": 12
+    },
+    "a4": {
+      "prepStepsWithCovers": 0,
+      "coveredCookSteps": 0,
+      "sample": []
+    }
+  },
+  {
+    "code": "A04",
+    "planId": "7f206a48-f9ca-46c3-b4ba-94c35a320da2",
+    "partIFullStatus": 200,
+    "a1": {
+      "derivedNotRendered": [],
+      "renderedNotDerived": []
+    },
+    "b": {
+      "portionSteps": 8,
+      "maxInstructions": 368,
+      "overCap": 0,
+      "linesWithoutDestination": [],
+      "labelTwice": 0,
+      "shortTubSteps": 1,
+      "trimmed": 0,
+      "plusMore": []
+    },
+    "prepped": {
+      "meal": "Al Pastor Pork Tacos with Charred Pineapple, Cotija, and Cilantro-Lime Slaw",
+      "before": false,
+      "after": true,
+      "ticked": 2
+    },
+    "subset": {
+      "mealIds": [
+        "3d589ae1-6bca-4f02-9802-e30a0be16440",
+        "a88f5064-9bf7-488f-a6fe-5384394f7133"
+      ],
+      "before": {
+        "3d589ae1-6bca-4f02-9802-e30a0be16440": false,
+        "a88f5064-9bf7-488f-a6fe-5384394f7133": false
+      },
+      "after": {
+        "3d589ae1-6bca-4f02-9802-e30a0be16440": true,
+        "a88f5064-9bf7-488f-a6fe-5384394f7133": true
+      },
+      "notInFull": [],
+      "nameDiffs": [],
+      "qtyDiffs": [],
+      "steps": 19
+    },
+    "a4": {
+      "prepStepsWithCovers": 6,
+      "coveredCookSteps": 3,
+      "sample": [
+        {
+          "stepKey": "produce#563574fb-fbd1-4dcb-8414-5208e4ca1aca",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "3d589ae1-6bca-4f02-9802-e30a0be16440",
+              "dishId": "097a0279-085f-46cc-9166-9f96e7ad726f",
+              "stepIndex": 2
+            }
+          ]
+        },
+        {
+          "stepKey": "produce#e6753984-d315-4484-bf78-783c61f197ab",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "3d589ae1-6bca-4f02-9802-e30a0be16440",
+              "dishId": "da1f4aff-4ea1-4f53-b7e3-dc336c18a9d1",
+              "stepIndex": 0
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "code": "A05",
+    "planId": "04a25763-bd01-4103-ba11-d5420ca0e6d8",
+    "partIFullStatus": 200,
+    "a1": {
+      "derivedNotRendered": [],
+      "renderedNotDerived": []
+    },
+    "b": {
+      "portionSteps": 15,
+      "maxInstructions": 382,
+      "overCap": 0,
+      "linesWithoutDestination": [],
+      "labelTwice": 0,
+      "shortTubSteps": 3,
+      "trimmed": 0,
+      "plusMore": []
+    },
+    "prepped": {
+      "meal": "Braised Lamb Shanks with Creamy White Bean Mash and Gremolata",
+      "before": false,
+      "after": true,
+      "ticked": 6
+    },
+    "subset": {
+      "mealIds": [
+        "b014a9b3-9886-4b1d-a52a-896df96eee58",
+        "e32ec6dd-a742-4c3f-b8a2-1c71ec9b7beb"
+      ],
+      "before": {
+        "b014a9b3-9886-4b1d-a52a-896df96eee58": false,
+        "e32ec6dd-a742-4c3f-b8a2-1c71ec9b7beb": false
+      },
+      "after": {
+        "b014a9b3-9886-4b1d-a52a-896df96eee58": true,
+        "e32ec6dd-a742-4c3f-b8a2-1c71ec9b7beb": true
+      },
+      "notInFull": [],
+      "nameDiffs": [],
+      "qtyDiffs": [],
+      "steps": 18
+    },
+    "a4": {
+      "prepStepsWithCovers": 5,
+      "coveredCookSteps": 3,
+      "sample": [
+        {
+          "stepKey": "cnt#seas#3e552f0c-0262-4003-9fee-8c8166b37bb7|c:rub|A",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "b014a9b3-9886-4b1d-a52a-896df96eee58",
+              "dishId": "3e552f0c-0262-4003-9fee-8c8166b37bb7",
+              "stepIndex": 1
+            }
+          ]
+        },
+        {
+          "stepKey": "produce#7835b896-5d7f-44fe-82e9-d3e0d247b77f",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "b014a9b3-9886-4b1d-a52a-896df96eee58",
+              "dishId": "f034768e-ce07-41cb-adef-fb8eeb6d7fa9",
+              "stepIndex": 0
+            },
+            {
+              "mealId": "2d05fb39-0add-4221-bc8f-34532c94083f",
+              "dishId": "ecb7a38c-357b-4998-b415-cf237b6e7932",
+              "stepIndex": 1
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "code": "A06",
+    "planId": "da372b54-d561-4e06-b653-5a5aea933ef0",
+    "partIFullStatus": 200,
+    "a1": {
+      "derivedNotRendered": [],
+      "renderedNotDerived": []
+    },
+    "b": {
+      "portionSteps": 22,
+      "maxInstructions": 298,
+      "overCap": 0,
+      "linesWithoutDestination": [],
+      "labelTwice": 0,
+      "shortTubSteps": 0,
+      "trimmed": 0,
+      "plusMore": []
+    },
+    "prepped": {
+      "meal": "Pulled Pork Sliders with Vinegar Slaw and Baked Beans",
+      "before": false,
+      "after": true,
+      "ticked": 9
+    },
+    "subset": {
+      "mealIds": [
+        "de07e9c7-9139-45d1-9799-e05289b2c6dd",
+        "4f738c95-767e-4761-a52c-1d819039d6fa"
+      ],
+      "before": {
+        "de07e9c7-9139-45d1-9799-e05289b2c6dd": false,
+        "4f738c95-767e-4761-a52c-1d819039d6fa": false
+      },
+      "after": {
+        "de07e9c7-9139-45d1-9799-e05289b2c6dd": true,
+        "4f738c95-767e-4761-a52c-1d819039d6fa": true
+      },
+      "notInFull": [],
+      "nameDiffs": [],
+      "qtyDiffs": [],
+      "steps": 18
+    },
+    "a4": {
+      "prepStepsWithCovers": 7,
+      "coveredCookSteps": 5,
+      "sample": [
+        {
+          "stepKey": "produce#34744d96-c0b0-4e57-a118-06b41523a02c",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "de07e9c7-9139-45d1-9799-e05289b2c6dd",
+              "dishId": "8d61d78b-b43f-4602-8552-82f2d926ca62",
+              "stepIndex": 1
+            }
+          ]
+        },
+        {
+          "stepKey": "produce#7835b896-5d7f-44fe-82e9-d3e0d247b77f",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "de07e9c7-9139-45d1-9799-e05289b2c6dd",
+              "dishId": "8d61d78b-b43f-4602-8552-82f2d926ca62",
+              "stepIndex": 1
+            },
+            {
+              "mealId": "de07e9c7-9139-45d1-9799-e05289b2c6dd",
+              "dishId": "f6f09fe6-b420-47d2-9882-f8e9a20689e0",
+              "stepIndex": 0
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "code": "A07",
+    "planId": "fb328120-721e-47f3-b21c-dce1aba27939",
+    "partIFullStatus": 502,
+    "a1": {
+      "derivedNotRendered": [],
+      "renderedNotDerived": []
+    },
+    "b": {
+      "portionSteps": 23,
+      "maxInstructions": 493,
+      "overCap": 0,
+      "linesWithoutDestination": [
+        "2 lb for Sheet-Pan Spiced Chicken Thighs with Peppers and Onions"
+      ],
+      "labelTwice": 0,
+      "shortTubSteps": 1,
+      "trimmed": 0,
+      "plusMore": []
+    },
+    "prepped": null,
+    "subset": {
+      "mealIds": [
+        "bdda7211-b49b-4e74-a6ad-e1aaea9b3a0e",
+        "9cd9315a-0d3e-4c9c-be73-c5da5bbab398"
+      ],
+      "before": {
+        "bdda7211-b49b-4e74-a6ad-e1aaea9b3a0e": false,
+        "9cd9315a-0d3e-4c9c-be73-c5da5bbab398": false
+      },
+      "after": {
+        "bdda7211-b49b-4e74-a6ad-e1aaea9b3a0e": true,
+        "9cd9315a-0d3e-4c9c-be73-c5da5bbab398": true
+      },
+      "notInFull": [],
+      "nameDiffs": [],
+      "qtyDiffs": [],
+      "steps": 20
+    },
+    "a4": {
+      "prepStepsWithCovers": 13,
+      "coveredCookSteps": 7,
+      "sample": [
+        {
+          "stepKey": "cnt#seas#ed9bd92c-0f00-4c23-80ee-1bfd91f342c1|c:sauce|A",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "c7947a22-575f-4feb-8d0e-67afdfb2a46c",
+              "dishId": "ed9bd92c-0f00-4c23-80ee-1bfd91f342c1",
+              "stepIndex": 0
+            }
+          ]
+        },
+        {
+          "stepKey": "produce#d6fc9da2-dc51-41eb-991b-797d9379479e",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "bdda7211-b49b-4e74-a6ad-e1aaea9b3a0e",
+              "dishId": "00a1df08-d20b-4462-8d3d-5ff2c095f54f",
+              "stepIndex": 0
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "code": "A08",
+    "planId": "27a03273-6732-4ad0-a6a6-7b76ee5eea7e",
+    "partIFullStatus": 200,
+    "a1": {
+      "derivedNotRendered": [],
+      "renderedNotDerived": []
+    },
+    "b": {
+      "portionSteps": 11,
+      "maxInstructions": 215,
+      "overCap": 0,
+      "linesWithoutDestination": [
+        "1 rotisserie chicken chopped for Cobb Salad with Rotisserie Chicken",
+        "1 rotisserie chicken shredded for BBQ Chicken Sandwiches"
+      ],
+      "labelTwice": 0,
+      "shortTubSteps": 1,
+      "trimmed": 0,
+      "plusMore": []
+    },
+    "prepped": {
+      "meal": "Tortilla Soup with Rotisserie Chicken and Classic Toppings",
+      "before": false,
+      "after": true,
+      "ticked": 8
+    },
+    "subset": {
+      "mealIds": [
+        "6263e796-64ab-40f7-86b9-3829380f2d0c",
+        "cd98969a-ea1b-4c3b-ad79-8d0518b7013a"
+      ],
+      "before": {
+        "6263e796-64ab-40f7-86b9-3829380f2d0c": false,
+        "cd98969a-ea1b-4c3b-ad79-8d0518b7013a": false
+      },
+      "after": {
+        "6263e796-64ab-40f7-86b9-3829380f2d0c": true,
+        "cd98969a-ea1b-4c3b-ad79-8d0518b7013a": true
+      },
+      "notInFull": [],
+      "nameDiffs": [],
+      "qtyDiffs": [],
+      "steps": 6
+    },
+    "a4": {
+      "prepStepsWithCovers": 0,
+      "coveredCookSteps": 0,
+      "sample": []
+    }
+  },
+  {
+    "code": "A09",
+    "planId": "f0c56d0c-7182-428b-86d5-230689438919",
+    "partIFullStatus": 502,
+    "a1": {
+      "derivedNotRendered": [],
+      "renderedNotDerived": []
+    },
+    "b": {
+      "portionSteps": 10,
+      "maxInstructions": 599,
+      "overCap": 0,
+      "linesWithoutDestination": [],
+      "labelTwice": 0,
+      "shortTubSteps": 1,
+      "trimmed": 0,
+      "plusMore": []
+    },
+    "prepped": null,
+    "subset": {
+      "mealIds": [
+        "08c70fd1-611a-4517-8b74-bfcf26743f6f",
+        "3aff6b9d-e4f9-4781-bfc9-4ed175b00050"
+      ],
+      "before": {
+        "08c70fd1-611a-4517-8b74-bfcf26743f6f": false,
+        "3aff6b9d-e4f9-4781-bfc9-4ed175b00050": false
+      },
+      "after": {
+        "08c70fd1-611a-4517-8b74-bfcf26743f6f": true,
+        "3aff6b9d-e4f9-4781-bfc9-4ed175b00050": true
+      },
+      "notInFull": [],
+      "nameDiffs": [],
+      "qtyDiffs": [],
+      "steps": 22
+    },
+    "a4": {
+      "prepStepsWithCovers": 13,
+      "coveredCookSteps": 7,
+      "sample": [
+        {
+          "stepKey": "cnt#seas#0237d789-fc85-4ea9-9660-356a19dacd90|c:marinade|A",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "08c70fd1-611a-4517-8b74-bfcf26743f6f",
+              "dishId": "0237d789-fc85-4ea9-9660-356a19dacd90",
+              "stepIndex": 7
+            }
+          ]
+        },
+        {
+          "stepKey": "cnt#seas#5ae937ac-fd42-43a3-a8af-dd16ebafea28|c:sauce|A",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "cf774d74-5cc6-485f-a7a2-26305a9e59db",
+              "dishId": "5ae937ac-fd42-43a3-a8af-dd16ebafea28",
+              "stepIndex": 2
+            },
+            {
+              "mealId": "cf774d74-5cc6-485f-a7a2-26305a9e59db",
+              "dishId": "5ae937ac-fd42-43a3-a8af-dd16ebafea28",
+              "stepIndex": 4
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "code": "A10",
+    "planId": "3f9d46e8-b078-4bd4-b479-9f93cb8c76cd",
+    "partIFullStatus": 200,
+    "a1": {
+      "derivedNotRendered": [],
+      "renderedNotDerived": []
+    },
+    "b": {
+      "portionSteps": 13,
+      "maxInstructions": 298,
+      "overCap": 0,
+      "linesWithoutDestination": [],
+      "labelTwice": 0,
+      "shortTubSteps": 1,
+      "trimmed": 0,
+      "plusMore": []
+    },
+    "prepped": {
+      "meal": "Creamy Country Chicken and Gravy over Biscuits",
+      "before": false,
+      "after": true,
+      "ticked": 6
+    },
+    "subset": {
+      "mealIds": [
+        "443f992c-002c-4438-b04c-e7c3dcdbadfa",
+        "2b578f56-7154-4aad-a9b3-e703a252dd9f"
+      ],
+      "before": {
+        "443f992c-002c-4438-b04c-e7c3dcdbadfa": false,
+        "2b578f56-7154-4aad-a9b3-e703a252dd9f": false
+      },
+      "after": {
+        "443f992c-002c-4438-b04c-e7c3dcdbadfa": true,
+        "2b578f56-7154-4aad-a9b3-e703a252dd9f": true
+      },
+      "notInFull": [],
+      "nameDiffs": [],
+      "qtyDiffs": [],
+      "steps": 22
+    },
+    "a4": {
+      "prepStepsWithCovers": 4,
+      "coveredCookSteps": 5,
+      "sample": [
+        {
+          "stepKey": "cnt#seas#e1e17b23-95e5-4e5e-96f6-3a846b11b0d8|r:0|A",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "2b578f56-7154-4aad-a9b3-e703a252dd9f",
+              "dishId": "e1e17b23-95e5-4e5e-96f6-3a846b11b0d8",
+              "stepIndex": 2
+            }
+          ]
+        },
+        {
+          "stepKey": "produce#7835b896-5d7f-44fe-82e9-d3e0d247b77f",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "ab06a806-b967-4229-8fe0-07e8952c2e18",
+              "dishId": "6e55f8dd-d714-4d7b-862b-0667555644bf",
+              "stepIndex": 2
+            },
+            {
+              "mealId": "ab06a806-b967-4229-8fe0-07e8952c2e18",
+              "dishId": "6e55f8dd-d714-4d7b-862b-0667555644bf",
+              "stepIndex": 5
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "code": "A11",
+    "planId": "33ddbb13-7f30-418f-ab5b-c547484d4461",
+    "partIFullStatus": 200,
+    "a1": {
+      "derivedNotRendered": [],
+      "renderedNotDerived": []
+    },
+    "b": {
+      "portionSteps": 13,
+      "maxInstructions": 626,
+      "overCap": 0,
+      "linesWithoutDestination": [
+        "8 oz for Shrimp and Crab Jambalaya"
+      ],
+      "labelTwice": 0,
+      "shortTubSteps": 1,
+      "trimmed": 0,
+      "plusMore": []
+    },
+    "prepped": null,
+    "subset": {
+      "mealIds": [
+        "4dcf3152-59d1-4d64-9eaf-fda4ca282654",
+        "38690cac-5164-468f-b9b7-36f3ca973add"
+      ],
+      "before": {
+        "4dcf3152-59d1-4d64-9eaf-fda4ca282654": false,
+        "38690cac-5164-468f-b9b7-36f3ca973add": false
+      },
+      "after": {
+        "4dcf3152-59d1-4d64-9eaf-fda4ca282654": true,
+        "38690cac-5164-468f-b9b7-36f3ca973add": true
+      },
+      "notInFull": [],
+      "nameDiffs": [],
+      "qtyDiffs": [],
+      "steps": 12
+    },
+    "a4": {
+      "prepStepsWithCovers": 5,
+      "coveredCookSteps": 3,
+      "sample": [
+        {
+          "stepKey": "cnt#seas#8e5d1a6a-1446-427e-89eb-0f80e14a91c5|c:spice blend|A",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "8573b172-49fe-4f31-92d5-fdee07ebbca9",
+              "dishId": "8e5d1a6a-1446-427e-89eb-0f80e14a91c5",
+              "stepIndex": 1
+            }
+          ]
+        },
+        {
+          "stepKey": "produce#7835b896-5d7f-44fe-82e9-d3e0d247b77f",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "4dcf3152-59d1-4d64-9eaf-fda4ca282654",
+              "dishId": "0177e205-fc7f-4f56-ac89-6447e1175f83",
+              "stepIndex": 2
+            },
+            {
+              "mealId": "8573b172-49fe-4f31-92d5-fdee07ebbca9",
+              "dishId": "8e5d1a6a-1446-427e-89eb-0f80e14a91c5",
+              "stepIndex": 0
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "code": "A12",
+    "planId": "b12a194c-ba07-4e30-ba35-71ae1442a87e",
+    "partIFullStatus": 502,
+    "a1": {
+      "derivedNotRendered": [],
+      "renderedNotDerived": []
+    },
+    "b": {
+      "portionSteps": 8,
+      "maxInstructions": 683,
+      "overCap": 0,
+      "linesWithoutDestination": [],
+      "labelTwice": 0,
+      "shortTubSteps": 5,
+      "trimmed": 0,
+      "plusMore": []
+    },
+    "prepped": null,
+    "subset": {
+      "mealIds": [
+        "44fdb3f3-9381-4677-a84e-e5497d94ccd4",
+        "2b92d80e-f93d-4682-bafb-5bbd82579e03"
+      ],
+      "before": {
+        "44fdb3f3-9381-4677-a84e-e5497d94ccd4": false,
+        "2b92d80e-f93d-4682-bafb-5bbd82579e03": false
+      },
+      "after": {
+        "44fdb3f3-9381-4677-a84e-e5497d94ccd4": true,
+        "2b92d80e-f93d-4682-bafb-5bbd82579e03": true
+      },
+      "notInFull": [],
+      "nameDiffs": [],
+      "qtyDiffs": [],
+      "steps": 15
+    },
+    "a4": {
+      "prepStepsWithCovers": 5,
+      "coveredCookSteps": 5,
+      "sample": [
+        {
+          "stepKey": "produce#7835b896-5d7f-44fe-82e9-d3e0d247b77f",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "44fdb3f3-9381-4677-a84e-e5497d94ccd4",
+              "dishId": "d68912dc-9afc-40a5-a648-7ac59a8291cc",
+              "stepIndex": 0
+            },
+            {
+              "mealId": "b873f58d-064f-4244-bf2d-9f236b40de2a",
+              "dishId": "6d9dd8af-afbb-4105-95f4-3e54a0c5ec40",
+              "stepIndex": 0
+            }
+          ]
+        },
+        {
+          "stepKey": "produce#35bf8a9e-195f-4bca-b7f4-1e27188a50d0",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "44fdb3f3-9381-4677-a84e-e5497d94ccd4",
+              "dishId": "14466a93-5086-4a93-9adb-2f954c62f4b5",
+              "stepIndex": 3
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "code": "A13",
+    "planId": "bd8aa8c2-bff4-42cf-84b8-ff24fbf3793d",
+    "partIFullStatus": 502,
+    "a1": {
+      "derivedNotRendered": [],
+      "renderedNotDerived": []
+    },
+    "b": {
+      "portionSteps": 14,
+      "maxInstructions": 601,
+      "overCap": 0,
+      "linesWithoutDestination": [
+        "2 lb for Citrus-Braised Pork Carnitas"
+      ],
+      "labelTwice": 0,
+      "shortTubSteps": 3,
+      "trimmed": 0,
+      "plusMore": []
+    },
+    "prepped": null,
+    "subset": {
+      "mealIds": [
+        "c2a53d20-2b52-4639-8652-f428f7fe55bd",
+        "7720fbf4-c747-47f9-8468-72b9bf2993b0"
+      ],
+      "before": {
+        "c2a53d20-2b52-4639-8652-f428f7fe55bd": false,
+        "7720fbf4-c747-47f9-8468-72b9bf2993b0": false
+      },
+      "after": {
+        "c2a53d20-2b52-4639-8652-f428f7fe55bd": true,
+        "7720fbf4-c747-47f9-8468-72b9bf2993b0": true
+      },
+      "notInFull": [],
+      "nameDiffs": [],
+      "qtyDiffs": [],
+      "steps": 20
+    },
+    "a4": {
+      "prepStepsWithCovers": 9,
+      "coveredCookSteps": 6,
+      "sample": [
+        {
+          "stepKey": "produce#563574fb-fbd1-4dcb-8414-5208e4ca1aca",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "c2a53d20-2b52-4639-8652-f428f7fe55bd",
+              "dishId": "30def88b-4768-433a-881b-d64463023bc2",
+              "stepIndex": 0
+            },
+            {
+              "mealId": "93abf555-4ada-4a02-8e27-79fafc653ddb",
+              "dishId": "2f323ca0-5b47-4165-b2f4-d518fc8fd31d",
+              "stepIndex": 0
+            }
+          ]
+        },
+        {
+          "stepKey": "produce#fa764309-73b4-4497-9c21-799022cbe6b3",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "c2a53d20-2b52-4639-8652-f428f7fe55bd",
+              "dishId": "30def88b-4768-433a-881b-d64463023bc2",
+              "stepIndex": 0
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "code": "A14",
+    "planId": "11623bcd-bc82-4aa4-ad88-80aaa075b19a",
+    "partIFullStatus": 200,
+    "a1": {
+      "derivedNotRendered": [],
+      "renderedNotDerived": []
+    },
+    "b": {
+      "portionSteps": 11,
+      "maxInstructions": 480,
+      "overCap": 0,
+      "linesWithoutDestination": [
+        "2 lb for Chicken Tikka Masala"
+      ],
+      "labelTwice": 0,
+      "shortTubSteps": 4,
+      "trimmed": 0,
+      "plusMore": []
+    },
+    "prepped": {
+      "meal": "Chana Masala with Naan and Cucumber Raita",
+      "before": false,
+      "after": true,
+      "ticked": 10
+    },
+    "subset": {
+      "mealIds": [
+        "994049b6-2115-44ba-bc75-c7cb4988c539",
+        "5a86456e-79a2-4023-b475-dd938aeefa78"
+      ],
+      "before": {
+        "994049b6-2115-44ba-bc75-c7cb4988c539": false,
+        "5a86456e-79a2-4023-b475-dd938aeefa78": false
+      },
+      "after": {
+        "994049b6-2115-44ba-bc75-c7cb4988c539": true,
+        "5a86456e-79a2-4023-b475-dd938aeefa78": true
+      },
+      "notInFull": [],
+      "nameDiffs": [],
+      "qtyDiffs": [],
+      "steps": 11
+    },
+    "a4": {
+      "prepStepsWithCovers": 8,
+      "coveredCookSteps": 5,
+      "sample": [
+        {
+          "stepKey": "cnt#seas#616ebd16-6ea8-4cd9-aaf2-d116402f1f48|c:marinade|A",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "994049b6-2115-44ba-bc75-c7cb4988c539",
+              "dishId": "616ebd16-6ea8-4cd9-aaf2-d116402f1f48",
+              "stepIndex": 1
+            }
+          ]
+        },
+        {
+          "stepKey": "cnt#seas#138a0c89-eb33-4a4c-81fe-491adcfb6b17|r:0|A",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "3203f02d-9e1d-46ad-abb0-c197ebefa18b",
+              "dishId": "138a0c89-eb33-4a4c-81fe-491adcfb6b17",
+              "stepIndex": 1
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "code": "A15",
+    "planId": "2539d94d-80df-4f05-b62e-0d3d9167806a",
+    "partIFullStatus": 200,
+    "a1": {
+      "derivedNotRendered": [],
+      "renderedNotDerived": []
+    },
+    "b": {
+      "portionSteps": 12,
+      "maxInstructions": 226,
+      "overCap": 0,
+      "linesWithoutDestination": [
+        "3 lb for Carolina Vinegar Pulled Pork",
+        "3 lb for Slow-Roasted Pulled Pork"
+      ],
+      "labelTwice": 0,
+      "shortTubSteps": 1,
+      "trimmed": 0,
+      "plusMore": []
+    },
+    "prepped": {
+      "meal": "Carolina Vinegar Pulled Pork with Tangy Slaw",
+      "before": false,
+      "after": true,
+      "ticked": 8
+    },
+    "subset": {
+      "mealIds": [
+        "a7bd94ec-ead1-4f29-8d09-c1e064b7ab49",
+        "316a9cc7-39da-4bd0-b3f4-1399c5f1b0f0"
+      ],
+      "before": {
+        "a7bd94ec-ead1-4f29-8d09-c1e064b7ab49": false,
+        "316a9cc7-39da-4bd0-b3f4-1399c5f1b0f0": false
+      },
+      "after": {
+        "a7bd94ec-ead1-4f29-8d09-c1e064b7ab49": true,
+        "316a9cc7-39da-4bd0-b3f4-1399c5f1b0f0": true
+      },
+      "notInFull": [],
+      "nameDiffs": [],
+      "qtyDiffs": [],
+      "steps": 25
+    },
+    "a4": {
+      "prepStepsWithCovers": 6,
+      "coveredCookSteps": 4,
+      "sample": [
+        {
+          "stepKey": "produce#563574fb-fbd1-4dcb-8414-5208e4ca1aca",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "a7bd94ec-ead1-4f29-8d09-c1e064b7ab49",
+              "dishId": "4223c8cf-6fbc-453d-b148-ebb5b13b4985",
+              "stepIndex": 2
+            }
+          ]
+        },
+        {
+          "stepKey": "produce#a5790b3f-a6c2-4e0f-87ea-ea90a90b4af0",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "a7bd94ec-ead1-4f29-8d09-c1e064b7ab49",
+              "dishId": "20b742e2-4e76-4032-b701-7bc353e02a93",
+              "stepIndex": 0
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "code": "A16",
+    "planId": "b0c8ffbd-b167-4265-8fb3-2782bc72092e",
+    "partIFullStatus": 200,
+    "a1": {
+      "derivedNotRendered": [],
+      "renderedNotDerived": []
+    },
+    "b": {
+      "portionSteps": 16,
+      "maxInstructions": 473,
+      "overCap": 0,
+      "linesWithoutDestination": [],
+      "labelTwice": 0,
+      "shortTubSteps": 2,
+      "trimmed": 0,
+      "plusMore": []
+    },
+    "prepped": {
+      "meal": "Seared Tuna Steak with Sesame-Ginger Slaw and Steamed Jasmine Rice",
+      "before": false,
+      "after": true,
+      "ticked": 10
+    },
+    "subset": {
+      "mealIds": [
+        "76159338-ace0-4cf0-92c0-d9317888def0",
+        "44e2446d-1694-4aaa-a02c-c7c3aa806764"
+      ],
+      "before": {
+        "76159338-ace0-4cf0-92c0-d9317888def0": false,
+        "44e2446d-1694-4aaa-a02c-c7c3aa806764": false
+      },
+      "after": {
+        "76159338-ace0-4cf0-92c0-d9317888def0": true,
+        "44e2446d-1694-4aaa-a02c-c7c3aa806764": true
+      },
+      "notInFull": [],
+      "nameDiffs": [],
+      "qtyDiffs": [],
+      "steps": 24
+    },
+    "a4": {
+      "prepStepsWithCovers": 16,
+      "coveredCookSteps": 9,
+      "sample": [
+        {
+          "stepKey": "cnt#seas#14181504-afdc-4bae-9d2b-6544eb6d2272|c:marinade|A",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "d6398bb5-af8c-4f87-83bc-abaa36cfbc18",
+              "dishId": "14181504-afdc-4bae-9d2b-6544eb6d2272",
+              "stepIndex": 4
+            }
+          ]
+        },
+        {
+          "stepKey": "produce#563574fb-fbd1-4dcb-8414-5208e4ca1aca",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "76159338-ace0-4cf0-92c0-d9317888def0",
+              "dishId": "48eb08ea-6a14-4a27-ab11-dac75a3ff589",
+              "stepIndex": 0
+            },
+            {
+              "mealId": "d6398bb5-af8c-4f87-83bc-abaa36cfbc18",
+              "dishId": "d6eab803-9268-45f5-9542-3c1152ae1938",
+              "stepIndex": 2
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "code": "A17",
+    "planId": "2730c4b1-7648-404a-a7bf-692fb89faa03",
+    "partIFullStatus": 200,
+    "a1": {
+      "derivedNotRendered": [],
+      "renderedNotDerived": []
+    },
+    "b": {
+      "portionSteps": 12,
+      "maxInstructions": 588,
+      "overCap": 0,
+      "linesWithoutDestination": [
+        "2 lb for Harissa-Spiced Chicken Shawarma",
+        "1¾ lb for Marinated Chicken Gyro Filling"
+      ],
+      "labelTwice": 0,
+      "shortTubSteps": 2,
+      "trimmed": 0,
+      "plusMore": []
+    },
+    "prepped": {
+      "meal": "Stuffed Grape Leaves with Tzatziki and Warm Pita",
+      "before": false,
+      "after": true,
+      "ticked": 9
+    },
+    "subset": {
+      "mealIds": [
+        "57401f7b-5789-45e5-9b66-fbca67a0f3ff",
+        "fdc9a12a-7878-471b-93fe-9944898eb0b2"
+      ],
+      "before": {
+        "57401f7b-5789-45e5-9b66-fbca67a0f3ff": false,
+        "fdc9a12a-7878-471b-93fe-9944898eb0b2": false
+      },
+      "after": {
+        "57401f7b-5789-45e5-9b66-fbca67a0f3ff": true,
+        "fdc9a12a-7878-471b-93fe-9944898eb0b2": true
+      },
+      "notInFull": [],
+      "nameDiffs": [],
+      "qtyDiffs": [],
+      "steps": 15
+    },
+    "a4": {
+      "prepStepsWithCovers": 9,
+      "coveredCookSteps": 6,
+      "sample": [
+        {
+          "stepKey": "cnt#seas#c27afbe4-4f58-4514-a1fe-b61180be93f8|c:spice blend|A",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "57401f7b-5789-45e5-9b66-fbca67a0f3ff",
+              "dishId": "c27afbe4-4f58-4514-a1fe-b61180be93f8",
+              "stepIndex": 2
+            }
+          ]
+        },
+        {
+          "stepKey": "cnt#seas#afd85bcb-21f4-44d4-aec2-381db38f090d|c:spice blend|A",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "3020b70c-eff1-434e-8a9c-9102cfeeba28",
+              "dishId": "afd85bcb-21f4-44d4-aec2-381db38f090d",
+              "stepIndex": 1
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "code": "A18",
+    "planId": "8a0de6e6-ec8a-453f-994a-6a973c5bcd32",
+    "partIFullStatus": 200,
+    "a1": {
+      "derivedNotRendered": [],
+      "renderedNotDerived": []
+    },
+    "b": {
+      "portionSteps": 11,
+      "maxInstructions": 391,
+      "overCap": 0,
+      "linesWithoutDestination": [],
+      "labelTwice": 0,
+      "shortTubSteps": 2,
+      "trimmed": 0,
+      "plusMore": []
+    },
+    "prepped": {
+      "meal": "Biscuits and Sausage Gravy with Scrambled Eggs",
+      "before": true,
+      "after": true,
+      "ticked": 2
+    },
+    "subset": {
+      "mealIds": [
+        "29e6318d-93c9-48cf-b073-b92744cf43c1",
+        "43bc4656-31ae-4ada-9730-980fa3dd38b0"
+      ],
+      "before": {
+        "29e6318d-93c9-48cf-b073-b92744cf43c1": true,
+        "43bc4656-31ae-4ada-9730-980fa3dd38b0": false
+      },
+      "after": {
+        "29e6318d-93c9-48cf-b073-b92744cf43c1": true,
+        "43bc4656-31ae-4ada-9730-980fa3dd38b0": true
+      },
+      "notInFull": [],
+      "nameDiffs": [],
+      "qtyDiffs": [],
+      "steps": 16
+    },
+    "a4": {
+      "prepStepsWithCovers": 4,
+      "coveredCookSteps": 4,
+      "sample": [
+        {
+          "stepKey": "produce#7835b896-5d7f-44fe-82e9-d3e0d247b77f",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "29e6318d-93c9-48cf-b073-b92744cf43c1",
+              "dishId": "eb2282c6-a2de-436d-99d8-467fed6c71fb",
+              "stepIndex": 1
+            },
+            {
+              "mealId": "6df8789d-e9fa-4758-8ed0-09ecc06ef8e4",
+              "dishId": "0091f08f-9e00-4387-985f-de67a2dfd694",
+              "stepIndex": 0
+            },
+            {
+              "mealId": "6df8789d-e9fa-4758-8ed0-09ecc06ef8e4",
+              "dishId": "8080c72f-6ef0-4a20-aa5b-815a8eb09651",
+              "stepIndex": 0
+            }
+          ]
+        },
+        {
+          "stepKey": "produce#fe743e38-6996-4c15-a6f3-adbcc5a0ce42",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "29e6318d-93c9-48cf-b073-b92744cf43c1",
+              "dishId": "eb2282c6-a2de-436d-99d8-467fed6c71fb",
+              "stepIndex": 1
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "code": "A19",
+    "planId": "d26e6ae6-3dcd-42ce-9f77-b3962697fff5",
+    "partIFullStatus": 200,
+    "a1": {
+      "derivedNotRendered": [],
+      "renderedNotDerived": []
+    },
+    "b": {
+      "portionSteps": 15,
+      "maxInstructions": 432,
+      "overCap": 0,
+      "linesWithoutDestination": [
+        "4 whole chicken halves (bone-in) for Classic Sauced BBQ Chicken Halves"
+      ],
+      "labelTwice": 0,
+      "shortTubSteps": 0,
+      "trimmed": 0,
+      "plusMore": []
+    },
+    "prepped": {
+      "meal": "Grilled Shrimp Skewers with Charred Corn, Avocado, and Lime Vinaigrette",
+      "before": false,
+      "after": true,
+      "ticked": 8
+    },
+    "subset": {
+      "mealIds": [
+        "3db20bcd-abb6-4b40-a209-bdf94488c9a9",
+        "c72731a6-bbc8-4e65-bde0-633afbb04c00"
+      ],
+      "before": {
+        "3db20bcd-abb6-4b40-a209-bdf94488c9a9": false,
+        "c72731a6-bbc8-4e65-bde0-633afbb04c00": false
+      },
+      "after": {
+        "3db20bcd-abb6-4b40-a209-bdf94488c9a9": true,
+        "c72731a6-bbc8-4e65-bde0-633afbb04c00": true
+      },
+      "notInFull": [],
+      "nameDiffs": [],
+      "qtyDiffs": [],
+      "steps": 21
+    },
+    "a4": {
+      "prepStepsWithCovers": 7,
+      "coveredCookSteps": 4,
+      "sample": [
+        {
+          "stepKey": "produce#0f85ccd3-1b62-4cbf-af31-f6bb1e6504f2",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "3db20bcd-abb6-4b40-a209-bdf94488c9a9",
+              "dishId": "e5d9eb4d-e9ee-42bd-8b70-4e8fb6c8b05a",
+              "stepIndex": 0
+            },
+            {
+              "mealId": "8a9e026d-c26e-425e-8d9c-56077458a60b",
+              "dishId": "4ec033b9-06ae-4803-aed8-7063900e40a9",
+              "stepIndex": 0
+            }
+          ]
+        },
+        {
+          "stepKey": "produce#fc5856e9-886d-4541-aae1-666e7289ead5",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "3db20bcd-abb6-4b40-a209-bdf94488c9a9",
+              "dishId": "e5d9eb4d-e9ee-42bd-8b70-4e8fb6c8b05a",
+              "stepIndex": 0
+            },
+            {
+              "mealId": "8a9e026d-c26e-425e-8d9c-56077458a60b",
+              "dishId": "4ec033b9-06ae-4803-aed8-7063900e40a9",
+              "stepIndex": 0
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "code": "A20",
+    "planId": "2faff60f-9a4e-4afb-897e-35422c5e8c34",
+    "partIFullStatus": 200,
+    "a1": {
+      "derivedNotRendered": [],
+      "renderedNotDerived": []
+    },
+    "b": {
+      "portionSteps": 11,
+      "maxInstructions": 436,
+      "overCap": 0,
+      "linesWithoutDestination": [
+        "1¾ lb sliced for Chicken Fajitas with Roasted Poblano and Corn",
+        "1½ lb shredded for Classic Chicken Tetrazzini"
+      ],
+      "labelTwice": 0,
+      "shortTubSteps": 3,
+      "trimmed": 0,
+      "plusMore": []
+    },
+    "prepped": null,
+    "subset": {
+      "mealIds": [
+        "01c4f79e-275a-4e2d-a89c-bb8dd9daa6b1",
+        "4e7b5af5-3319-428c-813f-4b17316027fa"
+      ],
+      "before": {
+        "01c4f79e-275a-4e2d-a89c-bb8dd9daa6b1": false,
+        "4e7b5af5-3319-428c-813f-4b17316027fa": false
+      },
+      "after": {
+        "01c4f79e-275a-4e2d-a89c-bb8dd9daa6b1": true,
+        "4e7b5af5-3319-428c-813f-4b17316027fa": true
+      },
+      "notInFull": [],
+      "nameDiffs": [],
+      "qtyDiffs": [],
+      "steps": 14
+    },
+    "a4": {
+      "prepStepsWithCovers": 5,
+      "coveredCookSteps": 3,
+      "sample": [
+        {
+          "stepKey": "produce#34744d96-c0b0-4e57-a118-06b41523a02c",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "940ac1eb-e3f0-4442-9dcc-218019cc9c47",
+              "dishId": "43e467e2-d9d4-4433-8407-ed9daa55bc88",
+              "stepIndex": 3
+            }
+          ]
+        },
+        {
+          "stepKey": "produce#ef8cc2b5-6b0a-4e35-aead-b5171bb3df0a",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "940ac1eb-e3f0-4442-9dcc-218019cc9c47",
+              "dishId": "43e467e2-d9d4-4433-8407-ed9daa55bc88",
+              "stepIndex": 3
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "code": "A21",
+    "planId": "297794a0-569d-4af8-9506-0fe4cc43999a",
+    "partIFullStatus": 502,
+    "a1": {
+      "derivedNotRendered": [],
+      "renderedNotDerived": []
+    },
+    "b": {
+      "portionSteps": 14,
+      "maxInstructions": 555,
+      "overCap": 0,
+      "linesWithoutDestination": [
+        "2½ lb for Salsa Verde Braised Chicken Thighs",
+        "1½ lb for Crispy Chicken Flautas with Crema",
+        "1½ lb for Crispy Chicken Flautas"
+      ],
+      "labelTwice": 0,
+      "shortTubSteps": 2,
+      "trimmed": 0,
+      "plusMore": []
+    },
+    "prepped": null,
+    "subset": {
+      "mealIds": [
+        "459a17db-54e8-45c3-84a8-d2dce8f1a977",
+        "7d39dc40-2f65-4cee-bab0-9640595c6826"
+      ],
+      "before": {
+        "459a17db-54e8-45c3-84a8-d2dce8f1a977": false,
+        "7d39dc40-2f65-4cee-bab0-9640595c6826": false
+      },
+      "after": {
+        "459a17db-54e8-45c3-84a8-d2dce8f1a977": true,
+        "7d39dc40-2f65-4cee-bab0-9640595c6826": true
+      },
+      "notInFull": [],
+      "nameDiffs": [],
+      "qtyDiffs": [],
+      "steps": 19
+    },
+    "a4": {
+      "prepStepsWithCovers": 5,
+      "coveredCookSteps": 3,
+      "sample": [
+        {
+          "stepKey": "cnt#seas#24b8ce66-d652-491a-a94d-72d38f38bb8b|c:step#2|A",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "459a17db-54e8-45c3-84a8-d2dce8f1a977",
+              "dishId": "24b8ce66-d652-491a-a94d-72d38f38bb8b",
+              "stepIndex": 2
+            }
+          ]
+        },
+        {
+          "stepKey": "cnt#seas#dd93a497-6968-4de2-bc1a-580718ff396b|c:step#2|A",
+          "title": "Do it",
+          "coversCookSteps": [
+            {
+              "mealId": "9d0f05c9-774d-42bf-832b-3fd4cf35ee23",
+              "dishId": "dd93a497-6968-4de2-bc1a-580718ff396b",
+              "stepIndex": 2
+            }
+          ]
+        }
+      ]
+    }
+  }
+]

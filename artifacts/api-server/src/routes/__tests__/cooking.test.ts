@@ -2413,7 +2413,8 @@ describe("POST /api/plans/:planId/prep-week — G1: a day move rewrites the advi
     assert.equal(near.cacheHit, true, "a day move must not invalidate the cache");
     assert.equal(near.aiCalls, 0, "no AI call may be spent re-deciding a date");
     assert.equal(near.step.skipSuggested, undefined, "1 day out must NOT be demoted");
-    assert.equal(near.step.title, modelTitle, "the title must revert to what the model wrote");
+    // J.1 0f — the model's title, with its dish named so the protein is findable on screen.
+    assert.equal(near.step.title, `${modelTitle} — Dish`, "the title must revert to what the model wrote (plus its dish)");
     assert.match(near.step.storageNote!, /cook within 2 days/);
 
     // 3. The reverse move, from the cache this time. The first demotion came

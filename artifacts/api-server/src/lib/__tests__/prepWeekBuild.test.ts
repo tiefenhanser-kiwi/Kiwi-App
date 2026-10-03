@@ -10,7 +10,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import type { LoadPrepWeekInputResult } from "../prepWeekAggregation";
-import { buildPrepWeekPlan, isTickable, tickableStepRefs, type PrepWeekBuild } from "../prepWeekBuild";
+import { buildPrepWeekPlan, finishPrepWeek, isTickable, tickableStepRefs, type PrepWeekBuild } from "../prepWeekBuild";
 import {
   assemblePrepWeekResult,
   renderPortionLines,
@@ -19,7 +19,6 @@ import {
   PORTION_LINES_MAX,
   type PlannedStep,
 } from "../prepWeekAssembly";
-import { applyStorageOverlay } from "../prepStorage";
 import { derivePrepCompletion } from "../prepCompletion";
 import { PrepWeekResultSchema } from "../ai/schemas/prepWeek";
 
@@ -112,7 +111,7 @@ function wire(build: PrepWeekBuild) {
   const narration = {
     steps: build.stepPlan.narrationInput.steps.map((s) => ({ stepId: s.stepId, title: "Do the thing", instructions: "Do the thing." })),
   };
-  const result = summarizePrepWeek(applyStorageOverlay(assemblePrepWeekResult(build.stepPlan, narration), build.storageContexts));
+  const result = summarizePrepWeek(finishPrepWeek(assemblePrepWeekResult(build.stepPlan, narration), build));
   const parsed = PrepWeekResultSchema.safeParse(result);
   assert.ok(parsed.success, JSON.stringify(parsed.success ? "" : parsed.error.flatten()));
   return result;
@@ -129,7 +128,7 @@ describe("Part J.0 A1 — one step set: what isPrepped waits for IS what the scr
     const build = buildPrepWeekPlan(fixture());
     const derived = new Set(tickableStepRefs(build).map((r) => r.stepKey));
     assert.deepEqual([...derived].sort(), [...renderedKeys(build)].sort());
-    assert.ok(derived.size >= 4, "the fixture has real work to tick");
+    assert.ok(derived.size >= 3, `the fixture has real work to tick: ${[...derived].join(", ")}`);
   });
 
   it("…and the same holds for a subset", () => {
@@ -238,56 +237,76 @@ describe("Part J.0 B — portion lines are the code's", () => {
   const LABEL = "Minced garlic — Beef Enchiladas Verdes, Mexican Street-Style Rice, Texas Chili, Tex-Mex Tacos";
   const measure = (amount: string, forDish: string, destination: string) => ({ amount, forDish, dishRole: "main" as const, destination, qty: Number.parseFloat(amount), unit: "cloves" });
 
-  it("a step with 7 portions renders under the cap, every line with a destination, the label once", () => {
+  it("a step with 7 portions renders under the cap, every line with a destination, no raw label in a sentence", () => {
+    const own = "Slow-Braised Collard Greens with Bacon — minced garlic and thinly sliced yellow onion";
     const dishes = ["Beef Enchiladas Verdes", "Mexican Street-Style Rice", "Texas-Style Beef Chili with Beans", "Tex-Mex Ground Beef Tacos", "Creamy Hummus", "Slow-Braised Collard Greens with Bacon", "Classic Supreme Pizza"];
-    const dests = [LABEL, LABEL, LABEL, LABEL, "Creamy Hummus sauce bowl", "Slow-Braised Collard Greens with Bacon — minced garlic and thinly sliced yellow onion", "Classic Supreme Pizza vegetables"];
-    const r = renderPortionLines({
-      components: [{ ingredientName: "garlic cloves", preparationNote: "minced", measures: dishes.map((d, i) => measure(`${i + 2} cloves`, d, dests[i])) }],
-    })!;
+    const dests = [LABEL, LABEL, LABEL, LABEL, "Creamy Hummus sauce bowl", own, "Classic Supreme Pizza vegetables"];
+    const r = renderPortionLines(
+      { components: [{ ingredientName: "garlic cloves", preparationNote: "minced", measures: dishes.map((d, i) => measure(`${i + 2} cloves`, d, dests[i])) }] },
+      new Map([[LABEL, "shared" as const], [own, "own-tub" as const]]),
+    )!;
     assert.equal(r.lines.length, 7);
     const body = r.lines.join("\n");
     assert.ok(body.length <= PORTION_LINES_MAX, `${body.length}`);
     assert.ok(OPENING_MAX + 1 + body.length <= 800);
     for (const l of r.lines) assert.match(l, / — (into the |same |the same )/, l);
-    assert.equal(body.split(`"${LABEL}"`).length - 1, 1, "the shared label is printed once");
+    for (const l of r.lines) assert.ok(!l.includes(LABEL) && !l.includes(own), `raw label in a sentence: ${l}`);
+    assert.equal(r.lines[0], "2 cloves for Beef Enchiladas Verdes — into the shared minced-garlic tub");
     assert.match(r.lines[1], /— same tub$/);
+    assert.equal(r.lines[5], "7 cloves — into the minced garlic and thinly sliced yellow onion tub for the Slow-Braised Collard Greens with Bacon");
     assert.equal(r.meta.total, "35 cloves");
   });
 
-  it("the census's 1,059-character garlic step fits: four dishes into one tub, each line names its dish", () => {
+  it("the census's 1,059-character garlic step fits: four dishes into one shared tub, each line names its dish", () => {
     const label = "Minced garlic — Beef Enchiladas Verdes, Mexican Street-Style Rice, Texas-Style Beef Chili, Tex-Mex Ground Beef Tacos";
-    const r = renderPortionLines({
-      components: [{ ingredientName: "garlic cloves", measures: ["Beef Enchiladas Verdes", "Mexican Street-Style Rice", "Texas-Style Beef Chili", "Tex-Mex Ground Beef Tacos"].map((d) => measure("4 cloves", d, label)) }],
-    })!;
+    const r = renderPortionLines(
+      { components: [{ ingredientName: "garlic cloves", measures: ["Beef Enchiladas Verdes", "Mexican Street-Style Rice", "Texas-Style Beef Chili", "Tex-Mex Ground Beef Tacos"].map((d) => measure("4 cloves", d, label)) }] },
+      new Map([[label, "shared" as const]]),
+    )!;
     assert.deepEqual(r.lines, [
-      `4 cloves for Beef Enchiladas Verdes — into the tub "${label}"`,
+      "4 cloves for Beef Enchiladas Verdes — into the shared minced-garlic tub",
       "4 cloves for Mexican Street-Style Rice — same tub",
       "4 cloves for Texas-Style Beef Chili — same tub",
       "4 cloves for Tex-Mex Ground Beef Tacos — same tub",
     ]);
   });
 
-  it("over budget, 'for <dish>' goes only where the lid's HEAD is the dish — a shared tub keeps every full dish name", () => {
-    const shared = "Minced garlic — Beef Enchiladas Verdes, Mexican Street-Style Rice";
-    const own = (d: string) => `${d} — garlic, english cucumber, fresh dill, red onion and lemon zest`;
+  it("J.1 §2 — a dish's own tub reads contents first, dish after: the dried-chile bag, the diced-jalapeño tub", () => {
+    const bag = "Texas-Style Beef Chili — dried chiles, stemmed and seeded";
+    const tub = "Jalapeño Cheddar Cornbread — diced jalapeño";
     const r = renderPortionLines(
-      {
-        components: [{
-          ingredientName: "garlic cloves",
-          measures: [
-            measure("3 cloves", "Beef Enchiladas Verdes", shared),
-            measure("2 cloves", "Mexican Street-Style Rice", shared),
-            measure("1 clove", "Herb-Marinated Tzatziki Sauce", own("Herb-Marinated Tzatziki Sauce")),
-            measure("1 clove", "Garlic Yogurt Cucumber Salad", own("Garlic Yogurt Cucumber Salad")),
-          ],
-        }],
-      },
-      new Map(),
-      440, // stage 1 does not fit here; stage 2 does
+      { components: [
+        { ingredientName: "dried ancho chiles", measures: [{ ...measure("3", "Texas-Style Beef Chili", bag), unit: "each" }] },
+        { ingredientName: "jalapeño", measures: [{ ...measure("1", "Jalapeño Cheddar Cornbread", tub), unit: "each" }] },
+      ] },
+      new Map([[bag, "own-bag" as const], [tub, "own-tub" as const]]),
     )!;
-    assert.equal(r.lines[0], `3 cloves for Beef Enchiladas Verdes — into the tub "${shared}"`);
-    assert.equal(r.lines[1], "2 cloves for Mexican Street-Style Rice — same tub");
-    assert.equal(r.lines[2], `1 clove — into the tub "${own("Herb-Marinated Tzatziki Sauce")}"`);
+    assert.deepEqual(r.lines, [
+      "3 dried ancho chiles — into the dried-chile bag for the Texas-Style Beef Chili",
+      "1 jalapeño — into the diced-jalapeño tub for the Jalapeño Cheddar Cornbread",
+    ]);
+  });
+
+  it("over budget, 'for <dish>' goes only where the vessel is the dish's — a shared tub keeps every full dish name", () => {
+    const shared = "Minced garlic — Beef Enchiladas Verdes, Mexican Street-Style Rice";
+    const jar = "Smoky Chipotle Ground Beef sauce jar";
+    const step = {
+      components: [{
+        ingredientName: "garlic cloves",
+        measures: [
+          measure("3 cloves", "Beef Enchiladas Verdes", shared),
+          measure("2 cloves", "Mexican Street-Style Rice", shared),
+          measure("4 cloves", "Smoky Chipotle Ground Beef", jar),
+        ],
+      }],
+    };
+    const kinds = new Map([[shared, "shared" as const]]);
+    const roomy = renderPortionLines(step, kinds)!;
+    assert.equal(roomy.lines[2], `4 cloves for Smoky Chipotle Ground Beef — into the ${jar}`);
+    const tight = renderPortionLines(step, kinds, roomy.lines.join("\n").length - 1)!;
+    assert.equal(tight.lines[0], "3 cloves for Beef Enchiladas Verdes — into the shared minced-garlic tub");
+    assert.equal(tight.lines[1], "2 cloves for Mexican Street-Style Rice — same tub");
+    assert.equal(tight.lines[2], `4 cloves — into the ${jar}`);
   });
 
   it("a count names the food in its number: 3 yellow onions, 1 roma tomato, 3 celery (never 'celeries')", () => {
@@ -298,17 +317,22 @@ describe("Part J.0 B — portion lines are the code's", () => {
     assert.equal(count("celery", "3"), "3 celery for Soup — into the Soup vegetables container");
   });
 
-  it("the fixture's shared garlic step reaches the wire under 800 with the opening first", () => {
+  it("the fixture's shared garlic step keeps only the portion whose window reaches its day (J.1 R1)", () => {
     const res = wire(buildPrepWeekPlan(fixture()));
     const garlic = res.phases.flatMap((p) => p.steps).find((s) => s.stepKey === `produce#${GARLIC}`)!;
     const lines = garlic.instructions.split("\n");
     assert.equal(lines[0], "Do the thing.");
-    assert.equal(lines.length, 4);
+    // Minced garlic keeps 4 days: Monday's portion is prepped, Friday's and Saturday's wait.
+    assert.deepEqual(lines.slice(1), ["3 cloves for Chicken Stir Fry — into the shared minced-garlic-clove tub"]);
+    assert.deepEqual(garlic.contributesToMealIds, [M1]);
     assert.ok(garlic.instructions.length <= 800);
   });
 
-  it("isTickable mirrors the overlay for a step with suppressed storage", () => {
-    const st = { demoted: undefined, holdsNoContainer: false, suppressStorage: true } as unknown as PlannedStep;
-    assert.equal(isTickable(st, { phase: "proteins", text: "", ingredientNames: ["pork chops"], daysUntilCook: 5 }), true);
+  it("isTickable reads today's holds: a step whose every portion waits is not tickable", () => {
+    const build = buildPrepWeekPlan(fixture());
+    const pork = build.stepPlan.steps.find((s) => s.stepKey === `proteins#${PORK}`)!;
+    const chicken = build.stepPlan.steps.find((s) => s.stepKey === `proteins#${CHICKEN}`)!;
+    assert.equal(isTickable(pork, build), false);
+    assert.equal(isTickable(chicken, build), true);
   });
 });

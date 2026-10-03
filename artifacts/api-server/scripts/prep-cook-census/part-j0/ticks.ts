@@ -25,9 +25,8 @@ import { signToken } from "../../../src/lib/auth";
 import { createCookingRouter } from "../../../src/routes/cooking";
 import { createPlansRouter } from "../../../src/routes/plans";
 import { loadPrepWeekInput } from "../../../src/lib/prepWeekAggregation";
-import { buildPrepWeekPlan, tickableStepRefs, type PrepWeekBuild } from "../../../src/lib/prepWeekBuild";
+import { buildPrepWeekPlan, finishPrepWeek, tickableStepRefs, type PrepWeekBuild } from "../../../src/lib/prepWeekBuild";
 import { assemblePrepWeekResult, summarizePrepWeek, OPENING_MAX } from "../../../src/lib/prepWeekAssembly";
-import { applyStorageOverlay } from "../../../src/lib/prepStorage";
 import { PrepWeekResultSchema, type PrepWeekResult } from "../../../src/lib/ai/schemas/prepWeek";
 import * as prepWeekModelNs from "../../../../kiwi/lib/cooking/prepWeekModel";
 
@@ -95,7 +94,7 @@ async function call<T>(base: string, method: string, path: string, body?: unknow
 /** The route's assembly with stand-in prose ("Do it."), then the overlay — the wire minus prose. */
 function wire(build: PrepWeekBuild): PrepWeekResult {
   const narration = { steps: build.stepPlan.narrationInput.steps.map((s) => ({ stepId: s.stepId, title: "Do it", instructions: "x".repeat(Number(process.env.OPENING ?? OPENING_MAX)) })) };
-  const res = summarizePrepWeek(applyStorageOverlay(assemblePrepWeekResult(build.stepPlan, narration), build.storageContexts));
+  const res = summarizePrepWeek(finishPrepWeek(assemblePrepWeekResult(build.stepPlan, narration), build));
   const v = PrepWeekResultSchema.safeParse(res);
   if (!v.success) throw new Error(`WIRE INVALID: ${JSON.stringify(v.error.flatten()).slice(0, 400)}`);
   return v.data;

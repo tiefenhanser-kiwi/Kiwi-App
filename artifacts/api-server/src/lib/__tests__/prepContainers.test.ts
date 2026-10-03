@@ -88,7 +88,7 @@ function marinade(): PrepCombineInput {
 
 /** No liquid anywhere: a dry rub plus the vegetables that go in the crock. */
 function slowCooker(): PrepCombineInput {
-  const c = { key: "crock", noun: "prep container", bowlName: "Slow-Cooker Chicken prep container" };
+  const c = { key: "crock", noun: "prep container", bowlName: "Slow-Cooker Chicken spice blend" };
   const m = (
     ingredientId: string,
     ingredientName: string,
@@ -263,7 +263,7 @@ describe("rule 11(c) — a container with no liquid has no phase 3 step", () => 
     const dry = phaseOf(sp, "seasonings_dry");
     assert.equal(dry.length, 1);
     assert.deepEqual(names(dry[0]), ["dried thyme", "garlic powder", "smoked paprika"]);
-    assert.equal(dry[0].bowlName, "Slow-Cooker Chicken prep container");
+    assert.equal(dry[0].bowlName, "Slow-Cooker Chicken spice blend");
 
     const produce = phaseOf(sp, "produce").filter((s) => s.stepKey !== WASH_STEP_KEY);
     assert.deepEqual(
@@ -351,7 +351,7 @@ describe("rule 11(c) / H5.3 — the form decides, and only the form", () => {
  * split dissolved it on exactly that — so the container never got its oil.
  */
 function oneLiquid(): PrepCombineInput {
-  const c = { key: "potatoes", noun: "prep container", bowlName: "Garlic Herb Potatoes prep container" };
+  const c = { key: "potatoes", noun: "prep container", bowlName: "Garlic Herb Potatoes sauce jar" };
   const m = (
     ingredientId: string,
     ingredientName: string,
@@ -399,7 +399,7 @@ describe("rule 11(c) — a container whose phase 3 share is ONE measure survives
     const sauces = phaseOf(sp, "sauces_marinades");
     assert.equal(sauces.length, 1, "the container dissolved on its own single liquid");
     assert.deepEqual(names(sauces[0]), ["extra-virgin olive oil"]);
-    assert.equal(sauces[0].bowlName, "Garlic Herb Potatoes prep container");
+    assert.equal(sauces[0].bowlName, "Garlic Herb Potatoes sauce jar");
     // Three aromatics went in before it, and the step says so. 🔴 H7 2f — NOT the
     // potatoes: a halved potato browns in the fridge, so it is cut on cook day and
     // was never put in. The sample plan's prose said "potatoes already in it" here.

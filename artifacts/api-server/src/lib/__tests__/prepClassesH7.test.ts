@@ -223,7 +223,7 @@ describe("H7 2 — a serve-time step groups nothing", () => {
   it("🔴 the romaine is never chopped into the Caesar dressing jar", () => {
     const l = caesar();
     const sp = planFrom(l);
-    const dressing = sp.steps.find((s) => s.bowlName && /dressing/i.test(s.bowlName));
+    const dressing = sp.steps.find((s) => s.bowlName && /dressing|sauce jar/i.test(s.bowlName)); // J.1 R2: named by form
     assert.ok(dressing, "fixture: the whisked dressing must still form");
     const romaine = sp.steps.find((s) => s.components.some((c) => c.ingredientName === "romaine lettuce hearts"))!;
     for (const c of romaine.components) {
@@ -728,7 +728,7 @@ describe("H7.1 2a — a cold raw mixture groups its cut vegetables", () => {
 });
 
 /** A marinade, a protein, and whether the recipe marinates. */
-const marinated = (protein: string, marinates: boolean) =>
+const marinated = (protein: string, marinates: boolean | "2h") =>
   loaded([
     {
       id: "d-har",
@@ -744,9 +744,13 @@ const marinated = (protein: string, marinates: boolean) =>
         {
           i: 1,
           phase: "prep",
-          text: marinates
+          // J.1 §2 — the recipe's own window decides: overnight joins at prep when the
+          // day is near; "at least 2 hours" is a cook-day instruction.
+          text: marinates === "2h"
             ? `Coat the ${protein} in the marinade and refrigerate for at least 2 hours.`
-            : `Brush the ${protein} with the marinade.`,
+            : marinates
+              ? `Coat the ${protein} in the marinade and refrigerate overnight.`
+              : `Brush the ${protein} with the marinade.`,
           ids: ["pro"],
         },
         { i: 2, phase: "cook", text: `Roast the ${protein} at 425°F for 25 minutes.` },
@@ -768,6 +772,14 @@ describe("H7.1 2b — marinades", () => {
     const { wire } = overlayAt(marinated("shrimp", true), 1);
     assert.doesNotMatch(notes(wire), /Then into/);
     assert.match(notes(wire), /Add the shrimp just before cooking \(Tuesday\) — acid starts to cook seafood/);
+  });
+
+  it("🔴 J.1 §2 — the recipe's stated window wins: 'at least 2 hours' is '2 hours before cooking', never the night before", () => {
+    const { wire } = overlayAt(marinated("chicken thighs", "2h"), 3);
+    assert.ok(notes(wire).includes("Add the chicken thighs 2 hours before cooking (Tuesday)."), notes(wire));
+    assert.ok(!notes(wire).includes("night before"), notes(wire));
+    // …and even cooked tomorrow, a 2-hour marinade does not start on Sunday.
+    assert.doesNotMatch(proteinNote(overlayAt(marinated("chicken thighs", "2h"), 1).wire), /Then into/);
   });
 
   it("🔴 the marinade's close names the night-before weekday, and the held list carries it", () => {
@@ -844,7 +856,8 @@ describe("H7.1 2d — whole dried chiles never share a container with ground spi
     const chiles = bowls.find((s) => s.components.some((c) => /ancho/.test(c.ingredientName)));
     const spices = bowls.find((s) => s.components.some((c) => c.ingredientName === "ground cumin"));
     assert.ok(chiles && spices, "fixture: both containers form");
-    assert.equal(chiles!.bowlName, "Texas-Style Beef Chili — dried chiles, stemmed and seeded");
+    // J.1 (R2) — named by class and form; the bag's own step must not open on a raw label.
+    assert.equal(chiles!.bowlName, "Texas-Style Beef Chili dried-chile bag");
     assert.notEqual(chiles!.bowlName, spices!.bowlName);
     assert.ok(!spices!.components.some((c) => /chiles/.test(c.ingredientName)), "a dried chile is in the spice blend");
   });

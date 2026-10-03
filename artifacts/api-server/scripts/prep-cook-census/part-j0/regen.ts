@@ -26,6 +26,11 @@ const OUT = join(HERE, "out");
 mkdirSync(OUT, { recursive: true });
 const arg = (n: string, d?: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : d; };
 const ONLY = (arg("only", "") ?? "").split(",").filter(Boolean);
+// Part J.1 — one named plan (Hans's e55a9305 needs --allow-hans too), a subset, an output dir.
+const PLAN = arg("plan");
+const ALLOW_HANS = process.argv.includes("--allow-hans");
+const SUBSET = (arg("subset", "") ?? "").split(",").filter(Boolean);
+const OUT_DIR = arg("out");
 const BUDGET = Number(arg("budget", "1.5"));
 
 const WRITE_OPS = new Set(["create", "createMany", "update", "updateMany", "upsert", "delete", "deleteMany"]);
@@ -44,7 +49,7 @@ const prisma = new Proxy(realPrisma, {
         if (WRITE_OPS.has(op)) {
           return (a: { where?: { planId?: string }; create?: { planId?: string } }) => {
             const pid = a?.where?.planId ?? a?.create?.planId;
-            const ok = (prop === "prepWeekStructure" || prop === "prepStepCompletion") && !!pid && allowed.has(pid) && pid !== FORBIDDEN_PLAN;
+            const ok = (prop === "prepWeekStructure" || prop === "prepStepCompletion") && !!pid && allowed.has(pid) && (pid !== FORBIDDEN_PLAN || ALLOW_HANS);
             if (!ok) throw new Error(`REFUSING ${prop}.${op} (${pid ?? "?"})`);
             return (f as (x: unknown) => unknown).call(tt, a);
           };
@@ -75,7 +80,9 @@ function render(code: string, planId: string, status: number, body: { result?: P
 }
 
 async function main() {
-  const rows = (await loadCorpus(prisma)).filter((r) => ONLY.length === 0 || ONLY.includes(r.code));
+  const rows = PLAN
+    ? [{ code: PLAN === FORBIDDEN_PLAN ? "HANS-e55a9305" : PLAN.slice(0, 8), planId: PLAN }]
+    : (await loadCorpus(prisma)).filter((r) => ONLY.length === 0 || ONLY.includes(r.code));
   const app = express();
   app.use(express.json());
   const lim = { capacity: 10_000, refillPerSec: 10_000 };
@@ -83,21 +90,21 @@ async function main() {
   const server: Server = await new Promise((res) => { const s = app.listen(0, () => res(s)); });
   const a = server.address();
   const base = `http://127.0.0.1:${typeof a === "object" && a ? a.port : 0}/api`;
-  const token = signToken(TEST_USER_ID);
   const summary: Record<string, unknown>[] = [];
   let spent = 0;
   try {
     for (const row of rows) {
-      if (row.planId === FORBIDDEN_PLAN) throw new Error("REFUSING e55a9305");
+      if (row.planId === FORBIDDEN_PLAN && !ALLOW_HANS) throw new Error("REFUSING e55a9305 without --allow-hans");
       const owner = await realPrisma.mealPlanInstance.findUniqueOrThrow({ where: { id: row.planId }, select: { userId: true } });
-      if (owner.userId !== TEST_USER_ID) throw new Error(`REFUSING ${row.planId}`);
+      if (owner.userId !== TEST_USER_ID && row.planId !== FORBIDDEN_PLAN) throw new Error(`REFUSING ${row.planId}`);
+      const token = signToken(owner.userId);
       if (spent >= BUDGET) { console.error(`BUDGET STOP $${spent.toFixed(3)}`); break; }
       allowed.add(row.planId);
       const t0 = new Date();
-      const res = await fetch(`${base}/plans/${row.planId}/prep-week`, { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" } });
+      const res = await fetch(`${base}/plans/${row.planId}/prep-week`, { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, ...(SUBSET.length ? { body: JSON.stringify({ mealIds: SUBSET }) } : {}) });
       const body = await res.json();
       const logs = await realPrisma.lLMCallLog.findMany({
-        where: { promptKey: "prep.narrate_steps", userId: TEST_USER_ID, createdAt: { gte: t0 } },
+        where: { promptKey: "prep.narrate_steps", userId: owner.userId, createdAt: { gte: t0 } },
         select: { model: true, promptVersion: true, inputTokens: true, outputTokens: true, costEstimateUsd: true, success: true, failureReason: true, retryCount: true, latencyMs: true },
       });
       const cost = logs.reduce((s, l) => s + Number(l.costEstimateUsd ?? 0), 0);
@@ -107,7 +114,7 @@ async function main() {
         select: { meal: { select: { dishLinks: { select: { dish: { select: { id: true, title: true } } } } } } },
       });
       const titles = new Map<string, string>(items.flatMap((i) => i.meal.dishLinks.map((l) => [l.dish.id, l.dish.title] as [string, string])));
-      writeFileSync(join(OUT, `regen_${row.planId.slice(0, 8)}.txt`), render(row.code, row.planId, res.status, body, titles));
+      writeFileSync(join(OUT_DIR ?? OUT, `regen_${row.planId.slice(0, 8)}${SUBSET.length ? "_subset" : ""}.txt`), render(row.code, row.planId, res.status, body, titles));
       const steps = body.result ? (body.result as PrepWeekResult).phases.flatMap((p) => p.steps) : [];
       const s = {
         code: row.code, planId: row.planId, status: res.status, reason: body.reason ?? null, cacheHit: body.cacheHit ?? null,
@@ -122,8 +129,8 @@ async function main() {
     server.close();
   }
   let prior: Record<string, unknown>[] = [];
-  try { prior = JSON.parse(readFileSync(join(OUT, "regen.json"), "utf8")); } catch { /* first run */ }
-  writeFileSync(join(OUT, "regen.json"), JSON.stringify([...prior.filter((p) => !summary.some((s) => s.planId === p.planId)), ...summary], null, 2));
+  try { prior = JSON.parse(readFileSync(join(OUT_DIR ?? OUT, "regen.json"), "utf8")); } catch { /* first run */ }
+  writeFileSync(join(OUT_DIR ?? OUT, "regen.json"), JSON.stringify([...prior.filter((p) => !summary.some((s) => s.planId === p.planId)), ...summary], null, 2));
   console.error(`spent $${spent.toFixed(4)}`);
 }
 main().catch((e) => { console.error(e); process.exitCode = 1; }).finally(() => realPrisma.$disconnect());

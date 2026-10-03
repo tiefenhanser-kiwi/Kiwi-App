@@ -1,0 +1,101 @@
+PLAN 3f9d46e8-b078-4bd4-b479-9f93cb8c76cd  [A10]  HTTP 200
+  HEADER: 6 containers · about 25 min · prompt v21
+
+  ── seasonings_dry ──
+     1. Measure the Classic Supreme Pizza dry mix   (2 min)   [89 chars]
+        Into the Classic Supreme Pizza dry mix:
+        1 tsp dried oregano
+        ½ tsp dried basil
+        ½ tsp sugar
+        » storage: Airtight at room temperature — it keeps for weeks.
+     2. Measure the Herb Falafel dry mix   (3 min)   [139 chars]
+        Into the Herb Falafel dry mix:
+        3 tbsp all-purpose flour
+        ¼ tsp cayenne pepper
+        1 tsp baking powder
+        1½ tsp ground cumin
+        1 tsp ground coriander
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » covers cook steps: Herb Falafel#2
+  ×  3. Ground cumin and ice water — cook day   (2 min)  [RENDER-OMITTED]   [101 chars]
+        Into the Creamy Hummus sauce jar:
+        ¼ tsp ground cumin
+        4 tbsp ice water
+        Set aside for the produce step.
+        » storage: This one is 6 days out — leave it for cook day.
+  ×  4. Pepperoni and crushed red pepper flakes — cook day   (1 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+  ×  5. Smoked paprika — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)   [104 chars]
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+     2. Mince all garlic   (2 min)   [96 chars]
+        Mince 2 cloves of garlic.
+        2 cloves for Classic Supreme Pizza — into the shared minced-garlic tub
+        » storage: Airtight in the fridge — up to 4 days.
+     3. Slice the green bell pepper   (3 min)   [133 chars]
+        Thinly slice 1 green bell pepper.
+        1 green bell pepper for Classic Supreme Pizza — into the Classic Supreme Pizza vegetables container
+     4. Slice the red onion   (3 min)   [117 chars]
+        Thinly slice ½ red onion.
+        ½ red onion for Classic Supreme Pizza — into the Classic Supreme Pizza vegetables container
+     5. Slice the cremini mushrooms   (3 min)   [121 chars]
+        Thinly slice 4 oz cremini mushrooms.
+        4 oz for Classic Supreme Pizza — into the Classic Supreme Pizza vegetables container
+        » storage: Classic Supreme Pizza vegetables: Airtight in the fridge — up to 3 days.
+  ×  6. Yellow onion — cook day   (3 min)  [RENDER-OMITTED]   [100 chars]
+        Roughly chop 1 yellow onion.
+        1 yellow onion — into the chopped-yellow-onion tub for the Herb Falafel
+        » storage: This one is 6 days out — leave it for cook day.
+     7. Juice the lemons   (3 min)   [112 chars]
+        Juice enough fresh lemons to yield 3 tbsp lemon juice.
+        3 tbsp — into the fresh-lemon-juice tub for the Tabbouleh
+        » storage: Covered in the fridge — up to 6 days.
+  ×  8. Fresh flat-leaf parsley — cook day   (12 min)  [RENDER-OMITTED]   [228 chars]
+        Work through 3 cups fresh flat-leaf parsley: roughly chopped and finely chopped.
+        1 cup chopped — into the herb tub for the Herb Falafel
+        2 cup finely chopped — into the finely chopped fresh flat-leaf parsley tub for the Tabbouleh
+        » storage: This one is 6 days out — leave it for cook day.
+  ×  9. Fresh cilantro — cook day   (2 min)  [RENDER-OMITTED]   [81 chars]
+        Roughly chop ½ cup fresh cilantro.
+        ½ cup — into the herb tub for the Herb Falafel
+        » storage: This one is 6 days out — leave it for cook day.
+  × 10. Fresh mint leaves — cook day   (1 min)  [RENDER-OMITTED]   [108 chars]
+        Finely chop ¼ cup fresh mint leaves.
+        ¼ cup — into the finely chopped fresh mint leaves tub for the Tabbouleh
+        » storage: This one is 6 days out — leave it for cook day.
+  × 11. Roma tomatoes — cook day   (8 min)  [RENDER-OMITTED]   [113 chars]
+        Seed and finely dice 3 roma tomatoes.
+        3 roma tomatoes — into the finely diced roma tomatoes tub for the Tabbouleh
+        » storage: This one is 6 days out — leave it for cook day.
+  × 12. English cucumber — cook day   (3 min)  [RENDER-OMITTED]   [113 chars]
+        Finely dice ½ English cucumber.
+        ½ english cucumber — into the finely diced english cucumber tub for the Tabbouleh
+        » storage: This one is 6 days out — leave it for cook day.
+  × 13. Green onions — cook day   (1 min)  [RENDER-OMITTED]   [103 chars]
+        Thinly slice 4 green onions.
+        4 green onions — into the thinly sliced green onions tub for the Tabbouleh
+        » storage: This one is 6 days out — leave it for cook day.
+
+  ── sauces_marinades ──
+  ×  1. Tahini — cook day   (2 min)  [RENDER-OMITTED]   [152 chars]
+        Creamy Hummus sauce jar (ground cumin, ice water, garlic and the fresh lemon juice from produce step 7 already in it): add
+        ½ cup tahini
+        Stir to combine.
+        » storage: This one is 6 days out — leave it for cook day.
+  ×  2. Black olives — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  3. Boiling water — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     HELD: Classic Supreme Pizza (Sunday, today) — straight from the package: the Italian sausage.
+     HELD: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday, 6 days out) — measure the ground cumin, measure the ice water, mince the garlic and chop the yellow onion that morning.
+     HELD: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday, 6 days out) — squeeze the fresh lemon juice, chop the fresh flat-leaf parsley and chop the fresh cilantro that morning.
+     HELD: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday, 6 days out) — finely chop the fresh mint leaves, finely dice the roma tomatoes and finely dice the english cucumber that morning.
+     HELD: Falafel Plate with Hummus, Tabbouleh, and Warm Flatbread (Saturday, 6 days out) — thinly slice the green onions and measure the tahini that morning.
+  ×  1. Italian sausage — cook day   (1 min)  [RENDER-OMITTED]   [86 chars]
+        Nothing to do to it before the pan — it goes in straight from the package on cook day.

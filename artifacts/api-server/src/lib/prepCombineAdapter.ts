@@ -31,6 +31,10 @@ import type { PrepLoadedPlan } from "./prepWeekAggregation";
 // per-unit pack size folded into the quantity; the remainder is the real unit.
 const COMPOUND_UNIT_RE = /^\s*(\d+(?:\.\d+)?)\s+(\S.*?)\s*$/;
 
+/** Part J.1 (R2) — heat in a step's own words, for a component whose steps are not tagged `cook`. */
+const HEAT_VERB =
+  /\b(saut[ée]\w*|simmer\w*|bak(?:e|ed|ing)|roast\w*|broil\w*|grill\w*|fry|fried|frying|boil\w*|sear\w*|toast\w*|braise\w*|steam\w*|char\w*)\b/i;
+
 export function splitCompoundUnit(
   quantity: number,
   unit: string,
@@ -171,6 +175,35 @@ export function buildPrepCombineInput(loaded: PrepLoadedPlan): PrepCombineInput 
             phase: assignPhase(i.category, i.ingredientName, i.purchaseUnit),
           })),
         );
+        // ── Part J.1 (R2) — IS A COMPONENT COOKED? ITS OWN STEPS SAY ─────────
+        //
+        // A `cook`-phase step, or a heat verb in one of the component's own steps.
+        // The roasted green beans' "toss with oil and salt" has no heat word, but
+        // the same component roasts them two steps later — a raw mix it is not.
+        //
+        // The component's own steps, and the heat that FOLLOWS it: a later heat step
+        // that names one of its members ("roast the beans"), or the very next step
+        // being heat and naming no ingredient at all ("Roast at 425°F for 15
+        // minutes" — it can only mean what was just tossed). "Fry the cod" names the
+        // cod, not the pico, so the pico beside it stays raw.
+        const ordered = [...(dish.componentSteps ?? [])].sort((a, b) => a.stepIndex - b.stepIndex);
+        const stepByIndex = new Map(ordered.map((s) => [s.stepIndex, s]));
+        const isHeat = (s: { phaseType: string; text: string }) => s.phaseType === "cook" || HEAT_VERB.test(s.text);
+        const head = (n: string) => n.toLowerCase().replace(/^(fresh|dried|ground|large|small|medium)\s+/, "").split(/\s+/).slice(-1)[0].replace(/e?s$/, "");
+        const namesOf = (ids: readonly string[]) =>
+          dish.ingredients.filter((i) => ids.includes(i.ingredientId)).map((i) => head(i.ingredientName));
+        const allNames = dish.ingredients.map((i) => head(i.ingredientName));
+        const mentions = (text: string, names: readonly string[]) => names.some((n) => n.length > 2 && text.toLowerCase().includes(n));
+        const componentHeated = (indexes: readonly number[], memberIds: readonly string[]): boolean => {
+          if (indexes.some((i) => { const s = stepByIndex.get(i); return !!s && isHeat(s); })) return true;
+          if (indexes.length === 0) return false;
+          const last = Math.max(...indexes);
+          const later = ordered.filter((s) => s.stepIndex > last);
+          const members = namesOf(memberIds);
+          if (later.some((s) => isHeat(s) && (s.ingredientIds.some((id) => memberIds.includes(id)) || mentions(s.text, members)))) return true;
+          const next = later[0];
+          return !!next && isHeat(next) && next.ingredientIds.length === 0 && !mentions(next.text, allNames);
+        };
         // ── D-WS9-301 rule 1 — the MOMENT each ingredient enters ───────────
         //
         // Same reason this lives in the adapter as the components above: it
@@ -309,7 +342,7 @@ export function buildPrepCombineInput(loaded: PrepLoadedPlan): PrepCombineInput 
               unit: split.unit,
               preparationNote: prep.preparationNote,
               component: comp
-                ? { key: comp.key, noun: comp.noun, bowlName: comp.bowlName }
+                ? { key: comp.key, noun: comp.noun, bowlName: comp.bowlName, heated: componentHeated(comp.stepIndexes, comp.memberIds) }
                 : null,
               cookDayInto,
               // H6.2 follow-up — THE COOK STEP THAT NAMES THIS PORTION, when one does.

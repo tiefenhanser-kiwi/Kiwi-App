@@ -77,6 +77,8 @@ export interface ResolvedComponent {
    * A raw protein has a destination, not a seat.
    */
   cookDayIds: string[];
+  /** Part J.1 — the cook steps that assemble it (ruling 5's identity), so a caller can ask whether any of them is heat. */
+  stepIndexes: number[];
 }
 
 // ── ruling 6 — THE MIXTURE NOUNS, in one place ──────────────────────────────
@@ -588,6 +590,7 @@ export function resolveDishComponents(
       ),
       memberIds: [...b.members],
       cookDayIds: [...b.cookDay],
+      stepIndexes: [...b.stepIndexes],
     };
     out.push(comp);
     for (const id of b.members) byIngredient.set(id, comp);

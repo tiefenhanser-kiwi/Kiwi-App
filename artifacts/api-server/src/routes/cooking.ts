@@ -38,9 +38,8 @@ import {
   PrepNarrationIncompleteError,
   summarizePrepWeek,
 } from "../lib/prepWeekAssembly";
-import { buildPrepWeekPlan } from "../lib/prepWeekBuild";
+import { buildPrepWeekPlan, finishPrepWeek } from "../lib/prepWeekBuild";
 import { PrepNarrationResultSchema } from "../lib/ai/schemas/prepNarration";
-import { applyStorageOverlay, type StorageContext } from "../lib/prepStorage";
 import {
   stepKeysOfResult,
   derivePrepCompletion,
@@ -328,11 +327,14 @@ export function createCookingRouter(
       // The lag is the LOADER's (BUG-338 / D-WS9-298), beside the input, so the
       // fingerprint never sees a date. A subset is built over the WHOLE plan and
       // then scoped (A3): same keys, same container names as the full week.
-      const { stepPlan, storageContexts } = buildPrepWeekPlan(
+      // Part J.1 — everything that depends on TODAY (the one-session holds, the
+      // cook-day list, the storage overlay) is applied by finishPrepWeek, on the
+      // cache-hit path and the miss path alike.
+      const build = buildPrepWeekPlan(
         { input, cookDays, identity },
         isSubset ? { scopeMealIds: subsetMealIds } : {},
       );
-      const storageContextFor = (): Map<string, StorageContext> => storageContexts;
+      const { stepPlan } = build;
 
       const cached = isSubset
         ? null
@@ -372,10 +374,7 @@ export function createCookingRouter(
           // overlay, because the overlay can demote a protein step and a step
           // that no longer renders is not a container today.
           result: summarizePrepWeek(
-            applyStorageOverlay(
-              cached.structureJson as unknown as PrepWeekResult,
-              storageContextFor(),
-            ),
+            finishPrepWeek(cached.structureJson as unknown as PrepWeekResult, build),
           ),
           planRevisionId,
           generatedAt: cached.lastGeneratedAt.toISOString(),
@@ -563,7 +562,7 @@ export function createCookingRouter(
         subset: isSubset,
         // D-WS9-298 — the same overlay, from the same helper, so the two paths
         // cannot drift into showing different storage text for one plan.
-        result: summarizePrepWeek(applyStorageOverlay(result, storageContextFor())),
+        result: summarizePrepWeek(finishPrepWeek(result, build)),
         planRevisionId,
         generatedAt: new Date().toISOString(),
         promptVersion,

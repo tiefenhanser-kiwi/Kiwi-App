@@ -1,0 +1,127 @@
+[
+  {
+    "code": "A01",
+    "planId": "873796cd-4e7e-4a4a-bdfe-28a802f295d7",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 21,
+    "containerCount": 30,
+    "estimatedMinutes": 130,
+    "maxInstructions": 463,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 21,
+        "inputTokens": 23081,
+        "outputTokens": 2732,
+        "costEstimateUsd": "0.073482",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 14528
+      }
+    ],
+    "costUsd": 0.0735
+  },
+  {
+    "code": "A04",
+    "planId": "7f206a48-f9ca-46c3-b4ba-94c35a320da2",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 21,
+    "containerCount": 11,
+    "estimatedMinutes": 50,
+    "maxInstructions": 372,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 21,
+        "inputTokens": 13027,
+        "outputTokens": 1327,
+        "costEstimateUsd": "0.039324",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 8041
+      }
+    ],
+    "costUsd": 0.0393
+  },
+  {
+    "code": "A16",
+    "planId": "b0c8ffbd-b167-4265-8fb3-2782bc72092e",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 21,
+    "containerCount": 21,
+    "estimatedMinutes": 85,
+    "maxInstructions": 435,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 21,
+        "inputTokens": 18512,
+        "outputTokens": 2593,
+        "costEstimateUsd": "0.062954",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 14121
+      }
+    ],
+    "costUsd": 0.063
+  },
+  {
+    "code": "A10",
+    "planId": "3f9d46e8-b078-4bd4-b479-9f93cb8c76cd",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 21,
+    "containerCount": 6,
+    "estimatedMinutes": 25,
+    "maxInstructions": 228,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 21,
+        "inputTokens": 12387,
+        "outputTokens": 1355,
+        "costEstimateUsd": "0.038324",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 8443
+      }
+    ],
+    "costUsd": 0.0383
+  },
+  {
+    "code": "HANS-e55a9305",
+    "planId": "e55a9305-2695-4c16-a25e-effcc03fc109",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 21,
+    "containerCount": 25,
+    "estimatedMinutes": 105,
+    "maxInstructions": 541,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 21,
+        "inputTokens": 19662,
+        "outputTokens": 2273,
+        "costEstimateUsd": "0.062054",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 11643
+      }
+    ],
+    "costUsd": 0.0621
+  }
+]

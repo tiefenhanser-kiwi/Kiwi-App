@@ -58,23 +58,56 @@ export const STORAGE_TABLE: readonly StorageClass[] = [
     // dry-cured hams (prosciutto, capicola) are stripped before this runs.
     match: /\b(chicken|turkey|beef|pork|lamb|veal|steak|brisket|tenderloin|sausages?|bacon|ham|chorizo|ground (?:beef|turkey|pork|chicken|lamb)|breasts?|thighs?|drumsticks?|cutlets?|(?:pork|lamb|veal) chops?)\b/i,
   },
+  {
+    // J.1 — new row, TIGHTER than the 4 days cut tomato had under cut-peppers: cut
+    // tomato keeps 2–3 days (Hans's brief; FK lists only whole cherry tomatoes, 5).
+    key: "cut-tomato",
+    days: 2,
+    note: "Airtight in the fridge — up to 2 days.",
+    match: /\b(tomato(?:es)?|cherry tomatoes|grape tomatoes)\b(?!\s+(?:paste|sauce|puree|purée))/i,
+  },
   // ── produce, by how fast it turns ─────────────────────────────────────────
+  //
+  // 🔴 Part J.1 (R1) — REVIEWED AGAINST USDA FoodKeeper (FSIS). The prep session is
+  // ONE Sunday now, so a window decides whether an item is prepped at all, and a
+  // window tighter than the accepted one sends good prep to cook day for nothing.
+  // Loosened only up to the accepted figure, never past it; tightened where the
+  // table was past it. FoodKeeper lists most produce WHOLE, so a cut item takes
+  // the low end of its whole-item range at most. Figures (refrigerator days):
+  //   FK "Parsley, fresh" 2–3 · "Greens" 1–4 · "Herbs" 7–10 · "Lemon juice, fresh
+  //   squeezed" 6 · "Fruit, cut" 4 · "Tomatoes, cherry" 5 (cut tomato 2–3, Hans's
+  //   brief) · "Carrots" 14–21 · "Celery" 7–14 · "Radishes" 10–14 · "Broccoli" /
+  //   "Cauliflower" 3–5 · "Mushrooms" 3–7 · "Peppers" 4–14 · "Squash, summer" 4–5 ·
+  //   "Coleslaw, homemade" 3–5 · "Salsa, homemade, fresh" 5–7.
   {
     key: "leafy-herbs",
     days: 3,
     note: "Airtight in the fridge, with a barely damp paper towel — up to 3 days.",
-    match: /\b(cilantro|parsley|basil|mint|dill|tarragon|chives|scallions?|green onions?|arugula|spinach|lettuce|romaine|herbs?)\b/i,
+    // J.1 — never a DRIED herb: "dried basil" in a spice blend is a cupboard spice,
+    // and matching it here sent a jar of dried herbs to the fridge (the fourth
+    // instance of a fresh-produce pattern eating a cupboard spice).
+    match: /(?<!\b(?:dried|ground|crushed)\s)\b(cilantro|parsley|basil|mint|dill|tarragon|chives|scallions?|green onions?|arugula|spinach|lettuce|romaine|herbs?)\b/i,
   },
   {
-    key: "citrus-juice",
-    days: 3,
-    note: "Small sealed jar in the fridge — up to 3 days.",
-    match: /\b(lime juice|lemon juice|orange juice|grapefruit juice|citrus juice)\b/i,
-  },
-  {
-    key: "citrus-wedges",
+    // J.1 — new row, TIGHTER, 4 → 3. FK whole broccoli and cauliflower 3–5, mushrooms 3–7.
+    key: "cut-brassica-mushroom",
     days: 3,
     note: "Airtight in the fridge — up to 3 days.",
+    match: /\b(broccoli|cauliflower|mushrooms?)\b/i,
+  },
+  {
+    // J.1 — new row. FK "Coleslaw, homemade" 3–5. Dressed slaw would otherwise read
+    // as the 5-day sauces row.
+    key: "slaw",
+    days: 3,
+    note: "Covered in the fridge — up to 3 days.",
+    match: /\b(slaw|coleslaw)\b/i,
+  },
+  {
+    // J.1 — 3 → 4. FK "Fruit, cut" 4 days.
+    key: "citrus-wedges",
+    days: 4,
+    note: "Airtight in the fridge — up to 4 days.",
     match: /\b(wedges?|zest)\b/i,
   },
   {
@@ -100,7 +133,10 @@ export const STORAGE_TABLE: readonly StorageClass[] = [
     // pepper or DRIED ANCHO chiles, so a bowl of paprika, cayenne and masa was told
     // to live in the fridge for four days. Third instance of this exact shape in the
     // pass — a fresh-produce pattern eating a cupboard spice.
-    match: /\b(?<!\b(?:cayenne|black|white|ground|cracked|crushed|dried|smoked|chipotle|ancho|guajillo|chile|chili)\s)(?:peppers?(?!\s+(?:powder|flakes))|chil[ei]s?(?!\s+(?:powder|flakes)))\b|\b(?:jalapeños?|jalapenos?|serranos?|poblanos?|tomatillos?|tomatoes?|cucumbers?|celery|carrots?|radishes?|cabbage|broccoli|cauliflower|zucchini|squash|green beans?|asparagus|mushrooms?)\b/i,
+    match: /\b(?<!\b(?:cayenne|black|white|ground|cracked|crushed|dried|smoked|chipotle|ancho|guajillo|chile|chili)\s)(?:peppers?(?!\s+(?:powder|flakes))|chil[ei]s?(?!\s+(?:powder|flakes)))\b|\b(?:jalapeños?|jalapenos?|serranos?|poblanos?|tomatillos?|cucumbers?|cabbage|zucchini|squash|green beans?|asparagus)\b/i,
+    // J.1 — tomatoes, carrots, celery, radishes, broccoli, cauliflower and mushrooms
+    // moved to their own rows above (the strictest match wins, so leaving them here
+    // would have kept carrots and celery at 4 days).
   },
   // ── made things ───────────────────────────────────────────────────────────
   {
@@ -114,6 +150,28 @@ export const STORAGE_TABLE: readonly StorageClass[] = [
     days: 5,
     note: "Sealed jar in the fridge — up to 5 days. Shake or stir before using.",
     match: /\b(sauce|dressing|vinaigrette|marinade|glaze|crema|aioli|remoulade|pesto|chimichurri|tzatziki|salsa|relish|chutney)\b/i,
+  },
+  {
+    // J.1 — 3 → 6. FK "Lemon juice, fresh squeezed" 6 days.
+    key: "citrus-juice",
+    days: 6,
+    note: "Small sealed jar in the fridge — up to 6 days.",
+    match: /\b(lime juice|lemon juice|orange juice|grapefruit juice|citrus juice)\b/i,
+  },
+  {
+    // J.1 — new row. FK "Herbs" 7–10; the woody herbs hold a week (Hans's brief).
+    key: "hardy-herbs",
+    days: 7,
+    note: "Airtight in the fridge, with a barely damp paper towel — up to 7 days.",
+    match: /(?<!\b(?:dried|ground|crushed|rubbed)\s)\b(rosemary|thyme|sage|oregano leaves|fresh oregano)\b/i,
+  },
+  {
+    // J.1 — new row, 4 → 7. Carrots and celery keep 1–2 weeks cut (Hans's brief);
+    // FK whole carrots 14–21, celery 7–14, radishes 10–14. The low end of the cut range.
+    key: "hardy-roots",
+    days: 7,
+    note: "Airtight in the fridge — up to 7 days.",
+    match: /\b(carrots?|celery|radish(?:es)?)\b(?!\s+(?:juice|seed|salt))/i,
   },
   {
     key: "spice-blend",
@@ -280,6 +338,8 @@ export function storageClassFor(
    * overlay passes the real list.
    */
   ingredientNames?: readonly string[],
+  /** Part J.1 — the table to read; the census passes the J.0 table to count before → after. */
+  table: readonly StorageClass[] = STORAGE_TABLE,
 ): StorageClass {
   // ── H6.1-C — THE MEMBERS DECIDE, AND ONLY THE MEMBERS ────────────────────
   //
@@ -310,7 +370,7 @@ export function storageClassFor(
   // recovers is the ordinary "a jar of three dry spices" case for callers that
   // predate the identity list.
   const names = ingredientNames ?? (contents.trim() === "" ? [] : [contents]);
-  const matched = STORAGE_TABLE.filter((c) =>
+  const matched = table.filter((c) =>
     c.match.test(isP1Class(c) ? fleshIdentity : shelfStable),
   );
   const form = containerForm(names, fleshIdentity);
@@ -335,7 +395,7 @@ export function storageClassFor(
     // mix, and both say "room temperature, weeks". Only a dry form that matched
     // nothing at all needs the generic row.
     if (base.roomTemp) return base;
-    const dryRow = STORAGE_TABLE.find((c) => c.key === "dry-mix")!;
+    const dryRow = (table.find((c) => c.key === "dry-mix") ?? STORAGE_TABLE.find((c) => c.key === "dry-mix"))!;
     return { ...dryRow, note: FORM_NOTE.dry };
   }
   if (base.roomTemp) return base;
@@ -464,6 +524,19 @@ export interface MarinadeJoinFacts {
   marinates: boolean;
   seafood: boolean;
   acidic: boolean;
+  /**
+   * Part J.1 §2 — the marinating window the RECIPE states, in hours ("refrigerate
+   * for at least 2 hours" → 2, "30 minutes" → 0.5). Null when it states none.
+   */
+  windowHours?: number | null;
+  /** The recipe says overnight (or 8 hours or more). */
+  overnight?: boolean;
+  /**
+   * Part J.1 §2 — the protein's own step is on screen today. Set per read by
+   * prepWeekBuild; absent means unknown and is read as NOT visible, so the close
+   * never points at a step the cook cannot find.
+   */
+  proteinVisible?: boolean;
 }
 
 /**
@@ -476,9 +549,36 @@ const SOON_DAYS = 1;
 const foodOf = (label: string) => (label.includes(" — ") ? label.split(" — ").slice(1).join(" — ") : label);
 
 /**
+ * Part J.1 §2 — does the protein go into its marinade AT THE PREP SESSION? Only when
+ * the recipe marinates overnight (or 8 h+) and the cook day is within a day. A recipe
+ * that states a shorter window gets "N hours before cooking"; one that states none
+ * keeps H7.1's rule (it marinates and is cooked within a day). One predicate, read by
+ * the marinade's close and by the protein step's own note, so they cannot disagree.
+ */
+export function joinsAtPrep(j: MarinadeJoinFacts, daysUntilCook: number | undefined): boolean {
+  const soon = daysUntilCook !== undefined && daysUntilCook <= SOON_DAYS;
+  const stated = j.windowHours !== undefined && j.windowHours !== null;
+  if (stated || j.overnight) return soon && (j.overnight === true || j.windowHours! >= 8);
+  return soon && j.marinates;
+}
+
+/** "2 hours", "30 minutes", "1½ hours". */
+function hoursPhrase(h: number): string {
+  if (h < 1) return `${Math.round(h * 60)} minutes`;
+  const whole = Math.floor(h);
+  const half = h - whole >= 0.5 ? "½" : "";
+  return `${whole}${half} ${whole === 1 && !half ? "hour" : "hours"}`;
+}
+
+/**
  * H7.1 — the date-dependent half of a close: a cold mixture's dressing, a marinade's
  * proteins. Computed on every read, like the storage line, because the cached prose
  * cannot know the cook day.
+ *
+ * Part J.1 §2 — the marinade's timing is the RECIPE's when it states one: 6 of 7
+ * census marinades contradicted the recipe or the day ("the night before" on a
+ * recipe that says "up to 4 hours"). The protein joins at prep only when the recipe
+ * marinates overnight (or 8 h+) AND the cook day is within a day.
  */
 function timingLines(
   c: NonNullable<StorageContext["closes"]>[number],
@@ -494,13 +594,24 @@ function timingLines(
   }
   for (const j of c.joins ?? []) {
     const who = j.protein ?? "protein";
+    const stated = j.windowHours !== undefined && j.windowHours !== null;
+    const long = j.overnight === true || (stated && j.windowHours! >= 8);
+    const joinsNow = joinsAtPrep(j, ctx.daysUntilCook);
     if (j.seafood && j.acidic) {
       // Seafood never sits in acid ahead: the acid starts to cook it.
       out.push(`Add the ${who} just before cooking${when} — acid starts to cook seafood.`);
-    } else if (j.marinates && soon) {
-      out.push(`The ${who} go in at the proteins step and marinate until cook day.`);
+    } else if (joinsNow) {
+      // Only point at the proteins step when the cook can see it (J.0 A2 found
+      // closes naming a protein step the screen had render-omitted).
+      out.push(
+        j.proteinVisible
+          ? `At the proteins step, add the ${who} to this bowl; it marinates until cook day.`
+          : `Add the ${who} to this bowl now; it marinates until cook day.`,
+      );
     } else {
-      const line = `Add the ${who} the night before you cook them${when}.`;
+      const line = stated && !long
+        ? `Add the ${who} ${hoursPhrase(j.windowHours!)} before cooking${when}.`
+        : `Add the ${who} the night before you cook them${when}.`;
       out.push(line);
       held.push(line);
     }
@@ -508,8 +619,55 @@ function timingLines(
   return out;
 }
 
-/** The wire caps `storageNote` at 200 characters (PrepWeekStepSchema). */
+/** The wire caps `storageNote` at 200 characters (PrepWeekStepSchema, both sides). */
 const NOTE_MAX = 200;
+
+/** Part J.1 (R2) — a toppings plate keeps as its strictest pile, under plastic wrap. */
+const PLATE = /\bplate$/i;
+function noteFor(c: { name: string; text: string; ingredientNames: readonly string[] }): string {
+  const cls = storageClassFor(c.text, c.name, c.ingredientNames);
+  if (PLATE.test(c.name) && !cls.roomTemp) {
+    return `Separate piles on a small plate, under plastic wrap in the fridge — up to ${cls.days} days.`;
+  }
+  return cls.note;
+}
+
+/** Part J.1 — a container's window in days, for the one-session holds. Room temperature → ∞. */
+export function containerWindowDays(c: { name: string; text: string; ingredientNames: readonly string[] }): number {
+  const cls = storageClassFor(c.text, c.name, c.ingredientNames);
+  return cls.roomTemp ? Number.POSITIVE_INFINITY : cls.days;
+}
+
+/** Part J.1 (0d) — the shorter forms, tried before any sentence is dropped. */
+const COMPACT: ReadonlyArray<[RegExp, string]> = [
+  [/Airtight in the fridge, with a barely damp paper towel — /g, "Fridge, damp towel, "],
+  [/(?:Airtight|Covered|Sealed jar|Small sealed jar) in the fridge — /g, "Fridge, "],
+  [/Separate piles on a small plate, under plastic wrap in the fridge — /g, "Plate, wrapped, fridge, "],
+  [/Small airtight container at room temperature — it keeps for weeks\./g, "Room temperature, weeks."],
+  [/Airtight at room temperature — it keeps for weeks\./g, "Room temperature, weeks."],
+  [/ It will scent the shelf; a sealed jar helps\./g, ""],
+  [/ — it is eaten within a day\./g, "."],
+  [/Both containers: /g, "Both: "],
+];
+
+/**
+ * 🔴 Part J.1 (0d) — NEVER CUT A SENTENCE. "…it is eaten wit…" shipped because the
+ * note was sliced at 200 characters. Now: the full note; else the compact forms;
+ * else whole sentences, in order, for as many as fit. Every sentence is whole.
+ */
+export function fitNote(sentences: readonly string[]): string {
+  const full = sentences.join(" ");
+  if (full.length <= NOTE_MAX) return full;
+  const compact = sentences.map((s) => COMPACT.reduce((t, [re, to]) => t.replace(re, to), s)).filter((s) => s.trim() !== "");
+  const joined = compact.join(" ");
+  if (joined.length <= NOTE_MAX) return joined;
+  const kept: string[] = [];
+  for (const s of compact.flatMap((x) => x.split(/(?<=\.)\s+/))) {
+    if ([...kept, s].join(" ").length > NOTE_MAX) break;
+    kept.push(s);
+  }
+  return kept.join(" ");
+}
 
 /**
  * H7 2b — the storage line for the containers one step closes.
@@ -527,20 +685,17 @@ export function closingNote(
   held: string[] = [],
 ): string {
   const timing = closes.flatMap((c) => timingLines(c, ctx, held));
-  const finish = (s: string) => {
-    const all = [s, ...timing].join(" ");
-    return all.length <= NOTE_MAX ? all : `${all.slice(0, NOTE_MAX - 1).trimEnd()}…`;
-  };
+  const finish = (s: string) => fitNote([s, ...timing]);
   // One sentence when every container this step closes keeps the same way: the
   // jalapeño step closing the tomatillo tray AND the cornbread's jalapeño tub read
   // "…up to 4 days. Airtight in the fridge — up to 4 days." twice over.
-  const notes = closes.map((c) => storageClassFor(c.text, c.name, c.ingredientNames).note);
+  const notes = closes.map((c) => noteFor(c));
   if (closes.length > 1 && notes.every((n) => n === notes[0])) {
     return finish(`${closes.length === 2 ? "Both containers" : `All ${closes.length} containers`}: ${notes[0]}`);
   }
   const parts: string[] = [];
-  for (const c of closes) {
-    const note = storageClassFor(c.text, c.name, c.ingredientNames).note;
+  for (const [i, c] of closes.entries()) {
+    const note = notes[i];
     // The full name, so two containers of one dish ("Classic Chicken Noodle Soup —
     // carrots and celery stalks" / "— yellow onion…") stay two. Only a long tub label
     // is cut at its dash, where the list of dinners begins.
@@ -676,10 +831,8 @@ export function applyStorageOverlay(
           const j = ctx.marinadeJoin;
           if (
             j &&
-            j.marinates &&
-            !(j.seafood && j.acidic) &&
-            ctx.daysUntilCook !== undefined &&
-            ctx.daysUntilCook <= SOON_DAYS
+            joinsAtPrep(j, ctx.daysUntilCook) &&
+            !(j.seafood && j.acidic)
           ) {
             return {
               ...step,

@@ -1,0 +1,12 @@
+## 2026-10-03T20:41:43.136Z J.0 (n=12)
+873796cd pre-J.0 1246 ms · J.0 984 ms · Δ -262 ms
+3f9d46e8 pre-J.0 957 ms · J.0 949 ms · Δ -8 ms
+b4aa6fee pre-J.0 1014 ms · J.0 1020 ms · Δ 6 ms
+## 2026-10-03T21:32:41.558Z J.1 (n=12)
+873796cd pre-J.0 1066 ms · J.1 1374 ms · Δ 308 ms
+3f9d46e8 pre-J.0 1004 ms · J.1 1049 ms · Δ 45 ms
+b4aa6fee pre-J.0 1055 ms · J.1 1050 ms · Δ -5 ms
+## 2026-10-03T21:35:37.333Z J.1 (n=24)
+873796cd pre-J.0 1108 ms · J.1 1031 ms · Δ -77 ms
+3f9d46e8 pre-J.0 985 ms · J.1 983 ms · Δ -2 ms
+b4aa6fee pre-J.0 1024 ms · J.1 1032 ms · Δ 8 ms

@@ -88,6 +88,12 @@ export interface IngredientComponent {
   noun: string | null;
   /** The finished, user-facing vessel name. */
   bowlName: string;
+  /**
+   * Part J.1 (R2) — any of the component's own steps is heat (a `cook` phase or a
+   * heat verb). A heated component is never a raw mix, whatever its combine step
+   * says ("toss the green beans with oil" before they roast).
+   */
+  heated?: boolean;
 }
 
 /** D-WS9-297 ruling 8 — a `component` edge's magnitude, from ingredient_relations. */

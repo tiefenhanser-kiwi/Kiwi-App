@@ -1,0 +1,180 @@
+PLAN e55a9305-2695-4c16-a25e-effcc03fc109  [HANS-e55a9305]  HTTP 200
+  HEADER: 25 containers · about 105 min · prompt v21
+
+  ── seasonings_dry ──
+     1. Measure the Slow-Cooker Chicken spice blend   (2 min)   [119 chars]
+        Into the Slow-Cooker Chicken spice blend:
+        1 tsp dried thyme
+        ½ tsp dried rosemary
+        ½ tsp garlic powder
+        ½ tsp onion powder
+        » storage: Airtight at room temperature — it keeps for weeks.
+     2. Measure the Tex-Mex Seasoned Ground Beef spice blend   (3 min)   [169 chars]
+        Into the Tex-Mex Seasoned Ground Beef spice blend:
+        ½ tsp garlic powder
+        ½ tsp onion powder
+        1½ tsp ground cumin
+        2 tsp chili powder
+        ½ tsp dried oregano
+        1 tsp smoked paprika
+        » storage: Airtight at room temperature — it keeps for weeks.
+     3. Measure the Slow-Cooker Chicken dry mix   (2 min)   [116 chars]
+        Into the Slow-Cooker Chicken dry mix:
+        1½ cup all-purpose flour
+        2 tsp baking powder
+        ¼ tsp baking soda
+        ½ tsp fine salt
+        » storage: Airtight at room temperature — it keeps for weeks.
+     4. Measure the Jalapeño Cheddar Cornbread dry mix   (2 min)   [128 chars]
+        Into the Jalapeño Cheddar Cornbread dry mix:
+        ¾ cup all-purpose flour
+        1 tsp baking powder
+        ½ tsp baking soda
+        1 cup yellow cornmeal
+        » storage: Airtight at room temperature — it keeps for weeks.
+     5. Measure the Beef Enchiladas Verdes spice blend   (2 min)   [103 chars]
+        Into the Beef Enchiladas Verdes spice blend:
+        1½ tsp ground cumin
+        1 tsp chili powder
+        ½ tsp dried oregano
+        » storage: Airtight at room temperature — it keeps for weeks.
+     6. Gather the Texas-Style Beef Chili dried-chile bag   (2 min)   [176 chars]
+        Into the Texas-Style Beef Chili dried-chile bag:
+        3 dried ancho chiles, stemmed and seeded
+        2 dried guajillo chiles, stemmed and seeded
+        1 dried chipotle chile, stemmed and seeded
+        » storage: Airtight at room temperature — it keeps for weeks.
+        » covers cook steps: Texas-Style Beef Chili#0
+  ×  7. Ground cumin — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  8. Ground cumin, dried oregano, smoked paprika, cayenne pepper and masa harina — cook day   (3 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)   [104 chars]
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+     2. Prep all lemons   (3 min)   [233 chars]
+        Zest 1 lemon, then juice it and ½ lemon more.
+        1 lemon zested for Lemon-Herb Baked Chicken Breast — into the Lemon-Herb Baked Chicken Breast marinade bowl
+        ½ lemon juiced — into the juiced-lemon tub for the Roasted Asparagus with Lemon
+        » storage: Airtight in the fridge — up to 3 days.
+        » covers cook steps: Lemon-Herb Baked Chicken Breast#1
+     3. Mince all garlic   (8 min)   [541 chars]
+        Mince 24 cloves of garlic.
+        4 cloves for Lemon-Herb Baked Chicken Breast — into the Lemon-Herb Baked Chicken Breast marinade bowl
+        3 cloves for Garlic Herb Roasted Potatoes — into the Garlic Herb Roasted Potatoes sauce jar
+        3 cloves for Slow-Cooker Chicken and Dumplings — into the Slow-Cooker Chicken vegetables container
+        4 cloves for Beef Enchiladas Verdes — into the shared minced-garlic tub
+        2 cloves for Mexican Street-Style Rice — same tub
+        5 cloves for Texas-Style Beef Chili — same tub
+        3 cloves for Tex-Mex Seasoned Ground Beef — same tub
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Lemon-Herb Baked Chicken Breast#2, Slow-Cooker Chicken and Dumplings#0, Beef Enchiladas Verdes#0, Mexican Street-Style Rice#0, Tex-Mex Seasoned Ground Beef#0
+     4. Chop all fresh rosemary   (1 min)   [221 chars]
+        Finely chop 3 tsp fresh rosemary.
+        2 tsp for Lemon-Herb Baked Chicken Breast — into the Lemon-Herb Baked Chicken Breast marinade bowl
+        1 tsp for Garlic Herb Roasted Potatoes — into the Garlic Herb Roasted Potatoes sauce jar
+        » covers cook steps: Lemon-Herb Baked Chicken Breast#2
+     5. Strip all fresh thyme   (1 min)   [243 chars]
+        Strip the leaves from enough fresh thyme to make 3 tsp.
+        2 tsp for Lemon-Herb Baked Chicken Breast — into the Lemon-Herb Baked Chicken Breast marinade bowl
+        1 tsp for Garlic Herb Roasted Potatoes — into the Garlic Herb Roasted Potatoes sauce jar
+        » covers cook steps: Lemon-Herb Baked Chicken Breast#2
+     6. Chop all flat-leaf parsley   (2 min)   [333 chars]
+        Chop 5 tbsp fresh flat-leaf parsley.
+        2 tbsp for Lemon-Herb Baked Chicken Breast — into the Lemon-Herb Baked Chicken Breast toppings plate
+        1 tbsp — into the chopped fresh flat-leaf parsley tub for the Garlic Herb Roasted Potatoes
+        2 tbsp for Slow-Cooker Chicken and Dumplings — into the Slow-Cooker Chicken and Dumplings toppings plate
+        » storage: Separate piles on a small plate, under plastic wrap in the fridge — up to 3 days. Airtight in the fridge, with a barely damp paper towel — up to 3 days.
+        » covers cook steps: Lemon-Herb Baked Chicken Breast#2
+  ×  7. Baby Yukon gold potatoes — cook day   (3 min)  [RENDER-OMITTED]   [53 chars]
+        This browns once it is cut, so it is cut on cook day.
+     8. Snap the asparagus for Roasted Asparagus with Lemon   (3 min)   [116 chars]
+        Snap the woody ends off 1¼ lb asparagus.
+        1¼ lb — into the snapped-asparagus tub for the Roasted Asparagus with Lemon
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Roasted Asparagus with Lemon#0
+     9. Dice all yellow onion   (8 min)   [339 chars]
+        Work through 3 yellow onions: diced and finely diced.
+        1 yellow onion diced for Slow-Cooker Chicken and Dumplings — into the Slow-Cooker Chicken vegetables container
+        1 yellow onion finely diced for Texas-Style Beef Chili — into the shared finely diced yellow onion tub
+        1 yellow onion finely diced for Tex-Mex Seasoned Ground Beef — same tub
+        » storage: Airtight in the fridge — up to 4 days.
+    10. Slice the celery for Slow-Cooker Chicken and Dumplings   (2 min)   [147 chars]
+        Slice 3 celery stalks into ½-inch pieces.
+        3 celery stalks for Slow-Cooker Chicken and Dumplings — into the Slow-Cooker Chicken vegetables container
+        » covers cook steps: Slow-Cooker Chicken and Dumplings#0
+    11. Slice the carrots for Slow-Cooker Chicken and Dumplings   (5 min)   [148 chars]
+        Peel 3 carrots and slice them into ½-inch coins.
+        3 carrots for Slow-Cooker Chicken and Dumplings — into the Slow-Cooker Chicken vegetables container
+        » storage: Slow-Cooker Chicken vegetables: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Slow-Cooker Chicken and Dumplings#0
+    12. Dice all white onion   (8 min)   [348 chars]
+        Finely dice 2½ white onions.
+        1 white onion for Beef Enchiladas Verdes — into the shared finely diced white onion tub
+        ½ white onion for Mexican Street-Style Rice — same tub
+        ½ white onion for Classic Chili Fixings — into the Classic Chili Fixings plate
+        ½ white onion for Roasted Tomatillo Sauce — into the Roasted Tomatillo Sauce vegetables container
+        » storage: Airtight in the fridge — up to 4 days.
+        » covers cook steps: Mexican Street-Style Rice#0, Classic Chili Fixings#0
+    13. Chop all cilantro   (3 min)   [187 chars]
+        Roughly chop ½ cup fresh cilantro.
+        ¼ cup for Beef Enchiladas Verdes — into the Beef Enchiladas Verdes toppings plate
+        ¼ cup for Classic Chili Fixings — into the Classic Chili Fixings plate
+        » storage: Both containers: Separate piles on a small plate, under plastic wrap in the fridge — up to 3 days.
+  × 14. Lime — cook day   (6 min)  [RENDER-OMITTED]   [39 chars]
+        Citrus wedges keep best cut on the day.
+    15. Husk the tomatillos for Roasted Tomatillo Sauce   (3 min)   [128 chars]
+        Husk and halve 1¼ lb fresh tomatillos.
+        1¼ lb for Roasted Tomatillo Sauce — into the Roasted Tomatillo Sauce vegetables container
+    16. Prep the poblano for Roasted Tomatillo Sauce   (1 min)   [133 chars]
+        Halve and seed 1 poblano pepper.
+        1 poblano pepper for Roasted Tomatillo Sauce — into the Roasted Tomatillo Sauce vegetables container
+    17. Prep all jalapeños   (1 min)   [248 chars]
+        Work through 2 jalapeños: halved and finely diced.
+        1 jalapeño halved for Roasted Tomatillo Sauce — into the Roasted Tomatillo Sauce vegetables container
+        1 jalapeño finely diced — into the finely-diced-jalapeño tub for the Jalapeño Cheddar Cornbread
+        » storage: Both containers: Airtight in the fridge — up to 4 days.
+  × 18. Iceberg lettuce — cook day   (1 min)  [RENDER-OMITTED]   [90 chars]
+        Finely shred 2 cup iceberg lettuce.
+        2 cup for Taco Toppings — into the Taco Toppings plate
+        » storage: This one is 3 days out — leave it for cook day.
+  × 19. Roma tomatoes — cook day   (5 min)  [RENDER-OMITTED]   [86 chars]
+        Dice 2 roma tomatoes.
+        2 roma tomatoes for Taco Toppings — into the Taco Toppings plate
+        » storage: This one is 3 days out — leave it for cook day.
+
+  ── sauces_marinades ──
+     1. Finish the Lemon-Herb Baked Chicken Breast marinade bowl   (2 min)   [205 chars]
+        Lemon-Herb Baked Chicken Breast marinade bowl (the lemon from produce step 2, garlic, fresh rosemary and fresh thyme already in it): add
+        3 tbsp extra-virgin olive oil
+        1 tbsp dijon mustard
+        Whisk to combine.
+        » storage: Covered in the fridge — up to 4 days. Add the boneless skinless chicken breasts 20 minutes before cooking (Saturday).
+     2. Finish the Garlic Herb Roasted Potatoes sauce jar   (2 min)   [145 chars]
+        Garlic Herb Roasted Potatoes sauce jar (garlic, fresh rosemary and fresh thyme already in it): add
+        2 tbsp extra-virgin olive oil
+        Stir to combine.
+        » storage: Covered in the fridge — up to 4 days.
+  ×  3. Extra-virgin olive oil — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  4. Apple cider vinegar — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  5. Hot sauce — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     HELD: Lemon-Herb Baked Chicken Breast with Roasted Asparagus and Garlic Herb Potatoes (Saturday, today) — cut the baby Yukon gold potatoes (it browns once cut) that morning.
+     HELD: Classic Tex-Mex Ground Beef Tacos (Tuesday, 3 days out) — chop the fresh cilantro, shred the iceberg lettuce and dice the roma tomatoes that morning.
+     HELD: Add the boneless skinless chicken breasts 20 minutes before cooking (Saturday).
+     1. Pound the chicken breasts for Lemon-Herb Baked Chicken Breast   (8 min)   [83 chars]
+        Pound 2½ lb boneless skinless chicken breasts to an even thickness of about ¾ inch.
+        » storage: Covered in the fridge — cook within 2 days.
+        » covers cook steps: Lemon-Herb Baked Chicken Breast#0
+     2. Cube and trim the chicken thighs for Slow-Cooker Chicken and Dumplings   (6 min)   [72 chars]
+        Trim 1¾ lb boneless skinless chicken thighs of excess fat and cube them.
+        » storage: Covered in the fridge — cook within 2 days.
+     3. Cube and trim the beef chuck for Texas-Style Beef Chili   (8 min)   [64 chars]
+        Trim 2 lb beef chuck of excess fat and cut it into ¾-inch cubes.
+        » storage: Covered in the fridge — cook within 2 days.
