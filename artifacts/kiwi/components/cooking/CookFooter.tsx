@@ -12,6 +12,11 @@
 // "Save & Exit") without a bespoke layout. Back-compat is load-bearing:
 // CookSessionView passes nothing → the row is absent → Cook Mode renders exactly
 // as before (same discipline as ProgressSegments.partialIndices).
+//
+// Oct 3 — an OPTIONAL `statusLine` replaces the "Next · …" / "~N min left" pair
+// with one caller-composed line (Week Prep: "Next: X · This step: ~N min").
+// Same back-compat rule: Cook Mode passes nothing and renders as before — the
+// e2e harness reads its "~N min left" (e2e/src/screen.ts).
 
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -25,8 +30,9 @@ export interface CookFooterSecondaryAction {
 }
 
 export function CookFooter({
-  nextLabel,
-  remainingMins,
+  nextLabel = null,
+  remainingMins = 0,
+  statusLine,
   backDisabled,
   showAdvance,
   onPrevStep,
@@ -35,8 +41,11 @@ export function CookFooter({
   backLabel = "←",
   secondaryActions,
 }: {
-  nextLabel: string | null;
-  remainingMins: number;
+  nextLabel?: string | null;
+  remainingMins?: number;
+  /** One composed line in place of the Next/min-left pair. Omit (Cook Mode)
+   *  → the pair renders exactly as before. */
+  statusLine?: string;
   backDisabled: boolean;
   showAdvance: boolean;
   onPrevStep: () => void;
@@ -49,9 +58,15 @@ export function CookFooter({
 }) {
   return (
     <View style={s.footer}>
-      {nextLabel && <Text style={s.nextPreview}>Next · {nextLabel}</Text>}
-      {remainingMins > 0 && (
-        <Text style={s.remaining}>~{remainingMins} min left</Text>
+      {statusLine !== undefined ? (
+        <Text style={s.nextPreview}>{statusLine}</Text>
+      ) : (
+        <>
+          {nextLabel && <Text style={s.nextPreview}>Next · {nextLabel}</Text>}
+          {remainingMins > 0 && (
+            <Text style={s.remaining}>~{remainingMins} min left</Text>
+          )}
+        </>
       )}
       {secondaryActions && secondaryActions.length > 0 && (
         <View style={s.secondaryRow}>
