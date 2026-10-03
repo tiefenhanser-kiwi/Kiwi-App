@@ -35,10 +35,14 @@ import { timeStep, planMinutes, wholeFruitCount, type SourceYieldLike } from "./
 import {
   PREP_PHASE_ORDER,
   canonicalizeUnit,
+  isNoWorkPortion,
   type PrepPhaseKey,
   type PrepCombineResult,
   type PrepIngredientGroup,
 } from "./prepCombineEngine";
+// H6.2 item 2 — re-exported here because the orphan labelling and the tests both reach
+// for it from the assembly, while the engine is where the grouping has to read it.
+export { isNoWorkPortion } from "./prepCombineEngine";
 import type {
   PrepMeasure,
   PrepNarrationComponent,
@@ -876,12 +880,21 @@ export function buildStepPlan(
           b.entries.set(entry.ingredientId, entry);
           b.mealIds.add(c.mealId);
           componentBuckets.set(k, b);
-          // 🔴 RULE 11(c) — A PRODUCE MEMBER IS NOT CLAIMED. Its knife work is
-          // done in its own ingredient's step (one ingredient at a time, all the
-          // garlic at once), with this container as the named destination. Only
-          // the members whose work happens IN the container — the dry measure and
-          // the wet pour — are claimed out of the per-ingredient steps.
-          if (kindOf(entry) !== "produce") {
+          // 🔴 RULE 11(c) — KNIFE WORK IS NEVER CLAIMED. A produce member is cut in
+          // its own ingredient's step and a whole protein is trimmed in its own,
+          // each with this container as the named destination. Only the members
+          // whose work happens IN the container — the dry measure and the wet pour —
+          // are claimed out of the per-ingredient steps.
+          //
+          // 🔴 THE PROTEIN ARM IS H6.2's FIX. H4 left protein members claimed while
+          // the emission loop skipped container steps in the proteins phase, so a
+          // protein that joined a container lost its step altogether: the slow
+          // cooker's thighs are named in the same cook sentence as its aromatics, so
+          // after H6.1 they shared a moment, and "trim 1¾ lb chicken thighs" vanished
+          // from the plan. D-WS9-296 ruling 1 already says raw flesh "has a
+          // destination, not a seat".
+          const kind = kindOf(entry);
+          if (kind === "dry" || kind === "wet") {
             claimed.add(`${c.dishId}|${entry.ingredientId}`);
           }
         }
@@ -903,8 +916,9 @@ export function buildStepPlan(
     if (PREP_PHASE_ORDER.indexOf(d.phase) < PREP_PHASE_ORDER.indexOf(b.phase)) b.phase = d.phase;
     b.entries.set(d.entry.ingredientId, d.entry);
     b.mealIds.add(d.mealId);
-    // Rule 11(c) again: a produce member keeps its own step.
-    if (kindOf(d.entry) !== "produce") {
+    // Rule 11(c) again: knife work keeps its own step, produce and protein alike.
+    const dKind = kindOf(d.entry);
+    if (dKind === "dry" || dKind === "wet") {
       claimed.add(`${d.dishId}|${d.entry.ingredientId}`);
     }
   }
@@ -1007,6 +1021,14 @@ export function buildStepPlan(
   //     and could not act on.
   const sharedLabel = new Map<string, string>();
   const loneLabel = new Map<string, string>();
+  /** H6.2 item 1 — single-dish portions, to be grouped by (dish, moment) below. */
+  const momentOrphans: {
+    dishId: string;
+    dishName: string;
+    momentKey: string;
+    ingredientId: string;
+    phase: PrepPhaseKey;
+  }[] = [];
   {
     /** The cut, from the notes, so "diced onion" and "sliced onion" stay apart. */
     const cutOf = (notes: string[]): string | null => {
@@ -1022,17 +1044,27 @@ export function buildStepPlan(
       // noise rule 11's comment warns about.
       if (phase.phase === "proteins") continue;
       for (const entry of phase.entries) {
-        // Only the portions that (a) did not claim.
+        // Only the portions that (a) did not claim, and only the ones that are
+        // actually work (H6.2 item 2).
         const orphans = entry.lines.flatMap((l) =>
           l.contributions.filter(
-            (c) => !containerByDishIngredient.has(`${c.dishId}|${entry.ingredientId}`),
+            (c) =>
+              // The no-work portions are already gone — combinePrep drops them at the
+              // contribution (H6.2 item 2), so nothing reaches here to filter.
+              !containerByDishIngredient.has(`${c.dishId}|${entry.ingredientId}`),
           ),
         );
         if (orphans.length === 0) continue;
-        // 🔴 GROUPED BY CUT. The first draft took the first cut it found across every
-        // orphan portion, so the tomatillo sauce's "3 cloves, UNPEELED" was labelled
-        // into the MINCED garlic tub. Minced garlic and whole cloves are not the same
-        // thing in a tub, and the cut is what says so.
+        // 🔴 H6.2 item 1 — RULE 1 APPLIES HERE TOO. A portion that joined no mixture
+        // still shares a container with everything else of its dish entering at the
+        // SAME MOMENT: "Roasted Tomatillo Sauce roasting tray" holds the tomatillos,
+        // the poblano, the jalapeño and the onion wedges, because they go into the
+        // oven together. One tub per ingredient was rule 11(c) read too literally,
+        // and it put 17 single-member containers on the sample plan.
+        //
+        // The shared tub (11b) survives only where the SAME CUT serves SEVERAL
+        // dishes — that is the one case where a per-ingredient vessel is what the
+        // cook actually wants, because the portions are divided at the stove.
         const byCut = new Map<string, typeof orphans>();
         for (const c of orphans) {
           const k = cutOf([c.preparationNote ?? ""]) ?? "";
@@ -1051,18 +1083,79 @@ export function buildStepPlan(
                 containerLabel(upperFirst(noun), dishes),
               );
             }
-          } else if (phase.phase === "seasonings_dry") {
-            // (c), DRY — one bowl for the dish's dry measures together.
+            continue;
+          }
+          // 🔴 A SERVED-SEPARATELY DISH IS EXEMPT (H5.1). Its members go out in their
+          // own small dishes — that is the ruling — so they keep a container each and
+          // never pool into one bowl.
+          if (isServedSeparately(dishes[0])) {
             for (const c of group) {
-              loneLabel.set(`${c.dishId}|${entry.ingredientId}`, `${dishes[0]} dry mix`);
+              loneLabel.set(
+                `${c.dishId}|${entry.ingredientId}`,
+                containerLabel(dishes[0], [noun]),
+              );
             }
-          } else {
-            // (c) — named for the dish and the use.
-            for (const c of group) {
-              loneLabel.set(`${c.dishId}|${entry.ingredientId}`, containerLabel(dishes[0], [noun]));
-            }
+            continue;
+          }
+          // (c) — one container per DISH and MOMENT, named below once the whole
+          // plan's moments are known. Recorded here; resolved after the loop.
+          for (const c of group) {
+            momentOrphans.push({
+              dishId: c.dishId,
+              dishName: c.dishName,
+              // 🔴 THE PHASE, NOT THE RESOLVED MOMENT. See the header note: the
+              // override moves a vegetable to the step that cooks it, which split the
+              // tomatillo sauce's one prep sentence into five bowls. The kind of work
+              // is what the board shares.
+              momentKey: phase.phase,
+              ingredientId: entry.ingredientId,
+              phase: phase.phase,
+            });
           }
         }
+      }
+    }
+  }
+
+  // ── H6.2 item 1 — ONE CONTAINER PER DISH AND MOMENT ──────────────────────
+  //
+  // Named off the dish, with a numeric suffix only when a dish needs more than one.
+  // 🔴 THE SUFFIX ALSO CLOSES A NAME COLLISION I left in H6.1: two different buckets
+  // of one dish could both be named "<Dish> prep container" by rule 8 and then read
+  // as ONE container, because a container is its name. Every name this plan uses is
+  // registered, so a second container of the same dish cannot borrow the first's.
+  {
+    const used = new Set<string>();
+    for (const b of componentBuckets.values()) used.add(b.bowlName);
+    // Group first, so a group's SIZE can decide whether it deserves a vessel.
+    const groups = new Map<string, typeof momentOrphans>();
+    for (const o of momentOrphans) {
+      const k = `${o.dishId}|${o.momentKey}`;
+      const l = groups.get(k) ?? [];
+      l.push(o);
+      groups.set(k, l);
+    }
+    const perDish = new Map<string, Map<string, string>>();
+    for (const [, group] of groups) {
+      const distinct = new Set(group.map((o) => o.ingredientId)).size;
+      // 🔴 ONE PORTION IS A PORTION, NOT A CONTAINER — the same rule the authored
+      // mixtures already obey. And a DRY group needs three (D-WS9-299): a blend of two
+      // spices is noise, whether a bowl name is wrapped around it or not.
+      const floor = group[0].phase === "seasonings_dry" ? 3 : 2;
+      if (distinct < floor) continue;
+      const first = group[0];
+      const byMoment = perDish.get(first.dishId) ?? new Map<string, string>();
+      if (!byMoment.has(first.momentKey)) {
+        const base = `${first.dishName} prep bowl`;
+        let name = base;
+        let n = 2;
+        while (used.has(name)) name = `${base} ${n++}`;
+        used.add(name);
+        byMoment.set(first.momentKey, name);
+      }
+      perDish.set(first.dishId, byMoment);
+      for (const o of group) {
+        loneLabel.set(`${o.dishId}|${o.ingredientId}`, byMoment.get(first.momentKey)!);
       }
     }
   }
@@ -1497,8 +1590,16 @@ export function buildStepPlan(
   }
   for (const l of touchers.values()) l.sort((x, y) => rank(x) - rank(y));
 
-  /** The phase label of the next step to touch this one's container, or null. */
+  /**
+   * The phase label of the next step to touch this step's OWN container, or null.
+   *
+   * 🔴 ITS OWN. H6.2 item 5 — a produce step that portions into six containers was
+   * closing "Set aside for the sauces and marinades step", which is a sentence about
+   * somebody else's bowl. A handoff is a thing a container does, so only a step that IS
+   * a container can announce one.
+   */
   const workedAgainAfter = (step: PlannedStep): string | null => {
+    if (!step.containerId && !step.bowlName) return null;
     let best: PlannedStep | null = null;
     const here = PREP_PHASE_ORDER.indexOf(step.phase);
     for (const n of containerNamesOf(step)) {
@@ -1521,11 +1622,24 @@ export function buildStepPlan(
     if (st.demoted || st.cookDaySentence || st.holdsNoContainer) continue;
     const names = containerNamesOf(st);
     if (names.length === 0) continue;
-    const isLastForSome = names.some((n) => {
+    // ── H6.2 item 5 — WHOSE STORAGE LINE IS THIS? ──────────────────────────
+    //
+    // A container's last step states how to keep it. For a step that IS a container
+    // that is its own name; for a step that FILLS containers it is the tub this step's
+    // own portions created — a (b) or (c) label, which is named after the ingredient or
+    // the dish and nothing else touches. A step that only fills OTHER people's
+    // containers says nothing: the marinade's own step will speak for the marinade.
+    const ownNames = st.containerId || st.bowlName
+      ? names.filter((n) => n === st.bowlName)
+      : names.filter((n) => {
+          const l = touchers.get(n) ?? [];
+          return l.length === 1 && l[0] === st;
+        });
+    const isLastForOwn = ownNames.some((n) => {
       const l = touchers.get(n) ?? [];
       return l.length > 0 && l[l.length - 1] === st;
     });
-    if (!isLastForSome) st.suppressStorage = true;
+    if (!isLastForOwn) st.suppressStorage = true;
   }
 
   const narrationInput: PrepNarrationInput = {

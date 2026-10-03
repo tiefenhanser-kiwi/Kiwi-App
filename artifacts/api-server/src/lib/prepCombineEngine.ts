@@ -515,6 +515,25 @@ function classifyPrepWorthy(
 // per-meal attribution, assign phases, and apply the prep-worthy filter.
 // Variant ingredient rows (red vs yellow onion = different ingredientId) stay
 // separate groups by design — that is correct prep behavior, not a bug.
+// ── H6.2 item 2 — A PORTION THAT NEEDS NO ACTION IS NOT PREP ────────────────
+//
+// "3 cloves, unpeeled — for the Roasted Tomatillo Sauce" asks the cook to put three
+// whole cloves in a labelled tub on Sunday so that on Thursday they can take three
+// whole cloves out of it. It is not work, it is not a step line, and it fills no
+// container. The tomatillo sauce roasts them whole; they stay in the bag.
+//
+// ⚠️ ONLY AN EXPLICIT NO-WORK NOTE. A row with NO note at all is a different case —
+// whole produce the narrator still judges (D-WS9-299 tier 4) — and must not be swept
+// up here.
+const NO_WORK_NOTE =
+  /^(?:\s*(?:left\s+)?(?:whole|unpeeled|uncut|intact|as[- ]is|skin[- ]on|in its skin|unopened|in the bag)\b[\s,;.]*)+$/i;
+
+export function isNoWorkPortion(preparationNote: string | null | undefined): boolean {
+  const note = (preparationNote ?? "").trim();
+  if (note === "") return false;
+  return NO_WORK_NOTE.test(note);
+}
+
 export function combinePrep(
   input: PrepCombineInput,
   /**
@@ -577,6 +596,13 @@ export function combinePrep(
           groups.set(groupId, g);
           order.push(groupId);
         }
+        // 🔴 H6.2 item 2 — A NO-WORK PORTION IS NOT A LINE. Dropped here, at the
+        // contribution, because an ingredient's portions are not all alike: the garlic
+        // is one merged group of eight, and exactly one of them is "3 cloves, unpeeled"
+        // for a sauce that roasts them whole. Withholding only its container still left
+        // it on the step, reading "3 cloves — leave unpeeled", which is a line asking
+        // the cook to do nothing. Its quantity goes with it, so 24 cloves get minced.
+        if (isNoWorkPortion(ing.preparationNote)) continue;
         g.contributions.push({
           mealId: meal.mealId,
           mealName: meal.mealName,
