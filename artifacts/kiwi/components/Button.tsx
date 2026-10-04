@@ -65,6 +65,11 @@ interface Props {
   style?: ViewStyle;
   iconLeft?: React.ReactNode;
   testID?: string;
+  /** Resub C1 — the most the label may grow with the system text size. For a
+   *  button that must stay whole in a space it does not control (Welcome's
+   *  pinned footer). Setting it also lets a long label WRAP inside the button
+   *  rather than run past its edges. Absent = today's label, untouched. */
+  maxFontSizeMultiplier?: number;
 }
 
 export function Button({
@@ -79,6 +84,7 @@ export function Button({
   style,
   iconLeft,
   testID,
+  maxFontSizeMultiplier,
 }: Props) {
   const variantPalette = VARIANTS[variant];
   const metrics = SIZES[size];
@@ -145,7 +151,12 @@ export function Button({
         <View style={styles.row}>
           {iconLeft}
           <Text
-            style={[styles.text, { fontSize: metrics.fontSize, color: palette.text }]}
+            style={[
+              styles.text,
+              { fontSize: metrics.fontSize, color: palette.text },
+              maxFontSizeMultiplier !== undefined && styles.wrap,
+            ]}
+            maxFontSizeMultiplier={maxFontSizeMultiplier}
           >
             {label}
           </Text>
@@ -247,5 +258,11 @@ const styles = StyleSheet.create({
   text: {
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.sans[600],
+  },
+  // Only with `maxFontSizeMultiplier`: a label in a row does not wrap unless it
+  // may shrink, so at a large text size it would overflow the button instead.
+  wrap: {
+    flexShrink: 1,
+    textAlign: "center",
   },
 });
