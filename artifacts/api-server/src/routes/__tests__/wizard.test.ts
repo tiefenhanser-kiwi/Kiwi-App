@@ -1721,6 +1721,57 @@ describe("POST /api/wizard/build-plans — entitlement gate", () => {
   });
 });
 
+// BUG-353 (Resubmission B1) — "the streamed generation never opens the
+// paywall". The SERVER half, pinned: a denied entitlement on the STREAMING
+// negotiation (Accept: text/event-stream) is answered BEFORE the stream opens,
+// as the same plain 402 JSON every other paid gate sends — not a 200 event
+// stream with an error frame. That is the shape the client's stream consumer
+// already reads (kiwi lib/api/wizardStream.ts:136 routes `res.status === 402`
+// to UpgradeRequiredError). The defect is client-side: that line throws
+// without calling `emitUpgradeRequired`, so the sheet never opens.
+describe("POST /api/wizard/build-plans — BUG-353: a streaming request is refused with a plain 402 before the stream", () => {
+  it("Accept: text/event-stream + denied → 402 application/json { error, code, reason }, no stream, no AI call", async () => {
+    const stream = makeStreamFn(happyCandidates().candidates);
+    const ai = makeRunAICall(async () => happyResult());
+    const harness = await spinUp({
+      runAICall: ai.fn,
+      streamPlanCandidates: stream.fn,
+      prisma: makeStubPrisma(),
+      subscriptionService: {
+        async can(): Promise<EntitlementResult> {
+          return {
+            allowed: false,
+            code: "subscription_required",
+            reason: "Your free trial has ended. Subscribe to keep planning and cooking with Kiwi.",
+          };
+        },
+      },
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "text/event-stream",
+          Authorization: `Bearer ${signToken(TEST_USER_ID)}`,
+        },
+        body: JSON.stringify(VALID_BODY),
+      });
+      assert.equal(res.status, 402);
+      assert.match(res.headers.get("content-type") ?? "", /application\/json/);
+      assert.deepEqual(await res.json(), {
+        error: "upgrade required",
+        code: "subscription_required",
+        reason: "Your free trial has ended. Subscribe to keep planning and cooking with Kiwi.",
+      });
+      assert.equal(stream.getCalls(), 0, "the stream never opened");
+      assert.equal(ai.getCalls(), 0);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
 describe("POST /api/wizard/build-plans — AI failure", () => {
   let harness: Harness;
   const prisma = makeStubPrisma();

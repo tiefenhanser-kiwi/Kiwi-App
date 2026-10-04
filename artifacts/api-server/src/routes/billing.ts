@@ -1,11 +1,15 @@
-// Row 9 (1.1) · Stripe S1 Part D — /billing/* — THE TWO LINK-OUTS.
+// Row 9 (1.1) · Stripe S1 Part D — /billing/* — THE TWO LINK-OUTS, and
+// (Resubmission B1) the store sync.
 //
-// Kiwi never sees a card number. Both routes do the same small thing: mint a
-// Stripe-hosted URL and hand it back. The web sets `window.location`; iOS and
-// Android open the SYSTEM BROWSER (never a WebView — the D-WS9-267 rails ruling
-// and Stripe's own guidance agree), and the user comes back to the app by hand.
+// Kiwi never sees a card number. The two Stripe routes do the same small
+// thing: mint a Stripe-hosted URL and hand it back. Since Resubmission B1 they
+// are the WEB's rail only — on iOS and Android the app sells through Apple
+// In-App Purchase and Google Play Billing via RevenueCat (Apple rejected 1.0
+// under 3.1.1 for a subscription that could not be bought in the app), and
+// those purchases reach Kiwi through POST /api/webhooks/revenuecat and
+// POST /billing/store-sync below.
 //
-// ── WHAT THESE ROUTES DELIBERATELY DO NOT DO ─────────────────────────────
+// ── WHAT THE STRIPE ROUTES DELIBERATELY DO NOT DO ────────────────────────
 //
 // They do not write subscription state. Not the status, not the plan, not the
 // period. `POST /billing/checkout-session` persists exactly ONE thing — the
@@ -19,20 +23,21 @@
 // and the only way to keep that true is for this file to have no write path for
 // it to contradict.
 //
-// ── PAY EARLY, GET MORE (D-WS9-270 §5a) ──────────────────────────────────
+// ── NO PAY-EARLY BONUS (Resubmission B1) ─────────────────────────────────
 //
-// A user who subscribes DURING the trial gets `subscription_data.trial_end =
-// trialEndsAt + BILLING_EARLY_PAY_BONUS_DAYS`. The card goes on file, the first
-// charge lands on that date, and the paid term starts then — so for the user it
-// is "the rest of my trial plus two weeks free", and for Stripe it is an
-// ordinary trial with a card: no proration, no credit notes, and the pre-charge
-// reminder email is Stripe's own (keep "send trial-ending emails" ON in the
-// Dashboard — several card-network and FTC rules want a reminder before a card
-// on file is charged at the end of a free period).
+// D-WS9-270 §5a's "pay early, get more" is gone on every platform (Hans,
+// 2026-10-04: "we can run pricing promos to trigger early conversions").
+// Subscribing during the trial bills at purchase: Checkout sets no
+// `subscription_data.trial_end`, exactly as the App Store and Google Play
+// charge at purchase with no introductory offer configured. Promotions are
+// Stripe promotion codes (`allow_promotion_codes` stays on) and store offers.
 //
-// After the trial has lapsed there is NO bonus and no `trial_end` — checkout
-// charges today. A second free period for someone who already had fourteen days
-// is not an experiment, it is a giveaway with no end condition.
+// ── ONE ACCOUNT, ONE PAID RAIL ───────────────────────────────────────────
+//
+// A user entitled through the App Store or Google Play is refused a Stripe
+// checkout and the Stripe Portal with 409 `subscribed_elsewhere { source }` —
+// Kiwi must never sell a second subscription to someone already paying, and
+// the store subscription is managed in the store (`managementUrl`).
 
 import { Router, type IRouter, type Response } from "express";
 import type { PrismaClient } from "@prisma/client";
@@ -50,20 +55,13 @@ import {
 } from "../lib/billing/stripeClient";
 import {
   effectiveStatus,
+  isEntitled,
   readSubscriptionSnapshot,
+  type SubscriptionSnapshot,
 } from "../lib/subscriptionService";
-
-/**
- * Checkout requires `trial_end` to be at least 48 hours in the future. During a
- * running trial with the default 14-day bonus this is always comfortably true,
- * but `BILLING_EARLY_PAY_BONUS_DAYS=0` on the last day of a trial is a
- * configuration Hans can legitimately set, and it lands inside the window. So it
- * is asserted rather than assumed: too close → the trial_end is DROPPED and the
- * session is still created (the user can pay; they just pay today), with a log
- * line naming it. Refusing the checkout instead would turn a bonus-tuning knob
- * into an outage on the one screen that takes money.
- */
-export const STRIPE_MIN_TRIAL_END_SECONDS = 48 * 60 * 60;
+import { RevenueCatFetchError, type FetchLike } from "../lib/billing/revenuecat";
+import { syncStoreSubscription } from "../lib/billing/storeSync";
+import { buildSubscriptionPayload } from "../lib/billing/subscriptionPayload";
 
 const CheckoutRequestSchema = z.object({
   plan: z.enum(["monthly", "annual"]),
@@ -83,8 +81,33 @@ export interface BillingRouterDeps {
    * live key makes a real customer.
    */
   stripe: StripeLike;
+  /**
+   * Resubmission B1 — the RevenueCat re-read seam for POST /billing/store-sync.
+   * Defaults to the global fetch; every test injects a fake.
+   */
+  storeFetch: FetchLike;
   now?: () => Date;
   limiterOpts?: { capacity: number; refillPerSec: number };
+  storeSyncLimiterOpts?: { capacity: number; refillPerSec: number };
+}
+
+/**
+ * The 409 for a store-entitled row, or null. `source` is apple | google; the
+ * client turns it into "Manage in the App Store / Google Play" and opens
+ * `managementUrl`.
+ */
+function storeOwnedRefusal(
+  snapshot: SubscriptionSnapshot | null,
+  status: ReturnType<typeof effectiveStatus> | "none",
+): { code: "subscribed_elsewhere"; source: "apple" | "google"; managementUrl: string | null } | null {
+  const source = snapshot?.source ?? null;
+  if (source !== "apple" && source !== "google") return null;
+  if (status === "none" || !isEntitled(status)) return null;
+  return {
+    code: "subscribed_elsewhere",
+    source,
+    managementUrl: snapshot?.storeManagementUrl ?? null,
+  };
 }
 
 export function createBillingRouter(deps: Partial<BillingRouterDeps> = {}): IRouter {
@@ -92,6 +115,8 @@ export function createBillingRouter(deps: Partial<BillingRouterDeps> = {}): IRou
   const billingConfig = deps.billingConfig ?? readBillingConfig();
   const requireAuth = createRequireAuth({ prisma });
   const now = deps.now ?? (() => new Date());
+  const storeFetch: FetchLike =
+    deps.storeFetch ?? (globalThis.fetch as unknown as FetchLike);
   const router: IRouter = Router();
 
   // Resolved lazily and only when a route runs, so an unconfigured deploy never
@@ -104,6 +129,14 @@ export function createBillingRouter(deps: Partial<BillingRouterDeps> = {}): IRou
   const limiter = rateLimit({
     ...(deps.limiterOpts ?? { capacity: 10, refillPerSec: 10 / 60 }),
     keyFn: (req) => `billing:${req.userId ?? "anonymous"}`,
+  });
+
+  // Store-sync is one outbound GET to RevenueCat per call, triggered by a
+  // purchase, a Restore, or the app coming back to the foreground after one.
+  // Its own bucket so a Restore loop cannot starve checkout, and the reverse.
+  const storeSyncLimiter = rateLimit({
+    ...(deps.storeSyncLimiterOpts ?? { capacity: 6, refillPerSec: 6 / 60 }),
+    keyFn: (req) => `billing-store-sync:${req.userId ?? "anonymous"}`,
   });
 
   /** The 503 both routes answer when the deploy has no Stripe. NAMES, never values. */
@@ -140,6 +173,18 @@ export function createBillingRouter(deps: Partial<BillingRouterDeps> = {}): IRou
       const snapshot = await readSubscriptionSnapshot(prisma, userId);
       const status = snapshot === null ? "none" : effectiveStatus(snapshot, now());
 
+      // 🔴 Resubmission B1 — paying through the App Store or Google Play. A
+      // second (Stripe) subscription would double-charge; refuse it here,
+      // before a customer is created.
+      const elsewhere = storeOwnedRefusal(snapshot, status);
+      if (elsewhere !== null) {
+        logger.info(
+          { event: "billing_checkout_subscribed_elsewhere", userId, source: elsewhere.source },
+          "Checkout refused — the account is entitled through a store subscription",
+        );
+        return res.status(409).json(elsewhere);
+      }
+
       // Already paying. NOT an error the user caused — two devices, or a stale
       // paywall that never refetched — so it is a 409 with a code the client can
       // turn into "You're already subscribed" and a refetch, rather than a 400.
@@ -173,35 +218,6 @@ export function createBillingRouter(deps: Partial<BillingRouterDeps> = {}): IRou
         });
       }
 
-      // ── pay early, get more ──
-      let trialEnd: number | null = null;
-      let earlyPayBonusApplied = false;
-      if (status === "trialing" && snapshot?.trialEndsAt) {
-        const candidate = Math.floor(
-          (snapshot.trialEndsAt.getTime() +
-            billingConfig.earlyPayBonusDays * 24 * 60 * 60 * 1000) /
-            1000,
-        );
-        const earliest =
-          Math.floor(now().getTime() / 1000) + STRIPE_MIN_TRIAL_END_SECONDS;
-        if (candidate >= earliest) {
-          trialEnd = candidate;
-          earlyPayBonusApplied = billingConfig.earlyPayBonusDays > 0;
-        } else {
-          // See STRIPE_MIN_TRIAL_END_SECONDS. The user can still pay.
-          logger.warn(
-            {
-              event: "billing_trial_end_too_soon",
-              userId,
-              bonusDays: billingConfig.earlyPayBonusDays,
-              candidate,
-              earliest,
-            },
-            "Computed trial_end is inside Stripe's 48-hour minimum — creating the session WITHOUT a trial (the first charge is today)",
-          );
-        }
-      }
-
       const base = billingConfig.returnUrlBase;
       const session = await stripe.checkout.sessions.create({
         mode: "subscription",
@@ -217,20 +233,15 @@ export function createBillingRouter(deps: Partial<BillingRouterDeps> = {}): IRou
         // Stripe unescaped, which is why this is a plain string and not a URL.
         success_url: `${base}/billing/return?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${base}/billing/cancelled`,
+        // NO `trial_end` — see this file's header. The first charge is today.
         subscription_data: {
-          ...(trialEnd !== null ? { trial_end: trialEnd } : {}),
           // …and this one is on the SUBSCRIPTION, which is what every later
           // customer.subscription.* event carries. The session's metadata is
           // gone by then.
-          metadata: {
-            userId,
-            earlyPayBonusApplied: String(earlyPayBonusApplied),
-            bonusDays: String(billingConfig.earlyPayBonusDays),
-          },
+          metadata: { userId },
         },
         metadata: {
           userId,
-          earlyPayBonusApplied: String(earlyPayBonusApplied),
           ...(platform ? { platform } : {}),
         },
       });
@@ -252,8 +263,6 @@ export function createBillingRouter(deps: Partial<BillingRouterDeps> = {}): IRou
           plan,
           platform: platform ?? null,
           status,
-          trialEnd,
-          earlyPayBonusApplied,
         },
         "Checkout Session created",
       );
@@ -267,8 +276,10 @@ export function createBillingRouter(deps: Partial<BillingRouterDeps> = {}): IRou
   // ── POST /billing/portal-session ───────────────────────────────────────
   //
   // The Portal is where changing the card, switching monthly ↔ annual and
-  // CANCELLING live. Kiwi builds no cancel UI (PRD §14.7): App Review is
-  // satisfied by the link-out because Kiwi sells nothing in-app.
+  // CANCELLING a STRIPE subscription live. Kiwi builds no cancel UI (PRD
+  // §14.7). A store-sourced row is refused (Resubmission B1): the Stripe Portal
+  // cannot touch an App Store or Google Play subscription, and the client
+  // sends the user to `managementUrl` instead.
 
   router.post("/billing/portal-session", requireAuth, limiter, async (req, res) => {
     const userId = req.userId;
@@ -277,6 +288,16 @@ export function createBillingRouter(deps: Partial<BillingRouterDeps> = {}): IRou
 
     try {
       const snapshot = await readSubscriptionSnapshot(prisma, userId);
+
+      const source = snapshot?.source ?? null;
+      if (source === "apple" || source === "google") {
+        return res.status(409).json({
+          code: "subscribed_elsewhere",
+          source,
+          managementUrl: snapshot?.storeManagementUrl ?? null,
+        });
+      }
+
       const customerId = snapshot?.stripeCustomerId ?? null;
       // No customer means this user has never reached checkout, so there is
       // nothing to manage. A 409 with a code, not a 404: the ACCOUNT exists, the
@@ -295,6 +316,54 @@ export function createBillingRouter(deps: Partial<BillingRouterDeps> = {}): IRou
     } catch (err) {
       logger.error({ event: "billing_portal_failed", userId, err }, "Portal Session failed");
       return res.status(502).json({ code: "billing_session_failed" });
+    }
+  });
+
+  // ── POST /billing/store-sync — Resubmission B1 ─────────────────────────
+  //
+  // The app calls this right after an App Store / Google Play purchase or a
+  // Restore Purchases, because RevenueCat's webhook can land seconds later and
+  // the user is looking at the paywall in the meantime. It re-reads the
+  // signed-in user from RevenueCat, writes the row under the one-row rule
+  // (lib/billing/storeSync.ts), and answers with the GET /me/subscription
+  // body — so the client unlocks from this response alone.
+  //
+  // The client sends NOTHING about the purchase. The user is `req.userId` (the
+  // app logs RevenueCat in with the Kiwi user id), and the truth is
+  // RevenueCat's, so there is no body for a tampered client to lie in.
+
+  router.post("/billing/store-sync", requireAuth, storeSyncLimiter, async (req, res) => {
+    const userId = req.userId;
+    if (!userId) return res.status(401).json({ error: "unauthenticated" });
+    if (!billingConfig.revenuecatAvailable) {
+      logger.warn(
+        { event: "billing_store_sync_unavailable", vars: billingConfig.revenuecatMissing },
+        "POST /billing/store-sync on a deploy with RevenueCat unconfigured — answering 503",
+      );
+      return res.status(503).json({ code: "billing_unavailable" });
+    }
+
+    try {
+      const outcome = await syncStoreSubscription(
+        { prisma, config: billingConfig, fetchImpl: storeFetch, now },
+        userId,
+      );
+      logger.info(
+        { event: "billing_store_sync", userId, written: outcome.written, reason: outcome.reason, state: outcome.state },
+        "Store sync done",
+      );
+      const snapshot = await readSubscriptionSnapshot(prisma, userId);
+      return res.json(buildSubscriptionPayload(snapshot, billingConfig, now()));
+    } catch (err) {
+      if (err instanceof RevenueCatFetchError) {
+        logger.error(
+          { event: "billing_store_sync_fetch_failed", userId, status: err.status },
+          "Store sync could not read RevenueCat — 502",
+        );
+        return res.status(502).json({ code: "store_sync_failed" });
+      }
+      logger.error({ event: "billing_store_sync_failed", userId, err }, "Store sync failed");
+      return res.status(500).json({ code: "store_sync_failed" });
     }
   });
 

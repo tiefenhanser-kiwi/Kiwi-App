@@ -52,7 +52,7 @@
 // it is corruption, and the right response to corruption is to serve the person
 // in front of you and shout.
 
-import type { PrismaClient, SubscriptionStatus } from "@prisma/client";
+import type { BillingSource, PrismaClient, SubscriptionStatus } from "@prisma/client";
 
 import { readBillingConfig, type BillingConfig } from "./billing/config";
 import { logger } from "./logger";
@@ -199,14 +199,21 @@ export const SUBSCRIPTION_REQUIRED_CODE = "subscription_required";
  * `none`; everything else is the stored status"), and NULL is not `< now`. It is
  * safe today because `createAccountInTx` writes `trialEndsAt = now + 14 d` in
  * the same transaction as the row, for both the password and the OAuth lane, so
- * no real signup produces it. It is reported as an open finding rather than
- * quietly tightened here: treating NULL as expired would lock out any account
- * whose timestamp failed to write, which is the worse of the two errors, and
- * choosing between them is Hans's call, not this block's. `subscriptionEntitlement.test.ts`
- * pins the current behaviour so it stays deliberate.
+ * no real signup produces it. It is RULED, not open (D-WS9-271: "treating NULL
+ * as expired would lock out any account whose timestamp failed to write, the
+ * worse error"). `subscriptionEntitlement.test.ts` pins it so it stays
+ * deliberate.
+ *
+ * Resubmission B1 adds one more derivation: an Apple / Google row more than
+ * three days past its period reads `canceled` (`isStoreRowPastGrace` below).
  */
 export function effectiveStatus(
-  row: { status: SubscriptionStatus; trialEndsAt: Date | null },
+  row: {
+    status: SubscriptionStatus;
+    trialEndsAt: Date | null;
+    source?: BillingSource | null;
+    currentPeriodEnd?: Date | null;
+  },
   now: Date,
 ): SubscriptionStatus {
   if (
@@ -216,7 +223,42 @@ export function effectiveStatus(
   ) {
     return "none";
   }
+  if (isStoreRowPastGrace(row, now)) return "canceled";
   return row.status;
+}
+
+/**
+ * Resubmission B1 — how long past `currentPeriodEnd` a store-sourced row may
+ * still read as entitled. Covers a late renewal webhook and RevenueCat's own
+ * retry ladder (5 retries over ~2.5 h) with a wide margin; past it, the row is
+ * not trusted.
+ */
+export const STORE_PERIOD_GRACE_MS = 3 * 24 * 60 * 60 * 1000;
+
+/**
+ * 🔴 A STORE ROW IS NEVER TRUSTED PAST ITS PERIOD. An Apple or Google row
+ * marked entitled whose `currentPeriodEnd` is more than three days gone has
+ * missed its EXPIRATION webhook (or RevenueCat could not reach us five times),
+ * and a missed webhook must not entitle forever. It reads as `canceled`;
+ * `GET /me/subscription` re-reads RevenueCat for such a row before answering,
+ * which is what puts a genuinely renewed subscriber back.
+ *
+ * STRIPE ROWS ARE UNCHANGED. Stripe's own dunning moves its status, and
+ * `currentPeriodEnd` on a Stripe row is not consulted (S1's rule stands). A
+ * NULL period end is not "past" — the same reasoning as the NULL trial.
+ */
+export function isStoreRowPastGrace(
+  row: {
+    status: SubscriptionStatus;
+    source?: BillingSource | null;
+    currentPeriodEnd?: Date | null;
+  },
+  now: Date,
+): boolean {
+  if (row.source !== "apple" && row.source !== "google") return false;
+  if (!ENTITLED_STATUSES.has(row.status)) return false;
+  if (row.currentPeriodEnd == null) return false;
+  return row.currentPeriodEnd.getTime() + STORE_PERIOD_GRACE_MS < now.getTime();
 }
 
 /** Whether a status may spend. Trivial, but named so no call site inlines it. */
@@ -273,7 +315,10 @@ export interface SubscriptionSnapshot {
   cancelAtPeriodEnd: boolean;
   stripeCustomerId: string | null;
   stripeSubscriptionId: string | null;
-  earlyPayBonusApplied: boolean;
+  /** Resubmission B1 — which rail the status describes; NULL = never paid. */
+  source: BillingSource | null;
+  /** RevenueCat's `management_url`, store rows only. */
+  storeManagementUrl: string | null;
 }
 
 type PrismaLike = Pick<PrismaClient, "subscription">;
@@ -299,7 +344,8 @@ export async function readSubscriptionSnapshot(
       cancelAtPeriodEnd: true,
       stripeCustomerId: true,
       stripeSubscriptionId: true,
-      earlyPayBonusApplied: true,
+      source: true,
+      storeManagementUrl: true,
     },
   });
   return row ?? null;

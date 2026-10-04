@@ -79,14 +79,12 @@ describe("effectiveStatus — `none` is derived, never scheduled", () => {
     }
   });
 
-  // ⚠️ PINNING A KNOWN GAP, not endorsing it. The ruling is "trialing with
-  // trialEndsAt < now → none; everything else is the stored status", and NULL is
-  // not `< now`, so a null-trialEndsAt trial is UNBOUNDED. It is unreachable
-  // today (createAccountInTx writes the timestamp in the same transaction as the
-  // row, for both the password and the OAuth lane) and it is reported as an open
-  // finding. This test exists so the behaviour is deliberate: if someone changes
-  // it, they change a test that says why.
-  it("trialing with a NULL trialEndsAt stays trialing — an unbounded trial (known, reported)", () => {
+  // ⚠️ PINNING A RULING. NULL is not `< now`, so a null-trialEndsAt trial is
+  // UNBOUNDED, deliberately (D-WS9-271: "treating NULL as expired would lock out
+  // any account whose timestamp failed to write, the worse error"). Unreachable
+  // today — createAccountInTx writes the timestamp in the same transaction as
+  // the row. If someone changes it, they change a test that says why.
+  it("trialing with a NULL trialEndsAt stays trialing — an unbounded trial (ruled, D-WS9-271)", () => {
     assert.equal(effectiveStatus({ status: "trialing", trialEndsAt: null }, NOW), "trialing");
   });
 });
@@ -170,8 +168,15 @@ describe("ENTITLEMENTS — one table, one word per key", () => {
 // ── 2 + 3. can() ────────────────────────────────────────────────────────
 
 /** A prisma stub with exactly the surface readSubscriptionSnapshot touches. */
+type RowIn = {
+  status: SubscriptionStatus;
+  trialEndsAt: Date | null;
+  source?: "stripe" | "apple" | "google" | null;
+  currentPeriodEnd?: Date | null;
+};
+
 function stubPrisma(
-  row: { status: SubscriptionStatus; trialEndsAt: Date | null } | null,
+  row: RowIn | null,
   opts: { throwOnRead?: boolean } = {},
 ) {
   const updates: Array<Record<string, unknown>> = [];
@@ -184,11 +189,12 @@ function stubPrisma(
           status: row.status,
           planCode: "free",
           trialEndsAt: row.trialEndsAt,
-          currentPeriodEnd: null,
+          currentPeriodEnd: row.currentPeriodEnd ?? null,
           cancelAtPeriodEnd: false,
           stripeCustomerId: null,
           stripeSubscriptionId: null,
-          earlyPayBonusApplied: false,
+          source: row.source ?? null,
+          storeManagementUrl: null,
         };
       },
       update: async (args: Record<string, unknown>) => {
@@ -209,7 +215,7 @@ const CONFIGURED = {
 };
 
 function service(
-  row: { status: SubscriptionStatus; trialEndsAt: Date | null } | null,
+  row: RowIn | null,
   opts: { enforced?: boolean; throwOnRead?: boolean } = {},
 ) {
   const prisma = stubPrisma(row, opts);
@@ -331,7 +337,8 @@ describe("can() with BILLING_ENFORCED ON", () => {
           cancelAtPeriodEnd: false,
           stripeCustomerId: null,
           stripeSubscriptionId: null,
-          earlyPayBonusApplied: false,
+          source: null,
+          storeManagementUrl: null,
         }),
         update: async () => {
           throw new Error("write failed");
@@ -365,5 +372,57 @@ describe("subscriptionRequiredBody", () => {
   it("falls back to the call site's copy when the service gave no reason", () => {
     assert.equal(subscriptionRequiredBody({ allowed: false }, "fallback").reason, "fallback");
     assert.equal(subscriptionRequiredBody({ allowed: false }, "fallback").code, SUBSCRIPTION_REQUIRED_CODE);
+  });
+});
+
+// ── Resubmission B1 — a store row is never trusted past its period ───────
+
+describe("effectiveStatus + can() — the 3-day store period guard (Resubmission B1)", () => {
+  const ago = (days: number) => new Date(NOW.getTime() - days * DAY);
+
+  it("an apple/google row entitled but >3 days past currentPeriodEnd reads canceled", () => {
+    for (const source of ["apple", "google"] as const) {
+      for (const status of ["active", "past_due"] as SubscriptionStatus[]) {
+        assert.equal(
+          effectiveStatus({ status, trialEndsAt: null, source, currentPeriodEnd: ago(3.01) }, NOW),
+          "canceled",
+          `${source} ${status}`,
+        );
+      }
+    }
+  });
+
+  it("the boundary: exactly 3 days past is still trusted; a millisecond more is not", () => {
+    const row = (end: Date) => ({ status: "active" as SubscriptionStatus, trialEndsAt: null, source: "apple" as const, currentPeriodEnd: end });
+    assert.equal(effectiveStatus(row(ago(3)), NOW), "active");
+    assert.equal(effectiveStatus(row(new Date(ago(3).getTime() - 1)), NOW), "canceled");
+  });
+
+  it("Stripe rows, source-less rows and a NULL period end are untouched by the guard", () => {
+    assert.equal(effectiveStatus({ status: "active", trialEndsAt: null, source: "stripe", currentPeriodEnd: ago(90) }, NOW), "active");
+    assert.equal(effectiveStatus({ status: "active", trialEndsAt: null, source: null, currentPeriodEnd: ago(90) }, NOW), "active");
+    assert.equal(effectiveStatus({ status: "active", trialEndsAt: null, source: "apple", currentPeriodEnd: null }, NOW), "active");
+  });
+
+  it("can(): an enforced store row past the guard is DENIED with the subscription-ended copy", async () => {
+    const { svc, prisma } = service(
+      { status: "active", trialEndsAt: null, source: "apple", currentPeriodEnd: ago(10) },
+      { enforced: true },
+    );
+    const ent = await svc.can("u1", "kitchen_wizard_set_preferences");
+    assert.equal(ent.allowed, false);
+    assert.equal(ent.status, "canceled");
+    assert.match(ent.reason ?? "", /subscription has ended/i);
+    // The derived status is persisted on the deny path, as for a lapsed trial;
+    // the next RevenueCat re-read rewrites it if the store says otherwise.
+    assert.deepEqual(prisma._updates[0], { where: { userId: "u1" }, data: { status: "canceled" } });
+  });
+
+  it("can(): a store row inside its period (or within the 3 days) is allowed", async () => {
+    const { svc } = service(
+      { status: "active", trialEndsAt: null, source: "google", currentPeriodEnd: ago(1) },
+      { enforced: true },
+    );
+    assert.equal((await svc.can("u1", "kitchen_wizard_set_preferences")).allowed, true);
   });
 });

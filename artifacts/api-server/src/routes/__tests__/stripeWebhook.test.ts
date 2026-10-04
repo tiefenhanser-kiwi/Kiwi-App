@@ -53,8 +53,8 @@ interface RowState {
   stripeCustomerId: string | null;
   stripeSubscriptionId: string | null;
   stripePriceId: string | null;
-  stripeUpdatedAt: Date | null;
-  earlyPayBonusApplied: boolean;
+  sourceUpdatedAt: Date | null;
+  source: "stripe" | "apple" | "google" | null;
 }
 
 function makeRow(over: Partial<RowState> = {}): RowState {
@@ -69,15 +69,15 @@ function makeRow(over: Partial<RowState> = {}): RowState {
     stripeCustomerId: CUSTOMER,
     stripeSubscriptionId: null,
     stripePriceId: null,
-    stripeUpdatedAt: null,
-    earlyPayBonusApplied: false,
+    sourceUpdatedAt: null,
+    source: null,
     ...over,
   };
 }
 
 /** A stub that models the ledger's PRIMARY KEY, because that is the mechanism. */
 function stubPrisma(row: RowState, opts: { updateThrows?: Error } = {}) {
-  const events = new Map<string, { id: string; type: string }>();
+  const events = new Map<string, { provider: string; id: string; type: string }>();
   const updates: Array<Record<string, unknown>> = [];
   return {
     subscription: {
@@ -99,23 +99,25 @@ function stubPrisma(row: RowState, opts: { updateThrows?: Error } = {}) {
         return { ...row };
       },
     },
-    stripeEvent: {
-      create: async ({ data }: { data: { id: string; type: string } }) => {
+    billingEvent: {
+      create: async ({ data }: { data: { provider: string; id: string; type: string } }) => {
         // 🔴 THE CONSTRAINT IS MODELLED, not faked. A stub that accepted every
         // insert would let a replay through and the idempotency test would pass
         // while the defect shipped.
-        if (events.has(data.id)) {
-          throw Object.assign(new Error("Unique constraint failed on the fields: (`id`)"), {
+        // Resubmission B1: the key is (provider, id).
+        const key = `${data.provider}:${data.id}`;
+        if (events.has(key)) {
+          throw Object.assign(new Error("Unique constraint failed on the fields: (`provider`,`id`)"), {
             code: "P2002",
-            meta: { target: ["id"] },
+            meta: { target: ["provider", "id"] },
           });
         }
-        events.set(data.id, data);
+        events.set(key, data);
         return data;
       },
-      delete: async ({ where }: { where: { id: string } }) => {
-        events.delete(where.id);
-        return { id: where.id };
+      delete: async ({ where }: { where: { provider_id: { provider: string; id: string } } }) => {
+        events.delete(`${where.provider_id.provider}:${where.provider_id.id}`);
+        return where.provider_id;
       },
     },
     _events: events,
@@ -319,17 +321,18 @@ describe("the webhook is idempotent, and releases its claim on failure", () => {
           return { ...row };
         },
       },
-      stripeEvent: {
-        create: async ({ data }: { data: { id: string } }) => {
-          if (events.has(data.id)) {
+      billingEvent: {
+        create: async ({ data }: { data: { provider: string; id: string } }) => {
+          const key = `${data.provider}:${data.id}`;
+          if (events.has(key)) {
             throw Object.assign(new Error("dup"), { code: "P2002" });
           }
-          events.set(data.id, data);
+          events.set(key, data);
           return data;
         },
-        delete: async ({ where }: { where: { id: string } }) => {
-          events.delete(where.id);
-          return where;
+        delete: async ({ where }: { where: { provider_id: { provider: string; id: string } } }) => {
+          events.delete(`${where.provider_id.provider}:${where.provider_id.id}`);
+          return where.provider_id;
         },
       },
     };
@@ -411,7 +414,7 @@ describe("customer.subscription.* mirrors the row", () => {
       assert.equal(row.currentPeriodStart?.getTime(), 1_760_000_000 * 1000);
       assert.equal(row.currentPeriodEnd?.getTime(), 1_762_592_000 * 1000);
       // Stripe's clock, not ours.
-      assert.equal(row.stripeUpdatedAt?.getTime(), 1_760_000_500 * 1000);
+      assert.equal(row.sourceUpdatedAt?.getTime(), 1_760_000_500 * 1000);
     } finally {
       await h.close();
     }
@@ -538,10 +541,10 @@ describe("the Stripe → Kiwi status map", () => {
 // ── 4. out of order ────────────────────────────────────────────────────
 
 describe("out-of-order events refetch instead of regressing the row", () => {
-  it("an event OLDER than stripeUpdatedAt refetches through the seam and mirrors THAT", async () => {
+  it("an event OLDER than sourceUpdatedAt refetches through the seam and mirrors THAT", async () => {
     const h = await spinUp(
       // We already mirrored something from 10:05.
-      makeRow({ status: "active", stripeUpdatedAt: new Date(1_760_000_500 * 1000) }),
+      makeRow({ status: "active", sourceUpdatedAt: new Date(1_760_000_500 * 1000) }),
       {
         // …and now a 10:00 event arrives saying `past_due`.
         event: subEvent({ created: 1_760_000_200 }, { status: "past_due" }),
@@ -567,7 +570,7 @@ describe("out-of-order events refetch instead of regressing the row", () => {
 
   it("a CURRENT event does not refetch — the payload is trusted when it is not stale", async () => {
     const h = await spinUp(
-      makeRow({ stripeUpdatedAt: new Date(1_760_000_200 * 1000) }),
+      makeRow({ sourceUpdatedAt: new Date(1_760_000_200 * 1000) }),
       { event: subEvent({ created: 1_760_000_500 }, { status: "past_due" }) },
     );
     try {
@@ -580,7 +583,7 @@ describe("out-of-order events refetch instead of regressing the row", () => {
   });
 
   it("a row never mirrored before trusts the payload (nothing to be stale against)", async () => {
-    const h = await spinUp(makeRow({ stripeUpdatedAt: null }), {
+    const h = await spinUp(makeRow({ sourceUpdatedAt: null }), {
       event: subEvent({ created: 1 }, { status: "active" }),
     });
     try {
@@ -593,7 +596,7 @@ describe("out-of-order events refetch instead of regressing the row", () => {
   });
 
   it("a FAILED refetch leaves the row unchanged and asks Stripe to retry", async () => {
-    const row = makeRow({ status: "active", stripeUpdatedAt: new Date(1_760_000_500 * 1000) });
+    const row = makeRow({ status: "active", sourceUpdatedAt: new Date(1_760_000_500 * 1000) });
     const prisma = stubPrisma(row);
     const stripe = makeFakeStripe({
       event: subEvent({ created: 1_760_000_200 }, { status: "canceled" }),
@@ -631,8 +634,8 @@ describe("out-of-order events refetch instead of regressing the row", () => {
 
 // ── checkout.session.completed ─────────────────────────────────────────
 
-describe("checkout.session.completed attaches the ids and records the bonus", () => {
-  it("attaches customer + subscription and sets earlyPayBonusApplied from metadata", async () => {
+describe("checkout.session.completed attaches the ids", () => {
+  it("attaches customer + subscription (and nothing about a bonus — Resubmission B1)", async () => {
     const h = await spinUp(makeRow({ stripeCustomerId: null }), {
       event: {
         id: "evt_cs",
@@ -643,6 +646,8 @@ describe("checkout.session.completed attaches the ids and records the bonus", ()
             client_reference_id: USER_ID,
             customer: CUSTOMER,
             subscription: SUBSCRIPTION,
+            // A session minted before Resubmission B1 still carries the flag;
+            // it must be ignored now that the column is gone.
             metadata: { userId: USER_ID, earlyPayBonusApplied: "true" },
           },
         },
@@ -653,35 +658,11 @@ describe("checkout.session.completed attaches the ids and records the bonus", ()
       const row = h.prisma._row();
       assert.equal(row.stripeCustomerId, CUSTOMER);
       assert.equal(row.stripeSubscriptionId, SUBSCRIPTION);
-      assert.equal(row.earlyPayBonusApplied, true);
+      assert.equal("earlyPayBonusApplied" in row, false, "the bonus column is gone; nothing writes it");
       // 🔴 IT DOES NOT SET THE STATUS. The session completing means Stripe took
       // the checkout, not that the subscription is active — the subscription
       // event that follows carries the real state.
       assert.equal(row.status, "trialing", "the status is the subscription event's to set");
-    } finally {
-      await h.close();
-    }
-  });
-
-  it("earlyPayBonusApplied \"false\" does not set the flag", async () => {
-    const h = await spinUp(makeRow(), {
-      event: {
-        id: "evt_cs2",
-        type: "checkout.session.completed",
-        created: 1,
-        data: {
-          object: {
-            client_reference_id: USER_ID,
-            customer: CUSTOMER,
-            subscription: SUBSCRIPTION,
-            metadata: { earlyPayBonusApplied: "false" },
-          },
-        },
-      },
-    });
-    try {
-      await send(h);
-      assert.equal(h.prisma._row().earlyPayBonusApplied, false);
     } finally {
       await h.close();
     }
@@ -782,6 +763,83 @@ describe("invoice events log and mirror by refetch", () => {
     try {
       assert.equal((await send(h)).status, 200);
       assert.deepEqual(h.stripe.calls.subscriptionsRetrieve, [SUBSCRIPTION]);
+    } finally {
+      await h.close();
+    }
+  });
+});
+
+// ── Resubmission B1 — one row, two possible sources ─────────────────────
+
+describe("Resubmission B1 — a Stripe event against a store-entitled row (the one-row rule)", () => {
+  // Wall-clock based (the mirror has no injected clock), so the store row's
+  // period is set far in the future to stay entitled whatever day this runs.
+  const APPLE_END = new Date("2031-01-01T00:00:00.000Z");
+  const appleRow = () =>
+    makeRow({
+      status: "active",
+      source: "apple",
+      currentPeriodEnd: APPLE_END,
+      stripeSubscriptionId: null,
+    });
+
+  it("a live Stripe subscription that ends SOONER does not take the row — logged, never double-written", async () => {
+    const row = appleRow();
+    const h = await spinUp(row, {
+      // Stripe period end 2025-11 < APPLE_END.
+      event: subEvent({}, { status: "active", priceId: "price_monthly_test" }),
+    });
+    try {
+      const res = await send(h);
+      assert.equal(res.status, 200, "acknowledged — refusing to mirror is not an error to retry");
+      assert.equal(h.prisma._updates.length, 0, "the store row was not touched");
+      assert.equal(h.prisma._row().source, "apple");
+      assert.equal(h.prisma._row().currentPeriodEnd?.getTime(), APPLE_END.getTime());
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("a CANCELED Stripe subscription never takes a live store row, even with a later period end", async () => {
+    const h = await spinUp(appleRow(), {
+      event: subEvent(
+        { type: "customer.subscription.deleted" },
+        { status: "canceled", currentPeriodEnd: Math.floor(Date.parse("2032-01-01") / 1000) },
+      ),
+    });
+    try {
+      assert.equal((await send(h)).status, 200);
+      assert.equal(h.prisma._updates.length, 0);
+      assert.equal(h.prisma._row().status, "active");
+      assert.equal(h.prisma._row().source, "apple");
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("a live Stripe subscription that runs LONGER takes the row, and the row says stripe", async () => {
+    const h = await spinUp(appleRow(), {
+      event: subEvent(
+        {},
+        { status: "active", currentPeriodEnd: Math.floor(Date.parse("2032-01-01") / 1000) },
+      ),
+    });
+    try {
+      assert.equal((await send(h)).status, 200);
+      assert.equal(h.prisma._updates.length, 1);
+      assert.equal(h.prisma._row().source, "stripe");
+      assert.equal(h.prisma._row().stripeSubscriptionId, SUBSCRIPTION);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("a trial row (no source) is written and stamped source = stripe — unchanged S1 behaviour", async () => {
+    const h = await spinUp(makeRow(), { event: subEvent({}, { status: "active" }) });
+    try {
+      assert.equal((await send(h)).status, 200);
+      assert.equal(h.prisma._row().status, "active");
+      assert.equal(h.prisma._row().source, "stripe");
     } finally {
       await h.close();
     }

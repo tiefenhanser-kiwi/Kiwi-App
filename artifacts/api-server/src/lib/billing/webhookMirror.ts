@@ -22,7 +22,7 @@
 //   3. WHEN. Stripe promises delivery, not ORDER. A `customer.subscription.updated`
 //      from 10:00 can arrive after the one from 10:05, and mirroring it would
 //      write stale truth that nothing would ever correct. So an event older than
-//      the row's `stripeUpdatedAt` triggers a REFETCH of the subscription by id,
+//      the row's `sourceUpdatedAt` triggers a REFETCH of the subscription by id,
 //      and the fresh object is mirrored instead of the event's payload. This is
 //      Stripe's own recommendation over trusting order.
 //
@@ -32,8 +32,11 @@
 
 import type { PrismaClient, SubscriptionPlan, SubscriptionStatus } from "@prisma/client";
 
+import { isEntitled } from "../subscriptionService";
+
 import { logger } from "../logger";
 import type { BillingConfig } from "./config";
+import { decideSourceWrite } from "./sourceRule";
 import {
   readCustomerId,
   readPeriod,
@@ -90,7 +93,7 @@ export function mapPriceToPlan(
   return null;
 }
 
-type PrismaLike = Pick<PrismaClient, "subscription" | "stripeEvent">;
+type PrismaLike = Pick<PrismaClient, "subscription" | "billingEvent">;
 
 export interface MirrorDeps {
   prisma: PrismaLike;
@@ -164,7 +167,7 @@ export async function mirrorSubscription(
   userId: string,
   sub: StripeSubscriptionLike,
   eventCreatedSeconds: number,
-): Promise<void> {
+): Promise<boolean> {
   const status = mapStripeStatus(sub.status);
   const { currentPeriodStart, currentPeriodEnd } = readPeriod(sub);
   const priceId = readPriceId(sub);
@@ -183,6 +186,44 @@ export async function mirrorSubscription(
     );
   }
 
+  // ── Resubmission B1 — one row, two possible sources ──
+  //
+  // A row an App Store / Google Play subscription currently entitles is not
+  // Stripe's to overwrite unless this Stripe subscription is live AND runs
+  // longer (lib/billing/sourceRule.ts). Checkout already refuses a store
+  // subscriber (409 subscribed_elsewhere), so reaching this means a
+  // subscription made outside Kiwi's checkout — logged, never double-written.
+  const current = await deps.prisma.subscription.findUnique({
+    where: { userId },
+    select: { source: true, status: true, trialEndsAt: true, currentPeriodEnd: true },
+  });
+  if (current !== null) {
+    const decision = decideSourceWrite(
+      current,
+      {
+        source: "stripe",
+        entitled: status !== null && isEntitled(status),
+        currentPeriodEnd,
+      },
+      new Date(),
+    );
+    if (!decision.write) {
+      logger.warn(
+        {
+          event: "billing_dual_subscription",
+          userId,
+          rowSource: decision.rowSource,
+          incomingSource: "stripe",
+          subscriptionId: sub.id,
+          incomingPeriodEnd: currentPeriodEnd?.toISOString() ?? null,
+          rowPeriodEnd: current.currentPeriodEnd?.toISOString() ?? null,
+        },
+        "Two live subscriptions on one account — the row keeps the longer-lived store subscription; this Stripe subscription is NOT mirrored",
+      );
+      return false;
+    }
+  }
+
   await deps.prisma.subscription.update({
     where: { userId },
     data: {
@@ -194,20 +235,24 @@ export async function mirrorSubscription(
       cancelAtPeriodEnd: sub.cancel_at_period_end,
       currentPeriodStart,
       currentPeriodEnd,
-      // Stripe holds the trial once a subscription exists (the pay-early bonus IS
-      // a Stripe trial), so its trial_end becomes Kiwi's trialEndsAt. Before any
-      // subscription exists, trialEndsAt is Kiwi's own and nothing here touches
-      // it — which is why this only ever runs from a subscription event.
+      // Checkout sets no trial_end any more (the pay-early bonus is gone,
+      // Resubmission B1), so a Stripe trial_end only appears on a subscription
+      // made by hand in the Dashboard. When it does, Stripe holds that trial and
+      // it becomes Kiwi's trialEndsAt; otherwise trialEndsAt is Kiwi's own and
+      // nothing here touches it.
       ...(sub.trial_end !== null
         ? { trialEndsAt: new Date(sub.trial_end * 1000) }
         : {}),
       // Stripe's clock, not ours. See the header, point 3.
-      stripeUpdatedAt: new Date(eventCreatedSeconds * 1000),
+      sourceUpdatedAt: new Date(eventCreatedSeconds * 1000),
+      // Resubmission B1 — this row now describes the Stripe subscription.
+      source: "stripe",
       ...(readCustomerId(sub.customer) !== null
         ? { stripeCustomerId: readCustomerId(sub.customer) as string }
         : {}),
     },
   });
+  return true;
 }
 
 /**
@@ -223,9 +268,13 @@ export async function resolveFreshSubscription(
 ): Promise<{ sub: StripeSubscriptionLike; refetched: boolean }> {
   const row = await deps.prisma.subscription.findUnique({
     where: { userId },
-    select: { stripeUpdatedAt: true },
+    select: { sourceUpdatedAt: true },
   });
-  const lastMirrored = row?.stripeUpdatedAt ?? null;
+  // Resubmission B1: the column is shared with the RevenueCat mirror, which
+  // stamps it with OUR clock at its re-read. Comparing a Stripe event against
+  // that can at worst trigger one unnecessary refetch — which is always safe,
+  // because the refetch is authoritative.
+  const lastMirrored = row?.sourceUpdatedAt ?? null;
   if (lastMirrored === null) return { sub: fromEvent, refetched: false };
 
   if (eventCreatedSeconds * 1000 >= lastMirrored.getTime()) {
@@ -264,8 +313,7 @@ export async function resolveFreshSubscription(
 // ── the handlers ─────────────────────────────────────────────────────────
 
 /**
- * `checkout.session.completed` — attach the ids and record whether the pay-early
- * bonus was applied.
+ * `checkout.session.completed` — attach the ids.
  *
  * It deliberately does NOT set the status. The session completing means Stripe
  * took the checkout, not that the subscription is active; a
@@ -303,11 +351,6 @@ export async function handleCheckoutSessionCompleted(
     data: {
       ...(customerId !== null ? { stripeCustomerId: customerId } : {}),
       ...(subscriptionId !== null ? { stripeSubscriptionId: subscriptionId } : {}),
-      // The experiment's measurement. "true" is the only truthy value we write
-      // (routes/billing.ts uses String(boolean)), so a strict compare is right.
-      ...(session.metadata?.earlyPayBonusApplied === "true"
-        ? { earlyPayBonusApplied: true }
-        : {}),
     },
   });
   logger.info(
@@ -345,7 +388,7 @@ export async function handleSubscriptionEvent(
     sub,
     event.created,
   );
-  await mirrorSubscription(
+  const written = await mirrorSubscription(
     deps,
     userId,
     fresh,
@@ -353,6 +396,9 @@ export async function handleSubscriptionEvent(
     // be written or the next out-of-order event would compare against the past.
     refetched ? Math.floor(Date.now() / 1000) : event.created,
   );
+  if (!written) {
+    return { handled: true, userId, refetched, note: "dual_subscription" };
+  }
   logger.info(
     { event: "stripe_subscription_mirrored", type: event.type, userId, subscriptionId: fresh.id, status: fresh.status, refetched },
     "Subscription mirrored",
@@ -407,8 +453,13 @@ export async function handleInvoiceEvent(
   }
 
   const fresh = await deps.stripe.subscriptions.retrieve(subscriptionId);
-  await mirrorSubscription(deps, userId, fresh, event.created);
-  return { handled: true, userId, refetched: true };
+  const written = await mirrorSubscription(deps, userId, fresh, event.created);
+  return {
+    handled: true,
+    userId,
+    refetched: true,
+    ...(written ? {} : { note: "dual_subscription" }),
+  };
 }
 
 /** The dispatch table. Anything absent is acknowledged 200 and counted. */

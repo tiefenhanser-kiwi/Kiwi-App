@@ -28,10 +28,13 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  BillingEnforcedWithoutRevenueCatError,
   BillingEnforcedWithoutStripeError,
-  DEFAULT_EARLY_PAY_BONUS_DAYS,
-  ENV_BILLING_EARLY_PAY_BONUS_DAYS,
+  DEFAULT_REVENUECAT_ENTITLEMENT_ID,
   ENV_BILLING_ENFORCED,
+  ENV_REVENUECAT_ENTITLEMENT_ID,
+  ENV_REVENUECAT_SECRET_API_KEY,
+  ENV_REVENUECAT_WEBHOOK_AUTH,
   ENV_BILLING_RETURN_URL_BASE,
   ENV_STRIPE_PRICE_ANNUAL,
   ENV_STRIPE_PRICE_MONTHLY,
@@ -39,6 +42,7 @@ import {
   ENV_STRIPE_WEBHOOK_SECRET,
   logBillingConfig,
   readBillingConfig,
+  REQUIRED_REVENUECAT_VARS,
   REQUIRED_STRIPE_VARS,
 } from "../billing/config";
 
@@ -60,6 +64,10 @@ const SECRETS = {
   [ENV_STRIPE_PRICE_MONTHLY]: "price_MonthlyNotReal000",
   [ENV_STRIPE_PRICE_ANNUAL]: "price_AnnualNotReal000",
   [ENV_BILLING_RETURN_URL_BASE]: "https://app.kitchenwizard.ai",
+  // Resubmission B1 — the store rail. Values distinctive enough that a leak
+  // into the log is unmistakable.
+  [ENV_REVENUECAT_WEBHOOK_AUTH]: "Bearer rcwh_NotARealWebhookAuth000",
+  [ENV_REVENUECAT_SECRET_API_KEY]: "sk_rc_NotARealRevenueCatKey000",
 };
 
 /** A fully configured env, with `over` applied on top. `null` deletes a key. */
@@ -81,7 +89,9 @@ describe("readBillingConfig", () => {
     assert.deepEqual(c.missing, []);
     assert.deepEqual(c.invalid, []);
     assert.equal(c.enforced, false, "enforcement is OFF unless asked for");
-    assert.equal(c.earlyPayBonusDays, DEFAULT_EARLY_PAY_BONUS_DAYS);
+    assert.equal(c.revenuecatAvailable, true);
+    assert.deepEqual(c.revenuecatMissing, []);
+    assert.equal(c.revenuecatEntitlementId, DEFAULT_REVENUECAT_ENTITLEMENT_ID);
   });
 
   it("an empty env is unavailable and names ALL FIVE required variables", () => {
@@ -124,17 +134,29 @@ describe("readBillingConfig", () => {
     assert.deepEqual(c.invalid, [ENV_BILLING_ENFORCED]);
   });
 
-  it("BILLING_EARLY_PAY_BONUS_DAYS: 0 is VALID (no bonus), garbage falls back and is invalid", () => {
-    assert.equal(readBillingConfig(env({ [ENV_BILLING_EARLY_PAY_BONUS_DAYS]: "7" })).earlyPayBonusDays, 7);
-    // 0 ends the experiment without a deploy — it must not read as "unset".
-    const zero = readBillingConfig(env({ [ENV_BILLING_EARLY_PAY_BONUS_DAYS]: "0" }));
-    assert.equal(zero.earlyPayBonusDays, 0);
-    assert.deepEqual(zero.invalid, []);
-    for (const raw of ["-1", "abc", "7.5", "1e3x"]) {
-      const c = readBillingConfig(env({ [ENV_BILLING_EARLY_PAY_BONUS_DAYS]: raw }));
-      assert.equal(c.earlyPayBonusDays, DEFAULT_EARLY_PAY_BONUS_DAYS, raw);
-      assert.deepEqual(c.invalid, [ENV_BILLING_EARLY_PAY_BONUS_DAYS], raw);
+  it("Resubmission B1: BILLING_EARLY_PAY_BONUS_DAYS is no longer read — set or garbage, nothing changes", () => {
+    const c = readBillingConfig(env({ BILLING_EARLY_PAY_BONUS_DAYS: "two weeks" }));
+    assert.deepEqual(c.invalid, [], "a retired variable must not be reported as invalid");
+    assert.equal("earlyPayBonusDays" in c, false);
+  });
+
+  it("RevenueCat: each required variable ALONE makes the store rail unavailable, independent of Stripe", () => {
+    for (const name of REQUIRED_REVENUECAT_VARS) {
+      const c = readBillingConfig(env({ [name]: null }));
+      assert.equal(c.revenuecatAvailable, false, name);
+      assert.deepEqual(c.revenuecatMissing, [name]);
+      assert.equal(c.available, true, "Stripe stays available — the rails are independent");
     }
+    const none = readBillingConfig({});
+    assert.deepEqual(none.revenuecatMissing, [...REQUIRED_REVENUECAT_VARS]);
+  });
+
+  it("RevenueCat: the entitlement id defaults to premium and takes the env when set", () => {
+    assert.equal(readBillingConfig({}).revenuecatEntitlementId, "premium");
+    assert.equal(
+      readBillingConfig(env({ [ENV_REVENUECAT_ENTITLEMENT_ID]: "kiwi_premium" })).revenuecatEntitlementId,
+      "kiwi_premium",
+    );
   });
 });
 
@@ -156,7 +178,7 @@ describe("logBillingConfig", () => {
     const r = recorder();
     const c = logBillingConfig({}, r.log);
     assert.equal(c.available, false);
-    const warn = r.at("warn");
+    const warn = r.at("warn").filter((l) => l.obj.event === "billing_not_configured");
     assert.equal(warn.length, 1);
     for (const name of REQUIRED_STRIPE_VARS) {
       assert.ok(warn[0].msg.includes(name), `the warn must name ${name}`);
@@ -167,10 +189,42 @@ describe("logBillingConfig", () => {
 
   it("an unparseable variable logs an error naming it, and does not throw", () => {
     const r = recorder();
-    logBillingConfig(env({ [ENV_BILLING_EARLY_PAY_BONUS_DAYS]: "two weeks" }), r.log);
+    logBillingConfig(env({ [ENV_BILLING_ENFORCED]: "maybe" }), r.log);
     const errors = r.at("error");
     assert.equal(errors.length, 1);
-    assert.equal(errors[0].obj.envVar, ENV_BILLING_EARLY_PAY_BONUS_DAYS);
+    assert.equal(errors[0].obj.envVar, ENV_BILLING_ENFORCED);
+  });
+
+  it("RevenueCat unconfigured, not enforced: one warn naming its variables, and still returns", () => {
+    const r = recorder();
+    const c = logBillingConfig(
+      env({ [ENV_REVENUECAT_WEBHOOK_AUTH]: null, [ENV_REVENUECAT_SECRET_API_KEY]: null }),
+      r.log,
+    );
+    assert.equal(c.revenuecatAvailable, false);
+    const warn = r.at("warn").filter((l) => l.obj.event === "revenuecat_not_configured");
+    assert.equal(warn.length, 1);
+    for (const name of REQUIRED_REVENUECAT_VARS) assert.ok(warn[0].msg.includes(name), name);
+    assert.match(r.at("info")[0].msg, /revenuecat off/);
+  });
+
+  it("BILLING_ENFORCED with Stripe configured but RevenueCat missing THROWS its own named error", () => {
+    const r = recorder();
+    assert.throws(
+      () =>
+        logBillingConfig(
+          env({ [ENV_REVENUECAT_SECRET_API_KEY]: null, [ENV_BILLING_ENFORCED]: "true" }),
+          r.log,
+        ),
+      (err: unknown) => {
+        assert.ok(err instanceof BillingEnforcedWithoutRevenueCatError);
+        assert.equal(err.name, "BillingEnforcedWithoutRevenueCatError");
+        assert.deepEqual(err.missing, [ENV_REVENUECAT_SECRET_API_KEY]);
+        assert.ok(err.message.includes(ENV_REVENUECAT_SECRET_API_KEY));
+        return true;
+      },
+    );
+    assert.ok(r.at("error").some((l) => l.obj.event === "billing_enforced_without_revenuecat"));
   });
 
   // ── 🔴 the one state that refuses to boot ──────────────────────────────
@@ -244,6 +298,24 @@ describe("logBillingConfig", () => {
     const r = recorder();
     logBillingConfig(env({ [ENV_STRIPE_SECRET_KEY]: null }), r.log);
     const dump = r.dump();
+    for (const value of Object.values(SECRETS)) {
+      assert.ok(!dump.includes(value), `leaked: ${value.slice(0, 12)}…`);
+    }
+  });
+
+  it("Resubmission B1: the RevenueCat refusal leaks nothing — not the webhook auth, not either key", () => {
+    const r = recorder();
+    let message = "";
+    try {
+      logBillingConfig(
+        env({ [ENV_REVENUECAT_WEBHOOK_AUTH]: null, [ENV_BILLING_ENFORCED]: "true" }),
+        r.log,
+      );
+    } catch (err) {
+      message = (err as Error).message;
+    }
+    assert.ok(message !== "", "the boot must have refused");
+    const dump = r.dump() + message;
     for (const value of Object.values(SECRETS)) {
       assert.ok(!dump.includes(value), `leaked: ${value.slice(0, 12)}…`);
     }

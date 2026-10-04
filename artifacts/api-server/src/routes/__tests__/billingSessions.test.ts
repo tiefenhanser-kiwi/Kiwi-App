@@ -6,10 +6,10 @@
 // invisible until a real card is involved. So the fake records every call and
 // these tests read the recording:
 //
-//   · `trial_end = trialEndsAt + bonus` during the trial, and NO trial_end after
-//     it. That one line is the entire pay-early experiment, and the two cases
-//     look identical from the outside.
-//   · the 48-hour floor, which is reachable with BILLING_EARLY_PAY_BONUS_DAYS=0.
+//   · NO `trial_end`, ever (Resubmission B1 — the pay-early bonus is gone;
+//     subscribing during the trial bills at purchase).
+//   · 409 `subscribed_elsewhere` for an account entitled through the App Store
+//     or Google Play, before any customer is created (Resubmission B1).
 //   · the two metadata back-references, on the session AND on the subscription,
 //     because the second is the only one that survives to the events the mirror
 //     reads.
@@ -25,7 +25,7 @@ import type { SubscriptionStatus } from "@prisma/client";
 
 import { signToken } from "../../lib/auth";
 import { readBillingConfig } from "../../lib/billing/config";
-import { createBillingRouter, STRIPE_MIN_TRIAL_END_SECONDS } from "../billing";
+import { createBillingRouter } from "../billing";
 import { withSessionUser } from "./fixtures/sessionUserStub";
 import { makeFakeStripe, type FakeStripe, type FakeStripeOptions } from "./fixtures/fakeStripe";
 
@@ -46,6 +46,9 @@ interface RowFixture {
   trialEndsAt?: Date | null;
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
+  source?: "stripe" | "apple" | "google" | null;
+  currentPeriodEnd?: Date | null;
+  storeManagementUrl?: string | null;
 }
 
 function stubPrisma(row: RowFixture | null, email = "cook@example.com") {
@@ -60,11 +63,12 @@ function stubPrisma(row: RowFixture | null, email = "cook@example.com") {
               status: state.status,
               planCode: "free",
               trialEndsAt: state.trialEndsAt ?? null,
-              currentPeriodEnd: null,
+              currentPeriodEnd: state.currentPeriodEnd ?? null,
               cancelAtPeriodEnd: false,
               stripeCustomerId: state.stripeCustomerId ?? null,
               stripeSubscriptionId: state.stripeSubscriptionId ?? null,
-              earlyPayBonusApplied: false,
+              source: state.source ?? null,
+              storeManagementUrl: state.storeManagementUrl ?? null,
             },
       update: async (args: { where: unknown; data: Record<string, unknown> }) => {
         updates.push(args);
@@ -248,139 +252,162 @@ describe("POST /billing/checkout-session — the session Stripe is asked for", (
   });
 });
 
-// ── pay early, get more ─────────────────────────────────────────────────
+// ── no trial_end, ever (Resubmission B1) ─────────────────────────────────
 
-describe("POST /billing/checkout-session — the pay-early bonus (D-WS9-270 §5a)", () => {
-  it("DURING the trial: trial_end = trialEndsAt + 14 days, in Unix SECONDS", async () => {
-    const trialEndsAt = new Date(NOW.getTime() + 10 * DAY);
-    const h = await spinUp({ status: "trialing", trialEndsAt });
-    try {
-      await post(h, "/billing/checkout-session", { plan: "monthly" });
-      const expected = Math.floor((trialEndsAt.getTime() + 14 * DAY) / 1000);
-      assert.equal(subData(h).trial_end, expected);
-      // Seconds, not milliseconds. A 1000× error here would set the first charge
-      // ~45,000 years out and nobody would ever be billed.
-      assert.ok((subData(h).trial_end as number) < 2_000_000_000);
-      assert.equal(
-        (subData(h).metadata as Record<string, string>).earlyPayBonusApplied,
-        "true",
-      );
-      assert.equal((subData(h).metadata as Record<string, string>).bonusDays, "14");
-    } finally {
-      await h.close();
-    }
-  });
+describe("POST /billing/checkout-session — no pay-early bonus (Resubmission B1)", () => {
+  // Hans, 2026-10-04: "we can run pricing promos to trigger early conversions."
+  // One rule on all three platforms — subscribing during the trial bills at
+  // purchase. Every case below once produced a trial_end; none may now.
+  const cases: Array<[string, RowFixture]> = [
+    ["DURING the trial (10 days left)", { status: "trialing", trialEndsAt: new Date(NOW.getTime() + 10 * DAY) }],
+    ["on the trial's LAST hour", { status: "trialing", trialEndsAt: new Date(NOW.getTime() + 60 * 60 * 1000) }],
+    ["an unbounded trial (NULL trialEndsAt)", { status: "trialing", trialEndsAt: null }],
+    ["after the trial (none)", { status: "none", trialEndsAt: new Date(NOW.getTime() - 5 * DAY) }],
+    ["a canceled account", { status: "canceled", trialEndsAt: null }],
+  ];
+  for (const [label, row] of cases) {
+    it(`${label}: the session carries NO trial_end and no bonus metadata`, async () => {
+      const h = await spinUp(row);
+      try {
+        const res = await post(h, "/billing/checkout-session", { plan: "monthly" });
+        assert.equal(res.status, 200);
+        assert.equal("trial_end" in subData(h), false, "the first charge is today");
+        const subMeta = subData(h).metadata as Record<string, string>;
+        assert.deepEqual(subMeta, { userId: USER_ID });
+        const sessMeta = session(h).metadata as Record<string, string>;
+        assert.equal("earlyPayBonusApplied" in sessMeta, false);
+      } finally {
+        await h.close();
+      }
+    });
+  }
 
-  it("AFTER the trial (none): NO trial_end at all — checkout charges today", async () => {
-    const h = await spinUp({ status: "none", trialEndsAt: new Date(NOW.getTime() - 5 * DAY) });
-    try {
-      await post(h, "/billing/checkout-session", { plan: "monthly" });
-      assert.equal("trial_end" in subData(h), false, "a lapsed account gets no second free period");
-      assert.equal(
-        (subData(h).metadata as Record<string, string>).earlyPayBonusApplied,
-        "false",
-      );
-    } finally {
-      await h.close();
-    }
-  });
-
-  it("an EXPIRED trialing row is treated as lapsed — the status is derived, not read", async () => {
-    // Stored status still says `trialing`; trialEndsAt is in the past.
-    const h = await spinUp({ status: "trialing", trialEndsAt: new Date(NOW.getTime() - DAY) });
-    try {
-      await post(h, "/billing/checkout-session", { plan: "monthly" });
-      assert.equal("trial_end" in subData(h), false);
-    } finally {
-      await h.close();
-    }
-  });
-
-  it("a CANCELED account gets no trial_end either", async () => {
-    const h = await spinUp({ status: "canceled", trialEndsAt: null });
-    try {
-      await post(h, "/billing/checkout-session", { plan: "monthly" });
-      assert.equal("trial_end" in subData(h), false);
-    } finally {
-      await h.close();
-    }
-  });
-
-  it("the bonus is env-tunable, and the metadata records what was applied", async () => {
-    const trialEndsAt = new Date(NOW.getTime() + 5 * DAY);
+  it("a leftover BILLING_EARLY_PAY_BONUS_DAYS in the env changes nothing", async () => {
     const h = await spinUp(
-      { status: "trialing", trialEndsAt },
+      { status: "trialing", trialEndsAt: new Date(NOW.getTime() + 5 * DAY) },
       { env: { ...CONFIGURED, BILLING_EARLY_PAY_BONUS_DAYS: "30" } },
     );
     try {
       await post(h, "/billing/checkout-session", { plan: "monthly" });
-      assert.equal(subData(h).trial_end, Math.floor((trialEndsAt.getTime() + 30 * DAY) / 1000));
-      assert.equal((subData(h).metadata as Record<string, string>).bonusDays, "30");
-    } finally {
-      await h.close();
-    }
-  });
-
-  it("bonus 0 with a trial still >48h out: trial_end = trialEndsAt, bonus NOT recorded as applied", async () => {
-    const trialEndsAt = new Date(NOW.getTime() + 5 * DAY);
-    const h = await spinUp(
-      { status: "trialing", trialEndsAt },
-      { env: { ...CONFIGURED, BILLING_EARLY_PAY_BONUS_DAYS: "0" } },
-    );
-    try {
-      await post(h, "/billing/checkout-session", { plan: "monthly" });
-      assert.equal(subData(h).trial_end, Math.floor(trialEndsAt.getTime() / 1000));
-      // There was no bonus, so the experiment must not count this as one.
-      assert.equal(
-        (subData(h).metadata as Record<string, string>).earlyPayBonusApplied,
-        "false",
-      );
-    } finally {
-      await h.close();
-    }
-  });
-
-  // ── the 48-hour floor ──
-  it("a trial_end inside Stripe's 48-hour minimum is DROPPED, and the session is still created", async () => {
-    // Trial ends in 6 hours; bonus 0 → candidate is well inside the floor.
-    const trialEndsAt = new Date(NOW.getTime() + 6 * 60 * 60 * 1000);
-    const h = await spinUp(
-      { status: "trialing", trialEndsAt },
-      { env: { ...CONFIGURED, BILLING_EARLY_PAY_BONUS_DAYS: "0" } },
-    );
-    try {
-      const res = await post(h, "/billing/checkout-session", { plan: "monthly" });
-      // THE USER CAN STILL PAY. A bonus-tuning knob must not become an outage on
-      // the one screen that takes money.
-      assert.equal(res.status, 200);
       assert.equal("trial_end" in subData(h), false);
     } finally {
       await h.close();
     }
   });
+});
 
-  it("exactly AT the 48-hour boundary is accepted, not dropped", async () => {
-    const trialEndsAt = new Date(NOW.getTime() + STRIPE_MIN_TRIAL_END_SECONDS * 1000);
-    const h = await spinUp(
-      { status: "trialing", trialEndsAt },
-      { env: { ...CONFIGURED, BILLING_EARLY_PAY_BONUS_DAYS: "0" } },
-    );
+// ── one account, one paid rail (Resubmission B1) ─────────────────────────
+
+describe("POST /billing/checkout-session + /portal-session — 409 subscribed_elsewhere", () => {
+  const STORE_URL = "https://apps.apple.com/account/subscriptions";
+
+  it("checkout: an account ENTITLED through Apple gets 409 { source: apple } and Stripe is never called", async () => {
+    const h = await spinUp({
+      status: "active",
+      source: "apple",
+      currentPeriodEnd: new Date(NOW.getTime() + 20 * DAY),
+      storeManagementUrl: STORE_URL,
+    });
     try {
-      await post(h, "/billing/checkout-session", { plan: "monthly" });
-      assert.equal(subData(h).trial_end, Math.floor(trialEndsAt.getTime() / 1000));
+      const res = await post(h, "/billing/checkout-session", { plan: "monthly" });
+      assert.equal(res.status, 409);
+      assert.deepEqual(await res.json(), {
+        code: "subscribed_elsewhere",
+        source: "apple",
+        managementUrl: STORE_URL,
+      });
+      assert.equal(h.stripe.calls.customersCreate.length, 0, "no customer for a store subscriber");
+      assert.equal(h.stripe.calls.checkoutSessions.length, 0);
     } finally {
       await h.close();
     }
   });
 
-  it("the default 14-day bonus keeps a last-day trial safely outside the floor", async () => {
-    // The case the floor exists to survive: a trial ending in one hour, but with
-    // the default bonus, which puts the charge 14 days out.
-    const trialEndsAt = new Date(NOW.getTime() + 60 * 60 * 1000);
-    const h = await spinUp({ status: "trialing", trialEndsAt });
+  it("checkout: Google past_due (the store's grace) is still entitled → 409 { source: google }", async () => {
+    const h = await spinUp({
+      status: "past_due",
+      source: "google",
+      currentPeriodEnd: new Date(NOW.getTime() + 2 * DAY),
+    });
     try {
-      await post(h, "/billing/checkout-session", { plan: "monthly" });
-      assert.equal(subData(h).trial_end, Math.floor((trialEndsAt.getTime() + 14 * DAY) / 1000));
+      const res = await post(h, "/billing/checkout-session", { plan: "annual" });
+      assert.equal(res.status, 409);
+      const body = (await res.json()) as { code: string; source: string };
+      assert.equal(body.code, "subscribed_elsewhere");
+      assert.equal(body.source, "google");
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("checkout: a LAPSED store row may subscribe on the web — the refusal is for entitled rows only", async () => {
+    const h = await spinUp({
+      status: "canceled",
+      source: "apple",
+      currentPeriodEnd: new Date(NOW.getTime() - 30 * DAY),
+    });
+    try {
+      const res = await post(h, "/billing/checkout-session", { plan: "monthly" });
+      assert.equal(res.status, 200);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("checkout: a store row >3 days past its period is NOT trusted — it can subscribe on the web", async () => {
+    // Stored `active`, but its period ended 5 days ago: the missed-EXPIRATION
+    // guard reads it as canceled, so it must not block a real purchase.
+    const h = await spinUp({
+      status: "active",
+      source: "apple",
+      currentPeriodEnd: new Date(NOW.getTime() - 5 * DAY),
+    });
+    try {
+      const res = await post(h, "/billing/checkout-session", { plan: "monthly" });
+      assert.equal(res.status, 200);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("checkout: a Stripe subscriber still gets the existing already_subscribed, not subscribed_elsewhere", async () => {
+    const h = await spinUp({ status: "active", source: "stripe", stripeCustomerId: "cus_1" });
+    try {
+      const res = await post(h, "/billing/checkout-session", { plan: "monthly" });
+      assert.equal(res.status, 409);
+      assert.deepEqual(await res.json(), { code: "already_subscribed" });
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("portal: a store-sourced row gets 409 subscribed_elsewhere with the management url, and no Portal session", async () => {
+    const h = await spinUp({
+      status: "active",
+      source: "apple",
+      stripeCustomerId: "cus_had_web_checkout_once",
+      currentPeriodEnd: new Date(NOW.getTime() + 20 * DAY),
+      storeManagementUrl: STORE_URL,
+    });
+    try {
+      const res = await post(h, "/billing/portal-session");
+      assert.equal(res.status, 409);
+      assert.deepEqual(await res.json(), {
+        code: "subscribed_elsewhere",
+        source: "apple",
+        managementUrl: STORE_URL,
+      });
+      assert.equal(h.stripe.calls.portalSessions.length, 0);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("portal: a Stripe row is unchanged — it gets the Portal", async () => {
+    const h = await spinUp({ status: "active", source: "stripe", stripeCustomerId: "cus_web" });
+    try {
+      const res = await post(h, "/billing/portal-session");
+      assert.equal(res.status, 200);
     } finally {
       await h.close();
     }

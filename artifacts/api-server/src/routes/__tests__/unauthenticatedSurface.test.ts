@@ -83,6 +83,22 @@ const KNOWN_PUBLIC = new Set<string>([
   // ⚠️ This test probes with no body. The route answers 400 (no signature) BEFORE
   // it reads anything, which is the correct order and is why it shows up here.
   "POST /webhooks/stripe",
+  // 🔴 RESUBMISSION B1 — THE ONE ROUTE THAT BLOCK ADDS: the store rail's
+  // webhook (Apple In-App Purchase / Google Play Billing, via RevenueCat).
+  //
+  // Same reasoning as Stripe's: THE CREDENTIAL IS THE REQUEST. RevenueCat sends
+  // the Authorization header configured in its dashboard on every delivery; the
+  // WHOLE header is compared to REVENUECAT_WEBHOOK_AUTH in constant time before
+  // anything else, and a mismatch is 401 with no claim and no read. RevenueCat's
+  // servers have no Kiwi session either, and no rate limiter, for Stripe's
+  // reason — its retries reuse the event id and a 429 only defers them.
+  //
+  // It is also a weaker write than Stripe's by design: the route NEVER writes
+  // the payload. It re-reads each affected customer from RevenueCat with the
+  // secret key, so a forged-but-authenticated body can at most trigger a re-read
+  // of the truth. (Probed here with RevenueCat unconfigured, it answers 503
+  // before reading anything, which is why it appears.)
+  "POST /webhooks/revenuecat",
 ]);
 
 /** Walk the mounted router and return "METHOD /path" for every layer. */

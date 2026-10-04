@@ -31,8 +31,11 @@ import { readOAuthConfig, type OAuthConfig } from "../lib/oauth/config";
 import { revokeAppleIdentitiesForUser as productionRevokeAppleIdentities } from "../lib/oauth/revokeOnDelete";
 import { readBillingConfig, type BillingConfig } from "../lib/billing/config";
 import { cancelStripeForUser as productionCancelStripeForUser } from "../lib/billing/cancelOnDelete";
+import { buildSubscriptionPayload } from "../lib/billing/subscriptionPayload";
+import { syncStoreSubscription } from "../lib/billing/storeSync";
+import type { FetchLike } from "../lib/billing/revenuecat";
 import {
-  effectiveStatus,
+  isStoreRowPastGrace,
   readSubscriptionSnapshot,
   subscriptionRequiredBody,
   subscriptionService as productionSubscriptionService,
@@ -705,6 +708,11 @@ export interface MeRouterDeps {
    * deletion test.
    */
   cancelStripeForUser: typeof productionCancelStripeForUser;
+  /**
+   * Resubmission B1 — the RevenueCat re-read seam for GET /me/subscription's
+   * stale-store-row check. Defaults to the global fetch; tests inject a fake.
+   */
+  storeFetch: FetchLike;
   /** Injected so entitlement and the trial clock are testable. */
   now?: () => Date;
 }
@@ -718,6 +726,8 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
   const cancelStripeForUser =
     deps.cancelStripeForUser ?? productionCancelStripeForUser;
   const nowFn = deps.now ?? (() => new Date());
+  const storeFetch: FetchLike =
+    deps.storeFetch ?? (globalThis.fetch as unknown as FetchLike);
   const revokeAppleIdentities =
     deps.revokeAppleIdentities ?? productionRevokeAppleIdentities;
   const oauthConfig = deps.oauthConfig ?? readOAuthConfig();
@@ -1131,71 +1141,60 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
   // return, and when the paywall is dismissed — which is exactly the access
   // pattern S2 has and `GET /me` does not.
   //
-  // `firstChargeDateIfSubscribedNow` is computed HERE rather than in three
-  // clients. It is `trialEndsAt + BILLING_EARLY_PAY_BONUS_DAYS` while the trial
-  // is running and `null` otherwise, and it is what lets the upsell sheet say
-  // "Subscribe now — your first charge is <date>" without any client doing date
-  // arithmetic against a bonus it would have to be told about separately.
+  // `billingAvailable` / `enforced` are about the DEPLOY, not the user, and the
+  // client needs them to tell three states apart that otherwise look
+  // identical: "subscribe" (enforced + available), "you're in the trial and
+  // nothing is being enforced yet" (available, not enforced), and "we cannot
+  // take your money right now" (not available) — which must never render a
+  // button that leads to a 503.
+  //
+  // `hasBillingAccount` (S2 Part C) is keyed on `stripeCustomerId`, NOT on
+  // `stripeSubscriptionId`: the customer is what the Portal is scoped to, and
+  // `routes/billing.ts` persists it before the checkout session is created — so
+  // a user who started a checkout and abandoned it can still reach their
+  // billing page.
+  //
+  // The body is built by lib/billing/subscriptionPayload.ts, because
+  // POST /billing/store-sync answers with the same shape (Resubmission B1 —
+  // which also added `source`, `managementUrl` and `storeBillingAvailable`, and
+  // retired the pay-early fields to their constant values).
+  //
+  // 🔴 RESUBMISSION B1 — A STORE ROW PAST ITS PERIOD IS RE-READ FIRST. An Apple
+  // or Google row more than three days past `currentPeriodEnd` reads as
+  // `canceled` (subscriptionService.isStoreRowPastGrace — a missed EXPIRATION
+  // webhook must not entitle forever). Before answering with that, this asks
+  // RevenueCat what is true now, so a renewal whose webhook was lost shows as
+  // the active subscription it is. A failed re-read answers with the guard's
+  // verdict; it never 500s the screen.
   router.get("/me/subscription", requireAuth, async (req, res) => {
     const userId = req.userId;
     if (!userId) {
       return res.status(401).json({ error: "unauthenticated" });
     }
     try {
-      const snapshot = await readSubscriptionSnapshot(prisma, userId);
+      let snapshot = await readSubscriptionSnapshot(prisma, userId);
       const now = nowFn();
 
-      // No row is corruption (it is written in the same transaction as the
-      // User), but this endpoint must still answer something a client can
-      // render. `none` is the honest answer and it shows a paywall rather than
-      // a spinner — and `can()` logs the corruption loudly on the write paths.
-      const status = snapshot === null ? "none" : effectiveStatus(snapshot, now);
+      if (
+        snapshot !== null &&
+        billingConfig.revenuecatAvailable &&
+        isStoreRowPastGrace(snapshot, now)
+      ) {
+        try {
+          await syncStoreSubscription(
+            { prisma, config: billingConfig, fetchImpl: storeFetch, now: () => now },
+            userId,
+          );
+          snapshot = await readSubscriptionSnapshot(prisma, userId);
+        } catch (err) {
+          logger.warn(
+            { event: "me_subscription_store_reread_failed", userId, err: err instanceof Error ? err.message : "unknown" },
+            "A store row past its period could not be re-read — answering with the period guard's verdict",
+          );
+        }
+      }
 
-      const trialEndsAt = snapshot?.trialEndsAt ?? null;
-      const firstChargeDateIfSubscribedNow =
-        status === "trialing" && trialEndsAt !== null
-          ? new Date(
-              trialEndsAt.getTime() +
-                billingConfig.earlyPayBonusDays * 24 * 60 * 60 * 1000,
-            ).toISOString()
-          : null;
-
-      return res.json({
-        status,
-        planCode: snapshot?.planCode ?? "free",
-        trialEndsAt: trialEndsAt?.toISOString() ?? null,
-        currentPeriodEnd: snapshot?.currentPeriodEnd?.toISOString() ?? null,
-        cancelAtPeriodEnd: snapshot?.cancelAtPeriodEnd ?? false,
-        // Both of these are about the DEPLOY, not the user, and the client needs
-        // them to tell three states apart that otherwise look identical:
-        // "subscribe" (enforced + available), "you're in the trial and nothing
-        // is being enforced yet" (available, not enforced), and "we cannot take
-        // your money right now" (not available) — which must never render a
-        // button that leads to a 503.
-        billingAvailable: billingConfig.available,
-        enforced: billingConfig.enforced,
-        earlyPayBonusDays: billingConfig.earlyPayBonusDays,
-        firstChargeDateIfSubscribedNow,
-        // 🔴 ROW 9 (1.1) · STRIPE S2 PART C — ADDED, because §2.8 rules that
-        // "Manage subscription" appears "when a Stripe subscription exists" and
-        // this body carried no field saying so. The client would have had to
-        // infer it from the status, which is wrong in BOTH directions: a
-        // `canceled` account still has a portal worth opening (invoices,
-        // resubscribe — and `POST /billing/portal-session` needs only the
-        // CUSTOMER, which is what it 409s `no_billing_account` on), while an
-        // `active` one read before its first `customer.subscription.updated`
-        // webhook has no customer id yet and would get a button that 409s.
-        //
-        // Keyed on `stripeCustomerId`, deliberately, NOT on
-        // `stripeSubscriptionId`: the customer is what the Portal is scoped to,
-        // and `routes/billing.ts` persists it before the checkout session is
-        // created — so a user who started a checkout and abandoned it can still
-        // reach their billing page.
-        //
-        // A widening, so every shipped client ignores it and the S2 schema takes
-        // it as `.optional()`.
-        hasBillingAccount: snapshot?.stripeCustomerId != null,
-      });
+      return res.json(buildSubscriptionPayload(snapshot, billingConfig, now));
     } catch (err) {
       logger.error({ err, userId }, "GET /me/subscription failed");
       return res.status(500).json({ error: "failed to fetch subscription" });
