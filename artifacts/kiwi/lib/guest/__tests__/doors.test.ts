@@ -8,7 +8,11 @@ import { test } from "node:test";
 
 import {
   DOOR_APP_NOTE,
+  DOOR_INTRO,
+  DOOR_NATIVE_INTRO,
+  DOOR_NATIVE_NOTE,
   DOOR_PRIMARY,
+  doorCopy,
   DOOR_SECONDARY,
   DOOR_SIGN_IN,
   DOOR_TITLE,
@@ -115,4 +119,39 @@ test("the thin-shelf line is Hans's copy, verbatim (R6)", () => {
     THIN_SHELF_TITLE,
     "Access to the full Kiwi meal library and meals that meet unique dietary needs and preferences is available in the app — sign up here.",
   );
+});
+
+// ── Resub C1 — the same door, in the app ─────────────────────────────────
+
+test("🔴 web keeps its door word for word — 'the app comes right after'", () => {
+  const web = doorCopy("web");
+  assert.equal(web.intro, DOOR_INTRO);
+  assert.equal(web.note, DOOR_APP_NOTE);
+  assert.match(web.note, /app comes right after/i);
+  assert.equal(web.primary, DOOR_PRIMARY);
+  assert.equal(web.title, DOOR_TITLE);
+  assert.deepEqual(web.unlocks, DOOR_UNLOCKS);
+});
+
+test("🔴 on iOS and Android the account is made right here — no 'app comes after'", () => {
+  for (const os of ["ios", "android"]) {
+    const native = doorCopy(os);
+    assert.equal(native.intro, "Create a free account to save this plan and keep going. An account gets you:");
+    assert.equal(native.note, "Your plan comes with you — nothing to build again.");
+    assert.equal(native.intro, DOOR_NATIVE_INTRO);
+    assert.equal(native.note, DOOR_NATIVE_NOTE);
+    assert.doesNotMatch(`${native.intro} ${native.note}`, /\bthe app\b|app store|download/i, os);
+    // Everything else is the web door's, so the two cannot drift.
+    assert.equal(native.title, DOOR_TITLE);
+    assert.equal(native.primary, DOOR_PRIMARY);
+    assert.equal(native.secondary, DOOR_SECONDARY);
+    assert.equal(native.signIn, DOOR_SIGN_IN);
+    assert.deepEqual(native.unlocks, DOOR_UNLOCKS);
+  }
+});
+
+test("the native lines keep the door's rule: no price and no 'trial'", () => {
+  const lines = `${DOOR_NATIVE_INTRO} ${DOOR_NATIVE_NOTE}`;
+  assert.equal(/trial/i.test(lines), false);
+  assert.equal(/\$|\bUSD\b|\bper month\b|\b\/mo\b/i.test(lines), false);
 });

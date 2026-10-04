@@ -11,7 +11,7 @@
 // guest session. The app is a note underneath, not a button.
 
 import React from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -19,16 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/Button";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { trackGuestEvent } from "@/lib/api/guest";
-import {
-  DOOR_APP_NOTE,
-  DOOR_INTRO,
-  DOOR_PRIMARY,
-  DOOR_SECONDARY,
-  DOOR_SIGN_IN,
-  DOOR_TITLE,
-  DOOR_UNLOCKS,
-  type GuestAction,
-} from "@/lib/guest/doors";
+import { doorCopy, type GuestAction } from "@/lib/guest/doors";
 
 export interface GuestDoorSheetProps {
   /** The action that hit the door, or null when closed. */
@@ -40,6 +31,9 @@ export function GuestDoorSheet({ action, onClose }: GuestDoorSheetProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const visible = action !== null;
+  // Resub C1 — on native the account is made right here, so the door says so
+  // (lib/guest/doors.ts doorCopy); web keeps "the app comes right after".
+  const copy = doorCopy(Platform.OS);
 
   const goSignUp = () => {
     void trackGuestEvent("signup_started", { step: action ?? undefined });
@@ -69,7 +63,7 @@ export function GuestDoorSheet({ action, onClose }: GuestDoorSheetProps) {
       <View style={[s.sheet, { paddingBottom: insets.bottom + Spacing[3] }]}>
         <View style={s.handle} />
         <View style={s.header}>
-          <Text style={s.title}>{DOOR_TITLE}</Text>
+          <Text style={s.title}>{copy.title}</Text>
           <Pressable onPress={onClose} hitSlop={12} accessibilityLabel="Close">
             <Feather name="x" size={22} color={Colors.neutral[700]} />
           </Pressable>
@@ -78,9 +72,9 @@ export function GuestDoorSheet({ action, onClose }: GuestDoorSheetProps) {
           contentContainerStyle={s.body}
           showsVerticalScrollIndicator={false}
         >
-          <Text style={s.intro}>{DOOR_INTRO}</Text>
+          <Text style={s.intro}>{copy.intro}</Text>
           <View style={s.list}>
-            {DOOR_UNLOCKS.map((line) => (
+            {copy.unlocks.map((line) => (
               <View key={line} style={s.row}>
                 <Feather name="check" size={16} color={Colors.sage[700]} />
                 <Text style={s.rowText}>{line}</Text>
@@ -89,19 +83,19 @@ export function GuestDoorSheet({ action, onClose }: GuestDoorSheetProps) {
           </View>
           {/* ONE primary button (R5). */}
           <Button
-            label={DOOR_PRIMARY}
+            label={copy.primary}
             variant="primary"
             onPress={goSignUp}
             testID="guest-door-signup"
           />
-          <Text style={s.appNote}>{DOOR_APP_NOTE}</Text>
-          <Button label={DOOR_SECONDARY} variant="ghost" onPress={onClose} />
+          <Text style={s.appNote}>{copy.note}</Text>
+          <Button label={copy.secondary} variant="ghost" onPress={onClose} />
           <Pressable
             onPress={goSignIn}
             hitSlop={6}
             style={({ pressed }) => [s.signIn, pressed && { opacity: 0.6 }]}
           >
-            <Text style={s.signInText}>{DOOR_SIGN_IN}</Text>
+            <Text style={s.signInText}>{copy.signIn}</Text>
           </Pressable>
         </ScrollView>
       </View>
