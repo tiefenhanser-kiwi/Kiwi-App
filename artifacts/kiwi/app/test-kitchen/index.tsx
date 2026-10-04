@@ -1,11 +1,11 @@
 // /test-kitchen — Row 13 "Test Kitchen" · Block 2. THE DOOR IN.
 //
-// R1 — WEB ONLY. On native this redirects to "/" before any hook runs, so
-// nothing a store reviewer can reach changes. The platform check lives in the
-// default export and the real screen is a child component: that way the guest
-// hooks are never conditionally called (🔴 HOOKS SIT ABOVE THE EARLY RETURNS —
-// there is no react-hooks ESLint plugin in this package, only a device catches
-// it).
+// R1 — was WEB ONLY, and is not since Resub C1: Apple rejected 1.0 under
+// 5.1.1(v) because nothing could be used without an account, so Welcome's
+// "Explore without an account" opens this screen on iOS and Android too. The
+// platform redirect that used to sit in the default export is gone; the real
+// screen stays a child component (🔴 HOOKS SIT ABOVE THE EARLY RETURNS — there
+// is no react-hooks ESLint plugin in this package, only a device catches it).
 //
 // R2 — resume an unexpired stored guest session, else create one, then open the
 // wizard in guest mode. The resume/create decision is
@@ -17,8 +17,8 @@
 // with a key set, the start waits for a token.
 
 import React from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import { Redirect, useRouter } from "expo-router";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/Button";
@@ -48,9 +48,6 @@ export const TK_RESUME_PLAN = "Pick up where you left off — see your plan";
 export const TK_RESUME_OPTIONS = "Pick up where you left off — see your plans";
 
 export default function TestKitchenRoute() {
-  // R1. A constant on any given build, but kept as the FIRST thing in the
-  // component so no guest hook is ever mounted on native.
-  if (Platform.OS !== "web") return <Redirect href="/" />;
   return <TestKitchenEntry />;
 }
 

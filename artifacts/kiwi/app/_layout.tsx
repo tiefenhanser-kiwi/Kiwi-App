@@ -30,7 +30,7 @@ import { AppProvider } from "@/contexts/AppContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { BillingProvider } from "@/contexts/BillingContext";
 import { PaywallSheet } from "@/components/PaywallSheet";
-import { GuestProvider, useIsGuestSafe } from "@/contexts/GuestContext";
+import { GuestProvider, useGuestStoreReady, useIsGuestSafe } from "@/contexts/GuestContext";
 import { ToastProvider } from "@/contexts/ToastProvider";
 import { Palette } from "@/constants/tokens";
 import { sessionGateShouldEvict } from "@/lib/sessionBootstrap";
@@ -163,10 +163,10 @@ function RootLayoutNav() {
           pause/reactivate half-feature is gone and DELETE /me is real. */}
       <Stack.Screen name="delete-account" />
       <Stack.Screen name="verify-email" />
-      {/* Row 13 "Test Kitchen" · Block 2 — the guest flow. WEB ONLY (R1): each
-          of these redirects to "/" on native before any hook runs, so nothing a
-          store reviewer can reach changes. They are outside (tabs) and outside
-          (auth) because a guest is in neither. */}
+      {/* Row 13 "Test Kitchen" · Block 2 — the guest flow. On every platform
+          since Resub C1 (Apple 5.1.1(v): the app must be usable without an
+          account) — Welcome's "Explore without an account" opens it. They are
+          outside (tabs) and outside (auth) because a guest is in neither. */}
       <Stack.Screen name="test-kitchen/index" />
       <Stack.Screen name="test-kitchen/options" />
       <Stack.Screen name="test-kitchen/plan" />
@@ -205,13 +205,18 @@ export default function RootLayout() {
     Fraunces_700Bold_Italic,
   });
 
+  // Resub C1 — the guest store is read from SecureStore at boot on native (it
+  // is synchronous on web, so this is true at once there). Held with the fonts
+  // so the splash covers it and GuestProvider mounts with any stored session.
+  const guestStoreReady = useGuestStoreReady();
+
   useEffect(() => {
-    if (fontsLoaded || fontError) {
+    if ((fontsLoaded || fontError) && guestStoreReady) {
       SplashScreen.hideAsync();
     }
-  }, [fontsLoaded, fontError]);
+  }, [fontsLoaded, fontError, guestStoreReady]);
 
-  if (!fontsLoaded && !fontError) return null;
+  if ((!fontsLoaded && !fontError) || !guestStoreReady) return null;
 
   return (
     <SafeAreaProvider>

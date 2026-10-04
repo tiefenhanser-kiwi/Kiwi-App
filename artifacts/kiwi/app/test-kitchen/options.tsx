@@ -20,7 +20,7 @@
 // 🔴 HOOKS SIT ABOVE THE EARLY RETURNS.
 
 import React from "react";
-import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Redirect, useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 
@@ -72,8 +72,8 @@ const FORM_FALLBACK: GuestWizardForm = {
   maxCookTimeCoverage: "most",
 };
 
+// Resub C1 — no platform redirect: the Test Kitchen runs on native too.
 export default function GuestOptionsRoute() {
-  if (Platform.OS !== "web") return <Redirect href="/" />;
   return <GuestOptionsScreen />;
 }
 

@@ -15,6 +15,8 @@ import React from "react";
 import { createGuestSession } from "@/lib/api/guest";
 import {
   clearGuestSession,
+  guestStoreHydrated,
+  hydrateGuestSession,
   readGuestSession,
   storeGuestSession,
   type GuestSessionCredentials,
@@ -69,9 +71,11 @@ interface GuestContextValue {
 const GuestCtx = React.createContext<GuestContextValue | null>(null);
 
 export function GuestProvider({ children }: { children: React.ReactNode }) {
-  // Seeded synchronously from sessionStorage: a reload inside the Test Kitchen
-  // must not flash a "no session" frame before the resume resolves, and the read
-  // is a synchronous property get on web (there is no native guest path).
+  // Seeded synchronously: a reload inside the Test Kitchen must not flash a "no
+  // session" frame before the resume resolves. On web the read is a
+  // sessionStorage property get; on native (Resub C1) it is the copy
+  // hydrateGuestSession() loaded from SecureStore — app/_layout.tsx does not
+  // mount this provider until useGuestStoreReady() says that load is done.
   const [session, setSession] = React.useState<GuestSessionCredentials | null>(
     () => readGuestSession(),
   );
@@ -177,4 +181,26 @@ export function useGuestOptional(): GuestContextValue | null {
 
 export function useIsGuestSafe(): boolean {
   return React.useContext(GuestCtx)?.isGuest ?? false;
+}
+
+/**
+ * Resub C1 — true once the guest store can be read synchronously: at once on
+ * web, and on native after hydrateGuestSession() has read SecureStore into
+ * memory (or given up at its deadline). app/_layout.tsx holds the splash screen
+ * on this, beside the fonts, so GuestProvider's first render — and with it the
+ * first guest request — always sees a restored session.
+ */
+export function useGuestStoreReady(): boolean {
+  const [ready, setReady] = React.useState(guestStoreHydrated);
+  React.useEffect(() => {
+    if (ready) return;
+    let live = true;
+    void hydrateGuestSession().then(() => {
+      if (live) setReady(true);
+    });
+    return () => {
+      live = false;
+    };
+  }, [ready]);
+  return ready;
 }

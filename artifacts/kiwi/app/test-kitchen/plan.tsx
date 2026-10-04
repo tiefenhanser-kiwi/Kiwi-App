@@ -24,7 +24,7 @@
 // 🔴 HOOKS SIT ABOVE THE EARLY RETURNS.
 
 import React from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { Redirect, useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
@@ -45,8 +45,8 @@ export const GUEST_PLAN_READ_NOTE =
 export const GUEST_PLAN_GONE =
   "Kiwi does not have this plan any more. Start a fresh Test Kitchen session to build a week.";
 
+// Resub C1 — no platform redirect: the Test Kitchen runs on native too.
 export default function GuestPlanRoute() {
-  if (Platform.OS !== "web") return <Redirect href="/" />;
   return <GuestPlanScreen />;
 }
 
