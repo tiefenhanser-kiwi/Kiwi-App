@@ -42,10 +42,28 @@ node -e "const u=new URL(process.env.DATABASE_URL);console.log('host',u.hostname
 `packYieldReviewedByHuman` (default `false`). Nothing is dropped or renamed.
 
 ```bash
-npx prisma migrate status    # expect: 1 migration not yet applied
+npx prisma migrate status    # expect: SEVEN migrations not yet applied (below)
 npx prisma migrate deploy
 npx prisma migrate status    # expect: Database schema is up to date
 ```
+
+> 🔴 **Corrected 2026-10-04 (Resubmission B1).** Against the production image of
+> September 23, `migrate status` lists **seven** pending migrations, not one —
+> every migration added to `next` since then, applied together by the one
+> `migrate deploy`, in this order:
+>
+> 1. `20260925170000_row13_b1_guest_sessions`
+> 2. `20260926221500_row13_b1b_signup_source_nudge`
+> 3. `20260927120000_row9_oauth_user_identities`
+> 4. `20260927210000_row9_stripe_s1_billing_mirror`
+> 5. `20260928200000_grocery_b1_pack_yield` (this section's)
+> 6. `20260929180000_grocery_b4_pack_count` (B4.1's)
+> 7. `20261004120000_resub_b1_billing_sources` — **hand-edited RENAMEs**
+>    (`stripeUpdatedAt` → `sourceUpdatedAt`, `stripe_events` →
+>    `billing_events`); it drops `subscriptions.earlyPayBonusApplied`.
+>
+> Any other name in the list, or a different count: stop. All seven are applied
+> on dev.
 
 **B2 adds NO migration.** Everything in step 3 writes columns that already
 exist plus `ingredient_relations` rows. If `migrate status` shows a second
@@ -272,7 +290,8 @@ field, as usual.
 ## B4.1 — The migration
 
 ```bash
-npx prisma migrate status    # expect: 1 migration not yet applied
+npx prisma migrate status    # expect: nothing pending if §1's deploy already ran
+                             # (it applies all seven, this one included)
 npx prisma migrate deploy
 npx prisma migrate status    # expect: Database schema is up to date
 ```
@@ -720,8 +739,8 @@ differ, so re-running it is idempotent.
 > the user up front to get out one small container per dish and portion each
 > dish's amount into its own."* Rule 5 says the exact reverse — one container,
 > labelled with the dishes it serves, and the cook portions at the stove. The
-> sentence is inverted in the seed. **Dev is at v13** (reseeded 2026-10-01);
-> production is still on whatever version it was deployed with, so this reseed is
+> sentence is inverted in the seed. (Dev reached v13 on 2026-10-01 — see the
+> current state below.) Production is still on whatever version it was deployed with, so this reseed is
 > required for the grouping re-cut to reach a user even though the rest of the
 > re-cut is code.
 >
@@ -742,8 +761,20 @@ differ, so re-running it is idempotent.
 > unchanged); every produce portion now names its destination container WITH its
 > quantity; phase 1 and 3 steps carry no knife work; a protein step opens with
 > the verb the recipe names; and the source parenthetical ("from 1 garlic head")
-> is gone. **Dev is at v14** (reseeded 2026-10-02). Without this reseed the
+> is gone. (Dev reached v14 on 2026-10-02.) Without this reseed the
 > engine groups correctly and the prose still reads the old way.
+>
+> 🔴 **THE CURRENT STATE — read from dev 2026-10-04, after Part J.1b.**
+> `prep.narrate_steps` is **v21** on dev (2026-10-03), and its `defaultModel`
+> is now **`claude-sonnet-5-5`** — the reseed changes the model on production
+> too, not only the body. Since the September 23 image, dev also gained
+> `wizard.set_preferences.generate` **v18** and `wizard.directed.generate`
+> **v15** (both 2026-10-03). So on production this one reseed bumps **three**
+> keys, ONE version each (production's own counters; the dev numbers above are
+> not the production ones). On dev the seed is a no-op: a dry run against a
+> recording client on 2026-10-04 reported 0 bumps, 0 model changes. Production
+> runs `claude-sonnet-5-5` with thinking OFF by default (`requestShapeForModel`)
+> — leave `AI_SONNET55_THINKING` unset there.
 
 ```bash
 node --env-file=.env --import tsx -e "

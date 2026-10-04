@@ -49,6 +49,8 @@ lives for the deployed instance. "env" = a plain Cloud Run env var
 | `PUBLIC_APP_URL` | if `RESEND_API_KEY` is set | env | Base of the emailed links. **Must equal the Cloud Run service URL** (`https://<service>-<hash>-<region>.run.app`, no trailing slash) for the first deploy, the custom domain later — the `/reset-password` and `/verify-email` pages are served by this same service at its root, so any other host makes the links dead. |
 | `TRUST_PROXY_HOPS` | **required before the guest per-IP cap is live** (Row 13) | **unset** | Leave unset (= 0, trust nothing) until measured — see below. Never `true`. **Promoted from "watch item" by Row 13 · Block 1:** the Test Kitchen's per-IP cap (3 guest sessions / rolling 24 h) is *gated on this being > 0* and is **inert today**, because at 0 `req.ip` is Google's front end for every visitor and the cap would be one global bucket of three sessions a day for the entire internet. The measurement is the **two-network `curl`** in *Watch items* §2. |
 | `LOG_LEVEL` | no | env | pino level; default `info`. |
+| `AI_MODEL_OVERRIDE_SONNET` | **no — must be UNSET** | — | **Dev-only** Sonnet side-by-side (`lib/ai/modelShape.ts`): when set, every call configured for `claude-sonnet-4-6` runs on this model instead, and `LLMCallLog` records it. Leave unset on Cloud Run — production runs the model each prompt row names. |
+| `AI_SONNET55_THINKING` | **no — leave UNSET** | — | Read for **every** call whose model is `claude-sonnet-5-5` — a prompt row naming it, or the override above (`requestShapeForModel`). Unset (or anything but `adaptive`) sends thinking **off** (`between_tools`), the coded default since Part J.0 and the measured-safe one; `adaptive` restores the model's default, which the compare lane measured hitting `max_tokens` on set_preferences. Leave unset on Cloud Run. |
 | `USDA_INGREDIENTS_API_KEY` | no | Secret Manager | Absent → USDA enrichment no-ops. |
 | `AI_DISABLED` | no | env | **D-WS9-240 kill switch.** `1`/`true`/`yes`/`on` → every AI call is refused (503 + `Retry-After: 300`, copy "Kiwi is taking a short break…") before the SDK is touched. Unset = off. A Cloud Run env change is a new revision with no build. |
 | `AI_DAILY_CEILING_USD` | no | env | **D-WS9-240 global daily ceiling.** When `SUM(costEstimateUsd)` over the current UTC day for user-attributed rows (`userId IS NOT NULL` — CLI seeds don't count) reaches this, every AI call is refused with 503 + `Retry-After` to UTC midnight. Unset = off. **Proposed `10`** — calibrated 2026-09-13 on a 9-user sample where one account is 59% of rows (largest real day $3.50); **re-derive before the user base grows**. |
@@ -81,8 +83,11 @@ lives for the deployed instance. "env" = a plain Cloud Run env var
 ### Row 9 (1.1) · Stripe S1 — billing
 
 Kiwi never sees a card number: Checkout and the Customer Portal are Stripe-hosted
-pages the apps link out to (D-WS9-267). Values come from the Stripe Dashboard at
-commissioning (S3) — the names are below, **never the values**.
+pages the **web** links out to (D-WS9-267). Since Resubmission B1 the iOS and
+Android apps sell through Apple In-App Purchase and Google Play Billing via
+RevenueCat instead (Apple rejected 1.0 under 3.1.1) — that rail is the second
+table below. Values come from the Stripe Dashboard and the RevenueCat dashboard
+at commissioning — the names are below, **never the values**.
 
 | Name | Required | Destination | Note |
 | --- | --- | --- | --- |
@@ -91,13 +96,42 @@ commissioning (S3) — the names are below, **never the values**.
 | `STRIPE_PRICE_MONTHLY` | for billing | env | The **Price** id (`price_…`), not a product id and not the amount. $9.99/month. *Dashboard → Product catalogue → the Kiwi product.* **⚠️ Set tax behaviour EXCLUSIVE** ($9.99 + tax) — Stripe Tax is on and inclusive pricing would quietly reduce revenue. |
 | `STRIPE_PRICE_ANNUAL` | for billing | env | The other Price id. $99.99/year. Same tax-behaviour note. |
 | `BILLING_RETURN_URL_BASE` | for billing | env | Base https URL, no trailing slash, e.g. `https://app.kitchenwizard.ai`. Checkout returns to `<base>/billing/return?session_id=…` and `<base>/billing/cancelled`; the Portal returns to `<base>/billing/return`. **Must serve those two paths** (S2 builds them). A trailing slash is stripped. |
-| `BILLING_EARLY_PAY_BONUS_DAYS` | no | env | **The pay-early experiment (D-WS9-270 §5a).** Whole days added to the free period when a user subscribes **during** the trial: `trial_end = trialEndsAt + this`, so the card goes on file and the first charge lands then. Absent → **14**. **`0` is VALID** and means no bonus — that is how the experiment ends without a code deploy, so it is not treated as unset. Garbage/negative → 14 + an `error` at boot. Stripe requires `trial_end` ≥ 48 h out; too close and the server drops the trial_end and logs rather than failing the checkout. |
 | `BILLING_ENFORCED` | no (**the paywall switch**) | env | Unset/falsy → **OFF**: `can()` allows everyone exactly as today while every billing route works — which is what makes it safe to deploy S1 and commission Stripe with nobody locked out. Truthy → an account whose `effectiveStatus` is `none`/`canceled` gets **402 `subscription_required`** on every AI feature; reads keep working. A typo (`ture`) is OFF + an `error`. **⚠️ FLIP ONLY AFTER `scripts/billing/cutover.sql` HAS RUN** — see below. |
+
+(`BILLING_EARLY_PAY_BONUS_DAYS` is **retired** — Resubmission B1, Hans 2026-10-04:
+the pay-early bonus is gone on every platform; subscribing during the trial bills
+at purchase and Checkout sets no `trial_end`. The variable is no longer read; a
+leftover value on Cloud Run is harmless and can be removed.)
+
+**Resubmission B1 — the store rail (RevenueCat).**
+
+| Name | Required | Destination | Note |
+| --- | --- | --- | --- |
+| `REVENUECAT_WEBHOOK_AUTH` | for store purchases | **Secret Manager** | The exact `Authorization` header value RevenueCat sends on every webhook (*RevenueCat → Integrations → Webhooks → Authorization header*) — paste the **same string**, any `Bearer ` prefix included: the **whole header** is compared, in constant time. **The only credential on `POST /api/webhooks/revenuecat`.** |
+| `REVENUECAT_SECRET_API_KEY` | for store purchases | **Secret Manager** | RevenueCat **secret** API key (`sk_…`, v1) — *Project settings → API keys → Secret keys*. Reads every customer's purchase history; never plain env, never logged. **Not** the public SDK keys (those are the app's `EXPO_PUBLIC_*` build values). |
+| `REVENUECAT_ENTITLEMENT_ID` | no | env | The entitlement that means Kiwi Premium. Absent → `premium`. Products `kiwi_premium_monthly` / `kiwi_premium_annual` (Play's `subscriptionId:basePlanId` — the part before `:` picks the plan). |
+
+Either secret unset → `POST /api/webhooks/revenuecat` and `POST /api/billing/store-sync`
+answer 503 and boot logs one WARN naming the missing variable. The two rails are
+independent: Stripe can be on without RevenueCat and the reverse.
+
+**The RevenueCat webhook.** *RevenueCat → Integrations → Webhooks → Add*: URL
+**`https://<service-url>/api/webhooks/revenuecat`** (the **`/api`** prefix), the
+Authorization header above, **events for BOTH production and sandbox purchases**.
+🔴 **Sandbox must reach production:** App Review buys with sandbox accounts against
+the production build and the production server, and the server accepts sandbox
+events on every deploy by design — filtering them out in the dashboard would leave
+the reviewer's purchase locked. Every event is answered by RE-READING the customer
+(`GET /v1/subscribers/{userId}`), never by trusting its payload, so any event
+selection is safe. The app must `Purchases.logIn(<Kiwi userId>)` before a
+purchase: an anonymous `$RCAnonymousID` is never written.
 
 **🔴 The one environment state in this server that REFUSES TO BOOT.** Everything
 else here degrades: an unset feature variable means the feature is off and says
 so. `BILLING_ENFORCED` truthy with **any** of the five Stripe variables unset
-throws `BillingEnforcedWithoutStripeError` instead, because that combination is a
+throws `BillingEnforcedWithoutStripeError` instead (and with either RevenueCat
+secret unset, `BillingEnforcedWithoutRevenueCatError` — an App Store purchase
+that charges and never unlocks), because that combination is a
 locked front door with no key cut — every account past its trial refused, and
 `POST /api/billing/checkout-session` answering 503 to all of them, until someone
 notices. There is no revision of that state better than refusing to boot, and on
@@ -107,7 +141,7 @@ sees the reason. **One missing variable is enough** — a half-configured deploy
 not configured.
 
 **Reading the boot line.** One `info` per revision: `Billing: stripe on|off ·
-enforcement ON|off · early-pay bonus N d`, plus a WARN naming any missing
+revenuecat on|off · enforcement ON|off`, plus a WARN naming any missing
 variable. Presence and names only, never a value.
 
 **The webhook endpoint.** Create it in *Dashboard → Developers → Webhooks* with
@@ -121,13 +155,16 @@ Copy the signing secret into `STRIPE_WEBHOOK_SECRET`.
 **Dashboard settings the server assumes but cannot set:**
 
 - **Customer Portal** (*Settings → Billing → Customer portal*): allow **cancel**
-  and **switch plan** (monthly ↔ annual). Kiwi builds no cancel UI — App Review
-  is satisfied by the link-out because Kiwi sells nothing in-app (PRD §14.7).
+  and **switch plan** (monthly ↔ annual). Kiwi builds no cancel UI (PRD §14.7).
+  The Portal serves **web (Stripe) subscribers only**; a store-sourced account is
+  refused it (409 `subscribed_elsewhere`) and manages in the App Store / Google
+  Play (`managementUrl` on `GET /api/me/subscription`).
 - **Smart Retries / dunning**: 7 days, then cancel the subscription. Kiwi keeps
   no second timer — `past_due` stays **entitled** until Stripe says `canceled`.
-- **Trial-ending emails: ON.** The pay-early bonus puts a card on file and charges
-  it at the end of a free period, and several card-network and FTC rules want a
-  reminder before that happens. Stripe sends it; Kiwi does not.
+- **Trial-ending emails:** no longer load-bearing. Checkout sets no `trial_end`
+  since Resubmission B1 (the pay-early bonus is gone), so a Stripe subscription
+  never starts in a Stripe trial and there is no free period ending on a card on
+  file. Kiwi's own 14-day trial takes no card.
 - **Stripe Tax: on**, with registration handled separately (Massachusetts taxes
   prewritten software including SaaS — the home-state registration is the first
   accountant question). Cost: 0.5% of the taxed transaction.
