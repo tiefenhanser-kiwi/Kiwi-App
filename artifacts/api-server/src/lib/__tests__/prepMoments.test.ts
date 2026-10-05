@@ -479,9 +479,10 @@ describe("D-WS9-301 H2.2 — an ABSORBED fresh ingredient still strips a dry nam
       garlic!.components.every((c) => c.measures.every((v) => v.destination !== bowl.bowlName)),
       "fresh garlic went into a dry blend",
     );
+    // J.1c (BUG-355 item 3) — the lid is named by class, never after its own contents.
     assert.equal(
       garlic!.components[0].measures[0].destination,
-      "Texas-Style Beef Chili — minced garlic cloves",
+      "Texas-Style Beef Chili aromatics",
     );
     assert.equal(bowl.bowlName, BOWL, "an all-dry blend keeps the author's name");
   });

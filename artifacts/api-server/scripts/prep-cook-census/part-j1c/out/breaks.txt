@@ -1,0 +1,50 @@
+RED   1 shared tub named once
+      AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+      + '1 yellow onion for Texas-Style Beef Chili — into the shared finely diced yellow onion tub'
+      restore src/lib/prepWeekAssembly.ts: eeb7a91a1b4d5f2c → eeb7a91a1b4d5f2c (identical)
+RED   2 one destination, one sentence
+      AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+      + 'Slice 3 celery stalks into ½-inch pieces.\n' +
+      restore src/lib/prepWeekAssembly.ts: eeb7a91a1b4d5f2c → eeb7a91a1b4d5f2c (identical)
+RED   2 fold only on read (no double lid)
+      AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+      + 'Slice 3 celery stalks into ½-inch pieces for the Slow-Cooker Chicken vegetables container for the Slow-Cooker Chicken vegetables container.'
+      restore src/lib/prepWeekAssembly.ts: eeb7a91a1b4d5f2c → eeb7a91a1b4d5f2c (identical)
+RED   5 fold keeps the code's number
+      AssertionError [ERR_ASSERTION]: Peel 2 carrots and slice them into ½-inch coins for the Slow-Cooker Chicken vegetables container.
+      restore src/lib/prepWeekAssembly.ts: eeb7a91a1b4d5f2c → eeb7a91a1b4d5f2c (identical)
+RED   3 single-dish lids by class
+      AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+      +   'Roasted Asparagus with Lemon — lemon juice'
+      restore src/lib/prepWeekAssembly.ts: eeb7a91a1b4d5f2c → eeb7a91a1b4d5f2c (identical)
+RED   3 never into an existing vegetables container
+      AssertionError [ERR_ASSERTION]: the later garlic joined the onion
+      restore src/lib/prepWeekAssembly.ts: eeb7a91a1b4d5f2c → eeb7a91a1b4d5f2c (identical)
+RED   3 several lone cuts: one prep plate
+      AssertionError [ERR_ASSERTION]: romaine lettuce hearts
+      +   'Chicken Salad — chopped romaine lettuce hearts'
+      restore src/lib/prepWeekAssembly.ts: eeb7a91a1b4d5f2c → eeb7a91a1b4d5f2c (identical)
+RED   3 a citrus juiced by its note is the juice
+      AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+      +   'Sautéed Broccolini with Garlic and Chili Flake vegetables'
+      restore src/lib/prepWeekAssembly.ts: eeb7a91a1b4d5f2c → eeb7a91a1b4d5f2c (identical)
+RED   4 protein timed by its verb
+      AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+      restore src/lib/prepStepMinutes.ts: ac2c4cc89a5deb22 → ac2c4cc89a5deb22 (identical)
+RED   4 hyphenated weight is not 'pound'
+      AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+      + [
+      restore src/lib/prepComponents.ts: 01c011dc987af2da → 01c011dc987af2da (identical)
+RED   3 two lids that keep differently are each named
+      AssertionError [ERR_ASSERTION]: Covered in the fridge — up to 6 days. Airtight in the fridge — up to 4 days.
+      restore src/lib/prepStorage.ts: e729668133e7d0dc → e729668133e7d0dc (identical)
+RED   3 the thing garnished is not the garnish
+      AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+      +   'Roasted Asparagus with Lemon toppings plate'
+      restore src/lib/prepWeekAssembly.ts: eeb7a91a1b4d5f2c → eeb7a91a1b4d5f2c (identical)
+RED   3 lids that keep alike share one sentence
+      AssertionError [ERR_ASSERTION]: Creamy Beef and Mushroom Stroganoff toppings plate: Plate, wrapped, fridge, up to 3 days. Buttered Egg Noodles toppings plate: Plate, wrapped, fridge, up to 3 days.
+      restore src/lib/prepStorage.ts: e729668133e7d0dc → e729668133e7d0dc (identical)
+RED   BUG-354 names fit the wire
+      AssertionError [ERR_ASSERTION]: {"formErrors":[],"fieldErrors":{"phases":["String must contain at most 120 character(s)","String must contain at most 120 character(s)","String must contain at most 120 character(s)"]}}
+      restore src/lib/prepWeekAssembly.ts: eeb7a91a1b4d5f2c → eeb7a91a1b4d5f2c (identical)

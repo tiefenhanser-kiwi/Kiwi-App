@@ -613,8 +613,11 @@ describe("componentsOf via buildStepPlan — per-dish measures (FIX 1)", () => {
     const ni = sp.narrationInput.steps.find((s) => s.stepId === produce.stepId)!;
     // Every per-dish amount is on a code-rendered line…
     const amounts = produce.components.flatMap((c) => c.measures.map((m) => m.amount));
-    assert.ok(produce.portionLines && produce.portionLines.length === amounts.length);
-    for (const [i, a] of amounts.entries()) assert.ok(produce.portionLines![i].includes(a) || produce.portionLines!.some((l) => l.startsWith(a)));
+    // (J.1c — one line per DESTINATION now: portions into one tub share its line.)
+    const dests = new Set(produce.components.flatMap((c) => c.measures.map((m) => m.destination ?? `none:${m.forDish}`)));
+    assert.ok(produce.portionLines && produce.portionLines.length === dests.size);
+    const all = produce.portionLines!.join("\n");
+    for (const a of amounts) assert.ok(new RegExp(`(^|[: ·])${a}( |$)`, "m").test(all), `amount ${a} is not on a line`);
     // …and the narration input carries the food and total instead of the measures.
     assert.deepEqual(ni.components[0].measures, []);
     assert.ok(ni.portionsByApp && ni.portionsByApp.portionCount === amounts.length);

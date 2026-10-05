@@ -81,8 +81,15 @@ const FINGERPRINT_ALGO_VERSION = 1;
  *       portion steps, dash labels spoken in words.
  *   3 — J.1: count totals take the count's number ("3 yellow onions").
  *   4 — J.1b: a protein's knife verbs come only from sentences that name it.
+ *   5 — J.1c: single-dish lids named by class (juice jar, toppings plate, vegetables,
+ *       aromatics), container names fitted to the wire in whole words (BUG-354),
+ *       proteins timed by their verb, a hyphenated weight is not "pound".
+ *   6 — J.1c, after its first regeneration: a garnish is what a dish is garnished
+ *       WITH (the roasted asparagus went on a toppings plate under v5), and several
+ *       lone cuts of one dish share its prep plate. The cached `containerNames` are
+ *       not recomputed on read, so a name change needs the bump, not just the code.
  */
-export const PREP_ENGINE_VERSION = 4;
+export const PREP_ENGINE_VERSION = 6;
 
 /**
  * Digest of the loaded plan composition — everything the prep payload is built

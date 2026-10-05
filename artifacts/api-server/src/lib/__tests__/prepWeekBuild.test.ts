@@ -245,15 +245,17 @@ describe("Part J.0 B — portion lines are the code's", () => {
       { components: [{ ingredientName: "garlic cloves", preparationNote: "minced", measures: dishes.map((d, i) => measure(`${i + 2} cloves`, d, dests[i])) }] },
       new Map([[LABEL, "shared" as const], [own, "own-tub" as const]]),
     )!;
-    assert.equal(r.lines.length, 7);
+    // J.1c (BUG-355 item 1) — one line per destination: the shared tub's four portions
+    // are ONE line that opens on the tub, and "same tub" is never written.
+    assert.equal(r.lines.length, 4);
     const body = r.lines.join("\n");
     assert.ok(body.length <= PORTION_LINES_MAX, `${body.length}`);
     assert.ok(OPENING_MAX + 1 + body.length <= 800);
-    for (const l of r.lines) assert.match(l, / — (into the |same |the same )/, l);
+    for (const l of r.lines) assert.match(l, /^Into one shared |— into the /, l);
+    for (const l of r.lines) assert.doesNotMatch(l, /\bsame\b/, l);
     for (const l of r.lines) assert.ok(!l.includes(LABEL) && !l.includes(own), `raw label in a sentence: ${l}`);
-    assert.equal(r.lines[0], "2 cloves for Beef Enchiladas Verdes — into the shared minced-garlic tub");
-    assert.match(r.lines[1], /— same tub$/);
-    assert.equal(r.lines[5], "7 cloves — into the minced garlic and thinly sliced yellow onion tub for the Slow-Braised Collard Greens with Bacon");
+    assert.equal(r.lines[0], "Into one shared minced-garlic tub: 2 cloves for the Beef Enchiladas Verdes · 3 cloves for the Mexican Street-Style Rice · 4 cloves for the Texas-Style Beef Chili with Beans · 5 cloves for the Tex-Mex Ground Beef Tacos");
+    assert.equal(r.lines[2], "7 cloves — into the minced garlic and thinly sliced yellow onion tub for the Slow-Braised Collard Greens with Bacon");
     assert.equal(r.meta.total, "35 cloves");
   });
 
@@ -263,11 +265,9 @@ describe("Part J.0 B — portion lines are the code's", () => {
       { components: [{ ingredientName: "garlic cloves", measures: ["Beef Enchiladas Verdes", "Mexican Street-Style Rice", "Texas-Style Beef Chili", "Tex-Mex Ground Beef Tacos"].map((d) => measure("4 cloves", d, label)) }] },
       new Map([[label, "shared" as const]]),
     )!;
+    // J.1c (BUG-355 item 1) — the tub named once, at the head; each portion names its dish.
     assert.deepEqual(r.lines, [
-      "4 cloves for Beef Enchiladas Verdes — into the shared minced-garlic tub",
-      "4 cloves for Mexican Street-Style Rice — same tub",
-      "4 cloves for Texas-Style Beef Chili — same tub",
-      "4 cloves for Tex-Mex Ground Beef Tacos — same tub",
+      "Into one shared minced-garlic tub: 4 cloves for the Beef Enchiladas Verdes · 4 cloves for the Mexican Street-Style Rice · 4 cloves for the Texas-Style Beef Chili · 4 cloves for the Tex-Mex Ground Beef Tacos",
     ]);
   });
 
@@ -302,19 +302,22 @@ describe("Part J.0 B — portion lines are the code's", () => {
     };
     const kinds = new Map([[shared, "shared" as const]]);
     const roomy = renderPortionLines(step, kinds)!;
-    assert.equal(roomy.lines[2], `4 cloves for Smoky Chipotle Ground Beef — into the ${jar}`);
+    // J.1c — a lid that names the dish needs no "for <dish>" at any budget; the shared
+    // tub keeps every full dish name.
+    assert.equal(roomy.lines[1], `4 cloves — into the ${jar}`);
     const tight = renderPortionLines(step, kinds, roomy.lines.join("\n").length - 1)!;
-    assert.equal(tight.lines[0], "3 cloves for Beef Enchiladas Verdes — into the shared minced-garlic tub");
-    assert.equal(tight.lines[1], "2 cloves for Mexican Street-Style Rice — same tub");
-    assert.equal(tight.lines[2], `4 cloves — into the ${jar}`);
+    // One character under the roomy render, the next rung shortens dish names — still
+    // one per portion, still unique — since the jar line had no "for <dish>" to drop.
+    assert.equal(tight.lines[0], "Into one shared minced-garlic tub: 3 cloves for the Enchiladas Verdes · 2 cloves for the Street-Style Rice");
+    assert.equal(tight.lines[1], `4 cloves — into the ${jar}`);
   });
 
   it("a count names the food in its number: 3 yellow onions, 1 roma tomato, 3 celery (never 'celeries')", () => {
     const count = (name: string, amount: string) =>
       renderPortionLines({ components: [{ ingredientName: name, measures: [{ amount, forDish: "Soup", dishRole: "main" as const, destination: "Soup vegetables", qty: Number.parseFloat(amount), unit: "each" }] }] })!.lines[0];
-    assert.equal(count("yellow onion", "3"), "3 yellow onions for Soup — into the Soup vegetables container");
-    assert.equal(count("roma tomatoes", "1"), "1 roma tomato for Soup — into the Soup vegetables container");
-    assert.equal(count("celery", "3"), "3 celery for Soup — into the Soup vegetables container");
+    assert.equal(count("yellow onion", "3"), "3 yellow onions — into the Soup vegetables container");
+    assert.equal(count("roma tomatoes", "1"), "1 roma tomato — into the Soup vegetables container");
+    assert.equal(count("celery", "3"), "3 celery — into the Soup vegetables container");
   });
 
   it("the fixture's shared garlic step keeps only the portion whose window reaches its day (J.1 R1)", () => {

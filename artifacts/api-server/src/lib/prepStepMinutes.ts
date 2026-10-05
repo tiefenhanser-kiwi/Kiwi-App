@@ -55,10 +55,30 @@ export const MINUTES = {
   batchPerLb: 2,
   /** …and a batch is never quicker than this. */
   batchFloor: 2,
-  /** Cubing or trimming meat, per lb. */
-  meatCubePerLb: 4,
-  /** Cutting strips / portioning a whole protein, per lb. */
-  meatPortionPerLb: 3,
+  // ── Part J.1c (BUG-355 item 4) — A PROTEIN IS TIMED BY THE VERB ITS STEP SAYS ───
+  //
+  // Hans, October 4, on his own plan: pound 2½ lb chicken breasts + trim 1¾ lb thighs +
+  // cube 2 lb beef chuck read 22 minutes — "that's like 12 minutes ish". The rates
+  // were H2's starting values, never timed (4/lb to cube, 3/lb for anything else), and
+  // they keyed on the catalog NOTE, so a pounding the title announced was charged as a
+  // 3/lb "portion" because the note did not say "pound". Now the step's own verbs
+  // (rule 12, the ones the title shows) pick the rate, the slowest verb wins ("cube and
+  // trim" is a cube), and the note is the fallback when the recipe names no verb.
+  // Home-cook rates, per lb:
+  /** Cubing a roast into stew pieces, trimming as you go: 2 lb chuck ≈ 5 min. */
+  meatCubePerLb: 2.5,
+  /** Slicing into strips (fajitas, stir-fry): the same knife work as cubing. */
+  meatStripsPerLb: 2.5,
+  /** Trimming the fat off thighs or a roast: ~35 s a thigh, about six to 1¾ lb. */
+  meatTrimPerLb: 2,
+  /** Butterflying breasts or a chop, or spatchcocking: a cut and a press per piece. */
+  meatButterflyPerLb: 2,
+  /** Pounding breasts to an even thickness under plastic: ~45 s a breast. */
+  meatPoundPerLb: 1.5,
+  /** Pulling the skin off. */
+  meatSkinPerLb: 1.5,
+  /** Dividing a pack into its meals' shares — no knife precision. */
+  meatPortionPerLb: 1.5,
   /** Whisking a marinade or dressing together, once per such container. */
   whisk: 1,
   /** A step can never show less than this. */
@@ -111,6 +131,17 @@ const BATCH =
   /\b(asparagus|potatoes?|tomatillos?|broccoli|cauliflower|green beans?|brussels sprouts?|squash|sweet potatoes?)\b/i;
 const MEAT =
   /\b(chicken|turkey|beef|pork|lamb|veal|steak|chuck|brisket|tenderloin|roast|salmon|cod|halibut|tilapia|tuna|snapper|trout|shrimp|prawns?|scallops?|fish|fillets?|breasts?|thighs?|drumsticks?|cutlets?|chops?)\b/i;
+
+/** Part J.1c — rule 12 verb (prepComponents PROTEIN_VERBS) → its rate per lb. */
+const VERB_RATE: Record<string, number> = {
+  cube: MINUTES.meatCubePerLb,
+  "cut into strips": MINUTES.meatStripsPerLb,
+  trim: MINUTES.meatTrimPerLb,
+  butterfly: MINUTES.meatButterflyPerLb,
+  pound: MINUTES.meatPoundPerLb,
+  skin: MINUTES.meatSkinPerLb,
+  portion: MINUTES.meatPortionPerLb,
+};
 
 const CUBE_NOTE = /\b(cube[sd]?|cut into|chunk|trim|strips?|pound|butterfl|slice)\b/i;
 // "zested and juiced" is the note the catalog actually carries, and `\bzest\b`
@@ -265,6 +296,8 @@ export function timeRow(
   amount: string,
   /** H2b ruling 2 — the yield edge for this ingredient, when it has one. */
   yieldFor?: (name: string) => { yield: SourceYieldLike | null; count: (q: number | null, u: string | null) => number | null } | null,
+  /** Part J.1c — the protein step's own verbs (rule 12), when it has them. */
+  verbs?: readonly string[],
 ): TimedRow {
   const { quantity, unit } = parseAmount(amount);
   const name = ingredientName.toLowerCase();
@@ -274,14 +307,15 @@ export function timeRow(
     ingredientName, preparationNote: preparationNote ?? "", quantity, unit, action, minutes,
   });
 
-  // Meat: by weight, and the note says whether it is cubing or portioning.
+  // Meat: by weight, at the rate of the slowest verb the step names (Part J.1c); with
+  // none, the note says whether it is cubing or portioning.
   if (MEAT.test(name)) {
+    const byVerb = (verbs ?? []).map((v) => VERB_RATE[v]).filter((r): r is number => r !== undefined);
+    const perLb = byVerb.length > 0 ? Math.max(...byVerb) : CUBE_NOTE.test(note) ? MINUTES.meatCubePerLb : MINUTES.meatPortionPerLb;
+    const action: ActionClass = perLb === MINUTES.meatPortionPerLb && byVerb.length === 0 ? "meat-portion" : "meat-cube";
     const lb = quantity == null ? null : toPounds(quantity, unit);
-    if (lb != null) {
-      const perLb = CUBE_NOTE.test(note) ? MINUTES.meatCubePerLb : MINUTES.meatPortionPerLb;
-      return row(CUBE_NOTE.test(note) ? "meat-cube" : "meat-portion", lb * perLb);
-    }
-    return row("meat-portion", MINUTES.meatPortionPerLb);
+    if (lb != null) return row(action, lb * perLb);
+    return row(action, perLb);
   }
 
   // Garlic, by the clove.
@@ -382,6 +416,8 @@ export function timeStep(
   input: {
     components: { ingredientName: string; preparationNote?: string | null; measures: { amount: string; preparationNote?: string | null }[] }[];
     bowlName?: string;
+    /** Part J.1c — a protein step's verbs (rule 12): they, not the note, pick the rate. */
+    verbs?: readonly string[];
   },
   /**
    * H2b ruling 2 — the yield edge per ingredient name, so juice and zest are
@@ -424,9 +460,9 @@ export function timeStep(
       // Re-render the summed amount in the same shape `parseAmount` reads. The
       // fraction glyphs are not needed: a decimal parses, and only the magnitude
       // is used from here on.
-      rows.push(timeRow(c.ingredientName, agg.note, `${agg.quantity} ${unit}`.trim(), yieldFor));
+      rows.push(timeRow(c.ingredientName, agg.note, `${agg.quantity} ${unit}`.trim(), yieldFor, input.verbs));
     }
-    for (const u of unparsed) rows.push(timeRow(c.ingredientName, u.note, u.amount, yieldFor));
+    for (const u of unparsed) rows.push(timeRow(c.ingredientName, u.note, u.amount, yieldFor, input.verbs));
   }
 
   // ── 🔴 ONE LIME IS ONE LIME, however many of its parts a step uses ─────────

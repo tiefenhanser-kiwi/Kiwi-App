@@ -1,0 +1,103 @@
+PLAN f49f5209-54c6-428b-a66e-a8b6ff9d2488  [HANS-f49f5209]  HTTP 200
+  HEADER: 14 containers · about 55 min · prompt v21
+
+  ── seasonings_dry ──
+     1. Measure the Velvety Nacho Cheese Sauce sauce jar   (3 min)   [154 chars]
+        Into the Velvety Nacho Cheese Sauce sauce jar:
+        2 tbsp All-purpose flour
+        ¼ tsp chili powder
+        ¼ tsp ground cumin
+        Set aside for the sauces and marinades step.
+     2. Measure the Crispy Breaded Pork Chops dry mix   (3 min)   [144 chars]
+        Into the Crispy Breaded Pork Chops dry mix:
+        ½ cup All-purpose flour
+        ½ tsp garlic powder
+        ½ tsp onion powder
+        1 cup plain breadcrumbs
+        ½ tsp paprika
+        » storage: Airtight at room temperature — it keeps for weeks.
+     3. Measure the Taco Bell–Style Seasoned Ground spice blend   (4 min)   [193 chars]
+        Into the Taco Bell–Style Seasoned Ground spice blend:
+        1½ tsp chili powder
+        1 tsp ground cumin
+        ½ tsp smoked paprika
+        ½ tsp garlic powder
+        ½ tsp onion powder
+        ¼ tsp dried oregano
+        ⅛ tsp cayenne pepper
+        » storage: Airtight at room temperature — it keeps for weeks.
+     4. Measure the BBQ Glazed Beef Meatballs sauce jar   (3 min)   [174 chars]
+        Into the BBQ Glazed Beef Meatballs sauce jar:
+        ½ tsp smoked paprika
+        ½ tsp garlic powder
+        ½ tsp onion powder
+        ⅜ cup plain breadcrumbs
+        Set aside for the sauces and marinades step.
+  ×  5. All-purpose flour — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+  ×  6. Garlic powder — cook day   (1 min)  [RENDER-OMITTED]   [91 chars]
+        One thing measured on its own goes straight into the pan on cook day — nothing to do ahead.
+
+  ── produce ──
+     1. Wash and dry all the produce   (3 min)   [104 chars]
+        Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.
+     2. Slice all cremini mushrooms   (3 min)   [85 chars]
+        Slice 10 oz cremini mushrooms for the Creamy Beef and Mushroom Stroganoff prep plate.
+        » covers cook steps: Creamy Beef and Mushroom Stroganoff#2
+     3. Thinly slice the yellow onion   (3 min)   [83 chars]
+        Thinly slice 1 yellow onion for the Creamy Beef and Mushroom Stroganoff prep plate.
+     4. Mince all garlic   (1 min)   [80 chars]
+        Mince 3 cloves of garlic for the Creamy Beef and Mushroom Stroganoff prep plate.
+        » storage: Creamy Beef and Mushroom Stroganoff prep plate: Separate piles (cremini mushrooms, yellow onion and garlic) on a small plate, under plastic wrap in the fridge — up to 3 days.
+        » covers cook steps: Creamy Beef and Mushroom Stroganoff#2
+     5. Chop all flat-leaf parsley   (2 min)   [285 chars]
+        Work through 5 tbsp fresh flat-leaf parsley: chopped and finely chopped.
+        2 tbsp chopped — into the Creamy Beef and Mushroom Stroganoff toppings plate
+        1 tbsp chopped — into the Buttered Egg Noodles toppings plate
+        2 tbsp finely chopped — into the Buttered Egg Noodles aromatics container
+        » storage: Creamy Beef and Mushroom Stroganoff toppings plate and Buttered Egg Noodles toppings plate: Plate, wrapped, fridge, up to 3 days. Buttered Egg Noodles aromatics: Fridge, damp towel, up to 3 days.
+        » covers cook steps: Creamy Beef and Mushroom Stroganoff#2, Buttered Egg Noodles#0
+     6. Shred all iceberg lettuce   (1 min)   [96 chars]
+        Finely shred 2 cup iceberg lettuce for the Taco Bell–Style Seasoned Ground vegetables container.
+        » covers cook steps: Taco Bell–Style Seasoned Ground Beef#0
+     7. Dice all roma tomatoes   (5 min)   [89 chars]
+        Finely dice 2 roma tomatoes for the Taco Bell–Style Seasoned Ground vegetables container.
+        » storage: Taco Bell–Style Seasoned Ground vegetables: Airtight in the fridge — up to 2 days.
+        » covers cook steps: Taco Bell–Style Seasoned Ground Beef#0
+  ×  8. Russet potatoes — cook day   (5 min)  [RENDER-OMITTED]   [53 chars]
+        This browns once it is cut, so it is cut on cook day.
+  ×  9. Granny Smith apple — cook day   (1 min)  [RENDER-OMITTED]   [53 chars]
+        This browns once it is cut, so it is cut on cook day.
+    10. Prep all lemons   (3 min)   [178 chars]
+        Juice ½ lemon, and measure out 1 tbsp fresh lemon juice.
+        1 tbsp fresh lemon juice — into the Warm Cinnamon Applesauce citrus jar
+        ½ lemon — into the Roasted Green Beans citrus jar
+        » storage: Warm Cinnamon Applesauce citrus jar: Covered in the fridge — up to 6 days. Roasted Green Beans citrus jar: Airtight in the fridge — up to 3 days.
+    11. Trim all green beans   (2 min)   [96 chars]
+        Trim the stem ends from 1 lb fresh green beans for the Roasted Green Beans vegetables container.
+        » storage: Airtight in the fridge — up to 4 days.
+
+  ── sauces_marinades ──
+     1. Finish the Velvety Nacho Cheese Sauce sauce jar   (2 min)   [139 chars]
+        Velvety Nacho Cheese Sauce sauce jar (All-purpose flour, chili powder and ground cumin already in it): add
+        ½ tsp hot sauce
+        Stir to combine.
+        » storage: Covered in the fridge — up to 5 days.
+     2. Finish the BBQ Glazed Beef Meatballs sauce jar   (2 min)   [205 chars]
+        BBQ Glazed Beef Meatballs sauce jar (smoked paprika, garlic powder, onion powder and plain breadcrumbs already in it): add
+        1 tbsp worcestershire sauce
+        1 cup bbq sauce (smoky-sweet variety)
+        Stir to combine.
+        » storage: Covered in the fridge — up to 5 days.
+  ×  3. Worcestershire sauce and dijon mustard — cook day   (1 min)  [RENDER-OMITTED]   [106 chars]
+        These go in at different moments, or there are too few to be worth a container — measure them on cook day.
+
+  ── proteins ──
+     » Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.
+     HELD: Breaded Pork Chops with Mashed Potatoes and Applesauce (Wednesday, 2 days out) — cut the Russet potatoes (it browns once cut) and cut the Granny Smith apple (it browns once cut) that morning.
+     1. Slice the beef sirloin for the Creamy Beef and Mushroom Stroganoff   (4 min)   [73 chars]
+        Slice 1½ lb beef sirloin steak thin against the grain into 2-inch strips.
+        » storage: Covered in the fridge — cook within 2 days.
+     2. Portion the pork chops for the Crispy Breaded Pork Chops   (2 min)   [63 chars]
+        Set out 4 bone-in pork chops, about 3/4 inch thick, ~7 oz each.
+        » storage: Covered in the fridge — cook within 2 days.

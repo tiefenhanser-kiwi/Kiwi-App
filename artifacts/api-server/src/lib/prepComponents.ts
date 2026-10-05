@@ -694,7 +694,9 @@ const PROTEIN_VERBS: ReadonlyArray<[RegExp, string]> = [
   // 🔴 H7 — NOT THE UNIT. "Place the 2 pounds bone-in chicken thighs in a pot" and
   // "1½ pounds shrimp" read as the verb, and the plan said "Pound the shrimp". A
   // quantity in front of it (digits, a glyph, a word number) makes it a weight.
-  [/(?<![\d½¼¾⅓⅔⅛⅜⅝⅞]\s?|\b(?:a|one|two|three|four|half a)\s)\bpound(?:s|ed|ing)?\b/i, "pound"],
+  // Part J.1c — a HYPHENATED weight too: "the 3-pound pork shoulder" titled A15's pork
+  // "Pound the pork shoulder" and charged it as a pounding.
+  [/(?<![\d½¼¾⅓⅔⅛⅜⅝⅞][\s-]?|\b(?:a|one|two|three|four|half a)[\s-])\bpound(?:s|ed|ing)?\b/i, "pound"],
   [/\bcub(?:e|es|ed|ing)\b/i, "cube"],
   [/\b(?:cut|slice)[^.]{0,30}\bstrips?\b/i, "cut into strips"],
   [/\b(?:skinned|remove the skin|skin removed)\b/i, "skin"],

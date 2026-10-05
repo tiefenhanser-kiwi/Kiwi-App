@@ -337,10 +337,42 @@ function containerLabel(head: string, tail: readonly string[], tailIsDishes = fa
   const tries = tailIsDishes
     ? [fit(head, tail), fit(head, dedupe(tail.map(shortDishName))), fit(head, dedupe(tail.map((d) => shortDishName(d).split(" ").at(-1)!)))]
     : [fit(head, tail), fit(shortDishName(head), tail)];
-  for (const t of tries) if (t.length <= LABEL_MAX) return t;
+  for (const t of tries) if (t.length <= NAME_MAX) return t;
   const last = tries[tries.length - 1].replace(/\bfresh\s+/gi, "");
-  if (last.length <= LABEL_MAX) return last;
-  return `${last.slice(0, LABEL_MAX - 1).trimEnd()}…`;
+  if (last.length <= NAME_MAX) return last;
+  // A dish's own container: the DISH part shortens, in whole words.
+  if (!tailIsDishes) return fitDishName(head, ` — ${tail.join(", ")}`);
+  return wholeWords(last, NAME_MAX);
+}
+
+/**
+ * 🔴 Part J.1c (BUG-354) — EVERY CONTAINER NAME FITS THE WIRE, IN WHOLE WORDS.
+ * `containerNames` is capped at 120 characters by both schemas, and nothing
+ * shortened "<dish> toppings plate", "<dish> dried-chile bag" or "<head> bowl": a
+ * dish title past ~105 characters failed the WHOLE response (the BUG-350 class,
+ * through another field). The dish part shortens — its short name (`shortDishName`:
+ * the dish before " with …"; D-WS9-121's `displayTitle` is null on all 4,917 catalog
+ * dishes, so there is no stored short title to prefer), else whole words of it —
+ * and the use after it ("toppings plate") is never cut. 104, not 120: the narrator's
+ * title "Measure the <name>" (or "Finish the") is held to 120 by its own schema, and
+ * uniqueName may append " 2".
+ */
+const NAME_MAX = LABEL_MAX - 16;
+export function fitDishName(dish: string, rest: string): string {
+  const whole = `${dish}${rest}`;
+  if (whole.length <= NAME_MAX) return whole;
+  const short = shortDishName(dish);
+  if (`${short}${rest}`.length <= NAME_MAX) return `${short}${rest}`;
+  const room = NAME_MAX - rest.length;
+  if (room < 12) return wholeWords(whole, NAME_MAX);
+  return `${wholeWords(dish, room, "").replace(/[\s,:;–—-]+$/, "")}${rest}`;
+}
+/** Cut at the last whole word that fits; never mid-word. */
+function wholeWords(s: string, max: number, mark = "…"): string {
+  if (s.length <= max) return s;
+  const cut = s.slice(0, max - mark.length + 1);
+  const sp = cut.lastIndexOf(" ");
+  return `${(sp > 0 ? cut.slice(0, sp) : cut.slice(0, max - mark.length)).replace(/[\s,:;–—-]+$/, "")}${mark}`;
 }
 
 /** "diced onion" → "Diced onion", for the head of a container label. */
@@ -1245,6 +1277,10 @@ export function buildStepPlan(
       const use = marinade ? "marinade bowl" : dry ? (DRY_MIX_MEMBER.test(names) ? "dry mix" : "spice blend") : "sauce jar";
       name = bowlNameFor(c.dishName, c.mealName, null, 0, false, false, use);
     }
+    // Part J.1c (BUG-354) — every name fits the wire, the dish part shortened in whole words.
+    if (name.length > NAME_MAX) {
+      name = name.startsWith(c.dishName) ? fitDishName(c.dishName, name.slice(c.dishName.length)) : wholeWords(name, NAME_MAX);
+    }
     c.name = uniqueName(name);
   }
 
@@ -1340,6 +1376,84 @@ export function buildStepPlan(
     }
   }
 
+  // ── Part J.1c (BUG-355 item 3) — A CONTENTS NAME IS A SHARED TUB'S ALONE ────────
+  //
+  // Hans, October 4: "the finely-diced-jalapeño tub for the Jalapeño Cheddar
+  // Cornbread", "the juiced-lemon tub", "the chopped-parsley tub", "the snapped-
+  // asparagus tub" — one dish's item in a lid named after itself. D-WS9-301 R2 names
+  // containers by class and form; a contents name is right only for rule 5's tub,
+  // shared by two or more dishes. A single-dish item takes its dish's class container:
+  //   • a juice (or a citrus's zest and juice) → the dish's sauce jar, else its own
+  //     small jar, "<dish> juice jar";
+  //   • a garnish — its note says so, or the dish's own prose garnishes, sprinkles or
+  //     tops with it → the dish's toppings plate (made if the dish has none);
+  //   • the dish's ONE other lone cut, when the dish has no vegetables container →
+  //     "<dish> vegetables" ("<dish> aromatics" for garlic, ginger, a herb);
+  //   • several lone cuts of one dish, or one beside a vegetables container →
+  //     "<dish> prep plate", a separate pile each.
+  // 🔴 NEVER INTO A VEGETABLES CONTAINER THAT ALREADY EXISTS, and never two lone cuts
+  // into one tub: a cut can be lone because it goes in at another moment (H7.1 1 — the
+  // later-step garlic never joins the onion), or because the recipe never says when.
+  // Piles on a plate keep them apart either way, under one lid named by its form. (The
+  // 54 lids a mango salsa and a chicken salad printed — three each — were this case.)
+  // H6.1's two vegetable containers of one dish keep their contents names: there the
+  // lid saying WHICH is Hans's own ruling.
+  /** Lids this block made, which name no food: the dressing line says the food instead. */
+  const madeLids = new Set<string>();
+  {
+    const made = new Map<string, string>();
+    const once = (key: string, base: string) => {
+      const have = made.get(key);
+      if (have) return have;
+      const n = uniqueName(base);
+      made.set(key, n);
+      madeLids.add(n);
+      return n;
+    };
+    const ownOf = (dishId: string, test: (c: Container) => boolean) =>
+      [...containers.values()].filter((c) => c.dishId === dishId && test(c));
+    const garnishedInProse = (dishId: string, name: string) =>
+      (stepTextByDishId.get(dishId) ?? [])
+        .flatMap((t) => t.split(/(?<=[.;])\s+/))
+        .some((s) => garnishesOf(s).some((g) => proseNames(g, name)));
+    type Lone = { k: string; p: Portion; label: string; kind: "juice" | "garnish" | "cut" };
+    const lone: Lone[] = [];
+    for (const [k, label] of tubLabel) {
+      if (sharedTubLabels.has(label)) continue;
+      const p = portions.get(k);
+      if (!p) continue;
+      const name = p.entry.ingredientName;
+      const notes = p.notes.join(" ");
+      // Citrus wedges are rule 7's: cook day, not a container. (An onion's wedges are a cut.)
+      if (CITRUS.test(name) && /\bwedges?\b/i.test(notes)) continue;
+      // A citrus juiced or zested by its note ("lemon", "juiced") is the juice too.
+      const kind = /\bjuice\b/i.test(name) || / zest and juice$/.test(label) || (CITRUS.test(name) && /\b(juic\w*|zest\w*)\b/i.test(notes))
+        ? "juice"
+        : TOPPING_NOTE.test(notes) || garnishedInProse(p.dishId, name) ? "garnish" : "cut";
+      lone.push({ k, p, label, kind });
+    }
+    const cutsPerDish = new Map<string, number>();
+    for (const l of lone) if (l.kind === "cut") cutsPerDish.set(l.p.dishId, (cutsPerDish.get(l.p.dishId) ?? 0) + 1);
+    for (const { k, p, kind } of lone) {
+      let dest: string;
+      if (kind === "juice") {
+        const jar = ownOf(p.dishId, (c) => c.cls === "A" && / sauce jar(?: \d+)?$/.test(c.name))[0];
+        dest = jar ? jar.name : once(`${p.dishId}|juice`, fitDishName(p.dishName, CITRUS.test(p.entry.ingredientName) ? " citrus jar" : " juice jar"));
+      } else if (kind === "garnish") {
+        const plate = containers.get(`${p.dishId}|plate|B`)?.name;
+        dest = plate ?? once(`${p.dishId}|plate`, fitDishName(p.dishName, /\b(toppings?|garnish(?:es)?|fixin'?s|fixings)\b/i.test(p.dishName) ? " plate" : " toppings plate"));
+      } else if (cutsPerDish.get(p.dishId) === 1 && ownOf(p.dishId, (c) => c.cls === "B").length === 0) {
+        const aromatic = GARLIC_LIKE.test(p.entry.ingredientName) || FRESH_HERB.test(p.entry.ingredientName);
+        dest = once(`${p.dishId}|veg`, fitDishName(p.dishName, aromatic ? " aromatics" : " vegetables"));
+      } else {
+        // Several lone cuts of one dish, or one beside a vegetables container it must not
+        // join: ONE plate, a separate pile each, so no two moments share a tub.
+        dest = once(`${p.dishId}|prep-plate`, fitDishName(p.dishName, " prep plate"));
+      }
+      tubLabel.set(k, dest);
+    }
+  }
+
   const destinationFor: DestinationResolver = (dishId, ingredientId) => {
     if (ingredientId === null) return undefined;
     const k = `${dishId}|${ingredientId}`;
@@ -1386,7 +1500,10 @@ export function buildStepPlan(
       .map((o) => o.name);
     for (const [k, p] of portions) {
       if (p.dishId === c.dishId && p.cls === "A" && p.entry.phase === "produce" && tubLabel.has(k)) {
-        partners.push(tubLabel.get(k)!);
+        // Part J.1c — a lid named by class ("Fresh Pico de Gallo juice jar") says no
+        // food, so the dressing line names the food: "Stir in the lime juice now".
+        const lid = tubLabel.get(k)!;
+        partners.push(madeLids.has(lid) ? p.entry.ingredientName : lid);
       }
     }
     if (partners.length > 0) containerExtras.set(c.name, { combineWith: dedupe(partners) });
@@ -1427,9 +1544,6 @@ export function buildStepPlan(
       forceDemote?: string,
     ): void => {
       number += 1;
-      // WS9 BUG-204 — the clock, computed from what the step holds. Done here so
-      // EVERY step gets one by construction and no branch can forget.
-      const timing = timeStep({ components: step.components, bowlName: step.bowlName }, yieldFor);
       // D-WS9-301 rule 12 — the action, for a whole-protein step.
       const knifeVerbs =
         key === "proteins" && !step.cookDaySentence
@@ -1446,6 +1560,10 @@ export function buildStepPlan(
                 .join(" "),
             )
           : [];
+      // WS9 BUG-204 — the clock, computed from what the step holds. Done here so
+      // EVERY step gets one by construction and no branch can forget. Part J.1c — after
+      // the verbs, because a protein is timed by the verb its title says.
+      const timing = timeStep({ components: step.components, bowlName: step.bowlName, verbs: knifeVerbs }, yieldFor);
       // D-WS9-297 ruling 13 — the LATEST cook day this step has to survive to.
       const lags = step.contributesToMealIds
         .map((id) => cookLagByMealId.get(id))
@@ -1713,7 +1831,7 @@ export function buildStepPlan(
         const dishNames = new Set(comps.flatMap((c) => c.measures.map((m) => m.forDish)));
         st.components = comps;
         st.relevantDishes = st.relevantDishes.filter((n) => dishNames.has(n));
-        const timing = timeStep({ components: st.components, bowlName: st.bowlName }, yieldFor);
+        const timing = timeStep({ components: st.components, bowlName: st.bowlName, verbs: st.knifeVerbs }, yieldFor);
         st.estimatedMinutes = timing.minutes;
         if (timing.overCap) st.minutesOverCap = true;
         else delete st.minutesOverCap;
@@ -1945,6 +2063,25 @@ const DRIED_CHILE =
   /\b(?:dried\s+(?:\w+\s+)?chil(?:e|es|i|is|ies)|(?:ancho|guajillo|chipotle|pasilla|mulato|cascabel|arbol|árbol)\s+chil(?:e|es|i|is|ies))\b(?!\s+(?:powder|flakes))/i;
 /** Fresh herbs, for naming a dish's unplaced aromatics "herbs" rather than "aromatics". */
 const FRESH_HERB = /\b(parsley|cilantro|basil|mint|dill|thyme|rosemary|sage|chives|tarragon|oregano)\b/i;
+/**
+ * Part J.1c — a recipe sentence that finishes a dish with something: "Sprinkle with the
+ * parsley", "Garnish with cilantro", "Top with the tomatoes". With the food named in the
+ * same sentence, that food is a garnish and goes on the plate. A herb alone is not:
+ * the tomatillo sauce's cilantro goes into the blender.
+ */
+const GARNISH_WITH = /\b(?:garnish\w*|sprinkl\w+|scatter\w*|top(?:ped|s)?|finish(?:ed|es)?|serve[ds]?)\b[^.;]*?\bwith\b([^.;]*)/gi;
+const GARNISH_OVER = /\b(?:sprinkl\w+|scatter\w*)\s+([^.;]*?)\s+(?:over|on top|across)\b/gi;
+/**
+ * The garnishes a sentence names — the words AFTER "with" in "Sprinkle with the
+ * parsley", "Top with the tomatoes", or the object of "Scatter the cilantro over".
+ * 🔴 NOT the thing garnished: "Sprinkle the asparagus with salt" garnishes nothing with
+ * asparagus, and reading the whole sentence put Hans's roasted asparagus on a plate.
+ */
+function garnishesOf(sentence: string): string[] {
+  return [...sentence.matchAll(GARNISH_WITH), ...sentence.matchAll(GARNISH_OVER)].map((m) => m[1]);
+}
+/** Part J.1c — the aromatics a lone lid is named for. */
+const GARLIC_LIKE = /\b(garlic|ginger|shallots?|lemongrass)\b/i;
 /** The recipe marinates: a stated soak, or overnight. */
 const MARINATES = /\b(marinat\w*|overnight|refrigerate for at least|let (?:it )?sit for)\b/i;
 /** An acidic marinade member. */
@@ -2168,6 +2305,8 @@ function totalOf(components: readonly PrepNarrationComponent[], named: boolean):
 export interface RenderedPortions {
   lines: string[];
   meta: { food: string; total: string; cuts: string[]; portionCount: number };
+  /** Part J.1c — the step's only portion, when it has exactly one (item 2). Never narration input. */
+  single?: { amount: string; dish: string; dest?: string };
 }
 
 /**
@@ -2224,28 +2363,53 @@ export function renderPortionLines(
     .map((x) => x.p);
   const showCut = cuts.filter((c) => c !== "").length > 1;
 
+  // 🔴 Part J.1c (BUG-355 item 1) — A DESTINATION IS NAMED ONCE, AT THE HEAD OF ITS
+  // LINE. "1 yellow onion finely diced for Tex-Mex Seasoned Ground Beef — same tub":
+  // Hans, "same tub as what?" — the label sat on a line the screen did not show beside
+  // it. Every portion into one container is now ONE line that opens on the container:
+  //   "Into one shared finely-diced-yellow-onion tub: 1 for the Texas-Style Beef Chili
+  //    · 1 for the Tex-Mex Seasoned Ground Beef"
+  // and the words "same tub" are never written.
   const build = (dishOf: (p: P) => string | null, plain = false): string[] => {
-    const seen = new Set<string>();
-    let prev: string | undefined;
-    return ordered.map((p) => {
-      // "4 cloves for Beef Chili", "½ white onion finely diced for Guacamole".
-      const head = plain ? p.amount : `${p.qty}${showCut && p.cut ? ` ${p.cut}` : ""}`;
+    const lines: string[] = [];
+    const byDest = new Map<string, P[]>();
+    for (const p of ordered) if (p.dest) byDest.set(p.dest, [...(byDest.get(p.dest) ?? []), p]);
+    const done = new Set<string>();
+    for (const p of ordered) {
       const phrase = p.dest ? destinationPhrase(p.dest, labelKinds.get(p.dest)) : null;
       // A dish's own tub already says "for the <Dish>" — the line does not repeat it.
-      const dish = phrase?.namesDish === p.dish ? null : dishOf(p);
-      const who = dish ? `${head} for ${dish}` : head;
+      // …and a lid that names the dish ("Taco Toppings plate", "Tacos juice jar") needs
+      // no "for the Tacos" after it. A shared tub lists its dishes, so it keeps them.
+      const lidSaysDish = (q: P) => !!p.dest && labelKinds.get(p.dest) !== "shared" && p.dest.split(" — ")[0].includes(q.dish);
+      const dishFor = (q: P) => (phrase?.namesDish === q.dish || lidSaysDish(q) ? null : dishOf(q));
       if (!p.dest || !phrase) {
-        prev = undefined;
-        return who;
+        // "4 cloves for Beef Chili", "½ white onion finely diced for Guacamole".
+        const head = plain ? p.amount : `${p.qty}${showCut && p.cut ? ` ${p.cut}` : ""}`;
+        const dish = dishFor(p);
+        lines.push(dish ? `${head} for ${dish}` : head);
+        continue;
       }
-      const { first, noun } = phrase;
-      const where = !seen.has(p.dest)
-        ? first
-        : prev === p.dest ? `same ${noun}` : `the same ${noun} as above`;
-      seen.add(p.dest);
-      prev = p.dest;
-      return `${who} — ${where}`;
-    });
+      if (done.has(p.dest)) continue;
+      done.add(p.dest);
+      const group = byDest.get(p.dest)!;
+      if (group.length === 1) {
+        const head = plain ? p.amount : `${p.qty}${showCut && p.cut ? ` ${p.cut}` : ""}`;
+        const dish = dishFor(p);
+        lines.push(`${dish ? `${head} for ${dish}` : head} — ${phrase.first}`);
+        continue;
+      }
+      // A shared tub's name already says the food, so each portion is its amount;
+      // a dish's own container takes the food too when the step has more than one.
+      const shared = labelKinds.get(p.dest) === "shared";
+      const parts = group.map((q) => {
+        const head = shared || plain ? `${q.amount}${showCut && q.cut && !shared ? ` ${q.cut}` : ""}` : `${q.qty}${showCut && q.cut ? ` ${q.cut}` : ""}`;
+        const dish = dishFor(q);
+        return dish ? `${head} for the ${dish}` : head;
+      });
+      const into = shared ? phrase.first.replace(/^into the shared /, "Into one shared ") : upperFirst(phrase.first);
+      lines.push(`${into}: ${parts.join(" · ")}`);
+    }
+    return lines;
   };
   const fits = (ls: string[]) => ls.join("\n").length <= budget;
   // A short dish name only where it stays unique in this step: "Citrus-Braised
@@ -2284,7 +2448,65 @@ export function renderPortionLines(
       cuts: showCut ? cuts.filter((c) => c !== "") : [],
       portionCount: portions.length,
     },
+    ...(portions.length === 1
+      ? { single: { amount: portions[0].amount, dish: portions[0].dish, ...(portions[0].dest ? { dest: portions[0].dest } : {}) } }
+      : {}),
   };
+}
+
+/**
+ * The quantities a sentence states: "Slice 3 celery stalks into ½-inch pieces" → ["3"].
+ * A dimension, a temperature or a time is not a quantity of the food.
+ */
+function statedQuantities(s: string): string[] {
+  const out: string[] = [];
+  const re = /(\d+(?:\.\d+)?[¼½¾⅓⅔⅛⅜⅝⅞]?|[¼½¾⅓⅔⅛⅜⅝⅞])(?![\d¼½¾⅓⅔⅛⅜⅝⅞])(?!\s*-?\s*(?:inch|in\b|cm|mm|"|°|degrees?|minutes?|mins?\b|hours?|hrs?\b|seconds?|x\b))/g;
+  for (const m of s.matchAll(re)) out.push(m[1]);
+  return out;
+}
+
+/**
+ * 🔴 Part J.1c (BUG-355 items 2 and 5) — A PORTION STEP'S TEXT: the narrator's opening
+ * over the code's lines, and ONE sentence when there is one portion.
+ *
+ * "Slice 3 celery stalks into ½-inch pieces." then "3 celery stalks for Slow-Cooker
+ * Chicken and Dumplings — into the … vegetables container": Hans, "it says what to do
+ * twice". One destination is one sentence: "Slice 3 celery stalks into ½-inch pieces
+ * for the Slow-Cooker Chicken vegetables container." Lines appear with two or more.
+ *
+ * The fold drops the code's line, so the opening's number becomes the only one on the
+ * screen — and D-WS9-301 makes quantities the code's. So the fold happens only when the
+ * opening states exactly the code's number for that portion (no other quantity, and
+ * not none); otherwise the code's line stays under it, as before.
+ */
+export function composePortionStep(
+  opening: string,
+  components: PlannedStep["components"],
+  labelKinds: ReadonlyMap<string, LabelKind> = new Map(),
+  /**
+   * False on the CACHED text (assembly): the blob keeps the narrator's opening over the
+   * code's lines, so `finishPrepWeek` — which folds on every read — reads the opening
+   * back from line one. Folding twice printed the lid twice.
+   */
+  fold = true,
+): string {
+  const r = renderPortionLines({ components }, labelKinds, 800 - opening.length - 1);
+  if (!r || r.lines.length === 0) return opening;
+  const one = r.single;
+  if (one && fold) {
+    const said = statedQuantities(opening);
+    const want = statedQuantities(one.amount)[0];
+    if (want !== undefined && said.length > 0 && said.every((q) => q === want)) {
+      const body = opening.replace(/[.\s]+$/, "");
+      if (!one.dest) return `${body}.`;
+      const phrase = destinationPhrase(one.dest, labelKinds.get(one.dest));
+      // "for the Taco Toppings plate"; a dish's own dash-named tub keeps "into", so
+      // "for the … tub for the Dish" never doubles.
+      const where = phrase.namesDish ? `, ${phrase.first}` : ` ${phrase.first.replace(/^into /, "for ")}`;
+      return `${body}${where}.`;
+    }
+  }
+  return `${opening}\n${r.lines.join("\n")}`;
 }
 
 /**
@@ -2313,11 +2535,11 @@ export function engineTitle(st: PlannedStep): string {
   const cap = (t: string) => `${t.charAt(0).toUpperCase()}${t.slice(1)}`;
   const names = dedupe(st.components.map((c) => c.ingredientName));
   const food = listOf(names);
-  if (st.bowlName) return `${st.phase === "sauces_marinades" ? "Finish" : "Measure"} the ${st.bowlName}`.slice(0, 120);
-  if (st.phase === "proteins") return `${cap(st.knifeVerbs?.[0] ?? "prep")} the ${food}`.slice(0, 120);
+  if (st.bowlName) return wholeWords(`${st.phase === "sauces_marinades" ? "Finish" : "Measure"} the ${st.bowlName}`, 120, "");
+  if (st.phase === "proteins") return wholeWords(`${cap(st.knifeVerbs?.[0] ?? "prep")} the ${food}`, 120, "");
   const cuts = dedupe(st.components.flatMap((c) => c.measures.map((m) => cutOf([m.preparationNote ?? c.preparationNote ?? ""]) ?? "")));
   const verb = cuts.length === 1 && cuts[0] ? CUT_TITLE_VERB.find(([re]) => re.test(cuts[0]))?.[1] : undefined;
-  return `${verb ?? "Prep"} the ${food}`.slice(0, 120);
+  return wholeWords(`${verb ?? "Prep"} the ${food}`, 120, "");
 }
 const CUT_TITLE_VERB: ReadonlyArray<[RegExp, string]> = [
   [/minced/, "Mince"], [/diced/, "Dice"], [/chopped/, "Chop"], [/sliced/, "Slice"], [/shredded/, "Shred"],
@@ -2596,11 +2818,7 @@ export function assemblePrepWeekResult(
       // re-rendered for the room the real opening leaves (the plan-time lines
       // assumed the longest opening allowed).
       instructions: planned.portionLines
-        ? (() => {
-            const opening = openingSentence(prose.instructions);
-            const lines = renderPortionLines(planned, plan.labelKinds, 800 - opening.length - 1)?.lines ?? planned.portionLines;
-            return `${opening}\n${lines.join("\n")}`;
-          })()
+        ? composePortionStep(openingSentence(prose.instructions), planned.components, plan.labelKinds ?? new Map(), false)
         : prose.instructions, // AI
       estimatedMinutes: planned.estimatedMinutes, // CODE (BUG-204 — prepStepMinutes.ts)
       contributesToMealIds: planned.contributesToMealIds, // CODE — never from prose

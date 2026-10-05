@@ -107,10 +107,36 @@ describe("BUG-204 — the table's arithmetic", () => {
   it("meat: cubing costs more per lb than portioning", () => {
     const cube = timeStep({ components: [comp("beef chuck", "cut into ¾-inch cubes", "2 lb")] });
     const portion = timeStep({ components: [comp("chicken thighs", null, "2 lb")] });
-    assert.equal(cube.minutes, 8);
-    assert.equal(portion.minutes, 6);
+    // Part J.1c — home-cook rates: 2.5/lb to cube, 1.5/lb to divide a pack.
+    assert.equal(cube.minutes, 5);
+    assert.equal(portion.minutes, 3);
     assert.equal(cube.rows[0].action, "meat-cube");
     assert.equal(portion.rows[0].action, "meat-portion");
+  });
+
+  it("🔴 J.1c (BUG-355 item 4) — Hans's anchor: pound 2½ lb breasts + trim 1¾ lb thighs + cube 2 lb chuck ≈ 12 minutes", () => {
+    // October 4, on his own plan: these three read 22 minutes; "that's like 12 minutes
+    // ish". The steps' own verbs (rule 12) pick the rate — the breasts' note never says
+    // "pound", so the old table charged them as a 3/lb portion.
+    const pound = timeStep({ components: [comp("boneless skinless chicken breasts", null, "2½ lb")], verbs: ["pound"] });
+    const trim = timeStep({ components: [comp("boneless skinless chicken thighs", null, "1¾ lb")], verbs: ["trim"] });
+    const cube = timeStep({ components: [comp("beef chuck", "cut into ¾-inch cubes, trimmed of excess fat", "2 lb")], verbs: ["cube", "trim"] });
+    // Each charged at its own verb's rate — the trim as a trim, not as a portion.
+    assert.equal(trim.rows[0].minutes, 1.75 * MINUTES.meatTrimPerLb);
+    assert.equal(pound.rows[0].minutes, 2.5 * MINUTES.meatPoundPerLb);
+    const raw = pound.rows[0].minutes + trim.rows[0].minutes + cube.rows[0].minutes;
+    assert.ok(raw >= 11 && raw <= 13, `raw ${raw}`);
+    const shown = pound.minutes + trim.minutes + cube.minutes;
+    assert.ok(shown >= 12 && shown <= 13, `shown ${shown} (each step rounds up to a whole minute)`);
+  });
+
+  it("J.1c — the slowest verb wins, and with no verb the note decides", () => {
+    const both = timeStep({ components: [comp("beef chuck", null, "2 lb")], verbs: ["cube", "trim"] });
+    const trimOnly = timeStep({ components: [comp("beef chuck", null, "2 lb")], verbs: ["trim"] });
+    assert.equal(both.rows[0].minutes, 2 * MINUTES.meatCubePerLb, "cube and trim is a cube");
+    assert.equal(trimOnly.rows[0].minutes, 2 * MINUTES.meatTrimPerLb);
+    const noteOnly = timeStep({ components: [comp("beef chuck", "cut into cubes", "2 lb")] });
+    assert.equal(noteOnly.rows[0].minutes, 2 * MINUTES.meatCubePerLb);
   });
 
   it("🔴 a container is never worth less than a minute, and never zero", () => {
@@ -134,13 +160,13 @@ describe("BUG-204 — the table's arithmetic", () => {
 
 describe("BUG-204 — the cap reports, it does not hide", () => {
   it("🔴 anything over 15 minutes is a CLASSIFICATION ERROR and says so", () => {
-    // 10 lb of chuck at 4 min/lb is 40 minutes. No prep step is 40 minutes; a
+    // 10 lb of chuck at 2.5 min/lb (J.1c) is 25 minutes. No prep step is 25 minutes; a
     // number that size means a quantity or a unit was read wrong, and the cap
     // keeps one bad row from poisoning the header.
     const t = timeStep({ components: [comp("beef chuck", "cut into cubes", "10 lb")] });
     assert.equal(t.minutes, MINUTES.stepCap);
     assert.equal(t.overCap, true);
-    assert.equal(t.rawMinutes, 40);
+    assert.equal(t.rawMinutes, 25);
   });
 
   it("a step inside the cap does not raise the flag", () => {

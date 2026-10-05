@@ -277,7 +277,11 @@ describe("H6.1-B — every portion names a container", () => {
     // own portion" and "no destination container needed" on the sample plan. Hans,
     // October 2: a cut portion that joins nothing gets a container named
     // `<Dish> — <item, cut>`. The NO-WORK floor stays (next describe block).
-    assert.equal(t.components[0].measures[0].destination, "Tomatillo Sauce — halved fresh tomatillos");
+    // 🔴 J.1c (BUG-355 item 3) — and the lid is named by CLASS, not by its contents: a
+    // contents name is a shared tub's alone. The dish's ONE lone cut, with no vegetables
+    // container of its own yet, is "<dish> vegetables". (Two lone cuts of one dish go
+    // in at two moments and keep lids that say which — the next test.)
+    assert.equal(t.components[0].measures[0].destination, "Tomatillo Sauce vegetables");
   });
 
   /** Two unclaimed portions of ONE dish, at the same kind of work. */
@@ -345,7 +349,9 @@ describe("H6.1-B — every portion names a container", () => {
       );
     assert.deepEqual(
       [...dests(twoLonePortions())].sort(),
-      ["Tomatillo Sauce — halved fresh tomatillos", "Tomatillo Sauce — halved poblano pepper"],
+      // J.1c (BUG-355 item 3) — one plate, a separate pile each: apart, as two lids kept
+      // them, under one lid named by its form instead of its contents.
+      ["Tomatillo Sauce prep plate"],
     );
     // …and with it (the broil step names both), they share ONE.
     const onTheTray = twoLonePortions();
@@ -392,8 +398,9 @@ describe("H6.2 follow-up — a member that goes in LATER leaves the bowl", () =>
         .flatMap((c) => c.measures.map((m) => m.destination))[0];
     assert.equal(dest("fresh tomatillos"), "Roasted Tomatillo Sauce vegetables");
     assert.equal(dest("poblano pepper"), "Roasted Tomatillo Sauce vegetables");
-    // …and the cilantro is not on it. H7 2a — alone, it gets its own labelled lid.
-    assert.equal(dest("fresh cilantro"), "Roasted Tomatillo Sauce — chopped fresh cilantro");
+    // …and the cilantro is not on it. H7 2a — alone, it gets its own labelled lid; J.1c,
+    // beside a tray it must not join, a pile on the dish's prep plate.
+    assert.equal(dest("fresh cilantro"), "Roasted Tomatillo Sauce prep plate");
   });
 });
 

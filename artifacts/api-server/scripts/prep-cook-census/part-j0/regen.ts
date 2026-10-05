@@ -81,7 +81,7 @@ function render(code: string, planId: string, status: number, body: { result?: P
 
 async function main() {
   const rows = PLAN
-    ? [{ code: PLAN === FORBIDDEN_PLAN ? "HANS-e55a9305" : PLAN.slice(0, 8), planId: PLAN }]
+    ? [{ code: PLAN === FORBIDDEN_PLAN ? "HANS-e55a9305" : ALLOW_HANS ? `HANS-${PLAN.slice(0, 8)}` : PLAN.slice(0, 8), planId: PLAN }]
     : (await loadCorpus(prisma)).filter((r) => ONLY.length === 0 || ONLY.includes(r.code));
   const app = express();
   app.use(express.json());
@@ -96,7 +96,11 @@ async function main() {
     for (const row of rows) {
       if (row.planId === FORBIDDEN_PLAN && !ALLOW_HANS) throw new Error("REFUSING e55a9305 without --allow-hans");
       const owner = await realPrisma.mealPlanInstance.findUniqueOrThrow({ where: { id: row.planId }, select: { userId: true } });
-      if (owner.userId !== TEST_USER_ID && row.planId !== FORBIDDEN_PLAN) throw new Error(`REFUSING ${row.planId}`);
+      // Part J.1c — `--allow-hans` admits a plan on Hans's own account only when it is
+      // named with --plan (J.1c regenerates his newest, f49f5209, as the prompt asks).
+      const hans = (await realPrisma.mealPlanInstance.findUniqueOrThrow({ where: { id: FORBIDDEN_PLAN }, select: { userId: true } })).userId;
+      const hansNamed = ALLOW_HANS && PLAN === row.planId && owner.userId === hans;
+      if (owner.userId !== TEST_USER_ID && row.planId !== FORBIDDEN_PLAN && !hansNamed) throw new Error(`REFUSING ${row.planId}`);
       const token = signToken(owner.userId);
       if (spent >= BUDGET) { console.error(`BUDGET STOP $${spent.toFixed(3)}`); break; }
       allowed.add(row.planId);

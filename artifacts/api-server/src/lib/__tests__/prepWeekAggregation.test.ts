@@ -20,6 +20,12 @@ import {
 } from "../prepWeekAggregation";
 
 const USER_ID = "user-prep-week-test";
+/**
+ * Part J.1c — "today" for the cook-day tests, pinned. They read a plan starting Sunday
+ * 2026-10-04 and took today from the clock, so on the 5th the prep day moved to the
+ * 5th and every lag shrank by one: a date bomb, not a regression.
+ */
+const FIXTURE_NOW = new Date("2026-10-04T12:00:00.000Z");
 const OTHER_USER_ID = "user-prep-week-other";
 
 interface IngredientFixture {
@@ -619,8 +625,8 @@ describe("loadPrepWeekInput — cook days ride beside the hashed input (D-WS9-29
     // was reading the date and calling it the day.
     const sunday = dated("2026-10-05T00:00:00.000Z", "Sunday");
     const friday = dated("2026-10-09T00:00:00.000Z", "Friday");
-    const a = await loadPrepWeekInput({ planId: PLAN_ID, userId: USER_ID, prisma: makePrismaStub([sunday]) });
-    const b = await loadPrepWeekInput({ planId: PLAN_ID, userId: USER_ID, prisma: makePrismaStub([friday]) });
+    const a = await loadPrepWeekInput({ planId: PLAN_ID, userId: USER_ID, now: FIXTURE_NOW, prisma: makePrismaStub([sunday]) });
+    const b = await loadPrepWeekInput({ planId: PLAN_ID, userId: USER_ID, now: FIXTURE_NOW, prisma: makePrismaStub([friday]) });
     assert.equal(a.cookDays.prepDay, "2026-10-04");
     assert.equal(a.cookDays.lagByMealId.get(MEAL_A), 0);
     assert.equal(b.cookDays.lagByMealId.get(MEAL_A), 5);
@@ -645,11 +651,11 @@ describe("loadPrepWeekInput — cook days ride beside the hashed input (D-WS9-29
 
     // Same stale date on both; only the NAME differs. The lag must follow.
     const asWed = await loadPrepWeekInput({
-      planId: PLAN_ID, userId: USER_ID,
+      planId: PLAN_ID, userId: USER_ID, now: FIXTURE_NOW,
       prisma: makePrismaStub([withDate("Wednesday", "2026-10-05T00:00:00.000Z")]),
     });
     const asSat = await loadPrepWeekInput({
-      planId: PLAN_ID, userId: USER_ID,
+      planId: PLAN_ID, userId: USER_ID, now: FIXTURE_NOW,
       prisma: makePrismaStub([withDate("Saturday", "2026-10-05T00:00:00.000Z")]),
     });
     assert.equal(asWed.cookDays.lagByMealId.get(MEAL_A), 3, "Wednesday is 3 days after Sunday");
@@ -658,15 +664,15 @@ describe("loadPrepWeekInput — cook days ride beside the hashed input (D-WS9-29
     // …and the same name with WILDLY different dates gives the same lag, which
     // is the statement that `assignedDate` is no longer read at all.
     const dateA = await loadPrepWeekInput({
-      planId: PLAN_ID, userId: USER_ID,
+      planId: PLAN_ID, userId: USER_ID, now: FIXTURE_NOW,
       prisma: makePrismaStub([withDate("Friday", "2026-10-09T00:00:00.000Z")]),
     });
     const dateB = await loadPrepWeekInput({
-      planId: PLAN_ID, userId: USER_ID,
+      planId: PLAN_ID, userId: USER_ID, now: FIXTURE_NOW,
       prisma: makePrismaStub([withDate("Friday", "2027-03-02T00:00:00.000Z")]),
     });
     const noDate = await loadPrepWeekInput({
-      planId: PLAN_ID, userId: USER_ID,
+      planId: PLAN_ID, userId: USER_ID, now: FIXTURE_NOW,
       prisma: makePrismaStub([withDate("Friday", null)]),
     });
     assert.equal(dateA.cookDays.lagByMealId.get(MEAL_A), 5);

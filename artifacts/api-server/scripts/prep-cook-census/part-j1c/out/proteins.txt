@@ -1,0 +1,62 @@
+E-1e41fc0c      6 →  4 min  verbs=cut into strips  1½ lb beef sirloin steak [thinly sliced against the grain into strips]  rows=meat-cube:3.75
+E-1e41fc0c      3 →  2 min  verbs=skin  1 rotisserie chicken [skin removed, meat shredded — about 3 cups]  rows=meat-cube:1.50
+E-1e41fc0c      6 →  4 min  verbs=cube  1½ lb boneless skinless chicken breasts [cut into ¾-inch cubes]  rows=meat-cube:3.75
+E-b4aa6fee      6 →  4 min  verbs=cut into strips  1½ lb boneless skinless chicken thighs [cut into 1/2-inch strips]  rows=meat-cube:3.75
+E-b4aa6fee      6 →  3 min  verbs=portion  1½ lb salmon fillets [skin-on, cut into 4 portions]  rows=meat-cube:2.25
+E-1cf373bc     11 →  6 min  verbs=-  1½ lb+2 lb boneless skinless chicken breasts [thinly sliced against the grain]  rows=meat-portion:5.25
+E-1cf373bc      8 →  5 min  verbs=cube  2 lb beef chuck [cut into 3/4-inch cubes]  rows=meat-cube:5.00
+A01             8 →  5 min  verbs=cube  2 lb beef chuck [cut into 3/4-inch cubes]  rows=meat-cube:5.00
+A01             6 →  4 min  verbs=cut into strips  1½ lb cod fillets [cut into 1-inch strips]  rows=meat-cube:3.75
+A01            12 →  6 min  verbs=-  4 lb whole chicken [patted completely dry with paper towels]  rows=meat-portion:6.00
+A01             6 →  3 min  verbs=portion  1½ lb salmon fillets [skin-on, cut into 4 portions]  rows=meat-cube:2.25
+A01             7 →  5 min  verbs=cut into strips  1¾ lb boneless skinless chicken breasts [sliced into 1/2-inch strips against the grain]  rows=meat-cube:4.38
+A02            15 → 15 min  verbs=-  1½ lb+2 lb+1¾ lb+2 lb boneless skinless chicken thighs [cut into 2-inch pieces]  rows=meat-cube:18.13  OVERCAP
+A02             5 →  3 min  verbs=-  1½ lb large shrimp, peeled and deveined [patted dry]  rows=meat-portion:2.25
+A02             1 →  1 min  verbs=-  14 oz andouille sausage [sliced into ½-inch rounds]  rows=measure:0.50
+A03             8 →  4 min  verbs=-  ¾ lb+1¾ lb boneless skinless chicken breasts [cooked and shredded]  rows=meat-portion:3.75
+A04             5 →  3 min  verbs=-  1½ lb large shrimp, peeled and deveined [patted dry]  rows=meat-portion:2.25
+A04             6 →  4 min  verbs=cut into strips  1½ lb pork tenderloin [thinly sliced into strips]  rows=meat-cube:3.75
+A05             8 →  5 min  verbs=trim  2½ lb beef brisket flat [trimmed to 1/4-inch fat cap]  rows=meat-cube:5.00
+A05             3 →  2 min  verbs=trim  4 lamb shanks [bone-in, trimmed of excess fat]  rows=meat-cube:2.00
+A05             6 →  4 min  verbs=trim  1¾ lb boneless skinless chicken thighs [trimmed]  rows=meat-cube:3.50
+A05             5 →  3 min  verbs=-  24 oz salmon fillets [four 6-oz fillets, patted dry]  rows=meat-portion:2.25
+A06             9 →  6 min  verbs=trim  3 lb beef chuck roast [trimmed of excess fat, patted dry]  rows=meat-cube:6.00
+A06             8 →  4 min  verbs=trim  2 lb boneless pork shoulder [trimmed of excess fat, cut into 3-inch chunks]  rows=meat-cube:4.00
+A06             5 →  3 min  verbs=pound  1½ lb boneless skinless chicken breasts [pounded to even thickness]  rows=meat-cube:2.25
+A06             8 →  5 min  verbs=cube  2 lb beef chuck [cut into 1½-inch cubes, patted dry]  rows=meat-cube:5.00
+A07            14 →  9 min  verbs=cut into strips  2 lb+1½ lb boneless skinless chicken thighs [sliced into ½-inch strips]  rows=meat-cube:8.75
+A07             6 →  4 min  verbs=trim  1¾ lb skirt steak [trimmed of excess fat]  rows=meat-cube:3.50
+A08             3 →  2 min  verbs=skin  3 cup rotisserie chicken, meat shredded [skin removed, meat pulled into bite-sized pieces]  rows=meat-cube:1.50
+A08             3 →  2 min  verbs=-  1+1 rotisserie chicken [meat pulled and roughly chopped, skin discarded]  rows=meat-portion:1.50
+A09             9 →  5 min  verbs=-  3 lb bone-in chicken thighs [patted dry]  rows=meat-portion:4.50
+A09             8 →  5 min  verbs=-  2 lb boneless skinless chicken thighs [cut into 1½-inch pieces]  rows=meat-cube:5.00
+A09             1 →  1 min  verbs=cube  28 oz extra-firm tofu [pressed and cut into 1-inch cubes]  rows=measure:0.50
+A10             1 →  1 min  verbs=-  4 oz thick-cut bacon [cut into lardons]  rows=measure:0.50
+A11             1 →  1 min  verbs=-  8 oz lump crab meat [picked over for shells]  rows=measure:0.50
+A11             1 →  1 min  verbs=-  8 oz+12 oz andouille sausage [sliced into ¼-inch rounds]  rows=measure:0.50
+A11            10 →  7 min  verbs=-  2½ lb bone-in chicken thighs [cut into large pieces]  rows=meat-cube:6.25
+A12            12 →  6 min  verbs=-  4 lb whole chicken [backbone removed, spatchcocked]  rows=meat-portion:6.00
+A12             3 →  2 min  verbs=-  8 bone-in chicken thighs [patted dry]  rows=meat-portion:1.50
+A12             3 →  2 min  verbs=-  8 chicken drumsticks [pat dry with paper towels]  rows=meat-portion:1.50
+A13             5 →  3 min  verbs=trim  1½ lb skirt steak [trimmed of excess fat]  rows=meat-cube:3.00
+A13            15 → 12 min  verbs=-  2 lb+2½ lb boneless pork shoulder [cut into 2-inch chunks]  rows=meat-cube:11.25
+A13             5 →  3 min  verbs=-  24 oz tilapia fillets [patted dry]  rows=meat-portion:2.25
+A14            15 → 15 min  verbs=-  2 lb+2 lb+1¾ lb boneless skinless chicken thighs [cut into 1½-inch pieces]  rows=meat-cube:14.38
+A15             8 →  5 min  verbs=-  2 lb boneless pork shoulder [cut into 3-inch chunks]  rows=meat-cube:5.00
+A15            15 → 12 min  verbs=trim  3 lb+3 lb bone-in pork shoulder (Boston butt) [excess fat trimmed to 1/4 inch]  rows=meat-cube:12.00
+A16             5 →  3 min  verbs=-  1½ lb large shrimp, peeled and deveined [tails removed, patted dry]  rows=meat-portion:2.25
+A16             5 →  3 min  verbs=portion  24 oz salmon fillets [four 6-oz portions, patted dry]  rows=meat-cube:2.25
+A17            12 →  8 min  verbs=trim  2 lb+1¾ lb boneless skinless chicken thighs [trimmed of excess fat]  rows=meat-cube:7.50
+A18             9 →  6 min  verbs=trim  3 lb beef chuck roast [trimmed of excess fat, patted dry]  rows=meat-cube:6.00
+A18             6 →  3 min  verbs=pound  2 lb boneless skinless chicken breasts [halved horizontally into 4 cutlets and pounded to ½-inch thickness]  rows=meat-cube:3.00
+A19            15 →  8 min  verbs=-  4 whole chicken halves (bone-in) [about 1.5 lb each, patted dry]; 4 lb whole chicken halves (bone-in) [backbone removed, spatchcocked and patted dry]  rows=meat-portion:1.50,meat-portion:6.00
+A19             5 →  3 min  verbs=-  1½ lb large shrimp, peeled and deveined [patted dry]  rows=meat-portion:2.25
+A20            13 →  9 min  verbs=cut into strips  1¾ lb+1½ lb boneless skinless chicken breasts [sliced into ½-inch strips]  rows=meat-cube:8.13
+A21             8 →  5 min  verbs=-  2 lb beef chuck roast [cut into 2-inch chunks]  rows=meat-cube:5.00
+A21            15 →  8 min  verbs=-  2½ lb+2½ lb bone-in chicken thighs  rows=meat-portion:7.50
+A21             9 →  5 min  verbs=-  1½ lb+1½ lb boneless skinless chicken breasts  rows=meat-portion:4.50
+HANS-e55a9305   8 →  4 min  verbs=pound  2½ lb boneless skinless chicken breasts [pounded to even thickness (~¾ inch)]  rows=meat-cube:3.75
+HANS-e55a9305   6 →  4 min  verbs=trim  1¾ lb boneless skinless chicken thighs [trimmed of excess fat]  rows=meat-cube:3.50
+HANS-e55a9305   8 →  5 min  verbs=cube+trim  2 lb beef chuck [cut into ¾-inch cubes, trimmed of excess fat]  rows=meat-cube:5.00
+HANS-f49f5209   6 →  4 min  verbs=-  1½ lb beef sirloin steak [sliced thin against the grain into 2-inch strips]  rows=meat-cube:3.75
+HANS-f49f5209   3 →  2 min  verbs=-  4 bone-in pork chops [about 3/4 inch thick, ~7 oz each]  rows=meat-portion:1.50

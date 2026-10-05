@@ -381,7 +381,8 @@ describe("J.1 §2 — the smaller defects", () => {
     }]));
     const limeSteps = b.stepPlan.steps.filter((s) => s.components.some((c) => /lime/.test(c.ingredientName)));
     assert.equal(limeSteps.length, 1, "one step for the lime");
-    assert.deepEqual([...new Set([...destinations(b, "lime"), ...destinations(b, "lime juice")])], ["Shrimp Tacos — lime zest and juice"]);
+    // J.1c (BUG-355 item 3) — one tub still, named by class: the dish's juice jar.
+    assert.deepEqual([...new Set([...destinations(b, "lime"), ...destinations(b, "lime juice")])], ["Shrimp Tacos citrus jar"]);
   });
 
   it("no raw `<Dish> — <contents>` label inside a sentence; the label stays the container's name", () => {
@@ -393,11 +394,12 @@ describe("J.1 §2 — the smaller defects", () => {
       ],
     }])));
     const jal = allSteps(r).find((s) => s.instructions.includes("jalapeño") && !s.skipSuggested)!;
-    assert.ok(jal.containerNames?.includes("Jalapeño Cheddar Cornbread — diced jalapeño"), "the label is still the container's name");
+    // J.1c (BUG-355 item 3) — the cornbread's lone jalapeño takes its class lid, not "— diced jalapeño".
+    assert.ok(jal.containerNames?.includes("Jalapeño Cheddar Cornbread vegetables"), "the label is still the container's name");
     for (const line of jal.instructions.split("\n").slice(1)) {
       assert.equal(line.split(" — ").length, 2, `a raw label inside a sentence: ${line}`);
     }
-    assert.match(jal.instructions, /into the diced-jalapeño tub for the Jalapeño Cheddar Cornbread/);
+    assert.match(jal.instructions, /into the Jalapeño Cheddar Cornbread vegetables container/);
   });
 
   it("J.1b — a long cook-day line fits by naming briefly, never by cutting a word", () => {
@@ -494,8 +496,8 @@ describe("J.1 §2 — the smaller defects", () => {
         { ingredientName: "green onions", measures: [{ amount: "4", forDish: "Tacos", dishRole: "main", destination: "Tacos toppings plate", qty: 4, unit: "each" }] },
       ],
     })!;
-    assert.match(r.lines[0], /^2 tbsp fresh cilantro /);
-    assert.match(r.lines[1], /^4 green onions /);
+    // J.1c — both piles go on one plate, so they are one line that opens on it.
+    assert.equal(r.lines[0], "Into the Tacos toppings plate: 2 tbsp fresh cilantro · 4 green onions");
   });
 
   it(

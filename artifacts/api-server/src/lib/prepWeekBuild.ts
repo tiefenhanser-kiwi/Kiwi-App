@@ -33,8 +33,8 @@ import { cutOf } from "./prepClasses";
 import {
   buildStepPlan,
   componentTotals,
+  composePortionStep,
   openingSentence,
-  renderPortionLines,
   storageClosesByStepKey,
   type PlannedStep,
   type StepPlan,
@@ -492,10 +492,9 @@ export function finishPrepWeek(result: PrepWeekResult, build: PrepWeekBuild): Pr
         const opening = h
           ? dropHeldCuts(retotal(openingSentence(w.instructions), planned.components, components), planned.components, components)
           : openingSentence(w.instructions);
-        const lines = renderPortionLines({ components }, build.stepPlan.labelKinds, 800 - opening.length - 1)?.lines ?? [];
         out = {
           ...out,
-          instructions: lines.length > 0 ? `${opening}\n${lines.join("\n")}` : opening,
+          instructions: composePortionStep(opening, components, build.stepPlan.labelKinds ?? new Map()),
           ...(h ? { contributesToMealIds: h.keptMealIds } : {}),
         };
       }

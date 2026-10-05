@@ -1,0 +1,601 @@
+[
+  {
+    "code": "E-1e41fc0c",
+    "planId": "1e41fc0c-7294-4bd3-a14a-302e44bbcd7c",
+    "containers": 16,
+    "minutes": 75,
+    "stepMinutes": 64,
+    "byPhase": {
+      "seasonings_dry": 8,
+      "produce": 41,
+      "sauces_marinades": 0,
+      "proteins": 15
+    },
+    "proteinSteps": [
+      "T — Beef Stroganoff Noodle Skillet 6",
+      "T — Chicken Caesar Salad 3",
+      "T — White Chicken Chili Mac 6"
+    ],
+    "heldLines": 1,
+    "sameTub": 2,
+    "twice": 5,
+    "portionSteps": 10,
+    "singleDishContentLids": 5,
+    "maxContainerName": 85
+  },
+  {
+    "code": "E-b4aa6fee",
+    "planId": "b4aa6fee-70b1-4990-a596-05087ac904c5",
+    "containers": 22,
+    "minutes": 110,
+    "stepMinutes": 97,
+    "byPhase": {
+      "seasonings_dry": 8,
+      "produce": 70,
+      "sauces_marinades": 7,
+      "proteins": 12
+    },
+    "proteinSteps": [
+      "T — Sheet-Pan Chicken Fajitas 6",
+      "T — Teriyaki Salmon 6"
+    ],
+    "heldLines": 2,
+    "sameTub": 2,
+    "twice": 12,
+    "portionSteps": 19,
+    "singleDishContentLids": 6,
+    "maxContainerName": 71
+  },
+  {
+    "code": "E-b5263268",
+    "planId": "b5263268-64c7-41ff-a8f2-20c01a2b905e",
+    "containers": 16,
+    "minutes": 95,
+    "stepMinutes": 82,
+    "byPhase": {
+      "seasonings_dry": 11,
+      "produce": 61,
+      "sauces_marinades": 10,
+      "proteins": 0
+    },
+    "proteinSteps": [],
+    "heldLines": 2,
+    "sameTub": 4,
+    "twice": 9,
+    "portionSteps": 14,
+    "singleDishContentLids": 3,
+    "maxContainerName": 109
+  },
+  {
+    "code": "E-1cf373bc",
+    "planId": "1cf373bc-a2cb-4469-90ef-bb87d0327343",
+    "containers": 27,
+    "minutes": 115,
+    "stepMinutes": 103,
+    "byPhase": {
+      "seasonings_dry": 12,
+      "produce": 68,
+      "sauces_marinades": 4,
+      "proteins": 19
+    },
+    "proteinSteps": [
+      "T — Sheet-Pan Chicken Fajitas, Lemon-Herb Baked Chicken Breast 11",
+      "T — Texas-Style Beef Chili 8"
+    ],
+    "heldLines": 4,
+    "sameTub": 1,
+    "twice": 6,
+    "portionSteps": 16,
+    "singleDishContentLids": 14,
+    "maxContainerName": 100
+  },
+  {
+    "code": "A01",
+    "planId": "873796cd-4e7e-4a4a-bdfe-28a802f295d7",
+    "containers": 30,
+    "minutes": 130,
+    "stepMinutes": 115,
+    "byPhase": {
+      "seasonings_dry": 17,
+      "produce": 74,
+      "sauces_marinades": 10,
+      "proteins": 14
+    },
+    "proteinSteps": [
+      "T — Texas-Style Beef Chili 8",
+      "T — Beer-Battered Cod Fish Tacos 6"
+    ],
+    "heldLines": 5,
+    "sameTub": 3,
+    "twice": 9,
+    "portionSteps": 13,
+    "singleDishContentLids": 9,
+    "maxContainerName": 69
+  },
+  {
+    "code": "A02",
+    "planId": "c97aefe1-a3d2-4f4c-b959-ffd7ba58066a",
+    "containers": 35,
+    "minutes": 130,
+    "stepMinutes": 116,
+    "byPhase": {
+      "seasonings_dry": 22,
+      "produce": 71,
+      "sauces_marinades": 2,
+      "proteins": 21
+    },
+    "proteinSteps": [
+      "T — Slow-Cooker Chicken and Dumplings 15",
+      "T — Blackened Shrimp 5",
+      "T — Cajun Andouille Sausage and Rice 1"
+    ],
+    "heldLines": 4,
+    "sameTub": 2,
+    "twice": 9,
+    "portionSteps": 17,
+    "singleDishContentLids": 11,
+    "maxContainerName": 120
+  },
+  {
+    "code": "A03",
+    "planId": "53abd5b6-156d-490e-b1db-6bc04626c027",
+    "containers": 5,
+    "minutes": 25,
+    "stepMinutes": 19,
+    "byPhase": {
+      "seasonings_dry": 2,
+      "produce": 9,
+      "sauces_marinades": 0,
+      "proteins": 8
+    },
+    "proteinSteps": [
+      "T — Classic BBQ Chicken Pizza with Red Onion and Cilantro 8"
+    ],
+    "heldLines": 1,
+    "sameTub": 1,
+    "twice": 3,
+    "portionSteps": 4,
+    "singleDishContentLids": 2,
+    "maxContainerName": 112
+  },
+  {
+    "code": "A04",
+    "planId": "7f206a48-f9ca-46c3-b4ba-94c35a320da2",
+    "containers": 11,
+    "minutes": 50,
+    "stepMinutes": 43,
+    "byPhase": {
+      "seasonings_dry": 2,
+      "produce": 27,
+      "sauces_marinades": 9,
+      "proteins": 5
+    },
+    "proteinSteps": [
+      "T — Baja Chili-Lime Shrimp Tacos 5"
+    ],
+    "heldLines": 2,
+    "sameTub": 1,
+    "twice": 4,
+    "portionSteps": 6,
+    "singleDishContentLids": 2,
+    "maxContainerName": 58
+  },
+  {
+    "code": "A05",
+    "planId": "04a25763-bd01-4103-ba11-d5420ca0e6d8",
+    "containers": 17,
+    "minutes": 60,
+    "stepMinutes": 52,
+    "byPhase": {
+      "seasonings_dry": 8,
+      "produce": 42,
+      "sauces_marinades": 2,
+      "proteins": 0
+    },
+    "proteinSteps": [],
+    "heldLines": 4,
+    "sameTub": 3,
+    "twice": 4,
+    "portionSteps": 8,
+    "singleDishContentLids": 4,
+    "maxContainerName": 70
+  },
+  {
+    "code": "A06",
+    "planId": "da372b54-d561-4e06-b653-5a5aea933ef0",
+    "containers": 22,
+    "minutes": 85,
+    "stepMinutes": 73,
+    "byPhase": {
+      "seasonings_dry": 13,
+      "produce": 32,
+      "sauces_marinades": 11,
+      "proteins": 17
+    },
+    "proteinSteps": [
+      "T — Tomato and Onion Slow-Cooker Pot Roast 9",
+      "T — Pulled Pork Sliders 8"
+    ],
+    "heldLines": 4,
+    "sameTub": 0,
+    "twice": 7,
+    "portionSteps": 10,
+    "singleDishContentLids": 10,
+    "maxContainerName": 87
+  },
+  {
+    "code": "A07",
+    "planId": "fb328120-721e-47f3-b21c-dce1aba27939",
+    "containers": 26,
+    "minutes": 115,
+    "stepMinutes": 100,
+    "byPhase": {
+      "seasonings_dry": 13,
+      "produce": 60,
+      "sauces_marinades": 13,
+      "proteins": 14
+    },
+    "proteinSteps": [
+      "T — Sheet-Pan Spiced Chicken Thighs with Peppers and Onions 14"
+    ],
+    "heldLines": 5,
+    "sameTub": 1,
+    "twice": 12,
+    "portionSteps": 16,
+    "singleDishContentLids": 9,
+    "maxContainerName": 79
+  },
+  {
+    "code": "A08",
+    "planId": "27a03273-6732-4ad0-a6a6-7b76ee5eea7e",
+    "containers": 12,
+    "minutes": 40,
+    "stepMinutes": 32,
+    "byPhase": {
+      "seasonings_dry": 2,
+      "produce": 21,
+      "sauces_marinades": 6,
+      "proteins": 3
+    },
+    "proteinSteps": [
+      "T — Tortilla Soup 3"
+    ],
+    "heldLines": 3,
+    "sameTub": 0,
+    "twice": 6,
+    "portionSteps": 8,
+    "singleDishContentLids": 5,
+    "maxContainerName": 60
+  },
+  {
+    "code": "A09",
+    "planId": "f0c56d0c-7182-428b-86d5-230689438919",
+    "containers": 12,
+    "minutes": 80,
+    "stepMinutes": 71,
+    "byPhase": {
+      "seasonings_dry": 9,
+      "produce": 44,
+      "sauces_marinades": 9,
+      "proteins": 9
+    },
+    "proteinSteps": [
+      "T — Sticky Honey Garlic Chicken Thighs 9"
+    ],
+    "heldLines": 3,
+    "sameTub": 1,
+    "twice": 5,
+    "portionSteps": 9,
+    "singleDishContentLids": 3,
+    "maxContainerName": 82
+  },
+  {
+    "code": "A10",
+    "planId": "3f9d46e8-b078-4bd4-b479-9f93cb8c76cd",
+    "containers": 15,
+    "minutes": 50,
+    "stepMinutes": 44,
+    "byPhase": {
+      "seasonings_dry": 13,
+      "produce": 30,
+      "sauces_marinades": 0,
+      "proteins": 1
+    },
+    "proteinSteps": [
+      "T — Slow-Braised Collard Greens with Bacon 1"
+    ],
+    "heldLines": 1,
+    "sameTub": 1,
+    "twice": 4,
+    "portionSteps": 7,
+    "singleDishContentLids": 6,
+    "maxContainerName": 111
+  },
+  {
+    "code": "A11",
+    "planId": "33ddbb13-7f30-418f-ab5b-c547484d4461",
+    "containers": 18,
+    "minutes": 75,
+    "stepMinutes": 65,
+    "byPhase": {
+      "seasonings_dry": 16,
+      "produce": 44,
+      "sauces_marinades": 3,
+      "proteins": 2
+    },
+    "proteinSteps": [
+      "T — Shrimp and Crab Jambalaya 1",
+      "T — Shrimp and Crab Jambalaya 1"
+    ],
+    "heldLines": 3,
+    "sameTub": 1,
+    "twice": 8,
+    "portionSteps": 12,
+    "singleDishContentLids": 7,
+    "maxContainerName": 108
+  },
+  {
+    "code": "A12",
+    "planId": "b12a194c-ba07-4e30-ba35-71ae1442a87e",
+    "containers": 19,
+    "minutes": 65,
+    "stepMinutes": 55,
+    "byPhase": {
+      "seasonings_dry": 9,
+      "produce": 32,
+      "sauces_marinades": 2,
+      "proteins": 12
+    },
+    "proteinSteps": [
+      "T — Spatchcocked Roast Chicken with Smoked Paprika 12"
+    ],
+    "heldLines": 4,
+    "sameTub": 5,
+    "twice": 3,
+    "portionSteps": 8,
+    "singleDishContentLids": 6,
+    "maxContainerName": 102
+  },
+  {
+    "code": "A13",
+    "planId": "bd8aa8c2-bff4-42cf-84b8-ff24fbf3793d",
+    "containers": 28,
+    "minutes": 135,
+    "stepMinutes": 119,
+    "byPhase": {
+      "seasonings_dry": 10,
+      "produce": 77,
+      "sauces_marinades": 12,
+      "proteins": 20
+    },
+    "proteinSteps": [
+      "T — Smoky Chipotle Carne Asada 5",
+      "T — Citrus-Braised Pork Carnitas 15"
+    ],
+    "heldLines": 3,
+    "sameTub": 2,
+    "twice": 5,
+    "portionSteps": 13,
+    "singleDishContentLids": 8,
+    "maxContainerName": 99
+  },
+  {
+    "code": "A14",
+    "planId": "11623bcd-bc82-4aa4-ad88-80aaa075b19a",
+    "containers": 20,
+    "minutes": 85,
+    "stepMinutes": 75,
+    "byPhase": {
+      "seasonings_dry": 16,
+      "produce": 44,
+      "sauces_marinades": 0,
+      "proteins": 15
+    },
+    "proteinSteps": [
+      "T — Chicken Tikka Masala 15"
+    ],
+    "heldLines": 3,
+    "sameTub": 4,
+    "twice": 4,
+    "portionSteps": 9,
+    "singleDishContentLids": 5,
+    "maxContainerName": 120
+  },
+  {
+    "code": "A15",
+    "planId": "2539d94d-80df-4f05-b62e-0d3d9167806a",
+    "containers": 15,
+    "minutes": 65,
+    "stepMinutes": 55,
+    "byPhase": {
+      "seasonings_dry": 13,
+      "produce": 27,
+      "sauces_marinades": 7,
+      "proteins": 8
+    },
+    "proteinSteps": [
+      "T — Chipotle-Spiced Pulled Pork 8"
+    ],
+    "heldLines": 2,
+    "sameTub": 0,
+    "twice": 9,
+    "portionSteps": 11,
+    "singleDishContentLids": 4,
+    "maxContainerName": 59
+  },
+  {
+    "code": "A16",
+    "planId": "b0c8ffbd-b167-4265-8fb3-2782bc72092e",
+    "containers": 21,
+    "minutes": 85,
+    "stepMinutes": 73,
+    "byPhase": {
+      "seasonings_dry": 10,
+      "produce": 53,
+      "sauces_marinades": 5,
+      "proteins": 5
+    },
+    "proteinSteps": [
+      "T — Chili-Lime Sautéed Shrimp 5"
+    ],
+    "heldLines": 2,
+    "sameTub": 2,
+    "twice": 9,
+    "portionSteps": 15,
+    "singleDishContentLids": 8,
+    "maxContainerName": 101
+  },
+  {
+    "code": "A17",
+    "planId": "2730c4b1-7648-404a-a7bf-692fb89faa03",
+    "containers": 21,
+    "minutes": 65,
+    "stepMinutes": 55,
+    "byPhase": {
+      "seasonings_dry": 10,
+      "produce": 41,
+      "sauces_marinades": 4,
+      "proteins": 0
+    },
+    "proteinSteps": [],
+    "heldLines": 2,
+    "sameTub": 1,
+    "twice": 4,
+    "portionSteps": 10,
+    "singleDishContentLids": 7,
+    "maxContainerName": 94
+  },
+  {
+    "code": "A18",
+    "planId": "8a0de6e6-ec8a-453f-994a-6a973c5bcd32",
+    "containers": 18,
+    "minutes": 50,
+    "stepMinutes": 43,
+    "byPhase": {
+      "seasonings_dry": 4,
+      "produce": 30,
+      "sauces_marinades": 0,
+      "proteins": 9
+    },
+    "proteinSteps": [
+      "T — Red Wine and Herb Slow-Cooker Chuck Roast 9"
+    ],
+    "heldLines": 3,
+    "sameTub": 0,
+    "twice": 4,
+    "portionSteps": 9,
+    "singleDishContentLids": 9,
+    "maxContainerName": 98
+  },
+  {
+    "code": "A19",
+    "planId": "d26e6ae6-3dcd-42ce-9f77-b3962697fff5",
+    "containers": 17,
+    "minutes": 65,
+    "stepMinutes": 58,
+    "byPhase": {
+      "seasonings_dry": 11,
+      "produce": 28,
+      "sauces_marinades": 4,
+      "proteins": 15
+    },
+    "proteinSteps": [
+      "T — Classic Sauced BBQ Chicken Halves 15"
+    ],
+    "heldLines": 3,
+    "sameTub": 1,
+    "twice": 5,
+    "portionSteps": 10,
+    "singleDishContentLids": 7,
+    "maxContainerName": 86
+  },
+  {
+    "code": "A20",
+    "planId": "2faff60f-9a4e-4afb-897e-35422c5e8c34",
+    "containers": 13,
+    "minutes": 70,
+    "stepMinutes": 63,
+    "byPhase": {
+      "seasonings_dry": 10,
+      "produce": 47,
+      "sauces_marinades": 6,
+      "proteins": 0
+    },
+    "proteinSteps": [],
+    "heldLines": 3,
+    "sameTub": 0,
+    "twice": 4,
+    "portionSteps": 8,
+    "singleDishContentLids": 4,
+    "maxContainerName": 106
+  },
+  {
+    "code": "A21",
+    "planId": "297794a0-569d-4af8-9506-0fe4cc43999a",
+    "containers": 24,
+    "minutes": 100,
+    "stepMinutes": 90,
+    "byPhase": {
+      "seasonings_dry": 6,
+      "produce": 59,
+      "sauces_marinades": 2,
+      "proteins": 23
+    },
+    "proteinSteps": [
+      "T — Chipotle-Braised Beef 8",
+      "T — Salsa Verde Braised Chicken Thighs 15"
+    ],
+    "heldLines": 4,
+    "sameTub": 2,
+    "twice": 6,
+    "portionSteps": 11,
+    "singleDishContentLids": 8,
+    "maxContainerName": 110
+  },
+  {
+    "code": "HANS-e55a9305",
+    "planId": "e55a9305-2695-4c16-a25e-effcc03fc109",
+    "containers": 25,
+    "minutes": 110,
+    "stepMinutes": 97,
+    "byPhase": {
+      "seasonings_dry": 13,
+      "produce": 58,
+      "sauces_marinades": 4,
+      "proteins": 22
+    },
+    "proteinSteps": [
+      "T — Lemon-Herb Baked Chicken Breast 8",
+      "T — Slow-Cooker Chicken and Dumplings 6",
+      "T — Texas-Style Beef Chili 8"
+    ],
+    "heldLines": 1,
+    "sameTub": 3,
+    "twice": 7,
+    "portionSteps": 16,
+    "singleDishContentLids": 4,
+    "maxContainerName": 119
+  },
+  {
+    "code": "HANS-f49f5209",
+    "planId": "f49f5209-54c6-428b-a66e-a8b6ff9d2488",
+    "containers": 15,
+    "minutes": 55,
+    "stepMinutes": 46,
+    "byPhase": {
+      "seasonings_dry": 13,
+      "produce": 23,
+      "sauces_marinades": 4,
+      "proteins": 6
+    },
+    "proteinSteps": [
+      "T — Creamy Beef and Mushroom Stroganoff 6"
+    ],
+    "heldLines": 2,
+    "sameTub": 0,
+    "twice": 7,
+    "portionSteps": 8,
+    "singleDishContentLids": 7,
+    "maxContainerName": 64
+  }
+]

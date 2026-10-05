@@ -1,0 +1,41 @@
+[
+  {
+    "code": "A10",
+    "planId": "3f9d46e8-b078-4bd4-b479-9f93cb8c76cd",
+    "status": 200,
+    "reason": null,
+    "cacheHit": true,
+    "promptVersion": 21,
+    "containerCount": 15,
+    "estimatedMinutes": 50,
+    "maxInstructions": 254,
+    "calls": [],
+    "costUsd": 0
+  },
+  {
+    "code": "HANS-e55a9305",
+    "planId": "e55a9305-2695-4c16-a25e-effcc03fc109",
+    "status": 200,
+    "reason": null,
+    "cacheHit": true,
+    "promptVersion": 21,
+    "containerCount": 25,
+    "estimatedMinutes": 100,
+    "maxInstructions": 460,
+    "calls": [],
+    "costUsd": 0
+  },
+  {
+    "code": "HANS-f49f5209",
+    "planId": "f49f5209-54c6-428b-a66e-a8b6ff9d2488",
+    "status": 200,
+    "reason": null,
+    "cacheHit": true,
+    "promptVersion": 21,
+    "containerCount": 14,
+    "estimatedMinutes": 55,
+    "maxInstructions": 285,
+    "calls": [],
+    "costUsd": 0
+  }
+]

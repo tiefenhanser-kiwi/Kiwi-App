@@ -1,0 +1,77 @@
+[
+  {
+    "code": "A10",
+    "planId": "3f9d46e8-b078-4bd4-b479-9f93cb8c76cd",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 21,
+    "containerCount": 15,
+    "estimatedMinutes": 50,
+    "maxInstructions": 254,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 21,
+        "inputTokens": 16971,
+        "outputTokens": 2103,
+        "costEstimateUsd": "0.054972",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 12985
+      }
+    ],
+    "costUsd": 0.055
+  },
+  {
+    "code": "HANS-e55a9305",
+    "planId": "e55a9305-2695-4c16-a25e-effcc03fc109",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 21,
+    "containerCount": 25,
+    "estimatedMinutes": 100,
+    "maxInstructions": 460,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 21,
+        "inputTokens": 19659,
+        "outputTokens": 2129,
+        "costEstimateUsd": "0.060608",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 11104
+      }
+    ],
+    "costUsd": 0.0606
+  },
+  {
+    "code": "HANS-f49f5209",
+    "planId": "f49f5209-54c6-428b-a66e-a8b6ff9d2488",
+    "status": 200,
+    "reason": null,
+    "cacheHit": false,
+    "promptVersion": 21,
+    "containerCount": 14,
+    "estimatedMinutes": 55,
+    "maxInstructions": 285,
+    "calls": [
+      {
+        "model": "claude-sonnet-5-5",
+        "promptVersion": 21,
+        "inputTokens": 15624,
+        "outputTokens": 1714,
+        "costEstimateUsd": "0.048388",
+        "success": true,
+        "failureReason": null,
+        "retryCount": 0,
+        "latencyMs": 9160
+      }
+    ],
+    "costUsd": 0.0484
+  }
+]

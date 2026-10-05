@@ -259,7 +259,9 @@ describe("H7 2 — a serve-time step groups nothing", () => {
     const dest = (n: string) =>
       sp.steps.find((s) => s.components.some((c) => c.ingredientName === n))!.components[0].measures[0].destination;
     assert.ok(dest("tomatoes") && dest("basil"), "fixture: both are cut and labelled");
-    assert.notEqual(dest("tomatoes"), dest("basil"), "a table-side toss shared a container");
+    // J.1c — never MIXED in one tub. Two lone cuts of one dish may sit on its prep plate
+    // as separate piles (BUG-355 item 3), which keeps them apart as well as two lids did.
+    if (dest("tomatoes") === dest("basil")) assert.match(dest("tomatoes")!, / plate$/, "a table-side toss shared a tub");
   });
 });
 
@@ -289,7 +291,8 @@ describe("H7 3 (2a) — a lone cut portion gets a `<Dish> — <item>` container"
     const sp = buildStepPlan(combinePrep(input), "P");
     const jal = sp.steps.find((s) => s.components.some((c) => c.ingredientName === "jalapeño"));
     assert.ok(jal && !jal.demoted, "fixture: the jalapeño is prep");
-    assert.equal(jal!.components[0].measures[0].destination, "Jalapeño Cheddar Cornbread — finely diced jalapeño");
+    // J.1c (BUG-355 item 3) — one dish's lone cut takes the dish's class container, not a lid named after itself.
+    assert.equal(jal!.components[0].measures[0].destination, "Jalapeño Cheddar Cornbread vegetables");
     // The no-work floor (H6.2) still holds: three unpeeled cloves are not a line.
     assert.ok(!sp.steps.some((s) => !s.demoted && s.components.some((c) => c.ingredientName === "garlic")));
   });

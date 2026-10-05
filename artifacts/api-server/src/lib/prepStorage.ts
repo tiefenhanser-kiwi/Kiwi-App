@@ -724,16 +724,27 @@ export function closingNote(
   if (closes.length > 1 && alike.every((n) => n === alike[0])) {
     return finish(`${closes.length === 2 ? "Both containers" : `All ${closes.length} containers`}: ${alike[0]}`);
   }
+  if (closes.length === 1 && closes[0].own) return finish(notes[0]);
+  // The full name, so two containers of one dish ("Classic Chicken Noodle Soup —
+  // carrots and celery stalks" / "— yellow onion…") stay two. Only a long tub label
+  // is cut at its dash, where the list of dinners begins.
+  // Part J.1b — a dash label is said in words ("The lime-juice tub for the Fresh Pico
+  // de Gallo: covered in the fridge…"), never printed raw inside the sentence.
+  const labelOf = (c: (typeof closes)[number]) => c.spoken ?? (c.name.length <= 70 ? c.name : c.name.split(" — ")[0]);
+  // Part J.1c — two or more lids that keep DIFFERENTLY are each named, the step's own
+  // food's included: "Covered in the fridge — up to 6 days. Airtight in the fridge —
+  // up to 3 days." under a lemon step closing two citrus jars said neither which. Lids
+  // that keep ALIKE share one sentence ("A and B toppings plates: …"), or naming each
+  // pushed the line past 200 and the last lid's sentence was dropped.
+  const groups = new Map<string, number[]>();
+  for (const i of closes.keys()) groups.set(alike[i], [...(groups.get(alike[i]) ?? []), i]);
   const parts: string[] = [];
-  for (const [i, c] of closes.entries()) {
-    const note = notes[i];
-    // The full name, so two containers of one dish ("Classic Chicken Noodle Soup —
-    // carrots and celery stalks" / "— yellow onion…") stay two. Only a long tub label
-    // is cut at its dash, where the list of dinners begins.
-    // Part J.1b — a dash label is said in words ("The lime-juice tub for the Fresh Pico
-    // de Gallo: covered in the fridge…"), never printed raw inside the sentence.
-    const label = c.spoken ?? (c.name.length <= 70 ? c.name : c.name.split(" — ")[0]);
-    const line = c.own ? note : `${label}: ${c.spoken ? note.charAt(0).toLowerCase() + note.slice(1) : note}`;
+  for (const [shared, idx] of groups) {
+    const note = idx.length === 1 ? notes[idx[0]] : shared;
+    const labels = [...new Set(idx.map((i) => labelOf(closes[i])))];
+    const who = labels.length === 1 ? labels[0] : `${labels.slice(0, -1).join(", ")} and ${labels[labels.length - 1]}`;
+    const spoken = closes[idx[0]].spoken !== undefined;
+    const line = `${who}: ${spoken ? note.charAt(0).toLowerCase() + note.slice(1) : note}`;
     if (!parts.includes(line)) parts.push(line);
   }
   return finish(parts.join(" "));
