@@ -19,6 +19,8 @@ import {
   DOOR_UNLOCKS,
   GUEST_ACTIONS,
   THIN_SHELF_TITLE,
+  THIN_SHELF_TITLE_NATIVE,
+  thinShelfTitle,
   guestDoorActions,
   guestGuard,
   type GuestAction,
@@ -154,4 +156,18 @@ test("the native lines keep the door's rule: no price and no 'trial'", () => {
   const lines = `${DOOR_NATIVE_INTRO} ${DOOR_NATIVE_NOTE}`;
   assert.equal(/trial/i.test(lines), false);
   assert.equal(/\$|\bUSD\b|\bper month\b|\b\/mo\b/i.test(lines), false);
+});
+
+// ── Resub C2 §7 — the thin-shelf line IN the app ──────────────────────────
+
+test("🔴 the thin-shelf line: web keeps Hans's sentence; native says the library comes with an account", () => {
+  assert.equal(thinShelfTitle("web"), THIN_SHELF_TITLE);
+  for (const os of ["ios", "android"]) {
+    assert.equal(
+      thinShelfTitle(os),
+      "Access to the full Kiwi meal library and meals that meet unique dietary needs and preferences comes with an account — sign up here.",
+    );
+    assert.doesNotMatch(thinShelfTitle(os), /in the app/, os);
+  }
+  assert.equal(THIN_SHELF_TITLE_NATIVE, thinShelfTitle("ios"));
 });

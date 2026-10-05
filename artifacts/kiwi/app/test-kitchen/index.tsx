@@ -17,7 +17,7 @@
 // with a key set, the start waits for a token.
 
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 
@@ -43,6 +43,12 @@ export const TK_CAP_BODY =
   "The Test Kitchen has a daily limit per visitor. Create a free account and build as many plans as you like.";
 export const TK_DOWN_TITLE = "The Test Kitchen is closed right now";
 export const TK_DOWN_BODY = "Try again in a moment, or create a free account and start in the app.";
+/** Resub C2 — in the app, the reader is already in it. */
+export const TK_DOWN_BODY_NATIVE =
+  "Try again in a moment, or create a free account and start planning right here.";
+export function tkDownBody(platform: string): string {
+  return platform === "web" ? TK_DOWN_BODY : TK_DOWN_BODY_NATIVE;
+}
 export const TK_FAILED_TITLE = "Kiwi got distracted. Try again?";
 export const TK_RESUME_PLAN = "Pick up where you left off — see your plan";
 export const TK_RESUME_OPTIONS = "Pick up where you left off — see your plans";
@@ -122,7 +128,7 @@ function TestKitchenEntry() {
               {capped ? TK_CAP_TITLE : down ? TK_DOWN_TITLE : TK_FAILED_TITLE}
             </Text>
             <Text style={s.cardBody}>
-              {capped ? TK_CAP_BODY : down ? TK_DOWN_BODY : (error?.message ?? TK_DOWN_BODY)}
+              {capped ? TK_CAP_BODY : down ? tkDownBody(Platform.OS) : (error?.message ?? tkDownBody(Platform.OS))}
             </Text>
             <Button
               label="Create my free account"

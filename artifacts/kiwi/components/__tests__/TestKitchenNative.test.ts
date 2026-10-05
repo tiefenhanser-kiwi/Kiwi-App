@@ -27,7 +27,12 @@ import * as ExpoRouter from "expo-router";
 import { GuestProvider } from "../../contexts/GuestContext";
 import { clearGuestSession, storeGuestSession } from "../../lib/guest/guestToken";
 import { DOOR_NATIVE_INTRO, DOOR_PRIMARY } from "../../lib/guest/doors";
-import TestKitchenRoute, { TK_TITLE } from "../../app/test-kitchen/index";
+import TestKitchenRoute, {
+  TK_DOWN_BODY,
+  TK_DOWN_BODY_NATIVE,
+  TK_TITLE,
+  tkDownBody,
+} from "../../app/test-kitchen/index";
 import GuestOptionsRoute, { GUEST_OPTIONS_TITLE } from "../../app/test-kitchen/options";
 import GuestPlanRoute from "../../app/test-kitchen/plan";
 import GuestRecipeRoute from "../../app/test-kitchen/recipe";
@@ -228,4 +233,19 @@ test("all five plan doors open the door sheet, and its primary goes to sign-up",
     active = null;
     clearGuestSession();
   }
+});
+
+// ── Resub C2 §7 — the "closed" line IN the app ────────────────────────────
+
+test("🔴 the Test Kitchen 'closed' line: web says 'start in the app'; native says 'right here'", () => {
+  assert.equal(tkDownBody("web"), TK_DOWN_BODY);
+  assert.match(TK_DOWN_BODY, /start in the app/);
+  for (const os of ["ios", "android"]) {
+    assert.equal(
+      tkDownBody(os),
+      "Try again in a moment, or create a free account and start planning right here.",
+    );
+    assert.doesNotMatch(tkDownBody(os), /in the app/, os);
+  }
+  assert.equal(TK_DOWN_BODY_NATIVE, tkDownBody("android"));
 });
