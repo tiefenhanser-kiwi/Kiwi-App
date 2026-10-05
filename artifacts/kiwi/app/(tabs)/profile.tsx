@@ -3,6 +3,7 @@ import {
   Alert,
   Keyboard,
   Linking,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -16,13 +17,13 @@ import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { PasswordField } from "@/components/PasswordField";
+import { SubscriptionCardView } from "@/components/SubscriptionCardView";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBilling } from "@/contexts/BillingContext";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { ApiError } from "@/lib/api/errors";
-import { SETTINGS_ROW_TITLE } from "@/lib/billing/copy";
-import { settingsRowFor } from "@/lib/billing/subscriptionView";
+import { subscriptionCardFor } from "@/lib/billing/subscriptionView";
 import { PRIVACY_URL, TERMS_URL } from "@/lib/legal";
 
 type EditableField = "name" | "email" | "phone";
@@ -540,61 +541,33 @@ function EditableRow({
 }
 
 /**
- * Row 9 (1.1) · Stripe S2 Part E — Settings → Subscription (§2.8).
+ * Row 9 (1.1) · Stripe S2 Part E — Settings → Subscription (§2.8), and since
+ * Resub C2 the "Kiwi Premium" row and the manage action by source.
  *
- * A thin renderer. Which line, which buttons and whether the row exists at all are
- * `settingsRowFor`'s answers (lib/billing/subscriptionView.ts), tested over every
- * status × `billingAvailable` × `enforced` without a React tree — so the one thing
- * this component must not do is re-derive any of them.
- *
- * Both buttons are gated on `billingAvailable` inside that helper, because a button
- * whose only possible outcome is a 503 is worse than no button at all.
+ * A thin wrapper. What the card shows is `subscriptionCardFor`'s answer
+ * (lib/billing/subscriptionView.ts), tested over every source × platform without
+ * a React tree; components/SubscriptionCardView.tsx draws it.
  */
 function SubscriptionCard() {
-  const { subscription, openSheet, openPortal, linkError } = useBilling();
-  const row = settingsRowFor(subscription);
-  if (row === null) return null;
+  const { subscription, openSheet, openPortal, openManagement, linkError } = useBilling();
+  const card = subscriptionCardFor(Platform.OS, subscription, new Date());
+  if (card === null) return null;
 
   return (
-    <View style={s.card} testID="settings-subscription">
-      <View style={s.cardHeaderRow}>
-        <Text style={s.cardTitle}>{SETTINGS_ROW_TITLE}</Text>
-      </View>
-      <Text style={s.subscriptionHint} testID="settings-subscription-status">
-        {row.statusLine}
-      </Text>
-      {row.subscribe && (
-        <View style={s.subscriptionButton}>
-          <Button
-            label={row.subscribeLabel}
-            variant="primary"
-            size="sm"
-            onPress={() => openSheet()}
-            testID="settings-subscribe"
-          />
-        </View>
-      )}
-      {row.manage && (
-        <View style={s.subscriptionButton}>
-          <Button
-            label={row.manageLabel}
-            variant="ghost"
-            size="sm"
-            onPress={() => void openPortal()}
-            testID="settings-manage"
-          />
-        </View>
-      )}
-      {/* The Portal's 409 (`no_billing_account`) lands here rather than in an
-          Alert: the button was shown on a `hasBillingAccount` that has since gone
-          stale, and the honest response is a line plus a refetch, which
-          BillingContext has already fired. */}
-      {linkError !== null && (
-        <Text style={s.subscriptionError} testID="settings-subscription-error">
-          {linkError}
-        </Text>
-      )}
-    </View>
+    <SubscriptionCardView
+      card={card}
+      // The row's own state, explicitly: the trialing account the App Review
+      // team uses must reach the sheet even while `enforced` is off.
+      onOpenPremium={() => {
+        if (card.premium) openSheet(card.premium.sheet);
+      }}
+      onSubscribe={() => openSheet()}
+      onManage={(action) => {
+        if (action.kind === "store_link") openManagement(action.url);
+        else if (action.kind === "stripe_portal") void openPortal();
+      }}
+      linkError={linkError}
+    />
   );
 }
 
@@ -883,16 +856,6 @@ const s = StyleSheet.create({
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.sans[600],
     marginTop: 2,
-  },
-  subscriptionButton: {
-    marginTop: Spacing[2],
-  },
-  subscriptionError: {
-    fontSize: Typography.fontSize.sm,
-    color: Palette.text.danger,
-    fontFamily: Typography.face.sans[400],
-    marginTop: Spacing[2],
-    lineHeight: 18,
   },
   subscriptionHint: {
     fontSize: Typography.fontSize.sm,
