@@ -16,6 +16,7 @@ import { fetch as expoFetch } from "expo/fetch";
 import { apiBase } from "./base";
 import { readToken } from "../auth";
 import { emitSessionExpired } from "./auth-bridge";
+import { emitUpgradeRequired } from "./upgrade-bridge";
 import {
   ApiError,
   ApiNetworkError,
@@ -133,7 +134,14 @@ export async function streamWizardPlans(
         emitSessionExpired();
         throw new UnauthenticatedError(details);
       }
-      if (res.status === 402) throw new UpgradeRequiredError(details);
+      if (res.status === 402) {
+        // BUG-353 — this path does its own fetch, so apiClient's one 402 announce
+        // (§2.7) never ran and a refused generation opened no paywall. The server
+        // answers 402 as JSON BEFORE the stream starts (B1 pins that), so this
+        // is the only place a streamed 402 can be seen.
+        emitUpgradeRequired({ path: "/wizard/build-plans", body: rawBody });
+        throw new UpgradeRequiredError(details);
+      }
       throw new ApiError(
         userFacingMessage ?? `Stream failed (${res.status})`,
         details,

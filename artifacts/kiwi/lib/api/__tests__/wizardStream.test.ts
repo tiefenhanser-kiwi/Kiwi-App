@@ -12,6 +12,7 @@ import * as SecureStore from "expo-secure-store";
 
 import { streamWizardPlans } from "../wizardStream";
 import { ApiError, ApiNetworkError, UpgradeRequiredError } from "../errors";
+import { subscribeUpgradeEvents, type UpgradeRequiredEvent } from "../upgrade-bridge";
 import type { WizardPlanCandidate, WizardPreferencesInput } from "../../types";
 
 const TOKEN_KEY = "kiwi_authToken";
@@ -171,6 +172,31 @@ describe("streamWizardPlans", () => {
       }),
       (err: unknown) => err instanceof UpgradeRequiredError,
     );
+  });
+
+  // BUG-353 — the streamed generation threw UpgradeRequiredError but never told
+  // the upgrade bridge, so a 402 on the most-used paid action opened no paywall.
+  // apiClient announces every 402 (lib/api/client.ts); the stream is the one
+  // path that does its own fetch and so has to announce for itself.
+  it("🔴 a 402 before the stream announces on the upgrade bridge (BUG-353)", async () => {
+    const seen: UpgradeRequiredEvent[] = [];
+    const unsubscribe = subscribeUpgradeEvents((e) => {
+      seen.push(e);
+    });
+    try {
+      const body = { error: "Upgrade required", code: "subscription_required" };
+      await assert.rejects(
+        streamWizardPlans(INPUT, () => {}, {
+          fetchImpl: sseFetch([], { ok: false, status: 402, errorBody: body }) as never,
+        }),
+        (err: unknown) => err instanceof UpgradeRequiredError,
+      );
+      // The bridge dispatches in a microtask.
+      await new Promise<void>((r) => setTimeout(r, 0));
+      assert.deepEqual(seen, [{ path: "/wizard/build-plans", body }]);
+    } finally {
+      unsubscribe();
+    }
   });
 
   it("throws when the body is not streamable (platform without streaming)", async () => {
