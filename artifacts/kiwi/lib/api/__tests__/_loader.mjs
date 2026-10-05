@@ -19,6 +19,7 @@ import {
   ExpoCryptoStub,
   ExpoNotificationsStub,
   ExpoKeepAwakeStub,
+  RevenueCatStub,
 } from "./_stubs.mjs";
 
 // Inline-source stubs (don't import React; safe to ship as data-style modules
@@ -38,6 +39,8 @@ const STUBS = new Map([
   // Sept 29 design review, item 10 — Cook Mode's useKeepAwake. A no-op, not a
   // throw: see the note in _stubs.mjs.
   ["expo-keep-awake", ExpoKeepAwakeStub],
+  // Resub C2 — the store rail. lib/billing/store.ts injects a fake SDK.
+  ["react-native-purchases", RevenueCatStub],
 ]);
 
 // WS7-4-B c6 — physical stub files. These need real file URLs so the loader

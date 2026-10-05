@@ -43,7 +43,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { AppState, type AppStateStatus } from "react-native";
+import { AppState, Linking, Platform, type AppStateStatus } from "react-native";
 
 import { subscribeUpgradeEvents } from "@/lib/api/upgrade-bridge";
 import {
@@ -54,22 +54,43 @@ import {
 } from "@/lib/billing/awaitingCheckout";
 import {
   SUBSCRIPTION_QUERY_KEY,
+  billingRail,
   createCheckoutSession,
   createPortalSession,
   fetchSubscription,
   openBillingUrl,
+  syncStoreSubscription,
   type BillingPlan,
+  type SubscribedElsewhere,
 } from "@/lib/billing/api";
 import {
   CHECKOUT_ALREADY,
   CHECKOUT_FAILED,
   CHECKOUT_UNAVAILABLE,
+  MANAGE_OPEN_FAILED,
   PORTAL_NO_ACCOUNT,
+  SHEET_PURCHASE_FAILED,
+  SHEET_PURCHASE_PENDING,
+  SHEET_RESTORE_FAILED,
+  SHEET_RESTORE_NONE,
+  subscribedInStore,
 } from "@/lib/billing/copy";
 import { dismissBanner, loadDismissedBanners } from "@/lib/billing/dismissals";
 import {
+  loadStoreOffer,
+  purchaseStorePackage,
+  restoreStorePurchases,
+  storeKey,
+  syncStoreIdentity,
+  type StoreOfferView,
+} from "@/lib/billing/store";
+import { confirmStorePurchase } from "@/lib/billing/storeConfirm";
+import {
   bannerFor,
+  isPayingStatus,
+  manageActionFor,
   sheetStateFor,
+  storeBillingReady,
   type BannerKind,
   type BannerView,
   type SheetState,
@@ -110,7 +131,27 @@ export interface BillingContextValue {
    * and records the moment; a no-op otherwise. NEVER blocks and never throws.
    */
   fireUpsellMoment: (moment: UpsellMoment) => void;
+
+  // ── Resub C2 · the store rail (iOS / Android) ──────────────────────────
+  /** The current offering's packages, once loaded for an open sheet. */
+  storeOffer: StoreOfferView | null;
+  /** "unavailable" = no key, no RevenueCat on the server, or no offering: no buy buttons. */
+  storeOfferStatus: StoreOfferStatus;
+  /** What the store side of the sheet is doing. Buy buttons show only at "idle". */
+  storePhase: StorePhase;
+  /** A line for the sheet after a failed purchase / restore. Never for a cancel. */
+  storeMessage: string | null;
+  restorePurchases: () => Promise<void>;
+  /** "Check again" after a confirmation stalled — another store-sync, never a purchase. */
+  checkStoreAgain: () => Promise<void>;
+  /** Open a store subscription page (managementUrl / the store's own page). */
+  openManagement: (url: string) => void;
+  /** Web: the last 409 `subscribed_elsewhere`, for its "manage it there" link. */
+  elsewhere: SubscribedElsewhere | null;
 }
+
+export type StoreOfferStatus = "idle" | "loading" | "ready" | "unavailable";
+export type StorePhase = "idle" | "purchasing" | "restoring" | "confirming" | "stalled";
 
 const BillingContext = createContext<BillingContextValue | null>(null);
 
@@ -137,6 +178,31 @@ export function BillingProvider({ children }: { children: React.ReactNode }) {
   // Not state-derived: a guard against two taps landing in the same tick, each of
   // which can create a Stripe customer. State would give both closures `false`.
   const checkoutBusyRef = useRef(false);
+
+  // ── Resub C2 · the store rail ──────────────────────────────────────────
+  const rail = billingRail(Platform.OS);
+  const userId = user?.id ?? null;
+  const [storeOffer, setStoreOffer] = useState<StoreOfferView | null>(null);
+  const [storeOfferStatus, setStoreOfferStatus] = useState<StoreOfferStatus>("idle");
+  const [storePhase, setStorePhase] = useState<StorePhase>("idle");
+  const [storeMessage, setStoreMessage] = useState<string | null>(null);
+  const [elsewhere, setElsewhere] = useState<SubscribedElsewhere | null>(null);
+  // 🔴 THE ONE-PURCHASE LOCK, as a ref for the same reason as checkoutBusyRef:
+  // two taps in one tick must not both reach the store. Held from the tap until
+  // the purchase is CONFIRMED — through every store-sync retry — and while a
+  // confirmation is stalled, because the money is already taken then.
+  const storeLockRef = useRef(false);
+  const storeOfferRef = useRef<StoreOfferView | null>(null);
+  const userIdRef = useRef<string | null>(userId);
+  /** Whether the stalled confirmation was a purchase (must read as paying) or a restore. */
+  const pendingConfirmRef = useRef<{ expectPaying: boolean } | null>(null);
+
+  // RevenueCat's customer follows the Kiwi user: configure at the first signed-in
+  // user, logIn on every later one, logOut on sign-out. See lib/billing/store.ts.
+  useEffect(() => {
+    if (rail !== "store") return;
+    void syncStoreIdentity(userId);
+  }, [rail, userId]);
 
   // ── the query ──────────────────────────────────────────────────────────
   const enabled = !!user;
@@ -173,6 +239,8 @@ export function BillingProvider({ children }: { children: React.ReactNode }) {
     seenMomentsRef.current = seenMoments;
     dismissedRef.current = dismissed;
     bannerRef.current = banner;
+    storeOfferRef.current = storeOffer;
+    userIdRef.current = userId;
   });
 
   // ── the per-device sets, read once ─────────────────────────────────────
@@ -268,57 +336,200 @@ export function BillingProvider({ children }: { children: React.ReactNode }) {
 
   const closeSheet = useCallback(() => {
     setSheet(null);
+    // A message belongs to the sheet it was shown on. A confirmation in flight
+    // keeps running behind a closed sheet and lands in the query either way.
+    setStoreMessage(null);
     // §2.3 — refetch when the sheet is dismissed. The user may have paid in the
     // browser and come back to a sheet still showing the paywall.
     refetchRef.current();
   }, []);
 
-  // ── the link-outs ──────────────────────────────────────────────────────
+  // ── Resub C2 · the offering, loaded when the sheet opens on the store rail ──
+  const storeReady = storeBillingReady({
+    platform: Platform.OS,
+    keyPresent: storeKey() !== null,
+    sub: subscription,
+  });
+  const sheetOpen = sheet !== null;
+  useEffect(() => {
+    if (rail !== "store" || !sheetOpen) return;
+    if (!storeReady || userId === null) {
+      // No key on this build, no RevenueCat on the server, or nobody signed in:
+      // the sheet says purchases are unavailable and shows no buy button.
+      setStoreOfferStatus("unavailable");
+      return;
+    }
+    let cancelled = false;
+    setStoreOfferStatus("loading");
+    void (async () => {
+      await syncStoreIdentity(userId);
+      const offer = await loadStoreOffer();
+      if (cancelled) return;
+      setStoreOffer(offer);
+      setStoreOfferStatus(offer ? "ready" : "unavailable");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [rail, sheetOpen, storeReady, userId]);
 
-  const startCheckout = useCallback(async (plan: BillingPlan) => {
-    if (checkoutBusyRef.current) return;
-    checkoutBusyRef.current = true;
-    setCheckoutBusy(true);
-    setLinkError(null);
-    try {
-      const res = await createCheckoutSession(plan);
-      if (!res.success) {
-        if (res.error === "already_subscribed") {
-          // Not an error the user caused — a stale paywall, or a second device.
-          setLinkError(CHECKOUT_ALREADY);
-          setSheet(null);
-          refetchRef.current();
-        } else if (res.error === "billing_unavailable") {
-          setLinkError(CHECKOUT_UNAVAILABLE);
-        } else if (res.error !== "unauthenticated") {
-          // A 401 already fired the session cascade; the sign-in screen says it
-          // better than a line on a sheet that is about to unmount.
-          setLinkError(CHECKOUT_FAILED);
-        }
+  // ── the purchase, by rail ──────────────────────────────────────────────
+
+  /** A web 409 `subscribed_elsewhere`: say where it is managed, offer the link. */
+  const showElsewhere = useCallback((e: SubscribedElsewhere) => {
+    setElsewhere({ source: e.source, managementUrl: e.managementUrl });
+    setLinkError(subscribedInStore(e.source));
+    refetchRef.current();
+  }, []);
+
+  /**
+   * Store rail: hear from Kiwi that the store took the money (POST
+   * /billing/store-sync, retried with backoff — lib/billing/storeConfirm.ts).
+   * The one-purchase lock stays held until this confirms, and through a stall.
+   */
+  const confirmWithKiwi = useCallback(
+    async (expectPaying: boolean) => {
+      pendingConfirmRef.current = { expectPaying };
+      setStorePhase("confirming");
+      const outcome = await confirmStorePurchase({ sync: syncStoreSubscription, expectPaying });
+      if (outcome.kind === "stalled" || outcome.kind === "unavailable") {
+        // The money may be taken; Kiwi has not heard. "Check again", never "buy".
+        setStorePhase("stalled");
         return;
       }
-      // 🔴 STAMP BEFORE OPENING. On web `openBillingUrl` navigates away, and any
-      // state set after that call is set on a page that is already leaving.
-      setLaunchedAt(Date.now());
-      const opened = await openBillingUrl(res.url);
-      if (!opened) {
-        // A device with no browser. Nothing was launched, so nothing is pending.
-        setLaunchedAt(null);
-        setLinkError(CHECKOUT_FAILED);
+      pendingConfirmRef.current = null;
+      storeLockRef.current = false;
+      setStorePhase("idle");
+      if (outcome.kind === "unauthenticated") return;
+      // Refresh billing state from the answer itself — no second round trip.
+      queryClient.setQueryData(SUBSCRIPTION_QUERY_KEY, outcome.subscription);
+      if (isPayingStatus(outcome.subscription.status)) {
+        setSheet(null);
+      } else {
+        setStoreMessage(SHEET_RESTORE_NONE);
       }
-    } catch {
-      // createCheckoutSession does not throw for HTTP errors (envelope mode), so
-      // this is a programmer error or a torn-down module. The user still needs the
-      // button to stop spinning.
-      setLinkError(CHECKOUT_FAILED);
-    } finally {
-      checkoutBusyRef.current = false;
-      setCheckoutBusy(false);
+    },
+    [queryClient],
+  );
+
+  const startStorePurchase = useCallback(
+    async (plan: BillingPlan) => {
+      if (storeLockRef.current) return;
+      const pkg = storeOfferRef.current?.[plan] ?? null;
+      const uid = userIdRef.current;
+      if (pkg === null || uid === null) return;
+      storeLockRef.current = true;
+      setStorePhase("purchasing");
+      setStoreMessage(null);
+      const outcome = await purchaseStorePackage(pkg.pkg, uid);
+      if (outcome.kind !== "purchased") {
+        storeLockRef.current = false;
+        setStorePhase("idle");
+        // A cancel is the person changing their mind: say nothing at all.
+        if (outcome.kind === "pending") setStoreMessage(SHEET_PURCHASE_PENDING);
+        if (outcome.kind === "failed") setStoreMessage(SHEET_PURCHASE_FAILED);
+        return;
+      }
+      await confirmWithKiwi(true);
+    },
+    [confirmWithKiwi],
+  );
+
+  const restorePurchases = useCallback(async () => {
+    if (rail !== "store" || storeLockRef.current) return;
+    const uid = userIdRef.current;
+    if (uid === null) return;
+    storeLockRef.current = true;
+    setStorePhase("restoring");
+    setStoreMessage(null);
+    const outcome = await restoreStorePurchases(uid);
+    if (outcome.kind === "failed") {
+      storeLockRef.current = false;
+      setStorePhase("idle");
+      setStoreMessage(SHEET_RESTORE_FAILED);
+      return;
     }
+    // The store's answer is not the account's: Kiwi re-reads RevenueCat and
+    // says what is actually unlocked.
+    await confirmWithKiwi(false);
+  }, [rail, confirmWithKiwi]);
+
+  const checkStoreAgain = useCallback(async () => {
+    const pending = pendingConfirmRef.current;
+    if (pending === null) return;
+    await confirmWithKiwi(pending.expectPaying);
+  }, [confirmWithKiwi]);
+
+  const openManagement = useCallback((url: string) => {
+    setLinkError(null);
+    Linking.openURL(url).catch(() => setLinkError(MANAGE_OPEN_FAILED));
   }, []);
+
+  const startCheckout = useCallback(
+    async (plan: BillingPlan) => {
+      // 🔴 RESUB C2 — THE RAIL BRANCH. iOS and Android sell through the store and
+      // never reach a Stripe route or a Stripe URL (3.1.1).
+      if (rail === "store") {
+        await startStorePurchase(plan);
+        return;
+      }
+      if (checkoutBusyRef.current) return;
+      checkoutBusyRef.current = true;
+      setCheckoutBusy(true);
+      setLinkError(null);
+      setElsewhere(null);
+      try {
+        const res = await createCheckoutSession(plan);
+        if (!res.success) {
+          if (res.error === "already_subscribed") {
+            // Not an error the user caused — a stale paywall, or a second device.
+            setLinkError(CHECKOUT_ALREADY);
+            setSheet(null);
+            refetchRef.current();
+          } else if (res.error === "subscribed_elsewhere") {
+            // Paying through the App Store / Google Play: never sell a second one.
+            showElsewhere(res);
+          } else if (res.error === "billing_unavailable") {
+            setLinkError(CHECKOUT_UNAVAILABLE);
+          } else if (res.error !== "unauthenticated") {
+            // A 401 already fired the session cascade; the sign-in screen says it
+            // better than a line on a sheet that is about to unmount.
+            setLinkError(CHECKOUT_FAILED);
+          }
+          return;
+        }
+        // 🔴 STAMP BEFORE OPENING. On web `openBillingUrl` navigates away, and any
+        // state set after that call is set on a page that is already leaving.
+        setLaunchedAt(Date.now());
+        const opened = await openBillingUrl(res.url);
+        if (!opened) {
+          // Nothing was launched, so nothing is pending.
+          setLaunchedAt(null);
+          setLinkError(CHECKOUT_FAILED);
+        }
+      } catch {
+        // createCheckoutSession does not throw for HTTP errors (envelope mode), so
+        // this is a programmer error or a torn-down module. The user still needs the
+        // button to stop spinning.
+        setLinkError(CHECKOUT_FAILED);
+      } finally {
+        checkoutBusyRef.current = false;
+        setCheckoutBusy(false);
+      }
+    },
+    [rail, startStorePurchase, showElsewhere],
+  );
 
   const openPortal = useCallback(async () => {
     setLinkError(null);
+    if (rail === "store") {
+      // Resub C2 §3: a store subscription opens the store; a Stripe one is a
+      // sentence with no link; no source opens nothing. Never the Portal.
+      const action = manageActionFor(Platform.OS, subscriptionRef.current);
+      if (action?.kind === "store_link") openManagement(action.url);
+      return;
+    }
+    setElsewhere(null);
     const res = await createPortalSession();
     if (!res.success) {
       if (res.error === "no_billing_account") {
@@ -327,6 +538,8 @@ export function BillingProvider({ children }: { children: React.ReactNode }) {
         // button corrects itself.
         setLinkError(PORTAL_NO_ACCOUNT);
         refetchRef.current();
+      } else if (res.error === "subscribed_elsewhere") {
+        showElsewhere(res);
       } else if (res.error === "billing_unavailable") {
         setLinkError(CHECKOUT_UNAVAILABLE);
       } else if (res.error !== "unauthenticated") {
@@ -336,7 +549,7 @@ export function BillingProvider({ children }: { children: React.ReactNode }) {
     }
     const opened = await openBillingUrl(res.url);
     if (!opened) setLinkError(CHECKOUT_FAILED);
-  }, []);
+  }, [rail, openManagement, showElsewhere]);
 
   // ── the upsell moments (§2.5) ──────────────────────────────────────────
   const fireUpsellMoment = useCallback((moment: UpsellMoment) => {
@@ -394,6 +607,14 @@ export function BillingProvider({ children }: { children: React.ReactNode }) {
       checkoutBusy,
       refetch,
       fireUpsellMoment,
+      storeOffer,
+      storeOfferStatus,
+      storePhase,
+      storeMessage,
+      restorePurchases,
+      checkStoreAgain,
+      openManagement,
+      elsewhere,
     }),
     [
       subscription,
@@ -410,6 +631,14 @@ export function BillingProvider({ children }: { children: React.ReactNode }) {
       checkoutBusy,
       refetch,
       fireUpsellMoment,
+      storeOffer,
+      storeOfferStatus,
+      storePhase,
+      storeMessage,
+      restorePurchases,
+      checkStoreAgain,
+      openManagement,
+      elsewhere,
     ],
   );
 
@@ -445,4 +674,12 @@ const INERT: BillingContextValue = {
   checkoutBusy: false,
   refetch: () => {},
   fireUpsellMoment: () => {},
+  storeOffer: null,
+  storeOfferStatus: "idle",
+  storePhase: "idle",
+  storeMessage: null,
+  restorePurchases: NOOP_ASYNC,
+  checkStoreAgain: NOOP_ASYNC,
+  openManagement: () => {},
+  elsewhere: null,
 };

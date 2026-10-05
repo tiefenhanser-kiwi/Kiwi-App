@@ -58,21 +58,60 @@ export const SHEET_PRICE_MONTHLY = "$9.99 / month";
 export const SHEET_PRICE_ANNUAL = "$99.99 / year — 2 months free";
 export const SHEET_SECONDARY = "Not now";
 
-/**
- * The pay-early line, under the price buttons, TRIALING ONLY.
- *
- * Hidden entirely when `earlyPayBonusDays` is 0 — see
- * `subscriptionView.payEarlyLine`, which returns null there rather than letting
- * this function render "plus 0 more days free". The bonus is a Cloud Run env
- * var Hans can legitimately set to 0, so that is a real state, not a defensive
- * one.
- */
-export function sheetPayEarlyLine(
-  firstChargeDateIso: string,
-  earlyPayBonusDays: number,
-): string {
-  return `Subscribe now and your first charge is ${formatDate(firstChargeDateIso)} — the rest of your trial plus ${earlyPayBonusDays} more days free.`;
+// Resub C2 — the pay-early bonus is gone on every platform (Hans, October 4:
+// subscribing during the trial bills at purchase). Its line is gone with it; the
+// trialing sheet says the one true thing instead.
+export const SHEET_BILLING_STARTS_TODAY = "Subscribe now and billing starts today.";
+
+// ── the in-app purchase sheet, iOS and Android (Resub C2) ───────────────
+//
+// Apple 3.1.1: a subscription must be buyable in the app, through the store.
+// Apple 3.1.2: the sheet itself carries what the subscription includes, its
+// price per period, how renewal and cancellation work, and the Terms / Privacy
+// links. Web keeps Stripe and none of these strings.
+
+export const SHEET_INCLUDES_HEADING = "Kiwi Premium includes";
+
+/** One package button: the store's localized price and its period. */
+export function storePriceLabel(priceString: string, period: "month" | "year"): string {
+  return `${priceString} / ${period}`;
 }
+
+/** The price-per-period line of the 3.1.2 terms. Either price may be missing. */
+export function storeTermsPrices(monthly: string | null, annual: string | null): string {
+  if (monthly && annual) {
+    return `Kiwi Premium is a subscription: ${monthly} per month or ${annual} per year.`;
+  }
+  if (monthly) return `Kiwi Premium is a subscription: ${monthly} per month.`;
+  if (annual) return `Kiwi Premium is a subscription: ${annual} per year.`;
+  return "Kiwi Premium is a subscription.";
+}
+
+/** The renewal paragraph of the 3.1.2 terms, with the store named per platform. */
+export function storeTermsPayment(store: "apple" | "google"): string {
+  const account = store === "apple" ? "Apple ID" : "Google Play account";
+  const settings = store === "apple" ? "App Store" : "Google Play";
+  return `Payment is charged to your ${account} at confirmation. The subscription renews automatically unless cancelled at least 24 hours before the end of the current period. Manage or cancel any time in your ${settings} settings.`;
+}
+
+export const SHEET_TERMS_LINK = "Terms of Use";
+export const SHEET_PRIVACY_LINK = "Privacy Policy";
+export const SHEET_RESTORE = "Restore Purchases";
+export const SHEET_LOADING_PRICES = "Loading prices…";
+/** No key on this build, no RevenueCat on the server, or no offering. No buy buttons. */
+export const SHEET_STORE_UNAVAILABLE =
+  "Purchases aren't available right now. Please try again later.";
+/** Between the store's receipt and Kiwi's store-sync answer. No buy buttons. */
+export const SHEET_CONFIRMING = "Purchase received — confirming it with Kiwi…";
+/** store-sync kept failing. The money is taken; the next step is a retry, never a re-buy. */
+export const SHEET_CONFIRM_STALLED =
+  "Your purchase went through, but Kiwi hasn't confirmed it yet. Check again in a moment.";
+export const SHEET_CONFIRM_RETRY = "Check again";
+export const SHEET_PURCHASE_FAILED = "The purchase didn't go through. Please try again.";
+export const SHEET_PURCHASE_PENDING =
+  "Your purchase is waiting for approval. Kiwi Premium turns on as soon as it's approved.";
+export const SHEET_RESTORE_NONE = "There's no Kiwi Premium purchase to restore on this account.";
+export const SHEET_RESTORE_FAILED = "Couldn't restore purchases. Please try again.";
 
 // ── the checkout return, which proves nothing (§2.3) ─────────────────────
 //
@@ -85,8 +124,9 @@ export const SHEET_CHECK_AGAIN = "I've paid — check again";
 
 // ── the Home banners (§2.4) ─────────────────────────────────────────────
 
-export function bannerTrialEnding(daysLeft: number, earlyPayBonusDays: number): string {
-  return `${daysLeft} days left in your trial — subscribe now and get ${earlyPayBonusDays} extra days free.`;
+// Resub C2 — no bonus clause. It would have printed "get 0 extra days free".
+export function bannerTrialEnding(daysLeft: number): string {
+  return `${daysLeft} ${daysLeft === 1 ? "day" : "days"} left in your trial — subscribe to keep planning with Kiwi.`;
 }
 export const BANNER_TRIAL_CTA = "Subscribe";
 
@@ -134,6 +174,37 @@ export const SETTINGS_PAST_DUE = "Payment problem";
 export const SETTINGS_TRIAL_ENDED = "Trial ended";
 export const SETTINGS_SUBSCRIBE = "Subscribe";
 export const SETTINGS_MANAGE = "Manage subscription";
+
+// ── Resub C2 · Profile → Kiwi Premium, and managing by source ────────────
+
+/** The row the App Review account can reach during its trial (§2). */
+export const PREMIUM_ROW_TITLE = "Kiwi Premium";
+export function premiumTrialDaysLeft(daysLeft: number): string {
+  return `${daysLeft} ${daysLeft === 1 ? "day" : "days"} left in your free trial`;
+}
+/** A trial with no end date to count to (see trialDaysLeft). */
+export const PREMIUM_TRIAL_OPEN = "You're on your free trial";
+export const PREMIUM_TRIAL_ENDED = "Your free trial has ended";
+
+/** Linking.openURL refused a store subscription page (a device with no browser). */
+export const MANAGE_OPEN_FAILED =
+  "Couldn't open your subscription settings. Please try again in a moment.";
+
+/** A Stripe subscriber in the app: where to manage it, with no link (3.1.1). */
+export const MANAGE_STRIPE_ON_WEB = "Manage your subscription at kitchenwizard.ai";
+
+/**
+ * A store subscriber on the web — and the web's 409 `subscribed_elsewhere`.
+ * Kiwi cannot manage or cancel a store subscription; the store does.
+ */
+export function subscribedInStore(source: "apple" | "google"): string {
+  return `You're subscribed through ${source === "apple" ? "the App Store" : "Google Play"} — manage it there.`;
+}
+
+/** BUG-356 — on the delete-account confirmation, BEFORE the user confirms. */
+export function deleteAccountStoreNotice(source: "apple" | "google"): string {
+  return `Your Kiwi Premium subscription is billed by ${source === "apple" ? "the App Store" : "Google Play"} and keeps renewing until you cancel it there.`;
+}
 
 /**
  * The status line when a date the line needs is missing.

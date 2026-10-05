@@ -31,7 +31,6 @@ import {
   findSimilarNotice,
   groceryStaleNotice,
   macrosNoticeFor,
-  payEarlyLine,
   settingsRowFor,
   sheetStateFor,
   trialDaysLeft,
@@ -112,7 +111,6 @@ test("a null payload (the request has not answered) renders nothing anywhere", (
   assert.equal(bannerFor({ sub: null, now: NOW, dismissed: NONE_DISMISSED }), null);
   assert.equal(sheetStateFor(null), null);
   assert.equal(settingsRowFor(null), null);
-  assert.equal(payEarlyLine(null), null);
 });
 
 // ── 2. the trial clock and the banner window ───────────────────────────
@@ -160,16 +158,13 @@ test("the banner window is 1..4 days INCLUSIVE — both edges, off both edges", 
   assert.equal(at(-1), null);
 });
 
-test("the trial banner carries the days-left number and the bonus, from copy.ts", () => {
+test("the trial banner carries the days-left number, from copy.ts — and no bonus (C2)", () => {
   const b = bannerFor({
     sub: sub({ status: "trialing", trialEndsAt: trialEndingIn(3), earlyPayBonusDays: 14 }),
     now: NOW,
     dismissed: NONE_DISMISSED,
   });
-  assert.equal(
-    b?.text,
-    "3 days left in your trial — subscribe now and get 14 extra days free.",
-  );
+  assert.equal(b?.text, "3 days left in your trial — subscribe to keep planning with Kiwi.");
   assert.equal(b?.ctaLabel, "Subscribe");
   assert.equal(b?.dismissible, true);
 });
@@ -240,30 +235,7 @@ test("🔴 a 402 opens the sheet even under the blackout — the server is the a
   assert.equal(sheetStateFor(sub({ status: "past_due" }), opts), "lapsed");
 });
 
-// ── 5. the pay-early line ──────────────────────────────────────────────
-
-test("the pay-early line names the first-charge date and the bonus", () => {
-  assert.equal(
-    payEarlyLine(sub({ status: "trialing", earlyPayBonusDays: 14 })),
-    "Subscribe now and your first charge is Oct 25, 2026 — the rest of your trial plus 14 more days free.",
-  );
-});
-
-test("🔴 bonus 0 HIDES the line — not 'plus 0 more days free'", () => {
-  assert.equal(payEarlyLine(sub({ status: "trialing", earlyPayBonusDays: 0 })), null);
-  // And a negative, which no config should produce but which must not render.
-  assert.equal(payEarlyLine(sub({ status: "trialing", earlyPayBonusDays: -3 })), null);
-});
-
-test("the line is trialing-only, and needs the server's date", () => {
-  for (const status of ALL_STATUSES.filter((s) => s !== "trialing")) {
-    assert.equal(payEarlyLine(sub({ status })), null, status);
-  }
-  assert.equal(
-    payEarlyLine(sub({ status: "trialing", firstChargeDateIfSubscribedNow: null })),
-    null,
-  );
-});
+// ── 5. the pay-early line — REMOVED (Resub C2: the bonus is gone) ───
 
 // ── 6. the Settings row ────────────────────────────────────────────────
 

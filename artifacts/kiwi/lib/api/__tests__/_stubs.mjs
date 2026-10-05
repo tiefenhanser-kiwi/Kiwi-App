@@ -146,3 +146,25 @@ export async function deactivateKeepAwake() {}
 export async function isAvailableAsync() { return false; }
 export const ExpoKeepAwakeTag = "ExpoKeepAwakeDefaultTag";
 `;
+
+// Resub C2 — react-native-purchases (RevenueCat). The real module reaches a
+// native module at import. lib/billing/store.ts takes its SDK by injection
+// (__setStoreSdkForTests), so this default only has to exist; every method
+// throws so a test that forgot to inject fails loudly instead of "buying".
+export const RevenueCatStub = `
+function notInjected(name) {
+  return () => { throw new Error("stub: react-native-purchases." + name + " called without __setStoreSdkForTests"); };
+}
+const Purchases = {
+  configure: notInjected("configure"),
+  logIn: notInjected("logIn"),
+  logOut: notInjected("logOut"),
+  isAnonymous: notInjected("isAnonymous"),
+  getAppUserID: notInjected("getAppUserID"),
+  getOfferings: notInjected("getOfferings"),
+  purchasePackage: notInjected("purchasePackage"),
+  restorePurchases: notInjected("restorePurchases"),
+};
+export const PURCHASES_ERROR_CODE = { PURCHASE_CANCELLED_ERROR: "1", PAYMENT_PENDING_ERROR: "20" };
+export default Purchases;
+`;
