@@ -97,7 +97,7 @@ Nothing else in the time table was changed. Hans's H6.1 "an onion in 2" against 
 |---|---|---|
 | Hans e55a9305, Oct 4 replay | 25 containers · about 110 min (what Hans saw) | 25 · 100 |
 | Hans f49f5209, Oct 4 replay | 15 · 55 | 13 · 50 |
-| A10, census Oct 4 | 15 · 50 | 14 · 50 |
+| A10, census Oct 4 | 15 · 50 | 15 · 50 |
 | served today, Oct 5 (regenerated) | — | A10 15 · 50 · e55a9305 25 · 100 · f49f5209 14 · 55 |
 
 The served headers differ from the Oct 4 replays only because the day moved and the lags with it. Every census header, before → after on the same pinned day, is in `census.md`. Totals over 27 plans:
