@@ -53,6 +53,26 @@ function read(env: Record<string, string | undefined>, key: string): string | nu
 }
 
 /**
+ * The build's own four values, as the default every function below reads.
+ *
+ * 🔴 BUG-357 — EACH KEY IS A LITERAL `process.env.EXPO_PUBLIC_…`, AND IT HAS TO
+ * BE. babel-preset-expo inlines an EXPO_PUBLIC_ variable only where the source
+ * spells that member expression out. The old default was `env = process.env`
+ * read through `env[key]`, which survives the build as a runtime read of a
+ * `process.env` holding no EXPO_PUBLIC_ values — so in every build all four read
+ * as unset: no Google button anywhere, no Apple button on web. The same defect
+ * Resub C1 found and fixed in lib/guest/turnstile.ts.
+ */
+function buildEnv(): Record<string, string | undefined> {
+  return {
+    EXPO_PUBLIC_APPLE_SERVICES_ID: process.env.EXPO_PUBLIC_APPLE_SERVICES_ID,
+    EXPO_PUBLIC_APPLE_WEB_REDIRECT_URI: process.env.EXPO_PUBLIC_APPLE_WEB_REDIRECT_URI,
+    EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+  };
+}
+
+/**
  * Read through a FUNCTION, not a module const — the same shape
  * lib/guest/turnstile.ts uses and for the same reason: Expo inlines
  * `process.env.EXPO_PUBLIC_*` at build time, so the value is fixed per build,
@@ -60,7 +80,7 @@ function read(env: Record<string, string | undefined>, key: string): string | nu
  * re-import.
  */
 export function readOAuthClientConfig(
-  env: Record<string, string | undefined> = process.env,
+  env: Record<string, string | undefined> = buildEnv(),
 ): OAuthClientConfig {
   return {
     appleServicesId: read(env, "EXPO_PUBLIC_APPLE_SERVICES_ID"),
@@ -77,7 +97,7 @@ export function readOAuthClientConfig(
  * Services ID, so half a pair is a guaranteed failure wearing a button.
  */
 export function appleWebConfigured(
-  env: Record<string, string | undefined> = process.env,
+  env: Record<string, string | undefined> = buildEnv(),
 ): boolean {
   const cfg = readOAuthClientConfig(env);
   return cfg.appleServicesId !== null && cfg.appleWebRedirectUri !== null;
@@ -96,7 +116,7 @@ export function appleWebConfigured(
  */
 export function googleConfigured(
   platform: AppPlatform,
-  env: Record<string, string | undefined> = process.env,
+  env: Record<string, string | undefined> = buildEnv(),
 ): boolean {
   const cfg = readOAuthClientConfig(env);
   if (cfg.googleWebClientId === null) return false;
@@ -128,7 +148,7 @@ export interface ProviderFacts {
 export function providerButtons(
   platform: AppPlatform,
   facts: ProviderFacts,
-  env: Record<string, string | undefined> = process.env,
+  env: Record<string, string | undefined> = buildEnv(),
 ): ProviderButtons {
   const hidden = facts.hidden ?? [];
   const apple =
@@ -138,9 +158,16 @@ export function providerButtons(
         ? appleWebConfigured(env)
         : // Android. §2.2 — not a configuration question, a ruling.
           false;
+  const appleShown = apple && !hidden.includes("apple");
+  const googleReady = googleConfigured(platform, env) && !hidden.includes("google");
   return {
-    apple: apple && !hidden.includes("apple"),
-    google: googleConfigured(platform, env) && !hidden.includes("google"),
+    apple: appleShown,
+    // 🔴 Guideline 4.8 (Resub C2): on iOS an app that offers a third-party
+    // sign-in must offer Sign in with Apple beside it. So iOS Google renders
+    // only where Apple does — while isAvailableAsync() is still pending, on a
+    // build without the entitlement, and after Apple's 503 hide alike. Losing
+    // Google there costs a convenience; showing it alone is a rejection.
+    google: googleReady && (platform !== "ios" || appleShown),
   };
 }
 
