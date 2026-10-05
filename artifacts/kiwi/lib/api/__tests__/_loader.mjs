@@ -58,6 +58,8 @@ const PHYSICAL_STUBS = new Map([
   ["react-native-keyboard-controller", "./stubs/keyboard-controller.mjs"],
   // Prep the Week loading screen — the six onion-dicing panels draw with it.
   ["react-native-svg", "./stubs/react-native-svg.mjs"],
+  // Resub C1 — the native Turnstile gate renders its widget in a WebView.
+  ["react-native-webview", "./stubs/react-native-webview.mjs"],
 ]);
 
 // kiwi/ root, used to resolve the `@/*` tsconfig path alias.

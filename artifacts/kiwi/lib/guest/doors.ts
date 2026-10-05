@@ -88,6 +88,42 @@ export const DOOR_APP_NOTE = "The app comes right after — your plan will be wa
 export const DOOR_SECONDARY = "Keep looking";
 export const DOOR_SIGN_IN = "Already have an account? Sign in";
 
+// ── Resub C1 — the same door, IN the app ────────────────────────────────────
+//
+// On iOS and Android the visitor is already in the app, and the account is made
+// right here — there is no store trip to lose the session on, so "the app comes
+// right after" would be untrue. Two lines change; the title, the unlocks, both
+// buttons and the sign-in link are the web door's, word for word. Same rule as
+// above: no price, no trial wording.
+export const DOOR_NATIVE_INTRO =
+  "Create a free account to save this plan and keep going. An account gets you:";
+export const DOOR_NATIVE_NOTE = "Your plan comes with you — nothing to build again.";
+
+export interface DoorCopy {
+  title: string;
+  intro: string;
+  unlocks: readonly string[];
+  primary: string;
+  /** The line under the primary button. */
+  note: string;
+  secondary: string;
+  signIn: string;
+}
+
+/** The door's copy for this platform: `Platform.OS` in, strings out. */
+export function doorCopy(platform: string): DoorCopy {
+  const native = platform !== "web";
+  return {
+    title: DOOR_TITLE,
+    intro: native ? DOOR_NATIVE_INTRO : DOOR_INTRO,
+    unlocks: DOOR_UNLOCKS,
+    primary: DOOR_PRIMARY,
+    note: native ? DOOR_NATIVE_NOTE : DOOR_APP_NOTE,
+    secondary: DOOR_SECONDARY,
+    signIn: DOOR_SIGN_IN,
+  };
+}
+
 // R6 — the thin shelf reuses ExhaustedCard (its third consumer) with Hans's
 // copy, and a SIGN-UP exit rather than the Tell Kiwi exit.
 export const THIN_SHELF_TITLE =

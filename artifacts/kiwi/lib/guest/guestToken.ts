@@ -19,17 +19,37 @@
 // allowlist in lib/guest/guestRoutes.ts is that guarantee, and
 // `principal: "guest"` in apiClient suppresses the cascade as a second belt.
 //
-// ── STORAGE: sessionStorage, the same choice lib/auth.ts made and for the same
-// reasons (D-WS9-241 E). The Test Kitchen is web-only (R1), so there is no
-// native branch to write; expo-secure-store is not imported here at all. A
-// per-tab store survives a reload (which is what a resume needs) and dies with
-// the browser session, well inside the server's 24 h GuestSession TTL.
+// ── STORAGE, WEB: sessionStorage, the same choice lib/auth.ts made and for the
+// same reasons (D-WS9-241 E). A per-tab store survives a reload (which is what a
+// resume needs) and dies with the browser session, well inside the server's
+// 24 h GuestSession TTL.
 //
-// Every access — including the `sessionStorage` PROPERTY READ — is wrapped:
+// Every web access — including the `sessionStorage` PROPERTY READ — is wrapped:
 // private-mode Safari and blocked site data throw on ACCESS, not just on write.
 // A throw anywhere reads as "no guest session", and a module-level memory
 // fallback keeps the flow working for that tab (and keeps the unit tests, which
 // run in node with no DOM, honest).
+//
+// ── STORAGE, NATIVE (Resub C1): expo-secure-store, the same Keychain /
+// Keystore lib/auth.ts keeps the member token in — under the guest's OWN three
+// keys, so the separation above holds on a phone too. SecureStore is async and
+// every read of this store is SYNCHRONOUS (lib/api/client.ts's Bearer,
+// GuestContext's first render), so on native `memory` is the read path and
+// SecureStore is its durable copy:
+//   · hydrateGuestSession() fills `memory` from SecureStore ONCE, at boot —
+//     app/_layout.tsx holds the splash until it settles, so the first guest
+//     read (and therefore the first guest request) always sees it;
+//   · every write and clear goes to both, memory FIRST, then SecureStore
+//     through one ordered queue so a store-then-clear can never land
+//     clear-then-store;
+//   · a session past its expiry (lib/guest/guestSession.ts's own rule, margin
+//     included) is dropped at hydration and its keys deleted — a restart the
+//     next day does not resurrect a token the server has finished with.
+
+import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
+
+import { guestSessionUsable } from "./guestSession";
 
 /** Distinct from lib/auth.ts's `kiwi_authToken`. Never read by readToken(). */
 const GUEST_TOKEN_KEY = "kiwi_guestToken";
@@ -43,10 +63,15 @@ export interface GuestSessionCredentials {
   expiresAt: string;
 }
 
-// The fallback when sessionStorage is unreachable. Not a cache in front of it:
-// reads prefer storage and fall back here, so the two can never disagree about
-// a value storage actually holds.
+// WEB: the fallback when sessionStorage is unreachable. Not a cache in front of
+// it: reads prefer storage and fall back here, so the two can never disagree
+// about a value storage actually holds.
+// NATIVE: the read path itself, hydrated from SecureStore at boot.
 let memory: GuestSessionCredentials | null = null;
+
+function isNative(): boolean {
+  return Platform.OS !== "web";
+}
 
 function storage(): Storage | null {
   try {
@@ -56,8 +81,105 @@ function storage(): Storage | null {
   }
 }
 
+// ── native: the SecureStore copy ─────────────────────────────────────────
+
+// One queue for every SecureStore write, so they land in the order they were
+// made. A failed write is swallowed here: `memory` already holds the truth for
+// this run, and the worst case is a session that does not survive a restart.
+let nativeQueue: Promise<void> = Promise.resolve();
+
+function enqueueNative(op: () => Promise<void>): Promise<void> {
+  nativeQueue = nativeQueue.then(op).catch(() => {});
+  return nativeQueue;
+}
+
+async function writeNative(creds: GuestSessionCredentials): Promise<void> {
+  await SecureStore.setItemAsync(GUEST_TOKEN_KEY, creds.token);
+  await SecureStore.setItemAsync(GUEST_SESSION_KEY, creds.guestSessionId);
+  await SecureStore.setItemAsync(GUEST_EXPIRES_KEY, creds.expiresAt);
+}
+
+async function deleteNative(): Promise<void> {
+  // allSettled, not all: one key that will not delete must not keep the other
+  // two alive.
+  await Promise.allSettled([
+    SecureStore.deleteItemAsync(GUEST_TOKEN_KEY),
+    SecureStore.deleteItemAsync(GUEST_SESSION_KEY),
+    SecureStore.deleteItemAsync(GUEST_EXPIRES_KEY),
+  ]);
+}
+
+/** Resolves once every SecureStore write made so far has landed. Tests await it. */
+export function guestStoreSettled(): Promise<void> {
+  return nativeQueue;
+}
+
+/**
+ * The longest the boot waits on the Keychain. A read that has not answered by
+ * then is treated as "no stored session" — a guest who loses a resume is a
+ * much smaller failure than an app that never leaves its splash screen.
+ */
+export const GUEST_HYDRATE_DEADLINE_MS = 3_000;
+
+let hydration: Promise<GuestSessionCredentials | null> | null = null;
+let hydrated = false;
+
+/** True once the native store has been read (always true on web). */
+export function guestStoreHydrated(): boolean {
+  return !isNative() || hydrated;
+}
+
+/**
+ * NATIVE: read the three keys into `memory`, once. Idempotent — every caller
+ * shares the first call's promise. WEB: a no-op that answers what is stored.
+ *
+ * A write made while the read is in flight wins over what the read returns:
+ * it is newer by definition.
+ */
+export function hydrateGuestSession(
+  nowMs: number = Date.now(),
+): Promise<GuestSessionCredentials | null> {
+  if (!isNative()) return Promise.resolve(readGuestSession());
+  if (hydration) return hydration;
+  let settled = false;
+  const read = (async (): Promise<GuestSessionCredentials | null> => {
+    const [token, guestSessionId, expiresAt] = await Promise.all([
+      SecureStore.getItemAsync(GUEST_TOKEN_KEY),
+      SecureStore.getItemAsync(GUEST_SESSION_KEY),
+      SecureStore.getItemAsync(GUEST_EXPIRES_KEY),
+    ]);
+    if (settled) return memory;
+    if (memory) return memory;
+    const stored = token && guestSessionId && expiresAt ? { token, guestSessionId, expiresAt } : null;
+    if (stored && guestSessionUsable(stored, nowMs)) {
+      memory = stored;
+    } else if (token || guestSessionId || expiresAt) {
+      // Expired, half-written, or unparseable — gone either way.
+      void enqueueNative(deleteNative);
+    }
+    return memory;
+  })().catch(() => memory);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<GuestSessionCredentials | null>((resolve) => {
+    timer = setTimeout(() => resolve(memory), GUEST_HYDRATE_DEADLINE_MS);
+  });
+  hydration = Promise.race([read, deadline]).then((result) => {
+    clearTimeout(timer);
+    settled = true;
+    hydrated = true;
+    return result;
+  });
+  return hydration;
+}
+
+// ── the store ────────────────────────────────────────────────────────────
+
 export function storeGuestSession(creds: GuestSessionCredentials): void {
   memory = creds;
+  if (isNative()) {
+    void enqueueNative(() => writeNative(creds));
+    return;
+  }
   try {
     const s = storage();
     if (!s) return;
@@ -70,6 +192,8 @@ export function storeGuestSession(creds: GuestSessionCredentials): void {
 }
 
 export function readGuestSession(): GuestSessionCredentials | null {
+  // Native reads the hydrated copy; see the header.
+  if (isNative()) return memory;
   try {
     const s = storage();
     if (s) {
@@ -87,9 +211,9 @@ export function readGuestSession(): GuestSessionCredentials | null {
 }
 
 /**
- * The Bearer for a `principal: "guest"` call. Synchronous on purpose: the
- * user-token read is async because native SecureStore is, and there is no
- * native guest path.
+ * The Bearer for a `principal: "guest"` call. Synchronous on purpose: on web it
+ * is a sessionStorage property get, and on native it is the copy hydrated at
+ * boot — so apiClient never awaits the Keychain on a guest call.
  */
 export function readGuestToken(): string | null {
   return readGuestSession()?.token ?? null;
@@ -106,6 +230,10 @@ export function readGuestSessionId(): string | null {
  */
 export function clearGuestSession(): void {
   memory = null;
+  if (isNative()) {
+    void enqueueNative(deleteNative);
+    return;
+  }
   try {
     const s = storage();
     if (!s) return;

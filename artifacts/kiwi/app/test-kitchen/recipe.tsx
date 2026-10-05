@@ -16,7 +16,7 @@
 // 🔴 HOOKS SIT ABOVE THE EARLY RETURNS.
 
 import React from "react";
-import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 
@@ -71,8 +71,8 @@ function renderStep(
   );
 }
 
+// Resub C1 — no platform redirect: the Test Kitchen runs on native too.
 export default function GuestRecipeRoute() {
-  if (Platform.OS !== "web") return <Redirect href="/" />;
   return <GuestRecipeScreen />;
 }
 

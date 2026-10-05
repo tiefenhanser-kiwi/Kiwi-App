@@ -6,15 +6,32 @@
 // but it is also unexercised until then, and that is stated here rather than
 // discovered later.
 //
-// Web-only, like everything in the Test Kitchen (R1): `document` is reached
-// through a guarded read, so importing this file on native (or in a node test)
-// costs nothing and renders null.
+// Resub C1 — TWO GATES BEHIND ONE COMPONENT. The web gate below is unchanged:
+// it injects Cloudflare's script into the page's own DOM (`document` is reached
+// through a guarded read, so importing this file in a node test costs nothing).
+// On iOS and Android there is no DOM — the web gate used to wait forever for a
+// script that could never load — so the native gate renders the widget inside a
+// react-native-webview instead. Its decisions (the page, the message shape, the
+// state machine, which navigations it may make) are lib/guest/turnstile.ts.
 
 import React from "react";
-import { StyleSheet, View } from "react-native";
+import { Linking, Platform, StyleSheet, Text, View } from "react-native";
+import { WebView, type WebViewMessageEvent } from "react-native-webview";
+import type { ShouldStartLoadRequest } from "react-native-webview/lib/WebViewTypes";
 
-import { Spacing } from "@/constants/tokens";
-import { turnstileSiteKey } from "@/lib/guest/turnstile";
+import { Button } from "@/components/Button";
+import { Colors, Spacing, Typography } from "@/constants/tokens";
+import {
+  parseTurnstileMessage,
+  turnstileAllowsNavigation,
+  turnstileGateReducer,
+  turnstileHtml,
+  turnstileSiteKey,
+  TURNSTILE_NATIVE_BASE_URL,
+  TURNSTILE_NATIVE_FAILED,
+  TURNSTILE_NATIVE_RETRY,
+  TURNSTILE_NATIVE_TIMEOUT_MS,
+} from "@/lib/guest/turnstile";
 
 const SCRIPT_ID = "cf-turnstile-script";
 const SCRIPT_SRC = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
@@ -63,12 +80,20 @@ export interface TurnstileGateProps {
 }
 
 export function TurnstileGate({ onToken }: TurnstileGateProps) {
+  // Site key unset → nothing, on every platform. The server passes the check
+  // while its secret is unset, so the entry starts without a token.
   const siteKey = turnstileSiteKey();
+  if (!siteKey) return null;
+  if (Platform.OS !== "web") return <TurnstileNativeGate siteKey={siteKey} onToken={onToken} />;
+  return <TurnstileWebGate siteKey={siteKey} onToken={onToken} />;
+}
+
+function TurnstileWebGate({ siteKey, onToken }: TurnstileGateProps & { siteKey: string }) {
   const hostRef = React.useRef<View | null>(null);
   const rendered = React.useRef(false);
 
   React.useEffect(() => {
-    if (!siteKey || rendered.current) return;
+    if (rendered.current) return;
     ensureScript(() => {
       const api = turnstileApi();
       // react-native-web renders <View> as a div, so the ref IS the host node.
@@ -84,13 +109,112 @@ export function TurnstileGate({ onToken }: TurnstileGateProps) {
     });
   }, [siteKey, onToken]);
 
-  if (!siteKey) return null;
   return <View ref={hostRef} style={s.host} testID="turnstile-gate" />;
+}
+
+// ── native ───────────────────────────────────────────────────────────────
+
+/**
+ * The widget in a WebView, per Cloudflare's mobile requirements: JavaScript and
+ * DOM storage on, cookies that persist (`sharedCookiesEnabled` on iOS,
+ * `thirdPartyCookiesEnabled` on Android), `about:blank` / `about:srcdoc`
+ * allowed (`originWhitelist={["*"]}`), and NO custom user agent — "Changing the
+ * User Agent during a session causes Turnstile challenges to fail."
+ *
+ * The widget stays VISIBLE (a small card): managed mode may ask for a tap.
+ */
+function TurnstileNativeGate({ siteKey, onToken }: TurnstileGateProps & { siteKey: string }) {
+  const [state, dispatch] = React.useReducer(turnstileGateReducer, "waiting");
+  // Bumped by "Try again": a new key remounts the WebView, so the retry is a
+  // fresh page and a fresh widget rather than a second render into the old one.
+  const [attempt, setAttempt] = React.useState(0);
+  const html = React.useMemo(() => turnstileHtml(siteKey), [siteKey]);
+
+  // 20 s per attempt, and a token that lands first wins: the reducer ignores a
+  // timeout that arrives after "solved".
+  React.useEffect(() => {
+    if (state !== "waiting") return;
+    const timer = setTimeout(() => dispatch({ type: "timeout" }), TURNSTILE_NATIVE_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [state, attempt]);
+
+  const onMessage = React.useCallback(
+    (e: WebViewMessageEvent) => {
+      const msg = parseTurnstileMessage(e.nativeEvent.data);
+      if (!msg) return;
+      dispatch(msg);
+      if (msg.type === "turnstile") onToken(msg.token);
+    },
+    [onToken],
+  );
+
+  const onShouldStartLoadWithRequest = React.useCallback((req: ShouldStartLoadRequest) => {
+    if (turnstileAllowsNavigation(req.url, req.isTopFrame)) return true;
+    Linking.openURL(req.url).catch(() => {});
+    return false;
+  }, []);
+
+  if (state === "failed") {
+    return (
+      <View style={s.failed} testID="turnstile-gate-failed">
+        <Text style={s.failedText}>{TURNSTILE_NATIVE_FAILED}</Text>
+        <Button
+          label={TURNSTILE_NATIVE_RETRY}
+          variant="ghost"
+          onPress={() => {
+            setAttempt((n) => n + 1);
+            dispatch({ type: "retry" });
+          }}
+          testID="turnstile-gate-retry"
+        />
+      </View>
+    );
+  }
+
+  return (
+    <View style={s.nativeHost} testID="turnstile-gate">
+      <WebView
+        key={attempt}
+        source={{ html, baseUrl: TURNSTILE_NATIVE_BASE_URL }}
+        originWhitelist={["*"]}
+        javaScriptEnabled
+        domStorageEnabled
+        sharedCookiesEnabled
+        thirdPartyCookiesEnabled
+        onMessage={onMessage}
+        onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
+        scrollEnabled={false}
+        style={s.webView}
+        testID="turnstile-webview"
+      />
+    </View>
+  );
 }
 
 const s = StyleSheet.create({
   host: {
     marginTop: Spacing[3],
     minHeight: 65,
+  },
+  // Cloudflare's normal widget is 300 × 65; the extra height keeps its border
+  // clear of the frame edge.
+  nativeHost: {
+    marginTop: Spacing[3],
+    height: 72,
+    alignSelf: "stretch",
+  },
+  webView: {
+    flex: 1,
+    backgroundColor: "transparent",
+  },
+  failed: {
+    marginTop: Spacing[3],
+    gap: Spacing[2],
+  },
+  failedText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[800],
+    fontFamily: Typography.face.sans[500],
+    lineHeight: 18,
   },
 });

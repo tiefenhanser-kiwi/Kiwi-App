@@ -63,6 +63,9 @@ export const Tabs = Object.assign(
 export const Slot = (props) =>
   React.createElement("expo-slot", null, props.children);
 
-export const Redirect = () => null;
+// Resub C1 — renders a visible `expo-redirect` host (it was `() => null`), so a
+// route test can tell "this screen redirected to X" apart from "this screen
+// rendered nothing". No pre-existing test rendered a Redirect.
+export const Redirect = (props) => React.createElement("expo-redirect", { href: props.href });
 
 export const router = __routerImpl;
