@@ -16,17 +16,25 @@
 // payment is the one of the three that is a problem rather than an invitation.
 
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 
 import { Colors, Radius, Spacing, Typography } from "@/constants/tokens";
 import { useBilling } from "@/contexts/BillingContext";
+import { manageActionFor } from "@/lib/billing/subscriptionView";
 
 export function BillingBanner() {
-  const { banner, dismissCurrentBanner, openSheet, openPortal } = useBilling();
+  const { banner, dismissCurrentBanner, openSheet, openPortal, subscription } = useBilling();
   if (banner === null) return null;
 
   const isProblem = banner.kind === "past_due";
+  // Resub C2 — on iOS / Android "Manage payment" can only open a STORE page. A
+  // Stripe subscriber's card is fixed on the web (Profile says where), and a CTA
+  // that could only reach the Portal would be a Stripe link-out in the app.
+  const ctaVisible =
+    !isProblem ||
+    Platform.OS === "web" ||
+    manageActionFor(Platform.OS, subscription)?.kind === "store_link";
 
   // `past_due` goes to the Portal (the card is what needs fixing); the other two
   // open the sheet (a decision is what is being asked for).
@@ -51,14 +59,16 @@ export function BillingBanner() {
       <Text style={s.line} numberOfLines={3}>
         {banner.text}
       </Text>
-      <Pressable
-        onPress={onPress}
-        hitSlop={8}
-        style={({ pressed }) => [s.cta, pressed && { opacity: 0.7 }]}
-        testID={`billing-banner-cta-${banner.kind}`}
-      >
-        <Text style={[s.ctaText, isProblem && s.ctaTextProblem]}>{banner.ctaLabel}</Text>
-      </Pressable>
+      {ctaVisible && (
+        <Pressable
+          onPress={onPress}
+          hitSlop={8}
+          style={({ pressed }) => [s.cta, pressed && { opacity: 0.7 }]}
+          testID={`billing-banner-cta-${banner.kind}`}
+        >
+          <Text style={[s.ctaText, isProblem && s.ctaTextProblem]}>{banner.ctaLabel}</Text>
+        </Pressable>
+      )}
       {/* Only the dismissible ones get an X. `past_due` has none — see
           BannerView.dismissible, and dismissals.ts, which also refuses to write
           it even if a caller reached here with it. */}

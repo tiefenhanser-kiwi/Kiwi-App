@@ -30,7 +30,9 @@ import {
   SHEET_SECONDARY,
   SHEET_TRIALING_TITLE,
   bannerTrialEnding,
-  sheetPayEarlyLine,
+  settingsCancels,
+  settingsMonthly,
+  settingsTrialing,
 } from "../copy";
 
 // ── 1. the benefits, against the door sheet they came from ─────────────
@@ -54,24 +56,32 @@ test("the ONE that differs is the first, and it differs only by having a referen
 
 // ── 2. the composed lines ──────────────────────────────────────────────
 
-test("the pay-early line reads as a sentence with the real values in it", () => {
-  assert.equal(
-    sheetPayEarlyLine("2026-10-25T12:00:00.000Z", 14),
-    "Subscribe now and your first charge is Oct 25, 2026 — the rest of your trial plus 14 more days free.",
-  );
-});
+// Resub C2 — the pay-early bonus is gone (Hans, October 4), and with it the
+// pay-early line and the banner's "get N extra days free" clause, which would
+// have printed "get 0 extra days free".
 
-test("the trial banner reads as a sentence with the real values in it", () => {
+test("the trial banner reads as a sentence with the real value in it — and no bonus", () => {
   assert.equal(
-    bannerTrialEnding(2, 14),
-    "2 days left in your trial — subscribe now and get 14 extra days free.",
+    bannerTrialEnding(2),
+    "2 days left in your trial — subscribe to keep planning with Kiwi.",
   );
+  assert.equal(
+    bannerTrialEnding(1),
+    "1 day left in your trial — subscribe to keep planning with Kiwi.",
+  );
+  assert.doesNotMatch(bannerTrialEnding(3), /extra days|free\./);
 });
 
 test("no composed line can emit a raw ISO timestamp or an 'undefined'", () => {
-  const line = sheetPayEarlyLine("2026-10-25T12:00:00.000Z", 14);
-  assert.ok(!line.includes("T12:00:00"), line);
-  assert.ok(!line.includes("undefined"), line);
+  // Was the pay-early line (removed in C2); these are the lines that still carry a date.
+  for (const line of [
+    settingsTrialing("2026-10-25T12:00:00.000Z"),
+    settingsMonthly("2026-10-25T12:00:00.000Z"),
+    settingsCancels("2026-10-25T12:00:00.000Z"),
+  ]) {
+    assert.ok(!line.includes("T12:00:00"), line);
+    assert.ok(!line.includes("undefined"), line);
+  }
 });
 
 // ── 3. the price appears where the ruling put it, and nowhere else ─────

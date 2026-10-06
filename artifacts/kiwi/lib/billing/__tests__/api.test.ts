@@ -16,11 +16,13 @@ import { __resetForTests as resetAuthBridge } from "@/lib/api/auth-bridge";
 import {
   SubscriptionPayloadSchema,
   billingLinkMode,
+  billingRail,
   createCheckoutSession,
   createPortalSession,
   currentBillingPlatform,
   fetchSubscription,
   openBillingUrl,
+  syncStoreSubscription,
   SUBSCRIPTION_QUERY_KEY,
 } from "../api";
 
@@ -82,7 +84,6 @@ test("fetchSubscription hits /me/subscription and parses the S1 shape", async ()
   assert.ok(lastRequest?.url.endsWith("/me/subscription"), lastRequest?.url);
   assert.equal(sub.status, "trialing");
   assert.equal(sub.enforced, false);
-  assert.equal(sub.earlyPayBonusDays, 14);
 });
 
 test("an unrecognised status is REFUSED, not rendered as a guess", async () => {
@@ -188,33 +189,94 @@ test("createPortalSession returns the url; 409 is no_billing_account, not alread
 
 // ── the link-out ────────────────────────────────────────────────────────
 
-test("🔴 web navigates; every native platform gets the SYSTEM browser", () => {
+// Resub C2 — S2's "native gets the SYSTEM browser" is REVERSED on purpose: a
+// Stripe link-out in the app was one of Apple's 3.1.1 findings. Native sells
+// through the store now (lib/billing/store.ts), and this is the second lock.
+
+test("🔴 web navigates; NO native platform opens a Stripe URL at all", () => {
   assert.equal(billingLinkMode("web"), "navigate");
   for (const os of ["ios", "android", "macos", "windows"]) {
-    assert.equal(billingLinkMode(os), "external", os);
+    assert.equal(billingLinkMode(os), "none", os);
   }
 });
 
-test("openBillingUrl on native hands the url to the external opener", async () => {
-  const opened: string[] = [];
+test("🔴 openBillingUrl on native opens nothing and resolves false", async () => {
+  // The react-native stub reports ios.
   const ok = await openBillingUrl("https://checkout.stripe.com/x", {
-    navigate: () => assert.fail("web path taken on a native platform"),
-    openExternal: async (u) => {
-      opened.push(u);
-    },
-  });
-  assert.equal(ok, true);
-  assert.deepEqual(opened, ["https://checkout.stripe.com/x"]);
-});
-
-test("a device with no browser resolves FALSE instead of rejecting", async () => {
-  // The screen shows a line; it must not get an unhandled rejection or a button
-  // stuck in its busy state.
-  const ok = await openBillingUrl("https://checkout.stripe.com/x", {
-    navigate: () => assert.fail("web path taken"),
-    openExternal: async () => {
-      throw new Error("no activity found to handle Intent");
-    },
+    navigate: () => assert.fail("a Stripe URL was opened on a native platform"),
   });
   assert.equal(ok, false);
+});
+
+test("the rail: web pays through Stripe, iOS and Android through the store", () => {
+  assert.equal(billingRail("web"), "stripe");
+  assert.equal(billingRail("ios"), "store");
+  assert.equal(billingRail("android"), "store");
+});
+
+// ── Resub B1 / C2 — the store fields, the 409s, store-sync ─────────────────
+
+test("either server shape parses: with the bonus fields (B1) and without them", () => {
+  const withBonus = SubscriptionPayloadSchema.parse({ ...WIRE, earlyPayBonusDays: 0, firstChargeDateIfSubscribedNow: null });
+  assert.equal(withBonus.status, "trialing");
+  const { earlyPayBonusDays: _a, firstChargeDateIfSubscribedNow: _b, ...noBonus } = WIRE;
+  const without = SubscriptionPayloadSchema.parse(noBonus);
+  assert.equal(without.earlyPayBonusDays, undefined);
+});
+
+test("the B1 store fields parse, and a pre-B1 server (none of them) still parses", () => {
+  const b1 = SubscriptionPayloadSchema.parse({
+    ...WIRE,
+    source: "apple",
+    managementUrl: "https://apps.apple.com/account/subscriptions",
+    storeBillingAvailable: true,
+  });
+  assert.equal(b1.source, "apple");
+  assert.equal(b1.storeBillingAvailable, true);
+  const old = SubscriptionPayloadSchema.parse(WIRE);
+  assert.equal(old.source, undefined);
+  assert.equal(old.storeBillingAvailable, undefined);
+});
+
+test("checkout 409 subscribed_elsewhere is NOT already_subscribed — it carries the store", async () => {
+  stubFetch(409, {
+    code: "subscribed_elsewhere",
+    source: "google",
+    managementUrl: "https://play.google.com/store/account/subscriptions",
+  });
+  assert.deepEqual(await createCheckoutSession("monthly"), {
+    success: false,
+    error: "subscribed_elsewhere",
+    source: "google",
+    managementUrl: "https://play.google.com/store/account/subscriptions",
+  });
+});
+
+test("portal 409 subscribed_elsewhere is NOT no_billing_account; a missing url is null", async () => {
+  stubFetch(409, { code: "subscribed_elsewhere", source: "apple", managementUrl: null });
+  assert.deepEqual(await createPortalSession(), {
+    success: false,
+    error: "subscribed_elsewhere",
+    source: "apple",
+    managementUrl: null,
+  });
+});
+
+test("store-sync posts {} and answers with the subscription", async () => {
+  stubFetch(200, { ...WIRE, status: "active", source: "apple", storeBillingAvailable: true });
+  const res = await syncStoreSubscription();
+  assert.ok(lastRequest?.url.endsWith("/billing/store-sync"), lastRequest?.url);
+  assert.equal(lastRequest?.init.method, "POST");
+  assert.deepEqual(JSON.parse(String(lastRequest?.init.body)), {});
+  assert.equal(res.success, true);
+  if (res.success) assert.equal(res.subscription.status, "active");
+});
+
+test("store-sync errors: 502 store_sync_failed, 503 billing_unavailable, 429 rate_limited", async () => {
+  stubFetch(502, { code: "store_sync_failed" });
+  assert.deepEqual(await syncStoreSubscription(), { success: false, error: "store_sync_failed" });
+  stubFetch(503, { code: "billing_unavailable" });
+  assert.deepEqual(await syncStoreSubscription(), { success: false, error: "billing_unavailable" });
+  stubFetch(429, { error: "slow down" });
+  assert.deepEqual(await syncStoreSubscription(), { success: false, error: "rate_limited" });
 });

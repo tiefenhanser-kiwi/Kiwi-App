@@ -70,8 +70,12 @@ export function guestDoorActions(): GuestAction[] {
 // visitor just spent ten minutes building. So the primary action creates the
 // account — the claim keeps the plan — and the app is a note underneath.
 //
-// NO PRICE AND NO "TRIAL" WORDING. Payments do not exist yet; a sheet that says
-// "start your free trial" promises a thing with no implementation behind it.
+// NO PRICE AND NO "TRIAL" WORDING — and since 1.1 the reason is placement, not
+// absence. Payments exist (Stripe on the web; the App Store and Google Play in the
+// app, Resub C2), and Welcome's "Start your 14-day free trial" and the paywall
+// sheet are where the trial and the price are stated, with the store terms beside
+// them. This door is about the ACCOUNT and the plan the visitor just built; a
+// price here would be a purchase screen without the terms a purchase screen owes.
 
 export const DOOR_TITLE = "Here's the plan you made";
 export const DOOR_INTRO = "Create a free account to keep it. An account gets you:";
@@ -129,3 +133,16 @@ export function doorCopy(platform: string): DoorCopy {
 export const THIN_SHELF_TITLE =
   "Access to the full Kiwi meal library and meals that meet unique dietary needs and preferences is available in the app — sign up here.";
 export const THIN_SHELF_CTA = "Sign up";
+
+/**
+ * Resub C2 — the same line IN the app, where "is available in the app" points
+ * at the screen the reader is already on. Same sentence, same exit; what the
+ * library comes with is the account.
+ */
+export const THIN_SHELF_TITLE_NATIVE =
+  "Access to the full Kiwi meal library and meals that meet unique dietary needs and preferences comes with an account — sign up here.";
+
+/** The thin-shelf line for this platform: `Platform.OS` in, the line out. */
+export function thinShelfTitle(platform: string): string {
+  return platform === "web" ? THIN_SHELF_TITLE : THIN_SHELF_TITLE_NATIVE;
+}

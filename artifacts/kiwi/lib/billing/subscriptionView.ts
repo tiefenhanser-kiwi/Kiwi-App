@@ -31,9 +31,12 @@ import {
   BANNER_PAST_DUE,
   BANNER_PAST_DUE_CTA,
   BANNER_TRIAL_CTA,
+  MANAGE_STRIPE_ON_WEB,
   NOTICE_FIND_SIMILAR,
   NOTICE_GROCERY_STALE,
   NOTICE_MACROS,
+  PREMIUM_TRIAL_ENDED,
+  PREMIUM_TRIAL_OPEN,
   SETTINGS_ACTIVE_NO_DATE,
   SETTINGS_MANAGE,
   SETTINGS_PAST_DUE,
@@ -41,11 +44,13 @@ import {
   SETTINGS_TRIAL_ENDED,
   SETTINGS_TRIAL_NO_DATE,
   bannerTrialEnding,
+  deleteAccountStoreNotice,
+  premiumTrialDaysLeft,
   settingsAnnual,
   settingsCancels,
   settingsMonthly,
   settingsTrialing,
-  sheetPayEarlyLine,
+  subscribedInStore,
 } from "./copy";
 
 // ── the wire shape ───────────────────────────────────────────────────────
@@ -75,9 +80,27 @@ export interface SubscriptionPayload {
   billingAvailable: boolean;
   /** Mirrors `BILLING_ENFORCED`. Gates every billing SURFACE but the Settings row. */
   enforced: boolean;
-  earlyPayBonusDays: number;
-  /** ISO, `trialing` only. Computed server-side so no client does bonus arithmetic. */
-  firstChargeDateIfSubscribedNow: string | null;
+  /**
+   * Resub C2 — the pay-early bonus is gone (Hans, October 4). B1 still sends
+   * both fields (always 0 / null) because the shipped 1.0 schema required them.
+   * OPTIONAL here so either server shape parses, and READ NOWHERE.
+   */
+  earlyPayBonusDays?: number;
+  firstChargeDateIfSubscribedNow?: string | null;
+  /**
+   * Resub B1 — which rail the row describes: "stripe" | "apple" | "google", or
+   * null (a trial, or never paid). A plain string on the wire so a fourth rail
+   * cannot fail this schema; `subscriptionSource` narrows it.
+   */
+  source?: string | null;
+  /** RevenueCat's management URL — store rows only, else null. */
+  managementUrl?: string | null;
+  /**
+   * The store twin of `billingAvailable`: RevenueCat is configured on the deploy.
+   * Absent (an older server) reads as false — a purchase the server cannot sync
+   * is money taken for an account that never unlocks.
+   */
+  storeBillingAvailable?: boolean;
   /**
    * Whether a Stripe billing account exists for this user, so the Portal
    * link-out can be offered without a guess.
@@ -192,7 +215,7 @@ export function bannerFor(input: BannerInput): BannerView | null {
     if (daysLeft < 1 || daysLeft > TRIAL_BANNER_DAYS) return null;
     return {
       kind: "trial_ending",
-      text: bannerTrialEnding(daysLeft, sub.earlyPayBonusDays),
+      text: bannerTrialEnding(daysLeft),
       ctaLabel: BANNER_TRIAL_CTA,
       dismissible: true,
     };
@@ -248,25 +271,6 @@ export function sheetStateFor(
   return opts.ignoreEnforcement === true ? "lapsed" : null;
 }
 
-/**
- * The pay-early line, or null when it must not render.
- *
- * Three reasons for null and all three are real: not trialing (there is no trial
- * left to add to), no first-charge date (the server sends null outside a trial),
- * and `earlyPayBonusDays === 0` — the explicit §2.2 rule, and a value Hans can
- * set, at which point "plus 0 more days free" would be an insult rather than an
- * offer.
- */
-export function payEarlyLine(sub: SubscriptionPayload | null): string | null {
-  if (sub === null) return null;
-  if (sub.status !== "trialing") return null;
-  if (sub.firstChargeDateIfSubscribedNow === null) return null;
-  if (sub.earlyPayBonusDays <= 0) return null;
-  return sheetPayEarlyLine(
-    sub.firstChargeDateIfSubscribedNow,
-    sub.earlyPayBonusDays,
-  );
-}
 
 // ── Settings → Subscription (§2.8) ──────────────────────────────────────
 
@@ -433,4 +437,194 @@ export function macrosNoticeFor(sub: SubscriptionPayload | null): string | null 
   if (sub === null) return null;
   if (!sub.enforced) return null;
   return ENTITLED_STATUSES.has(sub.status) ? null : NOTICE_MACROS;
+}
+
+// ── Resub C2 — the store rail ─────────────────────────────────────────────
+//
+// Apple rejected 1.0 under 3.1.1: a subscription existed that could not be
+// bought in the app. iOS and Android now sell through the App Store and Google
+// Play (RevenueCat); the web keeps Stripe. Every "which rail, which button,
+// which sentence" question is answered below, from the payload and the
+// platform, so the screens stay renderers.
+
+export type BillingSource = "stripe" | "apple" | "google";
+export type StoreSource = "apple" | "google";
+
+/** The payload's `source`, narrowed. Anything unrecognised reads as none. */
+export function subscriptionSource(sub: SubscriptionPayload | null): BillingSource | null {
+  const s = sub?.source;
+  return s === "stripe" || s === "apple" || s === "google" ? s : null;
+}
+
+/** The store a platform sells through: iOS → the App Store, Android → Google Play. */
+export function platformStore(platform: string): StoreSource | null {
+  if (platform === "ios") return "apple";
+  if (platform === "android") return "google";
+  return null;
+}
+
+/** Where a store subscriber manages, when RevenueCat sent no managementUrl. */
+export const STORE_SUBSCRIPTIONS_URL: Readonly<Record<StoreSource, string>> = {
+  apple: "https://apps.apple.com/account/subscriptions",
+  google: "https://play.google.com/store/account/subscriptions",
+};
+
+/** True while the account pays — "Subscribe" is no longer the right verb. */
+export function isPayingStatus(status: SubscriptionStatus): boolean {
+  return !isUnsubscribed(status);
+}
+
+/**
+ * Profile's manage action, by source × platform (the C2 §3 table):
+ *
+ *   apple / google · native → open managementUrl, else the store's page
+ *   apple / google · web    → a sentence: manage it in the store
+ *   stripe         · native → a sentence, NO link (a Stripe link-out in the
+ *                             app is itself a 3.1.1 problem)
+ *   stripe         · web    → the Portal, gated exactly as before
+ *   none           · native → nothing here; the Kiwi Premium row covers it
+ *   none           · web    → as before (settingsRowFor's Portal button)
+ */
+export type ManageAction =
+  | { kind: "store_link"; url: string; label: string }
+  | { kind: "store_text"; text: string }
+  | { kind: "stripe_text"; text: string }
+  | { kind: "stripe_portal"; label: string };
+
+export function manageActionFor(
+  platform: string,
+  sub: SubscriptionPayload | null,
+): ManageAction | null {
+  if (sub === null) return null;
+  const native = platform !== "web";
+  const source = subscriptionSource(sub);
+  if (source === "apple" || source === "google") {
+    if (!native) return { kind: "store_text", text: subscribedInStore(source) };
+    const url = sub.managementUrl && sub.managementUrl.length > 0
+      ? sub.managementUrl
+      : STORE_SUBSCRIPTIONS_URL[source];
+    return { kind: "store_link", url, label: SETTINGS_MANAGE };
+  }
+  if (source === "stripe") {
+    if (native) return { kind: "stripe_text", text: MANAGE_STRIPE_ON_WEB };
+    return sub.billingAvailable && canManageBilling(sub)
+      ? { kind: "stripe_portal", label: SETTINGS_MANAGE }
+      : null;
+  }
+  if (native) return null;
+  return settingsRowFor(sub)?.manage ? { kind: "stripe_portal", label: SETTINGS_MANAGE } : null;
+}
+
+/**
+ * Profile → "Kiwi Premium" (C2 §2). The App Review account is on a 14-day
+ * trial, so the 402 paywall never appears for it; this row is the purchase
+ * entry it can reach. Native only (the web keeps its Subscribe button), for
+ * any account that is not paying, trial included — and deliberately NOT behind
+ * the `enforced` blackout: 3.1.1 is about being able to buy, not about being
+ * made to.
+ */
+export interface PremiumRowView {
+  line: string;
+  /** The sheet state the row opens, passed explicitly so the blackout cannot swallow it. */
+  sheet: SheetState;
+}
+
+export function premiumRowFor(
+  platform: string,
+  sub: SubscriptionPayload | null,
+  now: Date,
+): PremiumRowView | null {
+  if (platform === "web" || sub === null) return null;
+  if (isPayingStatus(sub.status)) return null;
+  if (sub.status === "trialing") {
+    const daysLeft = trialDaysLeft(sub, now);
+    return {
+      line: daysLeft !== null && daysLeft >= 1 ? premiumTrialDaysLeft(daysLeft) : PREMIUM_TRIAL_OPEN,
+      sheet: "trialing",
+    };
+  }
+  return { line: PREMIUM_TRIAL_ENDED, sheet: "lapsed" };
+}
+
+/** Profile's Subscription card, whole. Null hides it. */
+export interface SubscriptionCardView {
+  statusLine: string;
+  premium: PremiumRowView | null;
+  manage: ManageAction | null;
+  /** Web only, unchanged: the Stripe Subscribe button that opens the sheet. */
+  subscribe: boolean;
+  subscribeLabel: string;
+}
+
+export function subscriptionCardFor(
+  platform: string,
+  sub: SubscriptionPayload | null,
+  now: Date,
+): SubscriptionCardView | null {
+  if (sub === null) return null;
+  const manage = manageActionFor(platform, sub);
+  if (platform === "web") {
+    const row = settingsRowFor(sub);
+    if (row === null && manage === null) return null;
+    return {
+      statusLine: settingsStatusLine(sub),
+      premium: null,
+      manage,
+      subscribe: row?.subscribe ?? false,
+      subscribeLabel: SETTINGS_SUBSCRIBE,
+    };
+  }
+  // Native: always shown — the Kiwi Premium row must be reachable in the trial.
+  return {
+    statusLine: settingsStatusLine(sub),
+    premium: premiumRowFor(platform, sub, now),
+    manage,
+    subscribe: false,
+    subscribeLabel: SETTINGS_SUBSCRIBE,
+  };
+}
+
+/**
+ * BUG-356 — deleting the account does not stop a store subscription. DELETE /me
+ * cancels Stripe; only the user can cancel in the App Store or Google Play. So
+ * an entitled store subscriber is told BEFORE confirming, with the manage
+ * action beside it. Never a block: deletion proceeds when they confirm.
+ *
+ * Keyed on the SOURCE, not the platform — an iPhone subscriber deleting from
+ * the web is still billed by the App Store. Silent when the subscription is
+ * already set to end (`cancelAtPeriodEnd`): it will not renew, and the
+ * sentence would be false.
+ */
+export interface DeleteAccountNoticeView {
+  text: string;
+  manage: ManageAction;
+}
+
+export function deleteAccountNoticeFor(
+  platform: string,
+  sub: SubscriptionPayload | null,
+): DeleteAccountNoticeView | null {
+  if (sub === null) return null;
+  const source = subscriptionSource(sub);
+  if (source !== "apple" && source !== "google") return null;
+  if (!ENTITLED_STATUSES.has(sub.status) || sub.cancelAtPeriodEnd) return null;
+  const manage = manageActionFor(platform, sub);
+  if (manage === null) return null;
+  return { text: deleteAccountStoreNotice(source), manage };
+}
+
+/**
+ * Whether this build may take money in the store. All three must hold, and the
+ * sheet shows no buy button otherwise: a RevenueCat key on the build, RevenueCat
+ * configured on the server (`storeBillingAvailable` — without it store-sync and
+ * the webhook 503, and the purchase would never unlock the account), and an
+ * offering, which the sheet checks once it has loaded.
+ */
+export function storeBillingReady(input: {
+  platform: string;
+  keyPresent: boolean;
+  sub: SubscriptionPayload | null;
+}): boolean {
+  if (platformStore(input.platform) === null) return false;
+  return input.keyPresent && input.sub?.storeBillingAvailable === true;
 }

@@ -1,15 +1,16 @@
-// Row 9 (1.1) · Stripe S2 Part B — the three billing routes, and the link-out.
+// Row 9 (1.1) · Stripe S2 Part B — the billing routes, and the web link-out.
 //
 // Thin by design. Every decision this client makes lives in subscriptionView.ts;
-// this file is the wire, plus the one platform branch that decides HOW a
-// Stripe-hosted URL is opened.
+// this file is the wire, plus the one platform branch (`billingRail`) that
+// decides which rail takes the money.
 //
-// 🔴 THE SYSTEM BROWSER, NEVER A WEBVIEW. On iOS and Android the checkout and
-// portal URLs go to `Linking.openURL` — the D-WS9-267 rails ruling and Stripe's
-// own guidance agree, and an in-app WebView for a payment page is both an App
-// Review problem and a place where a password manager does not work. On web it is
-// a full navigation, not a popup, because a blocked popup is a checkout that
-// silently did not happen.
+// 🔴 RESUB C2 — NATIVE HAS NO STRIPE AT ALL. 1.0 opened Checkout and the Portal
+// in the system browser on iOS and Android, and that link-out was itself one of
+// Apple's 3.1.1 findings. iOS and Android now sell through the store
+// (lib/billing/store.ts, RevenueCat) and confirm with POST /billing/store-sync;
+// the Stripe routes below are web-only and `openBillingUrl` refuses to open
+// anything on native. On web it is a full navigation, not a popup, because a
+// blocked popup is a checkout that silently did not happen.
 //
 // Per lib/api/README.md: every call passes a Zod schema, paths carry a leading
 // slash and no `/api` prefix. The two POSTs use ENVELOPE mode and re-project into
@@ -17,7 +18,7 @@
 // product states (already subscribed; nothing to manage) that a screen must
 // branch on, not failures to alert about.
 
-import { Linking, Platform } from "react-native";
+import { Platform } from "react-native";
 import { z } from "zod";
 
 import { apiClient } from "@/lib/api/client";
@@ -53,9 +54,17 @@ export const SubscriptionPayloadSchema = z.object({
   cancelAtPeriodEnd: z.boolean(),
   billingAvailable: z.boolean(),
   enforced: z.boolean(),
-  earlyPayBonusDays: z.number(),
-  firstChargeDateIfSubscribedNow: z.string().nullable(),
+  // Resub C2 — the bonus is gone and nothing reads these. Optional so a server
+  // that still sends them (B1 does, as 0 / null) and one that has dropped them
+  // both parse.
+  earlyPayBonusDays: z.number().optional(),
+  firstChargeDateIfSubscribedNow: z.string().nullable().optional(),
   hasBillingAccount: z.boolean().optional(),
+  // Resub B1. Optional so a pre-B1 server still parses; `source` is a plain
+  // string so a new rail cannot fail the whole read (subscriptionSource narrows).
+  source: z.string().nullable().optional(),
+  managementUrl: z.string().nullable().optional(),
+  storeBillingAvailable: z.boolean().optional(),
 });
 
 export async function fetchSubscription(): Promise<SubscriptionPayload> {
@@ -65,16 +74,39 @@ export async function fetchSubscription(): Promise<SubscriptionPayload> {
 /** The React Query key. `personal` tier, but refetched on foreground by §2.3. */
 export const SUBSCRIPTION_QUERY_KEY = ["me", "subscription"] as const;
 
-// ── POST /billing/checkout-session ──────────────────────────────────────
+// ── which rail takes the money (Resub C2) ───────────────────────────────
+
+/**
+ * "web" → Stripe; iOS and Android → the store. The ONE platform branch for
+ * payments: BillingContext's startCheckout / openPortal switch on it, and
+ * nothing on the store rail ever reaches a Stripe route or a Stripe URL.
+ */
+export function billingRail(os: string): "stripe" | "store" {
+  return os === "web" ? "stripe" : "store";
+}
+
+// ── POST /billing/checkout-session (web) ────────────────────────────────
 
 export type BillingPlan = "monthly" | "annual";
 
 const SessionUrlSchema = z.object({ url: z.string() });
 
+/**
+ * Resub B1 — the 409 a store subscriber gets from either Stripe route: Kiwi
+ * never sells a second subscription to someone the App Store or Google Play is
+ * already billing, and a store subscription is managed in the store.
+ */
+export interface SubscribedElsewhere {
+  source: "apple" | "google";
+  managementUrl: string | null;
+}
+
 export type CheckoutSessionResult =
   | { success: true; url: string }
   /** 409 — already paying. Two devices, or a paywall that never refetched. */
   | { success: false; error: "already_subscribed" }
+  /** 409 `subscribed_elsewhere` — paying through the App Store / Google Play. */
+  | ({ success: false; error: "subscribed_elsewhere" } & SubscribedElsewhere)
   /** 503 — the deploy has no Stripe. Every button that leads here is gated off. */
   | { success: false; error: "billing_unavailable" }
   | { success: false; error: "unauthenticated" }
@@ -109,12 +141,14 @@ export async function createCheckoutSession(
   }) as CheckoutSessionResult;
 }
 
-// ── POST /billing/portal-session ────────────────────────────────────────
+// ── POST /billing/portal-session (web) ──────────────────────────────────
 
 export type PortalSessionResult =
   | { success: true; url: string }
   /** 409 — there is no Stripe customer yet, so there is nothing to manage. */
   | { success: false; error: "no_billing_account" }
+  /** 409 `subscribed_elsewhere` — the subscription lives in a store. */
+  | ({ success: false; error: "subscribed_elsewhere" } & SubscribedElsewhere)
   | { success: false; error: "billing_unavailable" }
   | { success: false; error: "unauthenticated" }
   | { success: false; error: "unknown"; status?: number };
@@ -132,25 +166,69 @@ export async function createPortalSession(): Promise<PortalSessionResult> {
   }) as PortalSessionResult;
 }
 
+// ── POST /billing/store-sync (iOS / Android, Resub B1) ──────────────────
+
+export type StoreSyncResult =
+  /** 200 — the GET /me/subscription body, re-read from RevenueCat. */
+  | { success: true; subscription: SubscriptionPayload }
+  /** 502 `store_sync_failed` — RevenueCat did not answer. Worth retrying. */
+  | { success: false; error: "store_sync_failed" }
+  /** 503 `billing_unavailable` — no RevenueCat on the deploy. Not retried. */
+  | { success: false; error: "billing_unavailable" }
+  /** 429 — 6 a minute. Worth retrying after the backoff. */
+  | { success: false; error: "rate_limited" }
+  | { success: false; error: "unauthenticated" }
+  | { success: false; error: "unknown"; status?: number };
+
 /**
- * The shared error ladder. One function so the two routes cannot drift into two
- * slightly different readings of the same three statuses.
+ * Ask the server to re-read RevenueCat for the signed-in user, right after a
+ * purchase or a Restore. The answer is the subscription itself, so the app
+ * unlocks without waiting for the webhook or a second round trip.
+ */
+export async function syncStoreSubscription(): Promise<StoreSyncResult> {
+  const res = await apiClient("/billing/store-sync", {
+    method: "POST",
+    body: {},
+    schema: SubscriptionPayloadSchema,
+    errorMode: "envelope",
+  });
+  if (res.success) return { success: true, subscription: res.data };
+  if (res.error instanceof UnauthenticatedError) {
+    return { success: false, error: "unauthenticated" };
+  }
+  if (res.error instanceof ApiError) {
+    if (res.error.status === 502) return { success: false, error: "store_sync_failed" };
+    if (res.error.status === 503) return { success: false, error: "billing_unavailable" };
+    if (res.error.status === 429) return { success: false, error: "rate_limited" };
+    return { success: false, error: "unknown", status: res.error.status };
+  }
+  // A network failure or a malformed body: no status, but worth a retry.
+  return { success: false, error: "unknown" };
+}
+
+/**
+ * The shared error ladder. One function so the two Stripe routes cannot drift
+ * into two slightly different readings of the same statuses.
  *
- * ⚠️ KEYED ON STATUS, NOT ON THE BODY'S `code`. The server sends both, and the
- * body is the better key in general — it is what S1 added `code` for. Here the
- * status is enough and is the more robust of the two: each route has exactly one
- * 409 and one 503, so there is no ambiguity to resolve, and a 503 emitted by
- * something in front of the route (a cold Cloud Run revision, a proxy) carries no
- * body at all and still means "not right now".
+ * ⚠️ KEYED ON STATUS, EXCEPT ONE 409. Each route had exactly one 409 and one
+ * 503, so the status was enough — and a 503 emitted by something in front of the
+ * route (a cold Cloud Run revision, a proxy) carries no body at all and still
+ * means "not right now". Resub B1 gave each route a SECOND 409,
+ * `subscribed_elsewhere`, so a 409 now reads the body's `code` first and falls
+ * back to the route's own 409 meaning.
  */
 function mapSessionError(
   err: unknown,
   byStatus: Record<number, string>,
-): { success: false; error: string; status?: number } {
+): { success: false; error: string; status?: number } & Partial<SubscribedElsewhere> {
   if (err instanceof UnauthenticatedError) {
     return { success: false, error: "unauthenticated" };
   }
   if (err instanceof ApiError) {
+    if (err.status === 409) {
+      const elsewhere = subscribedElsewhereFrom(err.body);
+      if (elsewhere) return { success: false, error: "subscribed_elsewhere", ...elsewhere };
+    }
     const mapped = byStatus[err.status];
     if (mapped) return { success: false, error: mapped };
     return { success: false, error: "unknown", status: err.status };
@@ -159,18 +237,27 @@ function mapSessionError(
   return { success: false, error: "unknown" };
 }
 
-// ── the link-out ────────────────────────────────────────────────────────
+function subscribedElsewhereFrom(body: unknown): SubscribedElsewhere | null {
+  const b = body as { code?: unknown; source?: unknown; managementUrl?: unknown } | null;
+  if (!b || b.code !== "subscribed_elsewhere") return null;
+  if (b.source !== "apple" && b.source !== "google") return null;
+  return {
+    source: b.source,
+    managementUrl: typeof b.managementUrl === "string" && b.managementUrl.length > 0
+      ? b.managementUrl
+      : null,
+  };
+}
+
+// ── the web link-out ─────────────────────────────────────────────────────
 
 /**
  * Where a Stripe URL is opened. Injected so the branch is testable without a
- * browser or a device: the production sinks are the defaults, and the S2 test
- * asserts which one each platform picks.
+ * browser: the production sink is the default.
  */
 export interface BillingLinkSinks {
   /** Web: a full navigation. `window.location.assign`, not `open`. */
   navigate: (url: string) => void;
-  /** Native: the SYSTEM browser. */
-  openExternal: (url: string) => Promise<unknown>;
 }
 
 export function defaultBillingLinkSinks(): BillingLinkSinks {
@@ -183,32 +270,24 @@ export function defaultBillingLinkSinks(): BillingLinkSinks {
         .location;
       if (loc?.assign) loc.assign(url);
     },
-    openExternal: (url) => Linking.openURL(url),
   };
 }
 
-/** "web" → navigate; everything else → the system browser. */
-export function billingLinkMode(os: string): "navigate" | "external" {
-  return os === "web" ? "navigate" : "external";
+/** "web" → navigate; native → nothing, ever (Resub C2: no Stripe link-out). */
+export function billingLinkMode(os: string): "navigate" | "none" {
+  return os === "web" ? "navigate" : "none";
 }
 
 /**
- * Open a Stripe-hosted URL. Resolves `false` when the device refused it (a
- * device with no browser — `Linking.openURL` rejects), so the caller can show a
- * line instead of leaving a spinner on a button that already finished.
+ * Open a Stripe-hosted URL — on the web only. Resolves `false` on iOS and
+ * Android without opening anything: a Stripe link-out in the app is a 3.1.1
+ * problem, and BillingContext never calls this there; this is the second lock.
  */
 export async function openBillingUrl(
   url: string,
   sinks: BillingLinkSinks = defaultBillingLinkSinks(),
 ): Promise<boolean> {
-  if (billingLinkMode(Platform.OS) === "navigate") {
-    sinks.navigate(url);
-    return true;
-  }
-  try {
-    await sinks.openExternal(url);
-    return true;
-  } catch {
-    return false;
-  }
+  if (billingLinkMode(Platform.OS) !== "navigate") return false;
+  sinks.navigate(url);
+  return true;
 }

@@ -178,3 +178,70 @@ test("anyProviderVisible is false with nothing configured and true with either",
     true,
   );
 });
+
+// ── Resub C2 · Guideline 4.8 — Apple wherever Google, on iOS ──────────────
+
+test("🔴 on iOS, Google NEVER renders without Sign in with Apple beside it (4.8)", () => {
+  // Every state the screen can be in: isAvailableAsync pending or false, a
+  // build without the entitlement, and each provider's 503 session hide.
+  const hides: Array<ReadonlyArray<"apple" | "google">> = [[], ["apple"], ["google"], ["apple", "google"]];
+  for (const appleNativeAvailable of [true, false]) {
+    for (const hidden of hides) {
+      const b = providerButtons("ios", { appleNativeAvailable, hidden }, FULL);
+      assert.ok(
+        !b.google || b.apple,
+        `Google without Apple on iOS: available=${appleNativeAvailable} hidden=${JSON.stringify(hidden)}`,
+      );
+    }
+  }
+  // …and the rule costs nothing when Apple IS there.
+  assert.deepEqual(providerButtons("ios", { appleNativeAvailable: true }, FULL), {
+    apple: true,
+    google: true,
+  });
+});
+
+test("the 4.8 rule is iOS-only: Android shows Google alone, as ruled in §2.2", () => {
+  assert.deepEqual(providerButtons("android", { appleNativeAvailable: false }, FULL), {
+    apple: false,
+    google: true,
+  });
+});
+
+// ── BUG-357 — the env read that never reached a build ─────────────────────
+
+test("🔴 every OAuth key is read as a LITERAL process.env.EXPO_PUBLIC_… (BUG-357)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { fileURLToPath } = await import("node:url");
+  const path = await import("node:path");
+  const src = readFileSync(
+    path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "providers.ts"),
+    "utf8",
+  );
+  for (const key of Object.keys(FULL)) {
+    assert.ok(src.includes(`process.env.${key}`), `${key} is not read literally`);
+  }
+  assert.doesNotMatch(src, /=\s*process\.env\s*[,)]/, "an `env = process.env` default is back");
+});
+
+test("the default env is read at call time, from the literal reads", () => {
+  const saved: Record<string, string | undefined> = {};
+  for (const [k, v] of Object.entries(FULL)) {
+    saved[k] = process.env[k];
+    process.env[k] = v;
+  }
+  try {
+    assert.deepEqual(readOAuthClientConfig(), {
+      appleServicesId: FULL.EXPO_PUBLIC_APPLE_SERVICES_ID,
+      appleWebRedirectUri: FULL.EXPO_PUBLIC_APPLE_WEB_REDIRECT_URI,
+      googleWebClientId: FULL.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+      googleIosClientId: FULL.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    });
+    assert.equal(googleConfigured("android"), true);
+  } finally {
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+});

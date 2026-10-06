@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import {
   Keyboard,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -13,8 +14,11 @@ import { useRouter } from "expo-router";
 import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { StoreSubscriptionNotice } from "@/components/StoreSubscriptionNotice";
 import { useApp } from "@/contexts/AppContext";
+import { useBilling } from "@/contexts/BillingContext";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { deleteAccountNoticeFor } from "@/lib/billing/subscriptionView";
 
 // D-WS9-257 — replaces app/deactivate-account.tsx.
 //
@@ -47,6 +51,10 @@ const WARNING_BULLETS = [
 export default function DeleteAccount() {
   const router = useRouter();
   const { deleteAccount } = useApp();
+  // BUG-356 — a store subscription outlives the account unless cancelled in the
+  // store. Said here, before the confirm; never a block.
+  const { subscription, openManagement } = useBilling();
+  const storeNotice = deleteAccountNoticeFor(Platform.OS, subscription);
 
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -99,6 +107,15 @@ export default function DeleteAccount() {
             ))}
           </View>
         </View>
+
+        {storeNotice !== null && (
+          <StoreSubscriptionNotice
+            notice={storeNotice}
+            onManage={(action) => {
+              if (action.kind === "store_link") openManagement(action.url);
+            }}
+          />
+        )}
 
         <View style={s.frictionCard}>
           <Text style={s.frictionHeading}>Type 'delete' to confirm</Text>

@@ -20,7 +20,7 @@
 // 🔴 HOOKS SIT ABOVE THE EARLY RETURNS.
 
 import React from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Redirect, useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 
@@ -34,7 +34,7 @@ import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens
 import { useGuest } from "@/contexts/GuestContext";
 import { useGuestDoor } from "@/hooks/useGuestDoor";
 import { expandGuestCandidate, getGuestSession, trackGuestEvent } from "@/lib/api/guest";
-import { THIN_SHELF_CTA, THIN_SHELF_TITLE } from "@/lib/guest/doors";
+import { THIN_SHELF_CTA, thinShelfTitle } from "@/lib/guest/doors";
 // Block 2b (BUG-316) — the refusal is keyed to the card that earned it.
 import {
   deriveThinShelfPlacement,
@@ -201,7 +201,7 @@ function GuestOptionsScreen() {
               guestGapBanner={
                 thinShelfShowsOnCard(placement, key) ? (
                   <ExhaustedCard
-                    title={THIN_SHELF_TITLE}
+                    title={thinShelfTitle(Platform.OS)}
                     body=""
                     guestExit={{
                       label: THIN_SHELF_CTA,
