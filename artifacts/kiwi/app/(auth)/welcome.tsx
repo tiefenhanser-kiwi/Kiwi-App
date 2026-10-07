@@ -15,6 +15,7 @@ import { Feather } from "@expo/vector-icons";
 import { Button } from "@/components/Button";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { PRIVACY_URL, TERMS_URL } from "@/lib/legal";
+import { welcomeUsesLargeTextLayout } from "@/lib/welcomeLayout";
 
 // D-WS9-099 — the WS5 "coming soon" Alert is REMOVED, not restyled. Both
 // pages are live (lib/legal.ts) and a store submission has to link to them.
@@ -52,6 +53,11 @@ export const WELCOME_COMPACT_MAX_HEIGHT = 700;
 // off the screen — the exact failure this screen was rejected for.
 const FOOTER_BUTTON_MAX_SCALE = 2;
 const FOOTER_LEGAL_MAX_SCALE = 1.5;
+// BUG-347 — the wordmark's growth cap. 44 × 1.5 = 66 pt; "Kiwi" in Fraunces
+// Bold Italic is about 2 em (an estimate, not a measurement) ≈ 132 pt, inside
+// the 264 pt a 320-wide window leaves (320 − 2×20 scroll pad − 2×8 own pad).
+// adjustsFontSizeToFit is the backstop if the estimate is wrong.
+const WORDMARK_MAX_SCALE = 1.5;
 
 // PRD §3.2 — feature copy. Resub C1 replaced the grocery line: the old one named
 // Whole Foods, which is not on Instacart in the US.
@@ -80,8 +86,65 @@ const FEATURES: Array<{
 export default function Welcome() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { height } = useWindowDimensions();
+  const { height, width, fontScale } = useWindowDimensions();
   const compact = height <= WELCOME_COMPACT_MAX_HEIGHT;
+  // Resub C3 (BUG-347) — at the largest text sizes, or in a window narrowed by
+  // Android's Display size, nothing is pinned: see lib/welcomeLayout.ts.
+  const large = welcomeUsesLargeTextLayout({ fontScale, width });
+
+  // The same three actions and legal line in either shape. Pinned, their growth
+  // is capped so they fit above the safe area (C1); inline, the screen scrolls,
+  // so a cap buys nothing and the labels grow and wrap freely.
+  const actions = (
+    <View
+      style={
+        large
+          ? [styles.actionsInline, { paddingBottom: insets.bottom + Spacing[4] }]
+          : [styles.footer, { paddingBottom: insets.bottom + Spacing[3] }]
+      }
+      testID="welcome-footer"
+    >
+      <Button
+        label={WELCOME_PRIMARY_LABEL}
+        variant="primary"
+        onPress={() => router.push("/(auth)/sign-up")}
+        maxFontSizeMultiplier={large ? undefined : FOOTER_BUTTON_MAX_SCALE}
+        wrapLabel
+        testID="welcome-start-trial"
+      />
+      <Button
+        label={WELCOME_EXPLORE_LABEL}
+        variant="secondary"
+        onPress={() => router.push("/test-kitchen")}
+        maxFontSizeMultiplier={large ? undefined : FOOTER_BUTTON_MAX_SCALE}
+        wrapLabel
+        testID="welcome-explore"
+      />
+      <Button
+        label={WELCOME_SIGN_IN_LABEL}
+        variant="secondary"
+        onPress={() => router.push("/(auth)/sign-in")}
+        maxFontSizeMultiplier={large ? undefined : FOOTER_BUTTON_MAX_SCALE}
+        wrapLabel
+        testID="welcome-sign-in"
+      />
+      <Text
+        style={styles.legalLine}
+        maxFontSizeMultiplier={large ? undefined : FOOTER_LEGAL_MAX_SCALE}
+      >
+        By continuing you agree to our{" "}
+        <Text style={styles.legalLink} onPress={() => openLegal(TERMS_URL)}>
+          Terms of Service
+        </Text>
+        {" "}and{" "}
+        <Text style={styles.legalLink} onPress={() => openLegal(PRIVACY_URL)}>
+          Privacy Policy
+        </Text>
+        .
+      </Text>
+    </View>
+  );
+
   return (
     <View style={[styles.bg, { paddingTop: insets.top }]}>
       <ScrollView
@@ -97,13 +160,25 @@ export default function Welcome() {
             />
           </View>
           {/* Interim text wordmark — the Deep Kiwi vector mark is a go-live item
-              (same treatment as 3a). */}
-          <Text style={[styles.brand, compact && styles.brandCompact]}>Kiwi</Text>
+              (same treatment as 3a). BUG-347: one unbreakable word, so it may
+              never wrap (Android breaks a too-wide word mid-word — "Kiw") and
+              shrinks to fit instead; capped because a 44 pt mark is already
+              display type. */}
+          <Text
+            style={[styles.brand, compact && styles.brandCompact]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.5}
+            maxFontSizeMultiplier={WORDMARK_MAX_SCALE}
+          >
+            Kiwi
+          </Text>
           <Text
             style={[styles.tag, compact && styles.tagCompact]}
-            // Compact: two lines at most, shrinking to fit before it would cut.
-            numberOfLines={compact ? 2 : undefined}
-            adjustsFontSizeToFit={compact}
+            // Compact and pinned: two lines at most, shrinking to fit before it
+            // would cut. At large text the screen scrolls, so it wraps in full.
+            numberOfLines={compact && !large ? 2 : undefined}
+            adjustsFontSizeToFit={compact && !large}
             minimumFontScale={0.8}
           >
             Thought to Table — Streamlined Cooking for Home Chefs
@@ -116,52 +191,18 @@ export default function Welcome() {
               <View style={styles.featureIconWrap}>
                 <Feather name={f.icon} size={20} color={Colors.sage[600]} />
               </View>
-              <View style={{ flex: 1 }}>
+              <View style={styles.featureText}>
                 <Text style={styles.featureTitle}>{f.title}</Text>
                 <Text style={styles.featureBody}>{f.body}</Text>
               </View>
             </View>
           ))}
         </View>
+
+        {large ? actions : null}
       </ScrollView>
 
-      <View
-        style={[styles.footer, { paddingBottom: insets.bottom + Spacing[3] }]}
-        testID="welcome-footer"
-      >
-        <Button
-          label={WELCOME_PRIMARY_LABEL}
-          variant="primary"
-          onPress={() => router.push("/(auth)/sign-up")}
-          maxFontSizeMultiplier={FOOTER_BUTTON_MAX_SCALE}
-          testID="welcome-start-trial"
-        />
-        <Button
-          label={WELCOME_EXPLORE_LABEL}
-          variant="secondary"
-          onPress={() => router.push("/test-kitchen")}
-          maxFontSizeMultiplier={FOOTER_BUTTON_MAX_SCALE}
-          testID="welcome-explore"
-        />
-        <Button
-          label={WELCOME_SIGN_IN_LABEL}
-          variant="secondary"
-          onPress={() => router.push("/(auth)/sign-in")}
-          maxFontSizeMultiplier={FOOTER_BUTTON_MAX_SCALE}
-          testID="welcome-sign-in"
-        />
-        <Text style={styles.legalLine} maxFontSizeMultiplier={FOOTER_LEGAL_MAX_SCALE}>
-          By continuing you agree to our{" "}
-          <Text style={styles.legalLink} onPress={() => openLegal(TERMS_URL)}>
-            Terms of Service
-          </Text>
-          {" "}and{" "}
-          <Text style={styles.legalLink} onPress={() => openLegal(PRIVACY_URL)}>
-            Privacy Policy
-          </Text>
-          .
-        </Text>
-      </View>
+      {large ? null : actions}
     </View>
   );
 }
@@ -176,11 +217,24 @@ const styles = StyleSheet.create({
   // the footer's buttons grow (capped, see FOOTER_BUTTON_MAX_SCALE) and the
   // scroll area shrinks to give them the room; the two never overlap because
   // the ScrollView is the only thing that can shrink.
+  //
+  // Resub C3 (BUG-347) — "the only thing that can shrink" ran out: at fontScale
+  // 2.0 in a 320 dp window the capped footer is itself taller than the window
+  // and the ScrollView is left nothing. Above lib/welcomeLayout.ts's threshold
+  // the footer moves INTO the ScrollView (actionsInline); below it, this layout
+  // is unchanged.
   bg: {
     flex: 1,
     backgroundColor: Colors.neutral[100],
   },
   scroll: { flex: 1 },
+  // Resub C3 (BUG-347) — large text: the actions follow the cards INSIDE the
+  // ScrollView, so the footer can no longer take the whole window and leave
+  // the scroll area nothing. No border, no fill: there is no pinned edge.
+  actionsInline: {
+    gap: Spacing[3],
+    marginTop: Spacing[5],
+  },
   scrollContent: {
     paddingHorizontal: Spacing[5],
     paddingBottom: Spacing[4],
@@ -208,6 +262,9 @@ const styles = StyleSheet.create({
     color: Colors.neutral[900],
     fontFamily: Typography.face.serifItalic[700],
     letterSpacing: -1,
+    // Room for the italic's last-glyph overhang past its advance width, which
+    // Android clips. Symmetric, so the centred word does not move.
+    paddingHorizontal: Spacing[2],
   },
   brandCompact: { fontSize: 34, letterSpacing: -0.75 },
   tag: {
@@ -244,6 +301,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  // flex: 1 is grow 1 / shrink 1 / basis 0; shrink spelled out because it is
+  // the property that matters — the column takes what the icon leaves and
+  // narrows with the card, so both lines wrap inside it.
+  featureText: { flex: 1, flexShrink: 1 },
   featureTitle: {
     fontSize: Typography.fontSize.md,
     fontWeight: Typography.fontWeight.semibold,

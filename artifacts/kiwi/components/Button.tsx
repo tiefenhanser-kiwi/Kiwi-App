@@ -70,6 +70,12 @@ interface Props {
    *  pinned footer). Setting it also lets a long label WRAP inside the button
    *  rather than run past its edges. Absent = today's label, untouched. */
   maxFontSizeMultiplier?: number;
+  /** Resub C3 (BUG-347) — let a long label WRAP inside the button without
+   *  capping its growth. For a button in space that scrolls (Welcome at large
+   *  text, sign-in, sign-up), where a capped label buys nothing and an
+   *  unwrapped one runs past the button's edges at a large text size. Absent
+   *  = today's label, untouched. */
+  wrapLabel?: boolean;
 }
 
 export function Button({
@@ -85,8 +91,10 @@ export function Button({
   iconLeft,
   testID,
   maxFontSizeMultiplier,
+  wrapLabel,
 }: Props) {
   const variantPalette = VARIANTS[variant];
+  const wraps = !!wrapLabel || maxFontSizeMultiplier !== undefined;
   const metrics = SIZES[size];
 
   // WS9 D-WS9-215 — a variant MAY carry a deliberate disabled treatment. When
@@ -148,13 +156,13 @@ export function Button({
       {loading ? (
         <ActivityIndicator color={palette.text} />
       ) : (
-        <View style={styles.row}>
+        <View style={[styles.row, wraps && styles.rowBounded]}>
           {iconLeft}
           <Text
             style={[
               styles.text,
               { fontSize: metrics.fontSize, color: palette.text },
-              maxFontSizeMultiplier !== undefined && styles.wrap,
+              wraps && styles.wrap,
             ]}
             maxFontSizeMultiplier={maxFontSizeMultiplier}
           >
@@ -259,8 +267,17 @@ const styles = StyleSheet.create({
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.sans[600],
   },
-  // Only with `maxFontSizeMultiplier`: a label in a row does not wrap unless it
-  // may shrink, so at a large text size it would overflow the button instead.
+  // Only with `maxFontSizeMultiplier` or `wrapLabel`: the row sits in a
+  // Pressable that centres it, and a centred child is as wide as its content
+  // unless something bounds it. maxWidth holds it to the button's content box,
+  // so the label below has a width to wrap AT. (There is no fixed height on the
+  // button or the row — a wrapped second line grows the button; nothing hides it.)
+  rowBounded: {
+    maxWidth: "100%",
+  },
+  // Only with `maxFontSizeMultiplier` or `wrapLabel`: a label in a row does not
+  // wrap unless it may shrink, so at a large text size it would overflow the
+  // button instead.
   wrap: {
     flexShrink: 1,
     textAlign: "center",

@@ -235,6 +235,146 @@ test("an 812 pt window keeps the full hero", async () => {
   assert.equal(tallTag?.props?.numberOfLines, undefined);
 });
 
+// ── Resub C3 — BUG-347: the largest Font size AND Display size ─────────────
+//
+// ⚠️ THESE PROVE STRUCTURE, NOT LAYOUT. The stub renders host elements with
+// their props; nothing here measures a glyph or runs Yoga. They pin the
+// properties that make clipping impossible by construction — no clamp without a
+// shrink-to-fit, no fixed height above any text, nothing pinned at large text —
+// and the device pass at maximum Font AND Display size is the real gate.
+
+/** Every node paired with the ancestors above it. */
+function walk(
+  node: Node | string | null,
+  visit: (n: Node, ancestors: Node[]) => void,
+  ancestors: Node[] = [],
+): void {
+  if (node == null || typeof node === "string") return;
+  visit(node, ancestors);
+  for (const c of node.children ?? []) walk(c, visit, [...ancestors, node]);
+}
+
+async function mountAtLargest(): Promise<Node> {
+  rn.__setWindowDimensionsForTests({ width: 320, height: 570, fontScale: 2 });
+  return mountWelcome();
+}
+
+test("BUG-347: at fontScale 2.0 in a 320 × 570 window the actions are INSIDE the ScrollView", async () => {
+  try {
+    const tree = await mountAtLargest();
+    const scroll = byTestId(tree, "welcome-scroll");
+    assert.ok(scroll);
+    const inScroll = byTestId(scroll, "welcome-footer");
+    assert.ok(inScroll, "the actions block is a descendant of the ScrollView");
+    assert.deepEqual(buttonLabels(inScroll), [
+      "Start your 14-day free trial",
+      "Explore without an account",
+      "I already have an account",
+    ]);
+    assert.match(textOf(inScroll), /By continuing you agree/);
+    // And nothing is left pinned outside it.
+    const root = tree;
+    const pinned = (root.children ?? []).filter(
+      (c): c is Node => typeof c !== "string" && c.props?.testID === "welcome-footer",
+    );
+    assert.equal(pinned.length, 0, "no footer is a sibling of the ScrollView");
+  } finally {
+    rn.__resetWindowDimensionsForTests();
+  }
+});
+
+test("BUG-347: no <Text> is clamped by numberOfLines without adjustsFontSizeToFit", async () => {
+  try {
+    const tree = await mountAtLargest();
+    const clamped: string[] = [];
+    walk(tree, (n) => {
+      if (n.type !== "rn-text") return;
+      if (n.props?.numberOfLines !== undefined && n.props?.adjustsFontSizeToFit !== true) {
+        clamped.push(textOf(n));
+      }
+    });
+    assert.deepEqual(clamped, []);
+  } finally {
+    rn.__resetWindowDimensionsForTests();
+  }
+});
+
+test("BUG-347: no fixed height and no overflow:hidden on any text's path to the root", async () => {
+  try {
+    const tree = await mountAtLargest();
+    const offenders: string[] = [];
+    let texts = 0;
+    walk(tree, (n, ancestors) => {
+      if (n.type !== "rn-text") return;
+      texts++;
+      for (const holder of [...ancestors, n]) {
+        const st = flat(holder.props?.style);
+        if (typeof st.height === "number") {
+          offenders.push(`${textOf(n)} ← ${holder.type} height ${st.height}`);
+        }
+        if (st.overflow === "hidden") {
+          offenders.push(`${textOf(n)} ← ${holder.type} overflow hidden`);
+        }
+      }
+    });
+    assert.ok(texts >= 10, `expected the hero, cards, labels and legal line; saw ${texts}`);
+    assert.deepEqual(offenders, []);
+  } finally {
+    rn.__resetWindowDimensionsForTests();
+  }
+});
+
+test("BUG-347: the wordmark is one line that shrinks to fit, never a wrapped 'Kiw'", async () => {
+  try {
+    const tree = await mountAtLargest();
+    const brand = findAll(tree, "rn-text").find((t) => textOf(t) === "Kiwi");
+    assert.equal(brand?.props?.numberOfLines, 1);
+    assert.equal(brand?.props?.adjustsFontSizeToFit, true);
+    assert.equal(brand?.props?.minimumFontScale, 0.5);
+    assert.equal(brand?.props?.maxFontSizeMultiplier, 1.5);
+  } finally {
+    rn.__resetWindowDimensionsForTests();
+  }
+});
+
+test("BUG-347: at large text the labels wrap UNCAPPED and the tagline is not clamped", async () => {
+  try {
+    const tree = await mountAtLargest();
+    const footer = byTestId(tree, "welcome-footer");
+    const labels = findAll(footer, "rn-text").filter((t) =>
+      [WELCOME_PRIMARY_LABEL, WELCOME_EXPLORE_LABEL, WELCOME_SIGN_IN_LABEL].includes(textOf(t)),
+    );
+    assert.equal(labels.length, 3);
+    for (const l of labels) {
+      assert.equal(l.props?.maxFontSizeMultiplier, undefined, textOf(l));
+      assert.equal(flat(l.props?.style).flexShrink, 1, textOf(l));
+    }
+    const tag = findAll(tree, "rn-text").find((t) => /Thought to Table/.test(textOf(t)));
+    assert.equal(tag?.props?.numberOfLines, undefined, "570 tall is compact, but it scrolls");
+    // The cards' text column narrows with the card.
+    const title = findAll(tree, "rn-text").find((t) => textOf(t) === "Skip the meal-planning stress");
+    let column: Node | null = null;
+    walk(tree, (n, ancestors) => {
+      if (n === title) column = ancestors[ancestors.length - 1];
+    });
+    assert.equal(flat((column as Node | null)?.props?.style).flexShrink, 1);
+  } finally {
+    rn.__resetWindowDimensionsForTests();
+  }
+});
+
+test("BUG-347: 🔴 the 375 × 667 window at fontScale 1.0 is still C1's pinned footer", async () => {
+  rn.__setWindowDimensionsForTests({ width: 375, height: 667, fontScale: 1 });
+  try {
+    const tree = await mountWelcome();
+    assert.deepEqual(buttonLabels(byTestId(tree, "welcome-scroll")), []);
+    const footer = byTestId(tree, "welcome-footer");
+    assert.equal(flat(footer?.props?.style).flexShrink, 0);
+  } finally {
+    rn.__resetWindowDimensionsForTests();
+  }
+});
+
 test("the grocery card names Instacart and any store — no Whole Foods", async () => {
   const tree = await mountWelcome();
   const all = textOf(tree);

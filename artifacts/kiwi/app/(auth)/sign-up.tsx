@@ -332,7 +332,8 @@ export default function SignUpPage() {
             <ActivityIndicator color={Colors.sage[700]} />
           </View>
         ) : (
-          <Button onPress={handleSubmit} label="Create account" disabled={cooldown.active} />
+          // BUG-347 — wraps rather than runs past its edges at the largest text.
+          <Button onPress={handleSubmit} label="Create account" disabled={cooldown.active} wrapLabel />
         )}
         {/* D-WS9-258 — the "14-day free trial · no credit card needed"
             line is removed: the first binary has no billing, so it may not

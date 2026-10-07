@@ -206,7 +206,8 @@ export default function SignInPage() {
             {claimPending ? <Text style={styles.claimBusy}>{CLAIM_BUSY_LABEL}</Text> : null}
           </View>
         ) : (
-          <Button onPress={handleSubmit} label="Sign in" disabled={cooldown.active} />
+          // BUG-347 — wraps rather than runs past its edges at the largest text.
+          <Button onPress={handleSubmit} label="Sign in" disabled={cooldown.active} wrapLabel />
         )}
         <Link href="/(auth)/forgot-password" asChild>
           <Pressable>
