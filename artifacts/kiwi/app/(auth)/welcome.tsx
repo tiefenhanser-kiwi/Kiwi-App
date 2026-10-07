@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 
 import { Button } from "@/components/Button";
+import { TurnstilePrewarm } from "@/components/TurnstilePrewarm";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { PRIVACY_URL, TERMS_URL } from "@/lib/legal";
 import { welcomeUsesLargeTextLayout } from "@/lib/welcomeLayout";
@@ -147,6 +148,9 @@ export default function Welcome() {
 
   return (
     <View style={[styles.bg, { paddingTop: insets.top }]}>
+      {/* BUG-361 — Turnstile starts here, so a token is usually ready before
+          the Explore tap. Renders nothing on web or without a site key. */}
+      <TurnstilePrewarm />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}

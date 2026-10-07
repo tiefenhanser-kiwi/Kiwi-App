@@ -64,6 +64,16 @@ test("the page loads Cloudflare's api.js and renders with the site key", () => {
   assert.ok(html.indexOf("kiwiTurnstileLoad = function") < html.indexOf("api.js"));
 });
 
+test("Resub C3 (BUG-361): the page posts 'interactive' from before-interactive-callback", () => {
+  const html = turnstileHtml("0xSITEKEY");
+  assert.ok(html.includes('"before-interactive-callback": function () { kiwiPost({ type: "interactive" }); }'));
+  assert.deepEqual(parseTurnstileMessage('{"type":"interactive"}'), { type: "interactive" });
+  // The visible gate shows the checkbox itself: it keeps waiting, and a solved
+  // gate is not undone.
+  assert.equal(turnstileGateReducer("waiting", { type: "interactive" }), "waiting");
+  assert.equal(turnstileGateReducer("solved", { type: "interactive" }), "solved");
+});
+
 test("a key cannot break out of the script it is embedded in", () => {
   const html = turnstileHtml("</script><script>alert(1)</script>");
   assert.ok(!html.includes("</script><script>alert(1)"));

@@ -32,6 +32,7 @@ import { getGuestSession } from "@/lib/api/guest";
 import { ApiError, UnauthenticatedError } from "@/lib/api/errors";
 import { deriveGuestStage, guestGenerationSpent } from "@/lib/guest/guestSession";
 import { turnstileEnabled } from "@/lib/guest/turnstile";
+import { decideTurnstileEntry } from "@/lib/guest/turnstilePrewarm";
 
 // ── Copy ─────────────────────────────────────────────────────────────────
 export const TK_TITLE = "Kiwi Test Kitchen";
@@ -59,9 +60,17 @@ export default function TestKitchenRoute() {
 
 function TestKitchenEntry() {
   const router = useRouter();
-  const { session, status, error, startOrResume, endGuestSession } = useGuest();
-  const [turnstileToken, setTurnstileToken] = React.useState<string | null>(null);
+  const { session, status, error, startOrResume, endGuestSession, turnstile, dispatchTurnstile } =
+    useGuest();
   const gated = turnstileEnabled();
+  // Resub C3 (BUG-361) — the token Welcome pre-warmed, read ONCE, at the tap.
+  // Fresh and ready → it is sent at once and no gate is drawn. Anything else
+  // (still warming, interactive, failed, stale, web) → the visible gate below,
+  // exactly as before; when Cloudflare wants a checkbox, that is where it shows.
+  const [prewarmedToken] = React.useState<string | null>(() =>
+    gated && decideTurnstileEntry(turnstile, Date.now()) === "use_token" ? turnstile.token : null,
+  );
+  const [turnstileToken, setTurnstileToken] = React.useState<string | null>(prewarmedToken);
   const started = React.useRef(false);
 
   // Start once. `startOrResume` is idempotent (it shares the in-flight promise),
@@ -77,12 +86,24 @@ function TestKitchenEntry() {
     if (started.current) return;
     if (gated && !turnstileToken) return;
     started.current = true;
-    void startOrResume(turnstileToken ? { turnstileToken } : {}).catch(() => {
+    const call = startOrResume(turnstileToken ? { turnstileToken } : {});
+    // BUG-361 — a token is single use: once the pre-warmed one has gone out in a
+    // create, it leaves the store whether the create succeeded or failed. A
+    // RESUME never sends it, so it stays for the next visitor who needs it.
+    if (prewarmedToken !== null && turnstileToken === prewarmedToken) {
+      call.then(
+        (action) => {
+          if (action !== "resume") dispatchTurnstile({ type: "consume" });
+        },
+        () => dispatchTurnstile({ type: "consume" }),
+      );
+    }
+    void call.catch(() => {
       // Rendered from `error` below; a rejected start must not be an unhandled
       // rejection in a browser console.
       started.current = false;
     });
-  }, [gated, turnstileToken, startOrResume, session]);
+  }, [gated, turnstileToken, startOrResume, session, prewarmedToken, dispatchTurnstile]);
 
   // Where a resumed visitor belongs. Guest-OK (GET /guest/session); skipped
   // until a session exists so it never fires tokenless.
@@ -159,7 +180,9 @@ function TestKitchenEntry() {
           <View style={s.card}>
             <Text style={s.cardTitle}>{TK_TITLE}</Text>
             <Text style={s.cardBody}>{TK_SUBTITLE}</Text>
-            {gated ? (
+            {/* BUG-361 — with a pre-warmed token the start is already in
+                flight: no gate, just the loader. */}
+            {gated && prewarmedToken === null ? (
               <>
                 <TurnstileGate onToken={setTurnstileToken} />
                 <Button

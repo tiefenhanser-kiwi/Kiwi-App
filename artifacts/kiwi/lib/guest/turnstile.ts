@@ -112,7 +112,8 @@ window.kiwiTurnstileLoad = function () {
       sitekey: ${key},
       callback: function (token) { kiwiPost({ type: "turnstile", token: token }); },
       "error-callback": function () { kiwiPost({ type: "error" }); },
-      "expired-callback": function () { kiwiPost({ type: "expired" }); }
+      "expired-callback": function () { kiwiPost({ type: "expired" }); },
+      "before-interactive-callback": function () { kiwiPost({ type: "interactive" }); }
     });
   } catch (e) {
     kiwiPost({ type: "error" });
@@ -127,10 +128,18 @@ window.kiwiTurnstileLoad = function () {
 </html>`;
 }
 
+/**
+ * Resub C3 (BUG-361) — `interactive` is Turnstile's "before-interactive-callback"
+ * ("invoked before the challenge enters interactive mode", Cloudflare's widget
+ * configurations page, checked October 7): the widget is about to show its
+ * checkbox. The VISIBLE gate needs nothing from it — the person sees the
+ * checkbox. The hidden prewarm uses it to stand down so the tap shows the gate.
+ */
 export type TurnstileMessage =
   | { type: "turnstile"; token: string }
   | { type: "error" }
-  | { type: "expired" };
+  | { type: "expired" }
+  | { type: "interactive" };
 
 /**
  * The page's postMessage string, or null for anything else. A WebView can
@@ -154,6 +163,7 @@ export function parseTurnstileMessage(data: unknown): TurnstileMessage | null {
   }
   if (m.type === "error") return { type: "error" };
   if (m.type === "expired") return { type: "expired" };
+  if (m.type === "interactive") return { type: "interactive" };
   return null;
 }
 
@@ -181,6 +191,9 @@ export function turnstileGateReducer(
     case "expired":
     case "retry":
       return "waiting";
+    case "interactive":
+      // The checkbox is on screen in the visible gate; keep waiting for it.
+      return state;
   }
 }
 

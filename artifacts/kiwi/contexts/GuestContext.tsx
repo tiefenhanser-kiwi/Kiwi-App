@@ -22,6 +22,12 @@ import {
   type GuestSessionCredentials,
 } from "@/lib/guest/guestToken";
 import { deriveGuestEntryAction, type GuestEntryAction } from "@/lib/guest/guestSession";
+import {
+  TURNSTILE_WARM_IDLE,
+  turnstileWarmReducer,
+  type TurnstileWarmEvent,
+  type TurnstileWarmStore,
+} from "@/lib/guest/turnstilePrewarm";
 import type { GuestWizardForm } from "@/lib/wizard/guestPayload";
 import type { WizardPlanCandidate } from "@/lib/types";
 
@@ -66,6 +72,14 @@ interface GuestContextValue {
   /** The generation just made in this tab — see GuestGeneration. */
   generation: GuestGeneration | null;
   setGeneration: (g: GuestGeneration | null) => void;
+  /**
+   * Resub C3 (BUG-361) — the Turnstile token Welcome pre-warmed (native only;
+   * idle forever on web and without a site key). In memory, never stored: a
+   * token is single-use and dead in 300 s, so there is nothing to restore.
+   * Lives HERE rather than in Welcome so it outlives Welcome's screen.
+   */
+  turnstile: TurnstileWarmStore;
+  dispatchTurnstile: (event: TurnstileWarmEvent) => void;
 }
 
 const GuestCtx = React.createContext<GuestContextValue | null>(null);
@@ -84,6 +98,10 @@ export function GuestProvider({ children }: { children: React.ReactNode }) {
   );
   const [error, setError] = React.useState<Error | null>(null);
   const [generation, setGeneration] = React.useState<GuestGeneration | null>(null);
+  const [turnstile, dispatchTurnstile] = React.useReducer(
+    turnstileWarmReducer,
+    TURNSTILE_WARM_IDLE,
+  );
   // The shared in-flight create. A ref, not state: two callers in the same tick
   // must see the same promise, and a state update would not have landed yet.
   const inFlight = React.useRef<Promise<GuestEntryAction> | null>(null);
@@ -148,8 +166,10 @@ export function GuestProvider({ children }: { children: React.ReactNode }) {
       endGuestSession,
       generation,
       setGeneration,
+      turnstile,
+      dispatchTurnstile,
     }),
-    [session, status, error, startOrResume, endGuestSession, generation],
+    [session, status, error, startOrResume, endGuestSession, generation, turnstile],
   );
 
   return <GuestCtx.Provider value={value}>{children}</GuestCtx.Provider>;
