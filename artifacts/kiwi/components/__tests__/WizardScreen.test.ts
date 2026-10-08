@@ -26,6 +26,9 @@ import {
   CTA_HINT_PICK,
   CTA_HINT_PLANS,
   GUEST_CTA_HINT,
+  GUEST_SPENT_SEE_PLAN,
+  GUEST_SPENT_SIGN_UP,
+  GUEST_SPENT_TITLE,
   PATH_PICK_TITLE,
   PATH_PLANS_TITLE,
   TEXT_SECTION_TITLE,
@@ -35,6 +38,7 @@ import {
 import { NUDGE_TITLE, PLAYLIST_DIAL_LABEL } from "../preference-pickers/MixDials";
 import { Palette } from "@/constants/tokens";
 import { clearGuestSession, storeGuestSession } from "@/lib/guest/guestToken";
+import { DOOR_TITLE } from "@/lib/guest/doors";
 
 type Json = {
   type: string;
@@ -469,6 +473,52 @@ test("C4 a SPENT guest session: the CTA stays disabled on either path (one plan 
     assert.equal(byTestId(m.root(), "wizard-build")!.props.disabled, true);
     await tap(byTestId(m.root(), "wizard-build"), "CTA");
     assert.equal(calls.some((c) => c.path === "/wizard/shelf"), false);
+  } finally {
+    clearGuestSession();
+  }
+});
+
+// ── Resub C4 · BUG-367 — the spent notice is the door ──────────────────────
+
+test("C4 BUG-367 the spent notice carries the sign-up door and a way back to the plan", async () => {
+  storeGuestSession(GUEST_SESSION);
+  try {
+    const m = await mount({ mode: "prefs", guest: true, guestGenerationSpent: true, guestHasDraft: true });
+    assert.ok(m.text().includes(GUEST_SPENT_TITLE));
+    const signUp = byTestId(m.root(), "guest-spent-sign-up");
+    const seePlan = byTestId(m.root(), "guest-spent-see-plan");
+    assert.ok(signUp && allText(signUp).join("") === GUEST_SPENT_SIGN_UP, "primary action missing");
+    assert.ok(seePlan && allText(seePlan).join("") === GUEST_SPENT_SEE_PLAN, "secondary action missing");
+
+    assert.equal(walk(m.root()).some((n) => n.type === "rn-modal"), false);
+    await tap(signUp, "sign-up");
+    assert.ok(walk(m.root()).some((n) => n.type === "rn-modal"), "the door sheet did not open");
+    assert.ok(m.text().includes(DOOR_TITLE));
+
+    await tap(byTestId(m.root(), "guest-spent-see-plan"), "see plan");
+    assert.deepEqual(pushed, ["/test-kitchen/plan"]);
+  } finally {
+    clearGuestSession();
+  }
+});
+
+test("C4 BUG-367 no draft yet (three plans shown, none opened) → 'See your plan' goes to the options", async () => {
+  storeGuestSession(GUEST_SESSION);
+  try {
+    const m = await mount({ mode: "prefs", guest: true, guestGenerationSpent: true, guestHasDraft: false });
+    await tap(byTestId(m.root(), "guest-spent-see-plan"), "see plan");
+    assert.deepEqual(pushed, ["/test-kitchen/options"]);
+  } finally {
+    clearGuestSession();
+  }
+});
+
+test("C4 BUG-367 an unspent guest sees no notice", async () => {
+  storeGuestSession(GUEST_SESSION);
+  try {
+    const m = await mount({ mode: "prefs", guest: true });
+    assert.equal(byTestId(m.root(), "guest-spent-sign-up"), undefined);
+    assert.ok(!m.text().includes(GUEST_SPENT_TITLE));
   } finally {
     clearGuestSession();
   }

@@ -218,6 +218,7 @@ function TestKitchenEntry() {
       mode="prefs"
       guest
       guestGenerationSpent={spent}
+      guestHasDraft={sessionQuery.data?.hasDraft ?? false}
       guestResumeBanner={
         resumeHref ? (
           <Pressable

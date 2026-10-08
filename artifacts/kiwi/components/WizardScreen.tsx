@@ -147,6 +147,12 @@ export const GUEST_CTA_HINT = "Next: Kiwi builds 3 plans — you pick one";
 export const GUEST_SPENT_TITLE = "You've built your Test Kitchen plan";
 export const GUEST_SPENT_BODY =
   "The Test Kitchen builds one plan per visit. Create a free account for unlimited plans — and to keep this one.";
+// Resub C4 (BUG-367, Hans: "it should have a link or be clickable to sign up. I
+// had to go to the prior plan I made and then sign up from there") — the
+// notice's two actions. The primary opens the existing door sheet (its ruled
+// copy, no second sheet); the secondary goes to what the visitor already built.
+export const GUEST_SPENT_SIGN_UP = "Create a free account — save my plan";
+export const GUEST_SPENT_SEE_PLAN = "See your plan";
 
 interface WizardFormState {
   /** Text mode's box. Empty and unrendered in prefs mode. */
@@ -255,6 +261,9 @@ export interface WizardScreenProps {
   guestGenerationSpent?: boolean;
   /** The entry s "pick up where you left off" link, rendered above the form. */
   guestResumeBanner?: React.ReactNode;
+  /** Resub C4 — GET /guest/session hasDraft: the spent notice's "See your plan"
+   *  goes to the plan when there is one, else to the plan options. */
+  guestHasDraft?: boolean;
 }
 
 export function WizardScreen({
@@ -266,6 +275,7 @@ export function WizardScreen({
   guest = false,
   guestGenerationSpent = false,
   guestResumeBanner = null,
+  guestHasDraft = false,
 }: WizardScreenProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -614,6 +624,23 @@ export function WizardScreen({
           <View style={s.noticeCard}>
             <Text style={s.noticeTitle}>{GUEST_SPENT_TITLE}</Text>
             <Text style={s.noticeBody}>{GUEST_SPENT_BODY}</Text>
+            {/* BUG-367 — the notice IS the door, not a dead end. */}
+            <View style={s.noticeActions}>
+              <Button
+                label={GUEST_SPENT_SIGN_UP}
+                variant="primary"
+                onPress={() => guestDoor.open("second_generation")}
+                testID="guest-spent-sign-up"
+              />
+              <Button
+                label={GUEST_SPENT_SEE_PLAN}
+                variant="ghost"
+                onPress={() =>
+                  router.push(guestHasDraft ? "/test-kitchen/plan" : "/test-kitchen/options")
+                }
+                testID="guest-spent-see-plan"
+              />
+            </View>
           </View>
         )}
 
@@ -1166,6 +1193,10 @@ const s = StyleSheet.create({
     color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     lineHeight: 20,
+  },
+  noticeActions: {
+    marginTop: Spacing[3],
+    gap: Spacing[2],
   },
   clarifyCard: {
     backgroundColor: Colors.sage[50],
