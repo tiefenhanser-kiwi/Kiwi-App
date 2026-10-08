@@ -434,6 +434,29 @@ export const WizardExpandRequestSchema = z.object({
 });
 export type WizardExpandRequest = z.infer<typeof WizardExpandRequestSchema>;
 
+// Resubmission G1 (Part B) — POST /guest/plan-from-picks body: the Test
+// Kitchen's "Meals to choose from" commit. The picks plus the SAME context the
+// expand request carries (no second shape), flat on the body. `wantsLeftovers`
+// is not accepted: the route stamps false (D-WS7-190 — leftovers are inert).
+// mealIds are catalog ids from POST /wizard/shelf, distinct, at most one per
+// candidate slot (WizardPlanCandidateSchema.mealTitles max 7). `localDate` is
+// the client's calendar day, used only for the plan name's "week of" date.
+export const GuestPlanFromPicksRequestSchema = WizardExpandCandidateContextSchema.omit({
+  wantsLeftovers: true,
+}).extend({
+  mealIds: z
+    .array(z.string().min(1).max(100))
+    .min(1)
+    .max(7)
+    .refine((ids) => new Set(ids).size === ids.length, {
+      message: "mealIds must be distinct",
+    }),
+  localDate: LocalDateSchema.optional(),
+});
+export type GuestPlanFromPicksRequest = z.infer<
+  typeof GuestPlanFromPicksRequestSchema
+>;
+
 // PRD §5.6 (redline) — per-dish detail shape returned by the expand AI.
 // Mirrors the Dish/DishIngredient/RecipeInstructionStep conventions, but
 // stays as a JSON snapshot inside MealPlanInstance.wizardDraftPayload until

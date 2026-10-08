@@ -54,6 +54,20 @@ export function principalKey(req: Request): string {
   return "anonymous";
 }
 
+/**
+ * Guest-ONLY. A signed-in user hitting these has no business here. Mounted
+ * after requireGuestOrAuth. Lives here, beside principalKey, so the one guest
+ * route in the wizard router (POST /guest/plan-from-picks, Resubmission G1)
+ * and the routes in routes/guest.ts share it.
+ */
+export function guestOnly(req: Request, res: Response, next: NextFunction): void {
+  if (!req.guestSessionId) {
+    res.status(403).json({ code: "guest_only" });
+    return;
+  }
+  next();
+}
+
 export function createRequireGuestOrAuth(
   deps: Partial<RequireGuestOrAuthDeps> = {},
 ) {

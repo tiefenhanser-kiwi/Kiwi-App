@@ -12,6 +12,8 @@
 // runAICall / prisma / subscriptionService without standing up the full
 // stack. Default export wires the production singletons.
 
+import { randomUUID } from "node:crypto";
+
 import { Router, type IRouter, type Request } from "express";
 import { Prisma, type PrismaClient } from "@prisma/client";
 
@@ -19,6 +21,7 @@ import { runAICall as productionRunAICall } from "../lib/ai/runAICall";
 import { streamPlanCandidates as productionStreamPlanCandidates } from "../lib/ai/streamPlanCandidates";
 import { withAIFailureStatus } from "../lib/ai/errors";
 import {
+  GuestPlanFromPicksRequestSchema,
   WIZARD_SHELF_DEFAULT_SIZE,
   WizardCandidateDismissRequestSchema,
   WizardExpandRequestSchema,
@@ -27,6 +30,8 @@ import {
   WizardPlanCandidatesResultSchema,
   WizardActivateRequestSchema,
   WizardShelfRequestSchema,
+  type WizardExpandedPlanDetails,
+  type WizardExpandRequest,
   type WizardInput,
   type WizardPlanCandidate,
   type WizardPlanCandidateWire,
@@ -107,9 +112,12 @@ import {
   resolveEffectivePreferences,
   type ResolvedPreferences,
 } from "../lib/wizardPreferences";
+import { GuestPreferencesSchema } from "../lib/guestClaim";
+import { picksPlanTitle } from "../lib/planTitle";
 import { createRequireAuth } from "../middleware/auth";
 import {
   createRequireGuestOrAuth,
+  guestOnly,
   principalKey,
 } from "../middleware/guestAuth";
 
@@ -122,6 +130,51 @@ import {
 // value, computed by the shared resolveEffectivePreferences() so generate and
 // expand agree. Type aliased to ResolvedPreferences (same shape).
 type PreferencesContext = ResolvedPreferences;
+
+// Row 13 · Block 1 (D-WS9-259) — the guest draft blob on GuestSession.draft,
+// in the shape GET /wizard/drafts/:id returns. Named for Resubmission G1, where
+// two routes write it through one helper (persistGuestDraft).
+type GuestDraftEnvelope = {
+  draft: { id: string; createdAt: string };
+  expanded: WizardExpandedPlanDetails;
+};
+
+// Resubmission G1 (Part B) — the one line a picks plan's "why" carries. A
+// constant so the client lane (C4) can replace the copy in one place.
+export const GUEST_PICKS_WHY_BULLET = "The meals you picked, as a week.";
+
+/**
+ * Resubmission G1 (Part B) — a picks plan's daily macros, by the member read
+ * path's rule (routes/plans.ts computeMacroDailyAverage, PRD §8.3.5): the sum
+ * of the ASSIGNED meals' per-serving macros ÷ the count of assigned days,
+ * rounded to one decimal. from-meals assigns the first `planDurationDays` picks
+ * one per day (lib/planDayAssignment.ts assignPlanDays) and leaves the rest
+ * unassigned, so the assigned set is that prefix. That helper is module-private
+ * and keyed on PlanReviewItem rows a guest has none of, so the rule is mirrored
+ * here rather than called. A meal with no macros contributes zeros.
+ */
+export function picksDailyMacros(
+  meals: Array<{
+    caloriesPerServing: number;
+    proteinGPerServing: number;
+    carbsGPerServing: number;
+    fatGPerServing: number;
+  }>,
+  planDurationDays: number,
+): { calories: number; proteinG: number; carbsG: number; fatG: number } {
+  const assigned = meals.slice(0, Math.max(0, planDurationDays));
+  if (assigned.length === 0) return { calories: 0, proteinG: 0, carbsG: 0, fatG: 0 };
+  const sum = (pick: (m: (typeof assigned)[number]) => number): number =>
+    assigned.reduce((n, m) => n + (Number.isFinite(pick(m)) ? pick(m) : 0), 0);
+  const round1 = (n: number): number =>
+    Math.max(0, Math.round((n / assigned.length) * 10) / 10);
+  return {
+    calories: round1(sum((m) => m.caloriesPerServing)),
+    proteinG: round1(sum((m) => m.proteinGPerServing)),
+    carbsG: round1(sum((m) => m.carbsGPerServing)),
+    fatG: round1(sum((m) => m.fatGPerServing)),
+  };
+}
 
 export interface WizardRouterDeps {
   runAICall: typeof productionRunAICall;
@@ -285,9 +338,9 @@ export function createWizardRouter(
   // Shadows the module import: every requireAuth call site below is unchanged.
   const requireAuth = createRequireAuth({ prisma });
   // Row 13 "Test Kitchen" · Block 1 (D-WS9-259) — the guest-or-user guard.
-  // Mounted on EXACTLY THREE routes: POST /wizard/build-plans, POST
-  // /wizard/expand, and (Resubmission G1) POST /wizard/shelf. Every other
-  // wizard route stays requireAuth, because
+  // Mounted on EXACTLY FOUR routes: POST /wizard/build-plans, POST
+  // /wizard/expand, and (Resubmission G1) POST /wizard/shelf and POST
+  // /guest/plan-from-picks. Every other wizard route stays requireAuth, because
   // every other wizard route is a WRITE-SHAPED action and therefore a door: a
   // second generation, dismiss, activate, save, the last batch, the limits.
   const requireGuestOrAuth = createRequireGuestOrAuth({ prisma });
@@ -564,6 +617,68 @@ export function createWizardRouter(
         "Failed to write a server-side guest funnel event",
       );
     }
+  }
+
+  // ── the guest draft persist (Row 13 Block 1 → Resubmission G1) ────────
+  //
+  // ONE block, two callers: the guest branch of POST /wizard/expand and POST
+  // /guest/plan-from-picks. The blob goes onto the session row IN THE SHAPE
+  // THE DRAFTS-GET RETURNS — { draft: { id, createdAt }, expanded } — so GET
+  // /guest/draft is a plain read, the client's draft screen renders it
+  // unchanged, and the claim (lib/guestClaim.ts) parses `expanded` with the
+  // same schema whichever route wrote it.
+  //
+  // The `id` is the session id, not a plan id, and that is honest: there is no
+  // plan row to name. It becomes a real plan id at the claim.
+  //
+  // FATAL on failure, unlike the generation persist: the response the guest is
+  // about to read is the plan, and a plan they can see but cannot come back to
+  // is worse than an honest failure. The caller answers 500.
+  //
+  // `claimGeneration` is the picks path's half: the draft, the preferences the
+  // claim will copy, and the session's ONE plan are written in a single
+  // conditional update keyed on `generationCount: 0`, so two concurrent picks
+  // submissions cannot both spend it. A count of 0 is "the plan is used".
+  async function persistGuestDraft(
+    guestSessionId: string,
+    expanded: WizardExpandedPlanDetails,
+    claimGeneration?: { preferences: Record<string, unknown> },
+  ): Promise<
+    | { status: "ok"; guestDraft: GuestDraftEnvelope }
+    | { status: "generation_used" }
+    | { status: "failed" }
+  > {
+    const guestDraft: GuestDraftEnvelope = {
+      draft: { id: guestSessionId, createdAt: new Date().toISOString() },
+      expanded,
+    };
+    const draft = guestDraft as unknown as Prisma.InputJsonValue;
+    try {
+      if (claimGeneration) {
+        const claimed = await prisma.guestSession.updateMany({
+          where: { id: guestSessionId, generationCount: 0 },
+          data: {
+            draft,
+            preferences: claimGeneration.preferences as Prisma.InputJsonValue,
+            generationCount: { increment: 1 },
+            lastEvent: "plan_opened",
+          },
+        });
+        if (claimed.count === 0) return { status: "generation_used" };
+      } else {
+        await prisma.guestSession.update({
+          where: { id: guestSessionId },
+          data: { draft, lastEvent: "plan_opened" },
+        });
+      }
+    } catch (err) {
+      logger.error(
+        { event: "guest_draft_persist_failed", guestSessionId, err },
+        "Failed to persist the guest draft onto the session row",
+      );
+      return { status: "failed" };
+    }
+    return { status: "ok", guestDraft };
   }
 
   // ── shelf presentation → last-batch slot (post-pass Part A) ──────────
@@ -2367,31 +2482,13 @@ export function createWizardRouter(
       // is no plan row to name. It becomes a real plan id at the claim, when
       // persistWizardDraft finally runs for the new user.
       if (guestSessionId) {
-        const guestDraft = {
-          draft: {
-            id: guestSessionId,
-            createdAt: new Date().toISOString(),
-          },
-          expanded: expanded.expanded,
-        };
-        try {
-          await prisma.guestSession.update({
-            where: { id: guestSessionId },
-            data: {
-              draft: guestDraft as unknown as Prisma.InputJsonValue,
-              lastEvent: "plan_opened",
-            },
-          });
-        } catch (err) {
-          // Unlike the generation persist, this one is FATAL: the response the
-          // guest is about to read is the plan, and a plan they can see but
-          // cannot come back to is worse than an honest failure.
-          logger.error(
-            { event: "guest_draft_persist_failed", guestSessionId, err },
-            "Failed to persist the guest draft onto the session row",
-          );
+        // Resubmission G1 — the persist is the shared persistGuestDraft, the
+        // same block POST /guest/plan-from-picks writes through.
+        const persisted = await persistGuestDraft(guestSessionId, expanded.expanded);
+        if (persisted.status !== "ok") {
           return res.status(500).json({ error: "failed to persist draft" });
         }
+        const guestDraft = persisted.guestDraft;
         // Block 1b Part F — `expanded`: the guest has a plan they can open.
         // AFTER the persist, and only on its success path, because that write is
         // the fatal one here (see the catch above) — an `expanded` row in front
@@ -2450,6 +2547,198 @@ export function createWizardRouter(
         },
         expanded: expanded.expanded,
       });
+    },
+  );
+
+  // ── POST /guest/plan-from-picks — Resubmission G1 (Part B) ────────────
+  //
+  // The Test Kitchen's "Meals to choose from" commit (Hans, October 7: the
+  // guest tour ships WITH the member wizard's choice, at the same quality).
+  // The member twin is POST /plans/from-meals, and none of it is reusable
+  // here: every line of it forks, creates a template + instance and assigns
+  // days — rows a guest cannot own (D-WS9-259). So the picks become a
+  // SYNTHETIC CANDIDATE whose every slot is a store slot, and the existing
+  // machinery does the rest: expandCandidate({ catalogOnly: true }) composes
+  // each slot from the catalog row with NO AI call (liveSlots is empty by
+  // construction), and persistGuestDraft writes the blob the expand route
+  // writes. The claim at sign-up then materializes it like any guest draft.
+  //
+  // ONE plan per session, the same as the three-plan path: a session that has
+  // generated (generationCount ≥ 1) or holds a draft is refused, and a
+  // successful picks plan spends the session's generation — the cap is "one
+  // plan", not "one AI run" (D-WS9-307's $0.05 is a ceiling, not a licence).
+  //
+  // Lives in this router (not routes/guest.ts) for the runAICall seam the
+  // zero-AI test asserts on, and for the shared persist + funnel helpers.
+  const picksLimiter = rateLimit({
+    // The plans mutation limiter's budget (60/min) — this is a cheap DB-only
+    // write, not a generation — keyed by principal like every guest path.
+    ...(deps.rateLimiterOpts ?? { capacity: 60, refillPerSec: 60 / 60 }),
+    keyFn: (req: Request) => `guestpicks:${principalKey(req)}`,
+  });
+
+  router.post(
+    "/guest/plan-from-picks",
+    requireGuestOrAuth,
+    guestOnly,
+    picksLimiter,
+    async (req, res) => {
+      const guestSessionId = req.guestSessionId!;
+
+      // 1. One plan per session — before the body, like build-plans: a second
+      //    plan is a door (the client shows the sign-up sheet on this code).
+      const session = await prisma.guestSession.findUnique({
+        where: { id: guestSessionId },
+        select: { generationCount: true, draft: true },
+      });
+      if (!session || session.generationCount >= 1 || session.draft !== null) {
+        return res.status(409).json({ code: "guest_generation_used" });
+      }
+
+      // 2. Validate the body. The context half is also validated as the
+      //    preferences blob the claim will copy (GuestPreferencesSchema), so a
+      //    value the claim could not read is a 400 now rather than a silently
+      //    dropped preferences row at sign-up.
+      const parsed = GuestPlanFromPicksRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "invalid request body",
+          details: parsed.error.flatten(),
+        });
+      }
+      const { mealIds, localDate, ...context } = parsed.data;
+      const preferences = GuestPreferencesSchema.safeParse(context);
+      if (!preferences.success) {
+        return res.status(400).json({
+          error: "invalid request body",
+          details: preferences.error.flatten(),
+        });
+      }
+
+      try {
+        // 3. The picks, validated as from-meals validates them minus
+        //    ownership: a guest owns nothing, so only a live CATALOG meal is
+        //    pickable. The shelf never returns a private id; this is the
+        //    guard for a client that sends one anyway.
+        const rows = await prisma.meal.findMany({
+          where: { id: { in: mealIds } },
+          select: {
+            id: true,
+            title: true,
+            isPublic: true,
+            isArchived: true,
+            caloriesPerServing: true,
+            proteinGPerServing: true,
+            carbsGPerServing: true,
+            fatGPerServing: true,
+          },
+        });
+        const byId = new Map(rows.map((m) => [m.id, m]));
+        for (const id of mealIds) {
+          const m = byId.get(id);
+          if (!m || m.isArchived) {
+            return res
+              .status(404)
+              .json({ error: "meal not found", code: "meal_not_found", mealId: id });
+          }
+          if (!m.isPublic) {
+            return res
+              .status(403)
+              .json({ error: "forbidden", code: "meal_not_public", mealId: id });
+          }
+        }
+        const picks = mealIds.map((id) => byId.get(id)!);
+
+        await writeGuestEvent(guestSessionId, "picks_submitted", {
+          count: picks.length,
+        });
+
+        // 4. The synthetic candidate — every slot a store slot, in pick order.
+        const candidate: WizardExpandRequest["candidate"] = {
+          id: `picks-${randomUUID()}`,
+          title: picksPlanTitle(undefined, todayFor(localDate)),
+          tags: [],
+          whyBullets: [GUEST_PICKS_WHY_BULLET],
+          mealTitles: picks.map((m) => m.title),
+          mealDescriptions: picks.map(() => ""),
+          dailyMacros: picksDailyMacros(picks, context.planDurationDays),
+          storeSlots: picks.map((m, slotIndex) => ({ slotIndex, storeMealId: m.id })),
+        };
+        const expanded = await expandCandidate({
+          prisma,
+          userId: guestSessionId,
+          request: {
+            candidate,
+            // D-WS7-190 — leftovers are inert; the field is stamped, not asked.
+            candidateContext: { ...context, wantsLeftovers: false },
+          },
+          catalogOnly: true,
+          guestSessionId,
+          runAICall,
+        });
+
+        // A pick the catalog cannot compose (no dishes, a dish with no
+        // ingredients, a row rejected for bad data) demotes to a live slot and
+        // meets the catalog-only guard before any AI call. Same door, same
+        // body as the expand route's.
+        if (expanded.status === "catalog_only_gap") {
+          logger.info(
+            {
+              event: "guest_picks_catalog_only_gap",
+              guestSessionId,
+              liveSlotCount: expanded.liveSlotTitles.length,
+              storeSlotCount: expanded.storeSlotCount,
+            },
+            "Guest picks plan hit the thin-shelf door",
+          );
+          await writeGuestEvent(guestSessionId, "catalog_only_gap", {
+            candidateId: candidate.id,
+            liveSlotCount: expanded.liveSlotTitles.length,
+            storeSlotCount: expanded.storeSlotCount,
+          });
+          return res.status(409).json({
+            code: "catalog_only_gap",
+            liveSlotTitles: expanded.liveSlotTitles,
+            storeSlotCount: expanded.storeSlotCount,
+          });
+        }
+        if (expanded.status === "ai_failed") {
+          // Unreachable: catalogOnly returns before the first AI call, and an
+          // all-store candidate has no live slot to send. Mapped, not thrown,
+          // so a future change to expandCandidate cannot turn it into a 500.
+          logger.warn(
+            { event: "guest_picks_expand_failed", guestSessionId, reason: expanded.reason },
+            "Guest picks expand failed",
+          );
+          return withAIFailureStatus(res, expanded.reason).json({
+            error: expanded.userFacingMessage,
+            reason: expanded.reason,
+          });
+        }
+
+        // 5. Persist — the draft, the preferences and the session's one plan in
+        //    one conditional write (see persistGuestDraft).
+        const persisted = await persistGuestDraft(guestSessionId, expanded.expanded, {
+          preferences: preferences.data,
+        });
+        if (persisted.status === "generation_used") {
+          return res.status(409).json({ code: "guest_generation_used" });
+        }
+        if (persisted.status === "failed") {
+          return res.status(500).json({ error: "failed to persist draft" });
+        }
+        await writeGuestEvent(guestSessionId, "expanded", {
+          candidateId: candidate.id,
+          mealCount: expanded.expanded.meals.length,
+        });
+        return res.json(persisted.guestDraft);
+      } catch (err) {
+        logger.error(
+          { event: "guest_plan_from_picks_failed", guestSessionId, err },
+          "POST /guest/plan-from-picks failed",
+        );
+        return res.status(500).json({ error: "failed to build plan" });
+      }
     },
   );
 

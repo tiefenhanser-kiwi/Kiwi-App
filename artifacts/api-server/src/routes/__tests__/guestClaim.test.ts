@@ -21,15 +21,19 @@ import express, { type Express } from "express";
 import type { Server } from "node:http";
 import type { PrismaClient } from "@prisma/client";
 
+import { signToken } from "../../lib/auth";
 import { __clearRateLimitStoreForTests } from "../../lib/rateLimit";
 import {
   claimGuestSessionInTx,
   GuestSessionInvalidError,
   GuestPreferencesSchema,
+  materializeClaimedDraft,
   releaseClaimForRetry,
   toUserPreferencesCreateData,
 } from "../../lib/guestClaim";
 import { createAuthRouter } from "../auth";
+import { createWizardRouter } from "../wizard";
+import { withSessionUser } from "./fixtures/sessionUserStub";
 
 const HOUR = 60 * 60 * 1000;
 
@@ -1002,6 +1006,230 @@ describe("Block 1b B2: the claim completes onboarding (R1) and marks the source 
         prisma._state().guest.claimedAt instanceof Date,
         "but the session IS claimed — the plan still follows them",
       );
+    } finally {
+      await h.close();
+    }
+  });
+});
+
+// ── Resubmission G1 (Part B) — a draft made from PICKS claims like any other ──
+//
+// The draft is produced by the REAL route (POST /guest/plan-from-picks, real
+// expandCandidate), handed to the claim, and stage 2 runs the REAL
+// materializeClaimedDraft and the REAL readAndFinalizeWizardDraft (the
+// store-vs-build partition that decides "fork this catalog meal for the new
+// user"). Only the two graph writers are captured: persistWizardDraft (a row
+// write) and materializeWizardDraft (the fork itself, unchanged by this lane and
+// covered by its own tests). `aiCalls` spans BOTH halves and must stay empty.
+
+describe("Resubmission G1: a guest draft made from picks is claimed at sign-up", () => {
+  it("the new account gets the picked meals as catalog forks it owns, and the preferences", async () => {
+    const PICKS = ["cat-b", "cat-a"];
+    const aiCalls: string[] = [];
+    const countingAI = async (promptKey: string) => {
+      aiCalls.push(promptKey);
+      throw new Error(`the picks path reached the model: ${promptKey}`);
+    };
+
+    // 1. The draft, through the route.
+    const catalogRow = (id: string) => ({
+      id,
+      title: `Catalog ${id}`,
+      isPublic: true,
+      isArchived: false,
+      userId: null,
+      caloriesPerServing: 500,
+      proteinGPerServing: 30,
+      carbsGPerServing: 40,
+      fatGPerServing: 20,
+    });
+    const session: Record<string, any> = {
+      id: "gs-picks",
+      expiresAt: new Date(Date.now() + HOUR),
+      claimedAt: null,
+      generationCount: 0,
+      draft: null,
+      preferences: {},
+    };
+    const wizardPrisma = withSessionUser({
+      userPreferences: { findUnique: async () => null },
+      playlistMeal: { count: async () => 0 },
+      meal: {
+        findMany: async ({ where }: { where: { id: { in: string[] } } }) =>
+          where.id.in.map(catalogRow),
+        findUnique: async ({ where }: { where: { id: string } }) => ({
+          ...catalogRow(where.id),
+          description: null,
+          cuisineType: "thai",
+          difficulty: "easy",
+          estimatedTimeMinutes: 25,
+          servingsDefault: 2,
+          dishLinks: [
+            {
+              positionIndex: 0,
+              roleLabel: "main",
+              dish: {
+                title: `Dish ${where.id}`,
+                caloriesPerServing: 500,
+                proteinGPerServing: 30,
+                carbsGPerServing: 40,
+                fatGPerServing: 20,
+                dishIngredients: [
+                  {
+                    quantity: 2,
+                    unit: "cup",
+                    preparationNote: null,
+                    isOptional: false,
+                    ingredient: { displayName: "rice" },
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+      },
+      guestSession: {
+        findUnique: async () => ({ ...session }),
+        updateMany: async ({ where, data }: { where: Record<string, unknown>; data: Record<string, any> }) => {
+          if (where.generationCount !== session.generationCount) return { count: 0 };
+          session.draft = data.draft;
+          session.preferences = data.preferences;
+          session.generationCount += data.generationCount.increment;
+          return { count: 1 };
+        },
+      },
+      guestEvent: { create: async ({ data }: { data: unknown }) => data },
+    });
+    __clearRateLimitStoreForTests();
+    const wizardApp: Express = express();
+    wizardApp.use(express.json());
+    wizardApp.use(
+      "/api",
+      createWizardRouter({
+        prisma: wizardPrisma as never,
+        runAICall: countingAI as never,
+        rateLimiterOpts: { capacity: 1000, refillPerSec: 1000 },
+      }),
+    );
+    const wizardServer: Server = await new Promise((resolve) => {
+      const s = wizardApp.listen(0, "127.0.0.1", () => resolve(s));
+    });
+    try {
+      const { port } = wizardServer.address() as { port: number };
+      const made = await fetch(`http://127.0.0.1:${port}/api/guest/plan-from-picks`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          Authorization: `Bearer ${signToken("gs-picks", { purpose: "guest", expiresIn: "24h" })}`,
+        },
+        body: JSON.stringify({
+          mealIds: PICKS,
+          planDurationDays: 4,
+          householdSize: 3,
+          allergiesAndAvoidances: ["shellfish"],
+          eatingStyles: [],
+          difficulty: "medium",
+          saucePreference: "balanced",
+        }),
+      });
+      assert.equal(made.status, 200, await made.clone().text());
+    } finally {
+      await new Promise<void>((r) => wizardServer.close(() => r()));
+    }
+    assert.ok(session.draft, "the route wrote the draft");
+
+    // 2. The claim, against that session row.
+    const prisma = makePrisma({
+      id: "gs-picks",
+      draft: session.draft,
+      preferences: session.preferences,
+    });
+    const draftRows = new Map<string, Record<string, unknown>>();
+    const seen: {
+      persisted?: { userId: string; expanded: any };
+      materialized?: { userId: string; savePlan: any };
+    } = {};
+    Object.assign(prisma, {
+      // persistWizardDraft's row, re-read by the real finalize.
+      mealPlanInstance: {
+        findUnique: async ({ where }: { where: { id: string } }) => draftRows.get(where.id) ?? null,
+        findMany: async () => [], // resolveThisWeekWinnerId: no prior plan
+        update: async ({ where }: { where: { id: string } }) => ({ id: where.id }),
+      },
+      // filterBindableStoreMealIds — the pool revalidation at partition.
+      meal: {
+        findMany: async ({ where }: { where: { id: { in: string[] } } }) =>
+          where.id.in.map((id) => ({ id, userId: null, isPublic: true })),
+      },
+      userActivity: { create: async ({ data }: { data: unknown }) => data },
+    });
+    (prisma.user as Record<string, unknown>).updateMany = async () => ({ count: 1 });
+
+    const stage2 = (opts: Parameters<typeof materializeClaimedDraft>[0]) =>
+      materializeClaimedDraft({
+        ...opts,
+        runAICall: countingAI as never,
+        persistWizardDraft: (async (p: { userId: string; expanded: unknown }) => {
+          seen.persisted = p as never;
+          draftRows.set("plan-claimed", {
+            userId: p.userId,
+            isWizardDraft: true,
+            isArchived: false,
+            wizardDraftPayload: p.expanded,
+          });
+          return { planId: "plan-claimed", createdAt: new Date() };
+        }) as never,
+        materializeWizardDraft: (async (p: { userId: string; savePlan: unknown }) => {
+          seen.materialized = p as never;
+          return {
+            savePlan: p.savePlan,
+            mealsCreated: 2,
+            dishesCreated: 2,
+            itemsCreated: 2,
+            ingredientsTouched: 0,
+            mealPlanTemplateId: "tpl-1",
+            assignedDays: [],
+          };
+        }) as never,
+      });
+
+    const h = await spinUp(prisma, stage2 as never);
+    try {
+      const res = await h.post("/auth/signup", { ...SIGNUP, guestSessionId: "gs-picks" });
+      assert.equal(res.status, 201);
+      const body = (await res.json()) as { claimedPlanId: string | null; user: { id: string } };
+      assert.equal(body.claimedPlanId, "plan-claimed", "the claim built the plan");
+
+      const userId = prisma._state().users[0].id as string;
+      // The draft reached the claim intact and for the NEW user.
+      assert.ok(seen.persisted, "stage 2 persisted the draft");
+      assert.equal(seen.persisted!.userId, userId);
+      assert.deepEqual(
+        seen.persisted!.expanded.meals.map((m: { sourceStoreMealId?: string }) => m.sourceStoreMealId),
+        PICKS,
+      );
+      // 🔴 The partition: every slot a POOL store slot (not bindDirect, not a
+      // build) — which is what makes materializeWizardDraft fork each catalog
+      // meal into a meal the new user owns.
+      assert.ok(seen.materialized, "stage 2 materialized");
+      assert.equal(seen.materialized!.userId, userId);
+      assert.deepEqual(seen.materialized!.savePlan.slots, [
+        { kind: "store", sourceStoreMealId: "cat-b" },
+        { kind: "store", sourceStoreMealId: "cat-a" },
+      ]);
+      assert.equal(seen.materialized!.savePlan.householdSize, 3, "the per-run household rides along");
+      assert.deepEqual(aiCalls, [], "neither the route nor the claim made an AI call");
+
+      // The preferences the picks route stored are the ones the claim copied.
+      const created = prisma._state().preferencesCreates;
+      assert.equal(created.length, 1);
+      assert.equal(created[0].householdSize, 3);
+      assert.equal(created[0].difficultyDefault, "medium");
+      assert.equal(created[0].planLengthDefault, 4);
+      assert.deepEqual(created[0].allergiesAndAvoidances, ["shellfish"]);
+      assert.equal(created[0].saucePreference, "balanced");
+      assert.ok(!("mealIds" in created[0]));
+      assert.equal(prisma._state().users[0].onboardingComplete, true);
     } finally {
       await h.close();
     }

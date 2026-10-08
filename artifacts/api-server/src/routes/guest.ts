@@ -6,13 +6,16 @@
 //   GET  /guest/session — what the client needs to resume (never the ipHash).
 //   GET  /guest/draft   — the expanded plan, in GET /wizard/drafts/:id's shape.
 //
+//   POST /guest/plan-from-picks lives in routes/wizard.ts (Resubmission G1): it
+//   runs expandCandidate and shares the expand route's guest-draft persist.
+//
 // The guest's whole plan lives on the GuestSession row as JSON, because Phase 0
 // established that it cannot live anywhere else: every plan table's userId is
 // NOT NULL. See prisma/schema.prisma's GuestSession comment.
 
 import { createHash } from "node:crypto";
 
-import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
+import { Router, type IRouter } from "express";
 import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
@@ -25,6 +28,7 @@ import {
   createRequireGuestOrAuth,
   GUEST_SESSION_TTL_MS,
   GUEST_TOKEN_EXPIRY,
+  guestOnly,
 } from "../middleware/guestAuth";
 import {
   createRequireTurnstile,
@@ -50,6 +54,8 @@ import {
 //   catalog_only_gap  — routes/wizard.ts, the thin-shelf door
 //   claim_plan_failed — lib/guestClaim.ts releaseClaimForRetry
 //   shelf_shown       — routes/wizard.ts, the guest shelf (Resubmission G1)
+//   picks_submitted   — routes/wizard.ts, POST /guest/plan-from-picks (G1);
+//                       its success also writes `expanded`, as the expand does
 //
 // A server-side name is a plain string literal at its write site. Adding one
 // here is a decision to let clients send it, never just bookkeeping.
@@ -131,15 +137,6 @@ export function createGuestRouter(deps: Partial<GuestRouterDeps> = {}): IRouter 
   );
 
   const router: IRouter = Router();
-
-  /** Guest-ONLY. A signed-in user hitting these has no business here. */
-  function guestOnly(req: Request, res: Response, next: NextFunction): void {
-    if (!req.guestSessionId) {
-      res.status(403).json({ code: "guest_only" });
-      return;
-    }
-    next();
-  }
 
   // ── POST /guest/session ──────────────────────────────────────────────
   router.post(
