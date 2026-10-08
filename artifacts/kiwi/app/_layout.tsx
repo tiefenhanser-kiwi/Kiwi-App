@@ -169,6 +169,7 @@ function RootLayoutNav() {
           outside (tabs) and outside (auth) because a guest is in neither. */}
       <Stack.Screen name="test-kitchen/index" />
       <Stack.Screen name="test-kitchen/options" />
+      <Stack.Screen name="test-kitchen/pick" />
       <Stack.Screen name="test-kitchen/plan" />
       <Stack.Screen name="test-kitchen/recipe" />
       {/* Row 9 (1.1) · OAuth Block 2 Part D — Apple’s Return URL. Registered

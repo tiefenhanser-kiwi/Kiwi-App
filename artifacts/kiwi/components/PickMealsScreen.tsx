@@ -14,11 +14,28 @@
 // chrome and the wiring. Mounted by app/pick-meals.tsx (route name chosen to
 // match the kebab-case sibling routes: wizard-results, meal-builder).
 //
+// Resub C4 — the Test Kitchen's "Meals to choose from" mounts THIS screen with
+// `guest` (app/test-kitchen/pick.tsx): a set of gates on the existing screen,
+// not a second screen, the WizardScreen pattern. Under `guest`:
+//   · "Get more options" pages the shelf through the guest wrapper;
+//   · "Build my week" posts POST /guest/plan-from-picks (the session's ONE plan,
+//     composed from the catalog, zero AI) and lands on /test-kitchen/plan —
+//     never POST /plans/from-meals, never ["plans"] / ["home"], never
+//     /plan/[id]: a guest owns no plan rows;
+//   · its two 409s are doors: a spent session → the sign-up sheet, a pick the
+//     catalog cannot compose → the thin-shelf card;
+//   · the exhausted card's two exits (/wizard, /tellkiwi — member routes, the
+//     second the AI-invention surface) become the thin-shelf sign-up exit.
+// The card itself writes nothing (its only control is the local pick toggle),
+// and this screen reads nothing member-only: no /me/*, no last-batch, no
+// playlist (PlaylistPickScreen below does, and a guest never reaches it).
+//
 // 🔴 HOOKS SIT ABOVE THE EARLY RETURNS.
 
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -31,9 +48,22 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/Button";
 import { ExhaustedCard } from "@/components/ExhaustedCard";
+import { GuestDoorSheet } from "@/components/GuestDoorSheet";
 import { Header } from "@/components/Header";
 import { MealPickCard } from "@/components/MealPickCard";
+import { useGuestOptional } from "@/contexts/GuestContext";
 import { useToast } from "@/contexts/ToastProvider";
+import { useGuestDoor } from "@/hooks/useGuestDoor";
+import {
+  buildGuestPlanFromPicks,
+  buildGuestShelf,
+  GUEST_MAX_PICKS,
+  trackGuestEvent,
+  type GuestPicksResult,
+} from "@/lib/api/guest";
+import { todayLocalDate } from "@/lib/dates";
+import { THIN_SHELF_CTA, thinShelfTitle } from "@/lib/guest/doors";
+import { buildGuestWizardPayload, type GuestWizardForm } from "@/lib/wizard/guestPayload";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import {
   createPlanFromMeals,
@@ -94,10 +124,22 @@ export const COULDNT_FIND = (names: string[]) => `Couldn't find: ${names.join(",
 // (the same query Plan Review mounts next — warmed, not doubled) and falls
 // back to this when that read fails.
 export const PICKS_PLAN_FALLBACK_NAME = "Your new plan";
+// Resub C4 — the guest's lines. The plan-from-picks cap is 7 (G1: one meal per
+// candidate slot), where the member's from-meals takes 14.
+export const GUEST_PICKS_OVER = (n: number) =>
+  `The Test Kitchen plan holds up to ${GUEST_MAX_PICKS} meals — unpick ${n}`;
+export const GUEST_PICKS_GAP_BODY = (titles: string[]) =>
+  titles.length > 0
+    ? `Kiwi couldn't put together ${titles.join(", ")} in the Test Kitchen.`
+    : "";
 
 export type PickMealsScreenProps = PickMealsParamsInput & {
   /** Block 2b — "Plan a week from these". Playlist-only: no paging, no exhausted card. */
   source?: "playlist";
+  /** Resub C4 — the Test Kitchen. See the header. */
+  guest?: boolean;
+  /** The guest's wizard answers — plan-from-picks' `preferences`. Required with `guest`. */
+  guestForm?: GuestWizardForm;
 };
 
 export function PickMealsScreen({
@@ -108,17 +150,27 @@ export function PickMealsScreen({
   householdSize,
   capMinutes,
   source,
+  guest = false,
+  guestForm,
 }: PickMealsScreenProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const insets = useSafeAreaInsets();
+  // Resub C4 — mounted unconditionally (hooks above everything). For a member
+  // the door never opens and the context is simply unread.
+  const guestCtx = useGuestOptional();
+  const guestDoor = useGuestDoor();
+  // The refusal of a pick the catalog cannot compose — the thin-shelf card.
+  const [guestGap, setGuestGap] = useState<string[] | null>(null);
 
   const [state, setState] = useState<PickState>(() => initialPickState(shelf));
 
-  // "Get more options" — the shelf again with every shown id excluded.
+  // "Get more options" — the shelf again with every shown id excluded. A guest
+  // pages the same route under the guest principal (the request carries no
+  // text and no source: it is buildGuestShelfRequest's body).
   const moreMutation = useMutation<WizardShelfResponse, Error, WizardShelfRequest>({
-    mutationFn: buildWizardShelf,
+    mutationFn: guest ? buildGuestShelf : buildWizardShelf,
   });
   // The 3 s caption: while a round is in flight longer than SLOW_ROUND_MS the
   // caption says Kiwi is creating new ones (the AI fallback lands server-side
@@ -147,6 +199,47 @@ export function PickMealsScreen({
         householdSize,
       }),
   });
+
+  // Resub C4 — the guest's "Build my week". Never createPlanFromMeals.
+  const guestBuildMutation = useMutation<GuestPicksResult, Error, string[]>({
+    mutationFn: (mealIds) =>
+      buildGuestPlanFromPicks({
+        mealIds,
+        // The guest's whole wizard body, as build-plans gets it (G1b).
+        preferences: buildGuestWizardPayload(guestForm!),
+        localDate: todayLocalDate(),
+      }),
+  });
+
+  const handleGuestBuild = () => {
+    if (state.pickedIds.length === 0 || guestBuildMutation.isPending) return;
+    if (state.pickedIds.length > GUEST_MAX_PICKS) return;
+    setGuestGap(null);
+    guestBuildMutation.mutate(state.pickedIds, {
+      onSuccess: (result) => {
+        if (result.status === "generation_used") {
+          // One plan per session, whichever path — a second is the door.
+          guestDoor.open("second_generation");
+          return;
+        }
+        if (result.status === "catalog_only_gap") {
+          void trackGuestEvent("thin_shelf", {
+            meta: { liveSlotTitles: result.liveSlotTitles },
+          });
+          setGuestGap(result.liveSlotTitles);
+          return;
+        }
+        // The plan screen reads GET /guest/draft — seed it with the very
+        // envelope that route returns, and let the session read learn that the
+        // one plan is spent and a draft exists (the entry's resume + the
+        // wizard's spent notice both key on it).
+        const sessionId = guestCtx?.session?.guestSessionId ?? null;
+        queryClient.setQueryData(["guest", "draft", sessionId], result.draft);
+        queryClient.invalidateQueries({ queryKey: ["guest", "session"] });
+        router.replace("/test-kitchen/plan");
+      },
+    });
+  };
 
   const handleMore = () => {
     if (moreMutation.isPending || isExhausted(state)) return;
@@ -199,7 +292,22 @@ export function PickMealsScreen({
   const overCapPicked = overCapPickedCount(state, capMinutes);
   const pickedCount = state.pickedIds.length;
   // Block 2c Part C — over the cards on screen NOW, so a round can flip it.
+  // For a guest every row is isNewToYou (G1), so this is false and the pill is
+  // suppressed — the rule's own "a NEW user sees it on nearly every card" case.
   const newToYouChips = showNewToYouChips(state.meals);
+  const guestOverBy = guest ? Math.max(0, pickedCount - GUEST_MAX_PICKS) : 0;
+  const building = guest ? guestBuildMutation.isPending : buildMutation.isPending;
+  const buildError = guest ? guestBuildMutation.error : buildMutation.error;
+  // The thin-shelf card, for a guest: the exits the member card offers are
+  // member routes (and Tell Kiwi is the AI-invention surface), so the one exit
+  // is sign-up — the options screen's guest variant, word for word.
+  const guestThinShelfCard = (body: string) => (
+    <ExhaustedCard
+      title={thinShelfTitle(Platform.OS)}
+      body={body}
+      guestExit={{ label: THIN_SHELF_CTA, onPress: () => guestDoor.open("thin_shelf") }}
+    />
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
@@ -246,7 +354,11 @@ export function PickMealsScreen({
             exhausted card (an empty playlist never reaches this screen; the
             tab's button is disabled at 0). */}
         {isPlaylist ? null : exhausted ? (
-          <ExhaustedCard />
+          guest ? (
+            guestThinShelfCard("")
+          ) : (
+            <ExhaustedCard />
+          )
         ) : (
           <View style={s.moreWrap}>
             <Pressable
@@ -280,20 +392,31 @@ export function PickMealsScreen({
             <Text style={s.footerOverCap}>{FOOTER_OVER_CAP(overCapPicked, capMinutes)}</Text>
           )}
         </Text>
-        {buildMutation.isError && (
-          <Text style={s.footerError}>
-            {buildMutation.error?.message || "Couldn't build your week. Try again."}
+        {guestOverBy > 0 && (
+          <Text style={s.footerError} testID="pick-guest-over">
+            {GUEST_PICKS_OVER(guestOverBy)}
+          </Text>
+        )}
+        {/* Resub C4 — a pick the catalog could not compose: the thin-shelf
+            card, HERE, beside the button that was tapped (BUG-316's lesson). */}
+        {guestGap && guestThinShelfCard(GUEST_PICKS_GAP_BODY(guestGap))}
+        {buildError && (
+          <Text style={s.footerError} testID="pick-build-error">
+            {buildError.message || "Couldn't build your week. Try again."}
           </Text>
         )}
         <Button
           label={BUILD_LABEL}
           variant="primary"
-          onPress={handleBuild}
-          disabled={pickedCount === 0}
-          loading={buildMutation.isPending}
+          onPress={guest ? handleGuestBuild : handleBuild}
+          disabled={pickedCount === 0 || guestOverBy > 0}
+          loading={building}
           testID="pick-build"
         />
       </View>
+      {/* Resub C4 — the shared door. Renders nothing until a guest action hits
+          it; for a member no action ever does. */}
+      <GuestDoorSheet action={guestDoor.door} onClose={guestDoor.close} />
     </View>
   );
 }

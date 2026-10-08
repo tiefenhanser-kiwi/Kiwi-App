@@ -83,3 +83,11 @@ test("the one-generation rule turns on generationCount, not on candidates", () =
   assert.equal(guestGenerationSpent({ generationCount: 1 }), true);
   assert.equal(guestGenerationSpent({ generationCount: 3 }), true);
 });
+
+// Resub C4 — a picks-made session: plan-from-picks writes the draft and spends
+// the generation, and never writes candidates (null, not []).
+test("C4: a picks session (draft, no candidates) resumes to the plan — never the options stage", () => {
+  const picks = { generationCount: 1, hasDraft: true, candidates: null };
+  assert.equal(deriveGuestStage(picks), "plan");
+  assert.equal(guestGenerationSpent(picks), true);
+});
