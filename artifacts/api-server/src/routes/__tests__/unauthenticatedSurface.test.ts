@@ -198,7 +198,18 @@ describe("the unauthenticated surface", () => {
       // The other half of the guard: the three guest routes that are NOT
       // public must actually be guarded, and this asserts it positively
       // rather than relying on their absence from a list.
-      for (const guarded of ["GET /guest/session", "GET /guest/draft", "POST /guest/events"]) {
+      //
+      // Resubmission G1 — the guest's "Meals to choose from" pair. Both take a
+      // GUEST token (requireGuestOrAuth) and neither is public: a stranger with
+      // no token is a 401 like on every other guest route, and the pick-made
+      // plan additionally refuses a signed-in user (guestOnly, 403).
+      for (const guarded of [
+        "GET /guest/session",
+        "GET /guest/draft",
+        "POST /guest/events",
+        "POST /guest/plan-from-picks",
+        "POST /wizard/shelf",
+      ]) {
         assert.ok(
           !unauthenticated.includes(guarded),
           `${guarded} must require a guest token`,
