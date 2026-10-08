@@ -1,5 +1,6 @@
 // Row 13 "Test Kitchen" · Block 2 — the four guest routes, plus the two wizard
-// routes a guest may call.
+// routes a guest may call. Resub C4 adds the pick path's two: POST /wizard/shelf
+// and POST /guest/plan-from-picks.
 //
 // Every call here passes `principal: "guest"`, which (lib/api/client.ts):
 //   · attaches the guest token from lib/guest/guestToken.ts, never readToken();
@@ -15,9 +16,12 @@ import { apiClient } from "./client";
 import {
   WizardExpandedPlanSchema,
   WizardPlanCandidateSchema,
+  WizardShelfResponseSchema,
   type WizardExpandRequest,
+  type WizardShelfResponse,
 } from "./wizard";
 import type { WizardPlanCandidate, WizardPreferencesInput } from "../types";
+import type { WizardShelfRequest } from "../wizard/perRunPayload";
 
 // ── POST /guest/session ───────────────────────────────────────────────────
 
@@ -168,6 +172,91 @@ export async function buildGuestPlans(
     body: input,
     schema: GuestBuildPlansResponseSchema,
   });
+}
+
+// ── POST /wizard/shelf (guest) — Resub C4 ────────────────────────────────
+
+/**
+ * "Meals to choose from", for a guest: the member route, the member request and
+ * response shape, the guest principal. A wrapper rather than a principal flag on
+ * lib/api/wizard.ts buildWizardShelf, so the member function's default cannot
+ * move. The body comes from lib/wizard/guestPayload.ts buildGuestShelfRequest —
+ * never `text` (400 guest_text_not_allowed) and never `source` (400
+ * guest_playlist_not_allowed). Every row comes back `isNewToYou: true`.
+ */
+export async function buildGuestShelf(
+  body: WizardShelfRequest,
+): Promise<WizardShelfResponse> {
+  return apiClient("/wizard/shelf", {
+    method: "POST",
+    principal: "guest",
+    body,
+    schema: WizardShelfResponseSchema,
+  });
+}
+
+// ── POST /guest/plan-from-picks — Resub C4 ───────────────────────────────
+
+/** The server's cap: mealIds is 1..7 (one per candidate slot, G1). */
+export const GUEST_MAX_PICKS = 7;
+
+export interface GuestPlanFromPicksRequest {
+  /** Catalog ids from the guest shelf, distinct, in the order picked. */
+  mealIds: string[];
+  /** The guest's whole wizard body, exactly as buildGuestWizardPayload builds it
+   *  for build-plans (G1b) — the claim copies it at sign-up. */
+  preferences: WizardPreferencesInput;
+  /** The device's calendar day, for the plan name's "week of" only. */
+  localDate?: string;
+}
+
+/**
+ * The two 409s are DOORS, not failures, so they come back as statuses — read
+ * off the body's `code`, never off the bare 409, which both of them share:
+ *   · `generation_used` — the session already generated or holds a draft (one
+ *     plan per session, whichever path): the sign-up door;
+ *   · `catalog_only_gap` — a pick the catalog cannot compose (rare): the same
+ *     thin-shelf card the options screen shows.
+ * Everything else (400 body, 404 meal_not_found, 403 meal_not_public, 429,
+ * 500) throws the ApiError, which the screen renders as its error line.
+ */
+export type GuestPicksResult =
+  | { status: "built"; draft: GuestDraft }
+  | { status: "generation_used" }
+  | { status: "catalog_only_gap"; liveSlotTitles: string[] };
+
+const GenerationUsedBodySchema = z.object({ code: z.literal("guest_generation_used") });
+
+/**
+ * POST /guest/plan-from-picks — the picks become the guest's ONE plan, composed
+ * from the catalog with no AI call. 200 is the GET /guest/draft envelope, so the
+ * plan screen can be seeded with it. It spends the session's generation.
+ */
+export async function buildGuestPlanFromPicks(
+  request: GuestPlanFromPicksRequest,
+): Promise<GuestPicksResult> {
+  const result = await apiClient("/guest/plan-from-picks", {
+    method: "POST",
+    principal: "guest",
+    body: request,
+    errorMode: "envelope",
+  });
+  if (result.success) {
+    const parsed = GuestDraftSchema.safeParse(result.data);
+    if (!parsed.success) {
+      throw new Error("The plan came back in a shape Kiwi could not read.");
+    }
+    return { status: "built", draft: parsed.data };
+  }
+  const body = (result.error as { body?: unknown }).body;
+  if (GenerationUsedBodySchema.safeParse(body).success) {
+    return { status: "generation_used" };
+  }
+  const gap = CatalogOnlyGapBodySchema.safeParse(body);
+  if (gap.success) {
+    return { status: "catalog_only_gap", liveSlotTitles: gap.data.liveSlotTitles ?? [] };
+  }
+  throw result.error;
 }
 
 // ── POST /wizard/expand (guest) ──────────────────────────────────────────

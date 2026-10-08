@@ -451,7 +451,8 @@ export const ShelfMealSchema = MealCardSchema.extend({
 });
 export type ShelfMeal = z.infer<typeof ShelfMealSchema>;
 
-const WizardShelfResponseSchema = z.object({
+// Exported for the guest wrapper (lib/api/guest.ts buildGuestShelf, Resub C4).
+export const WizardShelfResponseSchema = z.object({
   meals: z.array(ShelfMealSchema),
   /** Every catalog meal that fits the filters — the "{N} fit your preferences" N. */
   totalEligible: z.number().int().nonnegative(),

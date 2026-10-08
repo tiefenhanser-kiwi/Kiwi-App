@@ -25,6 +25,7 @@ import {
   CTA_HINT_NO_PATH,
   CTA_HINT_PICK,
   CTA_HINT_PLANS,
+  GUEST_CTA_HINT,
   PATH_PICK_TITLE,
   PATH_PLANS_TITLE,
   TEXT_SECTION_TITLE,
@@ -33,6 +34,7 @@ import {
 } from "../WizardScreen";
 import { NUDGE_TITLE, PLAYLIST_DIAL_LABEL } from "../preference-pickers/MixDials";
 import { Palette } from "@/constants/tokens";
+import { clearGuestSession, storeGuestSession } from "@/lib/guest/guestToken";
 
 type Json = {
   type: string;
@@ -110,7 +112,7 @@ const TELL_KIWI_RESULT = {
 
 const originalFetch = globalThis.fetch;
 let playlistCount = 3;
-let calls: { path: string; method: string; body: unknown }[] = [];
+let calls: { path: string; method: string; body: unknown; auth?: string }[] = [];
 let pushed: unknown[] = [];
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -131,7 +133,8 @@ beforeEach(() => {
     const u = String(url);
     const method = init?.method ?? "GET";
     const body = init?.body ? JSON.parse(String(init.body)) : undefined;
-    calls.push({ path: u.slice(u.indexOf("/api") + 4), method, body });
+    const auth = (init?.headers as Record<string, string> | undefined)?.["Authorization"];
+    calls.push({ path: u.slice(u.indexOf("/api") + 4), method, body, auth });
     if (u.endsWith("/me/preferences")) return Promise.resolve(jsonResponse({ preferences: PREFS }));
     if (u.endsWith("/me/playlist"))
       return Promise.resolve(jsonResponse({ playlist: [], count: playlistCount }));
@@ -378,4 +381,95 @@ test("the CTA renders OUTSIDE the scrollable content (pinned under the header), 
   // The path rows still live in the scroll content and the gate still holds.
   assert.ok(walk(scroller!).some((n) => n.props.testID === "wizard-path-pick"));
   assert.equal(byTestId(m.root(), "wizard-build")!.props.disabled, true);
+});
+
+// ── Resub C4 — the chooser, for a guest ────────────────────────────────────
+// Hans, October 7: the Test Kitchen ships WITH "Meals to choose from /
+// Complete plans" — "it should be the same as the in-app/with-account flow".
+
+const GUEST_SESSION = {
+  guestSessionId: "gs_c4",
+  token: "guest-token",
+  expiresAt: "2099-01-01T00:00:00.000Z",
+};
+
+test("C4 🔴 a guest sees BOTH path rows with NOTHING selected, and the CTA is gated as for a member", async () => {
+  storeGuestSession(GUEST_SESSION);
+  try {
+    const m = await mount({ mode: "prefs", guest: true });
+    const pick = byTestId(m.root(), "wizard-path-pick");
+    const plans = byTestId(m.root(), "wizard-path-plans");
+    assert.ok(pick && plans, "the chooser is not rendered for a guest");
+    assert.equal((pick!.props.accessibilityState as { selected: boolean }).selected, false);
+    assert.equal((plans!.props.accessibilityState as { selected: boolean }).selected, false);
+    assert.equal(byTestId(m.root(), "wizard-build")!.props.disabled, true, "nothing chosen → CTA disabled");
+    assert.ok(m.text().includes(CTA_HINT_NO_PATH));
+
+    await tap(byTestId(m.root(), "wizard-path-pick"), "path A row");
+    assert.ok(!byTestId(m.root(), "wizard-build")!.props.disabled);
+    assert.ok(m.text().includes(CTA_HINT_PICK));
+    await tap(byTestId(m.root(), "wizard-path-plans"), "path B row");
+    assert.ok(m.text().includes(GUEST_CTA_HINT));
+  } finally {
+    clearGuestSession();
+  }
+});
+
+test("C4 a guest's 'Meals to choose from' posts the GUEST shelf (guest token, allergies on, no text/source) and routes to /test-kitchen/pick — never build-plans", async () => {
+  storeGuestSession(GUEST_SESSION);
+  try {
+    const m = await mount({ mode: "prefs", guest: true });
+    await tap(byTestId(m.root(), "wizard-path-pick"), "path A row");
+    await tap(byTestId(m.root(), "wizard-build"), "CTA");
+    const shelfCall = calls.find((c) => c.path === "/wizard/shelf");
+    assert.ok(shelfCall, "POST /wizard/shelf not called");
+    assert.equal(shelfCall!.auth, "Bearer guest-token", "the shelf must go under the GUEST principal");
+    const body = shelfCall!.body as Record<string, unknown>;
+    assert.deepEqual(body.allergiesAndAvoidances, [], "the guest's allergy answer rides, [] included");
+    for (const k of ["text", "source", "saucePreference", "discoveryLevel", "playlistLevel"]) {
+      assert.equal(k in body, false, k);
+    }
+    assert.equal(calls.some((c) => c.path === "/wizard/build-plans"), false);
+    // No member read was made for a guest.
+    for (const p of ["/me/preferences", "/me/playlist", "/wizard/last-batch"]) {
+      assert.equal(calls.some((c) => c.path === p), false, p);
+    }
+    const href = pushed[0] as { pathname: string; params: Record<string, string> };
+    assert.equal(href.pathname, "/test-kitchen/pick");
+    assert.equal(href.params.mode, "prefs");
+    const form = JSON.parse(href.params.guestForm) as Record<string, unknown>;
+    assert.deepEqual(form.allergies, []);
+    assert.equal(form.planDurationDays, 5);
+    assert.ok(JSON.parse(href.params.shelf).meals, "the shelf rides as the member path's param");
+  } finally {
+    clearGuestSession();
+  }
+});
+
+test("C4 a guest's 'Complete plans' is still the one generate — build-plans, not the shelf", async () => {
+  storeGuestSession(GUEST_SESSION);
+  try {
+    const m = await mount({ mode: "prefs", guest: true });
+    await tap(byTestId(m.root(), "wizard-path-plans"), "path B row");
+    await tap(byTestId(m.root(), "wizard-build"), "CTA");
+    const gen = calls.find((c) => c.path === "/wizard/build-plans");
+    assert.ok(gen, "build-plans not called");
+    assert.equal(gen!.auth, "Bearer guest-token");
+    assert.equal(calls.some((c) => c.path === "/wizard/shelf"), false);
+  } finally {
+    clearGuestSession();
+  }
+});
+
+test("C4 a SPENT guest session: the CTA stays disabled on either path (one plan per session)", async () => {
+  storeGuestSession(GUEST_SESSION);
+  try {
+    const m = await mount({ mode: "prefs", guest: true, guestGenerationSpent: true });
+    await tap(byTestId(m.root(), "wizard-path-pick"), "path A row");
+    assert.equal(byTestId(m.root(), "wizard-build")!.props.disabled, true);
+    await tap(byTestId(m.root(), "wizard-build"), "CTA");
+    assert.equal(calls.some((c) => c.path === "/wizard/shelf"), false);
+  } finally {
+    clearGuestSession();
+  }
 });

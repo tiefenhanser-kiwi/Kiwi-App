@@ -37,6 +37,7 @@
 
 import type { WizardExpandCandidateContext } from "@/lib/api/wizard";
 import type { WizardPreferencesInput } from "@/lib/types";
+import type { WizardShelfRequest } from "@/lib/wizard/perRunPayload";
 
 type WeeklyPacing = WizardPreferencesInput["weeklyPacing"];
 type Difficulty = WizardPreferencesInput["difficulty"];
@@ -94,6 +95,73 @@ export function buildGuestWizardPayload(
     // deliberate break in this block's tests exists to catch.
   };
 }
+
+/**
+ * Resub C4 — POST /wizard/shelf, for a guest: the build-plans body above, plus
+ * only the paging fields.
+ *
+ * ⚠️ NOT lib/wizard/perRunPayload.ts buildShelfRequest, for the reason this
+ * file's header gives: that builder spreads the member payload, whose
+ * hydratedSlice is `{}` while `hydrated` is false — and for a guest it is always
+ * false — so the visitor's allergies would leave the shelf request and the
+ * server would pick meals from the whole catalog. And never `text` or `source`:
+ * both are a 400 for a guest (G1), and neither is on the guest form.
+ */
+export function buildGuestShelfRequest(
+  form: GuestWizardForm,
+  opts: { excludeMealIds?: string[]; size?: number } = {},
+): WizardShelfRequest {
+  return {
+    ...buildGuestWizardPayload(form),
+    ...(opts.excludeMealIds && opts.excludeMealIds.length > 0
+      ? { excludeMealIds: opts.excludeMealIds }
+      : {}),
+    ...(opts.size !== undefined ? { size: opts.size } : {}),
+  };
+}
+
+/**
+ * Resub C4 — the guest form as it rides the wizard → /test-kitchen/pick hop (a
+ * JSON route param, the pickMealsRouteParams idiom). null when it is missing or
+ * unreadable, and ALSO when `allergies` is not a string list: the pick screen's
+ * plan-from-picks sends these answers as the plan's preferences, and a fallback
+ * `[]` there would be an allergy list the visitor never gave. A null form is the
+ * route's recoverable error, never a silently thinner plan.
+ */
+export function parseGuestFormParam(
+  raw: unknown,
+  fallback: GuestWizardForm,
+): GuestWizardForm | null {
+  if (typeof raw !== "string" || raw.length === 0) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== "object") return null;
+  const { allergies, ...rest } = parsed as Record<string, unknown>;
+  if (!Array.isArray(allergies) || !allergies.every((a) => typeof a === "string")) {
+    return null;
+  }
+  // The stored-blob reader, keyed the way the blob is keyed.
+  return guestFormFromStoredPreferences({ ...rest, allergiesAndAvoidances: allergies }, fallback);
+}
+
+/** The wizard's own starting values — the fallback for a field a reader cannot use. */
+export const GUEST_FORM_DEFAULTS: GuestWizardForm = {
+  planDurationDays: 5,
+  householdSize: 4,
+  cuisines: [],
+  eatingStyles: [],
+  allergies: [],
+  dietaryNotes: "",
+  difficulty: "medium",
+  weeklyPacing: "mostly_easy",
+  additionalNotes: "",
+  maxCookTimeMinutes: null,
+  maxCookTimeCoverage: "most",
+};
 
 /**
  * POST /wizard/expand's candidateContext, for a guest — built from the SAME

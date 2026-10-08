@@ -80,8 +80,12 @@ import {
 } from "@/lib/wizard/perRunPayload";
 import { pickMealsRouteParams } from "@/lib/wizard/pickMeals";
 // Row 13 "Test Kitchen" · Block 2 Part C (R3) — the guest form.
-import { buildGuestWizardPayload } from "@/lib/wizard/guestPayload";
-import { buildGuestPlans, trackGuestEvent } from "@/lib/api/guest";
+import {
+  buildGuestShelfRequest,
+  buildGuestWizardPayload,
+  type GuestWizardForm,
+} from "@/lib/wizard/guestPayload";
+import { buildGuestPlans, buildGuestShelf, trackGuestEvent } from "@/lib/api/guest";
 import { useGuestOptional } from "@/contexts/GuestContext";
 import { useGuestDoor } from "@/hooks/useGuestDoor";
 import { GuestDoorSheet } from "@/components/GuestDoorSheet";
@@ -137,6 +141,8 @@ export const MIX_INTRO = "Leave both unset and Kiwi plans straight from your pre
 // a week without ever seeing it — and there are no saved prefs to adjust.
 export const GUEST_DIET_TITLE = "Allergies, cuisines and more";
 export const GUEST_DIET_SUBTITLE = "Tell Kiwi what to avoid and what you like";
+// Resub C4 — the guest's plans-path hint. Its pick-path sibling is
+// CTA_HINT_PICK itself: the copy is identical, so there is no second constant.
 export const GUEST_CTA_HINT = "Next: Kiwi builds 3 plans — you pick one";
 export const GUEST_SPENT_TITLE = "You've built your Test Kitchen plan";
 export const GUEST_SPENT_BODY =
@@ -229,9 +235,12 @@ export interface WizardScreenProps {
    * The Test Kitchen's guest form. Hans: "it's the wizard flow… users can skip
    * most of it if they want" — so this is a SET OF GATES on the existing screen,
    * not a second screen:
-   *   · mode is locked to prefs and the path to "plans" (the chooser is hidden):
-   *     /wizard/shelf and /wizard/build-from-text are both requireAuth, and
-   *     build-from-text is the AI-invention surface Hans ruled off for guests;
+   *   · mode is locked to prefs: /wizard/build-from-text is requireAuth and the
+   *     AI-invention surface Hans ruled off for guests. Resub C4 — the PATH is
+   *     no longer locked: the chooser renders with nothing selected, as for a
+   *     member (Hans, October 7: "it should be the same as the in-app/with-
+   *     account flow"). "Meals to choose from" posts the guest shelf (G1) and
+   *     goes to /test-kitchen/pick; "Complete plans" is the generate below;
    *   · sauce and "The mix" are HIDDEN and omitted from the request entirely
    *     (lib/wizard/guestPayload.ts — the claim saves what the request carried);
    *   · the dietary disclosure is EXPANDED and retitled;
@@ -271,9 +280,9 @@ export function WizardScreen({
     // it is the only place a guest is ever asked.
     adjustExpanded: guest || adjustOpen,
   }));
-  // R3 — the path is LOCKED for a guest: the chooser is not rendered, and
-  // "plans" is the only path whose two calls a guest token may make.
-  const [path, setPath] = useState<WizardPath | null>(guest ? "plans" : null);
+  // Nothing selected by default — for a guest too since Resub C4 (it was preset
+  // to "plans" with the chooser hidden while /wizard/shelf was member-only).
+  const [path, setPath] = useState<WizardPath | null>(null);
   const textInputRef = useRef<TextInput>(null);
 
   // Cookbook Phase B Block 4 — stored prefs hydrate the controls (D-WS7-035).
@@ -351,8 +360,14 @@ export function WizardScreen({
     Error,
     WizardShelfRequest
   >({ mutationFn: buildWizardShelf });
+  // Resub C4 — the guest's path A: the same shelf, under the guest principal.
+  const guestShelfMutation = useMutation<
+    WizardShelfResponse,
+    Error,
+    WizardShelfRequest
+  >({ mutationFn: buildGuestShelf });
 
-  const update = <K extends keyof WizardFormState>(
+  const update =<K extends keyof WizardFormState>(
     key: K,
     value: WizardFormState[K],
   ) => {
@@ -360,7 +375,10 @@ export function WizardScreen({
   };
 
   const busy =
-    textMutation.isPending || shelfMutation.isPending || guestMutation.isPending;
+    textMutation.isPending ||
+    shelfMutation.isPending ||
+    guestMutation.isPending ||
+    guestShelfMutation.isPending;
 
   const textTooShort = () =>
     isText && form.description.trim().length < DESCRIPTION_MIN;
@@ -440,20 +458,22 @@ export function WizardScreen({
   // or either dial. The cards go into GuestContext (so the options screen has
   // them even if the server's best-effort persist missed) alongside the form,
   // because the expand's candidateContext is built from these same answers.
+  const guestForm = (): GuestWizardForm => ({
+    planDurationDays: form.planDurationDays,
+    householdSize: form.householdSize,
+    cuisines: form.cuisines,
+    eatingStyles: form.eatingStyles,
+    allergies: form.allergies,
+    dietaryNotes: form.dietaryNotes,
+    difficulty: form.difficulty,
+    weeklyPacing: form.weeklyPacing,
+    additionalNotes: form.additionalNotes,
+    maxCookTimeMinutes: form.maxCookTimeMinutes,
+    maxCookTimeCoverage: form.maxCookTimeCoverage,
+  });
+
   const submitGuest = () => {
-    const form_ = {
-      planDurationDays: form.planDurationDays,
-      householdSize: form.householdSize,
-      cuisines: form.cuisines,
-      eatingStyles: form.eatingStyles,
-      allergies: form.allergies,
-      dietaryNotes: form.dietaryNotes,
-      difficulty: form.difficulty,
-      weeklyPacing: form.weeklyPacing,
-      additionalNotes: form.additionalNotes,
-      maxCookTimeMinutes: form.maxCookTimeMinutes,
-      maxCookTimeCoverage: form.maxCookTimeCoverage,
-    };
+    const form_ = guestForm();
     void trackGuestEvent("wizard_step", { step: "generate_submitted" });
     guestMutation.mutate(buildGuestWizardPayload(form_), {
       onSuccess: (result) => {
@@ -466,27 +486,65 @@ export function WizardScreen({
     });
   };
 
+  // ── Resub C4 — the guest's "Meals to choose from" ───────────────────────
+  // The shelf is DB-only and spends nothing: the session's one plan is spent
+  // by POST /guest/plan-from-picks on the Pick screen's "Build my week". The
+  // form rides to the Pick screen because that call's `preferences` is the
+  // guest's whole wizard body (G1b) — the same body build-plans gets.
+  const submitGuestPick = () => {
+    const form_ = guestForm();
+    void trackGuestEvent("wizard_step", { step: "pick_submitted" });
+    const body = buildGuestShelfRequest(form_);
+    guestShelfMutation.mutate(body, {
+      onSuccess: (shelf) => {
+        router.push({
+          pathname: "/test-kitchen/pick",
+          params: {
+            ...pickMealsRouteParams({
+              shelf,
+              request: body,
+              mode: "prefs",
+              planDurationDays: form_.planDurationDays,
+              householdSize: form_.householdSize,
+              capMinutes: form_.maxCookTimeMinutes,
+            }),
+            guestForm: JSON.stringify(form_),
+          },
+        });
+      },
+    });
+  };
+
   const handleSubmit = () => {
     Keyboard.dismiss();
     if (!path || busy) return;
     if (guest) {
-      // R4 — "a second generation" is on the door list. The CTA is disabled when
-      // the generation is spent, so this is the belt against a stale render (and
-      // the path a keyboard "enter" could still take).
+      // R4 — "a second generation" is on the door list, whichever path: one
+      // plan per session (G1). The CTA is disabled when the generation is
+      // spent, so this is the belt against a stale render (and the path a
+      // keyboard "enter" could still take).
       if (guestGenerationSpent) return guestDoor.open("second_generation");
-      return submitGuest();
+      return path === "pick" ? submitGuestPick() : submitGuest();
     }
     if (path === "plans") submitPlans();
     else submitPick();
   };
 
-  const ctaHint = guest
-    ? GUEST_CTA_HINT
-    : path === "pick"
+  const ctaHint =
+    path === "pick"
       ? CTA_HINT_PICK
       : path === "plans"
-        ? CTA_HINT_PLANS
+        ? guest
+          ? GUEST_CTA_HINT
+          : CTA_HINT_PLANS
         : CTA_HINT_NO_PATH;
+
+  // Inline status for the submit calls, right under the action.
+  const submitError =
+    shelfMutation.error ??
+    textMutation.error ??
+    guestMutation.error ??
+    guestShelfMutation.error;
 
   const cuisineSelectedCount = form.cuisines.length;
   const charCount = form.description.length;
@@ -533,7 +591,7 @@ export function WizardScreen({
         />
         {guestMutation.isPending ? (
           <LoadingShim variant="inline" label="Kiwi is building your week…" />
-        ) : shelfMutation.isPending ? (
+        ) : shelfMutation.isPending || guestShelfMutation.isPending ? (
           <LoadingShim variant="inline" label="Pulling meals that fit…" />
         ) : textMutation.isPending ? (
           <LoadingShim variant="inline" label="Reading what you wrote…" />
@@ -560,13 +618,11 @@ export function WizardScreen({
         )}
 
         {/* Inline status for the two calls, right under the action. */}
-        {(shelfMutation.isError || textMutation.isError || guestMutation.isError) && (
+        {submitError && (
           <View style={s.noticeCard}>
             <Text style={s.noticeTitle}>Kiwi got distracted. Try again?</Text>
-            {(shelfMutation.error ?? textMutation.error ?? guestMutation.error)?.message ? (
-              <Text style={s.noticeBody}>
-                {(shelfMutation.error ?? textMutation.error ?? guestMutation.error)!.message}
-              </Text>
+            {submitError.message ? (
+              <Text style={s.noticeBody}>{submitError.message}</Text>
             ) : null}
           </View>
         )}
@@ -622,29 +678,26 @@ export function WizardScreen({
           </Section>
         )}
 
-        {/* 4 — the path. Nothing selected by default.
-            🔴 HIDDEN for a guest, and `path` is pre-set to "plans": the Pick
-            path posts /wizard/shelf, which is requireAuth. */}
-        {!guest && (
-          <Section label="How to build it" title="What should Kiwi suggest?">
-            <View style={s.pathList}>
-              <PathOptionRow
-                title={PATH_PICK_TITLE}
-                subline={isText ? PATH_PICK_SUB_TEXT : PATH_PICK_SUB_PREFS}
-                selected={path === "pick"}
-                onPress={() => setPath("pick")}
-                testID="wizard-path-pick"
-              />
-              <PathOptionRow
-                title={PATH_PLANS_TITLE}
-                subline={isText ? PATH_PLANS_SUB_TEXT : PATH_PLANS_SUB_PREFS}
-                selected={path === "plans"}
-                onPress={() => setPath("plans")}
-                testID="wizard-path-plans"
-              />
-            </View>
-          </Section>
-        )}
+        {/* 4 — the path. Nothing selected by default — for a guest too since
+            Resub C4 (POST /wizard/shelf takes a guest token since G1). */}
+        <Section label="How to build it" title="What should Kiwi suggest?">
+          <View style={s.pathList}>
+            <PathOptionRow
+              title={PATH_PICK_TITLE}
+              subline={isText ? PATH_PICK_SUB_TEXT : PATH_PICK_SUB_PREFS}
+              selected={path === "pick"}
+              onPress={() => setPath("pick")}
+              testID="wizard-path-pick"
+            />
+            <PathOptionRow
+              title={PATH_PLANS_TITLE}
+              subline={isText ? PATH_PLANS_SUB_TEXT : PATH_PLANS_SUB_PREFS}
+              selected={path === "plans"}
+              onPress={() => setPath("plans")}
+              testID="wizard-path-plans"
+            />
+          </View>
+        </Section>
 
         {/* 5 — the mix. Per-run: hydrated from stored, never written back.
             🔴 HIDDEN for a guest (R3), and the two dial keys are omitted from

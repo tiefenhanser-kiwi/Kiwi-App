@@ -11,10 +11,19 @@
 //   routes/guest.ts     POST/GET /guest/session, GET /guest/draft,
 //                       POST /guest/events            (requireGuestOrAuth)
 //   routes/wizard.ts    POST /wizard/build-plans, POST /wizard/expand
-//                       (requireGuestOrAuth — the ONLY two wizard routes; every
-//                        other one is a write-shaped action and therefore a door)
+//                       (requireGuestOrAuth — with the shelf below, the ONLY
+//                        wizard routes; every other one is a write-shaped
+//                        action and therefore a door)
 //   routes/meals.ts     GET /meals/:id                (requireGuestOrAuth,
 //                        catalog-only for a guest: isPublic AND userId null)
+//
+// Resub C4 (Hans, October 7: the Test Kitchen ships WITH the member wizard's
+// "Meals to choose from / Complete plans" choice — "it should be the same as the
+// in-app/with-account flow") — the pick path's two routes, both G1:
+//   routes/wizard.ts    POST /wizard/shelf            (requireGuestOrAuth; a
+//                        guest may send neither `text` nor `source: "playlist"`)
+//                       POST /guest/plan-from-picks   (guest-only; spends the
+//                        session's one plan, the same as build-plans does)
 //
 // Paths are matched in apiClient's spelling: leading slash, no `/api` prefix,
 // query string allowed (`/meals/abc?planItemId=x`).
@@ -26,6 +35,10 @@ const GUEST_EXACT = new Set<string>([
   "/guest/events",
   "/wizard/build-plans",
   "/wizard/expand",
+  // Resub C4 — "Meals to choose from": the shelf, and its "Get more options".
+  "/wizard/shelf",
+  // Resub C4 — "Build my week" on the guest Pick screen.
+  "/guest/plan-from-picks",
 ]);
 
 /**

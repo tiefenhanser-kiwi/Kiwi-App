@@ -39,9 +39,10 @@ test("a deeper meal path is not the detail route", () => {
   assert.equal(isGuestAllowedPath("/meals/abc/dishes"), false);
 });
 
+// Resub C4 — "/wizard/shelf" left this list: G1 made it requireGuestOrAuth and
+// the guest pick path calls it (pinned in the C4 test below).
 test("every OTHER wizard route is member-only — each one is a write-shaped door", () => {
   for (const p of [
-    "/wizard/shelf",
     "/wizard/limits",
     "/wizard/last-batch",
     "/wizard/drafts",
@@ -78,4 +79,13 @@ test("the member surfaces a guest CTA could reach are all refused", () => {
 test("an unknown route is member-only — the list is an allowlist, not a denylist", () => {
   assert.equal(isGuestAllowedPath("/something/invented/next/quarter"), false);
   assert.equal(isGuestAllowedPath("/"), false);
+});
+
+// Resub C4 — the pick path's two routes (G1). Without them the guest Pick
+// screen's calls throw client-side ("a guest action is a door, not a call").
+test("C4: POST /wizard/shelf and POST /guest/plan-from-picks are guest-allowed", () => {
+  assert.equal(isGuestAllowedPath("/wizard/shelf"), true);
+  assert.equal(isGuestAllowedPath("/guest/plan-from-picks"), true);
+  // The member twin stays member-only: a guest owns no plan rows.
+  assert.equal(isGuestAllowedPath("/plans/from-meals"), false);
 });
