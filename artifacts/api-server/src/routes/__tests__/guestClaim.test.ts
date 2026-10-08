@@ -1122,14 +1122,22 @@ describe("Resubmission G1: a guest draft made from picks is claimed at sign-up",
           "content-type": "application/json",
           Authorization: `Bearer ${signToken("gs-picks", { purpose: "guest", expiresIn: "24h" })}`,
         },
+        // G1b — the guest's WHOLE wizard answers, as build-plans takes them.
+        // The form hides sauce and both dials (R3), so they are not sent.
         body: JSON.stringify({
           mealIds: PICKS,
-          planDurationDays: 4,
-          householdSize: 3,
-          allergiesAndAvoidances: ["shellfish"],
-          eatingStyles: [],
-          difficulty: "medium",
-          saucePreference: "balanced",
+          preferences: {
+            planDurationDays: 4,
+            householdSize: 3,
+            cuisines: ["korean", "italian"],
+            eatingStyles: ["pescatarian"],
+            allergiesAndAvoidances: ["shellfish"],
+            difficulty: "medium",
+            weeklyPacing: "one_fancy_night",
+            dietaryNotes: "light on salt",
+            maxCookTimeMinutes: 40,
+            maxCookTimeCoverage: "all",
+          },
         }),
       });
       assert.equal(made.status, 200, await made.clone().text());
@@ -1220,15 +1228,31 @@ describe("Resubmission G1: a guest draft made from picks is claimed at sign-up",
       assert.equal(seen.materialized!.savePlan.householdSize, 3, "the per-run household rides along");
       assert.deepEqual(aiCalls, [], "neither the route nor the claim made an AI call");
 
-      // The preferences the picks route stored are the ones the claim copied.
+      // G1b — the claim copies what the guest ANSWERED (D-WS9-263): the whole
+      // wizard body the picks route stored, mapped to the column names, the
+      // same set a three-plan claim copies. Literal, so a field the route
+      // ever drops again is a red line here.
       const created = prisma._state().preferencesCreates;
       assert.equal(created.length, 1);
-      assert.equal(created[0].householdSize, 3);
-      assert.equal(created[0].difficultyDefault, "medium");
-      assert.equal(created[0].planLengthDefault, 4);
-      assert.deepEqual(created[0].allergiesAndAvoidances, ["shellfish"]);
-      assert.equal(created[0].saucePreference, "balanced");
-      assert.ok(!("mealIds" in created[0]));
+      const { userId: _owner, ...copied } = created[0];
+      assert.deepEqual(copied, {
+        householdSize: 3,
+        wantsLeftovers: false,
+        cuisines: ["korean", "italian"],
+        eatingStyles: ["pescatarian"],
+        allergiesAndAvoidances: ["shellfish"],
+        dietaryNotes: "light on salt",
+        difficultyDefault: "medium",
+        weeklyPacingDefault: "one_fancy_night",
+        planLengthDefault: 4,
+        maxCookTimeMinutes: 40,
+        maxCookTimeCoverage: "all",
+      });
+      // R3 — the form hid them, so the account lands on the column defaults
+      // honestly: none of the three is written.
+      for (const k of ["saucePreference", "discoveryLevel", "playlistLevel"]) {
+        assert.ok(!(k in copied), `${k} is a hidden default, never saved`);
+      }
       assert.equal(prisma._state().users[0].onboardingComplete, true);
     } finally {
       await h.close();

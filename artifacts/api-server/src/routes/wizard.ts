@@ -153,6 +153,47 @@ export const GUEST_PICKS_WHY_BULLET = "The meals you picked, as a week.";
  * and keyed on PlanReviewItem rows a guest has none of, so the rule is mirrored
  * here rather than called. A meal with no macros contributes zeros.
  */
+/**
+ * Resubmission G1b — the expand context of a picks plan, DERIVED from the
+ * guest's wizard answers, so one field the guest answered reaches both the plan
+ * (expandCandidate) and the claim (the stored blob) from one source.
+ *
+ * Every context field exists on the wizard schema; nothing is invented. The
+ * optional fields keep their PRESENCE — absent stays absent — because the
+ * shared resolver inside expandCandidate is what turns an absence into a value,
+ * exactly as on the three-plan path for a guest: no stored row, so sauce →
+ * "balanced", cap → none, coverage → "most", allergies → []. Writing those here
+ * would be a second authority, and for allergies it would erase the absence
+ * resolveAllergenPreference reads (BUG-201). The two dials are not expand
+ * fields at all (discovery is generate-only, playlist is the shelf's), and the
+ * guest answers that the expand prompt never sees — cuisines, weeklyPacing,
+ * dietaryNotes, additionalNotes — ride in the stored blob for the claim.
+ * `wantsLeftovers` is stamped false (D-WS7-190: inert), whatever was sent.
+ */
+export function guestPicksExpandContext(
+  answers: Omit<WizardInput, "hiddenContext">,
+): WizardExpandRequest["candidateContext"] {
+  return {
+    planDurationDays: answers.planDurationDays,
+    householdSize: answers.householdSize,
+    wantsLeftovers: false,
+    eatingStyles: answers.eatingStyles,
+    difficulty: answers.difficulty,
+    ...(answers.allergiesAndAvoidances !== undefined
+      ? { allergiesAndAvoidances: answers.allergiesAndAvoidances }
+      : {}),
+    ...(answers.saucePreference !== undefined
+      ? { saucePreference: answers.saucePreference }
+      : {}),
+    ...(answers.maxCookTimeMinutes !== undefined
+      ? { maxCookTimeMinutes: answers.maxCookTimeMinutes }
+      : {}),
+    ...(answers.maxCookTimeCoverage !== undefined
+      ? { maxCookTimeCoverage: answers.maxCookTimeCoverage }
+      : {}),
+  };
+}
+
 export function picksDailyMacros(
   meals: Array<{
     caloriesPerServing: number;
@@ -2595,10 +2636,11 @@ export function createWizardRouter(
         return res.status(409).json({ code: "guest_generation_used" });
       }
 
-      // 2. Validate the body. The context half is also validated as the
-      //    preferences blob the claim will copy (GuestPreferencesSchema), so a
-      //    value the claim could not read is a 400 now rather than a silently
-      //    dropped preferences row at sign-up.
+      // 2. Validate the body. `preferences` is the guest's whole wizard body,
+      //    parsed by the schema build-plans uses; it is ALSO checked against
+      //    the claim's GuestPreferencesSchema, so a value the claim could not
+      //    read is a 400 now rather than a silently dropped preferences row at
+      //    sign-up.
       const parsed = GuestPlanFromPicksRequestSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({
@@ -2606,8 +2648,9 @@ export function createWizardRouter(
           details: parsed.error.flatten(),
         });
       }
-      const { mealIds, localDate, ...context } = parsed.data;
-      const preferences = GuestPreferencesSchema.safeParse(context);
+      const { mealIds, localDate, preferences: answers } = parsed.data;
+      const context = guestPicksExpandContext(answers);
+      const preferences = GuestPreferencesSchema.safeParse(answers);
       if (!preferences.success) {
         return res.status(400).json({
           error: "invalid request body",
@@ -2667,11 +2710,7 @@ export function createWizardRouter(
         const expanded = await expandCandidate({
           prisma,
           userId: guestSessionId,
-          request: {
-            candidate,
-            // D-WS7-190 — leftovers are inert; the field is stamped, not asked.
-            candidateContext: { ...context, wantsLeftovers: false },
-          },
+          request: { candidate, candidateContext: context },
           catalogOnly: true,
           guestSessionId,
           runAICall,
@@ -2717,9 +2756,11 @@ export function createWizardRouter(
         }
 
         // 5. Persist — the draft, the preferences and the session's one plan in
-        //    one conditional write (see persistGuestDraft).
+        //    one conditional write (see persistGuestDraft). The preferences are
+        //    the parsed wizard body WHOLE: the same object persistGuestGeneration
+        //    stores on the three-plan path, so the claim copies the same fields.
         const persisted = await persistGuestDraft(guestSessionId, expanded.expanded, {
-          preferences: preferences.data,
+          preferences: answers,
         });
         if (persisted.status === "generation_used") {
           return res.status(409).json({ code: "guest_generation_used" });

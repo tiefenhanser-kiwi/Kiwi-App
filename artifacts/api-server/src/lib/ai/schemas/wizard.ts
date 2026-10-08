@@ -434,16 +434,18 @@ export const WizardExpandRequestSchema = z.object({
 });
 export type WizardExpandRequest = z.infer<typeof WizardExpandRequestSchema>;
 
-// Resubmission G1 (Part B) — POST /guest/plan-from-picks body: the Test
-// Kitchen's "Meals to choose from" commit. The picks plus the SAME context the
-// expand request carries (no second shape), flat on the body. `wantsLeftovers`
-// is not accepted: the route stamps false (D-WS7-190 — leftovers are inert).
+// Resubmission G1 (Part B, amended by G1b) — POST /guest/plan-from-picks body:
+// the Test Kitchen's "Meals to choose from" commit. The picks plus the guest's
+// WHOLE wizard answers under `preferences` — the SAME schema POST
+// /wizard/build-plans parses from a guest and persistGuestGeneration stores, so
+// a picks-made session holds the same blob and the claim copies what the guest
+// ANSWERED (D-WS9-263), not the thinner expand slice. The expand context is
+// DERIVED from it server-side (routes/wizard.ts guestPicksExpandContext).
 // mealIds are catalog ids from POST /wizard/shelf, distinct, at most one per
 // candidate slot (WizardPlanCandidateSchema.mealTitles max 7). `localDate` is
 // the client's calendar day, used only for the plan name's "week of" date.
-export const GuestPlanFromPicksRequestSchema = WizardExpandCandidateContextSchema.omit({
-  wantsLeftovers: true,
-}).extend({
+export const GuestPlanFromPicksRequestSchema = z.object({
+  preferences: WizardInputSchema.omit({ hiddenContext: true }),
   mealIds: z
     .array(z.string().min(1).max(100))
     .min(1)

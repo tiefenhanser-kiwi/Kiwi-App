@@ -23,8 +23,10 @@ import { WizardExpandedPlanDetailsSchema } from "../../lib/ai/schemas/wizard";
 import {
   createWizardRouter,
   GUEST_PICKS_WHY_BULLET,
+  guestPicksExpandContext,
   picksDailyMacros,
 } from "../wizard";
+import { expandCandidate as productionExpandCandidate } from "../../lib/wizardExpansion";
 import { withSessionUser } from "./fixtures/sessionUserStub";
 
 const HOUR = 60 * 60 * 1000;
@@ -194,7 +196,7 @@ function countingAI() {
   return { fn, calls };
 }
 
-async function spinUp(prisma: unknown, runAICall: unknown) {
+async function spinUp(prisma: unknown, runAICall: unknown, expandCandidate?: unknown) {
   __clearRateLimitStoreForTests();
   const app: Express = express();
   app.use(express.json());
@@ -207,6 +209,8 @@ async function spinUp(prisma: unknown, runAICall: unknown) {
         can: async () => ({ allowed: true }),
       } as never,
       rateLimiterOpts: { capacity: 1000, refillPerSec: 1000 },
+      // Unset = the REAL expandCandidate; a wrapper only observes it.
+      ...(expandCandidate ? { expandCandidate: expandCandidate as never } : {}),
     }),
   );
   const server: Server = await new Promise((resolve) => {
@@ -232,17 +236,22 @@ async function spinUp(prisma: unknown, runAICall: unknown) {
 
 const GUEST_TOKEN = () => signToken(G, { purpose: "guest", expiresIn: "24h" });
 
-const BODY = {
+// G1b — the guest's WHOLE wizard answers, the body build-plans accepts. The
+// form hides sauce and both dials (R3), so a real guest body omits them.
+const ANSWERS = {
   planDurationDays: 5,
   householdSize: 3,
-  allergiesAndAvoidances: ["peanut"],
+  cuisines: ["thai", "mexican"],
   eatingStyles: ["vegetarian"],
+  allergiesAndAvoidances: ["peanut"],
   difficulty: "easy",
-  saucePreference: "homemade",
+  weeklyPacing: "mostly_easy",
+  dietaryNotes: "no cilantro",
   maxCookTimeMinutes: 45,
   maxCookTimeCoverage: "most",
-  localDate: "2026-10-07",
 };
+
+const BODY = { preferences: ANSWERS, localDate: "2026-10-07" };
 
 const CATALOG = [meal("m-1"), meal("m-2"), meal("m-3")];
 
@@ -289,13 +298,10 @@ describe("POST /api/guest/plan-from-picks — the happy path", () => {
       assert.deepEqual(row.draft, json, "the stored blob IS the response");
       assert.equal(row.generationCount, 1);
       assert.equal(row.lastEvent, "plan_opened");
-      const prefs = row.preferences as Record<string, unknown>;
-      assert.equal(prefs.householdSize, 3);
-      assert.equal(prefs.difficulty, "easy");
-      assert.deepEqual(prefs.allergiesAndAvoidances, ["peanut"]);
-      assert.equal(prefs.saucePreference, "homemade");
-      assert.ok(!("mealIds" in prefs), "the picks are not a preference");
-      assert.ok(!("localDate" in prefs));
+      // G1b — the WHOLE answers, as persistGuestGeneration stores them: the
+      // wizard schema's parse (wantsLeftovers' own default included), and NOT
+      // a hidden default the guest never answered (R3: no sauce, no dials).
+      assert.deepEqual(row.preferences, { ...ANSWERS, wantsLeftovers: false });
 
       // The funnel.
       const events = prisma._guestEvents();
@@ -459,16 +465,26 @@ describe("POST /api/guest/plan-from-picks — the picks are validated", () => {
     }
   });
 
-  it("the body: duplicates, more than 7, none, and a preference the claim could not read → 400", async () => {
+  it("the body: no preferences, duplicates, more than 7, none, a bad answer, one the claim could not read → 400", async () => {
     const prisma = makePrisma(CATALOG);
     const h = await spinUp(prisma, countingAI().fn);
     try {
       for (const body of [
+        // G1b — the answers are required: the bare context fields are gone.
+        { mealIds: ["m-1"], localDate: "2026-10-07" },
+        { ...ANSWERS, mealIds: ["m-1"] },
         { ...BODY, mealIds: ["m-1", "m-1"] },
         { ...BODY, mealIds: ["a", "b", "c", "d", "e", "f", "g", "h"] },
         { ...BODY, mealIds: [] },
-        { ...BODY, mealIds: ["m-1"], saucePreference: "from_a_jar" },
-        { ...BODY, mealIds: ["m-1"], difficulty: undefined },
+        { ...BODY, mealIds: ["m-1"], preferences: { ...ANSWERS, saucePreference: "from_a_jar" } },
+        { ...BODY, mealIds: ["m-1"], preferences: { ...ANSWERS, difficulty: undefined } },
+        { ...BODY, mealIds: ["m-1"], preferences: { ...ANSWERS, weeklyPacing: "whenever" } },
+        // Passes the wizard schema, fails the claim's (cuisines max 60).
+        {
+          ...BODY,
+          mealIds: ["m-1"],
+          preferences: { ...ANSWERS, cuisines: Array.from({ length: 61 }, (_, i) => `c${i}`) },
+        },
       ]) {
         const res = await h.post("/guest/plan-from-picks", body, GUEST_TOKEN());
         assert.equal(res.status, 400, JSON.stringify(body));
@@ -508,6 +524,92 @@ describe("POST /api/guest/plan-from-picks — guest only", () => {
       } finally {
         await h2.close();
       }
+    }
+  });
+});
+
+// ── G1b — the expand context, derived from the answers ─────────────────
+
+describe("guestPicksExpandContext — one source for the plan and the claim", () => {
+  it("maps the answers to the expand context (literal)", () => {
+    assert.deepEqual(
+      guestPicksExpandContext({
+        ...ANSWERS,
+        wantsLeftovers: true, // sent anyway — stamped false (D-WS7-190)
+        additionalNotes: "surprise me",
+        saucePreference: "homemade",
+        discoveryLevel: "some",
+        playlistLevel: "all",
+      } as never),
+      {
+        planDurationDays: 5,
+        householdSize: 3,
+        wantsLeftovers: false,
+        eatingStyles: ["vegetarian"],
+        difficulty: "easy",
+        allergiesAndAvoidances: ["peanut"],
+        saucePreference: "homemade",
+        maxCookTimeMinutes: 45,
+        maxCookTimeCoverage: "most",
+      },
+    );
+  });
+
+  it("an UNANSWERED optional stays absent — the shared resolver, not this function, supplies balanced / no cap / most / []", () => {
+    assert.deepEqual(
+      guestPicksExpandContext({
+        planDurationDays: 3,
+        householdSize: 2,
+        wantsLeftovers: false,
+        cuisines: [],
+        eatingStyles: [],
+        difficulty: "medium",
+        weeklyPacing: "mixed",
+      }),
+      {
+        planDurationDays: 3,
+        householdSize: 2,
+        wantsLeftovers: false,
+        eatingStyles: [],
+        difficulty: "medium",
+      },
+    );
+    // A chosen "no cap" (null) and a chosen "no allergies" ([]) are answers,
+    // and survive as answers.
+    const chosen = guestPicksExpandContext({
+      planDurationDays: 3,
+      householdSize: 2,
+      wantsLeftovers: false,
+      cuisines: [],
+      eatingStyles: [],
+      difficulty: "medium",
+      weeklyPacing: "mixed",
+      allergiesAndAvoidances: [],
+      maxCookTimeMinutes: null,
+    });
+    assert.deepEqual(chosen.allergiesAndAvoidances, []);
+    assert.equal(chosen.maxCookTimeMinutes, null);
+  });
+
+  it("through the route: the answered allergies are what expandCandidate receives", async () => {
+    const prisma = makePrisma(CATALOG);
+    const seen: { context?: Record<string, unknown> } = {};
+    const h = await spinUp(prisma, countingAI().fn, (async (opts: any) => {
+      seen.context = opts.request.candidateContext;
+      return productionExpandCandidate(opts);
+    }) as never);
+    try {
+      const res = await h.post(
+        "/guest/plan-from-picks",
+        { ...BODY, mealIds: ["m-1"] },
+        GUEST_TOKEN(),
+      );
+      assert.equal(res.status, 200);
+      assert.deepEqual(seen.context?.allergiesAndAvoidances, ["peanut"]);
+      assert.equal(seen.context?.wantsLeftovers, false);
+      assert.ok(!("saucePreference" in (seen.context ?? {})), "a hidden sauce is not invented");
+    } finally {
+      await h.close();
     }
   });
 });
