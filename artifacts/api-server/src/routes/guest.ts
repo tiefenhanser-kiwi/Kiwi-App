@@ -49,6 +49,7 @@ import {
 //   expanded          — routes/wizard.ts, the guest expand success path
 //   catalog_only_gap  — routes/wizard.ts, the thin-shelf door
 //   claim_plan_failed — lib/guestClaim.ts releaseClaimForRetry
+//   shelf_shown       — routes/wizard.ts, the guest shelf (Resubmission G1)
 //
 // A server-side name is a plain string literal at its write site. Adding one
 // here is a decision to let clients send it, never just bookkeeping.

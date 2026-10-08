@@ -285,10 +285,11 @@ export function createWizardRouter(
   // Shadows the module import: every requireAuth call site below is unchanged.
   const requireAuth = createRequireAuth({ prisma });
   // Row 13 "Test Kitchen" · Block 1 (D-WS9-259) — the guest-or-user guard.
-  // Mounted on EXACTLY TWO routes: POST /wizard/build-plans and POST
-  // /wizard/expand. Every other wizard route stays requireAuth, because every
-  // other wizard route is a WRITE-SHAPED action and therefore a door: a second
-  // generation, dismiss, activate, save, the last batch, the limits.
+  // Mounted on EXACTLY THREE routes: POST /wizard/build-plans, POST
+  // /wizard/expand, and (Resubmission G1) POST /wizard/shelf. Every other
+  // wizard route stays requireAuth, because
+  // every other wizard route is a WRITE-SHAPED action and therefore a door: a
+  // second generation, dismiss, activate, save, the last batch, the limits.
   const requireGuestOrAuth = createRequireGuestOrAuth({ prisma });
   const subscriptionService =
     deps.subscriptionService ?? productionSubscriptionService;
@@ -793,8 +794,19 @@ export function createWizardRouter(
   // re-ordered by the discovery dial. No AI call unless `text` is sent (then
   // the same parse_intent build-from-text runs, for its named meals only —
   // the parse yields no cuisines/constraints; those ride on the body).
-  router.post("/wizard/shelf", requireAuth, wizardLimiter, async (req, res) => {
-    const userId = req.userId;
+  //
+  // Resubmission G1 (Part A) — a GUEST may read the shelf: the Test Kitchen's
+  // "Meals to choose from" (Hans, October 7). The guest shelf is the catalog
+  // alone under the body's own filters, with ZERO AI calls — `text` is the
+  // parse-intent invention path and `source: "playlist"` reads rows a guest
+  // cannot own, so both are refused rather than silently ignored. Nothing is
+  // written for a guest except the `shelf_shown` funnel row: the last-batch
+  // slot is a users-FK table.
+  router.post("/wizard/shelf", requireGuestOrAuth, wizardLimiter, async (req, res) => {
+    const guestSessionId = req.guestSessionId ?? null;
+    // See the build-plans note: the guest id rides in the userId slot, where
+    // every read below uses it as a filter value that matches nothing.
+    const userId = req.userId ?? guestSessionId;
     if (!userId) {
       return res.status(401).json({ error: "unauthenticated" });
     }
@@ -805,16 +817,27 @@ export function createWizardRouter(
         details: parsed.error.flatten(),
       });
     }
-    const ent = await subscriptionService.can(
-      userId,
-      "kitchen_wizard_set_preferences",
-    );
-    if (!ent.allowed) {
-      return res.status(402).json({
-        error: "upgrade required",
-        code: ent.code ?? SUBSCRIPTION_REQUIRED_CODE,
-        reason: ent.reason ?? "Kitchen Wizard is a premium feature.",
-      });
+    if (guestSessionId) {
+      if (parsed.data.text) {
+        return res.status(400).json({ code: "guest_text_not_allowed" });
+      }
+      if (parsed.data.source === "playlist") {
+        return res.status(400).json({ code: "guest_playlist_not_allowed" });
+      }
+    }
+    // Entitlement — skipped for a guest, explicitly; see the build-plans note.
+    if (!guestSessionId) {
+      const ent = await subscriptionService.can(
+        userId,
+        "kitchen_wizard_set_preferences",
+      );
+      if (!ent.allowed) {
+        return res.status(402).json({
+          error: "upgrade required",
+          code: ent.code ?? SUBSCRIPTION_REQUIRED_CODE,
+          reason: ent.reason ?? "Kitchen Wizard is a premium feature.",
+        });
+      }
     }
     const body = parsed.data;
     const size = body.size ?? WIZARD_SHELF_DEFAULT_SIZE;
@@ -936,6 +959,10 @@ export function createWizardRouter(
       // 1. Preferences — resolved exactly as build-plans resolves them (override
       //    ?? stored), then the dials against THIS list's size. playlistOnly ≡
       //    playlist all; All-forces-None applies here too.
+      //    A guest has no stored row: the read returns null and every field
+      //    resolves body ?? column default. The playlist count is pinned to 0
+      //    for a guest so the zero-playlist guard reads no table (a guest owns
+      //    no playlist) and any playlist dial degrades to none.
       const resolved = await resolveEffectivePreferences(
         prisma,
         userId,
@@ -946,7 +973,10 @@ export function createWizardRouter(
           maxCookTimeMinutes: body.maxCookTimeMinutes,
           maxCookTimeCoverage: body.maxCookTimeCoverage,
         },
-        { planDurationDays: body.planDurationDays },
+        {
+          planDurationDays: body.planDurationDays,
+          ...(guestSessionId ? { playlistMealCount: 0 } : {}),
+        },
       );
       // The discovery dial re-orders only when SET (per-run or stored non-none
       // is still "set"; the stored default `none` with no override = today's
@@ -1052,8 +1082,10 @@ export function createWizardRouter(
       }
 
       // 3. Playlist — the user's own declared meals (readPlaylistIds above),
-      //    minus anything already pinned.
-      const playlist = await readPlaylistIds(allergenConditions, difficultyCeiling);
+      //    minus anything already pinned. None for a guest: no read at all.
+      const playlist = guestSessionId
+        ? { ids: [] as string[], sourceIds: [] as string[] }
+        : await readPlaylistIds(allergenConditions, difficultyCeiling);
       const playlistSourceIds = playlist.sourceIds;
       const playlistIds = playlist.ids.filter((id) => !pinnedIds.includes(id));
 
@@ -1107,7 +1139,10 @@ export function createWizardRouter(
         .map((id) => detailById.get(id))
         .filter((r): r is NonNullable<typeof r> => !!r)
         .map((r) => ({ id: r.id, title: r.title }));
-      const served = await servedCatalogIds(prisma, userId, catalogRefs);
+      // A guest has served nothing — every shelf row is new to them.
+      const served = guestSessionId
+        ? new Set<string>()
+        : await servedCatalogIds(prisma, userId, catalogRefs);
 
       const composed = composeShelf({
         size,
@@ -1152,7 +1187,14 @@ export function createWizardRouter(
       // empty shelf is not a presentation and must not wipe the prior batch.
       // Deliberately NOT commitGeneratedBatch: a shelf run is not a plan
       // generation, so it does not supersede the user's expand-drafts.
-      if (meals.length > 0) {
+      // A guest gets the funnel row instead: WizardLastBatch.userId is a users
+      // FK. `returned` beside `size` is the thin-shelf pressure on this path.
+      if (guestSessionId) {
+        await writeGuestEvent(guestSessionId, "shelf_shown", {
+          size,
+          returned: meals.length,
+        });
+      } else if (meals.length > 0) {
         await persistShelfBatch({
           userId,
           body,

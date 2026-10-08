@@ -889,3 +889,169 @@ describe("POST /api/wizard/shelf → last-batch slot (post-pass Part A)", () => 
     }
   });
 });
+
+// ── Resubmission G1 (Part A) — the guest shelf ──────────────────────────
+//
+// The Test Kitchen's "Meals to choose from". 🔴 The claim under test is the
+// DI seam's call count, not the response shape: a guest shelf makes ZERO AI
+// calls, and the two inputs that would make one (text) or read rows a guest
+// cannot own (source: playlist) are refused before anything runs.
+
+describe("POST /api/wizard/shelf — a guest token (Resubmission G1 Part A)", () => {
+  const G = "gs-shelf-guest";
+  const HOUR = 60 * 60 * 1000;
+
+  function guestStub(
+    session: { expiresAt?: Date; claimedAt?: Date | null } = {},
+  ) {
+    const base = makeStubPrisma({
+      meals: [...catalog20, ownRow("own1", G)],
+      // A playlist row keyed by the guest id: if the route ever read the
+      // playlist for a guest, this would surface on the wire.
+      playlist: [{ userId: G, mealId: "own1", createdAt: new Date() }],
+    });
+    const guestEvents: Record<string, unknown>[] = [];
+    const playlistReads: string[] = [];
+    const stub = {
+      ...base,
+      playlistMeal: {
+        count: async (a: never) => {
+          playlistReads.push("count");
+          return base.playlistMeal.count(a);
+        },
+        findMany: async (a: never) => {
+          playlistReads.push("findMany");
+          return base.playlistMeal.findMany(a);
+        },
+      },
+      guestSession: {
+        findUnique: async ({ where }: { where: { id: string } }) =>
+          where.id === G
+            ? {
+                id: G,
+                expiresAt: session.expiresAt ?? new Date(Date.now() + HOUR),
+                claimedAt: session.claimedAt ?? null,
+              }
+            : null,
+      },
+      guestEvent: {
+        create: async ({ data }: { data: Record<string, unknown> }) => {
+          guestEvents.push(data);
+          return data;
+        },
+      },
+      _guestEvents: () => guestEvents,
+      _playlistReads: () => playlistReads,
+    };
+    return stub;
+  }
+
+  function countingAI() {
+    const calls: string[] = [];
+    const fn = async (promptKey: string) => {
+      calls.push(promptKey);
+      throw new Error(`a guest shelf reached the model: ${promptKey}`);
+    };
+    return { fn, calls };
+  }
+
+  async function guestShelf(h: Harness, body: Record<string, unknown>) {
+    const res = await fetch(`${h.baseUrl}/wizard/shelf`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${signToken(G, { purpose: "guest", expiresIn: "24h" })}`,
+      },
+      body: JSON.stringify(body),
+    });
+    return { status: res.status, json: (await res.json()) as Record<string, any> };
+  }
+
+  it("a guest gets the catalog shelf, runAICall is called ZERO times, and nothing but the funnel row is written", async () => {
+    const stub = guestStub();
+    const ai = countingAI();
+    const h = await spinUp(stub, ai.fn);
+    try {
+      const { status, json } = await guestShelf(h, {
+        ...BASE_BODY,
+        size: 6,
+        playlistLevel: "all",
+      });
+      assert.equal(status, 200, JSON.stringify(json));
+      // 🔴 THE ASSERTION THAT MATTERS.
+      assert.deepEqual(ai.calls, [], "a guest shelf makes no AI call");
+      assert.equal(json.meals.length, 6);
+      assert.ok(
+        json.meals.every((m: ShelfMeal) => m.source === "shelf" && !m.isPlaylist),
+        "the guest shelf is the catalog alone",
+      );
+      assert.ok(
+        !json.meals.some((m: ShelfMeal) => m.id === "own1"),
+        "no row keyed to the guest id reaches the wire",
+      );
+      assert.ok(json.meals.every((m: ShelfMeal) => m.isNewToYou), "a guest has served nothing");
+      assert.deepEqual(stub._playlistReads(), [], "no playlist table read for a guest");
+      assert.equal(json.metadata.playlistCount, 0);
+      // The response shape is the member one — the client's Pick screen reads it.
+      for (const k of ["meals", "totalEligible", "hasMore", "unmatchedNames", "metadata"]) {
+        assert.ok(k in json, `response carries ${k}`);
+      }
+      assert.ok(!("textParsed" in json));
+      // Funnel row, and no last-batch write (a users-FK table).
+      const shown = stub._guestEvents().filter((e) => e.event === "shelf_shown");
+      assert.equal(shown.length, 1);
+      assert.equal(shown[0].guestSessionId, G);
+      assert.deepEqual(shown[0].meta, { size: 6, returned: 6 });
+      assert.equal(stub._lastBatch().size, 0, "no WizardLastBatch row for a guest");
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("a guest with `text` → 400 guest_text_not_allowed, and no AI call", async () => {
+    const stub = guestStub();
+    const ai = countingAI();
+    const h = await spinUp(stub, ai.fn);
+    try {
+      const { status, json } = await guestShelf(h, { ...BASE_BODY, text: "tacos and pho" });
+      assert.equal(status, 400);
+      assert.equal(json.code, "guest_text_not_allowed");
+      assert.deepEqual(ai.calls, []);
+      assert.equal(stub._guestEvents().length, 0, "a refusal is not a shelf shown");
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("a guest with source: playlist → 400 guest_playlist_not_allowed", async () => {
+    const stub = guestStub();
+    const h = await spinUp(stub, countingAI().fn);
+    try {
+      const { status, json } = await guestShelf(h, { ...BASE_BODY, source: "playlist" });
+      assert.equal(status, 400);
+      assert.equal(json.code, "guest_playlist_not_allowed");
+      assert.deepEqual(stub._playlistReads(), []);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("an expired or a claimed guest session → 401 (the middleware's behaviour, pinned here)", async () => {
+    for (const session of [
+      { expiresAt: new Date(Date.now() - 1) },
+      { claimedAt: new Date() },
+    ]) {
+      const stub = guestStub(session);
+      const ai = countingAI();
+      const h = await spinUp(stub, ai.fn);
+      try {
+        const { status } = await guestShelf(h, BASE_BODY);
+        assert.equal(status, 401, JSON.stringify(session));
+        assert.deepEqual(ai.calls, []);
+        assert.equal(stub._guestEvents().length, 0);
+      } finally {
+        await h.close();
+      }
+    }
+  });
+});
