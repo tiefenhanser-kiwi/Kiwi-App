@@ -13,6 +13,16 @@
 // Palette.badge.trial — the nearest existing token pair, no new hex) · "over
 // your {cap}-min cap" (terracotta-50 / terracotta-600) with the total in
 // terracotta bold. Over-cap is a LABEL, never a block: the card stays pickable.
+//
+// Resub C5 — TWO targets (Hans, October 7: "the click to see details before
+// adding to a plan"). The body (thumb + text) opens the meal's preview
+// (`onOpen`); the select circle on the right — the card's own selection mark
+// since Block 2a — is now its own control and the ONLY thing that picks
+// (`onToggle`). Neither calls the other. No new words: the empty circle carries
+// a "+" (the header already says "tap to add"), the picked one a check, and the
+// circle keeps the pick semantics (checkbox, checked, the meal's name) so a
+// screen reader hears what it did before. The body is a plain button that reads
+// its own text.
 
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -56,7 +66,10 @@ interface Props {
   selected: boolean;
   /** The user's cook-time cap for this run; null = no cap, no pill. */
   capMinutes: number | null;
+  /** The select circle — picks / unpicks. The only control that does. */
   onToggle: () => void;
+  /** Resub C5 — the body: opens the meal's preview. Without it the body is inert. */
+  onOpen?: () => void;
   /** Block 2c Part C — the screen-level rule (showNewToYouChips); default on. */
   showNewToYou?: boolean;
 }
@@ -66,6 +79,7 @@ export function MealPickCard({
   selected,
   capMinutes,
   onToggle,
+  onOpen,
   showNewToYou = true,
 }: Props) {
   const overCap = isOverCap(meal, capMinutes);
@@ -74,76 +88,90 @@ export function MealPickCard({
   const tags = cardPills(meal);
 
   return (
-    <Pressable
-      onPress={onToggle}
-      accessibilityRole="checkbox"
-      accessibilityState={{ checked: selected }}
-      accessibilityLabel={meal.title}
-      style={({ pressed }) => [
-        s.card,
-        selected && s.cardSelected,
-        pressed && { opacity: 0.9 },
-      ]}
-    >
-      {/* WS9 row 5 Block 2 — the shelf row's imageUrl (MealCardSchema, nullable:
-          the catalog and its forks carry one, D-WS9-246; a user-authored meal
-          never will, D-WS9-230 — and its gradient is the ruled terminal state,
-          not a loading or error state). */}
-      <TreatedImage
-        source={meal.imageUrl ? { uri: meal.imageUrl } : null}
-        width={ImageTreatment.thumb.row}
-        height={ImageTreatment.thumb.row}
-        radius={Radius.md}
-        style={s.thumb}
-      />
-      <View style={s.body}>
-        <Text style={s.name} numberOfLines={2}>
-          {meal.title}
-        </Text>
-        {meal.description ? (
-          <Text style={s.description} numberOfLines={DESCRIPTION_MAX_LINES}>
-            {meal.description}
+    <View testID={`meal-pick-card-${meal.id}`} style={[s.card, selected && s.cardSelected]}>
+      <Pressable
+        onPress={onOpen}
+        disabled={!onOpen}
+        accessibilityRole="button"
+        testID={`meal-pick-open-${meal.id}`}
+        style={({ pressed }) => [s.open, pressed && { opacity: 0.7 }]}
+      >
+        {/* WS9 row 5 Block 2 — the shelf row's imageUrl (MealCardSchema, nullable:
+            the catalog and its forks carry one, D-WS9-246; a user-authored meal
+            never will, D-WS9-230 — and its gradient is the ruled terminal state,
+            not a loading or error state). */}
+        <TreatedImage
+          source={meal.imageUrl ? { uri: meal.imageUrl } : null}
+          width={ImageTreatment.thumb.row}
+          height={ImageTreatment.thumb.row}
+          radius={Radius.md}
+          style={s.thumb}
+        />
+        <View style={s.body}>
+          <Text style={s.name} numberOfLines={2}>
+            {meal.title}
           </Text>
-        ) : null}
-        <Text style={s.meta}>
-          {overCap ? (
-            <>
-              <Text style={s.overCapTotal}>{meal.estimatedTimeMinutes} min total</Text>
-              {` · ${meal.activeTimeMinutes === null ? "—" : meal.activeTimeMinutes} min active`}
-            </>
-          ) : (
-            timeLine(meal)
-          )}
-        </Text>
-        <Text style={s.meta}>{macroLine(meal.macrosPerServing)}</Text>
-        <View style={s.pills}>
-          {tags.map((t) => (
-            <View key={t} style={s.pill}>
-              <Text style={s.pillText}>{t}</Text>
-            </View>
-          ))}
-          {meal.isPlaylist && (
-            <View style={[s.pill, s.pillPlaylist]}>
-              <Feather name="music" size={10} color={Colors.sage[700]} />
-              <Text style={[s.pillText, s.pillPlaylistText]}>{PLAYLIST_PILL}</Text>
-            </View>
-          )}
-          {meal.isNewToYou && showNewToYou && (
-            <View style={[s.pill, s.pillNew]}>
-              <Text style={[s.pillText, s.pillNewText]}>{NEW_TO_YOU_PILL}</Text>
-            </View>
-          )}
-          {overCap && capMinutes !== null && (
-            <View style={[s.pill, s.pillOverCap]}>
-              <Text style={[s.pillText, s.pillOverCapText]}>{overCapPill(capMinutes)}</Text>
-            </View>
-          )}
+          {meal.description ? (
+            <Text style={s.description} numberOfLines={DESCRIPTION_MAX_LINES}>
+              {meal.description}
+            </Text>
+          ) : null}
+          <Text style={s.meta}>
+            {overCap ? (
+              <>
+                <Text style={s.overCapTotal}>{meal.estimatedTimeMinutes} min total</Text>
+                {` · ${meal.activeTimeMinutes === null ? "—" : meal.activeTimeMinutes} min active`}
+              </>
+            ) : (
+              timeLine(meal)
+            )}
+          </Text>
+          <Text style={s.meta}>{macroLine(meal.macrosPerServing)}</Text>
+          <View style={s.pills}>
+            {tags.map((t) => (
+              <View key={t} style={s.pill}>
+                <Text style={s.pillText}>{t}</Text>
+              </View>
+            ))}
+            {meal.isPlaylist && (
+              <View style={[s.pill, s.pillPlaylist]}>
+                <Feather name="music" size={10} color={Colors.sage[700]} />
+                <Text style={[s.pillText, s.pillPlaylistText]}>{PLAYLIST_PILL}</Text>
+              </View>
+            )}
+            {meal.isNewToYou && showNewToYou && (
+              <View style={[s.pill, s.pillNew]}>
+                <Text style={[s.pillText, s.pillNewText]}>{NEW_TO_YOU_PILL}</Text>
+              </View>
+            )}
+            {overCap && capMinutes !== null && (
+              <View style={[s.pill, s.pillOverCap]}>
+                <Text style={[s.pillText, s.pillOverCapText]}>{overCapPill(capMinutes)}</Text>
+              </View>
+            )}
+          </View>
         </View>
-      </View>
-      <View style={[s.selectCircle, selected && s.selectCircleOn]}>
-        {selected && <Feather name="check" size={13} color={Colors.neutral[0]} />}
-      </View>
-    </Pressable>
+      </Pressable>
+      <Pressable
+        onPress={onToggle}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: selected }}
+        accessibilityLabel={meal.title}
+        hitSlop={12}
+        testID={`meal-pick-toggle-${meal.id}`}
+        style={({ pressed }) => [
+          s.selectCircle,
+          selected && s.selectCircleOn,
+          pressed && { opacity: 0.7 },
+        ]}
+      >
+        {selected ? (
+          <Feather name="check" size={13} color={Colors.neutral[0]} />
+        ) : (
+          <Feather name="plus" size={13} color={Colors.sage[700]} />
+        )}
+      </Pressable>
+    </View>
   );
 }
 
@@ -162,6 +190,14 @@ const s = StyleSheet.create({
     borderColor: Colors.sage[600],
     borderWidth: 1.4,
     backgroundColor: Colors.sage[50],
+  },
+  // Resub C5 — the body target: the thumb and the text, as the card laid them out.
+  open: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing[3],
   },
   thumb: {
     backgroundColor: ImageTreatment.placeholder.base,

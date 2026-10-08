@@ -133,6 +133,7 @@ afterEach(() => {
 function renderCard(m: ShelfMeal, selected = false, capMinutes: number | null = 45) {
   let tree!: TestRenderer.ReactTestRenderer;
   const toggles: string[] = [];
+  const opens: string[] = [];
   act(() => {
     tree = TestRenderer.create(
       React.createElement(MealPickCard, {
@@ -140,12 +141,38 @@ function renderCard(m: ShelfMeal, selected = false, capMinutes: number | null = 
         selected,
         capMinutes,
         onToggle: () => toggles.push(m.id),
+        onOpen: () => opens.push(m.id),
       }),
     );
   });
   cardMounted = tree;
-  return { root: tree.toJSON() as unknown as Json, toggles };
+  return { root: tree.toJSON() as unknown as Json, toggles, opens };
 }
+
+// Resub C5 — two targets: the body looks, the circle picks.
+test("C5 🔴 card: the body press opens the preview and does NOT pick; the circle picks and does NOT open", () => {
+  const { root, toggles, opens } = renderCard(NEW_MEAL);
+  act(() => {
+    (byTestId(root, `meal-pick-open-${NEW_MEAL.id}`)!.props.onPress as () => void)();
+  });
+  assert.deepEqual(opens, [NEW_MEAL.id]);
+  assert.deepEqual(toggles, [], "the body must not pick");
+  act(() => {
+    (byTestId(root, `meal-pick-toggle-${NEW_MEAL.id}`)!.props.onPress as () => void)();
+  });
+  assert.deepEqual(toggles, [NEW_MEAL.id]);
+  assert.deepEqual(opens, [NEW_MEAL.id], "the circle must not open the preview");
+});
+
+test("C5 card: the circle carries the pick semantics (checkbox, checked, the meal's name); the body is a button", () => {
+  const { root } = renderCard(NEW_MEAL, true);
+  const circle = byTestId(root, `meal-pick-toggle-${NEW_MEAL.id}`)!;
+  assert.equal(circle.props.accessibilityRole, "checkbox");
+  assert.deepEqual(circle.props.accessibilityState, { checked: true });
+  assert.equal(circle.props.accessibilityLabel, NEW_MEAL.title);
+  assert.equal(byLabel(root, NEW_MEAL.title), circle, "the name labels the pick, not the body");
+  assert.equal(byTestId(root, `meal-pick-open-${NEW_MEAL.id}`)!.props.accessibilityRole, "button");
+});
 
 test("card: every field renders from the shelf shape — name, description, times, macros, tags", () => {
   const { root } = renderCard(PLAYLIST_MEAL);
@@ -226,15 +253,17 @@ test("card (BUG-294): a long description wraps to at most DESCRIPTION_MAX_LINES 
 
 test("card (BUG-294): the body is width-constrained (flex 1 / minWidth 0) and neither card nor body fixes a height — the card expands", () => {
   const { root } = renderCard(LONG_MEAL);
-  const card = byLabel(root, "Fennel Chicken Tray")!;
+  // Resub C5 — the card is a row of two targets now (the body, the circle), so
+  // it is found by its testID; the label belongs to the circle (the pick).
+  const card = byTestId(root, "meal-pick-card-l1")!;
   const cardStyle = flatten(card.props.style);
   assert.equal(cardStyle.flexDirection, "row");
   assert.equal(cardStyle.height, undefined, "the card has no fixed height");
   assert.equal(cardStyle.maxHeight, undefined, "the card has no max height");
   // The row's flex child that holds the text: the width constraint that makes
   // the line cap wrap instead of overflow.
-  const body = (card.children as Json[]).find(
-    (c) => typeof c !== "string" && flatten(c.props.style).flex === 1,
+  const body = walk(card).find(
+    (c) => c !== card && flatten(c.props.style).flex === 1,
   ) as Json | undefined;
   assert.ok(body, "no flex:1 body beside the thumb");
   const bodyStyle = flatten(body!.props.style);
@@ -246,15 +275,15 @@ test("card (BUG-294): the body is width-constrained (flex 1 / minWidth 0) and ne
   // the plan-option card reads thumbSize, deliberately its own step). This
   // pinned the literal 56 through row 5 Block 2's tokenisation and went red
   // the moment the token moved — it reads the token now.
-  const thumb = (card.children as Json[]).find(
-    (c) => typeof c !== "string" && flatten(c.props.style).width === ImageTreatment.thumb.row,
+  const thumb = walk(card).find(
+    (c) => flatten(c.props.style).width === ImageTreatment.thumb.row,
   );
   assert.ok(thumb, "row-role thumb missing");
 });
 
 test("card: selected → sage-600 1.4px border on a sage-50 surface", () => {
   const { root } = renderCard(NEW_MEAL, true);
-  const card = byLabel(root, "Miso Salmon")!;
+  const card = byTestId(root, `meal-pick-card-${NEW_MEAL.id}`)!;
   const st = flatten(card.props.style);
   assert.equal(st.borderColor, Colors.sage[600]);
   assert.equal(st.borderWidth, 1.4);

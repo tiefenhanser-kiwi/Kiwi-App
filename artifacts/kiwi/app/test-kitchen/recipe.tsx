@@ -24,52 +24,18 @@ import { Button } from "@/components/Button";
 import { GuestDoorSheet } from "@/components/GuestDoorSheet";
 import { Header } from "@/components/Header";
 import { LoadingShim } from "@/components/LoadingShim";
+// Resub C5 — the ingredients-by-dish + steps body, shared with the Pick
+// screen's preview sheet. It calls Block 2b's (BUG-315) shared line formatter
+// and steps decision, exactly as this screen did.
+import { MealRecipeSections } from "@/components/MealRecipeSections";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { useGuest } from "@/contexts/GuestContext";
 import { useGuestDoor } from "@/hooks/useGuestDoor";
 import { trackGuestEvent } from "@/lib/api/guest";
 import { getMeal } from "@/lib/api/meals";
-// Block 2b (BUG-315) — the shared line formatter and the shared steps decision.
-// Both were extracted from app/meal/[id].tsx, which now calls them too; see each
-// file's header for what this screen got wrong before them.
-import { formatIngredientLine } from "@/lib/format/ingredientLine";
-import {
-  flatMealSteps,
-  mealStepsAreGrouped,
-  stepBearingDishes,
-} from "@/lib/meals/mealSteps";
 
 export const GUEST_RECIPE_GONE =
   "Kiwi could not find this recipe. It may have been updated since your plan was built.";
-
-/**
- * One numbered step row, read-only. Block 2b (BUG-315): numbered by POSITION in
- * its own list, not by `step.stepIndex` — in the grouped layout each dish's
- * numbering restarts at 1, which is what the member screen does, and a dish's
- * stepIndex is not guaranteed to start at 0 anyway.
- *
- * Deliberately NOT app/meal/[id].tsx's renderStepRow: that one carries the
- * timing-sensitive circle, the amountRefs scaling against a servings multiplier
- * this screen has no stepper for, and the unmatched-amount clarify hint (a
- * prompt to edit, which a guest cannot). The shared piece is the DECISION
- * (lib/meals/mealSteps.ts), not the chrome.
- */
-function renderStep(
-  step: { text: string; estimatedMinutes: number },
-  i: number,
-): React.ReactElement {
-  return (
-    <View key={i} style={s.step}>
-      <Text style={s.stepIndex}>{i + 1}</Text>
-      <View style={{ flex: 1 }}>
-        <Text style={s.stepText}>{step.text}</Text>
-        {step.estimatedMinutes > 0 ? (
-          <Text style={s.stepMeta}>{step.estimatedMinutes} min</Text>
-        ) : null}
-      </View>
-    </View>
-  );
-}
 
 // Resub C1 — no platform redirect: the Test Kitchen runs on native too.
 export default function GuestRecipeRoute() {
@@ -93,11 +59,6 @@ function GuestRecipeScreen() {
   React.useEffect(() => {
     if (meal) void trackGuestEvent("recipe_opened", { meta: { mealId } });
   }, [meal, mealId]);
-
-  // Block 2b (BUG-315) — the shared decision, computed once. Both are safe on a
-  // null meal (the query has not resolved) because the shapes default to empty.
-  const stepsGrouped = meal ? mealStepsAreGrouped(meal) : false;
-  const flatSteps = meal ? flatMealSteps(meal) : [];
 
   if (!session) return <Redirect href="/test-kitchen" />;
 
@@ -136,39 +97,11 @@ function GuestRecipeScreen() {
           <>
             {meal.description ? <Text style={s.headnote}>{meal.description}</Text> : null}
 
-            {/* Ingredients, by dish — the shape the meal actually has. */}
-            {meal.dishes.map((dish, di) => (
-              <View key={`${di}-${dish.title}`} style={s.card}>
-                <Text style={s.cardTitle}>{dish.title}</Text>
-                <View style={s.ingredients}>
-                  {dish.ingredients.map((ing, ii) => (
-                    <Text key={`${ii}-${ing.name}`} style={s.ingredient}>
-                      {formatIngredientLine(ing, { includeNotes: true })}
-                    </Text>
-                  ))}
-                </View>
-              </View>
-            ))}
-
-            {/* The steps. A catalog meal has them; this is the whole reason the
-                recipe is read from GET /meals/:id and not from the draft.
-                Block 2b (BUG-315): this read `meal.steps`, the MEAL-owned array,
-                which is empty on every multi-dish catalog meal — the steps live
-                on dishes[].steps. The grouped/flat decision is now the member
-                screen's, shared (lib/meals/mealSteps.ts). */}
-            {stepsGrouped ? (
-              stepBearingDishes(meal.dishes).map((dish, di) => (
-                <View key={`steps-${di}-${dish.title}`} style={s.card}>
-                  <Text style={s.cardTitle}>Steps · {dish.title}</Text>
-                  <View style={s.steps}>{dish.steps.map(renderStep)}</View>
-                </View>
-              ))
-            ) : flatSteps.length > 0 ? (
-              <View style={s.card}>
-                <Text style={s.cardTitle}>Steps</Text>
-                <View style={s.steps}>{flatSteps.map(renderStep)}</View>
-              </View>
-            ) : null}
+            {/* Ingredients by dish, then the steps. A catalog meal has steps;
+                that is the whole reason the recipe is read from GET /meals/:id
+                and not from the draft. Resub C5 — the body is shared with the
+                Pick screen's preview (components/MealRecipeSections.tsx). */}
+            <MealRecipeSections meal={meal} />
 
             <View style={s.doors}>
               <Button
@@ -200,47 +133,6 @@ const s = StyleSheet.create({
     color: Colors.neutral[800],
     fontFamily: Typography.face.sans[400],
     lineHeight: 22,
-  },
-  card: {
-    backgroundColor: Palette.background.card,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Colors.neutral[300],
-    padding: Spacing[4],
-    gap: Spacing[2],
-  },
-  cardTitle: {
-    fontSize: Typography.fontSize.lg,
-    color: Colors.neutral[900],
-    fontWeight: Typography.fontWeight.semibold,
-    fontFamily: Typography.face.serif[600],
-  },
-  ingredients: { gap: 4 },
-  ingredient: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[800],
-    fontFamily: Typography.face.sans[400],
-    lineHeight: 20,
-  },
-  steps: { gap: Spacing[3] },
-  step: { flexDirection: "row", gap: Spacing[3], alignItems: "flex-start" },
-  stepIndex: {
-    width: 22,
-    fontSize: Typography.fontSize.sm,
-    color: Colors.sage[700],
-    fontFamily: Typography.face.sans[600],
-  },
-  stepText: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[800],
-    fontFamily: Typography.face.sans[400],
-    lineHeight: 20,
-  },
-  stepMeta: {
-    marginTop: 2,
-    fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[700],
-    fontFamily: Typography.face.sans[400],
   },
   doors: { gap: Spacing[2], marginTop: Spacing[2] },
   statusCard: {

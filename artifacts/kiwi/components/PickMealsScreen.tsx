@@ -26,9 +26,11 @@
 //     catalog cannot compose → the thin-shelf card;
 //   · the exhausted card's two exits (/wizard, /tellkiwi — member routes, the
 //     second the AI-invention surface) become the thin-shelf sign-up exit.
-// The card itself writes nothing (its only control is the local pick toggle),
-// and this screen reads nothing member-only: no /me/*, no last-batch, no
-// playlist (PlaylistPickScreen below does, and a guest never reaches it).
+// The card itself writes nothing (its circle is the local pick toggle; since
+// Resub C5 its body opens MealPreviewSheet, a read of GET /meals/:id under the
+// caller's principal), and this screen reads nothing member-only: no /me/*, no
+// last-batch, no playlist (PlaylistPickScreen below does, and a guest never
+// reaches it).
 //
 // 🔴 HOOKS SIT ABOVE THE EARLY RETURNS.
 
@@ -51,6 +53,7 @@ import { ExhaustedCard } from "@/components/ExhaustedCard";
 import { GuestDoorSheet } from "@/components/GuestDoorSheet";
 import { Header } from "@/components/Header";
 import { MealPickCard } from "@/components/MealPickCard";
+import { MealPreviewSheet } from "@/components/MealPreviewSheet";
 import { useGuestOptional } from "@/contexts/GuestContext";
 import { useToast } from "@/contexts/ToastProvider";
 import { useGuestDoor } from "@/hooks/useGuestDoor";
@@ -165,6 +168,10 @@ export function PickMealsScreen({
   const [guestGap, setGuestGap] = useState<string[] | null>(null);
 
   const [state, setState] = useState<PickState>(() => initialPickState(shelf));
+  // Resub C5 — the card body's preview: a sheet over this screen (never a
+  // route), so the picks above survive the look. The id, not the row: the row
+  // is read from `state.meals` so a page appended underneath cannot strand it.
+  const [previewId, setPreviewId] = useState<string | null>(null);
 
   // "Get more options" — the shelf again with every shown id excluded. A guest
   // pages the same route under the guest principal (the request carries no
@@ -300,6 +307,7 @@ export function PickMealsScreen({
   const exhausted = isExhausted(state);
   const overCapPicked = overCapPickedCount(state, capMinutes);
   const pickedCount = state.pickedIds.length;
+  const previewMeal = previewId ? (state.meals.find((m) => m.id === previewId) ?? null) : null;
   // Block 2c Part C — over the cards on screen NOW, so a round can flip it.
   // For a guest every row is isNewToYou (G1), so this is false and the pill is
   // suppressed — the rule's own "a NEW user sees it on nearly every card" case.
@@ -346,6 +354,7 @@ export function PickMealsScreen({
               capMinutes={capMinutes}
               showNewToYou={newToYouChips}
               onToggle={() => setState((prev) => togglePick(prev, meal.id))}
+              onOpen={() => setPreviewId(meal.id)}
             />
           ))}
         </View>
@@ -423,6 +432,17 @@ export function PickMealsScreen({
           testID="pick-build"
         />
       </View>
+      {/* Resub C5 — the preview. Its primary is the very toggle the card's
+          circle calls; a guest reads the catalog meal under the guest token. */}
+      <MealPreviewSheet
+        meal={previewMeal}
+        picked={previewMeal !== null && state.pickedIds.includes(previewMeal.id)}
+        principal={guest ? "guest" : "user"}
+        onToggle={() => {
+          if (previewMeal) setState((prev) => togglePick(prev, previewMeal.id));
+        }}
+        onClose={() => setPreviewId(null)}
+      />
       {/* Resub C4 — the shared door. Renders nothing until a guest action hits
           it; for a member no action ever does. */}
       <GuestDoorSheet action={guestDoor.door} onClose={guestDoor.close} />

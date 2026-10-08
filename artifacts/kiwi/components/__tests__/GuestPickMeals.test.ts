@@ -36,6 +36,7 @@ import {
 } from "@/lib/wizard/guestPayload";
 import { EXHAUSTED_REFINE, EXHAUSTED_TELL } from "../ExhaustedCard";
 import { NEW_TO_YOU_PILL } from "../MealPickCard";
+import { PREVIEW_ADD, PREVIEW_REMOVE } from "../MealPreviewSheet";
 import { BUILD_LABEL, MORE_LABEL, PickMealsScreen, type PickMealsScreenProps } from "../PickMealsScreen";
 
 type Json = { type: string; props: Record<string, unknown>; children: (Json | string)[] | null };
@@ -156,6 +157,9 @@ beforeEach(() => {
     calls.push({ path: u.slice(u.indexOf("/api") + 4), method, body, auth });
     if (u.endsWith("/wizard/shelf")) return Promise.resolve(json(moreResponse()));
     if (u.endsWith("/guest/plan-from-picks")) return Promise.resolve(picksResponse());
+    // Resub C5 — the preview's read; the body is not what these tests pin
+    // (components/__tests__/MealPreviewSheet.test.ts does), so a 404 is fine.
+    if (u.includes("/meals/")) return Promise.resolve(json({ error: "meal not found" }, 404));
     if (u.endsWith("/guest/events")) return Promise.resolve(new Response(null, { status: 204 }));
     return Promise.resolve(json({ error: "not found" }, 404));
   }) as unknown as typeof fetch;
@@ -273,6 +277,41 @@ test("C4 🔴 'Build my week' posts /guest/plan-from-picks (guest token, picks i
     (m.client.getQueryData(["guest", "draft", "gs_pick"]) as typeof DRAFT | undefined)?.expanded.title,
     DRAFT.expanded.title,
   );
+});
+
+// Resub C5 — the preview is a sheet over this screen; its primary is the very
+// toggle the circle calls, so the picks (and their ORDER) come out the same.
+test("C5 🔴 tap a card body → the preview; 'Add to my picks' picks exactly as the circle does (same ids, same order)", async () => {
+  const m = await mount({ shelf: shelf([meal("a"), meal("b"), meal("c")]) });
+  await tap(byTestId(m.root(), "meal-pick-open-b"), "card b body");
+  assert.ok(walk(m.root()).some((n) => n.type === "rn-modal"), "the preview did not open");
+  assert.ok(m.text().includes(PREVIEW_ADD), m.text());
+  assert.deepEqual(byLabel(m.root(), "Meal b")!.props.accessibilityState, { checked: false }, "a look is not a pick");
+  assert.ok(
+    calls.some((c) => c.path === "/meals/b" && c.auth === "Bearer guest-token"),
+    "the preview reads the catalog meal under the guest token",
+  );
+
+  await tap(byTestId(m.root(), "meal-preview-toggle"), "Add to my picks");
+  assert.ok(!walk(m.root()).some((n) => n.type === "rn-modal"), "Add must close the sheet");
+  assert.deepEqual(byLabel(m.root(), "Meal b")!.props.accessibilityState, { checked: true });
+
+  await tap(byLabel(m.root(), "Meal a"), "circle a");
+  await tap(byTestId(m.root(), "pick-build"), "Build my week");
+  const call = calls.find((c) => c.path === "/guest/plan-from-picks");
+  assert.ok(call, m.text());
+  // The C4 test above picks b then a with the circle: the same body.
+  assert.deepEqual(call!.body.mealIds, ["b", "a"]);
+});
+
+test("C5 a picked card's preview says 'Remove from my picks', and removing unpicks it", async () => {
+  const m = await mount({ shelf: shelf([meal("a"), meal("b")]) });
+  await tap(byLabel(m.root(), "Meal b"), "circle b");
+  await tap(byTestId(m.root(), "meal-pick-open-b"), "card b body");
+  assert.ok(m.text().includes(PREVIEW_REMOVE), m.text());
+  await tap(byTestId(m.root(), "meal-preview-toggle"), "Remove from my picks");
+  assert.deepEqual(byLabel(m.root(), "Meal b")!.props.accessibilityState, { checked: false });
+  assert.equal(byTestId(m.root(), "pick-build")!.props.disabled, true, "no picks left");
 });
 
 test("C4 409 guest_generation_used → the sign-up door, no navigation", async () => {
