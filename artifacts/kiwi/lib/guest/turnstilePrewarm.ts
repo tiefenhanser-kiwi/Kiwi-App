@@ -102,3 +102,46 @@ export function decideTurnstileEntry(
 ): "use_token" | "show_gate" {
   return store.status === "ready" && isFreshTurnstileToken(store, now) ? "use_token" : "show_gate";
 }
+
+// ── Resub C4 (BUG-368) — "Try again" never resends a token ────────────────
+//
+// A Turnstile token validates ONCE ("Each token can only be validated once"),
+// and POST /guest/session checks it before anything else can fail — so a token
+// that went out on a create the server then refused (or that failed on the
+// wire after the server read it) is spent. The entry's two retry paths both
+// used to resend whatever token was in hand, and the server refused the resend
+// every time: "Try again" could never succeed. This is the one decision both
+// paths take now.
+
+export type TurnstileRetryDecision =
+  /** Start with this token (null = Turnstile is off: send none). `fromWarm`
+   *  marks a pre-warmed token, which the store must drop once it is sent. */
+  | { action: "start"; token: string | null; fromWarm: boolean }
+  /** Every token in reach has been sent: throw it away and solve a fresh one. */
+  | { action: "regate" };
+
+export function decideTurnstileRetry(input: {
+  gated: boolean;
+  /** The entry's local token (the visible gate's, or the pre-warmed one it took). */
+  tokenInHand: string | null;
+  /** Every token this entry has already put on a POST /guest/session. */
+  sentTokens: ReadonlySet<string>;
+  warm: TurnstileWarmStore;
+  now: number;
+}): TurnstileRetryDecision {
+  if (!input.gated) return { action: "start", token: null, fromWarm: false };
+  const { tokenInHand, sentTokens, warm } = input;
+  if (tokenInHand !== null && !sentTokens.has(tokenInHand)) {
+    return { action: "start", token: tokenInHand, fromWarm: tokenInHand === warm.token };
+  }
+  // A fresh pre-warmed token that has arrived since — take it rather than
+  // asking the person to solve again.
+  if (
+    decideTurnstileEntry(warm, input.now) === "use_token" &&
+    warm.token !== null &&
+    !sentTokens.has(warm.token)
+  ) {
+    return { action: "start", token: warm.token, fromWarm: true };
+  }
+  return { action: "regate" };
+}

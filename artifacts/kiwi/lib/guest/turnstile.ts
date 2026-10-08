@@ -76,7 +76,15 @@ export function turnstileRequestFields(
  */
 export const TURNSTILE_NATIVE_BASE_URL = "https://app.kitchenwizard.ai/";
 
-/** No token by then → "We couldn't check this device." Never a hang. */
+/**
+ * No token by then → "We couldn't check this device." Never a hang.
+ *
+ * Resub C4 (BUG-369) — the budget covers the LOAD only: the page reaching a
+ * token or Cloudflare's checkbox. Once the widget posts `interactive` a person
+ * is looking at the checkbox, and their time is theirs — the gate leaves
+ * "waiting" for "interactive" and the timer (armed only while waiting) is
+ * cleared. A load that never reaches either still times out.
+ */
 export const TURNSTILE_NATIVE_TIMEOUT_MS = 20_000;
 
 export const TURNSTILE_NATIVE_FAILED = "We couldn't check this device. Try again.";
@@ -167,13 +175,15 @@ export function parseTurnstileMessage(data: unknown): TurnstileMessage | null {
   return null;
 }
 
-export type TurnstileGateState = "waiting" | "solved" | "failed";
+export type TurnstileGateState = "waiting" | "interactive" | "solved" | "failed";
 
 export type TurnstileGateEvent = TurnstileMessage | { type: "timeout" } | { type: "retry" };
 
 /**
- * The native gate's three states. `timeout` only lands while still waiting —
- * a token that arrived at 19 s is not undone by the timer at 20 s. `expired`
+ * The native gate's four states. `timeout` only lands while still waiting —
+ * a token that arrived at 19 s is not undone by the timer at 20 s, and (Resub
+ * C4, BUG-369) neither is a person who reached the checkbox at 5 s and is
+ * still reading it at 20 s: `interactive` is not "waiting". `expired`
  * goes back to waiting: the widget re-solves on its own (refresh-expired is
  * "auto" by default) and the next token arrives as a fresh message.
  */
@@ -192,8 +202,9 @@ export function turnstileGateReducer(
     case "retry":
       return "waiting";
     case "interactive":
-      // The checkbox is on screen in the visible gate; keep waiting for it.
-      return state;
+      // The checkbox is on screen in the visible gate: the load is done, so the
+      // load's timeout no longer applies (BUG-369). A solved gate stays solved.
+      return state === "waiting" ? "interactive" : state;
   }
 }
 

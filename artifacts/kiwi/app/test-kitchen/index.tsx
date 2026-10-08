@@ -32,7 +32,7 @@ import { getGuestSession } from "@/lib/api/guest";
 import { ApiError, UnauthenticatedError } from "@/lib/api/errors";
 import { deriveGuestStage, guestGenerationSpent } from "@/lib/guest/guestSession";
 import { turnstileEnabled } from "@/lib/guest/turnstile";
-import { decideTurnstileEntry } from "@/lib/guest/turnstilePrewarm";
+import { decideTurnstileEntry, decideTurnstileRetry } from "@/lib/guest/turnstilePrewarm";
 
 // ── Copy ─────────────────────────────────────────────────────────────────
 export const TK_TITLE = "Kiwi Test Kitchen";
@@ -67,11 +67,46 @@ function TestKitchenEntry() {
   // Fresh and ready → it is sent at once and no gate is drawn. Anything else
   // (still warming, interactive, failed, stale, web) → the visible gate below,
   // exactly as before; when Cloudflare wants a checkbox, that is where it shows.
-  const [prewarmedToken] = React.useState<string | null>(() =>
+  // Resub C4 (BUG-368) — settable: a retry may take a pre-warmed token that
+  // arrived since, or drop the one it held so the visible gate shows.
+  const [prewarmedToken, setPrewarmedToken] = React.useState<string | null>(() =>
     gated && decideTurnstileEntry(turnstile, Date.now()) === "use_token" ? turnstile.token : null,
   );
   const [turnstileToken, setTurnstileToken] = React.useState<string | null>(prewarmedToken);
   const started = React.useRef(false);
+  // Resub C4 (BUG-368) — every token this entry has put on a create. A token
+  // validates once, so none of these is ever sent again.
+  const sentTokens = React.useRef<Set<string>>(new Set());
+  // Bumped on a regate: a new key mounts a fresh widget, which solves a fresh
+  // token (the solved one would never call onToken again).
+  const [gateKey, setGateKey] = React.useState(0);
+
+  // The one place a create is started, so the sent-token ledger and the
+  // pre-warmed token's single use cannot be skipped by any path.
+  const sendStart = React.useCallback(
+    (token: string | null, fromWarm: boolean) => {
+      started.current = true;
+      if (token !== null) sentTokens.current.add(token);
+      const call = startOrResume(token ? { turnstileToken: token } : {});
+      // BUG-361 — a token is single use: once the pre-warmed one has gone out in
+      // a create, it leaves the store whether the create succeeded or failed. A
+      // RESUME never sends it, so it stays for the next visitor who needs it.
+      if (fromWarm) {
+        call.then(
+          (action) => {
+            if (action !== "resume") dispatchTurnstile({ type: "consume" });
+          },
+          () => dispatchTurnstile({ type: "consume" }),
+        );
+      }
+      void call.catch(() => {
+        // Rendered from `error` below; a rejected start must not be an
+        // unhandled rejection in a browser console.
+        started.current = false;
+      });
+    },
+    [startOrResume, dispatchTurnstile],
+  );
 
   // Start once. `startOrResume` is idempotent (it shares the in-flight promise),
   // but the ref keeps a re-render from re-entering it at all — a guest's one
@@ -85,25 +120,44 @@ function TestKitchenEntry() {
   React.useEffect(() => {
     if (started.current) return;
     if (gated && !turnstileToken) return;
-    started.current = true;
-    const call = startOrResume(turnstileToken ? { turnstileToken } : {});
-    // BUG-361 — a token is single use: once the pre-warmed one has gone out in a
-    // create, it leaves the store whether the create succeeded or failed. A
-    // RESUME never sends it, so it stays for the next visitor who needs it.
-    if (prewarmedToken !== null && turnstileToken === prewarmedToken) {
-      call.then(
-        (action) => {
-          if (action !== "resume") dispatchTurnstile({ type: "consume" });
-        },
-        () => dispatchTurnstile({ type: "consume" }),
-      );
-    }
-    void call.catch(() => {
-      // Rendered from `error` below; a rejected start must not be an unhandled
-      // rejection in a browser console.
-      started.current = false;
+    // BUG-368 — the effect re-fires on `session`; a token already sent once is
+    // never the one it starts with (the retry below regates instead).
+    if (turnstileToken !== null && sentTokens.current.has(turnstileToken)) return;
+    sendStart(turnstileToken, prewarmedToken !== null && turnstileToken === prewarmedToken);
+  }, [gated, turnstileToken, session, prewarmedToken, sendStart]);
+
+  // Resub C4 (BUG-368) — both retry paths ("Try again" on the failure card and
+  // "Start cooking" under the gate). lib/guest/turnstilePrewarm.ts
+  // decideTurnstileRetry decides; this only carries it out.
+  const retryStart = () => {
+    const d = decideTurnstileRetry({
+      gated,
+      tokenInHand: turnstileToken,
+      sentTokens: sentTokens.current,
+      warm: turnstile,
+      now: Date.now(),
     });
-  }, [gated, turnstileToken, startOrResume, session, prewarmedToken, dispatchTurnstile]);
+    started.current = false;
+    if (d.action === "start") {
+      if (d.fromWarm && d.token !== null) {
+        setPrewarmedToken(d.token);
+        setTurnstileToken(d.token);
+      }
+      sendStart(d.token, d.fromWarm);
+      return;
+    }
+    // Regate: discard the spent token(s) and draw a fresh widget.
+    if (turnstile.token !== null && sentTokens.current.has(turnstile.token)) {
+      dispatchTurnstile({ type: "discard" });
+    }
+    setTurnstileToken(null);
+    setPrewarmedToken(null);
+    setGateKey((k) => k + 1);
+    // Off the failure card and back to the gate. The failed create left no
+    // usable session behind (a create only runs when there is none), so this
+    // clears nothing the visitor has.
+    if (status === "failed") endGuestSession();
+  };
 
   // Where a resumed visitor belongs. Guest-OK (GET /guest/session); skipped
   // until a session exists so it never fires tokenless.
@@ -160,10 +214,8 @@ function TestKitchenEntry() {
               <Button
                 label="Try again"
                 variant="ghost"
-                onPress={() => {
-                  started.current = false;
-                  void startOrResume(turnstileToken ? { turnstileToken } : {}).catch(() => {});
-                }}
+                onPress={retryStart}
+                testID="tk-try-again"
               />
             )}
           </View>
@@ -184,15 +236,12 @@ function TestKitchenEntry() {
                 flight: no gate, just the loader. */}
             {gated && prewarmedToken === null ? (
               <>
-                <TurnstileGate onToken={setTurnstileToken} />
+                <TurnstileGate key={gateKey} onToken={setTurnstileToken} />
                 <Button
                   label={TK_START_LABEL}
                   variant="primary"
                   disabled={!turnstileToken || status === "starting"}
-                  onPress={() => {
-                    started.current = false;
-                    void startOrResume({ turnstileToken: turnstileToken! }).catch(() => {});
-                  }}
+                  onPress={retryStart}
                 />
               </>
             ) : (

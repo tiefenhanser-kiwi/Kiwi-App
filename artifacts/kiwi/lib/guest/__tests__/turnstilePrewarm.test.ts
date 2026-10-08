@@ -8,6 +8,7 @@ import { test } from "node:test";
 
 import {
   decideTurnstileEntry,
+  decideTurnstileRetry,
   isFreshTurnstileToken,
   TURNSTILE_TOKEN_FRESH_MS,
   TURNSTILE_WARM_IDLE,
@@ -83,4 +84,65 @@ test("🔴 decideTurnstileEntry: use_token ONLY for a fresh ready token", () => 
       status,
     );
   }
+});
+
+// ── Resub C4 · BUG-368 — a retry never resends a token ─────────────────────
+
+const C4_T0 = 1_000_000;
+const readyStore = (token: string, issuedAt = C4_T0) => ({ status: "ready" as const, token, issuedAt });
+
+test("C4 🔴 BUG-368 the token in hand was already sent → regate, never a resend", () => {
+  const d = decideTurnstileRetry({
+    gated: true,
+    tokenInHand: "tok-1",
+    sentTokens: new Set(["tok-1"]),
+    warm: TURNSTILE_WARM_IDLE,
+    now: C4_T0,
+  });
+  assert.deepEqual(d, { action: "regate" });
+});
+
+test("C4 BUG-368 a FRESH pre-warmed token that arrived since is taken instead of re-solving", () => {
+  const d = decideTurnstileRetry({
+    gated: true,
+    tokenInHand: "tok-1",
+    sentTokens: new Set(["tok-1"]),
+    warm: readyStore("tok-2", C4_T0),
+    now: C4_T0 + 1_000,
+  });
+  assert.deepEqual(d, { action: "start", token: "tok-2", fromWarm: true });
+});
+
+test("C4 BUG-368 a pre-warmed token that was itself the one sent, or is stale, is not reused", () => {
+  assert.deepEqual(
+    decideTurnstileRetry({
+      gated: true,
+      tokenInHand: "tok-2",
+      sentTokens: new Set(["tok-2"]),
+      warm: readyStore("tok-2"),
+      now: C4_T0 + 1_000,
+    }),
+    { action: "regate" },
+  );
+  assert.deepEqual(
+    decideTurnstileRetry({
+      gated: true,
+      tokenInHand: null,
+      sentTokens: new Set(),
+      warm: readyStore("tok-3", C4_T0),
+      now: C4_T0 + TURNSTILE_TOKEN_FRESH_MS,
+    }),
+    { action: "regate" },
+  );
+});
+
+test("C4 BUG-368 an unsent token in hand is used; Turnstile off sends none", () => {
+  assert.deepEqual(
+    decideTurnstileRetry({ gated: true, tokenInHand: "tok-9", sentTokens: new Set(), warm: TURNSTILE_WARM_IDLE, now: C4_T0 }),
+    { action: "start", token: "tok-9", fromWarm: false },
+  );
+  assert.deepEqual(
+    decideTurnstileRetry({ gated: false, tokenInHand: "tok-9", sentTokens: new Set(["tok-9"]), warm: TURNSTILE_WARM_IDLE, now: C4_T0 }),
+    { action: "start", token: null, fromWarm: false },
+  );
 });

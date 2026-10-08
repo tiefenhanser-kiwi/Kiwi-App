@@ -187,3 +187,23 @@ test("🔴 site key unset → the gate skips: nothing renders, on native and on 
     platform.OS = "ios";
   }
 });
+
+// ── Resub C4 · BUG-369 — the 20 s covers the load, not the person ──────────
+
+test("C4 🔴 BUG-369 the checkbox at 5 s: a person still at it at 60 s is NOT told 'We couldn't check this device'", async () => {
+  process.env[KEY] = "0xNATIVEKEY";
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const tokens: string[] = [];
+  const r = await mount((t) => tokens.push(t));
+  await act(async () => {
+    mock.timers.tick(5_000);
+  });
+  await post(r, { type: "interactive" });
+  await act(async () => {
+    mock.timers.tick(55_000);
+  });
+  assert.ok(webView(r), "the checkbox is still on screen");
+  assert.ok(!textOf(r.toJSON() as unknown as Node).includes(TURNSTILE_NATIVE_FAILED));
+  await post(r, { type: "turnstile", token: "tok-slow-reader" });
+  assert.deepEqual(tokens, ["tok-slow-reader"]);
+});

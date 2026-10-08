@@ -172,3 +172,31 @@ test("still warming at the tap: the visible gate, exactly as before", async () =
   assert.deepEqual(guestPosts, []);
   assert.equal(byTestId(r, "turnstile-gate").length, 1);
 });
+
+// ── Resub C4 · BUG-368 — "Try again" never resends the spent token ─────────
+
+test("C4 🔴 BUG-368 after a failed create, 'Try again' does not resend the token — it shows a fresh gate, whose new token is sent", async () => {
+  const r = await mount();
+  await post(r, { type: "turnstile", token: "tok-prewarm" });
+  await act(async () => {
+    explore();
+  });
+  assert.deepEqual(guestPosts, [{ turnstileToken: "tok-prewarm" }]);
+
+  const [tryAgain] = byTestId(r, "tk-try-again");
+  assert.ok(tryAgain, "the failure card's Try again");
+  await act(async () => {
+    (tryAgain.props.onPress as () => void)();
+  });
+  assert.deepEqual(guestPosts, [{ turnstileToken: "tok-prewarm" }], "the spent token went out again");
+  assert.equal(byTestId(r, "turnstile-gate").length, 1, "a fresh visible gate");
+
+  const [gateView] = byTestId(r, "turnstile-webview");
+  assert.ok(gateView, "the gate's widget");
+  await act(async () => {
+    (gateView.props.onMessage as (e: unknown) => void)({
+      nativeEvent: { data: JSON.stringify({ type: "turnstile", token: "tok-fresh" }) },
+    });
+  });
+  assert.deepEqual(guestPosts, [{ turnstileToken: "tok-prewarm" }, { turnstileToken: "tok-fresh" }]);
+});

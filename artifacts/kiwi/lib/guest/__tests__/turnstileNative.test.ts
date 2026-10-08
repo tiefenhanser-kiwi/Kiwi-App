@@ -68,9 +68,9 @@ test("Resub C3 (BUG-361): the page posts 'interactive' from before-interactive-c
   const html = turnstileHtml("0xSITEKEY");
   assert.ok(html.includes('"before-interactive-callback": function () { kiwiPost({ type: "interactive" }); }'));
   assert.deepEqual(parseTurnstileMessage('{"type":"interactive"}'), { type: "interactive" });
-  // The visible gate shows the checkbox itself: it keeps waiting, and a solved
-  // gate is not undone.
-  assert.equal(turnstileGateReducer("waiting", { type: "interactive" }), "waiting");
+  // The visible gate shows the checkbox itself. Resub C4 (BUG-369): it leaves
+  // "waiting" — the load is done — and a solved gate is not undone.
+  assert.equal(turnstileGateReducer("waiting", { type: "interactive" }), "interactive");
   assert.equal(turnstileGateReducer("solved", { type: "interactive" }), "solved");
 });
 
@@ -130,4 +130,24 @@ test("the widget's frames load; a top-frame link out does not", () => {
   );
   assert.equal(turnstileAllowsNavigation("https://anything.example/frame", false), true);
   assert.equal(turnstileAllowsNavigation("https://www.cloudflare.com/privacypolicy/", true), false);
+});
+
+// ── Resub C4 · BUG-369 — the timeout covers the LOAD, not the person ────────
+
+test("C4 🔴 BUG-369 'interactive' then a late timeout does NOT fail the gate", () => {
+  let st = turnstileGateReducer("waiting", { type: "interactive" });
+  st = turnstileGateReducer(st, { type: "timeout" });
+  assert.equal(st, "interactive", "a person at the checkbox was told 'We couldn't check this device'");
+  // …and they can still solve it.
+  assert.equal(turnstileGateReducer(st, { type: "turnstile", token: "t" }), "solved");
+});
+
+test("C4 BUG-369 a load that never reaches 'interactive' or a token still times out", () => {
+  assert.equal(turnstileGateReducer("waiting", { type: "timeout" }), "failed");
+});
+
+test("C4 BUG-369 an error at the checkbox still fails it; expired / retry go back to the load (and its timer)", () => {
+  assert.equal(turnstileGateReducer("interactive", { type: "error" }), "failed");
+  assert.equal(turnstileGateReducer("interactive", { type: "expired" }), "waiting");
+  assert.equal(turnstileGateReducer("failed", { type: "retry" }), "waiting");
 });

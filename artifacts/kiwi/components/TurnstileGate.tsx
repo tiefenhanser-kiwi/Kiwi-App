@@ -131,7 +131,9 @@ function TurnstileNativeGate({ siteKey, onToken }: TurnstileGateProps & { siteKe
   const html = React.useMemo(() => turnstileHtml(siteKey), [siteKey]);
 
   // 20 s per attempt, and a token that lands first wins: the reducer ignores a
-  // timeout that arrives after "solved".
+  // timeout that arrives after "solved". Resub C4 (BUG-369) — armed only while
+  // "waiting", i.e. while the page LOADS: `interactive` moves the state on,
+  // and this effect's cleanup clears the timer under the person at the box.
   React.useEffect(() => {
     if (state !== "waiting") return;
     const timer = setTimeout(() => dispatch({ type: "timeout" }), TURNSTILE_NATIVE_TIMEOUT_MS);
