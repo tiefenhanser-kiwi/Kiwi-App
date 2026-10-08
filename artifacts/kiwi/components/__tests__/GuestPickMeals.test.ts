@@ -23,7 +23,7 @@ import TestRenderer, { act } from "react-test-renderer";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { __resetRouterForTests, __setRouterForTests } from "expo-router";
 
-import { GuestProvider } from "@/contexts/GuestContext";
+import { GuestProvider, useGuest } from "@/contexts/GuestContext";
 import { ToastProvider } from "@/contexts/ToastProvider";
 import type { ShelfMeal, WizardShelfResponse } from "@/lib/api/wizard";
 import { todayLocalDate } from "@/lib/dates";
@@ -162,6 +162,12 @@ beforeEach(() => {
 });
 
 let screen: { renderer: TestRenderer.ReactTestRenderer; client: QueryClient } | null = null;
+// BUG-366 — what the plan screen will read for the pick path's thumbnails.
+let lastPickedImages: Record<string, string> | null = null;
+function ContextProbe() {
+  lastPickedImages = useGuest().pickedMealImages;
+  return null;
+}
 let invalidated: unknown[][] = [];
 
 afterEach(async () => {
@@ -195,6 +201,7 @@ async function mount(props: Partial<PickMealsScreenProps> & { shelf: WizardShelf
         React.createElement(
           GuestProvider,
           null,
+          React.createElement(ContextProbe),
           React.createElement(
             ToastProvider,
             null,
@@ -256,6 +263,8 @@ test("C4 🔴 'Build my week' posts /guest/plan-from-picks (guest token, picks i
     assert.notEqual(k[0], "home");
   }
   assert.ok(invalidated.some((k) => k[0] === "guest" && k[1] === "session"), "the session read must learn the plan is spent");
+  // BUG-366 — the picked cards' images, for the plan rows (the draft has none).
+  assert.deepEqual(lastPickedImages, { a: "https://img.test/a.jpg", b: "https://img.test/b.jpg" });
   // The plan screen's query is seeded with the very envelope GET /guest/draft returns.
   assert.equal(
     (m.client.getQueryData(["guest", "draft", "gs_pick"]) as typeof DRAFT | undefined)?.expanded.title,

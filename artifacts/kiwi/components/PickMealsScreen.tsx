@@ -233,6 +233,15 @@ export function PickMealsScreen({
         // envelope that route returns, and let the session read learn that the
         // one plan is spent and a draft exists (the entry's resume + the
         // wizard's spent notice both key on it).
+        // BUG-366 — the draft carries no image; the picked cards do.
+        const picked = new Set(state.pickedIds);
+        guestCtx?.setPickedMealImages(
+          Object.fromEntries(
+            state.meals
+              .filter((m) => picked.has(m.id) && m.imageUrl)
+              .map((m) => [m.id, m.imageUrl as string]),
+          ),
+        );
         const sessionId = guestCtx?.session?.guestSessionId ?? null;
         queryClient.setQueryData(["guest", "draft", sessionId], result.draft);
         queryClient.invalidateQueries({ queryKey: ["guest", "session"] });

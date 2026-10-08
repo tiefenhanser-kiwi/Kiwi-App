@@ -182,3 +182,51 @@ test("the subline counts meals — the draft carries no plan duration", () => {
   assert.equal(guestPlanSubline(plan([one, one, one])), "3 meals");
   assert.equal(guestPlanSubline(plan([])), "0 meals");
 });
+
+// ── Resub C4 (BUG-366) — the row thumbnail's sources ───────────────────────
+// The draft carries no image (27e7eb5: sourceStoreMealId only), so the image
+// comes from the opened candidate's wire meals (by slot) or the picked cards
+// (by catalog id) — else null, the imageless row.
+
+const SLOT_A = { title: "Pho", cuisineType: "x", estimatedTimeMinutes: 30, difficulty: "easy", servings: 2, dishes: [], sourceStoreMealId: "m_a" };
+const SLOT_B = { ...SLOT_A, title: "Tacos", sourceStoreMealId: "m_b" };
+function candidate(id: string, meals: { storeMealId?: string; imageUrl?: string }[]) {
+  return {
+    id,
+    title: "t",
+    tags: [],
+    whyBullets: [],
+    mealTitles: meals.map((_, i) => `m${i}`),
+    meals: meals.map((m, i) => ({ title: `m${i}`, description: null, ...m })),
+    dailyMacros: { calories: 0, proteinG: 0, carbsG: 0, fatG: 0 },
+  };
+}
+
+test("C4 no sources → every row's imageUrl is null (the row renders as before)", () => {
+  const rows = guestPlanRows(plan([SLOT_A, SLOT_B]));
+  assert.deepEqual(rows.map((r) => r.imageUrl), [null, null]);
+});
+
+test("C4 the three-plan path: the opened candidate's meals[i].imageUrl, by slot", () => {
+  const rows = guestPlanRows(plan([SLOT_A, SLOT_B]), {
+    candidates: [
+      candidate("other", [{ storeMealId: "m_a", imageUrl: "https://x/wrong.jpg" }]),
+      candidate("c1", [{ storeMealId: "m_a", imageUrl: "https://x/a.jpg" }, { storeMealId: "m_b" }]),
+    ],
+  });
+  assert.deepEqual(rows.map((r) => r.imageUrl), ["https://x/a.jpg", null]);
+});
+
+test("C4 🔴 a slot whose storeMealId is not this row's meal lends NO picture — a wrong image is worse than none", () => {
+  const rows = guestPlanRows(plan([SLOT_A]), {
+    candidates: [candidate("c1", [{ storeMealId: "m_zzz", imageUrl: "https://x/zzz.jpg" }])],
+  });
+  assert.equal(rows[0].imageUrl, null);
+});
+
+test("C4 the pick path: the picked cards' images, by sourceStoreMealId", () => {
+  const rows = guestPlanRows(plan([SLOT_B, SLOT_A]), {
+    pickedMealImages: { m_a: "https://x/a.jpg" },
+  });
+  assert.deepEqual(rows.map((r) => r.imageUrl), [null, "https://x/a.jpg"]);
+});

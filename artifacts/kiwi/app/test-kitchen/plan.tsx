@@ -33,10 +33,18 @@ import { Button } from "@/components/Button";
 import { GuestDoorSheet } from "@/components/GuestDoorSheet";
 import { Header } from "@/components/Header";
 import { LoadingShim } from "@/components/LoadingShim";
-import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { TreatedImage } from "@/components/TreatedImage";
+import {
+  Colors,
+  ImageTreatment,
+  Palette,
+  Radius,
+  Spacing,
+  Typography,
+} from "@/constants/tokens";
 import { useGuest } from "@/contexts/GuestContext";
 import { useGuestDoor } from "@/hooks/useGuestDoor";
-import { getGuestDraft, trackGuestEvent } from "@/lib/api/guest";
+import { getGuestDraft, getGuestSession, trackGuestEvent } from "@/lib/api/guest";
 import { guestPlanRows, guestPlanSubline } from "@/lib/guest/guestPlanModel";
 
 export const GUEST_PLAN_SAVE_CTA = "Save this plan to my account";
@@ -52,7 +60,7 @@ export default function GuestPlanRoute() {
 
 function GuestPlanScreen() {
   const router = useRouter();
-  const { session } = useGuest();
+  const { session, generation, pickedMealImages } = useGuest();
   const guestDoor = useGuestDoor();
 
   const draftQuery = useQuery({
@@ -61,8 +69,23 @@ function GuestPlanScreen() {
     enabled: !!session,
   });
 
+  // Resub C4 (BUG-366) — the three-plan path's cards, for the row thumbnails
+  // (lib/guest/guestPlanModel.ts). The same read the entry and the options
+  // screen make, under the same key, so it is usually already cached — and it is
+  // the one copy that survives a reload. Never a per-row GET /meals/:id.
+  const sessionQuery = useQuery({
+    queryKey: ["guest", "session", session?.guestSessionId ?? null],
+    queryFn: getGuestSession,
+    enabled: !!session && !generation,
+  });
+
   const expanded = draftQuery.data?.expanded ?? null;
-  const rows = expanded ? guestPlanRows(expanded) : [];
+  const rows = expanded
+    ? guestPlanRows(expanded, {
+        candidates: generation?.candidates ?? sessionQuery.data?.candidates ?? null,
+        pickedMealImages,
+      })
+    : [];
 
   React.useEffect(() => {
     if (expanded) void trackGuestEvent("plan_opened", { step: "plan_screen" });
@@ -137,6 +160,17 @@ function GuestPlanScreen() {
                   }}
                   style={({ pressed }) => [s.row, pressed && { opacity: 0.7 }]}
                 >
+                  {/* BUG-366 — the member plan row's thumb (PlanReviewMealRow:
+                      TreatedImage at the row role). Only when there is an
+                      image: a null keeps the row exactly as it was. */}
+                  {row.imageUrl ? (
+                    <TreatedImage
+                      source={{ uri: row.imageUrl }}
+                      width={ImageTreatment.thumb.row}
+                      height={ImageTreatment.thumb.row}
+                      radius={Radius.md}
+                    />
+                  ) : null}
                   <View style={{ flex: 1 }}>
                     <Text style={s.rowTitle}>{row.title}</Text>
                     {row.description ? (

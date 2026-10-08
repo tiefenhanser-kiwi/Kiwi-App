@@ -73,6 +73,14 @@ interface GuestContextValue {
   generation: GuestGeneration | null;
   setGeneration: (g: GuestGeneration | null) => void;
   /**
+   * Resub C4 (BUG-366) — the pick path's thumbnails: catalog meal id → image,
+   * from the shelf cards the visitor picked. The draft carries no image, and
+   * this is the pick path's only copy (in memory, like `generation`: a reload
+   * renders the imageless rows, never a per-row GET /meals/:id).
+   */
+  pickedMealImages: Record<string, string> | null;
+  setPickedMealImages: (images: Record<string, string> | null) => void;
+  /**
    * Resub C3 (BUG-361) — the Turnstile token Welcome pre-warmed (native only;
    * idle forever on web and without a site key). In memory, never stored: a
    * token is single-use and dead in 300 s, so there is nothing to restore.
@@ -98,6 +106,9 @@ export function GuestProvider({ children }: { children: React.ReactNode }) {
   );
   const [error, setError] = React.useState<Error | null>(null);
   const [generation, setGeneration] = React.useState<GuestGeneration | null>(null);
+  const [pickedMealImages, setPickedMealImages] = React.useState<Record<string, string> | null>(
+    null,
+  );
   const [turnstile, dispatchTurnstile] = React.useReducer(
     turnstileWarmReducer,
     TURNSTILE_WARM_IDLE,
@@ -154,6 +165,7 @@ export function GuestProvider({ children }: { children: React.ReactNode }) {
     // The plan now belongs to an account (or the session is spent). Holding the
     // cards would let a claimed visitor keep browsing the guest copy.
     setGeneration(null);
+    setPickedMealImages(null);
   }, []);
 
   const value = React.useMemo<GuestContextValue>(
@@ -166,10 +178,12 @@ export function GuestProvider({ children }: { children: React.ReactNode }) {
       endGuestSession,
       generation,
       setGeneration,
+      pickedMealImages,
+      setPickedMealImages,
       turnstile,
       dispatchTurnstile,
     }),
-    [session, status, error, startOrResume, endGuestSession, generation, turnstile],
+    [session, status, error, startOrResume, endGuestSession, generation, pickedMealImages, turnstile],
   );
 
   return <GuestCtx.Provider value={value}>{children}</GuestCtx.Provider>;

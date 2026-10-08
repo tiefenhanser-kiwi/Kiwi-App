@@ -17,11 +17,24 @@
 // from GET /meals/:id — guest-OK, catalog-only. `recipeMealId` below is that
 // bridge, and `recipeReadable` is the honest answer when a slot lacks it.
 //
+// Resub C4 (BUG-366) — THE THUMBNAIL IS NOT ON THE DRAFT EITHER. The expanded
+// meal on 27e7eb5 carries `sourceStoreMealId` and no `imageUrl` (server:
+// WizardExpandEnrichedMealSchema; storeMealDetails.ts copies no image). So the
+// image comes from what the client already held when the plan was made, and
+// never from GET /meals/:id per row:
+//   1. the three-plan path — the opened candidate's wire `meals[i].imageUrl`
+//      (store slots carry it, D-WS9-246), matched by SLOT and checked against
+//      the slot's storeMealId;
+//   2. the pick path — the picked shelf cards' images, held in GuestContext,
+//      matched by `sourceStoreMealId`;
+//   3. else null, and the row renders exactly as it did before.
+//
 // The macro line is derived, not sent: the expand payload carries PER-DISH
 // macros and the candidate card's `dailyMacros` belongs to the candidate, not to
 // the draft. Summing the dishes is the only per-meal figure available here.
 
 import type { WizardExpandEnrichedMeal, WizardExpandedPlan } from "@/lib/api/wizard";
+import type { WizardPlanCandidate } from "@/lib/types";
 
 export interface GuestPlanRow {
   /** Stable within a render — the draft has no per-meal id of its own. */
@@ -38,9 +51,24 @@ export interface GuestPlanRow {
   recipeReadable: boolean;
   /** Per-serving calories, summed over the dishes, or null when unknown. */
   caloriesPerServing: number | null;
+  /** Resub C4 (BUG-366) — the row's thumbnail, or null (the imageless row). */
+  imageUrl: string | null;
 }
 
-export function guestPlanRows(expanded: WizardExpandedPlan): GuestPlanRow[] {
+/** Resub C4 — where a guest plan row's image can come from. See the header. */
+export interface GuestPlanImageSources {
+  /** The three-plan path's cards: the in-tab generation, else GET /guest/session. */
+  candidates?: readonly WizardPlanCandidate[] | null;
+  /** The pick path's chosen cards: catalog meal id → image url. */
+  pickedMealImages?: Readonly<Record<string, string>> | null;
+}
+
+export function guestPlanRows(
+  expanded: WizardExpandedPlan,
+  images: GuestPlanImageSources = {},
+): GuestPlanRow[] {
+  const candidate =
+    images.candidates?.find((c) => c.id === expanded.candidateId) ?? null;
   return expanded.meals.map((meal, index) => {
     const mealId = mealRecipeId(meal);
     return {
@@ -56,8 +84,25 @@ export function guestPlanRows(expanded: WizardExpandedPlan): GuestPlanRow[] {
       recipeMealId: mealId,
       recipeReadable: mealId !== null,
       caloriesPerServing: sumCalories(meal),
+      imageUrl: rowImage(candidate, index, mealId, images.pickedMealImages ?? null),
     };
   });
+}
+
+function rowImage(
+  candidate: WizardPlanCandidate | null,
+  index: number,
+  mealId: string | null,
+  picked: Readonly<Record<string, string>> | null,
+): string | null {
+  const slot = candidate?.meals?.[index];
+  // By slot — but a slot whose meal is not this row's catalog meal is a
+  // different dinner, and its picture would be a wrong one, not a missing one.
+  if (slot?.imageUrl && (!slot.storeMealId || !mealId || slot.storeMealId === mealId)) {
+    return slot.imageUrl;
+  }
+  if (mealId && picked?.[mealId]) return picked[mealId];
+  return null;
 }
 
 function mealRecipeId(meal: WizardExpandEnrichedMeal): string | null {

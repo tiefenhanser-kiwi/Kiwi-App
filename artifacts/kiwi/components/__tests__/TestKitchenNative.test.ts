@@ -249,3 +249,48 @@ test("🔴 the Test Kitchen 'closed' line: web says 'start in the app'; native s
   }
   assert.equal(TK_DOWN_BODY_NATIVE, tkDownBody("android"));
 });
+
+// ── Resub C4 (BUG-366) — the plan rows carry thumbnails ─────────────────────
+
+const THUMB = "https://img.test/pho.jpg";
+const sessionRead = (imageUrl?: string) => ({
+  id: SESSION.guestSessionId,
+  expiresAt: SESSION.expiresAt,
+  generationCount: 1,
+  hasDraft: true,
+  preferences: null,
+  candidates: [
+    {
+      id: "c1",
+      title: "A comforting week",
+      tags: [],
+      whyBullets: ["x"],
+      mealTitles: ["Chicken Pho"],
+      meals: [{ title: "Chicken Pho", description: null, storeMealId: "meal_abc", ...(imageUrl ? { imageUrl } : {}) }],
+      dailyMacros: { calories: 0, proteinG: 0, carbsG: 0, fatG: 0 },
+    },
+  ],
+});
+
+test("C4 BUG-366 a plan row renders the meal's thumbnail (the candidate's wire image), at the member row's size", async () => {
+  storeGuestSession(SESSION);
+  const r = await mount(GuestPlanRoute, (qc) => {
+    qc.setQueryData(["guest", "draft", SESSION.guestSessionId], DRAFT);
+    qc.setQueryData(["guest", "session", SESSION.guestSessionId], sessionRead(THUMB));
+  });
+  const imgs = all(tree(r), (n) => n.type === "expo-image");
+  assert.equal(imgs.length, 1, "one thumbnail for the one row");
+  assert.deepEqual(imgs[0].props?.source, { uri: THUMB });
+});
+
+test("C4 BUG-366 no image anywhere → the row renders with no thumbnail, as before", async () => {
+  storeGuestSession(SESSION);
+  const r = await mount(GuestPlanRoute, (qc) => {
+    qc.setQueryData(["guest", "draft", SESSION.guestSessionId], DRAFT);
+    qc.setQueryData(["guest", "session", SESSION.guestSessionId], sessionRead());
+  });
+  assert.equal(all(tree(r), (n) => n.type === "expo-image").length, 0);
+  // and no placeholder ramp stands in for it either
+  assert.equal(all(tree(r), (n) => n.type === "rn-linear-gradient").length, 0);
+  assert.ok(textOf(tree(r)).includes("Chicken Pho"));
+});
