@@ -259,9 +259,10 @@ describe("POST /api/guest/plan-from-picks — the happy path", () => {
         { ...BODY, mealIds: ["m-3", "m-1", "m-2"] },
         GUEST_TOKEN(),
       );
-      assert.equal(status, 200, JSON.stringify(json));
-      // 🔴 THE ASSERTION THAT MATTERS.
+      // 🔴 THE ASSERTION THAT MATTERS — first, so a slot that became live and
+      // reached the model fails HERE, not on whatever status that produced.
       assert.deepEqual(ai.calls, [], "a picks plan makes no AI call");
+      assert.equal(status, 200, JSON.stringify(json));
 
       // The drafts-GET shape — the client's GuestDraftSchema reads exactly this.
       assert.equal(json.draft.id, G, "the draft id is the session id, as on expand");
