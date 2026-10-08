@@ -255,7 +255,8 @@ export interface WizardScreenProps {
    *     guest token there is a 401 (measured), which is the cascade.
    */
   guest?: boolean;
-  /** The one generation is used (GET /guest/session generationCount > 0). The
+  /** The one plan is made (GET /guest/session generationCount >= 1 or hasDraft —
+   *  lib/guest/guestSession.ts guestGenerationSpent; Resub C5). The
    *  server's 409 guest_generation_used is the authority; this is what lets the
    *  screen show a door instead of spending a call to be refused. */
   guestGenerationSpent?: boolean;

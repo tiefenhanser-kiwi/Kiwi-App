@@ -30,7 +30,7 @@ import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens
 import { useGuest } from "@/contexts/GuestContext";
 import { getGuestSession } from "@/lib/api/guest";
 import { ApiError, UnauthenticatedError } from "@/lib/api/errors";
-import { deriveGuestStage, guestGenerationSpent } from "@/lib/guest/guestSession";
+import { deriveGuestStage, guestFormGate, guestGenerationSpent } from "@/lib/guest/guestSession";
 import { turnstileEnabled } from "@/lib/guest/turnstile";
 import { decideTurnstileEntry, decideTurnstileRetry } from "@/lib/guest/turnstilePrewarm";
 
@@ -188,6 +188,14 @@ function TestKitchenEntry() {
       })
     : null;
   const spent = sessionQuery.data ? guestGenerationSpent(sessionQuery.data) : false;
+  // Resub C5 — the form opens only on a KNOWN read (lib/guest/guestSession.ts
+  // guestFormGate): `spent` above is false until the read lands, and a form
+  // rendered in that window let a spent session reach "Build my week".
+  const formGate = guestFormGate({
+    hasData: sessionQuery.data !== undefined,
+    isError: sessionQuery.isError,
+    unauthenticated: sessionQuery.error instanceof UnauthenticatedError,
+  });
 
   // ── the pre-session states ───────────────────────────────────────────
   if (status === "failed") {
@@ -247,6 +255,41 @@ function TestKitchenEntry() {
             ) : (
               <LoadingShim variant="inline" label={TK_STARTING} />
             )}
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  // ── the session read, before the form ────────────────────────────────
+  if (formGate === "hold") {
+    return (
+      <View style={s.screen}>
+        <Header title={TK_TITLE} subtitle={TK_SUBTITLE} />
+        <View style={s.body}>
+          <View style={s.card} testID="tk-session-hold">
+            <LoadingShim variant="inline" label={TK_STARTING} />
+          </View>
+        </View>
+      </View>
+    );
+  }
+  if (formGate === "retry") {
+    return (
+      <View style={s.screen}>
+        <Header title={TK_TITLE} subtitle={TK_SUBTITLE} />
+        <View style={s.body}>
+          <View style={s.card}>
+            <Text style={s.cardTitle}>{TK_FAILED_TITLE}</Text>
+            <Text style={s.cardBody}>
+              {sessionQuery.error?.message ?? tkDownBody(Platform.OS)}
+            </Text>
+            <Button
+              label="Try again"
+              variant="primary"
+              onPress={() => void sessionQuery.refetch()}
+              testID="tk-session-retry"
+            />
           </View>
         </View>
       </View>

@@ -258,6 +258,9 @@ test("C4 🔴 'Build my week' posts /guest/plan-from-picks (guest token, picks i
 
   assert.equal(calls.some((c) => c.path === "/plans/from-meals"), false, "the member twin must never be called");
   assert.deepEqual(replaced, ["/test-kitchen/plan"]);
+  // Resub C5 — a 200 is the plan screen and nothing else: no door, no sheet.
+  assert.ok(!walk(m.root()).some((n) => n.type === "rn-modal"), "a built plan must not open a door");
+  assert.ok(!m.text().includes(DOOR_TITLE));
   for (const k of invalidated) {
     assert.notEqual(k[0], "plans", "a guest owns no plan rows");
     assert.notEqual(k[0], "home");

@@ -7,6 +7,7 @@ import {
   GUEST_EXPIRY_MARGIN_MS,
   deriveGuestEntryAction,
   deriveGuestStage,
+  guestFormGate,
   guestGenerationSpent,
   guestSessionUsable,
 } from "../guestSession";
@@ -79,9 +80,25 @@ test("an EMPTY candidates array is not 'options' — a generation that produced 
 });
 
 test("the one-generation rule turns on generationCount, not on candidates", () => {
-  assert.equal(guestGenerationSpent({ generationCount: 0 }), false);
-  assert.equal(guestGenerationSpent({ generationCount: 1 }), true);
-  assert.equal(guestGenerationSpent({ generationCount: 3 }), true);
+  assert.equal(guestGenerationSpent({ generationCount: 0, hasDraft: false }), false);
+  assert.equal(guestGenerationSpent({ generationCount: 1, hasDraft: false }), true);
+  assert.equal(guestGenerationSpent({ generationCount: 3, hasDraft: false }), true);
+});
+
+// Resub C5 — the server's plan-from-picks gate is `generationCount >= 1 ||
+// draft !== null`; the client's notice must say "spent" whenever the server will.
+test("C5: a draft alone is spent — the server refuses a second plan on either fact", () => {
+  assert.equal(guestGenerationSpent({ generationCount: 0, hasDraft: true }), true);
+});
+
+test("C5: the form opens only on a known read", () => {
+  assert.equal(guestFormGate({ hasData: false, isError: false, unauthenticated: false }), "hold");
+  assert.equal(guestFormGate({ hasData: true, isError: false, unauthenticated: false }), "open");
+  // A refetch that failed over cached data keeps the data.
+  assert.equal(guestFormGate({ hasData: true, isError: true, unauthenticated: false }), "open");
+  assert.equal(guestFormGate({ hasData: false, isError: true, unauthenticated: false }), "retry");
+  // A 401 is the entry's recovery (mint a fresh session), never an error card.
+  assert.equal(guestFormGate({ hasData: false, isError: true, unauthenticated: true }), "hold");
 });
 
 // Resub C4 — a picks-made session: plan-from-picks writes the draft and spends
