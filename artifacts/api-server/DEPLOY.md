@@ -411,3 +411,65 @@ retry console — the expected volume is single digits).
 Same `gcloud run deploy kiwi-api --source . --region us-east4` from the repo
 root; env vars and secrets persist on the service, so the flags are only
 needed when they change.
+
+### Round 3 (1.1) — how the values got on
+
+Three scripts in `scripts/release/` (repo root), run from the repo root in
+Windows PowerShell, **each with `-DryRun` first**. They read
+`artifacts/api-server/.env` at run time and print names, lengths and
+4-character masks — never a value. Each refuses a missing or tracked `.env`.
+
+1. **Secrets** — `.\scripts\release\push-secrets.ps1`. `REVENUECAT_WEBHOOK_AUTH`,
+   `REVENUECAT_SECRET_API_KEY`, `TURNSTILE_SECRET_KEY`, `APPLE_PRIVATE_KEY` →
+   Secret Manager over stdin, exact bytes (create, or add a version). It
+   **generates** `APPLE_REFRESH_TOKEN_ENC_KEY` (32 random bytes, base64) only if
+   that secret does not exist — a rerun never rotates it. It grants
+   `secretAccessor` on all five to the runtime SA, refuses a Cloudflare dummy
+   Turnstile secret, and exits non-zero if any name was skipped.
+2. **Env** — `.\scripts\release\set-cloud-run-env.ps1`. One
+   `gcloud run services update` = one revision on the **current** image. It sets
+   the six OAuth/Apple names (+ `REVENUECAT_ENTITLEMENT_ID` if present) from
+   `.env`, the ruled `AI_DAILY_CEILING_USD=50`, `AI_GUEST_DAILY_CEILING_USD=25`
+   and `INSTACART_API_BASE_URL=https://connect.instacart.com`, and the six
+   secret refs (the five above + `INSTACART_API_KEY`). It does not touch
+   `AI_USER_DAILY_CALLS`, `AI_DISABLED`, `AI_GUEST_DISABLED`,
+   `TRUST_PROXY_HOPS`, `BILLING_ENFORCED`, `STRIPE_*` or `PUBLIC_APP_URL`. First
+   it prints the service's current env names, `TRUST_PROXY_HOPS` and the
+   serving image digest. It refuses a dev host, a secret not yet pushed, and a
+   name whose plain/secret type would change.
+   **The list delimiter is `^;^`, not `^:^`.** gcloud splits on every
+   occurrence of the custom delimiter, and the redirect URI and Instacart host
+   contain `https:` (`Bad syntax for dict arg: [//…]`).
+3. **Deploy** — production migrations first (*What the image is*), then
+   `gcloud run deploy kiwi-api --source . --region us-east4` from the repo root.
+   No flags: steps 1–2 already put everything on the service.
+4. **Read the boot lines** of the new revision: `Billing: … revenuecat on …
+   enforcement off`, `OAuth: apple on · google on · apple revocation on · apple
+   web redirect_uri on`, `AI spend guard: … daily ceiling 50 … guest ceiling 25`,
+   `Turnstile: configured`. Trust these lines, not the env you meant to set.
+
+The web export: `.\scripts\release\export-web.ps1` builds
+`artifacts/kiwi/dist` with `EXPO_PUBLIC_API_BASE_URL` pointing at this service
+(`…/api`) for that process only. The other public values come from
+`artifacts/kiwi/.env`. It checks that `_redirects` is in `dist/` and that no
+LAN or `localhost:3000` URL was baked in. It does not deploy.
+
+**Not scriptable — by hand:**
+
+- **Instacart on.** In the Neon console (production branch), read
+  `SELECT key, value FROM system_settings WHERE key = 'retailer.instacart_enabled';`
+  first, then
+  `UPDATE system_settings SET value = 'true'::jsonb, "updatedAt" = now() WHERE key = 'retailer.instacart_enabled';`
+  Each router caches the flag for 60 s. The `INSTACART_API_KEY` secret must
+  hold the **production** key: a dev key only works against the dev host.
+- **`app.kitchenwizard.ai`.** Drag `artifacts/kiwi/dist` into Netlify, add
+  `app.kitchenwizard.ai` as the site's custom domain, and in GoDaddy DNS add
+  `CNAME app → <site>.netlify.app`. `public/_redirects` (`/* /index.html 200`)
+  is what makes `/test-kitchen`, `/sign-in`, `/auth/apple` and
+  `/billing/return` survive a hard refresh.
+- **RevenueCat webhook.** Already points at
+  `https://<service-url>/api/webhooks/revenuecat`. Nothing to change.
+
+As read on 2026-10-08 by the step-2 dry run, `TRUST_PROXY_HOPS` **is set** on
+`kiwi-api`, value `1`. The contract table above still says *unset*. Reconcile
+it once the two-network measurement is confirmed to have been done.
