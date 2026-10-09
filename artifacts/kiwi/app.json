@@ -54,7 +54,7 @@
       [
         "expo-router",
         {
-          "origin": "https://kitchenwizard.ai"
+          "origin": "https://app.kitchenwizard.ai"
         }
       ],
       "expo-font",
