@@ -776,17 +776,28 @@ differ, so re-running it is idempotent.
 > — leave `AI_SONNET55_THINKING` unset there.
 
 ```bash
-node --env-file=.env --import tsx -e "
-import { PrismaClient } from '@prisma/client';
-import { seedAIPrompts } from './prisma/seeds/aiPrompts.ts';
-const prisma = new PrismaClient();
-await seedAIPrompts(prisma);
-await prisma.\$disconnect();
-"
+pnpm --filter @workspace/api-server prisma:seed:prompts
 ```
 
-> ⚠️ **The seed's own host guard does not apply here** — `seedAIPrompts` writes
-> wherever `DATABASE_URL` points. Re-read §0 before running it.
+`prisma/seedPrompts.ts` (R3-0) runs `seedAIPrompts` then `seedSystemSettings`
+and nothing else, behind the same guard as the data scripts — production needs
+`KIWI_PRODUCTION_HOST` exactly as in §1's note. A `DATABASE_URL` set in the
+shell wins over the script's `--env-file=.env`, so the shell's is the one used.
+
+> 🔴 **NEVER run `prisma:seed` (the full `prisma/seed.ts`) on production.** It
+> also upserts the seed recipes' ingredients, meals, dishes and steps, and
+> `deleteMany`s their dish ingredients and steps first — rewriting catalog rows
+> the applies above just fixed.
+
+Expected on production (static diff of the seed file at the September 23 image
+against `next`, through the real seeder): **3 bumps** —
+`wizard.set_preferences.generate`, `wizard.directed.generate`,
+`prep.narrate_steps` — and `prep.narrate_steps`'s model
+`claude-sonnet-4-6 → claude-sonnet-5-5`; no key created or retired. The settings
+seed **creates** any missing row (the two `claude-sonnet-5-5` rate rows are new
+since the September 23 image; `retailer.instacart_enabled` is created `false`
+only if production never got it) and never changes an existing row's `value` —
+an operator switch stays whatever production has. A second run reports 0 bumps.
 
 **A bump invalidates every cached `PrepWeekStructure`,** because the route folds
 the active prompt version into the cache gate. That is correct and intended: a

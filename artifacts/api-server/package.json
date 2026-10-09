@@ -13,6 +13,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --env-file=.env --import tsx --test src/lib/__tests__/*.test.ts src/lib/ai/__tests__/*.test.ts src/routes/__tests__/*.test.ts",
     "prisma:seed": "node --env-file=.env --import tsx prisma/seed.ts",
+    "prisma:seed:prompts": "node --env-file=.env --import tsx prisma/seedPrompts.ts",
     "prisma:seed:dev": "node --env-file=.env --import tsx prisma/seeds/devData.ts"
   },
   "dependencies": {
