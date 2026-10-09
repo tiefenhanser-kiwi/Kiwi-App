@@ -468,11 +468,16 @@ zips `dist/` into `artifacts/kiwi/kiwi-web-dist.zip` with `/` entry names.
   `UPDATE system_settings SET value = 'true'::jsonb, "updatedAt" = now() WHERE key = 'retailer.instacart_enabled';`
   Each router caches the flag for 60 s. The `INSTACART_API_KEY` secret must
   hold the **production** key: a dev key only works against the dev host.
-- **`app.kitchenwizard.ai`.** Drag `artifacts/kiwi/dist` into Netlify, add
+- **`app.kitchenwizard.ai`.** Drag `artifacts/kiwi/kiwi-web-dist.zip` (not the
+  `dist/` folder) into Netlify, add
   `app.kitchenwizard.ai` as the site's custom domain, and in GoDaddy DNS add
-  `CNAME app → <site>.netlify.app`. `public/_redirects` (`/* /index.html 200`)
-  is what makes `/test-kitchen`, `/sign-in`, `/auth/apple` and
-  `/billing/return` survive a hard refresh.
+  `CNAME app → <site>.netlify.app`. `public/_redirects` carries two rules, in
+  this order: the `.pnpm` rewrite
+  (`/assets/__node_modules/.pnpm/* /assets/__node_modules/pnpm/:splat 200`),
+  which serves the fonts and icons from the renamed folder, then the `/*
+  /index.html 200` fallback, which is what makes `/test-kitchen`, `/sign-in`,
+  `/auth/apple` and `/billing/return` survive a hard refresh. The fallback
+  must stay last.
 - **RevenueCat webhook.** Already points at
   `https://<service-url>/api/webhooks/revenuecat`. Nothing to change.
 
