@@ -36,6 +36,8 @@
 
 import { PrismaClient } from "@prisma/client";
 
+import { assertScriptDatabase } from "../../src/lib/scripts/requireDatabaseHost";
+
 export const FRACTION_GLYPHS = "¼½¾⅐⅑⅒⅓⅔⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞";
 export const GLYPH_VALUE: Record<string, number> = {
   "¼": 1 / 4, "½": 1 / 2, "¾": 3 / 4,
@@ -116,15 +118,8 @@ export function repairRef(ref: Ref, span: string): Repair {
   return { ok: false, why: `unit "${u}" opens with a number in no shape this repair knows` };
 }
 
-function assertDevHost(): void {
-  const url = process.env.DATABASE_URL ?? "";
-  const host = (() => { try { return new URL(url).hostname; } catch { return ""; } })();
-  if (!host.includes("ep-broad-haze")) throw new Error("refusing: DATABASE_URL host is not the dev branch");
-  console.log("host check: PASS (dev branch)");
-}
-
 async function main() {
-  assertDevHost();
+  console.log(`host check: PASS (${assertScriptDatabase("grocery-f/bug334-repair").mode})`);
   const apply = process.argv.includes("--apply");
   const prisma = new PrismaClient();
 

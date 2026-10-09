@@ -28,6 +28,9 @@ import {
   PACK_YIELDS, PACK_YIELDS_PORTION_NAMES, PART_EDGES, WIDENED_ADMIT,
   SYNONYM_EDGES, CATEGORY_FIXES, RETIME,
 } from "./proposals";
+import { assertScriptDatabase } from "../../src/lib/scripts/requireDatabaseHost";
+
+assertScriptDatabase("grocery-b1/apply");
 
 const prisma = new PrismaClient();
 const APPLY = process.argv.includes("--apply");

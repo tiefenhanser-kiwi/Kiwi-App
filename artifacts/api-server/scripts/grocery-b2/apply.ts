@@ -20,6 +20,8 @@
 
 import { PrismaClient } from "@prisma/client";
 
+import { assertScriptDatabase } from "../../src/lib/scripts/requireDatabaseHost";
+
 import { normalizeIngredientName } from "../../src/lib/groceryNormalization";
 import {
   NAME_CLEANINGS,
@@ -35,8 +37,7 @@ const prisma = new PrismaClient();
 const APPLY = process.argv.includes("--apply");
 const REVIEWED_AT = new Date("2026-09-28T22:00:00.000Z");
 
-const host = new URL(process.env.DATABASE_URL ?? "").hostname;
-if (!host.includes("ep-broad-haze")) throw new Error("refusing: not the dev branch");
+assertScriptDatabase("grocery-b2/apply");
 
 type Stat = { created: number; updated: number; unchanged: number; skipped: number };
 const stat = (): Stat => ({ created: 0, updated: 0, unchanged: 0, skipped: 0 });

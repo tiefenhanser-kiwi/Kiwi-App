@@ -13,9 +13,9 @@
 import { PrismaClient } from "@prisma/client";
 
 import { YIELD_LOADS } from "./proposals";
+import { assertScriptDatabase } from "../../src/lib/scripts/requireDatabaseHost";
 
-const host = new URL(process.env.DATABASE_URL ?? "").hostname;
-if (!host.includes("ep-broad-haze")) throw new Error("refusing: not the dev branch");
+const { host } = assertScriptDatabase("grocery-b4/apply");
 
 const prisma = new PrismaClient();
 const APPLY = process.argv.includes("--apply");

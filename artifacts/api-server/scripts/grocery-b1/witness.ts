@@ -9,6 +9,10 @@
 //   node --env-file=.env --import tsx scripts/grocery-b1/witness.ts
 
 import { PrismaClient } from "@prisma/client";
+
+import { assertScriptDatabase } from "../../src/lib/scripts/requireDatabaseHost";
+
+assertScriptDatabase("grocery-b1/witness");
 const prisma = new PrismaClient();
 
 async function main() {

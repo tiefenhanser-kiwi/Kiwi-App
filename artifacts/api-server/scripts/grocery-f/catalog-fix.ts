@@ -1,8 +1,9 @@
 // [grocery] F Part B — the catalog DATA rows behind F2, F3 and F4.
 //
-// Dry by default; `--apply` writes. DEV only (host check). Every change is
-// printed as before → after, and a row whose stored value already equals the
-// target is reported as a no-op rather than written.
+// Dry by default; `--apply` writes. Dev, or production via KIWI_PRODUCTION_HOST
+// (src/lib/scripts/requireDatabaseHost.ts). Every change is printed as before →
+// after, and a row whose stored value already equals the target is reported as
+// a no-op rather than written.
 //
 //   node --env-file=.env --import tsx scripts/grocery-f/catalog-fix.ts
 //   node --env-file=.env --import tsx scripts/grocery-f/catalog-fix.ts --apply
@@ -14,7 +15,7 @@
 
 import { PrismaClient } from "@prisma/client";
 
-import { assertDevHost } from "./catalog-sweep";
+import { assertScriptDatabase } from "../../src/lib/scripts/requireDatabaseHost";
 
 interface Change {
   finding: string;
@@ -188,7 +189,7 @@ function leadingCount(display: string): number | null {
 }
 
 async function main() {
-  assertDevHost();
+  console.log(`host check: PASS (${assertScriptDatabase("grocery-f/catalog-fix").mode})`);
   const apply = process.argv.includes("--apply");
   const prisma = new PrismaClient();
   const changes: Change[] = [];

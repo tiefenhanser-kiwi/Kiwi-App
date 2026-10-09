@@ -20,10 +20,10 @@ node -e "const u=new URL(process.env.DATABASE_URL);console.log('host',u.hostname
 ```
 
 - The production host is **not** `ep-broad-haze*`. That string is the DEV branch,
-  and every script under `scripts/grocery-b1/` and `scripts/grocery-b2/` **throws
-  unless it sees it**. So each apply below is run with an explicit
-  `DATABASE_URL` and the guard temporarily satisfied — see §1's note. Do not
-  edit `.env`.
+  and every data script in this runbook **throws unless it sees it** — or unless
+  `KIWI_PRODUCTION_HOST` names the host exactly. So each apply below is run with
+  an explicit `DATABASE_URL` and that override — see §1's note. Do not edit
+  `.env`.
 - Take a Neon branch/snapshot first. Both applies are idempotent, neither
   deletes, but a snapshot is the only thing that makes "undo" a sentence rather
   than a project.
@@ -72,18 +72,17 @@ describe.
 
 ### The DATABASE_URL note, once, for both applies
 
-Each apply begins with
+Every script this runbook runs opens with `assertScriptDatabase(…)`
+(`src/lib/scripts/requireDatabaseHost.ts`, R3-0). It passes a host containing
+`ep-broad-haze` (dev, as before) and **throws on everything else** — so a
+dev-lane script cannot reach production by accident.
 
-```ts
-if (!host.includes("ep-broad-haze")) throw new Error("refusing: not the dev branch");
-```
-
-That guard exists so a dev-lane script cannot reach production by accident. For
-the production run it has to be satisfied deliberately and visibly. Do it by
-**passing the production URL explicitly and editing the guard in a throwaway
-branch**, or by whatever the team's standard production-script mechanism is —
-but do it in a way that shows up in a diff. Do not weaken the guard on `next`,
-and do not edit `.env`.
+> 🔴 **The production run is one environment variable, typed by hand:**
+> `KIWI_PRODUCTION_HOST` set to the production hostname — the EXACT string §0
+> printed, full and case-sensitive; a prefix, a URL or a typo throws. A match
+> prints `PRODUCTION host … (KIWI_PRODUCTION_HOST matched)` to stderr: if you do
+> not see that line, you are not on production. Set it in the shell for the run,
+> never in `.env`, and unset it afterwards. Do not edit a guard.
 
 ---
 

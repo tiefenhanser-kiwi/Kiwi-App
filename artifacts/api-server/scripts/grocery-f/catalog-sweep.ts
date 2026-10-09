@@ -8,6 +8,8 @@
 
 import { PrismaClient } from "@prisma/client";
 
+import { assertScriptDatabase } from "../../src/lib/scripts/requireDatabaseHost";
+
 export interface CatRow {
   id: string;
   canonicalName: string;
@@ -16,13 +18,6 @@ export interface CatRow {
   purchaseUnit: string | null;
   purchaseQuantity: number | null;
   purchaseDisplay: string | null;
-}
-
-export function assertDevHost(): void {
-  const url = process.env.DATABASE_URL ?? "";
-  const host = (() => { try { return new URL(url).hostname; } catch { return ""; } })();
-  if (!host.includes("ep-broad-haze")) throw new Error("refusing: DATABASE_URL host is not the dev branch");
-  console.log("host check: PASS (dev branch)");
 }
 
 // ── F2 — a pack parenthetical that COUNTS THE FOOD ITSELF ──────────────────
@@ -93,7 +88,7 @@ export const NOT_FRESH_FORM =
   /\b(dried|ground|powder|flakes?|canned|pickled|jarred|roasted|frozen|smoked|paste|sauce|salsa|brine|in adobo|chipotle)\b/i;
 
 async function main() {
-  assertDevHost();
+  console.log(`host check: PASS (${assertScriptDatabase("grocery-f/catalog-sweep").mode})`);
   const prisma = new PrismaClient();
   const rows = (await prisma.ingredient.findMany({
     select: {

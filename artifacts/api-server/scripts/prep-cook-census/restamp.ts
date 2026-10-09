@@ -23,12 +23,10 @@ import { PrismaClient } from "@prisma/client";
 
 import { deriveMealTiming } from "../../src/lib/mealTiming";
 import type { SchedulerPhase } from "../../src/lib/cookingScheduler";
+import { assertScriptDatabase } from "../../src/lib/scripts/requireDatabaseHost";
 
+const DB_HOST = assertScriptDatabase("prep-cook-census/restamp").host;
 const prisma = new PrismaClient();
-const DB_HOST = new URL(process.env.DATABASE_URL ?? "").hostname;
-if (!DB_HOST.includes("ep-broad-haze")) {
-  throw new Error(`REFUSING: DATABASE_URL host is not the dev branch (${DB_HOST.slice(0, 8)}…)`);
-}
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, "out");
