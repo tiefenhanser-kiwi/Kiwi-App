@@ -453,6 +453,12 @@ The web export: `.\scripts\release\export-web.ps1` builds
 (`…/api`) for that process only. The other public values come from
 `artifacts/kiwi/.env`. It checks that `_redirects` is in `dist/` and that no
 LAN or `localhost:3000` URL was baked in. It does not deploy.
+Netlify drops every path with a dot-prefixed segment (drag-and-drop, zip and
+CLI alike), and Expo puts the fonts and icons under `assets/__node_modules/.pnpm/`.
+The script renames that folder to `pnpm/`, requires the `_redirects` rule that
+rewrites the old URLs the bundle still uses, refuses any other dot-segment, and
+zips `dist/` into `artifacts/kiwi/kiwi-web-dist.zip` with `/` entry names.
+**The Netlify drop is that zip, not the `dist/` folder.**
 
 **Not scriptable — by hand:**
 
