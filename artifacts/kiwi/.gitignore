@@ -39,3 +39,6 @@ yarn-error.*
 .vercel
 
 .env
+
+# R3-2: export-web.ps1's Netlify drop
+/kiwi-web-dist.zip
