@@ -45,7 +45,7 @@ function GuestPickEntry() {
     // from them. Back to the wizard, never a dead screen.
     return (
       <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
-        <Header showBack title="Pick your meals" />
+        <Header showBack backFallback="/test-kitchen" title="Pick your meals" />
         <View style={s.statusBox}>
           <Text style={s.errorTitle}>Kiwi got distracted. Try again?</Text>
           <Text style={s.errorBody}>

@@ -9,6 +9,7 @@ import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollV
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { ApiError, ApiNetworkError } from "@/lib/api/errors";
 import { requestPasswordReset } from "@/lib/api/passwordReset";
+import { goBack } from "@/lib/navigation";
 
 // WS9A BUG-235 / D-WS9-241 (C) — the password-reset REQUEST screen. Reached
 // from sign-in's "Forgot your password?" link. Email → POST
@@ -87,7 +88,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <View style={[styles.wrap, { paddingTop: insets.top + 8 }]}>
-      <Pressable onPress={() => router.back()} hitSlop={12} style={styles.back}>
+      <Pressable onPress={() => goBack(router)} hitSlop={12} style={styles.back}>
         <Feather name="chevron-left" size={26} color={Colors.sage[700]} />
       </Pressable>
       {/* Sept 29 design review — the form SCROLLS and clears the keyboard.

@@ -27,6 +27,7 @@ import { authLanding } from "@/lib/authCompletion";
 import type { OAuthAuthResponse } from "@/lib/oauth/api";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { dialog } from "@/lib/dialog";
+import { goBack } from "@/lib/navigation";
 
 export default function SignInPage() {
   const router = useRouter();
@@ -130,7 +131,7 @@ export default function SignInPage() {
 
   return (
     <View style={[styles.wrap, { paddingTop: insets.top + 8 }]}>
-      <Pressable onPress={() => router.back()} hitSlop={12} style={styles.back}>
+      <Pressable onPress={() => goBack(router)} hitSlop={12} style={styles.back}>
         <Feather name="chevron-left" size={26} color={Colors.sage[700]} />
       </Pressable>
       {/* Sept 29 design review — the form SCROLLS and clears the keyboard.

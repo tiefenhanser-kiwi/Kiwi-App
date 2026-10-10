@@ -12,6 +12,7 @@ let __routerImpl = {
   navigate: () => {},
   setParams: () => {},
   dismissTo: () => {},
+  canGoBack: () => true,
 };
 
 export function __setRouterForTests(impl) {
@@ -26,6 +27,7 @@ export function __resetRouterForTests() {
     navigate: () => {},
     setParams: () => {},
     dismissTo: () => {},
+    canGoBack: () => true,
   };
 }
 

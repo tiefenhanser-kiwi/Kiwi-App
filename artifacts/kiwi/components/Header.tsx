@@ -1,16 +1,20 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, type Href } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Colors, Palette, Spacing, Typography } from "@/constants/tokens";
+import { goBack } from "@/lib/navigation";
 
 interface Props {
   title?: string;
   subtitle?: string;
   showBack?: boolean;
   onBack?: () => void;
+  /** WEB-1 (BUG-382) — where the default back goes when there is no history
+   *  to return to (a cold web entry). Ignored when `onBack` is passed. */
+  backFallback?: Href;
   rightIcon?: keyof typeof Feather.glyphMap;
   onRightPress?: () => void;
   rightContent?: React.ReactNode;
@@ -21,6 +25,7 @@ export function Header({
   subtitle,
   showBack,
   onBack,
+  backFallback,
   rightIcon,
   onRightPress,
   rightContent,
@@ -32,7 +37,7 @@ export function Header({
       <View style={styles.row}>
         {showBack ? (
           <Pressable
-            onPress={onBack ?? (() => router.back())}
+            onPress={onBack ?? (() => goBack(router, backFallback))}
             hitSlop={12}
             // Sept 29 design review — an unlabelled Feather glyph announces as
             // nothing useful. This one Pressable is the back affordance on ~35

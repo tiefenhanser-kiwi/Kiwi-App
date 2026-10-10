@@ -59,6 +59,7 @@ import {
   shouldShowSaveServings,
 } from "@/lib/meals/servingsSaveGate";
 import { dialog } from "@/lib/dialog";
+import { goBack } from "@/lib/navigation";
 
 const SERVINGS_MIN = 1;
 const SERVINGS_MAX = 12;
@@ -158,7 +159,7 @@ export default function MealDetailScreen() {
               <Button
                 label="Go back"
                 variant="ghost"
-                onPress={() => router.back()}
+                onPress={() => goBack(router)}
               />
             ) : (
               <Button

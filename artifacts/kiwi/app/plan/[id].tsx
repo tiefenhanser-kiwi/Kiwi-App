@@ -73,6 +73,7 @@ import type {
   ReviewPlanMealRow,
 } from "@/lib/types";
 import { dialog } from "@/lib/dialog";
+import { goBack } from "@/lib/navigation";
 
 // D-WS9-191 §4.7 / lane-pfc Part C.3 — the unsaved-draft branch (D-WS9-032
 // Option A: `?draftId=&expanded=` params, the Draft pill, the Save for Later /
@@ -506,7 +507,7 @@ export default function PlanReviewScreen() {
               <Button
                 label="Go back"
                 variant="ghost"
-                onPress={() => router.back()}
+                onPress={() => goBack(router)}
               />
             ) : (
               <Button

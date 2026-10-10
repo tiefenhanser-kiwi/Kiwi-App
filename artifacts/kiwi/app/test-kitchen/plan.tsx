@@ -46,6 +46,7 @@ import { useGuest } from "@/contexts/GuestContext";
 import { useGuestDoor } from "@/hooks/useGuestDoor";
 import { getGuestDraft, getGuestSession, trackGuestEvent } from "@/lib/api/guest";
 import { guestPlanRows, guestPlanSubline } from "@/lib/guest/guestPlanModel";
+import { goBack } from "@/lib/navigation";
 
 export const GUEST_PLAN_SAVE_CTA = "Save this plan to my account";
 export const GUEST_PLAN_READ_NOTE =
@@ -97,7 +98,7 @@ function GuestPlanScreen() {
     <View style={s.screen}>
       <Header
         showBack
-        onBack={() => router.back()}
+        onBack={() => goBack(router, "/test-kitchen")}
         title={expanded?.title ?? "Your plan"}
         subtitle={expanded ? guestPlanSubline(expanded) : undefined}
       />

@@ -59,6 +59,7 @@ import {
 } from "@/constants/tokens";
 import type { GroceryList, GroceryListItem } from "@/lib/types";
 import { dialog } from "@/lib/dialog";
+import { goBack } from "@/lib/navigation";
 
 const SECTION_LABELS: Record<GroceryListItem["sectionKey"], string> =
   GROCERY_SECTIONS.reduce(
@@ -915,7 +916,7 @@ export default function GroceryListDetail() {
     if (list.planId) {
       router.push({ pathname: "/plan/[id]", params: { id: list.planId } });
     } else {
-      router.back();
+      goBack(router);
     }
   };
 

@@ -47,6 +47,7 @@ import {
   type GuestWizardForm,
 } from "@/lib/wizard/guestPayload";
 import type { WizardPlanCandidate } from "@/lib/types";
+import { goBack } from "@/lib/navigation";
 
 export const GUEST_OPTIONS_TITLE = "Your plan options";
 export const GUEST_OPTIONS_SUBLINE = "Open one to see the week, the meals and the recipes.";
@@ -151,7 +152,7 @@ function GuestOptionsScreen() {
     <View style={s.screen}>
       <Header
         showBack
-        onBack={() => router.back()}
+        onBack={() => goBack(router, "/test-kitchen")}
         title={GUEST_OPTIONS_TITLE}
         subtitle={GUEST_OPTIONS_SUBLINE}
       />

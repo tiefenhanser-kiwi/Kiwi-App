@@ -22,6 +22,7 @@ import { useBilling } from "@/contexts/BillingContext";
 import { macrosNoticeFor } from "@/lib/billing/subscriptionView";
 import { formatMacro } from "@/lib/format/macros";
 import { formatIngredientLine } from "@/lib/format/ingredientLine";
+import { goBack } from "@/lib/navigation";
 
 // WS7-3 Block C3 c3: dish detail reads GET /dishes/:id via useDish. Adopts
 // the Block B gate/body pattern from app/meal/[id].tsx — DishDetailScreen
@@ -70,7 +71,7 @@ export default function DishDetailScreen() {
               <Button
                 label="Go back"
                 variant="ghost"
-                onPress={() => router.back()}
+                onPress={() => goBack(router)}
               />
             ) : (
               <Button

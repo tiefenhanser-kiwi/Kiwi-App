@@ -33,6 +33,7 @@ import { useGuest } from "@/contexts/GuestContext";
 import { useGuestDoor } from "@/hooks/useGuestDoor";
 import { trackGuestEvent } from "@/lib/api/guest";
 import { getMeal } from "@/lib/api/meals";
+import { goBack } from "@/lib/navigation";
 
 export const GUEST_RECIPE_GONE =
   "Kiwi could not find this recipe. It may have been updated since your plan was built.";
@@ -66,7 +67,7 @@ function GuestRecipeScreen() {
     <View style={s.screen}>
       <Header
         showBack
-        onBack={() => router.back()}
+        onBack={() => goBack(router, "/test-kitchen")}
         title={meal?.title ?? "Recipe"}
         subtitle={
           meal
@@ -89,7 +90,7 @@ function GuestRecipeScreen() {
           <View style={s.statusCard}>
             <Text style={s.statusTitle}>Recipe not found</Text>
             <Text style={s.statusBody}>{GUEST_RECIPE_GONE}</Text>
-            <Button label="Back to the plan" variant="primary" onPress={() => router.back()} />
+            <Button label="Back to the plan" variant="primary" onPress={() => goBack(router, "/test-kitchen")} />
           </View>
         ) : null}
 

@@ -35,6 +35,7 @@ import type { OAuthConsentFields } from "@/lib/oauth/request";
 import { readGuestSessionId } from "@/lib/guest/guestToken";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { dialog } from "@/lib/dialog";
+import { goBack } from "@/lib/navigation";
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -218,7 +219,7 @@ export default function SignUpPage() {
 
   return (
     <View style={[styles.wrap, { paddingTop: insets.top + 8 }]}>
-      <Pressable onPress={() => router.back()} hitSlop={12} style={styles.back}>
+      <Pressable onPress={() => goBack(router)} hitSlop={12} style={styles.back}>
         <Feather name="chevron-left" size={26} color={Colors.sage[700]} />
       </Pressable>
       <KeyboardAwareScrollViewCompat
