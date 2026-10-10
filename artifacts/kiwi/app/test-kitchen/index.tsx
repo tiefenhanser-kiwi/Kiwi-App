@@ -238,8 +238,16 @@ function TestKitchenEntry() {
         <Header title={TK_TITLE} subtitle={TK_SUBTITLE} />
         <View style={s.body}>
           <View style={s.card}>
-            <Text style={s.cardTitle}>{TK_TITLE}</Text>
-            <Text style={s.cardBody}>{TK_SUBTITLE}</Text>
+            {/* WEB-1 (BUG-379) — the Header above already carries TK_TITLE and
+                TK_SUBTITLE; on web this state stays up (the Turnstile gate
+                renders here), so the card's copy read as the title twice.
+                Native unchanged by ruling. */}
+            {Platform.OS !== "web" && (
+              <>
+                <Text style={s.cardTitle}>{TK_TITLE}</Text>
+                <Text style={s.cardBody}>{TK_SUBTITLE}</Text>
+              </>
+            )}
             {/* BUG-361 — with a pre-warmed token the start is already in
                 flight: no gate, just the loader. */}
             {gated && prewarmedToken === null ? (

@@ -168,6 +168,27 @@ test("/test-kitchen renders the entry on iOS — no bounce to /", async () => {
   assert.ok(textOf(tree(r)).includes(TK_TITLE), "the Test Kitchen entry is on screen");
 });
 
+// WEB-1 (BUG-379) — the pre-session card repeated the Header's title. On web it
+// shows once; native is unchanged (Header + card, by ruling).
+function titleCount(r: TestRenderer.ReactTestRenderer): number {
+  return all(tree(r), (n) => (n.children ?? []).some((c) => c === TK_TITLE)).length;
+}
+
+test("BUG-379: on web the Test Kitchen entry shows its title ONCE", async () => {
+  platform.OS = "web";
+  try {
+    const r = await mount(TestKitchenRoute);
+    assert.equal(titleCount(r), 1);
+  } finally {
+    platform.OS = "ios";
+  }
+});
+
+test("BUG-379: native unchanged — Header and card both carry the title", async () => {
+  const r = await mount(TestKitchenRoute);
+  assert.equal(titleCount(r), 2);
+});
+
 test("/test-kitchen/options renders its screen on iOS", async () => {
   storeGuestSession(SESSION);
   const r = await mount(GuestOptionsRoute);
