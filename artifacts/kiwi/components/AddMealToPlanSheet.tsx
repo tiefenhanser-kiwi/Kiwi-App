@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -19,6 +18,7 @@ import { useApp } from "@/contexts/AppContext";
 import { usePlans } from "@/hooks/usePlans";
 import type { PlanListItem } from "@/lib/api/plans";
 import { formatPlanDateRange } from "@/lib/plans/planRowMeta";
+import { dialog } from "@/lib/dialog";
 
 export interface AddMealToPlanSheetProps {
   visible: boolean;
@@ -107,7 +107,7 @@ export function AddMealToPlanSheet({
         mealId,
         err,
       });
-      Alert.alert(
+      dialog.alert(
         "Couldn't create plan",
         "Something went wrong. If a partial plan was created, you'll find it in your plans list.",
       );

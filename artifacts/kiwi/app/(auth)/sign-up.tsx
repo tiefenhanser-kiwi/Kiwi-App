@@ -1,7 +1,6 @@
 import React from "react";
 import {
   ActivityIndicator,
-  Alert,
   Keyboard,
   Pressable,
   StyleSheet,
@@ -35,6 +34,7 @@ import type { OAuthAuthResponse } from "@/lib/oauth/api";
 import type { OAuthConsentFields } from "@/lib/oauth/request";
 import { readGuestSessionId } from "@/lib/guest/guestToken";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { dialog } from "@/lib/dialog";
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -105,9 +105,9 @@ export default function SignUpPage() {
       if (ctx.claimAttempted) {
         guestCtx?.setGeneration(null);
         if (res.claimRetryable) {
-          Alert.alert("Account created", CLAIM_RETRY_LINE);
+          dialog.alert("Account created", CLAIM_RETRY_LINE);
         } else if (res.isNewUser && res.claimedPlanId === null) {
-          Alert.alert("Account created", CLAIM_LOST_LINE);
+          dialog.alert("Account created", CLAIM_LOST_LINE);
         }
       }
       // §2.5 — identical to the password path below, and the same function.
@@ -134,7 +134,7 @@ export default function SignUpPage() {
         lastNameLen: lastName.trim().length,
         submitting,
       });
-      Alert.alert(
+      dialog.alert(
         "Missing required fields",
         "Please enter your name, email, and a password of at least 8 characters.",
       );
@@ -145,7 +145,7 @@ export default function SignUpPage() {
     // back as a bare "invalid request body".
     const trimmedPhone = phone.trim();
     if (trimmedPhone.length > 0 && !isValidPhone(trimmedPhone)) {
-      Alert.alert(
+      dialog.alert(
         "Check your phone number",
         "Enter a phone number with at least 7 digits, or leave it blank.",
       );
@@ -194,10 +194,10 @@ export default function SignUpPage() {
         // in-memory cards so the claimed plan is not also browsable as a guest.
         guestCtx?.setGeneration(null);
         if (res.claimRetryable) {
-          Alert.alert("Account created", CLAIM_RETRY_LINE);
+          dialog.alert("Account created", CLAIM_RETRY_LINE);
         } else if (res.claimedPlanId === null) {
           // The claim was refused (409) and the sign-up was resent without it.
-          Alert.alert("Account created", CLAIM_LOST_LINE);
+          dialog.alert("Account created", CLAIM_LOST_LINE);
         }
       }
       router.replace(authLanding(res));
@@ -210,7 +210,7 @@ export default function SignUpPage() {
       );
       console.log("[sign-up] submit failed", message);
       if (retryAfterSec !== null) cooldown.start(retryAfterSec);
-      Alert.alert("Couldn't create your account", message);
+      dialog.alert("Couldn't create your account", message);
     } finally {
       setSubmitting(false);
     }

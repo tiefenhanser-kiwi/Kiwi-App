@@ -19,7 +19,6 @@
 // reconciles the two later).
 
 import React from "react";
-import { Alert } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/Button";
@@ -30,6 +29,7 @@ import {
   removeFromPlaylist,
   type AddToPlaylistResponse,
 } from "@/lib/api/playlist";
+import { dialog } from "@/lib/dialog";
 
 export const ADD_LABEL = "Add to playlist";
 export const IN_LABEL = "In your playlist ✓";
@@ -52,7 +52,7 @@ export function PlaylistToggleButton({ mealId, onForked }: Props) {
       if (res.playlistMeal.mealId !== mealId) onForked?.(res.playlistMeal.mealId);
     },
     onError: (err) =>
-      Alert.alert(
+      dialog.alert(
         "Couldn't add to your playlist",
         err.message || "Something went wrong. Please try again.",
       ),
@@ -61,7 +61,7 @@ export function PlaylistToggleButton({ mealId, onForked }: Props) {
     mutationFn: removeFromPlaylist,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: PLAYLIST_QUERY_KEY }),
     onError: (err) =>
-      Alert.alert(
+      dialog.alert(
         "Couldn't update your playlist",
         err.message || "Something went wrong. Please try again.",
       ),

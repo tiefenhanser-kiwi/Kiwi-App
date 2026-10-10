@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Alert,
   Keyboard,
   Pressable,
   StyleSheet,
@@ -37,6 +36,7 @@ import type { DraftDish } from "@/lib/builder/parsedDishToDraft";
 import { resolveDishPostSaveNav } from "@/lib/builder/dishPostSaveNav";
 import type { DishDraft, StepPhaseType } from "@/lib/types";
 import { narrowPhaseType } from "@/lib/meal-builder-state";
+import { dialog } from "@/lib/dialog";
 
 const TIME_MIN = 0;
 const TIME_MAX = 300;
@@ -344,7 +344,7 @@ export default function DishBuilderScreen() {
   // so the user can retry without losing the AI mode they opted into.
   const handleAssistIngredients = async () => {
     if (!form.name.trim()) {
-      Alert.alert(
+      dialog.alert(
         "Add a name first",
         "Kiwi needs a dish name to suggest ingredients.",
       );
@@ -382,14 +382,14 @@ export default function DishBuilderScreen() {
           : [emptyIngredient()],
       }));
       if (result.caveats && result.caveats.length > 0) {
-        Alert.alert("Kiwi's note", result.caveats.join("\n"));
+        dialog.alert("Kiwi's note", result.caveats.join("\n"));
       }
     } catch (err) {
       const msg =
         err instanceof Error && err.message
           ? err.message
           : "Couldn't reach Kiwi right now. Try again?";
-      Alert.alert("Suggestion failed", msg);
+      dialog.alert("Suggestion failed", msg);
     } finally {
       setAssistingIngredients(false);
     }
@@ -397,7 +397,7 @@ export default function DishBuilderScreen() {
 
   const handleAssistSteps = async () => {
     if (!form.name.trim()) {
-      Alert.alert(
+      dialog.alert(
         "Add a name first",
         "Kiwi needs a dish name to suggest steps.",
       );
@@ -417,7 +417,7 @@ export default function DishBuilderScreen() {
         unit: i.unit.trim(),
       }));
     if (usableIngredients.length === 0) {
-      Alert.alert(
+      dialog.alert(
         "Add ingredients first",
         "Kiwi needs at least one ingredient (with quantity and unit) to suggest steps.",
       );
@@ -445,14 +445,14 @@ export default function DishBuilderScreen() {
         })),
       }));
       if (result.caveats && result.caveats.length > 0) {
-        Alert.alert("Kiwi's note", result.caveats.join("\n"));
+        dialog.alert("Kiwi's note", result.caveats.join("\n"));
       }
     } catch (err) {
       const msg =
         err instanceof Error && err.message
           ? err.message
           : "Couldn't reach Kiwi right now. Try again?";
-      Alert.alert("Suggestion failed", msg);
+      dialog.alert("Suggestion failed", msg);
     } finally {
       setAssistingSteps(false);
     }
@@ -467,14 +467,14 @@ export default function DishBuilderScreen() {
     // hydrated yet (form.id still unset), block save so we never fork a blank
     // dish over the real one while GET /dishes/:id is in flight.
     if (dishId && !form.id) {
-      Alert.alert(
+      dialog.alert(
         "Still loading",
         "This dish is still loading. Give it a second and try again.",
       );
       return;
     }
     if (!form.name.trim()) {
-      Alert.alert("Add a name", "Give this dish a name to save it.");
+      dialog.alert("Add a name", "Give this dish a name to save it.");
       return;
     }
     // WS7-6 Block 1E — server requires at least one ingredient (min 1) on
@@ -483,7 +483,7 @@ export default function DishBuilderScreen() {
     // so by save-time the array must be non-empty either way.
     const cleanIngredients = form.ingredients.filter((i) => i.name.trim());
     if (cleanIngredients.length === 0) {
-      Alert.alert(
+      dialog.alert(
         "Add ingredients",
         form.kiwiAssistIngredients
           ? "Tap 'Get suggestions from Kiwi' first, or add ingredients manually."
@@ -496,7 +496,7 @@ export default function DishBuilderScreen() {
     // reason so a blocked save (esp. from an off-screen row) isn't a silent
     // no-op. Blank quantities are allowed and default to 1 at save.
     if (cleanIngredients.some((i) => isQuantityInvalid(i.quantity))) {
-      Alert.alert(
+      dialog.alert(
         "Fix quantities",
         "One or more ingredients has an invalid quantity. Enter a quantity above 0 (e.g. 1, 1.5, 1/2) on the highlighted rows to save.",
       );
@@ -565,7 +565,7 @@ export default function DishBuilderScreen() {
             isTimingSensitive: st.isTimingSensitive,
           })),
         });
-        Alert.alert("Dish updated", "Your changes were saved.", [
+        dialog.alert("Dish updated", "Your changes were saved.", [
           {
             text: "OK",
             onPress: () =>
@@ -585,7 +585,7 @@ export default function DishBuilderScreen() {
       // `router.back()` onto the ask-kiwi-dish input screen instead of the
       // saved dish.
       const nav = resolveDishPostSaveNav({ newDishId, isEdit });
-      Alert.alert(
+      dialog.alert(
         "Dish saved",
         "Added to your saved dishes.",
         [
@@ -609,7 +609,7 @@ export default function DishBuilderScreen() {
         err instanceof Error && err.message
           ? err.message
           : "Saving failed. Try again?";
-      Alert.alert("Couldn't save dish", msg);
+      dialog.alert("Couldn't save dish", msg);
     } finally {
       savingRef.current = false;
       setSaving(false);

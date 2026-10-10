@@ -121,7 +121,7 @@ export function decideOrderOnline(knownListId: string | null): OrderOnlineAction
 }
 
 /** What the confirmation asks the screen to render. The screen maps this
- *  onto its own confirm mechanism (Plan Review uses Alert.alert). */
+ *  onto its own confirm mechanism (Plan Review uses dialog.alert). */
 export interface OrderOnlineConfirmSpec {
   title: string;
   body: string;

@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   BackHandler,
   Keyboard,
   Pressable,
@@ -59,6 +58,7 @@ import {
   Typography,
 } from "@/constants/tokens";
 import type { GroceryList, GroceryListItem } from "@/lib/types";
+import { dialog } from "@/lib/dialog";
 
 const SECTION_LABELS: Record<GroceryListItem["sectionKey"], string> =
   GROCERY_SECTIONS.reduce(
@@ -441,7 +441,7 @@ export default function GroceryListDetail() {
     toggleGroceryStapleSelection(listId, item.id, true).catch((err) => {
       console.warn("[grocery-list] staple opt-in failed", err);
       applyItemPatch(item.id, { stapleOptedIn: false });
-      Alert.alert(
+      dialog.alert(
         "Couldn't update item",
         "Something went wrong. Please try again.",
       );
@@ -467,7 +467,7 @@ export default function GroceryListDetail() {
     toggleGroceryItemCompleted(listId, item.id, nextChecked).catch((err) => {
       console.warn("[grocery-list] check-off failed", err);
       applyItemPatch(item.id, { isCompleted: !nextChecked });
-      Alert.alert(
+      dialog.alert(
         "Couldn't update item",
         "Something went wrong. Please try again.",
       );
@@ -484,7 +484,7 @@ export default function GroceryListDetail() {
       toggleGroceryStapleSelection(listId, item.id, false).catch((err) => {
         console.warn("[grocery-list] staple opt-out failed", err);
         applyItemPatch(item.id, { stapleOptedIn: true });
-        Alert.alert(
+        dialog.alert(
           "Couldn't update item",
           "Something went wrong. Please try again.",
         );
@@ -507,7 +507,7 @@ export default function GroceryListDetail() {
         prev ? { ...prev, items: [...prev.items, item] } : prev,
       );
       setRecentlyRemoved(null);
-      Alert.alert(
+      dialog.alert(
         "Couldn't remove item",
         "Something went wrong. Please try again.",
       );
@@ -531,7 +531,7 @@ export default function GroceryListDetail() {
           ? { ...prev, items: prev.items.filter((it) => it.id !== item.id) }
           : prev,
       );
-      Alert.alert(
+      dialog.alert(
         "Couldn't restore item",
         "Something went wrong. Please try again.",
       );
@@ -678,7 +678,7 @@ export default function GroceryListDetail() {
             purchaseDisplayOverride: prior.purchaseDisplayOverride,
           });
         }
-        Alert.alert(
+        dialog.alert(
           "Couldn't update this item",
           "Something went wrong. Please try again.",
         );
@@ -775,7 +775,7 @@ export default function GroceryListDetail() {
             : prev,
         );
         // MVP error surface — toast/inline error is D-WS6-079.
-        Alert.alert(
+        dialog.alert(
           "Couldn't add item",
           "Something went wrong. Please try again.",
         );
@@ -806,7 +806,7 @@ export default function GroceryListDetail() {
     markGroceryShoppingDone(listId, true).catch((err) => {
       console.warn("[grocery-list] mark-done failed", err);
       setList((p) => (p ? { ...p, status: prev } : p));
-      Alert.alert(
+      dialog.alert(
         "Couldn't update list",
         "Something went wrong. Please try again.",
       );
@@ -820,7 +820,7 @@ export default function GroceryListDetail() {
     markGroceryShoppingDone(listId, false).catch((err) => {
       console.warn("[grocery-list] unmark-done failed", err);
       setList((p) => (p ? { ...p, status: prev } : p));
-      Alert.alert(
+      dialog.alert(
         "Couldn't update list",
         "Something went wrong. Please try again.",
       );
@@ -882,7 +882,7 @@ export default function GroceryListDetail() {
         userResolvedTo: prevResolved,
         isAmbiguous: true,
       });
-      Alert.alert("Couldn't save", "Something went wrong. Please try again.");
+      dialog.alert("Couldn't save", "Something went wrong. Please try again.");
     });
   };
 
@@ -896,7 +896,7 @@ export default function GroceryListDetail() {
     resolveGroceryItemAmbiguity(listId, item.id, null).catch((err) => {
       console.warn("[grocery-list] leave-as-is failed; reverting", err);
       applyItemPatch(item.id, { isAmbiguous: true });
-      Alert.alert("Couldn't save", "Something went wrong. Please try again.");
+      dialog.alert("Couldn't save", "Something went wrong. Please try again.");
     });
   };
 

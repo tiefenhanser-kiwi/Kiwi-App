@@ -35,7 +35,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Keyboard,
   Pressable,
   StyleSheet,
@@ -89,6 +88,7 @@ import { buildGuestPlans, buildGuestShelf, trackGuestEvent } from "@/lib/api/gue
 import { useGuestOptional } from "@/contexts/GuestContext";
 import { useGuestDoor } from "@/hooks/useGuestDoor";
 import { GuestDoorSheet } from "@/components/GuestDoorSheet";
+import { dialog } from "@/lib/dialog";
 
 export type WizardMode = "prefs" | "text";
 /** Which of the two "How to build it" rows is chosen. `null` = nothing yet. */
@@ -394,7 +394,7 @@ export function WizardScreen({
   const textTooShort = () =>
     isText && form.description.trim().length < DESCRIPTION_MIN;
   const alertTextTooShort = () =>
-    Alert.alert(
+    dialog.alert(
       "Tell Kiwi a bit more",
       "Describe what you'd like — at least a few words about meals, cuisines, or the kind of week you want.",
     );

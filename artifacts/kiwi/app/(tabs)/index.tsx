@@ -22,7 +22,7 @@
 // two of them still certified by green tests.
 
 import React, { useMemo, useState } from "react";
-import { Alert, ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -65,6 +65,7 @@ import { dispatchGenerateResult } from "@/lib/groceryHandoff";
 import { dispatchOrderOnline } from "@/lib/orderOnline";
 import { buildCookSessionParams } from "@/lib/cooking/cookSession";
 import { Colors, Spacing } from "@/constants/tokens";
+import { dialog } from "@/lib/dialog";
 
 export default function HomeTab() {
   const router = useRouter();
@@ -341,7 +342,7 @@ export default function HomeTab() {
       const action = dispatchGenerateResult(result, {
         navigate: (id) =>
           router.push({ pathname: "/grocery-list/[id]", params: { id } }),
-        alert: (title, message) => Alert.alert(title, message),
+        alert: (title, message) => dialog.alert(title, message),
         // Row 9 (1.1) Stripe S2 Part E -- a 402 is NOT an alert (§2.6). The notice
         // stays on screen beside the plan; the paywall sheet is opened separately
         // by the fetch layer for every 402 in the app.
@@ -394,7 +395,7 @@ export default function HomeTab() {
         navigate: (listId) =>
           router.push({ pathname: "/grocery-list/[id]", params: { id: listId } }),
         confirm: (spec) =>
-          Alert.alert(spec.title, spec.body, [
+          dialog.alert(spec.title, spec.body, [
             { text: spec.cancelLabel, style: "cancel" },
             { text: spec.confirmLabel, onPress: spec.onConfirm },
           ]),

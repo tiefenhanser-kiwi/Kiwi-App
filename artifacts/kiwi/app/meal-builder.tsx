@@ -8,7 +8,6 @@ import React, {
 } from "react";
 import {
   ActivityIndicator,
-  Alert,
   BackHandler,
   Keyboard,
   Pressable,
@@ -90,6 +89,7 @@ import {
 } from "@/lib/meal-builder-state";
 import { useDish } from "@/hooks/useDish";
 import type { DraftMeal, SavedDish } from "@/lib/types";
+import { dialog } from "@/lib/dialog";
 
 type Mode = "manual" | "combine" | "ai" | null;
 
@@ -212,7 +212,7 @@ export default function MealBuilderScreen() {
   // saved; leaving stops the rest.
   const [bulkRunning, setBulkRunning] = useState(false);
   const confirmLeaveBulk = (leave: () => void) => {
-    Alert.alert(
+    dialog.alert(
       "Kiwi is still writing",
       "Leave now and the meals already saved stay saved; the rest stop.",
       [
@@ -476,7 +476,7 @@ export default function MealBuilderScreen() {
       (mode === "manual" && hasManualData()) ||
       (mode === "combine" && hasCombineData());
     if (dirty) {
-      Alert.alert(
+      dialog.alert(
         "Switch modes?",
         "Your current entries will be set aside but kept. You can switch back without losing anything.",
         [
@@ -715,7 +715,7 @@ export default function MealBuilderScreen() {
           bumpPlanId: planId,
         });
       }
-      Alert.alert(
+      dialog.alert(
         "Saved for this plan",
         stepEdits
           ? `${input.title} was updated here. Step changes were saved to the recipe.`
@@ -727,7 +727,7 @@ export default function MealBuilderScreen() {
         err instanceof Error && err.message
           ? err.message
           : "Couldn't save your changes. Try again?";
-      Alert.alert("Couldn't save meal", msg);
+      dialog.alert("Couldn't save meal", msg);
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -773,7 +773,7 @@ export default function MealBuilderScreen() {
       // Block 2c Part A — a "Review ›" edit from the bulk intake's sheet
       // flips that row to Reviewed ✓ on save.
       if (reviewReturn === "playlist") markImportReviewed(id);
-      Alert.alert("Saved", `${input.title} was updated.`, [
+      dialog.alert("Saved", `${input.title} was updated.`, [
         { text: "OK", onPress: () => router.back() },
       ]);
     } catch (err) {
@@ -781,7 +781,7 @@ export default function MealBuilderScreen() {
         err instanceof Error && err.message
           ? err.message
           : "Couldn't save your changes. Try again?";
-      Alert.alert("Couldn't save meal", msg);
+      dialog.alert("Couldn't save meal", msg);
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -825,7 +825,7 @@ export default function MealBuilderScreen() {
     // create-paths (no mealId) skip this guard.
     if (mealId && !sourceMeal) {
       if (mealDetailQuery.isError) {
-        Alert.alert(
+        dialog.alert(
           "Can't save",
           "We couldn't load this meal. Go back and try opening it again.",
         );
@@ -834,7 +834,7 @@ export default function MealBuilderScreen() {
       // Still loading — block save quietly. The Save button's disabled
       // state below also reflects this so users don't see a spinner with
       // no feedback.
-      Alert.alert(
+      dialog.alert(
         "Loading…",
         "Hold on a moment while we finish loading this meal.",
       );
@@ -849,7 +849,7 @@ export default function MealBuilderScreen() {
     } catch (e) {
       const msg =
         e instanceof Error ? e.message : "Couldn't build the save payload.";
-      Alert.alert("Can't save", msg);
+      dialog.alert("Can't save", msg);
       return;
     }
 
@@ -862,7 +862,7 @@ export default function MealBuilderScreen() {
       // has no per-button sub-copy), so the one-line notice that step changes
       // reach the recipe on either choice goes in the Alert's message.
       const stepEdits = sourceMeal ? stepEditsPresent(sourceMeal, input) : false;
-      Alert.alert(
+      dialog.alert(
         "Save changes",
         stepEdits
           ? "How do you want to apply your edits?\n\nStep changes are saved to the recipe."
@@ -970,7 +970,7 @@ export default function MealBuilderScreen() {
         // below rather than import it.)
         try {
           await changeMealForPlanItem(nav.planId, nav.planItemId, newMealId);
-          Alert.alert(
+          dialog.alert(
             "Saved and swapped in",
             `${input.title} is saved and now in your plan.`,
             [{ text: "OK", onPress: applyNav }],
@@ -980,7 +980,7 @@ export default function MealBuilderScreen() {
             planErr instanceof Error && planErr.message
               ? planErr.message
               : "Try swapping it in from the plan instead.";
-          Alert.alert(
+          dialog.alert(
             "Saved but couldn't swap it in",
             `${input.title} was saved to your meals, but swapping it into the plan failed:\n\n${msg}`,
           );
@@ -990,7 +990,7 @@ export default function MealBuilderScreen() {
       } else if (nav.kind === "plan-back") {
         try {
           await addMealToPlan(nav.planId, newMealId);
-          Alert.alert(
+          dialog.alert(
             "Saved and added to plan",
             `${input.title} is saved and on your plan.`,
             [{ text: "OK", onPress: applyNav }],
@@ -1001,7 +1001,7 @@ export default function MealBuilderScreen() {
             planErr instanceof Error && planErr.message
               ? planErr.message
               : "Try adding it from the plan instead.";
-          Alert.alert(
+          dialog.alert(
             "Saved but couldn't add to plan",
             `${input.title} was saved to your meals, but adding it to the plan failed:\n\n${msg}`,
           );
@@ -1019,13 +1019,13 @@ export default function MealBuilderScreen() {
             queryClient.invalidateQueries({ queryKey: PLAYLIST_QUERY_KEY }),
           goToPlaylist: () => router.dismissTo("/(tabs)/playlist"),
           onAddFailed: (msg) =>
-            Alert.alert(
+            dialog.alert(
               "Saved but couldn't add to your playlist",
               `${input.title} was saved to your meals, but adding it to the playlist failed:\n\n${msg}`,
             ),
         });
       } else {
-        Alert.alert(
+        dialog.alert(
           draftMeal ? "Recipe saved" : "Meal saved",
           draftMeal
             ? `${input.title} was added to your meals.`
@@ -1038,7 +1038,7 @@ export default function MealBuilderScreen() {
         err instanceof Error && err.message
           ? err.message
           : "Saving failed. Try again?";
-      Alert.alert("Couldn't save meal", msg);
+      dialog.alert("Couldn't save meal", msg);
     } finally {
       savingRef.current = false;
       setSaving(false);

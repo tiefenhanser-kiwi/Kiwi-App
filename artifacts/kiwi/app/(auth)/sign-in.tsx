@@ -2,7 +2,6 @@ import React from "react";
 import {
   AccessibilityInfo,
   ActivityIndicator,
-  Alert,
   Platform,
   Pressable,
   StyleSheet,
@@ -27,6 +26,7 @@ import { readGuestSessionId } from "@/lib/guest/guestToken";
 import { authLanding } from "@/lib/authCompletion";
 import type { OAuthAuthResponse } from "@/lib/oauth/api";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { dialog } from "@/lib/dialog";
 
 export default function SignInPage() {
   const router = useRouter();
@@ -65,12 +65,12 @@ export default function SignInPage() {
       if (ctx.claimAttempted) {
         guestCtx?.setGeneration(null);
         if (res.claimRetryable) {
-          Alert.alert(res.isNewUser ? "Account created" : "Signed in", CLAIM_RETRY_LINE);
+          dialog.alert(res.isNewUser ? "Account created" : "Signed in", CLAIM_RETRY_LINE);
         } else if (res.isNewUser && res.claimedPlanId === null) {
           // The claim was refused (409) and the sign-up was resent without it.
           // Only reachable for a NEW user: an existing account's failed claim
           // is logged and never refused, so it never 409s.
-          Alert.alert("Account created", CLAIM_LOST_LINE);
+          dialog.alert("Account created", CLAIM_LOST_LINE);
         }
       }
       router.replace(authLanding(res));
@@ -113,7 +113,7 @@ export default function SignInPage() {
         guestCtx?.setGeneration(null);
         // R7 — stage 2 failed and the claim was RELEASED; the next sign-in with
         // the same id retries it, which is why the id is deliberately kept.
-        if (res.claimRetryable) Alert.alert("Signed in", CLAIM_RETRY_LINE);
+        if (res.claimRetryable) dialog.alert("Signed in", CLAIM_RETRY_LINE);
       }
       // Route through index.tsx's state machine (WS7-2-E Bug 2) so a user
       // who bailed mid-onboarding resumes at the right gate on re-login.

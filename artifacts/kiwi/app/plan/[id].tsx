@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Alert,
   Keyboard,
   LayoutAnimation,
   Platform,
@@ -73,6 +72,7 @@ import type {
   ReviewPlan,
   ReviewPlanMealRow,
 } from "@/lib/types";
+import { dialog } from "@/lib/dialog";
 
 // D-WS9-191 §4.7 / lane-pfc Part C.3 — the unsaved-draft branch (D-WS9-032
 // Option A: `?draftId=&expanded=` params, the Draft pill, the Save for Later /
@@ -304,7 +304,7 @@ export default function PlanReviewScreen() {
         // the user asked for this plan's list and gets this plan's list.
         navigate: (id) =>
           router.push({ pathname: "/grocery-list/[id]", params: { id } }),
-        alert: (title, message) => Alert.alert(title, message),
+        alert: (title, message) => dialog.alert(title, message),
         // Row 9 (1.1) Stripe S2 Part E -- a 402 is NOT an alert (§2.6). The notice
         // stays on screen beside the plan; the paywall sheet is opened separately
         // by the fetch layer for every 402 in the app.
@@ -366,7 +366,7 @@ export default function PlanReviewScreen() {
         navigate: (listId) =>
           router.push({ pathname: "/grocery-list/[id]", params: { id: listId } }),
         confirm: (spec) =>
-          Alert.alert(spec.title, spec.body, [
+          dialog.alert(spec.title, spec.body, [
             { text: spec.cancelLabel, style: "cancel" },
             { text: spec.confirmLabel, onPress: spec.onConfirm },
           ]),
@@ -452,7 +452,7 @@ export default function PlanReviewScreen() {
   };
   const handleCompostThisPlan = () => {
     if (needsActiveCompostConfirm(reviewPlan?.isActiveThisWeek ?? false)) {
-      Alert.alert(
+      dialog.alert(
         "Compost plan",
         `This is your active plan for this week. Compost “${planName}”?`,
         [
@@ -1339,7 +1339,7 @@ export default function PlanReviewScreen() {
   //    the row from whichever cluster holds it. AppContext mutator
   //    is log-only; real persistence lands WS7. ──
   function handleCompostFromPlan(planItemId: string, title: string) {
-    Alert.alert(
+    dialog.alert(
       "Compost meal",
       `Compost ${title} from your plan? You can add it back later.`,
       [

@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Pressable,
   StyleSheet,
@@ -50,6 +49,7 @@ import {
   MEAL_DISABLED_SORT_KEYS,
   toMealSortKey,
 } from "@/lib/meals/sortMapping";
+import { dialog } from "@/lib/dialog";
 
 type SubTab = "meals" | "dishes";
 
@@ -193,7 +193,7 @@ export default function MealsTab() {
           if (!mealId) return;
           void addMealToPlan(plan.id, mealId)
             .then(() => {
-              Alert.alert(
+              dialog.alert(
                 "Added to plan",
                 `${mealTitle} was added to "${resolveDisplayTitle(plan)}".`,
               );
@@ -204,7 +204,7 @@ export default function MealsTab() {
                 mealId,
                 err,
               });
-              Alert.alert(
+              dialog.alert(
                 "Couldn't add to plan",
                 "Something went wrong. Please try again.",
               );

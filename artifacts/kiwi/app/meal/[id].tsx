@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   StyleSheet,
   Text,
@@ -59,6 +58,7 @@ import {
   shouldShowCanonicalSaveServings,
   shouldShowSaveServings,
 } from "@/lib/meals/servingsSaveGate";
+import { dialog } from "@/lib/dialog";
 
 const SERVINGS_MIN = 1;
 const SERVINGS_MAX = 12;
@@ -76,7 +76,7 @@ function HeartButton({ mealId }: { mealId: string }) {
     try {
       await toggleFavorite(mealId);
     } catch {
-      Alert.alert(
+      dialog.alert(
         "Couldn't update favorites",
         "Something went wrong. Please try again.",
       );
@@ -386,7 +386,7 @@ function MealDetailContent({
         // Roll the display back to the last saved value so the dirty signal
         // (and the Save button) reflect reality after a failed write.
         setDisplayServings(prev);
-        Alert.alert(
+        dialog.alert(
           "Couldn't update servings",
           "We couldn't save that change. Please try again.",
         );
@@ -426,7 +426,7 @@ function MealDetailContent({
     updateMeal(meal.id, { servingsDefault: next })
       .catch(() => {
         setDisplayServings(prev);
-        Alert.alert(
+        dialog.alert(
           "Couldn't update servings",
           "We couldn't save that change. Please try again.",
         );
@@ -480,7 +480,7 @@ function MealDetailContent({
     // query invalidation) shows the row gone — no local optimistic drop here
     // since this screen owns no plan list to filter.
     if (inPlanContext) {
-      Alert.alert(
+      dialog.alert(
         "Compost meal",
         `Compost ${resolveDisplayTitle(meal)} from your plan? You can add it back later.`,
         [
@@ -547,7 +547,7 @@ function MealDetailContent({
           });
           void addMealToPlan(plan.id, meal.id)
             .then(() => {
-              Alert.alert("Added to plan", `${resolveDisplayTitle(meal)} was added to "${resolveDisplayTitle(plan)}".`);
+              dialog.alert("Added to plan", `${resolveDisplayTitle(meal)} was added to "${resolveDisplayTitle(plan)}".`);
             })
             .catch((err) => {
               console.warn("[meal-detail] add-to-plan failed", {
@@ -555,7 +555,7 @@ function MealDetailContent({
                 mealId: meal.id,
                 err,
               });
-              Alert.alert(
+              dialog.alert(
                 "Couldn't add to plan",
                 "Something went wrong. Please try again.",
               );

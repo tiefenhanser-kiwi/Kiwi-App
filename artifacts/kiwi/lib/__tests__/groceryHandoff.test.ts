@@ -113,7 +113,7 @@ test("copy: unknown stays generic — it must not claim generation failed", () =
 
 // ── dispatchGenerateResult — the path Plan Review runs ──────────────────────
 // Plan Review's handleGroceryListPress is now a thin wrapper over this: it
-// supplies router.push and Alert.alert as the sinks. `app/` is outside the test
+// supplies router.push and dialog.alert as the sinks. `app/` is outside the test
 // glob, so this is where that screen's six outcomes actually get covered.
 
 function spy() {

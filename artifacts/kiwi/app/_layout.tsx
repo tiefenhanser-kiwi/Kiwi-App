@@ -25,6 +25,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 
 import { BootstrapFailedScreen } from "@/components/BootstrapFailedScreen";
+import { DialogHost } from "@/components/DialogHost";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/contexts/AppContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -244,6 +245,11 @@ export default function RootLayout() {
                             nothing while `sheet` is null, which is every state but
                             the three entry points. */}
                         <PaywallSheet />
+                        {/* WEB-1 Part A — the web host for lib/dialog.ts
+                            (react-native-web's Alert is an empty stub). LAST,
+                            so a dialog overlays the navigator and the paywall.
+                            Renders nothing on native. */}
+                        <DialogHost />
                       </ToastProvider>
                     </KeyboardProvider>
                   </GestureHandlerRootView>

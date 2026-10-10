@@ -7,8 +7,9 @@
 //   • "Order Online" on Plan Review keeps its label / icon / variant / slot
 //     and its onPress is the new handler; the handler's generate sink is the
 //     EXISTING handleGroceryListPress (one request path — lib/groceryHandoff).
-//   • The confirmation maps the spec onto Alert.alert with a cancel-styled
-//     "Not now" and "Create list" → onConfirm.
+//   • The confirmation maps the spec onto dialog.alert (WEB-1 — Alert.alert is
+//     a no-op on web) with a cancel-styled "Not now" and "Create list" →
+//     onConfirm.
 //   • The grocery screen mounts InstacartOrderPanel exactly ONCE, as the first
 //     child of the scroll (top of the page), guarded out of the completed
 //     state, and no longer in the bottom action area.
@@ -80,10 +81,10 @@ for (const [name, src, generateFlow] of [
     assert.doesNotMatch(body, /await |generateGroceryListForPlan\(/, "no request in the handler itself");
     // The generate sink IS the existing flow, called once, unchanged.
     assert.match(body, new RegExp(`generate: \\(\\) => void ${generateFlow}\\(\\)`));
-    // The confirmation → Alert.alert(title, body, [cancel-styled "Not now", "Create list" → onConfirm]).
+    // The confirmation → dialog.alert(title, body, [cancel-styled "Not now", "Create list" → onConfirm]).
     assert.match(
       body,
-      /Alert\.alert\(spec\.title, spec\.body, \[\s*\{ text: spec\.cancelLabel, style: "cancel" \},\s*\{ text: spec\.confirmLabel, onPress: spec\.onConfirm \},\s*\]\)/,
+      /dialog\.alert\(spec\.title, spec\.body, \[\s*\{ text: spec\.cancelLabel, style: "cancel" \},\s*\{ text: spec\.confirmLabel, onPress: spec\.onConfirm \},\s*\]\)/,
     );
     // Navigate sink → the list screen.
     assert.match(body, /pathname: "\/grocery-list\/\[id\]", params: \{ id: listId \}/);

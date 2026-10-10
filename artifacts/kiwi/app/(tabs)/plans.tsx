@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  Alert,
   Pressable,
   StyleSheet,
   Text,
@@ -31,6 +30,7 @@ import {
 } from "@/lib/plans/sortMapping";
 import { needsActiveCompostConfirm } from "@/lib/plans/planLifecycleActions";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { dialog } from "@/lib/dialog";
 
 export default function PlansTab() {
   const router = useRouter();
@@ -48,7 +48,7 @@ export default function PlansTab() {
     // Only the active-this-week plan gets a confirm (it names the plan); every
     // other compost relies on the Undo toast (friction priority, spec §8.3).
     if (needsActiveCompostConfirm(plan.isActiveThisWeek)) {
-      Alert.alert(
+      dialog.alert(
         "Compost plan",
         `This is your active plan for this week. Compost “${resolveDisplayTitle(plan)}”?`,
         [
