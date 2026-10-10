@@ -185,6 +185,33 @@ test("cancelable: false → the scrim does nothing; the dialog stays", () => {
   assert.ok(allText(r.toJSON() as Json).includes("Must choose"));
 });
 
+test("no cancel button + an action-bearing OK → the scrim does NOT skip it (native never does)", () => {
+  // BUG-385 — "Saved" / OK → router.back() is the only way forward; a scrim
+  // tap that closed it would strand the user on the form.
+  const r = mount();
+  const fired: string[] = [];
+  act(() => {
+    dialog.alert("Saved", "Your meal was updated.", [
+      { text: "OK", onPress: () => fired.push("ok") },
+    ]);
+  });
+  press(r.toJSON() as Json, "dialog-scrim");
+  assert.deepEqual(fired, []);
+  assert.ok(allText(r.toJSON() as Json).includes("Saved"), "still open");
+  press(r.toJSON() as Json, "dialog-button-0");
+  assert.deepEqual(fired, ["ok"]);
+  assert.equal(r.toJSON(), null);
+});
+
+test("a plain informational OK (no onPress) IS scrim-dismissible", () => {
+  const r = mount();
+  act(() => {
+    dialog.alert("Couldn't save", "Try again.");
+  });
+  press(r.toJSON() as Json, "dialog-scrim");
+  assert.equal(r.toJSON(), null);
+});
+
 test("a double dismissal closes ONE dialog, never the next in the queue", () => {
   const r = mount();
   act(() => {

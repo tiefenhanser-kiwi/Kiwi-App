@@ -45,6 +45,7 @@ import { fromServerDifficulty, parseMeal, toServerDifficulty } from "@/lib/api/b
 import { useDishes } from "@/hooks/useDishes";
 import { savedDishFromListItem } from "@/lib/dishes/savedDishFromListItem";
 import { resolvePostSaveNav } from "@/lib/builder/postSaveNav";
+import { createOnce } from "@/lib/builder/createOnce";
 import { completePlaylistSave } from "@/lib/builder/playlistAfterSave";
 import { BULK_SECTION_LABEL, BULK_SECTION_TITLE } from "@/lib/builder/bulkPlaylistIntake";
 import { PlaylistBulkIntake } from "@/components/PlaylistBulkIntake";
@@ -206,6 +207,12 @@ export default function MealBuilderScreen() {
   // is read stale on a same-tick second tap; the ref is set/reset synchronously
   // so a rapid double-tap can't fire a second create POST and dupe the meal.
   const savingRef = useRef(false);
+  // WEB-1 Part D (BUG-385) — one Save = one meal, one plan add. savingRef only
+  // covers the request in flight; this covers the screen's lifetime. A retry
+  // after a failed plan step reuses the created meal instead of making a
+  // second one, and once the flow has succeeded Save is inert (and disabled).
+  const [createLatch] = useState(createOnce);
+  const [saveDone, setSaveDone] = useState(false);
   // WS9 Redesign Arc Block 2c Part A — the bulk intake is running: the screen
   // cannot be dismissed without a confirm (header back, Android back, and the
   // iOS swipe is disabled via the Stack options below). Saved meals stay
@@ -906,10 +913,11 @@ export default function MealBuilderScreen() {
     }
 
     // ── CREATE branches (Surface 1) — WS7-6 Block 1E ────────────────────
+    if (createLatch.done) return;
     savingRef.current = true;
     setSaving(true);
     try {
-      const { id: newMealId } = await saveMeal(input);
+      const newMealId = await createLatch.meal(() => saveMeal(input));
       // WS7-6 G2 scope (i): one destination contract for every Add-Meal-
       // originated save (manual Mode B, combine Mode C, Mode A draft, and the
       // text/image/URL imports — all funnel through this CREATE branch). A
@@ -970,10 +978,15 @@ export default function MealBuilderScreen() {
         // below rather than import it.)
         try {
           await changeMealForPlanItem(nav.planId, nav.planItemId, newMealId);
+          // WEB-1 (BUG-385) — land on the plan FIRST, then confirm over it. The
+          // OK used to be the only way back, so a confirm that never showed
+          // (the web, before lib/dialog) left the user on the builder.
+          createLatch.finish();
+          setSaveDone(true);
+          applyNav();
           dialog.alert(
             "Saved and swapped in",
             `${input.title} is saved and now in your plan.`,
-            [{ text: "OK", onPress: applyNav }],
           );
         } catch (planErr) {
           const msg =
@@ -990,10 +1003,13 @@ export default function MealBuilderScreen() {
       } else if (nav.kind === "plan-back") {
         try {
           await addMealToPlan(nav.planId, newMealId);
+          // WEB-1 (BUG-385) — plan first, then the confirm (see plan-replace).
+          createLatch.finish();
+          setSaveDone(true);
+          applyNav();
           dialog.alert(
             "Saved and added to plan",
             `${input.title} is saved and on your plan.`,
-            [{ text: "OK", onPress: applyNav }],
           );
         } catch (planErr) {
           // Saved-but-plan-add-failed: STAY on screen per WS7-6 1E spec.
@@ -1024,7 +1040,12 @@ export default function MealBuilderScreen() {
               `${input.title} was saved to your meals, but adding it to the playlist failed:\n\n${msg}`,
             ),
         });
+        // completePlaylistSave navigates on success AND on a failed add.
+        createLatch.finish();
+        setSaveDone(true);
       } else {
+        createLatch.finish();
+        setSaveDone(true);
         dialog.alert(
           draftMeal ? "Recipe saved" : "Meal saved",
           draftMeal
@@ -1318,11 +1339,13 @@ export default function MealBuilderScreen() {
           )}
           <Button
             label={
-              saving
-                ? "Saving…"
-                : mealId && !sourceMeal && !mealDetailQuery.isError
-                  ? "Loading…"
-                  : "Save meal"
+              saveDone
+                ? "Saved"
+                : saving
+                  ? "Saving…"
+                  : mealId && !sourceMeal && !mealDetailQuery.isError
+                    ? "Loading…"
+                    : "Save meal"
             }
             variant="primary"
             // WS7-6 1G hydration guard: block save until GET /meals/:id has
@@ -1336,6 +1359,8 @@ export default function MealBuilderScreen() {
             // renders with invalid state grey the button out + block.
             disabled={
               saving ||
+              // WEB-1 (BUG-385) — a completed create is never re-run.
+              saveDone ||
               (mode === "manual"
                 ? saveAttempted && manualSaveInvalid
                 : saveAttempted && combineSaveInvalid) ||

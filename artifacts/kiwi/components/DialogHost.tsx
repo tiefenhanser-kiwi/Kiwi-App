@@ -11,7 +11,9 @@
 // sit side by side; one or three stack.
 //
 // Dismissal (cancelable !== false): scrim tap and Escape resolve to the cancel
-// button's onPress if there is one, else close. Enter → the last non-cancel
+// button's onPress if there is one, else close — except a dialog with no cancel
+// button whose OK carries an action, which only its button closes (see
+// dismissTarget in lib/dialog.ts). Enter → the last non-cancel
 // button. All three route through resolveDialog, which is id-keyed, so a key
 // press that reaches both the Modal and the document closes the dialog once.
 

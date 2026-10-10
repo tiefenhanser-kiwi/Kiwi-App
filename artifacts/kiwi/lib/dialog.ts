@@ -78,7 +78,16 @@ export function dismissTarget(req: DialogRequest): {
   button?: DialogButton;
 } {
   const cancel = req.buttons.find((b) => b.style === "cancel");
-  return { dismissible: req.options?.cancelable !== false, button: cancel };
+  // WEB-1 Part D — a dialog with no cancel button whose buttons carry an action
+  // ("OK" → back to the plan) is NOT dismissible: a scrim tap would skip the
+  // only way forward, which native never allows (iOS has no outside-tap on an
+  // alert; Android's default is cancelable: false). That skip is the stranded-
+  // on-the-builder half of BUG-385.
+  const actionOnly = !cancel && req.buttons.some((b) => !!b.onPress);
+  return {
+    dismissible: req.options?.cancelable !== false && !actionOnly,
+    button: cancel,
+  };
 }
 
 /** Enter → the LAST non-cancel button (the dialog's action). */
