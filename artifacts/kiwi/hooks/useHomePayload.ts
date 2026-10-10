@@ -41,9 +41,14 @@ import { getHomePayload, type HomePayload } from "@/lib/api/home";
 // short of a user concluding the app is broken. One line to overrule.
 const HOME_CLIENT_TIMEOUT_MS = 10_000;
 
-export function useHomePayload() {
+// WEB-1 Part F (BUG-383) — `staleTime` for a READER that is not Home. Plan
+// Review passes Infinity: it fetches only when the payload is absent (a cold web
+// entry or refresh on /plan/[id], where Home never ran) and never refetches a
+// warm cache. Home itself passes nothing and keeps the default tier.
+export function useHomePayload(opts?: { staleTime?: number }) {
   return useQuery<HomePayload>({
     queryKey: ["home", "payload"],
+    ...(opts?.staleTime !== undefined ? { staleTime: opts.staleTime } : {}),
     queryFn: async ({ signal }) => {
       // Chained to React Query's OWN signal, so a component unmount or a key
       // change still aborts — the timeout adds a ceiling, it does not replace

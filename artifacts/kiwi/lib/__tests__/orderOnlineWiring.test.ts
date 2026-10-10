@@ -105,10 +105,19 @@ test("Plan Review: the Order Online cell is gated on the server flag", () => {
     /const orderOnlineVisible = showOrderOnline\(/,
     "one gate, named",
   );
+  // WEB-1 (BUG-383) — SUBSCRIBED to the home payload, not a one-shot
+  // getQueryData: on a cold web entry the cache was empty and the cell never
+  // appeared. staleTime Infinity = fetch only when absent, never over a warm
+  // cache (native always has one).
   assert.match(
     plan,
-    /showOrderOnline\(\s*queryClient\.getQueryData<HomePayload>\(\["home", "payload"\]\),\s*\)/,
-    "read out of the cached home payload — no network on render",
+    /const homePayload = useHomePayload\(\{ staleTime: Infinity \}\);\s*const orderOnlineVisible = showOrderOnline\(homePayload\.data\);/,
+    "the gate reads a subscribed home payload, fetched only when absent",
+  );
+  assert.doesNotMatch(
+    plan,
+    /showOrderOnline\(\s*queryClient\.getQueryData/,
+    "no one-shot cache read for the gate (empty on a cold web entry)",
   );
   assert.match(
     plan,

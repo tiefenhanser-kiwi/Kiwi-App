@@ -30,6 +30,7 @@ import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens
 import { useApp } from "@/contexts/AppContext";
 import { useToast } from "@/contexts/ToastProvider";
 import { useCompostWithUndo } from "@/hooks/useCompostWithUndo";
+import { useHomePayload } from "@/hooks/useHomePayload";
 import { useMeal } from "@/hooks/useMeal";
 import { usePlan } from "@/hooks/usePlan";
 import { usePlanWrite } from "@/hooks/usePlanWrite";
@@ -344,13 +345,17 @@ export default function PlanReviewScreen() {
   // 409 → navigate still lands on the list. See lib/orderOnline.ts for why
   // that degradation is safe.
   // Store-prep lane (Hans, September 22) — the cell renders ONLY when the
-  // server says a retailer is wired. Read out of the SAME cached home payload
-  // the handler below already reads for activePlan; no network on render, and
-  // unknown/absent hides (the decision is showOrderOnline, tested — this file
-  // is app/** and outside the glob).
-  const orderOnlineVisible = showOrderOnline(
-    queryClient.getQueryData<HomePayload>(["home", "payload"]),
-  );
+  // server says a retailer is wired, read from the SAME home payload the
+  // handler below reads for activePlan; unknown/absent hides (the decision is
+  // showOrderOnline, tested — this file is app/** and outside the glob).
+  //
+  // WEB-1 (BUG-383) — SUBSCRIBED, not getQueryData. The one-shot cache read was
+  // empty on a cold web entry or refresh of /plan/[id] (Home never ran), so the
+  // cell never appeared on the web. staleTime Infinity: GET /home fires only
+  // when the payload is absent, never over a warm cache — native, which always
+  // passes Home first, makes no new request.
+  const homePayload = useHomePayload({ staleTime: Infinity });
+  const orderOnlineVisible = showOrderOnline(homePayload.data);
 
   const handleOrderOnlinePress = () => {
     if (isGeneratingList) return;
