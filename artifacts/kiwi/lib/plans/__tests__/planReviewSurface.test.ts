@@ -121,7 +121,7 @@ test("matrix: every state is covered — a new state cannot skip the table", () 
 
 test("GUARD (D-WS9-159): a composted plan exposes NO mutation surface", () => {
   const s = planReviewSurface("composted");
-  // Rows: readOnly hides Cook Now + Edit + both Swaps + Remove from plan, and
+  // Rows: readOnly hides Cook Now + Edit + both Swaps + Compost, and
   // neutralises the 7 day pills.
   assert.equal(
     s.rowsReadOnly,

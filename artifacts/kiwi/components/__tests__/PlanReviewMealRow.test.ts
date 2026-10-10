@@ -4,7 +4,8 @@
 //   Edit → /meal-builder in plan context (BUG-180; 3f repoints to D-WS9-004)
 //   Swap for Different Meal → onChangeMeal (3d repoints to the merged swap sheet)
 //   Swap for Similar Meal   → onFindSimilar (3d repoints to the merged swap sheet)
-//   Remove from plan        → onCompost (still a soft-delete)
+//   Compost                 → onCompost (still a soft-delete; "Remove from plan"
+//                             until WEB-1 / BUG-384 put the word back)
 // Change Recipe is GONE (R-3d-2). The suite is logic-only, so this render test
 // is the guard against a wrong action wire — a live regression on Plan Review.
 
@@ -148,13 +149,13 @@ test("PlanReviewMealRow: renders exactly the 4 R2 actions, and Change Recipe is 
     "Edit",
     "Swap for Different Meal",
     "Swap for Similar Meal",
-    "Remove from plan",
+    "Compost",
   ]) {
     assert.ok(texts.includes(label), `expected action "${label}" to render`);
   }
 
   // The retired 5-action labels must not survive Layer 2.
-  for (const gone of ["View", "Change Meal", "Change Recipe", "Find Similar", "Compost"]) {
+  for (const gone of ["View", "Change Meal", "Change Recipe", "Find Similar", "Remove from plan"]) {
     assert.ok(!texts.includes(gone), `retired action "${gone}" should be gone`);
   }
   renderer.unmount();
@@ -231,10 +232,10 @@ test("PlanReviewMealRow: Swap for Similar Meal fires onFindSimilar with title", 
   renderer.unmount();
 });
 
-test("PlanReviewMealRow: Remove from plan fires onCompost (soft-delete)", async () => {
+test("PlanReviewMealRow: Compost fires onCompost (soft-delete)", async () => {
   const { renderer, calls, tree } = await render();
-  const btn = findPressableByText(tree, "Remove from plan");
-  assert.ok(btn, "Remove from plan action not found");
+  const btn = findPressableByText(tree, "Compost");
+  assert.ok(btn, "Compost action not found");
   await act(async () => {
     (btn!.props!.onPress as () => void)();
   });
@@ -299,7 +300,7 @@ test("PlanReviewMealRow inert: no edit affordance renders at all", async () => {
     "Edit",
     "Swap for Different Meal",
     "Swap for Similar Meal",
-    "Remove from plan",
+    "Compost",
   ]) {
     assert.ok(!texts.includes(gone), `a composted row must not offer "${gone}"`);
   }
@@ -580,9 +581,9 @@ test("item 15: Remove is danger-coloured text with a trash icon, and NO terracot
   // The literal is deliberate: an assertion against Palette.text.danger would
   // pass if the token were repointed at the card colour.
   const label = collectText(remove).join(" ");
-  assert.ok(label.includes("Remove from plan"), `label changed: ${label}`);
+  assert.ok(label.includes("Compost"), `label changed: ${label}`);
 
-  const textNode = findPressableByText(remove, "Remove from plan");
+  const textNode = findPressableByText(remove, "Compost");
   assert.ok(textNode, "Remove text node missing");
   const anyDanger = (node: RenderedNode | string | null): boolean => {
     if (node == null || typeof node === "string") return false;
@@ -613,11 +614,11 @@ test("item 15: Remove still fires onCompost, and announces WHICH meal", async ()
   const { renderer, tree, calls } = await render();
   const remove = findByTestId(tree, "plan-row-remove")!;
 
-  // Four identical "Remove from plan" buttons down the screen are useless to a
-  // screen reader; the label names the meal.
+  // Four identical "Compost" buttons down the screen are useless to a screen
+  // reader; the label names the meal.
   assert.equal(
     (remove.props as { accessibilityLabel?: unknown }).accessibilityLabel,
-    `Remove ${ROW.title} from plan`,
+    `Compost ${ROW.title}`,
   );
   assert.equal((remove.props as { accessibilityRole?: unknown }).accessibilityRole, "button");
 
@@ -638,4 +639,22 @@ test("item 15: the OTHER three actions are untouched — only Remove's treatment
     assert.equal(style.borderWidth, 1, `"${label}" must still be an outline pill`);
   }
   renderer.unmount();
+});
+
+// ── WEB-1 (BUG-384) — the confirm reads like the plan-level compost ─────────
+// app/** is outside the test glob, so the confirm in Plan Review's
+// handleCompostFromPlan is pinned at source level (orderOnlineWiring
+// precedent). It now SHOWS on web too (lib/dialog.ts).
+test("BUG-384: Plan Review's per-meal confirm — 'Compost this meal?', Cancel / destructive Compost", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { fileURLToPath } = await import("node:url");
+  const { dirname, resolve } = await import("node:path");
+  const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+  const plan = readFileSync(resolve(root, "app/plan/[id].tsx"), "utf8");
+  const fn = plan.match(/function handleCompostFromPlan\([\s\S]*?\n  \}/);
+  assert.ok(fn, "handleCompostFromPlan present");
+  assert.match(
+    fn![0],
+    /dialog\.alert\(\s*"Compost this meal\?",\s*`\$\{title\} leaves this plan\. You can add it back later\.`,\s*\[\s*\{ text: "Cancel", style: "cancel" \},\s*\{\s*text: "Compost",\s*style: "destructive",/,
+  );
 });

@@ -290,7 +290,9 @@ export function PlanReviewMealRow({
 
       {/* Action buttons — R2 shape: 4 actions + card-body View (D-WS9-018).
           Change Recipe removed (R-3d-2); Compost relabeled "Remove from plan"
-          (R-3d-3, still a soft-delete via onCompost). The prop interface is
+          (R-3d-3, still a soft-delete via onCompost), and back to "Compost" by
+          WEB-1 (BUG-384 — Hans: "it should say "compost" instead of "remove
+          from plan" and I think that will be clear enough"). The prop interface is
           unchanged — swap targets are repointed by 3d, the Edit target by 3f
           (see handoff TODOs). No 5-action rows survive Layer 2 (§3).
           WS9 3c (D-WS9-032) — hidden entirely on a draft: these are all edits,
@@ -404,14 +406,14 @@ export function PlanReviewMealRow({
           hitSlop={10}
           accessibilityRole="button"
           // The TITLE is in the label because a screen reader moving down the
-          // screen hears four identical "Remove from plan" buttons otherwise, one
-          // per meal, with nothing to say which meal each belongs to.
-          accessibilityLabel={`Remove ${row.title} from plan`}
+          // screen hears four identical "Compost" buttons otherwise, one per
+          // meal, with nothing to say which meal each belongs to.
+          accessibilityLabel={`Compost ${row.title}`}
           style={({ pressed }) => [styles.removeAction, pressed && { opacity: 0.6 }]}
           testID="plan-row-remove"
         >
           <Feather name="trash-2" size={13} color={Palette.text.danger} />
-          <Text style={styles.removeText}>Remove from plan</Text>
+          <Text style={styles.removeText}>Compost</Text>
         </Pressable>
       </View>
       )}

@@ -1340,9 +1340,10 @@ export default function PlanReviewScreen() {
   //    the row from whichever cluster holds it. AppContext mutator
   //    is log-only; real persistence lands WS7. ──
   function handleCompostFromPlan(planItemId: string, title: string) {
+    // WEB-1 (BUG-384) — reads like the plan-level compost confirm.
     dialog.alert(
-      "Compost meal",
-      `Compost ${title} from your plan? You can add it back later.`,
+      "Compost this meal?",
+      `${title} leaves this plan. You can add it back later.`,
       [
         { text: "Cancel", style: "cancel" },
         {
