@@ -34,9 +34,12 @@ import {
   type AppleWebResult,
   type AppleWebSuccessDetail,
 } from "@/lib/oauth/appleWeb";
+import { WEB_SOCIAL_BUTTON } from "@/lib/oauth/webButtonSize";
 import { Radius } from "@/constants/tokens";
 
-const HEIGHT = 48;
+// WEB-1 (BUG-364) — was 48; now Google's fixed 40 so the pair match. Width is
+// the shared box in SocialSignInBlock (≤ 375, Apple's ceiling).
+const HEIGHT = WEB_SOCIAL_BUTTON.height;
 
 export interface AppleWebButtonProps {
   onResult: (result: AppleWebResult) => void;

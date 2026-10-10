@@ -51,6 +51,7 @@ import {
   subscribeHiddenProviders,
 } from "@/lib/oauth/unavailable";
 import type { OAuthAuthResponse } from "@/lib/oauth/api";
+import { WEB_SOCIAL_BUTTON } from "@/lib/oauth/webButtonSize";
 import type { AppleWebResult } from "@/lib/oauth/appleWeb";
 import type { AppleCredential, OAuthConsentFields, OAuthMode } from "@/lib/oauth/request";
 import { Colors, Radius, Spacing, Typography } from "@/constants/tokens";
@@ -230,35 +231,47 @@ export function SocialSignInBlock({
 
   const held = !!busy || !!disabled;
 
-  return (
-    <View style={s.wrap} testID="social-sign-in">
-      {buttons.apple ? (
-        PLATFORM === "web" ? (
+  // WEB-1 (BUG-364, the web half) — on web the two provider-drawn buttons share
+  // ONE centred box (lib/oauth/webButtonSize.ts), so they come out the same
+  // width and height, stacked, in the email form's column. Native renders
+  // exactly as before: Hans ruled native post-launch.
+  const providerButtonNodes =
+    PLATFORM === "web" ? (
+      <View style={s.webButtons} testID="social-web-buttons">
+        {buttons.apple ? (
           <AppleWebButton
             onResult={onAppleWebResult}
             onFailure={onAppleWebFailure}
             disabled={held}
           />
-        ) : (
+        ) : null}
+        {buttons.google ? (
+          <GoogleWebButton
+            onCredential={onGoogleWebCredential}
+            onFailure={onGoogleWebFailure}
+            disabled={held}
+          />
+        ) : null}
+      </View>
+    ) : (
+      <>
+        {buttons.apple ? (
           <AppleContinueButton
             mode={mode}
             onPress={onApple}
             disabled={held}
             busy={busy === "apple"}
           />
-        )
-      ) : null}
-      {buttons.google ? (
-        PLATFORM === "web" ? (
-          <GoogleWebButton
-            onCredential={onGoogleWebCredential}
-            onFailure={onGoogleWebFailure}
-            disabled={held}
-          />
-        ) : (
+        ) : null}
+        {buttons.google ? (
           <GoogleContinueButton onPress={onGoogle} disabled={held} busy={busy === "google"} />
-        )
-      ) : null}
+        ) : null}
+      </>
+    );
+
+  return (
+    <View style={s.wrap} testID="social-sign-in">
+      {providerButtonNodes}
       {busy ? (
         <View style={s.busy}>
           <ActivityIndicator color={Colors.sage[700]} />
@@ -286,6 +299,14 @@ function OrDivider() {
 
 const s = StyleSheet.create({
   wrap: { gap: Spacing[3] },
+  // Web only. width 100% up to the cap, centred in the form column; each
+  // provider host stretches to it, so both draw at the same width.
+  webButtons: {
+    width: "100%",
+    maxWidth: WEB_SOCIAL_BUTTON.maxWidth,
+    alignSelf: "center",
+    gap: Spacing[3],
+  },
   busy: { alignItems: "center" },
   error: {
     color: Colors.terracotta[700],

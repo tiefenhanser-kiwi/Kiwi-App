@@ -14,9 +14,12 @@ import React from "react";
 import { StyleSheet, View, type LayoutChangeEvent } from "react-native";
 
 import { initGoogleWeb, renderGoogleWebButton } from "@/lib/oauth/googleWeb";
+import { WEB_SOCIAL_BUTTON } from "@/lib/oauth/webButtonSize";
 import { Radius } from "@/constants/tokens";
 
-const HEIGHT = 48;
+// WEB-1 (BUG-364) — was 48 around GIS's 40 px "large" button, so the host stood
+// taller than the button and taller than Apple's. Now the button's own height.
+const HEIGHT = WEB_SOCIAL_BUTTON.height;
 /** GIS clamps to [200, 400]; this is the width before a layout pass lands. */
 const FALLBACK_WIDTH = 320;
 
