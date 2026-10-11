@@ -171,6 +171,25 @@ export function judgeProducePortion(
  * the verbs rule 12 already extracts, or one in its own note. "Brown the Italian
  * sausage" is cooking: there is nothing to do to the sausage before the pan.
  */
+/**
+ * BUG-359 / D-WS9-299 — the same work less "pat dry". Patting a package of chops dry
+ * is setting it out, not prep ("Portion the pork chops — Set out 4 bone-in pork
+ * chops"); it still keeps a protein that joins a marinade, which is the caller's test.
+ */
+const PROTEIN_CUT_WORK =
+  /\b(trim(?:med|ming)?|pound(?:ed|ing)?|cub(?:e|ed|ing)|butterfl(?:y|ied)|skin(?:ned)?|skin removed|cut|slic(?:e|ed)|portion(?:ed)?|halv(?:e|ed)|tenderiz(?:e|ed)|score[ds]?|deboned?)\b/i;
+
+export function proteinNeedsKnife(
+  knifeVerbs: readonly string[],
+  notes: readonly string[],
+  prose: readonly string[] = [],
+  ingredientName = "",
+): boolean {
+  if (knifeVerbs.length > 0) return true;
+  if (notes.some((n) => PROTEIN_CUT_WORK.test(n))) return true;
+  return ingredientName !== "" && proseAsksFor(prose, ingredientName, PROTEIN_CUT_WORK);
+}
+
 export function judgeProteinWork(
   knifeVerbs: readonly string[],
   notes: readonly string[],

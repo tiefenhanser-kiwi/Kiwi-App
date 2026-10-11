@@ -129,8 +129,11 @@ const HERBS =
 const CITRUS = /\b(lime|lemon|orange|grapefruit)s?\b/i;
 const BATCH =
   /\b(asparagus|potatoes?|tomatillos?|broccoli|cauliflower|green beans?|brussels sprouts?|squash|sweet potatoes?)\b/i;
+// BUG-359 — tofu, tempeh, seitan and paneer are cut like meat, by weight: A09's
+// "28 oz extra-firm tofu, pressed and cut into 1-inch cubes" was charged as one
+// 1-minute measure because the block proteins fell through to the measure row.
 const MEAT =
-  /\b(chicken|turkey|beef|pork|lamb|veal|steak|chuck|brisket|tenderloin|roast|salmon|cod|halibut|tilapia|tuna|snapper|trout|shrimp|prawns?|scallops?|fish|fillets?|breasts?|thighs?|drumsticks?|cutlets?|chops?)\b/i;
+  /\b(chicken|turkey|beef|pork|lamb|veal|steak|chuck|brisket|tenderloin|roast|salmon|cod|halibut|tilapia|tuna|snapper|trout|shrimp|prawns?|scallops?|fish|fillets?|breasts?|thighs?|drumsticks?|cutlets?|chops?|tofu|tempeh|seitan|paneer)\b/i;
 
 /** Part J.1c — rule 12 verb (prepComponents PROTEIN_VERBS) → its rate per lb. */
 const VERB_RATE: Record<string, number> = {

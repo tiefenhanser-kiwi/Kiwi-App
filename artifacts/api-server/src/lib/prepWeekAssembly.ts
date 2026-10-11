@@ -36,6 +36,7 @@ import {
   isWetA,
   judgeProducePortion,
   judgeProteinWork,
+  proteinNeedsKnife,
   type PrepClass,
 } from "./prepClasses";
 import { timeStep, planMinutes, wholeFruitCount, type SourceYieldLike } from "./prepStepMinutes";
@@ -1036,7 +1037,11 @@ export function buildStepPlan(
       if (p.mk !== null && p.mk.startsWith("s:")) continue;
       const notes = p.notes.join(" ");
       if (/\bwedges?\b/i.test(notes)) continue;
-      if (!isServedSeparately(p.dishName) && !TOPPING_NOTE.test(notes)) continue;
+      if (
+        !isServedSeparately(p.dishName) &&
+        !TOPPING_NOTE.test(notes) &&
+        !servedOnTop(stepTextByDishId.get(p.dishId) ?? [], p.entry.ingredientName)
+      ) continue;
       const l = byDish.get(p.dishId) ?? [];
       l.push(p);
       byDish.set(p.dishId, l);
@@ -1598,6 +1603,14 @@ export function buildStepPlan(
           judgeProteinWork(knifeVerbs, notes, prose, c.ingredientName),
         );
         if (!worked) planned.demoted = { reason: "heat-or-no-knife-work" };
+        // BUG-359 / D-WS9-299 — patted dry and nothing else, with no marinade to
+        // meet: the pork chops come four to a package and go to the pan as they are.
+        else if (
+          !planned.marinadeJoin &&
+          !planned.components.some((c) => proteinNeedsKnife(knifeVerbs, notes, prose, c.ingredientName))
+        ) {
+          planned.demoted = { reason: "heat-or-no-knife-work" };
+        }
       }
       steps.push(planned);
     };
@@ -2056,6 +2069,30 @@ const LEAFY = /\b(lettuce|romaine|iceberg|spinach|arugula|kale|mesclun|greens|ra
 const CITRUS = /\b(limes?|lemons?|oranges?|grapefruits?)\b/i;
 /** Part J.1 (R2) — a portion the dish serves on top, by its own note. */
 const TOPPING_NOTE = /\b(garnish\w*|toppings?|to serve|for serving|to top|on top|sprinkl\w+ over)\b/i;
+
+/**
+ * BUG-359 (D-WS9-301 R2) — the dish's own serve-time step tops it with this food:
+ * "Fill each warm shell with seasoned beef, then top with shredded lettuce, diced
+ * tomato…". The taco lettuce and tomatoes carry no topping note, so they rode the
+ * seasoning's heated component into "<dish> vegetables". A sentence with heat in it,
+ * or any heat after it, is not serve time (pizza toppings go into the oven).
+ */
+function servedOnTop(texts: readonly string[], ingredientName: string): boolean {
+  const words = ingredientName.toLowerCase().replace(/\([^)]*\)/g, " ").match(/\p{L}+/gu) ?? [];
+  const head = words.at(-1);
+  if (!head || head.length < 3) return false;
+  const stem = head.endsWith("oes") ? head.slice(0, -2) : head.endsWith("s") && !head.endsWith("ss") ? head.slice(0, -1) : head;
+  const food = new RegExp(`(?<!\\p{L})${stem}`, "iu");
+  for (let i = 0; i < texts.length; i++) {
+    if (texts.slice(i + 1).some((t) => HEAT_TEXT.test(t))) continue;
+    for (const sentence of texts[i].split(/(?<=[.;])\s+/)) {
+      if (HEAT_TEXT.test(sentence)) continue;
+      const m = /\b(?:tops?|topped|garnish(?:es|ed)?)\s+(?:[\w-]+\s+){0,3}?with\b/i.exec(sentence);
+      if (m && food.test(sentence.slice(m.index + m[0].length))) return true;
+    }
+  }
+  return false;
+}
 /** Part J.1 (R2) — dry pasta is a no-work item: it goes from the box to the pot. */
 const DRY_PASTA = /\b(spaghetti|linguine|fettuccine|penne|rigatoni|macaroni|elbows?|fusilli|farfalle|orzo|lasagna|egg noodles|pasta|noodles)\b/i;
 /** Whole dried chiles — not chili POWDER, not FLAKES (Pantry rows on their own names). */

@@ -118,7 +118,8 @@ describe("J.1c BUG-355 — Hans's device pass", () => {
     const b = buildPrepWeekPlan(load(soup()));
     const r = wire(b, (food, total) => (/celery/.test(food) ? `Slice ${total} into ½-inch pieces.` : `Peel ${total} and slice them into ½-inch coins.`));
     const celery = live(r).find((s) => s.instructions.includes("celery"))!;
-    assert.equal(celery.instructions, "Slice 3 celery stalks into ½-inch pieces for the Slow-Cooker Chicken vegetables container.");
+    // BUG-359 — the lid keeps every word of its dish ("…Chicken vegetables" before).
+    assert.equal(celery.instructions, "Slice 3 celery stalks into ½-inch pieces for the Slow-Cooker Chicken and Dumplings vegetables container.");
     const carrots = live(r).find((s) => s.instructions.includes("carrot"))!;
     assert.equal(carrots.instructions.split("\n").length, 1, carrots.instructions);
   });

@@ -316,6 +316,37 @@ export function useNounFor(phases: (string | null)[]): string {
   return "prep container";
 }
 
+/**
+ * BUG-359 — a lid keeps every word of its dish. "Taco Bell–Style Seasoned Ground
+ * Beef" became "Taco Bell–Style Seasoned Ground spice blend" under the 32-character
+ * cap, which predates BUG-354's whole-word fit at the wire budget
+ * (prepWeekAssembly.fitDishName) and now only ever cuts a name that fits. The
+ * "with …" clause and parentheticals still go; length is the fit's business.
+ */
+function lidDishName(title: string): string {
+  return (title ?? "").split(/\s+with\s+/i)[0].replace(/\([^)]*\)/g, "").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * BUG-359 — the use joins the dish without saying a word twice: "Velvety Nacho
+ * Cheese Sauce" + "sauce jar" is the "Velvety Nacho Cheese Sauce jar", never the
+ * "…Sauce sauce jar". A one-word use ("vegetables") is never folded away, so the lid
+ * still says what it is.
+ */
+export function joinUse(dish: string, use: string): string {
+  const d = dish.split(/\s+/);
+  const u = use.split(/\s+/);
+  if (u.length > 1) {
+    for (let k = Math.min(u.length, d.length); k >= 1; k--) {
+      if (norm(d.slice(-k).join(" ")) === norm(u.slice(0, k).join(" "))) {
+        const rest = u.slice(k).join(" ");
+        return rest === "" ? dish : `${dish} ${rest}`;
+      }
+    }
+  }
+  return `${dish} ${use}`;
+}
+
 export function bowlNameFor(
   dishTitle: string,
   mealName: string | null,
@@ -333,16 +364,16 @@ export function bowlNameFor(
    */
   fallbackUse: string | null = null,
 ): string {
-  const dish = shortDishName(
+  const dish = lidDishName(
     mealName && norm(mealName) === norm(dishTitle) ? mealName : dishTitle,
   );
-  if (lostBase) return `${dish} mix-ins bowl`;
+  if (lostBase) return joinUse(dish, "mix-ins bowl");
   if (noun === null) {
-    if (looksLikeSeasoning) return `${dish} seasoning bowl`;
+    if (looksLikeSeasoning) return joinUse(dish, "seasoning bowl");
     // Rule 8 — a use, never an ordinal. `ordinal` is kept in the signature
     // because a caller that genuinely has nothing to say still needs a unique
     // name, but no production path reaches it any more.
-    if (fallbackUse) return `${dish} ${fallbackUse}`;
+    if (fallbackUse) return joinUse(dish, fallbackUse);
     return `${dish} bowl ${ordinal}`;
   }
   const vessel = JAR_NOUNS.has(noun) ? "jar" : "bowl";

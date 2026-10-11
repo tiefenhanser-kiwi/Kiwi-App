@@ -298,7 +298,11 @@ const LIST_MAX = 20;
 function heldLinesFor(
   plan: StepPlan,
   holds: ReadonlyMap<string, StepHold>,
-  cookDays: { lagByMealId: ReadonlyMap<string, number>; dayNameByMealId: ReadonlyMap<string, string> },
+  cookDays: {
+    lagByMealId: ReadonlyMap<string, number>;
+    dayNameByMealId: ReadonlyMap<string, string>;
+    pastMealIds?: ReadonlySet<string>;
+  },
   mealNameById: ReadonlyMap<string, string>,
 ): string[] {
   type Item = { food: string; action: string; dest?: string };
@@ -352,7 +356,10 @@ function heldLinesFor(
     const lag = cookDays.lagByMealId.get(mealId);
     const day = cookDays.dayNameByMealId.get(mealId);
     const ago = lag === 0 ? "today" : `${lag} ${lag === 1 ? "day" : "days"} out`;
-    const when = lag === undefined ? (day ? ` (${day})` : "") : ` (${day ? `${day}, ` : ""}${ago})`;
+    // BUG-359 — a day already gone is named, never called "today".
+    const past = cookDays.pastMealIds?.has(mealId) ?? false;
+    const when =
+      lag === undefined || past ? (day ? ` (${day})` : "") : ` (${day ? `${day}, ` : ""}${ago})`;
     const head = `${mealNameById.get(mealId) ?? "A planned meal"}${when} — `;
     const marinadeClauses = marinade.get(mealId) ?? [];
     // A protein that joins its marinade the night before (or hours before) is handled

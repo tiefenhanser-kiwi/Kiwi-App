@@ -90,7 +90,9 @@ const FINGERPRINT_ALGO_VERSION = 1;
  *       not recomputed on read, so a name change needs the bump, not just the code.
  *   7 — SRV-1 (BUG-358): a container holds one mixture for one moment — a
  *       component's members split by the step they enter at, a food's name in
- *       prose ("soy sauce") no longer makes a mixture noun.
+ *       prose ("soy sauce") no longer makes a mixture noun. BUG-359 rides the same
+ *       bump (nothing cached v7 in between): lids keep every word of their dish and
+ *       never double the container word, a dish's own toppings go on its plate.
  */
 export const PREP_ENGINE_VERSION = 7;
 

@@ -162,6 +162,12 @@ export interface PrepCookDays {
   lagByMealId: Map<string, number>;
   /** mealId → the assigned day name, for copy that says "Friday" rather than "in 5 days". */
   dayNameByMealId: Map<string, string>;
+  /**
+   * BUG-359 — meals whose cook day was already gone at prep time. Their lag clamps to
+   * 0 (below), and 0 alone reads "today": "(Saturday, today)" on a Sunday. Optional so
+   * a hand-built `cookDays` in a test needs no change.
+   */
+  pastMealIds?: Set<string>;
 }
 
 export interface PrepLoadedPlan {
@@ -709,6 +715,7 @@ export async function loadPrepWeekInput(
   }
 
   const lagByMealId = new Map<string, number>();
+  const pastMealIds = new Set<string>();
   if (plan.startDate && startIso && prepDay) {
     const startDow = plan.startDate.getUTCDay();
     const startMs = Date.parse(`${startIso}T00:00:00Z`);
@@ -721,7 +728,9 @@ export async function loadPrepWeekInput(
       // cook can act is now, and a negative lag would read as "keep" by accident
       // rather than on purpose. (A plan whose day has passed is its own question
       // and no device item asks it — this clamp is deliberate, not a guess.)
-      lagByMealId.set(mealId, Math.max(0, Math.round((cookMs - prepMs) / DAY_MS)));
+      const lag = Math.round((cookMs - prepMs) / DAY_MS);
+      lagByMealId.set(mealId, Math.max(0, lag));
+      if (lag < 0) pastMealIds.add(mealId);
     }
   }
 
@@ -732,7 +741,7 @@ export async function loadPrepWeekInput(
       meals,
     },
     planRevisionId: plan.revisionId,
-    cookDays: { prepDay, lagByMealId, dayNameByMealId },
+    cookDays: { prepDay, lagByMealId, dayNameByMealId, pastMealIds },
     identity: { foldedIdByIngredientId },
   };
 }
