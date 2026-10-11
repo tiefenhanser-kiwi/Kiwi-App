@@ -595,6 +595,27 @@ function tenWith(fresh: number): ShelfMeal[] {
   return Array.from({ length: 10 }, (_, i) => meal(`t${i}`, { isNewToYou: i < fresh }));
 }
 
+// WEB-2 Part A (BUG-373) — measured, not reproduced. The picks are this
+// screen's state and nothing else: `PickState.meals` holds the whole card
+// (imageUrl included) and `pickedIds` points into it, so a cold mount — the
+// shelf param is its only input — starts with NO picks, and there is no
+// ids-only copy for an image to go missing from. What COULD strip a picked
+// card's image is a later round that re-sends the same meal without one and
+// replaces the row; appendPage keeps the row already shown.
+test("BUG-373: a fresh mount has no picks, and a round re-sending a picked meal without its image keeps the image", async () => {
+  const URL = "https://img.example/n1.jpg";
+  const m = await mount({ shelf: shelf([{ ...NEW_MEAL, imageUrl: URL }, PLAYLIST_MEAL], 40) });
+  assert.ok(m.text().includes("0 picked · 5-day plan"), "a cold mount carries no picks");
+  await tap(byLabel(m.root(), "Miso Salmon"), "card n1");
+  moreResponse = () => shelf([{ ...NEW_MEAL, imageUrl: undefined }, meal("x1")], 40, true);
+  await tap(byLabel(m.root(), MORE_LABEL), "Get more options");
+  assert.ok(m.text().includes("1 picked · 5-day plan"), m.text());
+  const card = byTestId(m.root(), `meal-pick-card-${NEW_MEAL.id}`)!;
+  const imgs = walk(card).filter((n) => n.type === "expo-image");
+  assert.equal(imgs.length, 1, "the picked card still mounts its photo");
+  assert.deepEqual(imgs[0].props.source, { uri: URL });
+});
+
 test("new-to-you: 6 of 10 cards new → NO pills; 3 of 10 → three pills", async () => {
   const six = await mount({ shelf: shelf(tenWith(6), 40) });
   assert.equal(countNewPills(six.root()), 0);
