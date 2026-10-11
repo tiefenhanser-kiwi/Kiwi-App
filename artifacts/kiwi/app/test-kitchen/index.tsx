@@ -241,13 +241,9 @@ function TestKitchenEntry() {
             {/* WEB-1 (BUG-379) — the Header above already carries TK_TITLE and
                 TK_SUBTITLE; on web this state stays up (the Turnstile gate
                 renders here), so the card's copy read as the title twice.
-                Native unchanged by ruling. */}
-            {Platform.OS !== "web" && (
-              <>
-                <Text style={s.cardTitle}>{TK_TITLE}</Text>
-                <Text style={s.cardBody}>{TK_SUBTITLE}</Text>
-              </>
-            )}
+                WEB-2 Part G (BUG-388) — native too: the same card sat behind
+                the loader for a beat with the title repeated. The card carries
+                no title on any platform. */}
             {/* BUG-361 — with a pre-warmed token the start is already in
                 flight: no gate, just the loader. */}
             {gated && prewarmedToken === null ? (

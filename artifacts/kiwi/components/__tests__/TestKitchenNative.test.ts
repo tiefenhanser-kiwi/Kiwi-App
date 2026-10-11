@@ -184,9 +184,17 @@ test("BUG-379: on web the Test Kitchen entry shows its title ONCE", async () => 
   }
 });
 
-test("BUG-379: native unchanged — Header and card both carry the title", async () => {
-  const r = await mount(TestKitchenRoute);
-  assert.equal(titleCount(r), 2);
+// WEB-2 Part G (BUG-388) — the same gate on native: the Header carries it.
+test("BUG-388: on native the Test Kitchen entry shows its title ONCE", async () => {
+  for (const os of ["ios", "android"]) {
+    platform.OS = os;
+    try {
+      const r = await mount(TestKitchenRoute);
+      assert.equal(titleCount(r), 1, os);
+    } finally {
+      platform.OS = "ios";
+    }
+  }
 });
 
 test("/test-kitchen/options renders its screen on iOS", async () => {
