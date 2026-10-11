@@ -69,6 +69,7 @@ import { CUISINES_TIER_1, CUISINES_TIER_2 } from "@/lib/domain";
 import { formatMacroLine } from "@/lib/format/macros";
 import { isQuantityInvalid } from "@/lib/quantity";
 import {
+  buildCreateRetryUpdate,
   buildManualSaveMealInput,
   buildRecipeOverride,
   buildStepEditMealInput,
@@ -917,7 +918,12 @@ export default function MealBuilderScreen() {
     savingRef.current = true;
     setSaving(true);
     try {
-      const newMealId = await createLatch.meal(() => saveMeal(input));
+      // WEB-2 Part D (BUG-387) — a retry after a failed plan step reuses the
+      // saved meal; if the form changed since, the meal is PATCHed to it first.
+      const newMealId = await createLatch.meal(() => saveMeal(input), {
+        key: JSON.stringify(input),
+        update: (id) => updateMeal(id, buildCreateRetryUpdate(input)),
+      });
       // WS7-6 G2 scope (i): one destination contract for every Add-Meal-
       // originated save (manual Mode B, combine Mode C, Mode A draft, and the
       // text/image/URL imports — all funnel through this CREATE branch). A

@@ -548,6 +548,20 @@ export function buildUpdateMealInput(input: SaveMealInput): UpdateMealInput {
   };
 }
 
+// WEB-2 Part D (BUG-387) — the PATCH a create-retry sends when the form changed
+// after the meal was saved (lib/builder/createOnce.ts). The edit PATCH above,
+// plus servingsDefault: BUG-002 drops it because edit mode never authors
+// servings, but this IS the create form — its stepper and its amounts were
+// authored together, exactly as the POST it amends. Tags ride too (BUG-288:
+// the draft's tags, which the create carried).
+export function buildCreateRetryUpdate(input: SaveMealInput): UpdateMealInput {
+  return {
+    ...buildUpdateMealInput(input),
+    ...(input.servingsDefault !== undefined ? { servingsDefault: input.servingsDefault } : {}),
+    ...(input.tags?.length ? { tags: input.tags } : {}),
+  };
+}
+
 // ── Per-instance recipe override builder ────────────────────────────────
 // WS7-7-A B5 — translate a save payload into a per-instance RecipeOverride
 // (PRD §8.4.3) for the "just this time" path AND the apply-always instance
