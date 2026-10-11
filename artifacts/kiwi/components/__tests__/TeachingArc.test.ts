@@ -337,3 +337,114 @@ test("D-WS9-160: the sub-line is PROMOTED off the 11px / muted treatment", () =>
     "neutral[600] is the muted role that measured 3.73:1 — below AA",
   );
 });
+
+// ── WEB-2 Part F (BUG-390) — no word breaks inside itself ──────────────────
+// Measured from the font file, not guessed: the em width of each STEPS word is
+// read off Fraunces_500Medium.ttf's advance widths (cmap 3/1 format 4 + hmtx).
+
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import {
+  __resetWindowDimensionsForTests,
+  __setWindowDimensionsForTests,
+} from "react-native";
+import { arcLabelFontSize, ARC_LONGEST_WORD, ARC_LONGEST_WORD_EM } from "../TeachingArc";
+
+function ttfEm(path: string, word: string): number {
+  const b = readFileSync(path);
+  const tables: Record<string, number> = {};
+  for (let i = 0; i < b.readUInt16BE(4); i++) {
+    const o = 12 + i * 16;
+    tables[b.toString("latin1", o, o + 4)] = b.readUInt32BE(o + 8);
+  }
+  const upem = b.readUInt16BE(tables.head + 18);
+  const nHM = b.readUInt16BE(tables.hhea + 34);
+  const cm = tables.cmap;
+  let sub = -1;
+  for (let i = 0; i < b.readUInt16BE(cm + 2); i++) {
+    const off = b.readUInt32BE(cm + 8 + i * 8);
+    if (b.readUInt16BE(cm + 4 + i * 8) === 3 && b.readUInt16BE(cm + 6 + i * 8) === 1 && b.readUInt16BE(cm + off) === 4) sub = cm + off;
+  }
+  assert.ok(sub > 0, "a format-4 cmap");
+  const segX2 = b.readUInt16BE(sub + 6);
+  const ends = sub + 14, starts = ends + segX2 + 2, deltas = starts + segX2, ros = deltas + segX2;
+  const gid = (c: number) => {
+    for (let s = 0; s < segX2 / 2; s++) {
+      if (c > b.readUInt16BE(ends + s * 2)) continue;
+      const start = b.readUInt16BE(starts + s * 2);
+      if (c < start) return 0;
+      const delta = b.readInt16BE(deltas + s * 2);
+      const ro = b.readUInt16BE(ros + s * 2);
+      if (ro === 0) return (c + delta) & 0xffff;
+      const g = b.readUInt16BE(ros + s * 2 + ro + (c - start) * 2);
+      return g === 0 ? 0 : (g + delta) & 0xffff;
+    }
+    return 0;
+  };
+  let sum = 0;
+  for (const ch of word) sum += b.readUInt16BE(tables.hmtx + Math.min(gid(ch.codePointAt(0)!), nHM - 1) * 4);
+  return sum / upem;
+}
+
+const FRAUNCES_500 = createRequire(import.meta.url).resolve(
+  "@expo-google-fonts/fraunces/500Medium/Fraunces_500Medium.ttf",
+);
+
+test("BUG-390: ARC_LONGEST_WORD_EM is the font's own measure of the longest STEPS word", () => {
+  const ems = STEPS.map((w) => ttfEm(FRAUNCES_500, w));
+  const longest = STEPS[ems.indexOf(Math.max(...ems))];
+  assert.equal(longest, ARC_LONGEST_WORD);
+  assert.ok(Math.abs(Math.max(...ems) - ARC_LONGEST_WORD_EM) < 0.001, `${Math.max(...ems)}`);
+});
+
+/** Home's row at window W: W less Screen 16+16, card padding 15+15, border 1+1. */
+const column = (windowWidth: number) => (windowWidth - 64) / 5;
+
+function renderAt(windowWidth: number, fontScale: number, rowLayout?: number): Json {
+  __setWindowDimensionsForTests({ width: windowWidth, fontScale });
+  try {
+    let tree!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      tree = TestRenderer.create(React.createElement(TeachingArc));
+    });
+    if (rowLayout !== undefined) {
+      const row = findAll(tree.toJSON() as unknown as Json, "rn-view").find(
+        (n) => typeof n.props.onLayout === "function",
+      )!;
+      act(() => (row.props.onLayout as (e: unknown) => void)({ nativeEvent: { layout: { width: rowLayout } } }));
+    }
+    return tree.toJSON() as unknown as Json;
+  } finally {
+    __resetWindowDimensionsForTests();
+  }
+}
+
+test("BUG-390: at the widths Hans saw, every word is one line and the longest fits its column", () => {
+  // 360 dp Android at normal text; the web at phone width; both at 1.3× text.
+  for (const [w, fs] of [[360, 1], [320, 1], [390, 1], [360, 1.3], [390, 1.3], [412, 2]] as const) {
+    const words = wordNodes(renderAt(w, fs));
+    assert.equal(words.length, STEPS.length);
+    for (const n of words) {
+      assert.equal(n.props.numberOfLines, 1, `${textContent(n)} at ${w}/${fs}: one line, never a break inside the word`);
+    }
+    const size = flatten(words[0].props.style).fontSize as number;
+    assert.ok(words.every((n) => flatten(n.props.style).fontSize === size), "one size for all five");
+    const drawn = size * fs * ARC_LONGEST_WORD_EM;
+    assert.ok(drawn <= column(w), `"groceries" ${drawn.toFixed(1)} px in a ${column(w).toFixed(1)} px column at ${w}/${fs}`);
+  }
+});
+
+test("BUG-390: a measured row width overrides the window estimate", () => {
+  // The window says a 69.6 px column (base size); the row says 50 px.
+  const words = wordNodes(renderAt(412, 1, 250));
+  const size = flatten(words[0].props.style).fontSize as number;
+  assert.ok(size < Typography.fontSize.base, `${size}`);
+  assert.ok(size * ARC_LONGEST_WORD_EM <= 50, `${size}`);
+});
+
+test("BUG-390: a roomy column keeps the base size; the floor holds in an absurd one", () => {
+  assert.equal(arcLabelFontSize(80, 1), Typography.fontSize.base);
+  assert.equal(flatten(wordNodes(renderAt(430, 1))[0].props.style).fontSize, Typography.fontSize.base);
+  assert.equal(arcLabelFontSize(10, 1), Typography.fontSize.xxs);
+  assert.equal(arcLabelFontSize(10, 2) * 2, Typography.fontSize.xxs, "the floor is on the DRAWN size");
+});

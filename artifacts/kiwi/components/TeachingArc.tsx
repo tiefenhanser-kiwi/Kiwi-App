@@ -26,7 +26,7 @@
 // this design removed and puts the browns back.
 
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, useWindowDimensions, View, type LayoutChangeEvent } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 
@@ -94,9 +94,58 @@ export function stopLocations(
   ];
 }
 
+// ── WEB-2 Part F (BUG-390) — the words fit their columns ─────────────────
+//
+// Measured: "groceries" in Fraunces 500 is 4.4425 em wide (the TTF's advance
+// widths, no kerning) — 62.2 px at the 14 px label size. A column is the row
+// over five, and on Home the row is the window less 64 (Screen 16 + 16, card
+// padding 15 + 15, border 1 + 1). So below a 375 px window — a 360 dp Android,
+// the web at phone width — and at ANY phone width once the system text size is
+// above 1×, the word was wider than its column and broke inside itself
+// ("Grocerie" / "s"). It is one word; there is no word boundary to wrap at.
+//
+// Fix: one label size for all five words, the largest that fits the longest
+// one in a column (never above the base size), and one line each. The columns
+// stay equal, so the icons, words and dots stay registered. adjustsFontSizeToFit
+// would have done it per word on native only — react-native-web has no such
+// prop and would have ellipsised "grocer…".
+/** The longest STEPS word, in em, measured from Fraunces_500Medium.ttf. Re-measure if STEPS change. */
+export const ARC_LONGEST_WORD = "groceries";
+export const ARC_LONGEST_WORD_EM = 4.4425;
+/** Kerning, rasterising and the lead word's bold weight stay inside this. */
+const ARC_FIT_MARGIN = 1.05;
+/** Home's horizontal chrome around the row — the first frame's estimate only. */
+const ARC_ROW_CHROME = 64;
+
+/**
+ * The label font size (before the system's fontScale multiplies it) that keeps
+ * the longest word on one line in a `columnWidth` column. Never above `base`;
+ * never drawn below `floor` (at which a too-narrow column ellipsises rather
+ * than breaking a word).
+ */
+export function arcLabelFontSize(
+  columnWidth: number,
+  fontScale: number,
+  base: number = Typography.fontSize.base,
+  floor: number = Typography.fontSize.xxs,
+): number {
+  const scale = fontScale > 0 ? fontScale : 1;
+  if (!(columnWidth > 0)) return base;
+  const fit = columnWidth / (ARC_LONGEST_WORD_EM * ARC_FIT_MARGIN * scale);
+  return Math.max(floor / scale, Math.min(base, fit));
+}
+
 export function TeachingArc() {
   const ramp = Components.teachingArc.ramp;
   const locations = stopLocations(STEPS.length);
+  const { width: windowWidth, fontScale } = useWindowDimensions();
+  const [rowWidth, setRowWidth] = React.useState<number | null>(null);
+  const onRowLayout = React.useCallback((e: LayoutChangeEvent) => {
+    const w = e.nativeEvent.layout.width;
+    if (w > 0) setRowWidth(w);
+  }, []);
+  const columnWidth = (rowWidth ?? windowWidth - ARC_ROW_CHROME) / STEPS.length;
+  const labelSize = arcLabelFontSize(columnWidth, fontScale);
 
   return (
     <View style={styles.card}>
@@ -105,7 +154,7 @@ export function TeachingArc() {
       {/* Icons above labels, one cell per stop. Equal flex:1 cells are what
           registers each label, each icon and each dot on the same centre line —
           the three rows are laid out identically on purpose. */}
-      <View style={styles.flow}>
+      <View style={styles.flow} onLayout={onRowLayout}>
         {STEPS.map((word, i) => (
           <View key={word} style={styles.stop}>
             <Feather
@@ -117,7 +166,12 @@ export function TeachingArc() {
             {/* ⚠️ NO per-word colour. Emphasis on the lead word is WEIGHT and
                 only weight — the channel the rule does not compete with. Do not
                 reintroduce a colour highlight on top. */}
-            <Text style={[styles.word, i === 0 && styles.wordLead]}>{word}</Text>
+            <Text
+              numberOfLines={1}
+              style={[styles.word, { fontSize: labelSize }, i === 0 && styles.wordLead]}
+            >
+              {word}
+            </Text>
           </View>
         ))}
       </View>
