@@ -126,6 +126,68 @@ export interface PlansRouterDeps {
 // `limit`. 100 (the max page size) keeps page 2+ reachable across the union.
 const PLAN_FETCH_CAP = 100;
 
+// BUG-386 — how long after an add an identical add counts as its retry.
+const PLAN_ITEM_RETRY_WINDOW_MS = 60_000;
+
+const PLAN_ITEM_SELECT = {
+  id: true,
+  mealId: true,
+  positionIndex: true,
+  assignedDayOfWeek: true,
+  assignedDate: true,
+  servingsOverride: true,
+  isBreakfast: true,
+  isLunch: true,
+  isDinner: true,
+  notes: true,
+} as const;
+
+// BUG-386 — the item a recent identical POST /plans/:id/items made, or null.
+// Newest first; an activity row whose item was since removed, moved or
+// re-served matches nothing.
+async function findRetriedPlanItem(
+  tx: Prisma.TransactionClient,
+  args: {
+    userId: string;
+    planId: string;
+    requestedMealId: string;
+    slot: "breakfast" | "lunch" | "dinner";
+    assignedDayOfWeek: string | null;
+    servingsOverride: number | null;
+    now: Date;
+  },
+) {
+  const recent = await tx.userActivity.findMany({
+    where: {
+      userId: args.userId,
+      eventType: "plan_meal_added",
+      entityType: "MealPlanItem",
+      createdAt: { gte: new Date(args.now.getTime() - PLAN_ITEM_RETRY_WINDOW_MS) },
+      metadata: { path: ["mealId"], equals: args.requestedMealId },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { entityId: true },
+    take: 5,
+  });
+  for (const act of recent) {
+    if (!act.entityId) continue;
+    const item = await tx.mealPlanItem.findFirst({
+      where: {
+        id: act.entityId,
+        mealPlanInstanceId: args.planId,
+        assignedDayOfWeek: args.assignedDayOfWeek,
+        servingsOverride: args.servingsOverride,
+        isBreakfast: args.slot === "breakfast",
+        isLunch: args.slot === "lunch",
+        isDinner: args.slot === "dinner",
+      },
+      select: PLAN_ITEM_SELECT,
+    });
+    if (item) return item;
+  }
+  return null;
+}
+
 interface PlanReviewItem {
   assignedDayOfWeek: string | null;
   assignedDate: string | null;
@@ -1957,7 +2019,7 @@ export function createPlansRouter(
         const result = await prisma.$transaction(async (tx) => {
           const plan = await tx.mealPlanInstance.findUnique({
             where: { id: planId },
-            select: { userId: true },
+            select: { userId: true, revisionId: true },
           });
           if (!plan || plan.userId !== userId) {
             return { kind: "not_found_plan" as const };
@@ -1972,6 +2034,32 @@ export function createPlansRouter(
           }
           if (!meal.isPublic && meal.userId !== userId) {
             return { kind: "not_found_meal" as const };
+          }
+
+          // BUG-386 — a retried identical add returns the item the first
+          // attempt made. The row has no timestamp and the bound meal id is a
+          // fresh fork for a catalog meal, so the signal is the add's own
+          // activity row (it records the REQUESTED meal id) inside the window,
+          // pointing at an item still in this plan with the same slot, day and
+          // servings. Past the window a second add is a deliberate second row
+          // (the same dinner on two nights).
+          const retryOf = await findRetriedPlanItem(tx, {
+            userId,
+            planId,
+            requestedMealId: body.mealId,
+            slot,
+            assignedDayOfWeek: body.assignedDayOfWeek ?? null,
+            servingsOverride: body.servingsOverride ?? null,
+            now: now(),
+          });
+          if (retryOf) {
+            const macrosStale = await planNeedsMacroEstimation({ tx, planId });
+            return {
+              kind: "existing" as const,
+              item: retryOf,
+              revisionId: plan.revisionId,
+              macrosStale,
+            };
           }
 
           // WS7-7-A B5 fix2 (D-WS7-139) — fork-on-acquire. Adding a meal the
@@ -2003,18 +2091,7 @@ export function createPlansRouter(
               isLunch: slot === "lunch",
               isDinner: slot === "dinner",
             },
-            select: {
-              id: true,
-              mealId: true,
-              positionIndex: true,
-              assignedDayOfWeek: true,
-              assignedDate: true,
-              servingsOverride: true,
-              isBreakfast: true,
-              isLunch: true,
-              isDinner: true,
-              notes: true,
-            },
+            select: PLAN_ITEM_SELECT,
           });
 
           const revisionId = await bumpPlanRevision(planId, tx);
@@ -2061,7 +2138,7 @@ export function createPlansRouter(
           // self-consistent with the read endpoints.
           result.item.servingsOverride,
         );
-        return res.status(201).json({
+        return res.status(result.kind === "existing" ? 200 : 201).json({
           item: {
             id: result.item.id,
             mealId: result.item.mealId,

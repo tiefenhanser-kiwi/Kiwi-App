@@ -5535,12 +5535,17 @@ function makeD1Stub(opts: {
   recorder: D1ItemRecorder;
   /** Throw on mealPlanItem.create — exercises rollback. */
   throwOnItemCreate?: boolean;
+  /** BUG-386 — the createdAt stamped on activity rows (default: wall clock). */
+  activityClock?: () => Date;
 }) {
   const plans = opts.plans ?? [];
   const meals = opts.meals ?? [];
   const existingItems = opts.existingItems ?? [];
   const recorder = opts.recorder;
   let itemCounter = 0;
+  // BUG-386 — the rows the route wrote, so a second add can find the first.
+  const createdItems: Array<Record<string, unknown>> = [];
+  const activityRows: Array<Record<string, unknown> & { createdAt: Date }> = [];
 
   const txClient = {
     // Block 4a — forkMealForUser resolves the acquiring household once per fork
@@ -5549,7 +5554,7 @@ function makeD1Stub(opts: {
     mealPlanInstance: {
       findUnique: async (args: { where: { id: string } }) => {
         const row = plans.find((p) => p.id === args.where.id);
-        return row ? { userId: row.userId } : null;
+        return row ? { userId: row.userId, revisionId: row.revisionId } : null;
       },
       update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
         recorder.instanceUpdates.push(args);
@@ -5620,7 +5625,7 @@ function makeD1Stub(opts: {
         recorder.itemCreates.push(args);
         itemCounter += 1;
         const id = `created-item-${itemCounter}`;
-        return {
+        const row = {
           id,
           mealId: args.data.mealId,
           positionIndex: args.data.positionIndex,
@@ -5632,12 +5637,46 @@ function makeD1Stub(opts: {
           isDinner: args.data.isDinner,
           notes: null,
         };
+        createdItems.push({ ...row, mealPlanInstanceId: args.data.mealPlanInstanceId });
+        return row;
+      },
+      findFirst: async (args: { where: Record<string, unknown> }) => {
+        const hit = createdItems.find((r) =>
+          Object.entries(args.where).every(([k, v]) => r[k] === v),
+        );
+        if (!hit) return null;
+        const { mealPlanInstanceId: _p, ...row } = hit;
+        return row;
       },
     },
     userActivity: {
       create: async (args: { data: Record<string, unknown> }) => {
         recorder.activityWrites.push(args.data);
+        activityRows.push({ ...args.data, createdAt: opts.activityClock?.() ?? new Date() });
         return { id: "act-d1" };
+      },
+      findMany: async (args: {
+        where: {
+          userId: string;
+          eventType: string;
+          entityType: string;
+          createdAt: { gte: Date };
+          metadata: { path: string[]; equals: unknown };
+        };
+      }) => {
+        const w = args.where;
+        return activityRows
+          .filter(
+            (a) =>
+              a.userId === w.userId &&
+              a.eventType === w.eventType &&
+              a.entityType === w.entityType &&
+              a.createdAt >= w.createdAt.gte &&
+              (a.metadata as Record<string, unknown> | undefined)?.[w.metadata.path[0]] ===
+                w.metadata.equals,
+          )
+          .reverse()
+          .map((a) => ({ entityId: a.entityId }));
       },
     },
   };
@@ -5813,6 +5852,106 @@ describe("POST /plans/:id/items (WS7-4-D c1)", () => {
       assert.equal(res.status, 201);
       assert.equal(recorder.itemCreates[0].data.mealId, "m-own");
       assert.equal(recorder.forkedMeals, undefined);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // BUG-386 — a retried identical add returns the first add's item.
+  it("BUG-386: two identical adds make one row; the second is a 200 with the first item (no second fork)", async () => {
+    const recorder: D1ItemRecorder = {
+      itemCreates: [],
+      instanceUpdates: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD1Stub({
+        recorder,
+        plans: [{ id: "p-1", userId: A2_USER, revisionId: 2 }],
+        meals: [
+          { id: "r-pasta", userId: null, isPublic: true, isArchived: false, title: "Creamy Mushroom Pasta" },
+        ],
+      }),
+    );
+    try {
+      const first = await postPlanItem(harness, "p-1", { mealId: "r-pasta", slot: "dinner" });
+      assert.equal(first.status, 201);
+      const firstBody = (await first.json()) as { item: { id: string; mealId: string } };
+
+      const second = await postPlanItem(harness, "p-1", { mealId: "r-pasta", slot: "dinner" });
+      assert.equal(second.status, 200);
+      const secondBody = (await second.json()) as {
+        item: { id: string; mealId: string };
+        revisionId: number;
+      };
+      assert.equal(secondBody.item.id, firstBody.item.id);
+      assert.equal(secondBody.item.mealId, firstBody.item.mealId);
+      assert.equal(secondBody.revisionId, 2, "the retry reports the plan's revision, unbumped");
+
+      assert.equal(recorder.itemCreates.length, 1);
+      assert.equal(recorder.forkedMeals?.length, 1);
+      assert.equal(recorder.instanceUpdates.length, 1);
+      assert.equal(recorder.activityWrites.length, 1);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("BUG-386: two adds of the same meal for different slots make two rows", async () => {
+    const recorder: D1ItemRecorder = {
+      itemCreates: [],
+      instanceUpdates: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD1Stub({
+        recorder,
+        plans: [{ id: "p-1", userId: A2_USER, revisionId: 2 }],
+        meals: [
+          { id: "m-1", userId: A2_USER, isPublic: false, isArchived: false, title: "M1" },
+        ],
+      }),
+    );
+    try {
+      const a = await postPlanItem(harness, "p-1", { mealId: "m-1", slot: "dinner" });
+      const b = await postPlanItem(harness, "p-1", { mealId: "m-1", slot: "lunch" });
+      const c = await postPlanItem(harness, "p-1", {
+        mealId: "m-1",
+        slot: "dinner",
+        assignedDayOfWeek: "Wednesday",
+      });
+      assert.equal(a.status, 201);
+      assert.equal(b.status, 201);
+      assert.equal(c.status, 201);
+      assert.equal(recorder.itemCreates.length, 3);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("BUG-386: an identical add past the retry window is a deliberate second row", async () => {
+    const recorder: D1ItemRecorder = {
+      itemCreates: [],
+      instanceUpdates: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD1Stub({
+        recorder,
+        plans: [{ id: "p-1", userId: A2_USER, revisionId: 2 }],
+        meals: [
+          { id: "m-1", userId: A2_USER, isPublic: false, isArchived: false, title: "M1" },
+        ],
+        activityClock: () => new Date("2026-10-10T12:00:00Z"),
+      }),
+      { now: new Date("2026-10-10T12:01:01Z") },
+    );
+    try {
+      const a = await postPlanItem(harness, "p-1", { mealId: "m-1" });
+      const b = await postPlanItem(harness, "p-1", { mealId: "m-1" });
+      assert.equal(a.status, 201);
+      assert.equal(b.status, 201);
+      assert.equal(recorder.itemCreates.length, 2);
     } finally {
       await harness.close();
     }
