@@ -20,6 +20,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useGuestOptional } from "@/contexts/GuestContext";
 import { useSubmitCooldown } from "@/hooks/useSubmitCooldown";
 import { authErrorPresentation } from "@/lib/authErrorCopy";
+import { PASSWORD_HELPER, PASSWORD_PLACEHOLDER, PHONE_PLACEHOLDER } from "@/lib/authFieldCopy";
 import { isValidPhone } from "@/lib/phone";
 import {
   CLAIM_BUSY_LABEL,
@@ -291,7 +292,7 @@ export default function SignUpPage() {
           ref={passwordRef}
           value={password}
           onChangeText={setPassword}
-          placeholder="Password (min 8 characters)"
+          placeholder={PASSWORD_PLACEHOLDER}
           placeholderTextColor={Palette.text.placeholder}
           autoComplete="new-password"
           returnKeyType="next"
@@ -299,12 +300,15 @@ export default function SignUpPage() {
           onSubmitEditing={() => phoneRef.current?.focus()}
           style={styles.input}
           editable={!submitting}
+          accessibilityHint={PASSWORD_HELPER}
         />
+        {/* BUG-365 — the rule lives under the field, where it can wrap. */}
+        <Text style={styles.helper}>{PASSWORD_HELPER}</Text>
         <TextInput
           ref={phoneRef}
           value={phone}
           onChangeText={setPhone}
-          placeholder="Phone number (optional)"
+          placeholder={PHONE_PLACEHOLDER}
           placeholderTextColor={Palette.text.placeholder}
           keyboardType="phone-pad"
           autoComplete="tel"
@@ -429,6 +433,13 @@ const styles = StyleSheet.create({
     color: Colors.terracotta[700],
     fontSize: Typography.fontSize.sm,
     fontFamily: Typography.face.sans[500],
+  },
+  // BUG-365 — sits 4 px under its field (the body's 12 px gap, less 8).
+  helper: {
+    marginTop: -Spacing[2],
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
   },
   buttonLoading: { alignItems: "center", padding: Spacing[3] },
 });
