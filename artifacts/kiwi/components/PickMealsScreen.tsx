@@ -87,10 +87,13 @@ import {
   footerPickedLine,
   initialPickState,
   isExhausted,
+  MEMBER_MAX_PICKS,
   MORE_PAGE_SIZE,
   moreCaption,
   overCapPickedCount,
+  PICK_CAP_NOTICE,
   pickHeaderSubline,
+  pickRefused,
   showNewToYouChips,
   SLOW_ROUND_MS,
   togglePick,
@@ -172,6 +175,19 @@ export function PickMealsScreen({
   // route), so the picks above survive the look. The id, not the row: the row
   // is read from `state.meals` so a page appended underneath cannot strand it.
   const [previewId, setPreviewId] = useState<string | null>(null);
+  // WEB-2 Part B (BUG-374) — a member's 15th pick is refused, out loud. The
+  // guest keeps its own over-count line (GUEST_MAX_PICKS), so no cap here.
+  const pickCap = guest ? null : MEMBER_MAX_PICKS;
+  const [capNotice, setCapNotice] = useState(false);
+  // The card's pill and the preview's primary both pick through this.
+  const toggle = (mealId: string) => {
+    if (pickRefused(state, mealId, pickCap)) {
+      setCapNotice(true);
+      return;
+    }
+    setCapNotice(false);
+    setState((prev) => togglePick(prev, mealId));
+  };
 
   // "Get more options" — the shelf again with every shown id excluded. A guest
   // pages the same route under the guest principal (the request carries no
@@ -353,7 +369,7 @@ export function PickMealsScreen({
               selected={state.pickedIds.includes(meal.id)}
               capMinutes={capMinutes}
               showNewToYou={newToYouChips}
-              onToggle={() => setState((prev) => togglePick(prev, meal.id))}
+              onToggle={() => toggle(meal.id)}
               onOpen={() => setPreviewId(meal.id)}
             />
           ))}
@@ -403,13 +419,20 @@ export function PickMealsScreen({
 
       {/* Sticky footer. */}
       <View style={[s.footer, { paddingBottom: insets.bottom + Spacing[3] }]}>
-        <Text style={s.footerLine1}>{footerPickedLine(pickedCount, planDurationDays)}</Text>
+        <Text style={s.footerLine1}>
+          {footerPickedLine(pickedCount, planDurationDays, pickCap)}
+        </Text>
         <Text style={s.footerLine2}>
           {FOOTER_FLEX(planDurationDays)}
           {overCapPicked > 0 && capMinutes !== null && (
             <Text style={s.footerOverCap}>{FOOTER_OVER_CAP(overCapPicked, capMinutes)}</Text>
           )}
         </Text>
+        {capNotice && (
+          <Text style={s.footerError} testID="pick-cap-notice">
+            {PICK_CAP_NOTICE}
+          </Text>
+        )}
         {guestOverBy > 0 && (
           <Text style={s.footerError} testID="pick-guest-over">
             {GUEST_PICKS_OVER(guestOverBy)}
@@ -439,7 +462,7 @@ export function PickMealsScreen({
         picked={previewMeal !== null && state.pickedIds.includes(previewMeal.id)}
         principal={guest ? "guest" : "user"}
         onToggle={() => {
-          if (previewMeal) setState((prev) => togglePick(prev, previewMeal.id));
+          if (previewMeal) toggle(previewMeal.id);
         }}
         onClose={() => setPreviewId(null)}
       />

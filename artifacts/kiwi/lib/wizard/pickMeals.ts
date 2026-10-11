@@ -68,6 +68,26 @@ export function isExhausted(state: Pick<PickState, "hasMore" | "roundsLeft">): b
   return !state.hasMore || state.roundsLeft <= 0;
 }
 
+/**
+ * WEB-2 Part B (BUG-374) — a member's plan takes at most this many meals:
+ * POST /plans/from-meals' `mealIds` is `.min(1).max(14)` (fromMealsBodySchema).
+ * Before this the client had no cap at all — the 15th tap DID pick, and
+ * "Build my week" then failed on the server's 400. Now the 15th tap is refused
+ * here, with a line on the counter row and an inline notice. A guest's cap is
+ * different and stays where it was (GUEST_MAX_PICKS: counted, then unpick).
+ */
+export const MEMBER_MAX_PICKS = 14;
+export const PICK_CAP_NOTICE = `A plan takes ${MEMBER_MAX_PICKS} meals at most. Unpick one to add another.`;
+
+/** True when this tap would ADD a pick past `cap`. An unpick is never refused. */
+export function pickRefused(
+  state: Pick<PickState, "pickedIds">,
+  mealId: string,
+  cap: number | null,
+): boolean {
+  return cap !== null && !state.pickedIds.includes(mealId) && state.pickedIds.length >= cap;
+}
+
 /** Toggle a pick; a new pick goes to the END so order = order picked. */
 export function togglePick(state: PickState, mealId: string): PickState {
   const picked = state.pickedIds.includes(mealId);
@@ -137,8 +157,9 @@ export function moreCaption(roundsLeft: number): string {
   return `3 to 5 more meals · ${roundsLeft} ${roundsLeft === 1 ? "round" : "rounds"} left`;
 }
 
-/** Footer line 1. */
-export function footerPickedLine(picked: number, days: number): string {
+/** Footer line 1. At the cap (BUG-374) it says so instead of the plan length. */
+export function footerPickedLine(picked: number, days: number, cap: number | null = null): string {
+  if (cap !== null && picked >= cap) return `${picked} picked · the most a plan takes`;
   return `${picked} picked · ${days}-day plan`;
 }
 

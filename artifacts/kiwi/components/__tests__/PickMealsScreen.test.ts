@@ -616,6 +616,29 @@ test("BUG-373: a fresh mount has no picks, and a round re-sending a picked meal 
   assert.deepEqual(imgs[0].props.source, { uri: URL });
 });
 
+// WEB-2 Part B (BUG-374) — the member's cap is the server's (from-meals takes
+// 1..14). Measured: the client had NO cap, so the 15th tap picked and Build
+// then 400'd. Now the 15th is a no-op with an inline notice, never a dialog.
+test("BUG-374: at 14 the counter says it is the most; the 15th tap does not pick and says why inline", async () => {
+  const fifteen = Array.from({ length: 15 }, (_, i) => meal(`c${i}`, { title: `Cap ${i}` }));
+  const m = await mount({ shelf: shelf(fifteen, 40) });
+  for (let i = 0; i < 14; i++) await tap(byLabel(m.root(), `Cap ${i}`), `card c${i}`);
+  assert.ok(m.text().includes("14 picked · the most a plan takes"), m.text());
+  assert.equal(byTestId(m.root(), "pick-cap-notice"), undefined, "no notice before the refused tap");
+
+  await tap(byLabel(m.root(), "Cap 14"), "card c14 (the 15th)");
+  assert.ok(m.text().includes("14 picked · the most a plan takes"), "still 14");
+  assert.deepEqual(byLabel(m.root(), "Cap 14")!.props.accessibilityState, { checked: false });
+  const notice = byTestId(m.root(), "pick-cap-notice");
+  assert.ok(notice, "an inline notice on the 15th tap");
+  assert.equal(joined(notice!), "A plan takes 14 meals at most. Unpick one to add another.");
+
+  // An unpick is never refused, and it clears the notice.
+  await tap(byLabel(m.root(), "Cap 0"), "unpick c0");
+  assert.ok(m.text().includes("13 picked · 5-day plan"), m.text());
+  assert.equal(byTestId(m.root(), "pick-cap-notice"), undefined);
+});
+
 test("new-to-you: 6 of 10 cards new → NO pills; 3 of 10 → three pills", async () => {
   const six = await mount({ shelf: shelf(tenWith(6), 40) });
   assert.equal(countNewPills(six.root()), 0);
