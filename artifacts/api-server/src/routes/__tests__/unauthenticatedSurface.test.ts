@@ -25,7 +25,20 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import express, { type Express, type IRouter } from "express";
 
-import router from "../index";
+import { createRootRouter } from "../index";
+
+// BUG-370 — THE SURFACE OF AN UNCONFIGURED DEPLOY, ON EVERY MACHINE. The default
+// router reads `process.env`, which the suite loads from `.env`, so this test was
+// green or red by machine: a set TURNSTILE_SECRET_KEY made POST /guest/session's
+// tokenless probe a 403 and a set REVENUECAT_WEBHOOK_AUTH made the RevenueCat
+// webhook's a 401, and both then read as "guarded" stale entries. The env-reading
+// routers are built from this pinned env instead (routes/index.ts, the spend-guard
+// tests' seam). Empty is the widest the surface gets — Turnstile passes everyone,
+// no webhook or OAuth door is configured — so it is the strictest canary, and it
+// keeps the probe off the database: the guest door answers 503 without JWT_SECRET
+// before it reads or writes anything.
+const PINNED_ENV: NodeJS.ProcessEnv = {};
+const router = createRootRouter({ env: PINNED_ENV });
 
 // ── the known list ───────────────────────────────────────────────────────
 //
