@@ -361,6 +361,80 @@ export function resolveMoments(
   return { keyByIngredientId, runByIngredientId, hasCoverage, overrides };
 }
 
+// ── BUG-358 — THE MOMENT ONE INGREDIENT OF A MIXTURE ENTERS ─────────────────
+//
+// D-WS9-301's moment authority: things share a container only when they enter at
+// the same moment, and a component's own steps decide. `resolveMoments` leaves a
+// component's members alone (the override exists to split what the author never
+// grouped), so a component that spans moments stayed one container: the nacho
+// cheese sauce's roux flour (s1) with its finishing hot sauce (s3), the biryani's
+// whole spices bloomed at s5 with its ground ones at s6, a glaze simmered at s3
+// absorbed into a rub measured at s0.
+//
+// The moment is the FIRST step, from the one its amount is stated on, that uses it:
+//   • a heat step (or the tray going into one) → that step: it enters there;
+//   • a cold step that names it → that step's run: the mixture is made there;
+//   • nothing after → the run its amount sits in.
+// First, not any: the lemon-herb lemon is named by the marinade's whisk (s3) before
+// the bake lays its ROUNDS on top (s7), and its zest and juice belong to the
+// marinade — rule 1's inverse case.
+
+/** A step that mixes what it measures. prepComponents' combine verbs, kept local: it imports values from here. */
+const MIXES =
+  /\b(whisk(?:\s+together)?|stir\s+together|combine|mix(?:\s+together)?|toss(?:\s+together)?|blend\s+together|mash(?:\s+together)?|fold(?:\s+together| in)?)\b/i;
+
+/** Is this step a moment food goes INTO HEAT — the step itself, not a later one? */
+function entersHeat(step: ComponentStep, ordered: readonly ComponentStep[]): boolean {
+  if (step.phaseType === HEAT_PHASE) return !SERVE_LEAD.test(step.text);
+  return PLACES_IN_HEAT_VESSEL.test(step.text) && isHeatMoment(step, ordered);
+}
+
+/** The per-dish moment key of one mixture ingredient: `s:N`, `r:N`, or `i` (no amount anywhere). */
+export function mixtureEntryKey(
+  steps: readonly ComponentStep[],
+  ingredientId: string,
+  ingredientName: string,
+): string {
+  const ordered = [...steps].sort((a, b) => a.stepIndex - b.stepIndex);
+  const runOfStep = new Map<number, number>();
+  let run = 0;
+  let lastWasHeat = false;
+  for (const s of ordered) {
+    const heat = s.phaseType === HEAT_PHASE;
+    if (!heat && lastWasHeat) run++;
+    runOfStep.set(s.stepIndex, run);
+    lastWasHeat = heat;
+  }
+  // "the juice of 1 lemon" uses the lemon: for this question a fruit's zest and
+  // juice are the fruit, though `proseNames` (rightly, for "garlic powder") reads
+  // them as another food.
+  const uses = (text: string) =>
+    proseNames(text, ingredientName) || proseNames(text.replace(/\b(?:zest|juice)\b/gi, " "), ingredientName);
+  const momentAt = (s: ComponentStep) => (entersHeat(s, ordered) ? `s:${s.stepIndex}` : `r:${runOfStep.get(s.stepIndex)}`);
+  const at = ordered.findIndex((s) => s.ingredientIds.includes(ingredientId));
+  if (at < 0) {
+    // No amount anywhere (the butter chicken's coriander, "1 teaspoon each ground
+    // cumin and ground coriander"): the first step that names it.
+    const named = ordered.find((s) => uses(s.text));
+    return named ? momentAt(named) : "i";
+  }
+  const ref = ordered[at];
+  if (entersHeat(ref, ordered)) return `s:${ref.stepIndex}`;
+  // A step that states the amount AND mixes it is where the mixture is made: the
+  // wedding soup's meatball binder takes its salt at s0, whatever "adjust the
+  // salt" says at the table. A knife or measuring step ("shred the cheddar; set
+  // aside") is not a use, so the scan below finds where it goes.
+  if (MIXES.test(ref.text)) return `r:${runOfStep.get(ref.stepIndex)}`;
+  for (const s of ordered.slice(at + 1)) {
+    // A second stated amount is a second PORTION (the tikka's spices: one row for
+    // the marinade at s1, one for the sauce at s8, one id). The first portion's
+    // moment is not the second's, so the scan stops at its own run.
+    if (s.ingredientIds.includes(ingredientId)) break;
+    if (uses(s.text)) return momentAt(s);
+  }
+  return `r:${runOfStep.get(ref.stepIndex)}`;
+}
+
 /**
  * True when a moment key groups nothing: "no signal, stands alone" (`i:`) or, H7,
  * "named only at serve time" (`v:`).

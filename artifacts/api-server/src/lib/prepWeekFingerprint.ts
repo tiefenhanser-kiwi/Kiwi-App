@@ -88,8 +88,11 @@ const FINGERPRINT_ALGO_VERSION = 1;
  *       WITH (the roasted asparagus went on a toppings plate under v5), and several
  *       lone cuts of one dish share its prep plate. The cached `containerNames` are
  *       not recomputed on read, so a name change needs the bump, not just the code.
+ *   7 — SRV-1 (BUG-358): a container holds one mixture for one moment — a
+ *       component's members split by the step they enter at, a food's name in
+ *       prose ("soy sauce") no longer makes a mixture noun.
  */
-export const PREP_ENGINE_VERSION = 6;
+export const PREP_ENGINE_VERSION = 7;
 
 /**
  * Digest of the loaded plan composition — everything the prep payload is built

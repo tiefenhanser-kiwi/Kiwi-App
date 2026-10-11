@@ -82,10 +82,21 @@ describe("H5.1 — toppings are never a mix", () => {
     const asToppings = resolveDishComponents("Taco Toppings", "Taco Night", steps as never, ings as never);
     assert.deepEqual(asToppings.components, [], "the toppings were stirred into a jar again");
 
-    // The same steps under a dish name that is NOT in the class still form the
-    // jar — proof the fix is the name test and not an accident of this fixture.
+    // BUG-358 — and the condiment's name no longer builds a jar under ANY dish
+    // name: "hot sauce" names a food, not a mixture.
     const asDish = resolveDishComponents("Smoky Chipotle Sauce", "Taco Night", steps as never, ings as never);
-    assert.equal(asDish.components.length, 1, "the fixture must be capable of forming a jar");
+    assert.deepEqual(asDish.components, [], "a condiment's name built a jar");
+
+    // The control: prose that names a real mixture forms the jar under an ordinary
+    // dish name and still not under the toppings — proof the fix is the name test
+    // and not an accident of this fixture.
+    const mixed = [{ ...steps[0], text: "Whisk the cilantro, sour cream and hot sauce into a crema." }, steps[1]];
+    assert.equal(
+      resolveDishComponents("Smoky Chipotle Sauce", "Taco Night", mixed as never, ings as never).components.length,
+      1,
+      "the fixture must be capable of forming a jar",
+    );
+    assert.deepEqual(resolveDishComponents("Taco Toppings", "Taco Night", mixed as never, ings as never).components, []);
   });
 
   it("🔴 …and the MOMENT route cannot rebuild it", () => {

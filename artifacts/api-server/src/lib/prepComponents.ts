@@ -409,6 +409,25 @@ export function resolveDishComponents(
     return SERVICE_FORM.test(blob);
   };
 
+  // ── BUG-358 — A FOOD'S NAME IS NOT A MIXTURE ────────────────────────────────
+  //
+  // Ruling 6 says it of the componentKey ("chicken" names the food), and the same
+  // holds in prose. "Worcestershire sauce" in the meatball binder's step and "BBQ
+  // sauce" in the glaze's step both read as the noun `sauce`, the bucket is keyed
+  // by its noun, and the binder made cold at s0 and the glaze poured at s5 became
+  // one "sauce jar". The orange chicken lost its dredge the same way, to the "soy
+  // sauce" two steps ahead. So the noun is read from the prose with the dish's own
+  // ingredient names taken out: "until the sauce is thickened" still names one.
+  const dishNames = ingredients
+    .map((i) => norm(i.ingredientName))
+    .filter((n) => n.length >= 3)
+    .sort((x, y) => y.length - x.length);
+  const proseNoun = (text: string): string | null => {
+    let out = norm(text);
+    for (const n of dishNames) out = out.split(n).join(" ");
+    return nounIn(out);
+  };
+
   /** Attach a noun to a bucket, keeping the more specific one (ruling 5). */
   const label = (b: Bucket, noun: string | null) => {
     if (noun === null) return;
@@ -429,8 +448,8 @@ export function resolveDishComponents(
     const keyText = st.componentKey ? st.componentKey.replace(/[-_]+/g, " ") : "";
     if (keyText !== "" && isServedSeparately(keyText)) continue;
     let noun: string | null = nounIn(keyText);
-    // Signal 2 — the step's own prose.
-    noun ??= nounIn(st.text);
+    // Signal 2 — the step's own prose, its foods' names excluded (BUG-358).
+    noun ??= proseNoun(st.text);
 
     const isCombine = COMBINE_VERB.test(st.text);
     // ── THE LOOK-AHEAD RUNS EVEN WHEN THE STEP DID NAME SOMETHING ────────────
@@ -446,7 +465,7 @@ export function resolveDishComponents(
     if (isCombine) {
       const i = ordered.indexOf(st);
       for (const a of ordered.slice(i + 1, i + 3)) {
-        aheadNoun = nounIn(a.text);
+        aheadNoun = proseNoun(a.text);
         if (aheadNoun !== null) break;
       }
     }

@@ -23,7 +23,7 @@
 import { inferCategory } from "./ingredientResolve";
 import { assignPhase } from "./prepCombineEngine";
 import { resolveDishComponents } from "./prepComponents";
-import { resolveMoments } from "./prepMoments";
+import { mixtureEntryKey, resolveMoments } from "./prepMoments";
 import type { PrepCombineInput } from "./prepCombineEngine";
 import type { PrepLoadedPlan } from "./prepWeekAggregation";
 
@@ -260,7 +260,7 @@ export function buildPrepCombineInput(loaded: PrepLoadedPlan): PrepCombineInput 
         const phaseOfIngredient = new Map(
           dish.ingredients.map((i) => [i.ingredientId, assignPhase(i.category, i.ingredientName, i.purchaseUnit)]),
         );
-        const componentKeyByRun = new Map<number, string>();
+        const componentByRun = new Map<number, (typeof resolved.components)[number]>();
         for (const comp of resolved.components) {
           const allDry = comp.memberIds.every(
             (id) => phaseOfIngredient.get(id) === "seasonings_dry",
@@ -269,12 +269,27 @@ export function buildPrepCombineInput(loaded: PrepLoadedPlan): PrepCombineInput 
           for (const memberId of comp.memberIds) {
             const run = moments.runByIngredientId.get(memberId);
             if (run === undefined) continue;
-            if (!componentKeyByRun.has(run)) componentKeyByRun.set(run, comp.key);
+            if (!componentByRun.has(run)) componentByRun.set(run, comp);
           }
         }
+        // ── BUG-358 / D-WS9-301 MOMENT AUTHORITY — ONE COMPONENT, ONE MOMENT ────
+        //
+        // A component is not a moment. The nacho cheese sauce is one authored
+        // `sauce` across four steps: the roux's flour goes into the butter (s1),
+        // the milk after it (s2), the spices and hot sauce at the end (s3). Keyed on
+        // the component alone, the flour and the hot sauce shared a jar. The BBQ
+        // meatballs did the same with a binder made cold at s0 and a glaze poured
+        // into the pan at s5.
+        //
+        // So a member's key is its component AND the moment it enters
+        // (`mixtureEntryKey`): the step it goes into heat at, or the run of the cold
+        // step that mixes it. A marinade built over three prep steps stays one
+        // container; a run-absorbed ingredient is keyed the same way, so a glaze
+        // simmered at s3 no longer rides a rub measured at s0.
+        const entryOf = (id: string, name: string) => mixtureEntryKey(ordered, id, name);
         const momentKeyFor = (ing: { ingredientId: string; category: string; ingredientName: string }): string | null => {
           const own = resolved.byIngredient.get(ing.ingredientId);
-          if (own) return `c:${own.key}`;
+          if (own) return `c:${own.key}@${entryOf(ing.ingredientId, ing.ingredientName)}`;
           if (assignPhase(ing.category, ing.ingredientName) === "proteins") {
             return moments.keyByIngredientId.get(ing.ingredientId) ?? null;
           }
@@ -291,9 +306,16 @@ export function buildPrepCombineInput(loaded: PrepLoadedPlan): PrepCombineInput 
           // and the marinade's tag takes it, which is rule 1.
           const resolvedKey = moments.keyByIngredientId.get(ing.ingredientId) ?? null;
           if (resolvedKey !== null && !resolvedKey.startsWith("r:")) return resolvedKey;
+          // BUG-358 — a run is not a moment when the ingredient's own first use says
+          // otherwise. The biryani's whole spices (fried at s5), its ground spices
+          // (s6) and its yogurt marinade (s1) all sat in run 0 — consecutive cook
+          // steps never open a new run, and an authored tag (`masala`) keeps
+          // resolveMoments' prose override away — so they shared one "sauce jar".
+          const entry = resolvedKey === null ? null : entryOf(ing.ingredientId, ing.ingredientName);
+          if (entry !== null && entry.startsWith("s:")) return entry;
           const run = moments.runByIngredientId.get(ing.ingredientId);
-          const shared = run === undefined ? undefined : componentKeyByRun.get(run);
-          if (shared) return `c:${shared}`;
+          const shared = run === undefined ? undefined : componentByRun.get(run);
+          if (shared) return `c:${shared.key}@${entryOf(ing.ingredientId, ing.ingredientName)}`;
           return resolvedKey;
         };
         // Ruling 1 — a raw protein named by a mixture's steps joins it on cook
