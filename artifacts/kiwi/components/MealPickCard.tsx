@@ -3,7 +3,7 @@
 // thumb · name (serif) · description (up to DESCRIPTION_MAX_LINES; the card
 // GROWS to fit — Hans's precedent, BUG-294) · "{total} min total · {active}
 // min active" · "{kcal} kcal · {p}g protein · {c}g carbs · {f}g fat" · tag
-// pills · a select circle. Selected → sage-600 1.4px border on a sage-50
+// pills · a Pick pill (was a select circle). Selected → sage-600 1.4px border on a sage-50
 // surface. Every number is rendered AS THE SERVER SENT IT — the minutes are the
 // derived columns (D-WS9-235; a null active time renders as "—"), the macros
 // are per serving. The client computes nothing.
@@ -23,6 +23,11 @@
 // circle keeps the pick semantics (checkbox, checked, the meal's name) so a
 // screen reader hears what it did before. The body is a plain button that reads
 // its own text.
+//
+// WEB-2 Part C (BUG-380, Hans: the circle read as a status mark, not a
+// control) — the circle is now a labelled pill in the same place, with the same
+// handler and the same semantics: "Pick" outlined in sage, "Picked" filled
+// terracotta with a check. The screen adds one helper line under its header.
 
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -50,6 +55,10 @@ import { isOverCap } from "@/lib/wizard/pickMeals";
 export const DESCRIPTION_MAX_LINES = 4;
 export const PLAYLIST_PILL = "playlist";
 export const NEW_TO_YOU_PILL = "new to you";
+/** BUG-380 — the pick control's visible label. */
+export function pickPillLabel(selected: boolean): string {
+  return selected ? "Picked" : "Pick";
+}
 export function overCapPill(capMinutes: number): string {
   return `over your ${capMinutes}-min cap`;
 }
@@ -66,7 +75,7 @@ interface Props {
   selected: boolean;
   /** The user's cook-time cap for this run; null = no cap, no pill. */
   capMinutes: number | null;
-  /** The select circle — picks / unpicks. The only control that does. */
+  /** The Pick pill — picks / unpicks. The only control that does. */
   onToggle: () => void;
   /** Resub C5 — the body: opens the meal's preview. Without it the body is inert. */
   onOpen?: () => void;
@@ -160,16 +169,17 @@ export function MealPickCard({
         hitSlop={12}
         testID={`meal-pick-toggle-${meal.id}`}
         style={({ pressed }) => [
-          s.selectCircle,
-          selected && s.selectCircleOn,
+          s.pickPill,
+          selected && s.pickPillOn,
           pressed && { opacity: 0.7 },
         ]}
       >
         {selected ? (
-          <Feather name="check" size={13} color={Colors.neutral[0]} />
-        ) : (
-          <Feather name="plus" size={13} color={Colors.sage[700]} />
-        )}
+          <Feather name="check" size={13} color={Palette.button.primary.text} />
+        ) : null}
+        <Text numberOfLines={1} style={[s.pickPillText, selected && s.pickPillTextOn]}>
+          {pickPillLabel(selected)}
+        </Text>
       </Pressable>
     </View>
   );
@@ -273,18 +283,30 @@ const s = StyleSheet.create({
   pillOverCapText: {
     color: Colors.terracotta[600],
   },
-  selectCircle: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 1.5,
-    borderColor: Colors.neutral[400],
+  // BUG-380 — the pick control. Outlined sage until picked, then the primary
+  // CTA's terracotta fill and white ink (Palette.button.primary, 4.73:1).
+  pickPill: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    marginTop: 2,
-  },
-  selectCircleOn: {
-    backgroundColor: Colors.sage[600],
+    gap: 4,
+    minHeight: 30,
+    paddingHorizontal: Spacing[3],
+    borderRadius: Radius.full,
+    borderWidth: 1.5,
     borderColor: Colors.sage[600],
+    backgroundColor: "transparent",
+  },
+  pickPillOn: {
+    backgroundColor: Palette.button.primary.background,
+    borderColor: Palette.button.primary.background,
+  },
+  pickPillText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[700],
+    fontFamily: Typography.face.sans[600],
+    fontWeight: Typography.fontWeight.semibold,
+  },
+  pickPillTextOn: {
+    color: Palette.button.primary.text,
   },
 });

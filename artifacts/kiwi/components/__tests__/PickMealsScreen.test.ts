@@ -174,6 +174,39 @@ test("C5 card: the circle carries the pick semantics (checkbox, checked, the mea
   assert.equal(byTestId(root, `meal-pick-open-${NEW_MEAL.id}`)!.props.accessibilityRole, "button");
 });
 
+// WEB-2 Part C (BUG-380) — the circle read as a status mark. The control is a
+// labelled pill: "Pick" outlined in sage, "Picked" filled terracotta + check.
+test("BUG-380 card: the pick control is a labelled pill — 'Pick' outlined sage, 'Picked' filled terracotta with a check", () => {
+  const off = renderCard(NEW_MEAL, false);
+  const pill = byTestId(off.root, `meal-pick-toggle-${NEW_MEAL.id}`)!;
+  assert.equal(joined(pill), "Pick");
+  const offStyle = flatten(pill.props.style);
+  assert.equal(offStyle.borderColor, Colors.sage[600]);
+  assert.equal(offStyle.backgroundColor, "transparent");
+  assert.equal(walk(pill).filter((n) => n.props.name === "check").length, 0);
+  cardMounted?.unmount();
+  cardMounted = null;
+
+  const on = renderCard(NEW_MEAL, true);
+  const picked = byTestId(on.root, `meal-pick-toggle-${NEW_MEAL.id}`)!;
+  assert.equal(joined(picked), "Picked");
+  const onStyle = flatten(picked.props.style);
+  assert.equal(onStyle.backgroundColor, Palette.button.primary.background);
+  assert.equal(onStyle.backgroundColor, Colors.terracotta[400]);
+  assert.equal(walk(picked).filter((n) => n.props.name === "check").length, 1, "the check glyph");
+});
+
+test("BUG-380 screen: one helper line under the header says which tap does what", async () => {
+  const m = await mount({ shelf: shelf(THREE, 40) });
+  assert.equal(
+    joined(byTestId(m.root(), "pick-helper")!),
+    "Tap a meal to look at it. Tap Pick to add it to your plan.",
+  );
+  // The screen-level toggle flips the pill's label.
+  await tap(byLabel(m.root(), "Miso Salmon"), "card n1");
+  assert.equal(joined(byTestId(m.root(), `meal-pick-toggle-${NEW_MEAL.id}`)!), "Picked");
+});
+
 test("card: every field renders from the shelf shape — name, description, times, macros, tags", () => {
   const { root } = renderCard(PLAYLIST_MEAL);
   const t = joined(root);

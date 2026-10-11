@@ -61,7 +61,7 @@ export interface MealPreviewSheetProps {
   picked: boolean;
   /** Whose read GET /meals/:id is. */
   principal: "user" | "guest";
-  /** Pick / unpick — the very toggle the card's circle calls. */
+  /** Pick / unpick — the very toggle the card's Pick pill calls. */
   onToggle: () => void;
   onClose: () => void;
 }

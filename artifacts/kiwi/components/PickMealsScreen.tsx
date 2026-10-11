@@ -26,7 +26,7 @@
 //     catalog cannot compose → the thin-shelf card;
 //   · the exhausted card's two exits (/wizard, /tellkiwi — member routes, the
 //     second the AI-invention surface) become the thin-shelf sign-up exit.
-// The card itself writes nothing (its circle is the local pick toggle; since
+// The card itself writes nothing (its Pick pill is the local pick toggle; since
 // Resub C5 its body opens MealPreviewSheet, a read of GET /meals/:id under the
 // caller's principal), and this screen reads nothing member-only: no /me/*, no
 // last-batch, no playlist (PlaylistPickScreen below does, and a guest never
@@ -121,6 +121,8 @@ export {
   EXHAUSTED_TITLE,
 } from "@/components/ExhaustedCard";
 export const BUILD_LABEL = "Build my week";
+// WEB-2 Part C (BUG-380) — the card has two targets; say which does what.
+export const PICK_HELPER = "Tap a meal to look at it. Tap Pick to add it to your plan.";
 export const FOOTER_FLEX = (days: number) => `fewer or more than ${days} is fine`;
 export const FOOTER_OVER_CAP = (n: number, cap: number) => ` · ${n} over your ${cap}-min cap`;
 export const COULDNT_FIND = (names: string[]) => `Couldn't find: ${names.join(", ")}`;
@@ -357,6 +359,9 @@ export function PickMealsScreen({
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        <Text style={s.quietLine} testID="pick-helper">
+          {PICK_HELPER}
+        </Text>
         {mode === "text" && state.unmatchedNames.length > 0 && (
           <Text style={s.quietLine}>{COULDNT_FIND(state.unmatchedNames)}</Text>
         )}
@@ -456,7 +461,7 @@ export function PickMealsScreen({
         />
       </View>
       {/* Resub C5 — the preview. Its primary is the very toggle the card's
-          circle calls; a guest reads the catalog meal under the guest token. */}
+          Pick pill calls; a guest reads the catalog meal under the guest token. */}
       <MealPreviewSheet
         meal={previewMeal}
         picked={previewMeal !== null && state.pickedIds.includes(previewMeal.id)}
