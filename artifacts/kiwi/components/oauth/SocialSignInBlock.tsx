@@ -13,8 +13,9 @@
 //
 //   iOS      Apple's own AppleAuthenticationButton (App Store Guidelines
 //            require the proprietary component, not a custom button) +
-//            Google's own GoogleSigninButton
-//   Android  GoogleSigninButton alone (§2.2 — Sign in with Apple belongs on
+//            Kiwi's own "Continue with Google" (WEB-2, BUG-364: hand-rolled,
+//            Google's G; GoogleSignin.signIn() behind it)
+//   Android  that Google button alone (§2.2 — Sign in with Apple belongs on
 //            Apple platforms)
 //   web      Apple's JS-rendered button + Google Identity Services' rendered
 //            button, both drawn by the provider's own script (Part D)
@@ -233,8 +234,9 @@ export function SocialSignInBlock({
 
   // WEB-1 (BUG-364, the web half) — on web the two provider-drawn buttons share
   // ONE centred box (lib/oauth/webButtonSize.ts), so they come out the same
-  // width and height, stacked, in the email form's column. Native renders
-  // exactly as before: Hans ruled native post-launch.
+  // width and height, stacked, in the email form's column. Native: Apple's
+  // button and Kiwi's Google button share one metric (48, full column,
+  // Radius.md — WEB-2 Part E), stacked in the same column.
   const providerButtonNodes =
     PLATFORM === "web" ? (
       <View style={s.webButtons} testID="social-web-buttons">

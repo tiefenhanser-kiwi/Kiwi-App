@@ -1,30 +1,38 @@
-// Row 9 (1.1) · OAuth Block 2 Part C — Google's button, Google's rendering.
+// Row 9 (1.1) · OAuth Block 2 Part C — the native "Continue with Google".
 //
-// §2.1 — "Google's follows Google's branding rules (its own rendered button on
-// web; a branded button on native)."
+// WEB-2 Part E (BUG-364) — HAND-ROLLED. Hans, October 7: the SDK's
+// GoogleSigninButton read "pretty square and less styled" than the rest of the
+// auth screens; submit as is, hand-roll after launch. This is that button.
 //
-// `GoogleSigninButton` from @react-native-google-signin IS Google's own
-// rendered button: on Android it is the platform SignInButton, on iOS the
-// GIDSignInButton. Choosing it over a hand-rolled row with a "G" asset is a
-// brand-risk decision, not a convenience — the logo, its clear space, the
-// typeface and the pressed state all come from Google's SDK and cannot drift.
+// It was Google's own rendering (D-WS9-270 item 6) for brand safety, at the
+// price of the wording: the RN wrapper exposes no text option, so it read
+// "Sign in with Google" against §2.1's "Continue with Google". Google's
+// branding rules allow a custom button on two conditions this keeps: the "G"
+// logo exactly as issued (GoogleGLogo.tsx) and the approved wording —
+// "Continue with Google" is on that list. The light theme's fill, stroke and
+// ink below are Google's published values for it, not Kiwi palette, for the
+// same reason.
 //
-// 🔴 ONE CONSEQUENCE, AND IT IS A DIVERGENCE FROM §2.1'S LABEL. The native
-// button's text is the SDK's, and the RN wrapper exposes only `size`, `color`
-// and `disabled` — no text option. So on iOS and Android this reads "Sign in
-// with Google", not "Continue with Google". Apple's component has a CONTINUE
-// type and Google's has no equivalent. The alternatives were to hand-roll the
-// button (drift risk on the one asset Google reviews) or to ship a label that
-// is not Google's; neither is obviously better than one word of difference, so
-// this is reported rather than decided. Web says "Continue with Google"
-// because Google Identity Services offers `text: "continue_with"` (Part D) —
-// so the two platforms will not match, which is Google's doing, not ours.
+// Metrics are AppleContinueButton's — same height, full column width, same
+// Radius.md — so the two stack as a pair on iOS. The tap still goes to the one
+// sign-in function native has always used: SocialSignInBlock's onGoogle →
+// lib/oauth/native.ts signInWithGoogleNative → GoogleSignin.signIn(). Only the
+// rendering changed; the SDK's native module is still what signs in, so this is
+// JS only and ships over the air.
 
-import { GoogleSigninButton } from "@react-native-google-signin/google-signin";
 import React from "react";
-import { Platform, StyleSheet, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text } from "react-native";
 
+import { Radius, Spacing, Typography } from "@/constants/tokens";
+
+import { GoogleGLogo } from "./GoogleGLogo";
+
+/** AppleContinueButton's height. */
 const HEIGHT = 48;
+export const GOOGLE_CONTINUE_LABEL = "Continue with Google";
+
+/** Google's light-theme button values (branding guidelines), not Kiwi tokens. */
+const GOOGLE_LIGHT = { fill: "#FFFFFF", stroke: "#747775", ink: "#1F1F1F" } as const;
 
 export interface GoogleContinueButtonProps {
   onPress: () => void;
@@ -39,28 +47,53 @@ export function GoogleContinueButton({
 }: GoogleContinueButtonProps) {
   if (Platform.OS === "web") {
     // SocialSignInBlock renders GoogleWebButton on web and never reaches here.
-    // The guard stays because the package's web build is a stub that throws
-    // "Web support is only available to sponsors" — a fall-through would put
-    // that sentence in front of a user.
+    // The guard stays because signInWithGoogleNative throws on web (the SDK's
+    // web build is a sponsors-only stub).
     return null;
   }
+  const held = !!disabled || !!busy;
   return (
-    <View style={s.host}>
-      <GoogleSigninButton
-        size={GoogleSigninButton.Size.Wide}
-        color={GoogleSigninButton.Color.Light}
-        disabled={disabled || busy}
-        onPress={onPress}
-        style={s.button}
-        testID="google-continue"
-      />
-    </View>
+    <Pressable
+      onPress={onPress}
+      disabled={held}
+      accessibilityRole="button"
+      accessibilityLabel={GOOGLE_CONTINUE_LABEL}
+      accessibilityState={{ disabled: held, busy: !!busy }}
+      testID="google-continue"
+      style={({ pressed }) => [s.button, pressed && s.pressed, held && s.held]}
+    >
+      <GoogleGLogo size={18} />
+      <Text style={s.label} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+        {GOOGLE_CONTINUE_LABEL}
+      </Text>
+    </Pressable>
   );
 }
 
 const s = StyleSheet.create({
-  // Google's button draws its own shadow and will not stretch past its
-  // intrinsic width, so the host centres it rather than fighting it.
-  host: { height: HEIGHT, alignItems: "stretch", justifyContent: "center" },
-  button: { width: "100%", height: HEIGHT },
+  // Logo then label, centred as one group — the way Apple's CONTINUE button
+  // sits directly above it.
+  button: {
+    height: HEIGHT,
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing[3],
+    paddingHorizontal: Spacing[4],
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: GOOGLE_LIGHT.stroke,
+    backgroundColor: GOOGLE_LIGHT.fill,
+  },
+  pressed: { opacity: 0.85 },
+  held: { opacity: 0.5 },
+  // Google's spec face is Roboto Medium: the system face at 500 IS Roboto on
+  // Android; iOS draws its own system face (no font asset ships for this).
+  label: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.medium,
+    color: GOOGLE_LIGHT.ink,
+    flexShrink: 1,
+  },
 });

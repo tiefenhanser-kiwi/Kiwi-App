@@ -114,7 +114,15 @@ export function renderGoogleWebButton(api: GsiId, parent: unknown, width: number
     text: "continue_with",
     shape: "rectangular",
     logo_alignment: "left",
-    // GIS clamps to [200, 400]; outside that it silently draws its default.
-    width: Math.max(200, Math.min(400, Math.round(width))),
+    width: gsiButtonWidth(width),
   });
+}
+
+/**
+ * The width GIS is asked for. GIS clamps to [200, 400]; outside that it
+ * silently draws its default. WEB-2 Part E (BUG-389) — also the comparison key
+ * for a re-render: two host widths that clamp alike draw the same button.
+ */
+export function gsiButtonWidth(width: number): number {
+  return Math.max(200, Math.min(400, Math.round(width)));
 }
