@@ -229,6 +229,14 @@ export function createBillingRouter(deps: Partial<BillingRouterDeps> = {}): IRou
         allow_promotion_codes: true,
         // Stripe Tax (§10). Prices are tax-exclusive — $9.99 + tax, the US norm.
         automatic_tax: { enabled: true },
+        // [bill-1] Stripe Tax needs an address ON THE CUSTOMER, and the one
+        // created above has only an email. Without this every session fails
+        // (prod, 2026-10-13: "Automatic tax calculation in Checkout requires a
+        // valid address on the Customer…"). `auto` has Checkout save the billing
+        // address it collects (and the name) back to the customer. Typed in
+        // stripe@22.6.2 Checkout/Sessions.d.ts as SessionCreateParams.CustomerUpdate
+        // — 'auto' | 'never', default never, only allowed with `customer`.
+        customer_update: { address: "auto", name: "auto" },
         // `{CHECKOUT_SESSION_ID}` is Stripe's own template token; it must reach
         // Stripe unescaped, which is why this is a plain string and not a URL.
         success_url: `${base}/billing/return?session_id={CHECKOUT_SESSION_ID}`,

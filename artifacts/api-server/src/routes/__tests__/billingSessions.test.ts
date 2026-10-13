@@ -198,6 +198,28 @@ describe("POST /billing/checkout-session — the session Stripe is asked for", (
     }
   });
 
+  // [bill-1] — observed in prod 2026-10-13: Stripe refuses automatic tax on a
+  // customer with no address unless Checkout may save one to it.
+  it("whenever automatic_tax is on, customer_update lets Checkout save the address (and name)", async () => {
+    const cases: Array<[string, RowFixture, "monthly" | "annual"]> = [
+      ["new customer, monthly", { status: "none", stripeCustomerId: null }, "monthly"],
+      ["new customer, annual", { status: "trialing", stripeCustomerId: null }, "annual"],
+      ["reused customer", { status: "canceled", stripeCustomerId: "cus_existing" }, "monthly"],
+    ];
+    for (const [label, row, plan] of cases) {
+      const h = await spinUp(row);
+      try {
+        assert.equal((await post(h, "/billing/checkout-session", { plan })).status, 200, label);
+        const s = session(h);
+        assert.deepEqual(s.automatic_tax, { enabled: true }, `${label}: Stripe Tax stays on`);
+        assert.ok(typeof s.customer === "string", `${label}: customer_update needs a customer`);
+        assert.deepEqual(s.customer_update, { address: "auto", name: "auto" }, label);
+      } finally {
+        await h.close();
+      }
+    }
+  });
+
   it("a trailing slash on the return base does not produce a double slash", async () => {
     const h = await spinUp(
       { status: "none" },
