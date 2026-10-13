@@ -13,6 +13,7 @@ import { FilterChipRow, PLAN_DISCOVERY_FILTER_OPTIONS } from "@/components/Filte
 import { Header } from "@/components/Header";
 import { PlanPreviewModal } from "@/components/PlanPreviewModal";
 import { PlanRow } from "@/components/PlanRow";
+import { runUseFromPreview } from "@/components/planPreview/previewUseFlow";
 import { Screen } from "@/components/Screen";
 import { SortDropdown, type SortKey } from "@/components/SortDropdown";
 import { useApp } from "@/contexts/AppContext";
@@ -85,16 +86,23 @@ export default function PlansTab() {
   // BUG-036 fix: "Use This Week" creates + activates (shared
   // setPlanActiveThisWeek — dates + activatedAt + server demotes prior);
   // "Save for Later" creates the undated draft only. Both navigate.
-  const handleUseFromPreview = async (
+  // PREVIEW-1 B — shared with Home and tested in
+  // components/planPreview/previewUseFlow.ts: once the create succeeds it is
+  // never repeated; a failed activate opens the plan with a toast.
+  const handleUseFromPreview = (
     templateId: string,
     opts: { activate: boolean },
-  ) => {
-    const { instanceId } = await useTemplateAsPlan(templateId);
-    if (opts.activate) {
-      await setPlanActiveThisWeek(instanceId);
-    }
-    router.push({ pathname: "/plan/[id]", params: { id: instanceId } });
-  };
+  ) =>
+    runUseFromPreview(
+      {
+        createFromTemplate: useTemplateAsPlan,
+        activateThisWeek: setPlanActiveThisWeek,
+        openPlan: (id) => router.push({ pathname: "/plan/[id]", params: { id } }),
+        notify: (message) => showToast({ message }),
+      },
+      templateId,
+      opts,
+    );
 
   // usePlans(['my_plans']) — supplies the saved-plan count for the default
   // filter. Cache-shared with the Home Plan Discovery card and (when the

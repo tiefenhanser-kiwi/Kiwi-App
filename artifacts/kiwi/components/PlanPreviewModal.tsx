@@ -49,8 +49,9 @@ import { PlanPreviewMealView } from "./planPreview/PlanPreviewMealView";
 import { buildPlanPreview, type PreviewMealRow } from "./planPreview/previewModel";
 
 // BUG-396 — the app's existing generic failure line (forgot/reset password,
-// Meals tab, grocery list). Nothing more specific is true: the caller's
-// onUsePlan does create + activate + navigate, and any of the three can throw.
+// Meals tab, grocery list). Since PREVIEW-1 B only a failed CREATE reaches
+// here (planPreview/previewUseFlow.ts): an activate failure after a successful
+// create opens the plan with its own toast, so this retry never duplicates one.
 export const PREVIEW_USE_ERROR = "Something went wrong. Please try again.";
 
 export interface PlanPreviewModalProps {

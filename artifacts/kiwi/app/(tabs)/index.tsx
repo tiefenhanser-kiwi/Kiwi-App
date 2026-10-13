@@ -35,6 +35,7 @@ import { HomeHeader } from "@/components/HomeHeader";
 import { LoadingShim } from "@/components/LoadingShim";
 import { PersonalizeNudgeModal } from "@/components/PersonalizeNudgeModal";
 import { PlanPreviewModal } from "@/components/PlanPreviewModal";
+import { runUseFromPreview } from "@/components/planPreview/previewUseFlow";
 import { Screen } from "@/components/Screen";
 import { SectionLabel } from "@/components/SectionLabel";
 import { TeachingArc } from "@/components/TeachingArc";
@@ -43,6 +44,7 @@ import { FeaturedPlanCard } from "@/components/FeaturedPlanCard";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBilling } from "@/contexts/BillingContext";
+import { useToast } from "@/contexts/ToastProvider";
 import { useHomePayload } from "@/hooks/useHomePayload";
 import { useHomeRail } from "@/hooks/useHomeRail";
 import { usePlans } from "@/hooks/usePlans";
@@ -74,6 +76,7 @@ export default function HomeTab() {
   const { user } = useAuth();
   // Row 9 (1.1) Stripe S2 Part E -- above every early return, per the block rule.
   const { fireUpsellMoment } = useBilling();
+  const { showToast } = useToast();
   // The in-place notice a gated grocery generate leaves behind (§2.6). Null is the
   // normal state; `groceryStaleNotice` is not used here because the copy arrives
   // already resolved from lib/groceryHandoff.ts.
@@ -212,16 +215,24 @@ export default function HomeTab() {
   // server demotes the prior winner) — so the plan resolves as this-week and
   // Home's tonight strip renders instead of a dead screen. "Save for Later"
   // creates the undated draft only (prior behavior). Both then navigate.
-  const handleUseFromPreview = async (
+  // PREVIEW-1 B — the flow is shared with the Plans tab and tested in
+  // components/planPreview/previewUseFlow.ts: once the create succeeds it is
+  // never repeated; a failed activate opens the plan with a toast instead of
+  // bouncing back to the sheet's retry (which re-created the plan).
+  const handleUseFromPreview = (
     templateId: string,
     opts: { activate: boolean },
-  ) => {
-    const { instanceId } = await useTemplateAsPlan(templateId);
-    if (opts.activate) {
-      await setPlanActiveThisWeek(instanceId);
-    }
-    router.push({ pathname: "/plan/[id]", params: { id: instanceId } });
-  };
+  ) =>
+    runUseFromPreview(
+      {
+        createFromTemplate: useTemplateAsPlan,
+        activateThisWeek: setPlanActiveThisWeek,
+        openPlan: (id) => router.push({ pathname: "/plan/[id]", params: { id } }),
+        notify: (message) => showToast({ message }),
+      },
+      templateId,
+      opts,
+    );
 
   // ── Make lane: "Create a meal plan" (WS9 Redesign Arc Block 2a) ──────────
   // Two equal entries into ONE merged wizard screen (components/WizardScreen):

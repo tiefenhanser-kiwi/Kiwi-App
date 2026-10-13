@@ -19,6 +19,7 @@ import TestRenderer, { act } from "react-test-renderer";
 import * as SecureStore from "expo-secure-store";
 
 import { PlanPreviewModal } from "../PlanPreviewModal";
+import { ACTIVATE_FAILED_NOTICE, runUseFromPreview } from "../planPreview/previewUseFlow";
 import { __resetForTests as resetAuthBridge } from "@/lib/api/auth-bridge";
 
 const TOKEN_KEY = "kiwi_authToken";
@@ -500,6 +501,85 @@ test("meal tap opens the meal in-sheet; the back link and the hardware back retu
   await act(async () => {
     (renderer.root.findAll((n) => n.type === "rn-modal")[0].props.onRequestClose as () => void)();
   });
+  assert.equal(closeCalls, 1);
+  renderer.unmount();
+});
+
+// ── PREVIEW-1 B — the real callers' flow wired into the real sheet ──────────
+
+function wiredFlow(over: { createFailsOnce?: boolean; activateFails?: boolean }) {
+  const log = { creates: 0, createdIds: [] as string[], opened: [] as string[], notices: [] as string[] };
+  let createFailsLeft = over.createFailsOnce ? 1 : 0;
+  const onUsePlan = (templateId: string, opts: { activate: boolean }) =>
+    runUseFromPreview(
+      {
+        createFromTemplate: async () => {
+          log.creates += 1;
+          if (createFailsLeft > 0) {
+            createFailsLeft -= 1;
+            throw new Error("create failed");
+          }
+          const id = `inst-${log.createdIds.length + 1}`;
+          log.createdIds.push(id);
+          return { instanceId: id };
+        },
+        activateThisWeek: async () => {
+          if (over.activateFails) throw new Error("activate failed");
+          return { demoted: null };
+        },
+        openPlan: (id) => log.opened.push(id),
+        notify: (m) => log.notices.push(m),
+      },
+      templateId,
+      opts,
+    );
+  return { log, onUsePlan };
+}
+
+test("PREVIEW-1 B: create ok + activate fails — the sheet closes, the plan opens, no error, no retry, ONE plan", async () => {
+  let closeCalls = 0;
+  const { log, onUsePlan } = wiredFlow({ activateFails: true });
+  const renderer = await openWith(onUsePlan, () => {
+    closeCalls += 1;
+  });
+
+  await press(renderer, "plan-preview-use");
+
+  // The user's retry: tap Use This Week again IF the sheet is still offering
+  // it (open, error showing) — exactly what a person would do. On the old code
+  // the activate error bounced to the sheet and this tap re-ran the create.
+  if (closeCalls === 0 && findByTestID(renderer.toJSON() as RenderedNode, "plan-preview-error")) {
+    await press(renderer, "plan-preview-use");
+  }
+
+  assert.deepEqual(log.createdIds, ["inst-1"], "no second create on retry — one plan");
+  assert.equal(log.creates, 1, "exactly one create call");
+  assert.deepEqual(log.opened, ["inst-1"], "navigation to the created plan happened");
+  assert.deepEqual(log.notices, [ACTIVATE_FAILED_NOTICE]);
+  assert.equal(closeCalls, 1, "the sheet closed");
+  assert.equal(
+    findByTestID(renderer.toJSON() as RenderedNode, "plan-preview-error"),
+    null,
+    "no sheet error — so no sheet retry that could create a second plan",
+  );
+  renderer.unmount();
+});
+
+test("PREVIEW-1 B: create fails — the sheet keeps its error + retry, and the retry creates exactly one plan", async () => {
+  let closeCalls = 0;
+  const { log, onUsePlan } = wiredFlow({ createFailsOnce: true });
+  const renderer = await openWith(onUsePlan, () => {
+    closeCalls += 1;
+  });
+
+  await press(renderer, "plan-preview-use");
+  assert.equal(closeCalls, 0);
+  assert.ok(findByTestID(renderer.toJSON() as RenderedNode, "plan-preview-error"));
+  assert.deepEqual(log.createdIds, [], "nothing was created");
+
+  await press(renderer, "plan-preview-use");
+  assert.deepEqual(log.createdIds, ["inst-1"], "one plan in total");
+  assert.deepEqual(log.opened, ["inst-1"]);
   assert.equal(closeCalls, 1);
   renderer.unmount();
 });
