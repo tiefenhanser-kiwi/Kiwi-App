@@ -16,7 +16,7 @@
     {
       "slug": "sheet-pan-easy",
       "title": "Sheet Pan Easy",
-      "description": "Five real dinners where one sheet pan in a hot oven does the heavy lifting.",
+      "description": "Five real dinners where a hot oven does the heavy lifting.",
       "coverMealId": "45077d29-688d-4adc-9a9e-e6cbc2e5aa2a",
       "days": [
         { "day": "Monday", "mealId": "6f9d09e1-a22a-44bd-a27a-b9e756c10a18", "name": "Sheet-Pan Teriyaki Chicken with Roasted Bok Choy and Rice" },
@@ -43,11 +43,11 @@
       "slug": "cozy-weeknights",
       "title": "Cozy Weeknights",
       "description": "Five soups, stews and braises, each on the table in an hour or less.",
-      "coverMealId": "994049b6-2115-44ba-bc75-c7cb4988c539",
+      "coverMealId": "5d236e13-0651-4b91-b48b-c27a2d73e644",
       "days": [
         { "day": "Monday", "mealId": "5d236e13-0651-4b91-b48b-c27a2d73e644", "name": "Classic Beef Stroganoff over Egg Noodles" },
         { "day": "Tuesday", "mealId": "2b62e777-366a-41bc-9abf-845c1c1ce0fe", "name": "Broccoli Cheddar Soup with Crisp Apple and Walnut Salad" },
-        { "day": "Wednesday", "mealId": "994049b6-2115-44ba-bc75-c7cb4988c539", "name": "Classic Chicken Tikka Masala with Basmati Rice and Garlic Naan" },
+        { "day": "Wednesday", "mealId": "ecf4a7b1-90ee-49c8-a7df-718093a4dadf", "name": "Beef Keema Curry with Peas" },
         { "day": "Thursday", "mealId": "6ce70910-a7a9-4a23-9a32-9c68a3e8fcb5", "name": "Classic Lentil Soup" },
         { "day": "Friday", "mealId": "42c9c80d-163b-4ecc-a597-0d8d0b8675c6", "name": "Potato Leek Soup with Crusty Bread and a Simple Green Salad" }
       ]
