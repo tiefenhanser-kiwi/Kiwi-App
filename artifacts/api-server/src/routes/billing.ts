@@ -61,7 +61,10 @@ import {
 } from "../lib/subscriptionService";
 import { RevenueCatFetchError, type FetchLike } from "../lib/billing/revenuecat";
 import { syncStoreSubscription } from "../lib/billing/storeSync";
-import { buildSubscriptionPayload } from "../lib/billing/subscriptionPayload";
+import {
+  buildSubscriptionPayload,
+  hasStripeBillingAccount,
+} from "../lib/billing/subscriptionPayload";
 
 const CheckoutRequestSchema = z.object({
   plan: z.enum(["monthly", "annual"]),
@@ -306,12 +309,14 @@ export function createBillingRouter(deps: Partial<BillingRouterDeps> = {}): IRou
         });
       }
 
+      // No Stripe subscription has ever existed for this row — no customer at
+      // all, or [bill-3] only the customer a failed or abandoned checkout left
+      // behind — so there is nothing to manage and the Portal would be empty.
+      // A 409 with a code, not a 404: the ACCOUNT exists, the billing
+      // relationship does not, and the client's correct response is to show the
+      // paywall rather than an error. Same predicate as `hasBillingAccount`.
       const customerId = snapshot?.stripeCustomerId ?? null;
-      // No customer means this user has never reached checkout, so there is
-      // nothing to manage. A 409 with a code, not a 404: the ACCOUNT exists, the
-      // billing relationship does not, and the client's correct response is to
-      // show the paywall rather than an error.
-      if (customerId === null) {
+      if (customerId === null || !hasStripeBillingAccount(snapshot)) {
         return res.status(409).json({ code: "no_billing_account" });
       }
 

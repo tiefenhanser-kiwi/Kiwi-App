@@ -61,6 +61,8 @@ interface RowFixture {
   cancelAtPeriodEnd?: boolean;
   /** Row 9 (1.1) Stripe S2 Part C -- what hasBillingAccount is derived from. */
   stripeCustomerId?: string | null;
+  /** [bill-3] -- hasBillingAccount now also needs a Stripe subscription to have existed. */
+  stripeSubscriptionId?: string | null;
   /** Resubmission B1. */
   source?: "stripe" | "apple" | "google" | null;
   storeManagementUrl?: string | null;
@@ -83,7 +85,7 @@ function stubPrisma(row: RowFixture | null) {
               currentPeriodEnd: state.currentPeriodEnd ?? null,
               cancelAtPeriodEnd: state.cancelAtPeriodEnd ?? false,
               stripeCustomerId: state.stripeCustomerId ?? null,
-              stripeSubscriptionId: null,
+              stripeSubscriptionId: state.stripeSubscriptionId ?? null,
               source: state.source ?? null,
               storeManagementUrl: state.storeManagementUrl ?? null,
             },
@@ -310,11 +312,14 @@ describe("GET /me/subscription", () => {
 //     `customer.subscription.updated` webhook has no customer id — the button
 //     would open a 409.
 //
-// Keyed on `stripeCustomerId`, not `stripeSubscriptionId`: the Portal is scoped to
-// the CUSTOMER, and that is also what POST /billing/portal-session 409s
-// `no_billing_account` on. routes/billing.ts persists the customer BEFORE creating
-// a checkout session, so an abandoned checkout still leaves a reachable portal.
-describe("GET /me/subscription — hasBillingAccount (S2 Part C)", () => {
+// [bill-3] (Hans, 2026-10-13) — keyed on a Stripe SUBSCRIPTION having existed
+// (`stripeSubscriptionId`, never cleared), AND the customer the Portal is scoped
+// to. It used to be the customer alone, and routes/billing.ts persists the
+// customer BEFORE creating the checkout session — so a FAILED or abandoned
+// checkout lit up "Manage" on a trial that never paid, and the Portal it opened
+// had nothing in it. POST /billing/portal-session 409s `no_billing_account` on
+// the same predicate (lib/billing/subscriptionPayload.ts hasStripeBillingAccount).
+describe("GET /me/subscription — hasBillingAccount (S2 Part C, [bill-3])", () => {
   it("false for a trial that has never touched Stripe", async () => {
     const h = await spinUp({
       status: "trialing",
@@ -328,8 +333,8 @@ describe("GET /me/subscription — hasBillingAccount (S2 Part C)", () => {
     }
   });
 
-  it("🔴 TRUE for a CANCELED account — the portal is where its invoices live", async () => {
-    const h = await spinUp({ status: "canceled", stripeCustomerId: "cus_123" });
+  it("🔴 TRUE for a CANCELED subscriber — the portal is where its invoices live", async () => {
+    const h = await spinUp({ status: "canceled", stripeCustomerId: "cus_123", stripeSubscriptionId: "sub_123" });
     try {
       const { body } = await get(h);
       assert.equal(body.status, "canceled");
@@ -355,9 +360,20 @@ describe("GET /me/subscription — hasBillingAccount (S2 Part C)", () => {
     }
   });
 
-  it("true once a customer exists, whatever the status — a checkout begun is enough", async () => {
+  it("🔴 [bill-3] FALSE for a customer with NO subscription — a failed or abandoned checkout is not a billing account", async () => {
+    for (const status of ["trialing", "canceled"] as const) {
+      const h = await spinUp({ status, stripeCustomerId: "cus_failed_checkout", stripeSubscriptionId: null });
+      try {
+        assert.equal((await get(h)).body.hasBillingAccount, false, status);
+      } finally {
+        await h.close();
+      }
+    }
+  });
+
+  it("TRUE once a Stripe subscription has existed, whatever its status (canceled included)", async () => {
     for (const status of ["trialing", "active", "past_due", "canceled"] as const) {
-      const h = await spinUp({ status, stripeCustomerId: "cus_abandoned_checkout" });
+      const h = await spinUp({ status, stripeCustomerId: "cus_paid", stripeSubscriptionId: "sub_paid" });
       try {
         assert.equal((await get(h)).body.hasBillingAccount, true, status);
       } finally {
@@ -405,9 +421,40 @@ describe("GET /me/subscription — store rows (Resubmission B1)", () => {
     }
   });
 
+  // [bill-3] — a store row is unchanged: the store rail never writes the Stripe
+  // ids, so hasBillingAccount is what the Stripe history says, as before.
+  it("[bill-3] a store row: no Stripe history → false; a former Stripe subscriber → true (unchanged)", async () => {
+    const storeRow = {
+      status: "active" as const,
+      planCode: "premium_monthly",
+      source: "apple" as const,
+      currentPeriodEnd: new Date(NOW.getTime() + 20 * DAY),
+      storeManagementUrl: APPLE_MANAGEMENT_URL,
+    };
+    const fresh = await spinUp(storeRow, STORE_ENV);
+    try {
+      const { body } = await get(fresh);
+      assert.equal(body.hasBillingAccount, false);
+      assert.equal(body.managementUrl, APPLE_MANAGEMENT_URL);
+    } finally {
+      await fresh.close();
+    }
+    const former = await spinUp(
+      { ...storeRow, stripeCustomerId: "cus_was_web", stripeSubscriptionId: "sub_was_web" },
+      STORE_ENV,
+    );
+    try {
+      const { body } = await get(former);
+      assert.equal(body.hasBillingAccount, true);
+      assert.equal(body.source, "apple");
+    } finally {
+      await former.close();
+    }
+  });
+
   it("a Stripe row reports source stripe and NO management url (the Portal is its manager)", async () => {
     const h = await spinUp(
-      { status: "active", source: "stripe", stripeCustomerId: "cus_1", storeManagementUrl: "https://stale.example" },
+      { status: "active", source: "stripe", stripeCustomerId: "cus_1", stripeSubscriptionId: "sub_1", storeManagementUrl: "https://stale.example" },
       STORE_ENV,
     );
     try {

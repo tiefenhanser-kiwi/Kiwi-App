@@ -40,6 +40,29 @@ export interface SubscriptionPayload {
   storeBillingAvailable: boolean;
 }
 
+/**
+ * [bill-3] — is there a Stripe billing relationship worth a Portal?
+ *
+ * TRUE ONCE A STRIPE SUBSCRIPTION HAS EXISTED FOR THE ROW: `stripeSubscriptionId`,
+ * written by checkout.session.completed and by every mirrored
+ * customer.subscription.* event, and never cleared (a cancelled subscriber keeps
+ * it, and keeps Manage: invoices and resubscribe live behind the Portal).
+ *
+ * NOT the customer id alone. POST /billing/checkout-session persists the
+ * customer BEFORE creating the session (so a retry reuses it), which meant a
+ * FAILED or abandoned checkout lit up "Manage" on a trial that never paid
+ * (Hans, 2026-10-13) and opened an empty Portal. The customer is still
+ * required — the Portal is scoped to it.
+ *
+ * POST /billing/portal-session answers 409 `no_billing_account` on exactly the
+ * rows this says false for, so the button and the route cannot disagree.
+ */
+export function hasStripeBillingAccount(
+  snapshot: Pick<SubscriptionSnapshot, "stripeCustomerId" | "stripeSubscriptionId"> | null,
+): boolean {
+  return snapshot?.stripeCustomerId != null && snapshot.stripeSubscriptionId != null;
+}
+
 export function buildSubscriptionPayload(
   snapshot: SubscriptionSnapshot | null,
   config: BillingConfig,
@@ -61,7 +84,7 @@ export function buildSubscriptionPayload(
     enforced: config.enforced,
     earlyPayBonusDays: 0,
     firstChargeDateIfSubscribedNow: null,
-    hasBillingAccount: snapshot?.stripeCustomerId != null,
+    hasBillingAccount: hasStripeBillingAccount(snapshot),
     source,
     managementUrl: isStore ? (snapshot?.storeManagementUrl ?? null) : null,
     storeBillingAvailable: config.revenuecatAvailable,

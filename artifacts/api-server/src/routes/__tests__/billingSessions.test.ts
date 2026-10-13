@@ -426,7 +426,7 @@ describe("POST /billing/checkout-session + /portal-session — 409 subscribed_el
   });
 
   it("portal: a Stripe row is unchanged — it gets the Portal", async () => {
-    const h = await spinUp({ status: "active", source: "stripe", stripeCustomerId: "cus_web" });
+    const h = await spinUp({ status: "active", source: "stripe", stripeCustomerId: "cus_web", stripeSubscriptionId: "sub_web" });
     try {
       const res = await post(h, "/billing/portal-session");
       assert.equal(res.status, 200);
@@ -588,7 +588,7 @@ describe("the billing routes with Stripe unconfigured", () => {
 
 describe("POST /billing/portal-session", () => {
   it("returns { url } for a customer, with the return_url on the base", async () => {
-    const h = await spinUp({ status: "active", stripeCustomerId: "cus_existing" });
+    const h = await spinUp({ status: "active", stripeCustomerId: "cus_existing", stripeSubscriptionId: "sub_1" });
     try {
       const res = await post(h, "/billing/portal-session");
       assert.equal(res.status, 200);
@@ -617,6 +617,32 @@ describe("POST /billing/portal-session", () => {
     }
   });
 
+  // [bill-3] — Hans, 2026-10-13: a failed checkout left a customer behind (it is
+  // persisted before the session call) and that alone used to open the Portal.
+  it("a customer with NO Stripe subscription (failed/abandoned checkout) answers 409 no_billing_account", async () => {
+    for (const status of ["trialing", "none", "canceled"] as const) {
+      const h = await spinUp({ status, stripeCustomerId: "cus_failed_checkout", stripeSubscriptionId: null });
+      try {
+        const res = await post(h, "/billing/portal-session");
+        assert.equal(res.status, 409, status);
+        assert.equal(((await res.json()) as { code: string }).code, "no_billing_account");
+        assert.equal(h.stripe.calls.portalSessions.length, 0, "no empty Portal is minted");
+      } finally {
+        await h.close();
+      }
+    }
+  });
+
+  it("a CANCELED subscriber still gets the Portal — invoices and resubscribe live there", async () => {
+    const h = await spinUp({ status: "canceled", stripeCustomerId: "cus_old", stripeSubscriptionId: "sub_old" });
+    try {
+      assert.equal((await post(h, "/billing/portal-session")).status, 200);
+      assert.equal(h.stripe.calls.portalSessions.length, 1);
+    } finally {
+      await h.close();
+    }
+  });
+
   it("a user with NO subscription row also answers 409, not a 500", async () => {
     const h = await spinUp(null);
     try {
@@ -628,7 +654,7 @@ describe("POST /billing/portal-session", () => {
 
   it("a Stripe failure answers 502", async () => {
     const h = await spinUp(
-      { status: "active", stripeCustomerId: "cus_existing" },
+      { status: "active", stripeCustomerId: "cus_existing", stripeSubscriptionId: "sub_1" },
       { stripe: { throwOn: { portalSessionsCreate: new Error("nope") } } },
     );
     try {
