@@ -237,7 +237,8 @@ export type SheetState = "trialing" | "lapsed";
 export interface SheetStateOptions {
   /**
    * Skip the `enforced` blackout. Passed by exactly ONE caller: the 402
-   * interception in lib/api/client.ts.
+   * subscription in contexts/BillingContext.tsx. (A tap on Subscribe also skips
+   * the blackout, through `subscribeSheetFor` below, not through this flag.)
    *
    * 🔴 §2.7's rule, and it reads backwards until you see why: "when `enforced`
    * is false a 402 cannot occur; if one arrives anyway, log it and show the
@@ -269,6 +270,26 @@ export function sheetStateFor(
   // the server is wrong. The paywall is the honest surface for a refusal, and the
   // foreground refetch the sheet triggers is what corrects the status.
   return opts.ignoreEnforcement === true ? "lapsed" : null;
+}
+
+/**
+ * BILL-2 — the sheet a tap on Profile's web Subscribe button opens, or null.
+ *
+ * NOT behind the `enforced` blackout. `settingsRowFor` shows the button whenever
+ * Stripe is configured, and that is the one surface the blackout spares (§2.1),
+ * so a sheet that then refused to open would be a button that does nothing. A
+ * person asking to pay is not an upsell, and paying early must work before the
+ * paywall goes on.
+ *
+ * Unlike `ignoreEnforcement`, a paying status gets NO sheet: that flag reads a
+ * 402 as proof our status is stale, but a tap carries no such evidence, and
+ * `settingsRowFor` never offers Subscribe to `active` / `past_due` anyway.
+ */
+export function subscribeSheetFor(sub: SubscriptionPayload | null): SheetState | null {
+  if (sub === null) return null;
+  if (sub.status === "trialing") return "trialing";
+  if (sub.status === "none" || sub.status === "canceled") return "lapsed";
+  return null;
 }
 
 

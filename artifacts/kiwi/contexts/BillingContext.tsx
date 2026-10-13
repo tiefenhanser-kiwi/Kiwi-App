@@ -91,6 +91,7 @@ import {
   manageActionFor,
   sheetStateFor,
   storeBillingReady,
+  subscribeSheetFor,
   type BannerKind,
   type BannerView,
   type SheetState,
@@ -112,7 +113,16 @@ export interface BillingContextValue {
   dismissCurrentBanner: () => void;
   /** The sheet's state, or null when it is closed. */
   sheet: SheetState | null;
+  /**
+   * With no state: the status-driven open, behind the `enforced` blackout (a
+   * banner, a notice). With a state: exactly that sheet.
+   */
   openSheet: (state?: SheetState) => void;
+  /**
+   * BILL-2 — the web Subscribe button. NOT behind the blackout: a person asking
+   * to pay gets the sheet whatever `enforced` says (subscribeSheetFor).
+   */
+  openSubscribeSheet: () => void;
   closeSheet: () => void;
   /** "Finishing up…" / "I've paid — check again" / neither. */
   awaiting: AwaitingPhase;
@@ -330,6 +340,12 @@ export function BillingProvider({ children }: { children: React.ReactNode }) {
   // ── the sheet ──────────────────────────────────────────────────────────
   const openSheet = useCallback((state?: SheetState) => {
     const resolved = state ?? sheetStateFor(subscriptionRef.current);
+    if (resolved === null) return;
+    setSheet(resolved);
+  }, []);
+
+  const openSubscribeSheet = useCallback(() => {
+    const resolved = subscribeSheetFor(subscriptionRef.current);
     if (resolved === null) return;
     setSheet(resolved);
   }, []);
@@ -598,6 +614,7 @@ export function BillingProvider({ children }: { children: React.ReactNode }) {
       dismissCurrentBanner,
       sheet,
       openSheet,
+      openSubscribeSheet,
       closeSheet,
       awaiting,
       startCheckout,
@@ -622,6 +639,7 @@ export function BillingProvider({ children }: { children: React.ReactNode }) {
       dismissCurrentBanner,
       sheet,
       openSheet,
+      openSubscribeSheet,
       closeSheet,
       awaiting,
       startCheckout,
@@ -665,6 +683,7 @@ const INERT: BillingContextValue = {
   dismissCurrentBanner: () => {},
   sheet: null,
   openSheet: () => {},
+  openSubscribeSheet: () => {},
   closeSheet: () => {},
   awaiting: "idle",
   startCheckout: NOOP_ASYNC,

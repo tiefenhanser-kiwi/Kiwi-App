@@ -30,6 +30,7 @@ import {
   type StoreSdk,
 } from "@/lib/billing/store";
 import { __setStoreSyncBackoffForTests } from "@/lib/billing/storeConfirm";
+import { allUpsellMoments } from "@/lib/billing/upsellMoments";
 import type { User } from "@/lib/types";
 
 const store = SecureStore as unknown as {
@@ -408,4 +409,78 @@ test("web 409 subscribed_elsewhere: says where it is managed, with the store's l
     managementUrl: "https://apps.apple.com/account/subscriptions",
   });
   assert.ok(!events.some((e) => e.startsWith("sdk:")), "the web never touches the store SDK");
+});
+
+// ── BILL-2: the web Subscribe button before enforcement ─────────────────────
+
+/** The web provider over a `GET /me/subscription` with `enforced: false`. */
+async function mountWebUnenforced(
+  t: { after(fn: () => void): void },
+  status: string,
+): Promise<void> {
+  rn.Platform.OS = "web";
+  const session = new Map<string, string>([["kiwi_authToken", "member-jwt"]]);
+  const g = globalThis as { sessionStorage?: unknown };
+  const hadSession = Object.prototype.hasOwnProperty.call(g, "sessionStorage");
+  Object.defineProperty(g, "sessionStorage", {
+    configurable: true,
+    writable: true,
+    value: {
+      getItem: (k: string) => session.get(k) ?? null,
+      setItem: (k: string, v: string) => void session.set(k, v),
+      removeItem: (k: string) => void session.delete(k),
+    },
+  });
+  t.after(() => {
+    if (!hadSession) delete g.sessionStorage;
+  });
+  const base = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((url: string, init?: RequestInit) => {
+    if (String(url).includes("/me/subscription")) {
+      requested.push("/me/subscription");
+      return Promise.resolve(json({ ...subscription(status), enforced: false, source: null }));
+    }
+    return base(url, init);
+  }) as unknown as typeof fetch;
+
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  await act(async () => {
+    renderer = TestRenderer.create(
+      React.createElement(
+        QueryClientProvider,
+        { client: qc },
+        React.createElement(
+          AuthProvider,
+          null,
+          React.createElement(BillingProvider, null, React.createElement(Probe)),
+        ),
+      ),
+    );
+  });
+  await until(() => captured?.subscription?.status === status, `the ${status} subscription`);
+  assert.equal(captured!.subscription?.enforced, false);
+}
+
+test("🔴 BILL-2 — web Subscribe opens the trialing sheet while enforcement is off", async (t) => {
+  await mountWebUnenforced(t, "trialing");
+  await act(async () => captured!.openSubscribeSheet());
+  assert.equal(captured!.sheet, "trialing");
+  assert.ok(!requested.some((p) => p.startsWith("/billing/")), "opening the sheet called a billing route");
+});
+
+test("BILL-2 — web Subscribe on a lapsed account opens the lapsed sheet while enforcement is off", async (t) => {
+  await mountWebUnenforced(t, "none");
+  await act(async () => captured!.openSubscribeSheet());
+  assert.equal(captured!.sheet, "lapsed");
+});
+
+test("BILL-2 — the status-driven opens stay blacked out while enforcement is off", async (t) => {
+  await mountWebUnenforced(t, "trialing");
+  // A banner / notice CTA: openSheet() with no state.
+  await act(async () => captured!.openSheet());
+  assert.equal(captured!.sheet, null, "a no-argument openSheet() opened under the blackout");
+  // An upsell moment.
+  await act(async () => captured!.fireUpsellMoment(allUpsellMoments()[0]!));
+  await settle(2);
+  assert.equal(captured!.sheet, null, "an upsell moment opened under the blackout");
 });

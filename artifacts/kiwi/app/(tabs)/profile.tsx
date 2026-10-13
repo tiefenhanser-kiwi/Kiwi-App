@@ -548,7 +548,8 @@ function EditableRow({
  * a React tree; components/SubscriptionCardView.tsx draws it.
  */
 function SubscriptionCard() {
-  const { subscription, openSheet, openPortal, openManagement, linkError } = useBilling();
+  const { subscription, openSheet, openSubscribeSheet, openPortal, openManagement, linkError } =
+    useBilling();
   const card = subscriptionCardFor(Platform.OS, subscription, new Date());
   if (card === null) return null;
 
@@ -560,7 +561,10 @@ function SubscriptionCard() {
       onOpenPremium={() => {
         if (card.premium) openSheet(card.premium.sheet);
       }}
-      onSubscribe={() => openSheet()}
+      // BILL-2 — not openSheet(): with no state that goes through the `enforced`
+      // blackout, so the web Subscribe button did nothing before the paywall
+      // was switched on.
+      onSubscribe={openSubscribeSheet}
       onManage={(action) => {
         if (action.kind === "store_link") openManagement(action.url);
         else if (action.kind === "stripe_portal") void openPortal();

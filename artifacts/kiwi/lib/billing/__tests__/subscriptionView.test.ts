@@ -33,6 +33,7 @@ import {
   macrosNoticeFor,
   settingsRowFor,
   sheetStateFor,
+  subscribeSheetFor,
   trialDaysLeft,
   type BannerKind,
   type SubscriptionPayload,
@@ -233,6 +234,23 @@ test("🔴 a 402 opens the sheet even under the blackout — the server is the a
   // stale, not that the server is wrong.
   assert.equal(sheetStateFor(sub({ status: "active" }), opts), "lapsed");
   assert.equal(sheetStateFor(sub({ status: "past_due" }), opts), "lapsed");
+});
+
+test("🔴 BILL-2 — a Subscribe tap opens the sheet under the blackout; a paying status still gets none", () => {
+  for (const enforced of [false, true]) {
+    assert.equal(subscribeSheetFor(sub({ status: "trialing", enforced })), "trialing", `enforced ${enforced}`);
+    assert.equal(subscribeSheetFor(sub({ status: "none", enforced })), "lapsed", `enforced ${enforced}`);
+    assert.equal(subscribeSheetFor(sub({ status: "canceled", enforced })), "lapsed", `enforced ${enforced}`);
+    assert.equal(subscribeSheetFor(sub({ status: "active", enforced })), null, `enforced ${enforced}`);
+    assert.equal(subscribeSheetFor(sub({ status: "past_due", enforced })), null, `enforced ${enforced}`);
+  }
+  assert.equal(subscribeSheetFor(null), null);
+  // Every status Settings offers Subscribe to has a sheet to open — the button
+  // is never shown where its sheet would refuse.
+  for (const status of ALL_STATUSES) {
+    const row = settingsRowFor(sub({ status, enforced: false }));
+    if (row?.subscribe) assert.notEqual(subscribeSheetFor(sub({ status, enforced: false })), null, status);
+  }
 });
 
 // ── 5. the pay-early line — REMOVED (Resub C2: the bonus is gone) ───
