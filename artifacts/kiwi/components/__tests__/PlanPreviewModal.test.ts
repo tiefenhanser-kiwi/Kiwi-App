@@ -35,7 +35,7 @@ const TEMPLATE_RESPONSE = {
     userId: "owner-x",
     title: "Family Favorites",
     description: "Crowd-pleasers",
-    image: null,
+    image: "https://img/cover.jpg",
     tags: ["family", "dev"],
     sourceType: "wizard",
     defaultDaysCount: 5,
@@ -52,7 +52,7 @@ const TEMPLATE_RESPONSE = {
         meal: {
           id: "meal-a", title: "Meal A", cuisine: "American", minutes: 30,
           servings: 4, authoredServingsDefault: 4, effectiveServings: 4, calories: 500, protein: 30, carbs: 40, fat: 18,
-          tags: [], image: null, description: null, difficulty: "easy",
+          tags: [], image: "https://img/a.jpg", description: null, difficulty: "easy",
           mealType: "dinner", sourceType: "curated", isPublic: true,
           userId: null, dishes: [], steps: [], notes: null,
         },
@@ -344,5 +344,162 @@ test("in-flight guard: a second tap while the first is pending does not double-f
     releaseFirst();
     await Promise.resolve();
   });
+  renderer.unmount();
+});
+
+// ── PREVIEW-1 ────────────────────────────────────────────────────────────────
+
+function treeText(renderer: TestRenderer.ReactTestRenderer): string {
+  const tree = renderer.toJSON() as RenderedNode | RenderedNode[] | null;
+  const text: string[] = [];
+  if (Array.isArray(tree)) tree.forEach((n) => walkText(n, text));
+  else walkText(tree, text);
+  return text.join(" | ");
+}
+
+async function press(renderer: TestRenderer.ReactTestRenderer, id: string): Promise<void> {
+  const node = findByTestID(renderer.toJSON() as RenderedNode | null, id);
+  assert.ok(node, `${id} not rendered`);
+  const onPress = (node!.props as { onPress?: () => unknown }).onPress;
+  assert.equal(typeof onPress, "function", `${id} has no onPress`);
+  await act(async () => {
+    await onPress!();
+  });
+}
+
+async function openWith(
+  onUsePlan: (id: string, opts: { activate: boolean }) => void | Promise<void>,
+  onClose: () => void = () => {},
+): Promise<TestRenderer.ReactTestRenderer> {
+  let renderer!: TestRenderer.ReactTestRenderer;
+  let qc!: QueryClient;
+  await act(async () => {
+    ({ renderer, qc } = renderModal({ visible: true, templateId: "tmpl-1", onClose, onUsePlan }));
+  });
+  await settle(qc);
+  return renderer;
+}
+
+test("BUG-396: a rejected use keeps the sheet open, clears pending, and shows the inline error", async () => {
+  let closeCalls = 0;
+  const renderer = await openWith(
+    async () => {
+      throw new Error("network down");
+    },
+    () => {
+      closeCalls += 1;
+    },
+  );
+  assert.equal(findByTestID(renderer.toJSON() as RenderedNode, "plan-preview-error"), null);
+
+  await press(renderer, "plan-preview-use");
+
+  assert.equal(closeCalls, 0, "sheet must stay open on a failed use");
+  const tree = renderer.toJSON() as RenderedNode;
+  assert.ok(findByTestID(tree, "plan-preview-error"), "inline error rendered");
+  assert.ok(treeText(renderer).includes("Something went wrong. Please try again."));
+  const useNode = findByTestID(tree, "plan-preview-use")!;
+  assert.equal((useNode.props as { disabled?: boolean }).disabled, false, "pending cleared");
+  const saveNode = findByTestID(tree, "plan-preview-save")!;
+  assert.equal((saveNode.props as { disabled?: boolean }).disabled, false, "pending cleared");
+  renderer.unmount();
+});
+
+test("BUG-396: a synchronous throw from onUsePlan is caught the same way", async () => {
+  let closeCalls = 0;
+  const renderer = await openWith(
+    () => {
+      throw new Error("boom");
+    },
+    () => {
+      closeCalls += 1;
+    },
+  );
+  await press(renderer, "plan-preview-save");
+  assert.equal(closeCalls, 0);
+  assert.ok(findByTestID(renderer.toJSON() as RenderedNode, "plan-preview-error"));
+  renderer.unmount();
+});
+
+test("BUG-396: a retry that succeeds closes the sheet; the error clears when the retry starts", async () => {
+  let closeCalls = 0;
+  let attempt = 0;
+  let release!: () => void;
+  const renderer = await openWith(
+    async () => {
+      attempt += 1;
+      if (attempt === 1) throw new Error("first fails");
+      await new Promise<void>((r) => {
+        release = r;
+      });
+    },
+    () => {
+      closeCalls += 1;
+    },
+  );
+  await press(renderer, "plan-preview-use");
+  assert.ok(findByTestID(renderer.toJSON() as RenderedNode, "plan-preview-error"));
+
+  // Second attempt in flight: the stale error is gone while it runs.
+  const node = findByTestID(renderer.toJSON() as RenderedNode, "plan-preview-use")!;
+  let inFlight!: Promise<unknown>;
+  await act(async () => {
+    inFlight = (node.props as { onPress: () => Promise<unknown> }).onPress();
+  });
+  assert.equal(findByTestID(renderer.toJSON() as RenderedNode, "plan-preview-error"), null);
+  assert.equal(closeCalls, 0);
+
+  await act(async () => {
+    release();
+    await inFlight;
+  });
+  assert.equal(closeCalls, 1, "closes only on success");
+  renderer.unmount();
+});
+
+test("photos: the template cover and each meal photo render through TreatedImage", async () => {
+  const renderer = await openWith(() => {});
+  const uris = renderer.root
+    .findAll((n) => n.type === "expo-image")
+    .map((n) => (n.props.source as { uri?: string }).uri);
+  assert.ok(uris.includes("https://img/cover.jpg"), `cover missing: ${uris.join(",")}`);
+  assert.ok(uris.includes("https://img/a.jpg"), `meal photo missing: ${uris.join(",")}`);
+  // meal-b has no image → the warm placeholder only, no photo element for it.
+  assert.equal(uris.length, 2);
+  // Header meta line: 2 dinners, Mon + Tue, (30 + 25) / 2 rounded.
+  assert.ok(treeText(renderer).includes("2 dinners · Mon–Tue · avg 28 min"));
+  renderer.unmount();
+});
+
+test("meal tap opens the meal in-sheet; the back link and the hardware back return to the plan", async () => {
+  let closeCalls = 0;
+  const renderer = await openWith(
+    () => {},
+    () => {
+      closeCalls += 1;
+    },
+  );
+  assert.equal(findByTestID(renderer.toJSON() as RenderedNode, "plan-preview-meal-view"), null);
+
+  await press(renderer, "plan-preview-row-ti-2");
+  assert.ok(findByTestID(renderer.toJSON() as RenderedNode, "plan-preview-meal-view"), "meal view open");
+  assert.ok(findByTestID(renderer.toJSON() as RenderedNode, "plan-preview-use"), "CTAs stay pinned");
+
+  await press(renderer, "plan-preview-meal-back");
+  assert.equal(findByTestID(renderer.toJSON() as RenderedNode, "plan-preview-meal-view"), null);
+
+  // Android back from the meal view steps back, it does not dismiss.
+  await press(renderer, "plan-preview-row-ti-1");
+  const modal = renderer.root.findAll((n) => n.type === "rn-modal")[0];
+  await act(async () => {
+    (modal.props.onRequestClose as () => void)();
+  });
+  assert.equal(findByTestID(renderer.toJSON() as RenderedNode, "plan-preview-meal-view"), null);
+  assert.equal(closeCalls, 0);
+  // …and from the plan view it dismisses.
+  await act(async () => {
+    (renderer.root.findAll((n) => n.type === "rn-modal")[0].props.onRequestClose as () => void)();
+  });
+  assert.equal(closeCalls, 1);
   renderer.unmount();
 });
