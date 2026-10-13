@@ -461,6 +461,24 @@ rewrites the old URLs the bundle still uses, refuses any other dot-segment, and
 zips `dist/` into `artifacts/kiwi/kiwi-web-dist.zip` with `/` entry names.
 **The Netlify drop is that zip, not the `dist/` folder.**
 
+**Over-the-air updates (OTA-1)** go through `.\scripts\release\ota-update.ps1
+-Platform android|ios -ConfirmReleased -Message "…"`, with `-DryRun` first. **Never run a bare
+`eas update`.** It ignores `eas.json`'s `build.production.env`, which is the
+only place `EXPO_PUBLIC_API_BASE_URL` lived until OTA-1. Without `--environment` it
+bundles `artifacts/kiwi/.env` (which defines that name). With `--environment
+production` and the name missing on EAS, it bundles `http://localhost:3000/api`.
+Either one locks every installed app out until the next update.
+The script publishes to one platform only, and only once that platform's binary is
+released (D-WS9-279). It refuses unless HEAD is a pushed `next` with a clean
+`artifacts/kiwi`. It also refuses on any `package.json`, `app.json` or lockfile change
+since `BinaryCommit` (**bump that constant at each store build**), and on any
+required `EXPO_PUBLIC_*` name missing from the EAS production environment.
+It bundles the way `eas update --environment production` does (`EXPO_NO_DOTENV=1`,
+`--clear`, into a temp folder outside the repo). It then checks that the bundle holds the
+`eas.json` API URL and no dev host beyond a measured library baseline, and
+publishes that exact folder with `--skip-bundler`. The new JS runs on the
+**second** cold start.
+
 **Not scriptable — by hand:**
 
 - **Instacart on.** In the Neon console (production branch), read
