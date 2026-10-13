@@ -1,0 +1,69 @@
+{
+  "plans": [
+    {
+      "slug": "family-favorites",
+      "title": "Family Favorites",
+      "description": "Five real dinners the whole table will eat, each on the table in 50 minutes or less.",
+      "coverMealId": "5ea89dd3-8b0e-4963-865f-1be7a8d7e6c7",
+      "days": [
+        { "day": "Monday", "mealId": "5edebecb-4190-45ed-8624-6945f80031f0", "name": "Classic Tex-Mex Ground Beef Tacos" },
+        { "day": "Tuesday", "mealId": "5ea89dd3-8b0e-4963-865f-1be7a8d7e6c7", "name": "Spaghetti and Turkey Meatballs in Marinara" },
+        { "day": "Wednesday", "mealId": "3ab32cd0-15c0-40b9-a2b0-28dc83720ee0", "name": "Herb Garlic Butter Chicken Bites with Rosemary and Parmesan" },
+        { "day": "Thursday", "mealId": "a1948dff-d093-42ca-a9d9-c849f12b6161", "name": "Chicken Fried Rice with Egg and Peas" },
+        { "day": "Friday", "mealId": "8f6a4824-cab8-451e-9115-cab26a85172a", "name": "Pepperoni and Mushroom Pizza" }
+      ]
+    },
+    {
+      "slug": "sheet-pan-easy",
+      "title": "Sheet Pan Easy",
+      "description": "Five real dinners where one sheet pan in a hot oven does the heavy lifting.",
+      "coverMealId": "45077d29-688d-4adc-9a9e-e6cbc2e5aa2a",
+      "days": [
+        { "day": "Monday", "mealId": "6f9d09e1-a22a-44bd-a27a-b9e756c10a18", "name": "Sheet-Pan Teriyaki Chicken with Roasted Bok Choy and Rice" },
+        { "day": "Tuesday", "mealId": "45077d29-688d-4adc-9a9e-e6cbc2e5aa2a", "name": "Sheet-Pan Gnocchi with Tomatoes, Broccolini, and Lemon Salad" },
+        { "day": "Wednesday", "mealId": "bf3f2efa-1cbe-496e-a4a0-ebd64473ecd2", "name": "Sheet-Pan Steak and Bell Pepper Fajita Rice Bowls" },
+        { "day": "Thursday", "mealId": "4e5005f6-3b1d-44fe-867a-7ce0993e3bf1", "name": "Lemon-Herb Sheet-Pan Salmon and Asparagus" },
+        { "day": "Friday", "mealId": "e251f17b-752a-4704-8b13-25ae0acae31b", "name": "Crispy Herb-Roasted Chicken Thighs with Roasted Potatoes and Green Beans" }
+      ]
+    },
+    {
+      "slug": "healthy-reset",
+      "title": "Healthy Reset",
+      "description": "Five vegetable-forward dinners, each 520 calories or less a serving.",
+      "coverMealId": "3c0784ae-2435-4c75-95e8-7cd44d076cf0",
+      "days": [
+        { "day": "Monday", "mealId": "3c0784ae-2435-4c75-95e8-7cd44d076cf0", "name": "Shrimp Scampi over Zucchini Noodles" },
+        { "day": "Tuesday", "mealId": "625f8521-a6dd-4d41-ad62-a54cefd69a2c", "name": "Ginger Beef Egg Roll in a Bowl" },
+        { "day": "Wednesday", "mealId": "b12c9ff5-7cad-439b-bce9-82419a06808f", "name": "Classic Tomato-Vegetable Minestrone with Ditalini" },
+        { "day": "Thursday", "mealId": "4b7a54f6-eb31-43b7-a85c-5e763cc1e40c", "name": "Cajun Grilled Salmon with Corn and Tomato Salad" },
+        { "day": "Friday", "mealId": "afb31db3-6e90-4eca-9759-2b1a1d8c8ed6", "name": "Ratatouille with Crusty French Bread" }
+      ]
+    },
+    {
+      "slug": "cozy-weeknights",
+      "title": "Cozy Weeknights",
+      "description": "Five soups, stews and braises, each on the table in an hour or less.",
+      "coverMealId": "994049b6-2115-44ba-bc75-c7cb4988c539",
+      "days": [
+        { "day": "Monday", "mealId": "5d236e13-0651-4b91-b48b-c27a2d73e644", "name": "Classic Beef Stroganoff over Egg Noodles" },
+        { "day": "Tuesday", "mealId": "2b62e777-366a-41bc-9abf-845c1c1ce0fe", "name": "Broccoli Cheddar Soup with Crisp Apple and Walnut Salad" },
+        { "day": "Wednesday", "mealId": "994049b6-2115-44ba-bc75-c7cb4988c539", "name": "Classic Chicken Tikka Masala with Basmati Rice and Garlic Naan" },
+        { "day": "Thursday", "mealId": "6ce70910-a7a9-4a23-9a32-9c68a3e8fcb5", "name": "Classic Lentil Soup" },
+        { "day": "Friday", "mealId": "42c9c80d-163b-4ecc-a597-0d8d0b8675c6", "name": "Potato Leek Soup with Crusty Bread and a Simple Green Salad" }
+      ]
+    },
+    {
+      "slug": "budget-bowls",
+      "title": "Budget Bowls",
+      "description": "Five filling rice bowls built on beans, lentils, tofu and thrifty cuts.",
+      "coverMealId": "6929ad67-5b44-4e78-9daf-ef4c6e7f8d13",
+      "days": [
+        { "day": "Monday", "mealId": "683abea5-564d-4400-817f-ef7b9785a772", "name": "Creole Vegetarian Red Beans and Rice" },
+        { "day": "Tuesday", "mealId": "cde76c81-8392-4ff6-af43-faf8b2ac982c", "name": "Honey Garlic Glazed Chicken Thighs with Steamed Rice and Broccoli" },
+        { "day": "Wednesday", "mealId": "6929ad67-5b44-4e78-9daf-ef4c6e7f8d13", "name": "Korean Beef Bowl with Steamed Rice, Cucumber Kimchi, and a Fried Egg" },
+        { "day": "Thursday", "mealId": "1107775b-c2fe-46b2-89b1-b884dee445c0", "name": "Lentil Dal with Steamed Basmati Rice" },
+        { "day": "Friday", "mealId": "223091b8-f06f-442b-8ac1-837a989d6ec0", "name": "Teriyaki Tofu Bowl with Steamed Rice and Roasted Broccoli" }
+      ]
+    }
+  ]
+}
