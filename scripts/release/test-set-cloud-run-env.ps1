@@ -117,6 +117,62 @@ foreach ($c in $cases) {
   Assert-Equal @(Get-Updates $fake).Count 0 "  no update sent: $($c.label)"
 }
 
+# --- R3-3: -Stripe ------------------------------------------------------------------
+$StripeSecrets = $AllSecrets + @('STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET')
+$PinnedStripeArgv = @('run', 'services', 'update', 'kiwi-api', '--region', 'us-east4', '--project', 'kiwi-prod-508416',
+  '--update-env-vars', '^;^STRIPE_PRICE_MONTHLY=price_fakeMonthly0006;STRIPE_PRICE_ANNUAL=price_fakeAnnual0007;BILLING_RETURN_URL_BASE=https://app.kitchenwizard.ai',
+  '--update-secrets', 'STRIPE_SECRET_KEY=STRIPE_SECRET_KEY:latest,STRIPE_WEBHOOK_SECRET=STRIPE_WEBHOOK_SECRET:latest')
+
+Write-Host '== -Stripe -DryRun transcript (fixture, fake SDK, fake service)'
+$fake = New-FakeGcloud -Root (Join-Path $scratch 'fakesdk') -Secrets $StripeSecrets -Service (New-ServiceShape $baseEnv)
+$r = Invoke-ReleaseScript -Script $setEnv -Arguments @('-Stripe', '-DryRun', '-EnvFile', $fixture)
+$r.Lines | Where-Object { $_ -notlike '!! TEST SEAM*' } | ForEach-Object { Write-Host "    | $_" }
+Assert-Equal $r.ExitCode 0 'stripe dry run exits 0'
+Assert-Equal @(Get-Updates $fake).Count 0 'stripe dry run sends no update'
+Assert-True ($r.Text -like '*BILLING_RETURN_URL_BASE = https://app.kitchenwizard.ai*') 'return URL base shown as a ruled constant'
+Assert-True ($r.Text -like '*Secrets this update references: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET*') 'two Stripe secret refs'
+foreach ($v in 'price_fakeMonthly0006', 'price_fakeAnnual0007') { Assert-True ($r.Text -notlike "*$v*") 'price id masked' }
+
+Write-Host '== -Stripe live path against the fake: the argv gcloud.py RECEIVED'
+$fake = New-FakeGcloud -Root (Join-Path $scratch 'fakesdk') -Secrets $StripeSecrets -Service (New-ServiceShape $baseEnv)
+$r = Invoke-ReleaseScript -Script $setEnv -Arguments @('-Stripe', '-EnvFile', $fixture)
+$r.Lines | Where-Object { $_ -notlike '!! TEST SEAM*' } | Select-Object -Last 3 | ForEach-Object { Write-Host "    | $_" }
+Assert-Equal $r.ExitCode 0 'stripe live run exits 0'
+$u = @(Get-Updates $fake)
+Assert-Equal $u.Count 1 'exactly one update call'
+if ($u.Count -eq 1) {
+  Assert-Equal (@($u[0].argv) -join ' | ') ($PinnedStripeArgv -join ' | ') 'stripe argv pinned'
+  Assert-True (-not ($u[0].PSObject.Properties['parse_error'])) "gcloud's ArgDict accepted both lists"
+  $d = $u[0].PSObject.Properties['env_dict']
+  if ($d) {
+    Assert-Equal @($d.Value.PSObject.Properties).Count 3 'ArgDict produced exactly three env vars'
+    Assert-Equal (Get-Prop2 $d.Value 'BILLING_RETURN_URL_BASE') 'https://app.kitchenwizard.ai' 'ArgDict: BILLING_RETURN_URL_BASE'
+    Assert-True ($null -eq (Get-Prop2 $d.Value 'BILLING_ENFORCED')) 'BILLING_ENFORCED not set although the .env has it'
+  }
+  $s = $u[0].PSObject.Properties['secrets_dict']
+  if ($s) { Assert-Equal @($s.Value.PSObject.Properties).Count 2 'ArgDict produced two secret refs' }
+}
+
+Write-Host '== -Stripe refusals (each must change nothing)'
+$stripeCases = @(
+  @{ label = 'a product id as the monthly price'; secrets = $StripeSecrets; env = $baseEnv; replace = @{ STRIPE_PRICE_MONTHLY = 'prod_fake0014' }; expect = '*STRIPE_PRICE_MONTHLY: must start price_*' },
+  @{ label = 'an amount as the annual price'; secrets = $StripeSecrets; env = $baseEnv; replace = @{ STRIPE_PRICE_ANNUAL = '99.99' }; expect = '*STRIPE_PRICE_ANNUAL: must start price_*' },
+  @{ label = 'the same price twice'; secrets = $StripeSecrets; env = $baseEnv; replace = @{ STRIPE_PRICE_ANNUAL = 'price_fakeMonthly0006' }; expect = '*STRIPE_PRICE_ANNUAL: the same Price id as STRIPE_PRICE_MONTHLY*' },
+  @{ label = 'a blank price'; secrets = $StripeSecrets; env = $baseEnv; replace = @{ STRIPE_PRICE_MONTHLY = '' }; expect = '*STRIPE_PRICE_MONTHLY: MISSING in .env*' },
+  @{ label = 'the webhook secret not pushed yet'; secrets = @($StripeSecrets | Where-Object { $_ -ne 'STRIPE_WEBHOOK_SECRET' }); env = $baseEnv; replace = @{}; expect = '*STRIPE_WEBHOOK_SECRET: not in Secret Manager - run push-secrets.ps1 first*' },
+  @{ label = 'a plain STRIPE_SECRET_KEY already on the service'; secrets = $StripeSecrets; env = ($baseEnv + @(@{ name = 'STRIPE_SECRET_KEY'; value = 'x' })); replace = @{}; expect = '*STRIPE_SECRET_KEY: is a PLAIN env var on the service now*' },
+  @{ label = 'a secret-backed price on the service'; secrets = $StripeSecrets; env = ($baseEnv + @(@{ name = 'STRIPE_PRICE_ANNUAL'; valueFrom = @{ secretKeyRef = @{ key = 'latest'; name = 'STRIPE_PRICE_ANNUAL' } } })); replace = @{}; expect = '*STRIPE_PRICE_ANNUAL: is a SECRET-backed var on the service now*' },
+  @{ label = 'a price containing the delimiter'; secrets = $StripeSecrets; env = $baseEnv; replace = @{ STRIPE_PRICE_MONTHLY = 'price_a;b' }; expect = "*STRIPE_PRICE_MONTHLY: contains ';'*" }
+)
+foreach ($c in $stripeCases) {
+  $fx = Join-Path $scratch 'case.env'
+  Write-Fixture -Path $fx -Replace $c.replace
+  $fake = New-FakeGcloud -Root (Join-Path $scratch 'fakesdk') -Secrets $c.secrets -Service (New-ServiceShape $c.env)
+  $r = Invoke-ReleaseScript -Script $setEnv -Arguments @('-Stripe', '-EnvFile', $fx)
+  Assert-True ($r.ExitCode -eq 1 -and $r.Text -like '*REFUSED - nothing changed*' -and $r.Text -like $c.expect) "refused: $($c.label)"
+  Assert-Equal @(Get-Updates $fake).Count 0 "  no update sent: $($c.label)"
+}
+
 Remove-FakeGcloudEnv
 if (-not $Keep) { Remove-Item -LiteralPath $scratch -Recurse -Force }
 Write-Host ''

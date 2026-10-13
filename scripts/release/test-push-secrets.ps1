@@ -121,6 +121,80 @@ if (-not $fake) {
   Assert-Equal @($log | Where-Object { $_.argv[1] -eq 'create' }).Count 3 'the other two + the generated key still pushed'
 }
 
+# --- R3-3: -Stripe ------------------------------------------------------------------
+$stripeExpected = [ordered]@{
+  STRIPE_SECRET_KEY     = 'sk_test_fakeSecretKey0004'
+  STRIPE_WEBHOOK_SECRET = 'whsec_fakeWebhookSecret0005'
+}
+
+Write-Host '== -Stripe -DryRun transcript (fixture, fake values)'
+Remove-FakeGcloudEnv
+$r = Invoke-ReleaseScript -Script $push -Arguments @('-Stripe', '-DryRun', '-EnvFile', $fixture)
+$r.Lines | ForEach-Object { Write-Host "    | $_" }
+Assert-Equal $r.ExitCode 0 'stripe dry run exits 0'
+foreach ($k in $stripeExpected.Keys) {
+  Assert-True ($r.Text -like ("*{0}: would create, or add a version if it exists - {1} chars*" -f $k, $stripeExpected[$k].Length)) "$k reported with length $($stripeExpected[$k].Length)"
+  Assert-True ($r.Text -notlike "*$($stripeExpected[$k])*") "$k value not echoed"
+}
+foreach ($k in @(@($expected.Keys) + 'APPLE_REFRESH_TOKEN_ENC_KEY')) { Assert-True ($r.Text -notlike "*${k}*") "$k not in a -Stripe run" }
+Assert-True ($r.Text -notlike '*TEST SEAM*') 'stripe dry run resolved no gcloud'
+
+Write-Host '== -Stripe key-mode guards (each refuses before any gcloud)'
+$guardCases = @(
+  @{ label = 'a live key without -Live'; args = @(); replace = @{ STRIPE_SECRET_KEY = 'sk_live_fake0008' }; expect = '*STRIPE_SECRET_KEY: REFUSED - must start sk_test_ (no -Live); this one is sk_live_*' },
+  @{ label = 'a test key with -Live'; args = @('-Live'); replace = @{}; expect = '*STRIPE_SECRET_KEY: REFUSED - must start sk_live_ (-Live); this one is sk_test_*' },
+  @{ label = 'a restricted key'; args = @(); replace = @{ STRIPE_SECRET_KEY = 'rk_test_fake0009' }; expect = '*STRIPE_SECRET_KEY: REFUSED - must start sk_test_ (no -Live); this one is neither*' },
+  @{ label = 'a publishable key'; args = @(); replace = @{ STRIPE_SECRET_KEY = 'pk_test_fake0010' }; expect = '*STRIPE_SECRET_KEY: REFUSED*' },
+  @{ label = 'a webhook secret without whsec_'; args = @(); replace = @{ STRIPE_WEBHOOK_SECRET = 'we_fake0011' }; expect = '*STRIPE_WEBHOOK_SECRET: REFUSED - must start whsec_*' },
+  @{ label = 'a key with a trailing space inside quotes'; args = @(); replace = @{ STRIPE_SECRET_KEY = '"sk_test_fake0012 "' }; expect = '*STRIPE_SECRET_KEY: REFUSED - contains whitespace*' },
+  @{ label = 'a blank webhook secret'; args = @(); replace = @{ STRIPE_WEBHOOK_SECRET = '' }; expect = '*STRIPE_WEBHOOK_SECRET: MISSING in .env*' }
+)
+$fake = New-FakeGcloud -Root (Join-Path $scratch 'fakesdk')
+foreach ($c in $guardCases) {
+  $fx = Join-Path $scratch 'stripe-case.env'
+  Write-Fixture -Path $fx -Replace $c.replace
+  if ($fake) { Clear-FakeGcloudLog $fake }
+  $r = Invoke-ReleaseScript -Script $push -Arguments (@('-Stripe') + $c.args + @('-EnvFile', $fx))
+  Assert-True ($r.ExitCode -eq 1 -and $r.Text -like '*REFUSED - nothing pushed*' -and $r.Text -like $c.expect) "refused: $($c.label)"
+  if ($fake) { Assert-Equal @(Read-FakeGcloudLog $fake).Count 0 "  no gcloud call: $($c.label)" }
+}
+$r = Invoke-ReleaseScript -Script $push -Arguments @('-Live', '-DryRun', '-EnvFile', $fixture)
+Assert-True ($r.ExitCode -eq 1 -and $r.Text -like '*-Live only means something with -Stripe*') '-Live without -Stripe refused'
+
+if ($fake) {
+  Write-Host '== -Stripe live path against the fake SDK'
+  $fake = New-FakeGcloud -Root (Join-Path $scratch 'fakesdk') -Secrets @('REVENUECAT_WEBHOOK_AUTH', 'APPLE_REFRESH_TOKEN_ENC_KEY')
+  $r = Invoke-ReleaseScript -Script $push -Arguments @('-Stripe', '-EnvFile', $fixture)
+  $r.Lines | ForEach-Object { Write-Host "    | $_" }
+  Assert-Equal $r.ExitCode 0 'stripe run exits 0'
+  $log = Read-FakeGcloudLog $fake
+  foreach ($k in $stripeExpected.Keys) {
+    $call = @($log | Where-Object { $_.argv[0] -eq 'secrets' -and $_.argv[1] -eq 'create' -and $_.argv[2] -eq $k })
+    Assert-Equal $call.Count 1 "$k created once"
+    if ($call.Count -eq 1) { Assert-Equal $call[0].stdin_sha256 (Get-Sha256Hex $stripeExpected[$k]) "$k stdin bytes exact" }
+  }
+  Assert-Equal @($log | Where-Object { $_.argv -contains '--data-file=-' }).Count 2 'only the two Stripe secrets written'
+  $binds = @($log | Where-Object { $_.argv[1] -eq 'add-iam-policy-binding' })
+  Assert-Equal $binds.Count 2 'two accessor bindings'
+  Assert-Equal ((@($binds | ForEach-Object { $_.argv[2] }) | Sort-Object) -join ',') 'STRIPE_SECRET_KEY,STRIPE_WEBHOOK_SECRET' 'bindings are the Stripe names'
+  $allArgv = (@($log | ForEach-Object { @($_.argv) -join ' ' }) -join "`n")
+  foreach ($val in $stripeExpected.Values) {
+    Assert-True ($allArgv -notlike "*$val*") 'no Stripe value on any command line'
+    Assert-True ($r.Text -notlike "*$val*") 'no Stripe value printed'
+  }
+
+  Write-Host '== -Stripe -Live, second run (both exist)'
+  $fx = Join-Path $scratch 'stripe-live.env'
+  Write-Fixture -Path $fx -Replace @{ STRIPE_SECRET_KEY = 'sk_live_fakeLiveKey0013' }
+  Clear-FakeGcloudLog $fake
+  $r = Invoke-ReleaseScript -Script $push -Arguments @('-Stripe', '-Live', '-EnvFile', $fx)
+  Assert-Equal $r.ExitCode 0 'live-mode run exits 0'
+  $log = Read-FakeGcloudLog $fake
+  Assert-Equal @($log | Where-Object { $_.argv[1] -eq 'versions' -and $_.argv[2] -eq 'add' }).Count 2 'two versions added'
+  $kv = @($log | Where-Object { $_.argv[1] -eq 'versions' -and $_.argv[3] -eq 'STRIPE_SECRET_KEY' })
+  if ($kv.Count -eq 1) { Assert-Equal $kv[0].stdin_sha256 (Get-Sha256Hex 'sk_live_fakeLiveKey0013') 'live key bytes exact' }
+}
+
 Remove-FakeGcloudEnv
 if (-not $Keep) { Remove-Item -LiteralPath $scratch -Recurse -Force }
 Write-Host ''

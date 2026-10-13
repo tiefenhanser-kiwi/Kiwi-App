@@ -25,6 +25,19 @@
 # value, a dev host, a plain/secret type conflict, or a secret not yet in Secret
 # Manager. A gcloud failure stops with its exit code; nothing is retried.
 #
+# -Stripe is a separate update that sets ONLY the Stripe config and touches none
+# of the names above:
+#
+#   .\scripts\release\set-cloud-run-env.ps1 -Stripe -DryRun
+#   .\scripts\release\set-cloud-run-env.ps1 -Stripe
+#
+# Plain STRIPE_PRICE_MONTHLY and STRIPE_PRICE_ANNUAL from -EnvFile (each must
+# start price_, and they must differ), plain BILLING_RETURN_URL_BASE set to a
+# RULED CONSTANT, and the secret refs STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET
+# (push-secrets.ps1 -Stripe writes them). The same command at the live cutover:
+# the new revision re-resolves :latest. BILLING_ENFORCED is on the leave-alone
+# list in BOTH modes; without -Stripe every STRIPE_* name is too.
+#
 # ASCII ONLY (Windows PowerShell 5.1 reads BOM-less UTF-8 as ANSI).
 
 [CmdletBinding()]
@@ -33,6 +46,7 @@ param(
   [string]$Service = 'kiwi-api',
   [string]$Region = 'us-east4',
   [string]$Project = 'kiwi-prod-508416',
+  [switch]$Stripe,
   [switch]$DryRun
 )
 
@@ -42,15 +56,25 @@ $ErrorActionPreference = 'Stop'
 if (-not $EnvFile) { $EnvFile = Join-Path $script:RepoRoot 'artifacts\api-server\.env' }
 
 $EnvVarsDelimiter = ';'
-$FromEnvRequired = @('APPLE_OAUTH_AUDIENCES', 'GOOGLE_OAUTH_CLIENT_IDS', 'APPLE_TEAM_ID', 'APPLE_KEY_ID', 'APPLE_SERVICES_ID', 'APPLE_WEB_REDIRECT_URI')
-$FromEnvOptional = @('REVENUECAT_ENTITLEMENT_ID')
-$Constants = [ordered]@{
-  AI_DAILY_CEILING_USD       = '50'
-  AI_GUEST_DAILY_CEILING_USD = '25'
-  INSTACART_API_BASE_URL     = 'https://connect.instacart.com'
+if ($Stripe) {
+  $FromEnvRequired = @('STRIPE_PRICE_MONTHLY', 'STRIPE_PRICE_ANNUAL')
+  $FromEnvOptional = @()
+  $Constants = [ordered]@{
+    BILLING_RETURN_URL_BASE = 'https://app.kitchenwizard.ai'
+  }
+  $SecretNames = @('STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET')
+  $NeverTouch = '^(AI_USER_DAILY_CALLS|AI_DISABLED|AI_GUEST_DISABLED|TRUST_PROXY_HOPS|BILLING_ENFORCED|PUBLIC_APP_URL)$'
+} else {
+  $FromEnvRequired = @('APPLE_OAUTH_AUDIENCES', 'GOOGLE_OAUTH_CLIENT_IDS', 'APPLE_TEAM_ID', 'APPLE_KEY_ID', 'APPLE_SERVICES_ID', 'APPLE_WEB_REDIRECT_URI')
+  $FromEnvOptional = @('REVENUECAT_ENTITLEMENT_ID')
+  $Constants = [ordered]@{
+    AI_DAILY_CEILING_USD       = '50'
+    AI_GUEST_DAILY_CEILING_USD = '25'
+    INSTACART_API_BASE_URL     = 'https://connect.instacart.com'
+  }
+  $SecretNames = @('REVENUECAT_WEBHOOK_AUTH', 'REVENUECAT_SECRET_API_KEY', 'TURNSTILE_SECRET_KEY', 'APPLE_PRIVATE_KEY', 'APPLE_REFRESH_TOKEN_ENC_KEY', 'INSTACART_API_KEY')
+  $NeverTouch = '^(AI_USER_DAILY_CALLS|AI_DISABLED|AI_GUEST_DISABLED|TRUST_PROXY_HOPS|BILLING_ENFORCED|PUBLIC_APP_URL|STRIPE_.*)$'
 }
-$SecretNames = @('REVENUECAT_WEBHOOK_AUTH', 'REVENUECAT_SECRET_API_KEY', 'TURNSTILE_SECRET_KEY', 'APPLE_PRIVATE_KEY', 'APPLE_REFRESH_TOKEN_ENC_KEY', 'INSTACART_API_KEY')
-$NeverTouch = '^(AI_USER_DAILY_CALLS|AI_DISABLED|AI_GUEST_DISABLED|TRUST_PROXY_HOPS|BILLING_ENFORCED|PUBLIC_APP_URL|STRIPE_.*)$'
 
 # '^;^NAME=value;NAME=value' -- ONE argv element.
 function Format-EnvVarsArg {
@@ -92,11 +116,11 @@ function Get-Prop {
 
 $envPath = Assert-EnvFileSafe -Path $EnvFile
 $values = Read-DotEnv -Path $envPath
-Write-Host ("set-cloud-run-env{0} - {1} / {2} / {3} - env file {4}" -f $(if ($DryRun) { ' (DRY RUN: reads only)' } else { '' }), $Service, $Region, $Project, $envPath)
+Write-Host ("set-cloud-run-env{0}{1} - {2} / {3} / {4} - env file {5}" -f $(if ($Stripe) { ' -Stripe' } else { '' }), $(if ($DryRun) { ' (DRY RUN: reads only)' } else { '' }), $Service, $Region, $Project, $envPath)
 
 $problems = New-Object System.Collections.Generic.List[string]
 $pairs = [ordered]@{}
-foreach ($name in $FromEnvRequired + $FromEnvOptional) {
+foreach ($name in @($FromEnvRequired + $FromEnvOptional)) {
   $v = Get-DotEnvValue -Values $values -Name $name
   if ($null -eq $v) {
     if ($FromEnvOptional -contains $name) { Write-Host "${name}: absent in .env - not set (server default applies)" }
@@ -117,6 +141,12 @@ foreach ($k in @($pairs.Keys)) {
 if ($pairs.Contains('APPLE_SERVICES_ID') -and $pairs.Contains('APPLE_OAUTH_AUDIENCES')) {
   $aud = @($pairs['APPLE_OAUTH_AUDIENCES'] -split ',' | ForEach-Object { $_.Trim() })
   if ($aud -cnotcontains $pairs['APPLE_SERVICES_ID']) { $problems.Add('APPLE_SERVICES_ID: not in APPLE_OAUTH_AUDIENCES (boot logs an error and no web token verifies)') }
+}
+foreach ($k in 'STRIPE_PRICE_MONTHLY', 'STRIPE_PRICE_ANNUAL') {
+  if ($pairs.Contains($k) -and -not $pairs[$k].StartsWith('price_', [System.StringComparison]::Ordinal)) { $problems.Add("${k}: must start price_ (a Price id, not a product id or an amount)") }
+}
+if ($pairs.Contains('STRIPE_PRICE_MONTHLY') -and $pairs.Contains('STRIPE_PRICE_ANNUAL') -and $pairs['STRIPE_PRICE_MONTHLY'] -ceq $pairs['STRIPE_PRICE_ANNUAL']) {
+  $problems.Add('STRIPE_PRICE_ANNUAL: the same Price id as STRIPE_PRICE_MONTHLY')
 }
 
 # --- 2. the service as it is (read-only) ---------------------------------------------
@@ -208,5 +238,6 @@ Write-Host ("New revision: {0}" -f $revs[0])
 if ($revs.Count -gt 1 -and $revs[0] -ne $revs[1]) {
   Write-Host ("WARNING: serving revision is {0}, not the new one - read the new revision's boot log." -f $revs[1])
 }
-Write-Host 'Next: read the boot lines (Billing / OAuth / AI spend guard / Turnstile) in the new revision log.'
+if ($Stripe) { Write-Host 'Next: read the new revision boot line - expect Billing: stripe on, revenuecat on, enforcement off.' }
+else { Write-Host 'Next: read the boot lines (Billing / OAuth / AI spend guard / Turnstile) in the new revision log.' }
 exit 0

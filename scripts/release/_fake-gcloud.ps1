@@ -165,7 +165,12 @@ $script:FixtureLines = @(
   'APPLE_KEY_ID=FAKEKEY001',
   'APPLE_SERVICES_ID=com.kitchenwizard.kiwi.web',
   'APPLE_WEB_REDIRECT_URI="https://kiwi-api-fake.us-east4.run.app/api/auth/oauth/apple/callback"',
-  'REVENUECAT_ENTITLEMENT_ID="premium"'
+  'REVENUECAT_ENTITLEMENT_ID="premium"',
+  'STRIPE_SECRET_KEY=sk_test_fakeSecretKey0004',
+  'STRIPE_WEBHOOK_SECRET="whsec_fakeWebhookSecret0005"',
+  'STRIPE_PRICE_MONTHLY=price_fakeMonthly0006',
+  'STRIPE_PRICE_ANNUAL=price_fakeAnnual0007',
+  'BILLING_ENFORCED=true'
 )
 
 function Write-Fixture {

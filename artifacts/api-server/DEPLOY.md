@@ -484,3 +484,40 @@ zips `dist/` into `artifacts/kiwi/kiwi-web-dist.zip` with `/` entry names.
 As read on 2026-10-08 by the step-2 dry run, `TRUST_PROXY_HOPS` **is set** on
 `kiwi-api`, value `1`. The contract table above still says *unset*. Reconcile
 it once the two-network measurement is confirmed to have been done.
+
+### Stripe values (test now, live at the cutover)
+
+The same two scripts with `-Stripe`, which touches **only** the Stripe names (none
+of the round-3 ones above). Put `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`,
+`STRIPE_PRICE_MONTHLY` and `STRIPE_PRICE_ANNUAL` in `artifacts/api-server/.env`,
+then from the repo root, each with `-DryRun` first:
+
+```powershell
+.\scripts\release\push-secrets.ps1 -Stripe          # at the cutover: -Stripe -Live
+.\scripts\release\set-cloud-run-env.ps1 -Stripe
+```
+
+- **push-secrets `-Stripe`** writes the two secrets over stdin (exact bytes),
+  creating each one or adding a version, and grants `secretAccessor` to the
+  runtime SA. **Key-mode guard:** without `-Live` the key must start `sk_test_`;
+  with `-Live` it must start `sk_live_`. The webhook secret must start `whsec_`.
+  Whitespace is refused. Any refusal or missing name stops the run before any
+  gcloud call, so a key and a webhook secret from different modes never land
+  half-pushed.
+- **set-cloud-run-env `-Stripe`** makes one update, which is one revision. It sets
+  plain `STRIPE_PRICE_MONTHLY` and `STRIPE_PRICE_ANNUAL` from `.env` (each must
+  start `price_`, and the two must differ) and the ruled constant
+  `BILLING_RETURN_URL_BASE=https://app.kitchenwizard.ai`, then references
+  `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` at `:latest`. It keeps every
+  check of the plain run: dev host, plain/secret type change, secret not yet
+  pushed, `^;^`. **`BILLING_ENFORCED` is never set by either script, in either
+  mode**: turning on the paywall is the cutover's step 6, done by hand.
+- **Boot line after:** `Billing: stripe on · revenuecat on · enforcement off`,
+  with no WARN. `stripe off` means one of the five names did not land.
+- **At the cutover:** live mode has its own Price ids and its own webhook endpoint,
+  so it also has its own `whsec_`. Replace all four lines in `.env`, then run
+  `push-secrets.ps1 -Stripe -Live` and **immediately** `set-cloud-run-env.ps1
+  -Stripe`. A `:latest` secret is resolved when an instance starts. In the gap
+  between the two runs, a fresh instance of the old revision can boot with the
+  live key and the test Price ids, and checkout then fails with "No such price"
+  until the second run lands.
