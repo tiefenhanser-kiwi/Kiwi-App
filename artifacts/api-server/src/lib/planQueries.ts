@@ -14,7 +14,7 @@
 import { publicTags } from "./internalTags";
 import type { Prisma, PrismaClient } from "@prisma/client";
 
-import { featuredWhere, hostingFeaturedWhere } from "./featuring";
+import { featuredWhere, hostingFeaturedWhere, windowWhere } from "./featuring";
 import { resolveThisWeekWinnerId } from "./planDates";
 import { getTopRatedSettings } from "./topRated";
 
@@ -263,10 +263,17 @@ export const RAIL_LIMIT = 12;
  * Membership is now explicit: `railPosition` non-null means "in the rail",
  * null means "out". Ordering is railPosition ASC with createdAt DESC as the
  * stable tiebreak, so gaps and duplicate positions are both harmless.
+ *
+ * THX-1 — a member also honours the featuring window (featuredStartDate /
+ * featuredEndDate, both inclusive, null = open), the same window the Plans
+ * tab's Featured and Hosting chips already read. A row with no window is
+ * unaffected; a scheduled row stays off the rail until its start and drops
+ * off after its end without anyone nulling railPosition by hand.
  */
 export async function resolveRailPlans(
   prisma: PrismaClient,
   limit: number = RAIL_LIMIT,
+  now: Date = new Date(),
 ): Promise<RailPlanItem[]> {
   const rows = await prisma.mealPlanTemplate.findMany({
     where: {
@@ -274,6 +281,7 @@ export async function resolveRailPlans(
       isArchived: false,
       // null = out of the rail. This is the membership test, not a sort hint.
       railPosition: { not: null },
+      ...windowWhere(now),
     },
     select: RAIL_SELECT,
     orderBy: [{ railPosition: "asc" }, { createdAt: "desc" }],

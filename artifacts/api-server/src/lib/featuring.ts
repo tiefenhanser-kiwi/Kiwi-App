@@ -52,8 +52,10 @@ export function isCurrentlyHostingFeatured(
 }
 
 // Prisma `where` fragment for the date window alone (flag-agnostic). Spread
-// into a larger where, or compose under `AND`.
-function windowWhere(now: Date): Prisma.MealPlanTemplateWhereInput {
+// into a larger where, or compose under `AND`. Exported for the Home rail
+// (THX-1, planQueries.ts resolveRailPlans): railPosition decides membership,
+// this decides whether a scheduled member is live yet / still.
+export function windowWhere(now: Date): Prisma.MealPlanTemplateWhereInput {
   return {
     AND: [
       {

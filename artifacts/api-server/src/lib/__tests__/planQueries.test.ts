@@ -493,3 +493,133 @@ describe("resolveRailPlans — the Home Featured-plans rail", () => {
     ]);
   });
 });
+
+// ── THX-1 — the rail honours the featuring window ───────────────────────────
+//
+// railPosition decides membership; featuredStartDate / featuredEndDate (both
+// inclusive, null = open) decide whether a member is live. These tests run the
+// rail's REAL `where` against rows through a tiny evaluator for the Prisma
+// subset it uses (AND / OR / equality / `not: null` / lte / gte), so they pin
+// what the query selects, not how the fragment is spelled.
+
+type WindowRow = ReturnType<typeof railRow> & {
+  isPublic: boolean;
+  isArchived: boolean;
+  railPosition: number | null;
+  featuredStartDate: Date | null;
+  featuredEndDate: Date | null;
+};
+
+function windowRow(
+  id: string,
+  start: Date | null,
+  end: Date | null,
+): WindowRow {
+  return {
+    ...railRow(id, id),
+    isPublic: true,
+    isArchived: false,
+    railPosition: 1,
+    featuredStartDate: start,
+    featuredEndDate: end,
+  };
+}
+
+function matchesWhere(row: Record<string, unknown>, where: Record<string, unknown>): boolean {
+  return Object.entries(where).every(([key, cond]) => {
+    if (key === "AND") return (cond as Record<string, unknown>[]).every((w) => matchesWhere(row, w));
+    if (key === "OR") return (cond as Record<string, unknown>[]).some((w) => matchesWhere(row, w));
+    const value = row[key];
+    if (cond === null || typeof cond !== "object" || cond instanceof Date) {
+      return cond instanceof Date
+        ? value instanceof Date && value.getTime() === cond.getTime()
+        : value === cond;
+    }
+    const ops = cond as { not?: unknown; lte?: Date; gte?: Date };
+    if ("not" in ops && ops.not === null && value === null) return false;
+    if (ops.lte && !(value instanceof Date && value.getTime() <= ops.lte.getTime())) return false;
+    if (ops.gte && !(value instanceof Date && value.getTime() >= ops.gte.getTime())) return false;
+    return true;
+  });
+}
+
+function makeWindowPrisma(rows: WindowRow[]): PrismaClient {
+  return {
+    mealPlanTemplate: {
+      findMany: async (args: { where: Record<string, unknown> }) =>
+        rows.filter((r) => matchesWhere(r, args.where)),
+    },
+  } as unknown as PrismaClient;
+}
+
+const RAIL_NOW = new Date("2026-10-12T18:00:00.000Z");
+const MINUTE = 60_000;
+const at = (offsetMs: number) => new Date(RAIL_NOW.getTime() + offsetMs);
+
+describe("resolveRailPlans — the featuring window (THX-1)", () => {
+  it("a null-window row is included — no window means always live", async () => {
+    const rows = await resolveRailPlans(
+      makeWindowPrisma([windowRow("open", null, null)]),
+      RAIL_LIMIT,
+      RAIL_NOW,
+    );
+    assert.deepEqual(rows.map((r) => r.id), ["open"]);
+  });
+
+  it("a future-start row is excluded until its start", async () => {
+    const rows = await resolveRailPlans(
+      makeWindowPrisma([
+        windowRow("queued", at(7 * 24 * 60 * MINUTE), null),
+        windowRow("open", null, null),
+      ]),
+      RAIL_LIMIT,
+      RAIL_NOW,
+    );
+    assert.deepEqual(rows.map((r) => r.id), ["open"]);
+  });
+
+  it("an expired row is excluded after its end", async () => {
+    const rows = await resolveRailPlans(
+      makeWindowPrisma([
+        windowRow("expired", at(-30 * 24 * 60 * MINUTE), at(-24 * 60 * MINUTE)),
+        windowRow("open", null, null),
+      ]),
+      RAIL_LIMIT,
+      RAIL_NOW,
+    );
+    assert.deepEqual(rows.map((r) => r.id), ["open"]);
+  });
+
+  it("a row inside its window, or with only a past start / only a future end, is included", async () => {
+    const rows = await resolveRailPlans(
+      makeWindowPrisma([
+        windowRow("inside", at(-MINUTE * 60), at(MINUTE * 60)),
+        windowRow("started", at(-MINUTE * 60), null),
+        windowRow("ending", null, at(MINUTE * 60)),
+      ]),
+      RAIL_LIMIT,
+      RAIL_NOW,
+    );
+    assert.deepEqual(rows.map((r) => r.id), ["inside", "started", "ending"]);
+  });
+
+  it("the boundary minute: start == now and end == now are live; a minute either side is not", async () => {
+    const rows = await resolveRailPlans(
+      makeWindowPrisma([
+        windowRow("starts-now", RAIL_NOW, null),
+        windowRow("ends-now", null, RAIL_NOW),
+        windowRow("starts-next-minute", at(MINUTE), null),
+        windowRow("ended-last-minute", null, at(-MINUTE)),
+      ]),
+      RAIL_LIMIT,
+      RAIL_NOW,
+    );
+    assert.deepEqual(rows.map((r) => r.id), ["starts-now", "ends-now"]);
+  });
+
+  it("the window does not replace membership: a windowed row with railPosition null stays out", async () => {
+    const out = { ...windowRow("out", at(-MINUTE), at(MINUTE)), railPosition: null };
+    const rows = await resolveRailPlans(makeWindowPrisma([out]), RAIL_LIMIT, RAIL_NOW);
+    assert.deepEqual(rows, []);
+  });
+});
