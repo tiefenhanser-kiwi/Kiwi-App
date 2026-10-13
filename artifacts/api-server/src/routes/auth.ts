@@ -24,6 +24,7 @@ import {
 // that sign-up and sign-in used to hold inline. Extracted, not copied: the two
 // OAuth routes below are the third and fourth callers (§2.7).
 import { createAccountInTx, finishClaimAfterCommit } from "../lib/authAccount";
+import { sendSignupAlert, type SignupAlertInput } from "../lib/signupAlert";
 import { readOAuthConfig, type OAuthConfig } from "../lib/oauth/config";
 import {
   exchangeAppleAuthorizationCode as productionExchangeAppleCode,
@@ -279,6 +280,13 @@ export interface AuthRouterDeps {
    * and a default-on live POST is one forgotten stub from every test here.
    */
   exchangeAppleCode: typeof productionExchangeAppleCode;
+  /**
+   * SRV-2 · D-WS9-308 — the new-account email to Hans. Never awaited by the
+   * routes; injected so a test can await the promise the route drops. The
+   * default sends through THIS router's prisma and `sendEmail`, so a suite
+   * that injects a recording sender records the alert too.
+   */
+  signupAlert: (input: SignupAlertInput) => Promise<void>;
 }
 
 export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
@@ -305,6 +313,8 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
   // Shadows the module import: every requireAuth call site below is unchanged.
   const requireAuth = createRequireAuth({ prisma });
   const sendEmail = deps.sendEmail ?? productionSendEmail;
+  const signupAlert =
+    deps.signupAlert ?? ((input: SignupAlertInput) => sendSignupAlert(input, { prisma, sendEmail }));
   const router: IRouter = Router();
 
   // POST /auth/signup
@@ -399,6 +409,9 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
         materializeClaimedDraft,
         via: "signup",
       });
+
+      // SRV-2 · D-WS9-308 — fire-and-forget; the 201 never waits on Resend.
+      void signupAlert({ userId: user.id, via: "signup", method: "password", claimedPlanId });
 
       const token = signToken(user.id);
       logger.info(
@@ -715,6 +728,12 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
       materializeClaimedDraft,
       via: `oauth_${provider}`,
     });
+
+    // SRV-2 · D-WS9-308 — a NEW account only. A returning user's sign-in, and
+    // a verified email linked to an existing account, are not signups.
+    if (outcome.isNewUser) {
+      void signupAlert({ userId: outcome.userId, via: `oauth_${provider}`, method: provider, claimedPlanId });
+    }
 
     // Re-read rather than thread the created row out: `resolveIdentity` has
     // three exits and only one of them holds a user object, and the claim above

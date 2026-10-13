@@ -46,8 +46,9 @@ lives for the deployed instance. "env" = a plain Cloud Run env var
 | `ANTHROPIC_API_KEY` | for AI features | Secret Manager | Absent → every AI call returns a typed `no_api_key` failure; the server still serves. |
 | `RESEND_API_KEY` | for email | Secret Manager | Absent → password-reset / email-change mint tokens but send nothing (BUG-224 seam). |
 | `EMAIL_FROM` | if `RESEND_API_KEY` is set | env | Resend-verified sender, e.g. `Kiwi <noreply@<verified-domain>>`. Boot refuses a key without it. |
+| `SIGNUP_ALERT_TO` | no | env | **SRV-2 · D-WS9-308.** One plain-text email per new account (password sign-up, or a **new** Google/Apple user) to this address, via the same Resend sender (needs `RESEND_API_KEY` + `EMAIL_FROM` + `PUBLIC_APP_URL`). Unset = off: no send, no query, no log line. A failure never affects the signup; it logs one `signup_alert_failed` warn (userId + error, no PII). |
 | `PUBLIC_APP_URL` | if `RESEND_API_KEY` is set | env | Base of the emailed links. **Must equal the Cloud Run service URL** (`https://<service>-<hash>-<region>.run.app`, no trailing slash) for the first deploy, the custom domain later — the `/reset-password` and `/verify-email` pages are served by this same service at its root, so any other host makes the links dead. |
-| `TRUST_PROXY_HOPS` | **required before the guest per-IP cap is live** (Row 13) | **unset** | Leave unset (= 0, trust nothing) until measured — see below. Never `true`. **Promoted from "watch item" by Row 13 · Block 1:** the Test Kitchen's per-IP cap (3 guest sessions / rolling 24 h) is *gated on this being > 0* and is **inert today**, because at 0 `req.ip` is Google's front end for every visitor and the cap would be one global bucket of three sessions a day for the entire internet. The measurement is the **two-network `curl`** in *Watch items* §2. |
+| `TRUST_PROXY_HOPS` | yes (Row 13 guest per-IP cap) | env, `1` | **Live value `1`** on `kiwi-api` (D-WS9-249; read 2026-10-08 by the step-2 dry run). One hop = Google's front end, so `req.ip` is the visitor. Never `true`. The Test Kitchen's per-IP cap (3 guest sessions / rolling 24 h) is *gated on this being > 0*: at 0 `req.ip` is Google's front end for every visitor and the cap would be one global bucket of three sessions a day for the entire internet. The **two-network `curl`** in *Watch items* §2 is how to re-confirm it. |
 | `LOG_LEVEL` | no | env | pino level; default `info`. |
 | `AI_MODEL_OVERRIDE_SONNET` | **no — must be UNSET** | — | **Dev-only** Sonnet side-by-side (`lib/ai/modelShape.ts`): when set, every call configured for `claude-sonnet-4-6` runs on this model instead, and `LLMCallLog` records it. Leave unset on Cloud Run — production runs the model each prompt row names. |
 | `AI_SONNET55_THINKING` | **no — leave UNSET** | — | Read for **every** call whose model is `claude-sonnet-5-5` — a prompt row naming it, or the override above (`requestShapeForModel`). Unset (or anything but `adaptive`) sends thinking **off** (`between_tools`), the coded default since Part J.0 and the measured-safe one; `adaptive` restores the model's default, which the compare lane measured hitting `max_tokens` on set_preferences. Leave unset on Cloud Run. |
@@ -482,8 +483,7 @@ zips `dist/` into `artifacts/kiwi/kiwi-web-dist.zip` with `/` entry names.
   `https://<service-url>/api/webhooks/revenuecat`. Nothing to change.
 
 As read on 2026-10-08 by the step-2 dry run, `TRUST_PROXY_HOPS` **is set** on
-`kiwi-api`, value `1`. The contract table above still says *unset*. Reconcile
-it once the two-network measurement is confirmed to have been done.
+`kiwi-api`, value `1`. The contract table above says `1` since SRV-2 (D-WS9-249).
 
 ### Stripe values (test now, live at the cutover)
 
