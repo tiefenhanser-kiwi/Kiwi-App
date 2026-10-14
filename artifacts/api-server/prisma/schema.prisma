@@ -1029,6 +1029,11 @@ model DishIngredient {
   // NULLABLE — legacy rows are base, catalog stays valid untouched.
   componentKey    String?
   pathKey         String? // 'scratch' | 'bought' — enforced at application layer
+  // THX-2S (D-WS9-311) — this line is Thursday's leftovers (Friday's turkey,
+  // cranberry sauce, stuffing). Grocery generation skips it and the list
+  // carries one note instead, so Friday never buys a second turkey. Set by
+  // scripts/featured/markLeftovers.ts; no app path writes it.
+  fromLeftovers   Boolean @default(false)
 
   dish       Dish       @relation(fields: [dishId], references: [id], onDelete: Cascade)
   ingredient Ingredient @relation(fields: [ingredientId], references: [id])
@@ -1250,6 +1255,12 @@ model MealPlanTemplate {
   // Those two columns are inert today and STAY inert; this is not a duplicate
   // of either. See the 2c Phase 0 audit S3.
   railPosition        Int?
+  // THX-2S (D-WS9-311) — a dated template (Thanksgiving). The anchor is the
+  // Thursday: adopted ON OR BEFORE this day, the copy is dated in the anchor's
+  // week by each item's assignedDayOfWeek (template order, no perishability
+  // re-sort). After it, adoption behaves exactly as an unanchored template.
+  // null = an ordinary template. See lib/templateAnchor.ts.
+  anchorDate          DateTime?  @db.Date
   occasionType        String?
   // WS7-3 A1: Top Rated score cache (PRD §15.6.4). Nullable — compute-on-write
   // helper + scoring formula land in WS7-3 A2; both stay null until then.
@@ -1389,6 +1400,9 @@ model MealPlanTemplateItem {
   mealId             String
   positionIndex      Int     @default(0)
   assignedDayOfWeek  String?
+  // THX-2S (D-WS9-311) — copied onto MealPlanItem.servingsOverride at adopt
+  // (the feast at 10, or 4 for Small). null = follow the household size.
+  servingsOverride   Int?
   isBreakfast        Boolean @default(false)
   isLunch            Boolean @default(false)
   isDinner           Boolean @default(true)
