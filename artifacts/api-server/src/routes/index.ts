@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import authRouter, { createAuthRouter } from "./auth";
 import billingRouter, { createBillingRouter } from "./billing";
 import builderRouter from "./builder";
+import cookbookRouter from "./cookbook";
 import cookingRouter from "./cooking";
 import dishesRouter from "./dishes";
 import groceryListsRouter from "./groceryLists";
@@ -47,6 +48,8 @@ export function createRootRouter(deps: RootRouterDeps = {}): IRouter {
   // answer 503 `billing_unavailable` until the deploy has Stripe.
   router.use(billingConfig ? createBillingRouter({ billingConfig }) : billingRouter);
   router.use(builderRouter);
+  // BOOK-1S (D-WS9-312) — the Cookbook search. Member-only (requireAuth).
+  router.use(cookbookRouter);
   router.use(cookingRouter);
   router.use(dishesRouter);
   router.use(groceryListsRouter);
