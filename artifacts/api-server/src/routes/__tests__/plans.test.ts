@@ -6188,6 +6188,34 @@ describe("POST /plans/:id/items (WS7-4-D c1)", () => {
     }
   });
 
+  // BOOK-1S — the day is the DAY_NAMES vocabulary every reader keys on, or
+  // null/absent. Anything else used to be stored and then matched no day.
+  it("returns 400 on a day outside Sunday..Saturday, and writes nothing", async () => {
+    const recorder: D1ItemRecorder = {
+      itemCreates: [],
+      instanceUpdates: [],
+      activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD1Stub({
+        recorder,
+        plans: [{ id: "p-1", userId: A2_USER, revisionId: 2 }],
+        meals: [{ id: "m-1", userId: A2_USER, isPublic: false, isArchived: false, title: "M1" }],
+      }),
+    );
+    try {
+      for (const day of ["monday", "Mon", "MONDAY", "Funday", "", 1]) {
+        const res = await postPlanItem(harness, "p-1", { mealId: "m-1", assignedDayOfWeek: day });
+        assert.equal(res.status, 400, `day ${JSON.stringify(day)}`);
+      }
+      assert.equal(recorder.itemCreates.length, 0);
+      const ok = await postPlanItem(harness, "p-1", { mealId: "m-1", assignedDayOfWeek: null });
+      assert.equal(ok.status, 201, "null (unscheduled) is accepted");
+    } finally {
+      await harness.close();
+    }
+  });
+
   it("rolls back: when mealPlanItem.create throws, no activity written and 500 returned", async () => {
     const recorder: D1ItemRecorder = {
       itemCreates: [],
@@ -6747,6 +6775,32 @@ const D3_DEFAULT_MEALS: D1MealFix[] = [
 ];
 
 describe("PATCH /plans/:id/items/:itemId (WS7-4-D c3)", () => {
+  // BOOK-1S — the same day vocabulary as POST.
+  it("returns 400 on a day outside Sunday..Saturday, and writes nothing", async () => {
+    const recorder: D3Recorder = {
+      itemUpdates: [], itemCreates: [], itemDeletes: [],
+      instanceUpdates: [], activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD3Stub({
+        recorder,
+        plans: D3_DEFAULT_PLANS,
+        meals: D3_DEFAULT_MEALS,
+        items: [d3ItemFix({ id: "it-1", mealPlanInstanceId: "p-1", mealId: "m-old" })],
+      }),
+    );
+    try {
+      for (const day of ["monday", "Mon", "Funday", ""]) {
+        const res = await patchPlanItemReq(harness, "p-1", "it-1", { assignedDayOfWeek: day });
+        assert.equal(res.status, 400, `day ${JSON.stringify(day)}`);
+      }
+      assert.equal(recorder.itemUpdates.length, 0);
+      assert.equal(recorder.activityWrites.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
   it("assignedDayOfWeek null -> Monday emits plan_meal_assigned with { day }", async () => {
     const recorder: D3Recorder = {
       itemUpdates: [], itemCreates: [], itemDeletes: [],

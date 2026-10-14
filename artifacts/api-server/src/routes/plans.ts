@@ -41,6 +41,7 @@ import {
   assignAndPersistPlanDays,
   assignPlanDays,
   assignedDateRange,
+  DAY_NAMES,
   inclusiveDayCount,
   loadAssignableMeals,
   parseLocalDate,
@@ -1979,11 +1980,18 @@ export function createPlansRouter(
   // "dinner"); server maps to the 3 booleans on write. Q-P1-5 (a) ruling:
   // response carries the composed `item` (MealDetail-shaped) so future
   // skip-refetch UX work is free.
+  //
+  // BOOK-1S — `assignedDayOfWeek` is the day-name vocabulary every reader keys
+  // on (DAY_NAMES: "Sunday".."Saturday", what the client's DayOfWeek sends and
+  // the only non-null values on dev, 2026-10-14), or null/absent for
+  // unscheduled. It was any string, so a "monday" or a "Mon" was stored and
+  // then matched no day anywhere.
+  const PlanItemDay = z.enum(DAY_NAMES).nullable().optional();
   const PostPlanItemBody = z
     .object({
       mealId: z.string().min(1).max(100),
       slot: z.enum(["breakfast", "lunch", "dinner"]).optional(),
-      assignedDayOfWeek: z.string().nullable().optional(),
+      assignedDayOfWeek: PlanItemDay,
       servingsOverride: z.number().int().positive().nullable().optional(),
     })
     .strict();
@@ -2315,7 +2323,8 @@ export function createPlansRouter(
   const PatchPlanItemBody = z
     .object({
       mealId: z.string().min(1).max(100).optional(),
-      assignedDayOfWeek: z.string().nullable().optional(),
+      // BOOK-1S — the same day vocabulary as POST (PlanItemDay, above).
+      assignedDayOfWeek: PlanItemDay,
       slot: z.enum(["breakfast", "lunch", "dinner"]).optional(),
       servingsOverride: z.number().int().positive().nullable().optional(),
       ingredientOverrides: z.unknown().optional(),
