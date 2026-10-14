@@ -235,6 +235,23 @@ describe("THX-2G — runStoreFill on the wire", () => {
   });
 });
 
+describe("THX-2G — storedDifficulty", () => {
+  it("absent → the model's difficulty; set → stored, and the derived tag follows", async () => {
+    const fancy = () => makeMeal({ difficulty: "fancy" });
+    const captured: string[] = [];
+    const run = (storedDifficulty?: "easy" | "medium" | "fancy") => {
+      const m = fancy();
+      return runStoreFill(
+        { prisma: fakePrisma(), runAICall: recordingRunAICall([ok(m)], [ok(finalizeFor(m))], []) },
+        { apply: false, limit: 1, dishes: [DISH], profiles: [PROFILE], onMeal: (c) => captured.push(buildTags(c.meal).join(",")), ...(storedDifficulty ? { storedDifficulty } : {}) },
+      );
+    };
+    assert.equal((await run()).records[0].difficulty, "fancy");
+    assert.equal((await run("medium")).records[0].difficulty, "medium");
+    assert.deepEqual(captured, ["american,fancy", "american,medium"]);
+  });
+});
+
 describe("THX-2G — transactionTimeoutMs on the per-meal write", () => {
   async function txArgs(transactionTimeoutMs?: number): Promise<unknown[]> {
     const meal = makeMeal();

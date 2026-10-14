@@ -28,7 +28,7 @@ import { runAICall as productionRunAICall } from "../../src/lib/ai/runAICall";
 import { assertScriptDatabase } from "../../src/lib/scripts/requireDatabaseHost";
 import { computeCacheAwareCostUsd, emptyTokenTotals, generateInput, runStoreFill, type ModelRateUsd, type TokenTotals } from "../../src/lib/storeFill";
 import { generatePrefixFor, STABLE_GENERATE_PREFIX } from "../../src/lib/storeFillPrompts";
-import { flagsFor, loadTargets, runOptionsFor, validateTargets, type Thx2Target } from "./thx2Core";
+import { flagsFor, KINDS, loadTargets, runOptionsFor, validateTargets, type Thx2Target } from "./thx2Core";
 import { flagInputs, loadThx2Meals, type MealGraph } from "./thx2Db";
 
 const argv = process.argv.slice(2);
@@ -53,7 +53,7 @@ if (ONLY) {
 
 const sha = (s: string) => createHash("sha256").update(s, "utf8").digest("hex").slice(0, 12);
 const variant = generatePrefixFor({ maxDishes: file.maxDishes });
-console.log(`targets: ${targets.length} of ${file.targets.length} (${["feast", "alternate", "friday"].map((k) => `${k} ${targets.filter((t) => t.kind === k).length}`).join(" · ")}) · maxDishes ${file.maxDishes} · max output tokens ${file.maxOutputTokens} · rows written NON-PUBLIC · cap $${file.spendCapUsd}`);
+console.log(`targets: ${targets.length} of ${file.targets.length} (${KINDS.map((k) => `${k} ${targets.filter((t) => t.kind === k).length}`).join(" · ")}) · maxDishes ${file.maxDishes} · max output tokens ${file.maxOutputTokens} · rows written NON-PUBLIC · cap $${file.spendCapUsd}`);
 console.log(`generate prefix: variant sha ${sha(variant)} (${variant.length} chars) · default sha ${sha(STABLE_GENERATE_PREFIX)} (unchanged)`);
 
 const prisma = new PrismaClient();
@@ -73,7 +73,7 @@ if (DRY) {
   for (const t of pending) {
     const o = runOptionsFor(t, file);
     const td = o.dishes![0];
-    console.log(`\n── ${t.key} · ${t.kind} · ${t.servings} servings · ceiling ${t.difficulty} · completeness ${o.completeness} · ${t.dishes.length} dishes`);
+    console.log(`\n── ${t.key} · ${t.kind} · ${t.servings} servings · ceiling ${t.difficulty}${o.storedDifficulty ? ` (stored ${o.storedDifficulty})` : ""} · completeness ${o.completeness} · ${t.dishes.length} dishes`);
     console.log(`   meal tags [${o.tags!.join(", ")}] · dish tags [${o.dishTags!.join(", ") || "-"}]`);
     console.log(`   generate input:\n${indent(generateInput(td.dish, o.profiles![0], td.dishes, td.shortcut, o.brief))}`);
     if (o.finalizeBrief) console.log(`   finalize brief: ${o.finalizeBrief}`);

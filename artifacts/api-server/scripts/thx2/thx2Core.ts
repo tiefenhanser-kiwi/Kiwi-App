@@ -32,7 +32,9 @@ export type CourseTag = (typeof COURSE_TAGS)[number];
  *  a pie rides as a `side`, positioned last (THX-2-0). */
 export const ROLES = ["main", "side", "sauce", "base"] as const;
 export type Role = (typeof ROLES)[number];
-export type Kind = "feast" | "alternate" | "friday";
+/** `weeknight`: the one Wednesday meal every plan shares (pizza night, D-WS9-313). */
+export type Kind = "feast" | "alternate" | "friday" | "weeknight";
+export const KINDS: readonly Kind[] = ["feast", "alternate", "friday", "weeknight"];
 export type Difficulty = GenProfile["difficulty"];
 
 export interface DishSpec {
@@ -106,7 +108,7 @@ export function validateTargets(file: TargetsFile): string[] {
     else if (t.key.length > 120) errs.push(`${at}: key over 120 chars`);
     if (seen.has(t.key)) errs.push(`${at}: duplicate key`);
     seen.add(t.key);
-    if (!["feast", "alternate", "friday"].includes(t.kind)) errs.push(`${at}: kind "${t.kind}"`);
+    if (!KINDS.includes(t.kind)) errs.push(`${at}: kind "${t.kind}"`);
     if (!t.title?.trim()) errs.push(`${at}: no title`);
     if (!t.cuisine?.trim()) errs.push(`${at}: no cuisine`);
     if (!Number.isInteger(t.servings) || t.servings < 1 || t.servings > 30) errs.push(`${at}: servings must be an integer 1–30 (got ${t.servings})`);
@@ -133,7 +135,8 @@ export function validateTargets(file: TargetsFile): string[] {
       if (!dishes[0]?.course) errs.push(`${at}: an alternate needs its course tag`);
       if (t.servings !== 10) errs.push(`${at}: alternates are authored at 10`);
     }
-    if (t.kind === "friday" && t.servings !== 4) errs.push(`${at}: Friday meals are authored at 4 (the catalog default)`);
+    if ((t.kind === "friday" || t.kind === "weeknight") && t.servings !== 4) errs.push(`${at}: ${t.kind} meals are authored at 4 (the catalog default)`);
+    if (t.kind === "weeknight" && !t.note?.trim()) errs.push(`${at}: a weeknight meal needs its brief in \`note\``);
     if (t.plan !== "make-ahead" && dishes.some((d) => d.dayNote)) {
       errs.push(`${at}: day notes belong to the Make-Ahead plan only`);
     }
@@ -178,6 +181,9 @@ export function composeBrief(t: Thx2Target): string {
       `This request is NOT a complete dinner and the complete-dinner rules do not apply to it: do not add a protein, a starch, a side or a sauce to make it one.`,
       `Size it for ${t.servings} people at a holiday table, as one dish among about eight.`,
     );
+  } else if (t.kind === "weeknight") {
+    // The note IS the brief (pizza night's words are ruled, D-WS9-313).
+    parts.push(`Thanksgiving week, dinner for ${t.servings}, cuisine ${t.cuisine}.`);
   } else {
     parts.push(
       `The Friday after Thanksgiving, dinner for ${t.servings}, cuisine ${t.cuisine}: an easy weeknight dinner built from Thursday's leftovers.`,
@@ -195,15 +201,27 @@ export function composeBrief(t: Thx2Target): string {
   return parts.join(" ");
 }
 
-/** The finalize call's brief: the Make-Ahead day notes, so they reach the STEPS
- *  (the generate brief never reaches the finalize call). */
-export function composeFinalizeBrief(t: Thx2Target): string | undefined {
+/**
+ * Follow-up B: EVERY target's finalize call carries the long-wait rule. A
+ * brine, an overnight chill or a day's rest written as a timed step lands in
+ * the derived time (the buttermilk turkey read 808 min — a Cookbook card
+ * number). Such a wait becomes a make-ahead line in the text of the step that
+ * starts it. "Several hours" is drawn at 4: a pie cooling 2 hours or a turkey
+ * resting 30 minutes stays a timed step.
+ */
+export const LONG_WAIT_RULE =
+  `Any passive wait of 4 hours or more (brining, marinating, chilling or resting overnight, a day in the fridge) is a MAKE-AHEAD NOTE, not a timed step: write it into the text of the step that starts it, in the cook's words (for example "Brine overnight, 8 to 24 hours, the day before."), and give that step only its own hands-on minutes. No step's estimatedMinutes includes such a wait. Shorter waits (resting the roast 30 minutes, cooling a pie 2 hours) stay timed steps as usual.`;
+
+/** The finalize call's brief: the long-wait rule for every target, plus the
+ *  Make-Ahead day notes (the generate brief never reaches the finalize call). */
+export function composeFinalizeBrief(t: Thx2Target): string {
   const notes = t.dishes.map((d, i) => ({ i, d })).filter(({ d }) => d.dayNote);
-  if (notes.length === 0) return undefined;
+  if (notes.length === 0) return LONG_WAIT_RULE;
   return [
+    LONG_WAIT_RULE,
     `This is a MAKE-AHEAD Thanksgiving: write the day into the step text of each make-ahead step, in the cook's words (for example "Up to 3 days ahead (we suggest Monday): …").`,
     `The days, by dish: ${notes.map(({ i, d }) => `dishIndex ${i} ${d.name}: ${d.dayNote}`).join("; ")}.`,
-    `A wait that spans days (a dry brine, chilling overnight) is stated in the text of the step that starts it; that step's estimatedMinutes counts only its own hands-on work, so the timed steps stay Thursday's work plus the reheats and bakes.`,
+    `Work done on an earlier day keeps only its hands-on minutes, so the timed steps stay Thursday's work plus the reheats and bakes.`,
   ].join(" ");
 }
 
@@ -229,15 +247,18 @@ export function toTargetDish(t: Thx2Target): TargetDish {
  *  breaker and log, which the caller owns). */
 export type Thx2RunOptions = Pick<
   StoreFillOptions,
-  "limit" | "dishes" | "profiles" | "maxDishes" | "maxOutputTokens" | "isPublic" | "completeness" | "brief" | "finalizeBrief" | "tags" | "dishTags" | "transactionTimeoutMs"
+  "limit" | "dishes" | "profiles" | "maxDishes" | "maxOutputTokens" | "isPublic" | "completeness" | "brief" | "finalizeBrief" | "tags" | "dishTags" | "transactionTimeoutMs" | "storedDifficulty"
 >;
+
+/** Hans (follow-up B): every feast is stored as medium, whatever its ceiling.
+ *  Alternates, Friday and the weeknight keep the model's value. */
+export const FEAST_STORED_DIFFICULTY = "medium" as const;
 
 /** The per-meal write's transaction timeout. The dev pilot's 8-dish feast
  *  overran Prisma's 5 s default (P2028); 60 s is the wizard activation's value. */
 export const TRANSACTION_TIMEOUT_MS = 60_000;
 
 export function runOptionsFor(t: Thx2Target, file: TargetsFile): Thx2RunOptions {
-  const finalizeBrief = composeFinalizeBrief(t);
   return {
     limit: 1,
     dishes: [toTargetDish(t)],
@@ -247,10 +268,11 @@ export function runOptionsFor(t: Thx2Target, file: TargetsFile): Thx2RunOptions 
     isPublic: false,
     completeness: t.kind === "alternate" ? "single_dish" : "meal",
     brief: composeBrief(t),
-    ...(finalizeBrief ? { finalizeBrief } : {}),
+    finalizeBrief: composeFinalizeBrief(t),
     tags: mealTags(t),
     dishTags: dishTags(t),
     transactionTimeoutMs: TRANSACTION_TIMEOUT_MS,
+    ...(t.kind === "feast" ? { storedDifficulty: FEAST_STORED_DIFFICULTY } : {}),
   };
 }
 

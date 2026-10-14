@@ -13,6 +13,7 @@ import * as storeShortlist from "../../src/lib/store/storeShortlist";
 import {
   ALTERNATE_TAG,
   COURSE_TAGS,
+  LONG_WAIT_RULE,
   SHELF_EXCLUSION_EXPORT,
   THANKSGIVING_TAG,
   approveRefusal,
@@ -41,9 +42,18 @@ describe("targets.json", () => {
   it("validates clean", () => {
     assert.deepEqual(validateTargets(FILE), []);
   });
-  it("carries the §1 list: 5 feasts, 16 alternates, 5 Friday meals", () => {
+  it("carries the §1 list plus pizza night: 5 feasts, 16 alternates, 5 Friday meals, 1 Wednesday — 27", () => {
     const n = (k: string) => FILE.targets.filter((t) => t.kind === k).length;
-    assert.deepEqual([n("feast"), n("alternate"), n("friday")], [5, 16, 5]);
+    assert.deepEqual([n("feast"), n("alternate"), n("friday"), n("weeknight")], [5, 16, 5, 1]);
+    assert.equal(FILE.targets.length, 27);
+  });
+  it("pizza night: one shortcut product named with its allergens, thanksgiving tag only, 4 servings", () => {
+    const p = byKey("thx2-wednesday-pizza-night");
+    assert.deepEqual(p.products, ["frozen cheese pizza (contains wheat, milk)"]);
+    assert.deepEqual(FILE.products[p.products[0]], ["wheat", "dairy"]);
+    assert.deepEqual(mealTags(p), ["thanksgiving"]);
+    assert.equal(p.servings, 4);
+    assert.ok(composeBrief(p).includes("nobody wants to cook"));
   });
   it("every key starts with thx2- and none repeats", () => {
     const keys = FILE.targets.map((t) => t.key);
@@ -89,7 +99,7 @@ describe("per-target options", () => {
       assert.deepEqual(dishTags(t), tags);
     }
   });
-  it("feasts and Friday: thanksgiving on the meal, no dish tags", () => {
+  it("feasts, Friday and Wednesday: thanksgiving on the meal, no dish tags", () => {
     for (const t of FILE.targets.filter((x) => x.kind !== "alternate")) {
       assert.deepEqual(mealTags(t), [THANKSGIVING_TAG]);
       assert.deepEqual(dishTags(t), []);
@@ -102,6 +112,8 @@ describe("per-target options", () => {
     assert.equal(feast.maxOutputTokens, FILE.maxOutputTokens);
     assert.equal(feast.completeness, "meal");
     assert.equal(feast.transactionTimeoutMs, 60_000);
+    assert.equal(feast.storedDifficulty, "medium", "feasts are stored as medium (Hans)");
+    for (const t of FILE.targets.filter((x) => x.kind !== "feast")) assert.ok(!("storedDifficulty" in runOptionsFor(t, FILE)), t.key);
     assert.equal(feast.profiles![0].servings, 10);
     assert.deepEqual(feast.dishes![0].dishes, byKey("thx2-feast-classic").dishes.map((d) => d.name));
     assert.equal(runOptionsFor(byKey("thx2-alt-buttermilk-turkey"), FILE).completeness, "single_dish");
@@ -112,11 +124,15 @@ describe("per-target options", () => {
     assert.equal(shortcutFor(byKey("thx2-friday-small")), "cooked leftover turkey");
     assert.equal(shortcutFor(byKey("thx2-feast-small")), undefined);
   });
-  it("the Make-Ahead day notes reach the FINALIZE brief; other targets carry none", () => {
+  it("EVERY target's finalize brief carries the long-wait rule; only Make-Ahead adds the days", () => {
+    for (const t of FILE.targets) {
+      assert.ok(composeFinalizeBrief(t).startsWith(LONG_WAIT_RULE), t.key);
+      assert.equal(runOptionsFor(t, FILE).finalizeBrief, composeFinalizeBrief(t));
+    }
     const fb = composeFinalizeBrief(byKey("thx2-feast-make-ahead"));
-    assert.ok(fb && fb.includes("we suggest Monday") && fb.includes("we suggest Tuesday") && fb.includes("dishIndex 0"));
-    assert.equal(composeFinalizeBrief(byKey("thx2-feast-classic")), undefined);
-    assert.equal(runOptionsFor(byKey("thx2-feast-classic"), FILE).finalizeBrief, undefined);
+    assert.ok(fb.includes("we suggest Monday") && fb.includes("we suggest Tuesday") && fb.includes("dishIndex 0"));
+    assert.equal(composeFinalizeBrief(byKey("thx2-feast-classic")), LONG_WAIT_RULE);
+    assert.equal(composeFinalizeBrief(byKey("thx2-alt-buttermilk-turkey")), LONG_WAIT_RULE);
   });
   it("the alternate brief lifts the complete-dinner rule; the feast brief lists roles in order", () => {
     assert.ok(composeBrief(byKey("thx2-alt-pecan-pie")).includes("NOT a complete dinner"));

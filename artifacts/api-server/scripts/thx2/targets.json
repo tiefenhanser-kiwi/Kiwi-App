@@ -6,7 +6,8 @@
   "products": {
     "refrigerated pie crust (contains wheat)": ["wheat"],
     "all-butter puff pastry (contains wheat, milk)": ["wheat", "dairy"],
-    "store-bought fried onions (contains wheat, soy)": ["wheat", "soy"]
+    "store-bought fried onions (contains wheat, soy)": ["wheat", "soy"],
+    "frozen cheese pizza (contains wheat, milk)": ["wheat", "dairy"]
   },
   "targets": [
     {
@@ -332,6 +333,20 @@
       "dishes": [{ "name": "Leftover Turkey Enchiladas", "role": "main" }],
       "products": [],
       "leftovers": ["cooked leftover turkey"]
+    },
+    {
+      "key": "thx2-wednesday-pizza-night",
+      "kind": "weeknight",
+      "title": "Pizza Night with a Quick Chopped Salad",
+      "cuisine": "American",
+      "servings": 4,
+      "difficulty": "easy",
+      "dishes": [
+        { "name": "Frozen Cheese Pizza", "role": "main" },
+        { "name": "Quick Chopped Salad", "role": "side" }
+      ],
+      "products": ["frozen cheese pizza (contains wheat, milk)"],
+      "note": "Pizza night: a store-bought frozen cheese pizza, baked, with a quick chopped salad. About 20 minutes. The night before Thanksgiving, nobody wants to cook. Every Thanksgiving plan uses this one meal, the vegetarian plan included, so nothing in it is meat, poultry or fish."
     }
   ]
 }

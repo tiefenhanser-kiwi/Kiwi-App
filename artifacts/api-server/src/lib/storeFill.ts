@@ -664,6 +664,11 @@ export interface StoreFillOptions {
    *  default (5 s), exactly as today. An 8-dish feast is ~150 sequential row
    *  writes and overran 5 s on Neon in the dev pilot (P2028, rolled back). */
   transactionTimeoutMs?: number;
+  /** Store the meal at this difficulty whatever the model returned (the prompt
+   *  ceiling still comes from the profile). Applied after finalize, so the
+   *  stored column, the derived tag and the dishes' fallback all agree.
+   *  Absent → the model's value, as today. */
+  storedDifficulty?: GenProfile["difficulty"];
 }
 
 /** THX-2G — the materialize target for a run: STORE_FILL_TARGET unless `isPublic: false`. */
@@ -900,6 +905,9 @@ export async function runStoreFill(
     // never fatal). Accumulated for the run report.
     componentTagFindings.push(...merged.tagFindings);
     parallelGroupIssues.push(...merged.parallelGroupIssues);
+
+    // THX-2G — the stored difficulty override (feasts are stored as medium).
+    if (opts.storedDifficulty !== undefined) meal.difficulty = opts.storedDifficulty;
 
     // 4. Allergens + payload (stamped with the target-dish key + component registry).
     const allergens = deriveAllergens(meal);
