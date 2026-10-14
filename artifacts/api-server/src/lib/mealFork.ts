@@ -169,9 +169,10 @@ export async function forkMealForUser(
  * them was invisible to every allergic user: the write-back loop was dead for
  * that group and getting deader.
  *
- * The stamp is derived from the CLONE's persisted ingredient graph, not copied
- * from the source. Copying would propagate `[]` — the source is a live meal
- * materialized through a path that supplies no allergens either.
+ * The stamp is re-derived from the CLONE's persisted ingredient graph here even
+ * though cloneMealInto now carries the source's stamp (BUG-407): the source is
+ * a live meal, and this keeps the pool row correct whatever that live path did
+ * or did not stamp. When the carried stamp already matches, this writes nothing.
  */
 export async function publishMealToStore(
   tx: Tx,
@@ -265,6 +266,21 @@ async function cloneMealInto(
       proteinGPerServing: source.proteinGPerServing,
       carbsGPerServing: source.carbsGPerServing,
       fatGPerServing: source.fatGPerServing,
+      // BUG-407 — the allergen stamp travels with the graph it was derived from.
+      // It used to be dropped: every user copy was born `allergensStampedAt:
+      // null`, which the conservative filter (store/allergenFilter.ts) reads as
+      // "never evaluated" and excludes for every allergic user — 304 of 448
+      // copies on the 2026-10-14 dev branch. Copying is exact, not a shortcut:
+      // the dishes and ingredients below are copied verbatim (same ingredientId
+      // refs, nothing added, dropped or renamed), and stampAllergens derives
+      // from exactly those rows. An UNSTAMPED source is the one case a copy
+      // cannot inherit — it is stamped from the copy's graph after step 3.
+      allergens: source.allergens,
+      allergenSources:
+        source.allergenSources === null
+          ? Prisma.DbNull
+          : (source.allergenSources as Prisma.InputJsonValue),
+      allergensStampedAt: source.allergensStampedAt,
       // Block 4a piece 3 (D-WS9-073, persist-only) — catalog lineage on the user
       // fork; undefined → null on publish-to-store (no self/foreign lineage).
       sourceStoreMealId: target.sourceStoreMealId ?? null,
@@ -405,6 +421,12 @@ async function cloneMealInto(
         ownerId: newMeal.id,
       })),
     });
+  }
+
+  // 4. BUG-407 — a source that was never stamped hands the copy nothing to
+  //    inherit, so derive the copy's own stamp from the graph just written.
+  if (source.allergensStampedAt == null) {
+    await stampAllergens(tx, newMeal.id);
   }
 
   return { mealId: newMeal.id };

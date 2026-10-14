@@ -445,18 +445,19 @@ export async function materializeWizardDraft(
 
       // D-WS9-214 — stamp the LIVE-BUILT meal, not just the pool copy.
       //
-      // publishMealToStore below already stamps (via cloneMealInto), so the
-      // shared-pool copy has always been correct. The user-owned original
-      // created above never was: this is the single largest unstamped
-      // population in the database — 201 wizard meals, 100% unstamped, still
-      // growing as of 2026-09-01.
+      // publishMealToStore below stamps its pool copy itself (stampAllergens
+      // after cloneMealInto), so the shared-pool copy has always been correct.
+      // The user-owned original created above never was: as of 2026-09-01 the
+      // 201 wizard meals were 100% unstamped.
       //
-      // Nothing allergen-filtered reads a user-owned meal TODAY (the one hard
-      // filter, store/allergenFilter.ts, runs only inside buildStoreShortlist,
-      // whose pool predicate is isPublic:true), so this is correctness-for-later
-      // rather than a live hole — stated plainly so nobody re-derives it. It is
-      // here because it is free and because the day a cookbook or swap surface
-      // starts filtering, the backfill would otherwise be discovered late.
+      // ⚠️ This is a LIVE filter path now, not correctness-for-later. User-owned
+      // meals ARE allergen-filtered: POST /wizard/shelf's playlist rows
+      // (readPlaylistIds) apply allergenWhereConditions to the user's own meal,
+      // and so does addPlaylistToShelf for a user-built one (no source); the
+      // conservative rule drops an unstamped one for every allergic user. The
+      // Cookbook reads public rows only. BUG-407 was the same hole on the fork
+      // path (cloneMealInto now carries the stamp), and
+      // scripts/allergens/stampUserCopies.ts backfills the copies it left.
       //
       // Placed next to the macro recompute for the same reason that one is
       // here: both read the graph the loop above just wrote.

@@ -2182,6 +2182,10 @@ function makeC4Stub(opts: {
         proteinGPerServing: 0,
         carbsGPerServing: 0,
         fatGPerServing: 0,
+        // BUG-407 — a stamped source: the fork carries the stamp, no re-derive.
+        allergens: [],
+        allergenSources: null,
+        allergensStampedAt: new Date("2026-09-04T00:00:00Z"),
         dishLinks: [],
       }),
       create: async (args: { data: Record<string, unknown> }) => {

@@ -421,6 +421,7 @@ describe("publishMealToStore — the write-back path stamps (the six-week hole)"
       ],
     };
     const stamped: string[][] = [];
+    let written: Record<string, unknown> | null = null;
     let cloned = false;
     const tx = {
       userPreferences: { findUnique: async () => ({ householdSize: 2 }) },
@@ -428,7 +429,10 @@ describe("publishMealToStore — the write-back path stamps (the six-week hole)"
         findUnique: async (args: { where: { id: string }; select?: Record<string, unknown> }) => {
           if (args.where.id === "src-meal") return source;
           // the CLONE's graph — the ingredient rows resolve to real names
-          if (args.select && "allergens" in args.select) return { allergens: [] };
+          // Reads back what the last stamp wrote, as the database would: since
+          // BUG-407 the clone stamps an unstamped source's copy itself, and
+          // publishMealToStore's own stamp must then find it current and skip.
+          if (args.select && "allergens" in args.select) return written ?? { allergens: [] };
           return {
             dishLinks: [
               { dish: { dishIngredients: [
@@ -441,6 +445,7 @@ describe("publishMealToStore — the write-back path stamps (the six-week hole)"
         create: async () => { cloned = true; return { id: "new-meal" }; },
         update: async (args: { data: { allergens: string[] } }) => {
           stamped.push(args.data.allergens);
+          written = args.data;
           return {};
         },
       },

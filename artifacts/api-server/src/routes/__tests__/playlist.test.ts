@@ -95,7 +95,9 @@ function makeStub(opts: {
           authoredServingsDefault: 4,
           tags: [],
           allergens: [],
-          allergensStampedAt: null,
+          // A catalog source is stamped (every public dinner on dev is), so the
+          // fork carries the stamp (BUG-407) and writes nothing extra.
+          allergensStampedAt: new Date("2026-09-04T00:00:00Z"),
           allergenSources: null,
           caloriesPerServing: 0,
           proteinGPerServing: 0,
