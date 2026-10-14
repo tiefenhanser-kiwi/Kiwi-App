@@ -346,3 +346,40 @@ Return ONLY the tool_use call with the single meal object.`;
  */
 export const STABLE_GENERATE_PREFIX =
   PREFERENCE_CONTRACT_PREAMBLE + GENERATE_MEAL_INSTRUCTIONS;
+
+// ── THX-2G (D-WS9-311) — a script-only dish range ───────────────────────────
+// The Thanksgiving feasts are ONE meal of up to 8 dishes, and the prefix above
+// says "1 to 3". The variant swaps exactly that one sentence and nothing else;
+// with no option the function returns STABLE_GENERATE_PREFIX itself, so every
+// existing caller sends the same bytes and keeps the warm cache (a test pins
+// the default by sha256). The variant is itself stable across a run, so a run
+// that passes the same `maxDishes` on every call caches it too.
+
+/** The one span of the generate prefix a script may vary (pinned by tests). */
+export const DEFAULT_DISH_RANGE_SENTENCE = "- `dishes` — 1 to 3 dishes.";
+
+export interface GeneratePrefixOptions {
+  /** Upper dish count for the meal; absent → the default prefix, unchanged. */
+  maxDishes?: number;
+}
+
+/** The sentence that replaces DEFAULT_DISH_RANGE_SENTENCE under `maxDishes`. */
+export function dishRangeSentence(maxDishes: number): string {
+  return `- \`dishes\` — 1 to ${maxDishes} dishes. When the message carries a \`dishes\` list, author exactly one dish per entry, in that order: that list overrides every dish count in this prompt, including the "one or two supporting dishes" rule.`;
+}
+
+export function generatePrefixFor(opts: GeneratePrefixOptions = {}): string {
+  if (opts.maxDishes === undefined) return STABLE_GENERATE_PREFIX;
+  if (!Number.isInteger(opts.maxDishes) || opts.maxDishes < 1 || opts.maxDishes > 12) {
+    throw new Error(`generatePrefixFor: maxDishes must be an integer 1–12 (got ${opts.maxDishes})`);
+  }
+  const at = STABLE_GENERATE_PREFIX.indexOf(DEFAULT_DISH_RANGE_SENTENCE);
+  if (at < 0 || STABLE_GENERATE_PREFIX.indexOf(DEFAULT_DISH_RANGE_SENTENCE, at + 1) >= 0) {
+    throw new Error("generatePrefixFor: the default dish-range sentence is not in the prefix exactly once");
+  }
+  return (
+    STABLE_GENERATE_PREFIX.slice(0, at) +
+    dishRangeSentence(opts.maxDishes) +
+    STABLE_GENERATE_PREFIX.slice(at + DEFAULT_DISH_RANGE_SENTENCE.length)
+  );
+}

@@ -1,0 +1,337 @@
+{
+  "keyPrefix": "thx2-",
+  "maxDishes": 8,
+  "maxOutputTokens": 16000,
+  "spendCapUsd": 15,
+  "products": {
+    "refrigerated pie crust (contains wheat)": ["wheat"],
+    "all-butter puff pastry (contains wheat, milk)": ["wheat", "dairy"],
+    "store-bought fried onions (contains wheat, soy)": ["wheat", "soy"]
+  },
+  "targets": [
+    {
+      "key": "thx2-feast-classic",
+      "kind": "feast",
+      "plan": "classic",
+      "title": "Classic Thanksgiving Dinner",
+      "cuisine": "American",
+      "servings": 10,
+      "difficulty": "fancy",
+      "dishes": [
+        { "name": "Herb-Roasted Whole Turkey", "role": "main", "course": "course-turkey" },
+        { "name": "Pan Gravy", "role": "sauce", "course": "course-sides" },
+        { "name": "Sage and Onion Stuffing", "role": "side", "course": "course-stuffing" },
+        { "name": "Mashed Potatoes", "role": "base", "course": "course-potatoes" },
+        { "name": "Cranberry-Orange Sauce", "role": "sauce", "course": "course-cranberry" },
+        { "name": "Green Bean Casserole", "role": "side", "course": "course-sides" },
+        { "name": "Sweet Potato Casserole", "role": "side", "course": "course-sides" },
+        { "name": "Pumpkin Pie", "role": "side", "course": "course-dessert" }
+      ],
+      "products": ["store-bought fried onions (contains wheat, soy)", "refrigerated pie crust (contains wheat)"],
+      "note": "The classic American Thanksgiving table. The fried onions top the green bean casserole; the pie crust holds the pumpkin pie."
+    },
+    {
+      "key": "thx2-feast-small",
+      "kind": "feast",
+      "plan": "small",
+      "title": "Small Thanksgiving Dinner for Four",
+      "cuisine": "American",
+      "servings": 4,
+      "difficulty": "fancy",
+      "dishes": [
+        { "name": "Roast Turkey Breast", "role": "main", "course": "course-turkey" },
+        { "name": "Pan Gravy", "role": "sauce", "course": "course-sides" },
+        { "name": "Small-Batch Sage Stuffing", "role": "side", "course": "course-stuffing" },
+        { "name": "Mashed Potatoes", "role": "base", "course": "course-potatoes" },
+        { "name": "Cranberry-Orange Sauce", "role": "sauce", "course": "course-cranberry" },
+        { "name": "Roasted Green Beans", "role": "side", "course": "course-sides" },
+        { "name": "Maple-Roasted Sweet Potatoes", "role": "side", "course": "course-sides" },
+        { "name": "Apple Crisp", "role": "side", "course": "course-dessert" }
+      ],
+      "products": [],
+      "note": "A full Thanksgiving scaled for a table of four: a bone-in turkey breast instead of a whole bird, every side in small batches."
+    },
+    {
+      "key": "thx2-feast-make-ahead",
+      "kind": "feast",
+      "plan": "make-ahead",
+      "title": "Make-Ahead Thanksgiving Dinner",
+      "cuisine": "American",
+      "servings": 10,
+      "difficulty": "fancy",
+      "dishes": [
+        { "name": "Dry-Brined Roast Turkey", "role": "main", "course": "course-turkey", "dayNote": "dry-brine up to 2 days ahead; we suggest Tuesday; roast on Thursday" },
+        { "name": "Make-Ahead Turkey Gravy", "role": "sauce", "course": "course-sides", "dayNote": "make up to 3 days ahead; we suggest Monday; reheat on Thursday" },
+        { "name": "Overnight Sage Stuffing", "role": "side", "course": "course-stuffing", "dayNote": "assemble up to 1 day ahead; we suggest Wednesday; bake on Thursday" },
+        { "name": "Mashed Potato Casserole", "role": "base", "course": "course-potatoes", "dayNote": "assemble up to 1 day ahead; we suggest Wednesday; bake on Thursday" },
+        { "name": "Cranberry-Orange Sauce", "role": "sauce", "course": "course-cranberry", "dayNote": "make up to 3 days ahead; we suggest Monday" },
+        { "name": "Green Beans with Crispy Shallots", "role": "side", "course": "course-sides" },
+        { "name": "Pumpkin Pie", "role": "side", "course": "course-dessert", "dayNote": "bake up to 2 days ahead; we suggest Tuesday" }
+      ],
+      "products": ["refrigerated pie crust (contains wheat)"],
+      "note": "A Thanksgiving built so most of the work is done before Thursday. The pie crust holds the pumpkin pie."
+    },
+    {
+      "key": "thx2-feast-vegetarian",
+      "kind": "feast",
+      "plan": "vegetarian",
+      "title": "Vegetarian Friendsgiving Dinner",
+      "cuisine": "American",
+      "servings": 10,
+      "difficulty": "fancy",
+      "dishes": [
+        { "name": "Mushroom Wellington", "role": "main", "course": "course-turkey" },
+        { "name": "Mushroom Gravy", "role": "sauce", "course": "course-sides" },
+        { "name": "Herb Stuffing", "role": "side", "course": "course-stuffing" },
+        { "name": "Mashed Potatoes", "role": "base", "course": "course-potatoes" },
+        { "name": "Balsamic Roasted Brussels Sprouts", "role": "side", "course": "course-sides" },
+        { "name": "Cranberry-Orange Sauce", "role": "sauce", "course": "course-cranberry" },
+        { "name": "Baked Mac and Cheese", "role": "side", "course": "course-sides" },
+        { "name": "Apple Pie", "role": "side", "course": "course-dessert" }
+      ],
+      "products": ["all-butter puff pastry (contains wheat, milk)", "refrigerated pie crust (contains wheat)"],
+      "note": "A fully VEGETARIAN Thanksgiving: no meat, poultry or fish anywhere, no meat stock, no gelatin, and no Worcestershire sauce (it contains anchovies). The stuffing and the gravy use vegetable broth. The puff pastry wraps the Wellington; the pie crust is for the apple pie (top and bottom)."
+    },
+    {
+      "key": "thx2-feast-new-twist",
+      "kind": "feast",
+      "plan": "new-twist",
+      "title": "A New Twist Thanksgiving Dinner",
+      "cuisine": "American",
+      "servings": 10,
+      "difficulty": "fancy",
+      "dishes": [
+        { "name": "Citrus-Herb Spatchcock Turkey", "role": "main", "course": "course-turkey" },
+        { "name": "Cornbread and Chorizo Stuffing", "role": "side", "course": "course-stuffing" },
+        { "name": "Garlic-Parmesan Smashed Potatoes", "role": "base", "course": "course-potatoes" },
+        { "name": "Chipotle-Maple Sweet Potatoes", "role": "side", "course": "course-sides" },
+        { "name": "Cranberry-Jalapeño Relish", "role": "sauce", "course": "course-cranberry" },
+        { "name": "Brown-Butter Green Beans", "role": "side", "course": "course-sides" },
+        { "name": "Pumpkin Cheesecake Bars", "role": "side", "course": "course-dessert" }
+      ],
+      "products": [],
+      "note": "Thanksgiving with fresh, bolder flavors. The turkey is spatchcocked so it roasts in about 90 minutes."
+    },
+    {
+      "key": "thx2-alt-buttermilk-turkey",
+      "kind": "alternate",
+      "title": "Buttermilk-Brined Roast Turkey",
+      "cuisine": "American",
+      "servings": 10,
+      "difficulty": "medium",
+      "dishes": [{ "name": "Buttermilk-Brined Roast Turkey", "role": "main", "course": "course-turkey" }],
+      "products": []
+    },
+    {
+      "key": "thx2-alt-smoked-turkey-breast",
+      "kind": "alternate",
+      "title": "Smoked Turkey Breast",
+      "cuisine": "American",
+      "servings": 10,
+      "difficulty": "medium",
+      "dishes": [{ "name": "Smoked Turkey Breast", "role": "main", "course": "course-turkey" }],
+      "products": []
+    },
+    {
+      "key": "thx2-alt-maple-bourbon-turkey",
+      "kind": "alternate",
+      "title": "Maple-Bourbon Glazed Turkey",
+      "cuisine": "American",
+      "servings": 10,
+      "difficulty": "medium",
+      "dishes": [{ "name": "Maple-Bourbon Glazed Turkey", "role": "main", "course": "course-turkey" }],
+      "products": []
+    },
+    {
+      "key": "thx2-alt-sausage-apple-stuffing",
+      "kind": "alternate",
+      "title": "Sausage and Apple Stuffing",
+      "cuisine": "American",
+      "servings": 10,
+      "difficulty": "medium",
+      "dishes": [{ "name": "Sausage and Apple Stuffing", "role": "side", "course": "course-stuffing" }],
+      "products": []
+    },
+    {
+      "key": "thx2-alt-wild-rice-stuffing",
+      "kind": "alternate",
+      "title": "Wild Rice Stuffing",
+      "cuisine": "American",
+      "servings": 10,
+      "difficulty": "medium",
+      "dishes": [{ "name": "Wild Rice Stuffing", "role": "side", "course": "course-stuffing" }],
+      "products": []
+    },
+    {
+      "key": "thx2-alt-sour-cream-chive-mash",
+      "kind": "alternate",
+      "title": "Sour Cream and Chive Mashed Potatoes",
+      "cuisine": "American",
+      "servings": 10,
+      "difficulty": "medium",
+      "dishes": [{ "name": "Sour Cream and Chive Mashed Potatoes", "role": "base", "course": "course-potatoes" }],
+      "products": []
+    },
+    {
+      "key": "thx2-alt-scalloped-potatoes",
+      "kind": "alternate",
+      "title": "Scalloped Potatoes",
+      "cuisine": "American",
+      "servings": 10,
+      "difficulty": "medium",
+      "dishes": [{ "name": "Scalloped Potatoes", "role": "base", "course": "course-potatoes" }],
+      "products": []
+    },
+    {
+      "key": "thx2-alt-cranberry-apple-chutney",
+      "kind": "alternate",
+      "title": "Cranberry-Apple Chutney",
+      "cuisine": "American",
+      "servings": 10,
+      "difficulty": "medium",
+      "dishes": [{ "name": "Cranberry-Apple Chutney", "role": "sauce", "course": "course-cranberry" }],
+      "products": []
+    },
+    {
+      "key": "thx2-alt-cranberry-pomegranate-relish",
+      "kind": "alternate",
+      "title": "Cranberry-Pomegranate Relish",
+      "cuisine": "American",
+      "servings": 10,
+      "difficulty": "medium",
+      "dishes": [{ "name": "Cranberry-Pomegranate Relish", "role": "sauce", "course": "course-cranberry" }],
+      "products": []
+    },
+    {
+      "key": "thx2-alt-bacon-brussels-sprouts",
+      "kind": "alternate",
+      "title": "Brussels Sprouts with Bacon",
+      "cuisine": "American",
+      "servings": 10,
+      "difficulty": "medium",
+      "dishes": [{ "name": "Brussels Sprouts with Bacon", "role": "side", "course": "course-sides" }],
+      "products": []
+    },
+    {
+      "key": "thx2-alt-maple-glazed-carrots",
+      "kind": "alternate",
+      "title": "Maple-Glazed Carrots",
+      "cuisine": "American",
+      "servings": 10,
+      "difficulty": "medium",
+      "dishes": [{ "name": "Maple-Glazed Carrots", "role": "side", "course": "course-sides" }],
+      "products": []
+    },
+    {
+      "key": "thx2-alt-pecan-streusel-sweet-potatoes",
+      "kind": "alternate",
+      "title": "Sweet Potato Casserole with Pecan Streusel",
+      "cuisine": "American",
+      "servings": 10,
+      "difficulty": "medium",
+      "dishes": [{ "name": "Sweet Potato Casserole with Pecan Streusel", "role": "side", "course": "course-sides" }],
+      "products": []
+    },
+    {
+      "key": "thx2-alt-hasselback-sweet-potatoes",
+      "kind": "alternate",
+      "title": "Hasselback Sweet Potatoes",
+      "cuisine": "American",
+      "servings": 10,
+      "difficulty": "medium",
+      "dishes": [{ "name": "Hasselback Sweet Potatoes", "role": "side", "course": "course-sides" }],
+      "products": []
+    },
+    {
+      "key": "thx2-alt-pecan-pie",
+      "kind": "alternate",
+      "title": "Pecan Pie",
+      "cuisine": "American",
+      "servings": 10,
+      "difficulty": "medium",
+      "dishes": [{ "name": "Pecan Pie", "role": "side", "course": "course-dessert" }],
+      "products": ["refrigerated pie crust (contains wheat)"]
+    },
+    {
+      "key": "thx2-alt-sweet-potato-pie",
+      "kind": "alternate",
+      "title": "Sweet Potato Pie",
+      "cuisine": "American",
+      "servings": 10,
+      "difficulty": "medium",
+      "dishes": [{ "name": "Sweet Potato Pie", "role": "side", "course": "course-dessert" }],
+      "products": ["refrigerated pie crust (contains wheat)"]
+    },
+    {
+      "key": "thx2-alt-apple-cranberry-crisp",
+      "kind": "alternate",
+      "title": "Apple-Cranberry Crisp",
+      "cuisine": "American",
+      "servings": 10,
+      "difficulty": "medium",
+      "dishes": [{ "name": "Apple-Cranberry Crisp", "role": "side", "course": "course-dessert" }],
+      "products": []
+    },
+    {
+      "key": "thx2-friday-classic",
+      "kind": "friday",
+      "plan": "classic",
+      "title": "Leftover Turkey, Cranberry and Stuffing Sandwiches",
+      "cuisine": "American",
+      "servings": 4,
+      "difficulty": "easy",
+      "dishes": [{ "name": "Turkey, Cranberry and Stuffing Sandwiches", "role": "main" }],
+      "products": [],
+      "leftovers": ["cooked leftover turkey", "leftover cranberry-orange sauce", "leftover stuffing"],
+      "note": "The day-after sandwich built from Thursday's leftovers."
+    },
+    {
+      "key": "thx2-friday-small",
+      "kind": "friday",
+      "plan": "small",
+      "title": "Turkey and Wild Rice Soup",
+      "cuisine": "American",
+      "servings": 4,
+      "difficulty": "easy",
+      "dishes": [{ "name": "Turkey and Wild Rice Soup", "role": "main" }],
+      "products": [],
+      "leftovers": ["cooked leftover turkey"]
+    },
+    {
+      "key": "thx2-friday-make-ahead",
+      "kind": "friday",
+      "plan": "make-ahead",
+      "title": "Leftover Turkey Pot Pie",
+      "cuisine": "American",
+      "servings": 4,
+      "difficulty": "easy",
+      "dishes": [{ "name": "Leftover Turkey Pot Pie", "role": "main" }],
+      "products": [],
+      "leftovers": ["cooked leftover turkey"]
+    },
+    {
+      "key": "thx2-friday-vegetarian",
+      "kind": "friday",
+      "plan": "vegetarian",
+      "title": "Mushroom and Wild Rice Soup",
+      "cuisine": "American",
+      "servings": 4,
+      "difficulty": "easy",
+      "dishes": [{ "name": "Mushroom and Wild Rice Soup", "role": "main" }],
+      "products": [],
+      "note": "VEGETARIAN: no meat, poultry or fish, vegetable broth only, no Worcestershire sauce. It is a complete dinner on its own, so it carries a real protein in its own ingredients (white beans, or a cheese finish)."
+    },
+    {
+      "key": "thx2-friday-new-twist",
+      "kind": "friday",
+      "plan": "new-twist",
+      "title": "Leftover Turkey Enchiladas",
+      "cuisine": "Mexican",
+      "servings": 4,
+      "difficulty": "easy",
+      "dishes": [{ "name": "Leftover Turkey Enchiladas", "role": "main" }],
+      "products": [],
+      "leftovers": ["cooked leftover turkey"]
+    }
+  ]
+}

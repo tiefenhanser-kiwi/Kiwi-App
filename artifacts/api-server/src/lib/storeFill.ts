@@ -41,7 +41,7 @@ import { resolveIngredients } from "./ingredientResolve";
 import { TARGET_DISHES, type TargetDish } from "./storeFillDishes";
 import {
   STABLE_FINALIZE_PREFIX,
-  STABLE_GENERATE_PREFIX,
+  generatePrefixFor,
 } from "./storeFillPrompts";
 
 // ── the store-pool target (R1) ───────────────────────────────────────────────
@@ -183,6 +183,16 @@ export function mealComplete(meal: WizardExpandEnrichedMealDetails): Completenes
     }
   }
   return { ok: true };
+}
+
+// THX-2G (D-WS9-311 call 5) — the script-scoped exemption. A Thanksgiving
+// alternate is ONE dish (a stuffing, a pie) that the meal-edit browse copies
+// into a user's feast; it is not a dinner and mealComplete rightly rejects it.
+// Opted into per run (`completeness: "single_dish"`), never a global relaxation:
+// the run then accepts exactly one dish and nothing else — a model that pads the
+// dish into a dinner is rejected and retried like any incomplete meal.
+export function singleDishComplete(meal: WizardExpandEnrichedMealDetails): CompletenessCheck {
+  return meal.dishes.length === 1 ? { ok: true } : { ok: false, reason: "not_single_dish" };
 }
 
 // ── store-bought substitution sanitize (D-WS9-064) ───────────────────────────
@@ -408,11 +418,23 @@ export function dedupKey(title: string): string {
 // ── tags ─────────────────────────────────────────────────────────────────────
 export function buildTags(
   meal: WizardExpandEnrichedMealDetails,
+  // THX-2G — theme tags appended after the derived pair (`thanksgiving`, …).
+  // Absent → exactly today's [cuisine, difficulty].
+  extra: readonly string[] = [],
 ): string[] {
   const tags = new Set<string>();
   if (meal.cuisineType) tags.add(meal.cuisineType.toLowerCase());
   tags.add(meal.difficulty);
+  for (const t of extra) tags.add(t);
   return [...tags];
+}
+
+/** THX-2G — the optional extras buildMaterializePayload threads to the write. */
+export interface PayloadExtras {
+  /** Appended to the meal's derived tags. */
+  tags?: readonly string[];
+  /** Written to Dish.tags on EVERY dish of the meal. */
+  dishTags?: readonly string[];
 }
 
 // ── payload assembly ─────────────────────────────────────────────────────────
@@ -425,6 +447,8 @@ export function buildMaterializePayload(
   // (pruned to referenced keys). Optional so legacy 4-arg callers/tests still
   // work: a missing registry means every dish is single-path (no components).
   registryPerDish: WizardComponent[][] = [],
+  // THX-2G — theme tags on the meal and its dishes. Absent → today's payload.
+  extras: PayloadExtras = {},
 ): MaterializeMealPayload {
   const dishes: MaterializeMealDish[] = meal.dishes.map((d, di) => ({
     kind: "new",
@@ -471,6 +495,7 @@ export function buildMaterializePayload(
     ...(registryPerDish[di] && registryPerDish[di].length > 0
       ? { componentRegistry: registryPerDish[di] }
       : {}),
+    ...(extras.dishTags && extras.dishTags.length > 0 ? { tags: [...extras.dishTags] } : {}),
   }));
 
   return {
@@ -488,7 +513,7 @@ export function buildMaterializePayload(
     difficulty: meal.difficulty,
     // sourceType intentionally left off — STORE_FILL_TARGET carries
     // "batch_generated" and the target overrides the payload's value.
-    tags: buildTags(meal),
+    tags: buildTags(meal, extras.tags),
     allergens,
     dishFamilyKey,
     dishes,
@@ -496,7 +521,7 @@ export function buildMaterializePayload(
 }
 
 // ── volatile per-call inputs (go in the user body; NOT the cached prefix) ─────
-export function generateInput(targetDish: string, profile: GenProfile, dishes?: string[], shortcut?: string): string {
+export function generateInput(targetDish: string, profile: GenProfile, dishes?: string[], shortcut?: string, brief?: string): string {
   const json = JSON.stringify({
     targetDish,
     servings: profile.servings,
@@ -511,7 +536,12 @@ export function generateInput(targetDish: string, profile: GenProfile, dishes?: 
   // in the user body), so the model cannot miss the product the whole
   // 30-minute premise rests on. Absent → the input is byte-identical to today's.
   const s = shortcut?.trim();
-  return s ? `${json}\n\n${shortcutLine(s)}` : json;
+  // THX-2G — a free-text brief (the occasion, the roles, the day notes), in the
+  // user body BETWEEN the JSON and the shortcut line: the prefix's shortcut rule
+  // says the message ENDS with that line, so it stays last. Absent → unchanged.
+  const b = brief?.trim();
+  const head = b ? `${json}\n\nBrief: ${b}` : json;
+  return s ? `${head}\n\n${shortcutLine(s)}` : head;
 }
 
 /**
@@ -530,8 +560,13 @@ export function shortcutLine(shortcut: string): string {
   return `Store-bought shortcut the cook uses for this dinner: ${shortcut}. SHORTCUT MODE (see the prefix): each product named here is a plain ingredient of this dish — the cook buys it and the recipe starts from it. Author NO \`substitutions\` entry that names it in either direction and NO from-scratch ingredients or steps that would replace it; for these products there is no from-scratch path, which overrides the standing rule to offer a bought alternative to scratch work. Components this line does not name follow the normal rule unchanged.`;
 }
 
-export function finalizeInput(meal: WizardExpandEnrichedMealDetails): string {
-  return JSON.stringify({ meals: [meal] });
+export function finalizeInput(meal: WizardExpandEnrichedMealDetails, brief?: string): string {
+  const json = JSON.stringify({ meals: [meal] });
+  // THX-2G — the finalize call never sees the generate brief, so anything the
+  // STEPS must say (the Make-Ahead day notes) rides its own brief line under the
+  // JSON. Absent → the input is byte-identical to today's.
+  const b = brief?.trim();
+  return b ? `${json}\n\nBrief: ${b}` : json;
 }
 
 // ── cost accounting ──────────────────────────────────────────────────────────
@@ -606,6 +641,34 @@ export interface StoreFillOptions {
    * no-op; the harness's own result payload is unchanged.
    */
   onMeal?: (capture: StoreFillMealCapture) => void;
+  // ── THX-2G (D-WS9-311) — script-only options. Each applies to EVERY target in
+  // the run (the Thanksgiving script runs one target per call), and each one
+  // absent is exactly today's behaviour.
+  /** Generate prefix's dish range (generatePrefixFor). Absent → STABLE_GENERATE_PREFIX. */
+  maxDishes?: number;
+  /** max_tokens on BOTH calls. Absent → runAICall's default (4,096). */
+  maxOutputTokens?: number;
+  /** false → rows are written non-public. Absent/true → STORE_FILL_TARGET. */
+  isPublic?: boolean;
+  /** "single_dish" → singleDishComplete replaces mealComplete. Absent → "meal". */
+  completeness?: "meal" | "single_dish";
+  /** A brief line in the generate call's user body (generateInput). */
+  brief?: string;
+  /** A brief line in the finalize call's user body (finalizeInput). */
+  finalizeBrief?: string;
+  /** Appended to the meal's derived tags. */
+  tags?: readonly string[];
+  /** Written to Dish.tags on every dish of each meal. */
+  dishTags?: readonly string[];
+  /** The per-meal write's interactive-transaction timeout. Absent → Prisma's
+   *  default (5 s), exactly as today. An 8-dish feast is ~150 sequential row
+   *  writes and overran 5 s on Neon in the dev pilot (P2028, rolled back). */
+  transactionTimeoutMs?: number;
+}
+
+/** THX-2G — the materialize target for a run: STORE_FILL_TARGET unless `isPublic: false`. */
+export function storeFillTarget(isPublic?: boolean): MaterializeTarget {
+  return isPublic === false ? { ...STORE_FILL_TARGET, isPublic: false } : STORE_FILL_TARGET;
 }
 
 export interface StoreFillMealCapture {
@@ -711,6 +774,12 @@ export async function runStoreFill(
   const onMeal = opts.onMeal;
   const nowMs = opts.nowMs ?? (() => Date.now());
   const startMs = nowMs();
+  // THX-2G — each resolves to today's value when its option is absent.
+  const generatePrefix = generatePrefixFor({ maxDishes: opts.maxDishes });
+  const maxTokensOpt = opts.maxOutputTokens !== undefined ? { maxTokens: opts.maxOutputTokens } : {};
+  const materializeTarget = storeFillTarget(opts.isPublic);
+  const gate = opts.completeness === "single_dish" ? singleDishComplete : mealComplete;
+  const extras: PayloadExtras = { tags: opts.tags, dishTags: opts.dishTags };
 
   // First N dishes by rank — the head of the list, which users hit most.
   const dishes = (opts.dishes ?? TARGET_DISHES)
@@ -775,9 +844,9 @@ export async function runStoreFill(
       if (overCalls()) { stoppedBy = "max_calls"; break; }
       const gen = await runAICall(
         "store.generate_meal",
-        { generateInput: generateInput(target.dish, profile, target.dishes, target.shortcut) },
+        { generateInput: generateInput(target.dish, profile, target.dishes, target.shortcut, opts.brief) },
         WizardExpandEnrichedMealDetailsSchema,
-        { prisma, mode: "tool", cachedSystemPrefix: STABLE_GENERATE_PREFIX },
+        { prisma, mode: "tool", cachedSystemPrefix: generatePrefix, ...maxTokensOpt },
       );
       accumulate(tokens, gen.metadata);
       if (!gen.success) {
@@ -785,7 +854,7 @@ export async function runStoreFill(
         failed = true;
         break;
       }
-      const mc = mealComplete(gen.data);
+      const mc = gate(gen.data);
       if (mc.ok) { meal = gen.data; break; }
       completenessRejections.push({ targetDish: target.dish, profileKey: profile.key, attempt, reason: mc.reason ?? "incomplete", title: gen.data.title });
     }
@@ -813,9 +882,9 @@ export async function runStoreFill(
     if (overCalls()) { stoppedBy = "max_calls"; break; }
     const fin = await runAICall(
       "store.finalize_steps",
-      { finalizeInput: finalizeInput(meal) },
+      { finalizeInput: finalizeInput(meal, opts.finalizeBrief) },
       WizardFinalizeStepsResultSchema,
-      { prisma, mode: "tool", cachedSystemPrefix: STABLE_FINALIZE_PREFIX },
+      { prisma, mode: "tool", cachedSystemPrefix: STABLE_FINALIZE_PREFIX, ...maxTokensOpt },
     );
     accumulate(tokens, fin.metadata);
     if (!fin.success) {
@@ -834,7 +903,7 @@ export async function runStoreFill(
 
     // 4. Allergens + payload (stamped with the target-dish key + component registry).
     const allergens = deriveAllergens(meal);
-    const payload = buildMaterializePayload(meal, merged.stepsPerDish, allergens, target.key, merged.registryPerDish);
+    const payload = buildMaterializePayload(meal, merged.stepsPerDish, allergens, target.key, merged.registryPerDish, extras);
 
     // 5. Persist (two-pass, one $transaction PER MEAL so an interrupted run
     //    keeps completed work and resumes safely). Reserve the key first.
@@ -844,9 +913,11 @@ export async function runStoreFill(
     if (opts.apply) {
       const mentions = collectMealMentions(payload);
       const ingredientIdByCanonical = await resolveIngredients(prisma, mentions);
-      const res = await prisma.$transaction((tx) =>
-        materializeMeal(tx, "", payload, ingredientIdByCanonical, STORE_FILL_TARGET),
-      );
+      const write = (tx: Parameters<Parameters<PrismaClient["$transaction"]>[0]>[0]) =>
+        materializeMeal(tx, "", payload, ingredientIdByCanonical, materializeTarget);
+      const res = opts.transactionTimeoutMs !== undefined
+        ? await prisma.$transaction(write, { timeout: opts.transactionTimeoutMs })
+        : await prisma.$transaction(write);
       mealId = res.mealId;
       written = true;
     }

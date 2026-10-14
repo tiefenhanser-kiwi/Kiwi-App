@@ -149,6 +149,10 @@ export type MaterializeMealDish =
       // when the dish has at least one component with tagged steps. Persisted to
       // Dish.componentRegistry.
       componentRegistry?: MaterializeComponent[];
+      // THX-2G (D-WS9-311 / D-WS9-313) — Dish.tags. The meal-edit "Thanksgiving
+      // dishes" browse reads catalog DISHES by tag. Omitted → the column default
+      // ([]), exactly as every caller wrote before.
+      tags?: string[];
     }
   | {
       kind: "link";
@@ -614,6 +618,8 @@ export async function materializeMeal(
           ...(d.componentRegistry && d.componentRegistry.length > 0
             ? { componentRegistry: d.componentRegistry as unknown as Prisma.InputJsonValue }
             : {}),
+          // THX-2G — Dish.tags only when the payload carries them.
+          ...(d.tags && d.tags.length > 0 ? { tags: d.tags } : {}),
         },
         select: { id: true },
       });
