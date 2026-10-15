@@ -37,12 +37,39 @@ export type Kind = "feast" | "alternate" | "friday" | "weeknight";
 export const KINDS: readonly Kind[] = ["feast", "alternate", "friday", "weeknight"];
 export type Difficulty = GenProfile["difficulty"];
 
+/** A make-ahead day before Thanksgiving Thursday. */
+export type AheadDay = "mon" | "tue" | "wed";
+export const AHEAD_DAYS: readonly AheadDay[] = ["mon", "tue", "wed"];
+const DAY_NAME: Record<AheadDay, string> = { mon: "Monday", tue: "Tuesday", wed: "Wednesday" };
+const DAY_INDEX: Record<AheadDay | "thu", number> = { mon: 1, tue: 2, wed: 3, thu: 4 };
+const WEEKDAY = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
 export interface DishSpec {
   name: string;
   role: Role;
   course?: CourseTag;
-  /** Make-Ahead only: the day the step is done, written into the step text. */
+  /** Follow-up E (feast dishes only; the tag contract PREP-1 builds against):
+   *  the day the dish, or its make-ahead part, is made → `ahead-<day>`. */
+  ahead?: AheadDay;
+  /** Whole days it keeps in the fridge once made → `keeps-<n>d`. */
+  keeps?: number;
+  /** Whole bird: days a frozen bird needs in the fridge → `thaw-<n>d`. */
+  thaw?: number;
+  /** Brined or dry-brined bird: the day it goes into the brine → `brine-<day>`. */
+  brine?: AheadDay;
+  /** What is made ahead, in the cook's words (reaches both briefs). */
   dayNote?: string;
+}
+
+/** The make-ahead dish tags, written by code from the fields above — never
+ *  from model output. Order: ahead, keeps, thaw, brine. */
+export function aheadTags(d: DishSpec): string[] {
+  return [
+    ...(d.ahead ? [`ahead-${d.ahead}`] : []),
+    ...(d.keeps !== undefined ? [`keeps-${d.keeps}d`] : []),
+    ...(d.thaw !== undefined ? [`thaw-${d.thaw}d`] : []),
+    ...(d.brine ? [`brine-${d.brine}`] : []),
+  ];
 }
 
 export interface Thx2Target {
@@ -139,8 +166,16 @@ export function validateTargets(file: TargetsFile): string[] {
     }
     if ((t.kind === "friday" || t.kind === "weeknight") && t.servings !== 4) errs.push(`${at}: ${t.kind} meals are authored at 4 (the catalog default)`);
     if (t.kind === "weeknight" && !t.note?.trim()) errs.push(`${at}: a weeknight meal needs its brief in \`note\``);
-    if (t.plan !== "make-ahead" && dishes.some((d) => d.dayNote)) {
-      errs.push(`${at}: day notes belong to the Make-Ahead plan only`);
+    for (const d of dishes) {
+      const has = d.ahead !== undefined || d.keeps !== undefined || d.thaw !== undefined || d.brine !== undefined;
+      if (has && t.kind !== "feast") errs.push(`${at}: dish "${d.name}" — make-ahead fields belong on feast dishes only`);
+      if (d.ahead !== undefined && !AHEAD_DAYS.includes(d.ahead)) errs.push(`${at}: dish "${d.name}" ahead "${d.ahead}"`);
+      if (d.brine !== undefined && !AHEAD_DAYS.includes(d.brine)) errs.push(`${at}: dish "${d.name}" brine "${d.brine}"`);
+      if ((d.ahead === undefined) !== (d.keeps === undefined)) errs.push(`${at}: dish "${d.name}" — ahead and keeps go together`);
+      if (d.keeps !== undefined && (!Number.isInteger(d.keeps) || d.keeps < 1 || d.keeps > 14)) errs.push(`${at}: dish "${d.name}" keeps ${d.keeps}`);
+      if (d.thaw !== undefined && (!Number.isInteger(d.thaw) || d.thaw < 1 || d.thaw > 7)) errs.push(`${at}: dish "${d.name}" thaw ${d.thaw}`);
+      if ((d.thaw !== undefined || d.brine !== undefined) && d.role !== "main") errs.push(`${at}: dish "${d.name}" — thaw and brine belong on the bird`);
+      if (d.dayNote && d.ahead === undefined && d.brine === undefined) errs.push(`${at}: dish "${d.name}" has a dayNote but no make-ahead day`);
     }
   }
   return errs;
@@ -148,8 +183,51 @@ export function validateTargets(file: TargetsFile): string[] {
 
 // ── per-target run options ───────────────────────────────────────────────────
 
+/** Follow-up E: the meal's ROLE in the week, the exact strings the Cookbook's
+ *  seasonal chips key on (src/lib/cookbook/seasons.ts). Pizza night has none. */
+export const FEAST_TAG = "thanksgiving-feast";
+export const LEFTOVERS_TAG = "thanksgiving-leftovers";
+
 export function mealTags(t: Thx2Target): string[] {
-  return t.kind === "alternate" ? [THANKSGIVING_TAG, ALTERNATE_TAG, t.dishes[0].course as string] : [THANKSGIVING_TAG];
+  if (t.kind === "alternate") return [THANKSGIVING_TAG, ALTERNATE_TAG, t.dishes[0].course as string];
+  if (t.kind === "feast") return [THANKSGIVING_TAG, FEAST_TAG];
+  if (t.kind === "friday") return [THANKSGIVING_TAG, LEFTOVERS_TAG];
+  return [THANKSGIVING_TAG];
+}
+
+/**
+ * Follow-up E: per generated dish, its make-ahead tags — matched to the target's
+ * dish by TITLE (titleMatches), so a model that reorders the dishes cannot hand
+ * the pie's tags to the gravy; position is the fallback only when no title
+ * matches. Each target dish is used once.
+ */
+export function aheadTagsFor(t: Thx2Target): (dish: { title: string }, index: number) => string[] {
+  const used = new Set<number>();
+  return (dish, index) => {
+    let at = t.dishes.findIndex((d, i) => !used.has(i) && titleMatches(d.name, dish.title));
+    if (at < 0 && index < t.dishes.length && !used.has(index)) at = index;
+    if (at < 0) return [];
+    used.add(at);
+    return aheadTags(t.dishes[at]);
+  };
+}
+
+/** Make-ahead day lines for a feast, for both briefs. Empty when none. */
+export function dayPlanLines(t: Thx2Target): string[] {
+  const lines: string[] = [];
+  t.dishes.forEach((d, i) => {
+    if (d.ahead) {
+      lines.push(`dishIndex ${i} ${d.name}: Make ahead (${DAY_NAME[d.ahead]}) — ${d.dayNote ?? "make it"}; it keeps up to ${d.keeps} day${d.keeps === 1 ? "" : "s"} in the fridge.`);
+    }
+    if (d.thaw !== undefined) {
+      // The bird is needed on the earliest of its brine day and any giblet-stock day.
+      const gibletDays = t.dishes.filter((x) => x.ahead && /giblet/i.test(x.dayNote ?? "")).map((x) => DAY_INDEX[x.ahead as AheadDay]);
+      const needed = Math.min(DAY_INDEX.thu, ...(d.brine ? [DAY_INDEX[d.brine]] : []), ...gibletDays);
+      const start = WEEKDAY[(((needed - d.thaw) % 7) + 7) % 7];
+      lines.push(`dishIndex ${i} ${d.name}: a frozen bird needs about ${d.thaw} days in the fridge to thaw — move it there by ${start}${d.brine ? `; Make ahead (${DAY_NAME[d.brine]}): it goes into the brine` : ""}.`);
+    }
+  });
+  return lines;
 }
 
 /** Dish.tags: only an alternate's dish, so the meal-edit browse lists exactly the
@@ -176,6 +254,8 @@ export function composeBrief(t: Thx2Target): string {
       `There is no dessert role, so the dessert is a side, positioned last.`,
       `Size every dish for ${t.servings} people at a holiday table, where each plate carries a little of every dish: quantities a real host would buy for this crowd, not ${t.servings} full dinner portions of each dish. Macros are per serving of each dish at that size.`,
     );
+    const plan = dayPlanLines(t);
+    if (plan.length > 0) parts.push(`Make-ahead plan for this feast (Thanksgiving is Thursday); the ingredients must support it: ${plan.join(" ")}`);
   } else if (t.kind === "alternate") {
     const d = t.dishes[0];
     parts.push(
@@ -217,7 +297,7 @@ export const FRIDAY_SELF_CONTAINED =
   `Everything except the named leftovers is bought and cooked in this recipe: no ingredient is "leftover from Thanksgiving" unless the shortcut line names it (a wild rice soup cooks its own wild rice).`;
 
 export const VEGETARIAN_RULE =
-  `VEGETARIAN: no meat, poultry, fish or seafood; no meat stock; no gelatin; no Worcestershire sauce (it contains anchovies); and no Parmesan or other rennet-made cheese unless it is labelled vegetarian — write "vegetarian Parmesan-style cheese".`;
+  `VEGETARIAN: no meat, poultry, fish or seafood; no meat stock; no gelatin; no Worcestershire sauce (it contains anchovies); and no cheese traditionally made with animal rennet unless it is labelled vegetarian — that rules out Parmesan, Pecorino, Grana Padano, Gruyère, Comté, Emmental, Manchego and Gorgonzola; write "vegetarian Parmesan-style cheese", or use a cheese like sharp cheddar, fontina or mozzarella labelled vegetarian.`;
 
 /** Ingredient-level rules for the GENERATE call (quantities, swaps, produce). */
 export const GENERATE_RULES = [
@@ -238,7 +318,7 @@ export const FINALIZE_RULES = [
   `(b) Name the pan and its size in the step that uses it, and choose one that holds the volume (about 12–14 cups in a 9×13; about 4 cups in a 9-inch pie dish, 6 in a deep-dish; about 1½ lb of vegetables per batch in a 12-inch skillet). Otherwise use two pans, batches or a sheet pan. A spatchcocked turkey roasts flat on a rimmed sheet pan, not on a roasting rack.`,
   `(c) Both paths are complete: every ingredient the dish lists is used on the path that keeps it — if the scratch path makes an herb butter and the bought path uses a rub packet, the bought path still uses the butter and anything the packet does not replace. On a path that uses a pre-seasoned product (a stuffing mix, a seasoning packet, a brine mix) add no extra salt. A mix's package add-ins are used on its path. On a gravy's bought path, the gravy still works from the drippings plus the bought stock.`,
   `(d) Make-ahead prerequisites: when a step uses the giblets or neck before Thursday, the earliest turkey step says a frozen 14-lb turkey thaws in the fridge 3–4 days, so it goes in before the giblets are needed. Bread to be dried gets its own cube-and-dry step and day. Reheat times assume the dish comes straight from the fridge (a cold casserole or a big pan of mashed potatoes needs about 45–60 minutes covered at 350°F).`,
-  `(e) Poultry: never rinse raw poultry; pat it dry with paper towels. A whole bird brines in a brining bag set in a roasting pan or cooler in the fridge, turned halfway through. A whole unstuffed turkey roasts about 13–15 minutes per pound at 325°F (a 14-lb bird about 3 to 3½ hours) to 165°F in the thickest part of the thigh; a spatchcocked one roasts hotter and faster (about 80–90 minutes at 425–450°F for 12–14 lb). Glaze only in the last 20–30 minutes, once the thigh reads about 155°F, and finish at 165°F.`,
+  `(e) Poultry: never rinse raw poultry, the neck or the giblets; pat the bird dry with paper towels. A whole bird brines in a brining bag set in a roasting pan or cooler in the fridge, turned halfway through. A whole unstuffed turkey roasts about 13–15 minutes per pound at 325°F (a 14-lb bird about 3 to 3½ hours) to 165°F in the thickest part of the thigh; a spatchcocked one roasts hotter and faster (about 80–90 minutes at 425–450°F for 12–14 lb). Glaze only in the last 20–30 minutes, once the thigh reads about 155°F, and finish at 165°F.`,
   `(f) A spatchcock recipe includes the cut (kitchen shears down both sides of the backbone, then press flat) or says "ask the butcher to spatchcock". Warm corn tortillas before rolling them so they don't crack.`,
 ].join(" ");
 
@@ -256,13 +336,15 @@ export const LONG_WAIT_RULE =
 /** The finalize call's brief: the long-wait rule for every target, plus the
  *  Make-Ahead day notes (the generate brief never reaches the finalize call). */
 export function composeFinalizeBrief(t: Thx2Target): string {
-  const notes = t.dishes.map((d, i) => ({ i, d })).filter(({ d }) => d.dayNote);
+  const plan = dayPlanLines(t);
   const base = [LONG_WAIT_RULE, FINALIZE_RULES, ...(t.vegetarian ? [VEGETARIAN_RULE] : [])];
-  if (notes.length === 0) return base.join(" ");
+  if (plan.length === 0) return base.join(" ");
   return [
     ...base,
-    `This is a MAKE-AHEAD Thanksgiving: write the day into the step text of each make-ahead step, in the cook's words (for example "Up to 3 days ahead (we suggest Monday): …").`,
-    `The days, by dish: ${notes.map(({ i, d }) => `dishIndex ${i} ${d.name}: ${d.dayNote}`).join("; ")}.`,
+    ...(t.plan === "make-ahead" ? [`This is a MAKE-AHEAD Thanksgiving: most of the work is done before Thursday.`] : []),
+    // Follow-up E: ONE phrase, so a reader (and PREP-1) can find the make-ahead part.
+    `MAKE-AHEAD DAYS (Thanksgiving is Thursday). For each dish below, the make-ahead step's text opens with exactly "Make ahead (<Day>):" and the dish's Thursday part opens with exactly "On Thursday:"; an overnight wait keeps the wait-rule phrasing inside that step.`,
+    `The days, by dish: ${plan.join(" ")}`,
     `Work done on an earlier day keeps only its hands-on minutes, so the timed steps stay Thursday's work plus the reheats and bakes.`,
   ].join(" ");
 }
@@ -289,7 +371,7 @@ export function toTargetDish(t: Thx2Target): TargetDish {
  *  breaker and log, which the caller owns). */
 export type Thx2RunOptions = Pick<
   StoreFillOptions,
-  "limit" | "dishes" | "profiles" | "maxDishes" | "maxOutputTokens" | "isPublic" | "completeness" | "brief" | "finalizeBrief" | "tags" | "dishTags" | "transactionTimeoutMs" | "storedDifficulty"
+  "limit" | "dishes" | "profiles" | "maxDishes" | "maxOutputTokens" | "isPublic" | "completeness" | "brief" | "finalizeBrief" | "tags" | "dishTags" | "dishTagsFor" | "transactionTimeoutMs" | "storedDifficulty"
 >;
 
 /** Hans (follow-up B): every feast is stored as medium, whatever its ceiling.
@@ -313,6 +395,7 @@ export function runOptionsFor(t: Thx2Target, file: TargetsFile): Thx2RunOptions 
     finalizeBrief: composeFinalizeBrief(t),
     tags: mealTags(t),
     dishTags: dishTags(t),
+    ...(t.kind === "feast" ? { dishTagsFor: aheadTagsFor(t) } : {}),
     transactionTimeoutMs: TRANSACTION_TIMEOUT_MS,
     ...(t.kind === "feast" ? { storedDifficulty: FEAST_STORED_DIFFICULTY } : {}),
   };

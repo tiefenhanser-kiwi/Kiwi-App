@@ -435,6 +435,9 @@ export interface PayloadExtras {
   tags?: readonly string[];
   /** Written to Dish.tags on EVERY dish of the meal. */
   dishTags?: readonly string[];
+  /** THX-2G follow-up E — per-dish tags (the feast's make-ahead days), added
+   *  to `dishTags` for the dish it is called with. */
+  dishTagsFor?: (dish: { title: string; positionIndex: number }, index: number) => readonly string[];
 }
 
 // ── payload assembly ─────────────────────────────────────────────────────────
@@ -495,7 +498,10 @@ export function buildMaterializePayload(
     ...(registryPerDish[di] && registryPerDish[di].length > 0
       ? { componentRegistry: registryPerDish[di] }
       : {}),
-    ...(extras.dishTags && extras.dishTags.length > 0 ? { tags: [...extras.dishTags] } : {}),
+    ...(() => {
+      const tags = [...new Set([...(extras.dishTags ?? []), ...(extras.dishTagsFor?.({ title: d.title, positionIndex: d.positionIndex }, di) ?? [])])];
+      return tags.length > 0 ? { tags } : {};
+    })(),
   }));
 
   return {
@@ -660,6 +666,8 @@ export interface StoreFillOptions {
   tags?: readonly string[];
   /** Written to Dish.tags on every dish of each meal. */
   dishTags?: readonly string[];
+  /** Per-dish tags, added to `dishTags` (PayloadExtras.dishTagsFor). */
+  dishTagsFor?: PayloadExtras["dishTagsFor"];
   /** The per-meal write's interactive-transaction timeout. Absent → Prisma's
    *  default (5 s), exactly as today. An 8-dish feast is ~150 sequential row
    *  writes and overran 5 s on Neon in the dev pilot (P2028, rolled back). */
@@ -789,7 +797,7 @@ export async function runStoreFill(
   const maxTokensOpt = opts.maxOutputTokens !== undefined ? { maxTokens: opts.maxOutputTokens } : {};
   const materializeTarget = storeFillTarget(opts.isPublic);
   const gate = opts.completeness === "single_dish" ? singleDishComplete : mealComplete;
-  const extras: PayloadExtras = { tags: opts.tags, dishTags: opts.dishTags };
+  const extras: PayloadExtras = { tags: opts.tags, dishTags: opts.dishTags, dishTagsFor: opts.dishTagsFor };
 
   // First N dishes by rank — the head of the list, which users hit most.
   const dishes = (opts.dishes ?? TARGET_DISHES)

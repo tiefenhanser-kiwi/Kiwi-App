@@ -541,6 +541,20 @@ describe("forkMealForUser", () => {
     assert.equal(ings[1].fromLeftovers, false);
   });
 
+  it("THX-2G E: meal tags and DISH tags survive the fork (an adopted feast keeps thanksgiving-feast and its make-ahead days)", async () => {
+    const source = makeSource();
+    (source as { tags: string[] }).tags = ["thanksgiving", "thanksgiving-feast"];
+    (source.dishLinks[0].dish as { tags: string[] }).tags = ["ahead-wed", "keeps-2d"];
+    (source.dishLinks[1].dish as { tags: string[] }).tags = [];
+    const { tx, rec } = makeTxStub(source);
+
+    await forkMealForUser(tx as never, "src-meal", "user-1");
+
+    assert.deepEqual(rec.mealCreates[0].tags, ["thanksgiving", "thanksgiving-feast"]);
+    assert.deepEqual(rec.dishCreates[0].tags, ["ahead-wed", "keeps-2d"]);
+    assert.deepEqual(rec.dishCreates[1].tags, []);
+  });
+
   it("never mutates the source meal (other plans keep their binding)", async () => {
     const source = makeSource();
     const before = JSON.stringify(source);

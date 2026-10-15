@@ -7,13 +7,19 @@
 // cached prefix, ARE in the suite: src/lib/__tests__/thx2StoreOptions.test.ts.)
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import * as storeShortlist from "../../src/lib/store/storeShortlist";
 import {
   ALTERNATE_TAG,
   COURSE_TAGS,
+  FEAST_TAG,
+  LEFTOVERS_TAG,
   LONG_WAIT_RULE,
+  aheadTags,
+  aheadTagsFor,
+  dayPlanLines,
   SHELF_EXCLUSION_EXPORT,
   THANKSGIVING_TAG,
   approveRefusal,
@@ -102,11 +108,14 @@ describe("per-target options", () => {
       assert.deepEqual(dishTags(t), tags);
     }
   });
-  it("feasts, Friday and Wednesday: thanksgiving on the meal, no dish tags", () => {
+  it("follow-up E: feasts carry thanksgiving-feast, Fridays thanksgiving-leftovers, pizza night neither — the seasons.ts strings", () => {
     for (const t of FILE.targets.filter((x) => x.kind !== "alternate")) {
-      assert.deepEqual(mealTags(t), [THANKSGIVING_TAG]);
-      assert.deepEqual(dishTags(t), []);
+      const want = t.kind === "feast" ? [THANKSGIVING_TAG, "thanksgiving-feast"] : t.kind === "friday" ? [THANKSGIVING_TAG, "thanksgiving-leftovers"] : [THANKSGIVING_TAG];
+      assert.deepEqual(mealTags(t), want, t.key);
+      assert.deepEqual(dishTags(t), [], `${t.key}: no every-dish tags`);
     }
+    const seasons = readFileSync(new URL("../../src/lib/cookbook/seasons.ts", import.meta.url), "utf8");
+    assert.ok(seasons.includes(`tag: "${FEAST_TAG}"`) && seasons.includes(`tag: "${LEFTOVERS_TAG}"`), "the Cookbook chips key on exactly these strings");
   });
   it("runOptionsFor: non-public, the dish range and cap from the file, single_dish only for alternates", () => {
     const feast = runOptionsFor(byKey("thx2-feast-classic"), FILE);
@@ -127,15 +136,61 @@ describe("per-target options", () => {
     assert.equal(shortcutFor(byKey("thx2-friday-small")), "cooked leftover turkey");
     assert.equal(shortcutFor(byKey("thx2-feast-small")), undefined);
   });
-  it("EVERY target's finalize brief carries the long-wait rule; only Make-Ahead adds the days", () => {
+  it("EVERY target's finalize brief carries the long-wait rule; every feast with make-ahead dishes carries its days", () => {
     for (const t of FILE.targets) {
-      assert.ok(composeFinalizeBrief(t).startsWith(LONG_WAIT_RULE), t.key);
-      assert.equal(runOptionsFor(t, FILE).finalizeBrief, composeFinalizeBrief(t));
+      const fb = composeFinalizeBrief(t);
+      assert.ok(fb.startsWith(LONG_WAIT_RULE), t.key);
+      assert.equal(runOptionsFor(t, FILE).finalizeBrief, fb);
+      assert.equal(fb.includes("MAKE-AHEAD DAYS"), t.kind === "feast", t.key);
     }
-    const fb = composeFinalizeBrief(byKey("thx2-feast-make-ahead"));
-    assert.ok(fb.includes("we suggest Monday") && fb.includes("we suggest Tuesday") && fb.includes("dishIndex 0"));
-    assert.ok(!composeFinalizeBrief(byKey("thx2-feast-classic")).includes("MAKE-AHEAD Thanksgiving"));
-    assert.ok(!composeFinalizeBrief(byKey("thx2-alt-buttermilk-turkey")).includes("MAKE-AHEAD Thanksgiving"));
+    const ma = composeFinalizeBrief(byKey("thx2-feast-make-ahead"));
+    assert.ok(ma.includes("This is a MAKE-AHEAD Thanksgiving") && ma.includes("Make ahead (Monday)") && ma.includes("Make ahead (Tuesday)"));
+    const classic = composeFinalizeBrief(byKey("thx2-feast-classic"));
+    assert.ok(classic.includes('opens with exactly "Make ahead (<Day>):"') && classic.includes('"On Thursday:"'));
+    assert.ok(classic.includes("dishIndex 1 Pan Gravy: Make ahead (Tuesday) — simmer the stock from the neck and giblets"), "Classic's stock moves to Tuesday");
+    assert.ok(!classic.includes("This is a MAKE-AHEAD Thanksgiving"));
+    assert.ok(composeBrief(byKey("thx2-feast-classic")).includes("Make-ahead plan for this feast"), "the generate brief carries the days too");
+  });
+  it("follow-up E: make-ahead dish tags are written from targets.json, feast by feast", () => {
+    const table = Object.fromEntries(FILE.targets.filter((t) => t.kind === "feast").map((t) => [t.key, Object.fromEntries(t.dishes.map((d) => [d.name, aheadTags(d).join(" ")]).filter(([, v]) => v))]));
+    assert.deepEqual(table, {
+      "thx2-feast-classic": {
+        "Herb-Roasted Whole Turkey": "thaw-4d", "Pan Gravy": "ahead-tue keeps-4d", "Sage and Onion Stuffing": "ahead-wed keeps-1d",
+        "Cranberry-Orange Sauce": "ahead-mon keeps-7d", "Green Bean Casserole": "ahead-wed keeps-1d", "Sweet Potato Casserole": "ahead-wed keeps-1d", "Pumpkin Pie": "ahead-wed keeps-2d",
+      },
+      "thx2-feast-small": { "Small-Batch Sage Stuffing": "ahead-wed keeps-1d", "Cranberry-Orange Sauce": "ahead-mon keeps-7d" },
+      "thx2-feast-make-ahead": {
+        "Dry-Brined Roast Turkey": "thaw-4d brine-tue", "Make-Ahead Turkey Gravy": "ahead-mon keeps-4d", "Overnight Sage Stuffing": "ahead-wed keeps-1d",
+        "Mashed Potato Casserole": "ahead-wed keeps-1d", "Cranberry-Orange Sauce": "ahead-mon keeps-7d", "Pumpkin Pie": "ahead-tue keeps-2d",
+      },
+      "thx2-feast-vegetarian": { "Herb Stuffing": "ahead-wed keeps-1d", "Cranberry-Orange Sauce": "ahead-mon keeps-7d", "Baked Mac and Cheese": "ahead-wed keeps-1d", "Apple Pie": "ahead-wed keeps-2d" },
+      "thx2-feast-new-twist": {
+        "Citrus-Herb Spatchcock Turkey": "thaw-4d", "Pan Gravy": "ahead-tue keeps-4d", "Cornbread and Chorizo Stuffing": "ahead-wed keeps-1d",
+        "Cranberry-Jalapeño Relish": "ahead-mon keeps-7d", "Pumpkin Cheesecake Bars": "ahead-wed keeps-2d",
+      },
+    });
+    for (const t of FILE.targets.filter((x) => x.kind !== "feast")) assert.ok(t.dishes.every((d) => aheadTags(d).length === 0), t.key);
+  });
+  it("follow-up E: per-dish tags follow the TITLE, not the position; the thaw line names the day to start", () => {
+    const classic = byKey("thx2-feast-classic");
+    const tagFor = aheadTagsFor(classic);
+    assert.deepEqual(tagFor({ title: "Classic Pumpkin Pie with Whipped Cream" }, 1), ["ahead-wed", "keeps-2d"], "a reordered pie keeps its own tags");
+    assert.deepEqual(tagFor({ title: "Turkey Pan Gravy" }, 7), ["ahead-tue", "keeps-4d"]);
+    assert.deepEqual(tagFor({ title: "Something Unasked" }, 3), [], "position fallback only for an unused target dish (#3 mashed potatoes has none)");
+    assert.deepEqual(runOptionsFor(byKey("thx2-feast-classic"), FILE).dishTagsFor !== undefined, true);
+    assert.equal(runOptionsFor(byKey("thx2-friday-classic"), FILE).dishTagsFor, undefined);
+    const lines = dayPlanLines(classic).join(" ");
+    assert.ok(lines.includes("about 4 days in the fridge to thaw — move it there by Friday"), "giblets on Tuesday − 4 days");
+    assert.ok(dayPlanLines(byKey("thx2-feast-make-ahead")).join(" ").includes("move it there by Friday; Make ahead (Tuesday): it goes into the brine"));
+    assert.ok(dayPlanLines(byKey("thx2-feast-vegetarian")).every((l) => !l.includes("thaw")));
+  });
+  it("follow-up E: validation refuses make-ahead fields off a feast, ahead without keeps, thaw off the bird", () => {
+    const a = clone(); a.targets.find((t) => t.kind === "friday")!.dishes[0].ahead = "tue";
+    assert.ok(validateTargets(a).some((e) => e.includes("feast dishes only")));
+    const b = clone(); delete b.targets.find((t) => t.key === "thx2-feast-classic")!.dishes[4].keeps;
+    assert.ok(validateTargets(b).some((e) => e.includes("ahead and keeps go together")));
+    const c = clone(); c.targets.find((t) => t.key === "thx2-feast-classic")!.dishes[4].thaw = 2;
+    assert.ok(validateTargets(c).some((e) => e.includes("belong on the bird")));
   });
   it("the alternate brief lifts the complete-dinner rule; the feast brief lists roles in order", () => {
     assert.ok(composeBrief(byKey("thx2-alt-pecan-pie")).includes("NOT a complete dinner"));
@@ -187,6 +242,7 @@ describe("follow-up C — targets, briefs, flags", () => {
     assert.deepEqual(veg, ["thx2-feast-vegetarian", "thx2-friday-vegetarian", "thx2-wednesday-pizza-night"]);
     for (const k of veg) {
       assert.ok(composeBrief(byKey(k)).includes("vegetarian Parmesan-style cheese"), k);
+      assert.ok(composeBrief(byKey(k)).includes("Gruyère"), `${k}: the cheese the dev re-pilots slipped in is named`);
       assert.ok(composeFinalizeBrief(byKey(k)).includes("Worcestershire"), k);
     }
     assert.ok(!composeBrief(byKey("thx2-feast-classic")).includes("VEGETARIAN"));
@@ -202,7 +258,7 @@ describe("follow-up C — targets, briefs, flags", () => {
       const g = composeBrief(t);
       assert.ok(g.includes("12–14 cups fills a 9×13") && g.includes("real retail product") && g.includes('"2 oranges"') && g.includes('"1 pinch"'), t.key);
       const f = composeFinalizeBrief(t);
-      assert.ok(f.includes("under 300 characters") && f.includes("never rinse raw poultry") && f.includes("Warm corn tortillas") && f.includes("add no extra salt"), t.key);
+      assert.ok(f.includes("under 300 characters") && f.includes("never rinse raw poultry, the neck or the giblets") && f.includes("Warm corn tortillas") && f.includes("add no extra salt"), t.key);
     }
   });
   it("follow-up D: brining bag + 1 gallon + salt per gallon, multi-pack buys, dessert cooling as a note", () => {

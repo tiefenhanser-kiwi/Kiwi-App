@@ -178,6 +178,19 @@ describe("THX-2G — tags, payload extras, target, completeness", () => {
     assert.deepEqual(themed.tags, ["american", "easy", "thanksgiving"]);
     for (const d of themed.dishes) assert.deepEqual(d.kind === "new" ? d.tags : null, ["thanksgiving", "course-sides"]);
   });
+  it("dishTagsFor adds per-dish tags to dishTags (deduplicated); absent leaves the payload as before", () => {
+    const meal = makeMeal();
+    const merged = mergeSteps(meal, finalizeFor(meal));
+    assert.ok(merged.ok);
+    if (!merged.ok) return;
+    const p = buildMaterializePayload(meal, merged.stepsPerDish, [], "k", merged.registryPerDish, {
+      dishTags: ["thanksgiving"],
+      dishTagsFor: (d, i) => (i === 1 ? ["ahead-wed", "keeps-1d", "thanksgiving"] : d.title === "Seared Chicken" ? [] : ["x"]),
+    });
+    assert.deepEqual(p.dishes.map((d) => (d.kind === "new" ? d.tags : null)), [["thanksgiving"], ["thanksgiving", "ahead-wed", "keeps-1d"]]);
+    const q = buildMaterializePayload(meal, merged.stepsPerDish, [], "k", merged.registryPerDish, { dishTagsFor: () => [] });
+    for (const d of q.dishes) assert.ok(!("tags" in d), "an empty result writes no tags key");
+  });
   it("storeFillTarget: absent/true is STORE_FILL_TARGET itself; false is non-public, same owner and provenance", () => {
     assert.equal(storeFillTarget(), STORE_FILL_TARGET);
     assert.equal(storeFillTarget(true), STORE_FILL_TARGET);

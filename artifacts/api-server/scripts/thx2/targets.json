@@ -19,14 +19,14 @@
       "servings": 10,
       "difficulty": "fancy",
       "dishes": [
-        { "name": "Herb-Roasted Whole Turkey", "role": "main", "course": "course-turkey" },
-        { "name": "Pan Gravy", "role": "sauce", "course": "course-sides" },
-        { "name": "Sage and Onion Stuffing", "role": "side", "course": "course-stuffing" },
+        { "name": "Herb-Roasted Whole Turkey", "role": "main", "course": "course-turkey", "thaw": 4 },
+        { "name": "Pan Gravy", "role": "sauce", "course": "course-sides", "ahead": "tue", "keeps": 4, "dayNote": "simmer the stock from the neck and giblets on Tuesday night; make the gravy from it and the drippings on Thursday" },
+        { "name": "Sage and Onion Stuffing", "role": "side", "course": "course-stuffing", "ahead": "wed", "keeps": 1, "dayNote": "assemble the stuffing in its baking dish; bake on Thursday" },
         { "name": "Mashed Potatoes", "role": "base", "course": "course-potatoes" },
-        { "name": "Cranberry-Orange Sauce", "role": "sauce", "course": "course-cranberry" },
-        { "name": "Green Bean Casserole", "role": "side", "course": "course-sides" },
-        { "name": "Sweet Potato Casserole", "role": "side", "course": "course-sides" },
-        { "name": "Pumpkin Pie", "role": "side", "course": "course-dessert" }
+        { "name": "Cranberry-Orange Sauce", "role": "sauce", "course": "course-cranberry", "ahead": "mon", "keeps": 7, "dayNote": "make the sauce" },
+        { "name": "Green Bean Casserole", "role": "side", "course": "course-sides", "ahead": "wed", "keeps": 1, "dayNote": "assemble the casserole without the fried onions; bake on Thursday and add the onions at the end" },
+        { "name": "Sweet Potato Casserole", "role": "side", "course": "course-sides", "ahead": "wed", "keeps": 1, "dayNote": "assemble the casserole; add the topping and bake on Thursday" },
+        { "name": "Pumpkin Pie", "role": "side", "course": "course-dessert", "ahead": "wed", "keeps": 2, "dayNote": "bake the pie" }
       ],
       "products": ["store-bought fried onions (contains wheat, soy)", "refrigerated pie crust (contains wheat)"],
       "note": "The classic American Thanksgiving table. The fried onions top the green bean casserole; the pie crust holds the pumpkin pie."
@@ -42,9 +42,9 @@
       "dishes": [
         { "name": "Roast Turkey Breast", "role": "main", "course": "course-turkey" },
         { "name": "Pan Gravy", "role": "sauce", "course": "course-sides" },
-        { "name": "Small-Batch Sage Stuffing", "role": "side", "course": "course-stuffing" },
+        { "name": "Small-Batch Sage Stuffing", "role": "side", "course": "course-stuffing", "ahead": "wed", "keeps": 1, "dayNote": "assemble the stuffing in its baking dish; bake on Thursday" },
         { "name": "Mashed Potatoes", "role": "base", "course": "course-potatoes" },
-        { "name": "Cranberry-Orange Sauce", "role": "sauce", "course": "course-cranberry" },
+        { "name": "Cranberry-Orange Sauce", "role": "sauce", "course": "course-cranberry", "ahead": "mon", "keeps": 7, "dayNote": "make the sauce" },
         { "name": "Roasted Green Beans", "role": "side", "course": "course-sides" },
         { "name": "Maple-Roasted Sweet Potatoes", "role": "side", "course": "course-sides" },
         { "name": "Apple Crisp", "role": "side", "course": "course-dessert" }
@@ -61,13 +61,13 @@
       "servings": 10,
       "difficulty": "fancy",
       "dishes": [
-        { "name": "Dry-Brined Roast Turkey", "role": "main", "course": "course-turkey", "dayNote": "dry-brine up to 2 days ahead; we suggest Tuesday; roast on Thursday" },
-        { "name": "Make-Ahead Turkey Gravy", "role": "sauce", "course": "course-sides", "dayNote": "make up to 3 days ahead; we suggest Monday; reheat on Thursday" },
-        { "name": "Overnight Sage Stuffing", "role": "side", "course": "course-stuffing", "dayNote": "assemble up to 1 day ahead; we suggest Wednesday; bake on Thursday" },
-        { "name": "Mashed Potato Casserole", "role": "base", "course": "course-potatoes", "dayNote": "assemble up to 1 day ahead; we suggest Wednesday; bake on Thursday" },
-        { "name": "Cranberry-Orange Sauce", "role": "sauce", "course": "course-cranberry", "dayNote": "make up to 3 days ahead; we suggest Monday" },
+        { "name": "Dry-Brined Roast Turkey", "role": "main", "course": "course-turkey", "thaw": 4, "brine": "tue" },
+        { "name": "Make-Ahead Turkey Gravy", "role": "sauce", "course": "course-sides", "ahead": "mon", "keeps": 4, "dayNote": "make the whole gravy (its stock from about 2 lb turkey wings, since the bird may still be thawing); reheat on Thursday" },
+        { "name": "Overnight Sage Stuffing", "role": "side", "course": "course-stuffing", "ahead": "wed", "keeps": 1, "dayNote": "assemble the stuffing (dry the bread cubes on Tuesday); bake on Thursday" },
+        { "name": "Mashed Potato Casserole", "role": "base", "course": "course-potatoes", "ahead": "wed", "keeps": 1, "dayNote": "make and assemble the casserole; bake on Thursday straight from the fridge" },
+        { "name": "Cranberry-Orange Sauce", "role": "sauce", "course": "course-cranberry", "ahead": "mon", "keeps": 7, "dayNote": "make the sauce" },
         { "name": "Green Beans with Crispy Shallots", "role": "side", "course": "course-sides" },
-        { "name": "Pumpkin Pie", "role": "side", "course": "course-dessert", "dayNote": "bake up to 2 days ahead; we suggest Tuesday" }
+        { "name": "Pumpkin Pie", "role": "side", "course": "course-dessert", "ahead": "tue", "keeps": 2, "dayNote": "bake the pie" }
       ],
       "products": ["refrigerated pie crust (contains wheat)"],
       "note": "A Thanksgiving built so most of the work is done before Thursday. The pie crust holds the pumpkin pie."
@@ -83,12 +83,12 @@
       "dishes": [
         { "name": "Mushroom Wellington", "role": "main", "course": "course-turkey" },
         { "name": "Mushroom Gravy", "role": "sauce", "course": "course-sides" },
-        { "name": "Herb Stuffing", "role": "side", "course": "course-stuffing" },
+        { "name": "Herb Stuffing", "role": "side", "course": "course-stuffing", "ahead": "wed", "keeps": 1, "dayNote": "assemble the stuffing in its baking dish; bake on Thursday" },
         { "name": "Mashed Potatoes", "role": "base", "course": "course-potatoes" },
         { "name": "Balsamic Roasted Brussels Sprouts", "role": "side", "course": "course-sides" },
-        { "name": "Cranberry-Orange Sauce", "role": "sauce", "course": "course-cranberry" },
-        { "name": "Baked Mac and Cheese", "role": "side", "course": "course-sides" },
-        { "name": "Apple Pie", "role": "side", "course": "course-dessert" }
+        { "name": "Cranberry-Orange Sauce", "role": "sauce", "course": "course-cranberry", "ahead": "mon", "keeps": 7, "dayNote": "make the sauce" },
+        { "name": "Baked Mac and Cheese", "role": "side", "course": "course-sides", "ahead": "wed", "keeps": 1, "dayNote": "assemble the mac and cheese without the crumb topping; top and bake on Thursday" },
+        { "name": "Apple Pie", "role": "side", "course": "course-dessert", "ahead": "wed", "keeps": 2, "dayNote": "bake the pie" }
       ],
       "products": ["all-butter puff pastry (contains wheat, milk)", "refrigerated pie crust (contains wheat)"],
       "vegetarian": true,
@@ -103,14 +103,14 @@
       "servings": 10,
       "difficulty": "fancy",
       "dishes": [
-        { "name": "Citrus-Herb Spatchcock Turkey", "role": "main", "course": "course-turkey" },
-        { "name": "Pan Gravy", "role": "sauce", "course": "course-sides" },
-        { "name": "Cornbread and Chorizo Stuffing", "role": "side", "course": "course-stuffing" },
+        { "name": "Citrus-Herb Spatchcock Turkey", "role": "main", "course": "course-turkey", "thaw": 4 },
+        { "name": "Pan Gravy", "role": "sauce", "course": "course-sides", "ahead": "tue", "keeps": 4, "dayNote": "simmer the stock from the neck and giblets on Tuesday night; make the gravy from it and the drippings on Thursday" },
+        { "name": "Cornbread and Chorizo Stuffing", "role": "side", "course": "course-stuffing", "ahead": "wed", "keeps": 1, "dayNote": "assemble the stuffing in its baking dish; bake on Thursday" },
         { "name": "Garlic-Parmesan Smashed Potatoes", "role": "base", "course": "course-potatoes" },
         { "name": "Chipotle-Maple Sweet Potatoes", "role": "side", "course": "course-sides" },
-        { "name": "Cranberry-Jalapeño Relish", "role": "sauce", "course": "course-cranberry" },
+        { "name": "Cranberry-Jalapeño Relish", "role": "sauce", "course": "course-cranberry", "ahead": "mon", "keeps": 7, "dayNote": "make the relish" },
         { "name": "Brown-Butter Green Beans", "role": "side", "course": "course-sides" },
-        { "name": "Pumpkin Cheesecake Bars", "role": "side", "course": "course-dessert" }
+        { "name": "Pumpkin Cheesecake Bars", "role": "side", "course": "course-dessert", "ahead": "wed", "keeps": 2, "dayNote": "bake the bars and chill them" }
       ],
       "products": [],
       "note": "Thanksgiving with fresh, bolder flavors. The turkey is spatchcocked so it roasts in about 90 minutes."
