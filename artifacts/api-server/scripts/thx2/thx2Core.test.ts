@@ -205,6 +205,18 @@ describe("follow-up C — targets, briefs, flags", () => {
       assert.ok(f.includes("under 300 characters") && f.includes("never rinse raw poultry") && f.includes("Warm corn tortillas") && f.includes("add no extra salt"), t.key);
     }
   });
+  it("follow-up D: brining bag + 1 gallon + salt per gallon, multi-pack buys, dessert cooling as a note", () => {
+    for (const t of FILE.targets) {
+      const g = composeBrief(t);
+      assert.ok(g.includes("brining bag") && g.includes("about 1 gallon of liquid") && g.includes("½ cup kosher salt per gallon"), t.key);
+      assert.ok(g.includes('unit "package (2-count)", name "refrigerated pie crust (contains wheat)"'), t.key);
+      assert.ok(g.includes("doubled one-pie filling"), t.key);
+      const f = composeFinalizeBrief(t);
+      assert.ok(f.includes("A DESSERT's cooling or setting of 1 hour or more") && f.includes("Savoury rests stay timed"), t.key);
+      assert.ok(f.includes("turned halfway through"), t.key);
+      assert.ok(!f.includes("cooling a pie 2 hours) stay timed"), "the old exemption is gone");
+    }
+  });
   it("buys_turkey matches raw turkey only — not broth, stock, gravy or leftovers", () => {
     for (const n of ["whole turkey", "turkey breast", "bone-in turkey thighs", "ground turkey", "turkey wings", "turkey"]) assert.ok(isRawTurkey(n), n);
     for (const n of ["low-sodium chicken or turkey broth", "turkey stock", "turkey gravy", "cooked leftover turkey", "smoked turkey sausage"]) assert.ok(!isRawTurkey(n), n);
