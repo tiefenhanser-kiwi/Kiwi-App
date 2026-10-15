@@ -527,6 +527,20 @@ describe("forkMealForUser", () => {
     assert.equal(meal.sourceStoreMealId, null); // no self/foreign lineage
   });
 
+  it("THX-2S: fromLeftovers survives the fork (an adopted Friday buys no second turkey)", async () => {
+    const source = makeSource();
+    const ingredients = source.dishLinks[0].dish.dishIngredients as Array<Record<string, unknown>>;
+    ingredients[0].fromLeftovers = true;
+    ingredients[1].fromLeftovers = false;
+    const { tx, rec } = makeTxStub(source);
+
+    await forkMealForUser(tx as never, "src-meal", "user-1");
+
+    const ings = rec.ingredientCreateMany[0];
+    assert.equal(ings[0].fromLeftovers, true);
+    assert.equal(ings[1].fromLeftovers, false);
+  });
+
   it("never mutates the source meal (other plans keep their binding)", async () => {
     const source = makeSource();
     const before = JSON.stringify(source);

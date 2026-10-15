@@ -50,6 +50,7 @@ import {
   consolidatePlanIngredients as productionConsolidatePlanIngredients,
   GroceryConsolidationForbiddenError,
   GroceryConsolidationNotFoundError,
+  leftoversNoteForPlan,
 } from "../lib/groceryList";
 import {
   recurringFacetsFor,
@@ -882,8 +883,22 @@ export function createGroceryListsRouter(
       // second request. The list's own instacartLink* columns arrive through
       // the spread above with no serialiser change.
       const instacartEnabled = await getInstacartEnabled();
+      // THX-2S (D-WS9-311) — one note for the leftover lines generation
+      // skipped ("Uses Thursday's leftovers: …"). Omitted when there are none,
+      // so every other list's body is byte-identical.
+      // Best-effort, like the reconcile above: a failed note never fails the read.
+      const leftoversNote = list.planInstance
+        ? await leftoversNoteForPlan(prisma, list.planInstance.id).catch((noteErr: unknown) => {
+            logger.warn(
+              { event: "grocery_leftovers_note_failed", userId, listId, err: noteErr },
+              "Leftovers note lookup failed; serving the list without it",
+            );
+            return null;
+          })
+        : null;
       return res.status(200).json({
         list: listWithComputedActive,
+        ...(leftoversNote ? { notes: [leftoversNote] } : {}),
         reconciled,
         // S2 Part C — omitted entirely on the normal path, so a client that has
         // never heard of it sees the byte-identical body it saw before.

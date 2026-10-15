@@ -373,6 +373,9 @@ async function cloneMealInto(
           // ingredients it replaces must not silently drop on fork).
           componentKey: di.componentKey,
           pathKey: di.pathKey,
+          // THX-2S (D-WS9-311) — every adopted Thanksgiving plan FORKS its
+          // Friday meal; without this the copy would buy a second turkey.
+          fromLeftovers: di.fromLeftovers,
         })),
       });
     }

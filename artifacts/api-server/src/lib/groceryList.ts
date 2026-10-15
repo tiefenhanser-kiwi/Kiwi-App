@@ -416,6 +416,46 @@ function signatureOfEffective(effective: EffectiveDishIngredient[]): string {
   return createHash("sha1").update(tuples.join("\n")).digest("hex");
 }
 
+// ── THX-2S (D-WS9-311) — Thursday's leftovers ────────────────────────────────
+//
+// A DishIngredient with fromLeftovers = true (Friday's turkey, cranberry sauce,
+// stuffing) is never bought: consolidatePlanIngredients skips it, so no bucket,
+// no source, no order line exists for it. The list carries ONE note instead,
+// derived at read (GET /grocery-lists/:id) from the plan's live meals — nothing
+// is persisted, so a plan that swaps Friday away loses the note with it.
+
+const LEFTOVER_NAME_PREFIX = /^(?:cooked\s+)?leftover\s+/i;
+
+/** "Uses Thursday's leftovers: turkey, stuffing." — null when there are none. */
+export function leftoversNote(ingredientNames: string[]): string | null {
+  const names: string[] = [];
+  for (const raw of ingredientNames) {
+    const n = raw.trim().replace(LEFTOVER_NAME_PREFIX, "").toLowerCase();
+    if (n && !names.includes(n)) names.push(n);
+  }
+  return names.length > 0 ? `Uses Thursday's leftovers: ${names.join(", ")}.` : null;
+}
+
+/** The leftovers note for a plan's grocery list (one query), or null. */
+export async function leftoversNoteForPlan(
+  prisma: Pick<PrismaClient, "dishIngredient">,
+  planId: string,
+): Promise<string | null> {
+  const rows = await prisma.dishIngredient.findMany({
+    where: {
+      fromLeftovers: true,
+      dish: {
+        mealLinks: {
+          some: { meal: { planItems: { some: { mealPlanInstanceId: planId } } } },
+        },
+      },
+    },
+    orderBy: { positionIndex: "asc" },
+    select: { ingredient: { select: { canonicalName: true } } },
+  });
+  return leftoversNote(rows.map((r) => r.ingredient.canonicalName));
+}
+
 export async function consolidatePlanIngredients(
   opts: ConsolidateOptions,
 ): Promise<ConsolidatedItem[]> {
@@ -495,7 +535,10 @@ export async function consolidatePlanIngredients(
       const overrideDish = overrideDishes?.[dishIndex];
       const effective: EffectiveDishIngredient[] = overrideDish
         ? await resolveOverrideIngredients(prisma, overrideDish, ingredientByName)
-        : dish.dishIngredients.map((di) => ({
+        : dish.dishIngredients
+            // THX-2S — Thursday's leftovers are already in the fridge.
+            .filter((di) => !di.fromLeftovers)
+            .map((di) => ({
             ingredient: di.ingredient,
             canonicalFallback: di.id, // unique fallback if no ingredient row
             unit: di.unit ?? "",
