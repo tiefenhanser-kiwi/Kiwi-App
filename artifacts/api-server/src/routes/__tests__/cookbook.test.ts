@@ -15,6 +15,7 @@ import type { Server } from "node:http";
 
 import { signToken } from "../../lib/auth";
 import { CUISINE_TOKENS } from "../../lib/cookbook/query";
+import { isSeasonActive, seasonClock, SEASONS, seasonWindow, zonedMidnight } from "../../lib/cookbook/seasons";
 import { normalizeCuisineTokens } from "../../lib/store/cuisineNormalize";
 import { createCookbookRouter } from "../cookbook";
 import { matchesWhere } from "./fixtures/mealWhere";
@@ -106,6 +107,8 @@ interface StubOpts {
   rows: Row[];
   allergies?: string[];
   playlist?: Array<{ userId: string; mealId: string }>;
+  /** BOOK-1C1 — Favorite rows (the heart). */
+  favorites?: Array<{ userId: string; mealId: string }>;
 }
 
 function makeStub(opts: StubOpts) {
@@ -132,12 +135,21 @@ function makeStub(opts: StubOpts) {
           .filter((p) => matchesWhere(p, args.where))
           .map((p) => ({ mealId: p.mealId, meal: { sourceStoreMealId: p.meal.sourceStoreMealId } })),
     },
+    favorite: {
+      findMany: async (args: { where: Record<string, unknown> }) =>
+        (opts.favorites ?? [])
+          .map((f) => ({ ...f, meal: asPrisma(meals.get(f.mealId)!) }))
+          .filter((f) => matchesWhere(f, args.where))
+          .map((f) => ({ mealId: f.mealId, meal: { sourceStoreMealId: f.meal.sourceStoreMealId } })),
+    },
   };
   return { prisma, meals, lightReads };
 }
 
 interface Harness {
   get: (query: string, token?: string | null) => Promise<{ status: number; body: any }>;
+  /** Any /api/cookbook path (BOOK-1C1: /seasons). */
+  path: (path: string, token?: string | null) => Promise<{ status: number; body: any }>;
   close: () => Promise<void>;
 }
 
@@ -155,14 +167,14 @@ async function spinUp(prisma: unknown): Promise<Harness> {
   });
   const addr = server.address();
   if (typeof addr !== "object" || !addr) throw new Error("no bind");
-  const base = `http://127.0.0.1:${addr.port}/api/cookbook/meals`;
+  const root = `http://127.0.0.1:${addr.port}/api/cookbook`;
+  const fetchJson = async (url: string, token: string | null) => {
+    const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    return { status: res.status, body: await res.json() };
+  };
   return {
-    get: async (query, token = signToken(USER)) => {
-      const res = await fetch(`${base}${query}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      return { status: res.status, body: await res.json() };
-    },
+    get: async (query, token = signToken(USER)) => fetchJson(`${root}/meals${query}`, token),
+    path: async (path, token = signToken(USER)) => fetchJson(`${root}${path}`, token),
     close: () => new Promise<void>((r, j) => server.close((e) => (e ? j(e) : r()))),
   };
 }
@@ -382,8 +394,8 @@ describe("GET /cookbook/meals — cuisine, tag and facets", () => {
 
 // ── isSaved and the card ─────────────────────────────────────────────────
 
-describe("GET /cookbook/meals — the card and isSaved", () => {
-  it("isSaved is true when the user's Playlist holds a copy of the meal (by sourceStoreMealId)", async () => {
+describe("GET /cookbook/meals — the card, isSaved and isInPlaylist", () => {
+  it("isInPlaylist is true when the user's Playlist holds a copy of the meal (by sourceStoreMealId)", async () => {
     const rows = [
       row("cat-a"),
       row("cat-b"),
@@ -400,8 +412,11 @@ describe("GET /cookbook/meals — the card and isSaved", () => {
       },
       async (h) => {
         const r = await h.get("?sort=az");
+        const inPlaylist = Object.fromEntries(r.body.meals.map((m: any) => [m.id, m.isInPlaylist]));
+        assert.deepEqual(inPlaylist, { "cat-a": true, "cat-b": false });
+        // A Playlist row is not a heart.
         const saved = Object.fromEntries(r.body.meals.map((m: any) => [m.id, m.isSaved]));
-        assert.deepEqual(saved, { "cat-a": true, "cat-b": false });
+        assert.deepEqual(saved, { "cat-a": false, "cat-b": false });
         const card = r.body.meals[0];
         for (const k of [
           "id",
@@ -417,9 +432,47 @@ describe("GET /cookbook/meals — the card and isSaved", () => {
           "tags",
           "dishCount",
           "isSaved",
+          "isInPlaylist",
         ]) {
           assert.ok(k in card, `card has ${k}`);
         }
+      },
+    );
+  });
+
+  it("isSaved is a heart on the meal or on the user's OWN live copy — never another user's, never an archived copy", async () => {
+    const rows = [
+      row("hearted"),
+      row("via-copy"),
+      row("via-their-copy"),
+      row("via-archived-copy"),
+      row("plain"),
+      row("my-copy", { userId: USER, isPublic: false, sourceStoreMealId: "via-copy" }),
+      // Another user's PUBLIC fork: a heart on it is not this user's copy.
+      row("their-fork", { userId: "someone", isPublic: true, sourceStoreMealId: "via-their-copy", mealType: "lunch" }),
+      row("my-dead-copy", { userId: USER, isPublic: false, isArchived: true, sourceStoreMealId: "via-archived-copy" }),
+    ];
+    await withHarness(
+      {
+        rows,
+        favorites: [
+          { userId: USER, mealId: "hearted" },
+          { userId: USER, mealId: "my-copy" },
+          { userId: USER, mealId: "their-fork" },
+          { userId: USER, mealId: "my-dead-copy" },
+          { userId: "someone", mealId: "plain" },
+        ],
+      },
+      async (h) => {
+        const r = await h.get("?sort=az");
+        const saved = Object.fromEntries(r.body.meals.map((m: any) => [m.id, m.isSaved]));
+        assert.deepEqual(saved, {
+          hearted: true,
+          "via-copy": true,
+          "via-their-copy": false,
+          "via-archived-copy": false,
+          plain: false,
+        });
       },
     );
   });
@@ -540,6 +593,203 @@ describe("GET /cookbook/meals — the cursor: pages never overlap or skip", () =
       const r = await h.get("?limit=9");
       assert.equal(r.body.meals.length, 9);
       assert.equal(r.body.nextCursor, null);
+    });
+  });
+});
+
+// ── BOOK-1C1: the filter sheet ───────────────────────────────────────────
+
+describe("GET /cookbook/meals — difficulty (hard is stored fancy)", () => {
+  const rows = [
+    row("e", { difficulty: "easy" }),
+    row("m", { difficulty: "medium" }),
+    row("f", { difficulty: "fancy" }),
+  ];
+
+  it("filters by any requested difficulty; hard reads the stored fancy", async () => {
+    await withHarness({ rows }, async (h) => {
+      assert.deepEqual(ids((await h.get("?difficulty=easy")).body), ["e"]);
+      assert.deepEqual(ids((await h.get("?difficulty=hard")).body), ["f"]);
+      assert.deepEqual(ids((await h.get("?difficulty=easy,hard&sort=az")).body).sort(), ["e", "f"]);
+      assert.deepEqual(ids((await h.get("?difficulty=Medium&difficulty=easy")).body).sort(), ["e", "m"]);
+    });
+  });
+
+  it("the stored spelling is not on the wire; an unknown difficulty is a 400", async () => {
+    await withHarness({ rows }, async (h) => {
+      assert.equal((await h.get("?difficulty=fancy")).status, 400);
+      assert.equal((await h.get("?difficulty=expert")).status, 400);
+    });
+  });
+
+  it("the difficulty facet counts under every filter but its own", async () => {
+    await withHarness({ rows }, async (h) => {
+      const r = await h.get("?difficulty=easy");
+      assert.deepEqual(r.body.facets.difficulty, { easy: 1, medium: 1, hard: 1 });
+    });
+  });
+});
+
+describe("GET /cookbook/meals — maxActiveMinutes, highProtein, maxCalories", () => {
+  const rows = [
+    row("a15", { activeTimeMinutes: 15, proteinGPerServing: 40, caloriesPerServing: 599 }),
+    row("a20", { activeTimeMinutes: 20, proteinGPerServing: 39.5, caloriesPerServing: 600 }),
+    row("a30", { activeTimeMinutes: 30, proteinGPerServing: 55, caloriesPerServing: 450 }),
+    row("a45", { activeTimeMinutes: 45, proteinGPerServing: 12, caloriesPerServing: 800 }),
+    // An authored-only time: no derived hands-on figure at all.
+    row("underived", { activeTimeMinutes: null, proteinGPerServing: 60, caloriesPerServing: 300 }),
+  ];
+
+  it("a hands-on cap admits derived hands-on times at or under it; an underived meal never passes", async () => {
+    await withHarness({ rows }, async (h) => {
+      assert.deepEqual(ids((await h.get("?maxActiveMinutes=15")).body), ["a15"]);
+      assert.deepEqual(ids((await h.get("?maxActiveMinutes=20&sort=az")).body).sort(), ["a15", "a20"]);
+      assert.deepEqual(ids((await h.get("?maxActiveMinutes=30&sort=az")).body).sort(), ["a15", "a20", "a30"]);
+    });
+  });
+
+  it("highProtein is 40 g a serving or more", async () => {
+    await withHarness({ rows }, async (h) => {
+      assert.deepEqual(ids((await h.get("?highProtein=true&sort=az")).body).sort(), ["a15", "a30", "underived"]);
+      assert.equal((await h.get("?highProtein=false")).body.total, 5);
+    });
+  });
+
+  it("maxCalories=600 is strictly under 600 (the sheet says Under 600 kcal)", async () => {
+    await withHarness({ rows }, async (h) => {
+      assert.deepEqual(ids((await h.get("?maxCalories=600&sort=az")).body).sort(), ["a15", "a30", "underived"]);
+    });
+  });
+
+  it("the filters combine, and each facet drops only its own filter", async () => {
+    await withHarness({ rows }, async (h) => {
+      const r = await h.get("?maxActiveMinutes=30&highProtein=1&maxCalories=600");
+      assert.deepEqual(ids(r.body).sort(), ["a15", "a30"]);
+      const f = r.body.facets;
+      // activeMinutes: under protein + calories (a15, a30, underived); underived counts under no cap.
+      assert.deepEqual(f.activeMinutes, { "15": 1, "20": 1, "30": 2 });
+      // highProtein: under the cap + calories (a15, a30), both high.
+      assert.equal(f.highProtein, 2);
+      // under600: under the cap + protein (a15, a30), both under.
+      assert.equal(f.under600, 2);
+    });
+  });
+
+  for (const [label, qs] of [
+    ["hands-on cap off the list", "?maxActiveMinutes=25"],
+    ["calorie cap off the list", "?maxCalories=500"],
+    ["a protein flag that is not a flag", "?highProtein=yes"],
+  ] as const) {
+    it(`a bad value is a 400: ${label}`, async () => {
+      await withHarness({ rows }, async (h) => {
+        assert.equal((await h.get(qs)).status, 400);
+      });
+    });
+  }
+});
+
+// ── BOOK-1C1: the seasons ────────────────────────────────────────────────
+
+describe("seasons — the window (America/New_York, Nov 2 through Nov 30)", () => {
+  const thanksgiving = SEASONS.find((s) => s.tag === "thanksgiving")!;
+
+  it("opens at New York midnight on Nov 2 and closes at New York midnight after Nov 30", () => {
+    const w = seasonWindow(thanksgiving, new Date("2026-11-15T12:00:00Z"));
+    // EST (UTC-5) on both ends: DST ended Nov 1, 2026.
+    assert.equal(w.startsAt.toISOString(), "2026-11-02T05:00:00.000Z");
+    assert.equal(w.endsAt.toISOString(), "2026-12-01T05:00:00.000Z");
+    assert.equal(w.endsOn, "2026-11-30");
+  });
+
+  it("is active from the first instant to the last, and not a millisecond outside", () => {
+    assert.equal(isSeasonActive(thanksgiving, new Date("2026-11-02T04:59:59.999Z")), false);
+    assert.equal(isSeasonActive(thanksgiving, new Date("2026-11-02T05:00:00.000Z")), true);
+    assert.equal(isSeasonActive(thanksgiving, new Date("2026-12-01T04:59:59.999Z")), true);
+    assert.equal(isSeasonActive(thanksgiving, new Date("2026-12-01T05:00:00.000Z")), false);
+    assert.equal(isSeasonActive(thanksgiving, new Date("2026-10-14T12:00:00Z")), false);
+  });
+
+  it("recurs: next year resolves against next year (EDT until Nov 7, 2027)", () => {
+    const w = seasonWindow(thanksgiving, new Date("2027-11-20T12:00:00Z"));
+    assert.equal(w.startsAt.toISOString(), "2027-11-02T04:00:00.000Z");
+    assert.equal(w.endsAt.toISOString(), "2027-12-01T05:00:00.000Z");
+  });
+
+  it("zonedMidnight handles a DST-day midnight", () => {
+    assert.equal(zonedMidnight(2026, 3, 8, "America/New_York").toISOString(), "2026-03-08T05:00:00.000Z");
+    assert.equal(zonedMidnight(2026, 3, 9, "America/New_York").toISOString(), "2026-03-09T04:00:00.000Z");
+  });
+
+  it("the preview clock moves the evaluation instant, except in production", () => {
+    const now = new Date("2026-10-14T12:00:00Z");
+    const preview = "2026-11-20T15:00:00Z";
+    assert.equal(seasonClock({ COOKBOOK_SEASON_PREVIEW_AT: preview } as any, now).toISOString(), "2026-11-20T15:00:00.000Z");
+    assert.equal(seasonClock({ COOKBOOK_SEASON_PREVIEW_AT: preview, NODE_ENV: "production" } as any, now), now);
+    assert.equal(seasonClock({ COOKBOOK_SEASON_PREVIEW_AT: "soon" } as any, now), now);
+    assert.equal(seasonClock({} as any, now), now);
+  });
+});
+
+describe("GET /cookbook/seasons", () => {
+  const rows = [
+    row("feast", { tags: ["american", "thanksgiving"] }),
+    row("turkey", { tags: ["thanksgiving", "thanksgiving-alternate", "course-turkey"] }),
+    row("pie", { tags: ["Thanksgiving", "thanksgiving-alternate", "course-dessert"], allergens: ["dairy"] }),
+    row("tacos", { tags: ["mexican"] }),
+    row("private-pilot", { tags: ["thanksgiving"], isPublic: false }),
+  ];
+
+  async function atInstant<T>(iso: string | undefined, fn: () => Promise<T>): Promise<T> {
+    const prev = process.env.COOKBOOK_SEASON_PREVIEW_AT;
+    if (iso === undefined) delete process.env.COOKBOOK_SEASON_PREVIEW_AT;
+    else process.env.COOKBOOK_SEASON_PREVIEW_AT = iso;
+    try {
+      return await fn();
+    } finally {
+      if (prev === undefined) delete process.env.COOKBOOK_SEASON_PREVIEW_AT;
+      else process.env.COOKBOOK_SEASON_PREVIEW_AT = prev;
+    }
+  }
+
+  it("in the window: Thanksgiving with this user's count and per-course counts, allergens applied", async () => {
+    await withHarness({ rows, allergies: ["Dairy-free"] }, async (h) => {
+      const r = await atInstant("2026-11-20T15:00:00Z", () => h.path("/seasons"));
+      assert.equal(r.status, 200);
+      assert.equal(r.body.asOf, "2026-11-20T15:00:00.000Z");
+      assert.equal(r.body.seasons.length, 1);
+      const s = r.body.seasons[0];
+      assert.equal(s.tag, "thanksgiving");
+      assert.equal(s.label, "Thanksgiving");
+      assert.equal(s.startsAt, "2026-11-02T05:00:00.000Z");
+      assert.equal(s.endsAt, "2026-12-01T05:00:00.000Z");
+      assert.equal(s.endsOn, "2026-11-30");
+      // The dairy pie is filtered out; the private pilot row never counts.
+      assert.equal(s.count, 2);
+      const courses = Object.fromEntries(s.courses.map((c: any) => [c.label, c.count]));
+      assert.deepEqual(courses, {
+        Feasts: 0,
+        Turkey: 1,
+        Stuffing: 0,
+        Potatoes: 0,
+        Sides: 0,
+        Desserts: 0,
+        Leftovers: 0,
+      });
+    });
+  });
+
+  it("outside the window: no seasons at all", async () => {
+    await withHarness({ rows }, async (h) => {
+      const r = await atInstant("2026-10-14T12:00:00Z", () => h.path("/seasons"));
+      assert.equal(r.status, 200);
+      assert.deepEqual(r.body.seasons, []);
+    });
+  });
+
+  it("members only: no token or a guest token is a 401", async () => {
+    await withHarness({ rows }, async (h) => {
+      assert.equal((await h.path("/seasons", signToken("guest-1", { purpose: "guest" }))).status, 401);
+      assert.equal((await h.path("/seasons", null)).status, 401);
     });
   });
 });

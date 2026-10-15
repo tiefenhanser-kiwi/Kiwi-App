@@ -8,6 +8,7 @@ import type { Server } from "node:http";
 
 import { signToken } from "../../lib/auth";
 import { createMeRouter } from "../me";
+import { matchesWhere } from "./fixtures/mealWhere";
 import { withSessionUser } from "./fixtures/sessionUserStub";
 
 interface Harness {
@@ -28,10 +29,13 @@ function makeStubPrisma(opts: {
   // BUG-276 — private meals and their owners; a meal listed here is
   // isPublic:false. Meals in `meals` but not here are public (userId null).
   privateOwners?: Record<string, string>;
+  // BOOK-1C1 — copies of catalog meals: copy id → its owner and source meal.
+  copies?: Record<string, { owner: string; source: string }>;
 }) {
   const meals = opts.meals ?? new Set<string>();
   const favorites: FavRow[] = [...(opts.initialFavorites ?? [])];
   const privateOwners = opts.privateOwners ?? {};
+  const copies = opts.copies ?? {};
 
   return {
     meal: {
@@ -71,19 +75,25 @@ function makeStubPrisma(opts: {
         favorites.push(row);
         return row;
       },
+      // BOOK-1C1 — the strict evaluator, so the lineage clause (a heart on the
+      // user's own copy) is really evaluated rather than ignored.
       deleteMany: async ({
         where,
       }: {
-        where: { userId?: string; mealId: string };
+        where: Record<string, unknown>;
       }): Promise<{ count: number }> => {
         const before = favorites.length;
         for (let i = favorites.length - 1; i >= 0; i--) {
-          if (
-            favorites[i].userId === where.userId &&
-            favorites[i].mealId === where.mealId
-          ) {
-            favorites.splice(i, 1);
-          }
+          const f = favorites[i];
+          const copy = copies[f.mealId];
+          const row = {
+            ...f,
+            meal: {
+              userId: copy?.owner ?? privateOwners[f.mealId] ?? null,
+              sourceStoreMealId: copy?.source ?? null,
+            },
+          };
+          if (matchesWhere(row, where)) favorites.splice(i, 1);
         }
         return { count: before - favorites.length };
       },
@@ -254,6 +264,38 @@ describe("DELETE /me/favorites/:mealId", () => {
       });
       assert.equal(res.status, 200);
       assert.equal(prisma._favorites().length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("BOOK-1C1: by lineage — un-hearting a catalog meal clears the heart on the user's OWN copy too, nobody else's", async () => {
+    const OTHER = "someone-else";
+    const prisma = makeStubPrisma({
+      meals: new Set(["cat-1", "my-copy", "their-copy", "unrelated"]),
+      copies: {
+        "my-copy": { owner: USER_ID, source: "cat-1" },
+        "their-copy": { owner: OTHER, source: "cat-1" },
+      },
+      initialFavorites: [
+        { id: "f1", userId: USER_ID, mealId: "cat-1", createdAt: new Date() },
+        { id: "f2", userId: USER_ID, mealId: "my-copy", createdAt: new Date() },
+        { id: "f3", userId: OTHER, mealId: "their-copy", createdAt: new Date() },
+        { id: "f4", userId: OTHER, mealId: "cat-1", createdAt: new Date() },
+        { id: "f5", userId: USER_ID, mealId: "unrelated", createdAt: new Date() },
+      ],
+    });
+    const harness = await spinUp(prisma);
+    try {
+      const res = await fetch(`${harness.baseUrl}/me/favorites/cat-1`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${signToken(USER_ID)}` },
+      });
+      assert.equal(res.status, 200);
+      assert.deepEqual(
+        prisma._favorites().map((f) => f.id).sort(),
+        ["f3", "f4", "f5"],
+      );
     } finally {
       await harness.close();
     }

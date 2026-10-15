@@ -30,6 +30,9 @@ import { MEAL_CARD_SELECT, toMealCard, type MealCard } from "../store/mealCard";
 import {
   decodeCursor,
   encodeCursor,
+  HIGH_PROTEIN_MIN_G,
+  STORED_DIFFICULTY,
+  type CookbookDifficulty,
   type CookbookQuery,
   type CookbookSort,
   type SortKey,
@@ -39,8 +42,14 @@ import {
 export const THANKSGIVING_TAG = "thanksgiving";
 
 export interface CookbookMeal extends MealCard {
-  /** The user has a copy of this meal on their Playlist (by lineage). */
+  /**
+   * BOOK-1C1 — the heart ("Save to My Meals"): a Favorite row on this meal or
+   * on the user's own live copy of it (Meal.sourceStoreMealId). Until BOOK-1C1
+   * this flag meant the Playlist; that meaning moved to `isInPlaylist`.
+   */
   isSaved: boolean;
+  /** The user has a copy of this meal on their Playlist (by lineage). */
+  isInPlaylist: boolean;
 }
 
 export interface CookbookFacets {
@@ -48,6 +57,14 @@ export interface CookbookFacets {
   cuisines: Array<{ token: string; count: number }>;
   /** Meals tagged `thanksgiving`, under every filter except `tag`. */
   thanksgiving: number;
+  /** Per difficulty ("hard" counts stored "fancy"), under every filter except `difficulty`. */
+  difficulty: Record<CookbookDifficulty, number>;
+  /** Per hands-on cap, under every filter except `maxActiveMinutes`. */
+  activeMinutes: Record<"15" | "20" | "30", number>;
+  /** Protein ≥ 40 g a serving, under every filter except `highProtein`. */
+  highProtein: number;
+  /** Under 600 kcal a serving, under every filter except `maxCalories`. */
+  under600: number;
 }
 
 export interface CookbookResult {
@@ -128,6 +145,9 @@ const LIGHT_SELECT = {
   estimatedTimeMinutes: true,
   activeTimeMinutes: true,
   dishFamilyKey: true,
+  difficulty: true,
+  proteinGPerServing: true,
+  caloriesPerServing: true,
 } satisfies Prisma.MealSelect;
 
 export type LightRow = Prisma.MealGetPayload<{ select: typeof LIGHT_SELECT }>;
@@ -193,13 +213,44 @@ export function compareKeys(a: SortKey, b: SortKey): number {
  * Filter, facet, sort and page the light rows. Pure — the route's whole
  * in-memory half, exposed for tests.
  */
+export type PageQuery = Pick<
+  CookbookQuery,
+  | "cuisine"
+  | "tag"
+  | "difficulty"
+  | "maxActiveMinutes"
+  | "highProtein"
+  | "maxCalories"
+  | "sort"
+  | "cursor"
+  | "limit"
+>;
+
+/** The in-memory filters, by name, so each facet can drop exactly its own. */
+type FilterName = "cuisine" | "tag" | "difficulty" | "active" | "protein" | "calories";
+
+const isHighProtein = (row: LightRow) => row.proteinGPerServing >= HIGH_PROTEIN_MIN_G;
+// "Under 600 kcal" is the sheet's label, so the cap is strict: a 600 kcal meal
+// is not under 600.
+const isUnder = (row: LightRow, kcal: number) => row.caloriesPerServing < kcal;
+// A hands-on cap admits a DERIVED hands-on time only (see maxActiveMinutes).
+const activeWithin = (row: LightRow, cap: number) =>
+  row.activeTimeMinutes !== null && row.activeTimeMinutes <= cap;
+
 export function pageCookbook(
   rows: LightRow[],
-  query: Pick<CookbookQuery, "cuisine" | "tag" | "sort" | "cursor" | "limit">,
+  query: PageQuery,
 ): { page: LightRow[]; total: number; nextCursor: string | null; facets: CookbookFacets } {
   const sort = query.sort;
   const wantCuisines = query.cuisine && query.cuisine.length > 0 ? new Set<string>(query.cuisine) : null;
   const wantTag = query.tag ?? null;
+  const wantDifficulty =
+    query.difficulty && query.difficulty.length > 0
+      ? new Set<string>(query.difficulty.map((d) => STORED_DIFFICULTY[d]))
+      : null;
+  const activeCap = query.maxActiveMinutes ?? null;
+  const wantProtein = query.highProtein === true;
+  const calorieCap = query.maxCalories ?? null;
 
   const candidates: Candidate[] = rows.map((row) => ({
     row,
@@ -208,22 +259,47 @@ export function pageCookbook(
     key: sortKeyFor(sort, row),
   }));
 
-  // A meal matches the cuisine filter when it carries ANY requested token.
-  const cuisineOk = (c: Candidate) =>
-    wantCuisines === null || [...c.cuisines].some((t) => wantCuisines.has(t));
-  const tagOk = (c: Candidate) => wantTag === null || c.tags.has(wantTag);
+  const passes: Record<FilterName, (c: Candidate) => boolean> = {
+    // A meal matches the cuisine filter when it carries ANY requested token.
+    cuisine: (c) => wantCuisines === null || [...c.cuisines].some((t) => wantCuisines.has(t)),
+    tag: (c) => wantTag === null || c.tags.has(wantTag),
+    // Any of the requested difficulties, compared on the stored spelling.
+    difficulty: (c) => wantDifficulty === null || wantDifficulty.has(c.row.difficulty.toLowerCase()),
+    active: (c) => activeCap === null || activeWithin(c.row, activeCap),
+    protein: (c) => !wantProtein || isHighProtein(c.row),
+    calories: (c) => calorieCap === null || isUnder(c.row, calorieCap),
+  };
+  const FILTERS = Object.keys(passes) as FilterName[];
+  const passesAllBut = (c: Candidate, skip: FilterName | null) =>
+    FILTERS.every((f) => f === skip || passes[f](c));
 
   // Facets: each under every filter except its own.
   const cuisineCounts = new Map<string, number>();
   let thanksgiving = 0;
+  const difficulty: Record<CookbookDifficulty, number> = { easy: 0, medium: 0, hard: 0 };
+  const activeMinutes: Record<"15" | "20" | "30", number> = { "15": 0, "20": 0, "30": 0 };
+  let highProtein = 0;
+  let under600 = 0;
   for (const c of candidates) {
-    if (tagOk(c)) {
+    if (passesAllBut(c, "cuisine")) {
       for (const t of c.cuisines) cuisineCounts.set(t, (cuisineCounts.get(t) ?? 0) + 1);
     }
-    if (cuisineOk(c) && c.tags.has(THANKSGIVING_TAG)) thanksgiving += 1;
+    if (passesAllBut(c, "tag") && c.tags.has(THANKSGIVING_TAG)) thanksgiving += 1;
+    if (passesAllBut(c, "difficulty")) {
+      for (const d of Object.keys(difficulty) as CookbookDifficulty[]) {
+        if (c.row.difficulty.toLowerCase() === STORED_DIFFICULTY[d]) difficulty[d] += 1;
+      }
+    }
+    if (passesAllBut(c, "active")) {
+      for (const cap of ["15", "20", "30"] as const) {
+        if (activeWithin(c.row, Number(cap))) activeMinutes[cap] += 1;
+      }
+    }
+    if (passesAllBut(c, "protein") && isHighProtein(c.row)) highProtein += 1;
+    if (passesAllBut(c, "calories") && isUnder(c.row, 600)) under600 += 1;
   }
 
-  const matched = candidates.filter((c) => cuisineOk(c) && tagOk(c));
+  const matched = candidates.filter((c) => passesAllBut(c, null));
   matched.sort((a, b) => compareKeys(a.key, b.key));
 
   let start = 0;
@@ -245,6 +321,10 @@ export function pageCookbook(
         .map(([token, count]) => ({ token, count }))
         .sort((a, b) => b.count - a.count || (a.token < b.token ? -1 : 1)),
       thanksgiving,
+      difficulty,
+      activeMinutes,
+      highProtein,
+      under600,
     },
   };
 }
@@ -270,46 +350,81 @@ export async function storedAllergenTokens(
   return allergenTokensForUser(prefs?.allergiesAndAvoidances ?? []);
 }
 
+/** Every eligible meal's light row for this user: the database half of a search. */
+export async function readCookbookRows(
+  prisma: Pick<PrismaClient, "meal" | "userPreferences">,
+  userId: string,
+  opts: { q?: string; maxMinutes?: number } = {},
+): Promise<LightRow[]> {
+  const allergenTokens = await storedAllergenTokens(prisma, userId);
+  return prisma.meal.findMany({
+    where: buildCookbookWhere({ allergenTokens, q: opts.q, maxMinutes: opts.maxMinutes }),
+    select: LIGHT_SELECT,
+  });
+}
+
+/**
+ * The page ids this user holds a row for, by lineage: a row on the meal itself
+ * (the rare public meal the user owns, or a heart on the catalog meal) or on a
+ * live copy whose sourceStoreMealId is the catalog meal.
+ */
+function lineageIds(rows: Array<{ mealId: string; meal: { sourceStoreMealId: string | null } }>): Set<string> {
+  const out = new Set<string>();
+  for (const r of rows) {
+    out.add(r.mealId);
+    if (r.meal.sourceStoreMealId) out.add(r.meal.sourceStoreMealId);
+  }
+  return out;
+}
+
 export async function searchCookbook(
-  prisma: Pick<PrismaClient, "meal" | "playlistMeal" | "userPreferences">,
+  prisma: Pick<PrismaClient, "meal" | "playlistMeal" | "favorite" | "userPreferences">,
   userId: string,
   query: CookbookQuery,
 ): Promise<CookbookResult> {
-  const allergenTokens = await storedAllergenTokens(prisma, userId);
-  const rows = await prisma.meal.findMany({
-    where: buildCookbookWhere({ allergenTokens, q: query.q, maxMinutes: query.maxMinutes }),
-    select: LIGHT_SELECT,
-  });
+  const rows = await readCookbookRows(prisma, userId, { q: query.q, maxMinutes: query.maxMinutes });
 
   const { page, total, nextCursor, facets } = pageCookbook(rows, query);
   const pageIds = page.map((r) => r.id);
   if (pageIds.length === 0) return { meals: [], total, nextCursor, facets };
 
-  const [cards, saved] = await Promise.all([
+  const lineage = { select: { mealId: true, meal: { select: { sourceStoreMealId: true } } } } as const;
+  const [cards, playlist, favorites] = await Promise.all([
     prisma.meal.findMany({ where: { id: { in: pageIds } }, select: MEAL_CARD_SELECT }),
-    // Saved = a Playlist row whose meal is the user's copy of this catalog meal
-    // (Meal.sourceStoreMealId, the lineage POST /me/playlist dedupes on), or —
-    // for the rare public meal the user owns — the meal itself.
+    // In the Playlist = a Playlist row whose meal is the user's copy of this
+    // catalog meal (Meal.sourceStoreMealId, the lineage POST /me/playlist
+    // dedupes on), or — for the rare public meal the user owns — the meal itself.
     prisma.playlistMeal.findMany({
       where: {
         userId,
         meal: { isArchived: false },
         OR: [{ mealId: { in: pageIds } }, { meal: { sourceStoreMealId: { in: pageIds } } }],
       },
-      select: { mealId: true, meal: { select: { sourceStoreMealId: true } } },
+      ...lineage,
+    }),
+    // Saved = a Favorite on the catalog meal (the Cookbook heart writes this),
+    // or on the user's OWN live copy of it (a heart from that copy's detail).
+    // Owner-scoped: another user's public fork is not this user's copy.
+    prisma.favorite.findMany({
+      where: {
+        userId,
+        meal: { isArchived: false },
+        OR: [
+          { mealId: { in: pageIds } },
+          { meal: { userId, sourceStoreMealId: { in: pageIds } } },
+        ],
+      },
+      ...lineage,
     }),
   ]);
 
-  const savedIds = new Set<string>();
-  for (const s of saved) {
-    savedIds.add(s.mealId);
-    if (s.meal.sourceStoreMealId) savedIds.add(s.meal.sourceStoreMealId);
-  }
+  const inPlaylist = lineageIds(playlist);
+  const saved = lineageIds(favorites);
   const cardById = new Map(cards.map((c) => [c.id, c]));
   const meals = pageIds
     .map((id) => cardById.get(id))
     .filter((c): c is NonNullable<typeof c> => !!c)
-    .map((c) => ({ ...toMealCard(c), isSaved: savedIds.has(c.id) }));
+    .map((c) => ({ ...toMealCard(c), isSaved: saved.has(c.id), isInPlaylist: inPlaylist.has(c.id) }));
 
   return { meals, total, nextCursor, facets };
 }

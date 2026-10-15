@@ -42,6 +42,23 @@ export const CUISINE_TOKENS = [
 
 export type CuisineToken = (typeof CUISINE_TOKENS)[number];
 
+// BOOK-1C1 — the filter sheet's difficulty row. The wire says "hard"; the
+// column says "fancy" (the generator's word, D-WS9-311), and the client already
+// maps the two in lib/api/builder.ts. Translated here, once, so no caller ever
+// has to know the stored spelling.
+export const COOKBOOK_DIFFICULTIES = ["easy", "medium", "hard"] as const;
+export type CookbookDifficulty = (typeof COOKBOOK_DIFFICULTIES)[number];
+export const STORED_DIFFICULTY: Record<CookbookDifficulty, string> = {
+  easy: "easy",
+  medium: "medium",
+  hard: "fancy",
+};
+
+/** "High protein" on the sheet: at least this many grams per serving. */
+export const HIGH_PROTEIN_MIN_G = 40;
+/** The hands-on caps the sheet offers. */
+export const ACTIVE_MINUTE_CAPS = [15, 20, 30] as const;
+
 export const COOKBOOK_SORTS = ["popular", "quickest", "az"] as const;
 export type CookbookSort = (typeof COOKBOOK_SORTS)[number];
 
@@ -51,6 +68,20 @@ export const COOKBOOK_MIN_QUERY_LENGTH = 2;
 
 /** One query-string value: the last of a repeated key wins for scalars. */
 const single = (v: unknown): unknown => (Array.isArray(v) ? v[v.length - 1] : v);
+
+/** A numeric scalar: digits become a number, anything else is left to fail. */
+const int = (v: unknown): unknown => {
+  const s = single(v);
+  return typeof s === "string" && /^\d+$/.test(s) ? Number(s) : s;
+};
+
+/** A flag: "true"/"1" is on, "false"/"0" is off; anything else fails. */
+const flag = (v: unknown): unknown => {
+  const s = single(v);
+  if (s === "true" || s === "1") return true;
+  if (s === "false" || s === "0") return false;
+  return s;
+};
 
 /** `cuisine=thai&cuisine=indian` and `cuisine=thai,indian` both read as a list. */
 const list = (v: unknown): unknown => {
@@ -79,12 +110,23 @@ export const CookbookQuerySchema = z
     ),
     cuisine: z.preprocess(list, z.array(z.enum(CUISINE_TOKENS)).max(CUISINE_TOKENS.length).optional()),
     maxMinutes: z.preprocess(
-      (v) => {
-        const s = single(v);
-        return typeof s === "string" && /^\d+$/.test(s) ? Number(s) : s;
-      },
+      int,
       z.union([z.literal(30), z.literal(45), z.literal(60)]).optional(),
     ),
+    // BOOK-1C1 — the filter sheet. Each is applied in memory (search.ts), so
+    // each can be faceted under the others.
+    difficulty: z.preprocess(
+      list,
+      z.array(z.enum(COOKBOOK_DIFFICULTIES)).max(COOKBOOK_DIFFICULTIES.length).optional(),
+    ),
+    // Like maxMinutes, a DERIVED time only: a meal with no derived hands-on
+    // time (activeTimeMinutes null) never passes a hands-on cap.
+    maxActiveMinutes: z.preprocess(
+      int,
+      z.union([z.literal(15), z.literal(20), z.literal(30)]).optional(),
+    ),
+    highProtein: z.preprocess(flag, z.boolean().optional()),
+    maxCalories: z.preprocess(int, z.literal(600).optional()),
     tag: z.preprocess(
       (v) => {
         const s = single(v);

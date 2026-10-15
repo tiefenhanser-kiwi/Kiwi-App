@@ -8,12 +8,16 @@
 // search" among what keeps working without AI after the trial, so a lapsed
 // account browses. The writes a card leads to — add to a plan, swap, save to
 // the Playlist — keep exactly the gates they already have.
+//
+// GET /cookbook/seasons (BOOK-1C1) — the promotional collections in their
+// window right now (lib/cookbook/seasons.ts). Same members-only gate.
 
 import { Router, type IRouter } from "express";
 import type { PrismaClient } from "@prisma/client";
 
 import { CookbookQuerySchema } from "../lib/cookbook/query";
 import { InvalidCursorError, searchCookbook } from "../lib/cookbook/search";
+import { activeSeasons, seasonClock } from "../lib/cookbook/seasons";
 import { logger } from "../lib/logger";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
@@ -50,6 +54,19 @@ export function createCookbookRouter(deps: Partial<CookbookRouterDeps> = {}): IR
       }
       logger.error({ err, userId }, "GET /cookbook/meals failed");
       return res.status(500).json({ error: "failed to search the cookbook" });
+    }
+  });
+
+  // BOOK-1C1 — the seasonal collections live right now, each with this user's
+  // count under their allergens (lib/cookbook/seasons.ts holds the config).
+  // Same bucket as the search: it reads the same eligible rows.
+  router.get("/cookbook/seasons", requireAuth, searchLimiter, async (req, res) => {
+    const userId = req.userId!;
+    try {
+      return res.json(await activeSeasons(prisma, userId, seasonClock()));
+    } catch (err) {
+      logger.error({ err, userId }, "GET /cookbook/seasons failed");
+      return res.status(500).json({ error: "failed to read the seasons" });
     }
   });
 

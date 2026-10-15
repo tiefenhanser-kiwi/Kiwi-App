@@ -148,11 +148,15 @@ const FILTER_KEYS = ["my_plans", "featured", "top_rated", "hosting_events"] as c
 // four-key mobile Meals-tab chip vocabulary. `all_meals` is dropped — it is
 // superseded by passing all four discovery filter keys. `GET /me/meals`
 // validates its ?filter= param against this same constant.
+// BOOK-1C1 — `saved`: the meals the user hearted ("Save to My Meals", a
+// Favorite row), the Recipes tab's Saved chip. Appended, so a persisted
+// lastMealsFilters can carry it through the ui-state schema below.
 const MEALS_FILTER_KEYS = [
   "my_meals",
   "featured",
   "top_rated",
   "hosting",
+  "saved",
 ] as const;
 // WS7-3 A2: `GET /me/dishes` ?filter= accept-list. No `hosting` — dishes have
 // no hosting concept per PRD. Not persisted (dish filters aren't a ui-state
@@ -1576,6 +1580,11 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
   });
 
   // DELETE /me/favorites/:mealId — idempotent (no 404 when absent).
+  //
+  // BOOK-1C1 — by lineage. The Cookbook card reads a meal as saved when the
+  // heart is on it OR on the user's own copy of it (search.ts isSaved), so
+  // un-hearting the catalog meal must clear both, or the card's next read
+  // would show it saved again. Owner-scoped: only the user's own copies.
   router.delete("/me/favorites/:mealId", requireAuth, async (req, res) => {
     const mealId = req.params.mealId;
     if (!mealId || typeof mealId !== "string") {
@@ -1584,7 +1593,10 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
 
     try {
       await prisma.favorite.deleteMany({
-        where: { userId: req.userId!, mealId },
+        where: {
+          userId: req.userId!,
+          OR: [{ mealId }, { meal: { userId: req.userId!, sourceStoreMealId: mealId } }],
+        },
       });
       return res.json({ success: true });
     } catch (err) {
@@ -2436,6 +2448,17 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
         if (key === "my_meals") {
           const rows = await prisma.meal.findMany({
             where: { userId: req.userId, isArchived: false },
+            select: MEAL_LIST_SELECT_SORTED,
+            orderBy,
+          });
+          blocks.push(rows);
+        } else if (key === "saved") {
+          // BOOK-1C1 — the hearted meals: a Favorite row of this user's, on a
+          // live meal (a catalog meal or one of their own). The favorite join
+          // IS the filter; POST /me/favorites already refuses another user's
+          // private meal (BUG-276), so nothing private leaks through it.
+          const rows = await prisma.meal.findMany({
+            where: { isArchived: false, favorites: { some: { userId: req.userId } } },
             select: MEAL_LIST_SELECT_SORTED,
             orderBy,
           });

@@ -33,6 +33,7 @@ interface MealOpts {
   // unless a test opts in.
   activeTimeMinutes?: number | null;
   createdAt?: Date;
+  favoritedBy?: string[];
 }
 
 function mealRow(id: string, title: string, opts: MealOpts = {}) {
@@ -55,6 +56,9 @@ function mealRow(id: string, title: string, opts: MealOpts = {}) {
     isArchived: opts.isArchived ?? false,
     saveCount: opts.saveCount ?? 0,
     useCount: opts.useCount ?? 0,
+    // BOOK-1C1 — the users holding a Favorite on this meal (never selected,
+    // so never on the wire; read only by the stub's `favorites` filter).
+    favoritedBy: opts.favoritedBy ?? [],
   };
 }
 
@@ -130,7 +134,12 @@ function makeStubPrisma(opts: {
   return {
     meal: {
       findMany: async (args: {
-        where: { userId?: string; isPublic?: boolean; isArchived?: boolean };
+        where: {
+          userId?: string;
+          isPublic?: boolean;
+          isArchived?: boolean;
+          favorites?: { some: { userId: string } };
+        };
         // WS7-6 G2: the /me/meals route switched to the array orderBy form
         // ([{ title|createdAt|estimatedTimeMinutes }, { id }]) for keyset sort.
         // The single-object form is no longer emitted but handled for safety.
@@ -149,6 +158,11 @@ function makeStubPrisma(opts: {
         if (w.isPublic !== undefined) rows = rows.filter((m) => m.isPublic === w.isPublic);
         if (w.isArchived !== undefined)
           rows = rows.filter((m) => m.isArchived === w.isArchived);
+        // BOOK-1C1 — the Saved chip's favorite join.
+        if (w.favorites !== undefined) {
+          const uid = w.favorites.some.userId;
+          rows = rows.filter((m) => m.favoritedBy.includes(uid));
+        }
         // Multi-key orderBy: walk fields in order, first non-equal wins
         // (mirrors the dish stub). Handles Date (createdAt), number
         // (estimatedTimeMinutes), and string (title / id).
@@ -485,6 +499,31 @@ describe("GET /me/meals", () => {
       assert.deepEqual(ids, ["m-own", "m-shared", "m-pub"]);
       // each id appears exactly once
       assert.equal(new Set(ids).size, ids.length);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("BOOK-1C1: saved lists the meals this user hearted (catalog or own), live only, nobody else's hearts", async () => {
+    const harness = await spinUp(
+      makeStubPrisma({
+        meals: [
+          mealRow("m-cat-hearted", "Catalog Hearted", { isPublic: true, favoritedBy: [USER_ID] }),
+          mealRow("m-own-hearted", "Own Hearted", { userId: USER_ID, favoritedBy: [USER_ID] }),
+          mealRow("m-own-plain", "Own Plain", { userId: USER_ID }),
+          mealRow("m-cat-theirs", "Catalog Theirs", { isPublic: true, favoritedBy: ["other-user"] }),
+          mealRow("m-arch-hearted", "Archived Hearted", { userId: USER_ID, isArchived: true, favoritedBy: [USER_ID] }),
+        ],
+      }),
+    );
+    try {
+      const res = await authGet(harness, "/me/meals?filter=saved");
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { meals: { id: string }[] };
+      assert.deepEqual(
+        body.meals.map((m) => m.id),
+        ["m-cat-hearted", "m-own-hearted"],
+      );
     } finally {
       await harness.close();
     }
