@@ -1198,6 +1198,52 @@ export function dishMacroInputChanged(
   return now.some((k, i) => k !== prior.ingredientKeys[i]);
 }
 
+/**
+ * THX-2S — what every write that changes a meal's dish graph does afterwards,
+ * in this order: the meal-row macros re-summed from its dishes, the allergen
+ * stamp re-derived from the graph (D-WS9-214), the time re-derived from the
+ * steps (D-WS9-235). One implementation for rematerializeMeal and the
+ * catalog-dish copy (lib/mealDishFromCatalog.ts), so they cannot drift.
+ */
+export async function finishMealGraphWrite(
+  tx: Prisma.TransactionClient,
+  mealId: string,
+  dishIds: string[],
+): Promise<void> {
+  await recomputeAndPersistMealMacros(tx, mealId);
+  await stampAllergens(tx, mealId);
+  await stampMealTiming(tx, mealId, dishIds);
+}
+
+/**
+ * Of `dishIds` (linked to `mealId`), the ones this user owns that no OTHER
+ * meal links: unlinking those leaves them orphaned, so the caller deletes them.
+ * A catalog dish (userId null), another user's, or one shared with another of
+ * the user's meals is only unlinked.
+ */
+export async function exclusiveDishIdsOf(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  mealId: string,
+  dishIds: string[],
+): Promise<string[]> {
+  if (dishIds.length === 0) return [];
+  const [dishRows, otherLinks] = await Promise.all([
+    tx.dish.findMany({
+      where: { id: { in: dishIds } },
+      select: { id: true, userId: true },
+    }),
+    tx.mealDishLink.findMany({
+      where: { dishId: { in: dishIds }, mealId: { not: mealId } },
+      select: { dishId: true },
+    }),
+  ]);
+  const sharedDishIds = new Set(otherLinks.map((l) => l.dishId));
+  return dishRows
+    .filter((d) => d.userId === userId && !sharedDishIds.has(d.id))
+    .map((d) => d.id);
+}
+
 export interface RematerializeMealOptions {
   /** dish index → the estimate the route's pre-pass produced. */
   estimatedMacrosByIndex?: Map<number, EstimatedDishMacros>;
@@ -1267,23 +1313,7 @@ export async function rematerializeMeal(
   // macros the deleted one had.
   const priorByPosition = await readPriorDishesByPosition(tx, mealId);
 
-  let exclusiveDishIds: string[] = [];
-  if (linkedDishIds.length > 0) {
-    const [dishRows, otherLinks] = await Promise.all([
-      tx.dish.findMany({
-        where: { id: { in: linkedDishIds } },
-        select: { id: true, userId: true },
-      }),
-      tx.mealDishLink.findMany({
-        where: { dishId: { in: linkedDishIds }, mealId: { not: mealId } },
-        select: { dishId: true },
-      }),
-    ]);
-    const sharedDishIds = new Set(otherLinks.map((l) => l.dishId));
-    exclusiveDishIds = dishRows
-      .filter((d) => d.userId === userId && !sharedDishIds.has(d.id))
-      .map((d) => d.id);
-  }
+  const exclusiveDishIds = await exclusiveDishIdsOf(tx, userId, mealId, linkedDishIds);
 
   // RecipeInstructionStep + DishIngredient for dishes we're about to delete.
   // Explicit (ownerType, ownerId) deletion is the no-orphan guarantee.
@@ -1492,8 +1522,7 @@ export async function rematerializeMeal(
   // WS7-6 Fix-Block 3 (Bug 3): after wipe-and-recreate, overwrite the
   // meal-row macros with the sum of the now-linked dishes' per-serving
   // values. Honors Hans's formula; ignores any payload.macros value.
-  await recomputeAndPersistMealMacros(tx, mealId);
-
+  //
   // D-WS9-214 — re-stamp after wipe-and-recreate.
   //
   // ⚠️ BEYOND THE LETTER OF THE BRIEF, AND FLAGGED AS SUCH. The ruling named the
@@ -1503,12 +1532,11 @@ export async function rematerializeMeal(
   // than a missing one — the missing one fails closed, the wrong one serves the
   // meal to the allergic user. Same argument, same seam, two lines below the
   // macro recompute that already exists for the identical reason.
-  await stampAllergens(tx, mealId);
-
+  //
   // WS9 D-WS9-235 — re-derive after a wipe-and-recreate: an edit that changes a
   // step's minutes, adds a dish or drops one must move the meal's time with it,
   // or the scalar silently describes the pre-edit recipe.
-  await stampMealTiming(tx, mealId, dishIds);
+  await finishMealGraphWrite(tx, mealId, dishIds);
 
   return { mealId, dishIds, linksCreated };
 }

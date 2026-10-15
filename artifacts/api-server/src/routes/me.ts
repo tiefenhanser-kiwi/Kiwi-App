@@ -79,6 +79,7 @@ import { rateLimit } from "../lib/rateLimit";
 import { isIssuedBeforeEpoch, redeemPurposeToken } from "../lib/tokenRevocation";
 import { getTopRatedSettings } from "../lib/topRated";
 import { everydayPoolWhere } from "../lib/store/storeShortlist";
+import { copyCatalogDishIntoMeal } from "../lib/mealDishFromCatalog";
 import {
   clampLimit,
   decodeKeysetCursor,
@@ -2103,6 +2104,91 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
       } catch (err) {
         logger.error({ err, userId, mealId }, "PATCH /me/meals/:id failed");
         return res.status(500).json({ error: "failed to update meal" });
+      }
+    },
+  );
+
+  // ── POST /me/meals/:mealId/dishes/from-catalog — THX-2S Part G ─────────
+  // (D-WS9-313) The meal-edit "Thanksgiving dishes" button: copy ONE catalog
+  // dish (a public single-dish meal) into the user's own meal, scaled to it
+  // (lib/mealDishFromCatalog.ts names both servings fields). replaceDishId
+  // swaps that dish in its slot; without it the dish goes last. Same gates as
+  // PATCH /me/meals/:id (signed-in owner, saveMutationLimiter, no paywall —
+  // nothing here spends a model call) and the same after-effects: the meal's
+  // macros, allergen stamp and time re-derived, and the plan revision bumped
+  // only when bumpPlanId says so ("apply every time" from inside a plan).
+  const fromCatalogBodySchema = z
+    .object({
+      sourceMealId: z.string().min(1).max(100),
+      replaceDishId: z.string().min(1).max(100).optional(),
+      bumpPlanId: z.string().min(1).max(100).optional(),
+    })
+    .strict();
+  router.post(
+    "/me/meals/:mealId/dishes/from-catalog",
+    requireAuth,
+    saveMutationLimiter,
+    async (req, res) => {
+      const userId = req.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "unauthenticated" });
+      }
+      const mealId = req.params.mealId;
+      if (typeof mealId !== "string" || mealId.length === 0 || mealId.length > 100) {
+        return res.status(400).json({ error: "invalid meal id" });
+      }
+      const parsed = fromCatalogBodySchema.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        return res.status(400).json({ error: "invalid body", details: parsed.error.flatten() });
+      }
+      const body = parsed.data;
+      try {
+        const result = await prisma.$transaction(
+          async (tx) => {
+            const copied = await copyCatalogDishIntoMeal(tx, {
+              userId,
+              targetMealId: mealId,
+              sourceMealId: body.sourceMealId,
+              ...(body.replaceDishId ? { replaceDishId: body.replaceDishId } : {}),
+              maxDishes: MAX_DISHES_PER_MEAL,
+            });
+            if (copied.kind === "copied" && body.bumpPlanId) {
+              await bumpCurrentPlanRevision(tx, body.bumpPlanId, userId);
+            }
+            return copied;
+          },
+          { timeout: 15000 },
+        );
+        switch (result.kind) {
+          case "target_not_found":
+            return res.status(404).json({ error: "meal not found" });
+          case "target_forbidden":
+            return res.status(403).json({ error: "meal not owned by user" });
+          case "source_not_found":
+            return res.status(404).json({ error: "catalog meal not found" });
+          case "source_not_single_dish":
+            return res.status(400).json({
+              error: "catalog meal must hold exactly one dish",
+              dishCount: result.dishCount,
+            });
+          case "replace_not_found":
+            return res.status(404).json({ error: "dish to replace is not in this meal" });
+          case "dish_limit":
+            return res.status(409).json({ error: "dish_limit", max: result.max });
+          case "copied":
+            return res.status(201).json({
+              meal: { id: mealId, dishIds: result.dishIds },
+              dish: { id: result.dishId, positionIndex: result.positionIndex },
+              scaling: {
+                targetServings: result.targetServings,
+                sourceServings: result.sourceServings,
+                factor: result.factor,
+              },
+            });
+        }
+      } catch (err) {
+        logger.error({ err, userId, mealId }, "POST /me/meals/:mealId/dishes/from-catalog failed");
+        return res.status(500).json({ error: "failed to copy dish" });
       }
     },
   );

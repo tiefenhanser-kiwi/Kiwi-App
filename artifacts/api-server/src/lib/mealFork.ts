@@ -292,116 +292,26 @@ async function cloneMealInto(
 
   // 2. Each dish → a fresh user-owned dish, linked at the same position/role,
   //    with its ingredients (ingredientId refs preserved) and dish-owned steps.
+  //    THX-2S — the per-dish copy is cloneDishForUser (below), shared with the
+  //    meal-edit "add a catalog dish" path (lib/mealDishFromCatalog.ts).
   for (const link of source.dishLinks) {
     const d = link.dish;
-    const newDish = await tx.dish.create({
-      data: {
-        userId,
-        title: d.title,
-        // WS9 3f-4d Part 1c (D-WS9-123) — carry the parent dish's short display name.
-        displayTitle: d.displayTitle,
-        description: d.description,
-        sourceType: d.sourceType,
-        estimatedTimeMinutes: d.estimatedTimeMinutes,
-        difficulty: d.difficulty,
-        imageUrl: d.imageUrl,
-        // Block 4a piece 1 (D-WS9-047) — mirror the meal: household scale on the
-        // user fork, source copy on write-back; anchor preserved from the source
-        // dish (fall back to its servingsDefault). Meal and dish stay consistent
-        // (the dish-level render path divides by the dish anchor).
-        servingsDefault: target.servingsDefaultOverride ?? d.servingsDefault,
-        authoredServingsDefault:
-          d.authoredServingsDefault ?? d.servingsDefault,
-        tags: d.tags,
-        caloriesPerServing: d.caloriesPerServing,
-        proteinGPerServing: d.proteinGPerServing,
-        carbsGPerServing: d.carbsGPerServing,
-        fatGPerServing: d.fatGPerServing,
-        // D-WS9-050 Phase 2 — the fork copies the macro, so it inherits the
-        // macro's write-time grounding stamp (the number's provenance travels
-        // with the number).
-        macroGroundedPct: d.macroGroundedPct,
-        // Block 3.6 v3 (D-WS9-064) — substitutions MUST survive the fork, or a
-        // catalog meal's convenience swaps vanish the moment it enters a user's
-        // plan. Copied verbatim (Prisma reads Json? as the value or null; a null
-        // is passed through as DbNull so the column stays SQL NULL on the copy).
-        substitutions:
-          d.substitutions === null
-            ? Prisma.DbNull
-            : (d.substitutions as Prisma.InputJsonValue),
-        // Block 3.7 (D-WS9-066 / D-WS7-215) — the component registry and the
-        // per-user selection must survive the fork alongside substitutions, or a
-        // dual-path meal loses the label/order metadata (registry) or the user's
-        // saved "make this easier" choice (selections) on acquire. Same DbNull
-        // discipline: a null Json? column is passed as Prisma.DbNull so it stays
-        // SQL NULL on the copy rather than a literal JSON null (which Prisma
-        // rejects on a Json? column).
-        componentRegistry:
-          d.componentRegistry === null
-            ? Prisma.DbNull
-            : (d.componentRegistry as Prisma.InputJsonValue),
-        componentSelections:
-          d.componentSelections === null
-            ? Prisma.DbNull
-            : (d.componentSelections as Prisma.InputJsonValue),
-        isArchived: false,
-      },
-      select: { id: true },
+    const newDishId = await cloneDishForUser(tx, d, {
+      userId,
+      // Block 4a piece 1 (D-WS9-047) — mirror the meal: household scale on the
+      // user fork, source copy on write-back; anchor preserved from the source
+      // dish (fall back to its servingsDefault).
+      servingsDefault: target.servingsDefaultOverride ?? d.servingsDefault,
+      authoredServingsDefault: d.authoredServingsDefault ?? d.servingsDefault,
     });
-
     await tx.mealDishLink.create({
       data: {
         mealId: newMeal.id,
-        dishId: newDish.id,
+        dishId: newDishId,
         positionIndex: link.positionIndex,
         roleLabel: link.roleLabel,
       },
     });
-
-    if (d.dishIngredients.length > 0) {
-      await tx.dishIngredient.createMany({
-        data: d.dishIngredients.map((di) => ({
-          dishId: newDish.id,
-          ingredientId: di.ingredientId,
-          quantity: di.quantity,
-          unit: di.unit,
-          preparationNote: di.preparationNote,
-          isOptional: di.isOptional,
-          positionIndex: di.positionIndex,
-          // Block 3.7 (D-WS9-066) — component tags travel with the ingredient
-          // (same reason as steps: the bought path's product / the scratch
-          // ingredients it replaces must not silently drop on fork).
-          componentKey: di.componentKey,
-          pathKey: di.pathKey,
-          // THX-2S (D-WS9-311) — every adopted Thanksgiving plan FORKS its
-          // Friday meal; without this the copy would buy a second turkey.
-          fromLeftovers: di.fromLeftovers,
-        })),
-      });
-    }
-
-    // Dish-owned steps (ownerType "dish") → re-owned to the new dish id.
-    const dishSteps = await tx.recipeInstructionStep.findMany({
-      where: { ownerType: "dish", ownerId: d.id },
-      orderBy: { stepIndex: "asc" },
-      select: STEP_COPY_FIELDS,
-    });
-    if (dishSteps.length > 0) {
-      await tx.recipeInstructionStep.createMany({
-        data: dishSteps.map((s) => ({
-          ...s,
-          // Block 4a piece 2 — carry the amount-ref overlay; a null (legacy/
-          // unwired step) becomes DbNull so the column stays SQL NULL rather than
-          // a literal JSON null (which Prisma rejects on a Json? column).
-          amountRefs:
-            s.amountRefs === null
-              ? Prisma.DbNull
-              : (s.amountRefs as Prisma.InputJsonValue),
-          ownerType: "dish",
-          ownerId: newDish.id,
-        })),
-      });
-    }
   }
 
   // 3. Meal-owned steps (ownerType "meal" — legacy/seed single-dish meals such
@@ -433,4 +343,182 @@ async function cloneMealInto(
   }
 
   return { mealId: newMeal.id };
+}
+
+// ── THX-2S — the per-dish copy, shared ────────────────────────────────────────
+
+/** A source dish as cloneMealInto reads it (scalars + ingredient rows). */
+export type CloneSourceDish = Prisma.DishGetPayload<{ include: { dishIngredients: true } }>;
+
+export interface CloneDishOptions {
+  /** null = a shared-pool dish (the publish-to-store branch of cloneMealInto). */
+  userId: string | null;
+  servingsDefault: number;
+  authoredServingsDefault: number;
+  /**
+   * THX-2S (D-WS9-313) — multiply every ingredient quantity and step amountRef
+   * by this (target servings ÷ source servings). Default 1: the fork copies
+   * verbatim and lets the preserved anchor do the scaling at render.
+   */
+  quantityFactor?: number;
+  /**
+   * THX-2S — also copy the meal-owned steps (ownerType "meal") of this source
+   * meal onto the new DISH, after its own steps. A legacy single-dish catalog
+   * meal keeps its steps on the meal; a dish lifted out of it needs them.
+   */
+  mealOwnedStepsOf?: string;
+}
+
+/** q × factor, kept to 4 decimals (12 × 0.4 is 4.8, not 4.800000000000001). */
+export function scaleQuantity(q: number, factor: number): number {
+  return factor === 1 ? q : Math.round(q * factor * 10_000) / 10_000;
+}
+
+/** A step's amount overlay, each ref's quantity scaled; anything else untouched. */
+export function scaleAmountRefs(refs: unknown, factor: number): unknown {
+  if (factor === 1 || !Array.isArray(refs)) return refs;
+  return refs.map((r) =>
+    r && typeof r === "object" && typeof (r as { quantity?: unknown }).quantity === "number"
+      ? { ...r, quantity: scaleQuantity((r as { quantity: number }).quantity, factor) }
+      : r,
+  );
+}
+
+/**
+ * Deep-copy one dish into a new user-owned dish: the row, its ingredients
+ * (ingredientId refs preserved, fromLeftovers and component tags included) and
+ * its dish-owned steps. Does NOT link it — the caller decides where it goes.
+ */
+export async function cloneDishForUser(
+  tx: Tx,
+  d: CloneSourceDish,
+  opts: CloneDishOptions,
+): Promise<string> {
+  const userId = opts.userId;
+  const factor = opts.quantityFactor ?? 1;
+  const newDish = await tx.dish.create({
+    data: {
+      userId,
+      title: d.title,
+      // WS9 3f-4d Part 1c (D-WS9-123) — carry the parent dish's short display name.
+      displayTitle: d.displayTitle,
+      description: d.description,
+      sourceType: d.sourceType,
+      estimatedTimeMinutes: d.estimatedTimeMinutes,
+      difficulty: d.difficulty,
+      imageUrl: d.imageUrl,
+      // Block 4a piece 1 (D-WS9-047) — mirror the meal: household scale on the
+      // user fork, source copy on write-back; anchor preserved from the source
+      // dish (fall back to its servingsDefault). Meal and dish stay consistent
+      // (the dish-level render path divides by the dish anchor).
+      servingsDefault: opts.servingsDefault,
+      authoredServingsDefault: opts.authoredServingsDefault,
+      tags: d.tags,
+      caloriesPerServing: d.caloriesPerServing,
+      proteinGPerServing: d.proteinGPerServing,
+      carbsGPerServing: d.carbsGPerServing,
+      fatGPerServing: d.fatGPerServing,
+      // D-WS9-050 Phase 2 — the fork copies the macro, so it inherits the
+      // macro's write-time grounding stamp (the number's provenance travels
+      // with the number).
+      macroGroundedPct: d.macroGroundedPct,
+      // Block 3.6 v3 (D-WS9-064) — substitutions MUST survive the fork, or a
+      // catalog meal's convenience swaps vanish the moment it enters a user's
+      // plan. Copied verbatim (Prisma reads Json? as the value or null; a null
+      // is passed through as DbNull so the column stays SQL NULL on the copy).
+      substitutions:
+        d.substitutions === null
+          ? Prisma.DbNull
+          : (d.substitutions as Prisma.InputJsonValue),
+      // Block 3.7 (D-WS9-066 / D-WS7-215) — the component registry and the
+      // per-user selection must survive the fork alongside substitutions, or a
+      // dual-path meal loses the label/order metadata (registry) or the user's
+      // saved "make this easier" choice (selections) on acquire. Same DbNull
+      // discipline: a null Json? column is passed as Prisma.DbNull so it stays
+      // SQL NULL on the copy rather than a literal JSON null (which Prisma
+      // rejects on a Json? column).
+      componentRegistry:
+        d.componentRegistry === null
+          ? Prisma.DbNull
+          : (d.componentRegistry as Prisma.InputJsonValue),
+      componentSelections:
+        d.componentSelections === null
+          ? Prisma.DbNull
+          : (d.componentSelections as Prisma.InputJsonValue),
+      isArchived: false,
+    },
+    select: { id: true },
+  });
+
+  if (d.dishIngredients.length > 0) {
+    await tx.dishIngredient.createMany({
+      data: d.dishIngredients.map((di) => ({
+        dishId: newDish.id,
+        ingredientId: di.ingredientId,
+        quantity: scaleQuantity(di.quantity, factor),
+        unit: di.unit,
+        preparationNote: di.preparationNote,
+        isOptional: di.isOptional,
+        positionIndex: di.positionIndex,
+        // Block 3.7 (D-WS9-066) — component tags travel with the ingredient
+        // (same reason as steps: the bought path's product / the scratch
+        // ingredients it replaces must not silently drop on fork).
+        componentKey: di.componentKey,
+        pathKey: di.pathKey,
+        // THX-2S (D-WS9-311) — every adopted Thanksgiving plan FORKS its
+        // Friday meal; without this the copy would buy a second turkey.
+        fromLeftovers: di.fromLeftovers,
+      })),
+    });
+  }
+
+  // Dish-owned steps (ownerType "dish") → re-owned to the new dish id.
+  const dishSteps = await tx.recipeInstructionStep.findMany({
+    where: { ownerType: "dish", ownerId: d.id },
+    orderBy: { stepIndex: "asc" },
+    select: STEP_COPY_FIELDS,
+  });
+  if (dishSteps.length > 0) {
+    await tx.recipeInstructionStep.createMany({
+      data: dishSteps.map((s) => ({
+        ...s,
+        // Block 4a piece 2 — carry the amount-ref overlay; a null (legacy/
+        // unwired step) becomes DbNull so the column stays SQL NULL rather than
+        // a literal JSON null (which Prisma rejects on a Json? column).
+        amountRefs:
+          s.amountRefs === null
+            ? Prisma.DbNull
+            : (scaleAmountRefs(s.amountRefs, factor) as Prisma.InputJsonValue),
+        ownerType: "dish",
+        ownerId: newDish.id,
+      })),
+    });
+  }
+
+  if (opts.mealOwnedStepsOf) {
+    const mealSteps = await tx.recipeInstructionStep.findMany({
+      where: { ownerType: "meal", ownerId: opts.mealOwnedStepsOf },
+      orderBy: { stepIndex: "asc" },
+      select: STEP_COPY_FIELDS,
+    });
+    const after = await tx.recipeInstructionStep.count({
+      where: { ownerType: "dish", ownerId: newDish.id },
+    });
+    if (mealSteps.length > 0) {
+      await tx.recipeInstructionStep.createMany({
+        data: mealSteps.map((s, i) => ({
+          ...s,
+          stepIndex: after + i,
+          amountRefs:
+            s.amountRefs === null
+              ? Prisma.DbNull
+              : (scaleAmountRefs(s.amountRefs, factor) as Prisma.InputJsonValue),
+          ownerType: "dish",
+          ownerId: newDish.id,
+        })),
+      });
+    }
+  }
+
+  return newDish.id;
 }
