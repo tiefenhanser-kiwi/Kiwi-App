@@ -6,7 +6,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { DisplayTitle, resolveDisplayTitle } from "@/components/DisplayTitle";
 import { FilterChipRow, PLAN_DISCOVERY_FILTER_OPTIONS } from "@/components/FilterChipRow";
@@ -155,6 +155,17 @@ export default function PlansTab() {
     setFilters(next);
     setUiState({ lastPlansFilters: next });
   };
+
+  // BOOK-1C1 — a link INTO a filter (the Cookbook's Thanksgiving collection:
+  // "Five Thanksgiving-week plans are under Featured"). Applied as if the chip
+  // were tapped, each time the param changes.
+  const { filter: filterParam } = useLocalSearchParams<{ filter?: string }>();
+  useEffect(() => {
+    const key = asPlanDiscoveryFilters(filterParam ? [filterParam] : [])[0];
+    if (key) toggleFilter(key);
+    // toggleFilter is recreated every render; the param is the trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterParam]);
 
   // The server already filtered by the selected chip; search + sort run
   // client-side over the result (Ruling C — D-WS7-048 moves these to

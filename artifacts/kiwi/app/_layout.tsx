@@ -159,6 +159,8 @@ function RootLayoutNav() {
       {/* BOOK-1C1 (D-WS9-312) — the in-app Cookbook: a full stack screen, no
           tab bar, entered from the Recipes tab's Cookbook card. */}
       <Stack.Screen name="cookbook" />
+      {/* BOOK-1C1 — a seasonal collection (?tag=), opened from its band. */}
+      <Stack.Screen name="cookbook-season" />
       <Stack.Screen name="grocery-list/[id]" />
       <Stack.Screen name="prep-cook" />
       <Stack.Screen name="preferences" />

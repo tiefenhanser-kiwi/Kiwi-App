@@ -30,6 +30,11 @@ export interface SeasonConfig {
   headline: string;
   /** "N recipes · <this>". */
   blurb: string;
+  /**
+   * The collection view's bottom bar, pointing at the Featured plans; null
+   * for a season with no featured plans of its own (no bar).
+   */
+  featuredNote: string | null;
   /** First day, "MM-DD", inclusive. */
   startsOn: string;
   /** Last day, "MM-DD", inclusive (the window ends at the next midnight). */
@@ -56,6 +61,7 @@ export const SEASONS: readonly SeasonConfig[] = [
     label: "Thanksgiving",
     headline: "Thanksgiving feasts & dishes",
     blurb: "turkeys, sides, pies",
+    featuredNote: "Want the whole week planned? Five Thanksgiving-week plans are under Featured.",
     startsOn: "11-02",
     endsOn: "11-30",
     timeZone: "America/New_York",
@@ -152,6 +158,7 @@ export interface SeasonView {
   label: string;
   headline: string;
   blurb: string;
+  featuredNote: string | null;
   startsAt: string;
   endsAt: string;
   endsOn: string;
@@ -199,6 +206,7 @@ export async function activeSeasons(
         label: s.label,
         headline: s.headline,
         blurb: s.blurb,
+        featuredNote: s.featuredNote,
         startsAt: w.startsAt.toISOString(),
         endsAt: w.endsAt.toISOString(),
         endsOn: w.endsOn,

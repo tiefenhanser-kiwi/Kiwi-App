@@ -60,6 +60,8 @@ export const SeasonSchema = z.object({
   label: z.string(),
   headline: z.string(),
   blurb: z.string(),
+  /** The collection's bottom bar (→ Featured plans); null = no bar. */
+  featuredNote: z.string().nullable().optional(),
   startsAt: z.string(),
   endsAt: z.string(),
   /** The last day, "YYYY-MM-DD" ("until Nov 30"). */

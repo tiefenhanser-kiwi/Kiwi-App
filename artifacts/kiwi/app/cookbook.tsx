@@ -2,7 +2,7 @@
 // stack route, no tab bar), live by November 16.
 //
 // Top to bottom: the header ("Cookbook" / "N meals that fit your allergies"),
-// the search field, the seasonal band (Part C), the chip row (Filters + the
+// the search field, the seasonal band (useSeasonBand), the chip row (Filters + the
 // quick chips), the count and the sort, then the cards (CookbookResults).
 //
 // State lives HERE and nowhere else: the search text (debounced 250 ms, the
@@ -24,9 +24,11 @@ import { Chip } from "@/components/Chip";
 import { CookbookFilterSheet } from "@/components/CookbookFilterSheet";
 import { CookbookResults } from "@/components/CookbookResults";
 import { Header } from "@/components/Header";
+import { SeasonBand } from "@/components/SeasonBand";
 import { SortDropdown } from "@/components/SortDropdown";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { useCookbookCount, useCookbookMeals } from "@/hooks/useCookbook";
+import { useSeasonBand } from "@/hooks/useSeasonBand";
 import { getPreferences, type UserPreferences } from "@/lib/api/me";
 import {
   activeFilterCount,
@@ -65,6 +67,8 @@ export default function CookbookScreen() {
     queryFn: getPreferences,
   });
 
+  const band = useSeasonBand();
+
   const cuisineFacet = results.facets?.cuisines ?? [];
   const quickChips = useMemo(
     () => [...FIXED_QUICK_CHIPS, ...cuisineQuickChips(cuisineFacet, filters.cuisines)],
@@ -98,7 +102,17 @@ export default function CookbookScreen() {
         ) : null}
       </View>
 
-      {/* Part C — the seasonal band sits here. */}
+      {/* Part C — the seasonal band: a promotion that opens its collection,
+          never a filter on this list. */}
+      {band.season ? (
+        <SeasonBand
+          season={band.season}
+          onOpen={() =>
+            router.push({ pathname: "/cookbook-season", params: { tag: band.season!.tag } })
+          }
+          onDismiss={band.dismiss}
+        />
+      ) : null}
 
       <ScrollView
         horizontal
