@@ -78,6 +78,7 @@ import { createRequireAuth } from "../middleware/auth";
 import { rateLimit } from "../lib/rateLimit";
 import { isIssuedBeforeEpoch, redeemPurposeToken } from "../lib/tokenRevocation";
 import { getTopRatedSettings } from "../lib/topRated";
+import { everydayPoolWhere } from "../lib/store/storeShortlist";
 import {
   clampLimit,
   decodeKeysetCursor,
@@ -2353,7 +2354,9 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
           // weighted counter sum, capped at top_rated.display_count.
           const settings = await getTopRatedSettings(prisma);
           const rows = await prisma.meal.findMany({
-            where: { isPublic: true, isArchived: false },
+            // THX-2S — swap suggestions and Add Meals read this list: the
+            // everyday pool, so theme (Thanksgiving) meals stay off it.
+            where: { isPublic: true, isArchived: false, ...everydayPoolWhere() },
             select: {
               ...MEAL_LIST_SELECT_SORTED,
               saveCount: true,

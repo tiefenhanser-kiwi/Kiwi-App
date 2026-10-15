@@ -34,6 +34,7 @@ import { isMealReadableByUser } from "../lib/mealVisibility";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
 import { selectDefaultPathSteps } from "../lib/cookingScheduler";
+import { everydayPoolWhere } from "../lib/store/storeShortlist";
 import { hasUnmatchedAmount, type AmountRef } from "../lib/stepAmountRefs";
 import {
   subscriptionService as productionSubscriptionService,
@@ -860,7 +861,8 @@ export function createMealsRouter(
 
     try {
       const meals = await prisma.meal.findMany({
-        where: { isArchived: false, isPublic: true },
+        // THX-2S — the everyday catalog list; theme meals live in the Cookbook.
+        where: { isArchived: false, isPublic: true, ...everydayPoolWhere() },
         // BUG-068 — this inline select predated Part 1c and silently dropped
         // displayTitle / description / authoredServingsDefault (toListShape read
         // them as undefined → null via .map() parameter bivariance, so tsc never

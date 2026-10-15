@@ -158,6 +158,22 @@ export interface BuildStoreShortlistOptions {
 // one — a 90-minute braise on a 30-minute shelf is not what "mostly" means.
 export const MOST_COVERAGE_OVERAGE_MINUTES = 20;
 
+// THX-2S (D-WS9-311 / D-WS9-313) — theme tags that keep a public meal OFF the
+// everyday pool: the weekly shelf, the wizard's candidate meals, swap
+// suggestions (GET /me/meals top_rated) and the GET /meals catalog list. A
+// Thanksgiving dish must never land in an ordinary Tuesday plan. The Cookbook
+// search (lib/cookbook/search.ts) is NOT an everyday pool and keeps showing
+// them; so do the user's own picks (playlist, a stored shelf re-read).
+//
+// 🔴 The NAME is a contract: scripts/thx2/approve.ts imports this export and
+// refuses to make a Thanksgiving meal public unless it contains "thanksgiving".
+export const EVERYDAY_SHELF_EXCLUDED_TAGS: readonly string[] = ["thanksgiving"];
+
+/** The Prisma fragment every everyday-pool reader spreads into its where. */
+export function everydayPoolWhere(): Prisma.MealWhereInput {
+  return { NOT: { tags: { hasSome: [...EVERYDAY_SHELF_EXCLUDED_TAGS] } } };
+}
+
 // Difficulty tiers, ordered. The user's skill sets a HARD ceiling one tier above
 // their level (a beginner gets easy+medium, never fancy — a too-hard meal reads as
 // "this app makes cooking hard" and churns; a mild stretch reads as a pleasant
@@ -245,6 +261,8 @@ export async function buildStoreShortlist(
     isPublic: true,
     isArchived: false,
     mealType: "dinner",
+    // THX-2S — theme meals (Thanksgiving) stay off the everyday shelf.
+    ...everydayPoolWhere(),
     // Hard difficulty ceiling — one tier above the user's skill (D-WS9-075).
     difficulty: { in: allowedLevels },
     ...(opts.excludeMealIds && opts.excludeMealIds.length > 0

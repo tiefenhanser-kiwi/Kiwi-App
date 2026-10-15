@@ -43,6 +43,7 @@ import {
   reconcileStoreSlots,
 } from "../lib/store/storeShortlist";
 import { addPlaylistToShelf, retrieveShelf } from "../lib/store/shelf";
+import { everydayPoolWhere } from "../lib/store/storeShortlist";
 import { composeShelf, shelfRemainderFor } from "../lib/store/shelfCompose";
 import { MEAL_CARD_SELECT, toMealCard } from "../lib/store/mealCard";
 import { servedCatalogIds } from "../lib/store/newToYou";
@@ -170,6 +171,27 @@ export const GUEST_PICKS_WHY_BULLET = "The meals you picked, as a week.";
  * dietaryNotes, additionalNotes — ride in the stored blob for the claim.
  * `wantsLeftovers` is stamped false (D-WS7-190: inert), whatever was sent.
  */
+/**
+ * The catalog rows a dish NAMED in the user's text is matched against (the
+ * wizard's explicit-meal candidates). THX-2S — from the everyday pool only:
+ * "turkey" in a March request does not pull the Thanksgiving turkey.
+ */
+export function explicitMealCandidatesWhere(
+  names: string[],
+  allergenConditions: Prisma.MealWhereInput[],
+): Prisma.MealWhereInput {
+  return {
+    isPublic: true,
+    isArchived: false,
+    mealType: "dinner",
+    ...everydayPoolWhere(),
+    OR: names.map((n) => ({
+      title: { contains: n, mode: "insensitive" as const },
+    })),
+    ...(allergenConditions.length > 0 ? { AND: allergenConditions } : {}),
+  };
+}
+
 export function guestPicksExpandContext(
   answers: Omit<WizardInput, "hiddenContext">,
 ): WizardExpandRequest["candidateContext"] {
@@ -1188,17 +1210,7 @@ export function createWizardRouter(
             .filter((n) => n.length > 0);
           if (names.length > 0) {
             const candidates = await prisma.meal.findMany({
-              where: {
-                isPublic: true,
-                isArchived: false,
-                mealType: "dinner",
-                OR: names.map((n) => ({
-                  title: { contains: n, mode: "insensitive" as const },
-                })),
-                ...(allergenConditions.length > 0
-                  ? { AND: allergenConditions }
-                  : {}),
-              },
+              where: explicitMealCandidatesWhere(names, allergenConditions),
               select: { id: true, title: true, dishFamilyKey: true },
               take: 200,
             });
