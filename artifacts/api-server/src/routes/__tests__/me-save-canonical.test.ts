@@ -1975,3 +1975,47 @@ describe("WS7-8 BUG-003 keystone: two scalar promotes stay drift-free", () => {
     }
   });
 });
+
+// ── BUG-408 / THX-2S Part D — a meal holds up to 8 dishes ──────────────
+
+describe("BUG-408: dish cap 8 on POST and PATCH /me/meals", () => {
+  const dishes = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      kind: "new",
+      title: `Dish ${i + 1}`,
+      role: i === 0 ? "main" : "side",
+      positionIndex: i,
+      ingredients: [{ name: `Ingredient ${i + 1}`, quantity: 1, unit: "cup" }],
+      steps: [{ text: "Cook it." }],
+    }));
+
+  it("POST with 8 dishes saves all 8 (was a 400 at 6)", async () => {
+    const { prisma, captured } = makeStub();
+    const harness = await spinUp(prisma);
+    try {
+      const res = await authPost(harness, "/me/meals", { title: "Feast", dishes: dishes(8) });
+      assert.equal(res.status, 201);
+      assert.equal(captured.linkCreates.length, 8);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("POST and PATCH with 9 dishes are refused (400)", async () => {
+    const { prisma, captured } = makeStub();
+    const harness = await spinUp(prisma);
+    try {
+      const post = await authPost(harness, "/me/meals", { title: "Too many", dishes: dishes(9) });
+      assert.equal(post.status, 400);
+      const patch = await fetch(`${harness.baseUrl}/me/meals/meal-x`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json", Authorization: `Bearer ${signToken(USER_ID)}` },
+        body: JSON.stringify({ dishes: dishes(9) }),
+      });
+      assert.equal(patch.status, 400);
+      assert.equal(captured.mealCreates.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+});

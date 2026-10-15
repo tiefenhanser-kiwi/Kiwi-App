@@ -207,7 +207,9 @@ export const ParsedMealSchema = z.object({
   servingsDefault: z.number().int().positive().max(99),
   difficulty: MealDifficultySchema,
   tags: z.array(z.string().min(1).max(40)).max(5),
-  subDishes: z.array(ParsedSubDishSchema).min(1).max(5),
+  // BUG-408 — 8, matching POST /me/meals (MAX_DISHES_PER_MEAL) and the import.
+  // The prompt body still asks for "1 to 5 entries" (a prompt version owed).
+  subDishes: z.array(ParsedSubDishSchema).min(1).max(8),
 });
 export type ParsedMeal = z.infer<typeof ParsedMealSchema>;
 

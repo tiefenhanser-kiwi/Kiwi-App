@@ -520,6 +520,11 @@ const linkDishSchema = z
   })
   .strict();
 
+// BUG-408 / THX-2S (D-WS9-311) — the most dishes one meal may hold: the same
+// 8 the recipe import already parses (reformat.ts), and a Thanksgiving feast's
+// size. Was 5, so a 6–8 dish import parsed and then 400'd at save.
+export const MAX_DISHES_PER_MEAL = 8;
+
 const dishEntrySchema = z.discriminatedUnion("kind", [
   newDishSchema,
   linkDishSchema,
@@ -543,7 +548,7 @@ const postMeMealSchema = z
     tags: z.array(z.string().min(1).max(40)).max(10).optional(),
     sourceType: z.enum(["manual", "wizard", "directed", "curated"]).optional(),
     macros: macrosPerServingSchema.optional(),
-    dishes: z.array(dishEntrySchema).min(1).max(5),
+    dishes: z.array(dishEntrySchema).min(1).max(MAX_DISHES_PER_MEAL),
   })
   .strict();
 
@@ -597,7 +602,7 @@ const patchMeMealSchema = z
     difficulty: z.enum(["easy", "medium", "fancy"]).optional(),
     tags: z.array(z.string().min(1).max(40)).max(10).optional(),
     macros: macrosPerServingSchema.optional(),
-    dishes: z.array(dishEntrySchema).min(1).max(5).optional(),
+    dishes: z.array(dishEntrySchema).min(1).max(MAX_DISHES_PER_MEAL).optional(),
     // WS7-7-A Block 5 (D2) — "apply every time" from inside a plan. When set,
     // bump THIS plan instance's revisionId in the same transaction as the meal
     // edit so the current plan's grocery list reconciles to the edited global
