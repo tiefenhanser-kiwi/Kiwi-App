@@ -38,9 +38,23 @@
 // IDEMPOTENT: a second dry run after an apply reports zero changes.
 // Undo: revertFeaturedTemplates.ts (takes featured-* off the rail; the seeds
 // stay retired).
+//
+// THX-2S (D-WS9-311) — the Thanksgiving fields, all optional (an everyday spec
+// writes exactly what it wrote before):
+//   - per plan: `anchorDate` ("YYYY-MM-DD" → MealPlanTemplate.anchorDate) and
+//     the featuring window `featuredFrom` / `featuredUntil` (zoned ISO
+//     instants → featuredStartDate / featuredEndDate); a dated plan must name a
+//     featuredUntil no later than the end of its anchor day (UTC−10);
+//   - per day: `servingsOverride` (→ MealPlanTemplateItem.servingsOverride) and
+//     `thx2Key` in place of `mealId` (resolved like scripts/thx2/: the
+//     batch_generated meal whose dishFamilyKey is the key);
+//   - `--spec <path>` reads another spec file (default featured-plans.json).
+//     ⚠️ railPosition is the plan's index in ITS spec: put the Thanksgiving
+//     plans and the everyday five in ONE spec (Thanksgiving 1–5, everyday
+//     6–10), or the two files' positions collide.
 
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve as resolvePath } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { PrismaClient, type Prisma } from "@prisma/client";
@@ -56,9 +70,12 @@ import {
   desiredItems,
   desiredTemplate,
   fieldChanges,
+  resolveThx2Keys,
   sameItems,
   templateIdFor,
+  thx2KeysOf,
   validateSpec,
+  validateThanksgivingFields,
   type ItemFields,
   type Spec,
   type TemplateFields,
@@ -100,7 +117,35 @@ async function main(): Promise<void> {
     say();
 
     // ── 1. the spec ───────────────────────────────────────────────────────
-    const spec = JSON.parse(readFileSync(join(HERE, "featured-plans.json"), "utf8")) as Spec;
+    const specArg = process.argv.indexOf("--spec");
+    const specPath =
+      specArg >= 0 && process.argv[specArg + 1]
+        ? resolvePath(process.argv[specArg + 1])
+        : join(HERE, "featured-plans.json");
+    say(`spec file: ${specPath}`);
+    const rawSpec = JSON.parse(readFileSync(specPath, "utf8")) as Spec;
+
+    // THX-2S — the Thanksgiving fields first, then every thx2Key resolved to
+    // its meal id, so the THX-1 checks below see ordinary mealIds.
+    const thxErrors = validateThanksgivingFields(rawSpec);
+    const keys = Array.isArray(rawSpec.plans) ? thx2KeysOf(rawSpec) : [];
+    const keyed = keys.length
+      ? await prisma.meal.findMany({
+          where: { sourceType: "batch_generated", dishFamilyKey: { in: keys } },
+          select: { id: true, dishFamilyKey: true },
+        })
+      : [];
+    const idByKey = new Map(keyed.map((m) => [m.dishFamilyKey as string, m.id]));
+    const resolved = thxErrors.length ? { spec: rawSpec, errors: [] } : resolveThx2Keys(rawSpec, idByKey);
+    const spec = resolved.spec;
+    say(`check: Thanksgiving fields — ${keys.length} thx2 key(s), ${idByKey.size} resolved; ${thxErrors.length + resolved.errors.length ? `${thxErrors.length + resolved.errors.length} error(s)` : "valid"}`);
+    for (const k of keys) say(`  ${k} -> ${idByKey.get(k) ?? "(not on this database)"}`);
+    if (thxErrors.length || resolved.errors.length) {
+      for (const e of [...thxErrors, ...resolved.errors]) say(`  ✗ ${e}`);
+      say("\nABORT: the spec's Thanksgiving fields are invalid. Nothing was written.");
+      process.exitCode = 1;
+      return;
+    }
     const specErrors = validateSpec(spec);
     say(`check: spec — ${spec.plans?.length ?? 0} plans, ${specErrors.length ? `${specErrors.length} error(s)` : "valid (titles ≤ 42, five Mon–Fri days, no meal in two plans)"}`);
     if (specErrors.length) {
@@ -197,10 +242,14 @@ async function main(): Promise<void> {
       if (tp.create) say(`  CREATE  ${fieldChanges(null, tp.want).join("; ")}`);
       else if (tp.changes.length) say(`  UPDATE  ${tp.changes.join("; ")}`);
       else say("  row unchanged");
+      if (tp.want.anchorDate || tp.want.featuredStartDate || tp.want.featuredEndDate) {
+        say(`  anchor ${tp.want.anchorDate?.toISOString().slice(0, 10) ?? "none"} · featured ${tp.want.featuredStartDate?.toISOString() ?? "open"} .. ${tp.want.featuredEndDate?.toISOString() ?? "open"}`);
+      }
       say(`  items: ${tp.replaceItems ? "REPLACE with" : "unchanged —"}`);
       for (const it of tp.items) {
         const m = mealById.get(it.mealId)!;
-        say(`    ${it.assignedDayOfWeek?.padEnd(9)} dinner  ${m.id}  ${m.title}  [${m.cuisineType ?? "?"} · ${m.estimatedTimeMinutes} min · ${Math.round(m.caloriesPerServing)} kcal]`);
+        const servings = it.servingsOverride != null ? `  ×${it.servingsOverride} servings` : "";
+        say(`    ${it.assignedDayOfWeek?.padEnd(9)} dinner  ${m.id}  ${m.title}  [${m.cuisineType ?? "?"} · ${m.estimatedTimeMinutes} min · ${Math.round(m.caloriesPerServing)} kcal]${servings}`);
       }
     }
 

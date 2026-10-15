@@ -15,8 +15,10 @@ import {
   desiredItems,
   desiredTemplate,
   fieldChanges,
+  resolveThx2Keys,
   sameItems,
   validateSpec,
+  validateThanksgivingFields,
   type MealCheckRow,
   type Spec,
   type SpecPlan,
@@ -211,5 +213,93 @@ describe("idempotence helpers", () => {
     assert.equal(sameItems([...items].reverse(), items), true);
     assert.equal(sameItems(items.slice(1), items), false);
     assert.equal(sameItems(items.map((i, k) => (k === 0 ? { ...i, mealId: "zz" } : i)), items), false);
+  });
+});
+
+// ── THX-2S — the Thanksgiving fields ─────────────────────────────────────────
+
+const THX_UNTIL = "2026-11-27T09:59:59Z"; // end of Thursday 26th in Hawaii
+
+function thxPlan(over: Partial<SpecPlan> = {}): SpecPlan {
+  return plan("thanksgiving-classic", FIVE, { anchorDate: "2026-11-26", featuredFrom: "2026-11-02T05:00:00Z", featuredUntil: THX_UNTIL, ...over });
+}
+
+describe("validateThanksgivingFields", () => {
+  it("accepts a dated plan with a zoned window that ends on the anchor day", () => {
+    assert.deepEqual(validateThanksgivingFields({ plans: [thxPlan()] }), []);
+  });
+
+  it("an everyday plan (no new fields) is untouched", () => {
+    assert.deepEqual(validateThanksgivingFields({ plans: [plan("family-favorites", FIVE)] }), []);
+  });
+
+  it("refuses a bare-date window, an anchor without featuredUntil, and a window that outlives the anchor", () => {
+    const errs = validateThanksgivingFields({
+      plans: [
+        thxPlan({ slug: "a", featuredUntil: "2026-11-26" }),
+        thxPlan({ slug: "b", featuredUntil: undefined }),
+        thxPlan({ slug: "c", featuredUntil: "2026-11-27T10:00:01Z" }),
+        thxPlan({ slug: "d", anchorDate: "2026-11-31" }),
+      ],
+    });
+    assert.equal(errs.length, 4, errs.join("\n"));
+    assert.match(errs[0], /"a": featuredUntil must be a zoned ISO instant/);
+    assert.match(errs[1], /"b": a dated plan needs featuredUntil/);
+    assert.match(errs[2], /"c": featuredUntil .* outlives the anchor/);
+    assert.match(errs[3], /"d": anchorDate must be YYYY-MM-DD/);
+  });
+
+  it("refuses mealId AND thx2Key, a non-thx2 key, and servings outside 1–30", () => {
+    const p = thxPlan();
+    p.days[0] = { day: "Monday", mealId: "m1", thx2Key: "thx2-feast-classic" };
+    p.days[1] = { day: "Tuesday", mealId: "", thx2Key: "feast-classic" };
+    p.days[3] = { day: "Thursday", mealId: "m4", servingsOverride: 0 };
+    const errs = validateThanksgivingFields({ plans: [p] });
+    assert.equal(errs.length, 3, errs.join("\n"));
+  });
+});
+
+describe("resolveThx2Keys", () => {
+  it("fills mealId from the key and reports a key that is not on the database", () => {
+    const p = thxPlan();
+    p.days[3] = { day: "Thursday", mealId: "", thx2Key: "thx2-feast-classic", servingsOverride: 10 };
+    p.days[4] = { day: "Friday", mealId: "", thx2Key: "thx2-friday-classic" };
+    const out = resolveThx2Keys({ plans: [p] }, new Map([["thx2-feast-classic", "aa18dc39"]]));
+    assert.equal(out.spec.plans[0].days[3].mealId, "aa18dc39");
+    assert.equal(out.spec.plans[0].days[3].servingsOverride, 10);
+    assert.deepEqual(out.errors, ['"thanksgiving-classic" Friday: thx2Key thx2-friday-classic is not on this database']);
+    assert.equal(p.days[3].mealId, "", "the input spec is not mutated");
+  });
+});
+
+describe("desired rows carry the Thanksgiving fields", () => {
+  it("anchor, window and per-item servings; an everyday plan stays all-null (zero diff)", () => {
+    const p = thxPlan();
+    p.days[3] = { ...p.days[3], servingsOverride: 10 };
+    const t = desiredTemplate(p, 0, null);
+    assert.equal(t.anchorDate?.toISOString(), "2026-11-26T00:00:00.000Z");
+    assert.equal(t.featuredStartDate?.toISOString(), "2026-11-02T05:00:00.000Z");
+    assert.equal(t.featuredEndDate?.toISOString(), "2026-11-27T09:59:59.000Z");
+    assert.deepEqual(desiredItems(p).map((i) => i.servingsOverride), [null, null, null, 10, null]);
+
+    const everyday = desiredTemplate(plan("family-favorites", FIVE), 0, null);
+    assert.equal(everyday.anchorDate, null);
+    assert.deepEqual(fieldChanges({ ...everyday }, everyday), []);
+  });
+
+  it("sameItems sees a servings change", () => {
+    const p = thxPlan();
+    const before = desiredItems(p);
+    p.days[3] = { ...p.days[3], servingsOverride: 10 };
+    assert.equal(sameItems(before, desiredItems(p)), false);
+  });
+});
+
+describe("checkMeals — the cuisine cap in a dated plan", () => {
+  it("exempts Thursday and Friday in a dated plan only", () => {
+    const rows = FIVE.map((id, i) => meal(id, { cuisineType: i >= 2 ? "american" : `c${i}` }));
+    // Wed + Thu + Fri american: 3 in an everyday plan, 1 counted in a dated one.
+    assert.equal(checkMeals({ plans: [plan("x", FIVE)] }, rows).length, 1);
+    assert.deepEqual(checkMeals({ plans: [thxPlan()] }, rows), []);
   });
 });
