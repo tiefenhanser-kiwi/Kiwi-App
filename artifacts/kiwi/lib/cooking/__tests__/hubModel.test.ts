@@ -369,6 +369,11 @@ test("buildPrepCookHubModel: a plan with makeAhead gets the card, and the feast 
   });
   const model = buildPrepCookHubModel(detail, "Sunday");
   assert.equal(model.makeAhead?.title, "Thanksgiving make-ahead");
+  // PREP-1 F — no feastPlanItemId on the wire: the feast's own plan item is found by meal.
+  assert.equal(buildPrepCookHubModel(
+    plan({ ...detail, makeAhead: { ...detail.makeAhead!, rows: [{ kind: "make", dayName: "Monday", date: null, daysBefore: 3, mealId: "m-feast", dishId: "d", dishName: "Cranberry" }] }, items: [item({ id: "item-feast", mealId: "m-feast" })] }),
+    "Sunday",
+  ).makeAhead?.days[0].rows[0].planItemId, "item-feast");
   assert.deepEqual(model.meals.map((m) => m.prepSelectable), [true, false]);
 });
 

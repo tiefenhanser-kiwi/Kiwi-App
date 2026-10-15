@@ -35,7 +35,7 @@ import type {
   PrepCookHubModel,
   PromotablePlan,
 } from "@/lib/cooking/hubModel";
-import { PREP_THE_FEAST_LABEL } from "@/lib/cooking/makeAheadModel";
+import { PREP_THE_FEAST_LABEL, type MakeAheadRowVM } from "@/lib/cooking/makeAheadModel";
 
 interface Props {
   model: HubModel;
@@ -51,8 +51,8 @@ interface Props {
   onSelectMeal: (mealId: string, planItemId: string) => void;
   /** PREP-1 — "Prep the feast": Week Prep over the feast meal's own session. */
   onPrepFeast: () => void;
-  /** PREP-1 — a make-ahead row's recipe (the dish). */
-  onOpenRecipe: (dishId: string) => void;
+  /** PREP-1 — a make-ahead row's recipe (the feast meal, at the plan's servings). */
+  onOpenRecipe: (row: MakeAheadRowVM) => void;
   /** Empty-state nudge: no plan this week → make one. */
   onMakePlan: () => void;
   /** Empty-state: promote an existing plan to "this week" (one tap). */
@@ -279,7 +279,7 @@ function Hub({
   selectedMealIds: ReadonlySet<string>;
   onSelectMeal: (mealId: string, planItemId: string) => void;
   onPrepFeast: () => void;
-  onOpenRecipe: (dishId: string) => void;
+  onOpenRecipe: (row: MakeAheadRowVM) => void;
 }) {
   const { indicator } = model;
   const indicatorTone = TONE_STYLE[indicator.tone];
@@ -439,7 +439,7 @@ function Hub({
                   {day.rows.map((row) => (
                     <Pressable
                       key={row.key}
-                      onPress={() => onOpenRecipe(row.dishId)}
+                      onPress={() => onOpenRecipe(row)}
                       accessibilityRole="link"
                       accessibilityLabel={`${row.title}, ${row.note}. Open the recipe.`}
                       style={({ pressed }) => [s.mealRow, pressed && { opacity: 0.9 }]}

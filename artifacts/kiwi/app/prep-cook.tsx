@@ -36,6 +36,7 @@ import {
   type HubModel,
 } from "@/lib/cooking/hubModel";
 import { DAY_OF_WEEK_VALUES } from "@/lib/plans/dayOfWeek";
+import { makeAheadRecipeRoute, type MakeAheadRowVM } from "@/lib/cooking/makeAheadModel";
 import { Colors, Spacing, Typography } from "@/constants/tokens";
 
 export default function PrepCook() {
@@ -145,9 +146,9 @@ export default function PrepCook() {
       params: { mode: "prep-week", planId: resolvedId, session: "feast" },
     });
 
-  // PREP-1 — a make-ahead row opens its dish's recipe.
-  const goRecipe = (dishId: string) =>
-    router.push({ pathname: "/dish/[id]", params: { id: dishId } });
+  // PREP-1 F — a make-ahead row opens the feast meal in plan context, so its
+  // recipes read at the plan's servings (×10), not the dish's default.
+  const goRecipe = (row: MakeAheadRowVM) => router.push(makeAheadRecipeRoute(resolvedId, row));
 
   const goMakePlan = () => router.push("/wizard");
 

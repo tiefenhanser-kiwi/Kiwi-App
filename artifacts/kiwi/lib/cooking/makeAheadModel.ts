@@ -15,9 +15,11 @@ export const FEAST_HAS_OWN_PREP_LINE = "The feast has its own prep. See Thanksgi
 
 export interface MakeAheadRowVM {
   key: string;
-  /** The recipe link. */
+  /** The dish the row is about (meal detail has no per-dish anchor to scroll to). */
   dishId: string;
+  /** The recipe link: the feast meal, opened in plan context. */
   mealId: string;
+  planItemId: string | null;
   title: string;
   note: string;
 }
@@ -67,7 +69,24 @@ export function makeAheadNote(row: MakeAheadRow): string {
   }
 }
 
-export function buildMakeAheadCard(m: MakeAhead): MakeAheadCardVM {
+/**
+ * PREP-1 F — where a make-ahead row goes: the FEAST MEAL's detail in plan context,
+ * so every recipe in it reads at the plan's servings (the ×10 the feast is cooked
+ * for). The dish screen reads the dish's own default — 4 — and a cook following it
+ * makes too little. Without a plan item (an older server) it is the meal alone.
+ */
+export function makeAheadRecipeRoute(
+  planId: string,
+  row: Pick<MakeAheadRowVM, "mealId" | "planItemId">,
+): { pathname: "/meal/[id]"; params: { id: string; planId?: string; planItemId?: string } } {
+  return row.planItemId && planId
+    ? { pathname: "/meal/[id]", params: { id: row.mealId, planId, planItemId: row.planItemId } }
+    : { pathname: "/meal/[id]", params: { id: row.mealId } };
+}
+
+/** `planItemId` — the feast's plan item when the server did not send it. */
+export function buildMakeAheadCard(m: MakeAhead, planItemId: string | null = null): MakeAheadCardVM {
+  const itemId = m.feastPlanItemId ?? planItemId;
   const out: MakeAheadDayVM[] = [];
   for (const row of m.rows) {
     const night = row.kind === "brine";
@@ -82,6 +101,7 @@ export function buildMakeAheadCard(m: MakeAhead): MakeAheadCardVM {
       key: `${row.kind}-${row.dishId}`,
       dishId: row.dishId,
       mealId: row.mealId,
+      planItemId: itemId,
       title: row.dishName,
       note: makeAheadNote(row),
     });

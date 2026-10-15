@@ -144,6 +144,9 @@ const MakeAheadRowSchema = z.object({
 });
 export const MakeAheadSchema = z.object({
   feastMealId: z.string(),
+  // PREP-1 F — the feast's plan item: a row opens the feast meal in plan context.
+  // Optional so a server without it still parses (the Hub falls back to the items).
+  feastPlanItemId: z.string().nullable().optional(),
   feastDayName: z.string(),
   feastDate: z.string().nullable(),
   rows: z.array(MakeAheadRowSchema),

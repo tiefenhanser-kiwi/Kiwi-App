@@ -28,10 +28,11 @@ describe("PREP-1 Part C — the make-ahead schedule", () => {
   it("a Monday-start plan, the feast on Thursday: literal rows, in day order", () => {
     const s = buildMakeAheadSchedule({
       startDate: new Date("2026-11-23T00:00:00Z"),
-      feast: { mealId: FEAST, assignedDayOfWeek: "Thursday", dishes: DISHES },
+      feast: { mealId: FEAST, planItemId: "item-thu", assignedDayOfWeek: "Thursday", dishes: DISHES },
     });
     assert.deepEqual(s, {
       feastMealId: FEAST,
+      feastPlanItemId: "item-thu",
       feastDayName: "Thursday",
       feastDate: "2026-11-26",
       rows: [

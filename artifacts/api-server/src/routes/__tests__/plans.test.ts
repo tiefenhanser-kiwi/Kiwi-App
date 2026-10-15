@@ -1698,6 +1698,7 @@ describe("GET /plans/:id — composite Plan Review", () => {
         const plan = await getPlan(harness);
         assert.deepEqual(plan.makeAhead, {
           feastMealId: "meal-feast",
+          feastPlanItemId: "it-thu",
           feastDayName: "Thursday",
           feastDate: "2026-11-26",
           rows: [

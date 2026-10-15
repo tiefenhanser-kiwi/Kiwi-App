@@ -1,0 +1,398 @@
+{
+  "fingerprint": "270623c3932d03991b01ec4165a4c31f3a9fa87ecae3cdd7683512f8ec1482fb",
+  "narrationInput": {
+    "planName": "PREP-1 regression week",
+    "dishSteps": {
+      "Chicken Stir Fry": [
+        "Dice the onion and mince the garlic.",
+        "Trim the chicken thighs and cut them into 1-inch pieces.",
+        "Sear the chicken, then add the onion, garlic, cumin, paprika and coriander and cook 5 minutes.",
+        "Top with the diced avocado."
+      ],
+      "Garlic Pork Chops": [
+        "Trim the pork chops.",
+        "Sear the chops with the garlic.",
+        "Rub the minced garlic over the trimmed chops."
+      ],
+      "Garlic Rice": [
+        "Cook the rice with the garlic.",
+        "Scatter the green onions and the cherry tomatoes over the rice."
+      ]
+    },
+    "steps": [
+      {
+        "stepId": "seasonings_dry#1",
+        "phase": "seasonings_dry",
+        "isBlend": true,
+        "components": [
+          {
+            "ingredientName": "ground cumin",
+            "measures": [
+              {
+                "amount": "1 tsp",
+                "forDish": "Chicken Stir Fry",
+                "dishRole": "main",
+                "destination": "Chicken Stir Fry spice blend"
+              }
+            ]
+          },
+          {
+            "ingredientName": "smoked paprika",
+            "measures": [
+              {
+                "amount": "1 tsp",
+                "forDish": "Chicken Stir Fry",
+                "dishRole": "main",
+                "destination": "Chicken Stir Fry spice blend"
+              }
+            ]
+          },
+          {
+            "ingredientName": "ground coriander",
+            "measures": [
+              {
+                "amount": "1 tsp",
+                "forDish": "Chicken Stir Fry",
+                "dishRole": "main",
+                "destination": "Chicken Stir Fry spice blend"
+              }
+            ]
+          }
+        ],
+        "relevantDishes": [
+          "Chicken Stir Fry"
+        ],
+        "bowlName": "Chicken Stir Fry spice blend",
+        "openingClause": "Into the Chicken Stir Fry spice blend:"
+      },
+      {
+        "stepId": "produce#2",
+        "phase": "produce",
+        "isBlend": false,
+        "components": [
+          {
+            "ingredientName": "garlic cloves",
+            "preparationNote": "minced",
+            "measures": []
+          }
+        ],
+        "portionsByApp": {
+          "food": "garlic cloves",
+          "total": "6 cloves",
+          "cuts": [],
+          "portionCount": 3
+        },
+        "relevantDishes": [
+          "Chicken Stir Fry",
+          "Garlic Pork Chops",
+          "Garlic Rice"
+        ]
+      },
+      {
+        "stepId": "produce#3",
+        "phase": "produce",
+        "isBlend": false,
+        "components": [
+          {
+            "ingredientName": "yellow onion",
+            "preparationNote": "diced",
+            "measures": []
+          }
+        ],
+        "portionsByApp": {
+          "food": "yellow onion",
+          "total": "1 yellow onion",
+          "cuts": [],
+          "portionCount": 1
+        },
+        "relevantDishes": [
+          "Chicken Stir Fry"
+        ]
+      },
+      {
+        "stepId": "produce#5",
+        "phase": "produce",
+        "isBlend": false,
+        "components": [
+          {
+            "ingredientName": "green onions",
+            "preparationNote": "thinly sliced",
+            "measures": []
+          }
+        ],
+        "portionsByApp": {
+          "food": "green onions",
+          "total": "4 green onions",
+          "cuts": [],
+          "portionCount": 1
+        },
+        "relevantDishes": [
+          "Garlic Rice"
+        ]
+      },
+      {
+        "stepId": "proteins#1",
+        "phase": "proteins",
+        "isBlend": false,
+        "components": [
+          {
+            "ingredientName": "boneless skinless chicken thighs",
+            "preparationNote": "trimmed and cut into 1-inch pieces",
+            "measures": [
+              {
+                "amount": "1½ lb",
+                "forDish": "Chicken Stir Fry",
+                "dishRole": "main",
+                "preparationNote": "trimmed and cut into 1-inch pieces"
+              }
+            ]
+          }
+        ],
+        "relevantDishes": [
+          "Chicken Stir Fry"
+        ],
+        "knifeVerbs": [
+          "trim"
+        ]
+      },
+      {
+        "stepId": "proteins#2",
+        "phase": "proteins",
+        "isBlend": false,
+        "components": [
+          {
+            "ingredientName": "pork chops",
+            "preparationNote": "trimmed",
+            "measures": [
+              {
+                "amount": "1 lb",
+                "forDish": "Garlic Pork Chops",
+                "dishRole": "main",
+                "preparationNote": "trimmed"
+              }
+            ]
+          }
+        ],
+        "relevantDishes": [
+          "Garlic Pork Chops"
+        ],
+        "knifeVerbs": [
+          "trim"
+        ]
+      },
+      {
+        "stepId": "proteins#3",
+        "phase": "proteins",
+        "isBlend": false,
+        "components": [
+          {
+            "ingredientName": "flank steak",
+            "preparationNote": "trimmed",
+            "measures": [
+              {
+                "amount": "1½ lb",
+                "forDish": "Steak Night",
+                "dishRole": "main",
+                "preparationNote": "trimmed"
+              }
+            ]
+          }
+        ],
+        "relevantDishes": [],
+        "knifeVerbs": [
+          "trim"
+        ]
+      }
+    ]
+  },
+  "result": {
+    "totalEstimatedMinutes": 21,
+    "phases": [
+      {
+        "phase": "seasonings_dry",
+        "title": "Dry ingredients",
+        "skippable": true,
+        "steps": [
+          {
+            "number": 1,
+            "stepKey": "cnt#seas#d1111111-1111-4111-8111-111111111111|s:2|A",
+            "title": "Title seasonings_dry#1",
+            "instructions": "Do seasonings_dry#1.",
+            "estimatedMinutes": 2,
+            "contributesToMealIds": [
+              "11111111-1111-4111-8111-111111111111"
+            ],
+            "containerId": "d1111111-1111-4111-8111-111111111111|s:2|A",
+            "containerNames": [
+              "Chicken Stir Fry spice blend"
+            ],
+            "storageNote": "Airtight at room temperature — it keeps for weeks."
+          }
+        ]
+      },
+      {
+        "phase": "produce",
+        "title": "Produce",
+        "skippable": false,
+        "steps": [
+          {
+            "number": 1,
+            "stepKey": "produce#wash-all",
+            "title": "Wash and dry all the produce",
+            "instructions": "Wash and dry everything you are about to cut. One pass now keeps the board dry and the knife work clean.",
+            "estimatedMinutes": 3,
+            "contributesToMealIds": [
+              "11111111-1111-4111-8111-111111111111",
+              "22222222-2222-4222-8222-222222222222",
+              "33333333-3333-4333-8333-333333333333"
+            ],
+            "holdsNoContainer": true
+          },
+          {
+            "number": 2,
+            "stepKey": "produce#a0000000-0000-4000-8000-000000000001",
+            "title": "Title produce#2",
+            "instructions": "Do produce#2.\n3 cloves for Chicken Stir Fry — into the shared minced-garlic-clove tub",
+            "estimatedMinutes": 2,
+            "contributesToMealIds": [
+              "11111111-1111-4111-8111-111111111111"
+            ],
+            "containerNames": [
+              "Minced garlic cloves — Chicken Stir Fry, Garlic Pork Chops, Garlic Rice"
+            ],
+            "coversCookSteps": [
+              {
+                "mealId": "11111111-1111-4111-8111-111111111111",
+                "dishId": "d1111111-1111-4111-8111-111111111111",
+                "stepIndex": 0
+              }
+            ],
+            "storageNote": "Airtight in the fridge — up to 4 days."
+          },
+          {
+            "number": 3,
+            "stepKey": "produce#a0000000-0000-4000-8000-000000000002",
+            "title": "Title produce#3",
+            "instructions": "Do produce#3.\n1 yellow onion — into the Chicken Stir Fry vegetables container",
+            "estimatedMinutes": 3,
+            "contributesToMealIds": [
+              "11111111-1111-4111-8111-111111111111"
+            ],
+            "containerNames": [
+              "Chicken Stir Fry vegetables"
+            ],
+            "coversCookSteps": [
+              {
+                "mealId": "11111111-1111-4111-8111-111111111111",
+                "dishId": "d1111111-1111-4111-8111-111111111111",
+                "stepIndex": 0
+              }
+            ],
+            "storageNote": "Airtight in the fridge — up to 4 days."
+          },
+          {
+            "number": 4,
+            "stepKey": "produce#a0000000-0000-4000-8000-000000000010",
+            "title": "Avocado — cook day",
+            "instructions": "This browns once it is cut, so it is cut on cook day.",
+            "estimatedMinutes": 1,
+            "contributesToMealIds": [
+              "11111111-1111-4111-8111-111111111111"
+            ],
+            "skipSuggested": true
+          },
+          {
+            "number": 5,
+            "stepKey": "produce#a0000000-0000-4000-8000-000000000005",
+            "title": "Green onions — cook day",
+            "instructions": "Do produce#5.\n4 green onions — into the Garlic Rice toppings plate",
+            "estimatedMinutes": 1,
+            "contributesToMealIds": [
+              "33333333-3333-4333-8333-333333333333"
+            ],
+            "containerNames": [
+              "Garlic Rice toppings plate"
+            ],
+            "skipSuggested": true,
+            "storageNote": "This one is 6 days out — leave it for cook day."
+          },
+          {
+            "number": 6,
+            "stepKey": "produce#a0000000-0000-4000-8000-000000000011",
+            "title": "Cherry tomatoes — cook day",
+            "instructions": "Nothing to cut — it goes in as it comes.",
+            "estimatedMinutes": 1,
+            "contributesToMealIds": [
+              "33333333-3333-4333-8333-333333333333"
+            ],
+            "skipSuggested": true
+          }
+        ]
+      },
+      {
+        "phase": "sauces_marinades",
+        "title": "Sauces and marinades",
+        "skippable": true,
+        "steps": []
+      },
+      {
+        "phase": "proteins",
+        "title": "Proteins",
+        "skippable": false,
+        "steps": [
+          {
+            "number": 1,
+            "stepKey": "proteins#a0000000-0000-4000-8000-000000000003",
+            "title": "Title proteins#1 — Chicken Stir Fry",
+            "instructions": "Do proteins#1.",
+            "estimatedMinutes": 3,
+            "contributesToMealIds": [
+              "11111111-1111-4111-8111-111111111111"
+            ],
+            "coversCookSteps": [
+              {
+                "mealId": "11111111-1111-4111-8111-111111111111",
+                "dishId": "d1111111-1111-4111-8111-111111111111",
+                "stepIndex": 1
+              }
+            ],
+            "storageNote": "Covered in the fridge — cook within 2 days."
+          },
+          {
+            "number": 2,
+            "stepKey": "proteins#a0000000-0000-4000-8000-000000000004",
+            "title": "Pork chops — cook day",
+            "instructions": "Do proteins#2.",
+            "estimatedMinutes": 2,
+            "contributesToMealIds": [
+              "22222222-2222-4222-8222-222222222222"
+            ],
+            "skipSuggested": true,
+            "storageNote": "This one is 5 days out — leave it for cook day."
+          },
+          {
+            "number": 3,
+            "stepKey": "proteins#a0000000-0000-4000-8000-000000000006",
+            "title": "Flank steak — cook day",
+            "instructions": "Do proteins#3.",
+            "estimatedMinutes": 3,
+            "contributesToMealIds": [
+              "44444444-4444-4444-8444-444444444444"
+            ],
+            "skipSuggested": true,
+            "storageNote": "This one is 4 days out — leave it for cook day."
+          }
+        ],
+        "note": "Fish, poultry and meat keep about two days once handled, so this phase only preps what you'll cook soon.",
+        "heldForCookDay": [
+          "Chicken Stir Fry (Monday, 1 day out) — cut the avocado (it browns once cut) that morning.",
+          "Steak Night (Thursday, 4 days out) — trim the flank steak that morning.",
+          "Garlic Pork Chops (Friday, 5 days out) — mince the garlic cloves and trim the pork chops that morning.",
+          "Garlic Rice (Saturday, 6 days out) — mince the garlic cloves and thinly slice the green onions that morning."
+        ]
+      }
+    ],
+    "containerCount": 4,
+    "estimatedMinutes": 15
+  }
+}

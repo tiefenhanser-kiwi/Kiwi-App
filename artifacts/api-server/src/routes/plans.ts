@@ -607,6 +607,7 @@ export function createPlansRouter(
       const makeAhead = await makeAheadForPlan(prisma, {
         startDate: instance.startDate,
         items: instance.items.map((item, i) => ({
+          id: item.id,
           mealId: item.mealId,
           assignedDayOfWeek: item.assignedDayOfWeek,
           meal: mealDetails[i],

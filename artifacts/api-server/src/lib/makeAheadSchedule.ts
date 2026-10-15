@@ -32,6 +32,8 @@ export interface MakeAheadInput {
   startDate: Date | null;
   feast: {
     mealId: string;
+    /** PREP-1 F — the feast's plan item, so a row opens the recipe at the plan's servings. */
+    planItemId?: string;
     /** The plan item's weekday. Null (unscheduled) reads as Thursday — it is Thanksgiving. */
     assignedDayOfWeek: string | null;
     dishes: readonly MakeAheadDishInput[];
@@ -62,6 +64,12 @@ export interface MakeAheadRow {
 
 export interface MakeAheadSchedule {
   feastMealId: string;
+  /**
+   * PREP-1 F — the feast's plan item. A row opens the FEAST MEAL in plan context
+   * (meal detail with planId + planItemId), which is what scales its recipes to the
+   * plan's ×10; the dish screen alone reads its own default servings.
+   */
+  feastPlanItemId: string | null;
   feastDayName: string;
   feastDate: string | null;
   rows: MakeAheadRow[];
@@ -139,6 +147,7 @@ export function buildMakeAheadSchedule(input: MakeAheadInput): MakeAheadSchedule
 
   return {
     feastMealId: feast.mealId,
+    feastPlanItemId: feast.planItemId ?? null,
     feastDayName: DAY_NAMES[feastDow],
     feastDate: feastMs === null ? null : new Date(feastMs).toISOString().slice(0, 10),
     rows: rows.map(({ pos: _pos, ...r }) => r),
@@ -147,6 +156,7 @@ export function buildMakeAheadSchedule(input: MakeAheadInput): MakeAheadSchedule
 
 /** The slice of a GET /plans/:id item the schedule reads (its composed meal). */
 export interface MakeAheadPlanItem {
+  id: string;
   mealId: string;
   assignedDayOfWeek: string | null;
   meal: {
@@ -176,6 +186,7 @@ export async function makeAheadForPlan(
     startDate: plan.startDate,
     feast: {
       mealId: item.mealId,
+      planItemId: item.id,
       assignedDayOfWeek: item.assignedDayOfWeek,
       dishes: item.meal.dishes.map((d) => ({
         dishId: d.dishId,

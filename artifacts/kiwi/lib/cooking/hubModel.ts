@@ -222,7 +222,12 @@ export function buildPrepCookHubModel(
     prepWeekDisabled: prepStatus === "prepped",
     todaysMeal,
     meals,
-    makeAhead: detail.makeAhead ? buildMakeAheadCard(detail.makeAhead) : null,
+    makeAhead: detail.makeAhead
+      ? buildMakeAheadCard(
+          detail.makeAhead,
+          detail.items.find((i) => i.mealId === detail.makeAhead!.feastMealId)?.id ?? null,
+        )
+      : null,
   };
 }
 

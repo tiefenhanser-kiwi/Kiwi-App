@@ -8,6 +8,7 @@ import { MakeAheadSchema, PlanDetailSchema, type MakeAhead } from "@/lib/api/pla
 import {
   buildMakeAheadCard,
   FEAST_HAS_OWN_PREP_LINE,
+  makeAheadRecipeRoute,
   prepSessionCopy,
   shortDate,
 } from "@/lib/cooking/makeAheadModel";
@@ -86,5 +87,24 @@ describe("PREP-1 — the session copy on Prep the Week", () => {
     assert.deepEqual(prepSessionCopy({ isSubset: false, planHasFeast: true }), { title: "Prep the Week", notice: FEAST_HAS_OWN_PREP_LINE });
     assert.deepEqual(prepSessionCopy({ isSubset: false, planHasFeast: false }), { title: "Prep the Week", notice: null });
     assert.equal(prepSessionCopy({ isSubset: true, planHasFeast: true }).title, "Prep Selected Meals");
+  });
+});
+
+describe("PREP-1 F — a make-ahead row opens the feast at the plan's servings", () => {
+  const PLAN = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  it("the route is the FEAST MEAL in plan context (meal detail scales to the ×10), never the dish", () => {
+    const card = buildMakeAheadCard({ ...SCHEDULE, feastPlanItemId: "item-thu" });
+    assert.deepEqual(makeAheadRecipeRoute(PLAN, card.days[1].rows[0]), {
+      pathname: "/meal/[id]",
+      params: { id: FEAST, planId: PLAN, planItemId: "item-thu" },
+    });
+  });
+  it("an older server without the plan item: the Hub's own lookup fills it; with neither, the meal alone", () => {
+    const fromItems = buildMakeAheadCard(SCHEDULE, "item-from-plan");
+    assert.equal(fromItems.days[0].rows[0].planItemId, "item-from-plan");
+    assert.deepEqual(makeAheadRecipeRoute(PLAN, buildMakeAheadCard(SCHEDULE).days[0].rows[0]), {
+      pathname: "/meal/[id]",
+      params: { id: FEAST },
+    });
   });
 });
