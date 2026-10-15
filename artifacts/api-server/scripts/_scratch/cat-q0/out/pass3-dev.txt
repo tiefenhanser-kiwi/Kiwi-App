@@ -1,0 +1,256 @@
+database: ep-broad-haze-am9ca2gv.c-5.us-east-1.aws.neon.tech (dev) · seed 1015 · ceiling $3
+catalog 1325 meals · everyday featured-* plans featured-budget-bowls, featured-cozy-weeknights, featured-family-favorites, featured-healthy-reset, featured-sheet-pan-easy → 25 meals
+
+recall set (10 meals, drawn in seeded order, first fit per plant):
+  [class 5] rinse-chicken    Grilled Chicken Breast with Roasted Garlic Mashed Potatoes and Green Beans — Grilled Chicken Breast: step 0 now rinses the raw chicken under running water
+  [class 3] tiny-teaspoon    Beef Bolognese Lasagna — Beef Bolognese Lasagna: 0.5 teaspoon dried oregano → 0.06 teaspoon (the screen prints "0.00 teaspoon")
+  [class 1] vessel-overflow  Smoky Salisbury Steak with Roasted Garlic Gravy and Green Beans — Creamy Mashed Potatoes: yukon gold potatoes → 5 pound, and step 0 spreads them all in one 8×8-inch dish
+  [class 2] used-not-listed  Chipotle-Spiced Beef and Black Bean Burrito — Chipotle-Spiced Beef and Black Bean Burrito: the "1.25 pound lean ground beef (85/15)" line is removed; its steps still use it
+  [class 2] listed-not-used  Classic Tex-Mex Ground Beef Tacos — Seasoned Ground Beef Taco Filling: a "6 ounce Gruyère cheese, shredded" line is added that no step uses
+  [class 7] braise-time      Shrimp Souvlaki with Lemon Orzo and Feta — Shrimp Souvlaki Skewers: step 6 (6 min) now ends "braise … for 2 hours", and the meal's derived total reads 25 min
+  [class 4] missing-prereq   Garlic Butter Chicken Fried Rice — Garlic Butter Chicken Fried Rice: step 12 now folds in "the reserved toasted breadcrumbs" — nothing makes or lists them
+  [class 5] unsafe-doneness  Classic Smoky BBQ Drumsticks with Cornbread and Coleslaw — Smoky BBQ Chicken Drumsticks: step 5 now pulls the chicken at 145°F
+  [class 6] self-swap        Peppers and Onion Fajitas with Guacamole and Pico de Gallo — Sizzling Peppers and Onion Fajitas: a swap "store-bought flour tortillas" replaces "flour tortillas"
+  [class 1] yield-mismatch   Pan-Seared Ribeye with Roasted Mushrooms and Dressed Arugula Salad — Pan-Seared Ribeye Steaks: the last step (6) now divides a 4-serving dish among 10 plates
+
+Pass 1 (free code checks) on the planted vs clean pairs — findings new in the planted copy:
+  rinse-chicken    rinse_poultry: "Rinse the chicken" — Rinse the chicken under cold running water inside and out, then pat 
+  tiny-teaspoon    unit_shows_zero: 0.06 teaspoon dried oregano — the screen prints 0.00
+  vessel-overflow  — nothing
+  used-not-listed  ing_unlisted: "ground beef" (ground beef (80/20)) — no dish lists it — Add 1¼ pounds ground beef and coo
+  listed-not-used  ing_unused_elsewhere: 6 ounce Gruyère cheese — not in this dish's steps; named in: Warm Corn Tortillas with Topp
+  braise-time      step_minutes_vs_prose: prose says 120 min, the step carries 6 — Grill the skewers for 2–3 minutes per side, turni | time_ratio: derived total 25 min vs summed default-path steps 99 min (×0.25)
+  missing-prereq   ing_unlisted: "breadcrumbs" (breadcrumbs) — no dish lists it — Remove the wok from heat, add the remaini
+  unsafe-doneness  doneness_low: 145°F stated for raw poultry (chicken drumsticks; needs 165°F) — Arrange the drumsticks on
+  self-swap        swap_self: "store-bought flour tortillas" replaces "flour tortillas" — the same thing
+  yield-mismatch   — nothing
+
+pilot: 25 featured + 30 random (seed 1016, featured and recall meals excluded)
+
+wall clock 0 s · cumulative spend $1.0345
+
+═══ RECALL — seeded defects ═══
+  CAUGHT rinse-chicken (class 5) — verdict block, 1 issues
+      [block · class 5] Grilled Chicken Breast · step 0
+        quote: "Rinse the chicken under cold running water inside and out, then pat it dry with paper towels."
+        why:   USDA advises against rinsing raw poultry because it spreads bacteria around the kitchen.
+        fix:   Delete the rinse step; just pat the chicken dry with paper towels (step 1 already does this).
+  CAUGHT tiny-teaspoon (class 3) — verdict fix, 2 issues
+      [fix · class 3] Beef Bolognese Lasagna · ingredient "0.00 teaspoon dried oregano" · step 6
+        quote: "0.00 teaspoon dried oregano"
+        why:   The ingredient line prints a zero amount while step 6 adds ½ teaspoon dried oregano.
+        fix:   Change the line to '½ teaspoon dried oregano'.
+  CAUGHT vessel-overflow (class 1) — verdict fix, 4 issues
+      [fix · class 2] Creamy Mashed Potatoes · ingredient "5 pounds yukon gold potatoes (peeled and cut into 1.5-inch chunks)" · step 0
+        quote: "Peel and cut 2 lb Yukon Gold potatoes into 1½-inch chunks."
+        why:   The ingredient line says 5 pounds but the step uses 2 lb, and 5 lb is far too much for 4 servings with ½ cup milk and 3 tbsp butter.
+        fix:   Change the ingredient line to 2 pounds yukon gold potatoes.
+      [fix · class 1] Creamy Mashed Potatoes · step 0
+        quote: "Spread all of the potatoes in a single layer in one 8×8-inch baking dish."
+        why:   The potatoes are boiled in a pot in the next step, so the baking dish is pointless, and 5 lb (or even 2 lb) of chunks will not fit in a single layer in an 8×8.
+        fix:   Delete the baking-dish sentence from step 0.
+  CAUGHT used-not-listed (class 2) — verdict fix, 2 issues
+      [fix · class 2] Chipotle-Spiced Beef and Black Bean Burrito · step 6
+        quote: "Add 1¼ pounds ground beef and cook, breaking it up with a spoon"
+        why:   The step adds 1¼ pounds of ground beef, the main protein, but no ingredient line lists it, so it would not appear on the shopping list.
+        fix:   Add the ingredient line '1¼ pounds ground beef (80/20)' to the main dish.
+      [polish · class 5] Chipotle-Spiced Beef and Black Bean Burrito · step 6
+        quote: "cook, breaking it up with a spoon, for 6–7 minutes until no pink remains"
+        why:   Ground beef in a fast-cook step has only a visual cue and no 160°F doneness temperature.
+        fix:   Add 'until no pink remains and it reaches 160°F'.
+  CAUGHT listed-not-used (class 2) — verdict fix, 1 issues
+      [fix · class 2] Seasoned Ground Beef Taco Filling · ingredient "6 ounces Gruyère cheese (shredded)"
+        quote: "6 ounces Gruyère cheese (shredded)"
+        why:   The Gruyère is listed but no step of the filling uses it, and it is an odd fit for tacos, where the toppings dish already supplies a Mexican cheese blend.
+        fix:   Remove the Gruyère line from the filling, or replace it with a step that adds it and use the Mexican blend instead.
+  CAUGHT braise-time (class 7) — verdict block, 3 issues
+      [block · class 7] Shrimp Souvlaki Skewers · step 6
+        quote: "Then cover tightly and braise over low heat for 2 hours, until completely tender."
+        why:   Shrimp are already just cooked after 2–3 minutes per side, so a 2-hour braise would ruin them and contradicts the 6-minute step and the 25-minute total.
+        fix:   Delete the braise sentence; end the step after grilling until pink and just cooked through.
+  CAUGHT missing-prereq (class 4) — verdict fix, 3 issues
+      [fix · class 4] Garlic Butter Chicken Fried Rice · step 12
+        quote: "Fold in the reserved toasted breadcrumbs."
+        why:   No ingredient line lists breadcrumbs and no earlier step makes or reserves toasted breadcrumbs.
+        fix:   Delete the breadcrumb sentence, or add a breadcrumbs ingredient and a step that toasts them in butter.
+  CAUGHT unsafe-doneness (class 5) — verdict block, 1 issues
+      [block · class 5] Smoky BBQ Chicken Drumsticks · step 5
+        quote: "until an instant-read thermometer in the thickest piece of chicken reads 145°F"
+        why:   145°F is below the 165°F safe minimum for poultry and contradicts the 165°F check in step 6.
+        fix:   Remove the 145°F target (roast 25 minutes until skin crisps), and keep 165°F as the only doneness temperature in step 6.
+  MISSED self-swap (class 6) — verdict fix, 2 issues
+      (other) [fix · class 1] Sizzling Peppers and Onion Fajitas · step 6
+        quote: "Add all the bell pepper strips and the minced garlic, toss to combine, and cook over high heat for 5–6 minutes"
+        why:   About 2 lb of sliced peppers plus onions in one large skillet is far too crowded to blister, so they will steam.
+        fix:   Cook the peppers and onions in two batches, or use a 14-inch pan or two skillets.
+      (other) [polish · class 3] Chunky Guacamole · ingredient "2 tablespoons lime juice (freshly squeezed)"
+        quote: "2 tablespoons lime juice (freshly squeezed)"
+        why:   The meal needs 6 tablespoons of fresh lime juice but the only limes listed are the 2 for wedges, so the cook has no fruit to buy for the juice.
+        fix:   List limes (for example '1 lime, juiced') on each dish, or raise the lime count in the fajitas to cover all the juice.
+  CAUGHT yield-mismatch (class 1) — verdict fix, 3 issues
+      [fix · class 1] Pan-Seared Ribeye Steaks · step 6
+        quote: "Divide evenly among 10 plates."
+        why:   The meal serves 4 and there are 4 steaks, so dividing among 10 plates contradicts the servings.
+        fix:   Change to 'Serve one steak per plate (4 plates)'.
+
+recall: 9/10
+
+═══ CLEAN TWINS — what it flagged on the unplanted originals ═══
+  Grilled Chicken Breast with Roasted Garlic Mashed Potatoes and Green Beans — verdict ok, 1 issues
+      [polish · class 3] Sautéed Green Beans · ingredient "½ teaspoon lemon zest — optional" · step 4
+        quote: "½ teaspoon lemon zest — optional"
+        why:   Zest is listed with no lemon to buy in this dish (the only lemon is in the chicken dish and is meant for squeezing).
+        fix:   Note that the zest comes from the chicken dish's lemon, or add '1 lemon (for zest)' to this dish's ingredients.
+  Beef Bolognese Lasagna — verdict ok, 0 issues
+  Smoky Salisbury Steak with Roasted Garlic Gravy and Green Beans — verdict fix, 2 issues
+      [fix · class 5] Smoky Salisbury Steak with Roasted Garlic Gravy · step 10
+        quote: "simmer over medium-low for 10 minutes until the patties are cooked through"
+        why:   Ground beef patties get no doneness temperature, so the cook has no reliable check that they reached 160°F.
+        fix:   Add: cook until a thermometer in the center of a patty reads 160°F.
+      [polish · class 4] Smoky Salisbury Steak with Roasted Garlic Gravy · step 0
+        quote: "wrap tightly in foil, and roast at 400°F for 40 minutes"
+        why:   No step preheats the oven to 400°F before the garlic goes in.
+        fix:   Add 'Preheat the oven to 400°F' at the start of step 0.
+  Chipotle-Spiced Beef and Black Bean Burrito — verdict ok, 1 issues
+      [polish · class 5] Chipotle-Spiced Beef and Black Bean Burrito · step 6
+        quote: "cook, breaking it up with a spoon, for 6–7 minutes until no pink remains"
+        why:   Ground beef in a fast skillet step relies on a color cue and time, with no 160°F doneness temperature given.
+        fix:   Add 'until no pink remains and an instant-read thermometer reads 160°F'.
+  Classic Tex-Mex Ground Beef Tacos — verdict ok, 0 issues
+  Shrimp Souvlaki with Lemon Orzo and Feta — verdict ok, 1 issues
+      [polish · class 3] Lemon Orzo with Spinach and Feta · ingredient "3 tablespoons lemon juice (freshly squeezed)"
+        quote: "3 tablespoons lemon juice (freshly squeezed)"
+        why:   Lemon juice and zest are listed across both dishes with no whole lemons to buy, and the only lemon line is 4 wedges for serving.
+        fix:   Add a '3 lemons (for juice and zest)' line, or note the total number of lemons needed for the meal.
+  Garlic Butter Chicken Fried Rice — verdict ok, 2 issues
+      [polish · class 5] Garlic Butter Chicken Fried Rice · step 5
+        quote: "cook 2 more minutes until cooked through and golden; transfer to a plate."
+        why:   Raw poultry in a fast sear relies on time and color with no 165°F check, and 1½ lb in one pan is crowded.
+        fix:   Add 'until an instant-read thermometer reads 165°F' and sear the chicken in two batches if using the skillet.
+      [polish · class 2] Garlic Butter Chicken Fried Rice · ingredient "4 tablespoons unsalted butter (divided)" · step 12
+        quote: "add the remaining 4 tablespoons unsalted butter in pieces"
+        why:   The butter is marked 'divided' and the step says 'remaining', but no earlier step uses any butter, and the amount equals the full line.
+        fix:   Drop 'divided' and change 'remaining 4 tablespoons' to '4 tablespoons'.
+  Classic Smoky BBQ Drumsticks with Cornbread and Coleslaw — verdict ok, 0 issues
+  Peppers and Onion Fajitas with Guacamole and Pico de Gallo — verdict ok, 1 issues
+      [polish · class 3] Chunky Guacamole · ingredient "2 tablespoons lime juice (freshly squeezed)"
+        quote: "2 tablespoons lime juice (freshly squeezed)"
+        why:   Across the meal 6 tablespoons of fresh lime juice are called for, but the only limes listed are 2 limes for wedges, so there is no fruit to buy for the juice.
+        fix:   Change the fajita lime line to 4 limes (2 for juice across the dishes, 2 cut into wedges) or note that 3 limes yield the juice.
+  Pan-Seared Ribeye with Roasted Mushrooms and Dressed Arugula Salad — verdict ok, 2 issues
+      [polish · class 5] Pan-Seared Ribeye Steaks · step 5
+        quote: "Rest all 4 steaks on the wire rack for 8 minutes before slicing"
+        why:   No doneness temperature or cue is given for 1-inch steaks, so cooks cannot confirm the 145°F minimum for whole cuts of beef.
+        fix:   Add a note to check with an instant-read thermometer (130–135°F before rest for medium-rare, 145°F for USDA minimum) after basting.
+      [polish · class 3] Lemon-Dijon Dressed Arugula Salad · ingredient "2 tablespoons fresh lemon juice"
+        quote: "2 tablespoons fresh lemon juice"
+        why:   Lemon juice and zest are listed with no whole lemon to buy.
+        fix:   List '1 lemon (zested, then juiced for 2 tablespoons)' in place of the separate juice and zest lines.
+
+═══ PILOT — verdicts ═══
+  featured 25 meals: ok 18 · fix 7 · block 0 — issues: block 0 · fix 9 · polish 11
+  random   30 meals: ok 24 · fix 5 · block 1 — issues: block 1 · fix 8 · polish 13
+  all      55 meals: ok 42 · fix 12 · block 1 — issues: block 1 · fix 17 · polish 24
+  block+fix issues by class: 1:5 · 2:6 · 3:1 · 5:3 · 6:1 · 7:2
+
+═══ PILOT — every block and fix issue, verbatim ═══
+
+  (featured) Teriyaki Tofu Bowl with Steamed Rice and Roasted Broccoli — 223091b8-f06f-442b-8ac1-837a989d6ec0 — verdict fix
+    #1 [fix · class 1] Teriyaki Glazed Tofu · ingredient "28 ounces extra-firm tofu (pressed dry for at least 20 minutes, cut into 1-inch cubes)" · step 4
+        quote: "add the tofu cubes in a single layer and sear undisturbed for 3–4 minutes until golden brown on the bottom"
+        why:   28 oz of 1-inch tofu cubes (about 50+ cubes) cannot fit in a single layer in one large skillet, so it would steam instead of sear.
+        fix:   Sear the tofu in two batches (add a little more oil for the second batch), or roast the cubes on a sheet pan.
+
+  (featured) Broccoli Cheddar Soup with Crisp Apple and Walnut Salad — 2b62e777-366a-41bc-9abf-845c1c1ce0fe — verdict fix
+    #2 [fix · class 6] Broccoli Cheddar Soup · ingredient "2 cups low-sodium chicken broth" · step 3
+        quote: "1 each store-bought chicken broth carton"
+        why:   The recipe already measures the broth 'from the carton', so swapping in a store-bought broth carton replaces a bought product with the same bought product.
+        fix:   Remove the chicken broth swap, or replace it with a real shortcut such as broth concentrate or bouillon.
+
+  (featured) Spaghetti and Turkey Meatballs in Marinara — 5ea89dd3-8b0e-4963-865f-1be7a8d7e6c7 — verdict fix
+    #3 [fix · class 2] Turkey Meatballs in San Marzano Marinara · ingredient "3 cloves garlic (2 minced for meatballs, 3 minced for sauce)"
+        quote: "3 cloves garlic (2 minced for meatballs, 3 minced for sauce)"
+        why:   This line says 3 cloves but describes 2 + 3 = 5, and a second line already lists 3 cloves for the sauce, so garlic is double-counted (6 listed vs 5 used).
+        fix:   Change this line to '2 cloves garlic (minced, for meatballs)' and keep the separate '3 cloves garlic (minced, for sauce)' line.
+
+  (featured) Herb Garlic Butter Chicken Bites with Rosemary and Parmesan — 3ab32cd0-15c0-40b9-a2b0-28dc83720ee0 — verdict fix
+    #4 [fix · class 5] Herb Garlic Butter Chicken Bites with Rosemary and Parmesan · step 4
+        quote: "cook 2–3 minutes more until cooked through and golden on all sides"
+        why:   Raw poultry cubes in a fast sear rely on time and 'cooked through' alone, with no 165°F temperature or reliable cue.
+        fix:   Add: cook until the thickest cube reads 165°F or the center is opaque with no pink, cutting one open to check.
+    #5 [fix · class 1] Herb Garlic Butter Chicken Bites with Rosemary and Parmesan · ingredient "2 pounds boneless skinless chicken breasts (cut into 1-inch cubes)" · step 3
+        quote: "add the chicken bites in a single layer and sear undisturbed for 3 minutes until golden"
+        why:   2 lb of 1-inch cubes (about 5 cups) cannot fit in a single layer in one large skillet, so they would crowd and steam rather than brown.
+        fix:   Sear in two batches (adding a little more oil) or use two skillets, and adjust the step minutes.
+    #6 [fix · class 2] Herb Garlic Butter Chicken Bites with Rosemary and Parmesan · ingredient "2 teaspoons fresh rosemary (finely chopped)" · step 5
+        quote: "stir in the garlic and 1 teaspoon fresh thyme leaves; cook 60 seconds until fragrant."
+        why:   The rosemary is chopped in step 1 but never added to the butter or the chicken in any later step.
+        fix:   Add 'and the chopped rosemary' to the garlic and thyme in step 5.
+
+  (featured) Sheet-Pan Gnocchi with Tomatoes, Broccolini, and Lemon Salad — 45077d29-688d-4adc-9a9e-e6cbc2e5aa2a — verdict fix
+    #7 [fix · class 1] Sheet-Pan Gnocchi with Tomatoes and Broccolini · ingredient "32 ounces shelf-stable gnocchi (two 16 oz packages)" · step 3
+        quote: "spread the gnocchi mixture in a single layer, then roast for 20–25 minutes"
+        why:   About 3 lb of gnocchi, tomatoes and broccolini cannot fit in a single layer on one rimmed sheet pan, so it will steam instead of turning golden and crisp.
+        fix:   Use two sheet pans (preheat both) and divide the mixture between them, or halve the quantities to about 16 oz gnocchi, 6 oz each tomatoes and broccolini.
+    #8 [fix · class 3] Lemon Salad · ingredient "3 tablespoons fresh lemon juice" · step 0
+        quote: "Zest 1 teaspoon of lemon zest, then juice the lemon to get 3 tablespoons of fresh lemon juice."
+        why:   The step uses a lemon, but no lemon is listed, so the cook has no item to buy for the juice and zest.
+        fix:   Add '1 large lemon (for 1 tsp zest and 3 tbsp juice)' to the ingredient list and fold the juice and zest lines into it.
+
+  (featured) Lemon-Herb Sheet-Pan Salmon and Asparagus — 4e5005f6-3b1d-44fe-867a-7ce0993e3bf1 — verdict fix
+    #9 [fix · class 1] Roasted Asparagus with Garlic and Lemon · step 1
+        quote: "Toss the asparagus on the second half of the sheet pan with 1½ tablespoons olive oil"
+        why:   Four 6-oz salmon fillets plus 1½ lb of asparagus share one rimmed sheet pan, so the asparagus will be crowded and steam instead of crisping at the tips as step 2 promises.
+        fix:   Roast the asparagus on its own sheet pan (or use two pans) and keep the salmon on a separate pan.
+
+  (random) Classic Shredded Beef Taquitos with Salsa Verde and Sour Cream — b820eba5-34a7-4dde-8ae3-b49f42cdf93e — verdict fix
+    #10 [fix · class 7] Shredded Beef Taquitos · step 2
+        quote: "simmer for 35 minutes until the beef is completely tender and shreds easily"
+        why:   1½ lb of beef chuck in large chunks needs roughly 2–3 hours of simmering to shred, so 35 minutes leaves it tough and the meal total of 92 minutes is too short.
+        fix:   Change the simmer to about 2 to 2½ hours (or cut the chunks small and pressure-cook), set the step minutes to match, and update the meal total.
+
+  (random) Beef Street Tacos — r-tacos — verdict block
+    #11 [block · class 2] Beef Street Tacos · ingredient "1 lb ground beef"
+        quote: "1 lb ground beef"
+        why:   The dish lists eight ingredients but has no steps at all, so no ingredient is used, the ground beef has no cooking or doneness instruction (160°F), and the tortillas have no warming step.
+        fix:   Add steps: brown and season the beef to 160°F, warm the corn tortillas until pliable, chop the onion and cilantro, then assemble the tacos with avocado, salsa verde, Cotija and lime wedges.
+    #12 [fix · class 7] Beef Street Tacos
+        quote: "12 corn tortillas"
+        why:   Derived total and hands-on times are null because there are no steps to compute them from.
+        fix:   Once steps are added, supply minutes for each so the total and hands-on times are computed.
+
+  (random) Teriyaki Meatballs over Steamed Rice with Roasted Broccoli — 56d6923e-d7ce-4ef2-8ea4-f0a47b2028c2 — verdict fix
+    #13 [fix · class 5] Teriyaki Glazed Meatballs · step 4
+        quote: "sear, turning every 2 minutes, until browned on all sides, about 8 minutes total."
+        why:   Ground beef and pork meatballs are judged by browning and time alone, with no 160°F internal temperature or cut-open cue.
+        fix:   Add: cook until a thermometer in the center of a meatball reads 160°F (finish in a 400°F oven or simmer in the sauce if needed).
+
+  (random) Cheesy Chicken and Broccoli Tater Tot Casserole — d28983b9-9bfc-4ce0-9376-e5bcaa6fdfca — verdict fix
+    #14 [fix · class 1] Cheesy Chicken and Broccoli Tater Tot Casserole · ingredient "32 ounces frozen tater tots (kept frozen until topping)" · step 9
+        quote: "arrange the 32 oz of frozen tater tots in a single snug layer across the top"
+        why:   32 oz (about 100+ tots) cannot fit in one layer on a 9×13 dish, which holds roughly 70–90, so the tots will stack and the top will not crisp evenly.
+        fix:   Reduce to about 20–24 oz of tots for a single layer, or say to arrange them in tightly packed overlapping rows and extend the bake time.
+    #15 [fix · class 2] Cheesy Chicken and Broccoli Tater Tot Casserole · ingredient "1 teaspoon Kosher salt" · step 2
+        quote: "1 teaspoon kosher salt, and ½ teaspoon black pepper until smooth"
+        why:   A full teaspoon of salt is added on top of salty canned cream of chicken soup, sharp cheddar and tater tots with no adjustment, so the dish will likely be over-salted.
+        fix:   Cut the kosher salt to ¼ teaspoon, or add it to taste after baking.
+
+  (random) Charred Salsa Verde Carne Asada Tacos — 558f0469-96d7-46dd-a620-557ff967ff14 — verdict fix
+    #16 [fix · class 5] Carne Asada Skirt Steak · step 5
+        quote: "until deeply charred and cooked to medium (135 °F internal)"
+        why:   Whole-cut beef should reach 145°F with a rest per the safe minimum, and 135°F is below that.
+        fix:   Change the target to 145°F internal (then rest 5 minutes), adjusting the sear time as needed.
+
+  (random) Texas-Style Beef Chili — 311a0a95-e228-403e-b9d4-70cc80641451 — verdict fix
+    #17 [fix · class 2] Texas-Style Beef Chili · ingredient "1 teaspoon smoked paprika"
+        quote: "1 teaspoon smoked paprika"
+        why:   Smoked paprika and cayenne are listed but no default-path step ever adds them.
+        fix:   Add them to step 6 with the cumin and oregano, or remove the ingredient lines.
+    #18 [fix · class 2] Texas-Style Beef Chili · ingredient "2½ cups beef broth" · step 7
+        quote: "pour in the chile purée (scratch path) or the remaining 2½ cups beef broth (bought path), then add the remaining 2 cups beef broth"
+        why:   The list gives only 2½ cups of broth in total, but the bought path adds 2½ plus 2 cups, and the scratch path's 'remaining 2 cups' is also inconsistent.
+        fix:   List 4½ cups beef broth and word the step as ½ cup in the purée and 4 cups added to the pot.
+
+═══ COST ═══
+  75 reviews: $1.0345 · per meal $0.0138 · tokens: uncached in 148680 · cache write 2788 · cache read 206312 · out 68893 (mean out 919)
+  calls with a cache read: 74/75 · with a cache write: 1
