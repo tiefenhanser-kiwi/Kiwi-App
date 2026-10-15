@@ -115,6 +115,63 @@ export function buildCoreWeek(load: Load, selected?: readonly string[]): PrepWee
   return buildPrepWeekPlan(load, scope ? { scopeMealIds: scope } : {});
 }
 
+/**
+ * 🔴 PREP-1 (D-WS9-314) — THE FEAST SESSION'S KEYS HAVE THEIR OWN PREFIX. A step key
+ * is `phase#ingredientId` and ticks are stored per plan, so the onions chopped for
+ * the weeknights and the onions chopped for the stuffing would be ONE checkbox
+ * (PREP-0: Vegetarian shares 7 keys between the sessions, Classic 1). The longest
+ * engine key is 71 characters (`cnt#` + 4 + `#` + 62), so this fits the 80 allowed.
+ *
+ * The prefix is the WIRE's and the completions table's. Inside the engine — the
+ * build, the holds, the cached blob — a feast step keeps its engine key, so
+ * `finishPrepWeek` reads a cached feast blob exactly as it reads the week's.
+ */
+export const FEAST_KEY_PREFIX = "feast#";
+
+/**
+ * "Prep the feast" — the feast's own session: the same whole-plan build, scoped to
+ * the feast meals. Null for a plan without one.
+ *
+ * Its day is the day BEFORE the feast (Wednesday), not the Sunday the week is
+ * prepped on, so each feast meal's lag is measured from there (at most 1). From
+ * Sunday a Thursday feast is 4 days out, and its onions would read "leave it for
+ * cook day" in the one session that exists to cut them.
+ */
+export function buildFeastSession(load: Load): PrepWeekBuild | null {
+  const ids = feastMealIds(load.input);
+  if (ids.length === 0) return null;
+  const cd = load.cookDays ?? { prepDay: null, lagByMealId: new Map<string, number>(), dayNameByMealId: new Map<string, string>() };
+  const lagByMealId = new Map(cd.lagByMealId);
+  for (const id of ids) {
+    const lag = lagByMealId.get(id);
+    if (lag !== undefined) lagByMealId.set(id, Math.min(lag, 1));
+  }
+  return buildPrepWeekPlan({ ...load, cookDays: { ...cd, lagByMealId } }, { scopeMealIds: ids });
+}
+
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+/** The feast session's day: the day before the (first) feast's. An unscheduled feast is Thursday's. */
+export function feastSessionDay(load: Pick<Load, "input" | "cookDays">): string {
+  const first = feastMealIds(load.input)[0];
+  const named = first ? load.cookDays?.dayNameByMealId.get(first) : undefined;
+  const i = named ? WEEKDAYS.findIndex((d) => d.toLowerCase() === named.trim().toLowerCase()) : -1;
+  return WEEKDAYS[((i >= 0 ? i : 4) + 6) % 7];
+}
+
+/** A feast-session result with its keys as the wire and the completions table carry them. */
+export function withFeastKeys(result: PrepWeekResult): PrepWeekResult {
+  return {
+    ...result,
+    phases: result.phases.map((p) => ({ ...p, steps: p.steps.map((s) => ({ ...s, stepKey: `${FEAST_KEY_PREFIX}${s.stepKey}` })) })),
+  };
+}
+
+/** Every key a build puts on the wire (not demoted), with a prefix — what a regenerate's prune keeps. */
+export function wireStepKeys(build: PrepWeekBuild, prefix = ""): string[] {
+  return build.stepPlan.steps.filter((s) => !s.demoted).map((s) => `${prefix}${s.stepKey}`);
+}
+
 export function buildPrepWeekPlan(load: Load, opts: BuildPrepWeekOptions = {}): PrepWeekBuild {
   const { input, identity } = load;
   // An older caller (or a hand-built test loader) carries no cook days: that is

@@ -8,7 +8,7 @@
 // so unit tests can inject stubbed loaders + prisma + subscription service
 // without standing up the full stack.
 
-import { Router, type IRouter, type Request } from "express";
+import { Router, type IRouter, type Request, type Response } from "express";
 import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
@@ -40,7 +40,16 @@ import {
   PrepNarrationIncompleteError,
   summarizePrepWeek,
 } from "../lib/prepWeekAssembly";
-import { buildCoreWeek, coreScopeMealIds, finishPrepWeek } from "../lib/prepWeekBuild";
+import {
+  buildCoreWeek,
+  buildFeastSession,
+  coreScopeMealIds,
+  FEAST_KEY_PREFIX,
+  feastSessionDay,
+  finishPrepWeek,
+  wireStepKeys,
+  withFeastKeys,
+} from "../lib/prepWeekBuild";
 import { PrepNarrationResultSchema } from "../lib/ai/schemas/prepNarration";
 import {
   stepKeysOfResult,
@@ -77,6 +86,29 @@ const PREP_NARRATION_MAX_TOKENS = 16384;
 
 /** PREP-1 (D-WS9-314) — a Prep Selected Meals run that named only the feast. */
 export const FEAST_OWN_PREP_COPY = "The feast has its own prep. See Thanksgiving make-ahead.";
+
+/**
+ * PREP-1 (D-WS9-314) — the feast session as it is cached, under `feastSession` in
+ * the week's `structureJson` (no migration). The result's keys are the ENGINE's;
+ * the `feast#` prefix is put on at the response.
+ */
+export interface FeastSessionBlob {
+  fingerprint: string;
+  promptVersion: number;
+  generatedAt: string;
+  result: PrepWeekResult;
+}
+
+/** A cache row's JSON split into the week's result and the feast session (if any). */
+export function splitStructure(json: unknown): { week: PrepWeekResult; feast: FeastSessionBlob | null } {
+  const { feastSession, ...week } = (json ?? {}) as Record<string, unknown>;
+  const f = feastSession as Partial<FeastSessionBlob> | undefined;
+  const feast =
+    f && typeof f.fingerprint === "string" && typeof f.promptVersion === "number" && typeof f.generatedAt === "string" && f.result
+      ? (f as FeastSessionBlob)
+      : null;
+  return { week: week as unknown as PrepWeekResult, feast };
+}
 
 export interface CookingRouterDeps {
   runCookingSequence: typeof productionRunCookingSequence;
@@ -202,8 +234,128 @@ export function createCookingRouter(
           message: "mealIds must not contain duplicates",
         })
         .optional(),
+      // PREP-1 (D-WS9-314) — "Prep the feast": the feast meal's own session. A
+      // 1.1 binary never sends it, so its requests are byte-unchanged.
+      session: z.literal("feast").optional(),
     })
-    .strict();
+    .strict()
+    .refine((b) => !(b.session && b.mealIds), {
+      message: "a feast session takes no meal selection",
+    });
+
+  // The narration, the code assembly, the wire check and the attribution guard —
+  // steps 4b–7, shared by the week and the feast session. A failure is the
+  // response to send; a success is the validated result and the call's metadata.
+  type Narrated =
+    | { ok: true; result: PrepWeekResult; promptVersion: number; latencyMs: number }
+    | { ok: false; status?: number; aiReason?: string; body: Record<string, unknown> };
+  const sendFailure = (res: Response, n: Extract<Narrated, { ok: false }>) =>
+    n.aiReason ? withAIFailureStatus(res, n.aiReason).json(n.body) : res.status(n.status ?? 502).json(n.body);
+  const narrateStepPlan = async (
+    stepPlan: ReturnType<typeof buildCoreWeek>["stepPlan"],
+    input: { meals: { mealId: string }[] },
+    ctx: { userId: string; planId: string },
+  ): Promise<Narrated> => {
+    const distracted = (reason: string): Narrated => ({
+      ok: false,
+      status: 502,
+      body: { error: "Kiwi got distracted. Try again?", reason },
+    });
+    // PREP-1 (BUG-413) — the 30-step cap, checked BEFORE the narration is paid
+    // for. The engine's backstop already moved any overflow to cook day, so this
+    // is the guard that it did; the schema check below used to be the first
+    // place an over-cap phase was noticed, after the AI call.
+    const overCap = overCapPhases(stepPlan);
+    if (overCap.length > 0) {
+      logger.warn(
+        { event: "prep_week_over_cap", ...ctx, phases: overCap },
+        "Prep the Week phase over the step cap before narration",
+      );
+      return distracted("assembly_invalid");
+    }
+
+    const aiResult = await runAICall(
+      "prep.narrate_steps",
+      { prepNarrationInput: stepPlan.narrationInput },
+      PrepNarrationResultSchema,
+      { prisma, userId: ctx.userId, maxTokens: PREP_NARRATION_MAX_TOKENS },
+    );
+    if (!aiResult.success) {
+      logger.warn(
+        { event: "prep_week_ai_failed", ...ctx, reason: aiResult.reason, promptKey: "prep.narrate_steps" },
+        "Prep the Week narration AI call failed",
+      );
+      // The status (and a spend guard's Retry-After) is set on the real response.
+      return { ok: false, aiReason: aiResult.reason, body: { error: aiResult.userFacingMessage, reason: aiResult.reason } };
+    }
+
+    // 5. Assemble the response IN CODE. Numeric + attribution fields come
+    //    from the engine/step plan; only title/instructions/storageNote/
+    //    estimatedMinutes come from the AI. The narration schema has no
+    //    quantity or mealId field, so prose cannot move the math — fail
+    //    closed if the AI didn't narrate every planned step.
+    let assembled: PrepWeekResult;
+    try {
+      assembled = assemblePrepWeekResult(stepPlan, aiResult.data);
+    } catch (err) {
+      if (err instanceof PrepNarrationIncompleteError) {
+        logger.warn(
+          {
+            event: "prep_week_narration_incomplete",
+            ...ctx,
+            missing: err.missingStepIds.slice(0, 10),
+            missingCount: err.missingStepIds.length,
+          },
+          "Prep the Week narration omitted planned steps",
+        );
+        return distracted("narration_incomplete");
+      }
+      throw err;
+    }
+
+    // 6. Defensive: the assembled result must satisfy the locked wire
+    //    contract (mobile shape unchanged). Step/phase ceilings live here.
+    const validated = PrepWeekResultSchema.safeParse(assembled);
+    if (!validated.success) {
+      logger.warn(
+        { event: "prep_week_assembly_invalid", ...ctx, error: validated.error.flatten() },
+        "Assembled Prep the Week result failed schema validation",
+      );
+      return distracted("assembly_invalid");
+    }
+    const result = validated.data;
+
+    // 7. Defensive assertion — attribution is now code-owned, so this should
+    //    never fire. Kept as a guard that every contributesToMealId traces
+    //    to a real input meal.
+    const validMealIds = new Set(input.meals.map((m) => m.mealId));
+    const invalidRefs: string[] = [];
+    for (const phase of result.phases) {
+      for (const step of phase.steps) {
+        for (const id of step.contributesToMealIds) {
+          if (!validMealIds.has(id)) invalidRefs.push(id);
+        }
+      }
+    }
+    if (invalidRefs.length > 0) {
+      logger.warn(
+        {
+          event: "prep_week_invalid_meal_ref",
+          ...ctx,
+          invalidRefs: invalidRefs.slice(0, 10),
+          invalidCount: invalidRefs.length,
+        },
+        "Prep the Week produced unknown mealIds (code-owned — unexpected)",
+      );
+      return distracted("invalid_meal_reference");
+    }
+    return {
+      ok: true,
+      result,
+      promptVersion: aiResult.metadata.promptVersion ?? 0,
+      latencyMs: aiResult.metadata.latencyMs,
+    };
+  };
 
   router.post(
     "/plans/:planId/prep-week",
@@ -283,6 +435,92 @@ export function createCookingRouter(
         return res.status(500).json({ error: "internal server error" });
       }
       const { input, planRevisionId, cookDays, identity } = loadResult;
+
+      // ── PREP-1 (D-WS9-314) — "PREP THE FEAST" ─────────────────────────────
+      //
+      // The feast's own session: the same engine, the same screen, scoped to the
+      // feast and keyed `feast#…`. Cached in the SAME row as the week, inside its
+      // JSON (`feastSession`), gated by its own fingerprint and prompt version;
+      // one narration per regeneration. The week's columns are left alone, so the
+      // two sessions miss and hit independently.
+      if (parsedBody.data.session === "feast") {
+        const build = buildFeastSession({ input, cookDays, identity });
+        if (!build) {
+          return res.status(400).json({ error: "This plan has no feast to prep.", reason: "no_feast" });
+        }
+        const envelope = {
+          subset: false,
+          session: "feast" as const,
+          // "Label the session Wednesday" — the day before the feast.
+          sessionDay: feastSessionDay({ input, cookDays }),
+          planRevisionId,
+        };
+        const fingerprint = prepCompositionFingerprint(input);
+        const activeVersion = (await resolvePromptDescriptor("prep.narrate_steps", prisma)).version;
+        const row = await prisma.prepWeekStructure.findUnique({ where: { planId } });
+        const stored = row ? splitStructure(row.structureJson).feast : null;
+        if (
+          stored &&
+          stored.fingerprint === fingerprint &&
+          (activeVersion === null || stored.promptVersion === activeVersion)
+        ) {
+          return res.json({
+            cacheHit: true,
+            ...envelope,
+            result: withFeastKeys(summarizePrepWeek(finishPrepWeek(stored.result, build))),
+            generatedAt: stored.generatedAt,
+            promptVersion: stored.promptVersion,
+          });
+        }
+        if (build.stepPlan.steps.length === 0) {
+          return res.status(400).json({ error: EMPTY_PLAN_COPY });
+        }
+        const narrated = await narrateStepPlan(build.stepPlan, input, { userId, planId });
+        if (!narrated.ok) return sendFailure(res, narrated);
+        const generatedAt = new Date().toISOString();
+        const feastSession: FeastSessionBlob = {
+          fingerprint,
+          promptVersion: narrated.promptVersion,
+          generatedAt,
+          result: narrated.result,
+        };
+        try {
+          // A row the week wrote keeps the week; a row the feast creates has a
+          // NULL fingerprint, which the week's read gate treats as a miss.
+          await prisma.prepWeekStructure.upsert({
+            where: { planId },
+            create: {
+              planId,
+              structureJson: { feastSession } as unknown as object,
+              compositionFingerprint: null,
+              lastGeneratedFromPlanRevisionId: planRevisionId,
+              lastGeneratedAt: new Date(),
+              promptVersion: narrated.promptVersion,
+            },
+            update: {
+              structureJson: { ...((row?.structureJson as object | null) ?? {}), feastSession } as unknown as object,
+            },
+          });
+          // The feast's own orphan-prune: only `feast#` keys, against the feast's
+          // fresh set. The week's ticks are the week's regeneration to judge.
+          await prisma.prepStepCompletion.deleteMany({
+            where: {
+              planId,
+              stepKey: { startsWith: FEAST_KEY_PREFIX, notIn: wireStepKeys(build, FEAST_KEY_PREFIX) },
+            },
+          });
+        } catch (err) {
+          logger.warn({ event: "prep_feast_cache_write_failed", userId, planId, err }, "Prep the feast cache write failed");
+        }
+        return res.json({
+          cacheHit: false,
+          ...envelope,
+          result: withFeastKeys(summarizePrepWeek(finishPrepWeek(narrated.result, build))),
+          generatedAt,
+          promptVersion: narrated.promptVersion,
+          metadata: { latencyMs: narrated.latencyMs },
+        });
+      }
 
       // 3. Cache lookup. Hit + matching revisionId returns the stored
       //    structureJson without an AI call (no LLMCallLog row).
@@ -383,7 +621,7 @@ export function createCookingRouter(
           // overlay, because the overlay can demote a protein step and a step
           // that no longer renders is not a container today.
           result: summarizePrepWeek(
-            finishPrepWeek(cached.structureJson as unknown as PrepWeekResult, build),
+            finishPrepWeek(splitStructure(cached.structureJson).week, build),
           ),
           planRevisionId,
           generatedAt: cached.lastGeneratedAt.toISOString(),
@@ -399,122 +637,11 @@ export function createCookingRouter(
         return res.status(400).json({ error: EMPTY_PLAN_COPY });
       }
 
-      // PREP-1 (BUG-413) — the 30-step cap, checked BEFORE the narration is paid
-      // for. The engine's backstop already moved any overflow to cook day, so this
-      // is the guard that it did; the schema check at step 6 used to be the first
-      // place an over-cap phase was noticed, after the AI call.
-      const overCap = overCapPhases(stepPlan);
-      if (overCap.length > 0) {
-        logger.warn(
-          { event: "prep_week_over_cap", userId, planId, phases: overCap },
-          "Prep the Week phase over the step cap before narration",
-        );
-        return res.status(502).json({
-          error: "Kiwi got distracted. Try again?",
-          reason: "assembly_invalid",
-        });
-      }
-
-      const aiResult = await runAICall(
-        "prep.narrate_steps",
-        { prepNarrationInput: stepPlan.narrationInput },
-        PrepNarrationResultSchema,
-        { prisma, userId, maxTokens: PREP_NARRATION_MAX_TOKENS },
-      );
-
-      if (!aiResult.success) {
-        logger.warn(
-          {
-            event: "prep_week_ai_failed",
-            userId,
-            planId,
-            reason: aiResult.reason,
-            promptKey: "prep.narrate_steps",
-          },
-          "Prep the Week narration AI call failed",
-        );
-        return withAIFailureStatus(res, aiResult.reason).json({
-          error: aiResult.userFacingMessage,
-          reason: aiResult.reason,
-        });
-      }
-
-      // 5. Assemble the response IN CODE. Numeric + attribution fields come
-      //    from the engine/step plan; only title/instructions/storageNote/
-      //    estimatedMinutes come from the AI. The narration schema has no
-      //    quantity or mealId field, so prose cannot move the math — fail
-      //    closed if the AI didn't narrate every planned step.
-      let assembled: PrepWeekResult;
-      try {
-        assembled = assemblePrepWeekResult(stepPlan, aiResult.data);
-      } catch (err) {
-        if (err instanceof PrepNarrationIncompleteError) {
-          logger.warn(
-            {
-              event: "prep_week_narration_incomplete",
-              userId,
-              planId,
-              missing: err.missingStepIds.slice(0, 10),
-              missingCount: err.missingStepIds.length,
-            },
-            "Prep the Week narration omitted planned steps",
-          );
-          return res.status(502).json({
-            error: "Kiwi got distracted. Try again?",
-            reason: "narration_incomplete",
-          });
-        }
-        throw err;
-      }
-
-      // 6. Defensive: the assembled result must satisfy the locked wire
-      //    contract (mobile shape unchanged). Step/phase ceilings live here.
-      const validated = PrepWeekResultSchema.safeParse(assembled);
-      if (!validated.success) {
-        logger.warn(
-          {
-            event: "prep_week_assembly_invalid",
-            userId,
-            planId,
-            error: validated.error.flatten(),
-          },
-          "Assembled Prep the Week result failed schema validation",
-        );
-        return res.status(502).json({
-          error: "Kiwi got distracted. Try again?",
-          reason: "assembly_invalid",
-        });
-      }
-      const result = validated.data;
-
-      // 7. Defensive assertion — attribution is now code-owned, so this should
-      //    never fire. Kept as a guard that every contributesToMealId traces
-      //    to a real input meal.
-      const validMealIds = new Set(input.meals.map((m) => m.mealId));
-      const invalidRefs: string[] = [];
-      for (const phase of result.phases) {
-        for (const step of phase.steps) {
-          for (const id of step.contributesToMealIds) {
-            if (!validMealIds.has(id)) invalidRefs.push(id);
-          }
-        }
-      }
-      if (invalidRefs.length > 0) {
-        logger.warn(
-          {
-            event: "prep_week_invalid_meal_ref",
-            userId,
-            planId,
-            invalidRefs: invalidRefs.slice(0, 10),
-            invalidCount: invalidRefs.length,
-          },
-          "Prep the Week produced unknown mealIds (code-owned — unexpected)",
-        );
-        return res.status(502).json({
-          error: "Kiwi got distracted. Try again?",
-          reason: "invalid_meal_reference",
-        });
-      }
+      // 4b–7. Narrate, assemble, check the wire and the attribution — shared
+      // with the feast session (narrateStepPlan above).
+      const narrated = await narrateStepPlan(stepPlan, input, { userId, planId });
+      if (!narrated.ok) return sendFailure(res, narrated);
+      const { result } = narrated;
 
       // 8. Cache write. UPSERT keyed by planId — covers create (cache
       //    miss, no prior row) AND stale-update (revisionId moved) in
@@ -530,8 +657,11 @@ export function createCookingRouter(
       //    (@@unique([planId, stepKey])) with plan-composition-independent keys,
       //    so there is no subset-scoped prune to write instead — the correct
       //    action is not to prune at all.
-      const promptVersion = aiResult.metadata.promptVersion ?? 0;
-      const structureJson = result as unknown as object;
+      const { promptVersion } = narrated;
+      // PREP-1 (D-WS9-314) — the row also holds the feast session (`feastSession`,
+      // gated by its own fingerprint on read). Regenerating the week keeps it.
+      const storedFeast = cached ? splitStructure(cached.structureJson).feast : null;
+      const structureJson = { ...result, ...(storedFeast ? { feastSession: storedFeast } : {}) } as unknown as object;
       if (!isSubset) {
         try {
           // `promptVersion` here is the version that ACTUALLY narrated this
@@ -562,7 +692,15 @@ export function createCookingRouter(
           // step set is stale (its step was dropped / re-keyed by the edit that
           // bumped the revision). Prune to the new set — do NOT merge-forward
           // blindly. Still-valid keys (same ingredient → same key) survive.
-          const keepKeys = [...stepKeysOfResult(result)];
+          // 🔴 PREP-1 (D-WS9-314) — AND THE FEAST SESSION'S KEYS. They are never in
+          // the week's result, so without them every regeneration of the week
+          // would wipe the ticks made in Prep the feast. Computed from the engine,
+          // so they are kept whether or not the feast was ever narrated.
+          const feastBuild = buildFeastSession({ input, cookDays, identity });
+          const keepKeys = [
+            ...stepKeysOfResult(result),
+            ...(feastBuild ? wireStepKeys(feastBuild, FEAST_KEY_PREFIX) : []),
+          ];
           await prisma.prepStepCompletion.deleteMany({
             where: { planId, stepKey: { notIn: keepKeys } },
           });
@@ -592,7 +730,7 @@ export function createCookingRouter(
         generatedAt: new Date().toISOString(),
         promptVersion,
         metadata: {
-          latencyMs: aiResult.metadata.latencyMs,
+          latencyMs: narrated.latencyMs,
         },
       });
     },
@@ -795,17 +933,25 @@ export function createCookingRouter(
         logger.error({ event: "prep_week_structure_failed", userId, planId, err }, "Prep structure load failed");
         return res.status(500).json({ error: "internal server error" });
       }
-      const build = buildCoreWeek(loaded);
-      const titled = {
-        steps: build.stepPlan.narrationInput.steps.map((s) => {
-          const planned = build.stepPlan.steps.find((p) => p.stepId === s.stepId)!;
-          return { stepId: s.stepId, title: engineTitle(planned), instructions: "-" };
-        }),
+      // PREP-1 (D-WS9-314) — the week and, for a plan with a feast, the feast session
+      // under its `feast#` keys: Cook Mode joins the feast's cook steps to the prep
+      // steps that covered them, and those are the feast session's.
+      const engineTitled = (build: ReturnType<typeof buildCoreWeek>) => {
+        const titled = {
+          steps: build.stepPlan.narrationInput.steps.map((s) => {
+            const planned = build.stepPlan.steps.find((p) => p.stepId === s.stepId)!;
+            return { stepId: s.stepId, title: engineTitle(planned), instructions: "-" };
+          }),
+        };
+        return finishPrepWeek(assemblePrepWeekResult(build.stepPlan, titled), build);
       };
-      const result = finishPrepWeek(assemblePrepWeekResult(build.stepPlan, titled), build);
+      const week = engineTitled(buildCoreWeek(loaded));
+      const feastBuild = buildFeastSession(loaded);
+      const results = feastBuild ? [week, withFeastKeys(engineTitled(feastBuild))] : [week];
+      const held = (r: PrepWeekResult) => r.phases.find((p) => p.phase === "proteins")?.heldForCookDay ?? [];
       return res.json({
         planId,
-        steps: result.phases.flatMap((ph) =>
+        steps: results.flatMap((result) => result.phases.flatMap((ph) =>
           ph.steps.map((s) => ({
             stepKey: s.stepKey,
             title: s.title,
@@ -815,8 +961,8 @@ export function createCookingRouter(
             coversCookSteps: s.coversCookSteps ?? [],
             skipSuggested: s.skipSuggested === true,
           })),
-        ),
-        heldForCookDay: result.phases.find((p) => p.phase === "proteins")?.heldForCookDay ?? [],
+        )),
+        heldForCookDay: [...new Set(results.flatMap(held))].slice(0, 20),
       });
     },
   );

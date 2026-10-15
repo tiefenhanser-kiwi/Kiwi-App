@@ -23,7 +23,13 @@ import {
   PrepWeekEmptyPlanError,
   PrepWeekNotFoundError,
 } from "./prepWeekAggregation";
-import { buildCoreWeek, tickableStepRefs, type PrepStepRef } from "./prepWeekBuild";
+import {
+  buildCoreWeek,
+  buildFeastSession,
+  FEAST_KEY_PREFIX,
+  tickableStepRefs,
+  type PrepStepRef,
+} from "./prepWeekBuild";
 
 // Minimal per-step shape the derivation needs (matches derivePrepCompletion).
 export type { PrepStepRef };
@@ -119,8 +125,16 @@ export async function loadPrepStepSet(
     // line (D-WS9-301 rule 10), no protein the overlay holds for cook day.
     // Everything is computed, so the cached blob is no longer read here.
     // PREP-1 (D-WS9-314) — the full week WITHOUT the feast: the core reads a
-    // `thanksgiving-feast` meal as nothing to prep.
-    return tickableStepRefs(buildCoreWeek(loaded));
+    // `thanksgiving-feast` meal as nothing to prep. The feast's own steps come
+    // from its session, under their own keys, so its Hub pill is driven by
+    // "Prep the feast" and a weeknight onion tick never counts for the stuffing.
+    const core = tickableStepRefs(buildCoreWeek(loaded));
+    const feast = buildFeastSession(loaded);
+    if (!feast) return core;
+    return [
+      ...core,
+      ...tickableStepRefs(feast).map((r) => ({ ...r, stepKey: `${FEAST_KEY_PREFIX}${r.stepKey}` })),
+    ];
   } catch (err) {
     // No cookable meals (empty) or non-owner/missing → no prep steps. The
     // caller's meal universe still drives the (vacuous) per-meal rollup; an
