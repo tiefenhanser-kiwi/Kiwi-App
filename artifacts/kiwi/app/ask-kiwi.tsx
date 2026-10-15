@@ -31,10 +31,12 @@ import { Colors, Spacing } from "@/constants/tokens";
 // the whole body — a deliberate, minor cosmetic change.
 export default function AskKiwiScreen() {
   const router = useRouter();
-  const { addToPlanId, toPlaylist } = useLocalSearchParams<{
+  const { addToPlanId, toPlaylist, prompt } = useLocalSearchParams<{
     addToPlanId?: string;
     /** WS9 Redesign Arc Block 2b — the Playlist tab's "Add meals" context. */
     toPlaylist?: string;
+    /** BOOK-1C1 — the Cookbook's Ask Kiwi helper prefills the description. */
+    prompt?: string;
   }>();
 
   return (
@@ -45,6 +47,7 @@ export default function AskKiwiScreen() {
         showsVerticalScrollIndicator={false}
       >
         <AskKiwiCreator
+          initialText={typeof prompt === "string" ? prompt : ""}
           navigateToDraft={(draftJson) => {
             router.push({
               pathname: "/meal-builder",

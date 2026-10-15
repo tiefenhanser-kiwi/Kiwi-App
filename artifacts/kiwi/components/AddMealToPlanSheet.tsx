@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -17,8 +17,15 @@ import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens
 import { useApp } from "@/contexts/AppContext";
 import { usePlans } from "@/hooks/usePlans";
 import type { PlanListItem } from "@/lib/api/plans";
+import { todayLocalDate } from "@/lib/dates";
+import {
+  livePlans,
+  planDayOptions,
+  type PlanDayOption,
+} from "@/lib/plans/addToPlanTargets";
 import { formatPlanDateRange } from "@/lib/plans/planRowMeta";
 import { dialog } from "@/lib/dialog";
+import type { DayOfWeek } from "@/lib/types";
 
 export interface AddMealToPlanSheetProps {
   visible: boolean;
@@ -27,8 +34,13 @@ export interface AddMealToPlanSheetProps {
   /** Display name for the sheet header subtitle. */
   mealTitle?: string;
   onClose: () => void;
-  /** Called when user picks an existing plan. */
-  onPickExistingPlan: (plan: PlanListItem) => void;
+  /**
+   * Called when the user picks an existing plan AND a day (BOOK-1C1: the day
+   * step). The sheet lists live plans only — active and upcoming
+   * (lib/plans/addToPlanTargets.ts) — so the pick can never be a composted
+   * plan's 409.
+   */
+  onPickExistingPlan: (plan: PlanListItem, day: DayOfWeek) => void;
 }
 
 // BUG-293 — this used to parse the plan's YYYY-MM-DD with new Date() (UTC
@@ -42,6 +54,13 @@ export function formatDateRange(start: string | null, end: string | null): strin
 
 function statusLabel(status: string | null): string {
   switch (status) {
+    // BOOK-1C1 — the live list's real PlanStatus values (they read "Plan").
+    case "this_week":
+      return "This week";
+    case "next_week":
+      return "Next week";
+    case "upcoming":
+      return "Upcoming";
     case "active":
       return "Active";
     case "completed":
@@ -71,19 +90,25 @@ export function AddMealToPlanSheet({
   // The GET /plans list payload (PlanListItem) carries no per-plan meal count,
   // so the row no longer shows a "N meals" badge.
   const plansQuery = usePlans(["my_plans"]);
-  // WS9-2 2a Commit B — order most-recent-first by startDate. PlanListItem has
-  // no createdAt, but startDate is already on the client (the row shows it), so
-  // no server change. Undated drafts (null startDate) sort LAST — a dated plan
-  // is the likely "add to which plan?" target.
-  const plans = useMemo<PlanListItem[]>(() => {
-    const rows = plansQuery.data?.plans ?? [];
-    return [...rows].sort((a, b) => {
-      if (a.startDate && b.startDate) return b.startDate.localeCompare(a.startDate);
-      if (a.startDate) return -1;
-      if (b.startDate) return 1;
-      return 0;
-    });
-  }, [plansQuery.data]);
+  // BOOK-1C1 — live plans only (active + upcoming), soonest first. This
+  // replaced WS9-2 2a Commit B's most-recent-first sort over EVERY plan: past
+  // plans and undated drafts are no longer offered (addToPlanTargets.ts says
+  // why), and with only live plans left the active one belongs at the top.
+  const plans = useMemo<PlanListItem[]>(
+    () => livePlans(plansQuery.data?.plans ?? [], todayLocalDate()),
+    [plansQuery.data],
+  );
+
+  // BOOK-1C1 — the day step: a picked plan, then its days.
+  const [pickedPlan, setPickedPlan] = useState<PlanListItem | null>(null);
+  const dayOptions = useMemo<PlanDayOption[]>(
+    () => (pickedPlan ? planDayOptions(pickedPlan) : []),
+    [pickedPlan],
+  );
+  // Every opening starts on the plan step.
+  useEffect(() => {
+    if (!visible) setPickedPlan(null);
+  }, [visible]);
 
   // WS7-5b-mobile Block C — D-WS7-059 real wiring. Replaces the prior stub
   // that deep-linked to `demo-plan-just-created` with `addMealId=` (a dead
@@ -129,19 +154,62 @@ export function AddMealToPlanSheet({
       <View style={[s.sheet, { paddingBottom: insets.bottom + Spacing[3] }]}>
         <View style={s.handle} />
         <View style={s.header}>
+          {pickedPlan ? (
+            <Pressable
+              onPress={() => setPickedPlan(null)}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel="Back to plans"
+            >
+              <Feather name="chevron-left" size={22} color={Colors.neutral[800]} />
+            </Pressable>
+          ) : null}
           <View style={{ flex: 1 }}>
-            <Text style={s.title}>Add to plan</Text>
-            {mealTitle && (
-              <Text style={s.subtitle} numberOfLines={1}>
-                {mealTitle}
-              </Text>
+            <Text style={s.title}>{pickedPlan ? "Pick a day" : "Add to plan"}</Text>
+            {pickedPlan ? (
+              <DisplayTitle source={pickedPlan} variant="slim" style={s.subtitle} />
+            ) : (
+              mealTitle && (
+                <Text style={s.subtitle} numberOfLines={1}>
+                  {mealTitle}
+                </Text>
+              )
             )}
           </View>
-          <Pressable onPress={onClose} hitSlop={12}>
+          <Pressable
+            onPress={onClose}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+          >
             <Feather name="x" size={22} color={Colors.neutral[800]} />
           </Pressable>
         </View>
 
+        {pickedPlan ? (
+          <ScrollView
+            contentContainerStyle={s.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={s.list}>
+              {dayOptions.map((opt) => (
+                <Pressable
+                  key={opt.day}
+                  onPress={() => {
+                    const plan = pickedPlan;
+                    onClose();
+                    onPickExistingPlan(plan, opt.day);
+                  }}
+                  accessibilityRole="button"
+                  style={({ pressed }) => [s.planRow, pressed && { opacity: 0.7 }]}
+                >
+                  <Text style={[s.planName, { flex: 1 }]}>{opt.label}</Text>
+                  <Feather name="chevron-right" size={18} color={Colors.neutral[600]} />
+                </Pressable>
+              ))}
+            </View>
+          </ScrollView>
+        ) : (
         <ScrollView
           contentContainerStyle={s.scrollContent}
           keyboardShouldPersistTaps="handled"
@@ -196,16 +264,15 @@ export function AddMealToPlanSheet({
               </Text>
             ) : plans.length === 0 ? (
               <Text style={s.emptyText}>
-                You don't have any plans yet. Create your first one above.
+                You don't have an active or upcoming plan. Create one above.
               </Text>
             ) : (
               plans.map((plan) => (
                 <Pressable
                   key={plan.id}
-                  onPress={() => {
-                    onPickExistingPlan(plan);
-                    onClose();
-                  }}
+                  // BOOK-1C1 — a plan pick opens the day step; the sheet hands
+                  // back (plan, day) from there.
+                  onPress={() => setPickedPlan(plan)}
                   style={({ pressed }) => [
                     s.planRow,
                     pressed && { opacity: 0.7 },
@@ -227,7 +294,8 @@ export function AddMealToPlanSheet({
                     <View
                       style={[
                         s.statusPill,
-                        plan.status === "active" && s.statusActive,
+                        (plan.status === "active" || plan.status === "this_week") &&
+                          s.statusActive,
                         plan.status === "completed" && s.statusCompleted,
                         plan.status === "draft" && s.statusDraft,
                       ]}
@@ -235,7 +303,8 @@ export function AddMealToPlanSheet({
                       <Text
                         style={[
                           s.statusPillText,
-                          plan.status === "active" && s.statusActiveText,
+                          (plan.status === "active" || plan.status === "this_week") &&
+                            s.statusActiveText,
                           plan.status === "completed" &&
                             s.statusCompletedText,
                           plan.status === "draft" && s.statusDraftText,
@@ -250,6 +319,7 @@ export function AddMealToPlanSheet({
             )}
           </View>
         </ScrollView>
+        )}
       </View>
     </Modal>
   );

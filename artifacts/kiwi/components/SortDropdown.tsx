@@ -17,7 +17,7 @@ export type SortKey =
   | "alpha"
   | "cook_time";
 
-type SortOption = { key: SortKey; label: string };
+type SortOption<K extends string = SortKey> = { key: K; label: string };
 
 export const SORT_OPTIONS: SortOption[] = [
   { key: "last_cooked", label: "Last cooked" },
@@ -27,32 +27,39 @@ export const SORT_OPTIONS: SortOption[] = [
   { key: "cook_time", label: "Cook time" },
 ];
 
-type Props = {
-  value: SortKey;
-  onChange: (key: SortKey) => void;
+type Props<K extends string = SortKey> = {
+  value: K;
+  onChange: (key: K) => void;
+  /**
+   * BOOK-1C1 — a context with its OWN sort vocabulary (the Cookbook's Popular ·
+   * Quickest · A–Z) passes it here instead of relabelling the list keys.
+   * Omitted: SORT_OPTIONS, exactly as before.
+   */
+  options?: ReadonlyArray<SortOption<K>>;
   /** Per-context label overrides. Dishes view passes
    *  `{ times_cooked: "Most used" }` since the underlying field is
    *  `mealUseCount` (number of meals using the dish), not literal
    *  cook count. */
-  labelOverrides?: Partial<Record<SortKey, string>>;
+  labelOverrides?: Partial<Record<K, string>>;
   /** WS7-6 B-fix Block 3 — keys rendered greyed/muted and non-selectable.
    *  Dish contexts pass `["last_cooked"]` (no Dish.lastUsedAt write path,
    *  D-WS7-111). The option stays visible in the list, just disabled. */
-  disabledKeys?: readonly SortKey[];
+  disabledKeys?: readonly K[];
   /** WS9-2 BUG-075 — keys removed from the menu entirely (not just greyed).
    *  The Plans context passes `["cook_time"]` — a plan has no cook time and no
    *  server aggregate for one, so the option is dropped rather than disabled.
    *  `value` must never be a hidden key. */
-  hiddenKeys?: readonly SortKey[];
+  hiddenKeys?: readonly K[];
 };
 
-export function SortDropdown({
+export function SortDropdown<K extends string = SortKey>({
   value,
   onChange,
   labelOverrides,
   disabledKeys,
   hiddenKeys,
-}: Props) {
+  options,
+}: Props<K>) {
   const [open, setOpen] = useState(false);
   // WS7-6 B-fix Block 3-fix: the open menu renders in a Modal (portal) anchored
   // to the trigger's measured window position. Inside a FlatList header, an
@@ -67,13 +74,15 @@ export function SortDropdown({
     height: number;
   } | null>(null);
 
-  const labelFor = (key: SortKey, fallback: string) =>
+  // Without `options`, K is SortKey (the default) and this is SORT_OPTIONS.
+  const all = options ?? (SORT_OPTIONS as unknown as ReadonlyArray<SortOption<K>>);
+  const labelFor = (key: K, fallback: string) =>
     labelOverrides?.[key] ?? fallback;
-  const isDisabled = (key: SortKey) => disabledKeys?.includes(key) ?? false;
+  const isDisabled = (key: K) => disabledKeys?.includes(key) ?? false;
   const visibleOptions = hiddenKeys
-    ? SORT_OPTIONS.filter((o) => !hiddenKeys.includes(o.key))
-    : SORT_OPTIONS;
-  const current = SORT_OPTIONS.find((o) => o.key === value) ?? SORT_OPTIONS[0];
+    ? all.filter((o) => !hiddenKeys.includes(o.key))
+    : all;
+  const current = all.find((o) => o.key === value) ?? all[0];
 
   const openMenu = () => {
     const node = triggerRef.current as

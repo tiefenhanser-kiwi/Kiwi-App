@@ -180,12 +180,59 @@ test("toggleFavorite optimistically removes and DELETEs an existing favorite", a
   assert.deepEqual(qc.getQueryData(FAV_KEY), ["meal-1"]);
 
   route("DELETE", "/me/favorites/meal-1", () => mockJson({ success: true }));
+  // BOOK-1C1 — an un-save re-reads the list (the server clears the heart on
+  // the user's copies too), so the GET answers with the post-delete state.
+  route("GET", "/me/favorites", () => mockJson({ favorites: [] }));
 
   await act(async () => {
     await app!.toggleFavorite("meal-1");
   });
 
   assert.deepEqual(qc.getQueryData(FAV_KEY), []);
+  await settle(qc);
+  assert.deepEqual(qc.getQueryData(FAV_KEY), []);
+});
+
+test("BOOK-1C1: setSaved(false) re-reads the list, so a heart on the user's copy clears too", async () => {
+  const qc = await mountAuthed(["meal-1", "my-copy-of-meal-1"]);
+  route("DELETE", "/me/favorites/meal-1", () => mockJson({ success: true }));
+  // The server deleted both (by lineage).
+  route("GET", "/me/favorites", () => mockJson({ favorites: [] }));
+
+  await act(async () => {
+    await app!.setSaved("meal-1", false);
+  });
+  await settle(qc);
+  assert.deepEqual(qc.getQueryData(FAV_KEY), []);
+});
+
+test("BOOK-1C1: setSaved patches the Cookbook card on every cached page, and rolls it back on failure", async () => {
+  const qc = await mountAuthed([]);
+  const KEY = ["cookbook", "meals", "limit=30"];
+  qc.setQueryData(KEY, {
+    pages: [{ meals: [{ id: "cat-1", isSaved: false }, { id: "cat-2", isSaved: false }] }],
+    pageParams: [undefined],
+  });
+  const saved = () =>
+    (qc.getQueryData(KEY) as { pages: Array<{ meals: Array<{ id: string; isSaved: boolean }> }> }).pages[0].meals.map(
+      (m) => `${m.id}:${m.isSaved}`,
+    );
+
+  route("POST", "/me/favorites", () =>
+    mockJson({ favorite: { id: "f1", mealId: "cat-1", createdAt: "2026-01-01" } }, 201),
+  );
+  await act(async () => {
+    await app!.setSaved("cat-1", true);
+  });
+  assert.deepEqual(saved(), ["cat-1:true", "cat-2:false"]);
+  assert.deepEqual(qc.getQueryData(FAV_KEY), ["cat-1"]);
+
+  route("POST", "/me/favorites", () => mockJson({ error: "server_error" }, 500));
+  await act(async () => {
+    await assert.rejects(() => app!.setSaved("cat-2", true));
+  });
+  assert.deepEqual(saved(), ["cat-1:true", "cat-2:false"]);
+  assert.deepEqual(qc.getQueryData(FAV_KEY), ["cat-1"]);
 });
 
 test("toggleFavorite rolls the cache back when the API call fails", async () => {

@@ -11,6 +11,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { loadJSON, removeKey, saveJSON } from "@/lib/storage";
+import type { CookbookMeal } from "@/lib/api/cookbook";
+import {
+  patchSavedInPages,
+  withFavorite,
+  type CookbookPagesLike,
+} from "@/lib/cookbook/savedCache";
 import {
   addGroceryListItem,
   updateGroceryListStatus,
@@ -357,6 +363,14 @@ interface AppState {
   favorites: string[];
   toggleFavorite: (recipeId: string) => Promise<void>;
   isFavorite: (recipeId: string) => boolean;
+  /**
+   * BOOK-1C1 — "Save to My Meals" (the heart), as an explicit SET rather than
+   * a toggle: a Cookbook card can be saved through the user's copy of the meal
+   * (the server's lineage `isSaved`), which the favorites id list cannot see,
+   * so only the caller knows which way the tap goes. Optimistic on both caches
+   * the heart reads (lib/cookbook/savedCache.ts); rolls back and rethrows.
+   */
+  setSaved: (mealId: string, saved: boolean) => Promise<void>;
   isPremium: boolean;
   setPremium: (v: boolean) => Promise<void>;
   onboardingComplete: boolean;
@@ -1242,30 +1256,44 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return status;
   };
 
-  // Optimistic toggle: write the React Query cache immediately, then POST /
-  // DELETE. On failure, roll the cache back to the pre-toggle state and
-  // rethrow so the caller can surface the error.
-  const toggleFavorite = useCallback(
-    async (recipeId: string) => {
-      const isFav = favorites.includes(recipeId);
-      queryClient.setQueryData<string[]>(["me", "favorites"], (prev = []) =>
-        isFav
-          ? prev.filter((id) => id !== recipeId)
-          : [...prev, recipeId],
-      );
-      try {
-        if (isFav) await meAPI.removeFavorite(recipeId);
-        else await meAPI.addFavorite(recipeId);
-      } catch (err) {
+  // Optimistic set: write the React Query caches immediately, then POST /
+  // DELETE. On failure, roll the caches back to the pre-tap state and rethrow
+  // so the caller can surface the error.
+  //
+  // BOOK-1C1 — the ONE write path for the heart. It used to live in
+  // toggleFavorite over the favorites id list alone; the Cookbook card's
+  // `isSaved` (on its page cache) is now patched in the same breath, so meal
+  // detail and the card can never disagree after a tap.
+  const setSaved = useCallback(
+    async (mealId: string, saved: boolean) => {
+      const patchBoth = (to: boolean) => {
         queryClient.setQueryData<string[]>(["me", "favorites"], (prev = []) =>
-          isFav
-            ? [...prev, recipeId]
-            : prev.filter((id) => id !== recipeId),
+          withFavorite(prev, mealId, to),
         );
+        queryClient.setQueriesData<CookbookPagesLike<CookbookMeal>>(
+          { queryKey: ["cookbook", "meals"] },
+          (data) => patchSavedInPages(data, mealId, to),
+        );
+      };
+      patchBoth(saved);
+      try {
+        if (saved) await meAPI.addFavorite(mealId);
+        else await meAPI.removeFavorite(mealId);
+      } catch (err) {
+        patchBoth(!saved);
         throw err;
       }
+      // The Saved chip's list. And an un-save clears the heart on the user's
+      // copies too (server-side, by lineage), so re-read the id list.
+      void queryClient.invalidateQueries({ queryKey: ["meals", "list", ["saved"]] });
+      if (!saved) void queryClient.invalidateQueries({ queryKey: ["me", "favorites"] });
     },
-    [favorites, queryClient],
+    [queryClient],
+  );
+
+  const toggleFavorite = useCallback(
+    (recipeId: string) => setSaved(recipeId, !favorites.includes(recipeId)),
+    [favorites, setSaved],
   );
 
   const isFavorite = useCallback(
@@ -1342,6 +1370,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     favorites,
     toggleFavorite,
     isFavorite,
+    setSaved,
     isPremium,
     setPremium,
     onboardingComplete,

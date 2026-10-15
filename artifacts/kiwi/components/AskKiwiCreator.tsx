@@ -34,6 +34,8 @@ export interface AskKiwiCreatorProps {
   routeToUpgrade: () => void;
   /** Injectable for tests; defaults to the real parse-meal API call. */
   parseMeal?: AskKiwiSubmitDeps["parseMeal"];
+  /** BOOK-1C1 — the text the input starts with (the Cookbook's search). */
+  initialText?: string;
 }
 
 type Phase = "input" | "loading";
@@ -42,8 +44,9 @@ export function AskKiwiCreator({
   navigateToDraft,
   routeToUpgrade,
   parseMeal = realParseMeal,
+  initialText = "",
 }: AskKiwiCreatorProps) {
-  const [text, setText] = useState("");
+  const [text, setText] = useState(initialText);
   const [servings, setServings] = useState(ASK_KIWI_SERVINGS_DEFAULT);
   const [phase, setPhase] = useState<Phase>("input");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
