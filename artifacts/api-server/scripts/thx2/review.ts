@@ -85,7 +85,7 @@ function mealSection(m: MealGraph, t: Thx2Target | undefined): string {
         <div>
           <h5>Ingredients <span class="muted">(for ${d.servingsDefault})</span></h5>
           <ul>${d.ingredients.map((i) => `<li>${esc(qty(i.quantity))} ${esc(i.unit)} <b>${esc(i.name)}</b>${i.preparationNote ? `, ${esc(i.preparationNote)}` : ""}${i.isOptional ? ' <span class="muted">(optional)</span>' : ""}${i.pathKey ? ` <span class="path">${esc(i.pathKey)}</span>` : ""}</li>`).join("")}</ul>
-          ${d.substitutions.length ? `<h5>Store-bought swaps</h5><ul>${d.substitutions.map((s) => `<li>${esc(qty(s.quantity))} ${esc(s.unit)} <b>${esc(s.product)}</b> replaces ${s.replaces.map(esc).join(", ")}</li>`).join("")}</ul>` : ""}
+          ${d.substitutions.length ? `<h5>Shortcuts</h5><ul>${d.substitutions.map((s) => `<li>${esc(qty(s.quantity))} ${esc(s.unit)} <b>${esc(s.product)}</b> replaces ${s.replaces.map(esc).join(", ")}</li>`).join("")}</ul>` : ""}
         </div>
         <div>
           <h5>Steps</h5>
