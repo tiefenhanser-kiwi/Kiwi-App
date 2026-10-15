@@ -358,6 +358,10 @@ const PrepWeekEnvelopeSchema = z.object({
   generatedAt: z.string(), // ISO-8601
   promptVersion: z.number(),
   metadata: z.object({ latencyMs: z.number() }).optional(),
+  // PREP-1 (D-WS9-314) — "Prep the feast": the feast session answers with
+  // `session: "feast"` and the day it is for ("Wednesday"). Absent on the week.
+  session: z.literal("feast").optional(),
+  sessionDay: z.string().optional(),
 });
 // `subset` is `.optional()` on the WIRE mirror (a pre-WS9 server omits it) but
 // NON-optional on the type consumers see: getPrepWeek normalises the absence to
@@ -397,6 +401,8 @@ export type PrepWeekOutcome =
 export async function getPrepWeek(
   planId: string,
   mealIds?: string[],
+  /** PREP-1 — "feast" opens Prep the feast (the feast meal's own session). */
+  session?: "feast",
 ): Promise<PrepWeekOutcome> {
   try {
     const wire = await apiClient(
@@ -407,7 +413,7 @@ export async function getPrepWeek(
         // WS9 — omit the body entirely for a full week so the request is
         // byte-identical to the pre-subset call. `{ mealIds }` switches the
         // server to a subset run (400 on empty/duplicate/foreign ids).
-        ...(mealIds ? { body: { mealIds } } : {}),
+        ...(session ? { body: { session } } : mealIds ? { body: { mealIds } } : {}),
       },
     );
     return { kind: "ok", envelope: { ...wire, subset: wire.subset ?? false } };

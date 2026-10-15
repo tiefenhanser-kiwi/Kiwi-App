@@ -52,6 +52,12 @@ const FOOTER_NOTE =
 
 interface Props {
   planName: string;
+  /** PREP-1 — the header title: "Prep the Week" unless the session says otherwise
+   *  ("Prep Selected Meals", "Prep the feast"). */
+  title?: string;
+  /** PREP-1 — one quiet line under the tally (the feast session's day, or where
+   *  the feast's prep went). */
+  notice?: string | null;
   vm: PrepWeekVM;
   /** Distinct meals the week's prep combines — drives the subtitle. */
   mealCount: number;
@@ -182,6 +188,8 @@ function StepCard({
 
 export function PrepWeekView({
   planName,
+  title = "Prep the Week",
+  notice,
   vm,
   mealCount,
   phaseIndex,
@@ -228,7 +236,7 @@ export function PrepWeekView({
 
   return (
     <View style={s.bg}>
-      <Header showBack title="Prep the Week" onBack={onExit} />
+      <Header showBack title={title} onBack={onExit} />
 
       {/* Plan name + italic-dash subtitle ("— N meals combined —").
 
@@ -275,6 +283,7 @@ export function PrepWeekView({
           {vm.statedMinutes} min
         </Text>
       ) : null}
+      {notice ? <Text style={s.notice}>{notice}</Text> : null}
 
       {/* Phase indicator + the 4-phase progress bar. */}
       <Text style={s.phaseIndicator}>
@@ -405,6 +414,15 @@ const s = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
     color: Colors.neutral[600],
     textAlign: "center",
+    paddingBottom: Spacing[2],
+  },
+
+  // PREP-1 — the session line: the tally's quiet tier, a touch more air.
+  notice: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    textAlign: "center",
+    paddingHorizontal: Spacing[4],
     paddingBottom: Spacing[2],
   },
 

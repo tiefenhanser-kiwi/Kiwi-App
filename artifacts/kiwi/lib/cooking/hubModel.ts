@@ -18,6 +18,10 @@
 import type { PlanDetail, PlanDetailItem, PlanListItem } from "@/lib/api/plans";
 import { formatDate } from "@/lib/date";
 import { toDayOfWeek } from "@/lib/plans/dayOfWeek";
+import { buildMakeAheadCard, type MakeAheadCardVM } from "@/lib/cooking/makeAheadModel";
+
+/** PREP-1 (D-WS9-314) — the meal tag that marks the feast (THX-2G-E's contract). */
+export const FEAST_MEAL_TAG = "thanksgiving-feast";
 
 export type PrepStatus = "not_prepped" | "partial" | "prepped";
 
@@ -89,6 +93,11 @@ export interface HubMealRow {
   metaLine: string;
   isToday: boolean;
   pill: PrepPill;
+  /**
+   * PREP-1 (D-WS9-314) — false for the Thanksgiving feast: it has its own session
+   * ("Prep the feast"), and the server drops it from a Prep Selected Meals run.
+   */
+  prepSelectable: boolean;
 }
 
 export interface TodayMeal {
@@ -111,6 +120,8 @@ export interface PrepCookHubModel {
   prepWeekDisabled: boolean;
   todaysMeal: TodayMeal | null;
   meals: HubMealRow[];
+  /** PREP-1 (D-WS9-314) — the "Thanksgiving make-ahead" card; null without a feast. */
+  makeAhead: MakeAheadCardVM | null;
 }
 
 /** A user plan offered in the empty state as a one-tap "cook this week". */
@@ -192,6 +203,7 @@ export function buildPrepCookHubModel(
       metaLine: `${day} · ${meal.minutes} min · serves ${serves}`,
       isToday: todaysMeal?.planItemId === item.id,
       pill: mealPrepPill(item.isPrepped, prepStatus),
+      prepSelectable: !meal.tags.includes(FEAST_MEAL_TAG),
     };
   });
 
@@ -210,6 +222,7 @@ export function buildPrepCookHubModel(
     prepWeekDisabled: prepStatus === "prepped",
     todaysMeal,
     meals,
+    makeAhead: detail.makeAhead ? buildMakeAheadCard(detail.makeAhead) : null,
   };
 }
 

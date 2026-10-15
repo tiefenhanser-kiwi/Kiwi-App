@@ -35,6 +35,7 @@ import type {
   PrepCookHubModel,
   PromotablePlan,
 } from "@/lib/cooking/hubModel";
+import { PREP_THE_FEAST_LABEL } from "@/lib/cooking/makeAheadModel";
 
 interface Props {
   model: HubModel;
@@ -48,6 +49,10 @@ interface Props {
   selectedMealIds: ReadonlySet<string>;
   /** A "This week's meals" row / today's-meal callout tap. */
   onSelectMeal: (mealId: string, planItemId: string) => void;
+  /** PREP-1 — "Prep the feast": Week Prep over the feast meal's own session. */
+  onPrepFeast: () => void;
+  /** PREP-1 — a make-ahead row's recipe (the dish). */
+  onOpenRecipe: (dishId: string) => void;
   /** Empty-state nudge: no plan this week → make one. */
   onMakePlan: () => void;
   /** Empty-state: promote an existing plan to "this week" (one tap). */
@@ -107,6 +112,8 @@ export function PrepCookHubView({
   onToggleMealSelected,
   selectedMealIds,
   onSelectMeal,
+  onPrepFeast,
+  onOpenRecipe,
   onMakePlan,
   onCookThisWeek,
   promotingPlanId,
@@ -129,6 +136,8 @@ export function PrepCookHubView({
       onToggleMealSelected={onToggleMealSelected}
       selectedMealIds={selectedMealIds}
       onSelectMeal={onSelectMeal}
+      onPrepFeast={onPrepFeast}
+      onOpenRecipe={onOpenRecipe}
     />
   );
 }
@@ -260,6 +269,8 @@ function Hub({
   onToggleMealSelected,
   selectedMealIds,
   onSelectMeal,
+  onPrepFeast,
+  onOpenRecipe,
 }: {
   model: PrepCookHubModel;
   onPrepWeek: () => void;
@@ -267,6 +278,8 @@ function Hub({
   onToggleMealSelected: (mealId: string) => void;
   selectedMealIds: ReadonlySet<string>;
   onSelectMeal: (mealId: string, planItemId: string) => void;
+  onPrepFeast: () => void;
+  onOpenRecipe: (dishId: string) => void;
 }) {
   const { indicator } = model;
   const indicatorTone = TONE_STYLE[indicator.tone];
@@ -407,6 +420,44 @@ function Hub({
           </View>
         </View>
 
+        {/* PREP-1 (D-WS9-314) — the Thanksgiving make-ahead card. Only a plan
+            holding a `thanksgiving-feast` meal has one. Built from the Hub's own
+            pieces (§27.2): the lane title, the prompt line, the section label, the
+            meal-row card for each dish, and the shared primary <Button>. Each row
+            opens the dish's recipe; the button opens Prep the Week scoped to the
+            feast. */}
+        {model.makeAhead && (
+          <View style={s.makeAhead}>
+            <Text style={s.laneTitle}>{model.makeAhead.title}</Text>
+            <Text style={s.cookPrompt}>
+              {model.makeAhead.emptyLine ?? model.makeAhead.feastLine}
+            </Text>
+            {model.makeAhead.days.map((day) => (
+              <View key={day.key} style={s.makeAheadDay}>
+                <Text style={s.sectionLabel}>{day.label}</Text>
+                <View style={s.mealList}>
+                  {day.rows.map((row) => (
+                    <Pressable
+                      key={row.key}
+                      onPress={() => onOpenRecipe(row.dishId)}
+                      accessibilityRole="link"
+                      accessibilityLabel={`${row.title}, ${row.note}. Open the recipe.`}
+                      style={({ pressed }) => [s.mealRow, pressed && { opacity: 0.9 }]}
+                    >
+                      <View style={s.mealText}>
+                        <Text style={s.mealTitle}>{row.title}</Text>
+                        <Text style={s.mealMeta}>{row.note}</Text>
+                      </View>
+                      <Feather name="chevron-right" size={18} color={Colors.neutral[600]} />
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            ))}
+            <Button label={PREP_THE_FEAST_LABEL} variant="primary" onPress={onPrepFeast} />
+          </View>
+        )}
+
         {/* Cook a meal — the lane is now a text prompt over this-week's meals;
             tapping a row launches Cook Mode (D-WS7-158). */}
         <Text style={s.laneTitle}>Cook a meal</Text>
@@ -437,6 +488,8 @@ function Hub({
                     nearest neighbour, and the one the user meets on the very
                     next screen) rather than extracting a third abstraction in a
                     block that owns neither of those files. */}
+                {/* PREP-1 — the feast is prepped in its own session, so it has no tick. */}
+                {row.prepSelectable && (
                 <Pressable
                   onPress={() => onToggleMealSelected(row.mealId)}
                   hitSlop={10}
@@ -463,6 +516,7 @@ function Hub({
                     <Text style={s.selectCellLabel}>Prep This Meal</Text>
                   </View>
                 </Pressable>
+                )}
                 {/* WS9 row 5 Block 2 — the meal thumb through TreatedImage
                     (photo, or the warm ramp for a meal that never has one). The
                     plan card above goes through TreatedImage too since row 5
@@ -577,6 +631,9 @@ const s = StyleSheet.create({
 
   // lanes
   lanes: { gap: Spacing[3], marginBottom: Spacing[5] },
+  // PREP-1 — the make-ahead card: the meal list's own rhythm, a day per block.
+  makeAhead: { gap: Spacing[2], marginBottom: Spacing[5] },
+  makeAheadDay: { gap: Spacing[1] },
   laneTitle: {
     fontSize: Typography.fontSize.lg,
     color: Colors.neutral[900],

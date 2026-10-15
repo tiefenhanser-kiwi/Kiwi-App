@@ -137,6 +137,18 @@ export default function PrepCook() {
     });
   };
 
+  // PREP-1 (D-WS9-314) — "Prep the feast": the same Week Prep screen over the
+  // feast meal's own session (keyed apart from the week's on the server).
+  const goPrepFeast = () =>
+    router.push({
+      pathname: "/cook-session",
+      params: { mode: "prep-week", planId: resolvedId, session: "feast" },
+    });
+
+  // PREP-1 — a make-ahead row opens its dish's recipe.
+  const goRecipe = (dishId: string) =>
+    router.push({ pathname: "/dish/[id]", params: { id: dishId } });
+
   const goMakePlan = () => router.push("/wizard");
 
   // ── State resolution ──────────────────────────────────────────────────────
@@ -169,6 +181,8 @@ export default function PrepCook() {
         onToggleMealSelected={toggleMealSelected}
         selectedMealIds={selectedMealIds}
         onSelectMeal={goCookSession}
+        onPrepFeast={goPrepFeast}
+        onOpenRecipe={goRecipe}
         onMakePlan={goMakePlan}
         onCookThisWeek={onCookThisWeek}
         promotingPlanId={promotingPlanId}

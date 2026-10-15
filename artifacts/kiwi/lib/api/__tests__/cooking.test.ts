@@ -620,3 +620,28 @@ test("prepWeekQueryKey: different selections are different keys", () => {
 test("prepWeekQueryKey: an empty selection falls back to the full-week key", () => {
   assert.deepEqual(prepWeekQueryKey("plan-1", []), prepWeekQueryKey("plan-1"));
 });
+
+// ── PREP-1 (D-WS9-314) — Prep the feast ───────────────────────────────────────
+
+test("getPrepWeek with session 'feast' POSTs { session } and parses the session fields", async () => {
+  nextResponse = () => mockJson({ ...MISS_ENVELOPE, subset: false, session: "feast", sessionDay: "Wednesday" });
+  const out = await getPrepWeek("plan-1", undefined, "feast");
+  assert.equal(lastMethod, "POST");
+  assert.equal(lastBody, JSON.stringify({ session: "feast" }));
+  assert.equal(out.kind, "ok");
+  if (out.kind !== "ok") return;
+  assert.equal(out.envelope.session, "feast");
+  assert.equal(out.envelope.sessionDay, "Wednesday");
+});
+
+test("getPrepWeek: a feast session ignores a selection (the server refuses both)", async () => {
+  nextResponse = () => mockJson({ ...MISS_ENVELOPE, session: "feast" });
+  await getPrepWeek("plan-1", [M1], "feast");
+  assert.equal(lastBody, JSON.stringify({ session: "feast" }));
+});
+
+test("prepWeekQueryKey: the feast session is its own cache entry", () => {
+  const feast = prepWeekQueryKey("plan-1", undefined, "feast");
+  assert.notDeepEqual(feast, prepWeekQueryKey("plan-1"));
+  assert.notDeepEqual(feast, prepWeekQueryKey("plan-1", [M1]));
+});

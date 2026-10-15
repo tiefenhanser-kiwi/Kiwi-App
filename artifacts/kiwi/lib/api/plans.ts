@@ -126,6 +126,31 @@ const OptimizationNoteSchema = z.object({
   text: z.string(),
 });
 
+// PREP-1 (D-WS9-314) — the Thanksgiving make-ahead schedule (server:
+// lib/makeAheadSchedule.ts). Present only on a plan holding a
+// `thanksgiving-feast` meal; the Hub's "Thanksgiving make-ahead" card renders it.
+// Rows carry data, not copy (lib/cooking/makeAheadModel.ts writes the words).
+const MakeAheadRowSchema = z.object({
+  kind: z.enum(["thaw", "make", "brine"]),
+  dayName: z.string(),
+  date: z.string().nullable(),
+  daysBefore: z.number(),
+  mealId: z.string(),
+  dishId: z.string(),
+  dishName: z.string(),
+  keepsDays: z.number().optional(),
+  thawDays: z.number().optional(),
+  brineHours: z.object({ min: z.number(), max: z.number() }).optional(),
+});
+export const MakeAheadSchema = z.object({
+  feastMealId: z.string(),
+  feastDayName: z.string(),
+  feastDate: z.string().nullable(),
+  rows: z.array(MakeAheadRowSchema),
+});
+export type MakeAhead = z.infer<typeof MakeAheadSchema>;
+export type MakeAheadRow = z.infer<typeof MakeAheadRowSchema>;
+
 // GET /plans/:id payload — the `plan` envelope's contents: instance meta +
 // every item with its Meal expansion + a fresh macro rollup.
 export const PlanDetailSchema = z.object({
@@ -164,6 +189,8 @@ export const PlanDetailSchema = z.object({
   lunchOverrides: z.string(),
   items: z.array(PlanDetailItemSchema),
   macroDailyAverage: MacroDailyAverageSchema,
+  // PREP-1 (D-WS9-314) — optional (additive): absent on every plan without a feast.
+  makeAhead: MakeAheadSchema.optional(),
 });
 export type PlanDetail = z.infer<typeof PlanDetailSchema>;
 

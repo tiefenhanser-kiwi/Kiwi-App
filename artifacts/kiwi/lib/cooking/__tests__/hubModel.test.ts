@@ -356,3 +356,27 @@ test("resolveHubPlanId: explicit id wins; list still loading → resolving (spin
     resolving: true,
   });
 });
+
+// ── PREP-1 (D-WS9-314) — the feast on the Hub ──────────────────────────────────
+
+test("buildPrepCookHubModel: a plan with makeAhead gets the card, and the feast row has no prep tick", () => {
+  const detail = plan({
+    items: [
+      item({ id: "a", meal: meal({ title: "Tacos", tags: ["mexican"] }) }),
+      item({ id: "b", meal: meal({ title: "Classic Thanksgiving", tags: ["thanksgiving", "thanksgiving-feast"] }) }),
+    ],
+    makeAhead: { feastMealId: "m-feast", feastDayName: "Thursday", feastDate: "2026-11-26", rows: [] },
+  });
+  const model = buildPrepCookHubModel(detail, "Sunday");
+  assert.equal(model.makeAhead?.title, "Thanksgiving make-ahead");
+  assert.deepEqual(model.meals.map((m) => m.prepSelectable), [true, false]);
+});
+
+test("buildPrepCookHubModel: no makeAhead, no card; pizza night (`thanksgiving` alone) keeps its tick", () => {
+  const model = buildPrepCookHubModel(
+    plan({ items: [item({ id: "p", meal: meal({ title: "Pizza Night", tags: ["thanksgiving"] }) })] }),
+    "Sunday",
+  );
+  assert.equal(model.makeAhead, null);
+  assert.equal(model.meals[0].prepSelectable, true);
+});

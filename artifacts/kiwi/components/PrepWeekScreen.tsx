@@ -33,6 +33,7 @@ import {
   buildMealLabelLookup,
   buildPrepWeekModel,
 } from "@/lib/cooking/prepWeekModel";
+import { prepSessionCopy } from "@/lib/cooking/makeAheadModel";
 import {
   isPrepAllDoneEdge,
   releasePrepAdvance,
@@ -49,6 +50,7 @@ export const LOADING_SCREEN_DELAY_MS = 400;
 export function PrepWeekScreen({
   planId,
   mealIds,
+  session,
   onExit,
   onSaveExit,
 }: {
@@ -60,19 +62,29 @@ export function PrepWeekScreen({
    *  in a subset session is the same row a full-week session would have
    *  written. */
   mealIds?: string[];
+  /** PREP-1 (D-WS9-314) — "feast" is Prep the feast: the feast meal's own session,
+   *  keyed `feast#…` by the server. The screen is the same; its title is not. */
+  session?: "feast";
   /** Header back + the celebratory finish exit (router.back → the Hub). */
   onExit: () => void;
   /** BUG-020 — "Save & Exit": a quiet, write-free exit to this plan's Meal Plan
    *  Detail screen. Navigation target owned by the route. */
   onSaveExit: () => void;
 }) {
-  const isSubset = !!mealIds && mealIds.length > 0;
+  const isSubset = !session && !!mealIds && mealIds.length > 0;
   // WS9 — a subset session is not "the week", and saying so on every one of the
   // four states below would be a small lie the user has to reconcile against
   // the two meals they actually picked.
-  const headerTitle = isSubset ? "Prep Selected Meals" : "Prep the Week";
-  const prepQuery = usePrepWeek(planId, true, mealIds);
+  const prepQuery = usePrepWeek(planId, true, mealIds, session);
   const planQuery = usePlan(planId);
+  // PREP-1 — the title by session, and the one line: the feast session's day,
+  // or (on the week) where the feast's prep went.
+  const { title: headerTitle, notice } = prepSessionCopy({
+    session,
+    isSubset,
+    sessionDay: prepQuery.data?.kind === "ok" ? prepQuery.data.envelope.sessionDay : undefined,
+    planHasFeast: planQuery.data?.makeAhead != null,
+  });
   const completionsQuery = usePrepWeekCompletions(planId);
   const { toggle, completePhase } = usePrepStepToggle(planId);
 
@@ -142,12 +154,13 @@ export function PrepWeekScreen({
   // holds before the response: a subset names its meals in the route, a full
   // week reads the plan detail. Unknown → undefined, and the line is omitted.
   const loadingMealCount = useMemo(() => {
+    if (session === "feast") return 1;
     if (isSubset) return new Set(mealIds).size;
     if (!planQuery.data) return undefined;
     return new Set(
       planQuery.data.items.filter((i) => i.meal != null).map((i) => i.mealId),
     ).size;
-  }, [isSubset, mealIds, planQuery.data]);
+  }, [session, isSubset, mealIds, planQuery.data]);
 
   // Finish toast (§7.12) → lands, then routes out.
   useEffect(() => {
@@ -338,6 +351,8 @@ export function PrepWeekScreen({
     <View style={s.bg}>
       <PrepWeekView
         planName={resolveDisplayTitle(planQuery.data, "Your week")}
+        title={headerTitle}
+        notice={notice}
         vm={vm}
         mealCount={mealCount}
         phaseIndex={phaseIndex}

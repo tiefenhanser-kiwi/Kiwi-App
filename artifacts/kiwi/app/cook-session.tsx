@@ -56,6 +56,7 @@ export default function CookSession() {
     planItemId?: string;
     mode?: string;
     mealIds?: string;
+    session?: string;
   }>();
   const mealId = typeof params.mealId === "string" ? params.mealId : "";
   const dishId = typeof params.dishId === "string" ? params.dishId : "";
@@ -70,6 +71,9 @@ export default function CookSession() {
     const ids = raw.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
     return ids.length > 0 ? ids : undefined;
   }, [params.mealIds]);
+
+  // PREP-1 (D-WS9-314) — `session=feast` opens Prep the feast. Anything else is the week.
+  const session = params.session === "feast" ? ("feast" as const) : undefined;
 
   // All hooks run every render (rules of hooks); empty ids leave queries disabled.
   const mealQuery = useMeal(mealId, planItemId || undefined);
@@ -209,7 +213,8 @@ export default function CookSession() {
     return (
       <PrepWeekScreen
         planId={planId}
-        mealIds={mealIds}
+        mealIds={session ? undefined : mealIds}
+        session={session}
         onExit={() => router.back()}
         onSaveExit={() =>
           planId.length > 0

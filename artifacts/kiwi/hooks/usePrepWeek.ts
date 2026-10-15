@@ -35,7 +35,9 @@ import { getPrepWeek, type PrepWeekOutcome } from "@/lib/api/cooking";
 //
 // Ids are sorted so selection ORDER doesn't fragment the cache — the same two
 // meals picked in either order is one entry, and therefore one AI call.
-function prepWeekQueryKey(planId: string, mealIds?: string[]) {
+function prepWeekQueryKey(planId: string, mealIds?: string[], session?: "feast") {
+  // PREP-1 — the feast session is its own cache entry beside the week's.
+  if (session) return ["cooking", "prep-week", planId, "session", session];
   if (!mealIds || mealIds.length === 0) return ["cooking", "prep-week", planId];
   return ["cooking", "prep-week", planId, "subset", [...mealIds].sort().join(",")];
 }
@@ -44,11 +46,12 @@ export function usePrepWeek(
   planId: string,
   enabled = true,
   mealIds?: string[],
+  session?: "feast",
 ) {
-  const isSubset = !!mealIds && mealIds.length > 0;
+  const isSubset = !session && !!mealIds && mealIds.length > 0;
   return useQuery<PrepWeekOutcome>({
-    queryKey: prepWeekQueryKey(planId, mealIds),
-    queryFn: () => getPrepWeek(planId, isSubset ? mealIds : undefined),
+    queryKey: prepWeekQueryKey(planId, mealIds, session),
+    queryFn: () => getPrepWeek(planId, isSubset ? mealIds : undefined, session),
     enabled: enabled && planId.length > 0,
     staleTime: Infinity,
   });
