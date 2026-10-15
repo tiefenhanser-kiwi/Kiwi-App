@@ -309,6 +309,8 @@ export const MEAL_FILTER_KEYS = [
   "featured",
   "top_rated",
   "hosting",
+  // BOOK-1C1 — the meals the user hearted ("Save to My Meals").
+  "saved",
 ] as const;
 export type MealFilterKey = (typeof MEAL_FILTER_KEYS)[number];
 

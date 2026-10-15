@@ -11,6 +11,7 @@ import { useRouter } from "expo-router";
 
 import { AddDishChooserSheet } from "@/components/AddDishChooserSheet";
 import { AddMealToPlanSheet } from "@/components/AddMealToPlanSheet";
+import { CookbookEntryCard } from "@/components/CookbookEntryCard";
 import { DishRow } from "@/components/DishRow";
 import {
   FilterChipRow,
@@ -53,18 +54,19 @@ import { dialog } from "@/lib/dialog";
 
 type SubTab = "meals" | "dishes";
 
+// BOOK-1C1 (D-WS9-312) — Featured, Top Rated and Hosting & Events are gone:
+// they were always empty (Meal carries no featuring flag, D-WS7-039), and the
+// Cookbook card above the switch is where browsing lives now. Saved is the
+// meals the user hearted ("Save to My Meals").
 const MEALS_CHIPS: FilterChipOption<MealFilterKey>[] = [
-  { key: "featured", label: "Featured" },
   { key: "my_meals", label: "My Meals" },
-  { key: "top_rated", label: "Top Rated" },
-  { key: "hosting", label: "Hosting & Events" },
+  { key: "saved", label: "Saved" },
 ];
 
-const DISHES_CHIPS: FilterChipOption<DishFilterKey>[] = [
-  { key: "featured", label: "Featured" },
-  { key: "my_dishes", label: "My Dishes" },
-  { key: "top_rated", label: "Top Rated" },
-];
+// BOOK-1C1 — Featured and Top Rated removed from Dishes too, which leaves one
+// option, so the Dishes sub-tab shows no chip row (a row with one chip offers
+// no choice); its section label still names it.
+const MY_DISHES_LABEL = "My Dishes";
 
 // WS7-6 G2 scope (iii): the Meals sub-tab now sorts SERVER-side too (the
 // dropdown drives ?sort= and the keyset-paginated list re-queries) — the old
@@ -93,7 +95,8 @@ export default function MealsTab() {
   });
   // Dishes filter: persistence channel exists in spirit (mirror Meals tab)
   // but User.lastDishesFilters is not in schema (D-WS7-051). Local-only.
-  const [dishFilter, setDishFilter] = useState<DishFilterKey>(
+  // BOOK-1C1 — My Dishes is the only Dishes chip left, so nothing sets it.
+  const [dishFilter] = useState<DishFilterKey>(
     () => dishesFilterDefault([])[0],
   );
   const [mealSort, setMealSort] = useState<SortKey>("alpha");
@@ -182,20 +185,22 @@ export default function MealsTab() {
         mealId={addToPlanFor?.mealId ?? ""}
         mealTitle={addToPlanFor?.mealTitle}
         onClose={() => setAddToPlanFor(null)}
-        onPickExistingPlan={(plan) => {
+        onPickExistingPlan={(plan, day) => {
           // WS9-2 BUG-070 — real add-to-plan wiring, mirroring the proven
           // Meal-detail path (addMealToPlan → POST /plans/:id/items, append-
           // only). The sheet closes itself on pick; capture the meal before
           // clearing state, then confirm/err via Alert (no toast component).
+          // BOOK-1C1 — the sheet's day step hands back the day; sent as
+          // assignedDayOfWeek.
           const mealId = addToPlanFor?.mealId;
           const mealTitle = addToPlanFor?.mealTitle;
           setAddToPlanFor(null);
           if (!mealId) return;
-          void addMealToPlan(plan.id, mealId)
+          void addMealToPlan(plan.id, mealId, day)
             .then(() => {
               dialog.alert(
                 "Added to plan",
-                `${mealTitle} was added to "${resolveDisplayTitle(plan)}".`,
+                `${mealTitle} was added to "${resolveDisplayTitle(plan)}" on ${day}.`,
               );
             })
             .catch((err) => {
@@ -227,6 +232,9 @@ export default function MealsTab() {
           container — nesting a VirtualizedList inside a ScrollView would break
           onEndReached. */}
       <Screen scroll={false}>
+        {/* BOOK-1C1 — the way into the Cookbook, above the Meals | Dishes
+            switch so it reads the same on both sub-tabs. */}
+        <CookbookEntryCard />
         {/* Sub-tab toggle */}
         <View style={s.toggleRow}>
           <Pressable
@@ -363,18 +371,8 @@ export default function MealsTab() {
                   <Text style={s.addBtnText}>+ Add Dish</Text>
                 </Pressable>
 
-                <View style={s.filterWrap}>
-                  <FilterChipRow<DishFilterKey>
-                    options={DISHES_CHIPS}
-                    selected={[dishFilter]}
-                    onToggle={(key) => setDishFilter(key)}
-                  />
-                </View>
-
                 <View style={[s.controlsRow, s.controlsRowList]}>
-                  <Text style={s.sectionLabel}>
-                    {DISHES_CHIPS.find((c) => c.key === dishFilter)?.label}
-                  </Text>
+                  <Text style={s.sectionLabel}>{MY_DISHES_LABEL}</Text>
                   <SortDropdown
                     value={dishSortKey}
                     onChange={setDishSortKey}

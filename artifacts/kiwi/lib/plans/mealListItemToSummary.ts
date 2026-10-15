@@ -29,6 +29,8 @@ const FILTER_TO_SOURCE: Record<MealFilterKey, MealSource> = {
   featured: "featured",
   top_rated: "top_rated",
   hosting: "hosting",
+  // BOOK-1C1 — the hearted meals; the legacy source vocabulary already has it.
+  saved: "saved",
 };
 
 export function mealListItemToSummary(

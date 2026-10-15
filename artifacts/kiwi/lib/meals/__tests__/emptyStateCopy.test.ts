@@ -7,10 +7,17 @@ import { test } from "node:test";
 import { MEAL_FILTER_KEYS } from "@/lib/api/meals";
 import { mealsEmptyCopy } from "../emptyStateCopy";
 
-test("mealsEmptyCopy: my_meals copy points to + Add Meal + Featured", () => {
+test("mealsEmptyCopy: my_meals copy points to + Add Meal + the Cookbook (BOOK-1C1: Featured is gone)", () => {
   const copy = mealsEmptyCopy("my_meals");
   assert.match(copy, /\+ Add Meal/);
-  assert.match(copy, /Featured/);
+  assert.match(copy, /Cookbook/);
+  assert.doesNotMatch(copy, /Featured/);
+});
+
+test("BOOK-1C1: saved copy says how to save", () => {
+  const copy = mealsEmptyCopy("saved");
+  assert.match(copy, /save/i);
+  assert.match(copy, /heart/);
 });
 
 test("mealsEmptyCopy: featured copy acknowledges seeding state", () => {

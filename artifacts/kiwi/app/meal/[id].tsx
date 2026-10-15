@@ -11,6 +11,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/contexts/ToastProvider";
 import { AddMealToPlanSheet } from "@/components/AddMealToPlanSheet";
 import { Button } from "@/components/Button";
 import { PlaylistToggleButton } from "@/components/PlaylistToggleButton";
@@ -69,16 +70,24 @@ const SERVINGS_MAX = 12;
 // in the meal detail Header's rightContent slot. toggleFavorite is optimistic
 // with rollback (AppContext), so the icon flips instantly; on API failure the
 // mutator rolls the cache back and we surface a brief alert.
+//
+// BOOK-1C1 (D-WS9-312) — the heart is "Save to My Meals" (Hans: "saved is
+// basically liked"): the Recipes tab's Saved chip lists what it saves, and it
+// writes through AppContext.setSaved, the same call the Cookbook card's heart
+// makes, so the two show one state. A toast confirms, as on the card.
 function HeartButton({ mealId }: { mealId: string }) {
-  const { isFavorite, toggleFavorite } = useApp();
+  const { isFavorite, setSaved } = useApp();
+  const { showToast } = useToast();
   const favorited = isFavorite(mealId);
 
   const onToggle = async () => {
+    const next = !favorited;
     try {
-      await toggleFavorite(mealId);
+      await setSaved(mealId, next);
+      showToast({ message: next ? "Saved to My Meals" : "Removed from My Meals" });
     } catch {
       dialog.alert(
-        "Couldn't update favorites",
+        "Couldn't update My Meals",
         "Something went wrong. Please try again.",
       );
     }
@@ -89,8 +98,9 @@ function HeartButton({ mealId }: { mealId: string }) {
       onPress={onToggle}
       hitSlop={8}
       accessibilityRole="button"
+      accessibilityState={{ selected: favorited }}
       accessibilityLabel={
-        favorited ? "Remove from favorites" : "Add to favorites"
+        favorited ? "Remove from My Meals" : "Save to My Meals"
       }
       style={({ pressed }) => [s.heartBtn, pressed && { opacity: 0.6 }]}
     >
@@ -537,18 +547,20 @@ function MealDetailContent({
         mealId={meal.id}
         mealTitle={resolveDisplayTitle(meal)}
         onClose={() => setAddToPlanVisible(false)}
-        onPickExistingPlan={(plan) => {
+        onPickExistingPlan={(plan, day) => {
           // BUG-004 — real wiring to the existing add-to-plan path
           // (addMealToPlan → POST /plans/:id/items). The sheet closes itself
           // on pick; we fire the mutation and confirm/err via Alert (the app
           // has no toast component — Alert is the standard affordance).
+          // BOOK-1C1 — the sheet's day step hands back the day.
           console.log("[meal-detail] add-to-plan picked", {
             planId: plan.id,
             mealId: meal.id,
+            day,
           });
-          void addMealToPlan(plan.id, meal.id)
+          void addMealToPlan(plan.id, meal.id, day)
             .then(() => {
-              dialog.alert("Added to plan", `${resolveDisplayTitle(meal)} was added to "${resolveDisplayTitle(plan)}".`);
+              dialog.alert("Added to plan", `${resolveDisplayTitle(meal)} was added to "${resolveDisplayTitle(plan)}" on ${day}.`);
             })
             .catch((err) => {
               console.warn("[meal-detail] add-to-plan failed", {

@@ -4,8 +4,8 @@
 import type { DishFilterKey } from "@/lib/api/dishes";
 
 const COPY: Record<DishFilterKey, string> = {
-  my_dishes:
-    "Your dishes show up here. Add one with + Add Dish, or browse Featured to get started.",
+  // BOOK-1C1 — the Featured chip is gone from Dishes; this no longer names it.
+  my_dishes: "Your dishes show up here. Add one with + Add Dish to get started.",
   featured:
     "No featured dishes yet — Kiwi's catalog is still growing. Add your own with + Add Dish, or check My Dishes.",
   // BUG-309 (packaging lane) — the exact twin of the meals fix the store-prep

@@ -5,8 +5,12 @@
 import type { MealFilterKey } from "@/lib/api/meals";
 
 const COPY: Record<MealFilterKey, string> = {
+  // BOOK-1C1 — "browse Featured" pointed at a chip that is gone; the Cookbook
+  // card at the top of this tab is where browsing lives now.
   my_meals:
-    "Your meals show up here. Add one with + Add Meal, or browse Featured to get started.",
+    "Your meals show up here. Add one with + Add Meal, or browse the Cookbook to get started.",
+  saved:
+    "Meals you save show up here. Tap the heart on a meal in the Cookbook to save it.",
   featured:
     "No featured meals yet — Kiwi's catalog is still growing. Add your own with + Add Meal, or check My Meals.",
   // Store-prep lane — "as the Kiwi community starts cooking" described a

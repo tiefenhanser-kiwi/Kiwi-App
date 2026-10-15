@@ -7,10 +7,10 @@ import { test } from "node:test";
 import { DISH_FILTER_KEYS } from "@/lib/api/dishes";
 import { dishesEmptyCopy } from "../emptyStateCopy";
 
-test("dishesEmptyCopy: my_dishes copy points to + Add Dish + Featured", () => {
+test("dishesEmptyCopy: my_dishes copy points to + Add Dish (BOOK-1C1: not the removed Featured chip)", () => {
   const copy = dishesEmptyCopy("my_dishes");
   assert.match(copy, /\+ Add Dish/);
-  assert.match(copy, /Featured/);
+  assert.doesNotMatch(copy, /Featured/);
 });
 
 test("dishesEmptyCopy: featured copy acknowledges seeding state", () => {
