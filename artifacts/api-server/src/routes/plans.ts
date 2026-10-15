@@ -278,6 +278,15 @@ function computeMacroDailyAverage(items: PlanReviewItem[]): {
   };
 }
 
+/**
+ * BUG-411 — a plan that takes no new or swapped meals: composted (compostedAt
+ * set) or archived. Drafts, upcoming and past plans are open — a past plan is
+ * one someone may still be cooking from.
+ */
+export function isClosedPlan(plan: { isArchived?: boolean | null; compostedAt?: Date | null }): boolean {
+  return plan.isArchived === true || (plan.compostedAt ?? null) !== null;
+}
+
 export function createPlansRouter(
   deps: Partial<PlansRouterDeps> = {},
 ): IRouter {
@@ -2061,10 +2070,15 @@ export function createPlansRouter(
         const result = await prisma.$transaction(async (tx) => {
           const plan = await tx.mealPlanInstance.findUnique({
             where: { id: planId },
-            select: { userId: true, revisionId: true },
+            select: { userId: true, revisionId: true, isArchived: true, compostedAt: true },
           });
           if (!plan || plan.userId !== userId) {
             return { kind: "not_found_plan" as const };
+          }
+          // BUG-411 — a composted (or otherwise archived) plan takes no new
+          // meals. Draft, upcoming and past plans still do.
+          if (isClosedPlan(plan)) {
+            return { kind: "plan_closed" as const };
           }
 
           const meal = await tx.meal.findUnique({
@@ -2166,6 +2180,9 @@ export function createPlansRouter(
 
         if (result.kind === "not_found_plan") {
           return res.status(404).json({ error: "plan not found" });
+        }
+        if (result.kind === "plan_closed") {
+          return res.status(409).json({ error: "plan_closed" });
         }
         if (result.kind === "not_found_meal") {
           return res.status(404).json({ error: "meal not found" });
@@ -2419,10 +2436,15 @@ export function createPlansRouter(
         const result = await prisma.$transaction(async (tx) => {
           const plan = await tx.mealPlanInstance.findUnique({
             where: { id: planId },
-            select: { userId: true },
+            select: { userId: true, isArchived: true, compostedAt: true },
           });
           if (!plan || plan.userId !== userId) {
             return { kind: "not_found_plan" as const };
+          }
+          // BUG-411 — no meal SWAP on a composted/archived plan. The other
+          // item edits (servings, day, notes) are left as they were.
+          if (body.mealId !== undefined && isClosedPlan(plan)) {
+            return { kind: "plan_closed" as const };
           }
 
           const current = await tx.mealPlanItem.findUnique({
@@ -2751,6 +2773,9 @@ export function createPlansRouter(
 
         if (result.kind === "not_found_plan") {
           return res.status(404).json({ error: "plan not found" });
+        }
+        if (result.kind === "plan_closed") {
+          return res.status(409).json({ error: "plan_closed" });
         }
         if (result.kind === "not_found_item") {
           return res.status(404).json({ error: "item not found" });

@@ -5508,6 +5508,9 @@ interface D1PlanFix {
   id: string;
   userId: string;
   revisionId: number;
+  // BUG-411 — absent = an open plan (every pre-existing fixture).
+  isArchived?: boolean;
+  compostedAt?: Date | null;
 }
 
 interface D1MealFix {
@@ -5558,7 +5561,14 @@ function makeD1Stub(opts: {
     mealPlanInstance: {
       findUnique: async (args: { where: { id: string } }) => {
         const row = plans.find((p) => p.id === args.where.id);
-        return row ? { userId: row.userId, revisionId: row.revisionId } : null;
+        return row
+          ? {
+              userId: row.userId,
+              revisionId: row.revisionId,
+              isArchived: row.isArchived ?? false,
+              compostedAt: row.compostedAt ?? null,
+            }
+          : null;
       },
       update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
         recorder.instanceUpdates.push(args);
@@ -6216,6 +6226,36 @@ describe("POST /plans/:id/items (WS7-4-D c1)", () => {
     }
   });
 
+  // BUG-411 — a composted or archived plan takes no new meal (409); a draft,
+  // upcoming or past plan still does.
+  it("BUG-411: 409 on a composted or archived plan, writes nothing; an open plan still adds", async () => {
+    const recorder: D1ItemRecorder = { itemCreates: [], instanceUpdates: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeD1Stub({
+        recorder,
+        plans: [
+          { id: "p-composted", userId: A2_USER, revisionId: 2, isArchived: true, compostedAt: new Date("2026-10-01T00:00:00Z") },
+          { id: "p-archived", userId: A2_USER, revisionId: 2, isArchived: true },
+          { id: "p-open", userId: A2_USER, revisionId: 2 },
+        ],
+        meals: [{ id: "m-1", userId: A2_USER, isPublic: false, isArchived: false, title: "M1" }],
+      }),
+    );
+    try {
+      for (const planId of ["p-composted", "p-archived"]) {
+        const res = await postPlanItem(harness, planId, { mealId: "m-1" });
+        assert.equal(res.status, 409, planId);
+        assert.deepEqual(await res.json(), { error: "plan_closed" });
+      }
+      assert.equal(recorder.itemCreates.length, 0);
+      assert.equal(recorder.instanceUpdates.length, 0);
+      const ok = await postPlanItem(harness, "p-open", { mealId: "m-1" });
+      assert.equal(ok.status, 201);
+    } finally {
+      await harness.close();
+    }
+  });
+
   it("rolls back: when mealPlanItem.create throws, no activity written and 500 returned", async () => {
     const recorder: D1ItemRecorder = {
       itemCreates: [],
@@ -6576,7 +6616,9 @@ function makeD3Stub(opts: {
     mealPlanInstance: {
       findUnique: async (args: { where: { id: string } }) => {
         const row = plans.find((p) => p.id === args.where.id);
-        return row ? { userId: row.userId } : null;
+        return row
+          ? { userId: row.userId, isArchived: row.isArchived ?? false, compostedAt: row.compostedAt ?? null }
+          : null;
       },
       // bumpPlanRevision call inside the route's tx.
       update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
@@ -6796,6 +6838,31 @@ describe("PATCH /plans/:id/items/:itemId (WS7-4-D c3)", () => {
       }
       assert.equal(recorder.itemUpdates.length, 0);
       assert.equal(recorder.activityWrites.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // BUG-411 — no meal swap on a composted plan; its other item edits stand.
+  it("BUG-411: a mealId swap on a composted plan → 409; a day edit on it is still allowed", async () => {
+    const recorder: D3Recorder = {
+      itemUpdates: [], itemCreates: [], itemDeletes: [],
+      instanceUpdates: [], activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD3Stub({
+        recorder,
+        plans: [{ id: "p-1", userId: A2_USER, revisionId: 5, isArchived: true, compostedAt: new Date("2026-10-01T00:00:00Z") }],
+        meals: D3_DEFAULT_MEALS,
+        items: [d3ItemFix({ id: "it-1", mealPlanInstanceId: "p-1", mealId: "m-old" })],
+      }),
+    );
+    try {
+      const swap = await patchPlanItemReq(harness, "p-1", "it-1", { mealId: "m-new" });
+      assert.equal(swap.status, 409);
+      assert.equal(recorder.itemCreates.length + recorder.itemDeletes.length + recorder.itemUpdates.length, 0);
+      const day = await patchPlanItemReq(harness, "p-1", "it-1", { assignedDayOfWeek: "Monday" });
+      assert.equal(day.status, 200);
     } finally {
       await harness.close();
     }
