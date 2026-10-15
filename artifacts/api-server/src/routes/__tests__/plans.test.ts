@@ -1630,6 +1630,100 @@ describe("GET /plans/:id — composite Plan Review", () => {
     });
   });
 
+  // ── PREP-1 (D-WS9-314) Part C — the make-ahead schedule on GET /plans/:id ──
+  describe("GET /plans/:id — makeAhead (PREP-1)", () => {
+    const TURKEY = "dish-turkey";
+    const CRANBERRY = "dish-cranberry";
+    const link = (id: string, title: string, positionIndex: number) => ({
+      positionIndex,
+      roleLabel: "main",
+      dish: { id, title, estimatedTimeMinutes: 60, difficulty: "medium", servingsDefault: 10, authoredServingsDefault: 10, dishIngredients: [] },
+    });
+    function feastStub(tagged: boolean) {
+      const feast = {
+        ...mealFix("meal-feast", "Classic Thanksgiving", 900),
+        tags: tagged ? ["thanksgiving", "thanksgiving-feast"] : ["thanksgiving"],
+        dishLinks: [link(TURKEY, "Herb-Roasted Whole Turkey", 0), link(CRANBERRY, "Cranberry-Orange Sauce", 1)] as unknown[],
+      };
+      const base = makeA2Stub({
+        instances: [
+          instanceFix({
+            id: "p-thx",
+            name: "Thanksgiving Week",
+            startDate: new Date("2026-11-23T00:00:00Z"),
+            items: [
+              { id: "it-mon", mealId: "meal-x", positionIndex: 0, assignedDayOfWeek: "Monday" },
+              { id: "it-thu", mealId: "meal-feast", positionIndex: 1, assignedDayOfWeek: "Thursday" },
+            ],
+          }),
+        ],
+        meals: [mealFix("meal-x", "Tacos", 500), feast],
+      });
+      const dishReads: string[][] = [];
+      const stub = {
+        ...base,
+        recipeInstructionStep: {
+          findMany: async (args: { where: { ownerType: string } }) =>
+            args.where.ownerType === "dish"
+              ? [{
+                  ownerType: "dish", ownerId: TURKEY, stepIndex: 0,
+                  stepTextTranslated: "Pour the brine over the turkey and refrigerate — brine 12 to 24 hours.",
+                  stepTextRaw: "", estimatedMinutes: 5, phaseType: "prep", requiresPreheat: false, requiresRest: false,
+                  requiresMarination: false, isTimingSensitive: false, componentKey: null, pathKey: null, amountRefs: null,
+                }]
+              : [],
+        },
+        dish: {
+          findMany: async (args: { where: { id: { in: string[] } } }) => {
+            dishReads.push(args.where.id.in);
+            return [
+              { id: TURKEY, tags: ["thaw-5d", "brine-wed"] },
+              { id: CRANBERRY, tags: ["ahead-mon", "keeps-7d"] },
+            ].filter((d) => args.where.id.in.includes(d.id));
+          },
+        },
+      };
+      return { stub, dishReads };
+    }
+    async function getPlan(harness: Harness) {
+      const res = await fetch(`${harness.baseUrl}/plans/p-thx`, { headers: { Authorization: `Bearer ${signToken(A2_USER)}` } });
+      assert.equal(res.status, 200);
+      return ((await res.json()) as { plan: { makeAhead?: unknown } }).plan;
+    }
+
+    it("a plan holding a thanksgiving-feast meal carries the schedule", async () => {
+      const { stub } = feastStub(true);
+      const harness = await a2SpinUp(stub);
+      try {
+        const plan = await getPlan(harness);
+        assert.deepEqual(plan.makeAhead, {
+          feastMealId: "meal-feast",
+          feastDayName: "Thursday",
+          feastDate: "2026-11-26",
+          rows: [
+            { kind: "thaw", dayName: "Saturday", date: "2026-11-21", daysBefore: 5, mealId: "meal-feast", dishId: TURKEY, dishName: "Herb-Roasted Whole Turkey", thawDays: 5 },
+            { kind: "make", dayName: "Monday", date: "2026-11-23", daysBefore: 3, mealId: "meal-feast", dishId: CRANBERRY, dishName: "Cranberry-Orange Sauce", keepsDays: 7 },
+            { kind: "brine", dayName: "Wednesday", date: "2026-11-25", daysBefore: 1, mealId: "meal-feast", dishId: TURKEY, dishName: "Herb-Roasted Whole Turkey", brineHours: { min: 12, max: 24 } },
+          ],
+        });
+      } finally {
+        await harness.close();
+      }
+    });
+
+    it("no feast tag: no field, and no dish query", async () => {
+      const { stub, dishReads } = feastStub(false);
+      const harness = await a2SpinUp(stub);
+      try {
+        const plan = await getPlan(harness);
+        assert.ok(!("makeAhead" in plan));
+        assert.equal(dishReads.length, 0);
+      } finally {
+        await harness.close();
+      }
+    });
+  });
+
   // WS7-4-D c15 — items must come back Sun→Sat with unscheduled pinned at
   // the bottom in positionIndex order. The Prisma include still fetches with
   // `orderBy: { positionIndex: "asc" }`; the route applies the canonical

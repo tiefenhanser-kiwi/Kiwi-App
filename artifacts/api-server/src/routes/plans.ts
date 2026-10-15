@@ -87,6 +87,7 @@ import {
   effectivePrepStatus,
 } from "../lib/prepCompletion";
 import { loadPrepStepSet as productionLoadPrepStepSet } from "../lib/prepStepSet";
+import { makeAheadForPlan } from "../lib/makeAheadSchedule";
 import {
   composeMealDetail,
   composeMealDetailsBatch,
@@ -597,6 +598,20 @@ export function createPlansRouter(
           servingsOverride: item.servingsOverride,
         })),
       );
+      // PREP-1 (D-WS9-314) Part C — the Thanksgiving make-ahead schedule, ON THIS
+      // RESPONSE because it is the one the Prep & Cook Hub already reads (usePlan),
+      // and because the schedule is a fact about the plan's dates and its feast's
+      // dishes, both of which are here. Null (and absent) unless a meal is tagged
+      // `thanksgiving-feast`; deterministic, no AI. A 1.1 client strips the key
+      // (PlanDetailSchema is a plain z.object).
+      const makeAhead = await makeAheadForPlan(prisma, {
+        startDate: instance.startDate,
+        items: instance.items.map((item, i) => ({
+          mealId: item.mealId,
+          assignedDayOfWeek: item.assignedDayOfWeek,
+          meal: mealDetails[i],
+        })),
+      });
       instance.items.forEach((item, itemIndex) => {
         const meal = mealDetails[itemIndex];
         items.push({
@@ -674,6 +689,7 @@ export function createPlansRouter(
           lunchOverrides: instance.lunchOverrides ?? "",
           items: sortedItems,
           macroDailyAverage: computeMacroDailyAverage(sortedItems),
+          ...(makeAhead ? { makeAhead } : {}),
         },
       });
     } catch (err) {
