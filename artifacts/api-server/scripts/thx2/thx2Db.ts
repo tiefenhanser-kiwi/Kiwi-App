@@ -145,5 +145,6 @@ export function flagInputs(m: MealGraph) {
     ingredientNames: m.ingredientNames,
     stamp: m.allergens,
     substitutionProducts: m.dishes.flatMap((d) => d.substitutions.map((s) => s.product)),
+    dishes: m.dishes,
   };
 }

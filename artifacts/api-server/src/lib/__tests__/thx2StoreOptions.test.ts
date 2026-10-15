@@ -235,6 +235,24 @@ describe("THX-2G — runStoreFill on the wire", () => {
   });
 });
 
+describe("THX-2G — postGenerate", () => {
+  it("runs before finalize, on the meal finalize then sees; absent runs nothing", async () => {
+    const meal = makeMeal();
+    const log: Recorded[] = [];
+    let calls = 0;
+    await runStoreFill(
+      { prisma: fakePrisma(), runAICall: recordingRunAICall([ok(meal)], [ok(finalizeFor(meal))], log) },
+      { apply: false, limit: 1, dishes: [DISH], profiles: [PROFILE], postGenerate: (m, target) => { calls++; assert.equal(target, DISH.dish); m.dishes[0].ingredients[0].unit = "clove"; } },
+    );
+    assert.equal(calls, 1);
+    assert.ok(String(log[1].vars.finalizeInput).includes('"unit":"clove"'), "finalize sees the edited meal");
+    const plain = makeMeal();
+    const log2: Recorded[] = [];
+    await runStoreFill({ prisma: fakePrisma(), runAICall: recordingRunAICall([ok(plain)], [ok(finalizeFor(plain))], log2) }, { apply: false, limit: 1, dishes: [DISH], profiles: [PROFILE] });
+    assert.equal(log2[1].vars.finalizeInput, finalizeInput(makeMeal()));
+  });
+});
+
 describe("THX-2G — storedDifficulty", () => {
   it("absent → the model's difficulty; set → stored, and the derived tag follows", async () => {
     const fancy = () => makeMeal({ difficulty: "fancy" });

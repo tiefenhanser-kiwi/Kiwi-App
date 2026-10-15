@@ -21,7 +21,10 @@ import {
   composeFinalizeBrief,
   dishTags,
   flagsFor,
+  isRawTurkey,
   loadTargets,
+  mentionWord,
+  pathFlags,
   mealTags,
   runOptionsFor,
   shortcutFor,
@@ -131,8 +134,8 @@ describe("per-target options", () => {
     }
     const fb = composeFinalizeBrief(byKey("thx2-feast-make-ahead"));
     assert.ok(fb.includes("we suggest Monday") && fb.includes("we suggest Tuesday") && fb.includes("dishIndex 0"));
-    assert.equal(composeFinalizeBrief(byKey("thx2-feast-classic")), LONG_WAIT_RULE);
-    assert.equal(composeFinalizeBrief(byKey("thx2-alt-buttermilk-turkey")), LONG_WAIT_RULE);
+    assert.ok(!composeFinalizeBrief(byKey("thx2-feast-classic")).includes("MAKE-AHEAD Thanksgiving"));
+    assert.ok(!composeFinalizeBrief(byKey("thx2-alt-buttermilk-turkey")).includes("MAKE-AHEAD Thanksgiving"));
   });
   it("the alternate brief lifts the complete-dinner rule; the feast brief lists roles in order", () => {
     assert.ok(composeBrief(byKey("thx2-alt-pecan-pie")).includes("NOT a complete dinner"));
@@ -169,6 +172,72 @@ describe("flags", () => {
   });
 });
 
+describe("follow-up C — targets, briefs, flags", () => {
+  it("A New Twist has a pan gravy second, 8 dishes", () => {
+    const t = byKey("thx2-feast-new-twist");
+    assert.equal(t.dishes.length, 8);
+    assert.equal(t.dishes[1].name, "Pan Gravy");
+    assert.equal(t.dishes[1].role, "sauce");
+  });
+  it("every feast has a gravy", () => {
+    for (const t of FILE.targets.filter((x) => x.kind === "feast")) assert.ok(t.dishes.some((d) => /gravy/i.test(d.name)), t.key);
+  });
+  it("the vegetarian targets carry the vegetarian rule (rennet cheese, Worcestershire) in both briefs", () => {
+    const veg = FILE.targets.filter((t) => t.vegetarian).map((t) => t.key).sort();
+    assert.deepEqual(veg, ["thx2-feast-vegetarian", "thx2-friday-vegetarian", "thx2-wednesday-pizza-night"]);
+    for (const k of veg) {
+      assert.ok(composeBrief(byKey(k)).includes("vegetarian Parmesan-style cheese"), k);
+      assert.ok(composeFinalizeBrief(byKey(k)).includes("Worcestershire"), k);
+    }
+    assert.ok(!composeBrief(byKey("thx2-feast-classic")).includes("VEGETARIAN"));
+  });
+  it("a Friday meal with no leftovers is told to use none (the wild-rice soup)", () => {
+    const b = composeBrief(byKey("thx2-friday-vegetarian"));
+    assert.ok(b.includes("uses NO leftovers") && b.includes("cooks its own wild rice"));
+    assert.ok(!b.includes("built from Thursday's leftovers"));
+    assert.ok(composeBrief(byKey("thx2-friday-small")).includes("built from Thursday's leftovers"));
+  });
+  it("every generate brief carries the vessel, swap, whole-produce and unit rules; every finalize brief the step rules", () => {
+    for (const t of FILE.targets) {
+      const g = composeBrief(t);
+      assert.ok(g.includes("12–14 cups fills a 9×13") && g.includes("real retail product") && g.includes('"2 oranges"') && g.includes('"1 pinch"'), t.key);
+      const f = composeFinalizeBrief(t);
+      assert.ok(f.includes("under 300 characters") && f.includes("never rinse raw poultry") && f.includes("Warm corn tortillas") && f.includes("add no extra salt"), t.key);
+    }
+  });
+  it("buys_turkey matches raw turkey only — not broth, stock, gravy or leftovers", () => {
+    for (const n of ["whole turkey", "turkey breast", "bone-in turkey thighs", "ground turkey", "turkey wings", "turkey"]) assert.ok(isRawTurkey(n), n);
+    for (const n of ["low-sodium chicken or turkey broth", "turkey stock", "turkey gravy", "cooked leftover turkey", "smoked turkey sausage"]) assert.ok(!isRawTurkey(n), n);
+    const fri = byKey("thx2-friday-small");
+    assert.ok(!flagsFor(fri, FILE, { dishTitles: ["Turkey and Wild Rice Soup"], ingredientNames: ["cooked leftover turkey", "low-sodium chicken or turkey broth"], stamp: [], substitutionProducts: [] }).some((f) => f.code === "buys_turkey"));
+  });
+  it("vegetarian_rennet_cheese: Gruyère or Parmesan on a vegetarian target is reported; a labelled one is not", () => {
+    const veg = byKey("thx2-feast-vegetarian");
+    const titles = veg.dishes.map((d) => d.name);
+    const base = { dishTitles: titles, stamp: ["dairy", "wheat"], substitutionProducts: [] as string[] };
+    const prods = ["all-butter puff pastry (contains wheat, milk)", "refrigerated pie crust (contains wheat)"];
+    assert.ok(flagsFor(veg, FILE, { ...base, ingredientNames: [...prods, "gruyère cheese"] }).some((f) => f.code === "vegetarian_rennet_cheese"));
+    assert.ok(!flagsFor(veg, FILE, { ...base, ingredientNames: [...prods, "vegetarian Parmesan-style cheese", "sharp cheddar cheese"] }).some((f) => f.code === "vegetarian_rennet_cheese"));
+    assert.ok(!flagsFor(byKey("thx2-feast-new-twist"), FILE, { dishTitles: byKey("thx2-feast-new-twist").dishes.map((d) => d.name), stamp: [], substitutionProducts: [], ingredientNames: ["parmesan"] }).some((f) => f.code === "vegetarian_rennet_cheese"), "only vegetarian targets");
+  });
+  it("path_unused: an ingredient only the scratch path uses, not replaced by a swap, is reported", () => {
+    const dish = {
+      title: "Herb-Roasted Turkey",
+      ingredients: [{ name: "unsalted butter" }, { name: "fresh sage" }, { name: "whole turkey" }, { name: "kosher salt" }],
+      substitutions: [{ product: "herb turkey rub packet", replaces: ["kosher salt"] }],
+      steps: [
+        { text: "Mash the butter with the chopped sage and salt.", pathKey: "scratch", componentKey: "rub" },
+        { text: "Rub the turkey with the packet seasoning.", pathKey: "bought", componentKey: "rub" },
+        { text: "Roast the turkey 3 hours.", pathKey: null, componentKey: null },
+      ],
+    };
+    const flags = pathFlags([dish]);
+    assert.deepEqual(flags.map((f) => f.detail.match(/"([^"]+)"/)![1]).sort(), ["fresh sage", "unsalted butter"]);
+    assert.equal(mentionWord("garlic cloves"), "garlic");
+    assert.deepEqual(pathFlags([{ ...dish, steps: dish.steps.map((s) => ({ ...s, pathKey: null, componentKey: null })) }]), [], "a single-path dish has nothing to report");
+  });
+});
+
 describe("approve's guard", () => {
   it("refuses without the shelf exclusion export, or with one that lacks thanksgiving", () => {
     assert.ok(approveRefusal({}));
@@ -179,8 +248,9 @@ describe("approve's guard", () => {
     assert.equal(approveRefusal({ [SHELF_EXCLUSION_EXPORT]: ["thanksgiving"] }), null);
     assert.equal(approveRefusal({ [SHELF_EXCLUSION_EXPORT]: new Set(["thanksgiving"]) }), null);
   });
-  it("refuses against TODAY's storeShortlist.ts (THX-2S has not built the exclusion)", () => {
-    // When THX-2S lands EVERYDAY_SHELF_EXCLUDED_TAGS, this test flips: update it then.
-    assert.ok(approveRefusal(storeShortlist as unknown as Record<string, unknown>));
+  it("proceeds against TODAY's storeShortlist.ts: THX-2S exports the exclusion (7f75172)", () => {
+    // The contract is met in the checkout. It still says nothing about the
+    // DEPLOYED server — approve runs only after THX-2S's deploy is live.
+    assert.equal(approveRefusal(storeShortlist as unknown as Record<string, unknown>), null);
   });
 });

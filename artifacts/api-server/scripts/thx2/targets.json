@@ -91,7 +91,8 @@
         { "name": "Apple Pie", "role": "side", "course": "course-dessert" }
       ],
       "products": ["all-butter puff pastry (contains wheat, milk)", "refrigerated pie crust (contains wheat)"],
-      "note": "A fully VEGETARIAN Thanksgiving: no meat, poultry or fish anywhere, no meat stock, no gelatin, and no Worcestershire sauce (it contains anchovies). The stuffing and the gravy use vegetable broth. The puff pastry wraps the Wellington; the pie crust is for the apple pie (top and bottom)."
+      "vegetarian": true,
+      "note": "A fully vegetarian Thanksgiving. The stuffing and the gravy use vegetable broth. The puff pastry wraps the Wellington; the pie crust is for the apple pie (top and bottom)."
     },
     {
       "key": "thx2-feast-new-twist",
@@ -103,6 +104,7 @@
       "difficulty": "fancy",
       "dishes": [
         { "name": "Citrus-Herb Spatchcock Turkey", "role": "main", "course": "course-turkey" },
+        { "name": "Pan Gravy", "role": "sauce", "course": "course-sides" },
         { "name": "Cornbread and Chorizo Stuffing", "role": "side", "course": "course-stuffing" },
         { "name": "Garlic-Parmesan Smashed Potatoes", "role": "base", "course": "course-potatoes" },
         { "name": "Chipotle-Maple Sweet Potatoes", "role": "side", "course": "course-sides" },
@@ -320,7 +322,8 @@
       "difficulty": "easy",
       "dishes": [{ "name": "Mushroom and Wild Rice Soup", "role": "main" }],
       "products": [],
-      "note": "VEGETARIAN: no meat, poultry or fish, vegetable broth only, no Worcestershire sauce. It is a complete dinner on its own, so it carries a real protein in its own ingredients (white beans, or a cheese finish)."
+      "vegetarian": true,
+      "note": "It is a complete dinner on its own, so it carries a real protein in its own ingredients (white beans, or a vegetarian cheese finish), and it cooks its own wild rice."
     },
     {
       "key": "thx2-friday-new-twist",
@@ -346,7 +349,8 @@
         { "name": "Quick Chopped Salad", "role": "side" }
       ],
       "products": ["frozen cheese pizza (contains wheat, milk)"],
-      "note": "Pizza night: a store-bought frozen cheese pizza, baked, with a quick chopped salad. About 20 minutes. The night before Thanksgiving, nobody wants to cook. Every Thanksgiving plan uses this one meal, the vegetarian plan included, so nothing in it is meat, poultry or fish."
+      "vegetarian": true,
+      "note": "Pizza night: a store-bought frozen cheese pizza, baked, with a quick chopped salad. About 20 minutes. The night before Thanksgiving, nobody wants to cook. Every Thanksgiving plan uses this one meal, the vegetarian plan included."
     }
   ]
 }

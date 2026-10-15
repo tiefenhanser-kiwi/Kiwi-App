@@ -4,6 +4,8 @@
 // quantities at the meal's servings, steps, derived times, allergens with their
 // sources, and generate.ts's flags. Images are embedded (data: URIs) when they
 // can be fetched, so the file works offline and can be forwarded as is.
+// Follow-up C: each feast also gets a Prep the Week section (thx2Prep.ts —
+// the route's own build on an in-memory week, through a read-only client).
 //
 //   node --env-file=.env --import tsx scripts/thx2/review.ts            # → scripts/_scratch/thx2/review-<dev|production>.html
 //   node --env-file=.env --import tsx scripts/thx2/review.ts --no-embed # link the images instead of embedding them
@@ -16,6 +18,7 @@ import { resolve } from "node:path";
 import { assertScriptDatabase } from "../../src/lib/scripts/requireDatabaseHost";
 import { flagsFor, loadTargets, type Flag, type Thx2Target } from "./thx2Core";
 import { flagInputs, loadThx2Meals, type MealGraph } from "./thx2Db";
+import { PHASE_STEP_CAP, prepReportFor, type PrepReport } from "./thx2Prep";
 
 const EMBED = !process.argv.includes("--no-embed");
 const { host, mode } = assertScriptDatabase("thx2/review");
@@ -25,6 +28,11 @@ const file = loadTargets();
 const byKey = new Map(file.targets.map((t) => [t.key, t]));
 const prisma = new PrismaClient();
 const meals = await loadThx2Meals(prisma);
+// Follow-up C: Prep the Week per feast, computed in memory (thx2Prep.ts).
+const prepByKey = new Map<string, PrepReport>();
+for (const t of file.targets.filter((x) => x.kind === "feast")) {
+  if (meals.some((m) => m.key === t.key)) prepByKey.set(t.key, await prepReportFor(prisma, t, file));
+}
 await prisma.$disconnect();
 // targets.json order (feasts, alternates, Friday), not alphabetical
 const order = new Map(file.targets.map((t, i) => [t.key, i]));
@@ -46,14 +54,17 @@ if (EMBED) {
 }
 
 const esc = (s: unknown) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
-const FRACTIONS: Array<[number, string]> = [[1 / 8, "⅛"], [1 / 4, "¼"], [1 / 3, "⅓"], [1 / 2, "½"], [2 / 3, "⅔"], [3 / 4, "¾"]];
+// Follow-up C: a cook's fraction, never a decimal — the nearest of ⅛ ¼ ⅓ ½ ⅔ ¾
+// (a value under ⅛ prints "pinch"-sized as ⅛; the generator's pinch rule keeps
+// those out of spoon units in the first place).
+const FRACTIONS: Array<[number, string]> = [[0, ""], [1 / 8, "⅛"], [1 / 4, "¼"], [1 / 3, "⅓"], [1 / 2, "½"], [2 / 3, "⅔"], [3 / 4, "¾"], [1, ""]];
 function qty(q: number): string {
-  const whole = Math.floor(q + 1e-9);
+  let whole = Math.floor(q + 1e-9);
   const frac = q - whole;
-  if (frac < 0.02) return String(whole);
-  const hit = FRACTIONS.find(([v]) => Math.abs(frac - v) < 0.02);
-  if (hit) return whole > 0 ? `${whole}${hit[1]}` : hit[1];
-  return q.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+  let [v, glyph] = FRACTIONS.reduce((best, f) => (Math.abs(frac - f[0]) < Math.abs(frac - best[0]) ? f : best));
+  if (v === 1) { whole += 1; glyph = ""; }
+  if (whole === 0 && glyph === "") glyph = "⅛";
+  return `${whole > 0 ? whole : ""}${glyph}` || "0";
 }
 
 const flagsByMeal = new Map<string, Flag[]>(meals.map((m) => {
@@ -100,7 +111,24 @@ function mealSection(m: MealGraph, t: Thx2Target | undefined): string {
       </div>
     </div>
     ${dishes}
+    ${prepByKey.has(m.key) ? prepSection(prepByKey.get(m.key)!) : ""}
   </section>`;
+}
+
+function prepSection(r: PrepReport): string {
+  const head = `<h3>Prep the Week</h3><p class="muted">The week: ${r.days.map((d) => `${esc(d.day)} — ${esc(d.title)}`).join(" · ")}${r.missing.length ? ` · not in this database: ${r.missing.map(esc).join(", ")}` : ""}. Monday and Tuesday are lane A's picks and are not included. Prep read on Sunday, Nov 22. Computed in memory by the route's own code with the narration stubbed (titles are the engine's), writing nothing.</p>`;
+  if (r.error || !r.result) return `<div class="dish">${head}<p class="bad">Prep could not be built: ${esc(r.error ?? "no result")}</p></div>`;
+  const res = r.result;
+  const status = r.schemaOk
+    ? `<p class="ok">Passes the route's schema (≤ ${PHASE_STEP_CAP} steps per phase, ≤ 240 min).</p>`
+    : `<p class="bad">FAILS the route's schema — the Prep tab would return 502 assembly_invalid; nothing is cut, the whole response fails: ${r.schemaErrors.map(esc).join("; ")}</p>`;
+  const cap = r.overCap.length ? `<p class="bad">Over the ${PHASE_STEP_CAP}-step cap: ${r.overCap.map((o) => `${esc(o.phase)} ${o.steps}`).join(", ")}</p>` : "";
+  const phases = res.phases.map((ph) => `
+      <h5>${esc(ph.title)} <span class="muted">(${ph.steps.length} steps · ${ph.steps.filter((s) => !s.skipSuggested).reduce((a, s) => a + s.estimatedMinutes, 0)} min not counting cook-day lines)</span></h5>
+      ${ph.note ? `<p class="muted">${esc(ph.note)}</p>` : ""}
+      <ol>${ph.steps.map((s) => `<li>${s.skipSuggested ? '<span class="muted">' : ""}${esc(s.title)} <span class="step">· ${s.estimatedMinutes} min${s.skipSuggested ? " · cook day" : ""}${s.containerNames?.length ? ` · ${s.containerNames.map(esc).join(", ")}` : ""}</span>${s.storageNote ? `<br><span class="step">Storage: ${esc(s.storageNote)}</span>` : ""}${s.skipSuggested ? "</span>" : ""}</li>`).join("")}</ol>
+      ${ph.heldForCookDay?.length ? `<p class="muted">Held for cook day:</p><ul>${ph.heldForCookDay.map((h) => `<li class="muted">${esc(h)}</li>`).join("")}</ul>` : ""}`).join("");
+  return `<div class="dish">${head}<p class="facts">One Sunday session · header <b>${res.estimatedMinutes ?? "–"} min</b> · <b>${res.containerCount ?? "–"}</b> containers · ${res.phases.reduce((a, p) => a + p.steps.length, 0)} steps</p>${status}${cap}${phases}</div>`;
 }
 
 const rows = meals.map((m) => {

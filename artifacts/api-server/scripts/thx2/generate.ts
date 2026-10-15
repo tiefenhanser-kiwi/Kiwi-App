@@ -29,6 +29,7 @@ import { assertScriptDatabase } from "../../src/lib/scripts/requireDatabaseHost"
 import { computeCacheAwareCostUsd, emptyTokenTotals, generateInput, runStoreFill, type ModelRateUsd, type TokenTotals } from "../../src/lib/storeFill";
 import { generatePrefixFor, STABLE_GENERATE_PREFIX } from "../../src/lib/storeFillPrompts";
 import { flagsFor, KINDS, loadTargets, runOptionsFor, validateTargets, type Thx2Target } from "./thx2Core";
+import { applyChecks, type CheckNote } from "./thx2Checks";
 import { flagInputs, loadThx2Meals, type MealGraph } from "./thx2Db";
 
 const argv = process.argv.slice(2);
@@ -117,15 +118,36 @@ const guardedRunAICall = (async (key: string, vars: unknown, schema: unknown, op
 const t0 = Date.now();
 const written: { t: Thx2Target; mealId: string }[] = [];
 const failed: { t: Thx2Target; why: string }[] = [];
+// Follow-up C: a target whose call fails schema validation (the vegetarian feast
+// on production: a finalize step over 400 characters, on both of runAICall's
+// attempts) is run ONCE more from scratch before it is reported not written.
+const MAX_TARGET_ATTEMPTS = 2;
 for (const t of pending) {
   if (breakerTripped) break;
   currentTarget = t.key;
   console.log(`\n▶ ${t.key} (${t.kind}, ${t.dishes.length} dishes, ${t.servings} servings)`);
-  const spent = prior.spentUsd + computeCacheAwareCostUsd(thisRun, rate);
-  const result = await runStoreFill(
-    { prisma, runAICall: guardedRunAICall },
-    { ...runOptionsFor(t, file), apply: true, maxCostUsd: Math.max(0.01, file.spendCapUsd - spent), maxCalls: 6, maxConsecutiveFailures: 1, rate, log: (m) => console.log(`  ${m}`) },
-  );
+  let result: Awaited<ReturnType<typeof runStoreFill>> | null = null;
+  for (let attempt = 1; attempt <= MAX_TARGET_ATTEMPTS && !breakerTripped; attempt++) {
+    const spent = prior.spentUsd + computeCacheAwareCostUsd(thisRun, rate);
+    const checkNotes: CheckNote[] = [];
+    result = await runStoreFill(
+      { prisma, runAICall: guardedRunAICall },
+      {
+        ...runOptionsFor(t, file),
+        apply: true, maxCostUsd: Math.max(0.01, file.spendCapUsd - spent), maxCalls: 6, maxConsecutiveFailures: 1, rate, log: (m) => console.log(`  ${m}`),
+        postGenerate: (meal) => { checkNotes.push(...applyChecks(meal)); },
+      },
+    );
+    const swaps = checkNotes.filter((n) => n.kind === "swap_dropped");
+    const units = checkNotes.filter((n) => n.kind === "unit_fixed");
+    console.log(`  checks: ${swaps.length} swap(s) dropped · ${units.length} unit(s) fixed`);
+    for (const n of checkNotes) console.log(`    ${n.kind === "swap_dropped" ? "swap dropped" : "unit fixed"} [${n.dish}] ${n.detail}`);
+    const written = result.records.some((r) => r.written);
+    const validation = result.skips.some((s) => s.stage !== "dedup" && s.reason === "validation_failed");
+    if (written || !validation || attempt === MAX_TARGET_ATTEMPTS) break;
+    console.log(`  ↻ validation_failed — running ${t.key} once more (attempt ${attempt + 1} of ${MAX_TARGET_ATTEMPTS})`);
+  }
+  if (!result) break;
   for (const c of result.completenessRejections) console.log(`  completeness retry ${c.attempt}: ${c.reason}${c.title ? ` ("${c.title}")` : ""}`);
   for (const s of result.skips.filter((x) => x.stage !== "dedup")) console.log(`  skip ${s.stage}: ${s.reason}${s.title ? ` ("${s.title}")` : ""}`);
   for (const d of result.substitutionDrops) console.log(`  substitution dropped: "${d.product}" in "${d.dishTitle}" (unmatched ${d.unmatched.join(", ")})`);

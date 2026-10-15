@@ -669,6 +669,11 @@ export interface StoreFillOptions {
    *  stored column, the derived tag and the dishes' fallback all agree.
    *  Absent → the model's value, as today. */
   storedDifficulty?: GenProfile["difficulty"];
+  /** Called once on each meal that passes the completeness gate, BEFORE the
+   *  substitution sanitize and the finalize call, so the steps are written
+   *  from what it leaves. It may edit the meal in place (the Thanksgiving
+   *  script drops self-swaps and fixes units here). Absent → nothing runs. */
+  postGenerate?: (meal: WizardExpandEnrichedMealDetails, targetDish: string) => void;
 }
 
 /** THX-2G — the materialize target for a run: STORE_FILL_TARGET unless `isPublic: false`. */
@@ -874,6 +879,8 @@ export async function runStoreFill(
     //     Runs on the generate output (finalize never touches substitutions), so
     //     everything downstream — capture, BUG-040 gate, payload — sees only
     //     referentially-valid swaps. Dropped ones are logged, never fatal.
+    // THX-2G (follow-up C) — the script's own deterministic pass, first.
+    if (opts.postGenerate) opts.postGenerate(meal, target.dish);
     substitutionDrops.push(...sanitizeMealSubstitutions(meal, target.dish));
 
     // 2. BUG-040 gate — log + SKIP on failure, never coerce.
