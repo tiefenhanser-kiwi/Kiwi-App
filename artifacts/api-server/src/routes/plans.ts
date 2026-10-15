@@ -704,7 +704,14 @@ export function createPlansRouter(
         include: { items: { orderBy: { positionIndex: "asc" } } },
       });
 
-      if (!template || (!template.isPublic && template.userId !== userId)) {
+      // BUG-403 — an archived template is gone for everyone, owner included:
+      // 404, the same as a missing id (nothing lists one; an old id must not
+      // reach it).
+      if (
+        !template ||
+        template.isArchived ||
+        (!template.isPublic && template.userId !== userId)
+      ) {
         return res.status(404).json({ error: "template not found" });
       }
 

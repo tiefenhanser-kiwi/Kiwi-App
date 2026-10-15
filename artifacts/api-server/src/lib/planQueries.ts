@@ -362,7 +362,13 @@ export async function resolvePlansForFilter(
     const rows = await prisma.mealPlanTemplate.findMany({
       where,
       select: TEMPLATE_SELECT,
-      orderBy: { createdAt: "desc" },
+      // BUG-403 — the Featured chip lists in RAIL order (railPosition asc,
+      // the Home rail's order; unpositioned rows after), then newest first.
+      // createdAt alone listed the featured plans in reverse rail order.
+      orderBy:
+        filter === "featured"
+          ? [{ railPosition: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }]
+          : { createdAt: "desc" },
       take: limit,
     });
     // Arrow-wrapped so the row→mapper hop is a strict call check, not Array.map's

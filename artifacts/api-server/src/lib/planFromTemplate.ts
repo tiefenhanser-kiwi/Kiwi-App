@@ -64,7 +64,9 @@ export async function copyTemplateForUser(
     where: { id: templateId },
     include: { items: { orderBy: { positionIndex: "asc" } } },
   });
-  if (!template) return { kind: "not_found" };
+  // BUG-403 — an archived template cannot be adopted by id (use-template and
+  // the sign-up templatePlanId both come through here).
+  if (!template || template.isArchived) return { kind: "not_found" };
   if (!template.isPublic && template.userId !== userId) {
     return { kind: "not_found" };
   }
