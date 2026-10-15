@@ -74,15 +74,16 @@ const DAY_MS = 86_400_000;
 const KIND_ORDER: Record<MakeAheadKind, number> = { thaw: 0, make: 1, brine: 2 };
 
 /**
- * "Pour the brine over the turkey … brine 12 to 24 hours" — the one phrase the dev
- * catalog has (THX-2G). The hours belong to the sentence that names the brine.
+ * The dev catalog's phrases (THX-2G-E): "pour the brine over it … refrigerate
+ * overnight (8 to 24 hours)", "rub the dry brine all over … refrigerate uncovered
+ * 48 hours". A range or one figure, in the sentence that names the brine.
  */
-const BRINE_HOURS = /\bbrine\b[^.]*?\b(\d{1,2})\s*(?:to|–|-)\s*(\d{1,2})\s*hours?\b/i;
+const BRINE_HOURS = /\bbrine\b[^.]*?\b(\d{1,2})(?:\s*(?:to|–|-)\s*(\d{1,2}))?\s*hours?\b/i;
 
 export function brineHoursOf(texts: readonly string[]): { min: number; max: number } | undefined {
   for (const t of texts) {
     const m = BRINE_HOURS.exec(t);
-    if (m) return { min: Number(m[1]), max: Number(m[2]) };
+    if (m) return { min: Number(m[1]), max: Number(m[2] ?? m[1]) };
   }
   return undefined;
 }

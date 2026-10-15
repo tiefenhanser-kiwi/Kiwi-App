@@ -71,6 +71,15 @@ describe("PREP-1 Part C — the make-ahead schedule", () => {
 
   it("the brine's hours come only from a sentence that names the brine", () => {
     assert.deepEqual(brineHoursOf(["Brine for 8–12 hours in the fridge."]), { min: 8, max: 12 });
+    // THX-2G-E's two turkeys, verbatim.
+    assert.deepEqual(
+      brineHoursOf(["Place the turkey in a brining bag set in a roasting pan; pour the brine over it, seal, and refrigerate overnight (8 to 24 hours), turning the bag halfway through."]),
+      { min: 8, max: 24 },
+    );
+    assert.deepEqual(
+      brineHoursOf(["Pat the turkey completely dry with paper towels, then rub the dry brine all over — under the skin of the breast and thighs and on the back; place in a brining bag set in a roasting pan and refrigerate uncovered 48 hours, turning once half"]),
+      { min: 48, max: 48 },
+    );
     assert.equal(brineHoursOf(["Roast 3 to 4 hours. Pour the hot brine over the onions."]), undefined);
   });
 });
