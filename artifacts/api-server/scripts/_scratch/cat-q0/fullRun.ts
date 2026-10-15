@@ -4,6 +4,7 @@
 //   dry (default, no spend):  node --env-file=.env --import tsx scripts/_scratch/cat-q0/fullRun.ts
 //       → meals, how many the on-disk cache already holds, projected cost both ways
 //   batch (≈ half price; SDK 0.90.0 ships client.messages.batches):
+//       … fullRun.ts --batch --submit --wait --ceiling 12   → ONE command: submit, poll, collect
 //       … fullRun.ts --batch --submit --ceiling 12   → submits, writes out/batch-<mode>.json
 //       … fullRun.ts --batch --collect               → polls until ended, appends results to
 //                                                      out/reviews.jsonl, writes out/full-<mode>.csv
@@ -65,17 +66,22 @@ if (has("--live")) {
   if (!(CEILING > 0)) throw new Error("--live needs --ceiling <usd>");
   const out = await runReviews(todo.map((j) => ({ label: "full", mealId: j.m.id, title: j.m.title, userMsg: j.msg })), { ceilingUsd: CEILING, concurrency: 6 });
   writeCsv([...recs, ...out.filter(Boolean)]);
-} else if (has("--batch") && has("--submit")) {
-  if (!(CEILING > 0)) throw new Error("--batch --submit needs --ceiling <usd>");
-  const worst = perBatchUncached * todo.length;
-  if (spentSoFar() + worst > CEILING) throw new Error(`refusing: worst case $${worst.toFixed(2)} + spent $${spentSoFar().toFixed(2)} exceeds the $${CEILING} ceiling`);
-  const client = new Anthropic();
-  const batch = await client.messages.batches.create({
-    requests: todo.map((j) => ({ custom_id: j.key, params: requestFor(j.msg) })),
-  });
-  writeFileSync(BATCH_FILE, JSON.stringify({ id: batch.id, submittedAt: new Date().toISOString(), keys: Object.fromEntries(todo.map((j) => [j.key, { mealId: j.m.id, title: j.m.title }])) }));
-  console.log(`submitted batch ${batch.id} (${todo.length} requests) → ${BATCH_FILE}; collect with --batch --collect`);
-} else if (has("--batch") && has("--collect")) {
+} else if (has("--batch") && (has("--submit") || has("--collect"))) {
+  if (has("--submit")) {
+    if (!(CEILING > 0)) throw new Error("--batch --submit needs --ceiling <usd>");
+    const worst = perBatchUncached * todo.length;
+    if (spentSoFar() + worst > CEILING) throw new Error(`refusing: worst case $${worst.toFixed(2)} + spent $${spentSoFar().toFixed(2)} exceeds the $${CEILING} ceiling`);
+    const batch = await new Anthropic().messages.batches.create({
+      requests: todo.map((j) => ({ custom_id: j.key, params: requestFor(j.msg) })),
+    });
+    writeFileSync(BATCH_FILE, JSON.stringify({ id: batch.id, submittedAt: new Date().toISOString(), keys: Object.fromEntries(todo.map((j) => [j.key, { mealId: j.m.id, title: j.m.title }])) }));
+    console.log(`submitted batch ${batch.id} (${todo.length} requests) → ${BATCH_FILE}`);
+    // --wait: the ONE-command form — submit, then fall through to collect (it polls).
+    if (!has("--wait")) {
+      console.log("collect with --batch --collect (or submit with --wait next time)");
+      process.exit(0);
+    }
+  }
   const saved = JSON.parse(readFileSync(BATCH_FILE, "utf8")) as { id: string; keys: Record<string, { mealId: string; title: string }> };
   const client = new Anthropic();
   for (;;) {
@@ -105,5 +111,5 @@ if (has("--live")) {
   console.log(`collected ${fresh.length} (${fresh.filter((r) => r.ok).length} ok) · batch spend $${spend.toFixed(4)} · cumulative $${spentSoFar().toFixed(4)}`);
   writeCsv([...recs, ...fresh]);
 } else {
-  console.log("dry run — nothing sent. --batch --submit --ceiling <usd> | --batch --collect | --live --ceiling <usd>");
+  console.log("dry run — nothing sent. --batch --submit [--wait] --ceiling <usd> | --batch --collect | --live --ceiling <usd>");
 }
