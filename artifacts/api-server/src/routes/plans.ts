@@ -52,6 +52,7 @@ import { bumpPlanRevision } from "../lib/planRevision";
 import { emitActivity } from "../lib/userActivity";
 import { markFirstPlanCreated } from "../lib/firstPlan";
 import { copyTemplateForUser } from "../lib/planFromTemplate";
+import { isHeldByAnchor } from "../lib/templateAnchor";
 import { computeDietaryStale } from "../lib/planStaleness";
 import {
   clampLimit,
@@ -738,6 +739,8 @@ export function createPlansRouter(
         mealId: string;
         positionIndex: number;
         assignedDayOfWeek: string | null;
+        // THX-2S — the servings the adopted item will carry (null = household).
+        servingsOverride: number | null;
         isBreakfast: boolean;
         isLunch: boolean;
         isDinner: boolean;
@@ -750,6 +753,7 @@ export function createPlansRouter(
           mealId: item.mealId,
           positionIndex: item.positionIndex,
           assignedDayOfWeek: item.assignedDayOfWeek,
+          servingsOverride: item.servingsOverride ?? null,
           isBreakfast: item.isBreakfast,
           isLunch: item.isLunch,
           isDinner: item.isDinner,
@@ -773,6 +777,9 @@ export function createPlansRouter(
           sourceType: template.sourceType,
           defaultDaysCount: template.defaultDaysCount,
           optimizationNotes: template.optimizationNotes ?? [],
+          // THX-2S (D-WS9-311) — "YYYY-MM-DD" for a dated (Thanksgiving)
+          // template, else null. Additive; BOOK-1C's anchored copy reads it.
+          anchorDate: toYmd(template.anchorDate ?? null),
           items: sortedItems,
         },
       });
@@ -1106,6 +1113,8 @@ export function createPlansRouter(
             prepStatus: true,
             prepStatusIsManual: true,
             revisionId: true,
+            // THX-2S — the anchored-template hold in the envelope below.
+            mealPlanTemplateId: true,
           },
         });
         if (!row || row.userId !== userId) {
@@ -1213,7 +1222,14 @@ export function createPlansRouter(
         if (
           body.isActiveThisWeek === true &&
           body.startDate === undefined &&
-          body.endDate === undefined
+          body.endDate === undefined &&
+          // THX-2S (D-WS9-311) — a plan still on the dates its ANCHORED
+          // template gave it (the Thanksgiving week), inside the window, keeps
+          // them: no re-date from tomorrow, no perishability re-sort. Falling
+          // through leaves the dates alone; the stamp fallback below still
+          // activates it when the anchored week covers today. A plan whose
+          // dates the user moved is no longer held (their edit wins).
+          !(await isHeldByAnchor(tx, row, todayFor(body.localDate, now())))
         ) {
           const today = todayFor(body.localDate);
           const assigned = await assignAndPersistPlanDays(tx, id, {
@@ -1805,6 +1821,11 @@ export function createPlansRouter(
   // and the PATCH auto-date envelope materializes the dates). Fresh
   // Instance starts at revisionId=1 from schema default (Phase 1 Finding
   // 1+8 — do NOT call bumpPlanRevision).
+  // THX-2S (D-WS9-311) — an OPTIONAL body { localDate } names "today" for an
+  // anchored template's window (adopted on or before the anchor day → dated in
+  // the anchor's week). Absent → the server's UTC day. Today's client sends no
+  // body, which still parses.
+  const useTemplateBodySchema = z.object({ localDate: LocalDateSchema.optional() });
   router.post(
     "/plans/use-template/:templateId",
     requireAuth,
@@ -1822,6 +1843,11 @@ export function createPlansRouter(
       ) {
         return res.status(400).json({ error: "invalid template id" });
       }
+      const useBody = useTemplateBodySchema.safeParse(req.body ?? {});
+      if (!useBody.success) {
+        return res.status(400).json({ error: "invalid body", details: useBody.error.flatten() });
+      }
+      const today = todayFor(useBody.data.localDate, now());
 
       try {
         const result = await prisma.$transaction(async (tx) => {
@@ -1834,6 +1860,7 @@ export function createPlansRouter(
             templateId,
             userId,
             markFirstPlanCreated,
+            { today },
           );
         });
 

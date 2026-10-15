@@ -26,6 +26,7 @@ function makeDish(): DishWithIngredients {
         positionIndex: 0,
         componentKey: null,
         pathKey: null,
+        fromLeftovers: false,
         ingredient: {
           id: "ing-1",
           canonicalName: "ground beef",
@@ -57,6 +58,7 @@ function makeDish(): DishWithIngredients {
         positionIndex: 1,
         componentKey: null,
         pathKey: null,
+        fromLeftovers: false,
         ingredient: {
           id: "ing-2",
           canonicalName: "olive oil",

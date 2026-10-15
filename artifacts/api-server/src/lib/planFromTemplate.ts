@@ -14,6 +14,8 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 
 import { forkMealForUser } from "./mealFork";
+import { todayFor } from "./planDayAssignment";
+import { anchoredDatingFor } from "./templateAnchor";
 import { emitActivity } from "./userActivity";
 
 export type CopyTemplateResult =
@@ -21,6 +23,13 @@ export type CopyTemplateResult =
   | {
       kind: "created";
       instance: { id: string; revisionId: number };
+      /**
+       * THX-2S (D-WS9-311) — the anchored window when the template's anchor
+       * dated this copy (adopted on or before the anchor day); null = undated,
+       * exactly as before. A caller that dates the copy itself must leave an
+       * anchored one alone.
+       */
+      anchoredWindow: { startDate: Date; endDate: Date } | null;
     };
 
 /**
@@ -33,6 +42,13 @@ export type CopyTemplateResult =
  * The new plan is UNDATED and therefore not "current": WS7-6 (E) removed the
  * stored isActiveThisWeek column, "active" is the date-range predicate, and
  * the caller dates it separately if it wants it to be this week's plan.
+ *
+ * THX-2S (D-WS9-311) — two exceptions, both from the template:
+ *   · each item's servingsOverride is copied (a feast written for 10 stays 10;
+ *     items without one follow the household size, as before);
+ *   · an ANCHORED template adopted on or before its anchor day (`today`) is
+ *     dated in the anchor's week by the items' own days (lib/templateAnchor.ts).
+ *     It is not activated here — dating is not activation.
  */
 export async function copyTemplateForUser(
   tx: Prisma.TransactionClient,
@@ -42,6 +58,7 @@ export async function copyTemplateForUser(
     tx: Prisma.TransactionClient,
     userId: string,
   ) => Promise<void>,
+  opts: { today?: Date } = {},
 ): Promise<CopyTemplateResult> {
   const template = await tx.mealPlanTemplate.findUnique({
     where: { id: templateId },
@@ -52,6 +69,8 @@ export async function copyTemplateForUser(
     return { kind: "not_found" };
   }
 
+  const dating = anchoredDatingFor(template, opts.today ?? todayFor(undefined));
+
   // WS7-6 (E): no demote-prior — the stored isActiveThisWeek column is gone.
   // The new row is created undated; the caller dates it, and the per-user
   // EXCLUDE constraint enforces single-current at that point.
@@ -61,8 +80,8 @@ export async function copyTemplateForUser(
       mealPlanTemplateId: templateId,
       titleOverride: null,
       status: "draft",
-      startDate: null,
-      endDate: null,
+      startDate: dating?.window.startDate ?? null,
+      endDate: dating?.window.endDate ?? null,
       // WS9 3d Part 2d (D-WS9-013) — use-template mints a real committed
       // (non-draft) plan, just undated/inactive; stamp the commit instant.
       committedAt: new Date(),
@@ -102,11 +121,14 @@ export async function copyTemplateForUser(
       );
     }
     await tx.mealPlanItem.createMany({
-      data: template.items.map((it) => ({
+      data: template.items.map((it, i) => ({
         mealPlanInstanceId: instance.id,
         mealId: boundBySource.get(it.mealId) ?? it.mealId,
         positionIndex: it.positionIndex,
         assignedDayOfWeek: it.assignedDayOfWeek,
+        // THX-2S — the anchored date of this item's day (null when undated).
+        assignedDate: dating?.itemDates[i] ?? null,
+        servingsOverride: it.servingsOverride ?? null,
         isBreakfast: it.isBreakfast,
         isLunch: it.isLunch,
         isDinner: it.isDinner,
@@ -131,6 +153,7 @@ export async function copyTemplateForUser(
   return {
     kind: "created",
     instance: { id: instance.id, revisionId: instance.revisionId },
+    anchoredWindow: dating?.window ?? null,
   };
 }
 

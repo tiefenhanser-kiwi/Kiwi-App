@@ -534,8 +534,22 @@ export async function adoptTemplateForUser(
         templateId,
         userId,
         markFirstPlanCreated,
+        { today },
       );
       if (copied.kind === "not_found") return null;
+      // THX-2S (D-WS9-311) — an anchored template inside its window came back
+      // already dated (the Thanksgiving week). Keep those dates; it is this
+      // week's plan only if that week covers today.
+      if (copied.anchoredWindow) {
+        const { startDate, endDate } = copied.anchoredWindow;
+        if (startDate.getTime() <= today.getTime() && today.getTime() <= endDate.getTime()) {
+          await tx.mealPlanInstance.update({
+            where: { id: copied.instance.id },
+            data: { activatedAt: new Date() },
+          });
+        }
+        return copied.instance.id;
+      }
       // The copy is undated by design (WS7-6 E). Date it from tomorrow, the
       // same window the wizard activate path opens.
       const start = addUtcDays(today, 1);
