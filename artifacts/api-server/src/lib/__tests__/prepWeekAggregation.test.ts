@@ -419,6 +419,16 @@ describe("loadPrepWeekInput — payload shape", () => {
     // cuisine is now always present as a field; null when the meal has none.
     assert.equal(stirFry.cuisine, null);
   });
+
+  it("PREP-1 — `feast` is the thanksgiving-feast meal tag, and only that tag", async () => {
+    const p = plan();
+    (p.items[0].meal as unknown as { tags: string[] }).tags = ["american", "thanksgiving", "thanksgiving-feast"];
+    (p.items[1].meal as unknown as { tags: string[] }).tags = ["thanksgiving", "thanksgiving-leftovers"];
+    const { input } = await loadPrepWeekInput({ planId: PLAN_ID, userId: USER_ID, prisma: makePrismaStub([p]) });
+    assert.equal(input.meals.find((m) => m.mealId === MEAL_A)!.feast, true);
+    // Absent, not false: an untagged plan's hashed input keeps its old shape.
+    assert.ok(!("feast" in input.meals.find((m) => m.mealId === MEAL_B)!));
+  });
 });
 
 describe("loadPrepWeekInput — step text (WS7-8a B2b)", () => {

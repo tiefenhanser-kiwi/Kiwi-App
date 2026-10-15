@@ -23,7 +23,7 @@ import {
   PrepWeekEmptyPlanError,
   PrepWeekNotFoundError,
 } from "./prepWeekAggregation";
-import { buildPrepWeekPlan, tickableStepRefs, type PrepStepRef } from "./prepWeekBuild";
+import { buildCoreWeek, tickableStepRefs, type PrepStepRef } from "./prepWeekBuild";
 
 // Minimal per-step shape the derivation needs (matches derivePrepCompletion).
 export type { PrepStepRef };
@@ -118,7 +118,9 @@ export async function loadPrepStepSet(
     // A2 — only what the cook can tick: no engine demotion, no wash or cook-day
     // line (D-WS9-301 rule 10), no protein the overlay holds for cook day.
     // Everything is computed, so the cached blob is no longer read here.
-    return tickableStepRefs(buildPrepWeekPlan(loaded));
+    // PREP-1 (D-WS9-314) — the full week WITHOUT the feast: the core reads a
+    // `thanksgiving-feast` meal as nothing to prep.
+    return tickableStepRefs(buildCoreWeek(loaded));
   } catch (err) {
     // No cookable meals (empty) or non-owner/missing → no prep steps. The
     // caller's meal universe still drives the (vacuous) per-meal rollup; an

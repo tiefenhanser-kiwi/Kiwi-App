@@ -26,7 +26,7 @@
 // The holds are DATE facts, so they are computed here on every read (cache hit or
 // miss) and applied to the wire by `finishPrepWeek`, never baked into cached prose.
 
-import type { LoadPrepWeekInputResult } from "./prepWeekAggregation";
+import type { LoadPrepWeekInputResult, PrepLoadedPlan } from "./prepWeekAggregation";
 import { buildPrepCombineInput } from "./prepCombineAdapter";
 import { combinePrep } from "./prepCombineEngine";
 import { cutOf } from "./prepClasses";
@@ -83,6 +83,37 @@ export interface BuildPrepWeekOptions {
 }
 
 type Load = Pick<LoadPrepWeekInputResult, "input" | "cookDays" | "identity">;
+
+// ── PREP-1 (D-WS9-314) — THE FEAST IS NOT THE WEEK ───────────────────────────
+//
+// Hans, October 14: "the core engine ignores the thanksgiving thing and then the
+// thanksgiving piece maybe runs after or in addition to the core engine." A meal
+// tagged `thanksgiving-feast` is out of the full week — its scope AND its step
+// set, so the core reads it as nothing to prep — and is prepped in a session of
+// its own. Both sessions are the whole plan built once and then scoped (A3): one
+// food-identity fold, one set of container names.
+
+/** The plan's feast meals, by tag (the loader sets `feast`). */
+export function feastMealIds(input: Pick<PrepLoadedPlan, "meals">): string[] {
+  return input.meals.filter((m) => m.feast).map((m) => m.mealId);
+}
+
+/**
+ * The full week's scope: the selection (or every meal) less the feast. Undefined
+ * for a plan with no feast and no selection, which is today's whole week,
+ * byte-unchanged. An empty array is a real answer: nothing but the feast.
+ */
+export function coreScopeMealIds(input: Pick<PrepLoadedPlan, "meals">, selected?: readonly string[]): string[] | undefined {
+  const feast = new Set(feastMealIds(input));
+  if (feast.size === 0) return selected ? [...selected] : undefined;
+  return (selected ?? input.meals.map((m) => m.mealId)).filter((id) => !feast.has(id));
+}
+
+/** The full week (core session) — what Prep the Week, `isPrepped` and the structure route build. */
+export function buildCoreWeek(load: Load, selected?: readonly string[]): PrepWeekBuild {
+  const scope = coreScopeMealIds(load.input, selected);
+  return buildPrepWeekPlan(load, scope ? { scopeMealIds: scope } : {});
+}
 
 export function buildPrepWeekPlan(load: Load, opts: BuildPrepWeekOptions = {}): PrepWeekBuild {
   const { input, identity } = load;

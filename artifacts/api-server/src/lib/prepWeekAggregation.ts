@@ -128,7 +128,18 @@ export interface PrepLoadedMeal {
   // plan-item servingsOverride (null = use each dish's baseServings).
   servingsOverride: number | null;
   dishes: PrepLoadedDish[];
+  /**
+   * PREP-1 (D-WS9-314) — the meal is tagged `thanksgiving-feast`: it leaves the
+   * full week and is prepped in its own session ("Prep the feast"). ON the
+   * hashed input on purpose — the full week's scope depends on it, so a tag
+   * change must be a cache miss. Present only when true, so an untagged plan's
+   * input is the shape it always was.
+   */
+  feast?: true;
 }
+
+/** PREP-1 (D-WS9-314) — the meal tag THX-2G-E writes on the five feasts. */
+export const FEAST_MEAL_TAG = "thanksgiving-feast";
 
 // ── WS9 BUG-338 / D-WS9-298 — THE COOK DAY RIDES BESIDE THE INPUT, NOT IN IT ─
 //
@@ -397,6 +408,8 @@ export async function loadPrepWeekInput(
       cuisine: meal.cuisineType ?? null,
       servingsOverride: item.servingsOverride,
       dishes,
+      // By tag only (the THX-2G-E contract) — no title or dish heuristics.
+      ...((meal.tags ?? []).includes(FEAST_MEAL_TAG) ? { feast: true as const } : {}),
     });
   }
 

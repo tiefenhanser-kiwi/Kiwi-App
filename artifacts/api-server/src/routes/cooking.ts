@@ -40,7 +40,7 @@ import {
   PrepNarrationIncompleteError,
   summarizePrepWeek,
 } from "../lib/prepWeekAssembly";
-import { buildPrepWeekPlan, finishPrepWeek } from "../lib/prepWeekBuild";
+import { buildCoreWeek, coreScopeMealIds, finishPrepWeek } from "../lib/prepWeekBuild";
 import { PrepNarrationResultSchema } from "../lib/ai/schemas/prepNarration";
 import {
   stepKeysOfResult,
@@ -74,6 +74,9 @@ const UUID_RE =
 // realistic plans. Residual: a pathological plan near the 120-step schema ceiling
 // could still truncate — the durable fix there is chunked narration (deferral TBD).
 const PREP_NARRATION_MAX_TOKENS = 16384;
+
+/** PREP-1 (D-WS9-314) — a Prep Selected Meals run that named only the feast. */
+export const FEAST_OWN_PREP_COPY = "The feast has its own prep. See Thanksgiving make-ahead.";
 
 export interface CookingRouterDeps {
   runCookingSequence: typeof productionRunCookingSequence;
@@ -332,10 +335,14 @@ export function createCookingRouter(
       // Part J.1 — everything that depends on TODAY (the one-session holds, the
       // cook-day list, the storage overlay) is applied by finishPrepWeek, on the
       // cache-hit path and the miss path alike.
-      const build = buildPrepWeekPlan(
-        { input, cookDays, identity },
-        isSubset ? { scopeMealIds: subsetMealIds } : {},
-      );
+      // PREP-1 (D-WS9-314) — the feast is never in this session, full week or
+      // subset: it has its own ("Prep the feast"), keyed apart. A subset that
+      // named only the feast, or a plan that is only the feast, has nothing here.
+      const coreScope = coreScopeMealIds(input, subsetMealIds);
+      if (coreScope !== undefined && coreScope.length === 0) {
+        return res.status(400).json({ error: FEAST_OWN_PREP_COPY, reason: "feast_has_own_prep" });
+      }
+      const build = buildCoreWeek({ input, cookDays, identity }, subsetMealIds);
       const { stepPlan } = build;
 
       const cached = isSubset
@@ -788,7 +795,7 @@ export function createCookingRouter(
         logger.error({ event: "prep_week_structure_failed", userId, planId, err }, "Prep structure load failed");
         return res.status(500).json({ error: "internal server error" });
       }
-      const build = buildPrepWeekPlan(loaded);
+      const build = buildCoreWeek(loaded);
       const titled = {
         steps: build.stepPlan.narrationInput.steps.map((s) => {
           const planned = build.stepPlan.steps.find((p) => p.stepId === s.stepId)!;
