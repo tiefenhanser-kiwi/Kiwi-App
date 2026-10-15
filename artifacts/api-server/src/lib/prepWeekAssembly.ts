@@ -753,7 +753,16 @@ export function buildStepPlan(
    * and per-dish quantities. Built over the subset alone, a food in only some
    * meals got a different key and the subset's ticks never reached `isPrepped`.
    */
-  opts: { scopeMealIds?: ReadonlySet<string> } = {},
+  opts: {
+    scopeMealIds?: ReadonlySet<string>;
+    /**
+     * PREP-1 (BUG-413) — the plan's meals in plan order, which is the order the
+     * 30-step backstop reads as "latest day". The plan order, not the cook day:
+     * the backstop decides what is narrated, and the narration is cached on the
+     * composition alone (D-WS9-298), so its choice may not move with a day edit.
+     */
+    mealOrder?: readonly string[];
+  } = {},
 ): StepPlan {
   const steps: PlannedStep[] = [];
 
@@ -1867,10 +1876,19 @@ export function buildStepPlan(
     steps.splice(0, steps.length, ...kept);
   }
 
+  // ── PREP-1 (BUG-413) — NO PHASE OVER THE 30 THE WIRE ALLOWS ───────────────
+  // After the scope, so a session is capped on its own steps; before the closes
+  // and the narration, so an overflow step closes nothing and costs no tokens.
+  capPhaseSteps(steps, opts.mealOrder);
+
   // Emit dishSteps ONLY for dishes actually referenced by some step, in
   // first-referenced order, so the map carries no unused prose.
+  // PREP-1 (BUG-413) — and only by a step the narrator is sent. A demoted step
+  // gets the engine's fixed prose (below), so its dish's recipe was paid for and
+  // never read.
   const dishSteps: Record<string, string[]> = {};
   for (const s of steps) {
+    if (s.demoted || s.fixedProse) continue;
     for (const name of s.relevantDishes) {
       if (!(name in dishSteps)) {
         const texts = dishStepsByName.get(name);
@@ -2206,6 +2224,7 @@ const DEMOTE_PROSE: Record<string, string> = {
     "Citrus wedges keep best cut on the day.",
   "rule 7 — over the container target; a single-dish garnish portion saves the least":
     "A single garnish portion saves the least — cut it on the day.",
+  "over-cap": "Too much for one session — this one is on the cook-day list.",
 };
 
 // ── Part J.0 (census finding 2) — THE PORTION LINES ARE THE CODE'S ─────────────
@@ -2740,6 +2759,46 @@ export function countContainers(steps: readonly PlannedStep[]): number {
 
 const CONTAINER_TARGET_MAX = 15;
 
+/** The wire's per-phase step ceiling (PrepWeekPhaseSchema, server and client). */
+export const PHASE_STEP_MAX = 30;
+
+/** The phases whose wire steps would still pass the cap (empty after the backstop). */
+export function overCapPhases(plan: Pick<StepPlan, "steps">): PrepPhaseKey[] {
+  return PREP_PHASE_ORDER.filter(
+    (p) => plan.steps.filter((s) => s.phase === p && !s.demoted).length > PHASE_STEP_MAX,
+  );
+}
+/** PREP-1 (BUG-413) — the demotion the 30-step backstop writes. */
+export const OVER_CAP_REASON = "over-cap";
+
+/**
+ * PREP-1 (BUG-413) — THE BACKSTOP. A demoted step never reaches the wire
+ * (assemblePrepWeekResult), so a phase is over the cap only when more than 30 of
+ * its steps would render, and it used to find out after the narration had been
+ * paid for (the schema check is the route's last step). The overflow goes to the
+ * cook-day list whole: single-meal steps first, then the latest meal in plan
+ * order, then the highest step number — one answer for one composition. The wash
+ * and a cook-day line are never moved; they are not prep a cook can do later.
+ */
+function capPhaseSteps(steps: PlannedStep[], mealOrder: readonly string[] = []): void {
+  const pos = new Map(mealOrder.map((id, i) => [id, i]));
+  const latest = (st: PlannedStep) => Math.max(-1, ...st.contributesToMealIds.map((id) => pos.get(id) ?? -1));
+  const multi = (st: PlannedStep) => (st.contributesToMealIds.length === 1 ? 0 : 1);
+  for (const phase of PREP_PHASE_ORDER) {
+    const onWire = steps.filter((s) => s.phase === phase && !s.demoted);
+    let over = onWire.length - PHASE_STEP_MAX;
+    if (over <= 0) continue;
+    const movable = onWire
+      .filter((s) => !s.fixedProse && !s.cookDaySentence && !s.holdsNoContainer)
+      .sort((a, b) => multi(a) - multi(b) || latest(b) - latest(a) || b.number - a.number);
+    for (const st of movable) {
+      if (over <= 0) break;
+      st.demoted = { reason: OVER_CAP_REASON };
+      over -= 1;
+    }
+  }
+}
+
 
 function dropLowValueSteps(steps: PlannedStep[]): void {
   if (countContainers(steps) <= CONTAINER_TARGET_MAX) return;
@@ -2841,6 +2900,13 @@ export function assemblePrepWeekResult(
 
   let total = 0;
   for (const planned of plan.steps) {
+    // 🔴 PREP-1 (BUG-413) — AN ENGINE-DEMOTED STEP IS NOT ON THE WIRE. The client has
+    // never rendered one (D-WS7-184), `isPrepped` never waited for one, and each
+    // still counted toward the 30-step phase cap. Its cook-day work, where it has
+    // any, is in the held list (prepWeekBuild.heldLinesFor), which reads the plan,
+    // not the wire. A step held by TODAY's date is different: it stays, because
+    // the cached blob is date-free and tomorrow it may render.
+    if (planned.demoted) continue;
     const prose = planned.fixedProse
       ? { ...planned.fixedProse, storageNote: undefined, skipSuggested: undefined }
       : proseById.get(planned.stepId)!;

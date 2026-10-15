@@ -35,6 +35,7 @@ import {
   componentTotals,
   composePortionStep,
   openingSentence,
+  OVER_CAP_REASON,
   storageClosesByStepKey,
   type PlannedStep,
   type StepPlan,
@@ -100,7 +101,10 @@ export function buildPrepWeekPlan(load: Load, opts: BuildPrepWeekOptions = {}): 
     input.planName,
     stepTextByDishId,
     cookDays.lagByMealId,
-    opts.scopeMealIds ? { scopeMealIds: new Set(opts.scopeMealIds) } : {},
+    {
+      ...(opts.scopeMealIds ? { scopeMealIds: new Set(opts.scopeMealIds) } : {}),
+      mealOrder: input.meals.map((m) => m.mealId),
+    },
   );
 
   const closesByStepKey = storageClosesByStepKey(stepPlan.steps, stepPlan.containerExtras, stepPlan.labelKinds);
@@ -320,6 +324,22 @@ function heldLinesFor(
       if (st.phase === "seasonings_dry" || st.phase === "sauces_marinades") continue;
       for (const p of h.heldPortions) {
         addWork(p.mealId, { food: p.ingredientName, action: actionFor(p.cut, p.ingredientName, st.phase, st.knifeVerbs), ...(p.dest && isPlate(p.dest) ? { dest: p.dest } : {}) });
+      }
+      continue;
+    }
+    // PREP-1 (BUG-413) — over the 30-step cap: the whole step waits for cook day,
+    // each meal's portion on that meal's line. A mixture is made, not cut.
+    if (st.demoted?.reason === OVER_CAP_REASON) {
+      for (const c of st.components) {
+        for (const m of c.measures) {
+          if (!m.mealId) continue;
+          addWork(
+            m.mealId,
+            st.isBlend && st.bowlName
+              ? { food: st.bowlName, action: `make the ${st.bowlName}` }
+              : { food: c.ingredientName, action: actionFor(cutOf([m.preparationNote ?? c.preparationNote ?? ""]), c.ingredientName, st.phase, st.knifeVerbs) },
+          );
+        }
       }
       continue;
     }

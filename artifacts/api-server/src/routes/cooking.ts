@@ -36,6 +36,7 @@ import {
 import {
   assemblePrepWeekResult,
   engineTitle,
+  overCapPhases,
   PrepNarrationIncompleteError,
   summarizePrepWeek,
 } from "../lib/prepWeekAssembly";
@@ -389,6 +390,22 @@ export function createCookingRouter(
       // same 400 + copy as a structurally empty plan.
       if (stepPlan.steps.length === 0) {
         return res.status(400).json({ error: EMPTY_PLAN_COPY });
+      }
+
+      // PREP-1 (BUG-413) — the 30-step cap, checked BEFORE the narration is paid
+      // for. The engine's backstop already moved any overflow to cook day, so this
+      // is the guard that it did; the schema check at step 6 used to be the first
+      // place an over-cap phase was noticed, after the AI call.
+      const overCap = overCapPhases(stepPlan);
+      if (overCap.length > 0) {
+        logger.warn(
+          { event: "prep_week_over_cap", userId, planId, phases: overCap },
+          "Prep the Week phase over the step cap before narration",
+        );
+        return res.status(502).json({
+          error: "Kiwi got distracted. Try again?",
+          reason: "assembly_invalid",
+        });
       }
 
       const aiResult = await runAICall(

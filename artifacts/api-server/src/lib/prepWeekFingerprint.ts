@@ -93,8 +93,11 @@ const FINGERPRINT_ALGO_VERSION = 1;
  *       prose ("soy sauce") no longer makes a mixture noun. BUG-359 rides the same
  *       bump (nothing cached v7 in between): lids keep every word of their dish and
  *       never double the container word, a dish's own toppings go on its plate.
+ *   8 — PREP-1 (BUG-413): an engine-demoted step is off the wire and its dish's
+ *       recipe off the narration input; a phase over 30 steps sends its overflow
+ *       to the cook-day list before narration.
  */
-export const PREP_ENGINE_VERSION = 7;
+export const PREP_ENGINE_VERSION = 8;
 
 /**
  * Digest of the loaded plan composition — everything the prep payload is built

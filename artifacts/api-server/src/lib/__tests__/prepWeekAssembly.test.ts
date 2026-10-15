@@ -444,7 +444,9 @@ describe("assemblePrepWeekResult — skipSuggested (B2b, H7 2c)", () => {
       undefined,
       "the model's demotion reached the wire",
     );
-    assert.equal(wire.find((s) => s.stepKey === engineDemoted.stepKey)!.skipSuggested, true);
+    // PREP-1 (BUG-413) — the engine's demotion now keeps the step off the wire
+    // entirely (it used to ride as skipSuggested and count toward the 30 cap).
+    assert.equal(wire.find((s) => s.stepKey === engineDemoted.stepKey), undefined);
   });
 
   it("INVARIANT: demotion never changes code-owned number / attribution", () => {
