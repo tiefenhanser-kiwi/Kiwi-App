@@ -414,6 +414,17 @@ describe("BUG-337 ruling 3 — a served-cold dish is pulled forward, not finish-
     }
   });
 
+  // THX-2S (BUG-397, partly) — the feast's cranberry and desserts are never
+  // scheduled as hot; a savoury pie still is.
+  it("THX-2S: cranberry, pie, crisp and bars are served cold; a pot pie is not", () => {
+    for (const t of ["Cranberry-Orange Sauce", "Cranberry-Jalapeño Relish", "Pumpkin Pie", "Apple Pie", "Apple Crisp", "Pumpkin Cheesecake Bars"]) {
+      assert.equal(isServedCold({ title: t }), true, `${t} should be cold`);
+    }
+    for (const t of ["Leftover Turkey Pot Pie", "Shepherd's Pie", "Frito Pie with Pickled Jalapeños", "Crisp-Tender Green Beans", "Crisp Garlic-Rubbed Baguette", "Wild Rice and Cranberry Stuffed Acorn Squash", "Crispy Chicken Tenders"]) {
+      assert.equal(isServedCold({ title: t }), false, `${t} should NOT be cold`);
+    }
+  });
+
   it("cold prep moves INTO a long marinade window that was previously idle", () => {
     const dishes = [
       dish("steak", "Carne Asada", 0, [

@@ -430,10 +430,20 @@ function passiveStateOf(step: SchedulerStep, text: string, coldDish: boolean): P
 // only signal most dishes carry). Deliberately a SHORT list of things that are
 // unambiguously served cold — a false positive here serves something warm cold,
 // which is worse than leaving a window idle.
+//
 const COLD_DISH_TITLE =
   /\b(salsa|pico de gallo|pico|guacamole|slaw|salad|dressing|vinaigrette|crema|raita|tzatziki|chutney|relish|dip|sour cream|aioli|remoulade|gremolata|chimichurri)\b/i;
 /** A title that matches COLD_DISH_TITLE but is served hot anyway. */
 const COLD_DISH_EXCEPTION = /\b(warm|hot|grilled|roasted|charred|fried|baked|wilted|toasted)\b/i;
+// THX-2S (BUG-397, partly) — a feast's cranberry and desserts: never scheduled
+// as hot dishes to be finish-aligned with the turkey. Narrower than bare words,
+// measured on the dev catalog (3,094 public-meal dishes): "cranberry" only as a
+// SAUCE (relish is above) — "Cranberry Stuffed Acorn Squash" is hot; "crisp"
+// only as the dish's last word — "Crisp-Tender Green Beans" is hot; "pie" and
+// "bars" as words, minus the savoury pies (HOT_PIE).
+const DESSERT_OR_CRANBERRY_TITLE = /\bcranberry\b[\w\s'-]*\bsauce\b|\b(pie|bars)\b|\bcrisp\s*$/i;
+/** THX-2S — the savoury pies "pie" would otherwise catch ("Leftover Turkey Pot Pie"). */
+const HOT_PIE = /\b(pot pie|shepherd'?s pie|cottage pie|tamale pie|frito pie|meat pie|pork pie|chicken pie|pizza pie)\b/i;
 
 /**
  * True when this dish is eaten cold, so finishing early is a feature.
@@ -449,8 +459,8 @@ const COLD_DISH_EXCEPTION = /\b(warm|hot|grilled|roasted|charred|fried|baked|wil
  */
 export function isServedCold(dish: Pick<SchedulerDish, "title">): boolean {
   const title = dish.title ?? "";
-  if (COLD_DISH_EXCEPTION.test(title)) return false;
-  return COLD_DISH_TITLE.test(title);
+  if (COLD_DISH_EXCEPTION.test(title) || HOT_PIE.test(title)) return false;
+  return COLD_DISH_TITLE.test(title) || DESSERT_OR_CRANBERRY_TITLE.test(title);
 }
 
 // ── D-WS9-239 tag classification (rule 4: invalid → untagged, reported) ─────
