@@ -12,15 +12,15 @@ import { Prisma } from "@prisma/client";
 import { selectDefaultPathSteps } from "../../../src/lib/cookingScheduler";
 import type { CatDish, CatMeal } from "../cat-q0/catalogDb";
 import type { ReviewIssue } from "../cat-q0/rubric";
-import { applyEdits, patchMeal, StaleEdit, type ApplyDeps, type Edit, type IngRow } from "./edits";
+import { applyEdits, applyPatch, patchMeal, StaleEdit, type ApplyDeps, type Edit, type IngRow } from "./edits";
 import { editorPayload, type PatchInput } from "./editor";
-import { reviewGate, sameIssue } from "./gate";
+import { reviewGate, roundTwoDeclined, sameIssue, secondRoundIssues, wantsSecondRound } from "./gate";
 import { graphHash, readGraph, restoreGraph, reviveGraph } from "./graph";
 import { parseWhere, type Q0Issue } from "./issues";
-import { checkPatch } from "./limits";
+import { checkPatch, vesselsIn } from "./limits";
 import { partBEdits } from "./partB";
 import { fixProse } from "./prose";
-import { checkSousVide, tableMinutes } from "./sousVide";
+import { checkSousVide, formatMinutes, sousVideFailures, tableMinutes } from "./sousVide";
 
 // ── a small meal ────────────────────────────────────────────────────────────
 const MEAL = "meal-1", DISH = "dish-1";
@@ -69,7 +69,18 @@ describe("limits (code, not the model)", () => {
     assert.deepEqual(r.rejections, []);
     assert.equal(r.edits.length, 1);
   });
-  it("rejects a patch touching a step no issue it answers names", () => {
+  it("rejects a patch touching a step no issue it answers names and that shares no vessel or ingredient with one", () => {
+    // step 2 ("Serve with lemon wedges.") shares nothing with step 1, the step issue 1 names
+    const { r } = plan(meal(), {
+      step_edits: [
+        { step_id: sid(1), old_text: S1, new_text: S1_FIX, old_minutes: 12, new_minutes: 12, answers: [1] },
+        { step_id: sid(2), old_text: "Serve with lemon wedges.", new_text: "Serve at once with lemon wedges.", old_minutes: 1, new_minutes: 1, answers: [1] },
+      ],
+    });
+    assert.equal(r.edits.length, 0, "the whole patch is rejected");
+    assert.ok(r.rejections.some((x) => /step 2 .*shares no vessel or ingredient/.test(x)), r.rejections.join("\n"));
+  });
+  it("a step sharing an ingredient with the named step is coupled (chicken thighs)", () => {
     const m = meal();
     const s0 = m.dishes[0].steps[0].text;
     const { r } = plan(m, {
@@ -77,9 +88,10 @@ describe("limits (code, not the model)", () => {
         { step_id: sid(1), old_text: S1, new_text: S1_FIX, old_minutes: 12, new_minutes: 12, answers: [1] },
         { step_id: sid(0), old_text: s0, new_text: s0.replace("Pat", "Gently pat"), old_minutes: 5, new_minutes: 5, answers: [1] },
       ],
+      declined: [{ issue: 2, reason: "x" }],
     });
-    assert.equal(r.edits.length, 0, "the whole patch is rejected");
-    assert.ok(r.rejections.some((x) => /step 0 .*no issue it answers names it/.test(x)), r.rejections.join("\n"));
+    assert.deepEqual(r.rejections, []);
+    assert.ok(r.notes.some((n) => /step 0 .*coupled — shares an ingredient/.test(n)));
   });
   it("rejects an `old` that is not the stored text", () => {
     const { r } = plan(meal(), { step_edits: [{ step_id: sid(1), old_text: "Grill the chicken.", new_text: S1_FIX, old_minutes: 12, new_minutes: 12, answers: [1] }] });
@@ -267,9 +279,23 @@ describe("Part B", () => {
     const m = meal();
     m.dishes[0].ingredients[1].name = "garlic cloves";
     assert.ok(!partBEdits(m).edits.some((x) => x.rule === "garlic_clove"), "'4 garlic cloves' already reads right (hidden each)");
+    // "4 each garlic (cloves, minced)" prints "4 garlics (cloves, minced)": unit clove, the note loses "cloves"
     const n = meal();
     n.dishes[0].ingredients[1].preparationNote = "cloves, minced";
-    assert.ok(!partBEdits(n).edits.some((x) => x.rule === "garlic_clove"), "'4 garlic (cloves, minced)' already reads right");
+    const ne = partBEdits(n).edits.find((x) => x.rule === "garlic_clove") as Extract<Edit, { kind: "ingredient" }>;
+    assert.deepEqual([ne.new!.unit, ne.new!.preparationNote], ["clove", "minced"]);
+    // "garlic bread" is bread: never cloves
+    const gb = meal();
+    gb.dishes[0].ingredients[1].name = "frozen garlic bread";
+    gb.dishes[0].ingredients[1].quantity = 1;
+    assert.ok(!partBEdits(gb).edits.some((x) => x.rule === "garlic_clove"), "1 each frozen garlic bread stays a loaf");
+    // a note that COUNTS cloves means a whole head: reported, not edited
+    const h = meal();
+    h.dishes[0].ingredients[1].quantity = 1;
+    h.dishes[0].ingredients[1].preparationNote = "about 10 cloves, peeled";
+    const hb = partBEdits(h);
+    assert.ok(!hb.edits.some((x) => x.rule === "garlic_clove"));
+    assert.ok(hb.skips.some((s) => s.rule === "garlic_clove"));
   });
   it("a spoon/cup line printed ⅜ ⅝ ⅞ snaps to the nearest cook's fraction", () => {
     const e = partBEdits(meal()).edits.find((x) => x.rule === "spoon_eighth") as Extract<Edit, { kind: "ingredient" }>;
@@ -298,18 +324,163 @@ describe("Part B", () => {
 
 describe("sous vide under D-WS9-315 (FSIS table)", () => {
   const dish = (text: string, title = "Sous Vide Chicken Breast") => ({ title, ingredients: [], steps: [{ stepIndex: 3, text }] }) as unknown as CatDish;
-  it("145°F for 1 hour 30 minutes meets the poultry table; with an hour's come-up it still does", () => {
+  it("145°F for 1 hour 30 minutes passes: it covers 60 min come-up + 10.4 min FSIS hold", () => {
     const c = checkSousVide(dish("Submerge the bag and cook sous vide at 145°F for 1 hour 30 minutes."))!;
-    assert.equal(c.bathF, 145); assert.equal(c.holdMinutes, 90); assert.ok(c.meets); assert.ok(c.meetsWithComeUp);
+    assert.equal(c.bathF, 145); assert.equal(c.holdMinutes, 90); assert.equal(c.holdStep, 3);
+    assert.ok(c.meets); assert.ok(c.meetsAtCore);
   });
-  it("140°F for 1 hour meets the table at core temperature but not once come-up is counted", () => {
+  it("140°F for 1 hour FAILS once come-up is counted (Lemon-Oregano), and the passing time is 2 hours", () => {
     const c = checkSousVide(dish("Submerge the sealed bag in the 140°F water bath and cook for 1 hour."))!;
-    assert.ok(c.meets); assert.ok(!c.meetsWithComeUp);
+    assert.ok(c.meetsAtCore, "it does cover the FSIS hold alone");
+    assert.ok(!c.meets);
+    assert.equal(c.passingMinutes, 120);
+    assert.equal(formatMinutes(c.passingMinutes!), "2 hours");
   });
-  it("below the table is never safe; pork reads the meat table", () => {
+  it("pork at 140°F for 1 hour 30 minutes passes the meat table (60 + 12 min)", () => {
+    const c = checkSousVide(dish("Submerge the sealed bag in the 140°F water bath and cook for 1 hour 30 minutes.", "Sous Vide Italian Herb Pork Loin"))!;
+    assert.equal(c.protein, "meat"); assert.ok(c.meets);
+  });
+  it("below the table is never safe: no passing time", () => {
     assert.equal(tableMinutes("poultry", 130), null);
-    assert.ok(!checkSousVide(dish("Cook sous vide at 130°F for 2 hours."))!.meets);
-    assert.equal(checkSousVide(dish("Cook the pork loin sous vide at 140°F for 2 hours.", "Sous Vide Pork Loin"))!.protein, "meat");
+    const c = checkSousVide(dish("Cook sous vide at 130°F for 2 hours."))!;
+    assert.ok(!c.meets); assert.equal(c.passingMinutes, null);
+  });
+  it("the gate rejects a patched meal whose final sous vide time is still short", () => {
+    const m = meal();
+    m.dishes[0].steps = [{ ...m.dishes[0].steps[1], text: "Submerge the sealed bag in the 140°F water bath and cook for 1 hour." }];
+    m.dishes[0].title = "Sous Vide Lemon-Oregano Chicken Breast";
+    assert.equal(sousVideFailures(m).length, 1);
+    m.dishes[0].steps[0].text = "Submerge the sealed bag in the 140°F water bath and cook for 2 hours. Holding the chicken at 140°F for the full 2 hours is what makes it safe to eat.";
+    assert.deepEqual(sousVideFailures(m), []);
+  });
+  it("a short sous vide time with the safety sentence is NOT set aside by the gate", () => {
+    const m = meal();
+    const d = m.dishes[0];
+    d.allSteps[1].text = "Cook sous vide at 140°F for 1 hour. Holding the chicken at 140°F for the full hour is what makes it safe to eat.";
+    d.steps = selectDefaultPathSteps(d.allSteps);
+    const r: ReviewIssue = { class: 5, severity: "block", dish: "Grilled Chicken", ingredient: null, stepIndex: 1, quote: "Cook sous vide at 140°F for 1 hour.", why: "", fix: "" };
+    assert.ok(!reviewGate({ patched: m, issues: ISSUES, answered: new Set([1]), baseline: [], after: { verdict: "block", issues: [r] } }).ok);
+  });
+});
+
+// ── follow-up B: coupled steps across dishes, the produce fold, round 2 ─────
+function panMeal(): CatMeal {
+  const m = meal();
+  const st = (id: string, i: number, text: string) => ({ id, stepIndex: i, text, phaseType: "cook", estimatedMinutes: 5, isTimingSensitive: false, parallelGroup: null, componentKey: null, pathKey: null, amountRefs: [] });
+  const ing = (id: string, ingredientId: string, name: string, quantity: number, unit: string) => ({ id, ingredientId, name, canonicalName: name, aliases: [], quantity, unit, preparationNote: null, isOptional: false, componentKey: null, pathKey: null, fromLeftovers: false });
+  const a = [st("g0", 0, "Preheat the oven to 450°F and place a large rimmed sheet pan inside to heat."), st("g1", 1, "Spread the gnocchi on half of the hot pan and roast 20 minutes."), st("g2", 2, "Toss the arugula in a bowl.")];
+  const b = [st("t0", 0, "Roast the tomatoes on the other half of the sheet pan.")];
+  m.dishes = [
+    { dishId: "dg", positionIndex: 0, role: "main", title: "Gnocchi", servingsDefault: 4, substitutions: [], ingredients: [ing("lg", "ing-gnocchi", "gnocchi", 32, "ounce"), ing("la", "ing-arugula", "arugula", 5, "ounce"), ing("lz", "ing-lzest", "lemon zest", 1, "teaspoon")], allSteps: a, steps: a },
+    { dishId: "dt", positionIndex: 1, role: "side", title: "Tomatoes", servingsDefault: 4, substitutions: [], ingredients: [ing("lt", "ing-tom", "cherry tomatoes", 1, "pint"), ing("lj", "ing-ljuice", "lemon juice", 1, "tablespoon")], allSteps: b, steps: b },
+  ];
+  m.dishes[0].allSteps[2].text = "Toss the arugula with 1 teaspoon lemon zest in a bowl.";
+  m.dishes[1].allSteps[0].text = "Roast the tomatoes on the other half of the sheet pan, then splash with 1 tablespoon lemon juice.";
+  return m;
+}
+const PAN_ISSUES: Q0Issue[] = [
+  issue(1, { class: 1, dish: "Gnocchi", stepIndex: 1, where: "step 1", quote: "Spread the gnocchi on half of the hot pan", why: "Crowded.", fix: "Use the whole pan for the gnocchi." }),
+  issue(2, { class: 3, dish: "Gnocchi", ingredient: "1 teaspoon lemon zest", stepIndex: 2, where: `ingredient "1 teaspoon lemon zest" · step 2`, quote: "1 teaspoon lemon zest", why: "No lemon to buy.", fix: "Add 1 lemon." }),
+];
+function planPan(input: Partial<PatchInput>, issues = PAN_ISSUES, m = panMeal()) {
+  const { ids, json } = editorPayload(m, issues);
+  const printed = new Map<string, string>();
+  for (const d of (json as { meal: { dishes: Array<{ ingredients: Array<{ id: string; printed: string }> }> } }).meal.dishes) for (const i of d.ingredients) printed.set(ids.line.get(i.id)!.rowId, i.printed);
+  const stepId = (row: string) => [...ids.step.entries()].find(([, v]) => v.rowId === row)![0];
+  const lineId = (row: string) => [...ids.line.entries()].find(([, v]) => v.rowId === row)![0];
+  return { r: checkPatch(m, { step_edits: [], line_edits: [], new_lines: [], declined: [], ...input }, ids, issues, new Map([["lemon", LEMON]]), printed), stepId, lineId, m };
+}
+const stepEditOf = (m: CatMeal, id: string, row: string, nu: string, answers: number[]) => { const s = m.dishes.flatMap((d) => d.steps).find((x) => x.id === row)!; return { step_id: id, old_text: s.text, new_text: nu, old_minutes: s.estimatedMinutes, new_minutes: s.estimatedMinutes, answers }; };
+const lineRemove = (m: CatMeal, id: string, row: string, answers: number[]) => { const i = m.dishes.flatMap((d) => d.ingredients).find((x) => x.id === row)!; const o = { quantity: i.quantity, unit: i.unit, name: i.name, note: i.preparationNote, optional: i.isOptional }; return { line_id: id, old: o, new: o, remove: true, answers }; };
+
+describe("coupled steps (follow-up B)", () => {
+  it("the preheat step and the OTHER dish's step on the same sheet pan ride along with the named step", () => {
+    const m = panMeal();
+    const p = planPan({}, PAN_ISSUES, m);
+    const input = {
+      step_edits: [
+        stepEditOf(m, p.stepId("g1"), "g1", "Spread the gnocchi across the whole hot pan and roast 20 minutes.", [1]),
+        stepEditOf(m, p.stepId("g0"), "g0", "Preheat the oven to 450°F and place two large rimmed sheet pans inside to heat.", [1]),
+        stepEditOf(m, p.stepId("t0"), "t0", "Roast the tomatoes on the second sheet pan, then splash with 1 tablespoon lemon juice.", [1]),
+      ],
+      declined: [{ issue: 2, reason: "x" }],
+    };
+    const res = planPan(input, PAN_ISSUES, m).r;
+    assert.deepEqual(res.rejections, []);
+    assert.equal(res.edits.length, 3);
+  });
+  it("a step with no shared vessel or ingredient stays forbidden", () => {
+    const m = panMeal();
+    const p = planPan({}, PAN_ISSUES, m);
+    const res = planPan({ step_edits: [
+      stepEditOf(m, p.stepId("g1"), "g1", "Spread the gnocchi across the whole hot pan and roast 20 minutes.", [1]),
+      stepEditOf(m, p.stepId("g2"), "g2", "Toss the arugula with 1 teaspoon lemon zest in a large bowl.", [1]),
+    ] }, PAN_ISSUES, m).r;
+    assert.ok(res.rejections.some((x) => /step 2 \(Gnocchi\).*shares no vessel or ingredient/.test(x)), res.rejections.join("|"));
+  });
+  it("singular and plural are one vessel; pans, pots and the water bath are separate classes", () => {
+    assert.deepEqual([...vesselsIn("place two sheet pans inside")], ["pan"]);
+    assert.deepEqual([...vesselsIn("bring the stockpot to a boil")], ["pot"]);
+    assert.deepEqual([...vesselsIn("preheat the sous vide circulator")], ["bath"]);
+  });
+});
+
+describe("produce bought whole (follow-up B)", () => {
+  const lemon = { dish: "Gnocchi", line: { quantity: 1, unit: "each", name: "lemon", note: "zest, then juice", optional: false }, answers: [2] };
+  it("a new lemon line with the zest line kept is rejected: the grocery list would buy two", () => {
+    const res = planPan({ new_lines: [lemon], declined: [{ issue: 1, reason: "x" }] }).r;
+    assert.ok(res.rejections.some((x) => /must fold into it.*lemon zest.*lemon juice/.test(x)), res.rejections.join("|"));
+  });
+  it("folding both the zest line and the OTHER dish's juice line is accepted", () => {
+    const m = panMeal();
+    const p = planPan({}, PAN_ISSUES, m);
+    const res = planPan({ new_lines: [lemon], line_edits: [lineRemove(m, p.lineId("lz"), "lz", [2]), lineRemove(m, p.lineId("lj"), "lj", [2])], declined: [{ issue: 1, reason: "x" }] }, PAN_ISSUES, m).r;
+    assert.deepEqual(res.rejections, []);
+    assert.equal(res.edits.filter((e) => e.kind === "ingredient" && e.new === null).length, 2);
+  });
+  it("removing the juice line without adding a lemon is not 'required' — rejected", () => {
+    const m = panMeal();
+    const p = planPan({}, PAN_ISSUES, m);
+    const res = planPan({ line_edits: [lineRemove(m, p.lineId("lj"), "lj", [2])], declined: [{ issue: 1, reason: "x" }] }, PAN_ISSUES, m).r;
+    assert.ok(res.rejections.some((x) => /lemon juice.*no issue it answers names it/.test(x)), res.rejections.join("|"));
+  });
+});
+
+describe("the second round (follow-up B)", () => {
+  const gate = (o: Partial<ReturnType<typeof reviewGate>>) => ({ ok: false, reasons: [], allowed: [], ruled: [], verdictAfter: "fix", fresh: [], still: [], ...o });
+  const r: ReviewIssue = { class: 2, severity: "fix", dish: "Grilled Chicken", ingredient: "2 teaspoons fresh rosemary", stepIndex: 5, quote: "rosemary", why: "never added", fix: "add it in step 5" };
+  it("runs only for a new issue with every answered issue gone", () => {
+    assert.ok(wantsSecondRound(gate({ fresh: [r] })));
+    assert.ok(!wantsSecondRound(gate({ fresh: [r], still: [r] })), "a patch that failed its own job is not retried");
+    assert.ok(!wantsSecondRound(gate({ ok: true })));
+  });
+  it("a round 2 that declines every new issue rejects the meal (round 1's re-review failed)", () => {
+    assert.match(roundTwoDeclined(2, 0, 0) ?? "", /declined every new issue/);
+    assert.equal(roundTwoDeclined(2, 1, 0), null, "round 2 edits go to the gate");
+    assert.equal(roundTwoDeclined(1, 0, 0), null, "round 1 declining is just 'declined'");
+  });
+  it("numbers the new issues after the meal's own", () => {
+    const xs = secondRoundIssues([r], ISSUES, { id: MEAL, title: "Grilled Chicken" });
+    assert.equal(xs[0].n, 3);
+    assert.equal(xs[0].where, `ingredient "2 teaspoons fresh rosemary" · step 5`);
+  });
+  it("round 2 cannot edit a line round 1 added", () => {
+    const m = patchMeal(meal(), [lemonLine]);
+    const { ids, json } = editorPayload(m, ISSUES);
+    const added = [...ids.line.entries()].find(([, v]) => v.rowId.startsWith("new:"))![0];
+    const printed = new Map<string, string>();
+    for (const d of (json as { meal: { dishes: Array<{ ingredients: Array<{ id: string; printed: string }> }> } }).meal.dishes) for (const i of d.ingredients) printed.set(ids.line.get(i.id)!.rowId, i.printed);
+    const o = { quantity: 1, unit: "each", name: "lemon", note: "cut into wedges", optional: false };
+    const res = checkPatch(m, { step_edits: [], line_edits: [{ line_id: added, old: o, new: { ...o, quantity: 2 }, remove: false, answers: [2] }], new_lines: [], declined: [] }, ids, ISSUES, new Map(), printed);
+    assert.ok(res.rejections.some((x) => /added in round 1 cannot be edited/.test(x)));
+  });
+  it("applies round 2 after round 1 in one transaction (round 2's old is round 1's new)", async () => {
+    const t = db();
+    const one = stepEdit(S1) as Extract<Edit, { kind: "step" }>;
+    const second: Edit = { ...one, round: 2, old: { text: S1_FIX, minutes: 12 }, new: { text: `${S1_FIX} Rest 5 minutes.`, minutes: 17 } };
+    const [, a1, a2] = await applyPatch(fakeTx(t), MEAL, [second, stepEdit(S1)], spyDeps().deps);
+    assert.deepEqual([a1.applied, a2.applied], [1, 1]);
+    assert.equal(t.recipeInstructionStep.find((s) => s.id === "st-1")!.stepTextRaw, `${S1_FIX} Rest 5 minutes.`);
   });
 });
 

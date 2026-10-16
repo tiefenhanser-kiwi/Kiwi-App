@@ -31,7 +31,7 @@ You receive ONE meal as JSON: for each dish its ingredient lines (each with an i
 
 # What you must never do (code enforces every one; a patch that breaks one is rejected whole)
 
-- Never touch a step or line that no issue names, except what your change strictly requires (the line whose amount a step now states, or the new line an edited step now uses).
+- Never touch a step or line that no issue names, except what your change strictly requires: the line whose amount a step now states; the new line an edited step now uses; or a step that uses the SAME pan, sheet, pot or water bath, or the SAME ingredient, as a step an issue names (the preheat that must now heat two pans, the "repeat with the remaining half", the other dish's step that shared the pan). A step that shares neither stays as it is: put whatever else the fix needs into the step the issue names.
 - Never change a title, the servings, the set of dishes, a step's phase, or add, remove or reorder steps. If a fix needs a new step, fold it into the nearest existing step as a sentence.
 - "old" must be copied EXACTLY from the payload's stored fields (text character for character, numbers as given).
 - Quantities are plain JSON numbers: 0.5, 0.25, 1.5, 0.3333 for a third — NEVER a fraction glyph or a string. Fraction glyphs (½ ¼ ¾ ⅓ ⅔ ⅛) belong ONLY in step text, where amounts must also be cook's fractions (never "0.5 cup" in text; write "½ cup").
@@ -41,7 +41,8 @@ You receive ONE meal as JSON: for each dish its ingredient lines (each with an i
 # How to fix the common classes
 
 - Doneness (the app owner's rule): poultry 165°F, ground meat 160°F, stated to the cook as an internal temperature. For a piece: "until an instant-read thermometer in the thickest part reads 165°F". For crumbled ground meat: keep the colour cue and add "and an instant-read thermometer reads 160°F". For patties, meatballs and meatloaf: "in the center". A temperature stated BELOW the minimum anywhere must be changed or removed — a cook stops at the first number. Pork chops, tenderloin and roasts: 145°F, then rest 3 minutes. Whole cuts of beef and lamb: leave the named doneness alone. Fish: leave alone.
-- SOUS VIDE: when an issue says the ruling covers it, add ONE sentence to the bath step saying that holding at the stated temperature for the full stated time is what makes it safe to eat — use the words "holding" and "what makes it safe". Change nothing else in that dish's doneness.
+- SOUS VIDE: when an issue says the ruling covers it, do exactly what its fix says. If it gives a new time, change the bath step's time in the text to exactly that time and set that step's minutes to it. Then add ONE sentence to the bath step saying that holding at the stated temperature for the full time is what makes it safe to eat — use the words "holding" and "what makes it safe". Change nothing else in that dish's doneness.
+- Juice or zest with no fruit to buy: add ONE whole-fruit line ("1 lemon") whose note says only what the meal does with it ("juiced"; "zested"; "zest, then juice" only when the meal uses both) and, in the same patch, REMOVE every zest and juice line of that fruit in the meal (any dish), answering the same issue. Keep their amounts in the step text. The shopping list buys the fruit for them; keeping both lines buys it twice.
 - Times that lie: set the step's minutes to what its own text says (the low end of a range). Never edit minutes for any other reason.
 - Rinsing poultry: delete the rinse, keep "pat dry".
 - Ingredients and steps disagree: make the step match the line, or the line match the step, whichever the issue's fix says.
@@ -135,7 +136,8 @@ export function editorIssues(issues: readonly Q0Issue[], overrides: Map<number, 
   });
 }
 
-export function editorPayload(m: CatMeal, issues: readonly EditorIssue[]): { json: unknown; ids: IdMap } {
+/** `note`: round 2 only — the earlier issues are already fixed in this text. */
+export function editorPayload(m: CatMeal, issues: readonly EditorIssue[], note?: string): { json: unknown; ids: IdMap } {
   const p = mealPayload(m);
   const ids: IdMap = { line: new Map(), step: new Map() };
   let li = 0, si = 0;
@@ -160,7 +162,7 @@ export function editorPayload(m: CatMeal, issues: readonly EditorIssue[]): { jso
     };
   });
   return {
-    json: { meal: { title: p.title, servings: p.servings, derivedTotalMinutes: p.derivedTotalMinutes, derivedHandsOnMinutes: p.derivedHandsOnMinutes, dishes }, issues },
+    json: { meal: { title: p.title, servings: p.servings, derivedTotalMinutes: p.derivedTotalMinutes, derivedHandsOnMinutes: p.derivedHandsOnMinutes, dishes }, issues, ...(note ? { note } : {}) },
     ids,
   };
 }

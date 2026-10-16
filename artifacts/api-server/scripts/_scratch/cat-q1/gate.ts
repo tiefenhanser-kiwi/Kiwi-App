@@ -18,6 +18,7 @@
 import type { CatMeal } from "../cat-q0/catalogDb";
 import { CLASS_OF, checkMeal, type Finding, type Vocab } from "../cat-q0/checks";
 import type { ReviewIssue } from "../cat-q0/rubric";
+import type { Q0Issue } from "./issues";
 import { checkSousVide, SAFETY_SENTENCE } from "./sousVide";
 
 export interface IssueLike { dish: string; class: number; severity: string; stepIndex: number | null; ingredient: string | null; quote: string }
@@ -57,7 +58,13 @@ export function ruledSousVide(patched: CatMeal, i: IssueLike): boolean {
   return said && (i.stepIndex == null || c.steps.includes(i.stepIndex) || /°F/.test(i.quote));
 }
 
-export interface GateResult { ok: boolean; reasons: string[]; allowed: ReviewIssue[]; ruled: ReviewIssue[]; verdictAfter: string }
+export interface GateResult {
+  ok: boolean; reasons: string[]; allowed: ReviewIssue[]; ruled: ReviewIssue[]; verdictAfter: string;
+  /** Block/fix issues the re-review raised that match nothing known — what a second round answers. */
+  fresh: ReviewIssue[];
+  /** Answered issues the re-review still finds — the patch failed at its own job. */
+  still: ReviewIssue[];
+}
 
 export function reviewGate(args: {
   patched: CatMeal;
@@ -69,6 +76,8 @@ export function reviewGate(args: {
   const reasons: string[] = [];
   const allowed: ReviewIssue[] = [];
   const ruled: ReviewIssue[] = [];
+  const fresh: ReviewIssue[] = [];
+  const still: ReviewIssue[] = [];
   const answered = args.issues.filter((i) => args.answered.has(i.n));
   const open = args.issues.filter((i) => !args.answered.has(i.n));
   const base = args.baseline.filter((i) => i.severity !== "polish");
@@ -76,9 +85,38 @@ export function reviewGate(args: {
     if (r.severity === "polish") continue;
     if (ruledSousVide(args.patched, r)) { ruled.push(r); continue; }
     const was = answered.find((o) => sameIssue(r, o));
-    if (was) { reasons.push(`answered issue ${was.n} is still there: [${r.severity} · class ${r.class}] ${r.dish}${r.stepIndex != null ? ` step ${r.stepIndex}` : ""} — "${r.quote}" — ${r.why}`); continue; }
+    if (was) { still.push(r); reasons.push(`answered issue ${was.n} is still there: [${r.severity} · class ${r.class}] ${r.dish}${r.stepIndex != null ? ` step ${r.stepIndex}` : ""} — "${r.quote}" — ${r.why}`); continue; }
     if (open.some((o) => sameIssue(r, o)) || base.some((o) => sameIssue(r, o) && !answered.some((a) => sameIssue(o, a)))) { allowed.push(r); continue; }
+    fresh.push(r);
     reasons.push(`new ${r.severity}: [class ${r.class}] ${r.dish}${r.stepIndex != null ? ` step ${r.stepIndex}` : ""}${r.ingredient ? ` · "${r.ingredient}"` : ""} — "${r.quote}" — ${r.why}`);
   }
-  return { ok: reasons.length === 0, reasons, allowed, ruled, verdictAfter: args.after.verdict };
+  return { ok: reasons.length === 0, reasons, allowed, ruled, verdictAfter: args.after.verdict, fresh, still };
+}
+
+/**
+ * Follow-up B — one second round, and only for a REAL new issue: the re-review
+ * raised a new block/fix and every answered issue is gone. A patch that failed
+ * at its own job ("still there") is rejected, not retried.
+ */
+export function wantsSecondRound(g: GateResult): boolean {
+  return !g.ok && g.fresh.length > 0 && g.still.length === 0;
+}
+
+/**
+ * Round 2 exists because round 1's re-review failed. A round-2 editor that
+ * declines every new issue (no edits, nothing rejected) has fixed nothing, so
+ * the meal is rejected — never accepted on round 1's edits.
+ */
+export function roundTwoDeclined(round: number, edits: number, rejections: number): string | null {
+  return round === 2 && edits === 0 && rejections === 0 ? "round 2: the editor declined every new issue — round 1's re-review reasons stand" : null;
+}
+
+/** The re-review's new issues as editor issues, numbered after the meal's own. */
+export function secondRoundIssues(fresh: readonly ReviewIssue[], first: readonly Q0Issue[], meal: { id: string; title: string }): Q0Issue[] {
+  let n = Math.max(0, ...first.map((i) => i.n));
+  return fresh.map((r) => ({
+    n: ++n, mealId: meal.id, title: meal.title, verdict: "fix", featured: "", class: r.class, severity: r.severity, dish: r.dish,
+    where: [r.ingredient ? `ingredient "${r.ingredient}"` : "", r.stepIndex != null ? `step ${r.stepIndex}` : ""].filter(Boolean).join(" · "),
+    quote: r.quote, why: r.why, fix: r.fix, ingredient: r.ingredient, stepIndex: r.stepIndex,
+  }));
 }

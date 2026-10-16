@@ -10,6 +10,18 @@
 //   old       every `old` equals the stored value exactly.
 //   named     every edit targets a step or line an issue it answers names, or
 //             one that edit strictly requires (below).
+//   coupled   (follow-up B) a step no issue names may still be edited when it
+//             uses the SAME VESSEL (one of VESSELS, singular or plural) or the
+//             SAME INGREDIENT (a line of the meal, pantry staples excepted) as a
+//             step an issue it answers names — the preheat that must heat two
+//             pans, the "repeat with the remaining half", the salmon step that
+//             now has the pan to itself. Anything sharing neither stays out.
+//   produce   (follow-up B) a new whole lemon/lime/orange line folds that
+//             fruit's zest and juice lines into it: the grocery consolidator
+//             (ingredientRelations.poolComponentNeeds) ADDS pooled zest/juice
+//             need onto an existing fruit row, so keeping both buys the fruit
+//             twice. The removals are strictly required; leaving one rejects.
+//   round 2   a line this patch added in round 1 cannot be edited in round 2.
 //   amounts   cook's fractions (a third may come as 0.3333; it is stored as
 //             1/3 exactly), units from the catalog vocabulary or unchanged,
 //             and no step text gains a decimal or ⅜/⅝/⅞ spoon amount.
@@ -38,6 +50,33 @@ export interface LimitResult {
 const norm = (s: string) => s.toLowerCase().replace(/[“”"']/g, "").replace(/\s+/g, " ").trim();
 const wordIn = (hay: string, w: string) => w.length >= 3 && new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:e?s)?\\b`, "i").test(hay);
 const stepMentions = (why: string) => [...why.matchAll(/\bsteps?\s+(\d+)\b/gi)].map((m) => Number(m[1]));
+
+/** The vessel/equipment classes a coupled step may share (one physical thing each). */
+export const VESSELS: Record<string, RegExp> = {
+  pan: /\b(sheet[- ]pans?|baking sheets?|sheets?|pans?|skillets?|woks?|roasting pans?|baking dish(?:es)?|casserole dish(?:es)?)\b/i,
+  pot: /\b(pots?|stockpots?|dutch ovens?|saucepans?)\b/i,
+  bath: /\b(water bath|sous[- ]vide|circulator|bath)\b/i,
+};
+export const vesselsIn = (text: string) => new Set(Object.entries(VESSELS).filter(([, re]) => re.test(text)).map(([k]) => k));
+/** Too common to couple two steps: they appear in every other step. */
+const PANTRY_COUPLE = /\b(salt|pepper|oil|water|sugar|flour|ice)\b/i;
+/** Words that never say WHICH ingredient it is. */
+const NAME_NOISE = new Set(["fresh", "large", "small", "medium", "boneless", "skinless", "ground", "whole", "chopped", "minced", "sliced", "diced", "dried", "frozen", "extra", "virgin", "unsalted", "kosher", "freshly", "baby", "ripe", "thinly", "finely", "shredded", "grated", "lean"]);
+/** The meal's ingredient lines a text mentions (ids), pantry staples excepted: the
+ *  head noun (thx2Core.mentionWord), the full name, or the first identifying word
+ *  ("chicken" for "chicken thighs" — the CAT-Q0 Pass 1 head fallback). */
+function ingredientsIn(m: CatMeal, text: string): Set<string> {
+  const out = new Set<string>();
+  for (const d of m.dishes) for (const i of d.ingredients) {
+    if (PANTRY_COUPLE.test(i.name)) continue;
+    const w = mentionWord(i.name);
+    const first = i.name.toLowerCase().replace(/\([^)]*\)/g, " ").split(/[^a-z-]+/).find((x) => x.length >= 4 && !NAME_NOISE.has(x)) ?? "";
+    if ((w.length >= 4 && wordIn(text, w)) || wordIn(text, i.name) || (first && wordIn(text, first))) out.add(i.ingredientId);
+  }
+  return out;
+}
+const CITRUS = /^(lemon|lime|orange)s?$/i;
+const partOf = (fruit: string, canonical: string) => new RegExp(`\\b${fruit}s?\\b`, "i").test(canonical) && /\b(zest|juice)\b/i.test(canonical);
 
 /** Which dishes an issue is about: its title, else the meal as a whole, else the only dish. */
 export function issueDishes(m: CatMeal, i: Pick<Q0Issue, "dish">): CatDish[] {
@@ -125,6 +164,7 @@ export function checkPatch(
     const where = `line ${x.line_id}`;
     const ref = ids.line.get(x.line_id);
     if (!ref) { bad.push(`${where}: not a line the payload showed (default path only)`); continue; }
+    if (ref.rowId.startsWith("new:")) { bad.push(`${where}: a line this patch added in round 1 cannot be edited in round 2`); continue; }
     if (seen.has(x.line_id)) { bad.push(`${where}: edited twice`); continue; }
     seen.add(x.line_id);
     const d = dishById.get(ref.dishId)!;
@@ -174,18 +214,50 @@ export function checkPatch(
   const stepNamed = new Map<S, boolean>();
   for (const x of steps) stepNamed.set(x, named(x.e.answers, (i, ds) => ds.includes(x.d) && stepNamedBy(x.d, x.s, i)));
   const shares = (a: number[], b: number[]) => a.some((n) => b.includes(n));
+  const fruitsAdded = news.filter((x) => CITRUS.test(x.e.ingredient.canonicalName)).map((x) => ({ x, fruit: x.e.ingredient.canonicalName.toLowerCase().replace(/s$/, "") }));
   for (const x of lines) {
     if (lineNamed.get(x)) continue;
     // required: a named step edit in this patch now states this line's item
     const w = mentionWord(x.i.name);
     const by = steps.find((s) => s.d === x.d && stepNamed.get(s) && shares(s.e.answers, x.e.answers) && (wordIn(s.e.new.text, w) || wordIn(s.e.new.text, x.i.name)));
-    if (!by) bad.push(`line "${x.printed}" (${x.d.title}): no issue it answers names it, and no edited step requires it`);
+    // required: the zest/juice line a new whole fruit line folds in (any dish of the meal)
+    const fold = x.e.new === null && fruitsAdded.some((f) => partOf(f.fruit, x.i.canonicalName) && shares(f.x.e.answers, x.e.answers));
+    if (!by && !fold) bad.push(`line "${x.printed}" (${x.d.title}): no issue it answers names it, and no edited step requires it`);
   }
+  // The steps an issue names, meal-wide (a shared pan can span two dishes), as the coupling anchor.
+  const anchorsFor = (answers: number[]) => {
+    const texts: string[] = [];
+    for (const n of answers) {
+      const i = byN.get(n)!;
+      for (const d of issueDishes(m, i)) for (const s of d.steps) {
+        if (!stepNamedBy(d, s, i)) continue;
+        texts.push(s.text);
+        const ed = steps.find((y) => y.s === s);
+        if (ed) texts.push(ed.e.new.text);
+      }
+      for (const l of lines) if (lineNamed.get(l) && l.e.answers.includes(n)) texts.push(l.i.name);
+    }
+    return texts;
+  };
   for (const x of steps) {
     if (stepNamed.get(x)) continue;
     // required: it states the amount of a named line this patch changes
     const by = lines.find((l) => l.d === x.d && lineNamed.get(l) && shares(l.e.answers, x.e.answers) && (wordIn(x.s.text, mentionWord(l.i.name)) || wordIn(x.s.text, l.i.name)));
-    if (!by) bad.push(`step ${x.s.stepIndex} (${x.d.title}): no issue it answers names it, and no edited line requires it — "${x.s.text.slice(0, 70)}…"`);
+    if (by) continue;
+    // coupled: the same vessel or the same ingredient as a step its issue names
+    const anchors = anchorsFor(x.e.answers);
+    const v = vesselsIn(x.s.text);
+    const ing = ingredientsIn(m, x.s.text);
+    const sharedVessel = anchors.some((t) => [...vesselsIn(t)].some((k) => v.has(k)));
+    const sharedIng = anchors.some((t) => [...ingredientsIn(m, t)].some((k) => ing.has(k)));
+    if (sharedVessel || sharedIng) { notes.push(`step ${x.s.stepIndex} (${x.d.title}): coupled — shares ${sharedVessel ? "a vessel" : "an ingredient"} with a named step`); continue; }
+    bad.push(`step ${x.s.stepIndex} (${x.d.title}): no issue it answers names it, no edited line requires it, and it shares no vessel or ingredient with a named step — "${x.s.text.slice(0, 70)}…"`);
+  }
+  // produce bought whole: no zest/juice line of an added fruit may stay
+  const removed = new Set(lines.filter((x) => x.e.new === null).map((x) => x.i.id));
+  for (const f of fruitsAdded) {
+    const left = m.dishes.flatMap((d) => d.ingredients.filter((i) => partOf(f.fruit, i.canonicalName) && !removed.has(i.id)).map((i) => `${d.title}: "${i.name}"`));
+    if (left.length) bad.push(`new line "${f.x.e.new.name}": the meal's ${f.fruit} zest/juice lines must fold into it (the grocery list adds them on top of a whole ${f.fruit} and buys twice) — still listed: ${left.join("; ")}`);
   }
   for (const x of news) {
     const w = mentionWord(x.e.ingredient.displayName);

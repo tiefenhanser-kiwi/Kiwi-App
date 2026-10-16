@@ -21,7 +21,7 @@ import { join } from "node:path";
 
 import { assertScriptDatabase } from "../../../src/lib/scripts/requireDatabaseHost";
 import { CATALOG_WHERE, loadCatalog } from "../cat-q0/catalogDb";
-import { applyEdits, StaleEdit, type Edit } from "./edits";
+import { applyEdits, applyPatch, StaleEdit, type Edit } from "./edits";
 import { graphHash, readGraph, type MealGraph } from "./graph";
 import { OUT, pilotIds, readIssues, restIds, SEED_IDS } from "./issues";
 import { partBEdits } from "./partB";
@@ -138,28 +138,33 @@ if (PART === "C") {
   const issues = readIssues();
   const want = new Set(has("--ids") ? arg("--ids", "").split(",") : arg("--set", "") === "rest" ? restIds(issues) : arg("--set", "") === "pilot" ? pilotIds(issues) : []);
   if (!want.size) throw new Error("--set pilot|rest or --ids");
-  const patches = readdirSync(pdir).filter((f) => f.endsWith(".json")).map((f) => JSON.parse(readFileSync(join(pdir, f), "utf8")) as { mealId: string; title: string; mode: string; host: string; status: string; edits: Edit[] })
-    .filter((p) => want.has(p.mealId) && p.status === "accepted");
+  const all = readdirSync(pdir).filter((f) => f.endsWith(".json")).map((f) => JSON.parse(readFileSync(join(pdir, f), "utf8")) as { mealId: string; title: string; mode: string; host: string; status: string; edits: Edit[]; graphAtPlan?: string })
+    .filter((p) => want.has(p.mealId));
+  const byStatus = new Map<string, number>();
+  for (const p of all) byStatus.set(p.status, (byStatus.get(p.status) ?? 0) + 1);
+  say(`patches in the set: ${all.length} (${[...byStatus].map(([k, v]) => `${k} ${v}`).join(" · ")}) — only "accepted" is applied`);
+  const patches = all.filter((p) => p.status === "accepted");
   for (const p of patches) if (p.mode !== mode || p.host !== host) throw new Error(`patch ${p.mealId} was planned on ${p.host} (${p.mode}), not ${host}: refusing`);
   say(`accepted patches in the set: ${patches.length}`);
   const live = new Set((await prisma.meal.findMany({ where: { ...CATALOG_WHERE, id: { in: patches.map((p) => p.mealId) } }, select: { id: true } })).map((m) => m.id));
   let ok = 0, stale = 0;
   for (const p of patches) {
-    const b = p.edits.filter((e) => e.source === "B");
-    const c = p.edits.filter((e) => e.source === "C");
-    say(`  ${p.mealId} "${p.title}" — B ${b.length} · C ${c.length}${live.has(p.mealId) ? "" : " — NOT IN THE CATALOG NOW"}`);
+    const n = (f: (e: Edit) => boolean) => p.edits.filter(f).length;
+    // read-only: is the row graph still the one plan.ts read? (if not, apply verifies every old and skips a stale meal)
+    const now = live.has(p.mealId) ? graphHash(await readGraph(prisma, p.mealId)) : null;
+    const since = !p.graphAtPlan ? "" : now === p.graphAtPlan ? " · unchanged since plan" : " · MOVED since plan — every old is re-checked at apply";
+    say(`  ${p.mealId} "${p.title}" — B ${n((e) => e.source === "B")} · C round 1 ${n((e) => e.source === "C" && (e.round ?? 1) === 1)} · round 2 ${n((e) => e.round === 2)}${live.has(p.mealId) ? since : " — NOT IN THE CATALOG NOW"}`);
     if (!APPLY || !live.has(p.mealId)) continue;
     await write(p.mealId, p.title, async (tx) => {
-      const rb = await applyEdits(tx, p.mealId, b);
-      const rc = await applyEdits(tx, p.mealId, c);
-      return `B ${rb.applied} applied (${rb.already} already) · C ${rc.applied} applied`;
+      const [rb, r1, r2] = await applyPatch(tx, p.mealId, p.edits);
+      return `B ${rb.applied} applied (${rb.already} already) · C round 1 ${r1.applied} · round 2 ${r2.applied}`;
     }).then((w) => { ok++; say(`    ${w}`); }, (e) => { stale++; say(`    SKIPPED — ${e instanceof StaleEdit ? e.message : String(e)}`); });
   }
   say(`part C${APPLY ? ` applied ${ok} · skipped ${stale}` : ": dry run"}`);
 }
 
 function describe(e: Edit): string {
-  const f = (x: { quantity: number; unit: string; name: string } | null) => (x ? `${Number(x.quantity.toFixed(4))} ${x.unit} ${x.name}` : "(removed)");
+  const f = (x: { quantity: number; unit: string; name: string; preparationNote?: string | null } | null) => (x ? `${Number(x.quantity.toFixed(4))} ${x.unit} ${x.name}${x.preparationNote ? ` (${x.preparationNote})` : ""}` : "(removed)");
   if (e.kind === "step") return `  [${e.rule}] ${e.dishTitle} step ${e.stepIndex}\n      old: ${e.old.text}\n      new: ${e.new.text}`;
   if (e.kind === "ingredient") return `  [${e.rule}] ${e.dishTitle} — ${f(e.old)} → ${f(e.new)}`;
   if (e.kind === "new_ingredient") return `  [${e.rule}] ${e.dishTitle} — NEW ${f(e.new)}`;

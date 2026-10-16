@@ -3,7 +3,8 @@
 // meals (thx2Checks), or the client's own rounding written into the row.
 //
 //   garlic_clove    "N each garlic" with no "clove" in the name → unit clove
-//                   (thx2Checks.fixUnit's garlic branch; name untouched).
+//                   (thx2Checks.fixUnit's garlic branch; name untouched); a
+//                   "cloves" in the note is dropped ("cloves, minced" → "minced").
 //   spoon_eighth    a spoon/cup line the screen prints as ⅜ ⅝ ⅞ (no spoon
 //                   measures it) → snapToCookFraction (⅜→⅓, ⅝→⅔, ⅞→¾).
 //   prose_decimal   a decimal amount in step text → the cook's fraction, as the
@@ -46,9 +47,23 @@ export function partBEdits(m: CatMeal): { edits: Edit[]; skips: BSkip[] } {
       if (!i.id) throw new Error("partB: ingredient rows need ids (catalogDb ≥ CAT-Q1)");
       const unit = i.unit.trim();
       const clone = { name: i.name, quantity: i.quantity, unit: i.unit };
-      // A note that already says cloves ("4 garlic (cloves, minced)") reads right as it is.
-      if (fixUnit(clone) && clone.unit === "clove" && !/\bcloves?\b/i.test(i.name) && !/\bcloves?\b/i.test(i.preparationNote ?? "")) {
-        edits.push({ ...base, kind: "ingredient", rule: "garlic_clove", lineId: i.id, old: fieldsOf(i), new: { ...fieldsOf(i), unit: "clove" } });
+      // fixUnit's test is /\bgarlic\b/ anywhere in the name, so it also turned "1 each
+      // frozen garlic bread" into "1 clove frozen garlic bread" (applied on production
+      // in follow-up A). Garlic only when garlic IS the thing: the name's last word.
+      const isGarlic = /\b(garlic|cloves?)$/i.test(i.name.replace(/\([^)]*\)/g, " ").replace(/[^a-z\s]/gi, " ").trim());
+      if (isGarlic && fixUnit(clone) && clone.unit === "clove" && !/\bcloves?\b/i.test(i.name)) {
+        // Follow-up B: a note that says cloves does NOT make the line read right — the
+        // screen counts the name ("4 each garlic (cloves, minced)" prints "4 garlics
+        // (cloves, minced)"). Unit clove, and the note loses the word the unit now
+        // says: "4 cloves garlic (minced)". A note that COUNTS cloves ("about 10
+        // cloves") is a whole head counted "each" — reported, not edited.
+        const note = i.preparationNote ?? "";
+        if (/\d+\s*(?:-|–|to)?\s*\d*\s*cloves?\b/i.test(note)) {
+          skips.push({ mealId: m.id, dish: d.title, rule: "garlic_clove", detail: `"${i.quantity} ${i.unit} ${i.name} (${note})" — the note counts cloves, so "each" may mean a head; left` });
+          continue;
+        }
+        const cleaned = note.replace(/\bcloves?\b\s*,?\s*/gi, "").replace(/^[\s,;]+|[\s,;]+$/g, "").replace(/\s{2,}/g, " ");
+        edits.push({ ...base, kind: "ingredient", rule: "garlic_clove", lineId: i.id, old: fieldsOf(i), new: { ...fieldsOf(i), unit: "clove", preparationNote: i.preparationNote == null ? null : cleaned || null } });
         continue;
       }
       const shown = Qx.displayedQuantity(i.quantity, unit);

@@ -35,7 +35,11 @@ export interface Substitution { product: string; quantity: number; unit: string;
 /** An existing Ingredient row a new name resolved to (never created here). */
 export interface IngRow { id: string; displayName: string; canonicalName: string; aliases: string[] }
 
-interface Base { source: "B" | "C"; dishId: string; dishTitle: string; rule?: string; answers: number[] }
+interface Base {
+  source: "B" | "C"; dishId: string; dishTitle: string; rule?: string; answers: number[];
+  /** C only: 2 = the second editor round (its `old` is round 1's result). Absent = 1. */
+  round?: number;
+}
 export type Edit =
   | (Base & { kind: "ingredient"; lineId: string; old: IngFields; new: IngFields | null; ingredient?: IngRow | null })
   | (Base & { kind: "new_ingredient"; old: null; new: IngFields; ingredient: IngRow })
@@ -242,4 +246,21 @@ export async function applyEdits(tx: Prisma.TransactionClient, mealId: string, e
     await deps.timing(tx, mealId, dishIds);
   }
   return { applied: todo.length, already };
+}
+
+/**
+ * A whole patch, in the order it was planned: Part B's edits, then the C edits
+ * of round 1, then round 2 — each its own applyEdits call inside the SAME
+ * transaction, because each round's `old` is the previous round's result. Any
+ * StaleEdit throws out of the caller's transaction, so nothing is written.
+ */
+export async function applyPatch(tx: Prisma.TransactionClient, mealId: string, edits: readonly Edit[], deps: ApplyDeps = REAL_DEPS): Promise<ApplyResult[]> {
+  const groups = [
+    edits.filter((e) => e.source === "B"),
+    edits.filter((e) => e.source === "C" && (e.round ?? 1) === 1),
+    edits.filter((e) => e.source === "C" && e.round === 2),
+  ];
+  const out: ApplyResult[] = [];
+  for (const g of groups) out.push(g.length ? await applyEdits(tx, mealId, g, deps) : { applied: 0, already: 0 });
+  return out;
 }
