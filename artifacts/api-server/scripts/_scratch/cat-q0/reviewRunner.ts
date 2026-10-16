@@ -12,7 +12,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { costOf, requestFor, RUBRIC, TOOL_NAME, type ReviewOutput } from "./rubric";
+import { costOf, requestFor, RUBRIC, RUBRIC_SHA, TOOL_NAME, type ReviewOutput } from "./rubric";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const OUT = join(HERE, "out");
@@ -33,6 +33,8 @@ export interface ReviewRecord {
   costUsd: number;
   latencyMs: number;
   at: string;
+  /** RUBRIC_SHA at the time of the call (absent on the first pilot's records). */
+  rubricSha?: string;
 }
 
 export const requestKey = (userMsg: string) => createHash("sha256").update(RUBRIC).update("\u0000").update(userMsg).digest("hex").slice(0, 24);
@@ -57,7 +59,9 @@ function addSpend(usd: number) {
 
 export interface ReviewJob { label: string; mealId: string; title: string; userMsg: string }
 
-export async function runReviews(jobs: ReviewJob[], opts: { ceilingUsd: number; concurrency?: number; client?: Anthropic }): Promise<ReviewRecord[]> {
+// `perRun`: the ceiling bounds THIS run's spend (fullRun); otherwise the ledger's cumulative total (the pilot).
+export async function runReviews(jobs: ReviewJob[], opts: { ceilingUsd: number; concurrency?: number; client?: Anthropic; perRun?: boolean }): Promise<ReviewRecord[]> {
+  const base = opts.perRun ? spentSoFar() : 0;
   const client = opts.client ?? new Anthropic();
   const cache = loadCache();
   const results: ReviewRecord[] = new Array(jobs.length);
@@ -74,9 +78,9 @@ export async function runReviews(jobs: ReviewJob[], opts: { ceilingUsd: number; 
     if (stopped) return;
     const j = jobs[i];
     // Worst case for one call: ~6k input at full price + 4,096 output.
-    if (spentSoFar() + 0.06 > opts.ceilingUsd) {
+    if (spentSoFar() - base + 0.06 > opts.ceilingUsd) {
       stopped = true;
-      console.log(`  STOP — the next call could cross the $${opts.ceilingUsd} ceiling (spent $${spentSoFar().toFixed(4)})`);
+      console.log(`  STOP — the next call could cross the $${opts.ceilingUsd} ceiling (spent $${(spentSoFar() - base).toFixed(4)})`);
       return;
     }
     const key = requestKey(j.userMsg);
@@ -99,7 +103,7 @@ export async function runReviews(jobs: ReviewJob[], opts: { ceilingUsd: number; 
       const tool = msg!.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use" && b.name === TOOL_NAME);
       rec = {
         key, label: j.label, mealId: j.mealId, title: j.title, ok: !!tool, ...(tool ? { review: tool.input as ReviewOutput } : { error: `no ${TOOL_NAME} call (stop_reason ${msg!.stop_reason})` }),
-        stopReason: msg!.stop_reason, usage, costUsd: cost, latencyMs: Date.now() - t0, at: new Date().toISOString(),
+        stopReason: msg!.stop_reason, usage, costUsd: cost, latencyMs: Date.now() - t0, at: new Date().toISOString(), rubricSha: RUBRIC_SHA,
       };
     } catch (e) {
       rec = {

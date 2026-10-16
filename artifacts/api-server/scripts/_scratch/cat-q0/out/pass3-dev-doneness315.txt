@@ -1,0 +1,160 @@
+database: ep-broad-haze-am9ca2gv.c-5.us-east-1.aws.neon.tech (dev) · seed 1015 · ceiling $3
+catalog 1325 meals · everyday featured-* plans featured-budget-bowls, featured-cozy-weeknights, featured-family-favorites, featured-healthy-reset, featured-sheet-pan-easy → 25 meals
+
+recall set (10 meals, drawn in seeded order, first fit per plant):
+  [class 5] rinse-chicken    Grilled Chicken Breast with Roasted Garlic Mashed Potatoes and Green Beans — Grilled Chicken Breast: step 0 now rinses the raw chicken under running water
+  [class 3] tiny-teaspoon    Beef Bolognese Lasagna — Beef Bolognese Lasagna: 0.5 teaspoon dried oregano → 0.06 teaspoon (the screen prints "0.00 teaspoon")
+  [class 1] vessel-overflow  Smoky Salisbury Steak with Roasted Garlic Gravy and Green Beans — Creamy Mashed Potatoes: yukon gold potatoes → 5 pound, and step 0 spreads them all in one 8×8-inch dish
+  [class 2] used-not-listed  Chipotle-Spiced Beef and Black Bean Burrito — Chipotle-Spiced Beef and Black Bean Burrito: the "1.25 pound lean ground beef (85/15)" line is removed; its steps still use it
+  [class 2] listed-not-used  Classic Tex-Mex Ground Beef Tacos — Seasoned Ground Beef Taco Filling: a "6 ounce Gruyère cheese, shredded" line is added that no step uses
+  [class 7] braise-time      Shrimp Souvlaki with Lemon Orzo and Feta — Shrimp Souvlaki Skewers: step 6 (6 min) now ends "braise … for 2 hours", and the meal's derived total reads 25 min
+  [class 4] missing-prereq   Garlic Butter Chicken Fried Rice — Garlic Butter Chicken Fried Rice: step 12 now folds in "the reserved toasted breadcrumbs" — nothing makes or lists them
+  [class 5] unsafe-doneness  Classic Smoky BBQ Drumsticks with Cornbread and Coleslaw — Smoky BBQ Chicken Drumsticks: step 5 now pulls the chicken at 145°F
+  [class 6] self-swap        Peppers and Onion Fajitas with Guacamole and Pico de Gallo — Sizzling Peppers and Onion Fajitas: a swap "store-bought flour tortillas" replaces "flour tortillas"
+  [class 1] yield-mismatch   Pan-Seared Ribeye with Roasted Mushrooms and Dressed Arugula Salad — Pan-Seared Ribeye Steaks: the last step (6) now divides a 4-serving dish among 10 plates
+
+Pass 1 (free code checks) on the planted vs clean pairs — findings new in the planted copy:
+  rinse-chicken    rinse_poultry: "Rinse the chicken" — Rinse the chicken under cold running water inside and out, then pat 
+  tiny-teaspoon    unit_shows_zero: 0.06 teaspoon dried oregano — the screen prints 0.00
+  vessel-overflow  — nothing
+  used-not-listed  ing_unlisted: "ground beef" (ground beef (80/20)) — no dish lists it — Add 1¼ pounds ground beef and coo
+  listed-not-used  ing_unused_elsewhere: 6 ounce Gruyère cheese — not in this dish's steps; named in: Warm Corn Tortillas with Topp
+  braise-time      step_minutes_vs_prose: prose says 120 min, the step carries 6 — Grill the skewers for 2–3 minutes per side, turni | time_ratio: derived total 25 min vs summed default-path steps 99 min (×0.25)
+  missing-prereq   ing_unlisted: "breadcrumbs" (breadcrumbs) — no dish lists it — Remove the wok from heat, add the remaini
+  unsafe-doneness  doneness_low: 145°F stated for raw poultry (chicken drumsticks; needs 165°F) — Arrange the drumsticks on
+  self-swap        swap_self: "store-bought flour tortillas" replaces "flour tortillas" — the same thing
+  yield-mismatch   — nothing
+
+pilot: 25 featured + 30 random (seed 1016, featured and recall meals excluded)
+
+wall clock 57 s · cumulative spend $1.6958
+
+═══ RECALL — seeded defects ═══
+  CAUGHT rinse-chicken (class 5) — verdict block, 2 issues
+      [block · class 5] Grilled Chicken Breast · step 0
+        quote: "Rinse the chicken under cold running water inside and out, then pat it dry with paper towels."
+        why:   USDA advises against rinsing raw poultry because it spreads bacteria around the kitchen.
+        fix:   Delete the rinse step; just pat the chicken dry (step 1 already does).
+  CAUGHT tiny-teaspoon (class 3) — verdict fix, 2 issues
+      [fix · class 3] Beef Bolognese Lasagna · ingredient "0.00 teaspoon dried oregano" · step 6
+        quote: "0.00 teaspoon dried oregano"
+        why:   The ingredient line prints a zero amount while step 6 adds ½ teaspoon dried oregano.
+        fix:   Change the line to ½ teaspoon dried oregano.
+  CAUGHT vessel-overflow (class 1) — verdict fix, 4 issues
+      [fix · class 2] Creamy Mashed Potatoes · ingredient "5 pounds yukon gold potatoes (peeled and cut into 1.5-inch chunks)" · step 0
+        quote: "Peel and cut 2 lb Yukon Gold potatoes into 1½-inch chunks."
+        why:   The ingredient line lists 5 lb but the step uses 2 lb; 5 lb is also far too much for 4 servings with ½ cup milk and 3 tbsp butter.
+        fix:   Make the ingredient line 2 pounds to match the step (and the 4 servings).
+      [fix · class 1] Creamy Mashed Potatoes · step 0
+        quote: "Spread all of the potatoes in a single layer in one 8×8-inch baking dish."
+        why:   The potatoes are boiled in a pot, so the baking dish serves no purpose, and a single layer of this much potato would not fit an 8×8 dish.
+        fix:   Delete the baking-dish sentence and just place the cut potatoes in the pot.
+  CAUGHT used-not-listed (class 2) — verdict fix, 2 issues
+      [fix · class 2] Chipotle-Spiced Beef and Black Bean Burrito · step 6
+        quote: "Add 1¼ pounds ground beef and cook, breaking it up with a spoon"
+        why:   The step adds 1¼ pounds of ground beef, but no ingredient line lists it, so the shopping list omits the main protein.
+        fix:   Add the ingredient line '1¼ pounds ground beef' to the main dish.
+      [fix · class 5] Chipotle-Spiced Beef and Black Bean Burrito · step 6
+        quote: "for 6–7 minutes until no pink remains; drain off any excess fat."
+        why:   Ground beef must reach 160°F, and 'no pink remains' is colour alone with no temperature given.
+        fix:   Add: 'cook until an instant-read thermometer reads 160°F in the meat.'
+  CAUGHT listed-not-used (class 2) — verdict fix, 2 issues
+      [fix · class 2] Seasoned Ground Beef Taco Filling · ingredient "6 ounces Gruyère cheese (shredded)"
+        quote: "6 ounces Gruyère cheese (shredded)"
+        why:   The Gruyère is listed but no step in the default path ever uses it, and the toppings dish already supplies a Mexican cheese blend.
+        fix:   Remove the Gruyère line from the filling, or add a step that uses it. Removing it is simpler since the Mexican cheese blend is already served.
+  CAUGHT braise-time (class 7) — verdict block, 1 issues
+      [block · class 7] Shrimp Souvlaki Skewers · step 6
+        quote: "Then cover tightly and braise over low heat for 2 hours, until completely tender."
+        why:   A 2-hour braise would turn grilled shrimp to rubber, it is a nonsensical instruction for 2–3 minute skewers, and it contradicts the step's 6 minutes and the 25-minute derived total.
+        fix:   Delete the sentence about covering and braising for 2 hours; end the step at 'just cooked through'.
+  CAUGHT missing-prereq (class 4) — verdict fix, 3 issues
+      [fix · class 4] Garlic Butter Chicken Fried Rice · step 12
+        quote: "Fold in the reserved toasted breadcrumbs."
+        why:   No ingredient line lists breadcrumbs and no earlier step makes or toasts any, so there is nothing to fold in.
+        fix:   Remove the breadcrumb sentence, or add a breadcrumb ingredient and a step to toast it in butter.
+  CAUGHT unsafe-doneness (class 5) — verdict block, 2 issues
+      [block · class 5] Smoky BBQ Chicken Drumsticks · step 5
+        quote: "until an instant-read thermometer in the thickest piece of chicken reads 145°F"
+        why:   145°F is below the 165°F poultry minimum and a cook could stop at this first stated temperature.
+        fix:   Remove the 145°F target from step 5 (say roast 25 minutes until skin starts to crisp) and keep 165°F as the only doneness check in step 6.
+  CAUGHT self-swap (class 6) — verdict fix, 2 issues
+      [fix · class 6] Sizzling Peppers and Onion Fajitas · ingredient "12 flour tortillas (8-inch, warmed)"
+        quote: "12 each store-bought flour tortillas"
+        why:   The tortillas are already a purchased product, so a store-bought flour tortilla swap replaces the item with itself and isn't a shortcut.
+        fix:   Remove the tortilla swap, or swap it for something real such as a homemade-tortilla note, and keep only the seasoning-packet swap.
+  CAUGHT yield-mismatch (class 1) — verdict fix, 2 issues
+      [fix · class 1] Pan-Seared Ribeye Steaks · step 6
+        quote: "Divide evenly among 10 plates."
+        why:   The meal serves 4 and the recipe cooks 4 steaks, so dividing among 10 plates contradicts the yield.
+        fix:   Change to 'Serve one steak per plate (4 plates)'.
+
+recall: 10/10
+
+═══ CLEAN TWINS — what it flagged on the unplanted originals ═══
+  Grilled Chicken Breast with Roasted Garlic Mashed Potatoes and Green Beans — verdict ok, 1 issues
+      [polish · class 2] Roasted Garlic Mashed Potatoes · ingredient "¾ teaspoon Kosher salt" · step 2
+        quote: "cover with cold salted water by 1 inch, and bring to a boil"
+        why:   The step calls for salted boiling water but no salt amount is given for the water, and the listed salt is only for final seasoning.
+        fix:   Add 'plus 1 tablespoon salt for the boiling water' to the salt line, or say 'cold water' in step 2.
+  Beef Bolognese Lasagna — verdict fix, 1 issues
+      [fix · class 5] Beef Bolognese Lasagna · ingredient "1¼ pounds ground beef (80/20)" · step 4
+        quote: "cook, breaking it up with a wooden spoon, until no pink remains, about 6 minutes"
+        why:   Ground beef doneness is judged by colour alone, and no step gives 160°F for the beef or for the assembled lasagna.
+        fix:   Add that the lasagna centre should read 160°F on an instant-read thermometer after baking, before resting.
+  Smoky Salisbury Steak with Roasted Garlic Gravy and Green Beans — verdict fix, 2 issues
+      [fix · class 5] Smoky Salisbury Steak with Roasted Garlic Gravy · step 10
+        quote: "until the patties are cooked through and the gravy has thickened"
+        why:   Ground beef patties must reach 160°F, and the step gives only 'cooked through' with no temperature or valid doneness check.
+        fix:   Add: simmer until an instant-read thermometer in the center of a patty reads 160°F.
+      [polish · class 4] Smoky Salisbury Steak with Roasted Garlic Gravy · step 0
+        quote: "wrap tightly in foil, and roast at 400°F for 40 minutes"
+        why:   The oven is used at 400°F but no step tells the cook to preheat it.
+        fix:   Begin the step with 'Preheat the oven to 400°F.'
+  Chipotle-Spiced Beef and Black Bean Burrito — verdict fix, 1 issues
+      [fix · class 5] Chipotle-Spiced Beef and Black Bean Burrito · step 6
+        quote: "cook, breaking it up with a spoon, for 6–7 minutes until no pink remains"
+        why:   Ground beef must reach 160°F, and colour alone ("no pink") with a time is not an accepted doneness check.
+        fix:   Add: cook until an instant-read thermometer reads 160°F in the beef, then drain.
+  Classic Tex-Mex Ground Beef Tacos — verdict fix, 2 issues
+      [fix · class 5] Seasoned Ground Beef Taco Filling · step 5
+        quote: "cook, breaking it apart, for 6–7 minutes until no pink remains"
+        why:   Ground beef doneness is given only by colour/time with no 160°F temperature or equivalent check.
+        fix:   Add: cook until an instant-read thermometer reads 160°F in the beef.
+      [polish · class 2] Seasoned Ground Beef Taco Filling · ingredient "1 tablespoon vegetable oil" · step 2
+        quote: "Heat 1 tablespoon neutral oil in a large skillet over medium-high until shimmering."
+        why:   The step calls the oil 'neutral oil' while the ingredient line says 'vegetable oil'.
+        fix:   Use 'vegetable oil' in step 2 to match the ingredient list.
+  Shrimp Souvlaki with Lemon Orzo and Feta — verdict ok, 0 issues
+  Garlic Butter Chicken Fried Rice — verdict fix, 2 issues
+      [fix · class 2] Garlic Butter Chicken Fried Rice · ingredient "4 tablespoons unsalted butter (divided)" · step 12
+        quote: "add the remaining 4 tablespoons unsalted butter in pieces and toss until fully melted and glossy"
+        why:   The list gives only 4 tablespoons of butter in total, but step 12 adds 4 tablespoons as the 'remaining' amount, and no earlier step uses any butter (the 'garlic butter' is never made).
+        fix:   Either list 8 tablespoons butter, using 4 to cook the garlic and onion in step 7, or change step 12 to 'add the 4 tablespoons butter'.
+      [fix · class 5] Garlic Butter Chicken Fried Rice · step 5
+        quote: "cook 2 more minutes until cooked through and golden; transfer to a plate."
+        why:   Poultry doneness is given only as 'cooked through' with no 165°F temperature or other check that holds at that temperature.
+        fix:   Add 'until an instant-read thermometer reads 165°F in the thickest piece'.
+  Classic Smoky BBQ Drumsticks with Cornbread and Coleslaw — verdict ok, 0 issues
+  Peppers and Onion Fajitas with Guacamole and Pico de Gallo — verdict ok, 1 issues
+      [polish · class 1] Sizzling Peppers and Onion Fajitas · step 6
+        quote: "Add all the bell pepper strips and the minced garlic, toss to combine, and cook over high heat for 5–6 minutes"
+        why:   About 1.5 lb of peppers plus 2 sliced onions in one skillet is crowded and may steam rather than blister.
+        fix:   Cook the peppers in two batches, or name a 12-inch or larger skillet and note the batching.
+  Pan-Seared Ribeye with Roasted Mushrooms and Dressed Arugula Salad — verdict fix, 1 issues
+      [fix · class 3] Lemon-Dijon Dressed Arugula Salad · ingredient "2 tablespoons fresh lemon juice" · step 0
+        quote: "2 tablespoons fresh lemon juice"
+        why:   Lemon juice and zest are listed with no lemon on the shopping list, so the cook doesn't know to buy a whole fruit.
+        fix:   Add '1 large lemon (for 2 tablespoons juice and ½ teaspoon zest)' and drop or rename the separate juice and zest lines.
+
+═══ PILOT — verdicts ═══
+  featured 0 meals: ok 0 · fix 0 · block 0 — issues: block 0 · fix 0 · polish 0
+  random   0 meals: ok 0 · fix 0 · block 0 — issues: block 0 · fix 0 · polish 0
+  all      0 meals: ok 0 · fix 0 · block 0 — issues: block 0 · fix 0 · polish 0
+  block+fix issues by class: 
+
+═══ PILOT — every block and fix issue, verbatim ═══
+
+═══ COST ═══
+  20 reviews: $0.3211 · per meal $0.0161 · tokens: uncached in 44979 · cache write 2996 · cache read 56924 · out 21230 (mean out 1062)
+  calls with a cache read: 19/20 · with a cache write: 1

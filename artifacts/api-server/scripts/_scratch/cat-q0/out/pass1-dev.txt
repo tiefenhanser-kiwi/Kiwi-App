@@ -1,91 +1,36 @@
-database: ep-broad-haze-am9ca2gv.c-5.us-east-1.aws.neon.tech (dev)
-1325 catalog meals · 3094 dishes · unlisted-ingredient vocabulary 468 rows (used in ≥5 dishes)
-
-examples drawn at random, seed 20261015
-
-[6] swap_self — a swap that is not a shortcut (thx2Checks.swapProblem)
-     62 findings in 61 meals (4.6%)
-     · Potato Leek Soup with Crusty Bread and a Simple Green Salad — Potato Leek Soup — swap: vegetable broth: "vegetable broth" replaces store-bought "low-sodium chicken broth" — bought for bought
-     · Everyday Stovetop Chicken Biryani — Stovetop Chicken Biryani — swap: store-bought fried onions: "store-bought fried onions" replaces "fried onions" — the same thing
-[2] path_unused — an ingredient used on one path only (thx2Core.pathFlags; the NON-default path's leftovers)
-     642 findings in 323 meals (24.4%)
-     · Meat Lovers Pizza with Crisp Caesar Salad — Crisp Caesar Salad — path: Crisp Caesar Salad: "Black pepper" is used only on the scratch path — on the bought path it is bought and never used
-     · Street-Style Carne Asada Tacos with Pico de Gallo and Charred Scallions — Carne Asada Skirt Steak — path: Carne Asada Skirt Steak: "Black pepper" is used only on the scratch path — on the bought path it is bought and never used
-[2] ing_unused — listed, never referenced on the default path (amountRefs identity, then prose)
-     16 findings in 14 meals (1.1%)
-     · Everyday Stovetop Chicken Biryani — Stovetop Chicken Biryani — ing: ground turmeric: 0.5 teaspoon ground turmeric — no default-path step references it
-     · Everyday Stovetop Chicken Biryani — Stovetop Chicken Biryani — ing: ground coriander: 1.5 teaspoon ground coriander — no default-path step references it
-[2] ing_unused_elsewhere — listed in this dish, referenced only in another dish's steps
-     0 findings in 0 meals (0.0%)
-[2] ing_unlisted — a catalog ingredient named in a default-path step that no dish of the meal lists
-     171 findings in 137 meals (10.3%)
-     · Beef Drunken Noodles — Beef Drunken Noodles — step 1: "broccolini" (broccolini) — no dish lists it — Mince 6 garlic cloves, thinly slice 4 Thai bird's eye chilies, halve and thinly slice the yellow onion, thinly…
-     · Bacon-Wrapped Pork Tenderloin with Roasted Garlic Mashed Potatoes and Green Beans — Bacon-Wrapped Pork Tenderloin — step 3: "toothpicks" (toothpicks) — no dish lists it — Lay 8 slices of thick-cut bacon on a cutting board slightly overlapping, place the tenderloin at one end, and …
-[2] ing_unlisted_pantry — as ing_unlisted, for salt / pepper / oil / sugar / flour / butter
-     21 findings in 21 meals (1.6%)
-     · Classic Pub Burger with Cheddar, Bacon, and Caramelized Onions — Classic Pub Burger with Cheddar, Bacon, and Caramelized Onions — step 3: "coarsely ground black pepper" (coarsely ground black pepper) — no dish lists it — Gently form the 2 pounds of 80/20 ground beef into four 8-oz patties about ¾ inch thick, pressing a shallow di…
-     · Salmon with Rice Pilaf — Seared Salmon — step 0: "salt" (salt) — no dish lists it — Pat salmon fillets dry; season with salt, pepper, and a squeeze of lemon.
-[3] unit_shows_zero — a spoon/cup amount the screen prints as 0.00 (under 1/16)
-     0 findings in 0 meals (0.0%)
-[3] unit_decimal — a spoon/cup amount the screen prints as an eighth no spoon measures (⅜ ⅝ ⅞), or a weight/count with no cook's fraction
-     2 findings in 2 meals (0.2%)
-     · Sheet-Pan Chicken Sausage with Gnocchi and Peppers — Sheet-Pan Chicken Sausage with Gnocchi and Peppers — ing: shelf-stable gnocchi: 17.6 ounce shelf-stable gnocchi — no cook's fraction (the screen prints 17.625)
-     · Brown Sugar and Mustard Glazed Baked Ham with Roasted Sweet Potatoes and Green Beans — Garlic-Lemon Green Beans — ing: Kosher salt: 0.375 teaspoon Kosher salt — the screen prints an eighth no spoon measures (0.375)
-[3] unit_odd — a unit outside the catalog's unit vocabulary
-     8 findings in 8 meals (0.6%)
-     · Biscuits and Sausage Gravy with Scrambled Eggs — Biscuits — ing: refrigerated canned biscuits: unit "16.3 oz can" (1 16.3 oz can refrigerated canned biscuits)
-     · Citrus-Marinated Grilled Chicken Fajitas with Peppers and Onions — Citrus-Marinated Grilled Chicken Fajitas — ing: white onion: unit "large" (1 large white onion)
-[3] prose_decimal — a decimal spoon or cup amount in step text
-     19 findings in 5 meals (0.4%)
-     · Thai Basil Pork (Pad Kra Pao) with Jasmine Rice and a Crispy Fried Egg — Thai Basil Pork (Pad Kra Pao) — step 0: "1.5 tablespoons" — Mince 5 garlic cloves, thinly slice 3 red Thai chilies and 2 shallots, and measure out 2 tablespoons…
-     · Thai Basil Pork (Pad Kra Pao) with Jasmine Rice and a Crispy Fried Egg — Steamed Jasmine Rice — step 1: "1.5 cups" — Combine the rinsed rice, 1.5 cups water, and 0.25 teaspoon kosher salt in a medium saucepan and brin…
-[5] rinse_poultry — rinsing raw poultry
-     1 findings in 1 meals (0.1%)
-     · Chicken Pho with Fresh Spring Rolls — Chicken Pho — step 3: "rinsed whole chicken" — Place the rinsed whole chicken in a large stockpot, add the charred onion and ginger, the spice bag, 3 tablespoons fish …
-[5] doneness_missing — raw poultry or ground meat, fast heat, no internal temperature stated
-     413 findings in 413 meals (31.2%)
-     · Creamy Chicken Broccoli Rice Casserole — Creamy Chicken Broccoli Rice Casserole — dish: raw poultry (boneless skinless chicken breasts) — no step states an internal temperature
-     · Chicken Fried Rice with Egg and Peas — Chicken Fried Rice with Egg and Peas — dish: raw poultry (boneless skinless chicken thighs) — no step states an internal temperature
-[5] doneness_missing_moist — raw poultry or ground meat, simmered/braised ≥ 25 min, no internal temperature stated
-     54 findings in 54 meals (4.1%)
-     · North Indian Chicken Curry with Basmati Rice and Cucumber Raita — North Indian Chicken Curry — dish: raw poultry (bone-in chicken thighs) — no step states an internal temperature
-     · Shredded Chipotle Chicken Tostadas with Avocado and Pickled Jalapeños — Chipotle Shredded Chicken — dish: raw poultry (boneless skinless chicken thighs) — no step states an internal temperature
-[5] doneness_low — an internal temperature below 165°F (poultry) / 160°F (ground meat)
-     8 findings in 8 meals (0.6%)
-     · BBQ-Glazed Spatchcock Grilled Chicken with Grilled Corn and Creamy Coleslaw — BBQ-Glazed Spatchcock Grilled Chicken — step 7: 155°F stated for raw poultry (whole chicken; needs 165°F) — Move the chicken to the indirect side, close the lid, and grill 30–35 minutes until a thermometer in…
-     · BBQ Chicken Thighs with Grilled Corn on the Cob and Watermelon Slaw — BBQ Glazed Chicken Thighs — step 2: 155°F stated for raw poultry (boneless skinless chicken thighs; needs 165°F) — Place the chicken thighs on the grill and cook for 5–6 minutes per side, turning once, until grill m…
-[7] time_ratio — derived total > 3× or < ⅓ of the summed default-path step minutes
-     0 findings in 0 meals (0.0%)
-[7] step_minutes_vs_prose — a step's prose states a duration its minutes do not carry (< half)
-     70 findings in 70 meals (5.3%)
-     · Grilled Teriyaki Chicken Thighs with Steamed Rice and Cucumber Salad — Sesame Cucumber Salad — step 0: prose says 10 min, the step carries 3 — Thinly slice 2 English cucumbers into rounds and toss with ½ teaspoon kosher salt in a colander; let…
-     · Chicken Souvlaki with Warm Pita, Tzatziki, and Tomato-Onion Salad — Lemon-Herb Chicken Souvlaki — step 0: prose says 30 min, the step carries 2 — If using wooden skewers, submerge them in water now so they soak for at least 30 minutes before gril…
-[style] step_long — a step over 300 characters
-     155 findings in 149 meals (11.2%)
-     · Patty Melt with Swiss and Grilled Rye — Patty Melt with Swiss and Grilled Rye — step 6: 360 chars — Spread ½ tablespoon of the remaining butter on one side of each rye bread slice;…
-     · Sausage and Escarole Wedding Soup — Sausage and Escarole Wedding Soup — step 0: 344 chars — In a large bowl, combine the 12 oz sweet Italian sausage (casings removed), 4 oz…
-[1] no_steps — a dish with no stored steps
-     12 findings in 12 meals (0.9%)
-     · Hearty Lentil Stew — Hearty Lentil Stew — dish: the dish has no stored steps
-     · Roasted Veg Buddha Bowl — Roasted Veg Buddha Bowl — dish: the dish has no stored steps
-[info] unit_tiny_tsp_hidden — stored < ⅛ tsp that the screen still prints as ⅛ (fixUnit would make it a pinch)
-     0 findings in 0 meals (0.0%)
-[info] unit_decimal_hidden — stored off-fraction (0.33) that the screen rounds to a glyph
-     236 findings in 217 meals (16.4%)
-     · Kansas City-Style Baby Back Ribs with Creamy Coleslaw and Baked Beans — Molasses Baked Beans — ing: Ketchup: 0.33 cup Ketchup → 0.3333 cup
-     · Pork Carnitas Bowl with Cilantro-Lime Rice, Black Beans, and Pico de Gallo — Cilantro-Lime Rice — ing: fresh cilantro: 0.33 cup fresh cilantro → 0.3333 cup
-[info] unit_garlic_each_hidden — garlic cloves stored as "each" — the screen drops "each" and prints "4 garlic cloves" (BUG-317)
-     614 findings in 465 meals (35.1%)
-     · Dirty Rice with Braised Collard Greens — Dirty Rice with Ground Pork and Chicken Livers — ing: garlic cloves: 4 each garlic cloves → 4 clove garlic
-     · Turkey Bolognese with Garlic Bread and a Bitter Greens Salad — Turkey Bolognese over Rigatoni — ing: garlic cloves: 4 each garlic cloves → 4 clove garlic
-[info] unit_alias — a unit spelling variant (lb, tbsp, cups, cloves)
-     40 findings in 14 meals (1.1%)
-     · Coconut Chickpea Curry — Coconut Chickpea Curry — ing: garam masala: unit "tbsp"
-     · Chicken Veggie Stir-fry — Chicken Veggie Stir-fry — ing: sesame seeds: unit "tbsp"
-[3] unit_garlic_count — garlic stored as "each" with no "clove" in the name — the screen prints "4 garlic" (heads or cloves?)
-     64 findings in 42 meals (3.2%)
-     · Spicy Szechuan Beef and Broccoli — Spicy Szechuan Beef and Broccoli — ing: garlic: 5 each garlic → 5 clove garlic
-     · Tortellini Alfredo with Garlic Bread and Caesar Salad — Garlic Bread — ing: garlic: 3 each garlic → 3 clove garlic
-
-meals with any finding: 1068 / 1325
-→ C:\Cooking App\Kiwi-App\artifacts\api-server\scripts\_scratch\cat-q0\out\pass1-dev.csv (2608 rows)
+Pass 1 (dev) — 1325 meals, 2608 findings, 1068 meals with any
+[6] swap_self: 62 findings in 61 meals — a swap that is not a shortcut (thx2Checks.swapProblem)
+[2] path_unused: 642 findings in 323 meals — an ingredient used on one path only (thx2Core.pathFlags; the NON-default path's leftovers)
+[2] ing_unused: 16 findings in 14 meals — listed, never referenced on the default path (amountRefs identity, then prose)
+[2] ing_unused_elsewhere: 0 findings in 0 meals — listed in this dish, referenced only in another dish's steps
+[2] ing_unlisted: 171 findings in 137 meals — a catalog ingredient named in a default-path step that no dish of the meal lists
+[2] ing_unlisted_pantry: 21 findings in 21 meals — as ing_unlisted, for salt / pepper / oil / sugar / flour / butter
+[3] unit_shows_zero: 0 findings in 0 meals — a spoon/cup amount the screen prints as 0.00 (under 1/16)
+[3] unit_decimal: 2 findings in 2 meals — a spoon/cup amount the screen prints as an eighth no spoon measures (⅜ ⅝ ⅞), or a weight/count with no cook's fraction
+[3] unit_odd: 8 findings in 8 meals — a unit outside the catalog's unit vocabulary
+[3] prose_decimal: 19 findings in 5 meals — a decimal spoon or cup amount in step text
+[5] rinse_poultry: 1 findings in 1 meals — rinsing raw poultry
+[5] doneness_missing: 413 findings in 413 meals — raw poultry or ground meat, fast heat, no internal temperature stated
+[5] doneness_missing_moist: 54 findings in 54 meals — raw poultry or ground meat, simmered/braised ≥ 25 min, no internal temperature stated
+[5] doneness_low: 8 findings in 8 meals — an internal temperature below 165°F (poultry) / 160°F (ground meat)
+[7] time_ratio: 0 findings in 0 meals — derived total > 3× or < ⅓ of the summed default-path step minutes
+[7] step_minutes_vs_prose: 70 findings in 70 meals — a step's prose states a duration its minutes do not carry (< half)
+[style] step_long: 155 findings in 149 meals — a step over 300 characters
+[1] no_steps: 12 findings in 12 meals — a dish with no stored steps
+    no_steps: r-buddha "Roasted Veg Buddha Bowl" — Roasted Veg Buddha Bowl
+    no_steps: r-curry "Coconut Chickpea Curry" — Coconut Chickpea Curry
+    no_steps: r-grain-bowl "Mediterranean Grain Bowl" — Mediterranean Grain Bowl
+    no_steps: r-greek "Big Greek Salad" — Big Greek Salad
+    no_steps: r-pasta "Creamy Mushroom Pasta" — Creamy Mushroom Pasta
+    no_steps: r-pizza "Margherita Pizza Night" — Margherita Pizza Night
+    no_steps: r-salmon "Lemon Herb Salmon" — Lemon Herb Salmon
+    no_steps: r-shrimp "Garlic Shrimp Scampi" — Garlic Shrimp Scampi
+    no_steps: r-stew "Hearty Lentil Stew" — Hearty Lentil Stew
+    no_steps: r-stirfry "Chicken Veggie Stir-fry" — Chicken Veggie Stir-fry
+    no_steps: r-tacos "Beef Street Tacos" — Beef Street Tacos
+    no_steps: r-tofu "Teriyaki Tofu Bowl" — Teriyaki Tofu Bowl
+[info] unit_tiny_tsp_hidden: 0 findings in 0 meals — stored < ⅛ tsp that the screen still prints as ⅛ (fixUnit would make it a pinch)
+[info] unit_decimal_hidden: 236 findings in 217 meals — stored off-fraction (0.33) that the screen rounds to a glyph
+[info] unit_garlic_each_hidden: 614 findings in 465 meals — garlic cloves stored as "each" — the screen drops "each" and prints "4 garlic cloves" (BUG-317)
+[info] unit_alias: 40 findings in 14 meals — a unit spelling variant (lb, tbsp, cups, cloves)
+[3] unit_garlic_count: 64 findings in 42 meals — garlic stored as "each" with no "clove" in the name — the screen prints "4 garlic" (heads or cloves?)

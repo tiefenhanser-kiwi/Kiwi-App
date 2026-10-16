@@ -1,0 +1,36 @@
+Pass 1 (production) — 1314 meals, 2605 findings, 1061 meals with any
+[6] swap_self: 62 findings in 61 meals — a swap that is not a shortcut (thx2Checks.swapProblem)
+[2] path_unused: 642 findings in 323 meals — an ingredient used on one path only (thx2Core.pathFlags; the NON-default path's leftovers)
+[2] ing_unused: 16 findings in 14 meals — listed, never referenced on the default path (amountRefs identity, then prose)
+[2] ing_unused_elsewhere: 0 findings in 0 meals — listed in this dish, referenced only in another dish's steps
+[2] ing_unlisted: 172 findings in 138 meals — a catalog ingredient named in a default-path step that no dish of the meal lists
+[2] ing_unlisted_pantry: 21 findings in 21 meals — as ing_unlisted, for salt / pepper / oil / sugar / flour / butter
+[3] unit_shows_zero: 0 findings in 0 meals — a spoon/cup amount the screen prints as 0.00 (under 1/16)
+[3] unit_decimal: 5 findings in 5 meals — a spoon/cup amount the screen prints as an eighth no spoon measures (⅜ ⅝ ⅞), or a weight/count with no cook's fraction
+[3] unit_odd: 8 findings in 8 meals — a unit outside the catalog's unit vocabulary
+[3] prose_decimal: 19 findings in 5 meals — a decimal spoon or cup amount in step text
+[5] rinse_poultry: 1 findings in 1 meals — rinsing raw poultry
+[5] doneness_missing: 407 findings in 407 meals — raw poultry or ground meat, fast heat, no internal temperature stated
+[5] doneness_missing_moist: 54 findings in 54 meals — raw poultry or ground meat, simmered/braised ≥ 25 min, no internal temperature stated
+[5] doneness_low: 8 findings in 8 meals — an internal temperature below 165°F (poultry) / 160°F (ground meat)
+[7] time_ratio: 0 findings in 0 meals — derived total > 3× or < ⅓ of the summed default-path step minutes
+[7] step_minutes_vs_prose: 70 findings in 70 meals — a step's prose states a duration its minutes do not carry (< half)
+[style] step_long: 154 findings in 148 meals — a step over 300 characters
+[1] no_steps: 12 findings in 12 meals — a dish with no stored steps
+    no_steps: r-buddha "Roasted Veg Buddha Bowl" — Roasted Veg Buddha Bowl
+    no_steps: r-curry "Coconut Chickpea Curry" — Coconut Chickpea Curry
+    no_steps: r-grain-bowl "Mediterranean Grain Bowl" — Mediterranean Grain Bowl
+    no_steps: r-greek "Big Greek Salad" — Big Greek Salad
+    no_steps: r-pasta "Creamy Mushroom Pasta" — Creamy Mushroom Pasta
+    no_steps: r-pizza "Margherita Pizza Night" — Margherita Pizza Night
+    no_steps: r-salmon "Lemon Herb Salmon" — Lemon Herb Salmon
+    no_steps: r-shrimp "Garlic Shrimp Scampi" — Garlic Shrimp Scampi
+    no_steps: r-stew "Hearty Lentil Stew" — Hearty Lentil Stew
+    no_steps: r-stirfry "Chicken Veggie Stir-fry" — Chicken Veggie Stir-fry
+    no_steps: r-tacos "Beef Street Tacos" — Beef Street Tacos
+    no_steps: r-tofu "Teriyaki Tofu Bowl" — Teriyaki Tofu Bowl
+[info] unit_tiny_tsp_hidden: 0 findings in 0 meals — stored < ⅛ tsp that the screen still prints as ⅛ (fixUnit would make it a pinch)
+[info] unit_decimal_hidden: 236 findings in 217 meals — stored off-fraction (0.33) that the screen rounds to a glyph
+[info] unit_garlic_each_hidden: 614 findings in 465 meals — garlic cloves stored as "each" — the screen drops "each" and prints "4 garlic cloves" (BUG-317)
+[info] unit_alias: 40 findings in 14 meals — a unit spelling variant (lb, tbsp, cups, cloves)
+[3] unit_garlic_count: 64 findings in 42 meals — garlic stored as "each" with no "clove" in the name — the screen prints "4 garlic" (heads or cloves?)

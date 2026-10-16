@@ -1,0 +1,258 @@
+prod catalog: 1314 meals · payload fingerprint b3164234…6753 (recomputes) · rubric c497f2ae220e
+
+═══ prod ↔ dev ═══
+dev-only ids: 16
+  3fc5e05a-c441-4634-ac61-05cb2f4eadd9 "Carne Asada Tacos" (live_writeback, updated 2026-10-01)
+  42f9c2c7-0e6f-4199-baae-72b5837c76ba "Smoky Chipotle Ground Beef Tacos with Avocado Crema" (live_writeback, updated 2026-10-01)
+  48d31f0f-017d-4757-99f1-76d7d01796c8 "Classic Tex-Mex Ground Beef Tacos" (live_writeback, updated 2026-10-01)
+  4d45336c-8224-46f8-8b52-79f997f509a7 "Italian Meatloaf with Roasted Garlic Mashed Potatoes and Sauteed Broccolini" (live_writeback, updated 2026-09-30)
+  6d90312d-633c-4753-a419-e86d4494bed2 "Texas-Style Beef Chili" (live_writeback, updated 2026-09-30)
+  73b62c74-c2c3-4ac2-bfaa-bfe18d74b1b7 "Slow-Cooker Chicken and Dumplings" (live_writeback, updated 2026-09-30)
+  88b928cd-7e7a-42dc-9328-efb34f9933c7 "Carne Asada Tacos" (live_writeback, updated 2026-10-01)
+  9cb5abb1-ef9b-4d5c-8c02-d0b54d179f94 "Beef Enchiladas Verdes with Roasted Tomatillo Sauce" (live_writeback, updated 2026-09-30)
+  a8f30baa-f526-4507-b208-3ae76508b4af "Classic Tex-Mex Sheet-Pan Chicken Fajitas" (live_writeback, updated 2026-10-01)
+  afd35b21-a83b-4d1b-a4dc-b9a093c0e5f9 "Lemon-Herb Baked Chicken Breast with Roasted Asparagus and Garlic Herb Potatoes" (live_writeback, updated 2026-10-01)
+  b5e00d2c-2af5-4cbf-a1c8-368ddb2b5d91 "Beef Enchiladas Verdes with Roasted Tomatillo Sauce" (live_writeback, updated 2026-09-30)
+  bd57e0d7-7eb3-49ae-bed0-6e129d64d400 "Classic Tex-Mex Sheet-Pan Chicken Fajitas" (live_writeback, updated 2026-09-30)
+  c408e949-b1cc-4ccc-bbe4-33b0c98f0c87 "Teriyaki Salmon Dinner" (live_writeback, updated 2026-10-01)
+  d429ddd4-fccb-4ca6-b2c6-82f08abb4e2d "Beef Enchiladas Verdes with Roasted Tomatillo Sauce" (live_writeback, updated 2026-09-30)
+  f1bbaafc-298b-4598-9d66-a62d91ca3880 "Classic Tex-Mex Ground Beef Tacos" (live_writeback, updated 2026-10-01)
+  fcdf25c5-9659-4980-99b4-88bc6cfa5997 "Lemon-Herb Baked Chicken Breast with Roasted Asparagus and Garlic Herb Potatoes" (live_writeback, updated 2026-09-30)
+prod-only ids: 5
+  2fbb2a37-a72e-4c3c-8862-266f07db869c "Sous Vide Shawarma Chicken Breast over Bulgur with Roasted Red Pepper, Hummus, and Parsley" (live_writeback, updated 2026-10-11)
+  3869c1e7-c362-4c92-928a-948498068377 "Sous Vide BBQ Spiced Chicken Thigh over Smoky Freekeh with Roasted Corn and Avocado" (live_writeback, updated 2026-10-11)
+  7aa8acb9-1741-44f2-88ec-36d12450f569 "Sous Vide Italian Herb Pork Loin over Farro with White Beans, Sun-Dried Tomatoes, and Arugula" (live_writeback, updated 2026-10-11)
+  898f3f40-a8ff-48cb-b5ec-b46aae672b8f "Sous Vide Lemon-Oregano Chicken Breast over Quinoa Tabbouleh with Cucumber and Feta" (live_writeback, updated 2026-10-11)
+  b93130a3-eb40-4364-98e9-248bf14bf28e "Sous Vide Ginger-Soy Salmon over Brown Rice with Edamame, Shredded Cabbage, and Sesame Dressing" (live_writeback, updated 2026-10-11)
+shared ids: 1309 · same payload 44 · different payload 1265
+  0000b7a6-d04d-4981-b52c-f3db45b71316 "Pepperoni and Hot Honey Pizza" — prod updated 2026-10-09T00:48, dev 2026-10-01T00:28
+  00334439-3569-407e-81e3-c66b1189b20a "Garlic and Herb Baked Pork Chops with Roasted Potatoes" — prod updated 2026-10-09T00:48, dev 2026-10-01T00:28
+  009f7249-b10c-41ab-b645-fd2339b1db78 "Slow Cooker Cashew Chicken with Steamed Jasmine Rice and Stir-Fried Bok Choy" — prod updated 2026-09-18T11:21, dev 2026-09-18T11:21
+  00c1b1e8-1365-49ff-b583-b8de4e780a97 "Crispy Sweet and Sour Chicken with Bell Peppers and Pineapple" — prod updated 2026-09-18T11:21, dev 2026-09-18T11:21
+  00e3a8ec-d909-466b-9c20-8f3cf5f7e544 "Al Pastor Tacos with Refried Beans and Radish Slaw" — prod updated 2026-10-09T00:49, dev 2026-10-01T00:28
+  010f88d2-fa22-4b02-817f-427ebcafb54e "Kielbasa and Pierogi with Braised Cabbage and Sour Cream" — prod updated 2026-10-09T00:48, dev 2026-10-01T00:28
+  018a5a3b-99a2-4e58-a760-d2e73c090abd "Kalua Pork with Steamed White Rice and Macaroni Salad" — prod updated 2026-10-09T00:49, dev 2026-10-01T00:28
+  01c0b0d1-85e7-4eea-aa0e-9ff3a07ef81b "Grilled Lemon Pepper Chicken with Roasted Asparagus and Garlic Herb Rice" — prod updated 2026-09-18T11:22, dev 2026-09-18T11:22
+  01c4f79e-275a-4e2d-a89c-bb8dd9daa6b1 "Cajun Shrimp Pasta in Spicy Cream Sauce" — prod updated 2026-09-18T11:22, dev 2026-09-18T11:22
+  01e0cbfd-1a1b-4598-91a4-38714ea68905 "Sun-Dried Tomato and Spinach Chicken Tetrazzini" — prod updated 2026-09-18T11:22, dev 2026-09-18T11:22
+  02111c14-5743-4344-b5d9-a30546e1a22f "Italian Sausage and Pepper Baked Ziti" — prod updated 2026-09-18T11:22, dev 2026-09-18T11:22
+  024348ea-0883-4086-be59-91861aebccb5 "Beef and Bean Chili Dogs with Creamy Coleslaw and Kettle Chips" — prod updated 2026-10-09T00:49, dev 2026-10-01T00:28
+  025df1f9-3450-42da-8d81-cf086f7ebc44 "Classic Beef and Rice Stuffed Cabbage Rolls in Tomato Sauce" — prod updated 2026-09-18T11:23, dev 2026-09-18T11:23
+  02715350-a5b5-48a4-aec0-27347457b4d1 "Spicy Szechuan Beef and Broccoli" — prod updated 2026-09-18T11:23, dev 2026-09-18T11:23
+  027a1420-96d0-4a4e-8a33-d63421233d08 "Beef Enchiladas Verdes with Roasted Tomatillo Sauce" — prod updated 2026-09-18T11:23, dev 2026-09-18T11:23
+  02f0bcb8-c3da-45e1-9a8d-3f3c0709798e "Salsa Verde Pork Tamales with Mexican Rice and Pinto Beans" — prod updated 2026-09-18T11:23, dev 2026-09-18T11:23
+  0314d364-b8af-46c9-8f34-a73e21630470 "Classic Beef Stew with Potatoes and Carrots" — prod updated 2026-09-18T11:24, dev 2026-09-18T11:24
+  031600b0-00b2-4efb-8d63-6487cc96edc4 "Classic Beef and Bean Chimichangas with Sour Cream and Salsa" — prod updated 2026-09-18T11:24, dev 2026-09-18T11:24
+  034ab8b2-b370-4536-af38-a3caa2221916 "Fish en Papillote with Herbed Rice and Lemon Dressed Greens" — prod updated 2026-10-09T00:48, dev 2026-10-01T00:28
+  035467f9-1049-4c7a-8b5f-d248b8047599 "Parmesan-Crusted Baked Pork Chops with Garlic Butter Broccoli" — prod updated 2026-09-18T11:24, dev 2026-09-18T11:24
+  03962c3c-4950-44cd-a8e9-bc2c079b632a "Fluffy Drop-Dumpling Chicken Stew" — prod updated 2026-09-18T11:25, dev 2026-09-18T11:25
+  039bc2d9-0a02-4079-b07b-4f9025ac820d "Pad Kra Pao (Thai Basil Pork) with Jasmine Rice and Fried Egg" — prod updated 2026-10-09T00:48, dev 2026-10-01T00:28
+  03bfafaf-217a-4880-8f6f-38e5d293ee97 "Falafel Wrap with Cucumber-Tomato Salad" — prod updated 2026-10-09T00:49, dev 2026-10-01T00:28
+  03d13a7b-381b-4841-8c60-52435f516ed7 "Classic Beef Chili Mac" — prod updated 2026-09-18T11:25, dev 2026-09-18T11:25
+  041e79e4-7435-4c38-a5c6-8fbbbc58ead9 "Spicy General Tso's Chicken with Steamed Jasmine Rice and Stir-Fried Broccoli" — prod updated 2026-10-09T00:49, dev 2026-10-01T00:28
+  04583994-5daa-4a77-9f4e-d5b2410b9c5e "Italian Herb Meatballs with Zucchini and Cherry Tomatoes" — prod updated 2026-10-09T00:49, dev 2026-10-01T00:28
+  046df5bf-526a-4c8d-b66c-a1091b2f8d50 "Turkey Avocado Wrap with Tomato Soup" — prod updated 2026-09-18T11:26, dev 2026-09-18T11:26
+  048b2e85-828b-49db-a37f-941194b26bee "Smoky Chipotle Chicken Skewers with Grilled Corn and Lime Crema" — prod updated 2026-10-09T00:49, dev 2026-10-01T00:28
+  04aba1dc-defe-4c55-b4b1-80c08a924939 "Green Chile and Pepper Jack Baked Mac and Cheese" — prod updated 2026-09-18T11:26, dev 2026-09-18T11:26
+  04ecac9e-d5eb-4651-848c-b40a9fbd87bf "Broccoli-Cheddar Stuffed Chicken Breast with Roasted Potatoes" — prod updated 2026-09-18T11:26, dev 2026-09-18T11:26
+  04fac6d9-4c0b-4318-945a-aabcfca7ec75 "Classic Buttermilk Fried Chicken Tenders with Honey-Glazed Roasted Carrots and Creamy Mashed Potatoes" — prod updated 2026-10-09T00:49, dev 2026-10-01T00:28
+  050258a5-249b-48d2-8646-a9ddaf84d02a "Crab-Stuffed Flounder with Lemon-Butter Sauce" — prod updated 2026-09-18T11:27, dev 2026-09-18T11:27
+  0579e51d-4db8-4c25-9d0a-9b45882f8535 "Falafel Bowl with Spiced Rice, Roasted Vegetables, and Yogurt Sauce" — prod updated 2026-10-09T00:49, dev 2026-10-01T00:28
+  05ccd03e-2e8b-49e8-bbb1-7823f9d9a9c7 "Chicken Pho with Fresh Spring Rolls" — prod updated 2026-09-18T11:27, dev 2026-09-18T11:27
+  05f98848-a51c-4fa0-a920-446146476bd5 "Grilled Sirloin Steak with Chimichurri, Grilled Corn, and Crispy Potatoes" — prod updated 2026-10-09T00:49, dev 2026-10-01T00:28
+  060d8614-a6cf-460b-bc29-24e077ea5b2a "Classic Low Country Shrimp Boil" — prod updated 2026-09-18T11:28, dev 2026-09-18T11:28
+  066d230b-12a4-4674-9f0c-fb0114142961 "Double Smash Burger with Special Sauce, Shoestring Fries, and Iceberg Slaw" — prod updated 2026-10-09T00:48, dev 2026-10-01T00:28
+  068f0f2c-d9f1-422e-a9ff-70d2db835326 "Classic Oyster Sauce Beef and Broccoli with Steamed Jasmine Rice" — prod updated 2026-09-18T11:28, dev 2026-09-18T11:28
+  06a3ff2a-05f5-4f71-bb02-e61641e9434f "Rigatoni Arrabbiata with Italian Sausage and Fresh Basil" — prod updated 2026-09-18T11:28, dev 2026-09-18T11:28
+  0749b4f1-fe0a-47b9-885b-cf33ce3bae4c "Tuna Melts with Tomato Soup" — prod updated 2026-10-09T00:49, dev 2026-10-01T00:28
+  … 1225 more
+
+═══ step-less dishes (prod) ═══
+12 meals: r-buddha "Roasted Veg Buddha Bowl" · r-curry "Coconut Chickpea Curry" · r-grain-bowl "Mediterranean Grain Bowl" · r-greek "Big Greek Salad" · r-pasta "Creamy Mushroom Pasta" · r-pizza "Margherita Pizza Night" · r-salmon "Lemon Herb Salmon" · r-shrimp "Garlic Shrimp Scampi" · r-stew "Hearty Lentil Stew" · r-stirfry "Chicken Veggie Stir-fry" · r-tacos "Beef Street Tacos" · r-tofu "Teriyaki Tofu Bowl"
+
+═══ verdicts — 1311/1314 reviewed ═══
+all      ok 576 · fix 705 · block 30
+featured ok 13 · fix 12 · block 0 (25 meals in live Featured plans)
+
+class × severity
+| class | block | fix | polish | total |
+|---|---|---|---|---|
+| 1 | 4 | 68 | 65 | 137 |
+| 2 | 10 | 93 | 222 | 325 |
+| 3 | 0 | 89 | 231 | 320 |
+| 4 | 0 | 28 | 111 | 139 |
+| 5 | 16 | 482 | 104 | 602 |
+| 6 | 0 | 54 | 28 | 82 |
+| 7 | 0 | 31 | 84 | 115 |
+| all | 30 | 845 | 845 | 1720 |
+
+═══ every block issue (30) ═══
+#1 [block · class 5] Chicken Pho with Fresh Spring Rolls — Chicken Pho · ingredient "1 whole chicken (about 3.5–4 lb, rinsed)" · step 3 — 05ccd03e-2e8b-49e8-bbb1-7823f9d9a9c7
+    quote: "1 whole chicken (about 3.5–4 lb, rinsed)"
+    why:   The recipe tells the cook to rinse raw poultry (also 'Place the rinsed whole chicken' in step 3), which USDA advises against because it spreads bacteria.
+    fix:   Remove 'rinsed' from the ingredient line and step 3; pat the chicken dry instead.
+#2 [block · class 1] Tuna Melts with Tomato Soup — Tuna Melts · ingredient "60 ounces canned tuna in water (drained well (five 12 oz cans))" · step 0 — 0749b4f1-fe0a-47b9-885b-cf33ce3bae4c
+    quote: "60 ounces canned tuna in water (drained well (five 12 oz cans))"
+    why:   60 oz of tuna (about 9 cups drained) for 8 open-faced slices is about 7 oz per slice, far more than the bread can hold, and ⅓ cup mayo cannot bind it or fit the bowl and sheet; the 12 oz cans are also not a normal size.
+    fix:   Use about 20 oz tuna (four 5 oz cans, drained), and update the step 0 text to match.
+#3 [block · class 5] Creamy Chicken Broccoli Rice Casserole — Creamy Chicken Broccoli Rice Casserole · step 7 — 16dbd2aa-66d4-4825-bd5d-26cfbe89ab79
+    quote: "until golden on the outside but not fully cooked through; transfer to a plate."
+    why:   Chicken is left raw inside and no step ever gives a 165°F internal temperature or equivalent check after baking.
+    fix:   Add to step 13: bake until chicken reaches 165°F in the thickest cubes and rice is tender before resting.
+#4 [block · class 5] BBQ-Glazed Pork Chops with Tangy Coleslaw and Baked Beans — BBQ-Glazed Pork Chops · step 5 — 25f049a8-0f60-464f-90e0-a6cca4bb7a5e
+    quote: "until grill marks form and the internal temperature reaches 135°F."
+    why:   A pork chop temperature below 145°F is stated as a target, and a cook could stop at 135°F, which is under the 145°F minimum.
+    fix:   Change step 5 to 'until grill marks form, about 4–5 minutes per side' (or say the chops are not done yet at 135°F) and keep 145°F only in step 6.
+#5 [block · class 5] Sous Vide Shawarma Chicken Breast over Bulgur with Roasted Red Pepper, Hummus, and Parsley — Sous Vide Shawarma Chicken Breast · step 4 — 2fbb2a37-a72e-4c3c-8862-266f07db869c
+    quote: "cook sous vide at 145°F for 1 hour 30 minutes"
+    why:   145°F is below the 165°F poultry minimum and no 165°F check is given anywhere.
+    fix:   Set the bath to 150-165°F with a time that pasteurizes to 165°F equivalent, or finish by checking the chicken reads 165°F with a thermometer.
+#6 [block · class 5] Classic Sauced BBQ Chicken Halves with Grilled Corn and Creamy Coleslaw — Classic Sauced BBQ Chicken Halves · step 6 — 3db20bcd-abb6-4b40-a209-bdf94488c9a9
+    quote: "until an instant-read thermometer inserted in the thickest part reads 155°F"
+    why:   Poultry must reach 165°F, and a cook can stop at the 155°F stated here instead of waiting for step 7.
+    fix:   Change step 6 to cook until the thickest part reads about 155–160°F before saucing, but state clearly that the chicken is not done until it reaches 165°F, or simply say 'reads 160°F' and finish to 165°F in step 7.
+#7 [block · class 5] BBQ Grilled Chicken and Charred Corn Plate — BBQ Grilled Chicken Thighs · step 4 — 5c5631d8-a206-46f0-8583-70446fc53008
+    quote: "until grill marks form and the internal temperature reaches 155°F"
+    why:   155°F is below the 165°F poultry minimum, and a cook could stop at this first stated temperature.
+    fix:   Change the step to say grill until grill marks form and the chicken reaches about 150°F, with the final 165°F check kept in the next step, or simply state 165°F here.
+#8 [block · class 1] Classic Chicken Cheesesteak with Provolone, Peppers, and Onions — Old Bay Seasoned Oven Fries · ingredient "2 pounds russet potatoes (cut into ¼-inch sticks, skin on)" · step 4 — 71cbb581-28b1-417e-b459-a520a9e6eef6
+    quote: "Carefully spread the seasoned fries in a single layer on the preheated baking sheet, making sure they are not touching"
+    why:   2 lb of ¼-inch potato sticks cannot lie in a non-touching single layer on one baking sheet, so they would steam instead of crisp.
+    fix:   Divide the fries between two preheated rimmed baking sheets (swap them between racks when flipping).
+#9 [block · class 5] Sous Vide Italian Herb Pork Loin over Farro with White Beans, Sun-Dried Tomatoes, and Arugula — Sous Vide Italian Herb Pork Loin · step 3 — 7aa8acb9-1741-44f2-88ec-36d12450f569
+    quote: "Preheat your sous vide circulator in a large pot or container to 140°F (60°C)."
+    why:   Pork loin must reach 145°F per the doneness rule, and the recipe states only 140°F, below the minimum, with no 145°F check.
+    fix:   Set the bath to 145°F (63°C) in steps 3 and 4, or state that the pork must reach 145°F internally before the rest.
+#10 [block · class 5] Sous Vide Lemon-Oregano Chicken Breast over Quinoa Tabbouleh with Cucumber and Feta — Sous Vide Lemon-Oregano Chicken Breast · step 3 — 898f3f40-a8ff-48cb-b5ec-b46aae672b8f
+    quote: "Submerge the sealed bag in the 140°F water bath and cook for 1 hour."
+    why:   Chicken is cooked at a 140°F bath, below the 165°F poultry minimum, and no 165°F internal temperature or equivalent check is given anywhere.
+    fix:   Tell the cook to verify the chicken reaches 165°F (e.g., set the bath to 150°F+ with a longer hold and probe to 165°F, or finish in the sear until the thickest part reads 165°F).
+#11 [block · class 5] BBQ-Glazed Spatchcock Grilled Chicken with Grilled Corn and Creamy Coleslaw — BBQ-Glazed Spatchcock Grilled Chicken · step 7 — 8a9e026d-c26e-425e-8d9c-56077458a60b
+    quote: "grill 30–35 minutes until a thermometer in the thickest part of the thigh reads 155°F"
+    why:   Poultry must reach 165°F, and a stated target of 155°F below the minimum could lead the cook to stop there, even though step 8 later says 165°F.
+    fix:   Change step 7 to read 'until the thigh reads about 150–155°F before glazing' only if the final 165°F check stays. Safer: say 'until the thigh reaches 165°F, glazing in the last few minutes'.
+#12 [block · class 5] Hyderabadi Dum Chicken Biryani — Hyderabadi Dum Chicken Biryani · step 1 — 957696fb-c0f4-486c-868d-658036b0db68
+    quote: "marinate at room temperature while you prepare everything else"
+    why:   Raw chicken sits in a yogurt marinade at room temperature through the 20–25 minute onion fry and the rest of the prep, with no time limit, which risks a danger-zone hold.
+    fix:   Marinate covered in the refrigerator (at least 30 minutes, up to overnight), or cap the room-temperature hold at 30 minutes.
+#13 [block · class 5] BBQ-Glazed Beer Can Chicken with Roasted Corn and Creamy Coleslaw — BBQ-Glazed Beer Can Chicken · step 6 — 98825a51-664f-41b4-a050-a0b4d6fc42df
+    quote: "until the thickest part of the thigh reads 155°F on an instant-read thermometer (it will carry over to 165°F while resting)"
+    why:   Pulling poultry at 155°F is below the 165°F minimum, and a cook can stop at that first temperature.
+    fix:   Roast until the thickest part of the thigh reads 165°F (and the breast reads 165°F) on an instant-read thermometer, then rest.
+#14 [block · class 1] Crawfish Boil with French Bread and Coleslaw — Cajun Crawfish Boil with Corn and Red Potatoes · ingredient "5 quarts water" · step 0 — a39f8044-9f1c-4ee7-b660-abcf8dd4e168
+    quote: "Fill a 40-quart stockpot with 5 quarts of water and bring to a rolling boil over high heat."
+    why:   5 quarts of water cannot cover 10 lb of crawfish plus potatoes, corn, sausage, onions and lemons, so the boil cannot cook or keep boiling as written.
+    fix:   Use about 6 gallons (24 quarts) of water in the 40-quart pot, or cut the crawfish and vegetables to what 5 quarts can cover.
+#15 [block · class 5] Spatchcocked Roast Chicken with Smoked Paprika, Roasted Potatoes, and Garlic Green Beans — Spatchcocked Roast Chicken with Smoked Paprika · step 6 — b873f58d-064f-4244-bf2d-9f236b40de2a
+    quote: "until the breast registers 160°F and the thigh registers 175°F on an instant-read thermometer"
+    why:   Poultry must reach 165°F, and a cook can stop when the breast reads 160°F, which is below the minimum.
+    fix:   Change to 'until the breast registers 165°F and the thigh registers 175°F'.
+#16 [block · class 5] Garlic and Rosemary Pork Chops with Grilled Peaches and Arugula — Garlic and Rosemary Bone-In Pork Chops · step 4 — c6c51b81-c488-4ff3-b01e-a5ae913c7478
+    quote: "until the internal temperature reaches 140°F and deep grill marks form"
+    why:   Pork chops must reach 145°F with a rest, and 140°F is below that minimum.
+    fix:   Change to 'until the internal temperature reaches 145°F', then rest 5 minutes.
+#17 [block · class 5] Crispy Baked Chicken Parmesan with Spaghetti and Garlic Green Beans — Crispy Baked Chicken Parmesan · step 6 — c98dc177-14c7-4025-aee3-a21a32eb5849
+    quote: "until the coating is deep golden and the internal temperature reaches 160°F"
+    why:   Poultry must reach 165°F, so a cook stopping at 160°F would undercook the chicken.
+    fix:   Change to 'internal temperature reaches 165°F' (and check again after the cheese bake).
+#18 [block · class 5] BBQ Chicken Thighs with Grilled Corn on the Cob and Watermelon Slaw — BBQ Glazed Chicken Thighs · step 2 — e287b33b-d13c-465a-b558-717a4bebf8ed
+    quote: "until grill marks form and the internal temperature reaches 155°F"
+    why:   155°F is below the 165°F poultry minimum, and a cook could stop at this first stated temperature even though step 4 gives 165°F.
+    fix:   Change step 2 to say cook until grill marks form and the thickest part reaches about 150°F, then finish after glazing until 165°F is reached; or remove the temperature from step 2 and keep 165°F as the only target.
+#19 [block · class 5] Classic BBQ Beer Can Chicken with Roasted Corn and Garlic Red Potatoes — Classic BBQ Beer Can Chicken · step 6 — e76ad75c-8041-4b79-b790-40b36eaf9adc
+    quote: "until the breast reads 160°F and the thigh reads 175°F on an instant-read thermometer"
+    why:   A breast reading of 160°F is below the 165°F poultry minimum, and a cook could stop there.
+    fix:   Change to 'until the breast reads 165°F and the thigh reads 175°F'.
+#20 [block · class 2] Roasted Veg Buddha Bowl — Roasted Veg Buddha Bowl · ingredient "1 large sweet potatoes" — r-buddha
+    quote: "1 large sweet potatoes"
+    why:   The dish has an empty steps list, so none of the seven ingredients (sweet potato, beets, kale, quinoa, tahini, lemon, pumpkin seeds) is used and the cook has no instructions to roast, cook or assemble anything.
+    fix:   Add full default-path steps: preheat the oven, roast the cubed sweet potato and beets, cook the quinoa in water, massage the kale, make a lemon-tahini dressing, and assemble the bowls topped with pumpkin seeds.
+#21 [block · class 2] Coconut Chickpea Curry — Coconut Chickpea Curry · ingredient "2 cans chickpeas" — r-curry
+    quote: "2 cans chickpeas"
+    why:   The dish has no steps at all, so none of the eight listed ingredients (chickpeas, coconut milk, tomatoes, onion, ginger, garam masala, rice, cilantro) is used and the cook has no instructions, including for cooking the rice.
+    fix:   Add full steps: saute onion and ginger, bloom garam masala, add tomatoes, chickpeas and coconut milk and simmer, cook the basmati rice with water, and garnish with cilantro.
+#22 [block · class 2] Mediterranean Grain Bowl — Mediterranean Grain Bowl · ingredient "1 cup quinoa" — r-grain-bowl
+    quote: "1 cup quinoa"
+    why:   The dish lists eight ingredients but has zero steps, so no ingredient is used and the cook has no method (quinoa cooking, dressing, assembly), and total/hands-on times are null.
+    fix:   Add steps: rinse and simmer quinoa in 2 cups water ~15 min, drain and rinse the chickpeas, chop the vegetables, whisk lemon juice with olive oil, then toss everything together and top with feta and parsley.
+#23 [block · class 2] Creamy Mushroom Pasta — Creamy Mushroom Pasta · ingredient "1 lb pappardelle" — r-pasta
+    quote: "1 lb pappardelle"
+    why:   The dish has eight ingredient lines but zero steps, so no ingredient is used by any step and the cook has no method to follow.
+    fix:   Add full steps: boil the pappardelle, saute the mushrooms, shallot and garlic in butter, add the cream, thyme and Parmesan, then toss with the pasta and serve.
+#24 [block · class 2] Margherita Pizza Night — Margherita Pizza Night · ingredient "1 lb pizza dough" — r-pizza
+    quote: "1 lb pizza dough"
+    why:   The dish has no steps at all, so none of the six listed ingredients is used and the cook has no instructions (no preheat, shaping, baking or timing).
+    fix:   Add default-path steps: preheat the oven to 500°F with a pizza stone or sheet, stretch the dough, top with crushed tomatoes, garlic, oil and mozzarella, bake 8-12 minutes, then add basil.
+#25 [block · class 2] Lemon Herb Salmon — Lemon Herb Salmon · ingredient "1 cup wild rice" — r-salmon
+    quote: "1 cup wild rice"
+    why:   The dish has no steps at all, so no ingredient (salmon, wild rice, asparagus, lemon, garlic, oil, dill) is used and the cook has no method to follow.
+    fix:   Add full steps: cook the wild rice (about 3 cups water, 45-55 min), roast the asparagus, and sear or bake the salmon with the garlic, lemon, oil and dill.
+#26 [block · class 2] Garlic Shrimp Scampi — Garlic Shrimp Scampi · ingredient "1 lb linguine" — r-shrimp
+    quote: "1 lb linguine"
+    why:   The dish has an empty steps list, so no step uses any listed ingredient (linguine, shrimp, garlic, wine, lemons, butter, parsley, pepper flakes) and the cook has no recipe to follow.
+    fix:   Add full default-path steps: boil and drain the linguine, sauté the garlic and shrimp in butter, add the wine, lemon and pepper flakes, toss with the pasta and parsley.
+#27 [block · class 2] Hearty Lentil Stew — Hearty Lentil Stew · ingredient "2 cups green lentils" — r-stew
+    quote: "2 cups green lentils"
+    why:   The dish has no steps at all, so none of the eight listed ingredients is used and the cook has no method (no sauté, simmer time, or bread instructions), and total/hands-on times are null.
+    fix:   Add steps: sauté the onion, carrots and celery; add lentils, tomatoes, broth and bay leaves; simmer about 30-40 minutes until the lentils are tender; remove the bay leaves, season, and serve with the sliced bread.
+#28 [block · class 2] Chicken Veggie Stir-fry — Chicken Veggie Stir-fry · ingredient "1 lb chicken breast" — r-stirfry
+    quote: "1 lb chicken breast"
+    why:   The dish has an empty steps list, so none of the eight listed ingredients is used by any step and the cook has no method, cook times, rice water, or the 165°F chicken doneness temperature.
+    fix:   Add full steps: cook the brown rice, slice and stir-fry the chicken to 165°F, add the broccoli, peppers, ginger, soy sauce and scallions, then top with sesame seeds, with minutes on each step.
+#29 [block · class 2] Beef Street Tacos — Beef Street Tacos · ingredient "1 lb ground beef" — r-tacos
+    quote: "1 lb ground beef"
+    why:   The dish has eight ingredients but no steps, so none are used and the cook has no instructions to follow (no browning, no 160°F doneness check, no tortilla warming, no assembly).
+    fix:   Add steps: brown the beef to 160°F, warm the tortillas, chop the onion and cilantro, slice the avocados, and assemble with salsa verde, Cotija and lime.
+#30 [block · class 1] Teriyaki Tofu Bowl — Teriyaki Tofu Bowl · ingredient "14 oz extra-firm tofu" — r-tofu
+    quote: "14 oz extra-firm tofu"
+    why:   The dish lists seven ingredients but has zero steps, so a cook has no method (rice cooking, tofu pressing/browning, assembly) and the derived total and hands-on times are null.
+    fix:   Add full steps: cook brown rice (about 2 cups water, 40 min), press and pan-sear the tofu, steam the edamame, shred or slice the carrots, glaze with the teriyaki sauce, and assemble the bowls with sesame oil and seeds.
+
+═══ 10 random fix issues (seed 1015, of 845) ═══
+#1 [fix · class 5] Spicy Ground Turkey Egg Roll in a Bowl — Spicy Ground Turkey Egg Roll in a Bowl · step 8 — 698d4055-dd27-43fd-83c1-dd61a29efa91
+    quote: "cook, breaking the meat into small crumbles, for 6–7 minutes until no pink remains."
+    why:   Ground turkey must reach 160°F, and a time plus 'no pink remains' is not a valid doneness check under the rule.
+    fix:   Add: cook until an instant-read thermometer reads 160°F in the crumbles, then proceed.
+#2 [fix · class 3] Tomato and Italian Herb Pot Roast with Roasted Potatoes and Green Beans — Sautéed Garlic Green Beans · ingredient "1 teaspoon lemon juice (freshly squeezed)" · step 4 — 577e0f3a-7f25-4ae8-9add-786988121ddc
+    quote: "1 teaspoon lemon juice (freshly squeezed)"
+    why:   Fresh-squeezed juice is listed with no lemon to buy, so the shopping list has no source for it.
+    fix:   Change the line to '1 lemon (for 1 teaspoon juice)' or '½ lemon, juiced'.
+#3 [fix · class 5] Spicy Arrabbiata Chicken Parmesan with Spaghetti and Garlic Bread — Spicy Arrabbiata Chicken Parmesan · step 9 — c2007fa9-a714-477e-9f68-a89187cdc9d2
+    quote: "Broil the skillet 4–5 inches from the element for 3–4 minutes until the mozzarella is bubbling and spotted brown"
+    why:   No step gives the 165°F poultry doneness temperature or a check that holds at it; the cook is only given sear and broil times.
+    fix:   Add to step 9: cook until a thermometer in the thickest part of a cutlet reads 165°F.
+#4 [fix · class 5] Classic Chicken Vindaloo with Steamed Basmati Rice — Classic Chicken Vindaloo · step 10 — 72eb197f-81e8-418d-b0ff-0a9fbbd910d4
+    quote: "simmer for 20 minutes until the chicken is cooked through and the sauce has thickened"
+    why:   Poultry doneness is given only as 'cooked through' and 'no longer pink', with no 165°F temperature or equivalent check.
+    fix:   Add: simmer until the chicken reaches 165°F on an instant-read thermometer, about 20 minutes.
+#5 [fix · class 5] Smothered Chicken with Caramelized Onion Gravy over White Rice — Smothered Chicken with Caramelized Onion Gravy · step 9 — 8ada869f-207e-4112-81d2-4f31d2fbc7ab
+    quote: "until the chicken is cooked through and the gravy has thickened"
+    why:   Poultry needs a stated 165°F target, and 'cooked through' is not a valid doneness check under the rule.
+    fix:   Add: cook until an instant-read thermometer in the thickest part of a thigh (not touching bone) reads 165°F.
+#6 [fix · class 5] Red Sauce Chicken Enchilada Casserole — Red Sauce Chicken Enchilada Casserole · ingredient "1½ pounds boneless skinless chicken breasts" · step 3 — 8daa6dfd-f943-4641-a6fa-515d7715d708
+    quote: "cook 15–18 minutes until cooked through"
+    why:   Chicken doneness is given only as a time and 'cooked through', with no 165°F temperature or equivalent check.
+    fix:   Add 'until an instant-read thermometer in the thickest part reads 165°F' to the poaching step.
+#7 [fix · class 5] Chicken Flautas with Salsa Verde and Refried Beans — Chicken Flautas · step 1 — 7be07527-377a-4aa0-92c5-f6008f4a602e
+    quote: "cook the chicken 18–20 minutes until cooked through"
+    why:   Poultry doneness is given only as a time and 'cooked through', with no 165°F temperature or equivalent check anywhere in the recipe.
+    fix:   Add: cook until the thickest part reads 165°F on an instant-read thermometer (about 18–20 minutes).
+#8 [fix · class 5] Green Chile and Chicken Chimichangas with Salsa Verde — Green Chile and Chicken Chimichangas · step 0 — f4b9420a-3368-4194-9286-f75c97320322
+    quote: "cover and cook 18–20 minutes until cooked through."
+    why:   Poultry doneness is given only as a time and 'cooked through', with no 165°F temperature or equivalent check.
+    fix:   Add: cook until an instant-read thermometer in the thickest part of the chicken reads 165°F.
+#9 [fix · class 5] Classic Thai Basil Chicken with Fried Egg and Jasmine Rice — Thai Basil Chicken (Pad Krapao Gai) · step 6 — fd2c2f29-3fbd-4ac2-ad32-547ace9bcc2a
+    quote: "until cooked through with no pink remaining"
+    why:   Ground chicken doneness is given only by time and colour, with no 160–165°F temperature check.
+    fix:   Add: cook until an instant-read thermometer reads 165°F (at least 160°F) in the chicken.
+#10 [fix · class 4] St. Louis Ribs with Tangy Coleslaw and Baked Beans — Smoky Baked Beans · step 5 — 1fe98b43-3edf-46e3-a3e2-32fe13431522
+    quote: "Transfer the Dutch oven to the 300°F oven (alongside the ribs) and bake uncovered for 60–75 minutes"
+    why:   The ribs bake 2½ hours covered, and no step says when to start the beans, so the cook cannot tell whether to start them with the ribs or about 70 minutes before the ribs finish.
+    fix:   State that the beans go into the oven about 80 minutes into the rib bake (so they finish with the ribs), and add that timing to the rib steps or the meal plan.
+
+═══ spend · cache · batch ═══
+batch msgbatch_017gEyeATJLbBi1HAWssFbxe submitted 2026-10-16T00:33:54.716Z · 1314 requests · records 1314 (ok 1311, not ok 3)
+batch spend $9.45 · per meal $0.0072 · tokens: in 2592566 · cache read 3927756 · cache write 0 · out 1293717
+requests with a cache read 1311/1311 · with a cache write 0
+stop reasons: tool_use 1311 · end_turn 3
+ledger total (pilot + reruns + full run): $11.18

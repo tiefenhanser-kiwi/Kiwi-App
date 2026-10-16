@@ -2,7 +2,7 @@
 // READ-ONLY on data (the plants are in-memory clones). AI spend capped by
 // --ceiling (default $3, across every run: out/spend.json is cumulative).
 //
-//   node --env-file=.env --import tsx scripts/_scratch/cat-q0/pass3.ts [--limit N] [--ceiling 3] [--seed 1015]
+//   node --env-file=.env --import tsx scripts/_scratch/cat-q0/pass3.ts [--limit N] [--ceiling 3] [--seed 1015] [--recall-only] [--tag T]
 //
 //   recall    10 random catalog meals (seed), one plant each (plants.ts), run
 //             planted AND clean; a plant is caught when an issue on the planted
@@ -26,6 +26,8 @@ const arg = (k: string, d: string) => { const i = process.argv.indexOf(k); retur
 const SEED = Number(arg("--seed", "1015"));
 const CEILING = Number(arg("--ceiling", "3"));
 const LIMIT = Number(arg("--limit", "0"));
+const RECALL_ONLY = process.argv.includes("--recall-only");
+const TAG = arg("--tag", "");
 const PILOT_RANDOM = 30;
 
 const lines: string[] = [];
@@ -77,7 +79,7 @@ say(`\npilot: ${featuredIds.length} featured + ${randomPilot.length} random (see
 let jobs: ReviewJob[] = [
   ...recall.map((r) => ({ label: `plant:${r.plantId}`, mealId: r.clean.id, title: r.clean.title, userMsg: userMessage(r.planted) })),
   ...recall.map((r) => ({ label: `clean:${r.plantId}`, mealId: r.clean.id, title: r.clean.title, userMsg: userMessage(r.clean) })),
-  ...pilot.map((p) => ({ label: p.tag, mealId: p.m.id, title: p.m.title, userMsg: userMessage(p.m) })),
+  ...(RECALL_ONLY ? [] : pilot.map((p) => ({ label: p.tag, mealId: p.m.id, title: p.m.title, userMsg: userMessage(p.m) }))),
 ];
 if (LIMIT > 0) jobs = jobs.slice(0, LIMIT);
 const t0 = Date.now();
@@ -139,5 +141,5 @@ const tot = live.reduce((a, r) => ({ cost: a.cost + r.costUsd, inp: a.inp + r.us
 say(`\n═══ COST ═══`);
 say(`  ${live.length} reviews: $${tot.cost.toFixed(4)} · per meal $${(tot.cost / Math.max(1, live.length)).toFixed(4)} · tokens: uncached in ${tot.inp} · cache write ${tot.cw} · cache read ${tot.cr} · out ${tot.out} (mean out ${(tot.out / Math.max(1, live.length)).toFixed(0)})`);
 say(`  calls with a cache read: ${live.filter((r) => r.usage.cache_read_input_tokens > 0).length}/${live.length} · with a cache write: ${live.filter((r) => r.usage.cache_creation_input_tokens > 0).length}`);
-writeFileSync(join(OUT, `pass3-${mode}.txt`), lines.join("\n"));
-console.log(`→ ${join(OUT, `pass3-${mode}.txt`)}`);
+writeFileSync(join(OUT, `pass3-${mode}${TAG ? `-${TAG}` : ""}.txt`), lines.join("\n"));
+console.log(`→ ${join(OUT, `pass3-${mode}${TAG ? `-${TAG}` : ""}.txt`)}`);

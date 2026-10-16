@@ -1,0 +1,45 @@
+{
+ "id": "msgbatch_01QAqASrP6e89eCS6U9vWGnJ",
+ "results": [
+  {
+   "custom_id": "smoke-0",
+   "usage": {
+    "input_tokens": 1775,
+    "cache_creation_input_tokens": 2996,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+     "ephemeral_5m_input_tokens": 0,
+     "ephemeral_1h_input_tokens": 2996
+    },
+    "output_tokens": 1178,
+    "output_tokens_details": {
+     "thinking_tokens": 0
+    },
+    "service_tier": "batch",
+    "inference_geo": "global",
+    "speed": "standard"
+   },
+   "verdict": "ok"
+  },
+  {
+   "custom_id": "smoke-1",
+   "usage": {
+    "input_tokens": 1783,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 2996,
+    "cache_creation": {
+     "ephemeral_5m_input_tokens": 0,
+     "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 836,
+    "output_tokens_details": {
+     "thinking_tokens": 0
+    },
+    "service_tier": "batch",
+    "inference_geo": "global",
+    "speed": "standard"
+   },
+   "verdict": "fix"
+  }
+ ]
+}

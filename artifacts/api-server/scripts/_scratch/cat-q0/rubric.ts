@@ -8,6 +8,7 @@
 // runAICall cachedSystemPrefix pattern (stable first, the meal last).
 
 import type Anthropic from "@anthropic-ai/sdk";
+import { createHash } from "node:crypto";
 
 import * as clientLine from "../../../../kiwi/lib/format/ingredientLine";
 import type { CatMeal } from "./catalogDb";
@@ -34,7 +35,14 @@ You will receive ONE meal as JSON: its title and servings; for each dish its ing
 
 4. MISSING PREREQUISITES. A step needs something no earlier step made or no ingredient provides: bread that was never cubed or dried, a "reserved" sauce or "the toasted nuts" nothing produced, a thawed bird with no thaw time, an oven at temperature with no preheat, a marinade that must sit overnight with no time given; a reheat time that assumes room temperature for food coming out of the fridge.
 
-5. SAFETY AND TECHNIQUE. Rinsing raw poultry (USDA advises against it); a doneness temperature below the safe minimum (poultry 165°F, ground meat 160°F, whole cuts of beef/pork/lamb 145°F with a rest, fish 145°F) — a recipe that pulls a chicken at 155°F is wrong even if carryover is intended; raw poultry or ground meat with no doneness cue at all (no temperature and no reliable visual cue) in a fast-cook step; glaze or sugar added so early it will burn; corn tortillas rolled cold (they crack); a technique named with no step for it ("fold in the whipped whites" with no whipping step); food held in the danger zone (marinating at room temperature for hours).
+5. SAFETY AND TECHNIQUE. Rinsing raw poultry (USDA advises against it); doneness, by THE DONENESS RULE below; glaze or sugar added so early it will burn; corn tortillas rolled cold (they crack); a technique named with no step for it ("fold in the whipped whites" with no whipping step); food held in the danger zone (marinating at room temperature for hours).
+
+# THE DONENESS RULE (the app owner's ruling — apply it exactly)
+
+- Poultry must reach 165°F; ground meat (beef, pork, lamb, turkey, chicken; burgers, meatballs, meatloaf) must reach 160°F. The cook must be TOLD that temperature, or given a doneness check that holds at that temperature. A time alone, "cooked through", or colour alone ("no longer pink") is not such a check. Missing → "fix", in a fast step or a long braise alike. A temperature stated BELOW the minimum anywhere in the recipe (a chicken pulled at 155°F, carryover or not) → "block" — even when another step also gives the right temperature, because a cook can stop at the first one.
+- Pork chops, tenderloin and roasts: 145°F with a rest. Stated below 145°F anywhere → "block"; missing → "polish".
+- Whole cuts of beef and lamb (steaks, roasts, chops) may be cooked to the doneness the recipe names — medium-rare at 130–135°F is fine. Do NOT flag them.
+- Fish: 145°F or "flakes easily". Missing → "polish" only.
 
 6. SWAPS THAT AREN'T SHORTCUTS. A store-bought swap that replaces a product with the same product ("store-bought pizza dough" for "refrigerated pizza dough"; bought broth for bought broth), or with an invented product nobody sells.
 
@@ -42,7 +50,7 @@ You will receive ONE meal as JSON: its title and servings; for each dish its ing
 
 # Severity
 
-- "block": a cook following the recipe as written would fail (the dish cannot be made, does not fit, never cooks through) or would be unsafe (undercooked poultry or ground meat, rinsing raw poultry, a danger-zone hold).
+- "block": a cook following the recipe as written would fail (the dish cannot be made, does not fit, never cooks through) or would be unsafe (a doneness temperature below THE DONENESS RULE's minimum, rinsing raw poultry, a danger-zone hold).
 - "fix": wrong but survivable — the cook can work around it, but a careful editor would not publish it (an unlisted ingredient, a step's minutes off by hours, a self-swap, an amount nobody can buy).
 - "polish": minor wording, clarity or a nicer technique; the recipe works.
 
@@ -54,7 +62,7 @@ The meal's verdict is the most severe issue ("block" if any block, else "fix" if
 - Name the dish exactly as titled, the ingredient line (as printed) or the step index it concerns.
 - "why" is one sentence a busy editor can verify; "fix" is a one-line, concrete edit (an amount, a vessel, a step to add).
 - Do not report taste preferences, authenticity, plating, nutrition, or anything that is a matter of style when the recipe works.
-- Do not report the same underlying problem twice. Do not report a missing doneness TEMPERATURE when the step gives a reliable cue and the cook time is clearly long enough (a 45-minute braise of chicken thighs); do report it when a fast step (searing, grilling, a short bake) relies on time alone for raw poultry or ground meat.
+- Do not report the same underlying problem twice. Doneness is judged by THE DONENESS RULE above and nothing else.
 - Salt, pepper and oil used "to taste" or "for the pan" without a line are "polish" at most.
 - If nothing is wrong, return verdict "ok" with an empty issues list. An empty list is a good answer when it is true.
 
@@ -132,12 +140,14 @@ export function userMessage(m: CatMeal): string {
   return `${JSON.stringify(mealPayload(m))}\n\n${TOOL_INSTRUCTION}`;
 }
 
-/** The request body (shared by the live call, count_tokens and a batch line). */
-export function requestFor(m: CatMeal | string, maxTokens = 4096) {
+/** The request body (shared by the live call, count_tokens and a batch line).
+ *  `ttl1h`: the batch run — a batch spreads its requests over far more than 5 minutes, so the
+ *  1-hour cache (written at 2× input instead of 1.25×) is what keeps the prefix warm. */
+export function requestFor(m: CatMeal | string, maxTokens = 4096, ttl1h = false) {
   return {
     model: REVIEW_MODEL,
     max_tokens: maxTokens,
-    system: [{ type: "text" as const, text: RUBRIC, cache_control: { type: "ephemeral" as const } }],
+    system: [{ type: "text" as const, text: RUBRIC, cache_control: ttl1h ? { type: "ephemeral" as const, ttl: "1h" as const } : { type: "ephemeral" as const } }],
     tools: [REVIEW_TOOL],
     tool_choice: { type: "auto" as const },
     // SDK 0.90.0 does not type `between_tools`; the API accepts it (modelShape.ts).
@@ -148,9 +158,12 @@ export function requestFor(m: CatMeal | string, maxTokens = 4096) {
 
 // Claude Sonnet 5.5 list prices, $ per million tokens (claude-api skill table,
 // cached 2026-10-06): input 2, output 10, cache read 0.20; a 5-minute cache
-// write is 1.25× input. Batches bill every line at 50%.
-export const PRICE = { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.2 };
-export function costOf(u: { input_tokens: number; output_tokens: number; cache_creation_input_tokens?: number | null; cache_read_input_tokens?: number | null }, batch = false): number {
-  const c = (u.input_tokens * PRICE.input + u.output_tokens * PRICE.output + (u.cache_creation_input_tokens ?? 0) * PRICE.cacheWrite + (u.cache_read_input_tokens ?? 0) * PRICE.cacheRead) / 1e6;
+// write is 1.25× input, a 1-hour write 2×. Batches bill every line at 50%.
+export const PRICE = { input: 2, output: 10, cacheWrite: 2.5, cacheWrite1h: 4, cacheRead: 0.2 };
+export function costOf(u: { input_tokens: number; output_tokens: number; cache_creation_input_tokens?: number | null; cache_read_input_tokens?: number | null }, batch = false, ttl1h = false): number {
+  const c = (u.input_tokens * PRICE.input + u.output_tokens * PRICE.output + (u.cache_creation_input_tokens ?? 0) * (ttl1h ? PRICE.cacheWrite1h : PRICE.cacheWrite) + (u.cache_read_input_tokens ?? 0) * PRICE.cacheRead) / 1e6;
   return batch ? c / 2 : c;
 }
+
+/** Which rubric a review was made under (stored on every record from CAT-Q0 B on). */
+export const RUBRIC_SHA = createHash("sha256").update(RUBRIC).digest("hex").slice(0, 12);
