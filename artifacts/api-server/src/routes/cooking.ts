@@ -28,7 +28,7 @@ import {
 import { runAICall as productionRunAICall } from "../lib/ai/runAICall";
 import { withAIFailureStatus } from "../lib/ai/errors";
 import { resolvePromptDescriptorFromDb as productionResolvePromptDescriptor } from "../lib/ai/promptRegistry";
-import { prepCompositionFingerprint } from "../lib/prepWeekFingerprint";
+import { feastSessionFingerprint, prepCompositionFingerprint } from "../lib/prepWeekFingerprint";
 import {
   PrepWeekResultSchema,
   type PrepWeekResult,
@@ -45,6 +45,7 @@ import {
   buildFeastSession,
   coreScopeMealIds,
   FEAST_KEY_PREFIX,
+  feastOnlyLoad,
   feastSessionDay,
   finishPrepWeek,
   wireStepKeys,
@@ -455,7 +456,8 @@ export function createCookingRouter(
           sessionDay: feastSessionDay({ input, cookDays }),
           planRevisionId,
         };
-        const fingerprint = prepCompositionFingerprint(input);
+        // PREP-1 G — the feast's own inputs only: a weeknight swap keeps this cache.
+        const fingerprint = feastSessionFingerprint(feastOnlyLoad({ input, cookDays, identity })!.input);
         const activeVersion = (await resolvePromptDescriptor("prep.narrate_steps", prisma)).version;
         const row = await prisma.prepWeekStructure.findUnique({ where: { planId } });
         const stored = row ? splitStructure(row.structureJson).feast : null;

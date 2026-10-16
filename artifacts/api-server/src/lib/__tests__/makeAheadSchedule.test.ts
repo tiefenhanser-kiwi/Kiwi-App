@@ -72,7 +72,27 @@ describe("PREP-1 Part C — the make-ahead schedule", () => {
 
   it("the brine's hours come only from a sentence that names the brine", () => {
     assert.deepEqual(brineHoursOf(["Brine for 8–12 hours in the fridge."]), { min: 8, max: 12 });
-    // THX-2G-E's two turkeys, verbatim.
+    // QA-1 B19 — THX-2G-F's two turkeys as stored, verbatim: the brine's own
+    // "Make ahead (<Day> night):" steps. The dry brine never says "brine".
+    assert.deepEqual(
+      brineHoursOf([
+        "Make ahead (Tuesday night): Mix ¼ cup kosher salt, 1 tablespoon black pepper, and 1 teaspoon baking powder in a small bowl.",
+        "Make ahead (Tuesday night): Pat the turkey completely dry with paper towels — do not rinse it.",
+        "Make ahead (Tuesday night): Rub the salt mixture all over the turkey, including under the breast skin and inside the cavity; set it uncovered on a rack in a roasting pan and refrigerate 36 to 48 hours.",
+        "On Thursday: Remove the turkey from the fridge 1 hour before roasting to take the chill off; preheat the oven to 325°F.",
+      ]),
+      { min: 36, max: 48 },
+    );
+    assert.deepEqual(
+      brineHoursOf([
+        "Thaw (start Friday): If the turkey is frozen, transfer it to the fridge on Friday — a 14-lb bird takes 3–4 days to thaw fully, so it will be ready by Tuesday.",
+        "Make ahead (Wednesday night): Dissolve ½ cup kosher salt and ¼ cup light brown sugar in 1 gallon cold water in a large brining bag set in a roasting pan or cooler.",
+        "Make ahead (Wednesday night): Pat the turkey dry with paper towels, remove the neck and giblets (reserve for gravy), and submerge the bird in the brine, breast side down; seal the bag and refrigerate 12 to 24 hours, turning it once.",
+        "On Thursday: Remove the turkey from the brine, discard the brine, and pat the bird very dry inside and out with paper towels; let it sit at room temperature for 1 hour.",
+      ]),
+      { min: 12, max: 24 },
+    );
+    // THX-2G-E's two turkeys, verbatim (the older phrasing, no night step).
     assert.deepEqual(
       brineHoursOf(["Place the turkey in a brining bag set in a roasting pan; pour the brine over it, seal, and refrigerate overnight (8 to 24 hours), turning the bag halfway through."]),
       { min: 8, max: 24 },

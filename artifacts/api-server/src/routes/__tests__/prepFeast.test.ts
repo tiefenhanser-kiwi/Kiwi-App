@@ -34,14 +34,25 @@ const dish = (n: number, dishName: string, ingredients: ReturnType<typeof veg>[]
 });
 
 /** Mon weeknight (onion, carrot), Thu feast (onion, celery), Fri leftovers (cabbage). */
-export function feastWeek(opts: { feastTagged?: boolean } = {}): LoadPrepWeekInputResult {
+/** A celery row only a weeknight has, under a SMALLER id than the feast's celery. */
+const CELERY_RIBS = "a0000000-0000-4000-8000-000000000000";
+
+export function feastWeek(opts: { feastTagged?: boolean; weeknight?: "stir-fry" | "slaw" | "celery-ribs"; feastServings?: number; fold?: Map<string, string> } = {}): LoadPrepWeekInputResult {
+  // PREP-1 G — Monday can be swapped for a dinner that leads with the feast's celery,
+  // which re-orders the produce of a whole-plan build; or for one whose "celery ribs"
+  // row folds with the feast's celery under a smaller id.
+  const monday = opts.weeknight === "slaw"
+    ? { mealId: WEEKNIGHT, mealName: "Celery Slaw Bowls", cuisine: null, servingsOverride: null, dishes: [dish(4, "Celery Slaw", [veg(CELERY, "celery", "thinly sliced"), veg(CABBAGE, "green cabbage", "shredded")])] }
+    : opts.weeknight === "celery-ribs"
+      ? { mealId: WEEKNIGHT, mealName: "Celery Soup", cuisine: null, servingsOverride: null, dishes: [dish(5, "Celery Soup", [veg(CELERY_RIBS, "celery ribs", "chopped")])] }
+      : { mealId: WEEKNIGHT, mealName: "Weeknight Stir Fry", cuisine: null, servingsOverride: null, dishes: [dish(1, "Stir Fry", [veg(ONION, "yellow onion"), veg(CARROT, "carrot")])] };
   const input: PrepLoadedPlan = {
     planId: PLAN_ID,
     planName: "Thanksgiving week",
     meals: [
-      { mealId: WEEKNIGHT, mealName: "Weeknight Stir Fry", cuisine: null, servingsOverride: null, dishes: [dish(1, "Stir Fry", [veg(ONION, "yellow onion"), veg(CARROT, "carrot")])] },
+      monday,
       {
-        mealId: FEAST, mealName: "Classic Thanksgiving", cuisine: null, servingsOverride: 10,
+        mealId: FEAST, mealName: "Classic Thanksgiving", cuisine: null, servingsOverride: opts.feastServings ?? 10,
         dishes: [dish(2, "Sage Stuffing", [veg(ONION, "yellow onion"), veg(CELERY, "celery")])],
         ...(opts.feastTagged === false ? {} : { feast: true as const }),
       },
@@ -56,7 +67,7 @@ export function feastWeek(opts: { feastTagged?: boolean } = {}): LoadPrepWeekInp
       lagByMealId: new Map([[WEEKNIGHT, 1], [FEAST, 4], [FRIDAY, 5]]),
       dayNameByMealId: new Map([[WEEKNIGHT, "Monday"], [FEAST, "Thursday"], [FRIDAY, "Friday"]]),
     },
-    identity: { foldedIdByIngredientId: new Map() },
+    identity: { foldedIdByIngredientId: opts.fold ?? new Map() },
   };
 }
 
@@ -339,5 +350,47 @@ describe("PREP-1 Part D — Prep the feast", () => {
     } finally {
       await h.close();
     }
+  });
+});
+
+describe("PREP-1 G — the feast session's cache is the feast's alone", () => {
+  it("swapping a weeknight keeps the feast cached; changing the feast's servings re-narrates", async () => {
+    const calls: { stepIds: string[] }[] = [];
+    const mem = memoryPrisma();
+    let load = () => feastWeek();
+    const h = await spin({ loadPrepWeekInput: loaderStub(() => load()), prisma: mem.prisma as never, runAICall: narrationStub(calls) });
+    try {
+      assert.equal((await post(h.url, { session: "feast" })).status, 200);
+      assert.equal(calls.length, 1);
+      load = () => feastWeek({ weeknight: "slaw" });
+      const swapped = (await post(h.url, { session: "feast" })) as { status: number; body: Envelope };
+      assert.equal(swapped.body.cacheHit, true, "a weeknight swap re-narrated the feast");
+      assert.equal(calls.length, 1);
+      load = () => feastWeek({ weeknight: "slaw", feastServings: 12 });
+      const resized = (await post(h.url, { session: "feast" })) as { status: number; body: Envelope };
+      assert.equal(resized.body.cacheHit, false);
+      assert.equal(calls.length, 2);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("the session itself does not move with a weeknight: same narration input, same keys", async () => {
+    const { buildFeastSession } = await import("../../lib/prepWeekBuild");
+    const a = buildFeastSession(feastWeek())!;
+    const b = buildFeastSession(feastWeek({ weeknight: "slaw" }))!;
+    assert.equal(JSON.stringify(b.stepPlan.narrationInput), JSON.stringify(a.stepPlan.narrationInput));
+    assert.deepEqual(b.stepPlan.steps.map((s) => s.stepKey), a.stepPlan.steps.map((s) => s.stepKey));
+  });
+
+  it("a weeknight's row cannot decide a feast food's key, so a swap never orphans a feast tick", async () => {
+    const { buildFeastSession } = await import("../../lib/prepWeekBuild");
+    // Monday's "celery ribs" folds with the feast's celery (the loader's map sends
+    // both to the smaller id, Monday's). A whole-plan build would key the feast's
+    // celery on Monday's row; swap Monday out and that key — and its tick — is gone.
+    const withRibs = buildFeastSession(feastWeek({ weeknight: "celery-ribs", fold: new Map([[CELERY, CELERY_RIBS]]) }))!;
+    const without = buildFeastSession(feastWeek())!;
+    assert.ok(withRibs.stepPlan.steps.some((s) => s.stepKey === `produce#${CELERY}`));
+    assert.deepEqual(withRibs.stepPlan.steps.map((s) => s.stepKey), without.stepPlan.steps.map((s) => s.stepKey));
   });
 });

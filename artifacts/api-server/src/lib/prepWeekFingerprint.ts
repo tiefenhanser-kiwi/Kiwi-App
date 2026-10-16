@@ -112,3 +112,23 @@ export function prepCompositionFingerprint(input: PrepLoadedPlan): string {
     .update(JSON.stringify({ v: FINGERPRINT_ALGO_VERSION, engine: PREP_ENGINE_VERSION, input }))
     .digest("hex");
 }
+
+/**
+ * PREP-1 G — the feast session's version, in its own gate. Bump it when the feast
+ * session's build changes for the same feast (it shares PREP_ENGINE_VERSION too).
+ *   1 — built from the feast meals alone (feastOnlyLoad), not the whole plan scoped.
+ */
+export const FEAST_SESSION_VERSION = 1;
+
+/**
+ * PREP-1 G — "Prep the feast"'s cache gate: the FEAST'S OWN inputs (its meals —
+ * dishes, ingredients, servings — under its own name), the engine version and the
+ * session version. Never the weeknights: the session is built from the feast alone
+ * (prepWeekBuild.feastOnlyLoad), so a weeknight swap cannot change what it would
+ * narrate, and QA-1 measured each needless re-narration at $0.047.
+ */
+export function feastSessionFingerprint(feastInput: PrepLoadedPlan): string {
+  return createHash("sha256")
+    .update(JSON.stringify({ v: FINGERPRINT_ALGO_VERSION, engine: PREP_ENGINE_VERSION, session: FEAST_SESSION_VERSION, input: feastInput }))
+    .digest("hex");
+}

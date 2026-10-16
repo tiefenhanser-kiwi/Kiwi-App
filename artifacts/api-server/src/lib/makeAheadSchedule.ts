@@ -81,17 +81,33 @@ const THURSDAY = 4;
 const DAY_MS = 86_400_000;
 const KIND_ORDER: Record<MakeAheadKind, number> = { thaw: 0, make: 1, brine: 2 };
 
-/**
- * The dev catalog's phrases (THX-2G-E): "pour the brine over it … refrigerate
- * overnight (8 to 24 hours)", "rub the dry brine all over … refrigerate uncovered
- * 48 hours". A range or one figure, in the sentence that names the brine.
- */
+/** "36 to 48 hours", "12–24 hours", "48 hours". */
+const HOURS = /\b(\d{1,2})(?:\s*(?:to|–|-)\s*(\d{1,2}))?\s*hours?\b/i;
+/** THX-2G-F: the brine's own steps open "Make ahead (Tuesday night):". */
+const NIGHT_STEP = /^\s*Make ahead \([A-Za-z]+ night\):/i;
+/** The older catalog phrasing: the hours in the sentence that names the brine. */
 const BRINE_HOURS = /\bbrine\b[^.]*?\b(\d{1,2})(?:\s*(?:to|–|-)\s*(\d{1,2}))?\s*hours?\b/i;
 
+const hoursOf = (m: RegExpExecArray) => ({ min: Number(m[1]), max: Number(m[2] ?? m[1]) });
+
+/**
+ * The brine's hands-off window, as the recipe writes it.
+ *
+ * QA-1 B19 — THE BRINE'S OWN STEP NEED NOT SAY "BRINE". The dry brine reads "Rub the
+ * salt mixture all over the turkey … refrigerate 36 to 48 hours", and the sentence
+ * rule found nothing. So the `Make ahead (<Day> night):` steps (THX-2G-F) are read
+ * first, whatever their sentence says — the first hours they state; only a recipe
+ * without such a step falls back to the sentence that names the brine.
+ */
 export function brineHoursOf(texts: readonly string[]): { min: number; max: number } | undefined {
   for (const t of texts) {
+    if (!NIGHT_STEP.test(t)) continue;
+    const m = HOURS.exec(t);
+    if (m) return hoursOf(m);
+  }
+  for (const t of texts) {
     const m = BRINE_HOURS.exec(t);
-    if (m) return { min: Number(m[1]), max: Number(m[2] ?? m[1]) };
+    if (m) return hoursOf(m);
   }
   return undefined;
 }

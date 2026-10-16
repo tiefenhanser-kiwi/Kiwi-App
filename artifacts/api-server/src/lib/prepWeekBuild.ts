@@ -129,24 +129,51 @@ export function buildCoreWeek(load: Load, selected?: readonly string[]): PrepWee
 export const FEAST_KEY_PREFIX = "feast#";
 
 /**
- * "Prep the feast" — the feast's own session: the same whole-plan build, scoped to
- * the feast meals. Null for a plan without one.
+ * PREP-1 G — the feast session's load: THE FEAST MEALS ALONE.
+ *
+ * It used to be the whole plan built and then scoped (A3), the seam PREP-0 chose to
+ * keep one food fold and the week's container names. Measured on dev (QA-1 item 3):
+ * swapping Monday's dinner re-ordered the feast's produce steps — new step numbers,
+ * the same foods listed in a different order inside a container name — so its
+ * narration input moved with a meal it does not contain, and a cache keyed on the
+ * feast could serve stale numbers. The `feast#` prefix already keeps the sessions'
+ * ticks apart, so nothing needs the whole-plan build any more.
+ *
+ * So the session is built from the feast's own meals, under the feast meal's own
+ * name. Its food keys are then the feast's own: combinePrep keys a food on the
+ * smallest id among the rows IN ITS INPUT, so a weeknight's "garlic cloves" row,
+ * folded with the feast's garlic under a smaller id, no longer decides the feast
+ * garlic's key. (The plan's fold map still groups the feast's own rows; only a
+ * synonym chain running THROUGH a weeknight row could group differently.)
  *
  * Its day is the day BEFORE the feast (Wednesday), not the Sunday the week is
  * prepped on, so each feast meal's lag is measured from there (at most 1). From
  * Sunday a Thursday feast is 4 days out, and its onions would read "leave it for
  * cook day" in the one session that exists to cut them.
  */
-export function buildFeastSession(load: Load): PrepWeekBuild | null {
-  const ids = feastMealIds(load.input);
-  if (ids.length === 0) return null;
+export function feastOnlyLoad(load: Load): Load | null {
+  const meals = load.input.meals.filter((m) => m.feast);
+  if (meals.length === 0) return null;
+  const ids = new Set(meals.map((m) => m.mealId));
   const cd = load.cookDays ?? { prepDay: null, lagByMealId: new Map<string, number>(), dayNameByMealId: new Map<string, string>() };
-  const lagByMealId = new Map(cd.lagByMealId);
-  for (const id of ids) {
-    const lag = lagByMealId.get(id);
-    if (lag !== undefined) lagByMealId.set(id, Math.min(lag, 1));
-  }
-  return buildPrepWeekPlan({ ...load, cookDays: { ...cd, lagByMealId } }, { scopeMealIds: ids });
+  const only = <V>(m: ReadonlyMap<string, V>) => new Map([...m].filter(([id]) => ids.has(id)));
+  const lagByMealId = new Map([...only(cd.lagByMealId)].map(([id, lag]) => [id, Math.min(lag, 1)] as const));
+  return {
+    input: { planId: load.input.planId, planName: meals[0].mealName, meals },
+    cookDays: {
+      prepDay: cd.prepDay,
+      lagByMealId,
+      dayNameByMealId: only(cd.dayNameByMealId),
+      ...(cd.pastMealIds ? { pastMealIds: new Set([...cd.pastMealIds].filter((id) => ids.has(id))) } : {}),
+    },
+    identity: load.identity,
+  };
+}
+
+/** "Prep the feast" — the feast's own session (see feastOnlyLoad). Null for a plan without one. */
+export function buildFeastSession(load: Load): PrepWeekBuild | null {
+  const feast = feastOnlyLoad(load);
+  return feast ? buildPrepWeekPlan(feast) : null;
 }
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];

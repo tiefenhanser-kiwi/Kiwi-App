@@ -38,6 +38,7 @@ import {
   type SchedulerPhase,
 } from "./cookingScheduler";
 import { logger } from "./logger";
+import { FEAST_MEAL_TAG } from "./prepWeekAggregation";
 
 export interface MealTiming {
   /** Wall-clock start-to-plate, D-WS9-122's definition. Null when underivable. */
@@ -119,6 +120,34 @@ export function deriveMealTiming(dishes: SchedulerDish[]): MealTiming {
   };
 }
 
+// ── PREP-1 G (BUG-418) — A FEAST'S CLOCK IS THURSDAY'S ─────────────────────────
+//
+// A Thanksgiving feast spreads its work over the week: "Make ahead (Monday):" the
+// cranberry sauce, "Make ahead (Tuesday night):" the brine, and only "On Thursday:"
+// the roast. Scheduled as one sequence, Monday's simmer and Wednesday's pie bake
+// landed on Thursday's clock — Vegetarian read 238 total / 218 hands-on, about 101
+// of those hands-on minutes being Monday–Wednesday work.
+//
+// So for a meal tagged `thanksgiving-feast` the make-ahead RUNS are left out before
+// the scheduler sees the steps. The run is THX-2G-F's reading (scripts/thx2/
+// thx2Checks.ts capMakeAheadMinutes): it starts at a step opening "Make ahead (" and
+// ends before the step opening "On Thursday:" — the model prefixes a run's first
+// step and leaves the simmer or bake inside it unprefixed. Not a parallelism rule:
+// which steps happen on the day is a fact about the recipe, and the scheduler still
+// decides everything about how the day's steps overlap.
+const MAKE_AHEAD_RUN_START = /^\s*make ahead \(/i;
+const ON_THURSDAY = /^\s*on thursday:/i;
+
+/** A dish's steps, in step order, less its make-ahead runs: what happens on the day. */
+export function onTheDaySteps<T extends { text: string }>(steps: readonly T[]): T[] {
+  let inRun = false;
+  return steps.filter((s) => {
+    if (MAKE_AHEAD_RUN_START.test(s.text)) inRun = true;
+    else if (ON_THURSDAY.test(s.text)) inRun = false;
+    return !inRun;
+  });
+}
+
 /**
  * Derive a persisted meal's timing from its PERSISTED steps and stamp it onto
  * the meal + its dishes, inside the caller's transaction.
@@ -158,11 +187,36 @@ export async function stampMealTiming(
     select: {
       ownerId: true, stepIndex: true, estimatedMinutes: true, phaseType: true, isTimingSensitive: true,
       parallelGroup: true, componentKey: true, pathKey: true,
+      // PREP-1 G (BUG-418) — read only to find a feast's make-ahead runs.
+      stepTextTranslated: true,
     },
     orderBy: [{ ownerId: "asc" }, { stepIndex: "asc" }],
   });
+  // positionIndex comes from the PERSISTED link, not the caller's array order
+  // (D-WS9-235 follow-up). POST/PATCH /me/meals payloads carry a client-supplied
+  // positionIndex (0–20) that need not be array-ordered, and the backfill reads
+  // the link — so this is what keeps a meal re-saved tomorrow on the same
+  // number the backfill gave it. Array order is only the fallback for a dish
+  // whose link is missing (never on a real write; every caller links first).
+  // PREP-1 G (BUG-418) — the meal's tags ride the same read (no extra round trip).
+  const links = await tx.mealDishLink.findMany({
+    where: { mealId, dishId: { in: dishIds } },
+    select: { dishId: true, positionIndex: true, meal: { select: { tags: true } } },
+  });
+  // PREP-1 G (BUG-418) — a feast's derived times are Thursday's. Every other meal
+  // passes its steps through exactly as before.
+  const isFeast = links.some((l) => l.meal?.tags?.includes(FEAST_MEAL_TAG));
+  const key = (s: { ownerId: string; stepIndex: number }) => `${s.ownerId}|${s.stepIndex}`;
+  const onTheDay = isFeast
+    ? new Set(
+        [...new Set(steps.map((s) => s.ownerId))].flatMap((id) =>
+          onTheDaySteps(steps.filter((s) => s.ownerId === id).map((s) => ({ ...s, text: s.stepTextTranslated }))).map(key),
+        ),
+      )
+    : null;
   const byDish = new Map<string, SchedulerDish["steps"]>();
   for (const s of steps) {
+    if (onTheDay && !onTheDay.has(key(s))) continue;
     const list = byDish.get(s.ownerId) ?? [];
     list.push({
       stepIndex: s.stepIndex,
@@ -175,16 +229,6 @@ export async function stampMealTiming(
     });
     byDish.set(s.ownerId, list);
   }
-  // positionIndex comes from the PERSISTED link, not the caller's array order
-  // (D-WS9-235 follow-up). POST/PATCH /me/meals payloads carry a client-supplied
-  // positionIndex (0–20) that need not be array-ordered, and the backfill reads
-  // the link — so this is what keeps a meal re-saved tomorrow on the same
-  // number the backfill gave it. Array order is only the fallback for a dish
-  // whose link is missing (never on a real write; every caller links first).
-  const links = await tx.mealDishLink.findMany({
-    where: { mealId, dishId: { in: dishIds } },
-    select: { dishId: true, positionIndex: true },
-  });
   const positionByDish = new Map(links.map((l) => [l.dishId, l.positionIndex]));
   const schedulerDishes: SchedulerDish[] = dishIds
     .filter((id) => byDish.has(id))
