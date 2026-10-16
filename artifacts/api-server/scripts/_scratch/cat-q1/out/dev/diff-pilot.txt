@@ -1,0 +1,252 @@
+CAT-Q1 plan — dev — set pilot — 2026-10-16T02:25:50.333Z — editor f8861f1c35cf · rubric c497f2ae220e
+
+═══ Korean Beef Bowl with Steamed Rice, Cucumber Kimchi, and a Fried Egg — 6929ad67-5b44-4e78-9daf-ef4c6e7f8d13 — ACCEPTED — re-review verdict ok
+  NOTE: this payload is not the one CAT-Q0 reviewed (dev differs from production) — the issues may not describe it
+  issue #1 [fix · class 5] Korean Soy-Sesame Ground Beef · step 5 — "until browned and no pink remains" — fix: Add: cook until an instant-read thermometer reads 160°F in the beef.
+  [C #1] Korean Soy-Sesame Ground Beef — step 5
+      old: Add 1½ pounds ground beef and cook, breaking it up with a spoon, for 6–7 minutes until browned and no pink remains.
+      new: Add 1½ pounds ground beef and cook, breaking it up with a spoon, for 6–7 minutes until browned and no pink remains and an instant-read thermometer reads 160°F.
+
+═══ Beef Keema Curry with Peas — ecf4a7b1-90ee-49c8-a7df-718093a4dadf — ACCEPTED — re-review verdict ok
+  NOTE: this payload is not the one CAT-Q0 reviewed (dev differs from production) — the issues may not describe it
+  issue #1 [fix · class 5] Beef Keema Curry with Peas · ingredient "1½ pounds ground beef (85% lean)" · step 7 — "cooking over medium-high heat for 6–7 minutes until no pink remains and the meat is lightly browned" — fix: Add: cook until an instant-read thermometer reads 160°F in the meat (the later 10-minute simmer does not replace the check).
+  [C #1] Beef Keema Curry with Peas — step 7
+      old: Add the 1½ pounds ground beef and break it up with a spoon, cooking over medium-high heat for 6–7 minutes until no pink remains and the meat is lightly browned.
+      new: Add the 1½ pounds ground beef and break it up with a spoon, cooking over medium-high heat for 6–7 minutes until no pink remains, the meat is lightly browned, and an instant-read thermometer reads 160°F.
+
+═══ Classic Tex-Mex Ground Beef Tacos — 5edebecb-4190-45ed-8624-6945f80031f0 — ACCEPTED — re-review verdict ok
+  NOTE: this payload is not the one CAT-Q0 reviewed (dev differs from production) — the issues may not describe it
+  issue #1 [fix · class 5] Seasoned Ground Beef Taco Filling · step 3 — "cook, breaking it up with a spoon, until browned and no pink remains, about 7 minutes" — fix: Add: cook until the beef reaches 160°F on an instant-read thermometer (check a few spots) before draining.
+  [C #1] Seasoned Ground Beef Taco Filling — step 3
+      old: Add the 1½ pounds ground beef to the skillet and cook, breaking it up with a spoon, until browned and no pink remains, about 7 minutes; drain excess fat.
+      new: Add the 1½ pounds ground beef to the skillet and cook, breaking it up with a spoon, until browned and no pink remains and an instant-read thermometer reads 160°F, about 7 minutes; drain excess fat.
+
+═══ Spaghetti and Turkey Meatballs in Marinara — 5ea89dd3-8b0e-4963-865f-1be7a8d7e6c7 — ACCEPTED — re-review verdict ok
+  NOTE: this payload is not the one CAT-Q0 reviewed (dev differs from production) — the issues may not describe it
+  issue #1 [fix · class 2] Turkey Meatballs in San Marzano Marinara · ingredient "3 cloves garlic (2 minced for meatballs, 3 minced for sauce)" — "3 cloves garlic (2 minced for meatballs, 3 minced for sauce)" — fix: Replace both lines with a single '5 cloves garlic (2 for meatballs, 3 for sauce)'.
+  [C #1] Turkey Meatballs in San Marzano Marinara — line: 3 clove garlic (2 minced for meatballs, 3 minced for sauce) → 5 clove garlic (2 for meatballs, 3 for sauce)
+  [C #1] Turkey Meatballs in San Marzano Marinara — line: 3 clove garlic (minced, for sauce) → (removed)
+
+═══ Herb Garlic Butter Chicken Bites with Rosemary and Parmesan — 3ab32cd0-15c0-40b9-a2b0-28dc83720ee0 — ACCEPTED — re-review verdict ok
+  NOTE: this payload is not the one CAT-Q0 reviewed (dev differs from production) — the issues may not describe it
+  issue #1 [fix · class 5] Herb Garlic Butter Chicken Bites with Rosemary and Parmesan · step 4 — "cook 2–3 minutes more until cooked through and golden on all sides" — fix: Add: cook until a thermometer in the thickest cube reads 165°F (also reiterate in step 6).
+  issue #2 [fix · class 1] Herb Garlic Butter Chicken Bites with Rosemary and Parmesan · ingredient "2 pounds boneless skinless chicken breasts (cut into 1-inch cubes)" · step 3 — "add the chicken bites in a single layer and sear undisturbed for 3 minutes" — fix: Sear in two batches (about 1 lb each), adding oil for the second batch, or use two skillets.
+  [C #2] Herb Garlic Butter Chicken Bites with Rosemary and Parmesan — step 3
+      old: Heat 1 tablespoon olive oil in a large skillet over medium-high until shimmering, then add the chicken bites in a single layer and sear undisturbed for 3 minutes until golden on the bottom.
+      new: Heat ½ tablespoon of the olive oil in a large skillet over medium-high until shimmering, then add half the chicken bites in a single layer and sear undisturbed for 3 minutes until golden on the bottom.
+  [C #1 #2] Herb Garlic Butter Chicken Bites with Rosemary and Parmesan — step 4
+      old: Flip the chicken bites and cook 2–3 minutes more until cooked through and golden on all sides, then transfer to a plate.
+      new: Flip the chicken bites and cook 2–3 minutes more until golden on all sides and an instant-read thermometer in the thickest cube reads 165°F, then transfer to a plate. Repeat with the remaining ½ tablespoon olive oil and the remaining chicken, cooking it the same way.
+
+═══ Chicken Fried Rice with Egg and Peas — a1948dff-d093-42ca-a9d9-c849f12b6161 — ACCEPTED — re-review verdict ok
+  NOTE: this payload is not the one CAT-Q0 reviewed (dev differs from production) — the issues may not describe it
+  issue #1 [fix · class 5] Chicken Fried Rice with Egg and Peas · step 3 — "then stir and cook 2 more minutes until cooked through; transfer to a plate." — fix: Add: cook until an instant-read thermometer reads 165°F in the thickest piece.
+  [C #1] Chicken Fried Rice with Egg and Peas — step 3
+      old: Heat 1 tablespoon neutral oil in a large wok or skillet over high heat until shimmering, add the chicken in a single layer, and cook undisturbed for 2 minutes, then stir and cook 2 more minutes until cooked through; transfer to a plate.
+      new: Heat 1 tablespoon neutral oil in a large wok or skillet over high heat until shimmering, add the chicken in a single layer, and cook undisturbed for 2 minutes, then stir and cook 2 more minutes until an instant-read thermometer in the thickest piece reads 165°F; transfer to a plate.
+
+═══ Shrimp Scampi over Zucchini Noodles — 3c0784ae-2435-4c75-95e8-7cd44d076cf0 — ACCEPTED — re-review verdict ok
+  NOTE: this payload is not the one CAT-Q0 reviewed (dev differs from production) — the issues may not describe it
+  issue #1 [fix · class 1] Spiralized Zucchini Noodles · ingredient "4 medium zucchini (spiralized into noodles)" · step 4 — "add the zucchini noodles, ½ teaspoon kosher salt, and ¼ teaspoon black pepper and toss constantly for 2 minutes" — fix: Cook the noodles in two batches (or use a very large pan), about 2 minutes per batch.
+  [C #1] Spiralized Zucchini Noodles — step 4 — minutes 3 → 4
+      old: Add the minced garlic and sauté 30 seconds until fragrant, then add the zucchini noodles, ½ teaspoon kosher salt, and ¼ teaspoon black pepper and toss constantly for 2 minutes until just tender but still with a slight bite — do not overcook or they will release water.
+      new: Add the minced garlic and sauté 30 seconds until fragrant, then add half the zucchini noodles, ¼ teaspoon kosher salt, and ⅛ teaspoon black pepper and toss constantly for 2 minutes until just tender but still with a slight bite — do not overcook or they will release water. Transfer to a plate and repeat with the remaining noodles, salt, and pepper, working in two batches so the pan isn't crowded and the noodles sauté rather than steam.
+
+═══ Ginger Beef Egg Roll in a Bowl — 625f8521-a6dd-4d41-ad62-a54cefd69a2c — ACCEPTED — re-review verdict ok
+  NOTE: this payload is not the one CAT-Q0 reviewed (dev differs from production) — the issues may not describe it
+  issue #1 [fix · class 5] Ginger Beef Egg Roll in a Bowl · step 6 — "cook, breaking it up, for 6–7 minutes until browned and cooked through; drain excess fat." — fix: Add: 'cook until an instant-read thermometer reads 160°F in the beef, then drain excess fat.'
+  [C #1] Ginger Beef Egg Roll in a Bowl — step 6
+      old: Add 1½ pounds ground beef, season with ½ teaspoon kosher salt and ¼ teaspoon black pepper, and cook, breaking it up, for 6–7 minutes until browned and cooked through; drain excess fat.
+      new: Add 1½ pounds ground beef, season with ½ teaspoon kosher salt and ¼ teaspoon black pepper, and cook, breaking it up, for 6–7 minutes until browned and cooked through and an instant-read thermometer reads 160°F; drain excess fat.
+
+═══ Classic Tomato-Vegetable Minestrone with Ditalini — b12c9ff5-7cad-439b-bce9-82419a06808f — DECLINED
+  NOTE: this payload is not the one CAT-Q0 reviewed (dev differs from production) — the issues may not describe it
+  issue #1 [fix · class 7] Classic Tomato-Vegetable Minestrone with Ditalini — "Stir in the cannellini beans and 6 oz dry ditalini and cook for 9–10 minutes" — fix: Correct the derived total to roughly 60 minutes, or state clearly that prep overlaps the cook steps.
+  declined #1: The derived total is computed by the app rather than stored in any step or ingredient line, and fixing it would mean changing step structure or minutes for reasons the rules don't allow; the step minutes match their own text.
+
+═══ Sheet-Pan Gnocchi with Tomatoes, Broccolini, and Lemon Salad — 45077d29-688d-4adc-9a9e-e6cbc2e5aa2a — REJECTED
+  NOTE: this payload is not the one CAT-Q0 reviewed (dev differs from production) — the issues may not describe it
+  issue #1 [fix · class 1] Sheet-Pan Gnocchi with Tomatoes and Broccolini · ingredient "32 ounces shelf-stable gnocchi (two 16 oz packages)" · step 3 — "spread the gnocchi mixture in a single layer, then roast for 20–25 minutes" — fix: Halve the gnocchi to 16 oz (and vegetables proportionally) or split the mixture between two sheet pans.
+  (not applied) [C #1] Sheet-Pan Gnocchi with Tomatoes and Broccolini — step 0
+  (not applied) old: Preheat the oven to 450°F and place a large rimmed sheet pan inside to heat.
+  (not applied) new: Preheat the oven to 450°F and place two large rimmed sheet pans inside to heat.
+  (not applied) [C #1] Sheet-Pan Gnocchi with Tomatoes and Broccolini — step 3
+  (not applied) old: Carefully remove the hot pan from the oven and spread the gnocchi mixture in a single layer, then roast for 20–25 minutes, shaking the pan once halfway through, until the gnocchi are golden and crisp and the tomatoes have burst.
+  (not applied) new: Carefully remove the hot pans from the oven and divide the gnocchi mixture between them, spreading it in a single layer on each, then roast for 20–25 minutes, shaking the pans once halfway through, until the gnocchi are golden and crisp and the tomatoes have burst.
+  (not applied) [C #1] Sheet-Pan Gnocchi with Tomatoes and Broccolini — step 4
+  (not applied) old: Scatter the 6 oz torn fresh mozzarella over the hot pan and return to the oven for 2 minutes until just melted.
+  (not applied) new: Scatter the 6 oz torn fresh mozzarella over the hot gnocchi on both pans and return to the oven for 2 minutes until just melted.
+  REJECTED: step 0 (Sheet-Pan Gnocchi with Tomatoes and Broccolini): no issue it answers names it, and no edited line requires it — "Preheat the oven to 450°F and place a large rimmed sheet pan inside to…"
+  REJECTED: step 4 (Sheet-Pan Gnocchi with Tomatoes and Broccolini): no issue it answers names it, and no edited line requires it — "Scatter the 6 oz torn fresh mozzarella over the hot pan and return to …"
+
+═══ Lemon-Herb Sheet-Pan Salmon and Asparagus — 4e5005f6-3b1d-44fe-867a-7ce0993e3bf1 — REJECTED
+  NOTE: this payload is not the one CAT-Q0 reviewed (dev differs from production) — the issues may not describe it
+  issue #1 [fix · class 1] Roasted Asparagus with Garlic and Lemon · ingredient "1½ pounds asparagus (woody ends snapped off)" · step 1 — "Toss the asparagus on the second half of the sheet pan" — fix: Roast the asparagus on its own rimmed sheet pan in a single layer (or reduce to 1 lb), and update the salmon step to use the whole pan.
+  (not applied) [C #1] Roasted Asparagus with Garlic and Lemon — step 1
+  (not applied) old: Toss the asparagus on the second half of the sheet pan with 1½ tablespoons olive oil, the minced garlic, ½ teaspoon lemon zest, ½ teaspoon kosher salt, and ¼ teaspoon black pepper until evenly coated.
+  (not applied) new: Toss the asparagus on a separate rimmed sheet pan with 1½ tablespoons olive oil, the minced garlic, ½ teaspoon lemon zest, ½ teaspoon kosher salt, and ¼ teaspoon black pepper until evenly coated, then spread in a single layer.
+  (not applied) [C #1] Lemon-Herb Sheet-Pan Salmon — step 2
+  (not applied) old: Pat the four 6-oz salmon fillets dry and place them skin-side down on one half of a rimmed sheet pan lined with foil; spoon the marinade evenly over the fillets and lay lemon slices on top.
+  (not applied) new: Pat the four 6-oz salmon fillets dry and place them skin-side down on a rimmed sheet pan lined with foil; spoon the marinade evenly over the fillets and lay lemon slices on top.
+  REJECTED: step 2 (Lemon-Herb Sheet-Pan Salmon): no issue it answers names it, and no edited line requires it — "Pat the four 6-oz salmon fillets dry and place them skin-side down on …"
+
+═══ Crispy Herb-Roasted Chicken Thighs with Roasted Potatoes and Green Beans — e251f17b-752a-4704-8b13-25ae0acae31b — ACCEPTED — re-review verdict ok
+  NOTE: this payload is not the one CAT-Q0 reviewed (dev differs from production) — the issues may not describe it
+  issue #1 [fix · class 3] Crispy Herb-Roasted Chicken Thighs · ingredient "1 teaspoon lemon zest" · step 2 — "1 teaspoon lemon zest" — fix: Add '1 lemon' to the shopping list (zest it for the chicken, then juice it for the green beans), or print the zest as '1 lemon (zested)'.
+  [C #1] Crispy Herb-Roasted Chicken Thighs — NEW line: 1 each lemon (zest for the chicken, then juice for the green beans) (Ingredient "lemon", 057e48fd-245a-4ce2-a22b-37c7a6881ad3)
+
+═══ Chicken Pho with Fresh Spring Rolls — 05ccd03e-2e8b-49e8-bbb1-7823f9d9a9c7 — ACCEPTED — re-review verdict ok
+  NOTE: this payload is not the one CAT-Q0 reviewed (dev differs from production) — the issues may not describe it
+  issue #1 [block · class 5] Chicken Pho · ingredient "1 whole chicken (about 3.5–4 lb, rinsed)" · step 3 — "1 whole chicken (about 3.5–4 lb, rinsed)" — fix: Remove 'rinsed' from the ingredient line and step 3; pat the chicken dry instead.
+  issue #2 [fix · class 5] Chicken Pho · step 4 — "cook uncovered for 45 minutes until the chicken is fully cooked through." — fix: Add: cook until a thermometer in the thickest part of the thigh reads 165°F.
+  issue #3 [fix · class 1] Fresh Shrimp and Vegetable Spring Rolls · ingredient "12 medium shrimps (peeled, deveined, boiled and halved lengthwise)" · step 6 — "and 3 shrimp halves (pink-side down) across the lower third of the wrapper." — fix: Increase shrimp to 18, or use 2 shrimp halves per roll.
+  [C #1] Chicken Pho — line: 1 each whole chicken (about 3.5–4 lb, rinsed) → 1 each whole chicken (about 3.5–4 lb)
+  [C #1] Chicken Pho — step 3
+      old: Place the rinsed whole chicken in a large stockpot, add the charred onion and ginger, the spice bag, 3 tablespoons fish sauce, 1 tablespoon rock sugar, 1½ teaspoons kosher salt, and 10 cups water; bring to a boil over high heat.
+      new: Pat the whole chicken dry and place it in a large stockpot, add the charred onion and ginger, the spice bag, 3 tablespoons fish sauce, 1 tablespoon rock sugar, 1½ teaspoons kosher salt, and 10 cups water; bring to a boil over high heat.
+  [C #2] Chicken Pho — step 4
+      old: Skim any foam from the surface, reduce heat to a gentle simmer, and cook uncovered for 45 minutes until the chicken is fully cooked through.
+      new: Skim any foam from the surface, reduce heat to a gentle simmer, and cook uncovered for 45 minutes until an instant-read thermometer in the thickest part of the chicken reads 165°F.
+  [C #3] Fresh Shrimp and Vegetable Spring Rolls — step 6
+      old: Layer a piece of butter lettuce, a small bundle of vermicelli, a few strips of cucumber and carrot, a few mint and cilantro leaves, 2–3 avocado slices, and 3 shrimp halves (pink-side down) across the lower third of the wrapper.
+      new: Layer a piece of butter lettuce, a small bundle of vermicelli, a few strips of cucumber and carrot, a few mint and cilantro leaves, 2–3 avocado slices, and 2 shrimp halves (pink-side down) across the lower third of the wrapper.
+
+═══ Tuna Melts with Tomato Soup — 0749b4f1-fe0a-47b9-885b-cf33ce3bae4c — REJECTED — re-review verdict fix
+  NOTE: this payload is not the one CAT-Q0 reviewed (dev differs from production) — the issues may not describe it
+  issue #1 [block · class 1] Tuna Melts · ingredient "60 ounces canned tuna in water (drained well (five 12 oz cans))" · step 0 — "60 ounces canned tuna in water (drained well (five 12 oz cans))" — fix: Use about 20 oz tuna (four 5 oz cans, drained), and update the step 0 text to match.
+  (not applied) [C #1] Tuna Melts — line: 60 ounce canned tuna in water (drained well (five 12 oz cans)) → 20 ounce canned tuna in water (drained well (four 5 oz cans))
+  (not applied) [C #1] Tuna Melts — step 0
+  (not applied) old: Drain the five 12 oz cans of tuna well, pressing out excess water, then flake into a large bowl.
+  (not applied) new: Drain the four 5 oz cans of tuna well, pressing out excess water, then flake into a large bowl.
+  REJECTED: new fix: [class 3] Tuna Melts step 2 · "1 tablespoon lemon juice (freshly squeezed)" — "1 tablespoon lemon juice (freshly squeezed)" — Fresh-squeezed juice is listed with no lemon to buy, so the shopping list has no source for it.
+
+═══ Creamy Chicken Broccoli Rice Casserole — 16dbd2aa-66d4-4825-bd5d-26cfbe89ab79 — ACCEPTED — re-review verdict ok
+  NOTE: this payload is not the one CAT-Q0 reviewed (dev differs from production) — the issues may not describe it
+  issue #1 [block · class 5] Creamy Chicken Broccoli Rice Casserole · step 7 — "until golden on the outside but not fully cooked through; transfer to a plate." — fix: Add to step 13: bake until chicken reaches 165°F in the thickest cubes and rice is tender before resting.
+  issue #2 [fix · class 1] Creamy Chicken Broccoli Rice Casserole · ingredient "1½ cups chicken broth" · step 11 — "Stir 1 cup uncooked long-grain white rice, the broccoli florets, and the chicken into the sauce mixture" — fix: Increase broth to about 2½ cups (or add ½–1 cup water) so the rice has enough liquid to cook.
+  [C #2] Creamy Chicken Broccoli Rice Casserole — line: 1.5 cup chicken broth → 2.5 cup chicken broth
+  [C #1] Creamy Chicken Broccoli Rice Casserole — step 13
+      old: Remove the foil and bake uncovered for an additional 10 minutes until the cheese is bubbly and lightly golden and the rice has absorbed the liquid.
+      new: Remove the foil and bake uncovered for an additional 10 minutes until the cheese is bubbly and lightly golden, the rice has absorbed the liquid, and an instant-read thermometer in the thickest part of the chicken reads 165°F.
+  [C #2] Creamy Chicken Broccoli Rice Casserole — step 10
+      old: In a large bowl, whisk together the 10.5 oz can of cream of chicken soup, 1½ cups chicken broth, and ½ cup sour cream until smooth, then stir in the sautéed onion and garlic and 1 cup of the shredded cheddar.
+      new: In a large bowl, whisk together the 10.5 oz can of cream of chicken soup, 2½ cups chicken broth, and ½ cup sour cream until smooth, then stir in the sautéed onion and garlic and 1 cup of the shredded cheddar.
+
+═══ BBQ-Glazed Pork Chops with Tangy Coleslaw and Baked Beans — 25f049a8-0f60-464f-90e0-a6cca4bb7a5e — ACCEPTED — re-review verdict ok
+  NOTE: this payload is not the one CAT-Q0 reviewed (dev differs from production) — the issues may not describe it
+  issue #1 [block · class 5] BBQ-Glazed Pork Chops · step 5 — "until grill marks form and the internal temperature reaches 135°F." — fix: Change step 5 to 'until grill marks form, about 4–5 minutes per side' (or say the chops are not done yet at 135°F) and keep 145°F only in step 6.
+  [C #1] BBQ-Glazed Pork Chops — step 5
+      old: Grill the pork chops over direct medium-high heat for 4–5 minutes per side, flipping once, until grill marks form and the internal temperature reaches 135°F.
+      new: Grill the pork chops over direct medium-high heat for 4–5 minutes per side, flipping once, until grill marks form.
+
+═══ Classic Sauced BBQ Chicken Halves with Grilled Corn and Creamy Coleslaw — 3db20bcd-abb6-4b40-a209-bdf94488c9a9 — ACCEPTED — re-review verdict ok
+  NOTE: this payload is not the one CAT-Q0 reviewed (dev differs from production) — the issues may not describe it
+  issue #1 [block · class 5] Classic Sauced BBQ Chicken Halves · step 6 — "until an instant-read thermometer inserted in the thickest part reads 155°F" — fix: Change step 6 to cook until the thickest part reads about 155–160°F before saucing, but state clearly that the chicken is not done until it reaches 165°F, or simply say 'reads 160°F' and finish to 165°F in step 7.
+  [C #1] Classic Sauced BBQ Chicken Halves — step 6
+      old: Move the chicken to indirect heat, close the lid, and cook 25–30 minutes until an instant-read thermometer inserted in the thickest part reads 155°F.
+      new: Move the chicken to indirect heat, close the lid, and cook 25–30 minutes until an instant-read thermometer inserted in the thickest part reads 165°F.
+
+═══ BBQ Grilled Chicken and Charred Corn Plate — 5c5631d8-a206-46f0-8583-70446fc53008 — ACCEPTED — re-review verdict ok
+  NOTE: this payload is not the one CAT-Q0 reviewed (dev differs from production) — the issues may not describe it
+  issue #1 [block · class 5] BBQ Grilled Chicken Thighs · step 4 — "until grill marks form and the internal temperature reaches 155°F" — fix: Change the step to say grill until grill marks form and the chicken reaches about 150°F, with the final 165°F check kept in the next step, or simply state 165°F here.
+  [C #1] BBQ Grilled Chicken Thighs — step 4
+      old: Grill the chicken thighs for 5–6 minutes per side, flipping once, until grill marks form and the internal temperature reaches 155°F.
+      new: Grill the chicken thighs for 5–6 minutes per side, flipping once, until grill marks form.
+
+═══ Classic Chicken Cheesesteak with Provolone, Peppers, and Onions — 71cbb581-28b1-417e-b459-a520a9e6eef6 — REJECTED
+  NOTE: this payload is not the one CAT-Q0 reviewed (dev differs from production) — the issues may not describe it
+  issue #1 [block · class 1] Old Bay Seasoned Oven Fries · ingredient "2 pounds russet potatoes (cut into ¼-inch sticks, skin on)" · step 4 — "Carefully spread the seasoned fries in a single layer on the preheated baking sheet, making sure they are not touching" — fix: Divide the fries between two preheated rimmed baking sheets (swap them between racks when flipping).
+  issue #2 [fix · class 5] Chicken Cheesesteak with Provolone, Peppers, and Onions · step 6 — "stir-fry until cooked through, about 3 more minutes." — fix: Add: cook until the chicken reaches 165°F on an instant-read thermometer.
+  issue #3 [fix · class 1] Chicken Cheesesteak with Provolone, Peppers, and Onions · step 6 — "add the seasoned chicken in a single layer, and sear undisturbed for 2 minutes" — fix: Remove the vegetables to a bowl and sear the chicken in 2 batches (or use a second pan), then recombine.
+  issue #4 [fix · class 6] Chicken Cheesesteak with Provolone, Peppers, and Onions · ingredient "2 pounds boneless skinless chicken breasts (sliced very thin against the grain, partially frozen for easier slicing)" — "2 pound pre-sliced stir-fry chicken strips" — fix: Remove the swap, or replace it with a distinct product such as thin-sliced chicken breast cutlets.
+  (not applied) [C #1] Old Bay Seasoned Oven Fries — step 0
+  (not applied) old: Preheat the oven to 425°F and place a large rimmed baking sheet inside to heat up.
+  (not applied) new: Preheat the oven to 425°F and place two large rimmed baking sheets inside to heat up.
+  (not applied) [C #1] Old Bay Seasoned Oven Fries — step 4
+  (not applied) old: Carefully spread the seasoned fries in a single layer on the preheated baking sheet, making sure they are not touching, and roast for 20 minutes.
+  (not applied) new: Carefully divide the seasoned fries between the two preheated baking sheets, spreading each in a single layer so they are not touching, and roast for 20 minutes, swapping the sheets between racks halfway through.
+  (not applied) [C #2 #3] Chicken Cheesesteak with Provolone, Peppers, and Onions — step 6
+  (not applied) old: Add the remaining 1 tablespoon vegetable oil to the cleared side of the pan, add the seasoned chicken in a single layer, and sear undisturbed for 2 minutes, then break apart and stir-fry until cooked through, about 3 more minutes.
+  (not applied) new: Move the vegetables to a bowl, add the remaining 1 tablespoon vegetable oil to the pan, add the seasoned chicken in a single layer (in 2 batches if needed), and sear undisturbed for 2 minutes, then break apart and stir-fry until cooked through and an instant-read thermometer in the thickest piece reads 165°F, about 3 more minutes. Return the vegetables to the pan.
+  declined #4: Swaps are not editable ingredient lines, steps or minutes, so this cannot be changed with the available edit types.
+  REJECTED: step 0 (Old Bay Seasoned Oven Fries): no issue it answers names it, and no edited line requires it — "Preheat the oven to 425°F and place a large rimmed baking sheet inside…"
+
+═══ BBQ-Glazed Spatchcock Grilled Chicken with Grilled Corn and Creamy Coleslaw — 8a9e026d-c26e-425e-8d9c-56077458a60b — ACCEPTED — re-review verdict ok
+  NOTE: this payload is not the one CAT-Q0 reviewed (dev differs from production) — the issues may not describe it
+  issue #1 [block · class 5] BBQ-Glazed Spatchcock Grilled Chicken · step 7 — "grill 30–35 minutes until a thermometer in the thickest part of the thigh reads 155°F" — fix: Change step 7 to read 'until the thigh reads about 150–155°F before glazing' only if the final 165°F check stays. Safer: say 'until the thigh reaches 165°F, glazing in the last few minutes'.
+  [C #1] BBQ-Glazed Spatchcock Grilled Chicken — step 7
+      old: Move the chicken to the indirect side, close the lid, and grill 30–35 minutes until a thermometer in the thickest part of the thigh reads 155°F.
+      new: Move the chicken to the indirect side, close the lid, and grill 30–35 minutes until an instant-read thermometer in the thickest part of the thigh reads 165°F.
+
+═══ Hyderabadi Dum Chicken Biryani — 957696fb-c0f4-486c-868d-658036b0db68 — REJECTED
+  NOTE: this payload is not the one CAT-Q0 reviewed (dev differs from production) — the issues may not describe it
+  issue #1 [block · class 5] Hyderabadi Dum Chicken Biryani · step 1 — "marinate at room temperature while you prepare everything else" — fix: Marinate covered in the refrigerator (at least 30 minutes, up to overnight), or cap the room-temperature hold at 30 minutes.
+  issue #2 [fix · class 5] Hyderabadi Dum Chicken Biryani · ingredient "2½ pounds bone-in chicken thighs (cut into large pieces)" · step 12 — "cook on dum for 25 minutes — do not lift the lid." — fix: After the rest in step 13, add: check that a thigh reaches 165°F in the thickest part away from the bone; return to heat if not.
+  issue #3 [fix · class 4] Hyderabadi Dum Chicken Biryani · ingredient "1 cup fried onions (birista) (thinly sliced yellow onion, deep-fried until golden and crisp)" · step 1 — "and half the fried onions (½ cup); toss well, cover, and marinate" — fix: Move the onion frying before the marinade step, or add the birista to the marinade after step 3, and merge the duplicate onion ingredient lines.
+  issue #4 [fix · class 2] Hyderabadi Dum Chicken Biryani · ingredient "3 tablespoons ghee" · step 11 — "Drizzle the saffron milk and 2 tablespoons ghee over the top of the rice layer." — fix: List 2 tablespoons ghee (plus 1 tablespoon if used in step 5) and state which fat is used in step 5.
+  (not applied) [C #3] Hyderabadi Dum Chicken Biryani — line: 1 cup fried onions (birista) (thinly sliced yellow onion, deep-fried until golden and crisp) → (removed)
+  (not applied) [C #4] Hyderabadi Dum Chicken Biryani — line: 3 tablespoon ghee → 2 tablespoon ghee
+  (not applied) [C #1 #3] Hyderabadi Dum Chicken Biryani — step 1
+  (not applied) old: In a large bowl, combine the chicken pieces with ¾ cup yogurt, 1½ tablespoons grated ginger, 6 minced garlic cloves, 3 slit green chilies, 2 tablespoons lemon juice, 2 teaspoons kosher salt, and half the fried onions (½ cup); toss well, cover, and marinate at room temperature while you prepare everything else.
+  (not applied) new: In a large bowl, combine the chicken pieces with ¾ cup yogurt, 1½ tablespoons grated ginger, 6 minced garlic cloves, 3 slit green chilies, 2 tablespoons lemon juice, and 2 teaspoons kosher salt; toss well, cover, and marinate in the refrigerator while you prepare everything else.
+  (not applied) [C #4] Hyderabadi Dum Chicken Biryani — step 5
+  (not applied) old: In the pot with the reserved onion oil (or ghee), add 5 cardamom pods, 4 cloves, 1 cinnamon stick, 2 bay leaves, ½ teaspoon black peppercorns, and 1 star anise; fry over medium heat for 1–2 minutes until fragrant.
+  (not applied) new: In the pot with the reserved onion oil, add 5 cardamom pods, 4 cloves, 1 cinnamon stick, 2 bay leaves, ½ teaspoon black peppercorns, and 1 star anise; fry over medium heat for 1–2 minutes until fragrant.
+  (not applied) [C #3] Hyderabadi Dum Chicken Biryani — step 8
+  (not applied) old: Add the marinated chicken (with all its marinade) to the spiced pot; spread into an even layer and cook over medium-high heat, stirring occasionally, for 8–10 minutes until the chicken is no longer pink on the outside and the marinade has reduced and coats the meat.
+  (not applied) new: Add the marinated chicken (with all its marinade) and ½ cup of the fried onions to the spiced pot; spread into an even layer and cook over medium-high heat, stirring occasionally, for 8–10 minutes until the chicken is no longer pink on the outside and the marinade has reduced and coats the meat.
+  (not applied) [C #2] Hyderabadi Dum Chicken Biryani — step 13
+  (not applied) old: Remove from heat and let the biryani rest, lid on, for 10 minutes before opening.
+  (not applied) new: Remove from heat and let the biryani rest, lid on, for 10 minutes before opening. Check that an instant-read thermometer in the thickest part of a thigh, away from the bone, reads 165°F; if not, return the pot to the heat until it does.
+  REJECTED: step 8 (Hyderabadi Dum Chicken Biryani): no issue it answers names it, and no edited line requires it — "Add the marinated chicken (with all its marinade) to the spiced pot; s…"
+
+═══ BBQ-Glazed Beer Can Chicken with Roasted Corn and Creamy Coleslaw — 98825a51-664f-41b4-a050-a0b4d6fc42df — ACCEPTED — re-review verdict ok
+  NOTE: this payload is not the one CAT-Q0 reviewed (dev differs from production) — the issues may not describe it
+  issue #1 [block · class 5] BBQ-Glazed Beer Can Chicken · step 6 — "until the thickest part of the thigh reads 155°F on an instant-read thermometer (it will carry over to 165°F while resting)" — fix: Roast until the thickest part of the thigh reads 165°F (and the breast reads 165°F) on an instant-read thermometer, then rest.
+  [C #1] BBQ-Glazed Beer Can Chicken — step 6
+      old: Roast the chicken at 425°F for 60–70 minutes until the thickest part of the thigh reads 155°F on an instant-read thermometer (it will carry over to 165°F while resting).
+      new: Roast the chicken at 425°F for 60–70 minutes until an instant-read thermometer in the thickest part of the thigh reads 165°F.
+
+═══ Crawfish Boil with French Bread and Coleslaw — a39f8044-9f1c-4ee7-b660-abcf8dd4e168 — ACCEPTED — re-review verdict fix
+  NOTE: this payload is not the one CAT-Q0 reviewed (dev differs from production) — the issues may not describe it
+  issue #1 [block · class 1] Cajun Crawfish Boil with Corn and Red Potatoes · ingredient "5 quarts water" · step 0 — "Fill a 40-quart stockpot with 5 quarts of water and bring to a rolling boil over high heat." — fix: Use about 6 gallons (24 quarts) of water in the 40-quart pot, or cut the crawfish and vegetables to what 5 quarts can cover.
+  [C #1] Cajun Crawfish Boil with Corn and Red Potatoes — line: 5 quart water → 24 quart water
+  [C #1] Cajun Crawfish Boil with Corn and Red Potatoes — step 0
+      old: Fill a 40-quart stockpot with 5 quarts of water and bring to a rolling boil over high heat.
+      new: Fill a 40-quart stockpot with 24 quarts (6 gallons) of water and bring to a rolling boil over high heat.
+  left (not this patch's): [fix · class 6] Cajun Crawfish Boil with Corn and Red Potatoes — "1 packet Zatarain's Crawfish, Shrimp & Crab Boil seasoning bag"
+
+═══ Spatchcocked Roast Chicken with Smoked Paprika, Roasted Potatoes, and Garlic Green Beans — b873f58d-064f-4244-bf2d-9f236b40de2a — ACCEPTED — re-review verdict ok
+  NOTE: this payload is not the one CAT-Q0 reviewed (dev differs from production) — the issues may not describe it
+  issue #1 [block · class 5] Spatchcocked Roast Chicken with Smoked Paprika · step 6 — "until the breast registers 160°F and the thigh registers 175°F on an instant-read thermometer" — fix: Change to 'until the breast registers 165°F and the thigh registers 175°F'.
+  [C #1] Spatchcocked Roast Chicken with Smoked Paprika — step 6
+      old: Roast the chicken breast-side up for 40–45 minutes, until the breast registers 160°F and the thigh registers 175°F on an instant-read thermometer.
+      new: Roast the chicken breast-side up for 40–45 minutes, until the breast registers 165°F and the thigh registers 175°F on an instant-read thermometer.
+
+═══ Garlic and Rosemary Pork Chops with Grilled Peaches and Arugula — c6c51b81-c488-4ff3-b01e-a5ae913c7478 — ACCEPTED — re-review verdict ok
+  NOTE: this payload is not the one CAT-Q0 reviewed (dev differs from production) — the issues may not describe it
+  issue #1 [block · class 5] Garlic and Rosemary Bone-In Pork Chops · step 4 — "until the internal temperature reaches 140°F and deep grill marks form" — fix: Change to 'until the internal temperature reaches 145°F', then rest 5 minutes.
+  [C #1] Garlic and Rosemary Bone-In Pork Chops — step 4
+      old: Grill the pork chops 4–5 minutes per side, turning once, until the internal temperature reaches 140°F and deep grill marks form.
+      new: Grill the pork chops 4–5 minutes per side, turning once, until deep grill marks form and an instant-read thermometer in the thickest part (not touching the bone) reads 145°F.
+
+═══ Crispy Baked Chicken Parmesan with Spaghetti and Garlic Green Beans — c98dc177-14c7-4025-aee3-a21a32eb5849 — ACCEPTED — re-review verdict ok
+  NOTE: this payload is not the one CAT-Q0 reviewed (dev differs from production) — the issues may not describe it
+  issue #1 [block · class 5] Crispy Baked Chicken Parmesan · step 6 — "until the coating is deep golden and the internal temperature reaches 160°F" — fix: Change to 'internal temperature reaches 165°F' (and check again after the cheese bake).
+  [C #1] Crispy Baked Chicken Parmesan — step 6
+      old: Bake the cutlets at 425°F for 18 minutes until the coating is deep golden and the internal temperature reaches 160°F.
+      new: Bake the cutlets at 425°F for 18 minutes until the coating is deep golden and an instant-read thermometer in the thickest part reads 165°F.
+
+═══ BBQ Chicken Thighs with Grilled Corn on the Cob and Watermelon Slaw — e287b33b-d13c-465a-b558-717a4bebf8ed — ACCEPTED — re-review verdict ok
+  NOTE: this payload is not the one CAT-Q0 reviewed (dev differs from production) — the issues may not describe it
+  issue #1 [block · class 5] BBQ Glazed Chicken Thighs · step 2 — "until grill marks form and the internal temperature reaches 155°F" — fix: Change step 2 to say cook until grill marks form and the thickest part reaches about 150°F, then finish after glazing until 165°F is reached; or remove the temperature from step 2 and keep 165°F as the only target.
+  [C #1] BBQ Glazed Chicken Thighs — step 2
+      old: Place the chicken thighs on the grill and cook for 5–6 minutes per side, turning once, until grill marks form and the internal temperature reaches 155°F.
+      new: Place the chicken thighs on the grill and cook for 5–6 minutes per side, turning once, until grill marks form.
+
+═══ Classic BBQ Beer Can Chicken with Roasted Corn and Garlic Red Potatoes — e76ad75c-8041-4b79-b790-40b36eaf9adc — ACCEPTED — re-review verdict ok
+  NOTE: this payload is not the one CAT-Q0 reviewed (dev differs from production) — the issues may not describe it
+  issue #1 [block · class 5] Classic BBQ Beer Can Chicken · step 6 — "until the breast reads 160°F and the thigh reads 175°F on an instant-read thermometer" — fix: Change to 'until the breast reads 165°F and the thigh reads 175°F'.
+  [C #1] Classic BBQ Beer Can Chicken — step 6
+      old: Stand the chicken-on-can upright over the indirect heat zone, close the lid, and cook for 60–70 minutes until the breast reads 160°F and the thigh reads 175°F on an instant-read thermometer.
+      new: Stand the chicken-on-can upright over the indirect heat zone, close the lid, and cook for 60–70 minutes until an instant-read thermometer in the thickest part of the breast reads 165°F and the thigh reads 175°F.

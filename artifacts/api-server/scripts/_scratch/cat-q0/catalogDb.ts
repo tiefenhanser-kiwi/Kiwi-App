@@ -12,6 +12,8 @@ import { deriveMealTiming } from "../../../src/lib/mealTiming";
 export interface AmountRef { ingredientId: string; quantity?: number; unit?: string; charStart?: number; charEnd?: number }
 
 export interface CatStep {
+  /** RecipeInstructionStep.id (CAT-Q1: patches target rows by id; never in the review payload). */
+  id?: string;
   stepIndex: number;
   text: string;
   phaseType: string;
@@ -24,6 +26,8 @@ export interface CatStep {
 }
 
 export interface CatIngredient {
+  /** DishIngredient.id (CAT-Q1; never in the review payload). */
+  id?: string;
   ingredientId: string;
   name: string;
   canonicalName: string;
@@ -93,7 +97,7 @@ export async function loadCatalog(prisma: PrismaClient, ids?: readonly string[])
               dishIngredients: {
                 orderBy: { positionIndex: "asc" },
                 select: {
-                  ingredientId: true, quantity: true, unit: true, preparationNote: true, isOptional: true,
+                  id: true, ingredientId: true, quantity: true, unit: true, preparationNote: true, isOptional: true,
                   componentKey: true, pathKey: true, fromLeftovers: true,
                   ingredient: { select: { displayName: true, canonicalName: true, aliases: true } },
                 },
@@ -111,7 +115,7 @@ export async function loadCatalog(prisma: PrismaClient, ids?: readonly string[])
     const rows = await prisma.recipeInstructionStep.findMany({
       where: { ownerType: "dish", ownerId: { in: dishIds.slice(i, i + 2000) } },
       select: {
-        ownerId: true, stepIndex: true, stepTextRaw: true, phaseType: true, estimatedMinutes: true, isTimingSensitive: true,
+        id: true, ownerId: true, stepIndex: true, stepTextRaw: true, phaseType: true, estimatedMinutes: true, isTimingSensitive: true,
         parallelGroup: true, componentKey: true, pathKey: true, amountRefs: true,
       },
       orderBy: [{ ownerId: "asc" }, { stepIndex: "asc" }],
@@ -119,7 +123,7 @@ export async function loadCatalog(prisma: PrismaClient, ids?: readonly string[])
     for (const s of rows) {
       const list = byDish.get(s.ownerId) ?? [];
       list.push({
-        stepIndex: s.stepIndex, text: s.stepTextRaw, phaseType: String(s.phaseType), estimatedMinutes: s.estimatedMinutes,
+        id: s.id, stepIndex: s.stepIndex, text: s.stepTextRaw, phaseType: String(s.phaseType), estimatedMinutes: s.estimatedMinutes,
         isTimingSensitive: s.isTimingSensitive, parallelGroup: s.parallelGroup, componentKey: s.componentKey, pathKey: s.pathKey,
         amountRefs: refsOf(s.amountRefs),
       });
@@ -137,7 +141,7 @@ export async function loadCatalog(prisma: PrismaClient, ids?: readonly string[])
         servingsDefault: l.dish.servingsDefault,
         substitutions: Array.isArray(l.dish.substitutions) ? (l.dish.substitutions as CatDish["substitutions"]) : [],
         ingredients: l.dish.dishIngredients.map((di) => ({
-          ingredientId: di.ingredientId, name: di.ingredient.displayName, canonicalName: di.ingredient.canonicalName,
+          id: di.id, ingredientId: di.ingredientId, name: di.ingredient.displayName, canonicalName: di.ingredient.canonicalName,
           aliases: di.ingredient.aliases, quantity: di.quantity, unit: di.unit, preparationNote: di.preparationNote,
           isOptional: di.isOptional, componentKey: di.componentKey, pathKey: di.pathKey, fromLeftovers: di.fromLeftovers,
         })),
