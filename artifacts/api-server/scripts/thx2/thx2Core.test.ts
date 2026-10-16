@@ -306,7 +306,7 @@ describe("follow-up C — targets, briefs, flags", () => {
   it("every generate brief carries the vessel, swap, whole-produce and unit rules; every finalize brief the step rules", () => {
     for (const t of FILE.targets) {
       const g = composeBrief(t);
-      assert.ok(g.includes("12–14 cups fills a 9×13") && g.includes("real retail product") && g.includes('"2 oranges"') && g.includes('"1 pinch"'), t.key);
+      assert.ok(g.includes("12–14 cups fills a 9×13") && g.includes("real retail product") && g.includes('"2 oranges"') && g.includes('unit "pinch"'), t.key);
       const f = composeFinalizeBrief(t);
       assert.ok(f.includes("under 300 characters") && f.includes("never rinse raw poultry, the neck or the giblets") && f.includes("Warm corn tortillas") && f.includes("add no extra salt"), t.key);
     }
@@ -321,6 +321,16 @@ describe("follow-up C — targets, briefs, flags", () => {
       assert.ok(f.includes("A DESSERT's cooling or setting of 1 hour or more") && f.includes("Savoury rests stay timed"), t.key);
       assert.ok(f.includes("turned halfway through"), t.key);
       assert.ok(!f.includes("cooling a pie 2 hours) stay timed"), "the old exemption is gone");
+    }
+  });
+  it("production fix: the generate brief says quantity is a plain number and never asks for glyph quantities", () => {
+    // Follow-up C's "Quantities are cook's fractions (⅛, ¼ …)" made the model write
+    // `"quantity": ½` — not JSON — and it fell back to `dishes` as a string
+    // (production, Oct 15: 3 failed attempts; the sweet potato pie unwritten).
+    for (const t of FILE.targets) {
+      const g = composeBrief(t);
+      assert.ok(g.includes("quantity is a plain number") && g.includes("never a fraction glyph"), t.key);
+      assert.ok(!/Quantities are cook's fractions/.test(g), `${t.key}: the old wording is gone`);
     }
   });
   it("buys_turkey matches raw turkey only — not broth, stock, gravy or leftovers", () => {
