@@ -19,7 +19,7 @@
       "servings": 10,
       "difficulty": "fancy",
       "dishes": [
-        { "name": "Herb-Roasted Whole Turkey", "role": "main", "course": "course-turkey", "thaw": 4 },
+        { "name": "Herb-Roasted Whole Turkey", "role": "main", "course": "course-turkey", "thaw": 6, "brine": "wed", "dayNote": "wet-brine the turkey in a brining bag, 12 to 24 hours before it roasts" },
         { "name": "Pan Gravy", "role": "sauce", "course": "course-sides", "ahead": "tue", "keeps": 4, "dayNote": "simmer the stock from the neck and giblets on Tuesday night; make the gravy from it and the drippings on Thursday" },
         { "name": "Sage and Onion Stuffing", "role": "side", "course": "course-stuffing", "ahead": "wed", "keeps": 1, "dayNote": "assemble the stuffing in its baking dish; bake on Thursday" },
         { "name": "Mashed Potatoes", "role": "base", "course": "course-potatoes" },
@@ -40,7 +40,7 @@
       "servings": 4,
       "difficulty": "fancy",
       "dishes": [
-        { "name": "Roast Turkey Breast", "role": "main", "course": "course-turkey" },
+        { "name": "Roast Turkey Breast", "role": "main", "course": "course-turkey", "thaw": 2 },
         { "name": "Pan Gravy", "role": "sauce", "course": "course-sides" },
         { "name": "Small-Batch Sage Stuffing", "role": "side", "course": "course-stuffing", "ahead": "wed", "keeps": 1, "dayNote": "assemble the stuffing in its baking dish; bake on Thursday" },
         { "name": "Mashed Potatoes", "role": "base", "course": "course-potatoes" },
@@ -61,7 +61,7 @@
       "servings": 10,
       "difficulty": "fancy",
       "dishes": [
-        { "name": "Dry-Brined Roast Turkey", "role": "main", "course": "course-turkey", "thaw": 4, "brine": "tue" },
+        { "name": "Dry-Brined Roast Turkey", "role": "main", "course": "course-turkey", "thaw": 6, "brine": "tue", "dayNote": "dry-brine the turkey: rub it with kosher salt and refrigerate it uncovered, about 36 to 48 hours" },
         { "name": "Make-Ahead Turkey Gravy", "role": "sauce", "course": "course-sides", "ahead": "mon", "keeps": 4, "dayNote": "make the whole gravy (its stock from about 2 lb turkey wings, since the bird may still be thawing); reheat on Thursday" },
         { "name": "Overnight Sage Stuffing", "role": "side", "course": "course-stuffing", "ahead": "wed", "keeps": 1, "dayNote": "assemble the stuffing (dry the bread cubes on Tuesday); bake on Thursday" },
         { "name": "Mashed Potato Casserole", "role": "base", "course": "course-potatoes", "ahead": "wed", "keeps": 1, "dayNote": "make and assemble the casserole; bake on Thursday straight from the fridge" },
@@ -103,7 +103,7 @@
       "servings": 10,
       "difficulty": "fancy",
       "dishes": [
-        { "name": "Citrus-Herb Spatchcock Turkey", "role": "main", "course": "course-turkey", "thaw": 4 },
+        { "name": "Citrus-Herb Spatchcock Turkey", "role": "main", "course": "course-turkey", "thaw": 6, "brine": "wed", "dayNote": "dry-brine the spatchcocked turkey: rub it with kosher salt and refrigerate it uncovered on a rack, 12 to 24 hours" },
         { "name": "Pan Gravy", "role": "sauce", "course": "course-sides", "ahead": "tue", "keeps": 4, "dayNote": "simmer the stock from the neck and giblets on Tuesday night; make the gravy from it and the drippings on Thursday" },
         { "name": "Cornbread and Chorizo Stuffing", "role": "side", "course": "course-stuffing", "ahead": "wed", "keeps": 1, "dayNote": "assemble the stuffing in its baking dish; bake on Thursday" },
         { "name": "Garlic-Parmesan Smashed Potatoes", "role": "base", "course": "course-potatoes" },

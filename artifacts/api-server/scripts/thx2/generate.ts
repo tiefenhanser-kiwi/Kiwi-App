@@ -29,7 +29,7 @@ import { assertScriptDatabase } from "../../src/lib/scripts/requireDatabaseHost"
 import { computeCacheAwareCostUsd, emptyTokenTotals, generateInput, runStoreFill, type ModelRateUsd, type TokenTotals } from "../../src/lib/storeFill";
 import { generatePrefixFor, STABLE_GENERATE_PREFIX } from "../../src/lib/storeFillPrompts";
 import { flagsFor, KINDS, loadTargets, runOptionsFor, validateTargets, type Thx2Target } from "./thx2Core";
-import { applyChecks, type CheckNote } from "./thx2Checks";
+import { applyChecks, applyPostFinalize, type CheckNote } from "./thx2Checks";
 import { flagInputs, loadThx2Meals, type MealGraph } from "./thx2Db";
 
 const argv = process.argv.slice(2);
@@ -136,12 +136,12 @@ for (const t of pending) {
         ...runOptionsFor(t, file),
         apply: true, maxCostUsd: Math.max(0.01, file.spendCapUsd - spent), maxCalls: 6, maxConsecutiveFailures: 1, rate, log: (m) => console.log(`  ${m}`),
         postGenerate: (meal) => { checkNotes.push(...applyChecks(meal)); },
+        postFinalize: (meal, fin) => { checkNotes.push(...applyPostFinalize(meal, fin)); },
       },
     );
-    const swaps = checkNotes.filter((n) => n.kind === "swap_dropped");
-    const units = checkNotes.filter((n) => n.kind === "unit_fixed");
-    console.log(`  checks: ${swaps.length} swap(s) dropped · ${units.length} unit(s) fixed`);
-    for (const n of checkNotes) console.log(`    ${n.kind === "swap_dropped" ? "swap dropped" : "unit fixed"} [${n.dish}] ${n.detail}`);
+    const count = (k: CheckNote["kind"]) => checkNotes.filter((n) => n.kind === k).length;
+    console.log(`  checks: ${count("swap_dropped")} swap(s) dropped · ${count("unit_fixed")} unit(s) fixed · ${count("minutes_capped")} make-ahead step(s) capped · ${count("replaces_extended")} replaces added${count("replaces_unmapped") ? ` · ${count("replaces_unmapped")} UNMAPPED` : ""}`);
+    for (const n of checkNotes) console.log(`    ${n.kind.replace("_", " ")} [${n.dish}] ${n.detail}`);
     const written = result.records.some((r) => r.written);
     const validation = result.skips.some((s) => s.stage !== "dedup" && s.reason === "validation_failed");
     if (written || !validation || attempt === MAX_TARGET_ATTEMPTS) break;

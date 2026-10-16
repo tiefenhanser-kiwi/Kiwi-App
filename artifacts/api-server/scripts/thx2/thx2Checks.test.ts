@@ -10,7 +10,8 @@ import { describe, it } from "node:test";
 import type { PrismaClient } from "@prisma/client";
 
 import type { WizardExpandEnrichedMealDetails } from "../../src/lib/ai/schemas/wizard";
-import { applyChecks, fixUnit, isCookFraction, snapToCookFraction, swapKey, swapProblem } from "./thx2Checks";
+import { applyChecks, capMakeAheadMinutes, extendReplaces, fixUnit, isCookFraction, MAKE_AHEAD_MINUTES_CAP, snapToCookFraction, swapKey, swapProblem } from "./thx2Checks";
+import { nameKey } from "./thx2Core";
 import { readOnlyPrisma } from "./thx2Prep";
 
 const macros = { caloriesPerServing: 100, proteinGPerServing: 1, carbsGPerServing: 1, fatGPerServing: 1 };
@@ -90,6 +91,81 @@ describe("applyChecks on a generated meal", () => {
     assert.equal(meal.dishes[0].substitutions, undefined, "no swaps left → field cleared");
     assert.equal(meal.dishes[0].ingredients[1].unit, "clove");
     assert.equal(meal.dishes[0].ingredients[2].unit, "pinch");
+  });
+});
+
+describe("follow-up F — after finalize", () => {
+  const stockMeal = (): WizardExpandEnrichedMealDetails => ({
+    title: "Feast", cuisineType: "American", estimatedTimeMinutes: 60, difficulty: "medium", servings: 10,
+    dishes: [{
+      title: "Pan Gravy", role: "sauce", positionIndex: 0, macros,
+      ingredients: [
+        { name: "turkey neck", quantity: 1, unit: "each" },
+        { name: "carrots", quantity: 1, unit: "each" },
+        { name: "bay leaves", quantity: 2, unit: "each" },
+        { name: "turkey drippings", quantity: 0.5, unit: "cup" },
+        { name: "Kosher salt", quantity: 1, unit: "teaspoon" },
+      ],
+      substitutions: [{ product: "store-bought turkey stock", quantity: 48, unit: "ounce", replaces: ["turkey neck"] }],
+    }],
+  });
+  const stockSteps = () => ({
+    dishSteps: [{
+      mealIndex: 0, dishIndex: 0,
+      components: [{ key: "stock", label: "Stock", order: 0 }],
+      steps: [
+        { text: "Make ahead (Tuesday): Put the turkey neck, 1 carrot and 2 bay leaves in a pot with 8 cups water.", phaseType: "prep" as const, estimatedMinutes: 8, isTimingSensitive: false, componentKey: "stock", pathKey: "scratch" as const },
+        { text: "Make ahead (Tuesday): Simmer 2 hours, strain and chill.", phaseType: "cook" as const, estimatedMinutes: 120, isTimingSensitive: false, componentKey: "stock", pathKey: "scratch" as const },
+        { text: "Make ahead (Tuesday): Chill 48 oz store-bought stock; do not add salt.", phaseType: "prep" as const, estimatedMinutes: 2, isTimingSensitive: false, componentKey: "stock", pathKey: "bought" as const },
+        { text: "On Thursday: Whisk the drippings into the stock and season with the salt.", phaseType: "cook" as const, estimatedMinutes: 8, isTimingSensitive: true },
+      ],
+    }],
+  });
+  it("a make-ahead step that is not hands-on is capped at 15 minutes; prep/assemble and Thursday steps keep theirs", () => {
+    const fin = stockSteps();
+    const notes = capMakeAheadMinutes(stockMeal(), fin);
+    assert.deepEqual(fin.dishSteps[0].steps.map((s) => s.estimatedMinutes), [8, MAKE_AHEAD_MINUTES_CAP, 2, 8]);
+    assert.equal(notes.length, 1);
+    assert.ok(fin.dishSteps[0].steps[1].text.includes("Simmer 2 hours"), "the long duration stays in the text as the note");
+  });
+  it("the cap covers the whole make-ahead RUN (unprefixed steps up to 'On Thursday:'), not just prefixed steps", () => {
+    const fin = {
+      dishSteps: [{
+        mealIndex: 0, dishIndex: 0,
+        steps: [
+          { text: "Make ahead (Wednesday): Preheat the oven to 425°F.", phaseType: "preheat" as const, estimatedMinutes: 15, isTimingSensitive: false },
+          { text: "Press the crusts into two 9-inch pie dishes.", phaseType: "prep" as const, estimatedMinutes: 6, isTimingSensitive: false },
+          { text: "Bake at 375°F for 50–55 minutes; cool completely.", phaseType: "cook" as const, estimatedMinutes: 55, isTimingSensitive: false },
+          { text: "On Thursday: Warm the pies 10 minutes at 300°F.", phaseType: "cook" as const, estimatedMinutes: 20, isTimingSensitive: false },
+          { text: "Slice and serve.", phaseType: "cook" as const, estimatedMinutes: 25, isTimingSensitive: false },
+        ],
+      }],
+    };
+    capMakeAheadMinutes(stockMeal(), fin);
+    assert.deepEqual(fin.dishSteps[0].steps.map((s) => s.estimatedMinutes), [15, 6, MAKE_AHEAD_MINUTES_CAP, 20, 25], "the in-run bake is capped; Thursday steps are not");
+  });
+  it("a swap whose replaces already names the ingredient in another spelling ('carrot' for 'carrots') gains nothing", () => {
+    const meal = stockMeal();
+    meal.dishes[0].substitutions![0].replaces = ["turkey neck", "carrot", "bay leaf"];
+    const notes = extendReplaces(meal, stockSteps());
+    assert.deepEqual(notes, []);
+    assert.equal(nameKey("bay leaves"), nameKey("bay leaf"));
+  });
+  it("ingredients used only in the scratch component join that swap's replaces; base and bought uses do not", () => {
+    const meal = stockMeal();
+    const notes = extendReplaces(meal, stockSteps());
+    assert.deepEqual(meal.dishes[0].substitutions![0].replaces, ["turkey neck", "carrots", "bay leaves"]);
+    assert.deepEqual(notes.map((n) => n.kind), ["replaces_extended", "replaces_extended"]);
+    assert.ok(!meal.dishes[0].substitutions![0].replaces.includes("Kosher salt"), "salt is used on Thursday (base), and the bought step's 'do not add salt' is no use");
+    assert.ok(!meal.dishes[0].substitutions![0].replaces.includes("turkey drippings"), "a base ingredient stays bought");
+  });
+  it("a component with no mappable swap is reported, not guessed", () => {
+    const meal = stockMeal();
+    meal.dishes[0].substitutions!.push({ product: "second swap", quantity: 1, unit: "each", replaces: ["Kosher salt"] });
+    const fin = stockSteps();
+    fin.dishSteps[0].components = [{ key: "other", label: "Other", order: 0 }];
+    const notes = extendReplaces(meal, fin);
+    assert.ok(notes.every((n) => n.kind === "replaces_unmapped") && notes.length === 2);
   });
 });
 

@@ -266,6 +266,28 @@ describe("THX-2G — postGenerate", () => {
   });
 });
 
+describe("THX-2G — postFinalize", () => {
+  it("runs on the finalize result before the merge, so the record carries its edits; absent runs nothing", async () => {
+    const meal = makeMeal();
+    let calls = 0;
+    const captured: number[] = [];
+    await runStoreFill(
+      { prisma: fakePrisma(), runAICall: recordingRunAICall([ok(meal)], [ok(finalizeFor(meal))], []) },
+      {
+        apply: false, limit: 1, dishes: [DISH], profiles: [PROFILE],
+        postFinalize: (_m, fin, target) => { calls++; assert.equal(target, DISH.dish); fin.dishSteps[0].steps[1].estimatedMinutes = 3; },
+        onMeal: (c) => captured.push(c.stepsPerDish[0][1].estimatedMinutes),
+      },
+    );
+    assert.equal(calls, 1);
+    assert.deepEqual(captured, [3], "the merged steps carry the edit");
+    const plain: number[] = [];
+    const m2 = makeMeal();
+    await runStoreFill({ prisma: fakePrisma(), runAICall: recordingRunAICall([ok(m2)], [ok(finalizeFor(m2))], []) }, { apply: false, limit: 1, dishes: [DISH], profiles: [PROFILE], onMeal: (c) => plain.push(c.stepsPerDish[0][1].estimatedMinutes) });
+    assert.deepEqual(plain, [12]);
+  });
+});
+
 describe("THX-2G — storedDifficulty", () => {
   it("absent → the model's difficulty; set → stored, and the derived tag follows", async () => {
     const fancy = () => makeMeal({ difficulty: "fancy" });

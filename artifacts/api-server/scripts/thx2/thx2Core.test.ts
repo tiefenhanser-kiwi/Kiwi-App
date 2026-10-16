@@ -20,6 +20,8 @@ import {
   aheadTags,
   aheadTagsFor,
   dayPlanLines,
+  thawStartDay,
+  usesIngredient,
   SHELF_EXCLUSION_EXPORT,
   THANKSGIVING_TAG,
   approveRefusal,
@@ -155,17 +157,17 @@ describe("per-target options", () => {
     const table = Object.fromEntries(FILE.targets.filter((t) => t.kind === "feast").map((t) => [t.key, Object.fromEntries(t.dishes.map((d) => [d.name, aheadTags(d).join(" ")]).filter(([, v]) => v))]));
     assert.deepEqual(table, {
       "thx2-feast-classic": {
-        "Herb-Roasted Whole Turkey": "thaw-4d", "Pan Gravy": "ahead-tue keeps-4d", "Sage and Onion Stuffing": "ahead-wed keeps-1d",
+        "Herb-Roasted Whole Turkey": "thaw-6d brine-wed", "Pan Gravy": "ahead-tue keeps-4d", "Sage and Onion Stuffing": "ahead-wed keeps-1d",
         "Cranberry-Orange Sauce": "ahead-mon keeps-7d", "Green Bean Casserole": "ahead-wed keeps-1d", "Sweet Potato Casserole": "ahead-wed keeps-1d", "Pumpkin Pie": "ahead-wed keeps-2d",
       },
-      "thx2-feast-small": { "Small-Batch Sage Stuffing": "ahead-wed keeps-1d", "Cranberry-Orange Sauce": "ahead-mon keeps-7d" },
+      "thx2-feast-small": { "Roast Turkey Breast": "thaw-2d", "Small-Batch Sage Stuffing": "ahead-wed keeps-1d", "Cranberry-Orange Sauce": "ahead-mon keeps-7d" },
       "thx2-feast-make-ahead": {
-        "Dry-Brined Roast Turkey": "thaw-4d brine-tue", "Make-Ahead Turkey Gravy": "ahead-mon keeps-4d", "Overnight Sage Stuffing": "ahead-wed keeps-1d",
+        "Dry-Brined Roast Turkey": "thaw-6d brine-tue", "Make-Ahead Turkey Gravy": "ahead-mon keeps-4d", "Overnight Sage Stuffing": "ahead-wed keeps-1d",
         "Mashed Potato Casserole": "ahead-wed keeps-1d", "Cranberry-Orange Sauce": "ahead-mon keeps-7d", "Pumpkin Pie": "ahead-tue keeps-2d",
       },
       "thx2-feast-vegetarian": { "Herb Stuffing": "ahead-wed keeps-1d", "Cranberry-Orange Sauce": "ahead-mon keeps-7d", "Baked Mac and Cheese": "ahead-wed keeps-1d", "Apple Pie": "ahead-wed keeps-2d" },
       "thx2-feast-new-twist": {
-        "Citrus-Herb Spatchcock Turkey": "thaw-4d", "Pan Gravy": "ahead-tue keeps-4d", "Cornbread and Chorizo Stuffing": "ahead-wed keeps-1d",
+        "Citrus-Herb Spatchcock Turkey": "thaw-6d brine-wed", "Pan Gravy": "ahead-tue keeps-4d", "Cornbread and Chorizo Stuffing": "ahead-wed keeps-1d",
         "Cranberry-Jalapeño Relish": "ahead-mon keeps-7d", "Pumpkin Cheesecake Bars": "ahead-wed keeps-2d",
       },
     });
@@ -180,9 +182,57 @@ describe("per-target options", () => {
     assert.deepEqual(runOptionsFor(byKey("thx2-feast-classic"), FILE).dishTagsFor !== undefined, true);
     assert.equal(runOptionsFor(byKey("thx2-friday-classic"), FILE).dishTagsFor, undefined);
     const lines = dayPlanLines(classic).join(" ");
-    assert.ok(lines.includes("about 4 days in the fridge to thaw — move it there by Friday"), "giblets on Tuesday − 4 days");
-    assert.ok(dayPlanLines(byKey("thx2-feast-make-ahead")).join(" ").includes("move it there by Friday; Make ahead (Tuesday): it goes into the brine"));
+    assert.ok(lines.includes("Thaw (start Friday): if it is bought frozen, move it to the fridge on Friday, 6 days before Thanksgiving"), "thaw-6d = Thursday − 6 = Friday");
+    assert.ok(dayPlanLines(byKey("thx2-feast-make-ahead")).join(" ").includes("Make ahead (Tuesday night): dry-brine the turkey"));
     assert.ok(dayPlanLines(byKey("thx2-feast-vegetarian")).every((l) => !l.includes("thaw")));
+  });
+  it("follow-up F: for every bird, the day in the thaw text is Thursday − n (PREP-1's row)", () => {
+    const WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    let birds = 0;
+    for (const t of FILE.targets) {
+      for (const d of t.dishes.filter((x) => x.thaw !== undefined)) {
+        birds++;
+        const want = WEEK[(((4 - d.thaw!) % 7) + 7) % 7];
+        assert.equal(thawStartDay(d.thaw!), want, t.key);
+        const line = dayPlanLines(t).find((l) => l.startsWith(`dishIndex ${t.dishes.indexOf(d)} ${d.name}: Thaw`))!;
+        assert.ok(line, `${t.key}: a thaw line`);
+        assert.deepEqual([...line.matchAll(/\b(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)\b/g)].map((m) => m[1]).filter((x, i, a) => a.indexOf(x) === i), [want], `${t.key}: the text names only ${want}`);
+      }
+    }
+    assert.equal(birds, 4, "Classic, Small (breast), Make-Ahead, New Twist");
+    assert.equal(thawStartDay(6), "Friday");
+    assert.equal(thawStartDay(2), "Tuesday");
+  });
+  it("follow-up F: every feast bird's brine — a tag and a 'Make ahead (<Day> night):' line, or 'do not brine'", () => {
+    const want: Record<string, string> = {
+      "thx2-feast-classic": "Make ahead (Wednesday night): wet-brine the turkey in a brining bag, 12 to 24 hours",
+      "thx2-feast-new-twist": "Make ahead (Wednesday night): dry-brine the spatchcocked turkey",
+      "thx2-feast-make-ahead": "Make ahead (Tuesday night): dry-brine the turkey",
+      "thx2-feast-small": "do not brine this bird",
+    };
+    for (const [key, text] of Object.entries(want)) assert.ok(dayPlanLines(byKey(key)).some((l) => l.includes(text)), key);
+    assert.deepEqual(
+      FILE.targets.filter((t) => t.kind === "feast").map((t) => [t.key, t.dishes.find((d) => d.role === "main")!.brine ?? null]),
+      [["thx2-feast-classic", "wed"], ["thx2-feast-small", null], ["thx2-feast-make-ahead", "tue"], ["thx2-feast-vegetarian", null], ["thx2-feast-new-twist", "wed"]],
+    );
+    assert.ok(!dayPlanLines(byKey("thx2-feast-vegetarian")).some((l) => l.includes("brine")), "no bird, no brine line");
+    assert.deepEqual(dayPlanLines(byKey("thx2-alt-buttermilk-turkey")), [], "the day plan is the feast's alone");
+  });
+  it("follow-up F: a negated mention is not a use ('do not add extra salt')", () => {
+    assert.equal(usesIngredient("Add the vegetables; do not add extra salt.", "salt"), false);
+    assert.equal(usesIngredient("Season with no salt, then add 1 teaspoon pepper.", "salt"), false);
+    assert.equal(usesIngredient("Season with ½ teaspoon kosher salt.", "salt"), true);
+    assert.equal(usesIngredient("Do not overmix. Season with salt.", "salt"), true, "a negation in an earlier sentence does not reach");
+    const dish = {
+      title: "Sage and Onion Stuffing",
+      ingredients: [{ name: "Kosher salt" }],
+      substitutions: [{ product: "seasoned stuffing mix", replaces: ["white bread"] }],
+      steps: [
+        { text: "Season the bread with 1 teaspoon salt.", pathKey: null, componentKey: null },
+        { text: "Toss the mix with the vegetables; do not add extra salt.", pathKey: "bought", componentKey: "bread" },
+      ],
+    };
+    assert.deepEqual(pathFlags([dish]), [], "the bought step's 'do not add extra salt' is no use");
   });
   it("follow-up E: validation refuses make-ahead fields off a feast, ahead without keeps, thaw off the bird", () => {
     const a = clone(); a.targets.find((t) => t.kind === "friday")!.dishes[0].ahead = "tue";

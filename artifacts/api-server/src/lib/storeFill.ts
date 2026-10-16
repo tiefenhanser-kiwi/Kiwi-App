@@ -682,6 +682,12 @@ export interface StoreFillOptions {
    *  from what it leaves. It may edit the meal in place (the Thanksgiving
    *  script drops self-swaps and fixes units here). Absent → nothing runs. */
   postGenerate?: (meal: WizardExpandEnrichedMealDetails, targetDish: string) => void;
+  /** THX-2G follow-up F — called once on the finalize result, BEFORE the
+   *  merge (so the derived parallel groups and the stamped time see what it
+   *  leaves). It may edit the steps and the meal's substitutions in place
+   *  (the Thanksgiving script caps make-ahead minutes and completes `replaces`).
+   *  Absent → nothing runs. */
+  postFinalize?: (meal: WizardExpandEnrichedMealDetails, finalize: WizardFinalizeStepsResult, targetDish: string) => void;
 }
 
 /** THX-2G — the materialize target for a run: STORE_FILL_TARGET unless `isPublic: false`. */
@@ -911,6 +917,8 @@ export async function runStoreFill(
       skips.push({ targetDish: target.dish, profileKey: profile.key, stage: "finalize", reason: fin.reason, title: meal.title });
       consecutiveFailures++; progress(); continue;
     }
+    // THX-2G (follow-up F) — the script's pass over the steps, before the merge.
+    if (opts.postFinalize) opts.postFinalize(meal, fin.data, target.dish);
     const merged = mergeSteps(meal, fin.data, target.dish);
     if (!merged.ok) {
       skips.push({ targetDish: target.dish, profileKey: profile.key, stage: "merge", reason: merged.reason, title: meal.title });

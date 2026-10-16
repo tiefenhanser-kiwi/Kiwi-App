@@ -215,19 +215,34 @@ export function aheadTagsFor(t: Thx2Target): (dish: { title: string }, index: nu
 /** Make-ahead day lines for a feast, for both briefs. Empty when none. */
 export function dayPlanLines(t: Thx2Target): string[] {
   const lines: string[] = [];
+  if (t.kind !== "feast") return lines; // the day plan (and its tags) are the feast's alone
   t.dishes.forEach((d, i) => {
     if (d.ahead) {
       lines.push(`dishIndex ${i} ${d.name}: Make ahead (${DAY_NAME[d.ahead]}) — ${d.dayNote ?? "make it"}; it keeps up to ${d.keeps} day${d.keeps === 1 ? "" : "s"} in the fridge.`);
     }
     if (d.thaw !== undefined) {
-      // The bird is needed on the earliest of its brine day and any giblet-stock day.
-      const gibletDays = t.dishes.filter((x) => x.ahead && /giblet/i.test(x.dayNote ?? "")).map((x) => DAY_INDEX[x.ahead as AheadDay]);
-      const needed = Math.min(DAY_INDEX.thu, ...(d.brine ? [DAY_INDEX[d.brine]] : []), ...gibletDays);
-      const start = WEEKDAY[(((needed - d.thaw) % 7) + 7) % 7];
-      lines.push(`dishIndex ${i} ${d.name}: a frozen bird needs about ${d.thaw} days in the fridge to thaw — move it there by ${start}${d.brine ? `; Make ahead (${DAY_NAME[d.brine]}): it goes into the brine` : ""}.`);
+      // Follow-up F: `thaw-<n>d` means START the thaw n days before Thursday
+      // (PREP-1's row is feast day − n), so the text names that same day.
+      lines.push(`dishIndex ${i} ${d.name}: ${thawLine(d.thaw)}`);
+    }
+    if (d.brine) {
+      lines.push(`dishIndex ${i} ${d.name}: Make ahead (${DAY_NAME[d.brine]} night): ${d.dayNote ?? "brine the bird"} — the hours are a note in that step, not timed.`);
+    } else if (d.role === "main" && /\bturkey\b/i.test(d.name)) {
+      lines.push(`dishIndex ${i} ${d.name}: do not brine this bird.`);
     }
   });
   return lines;
+}
+
+/** The thaw sentence for `thaw-<n>d`: the start day is Thursday − n. */
+export function thawLine(n: number): string {
+  const day = thawStartDay(n);
+  return `Thaw (start ${day}): if it is bought frozen, move it to the fridge on ${day}, ${n} days before Thanksgiving, so it is thawed before its first make-ahead step.`;
+}
+
+/** Thursday − n, as a weekday name. */
+export function thawStartDay(n: number): string {
+  return WEEKDAY[(((DAY_INDEX.thu - n) % 7) + 7) % 7];
 }
 
 /** Dish.tags: only an alternate's dish, so the meal-edit browse lists exactly the
@@ -343,7 +358,7 @@ export function composeFinalizeBrief(t: Thx2Target): string {
     ...base,
     ...(t.plan === "make-ahead" ? [`This is a MAKE-AHEAD Thanksgiving: most of the work is done before Thursday.`] : []),
     // Follow-up E: ONE phrase, so a reader (and PREP-1) can find the make-ahead part.
-    `MAKE-AHEAD DAYS (Thanksgiving is Thursday). For each dish below, the make-ahead step's text opens with exactly "Make ahead (<Day>):" and the dish's Thursday part opens with exactly "On Thursday:"; an overnight wait keeps the wait-rule phrasing inside that step.`,
+    `MAKE-AHEAD DAYS (Thanksgiving is Thursday). For each dish below, EVERY step of the make-ahead part opens with exactly "Make ahead (<Day>):" (not just the first), and the first step of the dish's Thursday part opens with exactly "On Thursday:"; an overnight wait keeps the wait-rule phrasing inside that step.`,
     `The days, by dish: ${plan.join(" ")}`,
     `Work done on an earlier day keeps only its hands-on minutes, so the timed steps stay Thursday's work plus the reheats and bakes.`,
   ].join(" ");
@@ -456,11 +471,36 @@ export function mentionWord(name: string): string {
   return words[i] ?? "";
 }
 
-function mentions(text: string, word: string): boolean {
+/** Follow-up F: an ingredient name compared singular-insensitively. The stored
+ *  row is the RESOLVED ingredient ("carrots", "bay leaves") while a swap's
+ *  `replaces` keeps the generated spelling ("carrot", "bay leaf"). */
+export function nameKey(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/[^a-z0-9 ]+/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => (w.length > 3 && w.endsWith("ves") ? `${w.slice(0, -3)}f` : w.length > 3 && w.endsWith("ies") ? `${w.slice(0, -3)}y` : w.length > 3 && /(ches|shes|sses|xes|oes)$/.test(w) ? w.slice(0, -2) : w.length > 2 && w.endsWith("s") && !w.endsWith("ss") ? w.slice(0, -1) : w))
+    .join(" ");
+}
+
+/** A negation within the few words before a mention ("do not add extra salt",
+ *  "no salt", "without the sage") means the step does NOT use it. */
+const NEGATED = /\b(no|not|without|omit|skip|never)\b(\s+[a-z'-]+){0,3}\s*$/i;
+
+/** Follow-up F: does this step text USE the ingredient (by its mention word)?
+ *  A mention only counts when no negation sits just before it. */
+export function usesIngredient(text: string, word: string): boolean {
   if (!word) return false;
   const stem = word.replace(/(es|s)$/, "");
-  return new RegExp(`\\b(${word}|${stem}|${stem}s|${stem}es)\\b`, "i").test(text);
+  const re = new RegExp(`\\b(${word}|${stem}|${stem}s|${stem}es)\\b`, "gi");
+  for (const m of text.matchAll(re)) {
+    if (!NEGATED.test(text.slice(Math.max(0, (m.index ?? 0) - 40), m.index))) return true;
+  }
+  return false;
 }
+const mentions = usesIngredient;
 
 /**
  * Follow-up C, REPORT ONLY: an ingredient that only one path uses and that the
@@ -473,7 +513,7 @@ export function pathFlags(dishes: readonly PathDish[]): Flag[] {
   const flags: Flag[] = [];
   for (const d of dishes) {
     if (!d.steps.some((s) => s.pathKey)) continue;
-    const replaced = new Set(d.substitutions.flatMap((s) => s.replaces.map((r) => r.toLowerCase().trim())));
+    const replaced = new Set(d.substitutions.flatMap((s) => s.replaces.map(nameKey)));
     for (const ing of d.ingredients) {
       const w = mentionWord(ing.name);
       const where = d.steps.filter((s) => mentions(s.text, w));
@@ -482,7 +522,7 @@ export function pathFlags(dishes: readonly PathDish[]): Flag[] {
       const scratch = where.some((s) => s.pathKey === "scratch");
       const bought = where.some((s) => s.pathKey === "bought");
       if (base || scratch === bought) continue;
-      if (scratch && replaced.has(ing.name.toLowerCase().trim())) continue;
+      if (scratch && replaced.has(nameKey(ing.name))) continue;
       flags.push({
         code: "path_unused",
         detail: `${d.title}: "${ing.name}" is used only on the ${scratch ? "scratch" : "bought"} path — on the ${scratch ? "bought" : "scratch"} path it is bought and never used`,

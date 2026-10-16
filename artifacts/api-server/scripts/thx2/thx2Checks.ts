@@ -15,11 +15,12 @@
 //     "1 pinch"; a spoon or cup amount whose fraction is no cook's fraction
 //     (0.06, 0.33) snapped to the nearest one, so nothing prints as a decimal.
 
-import type { WizardExpandEnrichedMealDetails } from "../../src/lib/ai/schemas/wizard";
+import type { WizardExpandEnrichedMealDetails, WizardFinalizeStepsResult } from "../../src/lib/ai/schemas/wizard";
+import { mentionWord, nameKey, usesIngredient } from "./thx2Core";
 
 export interface CheckNote {
   dish: string;
-  kind: "swap_dropped" | "unit_fixed";
+  kind: "swap_dropped" | "unit_fixed" | "minutes_capped" | "replaces_extended" | "replaces_unmapped";
   detail: string;
 }
 
@@ -103,6 +104,85 @@ export function fixUnit(ing: { name: string; quantity: number; unit: string }): 
     }
   }
   return null;
+}
+
+// ── follow-up F: after finalize (runStoreFill `postFinalize`) ───────────────
+
+/** A make-ahead step that is not hands-on keeps at most this many minutes. */
+export const MAKE_AHEAD_MINUTES_CAP = 15;
+const MAKE_AHEAD = /^\s*make ahead \(/i;
+const ON_THURSDAY = /^\s*on thursday:/i;
+const HANDS_ON = new Set(["prep", "assemble"]);
+
+/**
+ * A step whose text opens "Make ahead (" keeps at most its hands-on minutes:
+ * a `prep` or `assemble` step is hands-on and keeps its minutes; any other
+ * phase (a simmer, a bake, a chill) is capped at MAKE_AHEAD_MINUTES_CAP. The
+ * long duration stays in the text as the note. The brief says so; the model
+ * still gave Classic's Tuesday stock its full 2-hour simmer, so code enforces it.
+ */
+export function capMakeAheadMinutes(meal: WizardExpandEnrichedMealDetails, fin: WizardFinalizeStepsResult): CheckNote[] {
+  const notes: CheckNote[] = [];
+  for (const entry of fin.dishSteps) {
+    const dish = meal.dishes[entry.dishIndex]?.title ?? `dish ${entry.dishIndex}`;
+    // The make-ahead RUN: from a step opening "Make ahead (" up to the step that
+    // opens "On Thursday:". The dev re-pilot showed the model prefixing only the
+    // run's first step — the stock's 2-hour simmer and the pie's 55-minute bake
+    // sat unprefixed inside their runs.
+    let inRun = false;
+    for (const s of entry.steps) {
+      if (MAKE_AHEAD.test(s.text)) inRun = true;
+      else if (ON_THURSDAY.test(s.text)) inRun = false;
+      if (inRun && !HANDS_ON.has(s.phaseType) && s.estimatedMinutes > MAKE_AHEAD_MINUTES_CAP) {
+        notes.push({ dish, kind: "minutes_capped", detail: `${s.phaseType} ${s.estimatedMinutes} → ${MAKE_AHEAD_MINUTES_CAP} min: "${s.text.slice(0, 70)}…"` });
+        s.estimatedMinutes = MAKE_AHEAD_MINUTES_CAP;
+      }
+    }
+  }
+  return notes;
+}
+
+/**
+ * Shortcut paths stay complete: every ingredient used ONLY in one component's
+ * scratch steps is added to that component's swap `replaces`, so the bought
+ * path does not buy it (the stock's carrots and bay leaves; the stuffing's sage
+ * under a seasoned mix). Uses are read with the negation-aware matcher. The
+ * component → swap link is the registry entry's `order` (the finalize contract
+ * writes one component per substitution, in order); a dish with exactly one
+ * swap maps to it directly. Anything else is reported, not guessed.
+ */
+export function extendReplaces(meal: WizardExpandEnrichedMealDetails, fin: WizardFinalizeStepsResult): CheckNote[] {
+  const notes: CheckNote[] = [];
+  for (const entry of fin.dishSteps) {
+    const dish = meal.dishes[entry.dishIndex];
+    if (!dish?.substitutions?.length || !entry.steps.some((s) => s.pathKey)) continue;
+    const registry = entry.components ?? [];
+    const subFor = (key: string) => {
+      const c = registry.find((r) => r.key === key);
+      if (c && dish.substitutions![c.order]) return dish.substitutions![c.order];
+      return dish.substitutions!.length === 1 ? dish.substitutions![0] : undefined;
+    };
+    for (const ing of dish.ingredients) {
+      const w = mentionWord(ing.name);
+      const where = entry.steps.filter((s) => usesIngredient(s.text, w));
+      if (where.length === 0) continue;
+      const keys = new Set(where.map((s) => (s.pathKey === "scratch" ? s.componentKey : null)));
+      if (keys.size !== 1 || keys.has(null) || keys.has(undefined)) continue; // used in base, bought, or several components
+      const key = [...keys][0] as string;
+      const same = (r: string) => nameKey(r) === nameKey(ing.name);
+      if (dish.substitutions.some((s) => s.replaces.some(same))) continue; // already replaced by a swap
+      const sub = subFor(key);
+      if (!sub) { notes.push({ dish: dish.title, kind: "replaces_unmapped", detail: `"${ing.name}" (component ${key}) — no swap to attach it to` }); continue; }
+      sub.replaces.push(ing.name);
+      notes.push({ dish: dish.title, kind: "replaces_extended", detail: `"${sub.product}" now also replaces "${ing.name}"` });
+    }
+  }
+  return notes;
+}
+
+/** The postFinalize hook: cap make-ahead minutes, then complete the swaps. */
+export function applyPostFinalize(meal: WizardExpandEnrichedMealDetails, fin: WizardFinalizeStepsResult): CheckNote[] {
+  return [...capMakeAheadMinutes(meal, fin), ...extendReplaces(meal, fin)];
 }
 
 // ── the hook ────────────────────────────────────────────────────────────────
