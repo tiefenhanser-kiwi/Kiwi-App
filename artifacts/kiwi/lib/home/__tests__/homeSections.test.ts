@@ -244,9 +244,18 @@ test("BUG-118: no plans at all keeps today's states (returning empty, and first 
     ["makeLane", "rail"],
   );
   assert.deepEqual(
-    homeSectionOrder({ isFirstRun: true, hasActivePlan: false, hasRail: true, hasPlans: true }),
+    homeSectionOrder({ isFirstRun: true, hasActivePlan: false, hasRail: true, hasPlans: false }),
     ["arc", "makeLane", "rail"],
-    "a first run keeps the arc alone",
+    "a first run with no plans keeps the arc alone",
+  );
+});
+
+test("BUG-118: a first-run user with a plan saved for later gets the arc, then the card", () => {
+  // Save for Later does not stamp firstPlanCreatedAt (found in FIX-3's browser
+  // QA): the user is still "first run" but has a plan and none this week.
+  assert.deepEqual(
+    homeSectionOrder({ isFirstRun: true, hasActivePlan: false, hasRail: true, hasPlans: true }),
+    ["arc", "noPlanThisWeek", "makeLane", "rail"],
   );
 });
 

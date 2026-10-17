@@ -118,8 +118,12 @@ export function homeSectionOrder(opts: {
   } else {
     if (opts.isFirstRun) sections.push("arc");
     if (opts.hasActivePlan) sections.push("thisWeek");
-    // A first run keeps the arc alone: the new-user state is unchanged.
-    else if (opts.hasPlans && !opts.isFirstRun) sections.push("noPlanThisWeek");
+    // NOT gated on isFirstRun: a featured plan saved for later is a plan, but it
+    // does not stamp firstPlanCreatedAt, so that user is still "first run" and
+    // still has nothing pointing back at the plan. They get the arc, then this
+    // card (the legacy arc-then-thisWeek stacking above). A user with NO plans
+    // keeps today's first state.
+    else if (opts.hasPlans) sections.push("noPlanThisWeek");
   }
   sections.push("makeLane");
   if (opts.hasRail) sections.push("rail");
