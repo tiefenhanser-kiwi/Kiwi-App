@@ -221,3 +221,54 @@ test("item 14: isError absent ⇒ every pre-existing caller is unchanged", () =>
     ["thisWeek", "makeLane", "rail"],
   );
 });
+
+// ── FIX-3 / BUG-118 — plans, but none this week ─────────────────────────────
+
+test("BUG-118: plans but none this week → the no-plan card leads, above the make lane", () => {
+  assert.deepEqual(
+    homeSectionOrder({ isFirstRun: false, hasActivePlan: false, hasRail: true, hasPlans: true }),
+    ["noPlanThisWeek", "makeLane", "rail"],
+  );
+});
+
+test("BUG-118: a this-week plan wins — the card never shows beside the this-week module", () => {
+  assert.deepEqual(
+    homeSectionOrder({ isFirstRun: false, hasActivePlan: true, hasRail: true, hasPlans: true }),
+    ["thisWeek", "makeLane", "rail"],
+  );
+});
+
+test("BUG-118: no plans at all keeps today's states (returning empty, and first run)", () => {
+  assert.deepEqual(
+    homeSectionOrder({ isFirstRun: false, hasActivePlan: false, hasRail: true, hasPlans: false }),
+    ["makeLane", "rail"],
+  );
+  assert.deepEqual(
+    homeSectionOrder({ isFirstRun: true, hasActivePlan: false, hasRail: true, hasPlans: true }),
+    ["arc", "makeLane", "rail"],
+    "a first run keeps the arc alone",
+  );
+});
+
+test("BUG-118: loading and error still pre-empt the card", () => {
+  assert.deepEqual(
+    homeSectionOrder({
+      isFirstRun: false,
+      hasActivePlan: false,
+      hasRail: false,
+      hasPlans: true,
+      isLoading: true,
+    }),
+    ["leadLoading", "makeLane"],
+  );
+  assert.deepEqual(
+    homeSectionOrder({
+      isFirstRun: false,
+      hasActivePlan: false,
+      hasRail: false,
+      hasPlans: true,
+      isError: true,
+    }),
+    ["error"],
+  );
+});

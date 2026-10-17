@@ -20,11 +20,14 @@
 // "leadLoading" is the placeholder that occupies the LEAD slot while GET /home
 // is still in flight (WS9-2 2c Commit 2) — see the isLoading note below.
 // "error" is WHOLE-SCREEN and exclusive — see the note on `isError` below.
+// "noPlanThisWeek" is the LEAD for a user with plans but none this week
+// (FIX-3 / BUG-118) — see the note on `hasPlans` below.
 export type HomeSection =
   | "error"
   | "leadLoading"
   | "arc"
   | "thisWeek"
+  | "noPlanThisWeek"
   | "makeLane"
   | "rail";
 
@@ -35,6 +38,17 @@ export function homeSectionOrder(opts: {
   hasActivePlan: boolean;
   /** the Featured-plans rail has at least one card. */
   hasRail: boolean;
+  /**
+   * FIX-3 / BUG-118 — the user has at least one saved plan (GET /plans
+   * my_plans, non-empty). Optional (absent ⇒ false) so every pre-existing
+   * caller and test keeps its exact behaviour.
+   *
+   * With plans but none this week, Home led with the make lane and offered no
+   * way back to the plans the user already has. The card that takes the lead
+   * slot points at them. FALSE WHILE UNKNOWN (the list still loading): an
+   * unknown is not a claim that the user has plans.
+   */
+  hasPlans?: boolean;
   /**
    * WS9-2 2c Commit 2 — GET /home has not resolved yet, so we do NOT KNOW the
    * user's state. Optional (absent ⇒ false) so every pre-existing caller and
@@ -94,6 +108,8 @@ export function homeSectionOrder(opts: {
   } else {
     if (opts.isFirstRun) sections.push("arc");
     if (opts.hasActivePlan) sections.push("thisWeek");
+    // A first run keeps the arc alone: the new-user state is unchanged.
+    else if (opts.hasPlans && !opts.isFirstRun) sections.push("noPlanThisWeek");
   }
   sections.push("makeLane");
   if (opts.hasRail) sections.push("rail");

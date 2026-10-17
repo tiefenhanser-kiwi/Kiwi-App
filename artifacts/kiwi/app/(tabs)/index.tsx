@@ -33,6 +33,7 @@ import { GetTheAppStrip } from "@/components/GetTheAppStrip";
 import { HomeErrorState } from "@/components/HomeErrorState";
 import { HomeHeader } from "@/components/HomeHeader";
 import { LoadingShim } from "@/components/LoadingShim";
+import { NoPlanThisWeekCard } from "@/components/NoPlanThisWeekCard";
 import { PersonalizeNudgeModal } from "@/components/PersonalizeNudgeModal";
 import { PlanPreviewModal } from "@/components/PlanPreviewModal";
 import { runUseFromPreview } from "@/components/planPreview/previewUseFlow";
@@ -176,11 +177,11 @@ export default function HomeTab() {
   //   • the Prep & Cook hub      (app/prep-cook.tsx)
   //   • AddMealToPlanSheet       (components/AddMealToPlanSheet.tsx)
   //
-  // ⚠️ DELIBERATE PREFETCH WITH NO READER ON THIS SCREEN — do not sweep. It
-  // briefly HAD one (2e → Row 5 Block 4: the make lane's third option gated on
-  // the saved-plan count); the D-WS9-247 amendment moved that gate to GET
-  // /home, so this is a cache warm again, not a feature.
-  usePlans(["my_plans"]);
+  // It has a reader again: FIX-3 / BUG-118's "no plan for this week" card shows
+  // only when this list is non-empty (has plans, none this week). Unknown while
+  // it loads, which reads as "no plans" — the card makes no claim it can't back.
+  const myPlansQuery = usePlans(["my_plans"]);
+  const hasPlans = (myPlansQuery.data?.plans.length ?? 0) > 0;
 
   // §4.5 / D-WS9-247 amendment — the third option ("Set up my Playlist")
   // renders ONLY while the user has NO meals AND has NOT tapped it (Hans, on
@@ -461,6 +462,7 @@ export default function HomeTab() {
     isFirstRun,
     hasActivePlan,
     hasRail: railItems.length > 0,
+    hasPlans,
     isLoading: isHomeLoading,
     isError: isHomeError,
   });
@@ -550,6 +552,23 @@ export default function HomeTab() {
                     />
                   ) : null}
                 </View>
+              );
+            case "noPlanThisWeek":
+              // FIX-3 / BUG-118 — plans exist, none is this week. The three
+              // ways out: the user's own plans, the featured ones (the same
+              // Plans-tab filter link the Cookbook's season page uses), and the
+              // make lane's "use my preferences" entry.
+              return (
+                <NoPlanThisWeekCard
+                  key="noPlanThisWeek"
+                  onGoToPlans={() =>
+                    router.navigate({ pathname: "/(tabs)/plans", params: { filter: "my_plans" } })
+                  }
+                  onSeeFeatured={() =>
+                    router.navigate({ pathname: "/(tabs)/plans", params: { filter: "featured" } })
+                  }
+                  onCookSomethingUp={handleUsePreferences}
+                />
               );
             case "makeLane":
               // The eyebrow labels the Tell Kiwi card and switches by state.
