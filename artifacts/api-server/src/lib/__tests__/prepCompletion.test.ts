@@ -97,13 +97,35 @@ describe("derivePrepCompletion — per-meal + rollup (D-WS7-153)", () => {
     assert.equal(r.derivedPrepStatus, "partial");
   });
 
-  it("zero-prep meal is vacuously prepped (no contributing steps)", () => {
-    // MEAL_C has no steps in the structure → ready to cook. With nothing
-    // checked, A+B are not prepped but C is → partial (some prepped).
+  // PREP-2 item 6 — this used to pin "partial": the zero-prep meal counted toward the
+  // rollup, so a plan nobody had touched read "Mostly prepped" (Hans, THX test ·
+  // Classic, its Friday leftovers). Per meal it is still vacuously prepped.
+  it("zero-prep meal is vacuously prepped per meal, but an untouched plan is not_prepped (PREP-2)", () => {
     const MEAL_C = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
     const r = derivePrepCompletion([MEAL_A, MEAL_B, MEAL_C], steps, new Set());
     assert.equal(r.perMeal[MEAL_C], true);
-    assert.equal(r.derivedPrepStatus, "partial");
+    assert.equal(r.derivedPrepStatus, "not_prepped");
+  });
+
+  it("PREP-2 — with a zero-prep meal: some ticked → partial; every meal WITH steps done → prepped", () => {
+    const MEAL_C = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    assert.equal(derivePrepCompletion([MEAL_A, MEAL_B, MEAL_C], steps, new Set(["produce#onion"])).derivedPrepStatus, "partial");
+    assert.equal(
+      derivePrepCompletion([MEAL_A, MEAL_B, MEAL_C], steps, new Set(["produce#onion", "proteins#beef"])).derivedPrepStatus,
+      "prepped",
+    );
+  });
+
+  it("PREP-2 — Hans's Classic week, nothing ticked: four meals with steps, the Friday leftovers with none → not_prepped", () => {
+    const meals = ["mon", "tue", "wed", "thu", "fri"];
+    const set = [
+      { stepKey: "produce#tomato", contributesToMealIds: ["mon"] },
+      { stepKey: "produce#onion", contributesToMealIds: ["tue", "wed"] },
+      { stepKey: "feast#produce#celery", contributesToMealIds: ["thu"] },
+    ];
+    const r = derivePrepCompletion(meals, set, new Set());
+    assert.equal(r.derivedPrepStatus, "not_prepped");
+    assert.equal(r.perMeal.fri, true);
   });
 
   it("a plan of ALL zero-prep (all-easy) meals rolls up to prepped", () => {

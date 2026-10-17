@@ -61,21 +61,35 @@ export function derivePrepCompletion(
     }
   }
 
+  // PREP-2 item 6 — THE ROLLUP COUNTS ONLY MEALS THAT HAVE SOMETHING TO PREP.
+  // A zero-prep meal is still vacuously prepped PER MEAL (Cook Mode's gate reads
+  // that: nothing to prep means ready to cook), but it used to count toward the
+  // plan's rollup too, so an untouched plan holding one read "partial": Hans's
+  // "THX test · Classic", nothing ticked, said "Mostly prepped" for the plan and for
+  // four meals, because its Friday leftovers sandwich has no prep steps. The plan
+  // is "prepped" only when every meal WITH steps is, and a plan none of whose
+  // meals has a step is still "prepped" (the all-easy ruling, D-WS7-153).
   const perMeal: Record<string, boolean> = {};
-  let preppedCount = 0;
+  let withSteps = 0;
+  let preppedWithSteps = 0;
   for (const mealId of allMealIds) {
     const keys = keysByMeal.get(mealId)!;
     // Vacuous true when keys.length === 0.
     const prepped = keys.every((k) => checkedStepKeys.has(k));
     perMeal[mealId] = prepped;
-    if (prepped) preppedCount += 1;
+    if (keys.length === 0) continue;
+    withSteps += 1;
+    if (prepped) preppedWithSteps += 1;
   }
 
   let derivedPrepStatus: PrepStatus;
-  if (allMealIds.length === 0 || preppedCount === 0) {
+  if (allMealIds.length === 0) {
     derivedPrepStatus = "not_prepped";
-  } else if (preppedCount === allMealIds.length) {
+  } else if (preppedWithSteps === withSteps) {
+    // Every meal with steps is done — or no meal has any (all-easy).
     derivedPrepStatus = "prepped";
+  } else if (preppedWithSteps === 0) {
+    derivedPrepStatus = "not_prepped";
   } else {
     derivedPrepStatus = "partial";
   }
