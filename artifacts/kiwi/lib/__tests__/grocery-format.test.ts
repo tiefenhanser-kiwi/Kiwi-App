@@ -1050,10 +1050,20 @@ describe("BUG-147: same-system needs relate to the pack; cross-system still refu
     );
   });
 
-  it("guard V2 — a TWO-WORD unit parses: '(16 fl oz)' is oz, not 'fl'", () => {
+  // FIX-3 / BUG-242 — this guard used to pin '(16 fl oz)' as WEIGHT oz (a 24 oz
+  // need → 2 containers). That was the wrong equivalence, not a guard: a fluid
+  // ounce is volume. It now relates to a volume need, and a weight need against
+  // it refuses like any other weight↔volume pair (guard V6's shape).
+  it("guard V2 — a TWO-WORD unit parses: '(16 fl oz)' is fluid oz (volume), not 'fl'", () => {
+    // 3 cups = 24 fl oz against a 16 fl oz container → 2.
+    assert.equal(
+      composePackName("heavy cream", "container", "1 container (16 fl oz)", "3", "cup"),
+      "2 containers (16 fl oz) heavy cream",
+    );
+    // A weight need cannot be related without a density: the stored pack stands.
     assert.equal(
       composePackName("heavy cream", "container", "1 container (16 fl oz)", "24", "oz"),
-      "2 containers (16 fl oz) heavy cream",
+      "1 container (16 fl oz) heavy cream",
     );
     // ⚠️ and the trailing "each" form must not be swallowed as the second word.
     assert.equal(
@@ -1205,7 +1215,7 @@ describe("BUG-240: purchase override bypasses derivation", () => {
       ["cotija", "block", "1 lb block", "20", "oz", "2 lb block cotija"],
       ["cotija", "block", "1 lb block", "8", "oz", "1 lb block cotija"],
       ["crushed tomatoes", "can", "1 can", "28", "oz", "1 can crushed tomatoes"],
-      ["heavy cream", "container", "1 container (16 fl oz)", "24", "oz", "2 containers (16 fl oz) heavy cream"],
+      ["heavy cream", "container", "1 container (16 fl oz)", "3", "cup", "2 containers (16 fl oz) heavy cream"],
       ["bacon", "package", "1 package (12 oz)", "2", "pound", "3 packages (12 oz) bacon"],
       ["buttermilk", "quart", "1 quart", "5", "cup", "2 quarts buttermilk"],
       ["olive oil", "bottle", "1 bottle (500 ml)", "8", "oz", "1 bottle (500 ml) olive oil"],
@@ -2010,5 +2020,29 @@ describe("E4.2 — '3 medium white onion' is the rendered line, not the stored p
       composePackName("roma tomatoes", "each", "4 roma tomatoes", 2, "cup"),
       "4 roma tomatoes",
     );
+  });
+});
+
+// ── FIX-3 / BUG-242 — a fluid ounce is volume ───────────────────────────────
+describe("BUG-242: fl oz is a volume unit, not an alias of weight oz", () => {
+  it("the live repro: '1 carton (8 fl oz)' heavy cream against 1½ cup buys two", () => {
+    // TRIAGE-0 saw "1 carton (8 fl oz) heavy cream (1½ cup)": 12 fl oz of need
+    // against an 8 fl oz carton, printed as one carton.
+    assert.equal(
+      composePackName("heavy cream", "carton", "1 carton (8 fl oz)", "1.5", "cup"),
+      "2 cartons (8 fl oz) heavy cream",
+    );
+    // Boundary: exactly one carton's worth stays one carton.
+    assert.equal(
+      composePackName("heavy cream", "carton", "1 carton (8 fl oz)", "1", "cup"),
+      "1 carton (8 fl oz) heavy cream",
+    );
+  });
+
+  it("fl oz and its spelled-out forms share one token, distinct from weight oz", () => {
+    assert.equal(normalizeUnitToken("fl oz"), "fl oz");
+    assert.equal(normalizeUnitToken("Fluid Ounces"), "fl oz");
+    assert.equal(normalizeUnitToken("fluid ounce"), "fl oz");
+    assert.notEqual(normalizeUnitToken("fl oz"), normalizeUnitToken("oz"));
   });
 });

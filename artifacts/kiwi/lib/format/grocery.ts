@@ -673,7 +673,12 @@ const PACK_NUM = String.raw`\d+(?:\.\d+)?`;
 // and without this the two never match and nothing scales.
 const UNIT_ALIASES: Record<string, string> = {
   lbs: "lb", pound: "lb", pounds: "lb",
-  ounce: "oz", ounces: "oz", "fl oz": "oz",
+  ounce: "oz", ounces: "oz",
+  // FIX-3 / BUG-242 — a FLUID ounce is volume, and its canonical token is
+  // "fl oz" (in VOLUME_UNIT_TO_ML below). It used to fold to "oz", the WEIGHT
+  // token, so "1 carton (8 fl oz)" was measured against a 1½-cup need as if
+  // both were weights, related nothing, and printed one carton: an under-buy.
+  "fluid ounce": "fl oz", "fluid ounces": "fl oz",
   cups: "cup",
   tablespoon: "tbsp", tablespoons: "tbsp", tbsps: "tbsp",
   teaspoon: "tsp", teaspoons: "tsp", tsps: "tsp",
@@ -691,8 +696,8 @@ const UNIT_ALIASES: Record<string, string> = {
   // pack prints verbatim — corn tortillas, need 36 each, "1 package" on the
   // shelf-side of the line when the answer is 3.
   //
-  // Same class as `fl oz: "oz"` above and not the plural-folding the rest of
-  // this table does: two spellings the live data genuinely uses for one unit.
+  // Not the plural-folding the rest of this table does: two spellings the live
+  // data genuinely uses for one unit.
   count: "each",
   // WS9 BUG-332 (W2) — the ABBREVIATED spellings of the same thing. BUG-216
   // added `count` and the live data also writes `ct`: "1 package (10 ct)" and
@@ -804,6 +809,8 @@ const VOLUME_UNIT_TO_ML: Record<string, number> = {
   tsp: 4.92892159375,
   tbsp: 14.78676478125,
   cup: 236.5882365,
+  // FIX-3 / BUG-242 — US fluid ounce, ⅛ cup. A volume like any other here.
+  "fl oz": 29.5735295625,
   pint: 473.176473,
   quart: 946.352946,
   gallon: 3785.411784,
