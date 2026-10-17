@@ -1670,6 +1670,54 @@ describe("POST /api/wizard/build-plans — per-run preference precedence (D-WS7-
   });
 });
 
+// SAFE-1 (Part B) — the regular wizard honours the STORED spice tolerance
+// (UserPreferences.spiceTolerance, mild by default): Kung Pao and Arrabbiata
+// were reaching a mild user's build-plans shelf because only Tell Kiwi's typed
+// "nothing too spicy" set the filter.
+describe("POST /api/wizard/build-plans — SAFE-1 stored spice tolerance on the shelf", () => {
+  const hasSpiceTerm = (w: Record<string, unknown>) =>
+    ((w.AND ?? []) as Array<{ NOT?: { OR?: Array<{ title?: { contains: string } }> } }>).some((c) =>
+      (c.NOT?.OR ?? []).some((o) => o.title?.contains === "kung pao"),
+    );
+  const shelfWheres = async (spiceTolerance: "mild" | "hot" | undefined, user: string) => {
+    const prisma = makeStubPrisma({ preferences: spiceTolerance ? { spiceTolerance } : {} });
+    const harness = await spinUp({
+      runAICall: makeRunAICall(async () => happyResult()).fn,
+      prisma,
+      subscriptionService: makeSubscriptionService(true),
+      rateLimiterOpts: { capacity: 100, refillPerSec: 100 },
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${signToken(user)}` },
+        body: JSON.stringify(VALID_BODY),
+      });
+      assert.equal(res.status, 200);
+      return prisma._mealWheres() as Array<Record<string, unknown>>;
+    } finally {
+      await harness.close();
+    }
+  };
+
+  it("a stored mild tolerance keeps hot meals off the shelf", async () => {
+    const wheres = await shelfWheres("mild", "test-user-safe1-mild");
+    assert.ok(wheres.length > 0, "a shelf query ran");
+    assert.ok(wheres.some(hasSpiceTerm), "the shelf query carries the not-too-spicy condition");
+  });
+
+  it("no stored tolerance is the default, mild", async () => {
+    const wheres = await shelfWheres(undefined, "test-user-safe1-default");
+    assert.ok(wheres.some(hasSpiceTerm));
+  });
+
+  it("a stored hot tolerance leaves them on", async () => {
+    const wheres = await shelfWheres("hot", "test-user-safe1-hot");
+    assert.ok(wheres.length > 0, "a shelf query ran");
+    assert.equal(wheres.some(hasSpiceTerm), false);
+  });
+});
+
 describe("POST /api/wizard/build-plans — sequential distinctness", () => {
   let harness: Harness;
   // Stub returns a counter-keyed candidate so two invocations produce two

@@ -58,6 +58,17 @@ export const HOT_WORDS: readonly string[] = [
 
 const HOT_RE = new RegExp(`\\b(?:${HOT_WORDS.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})\\b`, "i");
 
+/**
+ * SAFE-1 (Part B) — the STORED tolerance that keeps hot meals off the regular
+ * wizard's shelves (build-plans and the Pick screen). UserPreferences.
+ * spiceTolerance is `mild` by default (schema default), and absent means no
+ * preferences row at all (a guest, or an account that never saved one) — the
+ * same default. `medium`, `hot` and `very_hot` keep the hot meals.
+ */
+export function storedToleranceExcludesSpicy(tolerance: string | null | undefined): boolean {
+  return tolerance == null || tolerance === "mild";
+}
+
 /** True when a title or description names unmistakable heat. */
 export function isTooSpicy(title: string, description?: string | null): boolean {
   return HOT_RE.test(title) || (description ? HOT_RE.test(description) : false);

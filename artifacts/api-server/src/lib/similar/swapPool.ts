@@ -16,6 +16,8 @@
 //   · a fork is folded onto its catalog meal (Meal.sourceStoreMealId) — the
 //     catalog row stands for both;
 //   · the user's allergen hard filter, the shelf's own (store/allergenFilter.ts);
+//   · SAFE-1: the user's stored diet (Vegetarian / Pescatarian / Vegan), read
+//     off each meal's ingredient names (similar/diet.ts);
 //   · minus the source and EVERY meal in the plan — by id, by lineage, by title,
 //     by dish (isSameDish) and by version (isVersionOf: "Chicken Parmesan Pasta"
 //     is not a swap for chicken parmesan);
@@ -26,6 +28,7 @@
 import type { DishRole, MealType, Prisma, PrismaClient } from "@prisma/client";
 
 import { allergenWhereConditions } from "../store/allergenFilter";
+import { dietRestrictionsOf, fitsDiets, mealLineNames, MEAL_LINE_NAMES_SELECT, type DietRestriction } from "./diet";
 import { storedAllergenTokens } from "../cookbook/search";
 import { EVERYDAY_SHELF_EXCLUDED_TAGS, everydayPoolWhere } from "../store/storeShortlist";
 import {
@@ -207,6 +210,17 @@ export function preFilterByForm(
   return kept;
 }
 
+/** The ids among `ids` whose ingredient and swap-product names fit every diet. */
+export async function mealIdsFittingDiets(
+  prisma: Pick<PrismaClient, "meal">,
+  ids: string[],
+  diets: readonly DietRestriction[],
+): Promise<Set<string>> {
+  if (ids.length === 0) return new Set();
+  const rows = await prisma.meal.findMany({ where: { id: { in: ids } }, select: MEAL_LINE_NAMES_SELECT });
+  return new Set(rows.filter((r) => fitsDiets(mealLineNames(r), diets)).map((r) => r.id));
+}
+
 export class SwapSourceNotFoundError extends Error {
   constructor() {
     super("source meal not found");
@@ -231,7 +245,7 @@ export async function buildSwapPool(
   }
 
   const themed = sourceRow.tags.some((t) => EVERYDAY_SHELF_EXCLUDED_TAGS.includes(t));
-  const [plan, allergenTokens] = await Promise.all([
+  const [plan, allergenTokens, prefs] = await Promise.all([
     opts.planId
       ? prisma.mealPlanInstance.findFirst({
           where: { id: opts.planId, userId },
@@ -241,7 +255,9 @@ export async function buildSwapPool(
         })
       : Promise.resolve(null),
     storedAllergenTokens(prisma, userId),
+    prisma.userPreferences.findUnique({ where: { userId }, select: { eatingStyles: true } }),
   ]);
+  const diets = dietRestrictionsOf(prefs?.eatingStyles);
   const allergenConditions = allergenWhereConditions(allergenTokens);
   const base: Prisma.MealWhereInput = {
     isArchived: false,
@@ -260,12 +276,19 @@ export async function buildSwapPool(
     prisma.meal.findMany({ where: { ...base, userId }, select: SWAP_POOL_MEAL_SELECT }),
   ]);
 
+  // SAFE-1 (Part B) — the stored diet, the way allergens are applied above but
+  // read off the ingredient names (lib/similar/diet.ts: no diet column exists).
+  // One extra read, only for a user with a restricting eating style.
+  const fits =
+    diets.length === 0
+      ? null
+      : await mealIdsFittingDiets(prisma, [...catalogRows, ...userRows].map((r) => r.id), diets);
   const source = toCandidate(sourceRow);
   const pool = assembleSwapPool({
     source: sourceRow,
     planMeals: plan?.items.map((i) => i.meal) ?? [],
-    catalogRows,
-    userRows,
+    catalogRows: fits ? catalogRows.filter((r) => fits.has(r.id)) : catalogRows,
+    userRows: fits ? userRows.filter((r) => fits.has(r.id)) : userRows,
   });
   return { source, pool, shortlist: preFilterByForm(source, pool) };
 }

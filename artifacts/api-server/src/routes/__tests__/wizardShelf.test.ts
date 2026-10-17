@@ -778,7 +778,9 @@ describe("POST /api/wizard/shelf — Tell Kiwi text: pins + unmatched names", ()
       },
     }));
     const spicyCatalog = [catalogRow("s01", { title: "Kung Pao Chicken" }), catalogRow("m01")];
-    const h = await spinUp(makeStubPrisma({ meals: spicyCatalog }), parse.fn);
+    // SAFE-1 — a user who SAVED "medium": since SAFE-1 the stored default
+    // (mild) filters on its own, so "no request" means a tolerance that allows heat.
+    const h = await spinUp(makeStubPrisma({ meals: spicyCatalog, preferences: { discoveryLevel: "none", spiceTolerance: "medium" } }), parse.fn);
     try {
       const { json } = await shelf(h, U, { ...BASE_BODY, size: 2, text: "easy dinners please" });
       assert.equal("householdSize" in json, false);
@@ -788,6 +790,31 @@ describe("POST /api/wizard/shelf — Tell Kiwi text: pins + unmatched names", ()
       await h.close();
     }
   });
+
+  // SAFE-1 (Part B) — the stored tolerance, no text at all.
+  for (const [label, prefs, want] of [
+    ["a stored mild tolerance keeps Kung Pao and Arrabbiata off", { discoveryLevel: "none", spiceTolerance: "mild" }, ["m01"]],
+    ["no stored row is the default, mild", null, ["m01"]],
+    ["a stored hot tolerance keeps them", { discoveryLevel: "none", spiceTolerance: "hot" }, ["m01", "s01", "s02"]],
+  ] as const) {
+    it(`SAFE-1: ${label}`, async () => {
+      const spicyCatalog = [
+        catalogRow("s01", { title: "Kung Pao Chicken" }),
+        catalogRow("s02", { title: "Rigatoni Arrabbiata" }),
+        catalogRow("m01", { title: "Lemon Herb Chicken" }),
+      ];
+      const h = await spinUp(makeStubPrisma({ meals: spicyCatalog, preferences: prefs }), makeParseIntent(() => {
+        throw new Error("no text, no parse");
+      }).fn);
+      try {
+        const { status, json } = await shelf(h, U, { ...BASE_BODY, size: 3 });
+        assert.equal(status, 200);
+        assert.deepEqual(json.meals.map((m) => m.id).sort(), [...want]);
+      } finally {
+        await h.close();
+      }
+    });
+  }
 
   it("no text → no AI call at all", async () => {
     const parse = makeParseIntent(() => {

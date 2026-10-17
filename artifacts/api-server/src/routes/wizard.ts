@@ -44,7 +44,7 @@ import {
 } from "../lib/store/storeShortlist";
 import { addPlaylistToShelf, retrieveShelf } from "../lib/store/shelf";
 import { everydayPoolWhere } from "../lib/store/storeShortlist";
-import { notTooSpicyWhere } from "../lib/store/spice";
+import { notTooSpicyWhere, storedToleranceExcludesSpicy } from "../lib/store/spice";
 import { composeShelf, shelfRemainderFor } from "../lib/store/shelfCompose";
 import { MEAL_CARD_SELECT, toMealCard } from "../lib/store/mealCard";
 import { servedCatalogIds } from "../lib/store/newToYou";
@@ -1295,6 +1295,18 @@ export function createWizardRouter(
           ...pinnedIds,
         ]),
       ];
+      // SAFE-1 (Part B) — the stored tolerance (mild by default) keeps hot
+      // meals off the shelf rows as well. The playlist rows keep the user's own
+      // go-tos unless the text said "nothing too spicy" (above). A guest has no
+      // preferences row: the default.
+      const storedSpice = guestSessionId
+        ? null
+        : await prisma.userPreferences.findUnique({
+            where: { userId },
+            select: { spiceTolerance: true },
+          });
+      const excludeSpicy =
+        avoidSpicy || storedToleranceExcludesSpicy(storedSpice?.spiceTolerance);
       const shelf =
         counts.shelfRemainder > 0
           ? await retrieveShelf(prisma, {
@@ -1309,7 +1321,7 @@ export function createWizardRouter(
                 discoveryLevel === undefined
                   ? counts.shelfRemainder
                   : counts.shelfRemainder * 2,
-              excludeSpicy: avoidSpicy,
+              excludeSpicy,
             })
           : null;
       const shelfIds = shelf?.selectedIds ?? [];
@@ -1612,6 +1624,10 @@ export function createWizardRouter(
         // D-WS7-166 — from the RESOLVED bag, same object the prompt reads.
         maxCookTimeMinutes: preferencesContext.maxCookTimeMinutes,
         maxCookTimeCoverage: preferencesContext.maxCookTimeCoverage,
+        // SAFE-1 (Part B) — the stored tolerance (mild by default) keeps hot
+        // meals off this shelf; the prompt gets the same rule from the same
+        // field (hiddenContext.spiceTolerance).
+        excludeSpicy: storedToleranceExcludesSpicy(hiddenContext?.spiceTolerance),
       });
       // WS9 Redesign Arc Block 2 (Part E) — when the Playlist dial claims
       // slots, the user's playlist sources ride the shelf, flagged, so the
