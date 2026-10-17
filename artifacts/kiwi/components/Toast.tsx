@@ -15,6 +15,25 @@ import { Colors, Radius, Spacing, Typography } from "@/constants/tokens";
 /** Matches the grocery undo banner's 5s window. */
 export const TOAST_DEFAULT_DURATION_MS = 5000;
 
+/**
+ * BOOK-1C2 — an informational toast (no action) leaves a second sooner. Hans,
+ * on the Cookbook's "Saved to My Meals": it should "disappear about 1 s
+ * sooner". The UNDO variant keeps the full window: its timeout is the commit of
+ * a deferred delete (compost, ToastProvider's onDismiss), and a shorter window
+ * there is less time to take it back, not a snappier toast.
+ */
+export const TOAST_INFO_DURATION_MS = TOAST_DEFAULT_DURATION_MS - 1000;
+
+/** How long a toast shows: the caller's own durationMs, else by variant. */
+export function toastDurationMs(opts: {
+  durationMs?: number;
+  actionLabel?: string;
+  onAction?: () => void;
+}): number {
+  if (opts.durationMs !== undefined) return opts.durationMs;
+  return opts.actionLabel && opts.onAction ? TOAST_DEFAULT_DURATION_MS : TOAST_INFO_DURATION_MS;
+}
+
 export interface ToastProps {
   message: string;
   /** Undo variant: supply BOTH. Omit for the informational variant. */

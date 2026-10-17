@@ -13,7 +13,7 @@
 // API (like AppContext.mutators' `app`).
 
 import assert from "node:assert/strict";
-import { test, beforeEach } from "node:test";
+import { mock, test, beforeEach } from "node:test";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
@@ -23,6 +23,11 @@ import TestRenderer, { act } from "react-test-renderer";
 import { Pressable, Text } from "react-native";
 
 import { ToastProvider, useToast, type ToastOptions } from "../ToastProvider";
+import {
+  TOAST_DEFAULT_DURATION_MS,
+  TOAST_INFO_DURATION_MS,
+  toastDurationMs,
+} from "@/components/Toast";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -162,4 +167,40 @@ test("hideToast dismisses the current toast (onDismiss fires once)", async () =>
   assert.equal(dismiss, 1);
   assert.equal(r.toJSON() === null || !textLeavesOf(r.root).join("").includes("x"), true);
   r.unmount();
+});
+
+// ── BOOK-1C2 — the default durations ────────────────────────────────────────
+
+test("defaults: an informational toast leaves at 4 s, an undo toast keeps 5 s", async () => {
+  assert.equal(TOAST_INFO_DURATION_MS, TOAST_DEFAULT_DURATION_MS - 1000);
+  assert.equal(toastDurationMs({}), 4000);
+  assert.equal(toastDurationMs({ actionLabel: "Undo", onAction: () => {} }), 5000);
+  // A label with no handler is not the undo variant.
+  assert.equal(toastDurationMs({ actionLabel: "Undo" }), 4000);
+  assert.equal(toastDurationMs({ durationMs: 40, actionLabel: "Undo", onAction: () => {} }), 40);
+
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    const r = await mount();
+    let info = 0;
+    let undo = 0;
+    await act(async () => {
+      api!.showToast({ message: "Saved to My Meals", onDismiss: () => info++ });
+    });
+    await act(async () => mock.timers.tick(3999));
+    assert.equal(info, 0, "still up at 3.999 s");
+    await act(async () => mock.timers.tick(1));
+    assert.equal(info, 1, "gone at 4 s");
+
+    await act(async () => {
+      api!.showToast({ message: "Plan composted", actionLabel: "Undo", onAction: () => {}, onDismiss: () => undo++ });
+    });
+    await act(async () => mock.timers.tick(4999));
+    assert.equal(undo, 0, "the undo window is still open at 4.999 s");
+    await act(async () => mock.timers.tick(1));
+    assert.equal(undo, 1, "and commits at 5 s");
+    r.unmount();
+  } finally {
+    mock.timers.reset();
+  }
 });

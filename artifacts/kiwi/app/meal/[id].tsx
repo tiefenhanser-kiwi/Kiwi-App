@@ -16,6 +16,7 @@ import { AddMealToPlanSheet } from "@/components/AddMealToPlanSheet";
 import { Button } from "@/components/Button";
 import { PlaylistToggleButton } from "@/components/PlaylistToggleButton";
 import { SaveChip } from "@/components/SaveChip";
+import { saveToastMessage } from "@/lib/cookbook/saveChip";
 import { Card } from "@/components/Card";
 import { DisplayTitle, resolveDisplayTitle } from "@/components/DisplayTitle";
 import { Header } from "@/components/Header";
@@ -81,15 +82,18 @@ const SERVINGS_MAX = 12;
 // card's own: same state, same write, a different face.
 function SaveButton({ mealId }: { mealId: string }) {
   const { isFavorite, setSaved } = useApp();
-  const { showToast } = useToast();
+  const { showToast, hideToast } = useToast();
   const favorited = isFavorite(mealId);
 
+  // BOOK-1C2 — the toast shows on tap (the chip has already flipped,
+  // optimistically); a failure takes it down before the alert says so.
   const onToggle = async () => {
     const next = !favorited;
+    showToast({ message: saveToastMessage(next) });
     try {
       await setSaved(mealId, next);
-      showToast({ message: next ? "Saved to My Meals" : "Removed from My Meals" });
     } catch {
+      hideToast();
       dialog.alert(
         "Couldn't update My Meals",
         "Something went wrong. Please try again.",

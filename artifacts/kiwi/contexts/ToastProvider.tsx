@@ -7,7 +7,7 @@ import React, {
   useState,
 } from "react";
 
-import { Toast, TOAST_DEFAULT_DURATION_MS } from "@/components/Toast";
+import { Toast, toastDurationMs } from "@/components/Toast";
 
 // WS9 3d Part 3b-2 — the app-level toast host. A single toast lives ABOVE the
 // navigator (mounted once in _layout), so a toast shown right before a route
@@ -31,6 +31,7 @@ export interface ToastOptions {
    *  toast — i.e. dismissed WITHOUT the action. The "commit" hook for a
    *  deferred-destructive caller. Never fired when onAction fires. */
   onDismiss?: () => void;
+  /** Omitted: 4 s informational, 5 s with an action (Toast.tsx toastDurationMs). */
   durationMs?: number;
 }
 
@@ -92,7 +93,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       timerRef.current = setTimeout(() => {
         setCurrent(null);
         settle("dismiss");
-      }, opts.durationMs ?? TOAST_DEFAULT_DURATION_MS);
+      }, toastDurationMs(opts));
     },
     [settle],
   );

@@ -4,7 +4,7 @@
 //
 // Owns everything a card leads to, so both hosts behave identically:
 //   • tap → the existing meal detail;
-//   • ♡   → AppContext.setSaved (the one heart write) + a toast;
+//   • Save → AppContext.setSaved (the one save write) + a toast on tap;
 //   • +   → AddMealToPlanSheet (live plans, then a day) → addMealToPlan;
 //   • the end of every list → the Ask Kiwi helper; an empty result → "No meals
 //     match these filters", Clear filters (when any are on), and the helper.
@@ -25,6 +25,7 @@ import { useToast } from "@/contexts/ToastProvider";
 import type { useCookbookMeals } from "@/hooks/useCookbook";
 import type { CookbookMeal } from "@/lib/api/cookbook";
 import { ApiError } from "@/lib/api/errors";
+import { saveToastMessage } from "@/lib/cookbook/saveChip";
 import { dialog } from "@/lib/dialog";
 
 /** The web column: cards stop growing past a readable width. */
@@ -56,17 +57,20 @@ export function CookbookResults({
 }: CookbookResultsProps) {
   const router = useRouter();
   const { setSaved, addMealToPlan } = useApp();
-  const { showToast } = useToast();
+  const { showToast, hideToast } = useToast();
   const [addFor, setAddFor] = useState<CookbookMeal | null>(null);
 
   const open = (meal: CookbookMeal) =>
     router.push({ pathname: "/meal/[id]", params: { id: meal.id } });
 
+  // BOOK-1C2 — the toast shows ON TAP, with the chip's own (optimistic) flip,
+  // not after the round trip ("a beat late"); a failure replaces it.
   const toggleSave = (meal: CookbookMeal) => {
     const next = !meal.isSaved;
-    void setSaved(meal.id, next)
-      .then(() => showToast({ message: next ? "Saved to My Meals" : "Removed from My Meals" }))
-      .catch(() => showToast({ message: "Couldn't update My Meals. Please try again." }));
+    showToast({ message: saveToastMessage(next) });
+    void setSaved(meal.id, next).catch(() =>
+      showToast({ message: "Couldn't update My Meals. Please try again." }),
+    );
   };
 
   const { meals } = results;
@@ -83,11 +87,12 @@ export function CookbookResults({
           const meal = addFor;
           setAddFor(null);
           if (!meal) return;
+          // BOOK-1C2 — on tap, as the save toast; a failure takes it down
+          // before the alert says so.
+          showToast({ message: `Added to ${resolveDisplayTitle(plan)} · ${day}` });
           void addMealToPlan(plan.id, meal.id, day)
-            .then(() =>
-              showToast({ message: `Added to ${resolveDisplayTitle(plan)} · ${day}` }),
-            )
             .catch((err: unknown) => {
+              hideToast();
               console.warn("[cookbook] add-to-plan failed", { planId: plan.id, mealId: meal.id, err });
               // BUG-411 — a plan composted elsewhere since the list loaded.
               const closed = err instanceof ApiError && err.status === 409;
