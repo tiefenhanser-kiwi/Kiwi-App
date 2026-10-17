@@ -267,6 +267,11 @@ test("BOOK-1C2 (BUG-417): a catalog meal saved only through the user's copy read
   });
   await settle(qc);
   await settle(qc);
+  // settle() returns as soon as nothing is fetching, which can be BEFORE the
+  // favorites query (enabled only once /auth/me lands) has started. Wait for
+  // its first answer, or that late GET overwrites the optimistic un-save below.
+  for (let i = 0; i < 50 && qc.getQueryData(FAV_KEY) === undefined; i++) await settle(qc);
+  assert.ok(qc.getQueryData(FAV_KEY) !== undefined, "the favorites list loaded");
 
   // Meal detail's chip reads isFavorite (app/meal/[id].tsx SaveButton).
   assert.equal(app!.isFavorite("cat-1"), true, "the card's lineage rule, on detail");
@@ -278,7 +283,10 @@ test("BOOK-1C2 (BUG-417): a catalog meal saved only through the user's copy read
   await act(async () => {
     await app!.setSaved("cat-1", false);
   });
-  assert.equal(app!.isFavorite("cat-1"), false, "un-saved at once (optimistic)");
+  // At once in the CACHE (optimistic). `app` is the last render, and React
+  // Query notifies observers on a setTimeout(0), so the render can trail the
+  // write by a tick; read isFavorite after a settle.
+  assert.ok(!(qc.getQueryData<string[]>(FAV_KEY) ?? []).includes("cat-1"), "un-saved at once (optimistic)");
   await settle(qc);
-  assert.equal(app!.isFavorite("cat-1"), false, "and still after the re-read");
+  assert.equal(app!.isFavorite("cat-1"), false, "and on detail after the re-read");
 });
