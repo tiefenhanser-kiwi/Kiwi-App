@@ -636,6 +636,216 @@ describe("POST /api/meals/find-similar — LLMCallLog accounting", () => {
 // The step reads feeding toStepShape are full-row (no `select`), so the
 // String? column is on the input. Emitted as null on an untagged row so the
 // wire shape is stable (never undefined); a mobile carrier can round-trip it.
+// ── FIX-2 (BUG-058) — the server-built pool: { sourceMealId, planId } ─────────
+
+const POOL_USER = "test-user-swap-pool";
+
+function poolRow(id: string, title: string, opts: { userId?: string | null; fork?: string | null; dishes?: string[] } = {}) {
+  return {
+    id,
+    title,
+    cuisineType: "Italian-American",
+    tags: [],
+    userId: opts.userId ?? null,
+    isPublic: !opts.userId,
+    mealType: "dinner",
+    sourceStoreMealId: opts.fork ?? null,
+    dishLinks: (opts.dishes ?? [title]).map((t, i) => ({ roleLabel: "main", positionIndex: i, dish: { title: t } })),
+  };
+}
+
+function cardRow(id: string, title: string) {
+  return {
+    id,
+    title,
+    displayTitle: null,
+    description: null,
+    cuisineType: "Italian-American",
+    estimatedTimeMinutes: 40,
+    activeTimeMinutes: 20,
+    servingsDefault: 4,
+    authoredServingsDefault: 4,
+    caloriesPerServing: 600,
+    proteinGPerServing: 40,
+    carbsGPerServing: 50,
+    fatGPerServing: 20,
+    tags: [],
+    imageUrl: null,
+  };
+}
+
+// The user's plan: the source (a fork of the catalog parm) + a fork of piccata.
+const POOL_SOURCE = poolRow("fork-parm", "Crispy Baked Chicken Parmesan with Spaghetti", { userId: POOL_USER, fork: "cat-parm" });
+const POOL_CATALOG = [
+  poolRow("cat-parm", "Crispy Baked Chicken Parmesan with Spaghetti"),
+  poolRow("cat-piccata", "Chicken Piccata with Angel Hair Pasta"),
+  poolRow("cat-francese", "Chicken Francese with Angel Hair Pasta"),
+  poolRow("cat-milanese", "Pork Milanese with Arugula and Lemon"),
+  poolRow("cat-meatballs", "Classic Tomato Spaghetti and Meatballs"),
+  poolRow("cat-parm-sub", "Chicken Parmesan Sub"),
+  poolRow("cat-bbq", "BBQ Glazed Pork Chops with Mac and Cheese"),
+];
+const POOL_USER_ROWS = [
+  POOL_SOURCE,
+  poolRow("fork-piccata", "Chicken Piccata with Angel Hair Pasta", { userId: POOL_USER, fork: "cat-piccata" }),
+];
+
+function makePoolPrisma(opts: { sourceOwner?: string } = {}) {
+  const base = makeStubPrisma();
+  const reads: { where: Record<string, unknown> }[] = [];
+  const allTitles = new Map([...POOL_CATALOG, ...POOL_USER_ROWS].map((r) => [r.id, r.title]));
+  return {
+    ...base,
+    userPreferences: { findUnique: async () => ({ allergiesAndAvoidances: [] }) },
+    mealPlanInstance: {
+      findFirst: async ({ where }: { where: { id: string; userId: string } }) =>
+        where.id === "plan-1" && where.userId === POOL_USER
+          ? {
+              items: [
+                { meal: { id: "fork-parm", title: POOL_SOURCE.title, sourceStoreMealId: "cat-parm" } },
+                { meal: { id: "fork-piccata", title: "Chicken Piccata with Angel Hair Pasta", sourceStoreMealId: "cat-piccata" } },
+              ],
+            }
+          : null,
+    },
+    meal: {
+      findUnique: async ({ where }: { where: { id: string } }) =>
+        where.id === POOL_SOURCE.id ? { ...POOL_SOURCE, ...(opts.sourceOwner ? { userId: opts.sourceOwner } : {}) } : null,
+      findMany: async (args: { where: Record<string, unknown> }) => {
+        reads.push(args);
+        const w = args.where as { id?: { in: string[] }; isPublic?: boolean; userId?: string };
+        if (w.id?.in) return w.id.in.map((id) => cardRow(id, allTitles.get(id) ?? id));
+        if (w.isPublic === true) return POOL_CATALOG;
+        if (w.userId === POOL_USER) return POOL_USER_ROWS;
+        return [];
+      },
+    },
+    _reads: () => reads,
+  };
+}
+
+/** Answers with the aliases of the named titles, in the order given, from what the model was sent. */
+function makePoolAI(pickTitles: string[], extra: { mealId: string }[] = []) {
+  const sent: { candidates: { id: string; title: string; dishes: string[] }[] }[] = [];
+  const fn = (async (_k: string, vars: { findSimilarInput: { candidates: { id: string; title: string; dishes: string[] }[] } }) => {
+    sent.push(vars.findSimilarInput);
+    const byTitle = new Map(vars.findSimilarInput.candidates.map((c) => [c.title, c.id]));
+    const matches = [
+      ...pickTitles.flatMap((t, i) => (byTitle.has(t) ? [{ mealId: byTitle.get(t)!, similarityScore: 0.9 - i * 0.05, reason: "Another breaded cutlet" }] : [])),
+      ...extra.map((e) => ({ ...e, similarityScore: 0.5, reason: "invented" })),
+    ];
+    return { ...happyResult(), data: { matches } };
+  }) as unknown;
+  return { fn, sent };
+}
+
+async function postPool(harness: Harness, body: unknown, user = POOL_USER) {
+  return fetch(`${harness.baseUrl}/meals/find-similar`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${signToken(user)}` },
+    body: JSON.stringify(body),
+  });
+}
+
+describe("POST /api/meals/find-similar — FIX-2 server-built pool", () => {
+  let harness: Harness;
+  const prisma = makePoolPrisma();
+  const ai = makePoolAI(
+    ["Chicken Francese with Angel Hair Pasta", "Pork Milanese with Arugula and Lemon", "Classic Tomato Spaghetti and Meatballs"],
+    [{ mealId: "c999" }],
+  );
+
+  before(async () => {
+    harness = await spinUp({ runAICall: ai.fn, prisma, subscriptionService: makeSubscriptionService(true) });
+  });
+  after(async () => harness.close());
+
+  it("never sends the model the source, the plan's meals, or a version of either", async () => {
+    const res = await postPool(harness, { sourceMealId: "fork-parm", planId: "plan-1", limit: 10 });
+    assert.equal(res.status, 200);
+    const sentTitles = ai.sent.at(-1)!.candidates.map((c) => c.title);
+    for (const t of ["Crispy Baked Chicken Parmesan with Spaghetti", "Chicken Piccata with Angel Hair Pasta", "Chicken Parmesan Sub"]) {
+      assert.equal(sentTitles.includes(t), false, `${t} must not reach the model: ${JSON.stringify(sentTitles)}`);
+    }
+    assert.ok(sentTitles.includes("Chicken Francese with Angel Hair Pasta"));
+    // The model sees aliases and dish titles, not database ids.
+    assert.ok(ai.sent.at(-1)!.candidates.every((c) => /^c\d+$/.test(c.id) && Array.isArray(c.dishes)));
+  });
+
+  it("returns real ids with their cards, in the model's order, and drops an invented alias", async () => {
+    const res = await postPool(harness, { sourceMealId: "fork-parm", planId: "plan-1", limit: 10 });
+    const body = (await res.json()) as {
+      matches: { mealId: string; meal: { id: string; title: string } }[];
+      metadata: { mode: string; poolSize: number; candidateCount: number };
+    };
+    assert.deepEqual(body.matches.map((m) => m.mealId), ["cat-francese", "cat-milanese", "cat-meatballs"]);
+    assert.ok(body.matches.every((m) => m.meal.id === m.mealId && m.meal.title.length > 0));
+    assert.equal(body.metadata.mode, "ai");
+    // Pool: 7 catalog + 2 own rows, minus source, its original, piccata (fork + catalog), the parm sub.
+    assert.equal(body.metadata.poolSize, 3 + 1);
+    assert.equal(new Set(body.matches.map((m) => m.mealId)).size, body.matches.length, "no duplicates");
+  });
+
+  it("emits meal_found_similar_used against the source", async () => {
+    const ev = prisma._activities().at(-1);
+    assert.equal(ev?.eventType, "meal_found_similar_used");
+    assert.equal(ev?.entityId, "fork-parm");
+  });
+
+  it("ignores a plan that is not the caller's (only the source is excluded)", async () => {
+    const before = ai.sent.length;
+    await postPool(harness, { sourceMealId: "fork-parm", planId: "someone-elses-plan" });
+    const sentTitles = ai.sent.slice(before)[0].candidates.map((c) => c.title);
+    assert.equal(sentTitles.includes("Crispy Baked Chicken Parmesan with Spaghetti"), false);
+  });
+});
+
+describe("POST /api/meals/find-similar — FIX-2 server pool: refusals and fallback", () => {
+  it("404s on another user's private source, with no AI call", async () => {
+    const ai = makePoolAI([]);
+    const harness = await spinUp({ runAICall: ai.fn, prisma: makePoolPrisma({ sourceOwner: "someone-else" }), subscriptionService: makeSubscriptionService(true) });
+    try {
+      const res = await postPool(harness, { sourceMealId: "fork-parm" });
+      assert.equal(res.status, 404);
+      assert.equal(ai.sent.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("entitlement-deny: the form pre-filter's order, cards included, no AI, aiSkipped named", async () => {
+    const ai = makePoolAI([]);
+    const prisma = makePoolPrisma();
+    const harness = await spinUp({ runAICall: ai.fn, prisma, subscriptionService: makeSubscriptionService(false) });
+    try {
+      const res = await postPool(harness, { sourceMealId: "fork-parm", planId: "plan-1", limit: 2 });
+      const body = (await res.json()) as { aiSkipped?: string; matches: { mealId: string; meal?: unknown }[]; metadata: { mode: string } };
+      assert.equal(res.status, 200);
+      assert.equal(body.aiSkipped, "subscription_required");
+      assert.equal(body.metadata.mode, "fallback_form");
+      assert.equal(body.matches.length, 2);
+      assert.ok(body.matches.every((m) => m.meal));
+      // A breaded cutlet leads a chicken-parm fallback; BBQ is never in it.
+      assert.ok(!body.matches.some((m) => m.mealId === "cat-bbq"));
+      assert.equal(ai.sent.length, 0);
+      assert.equal(prisma._activities().length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("400s on a body with neither sourceMealId nor source + candidates", async () => {
+    const ai = makePoolAI([]);
+    const harness = await spinUp({ runAICall: ai.fn, prisma: makePoolPrisma(), subscriptionService: makeSubscriptionService(true) });
+    try {
+      const res = await postPool(harness, { planId: "plan-1" });
+      assert.equal(res.status, 400);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
 describe("toStepShape — D-WS9-239 1b carries parallelGroup", () => {
   const row = {
     stepIndex: 2,

@@ -24,21 +24,16 @@ import { SortDropdown, type SortKey } from "@/components/SortDropdown";
 import { TreatedImage } from "@/components/TreatedImage";
 import { Colors, ImageTreatment, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { useFindSimilarMeals } from "@/hooks/useFindSimilarMeals";
-import { useMeal } from "@/hooks/useMeal";
-import { useInfiniteMeals, useMeals } from "@/hooks/useMeals";
+import { useInfiniteMeals } from "@/hooks/useMeals";
 import { spendGuardRefusalFromError } from "@/lib/api/errors";
 import { findSimilarNotice } from "@/lib/billing/subscriptionView";
 import {
   importEntryParams,
   type ImportEntryContext,
 } from "@/lib/builder/importEntryParams";
-import type { MealCandidatePayload, MealDetail, MealFilterKey } from "@/lib/api/meals";
+import type { MealFilterKey, MealListItem } from "@/lib/api/meals";
 import { formatMacroLine } from "@/lib/format/macros";
-import {
-  dedupeMealsByTitle,
-  normalizeMealTitleKey,
-  preferMoreCompleteMeal,
-} from "@/lib/meals/dedupeByTitle";
+import { dedupeMealsByTitle, normalizeMealTitleKey } from "@/lib/meals/dedupeByTitle";
 import { MEAL_DISABLED_SORT_KEYS, toMealSortKey } from "@/lib/meals/sortMapping";
 import { mealListItemToSummary } from "@/lib/plans/mealListItemToSummary";
 import type { MealSummary } from "@/lib/types";
@@ -48,8 +43,8 @@ import type { MealSummary } from "@/lib/types";
 // actions.
 //   - "different": the filter-chip browser over the catalog buckets. WS9 3f-4 —
 //     keyset-paginated via useInfiniteMeals (load-on-scroll); free (no AI call).
-//   - "similar":   the useFindSimilarMeals AI RANKING pipeline. WS9 3f-4 — the
-//     pool is de-duplicated by dish identity and bounded (BUG-058 client half);
+//   - "similar":   the useFindSimilarMeals AI RANKING pipeline. FIX-2 (BUG-058)
+//     — the SERVER builds the pool (catalog + the user's meals, minus the plan);
 //     NO infinite scroll here ON PURPOSE (each page is an AI call, cost guard).
 //   - BOTH modes:  the "Bring in something new" import chooser + inline Ask-Kiwi
 //     creator (Thread A).
@@ -100,43 +95,17 @@ const FILTER_OPTIONS: { key: MealFilterKey; label: string }[] = [
   { key: "hosting", label: "Hosting & Events" },
 ];
 
-// Similar-mode: all four catalog buckets unioned in one request. (featured +
-// hosting resolve empty server-side today — D-WS7-039 — so the live union is
-// my_meals ∪ top_rated; the empty buckets are harmless and stay for later.)
-const FIND_SIMILAR_BUCKETS: readonly MealFilterKey[] = [
-  "my_meals",
-  "featured",
-  "top_rated",
-  "hosting",
-];
-
-// WS9 3f-4 (Thread E) — bounded raise of the candidate pool (server clamps to
-// [1,100]); the public-catalog contribution stays server-capped (3f-5's fix).
-const SIMILAR_CANDIDATE_LIMIT = 60;
-// Hard ceiling on the model payload — never send more than this many candidates
-// INTO find-similar, regardless of library size (input bound / cost guard).
-const FIND_SIMILAR_MAX_PAYLOAD = 60;
+// FIX-2 (BUG-058) — Similar mode no longer builds its own pool. It used to post
+// the first 60 rows of four A→Z shelves (the catalog was never searched, and
+// the plan's own meals came back as "similar"); the server now builds the pool
+// from the catalog plus the user's meals, minus the source AND every meal in
+// the plan, and returns each match with its card.
 // WS9 3f-4 follow-on — how many ranked matches actually RENDER (the "close but
 // not quite" near-miss set). 20 is the outer bound if a later ruling raises it.
 const FIND_SIMILAR_RENDER_LIMIT = 8;
 // How many to ASK the model for: the render target plus headroom, because
 // de-duplication runs AFTER ranking and can shrink the returned set.
 const FIND_SIMILAR_MODEL_LIMIT = FIND_SIMILAR_RENDER_LIMIT + 4;
-
-// MealListItem (GET /me/meals) has no mealType column, so candidate payloads use
-// a uniform placeholder for the required AI field (D-WS7-146 tracks widening the
-// list shape). The source carries its real mealType via MealDetail.
-const CANDIDATE_MEAL_TYPE = "dinner";
-
-function mealDetailToCandidate(meal: MealDetail): MealCandidatePayload {
-  return {
-    id: meal.id,
-    title: meal.title,
-    cuisine: meal.cuisine.length > 0 ? meal.cuisine : null,
-    mealType: meal.mealType,
-    tags: meal.tags,
-  };
-}
 
 function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
@@ -304,6 +273,7 @@ export function SwapMealSheet({
                   visible={visible}
                   sourceMealId={sourceMealId}
                   sourceMealTitle={sourceMealTitle}
+                  planId={planId}
                   onPick={handlePick}
                 />
               ) : (
@@ -377,78 +347,50 @@ function SimilarBody({
   visible,
   sourceMealId,
   sourceMealTitle,
+  planId,
   onPick,
 }: {
   visible: boolean;
   sourceMealId: string;
   sourceMealTitle?: string;
+  /** FIX-2 — the server leaves every meal of this plan out of the results. */
+  planId?: string;
   onPick: (meal: MealSummary) => void;
 }) {
-  const [aiOrderedIds, setAiOrderedIds] = useState<string[] | null>(null);
+  const [aiMatches, setAiMatches] = useState<MealListItem[] | null>(null);
   const [hadError, setHadError] = useState(false);
 
   const findSimilarMutation = useFindSimilarMeals();
   const [aiSkipped, setAiSkipped] = useState<string | undefined>(undefined);
-  const candidatesQuery = useMeals(FIND_SIMILAR_BUCKETS, SIMILAR_CANDIDATE_LIMIT);
-  const sourceMealQuery = useMeal(sourceMealId);
-  const sourceMeal = sourceMealQuery.data;
 
   const sourceTitleKey = sourceMealTitle
     ? normalizeMealTitleKey(sourceMealTitle)
     : null;
 
-  // WS9 3f-4 (Thread E) — de-duplicate the raw candidate rows by dish identity
-  // (normalized title) BEFORE ranking, excluding the source by id AND title
-  // (BUG-061). §6.2 — the survivor per title is the most COMPLETE record
-  // (deterministic), so a half-built duplicate isn't the one swapped in.
-  const dedupedItems = useMemo(() => {
-    if (!sourceMealId || !candidatesQuery.data) return [];
-    const items = candidatesQuery.data.meals.filter(
-      (m) => !excludesSource(m.id, m.title, sourceMealId, sourceTitleKey),
-    );
-    return dedupeMealsByTitle(items, preferMoreCompleteMeal);
-  }, [candidatesQuery.data, sourceMealId, sourceTitleKey]);
-
-  const candidatePool = useMemo<MealSummary[]>(
-    () => dedupedItems.map((m) => mealListItemToSummary(m, "my_meals")),
-    [dedupedItems],
-  );
-
-  // Fire the AI call when the sheet opens with a fresh source AND both reads have
-  // landed. Reset each time so re-opening for a different meal doesn't leak.
+  // Fire the ranking call when the sheet opens for a source. FIX-2 (BUG-058) —
+  // the server builds the pool, so there is nothing to read first. Reset each
+  // time so re-opening for a different meal doesn't leak.
   useEffect(() => {
     if (!visible) {
-      setAiOrderedIds(null);
+      setAiMatches(null);
       setHadError(false);
       findSimilarMutation.reset();
       return;
     }
-    if (!sourceMeal || !candidatesQuery.data) {
-      return;
-    }
-    setAiOrderedIds(null);
+    if (!sourceMealId) return;
+    setAiMatches(null);
     setAiSkipped(undefined);
     setHadError(false);
-    // Hard-cap the payload regardless of library size.
-    const payload = dedupedItems.slice(0, FIND_SIMILAR_MAX_PAYLOAD);
     findSimilarMutation.mutate(
-      {
-        source: mealDetailToCandidate(sourceMeal),
-        candidates: payload.map((m) => ({
-          id: m.id,
-          title: m.title,
-          cuisine: m.cuisine.length > 0 ? m.cuisine : null,
-          mealType: CANDIDATE_MEAL_TYPE,
-          tags: m.tags,
-        })),
-        limit: FIND_SIMILAR_MODEL_LIMIT,
-      },
+      { sourceMealId, planId, limit: FIND_SIMILAR_MODEL_LIMIT },
       {
         onSuccess: (data) => {
-          setAiOrderedIds(data.matches.map((m) => m.mealId));
+          setAiMatches(
+            data.matches.flatMap((m) => (m.meal ? [m.meal] : [])),
+          );
           // Row 9 (1.1) Stripe S2 Part E -- the ENTITLEMENT fallback, named by the
-          // server. These ARE cuisine matches and they render as normal; the one
-          // line above them is the difference between a quiet downgrade and an
+          // server. These ARE matches and they render as normal; the one line
+          // above them is the difference between a quiet downgrade and an
           // honest one (D-WS9-272: do not pretend the call ran).
           setAiSkipped(data.aiSkipped);
           setHadError(false);
@@ -458,33 +400,24 @@ function SimilarBody({
         },
       },
     );
-    // Intentionally only re-fire on the visible/source/data-arrival transitions.
+    // Intentionally only re-fire on the visible/source/plan transitions.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, sourceMealId, sourceMeal, candidatesQuery.data]);
+  }, [visible, sourceMealId, planId]);
 
   const matches = useMemo<MealSummary[]>(() => {
-    if (!sourceMealId || !aiOrderedIds) return [];
-    const byId = new Map(candidatePool.map((m) => [m.id, m]));
-    const ordered = aiOrderedIds
-      .map((id) => byId.get(id))
-      .filter((m): m is MealSummary => !!m);
-    // Defensive second dedupe (id-repeat → same title), then cap at the render
-    // target: the top N distinct matches BY RANK. No sort control in this mode
-    // (§5.6) — the AI ranking is the whole value; we never reorder it.
+    if (!sourceMealId || !aiMatches) return [];
+    // The server already excludes the source and the plan's meals and returns
+    // one version per dish; the source check by id AND title (BUG-061) and the
+    // title dedupe stay as a cheap second fence. Cap at the render target: the
+    // top N distinct matches BY RANK. No sort control in this mode (§5.6).
+    const ordered = aiMatches
+      .filter((m) => !excludesSource(m.id, m.title, sourceMealId, sourceTitleKey))
+      .map((m) => mealListItemToSummary(m, "my_meals"));
     return dedupeMealsByTitle(ordered).slice(0, FIND_SIMILAR_RENDER_LIMIT);
-  }, [sourceMealId, aiOrderedIds, candidatePool]);
+  }, [sourceMealId, sourceTitleKey, aiMatches]);
 
-  const isLoading =
-    findSimilarMutation.isPending ||
-    (visible &&
-      !!sourceMealId &&
-      (sourceMealQuery.isLoading || candidatesQuery.isLoading));
-
-  const showError =
-    hadError ||
-    (visible &&
-      !!sourceMealId &&
-      (sourceMealQuery.isError || candidatesQuery.isError));
+  const isLoading = findSimilarMutation.isPending;
+  const showError = hadError;
   // D-WS9-241 D — when the ranking call was REFUSED by the spend guard
   // (429/503 with `reason`), the banner carries the server's copy verbatim;
   // any other failure keeps the local "Couldn't reach Kiwi" line.

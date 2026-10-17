@@ -2,15 +2,23 @@ import { z } from "zod";
 
 // PRD §8.4 + D-WS5-006 — Find Similar AI semantic similarity (WS6 6b-1).
 //
-// Premium-gated. Contract is client-sends-full-payload: the server does NOT
-// query the DB for the candidate pool because in WS6 the candidate buckets
-// (saved + featured + top rated + hosting) are still mostly stubbed mobile-
-// side. WS7 will flip the client to fetch real data first, then pass to this
-// endpoint — the server contract stays stable across that flip.
+// Premium-gated. Since FIX-2 (BUG-058) the server builds the candidate pool
+// when the client sends `sourceMealId` (see FindSimilarRequestSchema); the
+// original client-sends-full-payload shape is kept for the shipped 1.x client.
 //
 // Cuisine-only fallback for premium-deny (artifacts/kiwi/lib/stubs.ts:
 // findSimilarMealsByCuisine) stays free for lapsed users; the server returns
 // the fallback in the same response shape so the client doesn't branch.
+
+// What the server-built pool sends the model (FIX-2): a short alias id, the
+// title, the cuisine and the dish titles, main dish first. The alias keeps the
+// payload small and makes an invented id impossible to mistake for a real one.
+export interface PooledMealForPrompt {
+  id: string;
+  title: string;
+  cuisine: string | null;
+  dishes: string[];
+}
 
 // Trim shape sent for both source and candidates. The mobile client maps
 // MealSummary → this shape before posting. keyIngredients is capped at 8
@@ -26,11 +34,24 @@ export const MealCandidateSchema = z.object({
 });
 export type MealCandidate = z.infer<typeof MealCandidateSchema>;
 
-export const FindSimilarRequestSchema = z.object({
-  source: MealCandidateSchema,
-  candidates: z.array(MealCandidateSchema).min(0).max(200),
-  limit: z.number().int().min(1).max(25).optional(),
-});
+// Two request shapes, one endpoint:
+//   · FIX-2 (BUG-058) — { sourceMealId, planId? }: the SERVER builds the pool
+//     (lib/similar/swapPool.ts: the catalog plus the user's meals, minus the
+//     plan's own, pre-filtered on dish form) and each match carries its `meal`.
+//   · the original { source, candidates }: the shipped 1.x client builds the
+//     pool itself. Kept so a store binary that has not taken the update keeps
+//     working; it gets the v2 prompt over its own pool.
+export const FindSimilarRequestSchema = z
+  .object({
+    sourceMealId: z.string().min(1).max(100).optional(),
+    planId: z.string().min(1).max(100).optional(),
+    source: MealCandidateSchema.optional(),
+    candidates: z.array(MealCandidateSchema).min(0).max(200).optional(),
+    limit: z.number().int().min(1).max(25).optional(),
+  })
+  .refine((r) => r.sourceMealId !== undefined || (r.source !== undefined && r.candidates !== undefined), {
+    message: "send sourceMealId, or source + candidates",
+  });
 export type FindSimilarRequest = z.infer<typeof FindSimilarRequestSchema>;
 
 export const FindSimilarMatchSchema = z.object({

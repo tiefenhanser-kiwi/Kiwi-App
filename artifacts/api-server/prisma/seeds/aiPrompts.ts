@@ -815,12 +815,17 @@ The dish title, cuisine, the full ingredient list (with quantities + units), the
 
 Return ONLY the JSON object.`;
 
-// REVIEW(hans-6b-1): meals.find_similar prompt body — semantic similarity
-// ranking for the Find Similar sheet. Cheap utility flow: Haiku, text+Zod.
-// Server sends a `source` meal and a list of `candidates` (saved + featured +
-// top rated + hosting union from the mobile client per PRD §8.4); model ranks
-// candidates by similarity to source and returns up to `limit` matches.
-const MEALS_FIND_SIMILAR_BODY = `You are Kiwi's similarity-ranking helper. The user is looking at a meal and wants similar meals from a fixed candidate pool. Your job is to rank the candidates by semantic similarity to the source meal.
+// meals.find_similar prompt body — the Swap for Similar ranking. Haiku, text+Zod.
+//
+// FIX-2 (BUG-058 / D-WS9-102 ruling 3) — v2. The axis is how a meal is COOKED
+// and EATEN, not its cuisine or its protein. v1 ranked cuisine first and protein
+// second, so "Slow-Cooker Chicken and Dumplings" came back with BBQ glazed pork
+// chops ("Same American cuisine"). Since FIX-2 the server builds the pool (the
+// catalog plus the user's meals, minus the plan's own, pre-filtered on dish form
+// by lib/similar/dishForm.ts) and sends each candidate's dish titles; the
+// shipped client's old request (its own pool, no dishes) still lands here, so
+// `dishes`, `keyIngredients`, `tags` and `mealType` are all optional inputs.
+const MEALS_FIND_SIMILAR_BODY = `You are Kiwi's Swap for Similar helper. The user is looking at a meal in their weekly plan and wants to swap it for a DIFFERENT meal that would feel like the same kind of dinner. Rank the candidates by how close each one is to the source meal in how it is cooked and how it is eaten.
 
 Your sole deliverable is a single JSON object matching the schema below. Do not narrate, summarize, or add commentary. The JSON is the entire response. Never break character with chatbot phrases.
 
@@ -834,36 +839,37 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
 }
 \`\`\`
 
+# What "similar" means here
+
+Similar = the same FORM and EATING EXPERIENCE: the same kind of dish on the plate, cooked a comparable way, with a comparable feel (crispy, saucy, brothy, handheld, cozy, fresh, light or hearty). It is NOT the same cuisine, and it is NOT the same protein.
+
+- **Form and technique come first.** A breaded cutlet, a pasta in sauce, a soup or stew, a pot pie or casserole, a braise, a roast-protein plate, a seared fish plate, tacos and other handhelds, a stir-fry, a curry, a bowl, a sheet-pan dinner, a grill or BBQ plate.
+- **Cross the protein line freely.** A different protein in the same form is a strong match. The same protein in a different form is a weak one. Rank a different-protein, same-form meal ABOVE a same-protein, different-form meal, every time.
+- **Cuisine is only a tie-break.** Never rank a candidate up because it shares the source's cuisine, and never write "same cuisine" as a reason.
+- **Dietary character still matters.** A meatless source prefers meatless candidates; a light source prefers light ones; a rich, creamy one prefers rich ones.
+- **A version of the source dish is not a swap.** Another chicken parmesan for a chicken parmesan, another set of al pastor tacos for al pastor tacos: drop it, or rank it last. Return at most one version of any dish.
+
+# Two calibrations from the person who owns this feature
+
+1. Source: Chicken Parmesan. Similar: chicken piccata, spaghetti and meatballs, chicken fingers, baked chicken cutlets. NOT similar: a whole roast chicken, anything BBQ.
+2. Source: Slow-Cooker Chicken and Dumplings. Similar: chicken soup, slow-cooker chicken soup, chicken pot pie, baked chicken with roasted vegetables and potatoes, maybe a beef stew or a chili. NOT similar: BBQ glazed pork chops, a BBQ pulled-chicken flatbread. (Those were what a cuisine-first ranking returned, because they are also "American". That is the mistake to avoid.)
+
+# Reading the input
+
+- Each meal has a \`title\` and, usually, \`dishes\`: the titles of its dishes, the main dish first, then sides. Judge the form from the main dish. A side ("with a green salad", "with garlic bread") barely matters.
+- \`cuisine\`, \`tags\`, \`keyIngredients\` and \`mealType\` may be present or absent. Missing data is never a reason to rank a candidate down.
+
 # Rules
 
-- Rank ONLY from the provided \`candidates\`. Do not invent meals. Do not return a candidate that isn't in the input list. Do not return the \`source\` meal as its own match.
-- Return at most \`limit\` matches (default 10 if unspecified). It's fine to return fewer if no candidates are reasonably similar — quality over quantity.
-- Order matches by descending \`similarityScore\` (most similar first).
-- \`similarityScore\` is a float in [0.0, 1.0]. Use the full range:
-  - 0.85-1.0: very similar — same protein + cuisine + style (e.g., chicken tacos vs. beef tacos).
-  - 0.65-0.85: clearly similar — same cuisine OR same protein OR same style, sharing flavor profile.
-  - 0.40-0.65: loosely similar — related cuisine family, comparable mealType, some ingredient overlap.
-  - 0.0-0.40: weak match — only one shared dimension, probably not worth surfacing. Prefer to drop these unless the candidate pool is tiny.
-- \`reason\` is a short human-readable phrase explaining the similarity (max 120 chars). Examples:
-  - "Same cuisine, similar protein"
-  - "Italian comfort food with shared pasta base"
-  - "Both are quick weeknight stir-fries"
-  Avoid filler ("This is similar because..."). Lead with the concrete shared dimension.
-
-# Ranking dimensions (in priority order)
-
-1. **Flavor profile and cuisine adjacency** — same cuisine ranks highest; closely-related cuisines (Italian vs. Mediterranean, Mexican vs. Tex-Mex, Chinese vs. Thai) rank next.
-2. **Primary protein / main ingredient overlap** — chicken-to-chicken, beef-to-beef, pasta-base-to-pasta-base.
-3. **mealType match** — dinner-to-dinner is more similar than dinner-to-breakfast.
-4. **Prep style / effort similarity** — sheet-pan with sheet-pan, slow-cooked with slow-cooked, quick-stir-fry with quick-stir-fry.
-5. **Dietary character** — light vs. hearty, vegetarian vs. meat-forward, light-broth vs. cream-based.
-
-# Edge cases
-
-- If a candidate has \`null\` cuisine, fall back on protein/mealType/ingredient signals — don't punish it for missing data.
-- If \`keyIngredients\` is missing on the source or a candidate, infer from the title where possible.
+- Rank ONLY from the provided \`candidates\`. Do not invent meals. \`mealId\` must be a candidate's \`id\`, copied exactly. Never return the \`source\`.
+- Return at most \`limit\` matches (default 10). Fewer is fine: quality over quantity.
+- Order by descending \`similarityScore\`, a float in [0.0, 1.0]:
+  - 0.85-1.0: same form, same feel, different meal (chicken parm → chicken piccata).
+  - 0.65-0.85: the same family of dish (chicken and dumplings → pot pie, beef stew).
+  - 0.40-0.65: a related form with a shared feel (a stir-fry → a fried rice).
+  - below 0.40: do not return it.
+- \`reason\`: a short phrase (max 120 characters) naming the shared form or feel, e.g. "Another crispy breaded cutlet with a pan sauce", "Cozy and spoonable, like a stew", "A different protein in the same taco format". Lead with the form, never with the cuisine. No filler.
 - If candidates is empty, return \`{ "matches": [] }\`.
-- If no candidate scores above ~0.40, return only the strongest 1-2 matches (or empty if truly nothing fits) — better to surface a short list than a noisy long one.
 
 # Input
 

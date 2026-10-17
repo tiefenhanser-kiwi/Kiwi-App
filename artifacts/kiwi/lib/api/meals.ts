@@ -7,26 +7,15 @@
 // WS7-3 Block C1 — GET /me/meals: filtered meal-list read. MealListItemSchema
 //   (the renamed-flat list shape) is added here; MealDetailSchema now extends it.
 //
-// Contract is client-sends-full-payload: the sheet unions all four candidate
-// catalogs (saved + featured + top rated + hosting per PRD §8.4) and posts
-// them with each request. WS7 will keep the same server contract while
-// switching the client to fetch real data from the API first.
+// FIX-2 (BUG-058): the sheet sends the source meal and the plan, and the server
+// builds the candidate pool. (Until FIX-2 the sheet posted the first 60 rows of
+// four A→Z shelves, which never searched the catalog and let the plan's own
+// meals come back as "similar". The server still accepts that shape from 1.x
+// store binaries.)
 
 import { z } from "zod";
 
 import { apiClient } from "./client";
-import type { MealSummary } from "../types";
-
-// Trim shape sent to the server. Mirror of MealCandidateSchema in
-// artifacts/api-server/src/lib/ai/schemas/findSimilar.ts.
-export interface MealCandidatePayload {
-  id: string;
-  title: string;
-  cuisine: string | null;
-  mealType: string;
-  keyIngredients?: string[];
-  tags?: string[];
-}
 
 // ── Zod schemas ──────────────────────────────────────────────────────────
 // Transcribed from server-side findSimilar.ts + route response shape.
@@ -38,6 +27,10 @@ const FindSimilarMatchSchema = z.object({
   mealId: z.string(),
   similarityScore: z.number(),
   reason: z.string(),
+  // FIX-2 (BUG-058) — the card, on the server-pool request: the sheet no longer
+  // holds a candidate list to look the id up in. Lazy: the list schema is
+  // declared further down this file.
+  meal: z.lazy(() => MealListItemSchema).optional(),
 });
 
 const FindSimilarResponseSchema = z.object({
@@ -53,7 +46,9 @@ const FindSimilarResponseSchema = z.object({
     .object({
       promptVersion: z.number().nullable(),
       latencyMs: z.number(),
-      mode: z.enum(["ai", "fallback_cuisine"]),
+      // A string, not an enum: FIX-2 added "fallback_form", and a mode this
+      // build has not heard of must not fail a response that has results.
+      mode: z.string(),
     })
     .optional(),
 });
@@ -62,6 +57,7 @@ export interface FindSimilarMatch {
   mealId: string;
   similarityScore: number;
   reason: string;
+  meal?: MealListItem;
 }
 
 export interface FindSimilarResponse {
@@ -71,25 +67,19 @@ export interface FindSimilarResponse {
   metadata?: {
     promptVersion: number | null;
     latencyMs: number;
-    mode: "ai" | "fallback_cuisine";
+    mode: string;
   };
 }
 
+/**
+ * FIX-2 (BUG-058) — the server builds the pool: the catalog plus the user's
+ * meals, minus the source and every meal in `planId`'s plan, pre-filtered on
+ * dish form. Each match comes back with its `meal` card.
+ */
 export interface FindSimilarRequest {
-  source: MealCandidatePayload;
-  candidates: MealCandidatePayload[];
+  sourceMealId: string;
+  planId?: string;
   limit?: number;
-}
-
-// MealSummary doesn't carry mealType today; FindSimilar runs from the Plan
-// Review sheet so dinner is the safe default. WS7 surfaces real mealType.
-export function mealSummaryToCandidate(meal: MealSummary): MealCandidatePayload {
-  return {
-    id: meal.id,
-    title: meal.title,
-    cuisine: meal.cuisineType ?? null,
-    mealType: "dinner",
-  };
 }
 
 export async function findSimilarMeals(

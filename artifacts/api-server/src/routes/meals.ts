@@ -5,18 +5,18 @@
 // tests can inject runAICall / prisma / subscriptionService stubs without
 // standing up the full stack.
 //
-// Contract: client-sends-full-payload. Server does NOT query the DB for the
-// candidate pool — the mobile client unions saved + featured + top rated +
-// hosting catalogs and posts the full set with each request. WS6 stub data
-// makes the server-side query path impossible today; WS7 flips the client
-// to fetch real data first while leaving this server contract stable.
+// Contract, two shapes. FIX-2 (BUG-058): { sourceMealId, planId } — the server
+// builds the pool itself (lib/similar/swapPool.ts) and every match carries its
+// card. The original client-sends-full-payload shape ({ source, candidates },
+// the shelf union the 1.x client posts) is still accepted for store binaries
+// that have not taken the update; see findSimilarFromServerPool below.
 //
 // Premium-deny path: returns the cuisine-only fallback in the same response
 // shape (no AI call, no LLMCallLog row, no activity event). This mirrors the
 // free-tier behavior of the existing client-side findSimilarMealsByCuisine
 // helper so the sheet can render either response without branching.
 
-import { Router, type IRouter, type Request } from "express";
+import { Router, type IRouter, type Request, type Response } from "express";
 import { Prisma, type PrismaClient, type RecipeInstructionStep } from "@prisma/client";
 
 import { runAICall as productionRunAICall } from "../lib/ai/runAICall";
@@ -27,6 +27,7 @@ import {
   type FindSimilarRequest,
   type FindSimilarResult,
   type MealCandidate,
+  type PooledMealForPrompt,
 } from "../lib/ai/schemas/findSimilar";
 import { normalizeIngredientName } from "../lib/groceryNormalization";
 import { logger } from "../lib/logger";
@@ -34,6 +35,8 @@ import { isMealReadableByUser } from "../lib/mealVisibility";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
 import { selectDefaultPathSteps } from "../lib/cookingScheduler";
+import { isSameDishTokens } from "../lib/similar/dishForm";
+import { buildSwapPool, SwapSourceNotFoundError, type SwapPoolCandidate } from "../lib/similar/swapPool";
 import { everydayPoolWhere } from "../lib/store/storeShortlist";
 import { hasUnmatchedAmount, type AmountRef } from "../lib/stepAmountRefs";
 import {
@@ -699,6 +702,117 @@ export function createMealsRouter(
     }
   }
 
+  // FIX-2 (BUG-058 / D-WS9-102) — Swap for Similar over a SERVER-built pool:
+  // the catalog plus the user's meals, minus the source and every meal in the
+  // plan, pre-filtered on dish form (lib/similar/swapPool.ts), then ranked by
+  // `meals.find_similar` v2. Each match carries its card (`meal`), because the
+  // client no longer holds the pool it would otherwise look the id up in.
+  async function findSimilarFromServerPool(
+    _req: Request,
+    res: Response,
+    userId: string,
+    opts: { sourceMealId: string; planId?: string; limit: number },
+  ) {
+    const t0 = Date.now();
+    let built: Awaited<ReturnType<typeof buildSwapPool>>;
+    try {
+      built = await buildSwapPool(prisma, userId, opts);
+    } catch (err) {
+      if (err instanceof SwapSourceNotFoundError) {
+        return res.status(404).json({ error: "meal not found" });
+      }
+      throw err;
+    }
+    const poolMs = Date.now() - t0;
+    const { source, pool, shortlist } = built;
+    const byAlias = new Map(shortlist.map((c, i) => [`c${i + 1}`, c]));
+    const poolMeta = { poolSize: pool.length, candidateCount: shortlist.length, poolMs };
+
+    // Cards for the winners only; a meal archived since the pool was read drops.
+    const withCards = async (
+      picked: { c: SwapPoolCandidate; similarityScore: number; reason: string }[],
+    ) => {
+      const rows = await prisma.meal.findMany({
+        where: { id: { in: picked.map((p) => p.c.row.id) }, isArchived: false },
+        select: MEAL_LIST_SELECT,
+      });
+      const byId = new Map(rows.map((r) => [r.id, r]));
+      return picked.flatMap((p) => {
+        const row = byId.get(p.c.row.id);
+        return row
+          ? [{ mealId: row.id, similarityScore: p.similarityScore, reason: p.reason, meal: toListShape(row) }]
+          : [];
+      });
+    };
+
+    // Entitlement-deny: the form pre-filter's own order, no AI call, no
+    // LLMCallLog, no activity — and `aiSkipped` names the gate (D-WS9-272).
+    const ent = await subscriptionService.can(userId, "find_similar_ai");
+    if (!ent.allowed) {
+      const matches = await withCards(
+        shortlist.slice(0, opts.limit).map((c) => ({ c, similarityScore: 0, reason: "Same kind of dish" })),
+      );
+      return res.json({
+        matches,
+        aiSkipped: "subscription_required",
+        metadata: { promptVersion: null, latencyMs: 0, mode: "fallback_form", ...poolMeta },
+      });
+    }
+    if (shortlist.length === 0) {
+      return res.json({ matches: [], metadata: { promptVersion: null, latencyMs: 0, mode: "ai", ...poolMeta } });
+    }
+
+    const toPrompt = (id: string, c: SwapPoolCandidate): PooledMealForPrompt => ({
+      id,
+      title: c.row.title,
+      cuisine: c.row.cuisineType,
+      dishes: [...c.mainDishTitles, ...c.sideDishTitles],
+    });
+    const result = await runAICall(
+      "meals.find_similar",
+      {
+        findSimilarInput: {
+          source: toPrompt("source", source),
+          candidates: [...byAlias.entries()].map(([id, c]) => toPrompt(id, c)),
+          limit: opts.limit,
+        },
+      },
+      FindSimilarResultSchema,
+      { prisma, userId },
+    );
+    if (!result.success) {
+      logger.warn(
+        { event: "find_similar_failed", userId, reason: result.reason, promptKey: "meals.find_similar", pool: "server" },
+        "Find Similar AI call failed",
+      );
+      return withAIFailureStatus(res, result.reason).json({
+        error: result.userFacingMessage,
+        reason: result.reason,
+      });
+    }
+
+    // Drop invented aliases and any second version of one dish, keep the rank.
+    const picked: { c: SwapPoolCandidate; similarityScore: number; reason: string }[] = [];
+    for (const m of result.data.matches) {
+      const c = byAlias.get(m.mealId);
+      if (!c || picked.some((p) => p.c === c || isSameDishTokens(p.c.head, c.head))) continue;
+      picked.push({ c, similarityScore: m.similarityScore, reason: m.reason });
+      if (picked.length >= opts.limit) break;
+    }
+    const matches = await withCards(picked);
+
+    await emitActivity(userId, "meal_found_similar_used", opts.sourceMealId);
+    return res.json({
+      matches,
+      metadata: {
+        promptVersion: result.metadata.promptVersion,
+        latencyMs: result.metadata.latencyMs,
+        mode: "ai",
+        ...poolMeta,
+      },
+    });
+  }
+
   const router: IRouter = Router();
 
   const findSimilarLimiter = rateLimit({
@@ -743,11 +857,20 @@ export function createMealsRouter(
       const request: FindSimilarRequest = parsed.data;
       const limit = request.limit ?? DEFAULT_LIMIT;
 
+      // FIX-2 (BUG-058) — the server-built pool. The shipped client's
+      // { source, candidates } request continues below, unchanged in shape.
+      if (request.sourceMealId !== undefined) {
+        return findSimilarFromServerPool(req, res, userId, {
+          sourceMealId: request.sourceMealId,
+          planId: request.planId,
+          limit,
+        });
+      }
+      const source = request.source!;
+
       // 2. Drop the source meal from candidates if the client accidentally
       //    included it. Defensive — a self-match would be confusing in the UI.
-      const candidates = request.candidates.filter(
-        (c) => c.id !== request.source.id,
-      );
+      const candidates = request.candidates!.filter((c) => c.id !== source.id);
 
       // 3. Entitlement check. Premium-deny path returns the cuisine-only
       //    fallback in the same response shape — no AI call, no LLMCallLog,
@@ -766,7 +889,7 @@ export function createMealsRouter(
       const ent = await subscriptionService.can(userId, "find_similar_ai");
       if (!ent.allowed) {
         const fallback = cuisineOnlyFallback(
-          request.source,
+          source,
           candidates,
           limit,
         );
@@ -783,7 +906,7 @@ export function createMealsRouter(
 
       // 4. Override-resolution pass-through (D-WS6-003 stub; WS7 wires real
       //    overrides). No-op for MVP; documented above the helper.
-      const resolved = applyOverrides(request.source, candidates);
+      const resolved = applyOverrides(source, candidates);
 
       // 5. AI call. Haiku, text+Zod, single retry — same pattern as the
       //    Tell Kiwi parse step.
@@ -824,7 +947,7 @@ export function createMealsRouter(
         .slice(0, limit);
 
       // 7. Activity event — only on the AI path.
-      await emitActivity(userId, "meal_found_similar_used", request.source.id);
+      await emitActivity(userId, "meal_found_similar_used", source.id);
 
       return res.json({
         matches: filtered,

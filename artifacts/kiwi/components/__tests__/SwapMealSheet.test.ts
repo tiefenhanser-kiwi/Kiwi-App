@@ -1,16 +1,16 @@
 // WS9 3d Part 4 (D-WS9-018) + WS9 3f-4 — SwapMealSheet behavior tests.
 //   - Different mode renders the filter-chip browser, excludes the source meal,
 //     picks a real row, and (3f-4 Thread B) paginates via useInfiniteMeals.
-//   - Similar mode runs the AI ranking pipeline: renders AI-ordered matches,
-//     drops unmatched candidates, renders the error state on AI hard-failure, and
-//     (3f-4 Thread E) de-duplicates the pool by dish identity and hard-caps the
-//     model payload at 60.
+//   - Similar mode runs the AI ranking pipeline: renders AI-ordered matches from
+//     the cards the server returns, renders the error state on AI hard-failure,
+//     and (FIX-2, BUG-058) sends only { sourceMealId, planId } — the server
+//     builds the pool, so the sheet reads no shelf of its own.
 //   - The import chooser lives in a PINNED bar (3f-4 Thread B); its quartet is
 //     reachable in BOTH modes once expanded — the lossless-merge guard.
 //   - The Ask-Kiwi card mounts the creator INLINE (3f-4 Thread A); a swap-context
 //     creation threads the REPLACE params into the meal-builder push.
 //
-// Harness: reads (useMeal source + useMeals/useInfiniteMeals pools) are primed
+// Harness: reads (the useInfiniteMeals Different-mode pool) are primed
 // into the QueryClient cache (staleTime Infinity → no network); an auth token is
 // seeded; global.fetch is stubbed so only the find-similar + parse-meal calls
 // hit the wire. `.test.ts` (not .tsx) with React.createElement.
@@ -41,8 +41,6 @@ import type { MealSummary } from "@/lib/types";
 const SOURCE_ID = "src-1";
 // Mirrors the module-private constants in SwapMealSheet; the react-query key is
 // hashed by stable JSON so a structural copy collides with the in-component key.
-const SIMILAR_BUCKETS = ["my_meals", "featured", "top_rated", "hosting"];
-const SIMILAR_LIMIT = 60; // SIMILAR_CANDIDATE_LIMIT
 const DIFFERENT_BUCKET = ["my_meals"];
 const DIFFERENT_SORT = "alpha"; // toMealSortKey("alpha")
 
@@ -71,14 +69,6 @@ function listItem(id: string, title: string) {
   };
 }
 
-const SIMILAR_CANDIDATES: MealListResponse = {
-  meals: [
-    listItem("c-1", "Cacio e Pepe"),
-    listItem("c-2", "Bucatini Amatriciana"),
-    listItem("c-3", "Margherita Pizza"),
-  ],
-  nextCursor: null,
-};
 
 // Different-mode bucket INCLUDES the source meal, to prove it is excluded.
 const DIFFERENT_MEALS: MealListResponse = {
@@ -90,13 +80,19 @@ const DIFFERENT_MEALS: MealListResponse = {
   nextCursor: null,
 };
 
-// AI ranks c-2 above c-1 and omits c-3 entirely.
+// FIX-2 — a ranked match as the server-pool path returns it: with its card.
+function aiMatch(id: string, title: string, score = 0.9, card: Partial<ReturnType<typeof listItem>> = {}) {
+  return { mealId: id, similarityScore: score, reason: "x", meal: { ...listItem(id, title), ...card } };
+}
+
+// AI ranks c-2 above c-1; a third match arrives WITHOUT a card and must drop.
 const AI_RESPONSE = {
   matches: [
-    { mealId: "c-2", similarityScore: 0.9, reason: "Roman pasta" },
-    { mealId: "c-1", similarityScore: 0.8, reason: "Cheese + pepper" },
+    aiMatch("c-2", "Bucatini Amatriciana", 0.9),
+    aiMatch("c-1", "Cacio e Pepe", 0.8),
+    { mealId: "c-3", similarityScore: 0.7, reason: "no card" },
   ],
-  metadata: { promptVersion: 1, latencyMs: 5, mode: "ai" },
+  metadata: { promptVersion: 2, latencyMs: 5, mode: "ai" },
 };
 
 const PARSE_MEAL_SUCCESS = {
@@ -129,8 +125,7 @@ interface FetchStubResponse {
 const NO_HEADERS = { get: () => null };
 
 let fetchCalls: string[] = [];
-let lastFindSimilarBody: { candidates: { id: string; title: string }[] } | null =
-  null;
+let lastFindSimilarBody: Record<string, unknown> | null = null;
 let fetchImpl: (url: string) => FetchStubResponse;
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -193,11 +188,6 @@ function primedClient(): QueryClient {
     },
   });
   client.setQueryData(["meals", "detail", SOURCE_ID, null], SOURCE_MEAL);
-  // Similar mode now requests a bounded pool (limit 60).
-  client.setQueryData(
-    ["meals", "list", SIMILAR_BUCKETS, SIMILAR_LIMIT],
-    SIMILAR_CANDIDATES,
-  );
   // Different mode now uses useInfiniteMeals (server-sorted alpha).
   client.setQueryData(["meals", "list", DIFFERENT_BUCKET, DIFFERENT_SORT], {
     pages: [DIFFERENT_MEALS],
@@ -298,7 +288,7 @@ test("Different mode: picking a bucket meal hands it to the caller", async () =>
 
 // ── Similar mode ────────────────────────────────────────────────────────────
 
-test("Similar mode: renders AI-ordered matches from the candidate pool", async () => {
+test("Similar mode: renders AI-ordered matches from the server's cards", async () => {
   fetchImpl = () => ({
     ok: true,
     status: 200,
@@ -315,14 +305,41 @@ test("Similar mode: renders AI-ordered matches from the candidate pool", async (
   const iCacio = leaves.findIndex((t) => t.includes("Cacio e Pepe"));
   assert.ok(iBuc >= 0 && iCacio >= 0, `both matches render: ${joined}`);
   assert.ok(iBuc < iCacio, `AI order preserved (Bucatini before Cacio): ${joined}`);
-  assert.ok(
-    !joined.includes("Margherita Pizza"),
-    `unmatched candidate dropped: ${joined}`,
+  assert.equal(
+    leaves.filter((t) => /Bucatini|Cacio/.test(t)).length,
+    2,
+    `a match without a card does not render: ${joined}`,
   );
   assert.equal(
     fetchCalls.filter((u) => u.includes("/meals/find-similar")).length,
     1,
     "exactly one ranking call",
+  );
+
+  renderer.unmount();
+});
+
+// FIX-2 (BUG-058) — the request names the source and the plan; the server builds
+// the pool. Before FIX-2 the sheet read the first 60 rows of four A→Z shelves
+// and posted them, which never searched the catalog and let the plan's own meals
+// come back as "similar".
+test("FIX-2: Similar mode sends { sourceMealId, planId } and reads no shelf of its own", async () => {
+  fetchImpl = () => ({
+    ok: true,
+    status: 200,
+    text: async () => JSON.stringify(AI_RESPONSE),
+  });
+  const renderer = await renderSheet("similar", { planId: "plan-1", planItemId: "item-1" });
+
+  assert.ok(lastFindSimilarBody, "find-similar was not called");
+  assert.equal(lastFindSimilarBody!.sourceMealId, SOURCE_ID);
+  assert.equal(lastFindSimilarBody!.planId, "plan-1");
+  assert.equal("candidates" in lastFindSimilarBody!, false, "no client-built pool");
+  assert.equal("source" in lastFindSimilarBody!, false, "no client-built source");
+  assert.equal(
+    fetchCalls.filter((u) => u.includes("/me/meals")).length,
+    0,
+    "no GET /me/meals read for the pool",
   );
 
   renderer.unmount();
@@ -412,33 +429,16 @@ test("Similar mode: picking a match hands a real candidate-pool meal to the call
 });
 
 test("Similar mode: fractional server macros render rounded to whole numbers", async () => {
-  const FRACTIONAL: MealListResponse = {
-    meals: [
-      { ...listItem("c-2", "Bucatini Amatriciana"), protein: 75.39999999999999, fat: 51.6 },
-    ],
-    nextCursor: null,
-  };
   fetchImpl = () => ({
     ok: true,
     status: 200,
     text: async () =>
       JSON.stringify({
-        matches: [{ mealId: "c-2", similarityScore: 0.9, reason: "x" }],
-        metadata: { promptVersion: 1, latencyMs: 5, mode: "ai" },
+        matches: [aiMatch("c-2", "Bucatini Amatriciana", 0.9, { protein: 75.39999999999999, fat: 51.6 })],
+        metadata: { promptVersion: 2, latencyMs: 5, mode: "ai" },
       }),
   });
-  const client = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, staleTime: Infinity, gcTime: Infinity },
-      mutations: { retry: false },
-    },
-  });
-  client.setQueryData(["meals", "detail", SOURCE_ID, null], SOURCE_MEAL);
-  client.setQueryData(
-    ["meals", "list", SIMILAR_BUCKETS, SIMILAR_LIMIT],
-    FRACTIONAL,
-  );
-  const renderer = await renderSheet("similar", { client });
+  const renderer = await renderSheet("similar");
 
   const joined = textLeavesOf(renderer.root).join(" | ");
   assert.ok(joined.includes("75g P"), `protein rounds to 75g P: ${joined}`);
@@ -451,81 +451,11 @@ test("Similar mode: fractional server macros render rounded to whole numbers", a
   renderer.unmount();
 });
 
-// ── WS9 3f-4 Thread E: de-dup + bounded payload ─────────────────────────────
-
-test("Similar mode: pool is de-duplicated by title and the payload is hard-capped at 60", async () => {
-  // 65 distinct dishes + 5 exact-title duplicates = 70 rows. After title-dedup:
-  // 65 unique; after the 60 hard-cap: 60 sent.
-  const meals = [];
-  for (let i = 1; i <= 65; i++) {
-    meals.push(listItem(`u-${i}`, `Dish Number ${String(i).padStart(3, "0")}`));
-  }
-  for (let i = 1; i <= 5; i++) {
-    meals.push(listItem(`dup-${i}`, `Dish Number ${String(i).padStart(3, "0")}`));
-  }
-  const BIG: MealListResponse = { meals, nextCursor: null };
-
-  fetchImpl = () => ({
-    ok: true,
-    status: 200,
-    text: async () =>
-      JSON.stringify({
-        matches: [],
-        metadata: { promptVersion: 1, latencyMs: 5, mode: "ai" },
-      }),
-  });
-  const client = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, staleTime: Infinity, gcTime: Infinity },
-      mutations: { retry: false },
-    },
-  });
-  client.setQueryData(["meals", "detail", SOURCE_ID, null], SOURCE_MEAL);
-  client.setQueryData(["meals", "list", SIMILAR_BUCKETS, SIMILAR_LIMIT], BIG);
-  const renderer = await renderSheet("similar", { client });
-
-  assert.ok(lastFindSimilarBody, "find-similar was not called");
-  const sent = lastFindSimilarBody!.candidates;
-  assert.equal(sent.length, 60, `hard cap holds: sent ${sent.length}`);
-  const titles = sent.map((c) => c.title.toLowerCase().trim());
-  assert.equal(
-    new Set(titles).size,
-    titles.length,
-    "no duplicate titles reach the model",
-  );
-  assert.ok(
-    !sent.some((c) => c.id === SOURCE_ID),
-    "the source meal is excluded from the payload",
-  );
-
-  renderer.unmount();
-});
-
 // ── WS9 3f-4 follow-on: rendered result count (target 8, post-dedup) ─────────
 
-// A pool of N distinct-title candidates (c-1.., "Sim 01"..) primed under the
-// Similar key, plus a QueryClient reading it.
-function primedSimilarPool(n: number): {
-  client: QueryClient;
-  title: (i: number) => string;
-  id: (i: number) => string;
-} {
-  const id = (i: number) => `c-${i}`;
-  const title = (i: number) => `Sim ${String(i).padStart(2, "0")}`;
-  const meals = [];
-  for (let i = 1; i <= n; i++) meals.push(listItem(id(i), title(i)));
-  const client = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, staleTime: Infinity, gcTime: Infinity },
-      mutations: { retry: false },
-    },
-  });
-  client.setQueryData(["meals", "detail", SOURCE_ID, null], SOURCE_MEAL);
-  client.setQueryData(
-    ["meals", "list", SIMILAR_BUCKETS, SIMILAR_LIMIT],
-    { meals, nextCursor: null } as MealListResponse,
-  );
-  return { client, title, id };
+// N distinct-title cards (c-1.., "Sim 01"..), as the server-pool path returns them.
+function simIds(): { id: (i: number) => string; title: (i: number) => string } {
+  return { id: (i: number) => `c-${i}`, title: (i: number) => `Sim ${String(i).padStart(2, "0")}` };
 }
 
 function renderedSimRows(root: TestRenderer.ReactTestInstance): string[] {
@@ -533,7 +463,7 @@ function renderedSimRows(root: TestRenderer.ReactTestInstance): string[] {
 }
 
 test("Similar mode: renders exactly 8 even when the returned set carries duplicate ids", async () => {
-  const { client, id, title } = primedSimilarPool(12);
+  const { id, title } = simIds();
   // 12 returned ids, but c-1 and c-2 each appear twice → 10 distinct after the
   // post-rank dedupe. The 8-cap then renders the top 8 DISTINCT dishes.
   const returnedIds = [
@@ -544,15 +474,13 @@ test("Similar mode: renders exactly 8 even when the returned set carries duplica
     status: 200,
     text: async () =>
       JSON.stringify({
-        matches: returnedIds.map((mealId, k) => ({
-          mealId,
-          similarityScore: 0.9 - k * 0.01,
-          reason: "x",
-        })),
+        matches: returnedIds.map((mealId, k) =>
+          aiMatch(mealId, title(Number(mealId.slice(2))), 0.9 - k * 0.01),
+        ),
         metadata: { promptVersion: 1, latencyMs: 5, mode: "ai" },
       }),
   });
-  const renderer = await renderSheet("similar", { client });
+  const renderer = await renderSheet("similar");
 
   const rows = renderedSimRows(renderer.root);
   assert.equal(rows.length, 8, `renders exactly 8 (got ${rows.length}: ${rows})`);
@@ -567,7 +495,7 @@ test("Similar mode: renders exactly 8 even when the returned set carries duplica
 });
 
 test("Similar mode: renders FEWER than 8 when the model returns fewer distinct — no padding", async () => {
-  const { client, id, title } = primedSimilarPool(12);
+  const { id, title } = simIds();
   // The model deems only 5 candidates similar (quality gate) — render 5, not 8.
   const returnedIds = [id(1), id(2), id(3), id(4), id(5)];
   fetchImpl = () => ({
@@ -575,15 +503,13 @@ test("Similar mode: renders FEWER than 8 when the model returns fewer distinct �
     status: 200,
     text: async () =>
       JSON.stringify({
-        matches: returnedIds.map((mealId, k) => ({
-          mealId,
-          similarityScore: 0.9 - k * 0.05,
-          reason: "x",
-        })),
+        matches: returnedIds.map((mealId, k) =>
+          aiMatch(mealId, title(Number(mealId.slice(2))), 0.9 - k * 0.05),
+        ),
         metadata: { promptVersion: 1, latencyMs: 5, mode: "ai" },
       }),
   });
-  const renderer = await renderSheet("similar", { client });
+  const renderer = await renderSheet("similar");
 
   const rows = renderedSimRows(renderer.root);
   assert.equal(rows.length, 5, `renders the 5 good matches, not padded to 8 (got ${rows.length})`);
@@ -626,36 +552,23 @@ test("BUG-061 (Different): a same-title different-id record of the source is exc
   renderer.unmount();
 });
 
-test("BUG-061 (Similar): the source's title is excluded from the candidate payload", async () => {
-  const client = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, staleTime: Infinity, gcTime: Infinity },
-      mutations: { retry: false },
-    },
-  });
-  client.setQueryData(["meals", "detail", SOURCE_ID, null], SOURCE_MEAL);
-  client.setQueryData(["meals", "list", SIMILAR_BUCKETS, SIMILAR_LIMIT], {
-    meals: [listItem("dup-src", "Spaghetti Carbonara"), listItem("c-1", "Cacio e Pepe")],
-    nextCursor: null,
-  });
+test("BUG-061 (Similar): a returned card carrying the source's title does not render", async () => {
+  // "dup-src" is a DISTINCT id carrying the SOURCE's title. The server excludes
+  // it; the sheet keeps the id-AND-title fence as a second line.
   fetchImpl = () => ({
     ok: true,
     status: 200,
     text: async () =>
       JSON.stringify({
-        matches: [],
-        metadata: { promptVersion: 1, latencyMs: 5, mode: "ai" },
+        matches: [aiMatch("dup-src", "Spaghetti Carbonara", 0.95), aiMatch("c-1", "Cacio e Pepe", 0.8)],
+        metadata: { promptVersion: 2, latencyMs: 5, mode: "ai" },
       }),
   });
-  const renderer = await renderSheet("similar", { client });
+  const renderer = await renderSheet("similar");
+  const joined = textLeavesOf(renderer.root).join(" | ");
 
-  assert.ok(lastFindSimilarBody, "find-similar was not called");
-  const titles = lastFindSimilarBody!.candidates.map((c) => c.title.toLowerCase().trim());
-  assert.ok(
-    !titles.includes("spaghetti carbonara"),
-    `source-title duplicate must not reach the model: ${titles.join(", ")}`,
-  );
-  assert.ok(titles.includes("cacio e pepe"), "the genuine candidate still reaches the model");
+  assert.ok(!joined.includes("Spaghetti Carbonara"), `source-title duplicate must not render: ${joined}`);
+  assert.ok(joined.includes("Cacio e Pepe"), "the genuine match still renders");
 
   renderer.unmount();
 });
