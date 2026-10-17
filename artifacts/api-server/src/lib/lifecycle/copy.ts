@@ -42,7 +42,7 @@ export const FOOTER = {
    * commercial email. No address exists anywhere in the app's code; Hans fills
    * this in before production sending is switched on.
    */
-  mailingAddress: "[MAILING ADDRESS GOES HERE]",
+  mailingAddress: "P.O. Box 15, Wenham, MA 01984",
 } as const;
 
 export interface EmailCopy {
@@ -125,7 +125,7 @@ export const LIFECYCLE_COPY = {
     subject: "Your Kiwi free access has ended.",
     greeting: "Hi {firstName},",
     body: [
-      "Your free access ended today. Your plans and recipes are still here when you subscribe.",
+      "Your free access has ended. Your plans and recipes are still here when you subscribe.",
     ],
     button: { label: "Subscribe to Kiwi", url: APP_URL },
     after: [
