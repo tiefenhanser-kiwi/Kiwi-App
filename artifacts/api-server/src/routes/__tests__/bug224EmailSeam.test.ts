@@ -21,6 +21,7 @@ import {
   buildAppLink,
   emailChangeMessage,
   passwordResetMessage,
+  providerError,
   sendEmail as productionSendEmail,
   type EmailMessage,
   type EmailSender,
@@ -304,6 +305,19 @@ describe("BUG-224 — the email seam", () => {
       if (prevFrom === undefined) delete process.env["EMAIL_FROM"];
       else process.env["EMAIL_FROM"] = prevFrom;
     }
+  });
+
+  it("a provider refusal logs Resend's error name and message, never an address", () => {
+    assert.deepEqual(
+      providerError({ statusCode: 403, name: "validation_error", message: "The kitchenwizard.ai domain is not verified. Please, add and verify your domain on https://resend.com/domains" }),
+      { providerError: "validation_error", providerMessage: "The kitchenwizard.ai domain is not verified. Please, add and verify your domain on https://resend.com/domains" },
+    );
+    assert.deepEqual(
+      providerError({ name: "validation_error", message: "You can only send testing emails to your own email address (owner@example.com)." }).providerMessage,
+      "You can only send testing emails to your own email address (<address>).",
+    );
+    assert.deepEqual(providerError(null), {});
+    assert.deepEqual(providerError("not json"), {});
   });
 
   it("assertMailEnvComplete throws only when a key is present without its companions", () => {

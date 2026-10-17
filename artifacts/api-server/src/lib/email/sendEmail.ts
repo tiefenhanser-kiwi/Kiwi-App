@@ -177,9 +177,13 @@ async function sendViaResend(msg: EmailMessage): Promise<SendResult> {
       // NOTHING identifying goes in this log — not the recipient (an address is
       // PII in a retained sink, per Hans's ruling that took `newEmail` out of
       // the email-change lines), and not the body, which carries the link and
-      // therefore the token.
+      // therefore the token. Resend's own error name and message DO go in, with
+      // any address redacted: without them a 403 reads the same whether the key
+      // is wrong or the domain unverified (SAFE-1 follow-up, October 17: dev's
+      // 502 send_failed was "The kitchenwizard.ai domain is not verified").
+      const provider = providerError(await res.json().catch(() => null));
       logger.warn(
-        { event: "email_send_failed", status: res.status },
+        { event: "email_send_failed", status: res.status, ...provider },
         "Email provider rejected the send",
       );
       return { sent: false, reason: "send_failed", status: res.status };
@@ -196,6 +200,22 @@ async function sendViaResend(msg: EmailMessage): Promise<SendResult> {
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * The loggable part of a Resend error body ({ name, message, statusCode }):
+ * its name and its message, every email address replaced and both capped.
+ * Anything else (or nothing) → {}.
+ */
+export function providerError(body: unknown): { providerError?: string; providerMessage?: string } {
+  if (!body || typeof body !== "object") return {};
+  const { name, message } = body as { name?: unknown; message?: unknown };
+  const out: { providerError?: string; providerMessage?: string } = {};
+  if (typeof name === "string" && name) out.providerError = name.slice(0, 60);
+  if (typeof message === "string" && message) {
+    out.providerMessage = message.replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, "<address>").slice(0, 200);
+  }
+  return out;
 }
 
 /** Production sender. Routes take this via DI so tests can record instead. */
