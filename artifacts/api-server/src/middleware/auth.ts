@@ -79,7 +79,15 @@ export function createRequireAuth(deps: Partial<RequireAuthDeps> = {}) {
         { err, userId: payload.userId },
         "Session revocation check failed",
       );
-      res.status(503).json({ error: "authorization temporarily unavailable" });
+      // FIX-3 / BUG-103 + BUG-395 — the same retryable shape as errorHandler.ts's
+      // cold-DB 503 (Retry-After 2, code db_unavailable), so the client's
+      // transient retry reads both alike. Still closed: nothing is let through.
+      res.setHeader("Retry-After", "2");
+      res.status(503).json({
+        error: "authorization temporarily unavailable",
+        code: "db_unavailable",
+        retryable: true,
+      });
       return;
     }
 
