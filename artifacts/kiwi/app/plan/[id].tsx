@@ -1159,7 +1159,11 @@ export default function PlanReviewScreen() {
             BUG-088 — breakfastDraft / lunchDraft are still never seeded from
             reviewPlan.breakfastOverrides and still never persisted, exactly as
             broken on a live plan as they were before. Do not "finish the job"
-            here; the persistence path is logged separately and is not 2e's. */}
+            here; the persistence path is logged separately and is not 2e's.
+
+            FIX-3 / BUG-088 — showMealDefaults is now false in EVERY state
+            (lib/plans/planReviewSurface.ts), so this block does not render at
+            all until the two boxes are wired to the server's fields. */}
         {surface.showMealDefaults && (
         <>
         <View
