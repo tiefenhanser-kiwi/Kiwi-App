@@ -2,6 +2,7 @@
 // Harness mirrors CookSessionView.test.ts (react-test-renderer + text gather).
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
@@ -10,6 +11,7 @@ import { test } from "node:test";
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { StyleSheet } from "react-native";
+import { __resetWindowDimensionsForTests, __setAlertHandler, __setWindowDimensionsForTests } from "react-native";
 
 import { PrepWeekView } from "../PrepWeekView";
 import { ProgressSegments } from "../cooking/ProgressSegments";
@@ -18,6 +20,8 @@ import {
   buildMealLabelLookup,
 } from "@/lib/cooking/prepWeekModel";
 import type { PrepWeekResult } from "@/lib/api/cooking";
+import { prepUsesLargeTextLayout } from "@/lib/cooking/prepWeekLayout";
+import { prepWeekFixture } from "./fixtures/prep2PrepWeek";
 import { Colors } from "@/constants/tokens";
 
 interface RenderedNode {
@@ -678,4 +682,101 @@ test("progress bar: no unchecked steps anywhere → empty partialIndices", () =>
     checked: [`produce#${M1}`, `proteins#${M1}`],
   });
   assert.deepEqual(partialIndicesOf(renderer), []);
+});
+
+// ── PREP-2 item 5 — Prep the Week / Prep the feast at large text ─────────────
+
+function renderFixture(window: { fontScale?: number; height?: number } = {}, handlers: { onSkipPhase?: () => void; onSaveExit?: () => void } = {}) {
+  __setWindowDimensionsForTests(window);
+  let r!: TestRenderer.ReactTestRenderer;
+  try {
+    act(() => {
+      r = TestRenderer.create(
+        React.createElement(PrepWeekView, {
+          ...prepWeekFixture(),
+          onAdvancePhase: NOOP,
+          onPrevPhase: NOOP,
+          onSkipPhase: handlers.onSkipPhase ?? NOOP,
+          onSaveExit: handlers.onSaveExit ?? NOOP,
+          onFinish: NOOP,
+          onExit: NOOP,
+        }),
+      );
+    });
+  } finally {
+    __resetWindowDimensionsForTests();
+  }
+  return r;
+}
+
+/** The ScrollView's own subtree (the stub renders it as "rn-scrollview"). */
+function scrollOf(tree: RenderedNode): RenderedNode {
+  const find = (n: RenderedNode | string): RenderedNode | null => {
+    if (typeof n === "string") return null;
+    if (n.type === "rn-scrollview") return n;
+    for (const c of n.children ?? []) {
+      const hit = find(c);
+      if (hit) return hit;
+    }
+    return null;
+  };
+  const hit = find(tree);
+  assert.ok(hit, "a ScrollView");
+  return hit!;
+}
+
+test("PREP-2: at ordinary text the screen renders the pre-PREP-2 tree exactly (prep2PrepWeek.pre.json)", () => {
+  const pinned = readFileSync(new URL("./fixtures/prep2PrepWeek.pre.json", import.meta.url), "utf8");
+  const r = renderFixture();
+  assert.equal(JSON.stringify(r.toJSON(), null, 1) + "\n", pinned);
+  // A tall window at a moderate scale (stock Android's 1.3) keeps today's shape too.
+  assert.equal(JSON.stringify(renderFixture({ fontScale: 1.3, height: 850 }).toJSON(), null, 1) + "\n", pinned);
+});
+
+test("PREP-2: at large text the header block scrolls with the steps, and the footer is one row with 'More'", () => {
+  const r = renderFixture({ fontScale: 2, height: 850 });
+  const tree = r.toJSON() as RenderedNode;
+  const inScroll = flat(scrollOf(tree));
+  for (const line of ["Hearty Week", "meals combined", "For Wednesday, the day before the feast.", "Phase 3 of 4", "Next: Proteins"]) {
+    assert.ok(inScroll.includes(line), `"${line}" scrolls with the steps: ${inScroll}`);
+  }
+  assert.ok(inScroll.includes("Dice onions"));
+  // …and ONLY there: nothing of the block is still pinned above the list.
+  const all = flat(tree);
+  for (const line of ["Hearty Week", "Phase 3 of 4", "For Wednesday, the day before the feast.", "Next: Proteins"]) {
+    assert.equal(all.split(line).length - 1, 1, `"${line}" appears once, in the scroll`);
+  }
+  // The footer: back, the primary and More — no secondary row, no status line.
+  assert.ok(!all.replace(inScroll, "").includes("Skip this Prep"), all);
+  assert.ok(findPressableByText(tree, "Mark all complete"));
+  assert.ok(findPressableByText(tree, "More"));
+});
+
+test("PREP-2: 'More' offers the two quiet actions, and they still do their jobs", () => {
+  let skipped = 0;
+  let saved = 0;
+  let asked: { title: string; buttons: { text?: string; onPress?: () => void }[] } | null = null;
+  __setAlertHandler((a: typeof asked) => (asked = a));
+  try {
+    const r = renderFixture({ fontScale: 2, height: 850 }, { onSkipPhase: () => (skipped += 1), onSaveExit: () => (saved += 1) });
+    act(() => (findPressableByText(r.toJSON() as RenderedNode, "More")!.props!.onPress as () => void)());
+  } finally {
+    __setAlertHandler(null);
+  }
+  assert.ok(asked, "a dialog opened (dialog.alert → Alert on native; the web host queues the same request)");
+  const a = asked as unknown as { title: string; buttons: { text?: string; onPress?: () => void }[] };
+  assert.equal(a.title, "More");
+  assert.deepEqual(a.buttons.map((b) => b.text), ["Skip this Prep", "Save & Exit", "Cancel"]);
+  a.buttons[0].onPress?.();
+  a.buttons[1].onPress?.();
+  assert.deepEqual([skipped, saved], [1, 1]);
+});
+
+test("PREP-2: the rule — 1.5× or more, or too little window for the text", () => {
+  assert.equal(prepUsesLargeTextLayout({ fontScale: 1, height: 812 }), false);
+  assert.equal(prepUsesLargeTextLayout({ fontScale: 1.3, height: 850 }), false);
+  assert.equal(prepUsesLargeTextLayout({ fontScale: 1.5, height: 2000 }), true);
+  assert.equal(prepUsesLargeTextLayout({ fontScale: 1.2, height: 640 }), true); // 533 text dp
+  assert.equal(prepUsesLargeTextLayout({ fontScale: 1, height: 667 }), false); // iPhone SE
+  assert.equal(prepUsesLargeTextLayout({ fontScale: 0, height: 500 }), true);
 });

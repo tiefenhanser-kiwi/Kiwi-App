@@ -1,0 +1,884 @@
+{
+ "type": "rn-view",
+ "props": {
+  "style": {
+   "flex": 1,
+   "backgroundColor": "#FBF7EF"
+  }
+ },
+ "children": [
+  {
+   "type": "rn-view",
+   "props": {
+    "style": [
+     {
+      "backgroundColor": "#FBF7EF",
+      "paddingHorizontal": 16,
+      "paddingBottom": 12,
+      "borderBottomWidth": 1,
+      "borderBottomColor": "#D8D0BD"
+     },
+     {
+      "paddingTop": 8
+     }
+    ]
+   },
+   "children": [
+    {
+     "type": "rn-view",
+     "props": {
+      "style": {
+       "flexDirection": "row",
+       "alignItems": "center",
+       "minHeight": 40
+      }
+     },
+     "children": [
+      {
+       "type": "rn-pressable",
+       "props": {
+        "hitSlop": 12,
+        "accessibilityRole": "button",
+        "accessibilityLabel": "Go back",
+        "style": {
+         "width": 40,
+         "height": 40,
+         "alignItems": "center",
+         "justifyContent": "center"
+        }
+       },
+       "children": [
+        {
+         "type": "icon-feather",
+         "props": {
+          "name": "chevron-left",
+          "size": 24,
+          "color": "#3a5235"
+         },
+         "children": null
+        }
+       ]
+      },
+      {
+       "type": "rn-view",
+       "props": {
+        "style": {
+         "flex": 1,
+         "alignItems": "center"
+        }
+       },
+       "children": [
+        {
+         "type": "rn-text",
+         "props": {
+          "style": {
+           "fontSize": 17,
+           "fontWeight": "600",
+           "color": "#2D2A24",
+           "fontFamily": "Fraunces_600SemiBold"
+          }
+         },
+         "children": [
+          "Prep the feast"
+         ]
+        }
+       ]
+      },
+      {
+       "type": "rn-view",
+       "props": {
+        "style": {
+         "width": 40,
+         "height": 40,
+         "alignItems": "center",
+         "justifyContent": "center"
+        }
+       },
+       "children": null
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "type": "rn-text",
+   "props": {
+    "style": {
+     "fontSize": 17,
+     "color": "#2D2A24",
+     "fontFamily": "Fraunces_600SemiBold",
+     "textAlign": "center",
+     "paddingHorizontal": 16,
+     "paddingTop": 8
+    }
+   },
+   "children": [
+    "Hearty Week"
+   ]
+  },
+  {
+   "type": "rn-text",
+   "props": {
+    "style": {
+     "fontSize": 12,
+     "color": "#C24F25",
+     "fontStyle": "italic",
+     "fontFamily": "Fraunces_500Medium_Italic",
+     "textAlign": "center",
+     "paddingBottom": 8
+    }
+   },
+   "children": [
+    "— ",
+    "2",
+    " ",
+    "meals",
+    " combined —"
+   ]
+  },
+  {
+   "type": "rn-text",
+   "props": {
+    "style": {
+     "fontSize": 12,
+     "color": "#6B5E4D",
+     "textAlign": "center",
+     "paddingHorizontal": 16,
+     "paddingBottom": 8
+    }
+   },
+   "children": [
+    "For Wednesday, the day before the feast."
+   ]
+  },
+  {
+   "type": "rn-text",
+   "props": {
+    "style": {
+     "fontSize": 11,
+     "color": "#6B5E4D",
+     "fontWeight": "600",
+     "fontFamily": "DMSans_600SemiBold",
+     "textAlign": "center",
+     "paddingBottom": 4
+    }
+   },
+   "children": [
+    "Phase ",
+    "3",
+    " of ",
+    "4"
+   ]
+  },
+  {
+   "type": "rn-view",
+   "props": {
+    "style": {
+     "flexDirection": "row",
+     "gap": 4,
+     "paddingHorizontal": 16,
+     "paddingTop": 8
+    }
+   },
+   "children": [
+    {
+     "type": "rn-view",
+     "props": {
+      "style": [
+       {
+        "flex": 1,
+        "height": 4,
+        "borderRadius": 2
+       },
+       {
+        "backgroundColor": "#5C7350"
+       },
+       false,
+       false,
+       false
+      ]
+     },
+     "children": null
+    },
+    {
+     "type": "rn-view",
+     "props": {
+      "style": [
+       {
+        "flex": 1,
+        "height": 4,
+        "borderRadius": 2
+       },
+       {
+        "backgroundColor": "#5C7350"
+       },
+       false,
+       false,
+       false
+      ]
+     },
+     "children": null
+    },
+    {
+     "type": "rn-view",
+     "props": {
+      "style": [
+       {
+        "flex": 1,
+        "height": 4,
+        "borderRadius": 2
+       },
+       false,
+       false,
+       {
+        "backgroundColor": "#C24F25"
+       },
+       false
+      ]
+     },
+     "children": null
+    },
+    {
+     "type": "rn-view",
+     "props": {
+      "style": [
+       {
+        "flex": 1,
+        "height": 4,
+        "borderRadius": 2
+       },
+       false,
+       false,
+       false,
+       {
+        "backgroundColor": "#E4DCCB"
+       }
+      ]
+     },
+     "children": null
+    }
+   ]
+  },
+  {
+   "type": "rn-scrollview",
+   "props": {
+    "style": {
+     "flex": 1
+    },
+    "contentContainerStyle": {
+     "paddingHorizontal": 16,
+     "paddingTop": 12,
+     "paddingBottom": 32,
+     "gap": 12
+    },
+    "showsVerticalScrollIndicator": false
+   },
+   "children": [
+    {
+     "type": "rn-view",
+     "props": {
+      "style": {
+       "backgroundColor": "#3a5235",
+       "borderRadius": 14,
+       "padding": 16,
+       "gap": 4,
+       "shadowColor": "#5a4030",
+       "shadowOffset": {
+        "width": 0,
+        "height": 2
+       },
+       "shadowOpacity": 0.07,
+       "shadowRadius": 8,
+       "elevation": 2
+      }
+     },
+     "children": [
+      {
+       "type": "rn-text",
+       "props": {
+        "style": {
+         "fontSize": 21,
+         "color": "#F4F1E6",
+         "fontFamily": "Fraunces_600SemiBold"
+        }
+       },
+       "children": [
+        "Produce"
+       ]
+      },
+      {
+       "type": "rn-text",
+       "props": {
+        "style": {
+         "fontSize": 15,
+         "color": "#D5DCCB",
+         "fontFamily": "DMSans_400Regular",
+         "lineHeight": 22
+        }
+       },
+       "children": [
+        "Knock out all your washing and chopping in one pass."
+       ]
+      }
+     ]
+    },
+    {
+     "type": "rn-view",
+     "props": {
+      "style": [
+       {
+        "backgroundColor": "#ffffff",
+        "borderRadius": 14,
+        "borderWidth": 1,
+        "borderColor": "#E4DCCB",
+        "padding": 16,
+        "gap": 8,
+        "shadowColor": "#5a4030",
+        "shadowOffset": {
+         "width": 0,
+         "height": 2
+        },
+        "shadowOpacity": 0.07,
+        "shadowRadius": 8,
+        "elevation": 2
+       },
+       false
+      ]
+     },
+     "children": [
+      {
+       "type": "rn-view",
+       "props": {
+        "style": {
+         "flexDirection": "row",
+         "alignItems": "center",
+         "gap": 8
+        }
+       },
+       "children": [
+        {
+         "type": "rn-text",
+         "props": {
+          "style": {
+           "fontSize": 15,
+           "color": "#C24F25",
+           "fontWeight": "600",
+           "fontFamily": "DMSans_700Bold",
+           "minWidth": 20
+          }
+         },
+         "children": [
+          "1"
+         ]
+        },
+        {
+         "type": "rn-text",
+         "props": {
+          "style": {
+           "flex": 1,
+           "fontSize": 17,
+           "color": "#2D2A24",
+           "fontFamily": "Fraunces_600SemiBold"
+          }
+         },
+         "children": [
+          "Dice onions"
+         ]
+        },
+        {
+         "type": "rn-view",
+         "props": {
+          "style": [
+           {
+            "width": 26,
+            "height": 26,
+            "borderRadius": 10,
+            "borderWidth": 2,
+            "borderColor": "#D8D0BD",
+            "backgroundColor": "#ffffff",
+            "alignItems": "center",
+            "justifyContent": "center"
+           },
+           false
+          ]
+         },
+         "children": null
+        }
+       ]
+      },
+      {
+       "type": "rn-view",
+       "props": {
+        "style": {
+         "flexDirection": "row",
+         "alignItems": "center",
+         "gap": 8,
+         "flexWrap": "wrap"
+        }
+       },
+       "children": [
+        {
+         "type": "rn-text",
+         "props": {
+          "style": {
+           "fontSize": 14,
+           "color": "#6B5E4D",
+           "fontFamily": "DMSans_400Regular"
+          }
+         },
+         "children": [
+          "6",
+          " min"
+         ]
+        }
+       ]
+      },
+      {
+       "type": "rn-text",
+       "props": {
+        "style": {
+         "fontSize": 17,
+         "color": "#4A3F30",
+         "fontFamily": "DMSans_400Regular",
+         "lineHeight": 26
+        }
+       },
+       "children": [
+        {
+         "type": "rn-text",
+         "props": {},
+         "children": [
+          "Dice "
+         ]
+        },
+        {
+         "type": "rn-text",
+         "props": {
+          "style": {
+           "color": "#C24F25",
+           "fontWeight": "700",
+           "fontFamily": "DMSans_700Bold"
+          }
+         },
+         "children": [
+          "2 cups"
+         ]
+        },
+        {
+         "type": "rn-text",
+         "props": {},
+         "children": [
+          " onions for the week."
+         ]
+        }
+       ]
+      },
+      {
+       "type": "rn-view",
+       "props": {
+        "style": {
+         "alignSelf": "flex-start",
+         "borderRadius": 9999,
+         "borderWidth": 1,
+         "borderColor": "#C24F25",
+         "backgroundColor": "#fbeee5",
+         "paddingHorizontal": 12,
+         "paddingVertical": 4
+        }
+       },
+       "children": [
+        {
+         "type": "rn-text",
+         "props": {
+          "style": {
+           "fontSize": 11,
+           "color": "#a84520",
+           "fontWeight": "600",
+           "fontFamily": "DMSans_600SemiBold"
+          }
+         },
+         "children": [
+          "combines ",
+          "2",
+          " meals"
+         ]
+        }
+       ]
+      },
+      {
+       "type": "rn-view",
+       "props": {
+        "style": {
+         "backgroundColor": "#FBF7EF",
+         "borderRadius": 12,
+         "padding": 12,
+         "gap": 4
+        }
+       },
+       "children": [
+        {
+         "type": "rn-text",
+         "props": {
+          "style": {
+           "fontSize": 11,
+           "color": "#8A8474",
+           "fontWeight": "600",
+           "fontFamily": "DMSans_600SemiBold",
+           "textTransform": "uppercase",
+           "letterSpacing": 0.5
+          }
+         },
+         "children": [
+          "Where each goes"
+         ]
+        },
+        {
+         "type": "rn-text",
+         "props": {
+          "style": {
+           "fontSize": 14,
+           "color": "#4A3F30",
+           "fontFamily": "DMSans_400Regular",
+           "lineHeight": 24
+          }
+         },
+         "children": [
+          "→ ",
+          "Chicken Fajitas · Tuesday"
+         ]
+        },
+        {
+         "type": "rn-text",
+         "props": {
+          "style": {
+           "fontSize": 14,
+           "color": "#4A3F30",
+           "fontFamily": "DMSans_400Regular",
+           "lineHeight": 24
+          }
+         },
+         "children": [
+          "→ ",
+          "Veggie Risotto · Wednesday"
+         ]
+        }
+       ]
+      },
+      {
+       "type": "rn-text",
+       "props": {
+        "style": {
+         "fontSize": 14,
+         "color": "#6B5E4D",
+         "fontFamily": "DMSans_400Regular",
+         "fontStyle": "italic"
+        }
+       },
+       "children": [
+        "🧊 ",
+        "Airtight, 4 days"
+       ]
+      }
+     ]
+    },
+    {
+     "type": "rn-text",
+     "props": {
+      "style": {
+       "fontSize": 12,
+       "color": "#6B5E4D",
+       "fontFamily": "Fraunces_400Regular_Italic",
+       "fontStyle": "italic",
+       "textAlign": "center",
+       "paddingTop": 8
+      }
+     },
+     "children": [
+      "When you cook these later, Kiwi skips the prep you did here."
+     ]
+    }
+   ]
+  },
+  {
+   "type": "rn-view",
+   "props": {
+    "style": {
+     "paddingHorizontal": 16,
+     "paddingTop": 8,
+     "paddingBottom": 16,
+     "borderTopWidth": 1,
+     "borderTopColor": "#E4DCCB",
+     "backgroundColor": "#FBF7EF",
+     "gap": 4
+    }
+   },
+   "children": [
+    {
+     "type": "rn-text",
+     "props": {
+      "style": {
+       "fontSize": 12,
+       "color": "#6B5E4D",
+       "fontFamily": "DMSans_400Regular"
+      }
+     },
+     "children": [
+      "Next: Proteins · This step: ~6 min"
+     ]
+    },
+    {
+     "type": "rn-view",
+     "props": {
+      "style": {
+       "flexDirection": "row",
+       "gap": 8,
+       "marginTop": 4
+      }
+     },
+     "children": [
+      {
+       "type": "rn-view",
+       "props": {
+        "style": {
+         "flex": 1
+        }
+       },
+       "children": [
+        {
+         "type": "rn-pressable",
+         "props": {
+          "accessibilityRole": "button",
+          "accessibilityState": {
+           "disabled": false,
+           "busy": false
+          },
+          "accessibilityLabel": "Skip this Prep"
+         },
+         "children": [
+          {
+           "type": "rn-view",
+           "props": {
+            "style": [
+             {
+              "flexDirection": "row",
+              "alignItems": "center",
+              "gap": 8
+             },
+             false
+            ]
+           },
+           "children": [
+            {
+             "type": "rn-text",
+             "props": {
+              "style": [
+               {
+                "fontWeight": "600",
+                "fontFamily": "DMSans_600SemiBold"
+               },
+               {
+                "fontSize": 17,
+                "color": "#2D2A24"
+               },
+               false
+              ]
+             },
+             "children": [
+              "Skip this Prep"
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "rn-view",
+       "props": {
+        "style": {
+         "flex": 1
+        }
+       },
+       "children": [
+        {
+         "type": "rn-pressable",
+         "props": {
+          "accessibilityRole": "button",
+          "accessibilityState": {
+           "disabled": false,
+           "busy": false
+          },
+          "accessibilityLabel": "Save & Exit"
+         },
+         "children": [
+          {
+           "type": "rn-view",
+           "props": {
+            "style": [
+             {
+              "flexDirection": "row",
+              "alignItems": "center",
+              "gap": 8
+             },
+             false
+            ]
+           },
+           "children": [
+            {
+             "type": "rn-text",
+             "props": {
+              "style": [
+               {
+                "fontWeight": "600",
+                "fontFamily": "DMSans_600SemiBold"
+               },
+               {
+                "fontSize": 17,
+                "color": "#2D2A24"
+               },
+               false
+              ]
+             },
+             "children": [
+              "Save & Exit"
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "type": "rn-view",
+     "props": {
+      "style": {
+       "flexDirection": "row",
+       "gap": 8,
+       "marginTop": 4
+      }
+     },
+     "children": [
+      {
+       "type": "rn-view",
+       "props": {
+        "style": {
+         "width": 64
+        }
+       },
+       "children": [
+        {
+         "type": "rn-pressable",
+         "props": {
+          "accessibilityRole": "button",
+          "accessibilityState": {
+           "disabled": false,
+           "busy": false
+          },
+          "accessibilityLabel": "←"
+         },
+         "children": [
+          {
+           "type": "rn-view",
+           "props": {
+            "style": [
+             {
+              "flexDirection": "row",
+              "alignItems": "center",
+              "gap": 8
+             },
+             false
+            ]
+           },
+           "children": [
+            {
+             "type": "rn-text",
+             "props": {
+              "style": [
+               {
+                "fontWeight": "600",
+                "fontFamily": "DMSans_600SemiBold"
+               },
+               {
+                "fontSize": 17,
+                "color": "#2D2A24"
+               },
+               false
+              ]
+             },
+             "children": [
+              "←"
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "rn-view",
+       "props": {
+        "style": {
+         "flex": 1
+        }
+       },
+       "children": [
+        {
+         "type": "rn-pressable",
+         "props": {
+          "accessibilityRole": "button",
+          "accessibilityState": {
+           "disabled": false,
+           "busy": false
+          },
+          "accessibilityLabel": "Mark all complete"
+         },
+         "children": [
+          {
+           "type": "rn-view",
+           "props": {
+            "style": [
+             {
+              "flexDirection": "row",
+              "alignItems": "center",
+              "gap": 8
+             },
+             false
+            ]
+           },
+           "children": [
+            {
+             "type": "rn-text",
+             "props": {
+              "style": [
+               {
+                "fontWeight": "600",
+                "fontFamily": "DMSans_600SemiBold"
+               },
+               {
+                "fontSize": 17,
+                "color": "#FFFFFF"
+               },
+               false
+              ]
+             },
+             "children": [
+              "Mark all complete"
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

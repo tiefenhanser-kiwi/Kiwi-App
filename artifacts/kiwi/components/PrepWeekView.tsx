@@ -15,7 +15,7 @@
 //    (this block) the checkboxes are display-only (non-interactive).
 
 import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
 import { CookFooter } from "@/components/cooking/CookFooter";
 import { HighlightedText } from "@/components/cooking/HighlightedText";
@@ -31,6 +31,7 @@ import {
 } from "@/constants/tokens";
 import type { PrepWeekPhaseKey } from "@/lib/api/cooking";
 import { prepWeekFooterLine } from "@/lib/cooking/prepWeekFooter";
+import { prepUsesLargeTextLayout } from "@/lib/cooking/prepWeekLayout";
 import type {
   PrepPhaseVM,
   PrepStepVM,
@@ -234,10 +235,15 @@ export function PrepWeekView({
       )
     : 0;
 
-  return (
-    <View style={s.bg}>
-      <Header showBack title={title} onBack={onExit} />
+  // PREP-2 item 5 — the large-text shape (lib/cooking/prepWeekLayout.ts): the
+  // block below scrolls away with the steps and the footer is one row, so the steps
+  // are always reachable. Otherwise the block stays pinned, exactly as before.
+  const { fontScale, height } = useWindowDimensions();
+  const largeText = prepUsesLargeTextLayout({ fontScale, height });
+  const statusLine = prepWeekFooterLine(!onLastPhase && nextPhase ? nextPhase.title : null, phaseMins);
 
+  const intro = (
+    <>
       {/* Plan name + italic-dash subtitle ("— N meals combined —").
 
           WS9 D-WS9-213 §3.1 — THE SUMMED TOTAL IS GONE. A real plan read "over
@@ -294,12 +300,28 @@ export function PrepWeekView({
         currentIndex={phaseIndex}
         partialIndices={partialIndices}
       />
+    </>
+  );
+
+  return (
+    <View style={s.bg}>
+      <Header showBack title={title} onBack={onExit} />
+
+      {!largeText && intro}
 
       <ScrollView
         style={s.scroll}
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {/* PREP-2 — at large text the block and the footer's status line ride
+            the scroll instead of pinning the steps out of view. */}
+        {largeText && (
+          <View>
+            {intro}
+            <Text style={s.tally}>{statusLine}</Text>
+          </View>
+        )}
         {/* Current-phase card (deep sage) — name + blurb only. Per the Hans-ruled
             footer redesign, NO action button lives in this component; all actions
             (Mark all complete / Skip this Prep / Save & Exit) are in the footer. */}
@@ -355,16 +377,14 @@ export function PrepWeekView({
           finish). The write-free secondary actions — "Skip this Prep" (hidden on
           the last phase) and "Save & Exit" — render in the footer's secondary row. */}
       <CookFooter
-        statusLine={prepWeekFooterLine(
-          !onLastPhase && nextPhase ? nextPhase.title : null,
-          phaseMins,
-        )}
+        statusLine={statusLine}
         backDisabled={phaseIndex <= 0}
         showAdvance
         onPrevStep={onPrevPhase}
         onAdvance={onLastPhase ? onFinish : onAdvancePhase}
         advanceLabel="Mark all complete"
         secondaryActions={footerSecondaryActions}
+        compact={largeText}
       />
 
       {/* Week-Prep completion toast — DISTINCT from the Cook-Mode "already

@@ -18,11 +18,20 @@
 // Same back-compat rule: Cook Mode passes nothing and renders as before — the
 // e2e harness reads its "~N min left" (e2e/src/screen.ts).
 
+//
+// PREP-2 item 5 — an OPTIONAL `compact`: the large-text shape (Prep the Week only,
+// lib/cooking/prepWeekLayout.ts). ONE row — back, the primary, and "More", which
+// opens the secondary actions as a dialog — with no status line (the screen puts
+// it in its scroll) and labels capped at PREP_FOOTER_MAX_FONT_SCALE so the row
+// stays one row. Omitted → every byte as before; Cook Mode never passes it.
+
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { Button } from "@/components/Button";
 import { Colors, Palette, Spacing, Typography } from "@/constants/tokens";
+import { PREP_FOOTER_MAX_FONT_SCALE } from "@/lib/cooking/prepWeekLayout";
+import { dialog } from "@/lib/dialog";
 
 export interface CookFooterSecondaryAction {
   label: string;
@@ -40,6 +49,7 @@ export function CookFooter({
   advanceLabel = "Done — next step",
   backLabel = "←",
   secondaryActions,
+  compact,
 }: {
   nextLabel?: string | null;
   remainingMins?: number;
@@ -55,7 +65,53 @@ export function CookFooter({
   /** Secondary/text actions rendered as a row above the back+primary row.
    *  Omit (Cook Mode) → no row, layout unchanged. */
   secondaryActions?: readonly CookFooterSecondaryAction[];
+  /** PREP-2 — the large-text shape: one row, the secondary actions behind "More". */
+  compact?: boolean;
 }) {
+  if (compact) {
+    const more = secondaryActions ?? [];
+    const openMore = () =>
+      dialog.alert("More", undefined, [
+        ...more.map((a) => ({ text: a.label, onPress: a.onPress })),
+        { text: "Cancel", style: "cancel" as const },
+      ]);
+    return (
+      <View style={s.footer}>
+        <View style={s.compactRow}>
+          <View style={s.footerBack}>
+            <Button
+              label={backLabel}
+              variant="secondary"
+              disabled={backDisabled}
+              onPress={onPrevStep}
+              fullWidth={false}
+              maxFontSizeMultiplier={PREP_FOOTER_MAX_FONT_SCALE}
+            />
+          </View>
+          {showAdvance && (
+            <View style={s.footerNext}>
+              <Button
+                label={advanceLabel}
+                variant="primary"
+                onPress={onAdvance}
+                maxFontSizeMultiplier={PREP_FOOTER_MAX_FONT_SCALE}
+              />
+            </View>
+          )}
+          {more.length > 0 && (
+            <Button
+              label="More"
+              accessibilityLabel={`More: ${more.map((a) => a.label).join(", ")}`}
+              variant="secondary"
+              fullWidth={false}
+              onPress={openMore}
+              maxFontSizeMultiplier={PREP_FOOTER_MAX_FONT_SCALE}
+            />
+          )}
+        </View>
+      </View>
+    );
+  }
   return (
     <View style={s.footer}>
       {statusLine !== undefined ? (
@@ -124,6 +180,9 @@ const s = StyleSheet.create({
     fontFamily: Typography.face.sans[400],
   },
   footerRow: { flexDirection: "row", gap: Spacing[2], marginTop: Spacing[1] },
+  // PREP-2 — the large-text row: the same gap, centred so a taller primary
+  // (a wrapped label) does not leave the side buttons hanging at the top.
+  compactRow: { flexDirection: "row", gap: Spacing[2], alignItems: "center" },
   footerBack: { width: 64 },
   footerNext: { flex: 1 },
   // BUG-020 — secondary/text action row above the primary row (Week Prep only).
