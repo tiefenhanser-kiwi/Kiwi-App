@@ -217,6 +217,15 @@ function ActionPanel({ cells }: { cells: PanelCell[] }) {
                 // reported, not fixed here.) The spinner is the busy state, and
                 // `loading` also disables the press, which guards the double-tap.
                 loading={c.loading}
+                // PREP-2 item 7 — Hans: "left justified and not aligned well with
+                // the icon", and after a font-size change "the font is centered at
+                // the top but the icon is in the same spot". The label was an
+                // unshrinkable child of the icon row: in a half-width cell it ran
+                // its natural width, wrapped flush left, and sat at the row's top.
+                // wrapLabel (Button, BUG-347) bounds the row to the cell and lets
+                // the label shrink and wrap CENTRED, so icon and label stay one
+                // vertically centred row at any text size.
+                wrapLabel
                 iconLeft={
                   <Feather
                     name={c.icon}

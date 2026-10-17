@@ -652,3 +652,33 @@ test("BUG-308: the today state is untouched by the flag", () => {
     assert.ok(!texts(t).includes("Order Online"));
   }
 });
+
+// ── PREP-2 item 7 — the cell's icon and label are one centred row ─────────────
+//
+// Hans: "left justified and not aligned well with the icon, and then I made the
+// font smaller and the font is centered at the top but the icon is in the same
+// spot." react-test-renderer runs no layout, so the test pins the three styles
+// that make the row hold together, on every cell of both branches.
+
+function cellRow(c: Json): { row: Record<string, unknown>; label: Record<string, unknown> } {
+  const row = findAll(c, "rn-view").find((n) => flatStyle(n).flexDirection === "row");
+  assert.ok(row, "the icon + label row");
+  const label = findAll(row!, "rn-text").find((t) => texts(t).join("").length > 0)!;
+  return { row: flatStyle(row!), label: flatStyle(label) };
+}
+
+test("PREP-2: every panel cell is an icon + label row, vertically centred, its label shrinking and wrapping CENTRED", () => {
+  for (const [model, labels] of [
+    [PLAN, ["Prep and Cook", "Grocery List", "Order Online", "View plan"]],
+    [TODAY, ["Start Cooking", "View plan"]],
+  ] as const) {
+    const root = render({ model, home: HOME_ON });
+    for (const label of labels) {
+      const { row, label: text } = cellRow(cell(root, label)!);
+      assert.equal(row.alignItems, "center", `${label}: icon and label share a centre line`);
+      assert.equal(row.maxWidth, "100%", `${label}: the row is bounded by the cell, so the label has a width to wrap at`);
+      assert.equal(text.flexShrink, 1, `${label}: the label shrinks instead of running past the cell`);
+      assert.equal(text.textAlign, "center", `${label}: a wrapped label is centred, not flush left`);
+    }
+  }
+});
