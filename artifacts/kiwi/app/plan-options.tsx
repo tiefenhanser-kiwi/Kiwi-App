@@ -71,6 +71,7 @@ import {
   anyBusy,
   appendCandidates,
   buildCandidateContext,
+  DEFAULT_CANDIDATE_COUNT,
   DEFAULT_MAX_PRESSES,
   dismissCard,
   dismissRequestFor,
@@ -79,6 +80,8 @@ import {
   hasCandidate,
   insertAnother,
   noticeFor,
+  SHORTFALL_ACTION_LABEL,
+  shortfallNoticeFor,
   patchCard,
   PLAN_OPTIONS_CUSTOMIZABLE_COPY,
   PLAN_OPTIONS_TITLE,
@@ -448,6 +451,16 @@ export default function PlanOptionsScreen() {
       mode === "tellkiwi" ? tellKiwiPayload?.cannotGenerateMore : initial.data?.cannotGenerateMore,
     reason: mode === "tellkiwi" ? tellKiwiPayload?.reason : initial.data?.reason,
   });
+  // FIX-2 (Part C) — a short first batch is announced, never presented as the
+  // whole set. The server has already tried one top-up by now; the action asks
+  // for one more plan per press through the same "another" run. The line goes
+  // once the set is complete (or the press cap is reached).
+  const shortfall = mode === "wizard" ? initial.data?.shortfall : undefined;
+  const shortfallTarget = shortfall
+    ? shortfall.requested ?? limitsQuery.data?.candidateCount ?? DEFAULT_CANDIDATE_COUNT
+    : null;
+  const shortfallLine =
+    shortfallTarget !== null && initial.isComplete ? shortfallNoticeFor(list.length, shortfallTarget) : null;
   const showSkeleton = mode === "wizard" && initial.isPending;
   const showError = mode === "wizard" && initial.isError;
   const busy = anyBusy(list);
@@ -507,7 +520,21 @@ export default function PlanOptionsScreen() {
           </View>
         )}
 
+        {shortfallLine && left > 0 ? (
+          <View style={s.shortfallCard} testID="plan-options-shortfall">
+            <Text style={s.shortfallText}>{shortfallLine}</Text>
+            <Button
+              label={SHORTFALL_ACTION_LABEL}
+              variant="sageTint"
+              onPress={handleAnother}
+              disabled={anotherBusy || busy}
+              testID="plan-options-shortfall-retry"
+            />
+          </View>
+        ) : null}
+
         {canAskForAnother &&
+          !(shortfallLine && left > 0) &&
           (left > 0 ? (
             <View style={s.anotherWrap}>
               <Button
@@ -550,6 +577,18 @@ const s = StyleSheet.create({
     lineHeight: 22,
     color: Colors.neutral[800],
     fontFamily: Typography.face.sans[400],
+  },
+  shortfallCard: {
+    gap: Spacing[3],
+    backgroundColor: Colors.sage[50],
+    borderRadius: Radius.md,
+    padding: Spacing[3],
+  },
+  shortfallText: {
+    fontSize: Typography.fontSize.md,
+    lineHeight: 22,
+    color: Colors.neutral[800],
+    fontFamily: Typography.face.sans[500],
   },
   notice: {
     fontSize: Typography.fontSize.sm,

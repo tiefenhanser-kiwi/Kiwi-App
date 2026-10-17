@@ -477,6 +477,21 @@ export function sublineFor(
 }
 
 /**
+ * FIX-2 (Part C) — the short-set line, or null once the set is complete. A
+ * generate call that fails after its first card used to leave the screen saying
+ * "1 plan Kiwi cooked up just for you" as if that were the batch (TRIAGE-0).
+ * `made` counts every card the run produced (a dismissed one was still made).
+ */
+export function shortfallNoticeFor(made: number, requested: number): string | null {
+  if (made >= requested) return null;
+  return `Kiwi made ${made} of ${requested} ${requested === 1 ? "plan" : "plans"}. Try again for more options.`;
+}
+export const SHORTFALL_ACTION_LABEL = "Try again";
+// The server default for wizard.candidate_count (routes/wizard.ts), when neither
+// the run nor GET /wizard/limits names one.
+export const DEFAULT_CANDIDATE_COUNT = 3;
+
+/**
  * The one quiet line above the cards, or null: Tell Kiwi's overflow (the meals
  * that did not fit) and the generate endpoints' cannotGenerateMore reason.
  */

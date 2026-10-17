@@ -288,6 +288,14 @@ export interface WizardRouterDeps {
 // the user message. Must match the token in the seeded prompt body verbatim.
 const WIZARD_GENERATE_CACHE_MARKER = "{{storeShortlist}}";
 
+// FIX-2 (Part C) — the stream failures a second call can fix. A spend-guard or
+// guest refusal is not one: a second call would be refused the same way.
+const TOP_UP_REASONS: ReadonlySet<string> = new Set([
+  "validation_failed",
+  "sdk_error",
+  "parse_failed",
+]);
+
 // WS9 3c follow-up (BUG-053, Parts B + F) — session re-roll exclusion. The
 // client sends the plan + meal titles already shown this wizard session
 // (originally also the Surprise-me re-roll, retired in Block 2) in the request
@@ -1660,29 +1668,113 @@ export function createWizardRouter(
             userId,
           });
           sent.add(index);
+          rawByIndex.set(index, candidate);
           reconciledByIndex.set(index, wire);
           sendFrame("candidate", { index, candidate: wire });
         };
+        // FIX-2 (Part C) — the raw copy of every emitted candidate, by index, so
+        // a set completed by the top-up below has its raw half for the
+        // storeSlotsMarked count (the first call's data is gone when it failed).
+        const rawByIndex = new Map<number, WizardPlanCandidate>();
 
-        const streamResult = await streamPlanCandidates(
-          "wizard.set_preferences.generate",
-          { wizardInput, storeShortlist: storeShortlist.forPrompt },
-          {
-            prisma,
-            // Row 13 · Block 1 (D-WS9-261) — a guest call carries userId NULL
-            // and guestSessionId set, so its cost lands on the guest ledger
-            // and the guest ceiling, never on the user-attributed global sum.
-            userId: guestSessionId ? null : userId,
-            guestSessionId,
-            cacheSplitMarker: WIZARD_GENERATE_CACHE_MARKER,
-            onCandidate: sendCandidate,
-            // Delta-driven liveness: keeps the client's stall watchdog alive
-            // across the ~9s window before the first candidate completes. Driven
-            // by real model output, so a true stall stops the frames and the
-            // watchdog fires correctly. Client ignores this frame type.
-            onProgress: (info) => sendFrame("progress", info),
-          },
-        );
+        const streamOnce = (
+          input: typeof wizardInput,
+          indexOffset: number,
+        ) =>
+          streamPlanCandidates(
+            "wizard.set_preferences.generate",
+            { wizardInput: input, storeShortlist: storeShortlist.forPrompt },
+            {
+              prisma,
+              // Row 13 · Block 1 (D-WS9-261) — a guest call carries userId NULL
+              // and guestSessionId set, so its cost lands on the guest ledger
+              // and the guest ceiling, never on the user-attributed global sum.
+              userId: guestSessionId ? null : userId,
+              guestSessionId,
+              cacheSplitMarker: WIZARD_GENERATE_CACHE_MARKER,
+              onCandidate: (i, c) => sendCandidate(indexOffset + i, c),
+              // Delta-driven liveness: keeps the client's stall watchdog alive
+              // across the ~9s window before the first candidate completes. Driven
+              // by real model output, so a true stall stops the frames and the
+              // watchdog fires correctly. Client ignores this frame type.
+              onProgress: (info) => sendFrame("progress", info),
+            },
+          );
+
+        let streamResult = await streamOnce(wizardInput, 0);
+
+        // FIX-2 (Part C) — ONE automatic top-up of the missing plans.
+        //
+        // The three plans are ONE model call, validated as a whole at the end
+        // (streamPlanCandidates.ts): when it fails after card 1 has already
+        // streamed, the client used to keep that card, drop the error and say
+        // "1 plan Kiwi cooked up just for you" (TRIAGE-0, spec run 2). Here, on
+        // a generation failure (never a spend-guard refusal, never a guest), the
+        // stream stays open and a second call asks for exactly the missing
+        // count, with the cards already shown added to the repetition list. The
+        // user is already reading card 1 while the rest arrive below it — no
+        // second wait from zero. Nothing already emitted is re-sent. If the
+        // top-up fails too, the error frame says how many of how many arrived
+        // and the client announces the short set (plan-options.tsx).
+        let toppedUp = false;
+        if (
+          !streamResult.success &&
+          !guestSessionId &&
+          !clientGone &&
+          sent.size > 0 &&
+          sent.size < requestedCandidateCount &&
+          TOP_UP_REASONS.has(streamResult.reason)
+        ) {
+          const firstFailure = streamResult;
+          const offset = sent.size;
+          const shown = [...reconciledByIndex.values()];
+          logger.warn(
+            {
+              event: "wizard_build_plans_top_up",
+              userId,
+              reason: firstFailure.reason,
+              delivered: offset,
+              requested: requestedCandidateCount,
+            },
+            "Wizard stream failed after a partial set — topping up the missing plans",
+          );
+          const topUp = await streamOnce(
+            {
+              ...wizardInput,
+              requestedCandidateCount: requestedCandidateCount - offset,
+              planningContext: {
+                ...planningContextForPrompt,
+                recentPlanNames: [
+                  ...planningContextForPrompt.recentPlanNames,
+                  ...shown.map((c) => c.title),
+                  ...shown.flatMap((c) => c.mealTitles),
+                ],
+              },
+            },
+            offset,
+          );
+          if (topUp.success) {
+            topUp.data.candidates
+              .slice(0, requestedCandidateCount - offset)
+              .forEach((c, i) => sendCandidate(offset + i, c));
+            toppedUp = true;
+            streamResult = {
+              ...topUp,
+              data: {
+                ...topUp.data,
+                candidates: [...rawByIndex.entries()]
+                  .sort((a, b) => a[0] - b[0])
+                  .map(([, c]) => c),
+              },
+              metadata: {
+                ...topUp.metadata,
+                latencyMs: (firstFailure.metadata.latencyMs ?? 0) + topUp.metadata.latencyMs,
+              },
+            };
+          } else {
+            streamResult = topUp;
+          }
+        }
 
         if (!streamResult.success) {
           logger.warn(
@@ -1706,12 +1798,31 @@ export function createWizardRouter(
               .sort((a, b) => a[0] - b[0])
               .map(([, c]) => c),
           });
+          // FIX-2 (Part C) — the cards the user is looking at ARE the batch now:
+          // commit them, so "See previous options" and a later "another" (which
+          // merges into the last batch) see what was on screen, not the session
+          // before it.
+          const partial = [...reconciledByIndex.entries()]
+            .sort((a, b) => a[0] - b[0])
+            .map(([, c]) => c);
+          if (!guestSessionId && partial.length > 0) {
+            await commitGeneratedBatch({
+              userId,
+              source: "wizard",
+              candidates: partial,
+              input: parsed.data,
+              generationStartedAt,
+              another,
+            });
+          }
           // Client falls back to the buffered endpoint on an error frame with
-          // zero candidates; if some already streamed it keeps them + offers a
-          // retry (client-owned fallback).
+          // zero candidates; if some already streamed it keeps them and — FIX-2
+          // — announces the short set from `delivered` / `requested`.
           sendFrame("error", {
             error: streamResult.userFacingMessage,
             reason: streamResult.reason,
+            delivered: sent.size,
+            requested: requestedCandidateCount,
           });
           return res.end();
         }
@@ -1815,6 +1926,11 @@ export function createWizardRouter(
         sendFrame("done", {
           cannotGenerateMore: streamResult.data.cannotGenerateMore,
           reason: streamResult.data.reason,
+          // FIX-2 (Part C) — how many plans were asked for and how many
+          // arrived, so a short set is never presented as a complete one.
+          requested: requestedCandidateCount,
+          delivered: reconciledCandidates.length,
+          toppedUp,
           metadata: {
             promptVersion: streamResult.metadata.promptVersion,
             latencyMs: streamResult.metadata.latencyMs,
@@ -1919,6 +2035,9 @@ export function createWizardRouter(
         candidates,
         cannotGenerateMore: result.data.cannotGenerateMore,
         reason: result.data.reason,
+        // FIX-2 (Part C) — as on the stream's done frame.
+        requested: requestedCandidateCount,
+        delivered: candidates.length,
         metadata: {
           promptVersion: result.metadata.promptVersion,
           latencyMs: result.metadata.latencyMs,

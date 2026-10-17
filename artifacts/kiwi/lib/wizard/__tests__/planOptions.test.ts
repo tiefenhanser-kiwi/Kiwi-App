@@ -28,6 +28,7 @@ import {
   pressesLeft,
   rowsFor,
   rowTimeLabel,
+  shortfallNoticeFor,
   sublineFor,
   visibleCards,
 } from "../planOptions";
@@ -428,6 +429,15 @@ test("sublineFor: the retired chooser's copy with a live count; cooking while em
   assert.equal(sublineFor("tellkiwi", 1, "fully_specified"), "Here's your plan — exactly as you described");
   assert.equal(sublineFor("tellkiwi", 3, "partial"), "3 plans built around what you named");
   assert.equal(sublineFor("tellkiwi", 2, "vague"), "2 plans Kiwi built from your request");
+});
+
+// FIX-2 (Part C) — a short set is announced, and the line goes once it is whole.
+test("shortfallNoticeFor: 'Kiwi made 1 of 3 plans' until the set is complete", () => {
+  assert.equal(shortfallNoticeFor(1, 3), "Kiwi made 1 of 3 plans. Try again for more options.");
+  assert.equal(shortfallNoticeFor(2, 3), "Kiwi made 2 of 3 plans. Try again for more options.");
+  assert.equal(shortfallNoticeFor(3, 3), null);
+  assert.equal(shortfallNoticeFor(4, 3), null);
+  assert.equal(shortfallNoticeFor(0, 1), "Kiwi made 0 of 1 plan. Try again for more options.");
 });
 
 test("noticeFor: overflow names the left-out meals; cannotGenerateMore surfaces the reason; else null", () => {

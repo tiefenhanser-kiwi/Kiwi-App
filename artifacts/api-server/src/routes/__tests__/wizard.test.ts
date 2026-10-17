@@ -592,6 +592,10 @@ describe("POST /api/wizard/build-plans — SSE streaming (D-WS9-076)", () => {
       streamPlanCandidates: deps.streamFn,
       prisma,
       subscriptionService: makeSubscriptionService(true),
+      // The limiter's store is module-level and keyed per user, so every test
+      // in this block shares STREAM_USER's bucket; FIX-2's five top-up cases
+      // took it past the default 8.
+      rateLimiterOpts: { capacity: 100, refillPerSec: 100 },
     });
     try {
       const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
@@ -685,6 +689,112 @@ describe("POST /api/wizard/build-plans — SSE streaming (D-WS9-076)", () => {
     assert.equal(frames.filter((f) => f.event === "done").length, 0);
     const events = prisma._activities().map((a: { eventType: string }) => a.eventType);
     assert.ok(events.includes("wizard_failure"));
+  });
+
+  // ── FIX-2 (Part C) — a short set is topped up once, or announced ────────────
+
+  // A scripted stream: each call emits `emit` candidates progressively, then
+  // succeeds or fails with `fail`. Records each call's input.
+  function scriptedStream(
+    calls: Array<{ emit: WizardPlanCandidatesResult["candidates"]; fail?: string }>,
+  ) {
+    const inputs: Array<{ requestedCandidateCount: number; recentPlanNames: string[] }> = [];
+    let n = 0;
+    const fn = async (
+      _k: string,
+      vars: { wizardInput: { requestedCandidateCount: number; planningContext: { recentPlanNames: string[] } } },
+      o: { onCandidate?: (i: number, c: unknown) => void },
+    ): Promise<AICallResult<WizardPlanCandidatesResult>> => {
+      const step = calls[Math.min(n++, calls.length - 1)];
+      inputs.push({
+        requestedCandidateCount: vars.wizardInput.requestedCandidateCount,
+        recentPlanNames: vars.wizardInput.planningContext.recentPlanNames,
+      });
+      step.emit.forEach((c, i) => o.onCandidate?.(i, c));
+      if (step.fail) {
+        return {
+          success: false,
+          reason: step.fail,
+          userFacingMessage: "Kiwi got distracted. Try again?",
+          metadata: { promptKey: "wizard.set_preferences.generate", latencyMs: 500 },
+        } as unknown as AICallFailure;
+      }
+      return {
+        success: true,
+        data: { candidates: step.emit, cannotGenerateMore: false },
+        metadata: {
+          promptKey: "wizard.set_preferences.generate",
+          promptVersion: 5,
+          model: "claude-sonnet-4-6",
+          mode: "text",
+          latencyMs: 900,
+          inputTokens: 1500,
+          outputTokens: 320,
+          costEstimateUsd: 0.009,
+          retryCount: 0,
+        },
+      } as AICallSuccess<WizardPlanCandidatesResult>;
+    };
+    return { fn, inputs, calls: () => n };
+  }
+
+  it("FIX-2: a stream that fails after 1 of 3 is topped up once — the user ends with 3", async () => {
+    const [c1, c2, c3] = happyCandidates().candidates;
+    const stream = scriptedStream([
+      { emit: [c1], fail: "validation_failed" },
+      { emit: [c2, c3] },
+    ]);
+    const { frames } = await streamOnce({ streamFn: stream.fn });
+
+    assert.equal(stream.calls(), 2, "exactly one top-up call");
+    assert.equal(stream.inputs[1].requestedCandidateCount, 2, "asks for the missing count only");
+    assert.ok(stream.inputs[1].recentPlanNames.includes(c1.title), "the shown plan is on the repetition list");
+    assert.ok(stream.inputs[1].recentPlanNames.includes(c1.mealTitles[0]), "and its meals");
+    const idxs = frames.filter((f) => f.event === "candidate").map((f) => f.data.index);
+    assert.deepEqual(idxs, [0, 1, 2], "the top-up continues the indices; nothing re-sent");
+    const done = frames.find((f) => f.event === "done");
+    assert.equal(done?.data.delivered, 3);
+    assert.equal(done?.data.requested, 3);
+    assert.equal(done?.data.toppedUp, true);
+    assert.equal(frames.filter((f) => f.event === "error").length, 0);
+  });
+
+  it("FIX-2: when the top-up fails too, the error frame says 1 of 3 (the client announces it)", async () => {
+    const [c1] = happyCandidates().candidates;
+    const stream = scriptedStream([
+      { emit: [c1], fail: "sdk_error" },
+      { emit: [], fail: "sdk_error" },
+    ]);
+    const { frames } = await streamOnce({ streamFn: stream.fn });
+    assert.equal(stream.calls(), 2);
+    const err = frames.find((f) => f.event === "error");
+    assert.equal(err?.data.delivered, 1);
+    assert.equal(err?.data.requested, 3);
+  });
+
+  it("FIX-2: a spend-guard refusal after a partial set is not retried", async () => {
+    const [c1] = happyCandidates().candidates;
+    const stream = scriptedStream([{ emit: [c1], fail: "spend_cap_user" }]);
+    const { frames } = await streamOnce({ streamFn: stream.fn });
+    assert.equal(stream.calls(), 1, "no top-up");
+    assert.equal(frames.find((f) => f.event === "error")?.data.delivered, 1);
+  });
+
+  it("FIX-2: a zero-card failure is not topped up (the client's buffered fallback owns it)", async () => {
+    const stream = scriptedStream([{ emit: [], fail: "validation_failed" }]);
+    const { frames } = await streamOnce({ streamFn: stream.fn });
+    assert.equal(stream.calls(), 1);
+    assert.equal(frames.find((f) => f.event === "error")?.data.delivered, 0);
+  });
+
+  it("FIX-2: a short SUCCESS (2 of 3, no cannotGenerateMore) is reported on the done frame", async () => {
+    const [c1, c2] = happyCandidates().candidates;
+    const stream = scriptedStream([{ emit: [c1, c2] }]);
+    const { frames } = await streamOnce({ streamFn: stream.fn });
+    const done = frames.find((f) => f.event === "done");
+    assert.equal(done?.data.delivered, 2);
+    assert.equal(done?.data.requested, 3);
+    assert.equal(done?.data.toppedUp, false);
   });
 
   it("without an event-stream Accept header, the buffered JSON path is used", async () => {

@@ -36,6 +36,9 @@ export const WIZARD_STREAM_STALL_MS = 20_000;
 export interface WizardStreamDoneMeta {
   cannotGenerateMore?: boolean;
   reason?: string;
+  /** FIX-2 (Part C) — absent from a pre-FIX-2 server. */
+  requested?: number;
+  delivered?: number;
 }
 
 /**
@@ -201,6 +204,10 @@ export async function streamWizardPlans(
               typeof parsed.data?.reason === "string"
                 ? parsed.data.reason
                 : undefined,
+            requested:
+              typeof parsed.data?.requested === "number" ? parsed.data.requested : undefined,
+            delivered:
+              typeof parsed.data?.delivered === "number" ? parsed.data.delivered : undefined,
           };
         }
       }

@@ -13,7 +13,9 @@
 // Fallback (design contract): on ANY stream failure with zero cards received,
 // transparently call the buffered endpoint (which retries) so the worst case is
 // exactly today's behavior. 401/402 propagate without a redundant buffered hit.
-// If cards already arrived when the stream dies, we keep them rather than error.
+// If cards already arrived when the stream dies, we keep them rather than error
+// — and, FIX-2 (Part C), say so: `data.shortfall` carries how many of how many,
+// so the screen never presents a short set as a complete one.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -23,7 +25,7 @@ import {
   type WizardGenerateExtras,
 } from "@/lib/api/wizard";
 import { streamWizardPlans } from "@/lib/api/wizardStream";
-import { UnauthenticatedError, UpgradeRequiredError } from "@/lib/api/errors";
+import { ApiError, UnauthenticatedError, UpgradeRequiredError } from "@/lib/api/errors";
 import type { WizardPlanCandidate, WizardPreferencesInput } from "@/lib/types";
 
 type Status = "idle" | "streaming" | "success" | "error";
@@ -33,7 +35,22 @@ interface InternalState {
   candidates: WizardPlanCandidate[];
   cannotGenerateMore?: boolean;
   reason?: string;
+  shortfall?: BuildWizardPlansResult["shortfall"];
   error: Error | null;
+}
+
+/**
+ * FIX-2 (Part C) — a completed run that is short and unexplained. A server
+ * that set cannotGenerateMore has already said why (noticeFor renders it); a
+ * pre-FIX-2 server that sends no count is not second-guessed here.
+ */
+export function shortfallOfCompleted(r: {
+  delivered: number;
+  requested?: number;
+  cannotGenerateMore?: boolean;
+}): BuildWizardPlansResult["shortfall"] {
+  if (r.cannotGenerateMore || r.requested === undefined) return undefined;
+  return r.delivered < r.requested ? { delivered: r.delivered, requested: r.requested } : undefined;
 }
 
 // D-WS9-191 Block 2 — generic over the generation INPUT so the plan-options
@@ -72,7 +89,7 @@ export interface UseBuildWizardPlansStreamingDeps<
     input: TInput,
     onCandidate: (index: number, candidate: WizardPlanCandidate) => void,
     opts: { signal?: AbortSignal; exclude?: WizardExclusionArg },
-  ) => Promise<{ cannotGenerateMore?: boolean; reason?: string }>;
+  ) => Promise<{ cannotGenerateMore?: boolean; reason?: string; requested?: number; delivered?: number }>;
   bufferedImpl?: (
     input: TInput,
     exclude?: WizardExclusionArg,
@@ -167,6 +184,11 @@ export function useBuildWizardPlansStreaming<
           candidates: s.candidates,
           cannotGenerateMore: done.cannotGenerateMore,
           reason: done.reason,
+          shortfall: shortfallOfCompleted({
+            delivered: s.candidates.length,
+            requested: done.requested,
+            cannotGenerateMore: done.cannotGenerateMore,
+          }),
           error: null,
         }));
         // Stream truly completed — the server has written its last-batch row.
@@ -182,9 +204,19 @@ export function useBuildWizardPlansStreaming<
           setState((s) => ({ ...s, status: "error", error: err }));
           return;
         }
-        // Cards already arrived → keep them (usable) instead of erroring.
-        if (received.filter(Boolean).length > 0) {
-          setState((s) => ({ ...s, status: "success" }));
+        // Cards already arrived → keep them (usable) instead of erroring. The
+        // server already tried one top-up (FIX-2), so this set IS short: keep
+        // the count for the screen's "Kiwi made 1 of 3 plans" line. The error
+        // frame carries `requested`; a pre-FIX-2 server does not (null).
+        const kept = received.filter(Boolean).length;
+        if (kept > 0) {
+          const body = err instanceof ApiError ? (err.body as { requested?: unknown } | null) : null;
+          const requested = typeof body?.requested === "number" ? body.requested : null;
+          setState((s) => ({
+            ...s,
+            status: "success",
+            shortfall: requested === null || kept < requested ? { delivered: kept, requested } : undefined,
+          }));
           return;
         }
         // Zero cards → fall back to the buffered endpoint (worst case = today).
@@ -196,6 +228,11 @@ export function useBuildWizardPlansStreaming<
             candidates: buffered.candidates,
             cannotGenerateMore: buffered.cannotGenerateMore,
             reason: buffered.reason,
+            shortfall: shortfallOfCompleted({
+              delivered: buffered.candidates.length,
+              requested: buffered.requested,
+              cannotGenerateMore: buffered.cannotGenerateMore,
+            }),
             error: null,
           });
           // Buffered fallback succeeded — the server wrote its last-batch row.
@@ -219,6 +256,7 @@ export function useBuildWizardPlansStreaming<
           candidates: state.candidates,
           cannotGenerateMore: state.cannotGenerateMore,
           reason: state.reason,
+          shortfall: state.shortfall,
         }
       : undefined;
 

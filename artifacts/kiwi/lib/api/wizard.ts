@@ -77,6 +77,10 @@ const BuildWizardPlansResponseSchema = z.object({
   candidates: z.array(WizardPlanCandidateSchema),
   cannotGenerateMore: z.boolean().optional(),
   reason: z.string().optional(),
+  // FIX-2 (Part C) — how many plans were asked for and how many arrived.
+  // Optional: a server before FIX-2 sends neither.
+  requested: z.number().int().optional(),
+  delivered: z.number().int().optional(),
   metadata: z
     .object({
       promptVersion: z.number().nullable(),
@@ -89,6 +93,15 @@ export interface BuildWizardPlansResult {
   candidates: WizardPlanCandidate[];
   cannotGenerateMore?: boolean;
   reason?: string;
+  requested?: number;
+  delivered?: number;
+  /**
+   * FIX-2 (Part C) — set when fewer plans arrived than were asked for and the
+   * server did not say why (no cannotGenerateMore). The screen announces it;
+   * a short set is never presented as a complete one. `requested` is null
+   * when a pre-FIX-2 server sent no count.
+   */
+  shortfall?: { delivered: number; requested: number | null };
   metadata?: {
     promptVersion: number | null;
     latencyMs: number;
@@ -493,6 +506,9 @@ export async function buildWizardShelf(
 const WizardLimitsResponseSchema = z
   .object({
     maxRefreshesPerSession: z.number(),
+    // FIX-2 (Part C) — the configured plan count (wizard.candidate_count), the
+    // denominator of "Kiwi made 1 of 3 plans" when a run carries none.
+    candidateCount: z.number().int().optional(),
   })
   .passthrough();
 export type WizardLimitsResponse = z.infer<typeof WizardLimitsResponseSchema>;

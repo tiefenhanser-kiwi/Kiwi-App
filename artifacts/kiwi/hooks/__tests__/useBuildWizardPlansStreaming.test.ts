@@ -16,7 +16,7 @@ import {
   type BuildWizardPlansStreamingResult,
   type UseBuildWizardPlansStreamingDeps,
 } from "../useBuildWizardPlansStreaming";
-import { UpgradeRequiredError } from "@/lib/api/errors";
+import { ApiError, UpgradeRequiredError } from "@/lib/api/errors";
 import type {
   WizardPlanCandidate,
   WizardPreferencesInput,
@@ -135,6 +135,61 @@ test("keeps already-streamed cards when the stream dies mid-flight (no fallback)
   assert.equal(bufferedCalls, 0, "must not fall back when cards already arrived");
   assert.equal(v.isSuccess, true);
   assert.equal(v.data?.candidates.length, 1);
+  // FIX-2 (Part C) — the short set is no longer silent. A pre-FIX-2 error (no
+  // `requested` in the frame) still marks it short, with an unknown target.
+  assert.deepEqual(v.data?.shortfall, { delivered: 1, requested: null });
+  renderer.unmount();
+});
+
+test("FIX-2: a mid-stream error frame carrying requested: 3 → shortfall 1 of 3", async () => {
+  const streamImpl: UseBuildWizardPlansStreamingDeps["streamImpl"] = async (_input, onCandidate) => {
+    onCandidate(0, candidate("c0"));
+    throw new ApiError("Kiwi got distracted. Try again?", {
+      status: 502,
+      body: { error: "x", reason: "sdk_error", delivered: 1, requested: 3 },
+    });
+  };
+  const { renderer, latest } = mount({ streamImpl, bufferedImpl: async () => ({ candidates: [] }) });
+  await act(async () => {
+    latest().mutate(INPUT);
+    await flush();
+  });
+  assert.deepEqual(latest().data?.shortfall, { delivered: 1, requested: 3 });
+  assert.equal(latest().isComplete, true);
+  renderer.unmount();
+});
+
+test("FIX-2: a clean done with 2 of 3 and no cannotGenerateMore → shortfall; with it → none", async () => {
+  for (const [cannotGenerateMore, expected] of [
+    [false, { delivered: 2, requested: 3 }],
+    [true, undefined],
+  ] as const) {
+    const streamImpl: UseBuildWizardPlansStreamingDeps["streamImpl"] = async (_input, onCandidate) => {
+      onCandidate(0, candidate("c0"));
+      onCandidate(1, candidate("c1"));
+      return { cannotGenerateMore, requested: 3, delivered: 2 };
+    };
+    const { renderer, latest } = mount({ streamImpl });
+    await act(async () => {
+      latest().mutate(INPUT);
+      await flush();
+    });
+    assert.deepEqual(latest().data?.shortfall, expected);
+    renderer.unmount();
+  }
+});
+
+test("FIX-2: a full set (3 of 3, the server's top-up included) carries no shortfall", async () => {
+  const streamImpl: UseBuildWizardPlansStreamingDeps["streamImpl"] = async (_input, onCandidate) => {
+    [0, 1, 2].forEach((i) => onCandidate(i, candidate(`c${i}`)));
+    return { cannotGenerateMore: false, requested: 3, delivered: 3 };
+  };
+  const { renderer, latest } = mount({ streamImpl });
+  await act(async () => {
+    latest().mutate(INPUT);
+    await flush();
+  });
+  assert.equal(latest().data?.shortfall, undefined);
   renderer.unmount();
 });
 
