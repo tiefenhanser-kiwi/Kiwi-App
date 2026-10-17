@@ -8,6 +8,10 @@
 //   retryBootstrap()         → re-runs under the deadline; recovers to "ok"
 //   abandonBootstrap()       → token cleared, no server call, no message
 //   retry bound              → exactly ONE /auth/me attempt per bootstrap
+//                              (FIX-3: up to THREE on a transient failure —
+//                              two retries INSIDE the deadline, honouring
+//                              Retry-After; a wait that would cross the
+//                              deadline is not taken. A hang is still one.)
 //
 // Harness mirrors AuthContext.test.ts (react-test-renderer, no JSX). The
 // deadline is shortened through AuthProvider's test-only prop.
@@ -67,6 +71,15 @@ function makeUser(overrides: Partial<User> = {}): User {
 
 function mockJson(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
+}
+
+/** FIX-3 — a cold-DB 503 as the server sends it, Retry-After 0 so the client's
+ *  two transient retries run without a real wait. */
+function mock503(): Response {
+  return new Response(JSON.stringify({ error: "down", code: "db_unavailable" }), {
+    status: 503,
+    headers: { ...JSON_HEADERS, "Retry-After": "0" },
+  });
 }
 
 /** Never resolves; rejects with AbortError when the deadline fires. */
@@ -193,7 +206,9 @@ test("network error: fetch rejects → failed, token KEPT", async () => {
   fetchImpl = () => {
     throw new TypeError("Network request failed");
   };
-  const qc = await mount({ initialToken: "t-net" });
+  // FIX-3 — a failed fetch is transient, but its 1 s backoff would cross this
+  // 500 ms deadline, so no retry is taken: one attempt, then failed.
+  const qc = await mount({ initialToken: "t-net", deadlineMs: 500 });
   await settle(qc);
 
   assert.equal(captured!.bootstrapStatus, "failed");
@@ -204,7 +219,7 @@ test("network error: fetch rejects → failed, token KEPT", async () => {
 });
 
 test("5xx: /auth/me 503 → failed, token KEPT, no cascade", async () => {
-  fetchImpl = () => mockJson({ error: "down" }, 503);
+  fetchImpl = () => mock503();
   const qc = await mount({ initialToken: "t-5xx" });
   await settle(qc);
 
@@ -212,7 +227,7 @@ test("5xx: /auth/me 503 → failed, token KEPT, no cascade", async () => {
   assert.equal(captured!.token, "t-5xx");
   assert.equal(await store.getItemAsync(TOKEN_KEY), "t-5xx");
   assert.equal(captured!.error, null);
-  assert.equal(ME_URLS().length, 1);
+  assert.equal(ME_URLS().length, 3, "FIX-3: the attempt plus two transient retries");
 });
 
 // ── readToken() throws → Welcome, not blank ───────────────────────────
@@ -240,7 +255,7 @@ test("readToken() rejecting at bootstrap → ok with no token (Welcome), never s
 // ── the failure screen's two actions ──────────────────────────────────
 
 test("retryBootstrap: after a failure, a recovered server → ok with the user", async () => {
-  fetchImpl = () => mockJson({ error: "down" }, 503);
+  fetchImpl = () => mock503();
   const qc = await mount({ initialToken: "t-retry" });
   await settle(qc);
   assert.equal(captured!.bootstrapStatus, "failed");
@@ -256,11 +271,11 @@ test("retryBootstrap: after a failure, a recovered server → ok with the user",
   assert.equal(captured!.isAuthenticated, true);
   assert.equal(captured!.user?.id, "u-recovered");
   assert.equal(captured!.token, "t-retry");
-  assert.equal(ME_URLS().length, 2, "one bootstrap attempt + one retry");
+  assert.equal(ME_URLS().length, 4, "three bootstrap attempts (FIX-3) + one retry");
 });
 
 test("retryBootstrap: a second failure stays failed (no spinner-forever, no sign-out)", async () => {
-  fetchImpl = () => mockJson({ error: "down" }, 503);
+  fetchImpl = () => mock503();
   const qc = await mount({ initialToken: "t-retry-2" });
   await settle(qc);
   assert.equal(captured!.bootstrapStatus, "failed");
@@ -273,7 +288,7 @@ test("retryBootstrap: a second failure stays failed (no spinner-forever, no sign
   assert.equal(captured!.bootstrapStatus, "failed");
   assert.equal(captured!.token, "t-retry-2");
   assert.equal(await store.getItemAsync(TOKEN_KEY), "t-retry-2");
-  assert.equal(ME_URLS().length, 2);
+  assert.equal(ME_URLS().length, 6, "three attempts per run (FIX-3), two runs");
 });
 
 test("abandonBootstrap: clears the token with NO server call and no message → Welcome", async () => {
