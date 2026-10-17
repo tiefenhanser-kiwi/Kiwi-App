@@ -11,7 +11,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { remainingMinutes, remainingMinutesToServe, sequenceMealSteps } from "../cookSession";
+import {
+  cookFooterMinutes,
+  flattenMealSteps,
+  remainingMinutes,
+  remainingMinutesToServe,
+  sequenceMealSteps,
+} from "../cookSession";
 import type { CookStep } from "../cookSession";
 import type { SequencedStep } from "@/lib/api/cooking";
 import type { MealDetail, MealStep } from "@/lib/api/meals";
@@ -149,3 +155,26 @@ test("a step appended by §27 has no offset, so the fallback still answers", () 
   assert.equal(shown, 5, "falls back to the sum over the appended tail");
 });
 
+
+// ── FIX-3 / BUG-344 — the footer's time is hidden on an unsequenced meal ────
+
+test("cookFooterMinutes: a single-dish (unsequenced) meal shows no time, not the serial sum", () => {
+  const meal = carneAsadaMeal();
+  const single = { ...meal, dishes: [meal.dishes[0]] } as MealDetail;
+  const out = flattenMealSteps(single);
+  assert.equal(remainingMinutes(out, 0), 64, "the serial sum the footer used to show");
+  assert.equal(cookFooterMinutes(out, 0), null);
+  assert.equal(cookFooterMinutes(out, 4), null, "hidden on every step, not just the first");
+});
+
+test("cookFooterMinutes: a sequenced meal keeps the scheduler's number", () => {
+  const out = sequenceMealSteps(carneAsadaMeal(), carneAsadaSequence());
+  assert.equal(cookFooterMinutes(out, 0), 88);
+});
+
+test("cookFooterMinutes: §27's appended tail on a sequenced meal keeps its fallback", () => {
+  const partial = carneAsadaSequence().filter((s) => s.dishId !== "top");
+  const out = sequenceMealSteps(carneAsadaMeal(), partial);
+  const idx = out.findIndex((s) => s.startOffsetMinutes == null);
+  assert.equal(cookFooterMinutes(out, idx), 5);
+});

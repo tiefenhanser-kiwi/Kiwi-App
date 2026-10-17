@@ -27,6 +27,7 @@ import { usePlan } from "@/hooks/usePlan";
 import { usePrepWeek } from "@/hooks/usePrepWeek";
 import { usePrepWeekCompletions } from "@/hooks/usePrepWeekCompletions";
 import {
+  cookFooterMinutes,
   doneInPrepStepKeys,
   firstLiveIndex,
   flattenDishSteps,
@@ -35,8 +36,6 @@ import {
   nextLiveIndex,
   prepRecap,
   prevLiveIndex,
-  remainingMinutes,
-  remainingMinutesToServe,
   resolveAmountMultiplier,
   resolveCookRender,
   resolvePrepGate,
@@ -336,12 +335,9 @@ export default function CookSession() {
       recapHeading={recap.heading}
       recapItems={recap.items}
       // D-WS9-297 ruling 5 — the scheduler's wall clock, not a sum of step
-      // minutes. remainingMinutes is the fallback for the unsequenced paths,
-      // where no serve-anchored offset exists. Never both.
-      remainingMins={
-        remainingMinutesToServe(activeSteps, safeIndex) ??
-        remainingMinutes(activeSteps, safeIndex)
-      }
+      // minutes. FIX-3 / BUG-344: an unsequenced meal has no wall clock, so its
+      // footer shows no time at all (0 hides the line) until Part K.
+      remainingMins={cookFooterMinutes(activeSteps, safeIndex) ?? 0}
       onAdvance={advance}
       onPrevStep={prev}
       onSelectStep={selectStep}

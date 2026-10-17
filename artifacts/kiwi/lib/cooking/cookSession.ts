@@ -26,7 +26,7 @@ export {
   timerRemainingMs,
   type ActiveTimer,
 } from "./timer";
-export { remainingMinutes, remainingMinutesToServe } from "./stepTiming";
+export { cookFooterMinutes, remainingMinutes, remainingMinutesToServe } from "./stepTiming";
 
 /**
  * WS7-8b BUG-006 — the multiplier Cook Mode renders amountRefs through, so the

@@ -56,3 +56,23 @@ export function remainingMinutesToServe(
   if (off == null) return null;
   return Math.max(0, -off);
 }
+
+/**
+ * FIX-3 / BUG-344 — the number Cook Mode's footer shows, or null to show none.
+ *
+ * An unsequenced meal (a single-dish meal, or any flatten path) carries no
+ * serve-anchored offset on ANY step, and its only number is the serial sum
+ * {@link remainingMinutes} warns about. TRIAGE-0 measured that on all 242
+ * single-dish catalog meals: 126 overstated, worst +46 min. Hans: hide it until
+ * Part K gives those meals a real clock. So: no offset anywhere → null.
+ *
+ * A sequenced meal keeps its serve-anchored reading, and §27's appended tail
+ * (no offset on those steps only) keeps the fallback it always had.
+ */
+export function cookFooterMinutes(
+  steps: readonly { estimatedMinutes: number; startOffsetMinutes?: number | null }[],
+  fromIndex: number,
+): number | null {
+  if (!steps.some((s) => s.startOffsetMinutes != null)) return null;
+  return remainingMinutesToServe(steps, fromIndex) ?? remainingMinutes(steps, fromIndex);
+}
