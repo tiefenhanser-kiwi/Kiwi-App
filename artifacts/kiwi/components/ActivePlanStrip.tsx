@@ -58,7 +58,7 @@
 // Routing stays a PROP on every action; the card is dumb.
 
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 
 import { Button } from "./Button";
@@ -72,6 +72,7 @@ import {
 } from "@/constants/tokens";
 import { formatMacro } from "@/lib/format/macros";
 import type { HeroModel } from "@/lib/home/heroState";
+import { panelCellsPerRow } from "@/lib/home/panelColumns";
 import { showOrderOnline, type HomeRetailerFlags } from "@/lib/orderOnline";
 import { DisplayTitle } from "./DisplayTitle";
 import { TreatedImage } from "./TreatedImage";
@@ -189,8 +190,11 @@ function ActionPanel({ cells }: { cells: PanelCell[] }) {
   // Two per row. BUG-308 made the odd roster real (branch B is three cells with
   // the Instacart flag off), and the ruling is that a trailing LONE cell simply
   // spans the row — no spacer, no fake cell, no re-balancing.
+  // PREP-2 item 7 — one per row at the largest text sizes (lib/home/panelColumns.ts):
+  // a word wider than half the card cannot wrap. Each cell is then a lone cell.
+  const perRow = panelCellsPerRow(useWindowDimensions().fontScale);
   const rows: PanelCell[][] = [];
-  for (let i = 0; i < cells.length; i += 2) rows.push(cells.slice(i, i + 2));
+  for (let i = 0; i < cells.length; i += perRow) rows.push(cells.slice(i, i + perRow));
 
   return (
     <View style={styles.actionPanel}>

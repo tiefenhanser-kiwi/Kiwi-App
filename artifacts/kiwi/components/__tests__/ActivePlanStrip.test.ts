@@ -13,10 +13,12 @@ import { test } from "node:test";
 
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
+import { __resetWindowDimensionsForTests, __setWindowDimensionsForTests } from "react-native";
 
 import { ActivePlanStrip, type ActivePlanStripModel } from "../ActivePlanStrip";
 import type { MealListItem } from "@/lib/api/meals";
 import { Colors } from "@/constants/tokens";
+import { panelCellsPerRow } from "@/lib/home/panelColumns";
 
 type Json = {
   type: string;
@@ -681,4 +683,23 @@ test("PREP-2: every panel cell is an icon + label row, vertically centred, its l
       assert.equal(text.textAlign, "center", `${label}: a wrapped label is centred, not flush left`);
     }
   }
+});
+
+test("PREP-2: at the largest text sizes the panel is one cell per row (a word wider than half the card cannot wrap)", () => {
+  __setWindowDimensionsForTests({ fontScale: 2 });
+  try {
+    assert.deepEqual(rowLabels(render({ model: PLAN, home: HOME_ON })), [["Prep and Cook"], ["Grocery List"], ["Order Online"], ["View plan"]]);
+    assert.deepEqual(rowLabels(render({ model: TODAY })), [["Start Cooking"], ["View plan"]]);
+  } finally {
+    __resetWindowDimensionsForTests();
+  }
+  // 1.5 is the threshold; just under it, today's two-per-row grid.
+  __setWindowDimensionsForTests({ fontScale: 1.4 });
+  try {
+    assert.deepEqual(rowLabels(render({ model: PLAN, home: HOME_ON })), [["Prep and Cook", "Grocery List"], ["Order Online", "View plan"]]);
+  } finally {
+    __resetWindowDimensionsForTests();
+  }
+  assert.equal(panelCellsPerRow(1.5), 1);
+  assert.equal(panelCellsPerRow(1), 2);
 });
