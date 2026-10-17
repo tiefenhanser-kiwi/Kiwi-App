@@ -8,6 +8,7 @@ import { MakeAheadSchema, PlanDetailSchema, type MakeAhead } from "@/lib/api/pla
 import {
   buildMakeAheadCard,
   FEAST_HAS_OWN_PREP_LINE,
+  localIsoDate,
   makeAheadRecipeRoute,
   prepSessionCopy,
   shortDate,
@@ -73,6 +74,69 @@ describe("PREP-1 — the make-ahead card", () => {
     assert.ok(MakeAheadSchema.safeParse(SCHEDULE).success);
     const shape = PlanDetailSchema.shape.makeAhead;
     assert.ok(shape.safeParse(undefined).success);
+  });
+});
+
+describe("PREP-2 item 1 — the timeline against today", () => {
+  const view = (todayIso: string | null) => {
+    const c = buildMakeAheadCard(SCHEDULE, null, todayIso);
+    return {
+      done: c.doneDays.map((d) => d.label),
+      line: c.doneDaysLine,
+      days: c.days.map((d) => `${d.highlight ? `${d.highlight}: ` : ""}${d.label} [${d.when}]`),
+    };
+  };
+
+  it("Tuesday: Saturday and Monday are done, Tuesday is today, the rest are coming", () => {
+    assert.deepEqual(view("2026-11-24"), {
+      done: ["Saturday · Nov 21", "Monday · Nov 23"],
+      line: "Done days (2)",
+      days: [
+        "Today: Tuesday · Nov 24 [current]",
+        "Wednesday · Nov 25 [upcoming]",
+        "Wednesday night · Nov 25 [upcoming]",
+      ],
+    });
+  });
+
+  it("a day with no work (Sunday): the next day is highlighted as Next", () => {
+    assert.deepEqual(view("2026-11-22"), {
+      done: ["Saturday · Nov 21"],
+      line: "Done days (1)",
+      days: ["Next: Monday · Nov 23 [current]", "Tuesday · Nov 24 [upcoming]", "Wednesday · Nov 25 [upcoming]", "Wednesday night · Nov 25 [upcoming]"],
+    });
+  });
+
+  it("Wednesday: the day and its night light up together", () => {
+    assert.deepEqual(view("2026-11-25").days, ["Today: Wednesday · Nov 25 [current]", "Today: Wednesday night · Nov 25 [current]"]);
+  });
+
+  it("after the feast every day is done; no date (or no plan dates) folds nothing", () => {
+    const after = buildMakeAheadCard(SCHEDULE, null, "2026-11-27");
+    assert.equal(after.days.length, 0);
+    assert.equal(after.doneDaysLine, "Done days (5)");
+    assert.deepEqual(view(null), {
+      done: [],
+      line: null,
+      days: ["Saturday · Nov 21 [upcoming]", "Monday · Nov 23 [upcoming]", "Tuesday · Nov 24 [upcoming]", "Wednesday · Nov 25 [upcoming]", "Wednesday night · Nov 25 [upcoming]"],
+    });
+    const undated = buildMakeAheadCard({ ...SCHEDULE, rows: SCHEDULE.rows.map((r) => ({ ...r, date: null })) }, null, "2026-11-24");
+    assert.equal(undated.doneDays.length, 0);
+    assert.ok(undated.days.every((d) => d.when === "upcoming" && d.highlight === null));
+  });
+
+  it("an `assemble` dish reads 'Assemble ahead · bake <feast day>'; others keep their days", () => {
+    const rows = [
+      { ...SCHEDULE.rows[3], dishName: "Green Bean Casserole", assemble: true as const, keepsDays: 1 },
+      SCHEDULE.rows[3],
+    ];
+    const card = buildMakeAheadCard({ ...SCHEDULE, rows });
+    assert.deepEqual(card.days[0].rows.map((r) => r.note), ["Assemble ahead · bake Thursday", "Make ahead · keeps 2 days"]);
+    assert.ok(MakeAheadSchema.safeParse({ ...SCHEDULE, rows }).success);
+  });
+
+  it("localIsoDate is the phone's calendar date", () => {
+    assert.equal(localIsoDate(new Date(2026, 10, 5, 23, 59)), "2026-11-05");
   });
 });
 

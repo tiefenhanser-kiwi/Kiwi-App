@@ -36,7 +36,7 @@ import {
   type HubModel,
 } from "@/lib/cooking/hubModel";
 import { DAY_OF_WEEK_VALUES } from "@/lib/plans/dayOfWeek";
-import { makeAheadRecipeRoute, type MakeAheadRowVM } from "@/lib/cooking/makeAheadModel";
+import { localIsoDate, makeAheadRecipeRoute, type MakeAheadRowVM } from "@/lib/cooking/makeAheadModel";
 import { Colors, Spacing, Typography } from "@/constants/tokens";
 
 export default function PrepCook() {
@@ -77,6 +77,10 @@ export default function PrepCook() {
   const planQuery = usePlan(resolvedId);
 
   const todayDayName = DAY_OF_WEEK_VALUES[new Date().getDay()];
+  // PREP-2 — the Thanksgiving block's timeline reads today's calendar date, and its
+  // "Done days" line is closed on arrival (screen state, like the selection above).
+  const todayIso = localIsoDate(new Date());
+  const [doneDaysOpen, setDoneDaysOpen] = useState(false);
 
   // Promote an existing plan to "this week". The Hub re-resolves via the
   // mutator's ["plans"] invalidation; we only track in-flight UI here.
@@ -161,7 +165,7 @@ export default function PrepCook() {
       // isn't on this page.
       const tags =
         plansQuery.data?.plans.find((p) => p.id === resolvedId)?.tags ?? [];
-      model = buildPrepCookHubModel(planQuery.data, todayDayName, tags);
+      model = buildPrepCookHubModel(planQuery.data, todayDayName, tags, todayIso);
     }
   } else if (!resolution.resolving) {
     // Resolved with no plan: a real empty state. Offer the user's existing
@@ -184,6 +188,8 @@ export default function PrepCook() {
         onSelectMeal={goCookSession}
         onPrepFeast={goPrepFeast}
         onOpenRecipe={goRecipe}
+        doneDaysOpen={doneDaysOpen}
+        onToggleDoneDays={() => setDoneDaysOpen((open) => !open)}
         onMakePlan={goMakePlan}
         onCookThisWeek={onCookThisWeek}
         promotingPlanId={promotingPlanId}

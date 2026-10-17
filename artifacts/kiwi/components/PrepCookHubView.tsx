@@ -53,6 +53,9 @@ interface Props {
   onPrepFeast: () => void;
   /** PREP-1 — a make-ahead row's recipe (the feast meal, at the plan's servings). */
   onOpenRecipe: (row: MakeAheadRowVM) => void;
+  /** PREP-2 — the Thanksgiving block's "Done days" line is open. Screen state. */
+  doneDaysOpen?: boolean;
+  onToggleDoneDays?: () => void;
   /** Empty-state nudge: no plan this week → make one. */
   onMakePlan: () => void;
   /** Empty-state: promote an existing plan to "this week" (one tap). */
@@ -114,6 +117,8 @@ export function PrepCookHubView({
   onSelectMeal,
   onPrepFeast,
   onOpenRecipe,
+  doneDaysOpen = false,
+  onToggleDoneDays,
   onMakePlan,
   onCookThisWeek,
   promotingPlanId,
@@ -138,6 +143,8 @@ export function PrepCookHubView({
       onSelectMeal={onSelectMeal}
       onPrepFeast={onPrepFeast}
       onOpenRecipe={onOpenRecipe}
+      doneDaysOpen={doneDaysOpen}
+      onToggleDoneDays={onToggleDoneDays}
     />
   );
 }
@@ -271,6 +278,8 @@ function Hub({
   onSelectMeal,
   onPrepFeast,
   onOpenRecipe,
+  doneDaysOpen,
+  onToggleDoneDays,
 }: {
   model: PrepCookHubModel;
   onPrepWeek: () => void;
@@ -280,6 +289,8 @@ function Hub({
   onSelectMeal: (mealId: string, planItemId: string) => void;
   onPrepFeast: () => void;
   onOpenRecipe: (row: MakeAheadRowVM) => void;
+  doneDaysOpen: boolean;
+  onToggleDoneDays?: () => void;
 }) {
   const { indicator } = model;
   const indicatorTone = TONE_STYLE[indicator.tone];
@@ -343,6 +354,73 @@ function Hub({
               Cook tonight&apos;s dinner: {resolveDisplayTitle(model.todaysMeal)}
             </Text>
           </Pressable>
+        )}
+
+        {/* PREP-1 (D-WS9-314) — the Thanksgiving block. Only a plan holding a
+            `thanksgiving-feast` meal has one, so every other plan renders exactly
+            as before (pinned: prep2HubNonFeast.pre.json).
+
+            PREP-2 — second on the page, after Tonight. Hans: "prep the feast is
+            great, and that's the first step I think, and then they have all the
+            stuff to cook their individual dishes throughout the week." So the
+            primary "Prep the feast" comes first, then the day-by-day rows: past
+            days fold into one "Done days" line, today's (or the next) day takes
+            the selected-row edge. Built from the Hub's own pieces (§27.2): the
+            lane title, the prompt line, the section label, the meal-row card and
+            its selected edge, and the shared primary <Button>. */}
+        {model.makeAhead && (
+          <View style={s.makeAhead}>
+            <Text style={s.laneTitle}>{model.makeAhead.title}</Text>
+            <Text style={s.cookPrompt}>{model.makeAhead.feastLine}</Text>
+            <Button label={PREP_THE_FEAST_LABEL} variant="primary" onPress={onPrepFeast} />
+            {model.makeAhead.emptyLine ? (
+              <Text style={s.cookPrompt}>{model.makeAhead.emptyLine}</Text>
+            ) : null}
+            {model.makeAhead.doneDaysLine ? (
+              <Pressable
+                onPress={onToggleDoneDays}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: doneDaysOpen }}
+                accessibilityLabel={`${model.makeAhead.doneDaysLine}. ${doneDaysOpen ? "Hide" : "Show"} them.`}
+                style={({ pressed }) => [s.doneDaysLine, pressed && { opacity: 0.7 }]}
+              >
+                <Text style={s.sectionLabelInline}>{model.makeAhead.doneDaysLine}</Text>
+                <Feather
+                  name={doneDaysOpen ? "chevron-up" : "chevron-down"}
+                  size={16}
+                  color={Colors.neutral[600]}
+                />
+              </Pressable>
+            ) : null}
+            {[...(doneDaysOpen ? model.makeAhead.doneDays : []), ...model.makeAhead.days].map((day) => (
+              <View key={day.key} style={s.makeAheadDay}>
+                <Text style={s.sectionLabel}>
+                  {day.highlight ? `${day.highlight} · ${day.label}` : day.label}
+                </Text>
+                <View style={s.mealList}>
+                  {day.rows.map((row) => (
+                    <Pressable
+                      key={row.key}
+                      onPress={() => onOpenRecipe(row)}
+                      accessibilityRole="link"
+                      accessibilityLabel={`${row.title}, ${row.note}. Open the recipe.`}
+                      style={({ pressed }) => [
+                        s.mealRow,
+                        day.when === "current" && s.mealRowSelected,
+                        pressed && { opacity: 0.9 },
+                      ]}
+                    >
+                      <View style={s.mealText}>
+                        <Text style={s.mealTitle}>{row.title}</Text>
+                        <Text style={s.mealMeta}>{row.note}</Text>
+                      </View>
+                      <Feather name="chevron-right" size={18} color={Colors.neutral[600]} />
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            ))}
+          </View>
         )}
 
         {/* Prep-the-week lane (the "Cook a meal" lane is now a text prompt over
@@ -419,44 +497,6 @@ function Hub({
             </Text>
           </View>
         </View>
-
-        {/* PREP-1 (D-WS9-314) — the Thanksgiving make-ahead card. Only a plan
-            holding a `thanksgiving-feast` meal has one. Built from the Hub's own
-            pieces (§27.2): the lane title, the prompt line, the section label, the
-            meal-row card for each dish, and the shared primary <Button>. Each row
-            opens the dish's recipe; the button opens Prep the Week scoped to the
-            feast. */}
-        {model.makeAhead && (
-          <View style={s.makeAhead}>
-            <Text style={s.laneTitle}>{model.makeAhead.title}</Text>
-            <Text style={s.cookPrompt}>
-              {model.makeAhead.emptyLine ?? model.makeAhead.feastLine}
-            </Text>
-            {model.makeAhead.days.map((day) => (
-              <View key={day.key} style={s.makeAheadDay}>
-                <Text style={s.sectionLabel}>{day.label}</Text>
-                <View style={s.mealList}>
-                  {day.rows.map((row) => (
-                    <Pressable
-                      key={row.key}
-                      onPress={() => onOpenRecipe(row)}
-                      accessibilityRole="link"
-                      accessibilityLabel={`${row.title}, ${row.note}. Open the recipe.`}
-                      style={({ pressed }) => [s.mealRow, pressed && { opacity: 0.9 }]}
-                    >
-                      <View style={s.mealText}>
-                        <Text style={s.mealTitle}>{row.title}</Text>
-                        <Text style={s.mealMeta}>{row.note}</Text>
-                      </View>
-                      <Feather name="chevron-right" size={18} color={Colors.neutral[600]} />
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
-            ))}
-            <Button label={PREP_THE_FEAST_LABEL} variant="primary" onPress={onPrepFeast} />
-          </View>
-        )}
 
         {/* Cook a meal — the lane is now a text prompt over this-week's meals;
             tapping a row launches Cook Mode (D-WS7-158). */}
@@ -634,6 +674,19 @@ const s = StyleSheet.create({
   // PREP-1 — the make-ahead card: the meal list's own rhythm, a day per block.
   makeAhead: { gap: Spacing[2], marginBottom: Spacing[5] },
   makeAheadDay: { gap: Spacing[1] },
+  // PREP-2 — the "Done days" line: the section label's type, on a tappable row.
+  doneDaysLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing[1],
+    paddingVertical: Spacing[1],
+  },
+  sectionLabelInline: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[600],
+    fontStyle: "italic",
+    fontFamily: Typography.face.serifItalic[500],
+  },
   laneTitle: {
     fontSize: Typography.fontSize.lg,
     color: Colors.neutral[900],

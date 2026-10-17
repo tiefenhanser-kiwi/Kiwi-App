@@ -70,6 +70,22 @@ describe("PREP-1 Part C — the make-ahead schedule", () => {
     assert.deepEqual(s.rows, [{ kind: "brine", dayName: "Tuesday", date: null, daysBefore: 2, mealId: FEAST, dishId: id(7), dishName: "Turkey" }]);
   });
 
+  it("PREP-2 — an `assemble` dish's make row says so; any other row carries no flag", () => {
+    const s = buildMakeAheadSchedule({
+      startDate: null,
+      feast: {
+        mealId: FEAST,
+        assignedDayOfWeek: "Thursday",
+        dishes: [d(8, "Green Bean Casserole", ["ahead-wed", "keeps-1d", "assemble"]), DISHES[5], d(9, "Turkey", ["thaw-6d", "assemble"])],
+      },
+    });
+    assert.deepEqual(s.rows, [
+      { kind: "thaw", dayName: "Friday", date: null, daysBefore: 6, mealId: FEAST, dishId: id(9), dishName: "Turkey", thawDays: 6 },
+      { kind: "make", dayName: "Wednesday", date: null, daysBefore: 1, mealId: FEAST, dishId: id(8), dishName: "Green Bean Casserole", keepsDays: 1, assemble: true },
+      { kind: "make", dayName: "Wednesday", date: null, daysBefore: 1, mealId: FEAST, dishId: id(6), dishName: "Pumpkin Pie", keepsDays: 3 },
+    ]);
+  });
+
   it("the brine's hours come only from a sentence that names the brine", () => {
     assert.deepEqual(brineHoursOf(["Brine for 8–12 hours in the fridge."]), { min: 8, max: 12 });
     // QA-1 B19 — THX-2G-F's two turkeys as stored, verbatim: the brine's own

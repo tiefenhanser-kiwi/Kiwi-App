@@ -9,6 +9,7 @@
 //   - the real "no plan this week" empty state (null branch)
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
@@ -25,6 +26,7 @@ import {
 } from "@/lib/cooking/hubModel";
 import type { PlanDetail, PlanDetailItem } from "@/lib/api/plans";
 import type { MealDetail } from "@/lib/api/meals";
+import { nonFeastPlan, NON_FEAST_TAGS, NON_FEAST_TODAY } from "./fixtures/prep2Hub";
 
 // ── Tree helpers (shared pattern with the PlanRow tests) ─────────────────────
 
@@ -978,4 +980,121 @@ test("WS9 D-WS9-215: the subset CTA's disabled state is a deliberate treatment, 
     true,
   );
   renderer.unmount();
+});
+
+// ── PREP-2 item 1 — the Thanksgiving-week Hub ─────────────────────────────────
+
+test("PREP-2: a NON-Thanksgiving Hub renders the pre-PREP-2 tree exactly (prep2HubNonFeast.pre.json)", () => {
+  const pinned = readFileSync(new URL("./fixtures/prep2HubNonFeast.pre.json", import.meta.url), "utf8");
+  let r!: TestRenderer.ReactTestRenderer;
+  act(() => {
+    r = TestRenderer.create(
+      React.createElement(PrepCookHubView, {
+        model: buildPrepCookHubModel(nonFeastPlan(), NON_FEAST_TODAY, NON_FEAST_TAGS, "2026-11-03"),
+        onPrepWeek: NOOP,
+        onPrepSelected: NOOP,
+        onToggleMealSelected: NOOP,
+        selectedMealIds: new Set(["m-tue"]),
+        onSelectMeal: NOOP,
+        onPrepFeast: NOOP,
+        onOpenRecipe: NOOP,
+        onMakePlan: NOOP,
+        onCookThisWeek: NOOP,
+        promotingPlanId: null,
+      }),
+    );
+  });
+  assert.equal(JSON.stringify(r.toJSON(), null, 1) + "\n", pinned);
+  r.unmount();
+});
+
+function feastHub(todayIso: string, doneDaysOpen = false) {
+  const FEAST_ID = "m-feast";
+  const detail = plan({
+    startDate: "2026-11-23T00:00:00.000Z",
+    items: [
+      item({ id: "i-tue", mealId: "m-tue", assignedDayOfWeek: "Tuesday", meal: meal({ id: "m-tue", title: "Smash Burgers" }) }),
+      item({ id: "i-thu", mealId: FEAST_ID, assignedDayOfWeek: "Thursday", meal: meal({ id: FEAST_ID, title: "Classic Thanksgiving", tags: ["thanksgiving-feast"] }) }),
+    ],
+    makeAhead: {
+      feastMealId: FEAST_ID,
+      feastPlanItemId: "i-thu",
+      feastDayName: "Thursday",
+      feastDate: "2026-11-26",
+      rows: [
+        { kind: "make", dayName: "Monday", date: "2026-11-23", daysBefore: 3, mealId: FEAST_ID, dishId: "d-cran", dishName: "Cranberry-Orange Sauce", keepsDays: 7 },
+        { kind: "make", dayName: "Tuesday", date: "2026-11-24", daysBefore: 2, mealId: FEAST_ID, dishId: "d-gravy", dishName: "Pan Gravy", keepsDays: 4 },
+        { kind: "make", dayName: "Wednesday", date: "2026-11-25", daysBefore: 1, mealId: FEAST_ID, dishId: "d-gbc", dishName: "Green Bean Casserole", keepsDays: 1, assemble: true },
+      ],
+    },
+  });
+  const opened: string[] = [];
+  let toggled = 0;
+  let r!: TestRenderer.ReactTestRenderer;
+  act(() => {
+    r = TestRenderer.create(
+      React.createElement(PrepCookHubView, {
+        model: buildPrepCookHubModel(detail, "Tuesday", [], todayIso),
+        onPrepWeek: NOOP,
+        onPrepSelected: NOOP,
+        onToggleMealSelected: NOOP,
+        selectedMealIds: new Set<string>(),
+        onSelectMeal: NOOP,
+        onPrepFeast: NOOP,
+        onOpenRecipe: (row) => opened.push(row.dishId),
+        doneDaysOpen,
+        onToggleDoneDays: () => (toggled += 1),
+        onMakePlan: NOOP,
+        onCookThisWeek: NOOP,
+        promotingPlanId: null,
+      }),
+    );
+  });
+  return { r, opened, toggled: () => toggled };
+}
+
+test("PREP-2: the Thanksgiving week reads Tonight → Thanksgiving (Prep the feast first) → Prep the week → Cook a meal", () => {
+  const { r } = feastHub("2026-11-24");
+  const text = flat(r.toJSON() as RenderedNode);
+  const at = (s: string) => {
+    const i = text.indexOf(s);
+    assert.ok(i >= 0, `missing "${s}" in: ${text}`);
+    return i;
+  };
+  const order = [
+    at("Tonight"),
+    at("Thanksgiving make-ahead"),
+    at("Thanksgiving is Thursday, Nov 26."),
+    at("Prep the feast"),
+    at("Done days (1)"),
+    at("Today · Tuesday · Nov 24"),
+    at("Wednesday · Nov 25"),
+    at("Prep the week"),
+    at("Cook a meal"),
+  ];
+  assert.deepEqual(order, [...order].sort((a, b) => a - b));
+  // The past day is folded: its dish is not on screen until the line opens.
+  assert.ok(!text.includes("Cranberry-Orange Sauce"), text);
+  assert.ok(text.includes("Assemble ahead · bake Thursday"), text);
+  r.unmount();
+});
+
+test("PREP-2: 'Done days' opens the past days; today's rows take the selected edge, others do not", () => {
+  const closed = feastHub("2026-11-24");
+  const line = findPressableByText(closed.r.toJSON() as RenderedNode, "Done days (1)");
+  assert.ok(line);
+  act(() => (line!.props!.onPress as () => void)());
+  assert.equal(closed.toggled(), 1);
+  closed.r.unmount();
+
+  const open = feastHub("2026-11-24", true);
+  const tree = open.r.toJSON() as RenderedNode;
+  assert.ok(flat(tree).includes("Monday · Nov 23"));
+  const edge = (title: string) => resolvedStyle(findPressableByText(tree, title)!).borderColor;
+  assert.equal(edge("Pan Gravy"), Colors.sage[600]);
+  assert.notEqual(edge("Green Bean Casserole"), Colors.sage[600]);
+  assert.notEqual(edge("Cranberry-Orange Sauce"), Colors.sage[600]);
+  act(() => (findPressableByText(tree, "Pan Gravy")!.props!.onPress as () => void)());
+  assert.deepEqual(open.opened, ["d-gravy"]);
+  open.r.unmount();
 });

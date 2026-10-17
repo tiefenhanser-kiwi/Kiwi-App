@@ -186,6 +186,8 @@ export function buildPrepCookHubModel(
   detail: PlanDetail,
   todayDayName: string,
   tags: string[] = [],
+  /** PREP-2 — today's calendar date, for the make-ahead timeline (localIsoDate). */
+  todayIso: string | null = null,
 ): PrepCookHubModel {
   const liveItems = detail.items.filter(isLive);
   const prepStatus = detail.prepStatus;
@@ -226,6 +228,7 @@ export function buildPrepCookHubModel(
       ? buildMakeAheadCard(
           detail.makeAhead,
           detail.items.find((i) => i.mealId === detail.makeAhead!.feastMealId)?.id ?? null,
+          todayIso,
         )
       : null,
   };

@@ -139,6 +139,8 @@ const MakeAheadRowSchema = z.object({
   dishId: z.string(),
   dishName: z.string(),
   keepsDays: z.number().optional(),
+  // PREP-2 — the dish carries `assemble`: assembled ahead, baked on the feast day.
+  assemble: z.literal(true).optional(),
   thawDays: z.number().optional(),
   brineHours: z.object({ min: z.number(), max: z.number() }).optional(),
 });

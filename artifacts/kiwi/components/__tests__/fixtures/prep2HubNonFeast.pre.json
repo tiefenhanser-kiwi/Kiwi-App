@@ -1,0 +1,1192 @@
+{
+ "type": "rn-view",
+ "props": {
+  "style": {
+   "flex": 1,
+   "backgroundColor": "#FBF7EF"
+  }
+ },
+ "children": [
+  {
+   "type": "rn-view",
+   "props": {
+    "style": [
+     {
+      "backgroundColor": "#FBF7EF",
+      "paddingHorizontal": 16,
+      "paddingBottom": 12,
+      "borderBottomWidth": 1,
+      "borderBottomColor": "#D8D0BD"
+     },
+     {
+      "paddingTop": 8
+     }
+    ]
+   },
+   "children": [
+    {
+     "type": "rn-view",
+     "props": {
+      "style": {
+       "flexDirection": "row",
+       "alignItems": "center",
+       "minHeight": 40
+      }
+     },
+     "children": [
+      {
+       "type": "rn-pressable",
+       "props": {
+        "hitSlop": 12,
+        "accessibilityRole": "button",
+        "accessibilityLabel": "Go back",
+        "style": {
+         "width": 40,
+         "height": 40,
+         "alignItems": "center",
+         "justifyContent": "center"
+        }
+       },
+       "children": [
+        {
+         "type": "icon-feather",
+         "props": {
+          "name": "chevron-left",
+          "size": 24,
+          "color": "#3a5235"
+         },
+         "children": null
+        }
+       ]
+      },
+      {
+       "type": "rn-view",
+       "props": {
+        "style": {
+         "flex": 1,
+         "alignItems": "center"
+        }
+       },
+       "children": [
+        {
+         "type": "rn-text",
+         "props": {
+          "style": {
+           "fontSize": 17,
+           "fontWeight": "600",
+           "color": "#2D2A24",
+           "fontFamily": "Fraunces_600SemiBold"
+          }
+         },
+         "children": [
+          "Prep & Cook"
+         ]
+        }
+       ]
+      },
+      {
+       "type": "rn-view",
+       "props": {
+        "style": {
+         "width": 40,
+         "height": 40,
+         "alignItems": "center",
+         "justifyContent": "center"
+        }
+       },
+       "children": null
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "type": "rn-scrollview",
+   "props": {
+    "style": {
+     "flex": 1,
+     "backgroundColor": "#FBF7EF"
+    },
+    "contentContainerStyle": [
+     {
+      "paddingHorizontal": 16,
+      "paddingTop": 16
+     },
+     {
+      "paddingBottom": 24
+     },
+     null
+    ],
+    "showsVerticalScrollIndicator": false
+   },
+   "children": [
+    {
+     "type": "rn-view",
+     "props": {
+      "style": {
+       "marginBottom": 16
+      }
+     },
+     "children": [
+      {
+       "type": "rn-text",
+       "props": {
+        "style": {
+         "fontSize": 25,
+         "color": "#2D2A24",
+         "fontWeight": "600",
+         "fontFamily": "Fraunces_600SemiBold"
+        }
+       },
+       "children": [
+        "Cozy Week"
+       ]
+      },
+      {
+       "type": "rn-view",
+       "props": {
+        "style": {
+         "flexDirection": "row",
+         "flexWrap": "wrap",
+         "gap": 4,
+         "marginTop": 8
+        }
+       },
+       "children": [
+        {
+         "type": "rn-view",
+         "props": {
+          "style": {
+           "backgroundColor": "#F1EADC",
+           "borderRadius": 9999,
+           "paddingHorizontal": 8,
+           "paddingVertical": 2
+          }
+         },
+         "children": [
+          {
+           "type": "rn-text",
+           "props": {
+            "style": {
+             "fontSize": 11,
+             "color": "#6B5E4D",
+             "fontFamily": "DMSans_500Medium"
+            }
+           },
+           "children": [
+            "comfort"
+           ]
+          }
+         ]
+        },
+        {
+         "type": "rn-view",
+         "props": {
+          "style": {
+           "backgroundColor": "#F1EADC",
+           "borderRadius": 9999,
+           "paddingHorizontal": 8,
+           "paddingVertical": 2
+          }
+         },
+         "children": [
+          {
+           "type": "rn-text",
+           "props": {
+            "style": {
+             "fontSize": 11,
+             "color": "#6B5E4D",
+             "fontFamily": "DMSans_500Medium"
+            }
+           },
+           "children": [
+            "quick"
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "rn-text",
+       "props": {
+        "style": {
+         "fontSize": 15,
+         "color": "#6B5E4D",
+         "fontStyle": "italic",
+         "fontFamily": "Fraunces_400Regular_Italic",
+         "marginTop": 4
+        }
+       },
+       "children": [
+        "— 3 meals this week"
+       ]
+      }
+     ]
+    },
+    {
+     "type": "rn-view",
+     "props": {
+      "style": [
+       {
+        "flexDirection": "row",
+        "alignItems": "center",
+        "gap": 8,
+        "paddingHorizontal": 12,
+        "paddingVertical": 8,
+        "borderRadius": 12,
+        "marginBottom": 16
+       },
+       {
+        "backgroundColor": "#F6E8C8"
+       },
+       false
+      ]
+     },
+     "children": [
+      {
+       "type": "icon-feather",
+       "props": {
+        "name": "check-circle",
+        "size": 15,
+        "color": "#4A3F30"
+       },
+       "children": null
+      },
+      {
+       "type": "rn-text",
+       "props": {
+        "style": [
+         {
+          "fontSize": 12,
+          "fontWeight": "600",
+          "fontFamily": "DMSans_600SemiBold"
+         },
+         {
+          "color": "#4A3F30"
+         }
+        ]
+       },
+       "children": [
+        "Mostly prepped"
+       ]
+      }
+     ]
+    },
+    {
+     "type": "rn-pressable",
+     "props": {},
+     "children": [
+      {
+       "type": "rn-text",
+       "props": {
+        "style": {
+         "fontSize": 11,
+         "color": "#a84520",
+         "fontStyle": "italic",
+         "fontFamily": "Fraunces_500Medium_Italic",
+         "letterSpacing": 0.04
+        }
+       },
+       "children": [
+        "Tonight"
+       ]
+      },
+      {
+       "type": "rn-text",
+       "props": {
+        "style": {
+         "fontSize": 17,
+         "color": "#2D2A24",
+         "fontWeight": "600",
+         "fontFamily": "Fraunces_600SemiBold"
+        }
+       },
+       "children": [
+        "Cook tonight's dinner: ",
+        "Beef Tacos"
+       ]
+      }
+     ]
+    },
+    {
+     "type": "rn-view",
+     "props": {
+      "style": {
+       "gap": 12,
+       "marginBottom": 20
+      }
+     },
+     "children": [
+      {
+       "type": "rn-view",
+       "props": {
+        "style": {
+         "backgroundColor": "#5C7350",
+         "borderRadius": 14,
+         "padding": 16,
+         "gap": 8,
+         "shadowColor": "#5a4030",
+         "shadowOffset": {
+          "width": 0,
+          "height": 2
+         },
+         "shadowOpacity": 0.07,
+         "shadowRadius": 8,
+         "elevation": 2
+        }
+       },
+       "children": [
+        {
+         "type": "rn-view",
+         "props": {
+          "style": {
+           "flexDirection": "row",
+           "alignItems": "center",
+           "justifyContent": "space-between"
+          }
+         },
+         "children": [
+          {
+           "type": "rn-text",
+           "props": {
+            "style": {
+             "fontSize": 17,
+             "color": "#FBF7EF",
+             "fontWeight": "600",
+             "fontFamily": "Fraunces_600SemiBold"
+            }
+           },
+           "children": [
+            "Prep the week"
+           ]
+          }
+         ]
+        },
+        {
+         "type": "rn-text",
+         "props": {
+          "style": {
+           "fontSize": 12,
+           "color": "#D5DCCB",
+           "fontFamily": "DMSans_400Regular",
+           "marginBottom": 4
+          }
+         },
+         "children": [
+          "Knock out chopping, marinades and make-ahead steps in one go."
+         ]
+        },
+        {
+         "type": "rn-pressable",
+         "props": {
+          "accessibilityRole": "button",
+          "accessibilityState": {
+           "disabled": false,
+           "busy": false
+          },
+          "accessibilityLabel": "Prep the Week"
+         },
+         "children": [
+          {
+           "type": "rn-view",
+           "props": {
+            "style": [
+             {
+              "flexDirection": "row",
+              "alignItems": "center",
+              "gap": 8
+             },
+             false
+            ]
+           },
+           "children": [
+            {
+             "type": "rn-text",
+             "props": {
+              "style": [
+               {
+                "fontWeight": "600",
+                "fontFamily": "DMSans_600SemiBold"
+               },
+               {
+                "fontSize": 17,
+                "color": "#FFFFFF"
+               },
+               false
+              ]
+             },
+             "children": [
+              "Prep the Week"
+             ]
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "type": "rn-pressable",
+         "props": {
+          "accessibilityRole": "button",
+          "accessibilityState": {
+           "disabled": false,
+           "busy": false
+          },
+          "accessibilityLabel": "Prep Selected Meals"
+         },
+         "children": [
+          {
+           "type": "rn-view",
+           "props": {
+            "style": [
+             {
+              "flexDirection": "row",
+              "alignItems": "center",
+              "gap": 8
+             },
+             false
+            ]
+           },
+           "children": [
+            {
+             "type": "rn-text",
+             "props": {
+              "style": [
+               {
+                "fontWeight": "600",
+                "fontFamily": "DMSans_600SemiBold"
+               },
+               {
+                "fontSize": 17,
+                "color": "#6B5E4D"
+               },
+               false
+              ]
+             },
+             "children": [
+              "Prep Selected Meals"
+             ]
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "type": "rn-text",
+         "props": {
+          "style": {
+           "fontSize": 12,
+           "color": "#FBF7EF",
+           "fontFamily": "DMSans_400Regular",
+           "textAlign": "center"
+          }
+         },
+         "children": [
+          "1 of 3 selected — Kiwi will build a prep plan for just these."
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "type": "rn-text",
+     "props": {
+      "style": {
+       "fontSize": 17,
+       "color": "#2D2A24",
+       "fontWeight": "600",
+       "fontFamily": "Fraunces_600SemiBold"
+      }
+     },
+     "children": [
+      "Cook a meal"
+     ]
+    },
+    {
+     "type": "rn-text",
+     "props": {
+      "style": {
+       "fontSize": 12,
+       "color": "#6B5E4D",
+       "fontFamily": "DMSans_400Regular",
+       "marginTop": 4,
+       "marginBottom": 8
+      }
+     },
+     "children": [
+      "Pick a meal from your plan and cook, or tick it to prep it."
+     ]
+    },
+    {
+     "type": "rn-view",
+     "props": {
+      "style": {
+       "gap": 8
+      }
+     },
+     "children": [
+      {
+       "type": "rn-pressable",
+       "props": {},
+       "children": [
+        {
+         "type": "rn-pressable",
+         "props": {
+          "hitSlop": 10,
+          "accessibilityRole": "checkbox",
+          "accessibilityState": {
+           "checked": false
+          },
+          "accessibilityLabel": "Add Lemon Chicken to the prep selection"
+         },
+         "children": [
+          {
+           "type": "rn-view",
+           "props": {
+            "style": {
+             "width": 52,
+             "alignItems": "center",
+             "gap": 2
+            }
+           },
+           "children": [
+            {
+             "type": "rn-view",
+             "props": {
+              "style": [
+               {
+                "width": 26,
+                "height": 26,
+                "borderRadius": 10,
+                "borderWidth": 2,
+                "borderColor": "#D8D0BD",
+                "backgroundColor": "#ffffff",
+                "alignItems": "center",
+                "justifyContent": "center"
+               },
+               false
+              ]
+             },
+             "children": null
+            },
+            {
+             "type": "rn-text",
+             "props": {
+              "style": {
+               "fontSize": 10,
+               "color": "#6B5E4D",
+               "fontFamily": "DMSans_500Medium",
+               "textAlign": "center"
+              }
+             },
+             "children": [
+              "Prep This Meal"
+             ]
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "type": "rn-view",
+         "props": {
+          "style": [
+           {
+            "overflow": "hidden",
+            "backgroundColor": "#e9ddc7"
+           },
+           {
+            "borderRadius": 10
+           },
+           {
+            "width": 60
+           },
+           {
+            "height": 60
+           },
+           null,
+           null
+          ]
+         },
+         "children": [
+          {
+           "type": "rn-linear-gradient",
+           "props": {
+            "colors": [
+             "#e6cba6",
+             "#d99e6b"
+            ],
+            "start": {
+             "x": 0,
+             "y": 0
+            },
+            "end": {
+             "x": 1,
+             "y": 1
+            },
+            "style": {
+             "position": "absolute",
+             "left": 0,
+             "right": 0,
+             "top": 0,
+             "bottom": 0
+            }
+           },
+           "children": null
+          },
+          {
+           "type": "expo-image",
+           "props": {
+            "source": {
+             "uri": "https://example.test/a.jpg"
+            },
+            "style": {
+             "position": "absolute",
+             "left": 0,
+             "right": 0,
+             "top": 0,
+             "bottom": 0
+            },
+            "contentFit": "cover",
+            "cachePolicy": "memory-disk",
+            "transition": 0
+           },
+           "children": null
+          },
+          {
+           "type": "rn-view",
+           "props": {
+            "pointerEvents": "none",
+            "style": [
+             {
+              "position": "absolute",
+              "left": 0,
+              "right": 0,
+              "top": 0,
+              "bottom": 0
+             },
+             {
+              "backgroundColor": "rgba(194, 79, 37, 0.06)"
+             }
+            ]
+           },
+           "children": null
+          }
+         ]
+        },
+        {
+         "type": "rn-view",
+         "props": {
+          "style": {
+           "flex": 1,
+           "gap": 2
+          }
+         },
+         "children": [
+          {
+           "type": "rn-text",
+           "props": {
+            "style": {
+             "fontSize": 15,
+             "color": "#2D2A24",
+             "fontWeight": "600",
+             "fontFamily": "Fraunces_600SemiBold"
+            },
+            "numberOfLines": 3,
+            "ellipsizeMode": "tail"
+           },
+           "children": [
+            "Lemon Chicken"
+           ]
+          },
+          {
+           "type": "rn-text",
+           "props": {
+            "style": {
+             "fontSize": 11,
+             "color": "#6B5E4D",
+             "fontFamily": "DMSans_400Regular"
+            }
+           },
+           "children": [
+            "Monday · 30 min · serves 4"
+           ]
+          }
+         ]
+        },
+        {
+         "type": "rn-view",
+         "props": {
+          "style": [
+           {
+            "borderRadius": 9999,
+            "paddingHorizontal": 8,
+            "paddingVertical": 3
+           },
+           {
+            "backgroundColor": "#e2e9d8"
+           }
+          ]
+         },
+         "children": [
+          {
+           "type": "rn-text",
+           "props": {
+            "style": [
+             {
+              "fontSize": 11,
+              "fontWeight": "600",
+              "fontFamily": "DMSans_600SemiBold"
+             },
+             {
+              "color": "#3a5235"
+             }
+            ]
+           },
+           "children": [
+            "Prepped ✓"
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "rn-pressable",
+       "props": {},
+       "children": [
+        {
+         "type": "rn-pressable",
+         "props": {
+          "hitSlop": 10,
+          "accessibilityRole": "checkbox",
+          "accessibilityState": {
+           "checked": true
+          },
+          "accessibilityLabel": "Remove Beef Tacos from the prep selection"
+         },
+         "children": [
+          {
+           "type": "rn-view",
+           "props": {
+            "style": {
+             "width": 52,
+             "alignItems": "center",
+             "gap": 2
+            }
+           },
+           "children": [
+            {
+             "type": "rn-view",
+             "props": {
+              "style": [
+               {
+                "width": 26,
+                "height": 26,
+                "borderRadius": 10,
+                "borderWidth": 2,
+                "borderColor": "#D8D0BD",
+                "backgroundColor": "#ffffff",
+                "alignItems": "center",
+                "justifyContent": "center"
+               },
+               {
+                "backgroundColor": "#5C7350",
+                "borderColor": "#5C7350"
+               }
+              ]
+             },
+             "children": [
+              {
+               "type": "rn-text",
+               "props": {
+                "style": {
+                 "fontSize": 12,
+                 "color": "#ffffff",
+                 "fontWeight": "600",
+                 "fontFamily": "DMSans_700Bold"
+                }
+               },
+               "children": [
+                "✓"
+               ]
+              }
+             ]
+            },
+            {
+             "type": "rn-text",
+             "props": {
+              "style": {
+               "fontSize": 10,
+               "color": "#6B5E4D",
+               "fontFamily": "DMSans_500Medium",
+               "textAlign": "center"
+              }
+             },
+             "children": [
+              "Prep This Meal"
+             ]
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "type": "rn-view",
+         "props": {
+          "style": [
+           {
+            "overflow": "hidden",
+            "backgroundColor": "#e9ddc7"
+           },
+           {
+            "borderRadius": 10
+           },
+           {
+            "width": 60
+           },
+           {
+            "height": 60
+           },
+           null,
+           null
+          ]
+         },
+         "children": [
+          {
+           "type": "rn-linear-gradient",
+           "props": {
+            "colors": [
+             "#e6cba6",
+             "#d99e6b"
+            ],
+            "start": {
+             "x": 0,
+             "y": 0
+            },
+            "end": {
+             "x": 1,
+             "y": 1
+            },
+            "style": {
+             "position": "absolute",
+             "left": 0,
+             "right": 0,
+             "top": 0,
+             "bottom": 0
+            }
+           },
+           "children": null
+          },
+          {
+           "type": "rn-view",
+           "props": {
+            "pointerEvents": "none",
+            "style": [
+             {
+              "position": "absolute",
+              "left": 0,
+              "right": 0,
+              "top": 0,
+              "bottom": 0
+             },
+             {
+              "backgroundColor": "rgba(194, 79, 37, 0.06)"
+             }
+            ]
+           },
+           "children": null
+          }
+         ]
+        },
+        {
+         "type": "rn-view",
+         "props": {
+          "style": {
+           "flex": 1,
+           "gap": 2
+          }
+         },
+         "children": [
+          {
+           "type": "rn-text",
+           "props": {
+            "style": {
+             "fontSize": 15,
+             "color": "#2D2A24",
+             "fontWeight": "600",
+             "fontFamily": "Fraunces_600SemiBold"
+            },
+            "numberOfLines": 3,
+            "ellipsizeMode": "tail"
+           },
+           "children": [
+            "Beef Tacos"
+           ]
+          },
+          {
+           "type": "rn-text",
+           "props": {
+            "style": {
+             "fontSize": 11,
+             "color": "#6B5E4D",
+             "fontFamily": "DMSans_400Regular"
+            }
+           },
+           "children": [
+            "Tuesday · 25 min · serves 6"
+           ]
+          }
+         ]
+        },
+        {
+         "type": "rn-view",
+         "props": {
+          "style": [
+           {
+            "borderRadius": 9999,
+            "paddingHorizontal": 8,
+            "paddingVertical": 3
+           },
+           {
+            "backgroundColor": "#F6E8C8"
+           }
+          ]
+         },
+         "children": [
+          {
+           "type": "rn-text",
+           "props": {
+            "style": [
+             {
+              "fontSize": 11,
+              "fontWeight": "600",
+              "fontFamily": "DMSans_600SemiBold"
+             },
+             {
+              "color": "#4A3F30"
+             }
+            ]
+           },
+           "children": [
+            "Mostly prepped"
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "rn-pressable",
+       "props": {},
+       "children": [
+        {
+         "type": "rn-pressable",
+         "props": {
+          "hitSlop": 10,
+          "accessibilityRole": "checkbox",
+          "accessibilityState": {
+           "checked": false
+          },
+          "accessibilityLabel": "Add Mushroom Risotto to the prep selection"
+         },
+         "children": [
+          {
+           "type": "rn-view",
+           "props": {
+            "style": {
+             "width": 52,
+             "alignItems": "center",
+             "gap": 2
+            }
+           },
+           "children": [
+            {
+             "type": "rn-view",
+             "props": {
+              "style": [
+               {
+                "width": 26,
+                "height": 26,
+                "borderRadius": 10,
+                "borderWidth": 2,
+                "borderColor": "#D8D0BD",
+                "backgroundColor": "#ffffff",
+                "alignItems": "center",
+                "justifyContent": "center"
+               },
+               false
+              ]
+             },
+             "children": null
+            },
+            {
+             "type": "rn-text",
+             "props": {
+              "style": {
+               "fontSize": 10,
+               "color": "#6B5E4D",
+               "fontFamily": "DMSans_500Medium",
+               "textAlign": "center"
+              }
+             },
+             "children": [
+              "Prep This Meal"
+             ]
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "type": "rn-view",
+         "props": {
+          "style": [
+           {
+            "overflow": "hidden",
+            "backgroundColor": "#e9ddc7"
+           },
+           {
+            "borderRadius": 10
+           },
+           {
+            "width": 60
+           },
+           {
+            "height": 60
+           },
+           null,
+           null
+          ]
+         },
+         "children": [
+          {
+           "type": "rn-linear-gradient",
+           "props": {
+            "colors": [
+             "#e6cba6",
+             "#d99e6b"
+            ],
+            "start": {
+             "x": 0,
+             "y": 0
+            },
+            "end": {
+             "x": 1,
+             "y": 1
+            },
+            "style": {
+             "position": "absolute",
+             "left": 0,
+             "right": 0,
+             "top": 0,
+             "bottom": 0
+            }
+           },
+           "children": null
+          },
+          {
+           "type": "rn-view",
+           "props": {
+            "pointerEvents": "none",
+            "style": [
+             {
+              "position": "absolute",
+              "left": 0,
+              "right": 0,
+              "top": 0,
+              "bottom": 0
+             },
+             {
+              "backgroundColor": "rgba(194, 79, 37, 0.06)"
+             }
+            ]
+           },
+           "children": null
+          }
+         ]
+        },
+        {
+         "type": "rn-view",
+         "props": {
+          "style": {
+           "flex": 1,
+           "gap": 2
+          }
+         },
+         "children": [
+          {
+           "type": "rn-text",
+           "props": {
+            "style": {
+             "fontSize": 15,
+             "color": "#2D2A24",
+             "fontWeight": "600",
+             "fontFamily": "Fraunces_600SemiBold"
+            },
+            "numberOfLines": 3,
+            "ellipsizeMode": "tail"
+           },
+           "children": [
+            "Mushroom Risotto"
+           ]
+          },
+          {
+           "type": "rn-text",
+           "props": {
+            "style": {
+             "fontSize": 11,
+             "color": "#6B5E4D",
+             "fontFamily": "DMSans_400Regular"
+            }
+           },
+           "children": [
+            "Wednesday · 45 min · serves 4"
+           ]
+          }
+         ]
+        },
+        {
+         "type": "rn-view",
+         "props": {
+          "style": [
+           {
+            "borderRadius": 9999,
+            "paddingHorizontal": 8,
+            "paddingVertical": 3
+           },
+           {
+            "backgroundColor": "#F6E8C8"
+           }
+          ]
+         },
+         "children": [
+          {
+           "type": "rn-text",
+           "props": {
+            "style": [
+             {
+              "fontSize": 11,
+              "fontWeight": "600",
+              "fontFamily": "DMSans_600SemiBold"
+             },
+             {
+              "color": "#4A3F30"
+             }
+            ]
+           },
+           "children": [
+            "Mostly prepped"
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

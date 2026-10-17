@@ -14,6 +14,8 @@
 //   keeps-<n>d                          how long it keeps once made
 //   thaw-<n>d                           a whole bird: into the fridge n days out
 //   brine-<day>                         the day the brine starts (mon…wed)
+//   assemble                            PREP-2 — assembled ahead, baked on the day
+//                                       (THX-2G-G writes it; read if present)
 
 import type { PrismaClient } from "@prisma/client";
 
@@ -56,6 +58,12 @@ export interface MakeAheadRow {
   dishName: string;
   /** `make` — from `keeps-<n>d`. */
   keepsDays?: number;
+  /**
+   * `make` — PREP-2: the dish carries `assemble`. Hans: "making it ahead of time does
+   * not mean putting it in the oven. oven happens the day of the meal. that's
+   * different for a pie." Absent otherwise.
+   */
+  assemble?: true;
   /** `thaw` — from `thaw-<n>d`. */
   thawDays?: number;
   /** `brine` — the hands-off window, when the recipe states one ("brine 12 to 24 hours"). */
@@ -151,7 +159,13 @@ export function buildMakeAheadSchedule(input: MakeAheadInput): MakeAheadSchedule
     const ahead = tagDay(d.tags, /^ahead-([a-z]{3})$/);
     if (ahead !== undefined) {
       const keeps = tagNumber(d.tags, /^keeps-(\d+)d$/);
-      rows.push({ kind: "make", ...at(before(ahead)), ...base, ...(keeps !== undefined ? { keepsDays: keeps } : {}) });
+      rows.push({
+        kind: "make",
+        ...at(before(ahead)),
+        ...base,
+        ...(keeps !== undefined ? { keepsDays: keeps } : {}),
+        ...(d.tags.includes("assemble") ? { assemble: true as const } : {}),
+      });
     }
     const brine = tagDay(d.tags, /^brine-([a-z]{3})$/);
     if (brine !== undefined) {
