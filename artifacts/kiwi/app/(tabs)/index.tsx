@@ -465,6 +465,8 @@ export default function HomeTab() {
     hasPlans,
     isLoading: isHomeLoading,
     isError: isHomeError,
+    // FIX-3 / BUG-395 — a failed background refresh keeps the cached screen.
+    hasData: !!homeQuery.data,
   });
   // The make-lane eyebrow takes its tight top margin only when it genuinely
   // LEADS the screen. Derived from the computed order rather than re-deriving

@@ -159,3 +159,43 @@ test("network rejection throws ApiNetworkError and does NOT fire the cascade", a
     unsub();
   }
 });
+
+// ── FIX-3 / BUG-395 + BUG-103 — transient retries INSIDE the deadline ────────
+
+function retryAfterResponse(status: number, seconds: string): Response {
+  return new Response(JSON.stringify({ error: "db", code: "db_unavailable" }), {
+    status,
+    headers: { "Content-Type": "application/json", "Retry-After": seconds },
+  });
+}
+
+test("FIX-3: a 503 with Retry-After is retried and the next success wins", async () => {
+  let n = 0;
+  setFetch(() => (++n === 1 ? retryAfterResponse(503, "0") : jsonResponse({ user: VALID_USER })));
+  const user = await fetchMeWithDeadline(1000);
+  assert.equal(user?.id, "u1");
+  assert.equal(fetchCalls, 2);
+});
+
+test("FIX-3: at most two retries — three 503s throw the last one", async () => {
+  setFetch(() => retryAfterResponse(503, "0"));
+  await assert.rejects(
+    () => fetchMeWithDeadline(1000),
+    (err: unknown) => err instanceof ApiError && (err as ApiError).status === 503,
+  );
+  assert.equal(fetchCalls, 3);
+});
+
+test("FIX-3: a wait that would cross the deadline is not taken", async () => {
+  setFetch(() => retryAfterResponse(503, "2"));
+  const started = Date.now();
+  await assert.rejects(() => fetchMeWithDeadline(500), ApiError);
+  assert.equal(fetchCalls, 1, "Retry-After 2 s > the 0.5 s deadline: no retry");
+  assert.ok(Date.now() - started < 400, "thrown at once, not after a wait");
+});
+
+test("FIX-3: a 4xx other than 401 is an answer, not retried", async () => {
+  setFetch(() => jsonResponse({ error: "nope" }, 404));
+  await assert.rejects(() => fetchMeWithDeadline(1000), ApiError);
+  assert.equal(fetchCalls, 1);
+});

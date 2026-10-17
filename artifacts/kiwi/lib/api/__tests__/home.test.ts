@@ -309,3 +309,31 @@ test("BUG-282: getHomePayload sends the device's local calendar date as ?localDa
   assert.equal(u.searchParams.get("localDate"), todayLocalDate());
   assert.match(u.searchParams.get("localDate") ?? "", /^\d{4}-\d{2}-\d{2}$/);
 });
+
+// ── FIX-3 / BUG-395 — GET /home retries a transient failure ──────────────────
+
+test("FIX-3: useHomePayload retries a 503 (Retry-After honoured) under the app's retry:false default", async () => {
+  let calls = 0;
+  nextResponse = () => {
+    calls += 1;
+    return calls === 1
+      ? new Response(JSON.stringify({ error: "db", code: "db_unavailable" }), {
+          status: 503,
+          headers: { "Content-Type": "application/json", "Retry-After": "0" },
+        })
+      : mockJson(HOME_FULL);
+  };
+  // The production default (app/_layout.tsx): the hook's own policy must win.
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  let latest: ReturnType<typeof useHomePayload> | null = null;
+  const renderer = await mountProbe(qc, () => {
+    latest = useHomePayload();
+  });
+  await settle(qc);
+  await settle(qc);
+
+  assert.equal(calls, 2);
+  assert.equal(latest!.isError, false);
+  assert.equal(latest!.data?.todaysMeal?.meal.id, "meal-1");
+  renderer.unmount();
+});

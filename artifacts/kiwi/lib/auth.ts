@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { apiClient } from "@/lib/api/client";
 import { UnauthenticatedError } from "@/lib/api/errors";
+import { shouldRetryTransient, transientRetryDelayMs } from "@/lib/api/transientRetry";
 import type { MealFilterKey } from "@/lib/api/meals";
 
 import type { User } from "./types";
@@ -261,7 +262,13 @@ export async function fetchMe(opts: { signal?: AbortSignal } = {}): Promise<User
 }
 
 /**
- * D-WS9-241 B (BUG-258) — fetchMe under an AbortController deadline. When the
+ * D-WS9-241 B (BUG-258) — fetchMe under an AbortController deadline.
+ *
+ * FIX-3 / BUG-395 + BUG-103 — a transient failure (5xx, a failed fetch; see
+ * lib/api/transientRetry.ts) is retried up to twice, honouring Retry-After —
+ * INSIDE the same deadline. A wait that would end past the deadline is not
+ * taken; the error is thrown then, so BOOTSTRAP_DEADLINE_MS stays end-to-end
+ * and useAuthMe's `retry: false` stays true. When the
  * deadline fires, fetch rejects with an AbortError, apiClient wraps it as
  * ApiNetworkError, and the bootstrap reads it as a *failure* (token kept,
  * failure screen) rather than as a 401 (token cleared). The 401 path above is
@@ -269,9 +276,19 @@ export async function fetchMe(opts: { signal?: AbortSignal } = {}): Promise<User
  */
 export async function fetchMeWithDeadline(deadlineMs: number): Promise<User | null> {
   const ac = new AbortController();
+  const startedAt = Date.now();
   const timer = setTimeout(() => ac.abort(), deadlineMs);
   try {
-    return await fetchMe({ signal: ac.signal });
+    for (let failures = 0; ; failures++) {
+      try {
+        return await fetchMe({ signal: ac.signal });
+      } catch (err) {
+        const delay = transientRetryDelayMs(failures, err);
+        if (!shouldRetryTransient(failures, err)) throw err;
+        if (Date.now() - startedAt + delay >= deadlineMs) throw err;
+        await new Promise((r) => setTimeout(r, delay));
+      }
+    }
   } finally {
     clearTimeout(timer);
   }

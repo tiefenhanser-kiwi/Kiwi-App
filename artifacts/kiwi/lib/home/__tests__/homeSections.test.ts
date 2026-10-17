@@ -272,3 +272,28 @@ test("BUG-118: loading and error still pre-empt the card", () => {
     ["error"],
   );
 });
+
+// ── FIX-3 / BUG-395 — a failed refresh over cached data is not a failed load ──
+
+test("BUG-395: error with cached data keeps the screen; the error screen is for NO data", () => {
+  assert.deepEqual(
+    homeSectionOrder({
+      isFirstRun: false,
+      hasActivePlan: true,
+      hasRail: true,
+      isError: true,
+      hasData: true,
+    }),
+    ["thisWeek", "makeLane", "rail"],
+  );
+  assert.deepEqual(
+    homeSectionOrder({
+      isFirstRun: false,
+      hasActivePlan: false,
+      hasRail: false,
+      isError: true,
+      hasData: false,
+    }),
+    ["error"],
+  );
+});

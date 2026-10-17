@@ -89,10 +89,20 @@ export function homeSectionOrder(opts: {
    * partial success. One state, one claim.
    */
   isError?: boolean;
+  /**
+   * FIX-3 / BUG-395 — GET /home has data cached (an earlier load succeeded).
+   * Optional (absent ⇒ false) so every pre-existing caller keeps its behaviour.
+   *
+   * React Query keeps isError set when a BACKGROUND refetch fails over good
+   * data, and Home used to answer that with the full-screen "We couldn't reach
+   * Kiwi" — throwing away a screen it could still draw. A failed refresh over
+   * data is not a failure to load: the error screen is for having NOTHING.
+   */
+  hasData?: boolean;
 }): HomeSection[] {
   // ⚠️ FIRST, AND EXCLUSIVE. Error outranks loading because a settled failure is
   // knowledge and "still loading" is not; a request that errors is not pending.
-  if (opts.isError) return ["error"];
+  if (opts.isError && !opts.hasData) return ["error"];
 
   const sections: HomeSection[] = [];
   // LEAD slot — above the make-lane eyebrow. Arc and the this-week module are

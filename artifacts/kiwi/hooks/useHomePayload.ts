@@ -7,6 +7,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { getHomePayload, type HomePayload } from "@/lib/api/home";
+import { shouldRetryTransient, transientRetryDelayMs } from "@/lib/api/transientRetry";
 
 // ── Sept 29 design review, item 14 — a client-side ceiling on GET /home ──────
 //
@@ -49,6 +50,11 @@ export function useHomePayload(opts?: { staleTime?: number }) {
   return useQuery<HomePayload>({
     queryKey: ["home", "payload"],
     ...(opts?.staleTime !== undefined ? { staleTime: opts.staleTime } : {}),
+    // FIX-3 / BUG-395 — up to two retries on a 5xx or a failed fetch, honouring
+    // Retry-After (lib/api/transientRetry.ts). Never on the 10 s ceiling's own
+    // abort: a hang still lands in the error state at 10 s, not 30.
+    retry: shouldRetryTransient,
+    retryDelay: transientRetryDelayMs,
     queryFn: async ({ signal }) => {
       // Chained to React Query's OWN signal, so a component unmount or a key
       // change still aborts — the timeout adds a ceiling, it does not replace
