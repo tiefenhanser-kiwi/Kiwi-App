@@ -937,8 +937,20 @@ function packsToCoverNeed(
   purchaseDisplay: string,
 ): number | null {
   if (!(need > 0) || !(packQuantity > 0)) return null;
-  const nu = normalizeUnitToken(needUnit);
   const pu = normalizeUnitToken(packUnit);
+  // FIX-3 follow-up (BUG-242) — a BARE "oz" need against a pack measured in
+  // FLUID ounces is read as fluid ounces, 1:1. The catalog writes liquids as
+  // "24 oz heavy cream" / "8 oz chicken broth"; once fl oz became a volume
+  // token, that pair went unrelatable and printed the stored pack — 2 cartons
+  // became 1, an under-buy. Only in THIS direction: the pack saying "fl oz" is
+  // what makes the need a liquid. A plain "oz" in a PACK stays weight (BUG-332's
+  // refusal, below), and fl oz still relates to cups as volume.
+  const packIsFluid =
+    pu === "fl oz" ||
+    packLeadingMeasuredUnit(purchaseDisplay) === "fl oz" ||
+    normalizeUnitToken(packSizeHint(purchaseDisplay)?.unit) === "fl oz";
+  const rawNu = normalizeUnitToken(needUnit);
+  const nu = rawNu === "oz" && packIsFluid ? "fl oz" : rawNu;
   // 1. Same unit on both sides — pure arithmetic. The epsilon is load-bearing:
   //    without it a need of exactly one pack can ceil to two on float noise.
   if (nu.length > 0 && nu === pu) {

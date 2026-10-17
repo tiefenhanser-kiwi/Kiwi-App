@@ -1060,10 +1060,11 @@ describe("BUG-147: same-system needs relate to the pack; cross-system still refu
       composePackName("heavy cream", "container", "1 container (16 fl oz)", "3", "cup"),
       "2 containers (16 fl oz) heavy cream",
     );
-    // A weight need cannot be related without a density: the stored pack stands.
+    // FIX-3 follow-up — a bare "oz" need against a fl-oz pack is read as fluid
+    // ounces (1:1): 24 oz against 16 fl oz is two containers, not the stored one.
     assert.equal(
       composePackName("heavy cream", "container", "1 container (16 fl oz)", "24", "oz"),
-      "1 container (16 fl oz) heavy cream",
+      "2 containers (16 fl oz) heavy cream",
     );
     // ⚠️ and the trailing "each" form must not be swallowed as the second word.
     assert.equal(
@@ -2044,5 +2045,46 @@ describe("BUG-242: fl oz is a volume unit, not an alias of weight oz", () => {
     assert.equal(normalizeUnitToken("Fluid Ounces"), "fl oz");
     assert.equal(normalizeUnitToken("fluid ounce"), "fl oz");
     assert.notEqual(normalizeUnitToken("fl oz"), normalizeUnitToken("oz"));
+  });
+
+  it("FIX-3 follow-up: a bare 'oz' need against a fl-oz pack counts as fluid ounces", () => {
+    // The regression: "24 oz heavy cream" vs a 16 fl oz carton printed 1 carton.
+    assert.equal(
+      composePackName("heavy cream", "carton", "1 carton (16 fl oz)", "24", "oz"),
+      "2 cartons (16 fl oz) heavy cream",
+    );
+    // "ounce" spellings fold to oz first, so they ride the same rule.
+    assert.equal(
+      composePackName("chicken broth", "carton", "1 carton (32 fl oz)", "48", "ounces"),
+      "2 cartons (32 fl oz) chicken broth",
+    );
+    // A pack whose own UNIT is fl oz: 48 oz against a 32 fl oz pack is two packs.
+    assert.equal(
+      composePackName("half-and-half", "fl oz", "32 fl oz", "48", "oz"),
+      "64 fl oz half-and-half",
+    );
+    // Boundary: exactly one pack's worth stays one pack.
+    assert.equal(
+      composePackName("heavy cream", "carton", "1 carton (16 fl oz)", "16", "oz"),
+      "1 carton (16 fl oz) heavy cream",
+    );
+  });
+
+  it("FIX-3 follow-up: only the fl-oz pack makes 'oz' fluid — a plain-oz pack stays weight", () => {
+    // BUG-332's refusal is untouched: a plain "oz" pack against a cup need does
+    // not relate (no density), and an oz need against an oz pack is still weight.
+    assert.equal(
+      composePackName("mixed salad greens", "bag", "1 bag (5 oz)", "4", "cup"),
+      "1 bag (5 oz) mixed salad greens",
+    );
+    assert.equal(
+      composePackName("crushed tomatoes", "can", "1 can (14.5 oz)", "28", "oz"),
+      "2 cans (14.5 oz) crushed tomatoes",
+    );
+    // And fl oz still relates to cups as volume.
+    assert.equal(
+      composePackName("heavy cream", "carton", "1 carton (8 fl oz)", "1.5", "cup"),
+      "2 cartons (8 fl oz) heavy cream",
+    );
   });
 });
