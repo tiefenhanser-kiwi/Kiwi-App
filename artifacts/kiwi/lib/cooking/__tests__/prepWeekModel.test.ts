@@ -448,3 +448,83 @@ test("D-WS9-301 — a payload without the tally leaves it undefined, so the head
   assert.equal(vm.containerCount, undefined);
   assert.equal(vm.statedMinutes, undefined);
 });
+
+// ── FIX-3 / BUG-013's leftover — numbers do not skip after the omit ─────────
+
+function stepAt(number: number, phase: string, o: { skip?: boolean; instructions?: string } = {}) {
+  return {
+    number,
+    stepKey: `${phase}#${number}`,
+    title: `${phase} step ${number}`,
+    instructions: o.instructions ?? `Do ${phase} thing ${number}.`,
+    estimatedMinutes: 2,
+    contributesToMealIds: [M1],
+    ...(o.skip ? { skipSuggested: true } : {}),
+  };
+}
+
+test("FIX-3: kept steps are renumbered 1..n within each phase (was 3 → 5 → 8)", () => {
+  const base = result();
+  const vm = buildPrepWeekModel({
+    ...base,
+    phases: [
+      base.phases[0],
+      {
+        ...base.phases[1],
+        steps: [1, 2, 3, 4, 5, 6, 7, 8].map((n) =>
+          stepAt(n, "produce", { skip: ![3, 5, 8].includes(n) }),
+        ),
+      },
+      base.phases[2],
+      {
+        ...base.phases[3],
+        steps: [stepAt(1, "proteins", { skip: true }), stepAt(2, "proteins")],
+      },
+    ],
+  } as PrepWeekResult);
+  assert.deepEqual(vm.phases[1].steps.map((s) => s.number), [1, 2, 3]);
+  assert.deepEqual(vm.phases[1].steps.map((s) => s.stepKey), ["produce#3", "produce#5", "produce#8"]);
+  assert.deepEqual(vm.phases[3].steps.map((s) => s.number), [1], "each phase counts from 1");
+});
+
+test("FIX-3: a 'produce step N' citation follows its step's new number", () => {
+  const base = result();
+  const vm = buildPrepWeekModel({
+    ...base,
+    phases: [
+      base.phases[0],
+      {
+        ...base.phases[1],
+        steps: [stepAt(1, "produce", { skip: true }), stepAt(2, "produce"), stepAt(3, "produce"), stepAt(4, "produce")],
+      },
+      {
+        ...base.phases[2],
+        steps: [
+          stepAt(1, "sauces_marinades", {
+            instructions:
+              "Carne asada marinade bowl (garlic and the lime juice from produce step 4 already in it): add 2 tbsp oil.",
+          }),
+        ],
+      },
+      { ...base.phases[3], steps: [] },
+    ],
+  } as PrepWeekResult);
+  assert.equal(
+    vm.phases[2].steps[0].instructions,
+    "Carne asada marinade bowl (garlic and the lime juice from produce step 3 already in it): add 2 tbsp oil.",
+  );
+  // A citation of an OMITTED step keeps its number rather than pointing elsewhere.
+  const omittedCite = buildPrepWeekModel({
+    ...base,
+    phases: [
+      base.phases[0],
+      { ...base.phases[1], steps: [stepAt(1, "produce", { skip: true }), stepAt(2, "produce")] },
+      {
+        ...base.phases[2],
+        steps: [stepAt(1, "sauces_marinades", { instructions: "the zest from produce step 1" })],
+      },
+      { ...base.phases[3], steps: [] },
+    ],
+  } as PrepWeekResult);
+  assert.equal(omittedCite.phases[2].steps[0].instructions, "the zest from produce step 1");
+});

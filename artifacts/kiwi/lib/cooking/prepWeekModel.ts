@@ -170,21 +170,43 @@ export function buildPrepWeekModel(
   // to keptMinutes below.
   let keptMinutes = 0;
 
+  // FIX-3 / BUG-013's leftover — the omit above dropped steps but kept their
+  // server numbers, so the screen read 3 → 5 → 8. Kept steps are renumbered
+  // 1..n WITHIN each phase (the server's own convention: "produce step 4"). The
+  // server's prose cites steps by those numbers — an openingClause echoed into
+  // instructions says "the lime juice from produce step 4" — so the same map
+  // rewrites every "<phase> step N" in the kept text, or the citation would
+  // point one step off. A cited step that was itself omitted keeps its number.
+  const renumber = new Map<string, Map<number, number>>();
+  for (const phase of result.phases) {
+    const map = new Map<number, number>();
+    let n = 0;
+    for (const step of phase.steps) {
+      if (step.skipSuggested !== true) map.set(step.number, ++n);
+    }
+    renumber.set(phase.phase, map);
+  }
+  const remapCitations = (text: string): string =>
+    text.replace(/\b([a-z_]+) step (\d+)\b/gi, (whole, phaseKey: string, num: string) => {
+      const next = renumber.get(phaseKey.toLowerCase())?.get(Number(num));
+      return next === undefined ? whole : whole.replace(num, String(next));
+    });
+
   const phases: PrepPhaseVM[] = result.phases.map((phase) => {
     const keptSteps = phase.steps.filter((step) => step.skipSuggested !== true);
-    const steps: PrepStepVM[] = keptSteps.map((step) => {
+    const steps: PrepStepVM[] = keptSteps.map((step, i) => {
       const destinations = step.contributesToMealIds.map((mealId) =>
         composeDestination(mealId, lookup?.(mealId)),
       );
       return {
         stepKey: step.stepKey,
-        number: step.number,
-        title: step.title,
-        instructions: step.instructions,
+        number: i + 1,
+        title: remapCitations(step.title),
+        instructions: remapCitations(step.instructions),
         estimatedMinutes: step.estimatedMinutes,
         combinesCount: step.contributesToMealIds.length,
         destinations,
-        storageNote: step.storageNote,
+        storageNote: step.storageNote && remapCitations(step.storageNote),
         skipSuggested: step.skipSuggested ?? false,
         done: checked.has(step.stepKey),
       };
