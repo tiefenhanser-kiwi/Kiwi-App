@@ -168,6 +168,8 @@ function RootLayoutNav() {
       {/* D-WS9-257 — "deactivate-account" became "delete-account": the
           pause/reactivate half-feature is gone and DELETE /me is real. */}
       <Stack.Screen name="delete-account" />
+      {/* LIFE-1 — Profile → Send feedback. */}
+      <Stack.Screen name="feedback" />
       <Stack.Screen name="verify-email" />
       {/* Row 13 "Test Kitchen" · Block 2 — the guest flow. On every platform
           since Resub C1 (Apple 5.1.1(v): the app must be usable without an

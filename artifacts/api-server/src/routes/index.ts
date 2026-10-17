@@ -10,6 +10,8 @@ import guestRouter, { createGuestRouter } from "./guest";
 import healthRouter from "./health";
 import homeRouter from "./home";
 import internalRouter, { createInternalRouter } from "./internal";
+import lifecycleEmailRouter, { createLifecycleEmailRouter } from "./lifecycleEmail";
+import feedbackRouter from "./feedback";
 import mealsRouter from "./meals";
 import meRouter, { createMeRouter } from "./me";
 import plansRouter from "./plans";
@@ -61,6 +63,11 @@ export function createRootRouter(deps: RootRouterDeps = {}): IRouter {
   router.use(homeRouter);
   // Row 5 · Block 1c (D-WS9-248) — scheduler-only routes (OIDC-gated).
   router.use(env ? createInternalRouter({ env }) : internalRouter);
+  // LIFE-1 — the lifecycle emails' one-click unsubscribe. UNAUTHENTICATED by
+  // design: the signed token is the credential (lib/lifecycle/unsubscribe.ts).
+  router.use(env ? createLifecycleEmailRouter({ env }) : lifecycleEmailRouter);
+  // LIFE-1 — POST /me/feedback (requireAuth).
+  router.use(feedbackRouter);
   router.use(billingConfig ? createMeRouter({ billingConfig }) : meRouter);
   router.use(mealsRouter);
   router.use(plansRouter);

@@ -1,4 +1,5 @@
-# R3-1 Part A -- tests for push-secrets.ps1 and the .env parser. No Pester on this
+# R3-1 Part A -- tests for push-secrets.ps1 and the .env parser (and, since LIFE-1,
+# its -DatabaseUrl mode). No Pester on this
 # machine, so a plain script: PASS/FAIL per assertion, exit 1 on any FAIL.
 #
 #   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\release\test-push-secrets.ps1
@@ -194,6 +195,87 @@ if ($fake) {
   $kv = @($log | Where-Object { $_.argv[1] -eq 'versions' -and $_.argv[3] -eq 'STRIPE_SECRET_KEY' })
   if ($kv.Count -eq 1) { Assert-Equal $kv[0].stdin_sha256 (Get-Sha256Hex 'sk_live_fakeLiveKey0013') 'live key bytes exact' }
 }
+
+# --- LIFE-1: -DatabaseUrl -------------------------------------------------------------
+# The value comes from a hidden prompt; these cases feed it through the announced
+# test seam (KIWI_RELEASE_TEST_SECRET_INPUT / _CONFIRM). Every URL here is FAKE.
+$dbUrl = 'postgresql://kiwi_owner:FakePassw0rdLIFE1@ep-fake-prod-a1b2c3.us-east-1.aws.neon.tech/neondb?sslmode=require'
+function Set-DbSeam { param([string]$Value, $Confirm = $null)
+  $env:KIWI_RELEASE_TEST_SECRET_INPUT = $Value
+  if ($null -eq $Confirm) { Remove-Item Env:KIWI_RELEASE_TEST_SECRET_CONFIRM -ErrorAction SilentlyContinue } else { $env:KIWI_RELEASE_TEST_SECRET_CONFIRM = $Confirm }
+}
+function Clear-DbSeam { Remove-Item Env:KIWI_RELEASE_TEST_SECRET_INPUT, Env:KIWI_RELEASE_TEST_SECRET_CONFIRM -ErrorAction SilentlyContinue }
+
+Write-Host '== -DatabaseUrl -DryRun (seam input, fake URL)'
+Remove-FakeGcloudEnv
+Set-DbSeam $dbUrl
+$r = Invoke-ReleaseScript -Script $push -Arguments @('-DatabaseUrl', '-DryRun', '-EnvFile', (Join-Path $scratch 'no-such.env'))
+$r.Lines | ForEach-Object { Write-Host "    | $_" }
+Assert-Equal $r.ExitCode 0 'database-url dry run exits 0 (and reads no env file: the path given does not exist)'
+Assert-True ($r.Text -like ("*DATABASE_URL: would add a version to the existing secret - {0} chars*" -f $dbUrl.Length)) "dry run reports the length ($($dbUrl.Length))"
+Assert-True ($r.Text -like '*TEST SEAM: value from KIWI_RELEASE_TEST_SECRET_INPUT*') 'the seam announces itself'
+Assert-True ($r.Text -like '*deploy a new revision*') 'dry run says to deploy next'
+foreach ($p in @(@('the URL', $dbUrl), @('the password', 'FakePassw0rdLIFE1'), @('the host', 'ep-fake-prod-a1b2c3'), @('the user', 'kiwi_owner'))) { Assert-True ($r.Text -notlike "*$($p[1])*") "never printed: $($p[0])" }
+Assert-True ($r.Text -notlike '*TEST SEAM: gcloud*') 'dry run resolved no gcloud'
+
+Write-Host '== -DatabaseUrl refusals (each before any gcloud)'
+$fake = New-FakeGcloud -Root (Join-Path $scratch 'fakesdk') -Secrets @('DATABASE_URL')
+$dbCases = @(
+  @{ label = 'a trailing newline'; value = "$dbUrl`n"; expect = '*REFUSED - contains whitespace*' },
+  @{ label = 'a trailing space'; value = "$dbUrl "; expect = '*REFUSED - contains whitespace*' },
+  @{ label = 'an http URL'; value = 'https://kiwi_owner:pw@ep-fake.neon.tech/neondb'; expect = '*REFUSED - must start postgresql:// or postgres://*' },
+  @{ label = 'no password'; value = 'postgresql://kiwi_owner@ep-fake.neon.tech/neondb'; expect = '*REFUSED - has no user:password*' },
+  @{ label = 'an empty password'; value = 'postgresql://kiwi_owner:@ep-fake.neon.tech/neondb'; expect = '*REFUSED - has no user:password*' },
+  @{ label = 'the DEV branch host'; value = 'postgresql://u:p@ep-broad-haze-am9ca2gv.c-5.us-east-1.aws.neon.tech/neondb'; expect = '*REFUSED - this is the DEV branch host*' },
+  # (An EMPTY paste is refused too, but cannot be fed through the seam: assigning ''
+  # to $env:X deletes the variable, and the child would then wait on a real prompt.)
+  @{ label = 'a blank paste'; value = '   '; expect = '*REFUSED - contains whitespace*' }
+)
+foreach ($c in $dbCases) {
+  Set-DbSeam $c.value
+  if ($fake) { Clear-FakeGcloudLog $fake }
+  $r = Invoke-ReleaseScript -Script $push -Arguments @('-DatabaseUrl')
+  Assert-True ($r.ExitCode -eq 1 -and $r.Text -like $c.expect -and $r.Text -like '*nothing pushed*') "refused: $($c.label)"
+  if ($fake) { Assert-Equal @(Read-FakeGcloudLog $fake).Count 0 "  no gcloud call: $($c.label)" }
+}
+Set-DbSeam $dbUrl ($dbUrl.Replace('FakePassw0rd', 'FakePassw0Rd'))
+if ($fake) { Clear-FakeGcloudLog $fake }
+$r = Invoke-ReleaseScript -Script $push -Arguments @('-DatabaseUrl')
+Assert-True ($r.ExitCode -eq 1 -and $r.Text -like '*REFUSED - the two entries differ*') 'refused: the confirmation differs by one character'
+if ($fake) { Assert-Equal @(Read-FakeGcloudLog $fake).Count 0 '  no gcloud call: mismatch' }
+$r = Invoke-ReleaseScript -Script $push -Arguments @('-DatabaseUrl', '-Stripe', '-DryRun')
+Assert-True ($r.ExitCode -eq 1 -and $r.Text -like '*-DatabaseUrl is its own run*') '-DatabaseUrl with -Stripe refused'
+
+if ($fake) {
+  Write-Host '== -DatabaseUrl live path against the fake SDK'
+  $fake = New-FakeGcloud -Root (Join-Path $scratch 'fakesdk') -Secrets @('DATABASE_URL', 'JWT_SECRET')
+  Set-DbSeam $dbUrl
+  $r = Invoke-ReleaseScript -Script $push -Arguments @('-DatabaseUrl')
+  $r.Lines | ForEach-Object { Write-Host "    | $_" }
+  Assert-Equal $r.ExitCode 0 'database-url run exits 0'
+  $log = Read-FakeGcloudLog $fake
+  $writes = @($log | Where-Object { $_.argv -contains '--data-file=-' })
+  Assert-Equal $writes.Count 1 'exactly one write'
+  if ($writes.Count -eq 1) {
+    Assert-Equal ((@($writes[0].argv)[0..3]) -join ' ') 'secrets versions add DATABASE_URL' 'a new VERSION of DATABASE_URL, never a create'
+    Assert-Equal $writes[0].stdin_sha256 (Get-Sha256Hex $dbUrl) 'stdin bytes exact (no BOM, no trailing newline)'
+    Assert-Equal $writes[0].stdin_len $dbUrl.Length 'stdin length exact'
+  }
+  Assert-Equal @($log | Where-Object { $_.argv[1] -eq 'add-iam-policy-binding' }).Count 0 'no binding change'
+  Assert-True ($r.Text -like ("*DATABASE_URL: version added - {0} chars*" -f $dbUrl.Length)) 'prints name, action, length'
+  $allArgv = (@($log | ForEach-Object { @($_.argv) -join ' ' }) -join "`n")
+  foreach ($p in @(@('the URL', $dbUrl), @('the password', 'FakePassw0rdLIFE1'), @('the host', 'ep-fake-prod-a1b2c3'))) {
+    Assert-True ($allArgv -notlike "*$($p[1])*") "not on any command line: $($p[0])"
+    Assert-True ($r.Text -notlike "*$($p[1])*") "not printed: $($p[0])"
+  }
+
+  Write-Host '== -DatabaseUrl when the secret does not exist (wrong project)'
+  $fake = New-FakeGcloud -Root (Join-Path $scratch 'fakesdk') -Secrets @('JWT_SECRET')
+  $r = Invoke-ReleaseScript -Script $push -Arguments @('-DatabaseUrl')
+  Assert-True ($r.ExitCode -eq 1 -and $r.Text -like '*REFUSED - no such secret in project*') 'refused: no DATABASE_URL secret to add a version to'
+  Assert-Equal @(Read-FakeGcloudLog $fake | Where-Object { $_.argv -contains '--data-file=-' }).Count 0 '  nothing written'
+}
+Clear-DbSeam
 
 Remove-FakeGcloudEnv
 if (-not $Keep) { Remove-Item -LiteralPath $scratch -Recurse -Force }

@@ -254,6 +254,27 @@ export async function deleteMe(): Promise<void> {
   });
 }
 
+// ── Feedback ───────────────────────────────────────────────────────────────
+
+/**
+ * LIFE-1 — POST /me/feedback (routes/feedback.ts): emails Hans the text with
+ * the member's email, the app version and platform. Throws ApiError on a
+ * non-2xx (503 when the server has no FEEDBACK_TO, 429 past the per-user
+ * limit, 502 when Resend refused).
+ */
+export async function sendFeedback(input: {
+  message: string;
+  screen?: string;
+  appVersion?: string;
+  platform?: "ios" | "android" | "web";
+}): Promise<void> {
+  await apiClient("/me/feedback", {
+    method: "POST",
+    body: input,
+    schema: z.object({ ok: z.literal(true) }),
+  });
+}
+
 // ── Favorites ──────────────────────────────────────────────────────────────
 
 /**

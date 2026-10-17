@@ -9,6 +9,7 @@ import { logInstacartConfig } from "./lib/retailers/instacartClient";
 import { logTurnstileConfig } from "./lib/turnstile";
 import { logOAuthConfig } from "./lib/oauth/config";
 import { logBillingConfig } from "./lib/billing/config";
+import { logLifecycleEmailConfig } from "./lib/lifecycle/run";
 import { STRIPE_WEBHOOK_PATH } from "./routes/webhooks";
 import { parseTrustProxyHops } from "./lib/trustProxy";
 import { noStore } from "./middleware/cacheControl";
@@ -94,6 +95,11 @@ logOAuthConfig(process.env);
 // `billing_unavailable` and `can()` keeps allowing everyone, which is exactly
 // today's behaviour (D-WS9-258).
 logBillingConfig(process.env);
+
+// LIFE-1 — one line: `lifecycle email: on|off`, plus an ERROR when sending is
+// on with the footer address still a placeholder or no JWT_SECRET to sign the
+// unsubscribe link. Never fails the boot: off is the default everywhere.
+logLifecycleEmailConfig(process.env);
 
 app.use(
   pinoHttp({

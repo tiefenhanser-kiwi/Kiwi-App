@@ -368,6 +368,14 @@ model User {
   // It is NOT the single-use mechanism — an epoch cannot refuse a token minted
   // after the last bump. That is what `UsedToken` below is for.
   tokensValidFrom          DateTime?
+  // LIFE-1 — the lifecycle-email opt-out (Day 1/3/5, free time ending/ended).
+  // Set by the signed one-click unsubscribe link (routes/lifecycleEmail.ts) and
+  // never cleared by any route. IS NULL means "sends allowed"; the value says
+  // when they stopped. The welcome email ignores it (it carries no unsubscribe
+  // and is sent at signup, before an opt-out can exist). Nullable, no
+  // backfill: ADDITIVE, so a live revision that does not know the column is
+  // unaffected (D-WS9-254).
+  lifecycleEmailOptOutAt   DateTime?
   createdAt                DateTime           @default(now())
   updatedAt                DateTime           @updatedAt
 
@@ -395,6 +403,8 @@ model User {
   // Row 9 (1.1) · OAuth Block 1 — the Apple / Google identities on this
   // account. Cascade: an identity has no meaning without its user.
   identities              UserIdentity[]
+  // LIFE-1 — one row per lifecycle email this account has been sent.
+  lifecycleEmailSends     LifecycleEmailSend[]
 
   @@map("users")
 }
@@ -2011,4 +2021,34 @@ model GuestEvent {
 
   @@index([guestSessionId, at])
   @@map("guest_events")
+}
+
+// LIFE-1 — THE LIFECYCLE EMAIL SEND LOG. One row per (user, kind), ever: the
+// unique key IS the "at most once per user" rule, and it holds across
+// overlapping scheduler ticks because the row is CLAIMED (inserted) before the
+// send and a second claim fails on the key.
+//
+//   claimedAt          — when a tick (or the signup path) took the send
+//   sentAt             — when Resend accepted it; NULL while in flight, and
+//                        left NULL if the process died between the two (the
+//                        row still blocks a resend: at-most-once beats twice)
+//   providerMessageId  — Resend's id, for looking a message up in its log
+//
+// A send that Resend REFUSES deletes its claim, so the next tick retries while
+// the email is still inside its window (lib/lifecycle/schedule.ts).
+//
+// `kind` is a PLAIN STRING, the GuestEvent.event reasoning: the closed list
+// lives in code (LIFECYCLE_KINDS), and a seventh email is a deploy, not a
+// migration.
+model LifecycleEmailSend {
+  id                String    @id @default(uuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind              String
+  claimedAt         DateTime  @default(now())
+  sentAt            DateTime?
+  providerMessageId String?
+
+  @@unique([userId, kind])
+  @@map("lifecycle_email_sends")
 }

@@ -23,6 +23,7 @@ import { useBilling } from "@/contexts/BillingContext";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { ApiError } from "@/lib/api/errors";
 import { subscriptionCardFor } from "@/lib/billing/subscriptionView";
+import { storeReviewUrl, storeWebUrl } from "@/lib/feedback";
 import { PRIVACY_URL, TERMS_URL } from "@/lib/legal";
 
 type EditableField = "name" | "email" | "phone";
@@ -439,6 +440,21 @@ export default function ProfileTab() {
           </Text>
         </Pressable>
 
+        {/* LIFE-1 — feedback, and the store page. "Rate Kiwi" is hidden on web
+            (no store to send a browser to) and on iOS until lib/feedback.ts has
+            the App Store id; storeReviewUrl decides, not this JSX. */}
+        <View style={s.card}>
+          <Text style={s.cardTitle}>Help us improve Kiwi</Text>
+          <LegalRow
+            label="Send feedback"
+            icon="chevron-right"
+            onPress={() => router.push("/feedback")}
+          />
+          {storeReviewUrl(Platform.OS) !== null && (
+            <LegalRow label="Rate Kiwi" onPress={openStoreReview} />
+          )}
+        </View>
+
         {/* Section D2: Legal. Apple and Google both expect these reachable
             from inside the app, not only from the pre-signup welcome screen. */}
         <View style={s.card}>
@@ -583,7 +599,31 @@ function openLegal(url: string): void {
   });
 }
 
-function LegalRow({ label, onPress }: { label: string; onPress: () => void }) {
+// LIFE-1 — the store app first (the Play app / the App Store's review sheet),
+// then its https page if the store app is missing (an emulator, a de-Googled
+// phone). Neither failing is a warn, as openLegal's is.
+function openStoreReview(): void {
+  const url = storeReviewUrl(Platform.OS);
+  if (!url) return;
+  Linking.openURL(url).catch(() => {
+    const web = storeWebUrl(Platform.OS);
+    if (!web) return;
+    Linking.openURL(web).catch((err: unknown) => {
+      console.warn("[profile] store openURL rejected", err);
+    });
+  });
+}
+
+function LegalRow({
+  label,
+  onPress,
+  icon = "external-link",
+}: {
+  label: string;
+  onPress: () => void;
+  /** LIFE-1 — "chevron-right" for a row that stays in the app. */
+  icon?: "external-link" | "chevron-right";
+}) {
   return (
     <Pressable
       onPress={onPress}
@@ -591,7 +631,7 @@ function LegalRow({ label, onPress }: { label: string; onPress: () => void }) {
       style={({ pressed }) => [s.legalRow, pressed && { opacity: 0.85 }]}
     >
       <Text style={s.legalRowLabel}>{label}</Text>
-      <Feather name="external-link" size={16} color={Colors.neutral[600]} />
+      <Feather name={icon} size={16} color={Colors.neutral[600]} />
     </Pressable>
   );
 }

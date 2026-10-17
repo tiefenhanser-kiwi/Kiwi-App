@@ -29,6 +29,23 @@
 # the run before any gcloud call -- a key and a webhook secret from different
 # modes must never land half-pushed.
 #
+# -DatabaseUrl is a third, separate run (LIFE-1) that writes ONLY DATABASE_URL, for
+# rotating the production database password:
+#
+#   .\scripts\release\push-secrets.ps1 -DatabaseUrl -DryRun
+#   .\scripts\release\push-secrets.ps1 -DatabaseUrl
+#
+# The URL is NEVER read from a file or an argument: it is pasted into a hidden
+# prompt (Read-Host -AsSecureString), twice, and the two must match. It goes to
+# Secret Manager over stdin as exact bytes (no BOM, no trailing newline) as a new
+# version of the EXISTING secret -- a missing DATABASE_URL secret means the wrong
+# project, and the run refuses rather than creating one. Refused before any gcloud
+# call: an empty value, any whitespace (a pasted newline), a scheme other than
+# postgres:// / postgresql://, no password, or the DEV branch's host. Prints the
+# name, what happened and the length -- never the URL, the host or the user. No
+# .env is read, and the runtime binding is untouched (it already exists).
+# Cloud Run reads :latest only when an instance starts: DEPLOY RIGHT AFTER.
+#
 # ASCII ONLY (Windows PowerShell 5.1 reads BOM-less UTF-8 as ANSI).
 
 [CmdletBinding()]
@@ -38,6 +55,7 @@ param(
   [string]$RuntimeServiceAccount = '166146829159-compute@developer.gserviceaccount.com',
   [switch]$Stripe,
   [switch]$Live,
+  [switch]$DatabaseUrl,
   [switch]$DryRun
 )
 
@@ -45,6 +63,73 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_release-lib.ps1')
 
 if ($Live -and -not $Stripe) { Write-Host 'REFUSED: -Live only means something with -Stripe'; exit 1 }
+if ($DatabaseUrl -and $Stripe) { Write-Host 'REFUSED: -DatabaseUrl is its own run; it does not combine with -Stripe'; exit 1 }
+
+# --- LIFE-1: -DatabaseUrl ------------------------------------------------------------
+
+# $null when the value is acceptable, else why it is not. Never echoes the value.
+function Get-DatabaseUrlRefusal {
+  param([string]$Value)
+  if ([string]::IsNullOrEmpty($Value)) { return 'empty' }
+  if ($Value -match '\s') { return 'contains whitespace (a pasted newline or space?)' }
+  if ($Value -notmatch '^postgres(ql)?://') { return 'must start postgresql:// or postgres://' }
+  $uri = $null
+  if (-not [System.Uri]::TryCreate($Value, [System.UriKind]::Absolute, [ref]$uri) -or -not $uri.Host) { return 'not a URL with a host' }
+  $userInfo = $uri.UserInfo
+  $colon = $userInfo.IndexOf(':')
+  if ($colon -lt 1 -or $colon -eq ($userInfo.Length - 1)) { return 'has no user:password before the host' }
+  if ($uri.Host -like '*ep-broad-haze*') { return 'this is the DEV branch host (ep-broad-haze) - this mode is for production' }
+  return $null
+}
+
+# The hidden prompt. KIWI_RELEASE_TEST_SECRET_INPUT / _CONFIRM are the test seam
+# (test-push-secrets.ps1), named like KIWI_RELEASE_GCLOUD_BIN and announced the
+# same way when set; nothing else reads them.
+function Read-HiddenValue {
+  param([string]$Prompt, [string]$SeamName)
+  $seam = [Environment]::GetEnvironmentVariable($SeamName)
+  if ($null -ne $seam) {
+    Write-Host "!! TEST SEAM: value from $SeamName, not the prompt" -ForegroundColor Yellow
+    return $seam
+  }
+  $secure = Read-Host -AsSecureString $Prompt
+  $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+  try { return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
+}
+
+if ($DatabaseUrl) {
+  $name = 'DATABASE_URL'
+  Write-Host ("push-secrets DATABASE_URL{0} - project {1} - from a hidden prompt (no env file)" -f $(if ($DryRun) { ' (DRY RUN: no gcloud)' } else { '' }), $Project)
+  $first = Read-HiddenValue -Prompt 'Paste the NEW production DATABASE_URL (hidden)' -SeamName 'KIWI_RELEASE_TEST_SECRET_INPUT'
+  $why = Get-DatabaseUrlRefusal -Value $first
+  if ($why) { $first = $null; Write-Host "${name}: REFUSED - $why - nothing pushed"; exit 1 }
+  $confirmSeam = if ($null -ne $env:KIWI_RELEASE_TEST_SECRET_CONFIRM) { 'KIWI_RELEASE_TEST_SECRET_CONFIRM' } else { 'KIWI_RELEASE_TEST_SECRET_INPUT' }
+  $second = Read-HiddenValue -Prompt 'Paste it again to confirm (hidden)' -SeamName $confirmSeam
+  if (-not [string]::Equals($first, $second, [System.StringComparison]::Ordinal)) {
+    $first = $null; $second = $null
+    Write-Host "${name}: REFUSED - the two entries differ - nothing pushed"
+    exit 1
+  }
+  $second = $null
+  $len = $first.Length
+  if ($DryRun) {
+    $first = $null
+    Write-Host ("{0}: would add a version to the existing secret - {1} chars" -f $name, $len)
+    Write-Host 'Next: deploy a new revision (Cloud Run reads :latest only at instance start).'
+    exit 0
+  }
+  if ((Get-SecretNames -Project $Project) -notcontains $name) {
+    $first = $null
+    Write-Host "${name}: REFUSED - no such secret in project $Project (wrong project?) - nothing pushed"
+    exit 1
+  }
+  $code = Invoke-GcloudWithStdin -Arguments @('secrets', 'versions', 'add', $name, '--data-file=-', "--project=$Project") -Value $first
+  $first = $null
+  if ($code -ne 0) { Write-Host "${name}: gcloud exited $code - stopping"; exit $code }
+  Write-Host ("{0}: version added - {1} chars" -f $name, $len)
+  Write-Host 'Next: deploy a new revision NOW (Cloud Run reads :latest only at instance start).'
+  exit 0
+}
 
 if (-not $EnvFile) { $EnvFile = Join-Path $script:RepoRoot 'artifacts\api-server\.env' }
 

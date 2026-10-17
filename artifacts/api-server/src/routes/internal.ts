@@ -23,6 +23,7 @@ import { Router, type IRouter, type Request } from "express";
 
 import { GoogleJwksCache, parseEmailAllowlist, verifyGoogleIdToken, type JwksFetch, type OidcExpectation } from "../lib/googleOidc";
 import { runImageDrain, type ImageDrainDeps } from "../lib/images/imageQueue";
+import { runLifecycleTick, type TickSummary } from "../lib/lifecycle/run";
 import { logger } from "../lib/logger";
 import { prisma as productionPrisma } from "../lib/prisma";
 
@@ -35,6 +36,11 @@ export const ENV_IMAGE_DRAIN_OIDC_AUDIENCE = "IMAGE_DRAIN_OIDC_AUDIENCE";
 // other.
 export const ENV_GUEST_SWEEP_OIDC_EMAIL = "GUEST_SWEEP_OIDC_EMAIL";
 export const ENV_GUEST_SWEEP_OIDC_AUDIENCE = "GUEST_SWEEP_OIDC_AUDIENCE";
+// LIFE-1 — the lifecycle-email tick's own pair, for the same reason the sweep
+// has its own: this job emails customers, and granting it must not grant the
+// drain or the sweep (or the reverse).
+export const ENV_LIFECYCLE_EMAIL_OIDC_EMAIL = "LIFECYCLE_EMAIL_OIDC_EMAIL";
+export const ENV_LIFECYCLE_EMAIL_OIDC_AUDIENCE = "LIFECYCLE_EMAIL_OIDC_AUDIENCE";
 
 // Row 13 · Block 1 — the two horizons, and they are different questions.
 //
@@ -56,6 +62,8 @@ export interface InternalRouterDeps {
   drainDeps: () => Promise<ImageDrainDeps>;
   jwksFetch: JwksFetch;
   env: NodeJS.ProcessEnv;
+  /** LIFE-1 — one lifecycle-email tick. Tests hand in a stub. */
+  lifecycleTick: () => Promise<TickSummary>;
 }
 
 export function readDrainExpectation(env: NodeJS.ProcessEnv): OidcExpectation | null {
@@ -70,6 +78,15 @@ export function readGuestSweepExpectation(
 ): OidcExpectation | null {
   const emails = parseEmailAllowlist(env[ENV_GUEST_SWEEP_OIDC_EMAIL]);
   const audience = env[ENV_GUEST_SWEEP_OIDC_AUDIENCE]?.trim() ?? "";
+  if (emails.length === 0 || !audience) return null;
+  return { emails, audience };
+}
+
+export function readLifecycleEmailExpectation(
+  env: NodeJS.ProcessEnv,
+): OidcExpectation | null {
+  const emails = parseEmailAllowlist(env[ENV_LIFECYCLE_EMAIL_OIDC_EMAIL]);
+  const audience = env[ENV_LIFECYCLE_EMAIL_OIDC_AUDIENCE]?.trim() ?? "";
   if (emails.length === 0 || !audience) return null;
   return { emails, audience };
 }
@@ -196,6 +213,55 @@ export function createInternalRouter(deps: Partial<InternalRouterDeps> = {}): IR
       logger.error({ event: "guest_sweep_failed", err }, "Guest sweep failed");
       res.setHeader("Retry-After", "60");
       return res.status(503).json({ error: "sweep_failed", retryable: true });
+    }
+  });
+
+  // ── POST /internal/lifecycle/emails — LIFE-1 ──────────────────────────
+  //
+  // Body-less, hourly. Sends whatever lifecycle email is due (welcome backstop,
+  // Day 1/3/5, free time ending/ended — lib/lifecycle/schedule.ts) and is
+  // idempotent: the send log's unique key means a re-run, or two overlapping
+  // runs, send nothing twice. Same fail-closed OIDC shape as the two above.
+  //
+  // With LIFECYCLE_EMAIL_ENABLED off it answers 200 { enabled: false } and
+  // sends nothing, so the scheduler job can exist (and stay green) before Hans
+  // switches sending on.
+  const lifecycleTick = deps.lifecycleTick ?? (() => runLifecycleTick({ prisma, env }));
+  let warnedLifecycleUnconfigured = false;
+  router.post("/internal/lifecycle/emails", async (req, res) => {
+    const expect = readLifecycleEmailExpectation(env);
+    if (!expect) {
+      if (!warnedLifecycleUnconfigured) {
+        warnedLifecycleUnconfigured = true;
+        logger.warn(
+          {
+            event: "lifecycle_email_not_configured",
+            vars: [ENV_LIFECYCLE_EMAIL_OIDC_EMAIL, ENV_LIFECYCLE_EMAIL_OIDC_AUDIENCE],
+          },
+          "Lifecycle email route is unconfigured — answering 404 to every caller",
+        );
+      }
+      return res.status(404).json({ error: "not found" });
+    }
+    const verdict = await verifyGoogleIdToken(bearer(req), expect, jwks);
+    if (!verdict.ok) {
+      logger.warn(
+        { event: "lifecycle_email_refused", reason: verdict.reason, detail: verdict.detail },
+        "Lifecycle email caller refused",
+      );
+      if (verdict.reason === "jwks_unavailable") {
+        res.setHeader("Retry-After", "30");
+        return res.status(503).json({ error: "jwks_unavailable", retryable: true });
+      }
+      return res.status(401).json({ error: "unauthorized" });
+    }
+    try {
+      const summary = await lifecycleTick();
+      return res.status(200).json({ ok: true, caller: verdict.email, ...summary });
+    } catch (err) {
+      logger.error({ event: "lifecycle_email_tick_failed", err }, "Lifecycle email tick failed");
+      res.setHeader("Retry-After", "60");
+      return res.status(503).json({ error: "tick_failed", retryable: true });
     }
   });
 

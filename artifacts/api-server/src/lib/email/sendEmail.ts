@@ -24,8 +24,21 @@ export interface EmailMessage {
   /** Single recipient. Nothing here needs multi-recipient, so nothing takes it. */
   to: string;
   subject: string;
-  /** Plain text only. Rich HTML stays deferred by D-WS7-022. */
+  /** The plain-text part. Every message has one. */
   text: string;
+  /**
+   * LIFE-1 — an HTML alternative to `text` (Resend sends both as one
+   * multipart message). Only the lifecycle emails set it
+   * (lib/lifecycle/render.ts); the account-flow bodies below stay plain text
+   * (D-WS7-022).
+   */
+  html?: string;
+  /** LIFE-1 — overrides EMAIL_FROM for this one message. Must be a Resend-verified sender. */
+  from?: string;
+  /** LIFE-1 — where a reply goes. Unset → the From address. */
+  replyTo?: string;
+  /** LIFE-1 — extra headers: List-Unsubscribe and List-Unsubscribe-Post (RFC 8058). */
+  headers?: Record<string, string>;
 }
 
 export type SendResult =
@@ -149,10 +162,13 @@ async function sendViaResend(msg: EmailMessage): Promise<SendResult> {
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        from: fromAddress(),
+        from: msg.from || fromAddress(),
         to: [msg.to],
         subject: msg.subject,
         text: msg.text,
+        ...(msg.html ? { html: msg.html } : {}),
+        ...(msg.replyTo ? { reply_to: msg.replyTo } : {}),
+        ...(msg.headers ? { headers: msg.headers } : {}),
       }),
       signal: controller.signal,
     });

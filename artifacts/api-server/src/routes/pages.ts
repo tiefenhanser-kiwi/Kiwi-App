@@ -15,6 +15,7 @@
 import { Router, type IRouter } from "express";
 
 import { RESET_PASSWORD_PATH, resetPasswordHtml } from "../pages/resetPassword";
+import { UNSUBSCRIBE_PAGE_PATH, unsubscribeHtml } from "../pages/unsubscribe";
 import { VERIFY_EMAIL_PATH, verifyEmailHtml } from "../pages/verifyEmail";
 
 export function createPagesRouter(): IRouter {
@@ -28,6 +29,13 @@ export function createPagesRouter(): IRouter {
   router.get(VERIFY_EMAIL_PATH, (_req, res) => {
     res.setHeader("Cache-Control", "no-store");
     res.type("html").send(verifyEmailHtml);
+  });
+
+  // LIFE-1 — the lifecycle emails' footer link. Opts out from the page's own
+  // POST, never from this GET (pages/unsubscribe.ts says why).
+  router.get(UNSUBSCRIBE_PAGE_PATH, (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.type("html").send(unsubscribeHtml);
   });
 
   return router;

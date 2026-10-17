@@ -61,6 +61,11 @@ lives for the deployed instance. "env" = a plain Cloud Run env var
 | `TURNSTILE_SECRET_KEY` | no (recommended before launch) | Secret Manager | **Row 13 · D-WS9-262 — Cloudflare Turnstile**, mounted on `POST /api/guest/session` **and nowhere else**. Unset → the route accepts every caller and boot logs one `turnstile_disabled` warning. Set → **fail closed**: a missing token, a rejected token, a verify timeout (10 s) or a transport error all answer 403 `bot_check_failed`. Not mounted on signup — the native app cannot solve a web widget and any exemption a client can claim an attacker can claim (that stays BUG-222's product half). |
 | `GUEST_SWEEP_OIDC_EMAIL` | for the guest sweep | env | The Cloud Scheduler job's service-account email (comma-separated allowlist). Unset → `POST /api/internal/guest/sweep` answers 404 to everyone. Same OIDC shape as the image drain. |
 | `GUEST_SWEEP_OIDC_AUDIENCE` | for the guest sweep | env | The `aud` the job's OIDC token carries — the sweep URL, `https://<service-url>/api/internal/guest/sweep`. Unset → same 404. |
+| `LIFECYCLE_EMAIL_ENABLED` | no (**the lifecycle-email switch**) | env | **LIFE-1.** Exactly `true` (any case) → the welcome at signup and the hourly Day 1/3/5 + free-time emails are sent. Anything else → **off**: nothing is sent and the tick answers `{ enabled: false }`. Boot logs `lifecycle email: on|off`, plus an **error** when on with the footer address still a placeholder (`copy.ts` `FOOTER.mailingAddress`) or no `JWT_SECRET`. See **Lifecycle emails**. |
+| `LIFECYCLE_EMAIL_FROM` | no | env | **LIFE-1.** From for the lifecycle emails only (Resend-verified). Unset → `EMAIL_FROM`. Reply-To is always `support@kitchenwizard.ai` (`copy.ts`). |
+| `LIFECYCLE_EMAIL_OIDC_EMAIL` | for the lifecycle tick | env | **LIFE-1.** The Cloud Scheduler job's service-account email. Unset → `POST /api/internal/lifecycle/emails` answers 404 to everyone. Same OIDC shape as the guest sweep. |
+| `LIFECYCLE_EMAIL_OIDC_AUDIENCE` | for the lifecycle tick | env | **LIFE-1.** The `aud` the job's OIDC token carries — `https://<service-url>/api/internal/lifecycle/emails`. Unset → same 404. |
+| `FEEDBACK_TO` | for Profile → Send feedback | env | **LIFE-1.** Where `POST /api/me/feedback` emails (`support@kitchenwizard.ai`). Unset → **503 `feedback_unavailable`** (the screen says so; never a silent drop). Reply-To on each message is the member's own address. |
 | `KIWI_STORE_SHORTLIST_SIZE` | no | env | Default 40. |
 | `KIWI_STORE_CUISINE_QUOTA_FRACTION` | no | env | Default 0.7. |
 | `EMAIL_REVIEW_RECIPIENT` | no | — | Documented in `.env.example`; **read by no code yet** (D-WS9-226 message 3 is not built). Nothing to set. |
@@ -406,6 +411,51 @@ Read it back with the same filter in Logs Explorer: `jsonPayload.event="image_ge
 The notification carries `mealId`, `attempts` and `lastError`; the meal keeps
 the gradient until someone re-queues it by hand (there is deliberately no
 retry console — the expected volume is single digits).
+
+## Lifecycle emails (Cloud Scheduler) — LIFE-1
+
+Six emails, one HTML template (`src/lib/lifecycle/`): **welcome** at signup,
+**Day 1** (only with no plan), **Day 3**, **Day 5**, **free time ending** (3 days
+before `subscriptions.trialEndsAt`) and **free time ended** — the last two only
+while `BILLING_ENFORCED` is on and never to a paying account. Each goes at most
+once per account (`lifecycle_email_sends`, unique on user + kind), inside a
+window (a missed email is never sent late), never 21:00–08:00 in the account's
+time zone (except the welcome), and never after the account's one-click
+unsubscribe (`users.lifecycleEmailOptOutAt`). **The words are all in
+`src/lib/lifecycle/copy.ts`**; `node --import tsx scripts/lifecycle/previewEmails.ts`
+renders all six to `scripts/_scratch/life-1/preview/`.
+
+The welcome is sent from the signup doors; everything else (and a retry of a
+failed welcome) by an hourly tick, `POST /api/internal/lifecycle/emails`, OIDC
+like the guest sweep. **Enabling Cloud Scheduler and creating the job is a Hans
+step.** The job can exist before sending is on: with `LIFECYCLE_EMAIL_ENABLED`
+off the tick answers 200 `{ enabled: false }`.
+
+```powershell
+gcloud iam service-accounts create kiwi-lifecycle-email --display-name "Kiwi lifecycle email tick"
+$sa = "kiwi-lifecycle-email@kiwi-prod-508416.iam.gserviceaccount.com"
+$url = gcloud run services describe kiwi-api --region us-east4 --format "value(status.url)"
+$tick = "$url/api/internal/lifecycle/emails"
+
+gcloud run services update kiwi-api --region us-east4 --update-env-vars "LIFECYCLE_EMAIL_OIDC_EMAIL=$sa,LIFECYCLE_EMAIL_OIDC_AUDIENCE=$tick"
+
+gcloud scheduler jobs create http kiwi-lifecycle-email `
+  --location us-east4 `
+  --schedule "5 * * * *" `
+  --time-zone "Etc/UTC" `
+  --uri $tick `
+  --http-method POST `
+  --oidc-service-account-email $sa `
+  --oidc-token-audience $tick `
+  --attempt-deadline 180s
+```
+
+Read it back: `gcloud scheduler jobs run kiwi-lifecycle-email --location us-east4`,
+then `lifecycle_tick` in the service log (`enabled`, `candidates`, `sent`,
+`skipped`, `failed`, `byKind`). `lifecycle_email_refused` with
+`bad_signature_or_claims` means the audience differs by a character;
+`lifecycle_email_not_configured` means an OIDC variable is unset. Each send logs
+`lifecycle_email_sent { userId, kind }` — never an address.
 
 ## Redeploy
 

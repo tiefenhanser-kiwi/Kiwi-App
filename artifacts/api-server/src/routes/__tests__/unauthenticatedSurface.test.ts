@@ -112,6 +112,15 @@ const KNOWN_PUBLIC = new Set<string>([
   // of the truth. (Probed here with RevenueCat unconfigured, it answers 503
   // before reading anything, which is why it appears.)
   "POST /webhooks/revenuecat",
+  // 🔴 LIFE-1 — THE ONE ROUTE THAT LANE ADDS: the lifecycle emails' one-click
+  // unsubscribe. THE CREDENTIAL IS THE TOKEN: an HMAC over the userId, keyed
+  // from JWT_SECRET under its own label (lib/lifecycle/unsubscribe.ts), so only
+  // the server could have minted it, and it can do exactly one thing — set that
+  // account's lifecycleEmailOptOutAt, write-if-null. It cannot carry a session:
+  // RFC 8058 one-click is a POST from the mail provider's servers, and the
+  // footer link opens in whatever browser the mail was read in. Rate-limited
+  // per IP. Probed with no token, it answers 400 before reading anything.
+  "POST /email/unsubscribe",
 ]);
 
 /** Walk the mounted router and return "METHOD /path" for every layer. */

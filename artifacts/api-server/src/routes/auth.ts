@@ -25,6 +25,7 @@ import {
 // OAuth routes below are the third and fourth callers (§2.7).
 import { createAccountInTx, finishClaimAfterCommit } from "../lib/authAccount";
 import { sendSignupAlert, type SignupAlertInput } from "../lib/signupAlert";
+import { sendWelcomeEmail } from "../lib/lifecycle/run";
 import { readOAuthConfig, type OAuthConfig } from "../lib/oauth/config";
 import {
   exchangeAppleAuthorizationCode as productionExchangeAppleCode,
@@ -287,6 +288,13 @@ export interface AuthRouterDeps {
    * that injects a recording sender records the alert too.
    */
   signupAlert: (input: SignupAlertInput) => Promise<void>;
+  /**
+   * LIFE-1 — the welcome email to the new member, beside the alert to Hans and
+   * under the same rules: never awaited, never throws, a NEW account only. Off
+   * unless LIFECYCLE_EMAIL_ENABLED=true. The default sends through THIS
+   * router's prisma and `sendEmail`, as signupAlert's does.
+   */
+  welcomeEmail: (userId: string) => Promise<void>;
 }
 
 export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
@@ -315,6 +323,8 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
   const sendEmail = deps.sendEmail ?? productionSendEmail;
   const signupAlert =
     deps.signupAlert ?? ((input: SignupAlertInput) => sendSignupAlert(input, { prisma, sendEmail }));
+  const welcomeEmail =
+    deps.welcomeEmail ?? ((userId: string) => sendWelcomeEmail(userId, { prisma, sendEmail }));
   const router: IRouter = Router();
 
   // POST /auth/signup
@@ -412,6 +422,8 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
 
       // SRV-2 · D-WS9-308 — fire-and-forget; the 201 never waits on Resend.
       void signupAlert({ userId: user.id, via: "signup", method: "password", claimedPlanId });
+      // LIFE-1 — fire-and-forget, like the alert.
+      void welcomeEmail(user.id);
 
       const token = signToken(user.id);
       logger.info(
@@ -733,6 +745,7 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
     // a verified email linked to an existing account, are not signups.
     if (outcome.isNewUser) {
       void signupAlert({ userId: outcome.userId, via: `oauth_${provider}`, method: provider, claimedPlanId });
+      void welcomeEmail(outcome.userId);
     }
 
     // Re-read rather than thread the created row out: `resolveIdentity` has
