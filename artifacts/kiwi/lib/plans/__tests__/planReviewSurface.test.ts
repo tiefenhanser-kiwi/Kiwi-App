@@ -86,7 +86,7 @@ const MATRIX: Record<PlanReviewState, PlanReviewSurface> = {
     showThisWeekSlot: true,
     showCompostedBar: false,
     showActionPanel: true,
-    showMealDefaults: true,
+    showMealDefaults: false,
     rowsReadOnly: false,
   },
   liveThisWeek: {
@@ -94,7 +94,7 @@ const MATRIX: Record<PlanReviewState, PlanReviewSurface> = {
     showThisWeekSlot: true,
     showCompostedBar: false,
     showActionPanel: true,
-    showMealDefaults: true,
+    showMealDefaults: false,
     rowsReadOnly: false,
   },
 };
@@ -161,3 +161,15 @@ test("GUARD: the live states are the ONLY ones carrying the action panel", () =>
   assert.deepEqual(withPanel, ["liveInactive", "liveThisWeek"]);
 });
 
+
+// ── FIX-3 / BUG-088 — the Breakfast/Lunch boxes save nothing, so no state shows them ──
+
+test("GUARD (BUG-088): no Plan Review state shows the Breakfast/Lunch defaults boxes", () => {
+  for (const state of ["composted", "liveInactive", "liveThisWeek"] as PlanReviewState[]) {
+    assert.equal(
+      planReviewSurface(state).showMealDefaults,
+      false,
+      `${state}: a box that accepts typing and persists nothing must not render`,
+    );
+  }
+});

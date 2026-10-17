@@ -63,7 +63,12 @@ export interface PlanReviewSurface {
   showCompostedBar: boolean;
   /** The five-cell action panel (D-WS9-157). Live states only. */
   showActionPanel: boolean;
-  /** Breakfast / Lunch defaults collapsibles. */
+  /**
+   * Breakfast / Lunch defaults collapsibles. FIX-3 / BUG-088 — FALSE IN EVERY
+   * STATE for now: the two boxes were never seeded from the plan and never
+   * written, so a user's typing vanished. Hidden until they are wired up; the
+   * server's breakfastOverrides / lunchOverrides fields stay as they are.
+   */
   showMealDefaults: boolean;
   /**
    * PlanReviewMealRow.readOnly — hides Cook Now + the four edit actions and
@@ -92,7 +97,8 @@ const SURFACES: Record<PlanReviewState, PlanReviewSurface> = {
     showThisWeekSlot: true,
     showCompostedBar: false,
     showActionPanel: true,
-    showMealDefaults: true,
+    // FIX-3 / BUG-088 — hidden: the boxes accept typing and save nothing.
+    showMealDefaults: false,
     rowsReadOnly: false,
   },
   liveThisWeek: {
@@ -100,7 +106,8 @@ const SURFACES: Record<PlanReviewState, PlanReviewSurface> = {
     showThisWeekSlot: true,
     showCompostedBar: false,
     showActionPanel: true,
-    showMealDefaults: true,
+    // FIX-3 / BUG-088 — hidden: the boxes accept typing and save nothing.
+    showMealDefaults: false,
     rowsReadOnly: false,
   },
 };
