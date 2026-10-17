@@ -285,6 +285,17 @@ export const WizardPlanCandidateSchema = z.object({
     .describe(
       "One entry per mealTitles entry, in the same order: one sentence, under 25 words, saying what the dinner is and what makes it appealing. For a slot you filled from the shelf write the empty string — Kiwi already knows those meals.",
     ),
+  // FIX-2 (Part B) — AFTER the meals, on purpose. Property order is the order
+  // the model writes in (the tool JSON schema follows this object; the text-mode
+  // shape in streamPlanCandidates.ts is pinned to match). Written before
+  // mealTitles, the bullets were a guess about a plan not yet composed and named
+  // meals the card did not hold (TRIAGE-0, October 16: 3 of 3 cards).
+  // ⚠️ NOT LAST: written after dailyMacros / storeSlots, the model closed the
+  // candidate with one brace too many in 4 of 13 dev streams (October 17, v19:
+  // `…"]}}],"cannotGenerateMore":false}`), against 1 in 23 before. Here, between
+  // the meals and the macros, the candidate ends the way it always did.
+  // lib/wizardWhyBullets.ts is the backstop either way.
+  whyBullets: z.array(z.string()).min(1).max(3),
   dailyMacros: z.object({
     calories: z.number().nonnegative(),
     proteinG: z.number().nonnegative(),
@@ -308,13 +319,6 @@ export const WizardPlanCandidateSchema = z.object({
       }),
     )
     .optional(),
-  // FIX-2 (Part B) — LAST, on purpose. Property order is the order the model
-  // writes in (the tool JSON schema follows this object; the text-mode shape
-  // in streamPlanCandidates.ts is pinned to match). Written before mealTitles,
-  // the bullets were a guess about a plan not yet composed, and named meals the
-  // card did not hold (TRIAGE-0, October 16: 3 of 3 cards). After the meals,
-  // they describe the meals. lib/wizardWhyBullets.ts is the backstop.
-  whyBullets: z.array(z.string()).min(1).max(3),
 });
 export type WizardPlanCandidate = z.infer<typeof WizardPlanCandidateSchema>;
 

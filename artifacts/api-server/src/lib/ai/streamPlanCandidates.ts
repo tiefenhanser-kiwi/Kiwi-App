@@ -71,11 +71,11 @@ const TEXT_MODE_JSON_INSTRUCTION = [
   // body says how to write it). Pinned here because this instruction, not the
   // body, is the shape the text-mode model emits; NOT in the optional-fields
   // sentence below — the model always writes it.
-  // FIX-2 (Part B) — whyBullets LAST: the bullets are written after the meals
-  // they describe (schemas/wizard.ts WizardPlanCandidateSchema, same order).
-  '"mealTitles":string[],"mealDescriptions":string[],',
+  // FIX-2 (Part B) — whyBullets right AFTER the meals they describe, and not
+  // last (schemas/wizard.ts WizardPlanCandidateSchema says why; same order).
+  '"mealTitles":string[],"mealDescriptions":string[],"whyBullets":string[],',
   '"dailyMacros":{"calories":number,"proteinG":number,"carbsG":number,"fatG":number},',
-  '"storeSlots":[{"slotIndex":number,"storeMealId":string}],"whyBullets":string[]}],',
+  '"storeSlots":[{"slotIndex":number,"storeMealId":string}]}],',
   '"cannotGenerateMore":boolean,"reason":string}',
   'The "storeSlots", "cannotGenerateMore", and "reason" fields are optional;',
   "include storeSlots exactly as instructed above for any slot you fill from the",
@@ -323,6 +323,19 @@ export async function streamPlanCandidates(
         latencyMs,
         inputTokens,
         outputTokens,
+        // FIX-2 — WHICH rule failed. Before this the line said only that one
+        // did, and the failure TRIAGE-0 hit (~1 in 20 streams, all cards
+        // already emitted) could not be told apart from a truncation.
+        stopReason: finalMessage.stop_reason,
+        extracted: extracted.ok,
+        // The model's JSON's end, when it would not parse (the cards had all
+        // streamed): what trails or breaks it. Plan text only.
+        rawLength: extracted.ok ? undefined : extracted.raw.length,
+        rawTail: extracted.ok ? undefined : extracted.raw.slice(-240),
+        parseError: extracted.ok ? undefined : jsonParseError(extracted.raw),
+        issues: parsed
+          ? parsed.error.issues.slice(0, 5).map((i) => ({ path: i.path.join("."), code: i.code, message: i.message }))
+          : undefined,
       },
       "AI stream call failed schema validation",
     );
@@ -443,5 +456,15 @@ async function writeStreamLog(
       { event: "llm_call_log_write", err, promptKey: data.promptKey },
       "LLMCallLog write failed (stream) — call result preserved",
     );
+  }
+}
+
+/** FIX-2 — the JSON.parse message for a payload that would not parse (log only). */
+function jsonParseError(raw: string): string {
+  try {
+    JSON.parse(raw);
+    return "parsed";
+  } catch (e) {
+    return e instanceof Error ? e.message.slice(0, 200) : String(e).slice(0, 200);
   }
 }
