@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { DisplayTitle } from "@/components/DisplayTitle";
 import type { SortKey } from "@/components/SortDropdown";
 import { TreatedImage } from "@/components/TreatedImage";
-import { Colors, ImageTreatment, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { Colors, Components, ImageTreatment, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import type { DishListItem } from "@/lib/api/dishes";
 import { formatMacroLine } from "@/lib/format/macros";
 
@@ -151,8 +151,9 @@ const styles = StyleSheet.create({
     alignItems: "stretch",
     minWidth: 88,
   },
+  // BOOK-1C2 — the Recipes page's one sage: the Cookbook card's surface token.
   cookNowBtn: {
-    backgroundColor: Colors.sage[700],
+    backgroundColor: Components.tellKiwi.surface,
     paddingHorizontal: Spacing[2],
     paddingVertical: 8,
     borderRadius: Radius.md,

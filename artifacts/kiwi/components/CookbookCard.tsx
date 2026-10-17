@@ -2,20 +2,22 @@
 // meal without a photo gets the warm placeholder ramp, its ruled terminal
 // state, D-WS9-246), the title in serif, "47 min · 25 hands-on · 720 kcal",
 // the cuisine and difficulty pills, and two actions:
-//   ♡  Save to My Meals (filled when saved) — AppContext.setSaved, the same
-//      write the meal-detail heart uses, so the two never disagree;
+//   Save — the Save chip (BOOK-1C2: it replaced the heart, which read as a
+//      "like"): "Save" on light sage, "Saved" on dark sage. AppContext.setSaved,
+//      the same write meal detail's chip uses, so the two never disagree;
 //   +  Add to a plan — the host opens AddMealToPlanSheet (plan, then day).
 // Tapping anywhere else opens the existing meal detail.
 //
 // Presentational: the host owns every action. The two buttons are siblings of
-// the card's pressable body, not children, so a tap on ♡ or + never also
+// the card's pressable body, not children, so a tap on Save or + never also
 // opens the meal (nested Pressables on react-native-web bubble).
 
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 
 import { DisplayTitle } from "@/components/DisplayTitle";
+import { SaveChip } from "@/components/SaveChip";
 import { TreatedImage } from "@/components/TreatedImage";
 import { Colors, ImageTreatment, Palette, Radius, Shadow, Spacing, Typography } from "@/constants/tokens";
 import type { CookbookMeal } from "@/lib/api/cookbook";
@@ -56,20 +58,7 @@ export function CookbookCard({ meal, onOpen, onToggleSave, onAddToPlan }: Cookbo
             </View>
           ))}
         </View>
-        <Pressable
-          onPress={() => onToggleSave(meal)}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityState={{ selected: meal.isSaved }}
-          accessibilityLabel={meal.isSaved ? "Remove from My Meals" : "Save to My Meals"}
-          style={({ pressed }) => [s.action, pressed && { opacity: 0.6 }]}
-        >
-          <Ionicons
-            name={meal.isSaved ? "heart" : "heart-outline"}
-            size={22}
-            color={meal.isSaved ? Colors.terracotta[600] : Colors.sage[700]}
-          />
-        </Pressable>
+        <SaveChip saved={meal.isSaved} onToggle={() => onToggleSave(meal)} />
         <Pressable
           onPress={() => onAddToPlan(meal)}
           hitSlop={8}

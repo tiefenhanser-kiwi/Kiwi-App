@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { MealRowBody } from "@/components/MealRowBody";
 import type { SortKey } from "@/components/SortDropdown";
-import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { Colors, Components, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import type { MealListItem } from "@/lib/api/meals";
 
 type Props = {
@@ -163,8 +163,9 @@ const styles = StyleSheet.create({
     alignItems: "stretch",
     minWidth: 88,
   },
+  // BOOK-1C2 — the Recipes page's one sage: the Cookbook card's surface token.
   cookNowBtn: {
-    backgroundColor: Colors.sage[700],
+    backgroundColor: Components.tellKiwi.surface,
     paddingHorizontal: Spacing[2],
     paddingVertical: 8,
     borderRadius: Radius.md,

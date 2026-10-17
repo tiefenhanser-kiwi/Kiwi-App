@@ -27,7 +27,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useDishes } from "@/hooks/useDishes";
 import { useInfiniteMeals } from "@/hooks/useMeals";
 import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
-import { Colors, Radius, Spacing, Typography } from "@/constants/tokens";
+import { Colors, Components, Radius, Spacing, Typography } from "@/constants/tokens";
 import {
   asMealsFilters,
   type MealFilterKey,
@@ -445,8 +445,10 @@ const s = StyleSheet.create({
     borderRadius: Radius.md,
     alignItems: "center",
   },
+  // BOOK-1C2 — one sage on this page: the Cookbook card's own surface token
+  // (Colors.sage[600]), not sage[700]. White label on it: 5.22:1.
   toggleBtnActive: {
-    backgroundColor: Colors.sage[700],
+    backgroundColor: Components.tellKiwi.surface,
   },
   toggleText: {
     fontSize: Typography.fontSize.sm,
@@ -462,7 +464,7 @@ const s = StyleSheet.create({
     paddingBottom: Spacing[8],
   },
   addBtn: {
-    backgroundColor: Colors.sage[700],
+    backgroundColor: Components.tellKiwi.surface,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing[3],
     paddingVertical: 12,

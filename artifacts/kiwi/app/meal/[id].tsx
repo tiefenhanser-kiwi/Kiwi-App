@@ -6,7 +6,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { useApp } from "@/contexts/AppContext";
@@ -15,6 +15,7 @@ import { useToast } from "@/contexts/ToastProvider";
 import { AddMealToPlanSheet } from "@/components/AddMealToPlanSheet";
 import { Button } from "@/components/Button";
 import { PlaylistToggleButton } from "@/components/PlaylistToggleButton";
+import { SaveChip } from "@/components/SaveChip";
 import { Card } from "@/components/Card";
 import { DisplayTitle, resolveDisplayTitle } from "@/components/DisplayTitle";
 import { Header } from "@/components/Header";
@@ -75,7 +76,10 @@ const SERVINGS_MAX = 12;
 // basically liked"): the Recipes tab's Saved chip lists what it saves, and it
 // writes through AppContext.setSaved, the same call the Cookbook card's heart
 // makes, so the two show one state. A toast confirms, as on the card.
-function HeartButton({ mealId }: { mealId: string }) {
+//
+// BOOK-1C2 — the heart is now the Save chip (components/SaveChip.tsx), the
+// card's own: same state, same write, a different face.
+function SaveButton({ mealId }: { mealId: string }) {
   const { isFavorite, setSaved } = useApp();
   const { showToast } = useToast();
   const favorited = isFavorite(mealId);
@@ -93,24 +97,7 @@ function HeartButton({ mealId }: { mealId: string }) {
     }
   };
 
-  return (
-    <Pressable
-      onPress={onToggle}
-      hitSlop={8}
-      accessibilityRole="button"
-      accessibilityState={{ selected: favorited }}
-      accessibilityLabel={
-        favorited ? "Remove from My Meals" : "Save to My Meals"
-      }
-      style={({ pressed }) => [s.heartBtn, pressed && { opacity: 0.6 }]}
-    >
-      <Ionicons
-        name={favorited ? "heart" : "heart-outline"}
-        size={24}
-        color={favorited ? Colors.terracotta[600] : Colors.sage[700]}
-      />
-    </Pressable>
-  );
+  return <SaveChip saved={favorited} onToggle={() => void onToggle()} />;
 }
 
 // WS7-3 Block B: the screen now reads GET /meals/:id via useMeal. This
@@ -578,7 +565,7 @@ function MealDetailContent({
       <Header
         showBack
         title={resolveDisplayTitle(meal)}
-        rightContent={<HeartButton mealId={meal.id} />}
+        rightContent={<SaveButton mealId={meal.id} />}
       />
       <KeyboardAwareScrollViewCompat
         ref={scrollRef as never}
@@ -1032,11 +1019,5 @@ const s = StyleSheet.create({
     fontSize: Typography.fontSize.xs,
     color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
-  },
-  heartBtn: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
   },
 });
