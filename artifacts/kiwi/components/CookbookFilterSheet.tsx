@@ -3,7 +3,7 @@
 // Rows: Cuisine (multi) · Total time (Any/≤30/≤45/≤60) · Hands-on time
 // (Any/≤15/≤20/≤30) · Difficulty (Easy/Medium/Hard, multi) · Nutrition per
 // serving (High protein 40 g+ · Under 600 kcal) · the LOCKED allergy line ·
-// Eating styles, disabled, "coming in December" · Clear all + "Show N meals".
+// one disabled line, "Eating styles: coming in December" (BOOK-1C2) · Clear all + "Show N meals".
 //
 // The sheet edits a DRAFT of the screen's filters; nothing applies until
 // "Show N meals" (whose N is a live limit-1 count of the draft), and closing
@@ -31,7 +31,7 @@ import {
   toggleDifficulty,
   type CookbookFilters,
 } from "@/lib/cookbook/query";
-import { allergyLine, EATING_STYLES_SOON } from "@/lib/cookbook/sheetCopy";
+import { allergyLine, EATING_STYLES_SOON_LINE } from "@/lib/cookbook/sheetCopy";
 
 export interface CookbookFilterSheetProps {
   visible: boolean;
@@ -177,15 +177,17 @@ export function CookbookFilterSheet({
             <Text style={s.lockedText}>{allergyLine(allergies)}</Text>
           </Pressable>
 
-          <Text style={s.section}>Eating styles</Text>
-          <View style={s.chips}>
-            {EATING_STYLES_SOON.map((label) => (
-              <View key={label} style={s.soonChip} accessibilityState={{ disabled: true }}>
-                <Text style={s.soonChipText}>{label}</Text>
-              </View>
-            ))}
+          {/* BOOK-1C2 — one disabled line, no named styles. Not a control:
+              disabled for assistive tech (native state + aria-disabled on web). */}
+          <View
+            style={s.soonLine}
+            accessible
+            accessibilityState={{ disabled: true }}
+            aria-disabled
+            testID="cookbook-eating-styles"
+          >
+            <Text style={s.soonLineText}>{EATING_STYLES_SOON_LINE}</Text>
           </View>
-          <Text style={s.soonNote}>coming in December</Text>
         </ScrollView>
 
         <View style={s.footer}>
@@ -285,24 +287,14 @@ const s = StyleSheet.create({
     fontFamily: Typography.face.sans[400],
     lineHeight: 18,
   },
-  soonChip: {
-    paddingHorizontal: Spacing[3],
+  soonLine: {
+    marginTop: Spacing[5],
     paddingVertical: Spacing[2],
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderStyle: "dashed",
-    borderColor: Colors.neutral[400],
   },
-  soonChipText: {
+  soonLineText: {
     fontSize: Typography.fontSize.sm,
     color: Colors.neutral[700],
     fontFamily: Typography.face.sans[500],
-  },
-  soonNote: {
-    marginTop: Spacing[2],
-    fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[700],
-    fontFamily: Typography.face.sans[400],
     fontStyle: "italic",
   },
   footer: {

@@ -6,7 +6,7 @@ import { describe, test } from "node:test";
 
 import type { SubscriptionPayload } from "../../billing/subscriptionView";
 import { askKiwiAction } from "../askKiwi";
-import { allergyLine, EATING_STYLES_SOON } from "../sheetCopy";
+import { allergyLine, EATING_STYLES_SOON_LINE } from "../sheetCopy";
 
 function sub(status: SubscriptionPayload["status"], enforced = true): SubscriptionPayload {
   return {
@@ -52,7 +52,10 @@ describe("the filter sheet copy", () => {
     assert.equal(allergyLine(null), "Your allergies are always on. Change them in Profile.");
   });
 
-  test("eating styles are listed (shown disabled)", () => {
-    assert.ok(EATING_STYLES_SOON.length > 0);
+  test("BOOK-1C2: eating styles are one line that names no style", () => {
+    assert.equal(EATING_STYLES_SOON_LINE, "Eating styles: coming in December");
+    for (const style of ["Vegetarian", "Vegan", "Pescatarian", "Keto", "Paleo"]) {
+      assert.ok(!EATING_STYLES_SOON_LINE.includes(style), style);
+    }
   });
 });

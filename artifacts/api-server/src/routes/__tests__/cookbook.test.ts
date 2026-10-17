@@ -774,6 +774,7 @@ describe("GET /cookbook/seasons", () => {
         Turkey: 1,
         Stuffing: 0,
         Potatoes: 0,
+        Cranberry: 0,
         Sides: 0,
         Desserts: 0,
         Leftovers: 0,
@@ -793,6 +794,21 @@ describe("GET /cookbook/seasons", () => {
     await withHarness({ rows }, async (h) => {
       assert.equal((await h.path("/seasons", signToken("guest-1", { purpose: "guest" }))).status, 401);
       assert.equal((await h.path("/seasons", null)).status, 401);
+    });
+  });
+
+  it("BOOK-1C2: a cranberry alternate counts under its own Cranberry chip, after Potatoes", async () => {
+    const withCranberry = [
+      ...rows,
+      row("cranberry", { tags: ["thanksgiving", "thanksgiving-alternate", "course-cranberry"] }),
+    ];
+    await withHarness({ rows: withCranberry }, async (h) => {
+      const r = await atInstant("2026-11-20T15:00:00Z", () => h.path("/seasons"));
+      assert.equal(r.status, 200);
+      const labels = r.body.seasons[0].courses.map((c: any) => c.label);
+      assert.deepEqual(labels.slice(labels.indexOf("Potatoes"), labels.indexOf("Potatoes") + 2), ["Potatoes", "Cranberry"]);
+      const cranberry = r.body.seasons[0].courses.find((c: any) => c.label === "Cranberry");
+      assert.deepEqual(cranberry, { label: "Cranberry", tag: "course-cranberry", count: 1 });
     });
   });
 });

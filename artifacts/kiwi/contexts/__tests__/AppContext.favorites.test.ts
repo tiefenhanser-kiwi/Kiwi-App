@@ -250,3 +250,35 @@ test("toggleFavorite rolls the cache back when the API call fails", async () => 
   // Optimistic add was rolled back — cache is empty again.
   assert.deepEqual(qc.getQueryData(FAV_KEY), []);
 });
+
+test("BOOK-1C2 (BUG-417): a catalog meal saved only through the user's copy reads saved on detail, and an un-save clears it", async () => {
+  (SecureStore as unknown as { __setForTests(k: string, v: string): void }).__setForTests(TOKEN_KEY, "test-token");
+  route("GET", "/auth/me", () => mockJson({ user: makeUser() }));
+  route("GET", "/me/favorites", () => mockJson({ favorites: ["my-copy-of-cat-1"], savedViaCopy: ["cat-1"] }));
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+  await act(async () => {
+    activeRenderer = TestRenderer.create(
+      React.createElement(
+        QueryClientProvider,
+        { client: qc },
+        React.createElement(AuthProvider, null, React.createElement(AppProvider, null, React.createElement(Probe))),
+      ),
+    );
+  });
+  await settle(qc);
+  await settle(qc);
+
+  // Meal detail's chip reads isFavorite (app/meal/[id].tsx SaveButton).
+  assert.equal(app!.isFavorite("cat-1"), true, "the card's lineage rule, on detail");
+  assert.equal(app!.isFavorite("cat-2"), false);
+
+  route("DELETE", "/me/favorites/cat-1", () => mockJson({ success: true }));
+  // The server cleared the copy's heart by lineage.
+  route("GET", "/me/favorites", () => mockJson({ favorites: [], savedViaCopy: [] }));
+  await act(async () => {
+    await app!.setSaved("cat-1", false);
+  });
+  assert.equal(app!.isFavorite("cat-1"), false, "un-saved at once (optimistic)");
+  await settle(qc);
+  assert.equal(app!.isFavorite("cat-1"), false, "and still after the re-read");
+});

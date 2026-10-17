@@ -51,6 +51,7 @@ import { formatMealTime } from "@/lib/mealTimeLine";
 // keeps the two screens from drifting apart again.
 import { formatIngredientLine } from "@/lib/format/ingredientLine";
 import { consolidateMealIngredients } from "@/lib/meals/consolidateMealIngredients";
+import { visibleMealTags } from "@/lib/meals/systemTags";
 import {
   flatMealSteps,
   mealStepsAreGrouped,
@@ -520,6 +521,10 @@ function MealDetailContent({
         ? "Medium"
         : "Hard";
 
+  // BOOK-1C2 (BUG-416) — the chips a person reads; the system's own tags
+  // (thanksgiving*, course-*, dev) stay on the row, unshown.
+  const visibleTags = visibleMealTags(meal.tags);
+
   const quickStatsParts = [
     meal.cuisine,
     difficultyLabel,
@@ -594,9 +599,9 @@ function MealDetailContent({
           {/* WS9 3f-1 — display-only tag chips (PRD §10.6.1), backed by the
               existing meal.tags. No tag INPUT is built here (that's D-WS9-101 →
               3f-2). The row is omitted entirely when the meal has no tags. */}
-          {meal.tags.length > 0 && (
+          {visibleTags.length > 0 && (
             <View style={s.tagRow}>
-              {meal.tags.map((tag) => (
+              {visibleTags.map((tag) => (
                 <View key={tag} style={s.tagChip}>
                   <Text style={s.tagChipText}>{tag}</Text>
                 </View>

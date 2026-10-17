@@ -1,7 +1,11 @@
 // BOOK-1C1 (D-WS9-312) — the filter sheet's fixed copy.
 
-/** Shown as disabled chips under "Eating styles", labelled "coming in December". */
-export const EATING_STYLES_SOON = ["Vegetarian", "Vegan", "Pescatarian"] as const;
+/**
+ * BOOK-1C2 — the filter sheet's one disabled line. It was three disabled chips
+ * (Vegetarian · Vegan · Pescatarian) over "coming in December"; naming styles
+ * the app cannot filter by yet promised a list, so the line names none.
+ */
+export const EATING_STYLES_SOON_LINE = "Eating styles: coming in December";
 
 /**
  * The locked allergy line. The allergen filter is always on (server-side, from

@@ -65,6 +65,15 @@ describe("the copy", () => {
       ["Turkey"],
     );
   });
+
+  test("BOOK-1C2: the Cranberry chip shows only while it has meals", () => {
+    const row = (count: number) => [
+      { label: "Potatoes", tag: "course-potatoes", count: 2 },
+      { label: "Cranberry", tag: "course-cranberry", count },
+    ];
+    assert.deepEqual(visibleCourses(row(0)).map((c) => c.label), ["Potatoes"]);
+    assert.deepEqual(visibleCourses(row(1)).map((c) => c.label), ["Potatoes", "Cranberry"]);
+  });
 });
 
 describe("dismissal — per user, per device, per season-year", () => {

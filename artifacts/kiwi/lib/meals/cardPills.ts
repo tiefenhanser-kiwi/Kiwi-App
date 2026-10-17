@@ -12,6 +12,8 @@
 // title-cased cuisine beats the lower-cased tag), blanks dropped. The pills
 // are unique so the text IS a safe key — no index keys.
 
+import { visibleMealTags } from "./systemTags";
+
 export interface CardPillSource {
   cuisineType?: string | null;
   difficulty?: string | null;
@@ -21,7 +23,9 @@ export interface CardPillSource {
 export function cardPills(meal: CardPillSource): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
-  for (const raw of [meal.cuisineType, meal.difficulty, ...(meal.tags ?? [])]) {
+  // BOOK-1C2 (BUG-416) — the system's own tags (thanksgiving*, course-*, dev)
+  // are never a pill (lib/meals/systemTags.ts).
+  for (const raw of [meal.cuisineType, meal.difficulty, ...visibleMealTags(meal.tags)]) {
     const t = raw?.trim();
     if (!t) continue;
     const k = t.toLowerCase();

@@ -51,9 +51,10 @@ export interface SeasonConfig {
  * Wednesday pizza night carry `thanksgiving` alone. So "Feasts" and "Leftovers"
  * name tags nothing writes yet (`thanksgiving-feast`, `thanksgiving-leftovers`):
  * the route counts every course, and the client hides a chip whose count is 0,
- * so they appear the day the generator tags them and never before. Cranberry
- * (`course-cranberry`) has no chip in the ruled row; those dishes show under
- * the unfiltered collection.
+ * so they appear the day the generator tags them and never before.
+ *
+ * BOOK-1C2 — Cranberry (`course-cranberry`) has its chip now, after Potatoes.
+ * It too shows only while its count is above 0 (the client's visibleCourses).
  */
 export const SEASONS: readonly SeasonConfig[] = [
   {
@@ -70,6 +71,7 @@ export const SEASONS: readonly SeasonConfig[] = [
       { label: "Turkey", tag: "course-turkey" },
       { label: "Stuffing", tag: "course-stuffing" },
       { label: "Potatoes", tag: "course-potatoes" },
+      { label: "Cranberry", tag: "course-cranberry" },
       { label: "Sides", tag: "course-sides" },
       { label: "Desserts", tag: "course-dessert" },
       { label: "Leftovers", tag: "thanksgiving-leftovers" },

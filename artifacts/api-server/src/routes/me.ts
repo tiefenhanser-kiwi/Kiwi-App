@@ -1606,14 +1606,31 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
   });
 
   // GET /me/favorites — newest first.
+  //
+  // BOOK-1C2 (BUG-417) — plus `savedViaCopy`: the catalog meals the user has
+  // saved BY LINEAGE, i.e. a Favorite on their OWN live copy of the meal
+  // (Meal.sourceStoreMealId). It is the Cookbook card's isSaved rule
+  // (lib/cookbook/search.ts) said once more, so meal detail — which reads this
+  // list, not the card — shows a catalog meal as saved exactly when its card
+  // does. Additive: `favorites` is unchanged (raw ids), and a client that
+  // predates the field ignores it.
   router.get("/me/favorites", requireAuth, async (req, res) => {
     try {
       const rows = await prisma.favorite.findMany({
         where: { userId: req.userId },
         orderBy: { createdAt: "desc" },
-        select: { mealId: true },
+        select: {
+          mealId: true,
+          meal: { select: { userId: true, sourceStoreMealId: true, isArchived: true } },
+        },
       });
-      return res.json({ favorites: rows.map((r) => r.mealId) });
+      const savedViaCopy: string[] = [];
+      for (const r of rows) {
+        const source = r.meal?.sourceStoreMealId;
+        if (!source || r.meal.isArchived || r.meal.userId !== req.userId) continue;
+        if (!savedViaCopy.includes(source)) savedViaCopy.push(source);
+      }
+      return res.json({ favorites: rows.map((r) => r.mealId), savedViaCopy });
     } catch (err) {
       logger.error({ err, userId: req.userId }, "GET /me/favorites failed");
       return res.status(500).json({ error: "failed to fetch favorites" });

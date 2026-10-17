@@ -31,11 +31,14 @@ function makeStubPrisma(opts: {
   privateOwners?: Record<string, string>;
   // BOOK-1C1 — copies of catalog meals: copy id → its owner and source meal.
   copies?: Record<string, { owner: string; source: string }>;
+  // BOOK-1C2 — meals that are archived (a composted copy).
+  archived?: Set<string>;
 }) {
   const meals = opts.meals ?? new Set<string>();
   const favorites: FavRow[] = [...(opts.initialFavorites ?? [])];
   const privateOwners = opts.privateOwners ?? {};
   const copies = opts.copies ?? {};
+  const archived = opts.archived ?? new Set<string>();
 
   return {
     meal: {
@@ -111,7 +114,18 @@ function makeStubPrisma(opts: {
             ? b.createdAt.getTime() - a.createdAt.getTime()
             : a.createdAt.getTime() - b.createdAt.getTime(),
         );
-        return sorted.map((f) => ({ mealId: f.mealId }));
+        // BOOK-1C2 — the meal's lineage rides along (GET's savedViaCopy).
+        return sorted.map((f) => {
+          const copy = copies[f.mealId];
+          return {
+            mealId: f.mealId,
+            meal: {
+              userId: copy?.owner ?? privateOwners[f.mealId] ?? null,
+              sourceStoreMealId: copy?.source ?? null,
+              isArchived: archived.has(f.mealId),
+            },
+          };
+        });
       },
     },
     _favorites: () => favorites,
@@ -365,8 +379,45 @@ describe("GET /me/favorites", () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       assert.equal(res.status, 200);
-      const body = (await res.json()) as { favorites: string[] };
+      const body = (await res.json()) as { favorites: string[]; savedViaCopy: string[] };
       assert.deepEqual(body.favorites, []);
+      assert.deepEqual(body.savedViaCopy, []);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("BOOK-1C2 (BUG-417): savedViaCopy names the catalog meal behind a heart on the user's OWN live copy — the card's rule", async () => {
+    const prisma = makeStubPrisma({
+      meals: new Set(["cat-a", "cat-b", "cat-c", "copy-a", "copy-a2", "theirs-b", "copy-c"]),
+      copies: {
+        "copy-a": { owner: USER_ID, source: "cat-a" },
+        // A second copy of the same catalog meal: one entry, not two.
+        "copy-a2": { owner: USER_ID, source: "cat-a" },
+        // Another user's public fork of cat-b is not this user's copy.
+        "theirs-b": { owner: "someone-else", source: "cat-b" },
+        // A composted copy no longer counts.
+        "copy-c": { owner: USER_ID, source: "cat-c" },
+      },
+      archived: new Set(["copy-c"]),
+      initialFavorites: [
+        { id: "f1", userId: USER_ID, mealId: "copy-a", createdAt: new Date("2026-10-01") },
+        { id: "f2", userId: USER_ID, mealId: "copy-a2", createdAt: new Date("2026-10-02") },
+        { id: "f3", userId: USER_ID, mealId: "theirs-b", createdAt: new Date("2026-10-03") },
+        { id: "f4", userId: USER_ID, mealId: "copy-c", createdAt: new Date("2026-10-04") },
+        { id: "f5", userId: USER_ID, mealId: "cat-b", createdAt: new Date("2026-10-05") },
+      ],
+    });
+    const harness = await spinUp(prisma);
+    try {
+      const res = await fetch(`${harness.baseUrl}/me/favorites`, {
+        headers: { Authorization: `Bearer ${signToken(USER_ID)}` },
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { favorites: string[]; savedViaCopy: string[] };
+      // `favorites` is unchanged: the raw ids, newest first.
+      assert.deepEqual(body.favorites, ["cat-b", "copy-c", "theirs-b", "copy-a2", "copy-a"]);
+      assert.deepEqual(body.savedViaCopy, ["cat-a"]);
     } finally {
       await harness.close();
     }

@@ -16,6 +16,7 @@ import { z } from "zod";
 import { MeUserSchema } from "../auth";
 import { DIAL_LEVELS } from "../domain";
 import type { User } from "../types";
+import { savedIdsByLineage } from "../cookbook/savedCache";
 import { apiClient } from "./client";
 
 // ── Preferences schema ─────────────────────────────────────────────────────
@@ -119,7 +120,12 @@ const VerifyEmailChangeSchema = z.object({
   success: z.boolean(),
   email: z.string(),
 });
-const FavoritesSchema = z.object({ favorites: z.array(z.string()) });
+const FavoritesSchema = z.object({
+  favorites: z.array(z.string()),
+  // BOOK-1C2 (BUG-417) — catalog meals saved through the user's own copy.
+  // Optional: a server before BOOK-1C2 omits it.
+  savedViaCopy: z.array(z.string()).optional(),
+});
 const AddFavoriteSchema = z.object({
   favorite: z.object({
     id: z.string(),
@@ -250,10 +256,14 @@ export async function deleteMe(): Promise<void> {
 
 // ── Favorites ──────────────────────────────────────────────────────────────
 
-/** GET /me/favorites — array of mealIds, newest first. */
+/**
+ * GET /me/favorites — array of mealIds, newest first, then (BOOK-1C2, BUG-417)
+ * the catalog meals saved through the user's own copy, so a "saved?" read of a
+ * catalog meal follows the Cookbook card's lineage rule.
+ */
 export async function getFavorites(): Promise<string[]> {
   const body = await apiClient("/me/favorites", { schema: FavoritesSchema });
-  return body.favorites;
+  return savedIdsByLineage(body);
 }
 
 /** POST /me/favorites — idempotent server-side (unique userId+mealId). */

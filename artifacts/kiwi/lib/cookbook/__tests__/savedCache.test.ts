@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
-import { patchSavedInPages, withFavorite } from "../savedCache";
+import { patchSavedInPages, savedIdsByLineage, withFavorite } from "../savedCache";
 
 const card = (id: string, isSaved = false) => ({ id, isSaved });
 
@@ -41,5 +41,18 @@ describe("withFavorite", () => {
     assert.deepEqual(withFavorite(["a", "b"], "b", true), ["a", "b"]);
     assert.deepEqual(withFavorite(["a", "b"], "a", false), ["b"]);
     assert.deepEqual(withFavorite([], "a", false), []);
+  });
+});
+
+describe("savedIdsByLineage (BOOK-1C2, BUG-417)", () => {
+  test("a catalog meal saved only through the user's copy reads saved, as on its card", () => {
+    const ids = savedIdsByLineage({ favorites: ["copy-of-a", "b"], savedViaCopy: ["a"] });
+    assert.ok(ids.includes("a"), "the detail of catalog meal a reads Saved");
+    assert.deepEqual(ids, ["copy-of-a", "b", "a"]);
+  });
+
+  test("no duplicates when the catalog meal is hearted directly too; a server without the field is the raw list", () => {
+    assert.deepEqual(savedIdsByLineage({ favorites: ["a", "copy-of-a"], savedViaCopy: ["a"] }), ["a", "copy-of-a"]);
+    assert.deepEqual(savedIdsByLineage({ favorites: ["a"] }), ["a"]);
   });
 });
