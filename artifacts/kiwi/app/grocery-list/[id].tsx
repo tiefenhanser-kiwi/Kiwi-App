@@ -1574,7 +1574,17 @@ function GroceryRow({
           two-part line reads as a single thought; a long name wraps the need
           under it rather than pushing it off to a far column. */}
       <View style={s.body}>
-        <Pressable onPress={onTap} hitSlop={6} style={({ pressed }) => pressed && { opacity: 0.7 }}>
+        {/* FIX-3 / BUG-429 — maxWidth caps the name's tap area at the body's
+            width. s.body is a WRAPPING ROW and RN's flexShrink default is 0, so
+            the Pressable sized itself to the name's ONE-LINE width, ran past the
+            body and was cut off under the ✕ ("…Japanese short-grain white ric").
+            Capped, the Text wraps inside it. No line cap: like the provenance
+            line below, the whole name wraps at any text size. */}
+        <Pressable
+          onPress={onTap}
+          hitSlop={6}
+          style={({ pressed }) => [s.nameTap, pressed && { opacity: 0.7 }]}
+        >
           <Text
             style={[
               s.itemName,
@@ -1584,7 +1594,6 @@ function GroceryRow({
               },
               isDefaultStaple && { color: Colors.neutral[700] },
             ]}
-            numberOfLines={2}
           >
             {/* WS7-7-A B5 projection — a resolved item renders its
                 userResolvedTo over displayName; underlying fields stay intact.
@@ -2055,6 +2064,7 @@ const s = StyleSheet.create({
     gap: Spacing[1],
     flexWrap: "wrap",
   },
+  nameTap: { maxWidth: "100%" },
   itemName: {
     fontSize: Typography.fontSize.md,
     color: Colors.neutral[900],
