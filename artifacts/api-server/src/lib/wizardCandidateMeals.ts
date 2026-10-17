@@ -20,6 +20,7 @@ import type {
   WizardPlanCandidateWire,
 } from "./ai/schemas/wizard";
 import { logger } from "./logger";
+import { groundWhyBullets } from "./wizardWhyBullets";
 
 export interface ComposeCandidateMealsOptions {
   /** Real Meal.id → Meal.description (null/blank when the row has none). */
@@ -100,15 +101,32 @@ export function composeCandidateMeals(
 
 /**
  * The wire object for ONE reconciled candidate: `meals` composed, the raw
- * `mealDescriptions` stripped (the client never needs it), everything else
- * as-is.
+ * `mealDescriptions` stripped (the client never needs it), and — FIX-2 Part B —
+ * `whyBullets` grounded against those meals: a bullet naming a dish, protein or
+ * cuisine no meal on the card supports is dropped (lib/wizardWhyBullets.ts).
+ * This is the one place the stream, the buffered path and Tell Kiwi all pass.
  */
 export function toWireCandidate(
   candidate: WizardPlanCandidate,
   opts: ComposeCandidateMealsOptions,
 ): WizardPlanCandidateWire {
   const { mealDescriptions: _consumed, ...rest } = candidate;
-  return { ...rest, meals: composeCandidateMeals(candidate, opts) };
+  const meals = composeCandidateMeals(candidate, opts);
+  const grounded = groundWhyBullets(candidate.whyBullets, meals);
+  if (grounded.dropped.length > 0) {
+    logger.warn(
+      {
+        event: "wizard_why_bullet_dropped",
+        userId: opts.userId,
+        candidateId: candidate.id,
+        dropped: grounded.dropped.map((d) => ({ bullet: d.bullet, unsupported: d.unsupported })),
+        kept: grounded.whyBullets.length,
+        usedFallback: grounded.usedFallback,
+      },
+      "whyBullets named something the card's meals do not hold — dropped",
+    );
+  }
+  return { ...rest, whyBullets: grounded.whyBullets, meals };
 }
 
 /** Batch form of toWireCandidate, order preserved. */

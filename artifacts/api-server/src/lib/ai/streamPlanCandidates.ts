@@ -71,9 +71,11 @@ const TEXT_MODE_JSON_INSTRUCTION = [
   // body says how to write it). Pinned here because this instruction, not the
   // body, is the shape the text-mode model emits; NOT in the optional-fields
   // sentence below — the model always writes it.
-  '"whyBullets":string[],"mealTitles":string[],"mealDescriptions":string[],',
+  // FIX-2 (Part B) — whyBullets LAST: the bullets are written after the meals
+  // they describe (schemas/wizard.ts WizardPlanCandidateSchema, same order).
+  '"mealTitles":string[],"mealDescriptions":string[],',
   '"dailyMacros":{"calories":number,"proteinG":number,"carbsG":number,"fatG":number},',
-  '"storeSlots":[{"slotIndex":number,"storeMealId":string}]}],',
+  '"storeSlots":[{"slotIndex":number,"storeMealId":string}],"whyBullets":string[]}],',
   '"cannotGenerateMore":boolean,"reason":string}',
   'The "storeSlots", "cannotGenerateMore", and "reason" fields are optional;',
   "include storeSlots exactly as instructed above for any slot you fill from the",

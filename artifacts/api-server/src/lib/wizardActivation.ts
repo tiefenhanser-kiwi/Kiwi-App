@@ -32,6 +32,7 @@ import { stampAllergens } from "./allergens";
 import { stampMealTiming } from "./mealTiming";
 import { assignAndPersistPlanDays, type AssignedDay } from "./planDayAssignment";
 import type { WizardSavePlan } from "./wizardSavePlan";
+import { groundWhyBullets } from "./wizardWhyBullets";
 
 // WS7-6 Block 2: inferCategory now lives in ingredientResolve.ts so the new
 // save-canonical materializeMeal can reuse it. Re-exported here so existing
@@ -547,7 +548,24 @@ export async function materializeWizardDraft(
   // imageUrl stays null — WS7-10 owns stock-image integration. Dedup-by-
   // meal-set (PRD §2.4 line 258) is deferred to D-WS7-071; this path
   // creates a fresh Template per wizard plan and accepts dupes for now.
-  const description = savePlan.whyBullets.map((b) => `• ${b}`).join("\n");
+  // FIX-2 (Part B) — re-ground the bullets against the meals the plan ACTUALLY
+  // holds now. The card's bullets were grounded against the card's titles
+  // (toWireCandidate), but a store slot is rebuilt here from its catalog row, so
+  // a model title that did not match its shelf alias saves as a different meal;
+  // a frozen bullet must not name the one that did not make it.
+  const finalMeals = await tx.mealPlanItem.findMany({
+    where: { mealPlanInstanceId: draftId },
+    orderBy: { positionIndex: "asc" },
+    select: { meal: { select: { title: true, description: true } } },
+  });
+  const groundAgainst = finalMeals.flatMap((i) => (i.meal ? [i.meal] : []));
+  const description = (
+    groundAgainst.length > 0
+      ? groundWhyBullets(savePlan.whyBullets, groundAgainst).whyBullets
+      : savePlan.whyBullets
+  )
+    .map((b) => `• ${b}`)
+    .join("\n");
   // Block 1 (D-WS7-071 MINIMAL reconcile) — dedup-on-write guard. Re-
   // activating the same candidate must not mint a second private wizard
   // Template. The route's content-hash idempotency already short-circuits a

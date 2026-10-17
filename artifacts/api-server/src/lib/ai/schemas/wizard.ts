@@ -270,7 +270,6 @@ export const WizardPlanCandidateSchema = z.object({
   imageUrl: z.string().url().optional(),
   badge: z.enum(["featured", "top_rated"]).optional(),
   tags: z.array(z.string()).max(5),
-  whyBullets: z.array(z.string()).min(1).max(3),
   mealTitles: z.array(z.string()).min(1).max(7),
   // D-WS9-191 Block 1 (Part A) — the model's one-line description per meal
   // slot, index-aligned to mealTitles. ADDITIVE and OPTIONAL: a candidate that
@@ -309,6 +308,13 @@ export const WizardPlanCandidateSchema = z.object({
       }),
     )
     .optional(),
+  // FIX-2 (Part B) — LAST, on purpose. Property order is the order the model
+  // writes in (the tool JSON schema follows this object; the text-mode shape
+  // in streamPlanCandidates.ts is pinned to match). Written before mealTitles,
+  // the bullets were a guess about a plan not yet composed, and named meals the
+  // card did not hold (TRIAGE-0, October 16: 3 of 3 cards). After the meals,
+  // they describe the meals. lib/wizardWhyBullets.ts is the backstop.
+  whyBullets: z.array(z.string()).min(1).max(3),
 });
 export type WizardPlanCandidate = z.infer<typeof WizardPlanCandidateSchema>;
 

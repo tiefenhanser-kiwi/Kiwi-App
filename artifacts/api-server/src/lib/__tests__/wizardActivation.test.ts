@@ -273,7 +273,7 @@ function makeStubs(opts: {
         return {};
       },
     },
-    mealPlanItem: { create: async () => ({}) },
+    mealPlanItem: { create: async () => ({}), findMany: async () => [] },
     mealPlanTemplate: {
       // Block 1 (D-WS7-071 minimal) — dedup-on-write guard queries first;
       // default no existing template so the create path still runs.
@@ -333,6 +333,34 @@ describe("materializeWizardDraft — WS7-5b-mobile FIX Template-pair (PRD §2.4)
     }
   });
 
+  // FIX-2 (Part B) — the frozen bullets are re-grounded against the meals the
+  // plan holds after the save: a store slot is rebuilt from its catalog row, so
+  // a bullet about the meal the model named but did not get must not survive.
+  it("drops a bullet naming a meal the saved plan does not hold (re-grounded at activation)", async () => {
+    const expanded = sampleExpanded();
+    const { prismaStub, txStub, captured } = makeStubs({ expanded });
+    const tx = txStub as unknown as Record<string, any>;
+    tx.mealPlanItem.findMany = async () => [
+      { meal: { title: "Pork Milanese with Arugula, Lemon, and Shaved Parmesan", description: null } },
+      { meal: { title: "Cacio e Pepe with a Green Salad", description: null } },
+    ];
+    const savePlan = asSavePlan(expanded);
+    savePlan.whyBullets = [
+      "Weeknight pacing is mostly easy, with Chicken Parmesan as the one night worth a little more effort",
+      "A breaded cutlet and a pasta, both Italian",
+    ];
+
+    await materializeWizardDraft({
+      prisma: prismaStub as unknown as PrismaClient,
+      tx: txStub as unknown as Prisma.TransactionClient,
+      userId: USER_ID,
+      draftId: DRAFT_ID,
+      savePlan,
+    });
+
+    const description = captured.template!.data.description as string;
+    assert.equal(description, "• A breaded cutlet and a pasta, both Italian");
+  });
 });
 
 // WS7-8 BUG-003 — the wizard create seam sets the immutable authored anchor
@@ -1015,6 +1043,7 @@ function makeStoreStubs() {
         captured.items.push({ mealId: args.data.mealId, positionIndex: args.data.positionIndex });
         return {};
       },
+      findMany: async () => [],
     },
     mealPlanTemplate: {
       findFirst: async () => null,
@@ -1289,7 +1318,7 @@ describe("materializeWizardDraft — D-WS9-235 live slot stamps a DERIVED time",
             return typeof o === "string" ? s.ownerId === o : o.in.includes(s.ownerId as string);
           }),
       },
-      mealPlanItem: { create: async () => ({}) },
+      mealPlanItem: { create: async () => ({}), findMany: async () => [] },
       mealPlanTemplate: { findFirst: async () => null, create: async () => ({ id: "tpl-timing" }) },
     };
     return { prismaStub, txStub, meals, mealCreates };
@@ -1434,7 +1463,7 @@ describe("materializeWizardDraft — BUG-245 O1 pre-save vs saved time line", ()
             return typeof o === "string" ? s.ownerId === o : o.in.includes(s.ownerId as string);
           }),
       },
-      mealPlanItem: { create: async () => ({}) },
+      mealPlanItem: { create: async () => ({}), findMany: async () => [] },
       mealPlanTemplate: { findFirst: async () => null, create: async () => ({ id: "tpl-presave" }) },
     };
     return { prismaStub, txStub };
