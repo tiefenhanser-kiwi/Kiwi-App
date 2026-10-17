@@ -1,9 +1,10 @@
 // BOOK-1C1 (D-WS9-312) — "Add to a plan": live plans only, then the plan's days.
+// BOOK-1C2 — "live" now includes undated plans (the + flow's own new plan).
 
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
-import { isLivePlan, livePlans, planDayOptions } from "../addToPlanTargets";
+import { addToPlanTargets, isLivePlan, isUndatedPlan, livePlans, planDayOptions } from "../addToPlanTargets";
 
 type P = { id: string; source: "instance" | "template"; startDate: string | null; endDate: string | null };
 const plan = (id: string, startDate: string | null, endDate: string | null, source: P["source"] = "instance"): P => ({
@@ -59,6 +60,57 @@ describe("planDayOptions", () => {
 
   test("a one-day plan, and an undated one", () => {
     assert.deepEqual(planDayOptions({ startDate: "2026-11-26", endDate: null }).map((d) => d.day), ["Thursday"]);
-    assert.deepEqual(planDayOptions({ startDate: null, endDate: null }), []);
+    // BOOK-1C2 — an undated plan is offered now, so its day step is the seven
+    // weekday names, no dates (the wire takes a weekday name either way).
+    const undated = planDayOptions({ startDate: null, endDate: null });
+    assert.deepEqual(
+      undated.map((d) => d.label),
+      ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+    );
+    assert.ok(undated.every((d) => d.date === null && d.label === d.day));
+  });
+});
+
+describe("addToPlanTargets (BOOK-1C2)", () => {
+  // The dev row Hans could not find: POST /plans from the sheet's own "Create
+  // a new plan", renamed — status draft, no dates.
+  const justMade = { ...plan("c19c955c", null, null), status: "draft", name: "My plan this week 1016" };
+
+  test("a plan just made from the + flow (draft, undated) is offered", () => {
+    const out = addToPlanTargets([justMade, plan("active", "2026-10-11", "2026-10-17")], TODAY);
+    assert.deepEqual(out.map((p) => p.id), ["active", "c19c955c"]);
+  });
+
+  test("dated live plans soonest first, then undated in arrival order; past plans and templates never", () => {
+    const out = addToPlanTargets(
+      [
+        plan("undated-new", null, null),
+        plan("later", "2026-10-25", "2026-10-31"),
+        plan("past", "2026-10-01", "2026-10-07"),
+        plan("undated-old", null, null),
+        plan("active", "2026-10-11", "2026-10-17"),
+        plan("tpl-undated", null, null, "template"),
+        plan("tpl", "2026-10-18", "2026-10-24", "template"),
+      ],
+      TODAY,
+    );
+    assert.deepEqual(out.map((p) => p.id), ["active", "later", "undated-new", "undated-old"]);
+  });
+
+  test("status is not the rule: a dated draft that is upcoming is offered, a past 'upcoming' is not", () => {
+    const out = addToPlanTargets(
+      [
+        { ...plan("draft-upcoming", "2026-10-16", "2026-10-20"), status: "draft" },
+        { ...plan("stale-upcoming", "2026-09-01", "2026-09-07"), status: "upcoming" },
+      ],
+      TODAY,
+    );
+    assert.deepEqual(out.map((p) => p.id), ["draft-upcoming"]);
+  });
+
+  test("isUndatedPlan: an instance with neither date", () => {
+    assert.equal(isUndatedPlan(plan("u", null, null)), true);
+    assert.equal(isUndatedPlan(plan("d", "2026-10-16", null)), false);
+    assert.equal(isUndatedPlan(plan("t", null, null, "template")), false);
   });
 });

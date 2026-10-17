@@ -19,7 +19,7 @@ import { usePlans } from "@/hooks/usePlans";
 import type { PlanListItem } from "@/lib/api/plans";
 import { todayLocalDate } from "@/lib/dates";
 import {
-  livePlans,
+  addToPlanTargets,
   planDayOptions,
   type PlanDayOption,
 } from "@/lib/plans/addToPlanTargets";
@@ -36,9 +36,9 @@ export interface AddMealToPlanSheetProps {
   onClose: () => void;
   /**
    * Called when the user picks an existing plan AND a day (BOOK-1C1: the day
-   * step). The sheet lists live plans only — active and upcoming
-   * (lib/plans/addToPlanTargets.ts) — so the pick can never be a composted
-   * plan's 409.
+   * step). The sheet lists live plans only — active, upcoming and undated
+   * (lib/plans/addToPlanTargets.ts) — so the pick is never a past plan; a
+   * plan composted since the list loaded still answers 409 (BUG-411).
    */
   onPickExistingPlan: (plan: PlanListItem, day: DayOfWeek) => void;
 }
@@ -92,12 +92,23 @@ export function AddMealToPlanSheet({
   const plansQuery = usePlans(["my_plans"]);
   // BOOK-1C1 — live plans only (active + upcoming), soonest first. This
   // replaced WS9-2 2a Commit B's most-recent-first sort over EVERY plan: past
-  // plans and undated drafts are no longer offered (addToPlanTargets.ts says
-  // why), and with only live plans left the active one belongs at the top.
+  // plans are no longer offered (addToPlanTargets.ts says why), and with only
+  // live plans left the active one belongs at the top.
+  // BOOK-1C2 — undated plans are offered again, after the dated ones: the
+  // plan this sheet's own "Create a new plan" makes has no dates, and Hans
+  // could not find it on the next +.
   const plans = useMemo<PlanListItem[]>(
-    () => livePlans(plansQuery.data?.plans ?? [], todayLocalDate()),
+    () => addToPlanTargets(plansQuery.data?.plans ?? [], todayLocalDate()),
     [plansQuery.data],
   );
+  // BOOK-1C2 — every opening reads the list again. The sheet stays mounted
+  // under its host (only `visible` flips), so the query's mount-time fetch
+  // ran once, when the Cookbook opened; a plan made anywhere since (another
+  // tab, another device) would otherwise wait for the next invalidation.
+  const { refetch: refetchPlans } = plansQuery;
+  useEffect(() => {
+    if (visible) void refetchPlans();
+  }, [visible, refetchPlans]);
 
   // BOOK-1C1 — the day step: a picked plan, then its days.
   const [pickedPlan, setPickedPlan] = useState<PlanListItem | null>(null);
@@ -284,11 +295,11 @@ export function AddMealToPlanSheet({
                       variant="slim"
                       style={s.planName}
                     />
-                    {(plan.startDate || plan.endDate) && (
-                      <Text style={s.planRange}>
-                        {formatDateRange(plan.startDate, plan.endDate)}
-                      </Text>
-                    )}
+                    <Text style={s.planRange}>
+                      {plan.startDate || plan.endDate
+                        ? formatDateRange(plan.startDate, plan.endDate)
+                        : "No dates yet"}
+                    </Text>
                   </View>
                   <View style={s.planRight}>
                     <View
