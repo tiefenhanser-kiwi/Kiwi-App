@@ -25,6 +25,7 @@
 import { convertWithinDimension, pluralizeCountUnit } from "./ingredientConversions";
 import {
   bowlNameFor,
+  isLargeCut,
   mustSit,
   proteinVerbsFor,
   isServedSeparately,
@@ -1572,6 +1573,9 @@ export function buildStepPlan(
                 .flatMap((t) => t.split(/(?<=[.;])\s+/))
                 .filter((s) => step.components.some((c) => proseNames(s, c.ingredientName)))
                 .join(" "),
+              // PREP-2 — a whole bird or a large roast is never pounded (one in the
+              // step is enough: the title's verb would cover it).
+              step.components.find((c) => isLargeCut(c.ingredientName))?.ingredientName ?? "",
             )
           : [];
       // WS9 BUG-204 — the clock, computed from what the step holds. Done here so

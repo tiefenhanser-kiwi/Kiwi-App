@@ -76,11 +76,13 @@ describe("PREP-1 F — a plan with no thanksgiving-feast is unchanged but for Pa
     assert.equal(JSON.stringify(result), JSON.stringify(expected));
   });
 
-  it("the fingerprint moved by the engine version alone (7 → 8): the hashed input is the same", () => {
+  // PREP-2 bumped the engine again (8 → 9, item 4: the protein verbs). The hashed
+  // INPUT is still the pre-PREP-1 one; only the version in the hash has moved.
+  it("the fingerprint moved by the engine version alone (7 → 9): the hashed input is the same", () => {
     const hash = (engine: number) =>
       createHash("sha256").update(JSON.stringify({ v: 1, engine, input: load.input })).digest("hex");
-    assert.equal(PREP_ENGINE_VERSION, 8);
+    assert.equal(PREP_ENGINE_VERSION, 9);
     assert.equal(hash(7), pre.fingerprint);
-    assert.equal(prepCompositionFingerprint(load.input), hash(8));
+    assert.equal(prepCompositionFingerprint(load.input), hash(9));
   });
 });

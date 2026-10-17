@@ -746,7 +746,11 @@ const PROTEIN_VERBS: ReadonlyArray<[RegExp, string]> = [
   // quantity in front of it (digits, a glyph, a word number) makes it a weight.
   // Part J.1c — a HYPHENATED weight too: "the 3-pound pork shoulder" titled A15's pork
   // "Pound the pork shoulder" and charged it as a pounding.
-  [/(?<![\d½¼¾⅓⅔⅛⅜⅝⅞][\s-]?|\b(?:a|one|two|three|four|half a)[\s-])\bpound(?:s|ed|ing)?\b/i, "pound"],
+  // 🔴 PREP-2 — AND A RATE: "roast … (about 13–15 minutes per pound)" titled the
+  // Classic feast's 14 lb bird "Pound the whole turkey", and the narrator, told to
+  // open with the verb, wrote "to even thickness". Hans: "we can't tell users to
+  // pound their turkey."
+  [/(?<![\d½¼¾⅓⅔⅛⅜⅝⅞][\s-]?|\b(?:a|one|two|three|four|half a|per|each|every)[\s-])\bpound(?:s|ed|ing)?\b/i, "pound"],
   [/\bcub(?:e|es|ed|ing)\b/i, "cube"],
   [/\b(?:cut|slice)[^.]{0,30}\bstrips?\b/i, "cut into strips"],
   [/\b(?:skinned|remove the skin|skin removed)\b/i, "skin"],
@@ -761,9 +765,39 @@ const PROTEIN_VERBS: ReadonlyArray<[RegExp, string]> = [
  * is a paragraph, not a step title. Empty when the recipe names none, and then
  * the narrator writes the step as it does today.
  */
-export function proteinVerbsFor(note: string | null | undefined, prose: string): string[] {
-  const fromProse = PROTEIN_VERBS.filter(([re]) => re.test(prose)).map(([, v]) => v);
+export function proteinVerbsFor(
+  note: string | null | undefined,
+  prose: string,
+  /** PREP-2 — the protein's name(s): a whole bird or a large roast is never pounded. */
+  ingredientName = "",
+): string[] {
+  const verbs = isLargeCut(ingredientName) ? PROTEIN_VERBS.filter(([, v]) => v !== "pound") : PROTEIN_VERBS;
+  const fromProse = verbs.filter(([re]) => re.test(prose)).map(([, v]) => v);
   if (fromProse.length > 0) return fromProse.slice(0, 2);
-  const fromNote = PROTEIN_VERBS.filter(([re]) => re.test(note ?? "")).map(([, v]) => v);
+  const fromNote = verbs.filter(([re]) => re.test(note ?? "")).map(([, v]) => v);
   return fromNote.slice(0, 2);
+}
+
+// ── PREP-2 item 4 — WHOLE BIRDS AND LARGE ROASTS ARE NEVER POUNDED ─────────────
+//
+// Their prep is pat dry, season or rub, and truss if the recipe says so. Pounding
+// (or flattening) is for cutlets and breasts; a spatchcock's "press to flatten"
+// stays only where the recipe writes it, and it is not a rule-12 verb. So for
+// these the verb list simply has no "pound", whatever the prose says — the other
+// verbs (trim, cube, butterfly, skin…) stand, because a pork shoulder IS cubed for
+// a stew and a turkey IS butterflied for a spatchcock.
+//
+// Matched on the catalog's own names (dev, PREP-2 census): whole turkey, whole
+// chicken (and halves), bone-in turkey or chicken breast, pork shoulder / butt,
+// beef chuck / rib / round / top round roast, brisket, lamb leg or shoulder, a
+// bone-in ham, beef tenderloin and pork loin roasts. Cuts that ARE pounded or sliced
+// thin never match: cutlets, steaks, chops, ground, tenderloins (the chicken strips)
+// and medallions.
+const LARGE_CUT =
+  /\b(?:whole\s+(?:turkey|chickens?|duck|goose|bird|hen)|turkey(?!\s+(?:cutlets?|tenderloins?|breast\s+cutlets?))|chicken\s+halves|(?:pork|lamb)\s+shoulder|pork\s+butt|boston\s+butt|brisket|leg\s+of\s+lamb|lamb\s+leg|(?:chuck|rib|rump|round|top\s+round|bottom\s+round|eye\s+of\s+round|sirloin\s+tip|pot|standing\s+rib|crown|pork\s+loin|beef)\s+roast|prime\s+rib|bone-in[^,]*?\bbreasts?\b|(?:bone-in|spiral|fully\s+cooked)[^,]*?\bham\b|beef\s+tenderloin|pork\s+loin(?!\s+chops?))\b/i;
+const NOT_A_LARGE_CUT =
+  /\b(?:ground|cutlets?|steaks?|chops?|medallions?|tips|cubes?|cubed|strips?|diced|shaved|thinly\s+sliced|deli|sausages?|bacon|stock|broth|drippings|leftover)\b/i;
+
+export function isLargeCut(ingredientName: string): boolean {
+  return LARGE_CUT.test(ingredientName) && !NOT_A_LARGE_CUT.test(ingredientName);
 }

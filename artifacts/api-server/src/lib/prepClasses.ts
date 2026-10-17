@@ -30,6 +30,7 @@
 // defect in H6 was a pattern meeting a name it was not written for.
 
 import type { PrepPhaseKey } from "./prepCombineEngine";
+import { isLargeCut } from "./prepComponents";
 import { proseNames } from "./prepMoments";
 
 export type PrepClass = "A" | "B" | "C" | "aromatic";
@@ -92,9 +93,19 @@ export function foodKeyOf(
 const KNIFE_WORK =
   /\b(chop(?:ped)?|dic(?:e|ed)|minc(?:e|ed)|slic(?:e|ed)|trim(?:med)?|peel(?:ed)?|snap(?:ped)?|pound(?:ed)?|cub(?:e|ed)|zest(?:ed)?|juic(?:e|ed)|shred(?:ded)?|grat(?:e|ed)|crush(?:ed)?|halv(?:e|ed)|quarter(?:ed)?|julienne(?:d)?|spiraliz(?:e|ed)|husk(?:ed)?|seed(?:ed)?|stem(?:med)?|core[ds]?|pit(?:ted)?|tear|torn|strip(?:ped)?|cut|wedge[ds]?|florets?|ribbons?|matchsticks?|rings?|coins?|rounds?|pick(?:ed)?)\b/i;
 
+// 🔴 PREP-2 item 4 — "pound" is the verb only when no weight or rate stands in front
+// of it (prepComponents PROTEIN_VERBS' guard): "roast … about 13–15 minutes per
+// pound" kept the Classic feast's turkey in Prep the feast as 15 minutes of
+// pounding. And a whole bird or a large roast (prepComponents isLargeCut) is never
+// pounded at all, so for one of those the word does not count as work.
+const POUND = String.raw`(?<![\d½¼¾⅓⅔⅛⅜⅝⅞][\s-]?|\b(?:a|one|two|three|four|half a|per|each|every)[\s-])pound(?:ed|ing)?`;
+const PROTEIN_WORK_BODY = String.raw`trim(?:med|ming)?|cub(?:e|ed|ing)|butterfl(?:y|ied)|skin(?:ned)?|skin removed|cut|slic(?:e|ed)|portion(?:ed)?|pat(?:ted)?\b[^.;]{0,40}\bdry|halv(?:e|ed)|tenderiz(?:e|ed)|score[ds]?|deboned?`;
+const PROTEIN_CUT_WORK_BODY = String.raw`trim(?:med|ming)?|cub(?:e|ed|ing)|butterfl(?:y|ied)|skin(?:ned)?|skin removed|cut|slic(?:e|ed)|portion(?:ed)?|halv(?:e|ed)|tenderiz(?:e|ed)|score[ds]?|deboned?`;
+
 /** The work a whole protein needs ahead (rule 12's verbs, plus pat dry). */
-const PROTEIN_WORK =
-  /\b(trim(?:med|ming)?|pound(?:ed|ing)?|cub(?:e|ed|ing)|butterfl(?:y|ied)|skin(?:ned)?|skin removed|cut|slic(?:e|ed)|portion(?:ed)?|pat(?:ted)?\b[^.;]{0,40}\bdry|halv(?:e|ed)|tenderiz(?:e|ed)|score[ds]?|deboned?)\b/i;
+const PROTEIN_WORK = new RegExp(String.raw`\b(${POUND}|${PROTEIN_WORK_BODY})\b`, "i");
+/** PREP-2 — the same for a whole bird or a large roast: never pounded. */
+const LARGE_CUT_WORK = new RegExp(String.raw`\b(${PROTEIN_WORK_BODY})\b`, "i");
 
 /** Heat in a note: the work is the stove's, not Sunday's. */
 const HEAT_NOTE =
@@ -176,8 +187,8 @@ export function judgeProducePortion(
  * is setting it out, not prep ("Portion the pork chops — Set out 4 bone-in pork
  * chops"); it still keeps a protein that joins a marinade, which is the caller's test.
  */
-const PROTEIN_CUT_WORK =
-  /\b(trim(?:med|ming)?|pound(?:ed|ing)?|cub(?:e|ed|ing)|butterfl(?:y|ied)|skin(?:ned)?|skin removed|cut|slic(?:e|ed)|portion(?:ed)?|halv(?:e|ed)|tenderiz(?:e|ed)|score[ds]?|deboned?)\b/i;
+const PROTEIN_CUT_WORK = new RegExp(String.raw`\b(${POUND}|${PROTEIN_CUT_WORK_BODY})\b`, "i");
+const LARGE_CUT_CUT_WORK = new RegExp(String.raw`\b(${PROTEIN_CUT_WORK_BODY})\b`, "i");
 
 export function proteinNeedsKnife(
   knifeVerbs: readonly string[],
@@ -186,8 +197,9 @@ export function proteinNeedsKnife(
   ingredientName = "",
 ): boolean {
   if (knifeVerbs.length > 0) return true;
-  if (notes.some((n) => PROTEIN_CUT_WORK.test(n))) return true;
-  return ingredientName !== "" && proseAsksFor(prose, ingredientName, PROTEIN_CUT_WORK);
+  const work = isLargeCut(ingredientName) ? LARGE_CUT_CUT_WORK : PROTEIN_CUT_WORK;
+  if (notes.some((n) => work.test(n))) return true;
+  return ingredientName !== "" && proseAsksFor(prose, ingredientName, work);
 }
 
 export function judgeProteinWork(
@@ -198,8 +210,9 @@ export function judgeProteinWork(
   ingredientName = "",
 ): boolean {
   if (knifeVerbs.length > 0) return true;
-  if (notes.some((n) => PROTEIN_WORK.test(n))) return true;
-  return ingredientName !== "" && proseAsksFor(prose, ingredientName, PROTEIN_WORK);
+  const work = isLargeCut(ingredientName) ? LARGE_CUT_WORK : PROTEIN_WORK;
+  if (notes.some((n) => work.test(n))) return true;
+  return ingredientName !== "" && proseAsksFor(prose, ingredientName, work);
 }
 
 /** The noun a cut gives a lone container: "diced jalapeño", "trimmed green beans". */

@@ -96,8 +96,12 @@ const FINGERPRINT_ALGO_VERSION = 1;
  *   8 — PREP-1 (BUG-413): an engine-demoted step is off the wire and its dish's
  *       recipe off the narration input; a phase over 30 steps sends its overflow
  *       to the cook-day list before narration.
+ *   9 — PREP-2 item 4: "per pound" is a rate, not the verb, and a whole bird or a
+ *       large roast is never pounded. The protein's knife verbs are narration input
+ *       ("Pound the 14 lb whole turkey … to even thickness" was cached on every
+ *       feast session), so the cached prose must go.
  */
-export const PREP_ENGINE_VERSION = 8;
+export const PREP_ENGINE_VERSION = 9;
 
 /**
  * Digest of the loaded plan composition — everything the prep payload is built
