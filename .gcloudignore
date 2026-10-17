@@ -1,0 +1,23 @@
+# The source upload for `gcloud run deploy kiwi-api --source .` (DEPLOY.md).
+#
+# Without this file gcloud uses its default, which reads ONLY the root
+# .gitignore. The `.env` rules live in nested .gitignore files, so the dev
+# `.env` files (Neon URL, API keys) rode every upload into the Cloud Run source
+# bucket (SAFE-1 follow-up, October 17: `gcloud meta list-files-for-upload .`).
+# .dockerignore keeps them out of the image; this keeps them out of the upload.
+#
+# Check after any edit: `gcloud meta list-files-for-upload .` lists no env file.
+
+#!include:.gitignore
+.git
+.gitignore
+.gcloudignore
+
+# secrets and local env — production reads its env from Cloud Run
+**/.env
+**/.env.*
+!**/.env.example
+**/test.env
+
+# local agent worktrees (full repo copies)
+.claude/worktrees
