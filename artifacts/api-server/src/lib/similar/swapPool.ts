@@ -32,6 +32,7 @@ import {
   dishFormProfile,
   formScore,
   headTokens,
+  isOneDish,
   isSameDishTokens,
   isVersionOf,
   type DishFormProfile,
@@ -146,7 +147,7 @@ function formSignature(p: DishFormProfile): string {
 /**
  * Keep the candidates whose form is closest to the source's: ranked by form
  * score, ties on the same cuisine, then id (stable). Walking that order it keeps
- * one row per dish (same title or isSameDish) and at most SWAP_POOL_PER_FORM_CAP
+ * one row per dish (same title or isOneDish) and at most SWAP_POOL_PER_FORM_CAP
  * rows per exact set of main forms, so a dumplings source sees stews AND pot
  * pies AND soups rather than 30 chilis. When too few share any form, it fills
  * with the same cuisine, then the rest, so the AI still has something to rank.
@@ -175,7 +176,7 @@ export function preFilterByForm(
   const deferred: typeof scored = [];
   const tryKeep = (s: (typeof scored)[number], capped: boolean): boolean => {
     const nt = normTitle(s.c.row.title);
-    if (keptTitles.has(nt) || kept.some((k) => isSameDishTokens(k.head, s.c.head))) return false;
+    if (keptTitles.has(nt) || kept.some((k) => isOneDish(k.head, s.c.head))) return false;
     const sig = formSignature(s.c.profile);
     if (capped && (perForm.get(sig) ?? 0) >= SWAP_POOL_PER_FORM_CAP) {
       deferred.push(s);

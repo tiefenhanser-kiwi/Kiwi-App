@@ -35,7 +35,7 @@ import { isMealReadableByUser } from "../lib/mealVisibility";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
 import { selectDefaultPathSteps } from "../lib/cookingScheduler";
-import { isSameDishTokens } from "../lib/similar/dishForm";
+import { isOneDish } from "../lib/similar/dishForm";
 import { buildSwapPool, SwapSourceNotFoundError, type SwapPoolCandidate } from "../lib/similar/swapPool";
 import { everydayPoolWhere } from "../lib/store/storeShortlist";
 import { hasUnmatchedAmount, type AmountRef } from "../lib/stepAmountRefs";
@@ -795,7 +795,7 @@ export function createMealsRouter(
     const picked: { c: SwapPoolCandidate; similarityScore: number; reason: string }[] = [];
     for (const m of result.data.matches) {
       const c = byAlias.get(m.mealId);
-      if (!c || picked.some((p) => p.c === c || isSameDishTokens(p.c.head, c.head))) continue;
+      if (!c || picked.some((p) => p.c === c || isOneDish(p.c.head, c.head))) continue;
       picked.push({ c, similarityScore: m.similarityScore, reason: m.reason });
       if (picked.length >= opts.limit) break;
     }

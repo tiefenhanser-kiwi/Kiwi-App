@@ -328,6 +328,8 @@ interface ShelfResponse {
   hasMore: boolean;
   unmatchedNames: string[];
   textParsed?: boolean;
+  householdSize?: number;
+  avoidSpicy?: boolean;
   metadata: { playlistCount: number; shelfRemainder: number; discoveryLevel: string | null };
 }
 

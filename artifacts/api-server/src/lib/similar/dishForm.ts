@@ -251,11 +251,19 @@ export function isSameDish(a: string, b: string): boolean {
  * A VERSION of a meal the user already has: every word of its dish name is in
  * the candidate's ("Chicken Parmesan" → "Spicy Arrabbiata Chicken Parmesan",
  * "Chicken Parmesan Pasta"). Asymmetric, and only for a two-word-or-longer name,
- * so "Pizza" does not swallow every pizza. Used against the source and the plan's
- * meals, never between candidates.
+ * so "Pizza" does not swallow every pizza.
  */
 export function isVersionOf(known: ReadonlySet<string>, cand: ReadonlySet<string>): boolean {
   if (known.size < 2) return false;
   for (const w of known) if (!cand.has(w)) return false;
   return true;
+}
+
+/**
+ * One dish, either way round: the same dish with other sides, or one a version
+ * of the other ("Classic Slow-Cooker Beef Stew" / "Red Wine Slow-Cooker Beef
+ * Stew"). The shortlist and the ranked result keep the first of each.
+ */
+export function isOneDish(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
+  return isSameDishTokens(a, b) || isVersionOf(a, b) || isVersionOf(b, a);
 }

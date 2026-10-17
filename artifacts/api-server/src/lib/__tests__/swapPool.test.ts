@@ -107,6 +107,18 @@ describe("swap pool — fork folding and duplicates", () => {
     assert.ok(titles(short).includes("Baja Fish Tacos with Quick Slaw and Lime Crema"));
   });
 
+  it("the shortlist keeps one version of a dish (no three slow-cooker beef stews)", () => {
+    const source = toCandidate(row("Slow-Cooker Chicken and Dumplings", { id: "src" }));
+    const pool = [
+      row("Classic Slow-Cooker Beef Stew"),
+      row("Red Wine Slow-Cooker Beef Stew"),
+      row("Tomato-Based Slow-Cooker Beef Stew"),
+      row("Chicken Pot Pie with Biscuit Topping"),
+    ].map(toCandidate);
+    const stews = titles(preFilterByForm(source, pool)).filter((t) => /beef stew/i.test(t));
+    assert.equal(stews.length, 1, JSON.stringify(stews));
+  });
+
   it("isSameDish: same dish with other sides is one dish; two different pastas are not", () => {
     assert.equal(isSameDish("Al Pastor Tacos with Corn", "Al Pastor Pork Tacos with Slaw"), true);
     assert.equal(isSameDish("Classic Beef Stew", "Beef Stew with Crusty Bread"), true);
