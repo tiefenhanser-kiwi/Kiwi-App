@@ -5,8 +5,24 @@
 //   KIWI_E2E_QA1=1 KIWI_E2E_RUN_ID=qa1 pnpm exec playwright test -c e2e/playwright.config.ts qa1-cookbook
 //
 // No AI. Writes to the test account, each undone before the item ends:
-//   • item 9 hearts one meal and un-hearts it (DELETE /me/favorites/:id);
+//   • item 9 saves one meal and un-saves it (DELETE /me/favorites/:id);
 //   • item 10 adds one meal to one live plan, then deletes that plan item.
+//
+// BOOK-1C2 — the heart is the Save chip ("Save to My Meals" / "Saved to My
+// Meals"), and these items were added for Hans's Pixel findings:
+//   • B1  one sage on the Recipes page (computed colours);
+//   • B3  the filter race: a delayed response for the filters just left, the
+//         "updating" state on the count and on the sheet's Show N;
+//   • B4  photos after a fast fling (web);
+//   • B6  a plan made from the + flow is in the next + (the plan is composted
+//         again at the end);
+//   • B7  system tags never on detail; detail's Save follows the card's
+//         lineage rule. On the user's own Playlist copy of a catalog meal:
+//         its tags are changed and put back, it is hearted and un-hearted.
+//         The first run leaves that one copy on the Playlist (no route
+//         deletes a meal); later runs reuse it.
+//   • A10/A11 make an upcoming plan when the account has no live one, and
+//         compost it after A11.
 //
 // Verdicts land in out/<run>/qa1-cookbook.json; screenshots in
 // out/<run>/qa1-cookbook/.
@@ -54,7 +70,13 @@ interface CookbookCall {
   url: string;
   q: URLSearchParams;
   total: number | null;
-  first: { id: string; title: string; displayTitle?: string | null; estimatedTimeMinutes: number }[];
+  first: {
+    id: string;
+    title: string;
+    displayTitle?: string | null;
+    estimatedTimeMinutes: number;
+    imageUrl?: string | null;
+  }[];
 }
 
 /** The count row's "N meals" (not the header's "N meals that fit …"). */
@@ -85,12 +107,13 @@ async function cards(page: Page): Promise<{ title: string; meta: string; minutes
       if (!card) continue;
       const lines = (card.innerText || "").split("\n").map((s) => s.trim()).filter(Boolean);
       const metaIdx = lines.findIndex((l) => /^\d+ min\b/.test(l));
-      const heart = footer!.querySelector<HTMLElement>('[aria-label$="My Meals"]');
+      // BOOK-1C2 — the Save chip: "Save to My Meals" → "Saved to My Meals".
+      const chip = footer!.querySelector<HTMLElement>('[aria-label$="to My Meals"]');
       out.push({
         title: metaIdx > 0 ? lines.slice(0, metaIdx).join(" ") : lines[0] ?? "",
         meta: metaIdx >= 0 ? lines[metaIdx] : "",
         minutes: metaIdx >= 0 ? Number(/^(\d+) min/.exec(lines[metaIdx])![1]) : null,
-        saved: heart?.getAttribute("aria-label") === "Remove from My Meals",
+        saved: chip?.getAttribute("aria-label") === "Saved to My Meals",
       });
     }
     return out;
@@ -103,7 +126,7 @@ async function gotoCookbook(page: Page): Promise<string[]> {
   return settle(page, { timeoutMs: 30_000, minLines: 5 });
 }
 
-test("QA-1 A — Cookbook (items 1–13)", async ({ page }) => {
+test("QA-1 A — Cookbook (items 1–13) + BOOK-1C2 B1–B7", async ({ page }) => {
   // Thirteen items in one test; the config's 4 minutes is one flow's ceiling.
   test.setTimeout(20 * 60_000);
   const calls: CookbookCall[] = [];
@@ -120,6 +143,7 @@ test("QA-1 A — Cookbook (items 1–13)", async ({ page }) => {
         title: m.title,
         displayTitle: m.displayTitle,
         estimatedTimeMinutes: m.estimatedTimeMinutes,
+        imageUrl: m.imageUrl ?? null,
       }));
     } catch {
       /* non-JSON */
@@ -337,16 +361,17 @@ test("QA-1 A — Cookbook (items 1–13)", async ({ page }) => {
     const controls = await page.evaluate(() =>
       document.querySelectorAll('[role="switch"], [role="checkbox"], input[type="checkbox"]').length,
     );
-    const soon = await page.evaluate(() =>
-      ["Vegetarian", "Vegan", "Pescatarian"].map((l) => {
-        const el = Array.from(document.querySelectorAll<HTMLElement>("div")).find(
-          (d) => (d.innerText || "").trim() === l && d.querySelector("div") !== null,
-        ) ?? Array.from(document.querySelectorAll<HTMLElement>("div")).find((d) => (d.innerText || "").trim() === l);
-        const focusable = el?.closest('[tabindex="0"]') !== null && el?.closest('[tabindex="0"]') !== undefined;
-        return { l, focusable, ariaDisabled: el?.closest("[aria-disabled]")?.getAttribute("aria-disabled") ?? null };
-      }),
-    );
-    const december = sheetText.includes("coming in December");
+    // BOOK-1C2 — one disabled line, no named styles.
+    const soon = await page.evaluate(() => {
+      const el = document.querySelector<HTMLElement>('[data-testid="cookbook-eating-styles"]');
+      return {
+        text: (el?.innerText ?? "").trim(),
+        ariaDisabled: el?.getAttribute("aria-disabled") ?? null,
+        focusable: el?.closest('[tabindex="0"]') != null,
+      };
+    });
+    const namedStyles = ["Vegetarian", "Vegan", "Pescatarian"].filter((l) => sheetText.some((t) => t === l));
+    const december = soon.text === "Eating styles: coming in December";
     await shot(page, LABEL, "A6-04-allergy-eating-styles", shots);
     await page.getByText(/^Your allergies/).click();
     await page.waitForURL(/\/preferences/, { timeout: 15_000 }).catch(() => undefined);
@@ -357,14 +382,14 @@ test("QA-1 A — Cookbook (items 1–13)", async ({ page }) => {
     const ok =
       n0 !== null && n1 !== n0 && n2 !== n1 && applied === n2 && pillsOk.length === 0 &&
       n3 === unfiltered && controls === 0 && prefsUrl.includes("preferences") &&
-      soon.every((s) => !s.focusable) && december;
+      !soon.focusable && soon.ariaDisabled === "true" && namedStyles.length === 0 && december;
     return {
       verdict: ok ? "pass" : "fail",
       evidence:
         `Show N: start ${n0} → +${cuisine} ${n1} → +Easy ${n2}; applied list ${applied} (${shown.length} cards rendered, ` +
         `cards missing ${cuisine}/Easy pill: ${pillsOk.length}); Clear all → ${n3} (unfiltered ${unfiltered}); ` +
         `allergy line "${allergy}", switch/checkbox controls in sheet ${controls}, tap → ${prefsUrl}; ` +
-        `eating styles ${JSON.stringify(soon)}, "coming in December" ${december}`,
+        `eating styles line ${JSON.stringify(soon)}, named styles shown ${JSON.stringify(namedStyles)}`,
     };
   });
 
@@ -422,6 +447,13 @@ test("QA-1 A — Cookbook (items 1–13)", async ({ page }) => {
     const box = page.getByLabel("Search meals or ingredients");
     await box.fill(probe.q);
     await waitCountChange(page, null);
+    // BOOK-1C2 — the count above can be the previous query's, held and
+    // dimmed while this one loads; scroll only once the list is this query's.
+    await waitForText(page, (j) => j.includes(`${probe!.total} meals`), 30_000);
+    await page
+      .locator('[data-testid="cookbook-count-updating"]')
+      .waitFor({ state: "detached", timeout: 30_000 })
+      .catch(() => undefined);
     await settle(page, { timeoutMs: 20_000 });
     const helper = page.getByTestId("cookbook-ask-kiwi");
     let cursorCalls = 0;
@@ -462,16 +494,28 @@ test("QA-1 A — Cookbook (items 1–13)", async ({ page }) => {
     };
   });
 
-  // ── 9 — hearts ──────────────────────────────────────────────────────────
-  await ledger.run("A9", "Hearts: card ♡ fills + toast + detail filled; un-heart on detail empties card; Saved chip lists it", async (shots) => {
+  // ── 9 — the Save chip (BOOK-1C2: it replaced the heart) ──────────────────
+  await ledger.run("A9", "Save chip: Save → Saved (dark) + toast ON TAP, ~4 s; detail shows Saved; un-save on detail clears the card; Saved chip lists it", async (shots) => {
     await gotoCookbook(page);
     const list = await cards(page);
     const idx = list.findIndex((c) => !c.saved);
     if (idx < 0) throw new Error("every visible card is already saved");
     const target = list[idx];
     const footer = page.locator('[aria-label="Add to a plan"]').nth(idx).locator("xpath=..");
+    const chip = footer.locator('[aria-label="Save to My Meals"]');
+    const box = await chip.boundingBox();
+    const bgBefore = await chip.evaluate((el) => getComputedStyle(el.firstElementChild as HTMLElement).backgroundColor);
+    // BOOK-1C2 item 5 — hold the POST 2 s: an on-tap toast is up before it answers.
+    let favAnsweredAt = 0;
+    await page.route("**/api/me/favorites", async (route) => {
+      if (route.request().method() !== "POST") return route.continue();
+      await new Promise((r) => setTimeout(r, 2000));
+      await route.continue().catch(() => undefined);
+      favAnsweredAt = Date.now();
+    });
     const favReq = page.waitForRequest((r) => r.url().includes("/api/me/favorites") && r.method() !== "GET", { timeout: 15_000 });
-    await footer.locator('[aria-label="Save to My Meals"]').click();
+    const tappedAt = Date.now();
+    await chip.click();
     const req = await favReq;
     let mealId: string | null = null;
     try {
@@ -480,38 +524,55 @@ test("QA-1 A — Cookbook (items 1–13)", async ({ page }) => {
       mealId = /favorites\/([^/?]+)/.exec(req.url())?.[1] ?? null;
     }
     const toast1 = await waitForText(page, (j) => j.includes("Saved to My Meals"), 8_000);
-    const cardFilled = await footer.locator('[aria-label="Remove from My Meals"]').isVisible().catch(() => false);
-    await shot(page, LABEL, "A9-01-card-hearted", shots);
+    const toastAt = Date.now();
+    const savedChip = footer.locator('[aria-label="Saved to My Meals"]');
+    const cardFilled = await savedChip.isVisible().catch(() => false);
+    const chipState = await savedChip
+      .evaluate((el) => ({
+        // The last line: the icon glyph is a text node of its own (QA-1 trap).
+        text: (((el as HTMLElement).innerText || "").split("\n").pop() ?? "").trim(),
+        selected: el.getAttribute("aria-selected"),
+        bg: getComputedStyle(el.firstElementChild as HTMLElement).backgroundColor,
+      }))
+      .catch(() => null);
+    await shot(page, LABEL, "A9-01-card-saved", shots);
+    // The toast's life: gone ~4 s after it showed.
+    const gone = await waitForText(page, (j) => !j.includes("Saved to My Meals"), 8_000);
+    const toastLifeMs = Date.now() - toastAt;
+    await page.unroute("**/api/me/favorites");
+    // On tap = seen well inside the 2 s hold, before the POST was even let through.
+    const toastDelayMs = toastAt - tappedAt;
+    const onTap = toast1.ok && toastDelayMs < 1500 && (favAnsweredAt === 0 || favAnsweredAt > toastAt);
 
-    // Detail: filled. Wait for the detail screen itself (its Cook Now), not the
-    // URL — the toast is still up and a tap can land under it.
-    await page.waitForTimeout(3500);
+    // Detail: Saved. Wait for the detail screen itself (its Cook Now), not the
+    // URL. The toast is already gone (above), so a tap cannot land under it.
+    await page.waitForTimeout(300);
     await footer.locator("xpath=preceding-sibling::*[1]").click();
     await page.getByRole("button", { name: "Cook Now" }).waitFor({ state: "visible", timeout: 30_000 });
     await settle(page, { timeoutMs: 30_000, minLines: 5 });
     const detailFilled = await page
-      .getByRole("button", { name: "Remove from My Meals" })
+      .getByRole("button", { name: "Saved to My Meals", exact: true })
       .waitFor({ state: "visible", timeout: 10_000 })
       .then(() => true)
       .catch(() => false);
-    await shot(page, LABEL, "A9-02-detail-filled", shots);
-    // Un-heart on detail.
-    await page.getByRole("button", { name: "Remove from My Meals" }).click();
+    await shot(page, LABEL, "A9-02-detail-saved", shots);
+    // Un-save on detail.
+    await page.getByRole("button", { name: "Saved to My Meals", exact: true }).click();
     const toast2 = await waitForText(page, (j) => j.includes("Removed from My Meals"), 8_000);
-    await page.getByRole("button", { name: "Save to My Meals" }).waitFor({ state: "visible", timeout: 10_000 });
-    await shot(page, LABEL, "A9-03-detail-unhearted", shots);
+    await page.getByRole("button", { name: "Save to My Meals", exact: true }).waitFor({ state: "visible", timeout: 10_000 });
+    await shot(page, LABEL, "A9-03-detail-unsaved", shots);
     await tapButton(page, "Go back");
     await page.waitForURL(/\/cookbook/, { timeout: 15_000 });
     await settle(page, { timeoutMs: 20_000 });
     const after = (await cards(page)).find((c) => c.title === target.title);
     await shot(page, LABEL, "A9-04-card-after", shots);
 
-    // Saved chip: heart it again, look on Recipes → Saved, then undo.
+    // Saved chip: save it again, look on Recipes → Saved, then undo.
     const footer2 = page.locator('[aria-label="Add to a plan"]').nth(
       (await cards(page)).findIndex((c) => c.title === target.title),
     ).locator("xpath=..");
     await footer2.locator('[aria-label="Save to My Meals"]').click();
-    await footer2.locator('[aria-label="Remove from My Meals"]').waitFor({ state: "visible", timeout: 10_000 });
+    await footer2.locator('[aria-label="Saved to My Meals"]').waitFor({ state: "visible", timeout: 10_000 });
     await page.goto(`${WEB_ORIGIN}/meals`, { waitUntil: "domcontentloaded" });
     await waitForText(page, (j) => j.includes("My Meals"), 60_000);
     await clickText(page, "Saved");
@@ -521,17 +582,46 @@ test("QA-1 A — Cookbook (items 1–13)", async ({ page }) => {
     if (mealId) await http.req("DELETE", `/me/favorites/${mealId}`);
     await clickText(page, "My Meals");
 
-    const ok = toast1.ok && cardFilled && detailFilled && toast2.ok && after?.saved === false && savedList.ok;
+    const hitOk = !!box && box.width >= 44 && box.height >= 44;
+    const faceOk =
+      chipState?.text === "Saved" && chipState.selected === "true" && chipState.bg !== bgBefore;
+    const lifeOk = gone.ok && toastLifeMs >= 3300 && toastLifeMs <= 4700;
+    const ok =
+      onTap && lifeOk && cardFilled && faceOk && hitOk && detailFilled && toast2.ok &&
+      after?.saved === false && savedList.ok;
     return {
       verdict: ok ? "pass" : "fail",
       evidence:
-        `"${target.title}" (${mealId}): toast "Saved to My Meals" ${toast1.ok}, card filled ${cardFilled}, detail filled ${detailFilled}; ` +
-        `detail un-heart toast ${toast2.ok}, card after back saved=${after?.saved}; Saved chip lists it: ${savedList.ok}; un-hearted again by API`,
+        `"${target.title}" (${mealId}): chip hit area ${box ? `${Math.round(box.width)}×${Math.round(box.height)}` : "?"}; ` +
+        `toast "Saved to My Meals" seen ${toastDelayMs} ms after the tap with the POST held 2 s (on tap: ${onTap}), on screen ~${toastLifeMs} ms; ` +
+        `card chip ${JSON.stringify(chipState)} (was bg ${bgBefore}); detail Saved ${detailFilled}; ` +
+        `detail un-save toast ${toast2.ok}, card after back saved=${after?.saved}; Saved chip lists it: ${savedList.ok}; un-saved again by API`,
     };
   });
 
+  // BOOK-1C2 — A10/A11 need a live dated plan on the account. QA-1 leaned on
+  // the THX fixture plans; when there are none, make an UPCOMING one (a month
+  // out, so it never covers today and never becomes this week's plan) and
+  // compost it after A11.
+  let tempPlanId: string | null = null;
+  {
+    const t = todayYmd();
+    const ymd = (days: number) => {
+      const d = new Date(`${t}T12:00:00Z`);
+      d.setUTCDate(d.getUTCDate() + days);
+      // POST /plans takes ISO datetimes (z.string().datetime()), midnight UTC.
+      return `${d.toISOString().slice(0, 10)}T00:00:00.000Z`;
+    };
+    const all = await http.allMyPlans(t);
+    if (!all.some((p) => p.source === "instance" && (p.endDate ?? p.startDate) && (p.endDate ?? p.startDate) >= t)) {
+      const r = await http.req<any>("POST", "/plans", { name: "QA 1C2 upcoming", startDate: ymd(30), endDate: ymd(34) });
+      tempPlanId = r.body?.instance?.id ?? null;
+      console.log(`[${LABEL}] no live plan on the account: made ${tempPlanId} (${r.status}) for A10/A11`);
+    }
+  }
+
   // ── 10 — + → live plans only → plan → day → lands on that day ────────────
-  await ledger.run("A10", "+ lists only active/upcoming plans; plan then day; the meal lands on that day", async (shots) => {
+  await ledger.run("A10", "+ lists active/upcoming plans and (BOOK-1C2) undated ones, never past; plan then day; the meal lands on that day", async (shots) => {
     await gotoCookbook(page);
     const first = (await cards(page))[0];
     await page.locator('[aria-label="Add to a plan"]').first().click();
@@ -542,31 +632,48 @@ test("QA-1 A — Cookbook (items 1–13)", async ({ page }) => {
 
     const today = todayYmd();
     const all = await http.allMyPlans(today);
-    const live = all.filter((p) => p.source === "instance" && (p.endDate ?? p.startDate) && (p.endDate ?? p.startDate) >= today);
-    const notLive = all.filter((p) => !live.includes(p));
+    const firstPage = await http.get<{ plans: any[]; nextCursor?: string | null }>(`/plans?filter=my_plans&localDate=${today}`);
+    const isDatedLive = (p: any) => p.source === "instance" && (p.endDate ?? p.startDate) && (p.endDate ?? p.startDate) >= today;
+    const isUndated = (p: any) => p.source === "instance" && !p.startDate && !p.endDate;
+    // BOOK-1C2 — undated plans are offered too. The sheet reads page one of
+    // my_plans (newest first), so an undated plan is expected only from there.
+    const firstIds = new Set(firstPage.plans.map((p) => p.id));
+    const live = all.filter((p) => isDatedLive(p) || (isUndated(p) && firstIds.has(p.id)));
+    const notLive = all.filter((p) => !isDatedLive(p) && !isUndated(p));
     const nameOf = (p: any) => String(p.displayTitle ?? p.name);
     const liveShown = live.filter((p) => sheetLines.some((l) => l === nameOf(p)));
     const liveMissing = live.filter((p) => !liveShown.includes(p));
     const notLiveShown = notLive.filter((p) => sheetLines.some((l) => l === nameOf(p)) && !live.some((q) => nameOf(q) === nameOf(p)));
-    const firstPage = await http.get<{ plans: any[]; nextCursor?: string | null }>(`/plans?filter=my_plans&localDate=${today}`);
+    const undatedShown = liveShown.filter(isUndated).length;
 
-    // Pick a live plan that is not a THX fixture plan.
-    const pick = liveShown.find((p) => !nameOf(p).startsWith("THX test")) ?? liveShown[0];
+    // Pick a dated live plan that is not a THX fixture plan and whose name is
+    // unique on the sheet (several undated plans can share "Untitled plan").
+    const unique = (p: any) => liveShown.filter((q) => nameOf(q) === nameOf(p)).length === 1;
+    const pick =
+      liveShown.find((p) => isDatedLive(p) && unique(p) && !nameOf(p).startsWith("THX test")) ??
+      liveShown.find((p) => isDatedLive(p) && unique(p)) ??
+      liveShown.find(unique);
     if (!pick) throw new Error("no live plan shown in the sheet to add to");
     const beforeItems = (await http.get<any>(`/plans/${pick.id}`)).plan.items as any[];
     await page.locator('[tabindex="0"]').filter({ hasText: nameOf(pick) }).last().click();
     await waitForText(page, (j) => j.includes("Pick a day"), 10_000);
-    const dayLines = (await renderedText(page)).filter((l) => /^(Sun|Mon|Tues|Wednes|Thurs|Fri|Satur)day · /.test(l));
+    const dayLines = (await renderedText(page)).filter((l) => /^(Sun|Mon|Tues|Wednes|Thurs|Fri|Satur)day( · |$)/.test(l));
     await shot(page, LABEL, "A10-02-days", shots);
     // The last day: on a THX fixture plan (the only live plans on the test
     // account) that is Sunday, which holds no meal, and the item is deleted below.
     const dayLabel = dayLines[dayLines.length - 1];
     const day = dayLabel.split(" · ")[0];
     // The row carries a chevron glyph, so its text is not exactly the label.
+    // BOOK-1C2 — the toast now shows ON TAP, before the add answers (~3 s: the
+    // catalog meal is forked), so read the plan after the POST, not after the toast.
+    const addDone = page.waitForResponse(
+      (r) => r.url().includes(`/api/plans/${pick.id}/items`) && r.request().method() === "POST",
+      { timeout: 60_000 },
+    );
     await page.getByRole("button").filter({ hasText: dayLabel }).last().click();
     const toast = await waitForText(page, (j) => j.includes(`· ${day}`) && j.includes("Added to"), 15_000);
     await shot(page, LABEL, "A10-03-added", shots);
-    await page.waitForTimeout(1000);
+    const addStatus = (await addDone).status();
     const afterItems = (await http.get<any>(`/plans/${pick.id}`)).plan.items as any[];
     const added = afterItems.filter((i) => !beforeItems.some((b) => b.id === i.id));
     const landed = added.find((i) => i.assignedDayOfWeek === day);
@@ -578,8 +685,8 @@ test("QA-1 A — Cookbook (items 1–13)", async ({ page }) => {
       verdict: ok ? "pass" : "fail",
       evidence:
         `account plans (all pages) ${all.length}, live ${live.length}, page one ${firstPage.plans.length} (nextCursor ${firstPage.nextCursor ? "yes" : "no"}); ` +
-        `sheet shows ${liveShown.length} live [${liveShown.map(nameOf).join(" / ")}], live missing ${liveMissing.length} [${liveMissing.map(nameOf).join(" / ")}], non-live shown ${notLiveShown.length}; ` +
-        `days offered ${JSON.stringify(dayLines)}; added "${first.title}" to "${nameOf(pick)}" on ${day}: toast ${toast.ok}, ` +
+        `sheet shows ${liveShown.length} live (${undatedShown} undated) [${liveShown.map(nameOf).join(" / ")}], live missing ${liveMissing.length} [${liveMissing.map(nameOf).join(" / ")}], non-live shown ${notLiveShown.length}; ` +
+        `days offered ${JSON.stringify(dayLines)}; added "${first.title}" to "${nameOf(pick)}" on ${day}: toast ${toast.ok}, POST ${addStatus}, ` +
         `API new item(s) ${JSON.stringify(added.map((i) => [i.assignedDayOfWeek, i.meal?.title ?? i.mealId]))} (removed again)`,
       api: { liveMissing: liveMissing.map((p) => ({ id: p.id, name: nameOf(p), startDate: p.startDate, endDate: p.endDate, status: p.status })) },
     };
@@ -609,13 +716,18 @@ test("QA-1 A — Cookbook (items 1–13)", async ({ page }) => {
     };
   });
 
-  // ── 12 — body opens; ♡ and + don't ──────────────────────────────────────
-  await ledger.run("A12", "Card body opens the meal; ♡ and + do not", async (shots) => {
+  if (tempPlanId) {
+    const del = await http.req("DELETE", `/plans/${tempPlanId}`);
+    console.log(`[${LABEL}] composted the A10/A11 plan ${tempPlanId} → ${del.status}`);
+  }
+
+  // ── 12 — body opens; the Save chip and + don't ──────────────────────────
+  await ledger.run("A12", "Card body opens the meal; the Save chip and + do not", async (shots) => {
     await gotoCookbook(page);
     const list = await cards(page);
     const idx = Math.max(0, list.findIndex((c) => !c.saved));
     const footer = page.locator('[aria-label="Add to a plan"]').nth(idx).locator("xpath=..");
-    // ♡ (then undone).
+    // The Save chip (then undone).
     const favReq = page.waitForRequest((r) => r.url().includes("/api/me/favorites") && r.method() !== "GET", { timeout: 15_000 });
     await footer.locator('[aria-label="Save to My Meals"]').click();
     const req = await favReq;
@@ -627,7 +739,7 @@ test("QA-1 A — Cookbook (items 1–13)", async ({ page }) => {
     } catch {
       /* none */
     }
-    await footer.locator('[aria-label="Remove from My Meals"]').click();
+    await footer.locator('[aria-label="Saved to My Meals"]').click();
     await page.waitForTimeout(800);
     if (mealId) await http.req("DELETE", `/me/favorites/${mealId}`);
     // +.
@@ -647,7 +759,336 @@ test("QA-1 A — Cookbook (items 1–13)", async ({ page }) => {
     const ok = afterHeart === "/cookbook" && afterPlus === "/cookbook" && sheetOpen && afterBody.startsWith("/meal/");
     return {
       verdict: ok ? "pass" : "fail",
-      evidence: `after ♡ URL ${afterHeart}; after + URL ${afterPlus} (sheet open ${sheetOpen}); after body tap URL ${afterBody}`,
+      evidence: `after Save chip URL ${afterHeart}; after + URL ${afterPlus} (sheet open ${sheetOpen}); after body tap URL ${afterBody}`,
+    };
+  });
+
+  // ══ BOOK-1C2 — Hans's Pixel findings ═════════════════════════════════════
+
+  // ── B1 — one sage on the Recipes page ────────────────────────────────────
+  await ledger.run("B1", "Recipes page: Meals/Dishes switch, + Add Meal/Dish and Cook Now share the Cookbook card's sage; label contrast ≥ 4.5", async (shots) => {
+    const rgb = (s: string | null) => (s ? (/rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(s)?.slice(1, 4).map(Number) ?? null) : null);
+    const lum = ([r, g, b]: number[]) => {
+      const c = [r, g, b].map((v) => v / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    };
+    const ratio = (a: number[], b: number[]) => {
+      const [x, y] = [lum(a), lum(b)];
+      return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+    };
+    /** bg + label colour of the first focusable whose text is exactly `label`. */
+    const look = (label: string) =>
+      page.evaluate((l) => {
+        const el = Array.from(document.querySelectorAll<HTMLElement>('[tabindex="0"]')).find(
+          (e) => (e.innerText || "").trim() === l,
+        );
+        if (!el) return null;
+        const text = Array.from(el.querySelectorAll<HTMLElement>("*")).find((c) => (c.innerText || "").trim() === l) ?? el;
+        return { bg: getComputedStyle(el).backgroundColor, fg: getComputedStyle(text).color };
+      }, label);
+
+    await page.goto(`${WEB_ORIGIN}/meals`, { waitUntil: "domcontentloaded" });
+    const card = page.getByTestId("recipes-cookbook-card");
+    await card.waitFor({ state: "visible", timeout: 60_000 });
+    await settle(page, { timeoutMs: 20_000 });
+    const cardBg = await card.evaluate((e) => getComputedStyle(e).backgroundColor);
+    const seen: Record<string, { bg: string; fg: string } | null> = {
+      "Meals (active)": await look("Meals"),
+      "+ Add Meal": await look("+ Add Meal"),
+      "Cook Now (meal)": await look("Cook Now"),
+    };
+    await shot(page, LABEL, "B1-01-recipes-meals", shots);
+    await clickText(page, "Dishes");
+    await settle(page, { timeoutMs: 20_000 });
+    seen["Dishes (active)"] = await look("Dishes");
+    seen["+ Add Dish"] = await look("+ Add Dish");
+    seen["Cook Now (dish)"] = await look("Cook Now");
+    await shot(page, LABEL, "B1-02-recipes-dishes", shots);
+    await clickText(page, "Meals");
+
+    const want = rgb(cardBg);
+    const rows = Object.entries(seen).map(([k, v]) => {
+      const bg = rgb(v?.bg ?? null);
+      const fg = rgb(v?.fg ?? null);
+      return {
+        k,
+        bg: v?.bg ?? "(not on screen)",
+        same: !!bg && !!want && bg.join() === want.join(),
+        contrast: bg && fg ? Number(ratio(bg, fg).toFixed(2)) : null,
+      };
+    });
+    const present = rows.filter((r) => r.bg !== "(not on screen)");
+    const ok = !!want && present.length >= 4 && present.every((r) => r.same && (r.contrast ?? 0) >= 4.5);
+    return {
+      verdict: ok ? "pass" : "fail",
+      evidence: `Cookbook card ${cardBg}; ${rows.map((r) => `${r.k}: ${r.bg}${r.same ? " =" : " ≠"} card, label ${r.contrast ?? "?"}:1`).join("; ")}`,
+    };
+  });
+
+  // ── B3 — the filter race ─────────────────────────────────────────────────
+  await ledger.run("B3", "Filters: a held response for the filters just left never shows as final; updating state on the count, the cards and the sheet's Show N", async (shots) => {
+    await gotoCookbook(page);
+    const base = await resultCount(page);
+    const failed: string[] = [];
+    const onFail = (r: import("@playwright/test").Request) => {
+      if (r.url().includes("/api/cookbook/meals")) failed.push(`${new URL(r.url()).search} ${r.failure()?.errorText ?? ""}`);
+    };
+    page.on("requestfailed", onFail);
+    const held: string[] = [];
+    const hold = (pred: (u: URL) => boolean, ms: number) =>
+      page.route("**/api/cookbook/meals?*", async (route) => {
+        const u = new URL(route.request().url());
+        if (pred(u)) {
+          held.push(u.search);
+          await new Promise((r) => setTimeout(r, ms));
+        }
+        await route.continue().catch(() => undefined);
+      });
+    const updatingNow = () =>
+      page.evaluate(() => {
+        const plus = document.querySelector<HTMLElement>('[aria-label="Add to a plan"]');
+        const wrapper = plus?.parentElement?.parentElement?.parentElement ?? null;
+        const countText = document.querySelector<HTMLElement>('[data-testid="cookbook-count"] > div');
+        return {
+          spinner: !!document.querySelector('[data-testid="cookbook-count-updating"]'),
+          cardOpacity: wrapper ? getComputedStyle(wrapper).opacity : null,
+          countOpacity: countText ? getComputedStyle(countText).opacity : null,
+        };
+      });
+
+    // A = Easy (held 3 s); B = Easy + High protein, tapped while A is held.
+    const isA = (u: URL) =>
+      u.searchParams.get("difficulty") === "easy" && !u.searchParams.has("highProtein") && u.searchParams.get("limit") === "30" && !u.searchParams.has("cursor");
+    await hold(isA, 3000);
+    await clickText(page, "Easy");
+    await page.waitForTimeout(500);
+    const during = await updatingNow();
+    const countDuring = await resultCount(page);
+    await shot(page, LABEL, "B3-01-updating", shots);
+    await clickText(page, "High protein");
+    let after = await updatingNow();
+    for (let i = 0; i < 60 && after.spinner; i++) {
+      await page.waitForTimeout(250);
+      after = await updatingNow();
+    }
+    const final = await resultCount(page);
+    // A's held answer would land about now if it were still alive.
+    const later: (number | null)[] = [];
+    for (let i = 0; i < 10; i++) {
+      await page.waitForTimeout(400);
+      later.push(await resultCount(page));
+    }
+    await shot(page, LABEL, "B3-02-settled", shots);
+    await page.unroute("**/api/cookbook/meals?*");
+    const aTotal = (await http.get<{ total: number }>("/cookbook/meals?difficulty=easy&limit=1")).total;
+    const bTotal = (await http.get<{ total: number }>("/cookbook/meals?difficulty=easy&highProtein=true&limit=1")).total;
+
+    // The sheet: a held count for the new draft.
+    await page.getByRole("button", { name: /^Filters/ }).click();
+    const showRe = /^Show ([\d,]+) meals?$/;
+    await waitForText(page, (j) => /Show [\d,]+ meals?/.test(j), 15_000);
+    await hold((u) => u.searchParams.get("limit") === "1" && u.searchParams.get("maxActiveMinutes") === "15", 2500);
+    await clickText(page, "≤ 15 min");
+    await page.waitForTimeout(500);
+    const sheetDuring = await page.evaluate(() => !!document.querySelector('[data-testid="cookbook-show-updating"]'));
+    await shot(page, LABEL, "B3-03-sheet-updating", shots);
+    let sheetBusy = sheetDuring;
+    for (let i = 0; i < 60 && sheetBusy; i++) {
+      await page.waitForTimeout(250);
+      sheetBusy = await page.evaluate(() => !!document.querySelector('[data-testid="cookbook-show-updating"]'));
+    }
+    const showLine = (await renderedText(page)).find((l) => showRe.test(l)) ?? null;
+    const showN = showLine ? Number(showRe.exec(showLine)![1].replace(/,/g, "")) : null;
+    const cTotal = (await http.get<{ total: number }>("/cookbook/meals?difficulty=easy&highProtein=true&maxActiveMinutes=15&limit=1")).total;
+    await shot(page, LABEL, "B3-04-sheet-settled", shots);
+    await page.unroute("**/api/cookbook/meals?*");
+    await tapButton(page, "Close");
+    page.off("requestfailed", onFail);
+
+    const ok =
+      during.spinner && during.cardOpacity === "0.45" && during.countOpacity === "0.45" && countDuring === base &&
+      !after.spinner && final === bTotal && later.every((n) => n === bTotal) &&
+      sheetDuring && !sheetBusy && showN === cTotal;
+    return {
+      verdict: ok ? "pass" : "fail",
+      evidence:
+        `start ${base}; Easy held 3 s → while held: count shows ${countDuring} at opacity ${during.countOpacity}, spinner ${during.spinner}, cards opacity ${during.cardOpacity}; ` +
+        `+High protein → settled ${final} (API easy+protein ${bTotal}; easy alone ${aTotal}), next 4 s ${JSON.stringify(later)}; ` +
+        `held requests ${JSON.stringify(held)}; aborted/failed cookbook requests ${JSON.stringify(failed)}; ` +
+        `sheet ≤15 hands-on held 2.5 s → spinner ${sheetDuring}, then "${showLine}" (API ${cTotal})`,
+    };
+  });
+
+  // ── B4 — photos after a fast fling ───────────────────────────────────────
+  await ledger.run("B4", "Photos: after a fast fling every on-screen card's photo loads in place (no scroll-away needed); a card with no photo has none in the API", async (shots) => {
+    await gotoCookbook(page);
+    await page.waitForTimeout(1500);
+    const survey = () =>
+      page.evaluate(() => {
+        const vh = window.innerHeight;
+        const out: { title: string; img: "none" | "loaded" | "pending" | "broken" }[] = [];
+        for (const plus of Array.from(document.querySelectorAll<HTMLElement>('[aria-label="Add to a plan"]'))) {
+          const card = plus.parentElement?.parentElement;
+          if (!card) continue;
+          const r = card.getBoundingClientRect();
+          if (r.bottom < 0 || r.top > vh) continue;
+          const img = card.querySelector("img");
+          let state: "none" | "loaded" | "pending" | "broken" = "none";
+          if (img) state = img.complete ? (img.naturalWidth > 0 ? "loaded" : "broken") : "pending";
+          out.push({ title: (card.innerText || "").split("\n")[0], img: state });
+        }
+        return out;
+      });
+    await page.mouse.move(187, 500);
+    const passes: { right: string; settled: string }[] = [];
+    const bad: string[] = [];
+    for (let pass = 1; pass <= 3; pass++) {
+      for (let i = 0; i < 12; i++) await page.mouse.wheel(0, 1600);
+      await page.waitForTimeout(150);
+      const right = await survey();
+      await page.waitForTimeout(6000);
+      const settled = await survey();
+      passes.push({
+        right: right.map((c) => c.img).join(","),
+        settled: settled.map((c) => c.img).join(","),
+      });
+      for (const c of settled) {
+        if (c.img === "pending" || c.img === "broken") bad.push(`${c.title}: ${c.img}`);
+        if (c.img === "none") {
+          const api = calls.flatMap((x) => x.first).find((m) => (m.displayTitle ?? m.title) === c.title || m.title === c.title);
+          if (!api || api.imageUrl) bad.push(`${c.title}: no photo on the card, API imageUrl ${api ? api.imageUrl : "(not found)"}`);
+        }
+      }
+      await shot(page, LABEL, `B4-0${pass}-after-fling`, shots);
+    }
+    return {
+      verdict: bad.length === 0 ? "pass" : "fail",
+      evidence: `three flings (12 × 1600 px wheel each): on-screen photo states right after → 6 s later ${passes.map((p) => `[${p.right}] → [${p.settled}]`).join("; ")}; problems ${JSON.stringify(bad)}`,
+    };
+  });
+
+  // ── B6 — a plan made from the + flow is in the next + ────────────────────
+  await ledger.run("B6", "+ → Create a new plan; the next + lists that plan (undated, 'No dates yet') with a 7-weekday day step", async (shots) => {
+    await gotoCookbook(page);
+    await page.locator('[aria-label="Add to a plan"]').first().click();
+    await waitForText(page, (j) => j.includes("Create a new plan") && j.includes("Pick an existing plan"), 15_000);
+    await clickText(page, /Start a new plan with this meal/);
+    await page.waitForURL(/\/plan\/[^/?]+/, { timeout: 30_000 });
+    const planId = /\/plan\/([^/?]+)/.exec(page.url())![1];
+    const created = (await http.get<any>(`/plans/${planId}`)).plan;
+    const name = `QA 1C2 ${Date.now().toString(36)}`;
+    const renamed = await http.req("PATCH", `/plans/${planId}`, { name });
+    await shot(page, LABEL, "B6-01-new-plan", shots);
+    try {
+      await gotoCookbook(page);
+      await page.locator('[aria-label="Add to a plan"]').first().click();
+      const listed = await waitForText(page, (j) => j.includes(name), 20_000);
+      const noDates = listed.text.includes("No dates yet");
+      await shot(page, LABEL, "B6-02-next-plus", shots);
+      let weekdays: string[] = [];
+      if (listed.ok) {
+        await page.locator('[tabindex="0"]').filter({ hasText: name }).last().click();
+        await waitForText(page, (j) => j.includes("Pick a day"), 10_000);
+        weekdays = (await renderedText(page)).filter((l) => /^(Sun|Mon|Tues|Wednes|Thurs|Fri|Satur)day$/.test(l));
+        await shot(page, LABEL, "B6-03-weekdays", shots);
+      }
+      await tapButton(page, "Close");
+      const ok = listed.ok && noDates && weekdays.length === 7 && renamed.status === 200;
+      return {
+        verdict: ok ? "pass" : "fail",
+        evidence:
+          `created ${planId}: status ${created?.status}, startDate ${created?.startDate ?? null}, endDate ${created?.endDate ?? null}; ` +
+          `renamed "${name}" (${renamed.status}); next + lists it: ${listed.ok}, "No dates yet" ${noDates}; day step ${JSON.stringify(weekdays)}`,
+      };
+    } finally {
+      // Leave the account as it was: compost the plan this item made.
+      const del = await http.req("DELETE", `/plans/${planId}`);
+      console.log(`[${LABEL}] B6 composted ${planId} → ${del.status}`);
+    }
+  });
+
+  // ── B7 — BUG-416 + BUG-417 on meal detail ────────────────────────────────
+  //
+  // Both run on the test user's own COPY of a catalog meal. The copy comes
+  // from POST /me/playlist (fork-on-acquire, idempotent by lineage): a meal
+  // already on the Playlist is reused, else the first unsaved card is added
+  // and LEFT on the Playlist so the next run reuses it instead of forking
+  // again (there is no route that deletes a meal).
+  //   BUG-416 — the copy's tags gain system tags for the item, then are put
+  //             back exactly as they were;
+  //   BUG-417 — the copy is hearted, the CATALOG meal's detail must read
+  //             Saved; the heart is removed again.
+  await ledger.run("B7", "Detail: no system tag chips (BUG-416); a meal saved only through the user's copy reads Saved on detail and on its card (BUG-417)", async (shots) => {
+    const SYSTEM = /^(thanksgiving(-.+)?|course-.+|dev)$/i;
+    let target: any = null;
+    let fallback: any = null;
+    let cursor: string | null = null;
+    for (let i = 0; i < 30 && !target; i++) {
+      const r: { meals: any[]; nextCursor: string | null } = await http.get(
+        `/cookbook/meals?limit=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
+      );
+      target = r.meals.find((m) => m.isInPlaylist && !m.isSaved) ?? null;
+      fallback ??= r.meals.find((m) => !m.isSaved && !m.isInPlaylist) ?? null;
+      cursor = r.nextCursor;
+      if (!cursor) break;
+    }
+    target ??= fallback;
+    if (!target) throw new Error("no unsaved catalog meal to copy");
+    const pl = await http.req<any>("POST", "/me/playlist", { mealId: target.id });
+    const copyId: string | undefined = pl.body?.playlistMeal?.mealId;
+    const forked = !!pl.body?.playlistMeal?.forked;
+    if (!copyId || copyId === target.id) throw new Error(`POST /me/playlist gave no copy: ${pl.status} ${JSON.stringify(pl.body).slice(0, 200)}`);
+    const openDetail = async (id: string) => {
+      await page.goto(`${WEB_ORIGIN}/meal/${id}`, { waitUntil: "domcontentloaded" });
+      await page.getByRole("button", { name: "Cook Now" }).waitFor({ state: "visible", timeout: 30_000 });
+      await settle(page, { timeoutMs: 20_000, minLines: 5 });
+    };
+
+    // BUG-416.
+    const orig = ((await http.get<any>(`/meals/${copyId}`)).tags ?? []) as string[];
+    const human = orig.find((t) => !SYSTEM.test(t)) ?? null;
+    const withSystem = [...orig.filter((t) => !SYSTEM.test(t)).slice(0, 7), "thanksgiving", "thanksgiving-alternate", "course-turkey"];
+    let tagsPart = "";
+    let tagsOk = false;
+    const patched = await http.req("PATCH", `/me/meals/${copyId}`, { tags: withSystem });
+    try {
+      await openDetail(copyId);
+      const lines = (await renderedText(page)).map((l) => l.trim());
+      const shownSystem = lines.filter((l) => SYSTEM.test(l));
+      const humanShown = human ? lines.includes(human) : null;
+      await shot(page, LABEL, "B7-01-detail-tags", shots);
+      tagsOk = patched.status === 200 && shownSystem.length === 0 && humanShown !== false;
+      tagsPart = `copy tags set to ${JSON.stringify(withSystem)} (${patched.status}) → system tags on screen ${JSON.stringify(shownSystem)}, a person's tag "${human}" shown ${humanShown}`;
+    } finally {
+      const back = await http.req("PATCH", `/me/meals/${copyId}`, { tags: orig });
+      tagsPart += `; tags restored ${JSON.stringify(orig)} (${back.status})`;
+    }
+
+    // BUG-417.
+    let lineagePart = "";
+    let lineageOk = false;
+    await http.req("POST", "/me/favorites", { mealId: copyId });
+    try {
+      const fav = await http.get<{ favorites: string[]; savedViaCopy?: string[] }>("/me/favorites");
+      await openDetail(target.id);
+      const detailSaved = await page
+        .getByRole("button", { name: "Saved to My Meals", exact: true })
+        .isVisible()
+        .catch(() => false);
+      await shot(page, LABEL, "B7-02-detail-saved-via-copy", shots);
+      const card = await http.get<{ meals: any[] }>(`/cookbook/meals?q=${encodeURIComponent(String(target.title).slice(0, 40))}&limit=50`);
+      const cardSaved = card.meals.find((m) => m.id === target.id)?.isSaved ?? null;
+      const viaCopy = (fav.savedViaCopy ?? []).includes(target.id);
+      lineageOk = detailSaved && cardSaved === true && viaCopy;
+      lineagePart =
+        `"${target.title}" (copy ${copyId}${forked ? ", forked by this run and left on the Playlist" : ", reused"}): ` +
+        `GET /me/favorites savedViaCopy has it ${viaCopy}; catalog detail chip Saved ${detailSaved}; card isSaved ${cardSaved}`;
+    } finally {
+      await http.req("DELETE", `/me/favorites/${copyId}`);
+    }
+    return {
+      verdict: tagsOk && lineageOk ? "pass" : "fail",
+      evidence: `BUG-416: ${tagsPart}. BUG-417: ${lineagePart}; heart removed again`,
     };
   });
 
