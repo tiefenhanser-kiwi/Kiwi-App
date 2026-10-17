@@ -2163,6 +2163,62 @@ describe("POST /api/wizard/build-from-text — vague scenario", () => {
   });
 });
 
+// FIX-2 (Part D) — "Complete plans" from "easy dinners for two, nothing too
+// spicy": the parsed count sizes THIS plan end to end, and the run is mild.
+describe("POST /api/wizard/build-from-text — FIX-2 'for two' + 'nothing too spicy'", () => {
+  let harness: Harness;
+  const runner = makeTellKiwiRunner({
+    parse: () =>
+      parseSuccess({
+        scenario: "vague",
+        explicitMeals: [],
+        intentDescriptors: ["easy"],
+        mealCount: 5,
+        householdSize: 2,
+        avoidSpicy: true,
+      } as ParsedIntent),
+    generate: () => genSuccess(threeCandidates("mild")),
+  });
+  const prisma = makeStubPrisma();
+  let body: { householdSize?: number; candidates: unknown[] };
+
+  before(async () => {
+    harness = await spinUp({
+      runAICall: runner.fn,
+      prisma,
+      subscriptionService: makeSubscriptionService(true),
+    });
+    const res = await fetch(`${harness.baseUrl}/wizard/build-from-text`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${signToken(TELL_KIWI_USER_ID + "-fix2")}` },
+      body: JSON.stringify({ ...TELL_KIWI_BODY, description: "easy dinners for two, nothing too spicy", householdSize: 4 }),
+    });
+    assert.equal(res.status, 200);
+    body = (await res.json()) as typeof body;
+  });
+  after(async () => harness.close());
+
+  it("the generate input is sized for 2 (the stepper said 4) and runs mild", () => {
+    const gen = runner.getCalls().find((c) => c.promptKey === "wizard.directed.generate")!;
+    const input = gen.vars.generateInput as { householdSize: number; hiddenContext?: { spiceTolerance?: string } };
+    assert.equal(input.householdSize, 2);
+    if (input.hiddenContext) assert.equal(input.hiddenContext.spiceTolerance, "mild");
+  });
+
+  it("the response carries householdSize 2 for the client's expand context", () => {
+    assert.equal(body.householdSize, 2);
+    assert.equal(body.candidates.length, 3);
+  });
+
+  it("the shelf query excludes hot meals", () => {
+    const wheres = prisma._mealWheres() as Array<{ AND?: Array<{ NOT?: { OR?: Array<{ title?: { contains: string } }> } }> }>;
+    const spicy = wheres.some((w) =>
+      (w.AND ?? []).some((c) => (c.NOT?.OR ?? []).some((o) => o.title?.contains === "kung pao")),
+    );
+    assert.ok(spicy, "a shelf where carries the not-too-spicy condition");
+  });
+});
+
 describe("POST /api/wizard/build-from-text — partial scenario", () => {
   let harness: Harness;
   const runner = makeTellKiwiRunner({

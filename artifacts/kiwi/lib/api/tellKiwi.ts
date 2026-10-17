@@ -82,6 +82,12 @@ const BuildFromTextResponseSchema = z.object({
   needsClarification: NeedsClarificationSchema.optional(),
   cannotGenerateMore: z.boolean().optional(),
   reason: z.string().optional(),
+  /**
+   * FIX-2 (Part D) — the household THIS plan was built for: the parsed "for
+   * two" when the text named one, else the stepper's. Absent from a pre-FIX-2
+   * server. Sizes this plan only; the profile household is never changed.
+   */
+  householdSize: z.number().int().min(1).max(30).optional(),
   metadata: z
     .object({
       promptVersion: z.number().nullable(),
@@ -98,6 +104,10 @@ export interface ParsedIntent {
   explicitMeals: string[];
   intentDescriptors: string[];
   mealCount?: number;
+  /** FIX-2 (Part D) — only when the text named a number of people. */
+  householdSize?: number;
+  /** FIX-2 (Part D) — "nothing too spicy". */
+  avoidSpicy?: boolean;
   needsClarification?: {
     reason: string;
     options?: string[];
@@ -110,6 +120,8 @@ export interface BuildFromTextResult {
   needsClarification?: { reason: string; options?: string[] };
   cannotGenerateMore?: boolean;
   reason?: string;
+  /** FIX-2 (Part D) — see BuildFromTextResponseSchema. */
+  householdSize?: number;
   metadata?: {
     promptVersion: number | null;
     latencyMs: number;

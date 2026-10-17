@@ -474,6 +474,13 @@ export const WizardShelfResponseSchema = z.object({
   unmatchedNames: z.array(z.string()),
   /** Text mode — whether the parse ran (false = parse failed, shelf unpinned). */
   textParsed: z.boolean().optional(),
+  /**
+   * FIX-2 (Part D) — text mode, only when the text named it ("for two"): the
+   * number of people THIS plan feeds. The profile household is never changed.
+   */
+  householdSize: z.number().int().min(1).max(30).optional(),
+  /** FIX-2 (Part D) — text mode: "nothing too spicy" kept hot meals off this shelf. */
+  avoidSpicy: z.boolean().optional(),
   metadata: z.record(z.unknown()).optional(),
 });
 export type WizardShelfResponse = z.infer<typeof WizardShelfResponseSchema>;

@@ -209,6 +209,8 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
   "explicitMeals": ["..."],
   "intentDescriptors": ["..."],
   "mealCount": 5,
+  "householdSize": 2,
+  "avoidSpicy": true,
   "needsClarification": { "reason": "...", "options": ["..."] }
 }
 \`\`\`
@@ -236,6 +238,8 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
 - **explicitMeals** — array of normalized meal names the user named. Capitalize first letter of each word ("salmon" → "Salmon", "stir fry" → "Stir Fry", "mac and cheese" → "Mac and Cheese"). De-duplicate. Empty array if none named.
 - **intentDescriptors** — qualitative themes the user used. Lower-case, single words or short phrases ("fun", "easy", "comfort food", "low-effort", "high-protein", "italian", "kid-friendly"). De-duplicate. Empty array if no qualitative themes.
 - **mealCount** — the integer count the user wants. Default to \`planDurationDays\` (provided in the input below). Respect any explicit count the user named ("just 3 dinners this week" → 3). Range 1-7.
+- **householdSize** — how many people THIS plan feeds, ONLY when the user's text says so: "for two" → 2, "for the two of us" → 2, "dinner for 4" → 4, "family of five" → 5, "just me" / "cooking for one" → 1. Range 1-30. Omit the field entirely when the text names no number of people — never copy the \`householdSize\` hint from the input. It is a count of PEOPLE: "two dinners" is \`mealCount\`, not householdSize.
+- **avoidSpicy** — \`true\` ONLY when the user asks to keep heat down: "nothing too spicy", "not spicy", "no spicy food", "mild", "keep it mild", "nothing hot", "the kids don't do spice". Omit it otherwise (including when they ASK for spicy food — that is an intentDescriptor, "spicy"). A spice request is not a meal and not a descriptor: when you set avoidSpicy, do not also put "not spicy" in intentDescriptors.
 - **needsClarification** — populate ONLY for \`unclear\` (with a one-sentence \`reason\` clarifying question, no \`options\`) and \`overflow\` (with \`options\` listing the meals that overflow past \`planDurationDays\`, and a brief \`reason\` like "You named more meals than fit in 5 nights."). Omit entirely for vague / partial / fully_specified.
 
 # Examples
@@ -245,6 +249,9 @@ Output: \`{"scenario":"vague","explicitMeals":[],"intentDescriptors":["easy","fu
 
 Input: "I want tacos one night and pasta another"
 Output: \`{"scenario":"partial","explicitMeals":["Tacos","Pasta"],"intentDescriptors":[],"mealCount":5}\`
+
+Input: "quick dinners for the two of us, keep it mild"
+Output: \`{"scenario":"vague","explicitMeals":[],"intentDescriptors":["quick"],"mealCount":5,"householdSize":2,"avoidSpicy":true}\`
 
 Input: "Mon: tacos, Tue: salmon, Wed: stir fry, Thu: pizza, Fri: pasta" (planDurationDays=5)
 Output: \`{"scenario":"fully_specified","explicitMeals":["Tacos","Salmon","Stir Fry","Pizza","Pasta"],"intentDescriptors":[],"mealCount":5}\`
@@ -308,6 +315,7 @@ Apply these as biases — they shape the menu but do not override hard constrain
 - Low-carb → bias meals toward <30g carbs/serving on average.
 - Healthy / weight-loss → bias meals toward <600 calories/serving on average.
 - \`hiddenContext.spiceTolerance\` → bias dishes within the user's heat tolerance. Never push hot dishes onto a \`mild\` user.
+- \`parsedIntent.avoidSpicy\` (\`true\` when the user typed "nothing too spicy", "mild", "no spicy food") → a HARD rule for this request, above the stored tolerance: no hot dish in any candidate. No arrabbiata, kung pao, Szechuan or Sichuan, vindaloo, buffalo, Nashville hot, sriracha, gochujang, red or green curry, and nothing whose title says "spicy" or "fiery". The shelf you are handed already leaves those out; do not compose one fresh.
 - \`hiddenContext.budgetLevel\` → favor pantry-friendly proteins on \`budget\`; allow finer cuts on \`premium\`.
 - \`hiddenContext.recurringItems\` → staples the user always has on hand; prefer reusing them where natural.
 - \`preferencesContext.maxCookTimeMinutes\` (when set) → for the meals YOU choose, the shelf already honors it: a capped shelf is filtered on each meal's \`estimatedTimeMinutes\`, a start-to-plate time measured from that meal's steps, so every shelf meal fits the cap (under \`preferencesContext.maxCookTimeCoverage: "most"\`, at most one shelf row runs over it, by at most 20 minutes, and its \`estimatedTimeMinutes\` shows that). Trust a shelf meal's number. For a dinner you compose fresh, the cap limits what you may choose. The cap is a ceiling, not a target: every dinner must be on the table within it, from opening the fridge with prep included, and comfortably under is better than close to it. A 20-minute dinner is a good answer to a 30-minute limit, not a missed one — do not stretch a plan's dinners to fill the time allowed. Under a short cap that means few components, a quick-cooking protein and simple assembly. Anything that braises, roasts, bakes or simmers longer than the cap does not fit, however it is named — a whole roast is not a 30-minute dinner because its title is short. If no fresh dinner honestly fits a slot, use a shelf meal. An explicitly named meal is honored regardless. Cook time is independent of difficulty: a dish can be simple-but-slow or involved-but-fast, so don't treat the minute cap as a proxy for "not fancy."

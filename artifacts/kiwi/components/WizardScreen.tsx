@@ -426,12 +426,17 @@ export function WizardScreen({
         // Block 4b-3 (D-WS9-072) — this generation overwrote the server
         // last-batch row; the "See Previous Options" link must reflect it.
         queryClient.invalidateQueries({ queryKey: ["wizard", "lastBatch"] });
+        // FIX-2 (Part D) — "for two" sizes THIS plan: the run's input carries
+        // the household the server built for, so the cards, the expand and
+        // "another" all use it. The form and the profile stay as they are.
+        const runInput: TellKiwiInput =
+          result.householdSize !== undefined ? { ...payload, householdSize: result.householdSize } : payload;
         router.push({
           pathname: "/plan-options",
           params: {
             source: "tellkiwi",
             tellKiwiResult: JSON.stringify(result),
-            tellKiwiInput: JSON.stringify(payload),
+            tellKiwiInput: JSON.stringify(runInput),
           },
         });
       },
@@ -446,14 +451,18 @@ export function WizardScreen({
     });
     shelfMutation.mutate(body, {
       onSuccess: (shelf) => {
+        // FIX-2 (Part D) — "for two" in the text sizes THIS plan: the shelf
+        // returns the parsed count and the Pick screen builds at it (and pages
+        // with it). The form, and the profile household, stay as they are.
+        const householdSize = shelf.householdSize ?? form.householdSize;
         router.push({
           pathname: "/pick-meals",
           params: pickMealsRouteParams({
             shelf,
-            request: body,
+            request: { ...body, householdSize },
             mode,
             planDurationDays: form.planDurationDays,
-            householdSize: form.householdSize,
+            householdSize,
             // The user's cap for THIS run — the per-run override when set,
             // else the stored one it hydrated from. null = no cap.
             capMinutes: form.maxCookTimeMinutes,

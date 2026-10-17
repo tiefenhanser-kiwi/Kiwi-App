@@ -200,6 +200,19 @@ function makeStubPrisma(opts: StubOpts) {
             if (cap.gt !== undefined && m.estimatedTimeMinutes <= cap.gt) return false;
             return true;
           })
+          // FIX-2 (Part D) — a title/description word exclusion in AND
+          // (store/spice.ts notTooSpicyWhere), honoured the way Postgres would.
+          .filter((m) => {
+            const words = ((w.AND ?? []) as Array<Record<string, any>>).flatMap((c) =>
+              Array.isArray(c.NOT?.OR) ? c.NOT.OR : [],
+            );
+            const text = `${m.title} ${m.description ?? ""}`.toLowerCase();
+            return !words.some(
+              (o: Record<string, any>) =>
+                (o.title?.contains && text.includes(String(o.title.contains).toLowerCase())) ||
+                (o.description?.contains && text.includes(String(o.description.contains).toLowerCase())),
+            );
+          })
           .sort((a, b) => (a.id < b.id ? -1 : 1));
       },
     },
@@ -690,6 +703,85 @@ describe("POST /api/wizard/shelf — Tell Kiwi text: pins + unmatched names", ()
       assert.equal(json.textParsed, false);
       assert.equal(json.meals.length, 4);
       assert.equal(json.meals.some((m) => m.isPinned), false);
+    } finally {
+      await h.close();
+    }
+  });
+
+  // FIX-2 (Part D) — "easy dinners for two, nothing too spicy" (TRIAGE-0, 2 of 2
+  // runs: householdSize stayed 4, Arrabbiata / Kung Pao / Szechuan on the shelf).
+  it("FIX-2: 'for two' + 'nothing too spicy' — householdSize 2 returned, hot meals off the shelf", async () => {
+    const spicyCatalog = [
+      catalogRow("s01", { title: "Spicy Arrabbiata Spaghetti and Meatballs" }),
+      catalogRow("s02", { title: "Kung Pao Chicken with Jasmine Rice" }),
+      catalogRow("s03", { title: "Spicy Szechuan Beef and Broccoli" }),
+      catalogRow("s04", { title: "Sausage Orecchiette", description: "A hearty pasta with spicy sausage." }),
+      catalogRow("m01", { title: "Lemon Herb Chicken" }),
+      catalogRow("m02", { title: "Smoky Chipotle Chicken Burrito Bowl" }),
+      catalogRow("m03", { title: "Baked Salmon with Rice" }),
+    ];
+    const parse = makeParseIntent(() => ({
+      success: true,
+      data: {
+        scenario: "vague",
+        explicitMeals: [],
+        intentDescriptors: ["easy"],
+        householdSize: 2,
+        avoidSpicy: true,
+      },
+      metadata: {
+        promptKey: "wizard.directed.parse_intent",
+        promptVersion: 2,
+        model: "claude-haiku-4-5-20251001",
+        mode: "text",
+        latencyMs: 10,
+        inputTokens: 1,
+        outputTokens: 1,
+        costEstimateUsd: 0,
+        retryCount: 0,
+      },
+    }));
+    const h = await spinUp(makeStubPrisma({ meals: spicyCatalog }), parse.fn);
+    try {
+      const { status, json } = await shelf(h, U, {
+        ...BASE_BODY,
+        householdSize: 4,
+        size: 7,
+        text: "easy dinners for two, nothing too spicy",
+      });
+      assert.equal(status, 200);
+      assert.equal(json.householdSize, 2, "the parsed count sizes this plan");
+      assert.equal(json.avoidSpicy, true);
+      const ids = json.meals.map((m: { id: string }) => m.id).sort();
+      assert.deepEqual(ids, ["m01", "m02", "m03"], "Arrabbiata, Kung Pao, Szechuan and a 'spicy sausage' description are out; chipotle is moderate and stays");
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("FIX-2: text that names no household and no spice changes neither", async () => {
+    const parse = makeParseIntent(() => ({
+      success: true,
+      data: { scenario: "vague", explicitMeals: [], intentDescriptors: ["easy"] },
+      metadata: {
+        promptKey: "wizard.directed.parse_intent",
+        promptVersion: 2,
+        model: "claude-haiku-4-5-20251001",
+        mode: "text",
+        latencyMs: 10,
+        inputTokens: 1,
+        outputTokens: 1,
+        costEstimateUsd: 0,
+        retryCount: 0,
+      },
+    }));
+    const spicyCatalog = [catalogRow("s01", { title: "Kung Pao Chicken" }), catalogRow("m01")];
+    const h = await spinUp(makeStubPrisma({ meals: spicyCatalog }), parse.fn);
+    try {
+      const { json } = await shelf(h, U, { ...BASE_BODY, size: 2, text: "easy dinners please" });
+      assert.equal("householdSize" in json, false);
+      assert.equal("avoidSpicy" in json, false);
+      assert.equal(json.meals.length, 2, "no spice filter without the request");
     } finally {
       await h.close();
     }

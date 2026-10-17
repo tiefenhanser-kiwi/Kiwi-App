@@ -43,6 +43,12 @@ export interface RetrieveShelfOptions {
    * compose callers never pass it).
    */
   shortlistSize?: number;
+  /**
+   * FIX-2 (Part D) — "nothing too spicy" from Tell Kiwi's parse: keep meals
+   * whose title or description names real heat off this shelf (store/spice.ts).
+   * Per request, never stored; absent → no term.
+   */
+  excludeSpicy?: boolean;
 }
 
 export async function retrieveShelf(
@@ -66,6 +72,7 @@ export async function retrieveShelf(
       excludeMealIds: opts.excludeMealIds,
       maxCookTimeMinutes: opts.maxCookTimeMinutes,
       maxCookTimeCoverage: opts.maxCookTimeCoverage,
+      excludeSpicy: opts.excludeSpicy,
       config:
         opts.shortlistSize === undefined
           ? config

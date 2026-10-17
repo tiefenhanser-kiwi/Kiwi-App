@@ -118,6 +118,9 @@ const originalFetch = globalThis.fetch;
 let playlistCount = 3;
 let calls: { path: string; method: string; body: unknown; auth?: string }[] = [];
 let pushed: unknown[] = [];
+// FIX-2 (Part D) — per-test response overrides (reset in beforeEach).
+let shelfResponse: unknown;
+let tellKiwiResponse: unknown;
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -132,6 +135,8 @@ beforeEach(() => {
   calls = [];
   pushed = [];
   playlistCount = 3;
+  shelfResponse = SHELF;
+  tellKiwiResponse = TELL_KIWI_RESULT;
   __setRouterForTests({ push: (href: unknown) => pushed.push(href) });
   (globalThis as { fetch: typeof fetch }).fetch = ((url: string, init?: RequestInit) => {
     const u = String(url);
@@ -143,9 +148,9 @@ beforeEach(() => {
     if (u.endsWith("/me/playlist"))
       return Promise.resolve(jsonResponse({ playlist: [], count: playlistCount }));
     if (u.endsWith("/wizard/last-batch")) return Promise.resolve(jsonResponse({ batch: null }));
-    if (u.endsWith("/wizard/shelf")) return Promise.resolve(jsonResponse(SHELF));
+    if (u.endsWith("/wizard/shelf")) return Promise.resolve(jsonResponse(shelfResponse));
     if (u.endsWith("/wizard/build-from-text"))
-      return Promise.resolve(jsonResponse(TELL_KIWI_RESULT));
+      return Promise.resolve(jsonResponse(tellKiwiResponse));
     return Promise.resolve(jsonResponse({ error: "not found" }, 404));
   }) as unknown as typeof fetch;
 });
@@ -359,6 +364,52 @@ test("path A in TEXT mode sends the text on the shelf body", async () => {
   assert.equal((shelfCall!.body as Record<string, unknown>).text, "burgers and a big salad");
   const href = pushed[0] as { pathname: string; params: Record<string, string> };
   assert.equal(href.params.mode, "text");
+});
+
+// FIX-2 (Part D) — "for two" in the text sizes THIS plan. The server returns the
+// parsed count; the Pick screen builds (and pages) at it. The form keeps its 3.
+test("FIX-2: path A in TEXT mode — the shelf's householdSize 2 rides to /pick-meals (form says 3)", async () => {
+  shelfResponse = { ...(SHELF as object), householdSize: 2, avoidSpicy: true };
+  const m = await mount({ mode: "text", initialText: "easy dinners for two, nothing too spicy" });
+  await tap(byTestId(m.root(), "wizard-path-pick"), "path A row");
+  await tap(byTestId(m.root(), "wizard-build"), "CTA");
+  const shelfCall = calls.find((c) => c.path === "/wizard/shelf");
+  assert.equal((shelfCall!.body as Record<string, unknown>).householdSize, 3, "the request still sends the form's value");
+  const href = pushed[0] as { pathname: string; params: Record<string, string> };
+  assert.equal(href.pathname, "/pick-meals");
+  assert.equal(href.params.householdSize, "2");
+  assert.equal(JSON.parse(href.params.request).householdSize, 2, "Get more options pages at 2 too");
+});
+
+test("FIX-2: path A without a parsed household keeps the form's", async () => {
+  const m = await mount({ mode: "text", initialText: "burgers and a big salad" });
+  await tap(byTestId(m.root(), "wizard-path-pick"), "path A row");
+  await tap(byTestId(m.root(), "wizard-build"), "CTA");
+  const href = pushed[0] as { pathname: string; params: Record<string, string> };
+  assert.equal(href.params.householdSize, "3");
+});
+
+test("FIX-2: path B in TEXT mode — the result's householdSize 2 becomes the run input's", async () => {
+  tellKiwiResponse = {
+    candidates: [
+      {
+        id: "c1",
+        title: "Mild Weeknights",
+        tags: [],
+        whyBullets: ["Four easy nights"],
+        mealTitles: ["Lemon Herb Chicken"],
+        dailyMacros: { calories: 500, proteinG: 30, carbsG: 50, fatG: 20 },
+      },
+    ],
+    parsedIntent: { scenario: "vague", explicitMeals: [], intentDescriptors: ["easy"], householdSize: 2, avoidSpicy: true },
+    householdSize: 2,
+  };
+  const m = await mount({ mode: "text", initialText: "easy dinners for two, nothing too spicy" });
+  await tap(byTestId(m.root(), "wizard-path-plans"), "path B row");
+  await tap(byTestId(m.root(), "wizard-build"), "CTA");
+  const href = pushed[0] as { pathname: string; params: Record<string, string> };
+  assert.equal(href.pathname, "/plan-options");
+  assert.equal(JSON.parse(href.params.tellKiwiInput).householdSize, 2);
 });
 
 // ── Block 2c Part B — the CTA is ANCHORED: outside the scroll view ──────────

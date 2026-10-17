@@ -44,6 +44,7 @@ import {
 } from "../lib/store/storeShortlist";
 import { addPlaylistToShelf, retrieveShelf } from "../lib/store/shelf";
 import { everydayPoolWhere } from "../lib/store/storeShortlist";
+import { notTooSpicyWhere } from "../lib/store/spice";
 import { composeShelf, shelfRemainderFor } from "../lib/store/shelfCompose";
 import { MEAL_CARD_SELECT, toMealCard } from "../lib/store/mealCard";
 import { servedCatalogIds } from "../lib/store/newToYou";
@@ -1191,6 +1192,13 @@ export function createWizardRouter(
       const pinnedIds: string[] = [];
       const unmatchedNames: string[] = [];
       let textParsed: boolean | undefined;
+      // FIX-2 (Part D) — what the text said about THIS plan: "for two" sizes it
+      // (returned so the Pick screen builds the plan at that size; the profile
+      // household is untouched) and "nothing too spicy" keeps hot meals off the
+      // shelf and the playlist rows (store/spice.ts). Named meals stay pinned
+      // whatever they are — the user asked for them by name.
+      let textHouseholdSize: number | undefined;
+      let avoidSpicy = false;
       if (body.text) {
         textParsed = false;
         const hiddenContext = await buildHiddenContext(userId);
@@ -1213,6 +1221,8 @@ export function createWizardRouter(
         );
         if (parseResult.success) {
           textParsed = true;
+          textHouseholdSize = parseResult.data.householdSize;
+          avoidSpicy = parseResult.data.avoidSpicy === true;
           const names = parseResult.data.explicitMeals
             .map((n) => n.trim())
             .filter((n) => n.length > 0);
@@ -1261,7 +1271,10 @@ export function createWizardRouter(
       //    minus anything already pinned. None for a guest: no read at all.
       const playlist = guestSessionId
         ? { ids: [] as string[], sourceIds: [] as string[] }
-        : await readPlaylistIds(allergenConditions, difficultyCeiling);
+        : await readPlaylistIds(
+            avoidSpicy ? [...allergenConditions, notTooSpicyWhere()] : allergenConditions,
+            difficultyCeiling,
+          );
       const playlistSourceIds = playlist.sourceIds;
       const playlistIds = playlist.ids.filter((id) => !pinnedIds.includes(id));
 
@@ -1296,6 +1309,7 @@ export function createWizardRouter(
                 discoveryLevel === undefined
                   ? counts.shelfRemainder
                   : counts.shelfRemainder * 2,
+              excludeSpicy: avoidSpicy,
             })
           : null;
       const shelfIds = shelf?.selectedIds ?? [];
@@ -1388,6 +1402,9 @@ export function createWizardRouter(
         hasMore,
         unmatchedNames,
         ...(textParsed === undefined ? {} : { textParsed }),
+        // FIX-2 (Part D) — present only when the text said so.
+        ...(textHouseholdSize === undefined ? {} : { householdSize: textHouseholdSize }),
+        ...(avoidSpicy ? { avoidSpicy: true } : {}),
         metadata,
       });
     } catch (err) {
@@ -2265,11 +2282,18 @@ export function createWizardRouter(
       // this route's recency unit now (see the build-plans handler).
       const { recentMeals: _strippedRecentMeals, ...planningContextForPrompt } =
         planningContext;
+      // FIX-2 (Part D) — what the text said about THIS plan. "for two" sizes
+      // it: the generate input, the stored batch (rehydrate) and the response
+      // (the client's expand context) all carry the parsed count, and the
+      // profile household is never written. "nothing too spicy" keeps hot meals
+      // off the shelf and makes the run mild, whatever the stored tolerance.
+      const planHousehold = parsedIntent.householdSize ?? directed.householdSize;
+      const avoidSpicy = parsedIntent.avoidSpicy === true;
       const generateInput = {
         parsedIntent,
         userInput: directed.description,
         planDurationDays,
-        householdSize: directed.householdSize,
+        householdSize: planHousehold,
         wantsLeftovers: directed.wantsLeftovers,
         // Block 4 (Ruling 3) — cuisines + weeklyPacing now flow to the directed
         // generate prompt (activates its "# Cuisine guidance" section).
@@ -2279,7 +2303,8 @@ export function createWizardRouter(
         // BUG-201 — resolved, not raw. See the resolution above.
         allergiesAndAvoidances: resolvedAllergens.allergiesAndAvoidances,
         dietaryNotes: directed.dietaryNotes ?? "",
-        hiddenContext,
+        hiddenContext:
+          avoidSpicy && hiddenContext ? { ...hiddenContext, spiceTolerance: "mild" as const } : hiddenContext,
         planningContext: planningContextForPrompt,
         preferencesContext,
         recentRotation,
@@ -2306,6 +2331,7 @@ export function createWizardRouter(
         // D-WS7-166 — from the RESOLVED bag, same object the prompt reads.
         maxCookTimeMinutes: preferencesContext.maxCookTimeMinutes,
         maxCookTimeCoverage: preferencesContext.maxCookTimeCoverage,
+        excludeSpicy: avoidSpicy,
       });
       // Block 2 (Part E) — the playlist rides the shelf when the dial claims
       // slots (see build-plans).
@@ -2387,6 +2413,9 @@ export function createWizardRouter(
           parsedIntent.needsClarification ?? undefined,
         cannotGenerateMore: genResult.data.cannotGenerateMore,
         reason: genResult.data.reason,
+        // FIX-2 (Part D) — the household THIS plan was built for (the parsed
+        // "for two", else the stepper's), for the client's expand context.
+        householdSize: planHousehold,
         metadata: {
           promptVersion: genResult.metadata.promptVersion,
           latencyMs:
@@ -2408,7 +2437,7 @@ export function createWizardRouter(
           input: {
             description: directed.description,
             planDurationDays,
-            householdSize: directed.householdSize,
+            householdSize: planHousehold,
             cuisines: directed.cuisines,
             weeklyPacing: directed.weeklyPacing,
             eatingStyles: directed.eatingStyles,

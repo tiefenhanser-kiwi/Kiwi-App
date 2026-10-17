@@ -25,6 +25,7 @@ import type { WizardPlanCandidate } from "../ai/schemas/wizard";
 import { lookupDishFamily, NON_CATALOG_RANK } from "./dishFamily";
 import { cuisineMatches, userCuisineTokens } from "./cuisineNormalize";
 import { allergenTokensForUser, allergenWhereConditions } from "./allergenFilter";
+import { notTooSpicyWhere } from "./spice";
 import {
   rngFromString,
   weightedSampleWithoutReplacement,
@@ -148,6 +149,8 @@ export interface BuildStoreShortlistOptions {
    * row, itself at most MOST_COVERAGE_OVERAGE_MINUTES over the cap.
    */
   maxCookTimeCoverage?: string;
+  /** FIX-2 (Part D) — keep clearly hot meals off the shelf (store/spice.ts). */
+  excludeSpicy?: boolean;
   config: StoreComposeConfig;
 }
 
@@ -253,9 +256,10 @@ export async function buildStoreShortlist(
   }
 
   const allergenTokens = allergenTokensForUser(opts.allergiesAndAvoidances);
-  const andConditions: Prisma.MealWhereInput[] = allergenWhereConditions(
-    allergenTokens,
-  );
+  const andConditions: Prisma.MealWhereInput[] = [
+    ...allergenWhereConditions(allergenTokens),
+    ...(opts.excludeSpicy ? [notTooSpicyWhere()] : []),
+  ];
   const allowedLevels = allowedDifficultyLevels(opts.difficulty);
   const baseWhere: Prisma.MealWhereInput = {
     isPublic: true,

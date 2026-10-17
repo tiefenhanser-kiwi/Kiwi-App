@@ -79,6 +79,19 @@ export const ParsedIntentSchema = z.object({
   intentDescriptors: z.array(z.string()).default([]),
   // Number of meals the parser inferred the user wants (1-7).
   mealCount: z.number().int().min(0).max(7).optional(),
+  // FIX-2 (Part D) — "for two": the number of PEOPLE this plan feeds, only when
+  // the text names it. It sizes THIS plan (its servings, so its grocery list);
+  // it never writes UserPreferences.householdSize. Tolerant like
+  // needsClarification below (BUG-099): a null, a zero or a non-integer reads as
+  // "not said" instead of failing a parse whose real job is the scenario.
+  householdSize: z.preprocess(
+    (v) => (typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 30 ? v : undefined),
+    z.number().int().min(1).max(30).optional(),
+  ),
+  // FIX-2 (Part D) — "nothing too spicy", "mild", "no spicy food": keep hot
+  // meals off this request's shelf (store/spice.ts) and tell the generator.
+  // Only `true` means anything; anything else is "not said".
+  avoidSpicy: z.preprocess((v) => (v === true ? true : undefined), z.literal(true).optional()),
   // Populated for `unclear` and `overflow` scenarios per PRD §6.5
   // Scenario E/F. Client surfaces this as a clarification modal.
   //
