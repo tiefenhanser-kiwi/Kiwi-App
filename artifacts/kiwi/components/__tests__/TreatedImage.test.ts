@@ -15,7 +15,7 @@
 // memory-disk cache. The null path is unchanged: no image element of any kind.
 
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { mock, test } from "node:test";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
@@ -126,6 +126,7 @@ test("onError fires with the failing URI when the remote image fails", () => {
   }
 
   assert.deepEqual(seen, [URI]);
+  act(() => tree.unmount());
 });
 
 test("onError reports null for a bundled asset (a local require cannot 404)", () => {
@@ -149,6 +150,7 @@ test("onError reports null for a bundled asset (a local require cannot 404)", ()
   }
 
   assert.deepEqual(seen, [null]);
+  act(() => tree.unmount());
 });
 
 test("the failure is warned even when no caller passes onError", () => {
@@ -168,5 +170,42 @@ test("the failure is warned even when no caller passes onError", () => {
 
   assert.equal(calls.length, 1);
   assert.equal(calls[0][0], "[TreatedImage] image failed to load");
-  assert.deepEqual(calls[0][1], { uri: URI });
+  assert.deepEqual(calls[0][1], { uri: URI, attempt: 0 });
+  act(() => tree.unmount());
+});
+
+// ── BOOK-1C2 — one retry ────────────────────────────────────────────────────
+
+test("a failed photo is remounted once after the pause, then left on the gradient", () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const calls: unknown[][] = [];
+  const warn = console.warn;
+  console.warn = (...args: unknown[]) => calls.push(args);
+  try {
+    const tree = render({ source: { uri: URI }, height: 74 });
+    const imageNow = () => tree.root.find((n) => (n.type as unknown) === "expo-image");
+    const first = imageNow();
+
+    act(() => (first.props.onError as () => void)());
+    // Nothing yet: the retry waits out the pause.
+    assert.equal(imageNow(), first);
+    act(() => mock.timers.tick(1500));
+    const second = imageNow();
+    assert.notEqual(second, first, "the photo is a new mount after the pause");
+
+    act(() => (second.props.onError as () => void)());
+    act(() => mock.timers.tick(60_000));
+    assert.equal(imageNow(), second, "no third try");
+    assert.deepEqual(
+      calls.map((c) => c[1]),
+      [
+        { uri: URI, attempt: 0 },
+        { uri: URI, attempt: 1 },
+      ],
+    );
+    act(() => tree.unmount());
+  } finally {
+    console.warn = warn;
+    mock.timers.reset();
+  }
 });

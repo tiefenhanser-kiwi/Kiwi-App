@@ -35,6 +35,7 @@ import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 
 import { ImageTreatment } from "@/constants/tokens";
+import { IMAGE_RETRY_DELAY_MS, nextImageAttempt } from "@/lib/imageRetry";
 
 // WS9-2 2c Commit 2 — best-effort URI extraction for the failure signal only.
 // ImageSourcePropType is a union: a bundled asset (number), a {uri} object, or
@@ -86,14 +87,33 @@ export function TreatedImage({
   onError,
 }: Props) {
   const hasFixedDim = width != null || height != null;
+  // BOOK-1C2 — the load attempt (lib/imageRetry.ts): a failure remounts the
+  // photo once, after a pause, instead of leaving the gradient for the life of
+  // the view. The attempt is the <Image>'s key; a new source starts again at 0.
+  const uri = uriOf(source);
+  const [attempt, setAttempt] = React.useState(0);
+  const retryTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  React.useEffect(() => {
+    setAttempt(0);
+    return () => {
+      if (retryTimer.current) clearTimeout(retryTimer.current);
+      retryTimer.current = null;
+    };
+  }, [uri]);
   // ⚠️ Declared unconditionally (hooks rule) but only ever WIRED to the <Image>
   // below, which is itself only rendered when `source` is non-null. The
   // null-source path therefore does not change by construction — see §0.2.
   const handleError = React.useCallback(() => {
-    const uri = uriOf(source);
-    console.warn("[TreatedImage] image failed to load", { uri });
+    console.warn("[TreatedImage] image failed to load", { uri, attempt });
     onError?.(uri);
-  }, [source, onError]);
+    const next = uri === null ? null : nextImageAttempt(attempt);
+    if (next !== null && !retryTimer.current) {
+      retryTimer.current = setTimeout(() => {
+        retryTimer.current = null;
+        setAttempt(next);
+      }, IMAGE_RETRY_DELAY_MS);
+    }
+  }, [uri, attempt, onError]);
   return (
     <View
       style={[
@@ -113,6 +133,7 @@ export function TreatedImage({
       />
       {source ? (
         <Image
+          key={attempt}
           source={source}
           style={StyleSheet.absoluteFill}
           contentFit="cover"

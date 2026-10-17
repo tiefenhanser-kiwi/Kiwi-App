@@ -116,6 +116,18 @@ export function CookbookResults({
           </View>
         )}
         ItemSeparatorComponent={() => <View style={s.gap} />}
+        // BOOK-1C2 (item 4b) — Hans, on the Pixel: after a fast fling the
+        // photos stayed blank until the cards were scrolled away and back. On
+        // Android, and only there, FlatList defaults removeClippedSubviews to
+        // true (react-native/Libraries/Lists/FlatList.js:162-166): a rendered
+        // card outside the viewport is DETACHED from the native view tree, and
+        // a fling mounts cards while they are off screen, so their photos
+        // start, and land, on detached views. Web has no such clipping, and
+        // there the same fling loads every photo in place (measured: all
+        // on-screen cards "loaded" 4 s after the fling, no scroll-back). Off:
+        // virtualization still unmounts cards far from the viewport, so
+        // memory stays bounded; what goes is the attach/detach churn.
+        removeClippedSubviews={false}
         onEndReachedThreshold={0.5}
         onEndReached={() => {
           if (results.hasNextPage && !results.isFetchingNextPage) void results.fetchNextPage();
