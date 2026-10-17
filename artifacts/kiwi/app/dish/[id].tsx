@@ -15,6 +15,10 @@ import { SectionLabel } from "@/components/SectionLabel";
 import { TreatedImage } from "@/components/TreatedImage";
 import { Colors, ImageTreatment, Radius, Spacing, Typography } from "@/constants/tokens";
 import { useDish } from "@/hooks/useDish";
+import { useMeal } from "@/hooks/useMeal";
+import { buildAmountRefSegments } from "@/lib/cooking/amountSegments";
+import { decodeRun, makeAheadRunSteps, runCookLine, type MakeAheadRun } from "@/lib/cooking/feastDay";
+import { planDishView, type PlanDishView } from "@/lib/dishes/planDish";
 import { ApiError } from "@/lib/api/errors";
 import type { DishDetail } from "@/lib/api/dishes";
 import { BillingNotice } from "@/components/BillingNotice";
@@ -34,14 +38,32 @@ import { goBack } from "@/lib/navigation";
 // columns and none are being added, so there is nothing to restore — the lean
 // shape (description + real `servings`) IS the shape. The prior "field loss"
 // framing is retired.
+//
+// PREP-2 item 2 — PLAN CONTEXT. A Thanksgiving make-ahead row opens its dish with
+// `mealId` (the feast), `planId` + `planItemId` and `run` (the row's day). The
+// recipe body — ingredients, steps, servings — then comes from the composed MEAL
+// in plan context and scales the way meal detail scales (lib/dishes/planDish.ts);
+// GET /dishes/:id still supplies the hero. Cook Now opens that one run. Without
+// `mealId` the screen is exactly what it was.
 export default function DishDetailScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const dishId = id ?? "";
+  const params = useLocalSearchParams<{
+    id: string;
+    mealId?: string;
+    planId?: string;
+    planItemId?: string;
+    run?: string;
+  }>();
+  const dishId = params.id ?? "";
+  const mealId = typeof params.mealId === "string" ? params.mealId : "";
+  const planId = typeof params.planId === "string" ? params.planId : "";
+  const planItemId = typeof params.planItemId === "string" ? params.planItemId : "";
 
   const dishQuery = useDish(dishId);
+  // Disabled (empty id) on every launch without plan context.
+  const mealQuery = useMeal(mealId, planItemId || undefined);
 
-  if (dishQuery.isLoading) {
+  if (dishQuery.isLoading || (mealId.length > 0 && mealQuery.isLoading)) {
     return (
       <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
         <Header title="Dish" showBack />
@@ -86,20 +108,55 @@ export default function DishDetailScreen() {
     );
   }
 
-  return <DishDetailContent dish={dish} />;
+  // PREP-2 — a meal that no longer holds the dish (or failed to load) falls back to
+  // the dish alone rather than to an error: the recipe is still worth showing.
+  const view = mealId.length > 0 && mealQuery.data ? planDishView(mealQuery.data, dish.id) : null;
+  const plan: PlanDishContext | undefined = view
+    ? {
+        view,
+        run: decodeRun(typeof params.run === "string" ? params.run : undefined),
+        cookParams: {
+          mealId,
+          dishId: dish.id,
+          ...(typeof params.run === "string" ? { run: params.run } : {}),
+          ...(planId && planItemId ? { planId, planItemId } : {}),
+        },
+      }
+    : undefined;
+
+  return <DishDetailContent dish={dish} plan={plan} />;
 }
 
-function DishDetailContent({ dish }: { dish: DishDetail }) {
+interface PlanDishContext {
+  view: PlanDishView;
+  run: MakeAheadRun | null;
+  /** Cook Mode for this dish of the meal, in plan context, narrowed to `run`. */
+  cookParams: Record<string, string>;
+}
+
+function DishDetailContent({ dish, plan }: { dish: DishDetail; plan?: PlanDishContext }) {
   const router = useRouter();
   // Row 9 (1.1) Stripe S2 Part E -- above every early return, per the block rule.
   const { subscription } = useBilling();
 
   const onCookNow = () => {
     console.log("[dish-detail] cook-now tapped", { dishId: dish.id });
+    // PREP-2 — in plan context Cook Mode reads the dish out of the meal (scaled,
+    // one run); otherwise the dish alone, as before.
+    if (plan) {
+      router.push({ pathname: "/cook-session", params: plan.cookParams });
+      return;
+    }
     // WS7-8b B2 — meal-context "Cook Now" → temporary /cook-session stub (the
     // Hub took over /prep-cook). Block 3 owns the real single-meal Cook session.
     router.push({ pathname: "/cook-session", params: { dishId: dish.id } });
   };
+  // PREP-2 — what this screen lists: the plan's copy of the dish, or the dish.
+  const ingredients = plan ? plan.view.dish.ingredients : dish.ingredients;
+  const steps = plan ? plan.view.dish.steps : dish.steps;
+  const multiplier = plan ? plan.view.multiplier : 1;
+  const runLine =
+    plan?.run && makeAheadRunSteps(plan.view.dish.steps, plan.run) ? runCookLine(plan.run) : null;
 
   const onEdit = () => {
     console.log("[dish-detail] edit tapped", { dishId: dish.id });
@@ -117,7 +174,7 @@ function DishDetailContent({ dish }: { dish: DishDetail }) {
 
   const metaParts = [
     dish.minutes > 0 ? `${dish.minutes} min` : null,
-    `serves ${dish.servings}`,
+    `serves ${plan ? plan.view.servings : dish.servings}`,
   ].filter(Boolean) as string[];
 
   return (
@@ -159,6 +216,7 @@ function DishDetailContent({ dish }: { dish: DishDetail }) {
 
         <View style={s.primaryActionStack}>
           <Button label="Cook Now" variant="primary" onPress={onCookNow} />
+          {runLine ? <Text style={s.heroMeta}>{runLine}</Text> : null}
         </View>
 
         {/* D-WS9-006 / BUG-008 case 3 — the library-context "Compost" button is
@@ -169,16 +227,20 @@ function DishDetailContent({ dish }: { dish: DishDetail }) {
             definition of a work-in-progress feel on a screen a tester opens.
             BUG-008 case 3 STAYS OPEN; the affordance comes back with the route.
             Removal is one-line-reversible; a dead button seen by a tester is
-            not. Edit keeps the row to itself. */}
-        <View style={s.actionRow}>
-          <View style={{ flex: 1 }}>
-            <Button label="Edit" variant="ghost" onPress={onEdit} />
+            not. Edit keeps the row to itself.
+            PREP-2 — not in plan context: Edit opens the dish builder on the
+            catalog dish, which is not the plan's copy this screen is showing. */}
+        {!plan && (
+          <View style={s.actionRow}>
+            <View style={{ flex: 1 }}>
+              <Button label="Edit" variant="ghost" onPress={onEdit} />
+            </View>
           </View>
-        </View>
+        )}
 
         <View style={s.section}>
           <SectionLabel label="Ingredients" />
-          {dish.ingredients.map((ing, i) => (
+          {ingredients.map((ing, i) => (
             <Text key={i} style={s.ingredientLine}>
               {/* ①-follow-up — render 1.75 back as "1¾" via the existing
                   formatQuantity glyph formatter (same as Meal Detail), so a
@@ -191,15 +253,15 @@ function DishDetailContent({ dish }: { dish: DishDetail }) {
                   true of two screens out of three, and a count-unit suppression
                   landing on the meal and guest screens would have left "1 each"
                   here. Now there is one formatter and three callers. */}
-              {formatIngredientLine(ing)}
+              {plan ? formatIngredientLine(ing, { multiplier }) : formatIngredientLine(ing)}
             </Text>
           ))}
         </View>
 
-        {dish.steps.length > 0 && (
+        {steps.length > 0 && (
           <View style={s.section}>
             <SectionLabel label="Steps" />
-            {dish.steps.map((step, i) => (
+            {steps.map((step, i) => (
               <View key={i} style={s.stepRow}>
                 <View
                   style={[
@@ -220,7 +282,17 @@ function DishDetailContent({ dish }: { dish: DishDetail }) {
                   </Text>
                 </View>
                 <View style={{ flex: 1, gap: 4 }}>
-                  <Text style={s.stepText}>{step.text}</Text>
+                  {/* PREP-2 — in plan context a ref-bearing step scales its amounts
+                      by the same multiplier as the list (meal detail's rule). */}
+                  {plan && step.amountRefs && step.amountRefs.length > 0 ? (
+                    <Text style={s.stepText}>
+                      {buildAmountRefSegments(step.text, step.amountRefs, multiplier).map((seg, k) => (
+                        <Text key={k}>{seg.text}</Text>
+                      ))}
+                    </Text>
+                  ) : (
+                    <Text style={s.stepText}>{step.text}</Text>
+                  )}
                   {step.estimatedMinutes !== undefined && (
                     <Text style={s.stepMeta}>{step.estimatedMinutes} min</Text>
                   )}

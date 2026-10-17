@@ -9,7 +9,7 @@ import {
   buildMakeAheadCard,
   FEAST_HAS_OWN_PREP_LINE,
   localIsoDate,
-  makeAheadRecipeRoute,
+  makeAheadDishRoute,
   prepSessionCopy,
   shortDate,
 } from "@/lib/cooking/makeAheadModel";
@@ -154,21 +154,27 @@ describe("PREP-1 — the session copy on Prep the Week", () => {
   });
 });
 
-describe("PREP-1 F — a make-ahead row opens the feast at the plan's servings", () => {
+// PREP-2 item 2 replaces PREP-1 F's route (the feast MEAL) with the DISH, read out of
+// the feast meal in plan context so it still scales to the plan's servings.
+describe("PREP-2 item 2 — a make-ahead row opens its DISH, in the feast's plan context", () => {
   const PLAN = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-  it("the route is the FEAST MEAL in plan context (meal detail scales to the ×10), never the dish", () => {
+  it("the route is the row's dish, carrying the feast meal, the plan item and the row's day", () => {
     const card = buildMakeAheadCard({ ...SCHEDULE, feastPlanItemId: "item-thu" });
-    assert.deepEqual(makeAheadRecipeRoute(PLAN, card.days[1].rows[0]), {
-      pathname: "/meal/[id]",
-      params: { id: FEAST, planId: PLAN, planItemId: "item-thu" },
+    assert.deepEqual(makeAheadDishRoute(PLAN, card.days[1].rows[0]), {
+      pathname: "/dish/[id]",
+      params: { id: "d5", mealId: FEAST, run: "make:Monday", planId: PLAN, planItemId: "item-thu" },
     });
+    // The brine is its day's night; the thaw is its own kind.
+    const brine = card.days[4].rows[0];
+    assert.equal(makeAheadDishRoute(PLAN, brine).params.run, "brine:Wednesday");
+    assert.equal(makeAheadDishRoute(PLAN, card.days[0].rows[0]).params.run, "thaw:Saturday");
   });
-  it("an older server without the plan item: the Hub's own lookup fills it; with neither, the meal alone", () => {
+  it("an older server without the plan item: the Hub's own lookup fills it; with neither, the feast meal at its own servings", () => {
     const fromItems = buildMakeAheadCard(SCHEDULE, "item-from-plan");
     assert.equal(fromItems.days[0].rows[0].planItemId, "item-from-plan");
-    assert.deepEqual(makeAheadRecipeRoute(PLAN, buildMakeAheadCard(SCHEDULE).days[0].rows[0]), {
-      pathname: "/meal/[id]",
-      params: { id: FEAST },
+    assert.deepEqual(makeAheadDishRoute(PLAN, buildMakeAheadCard(SCHEDULE).days[0].rows[0]), {
+      pathname: "/dish/[id]",
+      params: { id: "d1", mealId: FEAST, run: "thaw:Saturday" },
     });
   });
 });

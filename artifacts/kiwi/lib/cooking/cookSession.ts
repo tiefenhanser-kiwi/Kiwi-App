@@ -13,6 +13,7 @@
 import type { PrepCompletionRow, PrepWeekResult, SequencedStep } from "@/lib/api/cooking";
 import type { DishDetail } from "@/lib/api/dishes";
 import type { AmountRef, MealDetail, MealStep } from "@/lib/api/meals";
+import { makeAheadRunSteps, type MakeAheadRun } from "./feastDay";
 
 // WS7-8b Block 4 (Block 1) — four shared primitives were lifted out of this
 // module into dedicated, screen-agnostic homes so the Week Prep screen can
@@ -150,6 +151,26 @@ export function flattenMealSteps(meal: MealDetail): CookStep[] {
 /** Flatten a single dish (dishId launch) — flat stepIndex order, no labels. */
 export function flattenDishSteps(dish: DishDetail): CookStep[] {
   return dish.steps.map((s, i) => toCookStep(s, `dish#${i}`));
+}
+
+/**
+ * PREP-2 item 2 — Cook Mode for ONE dish of a meal opened in plan context (a
+ * Thanksgiving make-ahead row → its dish → Cook Now). The steps are the dish's as
+ * the composed meal carries them (per-plan recipe edit and path filter applied),
+ * and with a `run` only that make-ahead run: Hans, "if someone … clicks on what to
+ * do on Tuesday night they could go to cook mode for the individual dish". A dish
+ * with no such run cooks whole. Keys carry the dish and its stepIndex, like the
+ * meal path, so a prep step's `coversCookSteps` can still name them.
+ */
+export function flattenPlanDishSteps(
+  meal: MealDetail,
+  dishId: string,
+  run: MakeAheadRun | null,
+): CookStep[] {
+  const dish = meal.dishes.find((d) => d.dishId === dishId);
+  if (!dish) return [];
+  const steps = (run && makeAheadRunSteps(dish.steps, run)) || dish.steps;
+  return steps.map((s) => toCookStep(s, `${dishId}#${s.stepIndex}`, undefined, dishId));
 }
 
 /**

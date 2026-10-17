@@ -31,6 +31,7 @@ import {
   firstLiveIndex,
   flattenDishSteps,
   flattenMealSteps,
+  flattenPlanDishSteps,
   nextLiveIndex,
   prepRecap,
   prevLiveIndex,
@@ -43,6 +44,7 @@ import {
   shouldLoadPrepForCook,
   type CookStep,
 } from "@/lib/cooking/cookSession";
+import { decodeRun } from "@/lib/cooking/feastDay";
 import { Colors, Spacing, Typography } from "@/constants/tokens";
 
 const TOAST_MS = 2500;
@@ -57,9 +59,15 @@ export default function CookSession() {
     mode?: string;
     mealIds?: string;
     session?: string;
+    run?: string;
   }>();
   const mealId = typeof params.mealId === "string" ? params.mealId : "";
   const dishId = typeof params.dishId === "string" ? params.dishId : "";
+  // PREP-2 item 2 — BOTH ids: one dish of a meal in plan context (a Thanksgiving
+  // make-ahead row → its dish → Cook Now). The steps come from the composed meal,
+  // scaled like the meal path; `run` narrows them to the row's own day.
+  const planDish = mealId.length > 0 && dishId.length > 0;
+  const run = useMemo(() => decodeRun(typeof params.run === "string" ? params.run : undefined), [params.run]);
   const planId = typeof params.planId === "string" ? params.planId : "";
   const planItemId = typeof params.planItemId === "string" ? params.planItemId : "";
   const mode = typeof params.mode === "string" ? params.mode : "";
@@ -77,7 +85,7 @@ export default function CookSession() {
 
   // All hooks run every render (rules of hooks); empty ids leave queries disabled.
   const mealQuery = useMeal(mealId, planItemId || undefined);
-  const dishQuery = useDish(dishId);
+  const dishQuery = useDish(planDish ? "" : dishId);
   const planQuery = usePlan(planId);
 
   // ── Cooking Sequencer gate (PRD §13.5.4 / §7.13) ───────────────────────────
@@ -87,6 +95,7 @@ export default function CookSession() {
   // and never hit the endpoint. The hook's `enabled` keeps it inert otherwise.
   const isMultiDish =
     mealId.length > 0 &&
+    !planDish &&
     !!mealQuery.data &&
     mealQuery.data.steps.length === 0 &&
     mealQuery.data.dishes.length > 1;
@@ -122,6 +131,7 @@ export default function CookSession() {
   // with parallel cues. Otherwise (single-dish, dishId, meal-owned steps, or a
   // failed/in-flight Sequencer) → naive ordering. The join never drops a step.
   const allSteps: CookStep[] = useMemo(() => {
+    if (planDish && mealQuery.data) return flattenPlanDishSteps(mealQuery.data, dishId, run);
     if (mealId && mealQuery.data) {
       if (isMultiDish && seqQuery.data) {
         return sequenceMealSteps(mealQuery.data, seqQuery.data.sequence);
@@ -130,7 +140,7 @@ export default function CookSession() {
     }
     if (dishId && dishQuery.data) return flattenDishSteps(dishQuery.data);
     return [];
-  }, [mealId, dishId, mealQuery.data, dishQuery.data, isMultiDish, seqQuery.data]);
+  }, [planDish, run, mealId, dishId, mealQuery.data, dishQuery.data, isMultiDish, seqQuery.data]);
 
   // ── WS7-8b BUG-006 — amount-ref scale ───────────────────────────────────────
   // Cook Mode renders amountRefs through this so the cook screen scales to the
@@ -192,7 +202,9 @@ export default function CookSession() {
     [prepResult, mealId, completionRows],
   );
 
-  const title = resolveDisplayTitle(mealQuery.data ?? dishQuery.data, "Cook");
+  const title = planDish
+    ? mealQuery.data?.dishes.find((d) => d.dishId === dishId)?.title ?? "Cook"
+    : resolveDisplayTitle(mealQuery.data ?? dishQuery.data, "Cook");
 
   // ── Fail-safe: a launch with no meal/dish should never happen (the no-param
   // Hub handoff was removed). If one slips through, route back rather than

@@ -7,6 +7,7 @@
 // make-ahead work ("Wednesday night").
 
 import type { MakeAhead, MakeAheadRow } from "@/lib/api/plans";
+import { encodeRun, type MakeAheadRun } from "@/lib/cooking/feastDay";
 
 export const MAKE_AHEAD_CARD_TITLE = "Thanksgiving make-ahead";
 export const PREP_THE_FEAST_LABEL = "Prep the feast";
@@ -15,11 +16,12 @@ export const FEAST_HAS_OWN_PREP_LINE = "The feast has its own prep. See Thanksgi
 
 export interface MakeAheadRowVM {
   key: string;
-  /** The dish the row is about (meal detail has no per-dish anchor to scroll to). */
+  /** PREP-2 — the row opens THIS dish, read from the feast meal in plan context. */
   dishId: string;
-  /** The recipe link: the feast meal, opened in plan context. */
   mealId: string;
   planItemId: string | null;
+  /** PREP-2 — which of the dish's steps the row is: Cook Mode opens that run only. */
+  run: MakeAheadRun;
   title: string;
   note: string;
 }
@@ -96,19 +98,31 @@ export function makeAheadNote(row: MakeAheadRow, feastDayName = "Thursday"): str
   }
 }
 
+export interface MakeAheadDishRoute {
+  pathname: "/dish/[id]";
+  params: { id: string; mealId: string; run: string; planId?: string; planItemId?: string };
+}
+
 /**
- * PREP-1 F — where a make-ahead row goes: the FEAST MEAL's detail in plan context,
- * so every recipe in it reads at the plan's servings (the ×10 the feast is cooked
- * for). The dish screen reads the dish's own default — 4 — and a cook following it
- * makes too little. Without a plan item (an older server) it is the meal alone.
+ * PREP-2 item 2 — where a make-ahead row goes: THE DISH. Hans: "when I click on the
+ * cards it goes to the MEAL, not the individual dish. it should go to the dish."
+ * (This replaces PREP-1 F's meal-detail route.)
+ *
+ * The dish screen reads it out of the feast MEAL in plan context (mealId, planId,
+ * planItemId), so its amounts scale to the plan's servings exactly as meal detail's
+ * do — the bare GET /dishes/:id reads the dish's own default. `run` is the row's
+ * day: Cook Mode from there opens that run's steps only. Without a plan item (an
+ * older server, no plan item found) it is the feast meal at its own servings.
  */
-export function makeAheadRecipeRoute(
+export function makeAheadDishRoute(
   planId: string,
-  row: Pick<MakeAheadRowVM, "mealId" | "planItemId">,
-): { pathname: "/meal/[id]"; params: { id: string; planId?: string; planItemId?: string } } {
-  return row.planItemId && planId
-    ? { pathname: "/meal/[id]", params: { id: row.mealId, planId, planItemId: row.planItemId } }
-    : { pathname: "/meal/[id]", params: { id: row.mealId } };
+  row: Pick<MakeAheadRowVM, "dishId" | "mealId" | "planItemId" | "run">,
+): MakeAheadDishRoute {
+  const base = { id: row.dishId, mealId: row.mealId, run: encodeRun(row.run) };
+  return {
+    pathname: "/dish/[id]",
+    params: row.planItemId && planId ? { ...base, planId, planItemId: row.planItemId } : base,
+  };
 }
 
 /**
@@ -145,6 +159,7 @@ export function buildMakeAheadCard(
       dishId: row.dishId,
       mealId: row.mealId,
       planItemId: itemId,
+      run: { kind: row.kind, dayName: row.dayName },
       title: row.dishName,
       note: makeAheadNote(row, m.feastDayName),
     });

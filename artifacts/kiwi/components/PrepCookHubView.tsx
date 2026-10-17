@@ -51,7 +51,7 @@ interface Props {
   onSelectMeal: (mealId: string, planItemId: string) => void;
   /** PREP-1 — "Prep the feast": Week Prep over the feast meal's own session. */
   onPrepFeast: () => void;
-  /** PREP-1 — a make-ahead row's recipe (the feast meal, at the plan's servings). */
+  /** PREP-2 — a make-ahead row's dish (read from the feast meal, at the plan's servings). */
   onOpenRecipe: (row: MakeAheadRowVM) => void;
   /** PREP-2 — the Thanksgiving block's "Done days" line is open. Screen state. */
   doneDaysOpen?: boolean;
