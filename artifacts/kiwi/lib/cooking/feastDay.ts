@@ -57,6 +57,34 @@ export function makeAheadRunSteps<T extends { text: string }>(steps: readonly T[
   return out.length > 0 ? out : null;
 }
 
+/**
+ * PREP-2 item 3 — what the feast day itself cooks: every step outside a make-ahead
+ * or thaw run. The client half of mealTiming `onTheDaySteps`.
+ */
+export function onTheDaySteps<T extends { text: string }>(steps: readonly T[]): T[] {
+  const days = daysOf(steps);
+  return steps.filter((_, i) => days[i].kind === "feast");
+}
+
+/** The meal tag that marks the feast (THX-2G-E's contract; hubModel FEAST_MEAL_TAG). */
+const FEAST_MEAL_TAG = "thanksgiving-feast";
+
+/**
+ * PREP-2 item 3 — the feast's Cook Mode is the feast day's: Hans's 55 steps were the
+ * thaw, the brine, the make-ahead runs and, after the turkey rested, "Make ahead
+ * (Tuesday)" again. Those are cooked from the Hub's rows. A meal NOT tagged
+ * `thanksgiving-feast` is returned as the same object, untouched.
+ *
+ * Both Cook Mode paths read it: the naive flatten, and the Sequencer join, whose §27
+ * append would otherwise put every step the server left out back at the end.
+ */
+export function onTheDayMeal<M extends { tags: readonly string[]; dishes: readonly { steps: readonly { text: string }[] }[] }>(
+  meal: M,
+): M {
+  if (!meal.tags.includes(FEAST_MEAL_TAG)) return meal;
+  return { ...meal, dishes: meal.dishes.map((d) => ({ ...d, steps: onTheDaySteps(d.steps) })) };
+}
+
 /** "make:Wednesday" — the run on a route param (expo-router params are strings). */
 export function encodeRun(run: MakeAheadRun): string {
   return `${run.kind}:${run.dayName}`;

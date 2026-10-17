@@ -44,7 +44,7 @@ import {
   shouldLoadPrepForCook,
   type CookStep,
 } from "@/lib/cooking/cookSession";
-import { decodeRun } from "@/lib/cooking/feastDay";
+import { decodeRun, onTheDayMeal } from "@/lib/cooking/feastDay";
 import { Colors, Spacing, Typography } from "@/constants/tokens";
 
 const TOAST_MS = 2500;
@@ -133,10 +133,13 @@ export default function CookSession() {
   const allSteps: CookStep[] = useMemo(() => {
     if (planDish && mealQuery.data) return flattenPlanDishSteps(mealQuery.data, dishId, run);
     if (mealId && mealQuery.data) {
+      // PREP-2 item 3 — a Thanksgiving feast cooks the feast day's steps only (the
+      // make-ahead runs are the Hub's rows); any other meal is passed as is.
+      const meal = onTheDayMeal(mealQuery.data);
       if (isMultiDish && seqQuery.data) {
-        return sequenceMealSteps(mealQuery.data, seqQuery.data.sequence);
+        return sequenceMealSteps(meal, seqQuery.data.sequence);
       }
-      return flattenMealSteps(mealQuery.data);
+      return flattenMealSteps(meal);
     }
     if (dishId && dishQuery.data) return flattenDishSteps(dishQuery.data);
     return [];

@@ -62,6 +62,41 @@ describe("PREP-1 G (BUG-418) — a feast's clock is Thursday's", () => {
     assert.deepEqual(onTheDaySteps(TURKEY).map((s) => s.stepIndex), [0, 1, 2]);
   });
 
+  it("PREP-2 item 3 — the bird's 'Thaw (start Friday):' step is a run too (the client's literal vectors)", () => {
+    // Verbatim up to the first clause: the same vectors as artifacts/kiwi
+    // lib/cooking/__tests__/feastDay.test.ts, so the two readings agree step for step.
+    const turkey = [
+      "Thaw (start Friday): If the turkey is frozen, transfer it to the fridge on Friday.",
+      "Make ahead (Wednesday night): Dissolve ½ cup kosher salt and ¼ cup light brown sugar in 1 gallon cold water.",
+      "Make ahead (Wednesday night): Add 1 tablespoon black peppercorns, 3 thyme sprigs, 2 rosemary sprigs.",
+      "Make ahead (Wednesday night): Pat the turkey dry with paper towels and submerge the bird in the brine.",
+      "Make ahead (Wednesday night): Mash 6 tablespoons softened butter with 3 minced garlic cloves.",
+      "On Thursday: Remove the turkey from the brine, discard the brine, and pat the bird very dry.",
+      "Preheat the oven to 325°F.",
+      "Loosen the skin over the breast and thighs and rub all of the herb butter directly onto the meat.",
+      "Stuff the cavity with the quartered onion; tie the legs together with kitchen twine.",
+      "Place the turkey breast side up on a rack and roast at 325°F for 3 to 3½ hours.",
+      "Transfer the turkey to a cutting board and let it rest.",
+      "Carve the turkey and arrange on a large platter.",
+    ];
+    const stuffing = [
+      "Make ahead (Tuesday): Cut 1½ lb rustic white bread into ¾-inch cubes and leave uncovered.",
+      "Make ahead (Wednesday): Melt 8 tablespoons butter in a 12-inch skillet over medium heat.",
+      "Make ahead (Wednesday): Stir in the minced garlic, ¼ cup chopped sage.",
+      "Make ahead (Wednesday): Toss the dried bread cubes with the cooked vegetable mixture.",
+      "Make ahead (Wednesday): Whisk 3 beaten eggs into 3 cups low-sodium stock.",
+      "Make ahead (Wednesday): Butter a 9×13-inch baking dish, cover tightly with foil, and refrigerate overnight.",
+      "On Thursday: Preheat the oven to 375°F.",
+      "Bake the stuffing, still covered in foil, for 30 minutes; uncover and bake 20–25 minutes more.",
+      "Serve the stuffing directly from the baking dish.",
+    ];
+    const idx = (texts: string[]) => onTheDaySteps(texts.map((text) => ({ text }))).map((s) => texts.indexOf(s.text));
+    assert.deepEqual(idx(turkey), [5, 6, 7, 8, 9, 10, 11]);
+    assert.deepEqual(idx(stuffing), [6, 7, 8]);
+    // A thaw that is NOT the opening clause is an ordinary step.
+    assert.deepEqual(idx(["Let the butter thaw (about 10 minutes) on the counter."]), [0]);
+  });
+
   it("a feast is stamped with Thursday's steps only", async () => {
     const dishes = { turkey: TURKEY, gravy: GRAVY, pie: PIE };
     const { tx: t, mealUpdates } = tx(dishes, ["american", "thanksgiving", "thanksgiving-feast"]);

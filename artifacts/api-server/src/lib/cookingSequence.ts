@@ -22,6 +22,8 @@ import {
 } from "./cookingScheduler";
 import type { SequencedStep } from "./ai/schemas/sequencer";
 import { logger } from "./logger";
+import { onTheDaySteps } from "./mealTiming";
+import { FEAST_MEAL_TAG } from "./prepWeekAggregation";
 
 // Route handler maps NotFoundError → 404; meal-exists-but-empty maps to
 // 400 with the locked copy.
@@ -112,9 +114,27 @@ export async function runCookingSequence(
     throw new CookingSequenceEmptyMealError(mealId);
   }
 
+  // PREP-2 item 3 — A FEAST'S COOK MODE IS THURSDAY'S. A `thanksgiving-feast` meal
+  // spreads its work over the week ("Make ahead (Monday):" the cranberry sauce,
+  // "Make ahead (Wednesday night):" the brine, "Thaw (start Friday):" the bird), and
+  // those runs are cooked from the Hub's make-ahead rows. So they leave before the
+  // scheduler, by the same reading the derived times use (mealTiming
+  // onTheDaySteps), and the day's dishes still sequence to finish together. Every
+  // other meal passes through exactly as before.
+  const isFeast = (meal.tags ?? []).includes(FEAST_MEAL_TAG);
+  const stepKey = (s: { ownerId: string; stepIndex: number }) => `${s.ownerId}|${s.stepIndex}`;
+  const onTheDay = isFeast
+    ? new Set(
+        dishIds.flatMap((id) =>
+          onTheDaySteps(steps.filter((s) => s.ownerId === id).map((s) => ({ ...s, text: s.stepTextTranslated }))).map(stepKey),
+        ),
+      )
+    : null;
+  const dayOnly = onTheDay ? steps.filter((s) => onTheDay.has(stepKey(s))) : steps;
+
   // 6. Coerce estimatedMinutes 0 → 1 at this boundary (the 15-second
   //    floor decision). All downstream code sees a minimum of 1.
-  const normalized = steps.map((s) => ({
+  const normalized = dayOnly.map((s) => ({
     ...s,
     estimatedMinutes: s.estimatedMinutes <= 0 ? 1 : s.estimatedMinutes,
   }));

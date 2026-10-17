@@ -7,8 +7,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import type { MealDetail, MealStep } from "@/lib/api/meals";
-import { flattenPlanDishSteps } from "@/lib/cooking/cookSession";
-import { decodeRun, encodeRun, makeAheadRunSteps, runCookLine } from "@/lib/cooking/feastDay";
+import { flattenMealSteps, flattenPlanDishSteps, sequenceMealSteps } from "@/lib/cooking/cookSession";
+import { decodeRun, encodeRun, makeAheadRunSteps, onTheDayMeal, onTheDaySteps, runCookLine } from "@/lib/cooking/feastDay";
 import { planDishView } from "@/lib/dishes/planDish";
 import { formatIngredientLine } from "@/lib/format/ingredientLine";
 
@@ -159,5 +159,43 @@ describe("PREP-2 item 2 — the dish reads at the plan's servings, the way meal 
   });
   it("a meal that no longer holds the dish: null (the screen falls back to the dish alone)", () => {
     assert.equal(planDishView(feast(10), "gone"), null);
+  });
+});
+
+// ── PREP-2 item 3 — the feast's Cook Mode is Thursday's ────────────────────────
+
+describe("PREP-2 item 3 — the feast day's steps", () => {
+  // The same literal vectors as api-server mealTimingBug418.test.ts (the server's
+  // onTheDaySteps): the two readings must agree step for step.
+  it("the Classic turkey cooks from 'On Thursday:' on; the thaw and the brine are runs", () => {
+    assert.deepEqual(idx(CLASSIC_TURKEY, onTheDaySteps(t(CLASSIC_TURKEY))), [5, 6, 7, 8, 9, 10, 11]);
+    assert.deepEqual(idx(OVERNIGHT_STUFFING, onTheDaySteps(t(OVERNIGHT_STUFFING))), [6, 7, 8]);
+    assert.deepEqual(idx(UNPREFIXED_RUN, onTheDaySteps(t(UNPREFIXED_RUN))), [3]);
+    // A recipe with no prefixes at all is all feast day (the Wellington).
+    assert.deepEqual(onTheDaySteps(t(["Chop the mushrooms.", "Bake 30 minutes."])).length, 2);
+  });
+
+  it("a feast's Cook Mode (both paths) leaves the runs out; the §27 append does not put them back", () => {
+    const meal = feast(10);
+    const flat = flattenMealSteps(onTheDayMeal(meal));
+    // The turkey's persisted stepIndex is its array position + 10 (see `feast`).
+    assert.deepEqual(flat.map((s) => `${s.dishId}@${s.stepIndex}`), [
+      "turkey@15", "turkey@16", "turkey@17", "turkey@18", "turkey@19", "turkey@20", "turkey@21", "cran@3",
+    ]);
+    // An older server that still sequenced every step: its make-ahead entries have
+    // nothing to map to, and the append adds only what the feast day holds.
+    const seq = meal.dishes.flatMap((d) =>
+      d.steps.map((s, i) => ({ sequenceIndex: i, dishId: d.dishId, originalStepIndex: s.stepIndex, reason: null, startOffsetMinutes: null })),
+    );
+    const sequenced = sequenceMealSteps(onTheDayMeal(meal), seq as never);
+    assert.equal(sequenced.length, 8);
+    assert.ok(sequenced.every((s) => !/^(make ahead|thaw) \(/i.test(s.text)), sequenced.map((s) => s.text).join("\n"));
+  });
+
+  it("a meal NOT tagged thanksgiving-feast is the same object, and cooks every step as before", () => {
+    const ordinary = { ...feast(10), tags: ["american", "thanksgiving"] } as MealDetail;
+    assert.equal(onTheDayMeal(ordinary), ordinary);
+    assert.deepEqual(flattenMealSteps(onTheDayMeal(ordinary)), flattenMealSteps(ordinary));
+    assert.equal(flattenMealSteps(ordinary).length, 16);
   });
 });

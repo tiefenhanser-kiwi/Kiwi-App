@@ -423,3 +423,55 @@ describe("runCookingSequence — BUG-270 a dual-path dish sequences base + scrat
     assert.equal(r.usedAI, false);
   });
 });
+
+// ── PREP-2 item 3 — a Thanksgiving feast's Cook Mode is the feast day's ────────
+
+describe("runCookingSequence — PREP-2 a thanksgiving-feast meal sequences the feast day only", () => {
+  const step = (ownerId: string, stepIndex: number, text: string, phaseType: StepFixture["phaseType"], estimatedMinutes: number): StepFixture => ({
+    ownerType: "dish", ownerId, stepIndex, stepTextTranslated: text, estimatedMinutes, phaseType, parallelGroup: null, isTimingSensitive: false,
+  });
+  const STEPS: StepFixture[] = [
+    step("turkey", 0, "Thaw (start Friday): Move the turkey to the fridge.", "prep", 2),
+    step("turkey", 1, "Make ahead (Wednesday night): Submerge the bird in the brine.", "prep", 5),
+    step("turkey", 2, "On Thursday: Pat the turkey dry.", "prep", 5),
+    step("turkey", 3, "Roast 3 hours.", "cook", 180),
+    step("turkey", 4, "Rest 40 minutes.", "rest", 40),
+    step("gravy", 0, "Make ahead (Tuesday): Simmer the neck for stock.", "cook", 15),
+    step("gravy", 1, "Strain and chill.", "prep", 2),
+    step("gravy", 2, "On Thursday: Whisk the drippings into the stock.", "cook", 10),
+    step("sauce", 0, "Make ahead (Monday): Simmer the cranberries.", "cook", 15),
+  ];
+  const meal = (tags: string[]) => ({
+    id: "feast",
+    userId: USER_ID,
+    isPublic: false,
+    tags,
+    dishLinks: [
+      { dishId: "turkey", positionIndex: 0, dish: { id: "turkey", title: "Turkey" } },
+      { dishId: "gravy", positionIndex: 1, dish: { id: "gravy", title: "Gravy" } },
+      { dishId: "sauce", positionIndex: 2, dish: { id: "sauce", title: "Sauce" } },
+    ],
+  });
+  const run = (tags: string[]) =>
+    runCookingSequence({ mealId: "feast", userId: USER_ID, deps: { prisma: makePrismaStub({ meals: [meal(tags) as MealFixture], steps: STEPS }) } });
+
+  it("only the feast day's steps, both dishes finishing together; the all-make-ahead dish drops out", async () => {
+    const r = await run(["american", "thanksgiving", "thanksgiving-feast"]);
+    assert.deepEqual(
+      [...r.sequence].sort((a, b) => a.sequenceIndex - b.sequenceIndex).map((e) => `${e.dishId}#${e.originalStepIndex}`).sort(),
+      ["gravy#2", "turkey#2", "turkey#3", "turkey#4"],
+    );
+    // The gravy whisks while the turkey rests: both end at serve (offset 0 is serve).
+    const minutes = (e: { dishId: string; originalStepIndex: number }) =>
+      STEPS.find((s) => s.ownerId === e.dishId && s.stepIndex === e.originalStepIndex)!.estimatedMinutes;
+    const end = (dishId: string) =>
+      Math.max(...r.sequence.filter((e) => e.dishId === dishId).map((e) => e.startOffsetMinutes + minutes(e)));
+    assert.deepEqual([end("turkey"), end("gravy")], [0, 0]);
+    assert.equal(r.totalEstimatedMinutes, 225);
+  });
+
+  it("the same dishes on a meal NOT tagged thanksgiving-feast sequence every step, as before", async () => {
+    const r = await run(["american", "thanksgiving"]);
+    assert.equal(r.sequence.length, STEPS.length);
+  });
+});

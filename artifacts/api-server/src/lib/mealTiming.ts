@@ -135,7 +135,12 @@ export function deriveMealTiming(dishes: SchedulerDish[]): MealTiming {
 // step and leaves the simmer or bake inside it unprefixed. Not a parallelism rule:
 // which steps happen on the day is a fact about the recipe, and the scheduler still
 // decides everything about how the day's steps overlap.
-const MAKE_AHEAD_RUN_START = /^\s*make ahead \(/i;
+//
+// PREP-2 item 3 — the bird's "Thaw (start Friday):" step is a run of its own too (a
+// week-before step, cooked from the Hub's thaw row), so it starts a run the same
+// way. The same reading drives the feast's Cook Mode (cookingSequence.ts) and its
+// client mirror (artifacts/kiwi lib/cooking/feastDay.ts).
+const MAKE_AHEAD_RUN_START = /^\s*(?:make ahead|thaw) \(/i;
 const ON_THURSDAY = /^\s*on thursday:/i;
 
 /** A dish's steps, in step order, less its make-ahead runs: what happens on the day. */
