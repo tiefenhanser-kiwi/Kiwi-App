@@ -19,9 +19,11 @@
 
 import type { PrismaClient } from "@prisma/client";
 
+import { IMPORT_SAFETY_RULES, RECIPE_SAFETY_RULES } from "../../src/lib/ai/recipeRules";
+
 type AICallMode = "tool" | "text";
 
-interface PromptSeed {
+export interface PromptSeed {
   key: string;
   description: string;
   variables: string[];
@@ -603,6 +605,8 @@ A dish the user names in its plain form is returned in its plain, most common fo
 - **Ambiguous protein** ("pasta night") — pick the dominant interpretation, name it in the title, and add a caveat ("Assumed marinara-style pasta with ground beef; specify if you'd prefer pesto or seafood").
 - **Dish that requires equipment beyond a normal kitchen** (sous-vide, smoker, pressure cooker) — write the recipe assuming the equipment exists; the user named the dish, so they presumably have it. Don't refuse or substitute.
 
+${RECIPE_SAFETY_RULES}
+
 # Input
 
 The user's free-text meal description, target servings, and any user hints arrive below.
@@ -686,6 +690,8 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
 - **Ambiguous preparation** ("potatoes") — pick the dominant interpretation, name it in the title, and add a caveat ("Assumed roasted potatoes; specify if you'd prefer mashed").
 - **Dish that requires equipment beyond a normal kitchen** (sous-vide, smoker) — write the recipe assuming the equipment exists; the user named the dish, so they presumably have it. Don't refuse or substitute.
 
+${RECIPE_SAFETY_RULES}
+
 # Input
 
 The user's free-text dish description, target servings, and any user hints arrive below.
@@ -754,6 +760,8 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
 - **No existingIngredients (empty array)** — generate the full ingredient list from scratch. Every row is addedByKiwi=true. Common case when the user just typed the dish name and toggled the assist checkbox.
 - **No cuisine** — infer from the dish title where possible. "Beef Tacos" without cuisine → Mexican-leaning ingredients. "Generic Stir Fry" → reasonable East Asian baseline.
 
+${RECIPE_SAFETY_RULES}
+
 # Input
 
 The dish title, cuisine, the user's existing ingredients, the servings count, and any dietary hints arrive below.
@@ -770,7 +778,7 @@ Return ONLY the JSON object.`;
 // isTimingSensitive fields feed the Cooking Sequencer later — getting them
 // right at generation time saves a second pass. (parallelGroup retired,
 // BUG-018 WS7-8b B1.)
-const MEAL_BUILDER_ASSIST_STEPS_BODY = `You are Kiwi's recipe-step assistant. The user has the ingredient list ready and wants Kiwi to write the cooking steps. Your job is to produce clear, ordered, imperative cooking instructions that actually use the ingredients provided.
+export const MEAL_BUILDER_ASSIST_STEPS_BODY = `You are Kiwi's recipe-step assistant. The user has the ingredient list ready and wants Kiwi to write the cooking steps. Your job is to produce clear, ordered, imperative cooking instructions that actually use the ingredients provided.
 
 Your sole deliverable is a single JSON object matching the schema below. Do not narrate, summarize, or add commentary. The JSON is the entire response. No prose, no markdown fences. Never break character with chatbot phrases.
 
@@ -814,6 +822,8 @@ Your sole deliverable is a single JSON object matching the schema below. Do not 
 - **Dish title implies a method not consistent with the ingredients** ("Smoked Brisket" with ingredients suggesting a stovetop dish) — write the method that matches the ingredients and surface a caveat noting the mismatch ("Title says smoked but ingredients suggest stovetop").
 - **No prep/cook time hints** — pick realistic per-step durations and let the sum land where it lands; no caveat needed.
 - **Equipment hints inferred from ingredients** (e.g. "sheet pan" in the title) — write for that equipment; if the ingredient list contradicts (no oil for sheet-pan roasting), add a caveat.
+
+${RECIPE_SAFETY_RULES}
 
 # Input
 
@@ -914,6 +924,7 @@ If the constraints are too tight to produce \`requestedCandidateCount\` genuinel
 - Dietary restrictions in \`eatingStyles\` (vegan, vegetarian, pescatarian, keto, etc.) are absolute exclusions for every meal.
 - Allergies and avoidances in \`allergiesAndAvoidances\` are absolute exclusions for every ingredient in every meal.
 - Items in \`hiddenContext.equipment\`: only suggest meals the user can actually cook. If they don't have an Instant Pot, no Instant-Pot recipes; no smoker dishes without a smoker; no sous-vide without one.
+- \`hiddenContext.spiceTolerance\` is the heat the user saved; when it is \`mild\` or absent (mild is the default), no hot dish in any candidate: no arrabbiata, kung pao, Szechuan or Sichuan, vindaloo, buffalo, Nashville hot, sriracha, gochujang, red or green curry, and nothing whose title says "spicy" or "fiery". The shelf you are handed already leaves those out (a shelf row marked \`"isPlaylist": true\` is the user's own saved meal and stays eligible); do not compose one fresh. \`medium\`, \`hot\` and \`very_hot\` users may get them.
 - Picky-eater avoidances inside \`additionalNotes\` or \`dietaryNotes\` (free-text) are exclusions for the household, treated with the same weight as allergies.
 - Meal titles are appetizing, specific, and clear. Never "Grain Bowl Variation #3" or generic placeholders. Titles read like real recipes a person would tell a friend they cooked.
 - Never suggest a meal whose core ingredient is missing in spirit (no "burgers" without buns, no "spaghetti" without pasta).
@@ -1129,6 +1140,8 @@ The app schedules the dishes against each other (a side that simmers while the m
 
 Example — a roast chicken thigh main (pat dry and season · chop the aromatics · oven to heat · roast · rest · plate): \`[{ "phaseType": "prep", "estimatedMinutes": 5, "isTimingSensitive": false }, { "phaseType": "prep", "estimatedMinutes": 5, "isTimingSensitive": false }, { "phaseType": "preheat", "estimatedMinutes": 10, "isTimingSensitive": false, "firstDependent": 3 }, { "phaseType": "cook", "estimatedMinutes": 35, "isTimingSensitive": false, "firstDependent": 4 }, { "phaseType": "rest", "estimatedMinutes": 5, "isTimingSensitive": false, "firstDependent": 5 }, { "phaseType": "assemble", "estimatedMinutes": 3, "isTimingSensitive": false }]\` — the preheat's dependent is the roast, the roast's is the rest, the rest's is the plate.
 
+${RECIPE_SAFETY_RULES}
+
 # Constraints carried from the original candidate
 
 The user's hard constraints (allergies, eating styles, equipment) already shaped the candidate's meal titles — do NOT introduce ingredients or techniques the candidate's tags imply the user rejected:
@@ -1242,6 +1255,8 @@ Match each dish's sauce steps to how its sauce actually appears in that dish's \
 # Constraints carried from the candidate / candidateContext
 
 The candidate's hard constraints already shaped the dishes' ingredients — but if you spot a technique that conflicts with a constraint surfaced in the input (e.g. an equipment limit in the candidate \`tags\`), prefer the technique that honors the constraint.
+
+${RECIPE_SAFETY_RULES}
 
 # Input
 
@@ -1376,7 +1391,7 @@ The strings above are exact — preserve the title case, the spaces, and the sla
 # Core transforms (PRD §10.9)
 
 **Vague → explicit step language.** Source steps often say "Cook until done", "Sauté the onions", "Bake until golden". Translate every vague instruction into something a beginner can act on. Examples:
-- "Cook until done" → "Cook for 8-10 minutes, or until the internal temperature reaches 165°F."
+- "Cook the chicken until done" → "Cook the chicken 6-8 minutes per side, until an instant-read thermometer in the thickest part reads 165°F." (That number is chicken's. A steak, a pork chop or a fish fillet keeps the doneness its source names; see "Doneness in an imported recipe" below.)
 - "Sauté the onions" → "Heat the olive oil in a skillet over medium heat. Add the onions and cook, stirring occasionally, for 5-7 minutes until softened and translucent."
 - "Season to taste" → "Season with salt and black pepper; adjust to taste."
 - "Bake until golden" → "Bake for 25-30 minutes, until the top is deep golden brown and a tester comes out clean."
@@ -1394,6 +1409,8 @@ The strings above are exact — preserve the title case, the spaces, and the sla
 - \`isTimingSensitive: true\` — over/under by ±60 seconds changes the outcome meaningfully: searing, deglazing, kneading, tempering eggs, emulsifying, resting meat. Generic prep is NOT timing-sensitive. Most steps will have this false.
 
 **Step index.** \`stepIndex\` is the order within the dish, starting at 0. Number consecutively per-dish.
+
+${IMPORT_SAFETY_RULES}
 
 # Sub-dish grouping
 
@@ -2001,7 +2018,7 @@ knownSections: {{knownSections}}
 nearMatches: {{nearMatches}}
 `;
 
-const PROMPTS: PromptSeed[] = [
+export const PROMPTS: readonly PromptSeed[] = [
   {
     key: "wizard.set_preferences.generate",
     description:

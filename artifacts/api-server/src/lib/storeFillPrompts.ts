@@ -18,7 +18,13 @@
 // step rules are kept verbatim; only the framing and the trailing `# Input`
 // interpolation are changed (the per-meal input is supplied in the user body).
 
+import { RECIPE_SAFETY_RULES } from "./ai/recipeRules";
+
 // ── the fixed store-meal quality contract (fattens the prefix + is real) ─────
+//
+// SAFE-1 (D-WS9-315) — the shared food-safety fragment (lib/ai/recipeRules.ts)
+// closes the preamble, so BOTH prefixes carry it: generate sizes to the pan and
+// buys produce whole; finalize states doneness, never rinses, fits the pan.
 
 export const PREFERENCE_CONTRACT_PREAMBLE = `# Kiwi pre-generated dinner store — quality contract
 
@@ -48,6 +54,8 @@ This is the standing contract for every meal you produce:
 
 - A DISTINCTIVE DINNER. Aim for a specific, non-generic dinner — not the same few
   default meals every time.
+
+${RECIPE_SAFETY_RULES}
 
 `;
 
@@ -189,6 +197,8 @@ The per-meal input (a single dinner's dishes, keyed as \`meals[0]\`) is supplied
  * a rider (measured 5,251 → 5,356 tok, count_tokens against claude-sonnet-4-6).
  * This constant is COMPILED, not seeded: the change ships with the build and
  * invalidates the cached prefix once on deploy — no AIPrompt version bump.
+ * SAFE-1 (D-WS9-315): the food-safety fragment at the end of the preamble —
+ * measured 5,356 → 6,254 tok, system-only (scripts/_scratch/safe-1/tokens.ts).
  */
 export const STABLE_FINALIZE_PREFIX =
   PREFERENCE_CONTRACT_PREAMBLE + FINALIZE_STEPS_INSTRUCTIONS;
@@ -343,6 +353,9 @@ Return ONLY the tool_use call with the single meal object.`;
  * from-scratch path — an OVERRIDE of the substitutions section it follows,
  * because a sentence beside the rule it inverted is how the label inversion
  * happened). Measured 4,931 → 5,150 tok, system-only.
+ * SAFE-1 (D-WS9-315): the food-safety fragment at the end of the shared
+ * preamble — measured 5,361 → 6,259 tok, system-only (scripts/_scratch/safe-1/
+ * tokens.ts; 5,361 is the pre-SAFE-1 head, after edits since the line above).
  */
 export const STABLE_GENERATE_PREFIX =
   PREFERENCE_CONTRACT_PREAMBLE + GENERATE_MEAL_INSTRUCTIONS;

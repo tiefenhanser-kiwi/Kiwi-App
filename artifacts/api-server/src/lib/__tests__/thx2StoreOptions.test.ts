@@ -1,7 +1,8 @@
 // THX-2G (D-WS9-311) — the script-only store-fill options. Two guarantees:
 //   1. The default generate and finalize prefixes are BYTE-IDENTICAL to what
 //      they were before THX-2G (sha256 pinned), so the catalog's warm cache and
-//      every existing caller are untouched (D-WS9-311 call 1, §7).
+//      every existing caller are untouched (D-WS9-311 call 1, §7). SAFE-1
+//      changed them on purpose and re-pinned the hashes below.
 //   2. Every new option, absent, is exactly today's behaviour — on the wire
 //      (runAICall's prefix / max_tokens / user body), in the payload, and in
 //      the materialize write.
@@ -36,9 +37,13 @@ import {
   generatePrefixFor,
 } from "../storeFillPrompts";
 
-// Measured on `next` at 504b666, before any THX-2G edit.
-const GENERATE_PREFIX_SHA256 = "e9c24ef31703f97adbd7b111069dc88db3fd78a8adce8d93fb72f395eba6025b";
-const FINALIZE_PREFIX_SHA256 = "823334672b8f984c837e1a2180748d6fe8bf6272cbb0f43337371dc3501e83bd";
+// Measured on `next` at 504b666, before any THX-2G edit; RE-PINNED by SAFE-1
+// (D-WS9-315), which put the shared food-safety fragment (lib/ai/recipeRules.ts)
+// at the end of the shared preamble on purpose. Was generate e9c24ef3…6025b,
+// finalize 82333467…e83bd. The pin's job is unchanged: the default prefix moves
+// only when someone means it to.
+const GENERATE_PREFIX_SHA256 = "eab08b1a8508f42ae859833f4240d5345bcda20bc48303c36b2106f911a6a177";
+const FINALIZE_PREFIX_SHA256 = "9ebc0884a65d1ee0543e59a210c1f2163a7832c3dfe4fedc0926560cb0ff2a90";
 const sha256 = (s: string) => createHash("sha256").update(s, "utf8").digest("hex");
 
 const PROFILE: GenProfile = { key: "test", servings: 4, difficulty: "easy" };
@@ -104,10 +109,10 @@ const DISH = { rank: 1, dish: "Seared Chicken with Rice", key: "seared-chicken",
 // ── 1. the prefixes ──────────────────────────────────────────────────────────
 
 describe("THX-2G — the default store prefixes are byte-identical (sha256)", () => {
-  it("STABLE_GENERATE_PREFIX hashes to the pre-THX-2G value", () => {
+  it("STABLE_GENERATE_PREFIX hashes to the pinned value (SAFE-1 re-pin)", () => {
     assert.equal(sha256(STABLE_GENERATE_PREFIX), GENERATE_PREFIX_SHA256);
   });
-  it("STABLE_FINALIZE_PREFIX hashes to the pre-THX-2G value", () => {
+  it("STABLE_FINALIZE_PREFIX hashes to the pinned value (SAFE-1 re-pin)", () => {
     assert.equal(sha256(STABLE_FINALIZE_PREFIX), FINALIZE_PREFIX_SHA256);
   });
   it("generatePrefixFor with no option returns the default prefix itself", () => {
