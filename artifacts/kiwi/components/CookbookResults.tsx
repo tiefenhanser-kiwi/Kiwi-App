@@ -30,6 +30,12 @@ import { dialog } from "@/lib/dialog";
 /** The web column: cards stop growing past a readable width. */
 export const COOKBOOK_MAX_WIDTH = 640;
 
+/**
+ * BOOK-1C2 — how far the previous filters' cards (and count) fade while the
+ * new filters load: still readable, plainly not the answer.
+ */
+export const UPDATING_OPACITY = 0.45;
+
 export interface CookbookResultsProps {
   results: ReturnType<typeof useCookbookMeals>;
   header: React.ReactElement;
@@ -98,10 +104,16 @@ export function CookbookResults({
         style={s.flex1}
         contentContainerStyle={[s.content, { paddingBottom: Spacing[8] + bottomInset }]}
         data={meals}
+        // The cards re-render when the held result starts or stops updating.
+        extraData={results.updating}
         keyExtractor={(m) => m.id}
         ListHeaderComponent={header}
         renderItem={({ item }) => (
-          <CookbookCard meal={item} onOpen={open} onToggleSave={toggleSave} onAddToPlan={setAddFor} />
+          // BOOK-1C2 — the previous filters' cards, dimmed until the new
+          // filters' own response lands (lib/cookbook/resultQuery.ts).
+          <View style={results.updating ? s.updating : null}>
+            <CookbookCard meal={item} onOpen={open} onToggleSave={toggleSave} onAddToPlan={setAddFor} />
+          </View>
         )}
         ItemSeparatorComponent={() => <View style={s.gap} />}
         onEndReachedThreshold={0.5}
@@ -111,7 +123,8 @@ export function CookbookResults({
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         ListEmptyComponent={
-          results.isLoading ? (
+          // An empty HELD result is the old filters' "no meals", not this one's.
+          results.isLoading || results.updating ? (
             <View style={s.state}>
               <ActivityIndicator color={Colors.sage[700]} />
             </View>
@@ -157,6 +170,7 @@ const s = StyleSheet.create({
     paddingTop: Spacing[2],
   },
   gap: { height: Spacing[4] },
+  updating: { opacity: UPDATING_OPACITY },
   state: { paddingVertical: Spacing[5], alignItems: "center" },
   stateText: {
     fontSize: Typography.fontSize.sm,

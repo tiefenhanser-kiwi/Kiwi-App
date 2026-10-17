@@ -12,7 +12,7 @@
 // preferences (BOOK-1S), and the line says so.
 
 import React, { useEffect, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -202,7 +202,21 @@ export function CookbookFilterSheet({
             accessibilityRole="button"
             style={({ pressed }) => [s.show, pressed && { opacity: 0.85 }]}
           >
-            <Text style={s.showText}>{n === undefined ? "Show meals" : `Show ${mealCountLabel(n)}`}</Text>
+            {/* BOOK-1C2 — the previous draft's N while this draft's count
+                loads: dimmed, with a spinner, never read as the answer. */}
+            <View style={s.showInner} aria-busy={count.updating}>
+              <Text style={[s.showText, count.updating && s.showTextUpdating]}>
+                {n === undefined ? "Show meals" : `Show ${mealCountLabel(n)}`}
+              </Text>
+              {count.updating ? (
+                <ActivityIndicator
+                  size="small"
+                  color={Palette.button.primary.text}
+                  accessibilityLabel="Updating"
+                  testID="cookbook-show-updating"
+                />
+              ) : null}
+            </View>
           </Pressable>
         </View>
       </View>
@@ -314,10 +328,12 @@ const s = StyleSheet.create({
     borderRadius: Radius.md,
     backgroundColor: Palette.button.primary.background,
   },
+  showInner: { flexDirection: "row", alignItems: "center", gap: Spacing[2] },
   showText: {
     fontSize: Typography.fontSize.base,
     color: Palette.button.primary.text,
     fontFamily: Typography.face.sans[600],
     fontWeight: Typography.fontWeight.semibold,
   },
+  showTextUpdating: { opacity: 0.7 },
 });

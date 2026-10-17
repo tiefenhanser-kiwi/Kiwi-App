@@ -15,14 +15,14 @@
 // browses (D-WS9-270) — only the Ask Kiwi helper is an AI call.
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 
 import { Chip } from "@/components/Chip";
 import { CookbookFilterSheet } from "@/components/CookbookFilterSheet";
-import { CookbookResults } from "@/components/CookbookResults";
+import { CookbookResults, UPDATING_OPACITY } from "@/components/CookbookResults";
 import { Header } from "@/components/Header";
 import { SeasonBand } from "@/components/SeasonBand";
 import { SortDropdown } from "@/components/SortDropdown";
@@ -145,7 +145,27 @@ export default function CookbookScreen() {
       </ScrollView>
 
       <View style={s.countRow}>
-        <Text style={s.count}>{results.total === null ? " " : mealCountLabel(results.total)}</Text>
+        {/* BOOK-1C2 — while the new filters load, the held count is dimmed
+            with a spinner beside it: it is the old filters' number, not
+            the answer (lib/cookbook/resultQuery.ts). */}
+        <View
+          style={s.countWrap}
+          accessibilityLiveRegion="polite"
+          aria-busy={results.updating}
+          testID="cookbook-count"
+        >
+          <Text style={[s.count, results.updating && s.countUpdating]}>
+            {results.total === null ? " " : mealCountLabel(results.total)}
+          </Text>
+          {results.updating ? (
+            <ActivityIndicator
+              size="small"
+              color={Colors.sage[700]}
+              accessibilityLabel="Updating"
+              testID="cookbook-count-updating"
+            />
+          ) : null}
+        </View>
         <SortDropdown<CookbookSort> value={sort} onChange={setSort} options={COOKBOOK_SORT_OPTIONS} />
       </View>
     </View>
@@ -253,10 +273,12 @@ const s = StyleSheet.create({
     justifyContent: "space-between",
     gap: Spacing[2],
   },
+  countWrap: { flexDirection: "row", alignItems: "center", gap: Spacing[2] },
   count: {
     fontSize: Typography.fontSize.sm,
     color: Colors.neutral[800],
     fontFamily: Typography.face.serif[600],
     fontWeight: Typography.fontWeight.semibold,
   },
+  countUpdating: { opacity: UPDATING_OPACITY },
 });

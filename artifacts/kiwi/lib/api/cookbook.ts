@@ -48,10 +48,15 @@ const CookbookPageSchema = z.object({
 });
 export type CookbookPage = z.infer<typeof CookbookPageSchema>;
 
-/** GET /cookbook/meals?<queryString> — the string comes from buildCookbookQuery. */
-export async function searchCookbook(queryString: string): Promise<CookbookPage> {
+/**
+ * GET /cookbook/meals?<queryString> — the string comes from buildCookbookQuery.
+ * `signal` (BOOK-1C2): React Query's, so a read for filters the user has left
+ * is aborted instead of finishing behind the live one.
+ */
+export async function searchCookbook(queryString: string, signal?: AbortSignal): Promise<CookbookPage> {
   return apiClient(`/cookbook/meals${queryString ? `?${queryString}` : ""}`, {
     schema: CookbookPageSchema,
+    signal,
   });
 }
 
