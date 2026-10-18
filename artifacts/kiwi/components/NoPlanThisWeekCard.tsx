@@ -3,40 +3,35 @@
 // Before this, that state showed the make lane and the rail and nothing that
 // pointed back at the plans the user already has. Hans's card: "no plans marked
 // for this week, go to Plans, check out featured, or have kiwi cook something
-// up". The copy is chat-Claude's draft of it.
+// up".
+//
+// FIX-5 — A MESSAGE, NOT A MENU. Hans on the Pixel: "it should be more of a CTA
+// and less click-action. like a user can do the kiwi green box in the home
+// screen, they can see the featured in the home screen, they can click to see
+// plans from the home screen." The three buttons are gone: every path the body
+// names is already on Home right below the card (the make lane, the featured
+// rail, the Plans tab). The copy is Hans's.
 //
 // ⚠️ IN components/ AND NOT INLINE IN app/(tabs)/index.tsx FOR THE SAME REASON AS
 // HomeErrorState: app/** is outside the test glob, and the copy is pinned by a
 // test against hard-coded literals.
 //
-// Built from the shared primitives only — Card (the app's card shell), Button
-// and SectionLabel — with HomeErrorState's title/body type treatment. No new
+// Built from the shared primitives only — Card (the app's card shell) and
+// SectionLabel — with HomeErrorState's title/body type treatment. No new
 // tokens.
 
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { SectionLabel } from "@/components/SectionLabel";
 import { Colors, Spacing, Typography } from "@/constants/tokens";
 
-export const NO_PLAN_TITLE = "No plan for this week yet";
+export const NO_PLAN_TITLE = "No plan set for this week yet";
 export const NO_PLAN_BODY =
-  "Pick one of your plans, try a featured plan, or have Kiwi cook something up.";
-export const NO_PLAN_GO_TO_PLANS = "Go to Plans";
-export const NO_PLAN_SEE_FEATURED = "See featured";
-export const NO_PLAN_COOK_UP = "Cook something up";
+  "Get a plan in seconds with Kiwi, choose a Featured Plan, or use one of your saved plans.";
 
-export function NoPlanThisWeekCard({
-  onGoToPlans,
-  onSeeFeatured,
-  onCookSomethingUp,
-}: {
-  onGoToPlans: () => void;
-  onSeeFeatured: () => void;
-  onCookSomethingUp: () => void;
-}) {
+export function NoPlanThisWeekCard() {
   return (
     <View testID="home-no-plan-this-week">
       {/* The same eyebrow the this-week module carries: this card holds that
@@ -45,25 +40,6 @@ export function NoPlanThisWeekCard({
       <Card>
         <Text style={s.title}>{NO_PLAN_TITLE}</Text>
         <Text style={s.body}>{NO_PLAN_BODY}</Text>
-        <View style={s.actions}>
-          <Button
-            label={NO_PLAN_GO_TO_PLANS}
-            onPress={onGoToPlans}
-            testID="home-no-plan-go-to-plans"
-          />
-          <Button
-            label={NO_PLAN_SEE_FEATURED}
-            variant="secondary"
-            onPress={onSeeFeatured}
-            testID="home-no-plan-see-featured"
-          />
-          <Button
-            label={NO_PLAN_COOK_UP}
-            variant="secondary"
-            onPress={onCookSomethingUp}
-            testID="home-no-plan-cook-up"
-          />
-        </View>
       </Card>
     </View>
   );
@@ -84,5 +60,4 @@ const s = StyleSheet.create({
     marginTop: Spacing[1],
     lineHeight: 18,
   },
-  actions: { marginTop: Spacing[3], gap: Spacing[2] },
 });

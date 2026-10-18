@@ -556,22 +556,10 @@ export default function HomeTab() {
                 </View>
               );
             case "noPlanThisWeek":
-              // FIX-3 / BUG-118 — plans exist, none is this week. The three
-              // ways out: the user's own plans, the featured ones (the same
-              // Plans-tab filter link the Cookbook's season page uses), and the
-              // make lane's "use my preferences" entry.
-              return (
-                <NoPlanThisWeekCard
-                  key="noPlanThisWeek"
-                  onGoToPlans={() =>
-                    router.navigate({ pathname: "/(tabs)/plans", params: { filter: "my_plans" } })
-                  }
-                  onSeeFeatured={() =>
-                    router.navigate({ pathname: "/(tabs)/plans", params: { filter: "featured" } })
-                  }
-                  onCookSomethingUp={handleUsePreferences}
-                />
-              );
+              // FIX-3 / BUG-118 — plans exist, none is this week.
+              // FIX-5 — a message only: the ways out it names (the make lane,
+              // the featured rail, the Plans tab) are already on Home below it.
+              return <NoPlanThisWeekCard key="noPlanThisWeek" />;
             case "makeLane":
               // The eyebrow labels the Tell Kiwi card and switches by state.
               // `first` (tight top) only when it leads — i.e. no this-week

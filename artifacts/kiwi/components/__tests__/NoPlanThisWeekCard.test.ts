@@ -2,8 +2,10 @@
 //
 // The decision (when it shows) is pinned in lib/home/__tests__/homeSections.test.ts.
 // This file pins the copy against hard-coded literals (not the exported
-// constants — the HomeErrorState precedent) and that each action fires its own
-// handler.
+// constants — the HomeErrorState precedent).
+//
+// FIX-5 — the card is a message, not a menu: Hans's copy, and nothing on it to
+// press (the paths it names are on Home below it).
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -33,46 +35,36 @@ function gatherText(node: RenderedNode | string | null | undefined, out: string[
 
 const flat = (n: RenderedNode | null) => gatherText(n).join(" ").replace(/\s+/g, " ").trim();
 
-function render(props: Parameters<typeof NoPlanThisWeekCard>[0]) {
+function render() {
   let tree!: TestRenderer.ReactTestRenderer;
   act(() => {
-    tree = TestRenderer.create(React.createElement(NoPlanThisWeekCard, props));
+    tree = TestRenderer.create(React.createElement(NoPlanThisWeekCard));
   });
   return tree;
 }
 
-const noop = () => {};
-
-test("BUG-118: the card carries the drafted copy, verbatim", () => {
-  const texts = flat(
-    render({ onGoToPlans: noop, onSeeFeatured: noop, onCookSomethingUp: noop }).toJSON() as RenderedNode | null,
-  );
+test("FIX-5: the card carries Hans's copy, verbatim", () => {
+  const texts = flat(render().toJSON() as RenderedNode | null);
   for (const literal of [
-    "No plan for this week yet",
-    "Pick one of your plans, try a featured plan, or have Kiwi cook something up.",
-    "Go to Plans",
-    "See featured",
-    "Cook something up",
+    "No plan set for this week yet",
+    "Get a plan in seconds with Kiwi, choose a Featured Plan, or use one of your saved plans.",
   ]) {
     assert.ok(texts.includes(literal), `missing "${literal}": ${texts}`);
   }
+  // FIX-3's copy and button labels are gone.
+  for (const gone of ["No plan for this week yet", "Go to Plans", "See featured", "Cook something up"]) {
+    assert.ok(!texts.includes(gone), `still says "${gone}": ${texts}`);
+  }
 });
 
-test("BUG-118: each action fires its own handler, once", () => {
-  const calls: string[] = [];
-  const tree = render({
-    onGoToPlans: () => calls.push("plans"),
-    onSeeFeatured: () => calls.push("featured"),
-    onCookSomethingUp: () => calls.push("cook"),
-  });
-  const press = (testID: string) => {
-    const node = tree.root.find(
-      (n) => n.props.testID === testID && typeof n.props.onPress === "function",
-    );
-    act(() => node.props.onPress());
-  };
-  press("home-no-plan-go-to-plans");
-  press("home-no-plan-see-featured");
-  press("home-no-plan-cook-up");
-  assert.deepEqual(calls, ["plans", "featured", "cook"]);
+test("FIX-5: a message, not a menu — nothing on the card is pressable", () => {
+  const tree = render();
+  const pressable = tree.root.findAll(
+    (n) =>
+      typeof n.props.onPress === "function" ||
+      typeof n.props.onPressIn === "function" ||
+      n.props.accessibilityRole === "button" ||
+      n.props.role === "button",
+  );
+  assert.equal(pressable.length, 0, `pressable nodes: ${pressable.map((n) => String(n.props.testID ?? n.type)).join(", ")}`);
 });
