@@ -3,8 +3,7 @@
 --
 -- ⚠️ 🔴 THIS FILE IS NOT RUN BY ANY CODE AND MUST NOT BE. It is Hans's, executed
 -- by hand in the Neon console against production, in the sequence below. No
--- script imports it, no migration includes it, and it is deliberately not
--- idempotent in a useful way — see "RUNNING IT TWICE".
+-- script imports it and no migration includes it.
 --
 -- ── WHY IT EXISTS ────────────────────────────────────────────────────────
 --
@@ -19,9 +18,10 @@
 -- the Wizard in the same second. Not as a decision — as an accident of a
 -- timestamp nobody was ever shown.
 --
--- So: a fresh 14 days from the day the paywall appears. It is the honest version
--- (a trial the user can actually see and use), and it doubles as the launch's
--- first conversion window.
+-- D-WS9-310 (Hans) — every account that exists on the cutover day is free
+-- THROUGH NOVEMBER 2: its trial ends at 2026-11-02 23:59:59 in New York. One
+-- date for everyone, not "cutover + 14 days" (FIX-6, BUG-404, replaced the old
+-- statement 1, which did that and touched only rows already lapsed).
 --
 -- ── THE SEQUENCE (kiwi_stripe_scope.md §8) ───────────────────────────────
 --
@@ -36,51 +36,62 @@
 -- anything, so the order is safe; reversed, there is a window in which every
 -- existing user is locked out.
 --
+-- ── THE DATE, AND WHY IT IS WRITTEN THIS WAY ─────────────────────────────
+--
+-- `subscriptions."trialEndsAt"` is `timestamp(3) WITHOUT time zone` holding
+-- UTC (Prisma's DateTime default), NOT timestamptz. So the New York instant is
+-- converted in two steps, both resolved by Postgres itself:
+--
+--   TIMESTAMP '2026-11-02 23:59:59' AT TIME ZONE 'America/New_York'
+--       → the timestamptz 2026-11-03 04:59:59+00 (EST, UTC−5: DST ended Nov 1)
+--   … AT TIME ZONE 'UTC'
+--       → the plain timestamp 2026-11-03 04:59:59, which is what the column holds
+--
+-- Writing only the first step would store the right value only while the
+-- session TimeZone is UTC/GMT (the cast back to a plain timestamp uses the
+-- session's zone). The second step makes it the same in any session.
+--
 -- ── RUNNING IT TWICE ─────────────────────────────────────────────────────
 --
--- Statement 1's WHERE clause makes a second run with the SAME `:cutover`
--- harmless: after the first run no trialing row has `trialEndsAt < :cutover` any
--- more, so it matches nothing. But a second run with a LATER `:cutover` would
--- extend everyone again. Run it once, with one value, and write the value down.
+-- Harmless. The date is fixed, and statement 1 only matches rows BEFORE it;
+-- after one run none are left, so a second run changes nothing.
 --
 -- ── HOW TO RUN IT ────────────────────────────────────────────────────────
 --
--- `:cutover` is a placeholder, not Postgres syntax. In the Neon SQL editor,
--- replace it by hand with one timestamptz literal — the SAME literal in both
--- places — e.g.:
---
---   '2026-10-15 00:00:00+00'::timestamptz
---
--- Read the SELECT first. It is the same predicate as the UPDATE and it tells you
--- how many rows you are about to touch; if that number surprises you, stop.
+-- Paste the whole file. Read the dry run first: it is the same predicate as the
+-- UPDATE and tells you how many rows you are about to touch; if that number
+-- surprises you, stop.
 
 -- ── 0. DRY RUN. Read this before running anything below it. ──────────────
 
 SELECT
-  count(*)                                    AS rows_to_extend,
-  min("trialEndsAt")                          AS oldest_expired_trial,
-  max("trialEndsAt")                          AS newest_expired_trial
+  count(*)                                    AS rows_to_set,
+  min("trialEndsAt")                          AS earliest_trial_end,
+  max("trialEndsAt")                          AS latest_trial_end
 FROM subscriptions
 WHERE status = 'trialing'
-  AND "trialEndsAt" < :cutover;
+  AND source IS NULL
+  AND "trialEndsAt" < ((TIMESTAMP '2026-11-02 23:59:59' AT TIME ZONE 'America/New_York') AT TIME ZONE 'UTC');
 
--- ── 1. THE CUTOVER. Every lapsed trial gets a fresh 14 days. ─────────────
+-- ── 1. THE CUTOVER. Every trial ends at 2026-11-02 23:59:59 New York. ────
 --
--- `status = 'trialing'` AND an expired timestamp is exactly the set that
--- effectiveStatus() would derive `none` for. Rows already stored as `none`,
--- `canceled`, `active` or `past_due` are NOT touched:
+-- `status = 'trialing'`, no paid `source`, and a trial end BEFORE the ruled
+-- instant — lapsed or not. Rows NOT touched:
 --
---   · `active` / `past_due` — paying. Handing them a trial would be absurd.
---   · `canceled` / `none` — these can only exist if something already wrote
---     them, which before enforcement means a deliberate act. Leave them.
---   · `trialing` with a FUTURE trialEndsAt — a genuinely live trial. Extending it
---     would be a gift nobody asked for and would muddy the conversion read.
+--   · a trial already ending LATER — the first signup's January 1 comp, and the
+--     staff and reviewer exemptions (statement 2). Never shortened.
+--   · a trialing row with NULL `trialEndsAt` — effectiveStatus() never lapses
+--     it, so it is already free past November 2.
+--   · any row with a `source` (stripe / apple / google) — a payment rail owns it.
+--   · `active` / `past_due` — paying. `canceled` / `none` — before enforcement
+--     only a deliberate act writes those. Leave them.
 
 UPDATE subscriptions
-SET "trialEndsAt" = :cutover + interval '14 days',
-    "updatedAt"   = now()
+SET "trialEndsAt" = ((TIMESTAMP '2026-11-02 23:59:59' AT TIME ZONE 'America/New_York') AT TIME ZONE 'UTC'),
+    "updatedAt"   = (now() AT TIME ZONE 'UTC')
 WHERE status = 'trialing'
-  AND "trialEndsAt" < :cutover;
+  AND source IS NULL
+  AND "trialEndsAt" < ((TIMESTAMP '2026-11-02 23:59:59' AT TIME ZONE 'America/New_York') AT TIME ZONE 'UTC');
 
 -- ── 2. STAFF AND REVIEWER ACCOUNTS — a far-future date, not a new enum. ──
 --
@@ -113,17 +124,24 @@ WHERE status = 'trialing'
 --   )
 -- );
 
--- ── 3. VERIFY. Nothing should be left in the lapsed set. ─────────────────
+-- ── 3. VERIFY. Nothing unpaid should end before the ruled instant. ───────
 
 SELECT
   status,
+  (source IS NOT NULL)                AS paid_source,
   count(*)                            AS rows,
-  count(*) FILTER (WHERE "trialEndsAt" < :cutover) AS still_lapsed
+  count(*) FILTER (WHERE "trialEndsAt" < ((TIMESTAMP '2026-11-02 23:59:59' AT TIME ZONE 'America/New_York') AT TIME ZONE 'UTC'))
+                                      AS ends_before_nov_2,
+  count(*) FILTER (WHERE "trialEndsAt" = ((TIMESTAMP '2026-11-02 23:59:59' AT TIME ZONE 'America/New_York') AT TIME ZONE 'UTC'))
+                                      AS ends_nov_2,
+  count(*) FILTER (WHERE "trialEndsAt" > ((TIMESTAMP '2026-11-02 23:59:59' AT TIME ZONE 'America/New_York') AT TIME ZONE 'UTC'))
+                                      AS ends_later
 FROM subscriptions
-GROUP BY status
-ORDER BY status;
+GROUP BY status, (source IS NOT NULL)
+ORDER BY status, paid_source;
 
--- `still_lapsed` must be 0 for `trialing`. Any other number means statement 1
--- did not run, ran with a different `:cutover`, or new signups arrived between
--- the two — the last of which is fine and self-correcting (a signup after the
--- cutover gets its own 14 days from lib/authAccount.ts).
+-- `ends_before_nov_2` must be 0 on the `trialing` row with paid_source false.
+-- Any other number means statement 1 did not run, or a signup arrived between
+-- the two (it gets its own 14 days from lib/authAccount.ts; a signup on the
+-- cutover day itself can end a few hours short of the ruled instant — re-run
+-- statement 1 to bring it in line).
