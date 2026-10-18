@@ -2216,8 +2216,9 @@ interface C4Recorder {
   templateUpdates: Array<{ where: { id: string }; data: Record<string, unknown> }>;
   updateManyCalls: Array<{ where: Record<string, unknown>; data: Record<string, unknown> }>;
   activityWrites: Array<Record<string, unknown>>;
-  // WS7-7-A B5 fix2 — fork-on-acquire: each Meal.create issued by the fork
-  // helper (foreign/null-owner template meals cloned into user-owned copies).
+  // WS7-7-A B5 fix2 — fork-on-acquire: each Meal row the fork writes
+  // (foreign/null-owner template meals cloned into user-owned copies).
+  // FIX-6 — the batch fork writes them with one meal.createMany.
   forkedMeals?: Array<Record<string, unknown>>;
 }
 
@@ -2236,11 +2237,37 @@ function makeC4Stub(opts: {
   const recorder = opts.recorder;
   const meals = opts.meals ?? [];
   let instanceCounter = 0;
-  let forkCounter = 0;
+
+  // A source meal as the fork reads it. Synthesized minimal (no dishes) — the
+  // deep-clone fidelity is covered by lib/__tests__/mealFork.test.ts; here we
+  // only need the rebind + ownership routing.
+  const sourceMeal = (id: string) => ({
+    id,
+    userId: meals.find((m) => m.id === id)?.userId ?? null,
+    title: `T-${id}`,
+    description: null,
+    mealType: "dinner",
+    sourceType: "curated",
+    cuisineType: null,
+    difficulty: "easy",
+    estimatedTimeMinutes: 30,
+    imageUrl: null,
+    servingsDefault: 4,
+    tags: [],
+    caloriesPerServing: 0,
+    proteinGPerServing: 0,
+    carbsGPerServing: 0,
+    fatGPerServing: 0,
+    // BUG-407 — a stamped source: the fork carries the stamp, no re-derive.
+    allergens: [],
+    allergenSources: null,
+    allergensStampedAt: new Date("2026-09-04T00:00:00Z"),
+    dishLinks: [],
+  });
 
   const txClient = {
-    // Block 4a — forkMealForUser resolves the acquiring household once per fork
-    // inside the tx; no prefs row in these stubs → forks keep source servings.
+    // Block 4a — the fork resolves the acquiring household once per acquire;
+    // no prefs row in these stubs → forks keep source servings.
     userPreferences: { findUnique: async () => null },
     mealPlanTemplate: {
       findUnique: async (args: { where: { id: string } }) =>
@@ -2253,40 +2280,17 @@ function makeC4Stub(opts: {
         return { id: args.where.id };
       },
     },
-    // WS7-7-A B5 fix2 — the fork gate's owner lookup + the fork helper's reads
-    // and writes. Sources are synthesized minimal (no dishes) — the deep-clone
-    // fidelity is covered by lib/__tests__/mealFork.test.ts; here we only need
-    // the rebind + ownership routing.
+    // WS7-7-A B5 fix2 — the fork gate's owner lookup + the fork's reads and
+    // writes. FIX-6 — the batch fork reads every source graph with ONE
+    // findMany (`include`) and writes each table with one createMany.
     meal: {
-      findMany: async (args: { where: { id: { in: string[] } } }) =>
-        meals.filter((m) => args.where.id.in.includes(m.id)),
-      findUnique: async (args: { where: { id: string } }) => ({
-        id: args.where.id,
-        userId: meals.find((m) => m.id === args.where.id)?.userId ?? null,
-        title: `T-${args.where.id}`,
-        description: null,
-        mealType: "dinner",
-        sourceType: "curated",
-        cuisineType: null,
-        difficulty: "easy",
-        estimatedTimeMinutes: 30,
-        imageUrl: null,
-        servingsDefault: 4,
-        tags: [],
-        caloriesPerServing: 0,
-        proteinGPerServing: 0,
-        carbsGPerServing: 0,
-        fatGPerServing: 0,
-        // BUG-407 — a stamped source: the fork carries the stamp, no re-derive.
-        allergens: [],
-        allergenSources: null,
-        allergensStampedAt: new Date("2026-09-04T00:00:00Z"),
-        dishLinks: [],
-      }),
-      create: async (args: { data: Record<string, unknown> }) => {
-        (recorder.forkedMeals ??= []).push(args.data);
-        forkCounter += 1;
-        return { id: `fork-${forkCounter}` };
+      findMany: async (args: { where: { id: { in: string[] } }; include?: unknown }) =>
+        args.include
+          ? args.where.id.in.map((id) => sourceMeal(id))
+          : meals.filter((m) => args.where.id.in.includes(m.id)),
+      createMany: async (args: { data: Array<Record<string, unknown>> }) => {
+        (recorder.forkedMeals ??= []).push(...args.data);
+        return { count: args.data.length };
       },
     },
     recipeInstructionStep: {
@@ -2325,9 +2329,12 @@ function makeC4Stub(opts: {
 
   return {
     $transaction: async <T,>(cb: (tx: typeof txClient) => Promise<T>) => cb(txClient),
-    // Non-transactional surface — not used by c4 but the route accesses
-    // prisma.mealPlanTemplate.findUnique elsewhere (c3); harness tolerates.
+    // Non-transactional surface. FIX-6 — the use-template copy reads here
+    // (template, owners, fork sources, household) before its transaction.
     mealPlanTemplate: txClient.mealPlanTemplate,
+    meal: txClient.meal,
+    userPreferences: txClient.userPreferences,
+    recipeInstructionStep: txClient.recipeInstructionStep,
     mealPlanInstance: txClient.mealPlanInstance,
     mealPlanItem: txClient.mealPlanItem,
     userActivity: txClient.userActivity,
@@ -2438,9 +2445,10 @@ describe("POST /plans/use-template/:templateId — happy path", () => {
       assert.equal(items.length, 3);
       assert.equal(items[0].assignedDayOfWeek, "Monday");
       assert.equal(items[2].assignedDayOfWeek, null);
+      const forkIds = new Set((recorder.forkedMeals ?? []).map((fm) => fm.id));
       for (const it of items) {
         assert.ok(
-          String(it.mealId).startsWith("fork-"),
+          forkIds.has(it.mealId),
           "item rebinds to a forked, user-owned meal",
         );
       }

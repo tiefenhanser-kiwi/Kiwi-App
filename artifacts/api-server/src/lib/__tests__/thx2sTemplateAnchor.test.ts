@@ -47,10 +47,12 @@ interface Rec {
   instanceUpdates: Array<Record<string, unknown>>;
 }
 
-/** A tx for copyTemplateForUser. The template's meals are the user's own, so
- *  nothing forks — the fork is mealFork.test.ts's business, not this file's. */
+/** A client for copyTemplateForUser: its reads, and a `$transaction` that runs
+ *  the write half on the same object (FIX-6 — the copy opens its own). The
+ *  template's meals are the user's own, so nothing forks — the fork is
+ *  mealFork.test.ts's business, not this file's. */
 function makeTx(template: Record<string, unknown> | null, rec: Rec) {
-  return {
+  const client = {
     mealPlanTemplate: {
       findUnique: async () => template,
       update: async () => ({}),
@@ -77,7 +79,9 @@ function makeTx(template: Record<string, unknown> | null, rec: Rec) {
     },
     userActivity: { create: async () => ({ id: "act" }) },
     user: { updateMany: async () => ({ count: 0 }) },
+    $transaction: async <T,>(cb: (tx: unknown) => Promise<T>) => cb(client),
   };
+  return client;
 }
 
 function anchoredTemplate(overrides: Record<string, unknown> = {}) {
@@ -174,8 +178,7 @@ describe("copyTemplateForUser — anchored dating + servings (THX-2S B)", () => 
 
 describe("adoptTemplateForUser (sign-up templatePlanId) — the anchor applies", () => {
   function prismaFor(template: Record<string, unknown>, rec: Rec) {
-    const tx = makeTx(template, rec);
-    return { $transaction: async <T,>(cb: (t: typeof tx) => Promise<T>) => cb(tx) } as unknown as PrismaClient;
+    return makeTx(template, rec) as unknown as PrismaClient;
   }
 
   it("signing up Nov 5 keeps the anchored week and does NOT re-date from tomorrow or activate", async () => {

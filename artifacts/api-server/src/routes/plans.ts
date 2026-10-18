@@ -1883,19 +1883,16 @@ export function createPlansRouter(
       const today = todayFor(useBody.data.localDate, now());
 
       try {
-        const result = await prisma.$transaction(async (tx) => {
-          // Row 13 · Block 1 — the copy moved to lib/planFromTemplate.ts so
-          // the guest claim's `templatePlanId` can reuse it instead of a
-          // second copy of the same fork-on-acquire logic. The body was
-          // already written entirely against `tx`, so this is a move.
-          return copyTemplateForUser(
-            tx,
-            templateId,
-            userId,
-            markFirstPlanCreated,
-            { today },
-          );
-        });
+        // Row 13 · Block 1 — the copy lives in lib/planFromTemplate.ts so the
+        // guest claim's `templatePlanId` reuses it. FIX-6 (BUG-435) — it opens
+        // its own transaction, after the reads: only the writes run inside.
+        const result = await copyTemplateForUser(
+          prisma,
+          templateId,
+          userId,
+          markFirstPlanCreated,
+          { today },
+        );
 
         if (result.kind === "not_found") {
           return res.status(404).json({ error: "template not found" });

@@ -55,7 +55,7 @@ import { z } from "zod";
 
 import { markFirstPlanCreated } from "./firstPlan";
 import { logger } from "./logger";
-import { copyTemplateForUser } from "./planFromTemplate";
+import { prepareTemplateCopy, writeTemplateCopy } from "./planFromTemplate";
 import { addUtcDays, activeWindowFromToday, todayFor } from "./planDayAssignment";
 import { resolveThisWeekWinnerId } from "./planDates";
 import { emitActivity } from "./userActivity";
@@ -521,6 +521,9 @@ export interface AdoptTemplateOptions {
  * dates the undated instance, which is the one thing that route leaves to its
  * caller. Returns null when the template is not visible — a bad
  * `templatePlanId` never fails a sign-up.
+ *
+ * FIX-6 (BUG-435) — the copy's reads run first, outside the transaction; the
+ * transaction holds only its writes and the dating.
  */
 export async function adoptTemplateForUser(
   opts: AdoptTemplateOptions,
@@ -528,15 +531,10 @@ export async function adoptTemplateForUser(
   const { prisma, userId, templateId } = opts;
   const today = todayFor(opts.localDate);
   try {
+    const prepared = await prepareTemplateCopy(prisma, templateId, userId, { today });
+    if (prepared.kind === "not_found") return null;
     return await prisma.$transaction(async (tx) => {
-      const copied = await copyTemplateForUser(
-        tx,
-        templateId,
-        userId,
-        markFirstPlanCreated,
-        { today },
-      );
-      if (copied.kind === "not_found") return null;
+      const copied = await writeTemplateCopy(tx, prepared, markFirstPlanCreated);
       // THX-2S (D-WS9-311) — an anchored template inside its window came back
       // already dated (the Thanksgiving week). Keep those dates; it is this
       // week's plan only if that week covers today.
