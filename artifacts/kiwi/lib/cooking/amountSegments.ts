@@ -11,8 +11,8 @@
 //     does not scale — only the literal is bypassed in favor of the ref value).
 
 import type { AmountRef } from "../api/meals";
-import { pluralizeUnitWord } from "../format/grocery";
-import { displayedQuantity, formatQuantity } from "../format/quantity";
+import { unitWordFor } from "../format/grocery";
+import { displayedQuantity, formatQuantity, wholeItemMultiplier } from "../format/quantity";
 
 // ── WS9 BUG-326 — A RANGE IS NOT ITS MIDPOINT ──────────────────────────────
 //
@@ -89,6 +89,21 @@ export function unitIsCorrupt(unit: string | null | undefined): boolean {
   return CORRUPT_UNIT.test(unit ?? "");
 }
 
+/**
+ * FIX-7 — the noun phrase after an amount span, standing in for the
+ * ingredient name: up to the first clause break (punctuation, a conjunction,
+ * a preposition), at most 40 characters. "1 egg, 2 minced garlic cloves" gives
+ * " egg" for the "1", and "3 bell peppers into strips" gives " bell peppers" —
+ * never the strips the peppers are cut into.
+ */
+export function followingWords(text: string, from: number): string {
+  const rest = text.slice(from, from + 40);
+  const stop = rest.search(
+    /[,;.:()]|\s(?:and|or|with|then|into|in|to|for|on|over|until|from|according|per|at|by|of)\b/i,
+  );
+  return stop === -1 ? rest : rest.slice(0, stop);
+}
+
 export interface AmountSegment {
   text: string;
   /** true → a structured ref amount (style it terracotta); false → plain text. */
@@ -140,12 +155,22 @@ export function buildAmountRefSegments(
       // flipping it would de-highlight 3,266 spans to fix a duplicated glyph.
       out.push({ text: authored, isRef: true });
     } else {
-      const amount = r.quantity * multiplier;
-      const scaled = formatQuantity(amount, r.unit);
+      // FIX-7 (BUG-437) — the ref carries no ingredient name (the client
+      // ingredient has no id to resolve `ingredientId` against), so the words
+      // that FOLLOW the span stand in for it: "the 3 eggs in a bowl" → " eggs
+      // in a bowl", "the 4-pound whole chicken" → "-pound whole chicken". That
+      // is what lets "½ egg" become "1 egg" here exactly as on the line.
+      const name = followingWords(text, r.charEnd);
+      // A size descriptor ("4-pound") names its unit after the hyphen; the ref's
+      // own unit is "". Read it only for the whole-bird check (rule 4).
+      const birdUnit = r.unit || (/^-\s*([a-z]+)/i.exec(name)?.[1] ?? "");
+      const amount = r.quantity * wholeItemMultiplier(multiplier, birdUnit, name);
+      const scaled = formatQuantity(amount, r.unit, name);
       // BUG-321 — the unit is a WORD here, same as on an ingredient line, and
-      // pluralized on the DISPLAYED amount so "1 cups" cannot happen.
+      // pluralized on the DISPLAYED amount so "1 cups" cannot happen. FIX-7 —
+      // and singularized there too: the ref's unit is authored ("pounds").
       const unit = r.unit
-        ? pluralizeUnitWord(r.unit, displayedQuantity(amount, r.unit))
+        ? unitWordFor(r.unit, displayedQuantity(amount, r.unit, name))
         : "";
       out.push({ text: unit ? `${scaled} ${unit}` : scaled, isRef: true });
     }

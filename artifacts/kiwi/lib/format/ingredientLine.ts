@@ -23,8 +23,8 @@
 //
 // Pure and in lib/ because app/** is outside the test glob (D-WS9-164).
 
-import { displayedQuantity, formatQuantity } from "./quantity";
-import { countedIngredientName, pluralizeUnitWord } from "./grocery";
+import { displayedQuantity, formatQuantity, wholeItemMultiplier } from "./quantity";
+import { countedIngredientName, unitWordFor } from "./grocery";
 
 /** The fields of a meal-detail ingredient this formatter reads. Structurally
  *  satisfied by MealDetailIngredientSchema's output (lib/api/meals.ts) and by
@@ -182,11 +182,15 @@ export function formatIngredientLine(
 ): string {
   const { multiplier = 1, includeNotes = false } = opts;
   const unit = ing.unit?.trim() ?? "";
-  const scaled = ing.quantity * multiplier;
-  const shown = displayedQuantity(scaled, unit);
+  // FIX-7 (BUG-437) — the NAME reaches the rounding now: it decides whether a
+  // count is a whole item (½ egg → 1) and whether a weight is a whole bird.
+  const scaled = ing.quantity * wholeItemMultiplier(multiplier, unit, ing.name);
+  const shown = displayedQuantity(scaled, unit, ing.name);
   const hasUnitWord = unit.length > 0 && !isSuppressedCountUnit(unit);
-  const parts: string[] = [formatQuantity(scaled, unit)];
-  if (hasUnitWord) parts.push(pluralizeUnitWord(unit, shown));
+  const parts: string[] = [formatQuantity(scaled, unit, ing.name)];
+  // FIX-7 — unitWordFor: plural above 1 as before, and singular at 1 or below
+  // for the few lines whose unit is stored plural ("cloves", "cups").
+  if (hasUnitWord) parts.push(unitWordFor(unit, shown));
   // The number counts the NAME only when no unit word stands between them.
   parts.push(hasUnitWord ? ing.name : countedIngredientName(ing.name, shown));
   if (includeNotes) {

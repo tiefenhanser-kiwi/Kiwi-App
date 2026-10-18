@@ -59,6 +59,9 @@ test("formatQuantity keeps its existing eighth + whole behavior (no regression)"
   assert.equal(formatQuantity(0.75, "cup"), "¾");
   // whole/clove units still ceil to a whole count.
   assert.equal(formatQuantity(3.2, "clove"), "4");
-  // Approximate rounding survives for non-third arbitrary decimals (1.9 → 1⅞).
-  assert.equal(formatQuantity(1.9, "cup"), "1⅞");
+  // Approximate rounding survives for non-third arbitrary decimals (1.9 → 1⅞)
+  // on a unit FIX-7 leaves alone. A CUP no longer shows ⅞ — it snaps to what a
+  // measuring set holds (BUG-437, scaledAmounts.test.ts), so 1.9 cup reads 2.
+  assert.equal(formatQuantity(1.9, "ounce"), "1⅞");
+  assert.equal(formatQuantity(1.9, "cup"), "2");
 });

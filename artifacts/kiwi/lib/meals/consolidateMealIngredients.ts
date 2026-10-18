@@ -36,6 +36,7 @@
 
 import { formatIngredientLine } from "../format/ingredientLine";
 import { normalizeUnitToken } from "../format/grocery";
+import { wholeItemMultiplier } from "../format/quantity";
 import type { MealDetail } from "../api/meals";
 
 /** One consolidated line: a name, an amount, and where it came from. */
@@ -89,7 +90,9 @@ export function consolidateMealIngredients(
       // ⛔ The unit token is the second half of the key. Two units that
       // normalise differently NEVER merge, so cup + head is two lines.
       const key = `${groupKeyName(ing.name)}|${normalizeUnitToken(unit)}`;
-      const scaled = ing.quantity * multiplier;
+      // FIX-7 rule 4 — a whole bird by weight is not scaled down; the line
+      // below gets multiplier 1, so the bird rule has to be applied here.
+      const scaled = ing.quantity * wholeItemMultiplier(multiplier, unit, ing.name);
       const hit = byKey.get(key);
       if (hit) {
         hit.quantity += scaled;

@@ -158,6 +158,29 @@ export function pluralizeUnitWord(
   return matchLeadingCase(unit.trim(), plural);
 }
 
+// FIX-7 — the inverse of both tables pluralizeUnitWord reads ("pounds" →
+// "pound", "sprigs" → "sprig"), derived so the two directions cannot drift.
+const UNIT_WORD_SINGULARS: Record<string, string> = Object.fromEntries(
+  [...Object.entries(COUNT_NOUN_PLURALS), ...Object.entries(MEASURE_UNIT_PLURALS)].map(
+    ([one, many]) => [many, one],
+  ),
+);
+
+/**
+ * FIX-7 (BUG-437) — the recipe-line unit word in BOTH directions: plural above
+ * 1 (pluralizeUnitWord, unchanged), SINGULAR at 1 or below. A step amountRef
+ * carries the unit as authored — "pounds", "cups", "sprigs" — so a scaled
+ * step amount that lands on 1 printed "1 pounds"; FIX-7's rounding lands more
+ * of them there (⅞ → 1). An unknown unit passes through, as before.
+ */
+export function unitWordFor(unit: string, quantity: number | null | undefined): string {
+  if (quantity === null || quantity === undefined || quantity > 1) {
+    return pluralizeUnitWord(unit, quantity);
+  }
+  const singular = UNIT_WORD_SINGULARS[unit.trim().toLowerCase()];
+  return singular ? matchLeadingCase(unit.trim(), singular) : unit;
+}
+
 /**
  * The NEED text rendered inside the two-part line's parenthetical, e.g.
  * "4⅞ oz". The amount is glyph-formatted at RENDER only (formatNeedGlyph) — the
