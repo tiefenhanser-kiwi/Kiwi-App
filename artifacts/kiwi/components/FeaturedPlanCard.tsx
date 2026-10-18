@@ -32,6 +32,11 @@ import {
   Palette,
   Typography,
 } from "@/constants/tokens";
+import {
+  RAIL_CHIP_INSET,
+  RAIL_CHIP_MAX_SCALE,
+  RAIL_CHIP_MIN_FIT,
+} from "@/lib/largeTextLayout";
 import { DisplayTitle } from "./DisplayTitle";
 import { TreatedImage } from "./TreatedImage";
 
@@ -61,8 +66,17 @@ export function FeaturedPlanCard({
           source={image ?? null}
           height={Components.featuredRail.imageHeight}
         />
+        {/* FIX-7 (BUG-439) — at the largest Font + Display size Android broke
+            the one word mid-word ("feat"). BUG-347's wordmark treatment: one
+            line that shrinks to fit, capped, inside a pill bounded by the card. */}
         <View style={styles.cat} pointerEvents="none">
-          <Text style={styles.catText} numberOfLines={1}>
+          <Text
+            style={styles.catText}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={RAIL_CHIP_MIN_FIT}
+            maxFontSizeMultiplier={RAIL_CHIP_MAX_SCALE}
+          >
             {occasion}
           </Text>
         </View>
@@ -118,8 +132,11 @@ const styles = StyleSheet.create({
   },
   cat: {
     position: "absolute",
-    top: 7,
-    left: 7,
+    top: RAIL_CHIP_INSET,
+    left: RAIL_CHIP_INSET,
+    // FIX-7 — the edge adjustsFontSizeToFit measures against; without it an
+    // absolute pill has no width bound and the word breaks instead of shrinking.
+    maxWidth: Components.featuredRail.cardWidth - 2 * RAIL_CHIP_INSET,
     backgroundColor: ImageTreatment.overlayPill,
     borderRadius: Components.featuredRail.pillRadius,
     paddingHorizontal: 9,

@@ -179,3 +179,20 @@ test("the card still declares no fixed OUTER height — only its slots are reser
   assert.equal(s.height, undefined);
   assert.equal(s.minHeight, undefined);
 });
+
+// ── FIX-7 (BUG-439) — the chip at the largest Font + Display size ───────────
+
+test("FIX-7: the occasion chip is one capped line that shrinks inside a bounded pill", () => {
+  // Hans saw "feat": Android breaks a too-wide word mid-word (BUG-347's "Kiw").
+  // The wordmark's treatment — one line, adjustsFontSizeToFit, a growth cap —
+  // and a maxWidth so the shrink has an edge: 150 − 2 × 7 = 136.
+  const nodes = walk(render({ occasion: "Featured", title: "Budget Bowls" }));
+  const chip = nodes.find((n) => n.type === "rn-text" && n.children?.[0] === "Featured");
+  assert.ok(chip, "chip text rendered");
+  assert.equal(chip!.props.numberOfLines, 1);
+  assert.equal(chip!.props.adjustsFontSizeToFit, true);
+  assert.equal(chip!.props.minimumFontScale, 0.5);
+  assert.equal(chip!.props.maxFontSizeMultiplier, 1.5);
+  const pill = nodes.find((n) => n.type === "rn-view" && (n.children ?? []).includes(chip!));
+  assert.equal(flatten(pill!.props.style).maxWidth, 136);
+});

@@ -1,10 +1,15 @@
 import { Tabs } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import React from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Colors, Radius, Typography } from "@/constants/tokens";
+import {
+  TAB_LABEL_MAX_SCALE,
+  TAB_LABEL_MIN_FIT,
+  tabBarHeight,
+} from "@/lib/largeTextLayout";
 
 // WS9 BUG-198 — the active tab needs a signal that is NOT colour.
 //
@@ -40,9 +45,19 @@ function tabIcon(name: React.ComponentProps<typeof Feather>["name"]) {
   );
 }
 
+// FIX-7 (BUG-439) — one line that shrinks to fit, its growth capped, so a label
+// can neither wrap below the bar nor run past its tab (lib/largeTextLayout.ts).
 function tabLabel(title: string) {
   return ({ color, focused }: { color: string; focused: boolean }) => (
-    <Text style={[s.label, focused && s.labelOn, { color }]}>{title}</Text>
+    <Text
+      style={[s.label, focused && s.labelOn, { color }]}
+      numberOfLines={1}
+      adjustsFontSizeToFit
+      minimumFontScale={TAB_LABEL_MIN_FIT}
+      maxFontSizeMultiplier={TAB_LABEL_MAX_SCALE}
+    >
+      {title}
+    </Text>
   );
 }
 
@@ -75,7 +90,9 @@ const s = StyleSheet.create({
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
-  const baseHeight = 56;
+  // FIX-7 (BUG-439) — the bar grows by the capped label's extra line height;
+  // exactly the old 56 + inset at ordinary text sizes.
+  const { fontScale } = useWindowDimensions();
   return (
     <Tabs
       screenOptions={{
@@ -95,7 +112,7 @@ export default function TabLayout() {
           borderTopWidth: 1,
           paddingBottom: insets.bottom,
           height:
-            Platform.OS === "web" ? 84 : baseHeight + insets.bottom,
+            Platform.OS === "web" ? 84 : tabBarHeight(fontScale, insets.bottom),
         },
         tabBarLabelStyle: {
           fontSize: Typography.fontSize.xs,
