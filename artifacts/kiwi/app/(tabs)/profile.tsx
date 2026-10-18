@@ -441,8 +441,9 @@ export default function ProfileTab() {
         </Pressable>
 
         {/* LIFE-1 — feedback, and the store page. "Rate Kiwi" is hidden on web
-            (no store to send a browser to) and on iOS until lib/feedback.ts has
-            the App Store id; storeReviewUrl decides, not this JSX. */}
+            (no store to send a browser to), and on iOS whenever lib/feedback.ts
+            has no App Store id (FIX-7 filled it in); storeReviewUrl decides,
+            not this JSX. */}
         <View style={s.card}>
           <Text style={s.cardTitle}>Help us improve Kiwi</Text>
           <LegalRow

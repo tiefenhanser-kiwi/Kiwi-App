@@ -6,6 +6,7 @@ import { test } from "node:test";
 import {
   ANDROID_PACKAGE,
   FEEDBACK_MAX_CHARS,
+  IOS_APP_STORE_ID,
   canSendFeedback,
   feedbackErrorText,
   feedbackPlatform,
@@ -28,6 +29,12 @@ test("Rate Kiwi on iOS is hidden until the App Store id is filled in, then opens
   assert.equal(storeReviewUrl("ios", ""), null);
   assert.equal(storeReviewUrl("ios", "1234567890"), "itms-apps://apps.apple.com/app/id1234567890?action=write-review");
   assert.equal(storeWebUrl("ios", "1234567890"), "https://apps.apple.com/app/id1234567890");
+});
+
+test("FIX-7 — Kiwi's own App Store id is filled in, so the iOS row shows", () => {
+  assert.equal(IOS_APP_STORE_ID, "6816201328");
+  assert.equal(storeReviewUrl("ios"), "itms-apps://apps.apple.com/app/id6816201328?action=write-review");
+  assert.equal(storeWebUrl("ios"), "https://apps.apple.com/app/id6816201328");
 });
 
 test("Send is enabled for 1..4000 non-blank characters", () => {

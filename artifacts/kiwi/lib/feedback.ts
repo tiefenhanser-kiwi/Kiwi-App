@@ -9,11 +9,11 @@ export const ANDROID_PACKAGE = "com.kitchenwizard.kiwi";
 /**
  * Apple's NUMERIC App Store id (App Store Connect → App Information → Apple ID).
  *
- * ⚠️ EMPTY UNTIL HANS FILLS IT IN. It exists nowhere in the repo or canon, and
- * the iOS app was still in review when this was written. While it is empty the
- * "Rate Kiwi" row is hidden on iOS; filling it in is a one-line OTA.
+ * FIX-7 — read from App Store Connect by Hans, October 18 2026. Empty hides the
+ * "Rate Kiwi" row on iOS (storeReviewUrl returns null), which is how LIFE-1
+ * shipped it while the iOS app was still in review.
  */
-export const IOS_APP_STORE_ID = "";
+export const IOS_APP_STORE_ID = "6816201328";
 
 /** Mirrors the server's FEEDBACK_MAX_CHARS (routes/feedback.ts). */
 export const FEEDBACK_MAX_CHARS = 4000;
