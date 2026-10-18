@@ -27,7 +27,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useDishes } from "@/hooks/useDishes";
 import { useInfiniteMeals } from "@/hooks/useMeals";
 import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
-import { Colors, Components, Radius, Spacing, Typography } from "@/constants/tokens";
+import { Colors, Palette, Radius, Shadow, Spacing, Typography } from "@/constants/tokens";
 import {
   asMealsFilters,
   type MealFilterKey,
@@ -445,10 +445,19 @@ const s = StyleSheet.create({
     borderRadius: Radius.md,
     alignItems: "center",
   },
-  // BOOK-1C2 — one sage on this page: the Cookbook card's own surface token
-  // (Colors.sage[600]), not sage[700]. White label on it: 5.22:1.
+  // FIX-5 — Hans: "might need some color variation to break up the actions.
+  // one goes to cookbook, one toggles meals vs. dishes, one goes to import a
+  // meal." Three jobs, three treatments, existing tokens only:
+  //   • the Cookbook card keeps the solid sage (Tell Kiwi surface) — the one
+  //     sage block on the page, the way out to somewhere else;
+  //   • this switch is a NEUTRAL segmented control: the selected segment is a
+  //     white card lifted off the paper track, ink label (neutral[900] on
+  //     white 14.6:1; the unselected neutral[700] on the track 5.26:1);
+  //   • + Add Meal / + Add Dish below take the sageTint button treatment.
+  // (BOOK-1C2 had all three on sage[600].)
   toggleBtnActive: {
-    backgroundColor: Components.tellKiwi.surface,
+    backgroundColor: Palette.background.card,
+    ...Shadow.card,
   },
   toggleText: {
     fontSize: Typography.fontSize.sm,
@@ -457,22 +466,27 @@ const s = StyleSheet.create({
     fontFamily: Typography.face.sans[600],
   },
   toggleTextActive: {
-    color: Colors.neutral[0],
+    color: Colors.neutral[900],
   },
   scroll: {
     paddingTop: Spacing[3],
     paddingBottom: Spacing[8],
   },
+  // FIX-5 — a secondary action now: Palette.button.sageTint (the plan-options
+  // "Get another plan option" cell). sage[700] on sage[50] = 7.75:1; the
+  // sage[400] edge separates it from the paper page.
   addBtn: {
-    backgroundColor: Components.tellKiwi.surface,
+    backgroundColor: Palette.button.sageTint.background,
+    borderWidth: 1,
+    borderColor: Palette.button.sageTint.border,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing[3],
-    paddingVertical: 12,
+    paddingVertical: 11,
     alignItems: "center",
   },
   addBtnText: {
     fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[0],
+    color: Palette.button.sageTint.text,
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.sans[600],
   },
