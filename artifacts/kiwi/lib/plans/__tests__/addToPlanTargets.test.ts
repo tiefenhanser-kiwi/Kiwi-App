@@ -76,12 +76,15 @@ describe("addToPlanTargets (BOOK-1C2)", () => {
   // a new plan", renamed — status draft, no dates.
   const justMade = { ...plan("c19c955c", null, null), status: "draft", name: "My plan this week 1016" };
 
-  test("a plan just made from the + flow (draft, undated) is offered", () => {
+  test("a plan just made from the + flow (draft, undated) is offered — and leads (FIX-5)", () => {
     const out = addToPlanTargets([justMade, plan("active", "2026-10-11", "2026-10-17")], TODAY);
-    assert.deepEqual(out.map((p) => p.id), ["active", "c19c955c"]);
+    assert.deepEqual(out.map((p) => p.id), ["c19c955c", "active"]);
   });
 
-  test("dated live plans soonest first, then undated in arrival order; past plans and templates never", () => {
+  // FIX-5 — one list, newest added first. The input is GET /plans my_plans
+  // order (createdAt DESC on the server); the targets keep it, dated and
+  // undated interleaved, and drop only past plans and templates.
+  test("FIX-5: one list in date-added order (newest first), undated plans in place; past plans and templates never", () => {
     const out = addToPlanTargets(
       [
         plan("undated-new", null, null),
@@ -94,7 +97,19 @@ describe("addToPlanTargets (BOOK-1C2)", () => {
       ],
       TODAY,
     );
-    assert.deepEqual(out.map((p) => p.id), ["active", "later", "undated-new", "undated-old"]);
+    assert.deepEqual(out.map((p) => p.id), ["undated-new", "later", "undated-old", "active"]);
+  });
+
+  test("FIX-5: the dates never re-sort it — an older upcoming plan stays below a newer active one and vice versa", () => {
+    const out = addToPlanTargets(
+      [
+        plan("newest-far-future", "2026-12-01", "2026-12-07"),
+        plan("middle-undated", null, null),
+        plan("oldest-active", "2026-10-11", "2026-10-17"),
+      ],
+      TODAY,
+    );
+    assert.deepEqual(out.map((p) => p.id), ["newest-far-future", "middle-undated", "oldest-active"]);
   });
 
   test("status is not the rule: a dated draft that is upcoming is offered, a past 'upcoming' is not", () => {

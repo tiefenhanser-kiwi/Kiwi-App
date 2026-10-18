@@ -97,6 +97,8 @@ export function AddMealToPlanSheet({
   // BOOK-1C2 — undated plans are offered again, after the dated ones: the
   // plan this sheet's own "Create a new plan" makes has no dates, and Hans
   // could not find it on the next +.
+  // FIX-5 — one list, newest added first (the server's order), dated and
+  // undated together: the undated plan sat second from the bottom.
   const plans = useMemo<PlanListItem[]>(
     () => addToPlanTargets(plansQuery.data?.plans ?? [], todayLocalDate()),
     [plansQuery.data],

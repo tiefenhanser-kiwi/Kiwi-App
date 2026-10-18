@@ -16,6 +16,8 @@
 //   • undated: offered (a plan without a week yet, e.g. the one + just made).
 // Status is not consulted: "draft" is every POST /plans plan's status, dated
 // or not, so it says nothing about whether the user is still planning it.
+// FIX-5 — the order is date added, newest first, as one list (see
+// addToPlanTargets below).
 //
 // The day step lists the plan's own days (a 5-day plan offers 5), in order,
 // one per weekday: POST /plans/:id/items takes `assignedDayOfWeek`, a weekday
@@ -62,12 +64,18 @@ export function livePlans<P extends PlanDates>(plans: readonly P[], todayYmd: st
 }
 
 /**
- * What "Pick an existing plan" lists: the live dated plans soonest first, then
- * the undated ones in the order the list arrived (GET /plans my_plans is
- * newest first, so a plan just made leads them).
+ * What "Pick an existing plan" lists: the live dated plans and the undated
+ * ones, as ONE list in the order it arrived — newest added first.
+ *
+ * FIX-5 — Hans: "it should sort the plans by date added. I found the untitled
+ * plan, but it was second from the bottom." BOOK-1C2 put the dated plans first
+ * (soonest first) and the undated ones after them, so the plan the + flow had
+ * just made sat at the bottom. GET /plans my_plans is ordered createdAt DESC
+ * on the server (lib/planQueries.ts), and the list item carries no createdAt,
+ * so "date added" IS the arrival order: this filters and never re-sorts.
  */
 export function addToPlanTargets<P extends PlanDates>(plans: readonly P[], todayYmd: string): P[] {
-  return [...livePlans(plans, todayYmd), ...plans.filter(isUndatedPlan)];
+  return plans.filter((p) => isLivePlan(p, todayYmd) || isUndatedPlan(p));
 }
 
 export interface PlanDayOption {
