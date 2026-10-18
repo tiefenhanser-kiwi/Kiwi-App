@@ -197,6 +197,41 @@ describe("streamPlanCandidates", () => {
     assert.equal(llmCalls[0].outputTokens, 320);
   });
 
+  // FIX-6 (BUG-438) — one card over the 5-tag limit used to fail the WHOLE
+  // stream: the progressive emit held every card after it, and the final
+  // parse refused the result. The card is trimmed to its first five tags, in
+  // the order returned, and the stream goes on.
+  it("a card with six tags is trimmed to the first five; every card still emits and the stream succeeds", async () => {
+    const six = ["Easy", "Cozy", "Budget", "One-pot", "Family", "Weeknight"];
+    const input = fullResult();
+    input.candidates[0].tags = six;
+    const { client } = makeFakeMessages({ toolInput: input });
+    const { prisma, llmCalls } = makeStubPrisma();
+    const emitted: Array<{ index: number; id: string; tags: string[] }> = [];
+
+    const result = await streamPlanCandidates(
+      "wizard.set_preferences.generate",
+      { storeShortlist: [], wizardInput: { userId: "u1" } },
+      {
+        prisma,
+        userId: "u1",
+        cacheSplitMarker: MARKER,
+        client,
+        onCandidate: (index, c) => emitted.push({ index, id: c.id, tags: c.tags }),
+      },
+    );
+
+    assert.ok(result.success, "the stream failed on one over-tagged card");
+    assert.deepEqual(emitted.map((e) => e.id), ["c1", "c2", "c3"]);
+    assert.deepEqual(emitted[0].tags, six.slice(0, 5));
+    if (result.success) {
+      assert.equal(result.data.candidates.length, 3);
+      assert.deepEqual(result.data.candidates[0].tags, ["Easy", "Cozy", "Budget", "One-pot", "Family"]);
+      assert.deepEqual(result.data.candidates[1].tags, ["Mediterranean"]);
+    }
+    assert.equal(llmCalls[0].success, true);
+  });
+
   it("passes the stable head as a cached ephemeral system block", async () => {
     const { client, getParams } = makeFakeMessages({ toolInput: fullResult() });
     const { prisma } = makeStubPrisma();

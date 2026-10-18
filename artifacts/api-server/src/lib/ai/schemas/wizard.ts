@@ -267,6 +267,17 @@ export const WizardShelfRequestSchema = WizardInputSchema.omit({
 });
 export type WizardShelfRequest = z.infer<typeof WizardShelfRequestSchema>;
 
+// FIX-6 (BUG-438) — a card the model writes with a sixth tag is TRIMMED to its
+// first five, in the order returned, instead of rejected: one over-tagged card
+// used to fail the whole generate stream (the progressive emit held every card
+// after it, and the final parse refused the result). The trim runs BEFORE
+// `.max(5)`, and zod-to-json-schema renders a preprocess as its inner schema,
+// so the tool schema the model is sent still says maxItems 5.
+const CandidateTagsSchema = z.preprocess(
+  (v) => (Array.isArray(v) && v.length > 5 ? v.slice(0, 5) : v),
+  z.array(z.string()).max(5),
+);
+
 // PRD §5.7 — single plan candidate.
 // Mirrors WizardPlanCandidate in artifacts/kiwi/lib/types.ts:476.
 export const WizardPlanCandidateSchema = z.object({
@@ -274,7 +285,7 @@ export const WizardPlanCandidateSchema = z.object({
   title: z.string().min(1).max(120),
   imageUrl: z.string().url().optional(),
   badge: z.enum(["featured", "top_rated"]).optional(),
-  tags: z.array(z.string()).max(5),
+  tags: CandidateTagsSchema,
   mealTitles: z.array(z.string()).min(1).max(7),
   // D-WS9-191 Block 1 (Part A) — the model's one-line description per meal
   // slot, index-aligned to mealTitles. ADDITIVE and OPTIONAL: a candidate that
