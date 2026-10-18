@@ -61,11 +61,11 @@ export const LIFECYCLE_COPY = {
     subject: "Welcome to Kiwi. Let's plan your week.",
     greeting: "Hi {firstName},",
     body: [
-      "I'm Hans. I built Kiwi because getting dinner on the table every night was taking more of my week than it should.",
-      "Here's the fastest way in:",
-      "**Plan your week.** Tell Kiwi what you're in the mood for, or start from one of our featured plans.",
-      "**Shop once.** Kiwi turns the week into one grocery list. Take it to the store, or send it to Instacart.",
-      "**Prep ahead.** Prep the Week does all the chopping at once, so weeknights go faster.",
+      "Thanks for giving Kiwi a try! I'm Hans, and I built Kiwi because getting dinner on the table every night was taking more of my week than it should.",
+      "A few notes to help you get started fast:",
+      "**Pick what to eat.** Please take the time to set your preferences so Kiwi knows what you like or don't. From there, Kiwi will present you with plan options or a list of meals you'll enjoy.",
+      "**Shop easy.** Kiwi turns any set of meals and dishes into an organized and accurate grocery list. Take it to the store, or send it to Instacart.",
+      "**Prep ahead.** Kiwi's Prep & Cook engine streamlines your time in the kitchen so weeknights go faster.",
     ],
     button: { label: "Plan my week", url: APP_URL },
     after: [
@@ -79,7 +79,7 @@ export const LIFECYCLE_COPY = {
     subject: "Your week isn't planned yet. It takes about 2 minutes.",
     greeting: "Hi {firstName},",
     body: [
-      "Pick a featured plan, or tell Kiwi something like \"easy dinners for four, nothing too spicy,\" and you'll have a full week in a couple of minutes. You can swap any meal you don't like.",
+      "In the Kiwi app, everything starts with a plan. But it doesn't have to be hard and it can be anything you like to eat. Click to get plans from your preferences, Tell Kiwi exactly what you want, or easily create your own Playlist to bring in your favorites. You can also import meals from images, websites, and just about anything else. Once the meals are in a plan, Kiwi makes the rest easy.",
     ],
     button: { label: "Plan my week", url: APP_URL },
     after: [],
@@ -90,7 +90,7 @@ export const LIFECYCLE_COPY = {
     subject: "One list. Everything you need.",
     greeting: "Hi {firstName},",
     body: [
-      "Once your week is planned, open your grocery list. Kiwi adds up every recipe for you and sorts it by aisle, so you're not buying three onions twice. Check things off as you shop, or send the whole list to Instacart.",
+      "As you get familiar with Kiwi, be sure to save time and headaches with our Grocery Lists. Just add whatever you want to eat to a plan and open your grocery list. Kiwi reviews and consolidates every ingredient for you and sorts it by aisle, so you're not buying three onions twice. Or two when you needed three! Check things off as you shop, or send the whole list to Instacart.",
     ],
     button: { label: "Open my grocery list", url: APP_URL },
     after: [],
@@ -101,7 +101,7 @@ export const LIFECYCLE_COPY = {
     subject: "Prep once, cook faster all week.",
     greeting: "Hi {firstName},",
     body: [
-      "Try Prep the Week. Kiwi groups the chopping, marinades and sauces for every meal into one session, so each weeknight is mostly cooking. Then Cook Mode walks you through dinner one step at a time.",
+      "Kiwi's patent-pending Prep & Cook engine can make cooking easier even if you don't have time to spare every Sunday. Cook easier with our guided cooking steps that make cooking simpler while ensuring your dishes finish together. Or prep a selected meal in the morning to make the evening stress free. Ready to really thank yourself? Use Prep the Week and Kiwi groups the chopping, marinades and sauces for every meal into one session, so each weeknight is more about eating than cooking.",
     ],
     button: { label: "Try Prep the Week", url: APP_URL },
     after: [],
