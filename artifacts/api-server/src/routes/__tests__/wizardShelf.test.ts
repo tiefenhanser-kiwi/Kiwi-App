@@ -54,6 +54,9 @@ interface MealRow {
   /** Test-only: this own meal has been in a plan (planItems some). */
   served: boolean;
   dishCount: number;
+  /** FIX-4 — the ingredient canonical names (the diet and text readers). */
+  lines?: string[];
+  dishLinks?: { dish: { substitutions: null; dishIngredients: { ingredient: { canonicalName: string } }[] } }[];
 }
 
 function catalogRow(id: string, over: Partial<MealRow> = {}): MealRow {
@@ -80,6 +83,14 @@ function catalogRow(id: string, over: Partial<MealRow> = {}): MealRow {
     served: false,
     dishCount: 2,
     ...over,
+    dishLinks: [
+      {
+        dish: {
+          substitutions: null,
+          dishIngredients: (over.lines ?? []).map((canonicalName) => ({ ingredient: { canonicalName } })),
+        },
+      },
+    ],
   };
 }
 
@@ -212,6 +223,25 @@ function makeStubPrisma(opts: StubOpts) {
                 (o.title?.contains && text.includes(String(o.title.contains).toLowerCase())) ||
                 (o.description?.contains && text.includes(String(o.description.contains).toLowerCase())),
             );
+          })
+          // FIX-4 (B) — the text readers' AND entries: an ingredient-name
+          // match (dishLinks…canonicalName contains) or title-OR-ingredient.
+          .filter((m) => {
+            const ingr = (c: Record<string, any>): string | undefined =>
+              c?.dishLinks?.some?.dish?.dishIngredients?.some?.ingredient?.canonicalName?.contains;
+            const lines = (m.lines ?? []).map((l) => l.toLowerCase());
+            return ((w.AND ?? []) as Array<Record<string, any>>).every((c) => {
+              const direct = ingr(c);
+              if (direct !== undefined) return lines.some((l) => l.includes(direct.toLowerCase()));
+              if (Array.isArray(c.OR) && c.OR.some((o: Record<string, any>) => ingr(o) !== undefined)) {
+                return c.OR.some((o: Record<string, any>) => {
+                  const i = ingr(o);
+                  if (i !== undefined) return lines.some((l) => l.includes(i.toLowerCase()));
+                  return o.title?.contains ? m.title.toLowerCase().includes(String(o.title.contains).toLowerCase()) : false;
+                });
+              }
+              return true;
+            });
           })
           .sort((a, b) => (a.id < b.id ? -1 : 1));
       },
@@ -1173,6 +1203,138 @@ describe("POST /api/wizard/shelf — a guest token (Resubmission G1 Part A)", ()
       } finally {
         await h.close();
       }
+    }
+  });
+});
+
+// ── FIX-4 ──────────────────────────────────────────────────────────────────
+
+const parseMeta = {
+  promptKey: "wizard.directed.parse_intent",
+  promptVersion: 1,
+  model: "claude-haiku-4-5-20251001",
+  mode: "tool" as const,
+  latencyMs: 10,
+  inputTokens: 1,
+  outputTokens: 1,
+  costEstimateUsd: 0,
+  retryCount: 0,
+};
+const parsed = (explicitMeals: string[], intentDescriptors: string[] = []) =>
+  makeParseIntent(() => ({
+    success: true,
+    data: { scenario: "partial", explicitMeals, intentDescriptors },
+    metadata: parseMeta,
+  }));
+const { eatingStyles: _omit, ...BODY_NO_DIET } = BASE_BODY;
+
+describe("POST /api/wizard/shelf — FIX-4 (A) the diet is a hard filter", () => {
+  const meals = [
+    catalogRow("v01", { title: "Lentil Soup", lines: ["brown lentils", "vegetable broth"] }),
+    catalogRow("v02", { title: "Veggie Lasagna", lines: ["lasagna noodles", "ricotta"] }),
+    catalogRow("f01", { title: "Lemon Cod", lines: ["cod fillets", "lemon"] }),
+    catalogRow("m01", { title: "Chicken Parm", lines: ["chicken breasts", "marinara"] }),
+    catalogRow("m02", { title: "Black Bean Soup", lines: ["black beans", "low-sodium chicken broth"] }),
+    ownRow("own-meat", U, { title: "Own Pork Chops", lines: ["pork chops"] }),
+    ownRow("own-veg", U, { title: "Own Chickpea Curry", lines: ["chickpeas"] }),
+  ];
+  const playlist = [
+    { userId: U, mealId: "own-meat", createdAt: new Date("2026-10-01") },
+    { userId: U, mealId: "own-veg", createdAt: new Date("2026-10-02") },
+  ];
+
+  it("a STORED Vegetarian with the field omitted: only vegetarian rows, playlist included (chicken broth counts as meat)", async () => {
+    const h = await spinUp(makeStubPrisma({ meals, playlist, preferences: { discoveryLevel: "none", eatingStyles: ["Healthy", "Vegetarian"] } }));
+    try {
+      const { status, json } = await shelf(h, U, { ...BODY_NO_DIET, size: 10, playlistLevel: "some" });
+      assert.equal(status, 200);
+      const ids = json.meals.map((m) => m.id).sort();
+      assert.deepEqual(ids, ["own-veg", "v01", "v02"]);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("the body wins when sent: Pescatarian keeps fish and drops meat", async () => {
+    const h = await spinUp(makeStubPrisma({ meals, preferences: { discoveryLevel: "none", eatingStyles: [] } }));
+    try {
+      const { json } = await shelf(h, U, { ...BASE_BODY, eatingStyles: ["Pescatarian"], size: 10 });
+      assert.deepEqual(json.meals.map((m) => m.id).sort(), ["f01", "v01", "v02"]);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("a named meal that breaks the diet is not pinned — it comes back unmatched", async () => {
+    const parse = parsed(["Chicken Parm"]);
+    const h = await spinUp(makeStubPrisma({ meals, preferences: { discoveryLevel: "none", eatingStyles: ["Vegetarian"] } }), parse.fn);
+    try {
+      const { json } = await shelf(h, U, { ...BODY_NO_DIET, size: 5, text: "chicken parm please" });
+      assert.equal(json.meals.some((m) => m.id === "m01"), false);
+      assert.deepEqual(json.unmatchedNames, ["Chicken Parm"]);
+    } finally {
+      await h.close();
+    }
+  });
+});
+
+describe("POST /api/wizard/shelf — FIX-4 (B) the text is read, and 'more' never repeats", () => {
+  const meals = [
+    catalogRow("s01", { title: "Garlic Butter Steak Bites", lines: ["new york strip steak", "butter"] }),
+    catalogRow("s02", { title: "Honey Salmon", lines: ["salmon fillets"] }),
+    catalogRow("s03", { title: "Salmon Tacos", lines: ["salmon"] }),
+    catalogRow("s04", { title: "Pasta Primavera", lines: ["penne"] }),
+    catalogRow("s05", { title: "Tomato Soup", lines: ["tomatoes"] }),
+    catalogRow("s06", { title: "Bean Chili", lines: ["kidney beans"] }),
+  ];
+
+  it("a name no title carries is matched on an ingredient ('NY Strip Steak' → strip steak) and pinned", async () => {
+    const h = await spinUp(makeStubPrisma({ meals }), parsed(["NY Strip Steak"]).fn);
+    try {
+      const { json } = await shelf(h, U, { ...BASE_BODY, size: 4, text: "NY strip steak, medium-rare" });
+      assert.deepEqual([json.meals[0].id, json.meals[0].isPinned], ["s01", true]);
+      assert.deepEqual(json.unmatchedNames, []);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("a food descriptor pins what names it; one nothing names is reported, a mood word is ignored", async () => {
+    const h = await spinUp(makeStubPrisma({ meals }), parsed([], ["easy", "salmon", "whipped cream"]).fn);
+    try {
+      const { json } = await shelf(h, U, { ...BASE_BODY, size: 5, text: "easy salmon, something with whipped cream" });
+      assert.deepEqual(json.meals.filter((m) => m.isPinned).map((m) => m.id).sort(), ["s02", "s03"]);
+      assert.deepEqual(json.unmatchedNames, ["whipped cream"]);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("two different texts give two different shelves (the pins differ)", async () => {
+    const h1 = await spinUp(makeStubPrisma({ meals }), parsed([], ["salmon"]).fn);
+    const h2 = await spinUp(makeStubPrisma({ meals }), parsed(["NY Strip Steak"]).fn);
+    try {
+      const a = await shelf(h1, U, { ...BASE_BODY, size: 3, text: "salmon dinners" });
+      const b = await shelf(h2, U, { ...BASE_BODY, size: 3, text: "NY strip steak" });
+      assert.notDeepEqual(a.json.meals.filter((m) => m.isPinned).map((m) => m.id), b.json.meals.filter((m) => m.isPinned).map((m) => m.id));
+    } finally {
+      await h1.close();
+      await h2.close();
+    }
+  });
+
+  it("'Get more options' never re-serves a shown pin or playlist row", async () => {
+    const own = ownRow("own-1", U, { title: "Own Favourite", lines: ["rice"] });
+    const playlist = [{ userId: U, mealId: "own-1", createdAt: new Date("2026-10-01") }];
+    const h = await spinUp(makeStubPrisma({ meals: [...meals, own], playlist }), parsed(["NY Strip Steak"]).fn);
+    try {
+      const first = await shelf(h, U, { ...BASE_BODY, size: 4, text: "NY strip steak", playlistLevel: "all" });
+      const shown = first.json.meals.map((m) => m.id);
+      assert.ok(shown.includes("s01") && shown.includes("own-1"), JSON.stringify(shown));
+      const more = await shelf(h, U, { ...BASE_BODY, size: 4, text: "NY strip steak", playlistLevel: "all", excludeMealIds: shown });
+      assert.equal(more.json.meals.filter((m) => shown.includes(m.id)).length, 0);
+    } finally {
+      await h.close();
     }
   });
 });

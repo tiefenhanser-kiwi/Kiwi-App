@@ -175,6 +175,11 @@ Never write filler that would be true of any plan, or a non-advantage dressed as
 // a shelf meal reasonably fits, not a rare option — the catalog only pays off
 // (latency + cost) if it's actually used. Hard constraints still bind shelf
 // meals exactly as fresh ones. The {{storeShortlist}} slot renders the shelf.
+// FIX-4 (A) — the diet's hard line, shared by the two plan generators. The
+// shelves are filtered on the diet in code and every returned plan is checked
+// slot by slot (lib/wizardDietGuard.ts); this tells the model what that check is.
+const PLAN_DIET_RULE = `- When \`eatingStyles\` includes Vegetarian, EVERY meal in EVERY candidate is vegetarian: no meat, poultry, fish or seafood. Pescatarian: no meat or poultry (fish and seafood are fine). Vegan: no meat, fish, seafood, dairy, eggs or honey. The shelf you are handed already holds only meals that fit, so fill from it first. A dinner you compose fresh must fit too, and its title names its real protein (lentils, chickpeas, tofu, paneer, eggs, mushrooms — or the fish, for a pescatarian). Kiwi reads every title against the diet and replaces any meal that breaks it, so a meat dinner in a vegetarian plan is never shown.`;
+
 const CATALOG_SHELF_SECTION = `# Composing from Kiwi's catalog
 
 Kiwi keeps a shared catalog of already-made dinners. The \`storeShortlist\` below is a shelf of those meals pre-matched to this user — each has a stable \`id\`, a \`title\`, \`cuisineType\`, \`difficulty\`, \`estimatedTimeMinutes\`, \`tags\`, and per-serving \`macros\`. A catalog meal is already fully built, so reusing one is much cheaper and faster than inventing a fresh recipe.
@@ -302,6 +307,7 @@ When \`requestedCandidateCount\` is 1 (vague or partial), return one plan, fully
 # Hard constraints (never violated)
 
 - Dietary restrictions in \`eatingStyles\` (vegan, vegetarian, pescatarian, keto, etc.) are absolute exclusions for every meal in every candidate.
+${PLAN_DIET_RULE}
 - Allergies and avoidances in \`allergiesAndAvoidances\` are absolute exclusions for every ingredient in every meal.
 - \`hiddenContext.equipment\`: only suggest meals the user can actually cook. No Instant-Pot recipes without an Instant Pot; no smoker dishes without a smoker; no sous-vide without one.
 - \`hiddenContext.pickyAvoidances\` (free-text) → exclusions for the household, treated with the same weight as allergies.
@@ -922,6 +928,7 @@ If the constraints are too tight to produce \`requestedCandidateCount\` genuinel
 # Hard constraints (never violated)
 
 - Dietary restrictions in \`eatingStyles\` (vegan, vegetarian, pescatarian, keto, etc.) are absolute exclusions for every meal.
+${PLAN_DIET_RULE}
 - Allergies and avoidances in \`allergiesAndAvoidances\` are absolute exclusions for every ingredient in every meal.
 - Items in \`hiddenContext.equipment\`: only suggest meals the user can actually cook. If they don't have an Instant Pot, no Instant-Pot recipes; no smoker dishes without a smoker; no sous-vide without one.
 - \`hiddenContext.spiceTolerance\` is the heat the user saved; when it is \`mild\` or absent (mild is the default), no hot dish in any candidate: no arrabbiata, kung pao, Szechuan or Sichuan, vindaloo, buffalo, Nashville hot, sriracha, gochujang, red or green curry, and nothing whose title says "spicy" or "fiery". The shelf you are handed already leaves those out (a shelf row marked \`"isPlaylist": true\` is the user's own saved meal and stays eligible); do not compose one fresh. \`medium\`, \`hot\` and \`very_hot\` users may get them.
@@ -1146,6 +1153,7 @@ ${RECIPE_SAFETY_RULES}
 
 The user's hard constraints (allergies, eating styles, equipment) already shaped the candidate's meal titles — do NOT introduce ingredients or techniques the candidate's tags imply the user rejected:
 - If the candidate's \`tags\` include "Vegetarian"/"Vegan"/"Pescatarian" — every dish must honor it.
+- \`candidateContext.eatingStyles\` is the user's saved diet, and it binds every dish whatever the tags say. Vegetarian: no meat, poultry, fish or seafood, and none of their stocks, broths, fats, gelatin, anchovies, fish sauce or Worcestershire — use vegetable broth. Pescatarian: no meat or poultry, or their stocks and fats; fish and seafood are fine. Vegan: everything vegetarian excludes, plus no dairy, eggs or honey. A store-bought substitution must fit too. Kiwi checks every ingredient name against the diet and rejects a recipe that breaks it.
 - If the candidate notes equipment limits ("no oven", "no Instant Pot") — do not use that equipment.
 - If \`candidateContext.allergiesAndAvoidances\` is non-empty, treat each entry as the ALLERGEN CLASS its label names and exclude every ingredient in that class. The entries are fixed labels from a closed list — "Dairy-free", "Gluten-free", "Shellfish-free" — not ingredient words, so match them by meaning: "Dairy-free" excludes milk, butter, cheese, cream, yogurt and ghee; "Shellfish-free" excludes shrimp, crab, lobster, scallops, clams, mussels, squid and crawfish; "Gluten-free" excludes wheat, barley, rye, farro, spelt and any pasta or bread made from them.
 

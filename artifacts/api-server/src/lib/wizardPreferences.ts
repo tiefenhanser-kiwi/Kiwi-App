@@ -346,3 +346,25 @@ export async function resolveAllergenPreference(
   }
   return { allergiesAndAvoidances: clientValue, source: "client" };
 }
+
+// ── FIX-4 (A) — the eating-style field ───────────────────────────────────────
+//
+// The allergen contract above, applied to the diet now that the shelves filter
+// on it (lib/similar/diet.ts): OMITTED → the screen never loaded preferences →
+// the stored list; PRESENT (including empty) → the user's choice for this run.
+// A wizard form is hydrated from the stored list, so for a user who never
+// touches the chips the two are the same list.
+
+/** The effective eating styles for one generation (body when sent, else stored). */
+export async function resolveEatingStyles(
+  prisma: Pick<PrismaClient, "userPreferences">,
+  userId: string,
+  clientValue: string[] | undefined,
+): Promise<string[]> {
+  if (clientValue !== undefined) return clientValue;
+  const prefs = await prisma.userPreferences.findUnique({
+    where: { userId },
+    select: { eatingStyles: true },
+  });
+  return prefs?.eatingStyles ?? [];
+}

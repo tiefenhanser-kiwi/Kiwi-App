@@ -24,6 +24,7 @@ import type {
 import type { WizardPlanCandidatesResult } from "../../lib/ai/schemas/wizard";
 import type { ParsedIntent } from "../../lib/ai/schemas/tellKiwi";
 import { withSessionUser } from "./fixtures/sessionUserStub";
+import { generatedMealFitsDiets } from "../../lib/similar/diet";
 import type {
   EntitlementResult,
   SubscriptionService,
@@ -6557,6 +6558,211 @@ describe("POST /api/wizard/expand — the guest expanded / catalog_only_gap even
       });
       // The door is not a draft: nothing was stored.
       assert.equal(prisma._sessionUpdates().length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── FIX-4 ──────────────────────────────────────────────────────────────────
+// (A) a stored Vegetarian is resolved when the field is omitted, filters the
+// shelf the prompt sees, and a generated meat slot never reaches the wire.
+// (B) Tell Kiwi's "another" carries the shown titles into the prompt.
+
+const lineRow = (id: string, title: string, lines: string[]) =>
+  storeMealRow(id, {
+    title,
+    dishFamilyKey: null,
+    allergens: [],
+    description: null,
+    imageUrl: null,
+    dishLinks: [{ dish: { substitutions: null, dishIngredients: lines.map((canonicalName) => ({ ingredient: { canonicalName } })) } }],
+  });
+const FIX4_SHELF = [
+  lineRow("veg-1", "Lentil Soup", ["brown lentils"]),
+  lineRow("veg-2", "Veggie Lasagna", ["ricotta"]),
+  lineRow("veg-3", "Black Bean Enchiladas", ["black beans"]),
+  lineRow("veg-4", "Paneer Tikka", ["paneer"]),
+  lineRow("meat-1", "Chicken Parm", ["chicken breasts"]),
+];
+const VEG_TITLES = new Set(FIX4_SHELF.filter((m) => m.id.startsWith("veg")).map((m) => m.title));
+const { eatingStyles: _tkOmit, ...TELL_KIWI_NO_DIET } = TELL_KIWI_BODY;
+const { eatingStyles: _wzOmit, ...VALID_NO_DIET } = VALID_BODY;
+
+describe("FIX-4 — build-from-text under a stored Vegetarian", () => {
+  let harness: Harness;
+  const runner = makeTellKiwiRunner({
+    parse: () => parseSuccess({ scenario: "vague", explicitMeals: [], intentDescriptors: [] } as ParsedIntent),
+    generate: () =>
+      genSuccess({
+        candidates: [
+          {
+            id: "veg-plan",
+            title: "Meatless Week",
+            tags: [],
+            whyBullets: ["Cozy"],
+            mealTitles: ["Chicken Parmesan", "Mushroom Risotto"],
+            mealDescriptions: ["Crispy chicken.", "Creamy arborio with mushrooms."],
+            dailyMacros: { calories: 540, proteinG: 30, carbsG: 50, fatG: 20 },
+          },
+        ],
+      }),
+  });
+  let body: { candidates: Array<{ mealTitles: string[]; storeSlots?: { slotIndex: number; storeMealId: string }[] }> };
+
+  before(async () => {
+    harness = await spinUp({
+      runAICall: runner.fn,
+      prisma: makeStubPrisma({ storeMeals: FIX4_SHELF, preferences: { eatingStyles: ["Healthy", "Vegetarian"] } }),
+      subscriptionService: makeSubscriptionService(true),
+    });
+    const res = await fetch(`${harness.baseUrl}/wizard/build-from-text`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${signToken(TELL_KIWI_USER_ID + "-fix4")}` },
+      body: JSON.stringify(TELL_KIWI_NO_DIET),
+    });
+    assert.equal(res.status, 200);
+    body = (await res.json()) as typeof body;
+  });
+  after(async () => harness.close());
+
+  it("the omitted field resolves to the STORED styles for the parse and the generate", () => {
+    const parse = runner.getCalls().find((c) => c.promptKey === "wizard.directed.parse_intent")!;
+    const gen = runner.getCalls().find((c) => c.promptKey === "wizard.directed.generate")!;
+    assert.deepEqual((parse.vars.parseInput as { eatingStyles: string[] }).eatingStyles, ["Healthy", "Vegetarian"]);
+    assert.deepEqual((gen.vars.generateInput as { eatingStyles: string[] }).eatingStyles, ["Healthy", "Vegetarian"]);
+  });
+
+  it("the shelf the prompt sees holds only vegetarian meals", () => {
+    const gen = runner.getCalls().find((c) => c.promptKey === "wizard.directed.generate")!;
+    const titles = (gen.vars.storeShortlist as { title: string }[]).map((m) => m.title).sort();
+    assert.deepEqual(titles, [...VEG_TITLES].sort());
+  });
+
+  it("the generated meat slot is replaced by a vegetarian shelf meal under its real id; the fitting live slot stays", () => {
+    const [c] = body.candidates;
+    assert.ok(VEG_TITLES.has(c.mealTitles[0]), c.mealTitles[0]);
+    assert.equal(c.mealTitles[1], "Mushroom Risotto");
+    const slot = c.storeSlots?.find((s) => s.slotIndex === 0);
+    assert.ok(slot && slot.storeMealId.startsWith("veg-"), JSON.stringify(c.storeSlots));
+  });
+});
+
+describe("FIX-4 — build-plans (buffered) under a stored Vegetarian", () => {
+  it("no candidate on the wire carries a meat or fish meal (replaced from the shelf, or dropped)", async () => {
+    const ai = makeRunAICall(async () => happyResult());
+    const harness = await spinUp({
+      runAICall: ai.fn,
+      prisma: makeStubPrisma({ storeMeals: FIX4_SHELF, preferences: { eatingStyles: ["Vegetarian"] } }),
+      subscriptionService: makeSubscriptionService(true),
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-plans`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${signToken(TEST_USER_ID + "-fix4")}` },
+        body: JSON.stringify(VALID_NO_DIET),
+      });
+      assert.equal(res.status, 200);
+      const json = (await res.json()) as { candidates: { mealTitles: string[] }[]; delivered: number; requested: number };
+      // happyCandidates is meat-heavy (chicken, shrimp, salmon, steak): with
+      // four vegetarian shelf meals the guard can mend at most one plan.
+      assert.ok(json.candidates.length < 3, `delivered ${json.candidates.length}`);
+      assert.equal(json.delivered, json.candidates.length);
+      for (const c of json.candidates) {
+        for (const t of c.mealTitles) {
+          assert.ok(VEG_TITLES.has(t) || generatedMealFitsDiets(t, null, ["vegetarian"]), t);
+        }
+      }
+      const input = ai.getVars()[0].wizardInput as { eatingStyles: string[] };
+      assert.deepEqual(input.eatingStyles, ["Vegetarian"]);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+describe("FIX-4 (B) — Tell Kiwi 'another' carries the shown titles to the prompt", () => {
+  it("excludePlanTitles + excludeMealTitles fold into planningContext.recentPlanNames", async () => {
+    const runner = makeTellKiwiRunner({
+      parse: () => parseSuccess({ scenario: "vague", explicitMeals: [], intentDescriptors: [] } as ParsedIntent),
+      generate: () => genSuccess(threeCandidates("again")),
+    });
+    const harness = await spinUp({
+      runAICall: runner.fn,
+      prisma: makeStubPrisma(),
+      subscriptionService: makeSubscriptionService(true),
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-from-text`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${signToken(TELL_KIWI_USER_ID + "-another")}` },
+        body: JSON.stringify({
+          ...TELL_KIWI_BODY,
+          excludePlanTitles: ["Weeknight Comfort Classics"],
+          excludeMealTitles: ["Sirloin Stroganoff"],
+          another: { dismissedPlanTitles: [] },
+        }),
+      });
+      assert.equal(res.status, 200);
+      const gen = runner.getCalls().find((c) => c.promptKey === "wizard.directed.generate")!;
+      const input = gen.vars.generateInput as { requestedCandidateCount: number; planningContext: { recentPlanNames: string[] } };
+      assert.equal(input.requestedCandidateCount, 1);
+      assert.ok(input.planningContext.recentPlanNames.includes("Weeknight Comfort Classics"));
+      assert.ok(input.planningContext.recentPlanNames.includes("Sirloin Stroganoff"));
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+describe("FIX-4 (B) — an 'another' card never repeats a shown meal", () => {
+  it("a repeated shelf meal is swapped for an unshown one; a NAMED meal stays", async () => {
+    const shelf = [
+      lineRow("s-1", "Garlic Butter Steak Bites", ["new york strip steak"]),
+      lineRow("s-2", "Lemon Chicken", ["chicken thighs"]),
+      lineRow("s-3", "Pork Tacos", ["pork shoulder"]),
+      lineRow("s-4", "Shrimp Fried Rice", ["shrimp"]),
+    ];
+    const runner = makeTellKiwiRunner({
+      parse: () => parseSuccess({ scenario: "partial", explicitMeals: ["NY Strip Steak"], intentDescriptors: [] } as ParsedIntent),
+      generate: () =>
+        genSuccess({
+          candidates: [
+            {
+              id: "again-1",
+              title: "Another week",
+              tags: [],
+              whyBullets: ["New"],
+              mealTitles: ["NY Strip Steak with Herb Butter", "Lemon Chicken", "Mushroom Risotto"],
+              dailyMacros: { calories: 540, proteinG: 30, carbsG: 50, fatG: 20 },
+              storeSlots: [{ slotIndex: 1, storeMealId: "m2" }],
+            },
+          ],
+        }),
+    });
+    const harness = await spinUp({
+      runAICall: runner.fn,
+      prisma: makeStubPrisma({ storeMeals: shelf }),
+      subscriptionService: makeSubscriptionService(true),
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/wizard/build-from-text`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${signToken(TELL_KIWI_USER_ID + "-repeat")}` },
+        body: JSON.stringify({
+          ...TELL_KIWI_BODY,
+          description: "NY strip steak, medium-rare",
+          excludePlanTitles: ["Steak Night"],
+          excludeMealTitles: ["NY Strip Steak with Herb Butter", "Lemon Chicken", "Pork Tacos"],
+          another: { dismissedPlanTitles: [] },
+        }),
+      });
+      assert.equal(res.status, 200);
+      const json = (await res.json()) as { candidates: { mealTitles: string[] }[] };
+      const titles = json.candidates[0].mealTitles;
+      assert.equal(titles[0], "NY Strip Steak with Herb Butter", "the named meal stays");
+      assert.ok(!["Lemon Chicken", "Pork Tacos"].includes(titles[1]), titles[1]);
+      assert.equal(titles[2], "Mushroom Risotto");
     } finally {
       await harness.close();
     }

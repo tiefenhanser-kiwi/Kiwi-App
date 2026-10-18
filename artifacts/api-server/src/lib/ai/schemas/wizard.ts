@@ -182,7 +182,12 @@ export const WizardInputSchema = z.object({
   // the prompt still sees a concrete boolean.
   wantsLeftovers: z.boolean().optional().default(false),
   cuisines: z.array(z.string()).default([]),
-  eatingStyles: z.array(z.string()).default([]),
+  // FIX-4 (A) — OPTIONAL WITH NO DEFAULT, the BUG-201 rule applied to the diet:
+  // absent means the screen never loaded preferences, and resolveEatingStyles
+  // (lib/wizardPreferences.ts) falls back to the stored list. The shelves now
+  // hard-filter on it, so an absent field read as [] would serve meat to a
+  // vegetarian whose preferences read failed.
+  eatingStyles: z.array(z.string()).optional(),
   // BUG-201 / D-WS9-214 — OPTIONAL WITH NO DEFAULT, for exactly the reason the
   // four per-run override fields below carry no default. `.default([])` made an
   // ABSENT allergen field indistinguishable from a user who deliberately
@@ -412,7 +417,8 @@ export const WizardExpandCandidateContextSchema = z.object({
   // prefs but never referenced allergiesAndAvoidances at all, so a client echo
   // of `[]` was the last word. It now resolves through the same helper.
   allergiesAndAvoidances: z.array(z.string()).optional(),
-  eatingStyles: z.array(z.string()).default([]),
+  // FIX-4 (A) — see WizardInputSchema; expand resolves it like the allergens.
+  eatingStyles: z.array(z.string()).optional(),
   difficulty: z.enum(["easy", "medium", "fancy"]),
   // Cookbook Phase B Block 2 (D-WS7-197) — server-authoritative generation
   // prefs re-injected at expand (where ingredients + estimatedTimeMinutes are

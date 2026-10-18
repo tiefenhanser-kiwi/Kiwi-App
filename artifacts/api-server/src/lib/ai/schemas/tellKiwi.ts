@@ -25,7 +25,8 @@ export const DirectedInputSchema = z.object({
   weeklyPacing: z
     .enum(["mostly_easy", "mixed", "one_fancy_night", "minimal_effort"])
     .optional(),
-  eatingStyles: z.array(z.string()).default([]),
+  // FIX-4 (A) — optional, no default: see WizardInputSchema (ai/schemas/wizard.ts).
+  eatingStyles: z.array(z.string()).optional(),
   // BUG-201 / D-WS9-214 — OPTIONAL WITH NO DEFAULT. Same fix and same reason as
   // WizardInputSchema (ai/schemas/wizard.ts): `.default([])` collapsed "the Tell
   // Kiwi screen never loaded stored prefs" into "the user has no allergies", and

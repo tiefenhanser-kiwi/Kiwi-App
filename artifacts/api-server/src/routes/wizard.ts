@@ -111,9 +111,20 @@ import {
   applyAllForcesNone,
   discoveryLevelFromInput,
   resolveAllergenPreference,
+  resolveEatingStyles,
   resolveEffectivePreferences,
   type ResolvedPreferences,
 } from "../lib/wizardPreferences";
+import { dietRestrictionsOf } from "../lib/similar/diet";
+import { mealIdsFittingDiets } from "../lib/similar/swapPool";
+import { createDietGuard } from "../lib/wizardDietGuard";
+import {
+  DESCRIPTOR_PINS,
+  descriptorWhere,
+  foodDescriptors,
+  ingredientNamedWhere,
+  ingredientPhrasesFor,
+} from "../lib/store/textMatch";
 import { GuestPreferencesSchema } from "../lib/guestClaim";
 import { picksPlanTitle } from "../lib/planTitle";
 import { createRequireAuth } from "../middleware/auth";
@@ -288,6 +299,8 @@ export interface WizardRouterDeps {
 // cached `system` prefix; the volatile tail (shortlist + wizardInput) stays in
 // the user message. Must match the token in the seeded prompt body verbatim.
 const WIZARD_GENERATE_CACHE_MARKER = "{{storeShortlist}}";
+// FIX-4 (A) — see the streamOnce call.
+const WIZARD_GENERATE_STREAM_MAX_TOKENS = 8192;
 
 // FIX-2 (Part C) — the stream failures a second call can fix. A spend-guard or
 // guest refusal is not one: a second call would be refused the same way.
@@ -1028,6 +1041,13 @@ export function createWizardRouter(
     }
     const body = parsed.data;
     const size = body.size ?? WIZARD_SHELF_DEFAULT_SIZE;
+    // FIX-4 (A) — the diet, resolved like the allergens (body when sent, else
+    // stored; a guest has no stored row), is a HARD filter on every row this
+    // route returns: shelf, playlist and the meals the text named.
+    const eatingStyles = await resolveEatingStyles(prisma, userId, body.eatingStyles);
+    const diets = dietRestrictionsOf(eatingStyles);
+    const dietFit = async (ids: string[]): Promise<Set<string> | null> =>
+      diets.length === 0 ? null : mealIdsFittingDiets(prisma, ids, diets);
 
     // The user's playlist — their own declared meals, ELIGIBLE under the
     // allergen filter + the difficulty ceiling; the cook-time cap does NOT
@@ -1084,7 +1104,10 @@ export function createWizardRouter(
         }))
         .sort((a, b) => a.rank - b.rank || a.i - b.i)
         .map((r) => r.id);
-      return { ids, sourceIds };
+      // FIX-4 (A) — a go-to that breaks the diet is not listed. Its source
+      // stays in sourceIds, so the shelf does not offer it in its place.
+      const fit = await dietFit(ids);
+      return { ids: fit ? ids.filter((id) => fit.has(id)) : ids, sourceIds };
     };
 
     try {
@@ -1210,7 +1233,7 @@ export function createWizardRouter(
               planDurationDays: body.planDurationDays,
               householdSize: body.householdSize,
               wantsLeftovers: body.wantsLeftovers,
-              eatingStyles: body.eatingStyles,
+              eatingStyles,
               allergiesAndAvoidances: resolvedAllergens.allergiesAndAvoidances,
               dietaryNotes: body.dietaryNotes ?? "",
               hiddenContext,
@@ -1226,19 +1249,25 @@ export function createWizardRouter(
           const names = parseResult.data.explicitMeals
             .map((n) => n.trim())
             .filter((n) => n.length > 0);
+          // FIX-4 (B) — names no title carries get a second, ingredient-name
+          // reading below (lib/store/textMatch.ts).
+          const titleMisses: string[] = [];
           if (names.length > 0) {
             const candidates = await prisma.meal.findMany({
               where: explicitMealCandidatesWhere(names, allergenConditions),
               select: { id: true, title: true, dishFamilyKey: true },
               take: 200,
             });
+            // FIX-4 (A) — a named meal is matched among the rows that fit the
+            // diet; a name only meat rows carry comes back unmatched.
+            const fit = await dietFit(candidates.map((c) => c.id));
             for (const name of names) {
               const lower = name.toLowerCase();
-              const hits = candidates.filter((c) =>
-                c.title.toLowerCase().includes(lower),
+              const hits = candidates.filter(
+                (c) => c.title.toLowerCase().includes(lower) && (!fit || fit.has(c.id)),
               );
               if (hits.length === 0) {
-                unmatchedNames.push(name);
+                titleMisses.push(name);
                 continue;
               }
               // Exact title first, else the best-ranked family, else stable id.
@@ -1253,6 +1282,54 @@ export function createWizardRouter(
               const pick = hits[0];
               if (!pinnedIds.includes(pick.id)) pinnedIds.push(pick.id);
             }
+          }
+
+          // FIX-4 (B) — the rest of what the text said. Same pool and hard
+          // filters as the title match (everyday dinners, allergens, diet); the
+          // best-ranked family wins; never past the card count.
+          const textPool = (extra: Prisma.MealWhereInput): Prisma.MealWhereInput => ({
+            isPublic: true,
+            isArchived: false,
+            mealType: "dinner",
+            ...everydayPoolWhere(),
+            AND: [...allergenConditions, extra],
+          });
+          const ranked = async (where: Prisma.MealWhereInput) => {
+            const rows = await prisma.meal.findMany({
+              where,
+              select: { id: true, dishFamilyKey: true },
+              take: 60,
+            });
+            const fit = await dietFit(rows.map((r) => r.id));
+            return rows
+              .filter((r) => (!fit || fit.has(r.id)) && !pinnedIds.includes(r.id))
+              .sort((a, b) => {
+                const ra = lookupDishFamily(a.dishFamilyKey)?.rank ?? NON_CATALOG_RANK;
+                const rb = lookupDishFamily(b.dishFamilyKey)?.rank ?? NON_CATALOG_RANK;
+                return ra - rb || (a.id < b.id ? -1 : 1);
+              });
+          };
+          for (const name of titleMisses) {
+            let pinned = false;
+            for (const phrase of ingredientPhrasesFor(name)) {
+              if (pinnedIds.length >= size) break;
+              const [pick] = await ranked(textPool(ingredientNamedWhere(phrase)));
+              if (pick) {
+                pinnedIds.push(pick.id);
+                pinned = true;
+                break;
+              }
+            }
+            if (!pinned) unmatchedNames.push(name);
+          }
+          for (const d of foodDescriptors(parseResult.data.intentDescriptors)) {
+            if (pinnedIds.length >= size) break;
+            const picks = (await ranked(textPool(descriptorWhere(d)))).slice(
+              0,
+              Math.min(DESCRIPTOR_PINS, size - pinnedIds.length),
+            );
+            if (picks.length === 0) unmatchedNames.push(d);
+            for (const m of picks) pinnedIds.push(m.id);
           }
         } else {
           logger.warn(
@@ -1276,7 +1353,18 @@ export function createWizardRouter(
             difficultyCeiling,
           );
       const playlistSourceIds = playlist.sourceIds;
-      const playlistIds = playlist.ids.filter((id) => !pinnedIds.includes(id));
+      // FIX-4 (B) — "Get more options" sends every id already shown. Only the
+      // shelf honoured it, so each page re-served the same pins and playlist
+      // rows (under the Playlist dial "all" the shelf remainder is 0, so every
+      // page was the SAME cards). A shown id is never served again; when
+      // nothing new is left the page is empty and the client says so.
+      const shown = new Set(body.excludeMealIds ?? []);
+      for (let i = pinnedIds.length - 1; i >= 0; i--) {
+        if (shown.has(pinnedIds[i])) pinnedIds.splice(i, 1);
+      }
+      const playlistIds = playlist.ids.filter(
+        (id) => !pinnedIds.includes(id) && !shown.has(id),
+      );
 
       // 4. The shelf for the remainder — excluding what was shown, what the
       //    playlist already covers (its forks' sources), and the pins. Over-
@@ -1322,6 +1410,7 @@ export function createWizardRouter(
                   ? counts.shelfRemainder
                   : counts.shelfRemainder * 2,
               excludeSpicy,
+              diets,
             })
           : null;
       const shelfIds = shelf?.selectedIds ?? [];
@@ -1586,6 +1675,10 @@ export function createWizardRouter(
         aiInput.allergiesAndAvoidances,
         { route: "wizard.build_plans" },
       );
+      // FIX-4 (A) — the eating styles, resolved the same way (body when sent,
+      // else stored). One list for the prompt, the shelf and the diet guard.
+      const eatingStyles = await resolveEatingStyles(prisma, userId, aiInput.eatingStyles);
+      const diets = dietRestrictionsOf(eatingStyles);
 
       const wizardInput: WizardInput & {
         planningContext: Omit<PlanningContext, "recentMeals">;
@@ -1596,6 +1689,7 @@ export function createWizardRouter(
         ...aiInput,
         // AFTER the spread on purpose — this overwrites the raw client field.
         allergiesAndAvoidances: resolvedAllergens.allergiesAndAvoidances,
+        eatingStyles,
         hiddenContext,
         planningContext: planningContextForPrompt,
         preferencesContext,
@@ -1628,6 +1722,8 @@ export function createWizardRouter(
         // meals off this shelf; the prompt gets the same rule from the same
         // field (hiddenContext.spiceTolerance).
         excludeSpicy: storedToleranceExcludesSpicy(hiddenContext?.spiceTolerance),
+        // FIX-4 (A) — the diet, as a hard filter (the prompt alone was not one).
+        diets,
       });
       // WS9 Redesign Arc Block 2 (Part E) — when the Playlist dial claims
       // slots, the user's playlist sources ride the shelf, flagged, so the
@@ -1640,8 +1736,20 @@ export function createWizardRouter(
               userId,
               allergiesAndAvoidances: resolvedAllergens.allergiesAndAvoidances,
               difficulty: aiInput.difficulty,
+              diets,
             })
           : baseShortlist;
+      // FIX-4 (A) — every candidate is read slot by slot before it ships: a
+      // slot that breaks the diet is replaced from the shelf, or the plan is
+      // dropped (lib/wizardDietGuard.ts).
+      const guardDiet = await createDietGuard(
+        prisma,
+        storeShortlist,
+        diets,
+        { route: "wizard.build_plans", userId },
+        // FIX-4 (B) — an "another" card never repeats a meal already shown.
+        { avoidTitles: another ? excludeMealTitles : [] },
+      );
 
       // 5-STREAM. Progressive render (Latency Block, D-WS9-076). When the client
       //   negotiates an event stream, emit each candidate the MOMENT it
@@ -1686,10 +1794,17 @@ export function createWizardRouter(
           candidate: WizardPlanCandidate,
         ): void => {
           if (sent.has(index) || index >= requestedCandidateCount) return;
-          const [reconciled] = reconcileStoreSlots(
+          const [unguarded] = reconcileStoreSlots(
             [candidate],
             storeShortlist.aliasToId,
           );
+          const reconciled = guardDiet(unguarded);
+          if (!reconciled) {
+            // Dropped: no fitting replacement left. Never emitted; the done /
+            // error frame's delivered count says the set came up short.
+            sent.add(index);
+            return;
+          }
           // D-WS9-191 Block 1 — compose the wire meals[] (title + description
           // per slot) here, between reconcile and the frame: synchronous, the
           // shelf's description map is already in hand, so the first card is
@@ -1725,6 +1840,12 @@ export function createWizardRouter(
               userId: guestSessionId ? null : userId,
               guestSessionId,
               cacheSplitMarker: WIZARD_GENERATE_CACHE_MARKER,
+              // FIX-4 (A) — Hans's vegetarian "only 1 plan" (October 18,
+              // 00:28 UTC) was a stream cut off at the 4096 default after one
+              // card (68 s, validation_failed). A normal 3-plan answer is ~1.1–1.4k
+              // tokens, so this only changes a runaway one: it finishes with
+              // the set instead of failing after card 1. Billed on use.
+              maxTokens: WIZARD_GENERATE_STREAM_MAX_TOKENS,
               onCandidate: (i, c) => sendCandidate(indexOffset + i, c),
               // Delta-driven liveness: keeps the client's stall watchdog alive
               // across the ~9s window before the first candidate completes. Driven
@@ -1854,7 +1975,9 @@ export function createWizardRouter(
           sendFrame("error", {
             error: streamResult.userFacingMessage,
             reason: streamResult.reason,
-            delivered: sent.size,
+            // FIX-4 (A) — the cards actually emitted (a diet-dropped index is
+            // in `sent` but never reached the wire).
+            delivered: reconciledByIndex.size,
             requested: requestedCandidateCount,
           });
           return res.end();
@@ -2019,7 +2142,9 @@ export function createWizardRouter(
       // D-WS9-191 Block 1 — the wire meals[] composed from the reconciled
       // (real-id) marks + the shelf's pre-loaded descriptions.
       const candidates = toWireCandidates(
-        reconcileStoreSlots(trimmed, storeShortlist.aliasToId),
+        reconcileStoreSlots(trimmed, storeShortlist.aliasToId)
+          .map(guardDiet)
+          .filter((c): c is WizardPlanCandidate => c !== null),
         {
           descriptionById: storeShortlist.descriptionById,
           timeById: storeShortlist.timeById,
@@ -2198,6 +2323,10 @@ export function createWizardRouter(
         directed.allergiesAndAvoidances,
         { route: "wizard.tell_kiwi" },
       );
+      // FIX-4 (A) — the eating styles, resolved the same way, for the parse,
+      // the generate, the shelf and the diet guard alike.
+      const eatingStyles = await resolveEatingStyles(prisma, userId, directed.eatingStyles);
+      const diets = dietRestrictionsOf(eatingStyles);
 
       // 5. Step 1 — parse intent.
       const parseInput = {
@@ -2205,7 +2334,7 @@ export function createWizardRouter(
         planDurationDays,
         householdSize: directed.householdSize,
         wantsLeftovers: directed.wantsLeftovers,
-        eatingStyles: directed.eatingStyles,
+        eatingStyles,
         allergiesAndAvoidances: resolvedAllergens.allergiesAndAvoidances,
         dietaryNotes: directed.dietaryNotes ?? "",
         // Hidden context is informational at parse time too — helps the
@@ -2296,8 +2425,26 @@ export function createWizardRouter(
       );
       // Block 4b-2 (D-WS9-073, Part 1b) — strip recentMeals: recentRotation is
       // this route's recency unit now (see the build-plans handler).
-      const { recentMeals: _strippedRecentMeals, ...planningContextForPrompt } =
+      const { recentMeals: _strippedRecentMeals, ...planningContextBase } =
         planningContext;
+      // FIX-4 (B) — the session exclusion, folded exactly as build-plans folds
+      // it. The client has always sent the shown plan and meal titles on a Tell
+      // Kiwi "Get another plan option" (lib/wizard/planOptions.ts), and this
+      // route never read them: the directed body is told to be "fully distinct
+      // from every title in planningContext.recentPlanNames", and those titles
+      // were never in it — so "another" re-ran the first request (parse at
+      // temperature 0) and came back with the same plan.
+      const { excludePlanTitles, excludeMealTitles } = parseSessionExclusion(
+        req.body,
+      );
+      const planningContextForPrompt = {
+        ...planningContextBase,
+        recentPlanNames: [
+          ...planningContextBase.recentPlanNames,
+          ...excludePlanTitles,
+          ...excludeMealTitles,
+        ],
+      };
       // FIX-2 (Part D) — what the text said about THIS plan. "for two" sizes
       // it: the generate input, the stored batch (rehydrate) and the response
       // (the client's expand context) all carry the parsed count, and the
@@ -2315,7 +2462,7 @@ export function createWizardRouter(
         // generate prompt (activates its "# Cuisine guidance" section).
         cuisines: directed.cuisines,
         weeklyPacing: directed.weeklyPacing,
-        eatingStyles: directed.eatingStyles,
+        eatingStyles,
         // BUG-201 — resolved, not raw. See the resolution above.
         allergiesAndAvoidances: resolvedAllergens.allergiesAndAvoidances,
         dietaryNotes: directed.dietaryNotes ?? "",
@@ -2348,6 +2495,8 @@ export function createWizardRouter(
         maxCookTimeMinutes: preferencesContext.maxCookTimeMinutes,
         maxCookTimeCoverage: preferencesContext.maxCookTimeCoverage,
         excludeSpicy: avoidSpicy,
+        // FIX-4 (A) — the diet, as a hard filter.
+        diets,
       });
       // Block 2 (Part E) — the playlist rides the shelf when the dial claims
       // slots (see build-plans).
@@ -2357,8 +2506,28 @@ export function createWizardRouter(
               userId,
               allergiesAndAvoidances: resolvedAllergens.allergiesAndAvoidances,
               difficulty: tkPrefs?.difficultyDefault ?? "easy",
+              diets,
             })
           : baseShortlist;
+      // FIX-4 (A) — the same slot-by-slot diet check as build-plans.
+      const guardDiet = await createDietGuard(
+        prisma,
+        storeShortlist,
+        diets,
+        { route: "tellkiwi.build_from_text", userId },
+        // FIX-4 (B) — as build-plans: "another" brings new meals or none. A
+        // meal the user NAMED stays (it belongs in every plan, PRD §6.5 C).
+        {
+          avoidTitles: another
+            ? excludeMealTitles.filter(
+                (t) =>
+                  !parsedIntent.explicitMeals.some((n) =>
+                    t.toLowerCase().includes(n.trim().toLowerCase()),
+                  ),
+              )
+            : [],
+        },
+      );
 
       const genResult = await runAICall(
         "wizard.directed.generate",
@@ -2400,7 +2569,9 @@ export function createWizardRouter(
         reconcileStoreSlots(
           genResult.data.candidates.slice(0, expected),
           storeShortlist.aliasToId,
-        ),
+        )
+          .map(guardDiet)
+          .filter((c): c is WizardPlanCandidate => c !== null),
         {
           descriptionById: storeShortlist.descriptionById,
           timeById: storeShortlist.timeById,

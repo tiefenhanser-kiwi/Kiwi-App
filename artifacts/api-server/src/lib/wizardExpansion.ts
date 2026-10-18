@@ -22,8 +22,11 @@ import { deriveParallelGroups } from "./parallelGroupDerive";
 import { logger } from "./logger";
 import {
   resolveAllergenPreference,
+  resolveEatingStyles,
   resolveEffectivePreferences,
 } from "./wizardPreferences";
+import { dietRestrictionsOf, fitsDiets, type DietRestriction } from "./similar/diet";
+import { mealIdsFittingDiets } from "./similar/swapPool";
 import { runAICall as productionRunAICall } from "./ai/runAICall";
 import { isSpendGuardReason } from "./ai/errors";
 import { composeStoreMealDetails } from "./store/storeMealDetails";
@@ -170,13 +173,48 @@ export async function expandCandidate(
     ctx.allergiesAndAvoidances,
     { route: "wizard.expand" },
   );
+  // FIX-4 (A) — and the eating styles: expand writes the ingredients, so the
+  // diet must reach this prompt as resolved (body when sent, else stored), not
+  // as a client echo that `.default([])` used to turn into "no diet".
+  const eatingStyles = await resolveEatingStyles(opts.prisma, opts.userId, ctx.eatingStyles);
+  const diets = dietRestrictionsOf(eatingStyles);
   const serverCandidateContext: WizardExpandRequest["candidateContext"] = {
     ...ctx,
     saucePreference: resolved.saucePreference,
     maxCookTimeMinutes: resolved.maxCookTimeMinutes,
     maxCookTimeCoverage: resolved.maxCookTimeCoverage,
     allergiesAndAvoidances: resolvedAllergens.allergiesAndAvoidances,
+    eatingStyles,
   };
+
+  // FIX-4 (A) — a store slot is a catalog meal whose ingredients are known:
+  // one that breaks the diet (a batch generated before the shelves filtered,
+  // re-opened from "See previous options") is refused here, before any AI
+  // call, rather than written into the user's plan.
+  if (diets.length > 0) {
+    const storeIds = (opts.request.candidate.storeSlots ?? []).map((s) => s.storeMealId);
+    if (storeIds.length > 0) {
+      const fit = await mealIdsFittingDiets(opts.prisma, storeIds, diets);
+      const bad = (opts.request.candidate.storeSlots ?? []).filter((s) => !fit.has(s.storeMealId));
+      if (bad.length > 0) {
+        logger.warn(
+          {
+            event: "wizard_expand_diet_mismatch",
+            userId: opts.userId,
+            candidateId: opts.request.candidate.id,
+            diets,
+            slotTitles: bad.map((s) => mealTitles[s.slotIndex]),
+          },
+          "Expand refused a plan whose catalog meal breaks the user's diet",
+        );
+        return {
+          status: "ai_failed",
+          reason: "diet_mismatch",
+          userFacingMessage: DIET_MISMATCH_MESSAGE,
+        };
+      }
+    }
+  }
 
   // Plan-Gen Arc Block 2 (D-WS9-038) — store-slot compose. For a slot the AI
   // marked store-filled, read the pool meal's detail (NO AI call) and slot it in
@@ -265,17 +303,23 @@ export async function expandCandidate(
   }
 
   // 1. AI-expand the LIVE slots only (store slots already carry full detail).
+  //    FIX-4 (A) — each live meal's ingredient names are checked against the
+  //    diet the moment they exist; a meal that breaks it is written ONCE more
+  //    (expandWithinDiet), and a second miss fails the expand closed.
   const perMealResults = await Promise.all(
     liveSlots.map((s) =>
-      expandOneMeal({
-        runAICall,
-        prisma: opts.prisma,
-        userId: opts.userId,
-        guestSessionId: opts.guestSessionId,
-        candidate: opts.request.candidate,
-        candidateContext: serverCandidateContext,
-        mealTitle: s.title,
-      }),
+      expandWithinDiet(
+        {
+          runAICall,
+          prisma: opts.prisma,
+          userId: opts.userId,
+          guestSessionId: opts.guestSessionId,
+          candidate: opts.request.candidate,
+          candidateContext: serverCandidateContext,
+          mealTitle: s.title,
+        },
+        diets,
+      ),
     ),
   );
 
@@ -678,6 +722,56 @@ interface ExpandOneMealOptions {
  * a meal, that meal fails; the caller then fails the whole expand —
  * all-or-nothing because the draft write requires a complete plan.
  */
+// FIX-4 (A) — what the user reads when a plan cannot be made within their diet.
+const DIET_MISMATCH_MESSAGE =
+  "One of these meals doesn't fit your eating style. Ask Kiwi for new options.";
+
+/** The names a diet is read off: every ingredient and store-bought swap. */
+function liveMealLineNames(meal: WizardExpandMealDetails): string[] {
+  return meal.dishes.flatMap((d) => [
+    ...d.ingredients.map((i) => i.name),
+    ...(d.substitutions ?? []).map((sub) => sub.product),
+  ]);
+}
+
+/**
+ * FIX-4 (A) — expandOneMeal under the user's diet. This is a DIET retry, not
+ * the meal-level validation retry the note below rules out: the first answer
+ * validated and named an ingredient the diet excludes (the prompt already
+ * says it may not), so one more attempt is the cheapest way to a fitting
+ * recipe for the title the user picked. A second miss fails the meal, and with
+ * it the expand — never a plan with meat in it for a vegetarian.
+ */
+async function expandWithinDiet(
+  opts: ExpandOneMealOptions,
+  diets: readonly DietRestriction[],
+): Promise<PerMealResult> {
+  const first = await expandOneMeal(opts);
+  if (diets.length === 0 || !first.ok || fitsDiets(liveMealLineNames(first.meal), diets)) return first;
+  logger.warn(
+    {
+      event: "wizard_expand_diet_retry",
+      userId: opts.userId,
+      mealTitle: opts.mealTitle,
+      diets,
+      names: liveMealLineNames(first.meal),
+    },
+    "An expanded meal broke the user's diet — writing it once more",
+  );
+  const second = await expandOneMeal(opts);
+  if (!second.ok || fitsDiets(liveMealLineNames(second.meal), diets)) return second;
+  logger.warn(
+    { event: "wizard_expand_diet_failed", userId: opts.userId, mealTitle: opts.mealTitle, diets },
+    "An expanded meal broke the user's diet twice — failing the expand",
+  );
+  return {
+    ok: false,
+    mealTitle: opts.mealTitle,
+    reason: "diet_mismatch",
+    userFacingMessage: DIET_MISMATCH_MESSAGE,
+  };
+}
+
 async function expandOneMeal(
   opts: ExpandOneMealOptions,
 ): Promise<PerMealResult> {

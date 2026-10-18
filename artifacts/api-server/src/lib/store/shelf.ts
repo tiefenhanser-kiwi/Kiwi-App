@@ -21,6 +21,7 @@ import {
   type StoreShortlist,
   type StoreShortlistMeal,
 } from "./storeShortlist";
+import { fitsDiets, mealLineNames, MEAL_LINE_NAMES_SELECT, type DietRestriction } from "../similar/diet";
 
 export interface RetrieveShelfOptions {
   cuisines: string[];
@@ -49,6 +50,11 @@ export interface RetrieveShelfOptions {
    * Per request, never stored; absent → no term.
    */
   excludeSpicy?: boolean;
+  /**
+   * FIX-4 (A) — the user's diet restrictions from the RESOLVED eating styles
+   * (dietRestrictionsOf(resolveEatingStyles(...))): a hard filter on every row.
+   */
+  diets?: readonly DietRestriction[];
 }
 
 export async function retrieveShelf(
@@ -73,6 +79,7 @@ export async function retrieveShelf(
       maxCookTimeMinutes: opts.maxCookTimeMinutes,
       maxCookTimeCoverage: opts.maxCookTimeCoverage,
       excludeSpicy: opts.excludeSpicy,
+      diets: opts.diets,
       config:
         opts.shortlistSize === undefined
           ? config
@@ -116,6 +123,8 @@ export interface PlaylistShelfOptions {
   userId: string;
   allergiesAndAvoidances: string[];
   difficulty: string;
+  /** FIX-4 (A) — the user's diet: a playlist meal that breaks it stays off. */
+  diets?: readonly DietRestriction[];
 }
 
 /**
@@ -177,10 +186,19 @@ export async function addPlaylistToShelf(
         description: true,
         // Row 5 Block 4 — and its own image (the plan-option thumb).
         imageUrl: true,
+        // FIX-4 (A) — the ingredient names, for the diet filter below.
+        ...(opts.diets && opts.diets.length > 0 ? { dishLinks: MEAL_LINE_NAMES_SELECT.dishLinks } : {}),
       },
     });
-    if (sources.length === 0) return shortlist;
-    const byId = new Map(sources.map((m) => [m.id, m]));
+    // FIX-4 (A) — a go-to that breaks the user's diet is not offered: the
+    // shelf's hard filters bind playlist rows the way allergens already do.
+    const diets = opts.diets ?? [];
+    const fitting =
+      diets.length === 0
+        ? sources
+        : sources.filter((m) => fitsDiets(mealLineNames(m as unknown as Parameters<typeof mealLineNames>[0]), diets));
+    if (fitting.length === 0) return shortlist;
+    const byId = new Map(fitting.map((m) => [m.id, m]));
 
     const idToAlias = new Map<string, string>();
     for (const [alias, id] of shortlist.aliasToId) idToAlias.set(id, alias);

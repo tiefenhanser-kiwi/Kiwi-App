@@ -26,6 +26,7 @@ import { lookupDishFamily, NON_CATALOG_RANK } from "./dishFamily";
 import { cuisineMatches, userCuisineTokens } from "./cuisineNormalize";
 import { allergenTokensForUser, allergenWhereConditions } from "./allergenFilter";
 import { notTooSpicyWhere } from "./spice";
+import { fitsDiets, mealLineNames, MEAL_LINE_NAMES_SELECT, type DietRestriction } from "../similar/diet";
 import {
   rngFromString,
   weightedSampleWithoutReplacement,
@@ -151,6 +152,15 @@ export interface BuildStoreShortlistOptions {
   maxCookTimeCoverage?: string;
   /** FIX-2 (Part D) — keep clearly hot meals off the shelf (store/spice.ts). */
   excludeSpicy?: boolean;
+  /**
+   * FIX-4 (A) — the user's diet (Vegetarian / Pescatarian / Vegan from the
+   * RESOLVED eating styles) as a HARD filter, read off each row's ingredient
+   * and swap-product names (lib/similar/diet.ts; the catalog has no diet
+   * column). Applied before the family cap and sampling, so a 40-row shelf
+   * is 40 fitting dinners, not 40 rows of which a few fit. Absent or empty →
+   * no filter and no extra select.
+   */
+  diets?: readonly DietRestriction[];
   config: StoreComposeConfig;
 }
 
@@ -315,15 +325,33 @@ export async function buildStoreShortlist(
     imageUrl: true,
   } as const;
 
-  const rows = (await prisma.meal.findMany({
-    where,
-    select,
-    // Deterministic base order so seeded sampling is reproducible regardless of
-    // the DB's physical row order (the sampling result depends on the order rng
-    // draws are assigned to rows).
-    orderBy: { id: "asc" },
-    take: POOL_FETCH_CAP,
-  })) as StoreRow[];
+  // FIX-4 (A) — the diet filter needs each row's ingredient names; selected
+  // only when a diet applies, so every other user's query is unchanged.
+  const diets = opts.diets ?? [];
+  const fetchRows = async (w: Prisma.MealWhereInput): Promise<StoreRow[]> => {
+    if (diets.length === 0) {
+      return (await prisma.meal.findMany({
+        where: w,
+        select,
+        // Deterministic base order so seeded sampling is reproducible regardless
+        // of the DB's physical row order (the sampling result depends on the
+        // order rng draws are assigned to rows).
+        orderBy: { id: "asc" },
+        take: POOL_FETCH_CAP,
+      })) as StoreRow[];
+    }
+    const withLines = await prisma.meal.findMany({
+      where: w,
+      select: { ...select, dishLinks: MEAL_LINE_NAMES_SELECT.dishLinks },
+      orderBy: { id: "asc" },
+      take: POOL_FETCH_CAP,
+    });
+    return withLines
+      .filter((r) => fitsDiets(mealLineNames(r), diets))
+      .map(({ dishLinks: _lines, ...row }) => row as StoreRow);
+  };
+
+  const rows = await fetchRows(where);
 
   // 'most' (D-WS7-166): the over-cap pool the one exception is drawn from. Same
   // base predicate (difficulty ceiling, recent-exclude, allergens), same
@@ -333,19 +361,14 @@ export async function buildStoreShortlist(
   // otherwise-empty shelf is still the one exception the user allowed.
   const overCapRows: StoreRow[] =
     cap !== null && opts.maxCookTimeCoverage === "most"
-      ? ((await prisma.meal.findMany({
-          where: {
-            ...baseWhere,
-            estimatedTimeMinutes: {
-              gt: cap,
-              lte: cap + MOST_COVERAGE_OVERAGE_MINUTES,
-            },
-            activeTimeMinutes: { not: null },
+      ? await fetchRows({
+          ...baseWhere,
+          estimatedTimeMinutes: {
+            gt: cap,
+            lte: cap + MOST_COVERAGE_OVERAGE_MINUTES,
           },
-          select,
-          orderBy: { id: "asc" },
-          take: POOL_FETCH_CAP,
-        })) as StoreRow[])
+          activeTimeMinutes: { not: null },
+        })
       : [];
 
   if (rows.length === 0 && overCapRows.length === 0) {

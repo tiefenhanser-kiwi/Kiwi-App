@@ -80,6 +80,27 @@ export function fitsDiets(names: readonly string[], restrictions: readonly DietR
   return true;
 }
 
+/**
+ * FIX-4 (A) — a generated meal before it has ingredients: its title and its
+ * one-line description. Each is split at the joins a dinner title uses ("Tofu
+ * and Shrimp Pad Thai", "Ribeye with Chimichurri") so one plant word cannot
+ * excuse the animal word beside it (animalKindOf reads a NOT_ANIMAL word in a
+ * line as "this line is not an animal"). Same leaning as the line reader: a
+ * title that names an animal fails.
+ */
+export function generatedMealFitsDiets(
+  title: string,
+  description: string | null | undefined,
+  restrictions: readonly DietRestriction[],
+): boolean {
+  if (restrictions.length === 0) return true;
+  const parts = [title, description ?? ""]
+    .flatMap((t) => t.split(/,|;|\/|\s+(?:and|with|&|\+|over|on|in|plus|or)\s+/i))
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+  return fitsDiets(parts, restrictions);
+}
+
 /** The ingredient and swap-product names of a meal row (the select below). */
 export function mealLineNames(row: {
   dishLinks: { dish: { substitutions: unknown; dishIngredients: { ingredient: { canonicalName: string } }[] } }[];

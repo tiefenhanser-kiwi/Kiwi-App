@@ -1481,3 +1481,73 @@ describe("expandCandidate — D-WS9-191 the echoed card description overrides a 
     assert.deepEqual((seen as { mealTitles: string[] }).mealTitles, ["B"]);
   });
 });
+
+// ── FIX-4 (A) — the diet at expand, where a live meal's ingredients first exist ──
+
+describe("expandCandidate — FIX-4 the diet", () => {
+  const vegPrisma = (extra: Record<string, unknown> = {}) =>
+    ({
+      userPreferences: { findUnique: async () => ({ eatingStyles: ["Vegetarian"] }) },
+      ingredient: { findMany: async () => [] },
+      ingredientAlias: { findMany: async () => [] },
+      ...extra,
+    }) as unknown as PrismaClient;
+  const withLines = (title: string, names: string[]): WizardExpandResult["meals"][number] => {
+    const m = makeMeal(title);
+    m.dishes[0].ingredients = names.map((name) => ({ name, quantity: 1, unit: "cup" }));
+    return m;
+  };
+  const omitDiet = (r: WizardExpandRequest): WizardExpandRequest => {
+    const { eatingStyles: _drop, ...ctx } = r.candidateContext;
+    return { ...r, candidateContext: ctx as WizardExpandRequest["candidateContext"] };
+  };
+
+  it("the omitted field resolves to the STORED diet on the prompt's candidateContext", async () => {
+    const seen: string[][] = [];
+    const fn = (async (_k: string, vars: Record<string, unknown>) => {
+      const e = vars.expandInput as WizardExpandRequest;
+      seen.push(e.candidateContext.eatingStyles ?? []);
+      return successResult([withLines(e.candidate.mealTitles[0], ["arborio rice", "vegetable broth"])]);
+    }) as unknown as Parameters<typeof expandCandidate>[0]["runAICall"];
+    const r = await expandCandidate({ prisma: vegPrisma(), userId: "u1", request: omitDiet(makeRequest(["Risotto"])), runAICall: fn, estimateDishMacrosImpl: makeEstimateStub() });
+    assert.equal(r.status, "success");
+    assert.deepEqual(seen, [["Vegetarian"]]);
+  });
+
+  it("a live meal written with chicken broth is written ONCE more; the fitting second answer is kept", async () => {
+    const { fn, calls } = makeRunAICallStub((t, attempt) =>
+      successResult([withLines(t, attempt === 1 ? ["arborio rice", "chicken broth"] : ["arborio rice", "vegetable broth"])]),
+    );
+    const r = await expandCandidate({ prisma: vegPrisma(), userId: "u1", request: omitDiet(makeRequest(["Mushroom Risotto"])), runAICall: fn, estimateDishMacrosImpl: makeEstimateStub() });
+    assert.equal(r.status, "success");
+    assert.equal(calls.length, 2);
+    if (r.status === "success") {
+      assert.deepEqual(r.expanded.meals[0].dishes[0].ingredients.map((i) => i.name), ["arborio rice", "vegetable broth"]);
+    }
+  });
+
+  it("two answers that break the diet fail the expand closed — never a plan with meat in it", async () => {
+    const { fn, calls } = makeRunAICallStub((t) => successResult([withLines(t, ["bacon", "pasta"])]));
+    const r = await expandCandidate({ prisma: vegPrisma(), userId: "u1", request: omitDiet(makeRequest(["Carbonara"])), runAICall: fn, estimateDishMacrosImpl: makeEstimateStub() });
+    assert.equal(r.status, "ai_failed");
+    if (r.status === "ai_failed") assert.equal(r.reason, "meal_failed:Carbonara");
+    assert.equal(calls.length, 2);
+  });
+
+  it("a STORE slot whose catalog meal breaks the diet is refused before any AI call", async () => {
+    const prisma = vegPrisma({
+      meal: {
+        findMany: async () => [
+          { id: "store-meat", dishLinks: [{ dish: { substitutions: null, dishIngredients: [{ ingredient: { canonicalName: "italian sausage" } }] } }] },
+        ],
+      },
+    });
+    const { fn, calls } = makeRunAICallStub((t) => successResult([makeMeal(t)]));
+    const req = makeRequest(["Sausage Pasta", "Lentil Soup"]);
+    req.candidate.storeSlots = [{ slotIndex: 0, storeMealId: "store-meat" }];
+    const r = await expandCandidate({ prisma, userId: "u1", request: omitDiet(req), runAICall: fn, estimateDishMacrosImpl: makeEstimateStub() });
+    assert.equal(r.status, "ai_failed");
+    if (r.status === "ai_failed") assert.equal(r.reason, "diet_mismatch");
+    assert.equal(calls.length, 0);
+  });
+});

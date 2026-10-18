@@ -131,8 +131,19 @@ function makePrisma(
     userPreferences: { findUnique: async () => null },
     playlistMeal: { count: async () => 0 },
     meal: {
+      // FIX-4 (A) — expand now reads a store slot's ingredient names against
+      // the diet (the guest answers say vegetarian), so the by-id read returns
+      // the dishLinks a real select would: the one tomato line composedRow has.
       findMany: async ({ where }: { where: { id: { in: string[] } } }) =>
-        where.id.in.map((id) => byId.get(id)).filter((m): m is MealFixture => !!m),
+        where.id.in
+          .map((id) => byId.get(id))
+          .filter((m): m is MealFixture => !!m)
+          .map((m) => ({
+            ...m,
+            dishLinks: m.composable
+              ? [{ dish: { substitutions: null, dishIngredients: [{ ingredient: { canonicalName: "tomato" } }] } }]
+              : [],
+          })),
       findUnique: async ({ where }: { where: { id: string } }) => {
         const m = byId.get(where.id);
         return m ? composedRow(m) : null;

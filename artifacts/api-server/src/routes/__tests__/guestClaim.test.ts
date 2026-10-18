@@ -1055,8 +1055,14 @@ describe("Resubmission G1: a guest draft made from picks is claimed at sign-up",
       userPreferences: { findUnique: async () => null },
       playlistMeal: { count: async () => 0 },
       meal: {
+        // FIX-4 (A) — expand reads a store slot's ingredient names against the
+        // guest's diet, so the by-id read carries the dishLinks a real select
+        // returns (the one rice line findUnique composes below).
         findMany: async ({ where }: { where: { id: { in: string[] } } }) =>
-          where.id.in.map(catalogRow),
+          where.id.in.map((id) => ({
+            ...catalogRow(id),
+            dishLinks: [{ dish: { substitutions: null, dishIngredients: [{ ingredient: { canonicalName: "rice" } }] } }],
+          })),
         findUnique: async ({ where }: { where: { id: string } }) => ({
           ...catalogRow(where.id),
           description: null,
