@@ -323,7 +323,7 @@ test("4 · Add Meal: 'Browse the Kiwi Cookbook' above the imports; from a plan, 
     await shot(page, LABEL, "04a-add-meal-picker", shots);
     const lines = await innerLines();
     const i = (t: string) => lines.findIndex((l) => l === t);
-    const order = ["Ask Kiwi for a meal", "Browse the Kiwi Cookbook", "Import from URL", "Import from photo", "Import from text", "Create manually", "Use dishes you've saved"].map((t) => i(t));
+    const order = ["Ask Kiwi for a meal", "Browse the Kiwi Cookbook", "Import from URL", "Import from photo", "Import from text", "Create manually", "Combine dishes you've saved"].map((t) => i(t));
     const inOrder = order.every((v, k) => v >= 0 && (k === 0 || v > order[k - 1]));
     await press(/Browse the Kiwi Cookbook/);
     const landed = await waitPath(/^\/cookbook$/, 20_000);

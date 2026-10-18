@@ -1241,7 +1241,7 @@ export default function MealBuilderScreen() {
             />
             <ModeCard
               icon="layers"
-              title="Use dishes you've saved"
+              title="Combine dishes you've saved"
               subtitle="Mix dishes from your library into a new meal"
               selected={mode === "combine"}
               onPress={() => trySetMode("combine")}

@@ -19,7 +19,7 @@ import {
 //
 // Deliberately NOT folded in: the meal-builder mode picker (surface #3). Its
 // cards are selectable ModeCards that also drive LOCAL mode switches (manual /
-// combine) and a "Use dishes you've saved" option — semantics these nav-only
+// combine) and a "Combine dishes you've saved" option — semantics these nav-only
 // sheet cards don't have. Unifying it would either bloat this component with
 // context-specific props or lose that behavior; it stays on its own ModeCard.
 //
