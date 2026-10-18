@@ -299,15 +299,16 @@ Invoke-RestMethod -Method Post -Uri "$url/api/auth/password-reset/confirm" -Cont
    revision, that bound is the first thing to look at — the probe settings
    above allow 15 × 2 s before the revision is failed. Do not widen the bound
    pre-emptively; measure first.
-2. **`TRUST_PROXY_HOPS` — unset until measured.** The rate limiter keys on
-   `req.ip`. At the default 0 the peer address is Google's front end for
-   every request, so `authLimiter`'s 10/min is briefly a *global* 10/min —
-   safe, but noticeable under real traffic. The expected value on Cloud Run
-   is 1; it is reasoned, not measured. To measure: deploy a revision with one
-   log line printing `req.socket.remoteAddress` and `req.headers["x-forwarded-for"]`,
-   then `curl.exe "$url/api/healthz"` from two different networks (e.g. home
-   and phone hotspot). If `x-forwarded-for` carries exactly one address and
-   it differs between the two runs, set `TRUST_PROXY_HOPS=1`. Never `true`.
+2. **`TRUST_PROXY_HOPS` — `1` on `kiwi-api`** (live value, read 2026-10-08
+   by the step-2 dry run; D-WS9-249). The rate limiter keys on `req.ip`. At 0
+   the peer address is Google's front end for every request, so
+   `authLimiter`'s 10/min would be a *global* 10/min and the guest per-IP cap
+   one bucket for everyone. To re-confirm the value: deploy a revision with
+   one log line printing `req.socket.remoteAddress` and
+   `req.headers["x-forwarded-for"]`, then `curl.exe "$url/api/healthz"` from
+   two different networks (e.g. home and phone hotspot). If
+   `x-forwarded-for` carries exactly one address and it differs between the
+   two runs, `1` is right. Never `true`.
 3. **Boot log.** `prisma_connected` should appear shortly after `Server
    listening`. `prisma_connect_failed` on a green revision means readiness
    passed on a later retry — check `DATABASE_URL`.
