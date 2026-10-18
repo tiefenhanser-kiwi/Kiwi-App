@@ -50,7 +50,11 @@ const SINGLE_DISH = [
   "a8fc65f4-c3e1-448e-b601-253315efb071",
   "060d8614-a6cf-460b-bc29-24e077ea5b2a",
 ];
-const NO_PLAN_TITLE = "No plan for this week yet";
+// FIX-7 — FIX-5 rewrote the card (components/NoPlanThisWeekCard.tsx): Hans's
+// copy, and no buttons. The old title here made items 1 and P pass vacuously
+// (they assert the card is ABSENT, and the old title is absent everywhere).
+const NO_PLAN_TITLE = "No plan set for this week yet";
+const NO_PLAN_BODY = "Get a plan in seconds with Kiwi, choose a Featured Plan, or use one of your saved plans.";
 
 test.beforeAll(async ({ browser }) => {
   ensureRunDir();
@@ -218,51 +222,32 @@ test("0 · sign-up → onboarding → first Home (BUG-118: new user keeps today'
 
 // ── 2 · plans, but none this week ────────────────────────────────────────────
 
-test("2 · BUG-118: an undated plan → the card, and its three actions", async () => {
+// FIX-7 — 2a is BUG-118's claim (plans, none this week → the card) checked
+// against the card as FIX-5 left it. 2b–2d checked the card's three buttons
+// (Go to Plans / See featured / Cook something up); FIX-5 removed them, so the
+// items are removed too. That the card has nothing pressable, and that the make
+// lane and the featured rail it points to sit below it, is FIX-5's item 1
+// (e2e/specs/fix5-qa.spec.ts) — not repeated here.
+test("2 · BUG-118: an undated plan → the card", async () => {
   test.setTimeout(4 * 60_000);
-  const rail = (await http.get<any>("/home/rail")).plans as any[];
-  const tpl = rail[0];
-  await http.req("POST", `/plans/use-template/${tpl.id}`);
+  // An undated plan is the "plans, none this week" state. POST /plans rather
+  // than use-template, as FIX-5 did: the state is the same, and it does not
+  // depend on the template fork path (BUG-435).
+  const made = await http.req<any>("POST", "/plans", { name: "FIX3 2a undated" });
 
-  await ledger.run("2a", "Home: 'No plan for this week yet' card with three actions", async (shots) => {
+  await ledger.run("2a", "Home: the 'No plan set for this week yet' card, above the make lane", async (shots) => {
     await page.goto(`${WEB_ORIGIN}/`, { waitUntil: "domcontentloaded" });
     const ok = await waitInner((j) => j.includes(NO_PLAN_TITLE), 30_000);
     await settle(page, { timeoutMs: 15_000 });
     await shot(page, LABEL, "02a-home-no-plan-card", shots);
     const j = (await innerLines()).join("\n");
-    const parts = [
-      "Pick one of your plans, try a featured plan, or have Kiwi cook something up.",
-      "Go to Plans",
-      "See featured",
-      "Cook something up",
-    ].filter((p) => !j.includes(p));
+    const body = j.includes(NO_PLAN_BODY);
     const order = j.indexOf(NO_PLAN_TITLE) < j.toLowerCase().indexOf("plan something new");
     return {
-      verdict: ok && parts.length === 0 && order ? "pass" : "fail",
-      evidence: `card=${ok}; missing copy ${JSON.stringify(parts)}; card above the make lane=${order} (undated plan from "${tpl.name}")`,
+      verdict: ok && body && order ? "pass" : "fail",
+      evidence: `card=${ok}; body verbatim=${body}; card above the make lane=${order} (undated plan, POST /plans → ${made.status})`,
     };
   });
-
-  const action = async (item: string, label: string, want: RegExp, wantFilter: string | null, file: string) =>
-    ledger.run(item, `Card action "${label}"`, async (shots) => {
-      await page.goto(`${WEB_ORIGIN}/`, { waitUntil: "domcontentloaded" });
-      await waitInner((j) => j.includes(NO_PLAN_TITLE), 30_000);
-      await settle(page, { timeoutMs: 10_000 });
-      await press(label);
-      const ok = await waitPath(want, 20_000);
-      await settle(page, { timeoutMs: 15_000 });
-      await shot(page, LABEL, file, shots);
-      const url = new URL(page.url());
-      const filter = url.searchParams.get("filter");
-      const filterOk = wantFilter === null || filter === wantFilter;
-      return {
-        verdict: ok && filterOk ? "pass" : "fail",
-        evidence: `landed on ${url.pathname}${url.search}`,
-      };
-    });
-  await action("2b", "Go to Plans", /plans/, "my_plans", "02b-go-to-plans");
-  await action("2c", "See featured", /plans/, "featured", "02c-see-featured");
-  await action("2d", "Cook something up", /wizard/, null, "02d-cook-something-up");
 });
 
 // ── the this-week plan everything else runs on ───────────────────────────────
