@@ -1178,6 +1178,24 @@ export default function MealBuilderScreen() {
                 router.push({ pathname: "/ask-kiwi", params: flowParams });
               }}
             />
+            {/* FIX-5 — Hans: "can we add a button to 'browse the kiwi
+                cookbook' above the import options?" Opens the Cookbook exactly
+                as the Recipes page's Cookbook card does (router.push, no
+                params). ⚠️ flowParams do NOT ride along: /cookbook reads no
+                params, so from a plan (addToPlanId) or the Playlist
+                (toPlaylist) the Cookbook's + still asks which plan — it does
+                not target the one this builder was opened from. The subtitle
+                is the Recipes card's own line. */}
+            <ModeCard
+              icon="book-open"
+              title="Browse the Kiwi Cookbook"
+              subtitle="Search, filter, plan a week"
+              selected={false}
+              onPress={() => {
+                Keyboard.dismiss();
+                router.push("/cookbook");
+              }}
+            />
             {/* WS7-6 G3-fix — import parity. Pre-fix the three recipe imports
                 were reachable only from the Plan → Add Meal sheet (#2), so a
                 user adding a meal from Recipes → Meals had fewer options than
