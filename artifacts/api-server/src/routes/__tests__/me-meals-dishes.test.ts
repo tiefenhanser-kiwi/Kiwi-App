@@ -34,6 +34,11 @@ interface MealOpts {
   activeTimeMinutes?: number | null;
   createdAt?: Date;
   favoritedBy?: string[];
+  // FIX-6 (BUG-436) — the allergen stamp and the ingredient names top_rated
+  // now filters on. Default: stamped clean, no lines.
+  allergens?: string[];
+  allergensStampedAt?: Date | null;
+  lines?: string[];
 }
 
 function mealRow(id: string, title: string, opts: MealOpts = {}) {
@@ -59,6 +64,22 @@ function mealRow(id: string, title: string, opts: MealOpts = {}) {
     // BOOK-1C1 — the users holding a Favorite on this meal (never selected,
     // so never on the wire; read only by the stub's `favorites` filter).
     favoritedBy: opts.favoritedBy ?? [],
+    allergens: opts.allergens ?? [],
+    allergensStampedAt:
+      opts.allergensStampedAt === undefined
+        ? new Date("2026-10-01T00:00:00.000Z")
+        : opts.allergensStampedAt,
+    // The MEAL_LINE_NAMES_SELECT shape (lib/similar/diet.ts).
+    dishLinks: [
+      {
+        dish: {
+          substitutions: null,
+          dishIngredients: (opts.lines ?? []).map((canonicalName) => ({
+            ingredient: { canonicalName },
+          })),
+        },
+      },
+    ],
   };
 }
 
@@ -126,19 +147,35 @@ function makeStubPrisma(opts: {
   meals?: MealRow[];
   dishes?: DishRow[];
   settings?: { key: string; value: unknown }[];
+  // FIX-6 (BUG-436) — the user's stored preferences (null = no row).
+  prefs?: { allergiesAndAvoidances?: string[]; eatingStyles?: string[] } | null;
 }) {
   const meals = opts.meals ?? [];
   const dishes = opts.dishes ?? [];
   const settings = opts.settings ?? TOP_RATED_SETTINGS;
+  const prefs = opts.prefs ?? null;
 
   return {
+    userPreferences: {
+      findUnique: async () =>
+        prefs && {
+          allergiesAndAvoidances: prefs.allergiesAndAvoidances ?? [],
+          eatingStyles: prefs.eatingStyles ?? [],
+        },
+    },
     meal: {
       findMany: async (args: {
         where: {
+          id?: { in: string[] };
           userId?: string;
           isPublic?: boolean;
           isArchived?: boolean;
           favorites?: { some: { userId: string } };
+          // FIX-6 — the allergen hard filter (store/allergenFilter.ts).
+          AND?: Array<{
+            NOT?: { allergens?: { hasSome: string[] } };
+            allergensStampedAt?: { not: null };
+          }>;
         };
         // WS7-6 G2: the /me/meals route switched to the array orderBy form
         // ([{ title|createdAt|estimatedTimeMinutes }, { id }]) for keyset sort.
@@ -154,6 +191,12 @@ function makeStubPrisma(opts: {
       }) => {
         let rows = meals.slice();
         const w = args.where;
+        if (w.id !== undefined) rows = rows.filter((m) => w.id!.in.includes(m.id));
+        for (const c of w.AND ?? []) {
+          const banned = c.NOT?.allergens?.hasSome;
+          if (banned) rows = rows.filter((m) => !m.allergens.some((a) => banned.includes(a)));
+          if (c.allergensStampedAt) rows = rows.filter((m) => m.allergensStampedAt !== null);
+        }
         if (w.userId !== undefined) rows = rows.filter((m) => m.userId === w.userId);
         if (w.isPublic !== undefined) rows = rows.filter((m) => m.isPublic === w.isPublic);
         if (w.isArchived !== undefined)
@@ -501,6 +544,71 @@ describe("GET /me/meals", () => {
       assert.equal(new Set(ids).size, ids.length);
     } finally {
       await harness.close();
+    }
+  });
+
+  // FIX-6 (BUG-436) — swap suggestions and Add Meals read top_rated, so it
+  // honours the stored allergies (the shelf's hard filter) and the stored diet
+  // (the swap pool's ingredient-name reading). Ranked by counters as before.
+  const topRatedCatalog = () => [
+    mealRow("m-peanut", "Peanut Noodles", { isPublic: true, saveCount: 90, allergens: ["peanut"], lines: ["peanuts", "rice noodles"] }),
+    mealRow("m-unstamped", "Unstamped Stew", { isPublic: true, saveCount: 80, allergensStampedAt: null, lines: ["potatoes"] }),
+    mealRow("m-chicken", "Chicken Tacos", { isPublic: true, saveCount: 70, lines: ["chicken thighs", "corn tortillas"] }),
+    mealRow("m-salmon", "Salmon Bowl", { isPublic: true, saveCount: 60, lines: ["salmon fillet", "rice"] }),
+    mealRow("m-cheese", "Margherita Pizza", { isPublic: true, saveCount: 50, lines: ["mozzarella", "tomatoes"] }),
+    mealRow("m-veg", "Chickpea Curry", { isPublic: true, saveCount: 40, lines: ["chickpeas", "coconut milk"] }),
+  ];
+  const ALL_TOP_RATED = ["m-peanut", "m-unstamped", "m-chicken", "m-salmon", "m-cheese", "m-veg"];
+
+  async function topRatedIds(stub: ReturnType<typeof makeStubPrisma>) {
+    const harness = await spinUp(stub);
+    try {
+      const res = await authGet(harness, "/me/meals?filter=top_rated&sort=date_created");
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { meals: { id: string }[] };
+      return body.meals.map((m) => m.id);
+    } finally {
+      await harness.close();
+    }
+  }
+  // sort=date_created ties on createdAt → id asc; compare as sets of ids.
+  const sorted = (ids: string[]) => [...ids].sort();
+
+  it("FIX-6: top_rated never gives an allergic user a meal with that allergen, nor an unstamped one", async () => {
+    const ids = await topRatedIds(
+      makeStubPrisma({ meals: topRatedCatalog(), prefs: { allergiesAndAvoidances: ["Peanut-free"] } }),
+    );
+    assert.ok(!ids.includes("m-peanut"), "peanut meal served to a peanut-free user");
+    assert.ok(!ids.includes("m-unstamped"), "unstamped meal served to an allergic user");
+    assert.deepEqual(sorted(ids), sorted(["m-chicken", "m-salmon", "m-cheese", "m-veg"]));
+  });
+
+  it("FIX-6: top_rated never gives a vegetarian meat or fish", async () => {
+    const ids = await topRatedIds(
+      makeStubPrisma({ meals: topRatedCatalog(), prefs: { eatingStyles: ["Vegetarian"] } }),
+    );
+    assert.deepEqual(sorted(ids), sorted(["m-peanut", "m-unstamped", "m-cheese", "m-veg"]));
+  });
+
+  it("FIX-6: a vegetarian's top_rated still fills to display_count past a long run of meat at the top", async () => {
+    const meat = Array.from({ length: 50 }, (_, i) =>
+      mealRow(`m-meat-${String(i).padStart(2, "0")}`, `Steak ${i}`, { isPublic: true, saveCount: 100 + i, lines: ["ribeye steak"] }),
+    );
+    const settings = TOP_RATED_SETTINGS.map((s) =>
+      s.key === "top_rated.display_count" ? { ...s, value: 2 } : s,
+    );
+    const ids = await topRatedIds(
+      makeStubPrisma({ meals: [...meat, ...topRatedCatalog()], settings, prefs: { eatingStyles: ["vegetarian"] } }),
+    );
+    // Rank order past the 50 steaks: peanut (90), unstamped (80) — chicken and
+    // salmon are skipped, so the two slots are the top two meatless meals.
+    assert.deepEqual(sorted(ids), sorted(["m-peanut", "m-unstamped"]));
+  });
+
+  it("FIX-6: a user with no restrictions sees no change (no prefs row, or only non-restricting styles)", async () => {
+    for (const prefs of [null, { allergiesAndAvoidances: [], eatingStyles: ["Keto", "Low-carb"] }]) {
+      const ids = await topRatedIds(makeStubPrisma({ meals: topRatedCatalog(), prefs }));
+      assert.deepEqual(sorted(ids), sorted(ALL_TOP_RATED), `prefs ${JSON.stringify(prefs)}`);
     }
   });
 

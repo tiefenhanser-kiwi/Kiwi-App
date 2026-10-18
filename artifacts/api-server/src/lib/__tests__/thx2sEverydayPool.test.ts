@@ -98,6 +98,8 @@ function prismaOver(rows: Row[]) {
         rows.filter((r) => matchesWhere(r, args.where)).slice(0, args.take ?? rows.length),
     },
     systemSetting: { findMany: async () => [] },
+    // FIX-6 (BUG-436) — top_rated reads the stored allergies and diet; no row.
+    userPreferences: { findUnique: async () => null },
   };
 }
 

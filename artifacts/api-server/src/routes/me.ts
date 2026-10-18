@@ -79,6 +79,11 @@ import { rateLimit } from "../lib/rateLimit";
 import { isIssuedBeforeEpoch, redeemPurposeToken } from "../lib/tokenRevocation";
 import { getTopRatedSettings } from "../lib/topRated";
 import { everydayPoolWhere } from "../lib/store/storeShortlist";
+import { allergenWhereConditions } from "../lib/store/allergenFilter";
+import { storedAllergenTokens } from "../lib/cookbook/search";
+import { dietRestrictionsOf } from "../lib/similar/diet";
+import { mealIdsFittingDiets } from "../lib/similar/swapPool";
+import { resolveEatingStyles } from "../lib/wizardPreferences";
 import { copyCatalogDishIntoMeal } from "../lib/mealDishFromCatalog";
 import {
   clampLimit,
@@ -2483,11 +2488,29 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
         } else if (key === "top_rated") {
           // No cached score on Meal — rank public meals by the un-decayed
           // weighted counter sum, capped at top_rated.display_count.
-          const settings = await getTopRatedSettings(prisma);
+          //
+          // FIX-6 (BUG-436) — swap suggestions and Add Meals read this list,
+          // so it honours the user's allergies and diet the way every plan
+          // shelf and the swap pool do: the allergen hard filter in the query,
+          // the diet off each meal's ingredient names. This GET carries no
+          // allergy or diet field, so the stored values decide. (The Featured
+          // rail and templates are NOT filtered — Hans, October 18.)
+          const [settings, allergenTokens, eatingStyles] = await Promise.all([
+            getTopRatedSettings(prisma),
+            storedAllergenTokens(prisma, req.userId!),
+            resolveEatingStyles(prisma, req.userId!, undefined),
+          ]);
+          const allergenConditions = allergenWhereConditions(allergenTokens);
+          const diets = dietRestrictionsOf(eatingStyles);
           const rows = await prisma.meal.findMany({
             // THX-2S — swap suggestions and Add Meals read this list: the
             // everyday pool, so theme (Thanksgiving) meals stay off it.
-            where: { isPublic: true, isArchived: false, ...everydayPoolWhere() },
+            where: {
+              isPublic: true,
+              isArchived: false,
+              ...everydayPoolWhere(),
+              ...(allergenConditions.length > 0 ? { AND: allergenConditions } : {}),
+            },
             select: {
               ...MEAL_LIST_SELECT_SORTED,
               saveCount: true,
@@ -2505,9 +2528,21 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
               (a, b) =>
                 b.score - a.score || a.m.title.localeCompare(b.m.title),
             )
-            .slice(0, settings.displayCount)
             .map((r) => r.m);
-          blocks.push(ranked);
+          // The diet reads ingredient rows, so check in rank order, a chunk at
+          // a time, until the list is full — not the whole catalog.
+          let top: typeof ranked = ranked.slice(0, settings.displayCount);
+          if (diets.length > 0) {
+            top = [];
+            const chunk = Math.max(settings.displayCount * 2, 40);
+            for (let i = 0; i < ranked.length && top.length < settings.displayCount; i += chunk) {
+              const slice = ranked.slice(i, i + chunk);
+              const fits = await mealIdsFittingDiets(prisma, slice.map((m) => m.id), diets);
+              top.push(...slice.filter((m) => fits.has(m.id)));
+            }
+            top = top.slice(0, settings.displayCount);
+          }
+          blocks.push(top);
         } else {
           // key === "featured" | "hosting".
           // TODO(D-WS7-039): Meal carries no featuring flags — isFeatured /
