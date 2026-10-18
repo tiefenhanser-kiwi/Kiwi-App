@@ -280,7 +280,11 @@ export function PickMealsScreen({
     moreMutation.mutate(
       { ...request, excludeMealIds: excludeIdsFor(state), size: MORE_PAGE_SIZE },
       {
-        onSuccess: (page) => setState((prev) => appendPage(prev, page)),
+        onSuccess: (page) => {
+          setState((prev) => appendPage(prev, page));
+          // FIX-4 (B) — each page overwrites the server's last-batch slot.
+          queryClient.invalidateQueries({ queryKey: ["wizard", "lastBatch"] });
+        },
       },
     );
   };

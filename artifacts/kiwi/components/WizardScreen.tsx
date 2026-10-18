@@ -378,6 +378,23 @@ export function WizardScreen({
     WizardShelfRequest
   >({ mutationFn: buildGuestShelf });
 
+  // FIX-4 (B) — ONE request's outcome on screen at a time. React Query keeps a
+  // mutation's error and data until that same mutation runs again, so an error
+  // from an earlier request — or from the other path — stayed under the CTA
+  // through every later request ("Kiwi got distracted" sticking until the app
+  // was restarted). A submit, an edit of the text and a path change clear all
+  // four, so what shows is always about the request the user just made.
+  const resetSubmitState = () => {
+    textMutation.reset();
+    shelfMutation.reset();
+    guestMutation.reset();
+    guestShelfMutation.reset();
+  };
+  const choosePath = (next: WizardPath) => {
+    if (next !== path) resetSubmitState();
+    setPath(next);
+  };
+
   const update =<K extends keyof WizardFormState>(
     key: K,
     value: WizardFormState[K],
@@ -451,6 +468,10 @@ export function WizardScreen({
     });
     shelfMutation.mutate(body, {
       onSuccess: (shelf) => {
+        // FIX-4 (B) — a shelf run overwrites the server's last-batch slot too
+        // (persistShelfBatch); without this the "See previous options" link
+        // kept the batch from before it, with that batch's old request.
+        queryClient.invalidateQueries({ queryKey: ["wizard", "lastBatch"] });
         // FIX-2 (Part D) — "for two" in the text sizes THIS plan: the shelf
         // returns the parsed count and the Pick screen builds at it (and pages
         // with it). The form, and the profile household, stay as they are.
@@ -538,6 +559,7 @@ export function WizardScreen({
   const handleSubmit = () => {
     Keyboard.dismiss();
     if (!path || busy) return;
+    resetSubmitState();
     if (guest) {
       // R4 — "a second generation" is on the door list, whichever path: one
       // plan per session (G1). The CTA is disabled when the generation is
@@ -681,6 +703,20 @@ export function WizardScreen({
               </View>
             </View>
           )}
+        {/* FIX-4 (B) — a run that came back with no plans and no question used
+            to change nothing on screen, so the previous outcome read as this
+            one's. Say so, with the server's reason when it gave one. */}
+        {textMutation.isSuccess &&
+          textMutation.data?.parsedIntent.scenario !== "unclear" &&
+          textMutation.data?.candidates.length === 0 && (
+            <View style={s.clarifyCard} testID="wizard-no-plans">
+              <Text style={s.clarifyTitle}>Kiwi couldn't build a plan from that</Text>
+              <Text style={s.clarifyBody}>
+                {textMutation.data.reason ??
+                  "Try saying it another way, or loosen one of your preferences."}
+              </Text>
+            </View>
+          )}
 
         {/* Block 4b-3 — "See Previous Options" (hidden when no batch).
             🔴 NOT for a guest: it reads GET /wizard/last-batch, which is
@@ -696,9 +732,11 @@ export function WizardScreen({
               <TextInput
                 ref={textInputRef}
                 value={form.description}
-                onChangeText={(v) =>
-                  update("description", v.slice(0, DESCRIPTION_MAX))
-                }
+                onChangeText={(v) => {
+                  // FIX-4 (B) — new words, no old outcome under them.
+                  if (submitError || textMutation.isSuccess) resetSubmitState();
+                  update("description", v.slice(0, DESCRIPTION_MAX));
+                }}
                 placeholder={PLACEHOLDER}
                 placeholderTextColor={Palette.text.placeholder}
                 multiline
@@ -723,14 +761,14 @@ export function WizardScreen({
               title={PATH_PICK_TITLE}
               subline={isText ? PATH_PICK_SUB_TEXT : PATH_PICK_SUB_PREFS}
               selected={path === "pick"}
-              onPress={() => setPath("pick")}
+              onPress={() => choosePath("pick")}
               testID="wizard-path-pick"
             />
             <PathOptionRow
               title={PATH_PLANS_TITLE}
               subline={isText ? PATH_PLANS_SUB_TEXT : PATH_PLANS_SUB_PREFS}
               selected={path === "plans"}
-              onPress={() => setPath("plans")}
+              onPress={() => choosePath("plans")}
               testID="wizard-path-plans"
             />
           </View>

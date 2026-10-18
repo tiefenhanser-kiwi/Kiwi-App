@@ -121,6 +121,8 @@ let pushed: unknown[] = [];
 // FIX-2 (Part D) — per-test response overrides (reset in beforeEach).
 let shelfResponse: unknown;
 let tellKiwiResponse: unknown;
+// FIX-4 (B) — the shelf's status, so a test can make it fail once.
+let shelfStatus = 200;
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -137,6 +139,7 @@ beforeEach(() => {
   playlistCount = 3;
   shelfResponse = SHELF;
   tellKiwiResponse = TELL_KIWI_RESULT;
+  shelfStatus = 200;
   __setRouterForTests({ push: (href: unknown) => pushed.push(href) });
   (globalThis as { fetch: typeof fetch }).fetch = ((url: string, init?: RequestInit) => {
     const u = String(url);
@@ -148,7 +151,7 @@ beforeEach(() => {
     if (u.endsWith("/me/playlist"))
       return Promise.resolve(jsonResponse({ playlist: [], count: playlistCount }));
     if (u.endsWith("/wizard/last-batch")) return Promise.resolve(jsonResponse({ batch: null }));
-    if (u.endsWith("/wizard/shelf")) return Promise.resolve(jsonResponse(shelfResponse));
+    if (u.endsWith("/wizard/shelf")) return Promise.resolve(jsonResponse(shelfResponse, shelfStatus));
     if (u.endsWith("/wizard/build-from-text"))
       return Promise.resolve(jsonResponse(tellKiwiResponse));
     return Promise.resolve(jsonResponse({ error: "not found" }, 404));
@@ -573,4 +576,65 @@ test("C4 BUG-367 an unspent guest sees no notice", async () => {
   } finally {
     clearGuestSession();
   }
+});
+
+// ── FIX-4 (B) — one request's outcome on screen at a time ───────────────────
+
+const DISTRACTED = "Kiwi got distracted. Try again?";
+async function typeText(root: () => Json, value: string) {
+  const box = byTestId(root(), "wizard-text");
+  assert.ok(box, "text box not found");
+  await act(async () => {
+    (box!.props.onChangeText as (v: string) => void)(value);
+  });
+}
+
+test("FIX-4: a failed request's error clears when the text is edited (it no longer sticks to the next request)", async () => {
+  shelfStatus = 500;
+  shelfResponse = { error: "boom" };
+  const m = await mount({ mode: "text", initialText: "easy dinners for two, nothing too spicy" });
+  await tap(byTestId(m.root(), "wizard-path-pick"), "path A row");
+  await tap(byTestId(m.root(), "wizard-build"), "CTA");
+  assert.ok(m.text().includes(DISTRACTED), "the error shows for the request that failed");
+  await typeText(m.root, "something with whipped cream");
+  assert.ok(!m.text().includes(DISTRACTED), "editing the text clears the old error");
+});
+
+test("FIX-4: switching path clears the other path's error; a new submit shows only its own outcome", async () => {
+  shelfStatus = 500;
+  shelfResponse = { error: "boom" };
+  const m = await mount({ mode: "text", initialText: "easy dinners for two" });
+  await tap(byTestId(m.root(), "wizard-path-pick"), "path A row");
+  await tap(byTestId(m.root(), "wizard-build"), "CTA");
+  assert.ok(m.text().includes(DISTRACTED));
+  await tap(byTestId(m.root(), "wizard-path-plans"), "path B row");
+  assert.ok(!m.text().includes(DISTRACTED), "the shelf's error is gone after choosing the other path");
+  // Path B now succeeds with a clarifying question — and only that shows.
+  await tap(byTestId(m.root(), "wizard-build"), "CTA");
+  assert.ok(!m.text().includes(DISTRACTED));
+  assert.ok(m.text().includes("Kiwi needs a little more"));
+});
+
+test("FIX-4: a run with no plans and no question says so, with the server's reason", async () => {
+  tellKiwiResponse = {
+    candidates: [],
+    parsedIntent: { scenario: "vague", explicitMeals: [], intentDescriptors: [] },
+    reason: "Nothing on the menu fits that combination.",
+  };
+  const m = await mount({ mode: "text", initialText: "vegan keto carnivore week" });
+  await tap(byTestId(m.root(), "wizard-path-plans"), "path B row");
+  await tap(byTestId(m.root(), "wizard-build"), "CTA");
+  assert.ok(byTestId(m.root(), "wizard-no-plans"), "the no-plans notice renders");
+  assert.ok(m.text().includes("Nothing on the menu fits that combination."));
+  assert.equal(pushed.length, 0, "no navigation on an empty result");
+});
+
+test("FIX-4: a shelf run refreshes 'See previous options' (the server overwrote the last-batch slot)", async () => {
+  shelfResponse = { ...SHELF, meals: [] };
+  const m = await mount({ mode: "text", initialText: "something with whipped cream" });
+  const before = calls.filter((c) => c.path.endsWith("/wizard/last-batch")).length;
+  await tap(byTestId(m.root(), "wizard-path-pick"), "path A row");
+  await tap(byTestId(m.root(), "wizard-build"), "CTA");
+  const after = calls.filter((c) => c.path.endsWith("/wizard/last-batch")).length;
+  assert.ok(after > before, `last-batch re-read after the shelf run (${before} → ${after})`);
 });
