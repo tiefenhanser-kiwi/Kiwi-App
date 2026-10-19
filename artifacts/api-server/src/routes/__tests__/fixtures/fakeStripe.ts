@@ -23,6 +23,7 @@ import type {
   StripeCheckoutSessionLike,
   StripeEventLike,
   StripeLike,
+  StripePriceLike,
   StripeSubscriptionLike,
 } from "../../../lib/billing/stripeClient";
 
@@ -33,7 +34,25 @@ export interface FakeStripeCalls {
   portalSessions: Array<{ customer: string; return_url: string }>;
   subscriptionsRetrieve: string[];
   subscriptionsCancel: string[];
+  subscriptionsUpdate: Array<{ id: string; params: { metadata: Record<string, string> } }>;
+  pricesRetrieve: string[];
   constructEvent: Array<{ payload: string; header: string; secret: string }>;
+}
+
+/**
+ * FIX-8 — the default price objects: an id containing "annual" is the
+ * $99.99/year price, anything else the $9.99/month one (the test prices'
+ * real values). `prices` overrides by id.
+ */
+export function fakePrice(id: string, over: Partial<StripePriceLike> = {}): StripePriceLike {
+  const annual = id.includes("annual");
+  return {
+    id,
+    unit_amount: annual ? 9999 : 999,
+    currency: "usd",
+    recurring: { interval: annual ? "year" : "month", interval_count: 1 },
+    ...over,
+  };
 }
 
 export interface FakeStripeOptions {
@@ -46,6 +65,8 @@ export interface FakeStripeOptions {
   subscription?: StripeSubscriptionLike;
   /** What `webhooks.constructEvent` returns; omit to make it throw (bad signature). */
   event?: StripeEventLike;
+  /** FIX-8 — what `prices.retrieve` answers, by id; unlisted ids get `fakePrice(id)`. */
+  prices?: Record<string, StripePriceLike>;
   /** Make a named method throw, to prove a failure never takes the caller with it. */
   throwOn?: Partial<
     Record<
@@ -54,7 +75,9 @@ export interface FakeStripeOptions {
       | "checkoutSessionsCreate"
       | "portalSessionsCreate"
       | "subscriptionsRetrieve"
-      | "subscriptionsCancel",
+      | "subscriptionsCancel"
+      | "subscriptionsUpdate"
+      | "pricesRetrieve",
       Error
     >
   >;
@@ -110,6 +133,8 @@ export function makeFakeStripe(opts: FakeStripeOptions = {}): FakeStripe {
     portalSessions: [],
     subscriptionsRetrieve: [],
     subscriptionsCancel: [],
+    subscriptionsUpdate: [],
+    pricesRetrieve: [],
     constructEvent: [],
   };
   const boom = (k: keyof NonNullable<FakeStripeOptions["throwOn"]>): void => {
@@ -163,6 +188,18 @@ export function makeFakeStripe(opts: FakeStripeOptions = {}): FakeStripe {
         calls.subscriptionsCancel.push(id);
         boom("subscriptionsCancel");
         return opts.subscription ?? fakeSubscription({ id, status: "canceled" });
+      },
+      update: async (id, params) => {
+        calls.subscriptionsUpdate.push({ id, params });
+        boom("subscriptionsUpdate");
+        return opts.subscription ?? fakeSubscription({ id, metadata: params.metadata });
+      },
+    },
+    prices: {
+      retrieve: async (id) => {
+        calls.pricesRetrieve.push(id);
+        boom("pricesRetrieve");
+        return opts.prices?.[id] ?? fakePrice(id);
       },
     },
     webhooks: {

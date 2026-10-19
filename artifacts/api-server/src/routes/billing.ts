@@ -65,6 +65,13 @@ import {
   buildSubscriptionPayload,
   hasStripeBillingAccount,
 } from "../lib/billing/subscriptionPayload";
+import {
+  AUTO_RENEW_CONSENT_TEXT_VERSION,
+  CONSENT_META_PRICE_ID,
+  CONSENT_META_VERSION,
+  readPriceTerms,
+  renderAutoRenewConsent,
+} from "../lib/billing/consent";
 
 const CheckoutRequestSchema = z.object({
   plan: z.enum(["monthly", "annual"]),
@@ -197,6 +204,13 @@ export function createBillingRouter(deps: Partial<BillingRouterDeps> = {}): IRou
 
       const stripe = stripeFor();
 
+      // ── FIX-8 (D-WS9-317) — the auto-renewal consent text, from the price ──
+      //
+      // Read BEFORE the customer is created: a price that cannot be read (or
+      // cannot carry the text) is a 502 with nothing left behind, and no
+      // session ever goes out without the checkbox (lib/billing/consent.ts).
+      const consentText = renderAutoRenewConsent(await readPriceTerms(stripe, priceId));
+
       // ── the customer, created at most once per user, ever ──
       let customerId = snapshot?.stripeCustomerId ?? null;
       if (customerId === null) {
@@ -251,9 +265,19 @@ export function createBillingRouter(deps: Partial<BillingRouterDeps> = {}): IRou
           // gone by then.
           metadata: { userId },
         },
+        // FIX-8 (D-WS9-317) — California's separate consent to the automatic
+        // renewal. `required` means Checkout cannot be paid without ticking
+        // it; the message replaces Stripe's default Terms line and names the
+        // renewal, period and price. Stripe's payment-method reuse text is
+        // left at its default.
+        consent_collection: { terms_of_service: "required" },
+        custom_text: { terms_of_service_acceptance: { message: consentText } },
         metadata: {
           userId,
           ...(platform ? { platform } : {}),
+          // What the webhook's consent record reads back (no stamp → no row).
+          [CONSENT_META_VERSION]: AUTO_RENEW_CONSENT_TEXT_VERSION,
+          [CONSENT_META_PRICE_ID]: priceId,
         },
       });
 

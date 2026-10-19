@@ -80,10 +80,26 @@ export interface StripeSubscriptionLike {
 export interface StripeCheckoutSessionLike {
   id: string;
   url: string | null;
+  mode?: string | null;
+  livemode?: boolean;
+  /** FIX-8 — `terms_of_service: 'accepted' | null` once the session completes. */
+  consent?: { terms_of_service?: string | null } | null;
+  custom_text?: {
+    terms_of_service_acceptance?: { message?: string | null } | null;
+  } | null;
   customer?: string | { id: string } | null;
   subscription?: string | { id: string } | null;
   client_reference_id?: string | null;
   metadata?: Record<string, string> | null;
+}
+
+/** FIX-8 — a Stripe price, reduced to what the consent text needs. */
+export interface StripePriceLike {
+  id: string;
+  /** Minor units. Null for tiered / custom pricing, which the text refuses. */
+  unit_amount: number | null;
+  currency: string;
+  recurring: { interval: string; interval_count?: number | null } | null;
 }
 
 export interface StripeEventLike {
@@ -119,6 +135,15 @@ export interface StripeLike {
   subscriptions: {
     retrieve(id: string): Promise<StripeSubscriptionLike>;
     cancel(id: string): Promise<StripeSubscriptionLike>;
+    /** FIX-8 — the consent copy on the subscription's metadata (Stripe merges keys). */
+    update(
+      id: string,
+      params: { metadata: Record<string, string> },
+    ): Promise<StripeSubscriptionLike>;
+  };
+  /** FIX-8 — the consent text's amount and interval come from the price. */
+  prices: {
+    retrieve(id: string): Promise<StripePriceLike>;
   };
   webhooks: {
     constructEvent(

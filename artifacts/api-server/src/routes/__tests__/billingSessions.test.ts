@@ -274,6 +274,117 @@ describe("POST /billing/checkout-session — the session Stripe is asked for", (
   });
 });
 
+// ── FIX-8 (D-WS9-317) — the auto-renewal consent checkbox ────────────────
+
+describe("POST /billing/checkout-session — California auto-renewal consent (FIX-8)", () => {
+  const MONTHLY_TEXT =
+    "I agree to the [Terms of Service](https://kitchenwizard.ai/terms.html). Kiwi Premium renews automatically every month at $9.99 plus any sales tax until I cancel. I can cancel anytime with Manage in my Kiwi profile.";
+  const ANNUAL_TEXT =
+    "I agree to the [Terms of Service](https://kitchenwizard.ai/terms.html). Kiwi Premium renews automatically every year at $99.99 plus any sales tax until I cancel. I can cancel anytime with Manage in my Kiwi profile.";
+
+  for (const [plan, priceId, text] of [
+    ["monthly", "price_monthly_test", MONTHLY_TEXT],
+    ["annual", "price_annual_test", ANNUAL_TEXT],
+  ] as const) {
+    it(`${plan}: the checkbox is required, carries the renewal text, and the session is stamped`, async () => {
+      const h = await spinUp({ status: "none" });
+      try {
+        assert.equal((await post(h, "/billing/checkout-session", { plan })).status, 200);
+        const s = session(h);
+        // Exactly `required` and nothing else: Stripe's payment-method reuse
+        // text stays at its default.
+        assert.deepEqual(s.consent_collection, { terms_of_service: "required" });
+        assert.deepEqual(s.custom_text, { terms_of_service_acceptance: { message: text } });
+        const meta = s.metadata as Record<string, string>;
+        assert.equal(meta.consentTextVersion, "v1");
+        assert.equal(meta.consentPriceId, priceId);
+        assert.deepEqual(h.stripe.calls.pricesRetrieve, [priceId]);
+      } finally {
+        await h.close();
+      }
+    });
+  }
+
+  it("the text follows the PRICE OBJECT, not a literal — amount and interval both", async () => {
+    const h = await spinUp(
+      { status: "none" },
+      {
+        stripe: {
+          prices: {
+            price_monthly_test: {
+              id: "price_monthly_test",
+              unit_amount: 1234,
+              currency: "usd",
+              recurring: { interval: "month", interval_count: 3 },
+            },
+          },
+        },
+      },
+    );
+    try {
+      assert.equal((await post(h, "/billing/checkout-session", { plan: "monthly" })).status, 200);
+      const message = (
+        session(h).custom_text as { terms_of_service_acceptance: { message: string } }
+      ).terms_of_service_acceptance.message;
+      assert.match(message, /renews automatically every 3 months at \$12\.34 plus any sales tax/);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("the price is read once per client — two checkouts, one lookup", async () => {
+    const h = await spinUp({ status: "none", stripeCustomerId: "cus_existing" });
+    try {
+      await post(h, "/billing/checkout-session", { plan: "monthly" });
+      await post(h, "/billing/checkout-session", { plan: "monthly" });
+      assert.equal(h.stripe.calls.checkoutSessions.length, 2);
+      assert.deepEqual(h.stripe.calls.pricesRetrieve, ["price_monthly_test"]);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("a failed price lookup is a 502 — no session without the text, and no customer minted", async () => {
+    const h = await spinUp(
+      { status: "none", stripeCustomerId: null },
+      { stripe: { throwOn: { pricesRetrieve: new Error("stripe is down") } } },
+    );
+    try {
+      const res = await post(h, "/billing/checkout-session", { plan: "monthly" });
+      assert.equal(res.status, 502);
+      assert.equal(((await res.json()) as { code: string }).code, "billing_session_failed");
+      assert.equal(h.stripe.calls.checkoutSessions.length, 0);
+      assert.equal(h.stripe.calls.customersCreate.length, 0);
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("a price with no fixed amount cannot carry the text — 502, no session", async () => {
+    const h = await spinUp(
+      { status: "none", stripeCustomerId: "cus_existing" },
+      {
+        stripe: {
+          prices: {
+            price_monthly_test: {
+              id: "price_monthly_test",
+              unit_amount: null,
+              currency: "usd",
+              recurring: { interval: "month" },
+            },
+          },
+        },
+      },
+    );
+    try {
+      assert.equal((await post(h, "/billing/checkout-session", { plan: "monthly" })).status, 502);
+      assert.equal(h.stripe.calls.checkoutSessions.length, 0);
+    } finally {
+      await h.close();
+    }
+  });
+});
+
 // ── no trial_end, ever (Resubmission B1) ─────────────────────────────────
 
 describe("POST /billing/checkout-session — no pay-early bonus (Resubmission B1)", () => {

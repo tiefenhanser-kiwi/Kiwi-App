@@ -36,6 +36,7 @@ import { isEntitled } from "../subscriptionService";
 
 import { logger } from "../logger";
 import type { BillingConfig } from "./config";
+import { recordCheckoutConsent, type CompletedSessionLike } from "./consent";
 import { decideSourceWrite } from "./sourceRule";
 import {
   readCustomerId,
@@ -93,7 +94,7 @@ export function mapPriceToPlan(
   return null;
 }
 
-type PrismaLike = Pick<PrismaClient, "subscription" | "billingEvent">;
+type PrismaLike = Pick<PrismaClient, "subscription" | "billingEvent" | "billingConsent">;
 
 export interface MirrorDeps {
   prisma: PrismaLike;
@@ -320,16 +321,20 @@ export async function resolveFreshSubscription(
  * `customer.subscription.created` follows with the real state, usually within the
  * same second. Writing `active` here would be a guess that the subscription
  * event then has to correct.
+ *
+ * FIX-8 (D-WS9-317) — it also writes the auto-renewal consent record
+ * (lib/billing/consent.ts), AFTER the ids are attached so the mirror never
+ * waits on it, and even for a session it cannot attribute (the row's user id
+ * is then null: the proof stands without the account). A failed consent write
+ * throws, so the claim is released and Stripe retries; the ids attach again
+ * idempotently and the unique session id keeps the row single.
  */
 export async function handleCheckoutSessionCompleted(
   deps: MirrorDeps,
   event: StripeEventLike,
 ): Promise<HandlerOutcome> {
-  const session = event.data.object as {
+  const session = event.data.object as CompletedSessionLike & {
     client_reference_id?: string | null;
-    customer?: string | { id: string } | null;
-    subscription?: string | { id: string } | null;
-    metadata?: Record<string, string> | null;
   };
   const customerId = readCustomerId(session.customer);
   const subscriptionId = readCustomerId(session.subscription);
@@ -343,6 +348,7 @@ export async function handleCheckoutSessionCompleted(
       { event: "stripe_event_unattributable", type: event.type, eventId: event.id, customerId },
       "checkout.session.completed could not be attributed to a Kiwi user — acknowledged and DROPPED",
     );
+    await recordCheckoutConsent(deps, event, session, null);
     return { handled: false, userId: null, note: "unattributable" };
   }
 
@@ -353,6 +359,7 @@ export async function handleCheckoutSessionCompleted(
       ...(subscriptionId !== null ? { stripeSubscriptionId: subscriptionId } : {}),
     },
   });
+  await recordCheckoutConsent(deps, event, session, userId);
   logger.info(
     { event: "stripe_checkout_completed", userId, subscriptionId, customerId },
     "Checkout completed — ids attached; the subscription event sets the status",
