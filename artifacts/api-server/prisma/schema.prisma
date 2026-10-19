@@ -405,6 +405,9 @@ model User {
   identities              UserIdentity[]
   // LIFE-1 — one row per lifecycle email this account has been sent.
   lifecycleEmailSends     LifecycleEmailSend[]
+  // FIX-8 — auto-renewal consents at web checkout. SetNull on delete: the
+  // three-year proof outlives the account (it holds no email or preferences).
+  billingConsents         BillingConsent[]
 
   @@map("users")
 }
@@ -1780,6 +1783,47 @@ model BillingEvent {
 
   @@id([provider, id])
   @@map("billing_events")
+}
+
+// FIX-8 (D-WS9-317) — PROOF OF CALIFORNIA AUTO-RENEWAL CONSENT, kept three
+// years. One row per completed WEB checkout session in subscription mode that
+// Kiwi's checkout created (lib/billing/consent.ts); store purchases are not
+// here. Written by the `checkout.session.completed` webhook; nothing updates a
+// row afterwards.
+//
+//   consentText        — the acceptance text the customer was SHOWN, read back
+//                        off the completed session, link markdown and all
+//   consentTextVersion — which wording ("v1"); a wording change bumps it
+//   termsOfService     — Stripe's `consent.terms_of_service` ("accepted", or
+//                        NULL; a non-accepted row is still written, and warned)
+//   acceptedAt         — the completed event's `created` (a Session has no
+//                        completion timestamp of its own)
+//   unitAmount         — minor units, from the Stripe price object
+//
+// `stripeSessionId` is UNIQUE: a replayed completion writes nothing new.
+// `userId` is SetNull on account deletion — the row is kept and de-identified,
+// and holds no email and no preference data.
+model BillingConsent {
+  id                   String   @id @default(uuid())
+  userId               String?
+  user                 User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  stripeCustomerId     String?
+  stripeSessionId      String   @unique
+  stripeSubscriptionId String?
+  priceId              String
+  unitAmount           Int
+  currency             String
+  interval             String
+  intervalCount        Int
+  consentText          String
+  consentTextVersion   String
+  termsOfService       String?
+  acceptedAt           DateTime
+  livemode             Boolean
+  createdAt            DateTime @default(now())
+
+  @@index([userId])
+  @@map("billing_consents")
 }
 
 model PromoCode {
