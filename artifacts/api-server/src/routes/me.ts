@@ -1370,6 +1370,10 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
   //     are gone, because after that there is nothing left to match on.
   //
   // What is NOT deleted, deliberately:
+  //   · billing_consents rows (FIX-8, D-WS9-317) — California's proof of the
+  //     auto-renewal consent, kept three years. The FK is SET NULL and nothing
+  //     here touches the table: the row stays, de-identified, holding no email
+  //     and no preference data.
   //   · llm_call_logs rows — kept with `userId: null`. This is the PRD's
   //     "activity history retained but de-identified": the spend ledger is
   //     accounting, it is what tells us a prompt version costs what it costs,

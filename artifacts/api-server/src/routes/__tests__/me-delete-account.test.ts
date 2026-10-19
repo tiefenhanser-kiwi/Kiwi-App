@@ -54,6 +54,7 @@ interface State {
   llmCalls: Row[];
   favorites: Row[];
   preferences: Row[];
+  billingConsents: Row[];
 }
 
 function makeState(): State {
@@ -97,6 +98,10 @@ function makeState(): State {
     ],
     favorites: [{ id: "fav-1", userId: USER_ID }],
     preferences: [{ id: "prefs-1", userId: USER_ID }],
+    billingConsents: [
+      { id: "consent-1", userId: USER_ID, stripeSessionId: "cs_own" },
+      { id: "consent-other", userId: OTHER_ID, stripeSessionId: "cs_other" },
+    ],
   };
 }
 
@@ -148,6 +153,9 @@ function makeStubPrisma(state: State) {
         for (const r of state.meals) if (r.userId === where.id) r.userId = null;
         for (const r of state.dishes) if (r.userId === where.id) r.userId = null;
         for (const r of state.llmCalls) if (r.userId === where.id) r.userId = null;
+        // FIX-8 — billing_consents_userId_fkey is ON DELETE SET NULL (the
+        // migration SQL is asserted below, so this line cannot drift from it).
+        for (const r of state.billingConsents) if (r.userId === where.id) r.userId = null;
         // CASCADE.
         await deleteManyBy(state.favorites)({ where: { userId: where.id } });
         await deleteManyBy(state.preferences)({ where: { userId: where.id } });
@@ -418,6 +426,53 @@ describe("requireAuth after deletion (D-WS9-257 / BUG-234 widening)", () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       assert.equal(other.status, 401);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── FIX-8 (D-WS9-317) — the auto-renewal consent outlives the account ────
+//
+// California wants the proof kept three years; an account can be deleted the
+// day after checkout. The row holds no email and no preference data, so the
+// default built is KEEP AND DE-IDENTIFY: the FK is SET NULL and the route
+// deletes nothing from billing_consents. (Counsel is asked whether this
+// matches the privacy policy.)
+
+describe("DELETE /me keeps the billing consent with a null user id (FIX-8)", () => {
+  beforeEach(() => __clearRateLimitStoreForTests());
+
+  it("the FK is SET NULL in the migration — the DDL is the evidence", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { fileURLToPath } = await import("node:url");
+    const sql = readFileSync(
+      fileURLToPath(
+        new URL(
+          "../../../prisma/migrations/20261018120000_fix8_billing_consents/migration.sql",
+          import.meta.url,
+        ),
+      ),
+      "utf8",
+    );
+    assert.match(
+      sql,
+      /ADD CONSTRAINT "billing_consents_userId_fkey" FOREIGN KEY \("userId"\) REFERENCES "users"\("id"\) ON DELETE SET NULL/,
+    );
+  });
+
+  it("204s, and the user's consent row is still there with userId null", async () => {
+    const state = makeState();
+    const harness = await spinUp(makeStubPrisma(state));
+    try {
+      assert.equal((await del(harness, { confirm: "delete" })).status, 204);
+      assert.deepEqual(
+        state.billingConsents.map((r) => [r.id, r.userId, r.stripeSessionId]),
+        [
+          ["consent-1", null, "cs_own"],
+          ["consent-other", OTHER_ID, "cs_other"],
+        ],
+      );
     } finally {
       await harness.close();
     }
