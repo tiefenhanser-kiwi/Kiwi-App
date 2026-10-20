@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { IngredientsToggle } from "@/components/IngredientsToggle";
 import { MealRowBody } from "@/components/MealRowBody";
 import type { SortKey } from "@/components/SortDropdown";
 import { Colors, Components, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
@@ -117,18 +118,14 @@ export function MealRow({
         </Pressable>
         {/* D-WS9-058 — only when the caller wants it; the pickers do not. */}
         {onViewIngredients && (
-          <Pressable
+          // BUG-452 — the shared sage IngredientsToggle, shaped to the column's
+          // buttons (md radius, full width) so the three still read as a stack.
+          <IngredientsToggle
             onPress={onViewIngredients}
-            accessibilityRole="button"
-            accessibilityLabel="View ingredients"
-            style={({ pressed }) => [
-              styles.viewIngredientsBtn,
-              pressed && { opacity: 0.85 },
-            ]}
+            size="compact"
+            style={styles.viewIngredientsBtn}
             testID="meal-row-view-ingredients"
-          >
-            <Text style={styles.viewIngredientsText}>Ingredients</Text>
-          </Pressable>
+          />
         )}
       </View>
     </View>
@@ -193,18 +190,9 @@ const styles = StyleSheet.create({
   // D-WS9-058 — the third action. A READ action beside two writes, so it takes
   // the quiet outline treatment rather than a third filled colour.
   viewIngredientsBtn: {
-    borderWidth: 1,
-    borderColor: Colors.neutral[300],
-    backgroundColor: Palette.background.card,
-    paddingHorizontal: Spacing[2],
+    alignSelf: "stretch",
+    justifyContent: "center",
     paddingVertical: 8,
     borderRadius: Radius.md,
-    alignItems: "center",
-  },
-  viewIngredientsText: {
-    fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[800],
-    fontWeight: Typography.fontWeight.medium,
-    fontFamily: Typography.face.sans[500],
   },
 });

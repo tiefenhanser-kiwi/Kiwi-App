@@ -18,6 +18,44 @@ import TestRenderer, { act } from "react-test-renderer";
 
 import { IngredientsSectionHeading } from "../IngredientsSectionHeading";
 
+// ── BUG-452 — it must LOOK tappable ─────────────────────────────────────────
+
+// The Pressable stub keeps a style FUNCTION as-is: resolve it unpressed.
+const flat = (style: unknown): Record<string, unknown> =>
+  typeof style === "function"
+    ? flat((style as (s: { pressed: boolean }) => unknown)({ pressed: false }))
+    : Array.isArray(style)
+    ? Object.assign({}, ...style.flat(Infinity).filter(Boolean).map((x) => flat(x)))
+    : ((style as Record<string, unknown>) ?? {});
+
+test("🔴 BUG-452 — a sage pill, not the serif-italic eyebrow", () => {
+  const tree = render(() => {});
+  const control = findAll(tree, byTestId("meal-ingredients-heading"))[0];
+  const box = flat(control.props?.style);
+  assert.equal(box.backgroundColor, "#f1f4ec", "sage[50] surface");
+  assert.equal(box.borderColor, "#8fa37e", "sage[400] edge");
+  const label = findAll(tree, (n) => n.type === "rn-text")[0];
+  const type = flat(label.props?.style);
+  assert.equal(type.color, "#3a5235", "sage[700] ink");
+  assert.notEqual(type.fontStyle, "italic", "no longer the eyebrow's italic");
+  // Still SectionLabel's section spacing.
+  assert.equal(box.marginTop, 16);
+  assert.equal(box.marginBottom, 10);
+});
+
+test("🔴 BUG-452 — the chevron sits beside the word, not stranded at the row's far end", () => {
+  const tree = render(() => {});
+  const control = findAll(tree, byTestId("meal-ingredients-heading"))[0];
+  const box = flat(control.props?.style);
+  assert.notEqual(box.justifyContent, "space-between");
+  assert.equal(box.alignSelf, "flex-start", "the pill hugs its content");
+  const kids = (control.children ?? []).filter((c): c is Node => typeof c !== "string");
+  assert.deepEqual(
+    kids.map((k) => (typeof k.props?.name === "string" ? k.props.name : k.type)),
+    ["list", "rn-text", "chevron-right"],
+  );
+});
+
 after(() => {
   delete (globalThis as { require?: unknown }).require;
 });
@@ -77,9 +115,9 @@ test("it announces itself as a button, with a label that says what it opens", ()
   assert.equal(control.props?.hitSlop, 8);
 });
 
-test("it still renders the word, through the SHARED SectionLabel", () => {
-  // The eyebrow's type, weight and colour must stay byte-identical to the other
-  // ten renders — this component wraps SectionLabel, it does not restyle it.
+test("it renders the word (and a caller's own word)", () => {
+  // BUG-452 — no longer through SectionLabel: the eyebrow read as inert text.
+  // SectionLabel itself is untouched, so its other ten renders are unchanged.
   assert.ok(gatherText(render(() => {})).includes("Ingredients"));
   assert.ok(gatherText(render(() => {}, "What you need")).includes("What you need"));
 });

@@ -11,7 +11,12 @@
 // regression straight back to the bug that was reported. Part D's break 7 is
 // exactly that deletion, and it has to go RED.
 //
-// ⚠️ SectionLabel IS NOT TOUCHED, and that is deliberate. It is shared across 11
+// BUG-452 (WEB-4) — and it now LOOKS like one. The eyebrow-plus-far-chevron
+// below read as an inert heading (Hans tapped it by accident), so the heading
+// is the shared sage IngredientsToggle; it keeps this file's testID, label and
+// hitSlop, and SectionLabel's own section spacing (16 above, 10 below).
+//
+// (History, before BUG-452:) ⚠️ SectionLabel IS NOT TOUCHED, and that is deliberate. It is shared across 11
 // renders in 5 files and takes no `onPress`; adding one would put a tap target
 // on ten headings that do nothing. The Pressable and the chevron are HERE,
 // wrapping it — so the eyebrow's own type, weight and colour are byte-identical
@@ -25,11 +30,10 @@
 // primitive across 11 renders and wants its own device pass.
 
 import React from "react";
-import { Pressable, StyleSheet, View } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { StyleSheet } from "react-native";
 
-import { SectionLabel } from "@/components/SectionLabel";
-import { Colors } from "@/constants/tokens";
+import { IngredientsToggle } from "@/components/IngredientsToggle";
+import { Spacing } from "@/constants/tokens";
 
 export interface IngredientsSectionHeadingProps {
   /** Opens the consolidated-ingredients sheet. */
@@ -43,34 +47,22 @@ export function IngredientsSectionHeading({
   label = "Ingredients",
 }: IngredientsSectionHeadingProps) {
   return (
-    <Pressable
+    <IngredientsToggle
       onPress={onPress}
-      accessibilityRole="button"
+      label={label}
       accessibilityLabel="View all ingredients"
       hitSlop={8}
-      style={({ pressed }) => [s.row, pressed && { opacity: 0.6 }]}
+      style={s.gap}
       testID="meal-ingredients-heading"
-    >
-      <SectionLabel label={label} />
-      <View style={s.chevron}>
-        <Feather name="chevron-right" size={16} color={Colors.neutral[700]} />
-      </View>
-    </Pressable>
+    />
   );
 }
 
 const s = StyleSheet.create({
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  // The chevron is the only thing that says "this opens something". It sits in
-  // its own View so the eyebrow's marginTop/marginBottom (SectionLabel is the
-  // SINGLE OWNER of the inter-section gap, WS9-2 2c Commit 4 §4.3) still
-  // governs the row's height rather than the icon's.
-  chevron: {
-    alignItems: "center",
-    justifyContent: "center",
+  // SectionLabel's margins, so the section keeps its rhythm (it was the single
+  // owner of the inter-section gap here, WS9-2 2c Commit 4 §4.3).
+  gap: {
+    marginTop: Spacing[4],
+    marginBottom: 10,
   },
 });

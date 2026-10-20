@@ -12,6 +12,7 @@ import {
   Spacing,
   Typography,
 } from "@/constants/tokens";
+import { IngredientsToggle } from "@/components/IngredientsToggle";
 import { DisplayTitle } from "@/components/DisplayTitle";
 import { TreatedImage } from "@/components/TreatedImage";
 import { formatMacroLine } from "@/lib/format/macros";
@@ -177,7 +178,8 @@ export function PlanReviewMealRow({
           detail scrolled to the ingredients section with the sheet open — "the
           user lands where the information lives", per the ruling, rather than
           in a modal floating over a screen they never saw. */}
-      <Pressable
+      {/* BUG-452 — the shared sage IngredientsToggle, so it reads as tappable. */}
+      <IngredientsToggle
         onPress={() => {
           router.push({
             pathname: "/meal/[id]",
@@ -189,13 +191,11 @@ export function PlanReviewMealRow({
             },
           });
         }}
-        accessibilityRole="button"
-        accessibilityLabel="View ingredients"
-        style={({ pressed }) => [styles.viewIngredientsBtn, pressed && { opacity: 0.7 }]}
+        label="View Ingredients"
+        size="compact"
+        style={styles.viewIngredientsBtn}
         testID="plan-row-view-ingredients"
-      >
-        <Text style={styles.viewIngredientsText}>View Ingredients</Text>
-      </Pressable>
+      />
 
       {/* Body row: thumbnail + meta + macros. Tapping body also navigates. */}
       <Pressable
@@ -592,20 +592,8 @@ const styles = StyleSheet.create({
   // D-WS9-058 — a READ action, so it borrows actionBtn's shape but sits above
   // the edit row and outside its readOnly gate. alignSelf keeps it to its own
   // width instead of stretching across the card.
+  // BUG-452 — the toggle draws itself; the row only places it.
   viewIngredientsBtn: {
-    alignSelf: "flex-start",
     marginTop: Spacing[1],
-    paddingHorizontal: Spacing[2],
-    paddingVertical: Spacing[1],
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.neutral[300],
-    backgroundColor: Palette.background.card,
-  },
-  viewIngredientsText: {
-    fontSize: Typography.fontSize.xs,
-    color: Colors.neutral[800],
-    fontWeight: Typography.fontWeight.medium,
-    fontFamily: Typography.face.sans[500],
   },
 });
