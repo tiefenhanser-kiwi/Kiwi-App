@@ -74,7 +74,11 @@ export interface MealTiming {
  * meal's Dish.estimatedTimeMinutes LONGER than the meal it is the whole of.
  * Untagged (every row until 1c), the two numbers are the same.
  */
-export function deriveMealTiming(dishes: SchedulerDish[]): MealTiming {
+export function deriveMealTiming(
+  dishes: SchedulerDish[],
+  /** THX-3 (BUG-449) — a feast: its oven frees when the bird comes out (cookingScheduler planOven). */
+  opts: { feastOven?: boolean } = {},
+): MealTiming {
   // CANONICAL DISH ORDER (D-WS9-235 follow-up). The scheduler's single-cook
   // pass breaks ideal-start ties by ARRAY INDEX, so the same dishes handed over
   // in a different order can schedule differently (measured: ±1 minute on
@@ -93,7 +97,7 @@ export function deriveMealTiming(dishes: SchedulerDish[]): MealTiming {
     return { totalMinutes: null, activeMinutes: null, dishTotals: new Map(), ignoredTags: [] };
   }
 
-  const result = scheduleCookingSequence(withSteps);
+  const result = scheduleCookingSequence(withSteps, opts.feastOven ? { feastOven: true } : {});
 
   // The scheduler returns 0/0 only for an input it considered empty, which the
   // guard above already excluded. Treat a 0 total as underivable rather than
@@ -231,6 +235,9 @@ export async function stampMealTiming(
       parallelGroup: s.parallelGroup,
       componentKey: s.componentKey,
       pathKey: s.pathKey,
+      // THX-3 (BUG-449) — a feast's oven is read off the prose, so the feast's steps
+      // carry it. Every other meal passes none, exactly as before (a cue moves no number).
+      ...(isFeast ? { text: s.stepTextTranslated } : {}),
     });
     byDish.set(s.ownerId, list);
   }
@@ -244,7 +251,7 @@ export async function stampMealTiming(
       steps: byDish.get(id)!,
     }));
 
-  const timing = deriveMealTiming(schedulerDishes);
+  const timing = deriveMealTiming(schedulerDishes, isFeast ? { feastOven: true } : {});
   if (timing.totalMinutes === null) {
     logger.warn(
       { event: "meal_timing_not_derived", mealId, dishCount: dishIds.length, stepCount: steps.length, reason: "no_steps" },

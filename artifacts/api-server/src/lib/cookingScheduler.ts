@@ -209,6 +209,12 @@ export interface ScheduleOptions {
    * finish-aligning them. Defaults TRUE. Same two callers as above.
    */
   coldDishesForward?: boolean;
+  /**
+   * THX-3 (BUG-449) — a THANKSGIVING FEAST'S OVEN. Set by the feast callers only
+   * (cookingSequence and mealTiming, on a `thanksgiving-feast` meal); every other
+   * meal is scheduled byte-identically to before. See `planOven`.
+   */
+  feastOven?: boolean;
 }
 
 export interface ScheduleResult {
@@ -721,10 +727,11 @@ export function scheduleCookingSequence(
   }
 
   const anyTag = nonEmpty.some((d) => d.steps.some((s) => rawToken(s) !== null));
-  const untagged = scheduleArm(nonEmpty, false, enforceMaxLag, coldDishesForward);
+  const oven = opts.feastOven ? planOven(nonEmpty) : null;
+  const untagged = scheduleArm(nonEmpty, false, enforceMaxLag, coldDishesForward, oven);
   if (!anyTag) return untagged; // byte-identical to the pre-D-WS9-239 path
 
-  const tagged = scheduleArm(nonEmpty, true, enforceMaxLag, coldDishesForward);
+  const tagged = scheduleArm(nonEmpty, true, enforceMaxLag, coldDishesForward, oven);
   // Rule 6 — the anomaly guard. A tie keeps the tagged schedule: it is the
   // order the recipe's own prose describes, and it costs nothing.
   if (tagged.totalEstimatedMinutes <= untagged.totalEstimatedMinutes) {
@@ -779,12 +786,127 @@ export function scheduleCookingSequence(
  * 3 free by construction rather than by luck: a cold dish whose window never
  * opens, or whose move would cost minutes, simply stays where it was.
  */
+// ── THX-3 (BUG-449) — A FEAST'S OVEN ────────────────────────────────────────
+//
+// Hans, October 19: "the step to put it in the oven comes after the turkey has
+// rested and is on the table." That order was the client's dish-by-dish fallback
+// (his dev plan held the catalog meal itself, which the sequencer 404s), but
+// measured on the real path the scheduler was wrong the other way: it has no oven
+// at all, so Classic's stuffing went in at 350°F seven minutes before the 325°F
+// bird came out, and Make-Ahead's two casseroles preheated to 350°F and 375°F
+// twenty-seven minutes before it did.
+//
+// The rule (THX-3): THE OVEN FREES WHEN THE BIRD COMES OUT. A dish that needs the
+// oven starts then — during the rest — and lands at serving time; the rest, the
+// carve and the pan sauce never hold the oven. Feasts only (ruled October 20).
+//
+//   • The HOLDER is the dish with the longest single oven `cook` step, and only
+//     when that step is a real roast (≥ OVEN_HOLD_MIN). A vegetarian feast's
+//     45-minute stuffing does not lock out its Wellington.
+//   • An OVEN STEP is a preheat, cook or prep step whose prose puts it in the oven
+//     ("oven", "bake", "roast at" — not a "roasting pan" on burners, not a "baking
+//     dish" to serve from).
+//   • Pass 1 schedules with the floor. The sides now finish later than the bird
+//     did, so pass 2 serves at pass 1's serve time: every dish finish-aligns to it
+//     (the gravy, the potatoes), except the bird, whose start is pinned (its roast
+//     ends where it did) and whose tail after the rest — the carve — is aligned to
+//     serve. The bird rests longer; nothing waits on a cold platter.
+const OVEN_HOLD_MIN = 90;
+const OVEN_WORDS = /\b(?:oven|bake[sd]?)\b|\bbaking\b(?!\s+(?:dish|sheet|pan|powder|soda))|\broast(?:s|ed|ing)?\b(?!\s*pan)(?!ing\s+pan)/i;
+
+export interface OvenPlan {
+  holderDishId: string;
+  /** The holder's last oven step (array index): the oven frees when it finishes. */
+  holderLastOven: number;
+  /** The holder's first step after its post-oven rest, aligned to serve in pass 2. */
+  tailFrom: number;
+  /** dishId → array indexes of its oven steps (holder included). */
+  ovenSteps: Map<string, Set<number>>;
+}
+
+interface OvenRun {
+  plan: OvenPlan;
+  /** Pass 2: the serve time every non-holder dish finish-aligns to. */
+  anchor?: number;
+  /** Pass 2: the holder's base from pass 1. */
+  holderBase?: number;
+}
+
+/** True when a step puts food in (or heats) the oven, by its phase and prose. */
+export function isOvenStep(step: Pick<SchedulerStep, "phaseType" | "text">): boolean {
+  if (step.phaseType !== "preheat" && step.phaseType !== "cook" && step.phaseType !== "prep") return false;
+  return OVEN_WORDS.test(step.text ?? "");
+}
+
+/** The feast's oven, or null when no dish roasts long enough to hold it. */
+export function planOven(dishes: readonly SchedulerDish[]): OvenPlan | null {
+  const ovenSteps = new Map<string, Set<number>>();
+  let holder: { dishId: string; idx: number; minutes: number } | null = null;
+  for (const d of dishes) {
+    const set = new Set<number>();
+    d.steps.forEach((s, i) => {
+      if (!isOvenStep(s)) return;
+      set.add(i);
+      if (s.phaseType === "cook" && s.estimatedMinutes >= OVEN_HOLD_MIN && (!holder || s.estimatedMinutes > holder.minutes)) {
+        holder = { dishId: d.dishId, idx: i, minutes: s.estimatedMinutes };
+      }
+    });
+    if (set.size > 0) ovenSteps.set(d.dishId, set);
+  }
+  if (!holder) return null;
+  const h = holder as { dishId: string; idx: number; minutes: number };
+  const hd = dishes.find((d) => d.dishId === h.dishId)!;
+  const lastOven = Math.max(...ovenSteps.get(h.dishId)!);
+  const rest = hd.steps.findIndex((s, i) => i > lastOven && s.phaseType === "rest");
+  return {
+    holderDishId: h.dishId,
+    holderLastOven: lastOven,
+    tailFrom: rest >= 0 && rest + 1 < hd.steps.length ? rest + 1 : Infinity,
+    ovenSteps,
+  };
+}
+
+function scheduleWithOven(
+  nonEmpty: SchedulerDish[],
+  honourTags: boolean,
+  enforceMaxLag: boolean,
+  coldBases: ReadonlyMap<string, number> | null,
+  plan: OvenPlan,
+): ScheduleResult {
+  const first = scheduleOnceCore(nonEmpty, honourTags, enforceMaxLag, coldBases, { plan });
+  // The holder's base in pass 1: its first step's start, in the cook-start frame.
+  const holder = nonEmpty.find((d) => d.dishId === plan.holderDishId)!;
+  const hd = first.steps.filter((s) => s.dishId === plan.holderDishId);
+  const holderStart = Math.min(...hd.map((s) => s.startOffsetMinutes)) + first.totalEstimatedMinutes;
+  const walked = walkDishAlone(holder, classifyDish(holder, honourTags, []));
+  const holderBase = holderStart - walked.offsets[0];
+  // When the oven frees, in that frame: the holder's last oven step's finish.
+  const lastOven = hd.find((s) => s.originalStepIndex === holder.steps[plan.holderLastOven].stepIndex)!;
+  const ovenOut = lastOven.startOffsetMinutes + first.totalEstimatedMinutes + holder.steps[plan.holderLastOven].estimatedMinutes;
+  // Serve = the oven freeing, plus the longest thing still to happen after it: a
+  // side's run from its first oven step to its end, or the bird's own rest and carve.
+  // (Not pass 1's serve time: its single-cook pass had already pushed serve late,
+  // and aligning to it left the stuffing ten minutes idle after the bird was out.)
+  const holderTail = holder.steps.slice(plan.holderLastOven + 1).reduce((s, x) => s + x.estimatedMinutes, 0);
+  let tail = holderTail;
+  for (const d of nonEmpty) {
+    const ov = plan.ovenSteps.get(d.dishId);
+    if (d.dishId === plan.holderDishId || !ov || ov.size === 0) continue;
+    const w = walkDishAlone(d, classifyDish(d, honourTags, []));
+    tail = Math.max(tail, w.duration - w.offsets[Math.min(...ov)]);
+  }
+  return scheduleOnceCore(nonEmpty, honourTags, enforceMaxLag, coldBases, { plan, anchor: ovenOut + tail, holderBase });
+}
+
 function scheduleArm(
   nonEmpty: SchedulerDish[],
   honourTags: boolean,
   enforceMaxLag: boolean,
   coldDishesForward: boolean,
+  oven: OvenPlan | null = null,
 ): ScheduleResult {
+  const scheduleOnce = (d: SchedulerDish[], t: boolean, l: boolean, c: ReadonlyMap<string, number> | null) =>
+    oven ? scheduleWithOven(d, t, l, c, oven) : scheduleOnceCore(d, t, l, c);
   const aligned = scheduleOnce(nonEmpty, honourTags, enforceMaxLag, null);
   if (!coldDishesForward) return aligned;
   const cold = nonEmpty.filter(isServedCold);
@@ -831,11 +953,12 @@ function scheduleArm(
   return forward.totalEstimatedMinutes <= aligned.totalEstimatedMinutes ? forward : aligned;
 }
 
-function scheduleOnce(
+function scheduleOnceCore(
   nonEmpty: SchedulerDish[],
   honourTags: boolean,
   enforceMaxLag: boolean,
   coldBases: ReadonlyMap<string, number> | null,
+  oven: OvenRun | null = null,
 ): ScheduleResult {
   const ignoredTags: IgnoredTag[] = [];
 
@@ -843,7 +966,8 @@ function scheduleOnce(
   const alone = nonEmpty.map((d) =>
     walkDishAlone(d, classifyDish(d, honourTags, ignoredTags)),
   );
-  const anchor = Math.max(...alone.map((a) => a.duration));
+  // THX-3 — the oven's second pass serves at the first pass's (later) serve time.
+  const anchor = oven?.anchor ?? Math.max(...alone.map((a) => a.duration));
 
   // The served-cold set, for the cue's "stays warm" veto (ruling 2). NOT the same
   // question as `coldBases`, which is only about the dishes ruling 3 chose to
@@ -855,9 +979,14 @@ function scheduleOnce(
   //    a cold dish that `coldBases` has moved into a passive window (ruling 3).
   const work: WorkStep[] = [];
   nonEmpty.forEach((dish, dishIdx) => {
-    const base = coldBases?.get(dish.dishId) ?? anchor - alone[dishIdx].duration;
+    // THX-3 — the bird keeps the first pass's start (its roast ends where it did);
+    // its after-the-rest tail is aligned to serve instead (see scheduleWithOven).
+    const isHolder = oven?.plan.holderDishId === dish.dishId;
+    const base = (isHolder && oven?.holderBase !== undefined ? oven.holderBase : undefined) ?? coldBases?.get(dish.dishId) ?? anchor - alone[dishIdx].duration;
+    const tailFrom = isHolder && oven?.anchor !== undefined ? oven.plan.tailFrom : Infinity;
+    const tailSum = (from: number) => dish.steps.slice(from).reduce((s, x) => s + x.estimatedMinutes, 0);
     dish.steps.forEach((step, stepIdx) => {
-      const idealStart = base + alone[dishIdx].offsets[stepIdx];
+      const idealStart = stepIdx >= tailFrom ? anchor - tailSum(stepIdx) : base + alone[dishIdx].offsets[stepIdx];
       work.push({
         dishIdx,
         dishId: dish.dishId,
@@ -997,7 +1126,16 @@ function scheduleOnce(
           earliest = Math.max(earliest, mine[j]?.finish ?? 0);
         }
       }
-      const floor = Math.max(w.idealStart, earliest);
+      let floor = Math.max(w.idealStart, earliest);
+      // THX-3 (BUG-449) — the oven frees when the bird comes out. Any other dish's
+      // oven step starts no earlier than the holder's last oven step finishes.
+      if (oven && w.dishId !== oven.plan.holderDishId && oven.plan.ovenSteps.get(w.dishId)?.has(w.stepIdx)) {
+        const hi = nonEmpty.findIndex((d) => d.dishId === oven.plan.holderDishId);
+        const held = placed[hi]?.[oven.plan.holderLastOven];
+        const ws = work.find((o) => o.dishIdx === hi && o.stepIdx === oven.plan.holderLastOven);
+        const out = held ? held.finish : ws ? ws.idealStart + ws.step.estimatedMinutes : 0;
+        floor = Math.max(floor, out);
+      }
       const start = findSlot(busy, floor, w.step.estimatedMinutes, !w.unattended);
       w.actualStart = start;
       w.finish = start + w.step.estimatedMinutes;

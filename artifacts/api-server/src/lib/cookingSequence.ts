@@ -196,7 +196,9 @@ export async function runCookingSequence(
   // Chicken Noodle Soup with no broth step). The dropped alternates still exist
   // on the meal; the mobile's §27 append (cookSession.sequenceMealSteps) keeps
   // them in the flow, trailing, until D-WS9-148's toggle decides what to show.
-  const result = scheduleCookingSequence(schedulerDishes);
+  // THX-3 (BUG-449) — a feast's oven frees when the bird comes out; every other
+  // meal is scheduled exactly as before.
+  const result = scheduleCookingSequence(schedulerDishes, isFeast ? { feastOven: true } : {});
   // WS9 D-WS9-239 — an ignored tag is a tagging defect, logged and moved past:
   // the step waited (rule 4), so the sequence is the conservative one.
   if (result.ignoredTags.length > 0) {
