@@ -140,6 +140,21 @@ export function isEggCount(unit: string, name: string): boolean {
   return COUNT_UNITS.has(unit.trim().toLowerCase()) && EGG_NAME.test(name);
 }
 
+/**
+ * WEB-4b (BUG-458) — "¾ pinch" salt and "¾ cinnamon stick" at household 8 of a
+ * feast for 10. A pinch, a dash, and a cinnamon stick, star anise or vanilla bean
+ * by count print as a whole number: the NEAREST, halves up, never below 1. This
+ * is the server's prep-text rule token for token (api-server
+ * lib/prepQuantity.ts displayedPrepQuantity), so a step and its prep line agree.
+ * By NAME for the stick: a "stick" unit is butter, and ½ stick is a real measure.
+ */
+const PINCH_UNITS = /^(pinch(?:es)?|dash(?:es)?)$/;
+const WHOLE_SPICE_NAME = /\b(cinnamon sticks?|star anise|vanilla beans?)\b/i;
+
+function isWholeSpice(unit: string, name: string): boolean {
+  return PINCH_UNITS.test(unit) || (COUNT_UNITS.has(unit) && WHOLE_SPICE_NAME.test(name));
+}
+
 /** A whole bird, by name: never halved by weight, never shown as ½ a bird. */
 const WHOLE_BIRD = new RegExp(
   String.raw`\b(whole (?:chickens?|turkeys?|ducks?|hens?|birds?|goose|geese)|rotisserie chickens?|(?:cornish|game) hens?|spatchcock(?:ed)? (?:chicken|turkey))\b`,
@@ -330,6 +345,8 @@ export function displayedQuantity(qty: number, unit: string, name = ""): number 
   const u = unit.trim().toLowerCase();
   // WEB-4 — eggs: the nearest whole, halves up, never below 1.
   if (qty > 0 && isEggCount(u, name)) return Math.max(1, Math.floor(qty + 0.5 + TIE));
+  // WEB-4b (BUG-458) — a pinch, a dash and a cinnamon stick are whole.
+  if (qty > 0 && isWholeSpice(u, name)) return Math.max(1, Math.round(qty));
   // Rule 1 — whole counted items, by unit word or by name on a count unit. The
   // TIE keeps float noise (3.0000000004) from ceiling a whole number up.
   if (

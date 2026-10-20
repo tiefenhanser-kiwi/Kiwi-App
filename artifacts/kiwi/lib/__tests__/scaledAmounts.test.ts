@@ -303,6 +303,40 @@ describe("BUG-443 — package sizes and durations in a step never scale", () => 
   });
 });
 
+// ── WEB-4b (BUG-458) — a pinch, a dash and a cinnamon stick are whole ──────
+//
+// The feast at household 8 printed "¾ pinch" salt and "¾ cinnamon stick". The
+// server's prep text already prints these whole (api-server lib/prepQuantity.ts):
+// the NEAREST whole number, halves up, never below 1. The client uses the same
+// rule, token for token, so a step and its prep line agree.
+
+describe("BUG-458 — pinch, dash and stick print as whole numbers", () => {
+  it("the nearest whole, halves up, never below 1", () => {
+    table([
+      ["salt", 1, "pinch", 0.8, "1 pinch salt"], // was "¾ pinch salt"
+      ["ground nutmeg", 1, "pinch", 0.4, "1 pinch ground nutmeg"], // was "⅜ pinch"
+      ["kosher salt", 1, "pinch", 2.5, "3 pinches kosher salt"], // a half rounds up
+      ["salt", 1, "pinch", 1.2, "1 pinch salt"], // nearest — the server's rule
+      ["salt", 2, "pinches", 0.5, "1 pinch salt"],
+      ["hot sauce", 1, "dash", 0.5, "1 dash hot sauce"], // was "½ dash"
+      ["cinnamon stick", 1, "each", 0.8, "1 cinnamon stick"], // was "¾ cinnamon stick"
+      ["cinnamon sticks", 2, "each", 0.75, "2 cinnamon sticks"], // 1.5 → 2
+      ["vanilla bean", 1, "each", 0.4, "1 vanilla bean"],
+      ["cinnamon stick", 1, "each", 1, "1 cinnamon stick"], // the authored amount
+    ]);
+  });
+
+  it("a stick of BUTTER is a measure, and ½ stick stays", () => {
+    table([["unsalted butter", 1, "stick", 0.5, "½ stick unsalted butter"]]);
+  });
+
+  it("…and the step agrees", () => {
+    assert.equal(stepAmount("Add 1 cinnamon stick to the pot.", "1", 1, "", 0.8), "1");
+    assert.equal(stepAmount("Season with 1 pinch salt.", "1 pinch", 1, "pinch", 0.8), "1 pinch");
+    assert.equal(stepAmount("Add 1 dash hot sauce.", "1 dash", 1, "dash", 0.5), "1 dash");
+  });
+});
+
 describe("BUG-443 — a size word stored as the unit counts the name", () => {
   it("'2 large egg' becomes '2 large eggs'", () => {
     table([
