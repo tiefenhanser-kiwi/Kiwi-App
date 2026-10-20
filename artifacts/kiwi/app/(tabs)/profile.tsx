@@ -11,6 +11,8 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import Constants from "expo-constants";
+import * as Updates from "expo-updates";
 
 import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
@@ -25,6 +27,17 @@ import { ApiError } from "@/lib/api/errors";
 import { subscriptionCardFor } from "@/lib/billing/subscriptionView";
 import { storeReviewUrl, storeWebUrl } from "@/lib/feedback";
 import { PRIVACY_URL, TERMS_URL } from "@/lib/legal";
+import { bundleLine } from "@/lib/appBundle";
+
+// BUG-445 — which bundle is running, read once: none of these change while
+// the app runs (a downloaded update applies on the next launch).
+const BUNDLE_LINE = bundleLine({
+  platform: Platform.OS,
+  version: Constants.expoConfig?.version,
+  runtimeVersion: Updates.runtimeVersion,
+  updateId: Updates.updateId,
+  isEmbeddedLaunch: Updates.isEmbeddedLaunch,
+});
 
 type EditableField = "name" | "email" | "phone";
 
@@ -481,6 +494,11 @@ export default function ProfileTab() {
             Sign out and return to the welcome screen
           </Text>
         </Pressable>
+
+        {/* BUG-445 — the footer: version · runtime · update id (or built-in). */}
+        <Text style={s.bundleLine} selectable testID="profile-bundle-line">
+          {BUNDLE_LINE}
+        </Text>
       </KeyboardAwareScrollViewCompat>
     </View>
   );
@@ -900,6 +918,13 @@ const s = StyleSheet.create({
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.sans[600],
     marginTop: 2,
+  },
+  bundleLine: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[400],
+    textAlign: "center",
+    marginTop: Spacing[2],
   },
   subscriptionHint: {
     fontSize: Typography.fontSize.sm,
