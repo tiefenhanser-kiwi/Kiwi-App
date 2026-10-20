@@ -317,8 +317,13 @@ export function buildPrepCombineInput(
           // brine's salt beside its sugar, the pie's salt beside its spices). The prose
           // resolver gave Vegetarian's apple-pie salt the step that says "unsalted butter".
           if (opts.feast && isSaltOrPepper(ing.ingredientName)) {
+            // The seasoning's own head word, whole: "pepper" is not "peppercorns" (an
+            // amountRef bound Make-Ahead's "1 teaspoon black peppercorns" to black pepper),
+            // and "salt" is not "unsalted".
+            const head = ing.ingredientName.toLowerCase().trim().split(/\s+/).pop() ?? "";
+            const namesIt = (text: string) => new RegExp(`\\b${head}\\b`, "i").test(text);
             for (const s of ordered) {
-              if (!s.ingredientIds.includes(ing.ingredientId)) continue;
+              if (!s.ingredientIds.includes(ing.ingredientId) || !namesIt(s.text)) continue;
               const partner = dish.ingredients.find((o) =>
                 o.ingredientId !== ing.ingredientId &&
                 s.ingredientIds.includes(o.ingredientId) &&
@@ -328,6 +333,11 @@ export function buildPrepCombineInput(
                 proseNames(s.text, o.ingredientName));
               if (partner) return momentKeyFor({ ingredientId: partner.ingredientId, category: partner.category, ingredientName: partner.ingredientName });
             }
+            // No dry partner: seasoning to taste, measured at the stove — in no container.
+            // Not a component's key (Classic's herb-butter pepper carried the brine's tag
+            // and sat in the brine's bowl), and not its step's either (the Wellington's
+            // salt and pepper joined the sherry-and-soy jar). `v:` groups with nothing.
+            return `v:season:${ing.ingredientId}`;
           }
           const own = resolved.byIngredient.get(ing.ingredientId);
           if (own) return `c:${own.key}@${entryOf(ing.ingredientId, ing.ingredientName)}`;
