@@ -28,7 +28,7 @@ import { runAICall as productionRunAICall } from "../../src/lib/ai/runAICall";
 import { assertScriptDatabase } from "../../src/lib/scripts/requireDatabaseHost";
 import { computeCacheAwareCostUsd, emptyTokenTotals, generateInput, runStoreFill, type ModelRateUsd, type TokenTotals } from "../../src/lib/storeFill";
 import { generatePrefixFor, STABLE_GENERATE_PREFIX } from "../../src/lib/storeFillPrompts";
-import { flagsFor, KINDS, loadTargets, runOptionsFor, validateTargets, type Thx2Target } from "./thx2Core";
+import { dishSpecFor, flagsFor, keepsDaysFor, KINDS, loadTargets, runOptionsFor, validateTargets, type Thx2Target } from "./thx2Core";
 import { applyChecks, applyPostFinalize, type CheckNote } from "./thx2Checks";
 import { flagInputs, loadThx2Meals, type MealGraph } from "./thx2Db";
 
@@ -136,7 +136,15 @@ for (const t of pending) {
         ...runOptionsFor(t, file),
         apply: true, maxCostUsd: Math.max(0.01, file.spendCapUsd - spent), maxCalls: 6, maxConsecutiveFailures: 1, rate, log: (m) => console.log(`  ${m}`),
         postGenerate: (meal) => { checkNotes.push(...applyChecks(meal)); },
-        postFinalize: (meal, fin) => { checkNotes.push(...applyPostFinalize(meal, fin)); },
+        // THX-3 — a feast's make-ahead steps get the table's keep-days and a
+        // code-written Thursday step when the model wrote none (BUG-425/450).
+        postFinalize: (meal, fin) => {
+          const specOf = t.kind === "feast" ? dishSpecFor(t) : null;
+          checkNotes.push(...applyPostFinalize(meal, fin, specOf ? (title, i) => {
+            const d = specOf(title, i);
+            return d ? { course: d.course, keeps: keepsDaysFor(d) } : null;
+          } : undefined));
+        },
       },
     );
     const count = (k: CheckNote["kind"]) => checkNotes.filter((n) => n.kind === k).length;

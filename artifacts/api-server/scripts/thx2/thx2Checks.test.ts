@@ -189,3 +189,36 @@ describe("the prep proxy writes nothing", () => {
     assert.throws(() => (ro as unknown as { $executeRaw: () => unknown }).$executeRaw());
   });
 });
+
+// ── THX-3 — the steps code writes (BUG-425 / BUG-450) ──────────────────────
+import { fixKeepClause, hasThursdayStep, retargetMakeAheadDay, thursdayServeStep } from "./thx2Checks";
+
+describe("THX-3 — keep-days in a make-ahead step are the table's", () => {
+  it("rewrites the model's number in a keep clause, and nothing else", () => {
+    assert.equal(
+      fixKeepClause("Make ahead (Monday): Transfer to a bowl or jar, cool, then cover and refrigerate — the sauce keeps up to 7 days; serve chilled on Thursday.", 4),
+      "Make ahead (Monday): Transfer to a bowl or jar, cool, then cover and refrigerate — the sauce keeps up to 4 days; serve chilled on Thursday.",
+    );
+    assert.equal(fixKeepClause("…strain the stock, discard the solids, and refrigerate up to 4 days.", 2), "…strain the stock, discard the solids, and refrigerate up to 2 days.");
+    assert.equal(fixKeepClause("…cover tightly with foil and refrigerate overnight (up to 1 day).", 1), "…cover tightly with foil and refrigerate overnight (up to 1 day).");
+    assert.equal(fixKeepClause("Cool the pies at least 2 hours, then refrigerate; the pies keep up to two days.", 4), "Cool the pies at least 2 hours, then refrigerate; the pies keep up to 4 days.");
+    const untouched = "Thaw (start Friday): a 14-lb bird takes 3–4 days to thaw fully, so it will be ready by Tuesday.";
+    assert.equal(fixKeepClause(untouched, 2), untouched);
+  });
+});
+
+describe("THX-3 — a make-ahead dish always has its Thursday step", () => {
+  it("the serve step is code-written by course", () => {
+    assert.equal(thursdayServeStep("Cranberry-Orange Sauce", "course-cranberry").text, "On Thursday: Spoon the Cranberry-Orange Sauce into a serving bowl straight from the fridge; serve chilled or at room temperature.");
+    assert.equal(thursdayServeStep("Apple Pie", "course-dessert").text, "On Thursday: Slice the Apple Pie and serve.");
+    assert.equal(thursdayServeStep("Apple Pie", "course-dessert").phaseType, "assemble");
+    assert.equal(hasThursdayStep(["Make ahead (Monday): Simmer.", "On Thursday: Spoon it out."]), true);
+    assert.equal(hasThursdayStep(["Make ahead (Monday): Simmer."]), false);
+  });
+
+  it("a moved make-ahead day is rewritten in the day phrase only (a brine's night phrase is not)", () => {
+    assert.equal(retargetMakeAheadDay("Make ahead (Monday): Pat the wings dry.", "Monday", "Tuesday"), "Make ahead (Tuesday): Pat the wings dry.");
+    assert.equal(retargetMakeAheadDay("Make ahead (Monday night): Brine it.", "Monday", "Tuesday"), "Make ahead (Monday night): Brine it.");
+    assert.equal(retargetMakeAheadDay("Simmer on Monday.", "Monday", "Tuesday"), "Simmer on Monday.");
+  });
+});

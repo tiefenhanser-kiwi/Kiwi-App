@@ -20,7 +20,7 @@ import { mentionWord, nameKey, usesIngredient } from "./thx2Core";
 
 export interface CheckNote {
   dish: string;
-  kind: "swap_dropped" | "unit_fixed" | "minutes_capped" | "replaces_extended" | "replaces_unmapped";
+  kind: "swap_dropped" | "unit_fixed" | "minutes_capped" | "replaces_extended" | "replaces_unmapped" | "keeps_fixed" | "thursday_added";
   detail: string;
 }
 
@@ -180,9 +180,79 @@ export function extendReplaces(meal: WizardExpandEnrichedMealDetails, fin: Wizar
   return notes;
 }
 
-/** The postFinalize hook: cap make-ahead minutes, then complete the swaps. */
-export function applyPostFinalize(meal: WizardExpandEnrichedMealDetails, fin: WizardFinalizeStepsResult): CheckNote[] {
-  return [...capMakeAheadMinutes(meal, fin), ...extendReplaces(meal, fin)];
+// ── THX-3 — the steps code writes (BUG-425, BUG-450), shared with patch.ts ──
+
+/** Keep clauses the model writes: "keeps up to 7 days", "refrigerate up to 4 days", "(up to 1 day)". */
+const KEEP_CLAUSE = /\b((?:keeps?|keeping|refrigerat\w*|store\w*|chill\w*)\b[^.;—]*?\bup to )(\d+|one|two|three|four|five|six|seven)( days?)\b/gi;
+
+/**
+ * 🔴 THX-3 (BUG-450) — the keep-days in a make-ahead step are the TABLE's
+ * (thx2Core.keepsDaysFor), never the model's: "the sauce keeps up to 7 days"
+ * becomes 4, the gravy's "refrigerate up to 4 days" 2. Text outside a keep
+ * clause is untouched. Returns the text unchanged when it holds none.
+ */
+export function fixKeepClause(text: string, keeps: number): string {
+  return text.replace(KEEP_CLAUSE, (_m, head: string) => `${head}${keeps} ${keeps === 1 ? "day" : "days"}`);
+}
+
+/**
+ * THX-3 (BUG-425) — a make-ahead dish with no `On Thursday:` step never reaches
+ * Thursday's Cook Mode (Classic and Vegetarian cranberry sauce, Vegetarian apple
+ * pie). Code writes the serve step, by course; the model is not asked.
+ */
+export function thursdayServeStep(dishTitle: string, course: string | undefined): { text: string; phaseType: "assemble"; estimatedMinutes: number; isTimingSensitive: false } {
+  const text = course === "course-cranberry"
+    ? `On Thursday: Spoon the ${dishTitle} into a serving bowl straight from the fridge; serve chilled or at room temperature.`
+    : course === "course-dessert"
+      ? `On Thursday: Slice the ${dishTitle} and serve.`
+      : `On Thursday: Serve the ${dishTitle}.`;
+  return { text, phaseType: "assemble", estimatedMinutes: 2, isTimingSensitive: false };
+}
+
+/** True when a dish's steps already open a Thursday part. */
+export function hasThursdayStep(texts: readonly string[]): boolean {
+  return texts.some((t) => ON_THURSDAY.test(t));
+}
+
+/**
+ * THX-3 (D-WS9-316 decision 4) — a dish whose make-ahead day MOVED (Make-Ahead's
+ * gravy, Monday → Tuesday) has its "Make ahead (<Day>):" phrase rewritten to the
+ * new day. Only the plain day phrase; a "(<Day> night)" brine phrase is left alone.
+ */
+export function retargetMakeAheadDay(text: string, fromDay: string, toDay: string): string {
+  return text.replace(new RegExp(`^(\\s*Make ahead \\()${fromDay}(\\):)`, "i"), `$1${toDay}$2`);
+}
+
+/**
+ * THX-3 — the generator's side of the same rules: on each make-ahead dish's
+ * finalized steps, the table's keep-days and a code-written Thursday step.
+ */
+export function applyThx3Steps(meal: WizardExpandEnrichedMealDetails, fin: WizardFinalizeStepsResult, specFor: (title: string, index: number) => { course?: string; keeps?: number } | null): CheckNote[] {
+  const notes: CheckNote[] = [];
+  for (const entry of fin.dishSteps) {
+    const title = meal.dishes[entry.dishIndex]?.title ?? `dish ${entry.dishIndex}`;
+    const spec = specFor(title, entry.dishIndex);
+    if (!spec || spec.keeps === undefined) continue;
+    for (const s of entry.steps) {
+      const fixed = fixKeepClause(s.text, spec.keeps);
+      if (fixed !== s.text) { notes.push({ dish: title, kind: "keeps_fixed", detail: `"${s.text.slice(0, 60)}…" → keeps ${spec.keeps}` }); s.text = fixed; }
+    }
+    if (!hasThursdayStep(entry.steps.map((s) => s.text)) && entry.steps.length < 20) {
+      const step = thursdayServeStep(title, spec.course);
+      entry.steps.push(step as (typeof entry.steps)[number]);
+      notes.push({ dish: title, kind: "thursday_added", detail: step.text });
+    }
+  }
+  return notes;
+}
+
+/** The postFinalize hook: cap make-ahead minutes, then complete the swaps, then THX-3's step rules. */
+export function applyPostFinalize(
+  meal: WizardExpandEnrichedMealDetails,
+  fin: WizardFinalizeStepsResult,
+  specFor?: (title: string, index: number) => { course?: string; keeps?: number } | null,
+): CheckNote[] {
+  return [...capMakeAheadMinutes(meal, fin), ...extendReplaces(meal, fin), ...(specFor ? applyThx3Steps(meal, fin, specFor) : [])];
 }
 
 // ── the hook ────────────────────────────────────────────────────────────────

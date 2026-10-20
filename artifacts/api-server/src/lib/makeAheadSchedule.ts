@@ -156,17 +156,24 @@ export function buildMakeAheadSchedule(input: MakeAheadInput): MakeAheadSchedule
     const base = { mealId: feast.mealId, dishId: d.dishId, dishName: d.dishName, pos };
     const thaw = tagNumber(d.tags, /^thaw-(\d+)d$/);
     if (thaw !== undefined && thaw > 0) rows.push({ kind: "thaw", ...at(thaw), ...base, thawDays: thaw });
-    const ahead = tagDay(d.tags, /^ahead-([a-z]{3})$/);
-    if (ahead !== undefined) {
-      const keeps = tagNumber(d.tags, /^keeps-(\d+)d$/);
+    // THX-3 (BUG-425) — EVERY `ahead-<day>` tag is a row. Make-Ahead's stuffing dries
+    // its bread on Tuesday and is assembled on Wednesday; with one row (the first tag)
+    // the Wednesday Cook Mode left Tuesday's step out. The keep-days and `assemble`
+    // describe the finished dish, so they ride its LAST make-ahead day only.
+    const aheads = [...new Set(d.tags.map((t) => /^ahead-([a-z]{3})$/.exec(t)?.[1]).filter((x): x is string => !!x && SHORT[x] !== undefined))]
+      .map((x) => SHORT[x])
+      .sort((a, b) => before(b) - before(a));
+    const keeps = tagNumber(d.tags, /^keeps-(\d+)d$/);
+    aheads.forEach((ahead, i) => {
+      const last = i === aheads.length - 1;
       rows.push({
         kind: "make",
         ...at(before(ahead)),
         ...base,
-        ...(keeps !== undefined ? { keepsDays: keeps } : {}),
-        ...(d.tags.includes("assemble") ? { assemble: true as const } : {}),
+        ...(last && keeps !== undefined ? { keepsDays: keeps } : {}),
+        ...(last && d.tags.includes("assemble") ? { assemble: true as const } : {}),
       });
-    }
+    });
     const brine = tagDay(d.tags, /^brine-([a-z]{3})$/);
     if (brine !== undefined) {
       const hours = brineHoursOf(d.stepTexts);

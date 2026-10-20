@@ -51,8 +51,23 @@ export interface DishSpec {
   /** Follow-up E (feast dishes only; the tag contract PREP-1 builds against):
    *  the day the dish, or its make-ahead part, is made → `ahead-<day>`. */
   ahead?: AheadDay;
-  /** Whole days it keeps in the fridge once made → `keeps-<n>d`. */
-  keeps?: number;
+  /**
+   * THX-3 (BUG-425) — an EARLIER make-ahead day of the same dish → one more
+   * `ahead-<day>` tag: Make-Ahead's stuffing dries its bread on Tuesday and is
+   * assembled Wednesday, and the Wednesday row's Cook Mode left Tuesday out.
+   */
+  alsoAhead?: AheadDay[];
+  /**
+   * THX-3 — assembled ahead, baked on Thursday → `assemble`. The make-ahead card
+   * reads it ("Assemble ahead · bake Thursday"); a pie is baked ahead, a stuffing is not.
+   */
+  assemble?: boolean;
+  /**
+   * 🔴 THX-3 (BUG-450) — NOT AUTHORED ANY MORE. Keep-days come from `keepsDaysFor`,
+   * a code table (USDA), and a value here is a validation error, so neither a hand
+   * nor the model can put "keeps 7 days" on a cranberry sauce again.
+   */
+  keeps?: never;
   /** Whole bird: days a frozen bird needs in the fridge → `thaw-<n>d`. */
   thaw?: number;
   /** Brined or dry-brined bird: the day it goes into the brine → `brine-<day>`. */
@@ -61,16 +76,45 @@ export interface DishSpec {
   dayNote?: string;
 }
 
+// ── THX-3 (BUG-450) — KEEP-DAYS COME FROM A TABLE ───────────────────────────
+//
+// "Keeps up to 1⅝ days" was the model's "2 days" scaled by the client. The number
+// is food-keeping advice on the plan being marketed, so it is never the model's
+// and never scales: USDA's cooked leftovers are 3–4 days, gravy and broth 1–2.
+// A dish assembled ahead and baked Thursday (raw stuffing, an unbaked casserole)
+// keeps overnight. The tag is the upper bound, written as "keeps up to n days".
+export const KEEP_DAYS = { cooked: 4, gravyOrBroth: 2, assembled: 1 } as const;
+const GRAVY_OR_BROTH = /\b(gravy|stock|broth)\b/i;
+
+/** The days a make-ahead dish keeps once made, by the table. Undefined when not made ahead. */
+export function keepsDaysFor(d: DishSpec): number | undefined {
+  if (!d.ahead) return undefined;
+  if (d.assemble) return KEEP_DAYS.assembled;
+  if (GRAVY_OR_BROTH.test(d.name)) return KEEP_DAYS.gravyOrBroth;
+  return KEEP_DAYS.cooked;
+}
+
+/** Every make-ahead day of a dish, in week order (THX-3: `alsoAhead` before `ahead`). */
+export function aheadDaysOf(d: DishSpec): AheadDay[] {
+  const days = [...(d.alsoAhead ?? []), ...(d.ahead ? [d.ahead] : [])];
+  return AHEAD_DAYS.filter((x) => days.includes(x));
+}
+
 /** The make-ahead dish tags, written by code from the fields above — never
- *  from model output. Order: ahead, keeps, thaw, brine. */
+ *  from model output. Order: ahead (each day), keeps, thaw, brine, assemble. */
 export function aheadTags(d: DishSpec): string[] {
+  const keeps = keepsDaysFor(d);
   return [
-    ...(d.ahead ? [`ahead-${d.ahead}`] : []),
-    ...(d.keeps !== undefined ? [`keeps-${d.keeps}d`] : []),
+    ...aheadDaysOf(d).map((x) => `ahead-${x}`),
+    ...(keeps !== undefined ? [`keeps-${keeps}d`] : []),
     ...(d.thaw !== undefined ? [`thaw-${d.thaw}d`] : []),
     ...(d.brine ? [`brine-${d.brine}`] : []),
+    ...(d.assemble ? ["assemble"] : []),
   ];
 }
+
+/** Every tag `aheadTags` can write — what a patch replaces on a feast dish. */
+export const AHEAD_TAG = /^(?:ahead-[a-z]{3}|keeps-\d+d|thaw-\d+d|brine-[a-z]{3}|assemble)$/;
 
 export interface Thx2Target {
   key: string;
@@ -167,12 +211,20 @@ export function validateTargets(file: TargetsFile): string[] {
     if ((t.kind === "friday" || t.kind === "weeknight") && t.servings !== 4) errs.push(`${at}: ${t.kind} meals are authored at 4 (the catalog default)`);
     if (t.kind === "weeknight" && !t.note?.trim()) errs.push(`${at}: a weeknight meal needs its brief in \`note\``);
     for (const d of dishes) {
-      const has = d.ahead !== undefined || d.keeps !== undefined || d.thaw !== undefined || d.brine !== undefined;
+      const has = d.ahead !== undefined || d.alsoAhead !== undefined || d.assemble !== undefined || d.thaw !== undefined || d.brine !== undefined;
       if (has && t.kind !== "feast") errs.push(`${at}: dish "${d.name}" — make-ahead fields belong on feast dishes only`);
       if (d.ahead !== undefined && !AHEAD_DAYS.includes(d.ahead)) errs.push(`${at}: dish "${d.name}" ahead "${d.ahead}"`);
       if (d.brine !== undefined && !AHEAD_DAYS.includes(d.brine)) errs.push(`${at}: dish "${d.name}" brine "${d.brine}"`);
-      if ((d.ahead === undefined) !== (d.keeps === undefined)) errs.push(`${at}: dish "${d.name}" — ahead and keeps go together`);
-      if (d.keeps !== undefined && (!Number.isInteger(d.keeps) || d.keeps < 1 || d.keeps > 14)) errs.push(`${at}: dish "${d.name}" keeps ${d.keeps}`);
+      // THX-3 — keep-days are the table's (keepsDaysFor), never authored.
+      if ((d as { keeps?: unknown }).keeps !== undefined) errs.push(`${at}: dish "${d.name}" — keeps comes from the keep-days table, not targets.json`);
+      if (d.alsoAhead !== undefined) {
+        if (!d.ahead) errs.push(`${at}: dish "${d.name}" — alsoAhead needs ahead`);
+        for (const x of d.alsoAhead) {
+          if (!AHEAD_DAYS.includes(x)) errs.push(`${at}: dish "${d.name}" alsoAhead "${x}"`);
+          else if (d.ahead && AHEAD_DAYS.indexOf(x) >= AHEAD_DAYS.indexOf(d.ahead)) errs.push(`${at}: dish "${d.name}" — alsoAhead "${x}" must come before ahead "${d.ahead}"`);
+        }
+      }
+      if (d.assemble && !d.ahead) errs.push(`${at}: dish "${d.name}" — assemble needs an ahead day`);
       if (d.thaw !== undefined && (!Number.isInteger(d.thaw) || d.thaw < 1 || d.thaw > 7)) errs.push(`${at}: dish "${d.name}" thaw ${d.thaw}`);
       if ((d.thaw !== undefined || d.brine !== undefined) && d.role !== "main") errs.push(`${at}: dish "${d.name}" — thaw and brine belong on the bird`);
       if (d.dayNote && d.ahead === undefined && d.brine === undefined) errs.push(`${at}: dish "${d.name}" has a dayNote but no make-ahead day`);
@@ -202,13 +254,26 @@ export function mealTags(t: Thx2Target): string[] {
  * matches. Each target dish is used once.
  */
 export function aheadTagsFor(t: Thx2Target): (dish: { title: string }, index: number) => string[] {
-  const used = new Set<number>();
+  const specOf = dishSpecFor(t);
   return (dish, index) => {
-    let at = t.dishes.findIndex((d, i) => !used.has(i) && titleMatches(d.name, dish.title));
+    const spec = specOf(dish.title, index);
+    return spec ? aheadTags(spec) : [];
+  };
+}
+
+/**
+ * THX-3 — the target's dish spec for a generated (or stored) dish: by TITLE, position
+ * the fallback only for an unused target dish; each target dish is used once. The
+ * one matcher behind the tags, the postFinalize step rules and patch.ts.
+ */
+export function dishSpecFor(t: Thx2Target): (title: string, index: number) => DishSpec | null {
+  const used = new Set<number>();
+  return (title, index) => {
+    let at = t.dishes.findIndex((d, i) => !used.has(i) && titleMatches(d.name, title));
     if (at < 0 && index < t.dishes.length && !used.has(index)) at = index;
-    if (at < 0) return [];
+    if (at < 0) return null;
     used.add(at);
-    return aheadTags(t.dishes[at]);
+    return t.dishes[at];
   };
 }
 
@@ -218,7 +283,9 @@ export function dayPlanLines(t: Thx2Target): string[] {
   if (t.kind !== "feast") return lines; // the day plan (and its tags) are the feast's alone
   t.dishes.forEach((d, i) => {
     if (d.ahead) {
-      lines.push(`dishIndex ${i} ${d.name}: Make ahead (${DAY_NAME[d.ahead]}) — ${d.dayNote ?? "make it"}; it keeps up to ${d.keeps} day${d.keeps === 1 ? "" : "s"} in the fridge.`);
+      const keeps = keepsDaysFor(d)!;
+      const earlier = (d.alsoAhead ?? []).map((x) => DAY_NAME[x]);
+      lines.push(`dishIndex ${i} ${d.name}: ${earlier.length ? `Make ahead (${earlier.join(", ")}) for the earlier part named in the note, then ` : ""}Make ahead (${DAY_NAME[d.ahead]}) — ${d.dayNote ?? "make it"}; it keeps up to ${keeps} day${keeps === 1 ? "" : "s"} in the fridge.`);
     }
     if (d.thaw !== undefined) {
       // Follow-up F: `thaw-<n>d` means START the thaw n days before Thursday

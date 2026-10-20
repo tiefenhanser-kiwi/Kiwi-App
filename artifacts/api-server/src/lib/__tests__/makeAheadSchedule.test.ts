@@ -120,3 +120,17 @@ describe("PREP-1 Part C — the make-ahead schedule", () => {
     assert.equal(brineHoursOf(["Roast 3 to 4 hours. Pour the hot brine over the onions."]), undefined);
   });
 });
+
+// THX-3 (BUG-425) — a dish made over two days is two rows.
+describe("THX-3 — every ahead-<day> tag is a row", () => {
+  it("Make-Ahead's stuffing: Tuesday's bread, then Wednesday's assembly carrying the keep-days and `assemble`", () => {
+    const s = buildMakeAheadSchedule({
+      startDate: new Date("2026-11-23T00:00:00Z"),
+      feast: { mealId: FEAST, assignedDayOfWeek: "Thursday", dishes: [d(7, "Overnight Sage Stuffing", ["ahead-tue", "ahead-wed", "keeps-1d", "assemble"])] },
+    });
+    assert.deepEqual(s.rows, [
+      { kind: "make", dayName: "Tuesday", date: "2026-11-24", daysBefore: 2, mealId: FEAST, dishId: id(7), dishName: "Overnight Sage Stuffing" },
+      { kind: "make", dayName: "Wednesday", date: "2026-11-25", daysBefore: 1, mealId: FEAST, dishId: id(7), dishName: "Overnight Sage Stuffing", keepsDays: 1, assemble: true },
+    ]);
+  });
+});

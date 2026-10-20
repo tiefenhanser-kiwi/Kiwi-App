@@ -155,20 +155,23 @@ describe("per-target options", () => {
   });
   it("follow-up E: make-ahead dish tags are written from targets.json, feast by feast", () => {
     const table = Object.fromEntries(FILE.targets.filter((t) => t.kind === "feast").map((t) => [t.key, Object.fromEntries(t.dishes.map((d) => [d.name, aheadTags(d).join(" ")]).filter(([, v]) => v))]));
+    // THX-3 (BUG-425/450, D-WS9-316 decision 4): keep-days from the table (cooked 4,
+    // gravy and broth 2, assembled 1), `assemble` on the dishes baked Thursday, the
+    // overnight stuffing's Tuesday bread day, and Make-Ahead's gravy moved to Tuesday.
     assert.deepEqual(table, {
       "thx2-feast-classic": {
-        "Herb-Roasted Whole Turkey": "thaw-6d brine-wed", "Pan Gravy": "ahead-tue keeps-4d", "Sage and Onion Stuffing": "ahead-wed keeps-1d",
-        "Cranberry-Orange Sauce": "ahead-mon keeps-7d", "Green Bean Casserole": "ahead-wed keeps-1d", "Sweet Potato Casserole": "ahead-wed keeps-1d", "Pumpkin Pie": "ahead-wed keeps-2d",
+        "Herb-Roasted Whole Turkey": "thaw-6d brine-wed", "Pan Gravy": "ahead-tue keeps-2d", "Sage and Onion Stuffing": "ahead-wed keeps-1d assemble",
+        "Cranberry-Orange Sauce": "ahead-mon keeps-4d", "Green Bean Casserole": "ahead-wed keeps-1d assemble", "Sweet Potato Casserole": "ahead-wed keeps-1d assemble", "Pumpkin Pie": "ahead-wed keeps-4d",
       },
-      "thx2-feast-small": { "Roast Turkey Breast": "thaw-2d", "Small-Batch Sage Stuffing": "ahead-wed keeps-1d", "Cranberry-Orange Sauce": "ahead-mon keeps-7d" },
+      "thx2-feast-small": { "Roast Turkey Breast": "thaw-2d", "Small-Batch Sage Stuffing": "ahead-wed keeps-1d assemble", "Cranberry-Orange Sauce": "ahead-mon keeps-4d" },
       "thx2-feast-make-ahead": {
-        "Dry-Brined Roast Turkey": "thaw-6d brine-tue", "Make-Ahead Turkey Gravy": "ahead-mon keeps-4d", "Overnight Sage Stuffing": "ahead-wed keeps-1d",
-        "Mashed Potato Casserole": "ahead-wed keeps-1d", "Cranberry-Orange Sauce": "ahead-mon keeps-7d", "Pumpkin Pie": "ahead-tue keeps-2d",
+        "Dry-Brined Roast Turkey": "thaw-6d brine-tue", "Make-Ahead Turkey Gravy": "ahead-tue keeps-2d", "Overnight Sage Stuffing": "ahead-tue ahead-wed keeps-1d assemble",
+        "Mashed Potato Casserole": "ahead-wed keeps-1d assemble", "Cranberry-Orange Sauce": "ahead-mon keeps-4d", "Pumpkin Pie": "ahead-tue keeps-4d",
       },
-      "thx2-feast-vegetarian": { "Herb Stuffing": "ahead-wed keeps-1d", "Cranberry-Orange Sauce": "ahead-mon keeps-7d", "Baked Mac and Cheese": "ahead-wed keeps-1d", "Apple Pie": "ahead-wed keeps-2d" },
+      "thx2-feast-vegetarian": { "Herb Stuffing": "ahead-wed keeps-1d assemble", "Cranberry-Orange Sauce": "ahead-mon keeps-4d", "Baked Mac and Cheese": "ahead-wed keeps-1d assemble", "Apple Pie": "ahead-wed keeps-4d" },
       "thx2-feast-new-twist": {
-        "Citrus-Herb Spatchcock Turkey": "thaw-6d brine-wed", "Pan Gravy": "ahead-tue keeps-4d", "Cornbread and Chorizo Stuffing": "ahead-wed keeps-1d",
-        "Cranberry-Jalapeño Relish": "ahead-mon keeps-7d", "Pumpkin Cheesecake Bars": "ahead-wed keeps-2d",
+        "Citrus-Herb Spatchcock Turkey": "thaw-6d brine-wed", "Pan Gravy": "ahead-tue keeps-2d", "Cornbread and Chorizo Stuffing": "ahead-wed keeps-1d assemble",
+        "Cranberry-Jalapeño Relish": "ahead-mon keeps-4d", "Pumpkin Cheesecake Bars": "ahead-wed keeps-4d",
       },
     });
     for (const t of FILE.targets.filter((x) => x.kind !== "feast")) assert.ok(t.dishes.every((d) => aheadTags(d).length === 0), t.key);
@@ -176,8 +179,8 @@ describe("per-target options", () => {
   it("follow-up E: per-dish tags follow the TITLE, not the position; the thaw line names the day to start", () => {
     const classic = byKey("thx2-feast-classic");
     const tagFor = aheadTagsFor(classic);
-    assert.deepEqual(tagFor({ title: "Classic Pumpkin Pie with Whipped Cream" }, 1), ["ahead-wed", "keeps-2d"], "a reordered pie keeps its own tags");
-    assert.deepEqual(tagFor({ title: "Turkey Pan Gravy" }, 7), ["ahead-tue", "keeps-4d"]);
+    assert.deepEqual(tagFor({ title: "Classic Pumpkin Pie with Whipped Cream" }, 1), ["ahead-wed", "keeps-4d"], "a reordered pie keeps its own tags");
+    assert.deepEqual(tagFor({ title: "Turkey Pan Gravy" }, 7), ["ahead-tue", "keeps-2d"]);
     assert.deepEqual(tagFor({ title: "Something Unasked" }, 3), [], "position fallback only for an unused target dish (#3 mashed potatoes has none)");
     assert.deepEqual(runOptionsFor(byKey("thx2-feast-classic"), FILE).dishTagsFor !== undefined, true);
     assert.equal(runOptionsFor(byKey("thx2-friday-classic"), FILE).dishTagsFor, undefined);
@@ -234,11 +237,14 @@ describe("per-target options", () => {
     };
     assert.deepEqual(pathFlags([dish]), [], "the bought step's 'do not add extra salt' is no use");
   });
-  it("follow-up E: validation refuses make-ahead fields off a feast, ahead without keeps, thaw off the bird", () => {
+  it("follow-up E: validation refuses make-ahead fields off a feast, an authored keeps, thaw off the bird", () => {
     const a = clone(); a.targets.find((t) => t.kind === "friday")!.dishes[0].ahead = "tue";
     assert.ok(validateTargets(a).some((e) => e.includes("feast dishes only")));
-    const b = clone(); delete b.targets.find((t) => t.key === "thx2-feast-classic")!.dishes[4].keeps;
-    assert.ok(validateTargets(b).some((e) => e.includes("ahead and keeps go together")));
+    // THX-3 — keep-days are the table's: an authored value is refused.
+    const b = clone(); (b.targets.find((t) => t.key === "thx2-feast-classic")!.dishes[4] as { keeps?: number }).keeps = 7;
+    assert.ok(validateTargets(b).some((e) => e.includes("keep-days table")));
+    const b2 = clone(); b2.targets.find((t) => t.key === "thx2-feast-classic")!.dishes[4].alsoAhead = ["wed"];
+    assert.ok(validateTargets(b2).some((e) => e.includes("must come before")));
     const c = clone(); c.targets.find((t) => t.key === "thx2-feast-classic")!.dishes[4].thaw = 2;
     assert.ok(validateTargets(c).some((e) => e.includes("belong on the bird")));
   });
