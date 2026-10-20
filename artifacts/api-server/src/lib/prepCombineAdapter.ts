@@ -22,7 +22,7 @@
 
 import { wholeItemMultiplier } from "./prepQuantity";
 import { inferCategory } from "./ingredientResolve";
-import { assignPhase } from "./prepCombineEngine";
+import { assignPhase, isNeverMeasured, isSaltOrPepper } from "./prepCombineEngine";
 import { resolveDishComponents } from "./prepComponents";
 import { mixtureEntryKey, resolveMoments } from "./prepMoments";
 import type { PrepCombineInput } from "./prepCombineEngine";
@@ -140,7 +140,16 @@ export function prepPortion(
   // Never invent more than the row had.
   return { quantity: Math.min(quantity, prepTotal), preparationNote: keptNote };
 }
-export function buildPrepCombineInput(loaded: PrepLoadedPlan): PrepCombineInput {
+export function buildPrepCombineInput(
+  loaded: PrepLoadedPlan,
+  /**
+   * THX-3 — the feast session. Its salt and pepper are measures (prepCombineEngine
+   * CombineOptions), and they join a mixture only by their OWN step or tag: Classic's
+   * herb-butter pepper rode the run proxy into the brine's bowl. A make-ahead dish
+   * (`makeAhead`) brings only its shelf-stable dry members (D-WS9-316).
+   */
+  opts: { feast?: boolean } = {},
+): PrepCombineInput {
   return {
     meals: loaded.meals.map((meal) => ({
       mealId: meal.mealId,
@@ -288,6 +297,17 @@ export function buildPrepCombineInput(loaded: PrepLoadedPlan): PrepCombineInput 
         // container; a run-absorbed ingredient is keyed the same way, so a glaze
         // simmered at s3 no longer rides a rub measured at s0.
         const entryOf = (id: string, name: string) => mixtureEntryKey(ordered, id, name);
+        // THX-3 — in a feast, a salt or pepper rides its run into a mixture only beside a
+        // DRY partner named in the same step that rides it too (the brine's salt with its
+        // sugar). Alone in its step — the herb butter's pepper — it does not.
+        const partneredSeasoning = (id: string): boolean => {
+          const run = moments.runByIngredientId.get(id);
+          return ordered.some((s) => s.ingredientIds.includes(id) && s.ingredientIds.some((o) => {
+            if (o === id || phaseOfIngredient.get(o) !== "seasonings_dry") return false;
+            const other = dish.ingredients.find((i) => i.ingredientId === o);
+            return !!other && !isSaltOrPepper(other.ingredientName) && !isNeverMeasured(other.ingredientName) && moments.runByIngredientId.get(o) === run;
+          }));
+        };
         const momentKeyFor = (ing: { ingredientId: string; category: string; ingredientName: string }): string | null => {
           const own = resolved.byIngredient.get(ing.ingredientId);
           if (own) return `c:${own.key}@${entryOf(ing.ingredientId, ing.ingredientName)}`;
@@ -316,7 +336,7 @@ export function buildPrepCombineInput(loaded: PrepLoadedPlan): PrepCombineInput 
           if (entry !== null && entry.startsWith("s:")) return entry;
           const run = moments.runByIngredientId.get(ing.ingredientId);
           const shared = run === undefined ? undefined : componentByRun.get(run);
-          if (shared) return `c:${shared.key}@${entryOf(ing.ingredientId, ing.ingredientName)}`;
+          if (shared && !(opts.feast && isSaltOrPepper(ing.ingredientName) && !partneredSeasoning(ing.ingredientId))) return `c:${shared.key}@${entryOf(ing.ingredientId, ing.ingredientName)}`;
           return resolvedKey;
         };
         // Ruling 1 — a raw protein named by a mixture's steps joins it on cook

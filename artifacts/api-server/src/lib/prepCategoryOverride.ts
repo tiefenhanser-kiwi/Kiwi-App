@@ -93,5 +93,13 @@ export const PREP_CATEGORY_OVERRIDE: Record<string, string> = {
  * un-listed row is unchanged by construction.
  */
 export function resolvePrepCategory(name: string, category: string): string {
-  return PREP_CATEGORY_OVERRIDE[normalizeIngredientName(name)] ?? category;
+  const nn = normalizeIngredientName(name);
+  const pinned = PREP_CATEGORY_OVERRIDE[nn];
+  if (pinned) return pinned;
+  // THX-3 — a GROUND or DRIED spice filed as Produce is a jar on the shelf, not
+  // a vegetable: `ground ginger` (Produce, the only such row on dev) was left out
+  // of both pumpkin pies' spice mixes. A rule rather than a table key, so the
+  // next one is covered too; the aisle (`Ingredient.category`) is untouched.
+  if (category.trim().toLowerCase() === "produce" && /^(?:ground|dried)\s/.test(nn)) return "Pantry";
+  return category;
 }

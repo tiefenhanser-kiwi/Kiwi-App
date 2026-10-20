@@ -334,6 +334,11 @@ const DENYLIST: ReadonlySet<string> = new Set([
 const SAUCE_NAME_HINTS: readonly string[] = [
   "sauce",
   "paste",
+  // THX-3 (BUG-447) — Hans: "that vanilla should go in with the wet stuff and
+  // pumpkin puree". An extract is poured, and a purée is wet.
+  "extract",
+  "purée",
+  "puree",
   "oil",
   "dressing",
   "marinade",
@@ -345,9 +350,58 @@ const SAUCE_NAME_HINTS: readonly string[] = [
   "wine",
 ];
 
-function isDenied(name: string): boolean {
+// ── THX-3 (BUG-426 / BUG-447) — NOT EVERY PANTRY ROW IS A MEASURE ────────────
+//
+// Hans, October 19, on Classic's brine: "it tells the user to put brown sugar
+// and a gallon of cold water into a brining bag in the dry steps". The denylist
+// has the bare word `water`, so `cold water` (Pantry, no pack) read as a dry
+// spice, and `large brining bag` — a bag — was measured into the "dry mix" beside
+// it. Measured on dev: 15 water rows (696 dish uses: cold, warm, ice, boiling,
+// pasta water), 6 equipment rows, two of them filed as Protein.
+//
+// So by NAME, before any category: water is never a prep measure (a flavoured
+// water — rose, orange blossom, kewra — is an ingredient and keeps the old rule),
+// and equipment is never food.
+const WATER = /\bwater\b/i;
+const FLAVOURED_WATER = /\b(?:rose|orange blossom|orange flower|kewra|coconut|tonic|soda|sparkling)\s+water\b|\bwater ?cress\b|\bwater chestnuts?\b|\bin water\b/i;
+const EQUIPMENT =
+  /\b(?:brining|oven|roasting|zip[- ]?top|freezer|plastic|resealable|ziploc)\s+bags?\b|\bbrining bag\b|\b(?:aluminum\s+)?foil\b|\bparchment(?:\s+paper)?\b|\b(?:kitchen|butcher'?s)\s+twine\b|\bcheesecloth\b|\bpaper towels?\b/i;
+
+/** THX-3 — water in any form, or a piece of equipment: never measured into anything. */
+export function isNeverMeasured(name: string): boolean {
+  return (WATER.test(name) && !FLAVOURED_WATER.test(name)) || EQUIPMENT.test(name);
+}
+
+// ── THX-3 — A FEAST MEASURES ITS SALT ───────────────────────────────────────
+//
+// D3 keeps salt and pepper out of every weeknight blend ("cook-time staples"),
+// and that stays. A feast is different (Hans, October 19, ruled feasts only on
+// October 20): the brine is "salt and brown sugar", and the pie's container holds
+// "the dry spices, salt and sugar". So in the feast session salt and pepper are
+// measures; everything else the denylist names stays denied there too.
+const FEAST_SEASONING = /^(?:(?:kosher|sea|table|fine|flaky|coarse)\s+)?salt$|^(?:freshly\s+)?(?:ground\s+)?(?:black\s+|white\s+)?pepper$/;
+
+/** A salt or a ground pepper — the members a feast mix may hold but not consist of. */
+export function isSaltOrPepper(name: string): boolean {
+  return FEAST_SEASONING.test(normalizeIngredientName(name));
+}
+
+export interface CombineOptions {
+  /** THX-3 — the feast session: salt and pepper are measures, and two dry items make a mix. */
+  feast?: boolean;
+}
+
+function isDenied(name: string, opts: CombineOptions = {}): boolean {
+  if (isNeverMeasured(name)) return true;
+  if (opts.feast && isSaltOrPepper(name)) return false;
   return DENYLIST.has(normalizeIngredientName(name));
 }
+
+// THX-3 — a Pantry row named "fresh …" is not a dry spice: "fresh cranberries"
+// (Pantry, no pack) sat in Cranberry-Orange Sauce's "dry mix". Fresh chiles and
+// okra are knife work (produce); fresh noodles and salsa are bought and used.
+const FRESH_PANTRY = /^fresh\s/;
+const FRESH_BUY_AND_USE = /\b(noodles?|pasta|ramen|salsa|pico de gallo)\b/;
 
 function categoryKey(category: string): string {
   return category.trim().toLowerCase();
@@ -387,9 +441,10 @@ export function assignPhase(
   name: string,
   purchaseUnit?: string | null,
 ): PrepPhaseKey | null {
-  const pantryPhase = (): PrepPhaseKey => {
-    if (purchaseUnit && WET_PACKS.has(purchaseUnit.trim().toLowerCase())) return "sauces_marinades";
+  const pantryPhase = (): PrepPhaseKey | null => {
     const nn = normalizeIngredientName(name);
+    if (FRESH_PANTRY.test(nn)) return FRESH_BUY_AND_USE.test(nn) ? null : "produce";
+    if (purchaseUnit && WET_PACKS.has(purchaseUnit.trim().toLowerCase())) return "sauces_marinades";
     return SAUCE_NAME_HINTS.some((h) => nn.includes(h))
       ? "sauces_marinades"
       : "seasonings_dry";
@@ -481,13 +536,13 @@ function buildLines(contributions: PrepContribution[]): PrepCombinedLine[] {
 // Tier-3 blend detection: per dish, the set of distinct ingredientIds that are
 // Pantry, assigned to seasonings_dry, and NOT denylisted. 3+ such on one dish
 // → all of them are blend components (worth pre-measuring together).
-function detectBlendComponents(input: PrepCombineInput): Set<string> {
+function detectBlendComponents(input: PrepCombineInput, opts: CombineOptions = {}): Set<string> {
   const blendIds = new Set<string>();
   for (const meal of input.meals) {
     for (const dish of meal.dishes) {
       const drySeasonings = new Set<string>();
       for (const ing of dish.ingredients) {
-        if (isDenied(ing.ingredientName)) continue;
+        if (isDenied(ing.ingredientName, opts)) continue;
         if (categoryKey(ing.category) !== "pantry") continue;
         if (assignPhase(ing.category, ing.ingredientName, ing.purchaseUnit) === "seasonings_dry") {
           // H6.1 — the blend detector counts DISTINCT FOODS, for the same reason
@@ -495,7 +550,11 @@ function detectBlendComponents(input: PrepCombineInput): Set<string> {
           drySeasonings.add(ingredientGroupKey(ing.ingredientName));
         }
       }
-      if (drySeasonings.size >= 3) {
+      // THX-3 — a feast mix is TWO dry items when one of them is not salt or pepper
+      // (the brine's salt and brown sugar; never a dish's salt and pepper alone).
+      const seasoningOnly = [...drySeasonings].every((k) => isSaltOrPepper(k));
+      const isBlend = opts.feast ? drySeasonings.size >= 2 && !seasoningOnly : drySeasonings.size >= 3;
+      if (isBlend) {
         for (const id of drySeasonings) blendIds.add(id);
       }
     }
@@ -527,8 +586,9 @@ function classifyPrepWorthy(
   group: GroupAccumulator,
   phase: PrepPhaseKey | null,
   isBlendComponent: boolean,
+  opts: CombineOptions = {},
 ): PrepWorthy {
-  if (isDenied(group.ingredientName)) return "exclude"; // Tier 1
+  if (isDenied(group.ingredientName, opts)) return "exclude"; // Tier 1
   // Rule 4 — before the category switch, because it is a statement about the
   // FORM of the food and no category can express it.
   if (isGroundMeat(group.ingredientName)) return "exclude";
@@ -585,6 +645,7 @@ export function combinePrep(
    * caller without this still merges every garlic spelling.
    */
   foldedIdByIngredientId?: ReadonlyMap<string, string>,
+  opts: CombineOptions = {},
 ): PrepCombineResult {
   const groups = new Map<string, GroupAccumulator>();
   const order: string[] = [];
@@ -696,7 +757,7 @@ export function combinePrep(
     }
   }
 
-  const blendIds = detectBlendComponents(input);
+  const blendIds = detectBlendComponents(input, opts);
 
   // Seed the 4 fixed phases (empty entries retained — invariant shape).
   const phaseMap = new Map<PrepPhaseKey, PrepIngredientGroup[]>();
@@ -710,7 +771,7 @@ export function combinePrep(
     // first draft changed the set to group keys and left this reading ids, which
     // emptied the dry phase on all 14 plans — the table caught it immediately.
     const isBlendComponent = blendIds.has(ingredientGroupKey(g.ingredientName));
-    const prepWorthy = classifyPrepWorthy(g, phase, isBlendComponent);
+    const prepWorthy = classifyPrepWorthy(g, phase, isBlendComponent, opts);
 
     const entry: PrepIngredientGroup = {
       ingredientId: g.ingredientId,

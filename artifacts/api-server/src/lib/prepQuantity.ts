@@ -96,6 +96,13 @@ export function displayedPrepQuantity(qty: number, unit: string, name = ""): num
   const u = unit.trim().toLowerCase();
   // Hans's egg rule — before rule 1, which would ceil them.
   if (COUNT_UNITS.has(u) && EGG_NAME.test(name)) return Math.max(1, Math.floor(qty + 0.5 + TIE));
+  // ⚠️ SERVER-ONLY, NOT IN FIX-7's TABLE: a pinch, a dash and a cinnamon stick
+  // are whole. At household 8 the feast printed "¾ pinch" salt and "¾ cinnamon
+  // stick" — measured, not a guess. The client prints the same today (reported to
+  // the client lane); kept outside the pinned table so the drift guard holds.
+  if (/^(pinch(?:es)?|dash(?:es)?)$/.test(u) || (COUNT_UNITS.has(u) && /\b(cinnamon sticks?|star anise|vanilla beans?)\b/i.test(name))) {
+    return Math.max(1, Math.round(qty));
+  }
   // Rule 1 — whole counted items, by unit word or by name on a count unit.
   if (WHOLE_UNITS.includes(singularUnit(u)) || (COUNT_UNITS.has(u) && (WHOLE_ITEM_NAME.test(name) || WHOLE_BIRD.test(name)))) {
     return Math.max(1, Math.ceil(qty - TIE));

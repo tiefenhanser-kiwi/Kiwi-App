@@ -46,6 +46,7 @@ import { proseNames } from "./prepMoments";
 import {
   PREP_PHASE_ORDER,
   canonicalizeUnit,
+  isSaltOrPepper,
   type IngredientComponent,
   type PrepPhaseKey,
   type PrepCombineResult,
@@ -689,6 +690,11 @@ export function buildStepPlan(
      * composition alone (D-WS9-298), so its choice may not move with a day edit.
      */
     mealOrder?: readonly string[];
+    /**
+     * THX-3 — the feast session ("Prep the feast"): a dry mix of TWO is a container
+     * when one member is not salt or pepper (the brine's salt and brown sugar).
+     */
+    feast?: boolean;
   } = {},
 ): StepPlan {
   const steps: PlannedStep[] = [];
@@ -1121,7 +1127,9 @@ export function buildStepPlan(
   const meetsFloor = (c: Container): boolean => {
     const n = c.members.size;
     if (c.cls === "B") return n >= 2;
-    if (allDryA(c)) return n >= 3;
+    // THX-3 — the feast's floor is two, and never salt and pepper alone (that is
+    // seasoning to taste at the stove, not a mix).
+    if (allDryA(c)) return opts.feast ? n >= 2 && [...c.members.values()].some((p) => !isSaltOrPepper(p.entry.ingredientName)) : n >= 3;
     return n >= 3 || (n >= 2 && c.noun !== null && mustSit(c.noun));
   };
   for (const [ck, c] of [...containers]) if (!meetsFloor(c)) containers.delete(ck);

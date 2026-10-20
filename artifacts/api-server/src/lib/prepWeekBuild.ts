@@ -28,6 +28,7 @@
 
 import type { LoadPrepWeekInputResult, PrepLoadedPlan } from "./prepWeekAggregation";
 import { buildPrepCombineInput } from "./prepCombineAdapter";
+import { feastClosingLines } from "./prepFeastClose";
 import { combinePrep } from "./prepCombineEngine";
 import { cutOf } from "./prepClasses";
 import {
@@ -73,6 +74,12 @@ export interface PrepWeekBuild {
   holds: Map<string, StepHold>;
   /** The cook-day list's lines that come from the step plan (0c), before the overlay's. */
   heldLines: string[];
+  /**
+   * THX-3 (BUG-426 b) — the feast session only: stepKey → the line that closes a
+   * container, "That's the Pumpkin Pie dry mix. On Wednesday, whisk it into …". Built
+   * from the recipe, appended at finish (never cached in prose).
+   */
+  closingLines?: Map<string, string>;
 }
 
 export interface BuildPrepWeekOptions {
@@ -80,6 +87,8 @@ export interface BuildPrepWeekOptions {
   scopeMealIds?: readonly string[];
   /** Census only: compute no holds (to count expired windows the old way). */
   noHolds?: boolean;
+  /** THX-3 — "Prep the feast": salt and pepper measure, two dry items make a mix, closing lines. */
+  feast?: boolean;
 }
 
 type Load = Pick<LoadPrepWeekInputResult, "input" | "cookDays" | "identity">;
@@ -173,7 +182,7 @@ export function feastOnlyLoad(load: Load): Load | null {
 /** "Prep the feast" — the feast's own session (see feastOnlyLoad). Null for a plan without one. */
 export function buildFeastSession(load: Load): PrepWeekBuild | null {
   const feast = feastOnlyLoad(load);
-  return feast ? buildPrepWeekPlan(feast) : null;
+  return feast ? buildPrepWeekPlan(feast, { feast: true }) : null;
 }
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -204,7 +213,8 @@ export function buildPrepWeekPlan(load: Load, opts: BuildPrepWeekOptions = {}): 
   // An older caller (or a hand-built test loader) carries no cook days: that is
   // "no day known", the same as a plan with no startDate.
   const cookDays = load.cookDays ?? { prepDay: null, lagByMealId: new Map(), dayNameByMealId: new Map() };
-  const combineResult = combinePrep(buildPrepCombineInput(input), identity?.foldedIdByIngredientId);
+  const combineInput = buildPrepCombineInput(input, opts.feast ? { feast: true } : {});
+  const combineResult = combinePrep(combineInput, identity?.foldedIdByIngredientId, opts.feast ? { feast: true } : {});
   // WS7-8a B2b — step text per dishId (folded dish + meal owned) so the engine
   // can judge what is prep and which dishes mix cold.
   const stepTextByDishId = new Map<string, string[]>();
@@ -219,6 +229,7 @@ export function buildPrepWeekPlan(load: Load, opts: BuildPrepWeekOptions = {}): 
     {
       ...(opts.scopeMealIds ? { scopeMealIds: new Set(opts.scopeMealIds) } : {}),
       mealOrder: input.meals.map((m) => m.mealId),
+      ...(opts.feast ? { feast: true } : {}),
     },
   );
 
@@ -302,6 +313,9 @@ export function buildPrepWeekPlan(load: Load, opts: BuildPrepWeekOptions = {}): 
     storageContexts,
     holds,
     heldLines: heldLinesFor(stepPlan, holds, cookDays, mealNameById),
+    ...(opts.feast
+      ? { closingLines: feastClosingLines(stepPlan.steps, new Map(input.meals.flatMap((m) => m.dishes.map((d) => [d.dishId, d] as const))), combineInput) }
+      : {}),
   };
   assignCoversCookSteps(build, load);
   return build;
@@ -647,6 +661,13 @@ export function finishPrepWeek(result: PrepWeekResult, build: PrepWeekBuild): Pr
           const full = `${out.title} — ${keptDishes.join(", ")}`;
           out = { ...out, title: full.length <= 120 ? full : `${out.title} — ${keptDishes.length} dishes`.slice(0, 120) };
         }
+      }
+      // THX-3 (BUG-426 b) — the feast container's closing line, on the step that
+      // closes it. Whole or not at all: the wire caps instructions at 800.
+      const close = build.closingLines?.get(w.stepKey);
+      if (close && !out.skipSuggested && !out.instructions.includes(close)) {
+        const next = `${out.instructions}\n${close}`;
+        if (next.length <= 800) out = { ...out, instructions: next };
       }
       return out;
     });
