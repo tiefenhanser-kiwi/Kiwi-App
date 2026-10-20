@@ -49,7 +49,7 @@ import { formatMealTime } from "@/lib/mealTimeLine";
 // formatQuantity, which is AMOUNT-ONLY, and so lost every unit. The composition
 // is now one shared pure function and this is one of its callers, which is what
 // keeps the two screens from drifting apart again.
-import { formatIngredientLine } from "@/lib/format/ingredientLine";
+import { formatIngredientLine, ingredientAmountNote } from "@/lib/format/ingredientLine";
 import { consolidateMealIngredients } from "@/lib/meals/consolidateMealIngredients";
 import { visibleMealTags } from "@/lib/meals/systemTags";
 import {
@@ -66,6 +66,7 @@ import {
 } from "@/lib/meals/servingsSaveGate";
 import { dialog } from "@/lib/dialog";
 import { goBack } from "@/lib/navigation";
+import { IngredientAmountNote } from "@/components/IngredientAmountNote";
 
 // BUG-453 — the household range (lib/meals/servingsSaveGate.ts), not 12.
 const SERVINGS_MIN = MEAL_SERVINGS_MIN;
@@ -765,9 +766,15 @@ function MealDetailContent({
                 <Text style={s.dishHeader}>For the {resolveDisplayTitle(dish)}:</Text>
               )}
               {dish.ingredients.map((ing, i) => (
-                <Text key={i} style={s.ingredientLine}>
-                  {formatIngredientLine(ing, { multiplier: servingsMultiplier })}
-                </Text>
+                <React.Fragment key={i}>
+                  <Text style={s.ingredientLine}>
+                    {formatIngredientLine(ing, { multiplier: servingsMultiplier })}
+                  </Text>
+                  {/* WEB-4 — an egg rounded to a whole shows its true amount. */}
+                  <IngredientAmountNote
+                    note={ingredientAmountNote(ing, { multiplier: servingsMultiplier, servings: displayServings })}
+                  />
+                </React.Fragment>
               ))}
             </View>
           ))}
@@ -798,7 +805,7 @@ function MealDetailContent({
         visible={ingredientsOpen}
         title={resolveDisplayTitle(meal)}
         servings={displayServings}
-        items={consolidateMealIngredients(meal, servingsMultiplier)}
+        items={consolidateMealIngredients(meal, servingsMultiplier, displayServings)}
         showProvenance={meal.dishes.length > 1}
         onClose={() => setIngredientsOpen(false)}
       />

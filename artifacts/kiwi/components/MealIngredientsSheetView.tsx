@@ -20,6 +20,7 @@ import { Feather } from "@expo/vector-icons";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import type { ConsolidatedIngredient } from "@/lib/meals/consolidateMealIngredients";
 import { webSheet } from "@/lib/webLayout";
+import { IngredientAmountNote } from "@/components/IngredientAmountNote";
 
 export interface MealIngredientsSheetViewProps {
   visible: boolean;
@@ -81,6 +82,8 @@ export function MealIngredientsSheetView({
               items.map((it, i) => (
                 <View key={`${it.name}|${it.unit}|${i}`} style={s.row}>
                   <Text style={s.line}>{it.line}</Text>
+                  {/* WEB-4 — an egg rounded to a whole shows its true amount. */}
+                  <IngredientAmountNote note={it.note ?? null} />
                   {showProvenance && it.dishTitles.length > 0 && (
                     <Text style={s.provenance}>For {it.dishTitles.join(", ")}</Text>
                   )}

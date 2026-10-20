@@ -34,7 +34,7 @@
 // Pure and in lib/ because app/** is outside the test glob (D-WS9-164). The
 // sheet that renders it is components/MealIngredientsSheetView.tsx.
 
-import { formatIngredientLine } from "../format/ingredientLine";
+import { formatIngredientLine, ingredientAmountNote } from "../format/ingredientLine";
 import { normalizeUnitToken } from "../format/grocery";
 import { wholeItemMultiplier } from "../format/quantity";
 import type { MealDetail } from "../api/meals";
@@ -51,6 +51,8 @@ export interface ConsolidatedIngredient {
   dishTitles: string[];
   /** The rendered line, through the SAME formatter the meal screen uses. */
   line: string;
+  /** WEB-4 — the egg note ("recipe calls for ¾ at 2 servings"), or null. */
+  note: string | null;
 }
 
 /**
@@ -80,6 +82,8 @@ function groupKeyName(name: string): string {
 export function consolidateMealIngredients(
   meal: Pick<MealDetail, "dishes">,
   multiplier = 1,
+  /** WEB-4 — the servings the multiplier scales to, for the egg note. */
+  servings?: number,
 ): ConsolidatedIngredient[] {
   const byKey = new Map<string, ConsolidatedIngredient & { titles: Set<string> }>();
   const order: string[] = [];
@@ -92,7 +96,7 @@ export function consolidateMealIngredients(
       const key = `${groupKeyName(ing.name)}|${normalizeUnitToken(unit)}`;
       // FIX-7 rule 4 — a whole bird by weight is not scaled down; the line
       // below gets multiplier 1, so the bird rule has to be applied here.
-      const scaled = ing.quantity * wholeItemMultiplier(multiplier, unit, ing.name);
+      const scaled = ing.quantity * wholeItemMultiplier(multiplier, unit, ing.name, ing.quantity);
       const hit = byKey.get(key);
       if (hit) {
         hit.quantity += scaled;
@@ -104,6 +108,7 @@ export function consolidateMealIngredients(
           unit,
           dishTitles: [],
           line: "",
+          note: null,
           titles: new Set([dish.title]),
         });
         order.push(key);
@@ -125,6 +130,10 @@ export function consolidateMealIngredients(
       line: formatIngredientLine(
         { name: row.name, quantity: row.quantity, unit: row.unit },
         { multiplier: 1 },
+      ),
+      note: ingredientAmountNote(
+        { name: row.name, quantity: row.quantity, unit: row.unit },
+        { multiplier: 1, servings },
       ),
     };
   });

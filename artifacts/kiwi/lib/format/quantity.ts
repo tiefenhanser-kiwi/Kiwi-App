@@ -103,8 +103,17 @@ const WHOLE_UNITS = ["whole", "clove", "sprig", "slice", "leaf", "strip"];
 //      the step text could disagree with. No pound amount is authored off the
 //      ¼ grid, so household 4 cannot move.
 //   4. A WHOLE BIRD is never scaled DOWN by weight — see wholeItemMultiplier.
+//      WEB-4 (BUG-453): it scales down now, to the smallest whole bird of its
+//      kind commonly sold (BIRD_FLOOR_LB), never below it.
 //
 // Ties go UP everywhere (⅜ tsp → ½, ⅝ lb → ¾, ⅞ cup → 1).
+//
+// WEB-4 — EGGS ARE THE ONE COUNT THAT ROUNDS TO THE NEAREST, not up (Hans,
+// October 19): eggs, yolks and whites go to the nearest whole number, halves
+// up, never below 1 — ¾ egg is 1, 1¼ is 1, 1½ is 2. Every other whole item
+// (tortillas, cloves, bay leaves …) keeps rule 1's ceiling. Ingredient lists add
+// the true amount as a note when it differs (lib/format/ingredientLine.ts's
+// ingredientAmountNote); steps and Cook Mode print the whole number only.
 
 /** Count tokens: no unit word, so the number counts the ingredient itself. */
 const COUNT_UNITS: ReadonlySet<string> = new Set([
@@ -122,6 +131,14 @@ const WHOLE_ITEM_NAME = new RegExp(
   String.raw`\b(eggs?(?! noodles)|yolks?|egg whites?|tortillas?|taco shells?|tostadas?|tostada shells?|buns?|rolls?|hoagies?|pitas?|english muffins?|bagels?|chops?|fillets?|breasts?|thighs?|drumsticks?|wings?|links?|sausages?|bratwursts?|hot dogs?|patt(?:y|ies)|burgers?|skewers?|toothpicks?|bay lea(?:f|ves)|cloves?|sprigs?|slices?|strips?|pouch(?:es)?|wedges?|lasagna (?:noodles|sheets)|pie crusts?)\b`,
   "i",
 );
+
+/** WEB-4 — eggs, yolks, whites: the nearest-whole count (see the header). */
+const EGG_NAME = /\b(eggs?(?! noodles)|yolks?|egg whites?)\b/i;
+
+/** True when this unit+name is an egg COUNT (not "1 cup egg whites"). */
+export function isEggCount(unit: string, name: string): boolean {
+  return COUNT_UNITS.has(unit.trim().toLowerCase()) && EGG_NAME.test(name);
+}
 
 /** A whole bird, by name: never halved by weight, never shown as ½ a bird. */
 const WHOLE_BIRD = new RegExp(
@@ -159,14 +176,65 @@ function isWholeBirdByWeight(unit: string, name: string): boolean {
 }
 
 /**
- * FIX-7 rule 4 — the multiplier a line should actually scale by. A whole bird
- * bought by weight is one bird: at household 2 the 4-pound chicken is still a
- * 4-pound chicken (and the 14-pound Thanksgiving turkey still 14), so a
- * multiplier below 1 does not apply to it. Above 1 it scales as before (a
- * bigger bird). A bird by COUNT needs no help here — rule 1 ceils it.
+ * WEB-4 (BUG-453) — the smallest whole bird of each kind a grocer commonly
+ * stocks, in pounds. A scaled-down bird stops here: below it there is no bird
+ * to buy. Checked in order (a "cornish hen" is not a "hen").
+ *
+ * MEASURED, the catalog's whole birds by weight (public dev catalog,
+ * 2026-10-20): turkey 14 lb written for 10 (2 lines); chicken 3½–4 lb written
+ * for 4 (and 2) (16 lines). No duck, goose or hen is authored by weight; their
+ * floors are for user meals. The sizes: turkeys are sold from about 10 lb (an
+ * 8 lb bird exists but is rare); whole broiler-fryers 3–4½ lb; a rotisserie
+ * chicken is about 2 lb cooked; ducks 4–6 lb; geese 8 lb and up; Cornish hens
+ * 1–2 lb. A whole bird of no listed kind keeps FIX-7's rule (no scale-down).
  */
-export function wholeItemMultiplier(multiplier: number, unit: string, name = ""): number {
-  return multiplier < 1 && isWholeBirdByWeight(unit, name) ? 1 : multiplier;
+const BIRD_FLOOR_LB: ReadonlyArray<readonly [RegExp, number]> = [
+  [/\bturkeys?\b/i, 10],
+  [/\b(?:cornish|game) hens?\b/i, 1],
+  [/\brotisserie chickens?\b/i, 2],
+  [/\bducks?\b/i, 4],
+  [/\b(?:goose|geese)\b/i, 8],
+  [/\b(?:chickens?|hens?)\b/i, 3],
+];
+
+/** Pounds per one of this weight unit; null for a unit that is not a weight. */
+function poundsPer(unit: string): number | null {
+  const u = unit.trim().toLowerCase();
+  if (POUND_UNITS.test(u)) return 1;
+  if (/^(oz|ounces?)$/.test(u)) return 1 / 16;
+  if (/^(g|grams?)$/.test(u)) return 1 / 453.59237;
+  if (/^(kg|kilograms?)$/.test(u)) return 2.20462262;
+  return null;
+}
+
+/** The floor for this bird, in pounds, or null when its kind has none. */
+export function birdFloorPounds(name: string): number | null {
+  for (const [re, lb] of BIRD_FLOOR_LB) if (re.test(name)) return lb;
+  return null;
+}
+
+/**
+ * FIX-7 rule 4 — the multiplier a line should actually scale by. A whole bird
+ * bought by weight is one bird. Above 1 it scales as before (a bigger bird).
+ * A bird by COUNT needs no help here — rule 1 ceils it.
+ *
+ * WEB-4 (BUG-453) — below 1 it now scales DOWN, but never below the smallest
+ * bird of its kind (BIRD_FLOOR_LB), and never above the recipe's own weight:
+ * the 14 lb turkey at 4 of 10 servings is a 10 lb turkey, not 5.6 lb and not
+ * 14. `quantity` is the line's own (unscaled) amount; without it, or for a
+ * kind with no floor, the old rule holds (no scale-down).
+ */
+export function wholeItemMultiplier(
+  multiplier: number,
+  unit: string,
+  name = "",
+  quantity?: number,
+): number {
+  if (multiplier >= 1 || !isWholeBirdByWeight(unit, name)) return multiplier;
+  const floor = birdFloorPounds(name);
+  const per = poundsPer(unit);
+  if (floor === null || per === null || quantity === undefined || !(quantity > 0)) return 1;
+  return Math.max(multiplier, Math.min(1, floor / (quantity * per)));
 }
 
 /**
@@ -192,6 +260,8 @@ export function wholeItemMultiplier(multiplier: number, unit: string, name = "")
  */
 export function displayedQuantity(qty: number, unit: string, name = ""): number {
   const u = unit.trim().toLowerCase();
+  // WEB-4 — eggs: the nearest whole, halves up, never below 1.
+  if (qty > 0 && isEggCount(u, name)) return Math.max(1, Math.floor(qty + 0.5 + TIE));
   // Rule 1 — whole counted items, by unit word or by name on a count unit. The
   // TIE keeps float noise (3.0000000004) from ceiling a whole number up.
   if (

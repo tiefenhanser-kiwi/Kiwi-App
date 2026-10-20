@@ -23,7 +23,7 @@
 //
 // Pure and in lib/ because app/** is outside the test glob (D-WS9-164).
 
-import { displayedQuantity, formatQuantity, wholeItemMultiplier } from "./quantity";
+import { displayedQuantity, formatQuantity, isEggCount, wholeItemMultiplier } from "./quantity";
 import { countedIngredientName, unitWordFor } from "./grocery";
 
 /** The fields of a meal-detail ingredient this formatter reads. Structurally
@@ -100,6 +100,11 @@ const SUPPRESSED_COUNT_UNITS: ReadonlySet<string> = new Set([
   "unit",
   "units",
 ]);
+
+// BUG-443 — a SIZE word stored as the unit ("2 large egg"). It is printed, but
+// the number still counts the NAME: two large EGGS. Without this the size word
+// counted as a real unit and the name was never pluralised.
+const SIZE_UNITS: ReadonlySet<string> = new Set(["large", "medium", "small", "extra-large", "extra large", "jumbo"]);
 
 /** Whether a unit token is a placeholder rather than a word a recipe says. */
 export function isSuppressedCountUnit(unit: string | null | undefined): boolean {
@@ -184,19 +189,47 @@ export function formatIngredientLine(
   const unit = ing.unit?.trim() ?? "";
   // FIX-7 (BUG-437) — the NAME reaches the rounding now: it decides whether a
   // count is a whole item (½ egg → 1) and whether a weight is a whole bird.
-  const scaled = ing.quantity * wholeItemMultiplier(multiplier, unit, ing.name);
+  // WEB-4 (BUG-453) — the line's own quantity reaches the bird floor.
+  const scaled = ing.quantity * wholeItemMultiplier(multiplier, unit, ing.name, ing.quantity);
   const shown = displayedQuantity(scaled, unit, ing.name);
   const hasUnitWord = unit.length > 0 && !isSuppressedCountUnit(unit);
+  const sizeWord = SIZE_UNITS.has(unit.toLowerCase());
   const parts: string[] = [formatQuantity(scaled, unit, ing.name)];
   // FIX-7 — unitWordFor: plural above 1 as before, and singular at 1 or below
-  // for the few lines whose unit is stored plural ("cloves", "cups").
-  if (hasUnitWord) parts.push(unitWordFor(unit, shown));
-  // The number counts the NAME only when no unit word stands between them.
-  parts.push(hasUnitWord ? ing.name : countedIngredientName(ing.name, shown));
+  // for the few lines whose unit is stored plural ("cloves", "cups"). A size
+  // word is printed as stored: it has no plural.
+  if (hasUnitWord) parts.push(sizeWord ? unit : unitWordFor(unit, shown));
+  // The number counts the NAME only when no unit word stands between them, or
+  // when that word is a size ("2 large eggs").
+  parts.push(hasUnitWord && !sizeWord ? ing.name : countedIngredientName(ing.name, shown));
   if (includeNotes) {
     const note = ing.preparationNote?.trim();
     if (note) parts.push(`(${note})`);
     if (ing.isOptional) parts.push("— optional");
   }
   return parts.join(" ");
+}
+
+/**
+ * WEB-4 — the egg note, for INGREDIENT LISTS only (meal detail, dish detail, the
+ * Ingredients sheet). Eggs show the nearest whole number (lib/format/quantity.ts);
+ * when that differs from the true scaled amount, this is the small grey line
+ * under it: "recipe calls for ¾ at 2 servings". Steps and Cook Mode never show
+ * it. null for anything that is not an egg count, or when nothing was rounded.
+ * `servings` is the count the multiplier scaled to; omitted, the note has no
+ * "at …" clause.
+ */
+export function ingredientAmountNote(
+  ing: IngredientLineParts,
+  opts: { multiplier?: number; servings?: number } = {},
+): string | null {
+  const unit = ing.unit?.trim() ?? "";
+  if (!isEggCount(unit, ing.name)) return null;
+  const scaled = ing.quantity * (opts.multiplier ?? 1);
+  const shown = displayedQuantity(scaled, unit, ing.name);
+  const trueAmount = Math.round(scaled * 8) / 8;
+  if (trueAmount <= 0 || Math.abs(trueAmount - shown) < 1e-9) return null;
+  const amount = formatQuantity(scaled, "", "");
+  const at = opts.servings ? ` at ${opts.servings} ${opts.servings === 1 ? "serving" : "servings"}` : "";
+  return `recipe calls for ${amount}${at}`;
 }

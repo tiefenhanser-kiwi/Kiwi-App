@@ -104,6 +104,57 @@ export function followingWords(text: string, from: number): string {
   return stop === -1 ? rest : rest.slice(0, stop);
 }
 
+// ── WEB-4 (BUG-443, BUG-450) — AMOUNTS THAT ARE NOT QUANTITIES ─────────────
+//
+// Some step amounts are not how much of an ingredient to use, so the servings
+// multiplier has no business with them. MEASURED on the public dev catalog
+// (32,083 refs, 2026-10-20):
+//
+//   - 374 refs are a SIZE written with a hyphen: "the 28-oz can", "6-oz salmon
+//     fillets", "a 6-quart saucepan". The number belongs to the can, the fillet
+//     or the pot, and at household 2 it read "the 14-oz can". When the noun
+//     after the hyphenated unit is a package or a piece of equipment
+//     (PACKAGE_NOUN), or a per-piece cut sized in ounces (PIECE_NOUN), the span
+//     prints as written. A piece bought by its own weight — "the 3-pound chuck
+//     roast", "the 1¾-pound flank steak" — still scales, so the step agrees
+//     with the ingredient line.
+//   - 11 refs carry a TIME unit ("1½ minutes" → "¾ minute"), and 5 unit-less
+//     refs are followed by one ("2 days ahead"). A duration never scales.
+//     BUG-450's "keeps up to 1⅝ days" (a Thanksgiving make-ahead) is this class.
+//
+// Same output path as BUG-326's ranges: the authored text, still highlighted.
+const TIME_UNIT = /^(?:s|secs?|seconds?|mins?|minutes?|hrs?|hours?|days?|weeks?|months?|nights?)$/i;
+const TIME_AFTER = /^\s*(?:secs?|seconds?|mins?|minutes?|hrs?|hours?|days?|weeks?|months?|nights?)\b/i;
+/** "-oz", "-pound", "-quart" … right after the number. */
+const SIZE_AFTER =
+  /^[-‑]\s*(?:oz|ounces?|lbs?|pounds?|g|grams?|kg|kilograms?|qt|quarts?|cups?|liters?|litres?|ml|inch(?:es)?|in)\b/i;
+/** What a hyphenated size describes when its number is not an amount to
+ *  scale: a package (or a beer, which is one), or a piece of equipment. */
+const PACKAGE_NOUN =
+  /\b(?:cans?|jars?|bottles?|packages?|pkgs?|packets?|bags?|box(?:es)?|cartons?|containers?|tubs?|tubes?|pouch(?:es)?|blocks?|sticks?|loaf|loaves|sheets?|lagers?|beers?|ales?|stouts?|saucepans?|stockpots?|pots?|pans?|skillets?|dutch ovens?|slow cookers?|baking dish(?:es)?|casserole dish(?:es)?|ramekins?|molds?)\b/i;
+/** A per-piece cut, sized in OUNCES or grams ("6-oz salmon fillets", "4-oz
+ *  patties"). Sized in pounds the same noun is usually the whole amount — "the
+ *  1¾-pound flank steak" is one steak, and it scales with its line. */
+const PIECE_NOUN = /\b(?:fillets?|steaks?|portions?|slices?|balls?|patt(?:y|ies)|links?|cutlets?|chops?)\b/i;
+const OUNCE_SIZE = /^[-‑]\s*(?:oz|ounces?|g|grams?)\b/i;
+/** "the 3-pound chicken", "the 4-pound whole chicken": a whole bird by its
+ *  weight (BUG-453's floor), never a cut of one. */
+const HYPHEN_BIRD =
+  /^[-‑]\s*(lbs?|pounds?|oz|ounces?|g|grams?|kg)\s+(?:whole\s+|spatchcock(?:ed)?\s+)?(chickens?|turkeys?|ducks?|goose|hens?)\b(?!\s+(?:thighs?|breasts?|wings?|drumsticks?|legs?|tenders?|tenderloins?|cutlets?|pieces?|parts?|quarters?|broth|stock))/i;
+
+/** Is this ref's number a duration or a package / piece / pan size? */
+export function refIsNotAQuantity(text: string, ref: Pick<AmountRef, "unit" | "charEnd">): boolean {
+  const unit = (ref.unit ?? "").trim();
+  if (TIME_UNIT.test(unit)) return true;
+  const after = text.slice(ref.charEnd);
+  if (!unit && TIME_AFTER.test(after)) return true;
+  if (!unit && SIZE_AFTER.test(after) && !HYPHEN_BIRD.test(after)) {
+    const noun = followingWords(text, ref.charEnd);
+    return PACKAGE_NOUN.test(noun) || (OUNCE_SIZE.test(after) && PIECE_NOUN.test(noun));
+  }
+  return false;
+}
+
 export interface AmountSegment {
   text: string;
   /** true → a structured ref amount (style it terracotta); false → plain text. */
@@ -144,7 +195,7 @@ export function buildAmountRefSegments(
     if (r.charStart < cursor) continue; // skip overlap — never mangle prose
     if (r.charStart > cursor) out.push({ text: text.slice(cursor, r.charStart), isRef: false });
     const authored = text.slice(r.charStart, r.charEnd);
-    if (spanHoldsRange(authored) || unitIsCorrupt(r.unit)) {
+    if (spanHoldsRange(authored) || unitIsCorrupt(r.unit) || refIsNotAQuantity(text, r)) {
       // BUG-326 — the author wrote a range; print the range.
       // BUG-334 — the unit swallowed part of the number, so the structured
       // amount cannot be printed without saying the fraction twice. Same
@@ -164,8 +215,13 @@ export function buildAmountRefSegments(
       // A size descriptor ("4-pound") names its unit after the hyphen; the ref's
       // own unit is "". Read it only for the whole-bird check (rule 4).
       const birdUnit = r.unit || (/^-\s*([a-z]+)/i.exec(name)?.[1] ?? "");
-      const amount = r.quantity * wholeItemMultiplier(multiplier, birdUnit, name);
-      const scaled = formatQuantity(amount, r.unit, name);
+      // WEB-4 (BUG-453) — "the 3-pound chicken" is a whole bird too: give the
+      // bird rule its kind, its weight unit and the ref's own quantity (the
+      // floor), and round it as that weight (¼ lb steps), not as a count.
+      const hyphenBird = r.unit ? null : HYPHEN_BIRD.exec(text.slice(r.charEnd));
+      const birdName = hyphenBird ? `whole ${hyphenBird[2]}` : name;
+      const amount = r.quantity * wholeItemMultiplier(multiplier, birdUnit, birdName, r.quantity);
+      const scaled = hyphenBird ? formatQuantity(amount, hyphenBird[1], "") : formatQuantity(amount, r.unit, name);
       // BUG-321 — the unit is a WORD here, same as on an ingredient line, and
       // pluralized on the DISPLAYED amount so "1 cups" cannot happen. FIX-7 —
       // and singularized there too: the ref's unit is authored ("pounds").

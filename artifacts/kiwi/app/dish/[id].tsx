@@ -25,8 +25,9 @@ import { BillingNotice } from "@/components/BillingNotice";
 import { useBilling } from "@/contexts/BillingContext";
 import { macrosNoticeFor } from "@/lib/billing/subscriptionView";
 import { formatMacro } from "@/lib/format/macros";
-import { formatIngredientLine } from "@/lib/format/ingredientLine";
+import { formatIngredientLine, ingredientAmountNote } from "@/lib/format/ingredientLine";
 import { goBack } from "@/lib/navigation";
+import { IngredientAmountNote } from "@/components/IngredientAmountNote";
 
 // WS7-3 Block C3 c3: dish detail reads GET /dishes/:id via useDish. Adopts
 // the Block B gate/body pattern from app/meal/[id].tsx — DishDetailScreen
@@ -241,7 +242,8 @@ function DishDetailContent({ dish, plan }: { dish: DishDetail; plan?: PlanDishCo
         <View style={s.section}>
           <SectionLabel label="Ingredients" />
           {ingredients.map((ing, i) => (
-            <Text key={i} style={s.ingredientLine}>
+            <React.Fragment key={i}>
+            <Text style={s.ingredientLine}>
               {/* ①-follow-up — render 1.75 back as "1¾" via the existing
                   formatQuantity glyph formatter (same as Meal Detail), so a
                   fraction the user typed reads as a fraction on reopen.
@@ -255,6 +257,13 @@ function DishDetailContent({ dish, plan }: { dish: DishDetail; plan?: PlanDishCo
                   here. Now there is one formatter and three callers. */}
               {plan ? formatIngredientLine(ing, { multiplier }) : formatIngredientLine(ing)}
             </Text>
+            {/* WEB-4 — an egg rounded to a whole shows its true amount. */}
+            {plan && (
+              <IngredientAmountNote
+                note={ingredientAmountNote(ing, { multiplier, servings: plan.view.servings })}
+              />
+            )}
+            </React.Fragment>
           ))}
         </View>
 
