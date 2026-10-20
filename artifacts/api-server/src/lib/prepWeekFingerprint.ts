@@ -100,8 +100,14 @@ const FINGERPRINT_ALGO_VERSION = 1;
  *       large roast is never pounded. The protein's knife verbs are narration input
  *       ("Pound the 14 lb whole turkey … to even thickness" was cached on every
  *       feast session), so the cached prose must go.
+ *  10 — THX-3: every amount the narrator echoes is FIX-7's displayed number
+ *       (BUG-444: "4.8 cloves" → "5 cloves", ⅞ tbsp → 1 tbsp); water, ice and
+ *       equipment are never measured and extract, purée and fresh produce filed as
+ *       Pantry are never dry (BUG-426/447); a feast's salt and pepper join its dry
+ *       mixes, and a make-ahead dish brings only its shelf-stable mix to "Prep the
+ *       feast" (D-WS9-316). All change containers and amounts, so the prose must go.
  */
-export const PREP_ENGINE_VERSION = 9;
+export const PREP_ENGINE_VERSION = 10;
 
 /**
  * Digest of the loaded plan composition — everything the prep payload is built

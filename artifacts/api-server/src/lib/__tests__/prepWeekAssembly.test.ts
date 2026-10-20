@@ -479,14 +479,18 @@ describe("assemblePrepWeekResult — skipSuggested (B2b, H7 2c)", () => {
 // ── WS7-8b FIX 2: fraction formatter (code owns the math) ────────────────────
 
 describe("formatMeasure — kitchen-fraction formatting", () => {
-  it("rounds tsp/tbsp/cup UP to the nearest 1/8 with vulgar glyphs", () => {
+  // 🔴 THX-3 (BUG-444) — NOT "UP" ANY MORE. Spoons and cups snap to the nearest
+  // step a measuring set holds (FIX-7's table, prepQuantity.ts), ties up, floor ⅛.
+  // The rows that moved say what they were: 0.6425 cup was ¾ (now ⅔), 0.13 tsp was
+  // ¼ (now ⅛), ⅝ and ⅞ cup are not on a cup set (now ⅔ and 1).
+  it("snaps tsp/tbsp/cup to the nearest measuring step with vulgar glyphs", () => {
     const rows: Array<[number, string, string]> = [
       // exact eighths
       [0.125, "tsp", "⅛ tsp"],
       [0.25, "tsp", "¼ tsp"],
       [0.5, "tsp", "½ tsp"],
       [0.75, "cup", "¾ cup"],
-      [0.875, "cup", "⅞ cup"],
+      [0.875, "cup", "1 cup"], // ⅞ is not on a cup set: tie ¾/1 goes up
       // whole + mixed
       [1, "tsp", "1 tsp"],
       // 🔴 D-WS9-297 ruling 7 — UNSPACED. This line asserted "1 ½ tbsp" and was
@@ -495,21 +499,21 @@ describe("formatMeasure — kitchen-fraction formatting", () => {
       // mixed numbers in the prep text alone. One app, one mixed number.
       [1.5, "tbsp", "1½ tbsp"],
       [2, "cup", "2 cup"],
-      // rounds UP: 0.6425 cup → next eighth above ⅝(0.625) is ¾(0.75)
-      [0.6425, "cup", "¾ cup"],
-      // just over an eighth still bumps up
-      [0.13, "tsp", "¼ tsp"],
-      // 5/8 lands exactly (0.625) — not rounded further
-      [0.625, "cup", "⅝ cup"],
+      // nearest step: 0.6425 cup is closest to ⅔
+      [0.6425, "cup", "⅔ cup"],
+      // just over an eighth is an eighth
+      [0.13, "tsp", "⅛ tsp"],
+      // ⅝ cup is not on a cup set: nearest is ⅔
+      [0.625, "cup", "⅔ cup"],
     ];
     for (const [q, unit, want] of rows) {
       assert.equal(formatMeasure(q, unit), want, `${q} ${unit}`);
     }
   });
 
-  it("applies the same 1/8 policy to weight units oz/lb", () => {
+  it("ounces round to the nearest ⅛, pounds to the nearest ¼ (FIX-7 rule 3)", () => {
     assert.equal(formatMeasure(0.5, "oz"), "½ oz");
-    assert.equal(formatMeasure(1.3, "lb"), "1⅜ lb"); // 1.3 → 1.375 up, unspaced (ruling 7)
+    assert.equal(formatMeasure(1.3, "lb"), "1¼ lb"); // THX-3: ¼ lb steps (was 1⅜, up to the eighth)
     assert.equal(formatMeasure(2, "oz"), "2 oz");
   });
 
@@ -539,9 +543,9 @@ describe("formatMeasure — kitchen-fraction formatting", () => {
     // an onion is exact, and rounding it to ⅝ would be a lie about the data.
     assert.equal(formatMeasure(1 / 3, "each"), "⅓");
     assert.equal(formatMeasure(2 / 3, "each"), "⅔");
-    // Off-glyph falls back to the decimal rather than inventing a fraction —
-    // same contract as lib/format/quantity.ts.
-    assert.equal(formatMeasure(0.4, "each"), "0.4");
+    // THX-3 (BUG-444) — an off-glyph count rounds to the nearest ⅛, as FIX-7's
+    // displayedQuantity does (it printed the raw decimal "0.4" before).
+    assert.equal(formatMeasure(0.4, "each"), "⅜");
   });
 
   // ── 🔴 [grocery] F (F5.2) — A COUNT UNIT INFLECTS ─────────────────────────

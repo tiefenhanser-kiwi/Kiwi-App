@@ -41,6 +41,7 @@ import {
   type PrepClass,
 } from "./prepClasses";
 import { timeStep, planMinutes, wholeFruitCount, type SourceYieldLike } from "./prepStepMinutes";
+import { displayedPrepQuantity, mixedGlyph } from "./prepQuantity";
 import { proseNames } from "./prepMoments";
 import {
   PREP_PHASE_ORDER,
@@ -388,102 +389,21 @@ function dedupe(values: string[]): string[] {
 
 // ── WS7-8b FIX 2 — kitchen-fraction formatter (code owns the math) ───────────
 // Turns a raw engine decimal + unit into a finished display string the narrator
-// echoes verbatim, so "prose can't move the math" still holds. Per-family
-// policy (Hans-ratified):
-//   - tsp/tbsp/cup/oz/lb → round UP to the nearest 1/8, rendered as a mixed
-//     number with a vulgar-fraction glyph ("¾ cup", "1½ tbsp" — unspaced since
-//     D-WS9-297 ruling 7).
-//   - ml/g              → round to a whole number (no fractions, no decimals).
-//   - counts + unknown  → whole where clean, else the nearest glyph ("½ onion");
-//     the bare "each" placeholder unit is dropped (ruling 7).
+// echoes verbatim, so "prose can't move the math" still holds.
+//
+// 🔴 THX-3 (BUG-444) — THE NUMBER IS FIX-7's NOW. This used to round every
+// spoon, cup, ounce and pound UP to the next ⅛ and print any other count raw, so
+// at household 2 the prep text read "4.8 cloves", "0.8 lemon", "⅞ tbsp" and
+// "1⅝ lb" while the recipe beside it read whole cloves and quarter pounds. The
+// rule is `displayedPrepQuantity` (prepQuantity.ts — FIX-7's table, copied and
+// pinned, plus Hans's egg rule); this function only spells it:
+//   - ml/g              → a whole number (no fractions, no decimals), floor 1.
+//   - every other unit  → the displayed number as a mixed glyph ("¾ cup", "1½").
+//   - the bare "each" placeholder unit is dropped (ruling 7).
 // Unit token comes from the engine's own canonicalizer so spelling variants
 // ("teaspoons" → "tsp") collapse; magnitude is never converted here (each
 // contribution keeps its own unit), only the spelling is normalized.
-
-const EIGHTH_UNITS: ReadonlySet<string> = new Set(["tsp", "tbsp", "cup", "oz", "lb"]);
-const WHOLE_UNITS: ReadonlySet<string> = new Set(["ml", "g"]);
-
-// rem (1..7) eighths → vulgar-fraction glyph. 4/8 reduces to ½, etc.
-const EIGHTH_GLYPH: Record<number, string> = {
-  1: "⅛", // ⅛
-  2: "¼", // ¼
-  3: "⅜", // ⅜
-  4: "½", // ½
-  5: "⅝", // ⅝
-  6: "¾", // ¾
-  7: "⅞", // ⅞
-};
-
-// ── WS9 BUG-338 / D-WS9-297 ruling 7 — ONE APP, ONE MIXED NUMBER ────────────
-//
-// 🔴 THE SPACED FORM IS RETIRED. The comment below used to defend "1 ½ lb" as
-// "how a recipe is written". Measured on the 13-plan census: 55 spaced mixed
-// numbers, against `artifacts/kiwi/lib/format/quantity.ts` which writes `1½`
-// everywhere else in the app (`${whole}${glyph}`, no separator). Hans ruled
-// glyphs everywhere in the grocery pass; two renderers disagreeing about the
-// same number is the defect, and the grocery/mobile spelling is the one that
-// wins because everything else already reads that way.
-//
-// The ruling asks to route through `formatQuantity` if it is reachable. IT IS
-// NOT: that module lives in `artifacts/kiwi`, and nothing in `api-server/src`
-// imports across that boundary (the server's build tree is bundled separately —
-// see scripts/bundleExternals.mjs). So it is the same TABLE, deliberately
-// spelled to match, and this comment is the link between the two copies. If one
-// changes, change both.
-function mixedNumber(whole: number, glyph: string | null): string {
-  if (glyph === null) return String(whole);
-  return whole > 0 ? `${whole}${glyph}` : glyph;
-}
-
-// Round UP to the nearest 1/8 and render as a mixed number ("¾", "1½", "2").
-function toEighths(q: number): string {
-  const eighths = Math.ceil(q * 8 - 1e-9); // fp guard so 0.5 → 4, not 5
-  const whole = Math.floor(eighths / 8);
-  const rem = eighths % 8;
-  return mixedNumber(whole, rem === 0 ? null : EIGHTH_GLYPH[rem]);
-}
-
-// ── ruling 7, second half — A COUNT IS A GLYPH TOO ─────────────────────────
-//
-// `toCount` used to return the raw decimal for anything non-integer, which is
-// where `0.25 bunch` and `0.5 each` came from (24 of them on the census). A
-// count is not exempt from the app's own number rules: Hans's §8 asks for
-// `¼ bunch` and `½ onion`.
-//
-// NEAREST-GLYPH, NOT ROUND-UP. `toEighths` deliberately rounds up because
-// under-measuring a teaspoon spoils a dish; half an onion is an exact quantity
-// and rounding it up to ⅝ would be a lie about the data. So this mirrors
-// `formatQuantity`'s matchGlyph: a fractional part within ε of a known glyph
-// prints that glyph, and anything else falls back to the decimal rather than
-// inventing a fraction. ε and the glyph set are the mobile module's.
-const COUNT_GLYPHS: ReadonlyArray<{ value: number; glyph: string }> = [
-  { value: 1 / 8, glyph: "⅛" },
-  { value: 1 / 4, glyph: "¼" },
-  { value: 1 / 3, glyph: "⅓" },
-  { value: 3 / 8, glyph: "⅜" },
-  { value: 1 / 2, glyph: "½" },
-  { value: 5 / 8, glyph: "⅝" },
-  { value: 2 / 3, glyph: "⅔" },
-  { value: 3 / 4, glyph: "¾" },
-  { value: 7 / 8, glyph: "⅞" },
-];
-// Half the smallest gap between adjacent glyphs (⅓→⅜ and ⅝→⅔ are both 0.0417),
-// so matches stay disjoint. Same constant as lib/format/quantity.ts.
-const GLYPH_EPSILON = 0.02;
-
-function toCount(q: number): string {
-  const rounded = Math.round(q);
-  if (Math.abs(q - rounded) < 1e-9) return String(rounded);
-  const whole = Math.floor(q);
-  const frac = q - whole;
-  let best: { glyph: string; dist: number } | null = null;
-  for (const { value, glyph } of COUNT_GLYPHS) {
-    const dist = Math.abs(frac - value);
-    if (dist <= GLYPH_EPSILON && (best === null || dist < best.dist)) best = { glyph, dist };
-  }
-  if (best === null) return String(Number(q.toFixed(2)));
-  return mixedNumber(whole, best.glyph);
-}
+const SCALE_UNITS: ReadonlySet<string> = new Set(["ml", "g"]);
 
 // ── ruling 7, third part — "each" IS NOT A WORD A COOK SAYS ────────────────
 //
@@ -516,17 +436,23 @@ const PLACEHOLDER_COUNT_UNITS: ReadonlySet<string> = new Set(["each", "ea", ""])
 //
 // `pluralizeCountUnit` is the INVERSE of the count-unit alias map
 // ingredientConversions already owns — derived, not a second table.
-export function formatMeasure(quantity: number, rawUnit: string): string {
+export function formatMeasure(quantity: number, rawUnit: string, name = ""): string {
   const { token } = canonicalizeUnit(rawUnit);
-  if (EIGHTH_UNITS.has(token)) return `${toEighths(quantity)} ${token}`;
-  if (WHOLE_UNITS.has(token)) return `${Math.max(1, Math.round(quantity))} ${token}`;
-  const shown = toCount(quantity);
+  if (SCALE_UNITS.has(token)) return `${Math.max(1, Math.round(quantity))} ${token}`;
+  // THX-3 (BUG-444) — FIX-7's number, read on the RAW unit as well as the token:
+  // "large" canonicalizes to the placeholder, and the egg rule needs the name.
+  const shownQty = displayedPrepQuantity(quantity, PLACEHOLDER_COUNT_UNITS.has(token) ? "" : token, name);
+  const shown = mixedGlyph(shownQty);
   // D-WS9-297 ruling 7 — the bare number for a placeholder count; the narrator
-  // supplies the noun. `Number(shown)` is NaN for a glyph-only string like "¼",
-  // so the quantity itself drives the pluralisation, not the rendered text.
+  // supplies the noun. The DISPLAYED quantity drives the pluralisation, so
+  // "1 clove" never sits beside a ceiled "2".
   if (PLACEHOLDER_COUNT_UNITS.has(token)) return shown;
-  return `${shown} ${pluralizeCountUnit(token, quantity)}`;
+  if (MEASURE_TOKENS.has(token)) return `${shown} ${token}`;
+  return `${shown} ${pluralizeCountUnit(token, shownQty)}`;
 }
+
+/** The measure units that stay invariant ("2 cup", "1½ lb" — how a recipe is written). */
+const MEASURE_TOKENS: ReadonlySet<string> = new Set(["tsp", "tbsp", "cup", "oz", "lb"]);
 
 // One narration component per summed line of a group. The narrator writes from
 // `measures[]` — the PER-DISH breakdown (WS7-8b FIX 1), each amount already
@@ -625,7 +551,7 @@ function componentsOfUnclaimed(
     const prep = kept.find((c) => (c.preparationNote ?? "").trim() !== "")?.preparationNote;
     const measures: PrepMeasure[] = kept.map((c) => {
       return {
-        amount: formatMeasure(c.quantity, c.unit),
+        amount: formatMeasure(c.quantity, c.unit, entry.ingredientName),
         forDish: c.dishName,
         dishRole: c.dishRole,
         mealId: c.mealId,
@@ -658,7 +584,7 @@ function componentsOf(
     )?.preparationNote;
     const measures: PrepMeasure[] = line.contributions.map((c) => {
       return {
-        amount: formatMeasure(c.quantity, c.unit),
+        amount: formatMeasure(c.quantity, c.unit, entry.ingredientName),
         forDish: c.dishName,
         dishRole: c.dishRole,
         mealId: c.mealId,
@@ -701,7 +627,7 @@ function componentsForDish(
     )?.preparationNote;
     const measures: PrepMeasure[] = contribs.map((c) => {
       return {
-        amount: formatMeasure(c.quantity, c.unit),
+        amount: formatMeasure(c.quantity, c.unit, entry.ingredientName),
         forDish: c.dishName,
         dishRole: c.dishRole,
         mealId: c.mealId,
@@ -2346,15 +2272,18 @@ function totalOf(components: readonly PrepNarrationComponent[], named: boolean):
     for (const m of c.measures) {
       if (m.qty === undefined || m.unit === undefined) continue;
       const { token } = canonicalizeUnit(m.unit);
+      // THX-3 (BUG-444) — the total is the sum of what each portion line SHOWS, so
+      // "Mince 12 cloves" sits over 5 + 4 + 3, never over 4.8 + 3.2 + 2.4 rounded once.
+      const shown = SCALE_UNITS.has(token) ? m.qty : displayedPrepQuantity(m.qty, PLACEHOLDER_COUNT_UNITS.has(token) ? "" : token, c.ingredientName);
       const first = [...byToken.keys()][0];
-      const conv = first !== undefined && first !== token ? convertWithinDimension(m.qty, token, first) : null;
+      const conv = first !== undefined && first !== token ? convertWithinDimension(shown, token, first) : null;
       const key = conv !== null && first !== undefined ? first : token;
       const have = byToken.get(key) ?? { q: 0, unit: m.unit };
-      have.q += conv !== null ? conv : m.qty;
+      have.q += conv !== null ? conv : shown;
       byToken.set(key, have);
     }
     for (const { q, unit } of byToken.values()) {
-      const amount = formatMeasure(q, unit);
+      const amount = formatMeasure(q, unit, c.ingredientName);
       const countOnly = canonicalizeUnit(unit).token === "" || PLACEHOLDER_COUNT_UNITS.has(canonicalizeUnit(unit).token);
       parts.push(named || countOnly ? `${amount} ${countOnly ? countNoun(amount, c.ingredientName) : c.ingredientName}` : amount);
     }

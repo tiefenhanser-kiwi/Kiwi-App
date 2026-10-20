@@ -20,6 +20,7 @@
 // inferCategory is a defensive pocket fallback only, for the theoretical
 // empty-category row.
 
+import { wholeItemMultiplier } from "./prepQuantity";
 import { inferCategory } from "./ingredientResolve";
 import { assignPhase } from "./prepCombineEngine";
 import { resolveDishComponents } from "./prepComponents";
@@ -360,7 +361,8 @@ export function buildPrepCombineInput(loaded: PrepLoadedPlan): PrepCombineInput 
               ingredientId: ing.ingredientId,
               ingredientName: ing.ingredientName,
               category,
-              quantity: prep.quantity * multiplier,
+              // THX-3 (BUG-444) — FIX-7 rule 4: a whole bird by weight never scales DOWN.
+              quantity: prep.quantity * wholeItemMultiplier(multiplier, split.unit, ing.ingredientName),
               unit: split.unit,
               preparationNote: prep.preparationNote,
               component: comp
