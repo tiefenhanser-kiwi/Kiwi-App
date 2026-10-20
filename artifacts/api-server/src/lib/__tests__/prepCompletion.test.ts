@@ -168,3 +168,17 @@ describe("effectivePrepStatus — manual override precedence", () => {
     assert.equal(effectivePrepStatus(false, "not_prepped", "prepped"), "prepped");
   });
 });
+
+// THX-3 (BUG-424) — the per-meal state the pill is worded from.
+describe("THX-3 — perMealState: nothing | not | partly | fully", () => {
+  const MEAL_N = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+  const steps: StepRef[] = [
+    { stepKey: "produce#onion", contributesToMealIds: [MEAL_A, MEAL_B] },
+    { stepKey: "proteins#beef", contributesToMealIds: [MEAL_A] },
+  ];
+  it("a meal with no step is nothing (not 'prepped'); none, some and all ticked read not, partly, fully", () => {
+    assert.deepEqual(derivePrepCompletion([MEAL_A, MEAL_B, MEAL_N], steps, new Set()).perMealState, { [MEAL_A]: "not", [MEAL_B]: "not", [MEAL_N]: "nothing" });
+    assert.deepEqual(derivePrepCompletion([MEAL_A, MEAL_B, MEAL_N], steps, new Set(["produce#onion"])).perMealState, { [MEAL_A]: "partly", [MEAL_B]: "fully", [MEAL_N]: "nothing" });
+    assert.deepEqual(derivePrepCompletion([MEAL_A, MEAL_B, MEAL_N], steps, new Set(["produce#onion", "proteins#beef"])).perMealState, { [MEAL_A]: "fully", [MEAL_B]: "fully", [MEAL_N]: "nothing" });
+  });
+});

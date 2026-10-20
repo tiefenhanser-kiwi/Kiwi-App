@@ -29,11 +29,26 @@ export function stepKeysOfResult(result: PrepWeekResult): Set<string> {
   return keys;
 }
 
+/** THX-3 (BUG-424) — see PrepCompletionState.perMealState. */
+export type MealPrepState = "nothing" | "not" | "partly" | "fully";
+
 export interface PrepCompletionState {
   // mealId → prepped? A meal is prepped ⟺ every step contributing to it is
   // checked. A meal with ZERO contributing steps is vacuously prepped (a meal
   // that needs no prep is ready to cook — D-WS7-153 ruling).
   perMeal: Record<string, boolean>;
+  /**
+   * THX-3 (BUG-424) — the per-meal datum the pill words need. `isPrepped` is true
+   * both for a meal with nothing to prep and for one fully ticked, so a Friday
+   * leftovers sandwich read "Prepped ✓"; and there was no per-meal partial, so every
+   * unticked row read "Mostly prepped" whenever the plan was partly prepped.
+   *   nothing — no tickable step contributes to it
+   *   not     — steps, none ticked
+   *   partly  — some ticked
+   *   fully   — all ticked
+   * The client lane words it (WEB-4); the name is fixed by the ruling.
+   */
+  perMealState: Record<string, MealPrepState>;
   // Auto-derived plan rollup from perMeal over the full meal universe.
   derivedPrepStatus: PrepStatus;
 }
@@ -70,6 +85,7 @@ export function derivePrepCompletion(
   // is "prepped" only when every meal WITH steps is, and a plan none of whose
   // meals has a step is still "prepped" (the all-easy ruling, D-WS7-153).
   const perMeal: Record<string, boolean> = {};
+  const perMealState: Record<string, MealPrepState> = {};
   let withSteps = 0;
   let preppedWithSteps = 0;
   for (const mealId of allMealIds) {
@@ -77,6 +93,8 @@ export function derivePrepCompletion(
     // Vacuous true when keys.length === 0.
     const prepped = keys.every((k) => checkedStepKeys.has(k));
     perMeal[mealId] = prepped;
+    const ticked = keys.filter((k) => checkedStepKeys.has(k)).length;
+    perMealState[mealId] = keys.length === 0 ? "nothing" : ticked === keys.length ? "fully" : ticked === 0 ? "not" : "partly";
     if (keys.length === 0) continue;
     withSteps += 1;
     if (prepped) preppedWithSteps += 1;
@@ -94,7 +112,7 @@ export function derivePrepCompletion(
     derivedPrepStatus = "partial";
   }
 
-  return { perMeal, derivedPrepStatus };
+  return { perMeal, perMealState, derivedPrepStatus };
 }
 
 // The effective status shown to the user: a manual pin wins over the derived

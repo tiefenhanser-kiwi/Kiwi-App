@@ -1508,7 +1508,7 @@ describe("GET /plans/:id — composite Plan Review", () => {
         plan: {
           prepStatus: string;
           prepStatusIsManual: boolean;
-          items: { mealId: string; isPrepped: boolean }[];
+          items: { mealId: string; isPrepped: boolean; prepState?: string }[];
         };
       };
     }
@@ -1539,6 +1539,9 @@ describe("GET /plans/:id — composite Plan Review", () => {
         const itemY = body.plan.items.find((i) => i.mealId === "meal-y")!;
         assert.equal(itemY.isPrepped, true);
         assert.equal(itemX.isPrepped, false);
+        // THX-3 (BUG-424) — the per-meal datum the pill words need.
+        assert.equal(itemY.prepState, "fully");
+        assert.equal(itemX.prepState, "partly");
         assert.equal(body.plan.prepStatus, "partial");
         assert.equal(body.plan.prepStatusIsManual, false);
       } finally {

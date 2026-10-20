@@ -84,6 +84,7 @@ import {
 } from "../lib/subscriptionService";
 import {
   derivePrepCompletion,
+  type MealPrepState,
   effectivePrepStatus,
 } from "../lib/prepCompletion";
 import { loadPrepStepSet as productionLoadPrepStepSet } from "../lib/prepStepSet";
@@ -544,7 +545,7 @@ export function createPlansRouter(
         userId,
         prisma,
       });
-      const { perMeal, derivedPrepStatus } = derivePrepCompletion(
+      const { perMeal, perMealState, derivedPrepStatus } = derivePrepCompletion(
         allMealIds,
         prepSteps,
         new Set(completionRows.map((r) => r.stepKey)),
@@ -577,6 +578,8 @@ export function createPlansRouter(
         // checked off? Defaults true for a zero-prep meal. Cook Mode (8b) reads
         // this to default its "did you prep this?" prompt.
         isPrepped: boolean;
+        // THX-3 (BUG-424) — nothing | not | partly | fully; additive, the pill's words.
+        prepState: MealPrepState;
       })[] = [];
       // D-WS9-049 A2.2 — batch the per-item Meal expansion. This previously
       // called composeMealDetail once per item inside this loop (3 sequential
@@ -631,6 +634,7 @@ export function createPlansRouter(
           // perMeal is keyed by every plan mealId; a meal with no prep steps
           // is vacuously true.
           isPrepped: perMeal[item.mealId] ?? true,
+          prepState: perMealState[item.mealId] ?? "nothing",
           meal,
         });
       });
