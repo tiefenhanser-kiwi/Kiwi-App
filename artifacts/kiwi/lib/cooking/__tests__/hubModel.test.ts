@@ -16,6 +16,7 @@ import {
   mealPrepPill,
   resolveHubPlanId,
   resolveTodaysMeal,
+  toMealPrepState,
 } from "../hubModel";
 import type { PlanDetail, PlanDetailItem, PlanListItem } from "@/lib/api/plans";
 import type { MealDetail } from "@/lib/api/meals";
@@ -133,6 +134,62 @@ test("mealPrepPill: a not-prepped meal in a non-partial plan is neutral 'Not pre
     assert.equal(pill.label, "Not prepped");
     assert.equal(pill.tone, "neutral");
   }
+});
+
+// ── BUG-424 — the server's per-meal prepState, when present ─────────────────
+
+test("BUG-424 mealPrepPill: prepState, when sent, decides the label over isPrepped and the plan rollup", () => {
+  const want = {
+    nothing: { label: "Nothing to prep", tone: "neutral" },
+    not: { label: "Not prepped", tone: "neutral" },
+    partly: { label: "Partly prepped", tone: "gold" },
+    fully: { label: "Prepped ✓", tone: "sage" },
+  } as const;
+  for (const [state, pill] of Object.entries(want)) {
+    for (const isPrepped of [true, false]) {
+      for (const status of ["not_prepped", "partial", "prepped"] as const) {
+        assert.deepEqual(
+          mealPrepPill(isPrepped, status, state as keyof typeof want),
+          pill,
+          `${state} / isPrepped=${isPrepped} / ${status}`,
+        );
+      }
+    }
+  }
+});
+
+test("BUG-424 mealPrepPill: a meal with nothing to prep never reads 'Prepped ✓' (an older server's zero-prep isPrepped=true)", () => {
+  assert.equal(mealPrepPill(true, "prepped", "nothing").label, "Nothing to prep");
+  // Absent: the old label stands — that is what an older server still shows.
+  assert.equal(mealPrepPill(true, "prepped").label, "Prepped ✓");
+});
+
+test("BUG-424 buildPrepCookHubModel: per-item prepState flows to the pill; an item without one keeps the old rule", () => {
+  const detail = plan({
+    prepStatus: "partial",
+    items: [
+      item({ id: "a", isPrepped: true, prepState: "nothing" }),
+      item({ id: "b", isPrepped: false, prepState: "not" }),
+      item({ id: "c", isPrepped: false, prepState: "partly" }),
+      item({ id: "d", isPrepped: false }),
+    ],
+  });
+  const labels = buildPrepCookHubModel(detail, "Sunday").meals.map((m) => m.pill.label);
+  assert.deepEqual(labels, ["Nothing to prep", "Not prepped", "Partly prepped", "Mostly prepped"]);
+});
+
+test("BUG-424 prepState is optional on the wire, and an unknown value reads as absent", async () => {
+  const { PlanDetailItemSchema } = await import("@/lib/api/plans");
+  // meal: null — the fixture meal is not a full MealDetail, and the field is not under test.
+  const base = { ...item({ id: "x" }), meal: null } as Record<string, unknown>;
+  delete base.prepState;
+  assert.equal(PlanDetailItemSchema.parse(base).prepState, undefined);
+  assert.equal(PlanDetailItemSchema.parse({ ...base, prepState: "partly" }).prepState, "partly");
+  // Parses (never fails the plan read) and narrows to absent: the old labels.
+  assert.equal(toMealPrepState(PlanDetailItemSchema.parse({ ...base, prepState: "halfway" }).prepState), undefined);
+  assert.equal(toMealPrepState("fully"), "fully");
+  const odd = plan({ prepStatus: "partial", items: [item({ id: "z", isPrepped: false, prepState: "halfway" })] });
+  assert.equal(buildPrepCookHubModel(odd, "Sunday").meals[0].pill.label, "Mostly prepped");
 });
 
 // ── headerPrepIndicator ─────────────────────────────────────────────────────

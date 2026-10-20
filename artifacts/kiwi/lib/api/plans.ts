@@ -104,6 +104,11 @@ export const PlanDetailItemSchema = z.object({
   isDinner: z.boolean(),
   notes: z.string().nullable(),
   isPrepped: z.boolean(),
+  // BUG-424 — THX-3's per-meal prep state ("nothing" | "not" | "partly" |
+  // "fully"), OPTIONAL: an older server omits it and the Hub keeps its old
+  // labels. A string here, narrowed by lib/cooking/hubModel.ts, so a value this
+  // client does not know reads as absent instead of failing the plan read.
+  prepState: z.string().optional(),
   meal: MealDetailSchema.nullable(),
 });
 export type PlanDetailItem = z.infer<typeof PlanDetailItemSchema>;

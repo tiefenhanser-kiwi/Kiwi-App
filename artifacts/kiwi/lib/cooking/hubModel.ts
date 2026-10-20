@@ -31,6 +31,16 @@ export type PrepStatus = "not_prepped" | "partial" | "prepped";
 //   neutral → muted (not prepped / suggestion)
 export type PillTone = "sage" | "gold" | "neutral";
 
+/** BUG-424 — THX-3's optional per-meal field (PlanDetailItem.prepState). */
+export type MealPrepState = "nothing" | "not" | "partly" | "fully";
+
+const MEAL_PREP_STATES: readonly string[] = ["nothing", "not", "partly", "fully"];
+
+/** The wire's prepState, or undefined when absent or not one of the four. */
+export function toMealPrepState(raw: string | undefined): MealPrepState | undefined {
+  return raw !== undefined && MEAL_PREP_STATES.includes(raw) ? (raw as MealPrepState) : undefined;
+}
+
 export interface PrepPill {
   label: string;
   tone: PillTone;
@@ -51,7 +61,22 @@ export interface PrepPill {
 export function mealPrepPill(
   isPrepped: boolean,
   planPrepStatus: PrepStatus,
+  prepState?: MealPrepState,
 ): PrepPill {
+  // BUG-424 — the server's own per-meal state, when it sends one. A meal with
+  // nothing to prep is never "Prepped ✓", and only a meal that is itself
+  // partly done reads "Partly prepped" (not every row of a partial plan).
+  switch (prepState) {
+    case "nothing":
+      return { label: "Nothing to prep", tone: "neutral" };
+    case "not":
+      return { label: "Not prepped", tone: "neutral" };
+    case "partly":
+      return { label: "Partly prepped", tone: "gold" };
+    case "fully":
+      return { label: "Prepped ✓", tone: "sage" };
+  }
+  // An older server (no prepState): the labels as they were.
   if (isPrepped) return { label: "Prepped ✓", tone: "sage" };
   if (planPrepStatus === "partial") return { label: "Mostly prepped", tone: "gold" };
   return { label: "Not prepped", tone: "neutral" };
@@ -204,7 +229,7 @@ export function buildPrepCookHubModel(
       thumbnailUrl: meal.image ?? undefined,
       metaLine: `${day} · ${meal.minutes} min · serves ${serves}`,
       isToday: todaysMeal?.planItemId === item.id,
-      pill: mealPrepPill(item.isPrepped, prepStatus),
+      pill: mealPrepPill(item.isPrepped, prepStatus, toMealPrepState(item.prepState)),
       prepSelectable: !meal.tags.includes(FEAST_MEAL_TAG),
     };
   });
