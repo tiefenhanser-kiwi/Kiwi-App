@@ -23,7 +23,7 @@
 //
 // Pure and in lib/ because app/** is outside the test glob (D-WS9-164).
 
-import { displayedQuantity, formatQuantity, isEggCount, wholeItemMultiplier } from "./quantity";
+import { displayedQuantity, formatQuantity, isEggCount, lineMultiplier } from "./quantity";
 import { countedIngredientName, unitWordFor } from "./grocery";
 
 /** The fields of a meal-detail ingredient this formatter reads. Structurally
@@ -190,7 +190,9 @@ export function formatIngredientLine(
   // FIX-7 (BUG-437) — the NAME reaches the rounding now: it decides whether a
   // count is a whole item (½ egg → 1) and whether a weight is a whole bird.
   // WEB-4 (BUG-453) — the line's own quantity reaches the bird floor.
-  const scaled = ing.quantity * wholeItemMultiplier(multiplier, unit, ing.name, ing.quantity);
+  // WEB-4b (BUG-454) — `multiplier` is the DISH's factor (dishScaleFactor);
+  // the neck and giblets never scale.
+  const scaled = ing.quantity * lineMultiplier(multiplier, unit, ing.name, ing.quantity);
   const shown = displayedQuantity(scaled, unit, ing.name);
   const hasUnitWord = unit.length > 0 && !isSuppressedCountUnit(unit);
   const sizeWord = SIZE_UNITS.has(unit.toLowerCase());

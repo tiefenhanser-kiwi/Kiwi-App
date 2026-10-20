@@ -44,6 +44,7 @@ import {
   type CookStep,
 } from "@/lib/cooking/cookSession";
 import { decodeRun, onTheDayMeal } from "@/lib/cooking/feastDay";
+import { mealScaleFactors } from "@/lib/format/quantity";
 import { Colors, Spacing, Typography } from "@/constants/tokens";
 
 const TOAST_MS = 2500;
@@ -160,6 +161,12 @@ export default function CookSession() {
     }
     return 1;
   }, [mealId, mealQuery.data]);
+  // WEB-4b (BUG-454) — a whole-bird dish's steps scale by the bird's factor
+  // (the brine follows the bird); every other dish by the multiplier above.
+  const amountScale = useMemo(
+    () => (mealId && mealQuery.data ? mealScaleFactors(mealQuery.data.dishes, amountMultiplier) : null),
+    [mealId, mealQuery.data, amountMultiplier],
+  );
 
   // ── Prep gate (read-only) ──────────────────────────────────────────────────
   const wantPlan = planId.length > 0 && planItemId.length > 0;
@@ -328,7 +335,8 @@ export default function CookSession() {
       title={title}
       steps={activeSteps}
       doneInPrepKeys={doneInPrepKeys}
-      amountMultiplier={amountMultiplier}
+      amountMultiplier={amountScale?.mealOwned ?? amountMultiplier}
+      dishAmountMultipliers={amountScale?.byDish}
       currentIndex={safeIndex}
       prepped={prepped}
       showSkipBar={showSkipBar}

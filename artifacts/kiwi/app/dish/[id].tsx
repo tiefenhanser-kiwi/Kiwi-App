@@ -26,6 +26,7 @@ import { useBilling } from "@/contexts/BillingContext";
 import { macrosNoticeFor } from "@/lib/billing/subscriptionView";
 import { formatMacro } from "@/lib/format/macros";
 import { formatIngredientLine, ingredientAmountNote } from "@/lib/format/ingredientLine";
+import { dishScaleFactor } from "@/lib/format/quantity";
 import { goBack } from "@/lib/navigation";
 import { IngredientAmountNote } from "@/components/IngredientAmountNote";
 
@@ -155,7 +156,9 @@ function DishDetailContent({ dish, plan }: { dish: DishDetail; plan?: PlanDishCo
   // PREP-2 — what this screen lists: the plan's copy of the dish, or the dish.
   const ingredients = plan ? plan.view.dish.ingredients : dish.ingredients;
   const steps = plan ? plan.view.dish.steps : dish.steps;
-  const multiplier = plan ? plan.view.multiplier : 1;
+  // WEB-4b (BUG-454) — a whole-bird dish scales by its bird's factor, not by
+  // servings (the brine follows the bird).
+  const multiplier = plan ? dishScaleFactor(ingredients, plan.view.multiplier) : 1;
   const runLine =
     plan?.run && makeAheadRunSteps(plan.view.dish.steps, plan.run) ? runCookLine(plan.run) : null;
 

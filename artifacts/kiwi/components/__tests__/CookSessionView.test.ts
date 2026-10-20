@@ -143,6 +143,7 @@ interface Overrides {
   onPrepAnswer?: (p: boolean) => void;
   onExit?: () => void;
   amountMultiplier?: number;
+  dishAmountMultipliers?: Record<string, number>;
 }
 
 function renderView(o: Overrides = {}) {
@@ -154,6 +155,7 @@ function renderView(o: Overrides = {}) {
         steps: o.steps ?? STEPS,
         doneInPrepKeys: o.doneInPrepKeys,
         amountMultiplier: o.amountMultiplier ?? 1,
+        dishAmountMultipliers: o.dishAmountMultipliers,
         currentIndex: o.currentIndex ?? 0,
         prepped: o.prepped ?? false,
         showSkipBar: o.showSkipBar ?? false,
@@ -224,6 +226,29 @@ test("BUG-006: multiplier 1 (no override / dishId path) renders the base amount"
     renderView({ steps: REF_STEPS, amountMultiplier: 1 }).toJSON() as RenderedNode | null,
   );
   assert.ok(texts.includes("2 cups"), `expected base amount: ${texts}`);
+});
+
+// WEB-4b (BUG-454) — a whole-bird dish's steps take the bird's factor; the
+// other dish's, and a step that names no dish, take amountMultiplier.
+test("BUG-454: Cook Mode scales each step by its dish's factor — the brine follows the bird", () => {
+  const brine = "Dissolve ½ cup kosher salt in the water";
+  const pie = "Whisk in 2 cups pumpkin purée";
+  const steps: CookStep[] = [
+    { key: "t#1", dishId: "turkey", stepIndex: 1, text: brine, phaseType: "prep", estimatedMinutes: 4, isTimingSensitive: false,
+      amountRefs: [{ ingredientId: "s", quantity: 0.5, unit: "cup", charStart: 9, charEnd: 14 }] },
+    { key: "p#0", dishId: "pie", stepIndex: 0, text: pie, phaseType: "prep", estimatedMinutes: 2, isTimingSensitive: false,
+      amountRefs: [{ ingredientId: "p", quantity: 2, unit: "cups", charStart: 9, charEnd: 15 }] },
+    { key: "meal#0", text: pie, phaseType: "prep", estimatedMinutes: 2, isTimingSensitive: false,
+      amountRefs: [{ ingredientId: "p", quantity: 2, unit: "cups", charStart: 9, charEnd: 15 }] },
+  ];
+  // Classic at 4 of 10: the turkey floors at 10 lb (factor 10/14), the pie scales 0.4.
+  const texts = flat(
+    renderView({ steps, amountMultiplier: 0.4, dishAmountMultipliers: { turkey: 10 / 14, pie: 0.4 } }).toJSON() as RenderedNode | null,
+  );
+  assert.ok(texts.includes("⅓ cup kosher salt"), `brine by the bird's factor: ${texts}`);
+  assert.ok(!texts.includes("¼ cup kosher salt"), `brine by servings leaked: ${texts}`);
+  // 2 cups × 0.4 = 0.8 → ¾ cup (a cup set's nearest).
+  assert.equal(texts.split("¾ cup pumpkin").length - 1, 2, `pie (and the dish-less step) by servings: ${texts}`);
 });
 
 // ── Session render + engine ──────────────────────────────────────────────────

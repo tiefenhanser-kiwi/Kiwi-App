@@ -51,6 +51,7 @@ import { formatMealTime } from "@/lib/mealTimeLine";
 // keeps the two screens from drifting apart again.
 import { formatIngredientLine, ingredientAmountNote } from "@/lib/format/ingredientLine";
 import { consolidateMealIngredients } from "@/lib/meals/consolidateMealIngredients";
+import { mealScaleFactors } from "@/lib/format/quantity";
 import { visibleMealTags } from "@/lib/meals/systemTags";
 import {
   flatMealSteps,
@@ -293,6 +294,16 @@ function MealDetailContent({
   const stepsAreGrouped = mealStepsAreGrouped(meal);
   const flatSteps = flatMealSteps(meal);
 
+  // WEB-4b (BUG-454) — each dish scales by its own factor: servings, or its
+  // whole bird's (the brine follows the bird). A step takes its dish's; the
+  // meal-owned steps (which composeMealDetail also copies onto every dish) take
+  // `mealOwned`.
+  const scale = mealScaleFactors(meal.dishes, servingsMultiplier);
+  const stepFactor = new Map<MealStep, number>();
+  if (meal.steps.length === 0) {
+    for (const dish of meal.dishes) for (const st of dish.steps) stepFactor.set(st, scale.byDish[dish.dishId]);
+  }
+
   // Renders one numbered step row. `displayNumber` is the 1-based position
   // within its list (flat, or restarting per dish in the grouped layout).
   const renderStepRow = (step: MealStep, displayNumber: number, key: number) => (
@@ -319,7 +330,7 @@ function MealDetailContent({
             null/[] amountRefs render plain text exactly as before. */}
         {step.amountRefs && step.amountRefs.length > 0 ? (
           <Text style={s.stepText}>
-            {buildAmountRefSegments(step.text, step.amountRefs, servingsMultiplier).map(
+            {buildAmountRefSegments(step.text, step.amountRefs, stepFactor.get(step) ?? scale.mealOwned).map(
               (seg, i) =>
                 seg.isRef ? (
                   <Text key={i} style={s.stepQuantity}>
@@ -768,11 +779,11 @@ function MealDetailContent({
               {dish.ingredients.map((ing, i) => (
                 <React.Fragment key={i}>
                   <Text style={s.ingredientLine}>
-                    {formatIngredientLine(ing, { multiplier: servingsMultiplier })}
+                    {formatIngredientLine(ing, { multiplier: scale.byDish[dish.dishId] })}
                   </Text>
                   {/* WEB-4 — an egg rounded to a whole shows its true amount. */}
                   <IngredientAmountNote
-                    note={ingredientAmountNote(ing, { multiplier: servingsMultiplier, servings: displayServings })}
+                    note={ingredientAmountNote(ing, { multiplier: scale.byDish[dish.dishId], servings: displayServings })}
                   />
                 </React.Fragment>
               ))}

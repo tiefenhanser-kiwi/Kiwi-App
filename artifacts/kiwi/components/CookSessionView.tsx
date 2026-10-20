@@ -94,6 +94,9 @@ interface Props {
   /** WS7-8b BUG-006 — multiplier amountRef spans render through, so Cook Mode
    *  scales to the plan's effectiveServings (matching Meal Detail). 1 = base. */
   amountMultiplier: number;
+  /** WEB-4b (BUG-454) — per-dish factors by dishId (a whole-bird dish scales by
+   *  its bird); a step with no dishId, or a dish not listed, uses the above. */
+  dishAmountMultipliers?: Readonly<Record<string, number>>;
   currentIndex: number;
   /** Prepped path → render the mise-en-place recap card above the steps. */
   prepped: boolean;
@@ -166,6 +169,7 @@ export function CookSessionView({
   steps,
   doneInPrepKeys = NO_KEYS,
   amountMultiplier,
+  dishAmountMultipliers,
   currentIndex,
   prepped,
   showSkipBar,
@@ -183,6 +187,8 @@ export function CookSessionView({
 }: Props) {
   const scrollRef = useRef<ScrollView | null>(null);
   const offsets = useRef<Record<number, number>>({});
+  const stepMultiplier = (step: CookStep): number =>
+    (step.dishId !== undefined ? dishAmountMultipliers?.[step.dishId] : undefined) ?? amountMultiplier;
 
   // ── Per-step timers (keyed by stable step.key, NOT index — survives the
   // prep-gate re-filter). State + the 1s tick + the completion haptic live in
@@ -390,7 +396,7 @@ export function CookSessionView({
                   <StepText
                     text={step.text}
                     amountRefs={step.amountRefs}
-                    amountMultiplier={amountMultiplier}
+                    amountMultiplier={stepMultiplier(step)}
                     style={s.stepText}
                   />
                 ) : (
@@ -434,7 +440,7 @@ export function CookSessionView({
               <StepText
                 text={step.text}
                 amountRefs={step.amountRefs}
-                amountMultiplier={amountMultiplier}
+                amountMultiplier={stepMultiplier(step)}
                 style={isCurrent ? s.stepTextCurrent : s.stepText}
               />
               {step.estimatedMinutes > 0 && (

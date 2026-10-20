@@ -237,6 +237,74 @@ export function wholeItemMultiplier(
   return Math.max(multiplier, Math.min(1, floor / (quantity * per)));
 }
 
+// ── WEB-4b (BUG-454) — ONE BIRD RULE, FOR THE WHOLE DISH ────────────────────
+//
+// BUG-453's floor kept the turkey at 10 lb when Classic (written for 10) was
+// scaled to 4, but the rest of the dish still scaled by servings: a 10 lb bird
+// in a brine of ⅛ cup salt and ⅜ gallon water. The brine, the butter, the
+// herbs and the aromatics are for THE BIRD, so in a dish with a whole bird by
+// weight every other line scales by the bird's factor — its weight after the
+// floor ÷ the recipe's bird weight — not by servings.
+//
+//   - The factor is the floored weight BEFORE the ¼ lb display rounding, so it
+//     equals the servings multiplier whenever the floor does not bind: scaling
+//     UP stays exactly linear, with no cap (20 servings of a recipe for 10 is
+//     a 28 lb bird and twice the brine), and only a floored dish changes.
+//   - The bird's own parts (neck, giblets) never scale: one bird, one neck. They
+//     sit in a different dish (Classic's Pan Gravy), so this is a line rule.
+//   - A whole bird by COUNT is unchanged (rule 1 ceils it; its dish keeps the
+//     servings multiplier).
+
+/** A bird's own parts, by name. Not "littleneck clams". */
+const BIRD_PART = /\b(?:(?:turkey|chicken|duck|goose|hen|bird)s?\s+necks?|giblets?)\b/i;
+
+/** True for the neck or the giblets of a bird: always as written (1). */
+export function isBirdPart(name: string): boolean {
+  return BIRD_PART.test(name);
+}
+
+/** The fields of an ingredient the bird rule reads. */
+export interface ScalableIngredient {
+  name: string;
+  quantity: number;
+  unit?: string | null;
+}
+
+/**
+ * The multiplier every line of this dish scales by: the servings multiplier,
+ * or — when the dish holds a whole bird by weight — the bird's own factor
+ * (BIRD_FLOOR_LB applied). The first such bird decides.
+ */
+export function dishScaleFactor(ingredients: readonly ScalableIngredient[], multiplier: number): number {
+  const bird = ingredients.find((i) => i.quantity > 0 && isWholeBirdByWeight(i.unit ?? "", i.name));
+  if (!bird) return multiplier;
+  return wholeItemMultiplier(multiplier, (bird.unit ?? "").trim(), bird.name, bird.quantity);
+}
+
+/**
+ * The multiplier ONE line scales by, given its dish's factor: a bird part never
+ * scales; a whole bird gets its floor (a no-op once the factor is the bird's).
+ */
+export function lineMultiplier(dishFactor: number, unit: string, name: string, quantity?: number): number {
+  if (isBirdPart(name)) return 1;
+  return wholeItemMultiplier(dishFactor, unit, name, quantity);
+}
+
+/**
+ * Every dish's factor, keyed by dishId, for the screens that render a whole
+ * meal (meal detail, Cook Mode). `mealOwned` is for steps that name no dish:
+ * a one-dish meal's steps are that dish's; otherwise servings.
+ */
+export function mealScaleFactors(
+  dishes: readonly { dishId: string; ingredients: readonly ScalableIngredient[] }[],
+  multiplier: number,
+): { byDish: Readonly<Record<string, number>>; mealOwned: number } {
+  const byDish: Record<string, number> = {};
+  for (const d of dishes) byDish[d.dishId] = dishScaleFactor(d.ingredients, multiplier);
+  const only = dishes.length === 1 ? byDish[dishes[0].dishId] : undefined;
+  return { byDish, mealOwned: only ?? multiplier };
+}
+
 /**
  * WS9 BUG-321 — THE NUMBER {@link formatQuantity} WILL ACTUALLY SHOW, as a
  * number. Extracted so the amount and the UNIT WORD beside it cannot disagree.

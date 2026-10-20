@@ -12,7 +12,7 @@
 
 import type { AmountRef } from "../api/meals";
 import { unitWordFor } from "../format/grocery";
-import { displayedQuantity, formatQuantity, wholeItemMultiplier } from "../format/quantity";
+import { displayedQuantity, formatQuantity, isBirdPart, wholeItemMultiplier } from "../format/quantity";
 
 // ── WS9 BUG-326 — A RANGE IS NOT ITS MIDPOINT ──────────────────────────────
 //
@@ -220,7 +220,11 @@ export function buildAmountRefSegments(
       // floor), and round it as that weight (¼ lb steps), not as a count.
       const hyphenBird = r.unit ? null : HYPHEN_BIRD.exec(text.slice(r.charEnd));
       const birdName = hyphenBird ? `whole ${hyphenBird[2]}` : name;
-      const amount = r.quantity * wholeItemMultiplier(multiplier, birdUnit, birdName, r.quantity);
+      // WEB-4b (BUG-454) — `multiplier` is the step's DISH factor; "1 turkey
+      // neck" is one neck at any size.
+      const amount = isBirdPart(name)
+        ? r.quantity
+        : r.quantity * wholeItemMultiplier(multiplier, birdUnit, birdName, r.quantity);
       const scaled = hyphenBird ? formatQuantity(amount, hyphenBird[1], "") : formatQuantity(amount, r.unit, name);
       // BUG-321 — the unit is a WORD here, same as on an ingredient line, and
       // pluralized on the DISPLAYED amount so "1 cups" cannot happen. FIX-7 —
