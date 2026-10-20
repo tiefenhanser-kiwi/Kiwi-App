@@ -135,6 +135,26 @@ describe("PREP-2 item 1 — the timeline against today", () => {
     assert.ok(MakeAheadSchema.safeParse({ ...SCHEDULE, rows }).success);
   });
 
+  it("WEB-4b (BUG-455): a dish with two make-ahead days gets a key per row — Make-Ahead's stuffing", () => {
+    // Tuesday's bread, Wednesday's assembly: same dish, same kind. `${kind}-${dishId}` collided.
+    const stuffing = { kind: "make" as const, mealId: FEAST, dishId: "d7", dishName: "Sage Stuffing" };
+    const rows = [
+      { ...stuffing, dayName: "Tuesday", date: "2026-11-24", daysBefore: 2 },
+      { ...stuffing, dayName: "Wednesday", date: "2026-11-25", daysBefore: 1, assemble: true as const },
+      { ...stuffing, dayName: "Wednesday", date: "2026-11-25", daysBefore: 1 }, // a repeat on one day: still its own key
+    ];
+    for (const m of [{ ...SCHEDULE, rows }, { ...SCHEDULE, rows: rows.map((r) => ({ ...r, date: null })) }]) {
+      const card = buildMakeAheadCard(m);
+      const keys = card.days.flatMap((d) => d.rows.map((r) => r.key));
+      assert.equal(keys.length, 3);
+      assert.equal(new Set(keys).size, 3, keys.join(", "));
+      assert.deepEqual(card.days.map((d) => d.rows.map((r) => r.note)), [["Make ahead"], ["Assemble ahead · bake Thursday", "Make ahead"]]);
+    }
+    // Across the Classic schedule, every key is unique too (the turkey thaws and brines).
+    const all = buildMakeAheadCard(SCHEDULE).days.flatMap((d) => d.rows.map((r) => r.key));
+    assert.equal(new Set(all).size, all.length);
+  });
+
   it("localIsoDate is the phone's calendar date", () => {
     assert.equal(localIsoDate(new Date(2026, 10, 5, 23, 59)), "2026-11-05");
   });
@@ -146,6 +166,19 @@ describe("PREP-1 — the session copy on Prep the Week", () => {
       title: "Prep the feast",
       notice: "For Wednesday, the day before the feast.",
     });
+  });
+  it("WEB-4b (BUG-455): with THX-3's sessionBefore it reads 'Do this before Monday.'", () => {
+    assert.deepEqual(
+      prepSessionCopy({ session: "feast", isSubset: false, sessionDay: "Wednesday", sessionBefore: "Monday", planHasFeast: true }),
+      { title: "Prep the feast", notice: "Do this before Monday." },
+    );
+  });
+  it("WEB-4b (BUG-455): an older server sends no sessionBefore — today's sentence stands", () => {
+    assert.equal(
+      prepSessionCopy({ session: "feast", isSubset: false, sessionDay: "Wednesday", planHasFeast: true }).notice,
+      "For Wednesday, the day before the feast.",
+    );
+    assert.equal(prepSessionCopy({ session: "feast", isSubset: false, planHasFeast: true }).notice, "For Wednesday, the day before the feast.");
   });
   it("the week says where the feast's prep went, and only when the plan has a feast", () => {
     assert.deepEqual(prepSessionCopy({ isSubset: false, planHasFeast: true }), { title: "Prep the Week", notice: FEAST_HAS_OWN_PREP_LINE });

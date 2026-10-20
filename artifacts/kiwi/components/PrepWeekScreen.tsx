@@ -83,6 +83,7 @@ export function PrepWeekScreen({
     session,
     isSubset,
     sessionDay: prepQuery.data?.kind === "ok" ? prepQuery.data.envelope.sessionDay : undefined,
+    sessionBefore: prepQuery.data?.kind === "ok" ? prepQuery.data.envelope.sessionBefore : undefined,
     planHasFeast: planQuery.data?.makeAhead != null,
   });
   const completionsQuery = usePrepWeekCompletions(planId);

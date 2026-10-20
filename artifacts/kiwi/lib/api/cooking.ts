@@ -362,6 +362,10 @@ const PrepWeekEnvelopeSchema = z.object({
   // `session: "feast"` and the day it is for ("Wednesday"). Absent on the week.
   session: z.literal("feast").optional(),
   sessionDay: z.string().optional(),
+  // THX-3 (D-WS9-316) — the session holds the make-ahead dishes' shelf-stable
+  // mixes, so it is done BEFORE the first day one is used ("Monday"). Absent on
+  // an older server, which keeps the sessionDay sentence.
+  sessionBefore: z.string().optional(),
 });
 // `subset` is `.optional()` on the WIRE mirror (a pre-WS9 server omits it) but
 // NON-optional on the type consumers see: getPrepWeek normalises the absence to

@@ -125,6 +125,14 @@ export function makeAheadDishRoute(
   };
 }
 
+/** `base`, or `base#2`, `base#3` … — the first not yet in `seen` (which it joins). */
+function uniqueKey(seen: Set<string>, base: string): string {
+  let k = base;
+  for (let n = 2; seen.has(k); n++) k = `${base}#${n}`;
+  seen.add(k);
+  return k;
+}
+
 /**
  * `planItemId` — the feast's plan item when the server did not send it.
  * `todayIso` — PREP-2: today's calendar date ("2026-11-24", `localIsoDate`). Days
@@ -138,6 +146,10 @@ export function buildMakeAheadCard(
 ): MakeAheadCardVM {
   const itemId = m.feastPlanItemId ?? planItemId;
   const out: (MakeAheadDayVM & { date: string | null })[] = [];
+  // WEB-4b (BUG-455) — a row key names its day too: Make-Ahead's stuffing has two
+  // make rows (Tuesday's bread, Wednesday's assembly), and kind + dish alone
+  // collided. A repeat on the same day (never seen) still gets its own key.
+  const rowKeys = new Set<string>();
   for (const row of m.rows) {
     const night = row.kind === "brine";
     const key = `${row.date ?? row.dayName}${night ? "-night" : ""}`;
@@ -155,7 +167,7 @@ export function buildMakeAheadCard(
       out.push(day);
     }
     day.rows.push({
-      key: `${row.kind}-${row.dishId}`,
+      key: uniqueKey(rowKeys, `${row.kind}-${row.dishId}-${key}`),
       dishId: row.dishId,
       mealId: row.mealId,
       planItemId: itemId,
@@ -201,11 +213,19 @@ export function prepSessionCopy(opts: {
   isSubset: boolean;
   /** The feast session's day, from the server ("Wednesday"). */
   sessionDay?: string;
+  /** WEB-4b (BUG-455) — THX-3: the day the session must be done BEFORE ("Monday",
+   *  the first day a make-ahead dish uses one of its mixes). Wins when present. */
+  sessionBefore?: string;
   /** GET /plans/:id carried `makeAhead`: the plan holds a feast. */
   planHasFeast: boolean;
 }): { title: string; notice: string | null } {
   if (opts.session === "feast") {
-    return { title: PREP_THE_FEAST_LABEL, notice: `For ${opts.sessionDay ?? "Wednesday"}, the day before the feast.` };
+    // WEB-4b (BUG-455) — the session holds Monday's and Tuesday's mixes too, so
+    // "for Wednesday" was false. An older server sends no sessionBefore.
+    const notice = opts.sessionBefore
+      ? `Do this before ${opts.sessionBefore}.`
+      : `For ${opts.sessionDay ?? "Wednesday"}, the day before the feast.`;
+    return { title: PREP_THE_FEAST_LABEL, notice };
   }
   return {
     title: opts.isSubset ? "Prep Selected Meals" : "Prep the Week",

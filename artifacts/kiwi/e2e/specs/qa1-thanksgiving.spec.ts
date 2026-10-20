@@ -66,6 +66,7 @@ interface PrepEnvelope {
   cacheHit: boolean;
   session?: "feast";
   sessionDay?: string;
+  sessionBefore?: string;
   result: { phases: Phase[] };
 }
 
@@ -349,9 +350,11 @@ test("QA-1 B — Thanksgiving prep (items 14–22)", async ({ page }) => {
     const cookDayWire = /leave it for cook day/i.test(wire);
     const cookDayScreen = first.text.some((l) => /leave it for cook day/i.test(l));
     const title = first.text.includes("Prep the feast");
-    const notice = first.text.find((l) => /^For \w+, the day before the feast\.$/.test(l)) ?? null;
+    // WEB-4b (BUG-455) — a THX-3 server sends sessionBefore: "Do this before Monday."
+    const notice = first.text.find((l) => /^(For \w+, the day before the feast|Do this before \w+)\.$/.test(l)) ?? null;
+    const wantNotice = env.sessionBefore ? `Do this before ${env.sessionBefore}.` : "For Wednesday, the day before the feast.";
     const ok =
-      first.status === 200 && title && notice === "For Wednesday, the day before the feast." &&
+      first.status === 200 && title && notice === wantNotice &&
       env.session === "feast" && foreign.length === 0 && !cookDayWire && !cookDayScreen && second.env?.cacheHit === true;
     return {
       verdict: ok ? "pass" : "fail",
