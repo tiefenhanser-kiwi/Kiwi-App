@@ -120,7 +120,11 @@ test("Part D: the plan slots read their own size constants, not a meal role", ()
   assert.match(planRow, /width=\{PLAN_THUMB\}\s+height=\{PLAN_THUMB\}/);
   assert.match(hub, /width=\{PLAN_CARD_THUMB\}\s+height=\{PLAN_CARD_THUMB\}/);
   // The Hub's ONE ImageTreatment.thumb read is the meal row (Block 2), not the plan card.
-  assert.equal((stripComments(hub).match(/ImageTreatment\.thumb\./g) ?? []).length, 2, "width+height on the meal row only");
+  // WEB-4 — the meal row reads it ONCE now, into HUB_THUMB (lib/webLayout.ts's
+  // webThumb), which then sizes both width and height.
+  assert.equal((stripComments(hub).match(/ImageTreatment\.thumb\./g) ?? []).length, 1, "the meal row only");
+  assert.match(hub, /HUB_THUMB = webThumb\(ImageTreatment\.thumb\.compact, WEB_THUMB\.hubRow\)/);
+  assert.match(hub, /width=\{HUB_THUMB\}\s+height=\{HUB_THUMB\}/);
   assert.ok(!planRow.includes("ImageTreatment.thumbSize") && !hub.includes("ImageTreatment.thumbSize"));
 });
 

@@ -12,6 +12,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 
@@ -36,6 +37,11 @@ import type {
   PromotablePlan,
 } from "@/lib/cooking/hubModel";
 import { PREP_THE_FEAST_LABEL, type MakeAheadRowVM } from "@/lib/cooking/makeAheadModel";
+import { hubRowLayout } from "@/lib/largeTextLayout";
+import { WEB_THUMB, webContentWidth, webThumb } from "@/lib/webLayout";
+
+// WEB-4 — 60 on native, 88 on the web (images sized to the column).
+const HUB_THUMB = webThumb(ImageTreatment.thumb.compact, WEB_THUMB.hubRow);
 
 interface Props {
   model: HubModel;
@@ -294,6 +300,8 @@ function Hub({
 }) {
   const { indicator } = model;
   const indicatorTone = TONE_STYLE[indicator.tone];
+  const { width: windowWidth, fontScale } = useWindowDimensions();
+  const contentWidth = webContentWidth(windowWidth);
   // Count DISTINCT selected mealIds that are actually on this week's list, so a
   // stale selection left over from a plan edit can never enable the CTA for a
   // meal the user can no longer see.
@@ -508,78 +516,114 @@ function Hub({
           {model.meals.map((row) => {
             const pillTone = TONE_STYLE[row.pill.tone];
             const selected = selectedMealIds.has(row.mealId);
+            // BUG-451 — at large text the name takes its own line, and the
+            // thumbnail goes when even that leaves the tag no room. Measured,
+            // not guessed (lib/largeTextLayout.ts); ordinary text keeps the row.
+            const layout = hubRowLayout({
+              contentWidth,
+              fontScale,
+              selectable: row.prepSelectable,
+              thumb: HUB_THUMB,
+              tagLabel: row.pill.label,
+            });
+            // WS9 — the prep-subset tick. Its OWN Pressable (with hitSlop)
+            // nested inside the row's, so tapping the box selects and
+            // tapping anywhere else still launches Cook Mode — the row's
+            // existing job, unchanged. §27.2: there is no shared Checkbox
+            // component in this app to reuse — PrepWeekView's StepCheckbox
+            // and grocery-list/[id].tsx each hand-roll their own — so this
+            // mirrors StepCheckbox's box/mark/sage-fill treatment (the
+            // nearest neighbour, and the one the user meets on the very
+            // next screen) rather than extracting a third abstraction in a
+            // block that owns neither of those files.
+            // PREP-1 — the feast is prepped in its own session, so it has no tick.
+            const tick = row.prepSelectable && (
+              <Pressable
+                onPress={() => onToggleMealSelected(row.mealId)}
+                hitSlop={10}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: selected }}
+                accessibilityLabel={
+                  selected
+                    ? `Remove ${resolveDisplayTitle(row)} from the prep selection`
+                    : `Add ${resolveDisplayTitle(row)} to the prep selection`
+                }
+                style={({ pressed }) => pressed && { opacity: 0.6 }}
+              >
+                {/* WS9 (Sept 4, D-WS9-207 Part 2) — the box now says what it
+                    does. Prep Selected Meals moved up into the sage lane, so
+                    the CTA no longer sits next to the ticks that feed it and
+                    a bare unlabelled checkbox in a row whose main tap target
+                    launches Cook Mode reads as ambiguous. The label is inside
+                    the checkbox's OWN Pressable, so the words are part of the
+                    tick target rather than a caption you can miss. */}
+                <View style={s.selectCell}>
+                  <View style={[s.selectBox, selected && s.selectBoxOn]}>
+                    {selected && <Text style={s.selectMark}>✓</Text>}
+                  </View>
+                  <Text style={s.selectCellLabel}>Prep This Meal</Text>
+                </View>
+              </Pressable>
+            );
+            // WS9 row 5 Block 2 — the meal thumb through TreatedImage
+            // (photo, or the warm ramp for a meal that never has one). The
+            // plan card above goes through TreatedImage too since row 5
+            // Block 3 Part D, at its own 48 — a PLAN image, not a meal thumb.
+            const thumb = layout.showThumb && (
+              <TreatedImage
+                source={row.thumbnailUrl ? { uri: row.thumbnailUrl } : null}
+                width={HUB_THUMB}
+                height={HUB_THUMB}
+                radius={Radius.md}
+              />
+            );
+            const title = <DisplayTitle source={row} variant="row" style={s.mealTitle} />;
+            const meta = <Text style={s.mealMeta}>{row.metaLine}</Text>;
+            const tag = (
+              <View
+                style={[s.pill, ...(layout.titleOwnLine ? [s.pillStacked] : []), { backgroundColor: pillTone.bg }]}
+              >
+                <Text style={[s.pillText, { color: pillTone.fg }]}>
+                  {row.pill.label}
+                </Text>
+              </View>
+            );
             return (
               <Pressable
                 key={row.planItemId}
                 onPress={() => onSelectMeal(row.mealId, row.planItemId)}
+                // The stacked style is spread in, not `&&`-ed: at ordinary sizes the
+                // row's style array is exactly the pre-BUG-451 one (PREP-2's pin).
                 style={({ pressed }) => [
                   s.mealRow,
+                  ...(layout.titleOwnLine ? [s.mealRowStacked] : []),
                   selected && s.mealRowSelected,
                   pressed && { opacity: 0.9 },
                 ]}
               >
-                {/* WS9 — the prep-subset tick. Its OWN Pressable (with hitSlop)
-                    nested inside the row's, so tapping the box selects and
-                    tapping anywhere else still launches Cook Mode — the row's
-                    existing job, unchanged. §27.2: there is no shared Checkbox
-                    component in this app to reuse — PrepWeekView's StepCheckbox
-                    and grocery-list/[id].tsx each hand-roll their own — so this
-                    mirrors StepCheckbox's box/mark/sage-fill treatment (the
-                    nearest neighbour, and the one the user meets on the very
-                    next screen) rather than extracting a third abstraction in a
-                    block that owns neither of those files. */}
-                {/* PREP-1 — the feast is prepped in its own session, so it has no tick. */}
-                {row.prepSelectable && (
-                <Pressable
-                  onPress={() => onToggleMealSelected(row.mealId)}
-                  hitSlop={10}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: selected }}
-                  accessibilityLabel={
-                    selected
-                      ? `Remove ${resolveDisplayTitle(row)} from the prep selection`
-                      : `Add ${resolveDisplayTitle(row)} to the prep selection`
-                  }
-                  style={({ pressed }) => pressed && { opacity: 0.6 }}
-                >
-                  {/* WS9 (Sept 4, D-WS9-207 Part 2) — the box now says what it
-                      does. Prep Selected Meals moved up into the sage lane, so
-                      the CTA no longer sits next to the ticks that feed it and
-                      a bare unlabelled checkbox in a row whose main tap target
-                      launches Cook Mode reads as ambiguous. The label is inside
-                      the checkbox's OWN Pressable, so the words are part of the
-                      tick target rather than a caption you can miss. */}
-                  <View style={s.selectCell}>
-                    <View style={[s.selectBox, selected && s.selectBoxOn]}>
-                      {selected && <Text style={s.selectMark}>✓</Text>}
+                {layout.titleOwnLine ? (
+                  <>
+                    {title}
+                    <View style={s.stackedBody}>
+                      {tick}
+                      {thumb}
+                      <View style={s.mealText}>
+                        {meta}
+                        {tag}
+                      </View>
                     </View>
-                    <Text style={s.selectCellLabel}>Prep This Meal</Text>
-                  </View>
-                </Pressable>
+                  </>
+                ) : (
+                  <>
+                    {tick}
+                    {thumb}
+                    <View style={s.mealText}>
+                      {title}
+                      {meta}
+                    </View>
+                    {tag}
+                  </>
                 )}
-                {/* WS9 row 5 Block 2 — the meal thumb through TreatedImage
-                    (photo, or the warm ramp for a meal that never has one). The
-                    plan card above goes through TreatedImage too since row 5
-                    Block 3 Part D, at its own 48 — a PLAN image, not a meal thumb. */}
-                <TreatedImage
-                  source={row.thumbnailUrl ? { uri: row.thumbnailUrl } : null}
-                  width={ImageTreatment.thumb.compact}
-                  height={ImageTreatment.thumb.compact}
-                  radius={Radius.md}
-                />
-                <View style={s.mealText}>
-                  <DisplayTitle
-                    source={row}
-                    variant="row"
-                    style={s.mealTitle}
-                  />
-                  <Text style={s.mealMeta}>{row.metaLine}</Text>
-                </View>
-                <View style={[s.pill, { backgroundColor: pillTone.bg }]}>
-                  <Text style={[s.pillText, { color: pillTone.fg }]}>
-                    {row.pill.label}
-                  </Text>
-                </View>
               </Pressable>
             );
           })}
@@ -812,6 +856,17 @@ const s = StyleSheet.create({
   // WS9 — a selected row takes the sage edge, so the selection reads at a
   // glance from the CTA above without having to scan four checkboxes. Border
   // ONLY: a fill would fight the pill and the thumbnail for the row.
+  // BUG-451 — the name's own line on top, the rest of the row under it.
+  mealRowStacked: {
+    flexDirection: "column",
+    alignItems: "stretch",
+    gap: Spacing[2],
+  },
+  stackedBody: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing[3],
+  },
   mealRowSelected: {
     borderColor: Colors.sage[600],
   },
@@ -869,6 +924,7 @@ const s = StyleSheet.create({
     paddingHorizontal: Spacing[2],
     paddingVertical: 3,
   },
+  pillStacked: { alignSelf: "flex-start", marginTop: Spacing[1] },
   pillText: {
     fontSize: Typography.fontSize.xs,
     fontWeight: Typography.fontWeight.semibold,

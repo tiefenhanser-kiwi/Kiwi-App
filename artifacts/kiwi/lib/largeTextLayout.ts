@@ -60,3 +60,69 @@ export const RAIL_CHIP_MIN_FIT = 0.5;
 /** The pill's own left offset inside the card, mirrored on the right as its
  *  bound: the chip may span the card but never run past it. */
 export const RAIL_CHIP_INSET = 7;
+
+// ── BUG-451 — the Prep & Cook hub's meal rows at large text ─────────────────
+//
+// Hans, Session 1 items 34–35: at the largest Font + Display sizes the meal
+// names vanish; one step below, they wrap to a thin strip. The row is
+// [tick cell · thumbnail · name + meta · status tag], and every cell but the
+// name is fixed or grows with the text: the 52 dp tick cell, the thumbnail, and
+// the tag, whose label scales. At fontScale 2 in a 320 dp window the name is
+// left ~0 dp. The answer is BUG-347's: measure, and change the SHAPE when the
+// measure says so, rather than shrinking text.
+//
+//   1. The name takes its own line (the full card width) when its inline width
+//      falls below HUB_ROW_TITLE_MIN_EMS of its own type size. The tag then sits
+//      under the meta line, not beside it.
+//   2. If, stacked, the meta column is still narrower than the tag, the
+//      thumbnail is dropped.
+//
+// Ordinary text (fontScale 1) in a 375 dp window keeps today's row with every
+// label the hub shows (the longest, "Nothing to prep", leaves the name 4.1 em).
+
+/** The narrowest an inline name may get, in ems of its own (scaled) size. */
+export const HUB_ROW_TITLE_MIN_EMS = 4;
+
+// The row's fixed chrome, from components/PrepCookHubView.tsx's styles.
+const HUB_SCREEN_PAD = 16 * 2; // Screen's paddingHorizontal (Spacing[4])
+const HUB_ROW_CHROME = 12 * 2 + 2; // mealRow padding (Spacing[3]) + 1 dp border each side
+const HUB_GAP = 12; // mealRow gap (Spacing[3])
+const HUB_TICK_CELL = 52; // selectCell width
+const HUB_TITLE_SIZE = 15; // mealTitle, Typography.fontSize.md
+const HUB_TAG_SIZE = 11; // pillText, Typography.fontSize.xs
+const HUB_TAG_PAD = 8 * 2; // pill paddingHorizontal (Spacing[2])
+/** A sans label's average advance, in ems — DM Sans semibold, measured loosely. */
+const SANS_EM_ADVANCE = 0.55;
+
+export interface HubRowLayout {
+  /** The meal name on its own full-width line, the tag under the meta. */
+  titleOwnLine: boolean;
+  showThumb: boolean;
+}
+
+/** The status tag's width at a text scale. */
+export function hubTagWidth(label: string, fontScale: number): number {
+  return label.length * SANS_EM_ADVANCE * HUB_TAG_SIZE * fontScale + HUB_TAG_PAD;
+}
+
+export function hubRowLayout(input: {
+  /** The window width — or, on the web, the column's (lib/webLayout.ts). */
+  contentWidth: number;
+  fontScale: number;
+  /** The row shows a prep tick (a feast row does not). */
+  selectable: boolean;
+  thumb: number;
+  tagLabel: string;
+}): HubRowLayout {
+  const { contentWidth, fontScale, selectable, thumb, tagLabel } = input;
+  const card = contentWidth - HUB_SCREEN_PAD - HUB_ROW_CHROME;
+  const tick = selectable ? HUB_TICK_CELL + HUB_GAP : 0;
+  const thumbCell = thumb + HUB_GAP;
+  const tag = hubTagWidth(tagLabel, fontScale);
+  const inlineTitle = card - tick - thumbCell - HUB_GAP - tag;
+  if (inlineTitle >= HUB_ROW_TITLE_MIN_EMS * HUB_TITLE_SIZE * fontScale) {
+    return { titleOwnLine: false, showThumb: true };
+  }
+  const metaColumn = card - tick - thumbCell;
+  return { titleOwnLine: true, showThumb: metaColumn >= tag };
+}

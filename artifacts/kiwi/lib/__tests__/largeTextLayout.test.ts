@@ -19,8 +19,57 @@ import {
   RAIL_CHIP_MIN_FIT,
   TAB_LABEL_MAX_SCALE,
   TAB_LABEL_MIN_FIT,
+  hubRowLayout,
+  hubTagWidth,
   tabBarHeight,
 } from "../largeTextLayout";
+
+// ── BUG-451 — the Prep & Cook hub's meal rows ───────────────────────────────
+
+const hubRow = (
+  contentWidth: number,
+  fontScale: number,
+  extra: { thumb?: number; selectable?: boolean; tag?: string } = {},
+) =>
+  hubRowLayout({
+    contentWidth,
+    fontScale,
+    selectable: extra.selectable ?? true,
+    thumb: extra.thumb ?? 60,
+    tagLabel: extra.tag ?? "Not prepped",
+  });
+
+test("BUG-451: ordinary text on a 375 or 411 dp phone keeps today's row, whatever the tag says", () => {
+  for (const tag of ["Not prepped", "Mostly prepped", "Prepped ✓", "Nothing to prep", "Partly prepped"]) {
+    assert.deepEqual(hubRow(375, 1, { tag }), { titleOwnLine: false, showThumb: true }, tag);
+    assert.deepEqual(hubRow(411, 1, { tag }), { titleOwnLine: false, showThumb: true }, tag);
+  }
+});
+
+test("BUG-451: Hans's two sizes (max, and one step below) give the name its own line", () => {
+  for (const w of [320, 360, 375, 411]) {
+    assert.equal(hubRow(w, 2).titleOwnLine, true, `${w} @ 2.0`);
+    assert.equal(hubRow(w, 1.8).titleOwnLine, true, `${w} @ 1.8`);
+  }
+});
+
+test("BUG-451: at max Font + Display size (320 dp) the thumbnail goes, so the tag fits beside the tick", () => {
+  assert.deepEqual(hubRow(320, 2), { titleOwnLine: true, showThumb: false });
+  assert.deepEqual(hubRow(320, 1.5), { titleOwnLine: true, showThumb: true });
+});
+
+test("BUG-451: the web column (720, 88 px thumbs) never needs the stacked row", () => {
+  for (const f of [1, 1.5, 2]) {
+    assert.deepEqual(hubRow(720, f, { thumb: 88 }), { titleOwnLine: false, showThumb: true });
+  }
+});
+
+test("BUG-451: a feast row (no tick) and a longer tag are measured, not assumed", () => {
+  // No tick cell: 64 dp more for the name.
+  assert.equal(hubRow(360, 1.15, { selectable: false }).titleOwnLine, false);
+  assert.equal(hubRow(360, 1.15).titleOwnLine, true);
+  assert.ok(hubTagWidth("Nothing to prep", 1) > hubTagWidth("Not prepped", 1));
+});
 
 const here = dirname(fileURLToPath(import.meta.url));
 const tabs = readFileSync(resolve(here, "../../app/(tabs)/_layout.tsx"), "utf8");
