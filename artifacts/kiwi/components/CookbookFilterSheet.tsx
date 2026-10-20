@@ -32,6 +32,7 @@ import {
   type CookbookFilters,
 } from "@/lib/cookbook/query";
 import { allergyLine, EATING_STYLES_SOON_LINE } from "@/lib/cookbook/sheetCopy";
+import { sheetHandleShown, webSheet } from "@/lib/webLayout";
 
 export interface CookbookFilterSheetProps {
   visible: boolean;
@@ -89,8 +90,8 @@ export function CookbookFilterSheet({
       onRequestClose={onClose}
     >
       <Pressable style={s.backdrop} onPress={onClose} accessibilityLabel="Close filters" />
-      <View style={[s.sheet, { paddingBottom: insets.bottom + Spacing[3] }]}>
-        <View style={s.handle} />
+      <View style={webSheet([s.sheet, { paddingBottom: insets.bottom + Spacing[3] }])}>
+        {sheetHandleShown() && <View style={s.handle} />}
         <View style={s.header}>
           <Text style={s.title}>Filters</Text>
           <Pressable onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">

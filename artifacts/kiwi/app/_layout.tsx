@@ -35,6 +35,12 @@ import { GuestProvider, useGuestStoreReady, useIsGuestSafe } from "@/contexts/Gu
 import { ToastProvider } from "@/contexts/ToastProvider";
 import { Palette } from "@/constants/tokens";
 import { sessionGateShouldEvict } from "@/lib/sessionBootstrap";
+import { webScreenLayout } from "@/lib/webLayout";
+
+// WEB-4 — on the web every stack screen sits in the column (lib/webLayout.ts);
+// (tabs) is passed through, its Tabs' sceneStyle carrying the column so the
+// tab bar can span the window. Native: undefined, no layout.
+const SCREEN_LAYOUT = webScreenLayout(Palette.background.app);
 
 SplashScreen.preventAutoHideAsync();
 
@@ -136,7 +142,10 @@ function RootLayoutNav() {
     );
   }
   return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Palette.background.app } }}>
+    <Stack
+      screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Palette.background.app } }}
+      screenLayout={SCREEN_LAYOUT}
+    >
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="onboarding-prefs" options={{ presentation: "modal" }} />

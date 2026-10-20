@@ -33,6 +33,7 @@ import {
 } from "@/lib/dishes/sortMapping";
 import { formatMacroLine } from "@/lib/format/macros";
 import type { SavedDish } from "@/lib/types";
+import { sheetHandleShown, webSheet } from "@/lib/webLayout";
 
 export interface DishChooserSheetProps {
   visible: boolean;
@@ -150,8 +151,8 @@ export function DishChooserSheetView({
         style={s.kbAvoidWrap}
         pointerEvents="box-none"
       >
-        <View style={[s.sheet, { paddingBottom: insets.bottom + Spacing[3] }]}>
-          <View style={s.handle} />
+        <View style={webSheet([s.sheet, { paddingBottom: insets.bottom + Spacing[3] }])}>
+          {sheetHandleShown() && <View style={s.handle} />}
           <View style={s.header}>
             <Text style={s.title}>Add a dish</Text>
             <Pressable onPress={handleClose} hitSlop={12}>

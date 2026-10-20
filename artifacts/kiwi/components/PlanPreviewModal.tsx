@@ -47,6 +47,7 @@ import { getTemplate, type TemplateDetail } from "@/lib/api/plans";
 import { PlanPreviewMealRow } from "./planPreview/PlanPreviewMealRow";
 import { PlanPreviewMealView } from "./planPreview/PlanPreviewMealView";
 import { buildPlanPreview, type PreviewMealRow } from "./planPreview/previewModel";
+import { sheetHandleShown, webSheet } from "@/lib/webLayout";
 
 // BUG-396 — the app's existing generic failure line (forgot/reset password,
 // Meals tab, grocery list). Since PREVIEW-1 B only a failed CREATE reaches
@@ -137,8 +138,8 @@ export function PlanPreviewModal({
       onRequestClose={handleRequestClose}
     >
       <Pressable style={s.backdrop} onPress={onClose} />
-      <View style={s.sheet}>
-        <View style={s.handle} />
+      <View style={webSheet(s.sheet)}>
+        {sheetHandleShown() && <View style={s.handle} />}
         <View style={s.topBar}>
           {openMeal ? (
             <Pressable

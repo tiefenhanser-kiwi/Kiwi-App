@@ -18,6 +18,7 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { sheetHandleShown, webSheet } from "@/lib/webLayout";
 
 export interface AddDishChooserSheetProps {
   visible: boolean;
@@ -46,8 +47,8 @@ export function AddDishChooserSheet({
       onRequestClose={onClose}
     >
       <Pressable style={s.backdrop} onPress={onClose} />
-      <View style={[s.sheet, { paddingBottom: insets.bottom + Spacing[3] }]}>
-        <View style={s.handle} />
+      <View style={webSheet([s.sheet, { paddingBottom: insets.bottom + Spacing[3] }])}>
+        {sheetHandleShown() && <View style={s.handle} />}
         <View style={s.header}>
           <Text style={s.title}>Add a dish</Text>
           <Pressable onPress={onClose} hitSlop={12}>

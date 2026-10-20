@@ -48,7 +48,8 @@ test("the caps are BUG-347's: labels 1.5×, the chip 1.5× like the wordmark", (
 });
 
 test("the tab bar reads its height from the font scale, and every label is one capped line that shrinks to fit", () => {
-  assert.match(tabs, /const \{ fontScale \} = useWindowDimensions\(\);/);
+  // WEB-4 — the same read also takes the width (the web tab bar's inset).
+  assert.match(tabs, /const \{ fontScale, width \} = useWindowDimensions\(\);/);
   assert.match(tabs, /Platform\.OS === "web" \? 84 : tabBarHeight\(fontScale, insets\.bottom\)/);
   assert.doesNotMatch(tabs, /baseHeight \+ insets\.bottom/);
   const label = /function tabLabel[\s\S]*?\n\}/.exec(tabs)?.[0] ?? "";

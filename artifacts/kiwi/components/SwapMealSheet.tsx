@@ -37,6 +37,7 @@ import { dedupeMealsByTitle, normalizeMealTitleKey } from "@/lib/meals/dedupeByT
 import { MEAL_DISABLED_SORT_KEYS, toMealSortKey } from "@/lib/meals/sortMapping";
 import { mealListItemToSummary } from "@/lib/plans/mealListItemToSummary";
 import type { MealSummary } from "@/lib/types";
+import { sheetHandleShown, webSheet } from "@/lib/webLayout";
 
 // WS9 3d Part 4 (D-WS9-018) — ChangeMealSheet + FindSimilarSheet merged into ONE
 // swap sheet with two modes, driven off the Plan Review meal row's two swap
@@ -208,8 +209,8 @@ export function SwapMealSheet({
           bottom (justify flex-end). */}
       <View style={s.container}>
         <Pressable style={s.backdrop} onPress={onClose} />
-        <View style={[s.sheet, { paddingBottom: insets.bottom + Spacing[3] }]}>
-          <View style={s.handle} />
+        <View style={webSheet([s.sheet, { paddingBottom: insets.bottom + Spacing[3] }])}>
+          {sheetHandleShown() && <View style={s.handle} />}
           <View style={s.header}>
             {askOpen ? (
               <Pressable onPress={() => setAskOpen(false)} hitSlop={12}>

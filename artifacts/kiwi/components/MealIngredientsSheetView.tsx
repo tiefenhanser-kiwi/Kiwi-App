@@ -19,6 +19,7 @@ import { Feather } from "@expo/vector-icons";
 
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import type { ConsolidatedIngredient } from "@/lib/meals/consolidateMealIngredients";
+import { webSheet } from "@/lib/webLayout";
 
 export interface MealIngredientsSheetViewProps {
   visible: boolean;
@@ -52,7 +53,7 @@ export function MealIngredientsSheetView({
       <Pressable style={s.backdrop} onPress={onClose} testID="meal-ingredients-backdrop">
         {/* Swallow taps inside the sheet so the backdrop's onPress does not
             close it from under the scroll. */}
-        <Pressable style={s.sheet} onPress={() => {}}>
+        <Pressable style={webSheet(s.sheet)} onPress={() => {}}>
           <View style={s.header}>
             <View style={s.headerText}>
               <Text style={s.heading} numberOfLines={2}>

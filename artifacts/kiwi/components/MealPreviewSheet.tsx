@@ -42,6 +42,7 @@ import { Colors, ImageTreatment, Palette, Radius, Spacing, Typography } from "@/
 import { trackGuestEvent } from "@/lib/api/guest";
 import { getMeal, type MealDetail } from "@/lib/api/meals";
 import type { ShelfMeal } from "@/lib/api/wizard";
+import { sheetHandleShown, webSheet } from "@/lib/webLayout";
 
 export const PREVIEW_ADD = "Add to my picks";
 export const PREVIEW_REMOVE = "Remove from my picks";
@@ -115,8 +116,8 @@ export function MealPreviewSheet({
     >
       <Pressable style={s.backdrop} onPress={onClose} />
       {meal ? (
-        <View style={[s.sheet, { paddingBottom: insets.bottom + Spacing[3] }]}>
-          <View style={s.handle} />
+        <View style={webSheet([s.sheet, { paddingBottom: insets.bottom + Spacing[3] }])}>
+          {sheetHandleShown() && <View style={s.handle} />}
           <View style={s.header}>
             <Text style={s.title}>{meal.title}</Text>
             <Pressable onPress={onClose} hitSlop={12} accessibilityLabel={PREVIEW_CLOSE}>

@@ -28,6 +28,7 @@ import { Feather } from "@expo/vector-icons";
 import { Button } from "@/components/Button";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import type { GroceryListItem } from "@/lib/types";
+import { webSheet } from "@/lib/webLayout";
 
 export interface ClarifySheetViewProps {
   /** Sheet visibility — drives the Modal. */
@@ -85,7 +86,7 @@ export function ClarifySheetView({
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={s.clarifyBackdrop}
       >
-        <View style={s.clarifySheet}>
+        <View style={webSheet(s.clarifySheet)}>
           {item && (
             <ScrollView
               style={s.clarifyScroll}

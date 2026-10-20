@@ -24,6 +24,7 @@ import type { MealFilterKey } from "@/lib/api/meals";
 import { formatMacroLine } from "@/lib/format/macros";
 import { mealListItemToSummary } from "@/lib/plans/mealListItemToSummary";
 import type { MealSummary } from "@/lib/types";
+import { sheetHandleShown, webSheet } from "@/lib/webLayout";
 
 export interface AddMealsSheetProps {
   visible: boolean;
@@ -85,8 +86,8 @@ export function AddMealsSheet({
       onRequestClose={onClose}
     >
       <Pressable style={s.backdrop} onPress={onClose} />
-      <View style={[s.sheet, { paddingBottom: insets.bottom + Spacing[3] }]}>
-        <View style={s.handle} />
+      <View style={webSheet([s.sheet, { paddingBottom: insets.bottom + Spacing[3] }])}>
+        {sheetHandleShown() && <View style={s.handle} />}
         <View style={s.header}>
           <Text style={s.title}>Add a meal</Text>
           <Pressable onPress={onClose} hitSlop={12}>

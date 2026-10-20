@@ -18,6 +18,7 @@ import {
   parseLocalDate,
   toLocalDateString,
 } from "@/lib/dates";
+import { sheetHandleShown, webSheet } from "@/lib/webLayout";
 
 export interface PlanDateRangeEditorProps {
   /** ISO "YYYY-MM-DD". Falls back to today's week start when missing. */
@@ -184,9 +185,9 @@ function DateRangeSheet({
     >
       <Pressable style={s.backdrop} onPress={onClose} />
       <View
-        style={[s.sheet, { paddingBottom: insets.bottom + Spacing[3] }]}
+        style={webSheet([s.sheet, { paddingBottom: insets.bottom + Spacing[3] }])}
       >
-        <View style={s.handle} />
+        {sheetHandleShown() && <View style={s.handle} />}
         <View style={s.header}>
           <Text style={s.title}>Plan dates</Text>
           <Pressable onPress={onClose} hitSlop={12}>

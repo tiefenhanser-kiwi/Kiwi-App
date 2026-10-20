@@ -20,6 +20,7 @@ import { Button } from "@/components/Button";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { trackGuestEvent } from "@/lib/api/guest";
 import { doorCopy, type GuestAction } from "@/lib/guest/doors";
+import { sheetHandleShown, webSheet } from "@/lib/webLayout";
 
 export interface GuestDoorSheetProps {
   /** The action that hit the door, or null when closed. */
@@ -60,8 +61,8 @@ export function GuestDoorSheet({ action, onClose }: GuestDoorSheetProps) {
       {/* Tap-outside closes: this door is "Keep looking"-able by ruling, unlike
           the personalize nudge (R8), which must be tapped through. */}
       <Pressable style={s.backdrop} onPress={onClose} />
-      <View style={[s.sheet, { paddingBottom: insets.bottom + Spacing[3] }]}>
-        <View style={s.handle} />
+      <View style={webSheet([s.sheet, { paddingBottom: insets.bottom + Spacing[3] }])}>
+        {sheetHandleShown() && <View style={s.handle} />}
         <View style={s.header}>
           <Text style={s.title}>{copy.title}</Text>
           <Pressable onPress={onClose} hitSlop={12} accessibilityLabel="Close">

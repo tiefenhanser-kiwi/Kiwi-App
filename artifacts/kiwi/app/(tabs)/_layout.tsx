@@ -10,6 +10,11 @@ import {
   TAB_LABEL_MIN_FIT,
   tabBarHeight,
 } from "@/lib/largeTextLayout";
+import { webColumn, webTabBar } from "@/lib/webLayout";
+
+// WEB-4 — the tab screens sit in the web column (lib/webLayout.ts); the root
+// Stack leaves (tabs) unconstrained so the bar below can span the window.
+const SCENE = webColumn(undefined);
 
 // WS9 BUG-198 — the active tab needs a signal that is NOT colour.
 //
@@ -92,7 +97,7 @@ export default function TabLayout() {
   const insets = useSafeAreaInsets();
   // FIX-7 (BUG-439) — the bar grows by the capped label's extra line height;
   // exactly the old 56 + inset at ordinary text sizes.
-  const { fontScale } = useWindowDimensions();
+  const { fontScale, width } = useWindowDimensions();
   return (
     <Tabs
       screenOptions={{
@@ -106,14 +111,17 @@ export default function TabLayout() {
         // active/inactive gap. The gap is now carried by the indicator bar and
         // the label weight above, which is why the contrast can stay.
         tabBarInactiveTintColor: Colors.neutral[700],
-        tabBarStyle: {
+        // WEB-4 — on the web the items sit in the column; native gets the
+        // object back unchanged.
+        tabBarStyle: webTabBar({
           backgroundColor: Colors.neutral[200],
           borderTopColor: Colors.neutral[400],
           borderTopWidth: 1,
           paddingBottom: insets.bottom,
           height:
             Platform.OS === "web" ? 84 : tabBarHeight(fontScale, insets.bottom),
-        },
+        }, width),
+        sceneStyle: SCENE,
         tabBarLabelStyle: {
           fontSize: Typography.fontSize.xs,
           fontWeight: Typography.fontWeight.medium,

@@ -45,6 +45,7 @@ import {
   SHEET_TRIALING_TITLE,
 } from "@/lib/billing/copy";
 import { platformStore } from "@/lib/billing/subscriptionView";
+import { sheetHandleShown, webSheet } from "@/lib/webLayout";
 
 function openLegal(url: string): void {
   Linking.openURL(url).catch((err: unknown) => {
@@ -87,8 +88,8 @@ export function PaywallSheet() {
     >
       {/* Tap-outside closes. See the header: this sheet is never a trap. */}
       <Pressable style={s.backdrop} onPress={closeSheet} testID="paywall-backdrop" />
-      <View style={[s.sheet, { paddingBottom: insets.bottom + Spacing[3] }]}>
-        <View style={s.handle} />
+      <View style={webSheet([s.sheet, { paddingBottom: insets.bottom + Spacing[3] }])}>
+        {sheetHandleShown() && <View style={s.handle} />}
         <View style={s.header}>
           <Text style={s.title}>{title}</Text>
           <Pressable onPress={closeSheet} hitSlop={12} accessibilityLabel="Close">

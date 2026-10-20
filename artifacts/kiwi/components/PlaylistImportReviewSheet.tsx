@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/Button";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import type { ImportReviewItem } from "@/lib/builder/playlistImportReview";
+import { sheetHandleShown, webSheet } from "@/lib/webLayout";
 
 export const IMPORT_REVIEW_TITLE = "Kiwi imported your favorites.";
 export const IMPORT_REVIEW_BODY =
@@ -51,8 +52,8 @@ export function PlaylistImportReviewSheet({
     >
       <View style={s.backdrop}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onDone} accessibilityLabel="Dismiss" />
-        <View style={[s.sheet, { paddingBottom: insets.bottom + Spacing[4] }]} testID="playlist-import-review">
-          <View style={s.handle} />
+        <View style={webSheet([s.sheet, { paddingBottom: insets.bottom + Spacing[4] }])} testID="playlist-import-review">
+          {sheetHandleShown() && <View style={s.handle} />}
           <Text style={s.title}>{IMPORT_REVIEW_TITLE}</Text>
           <Text style={s.body}>{IMPORT_REVIEW_BODY}</Text>
           <View style={s.list}>

@@ -10,6 +10,7 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { sheetHandleShown, webSheet } from "@/lib/webLayout";
 
 // WS9 3d Part 1c (D-WS9-001 / D-WS9-008) — the plan-card "⋯" overflow host.
 // The app had no kebab/action-sheet affordance anywhere (Phase 0). Scope guard
@@ -97,8 +98,8 @@ export function PlanCardOverflowMenu({
         onRequestClose={() => setOpen(false)}
       >
         <Pressable style={s.backdrop} onPress={() => setOpen(false)} />
-        <View style={[s.sheet, { paddingBottom: insets.bottom + Spacing[3] }]}>
-          <View style={s.handle} />
+        <View style={webSheet([s.sheet, { paddingBottom: insets.bottom + Spacing[3] }])}>
+          {sheetHandleShown() && <View style={s.handle} />}
           {resolved.map((item) => (
             <Pressable
               key={item.label}

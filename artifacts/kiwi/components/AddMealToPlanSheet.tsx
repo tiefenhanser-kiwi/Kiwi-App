@@ -26,6 +26,7 @@ import {
 import { formatPlanDateRange } from "@/lib/plans/planRowMeta";
 import { dialog } from "@/lib/dialog";
 import type { DayOfWeek } from "@/lib/types";
+import { sheetHandleShown, webSheet } from "@/lib/webLayout";
 
 export interface AddMealToPlanSheetProps {
   visible: boolean;
@@ -164,8 +165,8 @@ export function AddMealToPlanSheet({
       onRequestClose={onClose}
     >
       <Pressable style={s.backdrop} onPress={onClose} />
-      <View style={[s.sheet, { paddingBottom: insets.bottom + Spacing[3] }]}>
-        <View style={s.handle} />
+      <View style={webSheet([s.sheet, { paddingBottom: insets.bottom + Spacing[3] }])}>
+        {sheetHandleShown() && <View style={s.handle} />}
         <View style={s.header}>
           {pickedPlan ? (
             <Pressable
