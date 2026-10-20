@@ -209,6 +209,13 @@ export interface MomentResolution {
 export function resolveMoments(
   steps: ComponentStep[],
   ingredients: ComponentIngredient[],
+  /**
+   * THX-3b (BUG-456) — for each LISTING of an ingredient its dish lists twice (the
+   * adapter's portion view), the step its amount is measured at. Its prose moment is
+   * looked for from that step on: the topping's sugar is not "named" by the filling
+   * step that names the filling's sugar. Absent for every other dish.
+   */
+  listingStep?: ReadonlyMap<string, number>,
 ): MomentResolution {
   const ordered = [...steps].sort((a, b) => a.stepIndex - b.stepIndex);
   const hasCoverage = ordered.some((s) => s.ingredientIds.length > 0);
@@ -249,8 +256,10 @@ export function resolveMoments(
     // split ingredients the author never grouped, so it does not reach inside
     // one. Checked here rather than at the key so the report counts honestly.
     if (componentOf.get(ing.ingredientId)) continue;
+    const from = listingStep?.get(ing.ingredientId) ?? -Infinity;
     const named = ordered.find(
       (s) =>
+        s.stepIndex >= from &&
         (ENTRY_PHASES.has(s.phaseType) ||
           (PLACES_IN_HEAT_VESSEL.test(s.text) && isHeatMoment(s, ordered))) &&
         proseNames(s.text, ing.ingredientName),

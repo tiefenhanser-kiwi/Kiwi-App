@@ -106,8 +106,14 @@ const FINGERPRINT_ALGO_VERSION = 1;
  *       Pantry are never dry (BUG-426/447); a feast's salt and pepper join its dry
  *       mixes, and a make-ahead dish brings only its shelf-stable mix to "Prep the
  *       feast" (D-WS9-316). All change containers and amounts, so the prose must go.
+ *  11 — THX-3b: a whole-bird dish scales by its bird and a neck or giblets is one
+ *       (BUG-454: the brine at 4 of 10 servings was ¼ cup salt in ⅜ gallon, now ⅓
+ *       cup in ¾); an ingredient a dish lists twice at two moments is two portions,
+ *       each in its own step's container (BUG-456: the casserole's topping sugar left
+ *       the filling's mix; 55 of the 158 catalog meals with such a dish change).
+ *       Amounts and containers both move, so the prose must go.
  */
-export const PREP_ENGINE_VERSION = 10;
+export const PREP_ENGINE_VERSION = 11;
 
 /**
  * Digest of the loaded plan composition — everything the prep payload is built

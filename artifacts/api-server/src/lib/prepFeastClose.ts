@@ -135,7 +135,7 @@ export function containerUses(
   feastDay?: string,
 ): ContainerUse[] {
   const out = new Map<string, ContainerUse>();
-  const ingredientsOf = new Map<string, { ingredientId: string; ingredientName: string }[]>();
+  const ingredientsOf = new Map<string, PrepCombineInput["meals"][number]["dishes"][number]["ingredients"]>();
   for (const m of combineInput.meals) for (const d of m.dishes) ingredientsOf.set(d.dishId, d.ingredients);
   for (const st of steps) {
     if (!st.bowlName || st.demoted || out.has(st.bowlName)) continue;
@@ -143,8 +143,18 @@ export function containerUses(
     const first = measures.find((m) => m.dishId);
     if (!first?.dishId || !first.mealId) continue;
     const dish = dishesById.get(first.dishId);
-    const members = memberIds(measures.filter((m) => m.dishId === first.dishId), ingredientsOf.get(first.dishId) ?? []);
-    const entry = dish ? entryStepOf(dish.componentSteps, members.ids, members.names) : null;
+    const rows = ingredientsOf.get(first.dishId) ?? [];
+    const mine = measures.filter((m) => m.dishId === first.dishId);
+    const members = memberIds(mine, rows);
+    // THX-3b (BUG-456) — a listing of an ingredient the dish lists twice enters at ITS
+    // step (the topping's sugar at the topping's), never at the other listing's.
+    const pinned = new Map<string, number>();
+    for (const r of rows) {
+      if (r.portionStep === undefined || !mine.some((m) => m.portion === r.portion && ingredientGroupKey(m.name) === ingredientGroupKey(r.ingredientName))) continue;
+      pinned.set(r.ingredientId, r.portionStep);
+    }
+    const twice = new Set(rows.filter((r) => r.portion !== undefined).map((r) => r.ingredientId));
+    const entry = dish ? entryStepOf(dish.componentSteps, members.ids, members.names, (id, s) => !twice.has(id) || pinned.get(id) === s) : null;
     out.set(st.bowlName, {
       name: st.bowlName,
       dishId: first.dishId,
@@ -170,9 +180,15 @@ function memberIds(
   return { ids, names };
 }
 
-function entryStepOf(steps: readonly ComponentStep[], ids: ReadonlySet<string>, names: readonly string[]): number | null {
+function entryStepOf(
+  steps: readonly ComponentStep[],
+  ids: ReadonlySet<string>,
+  names: readonly string[],
+  /** THX-3b — whether a member's amountRef on this step is the member's own listing. */
+  ownsRef: (id: string, stepIndex: number) => boolean = () => true,
+): number | null {
   const ordered = [...steps].sort((a, b) => a.stepIndex - b.stepIndex);
-  const byRef = ordered.find((s) => s.ingredientIds.some((id) => ids.has(id)));
+  const byRef = ordered.find((s) => s.ingredientIds.some((id) => ids.has(id) && ownsRef(id, s.stepIndex)));
   if (byRef) return byRef.stepIndex;
   const byName = ordered.find((s) => names.some((n) => proseNames(s.text, n)));
   return byName ? byName.stepIndex : null;
@@ -190,7 +206,7 @@ export function feastClosingLines(
   feastDay?: string,
 ): Map<string, string> {
   const uses = containerUses(steps, dishesById, combineInput, feastDay);
-  const scaled = new Map<string, { ingredientId: string; ingredientName: string; quantity: number; unit: string; category: string }[]>();
+  const scaled = new Map<string, { ingredientId: string; ingredientName: string; quantity: number; unit: string; category: string; portionStep?: number }[]>();
   for (const m of combineInput.meals) for (const d of m.dishes) scaled.set(d.dishId, d.ingredients);
   const lineOf = new Map<string, string>();
   for (const u of uses) {
@@ -208,9 +224,9 @@ export function feastClosingLines(
     // that container ("…combine it with the Cranberry-Orange Sauce vegetables").
     // ⚠️ Never a DRY container: one dry mix is not stirred into another. A food sits
     // in two dry mixes of one dish only when the recipe lists it twice (Sweet Potato
-    // Casserole's filling and topping sugar — the engine keys a portion on the dish
-    // and ingredient, so both portions share a mix), and naming the other mix would
-    // tell the cook to combine them.
+    // Casserole's filling and topping sugar — since THX-3b each listing is its own
+    // portion, in its own step's mix), and naming the other mix would tell the cook
+    // to combine them.
     const otherContainer = new Map<string, string | null>();
     for (const s of steps) {
       if (s.demoted) continue;
@@ -235,7 +251,9 @@ export function feastClosingLines(
         .map((x) => x.r.ingredientId);
       const joins: string[] = [];
       for (const id of [...new Set(named)]) {
-        const row = rows.find((r) => r.ingredientId === id);
+        // THX-3b (BUG-456) — a food the dish lists twice joins with the listing THIS step
+        // measures (the topping's 3 tbsp butter, not the filling's 4).
+        const row = rows.find((r) => r.ingredientId === id && r.portionStep === step.stepIndex) ?? rows.find((r) => r.ingredientId === id);
         if (!row || members.has(ingredientGroupKey(row.ingredientName))) continue;
         const key = ingredientGroupKey(row.ingredientName);
         if (otherContainer.has(key)) {

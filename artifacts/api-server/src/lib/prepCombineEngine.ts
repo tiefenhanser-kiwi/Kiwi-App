@@ -78,6 +78,15 @@ export interface PrepCombineIngredient {
   momentKey?: string | null;
   /** H6.2 — the cook step that names this portion, or null when none does. */
   entryStep?: number | null;
+  /**
+   * THX-3b (BUG-456) — WHICH LISTING of an ingredient its dish lists more than once
+   * ("1", "2"…), set only when the listings enter at different moments (the
+   * casserole's filling sugar and topping sugar). The assembly keys a portion on
+   * dish + ingredient + this, so each goes with its own step. Carried, never read here.
+   */
+  portion?: string;
+  /** THX-3b — the dish step this listing's amountRef is on (with `portion`). */
+  portionStep?: number;
 }
 
 /** D-WS9-296 — a mixture's identity and its bowl, as the engine carries it. */
@@ -179,6 +188,9 @@ export interface PrepContribution {
   momentKey?: string | null;
   /** H6.2 — the cook step that names this portion, or null when none does. */
   entryStep?: number | null;
+  /** THX-3b (BUG-456) — the listing, for an ingredient its dish lists twice (see the input). */
+  portion?: string;
+  portionStep?: number;
 }
 
 // A summed line within an ingredient group. Multiple lines exist ONLY when an
@@ -725,6 +737,9 @@ export function combinePrep(
           ...(ing.momentKey ? { momentKey: ing.momentKey } : {}),
           // H6.2 follow-up — carried, never interpreted here, exactly as momentKey is.
           ...(ing.entryStep != null ? { entryStep: ing.entryStep } : {}),
+          // THX-3b (BUG-456) — carried, never interpreted here.
+          ...(ing.portion ? { portion: ing.portion } : {}),
+          ...(ing.portionStep != null ? { portionStep: ing.portionStep } : {}),
         });
       }
     }

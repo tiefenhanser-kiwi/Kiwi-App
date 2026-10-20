@@ -25,8 +25,8 @@ import { inferCategory } from "./ingredientResolve";
 import { assignPhase, isNeverMeasured, isSaltOrPepper } from "./prepCombineEngine";
 import { resolveDishComponents } from "./prepComponents";
 import { mixtureEntryKey, proseNames, resolveMoments } from "./prepMoments";
-import type { PrepCombineInput } from "./prepCombineEngine";
-import type { PrepLoadedPlan } from "./prepWeekAggregation";
+import type { PrepCombineDish, PrepCombineInput } from "./prepCombineEngine";
+import type { PrepLoadedDish, PrepLoadedPlan } from "./prepWeekAggregation";
 
 // Leading "<number> <unit>" compound, e.g. "6 oz", "1.5 lb". The number is a
 // per-unit pack size folded into the quantity; the remainder is the real unit.
@@ -151,10 +151,9 @@ export function buildPrepCombineInput(
   opts: { feast?: boolean } = {},
 ): PrepCombineInput {
   return {
-    meals: loaded.meals.map((meal) => ({
-      mealId: meal.mealId,
-      mealName: meal.mealName,
-      dishes: meal.dishes.map((dish) => {
+    meals: loaded.meals.map((meal) => {
+      // One dish → its engine rows (THX-3b: called again over a dish's portion view).
+      const mapDish = (dish: PrepLoadedDish, listingStep?: ReadonlyMap<string, number>): PrepCombineDish => {
         // ── WS9 D-WS9-296 — resolve this dish's mixtures ────────────────────
         //
         // Done HERE and not in the engine because it needs the dish's STEPS,
@@ -228,6 +227,7 @@ export function buildPrepCombineInput(
             preparationNote: i.preparationNote,
             phase: assignPhase(i.category, i.ingredientName, i.purchaseUnit),
           })),
+          listingStep,
         );
         // ── D-WS9-301 rule 1's INVERSE CASE — a component absorbs its run ───
         //
@@ -469,7 +469,101 @@ export function buildPrepCombineInput(
             }];
           }),
         };
+      };
+      // ── THX-3b (BUG-456) — ONE INGREDIENT LISTED TWICE, EACH PORTION WITH ITS STEP ──
+      //
+      // The Sweet Potato Casserole lists brown sugar twice — ¼ cup for the filling,
+      // ½ cup for the topping — and both portions sat in the filling's dry mix: every
+      // moment below is keyed on the ingredient id, which the two rows share. So the
+      // dish is mapped again over a VIEW in which each extra row has an id of its own
+      // and each step lists the row its amountRef measures; the view is kept only when
+      // some ingredient's rows now enter at different moments (otherwise the dish is
+      // mapped exactly as before), and its rows go out under the real id with a
+      // `portion` the assembly keys on.
+      return {
+      mealId: meal.mealId,
+      mealName: meal.mealName,
+      dishes: meal.dishes.map((loadedDish) => {
+        const plain = mapDish(loadedDish);
+        const view = portionView(loadedDish);
+        if (!view) return plain;
+        const split = mapDish(
+          view.dish,
+          new Map([...view.rowOf].filter(([, r]) => r.step !== null).map(([id, r]) => [id, r.step!])),
+        );
+        const keysOf = new Map<string, Set<string>>();
+        for (const r of split.ingredients) {
+          const real = view.rowOf.get(r.ingredientId)?.real ?? r.ingredientId;
+          keysOf.set(real, (keysOf.get(real) ?? new Set()).add(r.momentKey ?? ""));
+        }
+        const splitIds = new Set([...keysOf].filter(([id, keys]) => view.listedTwice.has(id) && keys.size > 1).map(([id]) => id));
+        if (splitIds.size === 0) return plain;
+        return {
+          ...split,
+          ingredients: split.ingredients.map((r) => {
+            const row = view.rowOf.get(r.ingredientId);
+            if (!row) return r;
+            return splitIds.has(row.real)
+              ? { ...r, ingredientId: row.real, portion: row.portion, ...(row.step !== null ? { portionStep: row.step } : {}) }
+              : { ...r, ingredientId: row.real };
+          }),
+        };
       }),
-    })),
+      };
+    }),
+  };
+}
+
+/**
+ * THX-3b (BUG-456) — a dish that lists one ingredient more than once, seen with one
+ * id per row: the first row keeps the real id, the n-th becomes `<id>#<n>`, and each
+ * step's ingredientIds name the row whose amountRef it carries (by quantity, then in
+ * order). Null for a dish that lists every ingredient once.
+ */
+export function portionView(dish: PrepLoadedDish): {
+  dish: PrepLoadedDish;
+  /** The ids that are listed twice. */
+  listedTwice: Set<string>;
+  /** view id → the real id, the row's portion ("1", "2"…) and the step it is measured at. */
+  rowOf: Map<string, { real: string; portion: string; step: number | null }>;
+} | null {
+  const rowsById = new Map<string, number[]>();
+  dish.ingredients.forEach((i, n) => rowsById.set(i.ingredientId, [...(rowsById.get(i.ingredientId) ?? []), n]));
+  const twice = [...rowsById].filter(([, rows]) => rows.length > 1);
+  if (twice.length === 0) return null;
+  const ordered = [...(dish.componentSteps ?? [])].sort((a, b) => a.stepIndex - b.stepIndex);
+  const viewId = dish.ingredients.map((i) => i.ingredientId);
+  const stepOfRow = new Map<number, number>();
+  const rowOf = new Map<string, { real: string; portion: string; step: number | null }>();
+  for (const [id, rows] of twice) {
+    const refs = ordered.flatMap((s) => (s.refs ?? []).filter((r) => r.ingredientId === id).map((r) => ({ step: s.stepIndex, q: r.quantity })));
+    const taken = new Set<number>();
+    const take = (n: number, match: (r: { q: number }) => boolean) => {
+      const k = refs.findIndex((r, j) => !taken.has(j) && match(r));
+      if (k >= 0) { taken.add(k); stepOfRow.set(n, refs[k].step); }
+    };
+    for (const n of rows) take(n, (r) => Math.abs(r.q - dish.ingredients[n].quantity) < 1e-9);
+    for (const n of rows) if (!stepOfRow.has(n)) take(n, () => true);
+    rows.forEach((n, i) => {
+      if (i > 0) viewId[n] = `${id}#${i + 1}`;
+      rowOf.set(viewId[n], { real: id, portion: String(i + 1), step: stepOfRow.get(n) ?? null });
+    });
+  }
+  const listedTwice = new Set(twice.map(([id]) => id));
+  return {
+    listedTwice,
+    rowOf,
+    dish: {
+      ...dish,
+      ingredients: dish.ingredients.map((i, n) => ({ ...i, ingredientId: viewId[n] })),
+      componentSteps: ordered.map((s) => ({
+        ...s,
+        ingredientIds: [...new Set(s.ingredientIds.flatMap((id) => {
+          if (!listedTwice.has(id)) return [id];
+          const mine = rowsById.get(id)!.filter((n) => stepOfRow.get(n) === s.stepIndex).map((n) => viewId[n]);
+          return mine.length > 0 ? mine : [id];
+        }))],
+      })),
+    },
   };
 }

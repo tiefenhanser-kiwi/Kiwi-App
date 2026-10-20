@@ -70,6 +70,8 @@ export interface PrepMeasure {
   /** Code-only — the raw quantity and unit `amount` was formatted from (for a step's total). */
   qty?: number;
   unit?: string;
+  /** Code-only — THX-3b (BUG-456): which listing, for an ingredient its dish lists twice. */
+  portion?: string;
 }
 
 export interface PrepNarrationComponent {

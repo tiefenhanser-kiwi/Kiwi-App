@@ -50,6 +50,7 @@ import {
   type IngredientComponent,
   type PrepPhaseKey,
   type PrepCombineResult,
+  type PrepContribution,
   type PrepIngredientGroup,
 } from "./prepCombineEngine";
 // H6.2 item 2 — re-exported here because the orphan labelling and the tests both reach
@@ -243,7 +244,17 @@ export interface StepPlan {
  * D-WS9-301 rule 11 — where one (dish, ingredient) portion goes, by container
  * name. Undefined when the portion is its own container and needs no pointer.
  */
-type DestinationResolver = (dishId: string, ingredientId: string | null) => string | undefined;
+type DestinationResolver = (dishId: string, ingredientId: string | null, portion?: string) => string | undefined;
+
+/**
+ * THX-3b (BUG-456) — a portion's key: dish + ingredient, and for the SECOND (third…)
+ * listing of an ingredient its dish lists twice at two moments, the listing too
+ * (`PrepContribution.portion`). The first listing keeps the plain key, so every
+ * dish that lists each ingredient once is keyed exactly as before.
+ */
+function portionKey(dishId: string, ingredientId: string, portion?: string): string {
+  return portion && portion !== "1" ? `${dishId}|${ingredientId}#${portion}` : `${dishId}|${ingredientId}`;
+}
 
 // ── H4 / D-WS9-301 rule 11(c) — THE KIND OF WORK A MEMBER NEEDS ────────────
 //
@@ -546,7 +557,7 @@ function componentsOfUnclaimed(
   const out: PrepNarrationComponent[] = [];
   for (const line of entry.lines) {
     const kept = line.contributions.filter(
-      (c) => !claimed.has(`${c.dishId}|${entry.ingredientId}`),
+      (c) => !claimed.has(portionKey(c.dishId, entry.ingredientId, c.portion)),
     );
     if (kept.length === 0) continue;
     const prep = kept.find((c) => (c.preparationNote ?? "").trim() !== "")?.preparationNote;
@@ -560,7 +571,8 @@ function componentsOfUnclaimed(
         ingredientId: entry.ingredientId,
         qty: c.quantity,
         unit: c.unit,
-        ...(destinationFor ? { destination: destinationFor(c.dishId, entry.ingredientId) } : {}),
+        ...(c.portion ? { portion: c.portion } : {}),
+        ...(destinationFor ? { destination: destinationFor(c.dishId, entry.ingredientId, c.portion) } : {}),
           ...((c.preparationNote ?? "").trim()
           ? { preparationNote: (c.preparationNote ?? "").trim() }
           : {}),
@@ -593,7 +605,8 @@ function componentsOf(
         ingredientId: entry.ingredientId,
         qty: c.quantity,
         unit: c.unit,
-        ...(destinationFor ? { destination: destinationFor(c.dishId, entry.ingredientId) } : {}),
+        ...(c.portion ? { portion: c.portion } : {}),
+        ...(destinationFor ? { destination: destinationFor(c.dishId, entry.ingredientId, c.portion) } : {}),
           ...((c.preparationNote ?? "").trim()
           ? { preparationNote: (c.preparationNote ?? "").trim() }
           : {}),
@@ -618,10 +631,12 @@ function componentsForDish(
   entry: PrepIngredientGroup,
   dishId: string,
   destinationFor?: DestinationResolver,
+  /** THX-3b (BUG-456) — only these of the dish's contributions (one listing, the unclaimed ones). */
+  keep: (c: PrepContribution) => boolean = () => true,
 ): PrepNarrationComponent[] {
   const out: PrepNarrationComponent[] = [];
   for (const line of entry.lines) {
-    const contribs = line.contributions.filter((c) => c.dishId === dishId);
+    const contribs = line.contributions.filter((c) => c.dishId === dishId && keep(c));
     if (contribs.length === 0) continue;
     const prep = contribs.find(
       (c) => (c.preparationNote ?? "").trim() !== "",
@@ -636,7 +651,8 @@ function componentsForDish(
         ingredientId: entry.ingredientId,
         qty: c.quantity,
         unit: c.unit,
-        ...(destinationFor ? { destination: destinationFor(c.dishId, entry.ingredientId) } : {}),
+        ...(c.portion ? { portion: c.portion } : {}),
+        ...(destinationFor ? { destination: destinationFor(c.dishId, entry.ingredientId, c.portion) } : {}),
           ...((c.preparationNote ?? "").trim()
           ? { preparationNote: (c.preparationNote ?? "").trim() }
           : {}),
@@ -795,6 +811,10 @@ export function buildStepPlan(
   // the shared tub rule 5 has always given it.
 
   interface Portion {
+    /** THX-3b — `portionKey` of this portion, and its member id (the ingredient id, `#n` for a later listing). */
+    key: string;
+    memberId: string;
+    portion?: string;
     dishId: string;
     dishName: string;
     mealName: string;
@@ -811,7 +831,8 @@ export function buildStepPlan(
     for (const entry of phase.entries) {
       for (const line of entry.lines) {
         for (const c of line.contributions) {
-          const k = `${c.dishId}|${entry.ingredientId}`;
+          // THX-3b (BUG-456) — a later listing of an ingredient (its own moment) is its own portion.
+          const k = portionKey(c.dishId, entry.ingredientId, c.portion);
           const have = portions.get(k);
           if (have) {
             have.mealIds.add(c.mealId);
@@ -819,6 +840,9 @@ export function buildStepPlan(
             continue;
           }
           portions.set(k, {
+            key: k,
+            memberId: k.slice(k.indexOf("|") + 1),
+            ...(c.portion ? { portion: c.portion } : {}),
             dishId: c.dishId,
             dishName: c.dishName,
             mealName: c.mealName,
@@ -954,12 +978,12 @@ export function buildStepPlan(
       if (mix.length >= 2 && mix.some((p) => p.cls === "B")) {
         const key = `${gk}|cold|B`;
         specialSpec.set(key, { cls: "B", kind: "cold", members: mix, label: name });
-        for (const p of mix) special.set(`${p.dishId}|${p.entry.ingredientId}`, key);
+        for (const p of mix) special.set(p.key, key);
         // The greens of a dish that IS a mixture share one container of their own.
         if (greens.length >= 2) {
           const gkey = `${gk}|greens|B`;
           specialSpec.set(gkey, { cls: "B", kind: "greens", members: greens, label: containerLabel(greens[0].dishName, ["greens"]) });
-          for (const p of greens) special.set(`${p.dishId}|${p.entry.ingredientId}`, gkey);
+          for (const p of greens) special.set(p.key, gkey);
         }
       }
     }
@@ -997,7 +1021,7 @@ export function buildStepPlan(
         members: list,
         label: /\b(toppings?|garnish(?:es)?|fixin'?s|fixings)\b/i.test(dish) ? `${dish} plate` : `${dish} toppings plate`,
       });
-      for (const p of list) special.set(`${p.dishId}|${p.entry.ingredientId}`, key);
+      for (const p of list) special.set(p.key, key);
     }
   }
   // ── H7.1 2d — DRIED CHILES ARE NOT GROUND SPICES ─────────────────────────────
@@ -1024,14 +1048,14 @@ export function buildStepPlan(
         // ("Into the Texas-Style Beef Chili — dried chiles, stemmed and seeded:").
         label: `${list[0].dishName} dried-chile bag`,
       });
-      for (const p of list) special.set(`${p.dishId}|${p.entry.ingredientId}`, key);
+      for (const p of list) special.set(p.key, key);
     }
   }
 
   /** The grouping key a portion's moment allows, or null when it groups nothing. */
   const groupKeyOf = (p: Portion): string | null => {
     if (p.cls === "C") return null;
-    if (special.has(`${p.dishId}|${p.entry.ingredientId}`)) return null;
+    if (special.has(p.key)) return null;
     if (isServedSeparately(p.dishName)) return null;
     const mk = p.mk;
     if (mk !== null && mk.startsWith("v:")) return null;
@@ -1111,7 +1135,7 @@ export function buildStepPlan(
         authoredName: null,
         name: "",
       };
-      c.members.set(p.entry.ingredientId, p);
+      c.members.set(p.memberId, p);
       // The author's name only when the author NAMED a mixture: a component with no
       // noun carries a generated fallback ("Tuna Melts prep container"), which says
       // nothing about what is in it now that the class split has run.
@@ -1135,7 +1159,7 @@ export function buildStepPlan(
   for (const [ck, c] of [...containers]) if (!meetsFloor(c)) containers.delete(ck);
   for (const { p, ck } of deferred) {
     const c = containers.get(ck);
-    if (c) c.members.set(p.entry.ingredientId, p);
+    if (c) c.members.set(p.memberId, p);
   }
 
   // ── H7.1 2c — A DISH'S UNPLACED AROMATICS SHARE ONE CONTAINER ────────────────
@@ -1145,8 +1169,8 @@ export function buildStepPlan(
   // members: they go together, in one container for the dish.
   {
     const inAny = (p: Portion) => {
-      const k = `${p.dishId}|${p.entry.ingredientId}`;
-      return special.has(k) || [...containers.values()].some((c) => c.members.get(p.entry.ingredientId) === p);
+      const k = p.key;
+      return special.has(k) || [...containers.values()].some((c) => c.members.get(p.memberId) === p);
     };
     const byDish = new Map<string, Portion[]>();
     for (const [k, p] of portions) {
@@ -1166,7 +1190,7 @@ export function buildStepPlan(
         members: list,
         label: containerLabel(list[0].dishName, [allHerbs ? "herbs" : "aromatics"]),
       });
-      for (const p of list) special.set(`${p.dishId}|${p.entry.ingredientId}`, key);
+      for (const p of list) special.set(p.key, key);
     }
   }
   /** H7.1 — the kind of each special container, by its final name, for the overlay. */
@@ -1178,7 +1202,7 @@ export function buildStepPlan(
       dishName: s.members[0].dishName,
       mealName: s.members[0].mealName,
       cls: s.cls,
-      members: new Map(s.members.map((p) => [p.entry.ingredientId, p])),
+      members: new Map(s.members.map((p) => [p.memberId, p])),
       noun: null,
       authoredName: null,
       name: "",
@@ -1241,7 +1265,7 @@ export function buildStepPlan(
   /** `${dishId}|${ingredientId}` → the container it is a member of. */
   const containerOf = new Map<string, Container>();
   for (const c of containers.values()) {
-    for (const p of c.members.values()) containerOf.set(`${p.dishId}|${p.entry.ingredientId}`, c);
+    for (const p of c.members.values()) containerOf.set(p.key, c);
   }
   /**
    * D-WS9-296 / rule 11(c) — the members whose work happens IN the container (the
@@ -1254,6 +1278,12 @@ export function buildStepPlan(
     const ph = c.members.get(k.slice(k.indexOf("|") + 1))!.entry.phase;
     if (ph === "seasonings_dry" || ph === "sauces_marinades") claimed.add(k);
   }
+  /** THX-3b — every portion key of an entry (a dish listing it twice has two). */
+  const keysOf = (entry: PrepIngredientGroup): string[] =>
+    dedupe(entry.lines.flatMap((l) => l.contributions.map((c) => portionKey(c.dishId, entry.ingredientId, c.portion))));
+  /** THX-3b — the dish still has a portion of this entry that no container claimed. */
+  const unclaimedIn = (entry: PrepIngredientGroup, dishId: string): boolean =>
+    entry.lines.some((l) => l.contributions.some((c) => c.dishId === dishId && !claimed.has(portionKey(dishId, entry.ingredientId, c.portion))));
 
   // ── 2a — EVERY CUT PORTION LANDS IN A LABELLED CONTAINER ────────────────────
   //
@@ -1296,7 +1326,7 @@ export function buildStepPlan(
         for (const p of group) {
           const label =
             dishes.length > 1 ? containerLabel(upperFirst(noun), dishes, true) : containerLabel(p.dishName, [noun]);
-          tubLabel.set(`${p.dishId}|${p.entry.ingredientId}`, label);
+          tubLabel.set(p.key, label);
           if (dishes.length > 1) sharedTubLabels.add(label);
         }
       }
@@ -1403,9 +1433,9 @@ export function buildStepPlan(
     }
   }
 
-  const destinationFor: DestinationResolver = (dishId, ingredientId) => {
+  const destinationFor: DestinationResolver = (dishId, ingredientId, portion) => {
     if (ingredientId === null) return undefined;
-    const k = `${dishId}|${ingredientId}`;
+    const k = portionKey(dishId, ingredientId, portion);
     return containerOf.get(k)?.name ?? tubLabel.get(k);
   };
 
@@ -1428,7 +1458,7 @@ export function buildStepPlan(
       for (const line of entry.lines) {
         for (const c of line.contributions) {
           const bowl = c.cookDayInto ? liveBowl.get(`${c.dishId}|${c.cookDayInto}`) : undefined;
-          if (bowl) cookDayByDishIngredient.set(`${c.dishId}|${entry.ingredientId}`, bowl);
+          if (bowl) cookDayByDishIngredient.set(portionKey(c.dishId, entry.ingredientId, c.portion), bowl);
         }
       }
     }
@@ -1612,7 +1642,8 @@ export function buildStepPlan(
           // A mixture IS a blend in the narrator's sense — one pre-measure
           // action into one vessel — whatever phase it sits in.
           isBlend: true,
-          components: mine.flatMap((p) => componentsForDish(p.entry, c.dishId, destinationFor)),
+          // THX-3b (BUG-456) — each member's own listing: the topping's sugar is not the filling's.
+          components: mine.flatMap((p) => componentsForDish(p.entry, c.dishId, destinationFor, (x) => portionKey(x.dishId, p.entry.ingredientId, x.portion) === p.key)),
           relevantDishes: relevantDishesFor([c.dishId]),
           bowlName: c.name,
         });
@@ -1627,7 +1658,7 @@ export function buildStepPlan(
       const entriesByDish = new Map<string, PrepIngredientGroup[]>();
       for (const entry of entries) {
         for (const dishId of [...new Set(dishIdsOf(entry))]) {
-          if (claimed.has(`${dishId}|${entry.ingredientId}`)) continue;
+          if (!unclaimedIn(entry, dishId)) continue;
           let list = entriesByDish.get(dishId);
           if (!list) {
             list = [];
@@ -1639,7 +1670,7 @@ export function buildStepPlan(
       }
       for (const dishId of dishOrder) {
         const dishEntries = entriesByDish.get(dishId)!;
-        const components = dishEntries.flatMap((e) => componentsForDish(e, dishId));
+        const components = dishEntries.flatMap((e) => componentsForDish(e, dishId, undefined, (x) => !claimed.has(portionKey(x.dishId, e.ingredientId, x.portion))));
         const measured = components.reduce((n, cpt) => n + cpt.measures.length, 0);
         pushStep(
           {
@@ -1673,8 +1704,8 @@ export function buildStepPlan(
       for (const entry of entries) {
         const unclaimed = componentsOfUnclaimed(entry, claimed);
         if (unclaimed.length === 0) continue;
-        const join = dishIdsOf(entry)
-          .map((d) => proteinJoin.get(`${d}|${entry.ingredientId}`))
+        const join = keysOf(entry)
+          .map((k) => proteinJoin.get(k))
           .find((j) => j !== undefined);
         pushStep({
           ...(join ? { marinadeJoin: join } : {}),
@@ -1683,14 +1714,14 @@ export function buildStepPlan(
           contributesToMealIds: dedupe(
             entry.lines.flatMap((l) =>
               l.contributions
-                .filter((c) => !claimed.has(`${c.dishId}|${entry.ingredientId}`))
+                .filter((c) => !claimed.has(portionKey(c.dishId, entry.ingredientId, c.portion)))
                 .map((c) => c.mealId),
             ),
           ),
           isBlend: false,
           components: unclaimed,
           relevantDishes: relevantDishesFor(
-            dishIdsOf(entry).filter((d) => !claimed.has(`${d}|${entry.ingredientId}`)),
+            dishIdsOf(entry).filter((d) => unclaimedIn(entry, d)),
           ),
         });
       }
@@ -1727,11 +1758,7 @@ export function buildStepPlan(
           ? group[0]
           : (group.find((e) => !e.sourceYield) ??
             [...group].sort((a, b) => (a.ingredientId < b.ingredientId ? -1 : 1))[0]);
-      const workKeys = group.flatMap((e) =>
-        dishIdsOf(e)
-          .map((d) => `${d}|${e.ingredientId}`)
-          .filter((k) => !claimed.has(k)),
-      );
+      const workKeys = group.flatMap((e) => keysOf(e).filter((k) => !claimed.has(k)));
       const reason =
         work.length > 0 ? undefined : (workKeys.map((k) => notPrep.get(k)).find((r) => r) ?? "no-work");
       pushStep(
@@ -1742,7 +1769,7 @@ export function buildStepPlan(
             group.flatMap((e) =>
               e.lines.flatMap((l) =>
                 l.contributions
-                  .filter((c) => !claimed.has(`${c.dishId}|${e.ingredientId}`))
+                  .filter((c) => !claimed.has(portionKey(c.dishId, e.ingredientId, c.portion)))
                   .map((c) => c.mealId),
               ),
             ),
@@ -2559,7 +2586,7 @@ const CUT_TITLE_VERB: ReadonlyArray<[RegExp, string]> = [
 function narrationComponents(components: readonly PrepNarrationComponent[]): PrepNarrationComponent[] {
   return components.map((c) => ({
     ...c,
-    measures: c.measures.map(({ mealId: _m, dishId: _d, ingredientId: _i, qty: _q, unit: _u, ...rest }) => rest),
+    measures: c.measures.map(({ mealId: _m, dishId: _d, ingredientId: _i, qty: _q, unit: _u, portion: _p, ...rest }) => rest),
   }));
 }
 

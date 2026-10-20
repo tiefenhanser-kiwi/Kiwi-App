@@ -620,6 +620,12 @@ export async function loadPrepWeekInput(
             ),
           ]
         : [],
+      // THX-3b (BUG-456) — kept only for a dish that lists an ingredient twice (below).
+      refs: Array.isArray(r.amountRefs)
+        ? (r.amountRefs as { ingredientId?: unknown; quantity?: unknown }[])
+            .filter((x) => typeof x?.ingredientId === "string" && typeof x?.quantity === "number")
+            .map((x) => ({ ingredientId: x.ingredientId as string, quantity: x.quantity as number }))
+        : [],
     });
 
     const dishStepsByOwner = new Map<string, string[]>();
@@ -646,10 +652,11 @@ export async function loadPrepWeekInput(
       for (const dish of meal.dishes) {
         const dishOwned = dishStepsByOwner.get(dish.dishId) ?? [];
         dish.stepTexts = [...dishOwned, ...mealOwned];
+        const listedTwice = dish.ingredients.some((i, n) => dish.ingredients.findIndex((o) => o.ingredientId === i.ingredientId) !== n);
         dish.componentSteps = [
           ...(dishComponentStepsByOwner.get(dish.dishId) ?? []),
           ...mealOwnedComponents,
-        ];
+        ].map(({ refs, ...s }) => (listedTwice ? { ...s, refs } : s));
       }
     }
   }

@@ -52,6 +52,13 @@ export interface ComponentStep {
    * the tag the scheduler already trusts, so it is the primary signal.
    */
   phaseType: string;
+  /**
+   * THX-3b (BUG-456) — each amountRef's ingredient AND quantity, so a dish that
+   * lists one ingredient twice (the casserole's filling sugar and topping sugar) can
+   * tell which row a step measures. Set only on such a dish's steps (prepWeek
+   * Aggregation), so every other plan's hashed input is byte-unchanged.
+   */
+  refs?: { ingredientId: string; quantity: number }[];
 }
 
 /** One dish ingredient, as this module needs it. */
