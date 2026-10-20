@@ -58,6 +58,8 @@ import {
   stepBearingDishes,
 } from "@/lib/meals/mealSteps";
 import {
+  MEAL_SERVINGS_MAX,
+  MEAL_SERVINGS_MIN,
   clampServings,
   shouldShowCanonicalSaveServings,
   shouldShowSaveServings,
@@ -65,8 +67,9 @@ import {
 import { dialog } from "@/lib/dialog";
 import { goBack } from "@/lib/navigation";
 
-const SERVINGS_MIN = 1;
-const SERVINGS_MAX = 12;
+// BUG-453 — the household range (lib/meals/servingsSaveGate.ts), not 12.
+const SERVINGS_MIN = MEAL_SERVINGS_MIN;
+const SERVINGS_MAX = MEAL_SERVINGS_MAX;
 
 // WS7-2 Block D (Commit 3): first UI consumer of the favorites API. Block B
 // migrated favorites to React Query but nothing toggled them; this heart sits

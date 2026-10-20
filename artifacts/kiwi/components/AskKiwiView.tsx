@@ -10,9 +10,11 @@ import { Keyboard, StyleSheet, Text, TextInput, View } from "react-native";
 import { Button } from "@/components/Button";
 import { Stepper } from "@/components/Stepper";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { MEAL_SERVINGS_MAX, MEAL_SERVINGS_MIN } from "@/lib/meals/servingsSaveGate";
 
-export const ASK_KIWI_SERVINGS_MIN = 1;
-export const ASK_KIWI_SERVINGS_MAX = 12;
+// BUG-453 — the household range (lib/meals/servingsSaveGate.ts), not 12.
+export const ASK_KIWI_SERVINGS_MIN = MEAL_SERVINGS_MIN;
+export const ASK_KIWI_SERVINGS_MAX = MEAL_SERVINGS_MAX;
 export const ASK_KIWI_SERVINGS_DEFAULT = 4;
 const PLACEHOLDER =
   "e.g. Chicken piccata with a side arugula salad and lemon vinaigrette";

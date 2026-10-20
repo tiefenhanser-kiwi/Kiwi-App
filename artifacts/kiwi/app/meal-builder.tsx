@@ -92,11 +92,13 @@ import {
 import { useDish } from "@/hooks/useDish";
 import type { DraftMeal, SavedDish } from "@/lib/types";
 import { dialog } from "@/lib/dialog";
+import { MEAL_SERVINGS_MAX, MEAL_SERVINGS_MIN } from "@/lib/meals/servingsSaveGate";
 
 type Mode = "manual" | "combine" | "ai" | null;
 
-const SERVINGS_MIN = 1;
-const SERVINGS_MAX = 12;
+// BUG-453 — the household range (lib/meals/servingsSaveGate.ts), not 12.
+const SERVINGS_MIN = MEAL_SERVINGS_MIN;
+const SERVINGS_MAX = MEAL_SERVINGS_MAX;
 
 let nextUid = 1;
 const allocUid = () => nextUid++;

@@ -95,3 +95,27 @@ test("the two gates are mutually exclusive across the canPersist axis", () => {
   assert.equal(shouldShowSaveServings(false, 6, 4), false);
   assert.equal(shouldShowCanonicalSaveServings(false, true, 6, 4), true);
 });
+
+// ── BUG-453 — a meal's servings go to 30 everywhere (the household range) ───
+
+import { readFileSync as readSource } from "node:fs";
+import { MEAL_SERVINGS_MAX, MEAL_SERVINGS_MIN } from "../servingsSaveGate.ts";
+
+test("BUG-453: the meal servings range is the household range, 1 to 30", () => {
+  assert.equal(MEAL_SERVINGS_MIN, 1);
+  assert.equal(MEAL_SERVINGS_MAX, 30);
+});
+
+test("BUG-453: meal detail, the meal builder and Ask Kiwi all read it (no local 12)", () => {
+  const root = new URL("../../../", import.meta.url);
+  const sites: [string, RegExp][] = [
+    ["app/meal/[id].tsx", /const SERVINGS_MAX = MEAL_SERVINGS_MAX;/],
+    ["app/meal-builder.tsx", /const SERVINGS_MAX = MEAL_SERVINGS_MAX;/],
+    ["components/AskKiwiView.tsx", /export const ASK_KIWI_SERVINGS_MAX = MEAL_SERVINGS_MAX;/],
+  ];
+  for (const [file, re] of sites) {
+    const src = readSource(new URL(file, root), "utf8");
+    assert.match(src, re, file);
+    assert.doesNotMatch(src, /SERVINGS_MAX = 12\b/, file);
+  }
+});

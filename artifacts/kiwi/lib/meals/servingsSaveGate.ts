@@ -7,6 +7,15 @@
 // of truth shared by the screen (app/meal/[id].tsx) and its tests, so the
 // tested logic is exactly the logic that runs.
 
+/**
+ * BUG-453 — a meal's servings range, everywhere a meal has a servings stepper
+ * (meal detail, the meal builder, Ask Kiwi). It is the household range: WS7-2
+ * set household size to 1–30 to "support legitimate one-off uses like
+ * Thanksgiving for 30", and a meal stepper stopping at 12 undid that.
+ */
+export const MEAL_SERVINGS_MIN = 1;
+export const MEAL_SERVINGS_MAX = 30;
+
 /** Clamp a stepper target into the screen's [min, max] servings range. */
 export function clampServings(next: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, next));
