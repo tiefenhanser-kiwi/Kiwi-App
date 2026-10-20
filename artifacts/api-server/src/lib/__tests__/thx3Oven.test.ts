@@ -98,6 +98,22 @@ describe("THX-3 B — the oven frees when the bird comes out", () => {
     assert.equal(after.totalEstimatedMinutes - before.totalEstimatedMinutes, 7, `${before.totalEstimatedMinutes} → ${after.totalEstimatedMinutes}`);
   });
 
+  it("a served-cold dish pulled forward into the roast's window still waits for the oven", () => {
+    // The cold-dish rule moves a bars-and-pie dish into the earliest passive window
+    // (the roast itself); its bake must not go into a 325°F oven holding the bird.
+    const BARS = dish("bars", 4, [
+      st(0, "cook", 30, "Bake the bars at 350°F until set."),
+      st(1, "rest", 60, "Cool the bars completely, then cut into squares."),
+    ]);
+    const ovenOut = (r: ReturnType<typeof scheduleCookingSequence>) => {
+      const s = r.steps.find((x) => x.dishId === "turkey" && x.originalStepIndex === 9)!;
+      return s.startOffsetMinutes + 210;
+    };
+    const r = scheduleCookingSequence([...FEAST, BARS], { feastOven: true });
+    const bake = r.steps.find((x) => x.dishId === "bars" && x.originalStepIndex === 0)!;
+    assert.ok(bake.startOffsetMinutes >= ovenOut(r), `bars bake at ${bake.startOffsetMinutes}, oven frees at ${ovenOut(r)}`);
+  });
+
   it("without the option, and for a feast with no long roast, the schedule is unchanged", () => {
     assert.deepEqual(scheduleCookingSequence(FEAST, {}), before);
     assert.deepEqual(scheduleCookingSequence([STUFFING, MASH, GRAVY], { feastOven: true }), scheduleCookingSequence([STUFFING, MASH, GRAVY]));
