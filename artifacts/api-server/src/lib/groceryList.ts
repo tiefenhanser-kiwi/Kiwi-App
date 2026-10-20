@@ -45,6 +45,7 @@ import {
   type RecurringFacets,
 } from "./recurringItems";
 import { logger } from "./logger";
+import { dishRowMultipliers } from "./prepQuantity";
 
 // WS7-7-A Block 1 — a single plan source contributing to a consolidated line.
 // Tracked as (mealId, dishId) PAIRS (not two independent arrays) so per-row
@@ -548,8 +549,16 @@ export async function consolidatePlanIngredients(
 
       // Q1 change-signature for this source dish — base set, servings-independent.
       const ingredientSignature = signatureOfEffective(effective);
+      // THX-3b (BUG-454) — a whole-bird dish buys the bird the recipe shows (WEB-4's
+      // floor: a 10 lb turkey at 4 of 10, not 5.6 lb) and the rest of the dish
+      // follows that bird; a neck or giblets is the one the bird comes with. The same
+      // rule as Prep the Week and the meal screen (prepQuantity dishRowMultipliers).
+      const rowMultiplier = dishRowMultipliers(
+        effective.map((e) => ({ quantity: e.quantity, unit: e.unit, name: e.ingredient?.canonicalName ?? "" })),
+        multiplier,
+      );
 
-      for (const eff of effective) {
+      for (const [row, eff] of effective.entries()) {
         const ing = eff.ingredient;
         const canonical = ing?.canonicalName ?? eff.canonicalFallback;
         // WS9 BUG-169 — drop never-order ingredients before they become a
@@ -562,7 +571,7 @@ export async function consolidatePlanIngredients(
         const unit = eff.unit;
         const prepRaw = eff.preparationNote;
         const key = bucketKeyOf(canonical, unit);
-        const scaledQty = eff.quantity * multiplier;
+        const scaledQty = eff.quantity * rowMultiplier[row];
 
         let entry = buckets.get(key);
         if (!entry) {

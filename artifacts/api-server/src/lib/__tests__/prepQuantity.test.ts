@@ -86,7 +86,8 @@ describe("THX-3 prepQuantity — the displayed number", () => {
     });
   }
 
-  it("a whole bird by weight never scales DOWN; up it scales; a breast is not a whole bird", () => {
+  // THX-3b: with no quantity the bird keeps FIX-7's no-scale-down (the floors need it; thx3bBird.test.ts).
+  it("a whole bird by weight never scales DOWN without its quantity; up it scales; a breast is not a whole bird", () => {
     assert.equal(wholeItemMultiplier(0.8, "pound", "whole turkey"), 1);
     assert.equal(wholeItemMultiplier(1.2, "pound", "whole turkey"), 1.2);
     assert.equal(wholeItemMultiplier(0.8, "pound", "bone-in turkey breast"), 0.8);

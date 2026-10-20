@@ -2371,3 +2371,41 @@ describe("[grocery] B3 — R3: the recurring item and the plan's row are ONE lin
     assert.equal(milk.varietyShares, undefined, "and it owes no variety rider");
   });
 });
+
+// THX-3b (BUG-454) — the grocery list buys the bird the recipe shows, and the rest
+// of a whole-bird dish follows it: at 4 of 10 a 10 lb turkey (WEB-4's floor), its
+// brine salt 10/14 of the recipe's, and one neck in the gravy.
+describe("consolidatePlanIngredients — THX-3b one bird rule", () => {
+  it("floors the bird, scales its dish by the bird, never scales the neck", async () => {
+    const prisma = makePrisma({
+      items: [
+        {
+          id: "i1",
+          servingsOverride: 4,
+          dishes: [
+            {
+              id: "turkey", title: "Herb-Roasted Whole Turkey", servingsDefault: 10,
+              ingredients: [
+                { name: "whole turkey", quantity: 14, unit: "pound", category: "Protein" },
+                { name: "kosher salt", quantity: 0.5, unit: "cup", category: "Pantry" },
+              ],
+            },
+            {
+              id: "gravy", title: "Pan Gravy", servingsDefault: 10,
+              ingredients: [
+                { name: "turkey neck", quantity: 1, unit: "each", category: "Protein" },
+                { name: "all-purpose flour", quantity: 0.5, unit: "cup", category: "Pantry" },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const out = await consolidatePlanIngredients({ prisma, planId: TEST_PLAN, userId: TEST_USER });
+    assert.equal(findItem(out, "whole turkey")!.quantity, 10);
+    // 0.357 cup, rounded up to the eighth the list shows (servings alone: 0.2 → ¼).
+    assert.equal(findItem(out, "kosher salt")!.quantity, 0.375);
+    assert.equal(findItem(out, "turkey neck")!.quantity, 1);
+    assert.equal(findItem(out, "all-purpose flour")!.quantity, 0.25);
+  });
+});

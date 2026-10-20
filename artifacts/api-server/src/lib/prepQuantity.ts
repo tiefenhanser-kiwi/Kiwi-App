@@ -19,8 +19,8 @@
 //   2. SPOONS snap to ⅛ ¼ ½ ¾; CUPS to ⅛ ¼ ⅓ ½ ⅔ ¾; ties up, never below ⅛. An
 //      exact third is kept wherever it arrives.
 //   3. POUNDS go in ¼ lb steps, ties up, never below ¼.
-//   4. A WHOLE BIRD is never scaled DOWN by weight (prepCombineAdapter applies
-//      `wholeItemMultiplier` to the multiplier, as the client does).
+//   4. A WHOLE BIRD scales down only to the smallest of its kind (WEB-4's floors,
+//      THX-3b), and the rest of its dish follows the bird (`dishRowMultipliers`).
 //   Everything else rounds to the nearest ⅛.
 //
 // ⚠️ ONE DELIBERATE DIFFERENCE — EGGS. Hans, October 19: eggs (and yolks and
@@ -79,12 +79,91 @@ function snapToSteps(qty: number, steps: readonly number[]): number {
   return whole + best;
 }
 
+/** True when this unit+name is a whole bird by weight (rule 4) — the client's detector. */
+export function isWholeBirdByWeight(unit: string, name: string): boolean {
+  return WEIGHT_TOKENS.test(unit.trim().toLowerCase()) && WHOLE_BIRD.test(name);
+}
+
 /**
- * FIX-7 rule 4 — the multiplier a line should scale by: a whole bird bought by
- * weight is one bird, so a multiplier below 1 does not apply to it.
+ * THX-3b (BUG-454) — WEB-4's BIRD_FLOOR_LB (`artifacts/kiwi/lib/format/quantity.ts`,
+ * b1f404b), VERBATIM: the smallest whole bird of each kind a grocer commonly
+ * stocks, in pounds. Checked in order (a "cornish hen" is not a "hen"). The test
+ * pins it literally and reads the client file for drift.
  */
-export function wholeItemMultiplier(multiplier: number, unit: string, name = ""): number {
-  return multiplier < 1 && WEIGHT_TOKENS.test(unit.trim().toLowerCase()) && WHOLE_BIRD.test(name) ? 1 : multiplier;
+export const BIRD_FLOOR_LB: ReadonlyArray<readonly [RegExp, number]> = [
+  [/\bturkeys?\b/i, 10],
+  [/\b(?:cornish|game) hens?\b/i, 1],
+  [/\brotisserie chickens?\b/i, 2],
+  [/\bducks?\b/i, 4],
+  [/\b(?:goose|geese)\b/i, 8],
+  [/\b(?:chickens?|hens?)\b/i, 3],
+];
+
+/** Pounds per one of this weight unit; null for a unit that is not a weight (client's poundsPer). */
+function poundsPer(unit: string): number | null {
+  const u = unit.trim().toLowerCase();
+  if (POUND_TOKENS.test(u)) return 1;
+  if (/^(oz|ounces?)$/.test(u)) return 1 / 16;
+  if (/^(g|grams?)$/.test(u)) return 1 / 453.59237;
+  if (/^(kg|kilograms?)$/.test(u)) return 2.20462262;
+  return null;
+}
+
+/** The floor for this bird, in pounds, or null when its kind has none. */
+export function birdFloorPounds(name: string): number | null {
+  for (const [re, lb] of BIRD_FLOOR_LB) if (re.test(name)) return lb;
+  return null;
+}
+
+/**
+ * FIX-7 rule 4, as WEB-4 (BUG-453) left it — the multiplier a whole bird bought by
+ * weight scales by. Above 1 it scales as before (a bigger bird). Below 1 it scales
+ * DOWN, never below the smallest bird of its kind and never above the recipe's own
+ * weight: the 14 lb turkey at 4 of 10 servings is a 10 lb turkey. `quantity` is the
+ * line's own (unscaled) amount; without it, or for a kind with no floor, a bird
+ * does not scale down. The client's function, line for line.
+ */
+export function wholeItemMultiplier(multiplier: number, unit: string, name = "", quantity?: number): number {
+  if (multiplier >= 1 || !isWholeBirdByWeight(unit, name)) return multiplier;
+  const floor = birdFloorPounds(name);
+  const per = poundsPer(unit);
+  if (floor === null || per === null || quantity === undefined || !(quantity > 0)) return 1;
+  return Math.max(multiplier, Math.min(1, floor / (quantity * per)));
+}
+
+/** THX-3b (BUG-454) — a bird's own parts, which come with the one bird: never scaled. */
+const BIRD_PART = /\b(?:turkey|chicken|duck|goose|hen)\s+(?:necks?|giblets?)\b|\bgiblets?\b/i;
+
+// ── THX-3b (BUG-454) — ONE BIRD RULE FOR THE WHOLE DISH ──────────────────────
+//
+// Prep the Week said 14 lb where meal detail said 10 lb (WEB-4 floors the bird;
+// the server never scaled it down), and the brine scaled by servings while the
+// bird did not: at 8 the closing line read "¾ turkey neck". The rule, the same on
+// both sides (WEB-4b pins the same inputs):
+//   1. the bird's weight is `wholeItemMultiplier`'s (the floors above);
+//   2. the bird's FACTOR is its SHOWN weight ÷ the recipe's weight, and every other
+//      row of a whole-bird dish (by `isWholeBirdByWeight`) scales by it, not by
+//      servings — the brine's salt, sugar and water, the butter, herbs, aromatics;
+//   3. a bird's own parts (neck, giblets) are the authored count, in any dish;
+//   4. above the recipe's servings it stays linear (no cap).
+// "Shown" is the displayed number (¼ lb steps): 8 of 10 servings is an 11¼ lb bird,
+// so its brine is 11¼ / 14 of the recipe's.
+
+/**
+ * The multiplier each row of ONE dish scales by, in row order, given the dish's
+ * servings multiplier. Rows are the dish's raw (unscaled) ingredient rows.
+ */
+export function dishRowMultipliers(
+  rows: readonly { quantity: number; unit: string; name: string }[],
+  multiplier: number,
+): number[] {
+  const bird = rows.find((r) => r.quantity > 0 && isWholeBirdByWeight(r.unit, r.name));
+  let factor = multiplier;
+  if (bird) {
+    const shown = displayedPrepQuantity(bird.quantity * wholeItemMultiplier(multiplier, bird.unit, bird.name, bird.quantity), bird.unit, bird.name);
+    factor = shown / bird.quantity;
+  }
+  return rows.map((r) => (BIRD_PART.test(r.name) ? 1 : factor));
 }
 
 /**

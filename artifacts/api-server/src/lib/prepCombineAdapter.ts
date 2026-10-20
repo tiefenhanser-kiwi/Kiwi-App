@@ -20,7 +20,7 @@
 // inferCategory is a defensive pocket fallback only, for the theoretical
 // empty-category row.
 
-import { wholeItemMultiplier } from "./prepQuantity";
+import { dishRowMultipliers } from "./prepQuantity";
 import { inferCategory } from "./ingredientResolve";
 import { assignPhase, isNeverMeasured, isSaltOrPepper } from "./prepCombineEngine";
 import { resolveDishComponents } from "./prepComponents";
@@ -386,11 +386,17 @@ export function buildPrepCombineInput(
         const base = authoredBase > 0 ? authoredBase : 1;
         const effective = meal.servingsOverride ?? dish.baseServings;
         const multiplier = effective / base;
+        // THX-3b (BUG-454) — a whole-bird dish scales by its bird, and the bird's own
+        // parts never scale (prepQuantity `dishRowMultipliers`, the client's rule).
+        const rowMultiplier = dishRowMultipliers(
+          dish.ingredients.map((i) => ({ ...splitCompoundUnit(i.quantity, i.unit), name: i.ingredientName })),
+          multiplier,
+        );
         return {
           dishId: dish.dishId,
           dishName: dish.dishName,
           dishRole: dish.dishRole,
-          ingredients: dish.ingredients.flatMap((ing) => {
+          ingredients: dish.ingredients.flatMap((ing, row) => {
             const split = splitCompoundUnit(ing.quantity, ing.unit);
             // H5.3 — drop the service portion before anything downstream can
             // cost it, name it or count a vessel for it.
@@ -430,8 +436,9 @@ export function buildPrepCombineInput(
               ingredientId: ing.ingredientId,
               ingredientName: ing.ingredientName,
               category,
-              // THX-3 (BUG-444) — FIX-7 rule 4: a whole bird by weight never scales DOWN.
-              quantity: prep.quantity * wholeItemMultiplier(multiplier, split.unit, ing.ingredientName),
+              // THX-3b (BUG-454) — the row's own multiplier: the bird's factor in a
+              // whole-bird dish, 1 for a neck or giblets, else the servings.
+              quantity: prep.quantity * rowMultiplier[row],
               unit: split.unit,
               preparationNote: prep.preparationNote,
               component: comp
