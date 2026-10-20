@@ -268,15 +268,16 @@ describe("grocery — the feast item's servingsOverride 10 buys the 10-serving q
   const prismaFor = (plan: unknown) =>
     ({ mealPlanInstance: { findUnique: async () => plan } }) as unknown as PrismaClient;
 
-  it("override 10 → 12 lb (the authored quantity); no override → 2.4 lb, listed 2.5 (household 2)", async () => {
+  it("override 10 → 12 lb (the authored quantity); no override (household 2) → the 10 lb smallest turkey", async () => {
     const withOverride = await consolidatePlanIngredients({ prisma: prismaFor(planWith(10)), planId: "plan-thx", userId: USER });
     const turkey = withOverride.find((i) => i.canonicalName === "whole turkey");
     assert.equal(turkey?.quantity, 12);
     assert.equal(turkey?.sources[0].servings, 10);
 
     const household = await consolidatePlanIngredients({ prisma: prismaFor(planWith(null)), planId: "plan-thx", userId: USER });
-    // 12 × 2/10 = 2.4 lb, which the shopping round-up ladder lists as 2.5.
-    assert.equal(household.find((i) => i.canonicalName === "whole turkey")?.quantity, 2.5);
+    // 12 × 2/10 = 2.4 lb of whole turkey was listed as 2.5 before THX-3b; the list now
+    // buys the bird the recipe shows (BUG-454, WEB-4's floor): the smallest turkey sold.
+    assert.equal(household.find((i) => i.canonicalName === "whole turkey")?.quantity, 10);
   });
 });
 
