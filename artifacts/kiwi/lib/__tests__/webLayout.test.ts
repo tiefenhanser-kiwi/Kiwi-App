@@ -27,8 +27,8 @@ test("🔴 native: every helper returns its input itself", () => {
     assert.equal(webSheet(sheet, os), sheet, `${os} sheet`);
     assert.equal(webTabBar(bar, 1280, os), bar, `${os} tab bar`);
     assert.equal(sheetHandleShown(os), true, `${os} handle`);
-    assert.equal(webThumb(72, WEB_THUMB.planRow, os), 72, `${os} row thumb`);
-    assert.equal(webThumb(60, WEB_THUMB.hubRow, os), 60, `${os} hub thumb`);
+    assert.equal(webThumb(72, WEB_THUMB.planRow, 1280, os), 72, `${os} row thumb`);
+    assert.equal(webThumb(60, WEB_THUMB.hubRow, 1280, os), 60, `${os} hub thumb`);
   }
 });
 
@@ -55,10 +55,13 @@ test("web: the tab bar keeps its background, its items take the column's inset",
   assert.equal(bar.height, 84);
 });
 
-test("web: no drag handle; thumbnails at their web sizes", () => {
+test("web: no drag handle; thumbnails at their web sizes in a wide window, phone sizes in a phone-sized one", () => {
   assert.equal(sheetHandleShown("web"), false);
-  assert.equal(webThumb(72, WEB_THUMB.planRow, "web"), 112);
-  assert.equal(webThumb(60, WEB_THUMB.hubRow, "web"), 88);
+  assert.equal(webThumb(72, WEB_THUMB.planRow, 1280, "web"), 112);
+  assert.equal(webThumb(60, WEB_THUMB.hubRow, 1280, "web"), 88);
+  assert.equal(webThumb(72, WEB_THUMB.planRow, 600, "web"), 112);
+  assert.equal(webThumb(72, WEB_THUMB.planRow, 599, "web"), 72);
+  assert.equal(webThumb(60, WEB_THUMB.hubRow, 375, "web"), 60);
 });
 
 test("🔴 native: the root Stack gets no screenLayout at all", () => {

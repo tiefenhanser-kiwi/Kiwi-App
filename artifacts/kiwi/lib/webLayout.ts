@@ -25,7 +25,12 @@ import { Platform, View, type StyleProp, type ViewStyle } from "react-native";
  *  640 column (CookbookResults' COOKBOOK_MAX_WIDTH) inside it. */
 export const WEB_COLUMN_MAX_WIDTH = 720;
 
-/** Web thumbnail sizes (principle 3): the native role size → the web one. */
+/** Below this window width a web visitor has a phone-sized window: the column
+ *  IS the phone, so images keep their phone sizes there (principle 3). */
+export const WEB_WIDE_MIN_WIDTH = 600;
+
+/** Web thumbnail sizes (principle 3): the native role size → the web one, in a
+ *  window at least WEB_WIDE_MIN_WIDTH wide. */
 export const WEB_THUMB = {
   /** Plan Review's meal row — ImageTreatment.thumb.row (72) on native. */
   planRow: 112,
@@ -123,7 +128,12 @@ export function webContentWidth(windowWidth: number, os: OS = Platform.OS): numb
   return isWeb(os) ? Math.min(windowWidth, WEB_COLUMN_MAX_WIDTH) : windowWidth;
 }
 
-/** A thumbnail's edge: the native role size, or its web size. */
-export function webThumb(nativeSize: number, webSize: number, os: OS = Platform.OS): number {
-  return isWeb(os) ? webSize : nativeSize;
+/** A thumbnail's edge: the native role size, or its web size in a wide window. */
+export function webThumb(
+  nativeSize: number,
+  webSize: number,
+  windowWidth: number,
+  os: OS = Platform.OS,
+): number {
+  return isWeb(os) && windowWidth >= WEB_WIDE_MIN_WIDTH ? webSize : nativeSize;
 }

@@ -1,5 +1,5 @@
 import React, { useRef } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
@@ -22,9 +22,6 @@ import {
   type ReviewPlanMealRow,
 } from "@/lib/types";
 import { WEB_THUMB, webThumb } from "@/lib/webLayout";
-
-// WEB-4 — 72 on native, 112 on the web (images sized to the column).
-const ROW_THUMB = webThumb(ImageTreatment.thumb.row, WEB_THUMB.planRow);
 
 // BUG-104 — day-pill repeat-tap lockout. Sized to swallow a hardware/gesture
 // double-fire (the observed pair was 54ms apart) while staying far below a
@@ -68,6 +65,8 @@ export function PlanReviewMealRow({
   readOnly = false,
 }: Props) {
   const router = useRouter();
+  // WEB-4 — 72 on native, 112 in a wide web window (images sized to the column).
+  const rowThumb = webThumb(ImageTreatment.thumb.row, WEB_THUMB.planRow, useWindowDimensions().width);
 
   // BUG-104 — day-pill double-fire guard.
   //
@@ -206,8 +205,8 @@ export function PlanReviewMealRow({
             has one, the warm placeholder ramp when it never will (D-WS9-230). */}
         <TreatedImage
           source={row.thumbnailUrl ? { uri: row.thumbnailUrl } : null}
-          width={ROW_THUMB}
-          height={ROW_THUMB}
+          width={rowThumb}
+          height={rowThumb}
           radius={Radius.md}
         />
         <View style={styles.textCol}>

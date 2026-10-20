@@ -40,9 +40,6 @@ import { PREP_THE_FEAST_LABEL, type MakeAheadRowVM } from "@/lib/cooking/makeAhe
 import { hubRowLayout } from "@/lib/largeTextLayout";
 import { WEB_THUMB, webContentWidth, webThumb } from "@/lib/webLayout";
 
-// WEB-4 — 60 on native, 88 on the web (images sized to the column).
-const HUB_THUMB = webThumb(ImageTreatment.thumb.compact, WEB_THUMB.hubRow);
-
 interface Props {
   model: HubModel;
   /** "Prep the Week" lane CTA — Week Prep (Block 4; temporary stub for now). */
@@ -302,6 +299,8 @@ function Hub({
   const indicatorTone = TONE_STYLE[indicator.tone];
   const { width: windowWidth, fontScale } = useWindowDimensions();
   const contentWidth = webContentWidth(windowWidth);
+  // WEB-4 — 60 on native, 88 in a wide web window (images sized to the column).
+  const hubThumb = webThumb(ImageTreatment.thumb.compact, WEB_THUMB.hubRow, windowWidth);
   // Count DISTINCT selected mealIds that are actually on this week's list, so a
   // stale selection left over from a plan edit can never enable the CTA for a
   // meal the user can no longer see.
@@ -523,7 +522,7 @@ function Hub({
               contentWidth,
               fontScale,
               selectable: row.prepSelectable,
-              thumb: HUB_THUMB,
+              thumb: hubThumb,
               tagLabel: row.pill.label,
             });
             // WS9 — the prep-subset tick. Its OWN Pressable (with hitSlop)
@@ -572,8 +571,8 @@ function Hub({
             const thumb = layout.showThumb && (
               <TreatedImage
                 source={row.thumbnailUrl ? { uri: row.thumbnailUrl } : null}
-                width={HUB_THUMB}
-                height={HUB_THUMB}
+                width={hubThumb}
+                height={hubThumb}
                 radius={Radius.md}
               />
             );
