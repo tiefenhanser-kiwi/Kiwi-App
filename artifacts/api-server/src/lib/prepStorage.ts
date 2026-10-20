@@ -228,14 +228,23 @@ export const STORAGE_TABLE: readonly StorageClass[] = [
 type ContainerForm = "wet" | "dry" | "herbs" | "flesh" | "produce";
 
 /** Anything poured. One of these and the container is a jar, whatever else is in it. */
+// THX-3b (BUG-459) — mustard SEED and mustard POWDER are cupboard spices, not the jar.
 const WET_MEMBER =
-  /\b(oil|vinegar|juice|sauce|broth|stock|wine|cream|yogurt|yoghurt|mayonnaise|mayo|mustard|honey|syrup|molasses|buttermilk|milk|water|paste|pur[ée]e|zest)\b/i;
+  /\b(oil|vinegar|juice|sauce|broth|stock|wine|cream|yogurt|yoghurt|mayonnaise|mayo|mustard(?!\s+(?:seeds?|powder))|honey|syrup|molasses|buttermilk|milk|water|paste|pur[ée]e|zest)\b/i;
 /** Loose fresh herbs, which are the only thing the damp-towel advice is for. */
 const HERB_MEMBER =
   /\b(?:fresh\s+)?(parsley|cilantro|coriander leaves|basil|mint|dill|chives|tarragon|oregano leaves|rosemary|thyme|sage)\b/i;
-/** Cupboard dry goods — the dry-mix class's own vocabulary. */
+/**
+ * Cupboard dry goods — the dry-mix class's own vocabulary.
+ *
+ * THX-3b (BUG-459) — AND THE WHOLE SPICES. Classic's brine and gravy bags held
+ * black peppercorns and bay leaves and were told "fridge, up to 3 days": "bay
+ * leaves" was in no row and no member list, so the pair matched nothing and fell to
+ * the produce default. Bay leaves are sold dried (a FRESH one is named so and stays
+ * out), and seeds, pods, berries and flakes keep in the cupboard like ground spice.
+ */
 const DRY_MEMBER =
-  /\b(flour|cornmeal|cornstarch|corn starch|masa(?:\s+harina)?|polenta|semolina|baking powder|baking soda|cream of tartar|yeast|sugar|cocoa|salt|pepper\b(?!\s*s)|peppercorns?|cayenne|paprika|cumin|coriander|turmeric|cinnamon|nutmeg|clove powder|chili powder|chile powder|curry powder|garlic powder|onion powder|dried \w+|ground \w+|breadcrumbs|panko|oats|rice|lentils?)\b/i;
+  /\b(flour|cornmeal|cornstarch|corn starch|masa(?:\s+harina)?|polenta|semolina|baking powder|baking soda|cream of tartar|yeast|sugar|cocoa|salt|pepper\b(?!\s*s)|peppercorns?|cayenne|paprika|cumin|coriander|turmeric|cinnamon|nutmeg|clove powder|chili powder|chile powder|curry powder|garlic powder|onion powder|dried \w+|ground \w+|breadcrumbs|panko|oats|rice|lentils?|(?<!fresh\s)bay lea(?:f|ves)|whole cloves|star anise|allspice(?: berries)?|cardamom(?: pods?)?|juniper berries|(?:mustard|fennel|caraway|celery|nigella|sesame|poppy|anise) seeds?|(?:red pepper|chili|chile) flakes|mustard powder|dry mustard)\b/i;
 
 function containerForm(names: readonly string[], fleshIdentity: string): ContainerForm {
   if (RAW_FLESH_HINT.test(fleshIdentity)) return "flesh";

@@ -348,3 +348,22 @@ describe("D-WS9-301 H2.3 — a step that is not done carries no storage note", (
     assert.match(step.storageNote!, /4 days out/);
   });
 });
+
+// THX-3b (BUG-459) — Classic's brine and gravy bags (black peppercorns + bay leaves)
+// read "fridge, up to 3 days": bay leaves were in no list, so the pair fell to the
+// produce default. Whole spices are cupboard goods; a fresh bay leaf is not.
+describe("THX-3b BUG-459 — a container of shelf-stable dry items is a pantry container", () => {
+  const PANTRY = "Airtight at room temperature — it keeps for weeks.";
+  const note = (names: string[]) => storageClassFor(names.join(", "), "Herb-Roasted Whole Turkey marinade bowl", names).note;
+  it("whole peppercorns and bay leaves", () => assert.equal(note(["black peppercorns", "bay leaves"]), PANTRY));
+  it("seeds, pods and flakes — mustard seed is not the mustard jar", () => {
+    assert.equal(note(["cumin seeds", "mustard seeds", "fennel seeds"]), PANTRY);
+    assert.equal(note(["cardamom pods", "star anise", "whole cloves"]), PANTRY);
+    assert.equal(note(["red pepper flakes", "dry mustard", "kosher salt"]), PANTRY);
+  });
+  it("a fresh bay leaf, or one fresh member, keeps the fridge", () => {
+    assert.notEqual(note(["fresh bay leaves", "black peppercorns"]), PANTRY);
+    assert.notEqual(note(["bay leaves", "fresh thyme"]), PANTRY);
+    assert.notEqual(note(["dijon mustard", "black peppercorns"]), PANTRY);
+  });
+});
