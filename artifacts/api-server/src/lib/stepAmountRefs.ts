@@ -187,6 +187,14 @@ function isByDesign(text: string, span: Span): boolean {
   if (TIME_UNIT_RE.test(span.unit) || /^-\s*(minutes?|mins?|hours?|hrs?|seconds?|secs?)/i.test(after)) {
     return true;
   }
+  // THX-3 (BUG-450) — DAYS ARE TIME TOO. "the pies keep up to 2 days" had no unit
+  // word the detector knows, so the "2" looked left for a name, found "pie" in
+  // "refrigerate; the pies", bound to `refrigerated pie crust` — and the client
+  // scaled it: "keeps up to 1⅝ days" at 8 servings. A count of days, weeks, nights
+  // or months is a duration ("day-old bread" is a food, not a duration).
+  if (span.unit === "" && /^\s*(?:-\s*)?(?:days?|weeks?|nights?|months?)\b(?!-old)/i.test(after)) {
+    return true;
+  }
   if (
     /^\s*(?:°|º|degrees?|deg\b)/i.test(after) ||
     (/^\s*[°º]?\s*[fc]\b/i.test(after) && /\d/.test(span.text)) ||

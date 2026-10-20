@@ -201,3 +201,20 @@ describe("hasUnmatchedAmount — read-side signal derivation (D4)", () => {
     assert.equal(hasUnmatchedAmount("Add 1 pound beef, then 1 tablespoon oil.", refs), true);
   });
 });
+
+// THX-3 (BUG-450) — a count of days is a duration, never an ingredient amount.
+describe("THX-3 — 'keeps up to 2 days' is not scaled", () => {
+  const crust: MatcherIngredient = { ingredientId: "crust", name: "refrigerated pie crust (contains wheat)", quantity: 1, unit: "package (2-count)" };
+  it("the pie's keep-days get no ref (it bound to the pie crust and read 1⅝ days at 8)", () => {
+    const text = "Make ahead (Wednesday): Cool the pies completely on a wire rack — at least 2 hours before slicing — then cover loosely and refrigerate; the pies keep up to 2 days.";
+    const r = deriveAmountRefs(text, [crust]);
+    assert.deepEqual(r.amountRefs, []);
+    assert.equal(r.unmatchedAmount, false);
+  });
+  it("weeks, nights and a hyphenated day count are durations too; day-old bread is a food", () => {
+    assert.deepEqual(deriveAmountRefs("Thaw the turkey 3–4 days in the fridge.", [crust]).amountRefs, []);
+    assert.deepEqual(deriveAmountRefs("It keeps 2 weeks, or chill 2 nights.", [crust]).amountRefs, []);
+    const bread: MatcherIngredient = { ingredientId: "bread", name: "day-old bread", quantity: 4, unit: "cup" };
+    assert.equal(deriveAmountRefs("Tear 4 cups day-old bread into pieces.", [bread]).amountRefs.length, 1);
+  });
+});
