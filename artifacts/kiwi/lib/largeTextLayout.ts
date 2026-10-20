@@ -79,9 +79,27 @@ export const RAIL_CHIP_INSET = 7;
 //
 // Ordinary text (fontScale 1) in a 375 dp window keeps today's row with every
 // label the hub shows (the longest, "Nothing to prep", leaves the name 4.1 em).
+//
+// WEB-4b — 4 ems at DEFAULT text stacked a 360 dp phone: with "Nothing to prep"
+// the name is left 47 dp (3.15 em) there, and the row stacked up to 372 dp. At
+// fontScale 1 the bar is 3 ems, so nothing stacks at 360 dp or wider (the
+// widest that stacks is 357, the longest tag). Large text keeps BUG-451's 4 ems
+// from Android's first step up (1.15), with a straight ramp between, so every
+// size Hans tested stacks exactly as built.
 
-/** The narrowest an inline name may get, in ems of its own (scaled) size. */
+/** The narrowest an inline name may get, in ems of its own (scaled) size, at
+ *  large text (fontScale ≥ HUB_ROW_LARGE_SCALE). */
 export const HUB_ROW_TITLE_MIN_EMS = 4;
+/** …and at default text (fontScale ≤ 1). */
+export const HUB_ROW_TITLE_MIN_EMS_DEFAULT = 3;
+/** Android's first text size above default ("Large"). */
+const HUB_ROW_LARGE_SCALE = 1.15;
+
+/** The bar for this text scale: 3 ems at or below default, 4 from 1.15 up. */
+export function hubRowTitleMinEms(fontScale: number): number {
+  const t = Math.min(1, Math.max(0, (fontScale - 1) / (HUB_ROW_LARGE_SCALE - 1)));
+  return HUB_ROW_TITLE_MIN_EMS_DEFAULT + t * (HUB_ROW_TITLE_MIN_EMS - HUB_ROW_TITLE_MIN_EMS_DEFAULT);
+}
 
 // The row's fixed chrome, from components/PrepCookHubView.tsx's styles.
 const HUB_SCREEN_PAD = 16 * 2; // Screen's paddingHorizontal (Spacing[4])
@@ -120,7 +138,7 @@ export function hubRowLayout(input: {
   const thumbCell = thumb + HUB_GAP;
   const tag = hubTagWidth(tagLabel, fontScale);
   const inlineTitle = card - tick - thumbCell - HUB_GAP - tag;
-  if (inlineTitle >= HUB_ROW_TITLE_MIN_EMS * HUB_TITLE_SIZE * fontScale) {
+  if (inlineTitle >= hubRowTitleMinEms(fontScale) * HUB_TITLE_SIZE * fontScale) {
     return { titleOwnLine: false, showThumb: true };
   }
   const metaColumn = card - tick - thumbCell;

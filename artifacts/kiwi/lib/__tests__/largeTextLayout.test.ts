@@ -46,6 +46,43 @@ test("BUG-451: ordinary text on a 375 or 411 dp phone keeps today's row, whateve
   }
 });
 
+const HUB_TAGS = ["Prepped ✓", "Not prepped", "Mostly prepped", "Partly prepped", "Nothing to prep"];
+
+/** The widest window (dp) that still stacks, for this text scale and tag. */
+const widestStacked = (fontScale: number, tag: string, selectable = true) => {
+  let w = 0;
+  for (let x = 240; x <= 1280; x++) if (hubRow(x, fontScale, { tag, selectable }).titleOwnLine) w = x;
+  return w;
+};
+
+test("WEB-4b: at DEFAULT text nothing stacks at 360 dp or wider — any tag, tick or not", () => {
+  for (const tag of HUB_TAGS) {
+    for (const selectable of [true, false]) {
+      for (let w = 360; w <= 1280; w += 1) {
+        assert.equal(hubRow(w, 1, { tag, selectable }).titleOwnLine, false, `${w} dp, ${tag}, tick ${selectable}`);
+      }
+    }
+  }
+  // Below it, the longest tag still stacks: 357 is the widest (it was 372 at 4 ems).
+  assert.equal(widestStacked(1, "Nothing to prep"), 357);
+  assert.equal(widestStacked(1, "Prepped ✓"), 321);
+});
+
+test("WEB-4b: large text stacks exactly as built — 4 ems from Android's 1.15 up", () => {
+  // The widths BUG-451 shipped (f5fe502), by text scale: [shortest tag, longest tag].
+  const BUILT: [number, number, number][] = [
+    [1.15, 353, 395],
+    [1.3, 370, 417],
+    [1.5, 393, 448],
+    [1.8, 428, 493],
+    [2, 450, 523],
+  ];
+  for (const [f, shortest, longest] of BUILT) {
+    assert.equal(widestStacked(f, "Prepped ✓"), shortest, `${f}: Prepped ✓`);
+    assert.equal(widestStacked(f, "Nothing to prep"), longest, `${f}: Nothing to prep`);
+  }
+});
+
 test("BUG-451: Hans's two sizes (max, and one step below) give the name its own line", () => {
   for (const w of [320, 360, 375, 411]) {
     assert.equal(hubRow(w, 2).titleOwnLine, true, `${w} @ 2.0`);
