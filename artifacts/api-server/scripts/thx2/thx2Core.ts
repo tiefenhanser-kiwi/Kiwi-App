@@ -402,6 +402,10 @@ export const FINALIZE_RULES = [
   `(d) Make-ahead prerequisites: when a step uses the giblets or neck before Thursday, the earliest turkey step says a frozen 14-lb turkey thaws in the fridge 3–4 days, so it goes in before the giblets are needed. Bread to be dried gets its own cube-and-dry step and day. Reheat times assume the dish comes straight from the fridge (a cold casserole or a big pan of mashed potatoes needs about 45–60 minutes covered at 350°F).`,
   `(e) Poultry: never rinse raw poultry, the neck or the giblets; pat the bird dry with paper towels. A whole bird brines in a brining bag set in a roasting pan or cooler in the fridge, turned halfway through. A whole unstuffed turkey roasts about 13–15 minutes per pound at 325°F (a 14-lb bird about 3 to 3½ hours) to 165°F in the thickest part of the thigh; a spatchcocked one roasts hotter and faster (about 80–90 minutes at 425–450°F for 12–14 lb). Glaze only in the last 20–30 minutes, once the thigh reads about 155°F, and finish at 165°F.`,
   `(f) A spatchcock recipe includes the cut (kitchen shears down both sides of the backbone, then press flat) or says "ask the butcher to spatchcock". Warm corn tortillas before rolling them so they don't crack.`,
+  // THX-3b (BUG-457) — the scheduler's oven frees when the bird comes out and every
+  // side then bakes in it at once; it cannot hold two temperatures. patch.ts applies
+  // the same rule to the stored feasts (thx2Oven.ts).
+  `(g) One oven after the bird: every dish that bakes on Thursday after the turkey comes out of the oven shares that one oven, so they all bake at ONE temperature (350°F unless every one of them needs another), each step stating that temperature and the time for it.`,
 ].join(" ");
 
 /**

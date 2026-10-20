@@ -21,7 +21,11 @@
 //                    that has none (BUG-425);
 //   5. amountRefs  — re-derived for every step from the dish's own rows, so the
 //                    "2 days" refs (BUG-450's 1⅝) are gone (stepAmountRefs isByDesign);
-// then per feast: 6. the derived times re-stamped (THX-3 B's oven, the new steps).
+// then per feast: 6. the derived times re-stamped (THX-3 B's oven, the new steps);
+//   7. THX-3b (BUG-457) — ONE OVEN TEMPERATURE AFTER THE BIRD (thx2Oven.ts): every
+//      post-bird oven step is printed (dish · °F · start → end), and a side baking at
+//      another temperature than the rest moves to it, its times adjusted (≤ 25°F; a
+//      bigger move is REFUSED and printed — that is more than a time change).
 //
 // It does not touch a user's copy of a feast (sourceStoreMealId) — it counts them.
 
@@ -32,6 +36,7 @@ import { deriveAmountRefs, type MatcherIngredient } from "../../src/lib/stepAmou
 import { stampMealTiming } from "../../src/lib/mealTiming";
 import { AHEAD_TAG, aheadDaysOf, aheadTags, dishSpecFor, keepsDaysFor, loadTargets, validateTargets } from "./thx2Core";
 import { fixKeepClause, hasThursdayStep, retargetMakeAheadDay, thursdayServeStep } from "./thx2Checks";
+import { formatOvenReport, oneOvenTemperature, ovenReport, retimeDish, type OvenStepRow } from "./thx2Oven";
 
 const argv = process.argv.slice(2);
 const APPLY = argv.includes("--apply");
@@ -62,6 +67,8 @@ interface Plan {
   textUpdates: { stepId: string; title: string; stepIndex: number; from: string; to: string }[];
   refUpdates: { stepId: string; refs: unknown; was: unknown; text: string }[];
   creates: { dishId: string; title: string; stepIndex: number; text: string; phaseType: "assemble"; estimatedMinutes: number; refs: unknown }[];
+  /** THX-3b — an oven step retimed to the feast's one post-bird temperature. */
+  minuteUpdates: { stepId: string; title: string; stepIndex: number; from: number; to: number }[];
 }
 
 let totalChanges = 0;
@@ -72,7 +79,7 @@ for (const t of feasts) {
       id: true, title: true, estimatedTimeMinutes: true, activeTimeMinutes: true,
       dishLinks: {
         orderBy: { positionIndex: "asc" },
-        select: { dishId: true, positionIndex: true, dish: { select: { id: true, title: true, tags: true, estimatedTimeMinutes: true, dishIngredients: { orderBy: { positionIndex: "asc" }, select: { quantity: true, unit: true, ingredientId: true, ingredient: { select: { canonicalName: true } } } } } } },
+        select: { dishId: true, positionIndex: true, roleLabel: true, dish: { select: { id: true, title: true, tags: true, estimatedTimeMinutes: true, dishIngredients: { orderBy: { positionIndex: "asc" }, select: { quantity: true, unit: true, ingredientId: true, ingredient: { select: { canonicalName: true } } } } } } },
       },
     },
   });
@@ -82,9 +89,11 @@ for (const t of feasts) {
   const planRefs = await prisma.mealPlanItem.count({ where: { mealId: meal.id } });
   console.log(`\n▶ ${t.key} ${meal.id} "${meal.title.slice(0, 70)}" · plan items ${planRefs} · template items ${templateRefs} · user copies ${forks} (not patched)`);
 
-  const plan: Plan = { tagUpdates: [], textUpdates: [], refUpdates: [], creates: [] };
+  const plan: Plan = { tagUpdates: [], textUpdates: [], refUpdates: [], creates: [], minuteUpdates: [] };
   const specOf = dishSpecFor(t);
   const stepsByDish = new Map<string, StepRow[]>();
+  const storedStep = new Map<string, StepRow>();
+  const matcherOf = new Map<string, MatcherIngredient[]>();
   for (const link of meal.dishLinks) {
     const d = link.dish;
     const spec = specOf(d.title, link.positionIndex);
@@ -136,6 +145,33 @@ for (const t of feasts) {
       plan.creates.push({ dishId: d.id, title: d.title, stepIndex, text: step.text, phaseType: step.phaseType, estimatedMinutes: step.estimatedMinutes, refs: deriveAmountRefs(step.text, matcher).amountRefs });
     }
     stepsByDish.set(d.id, steps.map((s) => ({ ...s, stepTextTranslated: texts.get(s.id)! })));
+    for (const s of steps) storedStep.set(s.id, s);
+    matcherOf.set(d.id, matcher);
+  }
+
+  // 7. THX-3b (BUG-457) — one oven temperature after the bird.
+  const ovenDishes = meal.dishLinks.map((l) => ({ dishId: l.dishId, title: l.dish.title, positionIndex: l.positionIndex, roleLabel: l.roleLabel }));
+  const ovenRows = (): OvenStepRow[] => meal.dishLinks.flatMap((l) => [
+    ...(stepsByDish.get(l.dishId) ?? []).map((s) => ({ ...s, ownerId: l.dishId })),
+    ...plan.creates.filter((c) => c.dishId === l.dishId).map((c) => ({ ownerId: l.dishId, stepIndex: c.stepIndex, stepTextTranslated: c.text, phaseType: c.phaseType, estimatedMinutes: c.estimatedMinutes, isTimingSensitive: false, parallelGroup: null, componentKey: null, pathKey: null })),
+  ]);
+  const ovenBefore = ovenReport(ovenDishes, ovenRows());
+  const one = oneOvenTemperature(ovenBefore);
+  for (const c of one.changes) {
+    for (const [stepIndex, v] of retimeDish(ovenRows(), c)) {
+      const row = stepsByDish.get(c.dishId)!.find((s) => s.stepIndex === stepIndex);
+      if (!row) continue; // a code-written Thursday step is never an oven step
+      const stored = storedStep.get(row.id)!;
+      const existing = plan.textUpdates.find((u) => u.stepId === row.id);
+      if (existing) existing.to = v.text;
+      else plan.textUpdates.push({ stepId: row.id, title: c.title, stepIndex, from: stored.stepTextTranslated, to: v.text });
+      if (v.minutes !== stored.estimatedMinutes) plan.minuteUpdates.push({ stepId: row.id, title: c.title, stepIndex, from: stored.estimatedMinutes, to: v.minutes });
+      row.stepTextTranslated = v.text;
+      row.estimatedMinutes = v.minutes;
+      const { amountRefs } = deriveAmountRefs(v.text, matcherOf.get(c.dishId)!);
+      plan.refUpdates = plan.refUpdates.filter((u) => u.stepId !== row.id);
+      if (canonical(amountRefs) !== canonical(stored.amountRefs ?? null)) plan.refUpdates.push({ stepId: row.id, refs: amountRefs, was: stored.amountRefs, text: v.text });
+    }
   }
 
   for (const u of plan.tagUpdates) console.log(`  tags  [${u.title}] ${u.from.join(" ") || "—"}  →  ${u.to.join(" ") || "—"}`);
@@ -144,6 +180,16 @@ for (const t of feasts) {
   for (const u of plan.refUpdates) {
     const spans = (r: unknown) => ((Array.isArray(r) ? r : []) as { charStart: number; charEnd: number }[]).map((x) => `"${u.text.slice(x.charStart, x.charEnd)}"@${x.charStart}`).join(" ");
     console.log(`  refs  [${u.text.slice(0, 50)}…] ${spans(u.was) || "—"}  →  ${spans(u.refs) || "—"}`);
+  }
+  for (const u of plan.minuteUpdates) console.log(`  mins  [${u.title} #${u.stepIndex}] ${u.from} → ${u.to}`);
+  // THX-3b (BUG-457) — the post-bird oven, every run: production's dry run proves the
+  // feasts dev does not have.
+  console.log(`  oven  Thursday, as stored${one.target !== null ? ` · after the bird: ${one.changes.length + one.refused.length ? `${one.target}°F for every side` : `one temperature (${one.target}°F)`}` : ""}`);
+  for (const l of formatOvenReport(ovenBefore)) console.log(`  ${l}`);
+  for (const r of one.refused) console.log(`  oven  REFUSED [${r.title}] ${r.from}°F → ${r.to}°F is more than ${25}°F: more than a time change — not patched, decide by hand`);
+  if (one.changes.length > 0) {
+    console.log(`  oven  Thursday, patched (${one.changes.map((c) => `${c.title} ${c.from}°F → ${c.to}°F`).join("; ")})`);
+    for (const l of formatOvenReport(ovenReport(ovenDishes, ovenRows()))) console.log(`  ${l}`);
   }
 
   // 6. the times — stampMealTiming itself, over the PATCHED steps. Dry run: a tx that
@@ -164,7 +210,7 @@ for (const t of feasts) {
   const timeChanged = captured.meal && (captured.meal.estimatedTimeMinutes !== meal.estimatedTimeMinutes || captured.meal.activeTimeMinutes !== meal.activeTimeMinutes);
   console.log(`  time  total ${meal.estimatedTimeMinutes} → ${captured.meal?.estimatedTimeMinutes} · hands-on ${meal.activeTimeMinutes} → ${captured.meal?.activeTimeMinutes}`);
 
-  const changes = plan.tagUpdates.length + plan.textUpdates.length + plan.refUpdates.length + plan.creates.length + (timeChanged ? 1 : 0);
+  const changes = plan.tagUpdates.length + plan.textUpdates.length + plan.refUpdates.length + plan.creates.length + plan.minuteUpdates.length + (timeChanged ? 1 : 0);
   totalChanges += changes;
   if (!APPLY || changes === 0) continue;
 
@@ -172,6 +218,7 @@ for (const t of feasts) {
     for (const u of plan.tagUpdates) await tx.dish.update({ where: { id: u.dishId }, data: { tags: u.to } });
     for (const u of plan.textUpdates) await tx.recipeInstructionStep.update({ where: { id: u.stepId }, data: { stepTextRaw: u.to, stepTextTranslated: u.to } });
     for (const u of plan.refUpdates) await tx.recipeInstructionStep.update({ where: { id: u.stepId }, data: { amountRefs: u.refs as Prisma.InputJsonValue } });
+    for (const u of plan.minuteUpdates) await tx.recipeInstructionStep.update({ where: { id: u.stepId }, data: { estimatedMinutes: u.to } });
     for (const c of plan.creates) {
       await tx.recipeInstructionStep.create({
         data: { ownerType: "dish", ownerId: c.dishId, stepIndex: c.stepIndex, stepTextRaw: c.text, stepTextTranslated: c.text, phaseType: c.phaseType, estimatedMinutes: c.estimatedMinutes, isTimingSensitive: false, amountRefs: c.refs as Prisma.InputJsonValue },
