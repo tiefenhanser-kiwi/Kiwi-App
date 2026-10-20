@@ -1814,6 +1814,18 @@ export function buildStepPlan(
     steps.splice(0, steps.length, ...kept);
   }
 
+  // ── THX-3 — NOTHING TO WASH, NO WASH ───────────────────────────────────────
+  // The wash opens a produce phase that has something in it, but it is emitted
+  // before the produce steps' own demotions run. With D-WS9-316 a feast session
+  // keeps no make-ahead perishables, and Classic's produce phase was left as the
+  // wash alone over a demoted potato. A wash with no live produce step goes too.
+  {
+    const wash = steps.find((s) => s.stepKey === WASH_STEP_KEY);
+    if (wash && !wash.demoted && !steps.some((s) => s.phase === "produce" && s !== wash && !s.demoted)) {
+      wash.demoted = { reason: "nothing-to-wash" };
+    }
+  }
+
   // ── PREP-1 (BUG-413) — NO PHASE OVER THE 30 THE WIRE ALLOWS ───────────────
   // After the scope, so a session is capped on its own steps; before the closes
   // and the narration, so an overflow step closes nothing and costs no tokens.

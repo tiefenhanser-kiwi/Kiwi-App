@@ -24,7 +24,7 @@ import { wholeItemMultiplier } from "./prepQuantity";
 import { inferCategory } from "./ingredientResolve";
 import { assignPhase, isNeverMeasured, isSaltOrPepper } from "./prepCombineEngine";
 import { resolveDishComponents } from "./prepComponents";
-import { mixtureEntryKey, resolveMoments } from "./prepMoments";
+import { mixtureEntryKey, proseNames, resolveMoments } from "./prepMoments";
 import type { PrepCombineInput } from "./prepCombineEngine";
 import type { PrepLoadedPlan } from "./prepWeekAggregation";
 
@@ -305,10 +305,30 @@ export function buildPrepCombineInput(
           return ordered.some((s) => s.ingredientIds.includes(id) && s.ingredientIds.some((o) => {
             if (o === id || phaseOfIngredient.get(o) !== "seasonings_dry") return false;
             const other = dish.ingredients.find((i) => i.ingredientId === o);
-            return !!other && !isSaltOrPepper(other.ingredientName) && !isNeverMeasured(other.ingredientName) && moments.runByIngredientId.get(o) === run;
+            // Named in the step's own words too: an amountRef can mis-bind ("leaves from 3
+            // thyme sprigs" resolves to bay leaves on Classic's herb-butter step).
+            return !!other && !isSaltOrPepper(other.ingredientName) && !isNeverMeasured(other.ingredientName) &&
+              moments.runByIngredientId.get(o) === run && proseNames(s.text, other.ingredientName);
           }));
         };
         const momentKeyFor = (ing: { ingredientId: string; category: string; ingredientName: string }): string | null => {
+          // THX-3 — IN A FEAST, A SALT OR PEPPER JOINS THE MIX IT IS MEASURED WITH: the
+          // moment of a dry partner its own amount-referenced step names in words (the
+          // brine's salt beside its sugar, the pie's salt beside its spices). The prose
+          // resolver gave Vegetarian's apple-pie salt the step that says "unsalted butter".
+          if (opts.feast && isSaltOrPepper(ing.ingredientName)) {
+            for (const s of ordered) {
+              if (!s.ingredientIds.includes(ing.ingredientId)) continue;
+              const partner = dish.ingredients.find((o) =>
+                o.ingredientId !== ing.ingredientId &&
+                s.ingredientIds.includes(o.ingredientId) &&
+                phaseOfIngredient.get(o.ingredientId) === "seasonings_dry" &&
+                !isSaltOrPepper(o.ingredientName) &&
+                !isNeverMeasured(o.ingredientName) &&
+                proseNames(s.text, o.ingredientName));
+              if (partner) return momentKeyFor({ ingredientId: partner.ingredientId, category: partner.category, ingredientName: partner.ingredientName });
+            }
+          }
           const own = resolved.byIngredient.get(ing.ingredientId);
           if (own) return `c:${own.key}@${entryOf(ing.ingredientId, ing.ingredientName)}`;
           if (assignPhase(ing.category, ing.ingredientName) === "proteins") {
@@ -375,6 +395,25 @@ export function buildPrepCombineInput(
               ing.category && ing.category.trim() !== ""
                 ? ing.category
                 : inferCategory(ing.ingredientName);
+            // ── THX-3 (D-WS9-316, Hans October 19) — A MAKE-AHEAD DISH BRINGS ONLY ITS
+            // SHELF-STABLE MIX. "if the user can 'prep the feast' and combine all the
+            // pie's dry ingredients ahead of time they should … then when it's time to make
+            // the pie they combine that with the wet, mix, and bake." The cut aromatics,
+            // herbs, citrus and liquids of a dish made on Monday–Wednesday stay in that
+            // day's recipe steps (the per-day prep sessions are a later client lane), so
+            // the feast session holds no perishable that would sit for days and each
+            // container is made in exactly one session. Dropped HERE, after the moments
+            // were resolved over the whole dish, so the dry mix keeps its moment.
+            if (
+              opts.feast &&
+              (dish.makeAheadDays?.length ?? 0) > 0 &&
+              !(
+                !isNeverMeasured(ing.ingredientName) &&
+                (assignPhase(category, ing.ingredientName, ing.purchaseUnit) === "seasonings_dry" || isSaltOrPepper(ing.ingredientName))
+              )
+            ) {
+              return [];
+            }
             const comp = resolved.byIngredient.get(ing.ingredientId) ?? null;
             const cookDayInto = cookDayIntoByIngredientId.get(ing.ingredientId) ?? null;
             return [{

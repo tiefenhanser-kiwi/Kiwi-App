@@ -28,7 +28,7 @@
 
 import type { LoadPrepWeekInputResult, PrepLoadedPlan } from "./prepWeekAggregation";
 import { buildPrepCombineInput } from "./prepCombineAdapter";
-import { feastClosingLines } from "./prepFeastClose";
+import { containerUses, feastClosingLines } from "./prepFeastClose";
 import { combinePrep } from "./prepCombineEngine";
 import { cutOf } from "./prepClasses";
 import {
@@ -80,6 +80,12 @@ export interface PrepWeekBuild {
    * from the recipe, appended at finish (never cached in prose).
    */
   closingLines?: Map<string, string>;
+  /**
+   * THX-3 (D-WS9-316) — the feast session only: the first day one of its containers
+   * is used ("Monday" — the cranberry sauce's dry mix), so the session is done BEFORE
+   * it. The feast's own day when no container is used earlier.
+   */
+  sessionBefore?: string;
 }
 
 export interface BuildPrepWeekOptions {
@@ -160,13 +166,13 @@ export const FEAST_KEY_PREFIX = "feast#";
  * Sunday a Thursday feast is 4 days out, and its onions would read "leave it for
  * cook day" in the one session that exists to cut them.
  */
-export function feastOnlyLoad(load: Load): Load | null {
+export function feastOnlyLoad(load: Load, lagCap = 1): Load | null {
   const meals = load.input.meals.filter((m) => m.feast);
   if (meals.length === 0) return null;
   const ids = new Set(meals.map((m) => m.mealId));
   const cd = load.cookDays ?? { prepDay: null, lagByMealId: new Map<string, number>(), dayNameByMealId: new Map<string, string>() };
   const only = <V>(m: ReadonlyMap<string, V>) => new Map([...m].filter(([id]) => ids.has(id)));
-  const lagByMealId = new Map([...only(cd.lagByMealId)].map(([id, lag]) => [id, Math.min(lag, 1)] as const));
+  const lagByMealId = new Map([...only(cd.lagByMealId)].map(([id, lag]) => [id, Math.min(lag, lagCap)] as const));
   return {
     input: { planId: load.input.planId, planName: meals[0].mealName, meals },
     cookDays: {
@@ -179,10 +185,36 @@ export function feastOnlyLoad(load: Load): Load | null {
   };
 }
 
-/** "Prep the feast" — the feast's own session (see feastOnlyLoad). Null for a plan without one. */
+/**
+ * "Prep the feast" — the feast's own session (see feastOnlyLoad). Null for a plan without one.
+ *
+ * 🔴 THX-3 (D-WS9-316) — THE SESSION IS NOT "WEDNESDAY" ANY MORE. It holds the
+ * make-ahead dishes' shelf-stable mixes, and Make-Ahead's cranberry sauce uses its
+ * mix on Monday, so the session is done before the FIRST day one of its containers
+ * is used (`sessionBefore`). Its lag is measured from the day before that day, so
+ * a Thursday dish's perishable reads honestly as days out (and is held for cook
+ * day when it would not keep), rather than as the day before. Built twice when the
+ * lag moves: the first build is what finds the first day.
+ */
 export function buildFeastSession(load: Load): PrepWeekBuild | null {
   const feast = feastOnlyLoad(load);
-  return feast ? buildPrepWeekPlan(feast, { feast: true }) : null;
+  if (!feast) return null;
+  const first = buildPrepWeekPlan(feast, { feast: true });
+  const feastDay = dayIndex(load.cookDays?.dayNameByMealId.get(feastMealIds(load.input)[0] ?? "")) ?? 4;
+  const before = dayIndex(first.sessionBefore);
+  if (before === undefined) return first;
+  const daysBefore = (feastDay - before + 7) % 7;
+  const cap = daysBefore + 1;
+  if (cap <= 1) return first;
+  const again = feastOnlyLoad(load, cap)!;
+  const same = [...again.cookDays!.lagByMealId].every(([id, lag]) => feast.cookDays!.lagByMealId.get(id) === lag);
+  return same ? first : buildPrepWeekPlan(again, { feast: true });
+}
+
+function dayIndex(name: string | undefined): number | undefined {
+  if (!name) return undefined;
+  const i = WEEKDAYS.findIndex((d) => d.toLowerCase() === name.trim().toLowerCase());
+  return i >= 0 ? i : undefined;
 }
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -313,12 +345,42 @@ export function buildPrepWeekPlan(load: Load, opts: BuildPrepWeekOptions = {}): 
     storageContexts,
     holds,
     heldLines: heldLinesFor(stepPlan, holds, cookDays, mealNameById),
-    ...(opts.feast
-      ? { closingLines: feastClosingLines(stepPlan.steps, new Map(input.meals.flatMap((m) => m.dishes.map((d) => [d.dishId, d] as const))), combineInput) }
-      : {}),
+    ...(opts.feast ? feastFacts(stepPlan, input, combineInput, cookDays) : {}),
   };
   assignCoversCookSteps(build, load);
   return build;
+}
+
+/**
+ * THX-3 — the feast session's date-free facts: each container's closing line
+ * (BUG-426 b) and the first day one of its containers is used (D-WS9-316).
+ */
+function feastFacts(
+  stepPlan: StepPlan,
+  input: Load["input"],
+  combineInput: ReturnType<typeof buildPrepCombineInput>,
+  cookDays: { dayNameByMealId: ReadonlyMap<string, string> },
+): Pick<PrepWeekBuild, "closingLines" | "sessionBefore"> {
+  const dishes = new Map(input.meals.flatMap((m) => m.dishes.map((d) => [d.dishId, d] as const)));
+  const feastDay = cookDays.dayNameByMealId.get(input.meals[0]?.mealId ?? "") ?? "Thursday";
+  const fi = dayIndex(feastDay) ?? 4;
+  let first: string | undefined;
+  let most = -1;
+  for (const u of containerUses(stepPlan.steps, dishes, combineInput)) {
+    if (!u.day) continue;
+    const i = dayIndex(u.day.day);
+    if (i === undefined) continue;
+    const before = (fi - i + 7) % 7;
+    if (before > most) { most = before; first = WEEKDAYS[i]; }
+  }
+  // The closing line names what JOINS a container, which for a make-ahead dish is
+  // exactly what the session left out (the purée, the eggs, the cranberries): so its
+  // amounts come from the dishes whole, scaled the same way, not the session's rows.
+  const whole = buildPrepCombineInput(input);
+  return {
+    closingLines: feastClosingLines(stepPlan.steps, dishes, whole, WEEKDAYS[fi]),
+    sessionBefore: first ?? WEEKDAYS[fi],
+  };
 }
 
 /** The window of a step's own food when it goes into no named container. */

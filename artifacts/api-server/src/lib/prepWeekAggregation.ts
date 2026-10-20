@@ -119,6 +119,15 @@ export interface PrepLoadedDish {
    * the wrong one went unnoticed for a whole block (B1 F).
    */
   componentSteps: ComponentStep[];
+  /**
+   * THX-3 (D-WS9-316) — a FEAST dish's make-ahead days, from its `ahead-<day>` and
+   * `brine-<day>` tags (THX-2G-E's contract, written by the generator): ["mon"],
+   * ["tue","wed"]. A dish with one brings only its shelf-stable dry mix to "Prep the
+   * feast"; its perishable prep stays in that day's recipe steps. On the hashed input
+   * on purpose (a tag change is a cache miss). Present only on a feast meal's dish
+   * that has one, so every other plan's input is byte-unchanged.
+   */
+  makeAheadDays?: string[];
 }
 
 export interface PrepLoadedMeal {
@@ -140,6 +149,16 @@ export interface PrepLoadedMeal {
 
 /** PREP-1 (D-WS9-314) — the meal tag THX-2G-E writes on the five feasts. */
 export const FEAST_MEAL_TAG = "thanksgiving-feast";
+
+/** THX-3 — a feast dish's make-ahead days, in tag order: `ahead-<day>` and `brine-<day>`. */
+export function makeAheadDaysOf(tags: readonly string[]): string[] {
+  const days: string[] = [];
+  for (const t of tags) {
+    const m = /^(?:ahead|brine)-(mon|tue|wed|thu|fri|sat|sun)$/.exec(t);
+    if (m && !days.includes(m[1])) days.push(m[1]);
+  }
+  return days;
+}
 
 // ── WS9 BUG-338 / D-WS9-298 — THE COOK DAY RIDES BESIDE THE INPUT, NOT IN IT ─
 //
@@ -363,9 +382,11 @@ export async function loadPrepWeekInput(
       dayNameByMealId.set(item.mealId, item.assignedDayOfWeek);
     }
 
+    const isFeastMeal = (meal.tags ?? []).includes(FEAST_MEAL_TAG);
     const dishes: PrepLoadedDish[] = meal.dishLinks
       .map((link) => {
         const dish = link.dish;
+        const makeAheadDays = isFeastMeal ? makeAheadDaysOf(dish.tags ?? []) : [];
         const ingredients: PrepLoadedIngredient[] = dish.dishIngredients.map(
           (di) => ({
             ingredientId: di.ingredient.id,
@@ -395,6 +416,7 @@ export async function loadPrepWeekInput(
           ingredients,
           stepTexts: [] as string[], // filled below from a keyed step query
           componentSteps: [] as ComponentStep[],
+          ...(makeAheadDays.length > 0 ? { makeAheadDays } : {}),
         };
       })
       // Skip dishes with no ingredients — nothing to prep.

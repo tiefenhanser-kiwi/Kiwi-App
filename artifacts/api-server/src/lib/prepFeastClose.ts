@@ -15,7 +15,7 @@
 
 import type { ComponentStep } from "./prepComponents";
 import type { PrepCombineInput } from "./prepCombineEngine";
-import { isNeverMeasured } from "./prepCombineEngine";
+import { isNeverMeasured, isSaltOrPepper } from "./prepCombineEngine";
 import type { PlannedStep } from "./prepWeekAssembly";
 import { formatMeasure } from "./prepWeekAssembly";
 import { proseNames } from "./prepMoments";
@@ -55,6 +55,9 @@ export function stepDayOf(steps: readonly Pick<ComponentStep, "stepIndex" | "tex
   return out;
 }
 
+/** A later step that uses the mixture by name ("the salt mixture", "the spice blend"). */
+const MIXTURE_WORD = /\b(mixture|blend|seasoning|rub|dry mix)\b/i;
+
 /** The verb the line uses, read off the entry step ("whisk together …" → whisk it into). */
 const VERBS: ReadonlyArray<[RegExp, string]> = [
   [/\bwhisk/i, "whisk it into"],
@@ -66,6 +69,40 @@ const VERBS: ReadonlyArray<[RegExp, string]> = [
   [/\brub/i, "rub it over"],
   [/\b(?:combine|mix)/i, "combine it with"],
 ];
+
+/** Where a food's name first appears in a sentence (its last word, singular), for ordering. */
+function positionOf(lowerText: string, name: string): number {
+  // The HEAD noun — the last word ("large eggs" is found at "eggs", not at "In a large bowl").
+  const words = name.toLowerCase().replace(/[^a-zà-ÿ\s-]/g, " ").split(/\s+/).filter((w) => w.length > 2);
+  const head = words[words.length - 1];
+  if (!head) return Number.MAX_SAFE_INTEGER;
+  const i = lowerText.indexOf(head.replace(/(?:es|s)$/, ""));
+  return i >= 0 ? i : Number.MAX_SAFE_INTEGER;
+}
+
+/** A protein is named by its head noun ("Rub the salt mixture all over the turkey" — the whole turkey). */
+function namesProtein(lowerText: string, row: { ingredientName: string; category: string }): boolean {
+  if (row.category.trim().toLowerCase() !== "protein") return false;
+  const head = (row.ingredientName.toLowerCase().split(/\s+/).filter(Boolean).pop() ?? "").replace(/[^a-z]/g, "");
+  return head.length > 2 && new RegExp(`\\b${head}\\b`).test(lowerText);
+}
+
+/**
+ * The food as it reads after its amount: the catalog's leading capital goes unless the
+ * name is a proper noun ("2 Large eggs" → "2 large eggs", "Granny Smith apple" kept),
+ * and a bare count agrees with its number ("3 egg" → "3 eggs", "¾ carrots" → "¾ carrot").
+ */
+function spokenName(name: string, amount: string): string {
+  const words = name.split(/\s+/);
+  let out = /^[A-Z][a-z]/.test(name) && !/^[A-Z]/.test(words[1] ?? "") ? `${name[0].toLowerCase()}${name.slice(1)}` : name;
+  if (/^[\d½¼¾⅓⅔⅛⅜⅝⅞]+$/.test(amount)) {
+    const n = /^\d+$/.test(amount) ? Number(amount) : 0.5;
+    if (n > 1 && /(egg|yolk|lemon|lime|orange|onion|shallot|carrot|apple)$/i.test(out)) out = `${out}s`;
+    if (n > 1 && /potato$/i.test(out)) out = `${out}es`;
+    if (n <= 1 && /(eggs|yolks|lemons|limes|oranges|onions|shallots|carrots|apples)$/i.test(out)) out = out.slice(0, -1);
+  }
+  return out;
+}
 
 function listOf(items: readonly string[]): string {
   return items.length <= 1 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
@@ -94,6 +131,8 @@ export function containerUses(
   steps: readonly PlannedStep[],
   dishesById: ReadonlyMap<string, FeastLoadDish>,
   combineInput: PrepCombineInput,
+  /** The feast's own day: a step no make-ahead phrase precedes is cooked on it. */
+  feastDay?: string,
 ): ContainerUse[] {
   const out = new Map<string, ContainerUse>();
   const ingredientsOf = new Map<string, { ingredientId: string; ingredientName: string }[]>();
@@ -111,7 +150,7 @@ export function containerUses(
       dishId: first.dishId,
       mealId: first.mealId,
       entryStep: entry,
-      day: dish && entry !== null ? stepDayOf(dish.componentSteps, entry) : null,
+      day: dish && entry !== null ? (stepDayOf(dish.componentSteps, entry) ?? (feastDay ? { day: feastDay, night: false } : null)) : null,
     });
   }
   return [...out.values()];
@@ -148,16 +187,17 @@ export function feastClosingLines(
   steps: readonly PlannedStep[],
   dishesById: ReadonlyMap<string, FeastLoadDish>,
   combineInput: PrepCombineInput,
+  feastDay?: string,
 ): Map<string, string> {
-  const uses = containerUses(steps, dishesById, combineInput);
-  const scaled = new Map<string, { ingredientId: string; ingredientName: string; quantity: number; unit: string }[]>();
+  const uses = containerUses(steps, dishesById, combineInput, feastDay);
+  const scaled = new Map<string, { ingredientId: string; ingredientName: string; quantity: number; unit: string; category: string }[]>();
   for (const m of combineInput.meals) for (const d of m.dishes) scaled.set(d.dishId, d.ingredients);
   const lineOf = new Map<string, string>();
   for (const u of uses) {
     const dish = dishesById.get(u.dishId);
     if (!dish || u.entryStep === null) continue;
-    const step = dish.componentSteps.find((s) => s.stepIndex === u.entryStep);
-    if (!step) continue;
+    const entry = dish.componentSteps.find((s) => s.stepIndex === u.entryStep);
+    if (!entry) continue;
     const rows = scaled.get(u.dishId) ?? [];
     const members = new Set(
       steps
@@ -166,33 +206,69 @@ export function feastClosingLines(
     );
     // A food this session already put in ANOTHER of the dish's containers joins as
     // that container ("…combine it with the Cranberry-Orange Sauce vegetables").
-    const otherContainer = new Map<string, string>();
+    // ⚠️ Never a DRY container: one dry mix is not stirred into another. A food sits
+    // in two dry mixes of one dish only when the recipe lists it twice (Sweet Potato
+    // Casserole's filling and topping sugar — the engine keys a portion on the dish
+    // and ingredient, so both portions share a mix), and naming the other mix would
+    // tell the cook to combine them.
+    const otherContainer = new Map<string, string | null>();
     for (const s of steps) {
       if (s.demoted) continue;
       for (const c of s.components) {
         for (const m of c.measures) {
           const into = m.destination ?? s.bowlName;
-          if (m.dishId === u.dishId && into && into !== u.name) otherContainer.set(ingredientGroupKey(c.ingredientName), into);
+          if (m.dishId !== u.dishId || !into || into === u.name) continue;
+          otherContainer.set(ingredientGroupKey(c.ingredientName), s.phase === "seasonings_dry" ? null : into);
         }
       }
     }
-    const joins: string[] = [];
-    for (const id of [...new Set(step.ingredientIds)]) {
-      const row = rows.find((r) => r.ingredientId === id);
-      if (!row || members.has(ingredientGroupKey(row.ingredientName))) continue;
-      const elsewhere = otherContainer.get(ingredientGroupKey(row.ingredientName));
-      if (elsewhere) {
-        if (!joins.includes(elsewhere)) joins.push(elsewhere);
-        continue;
+    // What a step names: its amountRefs, then any of the dish's foods its words name
+    // without an amount ("combine the neck, giblets, quartered onion…"), in the order
+    // the sentence names them. A salt or pepper counts only by its amountRef: the
+    // words "black peppercorns" must not bring in the gravy's black pepper.
+    const joinsOf = (step: ComponentStep): string[] => {
+      const lower = step.text.toLowerCase();
+      const named = rows
+        .filter((r) => step.ingredientIds.includes(r.ingredientId) || (!isSaltOrPepper(r.ingredientName) && (proseNames(step.text, r.ingredientName) || namesProtein(lower, r))))
+        .map((r) => ({ r, at: positionOf(lower, r.ingredientName) }))
+        .sort((a, b) => a.at - b.at)
+        .map((x) => x.r.ingredientId);
+      const joins: string[] = [];
+      for (const id of [...new Set(named)]) {
+        const row = rows.find((r) => r.ingredientId === id);
+        if (!row || members.has(ingredientGroupKey(row.ingredientName))) continue;
+        const key = ingredientGroupKey(row.ingredientName);
+        if (otherContainer.has(key)) {
+          const elsewhere = otherContainer.get(key);
+          if (elsewhere && !joins.includes(elsewhere)) joins.push(elsewhere);
+          continue;
+        }
+        // Equipment is not something that joins (water is: "dissolve it in the gallon of water").
+        if (isNeverMeasured(row.ingredientName) && !/\bwater\b/i.test(row.ingredientName)) continue;
+        const amount = formatMeasure(row.quantity, row.unit, row.ingredientName);
+        // Mid-sentence, the catalog's capitals go ("2 Large eggs", "¼ cup Whole milk").
+        joins.push(`${amount} ${spokenName(row.ingredientName, amount)}`.trim());
       }
-      // Equipment is not something that joins (water is: "dissolve it in the gallon of water").
-      if (isNeverMeasured(row.ingredientName) && !/\bwater\b/i.test(row.ingredientName)) continue;
-      const amount = formatMeasure(row.quantity, row.unit, row.ingredientName);
-      // Mid-sentence, the catalog's capitals go ("2 Large eggs", "¼ cup Whole milk").
-      const name = /^[A-Z][a-z]/.test(row.ingredientName) ? `${row.ingredientName[0].toLowerCase()}${row.ingredientName.slice(1)}` : row.ingredientName;
-      joins.push(`${amount} ${name}`.trim());
+      return joins;
+    };
+    // The entry step, or — when it only mixes the members ("Mix the salt, pepper and
+    // baking powder in a small bowl") — the next step that day that USES the mixture
+    // ("Rub the salt mixture all over the turkey").
+    const sameDay = (s: ComponentStep) => {
+      const d = stepDayOf(dish.componentSteps, s.stepIndex) ?? (feastDay ? { day: feastDay, night: false } : null);
+      return (d?.day ?? null) === (u.day?.day ?? null);
+    };
+    const later = [...dish.componentSteps]
+      .filter((s) => s.stepIndex > entry.stepIndex && sameDay(s))
+      .sort((a, b) => a.stepIndex - b.stepIndex);
+    const candidates = [entry, ...later.filter((s) => MIXTURE_WORD.test(s.text))];
+    let used = entry;
+    let joins: string[] = [];
+    for (const s of candidates) {
+      const j = joinsOf(s);
+      if (j.length > 0) { used = s; joins = j; break; }
     }
-    const body = step.text.replace(MAKE_AHEAD, "").replace(ON_DAY, "");
+    const body = used.text.replace(MAKE_AHEAD, "").replace(ON_DAY, "");
     const verb = VERBS.find(([re]) => re.test(body))?.[1] ?? "add it to";
     const when = u.day ? `On ${u.day.day}${u.day.night ? " night" : ""}, ` : "On cook day, ";
     const line = joins.length > 0

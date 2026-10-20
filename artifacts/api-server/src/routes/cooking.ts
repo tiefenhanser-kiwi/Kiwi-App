@@ -452,8 +452,14 @@ export function createCookingRouter(
         const envelope = {
           subset: false,
           session: "feast" as const,
-          // "Label the session Wednesday" — the day before the feast.
+          // "Label the session Wednesday" — the day before the feast. KEPT for the
+          // shipped clients, whose notice reads "For <sessionDay>, the day before the
+          // feast": a new value there would print a false sentence.
           sessionDay: feastSessionDay({ input, cookDays }),
+          // THX-3 (D-WS9-316) — the session holds the make-ahead dishes' shelf-stable
+          // mixes, so it is done BEFORE the first day one of them is used ("Monday").
+          // Additive and optional; the client lane words the notice from it.
+          ...(build.sessionBefore ? { sessionBefore: build.sessionBefore } : {}),
           planRevisionId,
         };
         // PREP-1 G — the feast's own inputs only: a weeknight swap keeps this cache.
