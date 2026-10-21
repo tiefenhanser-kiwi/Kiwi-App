@@ -137,7 +137,34 @@ describe("THX-3c E — the make-ahead dishes' cuts are back in Prep the feast", 
     assert.ok(!live.includes("fresh thyme") && !live.includes("fresh chives"), live.join(", "));
   });
 
-  it("the engine moved: version 12", () => {
-    assert.equal(PREP_ENGINE_VERSION, 12);
+  it("the engine moved: version 13 (12 for E, 13 for the follow-up)", () => {
+    assert.equal(PREP_ENGINE_VERSION, 13);
+  });
+});
+
+// ── item 5 — a garnish rule 7 drops in the feast is said, never silent ─────────
+describe("THX-3c item 5 — a feast garnish over the container target gets a cook-day line", () => {
+  // Sixteen sides, each its own vegetables container (over the target of 15), and one
+  // single-dish garnish: rule 7 drops the chives.
+  const sides = Array.from({ length: 16 }, (_, k) =>
+    dish(10 + k, `Side ${k}`, [ing(100 + 2 * k, `carrot ${k}`, "Produce", 2, "each", "diced"), ing(101 + 2 * k, `parsnip ${k}`, "Produce", 2, "each", "diced")], [
+      step(0, "cook", `Cook the diced carrot ${k} and parsnip ${k} in butter.`, [100 + 2 * k, 101 + 2 * k]),
+    ]),
+  );
+  const chives = dish(9, "Mashed Potatoes", [ing(90, "fresh chives", "Produce", 2, "tablespoon", "thinly sliced, for garnish")], [
+    step(0, "assemble", "On Thursday: Scatter 2 tablespoons sliced chives over the potatoes and serve.", [90]),
+  ]);
+  const load = makeAhead();
+  (load.input.meals[0] as { dishes: unknown[] }).dishes = [chives, ...sides];
+  const b = buildFeastSession(load)!;
+
+  it("rule 7 dropped the chives step", () => {
+    const st = b.stepPlan.steps.find((s) => s.components.some((c) => c.ingredientName === "fresh chives"))!;
+    assert.match(st.demoted?.reason ?? "", /^rule 7/);
+  });
+
+  it("…and the cook-day list says when to slice them", () => {
+    const held = finish(b).phases.find((p) => p.phase === "proteins")?.heldForCookDay ?? [];
+    assert.ok(held.some((l) => /^Mashed Potatoes \(Thursday, \d days? out\) — thinly slice the fresh chives that morning\.$/.test(l)), held.join("\n"));
   });
 });

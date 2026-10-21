@@ -119,8 +119,12 @@ const FINGERPRINT_ALGO_VERSION = 1;
  *       ribs print whole, equipment as written, a bird by count is whole birds, and
  *       an all-dry container is never a "marinade bowl" (C, A). Containers, amounts
  *       and names move, so the prose must go.
+ *  13 — THX-3c follow-up: a dish follows a bird written by count only in a feast
+ *       (Chicken Pho at household 2 is a half pot again); a citrus zested and juiced
+ *       is one cut ("Zest and juice the orange"); a feast garnish rule 7 drops gets a
+ *       cook-day line. Amounts, titles and lines move, so the prose must go.
  */
-export const PREP_ENGINE_VERSION = 12;
+export const PREP_ENGINE_VERSION = 13;
 
 /**
  * Digest of the loaded plan composition — everything the prep payload is built

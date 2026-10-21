@@ -635,6 +635,18 @@ function heldLinesFor(
         }
       }
     }
+    // THX-3c (item 5) — A FEAST'S GARNISH IS NEVER DROPPED SILENTLY. Rule 7 drops a
+    // single-dish garnish when the session is over its container target (Vegetarian's
+    // chives): in the feast it becomes a line on the garnish's own day, "Mashed
+    // Potatoes (Thursday, 3 days out) — thinly slice the fresh chives that morning."
+    if (dayOf && st.demoted?.reason.startsWith("rule 7")) {
+      for (const c of st.components) {
+        for (const m of c.measures) {
+          if (!m.mealId) continue;
+          addWork(m.mealId, { food: c.ingredientName, action: actionFor(cutOf([m.preparationNote ?? c.preparationNote ?? ""]), c.ingredientName, st.phase, st.knifeVerbs) }, dayOf(m, c.ingredientName), m.forDish);
+        }
+      }
+    }
   }
   // The marinade's cook-day action, folded into its meal's line.
   for (const [name, extra] of plan.containerExtras ?? new Map()) {
