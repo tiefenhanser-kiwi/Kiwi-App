@@ -35,7 +35,7 @@ import { GuestProvider, useGuestStoreReady, useIsGuestSafe } from "@/contexts/Gu
 import { ToastProvider } from "@/contexts/ToastProvider";
 import { Palette } from "@/constants/tokens";
 import { sessionGateShouldEvict } from "@/lib/sessionBootstrap";
-import { webScreenLayout } from "@/lib/webLayout";
+import { installWebWheelScroll, webScreenLayout } from "@/lib/webLayout";
 
 // WEB-4 — on the web every stack screen sits in the column (lib/webLayout.ts);
 // (tabs) is passed through, its Tabs' sceneStyle carrying the column so the
@@ -227,6 +227,10 @@ export default function RootLayout() {
   // is synchronous on web, so this is true at once there). Held with the fonts
   // so the splash covers it and GuestProvider mounts with any stored session.
   const guestStoreReady = useGuestStoreReady();
+
+  // WEB-4c (BUG-470) — a wheel anywhere in the window scrolls the screen. Web
+  // only; on native this installs nothing.
+  useEffect(() => installWebWheelScroll(), []);
 
   useEffect(() => {
     if ((fontsLoaded || fontError) && guestStoreReady) {

@@ -43,6 +43,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -68,6 +69,7 @@ import { todayLocalDate } from "@/lib/dates";
 import { THIN_SHELF_CTA, thinShelfTitle } from "@/lib/guest/doors";
 import { buildGuestWizardPayload, type GuestWizardForm } from "@/lib/wizard/guestPayload";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { webFullBleed } from "@/lib/webLayout";
 import {
   createPlanFromMeals,
   getPlan,
@@ -165,6 +167,8 @@ export function PickMealsScreen({
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const insets = useSafeAreaInsets();
+  // WEB-4c (BUG-471) — on the web the bar's background spans the window.
+  const { width: windowWidth } = useWindowDimensions();
   // Resub C4 — mounted unconditionally (hooks above everything). For a member
   // the door never opens and the context is simply unread.
   const guestCtx = useGuestOptional();
@@ -427,7 +431,7 @@ export function PickMealsScreen({
       </ScrollView>
 
       {/* Sticky footer. */}
-      <View style={[s.footer, { paddingBottom: insets.bottom + Spacing[3] }]}>
+      <View style={[webFullBleed(s.footer, windowWidth), { paddingBottom: insets.bottom + Spacing[3] }]}>
         <Text style={s.footerLine1}>
           {footerPickedLine(pickedCount, planDurationDays, pickCap)}
         </Text>

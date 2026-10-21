@@ -41,6 +41,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -57,6 +58,7 @@ import { DietarySection } from "@/components/preference-pickers/DietarySection";
 import { CuisinePicker } from "@/components/preference-pickers/CuisinePicker";
 import { MixDials } from "@/components/preference-pickers/MixDials";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { webFullBleed } from "@/lib/webLayout";
 import {
   COOK_TIME_CAP_OPTIONS,
   COOK_TIME_COVERAGE_OPTIONS,
@@ -279,6 +281,8 @@ export function WizardScreen({
   guestHasDraft = false,
 }: WizardScreenProps) {
   const router = useRouter();
+  // WEB-4c (BUG-471) — on the web the bar's background spans the window.
+  const { width: windowWidth } = useWindowDimensions();
   const queryClient = useQueryClient();
   // Row 13 Block 2 — a guest is never in text mode (build-from-text is
   // member-only AND the AI-invention surface), whatever the route asked for.
@@ -623,7 +627,7 @@ export function WizardScreen({
           slicker"). It sits OUTSIDE the scroll view, pinned under the header
           at any scroll position, the way the Pick screen's footer is pinned.
           Gate, disabled state and the three hints are untouched. */}
-      <View style={s.ctaBar} testID="wizard-cta-bar">
+      <View style={webFullBleed(s.ctaBar, windowWidth)} testID="wizard-cta-bar">
         <Button
           label={busy ? "Kiwi is thinking…" : CTA_LABEL}
           variant="primary"

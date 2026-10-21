@@ -26,10 +26,11 @@
 // stays one row. Omitted → every byte as before; Cook Mode never passes it.
 
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
 
 import { Button } from "@/components/Button";
 import { Colors, Palette, Spacing, Typography } from "@/constants/tokens";
+import { webFullBleed } from "@/lib/webLayout";
 import { PREP_FOOTER_MAX_FONT_SCALE } from "@/lib/cooking/prepWeekLayout";
 import { dialog } from "@/lib/dialog";
 
@@ -68,6 +69,9 @@ export function CookFooter({
   /** PREP-2 — the large-text shape: one row, the secondary actions behind "More". */
   compact?: boolean;
 }) {
+  // WEB-4c (BUG-471) — on the web the bar's background spans the window.
+  const { width: windowWidth } = useWindowDimensions();
+  const footerStyle = webFullBleed(s.footer, windowWidth);
   if (compact) {
     const more = secondaryActions ?? [];
     const openMore = () =>
@@ -76,7 +80,7 @@ export function CookFooter({
         { text: "Cancel", style: "cancel" as const },
       ]);
     return (
-      <View style={s.footer}>
+      <View style={footerStyle}>
         <View style={s.compactRow}>
           <View style={s.footerBack}>
             <Button
@@ -113,7 +117,7 @@ export function CookFooter({
     );
   }
   return (
-    <View style={s.footer}>
+    <View style={footerStyle}>
       {statusLine !== undefined ? (
         <Text style={s.nextPreview}>{statusLine}</Text>
       ) : (

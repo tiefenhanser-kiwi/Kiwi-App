@@ -13,7 +13,7 @@
 // "this collection has ended" line rather than an empty list pretending.
 
 import React, { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Chip } from "@/components/Chip";
 import { CookbookResults } from "@/components/CookbookResults";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { webFullBleed } from "@/lib/webLayout";
 import { useCookbookMeals, useCookbookSeasons } from "@/hooks/useCookbook";
 import { collectionSubline, visibleCourses } from "@/lib/cookbook/seasons";
 import { goBack } from "@/lib/navigation";
@@ -30,6 +31,8 @@ const BOTTOM_BAR_SPACE = 96;
 export default function CookbookSeasonScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  // WEB-4c (BUG-471) — on the web the bar's background spans the window.
+  const { width: windowWidth } = useWindowDimensions();
   const { tag } = useLocalSearchParams<{ tag?: string }>();
   const seasons = useCookbookSeasons();
   const season = seasons.data?.seasons.find((s) => s.tag === tag) ?? null;
@@ -95,7 +98,7 @@ export default function CookbookSeasonScreen() {
       )}
 
       {season?.featuredNote ? (
-        <View style={[s.bottomBar, { paddingBottom: insets.bottom + Spacing[3] }]}>
+        <View style={[webFullBleed(s.bottomBar, windowWidth), { paddingBottom: insets.bottom + Spacing[3] }]}>
           <Text style={s.bottomText}>{season.featuredNote}</Text>
           <Pressable
             onPress={goFeatured}

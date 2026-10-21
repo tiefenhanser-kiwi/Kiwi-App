@@ -11,13 +11,14 @@
 // accessibilityLabel="Kiwi" — a screen reader still hears the name.
 
 import React from "react";
-import { Image, StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AvatarChip } from "@/components/AvatarChip";
 import { useAuth } from "@/contexts/AuthContext";
 import { Colors, Spacing, Typography } from "@/constants/tokens";
+import { webFullBleed } from "@/lib/webLayout";
 
 function timeOfDayGreeting(): string {
   const hour = new Date().getHours();
@@ -35,6 +36,8 @@ function initialsFor(name: string): string {
 
 export function HomeHeader() {
   const insets = useSafeAreaInsets();
+  // WEB-4c (BUG-471) — on the web the bar's background spans the window.
+  const { width: windowWidth } = useWindowDimensions();
   const router = useRouter();
   const { user } = useAuth();
 
@@ -44,7 +47,7 @@ export function HomeHeader() {
   const initials = initialsFor(fullName || firstName);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + Spacing[3] }]}>
+    <View style={[webFullBleed(styles.container, windowWidth), { paddingTop: insets.top + Spacing[3] }]}>
       <View style={styles.topRow}>
         {/* Mark — Deep Kiwi, 28×28. Same relative-require form as the rest of
             the app's local images (app/(auth)/welcome.tsx). */}

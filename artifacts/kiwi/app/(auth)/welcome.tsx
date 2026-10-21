@@ -15,6 +15,7 @@ import { Feather } from "@expo/vector-icons";
 import { Button } from "@/components/Button";
 import { TurnstilePrewarm } from "@/components/TurnstilePrewarm";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { webFullBleed } from "@/lib/webLayout";
 import { PRIVACY_URL, TERMS_URL } from "@/lib/legal";
 import { welcomeUsesLargeTextLayout } from "@/lib/welcomeLayout";
 
@@ -101,7 +102,7 @@ export default function Welcome() {
       style={
         large
           ? [styles.actionsInline, { paddingBottom: insets.bottom + Spacing[4] }]
-          : [styles.footer, { paddingBottom: insets.bottom + Spacing[3] }]
+          : [webFullBleed(styles.footer, width), { paddingBottom: insets.bottom + Spacing[3] }]
       }
       testID="welcome-footer"
     >

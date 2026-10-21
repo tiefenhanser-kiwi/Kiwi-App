@@ -32,6 +32,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -43,6 +44,7 @@ import { MealRowBody } from "@/components/MealRowBody";
 import { PlanCardOverflowMenu } from "@/components/PlanCardOverflowMenu";
 import { PlaylistImportReviewSheet } from "@/components/PlaylistImportReviewSheet";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { webFullBleed } from "@/lib/webLayout";
 import { formatMacroLine } from "@/lib/format/macros";
 import { cardPills } from "@/lib/meals/cardPills";
 import {
@@ -108,6 +110,8 @@ export function PlaylistScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
+  // WEB-4c (BUG-471) — on the web the bar's background spans the window.
+  const { width: windowWidth } = useWindowDimensions();
 
   const playlistQuery = useQuery({
     queryKey: PLAYLIST_QUERY_KEY,
@@ -229,7 +233,7 @@ export function PlaylistScreen() {
       />
 
       {/* Sticky footer. */}
-      <View style={[s.footer, { paddingBottom: insets.bottom + Spacing[3] }]}>
+      <View style={[webFullBleed(s.footer, windowWidth), { paddingBottom: insets.bottom + Spacing[3] }]}>
         <View style={{ flex: 1 }}>
           <Button
             label={ADD_MEALS_LABEL}

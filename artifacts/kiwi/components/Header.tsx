@@ -1,11 +1,12 @@
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter, type Href } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Colors, Palette, Spacing, Typography } from "@/constants/tokens";
 import { goBack } from "@/lib/navigation";
+import { webFullBleed } from "@/lib/webLayout";
 
 interface Props {
   title?: string;
@@ -32,8 +33,10 @@ export function Header({
 }: Props) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  // WEB-4c (BUG-471) — on the web the band and its hairline span the window.
+  const { width: windowWidth } = useWindowDimensions();
   return (
-    <View style={[styles.wrap, { paddingTop: insets.top + 8 }]}>
+    <View style={[webFullBleed(styles.wrap, windowWidth), { paddingTop: insets.top + 8 }]}>
       <View style={styles.row}>
         {showBack ? (
           <Pressable
