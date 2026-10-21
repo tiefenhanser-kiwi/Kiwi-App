@@ -1,0 +1,111 @@
+// THX-3c (F) — "ADD THE DICED ONIONS AND CELERY" NAMES ITS AMOUNTS.
+//
+// The stored feast steps add their cut food with no amount ("add the diced onions
+// and celery and cook"), so Cook Mode has nothing to scale and the cook nothing to
+// check the prep tub against. SAFE-1's writer rule says to reuse the numbers
+// (storeFillPrompts.ts), and the generator did not. This rewrites such a phrase
+// with the dish's own amounts, at the recipe's servings:
+//
+//   "add the diced onions and celery"  →  "add the 2 diced onions and 6 diced celery stalks"
+//
+// Only "the <cut> <food>[ and <food>]", where every food is one of the dish's own
+// rows and the step names no amount for it yet. Anything else is left as written.
+// Pure; patch.ts applies it (no AI) and re-derives the refs of the steps it changed.
+// New generations get FINALIZE_RULES (h).
+
+import { formatMeasure } from "../../src/lib/prepWeekAssembly";
+import { proseNames } from "../../src/lib/prepMoments";
+import { cutOf } from "../../src/lib/prepClasses";
+
+export interface AmountRow {
+  /** The row's own name ("yellow onion", "celery stalks"). */
+  name: string;
+  quantity: number;
+  unit: string;
+  /** Its preparation note: a listed food after the first takes ITS OWN cut ("roughly chopped"). */
+  note?: string | null;
+}
+
+const CUT = String.raw`(?:(?:finely|thinly|roughly|coarsely)\s+)?(?:diced|chopped|minced|sliced|smashed|quartered|halved|grated|shredded|crushed|cubed|julienned)`;
+/** Words that end a food phrase: a verb, a preposition, a list joint. */
+const STOP = /^(and|or|to|into|in|over|with|until|on|then|for|from|at|of|by|as|cook|stir|toss|add|until|while|plus)$/i;
+/** A count noun a row's name may end with, kept when the step's phrase leaves it off. */
+const COUNT_NOUN = /\s(stalks?|cloves?|sprigs?|heads?|bulbs?|ribs?)$/i;
+
+/** The food phrase that starts at `rest`: its words up to a stop word or punctuation. */
+function phraseAt(rest: string): string {
+  const words: string[] = [];
+  for (const m of rest.matchAll(/[A-Za-zÀ-ÿ'-]+|[^A-Za-zÀ-ÿ'\s-]/g)) {
+    const w = m[0];
+    if (!/^[A-Za-zÀ-ÿ'-]+$/.test(w) || STOP.test(w) || words.length >= 4) break;
+    words.push(w);
+  }
+  return words.join(" ");
+}
+
+/** The amount in front of a food: "2", "4 cloves", "¼ cup"; bare when the phrase already says the unit. */
+function amountFor(row: AmountRow, phrase: string): { amount: string; phrase: string } {
+  const full = formatMeasure(row.quantity, row.unit, row.name);
+  const [num, ...unitWords] = full.split(" ");
+  const unit = unitWords.join(" ");
+  const singular = (w: string) => w.replace(/s$/i, "");
+  if (unit && new RegExp(`\\b${singular(unit)}s?\\b`, "i").test(phrase)) return { amount: num, phrase };
+  // A bare count of a row named by its stalks ("6 each celery stalks") keeps the noun.
+  let shown = phrase;
+  const noun = COUNT_NOUN.exec(row.name)?.[1];
+  if (!unit && noun && !new RegExp(`\\b${singular(noun)}s?\\b`, "i").test(phrase)) shown = `${phrase} ${noun.toLowerCase()}`;
+  // "2 diced onion" → "2 diced onions" (a count above one, a singular head).
+  if (!unit && Number.parseFloat(num) > 1 && !/s$/i.test(shown)) shown = /(ch|sh|x|o)$/i.test(shown) ? `${shown}es` : `${shown}s`;
+  return { amount: unit ? `${num} ${unit}` : num, phrase: shown };
+}
+
+/**
+ * The step with its cut foods' amounts named. `measured` = the rows (by name) the
+ * step already gives an amount for (its amountRefs): those are left alone.
+ */
+export function nameCutAmounts(text: string, rows: readonly AmountRow[], measured: ReadonlySet<string> = new Set()): string {
+  const head = (s: string) => (s.toLowerCase().trim().split(/\s+/).pop() ?? "").replace(/(?:es|s)$/, "");
+  const rowFor = (phrase: string) => {
+    if (!phrase) return undefined;
+    const open = rows.filter((r) => r.quantity > 0 && !measured.has(r.name));
+    const hits = open.filter((r) => proseNames(phrase, r.name));
+    if (hits.length === 1) return hits[0];
+    if (hits.length > 1) return undefined;
+    // "the sliced mushrooms" for the dish's one "cremini mushrooms" row: its head noun.
+    const byHead = open.filter((r) => head(r.name) === head(phrase));
+    return byHead.length === 1 ? byHead[0] : undefined;
+  };
+  const re = new RegExp(String.raw`\b([Tt]he) (${CUT}) `, "g");
+  let out = "";
+  let last = 0;
+  for (const m of text.matchAll(re)) {
+    const at = m.index!;
+    if (at < last) continue;
+    // A number already in front ("the 2 diced onions") — nothing to do.
+    const afterCut = at + m[0].length;
+    const first = phraseAt(text.slice(afterCut));
+    const r1 = rowFor(first);
+    if (!r1) continue;
+    let end = afterCut + first.length;
+    const a1 = amountFor(r1, first);
+    let rewritten = `${m[1]} ${a1.amount} ${m[2]} ${a1.phrase}`;
+    // "… and celery", "…, celery, and carrots": the foods the same cut applies to, while
+    // each is one of the dish's rows with no number of its own.
+    const used = new Set([r1]);
+    for (;;) {
+      const joint = /^(?:,\s*and |,\s*| and )/.exec(text.slice(end));
+      if (!joint) break;
+      const next = phraseAt(text.slice(end + joint[0].length));
+      const r = next && !new RegExp(`^${CUT}\\b`, "i").test(next) ? rowFor(next) : undefined;
+      if (!r || used.has(r)) break;
+      used.add(r);
+      const a = amountFor(r, next);
+      const own = cutOf([r.note ?? ""]);
+      rewritten += `${joint[0]}${a.amount} ${own ? `${own} ` : ""}${a.phrase}`;
+      end += joint[0].length + next.length;
+    }
+    out += text.slice(last, at) + rewritten;
+    last = end;
+  }
+  return out + text.slice(last);
+}

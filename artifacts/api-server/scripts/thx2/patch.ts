@@ -26,6 +26,9 @@
 //      post-bird oven step is printed (dish · °F · start → end), and a side baking at
 //      another temperature than the rest moves to it, its times adjusted (≤ 25°F; a
 //      bigger move is REFUSED and printed — that is more than a time change).
+//   8. THX-3c (F) — a step that adds cut food names its amount (thx2Amounts.ts), and
+//      only those steps' refs are re-derived. `bird` lines say how each feast's bird
+//      is written (BUG-462).
 //
 // It does not touch a user's copy of a feast (sourceStoreMealId) — it counts them.
 
@@ -35,6 +38,7 @@ import { assertScriptDatabase } from "../../src/lib/scripts/requireDatabaseHost"
 import { deriveAmountRefs, type MatcherIngredient } from "../../src/lib/stepAmountRefs";
 import { stampMealTiming } from "../../src/lib/mealTiming";
 import { isWholeBirdByCount, isWholeBirdByWeight } from "../../src/lib/prepQuantity";
+import { nameCutAmounts } from "./thx2Amounts";
 import { AHEAD_TAG, aheadDaysOf, aheadTags, dishSpecFor, keepsDaysFor, loadTargets, validateTargets } from "./thx2Core";
 import { fixKeepClause, hasThursdayStep, retargetMakeAheadDay, thursdayServeStep } from "./thx2Checks";
 import { formatOvenReport, oneOvenTemperature, ovenReport, retimeDish, type OvenStepRow } from "./thx2Oven";
@@ -80,7 +84,7 @@ for (const t of feasts) {
       id: true, title: true, estimatedTimeMinutes: true, activeTimeMinutes: true,
       dishLinks: {
         orderBy: { positionIndex: "asc" },
-        select: { dishId: true, positionIndex: true, roleLabel: true, dish: { select: { id: true, title: true, tags: true, estimatedTimeMinutes: true, dishIngredients: { orderBy: { positionIndex: "asc" }, select: { quantity: true, unit: true, ingredientId: true, ingredient: { select: { canonicalName: true } } } } } } },
+        select: { dishId: true, positionIndex: true, roleLabel: true, dish: { select: { id: true, title: true, tags: true, estimatedTimeMinutes: true, dishIngredients: { orderBy: { positionIndex: "asc" }, select: { quantity: true, unit: true, ingredientId: true, preparationNote: true, ingredient: { select: { canonicalName: true } } } } } } },
       },
     },
   });
@@ -118,6 +122,15 @@ for (const t of feasts) {
       // 3. keep-days
       const keeps = keepsDaysFor(spec)!;
       for (const s of steps) texts.set(s.id, fixKeepClause(texts.get(s.id)!, keeps));
+    }
+    // 8. THX-3c (F) — a step that adds cut food names its amount ("add the 2 diced
+    // onions and 6 diced celery stalks"), from the dish's own rows; a food the step
+    // already measures (its stored refs) is left alone. Its refs are re-derived below.
+    const cutRows = d.dishIngredients.map((i) => ({ id: i.ingredientId, name: i.ingredient.canonicalName, quantity: i.quantity, unit: i.unit, note: i.preparationNote }));
+    for (const s of steps) {
+      const refIds = new Set(((Array.isArray(s.amountRefs) ? s.amountRefs : []) as { ingredientId?: string }[]).map((r) => r.ingredientId));
+      const measured = new Set(cutRows.filter((r) => refIds.has(r.id)).map((r) => r.name));
+      texts.set(s.id, nameCutAmounts(texts.get(s.id)!, cutRows, measured));
     }
     for (const s of steps) {
       const to = texts.get(s.id)!;

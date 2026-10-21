@@ -406,6 +406,9 @@ export const FINALIZE_RULES = [
   // side then bakes in it at once; it cannot hold two temperatures. patch.ts applies
   // the same rule to the stored feasts (thx2Oven.ts).
   `(g) One oven after the bird: every dish that bakes on Thursday after the turkey comes out of the oven shares that one oven, so they all bake at ONE temperature (350°F unless every one of them needs another), each step stating that temperature and the time for it.`,
+  // THX-3c (F) — the stored steps said "add the diced onions and celery"; patch.ts
+  // names the amounts in them (thx2Amounts.ts).
+  `(h) A step that adds food cut earlier names its amount, using the ingredient list's numbers: "add the 2 diced onions and 6 diced celery stalks", never "add the diced onions and celery".`,
 ].join(" ");
 
 /**
