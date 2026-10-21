@@ -51,7 +51,7 @@ import { formatMealTime } from "@/lib/mealTimeLine";
 // keeps the two screens from drifting apart again.
 import { formatIngredientLine, ingredientAmountNote } from "@/lib/format/ingredientLine";
 import { consolidateMealIngredients } from "@/lib/meals/consolidateMealIngredients";
-import { mealScaleFactors, type BirdLine } from "@/lib/format/quantity";
+import { isFeastMeal, mealScaleFactors, type BirdLine } from "@/lib/format/quantity";
 import { visibleMealTags } from "@/lib/meals/systemTags";
 import {
   flatMealSteps,
@@ -298,7 +298,7 @@ function MealDetailContent({
   // whole bird's (the brine follows the bird). A step takes its dish's; the
   // meal-owned steps (which composeMealDetail also copies onto every dish) take
   // `mealOwned`.
-  const scale = mealScaleFactors(meal.dishes, servingsMultiplier);
+  const scale = mealScaleFactors(meal.dishes, servingsMultiplier, isFeastMeal(meal.tags));
   const stepFactor = new Map<MealStep, number>();
   // WEB-4c (BUG-462) — and its dish's parts and equipment factors.
   const stepBirds = new Map<MealStep, BirdLine>();

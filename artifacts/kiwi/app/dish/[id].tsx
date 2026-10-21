@@ -158,9 +158,9 @@ function DishDetailContent({ dish, plan }: { dish: DishDetail; plan?: PlanDishCo
   const steps = plan ? plan.view.dish.steps : dish.steps;
   // WEB-4b (BUG-454) — a whole-bird dish scales by its bird's factor, not by
   // servings (the brine follows the bird).
-  const multiplier = plan ? dishScaleFactor(ingredients, plan.view.multiplier) : 1;
+  const multiplier = plan ? dishScaleFactor(ingredients, plan.view.multiplier, plan.view.feast) : 1;
   // WEB-4c (BUG-462) — its parts and equipment: one per bird shown.
-  const birds = plan ? dishBirdLine(ingredients, plan.view.multiplier) : ONE_BIRD;
+  const birds = plan ? dishBirdLine(ingredients, plan.view.multiplier, plan.view.feast) : ONE_BIRD;
   const runLine =
     plan?.run && makeAheadRunSteps(plan.view.dish.steps, plan.run) ? runCookLine(plan.run) : null;
 

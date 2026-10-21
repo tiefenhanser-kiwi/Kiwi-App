@@ -44,7 +44,7 @@ import {
   type CookStep,
 } from "@/lib/cooking/cookSession";
 import { decodeRun, onTheDayMeal } from "@/lib/cooking/feastDay";
-import { mealScaleFactors } from "@/lib/format/quantity";
+import { isFeastMeal, mealScaleFactors } from "@/lib/format/quantity";
 import { Colors, Spacing, Typography } from "@/constants/tokens";
 
 const TOAST_MS = 2500;
@@ -164,7 +164,7 @@ export default function CookSession() {
   // WEB-4b (BUG-454) — a whole-bird dish's steps scale by the bird's factor
   // (the brine follows the bird); every other dish by the multiplier above.
   const amountScale = useMemo(
-    () => (mealId && mealQuery.data ? mealScaleFactors(mealQuery.data.dishes, amountMultiplier) : null),
+    () => (mealId && mealQuery.data ? mealScaleFactors(mealQuery.data.dishes, amountMultiplier, isFeastMeal(mealQuery.data.tags)) : null),
     [mealId, mealQuery.data, amountMultiplier],
   );
 

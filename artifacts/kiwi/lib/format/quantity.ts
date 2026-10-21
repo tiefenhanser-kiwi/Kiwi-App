@@ -328,11 +328,24 @@ export function wholeItemMultiplier(
 //   - The bird's own parts (neck, giblets) never scale: one bird, one neck. They
 //     sit in a different dish (Classic's Pan Gravy), so this is a line rule.
 //   - WEB-4c (BUG-462) — a whole bird by COUNT shows max(1, nearest whole)
-//     birds (halves up), and the rest of its dish scales by birds shown ÷ birds
-//     written. Buttermilk-Brined Roast Turkey (1 bird, for 10) at 4 is one bird
-//     in its whole brine — it was one bird in ⅖ of it; at 15 it is two birds in
-//     two brines — it was two birds in 1½. Its parts are one per bird shown.
+//     birds (halves up), everywhere. In a FEAST (a `thanksgiving-feast` meal,
+//     isFeastMeal) the rest of its dish scales by birds shown ÷ birds written:
+//     Buttermilk-Brined Roast Turkey (1 bird, for 10) at 4 is one bird in its
+//     whole brine — it was one bird in ⅖ of it; at 15 it is two birds in two
+//     brines — it was two birds in 1½. Its parts are one per bird shown.
+//     ELSEWHERE the dish follows servings (Hans, Oct 21): Chicken Pho's one
+//     chicken at household 2 had printed the whole 4-serving pot.
 //   - Equipment (isEquipment) never scales, in any dish.
+
+/** The meal tag that marks the feast (THX-2G-E's contract; hubModel FEAST_MEAL_TAG,
+ *  pinned equal in birdRule.test.ts). */
+const FEAST_MEAL_TAG = "thanksgiving-feast";
+
+/** WEB-4c — true for a `thanksgiving-feast` meal: the one place a dish follows a
+ *  bird written by count. */
+export function isFeastMeal(tags: readonly string[] | undefined): boolean {
+  return tags?.includes(FEAST_MEAL_TAG) ?? false;
+}
 
 /** A bird's own parts, by name. Not "littleneck clams". */
 const BIRD_PART = /\b(?:(?:turkey|chicken|duck|goose|hen|bird)s?\s+necks?|giblets?)\b/i;
@@ -343,15 +356,17 @@ export function isBirdPart(name: string): boolean {
 }
 
 /**
- * The bird a dish is built around, if any: by weight first, else by count. A
- * count must be written whole: "½ whole chicken" at its own servings would show
- * one bird and double the dish, so it keeps the servings multiplier.
+ * The bird a dish is built around, if any: by weight first, else — in a feast
+ * only — by count. A count must be written whole: "½ whole chicken" at its own
+ * servings would show one bird and double the dish, so it keeps servings.
  */
 function dishBird(
   ingredients: readonly ScalableIngredient[],
+  feast: boolean,
 ): { byWeight: boolean; ing: ScalableIngredient } | null {
   const w = ingredients.find((i) => i.quantity > 0 && isWholeBirdByWeight(i.unit ?? "", i.name));
   if (w) return { byWeight: true, ing: w };
+  if (!feast) return null;
   const c = ingredients.find(
     (i) => i.quantity >= 1 && Number.isInteger(i.quantity) && isWholeBirdByCount(i.unit ?? "", i.name),
   );
@@ -368,11 +383,15 @@ export interface ScalableIngredient {
 /**
  * The multiplier every line of this dish scales by: the servings multiplier,
  * or — when the dish holds a whole bird — the bird's own factor: by weight, the
- * floored weight ÷ the recipe's (BIRD_FLOOR_LB applied); by count (WEB-4c), the
- * birds shown ÷ the birds written. A bird by weight decides first.
+ * floored weight ÷ the recipe's (BIRD_FLOOR_LB applied); by count (WEB-4c), in a
+ * feast only, the birds shown ÷ the birds written. A bird by weight decides first.
  */
-export function dishScaleFactor(ingredients: readonly ScalableIngredient[], multiplier: number): number {
-  const bird = dishBird(ingredients);
+export function dishScaleFactor(
+  ingredients: readonly ScalableIngredient[],
+  multiplier: number,
+  feast = false,
+): number {
+  const bird = dishBird(ingredients, feast);
   if (!bird) return multiplier;
   const { ing } = bird;
   if (!bird.byWeight) return birdsShown(ing.quantity * multiplier) / ing.quantity;
@@ -399,9 +418,9 @@ export interface BirdLine {
 /** No bird by count: parts and equipment as written. */
 export const ONE_BIRD: BirdLine = { parts: 1, birds: 1 };
 
-/** Birds shown ÷ birds written for a dish's bird by count; 1 otherwise. */
-function countBirdFactor(ingredients: readonly ScalableIngredient[], multiplier: number): number {
-  const bird = dishBird(ingredients);
+/** Birds shown ÷ birds written for a feast dish's bird by count; 1 otherwise. */
+function countBirdFactor(ingredients: readonly ScalableIngredient[], multiplier: number, feast: boolean): number {
+  const bird = dishBird(ingredients, feast);
   return bird && !bird.byWeight ? birdsShown(bird.ing.quantity * multiplier) / bird.ing.quantity : 1;
 }
 
@@ -409,9 +428,10 @@ function countBirdFactor(ingredients: readonly ScalableIngredient[], multiplier:
 export function birdPartsFactor(
   dishes: readonly { ingredients: readonly ScalableIngredient[] }[],
   multiplier: number,
+  feast = false,
 ): number {
-  const withBird = dishes.find((d) => dishBird(d.ingredients) !== null);
-  return withBird ? countBirdFactor(withBird.ingredients, multiplier) : 1;
+  const withBird = dishes.find((d) => dishBird(d.ingredients, feast) !== null);
+  return withBird ? countBirdFactor(withBird.ingredients, multiplier, feast) : 1;
 }
 
 /**
@@ -421,9 +441,10 @@ export function birdPartsFactor(
 export function dishBirdLine(
   ingredients: readonly ScalableIngredient[],
   multiplier: number,
-  parts = birdPartsFactor([{ ingredients }], multiplier),
+  feast = false,
+  parts = birdPartsFactor([{ ingredients }], multiplier, feast),
 ): BirdLine {
-  return { parts, birds: countBirdFactor(ingredients, multiplier) };
+  return { parts, birds: countBirdFactor(ingredients, multiplier, feast) };
 }
 
 /**
@@ -448,10 +469,12 @@ export function lineMultiplier(
  * meal (meal detail, Cook Mode). `mealOwned` is for steps that name no dish:
  * a one-dish meal's steps are that dish's; otherwise servings. `birds` and
  * `mealOwnedBirds` are the same for the parts and the equipment (BirdLine).
+ * `feast` is isFeastMeal(meal.tags): only there does a dish follow a bird by count.
  */
 export function mealScaleFactors(
   dishes: readonly { dishId: string; ingredients: readonly ScalableIngredient[] }[],
   multiplier: number,
+  feast = false,
 ): {
   byDish: Readonly<Record<string, number>>;
   mealOwned: number;
@@ -460,10 +483,10 @@ export function mealScaleFactors(
 } {
   const byDish: Record<string, number> = {};
   const birds: Record<string, BirdLine> = {};
-  const parts = birdPartsFactor(dishes, multiplier);
+  const parts = birdPartsFactor(dishes, multiplier, feast);
   for (const d of dishes) {
-    byDish[d.dishId] = dishScaleFactor(d.ingredients, multiplier);
-    birds[d.dishId] = dishBirdLine(d.ingredients, multiplier, parts);
+    byDish[d.dishId] = dishScaleFactor(d.ingredients, multiplier, feast);
+    birds[d.dishId] = dishBirdLine(d.ingredients, multiplier, feast, parts);
   }
   const only = dishes.length === 1 ? dishes[0].dishId : undefined;
   return {

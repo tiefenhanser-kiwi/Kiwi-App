@@ -9,6 +9,7 @@
 
 import type { MealDetail } from "@/lib/api/meals";
 import { resolveAmountMultiplier } from "@/lib/cooking/cookSession";
+import { isFeastMeal } from "@/lib/format/quantity";
 
 type MealDish = MealDetail["dishes"][number];
 
@@ -18,6 +19,8 @@ export interface PlanDishView {
   servings: number;
   /** Every amount × this, ingredient lines and step amounts alike. */
   multiplier: number;
+  /** WEB-4c — the meal is a feast: its dishes follow a bird written by count. */
+  feast: boolean;
 }
 
 /** Null when the meal does not hold the dish (a swapped-out dish, a stale link). */
@@ -28,5 +31,6 @@ export function planDishView(meal: MealDetail, dishId: string): PlanDishView | n
     dish,
     servings: meal.effectiveServings,
     multiplier: resolveAmountMultiplier(meal.effectiveServings, meal.authoredServingsDefault),
+    feast: isFeastMeal(meal.tags),
   };
 }

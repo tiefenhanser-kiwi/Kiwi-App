@@ -36,7 +36,7 @@
 
 import { formatIngredientLine, ingredientAmountNote } from "../format/ingredientLine";
 import { normalizeUnitToken } from "../format/grocery";
-import { birdPartsFactor, dishBirdLine, dishScaleFactor, lineMultiplier } from "../format/quantity";
+import { birdPartsFactor, dishBirdLine, dishScaleFactor, isFeastMeal, lineMultiplier } from "../format/quantity";
 import type { MealDetail } from "../api/meals";
 
 /** One consolidated line: a name, an amount, and where it came from. */
@@ -80,7 +80,7 @@ function groupKeyName(name: string): string {
  * about to shop or cook, and the recipe's own order is the one they have seen.
  */
 export function consolidateMealIngredients(
-  meal: Pick<MealDetail, "dishes">,
+  meal: Pick<MealDetail, "dishes"> & { tags?: readonly string[] },
   multiplier = 1,
   /** WEB-4 — the servings the multiplier scales to, for the egg note. */
   servings?: number,
@@ -89,11 +89,13 @@ export function consolidateMealIngredients(
   const order: string[] = [];
 
   // WEB-4c (BUG-462) — a bird's parts are one per bird of the MEAL's bird.
-  const parts = birdPartsFactor(meal.dishes, multiplier);
+  // WEB-4c — and in a feast only, a dish follows its bird written by count.
+  const feast = isFeastMeal(meal.tags);
+  const parts = birdPartsFactor(meal.dishes, multiplier, feast);
   for (const dish of meal.dishes) {
     // WEB-4b (BUG-454) — a whole-bird dish scales by its bird's factor.
-    const factor = dishScaleFactor(dish.ingredients, multiplier);
-    const birds = dishBirdLine(dish.ingredients, multiplier, parts);
+    const factor = dishScaleFactor(dish.ingredients, multiplier, feast);
+    const birds = dishBirdLine(dish.ingredients, multiplier, feast, parts);
     for (const ing of dish.ingredients) {
       const unit = (ing.unit ?? "").trim();
       // ⛔ The unit token is the second half of the key. Two units that
