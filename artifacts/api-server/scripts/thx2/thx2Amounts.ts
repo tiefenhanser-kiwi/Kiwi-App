@@ -56,6 +56,8 @@ function amountFor(row: AmountRow, phrase: string): { amount: string; phrase: st
   if (!unit && noun && !new RegExp(`\\b${singular(noun)}s?\\b`, "i").test(phrase)) shown = `${phrase} ${noun.toLowerCase()}`;
   // "2 diced onion" → "2 diced onions" (a count above one, a singular head).
   if (!unit && Number.parseFloat(num) > 1 && !/s$/i.test(shown)) shown = /(ch|sh|x|o)$/i.test(shown) ? `${shown}es` : `${shown}s`;
+  // THX-3c (item 4) — a count of one reads without the number: "the chopped onion".
+  if (!unit && num === "1") return { amount: "", phrase: shown };
   return { amount: unit ? `${num} ${unit}` : num, phrase: shown };
 }
 
@@ -75,35 +77,43 @@ export function nameCutAmounts(text: string, rows: readonly AmountRow[], measure
     const byHead = open.filter((r) => head(r.name) === head(phrase));
     return byHead.length === 1 ? byHead[0] : undefined;
   };
-  const re = new RegExp(String.raw`\b([Tt]he) (${CUT}) `, "g");
+  // THX-3c (item 4) — "the <cut> <food>", or "the <food>" opening a LIST of the dish's
+  // cut foods ("stuff the cavity with the lemon halves, quartered onion, …").
+  const re = new RegExp(String.raw`\b([Tt]he) (?:(${CUT}) )?`, "g");
+  const leadCut = new RegExp(String.raw`^(${CUT}) `, "i");
+  const words = (...xs: (string | undefined)[]) => xs.filter((x) => !!x).join(" ");
   let out = "";
   let last = 0;
   for (const m of text.matchAll(re)) {
     const at = m.index!;
     if (at < last) continue;
-    // A number already in front ("the 2 diced onions") — nothing to do.
-    const afterCut = at + m[0].length;
-    const first = phraseAt(text.slice(afterCut));
+    // A number already in front ("the 2 diced onions") is no food phrase — nothing to do.
+    const afterLead = at + m[0].length;
+    const first = phraseAt(text.slice(afterLead));
     const r1 = rowFor(first);
     if (!r1) continue;
-    let end = afterCut + first.length;
+    let end = afterLead + first.length;
     const a1 = amountFor(r1, first);
-    let rewritten = `${m[1]} ${a1.amount} ${m[2]} ${a1.phrase}`;
-    // "… and celery", "…, celery, and carrots": the foods the same cut applies to, while
-    // each is one of the dish's rows with no number of its own.
+    let rewritten = `${m[1]} ${words(a1.amount, m[2], a1.phrase)}`;
+    // "… and celery", "…, celery, and carrots", "…, quartered onion": each a row of the
+    // dish with no number of its own, with its own cut (the one it is written with, or
+    // its note's).
     const used = new Set([r1]);
     for (;;) {
       const joint = /^(?:,\s*and |,\s*| and )/.exec(text.slice(end));
       if (!joint) break;
-      const next = phraseAt(text.slice(end + joint[0].length));
-      const r = next && !new RegExp(`^${CUT}\\b`, "i").test(next) ? rowFor(next) : undefined;
+      const rest = text.slice(end + joint[0].length);
+      const adj = leadCut.exec(rest);
+      const next = phraseAt(rest.slice(adj ? adj[0].length : 0));
+      const r = next ? rowFor(next) : undefined;
       if (!r || used.has(r)) break;
       used.add(r);
       const a = amountFor(r, next);
-      const own = cutOf([r.note ?? ""]);
-      rewritten += `${joint[0]}${a.amount} ${own ? `${own} ` : ""}${a.phrase}`;
-      end += joint[0].length + next.length;
+      rewritten += `${joint[0]}${words(a.amount, adj?.[1] ?? cutOf([r.note ?? ""]) ?? undefined, a.phrase)}`;
+      end += joint[0].length + (adj ? adj[0].length : 0) + next.length;
     }
+    // Without a cut word in front, only a list counts: "until the onion is soft" is not one.
+    if (!m[2] && used.size < 2) continue;
     out += text.slice(last, at) + rewritten;
     last = end;
   }

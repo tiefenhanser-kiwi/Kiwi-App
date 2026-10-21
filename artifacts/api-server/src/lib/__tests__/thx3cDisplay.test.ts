@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 
 import { dishRowMultipliers, displayedPrepQuantity, isEquipmentItem } from "../prepQuantity";
 import { formatMeasure } from "../prepWeekAssembly";
+import { cutOf } from "../prepClasses";
 
 describe("THX-3c — equipment never scales (BUG-464)", () => {
   it("knows the brining bag, twine, foil and parchment — and no food, and not skewers (WEB-4c)", () => {
@@ -54,5 +55,13 @@ describe("THX-3c — a stalk or a rib prints whole (BUG-464)", () => {
     // Not a count of stalks: a cup of sliced celery, a pound of ribs.
     assert.equal(displayedPrepQuantity(1.6, "cup", "celery stalks"), 1 + 2 / 3);
     assert.equal(displayedPrepQuantity(2.6, "lb", "pork ribs"), 2.5);
+  });
+});
+
+describe("THX-3c item 4 — a citrus zested and juiced is one cut", () => {
+  it("cutOf reads both, and a lone zest or juice stays itself", () => {
+    assert.equal(cutOf(["zested and juiced"]), "zested and juiced");
+    assert.equal(cutOf(["zested"]), "zested");
+    assert.equal(cutOf(["juiced"]), "juiced");
   });
 });

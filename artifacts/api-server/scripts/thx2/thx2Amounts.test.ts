@@ -35,8 +35,26 @@ describe("THX-3c F — nameCutAmounts", () => {
   it("each phrase on its own: the gravy's chopped onion, then its smashed garlic", () => {
     assert.equal(
       nameCutAmounts("Add the chopped onion, celery, and carrots to the pot; cook 5 minutes, then add the smashed garlic, 4 thyme sprigs.", GRAVY),
-      "Add the 1 chopped onion, 2 chopped celery stalks, and 2 chopped carrots to the pot; cook 5 minutes, then add the 4 cloves smashed garlic, 4 thyme sprigs.",
+      "Add the chopped onion, 2 chopped celery stalks, and 2 chopped carrots to the pot; cook 5 minutes, then add the 4 cloves smashed garlic, 4 thyme sprigs.",
     );
+  });
+
+  it("item 4 — a count of one reads without the number; a list without 'the' on each food is named too", () => {
+    const turkey = [
+      { name: "lemon", quantity: 2, unit: "each", note: "halved" },
+      { name: "yellow onion", quantity: 2, unit: "each", note: "quartered" },
+      { name: "garlic", quantity: 6, unit: "clove", note: "smashed" },
+    ];
+    assert.equal(
+      nameCutAmounts("stuff the cavity with the lemon halves, quartered onion, 8 thyme sprigs.", turkey),
+      "stuff the cavity with the 2 lemon halves, 2 quartered onions, 8 thyme sprigs.",
+    );
+    // Make-Ahead's own (1 lemon, 1 onion): counts of one, so it reads as written.
+    const one = turkey.map((r) => (r.name === "garlic" ? r : { ...r, quantity: 1 }));
+    const t = "stuff the cavity with the lemon halves, quartered onion, 8 thyme sprigs.";
+    assert.equal(nameCutAmounts(t, one), t);
+    // A lone "the onion" is not a list: "until the onion is soft" stays.
+    assert.equal(nameCutAmounts("Cook until the onion is soft.", turkey), "Cook until the onion is soft.");
   });
 
   it("a listed food after the first takes its own cut, or none — never the first one's", () => {

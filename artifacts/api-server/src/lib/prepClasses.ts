@@ -228,6 +228,8 @@ export function judgeProteinWork(
 
 /** The noun a cut gives a lone container: "diced jalapeño", "trimmed green beans". */
 const CUT_WORDS = [
+  // THX-3c (item 4) — a citrus both zested and juiced is one cut: "Zest and juice the orange".
+  "zested and juiced",
   "finely diced", "finely chopped", "thinly sliced", "minced", "diced", "chopped", "sliced",
   "shredded", "grated", "julienned", "spiralized", "halved", "quartered", "cubed", "snapped",
   "trimmed", "peeled", "husked", "seeded", "stripped", "zested", "juiced", "torn", "crushed",

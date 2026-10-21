@@ -527,7 +527,7 @@ const isPlate = (name: string) => /\bplate$/i.test(name);
 /** "finely diced" → "finely dice", for the cook-day list's verbs. */
 const CUT_VERB: ReadonlyArray<[RegExp, string]> = [
   [/minced/, "mince"], [/diced/, "dice"], [/chopped/, "chop"], [/sliced/, "slice"], [/shredded/, "shred"],
-  [/grated/, "grate"], [/juiced/, "juice"], [/zested/, "zest"], [/julienned/, "julienne"], [/halved/, "halve"],
+  [/grated/, "grate"], [/zested and juiced/, "zest and juice"], [/juiced/, "juice"], [/zested/, "zest"], [/julienned/, "julienne"], [/halved/, "halve"],
   [/quartered/, "quarter"], [/trimmed/, "trim"], [/cubed/, "cube"], [/peeled/, "peel"], [/crushed/, "crush"],
   [/torn/, "tear"], [/cut/, "cut"],
 ];

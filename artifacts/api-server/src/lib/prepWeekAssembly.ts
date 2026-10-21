@@ -2595,7 +2595,7 @@ export function engineTitle(st: PlannedStep): string {
 }
 const CUT_TITLE_VERB: ReadonlyArray<[RegExp, string]> = [
   [/minced/, "Mince"], [/diced/, "Dice"], [/chopped/, "Chop"], [/sliced/, "Slice"], [/shredded/, "Shred"],
-  [/grated/, "Grate"], [/juiced/, "Juice"], [/zested/, "Zest"], [/halved/, "Halve"], [/trimmed/, "Trim"], [/peeled/, "Peel"],
+  [/grated/, "Grate"], [/zested and juiced/, "Zest and juice"], [/juiced/, "Juice"], [/zested/, "Zest"], [/halved/, "Halve"], [/trimmed/, "Trim"], [/peeled/, "Peel"],
 ];
 
 /** The narration input's view of components: the code-only attribution removed. */
