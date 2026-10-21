@@ -91,3 +91,68 @@ describe("THX-3b BUG-457 — the guard: more than 25°F is more than a time chan
 describe("THX-3b BUG-457 — new generations get the rule", () => {
   it("FINALIZE_RULES (g)", () => assert.match(FINALIZE_RULES, /\(g\) One oven after the bird: .*ONE temperature/));
 });
+
+// ── THX-3c — the code-written oven steps (patch.ts 9, 10, 11) ────────────────
+import { heldDishSteps, ovenConflicts, splitPreheatSteps } from "./thx2Oven";
+
+// Dev's Vegetarian (4d543799), Thursday as stored before THX-3c.
+const VEG = [
+  { dishId: "wellington", title: "Mushroom Wellington", positionIndex: 0, roleLabel: "main" },
+  { dishId: "stuffing", title: "Herb Stuffing", positionIndex: 1, roleLabel: "side" },
+  { dishId: "mac", title: "Baked Mac and Cheese", positionIndex: 2, roleLabel: "side" },
+  { dishId: "sprouts", title: "Balsamic Roasted Brussels Sprouts", positionIndex: 3, roleLabel: "side" },
+];
+const VEG_STEPS = [
+  row("wellington", 4, "rest", 20, "Once cool, stir in the walnuts, cheese, spinach and egg."),
+  row("wellington", 5, "preheat", 15, "Preheat the oven to 425°F. Season the 4 portobello caps on both sides with ½ teaspoon kosher salt."),
+  row("wellington", 6, "assemble", 8, "Lay out the pastry and fill it."),
+  row("wellington", 7, "assemble", 7, "Fold and seal the pastry."),
+  row("wellington", 8, "cook", 30, "Bake at 425°F for 28–32 minutes until the pastry is deep golden brown."),
+  row("wellington", 9, "rest", 10, "Rest the Wellingtons on the pan for 10 minutes, then slice."),
+  row("stuffing", 4, "assemble", 3, "Make ahead (Wednesday): Cover and refrigerate overnight."),
+  row("stuffing", 5, "preheat", 15, "On Thursday: Preheat the oven to 375°F."),
+  row("stuffing", 6, "cook", 45, "Bake the stuffing covered at 375°F for 30 minutes, then uncover and bake 15 more minutes."),
+  row("mac", 4, "assemble", 5, "Make ahead (Wednesday): Cover tightly with foil and refrigerate overnight."),
+  row("mac", 5, "preheat", 15, "On Thursday: Preheat the oven to 375°F. Mix the panko topping."),
+  row("mac", 6, "cook", 35, "Bake uncovered at 375°F for 35 minutes."),
+  row("sprouts", 0, "prep", 10, "Trim and halve the sprouts."),
+  row("sprouts", 1, "preheat", 15, "Preheat the oven to 425°F."),
+  row("sprouts", 2, "cook", 25, "Roast at 425°F for 20–25 minutes."),
+];
+
+describe("THX-3c BUG-463 — Vegetarian's code-written steps", () => {
+  it("a CONFLICT line for two oven steps overlapping at two temperatures (BUG-463 as it was), none at one", () => {
+    const line = (dishId: string, temp: number, start: number, end: number) => ({ dishId, title: dishId, stepIndex: 1, temp, start, end, holder: false, afterBird: false });
+    const r = { holderTitle: null, ovenOut: null, total: 164, bird: null, lines: [line("wellington", 425, -40, -10), line("mac", 375, -40, -5), line("sprouts", 425, -38, -13)] };
+    assert.deepEqual(ovenConflicts(r), ["T-40→-10 425°F wellington #1 overlaps T-40→-5 375°F mac #1", "T-40→-5 375°F mac #1 overlaps T-38→-13 425°F sprouts #1"]);
+    assert.deepEqual(ovenConflicts({ ...r, lines: [r.lines[0], r.lines[2]] }), []);
+  });
+
+  it("the Wellington's preheat is split from the cap seasoning; its later steps move down", () => {
+    const [sp] = splitPreheatSteps(VEG, VEG_STEPS);
+    assert.equal(sp.preheat.text, "Preheat the oven to 425°F.");
+    assert.deepEqual([sp.work.stepIndex, sp.work.phaseType, sp.work.text], [6, "prep", "Season the 4 portobello caps on both sides with ½ teaspoon kosher salt."]);
+    assert.deepEqual(sp.renumber.map((r) => `${r.from}→${r.to}`), ["9→10", "8→9", "7→8", "6→7"]);
+  });
+
+  it("the held dishes get a foil step and a 425°F reheat; then nothing conflicts, and a second run adds nothing", () => {
+    const held = heldDishSteps(VEG, VEG_STEPS);
+    assert.deepEqual(held.map((c) => `${c.dishId}#${c.stepIndex} ${c.phaseType} ${c.estimatedMinutes}`), ["stuffing#7 assemble 1", "stuffing#8 cook 10", "mac#7 assemble 1", "mac#8 cook 10"]);
+    assert.match(held[1].text, /^Return it, uncovered, to the 425°F oven for 10 minutes/);
+    const sp = splitPreheatSteps(VEG, VEG_STEPS)[0];
+    const after = VEG_STEPS.map((s) => {
+      if (s.ownerId === "wellington" && s.stepIndex === 5) return { ...s, stepTextTranslated: sp.preheat.text };
+      const m = sp.renumber.find((r) => r.dishId === s.ownerId && r.from === s.stepIndex);
+      return m ? { ...s, stepIndex: m.to } : s;
+    });
+    const all = [
+      ...after,
+      row("wellington", 6, "prep", 3, sp.work.text),
+      ...held.map((c) => row(c.dishId, c.stepIndex, c.phaseType, c.estimatedMinutes, c.text)),
+    ];
+    assert.deepEqual(ovenConflicts(ovenReport(VEG, all)), []);
+    assert.deepEqual(heldDishSteps(VEG, all), []);
+    assert.deepEqual(splitPreheatSteps(VEG, all), []);
+  });
+});
+

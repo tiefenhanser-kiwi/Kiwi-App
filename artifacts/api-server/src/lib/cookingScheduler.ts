@@ -726,12 +726,22 @@ export function scheduleCookingSequence(
     };
   }
 
+  // THX-3c (BUG-463) — a feast's oven: one preheat per temperature, then one
+  // temperature at a time (see `mergeFeastPreheats` / `planOvenBlocks`).
+  let feast: FeastOven | null = null;
+  if (opts.feastOven) {
+    const merged = mergeFeastPreheats(nonEmpty);
+    nonEmpty.splice(0, nonEmpty.length, ...merged.dishes);
+    feast = { blocks: null, heatedBy: merged.heatedBy };
+  }
   const anyTag = nonEmpty.some((d) => d.steps.some((s) => rawToken(s) !== null));
   const oven = opts.feastOven ? planOven(nonEmpty) : null;
-  const untagged = scheduleArm(nonEmpty, false, enforceMaxLag, coldDishesForward, oven);
+  if (feast && !oven) feast.blocks = planOvenBlocks(nonEmpty);
+  const blocks = feast;
+  const untagged = scheduleArm(nonEmpty, false, enforceMaxLag, coldDishesForward, oven, blocks);
   if (!anyTag) return untagged; // byte-identical to the pre-D-WS9-239 path
 
-  const tagged = scheduleArm(nonEmpty, true, enforceMaxLag, coldDishesForward, oven);
+  const tagged = scheduleArm(nonEmpty, true, enforceMaxLag, coldDishesForward, oven, blocks);
   // Rule 6 — the anomaly guard. A tie keeps the tagged schedule: it is the
   // order the recipe's own prose describes, and it costs nothing.
   if (tagged.totalEstimatedMinutes <= untagged.totalEstimatedMinutes) {
@@ -866,14 +876,180 @@ export function planOven(dishes: readonly SchedulerDish[]): OvenPlan | null {
   };
 }
 
+// ── THX-3c (BUG-463) — ONE OVEN, ONE TEMPERATURE AT A TIME ───────────────────
+//
+// The Vegetarian feast has no bird to hold the oven, so nothing ordered it: its
+// Wellington (425°F), stuffing and mac and cheese (375°F) and sprouts (425°F) were
+// all in the oven at once, at two temperatures. Make-Ahead preheated the same oven
+// to 350°F twice, a minute apart. The rule (Hans's, via THX-3c):
+//
+//   • ONE PREHEAT PER TEMPERATURE. A step that does nothing but preheat ("On
+//     Thursday: Preheat the oven to 375°F.") is dropped when another dish's step
+//     preheats to the same temperature; a preheat that also does work (Mac and
+//     Cheese's "Preheat… Mix the panko…") is the one kept. A dish that lost its
+//     preheat puts nothing in the oven before the kept one has run.
+//   • ONE TEMPERATURE AT A TIME (no bird to hold the oven). The oven dishes are
+//     grouped by temperature. Groups of dishes that HOLD WELL COVERED (stuffing,
+//     casseroles, mac and cheese) bake first; a group with a dish best STRAIGHT FROM
+//     THE OVEN (pastry, a Wellington, roasted vegetables) bakes last, at its own
+//     temperature. Each earlier group finishes its oven work before the next group's
+//     first oven step — its preheat, the temperature change — begins.
+//   With a bird, the sides after it already share one temperature (THX-3b, in the
+//   content), and only the preheat rule applies.
+
+/** An oven temperature a step names (250–550°F); an internal temperature (165°F) is not one. */
+export function ovenTempOfText(text: string | null | undefined): number | null {
+  for (const m of (text ?? "").matchAll(/(\d{3})\s*°\s*F/g)) {
+    const t = Number(m[1]);
+    if (t >= 250 && t <= 550) return t;
+  }
+  return null;
+}
+
+/** A step that does nothing but preheat: "On Thursday: Preheat the oven to 375°F." */
+const PURE_PREHEAT = /^\s*(?:On [A-Za-z]+day:\s*)?(?:Pre)?heat (?:the )?oven to \d{3}\s*°\s*F\.?\s*$/i;
+/** A dish best straight from the oven: pastry, a Wellington, roasted vegetables. */
+const SERVE_HOT = /\b(wellington|pastry|pot pie|biscuits?|popovers?|souffl[eé]|roast(?:ed)?\s+(?!turkey|chicken|beef|pork|lamb|duck))/i;
+
+export interface OvenBlocks {
+  /** dishId → its block (0 = first in the oven); absent for a dish outside the blocks. */
+  blockOf: Map<string, number>;
+  /** dishId → array indexes of its oven steps (the code-written reheat excluded). */
+  ovenSteps: Map<string, Set<number>>;
+  /** dishId → array index of its code-written reheat, aligned to serve. */
+  reheatOf: Map<string, number>;
+}
+
+// ── THX-3c (BUG-463, chat-Claude's ruling) — THE HELD DISHES, COVERED AND REHEATED ──
+//
+// A dish that bakes in an earlier block comes out as the oven changes temperature
+// and waits for the rest of the meal. Two steps, WRITTEN IN CODE (scripts/thx2
+// patch.ts, never AI), follow its last oven step: cover it with foil to keep it warm,
+// and — while the last oven dish rests — return it, uncovered, to the hot oven for
+// 10 minutes, landing at serving time. The reheat is recognised by its own words.
+export const REHEAT_MINUTES = 10;
+/** How far ahead of everything else a block change's own run is sorted (minutes). */
+const PRIORITY_LEAD = 10_000;
+const REHEAT_STEP = /\breturn it,? uncovered,? to the \d{3}\s*°\s*F oven for \d+ minutes\b/i;
+
+/** The code-written hold step's text. */
+export function holdCoveredText(dishTitle: string): string {
+  return `Cover the ${dishTitle} with foil to keep it warm while the oven heats for the next dish.`;
+}
+
+/** The code-written reheat step's text, at the last block's temperature. */
+export function reheatText(dishTitle: string, tempF: number): string {
+  return `Return it, uncovered, to the ${tempF}°F oven for ${REHEAT_MINUTES} minutes, until the ${dishTitle} is hot again; serve.`;
+}
+
+/** True for the code-written reheat step. */
+export function isReheatStep(step: Pick<SchedulerStep, "text">): boolean {
+  return REHEAT_STEP.test(step.text ?? "");
+}
+
+/** What the single-cook pass needs about a feast's oven beyond the bird. */
+export interface FeastOven {
+  blocks: OvenBlocks | null;
+  /** dishId → the kept preheat (another dish's step) its oven steps wait for. */
+  heatedBy: Map<string, { dishId: string; stepIndex: number }>;
+}
+
+/**
+ * One preheat per temperature: the dishes with every redundant pure-preheat step
+ * dropped. The kept step is the first preheat that also does work, else the first.
+ */
+export function mergeFeastPreheats(dishes: readonly SchedulerDish[]): { dishes: SchedulerDish[]; heatedBy: FeastOven["heatedBy"] } {
+  const byTemp = new Map<number, { dishId: string; stepIndex: number; pure: boolean }[]>();
+  for (const d of dishes) {
+    for (const s of d.steps) {
+      if (s.phaseType !== "preheat" || !isOvenStep(s)) continue;
+      const t = ovenTempOfText(s.text);
+      if (t === null) continue;
+      byTemp.set(t, [...(byTemp.get(t) ?? []), { dishId: d.dishId, stepIndex: s.stepIndex, pure: PURE_PREHEAT.test(s.text ?? "") }]);
+    }
+  }
+  const drop = new Set<string>();
+  const heatedBy: FeastOven["heatedBy"] = new Map();
+  for (const list of byTemp.values()) {
+    if (list.length < 2) continue;
+    const kept = list.find((x) => !x.pure) ?? list[0];
+    for (const x of list) {
+      if (x === kept || !x.pure) continue;
+      drop.add(`${x.dishId}#${x.stepIndex}`);
+      if (x.dishId !== kept.dishId) heatedBy.set(x.dishId, { dishId: kept.dishId, stepIndex: kept.stepIndex });
+    }
+  }
+  if (drop.size === 0) return { dishes: [...dishes], heatedBy };
+  return { dishes: dishes.map((d) => ({ ...d, steps: d.steps.filter((s) => !drop.has(`${d.dishId}#${s.stepIndex}`)) })), heatedBy };
+}
+
+/** The oven blocks of a feast with no bird to hold its oven, or null when one temperature serves. */
+export function planOvenBlocks(dishes: readonly SchedulerDish[]): OvenBlocks | null {
+  const ovenSteps = new Map<string, Set<number>>();
+  const tempOf = new Map<string, number>();
+  const reheatOf = new Map<string, number>();
+  for (const d of dishes) {
+    const set = new Set<number>();
+    d.steps.forEach((s, i) => {
+      if (isReheatStep(s)) { reheatOf.set(d.dishId, i); return; }
+      if (!isOvenStep(s)) return;
+      set.add(i);
+      const t = ovenTempOfText(s.text);
+      if (t !== null && !tempOf.has(d.dishId)) tempOf.set(d.dishId, t);
+    });
+    if (set.size > 0) ovenSteps.set(d.dishId, set);
+  }
+  const temps = [...new Set(tempOf.values())];
+  if (temps.length < 2) return null;
+  const hot = (t: number) => dishes.some((d) => tempOf.get(d.dishId) === t && (SERVE_HOT.test(d.title) || d.steps.some((s) => /\bpuff pastry\b/i.test(s.text ?? ""))));
+  // Hold-well groups first, then the straight-from-the-oven ones; cooler first within each.
+  const order = [...temps].sort((a, b) => Number(hot(a)) - Number(hot(b)) || a - b);
+  const blockOf = new Map<string, number>();
+  for (const [id, t] of tempOf) blockOf.set(id, order.indexOf(t));
+  return { blockOf, ovenSteps, reheatOf };
+}
+
+/**
+ * The bases that sequence the blocks: the last block finish-aligns to serve, and each
+ * earlier block's dishes end their last oven step where the next block's first oven
+ * step begins (computed on the dish-alone walks, latest block first).
+ */
+function ovenBlockBases(
+  dishes: readonly SchedulerDish[],
+  alone: readonly { duration: number; offsets: number[] }[],
+  anchor: number,
+  blocks: OvenBlocks,
+): Map<string, number> {
+  const bases = new Map<string, number>();
+  const last = Math.max(...blocks.blockOf.values());
+  let nextOvenStart = Infinity;
+  for (let b = last; b >= 0; b--) {
+    let start = Infinity;
+    dishes.forEach((d, i) => {
+      if (blocks.blockOf.get(d.dishId) !== b) return;
+      const ov = [...(blocks.ovenSteps.get(d.dishId) ?? [])];
+      if (ov.length === 0) return;
+      const lastIdx = Math.max(...ov);
+      const endOfOven = alone[i].offsets[lastIdx] + d.steps[lastIdx].estimatedMinutes;
+      const aligned = anchor - alone[i].duration;
+      const base = Number.isFinite(nextOvenStart) ? Math.min(aligned, nextOvenStart - endOfOven) : aligned;
+      bases.set(d.dishId, base);
+      start = Math.min(start, base + alone[i].offsets[Math.min(...ov)]);
+    });
+    if (Number.isFinite(start)) nextOvenStart = start;
+  }
+  return bases;
+}
+
 function scheduleWithOven(
   nonEmpty: SchedulerDish[],
   honourTags: boolean,
   enforceMaxLag: boolean,
   coldBases: ReadonlyMap<string, number> | null,
   plan: OvenPlan,
+  feast: FeastOven | null = null,
 ): ScheduleResult {
-  const first = scheduleOnceCore(nonEmpty, honourTags, enforceMaxLag, coldBases, { plan });
+  const first = scheduleOnceCore(nonEmpty, honourTags, enforceMaxLag, coldBases, { plan }, feast);
   // The holder's base in pass 1: its first step's start, in the cook-start frame.
   const holder = nonEmpty.find((d) => d.dishId === plan.holderDishId)!;
   const hd = first.steps.filter((s) => s.dishId === plan.holderDishId);
@@ -895,7 +1071,7 @@ function scheduleWithOven(
     const w = walkDishAlone(d, classifyDish(d, honourTags, []));
     tail = Math.max(tail, w.duration - w.offsets[Math.min(...ov)]);
   }
-  return scheduleOnceCore(nonEmpty, honourTags, enforceMaxLag, coldBases, { plan, anchor: ovenOut + tail, holderBase });
+  return scheduleOnceCore(nonEmpty, honourTags, enforceMaxLag, coldBases, { plan, anchor: ovenOut + tail, holderBase }, feast);
 }
 
 function scheduleArm(
@@ -904,9 +1080,10 @@ function scheduleArm(
   enforceMaxLag: boolean,
   coldDishesForward: boolean,
   oven: OvenPlan | null = null,
+  blocks: FeastOven | null = null,
 ): ScheduleResult {
   const scheduleOnce = (d: SchedulerDish[], t: boolean, l: boolean, c: ReadonlyMap<string, number> | null) =>
-    oven ? scheduleWithOven(d, t, l, c, oven) : scheduleOnceCore(d, t, l, c);
+    oven ? scheduleWithOven(d, t, l, c, oven, blocks) : scheduleOnceCore(d, t, l, c, null, blocks);
   const aligned = scheduleOnce(nonEmpty, honourTags, enforceMaxLag, null);
   if (!coldDishesForward) return aligned;
   const cold = nonEmpty.filter(isServedCold);
@@ -959,6 +1136,7 @@ function scheduleOnceCore(
   enforceMaxLag: boolean,
   coldBases: ReadonlyMap<string, number> | null,
   oven: OvenRun | null = null,
+  blocks: FeastOven | null = null,
 ): ScheduleResult {
   const ignoredTags: IgnoredTag[] = [];
 
@@ -968,6 +1146,9 @@ function scheduleOnceCore(
   );
   // THX-3 — the oven's second pass serves at the first pass's (later) serve time.
   const anchor = oven?.anchor ?? Math.max(...alone.map((a) => a.duration));
+  // THX-3c (BUG-463) — each oven block but the last finishes its oven work before
+  // the next block's first oven step: its dishes' bases move earlier.
+  const blockBases = blocks?.blocks ? ovenBlockBases(nonEmpty, alone, anchor, blocks.blocks) : null;
 
   // The served-cold set, for the cue's "stays warm" veto (ruling 2). NOT the same
   // question as `coldBases`, which is only about the dishes ruling 3 chose to
@@ -982,8 +1163,9 @@ function scheduleOnceCore(
     // THX-3 — the bird keeps the first pass's start (its roast ends where it did);
     // its after-the-rest tail is aligned to serve instead (see scheduleWithOven).
     const isHolder = oven?.plan.holderDishId === dish.dishId;
-    const base = (isHolder && oven?.holderBase !== undefined ? oven.holderBase : undefined) ?? coldBases?.get(dish.dishId) ?? anchor - alone[dishIdx].duration;
-    const tailFrom = isHolder && oven?.anchor !== undefined ? oven.plan.tailFrom : Infinity;
+    const base = (isHolder && oven?.holderBase !== undefined ? oven.holderBase : undefined) ?? coldBases?.get(dish.dishId) ?? blockBases?.get(dish.dishId) ?? anchor - alone[dishIdx].duration;
+    const reheat = blocks?.blocks?.reheatOf.get(dish.dishId);
+    const tailFrom = isHolder && oven?.anchor !== undefined ? oven.plan.tailFrom : reheat !== undefined ? reheat : Infinity;
     const tailSum = (from: number) => dish.steps.slice(from).reduce((s, x) => s + x.estimatedMinutes, 0);
     dish.steps.forEach((step, stepIdx) => {
       const idealStart = stepIdx >= tailFrom ? anchor - tailSum(stepIdx) : base + alone[dishIdx].offsets[stepIdx];
@@ -1094,6 +1276,9 @@ function scheduleOnceCore(
     return t;
   };
 
+  /** THX-3c — later blocks' kept preheats (placed after the pass), and each block's lead. */
+  const floating = new Set<WorkStep>();
+  const blockLead = new Map<number, number>();
   const runPass = () => {
     const busy: [number, number][] = [];
     const placed = nonEmpty.map((d) => new Array<WorkStep | undefined>(d.steps.length));
@@ -1123,7 +1308,9 @@ function scheduleOnceCore(
         earliest = mine[w.kind.windowIdx]?.actualStart ?? 0;
       } else {
         for (let j = 0; j < w.stepIdx; j++) {
-          earliest = Math.max(earliest, mine[j]?.finish ?? 0);
+          const pj = mine[j];
+          if (pj && floating.has(pj)) continue; // THX-3c — a floating preheat holds nothing up
+          earliest = Math.max(earliest, pj?.finish ?? 0);
         }
       }
       let floor = Math.max(w.idealStart, earliest);
@@ -1136,6 +1323,28 @@ function scheduleOnceCore(
         const out = held ? held.finish : ws ? ws.idealStart + ws.step.estimatedMinutes : 0;
         floor = Math.max(floor, out);
       }
+      // THX-3c (BUG-463) — one temperature at a time: a block's oven step starts no
+      // earlier than every oven step of the blocks before it has finished.
+      const bk = blocks?.blocks;
+      const block = bk?.blockOf.get(w.dishId);
+      if (bk && block !== undefined && block > 0 && bk.ovenSteps.get(w.dishId)?.has(w.stepIdx) && !floating.has(w)) {
+        for (const o of work) {
+          const ob = bk.blockOf.get(o.dishId);
+          if (ob === undefined || ob >= block || !bk.ovenSteps.get(o.dishId)?.has(o.stepIdx)) continue;
+          const at = placed[o.dishIdx]?.[o.stepIdx];
+          floor = Math.max(floor, (at ? at.finish : o.idealStart + o.step.estimatedMinutes) + (blockLead.get(block) ?? 0));
+        }
+      }
+      // …and a dish whose own preheat was merged away puts nothing in the oven
+      // before the kept preheat has run.
+      const heat = blocks?.heatedBy.get(w.dishId);
+      if (heat && w.step.phaseType !== "preheat" && isOvenStep(w.step)) {
+        const ws = work.find((o) => o.dishId === heat.dishId && o.step.stepIndex === heat.stepIndex);
+        if (ws) {
+          const at = placed[ws.dishIdx]?.[ws.stepIdx];
+          floor = Math.max(floor, at ? at.finish : ws.idealStart + ws.step.estimatedMinutes);
+        }
+      }
       const start = findSlot(busy, floor, w.step.estimatedMinutes, !w.unattended);
       w.actualStart = start;
       w.finish = start + w.step.estimatedMinutes;
@@ -1147,6 +1356,44 @@ function scheduleOnceCore(
       }
     }
   };
+
+  // THX-3c — a kept preheat runs before EVERY dish it heats: the stuffing that lost its
+  // own preheat bakes as long as the mac and cheese that kept one, and both come out
+  // as the oven changes temperature, so the preheat starts early enough for the longer.
+  if (blocks) {
+    for (const [dishId, k] of blocks.heatedBy) {
+      const kept = work.find((o) => o.dishId === k.dishId && o.step.stepIndex === k.stepIndex);
+      const firstOven = work.filter((o) => o.dishId === dishId && o.step.phaseType !== "preheat" && isOvenStep(o.step) && !isReheatStep(o.step)).sort((a, b) => a.idealStart - b.idealStart)[0];
+      if (!kept || !firstOven) continue;
+      const want = firstOven.idealStart - kept.step.estimatedMinutes;
+      if (want < kept.idealStart) {
+        kept.idealStart = want;
+        kept.actualStart = want;
+        kept.finish = want + kept.step.estimatedMinutes;
+      }
+    }
+  }
+
+  // THX-3c (BUG-463, chat-Claude's ruling) — NO IDLE GAP AT THE TEMPERATURE CHANGE.
+  //   • An earlier block's dish has no hands but a kick-off and the foil, so it is
+  //     sorted first and lands where it was aligned.
+  //   • A later block's kept preheat FLOATS: the cook assembles the Wellington while
+  //     the oven heats, so its dish's next steps do not wait for it, and after the pass
+  //     it is placed to finish exactly as the first bake it heats starts. The block
+  //     before it then moves later to end exactly there (see below the pass).
+  if (blocks?.blocks) {
+    const bk = blocks.blocks;
+    const lastBlock = Math.max(...bk.blockOf.values());
+    for (const w of work) {
+      const b = bk.blockOf.get(w.dishId);
+      if (b === undefined) continue;
+      if (b < lastBlock && w.stepIdx !== bk.reheatOf.get(w.dishId)) priorityKey.set(w, w.idealStart - PRIORITY_LEAD);
+      if (b > 0 && w.step.phaseType === "preheat" && bk.ovenSteps.get(w.dishId)?.has(w.stepIdx)) {
+        floating.add(w);
+        blockLead.set(b, Math.max(blockLead.get(b) ?? 0, w.step.estimatedMinutes));
+      }
+    }
+  }
 
   // 3. Single-cook forward simulation, repaired until the latest bound holds.
   runPass();
@@ -1177,6 +1424,46 @@ function scheduleOnceCore(
       }
       if (!changed) break;
       runPass();
+    }
+  }
+
+  // THX-3c (BUG-463, chat-Claude's ruling) — THE TEMPERATURE CHANGE, PLACED. Each
+  // floating preheat ends as the first oven step it heats starts (any dish of its
+  // block); the block before it moves later, whole, to come out exactly as the preheat
+  // starts. Latest block first. Those dishes hold no hands but the foil's minute.
+  if (blocks?.blocks) {
+    const bk = blocks.blocks;
+    for (const pre of [...floating].sort((a, b) => (bk.blockOf.get(b.dishId) ?? 0) - (bk.blockOf.get(a.dishId) ?? 0))) {
+      const b = bk.blockOf.get(pre.dishId)!;
+      const heats = work.filter((w) => bk.blockOf.get(w.dishId) === b && w.step.phaseType !== "preheat" && bk.ovenSteps.get(w.dishId)?.has(w.stepIdx));
+      if (heats.length === 0) continue;
+      const at = Math.min(...heats.map((w) => w.actualStart)) - pre.step.estimatedMinutes;
+      const before = work.filter((w) => bk.blockOf.get(w.dishId) === b - 1 && bk.ovenSteps.get(w.dishId)?.has(w.stepIdx));
+      const end = before.length ? Math.max(...before.map((w) => w.finish)) : at;
+      if (at > end) {
+        const delta = at - end;
+        for (const w of work) {
+          if (bk.blockOf.get(w.dishId) !== b - 1 || w.stepIdx === bk.reheatOf.get(w.dishId)) continue;
+          w.actualStart += delta;
+          w.finish += delta;
+        }
+      }
+      pre.actualStart = Math.max(at, end);
+      pre.finish = pre.actualStart + pre.step.estimatedMinutes;
+    }
+  }
+
+  // THX-3c (BUG-463, chat-Claude's ruling) — THE REHEAT LANDS AT SERVING TIME. The
+  // cook's hands can push serving past the anchor the ideal starts were aligned to;
+  // the held dishes go back into the hot oven for the last minutes whatever it is.
+  if (blocks?.blocks) {
+    const bk = blocks.blocks;
+    const serveAt = Math.max(...work.filter((w) => w.stepIdx !== bk.reheatOf.get(w.dishId)).map((w) => w.finish));
+    for (const w of work) {
+      if (w.stepIdx !== bk.reheatOf.get(w.dishId)) continue;
+      const prev = work.find((o) => o.dishIdx === w.dishIdx && o.stepIdx === w.stepIdx - 1);
+      w.actualStart = Math.max(serveAt - w.step.estimatedMinutes, prev?.finish ?? 0);
+      w.finish = w.actualStart + w.step.estimatedMinutes;
     }
   }
 

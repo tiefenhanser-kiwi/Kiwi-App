@@ -18,7 +18,19 @@
 //
 // Pure: the dry run prints it and --apply writes it (patch.ts), so production gets it
 // with no AI. New generations get the same rule from FINALIZE_RULES (g).
-import { isOvenStep, planOven, scheduleCookingSequence, type SchedulerDish, type SchedulerPhase } from "../../src/lib/cookingScheduler";
+import {
+  holdCoveredText,
+  isOvenStep,
+  mergeFeastPreheats,
+  ovenTempOfText,
+  planOven,
+  planOvenBlocks,
+  reheatText,
+  REHEAT_MINUTES,
+  scheduleCookingSequence,
+  type SchedulerDish,
+  type SchedulerPhase,
+} from "../../src/lib/cookingScheduler";
 import { onTheDaySteps } from "../../src/lib/mealTiming";
 
 export const RETIME_PER_25F = 0.1;
@@ -124,7 +136,9 @@ export function ovenReport(dishes: readonly OvenDish[], steps: readonly OvenStep
       const own = ovenTempOf(s.text ?? "");
       if (!isOvenStep(s)) continue;
       if (own !== null) temp = own;
-      const start = at.get(`${d.dishId}|${s.stepIndex}`) ?? 0;
+      // THX-3c — a preheat the scheduler merged into another dish's is not on Thursday.
+      if (!at.has(`${d.dishId}|${s.stepIndex}`)) continue;
+      const start = at.get(`${d.dishId}|${s.stepIndex}`)!;
       const holder = plan?.holderDishId === d.dishId;
       lines.push({ dishId: d.dishId, title: d.title, stepIndex: s.stepIndex, temp, start, end: start + s.estimatedMinutes, holder, afterBird: !holder && ovenOut !== null && start >= ovenOut });
     }
@@ -141,6 +155,24 @@ export function formatOvenReport(r: OvenReport): string[] {
     out.push(`    T${String(l.start).padStart(5)}→${String(l.end).padStart(4)}  ${l.temp !== null ? `${l.temp}°F` : "  ?  "}  ${l.title.slice(0, 40)} #${l.stepIndex}${l.holder ? " (the bird)" : l.afterBird ? " (after the bird)" : ""}`);
   }
   if (r.bird) out.push(`    the bird rests until T${r.bird.restEnd}; carving starts T${r.bird.carveStart} — a ${r.bird.carveStart - r.bird.restEnd} min hold`);
+  for (const c of ovenConflicts(r)) out.push(`    CONFLICT ${c}`);
+  return out;
+}
+
+/**
+ * THX-3c (BUG-463) — every pair of oven steps that overlap at two temperatures,
+ * as printed lines. Empty when the oven runs one temperature at a time.
+ */
+export function ovenConflicts(r: OvenReport): string[] {
+  const out: string[] = [];
+  const ls = r.lines.filter((l) => l.temp !== null);
+  for (let i = 0; i < ls.length; i++) {
+    for (let j = i + 1; j < ls.length; j++) {
+      const a = ls[i], b = ls[j];
+      if (a.temp === b.temp || a.dishId === b.dishId) continue;
+      if (a.start < b.end && b.start < a.end) out.push(`T${a.start}→${a.end} ${a.temp}°F ${a.title.slice(0, 30)} #${a.stepIndex} overlaps T${b.start}→${b.end} ${b.temp}°F ${b.title.slice(0, 30)} #${b.stepIndex}`);
+    }
+  }
   return out;
 }
 
@@ -201,6 +233,90 @@ export function retimeDish(steps: readonly OvenStepRow[], change: OvenChange): M
     if (!isOvenStep({ phaseType: s.phaseType as SchedulerPhase, text: s.text })) continue;
     const r = retimeForTemp(s.text, change.from, change.to);
     if (r.text !== s.text) out.set(s.stepIndex, { text: r.text, minutes: Math.max(1, s.estimatedMinutes + r.extraMinutes) });
+  }
+  return out;
+}
+
+// ── THX-3c — CODE-WRITTEN OVEN STEPS ───────────────────────────────────────────
+
+/** A step patch.ts writes into a feast dish (never AI). */
+export interface CodeStep {
+  dishId: string;
+  title: string;
+  stepIndex: number;
+  text: string;
+  phaseType: SchedulerPhase;
+  estimatedMinutes: number;
+}
+
+/**
+ * THX-3c (BUG-463, chat-Claude's ruling) — a feast with no bird to hold its oven and
+ * more than one temperature: each dish of an earlier block (it holds well covered)
+ * gets two steps after its last oven step — cover it with foil, and return it
+ * uncovered to the last block's oven for 10 minutes at serving time. Only for a dish
+ * whose last step IS that oven step; idempotent (a dish with its reheat gets nothing).
+ */
+export function heldDishSteps(dishes: readonly OvenDish[], steps: readonly OvenStepRow[]): CodeStep[] {
+  const { schedulerDishes } = thursdaySchedule(dishes, steps);
+  const merged = mergeFeastPreheats(schedulerDishes).dishes;
+  if (planOven(merged)) return [];
+  const blocks = planOvenBlocks(merged);
+  if (!blocks) return [];
+  const last = Math.max(...blocks.blockOf.values());
+  const lastTemp = merged
+    .filter((d) => blocks.blockOf.get(d.dishId) === last)
+    .flatMap((d) => d.steps.map((s) => ovenTempOfText(s.text)))
+    .find((t): t is number => t !== null);
+  if (lastTemp === undefined) return [];
+  const out: CodeStep[] = [];
+  for (const d of merged) {
+    const b = blocks.blockOf.get(d.dishId);
+    if (b === undefined || b === last || blocks.reheatOf.has(d.dishId)) continue;
+    const lastIdx = d.steps.length - 1;
+    if (!blocks.ovenSteps.get(d.dishId)?.has(lastIdx)) continue;
+    const top = Math.max(...steps.filter((s) => s.ownerId === d.dishId).map((s) => s.stepIndex));
+    out.push(
+      { dishId: d.dishId, title: d.title, stepIndex: top + 1, text: holdCoveredText(d.title), phaseType: "assemble", estimatedMinutes: 1 },
+      { dishId: d.dishId, title: d.title, stepIndex: top + 2, text: reheatText(d.title, lastTemp), phaseType: "cook", estimatedMinutes: REHEAT_MINUTES },
+    );
+  }
+  return out;
+}
+
+
+/** "Preheat the oven to 425°F. Season the caps…" — the preheat, then the work it carries. */
+const PREHEAT_WITH_WORK = /^(\s*(?:On [A-Za-z]+day:\s*)?(?:Pre)?heat (?:the )?oven to \d{3}\s*°\s*F\.)\s+(\S.*)$/i;
+export const SPLIT_WORK_MINUTES = 3;
+
+/**
+ * THX-3c (BUG-463) — a later oven block's preheat waits for the block before it and is
+ * placed just before the bake it heats (cookingScheduler floating preheats), so it may
+ * carry no work the dish needs earlier: the Wellington's "Preheat the oven to 425°F.
+ * Season the 4 portobello caps…" is split into the preheat alone and the seasoning as
+ * its own prep step right after it (the dish's later steps move down one, ids kept).
+ */
+export function splitPreheatSteps(
+  dishes: readonly OvenDish[],
+  steps: readonly OvenStepRow[],
+): { preheat: { dishId: string; stepIndex: number; text: string }; work: CodeStep; renumber: { dishId: string; from: number; to: number }[] }[] {
+  const { schedulerDishes } = thursdaySchedule(dishes, steps);
+  if (planOven(schedulerDishes)) return [];
+  const blocks = planOvenBlocks(schedulerDishes);
+  if (!blocks) return [];
+  const out: ReturnType<typeof splitPreheatSteps> = [];
+  for (const d of schedulerDishes) {
+    if ((blocks.blockOf.get(d.dishId) ?? 0) === 0) continue;
+    for (const s of d.steps) {
+      if (s.phaseType !== "preheat") continue;
+      const m = PREHEAT_WITH_WORK.exec(s.text ?? "");
+      if (!m) continue;
+      const own = steps.filter((x) => x.ownerId === d.dishId);
+      out.push({
+        preheat: { dishId: d.dishId, stepIndex: s.stepIndex, text: m[1].trim() },
+        work: { dishId: d.dishId, title: d.title, stepIndex: s.stepIndex + 1, text: m[2].trim(), phaseType: "prep", estimatedMinutes: SPLIT_WORK_MINUTES },
+        renumber: own.filter((x) => x.stepIndex > s.stepIndex).sort((a, b) => b.stepIndex - a.stepIndex).map((x) => ({ dishId: d.dishId, from: x.stepIndex, to: x.stepIndex + 1 })),
+      });
+    }
   }
   return out;
 }
