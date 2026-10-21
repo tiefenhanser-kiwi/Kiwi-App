@@ -200,13 +200,22 @@ export function wholeBirdCount(quantity: number, multiplier: number): number {
 export function dishRowMultipliers(
   rows: readonly { quantity: number; unit: string; name: string }[],
   multiplier: number,
+  /**
+   * THX-3c (item 2, chat-Claude's ruling) — the dish is a `thanksgiving-feast` meal's.
+   * Only there does a dish FOLLOW a bird written by count: Chicken Pho at household 2
+   * printed its whole 4-serving pot (noodles, sprouts) for its "1 whole chicken".
+   * Elsewhere the bird still shows whole birds and everything else follows servings.
+   * The weight rule (the floor and its factor) is the same everywhere.
+   */
+  opts: { feast?: boolean } = {},
 ): number[] {
   const bird = rows.find((r) => r.quantity > 0 && isWholeBirdByWeight(r.unit, r.name));
   // ⚠️ THX-3c — NOT A ROTISSERIE CHICKEN. It is bought cooked and shredded into a
   // soup, salad or wrap (18 of dev's 25 count-written birds); the dish is not FOR the
   // bird, and following it doubled a Chicken Noodle Soup at half servings (census, 80
-  // plans). Its own line still shows whole birds (rule 1).
-  const counted = bird ? undefined : rows.find((r) => r.quantity > 0 && isWholeBirdByCount(r.unit, r.name) && !/\brotisserie\b/i.test(r.name));
+  // plans). Its own line still shows whole birds.
+  const byCount = bird ? undefined : rows.find((r) => r.quantity > 0 && isWholeBirdByCount(r.unit, r.name));
+  const counted = byCount && opts.feast && !/\brotisserie\b/i.test(byCount.name) ? byCount : undefined;
   const factor = bird
     ? wholeItemMultiplier(multiplier, bird.unit, bird.name, bird.quantity)
     : counted
@@ -218,6 +227,8 @@ export function dishRowMultipliers(
     // A part is one per bird: one for a bird by weight (or in another dish), the
     // count's factor beside a bird written by count.
     if (BIRD_PART.test(r.name)) return counted ? factor : 1;
+    // A bird by count that its dish does not follow is still whole birds.
+    if (r === byCount && !counted) return wholeBirdCount(r.quantity, multiplier) / r.quantity;
     return factor;
   });
 }

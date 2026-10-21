@@ -394,6 +394,8 @@ export function buildPrepCombineInput(
         const rowMultiplier = dishRowMultipliers(
           dish.ingredients.map((i) => ({ ...splitCompoundUnit(i.quantity, i.unit), name: i.ingredientName })),
           multiplier,
+          // THX-3c (item 2) — a dish follows a bird by count only in a feast.
+          { feast: !!meal.feast },
         );
         return {
           dishId: dish.dishId,

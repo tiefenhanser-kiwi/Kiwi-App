@@ -46,6 +46,7 @@ import {
 } from "./recurringItems";
 import { logger } from "./logger";
 import { dishRowMultipliers } from "./prepQuantity";
+import { FEAST_MEAL_TAG } from "./prepWeekAggregation";
 
 // WS7-7-A Block 1 — a single plan source contributing to a consolidated line.
 // Tracked as (mealId, dishId) PAIRS (not two independent arrays) so per-row
@@ -556,6 +557,8 @@ export async function consolidatePlanIngredients(
       const rowMultiplier = dishRowMultipliers(
         effective.map((e) => ({ quantity: e.quantity, unit: e.unit, name: e.ingredient?.canonicalName ?? "" })),
         multiplier,
+        // THX-3c (item 2) — a dish follows a bird by count only in a feast.
+        { feast: (item.meal.tags ?? []).includes(FEAST_MEAL_TAG) },
       );
 
       for (const [row, eff] of effective.entries()) {

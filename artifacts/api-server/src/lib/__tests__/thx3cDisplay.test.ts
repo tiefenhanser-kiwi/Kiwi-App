@@ -16,10 +16,10 @@ describe("THX-3c — equipment never scales (BUG-464)", () => {
     const weight = [{ quantity: 14, unit: "pound", name: "whole turkey" }, { quantity: 1, unit: "each", name: "large brining bag" }, { quantity: 1, unit: "cup", name: "kosher salt" }];
     const count = [{ quantity: 1, unit: "each", name: "whole turkey" }, { quantity: 1, unit: "each", name: "large brining bag" }];
     for (const m of [0.1, 0.4, 1, 1.4, 2, 3]) assert.equal(1 * dishRowMultipliers(weight, m)[1], 1, `weight ×${m}`);
-    for (const m of [0.1, 0.4, 1, 1.4]) assert.equal(1 * dishRowMultipliers(count, m)[1], 1, `count ×${m}`);
+    for (const m of [0.1, 0.4, 1, 1.4]) assert.equal(1 * dishRowMultipliers(count, m, { feast: true })[1], 1, `count ×${m}`);
     // 15 and 20 of 10: two turkeys, two bags (WEB-4c's pin).
-    assert.equal(dishRowMultipliers(count, 1.5)[1], 2);
-    assert.equal(dishRowMultipliers(count, 2)[1], 2);
+    assert.equal(dishRowMultipliers(count, 1.5, { feast: true })[1], 2);
+    assert.equal(dishRowMultipliers(count, 2, { feast: true })[1], 2);
     assert.equal(0.5 * dishRowMultipliers([{ quantity: 0.5, unit: "roll", name: "aluminum foil" }], 0.4)[0], 1);
   });
 

@@ -130,7 +130,7 @@ describe("THX-3c — a bird written by count (BUG-462)", () => {
   ];
   for (const [servings, ...want] of TABLE) {
     it(`${servings} servings → ${want.join(" · ")}`, () => {
-      const m = dishRowMultipliers(COUNT_BIRD, servings / 10);
+      const m = dishRowMultipliers(COUNT_BIRD, servings / 10, { feast: true });
       assert.deepEqual(COUNT_BIRD.map((r, i) => formatMeasure(r.quantity * m[i], r.unit, r.name)), want);
     });
   }
@@ -142,13 +142,47 @@ describe("THX-3c — a bird written by count (BUG-462)", () => {
 
   it("a rotisserie chicken is not followed: the soup it is shredded into scales by servings", () => {
     const soup = [{ quantity: 1, unit: "each", name: "rotisserie chicken" }, { quantity: 3, unit: "each", name: "carrots" }];
-    assert.deepEqual(dishRowMultipliers(soup, 0.5), [0.5, 0.5]);
+    assert.deepEqual(dishRowMultipliers(soup, 0.5, { feast: true }), [1, 0.5]);
     assert.equal(formatMeasure(1 * 0.5, "each", "rotisserie chicken"), "1");
+  });
+
+  it("outside a feast the Buttermilk turkey is still whole birds, and the brine follows servings", () => {
+    const m = dishRowMultipliers(COUNT_BIRD, 1.5);
+    assert.deepEqual(COUNT_BIRD.map((r, i) => formatMeasure(r.quantity * m[i], r.unit, r.name)), ["2", "3 quart", "¾ cup", "12 cloves", "1"]);
   });
 
   it("a whole bird by weight still decides first; a part in a weight-bird dish is one", () => {
     const m = dishRowMultipliers([...TURKEY, { quantity: 1, unit: "each", name: "turkey neck" }], 2);
     assert.deepEqual(m, [2, 2, 2, 2, 1]);
+  });
+});
+
+// THX-3c (item 2) — Chicken Pho (dev catalog e1899441, written for 4): "1 each whole
+// chicken". Not a feast, so the pot follows servings and only the bird stays whole.
+// WEB-4c pins the same inputs.
+const PHO = [
+  { quantity: 1, unit: "each", name: "whole chicken" },
+  { quantity: 2, unit: "each", name: "yellow onion" },
+  { quantity: 12, unit: "ounce", name: "dried rice noodles" },
+  { quantity: 2, unit: "cup", name: "bean sprouts" },
+  { quantity: 10, unit: "cup", name: "water" },
+];
+
+describe("THX-3c item 2 — a dish follows a bird written by count only in a feast", () => {
+  // household → chicken · onion · noodles · sprouts · water
+  const TABLE: Array<[number, string, string, string, string, string]> = [
+    [2, "1", "1", "6 oz", "1 cup", "5 cup"],
+    [4, "1", "2", "12 oz", "2 cup", "10 cup"],
+  ];
+  for (const [household, ...want] of TABLE) {
+    it(`Chicken Pho at household ${household} → ${want.join(" · ")}`, () => {
+      const m = dishRowMultipliers(PHO, household / 4);
+      assert.deepEqual(PHO.map((r, i) => formatMeasure(r.quantity * m[i], r.unit, r.name)), want);
+    });
+  }
+
+  it("the same Pho in a feast would follow its chicken (the whole pot at household 2)", () => {
+    assert.deepEqual(dishRowMultipliers(PHO, 0.5, { feast: true }), [1, 1, 1, 1, 1]);
   });
 });
 
