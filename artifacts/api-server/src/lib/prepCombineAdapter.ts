@@ -36,6 +36,9 @@ const COMPOUND_UNIT_RE = /^\s*(\d+(?:\.\d+)?)\s+(\S.*?)\s*$/;
 const HEAT_VERB =
   /\b(saut[ée]\w*|simmer\w*|bak(?:e|ed|ing)|roast\w*|broil\w*|grill\w*|fry|fried|frying|boil\w*|sear\w*|toast\w*|braise\w*|steam\w*|char\w*)\b/i;
 
+/** THX-3c (E) — the fresh herbs (and green onions) a feast cuts for its garnish. */
+const FEAST_HERB = /\b(chives|parsley|cilantro|dill|basil|mint|tarragon|thyme|sage|rosemary|green onions?|scallions?)\b/i;
+
 export function splitCompoundUnit(
   quantity: number,
   unit: string,
@@ -400,35 +403,37 @@ export function buildPrepCombineInput(
             const split = splitCompoundUnit(ing.quantity, ing.unit);
             // H5.3 — drop the service portion before anything downstream can
             // cost it, name it or count a vessel for it.
-            const prep = prepPortion(
-              ing.ingredientName,
-              split.quantity,
-              split.unit,
-              ing.preparationNote,
-            );
+            // THX-3c (E) — in the feast a FRESH HERB sliced "for topping" is still knife
+            // work the session holds (Make-Ahead's chives): kept whole, its note intact, so
+            // the holds decide whether it is cut ahead or "that morning". Citrus rounds and
+            // wedges for serving stay out, as H5.3 ruled.
+            const prep =
+              prepPortion(ing.ingredientName, split.quantity, split.unit, ing.preparationNote) ??
+              (opts.feast && FEAST_HERB.test(ing.ingredientName) ? { quantity: split.quantity, preparationNote: ing.preparationNote } : null);
             if (prep === null) return [];
             const category =
               ing.category && ing.category.trim() !== ""
                 ? ing.category
                 : inferCategory(ing.ingredientName);
-            // ── THX-3 (D-WS9-316, Hans October 19) — A MAKE-AHEAD DISH BRINGS ONLY ITS
+            // ── THX-3 (D-WS9-316, Hans October 19) — A MAKE-AHEAD DISH BRINGS ITS
             // SHELF-STABLE MIX. "if the user can 'prep the feast' and combine all the
             // pie's dry ingredients ahead of time they should … then when it's time to make
-            // the pie they combine that with the wet, mix, and bake." The cut aromatics,
-            // herbs, citrus and liquids of a dish made on Monday–Wednesday stay in that
-            // day's recipe steps (the per-day prep sessions are a later client lane), so
-            // the feast session holds no perishable that would sit for days and each
-            // container is made in exactly one session. Dropped HERE, after the moments
-            // were resolved over the whole dish, so the dry mix keeps its moment.
-            if (
-              opts.feast &&
-              (dish.makeAheadDays?.length ?? 0) > 0 &&
-              !(
-                !isNeverMeasured(ing.ingredientName) &&
-                (assignPhase(category, ing.ingredientName, ing.purchaseUnit) === "seasonings_dry" || isSaltOrPepper(ing.ingredientName))
-              )
-            ) {
-              return [];
+            // the pie they combine that with the wet, mix, and bake."
+            //
+            // 🔴 THX-3c (E) — AND ITS PRODUCE CUTS. Hans, October 20: "the cook mode during
+            // the week is expecting prep to happen ahead of it (which is good). and the prep
+            // the feast is thin (which is bad) because it needs more prep work (which is
+            // missing)". THX-3 dropped every perishable of a make-ahead dish here, but its
+            // steps say "add the diced onions and celery": the cuts were nowhere (Classic's
+            // produce steps 12 → 0). The cut onions, celery, carrots, garlic, herbs, citrus
+            // and potatoes come back; their holds are measured to the DISH's day
+            // (prepWeekBuild feastPortionDays), never Thursday. Liquids, dairy, eggs and
+            // proteins still stay out — those are made on the day. Dropped HERE, after the
+            // moments were resolved over the whole dish, so the dry mix keeps its moment.
+            if (opts.feast && (dish.makeAheadDays?.length ?? 0) > 0) {
+              const phase = assignPhase(category, ing.ingredientName, ing.purchaseUnit);
+              const kept = phase === "seasonings_dry" || phase === "produce" || isSaltOrPepper(ing.ingredientName);
+              if (isNeverMeasured(ing.ingredientName) || !kept) return [];
             }
             const comp = resolved.byIngredient.get(ing.ingredientId) ?? null;
             const cookDayInto = cookDayIntoByIngredientId.get(ing.ingredientId) ?? null;

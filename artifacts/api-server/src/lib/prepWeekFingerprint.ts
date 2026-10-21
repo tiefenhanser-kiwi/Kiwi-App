@@ -112,8 +112,15 @@ const FINGERPRINT_ALGO_VERSION = 1;
  *       each in its own step's container (BUG-456: the casserole's topping sugar left
  *       the filling's mix; 55 of the 158 catalog meals with such a dish change).
  *       Amounts and containers both move, so the prose must go.
+ *  12 — THX-3c: a make-ahead feast dish's produce cuts are back in Prep the feast,
+ *       held to the DISH's own day (Hans, October 20; Make-Ahead 5 → 14 produce
+ *       steps); smashed garlic, thyme leaves and garnish herbs are feast knife work;
+ *       a feast mix of whole spices alone keeps the floor of three (G); stalks and
+ *       ribs print whole, equipment as written, a bird by count is whole birds, and
+ *       an all-dry container is never a "marinade bowl" (C, A). Containers, amounts
+ *       and names move, so the prose must go.
  */
-export const PREP_ENGINE_VERSION = 11;
+export const PREP_ENGINE_VERSION = 12;
 
 /**
  * Digest of the loaded plan composition — everything the prep payload is built

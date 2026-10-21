@@ -28,7 +28,9 @@
 
 import type { LoadPrepWeekInputResult, PrepLoadedPlan } from "./prepWeekAggregation";
 import { buildPrepCombineInput } from "./prepCombineAdapter";
-import { containerUses, feastClosingLines } from "./prepFeastClose";
+import { containerUses, feastClosingLines, stepDayOf } from "./prepFeastClose";
+import { proseNames } from "./prepMoments";
+import { ingredientGroupKey } from "./ingredientRelations";
 import { combinePrep } from "./prepCombineEngine";
 import { cutOf } from "./prepClasses";
 import {
@@ -63,7 +65,7 @@ export interface StepHold {
   /** The components with the held portions removed (the partial-step render). */
   keptComponents: PrepNarrationComponent[];
   /** The held portions, for the cook-day list. */
-  heldPortions: { mealId: string; ingredientName: string; cut: string | null; window: number; lag: number; dest?: string }[];
+  heldPortions: { mealId: string; ingredientName: string; cut: string | null; window: number; lag: number; dest?: string; day?: string; dish?: string }[];
 }
 
 export interface PrepWeekBuild {
@@ -266,7 +268,9 @@ export function buildPrepWeekPlan(load: Load, opts: BuildPrepWeekOptions = {}): 
   );
 
   const closesByStepKey = storageClosesByStepKey(stepPlan.steps, stepPlan.containerExtras, stepPlan.labelKinds);
-  const holds = opts.noHolds ? new Map<string, StepHold>() : computeHolds(stepPlan, closesByStepKey, cookDays.lagByMealId);
+  // THX-3c (E) — in the feast, each portion is measured to its OWN dish's day.
+  const dayOf = opts.feast ? feastPortionDays(input, cookDays, identity) : undefined;
+  const holds = opts.noHolds ? new Map<string, StepHold>() : computeHolds(stepPlan, closesByStepKey, cookDays.lagByMealId, dayOf);
 
   const mealNameById = new Map(input.meals.map((m) => [m.mealId, m.mealName]));
   /** Plate name → the piles held for cook day today. */
@@ -305,8 +309,15 @@ export function buildPrepWeekPlan(load: Load, opts: BuildPrepWeekOptions = {}): 
     const latest = meals
       .map((id) => ({ id, lag: cookDays.lagByMealId.get(id) ?? -1 }))
       .sort((x, y) => y.lag - x.lag)[0];
-    const lags = meals.map((id) => cookDays.lagByMealId.get(id)).filter((n): n is number => n !== undefined);
-    const dayName = latest ? cookDays.dayNameByMealId.get(latest.id) : undefined;
+    // THX-3c (E) — in the feast, the latest of the step's own portions' days.
+    const portionDays = dayOf
+      ? (holds.get(st.stepKey)?.keptComponents ?? st.components).flatMap((c) => c.measures.map((m) => dayOf(m, c.ingredientName))).filter((x): x is PortionDay => !!x)
+      : [];
+    const latestPortion = [...portionDays].sort((x, y) => y.lag - x.lag)[0];
+    const lags = latestPortion
+      ? portionDays.map((p) => p.lag)
+      : meals.map((id) => cookDays.lagByMealId.get(id)).filter((n): n is number => n !== undefined);
+    const dayName = latestPortion?.day ?? (latest ? cookDays.dayNameByMealId.get(latest.id) : undefined);
     const mealName = latest ? mealNameById.get(latest.id) : undefined;
     // A partly held step closes only the containers it still fills today.
     const hold = holds.get(st.stepKey);
@@ -344,8 +355,8 @@ export function buildPrepWeekPlan(load: Load, opts: BuildPrepWeekOptions = {}): 
     stepPlan,
     storageContexts,
     holds,
-    heldLines: heldLinesFor(stepPlan, holds, cookDays, mealNameById),
-    ...(opts.feast ? feastFacts(stepPlan, input, combineInput, cookDays) : {}),
+    heldLines: heldLinesFor(stepPlan, holds, cookDays, mealNameById, dayOf),
+    ...(opts.feast ? feastFacts(stepPlan, input, combineInput, cookDays, dayOf) : {}),
   };
   assignCoversCookSteps(build, load);
   return build;
@@ -360,18 +371,25 @@ function feastFacts(
   input: Load["input"],
   combineInput: ReturnType<typeof buildPrepCombineInput>,
   cookDays: { dayNameByMealId: ReadonlyMap<string, string> },
+  dayOf?: PortionDayOf,
 ): Pick<PrepWeekBuild, "closingLines" | "sessionBefore"> {
   const dishes = new Map(input.meals.flatMap((m) => m.dishes.map((d) => [d.dishId, d] as const)));
   const feastDay = cookDays.dayNameByMealId.get(input.meals[0]?.mealId ?? "") ?? "Thursday";
   const fi = dayIndex(feastDay) ?? 4;
   let first: string | undefined;
   let most = -1;
-  for (const u of containerUses(stepPlan.steps, dishes, combineInput)) {
-    if (!u.day) continue;
-    const i = dayIndex(u.day.day);
-    if (i === undefined) continue;
+  const consider = (day: string | undefined) => {
+    const i = day ? dayIndex(day) : undefined;
+    if (i === undefined) return;
     const before = (fi - i + 7) % 7;
     if (before > most) { most = before; first = WEEKDAYS[i]; }
+  };
+  for (const u of containerUses(stepPlan.steps, dishes, combineInput)) consider(u.day?.day);
+  // THX-3c (E) — and the first day one of its CUTS is used: the gravy's onion on
+  // Tuesday is cut before Tuesday, whatever the dry mixes say.
+  for (const st of stepPlan.steps) {
+    if (st.demoted || st.phase !== "produce" || !dayOf) continue;
+    for (const c of st.components) for (const m of c.measures) consider(dayOf(m, c.ingredientName)?.day);
   }
   // The closing line names what JOINS a container, which for a make-ahead dish is
   // exactly what the session left out (the purée, the eggs, the cranberries): so its
@@ -380,6 +398,60 @@ function feastFacts(
   return {
     closingLines: feastClosingLines(stepPlan.steps, dishes, whole, WEEKDAYS[fi]),
     sessionBefore: first ?? WEEKDAYS[fi],
+  };
+}
+
+/** THX-3c (E) — the day a feast portion is cooked on, and its lag from the session. */
+export interface PortionDay {
+  day: string;
+  lag: number;
+}
+type PortionDayOf = (m: { mealId?: string; dishId?: string; ingredientId?: string }, ingredientName: string) => PortionDay | undefined;
+
+/**
+ * 🔴 THX-3c (E) — A FEAST PORTION IS MEASURED TO ITS OWN DISH'S DAY, never Thursday.
+ * Hans, October 20: the make-ahead dishes' cuts come back into Prep the feast, and the
+ * stuffing's onions are cut for WEDNESDAY, the gravy's for Tuesday. So the day is the
+ * recipe's own: the step the portion first enters at ("Make ahead (Wednesday):", the
+ * phrase contract stepDayOf reads), else the feast's day. Its lag is the feast's lag
+ * less the days between, never below 0. A portion that will not keep that long is
+ * held for THAT day ("cut it that morning"), and the held line names that day.
+ *
+ * Keyed by meal + dish + the measure's food id, with the plan's fold and the food's
+ * name as fallbacks (combinePrep keys a food on the smallest id among its rows).
+ */
+function feastPortionDays(
+  input: Load["input"],
+  cookDays: { lagByMealId: ReadonlyMap<string, number>; dayNameByMealId: ReadonlyMap<string, string> },
+  identity: Load["identity"],
+): PortionDayOf {
+  const byKey = new Map<string, PortionDay>();
+  for (const meal of input.meals) {
+    const mealLag = cookDays.lagByMealId.get(meal.mealId);
+    if (mealLag === undefined) continue;
+    const feastDay = cookDays.dayNameByMealId.get(meal.mealId) ?? "Thursday";
+    const fi = dayIndex(feastDay) ?? 4;
+    for (const dish of meal.dishes) {
+      const steps = [...(dish.componentSteps ?? [])].sort((a, b) => a.stepIndex - b.stepIndex);
+      for (const ing of dish.ingredients) {
+        const entry =
+          steps.find((s) => s.ingredientIds.includes(ing.ingredientId)) ??
+          steps.find((s) => proseNames(s.text, ing.ingredientName));
+        const day = (entry ? stepDayOf(steps, entry.stepIndex)?.day : undefined) ?? feastDay;
+        const back = ((fi - (dayIndex(day) ?? fi)) + 7) % 7;
+        const pd = { day, lag: Math.max(0, mealLag - back) };
+        const folded = identity?.foldedIdByIngredientId.get(ing.ingredientId) ?? ing.ingredientId;
+        for (const k of [ing.ingredientId, folded, `n:${ingredientGroupKey(ing.ingredientName)}`]) {
+          const key = `${meal.mealId}|${dish.dishId}|${k}`;
+          if (!byKey.has(key)) byKey.set(key, pd);
+        }
+      }
+    }
+  }
+  return (m, name) => {
+    if (!m.mealId || !m.dishId) return undefined;
+    const base = `${m.mealId}|${m.dishId}|`;
+    return (m.ingredientId ? byKey.get(`${base}${m.ingredientId}`) : undefined) ?? byKey.get(`${base}n:${ingredientGroupKey(name)}`);
   };
 }
 
@@ -400,6 +472,8 @@ function computeHolds(
   plan: StepPlan,
   closesByStepKey: ReturnType<typeof storageClosesByStepKey>,
   lagByMealId: ReadonlyMap<string, number>,
+  /** THX-3c (E) — the feast: each portion's own day and lag. */
+  dayOf?: PortionDayOf,
 ): Map<string, StepHold> {
   const windowByName = new Map<string, number>();
   for (const list of closesByStepKey.values()) {
@@ -416,7 +490,8 @@ function computeHolds(
       const keptMeasures = c.measures.filter((m) => {
         if (!m.mealId) return true;
         touched.add(m.mealId);
-        const lag = lagByMealId.get(m.mealId);
+        const own = dayOf?.(m, c.ingredientName);
+        const lag = own ? own.lag : lagByMealId.get(m.mealId);
         const dest = m.destination ?? st.bowlName;
         // 🔴 Part J.1b — A PLATE HOLDS PER PILE; A BOWL HOLDS WHOLE. A toppings plate is
         // separate piles, so each member keeps on its own window: the lettuce and
@@ -424,7 +499,7 @@ function computeHolds(
         // slaw, a marinade) is one mixture and keeps as its strictest member.
         const window = dest !== undefined && windowByName.has(dest) && !isPlate(dest) ? windowByName.get(dest)! : ownWindow(st, c);
         const held = lag !== undefined && lag > window;
-        if (held) heldPortions.push({ mealId: m.mealId, ingredientName: c.ingredientName, cut: cutOf([m.preparationNote ?? c.preparationNote ?? ""]), window, lag: lag!, dest });
+        if (held) heldPortions.push({ mealId: m.mealId, ingredientName: c.ingredientName, cut: cutOf([m.preparationNote ?? c.preparationNote ?? ""]), window, lag: lag!, dest, ...(own ? { day: own.day, dish: m.forDish } : {}) });
         else kept.add(m.mealId);
         return !held;
       });
@@ -499,14 +574,24 @@ function heldLinesFor(
     pastMealIds?: ReadonlySet<string>;
   },
   mealNameById: ReadonlyMap<string, string>,
+  /** THX-3c (E) — the feast: a line per meal AND DAY, each portion on its own dish's day. */
+  dayOf?: PortionDayOf,
 ): string[] {
   type Item = { food: string; action: string; dest?: string };
-  const work = new Map<string, Item[]>(); // mealId → prep items, first action per food
+  // A line's key: the meal, or in the feast the meal and the day ("<mealId>|Wednesday").
+  const work = new Map<string, Item[]>(); // line → prep items, first action per food
   const marinade = new Map<string, string[]>(); // mealId → marinade clauses
-  const addWork = (mealId: string, it: Item) => {
-    const l = work.get(mealId) ?? [];
+  const lineDay = new Map<string, PortionDay>(); // feast line → its day and lag
+  const lineDishes = new Map<string, Set<string>>(); // feast line → the dishes on it
+  const addWork = (mealId: string, it: Item, at?: PortionDay, dish?: string) => {
+    const key = at ? `${mealId}|${at.day}` : mealId;
+    if (at) {
+      lineDay.set(key, at);
+      if (dish) lineDishes.set(key, (lineDishes.get(key) ?? new Set()).add(dish));
+    }
+    const l = work.get(key) ?? [];
     if (!l.some((x) => x.food === it.food)) l.push(it);
-    work.set(mealId, l);
+    work.set(key, l);
   };
   for (const st of plan.steps) {
     const h = holds.get(st.stepKey);
@@ -514,7 +599,12 @@ function heldLinesFor(
       // A held MEASURE (a dry blend's, a sauce jar's) is not prep work on cook day.
       if (st.phase === "seasonings_dry" || st.phase === "sauces_marinades") continue;
       for (const p of h.heldPortions) {
-        addWork(p.mealId, { food: p.ingredientName, action: actionFor(p.cut, p.ingredientName, st.phase, st.knifeVerbs), ...(p.dest && isPlate(p.dest) ? { dest: p.dest } : {}) });
+        addWork(
+          p.mealId,
+          { food: p.ingredientName, action: actionFor(p.cut, p.ingredientName, st.phase, st.knifeVerbs), ...(p.dest && isPlate(p.dest) ? { dest: p.dest } : {}) },
+          p.day !== undefined ? { day: p.day, lag: p.lag } : undefined,
+          p.dish,
+        );
       }
       continue;
     }
@@ -538,8 +628,10 @@ function heldLinesFor(
     // leaves for cook day has no knife work — a no-work item, so it is not listed.
     if (st.demoted?.reason === "does-not-hold") {
       for (const c of st.components) {
-        for (const id of [...new Set(c.measures.map((m) => m.mealId).filter((x): x is string => !!x))]) {
-          addWork(id, { food: c.ingredientName, action: `cut the ${c.ingredientName} (it browns once cut)` });
+        for (const m of c.measures) {
+          if (!m.mealId) continue;
+          // THX-3c (E) — the feast's potatoes are cut the morning of THEIR day (Wednesday).
+          addWork(m.mealId, { food: c.ingredientName, action: `cut the ${c.ingredientName} (it browns once cut)` }, dayOf?.(m, c.ingredientName), m.forDish);
         }
       }
     }
@@ -560,22 +652,29 @@ function heldLinesFor(
   }
 
   const lines: string[] = [];
+  const mealOfLine = (key: string) => key.split("|")[0];
+  const lagOfLine = (key: string) => lineDay.get(key)?.lag ?? cookDays.lagByMealId.get(mealOfLine(key));
   const meals = [...new Set([...work.keys(), ...marinade.keys()])].sort(
-    (a, b) => (cookDays.lagByMealId.get(a) ?? 99) - (cookDays.lagByMealId.get(b) ?? 99),
+    (a, b) => (lagOfLine(a) ?? 99) - (lagOfLine(b) ?? 99),
   );
-  for (const mealId of meals) {
-    const lag = cookDays.lagByMealId.get(mealId);
-    const day = cookDays.dayNameByMealId.get(mealId);
+  for (const key of meals) {
+    const mealId = mealOfLine(key);
+    const lag = lagOfLine(key);
+    const day = lineDay.get(key)?.day ?? cookDays.dayNameByMealId.get(mealId);
     const ago = lag === 0 ? "today" : `${lag} ${lag === 1 ? "day" : "days"} out`;
     // BUG-359 — a day already gone is named, never called "today".
     const past = cookDays.pastMealIds?.has(mealId) ?? false;
     const when =
       lag === undefined || past ? (day ? ` (${day})` : "") : ` (${day ? `${day}, ` : ""}${ago})`;
-    const head = `${mealNameById.get(mealId) ?? "A planned meal"}${when} — `;
-    const marinadeClauses = marinade.get(mealId) ?? [];
+    // THX-3c (E) — a feast line names the dishes it is for ("Mashed Potato Casserole
+    // (Wednesday, 3 days out)"): the meal is the whole feast, every line's.
+    const dishes = [...(lineDishes.get(key) ?? [])];
+    const who = dishes.length > 0 && dishes.length <= 2 ? dishes.join(" and ") : (mealNameById.get(mealId) ?? "A planned meal");
+    const head = `${who}${when} — `;
+    const marinadeClauses = key === mealId ? (marinade.get(mealId) ?? []) : [];
     // A protein that joins its marinade the night before (or hours before) is handled
     // then, not "that morning" — one instruction per food.
-    const items = (work.get(mealId) ?? []).filter((i) => !marinadeClauses.some((c) => c.includes(`add the ${i.food} `)));
+    const items = (work.get(key) ?? []).filter((i) => !marinadeClauses.some((c) => c.includes(`add the ${i.food} `)));
     const plates = [...new Set(items.map((i) => i.dest))];
     const onePlate = items.length > 0 && plates.length === 1 && plates[0] !== undefined ? plates[0] : null;
     const moment = lag === undefined ? "on cook day" : "that morning";
@@ -587,7 +686,7 @@ function heldLinesFor(
     // The protein named briefly in its clause, for the tighter rungs.
     const bareMarinades = marinades.map((c) => c.replace(/^add the (.+?) to the marinade/, (_m, who: string) => `add the ${bareName(who)} to the marinade`));
     // The meal named briefly: its own dish, before " with …".
-    const mealName = mealNameById.get(mealId) ?? "A planned meal";
+    const mealName = who;
     const shortHead = `${mealName.split(/\s+with\s+|,\s*/)[0]}${when} — `;
     // The fit ladder, under each head: the actions; the foods named plainly; the foods
     // and the protein named briefly; the first foods and a count. One line, whole

@@ -151,15 +151,26 @@ export function proseAsksFor(texts: readonly string[], ingredientName: string, w
   return false;
 }
 
+/**
+ * THX-3c (E) — the feast's knife work the everyday list does not name: SMASHED garlic
+ * (the gravy's stock, the turkey's garlic butter) and an herb's LEAVES stripped from
+ * the stem ("2 tablespoons thyme leaves", note "leaves only"). Both were missing from
+ * Prep the feast even before THX-3's C2 filter. Feast only: the weeknights are as they
+ * were (a finding left for a later lane, not a ruling).
+ */
+const FEAST_KNIFE_WORK = /\b(smash(?:ed)?|leaves only|leaves stripped)\b/i;
+
 export function judgeProducePortion(
   ingredientName: string,
   note: string | null | undefined,
   derived: boolean,
   /** The dish's own step texts — the knife work is sometimes only written there. */
   prose: readonly string[] = [],
+  /** THX-3c — the feast session's wider knife work. */
+  opts: { feast?: boolean } = {},
 ): PortionVerdict {
   const n = (note ?? "").trim();
-  const knife = KNIFE_WORK.test(n) || (n === "" && proseAsksFor(prose, ingredientName, KNIFE_WORK));
+  const knife = KNIFE_WORK.test(n) || (!!opts.feast && FEAST_KNIFE_WORK.test(n)) || (n === "" && proseAsksFor(prose, ingredientName, KNIFE_WORK));
   if (DOES_NOT_HOLD.test(ingredientName) && (knife || n === "")) {
     return { prep: false, reason: "does-not-hold" };
   }
@@ -220,6 +231,8 @@ const CUT_WORDS = [
   "finely diced", "finely chopped", "thinly sliced", "minced", "diced", "chopped", "sliced",
   "shredded", "grated", "julienned", "spiralized", "halved", "quartered", "cubed", "snapped",
   "trimmed", "peeled", "husked", "seeded", "stripped", "zested", "juiced", "torn", "crushed",
+  // THX-3c (E) — the feast cuts smashed garlic (prepClasses FEAST_KNIFE_WORK).
+  "smashed",
 ];
 
 export function cutOf(notes: readonly string[]): string | null {

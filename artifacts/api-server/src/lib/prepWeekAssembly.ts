@@ -878,6 +878,7 @@ export function buildStepPlan(
       p.notes.join(" "),
       !!p.entry.sourceYield,
       stepTextByDishId.get(p.dishId) ?? [],
+      { feast: opts.feast },
     );
     if (!v.prep) notPrep.set(k, v.reason);
   }

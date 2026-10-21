@@ -23,16 +23,25 @@ describe("THX-3 C2 — the loader reads a feast dish's make-ahead days off its t
   });
 });
 
-describe("THX-3 C2 — a make-ahead dish brings only its shelf-stable mix", () => {
+// 🔴 THX-3c (E) — INVERTED. Hans, October 20: Prep the feast was thin because THX-3's
+// C2 filter dropped every perishable of a make-ahead dish, and that dish's steps say
+// "add the diced onions". Its produce cuts come back; its liquids, dairy, eggs and
+// proteins still do not.
+describe("THX-3 C2 / THX-3c E — a make-ahead dish brings its shelf-stable mix AND its produce cuts", () => {
   const b = buildFeastSession(feast())!;
 
-  it("nothing perishable from a make-ahead dish is in the session (cut herbs, citrus, cranberries, liquids)", () => {
+  it("the make-ahead dishes' cut produce is in the session (the orange, the picked-over cranberries)", () => {
+    assert.ok(namesFor(b, CRANBERRY).includes("orange"), namesFor(b, CRANBERRY).join(", "));
+    assert.ok(namesFor(b, CRANBERRY).includes("fresh cranberries"), namesFor(b, CRANBERRY).join(", "));
+    assert.ok(live(b).some((s) => s.phase === "produce" && s.components.some((c) => c.ingredientName === "orange")));
+  });
+
+  it("but no liquid, dairy, egg or protein of a make-ahead dish (the purée, vanilla, water, eggs, cream, turkey)", () => {
     for (const d of [TURKEY, PIE, CRANBERRY]) {
       const here = namesFor(b, d);
       assert.ok(here.length > 0, d);
-      assert.ok(!here.some((n) => /thyme|orange|cranberries|purée|vanilla|water|turkey/.test(n)), here.join(", "));
+      assert.ok(!here.some((n) => /purée|vanilla|water|eggs|cream|turkey|brining bag/.test(n)), here.join(", "));
     }
-    assert.ok(live(b).every((s) => s.phase === "seasonings_dry"), live(b).map((s) => s.stepKey).join(", "));
   });
 
   it("the pie's mix is a dry mix, and its closing line names the wet it joins — Hans's 'combine that with the wet, mix, and bake'", () => {
@@ -53,9 +62,9 @@ describe("THX-3 C2 — a make-ahead dish brings only its shelf-stable mix", () =
     );
   });
 
-  it("the cranberries join on Monday as an amount, not as a prepped container", () => {
+  it("THX-3c — the picked-over cranberries are prepped now, so they join on Monday as their container", () => {
     const line = [...(b.closingLines ?? new Map<string, string>()).values()].find((l) => l.startsWith("That's the Cranberry"));
-    assert.equal(line, "That's the Cranberry-Orange Sauce dry mix. On Monday, combine it with the 24 oz fresh cranberries and ½ cup water.");
+    assert.equal(line, "That's the Cranberry-Orange Sauce dry mix. On Monday, combine it with the Cranberry-Orange Sauce vegetables and ½ cup water.");
   });
 });
 
