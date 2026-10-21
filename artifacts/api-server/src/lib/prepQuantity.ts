@@ -141,13 +141,31 @@ const BIRD_PART = /\b(?:turkey|chicken|duck|goose|hen)\s+(?:necks?|giblets?)\b|\
 // bird did not: at 8 the closing line read "¾ turkey neck". The rule, the same on
 // both sides (WEB-4b pins the same inputs):
 //   1. the bird's weight is `wholeItemMultiplier`'s (the floors above);
-//   2. the bird's FACTOR is its SHOWN weight ÷ the recipe's weight, and every other
+//   2. the bird's FACTOR is its weight ÷ the recipe's weight, and every other
 //      row of a whole-bird dish (by `isWholeBirdByWeight`) scales by it, not by
 //      servings — the brine's salt, sugar and water, the butter, herbs, aromatics;
 //   3. a bird's own parts (neck, giblets) are the authored count, in any dish;
 //   4. above the recipe's servings it stays linear (no cap).
-// "Shown" is the displayed number (¼ lb steps): 8 of 10 servings is an 11¼ lb bird,
-// so its brine is 11¼ / 14 of the recipe's.
+// THX-3c (BUG-454 · BUG-462) — WEB-4b's definition of the factor, so both sides
+// agree: the bird's weight AFTER the floor and BEFORE the ¼ lb display rounding ÷
+// the recipe's weight. It equals the servings multiplier wherever the floor does
+// not bind (8 of 10 is 0.8, not 11¼ / 14); the shown amounts did not move.
+//
+// THX-3c (BUG-462) — A BIRD WRITTEN BY COUNT ("1 whole turkey", the Buttermilk-
+// Brined turkey) is that many whole birds: max(1, the nearest whole, halves up). Its
+// dish's other rows scale by the SHOWN count ÷ the recipe's count, and a neck or
+// giblets in that dish are one per bird (they scale with it). WEB-4c pins the same
+// inputs at 1, 4, 10, 15 and 20 servings.
+
+/** True for a whole bird written by count ("1 each whole turkey"). */
+export function isWholeBirdByCount(unit: string, name: string): boolean {
+  return COUNT_UNITS.has(unit.trim().toLowerCase()) && WHOLE_BIRD.test(name);
+}
+
+/** The number of birds a count-written bird shows at `multiplier`: the nearest whole, never below 1. */
+export function wholeBirdCount(quantity: number, multiplier: number): number {
+  return Math.max(1, Math.floor(quantity * multiplier + 0.5 + TIE));
+}
 
 /**
  * The multiplier each row of ONE dish scales by, in row order, given the dish's
@@ -158,12 +176,16 @@ export function dishRowMultipliers(
   multiplier: number,
 ): number[] {
   const bird = rows.find((r) => r.quantity > 0 && isWholeBirdByWeight(r.unit, r.name));
-  let factor = multiplier;
   if (bird) {
-    const shown = displayedPrepQuantity(bird.quantity * wholeItemMultiplier(multiplier, bird.unit, bird.name, bird.quantity), bird.unit, bird.name);
-    factor = shown / bird.quantity;
+    const factor = wholeItemMultiplier(multiplier, bird.unit, bird.name, bird.quantity);
+    return rows.map((r) => (BIRD_PART.test(r.name) ? 1 : factor));
   }
-  return rows.map((r) => (BIRD_PART.test(r.name) ? 1 : factor));
+  const counted = rows.find((r) => r.quantity > 0 && isWholeBirdByCount(r.unit, r.name));
+  if (counted) {
+    const factor = wholeBirdCount(counted.quantity, multiplier) / counted.quantity;
+    return rows.map(() => factor);
+  }
+  return rows.map((r) => (BIRD_PART.test(r.name) ? 1 : multiplier));
 }
 
 /**

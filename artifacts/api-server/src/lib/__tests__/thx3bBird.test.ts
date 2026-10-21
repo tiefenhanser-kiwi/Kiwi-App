@@ -9,7 +9,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
-import { BIRD_FLOOR_LB, birdFloorPounds, dishRowMultipliers, wholeItemMultiplier } from "../prepQuantity";
+import { BIRD_FLOOR_LB, birdFloorPounds, dishRowMultipliers, wholeBirdCount, wholeItemMultiplier } from "../prepQuantity";
 import { formatMeasure } from "../prepWeekAssembly";
 import { buildPrepCombineInput } from "../prepCombineAdapter";
 import type { PrepLoadedPlan } from "../prepWeekAggregation";
@@ -95,14 +95,54 @@ describe("THX-3b — the pinned input table (WEB-4b pins the same inputs)", () =
     });
   }
 
-  it("the factor is the SHOWN weight ÷ the recipe's: 8 of 10 is an 11¼ lb bird", () => {
+  // THX-3c (BUG-462) — WEB-4b's definition: the weight BEFORE the ¼ lb rounding. 8 of
+  // 10 shows an 11¼ lb bird, and its brine is 0.8 of the recipe's (not 11¼ / 14).
+  it("the factor is the floored weight before rounding ÷ the recipe's: 8 of 10 is 0.8, 4 of 10 is 10/14", () => {
     const t = dishRowMultipliers(TURKEY, 0.8);
-    assert.ok(Math.abs(t[1] - 11.25 / 14) < 1e-12);
+    assert.equal(t[1], 0.8);
     assert.ok(t.every((x) => x === t[0]), "every row of a whole-bird dish scales by the bird");
+    assert.equal(dishRowMultipliers(TURKEY, 0.4)[1], 10 / 14);
   });
 
   it("a dish with no whole bird scales by servings", () => {
     assert.deepEqual(dishRowMultipliers([{ quantity: 3, unit: "pound", name: "bone-in turkey breast" }, { quantity: 1, unit: "cup", name: "kosher salt" }], 0.4), [0.4, 0.4]);
+  });
+});
+
+// THX-3c (BUG-462) — the Buttermilk-Brined turkey (dev alternate b8fcb9f9, 10
+// servings): "1 each whole turkey". WEB-4c pins the same inputs.
+const COUNT_BIRD = [
+  { quantity: 1, unit: "each", name: "whole turkey" },
+  { quantity: 2, unit: "quart", name: "buttermilk" },
+  { quantity: 0.5, unit: "cup", name: "Kosher salt" },
+  { quantity: 8, unit: "clove", name: "garlic" },
+  { quantity: 1, unit: "each", name: "turkey neck" },
+];
+
+describe("THX-3c — a bird written by count (BUG-462)", () => {
+  // servings → birds · buttermilk · salt · garlic · neck
+  const TABLE: Array<[number, string, string, string, string, string]> = [
+    [1, "1", "2 quart", "½ cup", "8 cloves", "1"],
+    [4, "1", "2 quart", "½ cup", "8 cloves", "1"],
+    [10, "1", "2 quart", "½ cup", "8 cloves", "1"],
+    [15, "2", "4 quart", "1 cup", "16 cloves", "2"],
+    [20, "2", "4 quart", "1 cup", "16 cloves", "2"],
+  ];
+  for (const [servings, ...want] of TABLE) {
+    it(`${servings} servings → ${want.join(" · ")}`, () => {
+      const m = dishRowMultipliers(COUNT_BIRD, servings / 10);
+      assert.deepEqual(COUNT_BIRD.map((r, i) => formatMeasure(r.quantity * m[i], r.unit, r.name)), want);
+    });
+  }
+
+  it("the count is the nearest whole, halves up, never below 1", () => {
+    assert.deepEqual([0.1, 0.4, 0.5, 1, 1.4, 1.5, 2.6].map((x) => wholeBirdCount(1, x)), [1, 1, 1, 1, 1, 2, 3]);
+    assert.equal(wholeBirdCount(2, 0.4), 1);
+  });
+
+  it("a whole bird by weight still decides first; a part in a weight-bird dish is one", () => {
+    const m = dishRowMultipliers([...TURKEY, { quantity: 1, unit: "each", name: "turkey neck" }], 2);
+    assert.deepEqual(m, [2, 2, 2, 2, 1]);
   });
 });
 

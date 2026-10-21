@@ -34,6 +34,7 @@ import { Prisma, PrismaClient } from "@prisma/client";
 import { assertScriptDatabase } from "../../src/lib/scripts/requireDatabaseHost";
 import { deriveAmountRefs, type MatcherIngredient } from "../../src/lib/stepAmountRefs";
 import { stampMealTiming } from "../../src/lib/mealTiming";
+import { isWholeBirdByCount, isWholeBirdByWeight } from "../../src/lib/prepQuantity";
 import { AHEAD_TAG, aheadDaysOf, aheadTags, dishSpecFor, keepsDaysFor, loadTargets, validateTargets } from "./thx2Core";
 import { fixKeepClause, hasThursdayStep, retargetMakeAheadDay, thursdayServeStep } from "./thx2Checks";
 import { formatOvenReport, oneOvenTemperature, ovenReport, retimeDish, type OvenStepRow } from "./thx2Oven";
@@ -186,6 +187,17 @@ for (const t of feasts) {
   // feasts dev does not have.
   console.log(`  oven  Thursday, as stored${one.target !== null ? ` · after the bird: ${one.changes.length + one.refused.length ? `${one.target}°F for every side` : `one temperature (${one.target}°F)`}` : ""}`);
   for (const l of formatOvenReport(ovenBefore)) console.log(`  ${l}`);
+  // THX-3c (BUG-462) — which bird each feast is written with, every run: a bird by
+  // COUNT scales by whole birds (prepQuantity wholeBirdCount), one by weight by its
+  // floor. Production's dry run answers this for Small and New Twist.
+  for (const l of meal.dishLinks) {
+    for (const i of l.dish.dishIngredients) {
+      const name = i.ingredient.canonicalName;
+      if (!/\b(turkey|chicken|duck|goose|hen)s?\b/i.test(name) || /\b(stock|broth|drippings|neck|giblets?)\b/i.test(name)) continue;
+      const kind = isWholeBirdByWeight(i.unit, name) ? "whole bird by weight" : isWholeBirdByCount(i.unit, name) ? "whole bird by COUNT" : "not a whole bird";
+      console.log(`  bird  [${l.dish.title}] ${i.quantity} ${i.unit} ${name} — ${kind}`);
+    }
+  }
   for (const r of one.refused) console.log(`  oven  REFUSED [${r.title}] ${r.from}°F → ${r.to}°F is more than ${25}°F: more than a time change — not patched, decide by hand`);
   if (one.changes.length > 0) {
     console.log(`  oven  Thursday, patched (${one.changes.map((c) => `${c.title} ${c.from}°F → ${c.to}°F`).join("; ")})`);
