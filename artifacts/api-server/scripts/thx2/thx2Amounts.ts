@@ -29,6 +29,8 @@ export interface AmountRow {
 const CUT = String.raw`(?:(?:finely|thinly|roughly|coarsely)\s+)?(?:diced|chopped|minced|sliced|smashed|quartered|halved|grated|shredded|crushed|cubed|julienned)`;
 /** Words that end a food phrase: a verb, a preposition, a list joint. */
 const STOP = /^(and|or|to|into|in|over|with|until|on|then|for|from|at|of|by|as|cook|stir|toss|add|until|while|plus)$/i;
+/** The words right before a list that adds food: "add", "stir in", "stuff the cavity with". */
+const ADDING = /\b(?:add|stir in|toss|combine|fold in|scatter|stuff\b[^.;]*\bwith|with|into)\s+$/i;
 /** A count noun a row's name may end with, kept when the step's phrase leaves it off. */
 const COUNT_NOUN = /\s(stalks?|cloves?|sprigs?|heads?|bulbs?|ribs?)$/i;
 
@@ -112,8 +114,13 @@ export function nameCutAmounts(text: string, rows: readonly AmountRow[], measure
       rewritten += `${joint[0]}${words(a.amount, adj?.[1] ?? cutOf([r.note ?? ""]) ?? undefined, a.phrase)}`;
       end += joint[0].length + (adj ? adj[0].length : 0) + next.length;
     }
-    // Without a cut word in front, only a list counts: "until the onion is soft" is not one.
-    if (!m[2] && used.size < 2) continue;
+    // Without a cut word in front, only a LIST OF CUT FOODS being added counts: "until
+    // the onion is soft" is no list, "Remove the cinnamon stick and cloves" and "Pat the
+    // neck and giblets" are no cut foods, and "Drain the potatoes and garlic" adds nothing.
+    if (!m[2]) {
+      const cutNoted = (r: AmountRow) => !!cutOf([r.note ?? ""]) || /\b(halved|quartered|halves)\b/i.test(r.note ?? "");
+      if (used.size < 2 || ![...used].every(cutNoted) || !ADDING.test(text.slice(Math.max(0, at - 40), at))) continue;
+    }
     out += text.slice(last, at) + rewritten;
     last = end;
   }

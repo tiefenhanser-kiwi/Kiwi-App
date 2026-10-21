@@ -55,6 +55,13 @@ describe("THX-3c F — nameCutAmounts", () => {
     assert.equal(nameCutAmounts(t, one), t);
     // A lone "the onion" is not a list: "until the onion is soft" stays.
     assert.equal(nameCutAmounts("Cook until the onion is soft.", turkey), "Cook until the onion is soft.");
+    // Not cut foods, or not being added: as written (dev's Pan Gravy, cranberry sauce, mash).
+    const gravy = [{ name: "turkey neck", quantity: 1, unit: "each", note: "rinsed" }, { name: "turkey giblets", quantity: 1, unit: "set", note: "heart and gizzard" }];
+    assert.equal(nameCutAmounts("Pat the turkey neck and giblets dry.", gravy), "Pat the turkey neck and giblets dry.");
+    const sauce = [{ name: "cinnamon stick", quantity: 1, unit: "each" }, { name: "whole cloves", quantity: 3, unit: "each" }];
+    assert.equal(nameCutAmounts("Remove the cinnamon stick and cloves.", sauce), "Remove the cinnamon stick and cloves.");
+    const mash = [{ name: "yukon gold potatoes", quantity: 5, unit: "pound", note: "peeled and cut into 2-inch chunks" }, { name: "garlic", quantity: 4, unit: "clove", note: "peeled" }];
+    assert.equal(nameCutAmounts("Drain the potatoes and garlic and return them to the pot.", mash), "Drain the potatoes and garlic and return them to the pot.");
   });
 
   it("a listed food after the first takes its own cut, or none — never the first one's", () => {
