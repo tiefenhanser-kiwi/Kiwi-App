@@ -41,7 +41,7 @@ import { isWholeBirdByCount, isWholeBirdByWeight } from "../../src/lib/prepQuant
 import { nameCutAmounts } from "./thx2Amounts";
 import { AHEAD_TAG, aheadDaysOf, aheadTags, dishSpecFor, keepsDaysFor, loadTargets, validateTargets } from "./thx2Core";
 import { fixKeepClause, hasThursdayStep, retargetMakeAheadDay, thursdayServeStep } from "./thx2Checks";
-import { formatOvenReport, heldDishSteps, oneOvenTemperature, ovenReport, retimeDish, splitPreheatSteps, type OvenStepRow } from "./thx2Oven";
+import { formatOvenReport, heldDishSteps, oneOvenTemperature, ovenReport, raiseOvenStep, retimeDish, splitPreheatSteps, type OvenStepRow } from "./thx2Oven";
 
 const argv = process.argv.slice(2);
 const APPLY = argv.includes("--apply");
@@ -216,6 +216,18 @@ for (const t of feasts) {
   // (thx2Oven heldDishSteps). Code-written, never AI.
   for (const c of heldDishSteps(ovenDishes, ovenRows())) {
     plan.creates.push({ ...c, phaseType: c.phaseType as Plan["creates"][number]["phaseType"], refs: deriveAmountRefs(c.text, matcherOf.get(c.dishId) ?? []).amountRefs });
+  }
+  // 10. THX-3c (item 3) — the bird comes out and the sides need another temperature
+  // with no preheat of their own: "As the turkey comes out, raise the oven to 350°F
+  // for the sides.", right after the bird's last oven step (its later steps move down).
+  const raise = raiseOvenStep(ovenDishes, ovenRows());
+  if (raise) {
+    for (const r of raise.renumber) {
+      const row = stepsByDish.get(r.dishId)!.find((x) => x.stepIndex === r.from)!;
+      plan.renumbers.push({ stepId: row.id, title: raise.step.title, from: r.from, to: r.to });
+      row.stepIndex = r.to;
+    }
+    plan.creates.push({ ...raise.step, phaseType: "preheat", refs: deriveAmountRefs(raise.step.text, matcherOf.get(raise.step.dishId) ?? []).amountRefs });
   }
 
   for (const u of plan.tagUpdates) console.log(`  tags  [${u.title}] ${u.from.join(" ") || "—"}  →  ${u.to.join(" ") || "—"}`);

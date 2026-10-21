@@ -283,6 +283,45 @@ export function heldDishSteps(dishes: readonly OvenDish[], steps: readonly OvenS
   return out;
 }
 
+/** The code-written raise step's words: "As the turkey comes out, raise the oven to 350°F for the sides." */
+const RAISE_STEP = /\braise the oven to \d{3}\s*°\s*F\b/i;
+export const RAISE_MINUTES = 5;
+
+/**
+ * THX-3c (item 3) — when the bird comes out and the next oven dish needs another
+ * temperature with no preheat of its own (Classic: 325°F → 350°F), the bird's dish
+ * gets a step right after its last oven step: "As the turkey comes out, raise the oven
+ * to 350°F for the sides." Returns the step and the bird's later steps' new indexes
+ * (each moves down one); null when nothing is needed or it is already there.
+ */
+export function raiseOvenStep(
+  dishes: readonly OvenDish[],
+  steps: readonly OvenStepRow[],
+): { step: CodeStep; renumber: { dishId: string; from: number; to: number }[] } | null {
+  const r = ovenReport(dishes, steps);
+  const bird = r.lines.filter((l) => l.holder);
+  if (bird.length === 0) return null;
+  const birdId = bird[0].dishId;
+  const own = steps.filter((s) => s.ownerId === birdId);
+  if (own.some((s) => RAISE_STEP.test(s.stepTextTranslated))) return null;
+  const birdTemp = [...bird].reverse().find((l) => l.temp !== null)?.temp ?? null;
+  const after = r.lines.filter((l) => l.afterBird);
+  const firstAfter = after[0];
+  if (!firstAfter || firstAfter.temp === null || firstAfter.temp === birdTemp) return null;
+  // A side that preheats to it itself (Make-Ahead's "Preheat the oven to 350°F") needs no raise.
+  if (after.some((l) => l.temp === firstAfter.temp && steps.find((s) => s.ownerId === l.dishId && s.stepIndex === l.stepIndex)?.phaseType === "preheat")) return null;
+  const lastOven = Math.max(...bird.map((l) => l.stepIndex));
+  const title = dishes.find((d) => d.dishId === birdId)!.title;
+  const noun = /\b(turkey|chicken|duck|goose|hen)\b/i.exec(title)?.[1]?.toLowerCase() ?? "roast";
+  return {
+    step: {
+      dishId: birdId, title, stepIndex: lastOven + 1, phaseType: "preheat", estimatedMinutes: RAISE_MINUTES,
+      text: `As the ${noun} comes out, raise the oven to ${firstAfter.temp}°F for the sides.`,
+    },
+    renumber: own.filter((s) => s.stepIndex > lastOven).sort((a, b) => b.stepIndex - a.stepIndex).map((s) => ({ dishId: birdId, from: s.stepIndex, to: s.stepIndex + 1 })),
+  };
+}
+
 
 /** "Preheat the oven to 425°F. Season the caps…" — the preheat, then the work it carries. */
 const PREHEAT_WITH_WORK = /^(\s*(?:On [A-Za-z]+day:\s*)?(?:Pre)?heat (?:the )?oven to \d{3}\s*°\s*F\.)\s+(\S.*)$/i;
