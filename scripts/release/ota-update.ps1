@@ -34,7 +34,7 @@ Run every check, build and verify the bundle, print the publish command, publish
 #      cli.requireCommit in eas.json) -- this is the only one.
 #   2. native gate: nothing changed since $BinaryCommit in the files that decide what the
 #      installed binary contains. app.json unchanged also means the runtime version is the
-#      binary's.
+#      binary's. package.json alone is compared as JSON and may differ in "scripts" (REL-0).
 #   3. EAS: the production channel serves the production branch; the production
 #      environment has every required EXPO_PUBLIC_* name (names only); the code reads no
 #      EXPO_PUBLIC_* name this script does not know.
@@ -79,6 +79,10 @@ $script:NativePaths = @(
   'artifacts/kiwi/android',
   'pnpm-lock.yaml'
 )
+# The one native path compared as JSON, not as bytes: a change to its top-level "scripts"
+# alone is allowed (REL-0). npm scripts reach neither the binary nor the bundle -- expo
+# export and `eas update --skip-bundler` run none of them, EAS build hooks run at build only.
+$script:PackageJsonPath = 'artifacts/kiwi/package.json'
 # Every EXPO_PUBLIC_* the app code reads (OTA-1 grep, October 13), less the one fallback.
 $script:RequiredNames = @(
   'EXPO_PUBLIC_API_BASE_URL',
@@ -351,6 +355,116 @@ function Format-Command {
   'eas ' + (($Arguments | ForEach-Object { if ($_ -match '[\s"]' -or $_ -eq '') { '"' + $_ + '"' } else { $_ } }) -join ' ')
 }
 
+# A file at a revision as exact bytes, decoded as strict UTF-8 ($null when git fails).
+# Not through a PowerShell pipe: 5.1 decodes native output with the console code page, and
+# two different non-ASCII characters could both come out as '?' and compare equal.
+function Get-GitBlobText {
+  param([Parameter(Mandatory = $true)][string]$Rev, [Parameter(Mandatory = $true)][string]$Path)
+  $psi = New-Object System.Diagnostics.ProcessStartInfo 'git'
+  $psi.Arguments = ('-C "{0}" show "{1}:{2}"' -f $script:RepoRoot, $Rev, $Path)
+  $psi.UseShellExecute = $false
+  $psi.RedirectStandardOutput = $true
+  $psi.RedirectStandardError = $true
+  $p = [System.Diagnostics.Process]::Start($psi)
+  $errRead = $p.StandardError.ReadToEndAsync()
+  $ms = New-Object System.IO.MemoryStream
+  try {
+    $p.StandardOutput.BaseStream.CopyTo($ms)
+    $p.WaitForExit()
+    [void]$errRead.Result
+    if ($p.ExitCode -ne 0) { return $null }
+    return (New-Object System.Text.UTF8Encoding($false, $true)).GetString($ms.ToArray())
+  } finally { $ms.Dispose(); $p.Dispose() }
+}
+
+# Name -> value of a ConvertFrom-Json object, keys compared ordinally (JSON keys are
+# case-sensitive; PowerShell property lookup is not).
+function Get-JsonMembers {
+  param([Parameter(Mandatory = $true)]$Object)
+  $d = New-Object 'System.Collections.Generic.Dictionary[string,object]' ([StringComparer]::Ordinal)
+  foreach ($p in $Object.PSObject.Properties) { $d[$p.Name] = $p.Value }
+  return , $d
+}
+
+function Test-JsonObject {
+  param($Value)
+  return ($null -ne $Value) -and ($Value -isnot [System.Collections.IList]) -and ($Value.PSObject.BaseObject -is [System.Management.Automation.PSCustomObject])
+}
+
+# One string per JSON value with object keys sorted ordinally: equal strings = equal JSON,
+# whatever the key order or whitespace. Scalars keep their type ("1" is not 1).
+function ConvertTo-CanonicalJson {
+  param($Value)
+  if ($null -eq $Value) { return 'null' }
+  if ($Value -is [string] -or $Value -is [ValueType]) { return (ConvertTo-Json -InputObject $Value -Compress) }
+  if ($Value -is [System.Collections.IList]) {
+    $parts = New-Object System.Collections.Generic.List[string]
+    foreach ($e in $Value) { $parts.Add((ConvertTo-CanonicalJson $e)) }
+    return '[' + ($parts -join ',') + ']'
+  }
+  if (Test-JsonObject $Value) {
+    $m = Get-JsonMembers $Value
+    $keys = [string[]]@($m.Keys)
+    [Array]::Sort($keys, [StringComparer]::Ordinal)
+    $parts = New-Object System.Collections.Generic.List[string]
+    foreach ($k in $keys) { $parts.Add((ConvertTo-Json -InputObject $k -Compress) + ':' + (ConvertTo-CanonicalJson $m[$k])) }
+    return '{' + ($parts -join ',') + '}'
+  }
+  throw "unexpected JSON value of type $($Value.GetType().FullName)"
+}
+
+# package.json at the binary commit vs HEAD. Every top-level key but "scripts" must be the
+# same JSON. Returns Error (could not compare -- refuse), Changed (the differing top-level
+# keys, sorted) and ScriptsChanged.
+function Compare-PackageJsonText {
+  param([AllowNull()][string]$Old, [AllowNull()][string]$New)
+  $r = [pscustomobject]@{ Error = $null; Changed = @(); ScriptsChanged = $false }
+  $parsed = @{}
+  foreach ($side in @(@('old', $Old, 'at the binary commit'), @('new', $New, 'at HEAD'))) {
+    if ($null -eq $side[1] -or -not $side[1].Trim()) { $r.Error = "missing or empty $($side[2])"; return $r }
+    try { $o = $side[1] | ConvertFrom-Json } catch { $r.Error = "not valid JSON $($side[2])"; return $r }
+    if (-not (Test-JsonObject $o)) { $r.Error = "not a JSON object $($side[2])"; return $r }
+    $parsed[$side[0]] = Get-JsonMembers $o
+  }
+  try {
+    $keys = New-Object 'System.Collections.Generic.SortedSet[string]' ([StringComparer]::Ordinal)
+    foreach ($k in $parsed['old'].Keys) { [void]$keys.Add($k) }
+    foreach ($k in $parsed['new'].Keys) { [void]$keys.Add($k) }
+    $changed = New-Object System.Collections.Generic.List[string]
+    foreach ($k in $keys) {
+      $a = if ($parsed['old'].ContainsKey($k)) { ConvertTo-CanonicalJson $parsed['old'][$k] } else { '<absent>' }
+      $b = if ($parsed['new'].ContainsKey($k)) { ConvertTo-CanonicalJson $parsed['new'][$k] } else { '<absent>' }
+      if ($a -ceq $b) { continue }
+      if ($k -ceq 'scripts') { $r.ScriptsChanged = $true; continue }
+      $changed.Add($k)
+    }
+  } catch { $r.Error = "could not canonicalise: $($_.Exception.Message)"; return $r }
+  $r.Changed = @($changed)
+  return $r
+}
+
+# Step 2's file check: every native path must be byte-identical to $BinaryCommit, except
+# package.json, which may differ in its top-level "scripts" (and in key order / whitespace).
+# Returns Ok, the lines to print before step 2's summary, and the refusal reason.
+function Test-NativeGate {
+  $lines = New-Object System.Collections.Generic.List[string]
+  $r = [pscustomobject]@{ Ok = $false; Lines = $lines; Reason = $null }
+  $diff = Invoke-GitText (@('diff', '--name-only', "$script:BinaryCommit..HEAD", '--') + $script:NativePaths)
+  if ($diff.ExitCode -ne 0) { $r.Reason = 'git diff failed'; return $r }
+  $refused = New-Object System.Collections.Generic.List[string]
+  foreach ($f in $diff.Lines) {
+    if ($f -cne $script:PackageJsonPath) { $refused.Add($f); continue }
+    $cmp = Compare-PackageJsonText -Old (Get-GitBlobText -Rev $script:BinaryCommit -Path $f) -New (Get-GitBlobText -Rev 'HEAD' -Path $f)
+    if ($cmp.Error) { $r.Reason = "${f}: $($cmp.Error) -- cannot tell what changed, refusing"; return $r }
+    if ($cmp.Changed.Count -gt 0) { $refused.Add(("{0} (top-level key(s) changed: {1})" -f $f, ($cmp.Changed -join ', '))); continue }
+    if ($cmp.ScriptsChanged) { $lines.Add(('[2] package.json: only "scripts" changed since {0} -- not native, allowed' -f $script:BinaryCommit)) }
+    else { $lines.Add(('[2] package.json: same JSON as {0} (key order / whitespace only) -- allowed' -f $script:BinaryCommit)) }
+  }
+  if ($refused.Count -gt 0) { $r.Reason = ("{0} native-relevant file(s) changed since the binaries ({1}): {2} -- an OTA could crash the installed app; this needs a store build" -f $refused.Count, $script:BinaryCommit, ($refused -join ', ')); return $r }
+  $r.Ok = $true
+  return $r
+}
+
 if ($MyInvocation.InvocationName -eq '.') { return }
 
 # --- main -----------------------------------------------------------------------------
@@ -383,11 +497,11 @@ Write-Host ("[1] git: next at {0} = origin/next; artifacts/kiwi and scripts/rele
 # 2 --------------------------------------------------------------------------------------
 $anc = Invoke-GitText @('merge-base', '--is-ancestor', $script:BinaryCommit, 'HEAD')
 if ($anc.ExitCode -ne 0) { Stop-Refused '2' "binary commit $script:BinaryCommit is not an ancestor of HEAD" }
-$native = Invoke-GitText (@('diff', '--name-only', "$script:BinaryCommit..HEAD", '--') + $script:NativePaths)
-if ($native.ExitCode -ne 0) { Stop-Refused '2' 'git diff failed' }
-if ($native.Lines.Count -gt 0) { Stop-Refused '2' ("{0} native-relevant file(s) changed since the binaries ({1}): {2} -- an OTA could crash the installed app; this needs a store build" -f $native.Lines.Count, $script:BinaryCommit, ($native.Lines -join ', ')) }
+$gate = Test-NativeGate
+if (-not $gate.Ok) { Stop-Refused '2' $gate.Reason }
+$gate.Lines | ForEach-Object { Write-Host $_ }
 $runtime = Get-ExpectedRuntimeVersion
-Write-Host ("[2] native gate: no change since {0} in {1}; runtime version {2} (appVersion)" -f $script:BinaryCommit, ($script:NativePaths -join ' '), $runtime)
+Write-Host ("[2] native gate: no native change since {0} in {1}; runtime version {2} (appVersion)" -f $script:BinaryCommit, ($script:NativePaths -join ' '), $runtime)
 
 # 3 --------------------------------------------------------------------------------------
 $ver = Invoke-Eas -Capture @('--version')

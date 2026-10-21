@@ -99,6 +99,45 @@ $v = New-FakeValues; $v['EXPO_PUBLIC_APPLE_WEB_REDIRECT_URI'] = 'https://ep-broa
 $p = Test-PulledEnv -Values $v -ApiBaseUrl $api
 Assert-True (($p -join ';') -like '*EXPO_PUBLIC_APPLE_WEB_REDIRECT_URI: contains a dev host (ep-broad-haze)*') 'Neon dev host in any value refused'
 
+Write-Host '== Compare-PackageJsonText: the package.json native gate (REL-0), on temp JSON pairs'
+$pkgBase = '{ "name": "kiwi", "main": "expo-router/entry", "version": "1.0.0",
+  "scripts": { "test": "node --test a/*.test.ts", "start": "expo start" },
+  "dependencies": { "expo": "~54.0.37", "react-native": "0.81.5" },
+  "devDependencies": { "typescript": "~5.9.2" },
+  "expo": { "install": { "exclude": ["react-native-reanimated"] } } }'
+function Compare-PackagePair {
+  param([string]$Name, [string]$Old, [string]$New)
+  $po = Join-Path $scratch "pkg-$Name\old.json"; $pn = Join-Path $scratch "pkg-$Name\new.json"
+  Write-Text $po $Old; Write-Text $pn $New
+  $c = Compare-PackageJsonText -Old ([IO.File]::ReadAllText($po)) -New ([IO.File]::ReadAllText($pn))
+  Write-Host ("    | {0}: Error={1}; Changed=[{2}]; ScriptsChanged={3}" -f $Name, $c.Error, ($c.Changed -join ','), $c.ScriptsChanged)
+  return $c
+}
+$c = Compare-PackagePair 'scripts-only' $pkgBase ($pkgBase.Replace('a/*.test.ts', 'a/*.test.ts b/*.test.ts'))
+Assert-True ($null -eq $c.Error -and $c.Changed.Count -eq 0 -and $c.ScriptsChanged) '1. scripts-only: passes, scripts flagged'
+$c = Compare-PackagePair 'dep-bump' $pkgBase ($pkgBase.Replace('"react-native": "0.81.5"', '"react-native": "0.81.6"').Replace('a/*.test.ts', 'b/*.test.ts'))
+Assert-True ($null -eq $c.Error -and ($c.Changed -join ',') -eq 'dependencies') '2. dependency bump (+ a scripts change): refused, naming dependencies only'
+$c = Compare-PackagePair 'new-key' $pkgBase ($pkgBase.Replace('"name": "kiwi",', '"name": "kiwi", "overrides": { "metro": "0.83.1" },'))
+Assert-True ($null -eq $c.Error -and ($c.Changed -join ',') -eq 'overrides') '3. new top-level key: refused, naming it'
+$reordered = '{"expo":{"install":{"exclude":["react-native-reanimated"]}},"devDependencies":{"typescript":"~5.9.2"},
+"dependencies":{"react-native":"0.81.5","expo":"~54.0.37"},"version":"1.0.0","scripts":{"start":"expo start","test":"node --test a/*.test.ts"},"main":"expo-router/entry","name":"kiwi"}'
+$c = Compare-PackagePair 'key-order' $pkgBase $reordered
+Assert-True ($null -eq $c.Error -and $c.Changed.Count -eq 0 -and -not $c.ScriptsChanged) '4. key order / whitespace only: passes, nothing changed'
+$c = Compare-PackagePair 'invalid' $pkgBase ($pkgBase.Replace('"kiwi",', '"kiwi"'))
+Assert-True ($c.Error -eq 'not valid JSON at HEAD') '5a. invalid JSON at HEAD: refused'
+$c = Compare-PackagePair 'invalid-old' '{ "name": ' $pkgBase
+Assert-True ($c.Error -eq 'not valid JSON at the binary commit') '5b. invalid JSON at the binary commit: refused'
+$c = Compare-PackageJsonText -Old $pkgBase -New $null
+Assert-True ($c.Error -eq 'missing or empty at HEAD') '5c. file gone at HEAD: refused'
+$c = Compare-PackageJsonText -Old $pkgBase -New '[{ "name": "kiwi" }]'
+Assert-True ($c.Error -eq 'not a JSON object at HEAD') '5d. a top-level array: refused'
+$c = Compare-PackageJsonText -Old $pkgBase -New ($pkgBase.Replace('"version": "1.0.0"', '"version": 1'))
+Assert-True (($c.Changed -join ',') -eq 'version') 'a type change ("1.0.0" -> 1) is a change'
+$c = Compare-PackageJsonText -Old $pkgBase -New ($pkgBase.Replace('["react-native-reanimated"]', '["react-native-reanimated", "expo-image"]'))
+Assert-True (($c.Changed -join ',') -eq 'expo') 'a nested array change under "expo" is a change'
+$c = Compare-PackageJsonText -Old $pkgBase -New ($pkgBase.Replace('"main"', '"Main"'))
+Assert-True (($c.Changed -join ',') -eq 'Main,main') 'key case is significant'
+
 Write-Host '== Compare-BundleHits: exact literals, counted'
 $al = @{ 'localhost' = @{ 'http://localhost:8081/' = 1 } }
 $t = 'xyzwelcome-scrollHeighttp://localhost:8081/assets/__node_modules/.pnpm/fonts'
