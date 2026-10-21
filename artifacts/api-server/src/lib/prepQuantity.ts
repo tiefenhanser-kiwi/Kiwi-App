@@ -31,6 +31,8 @@
 // Two server rules are kept that the client does not have: ml and g print whole
 // (a scale reads grams), and the placeholder count unit prints no word.
 
+import { EQUIPMENT } from "./prepCombineEngine";
+
 /** Count tokens: no unit word, so the number counts the ingredient itself. */
 const COUNT_UNITS: ReadonlySet<string> = new Set([
   "", "each", "piece", "pieces", "count", "ct", "unit", "units", "whole", "large", "medium", "small",
@@ -131,6 +133,30 @@ export function wholeItemMultiplier(multiplier: number, unit: string, name = "",
   return Math.max(multiplier, Math.min(1, floor / (quantity * per)));
 }
 
+/** THX-3c (BUG-464) — a stalk or rib unit, and a count of a food named by its stalks. */
+const WHOLE_STALK_UNIT = /^(stalks?|ribs?)$/;
+const WHOLE_STALK_NAME = /\bstalks?\b|\bcelery ribs?\b/i;
+
+/**
+ * THX-3c (BUG-464) — EQUIPMENT NEVER SCALES: a brining bag, twine, foil, parchment,
+ * cheesecloth. At 4 of 10 servings the turkey's "1 large brining bag" scaled with the
+ * servings. The engine's own equipment list (prepCombineEngine EQUIPMENT, read by
+ * `isNeverMeasured`), the same regex WEB-4c copied. Printed as written, never below 1
+ * — and one per bird beside a bird written by count (two turkeys, two bags).
+ *
+ * ⚠️ NOT SKEWERS OR TOOTHPICKS (WEB-4c, aa4b148, measured): they are one per piece of
+ * food, so they keep rule 1's whole-item ceiling and scale with it — "8 wooden
+ * skewers" held at 8 beside 2 lb of shrimp at "4–5 per skewer" is wrong.
+ */
+export function isEquipmentItem(name: string): boolean {
+  return EQUIPMENT.test(name);
+}
+
+/** The multiplier that prints an equipment row as written (never below 1). */
+function asWritten(quantity: number): number {
+  return quantity > 0 ? Math.max(1, quantity) / quantity : 1;
+}
+
 /** THX-3b (BUG-454) — a bird's own parts, which come with the one bird: never scaled. */
 const BIRD_PART = /\b(?:turkey|chicken|duck|goose|hen)\s+(?:necks?|giblets?)\b|\bgiblets?\b/i;
 
@@ -176,16 +202,24 @@ export function dishRowMultipliers(
   multiplier: number,
 ): number[] {
   const bird = rows.find((r) => r.quantity > 0 && isWholeBirdByWeight(r.unit, r.name));
-  if (bird) {
-    const factor = wholeItemMultiplier(multiplier, bird.unit, bird.name, bird.quantity);
-    return rows.map((r) => (BIRD_PART.test(r.name) ? 1 : factor));
-  }
-  const counted = rows.find((r) => r.quantity > 0 && isWholeBirdByCount(r.unit, r.name));
-  if (counted) {
-    const factor = wholeBirdCount(counted.quantity, multiplier) / counted.quantity;
-    return rows.map(() => factor);
-  }
-  return rows.map((r) => (BIRD_PART.test(r.name) ? 1 : multiplier));
+  // ⚠️ THX-3c — NOT A ROTISSERIE CHICKEN. It is bought cooked and shredded into a
+  // soup, salad or wrap (18 of dev's 25 count-written birds); the dish is not FOR the
+  // bird, and following it doubled a Chicken Noodle Soup at half servings (census, 80
+  // plans). Its own line still shows whole birds (rule 1).
+  const counted = bird ? undefined : rows.find((r) => r.quantity > 0 && isWholeBirdByCount(r.unit, r.name) && !/\brotisserie\b/i.test(r.name));
+  const factor = bird
+    ? wholeItemMultiplier(multiplier, bird.unit, bird.name, bird.quantity)
+    : counted
+      ? wholeBirdCount(counted.quantity, multiplier) / counted.quantity
+      : multiplier;
+  return rows.map((r) => {
+    // THX-3c (BUG-464) — equipment as written, in any dish.
+    if (isEquipmentItem(r.name)) return asWritten(r.quantity) * (counted ? factor : 1);
+    // A part is one per bird: one for a bird by weight (or in another dish), the
+    // count's factor beside a bird written by count.
+    if (BIRD_PART.test(r.name)) return counted ? factor : 1;
+    return factor;
+  });
 }
 
 /**
@@ -202,6 +236,12 @@ export function displayedPrepQuantity(qty: number, unit: string, name = ""): num
   // stick" — measured, not a guess. The client prints the same today (reported to
   // the client lane); kept outside the pinned table so the drift guard holds.
   if (/^(pinch(?:es)?|dash(?:es)?)$/.test(u) || (COUNT_UNITS.has(u) && /\b(cinnamon sticks?|star anise|vanilla beans?)\b/i.test(name))) {
+    return Math.max(1, Math.round(qty));
+  }
+  // THX-3c (BUG-464) — a stalk or a rib is whole too, by the same token rule: the
+  // unit word, or a count of a name that says it ("6 each celery stalks"). At 8 of
+  // 10 servings Classic's stuffing printed "4¾ stalks" of celery. Matched with WEB-4c.
+  if (WHOLE_STALK_UNIT.test(u) || (COUNT_UNITS.has(u) && WHOLE_STALK_NAME.test(name))) {
     return Math.max(1, Math.round(qty));
   }
   // Rule 1 — whole counted items, by unit word or by name on a count unit.

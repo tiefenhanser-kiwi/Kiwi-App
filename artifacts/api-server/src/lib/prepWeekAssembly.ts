@@ -1245,9 +1245,12 @@ export function buildStepPlan(
       // jar" that held spaghetti, flour and panko was named by one.
       const names = [...c.members.values()].map((p) => p.entry.ingredientName).join(" ");
       const marinade = c.noun === "marinade" || (c.noun !== null && mustSit(c.noun)) || /\bmarinade\b/i.test(c.authoredName ?? "");
-      // A marinade first: its liquid is often squeezed in the produce phase, so its
-      // own phase-1 members read dry, and it is still the bowl the steak meets.
-      const use = marinade ? "marinade bowl" : dry ? (DRY_MIX_MEMBER.test(names) ? "dry mix" : "spice blend") : "sauce jar";
+      // THX-3c (BUG-465) — WHAT IS IN IT FIRST. A container holding only dry members
+      // is a dry mix or a spice blend whatever its authored noun says: Classic's
+      // turkey "marinade bowl" held black peppercorns and bay leaves. (It used to be a
+      // marinade first, for a marinade whose liquid is squeezed in the produce phase;
+      // the lid then named a bowl of dry spice as the marinade.)
+      const use = dry ? (DRY_MIX_MEMBER.test(names) ? "dry mix" : "spice blend") : marinade ? "marinade bowl" : "sauce jar";
       name = bowlNameFor(c.dishName, c.mealName, null, 0, false, false, use);
     }
     // Part J.1c (BUG-354) — every name fits the wire, the dish part shortened in whole words.

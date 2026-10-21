@@ -336,6 +336,9 @@ describe("BUG-338 ruling 13 — daysUntilCook rides on the step", () => {
 
 describe("D-WS9-296 — a component step carries its bowl to the prompt", () => {
   const BOWL = "Carne Asada marinade bowl";
+  // THX-3c (BUG-465) — three dry spices are a spice blend, whatever the authored noun:
+  // the lid names what is in it. The bowl still has a name and still reaches the narrator.
+  const NAMED = "Carne Asada spice blend";
   /** A dish whose three spices already carry a component, as the adapter sets it. */
   const withBowl = (): PrepCombineInput => ({
     meals: [
@@ -362,7 +365,7 @@ describe("D-WS9-296 — a component step carries its bowl to the prompt", () => 
     const sp = plan(withBowl());
     const bowls = sp.steps.filter((s) => s.bowlName);
     assert.equal(bowls.length, 1, `expected one bowl step, got ${sp.steps.length} steps`);
-    assert.equal(bowls[0].bowlName, BOWL);
+    assert.equal(bowls[0].bowlName, NAMED);
     assert.equal(bowls[0].components.reduce((n, c) => n + c.measures.length, 0), 3);
   });
 
@@ -373,7 +376,7 @@ describe("D-WS9-296 — a component step carries its bowl to the prompt", () => 
     const sp = plan(withBowl());
     const step = sp.steps.find((s) => s.bowlName)!;
     const ni = sp.narrationInput.steps.find((s) => s.stepId === step.stepId)!;
-    assert.equal(ni.bowlName, BOWL);
+    assert.equal(ni.bowlName, NAMED);
   });
 
   it("no measure of the mixture is ALSO portioned on its own", () => {

@@ -140,6 +140,12 @@ describe("THX-3c — a bird written by count (BUG-462)", () => {
     assert.equal(wholeBirdCount(2, 0.4), 1);
   });
 
+  it("a rotisserie chicken is not followed: the soup it is shredded into scales by servings", () => {
+    const soup = [{ quantity: 1, unit: "each", name: "rotisserie chicken" }, { quantity: 3, unit: "each", name: "carrots" }];
+    assert.deepEqual(dishRowMultipliers(soup, 0.5), [0.5, 0.5]);
+    assert.equal(formatMeasure(1 * 0.5, "each", "rotisserie chicken"), "1");
+  });
+
   it("a whole bird by weight still decides first; a part in a weight-bird dish is one", () => {
     const m = dishRowMultipliers([...TURKEY, { quantity: 1, unit: "each", name: "turkey neck" }], 2);
     assert.deepEqual(m, [2, 2, 2, 2, 1]);

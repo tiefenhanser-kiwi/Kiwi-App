@@ -376,7 +376,7 @@ const SAUCE_NAME_HINTS: readonly string[] = [
 // and equipment is never food.
 const WATER = /\bwater\b/i;
 const FLAVOURED_WATER = /\b(?:rose|orange blossom|orange flower|kewra|coconut|tonic|soda|sparkling)\s+water\b|\bwater ?cress\b|\bwater chestnuts?\b|\bin water\b/i;
-const EQUIPMENT =
+export const EQUIPMENT =
   /\b(?:brining|oven|roasting|zip[- ]?top|freezer|plastic|resealable|ziploc)\s+bags?\b|\bbrining bag\b|\b(?:aluminum\s+)?foil\b|\bparchment(?:\s+paper)?\b|\b(?:kitchen|butcher'?s)\s+twine\b|\bcheesecloth\b|\bpaper towels?\b/i;
 
 /** THX-3 — water in any form, or a piece of equipment: never measured into anything. */
