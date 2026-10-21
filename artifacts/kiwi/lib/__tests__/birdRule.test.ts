@@ -15,7 +15,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import { formatIngredientLine } from "../format/ingredientLine";
-import { dishScaleFactor, isBirdPart, mealScaleFactors } from "../format/quantity";
+import { dishBirdLine, dishScaleFactor, isBirdPart, mealScaleFactors, type BirdLine } from "../format/quantity";
 import { buildAmountRefSegments } from "../cooking/amountSegments";
 import { consolidateMealIngredients } from "../meals/consolidateMealIngredients";
 
@@ -150,16 +150,138 @@ describe("BUG-454 — the rest of the rule", () => {
     assert.ok(!isBirdPart("littleneck clams"), "a clam is not a bird part");
   });
 
-  it("a dish with no bird by weight scales by servings — the gravy beside the turkey, a bird by count", () => {
+  it("a dish with no bird scales by servings — the gravy beside the turkey", () => {
     const scale = mealScaleFactors(CLASSIC.dishes, 0.4);
     assert.equal(scale.byDish[GRAVY.dishId], 0.4);
     assert.equal(mealDetailLine(4, GRAVY, "all-purpose flour"), "¼ cup all-purpose flour"); // 0.2 cup
-    const byCount = [ing(1, "each", "whole turkey"), ing(0.5, "cup", "kosher salt")];
-    assert.equal(dishScaleFactor(byCount, 0.4), 0.4);
+    // WEB-4c (BUG-462) replaced WEB-4b's "a bird by count keeps servings": see below.
   });
 
   it("steps that name no dish take the one dish's factor, or servings in a multi-dish meal", () => {
     assert.equal(mealScaleFactors([TURKEY], 0.4).mealOwned, 10 / 14);
     assert.equal(mealScaleFactors(CLASSIC.dishes, 0.4).mealOwned, 0.4);
+  });
+});
+
+// ── WEB-4c (BUG-462) — A BIRD WRITTEN BY COUNT ──────────────────────────────
+//
+// "1 whole turkey" shows max(1, nearest whole) birds, halves up. The rest of its
+// dish scales by birds shown ÷ birds written; its parts and its equipment are
+// one per bird; the bird's own size in a step ("a frozen 14-lb turkey") is per
+// bird. Inputs: the dev catalog's "Buttermilk-Brined Roast Turkey" (b8fcb9f9,
+// written for 10), the lines and steps the pins read. THX-3c pins the same
+// inputs on the server. Every expected value is a LITERAL.
+const BUTTERMILK = {
+  dishId: "b8fcb9f9",
+  title: "Buttermilk-Brined Roast Turkey",
+  ingredients: [
+    ing(1, "each", "whole turkey"),
+    ing(2, "quart", "buttermilk"),
+    ing(0.5, "cup", "Kosher salt"),
+    ing(1, "each", "large brining bag"),
+    ing(2, "stalk", "celery"),
+  ],
+};
+const BM = { dishes: [BUTTERMILK] };
+const bmLine = (servings: number, name: string) => {
+  const scale = mealScaleFactors(BM.dishes, servings / WRITTEN_FOR);
+  const i = BUTTERMILK.ingredients.find((x) => x.name === name)!;
+  return formatIngredientLine(i, { multiplier: scale.byDish[BUTTERMILK.dishId], birds: scale.birds[BUTTERMILK.dishId] });
+};
+const BM_BRINE =
+  "In a large pot, whisk together 2 quarts cold water, ½ cup kosher salt, and 2 tablespoons cracked black pepper until the salt dissolves.";
+const BM_BRINE_REFS = [span(BM_BRINE, "2", 2, ""), span(BM_BRINE, "½ cup", 0.5, "cup")];
+const BM_THAW =
+  "Pour the brine over the turkey, seal the bag tightly, and refrigerate — brine 12 to 24 hours, turning the bag halfway through. A frozen 14-lb turkey thaws 3–4 days in the fridge, so plan accordingly.";
+const BM_THAW_REFS = [span(BM_THAW, "14", 14, "")];
+const stepRefsWith = (text: string, refs: ReturnType<typeof span>[], m: number, birds: BirdLine) =>
+  buildAmountRefSegments(text, refs, m, birds).filter((x) => x.isRef).map((x) => x.text);
+
+describe("BUG-462 — THE PINNED TABLE: Buttermilk-Brined Roast Turkey (1 bird, for 10) at 1 · 4 · 10 · 15 · 20", () => {
+  const TABLE: [servings: number, bird: string, buttermilk: string, salt: string, bag: string, celery: string][] = [
+    [1, "1 whole turkey", "2 quarts buttermilk", "½ cup Kosher salt", "1 large brining bag", "2 stalks celery"],
+    [4, "1 whole turkey", "2 quarts buttermilk", "½ cup Kosher salt", "1 large brining bag", "2 stalks celery"],
+    [10, "1 whole turkey", "2 quarts buttermilk", "½ cup Kosher salt", "1 large brining bag", "2 stalks celery"],
+    [15, "2 whole turkeys", "4 quarts buttermilk", "1 cup Kosher salt", "2 large brining bags", "4 stalks celery"],
+    [20, "2 whole turkeys", "4 quarts buttermilk", "1 cup Kosher salt", "2 large brining bags", "4 stalks celery"],
+  ];
+
+  it("the birds, the brine, the bag and the celery — meal detail", () => {
+    for (const [n, bird, bm, salt, bag, celery] of TABLE) {
+      assert.equal(bmLine(n, "whole turkey"), bird, `${n}: bird`);
+      assert.equal(bmLine(n, "buttermilk"), bm, `${n}: buttermilk`);
+      assert.equal(bmLine(n, "Kosher salt"), salt, `${n}: salt`);
+      assert.equal(bmLine(n, "large brining bag"), bag, `${n}: bag`);
+      assert.equal(bmLine(n, "celery"), celery, `${n}: celery`);
+    }
+  });
+
+  it("the factor is birds shown ÷ birds written: 1 · 1 · 1 · 2 · 2", () => {
+    const f = (n: number) => dishScaleFactor(BUTTERMILK.ingredients, n / WRITTEN_FOR);
+    assert.deepEqual([1, 4, 10, 15, 20].map(f), [1, 1, 1, 2, 2]);
+  });
+
+  it("the Ingredients sheet prints the same lines", () => {
+    for (const [n, bird, bm, , bag] of TABLE) {
+      const lines = consolidateMealIngredients(BM as never, n / WRITTEN_FOR, n).map((c) => c.line);
+      for (const want of [bird, bm, bag]) assert.ok(lines.includes(want), `${n}: ${want} — ${lines.join(" | ")}`);
+    }
+  });
+
+  it("the brine step follows the birds; the thaw step's 14-lb turkey is per bird", () => {
+    const scale = (n: number) => mealScaleFactors(BM.dishes, n / WRITTEN_FOR);
+    const at = (text: string, refs: ReturnType<typeof span>[], n: number) =>
+      stepRefsWith(text, refs, scale(n).byDish[BUTTERMILK.dishId], scale(n).birds[BUTTERMILK.dishId]);
+    assert.deepEqual(at(BM_BRINE, BM_BRINE_REFS, 4), ["2", "½ cup"]); // was ["¾", "⅛ cup"]
+    assert.deepEqual(at(BM_BRINE, BM_BRINE_REFS, 15), ["4", "1 cup"]); // was ["3", "¾ cup"]
+    for (const n of [1, 4, 10, 15, 20]) assert.deepEqual(at(BM_THAW, BM_THAW_REFS, n), ["14"], `${n}: thaw`); // was 10 at 4, 21 at 15
+  });
+});
+
+describe("BUG-462 — the rest of the rule", () => {
+  it("nearest, halves up, never below 1: a chicken for 4 at 5 is one chicken, at 6 two", () => {
+    const spatchcock = [ing(1, "each", "whole chicken"), ing(2, "tablespoon", "olive oil")];
+    const line = (m: number, i: number) =>
+      formatIngredientLine(spatchcock[i], { multiplier: dishScaleFactor(spatchcock, m), birds: dishBirdLine(spatchcock, m) });
+    assert.equal(line(1.25, 0), "1 whole chicken"); // was 2 (ceil) with 2½ tablespoons oil
+    assert.equal(line(1.25, 1), "2 tablespoons olive oil");
+    assert.equal(line(1.5, 0), "2 whole chickens");
+    assert.equal(line(1.5, 1), "4 tablespoons olive oil");
+    assert.equal(line(0.25, 0), "1 whole chicken");
+  });
+
+  it("the parts are one per bird of the meal's bird, even in another dish", () => {
+    const roast = { dishId: "r", title: "Roast", ingredients: [ing(1, "each", "whole chicken"), ing(1, "tablespoon", "butter")] };
+    const gravy = { dishId: "g", title: "Gravy", ingredients: [ing(1, "each", "chicken neck"), ing(2, "cup", "chicken stock")] };
+    const at = (m: number, name: string) => {
+      const scale = mealScaleFactors([roast, gravy], m);
+      const i = gravy.ingredients.find((x) => x.name === name)!;
+      return formatIngredientLine(i, { multiplier: scale.byDish.g, birds: scale.birds.g });
+    };
+    assert.equal(at(0.5, "chicken neck"), "1 chicken neck");
+    assert.equal(at(2, "chicken neck"), "2 chicken necks");
+    assert.equal(at(2, "chicken stock"), "4 cups chicken stock"); // the gravy itself is by servings
+    const sheet = consolidateMealIngredients({ dishes: [roast, gravy] } as never, 2, 8).map((c) => c.line);
+    assert.ok(sheet.includes("2 chicken necks"), sheet.join(" | "));
+    // A bird by weight is one bird at any size: Classic's neck stays 1 at 30.
+    assert.equal(mealScaleFactors(CLASSIC.dishes, 3).birds[GRAVY.dishId].parts, 1);
+  });
+
+  it("a rotisserie chicken is cooked meat, not the dish's bird: the wraps keep servings", () => {
+    const wraps = [ing(1, "each", "rotisserie chicken"), ing(8, "each", "flour tortillas")];
+    assert.equal(dishScaleFactor(wraps, 0.5), 0.5);
+    assert.equal(formatIngredientLine(wraps[0], { multiplier: 1.25 }), "2 rotisserie chickens"); // rule 1's ceiling
+    assert.equal(formatIngredientLine(wraps[1], { multiplier: 0.5 }), "4 flour tortillas");
+  });
+
+  it("a bird written as a fraction keeps servings: ½ chicken never doubles its dish", () => {
+    const half = [ing(0.5, "each", "whole chicken"), ing(1, "cup", "rice")];
+    assert.equal(dishScaleFactor(half, 1), 1);
+    assert.equal(formatIngredientLine(half[0], { multiplier: 1 }), "1 whole chicken");
+  });
+
+  it("a bird by weight decides first in a dish holding both", () => {
+    const both = [ing(14, "pound", "whole turkey"), ing(1, "each", "whole chicken")];
+    assert.equal(dishScaleFactor(both, 0.4), 10 / 14);
   });
 });

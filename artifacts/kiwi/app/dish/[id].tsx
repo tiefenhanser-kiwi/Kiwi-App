@@ -26,7 +26,7 @@ import { useBilling } from "@/contexts/BillingContext";
 import { macrosNoticeFor } from "@/lib/billing/subscriptionView";
 import { formatMacro } from "@/lib/format/macros";
 import { formatIngredientLine, ingredientAmountNote } from "@/lib/format/ingredientLine";
-import { dishScaleFactor } from "@/lib/format/quantity";
+import { dishBirdLine, dishScaleFactor, ONE_BIRD } from "@/lib/format/quantity";
 import { goBack } from "@/lib/navigation";
 import { IngredientAmountNote } from "@/components/IngredientAmountNote";
 
@@ -159,6 +159,8 @@ function DishDetailContent({ dish, plan }: { dish: DishDetail; plan?: PlanDishCo
   // WEB-4b (BUG-454) — a whole-bird dish scales by its bird's factor, not by
   // servings (the brine follows the bird).
   const multiplier = plan ? dishScaleFactor(ingredients, plan.view.multiplier) : 1;
+  // WEB-4c (BUG-462) — its parts and equipment: one per bird shown.
+  const birds = plan ? dishBirdLine(ingredients, plan.view.multiplier) : ONE_BIRD;
   const runLine =
     plan?.run && makeAheadRunSteps(plan.view.dish.steps, plan.run) ? runCookLine(plan.run) : null;
 
@@ -258,7 +260,7 @@ function DishDetailContent({ dish, plan }: { dish: DishDetail; plan?: PlanDishCo
                   true of two screens out of three, and a count-unit suppression
                   landing on the meal and guest screens would have left "1 each"
                   here. Now there is one formatter and three callers. */}
-              {plan ? formatIngredientLine(ing, { multiplier }) : formatIngredientLine(ing)}
+              {plan ? formatIngredientLine(ing, { multiplier, birds }) : formatIngredientLine(ing)}
             </Text>
             {/* WEB-4 — an egg rounded to a whole shows its true amount. */}
             {plan && (
@@ -298,7 +300,7 @@ function DishDetailContent({ dish, plan }: { dish: DishDetail; plan?: PlanDishCo
                       by the same multiplier as the list (meal detail's rule). */}
                   {plan && step.amountRefs && step.amountRefs.length > 0 ? (
                     <Text style={s.stepText}>
-                      {buildAmountRefSegments(step.text, step.amountRefs, multiplier).map((seg, k) => (
+                      {buildAmountRefSegments(step.text, step.amountRefs, multiplier, birds).map((seg, k) => (
                         <Text key={k}>{seg.text}</Text>
                       ))}
                     </Text>

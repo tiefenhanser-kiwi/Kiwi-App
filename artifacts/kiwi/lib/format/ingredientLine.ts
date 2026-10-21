@@ -23,7 +23,7 @@
 //
 // Pure and in lib/ because app/** is outside the test glob (D-WS9-164).
 
-import { displayedQuantity, formatQuantity, isEggCount, lineMultiplier } from "./quantity";
+import { displayedQuantity, formatQuantity, isEggCount, lineMultiplier, type BirdLine } from "./quantity";
 import { countedIngredientName, unitWordFor } from "./grocery";
 
 /** The fields of a meal-detail ingredient this formatter reads. Structurally
@@ -55,6 +55,8 @@ export interface IngredientLineOptions {
    * prep note is the only place "patted dry" can appear at all.
    */
   includeNotes?: boolean;
+  /** WEB-4c (BUG-462) — the parts and equipment factors (BirdLine); 1 each by default. */
+  birds?: BirdLine;
 }
 
 // ── BUG-317 — THE COUNT UNITS, SUPPRESSED (ruled by Hans, 2026-09-27) ──────
@@ -185,14 +187,14 @@ export function formatIngredientLine(
   ing: IngredientLineParts,
   opts: IngredientLineOptions = {},
 ): string {
-  const { multiplier = 1, includeNotes = false } = opts;
+  const { multiplier = 1, includeNotes = false, birds } = opts;
   const unit = ing.unit?.trim() ?? "";
   // FIX-7 (BUG-437) — the NAME reaches the rounding now: it decides whether a
   // count is a whole item (½ egg → 1) and whether a weight is a whole bird.
   // WEB-4 (BUG-453) — the line's own quantity reaches the bird floor.
   // WEB-4b (BUG-454) — `multiplier` is the DISH's factor (dishScaleFactor);
-  // the neck and giblets never scale.
-  const scaled = ing.quantity * lineMultiplier(multiplier, unit, ing.name, ing.quantity);
+  // the neck and giblets never scale. WEB-4c — nor equipment; both one per bird.
+  const scaled = ing.quantity * lineMultiplier(multiplier, unit, ing.name, ing.quantity, birds);
   const shown = displayedQuantity(scaled, unit, ing.name);
   const hasUnitWord = unit.length > 0 && !isSuppressedCountUnit(unit);
   const sizeWord = SIZE_UNITS.has(unit.toLowerCase());

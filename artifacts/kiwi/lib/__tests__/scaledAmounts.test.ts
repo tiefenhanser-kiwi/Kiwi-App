@@ -347,3 +347,83 @@ describe("BUG-443 — a size word stored as the unit counts the name", () => {
     ]);
   });
 });
+
+// ── WEB-4c (BUG-464) — equipment, stalks and ribs, star anise ──────────────
+//
+// Equipment never scales: as written, never below 1 (in a dish with a bird by
+// count, one per bird — birdRule.test.ts). Skewers and toothpicks are one per
+// piece of food and follow it (rule 1) — refused from the prompt's list, with
+// the catalog measure in lib/format/quantity.ts. A stalk or a rib prints whole: the
+// pinch rule (nearest, halves up, never below 1), by the unit or by the name on
+// a count unit. "star anise" is its own plural.
+
+describe("BUG-464 — equipment never scales", () => {
+  it("as written, at any size, never below 1", () => {
+    table([
+      ["large brining bag", 1, "each", 0.4, "1 large brining bag"], // was "⅜ large brining bag"
+      ["large brining bag", 1, "each", 2, "1 large brining bag"], // was "2 large brining bags"
+      ["aluminum foil", 1, "sheet", 0.5, "1 sheet aluminum foil"], // was "½ sheet"
+      ["parchment paper", 1, "sheet", 0.4, "1 sheet parchment paper"], // was "⅜ sheet"
+      ["kitchen twine", 0.5, "each", 1, "1 kitchen twine"], // never below 1
+      ["cheesecloth", 1, "each", 3, "1 cheesecloth"],
+      ["gallon-size zip-top bag", 1, "each", 0.5, "1 gallon-size zip-top bag"], // the server's tokens
+      ["turkey-size oven bag", 1, "each", 2, "1 turkey-size oven bag"],
+    ]);
+  });
+
+  it("skewers and toothpicks are one per piece: they follow the food, whole", () => {
+    table([
+      ["wooden skewers", 8, "each", 0.5, "4 wooden skewers"],
+      ["wooden or metal skewers", 8, "each", 2, "16 wooden or metal skewers"], // 2 lb shrimp, 4–5 per skewer
+      ["toothpicks", 4, "each", 0.3, "2 toothpicks"], // 1.2 → 2, rule 1's ceiling
+      ["toothpicks or kitchen twine", 8, "each", 0.5, "4 toothpicks or kitchen twine"], // was "…kitchen twines"
+    ]);
+  });
+
+  it("…and the step agrees; food wrapped in foil is still food", () => {
+    assert.equal(stepAmount("Seal the turkey in 1 large brining bag.", "1", 1, "", 0.4), "1");
+    assert.equal(stepAmount("Lay 1 sheet parchment paper on the tray.", "1 sheet", 1, "sheet", 2), "1 sheet");
+    assert.equal(stepAmount("Thread the shrimp onto 8 skewers.", "8", 8, "", 2), "16");
+    assert.equal(stepAmount("Wrap 8 flour tortillas in foil and warm.", "8", 8, "", 0.5), "4");
+    assert.equal(stepAmount("Roast 2 garlic cloves on a foil-lined sheet.", "2", 2, "", 0.5), "1");
+  });
+});
+
+describe("BUG-464 — a stalk or a rib prints whole", () => {
+  it("the nearest whole, halves up, never below 1", () => {
+    table([
+      ["celery", 2, "stalk", 0.4, "1 stalk celery"], // was "¾ stalk celery"
+      ["celery", 6, "stalk", 0.8, "5 stalks celery"], // was "4¾ stalks celery"
+      ["celery", 2, "stalk", 1.25, "3 stalks celery"], // 2.5, a half rounds up; was "2½"
+      ["celery", 2, "stalk", 0.6, "1 stalk celery"], // 1.2, nearest
+      ["celery", 1, "rib", 0.4, "1 rib celery"],
+      ["lemongrass", 3, "stalks", 0.5, "2 stalks lemongrass"], // was "1½ stalks"
+      ["celery stalks", 3, "each", 0.5, "2 celery stalks"], // by name on a count unit; was "1½"
+      ["lemongrass stalk", 1, "each", 0.5, "1 lemongrass stalk"], // was "½ lemongrass stalk"
+      ["celery stalks, diced", 2, "each", 0.75, "2 celery stalks, diced"], // was "1½"
+    ]);
+  });
+
+  it("a rib CHOP and ribs by weight are not stalks", () => {
+    table([
+      ["bone-in pork rib chops", 3, "each", 0.4, "2 bone-in pork rib chops"], // rule 1 ceils 1.2
+      ["baby back pork ribs", 3, "pound", 0.5, "1½ pounds baby back pork ribs"],
+    ]);
+  });
+
+  it("…and the step agrees", () => {
+    assert.equal(stepAmount("Dice 2 stalks of celery.", "2", 2, "", 0.4), "1");
+    assert.equal(stepAmount("Slice 3 celery stalks thin.", "3", 3, "", 0.5), "2");
+    assert.equal(stepAmount("Chop 2 stalks celery.", "2 stalks", 2, "stalks", 0.4), "1 stalk");
+  });
+});
+
+describe("BUG-464 — star anise is its own plural", () => {
+  it("never 'star anises'", () => {
+    table([
+      ["star anise", 3, "each", 1, "3 star anise"], // was "3 star anises"
+      ["whole star anise", 2, "each", 1, "2 whole star anise"],
+      ["star anise", 1, "each", 0.4, "1 star anise"],
+    ]);
+  });
+});

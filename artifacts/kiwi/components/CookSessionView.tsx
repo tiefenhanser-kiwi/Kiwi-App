@@ -48,6 +48,7 @@ import {
 } from "@/lib/cooking/cookSession";
 import { buildAmountRefSegments } from "@/lib/cooking/amountSegments";
 import type { AmountRef } from "@/lib/api/meals";
+import type { BirdLine } from "@/lib/format/quantity";
 
 // ── Sept 29 design review, item 10 — the screen stays awake while cooking ────
 //
@@ -97,6 +98,10 @@ interface Props {
   /** WEB-4b (BUG-454) — per-dish factors by dishId (a whole-bird dish scales by
    *  its bird); a step with no dishId, or a dish not listed, uses the above. */
   dishAmountMultipliers?: Readonly<Record<string, number>>;
+  /** WEB-4c (BUG-462) — per-dish parts and equipment factors, by dishId; a step
+   *  with no dishId, or a dish not listed, uses `mealOwnedBirds` (else 1 each). */
+  dishBirds?: Readonly<Record<string, BirdLine>>;
+  mealOwnedBirds?: BirdLine;
   currentIndex: number;
   /** Prepped path → render the mise-en-place recap card above the steps. */
   prepped: boolean;
@@ -136,17 +141,19 @@ function StepText({
   text,
   amountRefs,
   amountMultiplier,
+  birds,
   style,
 }: {
   text: string;
   amountRefs?: AmountRef[] | null;
   amountMultiplier: number;
+  birds?: BirdLine;
   style: object;
 }) {
   if (amountRefs && amountRefs.length > 0) {
     return (
       <Text style={style}>
-        {buildAmountRefSegments(text, amountRefs, amountMultiplier).map((seg, i) =>
+        {buildAmountRefSegments(text, amountRefs, amountMultiplier, birds).map((seg, i) =>
           seg.isRef ? (
             <Text key={i} style={s.quantity}>
               {seg.text}
@@ -170,6 +177,8 @@ export function CookSessionView({
   doneInPrepKeys = NO_KEYS,
   amountMultiplier,
   dishAmountMultipliers,
+  dishBirds,
+  mealOwnedBirds,
   currentIndex,
   prepped,
   showSkipBar,
@@ -189,6 +198,8 @@ export function CookSessionView({
   const offsets = useRef<Record<number, number>>({});
   const stepMultiplier = (step: CookStep): number =>
     (step.dishId !== undefined ? dishAmountMultipliers?.[step.dishId] : undefined) ?? amountMultiplier;
+  const stepBirds = (step: CookStep): BirdLine | undefined =>
+    (step.dishId !== undefined ? dishBirds?.[step.dishId] : undefined) ?? mealOwnedBirds;
 
   // ── Per-step timers (keyed by stable step.key, NOT index — survives the
   // prep-gate re-filter). State + the 1s tick + the completion haptic live in
@@ -397,6 +408,7 @@ export function CookSessionView({
                     text={step.text}
                     amountRefs={step.amountRefs}
                     amountMultiplier={stepMultiplier(step)}
+                    birds={stepBirds(step)}
                     style={s.stepText}
                   />
                 ) : (
@@ -441,6 +453,7 @@ export function CookSessionView({
                 text={step.text}
                 amountRefs={step.amountRefs}
                 amountMultiplier={stepMultiplier(step)}
+                birds={stepBirds(step)}
                 style={isCurrent ? s.stepTextCurrent : s.stepText}
               />
               {step.estimatedMinutes > 0 && (

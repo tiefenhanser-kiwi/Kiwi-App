@@ -450,6 +450,12 @@ const INVARIANT_NAME_NOUNS = new Set([
   "parsley",
   "asparagus",
   "celery",
+  // WEB-4c (BUG-464) — "3 star anise", never "3 star anises" (4 catalog lines);
+  // and the mass-noun equipment: "4 toothpicks or kitchen twine" (3 lines).
+  "anise",
+  "twine",
+  "foil",
+  "cheesecloth",
 ]);
 
 // -o nouns that take -es. Explicit and tiny on purpose: English is inconsistent

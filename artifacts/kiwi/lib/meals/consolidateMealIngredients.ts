@@ -36,7 +36,7 @@
 
 import { formatIngredientLine, ingredientAmountNote } from "../format/ingredientLine";
 import { normalizeUnitToken } from "../format/grocery";
-import { dishScaleFactor, lineMultiplier } from "../format/quantity";
+import { birdPartsFactor, dishBirdLine, dishScaleFactor, lineMultiplier } from "../format/quantity";
 import type { MealDetail } from "../api/meals";
 
 /** One consolidated line: a name, an amount, and where it came from. */
@@ -88,9 +88,12 @@ export function consolidateMealIngredients(
   const byKey = new Map<string, ConsolidatedIngredient & { titles: Set<string> }>();
   const order: string[] = [];
 
+  // WEB-4c (BUG-462) — a bird's parts are one per bird of the MEAL's bird.
+  const parts = birdPartsFactor(meal.dishes, multiplier);
   for (const dish of meal.dishes) {
     // WEB-4b (BUG-454) — a whole-bird dish scales by its bird's factor.
     const factor = dishScaleFactor(dish.ingredients, multiplier);
+    const birds = dishBirdLine(dish.ingredients, multiplier, parts);
     for (const ing of dish.ingredients) {
       const unit = (ing.unit ?? "").trim();
       // ⛔ The unit token is the second half of the key. Two units that
@@ -98,7 +101,7 @@ export function consolidateMealIngredients(
       const key = `${groupKeyName(ing.name)}|${normalizeUnitToken(unit)}`;
       // FIX-7 rule 4 — a whole bird by weight is not scaled down; the line
       // below gets multiplier 1, so the bird rule has to be applied here.
-      const scaled = ing.quantity * lineMultiplier(factor, unit, ing.name, ing.quantity);
+      const scaled = ing.quantity * lineMultiplier(factor, unit, ing.name, ing.quantity, birds);
       const hit = byKey.get(key);
       if (hit) {
         hit.quantity += scaled;

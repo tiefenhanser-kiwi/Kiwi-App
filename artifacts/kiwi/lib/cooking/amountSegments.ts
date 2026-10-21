@@ -12,7 +12,15 @@
 
 import type { AmountRef } from "../api/meals";
 import { unitWordFor } from "../format/grocery";
-import { displayedQuantity, formatQuantity, isBirdPart, wholeItemMultiplier } from "../format/quantity";
+import {
+  displayedQuantity,
+  formatQuantity,
+  isBirdPart,
+  isEquipment,
+  ONE_BIRD,
+  wholeItemMultiplier,
+  type BirdLine,
+} from "../format/quantity";
 
 // ── WS9 BUG-326 — A RANGE IS NOT ITS MIDPOINT ──────────────────────────────
 //
@@ -174,6 +182,8 @@ export function buildAmountRefSegments(
   text: string,
   amountRefs: AmountRef[] | null | undefined,
   multiplier: number,
+  /** WEB-4c (BUG-462, BUG-464) — the step's dish's bird line: parts, equipment, bird sizes. */
+  birds: BirdLine = ONE_BIRD,
 ): AmountSegment[] {
   if (!amountRefs || amountRefs.length === 0) {
     return [{ text, isRef: false }];
@@ -221,10 +231,16 @@ export function buildAmountRefSegments(
       const hyphenBird = r.unit ? null : HYPHEN_BIRD.exec(text.slice(r.charEnd));
       const birdName = hyphenBird ? `whole ${hyphenBird[2]}` : name;
       // WEB-4b (BUG-454) — `multiplier` is the step's DISH factor; "1 turkey
-      // neck" is one neck at any size.
-      const amount = isBirdPart(name)
-        ? r.quantity
-        : r.quantity * wholeItemMultiplier(multiplier, birdUnit, birdName, r.quantity);
+      // neck" is one neck per bird. WEB-4c (BUG-464) — "8 skewers" is eight
+      // skewers at any size (the words up to the first preposition: "8 flour
+      // tortillas in foil" is not equipment). WEB-4c (BUG-462) — a bird's own
+      // size is per bird: in a dish of two birds by count, "a frozen 14-lb
+      // turkey" is still 14 lb (the dish factor ÷ the birds).
+      const amount = isEquipment(name)
+        ? r.quantity * birds.birds
+        : isBirdPart(name)
+          ? r.quantity * birds.parts
+          : r.quantity * wholeItemMultiplier(hyphenBird ? multiplier / birds.birds : multiplier, birdUnit, birdName, r.quantity);
       const scaled = hyphenBird ? formatQuantity(amount, hyphenBird[1], "") : formatQuantity(amount, r.unit, name);
       // BUG-321 — the unit is a WORD here, same as on an ingredient line, and
       // pluralized on the DISPLAYED amount so "1 cups" cannot happen. FIX-7 —

@@ -144,6 +144,7 @@ interface Overrides {
   onExit?: () => void;
   amountMultiplier?: number;
   dishAmountMultipliers?: Record<string, number>;
+  dishBirds?: Record<string, { parts: number; birds: number }>;
 }
 
 function renderView(o: Overrides = {}) {
@@ -156,6 +157,7 @@ function renderView(o: Overrides = {}) {
         doneInPrepKeys: o.doneInPrepKeys,
         amountMultiplier: o.amountMultiplier ?? 1,
         dishAmountMultipliers: o.dishAmountMultipliers,
+        dishBirds: o.dishBirds,
         currentIndex: o.currentIndex ?? 0,
         prepped: o.prepped ?? false,
         showSkipBar: o.showSkipBar ?? false,
@@ -249,6 +251,27 @@ test("BUG-454: Cook Mode scales each step by its dish's factor — the brine fol
   assert.ok(!texts.includes("¼ cup kosher salt"), `brine by servings leaked: ${texts}`);
   // 2 cups × 0.4 = 0.8 → ¾ cup (a cup set's nearest).
   assert.equal(texts.split("¾ cup pumpkin").length - 1, 2, `pie (and the dish-less step) by servings: ${texts}`);
+});
+
+// WEB-4c (BUG-462) — the bird line reaches Cook Mode: two turkeys by count need
+// two brining bags, and a dish with no bird keeps its one bag.
+test("BUG-462: Cook Mode's equipment is one per bird of its own dish", () => {
+  const seal = "Seal the turkey in 1 large brining bag";
+  const ref = [{ ingredientId: "b", quantity: 1, unit: "", charStart: 19, charEnd: 20 }];
+  const steps: CookStep[] = [
+    { key: "t#0", dishId: "turkey", stepIndex: 0, text: seal, phaseType: "prep", estimatedMinutes: 2, isTimingSensitive: false, amountRefs: ref },
+    { key: "s#0", dishId: "side", stepIndex: 0, text: seal, phaseType: "prep", estimatedMinutes: 2, isTimingSensitive: false, amountRefs: ref },
+  ];
+  const texts = flat(
+    renderView({
+      steps,
+      amountMultiplier: 2,
+      dishAmountMultipliers: { turkey: 2, side: 2 },
+      dishBirds: { turkey: { parts: 2, birds: 2 }, side: { parts: 2, birds: 1 } },
+    }).toJSON() as RenderedNode | null,
+  );
+  assert.equal(texts.split("2 large brining bag").length - 1, 1, `the turkey dish: two bags: ${texts}`);
+  assert.equal(texts.split("1 large brining bag").length - 1, 1, `the other dish: one bag, not by servings: ${texts}`);
 });
 
 // ── Session render + engine ──────────────────────────────────────────────────

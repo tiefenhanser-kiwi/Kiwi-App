@@ -337,6 +337,8 @@ export default function CookSession() {
       doneInPrepKeys={doneInPrepKeys}
       amountMultiplier={amountScale?.mealOwned ?? amountMultiplier}
       dishAmountMultipliers={amountScale?.byDish}
+      dishBirds={amountScale?.birds}
+      mealOwnedBirds={amountScale?.mealOwnedBirds}
       currentIndex={safeIndex}
       prepped={prepped}
       showSkipBar={showSkipBar}
