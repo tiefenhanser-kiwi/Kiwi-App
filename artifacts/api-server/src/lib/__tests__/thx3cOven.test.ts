@@ -59,6 +59,13 @@ function vegetarian(): SchedulerDish[] {
       step("cook", 20, "Boil the potatoes."),
       step("assemble", 9, "Drain and mash."),
     ]),
+    // Hands-on work that competes with the Wellington's assembly (the gravy and the
+    // mash held the cook on dev): it is what made a fixed preheat leave the oven idle.
+    dish("gravy", "Mushroom Gravy", 5, [
+      step("prep", 15, "Slice the mushrooms, mince the shallots."),
+      step("assemble", 15, "Make the roux and whisk in the broth."),
+      step("prep", 10, "Strain and season the gravy."),
+    ]),
   ];
 }
 
