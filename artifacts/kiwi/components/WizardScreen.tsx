@@ -729,6 +729,22 @@ export function WizardScreen({
           <Section label="Tell Kiwi" title={TEXT_SECTION_TITLE}>
             <Text style={s.cardSubtitle}>{TEXT_SECTION_SUBLINE}</Text>
             <View style={{ marginTop: Spacing[3] }}>
+              {/* WEB-4c (BUG-466) — the placeholder is about 7 lines at 375 and
+                  more at large text, in a box of 4: it was cut mid-line. While
+                  the box is empty, an invisible copy of it sizes the box and the
+                  input fills that box, so the whole placeholder shows at any
+                  width or text size. The input keeps its slot (no remount). */}
+              {form.description.length === 0 && (
+                <Text
+                  style={[s.input, s.descriptionInput, s.placeholderSizer]}
+                  accessible={false}
+                  importantForAccessibility="no-hide-descendants"
+                  aria-hidden
+                  testID="wizard-text-sizer"
+                >
+                  {PLACEHOLDER}
+                </Text>
+              )}
               <TextInput
                 ref={textInputRef}
                 value={form.description}
@@ -743,7 +759,7 @@ export function WizardScreen({
                 maxLength={DESCRIPTION_MAX}
                 returnKeyType="default"
                 blurOnSubmit
-                style={[s.input, s.descriptionInput]}
+                style={[s.input, s.descriptionInput, form.description.length === 0 && s.descriptionFill]}
                 testID="wizard-text"
               />
               <Text style={s.charCount}>
@@ -1201,6 +1217,9 @@ const s = StyleSheet.create({
     paddingVertical: Spacing[3],
     lineHeight: 22,
   },
+  // WEB-4c (BUG-466) — the empty box's sizer (never painted) and the input over it.
+  placeholderSizer: { opacity: 0, maxHeight: 1000 },
+  descriptionFill: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, maxHeight: 1000 },
   charCount: {
     fontSize: Typography.fontSize.xs,
     color: Colors.neutral[700],

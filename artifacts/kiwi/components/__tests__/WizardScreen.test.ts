@@ -638,3 +638,21 @@ test("FIX-4: a shelf run refreshes 'See previous options' (the server overwrote 
   const after = calls.filter((c) => c.path.endsWith("/wizard/last-batch")).length;
   assert.ok(after > before, `last-batch re-read after the shelf run (${before} → ${after})`);
 });
+
+// ── WEB-4c (BUG-466) — the whole placeholder shows ──────────────────────────
+// At 375 on the web the placeholder (about 7 lines) was cut mid-line in a box of
+// 4. While the box is empty an invisible copy of it sizes the box, and the input
+// fills that box; once there is text the box is the input alone.
+test("BUG-466: an empty box is sized by its placeholder; a typed one by its text", async () => {
+  const m = await mount({ mode: "text" });
+  const box = byTestId(m.root(), "wizard-text")!;
+  const sizer = byTestId(m.root(), "wizard-text-sizer");
+  assert.ok(sizer, "the sizer renders while the box is empty");
+  assert.equal(allText(sizer!).join(""), box.props.placeholder, "it holds the placeholder itself");
+  assert.equal(flatten(sizer!.props.style).opacity, 0, "never painted");
+  assert.equal(sizer!.props.accessible, false, "never read aloud");
+  assert.equal(flatten(box.props.style).position, "absolute", "the input fills the sized box");
+  await typeText(m.root, "tacos twice");
+  assert.equal(byTestId(m.root(), "wizard-text-sizer"), undefined, "no sizer once there is text");
+  assert.notEqual(flatten(byTestId(m.root(), "wizard-text")!.props.style).position, "absolute");
+});
