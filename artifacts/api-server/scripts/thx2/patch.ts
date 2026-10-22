@@ -42,6 +42,7 @@ import { nameCutAmounts } from "./thx2Amounts";
 import { AHEAD_TAG, aheadDaysOf, aheadTags, dishSpecFor, keepsDaysFor, loadTargets, validateTargets } from "./thx2Core";
 import { fixKeepClause, hasThursdayStep, retargetMakeAheadDay, thursdayServeStep } from "./thx2Checks";
 import { countsInWords, mergeRefs, missingRows } from "./thx2Rows";
+import { thawStepText } from "../../src/lib/feastAddedDish";
 import { formatOvenReport, heldDishSteps, oneOvenTemperature, ovenReport, raiseOvenStep, retimeDish, splitPreheatSteps, type OvenStepRow } from "./thx2Oven";
 
 const argv = process.argv.slice(2);
@@ -175,6 +176,21 @@ for (const t of feasts) {
       const stepIndex = Math.max(-1, ...steps.map((s) => s.stepIndex)) + 1;
       plan.creates.push({ dishId: d.id, title: d.title, stepIndex, text: step.text, phaseType: step.phaseType, estimatedMinutes: step.estimatedMinutes, refs: deriveAmountRefs(step.text, matcher).amountRefs });
     }
+    // 13. THX-3d (F) — a thaw tag with no thaw step (Small's breast, thaw-2d): the Hub's
+    // thaw row opened the whole dish. A code-written thaw step opens it; the rest move down.
+    const thawTag = wantTags.map((x) => /^thaw-(\d+)d$/.exec(x)).find((m) => m);
+    if (thawTag && !steps.some((s) => /^\s*Thaw \(/i.test(texts.get(s.id)!))) {
+      const n = Number(thawTag[1]);
+      const WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      const word = /\bbreast\b/i.test(d.title) ? "turkey breast" : "turkey";
+      const firstAhead = steps.map((s) => MAKE_AHEAD_DAY.exec(texts.get(s.id)!)?.[1]).find((x): x is string => !!x) ?? "Thursday";
+      for (const s of [...steps].sort((a, b) => b.stepIndex - a.stepIndex)) {
+        plan.renumbers.push({ stepId: s.id, title: d.title, from: s.stepIndex, to: s.stepIndex + 1 });
+        s.stepIndex += 1;
+      }
+      const text = thawStepText(word, WEEK[(4 - n + 7) % 7], firstAhead);
+      plan.creates.push({ dishId: d.id, title: d.title, stepIndex: 0, text, phaseType: "prep", estimatedMinutes: 2, refs: deriveAmountRefs(text, matcher).amountRefs });
+    }
     stepsByDish.set(d.id, steps.map((s) => ({ ...s, stepTextTranslated: texts.get(s.id)! })));
     for (const s of steps) storedStep.set(s.id, s);
     matcherOf.set(d.id, matcher);
@@ -307,7 +323,11 @@ for (const t of feasts) {
     for (const u of plan.refUpdates) await tx.recipeInstructionStep.update({ where: { id: u.stepId }, data: { amountRefs: u.refs as Prisma.InputJsonValue } });
     for (const u of plan.minuteUpdates) await tx.recipeInstructionStep.update({ where: { id: u.stepId }, data: { estimatedMinutes: u.to } });
     // Latest first, so two rows never share an index mid-move.
-    for (const u of [...plan.renumbers].sort((a, b) => b.from - a.from)) await tx.recipeInstructionStep.update({ where: { id: u.stepId }, data: { stepIndex: u.to } });
+    // THX-3d — a step moved twice (the thaw step, then the raise step) goes straight to
+    // its last index: one move per step.
+    const finalIndex = new Map<string, { from: number; to: number }>();
+    for (const u of plan.renumbers) finalIndex.set(u.stepId, { from: finalIndex.get(u.stepId)?.from ?? u.from, to: u.to });
+    for (const [stepId, u] of [...finalIndex].sort((a, b) => b[1].from - a[1].from)) await tx.recipeInstructionStep.update({ where: { id: stepId }, data: { stepIndex: u.to } });
     for (const c of plan.creates) {
       await tx.recipeInstructionStep.create({
         data: { ownerType: "dish", ownerId: c.dishId, stepIndex: c.stepIndex, stepTextRaw: c.text, stepTextTranslated: c.text, phaseType: c.phaseType, estimatedMinutes: c.estimatedMinutes, isTimingSensitive: false, amountRefs: c.refs as Prisma.InputJsonValue },

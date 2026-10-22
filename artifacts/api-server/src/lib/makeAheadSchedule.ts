@@ -4,7 +4,8 @@
 // stock, or assembling a casserole … simmering the gizzards and neck on Tuesday
 // night … it said Turkey was brining for 24 hours … that's hands-off time."
 //
-// Deterministic and free: built from the feast dishes' tags (THX-2G-E's contract)
+// Deterministic and free: built from the feast dishes' tags (THX-2G-E's contract) and,
+// THX-3d, the days their steps name (feastPrefixes)
 // and the plan's own dates, no AI. The Hub reads it off GET /plans/:id as the
 // optional `makeAhead` field; only a plan holding a `thanksgiving-feast` meal has
 // one. Copy is the client's — each row says WHAT and WHEN, in data.
@@ -20,6 +21,7 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { FEAST_MEAL_TAG } from "./prepWeekAggregation";
+import { prefixDaysOf } from "./feastPrefixes";
 
 export interface MakeAheadDishInput {
   dishId: string;
@@ -178,6 +180,23 @@ export function buildMakeAheadSchedule(input: MakeAheadInput): MakeAheadSchedule
     if (brine !== undefined) {
       const hours = brineHoursOf(d.stepTexts);
       rows.push({ kind: "brine", ...at(before(brine)), ...base, ...(hours ? { brineHours: hours } : {}) });
+    }
+    // THX-3d (F, R6) — AND THE DAYS ITS STEPS NAME, where no tag already gives that
+    // row (feastPrefixes): Small's untagged make-ahead steps, and a dish added to the
+    // feast. A step-named day carries no keep-days (that is the tag's table).
+    const named = prefixDaysOf(d.stepTexts);
+    if (thaw === undefined && named.thaw !== null) {
+      const days = before(SHORT[named.thaw]);
+      rows.push({ kind: "thaw", ...at(days), ...base, thawDays: days });
+    }
+    for (const day of named.make) {
+      if (aheads.includes(SHORT[day])) continue;
+      rows.push({ kind: "make", ...at(before(SHORT[day])), ...base });
+    }
+    for (const day of named.night) {
+      if (brine === SHORT[day]) continue;
+      const hours = brineHoursOf(d.stepTexts);
+      rows.push({ kind: "brine", ...at(before(SHORT[day])), ...base, ...(hours ? { brineHours: hours } : {}) });
     }
   });
   rows.sort((a, b) => b.daysBefore - a.daysBefore || KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || a.pos - b.pos);

@@ -93,6 +93,8 @@ interface DishRow {
   fatGPerServing?: number;
   macroGroundedPct?: number | null;
   dishIngredients?: Array<{ ingredientId: string; quantity: number; unit: string }>;
+  /** THX-3d (F) — the tags a re-created dish keeps. */
+  tags?: string[];
 }
 interface LinkRow {
   mealId: string;
@@ -1679,6 +1681,42 @@ describe("Stripe S2 Part C — an UNENTITLED edit leaves stored macros alone (pi
       // instead of silence.
       const body = (await res.json()) as { macrosPreserved?: boolean };
       assert.equal(body.macrosPreserved, true);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // THX-3d (F, R6) — an "Apply always" edit of a forked feast sends every dish as new
+  // with no tags, and the re-create wrote none: the make-ahead card went empty.
+  it("THX-3d: a re-created dish keeps the deleted slot's tags when the payload sends none", async () => {
+    const { prisma, captured } = makeStub({
+      meals: [{ id: "meal-1", userId: USER_ID, isArchived: false }],
+      dishes: [
+        {
+          id: "dish-1",
+          userId: USER_ID,
+          isArchived: false,
+          servingsDefault: 4,
+          caloriesPerServing: 300,
+          proteinGPerServing: 10,
+          carbsGPerServing: 40,
+          fatGPerServing: 12,
+          macroGroundedPct: null,
+          tags: ["ahead-wed", "keeps-1d", "assemble"],
+          dishIngredients: [{ ingredientId: "ing-rice", quantity: 1, unit: "cup" }],
+        },
+      ],
+      links: [{ mealId: "meal-1", dishId: "dish-1", positionIndex: 0 }],
+    });
+    const gate = recordingUnentitled();
+    const harness = await spinUp(prisma, gate.service);
+    try {
+      const res = await authPatch(harness, "/me/meals/meal-1", {
+        dishes: [{ kind: "new", title: "Sage Stuffing", role: "side", positionIndex: 0, servingsDefault: 4, ingredients: [{ name: "Rice", quantity: 1, unit: "cup" }], steps: [{ text: "Make ahead (Wednesday): Assemble." }] }],
+      });
+      assert.equal(res.status, 200);
+      assert.equal(captured.dishCreates.length, 1);
+      assert.deepEqual((captured.dishCreates[0] as { tags?: string[] }).tags, ["ahead-wed", "keeps-1d", "assemble"]);
     } finally {
       await harness.close();
     }

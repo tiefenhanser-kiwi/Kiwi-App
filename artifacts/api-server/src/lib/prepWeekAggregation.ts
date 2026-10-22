@@ -18,6 +18,7 @@ import type { DishRole, PrismaClient } from "@prisma/client";
 import { resolvePrepCategory } from "./prepCategoryOverride";
 import { selectDefaultPathSteps } from "./cookingScheduler";
 import type { ComponentStep } from "./prepComponents";
+import { prefixDaysOf } from "./feastPrefixes";
 import { admitSubsumesEdge, ingredientGroupKey } from "./ingredientRelations";
 import { normalizeIngredientName } from "./groceryNormalization";
 
@@ -657,6 +658,14 @@ export async function loadPrepWeekInput(
           ...(dishComponentStepsByOwner.get(dish.dishId) ?? []),
           ...mealOwnedComponents,
         ].map(({ refs, ...s }) => (listedTwice ? { ...s, refs } : s));
+        // THX-3d (F, R6) — a feast dish's days are the ones its steps name too
+        // (feastPrefixes): Small's untagged make-ahead steps, a dish added to the feast.
+        if (meal.feast) {
+          const named = prefixDaysOf(dish.componentSteps.map((c) => c.text));
+          const days = [...(dish.makeAheadDays ?? [])];
+          for (const day of [...named.make, ...named.night]) if (!days.includes(day)) days.push(day);
+          if (days.length > 0) dish.makeAheadDays = days;
+        }
       }
     }
   }

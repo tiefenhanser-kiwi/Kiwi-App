@@ -1106,6 +1106,8 @@ export interface PriorDishState {
   macroGroundedPct: number | null;
   /** `ingredientId|quantity|unit`, sorted — the change test's other half. */
   ingredientKeys: string[];
+  /** THX-3d (F) — the dish's tags, so a re-created feast dish keeps its make-ahead days. */
+  tags?: string[];
 }
 
 const PRIOR_DISH_SELECT = {
@@ -1116,6 +1118,7 @@ const PRIOR_DISH_SELECT = {
   carbsGPerServing: true,
   fatGPerServing: true,
   macroGroundedPct: true,
+  tags: true,
   dishIngredients: {
     select: { ingredientId: true, quantity: true, unit: true },
   },
@@ -1161,6 +1164,7 @@ export async function readPriorDishesByPosition(
       ingredientKeys: d.dishIngredients
         .map((di) => `${di.ingredientId}|${di.quantity}|${di.unit.toLowerCase().trim()}`)
         .sort(),
+      tags: d.tags,
     });
   }
   return out;
@@ -1457,6 +1461,11 @@ export async function rematerializeMeal(
           authoredServingsDefault: inheritedAuthoredServings,
           isArchived: false,
           ...macros,
+          // 🔴 THX-3d (F, R6) — THE DISH KEEPS ITS TAGS. An "Apply always" edit sends every
+          // dish as new, and this re-create wrote none: a forked feast lost every
+          // ahead-/keeps-/thaw-/brine-/assemble tag and its make-ahead card went empty.
+          // What the client sent wins; else the deleted dish at this slot's.
+          ...(d.tags && d.tags.length > 0 ? { tags: d.tags } : prior?.tags && prior.tags.length > 0 ? { tags: prior.tags } : {}),
         },
         select: { id: true },
       });

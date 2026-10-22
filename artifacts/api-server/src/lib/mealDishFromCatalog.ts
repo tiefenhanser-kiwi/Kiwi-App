@@ -29,6 +29,9 @@
 import type { Prisma } from "@prisma/client";
 
 import { cloneDishForUser } from "./mealFork";
+import { feastDaysForAddedDish } from "./feastAddedDish";
+import { FEAST_MEAL_TAG } from "./prepWeekAggregation";
+import { isWholeBirdByCount, isWholeBirdByWeight } from "./prepQuantity";
 import { exclusiveDishIdsOf, finishMealGraphWrite } from "./mealMaterialize";
 
 export type CopyCatalogDishResult =
@@ -67,7 +70,7 @@ export async function copyCatalogDishIntoMeal(
   // catalog (userId null) or another user's meal.
   const target = await tx.meal.findUnique({
     where: { id: targetMealId },
-    select: { userId: true, isArchived: true, servingsDefault: true, authoredServingsDefault: true },
+    select: { userId: true, isArchived: true, servingsDefault: true, authoredServingsDefault: true, tags: true },
   });
   if (!target || target.isArchived) return { kind: "target_not_found" };
   if (target.userId === null || target.userId !== userId) return { kind: "target_forbidden" };
@@ -114,6 +117,13 @@ export async function copyCatalogDishIntoMeal(
   });
 
   // Replace keeps the slot; add goes last.
+  // THX-3d (F, R6) — copied into a FEAST, the dish gets its days (feastAddedDish): the
+  // replaced dish's tags are read before it is deleted, for its thaw.
+  if ((target.tags ?? []).includes(FEAST_MEAL_TAG)) {
+    const replacedTags = replaced ? (await tx.dish.findUnique({ where: { id: replaced.dishId }, select: { tags: true } }))?.tags ?? [] : [];
+    await giveFeastDays(tx, dishId, sourceDish.title, replacedTags);
+  }
+
   const positionIndex = replaced
     ? replaced.positionIndex
     : links.reduce((max, l) => Math.max(max, l.positionIndex), -1) + 1;
@@ -140,4 +150,47 @@ export async function copyCatalogDishIntoMeal(
   await finishMealGraphWrite(tx, targetMealId, dishIds);
 
   return { kind: "copied", dishId, dishIds, positionIndex, targetServings, sourceServings, factor };
+}
+
+/**
+ * THX-3d (F, R6) — write an added feast dish's days into its copy: the steps' day
+ * phrases (amountRefs moved with the text), the tags, and the code-written thaw and
+ * serve steps (feastAddedDish). A dish that already names its days is left alone.
+ */
+async function giveFeastDays(tx: Prisma.TransactionClient, dishId: string, title: string, replacedTags: readonly string[]): Promise<void> {
+  const dish = await tx.dish.findUnique({
+    where: { id: dishId },
+    select: { tags: true, dishIngredients: { select: { quantity: true, unit: true, ingredient: { select: { canonicalName: true } } } } },
+  });
+  if (!dish) return;
+  const steps = await tx.recipeInstructionStep.findMany({
+    where: { ownerType: "dish", ownerId: dishId },
+    orderBy: { stepIndex: "asc" },
+    select: { id: true, stepIndex: true, stepTextTranslated: true, amountRefs: true },
+  });
+  const isWholeBird = dish.dishIngredients.some((i) => isWholeBirdByWeight(i.unit, i.ingredient.canonicalName) || isWholeBirdByCount(i.unit, i.ingredient.canonicalName));
+  const days = feastDaysForAddedDish({ title, tags: dish.tags, steps: steps.map((st) => ({ stepIndex: st.stepIndex, text: st.stepTextTranslated })), isWholeBird, replacedTags });
+  if (days.texts.size === 0 && days.creates.length === 0) return;
+  // Latest first, so two rows never share an index mid-move.
+  for (const st of [...steps].sort((a, b) => b.stepIndex - a.stepIndex)) {
+    const text = days.texts.get(st.stepIndex);
+    const moved = text !== undefined ? text.length - st.stepTextTranslated.length : 0;
+    const refs = Array.isArray(st.amountRefs)
+      ? (st.amountRefs as { charStart: number; charEnd: number }[]).map((r) => ({ ...r, charStart: r.charStart + moved, charEnd: r.charEnd + moved }))
+      : st.amountRefs;
+    await tx.recipeInstructionStep.update({
+      where: { id: st.id },
+      data: {
+        stepIndex: st.stepIndex + days.shift,
+        ...(text !== undefined ? { stepTextRaw: text, stepTextTranslated: text, amountRefs: refs as Prisma.InputJsonValue } : {}),
+      },
+    });
+  }
+  // The creates carry their final indexes (the thaw 0, the serve after the moved last).
+  for (const c of days.creates) {
+    await tx.recipeInstructionStep.create({
+      data: { ownerType: "dish", ownerId: dishId, stepIndex: c.stepIndex, stepTextRaw: c.text, stepTextTranslated: c.text, phaseType: c.phaseType, estimatedMinutes: c.estimatedMinutes, isTimingSensitive: false, amountRefs: [] },
+    });
+  }
+  if (days.tags.join("|") !== dish.tags.join("|")) await tx.dish.update({ where: { id: dishId }, data: { tags: days.tags } });
 }
