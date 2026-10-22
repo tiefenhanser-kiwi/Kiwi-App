@@ -545,6 +545,11 @@ function buildLines(contributions: PrepContribution[]): PrepCombinedLine[] {
   });
 }
 
+// THX-3d (F's probe) — a Pantry row that is a crust or a dough is bought and
+// unrolled, never measured into a bowl: the Sweet Potato Pie's "refrigerated pie
+// crust (contains wheat)" sat in its dry mix beside the sugar and the cinnamon.
+const NOT_A_DRY_GOOD = /\b(?:pie\s+crusts?|crusts?|pastry|dough|phyllo|filo|tortillas?|refrigerated)\b/i;
+
 // Tier-3 blend detection: per dish, the set of distinct ingredientIds that are
 // Pantry, assigned to seasonings_dry, and NOT denylisted. 3+ such on one dish
 // → all of them are blend components (worth pre-measuring together).
@@ -556,6 +561,7 @@ function detectBlendComponents(input: PrepCombineInput, opts: CombineOptions = {
       for (const ing of dish.ingredients) {
         if (isDenied(ing.ingredientName, opts)) continue;
         if (categoryKey(ing.category) !== "pantry") continue;
+        if (NOT_A_DRY_GOOD.test(ing.ingredientName)) continue;
         if (assignPhase(ing.category, ing.ingredientName, ing.purchaseUnit) === "seasonings_dry") {
           // H6.1 — the blend detector counts DISTINCT FOODS, for the same reason
           // the groups do: two rows for one spice are not two items of a 3+ blend.

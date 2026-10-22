@@ -74,3 +74,22 @@ describe("THX-3d R1 — another vessel is another mix; the same vessel is one", 
     ]);
   });
 });
+
+describe("THX-3d R1 — a crust is bought and unrolled, never a dry-mix member", () => {
+  it("the Sweet Potato Pie's dry mix is its sugars and spices, without the refrigerated pie crust", () => {
+    const rows = [
+      ing(1, "granulated sugar", "Pantry", 1, "cup"),
+      ing(2, "light brown sugar", "Pantry", 0.5, "cup"),
+      ing(3, "ground cinnamon", "Pantry", 2, "teaspoon"),
+      ing(4, "ground nutmeg", "Pantry", 0.5, "teaspoon"),
+      ing(5, "refrigerated pie crust (contains wheat)", "Pantry", 4, "each"),
+    ];
+    const mixes = containers(feast("Sweet Potato Pie", rows, [
+      step(0, "prep", "Make ahead (Wednesday): Unroll 4 pie crusts into two 9-inch pie dishes.", [5], [[5, 4]]),
+      step(1, "prep", "Make ahead (Wednesday): Add 1 cup granulated sugar, ½ cup light brown sugar, 2 teaspoons cinnamon and ½ teaspoon nutmeg.", [1, 2, 3, 4], [[1, 1], [2, 0.5], [3, 2], [4, 0.5]]),
+    ], ["wed"]), "seasonings_dry");
+    assert.equal(mixes.length, 1);
+    assert.ok(!mixes[0].includes("crust"), mixes[0]);
+    assert.ok(mixes[0].includes("granulated sugar"), mixes[0]);
+  });
+});
