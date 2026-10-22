@@ -159,6 +159,8 @@ interface Overrides {
   checked?: Iterable<string>;
   /** BUG-020 — swap the fixture (e.g. a skippable phase that HAS a step). */
   resultOverride?: PrepWeekResult;
+  /** WEB-4d — Prep the feast. */
+  session?: "feast";
 }
 
 function renderView(o: Overrides = {}) {
@@ -183,6 +185,7 @@ function renderView(o: Overrides = {}) {
         advanceToast: o.advanceToast ?? null,
         onExit: o.onExit ?? NOOP,
         onToggleStep: o.onToggleStep,
+        session: o.session,
       }),
     );
   });
@@ -279,6 +282,21 @@ test("where each goes: renders one display-only label row per destination (name 
   assert.ok(texts.includes("Where each goes"), `missing where-card heading: ${texts}`);
   assert.ok(texts.includes("Chicken Fajitas · Tuesday"), `missing M1 label: ${texts}`);
   assert.ok(texts.includes("Veggie Risotto · Wednesday"), `missing M2 label: ${texts}`);
+});
+
+// WEB-4d (BUG-468 R3) — Prep the feast is one meal, so the card named it on
+// every step. The week keeps it (the test above); the feast does not, and only
+// the card goes: the step, its pill and its storage note stay.
+test("where each goes: hidden in the feast session, kept on the week", () => {
+  const week = flat(renderView({ phaseIndex: 2 }).toJSON() as RenderedNode | null);
+  const feast = flat(
+    renderView({ phaseIndex: 2, session: "feast" }).toJSON() as RenderedNode | null,
+  );
+  assert.ok(week.includes("Where each goes"), `week lost the card: ${week}`);
+  assert.ok(!feast.includes("Where each goes"), `feast still shows the card: ${feast}`);
+  assert.ok(!feast.includes("Chicken Fajitas · Tuesday"), `feast still shows a row: ${feast}`);
+  assert.ok(feast.includes("combines 2 meals"), `feast lost the pill: ${feast}`);
+  assert.ok(feast.includes("Airtight, 4 days"), `feast lost the storage note: ${feast}`);
 });
 
 test("storageNote: rendered when present", () => {

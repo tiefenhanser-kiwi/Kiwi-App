@@ -59,6 +59,9 @@ interface Props {
   /** PREP-1 — one quiet line under the tally (the feast session's day, or where
    *  the feast's prep went). */
   notice?: string | null;
+  /** WEB-4d (BUG-468 R3) — "feast" is Prep the feast: one meal, so the
+   *  "Where each goes" card would name it on every step. Hidden there. */
+  session?: "feast";
   vm: PrepWeekVM;
   /** Distinct meals the week's prep combines — drives the subtitle. */
   mealCount: number;
@@ -130,9 +133,11 @@ function StepCheckbox({
 
 function StepCard({
   step,
+  showDestinations,
   onToggleStep,
 }: {
   step: PrepStepVM;
+  showDestinations: boolean;
   onToggleStep?: (stepKey: string) => void;
 }) {
   return (
@@ -168,8 +173,9 @@ function StepCard({
         </View>
       )}
 
-      {/* "Where each goes" — display-only destination labels (Option 1). */}
-      {step.destinations.length > 0 && (
+      {/* "Where each goes" — display-only destination labels (Option 1). Not in
+          Prep the feast: every step goes to the one meal (BUG-468 R3). */}
+      {showDestinations && step.destinations.length > 0 && (
         <View style={s.whereCard}>
           <Text style={s.whereHeading}>Where each goes</Text>
           {step.destinations.map((d, i) => (
@@ -191,6 +197,7 @@ export function PrepWeekView({
   planName,
   title = "Prep the Week",
   notice,
+  session,
   vm,
   mealCount,
   phaseIndex,
@@ -344,6 +351,7 @@ export function PrepWeekView({
             <StepCard
               key={step.stepKey}
               step={step}
+              showDestinations={session !== "feast"}
               onToggleStep={onToggleStep}
             />
           ))

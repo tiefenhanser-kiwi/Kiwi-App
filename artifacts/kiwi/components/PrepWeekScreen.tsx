@@ -354,6 +354,7 @@ export function PrepWeekScreen({
         planName={resolveDisplayTitle(planQuery.data, "Your week")}
         title={headerTitle}
         notice={notice}
+        session={session}
         vm={vm}
         mealCount={mealCount}
         phaseIndex={phaseIndex}
