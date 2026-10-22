@@ -154,6 +154,10 @@ describe("THX-3d M — a cut held for cook day is a step on that day", () => {
       { stepIndex: 2, text: "On Thursday: Bake the casserole." },
     ];
     assert.deepEqual(heldCutPlace(steps, "sweet potatoes"), { at: 0, prefix: "Make ahead (Wednesday): ", firstText: steps[0].text, runTexts: [steps[0].text, steps[1].text] });
+    // Named first in the run's second step: the cut still leads the run.
+    const thu = [{ stepIndex: 0, text: "On Thursday: Whisk the maple syrup and butter in a large bowl." }, { stepIndex: 1, text: "Add the 1½ pounds peeled sweet potato cubes and toss." }];
+    assert.equal(heldCutPlace(thu, "sweet potatoes")?.at, 0);
+    assert.equal(heldCutPlace(thu, "sweet potatoes")?.prefix, "On Thursday: ");
     assert.equal(alreadyCut(["Peel and cut 5 lb Yukon Gold potatoes into 2-inch chunks."], "yukon gold potatoes"), true);
     assert.equal(alreadyCut(["Place the potato chunks in a large pot."], "russet potatoes"), false);
   });
