@@ -129,7 +129,7 @@ export function feastDishFacts(build: PrepWeekBuild): Map<string, FeastDishFacts
 
 const DAY_PREFIX = /^(\s*(?:Make ahead \([A-Za-z]+(?: night)?\)|On [A-Za-z]+day|Thaw \(start [A-Za-z]+\))\s*:\s*)/i;
 /** The code-written raise and serve steps name dishes, not foods: never reworded. */
-const CODE_WRITTEN = /^\s*(?:Raise the oven to \d{3}\s*°\s*F and put in|Serve the .+ with the )/i;
+const CODE_WRITTEN = /^\s*(?:Raise the oven to \d{3}\s*°\s*F and put in|Put the .+ in the oven with the |Serve the .+ with the )/i;
 /** The words a step whose whole job is prep may use besides its foods. */
 const PREP_WORD = /^(?:and|the|then|of|from|a|an|into|in|to|small|large|medium|bowl|set|aside|finely|thinly|roughly|coarsely|lightly|leaves?|stems?|zest|juice|peel|core|slice|sliced|dice|diced|mince|minced|chop|chopped|cut|trim|trimmed|halve|halved|quarter|quartered|grate|grated|pick|picked|strip|stripped|rinse|rinsed|over|measure|mix|whisk|combine|stir|together|discarding|any|soft|shriveled|bad|ones|seeds?|leave|leaving|some|for|more|heat|inch|chunks|pieces|rings|separate|keep|reserve|reserving|both|each|all|your|it|them|out|on|board|sprigs?|cloves?|stalks?|tablespoons?|teaspoons?|tbsp|tsp|cups?|oz|ounces?|lbs?|pounds?|pinch|seed|seeded|thick|wedges|cubes|slices)$/i;
 /** Only foods and prep words in the text once the mentions are cut out. */
@@ -193,6 +193,8 @@ export function mentionsOf(step: WordingStep, rows: readonly WordingRow[], title
       if (/^\s+(?:butter|oil|salt|powder|paste|mixture|bread)\b/i.test(step.text.slice(end))) continue;
       // …and where it came from is the food's too: "leaves from 4 sprigs", "zest from 1 lemon".
       end += /^\s+from\s+(?:the\s+)?(?:[\d½¼¾⅓⅔]+\s+)?(?:\w+\s+){0,2}(?:sprigs?|lemons?|limes?|oranges?|bunch(?:es)?)\b/i.exec(step.text.slice(end))?.[0].length ?? 0;
+      // Round 3 (U) — so is its cut (", cut into thirds,"): the prep did it.
+      end += /^(?:\s*\(cut into [^)]{1,30}\)|,\s*cut into [a-z0-9 -]{1,30}?,)/i.exec(step.text.slice(end))?.[0].length ?? 0;
       // "(optional)" is the food's: it leaves with it when the food joins a mix.
       end += /^\s*\((?:optional|if using)\)/i.exec(step.text.slice(end))?.[0].length ?? 0;
       // The row's own words before its head ("cinnamon" stick, "cremini" mushrooms).
@@ -340,7 +342,7 @@ function rebuild(pieces: readonly Piece[], refs: readonly WordingRef[]): { text:
 /** One feast dish's steps, reworded (see the header). A step with nothing to change is returned as it was. */
 /** A mention as a food on its own: "3 smashed garlic cloves" → "smashed garlic", "the juice of 1 lime" → "lime juice". */
 function foodWords(span: string): string {
-  let t = span.toLowerCase().replace(/\s*\((?:optional|if using)\)/g, "").trim();
+  let t = span.toLowerCase().replace(/\s*\((?:optional|if using)\)/g, "").replace(/\s*\(cut into [^)]*\)|,\s*cut into [^,]*,?/g, "").trim();
   const juice = /^(?:the\s+)?(juice|zest)(?:\s+and\s+(juice|zest))?\s+of\s+(?:[\d½¼¾⅓⅔⅛⅜⅝⅞.\s]+)?(?:the\s+)?(.+)$/.exec(t);
   if (juice) return `${singular(juice[3].split(/\s+/).pop()!)} ${juice[1]}${juice[2] ? ` and ${juice[2]}` : ""}`;
   t = t.replace(/^(?:the|a|an)\s+/, "")

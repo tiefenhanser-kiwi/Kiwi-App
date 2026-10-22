@@ -50,7 +50,9 @@ import { putInEdits } from "./thx2PutIn";
 import { warmStepEdits } from "./thx2Warm";
 import { subjectEdits } from "./thx2Subjects";
 import { alreadyCut, cutSentence, heldCutPlace, heldCutsOf } from "./thx2Held";
-import { boilHold, boilPlace, coats, HELD_MORNING_STEP, headOf, plainHold, potNoun, splitPrefix, spreadOnPan, TOSS, tossHold } from "../../src/lib/heldMorning";
+import { sharedOvenEdit } from "./thx2Shared";
+import { sitRiderGroups } from "./thx2Sit";
+import { boilHold, boilPlace, coats, HELD_MORNING_STEP, headOf, isGarnish, plainHold, potNoun, referBack, splitPrefix, spreadOnPan, TOSS, tossHold } from "../../src/lib/heldMorning";
 import { formatOvenReport, heldDishSteps, holdTextUpdates, oneOvenTemperature, ovenReport, retimeDish, splitPreheatSteps, type OvenStepRow } from "./thx2Oven";
 
 const argv = process.argv.slice(2);
@@ -81,7 +83,9 @@ interface Plan {
   tagUpdates: { dishId: string; title: string; from: string[]; to: string[] }[];
   textUpdates: { stepId: string; title: string; stepIndex: number; from: string; to: string }[];
   refUpdates: { stepId: string; refs: unknown; was: unknown; text: string }[];
-  creates: { dishId: string; title: string; stepIndex: number; text: string; phaseType: "assemble" | "cook" | "preheat" | "prep" | "hold"; estimatedMinutes: number; refs: unknown; componentKey?: string | null; pathKey?: string | null }[];
+  creates: { dishId: string; title: string; stepIndex: number; text: string; phaseType: "assemble" | "cook" | "preheat" | "prep" | "hold"; estimatedMinutes: number; refs: unknown; componentKey?: string | null; pathKey?: string | null; parallelGroup?: string | null }[];
+  /** THX-3d round 3 (U) — a step's intra-dish overlap token (the bird's sit and its riders). */
+  groupUpdates: { stepId: string; title: string; stepIndex: number; from: string | null; to: string | null }[];
   /** THX-3d (D) — a step removed (a side's redundant preheat, a serve-only step, THX-3c's old raise). */
   deletes: { stepId: string; title: string; stepIndex: number; text: string }[];
   /** THX-3d (D) — a step's phase changed (the sit is a hold). */
@@ -112,7 +116,7 @@ for (const t of feasts) {
   const planRefs = await prisma.mealPlanItem.count({ where: { mealId: meal.id } });
   console.log(`\n▶ ${t.key} ${meal.id} "${meal.title.slice(0, 70)}" · plan items ${planRefs} · template items ${templateRefs} · user copies ${forks} (not patched)`);
 
-  const plan: Plan = { tagUpdates: [], textUpdates: [], refUpdates: [], creates: [], minuteUpdates: [], renumbers: [], rowCreates: [], deletes: [], phaseUpdates: [] };
+  const plan: Plan = { tagUpdates: [], textUpdates: [], refUpdates: [], creates: [], minuteUpdates: [], renumbers: [], rowCreates: [], deletes: [], phaseUpdates: [], groupUpdates: [] };
   // THX-3d round 2 (M) — Prep the feast's held cuts (read-only build of this meal).
   const heldCuts = await heldCutsOf(prisma, meal.id);
   const specOf = dishSpecFor(t);
@@ -156,6 +160,16 @@ for (const t of feasts) {
     const splitMinutes = new Map<string, number>();
     /** THX-3d round 2 (M) — a stored step whose phase item 16 moves (the burner step cooks). */
     const phaseOf = new Map<string, string>();
+    // 17. THX-3d round 3 (T) — a feast whose sides bake WITH the bird at one shared
+    // temperature (thx2Shared: New Twist at 400°F), each dish's time at it written in.
+    // Before rule 2's split and H, so they split the 400°F sentences.
+    for (const s of steps) {
+      const e = sharedOvenEdit(t.key, d.title, texts.get(s.id)!, splitMinutes.get(s.id) ?? s.estimatedMinutes);
+      if (!e) continue;
+      texts.set(s.id, e.text);
+      if (e.minutes !== undefined && e.minutes !== s.estimatedMinutes) splitMinutes.set(s.id, e.minutes);
+      if (e.phaseType !== undefined) phaseOf.set(s.id, e.phaseType);
+    }
     const titles = meal.dishLinks.map((l) => l.dish.title);
     for (const s of [...steps].sort((a, b) => b.stepIndex - a.stepIndex)) {
       const sp = splitPrepClause(texts.get(s.id)!, cutRows.map((r) => ({ ingredientId: r.id, name: r.name })), titles);
@@ -274,6 +288,19 @@ for (const t of feasts) {
       }
       cut.set(`${splitPrefix(cut.text).prefix}${plainHold(splitPrefix(cut.text).body, name, row.preparationNote)}`);
     }
+    // 16b. THX-3d round 3 (U) — a garnish cut in the morning is named where it goes on,
+    // not measured again: "garnish with the chives you sliced this morning" (referBack).
+    for (const h of heldCuts.filter((x) => x.dishId === d.id)) {
+      const row = d.dishIngredients.find((i) => i.ingredient.canonicalName.toLowerCase() === h.ingredientName.toLowerCase());
+      if (!row || !isGarnish(row.ingredient.canonicalName, row.preparationNote)) continue;
+      const head = new RegExp(`\\b${headOf(row.ingredient.canonicalName)}`, "i");
+      const cut = entries().find((e) => head.test(e.text) && HELD_MORNING_STEP.test(e.text));
+      if (!cut) continue;
+      for (const e of entries().filter((x) => x.stepIndex > cut.stepIndex)) {
+        const next = referBack(e.text, row.ingredient.canonicalName, row.preparationNote);
+        if (next !== e.text) e.set(next);
+      }
+    }
     // 8. THX-3c (F) — a step that adds cut food names its amount ("add the 2 diced
     // onions and 6 diced celery stalks"), from the dish's own rows; a food the step
     // already measures (its stored refs) is left alone. Its refs are re-derived below.
@@ -350,7 +377,7 @@ for (const t of feasts) {
   const ovenDishes = meal.dishLinks.map((l) => ({ dishId: l.dishId, title: l.dish.title, positionIndex: l.positionIndex, roleLabel: l.roleLabel }));
   const ovenRows = (): OvenStepRow[] => meal.dishLinks.flatMap((l) => [
     ...(stepsByDish.get(l.dishId) ?? []).map((s) => ({ ...s, ownerId: l.dishId })),
-    ...plan.creates.filter((c) => c.dishId === l.dishId).map((c) => ({ ownerId: l.dishId, stepIndex: c.stepIndex, stepTextTranslated: c.text, phaseType: c.phaseType, estimatedMinutes: c.estimatedMinutes, isTimingSensitive: false, parallelGroup: null, componentKey: c.componentKey ?? null, pathKey: c.pathKey ?? null })),
+    ...plan.creates.filter((c) => c.dishId === l.dishId).map((c) => ({ ownerId: l.dishId, stepIndex: c.stepIndex, stepTextTranslated: c.text, phaseType: c.phaseType, estimatedMinutes: c.estimatedMinutes, isTimingSensitive: false, parallelGroup: c.parallelGroup ?? null, componentKey: c.componentKey ?? null, pathKey: c.pathKey ?? null })),
   ]);
   const titleOf = (dishId: string) => meal.dishLinks.find((l) => l.dishId === dishId)?.dish.title ?? "";
   /**
@@ -396,7 +423,7 @@ for (const t of feasts) {
       const row = rowAt(x.dishId, x.stepIndex);
       if (row) {
         plan.deletes.push({ stepId: row.id, title: titleOf(x.dishId), stepIndex: storedStep.get(row.id)!.stepIndex, text: row.stepTextTranslated });
-        for (const k of ["textUpdates", "refUpdates", "minuteUpdates", "renumbers", "phaseUpdates"] as const) (plan[k] as { stepId: string }[]).splice(0, Infinity, ...(plan[k] as { stepId: string }[]).filter((y) => y.stepId !== row.id));
+        for (const k of ["textUpdates", "refUpdates", "minuteUpdates", "renumbers", "phaseUpdates", "groupUpdates"] as const) (plan[k] as { stepId: string }[]).splice(0, Infinity, ...(plan[k] as { stepId: string }[]).filter((y) => y.stepId !== row.id));
         stepsByDish.set(x.dishId, rows.filter((r) => r !== row));
         continue;
       }
@@ -420,6 +447,21 @@ for (const t of feasts) {
   // THX-3d (D) — the Thursday pre-pass first: the sit, the rest, a side joining a
   // hotter bird, the side preheats where the raise heats the oven, the serve steps.
   applyEdits(thursdayPrePass(ovenDishes, ovenRows()));
+  // THX-3d round 3 (U) — the preheat and the bird's prep ride its sit (thx2Sit): the roast
+  // begins as the sit ends.
+  for (const g of sitRiderGroups(ovenDishes, ovenRows())) {
+    const row = stepsByDish.get(g.dishId)?.find((s) => s.stepIndex === g.stepIndex);
+    if (row) {
+      if (row.parallelGroup === g.group) continue;
+      const stored = storedStep.get(row.id)!;
+      plan.groupUpdates = plan.groupUpdates.filter((x) => x.stepId !== row.id);
+      if (stored.parallelGroup !== g.group) plan.groupUpdates.push({ stepId: row.id, title: titleOf(g.dishId), stepIndex: stored.stepIndex, from: stored.parallelGroup, to: g.group });
+      row.parallelGroup = g.group;
+      continue;
+    }
+    const c = plan.creates.find((x) => x.dishId === g.dishId && x.stepIndex === g.stepIndex);
+    if (c) c.parallelGroup = g.group;
+  }
   const ovenBefore = ovenReport(ovenDishes, ovenRows());
   const one = oneOvenTemperature(ovenBefore);
   for (const c of one.changes) {
@@ -489,6 +531,7 @@ for (const t of feasts) {
   }
   for (const u of plan.deletes) console.log(`  del   [${u.title} #${u.stepIndex}] ${u.text}`);
   for (const u of plan.phaseUpdates) console.log(`  phase [${u.title} #${u.stepIndex}] ${u.from} → ${u.to}`);
+  for (const u of plan.groupUpdates) console.log(`  group [${u.title} #${u.stepIndex}] ${u.from ?? "—"} → ${u.to ?? "—"}`);
   for (const u of plan.renumbers) console.log(`  move  [${u.title}] #${u.from} → #${u.to}`);
   for (const u of plan.minuteUpdates) console.log(`  mins  [${u.title} #${u.stepIndex}] ${u.from} → ${u.to}`);
   // THX-3b (BUG-457) — the post-bird oven, every run: production's dry run proves the
@@ -517,7 +560,7 @@ for (const t of feasts) {
   const dishIds = meal.dishLinks.map((l) => l.dishId);
   const patchedSteps = dishIds.flatMap((id) => [
     ...(stepsByDish.get(id) ?? []).map((s) => ({ ...s, ownerId: id })),
-    ...plan.creates.filter((c) => c.dishId === id).map((c) => ({ ownerId: id, stepIndex: c.stepIndex, estimatedMinutes: c.estimatedMinutes, phaseType: c.phaseType, isTimingSensitive: false, parallelGroup: null, componentKey: c.componentKey ?? null, pathKey: c.pathKey ?? null, stepTextTranslated: c.text })),
+    ...plan.creates.filter((c) => c.dishId === id).map((c) => ({ ownerId: id, stepIndex: c.stepIndex, estimatedMinutes: c.estimatedMinutes, phaseType: c.phaseType, isTimingSensitive: false, parallelGroup: c.parallelGroup ?? null, componentKey: c.componentKey ?? null, pathKey: c.pathKey ?? null, stepTextTranslated: c.text })),
   ]);
   const captured: { meal?: { estimatedTimeMinutes: number | null; activeTimeMinutes: number | null } } = {};
   const memoryTx = {
@@ -530,7 +573,7 @@ for (const t of feasts) {
   const timeChanged = captured.meal && (captured.meal.estimatedTimeMinutes !== meal.estimatedTimeMinutes || captured.meal.activeTimeMinutes !== meal.activeTimeMinutes);
   console.log(`  time  total ${meal.estimatedTimeMinutes} → ${captured.meal?.estimatedTimeMinutes} · hands-on ${meal.activeTimeMinutes} → ${captured.meal?.activeTimeMinutes}`);
 
-  const changes = plan.deletes.length + plan.phaseUpdates.length + plan.rowCreates.length + plan.tagUpdates.length + plan.textUpdates.length + plan.refUpdates.length + plan.creates.length + plan.minuteUpdates.length + plan.renumbers.length + (timeChanged ? 1 : 0);
+  const changes = plan.deletes.length + plan.phaseUpdates.length + plan.groupUpdates.length + plan.rowCreates.length + plan.tagUpdates.length + plan.textUpdates.length + plan.refUpdates.length + plan.creates.length + plan.minuteUpdates.length + plan.renumbers.length + (timeChanged ? 1 : 0);
   totalChanges += changes;
   if (!APPLY || changes === 0) continue;
 
@@ -543,6 +586,7 @@ for (const t of feasts) {
     for (const u of plan.refUpdates) await tx.recipeInstructionStep.update({ where: { id: u.stepId }, data: { amountRefs: u.refs as Prisma.InputJsonValue } });
     for (const u of plan.minuteUpdates) await tx.recipeInstructionStep.update({ where: { id: u.stepId }, data: { estimatedMinutes: u.to } });
     for (const u of plan.phaseUpdates) await tx.recipeInstructionStep.update({ where: { id: u.stepId }, data: { phaseType: u.to as StepPhase } });
+    for (const u of plan.groupUpdates) await tx.recipeInstructionStep.update({ where: { id: u.stepId }, data: { parallelGroup: u.to } });
     for (const u of plan.deletes) await tx.recipeInstructionStep.delete({ where: { id: u.stepId } });
     // Latest first, so two rows never share an index mid-move.
     // THX-3d — a step moved twice (the thaw step, then the raise step) goes straight to
@@ -552,7 +596,7 @@ for (const t of feasts) {
     for (const [stepId, u] of [...finalIndex].sort((a, b) => b[1].from - a[1].from)) await tx.recipeInstructionStep.update({ where: { id: stepId }, data: { stepIndex: u.to } });
     for (const c of plan.creates) {
       await tx.recipeInstructionStep.create({
-        data: { ownerType: "dish", ownerId: c.dishId, stepIndex: c.stepIndex, stepTextRaw: c.text, stepTextTranslated: c.text, phaseType: c.phaseType, estimatedMinutes: c.estimatedMinutes, isTimingSensitive: false, amountRefs: c.refs as Prisma.InputJsonValue, componentKey: c.componentKey ?? null, pathKey: c.pathKey ?? null },
+        data: { ownerType: "dish", ownerId: c.dishId, stepIndex: c.stepIndex, stepTextRaw: c.text, stepTextTranslated: c.text, phaseType: c.phaseType, estimatedMinutes: c.estimatedMinutes, isTimingSensitive: false, amountRefs: c.refs as Prisma.InputJsonValue, componentKey: c.componentKey ?? null, pathKey: c.pathKey ?? null, parallelGroup: c.parallelGroup ?? null },
       });
     }
     await stampMealTiming(tx, meal.id, dishIds);

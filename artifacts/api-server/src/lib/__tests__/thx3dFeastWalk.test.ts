@@ -138,6 +138,71 @@ describe("THX-3d — the five dev feasts, walked", { skip: RUN ? false : "set TH
     assert.ok(restEnd >= -10, `the Wellington's rest ends at T${restEnd}`);
   });
 
+  async function thursdayOf(key: string) {
+    const { thursdaySchedule } = await import("../../../scripts/thx2/thx2Oven");
+    const meal = await prisma.meal.findFirstOrThrow({
+      where: { sourceType: "batch_generated", dishFamilyKey: key, isArchived: false },
+      select: { dishLinks: { select: { positionIndex: true, roleLabel: true, dish: { select: { id: true, title: true } } } } },
+    });
+    const dishes = meal.dishLinks.map((l) => ({ dishId: l.dish.id, title: l.dish.title, positionIndex: l.positionIndex, roleLabel: l.roleLabel }));
+    const rows = await prisma.recipeInstructionStep.findMany({ where: { ownerType: "dish", ownerId: { in: dishes.map((d) => d.dishId) } } });
+    const { schedulerDishes, result } = thursdaySchedule(dishes, rows as never);
+    const at = (dishId: string, stepIndex: number) => result.steps.find((e) => e.dishId === dishId && e.originalStepIndex === stepIndex)?.startOffsetMinutes;
+    return { schedulerDishes, result, at, rows };
+  }
+
+  it("T — New Twist bakes its sides with the bird at 400°F: in together, out 0–10 minutes before the rest ends, no early bake, no hold, no reheat", async () => {
+    const { isOvenStep, isReheatStep, ovenTempOfText, HOLD_COVERED_STEP } = await import("../cookingScheduler");
+    const { schedulerDishes, at } = await thursdayOf("thx2-feast-new-twist");
+    const bird = schedulerDishes.find((d) => /Spatchcock/.test(d.title))!;
+    const temps = schedulerDishes.flatMap((d) => d.steps.filter((s) => isOvenStep(s) && s.phaseType !== "preheat").map((s) => ovenTempOfText(s.text))).filter((t) => t !== null);
+    assert.deepEqual([...new Set(temps)], [400]);
+    assert.ok(schedulerDishes.every((d) => d.steps.every((s) => !isReheatStep(s) && !HOLD_COVERED_STEP.test(s.text ?? ""))), "no hold, no reheat");
+    const putIn = bird.steps.find((s) => /^Put the .+ in the oven with the turkey\.$/.test(s.text ?? ""))!;
+    assert.ok(putIn, "the put-in step");
+    const putEnd = at(bird.dishId, putIn.stepIndex)! + putIn.estimatedMinutes;
+    const roast = [...bird.steps].filter((s) => isOvenStep(s) && s.phaseType === "cook").pop()!;
+    const out = at(bird.dishId, roast.stepIndex)! + roast.estimatedMinutes;
+    const rest = bird.steps.find((s) => s.phaseType === "rest")!;
+    assert.equal(at(bird.dishId, rest.stepIndex), out, "the bird comes out as its roast ends");
+    const restEnd = out + rest.estimatedMinutes;
+    for (const d of schedulerDishes.filter((x) => putIn.text!.includes(x.title))) {
+      const ov = d.steps.filter((s) => isOvenStep(s) && s.phaseType !== "preheat");
+      assert.equal(at(d.dishId, ov[0].stepIndex), putEnd, `${d.title} goes in at the put-in`);
+      for (const s of d.steps.filter((x) => x.stepIndex < ov[0].stepIndex && x.phaseType !== "hold")) assert.ok(at(d.dishId, s.stepIndex)! < putEnd, `${d.title}: "${(s.text ?? "").slice(0, 40)}" before the put-in`);
+      const end = at(d.dishId, ov[ov.length - 1].stepIndex)! + ov[ov.length - 1].estimatedMinutes;
+      assert.ok(end <= restEnd && end >= restEnd - 10, `${d.title} out at T${end}, the rest ends T${restEnd}`);
+    }
+    const smashed = schedulerDishes.find((d) => /Smashed/.test(d.title))!;
+    const first = smashed.steps.find((s) => /in at 400/.test(s.text ?? ""))!;
+    assert.ok(at(smashed.dishId, first.stepIndex)! >= out, "the smashed potatoes wait for the bird to come out");
+    // S/T — the bird as late as it can be: the carved turkey does not wait long for serving.
+    const carve = bird.steps.find((s) => s.stepIndex > rest.stepIndex && /^Carve\b/i.test(s.text ?? ""))!;
+    const carveEnd = at(bird.dishId, carve.stepIndex)! + carve.estimatedMinutes;
+    assert.ok(carveEnd >= -20, `the carve ends T${carveEnd}`);
+    // U — the sides are not lifted out a minute after "leave the sides inside".
+    const off = schedulerDishes.flatMap((d) => d.steps.filter((s) => /^Turn the oven off and leave the sides inside/i.test(s.text ?? "")).map((s) => ({ d, s }))).find((x) => at(x.d.dishId, x.s.stepIndex) !== undefined);
+    if (off) {
+      const offEnd = at(off.d.dishId, off.s.stepIndex)! + off.s.estimatedMinutes;
+      for (const d of schedulerDishes) {
+        for (const s of d.steps.filter((x) => /^Transfer the .+ to a platter\b/i.test(x.text ?? "") && at(d.dishId, x.stepIndex) !== undefined)) {
+          assert.ok(at(d.dishId, s.stepIndex)! - offEnd >= 5, `${d.title}: plated T${at(d.dishId, s.stepIndex)}, the oven off at T${offEnd}`);
+        }
+      }
+    }
+  });
+
+  it("U — each bird's preheat and prep ride its sit: the roast begins as the sit ends (Classic, Small, New Twist)", async () => {
+    for (const key of ["thx2-feast-classic", "thx2-feast-small", "thx2-feast-new-twist"]) {
+      const { isOvenStep } = await import("../cookingScheduler");
+      const { schedulerDishes, at } = await thursdayOf(key);
+      const bird = schedulerDishes.find((d) => /Turkey/.test(d.title))!;
+      const sit = bird.steps.find((s) => s.phaseType === "hold")!;
+      const roast = bird.steps.find((s) => s.phaseType === "cook" && isOvenStep(s))!;
+      assert.equal(at(bird.dishId, roast.stepIndex), at(bird.dishId, sit.stepIndex)! + sit.estimatedMinutes, `${key}: the roast starts as the sit ends`);
+    }
+  });
+
   async function feastSteps(key: string) {
     return (await feastBuild(key)).stepPlan.steps.filter((s) => !s.demoted);
   }
