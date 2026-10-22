@@ -1425,7 +1425,7 @@ function scheduleArm(
   blocks: FeastOven | null = null,
 ): ScheduleResult {
   const scheduleOnce = (d: SchedulerDish[], t: boolean, l: boolean, c: ReadonlyMap<string, number> | null) =>
-    oven ? scheduleWithOven(d, t, l, c, oven, blocks) : scheduleOnceCore(d, t, l, c, null, blocks);
+    oven ? scheduleWithOven(d, t, l, c, oven, blocks) : blocks?.blocks ? scheduleBlocksLate(d, t, l, c, blocks) : scheduleOnceCore(d, t, l, c, null, blocks);
   const aligned = scheduleOnce(nonEmpty, honourTags, enforceMaxLag, null);
   if (!coldDishesForward) return aligned;
   const cold = nonEmpty.filter(isServedCold);
@@ -1472,6 +1472,65 @@ function scheduleArm(
   return forward.totalEstimatedMinutes <= aligned.totalEstimatedMinutes ? forward : aligned;
 }
 
+/** Minutes the latest-block move may lengthen the day and still be taken. */
+export const BLOCKS_LATE_SLACK = 5;
+
+/**
+ * THX-3d round 3 (S) — THE OVEN BLOCKS AS LATE AS THEY CAN BE. The blocks are aligned
+ * backward from serve (ovenBlockBases), but to the dish-alone anchor, and the cook's
+ * hands then push serve later: Vegetarian's Wellington came out 31 minutes before
+ * serving, and its stuffing and mac and cheese, a block earlier, sat covered 73 and 80
+ * minutes before their reheat. So the pass runs again with the block dishes anchored
+ * to the serve the first pass reached (the stove dishes keep theirs), until it stops
+ * moving; a run is taken when it holds the held dishes for less time and lengthens the
+ * day by no more than BLOCKS_LATE_SLACK.
+ */
+function scheduleBlocksLate(
+  nonEmpty: SchedulerDish[],
+  honourTags: boolean,
+  enforceMaxLag: boolean,
+  coldBases: ReadonlyMap<string, number> | null,
+  blocks: FeastOven,
+): ScheduleResult {
+  const first = scheduleOnceCore(nonEmpty, honourTags, enforceMaxLag, coldBases, null, blocks);
+  const anchor = Math.max(...nonEmpty.map((d) => walkDishAlone(d, classifyDish(d, honourTags, [])).duration));
+  // The day's length is first step to serve: a later anchor can leave the clock's
+  // first minutes empty, so a run is measured, and returned, by its span.
+  const span = (r: ScheduleResult) => -Math.min(0, ...r.steps.map((e) => e.startOffsetMinutes));
+  const firstSpan = span(first);
+  let best = first;
+  let bestHolds = blockHolds(first, nonEmpty, blocks);
+  const reach = first.totalEstimatedMinutes - anchor;
+  for (let shift = 5; shift <= reach + 30; shift += 5) {
+    const run = scheduleOnceCore(nonEmpty, honourTags, enforceMaxLag, coldBases, null, blocks, shift);
+    const holds = blockHolds(run, nonEmpty, blocks);
+    if (span(run) > firstSpan + BLOCKS_LATE_SLACK) continue;
+    if (holds < bestHolds || (holds === bestHolds && span(run) < span(best))) {
+      best = run;
+      bestHolds = holds;
+    }
+  }
+  if (best === first) return first;
+  return { ...best, totalEstimatedMinutes: span(best) };
+}
+
+/** The minutes the held dishes wait between their last oven step and their reheat, summed. */
+export function blockHolds(res: ScheduleResult, dishes: readonly SchedulerDish[], blocks: FeastOven): number {
+  const bk = blocks.blocks;
+  if (!bk) return 0;
+  const at = new Map(res.steps.map((e) => [`${e.dishId}#${e.originalStepIndex}`, e.startOffsetMinutes]));
+  let sum = 0;
+  for (const [dishId, k] of bk.reheatOf) {
+    const d = dishes.find((x) => x.dishId === dishId);
+    const ov = [...(bk.ovenSteps.get(dishId) ?? [])];
+    if (!d || ov.length === 0) continue;
+    const last = d.steps[Math.max(...ov)];
+    const end = (at.get(`${dishId}#${last.stepIndex}`) ?? 0) + last.estimatedMinutes;
+    sum += (at.get(`${dishId}#${d.steps[k].stepIndex}`) ?? end) - end;
+  }
+  return sum;
+}
+
 function scheduleOnceCore(
   nonEmpty: SchedulerDish[],
   honourTags: boolean,
@@ -1479,6 +1538,8 @@ function scheduleOnceCore(
   coldBases: ReadonlyMap<string, number> | null,
   oven: OvenRun | null = null,
   blocks: FeastOven | null = null,
+  /** THX-3d round 3 (S) — the block dishes' anchor, this much later (scheduleBlocksLate). */
+  blockShift = 0,
 ): ScheduleResult {
   const ignoredTags: IgnoredTag[] = [];
 
@@ -1490,7 +1551,7 @@ function scheduleOnceCore(
   const anchor = oven?.anchor ?? Math.max(...alone.map((a) => a.duration));
   // THX-3c (BUG-463) — each oven block but the last finishes its oven work before
   // the next block's first oven step: its dishes' bases move earlier.
-  const blockBases = blocks?.blocks ? ovenBlockBases(nonEmpty, alone, anchor, blocks.blocks) : null;
+  const blockBases = blocks?.blocks ? ovenBlockBases(nonEmpty, alone, anchor + blockShift, blocks.blocks) : null;
   // THX-3d (R4) — the bird's steps after its rest (the carve, the serve step), in minutes.
   const carveTail = ((): number => {
     const birdId = oven?.anchor !== undefined ? oven.plan.holderDishId : blocks?.bird?.dishId;

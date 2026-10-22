@@ -113,6 +113,31 @@ describe("THX-3d — the five dev feasts, walked", { skip: RUN ? false : "set TH
     assert.match(broccoli[1].text, /broccoli into bite-sized florets.*; keep them covered in the fridge until it's time to cook\.$/);
   });
 
+  it("S — the oven blocks as late as they can be: Vegetarian's stuffing and mac wait about 45 minutes, not 75–80, and the Wellington comes out to rest just before serving", async () => {
+    const { thursdaySchedule } = await import("../../../scripts/thx2/thx2Oven");
+    const { isOvenStep, isReheatStep } = await import("../cookingScheduler");
+    const meal = await prisma.meal.findFirstOrThrow({
+      where: { sourceType: "batch_generated", dishFamilyKey: "thx2-feast-vegetarian", isArchived: false },
+      select: { dishLinks: { select: { positionIndex: true, roleLabel: true, dish: { select: { id: true, title: true } } } } },
+    });
+    const dishes = meal.dishLinks.map((l) => ({ dishId: l.dish.id, title: l.dish.title, positionIndex: l.positionIndex, roleLabel: l.roleLabel }));
+    const rows = await prisma.recipeInstructionStep.findMany({ where: { ownerType: "dish", ownerId: { in: dishes.map((d) => d.dishId) } } });
+    const { schedulerDishes, result } = thursdaySchedule(dishes, rows as never);
+    const at = new Map(result.steps.map((e) => [`${e.dishId}#${e.originalStepIndex}`, e.startOffsetMinutes]));
+    for (const d of schedulerDishes) {
+      const reheat = d.steps.find((s) => isReheatStep(s));
+      if (!reheat) continue;
+      const last = [...d.steps].filter((s) => isOvenStep(s) && !isReheatStep(s) && s.phaseType !== "preheat").pop()!;
+      const hold = at.get(`${d.dishId}#${reheat.stepIndex}`)! - (at.get(`${d.dishId}#${last.stepIndex}`)! + last.estimatedMinutes);
+      assert.ok(hold <= 55, `${d.title} waits ${hold} minutes`);
+    }
+    const well = schedulerDishes.find((d) => /Wellington/.test(d.title))!;
+    const bake = [...well.steps].filter((s) => isOvenStep(s) && s.phaseType !== "preheat").pop()!;
+    const rest = well.steps.find((s) => s.stepIndex > bake.stepIndex && s.phaseType === "rest")!;
+    const restEnd = at.get(`${well.dishId}#${rest.stepIndex}`)! + rest.estimatedMinutes;
+    assert.ok(restEnd >= -10, `the Wellington's rest ends at T${restEnd}`);
+  });
+
   async function feastSteps(key: string) {
     return (await feastBuild(key)).stepPlan.steps.filter((s) => !s.demoted);
   }
