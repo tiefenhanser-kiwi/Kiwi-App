@@ -39,6 +39,7 @@ import { isOneDish } from "../lib/similar/dishForm";
 import { buildSwapPool, SwapSourceNotFoundError, type SwapPoolCandidate } from "../lib/similar/swapPool";
 import { everydayPoolWhere } from "../lib/store/storeShortlist";
 import { hasUnmatchedAmount, type AmountRef } from "../lib/stepAmountRefs";
+import { feastCookWordingFor } from "../lib/feastCookWording";
 import {
   subscriptionService as productionSubscriptionService,
   type SubscriptionService,
@@ -1096,6 +1097,8 @@ export function createMealsRouter(
       // WS7-8b (D-WS7-169 keystone) — also read the item's per-instance
       // servingsOverride so the composed detail resolves effectiveServings.
       let servingsOverride: number | null = null;
+      // THX-3d (C) — the item's plan, for a feast meal's Cook Mode words (below).
+      let planIdOfItem: string | null = null;
       // 🔴 `req.userId` — NOT the non-null assertion alone. Since this handler
       // accepts a guest (Row 13 · Block 1), `req.userId` can be undefined, and
       // Prisma reads an undefined value in a `where` as "no such filter" — the
@@ -1109,10 +1112,11 @@ export function createMealsRouter(
             mealId: id,
             planInstance: { userId: req.userId },
           },
-          select: { recipeOverrideJson: true, servingsOverride: true },
+          select: { recipeOverrideJson: true, servingsOverride: true, mealPlanInstanceId: true },
         });
         recipeOverrideJson = item?.recipeOverrideJson ?? undefined;
         servingsOverride = item?.servingsOverride ?? null;
+        planIdOfItem = item?.mealPlanInstanceId ?? null;
       }
 
       const meal = await composeMealDetail(
@@ -1123,6 +1127,27 @@ export function createMealsRouter(
       );
       if (!meal) {
         return res.status(404).json({ error: "meal not found" });
+      }
+      // THX-3d (C, R2) — PREP FEEDS COOK. A feast meal read in its plan is worded from
+      // that plan's Prep the feast (lib/feastCookWording): "Skip if you prepped.
+      // Otherwise, …", "the Cranberry-Orange Sauce dry mix", "the Pan Gravy vegetables
+      // you prepped". Read time, no AI, nothing stored — so a dish added to the feast
+      // is worded the same way. A failure logs and serves the stored words.
+      if (planIdOfItem && req.userId) {
+        try {
+          const worded = await feastCookWordingFor(prisma, { planId: planIdOfItem, userId: req.userId, mealTags: meal.tags ?? [], dishes: meal.dishes });
+          for (const d of meal.dishes) {
+            for (const st of d.steps) {
+              const w = worded.get(d.dishId)?.get(st.stepIndex);
+              if (!w) continue;
+              st.text = w.text;
+              st.amountRefs = w.amountRefs as AmountRef[] | null;
+              st.unmatchedAmount = hasUnmatchedAmount(w.text, w.amountRefs);
+            }
+          }
+        } catch (err) {
+          logger.warn({ err, id, event: "feast_cook_wording_failed" }, "Feast Cook Mode wording failed — stored words served");
+        }
       }
       return res.json({ meal });
     } catch (err) {

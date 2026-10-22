@@ -44,6 +44,7 @@ import { fixKeepClause, retargetMakeAheadDay } from "./thx2Checks";
 import { thursdayPostPass, thursdayPrePass, type ThursdayEdits } from "./thx2Thursday";
 import { countsInWords, mergeRefs, missingRows } from "./thx2Rows";
 import { thawStepText } from "../../src/lib/feastAddedDish";
+import { splitPrepClause } from "../../src/lib/feastCookWording";
 import { formatOvenReport, heldDishSteps, oneOvenTemperature, ovenReport, retimeDish, splitPreheatSteps, type OvenStepRow } from "./thx2Oven";
 
 const argv = process.argv.slice(2);
@@ -74,7 +75,7 @@ interface Plan {
   tagUpdates: { dishId: string; title: string; from: string[]; to: string[] }[];
   textUpdates: { stepId: string; title: string; stepIndex: number; from: string; to: string }[];
   refUpdates: { stepId: string; refs: unknown; was: unknown; text: string }[];
-  creates: { dishId: string; title: string; stepIndex: number; text: string; phaseType: "assemble" | "cook" | "preheat" | "prep" | "hold"; estimatedMinutes: number; refs: unknown }[];
+  creates: { dishId: string; title: string; stepIndex: number; text: string; phaseType: "assemble" | "cook" | "preheat" | "prep" | "hold"; estimatedMinutes: number; refs: unknown; componentKey?: string | null; pathKey?: string | null }[];
   /** THX-3d (D) — a step removed (a side's redundant preheat, a serve-only step, THX-3c's old raise). */
   deletes: { stepId: string; title: string; stepIndex: number; text: string }[];
   /** THX-3d (D) — a step's phase changed (the sit is a hold). */
@@ -145,6 +146,26 @@ for (const t of feasts) {
       // THX-3d (B) — "both oranges" cannot scale; "2 oranges" can.
       texts.set(s.id, countsInWords(texts.get(s.id)!, cutRows));
     }
+    // 14. THX-3d (C, rule 2) — a step that opens with prep and then does the dish's work
+    // is two (feastCookWording splitPrepClause), so Cook Mode can say "Skip if you
+    // prepped" to the prep alone: the prep is a new step at its index, the work keeps
+    // the stored step (its id, phase, path) one down, the later steps move down too.
+    const splitMinutes = new Map<string, number>();
+    const titles = meal.dishLinks.map((l) => l.dish.title);
+    for (const s of [...steps].sort((a, b) => b.stepIndex - a.stepIndex)) {
+      const sp = splitPrepClause(texts.get(s.id)!, cutRows.map((r) => ({ ingredientId: r.id, name: r.name })), titles);
+      if (!sp) continue;
+      const at = s.stepIndex;
+      for (const c of plan.creates) if (c.dishId === d.id && c.stepIndex >= at) c.stepIndex += 1;
+      for (const o of [...steps].filter((o) => o.stepIndex >= at).sort((a, b) => b.stepIndex - a.stepIndex)) {
+        plan.renumbers.push({ stepId: o.id, title: d.title, from: o.stepIndex, to: o.stepIndex + 1 });
+        o.stepIndex += 1;
+      }
+      const prepMinutes = Math.max(1, Math.min(5, Math.round(s.estimatedMinutes / 2)));
+      texts.set(s.id, sp.work);
+      splitMinutes.set(s.id, Math.max(1, s.estimatedMinutes - prepMinutes));
+      plan.creates.push({ dishId: d.id, title: d.title, stepIndex: at, text: sp.prep, phaseType: "prep", estimatedMinutes: prepMinutes, refs: null, componentKey: s.componentKey, pathKey: s.pathKey });
+    }
     for (const s of steps) {
       const to = texts.get(s.id)!;
       if (to !== s.stepTextTranslated) plan.textUpdates.push({ stepId: s.id, title: d.title, stepIndex: s.stepIndex, from: s.stepTextTranslated, to });
@@ -175,6 +196,7 @@ for (const t of feasts) {
       // jsonb stores object keys in its own order, so compare key-sorted.
       if (canonical(amountRefs) !== canonical(s.amountRefs ?? null)) plan.refUpdates.push({ stepId: s.id, refs: amountRefs, was: s.amountRefs, text: texts.get(s.id)! });
     }
+    for (const c of plan.creates) if (c.dishId === d.id && c.refs === null) c.refs = deriveAmountRefs(c.text, matcher).amountRefs;
     // 4. (THX-3d D) — no per-dish "On Thursday: Serve the …" step any more: the feast has
     // ONE serve step after the carve (thx2Thursday post-pass), naming every dish.
     // 13. THX-3d (F) — a thaw tag with no thaw step (Small's breast, thaw-2d): the Hub's
@@ -189,10 +211,15 @@ for (const t of feasts) {
         plan.renumbers.push({ stepId: s.id, title: d.title, from: s.stepIndex, to: s.stepIndex + 1 });
         s.stepIndex += 1;
       }
+      for (const c of plan.creates) if (c.dishId === d.id) c.stepIndex += 1;
       const text = thawStepText(word, WEEK[(4 - n + 7) % 7], firstAhead);
       plan.creates.push({ dishId: d.id, title: d.title, stepIndex: 0, text, phaseType: "prep", estimatedMinutes: 2, refs: deriveAmountRefs(text, matcher).amountRefs });
     }
-    stepsByDish.set(d.id, steps.map((s) => ({ ...s, stepTextTranslated: texts.get(s.id)! })));
+    stepsByDish.set(d.id, steps.map((s) => ({ ...s, stepTextTranslated: texts.get(s.id)!, estimatedMinutes: splitMinutes.get(s.id) ?? s.estimatedMinutes })));
+    for (const s of steps) {
+      const to = splitMinutes.get(s.id);
+      if (to !== undefined && to !== s.estimatedMinutes) plan.minuteUpdates.push({ stepId: s.id, title: d.title, stepIndex: s.stepIndex, from: s.estimatedMinutes, to });
+    }
     for (const s of steps) storedStep.set(s.id, s);
     matcherOf.set(d.id, matcher);
   }
@@ -201,7 +228,7 @@ for (const t of feasts) {
   const ovenDishes = meal.dishLinks.map((l) => ({ dishId: l.dishId, title: l.dish.title, positionIndex: l.positionIndex, roleLabel: l.roleLabel }));
   const ovenRows = (): OvenStepRow[] => meal.dishLinks.flatMap((l) => [
     ...(stepsByDish.get(l.dishId) ?? []).map((s) => ({ ...s, ownerId: l.dishId })),
-    ...plan.creates.filter((c) => c.dishId === l.dishId).map((c) => ({ ownerId: l.dishId, stepIndex: c.stepIndex, stepTextTranslated: c.text, phaseType: c.phaseType, estimatedMinutes: c.estimatedMinutes, isTimingSensitive: false, parallelGroup: null, componentKey: null, pathKey: null })),
+    ...plan.creates.filter((c) => c.dishId === l.dishId).map((c) => ({ ownerId: l.dishId, stepIndex: c.stepIndex, stepTextTranslated: c.text, phaseType: c.phaseType, estimatedMinutes: c.estimatedMinutes, isTimingSensitive: false, parallelGroup: null, componentKey: c.componentKey ?? null, pathKey: c.pathKey ?? null })),
   ]);
   const titleOf = (dishId: string) => meal.dishLinks.find((l) => l.dishId === dishId)?.dish.title ?? "";
   /**
@@ -359,7 +386,7 @@ for (const t of feasts) {
   const dishIds = meal.dishLinks.map((l) => l.dishId);
   const patchedSteps = dishIds.flatMap((id) => [
     ...(stepsByDish.get(id) ?? []).map((s) => ({ ...s, ownerId: id })),
-    ...plan.creates.filter((c) => c.dishId === id).map((c) => ({ ownerId: id, stepIndex: c.stepIndex, estimatedMinutes: c.estimatedMinutes, phaseType: c.phaseType, isTimingSensitive: false, parallelGroup: null, componentKey: null, pathKey: null, stepTextTranslated: c.text })),
+    ...plan.creates.filter((c) => c.dishId === id).map((c) => ({ ownerId: id, stepIndex: c.stepIndex, estimatedMinutes: c.estimatedMinutes, phaseType: c.phaseType, isTimingSensitive: false, parallelGroup: null, componentKey: c.componentKey ?? null, pathKey: c.pathKey ?? null, stepTextTranslated: c.text })),
   ]);
   const captured: { meal?: { estimatedTimeMinutes: number | null; activeTimeMinutes: number | null } } = {};
   const memoryTx = {
@@ -394,7 +421,7 @@ for (const t of feasts) {
     for (const [stepId, u] of [...finalIndex].sort((a, b) => b[1].from - a[1].from)) await tx.recipeInstructionStep.update({ where: { id: stepId }, data: { stepIndex: u.to } });
     for (const c of plan.creates) {
       await tx.recipeInstructionStep.create({
-        data: { ownerType: "dish", ownerId: c.dishId, stepIndex: c.stepIndex, stepTextRaw: c.text, stepTextTranslated: c.text, phaseType: c.phaseType, estimatedMinutes: c.estimatedMinutes, isTimingSensitive: false, amountRefs: c.refs as Prisma.InputJsonValue },
+        data: { ownerType: "dish", ownerId: c.dishId, stepIndex: c.stepIndex, stepTextRaw: c.text, stepTextTranslated: c.text, phaseType: c.phaseType, estimatedMinutes: c.estimatedMinutes, isTimingSensitive: false, amountRefs: c.refs as Prisma.InputJsonValue, componentKey: c.componentKey ?? null, pathKey: c.pathKey ?? null },
       });
     }
     await stampMealTiming(tx, meal.id, dishIds);
