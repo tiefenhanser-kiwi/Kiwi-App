@@ -117,6 +117,8 @@ export function signToken(
   // session revocation is ever wanted. Only the redeemable purposes consult
   // the ledger today; a session token is evicted by the epoch, not by spending.
   return jwt.sign(claims, jwtSecret!, {
+    // SEC-2 #14 — named, not defaulted, so sign and verify cannot drift.
+    algorithm: "HS256",
     expiresIn: expiresIn as jwt.SignOptions["expiresIn"],
     jwtid: randomUUID(),
   });
@@ -127,7 +129,10 @@ export function verifyToken(
   expectedPurpose?: TokenPurpose,
 ): JwtPayload | null {
   try {
-    const decoded = jwt.verify(token, jwtSecret!) as JwtPayload;
+    // SEC-2 #14 — HS256 and nothing else. jsonwebtoken already refuses
+    // `alg: none` and an asymmetric alg against a string secret; pinning the
+    // list also refuses HS384/HS512 tokens, which this server never mints.
+    const decoded = jwt.verify(token, jwtSecret!, { algorithms: ["HS256"] }) as JwtPayload;
     if (!decoded.userId) return null;
     // Tokens minted before the purpose claim existed default to 'session'
     // on read (backward-compat for any in-flight tokens).

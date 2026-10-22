@@ -12,6 +12,7 @@ import { generateKeyPairSync, type KeyObject } from "node:crypto";
 import jwt from "jsonwebtoken";
 
 import { GoogleJwksCache, parseEmailAllowlist, verifyGoogleIdToken, type JwksFetch } from "../googleOidc";
+import { UNKNOWN_KID_REFETCH_MS } from "../oauth/jwks";
 
 const AUD = "https://kiwi-api.test/api/internal/images/drain";
 const SA = "kiwi-image-drain@kiwi-prod.iam.gserviceaccount.com";
@@ -98,10 +99,18 @@ describe("verifyGoogleIdToken", () => {
     assert.equal((await verifyGoogleIdToken(sign(k1.privateKey, "k1", {}), expect, cache)).ok, true);
     assert.equal(fetches, 1, "second verify served from the cache");
     // A rotated key: unknown kid → one refetch; not yet served → unknown_kid.
+    // SEC-2 #14 — an unknown kid refetches only once the last fetch is a
+    // minute old (UNKNOWN_KID_REFETCH_MS); inside that window it is answered
+    // from the cache, so made-up kids cannot buy one outbound request each.
+    now += UNKNOWN_KID_REFETCH_MS;
     const v2 = await verifyGoogleIdToken(sign(k2.privateKey, "k2", {}), expect, cache);
     assert.equal(v2.ok ? "ok" : v2.reason, "unknown_kid");
     assert.equal(fetches, 2);
     served.push(k2);
+    const v3 = await verifyGoogleIdToken(sign(k2.privateKey, "k2", {}), expect, cache);
+    assert.equal(v3.ok ? "ok" : v3.reason, "unknown_kid", "inside the window: no refetch yet");
+    assert.equal(fetches, 2);
+    now += UNKNOWN_KID_REFETCH_MS;
     assert.equal((await verifyGoogleIdToken(sign(k2.privateKey, "k2", {}), expect, cache)).ok, true);
     assert.equal(fetches, 3);
     // Past max-age the next lookup refetches even for a known kid.
@@ -130,5 +139,29 @@ describe("parseEmailAllowlist", () => {
     assert.deepEqual(parseEmailAllowlist(" A@X.test , b@y.test,, "), ["a@x.test", "b@y.test"]);
     assert.deepEqual(parseEmailAllowlist(undefined), []);
     assert.deepEqual(parseEmailAllowlist(""), []);
+  });
+});
+
+// ── SEC-2 #14 — made-up kids cannot drive outbound fetches ────────────────
+describe("JwksCache — SEC-2 #14 unknown-kid refetch limit", () => {
+  it("a burst of unknown kids, concurrent or sequential, costs ONE fetch per minute", async () => {
+    let now = 5_000_000;
+    let fetches = 0;
+    const k1 = keyPair("k1");
+    const fetch: JwksFetch = async () => {
+      fetches++;
+      await new Promise((r) => setTimeout(r, 10));
+      return { ok: true, status: 200, headers: { get: () => "max-age=3600" }, json: async () => ({ keys: [k1.jwk] }) };
+    };
+    const cache = new GoogleJwksCache({ fetch, now: () => now });
+    // Cold cache, 20 concurrent lookups of random kids: one shared fetch.
+    await Promise.all(Array.from({ length: 20 }, (_, i) => cache.keyFor(`made-up-${i}`)));
+    assert.equal(fetches, 1);
+    for (let i = 0; i < 50; i++) assert.equal(await cache.keyFor(`made-up-again-${i}`), undefined);
+    assert.equal(fetches, 1, "inside the minute: answered from the cache");
+    assert.ok(await cache.keyFor("k1"), "a known kid is unaffected");
+    now += UNKNOWN_KID_REFETCH_MS;
+    await cache.keyFor("made-up-later");
+    assert.equal(fetches, 2, "a minute on, one more fetch");
   });
 });

@@ -41,6 +41,13 @@ export interface JwksCacheDeps {
 const DEFAULT_CACHE_MS = 60 * 60 * 1000;
 /** A floor, so a `max-age=0` cannot turn every verification into a fetch. */
 const MIN_CACHE_MS = 60 * 1000;
+/**
+ * SEC-2 #14 — how often an UNKNOWN `kid` may trigger a refetch while the
+ * cache is otherwise fresh. A provider rotating its keys is a once-a-month
+ * event; a stream of tokens with made-up kids is not, and each used to cost
+ * one outbound request to Apple or Google.
+ */
+export const UNKNOWN_KID_REFETCH_MS = 60 * 1000;
 
 interface Jwk {
   kid?: string;
@@ -54,6 +61,10 @@ interface Jwk {
 export class JwksCache {
   private keys = new Map<string, KeyObject>();
   private expiresAt = 0;
+  // SEC-2 #14 — when the last fetch was STARTED, and the fetch in flight, so
+  // concurrent callers share one request instead of each making their own.
+  private lastFetchAt = Number.NEGATIVE_INFINITY;
+  private inflight: Promise<boolean> | null = null;
   constructor(private readonly deps: JwksCacheDeps) {}
 
   private now(): number {
@@ -86,8 +97,20 @@ export class JwksCache {
   // the id. `undefined` = the issuer does not (currently) publish that key.
   // Throws only when the JWKS endpoint itself is unreachable.
   async keyFor(kid: string): Promise<KeyObject | undefined> {
-    if (this.now() < this.expiresAt && this.keys.has(kid)) return this.keys.get(kid);
-    const fetched = await this.refresh();
+    const now = this.now();
+    const fresh = now < this.expiresAt;
+    if (fresh && this.keys.has(kid)) return this.keys.get(kid);
+    // SEC-2 #14 — a fresh cache that does not know this kid refetches at most
+    // once per UNKNOWN_KID_REFETCH_MS. Inside that window the answer is the
+    // honest one: the issuer does not (as of a minute ago) publish that key.
+    if (fresh && now - this.lastFetchAt < UNKNOWN_KID_REFETCH_MS) return undefined;
+    if (!this.inflight) {
+      this.lastFetchAt = now;
+      this.inflight = this.refresh().finally(() => {
+        this.inflight = null;
+      });
+    }
+    const fetched = await this.inflight;
     if (!fetched) throw new Error("jwks_unavailable");
     return this.keys.get(kid);
   }
