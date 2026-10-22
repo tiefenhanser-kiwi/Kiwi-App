@@ -83,7 +83,20 @@ describe("THX-3d — the five dev feasts, walked", { skip: RUN ? false : "set TH
     assert.match(celery[0].destination ?? "", /^Turkey/);
   });
 
+  it("N — a closing line says a shared tub's label as its food (Small's crisp filling mix: \"and lemon juice\")", async () => {
+    const b = await feastBuild("thx2-feast-small");
+    const lines = [...(b.closingLines ?? new Map<string, string>()).values()];
+    const crisp = lines.find((l) => l.startsWith("That's the Crisp filling mix"));
+    assert.ok(crisp, lines.join("\n"));
+    assert.match(crisp, /\blemon juice\b/);
+    assert.doesNotMatch(crisp, /Lemon juice/);
+  });
+
   async function feastSteps(key: string) {
+    return (await feastBuild(key)).stepPlan.steps.filter((s) => !s.demoted);
+  }
+
+  async function feastBuild(key: string) {
     const { readOnlyPrisma, PREP_WEEK_START, PREP_READ_AT } = await import("../../../scripts/thx2/thx2Prep");
     const { loadPrepWeekInput } = await import("../prepWeekAggregation");
     const { buildFeastSession } = await import("../prepWeekBuild");
@@ -93,7 +106,7 @@ describe("THX-3d — the five dev feasts, walked", { skip: RUN ? false : "set TH
       items: [{ id: "thx-3d-item", mealId: meal.id, positionIndex: 0, assignedDayOfWeek: "Thursday", assignedDate: new Date("2026-11-26T00:00:00Z"), servingsOverride: null, meal }],
     };
     const load = await loadPrepWeekInput({ planId: plan.id, userId: plan.userId, prisma: readOnlyPrisma(prisma, plan), now: PREP_READ_AT });
-    return buildFeastSession(load)!.stepPlan.steps.filter((s) => !s.demoted);
+    return buildFeastSession(load)!;
   }
 
   // Round 2 (L) — the wording walk (feastWordingWalk): Cook Mode names what Prep the feast

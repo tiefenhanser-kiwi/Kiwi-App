@@ -408,7 +408,7 @@ function feastFacts(
   // amounts come from the dishes whole, scaled the same way, not the session's rows.
   const whole = buildPrepCombineInput(input);
   return {
-    closingLines: feastClosingLines(stepPlan.steps, dishes, whole, WEEKDAYS[fi], servingsMultipliers(input)),
+    closingLines: feastClosingLines(stepPlan.steps, dishes, whole, WEEKDAYS[fi], servingsMultipliers(input), new Set([...(stepPlan.feastLabels?.kinds ?? [])].filter(([, k]) => k === "shared").map(([l]) => l))),
     sessionBefore: first ?? WEEKDAYS[fi],
   };
 }

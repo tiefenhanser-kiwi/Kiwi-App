@@ -223,6 +223,8 @@ export function feastClosingLines(
   feastDay?: string,
   /** THX-3d — dishId → its servings multiplier, so a SHARE a step uses prints scaled. */
   multiplierOf?: ReadonlyMap<string, number>,
+  /** THX-3d round 2 (N) — the labels that are shared tubs: a food, said in lower case ("the lemon juice"). */
+  sharedLabels?: ReadonlySet<string>,
 ): Map<string, string> {
   const uses = containerUses(steps, dishesById, combineInput, feastDay);
   const scaled = new Map<string, { ingredientId: string; ingredientName: string; quantity: number; unit: string; category: string; portionStep?: number; asWritten?: boolean; preparationNote?: string | null }[]>();
@@ -290,7 +292,7 @@ export function feastClosingLines(
           // THX-3d — a SHARED tub's label names the food and its dishes ("Juiced lemon —
           // Roasted Green Beans, Apple Crisp"); in a sentence it is the food ("juiced lemon").
           const raw = otherContainer.get(key);
-          const elsewhere = raw && raw.includes(" — ") ? spokenName(raw.split(" — ")[0], "") : raw;
+          const elsewhere = raw && raw.includes(" — ") ? spokenName(raw.split(" — ")[0], "") : raw && sharedLabels?.has(raw) ? raw.toLowerCase() : raw;
           if (elsewhere && !joins.includes(elsewhere)) joins.push(elsewhere);
           continue;
         }
