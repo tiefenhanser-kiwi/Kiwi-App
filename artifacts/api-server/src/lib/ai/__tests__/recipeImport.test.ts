@@ -4,6 +4,8 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import http from "node:http";
+import type { AddressInfo } from "node:net";
 import type Anthropic from "@anthropic-ai/sdk";
 
 import {
@@ -19,6 +21,7 @@ import {
   parseIngredientLines,
   reformatRecipeForKiwi,
   fetchRecipePage,
+  type FetchRecipePageOptions,
   stripNullValues,
 } from "../../recipeImport";
 import { _resetClientCache } from "../runAICall";
@@ -539,38 +542,49 @@ describe("fetchRecipePage — URL validation", () => {
 });
 
 // ── fetchRecipePage body inspection (6c-1-fix-2) ───────────────────────
-// Stub globalThis.fetch directly so we can drive status codes and bodies
-// without hitting the network.
+// SEC-2 #2 — fetchRecipePage no longer goes through globalThis.fetch (it uses
+// http.request with a checked DNS lookup), so these cases serve the response
+// from a loopback listener instead: the name resolves to 127.0.0.1 through the
+// injected lookup, and allowLoopbackForTests opens loopback and the port rule
+// only. Same responses, same assertions.
 
-function stubFetch(response: {
+async function stubFetch(response: {
   status?: number;
   headers?: Record<string, string>;
   body?: string;
-}): () => void {
-  const originalFetch = globalThis.fetch;
-  const status = response.status ?? 200;
-  const headers = new Headers({
-    "content-type": "text/html; charset=utf-8",
-    ...(response.headers ?? {}),
+}): Promise<{
+  at: (url: string) => [string, FetchRecipePageOptions];
+  restore: () => Promise<void>;
+}> {
+  const server = http.createServer((_req, res) => {
+    res.writeHead(response.status ?? 200, {
+      "content-type": "text/html; charset=utf-8",
+      ...(response.headers ?? {}),
+    });
+    res.end(response.body ?? "");
   });
-  const body = response.body ?? "";
-  (globalThis as { fetch: typeof fetch }).fetch = (async () => {
-    const buf = new TextEncoder().encode(body);
-    return new Response(buf, { status, headers });
-  }) as typeof fetch;
-  return () => {
-    (globalThis as { fetch: typeof fetch }).fetch = originalFetch;
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  const { port } = server.address() as AddressInfo;
+  const dnsLookup = ((_h: string, _o: unknown, cb: (e: null, a: { address: string; family: number }[]) => void) =>
+    cb(null, [{ address: "127.0.0.1", family: 4 }])) as unknown as FetchRecipePageOptions["dnsLookup"];
+  return {
+    // An https:// case becomes http:// on the listener's port.
+    at: (url) => {
+      const u = new URL(url);
+      return [`http://${u.hostname}:${port}${u.pathname}`, { dnsLookup, allowLoopbackForTests: true }];
+    },
+    restore: () => new Promise<void>((r) => server.close(() => r())),
   };
 }
 
 describe("fetchRecipePage — body & redirect inspection", () => {
   it("throws cloudflare_challenge when body contains 2+ challenge markers", async () => {
-    const restore = stubFetch({
+    const stub = await stubFetch({
       body: `<html><script>window._cf_chl_opt={};</script><script src="/cdn-cgi/challenge-platform/h/g/orchestrate/chl_page/v1/foo.js"></script></html>`,
     });
     try {
       await assert.rejects(
-        () => fetchRecipePage("https://blocked.example.com/r"),
+        () => fetchRecipePage(...stub.at("https://blocked.example.com/r")),
         (err: unknown) => {
           assert.ok(err instanceof Error);
           assert.equal((err as { code?: string }).code, "cloudflare_challenge");
@@ -578,31 +592,31 @@ describe("fetchRecipePage — body & redirect inspection", () => {
         },
       );
     } finally {
-      restore();
+      await stub.restore();
     }
   });
 
   it("does NOT throw when only a single Cloudflare marker is present (false-positive guard)", async () => {
-    const restore = stubFetch({
+    const stub = await stubFetch({
       body: `<html><body><p>This blog post mentions _cf_chl_opt only once, in passing.</p></body></html>`,
     });
     try {
-      const result = await fetchRecipePage("https://blog.example.com/r");
+      const result = await fetchRecipePage(...stub.at("https://blog.example.com/r"));
       assert.ok(result.html.includes("_cf_chl_opt"));
     } finally {
-      restore();
+      await stub.restore();
     }
   });
 
   it("throws redirected on a 308 response", async () => {
-    const restore = stubFetch({
+    const stub = await stubFetch({
       status: 308,
       headers: { location: "https://example.com/elsewhere" },
       body: "",
     });
     try {
       await assert.rejects(
-        () => fetchRecipePage("https://example.com/recipe"),
+        () => fetchRecipePage(...stub.at("https://example.com/recipe")),
         (err: unknown) => {
           assert.ok(err instanceof Error);
           assert.equal((err as { code?: string }).code, "redirected");
@@ -611,19 +625,19 @@ describe("fetchRecipePage — body & redirect inspection", () => {
         },
       );
     } finally {
-      restore();
+      await stub.restore();
     }
   });
 
   it("returns html for a clean 200 response", async () => {
-    const restore = stubFetch({
+    const stub = await stubFetch({
       body: `<html><head><title>Recipe</title></head><body><h1>Clean recipe page</h1></body></html>`,
     });
     try {
-      const result = await fetchRecipePage("https://clean.example.com/r");
+      const result = await fetchRecipePage(...stub.at("https://clean.example.com/r"));
       assert.ok(result.html.includes("Clean recipe page"));
     } finally {
-      restore();
+      await stub.restore();
     }
   });
 });

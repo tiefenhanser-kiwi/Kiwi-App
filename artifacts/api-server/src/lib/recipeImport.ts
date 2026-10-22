@@ -9,6 +9,12 @@
 // Failures return AICallFailure or null — each route maps them into a uniform
 // URLImportFailure envelope (with a path-specific userFacingMessage).
 
+import dns from "node:dns";
+import http from "node:http";
+import https from "node:https";
+import net from "node:net";
+import zlib from "node:zlib";
+
 import * as cheerio from "cheerio";
 import { Jimp } from "jimp";
 import { parse as parseIngredient } from "recipe-ingredient-parser-v3";
@@ -63,7 +69,14 @@ const CanonicalRecipeSchemaWithStripping = z.preprocess(
 // URL fetch
 // ─────────────────────────────────────────────────────────────────
 
+// Time to response headers. Unchanged from 6c-1.
 const FETCH_TIMEOUT_MS = 5_000;
+// SEC-2 #2 — the WHOLE fetch, body included. The header timeout above used to
+// be the only clock: once headers arrived, a server dripping one byte every two
+// seconds held the request (and its socket) open for as long as it liked —
+// SEC-1's probe gave up at 30 s and the connection was still open behind it.
+const FETCH_DEADLINE_MS = 15_000;
+// Applied to DECODED bytes as they arrive (see readCappedBody).
 const MAX_BODY_BYTES = 5 * 1024 * 1024;
 // Identifies KiwiBot to recipe sites + provides a contact URL per bot-operator
 // convention. Earlier "Kiwi/1.0" was 403'd by AllRecipes anti-bot in 6c-1 smoke.
@@ -115,21 +128,143 @@ function detectsCloudflareChallenge(html: string): boolean {
   return false;
 }
 
-const PRIVATE_IP_PATTERNS: RegExp[] = [
-  /^127\./,
-  /^10\./,
-  /^192\.168\./,
-  /^172\.(1[6-9]|2[0-9]|3[0-1])\./,
-  /^169\.254\./,
-  /^0\.0\.0\.0$/,
+// ── SEC-2 #2 — WHERE THE FETCH IS ALLOWED TO GO ─────────────────────────
+//
+// The old guard was a list of regexes over the URL's HOSTNAME STRING. SEC-1
+// walked straight past it: `[::1]` and `[0:0:0:0:0:0:0:1]` reached this
+// server's own /api/healthz, IPv4-mapped IPv6 (`[::ffff:7f00:1]`,
+// `[::ffff:a9fe:a9fe]` = the metadata server) and CGNAT were never listed, a
+// hostname that RESOLVES to a private address was never resolved at all, and a
+// closed port answered differently from an open one (a port scanner).
+//
+// The rule now is about ADDRESSES, checked where the socket is made:
+//   · an IP-literal host is checked as written (Node never resolves one);
+//   · any other host is resolved by `guardedLookup`, EVERY answer is checked,
+//     and the socket connects to the address that was checked. There is no
+//     second resolution for a rebinding DNS server to answer differently.
+//   · ports 80 and 443 only.
+
+/** Hostnames refused by NAME, before any resolution. */
+const BLOCKED_HOSTNAMES = new Set(["localhost", "metadata", "metadata.google.internal"]);
+const BLOCKED_HOST_SUFFIXES = [".localhost", ".internal", ".local"];
+const ALLOWED_PORTS = new Set([80, 443]);
+
+// [network, prefix length]. Loopback, "this network", RFC 1918, link-local
+// (169.254/16 — the cloud metadata address), CGNAT (100.64/10), the IETF and
+// documentation blocks, benchmarking, the 6to4 relay, multicast and reserved
+// (224/4 and 240/4, which also covers 255.255.255.255).
+const BLOCKED_V4: ReadonlyArray<readonly [string, number]> = [
+  ["0.0.0.0", 8],
+  ["10.0.0.0", 8],
+  ["100.64.0.0", 10],
+  ["127.0.0.0", 8],
+  ["169.254.0.0", 16],
+  ["172.16.0.0", 12],
+  ["192.0.0.0", 24],
+  ["192.0.2.0", 24],
+  ["192.88.99.0", 24],
+  ["192.168.0.0", 16],
+  ["198.18.0.0", 15],
+  ["198.51.100.0", 24],
+  ["203.0.113.0", 24],
+  ["224.0.0.0", 4],
+  ["240.0.0.0", 4],
 ];
 
-function assertSafeUrl(rawUrl: string): URL {
+function v4ToInt(ip: string): number {
+  return ip.split(".").reduce((acc, o) => acc * 256 + Number(o), 0);
+}
+
+function isBlockedV4(ip: string): boolean {
+  const n = v4ToInt(ip);
+  return BLOCKED_V4.some(([net, bits]) => {
+    const size = 2 ** (32 - bits);
+    return Math.floor(n / size) === Math.floor(v4ToInt(net) / size);
+  });
+}
+
+/** Eight 16-bit groups, or null when the text is not an IPv6 address. */
+function v6Groups(ip: string): number[] | null {
+  let text = ip.split("%")[0]!.toLowerCase(); // a zone id says nothing about the address
+  // A trailing dotted quad (`::ffff:127.0.0.1`) is two groups.
+  const dotted = text.match(/^(.*:)(\d+\.\d+\.\d+\.\d+)$/);
+  if (dotted) {
+    if (!net.isIPv4(dotted[2]!)) return null;
+    const n = v4ToInt(dotted[2]!);
+    text = `${dotted[1]}${(n >>> 16).toString(16)}:${(n & 0xffff).toString(16)}`;
+  }
+  const halves = text.split("::");
+  if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(":") : [];
+  const tail = halves.length === 2 && halves[1] ? halves[1].split(":") : [];
+  const fill = halves.length === 2 ? 8 - head.length - tail.length : 0;
+  if (fill < 0 || (halves.length === 1 && head.length !== 8)) return null;
+  const groups = [...head, ...Array(fill).fill("0"), ...tail].map((g) => parseInt(g, 16));
+  return groups.length === 8 && groups.every((g) => Number.isInteger(g) && g >= 0 && g <= 0xffff)
+    ? groups
+    : null;
+}
+
+/**
+ * IPv6 is ALLOWLISTED to global unicast (2000::/3) and then trimmed. Outside
+ * 2000::/3 sits everything this guard exists to refuse: unspecified (::),
+ * loopback (::1), IPv4-mapped (::ffff:0:0/96) and IPv4-compatible (::/96)
+ * addresses, NAT64 (64:ff9b::/96), discard (100::/64), ULA (fc00::/7),
+ * link-local (fe80::/10), site-local (fec0::/10) and multicast (ff00::/8).
+ * Inside it, the blocks that embed or tunnel to an IPv4 address or are
+ * documentation-only: 2001::/23 (Teredo and the IETF block), 2001:db8::/32,
+ * 2002::/16 (6to4) and 3fff::/20.
+ */
+function isBlockedV6(ip: string): boolean {
+  const g = v6Groups(ip);
+  if (!g) return true;
+  if ((g[0]! & 0xe000) !== 0x2000) return true;
+  if (g[0] === 0x2001 && g[1]! < 0x0200) return true;
+  if (g[0] === 0x2001 && g[1] === 0x0db8) return true;
+  if (g[0] === 0x2002) return true;
+  if (g[0] === 0x3fff && g[1]! < 0x1000) return true;
+  return false;
+}
+
+/** True for any address a server-side fetch must never reach. Unparseable = blocked. */
+export function isBlockedAddress(ip: string): boolean {
+  const bare = ip.replace(/^\[|\]$/g, "");
+  if (net.isIPv4(bare)) return isBlockedV4(bare);
+  if (net.isIPv6(bare)) return isBlockedV6(bare);
+  return true;
+}
+
+function isBlockedHostname(host: string): boolean {
+  const h = host.toLowerCase().replace(/\.$/, "");
+  return BLOCKED_HOSTNAMES.has(h) || BLOCKED_HOST_SUFFIXES.some((s) => h.endsWith(s));
+}
+
+/** Test-only seams. The import route passes none of these. */
+export interface FetchRecipePageOptions {
+  /** Replaces dns.lookup (the rebinding test). */
+  dnsLookup?: typeof dns.lookup;
+  /**
+   * Lets a test reach its own 127.0.0.1 listener on a random port. Loopback
+   * and the port rule ONLY — every other check still runs. Never set in prod.
+   */
+  allowLoopbackForTests?: boolean;
+  deadlineMs?: number;
+  headersTimeoutMs?: number;
+  maxBodyBytes?: number;
+}
+
+function addressAllowed(ip: string, opts: FetchRecipePageOptions): boolean {
+  if (opts.allowLoopbackForTests && (ip === "127.0.0.1" || ip === "::1")) return true;
+  return !isBlockedAddress(ip);
+}
+
+function assertSafeUrl(rawUrl: string, opts: FetchRecipePageOptions): URL {
   let parsed: URL;
   try {
     parsed = new URL(rawUrl);
   } catch {
-    throw new RecipeImportError(`Invalid URL: ${rawUrl}`, "invalid_url");
+    // The URL itself is never put in the message: messages reach the log.
+    throw new RecipeImportError("Invalid URL", "invalid_url");
   }
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     throw new RecipeImportError(
@@ -137,90 +272,190 @@ function assertSafeUrl(rawUrl: string): URL {
       "invalid_url",
     );
   }
-  const host = parsed.hostname.toLowerCase();
-  if (host === "localhost" || host === "0.0.0.0") {
-    throw new RecipeImportError(`Blocked host: ${host}`, "blocked_host");
+  if (parsed.username || parsed.password) {
+    throw new RecipeImportError("Credentials in URL", "invalid_url");
   }
-  for (const pattern of PRIVATE_IP_PATTERNS) {
-    if (pattern.test(host)) {
-      throw new RecipeImportError(`Blocked private IP: ${host}`, "blocked_host");
+  const port = parsed.port ? Number(parsed.port) : parsed.protocol === "https:" ? 443 : 80;
+  if (!ALLOWED_PORTS.has(port) && !opts.allowLoopbackForTests) {
+    throw new RecipeImportError(`Blocked port ${port}`, "blocked_host");
+  }
+  // WHATWG URL has already normalised `2130706433`, `0x7f.1` and `0177.0.0.1`
+  // to `127.0.0.1`; an IPv6 literal keeps its brackets in `hostname`.
+  const host = parsed.hostname.replace(/^\[|\]$/g, "");
+  if (net.isIP(host)) {
+    if (!addressAllowed(host, opts)) {
+      throw new RecipeImportError("Blocked address", "blocked_host");
     }
+  } else if (isBlockedHostname(host)) {
+    throw new RecipeImportError("Blocked host", "blocked_host");
   }
   return parsed;
 }
 
-export async function fetchRecipePage(url: string): Promise<{ html: string }> {
-  assertSafeUrl(url);
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method: "GET",
-      headers: { "User-Agent": KIWI_BOT_USER_AGENT, Accept: "text/html, text/plain, */*" },
-      signal: controller.signal,
-      // Manual redirect so we can refuse 3xx (paywall walls, login walls,
-      // dead-recipe redirects). Auto-follow lets the AI parse whatever the
-      // redirect target happens to be — usually a different recipe.
-      redirect: "manual",
+/**
+ * The `lookup` the socket uses. EVERY address the name resolves to must pass —
+ * a record set mixing a public and a private address is refused outright, not
+ * filtered — and the socket then connects to exactly what was checked.
+ */
+function guardedLookup(opts: FetchRecipePageOptions): net.LookupFunction {
+  const lookup = opts.dnsLookup ?? dns.lookup;
+  return (hostname, options, callback) => {
+    lookup(hostname, { ...options, all: true }, (err, addresses) => {
+      if (err) return callback(err, "", 0);
+      const list = (Array.isArray(addresses) ? addresses : []) as dns.LookupAddress[];
+      if (list.length === 0 || list.some((a) => !addressAllowed(a.address, opts))) {
+        return callback(
+          new RecipeImportError("Host resolves to a blocked address", "blocked_host") as NodeJS.ErrnoException,
+          "",
+          0,
+        );
+      }
+      if ((options as dns.LookupOptions).all) {
+        (callback as unknown as (e: null, a: dns.LookupAddress[]) => void)(null, list);
+      } else {
+        callback(null, list[0]!.address, list[0]!.family);
+      }
     });
-  } catch (err) {
-    clearTimeout(timer);
-    const msg = err instanceof Error ? err.message : String(err);
-    if (msg.toLowerCase().includes("abort")) {
-      throw new RecipeImportError(`Fetch timeout after ${FETCH_TIMEOUT_MS}ms`, "fetch_timeout");
-    }
-    throw new RecipeImportError(`Fetch failed: ${msg}`, "fetch_failed");
-  }
-  clearTimeout(timer);
+  };
+}
 
-  // Manual-redirect mode: 3xx is NOT `!response.ok`, so check it first.
-  if (response.status >= 300 && response.status < 400) {
-    const location = response.headers.get("location") ?? "(no Location header)";
-    throw new RecipeImportError(
-      `Redirect ${response.status} → ${location}`,
-      "redirected",
-    );
+function decoderFor(encoding: string): NodeJS.ReadWriteStream | null {
+  switch (encoding) {
+    case "":
+    case "identity":
+      return null;
+    case "gzip":
+    case "x-gzip":
+      return zlib.createGunzip();
+    case "deflate":
+      return zlib.createInflate();
+    case "br":
+      return zlib.createBrotliDecompress();
+    default:
+      throw new RecipeImportError("Unsupported content-encoding", "fetch_content_type");
   }
-  if (!response.ok) {
-    throw new RecipeImportError(
-      `Fetch returned HTTP ${response.status}`,
-      "fetch_status",
-    );
-  }
-  const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
-  if (
-    !contentType.includes("text/html") &&
-    !contentType.includes("text/plain") &&
-    !contentType.includes("application/xhtml+xml")
-  ) {
-    throw new RecipeImportError(
-      `Unsupported content-type: ${contentType || "unknown"}`,
-      "fetch_content_type",
-    );
-  }
+}
 
-  const contentLengthHeader = response.headers.get("content-length");
-  if (contentLengthHeader) {
-    const declared = Number.parseInt(contentLengthHeader, 10);
-    if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) {
-      throw new RecipeImportError(
-        `Body too large: ${declared} bytes`,
-        "fetch_too_large",
+export async function fetchRecipePage(
+  url: string,
+  opts: FetchRecipePageOptions = {},
+): Promise<{ html: string }> {
+  const parsed = assertSafeUrl(url, opts);
+  const deadlineMs = opts.deadlineMs ?? FETCH_DEADLINE_MS;
+  const headersTimeoutMs = opts.headersTimeoutMs ?? FETCH_TIMEOUT_MS;
+  const maxBytes = opts.maxBodyBytes ?? MAX_BODY_BYTES;
+  const requestImpl = parsed.protocol === "https:" ? https.request : http.request;
+
+  const body = await new Promise<Buffer>((resolve, reject) => {
+    let settled = false;
+    const cleanups: Array<() => void> = [];
+    const finish = (err: Error | null, buf?: Buffer) => {
+      if (settled) return;
+      settled = true;
+      for (const c of cleanups) c();
+      if (err) reject(err);
+      else resolve(buf!);
+    };
+
+    const req = requestImpl({
+      protocol: parsed.protocol,
+      hostname: parsed.hostname.replace(/^\[|\]$/g, ""),
+      port: parsed.port || undefined,
+      path: `${parsed.pathname}${parsed.search}`,
+      method: "GET",
+      headers: {
+        "User-Agent": KIWI_BOT_USER_AGENT,
+        Accept: "text/html, text/plain, */*",
+        "Accept-Encoding": "gzip, deflate, br",
+      },
+      lookup: guardedLookup(opts),
+      // A fresh socket per fetch: a pooled one could have been made to an
+      // address this request's lookup never saw.
+      agent: false,
+    });
+    cleanups.push(() => req.destroy());
+
+    // The overall deadline. Destroying the request tears down the socket and
+    // the response stream with it, so a dripping server is cut off here.
+    const deadline = setTimeout(
+      () => finish(new RecipeImportError(`Fetch exceeded ${deadlineMs}ms`, "fetch_timeout")),
+      deadlineMs,
+    );
+    const headersTimer = setTimeout(
+      () => finish(new RecipeImportError(`No response headers after ${headersTimeoutMs}ms`, "fetch_timeout")),
+      headersTimeoutMs,
+    );
+    cleanups.push(() => clearTimeout(deadline), () => clearTimeout(headersTimer));
+
+    req.on("error", (err) => {
+      finish(
+        err instanceof RecipeImportError
+          ? err
+          : new RecipeImportError(`Fetch failed: ${(err as NodeJS.ErrnoException).code ?? err.name}`, "fetch_failed"),
       );
-    }
-  }
+    });
 
-  const buffer = await response.arrayBuffer();
-  if (buffer.byteLength > MAX_BODY_BYTES) {
-    throw new RecipeImportError(
-      `Body too large: ${buffer.byteLength} bytes`,
-      "fetch_too_large",
-    );
-  }
-  const html = new TextDecoder("utf-8", { fatal: false }).decode(buffer);
+    req.on("response", (res) => {
+      clearTimeout(headersTimer);
+      const status = res.statusCode ?? 0;
+      // No redirect is ever followed (paywall walls, login walls, dead-recipe
+      // redirects — and, since SEC-2, a redirect into the private network).
+      // The Location header is never read: it used to ride into the message.
+      if (status >= 300 && status < 400) {
+        return finish(new RecipeImportError(`Redirect ${status}`, "redirected"));
+      }
+      if (status < 200 || status >= 300) {
+        return finish(new RecipeImportError(`Fetch returned HTTP ${status}`, "fetch_status"));
+      }
+      const contentType = String(res.headers["content-type"] ?? "").toLowerCase();
+      if (
+        !contentType.includes("text/html") &&
+        !contentType.includes("text/plain") &&
+        !contentType.includes("application/xhtml+xml")
+      ) {
+        return finish(
+          new RecipeImportError(`Unsupported content-type: ${contentType || "unknown"}`, "fetch_content_type"),
+        );
+      }
+      const declared = Number.parseInt(String(res.headers["content-length"] ?? ""), 10);
+      if (Number.isFinite(declared) && declared > maxBytes) {
+        return finish(new RecipeImportError(`Body too large: ${declared} bytes declared`, "fetch_too_large"));
+      }
+
+      let decoder: NodeJS.ReadWriteStream | null;
+      try {
+        decoder = decoderFor(String(res.headers["content-encoding"] ?? "").trim().toLowerCase());
+      } catch (err) {
+        return finish(err as Error);
+      }
+      const stream: NodeJS.ReadableStream = decoder ? res.pipe(decoder) : res;
+      if (decoder) {
+        cleanups.push(() => (decoder as unknown as { destroy(): void }).destroy());
+      }
+
+      // The cap is on DECODED bytes, counted as they arrive. SEC-1's gzip bomb
+      // was ~12 KB on the wire and 12 MB decoded; the old check read the
+      // whole body into memory first and measured it afterwards.
+      const chunks: Buffer[] = [];
+      let total = 0;
+      stream.on("data", (chunk: Buffer) => {
+        total += chunk.length;
+        if (total > maxBytes) {
+          finish(new RecipeImportError(`Body too large: over ${maxBytes} decoded bytes`, "fetch_too_large"));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      stream.on("error", (err: Error) =>
+        finish(new RecipeImportError(`Body read failed: ${err.name}`, "fetch_failed")),
+      );
+      stream.on("end", () => finish(null, Buffer.concat(chunks)));
+    });
+
+    req.end();
+  });
+
+  const html = new TextDecoder("utf-8", { fatal: false }).decode(body);
   if (detectsCloudflareChallenge(html)) {
     throw new RecipeImportError(
       "Cloudflare challenge page detected — site requires JS/cookies",

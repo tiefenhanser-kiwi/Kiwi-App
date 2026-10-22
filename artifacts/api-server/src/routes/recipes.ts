@@ -229,18 +229,23 @@ export function createRecipesRouter(
       } catch (err) {
         const code =
           err instanceof RecipeImportError ? err.code : "fetch_failed";
-        logger.warn({ url, err, code }, "import-url fetch failed");
-        // 6c-1-fix-2 added cloudflare_challenge + redirected — both ride the
-        // generic fetch_error branch below, no special-casing required.
+        // SEC-2 #15 — the host, never the URL: a path and query string can
+        // carry anything the user pasted, tokens included.
+        logger.warn(
+          { host: hostOf(url), code, detail: err instanceof Error ? err.message : String(err) },
+          "import-url fetch failed",
+        );
+        // SEC-2 #2 — ONE answer for every fetch failure. The reply used to
+        // carry `internalError` (the redirect's Location, the upstream status,
+        // "Blocked private IP: …") and split blocked hosts into their own
+        // reason — together an oracle for what sits on the network behind this
+        // server. Only a URL that does not parse keeps its own reason: that is
+        // the caller's typo, and nothing was fetched.
         return res.json({
           success: false,
-          reason:
-            code === "invalid_url" || code === "blocked_host"
-              ? "url_parse_failed"
-              : "fetch_error",
+          reason: code === "invalid_url" ? "url_parse_failed" : "fetch_error",
           userFacingMessage: URL_IMPORT_FAILURE_MESSAGE,
           suggestedAction: "try_image_import",
-          internalError: err instanceof Error ? err.message : String(err),
         });
       }
 
@@ -266,6 +271,8 @@ export function createRecipesRouter(
         // 200: this route's contract is a typed envelope (the mobile client
         // translates any 4xx/5xx into its own generic copy).
         const guarded = isSpendGuardReason(aiResult.reason);
+        // SEC-2 #2 — the detail goes to the log, never the reply.
+        logger.warn({ path: req.path, detail: aiResult.internalError }, "recipe import failed");
         return res.json({
           success: false,
           reason: guarded ? aiResult.reason : "sdk_error",
@@ -273,17 +280,17 @@ export function createRecipesRouter(
             ? aiResult.userFacingMessage
             : URL_IMPORT_FAILURE_MESSAGE,
           suggestedAction: "try_image_import",
-          internalError: aiResult.internalError,
         });
       }
 
       if (aiResult.data.status === "no_recipe_content") {
+        // SEC-2 #2 — the detail goes to the log, never the reply.
+        logger.warn({ path: req.path, detail: aiResult.data.reason }, "recipe import failed");
         return res.json({
           success: false,
           reason: "url_parse_failed",
           userFacingMessage: URL_IMPORT_FAILURE_MESSAGE,
           suggestedAction: "try_image_import",
-          internalError: aiResult.data.reason,
         });
       }
 
@@ -402,6 +409,8 @@ export function createRecipesRouter(
       if (!aiResult.success) {
         // D-WS9-240 — see import-url: guard refusals keep their reason + copy.
         const guarded = isSpendGuardReason(aiResult.reason);
+        // SEC-2 #2 — the detail goes to the log, never the reply.
+        logger.warn({ path: req.path, detail: aiResult.internalError }, "recipe import failed");
         return res.json({
           success: false,
           reason: guarded ? aiResult.reason : "sdk_error",
@@ -409,17 +418,17 @@ export function createRecipesRouter(
             ? aiResult.userFacingMessage
             : IMAGE_IMPORT_FAILURE_MESSAGE,
           suggestedAction: "try_text_import",
-          internalError: aiResult.internalError,
         });
       }
 
       if (aiResult.data.status === "no_recipe_content") {
+        // SEC-2 #2 — the detail goes to the log, never the reply.
+        logger.warn({ path: req.path, detail: aiResult.data.reason }, "recipe import failed");
         return res.json({
           success: false,
           reason: "url_parse_failed",
           userFacingMessage: IMAGE_IMPORT_FAILURE_MESSAGE,
           suggestedAction: "try_text_import",
-          internalError: aiResult.data.reason,
         });
       }
 
@@ -499,6 +508,8 @@ export function createRecipesRouter(
       if (!aiResult.success) {
         // D-WS9-240 — see import-url: guard refusals keep their reason + copy.
         const guarded = isSpendGuardReason(aiResult.reason);
+        // SEC-2 #2 — the detail goes to the log, never the reply.
+        logger.warn({ path: req.path, detail: aiResult.internalError }, "recipe import failed");
         return res.json({
           success: false,
           reason: guarded ? aiResult.reason : "sdk_error",
@@ -506,17 +517,17 @@ export function createRecipesRouter(
             ? aiResult.userFacingMessage
             : TEXT_IMPORT_FAILURE_MESSAGE,
           suggestedAction: "try_image_import",
-          internalError: aiResult.internalError,
         });
       }
 
       if (aiResult.data.status === "no_recipe_content") {
+        // SEC-2 #2 — the detail goes to the log, never the reply.
+        logger.warn({ path: req.path, detail: aiResult.data.reason }, "recipe import failed");
         return res.json({
           success: false,
           reason: "url_parse_failed",
           userFacingMessage: TEXT_IMPORT_FAILURE_MESSAGE,
           suggestedAction: "try_image_import",
-          internalError: aiResult.data.reason,
         });
       }
 
@@ -559,6 +570,16 @@ export function createRecipesRouter(
 // ─────────────────────────────────────────────────────────────────
 // helpers
 // ─────────────────────────────────────────────────────────────────
+
+// SEC-2 #15 — what an import log line may say about the URL: its host, or
+// "invalid" when it does not parse. Never the path or query.
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host || "invalid";
+  } catch {
+    return "invalid";
+  }
+}
 
 function clampInt(
   v: unknown,
