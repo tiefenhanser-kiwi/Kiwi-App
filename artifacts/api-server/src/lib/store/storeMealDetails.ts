@@ -190,13 +190,19 @@ export async function filterBindableStoreMealIds(
   prisma: PrismaClient,
   ids: string[],
   userId: string,
+  // SEC-2 #3 — a guest owns nothing and is not a member: only the catalog's
+  // own rows (no owner, published) are readable to it. A user-owned meal that
+  // happens to be public is still a member's meal.
+  opts: { guest?: boolean } = {},
 ): Promise<Map<string, StoreSlotBinding>> {
   if (ids.length === 0) return new Map();
   const rows = await prisma.meal.findMany({
     where: {
       id: { in: ids },
       isArchived: false,
-      OR: [{ isPublic: true }, { userId }],
+      ...(opts.guest
+        ? { isPublic: true, userId: null }
+        : { OR: [{ isPublic: true }, { userId }] }),
     },
     select: { id: true, userId: true, isPublic: true },
   });

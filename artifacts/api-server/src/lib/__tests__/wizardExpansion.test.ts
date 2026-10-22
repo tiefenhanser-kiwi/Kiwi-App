@@ -765,6 +765,9 @@ function storeMealGraph(id: string) {
 const storePrisma = {
   userPreferences: { findUnique: async () => null },
   meal: {
+    // SEC-2 #3 — the readability gate before compose: every id is a catalog row.
+    findMany: async ({ where }: { where: { id: { in: string[] } } }) =>
+      where.id.in.map((id) => ({ id, userId: null, isPublic: true })),
     findUnique: async (args: { where: { id: string } }) =>
       storeMealGraph(args.where.id),
   },
@@ -810,6 +813,9 @@ describe("expandCandidate — D-WS9-038 store compose", () => {
     const badPrisma = {
       userPreferences: { findUnique: async () => null },
       meal: {
+        // SEC-2 #3 — the readability gate before compose: every id is a catalog row.
+        findMany: async ({ where }: { where: { id: { in: string[] } } }) =>
+          where.id.in.map((id) => ({ id, userId: null, isPublic: true })),
         findUnique: async (args: { where: { id: string } }) => {
           const g = storeMealGraph(args.where.id);
           g.dishLinks[0].dish.dishIngredients[0].unit = ""; // invalid — fails unit.min(1)
@@ -1064,6 +1070,9 @@ describe("BUG-163 — store-composed slots carry description into the draft payl
     const capturingPrisma = {
       userPreferences: { findUnique: async () => null },
       meal: {
+        // SEC-2 #3 — the readability gate before compose: every id is a catalog row.
+        findMany: async ({ where }: { where: { id: { in: string[] } } }) =>
+          where.id.in.map((id) => ({ id, userId: null, isPublic: true })),
         findUnique: async (args: {
           where: { id: string };
           select?: Record<string, unknown>;

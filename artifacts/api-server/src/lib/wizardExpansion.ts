@@ -29,7 +29,7 @@ import { dietRestrictionsOf, fitsDiets, type DietRestriction } from "./similar/d
 import { mealIdsFittingDiets } from "./similar/swapPool";
 import { runAICall as productionRunAICall } from "./ai/runAICall";
 import { isSpendGuardReason } from "./ai/errors";
-import { composeStoreMealDetails } from "./store/storeMealDetails";
+import { composeStoreMealDetails, filterBindableStoreMealIds } from "./store/storeMealDetails";
 import {
   WizardExpandResultDetailsSchema,
   type WizardExpandMealDetails,
@@ -187,15 +187,50 @@ export async function expandCandidate(
     eatingStyles,
   };
 
+  // SEC-2 #3 — THE CLIENT ECHOES THESE IDS, so they are checked before anything
+  // reads them. composeStoreMealDetails loads a meal by id with no owner test,
+  // and its output is the full recipe on the wire: any meal id — another
+  // user's private meal, an archived one — used to come back composed. The
+  // same owner-OR-pool predicate save-time revalidation applies (BUG-281), or
+  // catalog-only for a guest. A slot that fails it is dropped exactly like an
+  // unknown id: a member's slot expands live, a guest's becomes the
+  // thin-shelf door.
+  const echoedStoreSlots = opts.request.candidate.storeSlots ?? [];
+  const readableStoreIds =
+    echoedStoreSlots.length === 0
+      ? new Set<string>()
+      : new Set(
+          (
+            await filterBindableStoreMealIds(
+              opts.prisma,
+              [...new Set(echoedStoreSlots.map((s) => s.storeMealId))],
+              opts.userId,
+              { guest: !!opts.guestSessionId },
+            )
+          ).keys(),
+        );
+  const storeSlots = echoedStoreSlots.filter((s) => readableStoreIds.has(s.storeMealId));
+  if (storeSlots.length < echoedStoreSlots.length) {
+    logger.warn(
+      {
+        event: "wizard_expand_unreadable_store_slot",
+        userId: opts.userId,
+        candidateId: opts.request.candidate.id,
+        dropped: echoedStoreSlots.length - storeSlots.length,
+      },
+      "Expand dropped store slots the caller cannot read",
+    );
+  }
+
   // FIX-4 (A) — a store slot is a catalog meal whose ingredients are known:
   // one that breaks the diet (a batch generated before the shelves filtered,
   // re-opened from "See previous options") is refused here, before any AI
   // call, rather than written into the user's plan.
   if (diets.length > 0) {
-    const storeIds = (opts.request.candidate.storeSlots ?? []).map((s) => s.storeMealId);
+    const storeIds = storeSlots.map((s) => s.storeMealId);
     if (storeIds.length > 0) {
       const fit = await mealIdsFittingDiets(opts.prisma, storeIds, diets);
-      const bad = (opts.request.candidate.storeSlots ?? []).filter((s) => !fit.has(s.storeMealId));
+      const bad = storeSlots.filter((s) => !fit.has(s.storeMealId));
       if (bad.length > 0) {
         logger.warn(
           {
@@ -222,7 +257,7 @@ export async function expandCandidate(
   // pool meal that can't be read (missing / structurally unusable) falls back to
   // a live expand for that slot (graceful-degrade).
   const storeBySlot = new Map<number, string>();
-  for (const s of opts.request.candidate.storeSlots ?? []) {
+  for (const s of storeSlots) {
     storeBySlot.set(s.slotIndex, s.storeMealId);
   }
 

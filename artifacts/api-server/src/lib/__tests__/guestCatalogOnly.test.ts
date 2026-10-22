@@ -77,6 +77,9 @@ function makePrisma(storeMealIds: Set<string>) {
     userPreferences: { findUnique: async () => null },
     playlistMeal: { count: async () => 0 },
     meal: {
+      // SEC-2 #3 — the readability gate before compose: every id is a catalog row.
+      findMany: async ({ where }: { where: { id: { in: string[] } } }) =>
+        where.id.in.map((id) => ({ id, userId: null, isPublic: true })),
       findUnique: async ({ where }: { where: { id: string } }) =>
         storeMealIds.has(where.id) ? catalogMeal(where.id) : null,
     },
