@@ -135,21 +135,12 @@ for (const t of feasts) {
       const keeps = keepsDaysFor(spec)!;
       for (const s of steps) texts.set(s.id, fixKeepClause(texts.get(s.id)!, keeps));
     }
-    // 8. THX-3c (F) — a step that adds cut food names its amount ("add the 2 diced
-    // onions and 6 diced celery stalks"), from the dish's own rows; a food the step
-    // already measures (its stored refs) is left alone. Its refs are re-derived below.
-    const cutRows = d.dishIngredients.map((i) => ({ id: i.ingredientId, name: i.ingredient.canonicalName, quantity: i.quantity, unit: i.unit, note: i.preparationNote }));
-    for (const s of steps) {
-      const refIds = new Set(((Array.isArray(s.amountRefs) ? s.amountRefs : []) as { ingredientId?: string }[]).map((r) => r.ingredientId));
-      const measured = new Set(cutRows.filter((r) => refIds.has(r.id)).map((r) => r.name));
-      texts.set(s.id, nameCutAmounts(texts.get(s.id)!, cutRows, measured));
-      // THX-3d (B) — "both oranges" cannot scale; "2 oranges" can.
-      texts.set(s.id, countsInWords(texts.get(s.id)!, cutRows));
-    }
     // 14. THX-3d (C, rule 2) — a step that opens with prep and then does the dish's work
     // is two (feastCookWording splitPrepClause), so Cook Mode can say "Skip if you
     // prepped" to the prep alone: the prep is a new step at its index, the work keeps
     // the stored step (its id, phase, path) one down, the later steps move down too.
+    // (Before 8: the work step it leaves must be named once, in this same run.)
+    const cutRows = d.dishIngredients.map((i) => ({ id: i.ingredientId, name: i.ingredient.canonicalName, quantity: i.quantity, unit: i.unit, note: i.preparationNote }));
     const splitMinutes = new Map<string, number>();
     const titles = meal.dishLinks.map((l) => l.dish.title);
     for (const s of [...steps].sort((a, b) => b.stepIndex - a.stepIndex)) {
@@ -165,6 +156,18 @@ for (const t of feasts) {
       texts.set(s.id, sp.work);
       splitMinutes.set(s.id, Math.max(1, s.estimatedMinutes - prepMinutes));
       plan.creates.push({ dishId: d.id, title: d.title, stepIndex: at, text: sp.prep, phaseType: "prep", estimatedMinutes: prepMinutes, refs: null, componentKey: s.componentKey, pathKey: s.pathKey });
+    }
+    // 8. THX-3c (F) — a step that adds cut food names its amount ("add the 2 diced
+    // onions and 6 diced celery stalks"), from the dish's own rows; a food the step
+    // already measures (its stored refs) is left alone. Its refs are re-derived below.
+    for (const s of steps) {
+      // A split step measures what its work half measures (its stored refs were the whole step).
+      const own = splitMinutes.has(s.id) ? deriveAmountRefs(texts.get(s.id)!, cutRows.map((r) => ({ ingredientId: r.id, name: r.name, quantity: r.quantity, unit: r.unit }))).amountRefs : s.amountRefs;
+      const refIds = new Set(((Array.isArray(own) ? own : []) as { ingredientId?: string }[]).map((r) => r.ingredientId));
+      const measured = new Set(cutRows.filter((r) => refIds.has(r.id)).map((r) => r.name));
+      texts.set(s.id, nameCutAmounts(texts.get(s.id)!, cutRows, measured));
+      // THX-3d (B) — "both oranges" cannot scale; "2 oranges" can.
+      texts.set(s.id, countsInWords(texts.get(s.id)!, cutRows));
     }
     for (const s of steps) {
       const to = texts.get(s.id)!;
