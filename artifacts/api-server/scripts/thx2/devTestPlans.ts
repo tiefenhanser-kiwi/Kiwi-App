@@ -5,6 +5,7 @@
 //
 //   node --env-file=.env --import tsx scripts/thx2/devTestPlans.ts            # create what is missing
 //   node --env-file=.env --import tsx scripts/thx2/devTestPlans.ts --email someone@example.com
+//   node --env-file=.env --import tsx scripts/thx2/devTestPlans.ts --recreate   # THX-3d: archive each, copy again
 //
 // One plan per feast, "THX device · Classic / Small / Make-Ahead / Vegetarian / New Twist"
 // (THX-3d added Small and New Twist, generated on dev for it), Thanksgiving
@@ -12,7 +13,9 @@
 // plan already there under that name (not archived) is left alone and printed. It
 // REFUSES any database but dev (assertScriptDatabase + the dev host marker).
 //
-// Run it AFTER patch.ts --apply: a copy holds the content it was copied from.
+// Run it AFTER patch.ts --apply: a copy holds the content it was copied from. A copy
+// made before a patch keeps the old content — --recreate ARCHIVES that plan (its
+// ticks go with it; nothing is deleted) and makes a fresh copy under the same name.
 
 import { PrismaClient } from "@prisma/client";
 
@@ -22,6 +25,7 @@ import { forkMealForUser } from "../../src/lib/mealFork";
 const argv = process.argv.slice(2);
 const emailIdx = argv.indexOf("--email");
 const EMAIL = emailIdx >= 0 ? argv[emailIdx + 1] : "hans.tiefenthaler+8@gmail.com";
+const RECREATE = argv.includes("--recreate");
 
 const { host, mode } = assertScriptDatabase("thx2/devTestPlans");
 if (mode !== "dev" || !host.includes(DEV_HOST_MARKER)) {
@@ -57,7 +61,10 @@ for (const [key, label] of DEV_FEASTS) {
     where: { userId: user.id, titleOverride: title, isArchived: false },
     select: { id: true, items: { select: { mealId: true } } },
   });
-  if (existing) {
+  if (existing && RECREATE) {
+    await prisma.mealPlanInstance.update({ where: { id: existing.id }, data: { isArchived: true } });
+    console.log(`- ${title}: plan ${existing.id} archived (--recreate)`);
+  } else if (existing) {
     console.log(`= ${title}: already there — plan ${existing.id} (meal ${existing.items[0]?.mealId ?? "?"}), left alone`);
     continue;
   }
