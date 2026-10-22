@@ -45,26 +45,26 @@ describe("THX-3 C2 / THX-3c E — a make-ahead dish brings its shelf-stable mix 
   });
 
   it("the pie's mix is a dry mix, and its closing line names the wet it joins — Hans's 'combine that with the wet, mix, and bake'", () => {
-    const pie = live(b).find((s) => s.bowlName?.startsWith("Pumpkin Pie"))!;
-    assert.equal(pie.bowlName, "Pumpkin Pie dry mix");
+    const pie = live(b).find((s) => s.bowlName === "Pie spice mix")!;
+    assert.equal(pie.bowlName, "Pie spice mix");
     assert.equal(
       b.closingLines?.get(pie.stepKey),
-      "That's the Pumpkin Pie dry mix. On Wednesday, whisk it into the 30 oz pumpkin purée, 4 large eggs, 1½ cup heavy cream and 2 tsp vanilla extract.",
+      "That's the Pie spice mix. On Wednesday, whisk it into the 30 oz pumpkin purée, 4 large eggs, 1½ cup heavy cream and 2 tsp vanilla extract.",
     );
   });
 
   it("at 8 servings the joining amounts scale and the eggs stay whole", () => {
     const b8 = buildFeastSession(feast({ servings: 8 }))!;
-    const pie = live(b8).find((s) => s.bowlName === "Pumpkin Pie dry mix")!;
+    const pie = live(b8).find((s) => s.bowlName === "Pie spice mix")!;
     assert.equal(
       b8.closingLines?.get(pie.stepKey),
-      "That's the Pumpkin Pie dry mix. On Wednesday, whisk it into the 24 oz pumpkin purée, 3 large eggs, 1¼ cup heavy cream and 1½ tsp vanilla extract.",
+      "That's the Pie spice mix. On Wednesday, whisk it into the 24 oz pumpkin purée, 3 large eggs, 1¼ cup heavy cream and 1½ tsp vanilla extract.",
     );
   });
 
   it("THX-3c — the picked-over cranberries are prepped now, so they join on Monday as their container", () => {
     const line = [...(b.closingLines ?? new Map<string, string>()).values()].find((l) => l.startsWith("That's the Cranberry"));
-    assert.equal(line, "That's the Cranberry-Orange Sauce dry mix. On Monday, combine it with the Cranberry-Orange Sauce vegetables and ½ cup water.");
+    assert.equal(line, "That's the Cranberry mix. On Monday, combine it with the Cranberries & orange and ½ cup water.");
   });
 });
 

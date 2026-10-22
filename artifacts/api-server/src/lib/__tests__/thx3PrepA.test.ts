@@ -76,12 +76,12 @@ describe("THX-3 A — the feast session's dry containers", () => {
     const lines = [...(b.closingLines ?? new Map<string, string>()).values()];
     const has = (l: string) => assert.ok(lines.includes(l), `${l}\n— not in —\n${lines.join("\n")}`);
     // THX-3c (BUG-465) — the brine's salt and sugar are dry: a dry mix, never a "marinade bowl".
-    has("That's the Herb-Roasted Whole Turkey dry mix. On Wednesday night, dissolve it in the 1 gallon cold water.");
+    has("That's the Turkey mix. On Wednesday night, dissolve it in the 1 gallon cold water.");
     // Not a make-ahead dish here, so the purée and vanilla are this container's own
     // wet members (its phase-3 step): the line names only what is still to come.
-    has("That's the Pumpkin Pie sauce jar. On Wednesday, whisk it into the 4 large eggs and 1½ cup heavy cream.");
+    has("That's the Pie sauce. On Wednesday, whisk it into the 4 large eggs and 1½ cup heavy cream.");
     // A food in another of the dish's containers joins as that container.
-    has("That's the Cranberry-Orange Sauce dry mix. On Monday, combine it with the Cranberry-Orange Sauce vegetables and ½ cup water.");
+    has("That's the Cranberry mix. On Monday, combine it with the Cranberries & orange and ½ cup water.");
   });
 
   it("the line rides the step that closes the container, and finishPrepWeek's wire keeps it", () => {

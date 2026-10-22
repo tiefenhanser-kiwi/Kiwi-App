@@ -34,6 +34,7 @@ import { buildFeastSession, type PrepWeekBuild } from "./prepWeekBuild";
 import { ingredientGroupKey } from "./ingredientRelations";
 import { FEAST_MEAL_TAG, loadPrepWeekInput } from "./prepWeekAggregation";
 import { dishScalesOf, scaleFrames } from "./feastScaleFrames";
+import type { FeastLabelKind } from "./prepFeastLabels";
 
 /**
  * GET /meals/:id?planItemId= — a feast meal read in its plan: each dish's steps
@@ -80,7 +81,7 @@ export interface FeastDishFacts {
   /** The mixes and jars Prep the feast fills for this dish (members by id and by food). */
   mixes: { name: string; ids: Set<string>; keys: Set<string> }[];
   /** Produce cut ahead for this dish: the food, the container it went into, its cut words. */
-  cuts: { id: string; key: string; into: string | null; note: string }[];
+  cuts: { id: string; key: string; into: string | null; note: string; kind?: FeastLabelKind | null }[];
 }
 
 /** The per-dish facts of a feast session build (its kept steps; a portion held for cook day is not prepped). */
@@ -112,7 +113,8 @@ export function feastDishFacts(build: PrepWeekBuild): Map<string, FeastDishFacts
       for (const c of components) {
         for (const m of c.measures) {
           if (!m.dishId) continue;
-          of(m.dishId).cuts.push({ id: m.ingredientId ?? "", key: ingredientGroupKey(c.ingredientName), into: m.destination ?? null, note: `${m.preparationNote ?? ""} ${c.preparationNote ?? ""}`.toLowerCase() });
+          // Round 2 (N) — the container's label and what it is (prepFeastLabels).
+          of(m.dishId).cuts.push({ id: m.ingredientId ?? "", key: ingredientGroupKey(c.ingredientName), into: m.destination ?? null, note: `${m.preparationNote ?? ""} ${c.preparationNote ?? ""}`.toLowerCase(), kind: m.destination ? build.stepPlan.feastLabels?.kinds.get(m.destination) ?? null : null });
         }
       }
     }
@@ -225,7 +227,12 @@ function measured(text: string, ms: readonly Mention[]): Mention[] {
 }
 
 /** The phrase prepped produce goes by: the dish's own container ("whole"), or a shared tub's food. */
-export function cutPhrase(into: string, titles: readonly string[] = []): { phrase: string; whole: boolean } | null {
+export function cutPhrase(into: string, titles: readonly string[] = [], kind?: FeastLabelKind | null): { phrase: string; whole: boolean } | null {
+  // Round 2 (N) — a labelled container is said by its label: "the Gravy vegetables you
+  // prepped", "the minced garlic you prepped"; a plate's piles stay as written.
+  if (kind === "own" || kind === "mix") return { phrase: `the ${into} you prepped`, whole: true };
+  if (kind === "shared") return { phrase: `the ${into.toLowerCase()} you prepped`, whole: false };
+  if (kind === "plate") return null;
   const clean = into.replace(/\s*\([^)]*\)/g, "");
   const dash = /^(.+?) — (.+)$/.exec(clean);
   if (dash) {
@@ -373,7 +380,10 @@ export function rewordFeastSteps(
       if (mix) { groupOf.set(m, `the ${mix.name}`); continue; }
       if (facts.mixes.some((x) => inMix(x, m))) continue; // a mix member away from its entry step: as written
       const c = cutFor(m);
-      const p = c?.into ? cutPhrase(c.into, titles) : null;
+      // A cut that went into the jar entering here IS that jar (Small's stripped thyme in
+      // the sweet potatoes' sauce): one mention, the jar's.
+      if (c?.into && c.kind === "mix" && facts.mixes.some((x) => x.name === c.into && entryOf.get(x.name) === step.stepIndex)) { groupOf.set(m, `the ${c.into}`); continue; }
+      const p = c?.into ? cutPhrase(c.into, titles, c.kind) : null;
       if (!p) continue;
       if (p.whole) {
         // Only when the step names everything that container holds for this dish.

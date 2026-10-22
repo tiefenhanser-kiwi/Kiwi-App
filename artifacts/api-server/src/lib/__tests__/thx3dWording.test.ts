@@ -3,7 +3,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { mentionsOf, rewordFeastSteps, splitPrepClause, type FeastDishFacts, type WordingRef, type WordingRow, type WordingStep } from "../feastCookWording";
+import { cutPhrase, mentionsOf, rewordFeastSteps, splitPrepClause, type FeastDishFacts, type WordingRef, type WordingRow, type WordingStep } from "../feastCookWording";
 import { ingredientGroupKey } from "../ingredientRelations";
 
 /** A step with a ref on each listed span (its first occurrence; "1|cinnamon stick" refs the "1" of that phrase). */
@@ -141,5 +141,26 @@ describe("THX-3d C rule 2 — the patch splits a step that preps and then works"
     const BREAD = row("bread", "white sandwich bread"), BUTTER = row("butter", "unsalted butter");
     assert.equal(splitPrepClause("Make ahead (Tuesday): Slice 1 loaf bread and let it dry overnight; toss with 4 tablespoons butter.", [BREAD, BUTTER]), null);
     assert.equal(splitPrepClause("Make ahead (Monday): Combine the 12 ounces cranberries and ¾ cup granulated sugar.", [CRAN, SUGAR]), null);
+  });
+});
+
+describe("THX-3d round 2 (N) — Cook Mode says the container's label", () => {
+  const ONION = row("on", "yellow onion"), CELERY = row("ce", "celery"), CARROT = row("ca", "carrots"), GARLIC = row("ga", "garlic");
+  it("a dish's own container by its label, a shared tub by its food", () => {
+    const s = step(0, "Make ahead (Tuesday): Combine the neck, 1 chopped onion, 2 chopped celery stalks, 1 chopped carrot and 4 cups water.", [["1", "on"], ["2", "ce"], ["1| chopped carrot", "ca"]]);
+    const facts = { dishId: "g", mixes: [], cuts: ["on", "ce", "ca"].map((id, i) => ({ id, key: ingredientGroupKey([ONION, CELERY, CARROT][i].name), into: "Gravy vegetables", note: "chopped", kind: "own" as const })) };
+    assert.equal(rewordFeastSteps([s], [ONION, CELERY, CARROT], facts, [])[0].text, "Make ahead (Tuesday): Combine the neck, the Gravy vegetables you prepped and 4 cups water.");
+    // A label with no "vegetables" in it is still the dish's own container.
+    assert.deepEqual(cutPhrase("Stuffing onion & celery", [], "own"), { phrase: "the Stuffing onion & celery you prepped", whole: true });
+    const g = step(1, "Add 4 minced garlic cloves and cook 1 minute.", [["4", "ga"]]);
+    const shared = { dishId: "s", mixes: [], cuts: [{ id: "ga", key: ingredientGroupKey("garlic"), into: "Minced garlic", note: "minced", kind: "shared" as const }] };
+    assert.equal(rewordFeastSteps([g], [GARLIC], shared, [])[0].text, "Add the minced garlic you prepped and cook 1 minute.");
+  });
+  it("a cut that went into the jar entering here is the jar: one mention (Small's thyme in the glaze)", () => {
+    const SYRUP = row("sy", "pure maple syrup"), SALT2 = row("sa", "kosher salt"), PEP = row("pe", "black pepper"), CIN = row("ci", "ground cinnamon"), THYME = row("th", "fresh thyme"), BUTTER = row("bu", "unsalted butter");
+    const s = step(0, "On Thursday: In a large bowl, whisk together 3 tablespoons maple syrup, 2 tablespoons melted butter, ½ teaspoon kosher salt, ¼ teaspoon black pepper, ¼ teaspoon ground cinnamon, and the stripped thyme leaves (if using).",
+      [["3 tablespoons", "sy"], ["2 tablespoons", "bu"], ["½ teaspoon", "sa"], ["¼ teaspoon| black", "pe"], ["¼ teaspoon| ground", "ci"]]);
+    const facts = { dishId: "sp", mixes: [mix("Sweet potatoes sauce", [SYRUP, SALT2, PEP, CIN])], cuts: [{ id: "th", key: ingredientGroupKey("fresh thyme"), into: "Sweet potatoes sauce", note: "leaves stripped", kind: "mix" as const }] };
+    assert.equal(rewordFeastSteps([s], [SYRUP, SALT2, PEP, CIN, THYME, BUTTER], facts, [])[0].text, "On Thursday: In a large bowl, whisk together the Sweet potatoes sauce and 2 tablespoons melted butter.");
   });
 });

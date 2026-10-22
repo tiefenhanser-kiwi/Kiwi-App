@@ -42,6 +42,7 @@ import {
 } from "./prepClasses";
 import { timeStep, planMinutes, wholeFruitCount, type SourceYieldLike } from "./prepStepMinutes";
 import { displayedPrepQuantity, mixedGlyph, type DisplayOptions } from "./prepQuantity";
+import { labelFeastContainers, type FeastLabels } from "./prepFeastLabels";
 import { proseNames } from "./prepMoments";
 import {
   PREP_PHASE_ORDER,
@@ -238,6 +239,8 @@ export interface StepPlan {
   containerExtras?: ReadonlyMap<string, ContainerExtra>;
   /** Part J.0 — see renderPortionLines; assembly re-renders with the real opening. */
   labelKinds?: ReadonlyMap<string, LabelKind>;
+  /** THX-3d round 2 (N) — the feast session's container labels and what each is. */
+  feastLabels?: FeastLabels;
 }
 
 /**
@@ -2062,7 +2065,9 @@ export function buildStepPlan(
     })),
   };
 
-  return { steps, narrationInput, containerExtras, labelKinds };
+  // THX-3d round 2 (N) — Prep the feast's containers carry short labels a cook can
+  // write on tape, everywhere, and the session opens with the list (prepFeastLabels).
+  return opts.feast ? labelFeastContainers({ steps, narrationInput, containerExtras, labelKinds }) : { steps, narrationInput, containerExtras, labelKinds };
 }
 
 // ── H7.1 vocabulary. Every pattern reads its OWN subject — a step's text for a verb,

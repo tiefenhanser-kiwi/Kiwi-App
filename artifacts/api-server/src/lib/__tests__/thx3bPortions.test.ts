@@ -103,12 +103,12 @@ describe("THX-3b BUG-456 — Prep the feast: the casserole's containers", () => 
   const contents = (name: string) => of(name).components.flatMap((c) => c.measures.map((m) => `${c.ingredientName} ${m.amount}`));
 
   it("the filling's sugar is in the filling's mix and the topping's in the topping's", () => {
-    assert.deepEqual(contents("Sweet Potato Casserole dry mix").sort(), ["ground cinnamon ½ tsp", "ground nutmeg ¼ tsp", "kosher salt ½ tsp", "light brown sugar ¼ cup"].sort());
-    assert.deepEqual(contents("Sweet Potato Casserole dry mix 2").sort(), ["all-purpose flour ¼ cup", "light brown sugar ⅓ cup", "pecan halves ¾ cup"].sort());
+    assert.deepEqual(contents("Sweet potato casserole spice mix").sort(), ["ground cinnamon ½ tsp", "ground nutmeg ¼ tsp", "kosher salt ½ tsp", "light brown sugar ¼ cup"].sort());
+    assert.deepEqual(contents("Sweet potato casserole topping mix").sort(), ["all-purpose flour ¼ cup", "light brown sugar ⅓ cup", "pecan halves ¾ cup"].sort());
   });
 
   it("the topping mix's closing line names the topping's butter (3 tbsp × 0.8), not the filling's", () => {
-    const line = b.closingLines?.get(of("Sweet Potato Casserole dry mix 2").stepKey);
+    const line = b.closingLines?.get(of("Sweet potato casserole topping mix").stepKey);
     assert.ok(line, "no closing line for dry mix 2");
     assert.match(line!, /2½ tbsp unsalted butter/);
     assert.doesNotMatch(line!, /3¼ tbsp/);
