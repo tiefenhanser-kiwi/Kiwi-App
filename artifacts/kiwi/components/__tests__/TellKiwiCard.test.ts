@@ -34,6 +34,8 @@ import {
   USE_PREFERENCES_LABEL,
 } from "../TellKiwiCard";
 import { Colors, Components, Palette, Typography } from "@/constants/tokens";
+import { TELL_KIWI_PILL_MIN_EMS, tellKiwiPillBasis } from "@/lib/largeTextLayout";
+import { __resetWindowDimensionsForTests, __setWindowDimensionsForTests } from "react-native";
 
 type Json = {
   type: string;
@@ -526,4 +528,93 @@ test("submit fires from both the keyboard and the send button", () => {
     (send!.props.onPress as () => void)();
   });
   assert.equal(fired, 2);
+});
+
+// ── SEC-3 C (BUG-466, the rotating half) — every phrase shows whole ─────────
+// On the Pixel the rotating phrase was one line in a 44-high pill: cut at
+// normal text, about one word at max text. While a phrase shows it now wraps
+// in flow and sizes the pill; the input covers that pill. Focused or typed,
+// the input sizes the pill as before.
+
+function headPieces(root: Json) {
+  const input = byType(root, "rn-text-input")[0];
+  const ph = walk(root).find((n) => n.type === "rn-animated-text")!;
+  const wrap = walk(root).find(
+    (n) => n.type === "rn-view" && walk(n).includes(input) && flatten(n.props.style).minHeight === 44,
+  );
+  return { input, ph, wrap };
+}
+
+test("SEC-3 C: a showing phrase wraps, in flow, and sizes the pill", () => {
+  const { root } = render();
+  const { input, ph, wrap } = headPieces(root);
+  assert.equal(allText(ph).join(""), TELL_KIWI_PLACEHOLDERS[0]);
+  assert.equal(ph.props.numberOfLines, undefined, "no one-line cap: the phrase wraps");
+  assert.notEqual(flatten(ph.props.style).position, "absolute", "the phrase is in flow");
+  assert.ok(wrap, "the pill has a minHeight of 44");
+  assert.equal(flatten(wrap!.props.style).height, undefined, "no fixed height: a wrapped phrase grows the pill");
+  const fill = flatten(input.props.style);
+  assert.equal(fill.position, "absolute", "the input covers the sized pill");
+  assert.equal(fill.top, 0);
+  assert.equal(fill.bottom, 0);
+});
+
+test("SEC-3 C: every phrase gets the same treatment (the rule does not depend on which one)", () => {
+  // The five are what the timer cycles; the longest decides the worst case.
+  const longest = [...TELL_KIWI_PLACEHOLDERS].sort((a, b) => b.length - a.length)[0];
+  assert.equal(longest, "tacos twice, and something light…");
+  const { root } = render({ __forceReduceMotion: false });
+  assert.equal(headPieces(root).ph.props.numberOfLines, undefined);
+});
+
+test("SEC-3 C: focused or typed, the input sizes the pill and the empty phrase takes no line", () => {
+  const typed = headPieces(render({ value: "tacos" }).root);
+  assert.notEqual(flatten(typed.input.props.style).position, "absolute");
+  assert.equal(flatten(typed.ph.props.style).position, "absolute", "the empty phrase is out of flow");
+
+  const { root, tree } = render({ __forceReduceMotion: false });
+  act(() => {
+    (headPieces(root).input.props.onFocus as () => void)();
+  });
+  const focused = headPieces(tree.toJSON() as unknown as Json);
+  assert.notEqual(flatten(focused.input.props.style).position, "absolute");
+  assert.equal(flatten(focused.ph.props.style).position, "absolute");
+});
+
+test("SEC-3 C: the row wraps, and the pill's floor grows with the system text size", () => {
+  const { root } = render();
+  const row = walk(root).find(
+    (n) => n.type === "rn-view" && flatten(n.props.style).flexDirection === "row" && allText(n).includes("Tell Kiwi"),
+  )!;
+  assert.equal(flatten(row.props.style).flexWrap, "wrap");
+  const pill = flatten(headPieces(root).wrap!.props.style);
+  assert.equal(pill.flexBasis, tellKiwiPillBasis(1, Typography.fontSize.base));
+  assert.equal(pill.flexGrow, 1, "it still fills the row beside the label at normal text");
+});
+
+test("SEC-3 C: at max text (fontScale 2) the pill's floor cannot sit beside the label — it stacks", () => {
+  __setWindowDimensionsForTests({ fontScale: 2 });
+  try {
+    const pill = flatten(headPieces(render().root).wrap!.props.style);
+    assert.equal(pill.flexBasis, tellKiwiPillBasis(2, Typography.fontSize.base));
+  } finally {
+    __resetWindowDimensionsForTests();
+  }
+});
+
+test("SEC-3 C: the floor's arithmetic — one row from 320 at normal text, stacked at 2× on any phone", () => {
+  const LABEL_AT_1 = 68; // "Tell Kiwi", serif italic 17, measured on the web at 320 (sec3.spec C)
+  const GAP = 12;
+  const size = Typography.fontSize.base;
+  assert.equal(size, 14);
+  assert.equal(tellKiwiPillBasis(1, size), 161);
+  assert.ok(LABEL_AT_1 + GAP + tellKiwiPillBasis(1, size) <= 256, "a 320 window's card keeps one row");
+  assert.equal(tellKiwiPillBasis(2, size), 259);
+  // The widest phone card (430 window → 366) cannot hold a 2× label and the 2× floor.
+  assert.ok(LABEL_AT_1 * 2 + GAP + tellKiwiPillBasis(2, size) > 366);
+  // 7 ems hold the longest single word of the five phrases (italic ≈ 0.55 em a letter).
+  const longestWord = Math.max(...TELL_KIWI_PLACEHOLDERS.flatMap((p) => p.split(/\s+/)).map((w) => w.length));
+  assert.equal(longestWord, 9, "'something' / 'Saturday…'");
+  assert.ok(longestWord * 0.55 <= TELL_KIWI_PILL_MIN_EMS, `longest word ${longestWord} chars`);
+  assert.equal(tellKiwiPillBasis(0.85, size), 161, "a smaller-than-default text keeps the default floor");
 });

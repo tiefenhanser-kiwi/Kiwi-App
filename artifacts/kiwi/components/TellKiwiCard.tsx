@@ -49,8 +49,11 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+
+import { tellKiwiPillBasis } from "@/lib/largeTextLayout";
 
 import {
   Colors,
@@ -217,6 +220,13 @@ export function TellKiwiCard({
     : rotating
       ? TELL_KIWI_PLACEHOLDERS[index]
       : TELL_KIWI_PLACEHOLDERS[0];
+  // SEC-3 C (BUG-466, the rotating half) — while a phrase shows, IT sizes the
+  // pill: it wraps, in flow, and the input fills the pill over it. On the Pixel
+  // the one-line phrase was cut at normal text and showed about one word at
+  // max text. Otherwise (focused, or text typed) the input sizes the pill, as
+  // before; the input keeps its slot either way, so it never remounts.
+  const showPlaceholder = !hasText && placeholder !== "";
+  const pillBasis = tellKiwiPillBasis(useWindowDimensions().fontScale, Typography.fontSize.base);
 
   return (
     <View style={styles.card}>
@@ -226,7 +236,7 @@ export function TellKiwiCard({
       {/* 2 — row 1: label + input share one row. */}
       <View style={styles.headRow}>
         <Text style={styles.rowLabel}>{TELL_KIWI_LABEL}</Text>
-        <View style={styles.inputWrap}>
+        <View style={[styles.inputWrap, { flexBasis: pillBasis }]}>
           {/* The placeholder is rendered as our OWN overlaid Text rather than
               TextInput's placeholder prop: RN cannot cross-fade a native
               placeholder, and swapping the prop outright makes the strings
@@ -234,13 +244,14 @@ export function TellKiwiCard({
               both paint. */}
           <Animated.Text
             pointerEvents="none"
-            numberOfLines={1}
-            style={[styles.placeholder, { opacity: fade }]}
+            style={[styles.placeholder, !showPlaceholder && styles.placeholderIdle, { opacity: fade }]}
+            testID="tell-kiwi-placeholder"
           >
             {hasText ? "" : placeholder}
           </Animated.Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, showPlaceholder && styles.inputFill]}
+            testID="tell-kiwi-input"
             value={value}
             onChangeText={onChangeText}
             onSubmitEditing={onSubmit}
@@ -342,8 +353,13 @@ const styles = StyleSheet.create({
     color: Palette.text.onSage,
     marginBottom: 12,
   },
+  // SEC-3 C — the row WRAPS: when the label and the pill's floor no longer fit
+  // side by side (max text on a phone: the label alone is half the row), the
+  // pill takes its own full-width line rather than a sliver that breaks words
+  // in half. The floor is lib/largeTextLayout.ts's tellKiwiPillBasis.
   headRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: Spacing[3],
   },
@@ -357,10 +373,14 @@ const styles = StyleSheet.create({
     // flexShrink so a longer label can never squeeze the input to nothing.
     flexShrink: 0,
   },
+  // SEC-3 C — minHeight, not height: a wrapped phrase grows the pill. The
+  // vertical padding is only felt once the phrase passes one line.
   inputWrap: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
     minWidth: 0,
-    height: INPUT_HEIGHT,
+    minHeight: INPUT_HEIGHT,
+    paddingVertical: 10,
     justifyContent: "center",
     backgroundColor: Components.tellKiwi.inputBackground,
     borderRadius: Components.tellKiwi.inputRadius,
@@ -369,14 +389,18 @@ const styles = StyleSheet.create({
     paddingRight: ARROW_SIZE + 12,
   },
   // Sits exactly where the input's own text sits, so the swap is invisible.
+  // In flow (the wrap's padding places it) and free to wrap — SEC-3 C.
   placeholder: {
-    position: "absolute",
-    left: 17,
-    right: ARROW_SIZE + 12,
     fontFamily: Typography.face.serifItalic[400],
     fontStyle: "italic",
     fontSize: Typography.fontSize.base,
     color: Components.tellKiwi.inputPlaceholder,
+  },
+  // Nothing to show: out of flow, so the empty string adds no line.
+  placeholderIdle: {
+    position: "absolute",
+    left: 17,
+    right: ARROW_SIZE + 12,
   },
   input: {
     fontFamily: Typography.face.serifItalic[400],
@@ -384,6 +408,15 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.base,
     color: Colors.neutral[900],
     padding: 0,
+  },
+  // While a phrase shows: the input covers the pill the phrase sized, so a tap
+  // anywhere on it still focuses the field.
+  inputFill: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: 17,
+    right: ARROW_SIZE + 12,
   },
   // 🔴 The terracotta round arrow — TWO on this card, ruled (D-WS9-237).
   arrow: {

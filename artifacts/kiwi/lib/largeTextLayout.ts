@@ -144,3 +144,32 @@ export function hubRowLayout(input: {
   const metaColumn = card - tick - thumbCell;
   return { titleOwnLine: true, showThumb: metaColumn >= tag };
 }
+
+// ── SEC-3 C (BUG-466, the rotating half) — Tell Kiwi's pill at large text ───
+//
+// Hans, on the Pixel: the rotating phrase did not wrap — cut at normal text,
+// about one word at max text. The phrase wraps now; this is the pill's WIDTH.
+// The Tell Kiwi row is [label · pill], and at fontScale 2 the label alone is
+// half the row, so a pill that merely shrinks is a sliver that breaks
+// "something" in half. BUG-451's answer again: change the SHAPE. The row wraps
+// (flexWrap), and the pill's flex basis is a floor measured in the phrase's
+// own type: when the label and that floor no longer fit side by side, the
+// pill takes its own full-width line under the label.
+//
+// At fontScale 1 the floor is 7 ems of 14 sp + the pill's chrome = 161: beside
+// the ~68 label (measured on the web at 320), that fits a 320 dp window's 256 dp
+// card — one row, as before. At fontScale 2 it is 259, beside a ~136 label: no
+// phone's card (430 dp window → 366) fits both, so the pill stacks — and 7 ems
+// at 28 sp still hold the longest word of the five phrases.
+
+/** The pill's text floor, in ems of the phrase's type size. */
+export const TELL_KIWI_PILL_MIN_EMS = 7;
+
+/** The pill's horizontal chrome: 17 left padding + the 34 arrow and its 12 inset. */
+export const TELL_KIWI_PILL_CHROME = 17 + 34 + 12;
+
+/** The pill's flex basis for a system text scale (never below the fontScale-1 floor). */
+export function tellKiwiPillBasis(fontScale: number, textSize: number): number {
+  const scale = Math.max(fontScale, 1);
+  return Math.round(TELL_KIWI_PILL_CHROME + TELL_KIWI_PILL_MIN_EMS * textSize * scale);
+}
