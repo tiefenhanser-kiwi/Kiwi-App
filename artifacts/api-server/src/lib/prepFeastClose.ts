@@ -23,6 +23,7 @@ import { ingredientGroupKey } from "./ingredientRelations";
 import { deriveAmountRefs } from "./stepAmountRefs";
 import { convertAmount } from "./feastAmountWalk";
 import { packageUse } from "./prepQuantity";
+import { singularOf } from "./feastScaleFrames";
 
 export const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
 
@@ -95,7 +96,7 @@ function namesProtein(lowerText: string, row: { ingredientName: string; category
  * name is a proper noun ("2 Large eggs" → "2 large eggs", "Granny Smith apple" kept),
  * and a bare count agrees with its number ("3 egg" → "3 eggs", "¾ carrots" → "¾ carrot").
  */
-function spokenName(name: string, amount: string): string {
+export function spokenName(name: string, amount: string): string {
   // THX-3d (R5) — a package named in the food's name is the unit: "1 box cornbread mix",
   // never "¾ cornbread mix (8.5 oz box)" (the size never scales, so it is not said).
   const pkg = /^(.+?)\s*\(\s*[\d.]+\s*-?\s*(?:oz|ounces?|lbs?|pounds?|g)\s+(box|bag|can|jar|package|packet)\s*\)$/i.exec(name.trim());
@@ -110,6 +111,8 @@ function spokenName(name: string, amount: string): string {
     if (n > 1 && /(egg|yolk|lemon|lime|orange|onion|shallot|carrot|apple)$/i.test(out)) out = `${out}s`;
     if (n > 1 && /potato$/i.test(out)) out = `${out}es`;
     if (n <= 1 && /(eggs|yolks|lemons|limes|oranges|onions|shallots|carrots|apples)$/i.test(out)) out = out.slice(0, -1);
+    // THX-3d round 2 (O) — a plural inside the name agrees too: "1 chipotle chile in adobo sauce".
+    if (n <= 1) out = out.replace(/\b[a-z]+[^su\W]s(?= (?:in|from|packed) )/i, (w) => singularOf(w));
   }
   return out;
 }

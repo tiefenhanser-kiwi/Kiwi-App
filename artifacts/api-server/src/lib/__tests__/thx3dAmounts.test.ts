@@ -170,3 +170,14 @@ describe("THX-3d G — a bird by count whose line gives its weight takes the wei
     assert.deepEqual(m.slice(1), [0.4, 0.4]);
   });
 });
+
+import { spokenName } from "../prepFeastClose";
+
+describe("THX-3d O — a closing line's count of one takes the singular, inside the name too", () => {
+  it("New Twist's sweet potatoes sauce at its household: \"1 chipotle chile in adobo sauce\"", () => {
+    assert.equal(spokenName("chipotle chiles in adobo sauce", "1"), "chipotle chile in adobo sauce");
+    assert.equal(spokenName("chipotle chiles in adobo sauce", "2"), "chipotle chiles in adobo sauce");
+    assert.equal(spokenName("asparagus in bunches", "1"), "asparagus in bunches");
+    assert.equal(spokenName("Large eggs", "1"), "large egg");
+  });
+});
