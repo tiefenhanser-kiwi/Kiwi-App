@@ -50,6 +50,7 @@ import { putInEdits } from "./thx2PutIn";
 import { warmStepEdits } from "./thx2Warm";
 import { subjectEdits } from "./thx2Subjects";
 import { alreadyCut, cutSentence, heldCutPlace, heldCutsOf } from "./thx2Held";
+import { boilHold, boilPlace, coats, HELD_MORNING_STEP, headOf, plainHold, potNoun, splitPrefix, spreadOnPan, TOSS, tossHold } from "../../src/lib/heldMorning";
 import { formatOvenReport, heldDishSteps, holdTextUpdates, oneOvenTemperature, ovenReport, retimeDish, splitPreheatSteps, type OvenStepRow } from "./thx2Oven";
 
 const argv = process.argv.slice(2);
@@ -153,6 +154,8 @@ for (const t of feasts) {
     // (B) "both oranges" cannot scale, "2 oranges" can.
     for (const s of steps) texts.set(s.id, countsInWords(repairShapeCounts(texts.get(s.id)!), cutRows));
     const splitMinutes = new Map<string, number>();
+    /** THX-3d round 2 (M) — a stored step whose phase item 16 moves (the burner step cooks). */
+    const phaseOf = new Map<string, string>();
     const titles = meal.dishLinks.map((l) => l.dish.title);
     for (const s of [...steps].sort((a, b) => b.stepIndex - a.stepIndex)) {
       const sp = splitPrepClause(texts.get(s.id)!, cutRows.map((r) => ({ ingredientId: r.id, name: r.name })), titles);
@@ -184,31 +187,91 @@ for (const t of feasts) {
       splitMinutes.set(s.id, ph.firstMinutes);
       plan.creates.push({ dishId: d.id, title: d.title, stepIndex: at + 1, text: ph.second, phaseType: s.phaseType as Plan["creates"][number]["phaseType"], estimatedMinutes: ph.secondMinutes, refs: null, componentKey: s.componentKey, pathKey: s.pathKey });
     }
-    // 16. THX-3d round 2 (M) — a cut held for cook day is that day's first step for the
-    // dish ("On Thursday: Peel and cut 5 lb russet potatoes into 2-inch chunks; keep them
-    // in cold water."), unless a step that day already cuts the food (thx2Held). On
-    // Thursday the new step takes "On Thursday:" from the step it now leads.
-    for (const h of heldCuts.filter((x) => x.dishId === d.id)) {
-      const row = d.dishIngredients.find((i) => i.ingredient.canonicalName.toLowerCase() === h.ingredientName.toLowerCase());
-      const sentence = row ? cutSentence({ quantity: row.quantity, unit: row.unit, name: row.ingredient.canonicalName, note: row.preparationNote }) : null;
-      if (!sentence) continue;
-      const all = [
-        ...steps.map((s) => ({ stepIndex: s.stepIndex, text: texts.get(s.id)!, id: s.id as string | null })),
-        ...plan.creates.filter((c) => c.dishId === d.id).map((c) => ({ stepIndex: c.stepIndex, text: c.text, id: null as string | null })),
-      ];
-      const place = heldCutPlace(all, row!.ingredient.canonicalName);
-      if (!place || alreadyCut(place.runTexts, row!.ingredient.canonicalName)) continue;
-      for (const c of plan.creates) if (c.dishId === d.id && c.stepIndex >= place.at) c.stepIndex += 1;
-      for (const o of [...steps].filter((o) => o.stepIndex >= place.at).sort((a, b) => b.stepIndex - a.stepIndex)) {
+    // 16. THX-3d round 2 (M, as Hans ruled Oct 22) — a cut held for cook day is done in
+    // the morning and says how it waits, by what comes next (src/lib/heldMorning): boiled
+    // → into the recipe's pot and water, the pot left on the stove, off, and the recipe's
+    // "Place the potatoes in a pot…" now "Turn the burner on under the pot of potatoes";
+    // tossed → the oil-and-seasoning toss joins the morning and the spread onto the pan
+    // is its own step; anything else waits in water, a container or the fridge. The
+    // scheduler does the dish's steps up to that hold in the day's first free window.
+    // The cut is the run's own step when it has one (Vegetarian's split "Peel and cut 5 lb
+    // Yukon Gold potatoes"), else a new first step that takes "On Thursday:" from the step
+    // it now leads. Apples cut and tossed in one step (the crisp, the pie) already are the
+    // morning step. Idempotent: a food whose step already holds is left alone.
+    type Phase = Plan["creates"][number]["phaseType"];
+    type Entry = { stepIndex: number; text: string; minutes: number; set: (text: string, minutes?: number, phase?: Phase) => void };
+    const entries = (): Entry[] => [
+      ...steps.map((s) => ({ stepIndex: s.stepIndex, text: texts.get(s.id)!, minutes: splitMinutes.get(s.id) ?? s.estimatedMinutes, set: (t: string, m?: number, p?: Phase) => { texts.set(s.id, t); if (m !== undefined) splitMinutes.set(s.id, m); if (p !== undefined) phaseOf.set(s.id, p); } })),
+      ...plan.creates.filter((c) => c.dishId === d.id).map((c) => ({ stepIndex: c.stepIndex, text: c.text, minutes: c.estimatedMinutes, set: (t: string, m?: number, p?: Phase) => { c.text = t; if (m !== undefined) c.estimatedMinutes = m; if (p !== undefined) c.phaseType = p; } })),
+    ].sort((a, b) => a.stepIndex - b.stepIndex);
+    /** Room for a new step at `at`: every step from it on moves down one. */
+    const makeRoom = (at: number) => {
+      for (const c of plan.creates) if (c.dishId === d.id && c.stepIndex >= at) c.stepIndex += 1;
+      for (const o of [...steps].filter((o) => o.stepIndex >= at).sort((a, b) => b.stepIndex - a.stepIndex)) {
         plan.renumbers.push({ stepId: o.id, title: d.title, from: o.stepIndex, to: o.stepIndex + 1 });
         o.stepIndex += 1;
       }
-      if (/^\s*On /i.test(place.prefix)) {
-        const lead = all.find((x) => x.stepIndex === place.at);
-        if (lead?.id) texts.set(lead.id, texts.get(lead.id)!.slice(place.prefix.length));
-        else { const c = plan.creates.find((x) => x.dishId === d.id && x.stepIndex === place.at + 1); if (c) c.text = c.text.slice(place.prefix.length); }
+    };
+    const addStep = (at: number, text: string, minutes: number, phaseType: Phase = "prep") => {
+      makeRoom(at);
+      plan.creates.push({ dishId: d.id, title: d.title, stepIndex: at, text, phaseType, estimatedMinutes: minutes, refs: null, componentKey: null, pathKey: null });
+    };
+    for (const h of heldCuts.filter((x) => x.dishId === d.id)) {
+      const row = d.dishIngredients.find((i) => i.ingredient.canonicalName.toLowerCase() === h.ingredientName.toLowerCase());
+      if (!row) continue;
+      const name = row.ingredient.canonicalName;
+      const head = new RegExp(`\\b${headOf(name)}`, "i");
+      const place = heldCutPlace(entries(), name);
+      if (!place) continue;
+      const inRun = (e: Entry) => place.runTexts.includes(e.text) || e.stepIndex === place.at;
+      let run = entries().filter(inRun);
+      // Already in the morning: a step of this food carries a hold.
+      if (run.some((e) => head.test(e.text) && HELD_MORNING_STEP.test(e.text))) continue;
+      let cut = run.find((e) => alreadyCut([splitPrefix(e.text).body.split(/;\s*/)[0]], name) && /^(?:peel|cut|slice|dice|chop|mince|grate|core|scrub|halve|quarter|trim|cube|thinly|finely|roughly|coarsely)\b/i.test(splitPrefix(e.text).body));
+      if (cut && TOSS.test(cut.text)) continue; // the apples: cut and tossed in one step
+      if (!cut) {
+        const sentence = cutSentence({ quantity: row.quantity, unit: row.unit, name, note: row.preparationNote });
+        if (sentence) {
+          if (/^\s*On /i.test(place.prefix)) {
+            const lead = entries().find((x) => x.stepIndex === place.at)!;
+            lead.set(lead.text.slice(place.prefix.length));
+          }
+          addStep(place.at, `${place.prefix}${sentence}`, /potato/i.test(sentence) ? 5 : 2);
+          run = entries().filter((e) => e.stepIndex >= place.at && e.stepIndex <= place.at + run.length);
+          cut = run.find((e) => e.stepIndex === place.at);
+        }
       }
-      plan.creates.push({ dishId: d.id, title: d.title, stepIndex: place.at, text: `${place.prefix}${sentence}`, phaseType: "prep", estimatedMinutes: /potato/i.test(sentence) ? 5 : 2, refs: null, componentKey: null, pathKey: null });
+      const after = run.filter((e) => e.stepIndex > (cut?.stepIndex ?? -1));
+      const next = after.find((e) => head.test(e.text) || /\b(?:chunks|cubes|pieces)\b/i.test(e.text));
+      const nextBody = next ? splitPrefix(next.text) : null;
+      const boil = nextBody ? boilHold(cut ? splitPrefix(cut.text).body : null, nextBody.body, name) : null;
+      if (boil && next) {
+        const fill = Math.min(3, next.minutes);
+        if (cut) {
+          cut.set(`${splitPrefix(cut.text).prefix}${boil.held}`, cut.minutes + fill);
+          next.set(`${nextBody!.prefix}${boil.later}`, boilPlace(nextBody!.body)!.rest ? Math.max(1, next.minutes - fill) : 1, "cook");
+        } else {
+          // Nothing to cut (whole baby potatoes): the pot itself is the morning step.
+          next.set(`${nextBody!.prefix}${boil.held}`, fill, "prep");
+          addStep(next.stepIndex + 1, `${nextBody!.prefix}${boil.later}`, boilPlace(nextBody!.body)!.rest ? Math.max(1, next.minutes - fill) : 1, "cook");
+        }
+        continue;
+      }
+      if (!cut) continue;
+      const between = after.filter((e) => next && e.stepIndex <= next.stepIndex);
+      const toss = next && TOSS.test(next.text) && coats(between.map((e) => e.text)) ? tossHold(nextBody!.body, name) : null;
+      if (toss && next) {
+        const spreadMinutes = toss.spread ? Math.min(2, Math.max(1, next.minutes - 1)) : 0;
+        next.set(`${nextBody!.prefix}${toss.toss}`, toss.spread ? next.minutes - spreadMinutes : next.minutes);
+        if (toss.spread) addStep(next.stepIndex + 1, `${nextBody!.prefix}${toss.spread}`, spreadMinutes);
+        else if (toss.pan) {
+          const spread = entries().find((e) => e.stepIndex > next.stepIndex && /^Spread\b/i.test(splitPrefix(e.text).body));
+          if (spread) spread.set(`${splitPrefix(spread.text).prefix}${spreadOnPan(splitPrefix(spread.text).body, toss.pan, name)}`);
+          else addStep(next.stepIndex + 1, `${nextBody!.prefix}Spread the ${potNoun(name)} on ${toss.pan}.`, 1);
+        }
+        continue;
+      }
+      cut.set(`${splitPrefix(cut.text).prefix}${plainHold(splitPrefix(cut.text).body, name, row.preparationNote)}`);
     }
     // 8. THX-3c (F) — a step that adds cut food names its amount ("add the 2 diced
     // onions and 6 diced celery stalks"), from the dish's own rows; a food the step
@@ -269,7 +332,11 @@ for (const t of feasts) {
       const text = thawStepText(word, WEEK[(4 - n + 7) % 7], firstAhead);
       plan.creates.push({ dishId: d.id, title: d.title, stepIndex: 0, text, phaseType: "prep", estimatedMinutes: 2, refs: deriveAmountRefs(text, matcher).amountRefs });
     }
-    stepsByDish.set(d.id, steps.map((s) => ({ ...s, stepTextTranslated: texts.get(s.id)!, estimatedMinutes: splitMinutes.get(s.id) ?? s.estimatedMinutes })));
+    stepsByDish.set(d.id, steps.map((s) => ({ ...s, stepTextTranslated: texts.get(s.id)!, estimatedMinutes: splitMinutes.get(s.id) ?? s.estimatedMinutes, phaseType: phaseOf.get(s.id) ?? s.phaseType })));
+    for (const s of steps) {
+      const to = phaseOf.get(s.id);
+      if (to !== undefined && to !== s.phaseType) plan.phaseUpdates.push({ stepId: s.id, title: d.title, stepIndex: s.stepIndex, from: s.phaseType, to });
+    }
     for (const s of steps) {
       const to = splitMinutes.get(s.id);
       if (to !== undefined && to !== s.estimatedMinutes) plan.minuteUpdates.push({ stepId: s.id, title: d.title, stepIndex: s.stepIndex, from: s.estimatedMinutes, to });

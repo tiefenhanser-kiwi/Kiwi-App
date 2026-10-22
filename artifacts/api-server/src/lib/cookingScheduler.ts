@@ -713,16 +713,112 @@ export function scheduleCookingSequence(
   dishes: SchedulerDish[],
   opts: ScheduleOptions = {},
 ): ScheduleResult {
-  const result = scheduleCookingSequenceCore(dishes, opts);
-  if (!opts.feastOven || result.steps.length === 0) return result;
-  // THX-3d (R4) — the steps merged away, for the client (it must not append them).
+  const core = scheduleCookingSequenceCore(dishes, opts);
+  if (core.steps.length === 0) return core;
   const input = dishes.map((d) => ({ ...d, steps: selectDefaultPathSteps(d.steps) })).filter((d) => d.steps.length > 0);
+  // THX-3d round 2 (M) — a morning step and what leads to it, in the first free window.
+  const result = heldMorningFirst(core, input);
+  if (!opts.feastOven) return result;
+  // THX-3d (R4) — the steps merged away, for the client (it must not append them).
   const kept = new Set(mergeFeastPreheats(input).dishes.flatMap((d) => d.steps.map((s) => `${d.dishId}#${s.stepIndex}`)));
   const mergedSteps = input.flatMap((d) => d.steps.filter((s) => !kept.has(`${d.dishId}#${s.stepIndex}`)).map((s) => ({ dishId: d.dishId, stepIndex: s.stepIndex })));
   // THX-3d round 2 (J) — the warm steps that are not needed today go with them.
   const warm = feastWarmSteps(feastServeOrder(result, input), input);
   const all = [...mergedSteps, ...warm.dropped];
   return { ...warm.result, ...(all.length > 0 ? { mergedSteps: all } : {}) };
+}
+
+// ── THX-3d round 2 (M) — THE MORNING CUT, IN THE FIRST FREE WINDOW ───────────────────
+//
+// Hans, Oct 22: a cut held for cook day is done "in the morning", and waits — in the pot
+// of cold water on the stove, off, or tossed in its oil in the fridge (heldMorning.ts
+// words it; its last words are the marker, HELD_MORNING_STEP). So it is not timed to the
+// pot: a dish's steps up to and including its last morning step move, as one block, to
+// the earliest moment the cook's hands are free for that long — from the start of the
+// day, before the dish's next step. When the hands are never free that early the block
+// opens the day instead. Only the day's own steps count (make-ahead and thaw runs are
+// the Hub's). A meal without a morning step is returned untouched.
+
+/** How a morning step's food waits — its last words (heldMorning.ts writes them). */
+export const HOLD_BOILED = "and leave the pot on the stove, off, until it's time to cook";
+export const HOLD_TOSSED = "they can sit, covered, in the fridge for a few hours";
+export const HOLD_BROWNS = "keep them in cold water until it's time to cook";
+export const HOLD_GARNISH = "keep it covered in a small container in the fridge until serving";
+export const HOLD_OTHER = "keep it covered in the fridge until it's time to cook";
+/** A morning step: it ends with one of those. */
+export const HELD_MORNING_STEP =
+  /(?:leave the pot on the stove, off, until it's time to cook|they can sit, covered, in the fridge for a few hours|keep them in cold water until it's time to cook|keep it covered in a small container in the fridge until serving|keep it covered in the fridge until it's time to cook)\.\s*$/i;
+
+const AHEAD_RUN_START = /^\s*(?:make ahead|thaw) \(/i;
+const ON_THE_DAY = /^\s*on [a-z]+day:/i;
+
+export function heldMorningFirst(res: ScheduleResult, dishes: readonly SchedulerDish[]): ScheduleResult {
+  const key = (dishId: string, stepIndex: number) => `${dishId}#${stepIndex}`;
+  const entryOf = new Map(res.steps.map((e) => [key(e.dishId, e.originalStepIndex), e]));
+  const stepOf = new Map(dishes.flatMap((d) => d.steps.map((s) => [key(d.dishId, s.stepIndex), s] as const)));
+  const chains: { keys: string[]; minutes: number; next: string }[] = [];
+  for (const d of dishes) {
+    let inRun = false;
+    const day = [...d.steps]
+      .sort((a, b) => a.stepIndex - b.stepIndex)
+      .filter((s) => {
+        if (AHEAD_RUN_START.test(s.text ?? "")) inRun = true;
+        else if (ON_THE_DAY.test(s.text ?? "")) inRun = false;
+        return !inRun;
+      });
+    const last = day.reduce((m, s, i) => (HELD_MORNING_STEP.test(s.text ?? "") ? i : m), -1);
+    if (last < 0 || last === day.length - 1) continue;
+    const keys = day.slice(0, last + 1).map((s) => key(d.dishId, s.stepIndex));
+    const next = key(d.dishId, day[last + 1].stepIndex);
+    if (!keys.every((k) => entryOf.has(k)) || !entryOf.has(next)) continue;
+    chains.push({ keys, minutes: day.slice(0, last + 1).reduce((n, s) => n + s.estimatedMinutes, 0), next });
+  }
+  if (chains.length === 0) return res;
+  const total = res.totalEstimatedMinutes;
+  const moving = new Set(chains.flatMap((c) => c.keys));
+  const start = new Map(res.steps.map((e) => [key(e.dishId, e.originalStepIndex), e.startOffsetMinutes + total]));
+  const staying = res.steps.filter((e) => !moving.has(key(e.dishId, e.originalStepIndex)));
+  const busy: [number, number][] = staying
+    .map((e) => ({ e, s: stepOf.get(key(e.dishId, e.originalStepIndex)) }))
+    .filter((x) => x.s && !isUnattended(x.s))
+    .map((x) => [start.get(key(x.e.dishId, x.e.originalStepIndex))!, start.get(key(x.e.dishId, x.e.originalStepIndex))! + x.s!.estimatedMinutes]);
+  const dayStart = Math.min(...staying.map((e) => start.get(key(e.dishId, e.originalStepIndex))!));
+  const free = (t: number, m: number) => busy.every(([b0, b1]) => b1 <= t || b0 >= t + m);
+  const leaders: (typeof chains)[number][] = [];
+  const placed = new Map<string, number>();
+  const lay = (c: (typeof chains)[number], at: number) => {
+    let t = at;
+    for (const k of c.keys) {
+      placed.set(k, t);
+      t += stepOf.get(k)!.estimatedMinutes;
+    }
+  };
+  for (const c of chains) {
+    const deadline = start.get(c.next)!;
+    const at = [dayStart, ...busy.map(([, b1]) => b1)].filter((t) => t >= dayStart).sort((a, b) => a - b).find((t) => t + c.minutes <= deadline && free(t, c.minutes));
+    if (at === undefined) leaders.push(c);
+    else {
+      lay(c, at);
+      busy.push([at, at + c.minutes]);
+    }
+  }
+  let t = dayStart - leaders.reduce((n, c) => n + c.minutes, 0);
+  for (const c of leaders) {
+    lay(c, t);
+    t += c.minutes;
+  }
+  const abs = (e: ScheduledStep) => placed.get(key(e.dishId, e.originalStepIndex)) ?? start.get(key(e.dishId, e.originalStepIndex))!;
+  const shift = Math.max(0, -Math.min(...res.steps.map(abs)));
+  const end = total + shift;
+  const steps = res.steps
+    .map((e) => {
+      const moved = placed.has(key(e.dishId, e.originalStepIndex));
+      const { reason: _reason, ...rest } = e;
+      return { ...(moved ? rest : e), startOffsetMinutes: Math.round(abs(e) + shift - end) };
+    })
+    .sort((a, b) => a.startOffsetMinutes - b.startOffsetMinutes || a.sequenceIndex - b.sequenceIndex)
+    .map((e, i) => ({ ...e, sequenceIndex: i }));
+  return { ...res, steps, totalEstimatedMinutes: end };
 }
 
 // ── THX-3d round 2 (J) — NOTHING COLD, NOTHING FORGOTTEN IN THE OVEN ─────────────────

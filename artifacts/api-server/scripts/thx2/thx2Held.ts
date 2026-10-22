@@ -3,12 +3,10 @@
 // Prep the feast holds a cut that browns ("cut the Russet potatoes that morning"); that
 // line lived only in a note under Prep the feast, and the dish's own steps began
 // "Place 5 lb peeled, 2-inch potato chunks in a large pot". On the dish's day the cut is
-// now its first step, timed into the sequence like any other:
-//   "On Thursday: Peel and cut 5 lb russet potatoes into 2-inch chunks; keep them in cold water."
-// The holds are Prep the feast's own (buildFeastSession on the catalog meal, read-only),
-// the sentence the row's own words. A dish whose steps that day already cut the food
-// (Vegetarian's split "Peel and cut 5 lb Yukon Gold potatoes", the crisp's apples) and a
-// row with nothing to cut (whole baby potatoes) get nothing. Idempotent by the same test.
+// now its first step, in the row's own words ("On Thursday: Peel and cut 5 lb russet
+// potatoes into 2-inch chunks"); how it waits, and the scheduler doing it in the morning,
+// are src/lib/heldMorning's (Hans, Oct 22 — patch.ts item 16 puts them together).
+// The holds are Prep the feast's own (buildFeastSession on the catalog meal, read-only).
 
 import type { PrismaClient } from "@prisma/client";
 
@@ -58,10 +56,9 @@ const PARTICIPLES: Record<string, string> = {
   peeled: "peel", cut: "cut", sliced: "slice", diced: "dice", chopped: "chop", minced: "mince", cubed: "cube",
   halved: "halve", quartered: "quarter", trimmed: "trim", grated: "grate", scrubbed: "scrub", cored: "core", seeded: "seed",
 };
-const BROWNS = /\b(?:potato(?:es)?|apples?|pears?|avocados?)\b/i;
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-/** "5 pound russet potatoes, peeled and cut into 2-inch chunks" → "Peel and cut 5 lb russet potatoes into 2-inch chunks; keep them in cold water." Null when there is nothing to cut. */
+/** "5 pound russet potatoes, peeled and cut into 2-inch chunks" → "Peel and cut 5 lb russet potatoes into 2-inch chunks." Null when there is nothing to cut. How the cut waits is heldMorning's, by what comes next. */
 export function cutSentence(row: { quantity: number; unit: string; name: string; note: string | null }): string | null {
   const note = (row.note ?? "").split(/,\s*(?:for|to)\b|\(/i)[0].trim().toLowerCase();
   const m = /^((?:(?:finely|thinly|roughly|coarsely)\s+)?[a-z]+(?:(?:,\s*|\s+and\s+)(?:(?:finely|thinly|roughly|coarsely)\s+)?[a-z]+)*)(.*)$/.exec(note);
@@ -77,8 +74,7 @@ export function cutSentence(row: { quantity: number; unit: string; name: string;
   const amount = formatMeasure(row.quantity, row.unit, row.name, { asWritten: true });
   const name = row.name.toLowerCase().split(/[,(]/)[0].trim();
   const rest = m[2].trim();
-  const keep = BROWNS.test(name) ? "; keep them in cold water" : "";
-  return `${cap(list)} ${amount} ${name}${rest ? ` ${rest}` : ""}${keep}.`;
+  return `${cap(list)} ${amount} ${name}${rest ? ` ${rest}` : ""}.`;
 }
 
 const RUN_PREFIX = /^\s*(Make ahead \(([A-Za-z]+(?: night)?)\)|On ([A-Za-z]+day))\s*:\s*/i;

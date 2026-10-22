@@ -142,8 +142,8 @@ describe("THX-3d K — every step names its subject on the day", () => {
 });
 
 describe("THX-3d M — a cut held for cook day is a step on that day", () => {
-  it("the row's own words, its browning kept in cold water; a garnish; nothing to cut is nothing", () => {
-    assert.equal(cutSentence({ quantity: 5, unit: "pound", name: "Russet potatoes", note: "peeled and cut into 2-inch chunks" }), "Peel and cut 5 lb russet potatoes into 2-inch chunks; keep them in cold water.");
+  it("the row's own words (how it waits is heldMorning's, by what comes next); a garnish; nothing to cut is nothing", () => {
+    assert.equal(cutSentence({ quantity: 5, unit: "pound", name: "Russet potatoes", note: "peeled and cut into 2-inch chunks" }), "Peel and cut 5 lb russet potatoes into 2-inch chunks.");
     assert.equal(cutSentence({ quantity: 2, unit: "tablespoon", name: "fresh chives", note: "thinly sliced, for garnish" }), "Thinly slice 2 tbsp fresh chives.");
     assert.equal(cutSentence({ quantity: 3, unit: "pound", name: "baby Yukon gold potatoes", note: null }), null);
   });
