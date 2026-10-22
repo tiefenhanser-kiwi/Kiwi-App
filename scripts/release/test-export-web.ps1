@@ -33,7 +33,7 @@ function Remove-LongDir { param([string]$Path) [IO.Directory]::Delete('\\?\' + $
 # A dist\ shaped like the real export: a bundle referencing the .pnpm path (and the
 # API host, so the existing bundle checks pass), one font under .pnpm, index.html.
 function New-FixtureDist {
-  param([string]$Name, [string[]]$Redirects, [switch]$Hidden)
+  param([string]$Name, [string[]]$Redirects, [switch]$Hidden, [string]$Headers)
   $d = Join-Path $scratch "$Name\dist"
   if (Test-Path -LiteralPath (Split-Path $d)) { Remove-LongDir (Split-Path $d) }
   Write-Text (Join-Path $d 'index.html') '<!DOCTYPE html><html></html>'
@@ -41,8 +41,16 @@ function New-FixtureDist {
   Write-Text (Join-Path $d '_expo\static\js\web\entry-fake.js') ('m.exports={uri:"/assets/__node_modules/.pnpm/x/a.ttf"};m.exports={uri:"/assets/__node_modules/.pnpm/x/b.png"};var base="' + $apiBase + '";')
   if ($Hidden) { Write-Text (Join-Path $d 'assets\.hidden\b.txt') 'hidden' }
   if ($null -ne $Redirects) { Write-Text (Join-Path $d '_redirects') (($Redirects -join "`n") + "`n") }
+  if ($Headers) { Write-Text (Join-Path $d '_headers') $Headers }
   return $d
 }
+
+# SEC-3b: a _headers whose CSP connect-src names $ConnectHost.
+function New-HeadersText {
+  param([string]$ConnectHost)
+  "/*`n  X-Content-Type-Options: nosniff`n  Content-Security-Policy: default-src 'self'; connect-src 'self' https://$ConnectHost https://accounts.google.com/gsi/; frame-ancestors 'none'`n"
+}
+$apiHostFake = ([uri]$apiBase).Host
 
 Write-Host '== the committed public\_redirects'
 Assert-Equal $goodRedirects.Count 2 'two rules'
@@ -122,13 +130,42 @@ $d = New-FixtureDist -Name 'none' -Redirects $null
 $r = Repair-DistDotSegments -Dist $d
 Assert-True (-not $r.Ok -and ($r.Lines -join "`n") -like '*REWRITE RULE MISSING*') 'missing file refused'
 
+Write-Host '== SEC-3b: the committed public\_headers allows the production API'
+$prodHost = ([uri]'https://kiwi-api-166146829159.us-east4.run.app/api').Host
+$c = Test-CspAllowsApi -Dist (Join-Path $script:RepoRoot 'artifacts\kiwi\public') -ApiHost $prodHost
+Assert-True $c.Ok ('committed _headers: ' + $c.Line)
+
+Write-Host '== SEC-3b: Test-CspAllowsApi matches the origin exactly'
+$d = New-FixtureDist -Name 'csp-lookalike' -Redirects $goodRedirects -Headers (New-HeadersText "$apiHostFake.evil.example")
+$c = Test-CspAllowsApi -Dist $d -ApiHost $apiHostFake
+Assert-True (-not $c.Ok) 'a look-alike host (the real one as a prefix) is not the host'
+$d = New-FixtureDist -Name 'csp-noline' -Redirects $goodRedirects -Headers "/*`n  X-Content-Type-Options: nosniff`n"
+$c = Test-CspAllowsApi -Dist $d -ApiHost $apiHostFake
+Assert-True ((-not $c.Ok) -and $c.Line -like '*no Content-Security-Policy line*') 'no CSP line: refused'
+
+Write-Host '== SEC-3b: a CSP for another API host: refused, one line, no zip'
+$d = New-FixtureDist -Name 'csp-mismatch' -Redirects $goodRedirects -Headers (New-HeadersText 'kiwi-api-166146829159.us-east4.run.app')
+$x = Invoke-ReleaseScript -Script $exportWeb -Arguments @('-PostExportOnly', '-DistPath', $d, '-ApiBaseUrl', $apiBase)
+$x.Lines | ForEach-Object { Write-Host "    | $_" }
+Assert-Equal $x.ExitCode 1 'export-web exits 1'
+Assert-Equal $x.Lines[-1] "CSP CHECK FAILED - _headers connect-src does not allow https://$apiHostFake (the -ApiBaseUrl host): every API call would be blocked" 'the refusal is the last line'
+Assert-True (-not (Test-Path -LiteralPath (Join-Path $scratch 'csp-mismatch\kiwi-web-dist.zip'))) 'no zip'
+
+Write-Host '== SEC-3b: no _headers in dist\: refused'
+$d = New-FixtureDist -Name 'csp-missing' -Redirects $goodRedirects
+$x = Invoke-ReleaseScript -Script $exportWeb -Arguments @('-PostExportOnly', '-DistPath', $d, '-ApiBaseUrl', $apiBase)
+Assert-Equal $x.ExitCode 1 'export-web exits 1'
+Assert-True ($x.Lines[-1] -like 'CSP CHECK FAILED - no _headers in dist\*') 'says _headers is missing'
+Assert-True (-not (Test-Path -LiteralPath (Join-Path $scratch 'csp-missing\kiwi-web-dist.zip'))) 'no zip'
+
 Write-Host '== whole post-export run on the good fixture'
-$d = New-FixtureDist -Name 'whole' -Redirects $goodRedirects
+$d = New-FixtureDist -Name 'whole' -Redirects $goodRedirects -Headers (New-HeadersText $apiHostFake)
 $x = Invoke-ReleaseScript -Script $exportWeb -Arguments @('-PostExportOnly', '-DistPath', $d, '-ApiBaseUrl', $apiBase)
 $x.Lines | ForEach-Object { Write-Host "    | $_" }
 Assert-Equal $x.ExitCode 0 'export-web exits 0'
 Assert-True ($x.Text -like '*dot-segment paths after rename: 0*') 'prints the 0'
-Assert-True ($x.Text -like '*4 entries (dist\ has 4 files); backslash names: 0; dot-segment entries: 0*') 'zip line'
+Assert-True ($x.Text -like "*_headers connect-src allows https://$apiHostFake*") 'SEC-3b: the CSP check passes and says so'
+Assert-True ($x.Text -like '*5 entries (dist\ has 5 files); backslash names: 0; dot-segment entries: 0*') 'zip line (_headers is the fifth file)'
 Assert-True ($x.Lines[-1] -like 'Export checks pass. Not deployed: drag kiwi-web-dist.zip into Netlify (project unique-semolina-e05761 -> Deploys).') 'final line'
 
 if (-not $Keep) { Remove-LongDir $scratch }

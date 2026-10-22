@@ -27,6 +27,13 @@
 #
 #   .\scripts\release\export-web.ps1 -PostExportOnly   # re-run the post-step on an existing dist\
 #
+# SEC-3b: artifacts\kiwi\public\_headers (copied into dist\ by expo export) carries
+# the site's Content-Security-Policy, and its connect-src names the API host by
+# hand. An export baked for any other -ApiBaseUrl would load and then have every
+# API call blocked by the browser. So before the zip: dist\_headers must exist and
+# its connect-src must allow https://<the -ApiBaseUrl host>, or the export is
+# refused with one line.
+#
 # ASCII ONLY (Windows PowerShell 5.1 reads BOM-less UTF-8 as ANSI).
 
 [CmdletBinding()]
@@ -109,6 +116,32 @@ function Repair-DistDotSegments {
   $lines.Add('_redirects in dist\: .pnpm rewrite (first) + /* fallback (last)')
   $result.Ok = $true
   return $result
+}
+
+# SEC-3b: the CSP in dist\_headers must let the page call the API it was baked
+# for. Returns Ok + one line (the refusal, or what was found).
+function Test-CspAllowsApi {
+  param(
+    [Parameter(Mandatory = $true)][string]$Dist,
+    [Parameter(Mandatory = $true)][string]$ApiHost
+  )
+  $want = "https://$ApiHost"
+  $file = Join-Path $Dist '_headers'
+  if (-not (Test-Path -LiteralPath $file)) {
+    return [pscustomobject]@{ Ok = $false; Line = 'CSP CHECK FAILED - no _headers in dist\ (artifacts\kiwi\public\_headers did not make the export)' }
+  }
+  $csp = @([IO.File]::ReadAllLines($file) | ForEach-Object { $_.Trim() } |
+    Where-Object { $_ -match '^Content-Security-Policy\s*:' })
+  if ($csp.Count -eq 0) {
+    return [pscustomobject]@{ Ok = $false; Line = 'CSP CHECK FAILED - _headers has no Content-Security-Policy line' }
+  }
+  $policy = ($csp[0] -replace '^Content-Security-Policy\s*:\s*', '')
+  $connect = @($policy -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ -match '^connect-src(\s|$)' })
+  $sources = if ($connect.Count -gt 0) { @($connect[0] -split '\s+' | Select-Object -Skip 1 | ForEach-Object { $_.TrimEnd('/') }) } else { @() }
+  if ($sources -notcontains $want) {
+    return [pscustomobject]@{ Ok = $false; Line = "CSP CHECK FAILED - _headers connect-src does not allow $want (the -ApiBaseUrl host): every API call would be blocked" }
+  }
+  return [pscustomobject]@{ Ok = $true; Line = "_headers connect-src allows $want" }
 }
 
 # Step 5: zip dist\ (its contents at the zip root) next to it. Returns path + counts.
@@ -253,6 +286,12 @@ foreach ($m in @([regex]::Matches($js, '.{0,50}localhost.{0,30}') | Select-Objec
 
 $fail = (-not $redirectsOk) -or ($hostHits -eq 0) -or ($lanHits -gt 0) -or ($devFallbackHits -gt 0)
 if ($fail) { Write-Host 'EXPORT CHECK FAILED - do not upload this dist\.'; exit 1 }
+
+# --- SEC-3b: the CSP allows the API this bundle calls --------------------------------
+
+$cspCheck = Test-CspAllowsApi -Dist $dist -ApiHost $apiHost
+Write-Host $cspCheck.Line
+if (-not $cspCheck.Ok) { exit 1 }
 
 # --- the zip Netlify gets ----------------------------------------------------------------
 
