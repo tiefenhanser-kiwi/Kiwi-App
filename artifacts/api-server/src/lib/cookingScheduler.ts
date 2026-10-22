@@ -1075,10 +1075,14 @@ export const REHEAT_MINUTES = 10;
 const PRIORITY_LEAD = 10_000;
 const REHEAT_STEP = /\breturn it,? uncovered,? to the \d{3}\s*°\s*F oven for \d+ minutes\b/i;
 
-/** The code-written hold step's text. */
-export function holdCoveredText(dishTitle: string): string {
-  return `Cover the ${dishTitle} with foil to keep it warm while the oven heats for the next dish.`;
+/** The code-written hold step's text. THX-3d round 2 (O) — "while the oven heats" only
+ *  when the oven's temperature changes next (New Twist's stuffing came out at 350°F with
+ *  the potatoes still baking at 350°F). */
+export function holdCoveredText(dishTitle: string, ovenChangesNext = true): string {
+  return `Cover the ${dishTitle} with foil to keep it warm${ovenChangesNext ? " while the oven heats for the next dish" : ""}.`;
 }
+/** A code-written hold step, either wording. */
+export const HOLD_COVERED_STEP = /^Cover the (.+?) with foil to keep it warm(?: while the oven heats for the next dish)?\.$/;
 
 /** The code-written reheat step's text, at the last block's temperature. */
 export function reheatText(dishTitle: string, tempF: number): string {

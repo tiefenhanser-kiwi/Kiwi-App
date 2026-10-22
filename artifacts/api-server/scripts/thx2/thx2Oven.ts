@@ -21,6 +21,8 @@
 import {
   feastRoastDish,
   holdCoveredText,
+  HOLD_COVERED_STEP,
+  isReheatStep,
   isOvenStep,
   mergeFeastPreheats,
   ovenTempOfText,
@@ -293,6 +295,31 @@ export function heldDishSteps(
       { dishId: d.dishId, title: d.title, stepIndex: at + 1, text: holdCoveredText(d.title), phaseType: "assemble", estimatedMinutes: 1 },
       { dishId: d.dishId, title: d.title, stepIndex: at + 2, text: reheatText(d.title, lastTemp), phaseType: "cook", estimatedMinutes: REHEAT_MINUTES },
     );
+  }
+  return out;
+}
+
+/**
+ * THX-3d round 2 (O) — each hold step says "while the oven heats for the next dish" only
+ * when the oven's temperature changes as the dish comes out: no other dish is baking at
+ * its temperature then, and the next oven step to start is at another. Text updates for
+ * the steps whose words disagree (idempotent).
+ */
+export function holdTextUpdates(dishes: readonly OvenDish[], steps: readonly OvenStepRow[]): { dishId: string; stepIndex: number; text: string }[] {
+  const report = ovenReport(dishes, steps);
+  const out: { dishId: string; stepIndex: number; text: string }[] = [];
+  for (const s of steps) {
+    const m = HOLD_COVERED_STEP.exec(s.stepTextTranslated.trim());
+    if (!m) continue;
+    const mine = report.lines.filter((l) => l.dishId === s.ownerId && l.stepIndex < s.stepIndex);
+    const last = mine.sort((a, b) => b.end - a.end)[0];
+    if (!last) continue;
+    const others = report.lines.filter((l) => l.dishId !== s.ownerId && !isReheatStep({ text: steps.find((x) => x.ownerId === l.dishId && x.stepIndex === l.stepIndex)?.stepTextTranslated ?? "" }));
+    const stillBaking = others.some((l) => l.start < last.end && last.end < l.end && l.temp === last.temp);
+    const next = others.filter((l) => l.start >= last.end).sort((a, b) => a.start - b.start)[0];
+    const changes = !stillBaking && !!next && next.temp !== null && next.temp !== last.temp;
+    const want = holdCoveredText(m[1], changes);
+    if (want !== s.stepTextTranslated.trim()) out.push({ dishId: s.ownerId, stepIndex: s.stepIndex, text: want });
   }
   return out;
 }

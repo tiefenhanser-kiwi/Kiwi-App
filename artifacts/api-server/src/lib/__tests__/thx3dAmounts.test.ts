@@ -58,6 +58,16 @@ describe("THX-3d B — the food after a participle, a bracket, or a tie", () => 
   });
 });
 
+describe("THX-3d round 2 (O) — amounts a shape word or a per-item amount hid", () => {
+  it("'8 sprigs stripped thyme' is the thyme ('stripped' is not a 'strips' shape)", () => {
+    assert.deepEqual(spans("Mash 6 tablespoons butter with 8 sprigs stripped thyme.", [row("b", "unsalted butter", 6, "tablespoon"), row("t", "fresh thyme", 8, "sprigs")]), ["6 tablespoons|b|6|tablespoons", "8 sprigs|t|8|sprigs"]);
+  });
+  it("'(about ¾ tablespoon each)' is per item: never an amount that scales", () => {
+    assert.deepEqual(spans("Brush the gill side of each with Dijon mustard (about ¾ tablespoon each).", [row("d", "Dijon mustard", 3, "tablespoon")]), []);
+    assert.deepEqual(spans("Top the caps with 1 tablespoon butter each.", [row("b", "unsalted butter", 4, "tablespoon")]), []);
+  });
+});
+
 describe("THX-3d B — the walk", () => {
   const rows = [row("sugar", "granulated sugar", 1.5, "cup"), row("orange", "orange", 2, "each")];
   it("finds a corrupt unit, an unbound amount and a count in words", () => {

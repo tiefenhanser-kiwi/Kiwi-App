@@ -33,6 +33,7 @@ import type { PrismaClient } from "@prisma/client";
 import { buildFeastSession, type PrepWeekBuild } from "./prepWeekBuild";
 import { ingredientGroupKey } from "./ingredientRelations";
 import { FEAST_MEAL_TAG, loadPrepWeekInput } from "./prepWeekAggregation";
+import { dishScalesOf, scaleFrames } from "./feastScaleFrames";
 
 /**
  * GET /meals/:id?planItemId= — a feast meal read in its plan: each dish's steps
@@ -50,6 +51,8 @@ export async function feastCookWordingFor(
   const build = buildFeastSession(load);
   if (!build) return out;
   const facts = feastDishFacts(build);
+  // Round 2 (O) — the counts this plan shows as one, and its servings, per dish.
+  const scales = dishScalesOf(load);
   const rows = await prisma.dishIngredient.findMany({
     where: { dishId: { in: args.dishes.map((d) => d.dishId) } },
     select: { dishId: true, ingredientId: true, ingredient: { select: { canonicalName: true } } },
@@ -57,7 +60,8 @@ export async function feastCookWordingFor(
   const titles = args.dishes.map((d) => d.title);
   for (const d of args.dishes) {
     const before = d.steps.map((s) => ({ stepIndex: s.stepIndex, text: s.text, amountRefs: Array.isArray(s.amountRefs) ? (s.amountRefs as WordingRef[]) : null }));
-    const after = rewordFeastSteps(before, rows.filter((r) => r.dishId === d.dishId).map((r) => ({ ingredientId: r.ingredientId, name: r.ingredient.canonicalName })), facts.get(d.dishId), titles);
+    const after = rewordFeastSteps(before, rows.filter((r) => r.dishId === d.dishId).map((r) => ({ ingredientId: r.ingredientId, name: r.ingredient.canonicalName })), facts.get(d.dishId), titles)
+      .map((s) => scaleFrames(s, scales.get(d.dishId)));
     after.forEach((a, i) => {
       if (a.text === before[i].text) return;
       if (!out.has(d.dishId)) out.set(d.dishId, new Map());

@@ -93,7 +93,7 @@ describe("THX-3b BUG-457 — new generations get the rule", () => {
 });
 
 // ── THX-3c — the code-written oven steps (patch.ts 9, 10, 11) ────────────────
-import { heldDishSteps, ovenConflicts, splitPreheatSteps } from "./thx2Oven";
+import { heldDishSteps, holdTextUpdates, ovenConflicts, splitPreheatSteps } from "./thx2Oven";
 
 // Dev's Vegetarian (4d543799), Thursday as stored before THX-3c.
 const VEG = [
@@ -154,6 +154,13 @@ describe("THX-3c BUG-463 — Vegetarian's code-written steps", () => {
     assert.deepEqual(ovenConflicts(ovenReport(VEG, all)), []);
     assert.deepEqual(heldDishSteps(VEG, all), { creates: [], renumber: [] });
     assert.deepEqual(splitPreheatSteps(VEG, all), []);
+    // THX-3d round 2 (O) — the mac comes out with the stuffing still baking at 375°F:
+    // its foil step says nothing about the oven heating; the stuffing's, before the
+    // Wellington's 425°F, keeps it. A second run changes nothing.
+    const holds = holdTextUpdates(VEG, all);
+    assert.deepEqual(holds, [{ dishId: "mac", stepIndex: 7, text: "Cover the Baked Mac and Cheese with foil to keep it warm." }]);
+    const fixed = all.map((x) => (x.ownerId === "mac" && x.stepIndex === 7 ? { ...x, stepTextTranslated: holds[0].text } : x));
+    assert.deepEqual(holdTextUpdates(VEG, fixed), []);
   });
 });
 

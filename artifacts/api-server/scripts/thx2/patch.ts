@@ -45,7 +45,7 @@ import { thursdayPostPass, thursdayPrePass, type ThursdayEdits } from "./thx2Thu
 import { countsInWords, mergeRefs, missingRows } from "./thx2Rows";
 import { thawStepText } from "../../src/lib/feastAddedDish";
 import { splitPrepClause } from "../../src/lib/feastCookWording";
-import { formatOvenReport, heldDishSteps, oneOvenTemperature, ovenReport, retimeDish, splitPreheatSteps, type OvenStepRow } from "./thx2Oven";
+import { formatOvenReport, heldDishSteps, holdTextUpdates, oneOvenTemperature, ovenReport, retimeDish, splitPreheatSteps, type OvenStepRow } from "./thx2Oven";
 
 const argv = process.argv.slice(2);
 const APPLY = argv.includes("--apply");
@@ -352,6 +352,8 @@ for (const t of feasts) {
   // 10. (THX-3d D) — THX-3c's "As the turkey comes out, raise the oven…" is replaced:
   // the post-pass writes ONE raise step while the bird roasts, and the serve step.
   applyEdits(thursdayPostPass(ovenDishes, ovenRows()));
+  // THX-3d round 2 (O) — "while the oven heats for the next dish" only when it does.
+  applyEdits({ updates: holdTextUpdates(ovenDishes, ovenRows()), deletes: [], renumber: [], creates: [] });
 
   for (const r of plan.rowCreates) console.log(`  rows+ [${r.title}] ${r.quantity} ${r.unit} ${r.canonicalName}${r.preparationNote ? ` (${r.preparationNote})` : ""} · ${r.componentKey ?? "—"}/${r.pathKey ?? "—"} — measured at step #${r.stepIndex}`);
   for (const u of plan.tagUpdates) console.log(`  tags  [${u.title}] ${u.from.join(" ") || "—"}  →  ${u.to.join(" ") || "—"}`);

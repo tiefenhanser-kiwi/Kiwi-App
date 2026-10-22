@@ -236,6 +236,10 @@ export function isByDesign(text: string, span: Span): boolean {
     /^\s*-\s*(?:lbs?|pounds?|oz|ounces?)\s+(?:bird|bags?|box(?:es)?|cans?|packages?|jars?)\b/i.test(later) ||
     (/^(?:lbs?|pounds?|oz|ounces?)$/i.test(span.unit) && /^\s*(?:bird|bags?|box(?:es)?|cans?|packages?|jars?)\b/i.test(later)) ||
     (/\(\s*$/.test(before) && /^\s*each\s*\)/i.test(later)) ||
+    // THX-3d round 2 (O) — a per-item amount never scales: "(about ¼ tablespoon each)"
+    // of Dijon on each portobello cap printed ¾ at household 4.
+    // ("1 tablespoon butter each." too: "each" closing the amount's own phrase.)
+    /^(?:\s+[A-Za-z-]+){0,3}\s+each\s*(?:[).;,]|$)/i.test(later) ||
     // an equivalent in brackets after the amount: "48 oz (6 cups)"
     (/[\d½¼¾⅓⅔⅛⅜⅝⅞]\s*[a-z]*\s*\(\s*$/i.test(text.slice(Math.max(0, span.start - 14), span.start))) ||
     // a pot, pan, bowl or vent: "an 8-quart pot", "2 rimmed sheet pans", "6 steam vents"
@@ -250,7 +254,9 @@ export function isByDesign(text: string, span: Span): boolean {
   }
   if (
     /^\s*(?:×|x\s*\d|["”″]|-?\s*inch(?:es)?\b|-?\s*in\b|-?\s*cm\b|-?\s*mm\b)/i.test(after) ||
-    /^\s*(?:wedges?|patties|pattie|balls?|rounds?|sheets?|portions?|servings?|equal\b|even\b|squares?|strips?|halves|quarters?|thirds?)/i.test(after) ||
+    // THX-3d round 2 (O) — whole words: "8 sprigs stripped thyme" was a "strips" shape,
+    // so New Twist's butter printed 8 sprigs unscaled beside a step that said 3.
+    /^\s*(?:wedges?|patties|pattie|balls?|rounds?|sheets?|portions?|servings?|equal|even|squares?|strips?|halves|quarters?|thirds?)\b/i.test(after) ||
     /(\d)\s*[×x]\s*$/.test(text.slice(Math.max(0, span.start - 4), span.start))
   ) {
     return true;
