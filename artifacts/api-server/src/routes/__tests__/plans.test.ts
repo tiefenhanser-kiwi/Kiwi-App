@@ -2365,7 +2365,12 @@ function mutationSpinUp(
     ...(opts?.now ? { now: () => opts.now! } : {}),
     // Over-provision the mutation limiter so mutation-route test cases
     // do not 429 themselves (c2/c3/c4 share this helper).
-    mutationLimiterOpts: { capacity: opts?.limiterCapacity ?? 1000, refillPerSec: 100 },
+    // SEC-2 — a capped bucket must refill slowly, or the 429 case passes or fails on
+    // whether the second request lands within 10 ms of the first (it flaked under
+    // full-suite load). Uncapped runs keep the fast refill.
+    mutationLimiterOpts: opts?.limiterCapacity
+      ? { capacity: opts.limiterCapacity, refillPerSec: 1 / 3600 }
+      : { capacity: 1000, refillPerSec: 100 },
   });
 }
 
