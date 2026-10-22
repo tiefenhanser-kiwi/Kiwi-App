@@ -51,11 +51,22 @@ describe("THX-3c G — a feast dry container of whole spices alone keeps the flo
     );
   });
 
-  it("a whole spice beside a measure that is not one still makes the feast's mix of two", () => {
+  // THX-3d (R1) — THX-3's feast floor of two is gone: two items of any kind stay in
+  // their recipe step (the brine's salt and sugar), three make a mix.
+  it("THX-3d R1 — a whole spice beside one other measure is no mix (the feast's floor is three)", () => {
     assert.deepEqual(
       dryContainers(gravy([ing(3, "bay leaves", "Pantry", 2, "each"), ing(6, "granulated sugar", "Pantry", 1, "tablespoon")], "2 bay leaves and 1 tablespoon granulated sugar")),
-      ["bay leaves, granulated sugar"],
+      [],
     );
+  });
+
+  it("THX-3d R1 — a pinch of salt the step names in words joins the mix (sugar, cinnamon stick, salt)", () => {
+    const rows = [ing(6, "granulated sugar", "Pantry", 1.5, "cup"), ing(7, "cinnamon stick", "Pantry", 1, "each"), ing(8, "kosher salt", "Pantry", 1, "pinch")];
+    const l = gravy(rows, "1½ cups granulated sugar, 1 cinnamon stick, and a pinch of kosher salt");
+    // The pinch has no amountRef: the step's ids hold everything but it.
+    const d = (l as any).input.meals[0].dishes[0];
+    d.componentSteps[0].ingredientIds = d.componentSteps[0].ingredientIds.filter((id: string) => id !== I(8));
+    assert.deepEqual(dryContainers(l), ["cinnamon stick, granulated sugar, kosher salt"]);
   });
 });
 

@@ -188,7 +188,14 @@ function entryStepOf(
   ownsRef: (id: string, stepIndex: number) => boolean = () => true,
 ): number | null {
   const ordered = [...steps].sort((a, b) => a.stepIndex - b.stepIndex);
-  const byRef = ordered.find((s) => s.ingredientIds.some((id) => ids.has(id) && ownsRef(id, s.stepIndex)));
+  // THX-3d (R1) — the first step that states TWO of the members (one, for a one-member
+  // container), else the first that states any: Small's crisp topping is measured at its
+  // own step (oats, flour, sugar, salt, cinnamon), not at the filling's, which names one
+  // of them (its own cinnamon). The cheesecake's mix still enters where its sugar and
+  // salt do, the step before its spices.
+  const stated = (s: ComponentStep) => new Set(s.ingredientIds.filter((id) => ids.has(id) && ownsRef(id, s.stepIndex))).size;
+  const need = Math.min(2, ids.size);
+  const byRef = ordered.find((s) => stated(s) >= need) ?? ordered.find((s) => stated(s) > 0);
   if (byRef) return byRef.stepIndex;
   const byName = ordered.find((s) => names.some((n) => proseNames(s.text, n)));
   return byName ? byName.stepIndex : null;
@@ -257,7 +264,10 @@ export function feastClosingLines(
         if (!row || members.has(ingredientGroupKey(row.ingredientName))) continue;
         const key = ingredientGroupKey(row.ingredientName);
         if (otherContainer.has(key)) {
-          const elsewhere = otherContainer.get(key);
+          // THX-3d — a SHARED tub's label names the food and its dishes ("Juiced lemon —
+          // Roasted Green Beans, Apple Crisp"); in a sentence it is the food ("juiced lemon").
+          const raw = otherContainer.get(key);
+          const elsewhere = raw && raw.includes(" — ") ? spokenName(raw.split(" — ")[0], "") : raw;
           if (elsewhere && !joins.includes(elsewhere)) joins.push(elsewhere);
           continue;
         }
@@ -289,9 +299,17 @@ export function feastClosingLines(
     const body = used.text.replace(MAKE_AHEAD, "").replace(ON_DAY, "");
     const verb = VERBS.find(([re]) => re.test(body))?.[1] ?? "add it to";
     const when = u.day ? `On ${u.day.day}${u.day.night ? " night" : ""}, ` : "On cook day, ";
+    // THX-3d — with nothing new joining it ("Pour in the sherry and soy sauce; whisk in the
+    // broth" is the jar itself), the line names the step by what the recipe adds there.
+    const dishName = combineInput.meals.flatMap((m) => m.dishes).find((d) => d.dishId === u.dishId)?.dishName ?? "recipe";
+    const own = rows
+      .filter((r) => members.has(ingredientGroupKey(r.ingredientName)) && (entry.ingredientIds.includes(r.ingredientId) || proseNames(entry.text, r.ingredientName)))
+      .map((r) => spokenName(r.ingredientName, ""));
     const line = joins.length > 0
       ? `That's the ${u.name}. ${when}${verb} the ${listOf(joins)}.`
-      : `That's the ${u.name}. ${when.replace(/, $/, "")} it goes into the recipe.`;
+      : own.length > 0
+        ? `That's the ${u.name}. ${when}add it to the ${dishName} where the recipe adds the ${listOf([...new Set(own)])}.`
+        : `That's the ${u.name}. ${when}add it to the ${dishName}.`;
     lineOf.set(u.name, line);
   }
   const out = new Map<string, string>();

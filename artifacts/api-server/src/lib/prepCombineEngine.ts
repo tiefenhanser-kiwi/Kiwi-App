@@ -562,10 +562,11 @@ function detectBlendComponents(input: PrepCombineInput, opts: CombineOptions = {
           drySeasonings.add(ingredientGroupKey(ing.ingredientName));
         }
       }
-      // THX-3 — a feast mix is TWO dry items when one of them is not salt or pepper
-      // (the brine's salt and brown sugar; never a dish's salt and pepper alone).
+      // THX-3d (R1, Hans October 21) — a feast mix is THREE dry items like any other,
+      // never salt and pepper alone. THX-3's floor of two is gone: the brine's salt and
+      // brown sugar stay in their recipe step.
       const seasoningOnly = [...drySeasonings].every((k) => isSaltOrPepper(k));
-      const isBlend = opts.feast ? drySeasonings.size >= 2 && !seasoningOnly : drySeasonings.size >= 3;
+      const isBlend = drySeasonings.size >= 3 && !(opts.feast && seasoningOnly);
       if (isBlend) {
         for (const id of drySeasonings) blendIds.add(id);
       }

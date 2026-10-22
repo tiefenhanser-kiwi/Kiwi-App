@@ -201,6 +201,40 @@ export interface MomentResolution {
   overrides: MomentOverride[];
 }
 
+export interface MomentOptions {
+  /** THX-3d (R1) — the feast: a cold step that opens another vessel starts a run. */
+  vesselRuns?: boolean;
+}
+
+/**
+ * THX-3d (R1, chat-Claude's ruling on Small's apple crisp) — "In a separate bowl,
+ * combine the oats, flour, brown sugar…" is another vessel, so another mix: the
+ * crisp's filling and its topping are two runs even with no heat step between
+ * them. Consecutive steps into the SAME vessel stay one run (the cheesecake's
+ * sugar, then its spices "whisked into the filling").
+ */
+export const NEW_VESSEL = /\b(?:in|into)\s+(?:a\s+)?(?:separate|another|second|clean|different)\s+(?:\w+\s+){0,2}(?:bowl|dish|jar|container)\b/i;
+
+/**
+ * The run proxy: a `cook` step CLOSES the current run and the next non-cook step
+ * opens a new one; with `vesselRuns`, so does a cold step that opens another vessel.
+ */
+function runsOfSteps(ordered: readonly ComponentStep[], vesselRuns = false): Map<number, number> {
+  const runOfStep = new Map<number, number>();
+  let run = 0;
+  let lastWasHeat = false;
+  let first = true;
+  for (const s of ordered) {
+    const heat = s.phaseType === HEAT_PHASE;
+    if (!heat && lastWasHeat) run++;
+    else if (vesselRuns && !heat && !first && NEW_VESSEL.test(s.text)) run++;
+    runOfStep.set(s.stepIndex, run);
+    lastWasHeat = heat;
+    first = false;
+  }
+  return runOfStep;
+}
+
 /**
  * D-WS9-301 rule 1 — the per-dish container key for every ingredient.
  *
@@ -216,6 +250,7 @@ export function resolveMoments(
    * step that names the filling's sugar. Absent for every other dish.
    */
   listingStep?: ReadonlyMap<string, number>,
+  opts: MomentOptions = {},
 ): MomentResolution {
   const ordered = [...steps].sort((a, b) => a.stepIndex - b.stepIndex);
   const hasCoverage = ordered.some((s) => s.ingredientIds.length > 0);
@@ -224,15 +259,7 @@ export function resolveMoments(
   // A `cook` step CLOSES the current run; the next non-cook step opens a new
   // one. The closing step's own amounts belong to the run it ends, which is the
   // slow-cooker case: the aromatics, the chicken and the liquids are one dump.
-  const runOfStep = new Map<number, number>();
-  let run = 0;
-  let lastWasHeat = false;
-  for (const s of ordered) {
-    const heat = s.phaseType === HEAT_PHASE;
-    if (!heat && lastWasHeat) run++;
-    runOfStep.set(s.stepIndex, run);
-    lastWasHeat = heat;
-  }
+  const runOfStep = runsOfSteps(ordered, opts.vesselRuns);
 
   // ── signal 1: the component, and the first step that states each amount ───
   const firstRefStep = new Map<string, number>();
@@ -403,17 +430,10 @@ export function mixtureEntryKey(
   steps: readonly ComponentStep[],
   ingredientId: string,
   ingredientName: string,
+  opts: MomentOptions = {},
 ): string {
   const ordered = [...steps].sort((a, b) => a.stepIndex - b.stepIndex);
-  const runOfStep = new Map<number, number>();
-  let run = 0;
-  let lastWasHeat = false;
-  for (const s of ordered) {
-    const heat = s.phaseType === HEAT_PHASE;
-    if (!heat && lastWasHeat) run++;
-    runOfStep.set(s.stepIndex, run);
-    lastWasHeat = heat;
-  }
+  const runOfStep = runsOfSteps(ordered, opts.vesselRuns);
   // "the juice of 1 lemon" uses the lemon: for this question a fruit's zest and
   // juice are the fruit, though `proseNames` (rightly, for "garlic powder") reads
   // them as another food.

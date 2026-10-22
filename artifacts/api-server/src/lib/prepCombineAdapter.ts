@@ -231,6 +231,8 @@ export function buildPrepCombineInput(
             phase: assignPhase(i.category, i.ingredientName, i.purchaseUnit),
           })),
           listingStep,
+          // THX-3d (R1) — in the feast, another vessel is another run (prepMoments NEW_VESSEL).
+          { vesselRuns: !!opts.feast },
         );
         // ── D-WS9-301 rule 1's INVERSE CASE — a component absorbs its run ───
         //
@@ -299,7 +301,7 @@ export function buildPrepCombineInput(
         // step that mixes it. A marinade built over three prep steps stays one
         // container; a run-absorbed ingredient is keyed the same way, so a glaze
         // simmered at s3 no longer rides a rub measured at s0.
-        const entryOf = (id: string, name: string) => mixtureEntryKey(ordered, id, name);
+        const entryOf = (id: string, name: string) => mixtureEntryKey(ordered, id, name, { vesselRuns: !!opts.feast });
         // THX-3 — in a feast, a salt or pepper rides its run into a mixture only beside a
         // DRY partner named in the same step that rides it too (the brine's salt with its
         // sugar). Alone in its step — the herb butter's pepper — it does not.
@@ -325,8 +327,12 @@ export function buildPrepCombineInput(
             // and "salt" is not "unsalted".
             const head = ing.ingredientName.toLowerCase().trim().split(/\s+/).pop() ?? "";
             const namesIt = (text: string) => new RegExp(`\\b${head}\\b`, "i").test(text);
+            // THX-3d (R1) — BY THE STEP'S WORDS when no step states its amount: "a pinch
+            // of kosher salt" has no amountRef, and the cranberry step that says it
+            // beside the sugar and the cinnamon stick is still where it goes in.
+            const stated = ordered.some((s) => s.ingredientIds.includes(ing.ingredientId));
             for (const s of ordered) {
-              if (!s.ingredientIds.includes(ing.ingredientId) || !namesIt(s.text)) continue;
+              if ((stated && !s.ingredientIds.includes(ing.ingredientId)) || !namesIt(s.text)) continue;
               const partner = dish.ingredients.find((o) =>
                 o.ingredientId !== ing.ingredientId &&
                 s.ingredientIds.includes(o.ingredientId) &&

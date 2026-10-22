@@ -1152,16 +1152,13 @@ export function buildStepPlan(
   const meetsFloor = (c: Container): boolean => {
     const n = c.members.size;
     if (c.cls === "B") return n >= 2;
-    // THX-3 — the feast's floor is two, and never salt and pepper alone (that is
-    // seasoning to taste at the stove, not a mix).
-    // THX-3c (G) — and never whole spices alone (bay leaves, peppercorns, a cinnamon
-    // stick, whole cloves, star anise): two of them in a tub is not a mix, their
-    // amounts stay in the recipe step. They keep the everyday floor of three.
+    // THX-3d (R1, Hans October 21) — "there has to be at least 3 ingredients to make
+    // a container", the feast included: THX-3's feast floor of two is gone (the brine's
+    // salt and sugar stay in their step). A feast mix is still never salt and pepper
+    // alone — seasoning to taste at the stove, not a mix.
     if (allDryA(c)) {
       if (!opts.feast) return n >= 3;
-      const members = [...c.members.values()];
-      if (members.every((p) => WHOLE_SPICE.test(p.entry.ingredientName))) return n >= 3;
-      return n >= 2 && members.some((p) => !isSaltOrPepper(p.entry.ingredientName));
+      return n >= 3 && [...c.members.values()].some((p) => !isSaltOrPepper(p.entry.ingredientName));
     }
     return n >= 3 || (n >= 2 && c.noun !== null && mustSit(c.noun));
   };
@@ -1640,7 +1637,12 @@ export function buildStepPlan(
     if (key === "seasonings_dry" || key === "sauces_marinades") {
       for (const c of containers.values()) {
         if (c.cls !== "A") continue;
-        const mine = [...c.members.values()].filter((p) => p.entry.phase === key);
+        // THX-3d (R1) — in the feast, a jar's one dry member is not a step of its own
+        // ("Measure the … sauce jar: ⅛ tsp crushed red pepper flakes"): it goes in with
+        // the jar's liquids, in the sauces step.
+        const all = [...c.members.values()];
+        const loneDry = !!opts.feast && all.filter((p) => p.entry.phase === "seasonings_dry").length === 1 && all.some((p) => p.entry.phase === "sauces_marinades");
+        const mine = all.filter((p) => (loneDry ? key === "sauces_marinades" && (p.entry.phase === key || p.entry.phase === "seasonings_dry") : p.entry.phase === key));
         if (mine.length === 0) continue;
         // A dish with no step signal (`i*`) keeps the per-dish key its blend always had
         // (BUG-016 / D-WS7-187), so a stored tick does not move for nothing.
@@ -2196,10 +2198,6 @@ const EMULSIONS: ReadonlySet<string> = new Set([
 ]);
 
 /** A dry container of baking or binding goods is a "dry mix", not a "spice blend". */
-/** THX-3c (G) — a whole spice, by name: never ground, never a fresh leaf. */
-const WHOLE_SPICE =
-  /^(?!.*\b(?:ground|fresh|powder)\b).*\b(bay lea(?:f|ves)|(?:black |white |green |pink )?peppercorns?|cinnamon sticks?|whole cloves|cloves$|star anise|allspice berries|whole allspice|juniper berries|cardamom pods?)\b/i;
-
 const DRY_MIX_MEMBER =
   /\b(flour|cornmeal|masa|breadcrumbs|panko|sugar|baking powder|baking soda|yeast|oats|cornstarch|semolina|polenta)\b/i;
 
