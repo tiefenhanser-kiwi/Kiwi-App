@@ -211,6 +211,26 @@ function makeStubPrisma(opts: StubPrismaOpts = {}) {
         guestSessionUpdates.push(data);
         return data;
       },
+      // SEC-2 #10 — the build-plans claim (generationCount 0 → 1, conditional)
+      // and its refund (1 → 0). Modelled on the opts object so concurrent
+      // requests see one count, as they would see one row.
+      updateMany: async ({
+        where,
+        data,
+      }: {
+        where: { id: string; generationCount?: number | { lt: number } };
+        data: { generationCount?: number | { increment: number } };
+      }) => {
+        const g = opts.guestSession;
+        if (!g || g.id !== where.id) return { count: 0 };
+        const cur = g.generationCount ?? 0;
+        const cond = where.generationCount;
+        if (typeof cond === "number" && cur !== cond) return { count: 0 };
+        if (cond && typeof cond === "object" && !(cur < cond.lt)) return { count: 0 };
+        const next = data.generationCount;
+        g.generationCount = typeof next === "number" ? next : cur + (next?.increment ?? 0);
+        return { count: 1 };
+      },
     },
     guestEvent: {
       create: async ({ data }: { data: Record<string, unknown> }) => {
@@ -6281,6 +6301,60 @@ const GUEST_HEADERS = (guestSessionId = FUNNEL_GUEST_ID) => ({
     purpose: "guest",
     expiresIn: "1h",
   })}`,
+});
+
+// ── SEC-2 #10 — one generation per guest session, under concurrency ──────
+describe("POST /api/wizard/build-plans — SEC-2 #10 the guest generation is claimed atomically", () => {
+  it("five requests sent at once: ONE generates, four get 409, the model is called once", async () => {
+    const ai = makeRunAICall(async () => happyResult());
+    // Own ids: the wizard limiter is per principal, and the Part F cases below
+    // must not inherit these requests.
+    const guestSession = { id: "gs-sec2-race", generationCount: 0 };
+    const prisma = makeStubPrisma({ guestSession, storeMeals: [storeMealRow("store-1")] });
+    const harness = await spinUp({ runAICall: ai.fn, prisma, subscriptionService: makeSubscriptionService(true) });
+    try {
+      const statuses = await Promise.all(
+        Array.from({ length: 5 }, () =>
+          fetch(`${harness.baseUrl}/wizard/build-plans`, {
+            method: "POST",
+            headers: GUEST_HEADERS("gs-sec2-race"),
+            body: JSON.stringify(VALID_BODY),
+          }).then((r) => r.status),
+        ),
+      );
+      assert.deepEqual([...statuses].sort(), [200, 409, 409, 409, 409]);
+      assert.equal(ai.getCalls(), 1, "one model call, not five");
+      assert.equal(guestSession.generationCount, 1);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("a generation that fails hands the claim back — the visitor keeps their one try", async () => {
+    let fail = true;
+    const ai = makeRunAICall(async () =>
+      fail
+        ? ({ success: false, reason: "sdk_error", userFacingMessage: "x", internalError: "x" } as never)
+        : happyResult(),
+    );
+    const guestSession = { id: "gs-sec2-refund", generationCount: 0 };
+    const prisma = makeStubPrisma({ guestSession, storeMeals: [storeMealRow("store-1")] });
+    const harness = await spinUp({ runAICall: ai.fn, prisma, subscriptionService: makeSubscriptionService(true) });
+    try {
+      const post = () =>
+        fetch(`${harness.baseUrl}/wizard/build-plans`, { method: "POST", headers: GUEST_HEADERS("gs-sec2-refund"), body: JSON.stringify(VALID_BODY) });
+      const first = await post();
+      assert.notEqual(first.status, 200);
+      await new Promise((r) => setTimeout(r, 20)); // the refund runs on 'finish'
+      assert.equal(guestSession.generationCount, 0, "the failed attempt did not spend the generation");
+      fail = false;
+      assert.equal((await post()).status, 200);
+      assert.equal(guestSession.generationCount, 1);
+      assert.equal((await post()).status, 409, "and now it is spent");
+    } finally {
+      await harness.close();
+    }
+  });
 });
 
 describe("POST /api/wizard/build-plans — the guest generated event (Part F)", () => {

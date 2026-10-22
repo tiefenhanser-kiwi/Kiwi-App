@@ -22,6 +22,33 @@ import { logger } from "./logger";
 
 export const ENV_TURNSTILE_SECRET_KEY = "TURNSTILE_SECRET_KEY";
 
+// SEC-2 #10 — WHERE A TOKEN MAY HAVE BEEN SOLVED. Cloudflare's siteverify
+// answer names the hostname the widget ran on. A token solved anywhere else —
+// a page an attacker built around the public site key, a solver farm's own
+// host — still answers `success: true`; only this check refuses it.
+// Comma-separated, case-insensitive. Unset means the production web hosts,
+// plus localhost when NODE_ENV is not "production" (a dev machine's web build).
+export const ENV_TURNSTILE_ALLOWED_HOSTNAMES = "TURNSTILE_ALLOWED_HOSTNAMES";
+export const DEFAULT_TURNSTILE_HOSTNAMES = [
+  "app.kitchenwizard.ai",
+  "kitchenwizard.ai",
+  "www.kitchenwizard.ai",
+] as const;
+
+export function readTurnstileHostnames(env: NodeJS.ProcessEnv = process.env): string[] {
+  const raw = env[ENV_TURNSTILE_ALLOWED_HOSTNAMES];
+  if (typeof raw === "string" && raw.trim() !== "") {
+    return raw
+      .split(",")
+      .map((h) => h.trim().toLowerCase())
+      .filter((h) => h !== "");
+  }
+  return [
+    ...DEFAULT_TURNSTILE_HOSTNAMES,
+    ...(env["NODE_ENV"] === "production" ? [] : ["localhost", "127.0.0.1"]),
+  ];
+}
+
 export const TURNSTILE_VERIFY_URL =
   "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
@@ -30,7 +57,10 @@ export const TURNSTILE_TIMEOUT_MS = 10_000;
 
 export type TurnstileVerdict =
   | { ok: true; disabled?: boolean }
-  | { ok: false; reason: "missing_token" | "rejected" | "timeout" | "error" };
+  | {
+      ok: false;
+      reason: "missing_token" | "rejected" | "wrong_hostname" | "timeout" | "error";
+    };
 
 /** The outbound seam. Tests inject; production passes globalThis.fetch. */
 export type TurnstileFetch = (
@@ -94,10 +124,18 @@ export async function verifyTurnstile(
       signal: controller.signal,
     });
     if (!res.ok) return { ok: false, reason: "error" };
-    const parsed = (await res.json()) as { success?: unknown };
-    return parsed?.success === true
-      ? { ok: true }
-      : { ok: false, reason: "rejected" };
+    const parsed = (await res.json()) as { success?: unknown; hostname?: unknown };
+    if (parsed?.success !== true) return { ok: false, reason: "rejected" };
+    // SEC-2 #10 — solved on one of OUR hosts, or not at all.
+    const hostname = typeof parsed.hostname === "string" ? parsed.hostname.toLowerCase() : "";
+    if (!readTurnstileHostnames(opts.env ?? process.env).includes(hostname)) {
+      logger.warn(
+        { event: "turnstile_wrong_hostname", hostname: hostname || null },
+        "Turnstile token was solved on a host this deploy does not serve — refusing",
+      );
+      return { ok: false, reason: "wrong_hostname" };
+    }
+    return { ok: true };
   } catch (err) {
     // AbortError (our timeout) and a transport failure land in the same place
     // and get the same verdict — both mean "we did not verify this visitor".
@@ -122,9 +160,10 @@ export function logTurnstileConfig(
 ): boolean {
   const configured = readTurnstileSecret(env) !== null;
   if (configured) {
+    const hostnames = readTurnstileHostnames(env);
     log.info(
-      { event: "turnstile_config", configured: true },
-      "Turnstile: configured — POST /guest/session requires a verified token",
+      { event: "turnstile_config", configured: true, hostnames },
+      `Turnstile: configured — POST /guest/session requires a verified token solved on ${hostnames.join(", ")}`,
     );
   } else {
     log.warn(

@@ -615,9 +615,9 @@ export function createWizardRouter(
   // exactly one place: the GuestSession row's JSON columns. There is no
   // last-batch row, no draft supersede and no activity event, because all
   // three are tables whose userId is a NOT NULL FK to users and a guest is
-  // not a user. `generationCount` is incremented here, which is what makes
-  // "one generation per guest session" true — the 409 at the top of the route
-  // reads this number.
+  // not a user. `generationCount` is NOT touched here (SEC-2 #10): the route
+  // claims it atomically before generating, and this write records what the
+  // claimed generation produced.
   //
   // Best-effort, like every write in commitGeneratedBatch: the candidates are
   // already on the wire by the time this runs, so a failure here must not sink
@@ -635,7 +635,8 @@ export function createWizardRouter(
         data: {
           preferences: input as Prisma.InputJsonValue,
           candidates: candidates as unknown as Prisma.InputJsonValue,
-          generationCount: { increment: 1 },
+          // SEC-2 #10 — no increment here any more: the route CLAIMED the
+          // generation (0 → 1) before generating. Counting again would make it 2.
           lastEvent: "generated",
         },
       });
@@ -1543,14 +1544,41 @@ export function createWizardRouter(
 
       // ONE generation per guest session (Hans, September 24). A second is a
       // door, not a retry — the client shows the sign-up sheet on this code.
+      //
+      // SEC-2 #10 — CLAIMED, NOT READ. This used to read generationCount and
+      // increment it only after the generation persisted, so N requests sent
+      // at once all read 0 and all generated: N model calls for one visitor.
+      // The claim is now one conditional update (0 → 1) before anything is
+      // spent, and the database lets exactly one request win it.
+      //
+      // A claim that ends WITHOUT a generation (a 400, a model failure, zero
+      // candidates) is handed back when the response finishes, so the visitor
+      // keeps the one try they were promised — the same outcome as before,
+      // when a failed generation never incremented. A stream the client walks
+      // away from does not finish, and keeps its claim: the money is spent.
+      const guestGeneration = { persisted: false };
       if (guestSessionId) {
-        const session = await prisma.guestSession.findUnique({
-          where: { id: guestSessionId },
-          select: { generationCount: true },
+        const claimed = await prisma.guestSession.updateMany({
+          where: { id: guestSessionId, generationCount: { lt: 1 } },
+          data: { generationCount: { increment: 1 } },
         });
-        if (!session || session.generationCount >= 1) {
+        if (claimed.count === 0) {
           return res.status(409).json({ code: "guest_generation_used" });
         }
+        res.on("finish", () => {
+          if (guestGeneration.persisted) return;
+          void prisma.guestSession
+            .updateMany({
+              where: { id: guestSessionId, generationCount: 1 },
+              data: { generationCount: 0 },
+            })
+            .catch((err: unknown) =>
+              logger.warn(
+                { event: "guest_generation_refund_failed", err },
+                "Could not hand back an unused guest generation",
+              ),
+            );
+        });
       }
 
       // 1. Validate the input.
@@ -2072,6 +2100,7 @@ export function createWizardRouter(
         // session blob, and the ONE generation spent. Best-effort in the same
         // spirit as commitGeneratedBatch — the cards are already on the wire.
         if (guestSessionId && reconciledCandidates.length > 0) {
+          guestGeneration.persisted = true;
           await persistGuestGeneration(
             guestSessionId,
             parsed.data,
@@ -2218,6 +2247,7 @@ export function createWizardRouter(
       }
       // Row 13 · Block 1 (D-WS9-259) — see the streaming sibling.
       if (guestSessionId && candidates.length > 0) {
+        guestGeneration.persisted = true;
         await persistGuestGeneration(guestSessionId, parsed.data, candidates);
       }
 

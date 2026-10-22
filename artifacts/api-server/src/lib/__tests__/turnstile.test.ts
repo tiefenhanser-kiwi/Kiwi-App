@@ -24,9 +24,37 @@ import { createRequireTurnstile } from "../../middleware/turnstile";
 
 const CONFIGURED = { [ENV_TURNSTILE_SECRET_KEY]: "0x-secret" };
 
-function okFetch(success: boolean): TurnstileFetch {
-  return async () => ({ ok: true, json: async () => ({ success }) });
+// SEC-2 #10 — Cloudflare names the host the widget ran on; a passing token
+// is one solved on a host this deploy serves.
+function okFetch(success: boolean, hostname = "app.kitchenwizard.ai"): TurnstileFetch {
+  return async () => ({ ok: true, json: async () => ({ success, hostname }) });
 }
+
+describe("verifyTurnstile — SEC-2 #10 the hostname", () => {
+  it("a token solved on a host we do not serve is refused, even though Cloudflare says success", async () => {
+    assert.deepEqual(
+      await verifyTurnstile({ token: "t", env: { ...CONFIGURED, NODE_ENV: "production" }, fetchImpl: okFetch(true, "attacker.example") }),
+      { ok: false, reason: "wrong_hostname" },
+    );
+  });
+  it("no hostname in the answer is refused", async () => {
+    const fetchImpl: TurnstileFetch = async () => ({ ok: true, json: async () => ({ success: true }) });
+    assert.deepEqual(await verifyTurnstile({ token: "t", env: CONFIGURED, fetchImpl }), { ok: false, reason: "wrong_hostname" });
+  });
+  it("production accepts the three web hosts and not localhost; a dev deploy also accepts localhost", async () => {
+    const prod = { ...CONFIGURED, NODE_ENV: "production" };
+    for (const h of ["app.kitchenwizard.ai", "kitchenwizard.ai", "WWW.kitchenwizard.ai"]) {
+      assert.deepEqual(await verifyTurnstile({ token: "t", env: prod, fetchImpl: okFetch(true, h) }), { ok: true }, h);
+    }
+    assert.deepEqual(await verifyTurnstile({ token: "t", env: prod, fetchImpl: okFetch(true, "localhost") }), { ok: false, reason: "wrong_hostname" });
+    assert.deepEqual(await verifyTurnstile({ token: "t", env: { ...CONFIGURED, NODE_ENV: "development" }, fetchImpl: okFetch(true, "localhost") }), { ok: true });
+  });
+  it("TURNSTILE_ALLOWED_HOSTNAMES replaces the default list", async () => {
+    const env = { ...CONFIGURED, NODE_ENV: "production", TURNSTILE_ALLOWED_HOSTNAMES: " preview.example , Other.Example" };
+    assert.deepEqual(await verifyTurnstile({ token: "t", env, fetchImpl: okFetch(true, "other.example") }), { ok: true });
+    assert.deepEqual(await verifyTurnstile({ token: "t", env, fetchImpl: okFetch(true, "app.kitchenwizard.ai") }), { ok: false, reason: "wrong_hostname" });
+  });
+});
 
 describe("verifyTurnstile", () => {
   it("UNSET secret → passes through without calling Cloudflare at all", async () => {
