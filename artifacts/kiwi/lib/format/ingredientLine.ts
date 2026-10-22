@@ -60,6 +60,10 @@ export interface IngredientLineOptions {
   /** WEB-4d — the true package count behind an already-rounded quantity (the
    *  Ingredients sheet sums rounded shares), for the "use 6 oz" clause. */
   packageScaled?: number;
+  /** WEB-4d — whether R5 rounds this amount. Default: the line's own multiplier
+   *  is not 1 (an unscaled amount prints as written). The sheet passes false for
+   *  a sum of shares it has already rounded. */
+  scaled?: boolean;
 }
 
 // ── BUG-317 — THE COUNT UNITS, SUPPRESSED (ruled by Hans, 2026-09-27) ──────
@@ -197,11 +201,16 @@ export function formatIngredientLine(
   // WEB-4 (BUG-453) — the line's own quantity reaches the bird floor.
   // WEB-4b (BUG-454) — `multiplier` is the DISH's factor (dishScaleFactor);
   // the neck and giblets never scale. WEB-4c — nor equipment; both one per bird.
-  const scaled = ing.quantity * lineMultiplier(multiplier, unit, ing.name, ing.quantity, birds);
-  const shown = displayedQuantity(scaled, unit, ing.name);
+  const lineFactor = lineMultiplier(multiplier, unit, ing.name, ing.quantity, birds);
+  const scaled = ing.quantity * lineFactor;
+  // WEB-4d — an unscaled line prints as written; the prep note carries the cut
+  // word ("quartered") and "per package directions".
+  const isScaled = opts.scaled ?? Math.abs(lineFactor - 1) > 1e-9;
+  const ctx = { scaled: isScaled, note: ing.preparationNote ?? "" };
+  const shown = displayedQuantity(scaled, unit, ing.name, ctx);
   const hasUnitWord = unit.length > 0 && !isSuppressedCountUnit(unit);
   const sizeWord = SIZE_UNITS.has(unit.toLowerCase());
-  const parts: string[] = [formatQuantity(scaled, unit, ing.name)];
+  const parts: string[] = [formatQuantity(scaled, unit, ing.name, ctx)];
   // FIX-7 — unitWordFor: plural above 1 as before, and singular at 1 or below
   // for the few lines whose unit is stored plural ("cloves", "cups"). A size
   // word is printed as stored: it has no plural.
@@ -210,7 +219,8 @@ export function formatIngredientLine(
   // when that word is a size ("2 large eggs").
   parts.push(hasUnitWord && !sizeWord ? ing.name : countedIngredientName(ing.name, shown));
   // WEB-4d (R5) — a package rounded up keeps what the recipe uses of it.
-  const use = packageUse(packageScaled ?? scaled, unit, ing.name);
+  const useOf = packageScaled ?? (isScaled ? scaled : undefined);
+  const use = useOf === undefined ? null : packageUse(useOf, unit, ing.name, ctx.note);
   if (use) parts[parts.length - 1] += `, ${use}`;
   if (includeNotes) {
     const note = ing.preparationNote?.trim();

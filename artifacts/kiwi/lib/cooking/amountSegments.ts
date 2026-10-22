@@ -184,8 +184,19 @@ export function refIsNotAQuantity(
   text: string,
   ref: Pick<AmountRef, "unit" | "charEnd"> & { charStart?: number },
 ): boolean {
+  return refIsLegacyHold(text, ref) || refIsPackageSize(text, ref);
+}
+
+/**
+ * WEB-4d — the package sizes this lane added (in parentheses, or without a
+ * hyphen). Held only when the step scales: an unscaled ref renders as it
+ * always did ("10¾ oz", not the stored "10.75 oz").
+ */
+export function refIsPackageSize(
+  text: string,
+  ref: Pick<AmountRef, "unit" | "charEnd"> & { charStart?: number },
+): boolean {
   const unit = (ref.unit ?? "").trim();
-  if (TIME_UNIT.test(unit)) return true;
   const after = text.slice(ref.charEnd);
   if (ref.charStart !== undefined && /\(\s*$/.test(text.slice(0, ref.charStart))) {
     if (EACH_THEN_CLOSE.test(after)) return true;
@@ -198,6 +209,14 @@ export function refIsNotAQuantity(
   const head = followingWords(text, ref.charEnd, 60);
   if (unit && SIZE_UNIT.test(unit) && PACKAGE_HEAD.test(head.trim())) return true;
   if (!unit && LEADING_SIZE_UNIT.test(after) && PACKAGE_HEAD.test(head.trim())) return true;
+  return false;
+}
+
+/** BUG-443 / BUG-450 — durations and hyphenated sizes: held at any multiplier. */
+function refIsLegacyHold(text: string, ref: Pick<AmountRef, "unit" | "charEnd">): boolean {
+  const unit = (ref.unit ?? "").trim();
+  if (TIME_UNIT.test(unit)) return true;
+  const after = text.slice(ref.charEnd);
   if (!unit && TIME_AFTER.test(after)) return true;
   if (!unit && SIZE_AFTER.test(after) && !HYPHEN_BIRD.test(after)) {
     const noun = followingWords(text, ref.charEnd);
@@ -238,7 +257,10 @@ function packageClauses(text: string, multiplier: number): { start: number; end:
     if (!(n > 0)) continue;
     const scaled = n * multiplier;
     const shown = displayedQuantity(scaled, noun);
-    const use = packageUse(scaled, `${noun} (${size} ${sizeUnit})`, "");
+    // "2 boxes (8.5 oz each) cornbread mix": a mix baked per package directions
+    // is the whole box, with no use (packageUse reads it from the words after).
+    const after = text.slice(m.index! + whole.length, m.index! + whole.length + 60).split(/[;.]/)[0];
+    const use = packageUse(scaled, `${noun} (${size} ${sizeUnit})`, "", after);
     const rendered =
       Math.abs(shown - n) < 1e-9 && !use
         ? whole
@@ -246,6 +268,15 @@ function packageClauses(text: string, multiplier: number): { start: number; end:
     out.push({ start: m.index!, end: m.index! + whole.length, text: rendered });
   }
   return out;
+}
+
+/** WEB-4d — "1 lemon, halved": the cut word in the clause right after the noun,
+ *  or "" ("1 lemon, 1 halved onion" is the onion's). */
+const CUT_AFTER = /^\s*(?:and\s+)?(quartered|halved|cut (?:in|into) (?:half|halves|quarters|wedges))\b/i;
+
+function cutAfter(text: string, from: number): string {
+  const second = text.slice(from, from + 60).split(/[;.]/)[0].split(",")[1];
+  return second ? (CUT_AFTER.exec(second)?.[1] ?? "") : "";
 }
 
 export interface AmountSegment {
@@ -308,7 +339,11 @@ export function buildAmountRefSegments(
     if (r.charStart < cursor) continue; // skip overlap — never mangle prose
     if (r.charStart > cursor) out.push({ text: text.slice(cursor, r.charStart), isRef: false });
     const authored = text.slice(r.charStart, r.charEnd);
-    if (spanHoldsRange(authored) || unitIsCorrupt(r.unit) || refIsNotAQuantity(text, r)) {
+    // WEB-4d — the sizes this lane added are held only when something scales:
+    // at multiplier 1 the ref renders as it always has, so an unscaled step is
+    // unchanged. BUG-443's hyphenated sizes and durations hold as before.
+    const held = refIsLegacyHold(text, r) || (Math.abs(multiplier - 1) > 1e-9 && refIsPackageSize(text, r));
+    if (spanHoldsRange(authored) || unitIsCorrupt(r.unit) || held) {
       // BUG-326 — the author wrote a range; print the range.
       // BUG-334 — the unit swallowed part of the number, so the structured
       // amount cannot be printed without saying the fraction twice. Same
@@ -344,12 +379,15 @@ export function buildAmountRefSegments(
         : isBirdPart(name)
           ? r.quantity * birds.parts
           : r.quantity * wholeItemMultiplier(hyphenBird ? multiplier / birds.birds : multiplier, birdUnit, birdName, r.quantity);
-      const scaled = hyphenBird ? formatQuantity(amount, hyphenBird[1], "") : formatQuantity(amount, r.unit, name);
+      // WEB-4d — an unscaled amount prints as written; a cut word right after the
+      // noun ("1 lemon, halved") keeps produce whole, like one before it.
+      const ctx = { scaled: Math.abs(amount - r.quantity) > 1e-9, note: cutAfter(text, r.charEnd) };
+      const scaled = hyphenBird ? formatQuantity(amount, hyphenBird[1], "", ctx) : formatQuantity(amount, r.unit, name, ctx);
       // BUG-321 — the unit is a WORD here, same as on an ingredient line, and
       // pluralized on the DISPLAYED amount so "1 cups" cannot happen. FIX-7 —
       // and singularized there too: the ref's unit is authored ("pounds").
       const unit = r.unit
-        ? unitWordFor(r.unit, displayedQuantity(amount, r.unit, name))
+        ? unitWordFor(r.unit, displayedQuantity(amount, r.unit, name, ctx))
         : "";
       out.push({ text: unit ? `${scaled} ${unit}` : scaled, isRef: true });
     }

@@ -212,13 +212,14 @@ const WHOLE_BIRD = new RegExp(
 //
 //   - OUNCES: 4 oz and up → whole ounces; under 4 → the nearest ½ oz, never
 //     below ½. Ties up. "9⅝ oz" → 10, "4¾" → 5, "2⅜" → 2½. Fluid ounces too.
-//   - WHOLE PRODUCE by the piece (WHOLE_PRODUCE_HEAD, on a count unit) → the
-//     nearest whole, halves up, never below 1: "¾ yellow onion" → 1, "2⅜
-//     shallots" → 2. This REVERSES FIX-7's "produce that halves cleanly still
-//     halves" for these nine: an authored "½ lemon" now reads "1 lemon" at any
-//     household. Read by the HEAD noun (the last word before a comma or a
-//     parenthesis), so "lime wedges", "potato buns" and "orange bell pepper" are
-//     not produce. Each share rounds on its own (consolidateMealIngredients).
+//   - WHOLE PRODUCE by the piece (WHOLE_PRODUCE_HEAD, on a count unit; chiles
+//     too) → the nearest ½, halves up, never below ½: "¾ onion" → 1, "⅜ onion"
+//     → ½, "2⅜ shallots" → 2½. An item CUT WHOLE (CUT_WHOLE: "quartered",
+//     "halved", "whole" — in the unit, the name, the prep note or the step's
+//     words) is the nearest whole, never below 1: the cut word decides. Read by
+//     the HEAD noun (the last word before a comma, a parenthesis or "in …"), so
+//     "lime wedges", "potato buns" and "orange bell pepper" are not produce.
+//     Each share rounds on its own (consolidateMealIngredients).
 //   - PACKAGES (can, box, bag, jar, package, packet — the unit, or the name on a
 //     count unit) → whole, ROUNDED UP, never below 1. Up, not nearest: the line
 //     keeps the use ("1 can (15 oz) pumpkin purée, use 6 oz", packageUse), and
@@ -227,24 +228,46 @@ const WHOLE_BIRD = new RegExp(
 //   - PIECES: caps, sheets, crusts, crackers, leaves, sprigs → the nearest
 //     whole, halves up, never below 1 ("7¼ crackers" → 7, "1⅝ caps" → 2). For
 //     sprigs and leaves that replaces rule 1's ceiling (3.2 sprigs → 3, not 4).
+//
+// 🔴 AN UNSCALED AMOUNT IS NEVER ROUNDED BY ANY OF THIS (Hans, October 22): at
+// its own servings "½ lemon" and "14½ ounces" print as written. Callers pass
+// `scaled: false` (RoundingContext) when the line's multiplier is 1.
 const OUNCE_UNITS = /^(?:oz|ounces?|fl\.?\s*oz|fluid\s+ounces?)$/;
 const WHOLE_PRODUCE_HEAD =
-  /^(?:onions?|carrots?|lemons?|oranges?|limes?|shallots?|jalape[nñ]os?|apples?|potato(?:es)?)$/i;
+  /^(?:onions?|carrots?|lemons?|oranges?|limes?|shallots?|jalape[nñ]os?|apples?|potato(?:es)?|chil(?:e|es|i|is|ies|li|lies)|chipotles?|serranos?|habaneros?|poblanos?)$/i;
+/** "chipotle peppers in adobo" is a chile, though its head says peppers. */
+const CHIPOTLE_PEPPER = /\bchipotle peppers?\b/i;
+/** The cut word that keeps produce whole: "1 quartered onion", "lemon, halved",
+ *  "a whole chile". */
+const CUT_WHOLE = /\b(?:quartered|halved|whole|cut (?:in|into) (?:half|halves|quarters|wedges))\b/i;
+/** A packaged mix prepared per package directions is the whole package, with no
+ *  "use": a cornbread box is baked whole. */
+const PACKAGE_DIRECTIONS =
+  /\b(?:cornbread|muffin|cake|brownie|biscuit|pancake|waffle|cookie|bread) mix(?:es)?\b|\b(?:per|according to)(?: the)? package (?:directions|instructions)\b/i;
+
+/** WEB-4d — what the rounding needs beyond the amount: whether it was scaled at
+ *  all (an unscaled amount is never rounded by R5), and the prep note or the
+ *  step's words after the noun, where a cut word or "per package directions" sits. */
+export interface RoundingContext {
+  scaled?: boolean;
+  note?: string;
+}
 const PACKAGE_WORD = /\b(?:cans?|box(?:es)?|bags?|jars?|packages?|packets?)\b/i;
 const WHOLE_PIECE_UNITS = /^(?:sheets?|caps?|crusts?|crackers?|lea(?:f|ves)|sprigs?)$/;
 // Not after a hyphen: "flat-leaf parsley" is not a leaf ("½ packed cup flat-leaf
 // parsley" — a step's following words — read "1 packed cup").
 const WHOLE_PIECE_NAME = /(?<![-‑])\b(?:caps?|sheets?|crusts?|crackers?|lea(?:f|ves)|sprigs?)\b/i;
 
-/** The head noun of a name: its last word before a comma or a parenthesis. */
+/** The head noun of a name: its last word before a comma, a parenthesis, or
+ *  "in"/"from"/"packed" ("chipotle chiles in adobo sauce" → chiles). */
 function headNoun(name: string): string {
-  const words = name.split(/[,(]/)[0].trim().split(/\s+/);
+  const words = name.split(/[,(]|\s(?:in|from|packed)\s/i)[0].trim().split(/\s+/);
   return words[words.length - 1] ?? "";
 }
 
 /** WEB-4d — onion, carrot, lemon … counted by the piece. */
 export function isWholeProduce(unit: string, name: string): boolean {
-  return COUNT_UNITS.has(unit.trim().toLowerCase()) && WHOLE_PRODUCE_HEAD.test(headNoun(name));
+  return COUNT_UNITS.has(unit.trim().toLowerCase()) && (WHOLE_PRODUCE_HEAD.test(headNoun(name)) || CHIPOTLE_PEPPER.test(name));
 }
 
 /** WEB-4d — a can, box, bag, jar or package: by its unit, or by name on a count. */
@@ -273,8 +296,9 @@ const PACKAGE_SIZE = /(\d+(?:\.\d+)?)\s*[-‑]?\s*(fl\.?\s*oz|oz|ounces?|lbs?|po
  * true package count (⅜ of a can); null when nothing was rounded or there is no
  * size to say it in.
  */
-export function packageUse(scaled: number, unit: string, name: string): string | null {
+export function packageUse(scaled: number, unit: string, name: string, note = ""): string | null {
   if (!(scaled > 0) || !isPackage(unit, name)) return null;
+  if (PACKAGE_DIRECTIONS.test(`${name} ${note}`)) return null;
   if (Math.abs(displayedQuantity(scaled, unit, name) - scaled) < 1e-6) return null;
   const size = PACKAGE_SIZE.exec(`${unit} ${name}`);
   if (!size) return null;
@@ -619,8 +643,9 @@ export function mealScaleFactors(
  * FIX-7 — `name` is the ingredient name (or a step amount's following words);
  * it decides rule 1, the whole-item ceiling. Omitted, only the unit decides.
  */
-export function displayedQuantity(qty: number, unit: string, name = ""): number {
+export function displayedQuantity(qty: number, unit: string, name = "", ctx: RoundingContext = {}): number {
   const u = unit.trim().toLowerCase();
+  const r5 = ctx.scaled !== false && qty > 0;
   // WEB-4 — eggs: the nearest whole, halves up, never below 1.
   if (qty > 0 && isEggCount(u, name)) return Math.max(1, Math.floor(qty + 0.5 + TIE));
   // WEB-4c (BUG-464) — equipment is as written, never below 1.
@@ -630,11 +655,14 @@ export function displayedQuantity(qty: number, unit: string, name = ""): number 
   if (qty > 0 && (isWholeSpice(u, name) || isStalk(u, name))) return Math.max(1, Math.round(qty));
   // WEB-4c (BUG-462) — a whole bird by count: the nearest whole, never below 1.
   if (qty > 0 && isWholeBirdByCount(u, name)) return birdsShown(qty);
-  // WEB-4d (R5) — a package rounds up; produce and pieces to the nearest whole.
-  if (qty > 0 && isPackage(u, name)) return Math.max(1, Math.ceil(qty - TIE));
-  if (qty > 0 && (isWholeProduce(u, name) || isWholePiece(u, name))) {
-    return Math.max(1, Math.floor(qty + 0.5 + TIE));
+  // WEB-4d (R5) — a package rounds up; produce to the nearest ½ (whole when the
+  // cut word says so); pieces to the nearest whole. Never an unscaled amount.
+  if (r5 && isPackage(u, name)) return Math.max(1, Math.ceil(qty - TIE));
+  if (r5 && isWholeProduce(u, name)) {
+    if (u === "whole" || CUT_WHOLE.test(`${name} ${ctx.note ?? ""}`)) return Math.max(1, Math.floor(qty + 0.5 + TIE));
+    return Math.max(1 / 2, Math.floor(qty * 2 + 0.5 + TIE) / 2);
   }
+  if (r5 && isWholePiece(u, name)) return Math.max(1, Math.floor(qty + 0.5 + TIE));
   // Rule 1 — whole counted items, by unit word or by name on a count unit. The
   // TIE keeps float noise (3.0000000004) from ceiling a whole number up.
   if (
@@ -646,7 +674,7 @@ export function displayedQuantity(qty: number, unit: string, name = ""): number 
   // Rule 3 — pounds in quarter steps, ties up, floor ¼.
   if (POUND_UNITS.test(u)) return Math.max(1 / 4, Math.floor(qty * 4 + 0.5 + TIE) / 4);
   // WEB-4d (R5) — ounces: whole from 4 oz, the nearest ½ below it, floor ½.
-  if (qty > 0 && OUNCE_UNITS.test(u)) {
+  if (r5 && OUNCE_UNITS.test(u)) {
     return qty >= 4 - TIE ? Math.floor(qty + 0.5 + TIE) : Math.max(1 / 2, Math.floor(qty * 2 + 0.5 + TIE) / 2);
   }
   const whole = Math.floor(qty);
@@ -680,8 +708,8 @@ const FRACTION_STRINGS: Record<string, string> = {
   "0.875": "⅞",
 };
 
-export function formatQuantity(qty: number, unit: string, name = ""): string {
-  const shown = displayedQuantity(qty, unit, name);
+export function formatQuantity(qty: number, unit: string, name = "", ctx: RoundingContext = {}): string {
+  const shown = displayedQuantity(qty, unit, name, ctx);
   if (Number.isInteger(shown)) return String(shown);
   const rWhole = Math.floor(shown);
   const rFrac = shown - rWhole;

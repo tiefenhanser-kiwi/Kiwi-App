@@ -399,8 +399,10 @@ describe("WEB-4d — THE PINNED TABLE: New Twist's turkey (1 whole turkey (12–
       "1 whole turkey (12–14 lb)",
       "2⅛ tablespoons Kosher salt",
       "¾ tablespoon Black pepper",
-      "1 Orange",
-      "1 lemon",
+      // 2 × 10/14 = 1.43. Re-pinned (Oct 22): produce to the nearest ½; these are
+      // zested then juiced, so no cut word keeps them whole (was "1 Orange").
+      "1½ Oranges",
+      "1½ lemons",
       "6 cloves garlic",
       "3 sprigs fresh rosemary",
       "6 sprigs fresh thyme",
@@ -451,7 +453,7 @@ describe("WEB-4d — THE PINNED TABLE: New Twist's turkey (1 whole turkey (12–
       stepRefsWith(text, refs, scale(n).byDish[NEW_TWIST.dishId], scale(n).birds[NEW_TWIST.dishId]);
     assert.deepEqual(at(NT_BUTTER, NT_BUTTER_REFS, 4), ["4¼ tablespoons", "6 cloves", "3 sprigs", "⅛ cup", "6 sprigs"]);
     assert.deepEqual(at(NT_BUTTER, NT_BUTTER_REFS, 10), ["6 tablespoons", "8 cloves", "4 sprigs", "¼ cup", "8 sprigs"]);
-    assert.deepEqual(at(NT_ZEST, NT_ZEST_REFS, 4), ["1", "1"]);
+    assert.deepEqual(at(NT_ZEST, NT_ZEST_REFS, 4), ["1½", "1½"]);
     assert.deepEqual(at(NT_ZEST, NT_ZEST_REFS, 10), ["2", "2"]);
   });
 

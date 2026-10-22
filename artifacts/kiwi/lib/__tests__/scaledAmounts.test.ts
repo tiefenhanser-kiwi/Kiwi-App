@@ -70,12 +70,11 @@ describe("BUG-437 rule 1 — a whole counted item rounds UP", () => {
     ]);
   });
 
-  // WEB-4d (R5) — onions and lemons left this list: nine produce items by the
-  // piece are the nearest whole now (see the R5 table below). The rest still halve.
-  it("produce that halves cleanly still halves — the catalog authors ½ cucumber at household 4", () => {
+  it("produce that halves cleanly still halves — the catalog authors ½ onion at household 4", () => {
     table([
+      ["yellow onion", 1, "each", 0.5, "½ yellow onion"],
+      ["lemon", 1, "each", 0.5, "½ lemon"],
       ["english cucumber", 1, "each", 0.5, "½ english cucumber"],
-      ["avocado", 1, "each", 0.5, "½ avocado"],
       ["eggplant", 1, "each", 0.5, "½ eggplant"], // not an egg
       ["green cabbage", 0.5, "head", 0.5, "¼ head green cabbage"],
     ]);
@@ -157,18 +156,16 @@ describe("BUG-437 — household 4 on a 4-serving recipe is unchanged", () => {
       ["flour", 2.125, "cup", 1, "2⅛ cups flour"],
       ["ground beef (80/20)", 1.25, "pound", 1, "1¼ pounds ground beef (80/20)"],
       ["whole chicken", 4, "pound", 1, "4 pounds whole chicken"],
+      ["yellow onion", 0.5, "each", 1, "½ yellow onion"],
       ["garlic cloves", 5, "each", 1, "5 garlic cloves"],
       ["fresh cranberries", 24, "ounce", 1, "24 ounces fresh cranberries"],
     ]);
   });
 
-  // WEB-4d (R5) moved these two on purpose: household 4 is no longer untouched for
-  // an authored ½ of a whole-produce item, and ounces lost their eighths.
-  it("WEB-4d: an authored ½ onion reads 1 at household 4; ounces are whole from 4 oz", () => {
-    table([
-      ["yellow onion", 0.5, "each", 1, "1 yellow onion"],
-      ["fresh cranberries", 24, "ounce", 0.8, "19 ounces fresh cranberries"],
-    ]);
+  // WEB-4d (R5) — a SCALED ounce is whole from 4 oz now (was "19¼"); at its own
+  // servings it is as written (the row above).
+  it("a scaled ounce from 4 oz is whole", () => {
+    table([["fresh cranberries", 24, "ounce", 0.8, "19 ounces fresh cranberries"]]);
   });
 });
 
@@ -213,9 +210,7 @@ describe("BUG-437 — step amounts match the ingredient line", () => {
 
   it("the name window stops at the clause: what peppers are cut into is not the peppers", () => {
     assert.equal(stepAmount("Cut 3 bell peppers into strips.", "3", 3, "", 0.5), "1½");
-    // WEB-4d (R5) — onions are whole now, so the clause check moved to tomatoes.
-    assert.equal(stepAmount("Add 1 egg, 2 minced onions and the milk.", "2", 2, "", 0.25), "1");
-    assert.equal(stepAmount("Add 1 egg, 2 diced tomatoes and the milk.", "2", 2, "", 0.25), "½");
+    assert.equal(stepAmount("Add 1 egg, 2 minced onions and the milk.", "2", 2, "", 0.25), "½");
   });
 
   it("a per-item amount ('1 slice on each') no longer halves to ½ slice", () => {
@@ -439,6 +434,10 @@ describe("BUG-464 — star anise is its own plural", () => {
 //
 // THX-3d pins the same rows on the server. Literals, written from the rule. The
 // quoted "was" values are what the same line printed before WEB-4d.
+//
+// Re-pinned (Hans, October 22): an UNSCALED amount is never rounded; produce goes
+// to the nearest ½ unless the cut word keeps it whole; chiles are produce; a mix
+// baked per package directions is the whole box with no use.
 
 describe("WEB-4d R5 — ounces: whole from 4 oz, the nearest ½ below it", () => {
   it("the prompt's rows, and the edges", () => {
@@ -447,8 +446,8 @@ describe("WEB-4d R5 — ounces: whole from 4 oz, the nearest ½ below it", () =>
       ["baby spinach", 5, "oz", 0.95, "5 oz baby spinach"], // 4¾
       ["grated Parmesan", 4.75, "oz", 0.5, "2½ oz grated Parmesan"], // 2⅜
       ["cream cheese", 8, "oz", 0.5, "4 oz cream cheese"], // exactly 4
-      ["goat cheese", 3.8, "oz", 1, "4 oz goat cheese"], // under 4: nearest ½ is 4
-      ["feta", 3.7, "oz", 1, "3½ oz feta"],
+      ["goat cheese", 7.6, "oz", 0.5, "4 oz goat cheese"], // 3.8, under 4: nearest ½ is 4
+      ["feta", 7.4, "oz", 0.5, "3½ oz feta"], // 3.7
       ["dried porcini", 0.25, "ounce", 0.5, "½ ounce dried porcini"], // never below ½
       ["fresh cranberries", 24, "ounce", 0.8, "19 ounces fresh cranberries"], // was 19¼
       ["chicken broth", 14, "fl oz", 0.3, "4 fl oz chicken broth"], // 4.2: fluid ounces too
@@ -461,20 +460,43 @@ describe("WEB-4d R5 — ounces: whole from 4 oz, the nearest ½ below it", () =>
   });
 });
 
-describe("WEB-4d R5 — whole produce by the piece: the nearest whole, never below 1", () => {
-  it("the nine, by their head noun", () => {
+describe("WEB-4d R5 — whole produce by the piece: the nearest ½, never below ½", () => {
+  it("the produce words and the chiles, by their head noun", () => {
     table([
-      ["yellow onion", 1, "each", 0.75, "1 yellow onion"], // was ¾
-      ["shallots", 19, "each", 0.125, "2 shallots"], // 2⅜
+      ["yellow onion", 1, "each", 0.75, "1 yellow onion"], // ¾
+      ["yellow onion", 1, "each", 0.375, "½ yellow onion"], // ⅜
+      ["shallots", 19, "each", 0.125, "2½ shallots"], // 2⅜
       ["yellow onions", 3, "each", 0.625, "2 yellow onions"], // 1⅞
-      ["lime", 1, "each", 0.25, "1 lime"], // ¼ → the floor
-      ["carrots", 3, "each", 0.5, "2 carrots"], // 1½ → halves up
-      ["lemon", 1, "each", 0.5, "1 lemon"], // was ½
-      ["Orange", 2, "each", 0.4, "1 Orange"], // was ¾
-      ["jalapeño", 2, "each", 0.4, "1 jalapeño"],
+      ["lime", 1, "each", 0.2, "½ lime"], // ⅕ → the floor
+      ["carrots", 3, "each", 0.5, "1½ carrots"],
+      ["lemon", 1, "each", 0.5, "½ lemon"],
+      ["Orange", 2, "each", 0.4, "1 Orange"], // ⅘
+      ["jalapeño", 3, "each", 0.25, "1 jalapeño"], // ¾
       ["Granny Smith apple", 3, "each", 0.4, "1 Granny Smith apple"], // was 1¼
-      ["russet potatoes", 4, "each", 0.3, "1 russet potato"],
-      ["yellow onion, diced", 1, "each", 0.5, "1 yellow onion, diced"],
+      ["russet potatoes", 4, "each", 0.3, "1 russet potato"], // 1.2
+      ["chipotle chiles in adobo", 3, "each", 0.375, "1 chipotle chile in adobo"], // 1⅛
+      ["chipotle peppers in adobo sauce", 3, "each", 0.25, "1 chipotle pepper in adobo sauce"], // ¾
+      ["dried ancho chiles", 3, "each", 0.5, "1½ dried ancho chiles"],
+    ]);
+  });
+
+  it("the cut word keeps it whole, never below 1: the unit, the name or the prep note", () => {
+    const at = (name: string, quantity: number, unit: string, multiplier: number, preparationNote?: string) =>
+      formatIngredientLine({ name, quantity, unit, preparationNote }, { multiplier });
+    assert.equal(at("yellow onion", 1, "each", 0.4, "quartered"), "1 yellow onion");
+    assert.equal(at("lemon, halved", 1, "each", 0.4), "1 lemon, halved");
+    assert.equal(at("jalapeño", 1, "whole", 0.4), "1 whole jalapeño");
+    assert.equal(at("yellow onions", 3, "each", 0.5, "quartered"), "2 yellow onions"); // 1½ → 2
+    assert.equal(at("yellow onion", 1, "each", 0.4, "diced"), "½ yellow onion"); // no cut word
+  });
+
+  it("an unscaled amount prints as written", () => {
+    table([
+      ["lemon", 0.5, "each", 1, "½ lemon"],
+      ["red onion", 0.25, "each", 1, "¼ red onion"],
+      ["canned diced tomatoes", 14.5, "ounce", 1, "14½ ounces canned diced tomatoes"],
+      ["black beans", 0.5, "can", 1, "½ can black beans"],
+      ["fresh thyme", 2.5, "sprig", 1, "3 sprigs fresh thyme"], // FIX-7's ceiling, as before WEB-4d
     ]);
   });
 
@@ -488,24 +510,36 @@ describe("WEB-4d R5 — whole produce by the piece: the nearest whole, never bel
     ]);
   });
 
-  it("each share rounds on its own: Classic's three onions at 4 are 3, not '1⅞'", () => {
+  it("each share rounds on its own, by its own cut word: Classic's onions at 4 are 2½, not '1⅞'", () => {
     // The turkey dish follows its bird (14 lb for 10, floored at 10 lb → 10/14);
-    // the gravy and the stuffing follow servings (4 of 10).
+    // the gravy and the stuffing follow servings (4 of 10). The cavity onion is
+    // quartered (whole: 1), the gravy's diced (0.4 → ½), the stuffing's diced (0.8 → 1).
+    const onion = (quantity: number, preparationNote: string) => ({ name: "yellow onion", quantity, unit: "each", preparationNote });
     const meal = {
       dishes: [
-        { title: "Herb-Roasted Whole Turkey", ingredients: [{ name: "whole turkey", quantity: 14, unit: "pound" }, { name: "yellow onion", quantity: 1, unit: "each" }] },
-        { title: "Pan Gravy", ingredients: [{ name: "yellow onion", quantity: 1, unit: "each" }] },
-        { title: "Sage and Onion Stuffing", ingredients: [{ name: "yellow onion", quantity: 2, unit: "each" }] },
+        { title: "Herb-Roasted Whole Turkey", ingredients: [{ name: "whole turkey", quantity: 14, unit: "pound" }, onion(1, "quartered")] },
+        { title: "Pan Gravy", ingredients: [onion(1, "diced")] },
+        { title: "Sage and Onion Stuffing", ingredients: [onion(2, "diced")] },
       ],
     } as unknown as Parameters<typeof consolidateMealIngredients>[0];
-    const onions = consolidateMealIngredients(meal, 0.4).find((c) => c.name === "yellow onion")!;
-    assert.equal(onions.line, "3 yellow onions");
+    assert.equal(consolidateMealIngredients(meal, 0.4).find((c) => c.name === "yellow onion")!.line, "2½ yellow onions");
+    // At the feast's own 10 nothing is scaled: 4 as written.
+    assert.equal(consolidateMealIngredients(meal, 1).find((c) => c.name === "yellow onion")!.line, "4 yellow onions");
   });
 
   it("…and the step agrees", () => {
     assert.equal(stepAmount("Add 2 finely diced onions and 6 diced celery stalks.", "2", 2, "", 0.4), "1");
-    assert.equal(stepAmount("Zest and juice 1 lemon.", "1", 1, "", 0.5), "1");
-    assert.equal(stepAmount("Slice 6 shallots into rings.", "6", 6, "", 0.4), "2");
+    assert.equal(stepAmount("Zest and juice 1 lemon.", "1", 1, "", 0.5), "½");
+    assert.equal(stepAmount("Slice 6 shallots into rings.", "6", 6, "", 0.4), "2½");
+    assert.equal(stepAmount("Mince 3 chipotle peppers from the can.", "3", 3, "", 0.5), "1½");
+    // The cut word before the noun, or right after it.
+    assert.equal(stepAmount("Add 1 quartered yellow onion and the celery.", "1", 1, "", 0.4), "1");
+    assert.equal(stepAmount("Stuff the cavity with 1 lemon, halved, and the herbs.", "1", 1, "", 0.4), "1");
+    assert.equal(stepAmount("Add 1 whole jalapeño to the pot.", "1", 1, "", 0.4), "1");
+    // "1 lemon, 1 halved onion": the halving is the onion's.
+    assert.equal(stepAmount("Add 1 lemon, 1 halved onion.", "1", 1, "", 0.4), "½");
+    // Unscaled: as written.
+    assert.equal(stepAmount("Squeeze ½ lemon over the fish.", "½", 0.5, "", 1), "½");
   });
 });
 
@@ -514,7 +548,7 @@ describe("WEB-4d R5 — packages: whole, rounded up, never below 1, keeping the 
     table([
       ["pumpkin purée", 1, "can (15 oz)", 0.375, "1 can (15 oz) pumpkin purée, use 6 oz"],
       ["canned pumpkin purée", 1, "can (15 oz)", 0.4, "1 can (15 oz) canned pumpkin purée, use 6 oz"], // New Twist at 4
-      ["cornbread mix (8.5 oz box)", 2, "each", 0.4, "1 cornbread mix (8.5 oz box), use 7 oz"], // 8.5 kept
+      ["cornbread mix (8.5 oz box)", 2, "each", 0.4, "1 cornbread mix (8.5 oz box)"], // a mix: the whole box, no use
       ["pumpkin purée", 1, "can (15 oz)", 1, "1 can (15 oz) pumpkin purée"], // nothing rounded: no use
     ]);
   });
@@ -537,10 +571,15 @@ describe("WEB-4d R5 — packages: whole, rounded up, never below 1, keeping the 
   };
 
   it("a step: the clause keeps its size and gains the use; a total scales", () => {
-    // New Twist: the ref is the size, the 2 is bare text — both read as one clause.
+    // New Twist: the ref is the size, the 2 is bare text — both read as one
+    // clause. A cornbread mix is baked whole: the box, no use.
     assert.equal(
       stepText("Prepare 2 boxes (8.5 oz each) cornbread mix in two 8×8 pans.", "8.5 oz", 8.5, "oz", 0.4),
-      "Prepare 1 box (8.5 oz each, use 7 oz) cornbread mix in two 8×8 pans.",
+      "Prepare 1 box (8.5 oz each) cornbread mix in two 8×8 pans.",
+    );
+    assert.equal(
+      stepText("Prepare 2 boxes (8.5 oz each) per package directions.", "8.5 oz", 8.5, "oz", 0.4),
+      "Prepare 1 box (8.5 oz each) per package directions.",
     );
     // The pumpkin: was "beat in 1 can (6 oz)" before WEB-4d; a held size alone would say the whole can.
     assert.equal(
@@ -564,10 +603,12 @@ describe("WEB-4d R5 — packages: whole, rounded up, never below 1, keeping the 
   });
 
   it("a size before its package with no hyphen never scales either (the ounce rule rounded it at 4)", () => {
-    assert.equal(stepAmount("Open the two 10¾ oz cans of condensed tomato soup.", "10¾ oz", 10.75, "oz", 1), "10¾ oz");
+    assert.equal(stepAmount("Open the two 10¾ oz cans of condensed tomato soup.", "10¾ oz", 10.75, "oz", 0.5), "10¾ oz");
     assert.equal(stepAmount("Pour in the 14⅞ fl oz can of Guinness.", "14⅞", 14.875, "", 0.5), "14⅞");
     assert.equal(stepAmount("Microwave both 8½ oz pouches of white rice.", "8½ oz", 8.5, "oz", 0.5), "8½ oz");
-    assert.equal(stepAmount("Add 10¾ oz sliced mushrooms to the pan.", "10¾ oz", 10.75, "oz", 1), "11 oz"); // an amount
+    assert.equal(stepAmount("Add 21½ oz sliced mushrooms to the pan.", "21½ oz", 21.5, "oz", 0.5), "11 oz"); // an amount
+    // Unscaled, the ref renders as it always did — not the stored "10.75".
+    assert.equal(stepAmount("Open the two 10.75 oz cans of condensed tomato soup.", "10.75 oz", 10.75, "oz", 1), "10¾ oz");
   });
 });
 
@@ -591,17 +632,17 @@ describe("WEB-4d R5 — caps, sheets, crusts, crackers, leaves, sprigs: the near
     assert.equal(stepAmount("Unroll 2 puff pastry sheets.", "2", 2, "", 0.4), "1");
     assert.equal(stepAmount("Add 4 thyme sprigs and 2 bay leaves.", "4", 4, "", 0.8), "3");
     // "flat-leaf" is not a leaf: the count after it is a cup of parsley.
-    assert.equal(stepAmount("Add the mint leaves and ½ packed cup flat-leaf parsley.", "½", 0.5, "", 1), "½");
+    assert.equal(stepAmount("Add the mint leaves and ½ packed cup flat-leaf parsley.", "½", 0.5, "", 0.5), "¼");
   });
 });
 
 describe("WEB-4d R5 — a package size followed by words before its package", () => {
   it("is the package's size; an amount followed by a pan is not", () => {
-    assert.equal(stepAmount("Microwave both 8½ oz microwavable white rice pouches.", "8½ oz", 8.5, "oz", 1), "8½ oz");
+    assert.equal(stepAmount("Microwave both 8½ oz microwavable white rice pouches.", "8½ oz", 8.5, "oz", 0.5), "8½ oz");
     assert.equal(stepAmount("Cook the two 8½ oz jasmine rice pouches according to the package.", "8½ oz", 8.5, "oz", 0.5), "8½ oz");
     // The package right after the size, though the words go on past it.
-    assert.equal(stepAmount("Pour in the 14½ oz can crushed tomatoes.", "14½ oz", 14.5, "oz", 1), "14½ oz");
-    assert.equal(stepAmount("Pour in the 13½ fl oz can coconut milk.", "13½", 13.5, "", 1), "13½");
+    assert.equal(stepAmount("Pour in the 14½ oz can crushed tomatoes.", "14½ oz", 14.5, "oz", 0.5), "14½ oz");
+    assert.equal(stepAmount("Pour in the 13½ fl oz can coconut milk.", "13½", 13.5, "", 0.5), "13½");
     assert.equal(stepAmount("Add 8 oz pasta to the pot.", "8 oz", 8, "oz", 0.5), "4 oz");
     assert.equal(stepAmount("Add 8 oz dried pasta in the pot.", "8 oz", 8, "oz", 0.5), "4 oz");
   });
@@ -610,7 +651,7 @@ describe("WEB-4d R5 — a package size followed by words before its package", ()
 describe("WEB-4d R5 — the size's package can sit past the 40-character name window", () => {
   it("'8.5 oz microwavable white rice pouches according to package directions'", () => {
     assert.equal(
-      stepAmount("Microwave both 8.5 oz microwavable white rice pouches according to package directions.", "8.5 oz", 8.5, "oz", 1),
+      stepAmount("Microwave both 8.5 oz microwavable white rice pouches according to package directions.", "8.5 oz", 8.5, "oz", 0.5),
       "8.5 oz",
     );
   });

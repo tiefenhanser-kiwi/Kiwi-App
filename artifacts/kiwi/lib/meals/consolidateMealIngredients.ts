@@ -93,8 +93,12 @@ export function consolidateMealIngredients(
   /** WEB-4 — the servings the multiplier scales to, for the egg note. */
   servings?: number,
 ): ConsolidatedIngredient[] {
-  // WEB-4d — `raw` is the true sum behind a per-share-rounded quantity.
-  const byKey = new Map<string, ConsolidatedIngredient & { titles: Set<string>; raw: number }>();
+  // WEB-4d — `raw` is the true sum behind a per-share-rounded quantity; `scaled`
+  // whether any share was scaled at all; `prep` the first share's prep note.
+  const byKey = new Map<
+    string,
+    ConsolidatedIngredient & { titles: Set<string>; raw: number; scaled: boolean; perShare: boolean; prep: string }
+  >();
   const order: string[] = [];
 
   // WEB-4c (BUG-462) — a bird's parts are one per bird of the MEAL's bird.
@@ -112,20 +116,29 @@ export function consolidateMealIngredients(
       const key = `${groupKeyName(ing.name)}|${normalizeUnitToken(unit)}`;
       // FIX-7 rule 4 — a whole bird by weight is not scaled down; the line
       // below gets multiplier 1, so the bird rule has to be applied here.
-      const scaled = ing.quantity * lineMultiplier(factor, unit, ing.name, ing.quantity, birds);
+      const lineFactor = lineMultiplier(factor, unit, ing.name, ing.quantity, birds);
+      const scaled = ing.quantity * lineFactor;
+      const isScaled = Math.abs(lineFactor - 1) > 1e-9;
+      const prep = ing.preparationNote ?? "";
       // WEB-4d (R5) — produce, packages and pieces round SHARE BY SHARE, then
-      // sum: Classic at 4 is three onions (one per dish), not "1⅞ onions".
-      const shown = roundsPerShare(unit, ing.name) ? displayedQuantity(scaled, unit, ing.name) : scaled;
+      // sum, each by its own cut word and its own scaling (an unscaled share is
+      // as written).
+      const perShare = roundsPerShare(unit, ing.name);
+      const shown = perShare ? displayedQuantity(scaled, unit, ing.name, { scaled: isScaled, note: prep }) : scaled;
       const hit = byKey.get(key);
       if (hit) {
         hit.quantity += shown;
         hit.raw += scaled;
+        hit.scaled ||= isScaled;
         hit.titles.add(dish.title);
       } else {
         byKey.set(key, {
           name: ing.name,
           quantity: shown,
           raw: scaled,
+          scaled: isScaled,
+          perShare,
+          prep,
           unit,
           dishTitles: [],
           line: "",
@@ -148,9 +161,14 @@ export function consolidateMealIngredients(
       // The multiplier is ALREADY applied above — pass 1 here, or the scaling
       // lands twice. The formatter is shared so the sheet's lines and the meal
       // screen's lines pluralise and glyph identically (BUG-321).
+      // WEB-4d — shares already rounded are not rounded again as a sum.
       line: formatIngredientLine(
-        { name: row.name, quantity: row.quantity, unit: row.unit },
-        { multiplier: 1, packageScaled: row.raw },
+        { name: row.name, quantity: row.quantity, unit: row.unit, preparationNote: row.prep },
+        {
+          multiplier: 1,
+          scaled: row.perShare ? false : row.scaled,
+          packageScaled: row.perShare && row.scaled ? row.raw : undefined,
+        },
       ),
       note: ingredientAmountNote(
         { name: row.name, quantity: row.quantity, unit: row.unit },

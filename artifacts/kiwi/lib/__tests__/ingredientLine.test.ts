@@ -144,10 +144,7 @@ test("🔴 BUG-317 — suppressing the WORD does not change the NUMBER", () => {
   // this ruling's scope (§2.10 — no changes beyond the above), and adding `each`
   // to that list would move numbers on every screen formatQuantity feeds,
   // including the grocery list. Reported; Hans's call.
-  // WEB-4d (R5) — the call was made for nine produce items: a lemon by the piece
-  // is the nearest whole now. Any other count still prints its fraction.
-  assert.equal(formatIngredientLine({ name: "lemons", quantity: 3.2, unit: "each" }), "3 lemons");
-  assert.equal(formatIngredientLine({ name: "radishes", quantity: 3.2, unit: "each" }), "3¼ radishes");
+  assert.equal(formatIngredientLine({ name: "lemons", quantity: 3.2, unit: "each" }), "3¼ lemons");
   // A whole count is the overwhelmingly common case, and it reads correctly.
   assert.equal(formatIngredientLine({ name: "lemons", quantity: 2, unit: "each" }), "2 lemons");
 });
