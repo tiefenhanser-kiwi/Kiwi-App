@@ -57,6 +57,8 @@ export type Subscription = {
   planCode: "free" | "premium_monthly" | "premium_annual";
   trialEndsAt: string | null;
   currentPeriodEnd: string | null;
+  /** SEC-3b (SEC-2 #16) — "trial_already_used", or null; absent from an older server. */
+  trialDeniedReason?: string | null;
 };
 
 export interface User {

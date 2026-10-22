@@ -85,6 +85,9 @@ const SubscriptionSchema = z
     planCode: z.string(),
     trialEndsAt: z.string().nullable(),
     currentPeriodEnd: z.string().nullable(),
+    // SEC-3b (SEC-2 #16) — "trial_already_used" when this inbox already had
+    // its free trial; null otherwise. Optional: an older server omits it.
+    trialDeniedReason: z.string().nullable().optional(),
   })
   .passthrough();
 
@@ -132,17 +135,6 @@ const ClaimResponseFields = {
   claimRetryable: z.boolean().optional(),
 } as const;
 
-/**
- * SEC-3 D (SEC-2 #16) — the new account got NO trial: `"duplicate_email"` when
- * the email already had one. OPTIONAL for the reason above, and a string rather
- * than an enum so a reason this build does not know reads as no notice, not as
- * a failed sign-up. Assumed name — SEC-2's field was not on `next` when this
- * was written. Signup and the OAuth first sign-in (lib/oauth/api.ts) carry it.
- */
-export const TrialDeniedField = {
-  trialDenied: z.string().nullable().optional(),
-} as const;
-
 export const LoginResponseSchema = z.object({
   user: MeUserSchema,
   authToken: z.string(),
@@ -159,7 +151,6 @@ export const SignupResponseSchema = z.object({
   // the account's starting preferences, so there is nothing to onboard.
   onboardingRequired: z.boolean().optional(),
   ...ClaimResponseFields,
-  ...TrialDeniedField,
 });
 
 // ── Auth API calls ────────────────────────────────────────────────────────
@@ -172,8 +163,6 @@ export interface AuthResponse {
   onboardingRequired?: boolean;
   claimedPlanId?: string | null;
   claimRetryable?: boolean;
-  /** SEC-3 D — see TrialDeniedField. */
-  trialDenied?: string | null;
 }
 
 export interface SignupInput {
@@ -198,6 +187,8 @@ export interface SignupInput {
   /** R7 — the Test Kitchen plan to claim. Mutually exclusive with the server's
    *  templatePlanId, which this client does not send. */
   guestSessionId?: string;
+  /** SEC-3b (SEC-2 #12) — that session's guest JWT; the id alone is refused. */
+  guestToken?: string;
   /** The visitor's calendar date. The claimed plan's first dinner is TOMORROW in
    *  their calendar, not tomorrow UTC — the same reason the draft-activate
    *  endpoint takes one. */
@@ -209,6 +200,8 @@ export interface LoginInput {
   password: string;
   // Row 13 Block 2 Part E — the claim, on the sign-in wire too.
   guestSessionId?: string;
+  /** SEC-3b (SEC-2 #12) — see SignupInput. */
+  guestToken?: string;
   localDate?: string;
 }
 
@@ -225,7 +218,6 @@ export async function signupRequest(input: SignupInput): Promise<AuthResponse> {
     onboardingRequired: body.onboardingRequired,
     claimedPlanId: body.claimedPlanId,
     claimRetryable: body.claimRetryable,
-    trialDenied: body.trialDenied,
   };
 }
 

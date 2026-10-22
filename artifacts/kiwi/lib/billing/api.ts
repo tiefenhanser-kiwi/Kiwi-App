@@ -65,6 +65,9 @@ export const SubscriptionPayloadSchema = z.object({
   source: z.string().nullable().optional(),
   managementUrl: z.string().nullable().optional(),
   storeBillingAvailable: z.boolean().optional(),
+  // SEC-3b (SEC-2 #16) — why this account never had a trial; a string, so a
+  // reason this build has no words for parses (and is said as the plain lapse).
+  trialDeniedReason: z.string().nullable().optional(),
 });
 
 export async function fetchSubscription(): Promise<SubscriptionPayload> {

@@ -43,6 +43,11 @@ import {
   SETTINGS_SUBSCRIBE,
   SETTINGS_TRIAL_ENDED,
   SETTINGS_TRIAL_NO_DATE,
+  SHEET_LAPSED_BODY,
+  SHEET_LAPSED_TITLE,
+  SHEET_TRIALING_TITLE,
+  SHEET_TRIAL_USED_BODY,
+  SHEET_TRIAL_USED_TITLE,
   bannerTrialEnding,
   deleteAccountStoreNotice,
   premiumTrialDaysLeft,
@@ -101,6 +106,12 @@ export interface SubscriptionPayload {
    * is money taken for an account that never unlocks.
    */
   storeBillingAvailable?: boolean;
+  /**
+   * SEC-3b (SEC-2 #16) — "trial_already_used" when this inbox already had its
+   * free trial (a duplicate sign-up starts at `none`); null otherwise. Absent
+   * from an older server. sheetCopyFor reads it.
+   */
+  trialDeniedReason?: string | null;
   /**
    * Whether a Stripe billing account exists for this user, so the Portal
    * link-out can be offered without a guess.
@@ -285,6 +296,28 @@ export function sheetStateFor(
  * 402 as proof our status is stale, but a tap carries no such evidence, and
  * `settingsRowFor` never offers Subscribe to `active` / `past_due` anyway.
  */
+/** SEC-3b (SEC-2 #16) — the one `trialDeniedReason` this build has words for. */
+export const TRIAL_ALREADY_USED = "trial_already_used";
+
+export interface SheetCopy {
+  title: string;
+  /** The lapsed sheet's line under the title (both bodies, web and store). */
+  lapsedBody: string;
+}
+
+/**
+ * The sheet's title and lapsed line. A lapsed sheet for an account the server
+ * gave no trial (its inbox already had one) says so, in the server's words; any
+ * other reason, or none, is the ordinary lapse.
+ */
+export function sheetCopyFor(sheet: SheetState | null, sub: SubscriptionPayload | null): SheetCopy {
+  if (sheet === "trialing") return { title: SHEET_TRIALING_TITLE, lapsedBody: SHEET_LAPSED_BODY };
+  if (sub?.trialDeniedReason === TRIAL_ALREADY_USED) {
+    return { title: SHEET_TRIAL_USED_TITLE, lapsedBody: SHEET_TRIAL_USED_BODY };
+  }
+  return { title: SHEET_LAPSED_TITLE, lapsedBody: SHEET_LAPSED_BODY };
+}
+
 export function subscribeSheetFor(sub: SubscriptionPayload | null): SheetState | null {
   if (sub === null) return null;
   if (sub.status === "trialing") return "trialing";

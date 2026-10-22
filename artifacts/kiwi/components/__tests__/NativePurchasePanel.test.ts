@@ -206,7 +206,7 @@ test("buttons are disabled while a purchase is in the store's hands", async () =
   assert.equal((b?.props?.accessibilityState as { disabled?: boolean })?.disabled, true);
 });
 
-// ── SEC-3 D — the trial-used sheet's line ─────────────────────────────────
+// ── SEC-3 D / SEC-3b — the trial-used sheet's line ─────────────────────────────────
 
 test("SEC-3 D: a lapsed sheet says the line it is given, and the lapsed line by default", async () => {
   const given = await render({ sheet: "lapsed", lapsedBody: SHEET_TRIAL_USED_BODY });
@@ -220,6 +220,9 @@ test("SEC-3 D: a lapsed sheet says the line it is given, and the lapsed line by 
   assert.ok(byId(given.tree, "store-buy-monthly"));
 });
 
-test("SEC-3 D: the trial-used title is the prompt's line, verbatim", () => {
-  assert.equal(SHEET_TRIAL_USED_TITLE, "Your free trial was already used with this email.");
+test("SEC-3b: the trial-used title + line are the server's 402 words, verbatim (Hans approved)", () => {
+  assert.equal(
+    `${SHEET_TRIAL_USED_TITLE} ${SHEET_TRIAL_USED_BODY}`,
+    "Your free trial was already used with this email. Subscribe to plan and cook with Kiwi.",
+  );
 });

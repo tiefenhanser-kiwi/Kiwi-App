@@ -32,6 +32,8 @@ function recorder(guestSessionId: string | null): Recorder {
     guestSessionId,
     deps: {
       readGuestSessionId: () => r.guestSessionId,
+      // SEC-3b — the session's token, present exactly when its id is.
+      readGuestToken: () => (r.guestSessionId ? `gt_for_${r.guestSessionId}` : null),
       clearGuestSession: () => {
         r.cleared += 1;
         r.guestSessionId = null;
@@ -82,7 +84,7 @@ test("a guest session rides with TODAY'S LOCAL date, and is cleared on success",
     r.deps,
     SIGNUP_LIKE,
   );
-  assert.deepEqual(sent, [{ guestSessionId: "gs_1", localDate: "2026-09-27" }]);
+  assert.deepEqual(sent, [{ guestSessionId: "gs_1", guestToken: "gt_for_gs_1", localDate: "2026-09-27" }]);
   assert.equal(r.cleared, 1);
 });
 
@@ -135,7 +137,7 @@ test("409 guest_session_invalid: the claim is dropped and the SAME request is re
     r.deps,
     SIGNUP_LIKE,
   );
-  assert.deepEqual(sent, [{ guestSessionId: "gs_1", localDate: "2026-09-27" }, {}]);
+  assert.deepEqual(sent, [{ guestSessionId: "gs_1", guestToken: "gt_for_gs_1", localDate: "2026-09-27" }, {}]);
   // The resend's own claim fields are OVERWRITTEN: the account exists and the
   // plan did not come over, whatever the second response happened to echo.
   assert.equal(res.claimedPlanId, null);

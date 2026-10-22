@@ -36,7 +36,7 @@ import { hideProviderForSession } from "@/lib/oauth/unavailable";
 import { noteTrialDenied } from "@/lib/billing/trialDenied";
 import { ReauthMismatchError } from "@/lib/reauth";
 import { todayLocalDate } from "@/lib/dates";
-import { clearGuestSession, readGuestSessionId } from "@/lib/guest/guestToken";
+import { clearGuestSession, readGuestSessionId, readGuestToken } from "@/lib/guest/guestToken";
 import type { AuthResponse } from "@/lib/auth";
 import type { User } from "@/lib/types";
 
@@ -279,6 +279,7 @@ export function AuthProvider({
       // sign-up screen is reachable from the door sheet, from Welcome and from
       // a URL, and the live guest session is the same fact in all three.
       readGuestSessionId: () => readGuestSessionId(),
+      readGuestToken: () => readGuestToken(),
       clearGuestSession,
       todayLocalDate,
       storeToken,
@@ -347,9 +348,9 @@ export function AuthProvider({
           completionDeps,
           { resendWithoutClaimOn409: true },
         );
-        // SEC-3 D — no trial for an email that already had one: the paywall
-        // says so once the member is signed in (lib/billing/trialDenied.ts).
-        noteTrialDenied(res.trialDenied);
+        // SEC-3b (SEC-2 #16) — no trial for an inbox that already had one: the
+        // paywall says so once the member is signed in (lib/billing/trialDenied.ts).
+        noteTrialDenied(res.user.subscription?.trialDeniedReason);
         return res;
       } catch (err) {
         setError(authErrorPresentation(err, "Signup failed").message);
@@ -399,8 +400,9 @@ export function AuthProvider({
           completionDeps,
           { resendWithoutClaimOn409: true },
         );
-        // SEC-3 D — a first sign-in is a sign-up, and can be denied a trial too.
-        noteTrialDenied(res.trialDenied);
+        // SEC-3b — a first sign-in is a sign-up, and can be denied a trial too.
+        // Only then: a returning member's old denial is not news at every sign-in.
+        if (res.isNewUser) noteTrialDenied(res.user.subscription?.trialDeniedReason);
         return res;
       } catch (err) {
         // §2.6 — the 503 hide is SESSION state, so it has to land here

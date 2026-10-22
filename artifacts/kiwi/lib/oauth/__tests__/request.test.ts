@@ -128,9 +128,11 @@ test("Apple's null name fields do not become the strings 'null'", () => {
 test("the claim rides when there is a guest session, with the local date", () => {
   const body = oauthSharedBody({
     ...SIGNIN,
-    claim: { guestSessionId: "gs_1", localDate: "2026-09-27" },
+    claim: { guestSessionId: "gs_1", guestToken: "gt_1", localDate: "2026-09-27" },
   });
   assert.equal(body.guestSessionId, "gs_1");
+  // SEC-3b (SEC-2 #12) — the id alone is refused; its token rides with it.
+  assert.equal(body.guestToken, "gt_1");
   assert.equal(body.localDate, "2026-09-27");
 });
 

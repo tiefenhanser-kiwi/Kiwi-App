@@ -37,16 +37,11 @@ import {
   SHEET_BENEFITS,
   SHEET_CHECK_AGAIN,
   SHEET_FINISHING,
-  SHEET_LAPSED_BODY,
-  SHEET_LAPSED_TITLE,
   SHEET_PRICE_ANNUAL,
   SHEET_PRICE_MONTHLY,
   SHEET_SECONDARY,
-  SHEET_TRIALING_TITLE,
-  SHEET_TRIAL_USED_BODY,
-  SHEET_TRIAL_USED_TITLE,
 } from "@/lib/billing/copy";
-import { platformStore } from "@/lib/billing/subscriptionView";
+import { platformStore, sheetCopyFor } from "@/lib/billing/subscriptionView";
 import { sheetHandleShown, webSheet } from "@/lib/webLayout";
 
 function openLegal(url: string): void {
@@ -58,7 +53,7 @@ function openLegal(url: string): void {
 export function PaywallSheet() {
   const {
     sheet,
-    sheetReason,
+    subscription,
     closeSheet,
     startCheckout,
     checkoutBusy,
@@ -78,16 +73,10 @@ export function PaywallSheet() {
   const visible = sheet !== null;
   const store = platformStore(Platform.OS);
 
-  // SEC-3 D — a new account the server gave no trial: the lapsed sheet (no
-  // trial, so subscribing is the way in), said as what happened.
-  const trialUsed = sheet === "lapsed" && sheetReason === "trial_used";
-  const title =
-    sheet === "trialing"
-      ? SHEET_TRIALING_TITLE
-      : trialUsed
-        ? SHEET_TRIAL_USED_TITLE
-        : SHEET_LAPSED_TITLE;
-  const lapsedBody = trialUsed ? SHEET_TRIAL_USED_BODY : SHEET_LAPSED_BODY;
+  // SEC-3b (SEC-2 #16) — the words follow the subscription: an account whose
+  // inbox already had its trial (trialDeniedReason) is told so, in the server's
+  // own copy, on every lapsed sheet.
+  const { title, lapsedBody } = sheetCopyFor(sheet, subscription);
 
   return (
     <Modal

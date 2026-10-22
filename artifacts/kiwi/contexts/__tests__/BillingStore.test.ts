@@ -417,6 +417,7 @@ test("web 409 subscribed_elsewhere: says where it is managed, with the store's l
 async function mountWebUnenforced(
   t: { after(fn: () => void): void },
   status: string,
+  extra: Record<string, unknown> = {},
 ): Promise<void> {
   rn.Platform.OS = "web";
   const session = new Map<string, string>([["kiwi_authToken", "member-jwt"]]);
@@ -438,7 +439,7 @@ async function mountWebUnenforced(
   (globalThis as { fetch: typeof fetch }).fetch = ((url: string, init?: RequestInit) => {
     if (String(url).includes("/me/subscription")) {
       requested.push("/me/subscription");
-      return Promise.resolve(json({ ...subscription(status), enforced: false, source: null }));
+      return Promise.resolve(json({ ...subscription(status), enforced: false, source: null, ...extra }));
     }
     return base(url, init);
   }) as unknown as typeof fetch;
@@ -485,32 +486,40 @@ test("BILL-2 — the status-driven opens stay blacked out while enforcement is o
   assert.equal(captured!.sheet, null, "an upsell moment opened under the blackout");
 });
 
-// ── SEC-3 D — a new account the server gave no trial ────────────────────────
+// ── SEC-3 D / SEC-3b — a new account the server gave no trial (SEC-2 #16) ────
 
-test("SEC-3 D: a trial-denied sign-up opens the lapsed sheet with its reason, even while enforcement is off", async (t) => {
+const TRIAL_USED = { trialDeniedReason: "trial_already_used" };
+
+test("SEC-3b: a trial-denied sign-up opens the lapsed sheet in the server's words, even while enforcement is off", async (t) => {
   const { noteTrialDenied, takeTrialDenied } = await import("@/lib/billing/trialDenied");
+  const { sheetCopyFor } = await import("@/lib/billing/subscriptionView");
   takeTrialDenied();
   // Noted BEFORE the provider has a user — the order a real sign-up lands in.
-  noteTrialDenied("duplicate_email");
-  await mountWebUnenforced(t, "none");
+  noteTrialDenied("trial_already_used");
+  await mountWebUnenforced(t, "none", TRIAL_USED);
   await until(() => captured?.sheet === "lapsed", "the trial-used sheet");
-  assert.equal(captured!.sheetReason, "trial_used");
+  assert.equal(captured!.subscription?.trialDeniedReason, "trial_already_used", "read off GET /me/subscription");
+  assert.deepEqual(sheetCopyFor(captured!.sheet, captured!.subscription), {
+    title: "Your free trial was already used with this email.",
+    lapsedBody: "Subscribe to plan and cook with Kiwi.",
+  });
   await act(async () => captured!.closeSheet());
   assert.equal(captured!.sheet, null);
-  assert.equal(captured!.sheetReason, null, "the reason belongs to the sheet it opened");
-  // A later, ordinary open says the ordinary thing.
-  await act(async () => captured!.openSubscribeSheet());
-  assert.equal(captured!.sheet, "lapsed");
-  assert.equal(captured!.sheetReason, null);
 });
 
-test("SEC-3 D: a note that lands while signed in opens it too; no note, no sheet", async (t) => {
+test("SEC-3b: a note that lands while signed in opens it too; no note, no sheet", async (t) => {
   const { noteTrialDenied, takeTrialDenied } = await import("@/lib/billing/trialDenied");
   takeTrialDenied();
-  await mountWebUnenforced(t, "none");
+  await mountWebUnenforced(t, "none", TRIAL_USED);
   await settle(2);
   assert.equal(captured!.sheet, null, "nothing noted, nothing opened");
-  await act(async () => noteTrialDenied("duplicate_email"));
+  await act(async () => noteTrialDenied("trial_already_used"));
   assert.equal(captured!.sheet, "lapsed");
-  assert.equal(captured!.sheetReason, "trial_used");
+});
+
+test("SEC-3b: an ordinary lapsed account's sheet keeps the ordinary words", async (t) => {
+  const { sheetCopyFor } = await import("@/lib/billing/subscriptionView");
+  await mountWebUnenforced(t, "none", { trialDeniedReason: null });
+  await act(async () => captured!.openSubscribeSheet());
+  assert.equal(sheetCopyFor(captured!.sheet, captured!.subscription).title, "Your free trial has ended");
 });

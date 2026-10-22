@@ -292,6 +292,7 @@ test("the guest claim rides with the LOCAL date, and is cleared on success", asy
   });
   const body = oauthCalls()[0]!.body;
   assert.equal(body.guestSessionId, "gs_1");
+  assert.equal(body.guestToken, "gt_1", "SEC-3b — the session's own token rides with its id (SEC-2 #12)");
   assert.match(String(body.localDate), /^\d{4}-\d{2}-\d{2}$/);
   const { readGuestSessionId } = await import("@/lib/guest/guestToken");
   assert.equal(readGuestSessionId(), null, "spent");
@@ -333,6 +334,7 @@ test("🔴 409 guest_session_invalid resends WITHOUT the claim, once", async () 
   assert.equal(sent.length, 2);
   assert.equal(sent[0]!.body.guestSessionId, "gs_1");
   assert.equal("guestSessionId" in sent[1]!.body, false);
+  assert.equal("guestToken" in sent[1]!.body, false, "the resend drops the token with the id");
   // Whatever the second response echoed, the plan did not come over.
   assert.equal(res.claimedPlanId, null);
   assert.equal(res.claimRetryable, false);
@@ -490,32 +492,65 @@ test("🔴 SEC-3 B: re-auth that comes back as ANOTHER account is refused, its t
   assert.ok(!headers.some((h) => h.auth === "Bearer other-token"), "the other token is never sent anywhere");
 });
 
-// ── SEC-3 D — a sign-up the server gave no trial ────────────────────────────
+// ── SEC-3 D / SEC-3b — a sign-up the server gave no trial (SEC-2 #16) ──────
 
-test("SEC-3 D: trialDenied 'duplicate_email' on an OAuth first sign-in is noted for the paywall", async () => {
+const DENIED_SUB = {
+  status: "none",
+  planCode: "free",
+  trialEndsAt: null,
+  currentPeriodEnd: null,
+  trialDeniedReason: "trial_already_used",
+};
+
+test("SEC-3b: user.subscription.trialDeniedReason on an OAuth FIRST sign-in is noted; a returning sign-in is not", async () => {
   const { takeTrialDenied } = await import("@/lib/billing/trialDenied");
   takeTrialDenied();
   await mount();
-  respond = () => mockJson(signedIn({ isNewUser: true, trialDenied: "duplicate_email" }), 201);
+  respond = () => mockJson(signedIn({ isNewUser: true, user: makeUser({ subscription: DENIED_SUB } as never) }), 201);
   await act(async () => {
     await captured!.oauthSignIn({ ...GOOGLE, mode: "signup" });
   });
   assert.equal(takeTrialDenied(), true);
+  respond = () => mockJson(signedIn({ isNewUser: false, user: makeUser({ subscription: DENIED_SUB } as never) }), 200);
+  await act(async () => {
+    await captured!.oauthSignIn({ ...GOOGLE, mode: "signin" });
+  });
+  assert.equal(takeTrialDenied(), false, "an old denial is not news at every sign-in");
 });
 
-test("SEC-3 D: a password sign-up carries trialDenied too; an ordinary one notes nothing", async () => {
+test("SEC-3b: a password sign-up reads it off user.subscription; an ordinary one notes nothing", async () => {
   const { takeTrialDenied } = await import("@/lib/billing/trialDenied");
   takeTrialDenied();
   await mount();
-  respond = () => mockJson({ user: makeUser(), authToken: "at-s", trialDenied: "duplicate_email" }, 201);
+  respond = () => mockJson({ user: makeUser({ subscription: DENIED_SUB } as never), authToken: "at-s" }, 201);
   await act(async () => {
     await captured!.signup({ email: "ada@example.com", password: "pw-123456", firstName: "Ada", lastName: "L" });
   });
   assert.equal(takeTrialDenied(), true);
 
-  respond = () => mockJson({ user: makeUser(), authToken: "at-t" }, 201);
+  respond = () =>
+    mockJson({ user: makeUser({ subscription: { ...DENIED_SUB, status: "trialing", trialDeniedReason: null } } as never), authToken: "at-t" }, 201);
   await act(async () => {
     await captured!.signup({ email: "ada2@example.com", password: "pw-123456", firstName: "Ada", lastName: "L" });
   });
   assert.equal(takeTrialDenied(), false);
+});
+
+// ── SEC-3b (SEC-2 #12) — the password routes carry the guest token too ─────
+
+test("SEC-3b: password sign-up AND login send guestToken beside guestSessionId", async () => {
+  await mount();
+  for (const [route, run] of [
+    ["/auth/signup", () => captured!.signup({ email: "ada@example.com", password: "pw-123456", firstName: "Ada", lastName: "L" })],
+    ["/auth/login", () => captured!.login("ada@example.com", "pw-123456")],
+  ] as const) {
+    storeGuestSession({ guestSessionId: "gs_9", token: "gt_9", expiresAt: "2099-01-01T00:00:00Z" });
+    respond = () => mockJson({ user: makeUser(), authToken: "at-p", claimedPlanId: "p1", claimRetryable: false }, 200);
+    await act(async () => {
+      await run();
+    });
+    const body = calls.filter((c) => c.url.endsWith(route)).pop()!.body;
+    assert.equal(body.guestSessionId, "gs_9", route);
+    assert.equal(body.guestToken, "gt_9", route);
+  }
 });

@@ -26,13 +26,14 @@ import { formatDate } from "@/lib/date";
 export const SHEET_TRIALING_TITLE = "Keep every week this easy";
 
 /**
- * SEC-3 D (SEC-2 #16) — the paywall a NEW account sees when the server gave it
- * no trial because the email already had one. The title is the prompt's line;
- * the body is new copy for Hans (the lapsed body's "Everything you saved is
- * still here" is not true of an account made a moment ago).
+ * SEC-3b (SEC-2 #16) — the paywall for an account whose inbox already had its
+ * free trial (`trialDeniedReason: "trial_already_used"`). The server's own
+ * words, split title / body (Hans approved, October 22): together they are
+ * byte-for-byte the 402's reason (api-server lib/subscriptionService.ts, built
+ * from lib/emailCanonical.ts TRIAL_ALREADY_USED_MESSAGE).
  */
 export const SHEET_TRIAL_USED_TITLE = "Your free trial was already used with this email.";
-export const SHEET_TRIAL_USED_BODY = "Subscribe to start planning with Kiwi.";
+export const SHEET_TRIAL_USED_BODY = "Subscribe to plan and cook with Kiwi.";
 
 /** The paywall, shown to a `none` / `canceled` account. */
 export const SHEET_LAPSED_TITLE = "Your free trial has ended";

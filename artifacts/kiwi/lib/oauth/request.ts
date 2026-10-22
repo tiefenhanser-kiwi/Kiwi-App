@@ -40,6 +40,8 @@ export type OAuthMode = "signup" | "signin";
 /** The Test Kitchen claim, read from the guest store by the completion path. */
 export interface OAuthClaimFields {
   guestSessionId?: string;
+  /** SEC-3b (SEC-2 #12) — the guest session's JWT; the id alone is refused. */
+  guestToken?: string;
   localDate?: string;
 }
 
@@ -73,6 +75,7 @@ export interface OAuthSharedBody {
   marketingConsentSms?: boolean;
   platform: AppPlatform;
   guestSessionId?: string;
+  guestToken?: string;
   localDate?: string;
 }
 
@@ -127,6 +130,8 @@ export function oauthSharedBody(ctx: OAuthContext): OAuthSharedBody {
 
   if (ctx.claim?.guestSessionId) {
     body.guestSessionId = ctx.claim.guestSessionId;
+    // SEC-3b (SEC-2 #12) — the session's own token rides with its id.
+    if (ctx.claim.guestToken) body.guestToken = ctx.claim.guestToken;
     const localDate = clean(ctx.claim.localDate);
     if (localDate) body.localDate = localDate;
   }

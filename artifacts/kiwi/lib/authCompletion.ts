@@ -43,6 +43,13 @@ import type { ClaimResponse } from "@/lib/guest/claim";
 
 export interface AuthClaimFields {
   guestSessionId?: string;
+  /**
+   * SEC-3b (SEC-2 #12) — the guest session's own JWT, from POST /guest/session.
+   * The server refuses a claim made with the id alone (409
+   * guest_session_invalid): the id is not a secret, the token is. It goes
+   * wherever the id goes.
+   */
+  guestToken?: string;
   localDate?: string;
 }
 
@@ -56,6 +63,8 @@ export type AuthSend<R extends AuthResponse = AuthResponse> = (
 
 export interface AuthCompletionDeps {
   readGuestSessionId: () => string | null;
+  /** SEC-3b — the same session's token (lib/guest/guestToken.ts readGuestToken). */
+  readGuestToken: () => string | null;
   clearGuestSession: () => void;
   todayLocalDate: () => string;
   storeToken: (token: string) => Promise<void>;
@@ -83,8 +92,11 @@ export async function completeAuth<R extends AuthResponse>(
   // Read ONCE, before anything: a successful claim clears the store, so after
   // the call there is nothing left to tell us there had been one.
   const guestSessionId = deps.readGuestSessionId() ?? undefined;
+  // The token is read in the same breath as the id: they are one session.
+  // Without it the server answers 409 and the resend below runs (no claim).
+  const guestToken = guestSessionId ? (deps.readGuestToken() ?? undefined) : undefined;
   const claim: AuthClaimFields = guestSessionId
-    ? { guestSessionId, localDate: deps.todayLocalDate() }
+    ? { guestSessionId, ...(guestToken ? { guestToken } : {}), localDate: deps.todayLocalDate() }
     : {};
 
   let res: R;
