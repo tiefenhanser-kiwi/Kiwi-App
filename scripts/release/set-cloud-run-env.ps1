@@ -7,12 +7,13 @@
 # APPLE_TEAM_ID, APPLE_KEY_ID, APPLE_SERVICES_ID, APPLE_WEB_REDIRECT_URI, and
 # REVENUECAT_ENTITLEMENT_ID if present. Plain env vars set to RULED CONSTANTS:
 # AI_DAILY_CEILING_USD=50, AI_GUEST_DAILY_CEILING_USD=25 (D-WS9-261),
+# AI_USER_DAILY_CALLS=500 (SEC-2b: set here so a rebuild cannot drop the per-user cap),
 # INSTACART_API_BASE_URL=https://connect.instacart.com. Secrets by reference
 # (NAME=NAME:latest) for the five push-secrets.ps1 writes plus INSTACART_API_KEY.
 #
 # Left alone, by construction (--update-env-vars touches only the names it is given):
-# AI_USER_DAILY_CALLS, AI_DISABLED, AI_GUEST_DISABLED, TRUST_PROXY_HOPS,
-# BILLING_ENFORCED, every STRIPE_*, PUBLIC_APP_URL.
+# AI_DISABLED, AI_GUEST_DISABLED, TRUST_PROXY_HOPS, BILLING_ENFORCED, every STRIPE_*,
+# PUBLIC_APP_URL (and AI_USER_DAILY_CALLS too, in -Stripe mode).
 #
 # THE DELIMITER IS ^;^, NOT ^:^. gcloud's ArgDict splits the list on every
 # occurrence of the custom delimiter, and APPLE_WEB_REDIRECT_URI and
@@ -70,10 +71,11 @@ if ($Stripe) {
   $Constants = [ordered]@{
     AI_DAILY_CEILING_USD       = '50'
     AI_GUEST_DAILY_CEILING_USD = '25'
+    AI_USER_DAILY_CALLS        = '500'
     INSTACART_API_BASE_URL     = 'https://connect.instacart.com'
   }
   $SecretNames = @('REVENUECAT_WEBHOOK_AUTH', 'REVENUECAT_SECRET_API_KEY', 'TURNSTILE_SECRET_KEY', 'APPLE_PRIVATE_KEY', 'APPLE_REFRESH_TOKEN_ENC_KEY', 'INSTACART_API_KEY')
-  $NeverTouch = '^(AI_USER_DAILY_CALLS|AI_DISABLED|AI_GUEST_DISABLED|TRUST_PROXY_HOPS|BILLING_ENFORCED|PUBLIC_APP_URL|STRIPE_.*)$'
+  $NeverTouch = '^(AI_DISABLED|AI_GUEST_DISABLED|TRUST_PROXY_HOPS|BILLING_ENFORCED|PUBLIC_APP_URL|STRIPE_.*)$'
 }
 
 # '^;^NAME=value;NAME=value' -- ONE argv element.
