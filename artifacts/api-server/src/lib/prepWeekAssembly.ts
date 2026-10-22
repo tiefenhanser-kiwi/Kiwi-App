@@ -41,7 +41,7 @@ import {
   type PrepClass,
 } from "./prepClasses";
 import { timeStep, planMinutes, wholeFruitCount, type SourceYieldLike } from "./prepStepMinutes";
-import { displayedPrepQuantity, mixedGlyph } from "./prepQuantity";
+import { displayedPrepQuantity, mixedGlyph, type DisplayOptions } from "./prepQuantity";
 import { proseNames } from "./prepMoments";
 import {
   PREP_PHASE_ORDER,
@@ -448,12 +448,12 @@ const PLACEHOLDER_COUNT_UNITS: ReadonlySet<string> = new Set(["each", "ea", ""])
 //
 // `pluralizeCountUnit` is the INVERSE of the count-unit alias map
 // ingredientConversions already owns — derived, not a second table.
-export function formatMeasure(quantity: number, rawUnit: string, name = ""): string {
+export function formatMeasure(quantity: number, rawUnit: string, name = "", opts: DisplayOptions = {}): string {
   const { token } = canonicalizeUnit(rawUnit);
   if (SCALE_UNITS.has(token)) return `${Math.max(1, Math.round(quantity))} ${token}`;
   // THX-3 (BUG-444) — FIX-7's number, read on the RAW unit as well as the token:
   // "large" canonicalizes to the placeholder, and the egg rule needs the name.
-  const shownQty = displayedPrepQuantity(quantity, PLACEHOLDER_COUNT_UNITS.has(token) ? "" : token, name);
+  const shownQty = displayedPrepQuantity(quantity, PLACEHOLDER_COUNT_UNITS.has(token) ? "" : token, name, opts);
   const shown = mixedGlyph(shownQty);
   // D-WS9-297 ruling 7 — the bare number for a placeholder count; the narrator
   // supplies the noun. The DISPLAYED quantity drives the pluralisation, so
@@ -563,7 +563,7 @@ function componentsOfUnclaimed(
     const prep = kept.find((c) => (c.preparationNote ?? "").trim() !== "")?.preparationNote;
     const measures: PrepMeasure[] = kept.map((c) => {
       return {
-        amount: formatMeasure(c.quantity, c.unit, entry.ingredientName),
+        amount: formatMeasure(c.quantity, c.unit, entry.ingredientName, { asWritten: c.asWritten, note: c.preparationNote }),
         forDish: c.dishName,
         dishRole: c.dishRole,
         mealId: c.mealId,
@@ -571,6 +571,7 @@ function componentsOfUnclaimed(
         ingredientId: entry.ingredientId,
         qty: c.quantity,
         unit: c.unit,
+        ...(c.asWritten ? { asWritten: true } : {}),
         ...(c.portion ? { portion: c.portion } : {}),
         ...(destinationFor ? { destination: destinationFor(c.dishId, entry.ingredientId, c.portion) } : {}),
           ...((c.preparationNote ?? "").trim()
@@ -597,7 +598,7 @@ function componentsOf(
     )?.preparationNote;
     const measures: PrepMeasure[] = line.contributions.map((c) => {
       return {
-        amount: formatMeasure(c.quantity, c.unit, entry.ingredientName),
+        amount: formatMeasure(c.quantity, c.unit, entry.ingredientName, { asWritten: c.asWritten, note: c.preparationNote }),
         forDish: c.dishName,
         dishRole: c.dishRole,
         mealId: c.mealId,
@@ -605,6 +606,7 @@ function componentsOf(
         ingredientId: entry.ingredientId,
         qty: c.quantity,
         unit: c.unit,
+        ...(c.asWritten ? { asWritten: true } : {}),
         ...(c.portion ? { portion: c.portion } : {}),
         ...(destinationFor ? { destination: destinationFor(c.dishId, entry.ingredientId, c.portion) } : {}),
           ...((c.preparationNote ?? "").trim()
@@ -643,7 +645,7 @@ function componentsForDish(
     )?.preparationNote;
     const measures: PrepMeasure[] = contribs.map((c) => {
       return {
-        amount: formatMeasure(c.quantity, c.unit, entry.ingredientName),
+        amount: formatMeasure(c.quantity, c.unit, entry.ingredientName, { asWritten: c.asWritten, note: c.preparationNote }),
         forDish: c.dishName,
         dishRole: c.dishRole,
         mealId: c.mealId,
@@ -651,6 +653,7 @@ function componentsForDish(
         ingredientId: entry.ingredientId,
         qty: c.quantity,
         unit: c.unit,
+        ...(c.asWritten ? { asWritten: true } : {}),
         ...(c.portion ? { portion: c.portion } : {}),
         ...(destinationFor ? { destination: destinationFor(c.dishId, entry.ingredientId, c.portion) } : {}),
           ...((c.preparationNote ?? "").trim()
@@ -2335,7 +2338,7 @@ function totalOf(components: readonly PrepNarrationComponent[], named: boolean):
       const { token } = canonicalizeUnit(m.unit);
       // THX-3 (BUG-444) — the total is the sum of what each portion line SHOWS, so
       // "Mince 12 cloves" sits over 5 + 4 + 3, never over 4.8 + 3.2 + 2.4 rounded once.
-      const shown = SCALE_UNITS.has(token) ? m.qty : displayedPrepQuantity(m.qty, PLACEHOLDER_COUNT_UNITS.has(token) ? "" : token, c.ingredientName);
+      const shown = SCALE_UNITS.has(token) ? m.qty : displayedPrepQuantity(m.qty, PLACEHOLDER_COUNT_UNITS.has(token) ? "" : token, c.ingredientName, { asWritten: m.asWritten, note: m.preparationNote });
       const first = [...byToken.keys()][0];
       const conv = first !== undefined && first !== token ? convertWithinDimension(shown, token, first) : null;
       const key = conv !== null && first !== undefined ? first : token;
@@ -2600,7 +2603,7 @@ const CUT_TITLE_VERB: ReadonlyArray<[RegExp, string]> = [
 function narrationComponents(components: readonly PrepNarrationComponent[]): PrepNarrationComponent[] {
   return components.map((c) => ({
     ...c,
-    measures: c.measures.map(({ mealId: _m, dishId: _d, ingredientId: _i, qty: _q, unit: _u, portion: _p, ...rest }) => rest),
+    measures: c.measures.map(({ mealId: _m, dishId: _d, ingredientId: _i, qty: _q, unit: _u, portion: _p, asWritten: _w, ...rest }) => rest),
   }));
 }
 

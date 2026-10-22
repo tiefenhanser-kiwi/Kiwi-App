@@ -48,6 +48,8 @@ export interface PrepCombineIngredient {
   // EFFECTIVE quantity (servings-scaling already applied by the loader).
   quantity: number;
   unit: string;
+  /** THX-3d round 2 (P) — the row's own amount at its own servings (multiplier 1): printed as written. */
+  asWritten?: boolean;
   preparationNote?: string | null;
   // D-WS9-297 ruling 8 — the whole ingredient this one is a component of, and
   // its yield ("lime", 3, "tbsp"). Carried, never interpreted: the engine sums
@@ -166,6 +168,8 @@ export interface PrepContribution {
   dishRole: DishRoleT;
   quantity: number;
   unit: string;
+  /** THX-3d round 2 (P) — carried from the input, never interpreted here. */
+  asWritten?: boolean;
   preparationNote?: string | null;
   /**
    * D-WS9-296 — the mixture this CONTRIBUTION joins. On the contribution rather
@@ -734,6 +738,7 @@ export function combinePrep(
           dishRole: dish.dishRole,
           quantity: ing.quantity,
           unit: ing.unit,
+          ...(ing.asWritten ? { asWritten: true } : {}),
           ...(ing.preparationNote != null
             ? { preparationNote: ing.preparationNote }
             : {}),

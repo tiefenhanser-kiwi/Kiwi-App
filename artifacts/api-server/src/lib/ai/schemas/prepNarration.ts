@@ -72,6 +72,8 @@ export interface PrepMeasure {
   unit?: string;
   /** Code-only — THX-3b (BUG-456): which listing, for an ingredient its dish lists twice. */
   portion?: string;
+  /** Code-only — THX-3d round 2 (P): the dish's own amount at its own servings, printed as written. */
+  asWritten?: boolean;
 }
 
 export interface PrepNarrationComponent {

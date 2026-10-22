@@ -81,7 +81,7 @@ describe("THX-3d B — the walk", () => {
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import { OUNCE_UNITS, PACKAGE_WORD, WHOLE_PIECE_NAME, WHOLE_PIECE_UNITS, WHOLE_PRODUCE_HEAD, NAME_WEIGHT, displayedPrepQuantity, dishRowMultipliers } from "../prepQuantity";
+import { CHIPOTLE_PEPPER, CUT_WHOLE, OUNCE_UNITS, PACKAGE_DIRECTIONS, PACKAGE_WORD, WHOLE_PIECE_NAME, WHOLE_PIECE_UNITS, WHOLE_PRODUCE_HEAD, NAME_WEIGHT, displayedPrepQuantity, dishRowMultipliers, packageUse } from "../prepQuantity";
 import { formatMeasure } from "../prepWeekAssembly";
 
 const CLIENT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../kiwi/lib/format/quantity.ts");
@@ -96,6 +96,10 @@ describe("THX-3d E — the R5 table, pinned with WEB-4d", () => {
     assert.equal(lit("WHOLE_PIECE_UNITS"), WHOLE_PIECE_UNITS.source);
     assert.equal(lit("WHOLE_PIECE_NAME"), WHOLE_PIECE_NAME.source);
     assert.equal(lit("NAME_WEIGHT"), NAME_WEIGHT.source);
+    // Round 2 (P, O) — the cut word, the packaged mix, the chipotle pepper.
+    assert.equal(lit("CUT_WHOLE"), CUT_WHOLE.source);
+    assert.equal(lit("PACKAGE_DIRECTIONS"), PACKAGE_DIRECTIONS.source);
+    assert.equal(lit("CHIPOTLE_PEPPER"), CHIPOTLE_PEPPER.source);
   });
 
   const rows: Array<[number, string, string, string]> = [
@@ -104,11 +108,16 @@ describe("THX-3d E — the R5 table, pinned with WEB-4d", () => {
     [4.75, "ounce", "sharp cheddar cheese", "5 oz"],
     [2.375, "ounce", "fontina cheese", "2½ oz"],
     [0.2, "ounce", "parmesan", "½ oz"],
-    // produce by the piece: the nearest whole, never below 1, per share
+    // round 2 (P) — produce by the piece: the nearest ½, never below ½, per share
     [0.75, "each", "yellow onion", "1"],
-    [0.375, "each", "yellow onion", "1"],
-    [2.375, "each", "shallot", "2"],
-    [0.375, "each", "lemon", "1"],
+    [0.375, "each", "yellow onion", "½"],
+    [2.375, "each", "shallot", "2½"],
+    [1.875, "each", "shallot", "2"],
+    [0.375, "each", "lemon", "½"],
+    // the cut word keeps it whole; chiles are produce (O)
+    [0.375, "each", "yellow onion, quartered", "1"],
+    [0.75, "each", "chipotle chiles in adobo sauce", "1"],
+    [0.375, "each", "chipotle peppers in adobo", "½"],
     // packages: whole, up; the size never scales
     [0.375, "can (15 oz)", "canned pumpkin purée", "1 can (15 oz)"],
     [0.8, "each", "cornbread mix (8.5 oz box)", "1"],
@@ -121,8 +130,18 @@ describe("THX-3d E — the R5 table, pinned with WEB-4d", () => {
     it(`${q} ${unit} ${name} → ${want}`, () => assert.equal(formatMeasure(q, unit, name), want));
   }
 
-  it("a share rounds on its own: ¾ · ⅜ · ¾ onion is 1 · 1 · 1, so 3 are bought", () => {
-    assert.deepEqual([0.75, 0.375, 0.75].map((q) => displayedPrepQuantity(q, "", "yellow onion")), [1, 1, 1]);
+  it("a share rounds on its own: ¾ · ⅜ · ¾ onion is 1 · ½ · 1 (the list buys 3: 2½ up)", () => {
+    assert.deepEqual([0.75, 0.375, 0.75].map((q) => displayedPrepQuantity(q, "", "yellow onion")), [1, 0.5, 1]);
+  });
+  it("round 2 (P) — an unscaled amount is never rounded: ½ lemon, 14½ oz, 3.2 sprigs as written", () => {
+    assert.equal(formatMeasure(0.5, "each", "lemon", { asWritten: true }), "½");
+    assert.equal(formatMeasure(14.5, "ounce", "canned pumpkin purée", { asWritten: true }), "14½ oz");
+    assert.equal(formatMeasure(14.5, "ounce", "canned pumpkin purée"), "15 oz");
+    assert.equal(formatMeasure(3.2, "sprigs", "fresh thyme"), "3 sprigs");
+  });
+  it("round 2 (O) — a packaged mix made by its directions is the whole box, no 'use'", () => {
+    assert.equal(packageUse(0.8, "each", "cornbread mix (8.5 oz box)"), null);
+    assert.equal(packageUse(0.375, "can (15 oz)", "canned pumpkin purée"), "use 6 oz");
   });
 });
 

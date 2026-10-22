@@ -69,10 +69,11 @@ describe("THX-3 prepQuantity — the displayed number", () => {
     [3.2, "sprigs", "fresh sage", 3],
     [0.8, "", "bay leaves", 1],
     [1.5, "", "corn tortillas", 2],
-    // THX-3d (R5) — produce by the piece is whole now, the nearest, never below 1
-    // (FIX-7 kept "¾ lemon"; Hans, via chat-Claude, October 22: "1 · 1 · 1")
+    // THX-3d round 2 (P) — produce by the piece to the nearest ½, never below ½
+    // (chat-Claude's ruling, October 22: "⅜ onion" → ½, "1⅞" → 2)
     [0.8, "", "lemon", 1],
-    [1.6, "", "yellow onion", 2],
+    [1.6, "", "yellow onion", 1.5],
+    [0.375, "", "yellow onion", 0.5],
     // Hans's egg rule: nearest whole, halves up, never below 1
     [3.2, "", "large eggs", 3],
     [2.5, "", "large eggs", 3],

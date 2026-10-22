@@ -453,6 +453,8 @@ export function buildPrepCombineInput(
               // whole-bird dish, 1 for a neck or giblets, else the servings.
               quantity: prep.quantity * rowMultiplier[row],
               unit: split.unit,
+              // THX-3d round 2 (P) — at its own servings the amount prints as written.
+              ...(Math.abs(rowMultiplier[row] - 1) < 1e-9 ? { asWritten: true } : {}),
               preparationNote: prep.preparationNote,
               component: comp
                 ? { key: comp.key, noun: comp.noun, bowlName: comp.bowlName, heated: componentHeated(comp.stepIndexes, comp.memberIds) }

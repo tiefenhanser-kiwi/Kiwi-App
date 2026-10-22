@@ -225,7 +225,7 @@ export function feastClosingLines(
   multiplierOf?: ReadonlyMap<string, number>,
 ): Map<string, string> {
   const uses = containerUses(steps, dishesById, combineInput, feastDay);
-  const scaled = new Map<string, { ingredientId: string; ingredientName: string; quantity: number; unit: string; category: string; portionStep?: number }[]>();
+  const scaled = new Map<string, { ingredientId: string; ingredientName: string; quantity: number; unit: string; category: string; portionStep?: number; asWritten?: boolean; preparationNote?: string | null }[]>();
   for (const m of combineInput.meals) for (const d of m.dishes) scaled.set(d.dishId, d.ingredients);
   const lineOf = new Map<string, string>();
   for (const u of uses) {
@@ -297,9 +297,10 @@ export function feastClosingLines(
         // Equipment is not something that joins (water is: "dissolve it in the gallon of water").
         if (isNeverMeasured(row.ingredientName) && !/\bwater\b/i.test(row.ingredientName)) continue;
         const q = shareOf(row);
-        const amount = formatMeasure(q, row.unit, row.ingredientName);
+        // THX-3d round 2 (P) — the row's own amount at its own servings prints as written.
+        const amount = formatMeasure(q, row.unit, row.ingredientName, { asWritten: !!row.asWritten && Math.abs(q - row.quantity) < 1e-9, note: row.preparationNote });
         // THX-3d (R5) — a package rounded up says how much of it: "(use 6 oz)".
-        const use = packageUse(q, row.unit, row.ingredientName);
+        const use = packageUse(q, row.unit, row.ingredientName, step.text);
         // Mid-sentence, the catalog's capitals go ("2 Large eggs", "¼ cup Whole milk").
         joins.push(`${amount} ${spokenName(row.ingredientName, amount)}${use ? ` (${use})` : ""}`.trim());
       }

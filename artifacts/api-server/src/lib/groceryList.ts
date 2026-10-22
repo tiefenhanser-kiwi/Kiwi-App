@@ -45,7 +45,7 @@ import {
   type RecurringFacets,
 } from "./recurringItems";
 import { logger } from "./logger";
-import { buysWholePerShare, dishRowMultipliers, displayedPrepQuantity } from "./prepQuantity";
+import { buysWholePerShare, dishRowMultipliers, displayedPrepQuantity, isWholeProduce } from "./prepQuantity";
 import { FEAST_MEAL_TAG } from "./prepWeekAggregation";
 
 // WS7-7-A Block 1 — a single plan source contributing to a consolidated line.
@@ -580,7 +580,7 @@ export async function consolidatePlanIngredients(
         // not 1⅞ rounded once; ⅜ of a can is 1 can. Everything else — a sprig included,
         // which the need ladder rounds UP — is still merged raw and rounded once (BUG-025-2).
         const rawScaled = eff.quantity * rowMultiplier[row];
-        const scaledQty = buysWholePerShare(unit, canonical) ? displayedPrepQuantity(rawScaled, unit, canonical) : rawScaled;
+        const scaledQty = buysWholePerShare(unit, canonical) ? displayedPrepQuantity(rawScaled, unit, canonical, { note: prepRaw }) : rawScaled;
 
         let entry = buckets.get(key);
         if (!entry) {
@@ -667,6 +667,11 @@ export async function consolidatePlanIngredients(
       .filter((p) => p.isActive)
       .map((p) => normalizeIngredientName(p.ingredientName)),
   );
+  // THX-3d round 2 (P) — produce by the piece is BOUGHT whole: each share rounds to its
+  // ½ on the prep card, and the list buys their sum rounded up (½ · 1 · 1 → 3 onions).
+  for (const entry of buckets.values()) {
+    if (isWholeProduce(entry.unit, entry.canonicalName)) entry.quantity = Math.ceil(entry.quantity - 1e-9);
+  }
   if (userPantryKeys.size > 0) {
     for (const entry of buckets.values()) {
       if (userPantryKeys.has(normalizeIngredientName(entry.canonicalName))) {

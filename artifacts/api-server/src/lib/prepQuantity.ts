@@ -94,20 +94,36 @@ function snapToSteps(qty: number, steps: readonly number[]): number {
 //     never below 1 (3.2 sprigs → 3, where rule 1 ceiled to 4).
 export const OUNCE_UNITS = /^(?:oz|ounces?|fl\.?\s*oz|fluid\s+ounces?)$/;
 export const WHOLE_PRODUCE_HEAD =
-  /^(?:onions?|carrots?|lemons?|oranges?|limes?|shallots?|jalape[nñ]os?|apples?|potato(?:es)?)$/i;
+  /^(?:onions?|carrots?|lemons?|oranges?|limes?|shallots?|jalape[nñ]os?|apples?|potato(?:es)?|chil(?:e|es|i|is|ies|li|lies)|chipotles?|serranos?|habaneros?|poblanos?)$/i;
+/** THX-3d round 2 (O) — "chipotle peppers in adobo" is a chile, though its head says peppers (WEB-4d's). */
+export const CHIPOTLE_PEPPER = /\bchipotle peppers?\b/i;
+/** THX-3d round 2 (P) — the cut word that keeps produce whole (WEB-4d's CUT_WHOLE). */
+export const CUT_WHOLE = /\b(?:quartered|halved|whole|cut (?:in|into) (?:half|halves|quarters|wedges))\b/i;
+/** THX-3d round 2 (O) — a packaged mix made by its directions is the whole package (WEB-4d's). */
+export const PACKAGE_DIRECTIONS =
+  /\b(?:cornbread|muffin|cake|brownie|biscuit|pancake|waffle|cookie|bread) mix(?:es)?\b|\b(?:per|according to)(?: the)? package (?:directions|instructions)\b/i;
 export const PACKAGE_WORD = /\b(?:cans?|box(?:es)?|bags?|jars?|packages?|packets?)\b/i;
 export const WHOLE_PIECE_UNITS = /^(?:sheets?|caps?|crusts?|crackers?|lea(?:f|ves)|sprigs?)$/;
 export const WHOLE_PIECE_NAME = /(?<![-‑])\b(?:caps?|sheets?|crusts?|crackers?|lea(?:f|ves)|sprigs?)\b/i;
 
-/** The head noun of a name: its last word before a comma or a parenthesis. */
+/** THX-3d round 2 (P) — how a share is shown: as the recipe wrote it (unscaled), and its cut. */
+export interface DisplayOptions {
+  /** The share is the row's own amount at its own servings: printed as written. */
+  asWritten?: boolean;
+  /** The row's preparation note: "quartered" and "halved" keep produce whole. */
+  note?: string | null;
+}
+
+/** The head noun of a name: its last word before a comma, a parenthesis, or
+ *  "in"/"from"/"packed" ("chipotle chiles in adobo sauce" → chiles). WEB-4d's. */
 function headNoun(name: string): string {
-  const words = name.split(/[,(]/)[0].trim().split(/\s+/);
+  const words = name.split(/[,(]|\s(?:in|from|packed)\s/i)[0].trim().split(/\s+/);
   return words[words.length - 1] ?? "";
 }
 
 /** THX-3d (R5) — onion, carrot, lemon … counted by the piece. */
 export function isWholeProduce(unit: string, name: string): boolean {
-  return COUNT_UNITS.has(unit.trim().toLowerCase()) && WHOLE_PRODUCE_HEAD.test(headNoun(name));
+  return COUNT_UNITS.has(unit.trim().toLowerCase()) && (WHOLE_PRODUCE_HEAD.test(headNoun(name)) || CHIPOTLE_PEPPER.test(name));
 }
 
 /** THX-3d (R5) — a can, box, bag, jar or package: by its unit, or by name on a count. */
@@ -126,8 +142,10 @@ const PACKAGE_SIZE = /(\d+(?:\.\d+)?)\s*[-‑]?\s*(fl\.?\s*oz|oz|ounces?|lbs?|po
  * `scaled` is the true package count (⅜ of a can); null when nothing was rounded or
  * there is no size to say it in.
  */
-export function packageUse(scaled: number, unit: string, name: string): string | null {
+export function packageUse(scaled: number, unit: string, name: string, note = ""): string | null {
   if (!(scaled > 0) || !isPackage(unit, name)) return null;
+  // THX-3d round 2 (O) — a packaged mix made by its directions: the whole package, no "use".
+  if (PACKAGE_DIRECTIONS.test(`${name} ${note}`)) return null;
   if (Math.abs(displayedPrepQuantity(scaled, unit, name) - scaled) < 1e-6) return null;
   const size = PACKAGE_SIZE.exec(`${unit} ${name}`);
   if (!size) return null;
@@ -332,8 +350,11 @@ export function dishRowMultipliers(
  * string) of the ingredient `name`. Display only: the engine's sums and the
  * grocery list never read it.
  */
-export function displayedPrepQuantity(qty: number, unit: string, name = ""): number {
+export function displayedPrepQuantity(qty: number, unit: string, name = "", opts: DisplayOptions = {}): number {
   const u = unit.trim().toLowerCase();
+  // THX-3d round 2 (P) — an UNSCALED amount is never rounded by R5 (packages, produce,
+  // pieces, ounces): "½ lemon" and "14½ oz" print as written at the recipe's own servings.
+  const r5 = !opts.asWritten && qty > 0;
   // Hans's egg rule — before rule 1, which would ceil them.
   if (COUNT_UNITS.has(u) && EGG_NAME.test(name)) return Math.max(1, Math.floor(qty + 0.5 + TIE));
   // ⚠️ SERVER-ONLY, NOT IN FIX-7's TABLE: a pinch, a dash and a cinnamon stick
@@ -351,8 +372,15 @@ export function displayedPrepQuantity(qty: number, unit: string, name = ""): num
   }
   // THX-3d (R5) — a package rounds up; produce and pieces to the nearest whole (the
   // client's order: before rule 1, which would ceil a sprig).
-  if (qty > 0 && isPackage(u, name)) return Math.max(1, Math.ceil(qty - TIE));
-  if (qty > 0 && (isWholeProduce(u, name) || isWholePiece(u, name))) return Math.max(1, Math.floor(qty + 0.5 + TIE));
+  if (r5 && isPackage(u, name)) return Math.max(1, Math.ceil(qty - TIE));
+  // THX-3d round 2 (P) — produce by the piece to the nearest ½, never below ½ ("⅜ onion"
+  // → ½, "2⅜ shallots" → 2½); a quartered onion or a halved lemon for the cavity stays
+  // whole — the cut word decides. Pieces (sprigs, leaves, caps …) to the nearest whole.
+  if (r5 && isWholeProduce(u, name)) {
+    if (u === "whole" || CUT_WHOLE.test(`${name} ${opts.note ?? ""}`)) return Math.max(1, Math.floor(qty + 0.5 + TIE));
+    return Math.max(1 / 2, Math.floor(qty * 2 + 0.5 + TIE) / 2);
+  }
+  if (r5 && isWholePiece(u, name)) return Math.max(1, Math.floor(qty + 0.5 + TIE));
   // Rule 1 — whole counted items, by unit word or by name on a count unit.
   if (WHOLE_UNITS.includes(singularUnit(u)) || (COUNT_UNITS.has(u) && (WHOLE_ITEM_NAME.test(name) || WHOLE_BIRD.test(name)))) {
     return Math.max(1, Math.ceil(qty - TIE));
@@ -360,7 +388,7 @@ export function displayedPrepQuantity(qty: number, unit: string, name = ""): num
   // Rule 3 — pounds in quarter steps, ties up, floor ¼.
   if (POUND_TOKENS.test(u)) return Math.max(1 / 4, Math.floor(qty * 4 + 0.5 + TIE) / 4);
   // THX-3d (R5) — ounces: whole from 4 oz, the nearest ½ below it, floor ½.
-  if (qty > 0 && OUNCE_UNITS.test(u)) {
+  if (r5 && OUNCE_UNITS.test(u)) {
     return qty >= 4 - TIE ? Math.floor(qty + 0.5 + TIE) : Math.max(1 / 2, Math.floor(qty * 2 + 0.5 + TIE) / 2);
   }
   const whole = Math.floor(qty);
