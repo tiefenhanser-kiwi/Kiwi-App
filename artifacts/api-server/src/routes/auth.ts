@@ -75,6 +75,10 @@ const PASSWORD_RESET_EXPIRY = "1h";
 // calendar, not tomorrow UTC.
 const GUEST_CLAIM_FIELDS = {
   guestSessionId: z.string().min(1).max(100).optional(),
+  // SEC-2 #12 — the guest bearer token POST /guest/session issued with the
+  // session. A claim needs both: the id says which session, the token proves
+  // it is the caller's (lib/guestClaim.ts claimGuestSessionInTx).
+  guestToken: z.string().min(1).max(2000).optional(),
   templatePlanId: z.string().min(1).max(100).optional(),
   localDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 } as const;
@@ -354,6 +358,7 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
       marketingConsentSms,
       platform,
       guestSessionId,
+      guestToken,
       templatePlanId,
       localDate,
     } = parsed.data;
@@ -413,6 +418,7 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
           // name. Null when neither is present.
           signupSource: guestSessionId ? "test_kitchen" : (platform ?? null),
           guestSessionId,
+          guestToken,
         }),
       );
       const user = { ...created.user, subscription: created.subscription };
@@ -438,7 +444,7 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
       logger.info(
         {
           userId: user.id,
-          guestSessionId: guestSessionId ?? null,
+          guest: Boolean(guestSessionId),
           templatePlanId: templatePlanId ?? null,
           claimedPlanId,
         },
@@ -475,7 +481,7 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
       // the rollback means no half-made account survives it.
       if (err instanceof GuestSessionInvalidError) {
         logger.info(
-          { event: "guest_claim_refused", guestSessionId, detail: err.detail },
+          { event: "guest_claim_refused", guest: Boolean(guestSessionId), detail: err.detail },
           "Signup refused: the guest session could not be claimed",
         );
         return res.status(409).json({ code: "guest_session_invalid" });
@@ -491,7 +497,7 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
     if (!parsed.success) {
       return res.status(400).json({ error: "invalid request body" });
     }
-    const { email, password, guestSessionId, templatePlanId, localDate } =
+    const { email, password, guestSessionId, guestToken, templatePlanId, localDate } =
       parsed.data;
     const normalizedEmail = email.toLowerCase().trim();
 
@@ -546,6 +552,7 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
             claimGuestSessionInTx({
               tx,
               guestSessionId,
+              guestToken,
               userId: user.id,
               copyPreferences: false,
             }),
@@ -562,7 +569,7 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
               {
                 event: "guest_claim_refused",
                 userId: user.id,
-                guestSessionId,
+                guest: Boolean(guestSessionId),
                 detail: err.detail,
               },
               "Login proceeded; the guest session could not be claimed",
@@ -638,6 +645,7 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
       marketingConsentSms?: boolean | undefined;
       platform?: "web" | "ios" | "android" | undefined;
       guestSessionId?: string | undefined;
+      guestToken?: string | undefined;
       templatePlanId?: string | undefined;
       localDate?: string | undefined;
     };
@@ -688,6 +696,7 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
         marketingConsentSms: body.marketingConsentSms,
         platform: body.platform,
         guestSessionId,
+        guestToken: body.guestToken,
         linkFacts,
       });
 
@@ -726,6 +735,7 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
         claimedDraft = await claimForExistingUser({
           prisma,
           guestSessionId,
+          guestToken: body.guestToken,
           userId: outcome.userId,
         });
       } catch (err) {
@@ -794,7 +804,7 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
         isNewUser: outcome.isNewUser,
         identityCreated: outcome.identityCreated,
         isPrivateRelay: identity.isPrivateRelay,
-        guestSessionId: guestSessionId ?? null,
+        guest: Boolean(guestSessionId),
         claimedPlanId,
       },
       `Signed in with ${provider}`,

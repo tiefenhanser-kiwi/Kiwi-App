@@ -54,6 +54,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
 import { markFirstPlanCreated } from "./firstPlan";
+import { verifyToken } from "./auth";
 import { logger } from "./logger";
 import { prepareTemplateCopy, writeTemplateCopy } from "./planFromTemplate";
 import { addUtcDays, activeWindowFromToday, todayFor } from "./planDayAssignment";
@@ -183,6 +184,15 @@ export class GuestSessionInvalidError extends Error {
 export interface ClaimInTxOptions {
   tx: Prisma.TransactionClient;
   guestSessionId: string;
+  /**
+   * SEC-2 #12 — the guest bearer token the session was issued with (POST
+   * /guest/session). REQUIRED, and typed so every caller has to thread it:
+   * the session id alone used to be enough to claim, and the id is not a
+   * secret — it was logged on every guest line, and it rides in URLs a
+   * browser history keeps. Possession of the token is what proves the claimer
+   * is the visitor who built the plan.
+   */
+  guestToken: string | undefined;
   userId: string;
   /**
    * Signup: true — the account is new and has no preferences.
@@ -219,6 +229,16 @@ export async function claimGuestSessionInTx(
   const { tx, guestSessionId, userId, copyPreferences } = opts;
   const now = opts.now ?? new Date();
 
+  // SEC-2 #12 — before the row is read: a caller without the session's own
+  // token learns nothing about it, not even that it exists. Thrown as the
+  // same GuestSessionInvalidError a stale session throws, so every caller
+  // keeps its established answer (signup 409 and no account; sign-in proceeds
+  // without the claim).
+  const credential = opts.guestToken ? verifyToken(opts.guestToken, "guest") : null;
+  if (!credential || credential.userId !== guestSessionId) {
+    throw new GuestSessionInvalidError("no guest credential");
+  }
+
   const session = await tx.guestSession.findUnique({
     where: { id: guestSessionId },
     select: {
@@ -254,7 +274,7 @@ export async function claimGuestSessionInTx(
       logger.warn(
         {
           event: "guest_preferences_unreadable",
-          guestSessionId,
+          guest: Boolean(guestSessionId),
           issues: parsed.error.issues.slice(0, 3),
         },
         "Guest preferences blob failed validation — new user keeps column defaults",
@@ -323,7 +343,7 @@ export async function releaseClaimForRetry(opts: {
     });
     if (released.count === 0) {
       logger.warn(
-        { event: "guest_claim_release_noop", guestSessionId, userId },
+        { event: "guest_claim_release_noop", guest: Boolean(guestSessionId), userId },
         "Nothing to release — the session is not claimed by this user",
       );
       return false;
@@ -336,7 +356,7 @@ export async function releaseClaimForRetry(opts: {
       })
       .catch((err) => {
         logger.warn(
-          { event: "guest_event_write_failed", guestSessionId, err },
+          { event: "guest_event_write_failed", guest: Boolean(guestSessionId), err },
           "Failed to write the claim_plan_failed guest event",
         );
       });
@@ -346,7 +366,7 @@ export async function releaseClaimForRetry(opts: {
     // only loss is the plan. Loud, because it is the one path that leaves a
     // session stuck claimed with nothing to show.
     logger.error(
-      { event: "guest_claim_release_failed", guestSessionId, userId, err },
+      { event: "guest_claim_release_failed", guest: Boolean(guestSessionId), userId, err },
       "Could not release the guest claim after a failed plan build",
     );
     return false;

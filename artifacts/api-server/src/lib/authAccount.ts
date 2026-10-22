@@ -55,6 +55,8 @@ export interface CreateAccountInput {
   /** D-WS9-264. Resolved by the caller; a guest claim overrides the client's `platform`. */
   signupSource: string | null;
   guestSessionId?: string | undefined;
+  /** SEC-2 #12 — the session's own guest bearer token; required to claim it. */
+  guestToken?: string | undefined;
   trialEndsAt?: Date;
 }
 
@@ -110,6 +112,7 @@ export async function createAccountInTx(input: CreateAccountInput): Promise<Crea
     const claim = await claimGuestSessionInTx({
       tx,
       guestSessionId,
+      guestToken: input.guestToken,
       userId: newUser.id,
       // A brand-new account: the guest's wizard answers ARE its preferences.
       copyPreferences: true,
@@ -183,7 +186,7 @@ export async function finishClaimAfterCommit(
     } catch (err) {
       const claimRetryable = await releaseClaimForRetry({ prisma, guestSessionId, userId });
       logger.error(
-        { event: "guest_claim_plan_failed", via: input.via, userId, guestSessionId, claimRetryable, err },
+        { event: "guest_claim_plan_failed", via: input.via, userId, guest: Boolean(guestSessionId), claimRetryable, err },
         "Guest claim could not build the plan — the account is unaffected",
       );
       // Both nulls stay indistinguishable for NAVIGATION (the client goes to

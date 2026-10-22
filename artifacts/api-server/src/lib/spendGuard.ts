@@ -362,7 +362,7 @@ function logRefusal(
       event: "spend_guard_refused",
       reason,
       userId: ctx.userId,
-      guestSessionId: ctx.guestSessionId ?? null,
+      guest: Boolean(ctx.guestSessionId),
       promptKey: ctx.promptKey,
       observed: ctx.observed,
       threshold: ctx.threshold,

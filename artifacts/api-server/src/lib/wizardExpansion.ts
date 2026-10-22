@@ -381,7 +381,7 @@ export async function expandCandidate(
       {
         event: "wizard_catalog_only_gap",
         userId: opts.userId,
-        guestSessionId: opts.guestSessionId,
+        guest: Boolean(opts.guestSessionId),
         candidateId: opts.request.candidate.id,
         totalSlots: mealTitles.length,
         storeSlotCount: storeMealsBound,

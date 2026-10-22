@@ -217,7 +217,7 @@ export function createGuestRouter(deps: Partial<GuestRouterDeps> = {}): IRouter 
             );
           });
         logger.info(
-          { event: "guest_session_created", guestSessionId: session.id },
+          { event: "guest_session_created", guest: true },
           "Guest session created",
         );
         return res.status(201).json({
@@ -268,7 +268,7 @@ export function createGuestRouter(deps: Partial<GuestRouterDeps> = {}): IRouter 
         return res.status(201).json({ ok: true });
       } catch (err) {
         logger.error(
-          { event: "guest_event_failed", guestSessionId, err },
+          { event: "guest_event_failed", guest: Boolean(guestSessionId), err },
           "Failed to record a guest event",
         );
         return res.status(500).json({ error: "failed to record event" });
@@ -315,7 +315,7 @@ export function createGuestRouter(deps: Partial<GuestRouterDeps> = {}): IRouter 
       });
     } catch (err) {
       logger.error(
-        { event: "guest_session_read_failed", guestSessionId, err },
+        { event: "guest_session_read_failed", guest: Boolean(guestSessionId), err },
         "Failed to read the guest session",
       );
       return res.status(500).json({ error: "failed to read session" });
@@ -341,7 +341,7 @@ export function createGuestRouter(deps: Partial<GuestRouterDeps> = {}): IRouter 
       return res.json(row.draft);
     } catch (err) {
       logger.error(
-        { event: "guest_draft_read_failed", guestSessionId, err },
+        { event: "guest_draft_read_failed", guest: Boolean(guestSessionId), err },
         "Failed to read the guest draft",
       );
       return res.status(500).json({ error: "failed to read draft" });

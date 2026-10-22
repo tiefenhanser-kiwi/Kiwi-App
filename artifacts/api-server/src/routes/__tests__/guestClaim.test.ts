@@ -35,6 +35,12 @@ import { createAuthRouter } from "../auth";
 import { createWizardRouter } from "../wizard";
 import { withSessionUser } from "./fixtures/sessionUserStub";
 
+// SEC-2 #12 — a claim needs the session's own guest bearer token, the one
+// POST /guest/session issues beside the id.
+const guestTok = (guestSessionId: string) =>
+  signToken(guestSessionId, { purpose: "guest", expiresIn: "1h" });
+
+
 const HOUR = 60 * 60 * 1000;
 
 // The wizard body a guest actually sends — note the WIZARD names
@@ -289,7 +295,7 @@ describe("claimGuestSessionInTx", () => {
         () =>
           claimGuestSessionInTx({
             tx: prisma as never,
-            guestSessionId: "gs-1",
+            guestSessionId: "gs-1", guestToken: guestTok("gs-1"),
             userId: "u-1",
             copyPreferences: true,
           }),
@@ -303,7 +309,7 @@ describe("claimGuestSessionInTx", () => {
       () =>
         claimGuestSessionInTx({
           tx: prisma as never,
-          guestSessionId: "gs-nope",
+          guestSessionId: "gs-nope", guestToken: guestTok("gs-nope"),
           userId: "u-1",
           copyPreferences: true,
         }),
@@ -316,7 +322,7 @@ describe("claimGuestSessionInTx", () => {
     const prisma = makePrisma({ id: "gs-1" });
     await claimGuestSessionInTx({
       tx: prisma as never,
-      guestSessionId: "gs-1",
+      guestSessionId: "gs-1", guestToken: guestTok("gs-1"),
       userId: "u-existing",
       copyPreferences: false,
     });
@@ -338,7 +344,7 @@ describe("POST /api/auth/signup with guestSessionId", () => {
     try {
       const res = await h.post("/auth/signup", {
         ...SIGNUP,
-        guestSessionId: "gs-1",
+        guestSessionId: "gs-1", guestToken: guestTok("gs-1"),
       });
       assert.equal(res.status, 201);
       const body = (await res.json()) as { claimedPlanId: string | null };
@@ -372,7 +378,7 @@ describe("POST /api/auth/signup with guestSessionId", () => {
     const h = await spinUp(prisma);
     try {
       assert.equal(
-        (await h.post("/auth/signup", { ...SIGNUP, guestSessionId: "gs-1" }))
+        (await h.post("/auth/signup", { ...SIGNUP, guestSessionId: "gs-1", guestToken: guestTok("gs-1") }))
           .status,
         201,
       );
@@ -381,7 +387,7 @@ describe("POST /api/auth/signup with guestSessionId", () => {
       const second = await h.post("/auth/signup", {
         ...SIGNUP,
         email: "other@example.com",
-        guestSessionId: "gs-1",
+        guestSessionId: "gs-1", guestToken: guestTok("gs-1"),
       });
       assert.equal(second.status, 409);
       assert.equal(
@@ -405,7 +411,7 @@ describe("POST /api/auth/signup with guestSessionId", () => {
     try {
       const res = await h.post("/auth/signup", {
         ...SIGNUP,
-        guestSessionId: "gs-1",
+        guestSessionId: "gs-1", guestToken: guestTok("gs-1"),
       });
       assert.equal(res.status, 409);
       assert.equal(prisma._state().users.length, 0);
@@ -420,7 +426,7 @@ describe("POST /api/auth/signup with guestSessionId", () => {
     try {
       const res = await h.post("/auth/signup", {
         ...SIGNUP,
-        guestSessionId: "gs-1",
+        guestSessionId: "gs-1", guestToken: guestTok("gs-1"),
         templatePlanId: "t-1",
       });
       assert.equal(res.status, 400);
@@ -462,7 +468,7 @@ describe("POST /api/auth/login with guestSessionId", () => {
       const res = await h.post("/auth/login", {
         email: SIGNUP.email,
         password: SIGNUP.password,
-        guestSessionId: "gs-1",
+        guestSessionId: "gs-1", guestToken: guestTok("gs-1"),
       });
       assert.equal(res.status, 200);
       assert.equal(
@@ -488,7 +494,7 @@ describe("POST /api/auth/login with guestSessionId", () => {
       const res = await h.post("/auth/login", {
         email: SIGNUP.email,
         password: SIGNUP.password,
-        guestSessionId: "gs-1",
+        guestSessionId: "gs-1", guestToken: guestTok("gs-1"),
       });
       assert.equal(
         res.status,
@@ -527,7 +533,7 @@ describe("Block 1b Part A: a failed plan build releases the claim", () => {
     try {
       const res = await h.post("/auth/signup", {
         ...SIGNUP,
-        guestSessionId: "gs-1",
+        guestSessionId: "gs-1", guestToken: guestTok("gs-1"),
       });
       assert.equal(res.status, 201, "a failed plan build never fails the signup");
       const body = (await res.json()) as {
@@ -572,7 +578,7 @@ describe("Block 1b Part A: a failed plan build releases the claim", () => {
     try {
       const first = await h.post("/auth/signup", {
         ...SIGNUP,
-        guestSessionId: "gs-1",
+        guestSessionId: "gs-1", guestToken: guestTok("gs-1"),
       });
       assert.equal(first.status, 201);
       assert.equal(prisma._state().guest.claimedAt, null);
@@ -580,7 +586,7 @@ describe("Block 1b Part A: a failed plan build releases the claim", () => {
       const second = await h.post("/auth/login", {
         email: SIGNUP.email,
         password: SIGNUP.password,
-        guestSessionId: "gs-1",
+        guestSessionId: "gs-1", guestToken: guestTok("gs-1"),
       });
       assert.equal(second.status, 200);
       const body = (await second.json()) as {
@@ -615,7 +621,7 @@ describe("Block 1b Part A: a failed plan build releases the claim", () => {
       const res = await h.post("/auth/login", {
         email: SIGNUP.email,
         password: SIGNUP.password,
-        guestSessionId: "gs-1",
+        guestSessionId: "gs-1", guestToken: guestTok("gs-1"),
       });
       assert.equal(res.status, 200);
       const body = (await res.json()) as {
@@ -658,7 +664,7 @@ describe("Block 1b Part A: a failed plan build releases the claim", () => {
     try {
       const res = await h.post("/auth/signup", {
         ...SIGNUP,
-        guestSessionId: "gs-1",
+        guestSessionId: "gs-1", guestToken: guestTok("gs-1"),
       });
       assert.equal(res.status, 409);
       assert.equal(
@@ -718,7 +724,7 @@ describe("Block 1b Part C: otherAllergies rides the claim", () => {
     const h = await spinUp(prisma);
     try {
       assert.equal(
-        (await h.post("/auth/signup", { ...SIGNUP, guestSessionId: "gs-1" }))
+        (await h.post("/auth/signup", { ...SIGNUP, guestSessionId: "gs-1", guestToken: guestTok("gs-1") }))
           .status,
         201,
       );
@@ -774,7 +780,7 @@ describe("Block 1b R3: a hidden guest default is never saved as a preference", (
     const h = await spinUp(prisma);
     try {
       assert.equal(
-        (await h.post("/auth/signup", { ...SIGNUP, guestSessionId: "gs-1" }))
+        (await h.post("/auth/signup", { ...SIGNUP, guestSessionId: "gs-1", guestToken: guestTok("gs-1") }))
           .status,
         201,
       );
@@ -811,7 +817,7 @@ describe("Block 1b B2: the claim completes onboarding (R1) and marks the source 
     try {
       const res = await h.post("/auth/signup", {
         ...SIGNUP,
-        guestSessionId: "gs-1",
+        guestSessionId: "gs-1", guestToken: guestTok("gs-1"),
       });
       assert.equal(res.status, 201);
       const body = (await res.json()) as {
@@ -849,7 +855,7 @@ describe("Block 1b B2: the claim completes onboarding (R1) and marks the source 
     try {
       const res = await h.post("/auth/signup", {
         ...SIGNUP,
-        guestSessionId: "gs-1",
+        guestSessionId: "gs-1", guestToken: guestTok("gs-1"),
       });
       assert.equal(res.status, 201, "an unreadable blob never fails the signup");
       const body = (await res.json()) as {
@@ -875,7 +881,7 @@ describe("Block 1b B2: the claim completes onboarding (R1) and marks the source 
     const copied = makePrisma({ id: "gs-1" });
     const a = await claimGuestSessionInTx({
       tx: copied as never,
-      guestSessionId: "gs-1",
+      guestSessionId: "gs-1", guestToken: guestTok("gs-1"),
       userId: "u-new",
       copyPreferences: true,
     });
@@ -884,7 +890,7 @@ describe("Block 1b B2: the claim completes onboarding (R1) and marks the source 
     const notCopied = makePrisma({ id: "gs-1" });
     const b = await claimGuestSessionInTx({
       tx: notCopied as never,
-      guestSessionId: "gs-1",
+      guestSessionId: "gs-1", guestToken: guestTok("gs-1"),
       userId: "u-existing",
       copyPreferences: false,
     });
@@ -898,7 +904,7 @@ describe("Block 1b B2: the claim completes onboarding (R1) and marks the source 
     unreadable._state().guest.preferences = { difficulty: "impossible" };
     const c = await claimGuestSessionInTx({
       tx: unreadable as never,
-      guestSessionId: "gs-1",
+      guestSessionId: "gs-1", guestToken: guestTok("gs-1"),
       userId: "u-new-2",
       copyPreferences: true,
     });
@@ -955,7 +961,7 @@ describe("Block 1b B2: the claim completes onboarding (R1) and marks the source 
       const res = await h.post("/auth/signup", {
         ...SIGNUP,
         platform: "web",
-        guestSessionId: "gs-1",
+        guestSessionId: "gs-1", guestToken: guestTok("gs-1"),
       });
       assert.equal(res.status, 201);
       const body = (await res.json()) as {
@@ -993,7 +999,7 @@ describe("Block 1b B2: the claim completes onboarding (R1) and marks the source 
       const res = await h.post("/auth/login", {
         email: SIGNUP.email,
         password: SIGNUP.password,
-        guestSessionId: "gs-1",
+        guestSessionId: "gs-1", guestToken: guestTok("gs-1"),
       });
       assert.equal(res.status, 200);
       assert.equal(
@@ -1209,7 +1215,7 @@ describe("Resubmission G1: a guest draft made from picks is claimed at sign-up",
 
     const h = await spinUp(prisma, stage2 as never);
     try {
-      const res = await h.post("/auth/signup", { ...SIGNUP, guestSessionId: "gs-picks" });
+      const res = await h.post("/auth/signup", { ...SIGNUP, guestSessionId: "gs-picks", guestToken: guestTok("gs-picks") });
       assert.equal(res.status, 201);
       const body = (await res.json()) as { claimedPlanId: string | null; user: { id: string } };
       assert.equal(body.claimedPlanId, "plan-claimed", "the claim built the plan");
@@ -1260,6 +1266,53 @@ describe("Resubmission G1: a guest draft made from picks is claimed at sign-up",
         assert.ok(!(k in copied), `${k} is a hidden default, never saved`);
       }
       assert.equal(prisma._state().users[0].onboardingComplete, true);
+    } finally {
+      await h.close();
+    }
+  });
+});
+
+// ── SEC-2 #12 — the session id alone no longer claims ────────────────────
+//
+// The id is not a secret (it was logged on every guest line and travels in the
+// client's storage and URLs). A claim now needs the session's OWN guest token.
+describe("SEC-2 #12 — claiming needs the session's own guest token", () => {
+  for (const [label, guestToken] of [
+    ["no token", undefined],
+    ["another session's token", "OTHER"],
+    ["a SESSION token for the same id", "SESSION"],
+    ["garbage", "not-a-jwt"],
+  ] as const) {
+    it(`signup with ${label} → 409, no account, the session stays unclaimed`, async () => {
+      const prisma = makePrisma({ id: "gs-1" });
+      const h = await spinUp(prisma);
+      try {
+        const token =
+          guestToken === "OTHER"
+            ? guestTok("gs-other")
+            : guestToken === "SESSION"
+              ? signToken("gs-1")
+              : guestToken;
+        const res = await h.post("/auth/signup", { ...SIGNUP, guestSessionId: "gs-1", ...(token ? { guestToken: token } : {}) });
+        assert.equal(res.status, 409);
+        assert.equal(((await res.json()) as { code: string }).code, "guest_session_invalid");
+        assert.equal(prisma._state().users.length, 0, "the transaction rolled back");
+        assert.equal(prisma._state().guest.claimedAt, null);
+      } finally {
+        await h.close();
+      }
+    });
+  }
+
+  it("login with the id but no token signs in and claims NOTHING", async () => {
+    const prisma = makePrisma({ id: "gs-1", draft: SOME_DRAFT });
+    const h = await spinUp(prisma);
+    try {
+      assert.equal((await h.post("/auth/signup", SIGNUP)).status, 201);
+      const res = await h.post("/auth/login", { email: SIGNUP.email, password: SIGNUP.password, guestSessionId: "gs-1" });
+      assert.equal(res.status, 200, "a valid login is never refused over a claim");
+      assert.equal(((await res.json()) as { claimedPlanId: string | null }).claimedPlanId, null);
+      assert.equal(prisma._state().guest.claimedAt, null, "🔴 the session was not taken");
     } finally {
       await h.close();
     }

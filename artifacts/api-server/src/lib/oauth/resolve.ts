@@ -69,6 +69,8 @@ export interface ResolveInput {
   marketingConsentSms?: boolean | undefined;
   platform?: string | undefined;
   guestSessionId?: string | undefined;
+  /** SEC-2 #12 — the guest bearer token that proves the claim. */
+  guestToken?: string | undefined;
   /** Written only on create; an existing identity's row is refreshed instead. */
   linkFacts: IdentityLinkFacts;
 }
@@ -262,6 +264,7 @@ export async function resolveIdentity(input: ResolveInput): Promise<ResolveOutco
       // more specific fact and beats the client's `platform`.
       signupSource: input.guestSessionId ? "test_kitchen" : (input.platform ?? null),
       guestSessionId: input.guestSessionId,
+      guestToken: input.guestToken,
     });
     const identityRow = await tx.userIdentity.create({
       data: {
@@ -328,12 +331,14 @@ export async function emailEverProven(
 export async function claimForExistingUser(opts: {
   prisma: PrismaClient;
   guestSessionId: string;
+  guestToken: string | undefined;
   userId: string;
 }): Promise<unknown> {
   const claim = await opts.prisma.$transaction((tx) =>
     claimGuestSessionInTx({
       tx,
       guestSessionId: opts.guestSessionId,
+      guestToken: opts.guestToken,
       userId: opts.userId,
       copyPreferences: false,
     }),

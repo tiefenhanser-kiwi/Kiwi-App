@@ -42,6 +42,13 @@ import {
 } from "../../lib/oauth/verify";
 import type { OAuthConfig } from "../../lib/oauth/config";
 import { createAuthRouter } from "../auth";
+import { signToken } from "../../lib/auth";
+
+// SEC-2 #12 — a claim needs the session's own guest bearer token, the one
+// POST /guest/session issues beside the id.
+const guestTok = (guestSessionId: string) =>
+  signToken(guestSessionId, { purpose: "guest", expiresIn: "1h" });
+
 
 const BUNDLE_ID = "com.kitchenwizard.kiwi";
 const GOOGLE_IOS = "111-ios.apps.googleusercontent.com";
@@ -656,7 +663,7 @@ describe("the guest claim works through OAuth too", () => {
     try {
       const res = await api.post("/auth/oauth/google", {
         idToken: googleToken(),
-        guestSessionId: "g-1",
+        guestSessionId: "g-1", guestToken: guestTok("g-1"),
         // The client also sent a platform. The guest claim is the more
         // specific fact and must win (D-WS9-264).
         platform: "web",
@@ -695,7 +702,7 @@ describe("the guest claim works through OAuth too", () => {
       const res = await api.post("/auth/oauth/apple", {
         identityToken: appleToken(),
         rawNonce: RAW_NONCE,
-        guestSessionId: "g-2",
+        guestSessionId: "g-2", guestToken: guestTok("g-2"),
       });
       assert.equal(res.status, 200);
       const body = (await res.json()) as any;
@@ -721,7 +728,7 @@ describe("the guest claim works through OAuth too", () => {
       const res = await api.post("/auth/oauth/apple", {
         identityToken: appleToken(),
         rawNonce: RAW_NONCE,
-        guestSessionId: "g-3",
+        guestSessionId: "g-3", guestToken: guestTok("g-3"),
       });
       assert.equal(res.status, 200, "their identity is verified; a stale demo must not lock them out");
       assert.equal(((await res.json()) as any).claimedPlanId, null);
@@ -734,7 +741,7 @@ describe("the guest claim works through OAuth too", () => {
     const prisma = makePrisma({ guest: { id: "g-4", expired: true } });
     const api = await spinUp(prisma);
     try {
-      const res = await api.post("/auth/oauth/google", { idToken: googleToken(), guestSessionId: "g-4" });
+      const res = await api.post("/auth/oauth/google", { idToken: googleToken(), guestSessionId: "g-4", guestToken: guestTok("g-4") });
       assert.equal(res.status, 409);
       assert.deepEqual(await res.json(), { code: "guest_session_invalid" });
       assert.equal(prisma._state().users.length, 0, "the transaction rolled back");
@@ -749,7 +756,7 @@ describe("the guest claim works through OAuth too", () => {
     try {
       const res = await api.post("/auth/oauth/google", {
         idToken: googleToken(),
-        guestSessionId: "g-1",
+        guestSessionId: "g-1", guestToken: guestTok("g-1"),
         templatePlanId: "t-1",
       });
       assert.equal(res.status, 400);

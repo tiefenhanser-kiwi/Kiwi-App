@@ -642,7 +642,7 @@ export function createWizardRouter(
       });
     } catch (err) {
       logger.warn(
-        { event: "guest_generation_persist_failed", guestSessionId, err },
+        { event: "guest_generation_persist_failed", guest: Boolean(guestSessionId), err },
         "Failed to persist the guest generation onto the session row",
       );
     }
@@ -699,7 +699,7 @@ export function createWizardRouter(
       });
     } catch (err) {
       logger.warn(
-        { event: "guest_event_write_failed", guestSessionId, funnelEvent: event, err },
+        { event: "guest_event_write_failed", guest: Boolean(guestSessionId), funnelEvent: event, err },
         "Failed to write a server-side guest funnel event",
       );
     }
@@ -759,7 +759,7 @@ export function createWizardRouter(
       }
     } catch (err) {
       logger.error(
-        { event: "guest_draft_persist_failed", guestSessionId, err },
+        { event: "guest_draft_persist_failed", guest: Boolean(guestSessionId), err },
         "Failed to persist the guest draft onto the session row",
       );
       return { status: "failed" };
@@ -2842,7 +2842,7 @@ export function createWizardRouter(
         logger.info(
           {
             event: "wizard_expand_catalog_only_gap",
-            guestSessionId,
+            guest: Boolean(guestSessionId),
             liveSlotCount: expanded.liveSlotTitles.length,
             storeSlotCount: expanded.storeSlotCount,
           },
@@ -3101,7 +3101,7 @@ export function createWizardRouter(
           logger.info(
             {
               event: "guest_picks_catalog_only_gap",
-              guestSessionId,
+              guest: Boolean(guestSessionId),
               liveSlotCount: expanded.liveSlotTitles.length,
               storeSlotCount: expanded.storeSlotCount,
             },
@@ -3123,7 +3123,7 @@ export function createWizardRouter(
           // all-store candidate has no live slot to send. Mapped, not thrown,
           // so a future change to expandCandidate cannot turn it into a 500.
           logger.warn(
-            { event: "guest_picks_expand_failed", guestSessionId, reason: expanded.reason },
+            { event: "guest_picks_expand_failed", guest: Boolean(guestSessionId), reason: expanded.reason },
             "Guest picks expand failed",
           );
           return withAIFailureStatus(res, expanded.reason).json({
@@ -3152,7 +3152,7 @@ export function createWizardRouter(
         return res.json(persisted.guestDraft);
       } catch (err) {
         logger.error(
-          { event: "guest_plan_from_picks_failed", guestSessionId, err },
+          { event: "guest_plan_from_picks_failed", guest: Boolean(guestSessionId), err },
           "POST /guest/plan-from-picks failed",
         );
         return res.status(500).json({ error: "failed to build plan" });
