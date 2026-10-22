@@ -170,24 +170,63 @@ export async function resolveIdentity(input: ResolveInput): Promise<ResolveOutco
 
   const byEmail = await prisma.user.findUnique({
     where: { email },
-    select: { id: true },
+    select: { id: true, email: true, passwordHash: true },
   });
   if (byEmail) {
-    const created = await prisma.userIdentity.create({
-      data: {
-        userId: byEmail.id,
-        provider,
-        subject: identity.subject,
-        emailAtLink: input.linkFacts.emailAtLink,
-        emailVerified: input.linkFacts.emailVerified,
-        isPrivateRelay: input.linkFacts.isPrivateRelay,
-        appleClientId: input.linkFacts.appleClientId,
-        appleRefreshTokenEnc: input.linkFacts.appleRefreshTokenEnc ?? null,
-      },
-      select: { id: true },
+    // ── SEC-2 #5 — THE PRE-HIJACK. ───────────────────────────────────────
+    //
+    // Password sign-up never proves the address. Anyone can create a password
+    // account on `victim@gmail.com` before the victim ever arrives; when the
+    // victim later taps "Continue with Google", the branch above links them
+    // INTO that account — and the squatter's password and live sessions keep
+    // working beside them, reading everything the victim adds.
+    //
+    // So when the account's email has NEVER been proven, the verified
+    // provider is the first proof, and the link takes the account for the
+    // person who just proved it: the password is cleared and every session
+    // issued before now is revoked. The victim keeps the account (and can set
+    // a password again through reset, which mails the address they control);
+    // the squatter keeps nothing.
+    //
+    // An account whose address WAS proven links as it always has — its
+    // password is the owner's.
+    const proven = await emailEverProven(prisma, byEmail.id, byEmail.email);
+    const linkedAt = new Date();
+    const created = await prisma.$transaction(async (tx) => {
+      const row = await tx.userIdentity.create({
+        data: {
+          userId: byEmail.id,
+          provider,
+          subject: identity.subject,
+          emailAtLink: input.linkFacts.emailAtLink,
+          emailVerified: input.linkFacts.emailVerified,
+          isPrivateRelay: input.linkFacts.isPrivateRelay,
+          appleClientId: input.linkFacts.appleClientId,
+          appleRefreshTokenEnc: input.linkFacts.appleRefreshTokenEnc ?? null,
+        },
+        select: { id: true },
+      });
+      if (!proven) {
+        await tx.user.update({
+          where: { id: byEmail.id },
+          data: { passwordHash: null, tokensValidFrom: linkedAt },
+        });
+      }
+      return row;
     });
+    if (!proven) {
+      logger.warn(
+        {
+          event: "oauth_link_secured_unproven_account",
+          provider,
+          userId: byEmail.id,
+          hadPassword: byEmail.passwordHash !== null,
+        },
+        "Linked a verified identity to an account whose email was never proven — password cleared, earlier sessions revoked",
+      );
+    }
     logger.info(
-      { event: "oauth_identity_linked", provider, userId: byEmail.id },
+      { event: "oauth_identity_linked", provider, userId: byEmail.id, emailWasProven: proven },
       "Linked a provider identity to the existing account with that verified email",
     );
     return {
@@ -248,6 +287,41 @@ export async function resolveIdentity(input: ResolveInput): Promise<ResolveOutco
     identityCreated: true,
     identityId: result.identityId,
   };
+}
+
+/**
+ * SEC-2 #5 — has anyone ever proven control of this account's address?
+ *
+ * There is no "email verified" column: password sign-up never sends a link.
+ * The evidence that exists is exactly two kinds, and either is enough:
+ *   · a provider identity already linked that asserted THIS address as
+ *     verified (an OAuth-created account always has one);
+ *   · a redeemed password-reset or email-change token (UsedToken). A reset
+ *     link is mailed to the account's address and an email change is
+ *     confirmed from the new one, and no path changes the address without
+ *     one of the two — so a redemption proves the address the account holds.
+ *
+ * Absence of evidence answers "never proven", which costs a genuine owner
+ * their password (they sign in with the provider they just used, or reset).
+ * The ledger is swept only when its tokens expire, and a sweep can only move
+ * an answer toward "never proven" — the safe direction.
+ */
+export async function emailEverProven(
+  prisma: PrismaClient,
+  userId: string,
+  email: string,
+): Promise<boolean> {
+  const [identity, redemption] = await Promise.all([
+    prisma.userIdentity.findFirst({
+      where: { userId, emailVerified: true, emailAtLink: { equals: email, mode: "insensitive" } },
+      select: { id: true },
+    }),
+    prisma.usedToken.findFirst({
+      where: { userId, purpose: { in: ["password_reset", "email_change"] } },
+      select: { jti: true },
+    }),
+  ]);
+  return identity !== null || redemption !== null;
 }
 
 /** The sign-IN claim: the plan follows, the preferences do NOT (guestClaim's header). */

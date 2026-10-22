@@ -158,7 +158,10 @@ function makePrisma(seed: Array<Partial<UserRow>> = []) {
         return row;
       },
       update: async ({ where }: { where: { id: string } }) => identities.find((i) => i.id === where.id)!,
+      // SEC-2 #5 — the "was this address ever proven?" read on the link branch.
+      findFirst: async () => null,
     },
+    usedToken: { findFirst: async () => null },
     mealPlanInstance: {
       findUnique: async ({ where }: { where: { id: string } }) => plans.get(where.id) ?? null,
     },

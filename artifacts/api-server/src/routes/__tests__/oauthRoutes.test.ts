@@ -138,7 +138,14 @@ const WIZARD_BODY = {
   difficulty: "medium",
 };
 
-function makePrisma(opts: { users?: Array<Partial<UserRow>>; guest?: { id: string; draft?: unknown; expired?: boolean } } = {}) {
+function makePrisma(
+  opts: {
+    users?: Array<Partial<UserRow>>;
+    guest?: { id: string; draft?: unknown; expired?: boolean };
+    // SEC-2 #5 — redeemed purpose tokens (the UsedToken ledger), by user id.
+    usedTokens?: Array<{ userId: string; purpose: string }>;
+  } = {},
+) {
   let uid = 0;
   let iid = 0;
   const state = {
@@ -219,7 +226,19 @@ function makePrisma(opts: { users?: Array<Partial<UserRow>>; guest?: { id: strin
         return row;
       },
     },
+    // SEC-2 #5 — the two "was this address ever proven?" reads.
+    usedToken: {
+      findFirst: async ({ where }: { where: { userId: string; purpose: { in: string[] } } }) =>
+        (opts.usedTokens ?? []).find((t) => t.userId === where.userId && where.purpose.in.includes(t.purpose)) ?? null,
+    },
     userIdentity: {
+      findFirst: async ({ where }: { where: { userId: string; emailVerified: boolean; emailAtLink: { equals: string } } }) =>
+        state.identities.find(
+          (i) =>
+            i.userId === where.userId &&
+            i.emailVerified === where.emailVerified &&
+            String(i.emailAtLink ?? "").toLowerCase() === where.emailAtLink.equals.toLowerCase(),
+        ) ?? null,
       findUnique: async ({ where }: { where: { provider_subject: { provider: string; subject: string } } }) => {
         const { provider, subject } = where.provider_subject;
         return state.identities.find((i) => i.provider === provider && i.subject === subject) ?? null;
@@ -321,6 +340,8 @@ async function spinUp(
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
       }),
+    get: (path: string, token: string) =>
+      fetch(`http://127.0.0.1:${port}/api${path}`, { headers: { authorization: `Bearer ${token}` } }),
     close: () => new Promise<void>((r) => server.close(() => r())),
   };
 }
@@ -431,7 +452,56 @@ describe("linking to an existing account", () => {
       assert.equal(st.users.length, 1, "no second account");
       assert.equal(st.identities.length, 1);
       assert.equal(st.identities[0].userId, "seed-1");
-      assert.equal(st.users[0].passwordHash, "$2a$hash", "the password still works too");
+      // SEC-2 #5 — this password account never proved its address (no reset,
+      // no email change, no verified identity): the link takes it for the
+      // person who just proved it. The password dies and so does every
+      // session issued before the link.
+      assert.equal(st.users[0].passwordHash, null, "an unproven account's password is cleared");
+      assert.ok(st.users[0].tokensValidFrom instanceof Date, "earlier sessions are revoked");
+    } finally {
+      await api.close();
+    }
+  });
+
+  it("SEC-2 #5: an account whose address WAS proven (a redeemed reset) keeps its password and sessions", async () => {
+    const prisma = makePrisma({
+      users: [{ email: "google-person@example.com", passwordHash: "$2a$hash", firstName: "Pass", lastName: "Word", onboardingComplete: true }],
+      usedTokens: [{ userId: "seed-1", purpose: "password_reset" }],
+    });
+    const api = await spinUp(prisma);
+    try {
+      const res = await api.post("/auth/oauth/google", { idToken: googleToken() });
+      assert.equal(res.status, 200);
+      const st = prisma._state();
+      assert.equal(st.identities.length, 1);
+      assert.equal(st.users[0].passwordHash, "$2a$hash", "the owner's password still works");
+      assert.equal(st.users[0].tokensValidFrom, undefined, "no session was revoked");
+    } finally {
+      await api.close();
+    }
+  });
+
+  it("SEC-2 #5: the squatter's session dies and the victim's new one works", async () => {
+    const prisma = makePrisma({
+      users: [{ email: "google-person@example.com", passwordHash: "$2a$squatter", firstName: "Squat", lastName: "Ter" }],
+    });
+    // A session the squatter holds from BEFORE the link (iat 1 minute ago).
+    const squatterToken = jwt.sign(
+      { userId: "seed-1", purpose: "session", iat: Math.floor(Date.now() / 1000) - 60 },
+      process.env["JWT_SECRET"]!,
+      { expiresIn: "30d" },
+    );
+    const api = await spinUp(prisma);
+    try {
+      const before = await api.get("/auth/me", squatterToken);
+      assert.equal(before.status, 200, "the squatter is signed in before the link");
+      const res = await api.post("/auth/oauth/google", { idToken: googleToken() });
+      assert.equal(res.status, 200);
+      const victimToken = ((await res.json()) as any).authToken as string;
+      assert.equal((await api.get("/auth/me", squatterToken)).status, 401, "the squatter's session is dead");
+      assert.equal((await api.get("/auth/me", victimToken)).status, 200, "the victim's is live");
+      const login = await api.post("/auth/login", { email: "google-person@example.com", password: "whatever-it-was" });
+      assert.equal(login.status, 401, "and the squatter's password no longer signs in");
     } finally {
       await api.close();
     }
