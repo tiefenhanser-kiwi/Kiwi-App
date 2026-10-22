@@ -12,7 +12,6 @@ import type { PrismaClient } from "@prisma/client";
 
 import { loadPrepWeekInput } from "../../src/lib/prepWeekAggregation";
 import { buildFeastSession } from "../../src/lib/prepWeekBuild";
-import { formatMeasure } from "../../src/lib/prepWeekAssembly";
 import { readOnlyPrisma } from "./thx2Prep";
 
 export const HELD_READ_AT = new Date("2026-11-22T15:00:00Z");
@@ -52,30 +51,9 @@ export async function heldCutsOf(prisma: PrismaClient, mealId: string): Promise<
   return out;
 }
 
-const PARTICIPLES: Record<string, string> = {
-  peeled: "peel", cut: "cut", sliced: "slice", diced: "dice", chopped: "chop", minced: "mince", cubed: "cube",
-  halved: "halve", quartered: "quarter", trimmed: "trim", grated: "grate", scrubbed: "scrub", cored: "core", seeded: "seed",
-};
-const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-
-/** "5 pound russet potatoes, peeled and cut into 2-inch chunks" → "Peel and cut 5 lb russet potatoes into 2-inch chunks." Null when there is nothing to cut. How the cut waits is heldMorning's, by what comes next. */
-export function cutSentence(row: { quantity: number; unit: string; name: string; note: string | null }): string | null {
-  const note = (row.note ?? "").split(/,\s*(?:for|to)\b|\(/i)[0].trim().toLowerCase();
-  const m = /^((?:(?:finely|thinly|roughly|coarsely)\s+)?[a-z]+(?:(?:,\s*|\s+and\s+)(?:(?:finely|thinly|roughly|coarsely)\s+)?[a-z]+)*)(.*)$/.exec(note);
-  if (!m) return null;
-  const words = m[1].split(/(?:,\s*|\s+and\s+)/);
-  const verbs = words.map((w) => {
-    const [adv, part] = /\s/.test(w) ? w.split(/\s+/) : ["", w];
-    const v = PARTICIPLES[part];
-    return v ? `${adv ? `${adv} ` : ""}${v}` : null;
-  });
-  if (verbs.length === 0 || verbs.some((v) => v === null)) return null;
-  const list = verbs.length === 1 ? verbs[0]! : `${verbs.slice(0, -1).join(", ")} and ${verbs[verbs.length - 1]}`;
-  const amount = formatMeasure(row.quantity, row.unit, row.name, { asWritten: true });
-  const name = row.name.toLowerCase().split(/[,(]/)[0].trim();
-  const rest = m[2].trim();
-  return `${cap(list)} ${amount} ${name}${rest ? ` ${rest}` : ""}.`;
-}
+// The cut's words and the already-cut test are the server's (the weeknight read path
+// words a plan's held cuts the same way).
+export { alreadyCut, cutSentence } from "../../src/lib/heldMorning";
 
 const RUN_PREFIX = /^\s*(Make ahead \(([A-Za-z]+(?: night)?)\)|On ([A-Za-z]+day))\s*:\s*/i;
 
@@ -99,10 +77,4 @@ export function heldCutPlace(steps: readonly { stepIndex: number; text: string }
   const runStart = dayOf.findIndex((d) => d === runDay);
   const run = sorted.filter((_, i) => dayOf[i] === runDay);
   return { at: sorted[runStart].stepIndex, prefix: RUN_PREFIX.exec(sorted[runStart].text)?.[0] ?? "", firstText: sorted[runStart].text, runTexts: run.map((s) => s.text) };
-}
-
-/** True when a step already cuts this food (a cut verb, then its head word, in one clause). */
-export function alreadyCut(texts: readonly string[], name: string): boolean {
-  const head = name.toLowerCase().split(/[,(]/)[0].trim().split(/\s+/).pop()!.replace(/(?:es|s)$/, "");
-  return texts.some((t) => new RegExp(`\\b(?:peel|cut|slice|dice|chop|mince|grate|core|scrub|halve|quarter|trim|cube)\\b[^.;]{0,80}\\b${head}`, "i").test(t));
 }

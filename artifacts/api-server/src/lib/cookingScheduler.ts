@@ -717,7 +717,7 @@ export function scheduleCookingSequence(
   if (core.steps.length === 0) return core;
   const input = dishes.map((d) => ({ ...d, steps: selectDefaultPathSteps(d.steps) })).filter((d) => d.steps.length > 0);
   // THX-3d round 2 (M) — a morning step and what leads to it, in the first free window.
-  const result = heldMorningFirst(core, input);
+  const result = heldMorningFirst(core, input, { lead: !opts.feastOven });
   if (!opts.feastOven) return result;
   // THX-3d (R4) — the steps merged away, for the client (it must not append them).
   const kept = new Set(mergeFeastPreheats(input).dishes.flatMap((d) => d.steps.map((s) => `${d.dishId}#${s.stepIndex}`)));
@@ -738,6 +738,10 @@ export function scheduleCookingSequence(
 // day, before the dish's next step. When the hands are never free that early the block
 // opens the day instead. Only the day's own steps count (make-ahead and thaw runs are
 // the Hub's). A meal without a morning step is returned untouched.
+//
+// A weeknight dinner is no day-long session: its morning step is Cook Mode's FIRST step
+// (Hans: "the note becomes that day's first Cook Mode step"), so for any meal but a
+// feast (`lead`) every block opens the day.
 
 /** How a morning step's food waits — its last words (heldMorning.ts writes them). */
 export const HOLD_BOILED = "and leave the pot on the stove, off, until it's time to cook";
@@ -745,14 +749,16 @@ export const HOLD_TOSSED = "they can sit, covered, in the fridge for a few hours
 export const HOLD_BROWNS = "keep them in cold water until it's time to cook";
 export const HOLD_GARNISH = "keep it covered in a small container in the fridge until serving";
 export const HOLD_OTHER = "keep it covered in the fridge until it's time to cook";
+/** The same, for a food said in the plural ("the broccoli florets"). */
+export const HOLD_OTHER_PLURAL = "keep them covered in the fridge until it's time to cook";
 /** A morning step: it ends with one of those. */
 export const HELD_MORNING_STEP =
-  /(?:leave the pot on the stove, off, until it's time to cook|they can sit, covered, in the fridge for a few hours|keep them in cold water until it's time to cook|keep it covered in a small container in the fridge until serving|keep it covered in the fridge until it's time to cook)\.\s*$/i;
+  /(?:leave the pot on the stove, off, until it's time to cook|they can sit, covered, in the fridge for a few hours|keep them in cold water until it's time to cook|keep it covered in a small container in the fridge until serving|keep (?:it|them) covered in the fridge until it's time to cook)\.\s*$/i;
 
 const AHEAD_RUN_START = /^\s*(?:make ahead|thaw) \(/i;
 const ON_THE_DAY = /^\s*on [a-z]+day:/i;
 
-export function heldMorningFirst(res: ScheduleResult, dishes: readonly SchedulerDish[]): ScheduleResult {
+export function heldMorningFirst(res: ScheduleResult, dishes: readonly SchedulerDish[], opts: { lead?: boolean } = {}): ScheduleResult {
   const key = (dishId: string, stepIndex: number) => `${dishId}#${stepIndex}`;
   const entryOf = new Map(res.steps.map((e) => [key(e.dishId, e.originalStepIndex), e]));
   const stepOf = new Map(dishes.flatMap((d) => d.steps.map((s) => [key(d.dishId, s.stepIndex), s] as const)));
@@ -795,7 +801,7 @@ export function heldMorningFirst(res: ScheduleResult, dishes: readonly Scheduler
   };
   for (const c of chains) {
     const deadline = start.get(c.next)!;
-    const at = [dayStart, ...busy.map(([, b1]) => b1)].filter((t) => t >= dayStart).sort((a, b) => a - b).find((t) => t + c.minutes <= deadline && free(t, c.minutes));
+    const at = opts.lead ? undefined : [dayStart, ...busy.map(([, b1]) => b1)].filter((t) => t >= dayStart).sort((a, b) => a - b).find((t) => t + c.minutes <= deadline && free(t, c.minutes));
     if (at === undefined) leaders.push(c);
     else {
       lay(c, at);

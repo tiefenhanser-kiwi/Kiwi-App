@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import { boilHold, plainHold, spreadOnPan, tossHold } from "../heldMorning";
+import { morningSteps } from "../heldCookDay";
 import { HELD_MORNING_STEP, heldMorningFirst, scheduleCookingSequence, type SchedulerDish, type SchedulerPhase } from "../cookingScheduler";
 
 describe("THX-3d M — boiled: into the recipe's own pot, left on the stove, off", () => {
@@ -96,7 +97,7 @@ describe("THX-3d M — the scheduler does the morning chain in the day's first f
   ]);
 
   it("not timed to the pot: right after the first hands-on work, hours before the burner", () => {
-    const r = scheduleCookingSequence([ROAST, MASH]);
+    const r = scheduleCookingSequence([ROAST, MASH], { feastOven: true });
     const rub = start(r, "roast", 0);
     assert.equal(start(r, "mash", 0), rub + 20, "the cut follows the rub, the first moment the hands are free");
     assert.ok(start(r, "mash", 1) - start(r, "mash", 0) > 120, `the burner is still timed to the meal (${start(r, "mash", 1)})`);
@@ -112,7 +113,7 @@ describe("THX-3d M — the scheduler does the morning chain in the day's first f
       st(3, "prep", 2, "Spread the sweet potatoes in a single layer on a rimmed sheet pan."),
       st(4, "cook", 32, "Roast at 350°F for 30–35 minutes."),
     ]);
-    const r = scheduleCookingSequence([ROAST, sweet]);
+    const r = scheduleCookingSequence([ROAST, sweet], { feastOven: true });
     const rubEnd = start(r, "roast", 0) + 20;
     assert.deepEqual([0, 1, 2].map((i) => start(r, "sweet", i)), [rubEnd, rubEnd + 5, rubEnd + 9]);
     assert.ok(start(r, "sweet", 3) > rubEnd + 60, "the spread stays with the oven");
@@ -122,14 +123,70 @@ describe("THX-3d M — the scheduler does the morning chain in the day's first f
     const busy = dish("busy", "Stovetop Stuffing", 0, [st(0, "prep", 10, "Chop the onion and celery."), st(1, "cook", 10, "Sauté until soft, stirring constantly.", true)]);
     // The pot is the longest thing in the meal: it starts the day, so nothing is free before it.
     const mash = dish("mash", "Mashed Potatoes", 1, [st(0, "prep", 8, HELD), st(1, "cook", 60, "Turn the burner on under the pot of potatoes and simmer 60 minutes.")]);
-    const r = scheduleCookingSequence([busy, mash]);
+    const r = scheduleCookingSequence([busy, mash], { feastOven: true });
     assert.equal(r.steps[0].dishId, "mash");
     assert.equal(r.steps[0].startOffsetMinutes, -r.totalEstimatedMinutes);
+  });
+
+  it("a weeknight (no feast oven): the morning chain is Cook Mode's first step, before the meal's own first step", () => {
+    const r = scheduleCookingSequence([ROAST, MASH]);
+    assert.deepEqual(r.steps.slice(0, 2).map((s) => `${s.dishId}#${s.originalStepIndex}`), ["mash#0", "roast#0"]);
+    assert.equal(start(r, "mash", 0), -r.totalEstimatedMinutes);
+    assert.equal(start(r, "roast", 0), start(r, "mash", 0) + 8);
   });
 
   it("a meal with no morning step is scheduled exactly as before", () => {
     const plain = [ROAST, dish("mash", "Mashed Potatoes", 1, [st(0, "prep", 8, "Peel and cut 5 lb potatoes."), st(1, "cook", 20, "Boil 20 minutes.")])];
     const r = scheduleCookingSequence(plain);
     assert.deepEqual(heldMorningFirst(r, plain), r);
+  });
+});
+
+describe("THX-3d M — a weeknight's held cut is the dish's first step (read time, heldCookDay)", () => {
+  const ms = (stepIndex: number, text: string, estimatedMinutes = 2, phaseType = "cook") => ({ stepIndex, text, estimatedMinutes, phaseType });
+  // hh2/hh4's Friday: Parmesan-Crusted Pork Chops' Garlic Butter Broccoli, as stored on dev.
+  const BROCCOLI = [
+    ms(0, "Mince the 4 garlic cloves and cut 1¼ pounds broccoli into bite-sized florets if not already done.", 5, "prep"),
+    ms(1, "Bring a large pot of salted water to a boil over high heat.", 6, "preheat"),
+    ms(2, "Blanch the broccoli florets in the boiling water for 2 minutes, then drain and pat dry.", 3),
+    ms(5, "Remove from heat, squeeze over the juice of ½ lemon (optional), and transfer to a serving dish.", 1, "assemble"),
+  ];
+  const HELD = [
+    { name: "lemon", quantity: 0.5, unit: "each", note: "juiced" },
+    { name: "broccoli florets", quantity: 1.25, unit: "pound", note: "cut into bite-sized pieces" },
+  ];
+
+  it("Friday's note (\"juice the lemon and prep the broccoli florets that morning\") leads the dish, each with how it waits", () => {
+    const out = morningSteps(BROCCOLI, HELD);
+    assert.deepEqual(out.map((s) => [s.stepIndex, s.isNew, s.text]), [
+      [6, true, "Juice ½ lemon; keep it covered in the fridge until it's time to cook."],
+      [0, false, "Mince the 4 garlic cloves and cut 1¼ pounds broccoli into bite-sized florets if not already done; keep them covered in the fridge until it's time to cook."],
+      [1, false, BROCCOLI[1].text],
+      [2, false, BROCCOLI[2].text],
+      [5, false, "Remove from heat, pour over the lemon juice (optional), and transfer to a serving dish."],
+    ]);
+    assert.ok(out.slice(0, 2).every((s) => HELD_MORNING_STEP.test(s.text)));
+  });
+
+  it("the boil and the toss read the same as the feasts'; nothing held is nothing changed", () => {
+    const pot = morningSteps(
+      [ms(0, "Place 2 lb peeled, 1-inch potato chunks in a large saucepan; cover with cold water by 1 inch and add 1 teaspoon kosher salt.", 4), ms(1, "Bring to a boil and cook 15 minutes.", 15)],
+      [{ name: "russet potatoes", quantity: 2, unit: "pound", note: "peeled and cut into 1-inch chunks" }],
+    );
+    assert.deepEqual(pot.map((s) => s.text), [
+      "Peel and cut 2 lb russet potatoes into 1-inch chunks; put them in a large saucepan, cover with cold water by 1 inch, add 1 teaspoon kosher salt, and leave the pot on the stove, off, until it's time to cook.",
+      "Turn the burner on under the pot of potatoes.",
+      "Bring to a boil and cook 15 minutes.",
+    ]);
+    const roast = morningSteps(
+      [ms(0, "Cut 1 lb broccoli into florets and toss with 2 tablespoons olive oil and ½ teaspoon salt; spread on a sheet pan.", 4, "prep"), ms(1, "Roast at 425°F for 20 minutes.", 20)],
+      [{ name: "broccoli", quantity: 1, unit: "pound", note: "cut into florets" }],
+    );
+    assert.deepEqual(roast.map((s) => [s.stepIndex, s.text]), [
+      [0, "Cut 1 lb broccoli into florets and toss with 2 tablespoons olive oil and ½ teaspoon salt; they can sit, covered, in the fridge for a few hours."],
+      [2, "Spread the broccoli on a sheet pan."],
+      [1, "Roast at 425°F for 20 minutes."],
+    ]);
+    assert.ok(morningSteps(BROCCOLI, []).every((s) => !s.changed));
   });
 });

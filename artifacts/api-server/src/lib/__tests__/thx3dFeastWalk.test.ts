@@ -92,6 +92,27 @@ describe("THX-3d — the five dev feasts, walked", { skip: RUN ? false : "set TH
     assert.doesNotMatch(crisp, /Lemon juice/);
   });
 
+  it("M — a weeknight's held cut (WEEK device · hh2, Friday) leads its dish with how it waits", async () => {
+    const { weeknightMorningFor } = await import("../heldCookDay");
+    const plan = await prisma.mealPlanInstance.findFirst({
+      where: { titleOverride: "WEEK device · hh2", isArchived: false },
+      select: { id: true, userId: true, items: { where: { assignedDayOfWeek: "Friday" }, select: { mealId: true } } },
+    });
+    if (!plan || plan.items.length !== 1) return; // the dev week plan is made by scripts/_scratch/thx-3d/weekPlans.ts
+    const mealId = plan.items[0].mealId;
+    const links = await prisma.mealDishLink.findMany({ where: { mealId }, select: { dishId: true } });
+    const steps = await prisma.recipeInstructionStep.findMany({ where: { ownerType: "dish", ownerId: { in: links.map((l) => l.dishId) } }, select: { ownerId: true, stepIndex: true, stepTextTranslated: true, estimatedMinutes: true, phaseType: true } });
+    const morning = await weeknightMorningFor(prisma, {
+      planId: plan.id, userId: plan.userId, mealId,
+      dishes: links.map((l) => ({ dishId: l.dishId, steps: steps.filter((s) => s.ownerId === l.dishId).map((s) => ({ stepIndex: s.stepIndex, text: s.stepTextTranslated, estimatedMinutes: s.estimatedMinutes, phaseType: s.phaseType })) })),
+    });
+    const broccoli = [...morning.values()][0];
+    assert.ok(broccoli, "Friday's broccoli is reshaped");
+    assert.match(broccoli[0].text, /^Juice ½ lemon; keep it covered in the fridge/);
+    assert.ok(broccoli[0].isNew);
+    assert.match(broccoli[1].text, /broccoli into bite-sized florets.*; keep them covered in the fridge until it's time to cook\.$/);
+  });
+
   async function feastSteps(key: string) {
     return (await feastBuild(key)).stepPlan.steps.filter((s) => !s.demoted);
   }

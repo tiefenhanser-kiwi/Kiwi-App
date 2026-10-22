@@ -26,7 +26,8 @@
 
 // The words that end a morning step, and the scheduler's marker for "do this early"
 // (HELD_MORNING_STEP), live in the dependency-free scheduler.
-import { HOLD_BOILED, HOLD_BROWNS, HOLD_GARNISH, HOLD_OTHER, HOLD_TOSSED } from "./cookingScheduler";
+import { HOLD_BOILED, HOLD_BROWNS, HOLD_GARNISH, HOLD_OTHER, HOLD_OTHER_PLURAL, HOLD_TOSSED } from "./cookingScheduler";
+import { formatMeasure } from "./prepWeekAssembly";
 
 export { HELD_MORNING_STEP } from "./cookingScheduler";
 
@@ -40,6 +41,38 @@ export const splitPrefix = (text: string): { prefix: string; body: string } => {
   const prefix = RUN_PREFIX.exec(text)?.[0] ?? "";
   return { prefix, body: text.slice(prefix.length) };
 };
+
+const PARTICIPLES: Record<string, string> = {
+  peeled: "peel", cut: "cut", sliced: "slice", diced: "dice", chopped: "chop", minced: "mince", cubed: "cube",
+  halved: "halve", quartered: "quarter", trimmed: "trim", grated: "grate", scrubbed: "scrub", cored: "core", seeded: "seed",
+  juiced: "juice", zested: "zest",
+};
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** "5 pound russet potatoes, peeled and cut into 2-inch chunks" → "Peel and cut 5 lb russet potatoes into 2-inch chunks." Null when there is nothing to cut. How the cut waits is the hold's, by what comes next. */
+export function cutSentence(row: { quantity: number; unit: string; name: string; note: string | null }): string | null {
+  const note = (row.note ?? "").split(/,\s*(?:for|to)\b|\(/i)[0].trim().toLowerCase();
+  const m = /^((?:(?:finely|thinly|roughly|coarsely)\s+)?[a-z]+(?:(?:,\s*|\s+and\s+)(?:(?:finely|thinly|roughly|coarsely)\s+)?[a-z]+)*)(.*)$/.exec(note);
+  if (!m) return null;
+  const words = m[1].split(/(?:,\s*|\s+and\s+)/);
+  const verbs = words.map((w) => {
+    const [adv, part] = /\s/.test(w) ? w.split(/\s+/) : ["", w];
+    const v = PARTICIPLES[part];
+    return v ? `${adv ? `${adv} ` : ""}${v}` : null;
+  });
+  if (verbs.length === 0 || verbs.some((v) => v === null)) return null;
+  const list = verbs.length === 1 ? verbs[0]! : `${verbs.slice(0, -1).join(", ")} and ${verbs[verbs.length - 1]}`;
+  const amount = formatMeasure(row.quantity, row.unit, row.name, { asWritten: true });
+  const name = row.name.toLowerCase().split(/[,(]/)[0].trim();
+  const rest = m[2].trim();
+  return `${cap(list)} ${amount} ${name}${rest ? ` ${rest}` : ""}.`;
+}
+
+/** True when a step already cuts this food (a cut verb, then its head word, in one clause). */
+export function alreadyCut(texts: readonly string[], name: string): boolean {
+  const head = name.toLowerCase().split(/[,(]/)[0].trim().split(/\s+/).pop()!.replace(/(?:es|s)$/, "");
+  return texts.some((t) => new RegExp(`\\b(?:peel|cut|slice|dice|chop|mince|grate|core|scrub|halve|quarter|trim|cube|juice|zest)\\b[^.;]{0,80}\\b${head}`, "i").test(t));
+}
 
 /** The food's head word, singular ("Russet potatoes" → "potato"). */
 export const headOf = (name: string): string =>
@@ -117,5 +150,12 @@ export function plainHold(cut: string, name: string, note: string | null): strin
   const body = cutBody(cut);
   if (BROWNS.test(name)) return `${body}; ${HOLD_BROWNS}.`;
   if (HERB.test(name) || /\bgarnish\b/i.test(note ?? "")) return `${body}; ${HOLD_GARNISH}.`;
-  return `${body}; ${HOLD_OTHER}.`;
+  const plural = /s$/i.test(name.toLowerCase().split(/[,(]/)[0].trim());
+  return `${body}; ${plural ? HOLD_OTHER_PLURAL : HOLD_OTHER}.`;
+}
+
+/** A citrus juiced in the morning is poured where the recipe squeezed it: "squeeze over the juice of ½ lemon" → "pour over the lemon juice". */
+export function pourJuice(text: string): string {
+  return text.replace(/\bsqueeze (over |in |into )?the juice (?:of|from) (?:an? |a half |½ |¼ |\d+(?:\.\d+)? )?(lemon|lime|orange)s?\b/gi, (m, where: string | undefined, fruit: string) =>
+    `${m.charAt(0) === "S" ? "Pour" : "pour"} ${where ?? "in "}the ${fruit.toLowerCase()} juice`);
 }

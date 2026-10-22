@@ -40,6 +40,8 @@ import { buildSwapPool, SwapSourceNotFoundError, type SwapPoolCandidate } from "
 import { everydayPoolWhere } from "../lib/store/storeShortlist";
 import { hasUnmatchedAmount, type AmountRef } from "../lib/stepAmountRefs";
 import { feastCookWordingFor } from "../lib/feastCookWording";
+import { weeknightMorningFor } from "../lib/heldCookDay";
+import { FEAST_MEAL_TAG } from "../lib/prepWeekAggregation";
 import {
   subscriptionService as productionSubscriptionService,
   type SubscriptionService,
@@ -1147,6 +1149,42 @@ export function createMealsRouter(
           }
         } catch (err) {
           logger.warn({ err, id, event: "feast_cook_wording_failed" }, "Feast Cook Mode wording failed — stored words served");
+        }
+      }
+      // THX-3d round 2 (M) — A WEEKNIGHT'S MORNING CUT. A cut this plan's Prep the Week
+      // leaves for the meal's day is the dish's first step, with how it waits
+      // (lib/heldCookDay): a new step takes the next stepIndex after the dish's last and
+      // comes first in the array; a step it rewords keeps its own. Read time, no AI,
+      // nothing stored; the cooking sequence reads the same steps. A failure logs and
+      // serves the steps as they were.
+      if (planIdOfItem && req.userId && !(meal.tags ?? []).includes(FEAST_MEAL_TAG)) {
+        try {
+          const morning = await weeknightMorningFor(prisma, {
+            planId: planIdOfItem,
+            userId: req.userId,
+            mealId: id,
+            dishes: meal.dishes.map((d) => ({ dishId: d.dishId, steps: d.steps.map((s) => ({ stepIndex: s.stepIndex, text: s.text, estimatedMinutes: s.estimatedMinutes, phaseType: s.phaseType })) })),
+          });
+          for (const d of meal.dishes) {
+            const m = morning.get(d.dishId);
+            if (!m) continue;
+            const was = new Map(d.steps.map((s) => [s.stepIndex, s]));
+            d.steps = m.map((s) => {
+              const stored = was.get(s.stepIndex);
+              if (stored && !s.changed) return stored;
+              return {
+                ...(stored ?? { requiresPreheat: false, requiresRest: false, requiresMarination: false, isTimingSensitive: false, parallelGroup: null, componentKey: null, pathKey: null }),
+                stepIndex: s.stepIndex,
+                text: s.text,
+                estimatedMinutes: s.estimatedMinutes,
+                phaseType: s.phaseType,
+                amountRefs: s.amountRefs,
+                unmatchedAmount: hasUnmatchedAmount(s.text, s.amountRefs),
+              };
+            });
+          }
+        } catch (err) {
+          logger.warn({ err, id, event: "weeknight_morning_failed" }, "Weeknight morning steps failed — stored steps served");
         }
       }
       return res.json({ meal });

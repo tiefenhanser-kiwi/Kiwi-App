@@ -242,7 +242,8 @@ for (const t of feasts) {
         }
       }
       const after = run.filter((e) => e.stepIndex > (cut?.stepIndex ?? -1));
-      const next = after.find((e) => head.test(e.text) || /\b(?:chunks|cubes|pieces)\b/i.test(e.text));
+      // The next step that names the food; failing that, one that names its pieces.
+      const next = after.find((e) => head.test(e.text)) ?? after.find((e) => /\b(?:chunks|cubes|pieces|florets)\b/i.test(e.text));
       const nextBody = next ? splitPrefix(next.text) : null;
       const boil = nextBody ? boilHold(cut ? splitPrefix(cut.text).body : null, nextBody.body, name) : null;
       if (boil && next) {

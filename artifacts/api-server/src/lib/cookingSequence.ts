@@ -22,6 +22,7 @@ import {
 } from "./cookingScheduler";
 import type { SequencedStep } from "./ai/schemas/sequencer";
 import { logger } from "./logger";
+import { weeknightMorningFor } from "./heldCookDay";
 import { onTheDaySteps } from "./mealTiming";
 import { FEAST_MEAL_TAG } from "./prepWeekAggregation";
 
@@ -200,7 +201,60 @@ export async function runCookingSequence(
   // them in the flow, trailing, until D-WS9-148's toggle decides what to show.
   // THX-3 (BUG-449) — a feast's oven frees when the bird comes out; every other
   // meal is scheduled exactly as before.
-  const result = scheduleCookingSequence(schedulerDishes, isFeast ? { feastOven: true } : {});
+  // THX-3d round 2 (M) — A WEEKNIGHT'S MORNING CUT. A meal in one of the user's plans
+  // whose Prep the Week leaves a cut for its day ("prep the broccoli florets that
+  // morning") is sequenced with the morning steps the meal detail shows in that plan
+  // (heldCookDay): the cut first, with how it waits, done in the first free window.
+  // The scheduler reads a dish's steps in order, so they go in as the morning orders
+  // them and come back under their own stepIndex (a new step's is after the dish's
+  // last). The meal is the user's copy, so its plan is the one item that holds it.
+  // Fails open: any miss sequences the stored steps exactly as before.
+  const realIndex = new Map<string, number[]>();
+  if (!isFeast && isOwner) {
+    try {
+      const items = await prisma.mealPlanItem.findMany({
+        where: { mealId, planInstance: { userId, isArchived: false } },
+        select: { mealPlanInstanceId: true },
+        take: 2,
+      });
+      if (items.length === 1) {
+        const morning = await weeknightMorningFor(prisma, {
+          planId: items[0].mealPlanInstanceId,
+          userId,
+          mealId,
+          dishes: schedulerDishes.map((d) => ({ dishId: d.dishId, steps: d.steps.map((s) => ({ stepIndex: s.stepIndex, text: s.text ?? "", estimatedMinutes: s.estimatedMinutes, phaseType: s.phaseType })) })),
+        });
+        for (const d of schedulerDishes) {
+          const m = morning.get(d.dishId);
+          if (!m) continue;
+          const byIndex = new Map(d.steps.map((s) => [s.stepIndex, s]));
+          realIndex.set(d.dishId, m.map((s) => s.stepIndex));
+          d.steps = m.map((s, i) => ({
+            isTimingSensitive: false,
+            parallelGroup: null,
+            componentKey: null,
+            pathKey: null,
+            ...byIndex.get(s.stepIndex),
+            stepIndex: i,
+            text: s.text,
+            estimatedMinutes: Math.max(1, s.estimatedMinutes),
+            phaseType: s.phaseType as SchedulerPhase,
+          }));
+        }
+      }
+    } catch (err) {
+      realIndex.clear();
+      logger.warn({ event: "cooking_sequence_morning_failed", mealId, err }, "Weeknight morning steps failed — stored steps sequenced");
+    }
+  }
+  const scheduled = scheduleCookingSequence(schedulerDishes, isFeast ? { feastOven: true } : {});
+  const result = realIndex.size === 0 ? scheduled : {
+    ...scheduled,
+    steps: scheduled.steps.map((e) => {
+      const real = realIndex.get(e.dishId);
+      return real ? { ...e, originalStepIndex: real[e.originalStepIndex] } : e;
+    }),
+  };
   // WS9 D-WS9-239 — an ignored tag is a tagging defect, logged and moved past:
   // the step waited (rule 4), so the sequence is the conservative one.
   if (result.ignoredTags.length > 0) {
