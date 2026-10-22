@@ -13,7 +13,15 @@ import {
   type EmailSender,
 } from "../lib/email/sendEmail";
 import { prisma as productionPrisma } from "../lib/prisma";
-import { countFailedAttempt, perEmailLimit, rateLimit } from "../lib/rateLimit";
+import {
+  clearPerEmailLimit,
+  countFailedAttempt,
+  EMAIL_PER_DAY,
+  EMAIL_PER_MINUTE,
+  LOGIN_FAILURE_WINDOW,
+  perEmailLimit,
+  rateLimit,
+} from "../lib/rateLimit";
 import {
   bumpTokensValidFrom,
   isIssuedBeforeEpoch,
@@ -60,8 +68,10 @@ const meLimiter = rateLimit({ capacity: 30, refillPerSec: 30 / 60 });
 const resetLimiter = rateLimit({ capacity: 5, refillPerSec: 5 / 300 }); // 5 burst, ~1/60s
 // SEC-2 #1 — per-EMAIL, whatever the IP (lib/rateLimit.ts perEmailLimit). Login
 // spends only on a failed attempt; a reset request spends on every call.
-const loginEmailLimiter = perEmailLimit("failures");
-const resetEmailLimiter = perEmailLimit("all");
+// SEC-2b — login failures sit in a 15-minute window, never a daily lockout,
+// and a completed password reset clears it.
+const loginEmailLimiter = perEmailLimit({ name: "login", count: "failures", windows: [LOGIN_FAILURE_WINDOW] });
+const resetEmailLimiter = perEmailLimit({ name: "reset_request", count: "all", windows: [EMAIL_PER_MINUTE, EMAIL_PER_DAY] });
 
 
 // Password-reset tokens are short-lived per WS7-2 Block A. Reuses the
@@ -1162,6 +1172,9 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
       // the new password, which is also the only outcome that proves the reset
       // took. Minting a session here would be a client-visible contract change
       // and is out of this block's scope.
+      // SEC-2b — the person just proved they own the inbox: failed logins piled
+      // up against this address (theirs or a stranger's) no longer hold them back.
+      clearPerEmailLimit("login", user.email);
       logger.info({ userId: user.id }, "Password reset completed");
       return res.json({ success: true });
     } catch (err) {

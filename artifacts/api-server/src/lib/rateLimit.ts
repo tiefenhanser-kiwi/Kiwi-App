@@ -73,6 +73,13 @@ export function routeKey(req: Request): string {
   return raw.length > 1 ? raw.replace(/\/+$/, "") : raw;
 }
 
+// SEC-2b — the limiter's clock, swappable so a test can move a 15-minute
+// window forward without waiting for it. Production never touches it.
+let clock: () => number = () => Date.now();
+export function __setRateLimitClockForTests(fn: (() => number) | null): void {
+  clock = fn ?? (() => Date.now());
+}
+
 export interface BucketVerdict {
   ok: boolean;
   /** Seconds until one token is back. Meaningful only when `ok` is false. */
@@ -106,13 +113,13 @@ export function createBucket(opts: {
 
   return {
     check(key: string): BucketVerdict {
-      const tokens = current(key, Date.now());
+      const tokens = current(key, clock());
       return tokens < 1
         ? { ok: false, retryAfter: Math.ceil((1 - tokens) / refillPerSec) }
         : { ok: true, retryAfter: 0 };
     },
     consume(key: string): void {
-      const now = Date.now();
+      const now = clock();
       STORE.set(key, { tokens: current(key, now) - 1, updatedAt: now });
     },
   };
@@ -155,8 +162,11 @@ export function emailKey(req: Request): string | null {
   return email === "" ? null : email;
 }
 
-const EMAIL_PER_MINUTE = { capacity: 10, refillPerSec: 10 / 60 };
-const EMAIL_PER_DAY = {
+type BucketOptions = { capacity: number; refillPerSec: number; windowMs?: number };
+
+/** Password-reset REQUESTS per email: 10 a minute, 30 a day (each is a mail to a real inbox). */
+export const EMAIL_PER_MINUTE: BucketOptions = { capacity: 10, refillPerSec: 10 / 60 };
+export const EMAIL_PER_DAY: BucketOptions = {
   capacity: 30,
   refillPerSec: 30 / 86_400,
   // The daily bucket must outlive the eviction sweep's idle window, or a
@@ -165,24 +175,43 @@ const EMAIL_PER_DAY = {
 };
 
 /**
- * SEC-2 #1 — per-EMAIL limits, whatever the IP: 10 a minute and 30 a day. The
- * IP limiter alone is walkable by anyone with more than one address (and on
- * Cloud Run with TRUST_PROXY_HOPS unset it is one global bucket); this one
- * bounds the guesses against a single account wherever they come from.
+ * SEC-2b — FAILED LOGINS per email: 10, refilling over 15 minutes, and NO
+ * daily bucket. SEC-2 #1 also capped failures at 30 a day, and that cap was a
+ * weapon: thirty wrong guesses from anywhere locked the real owner out of
+ * their password sign-in for the rest of the day. A short window bounds the
+ * guessing just as surely (about one guess per 90 s sustained) while an
+ * attacker can only ever SLOW the owner down — the owner's wait is at most
+ * the window, and a password reset clears it (clearPerEmailLimit).
+ */
+export const LOGIN_FAILURE_WINDOW: BucketOptions = {
+  capacity: 10,
+  refillPerSec: 10 / (15 * 60),
+  windowMs: 15 * 60 * 1000,
+};
+
+/**
+ * SEC-2 #1 — per-EMAIL limits, whatever the IP. The IP limiter alone is
+ * walkable by anyone with more than one address (and on Cloud Run with
+ * TRUST_PROXY_HOPS unset it is one global bucket); this one bounds the
+ * attempts against a single account wherever they come from.
  *
- * `"failures"` (login) checks BOTH buckets on the way in but spends a token
- * only when the handler reports a failed attempt (countFailedAttempt below). A
- * correct password never counts against its own account, so someone signing in
- * on three devices — or a QA script — never meets the daily cap; guesses do. A
- * blocked email is refused BEFORE the password is checked, right and wrong
- * alike, so the 429 is no oracle.
+ * `name` keys the buckets (so a reset can clear the LOGIN window by name);
+ * every one of `windows` is checked on the way in.
+ *
+ * `"failures"` (login) spends a token only when the handler reports a failed
+ * attempt (countFailedAttempt below). A correct password never counts against
+ * its own account; guesses do. A blocked email is refused BEFORE the password
+ * is checked, right and wrong alike, so the 429 is no oracle.
  *
  * `"all"` (password-reset request) spends on every call: each one is an email
  * sent to a real inbox.
  */
-export function perEmailLimit(count: "all" | "failures") {
-  const minute = createBucket(EMAIL_PER_MINUTE);
-  const day = createBucket(EMAIL_PER_DAY);
+export function perEmailLimit(opts: {
+  name: string;
+  count: "all" | "failures";
+  windows: BucketOptions[];
+}) {
+  const buckets = opts.windows.map((w) => createBucket(w));
 
   return (req: Request, res: Response, next: NextFunction): void => {
     const email = emailKey(req);
@@ -190,20 +219,32 @@ export function perEmailLimit(count: "all" | "failures") {
       next();
       return;
     }
-    const key = `email:${req.method}:${routeKey(req)}:${email}`;
-    const blocked = [minute.check(`${key}:m`), day.check(`${key}:d`)].find((v) => !v.ok);
+    const key = perEmailKey(opts.name, email);
+    const blocked = buckets.map((b, i) => b.check(`${key}${i}`)).find((v) => !v.ok);
     if (blocked) {
       tooManyRequests(res, blocked.retryAfter);
       return;
     }
-    const spend = () => {
-      minute.consume(`${key}:m`);
-      day.consume(`${key}:d`);
-    };
-    if (count === "all") spend();
+    const spend = () => buckets.forEach((b, i) => b.consume(`${key}${i}`));
+    if (opts.count === "all") spend();
     else res.locals["countFailedAttempt"] = spend;
     next();
   };
+}
+
+function perEmailKey(name: string, email: string): string {
+  return `email:${name}:${email.trim().toLowerCase()}:`;
+}
+
+/**
+ * SEC-2b — forget every per-email bucket `name` holds for this address. A
+ * completed password reset calls it for "login": the person just proved they
+ * own the inbox, and whatever failures piled up before (theirs or a stranger's)
+ * no longer stand between them and signing in.
+ */
+export function clearPerEmailLimit(name: string, email: string): void {
+  const prefix = perEmailKey(name, email);
+  for (const k of [...STORE.keys()]) if (k.startsWith(prefix)) STORE.delete(k);
 }
 
 /** The handler's half of `perEmailLimit("failures")`: call it on a failed attempt. */

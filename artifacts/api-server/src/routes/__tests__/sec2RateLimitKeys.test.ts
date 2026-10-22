@@ -9,14 +9,16 @@
 // limiter sees a different caller on every request and only the per-email
 // bucket can answer 429.
 
-import { describe, it, beforeEach, before, after } from "node:test";
+import { describe, it, beforeEach, before, after, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import express, { type Express } from "express";
 import type { Server } from "node:http";
 
 import bcrypt from "bcryptjs";
-import { __clearRateLimitStoreForTests, rateLimit } from "../../lib/rateLimit";
+import { signToken } from "../../lib/auth";
+import { __clearRateLimitStoreForTests, __setRateLimitClockForTests, rateLimit } from "../../lib/rateLimit";
 import { createAuthRouter } from "../auth";
+import { makeUsedTokenLedger } from "./fixtures/sessionUserStub";
 
 const KNOWN_EMAIL = "known@example.com";
 const KNOWN_PASSWORD = "right-password-1";
@@ -53,10 +55,15 @@ function userRow() {
 
 const prisma = {
   user: {
-    findUnique: async ({ where }: { where: { email?: string } }) =>
-      where.email === KNOWN_EMAIL ? userRow() : null,
-    update: async () => ({}),
+    findUnique: async ({ where }: { where: { email?: string; id?: string } }) =>
+      where.email === KNOWN_EMAIL || where.id === "sec2-rl-user" ? userRow() : null,
+    // SEC-2b — a completed reset writes the new hash; login reads it back.
+    update: async ({ data }: { data: { passwordHash?: string } }) => {
+      if (data.passwordHash) knownHash = data.passwordHash;
+      return {};
+    },
   },
+  usedToken: makeUsedTokenLedger(),
 };
 
 async function spinUp(mount: (app: Express) => void) {
@@ -102,6 +109,7 @@ describe("SEC-2 #1 — rate-limit keys and per-email limits", () => {
   });
   after(async () => h.close());
   beforeEach(() => __clearRateLimitStoreForTests());
+  afterEach(() => __setRateLimitClockForTests(null));
 
   it("case and trailing-slash variants of /auth/login share /auth/login's bucket (SEC-1's probe)", async () => {
     // Drained with bodies the schema refuses: the per-IP limiter runs before
@@ -125,7 +133,7 @@ describe("SEC-2 #1 — rate-limit keys and per-email limits", () => {
     assert.equal((await post(h.baseUrl, "/things/c", {})).status, 429);
   });
 
-  it("failed logins against one email are capped at 10 a minute whatever the IP", async () => {
+  it("failed logins against one email are capped at 10 per window whatever the IP", async () => {
     const codes: number[] = [];
     for (let i = 0; i < 11; i++) {
       // Case differences are the same account.
@@ -137,6 +145,41 @@ describe("SEC-2 #1 — rate-limit keys and per-email limits", () => {
     // Refused BEFORE the password is checked: the right password is a 429 too.
     const right = await post(h.baseUrl, "/auth/login", { email: KNOWN_EMAIL, password: KNOWN_PASSWORD }, true);
     assert.equal(right.status, 429);
+  });
+
+  // SEC-2b — the window is SHORT and there is no daily cap: an attacker can
+  // slow the owner down, never lock them out for the day. SEC-2 #1 also had a
+  // 30-a-day bucket, so the third burst below would have stayed refused.
+  it("15 minutes after ten failures the owner signs in, burst after burst — no daily lockout", async () => {
+    let t = 1_000_000_000_000;
+    __setRateLimitClockForTests(() => t);
+    for (let burst = 0; burst < 4; burst++) {
+      for (let i = 0; i < 10; i++) {
+        assert.equal((await post(h.baseUrl, "/auth/login", { email: KNOWN_EMAIL, password: "wrong" }, true)).status, 401);
+      }
+      assert.equal((await post(h.baseUrl, "/auth/login", { email: KNOWN_EMAIL, password: KNOWN_PASSWORD }, true)).status, 429, `burst ${burst}: locked for now`);
+      t += 15 * 60 * 1000;
+      assert.equal((await post(h.baseUrl, "/auth/login", { email: KNOWN_EMAIL, password: KNOWN_PASSWORD }, true)).status, 200, `burst ${burst}: 15 minutes later the owner is in`);
+    }
+  });
+
+  it("a completed password reset clears the window at once", async () => {
+    const t = 1_000_000_000_000;
+    __setRateLimitClockForTests(() => t);
+    const savedHash = knownHash; // the reset rewrites the fixture account's hash
+    try {
+      for (let i = 0; i < 10; i++) {
+        assert.equal((await post(h.baseUrl, "/auth/login", { email: KNOWN_EMAIL, password: "wrong" }, true)).status, 401);
+      }
+      assert.equal((await post(h.baseUrl, "/auth/login", { email: KNOWN_EMAIL, password: KNOWN_PASSWORD }, true)).status, 429);
+      const resetToken = signToken("sec2-rl-user", { purpose: "password_reset", expiresIn: "1h" });
+      const reset = await post(h.baseUrl, "/auth/password-reset/confirm", { token: resetToken, newPassword: "a-brand-new-password" }, true);
+      assert.equal(reset.status, 200);
+      // Same instant — no time has passed; only the reset cleared it.
+      assert.equal((await post(h.baseUrl, "/auth/login", { email: KNOWN_EMAIL, password: "a-brand-new-password" }, true)).status, 200);
+    } finally {
+      knownHash = savedHash;
+    }
   });
 
   it("successful logins never spend the per-email budget", async () => {
