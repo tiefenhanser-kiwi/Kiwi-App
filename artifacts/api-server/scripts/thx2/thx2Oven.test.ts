@@ -139,7 +139,8 @@ describe("THX-3c BUG-463 — Vegetarian's code-written steps", () => {
     const { creates: held, renumber } = heldDishSteps(VEG, VEG_STEPS);
     assert.deepEqual(renumber, []); // the stuffing and the mac end on their oven step
     assert.deepEqual(held.map((c) => `${c.dishId}#${c.stepIndex} ${c.phaseType} ${c.estimatedMinutes}`), ["stuffing#7 assemble 1", "stuffing#8 cook 10", "mac#7 assemble 1", "mac#8 cook 10"]);
-    assert.match(held[1].text, /^Return it, uncovered, to the 425°F oven for 10 minutes/);
+    // THX-3d round 2 (K) — the reheat names its dish.
+    assert.equal(held[1].text, "Return the Herb Stuffing, uncovered, to the 425°F oven for 10 minutes, until hot again.");
     const sp = splitPreheatSteps(VEG, VEG_STEPS)[0];
     const after = VEG_STEPS.map((s) => {
       if (s.ownerId === "wellington" && s.stepIndex === 5) return { ...s, stepTextTranslated: sp.preheat.text };

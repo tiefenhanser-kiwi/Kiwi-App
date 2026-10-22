@@ -1129,7 +1129,8 @@ export interface OvenBlocks {
 export const REHEAT_MINUTES = 10;
 /** How far ahead of everything else a block change's own run is sorted (minutes). */
 const PRIORITY_LEAD = 10_000;
-const REHEAT_STEP = /\breturn it,? uncovered,? to the \d{3}\s*°\s*F oven for \d+ minutes\b/i;
+// THX-3d round 2 (K) — "Return the Herb Stuffing, uncovered, …" now; THX-3c wrote "Return it".
+const REHEAT_STEP = /\breturn (?:it|the .+?),? uncovered,? to the \d{3}\s*°\s*F oven for \d+ minutes\b/i;
 
 /** The code-written hold step's text. THX-3d round 2 (O) — "while the oven heats" only
  *  when the oven's temperature changes next (New Twist's stuffing came out at 350°F with
@@ -1142,7 +1143,8 @@ export const HOLD_COVERED_STEP = /^Cover the (.+?) with foil to keep it warm(?: 
 
 /** The code-written reheat step's text, at the last block's temperature. */
 export function reheatText(dishTitle: string, tempF: number): string {
-  return `Return it, uncovered, to the ${tempF}°F oven for ${REHEAT_MINUTES} minutes, until the ${dishTitle} is hot again.`;
+  // THX-3d round 2 (K) — the step names its dish: Cook Mode shows another dish's step before it.
+  return `Return the ${dishTitle}, uncovered, to the ${tempF}°F oven for ${REHEAT_MINUTES} minutes, until hot again.`;
   // THX-3d (R4) — no "; serve": the feast serves once, in its one serve step.
 }
 

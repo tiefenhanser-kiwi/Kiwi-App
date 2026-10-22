@@ -48,6 +48,7 @@ import { splitPrepClause } from "../../src/lib/feastCookWording";
 import { splitTwoPhase } from "./thx2Phases";
 import { putInEdits } from "./thx2PutIn";
 import { warmStepEdits } from "./thx2Warm";
+import { subjectEdits } from "./thx2Subjects";
 import { formatOvenReport, heldDishSteps, holdTextUpdates, oneOvenTemperature, ovenReport, retimeDish, splitPreheatSteps, type OvenStepRow } from "./thx2Oven";
 
 const argv = process.argv.slice(2);
@@ -376,6 +377,8 @@ for (const t of feasts) {
   applyEdits(putInEdits(ovenDishes, ovenRows()));
   // THX-3d round 2 (J) — the warm steps; Cook Mode shows the ones the day needs (thx2Warm).
   applyEdits(warmStepEdits(ovenDishes, ovenRows()));
+  // THX-3d round 2 (K) — on the day, every step names its subject (thx2Subjects).
+  applyEdits(subjectEdits(ovenDishes, ovenRows()));
   // THX-3d round 2 (O) — "while the oven heats for the next dish" only when it does.
   applyEdits({ updates: holdTextUpdates(ovenDishes, ovenRows()), deletes: [], renumber: [], creates: [] });
 

@@ -121,9 +121,9 @@ describe("THX-3d C rule 2 — the patch splits a step that preps and then works"
       work: "Make ahead (Monday): Combine the 12 ounces cranberries, ¾ cup granulated sugar, orange zest, orange juice, ¼ cup water, 1 cinnamon stick, and a pinch of kosher salt in a medium saucepan.",
     });
   });
-  it("a work verb straight into its place takes \"them\"; a vessel lead-in is still work", () => {
+  it("round 2 (K) — the work half names what it works, never \"them\"; a vessel lead-in is still work", () => {
     const CIN = row("cin", "ground cinnamon"), GIN = row("gin", "ground ginger");
-    assert.equal(splitPrepClause("Make ahead (Wednesday): Measure 1½ teaspoons cinnamon and ½ teaspoon ginger; whisk into the filling.", [CIN, GIN])?.work, "Make ahead (Wednesday): Whisk them into the filling.");
+    assert.equal(splitPrepClause("Make ahead (Wednesday): Measure 1½ teaspoons cinnamon and ½ teaspoon ginger; whisk into the filling.", [CIN, GIN])?.work, "Make ahead (Wednesday): Whisk the cinnamon and ginger into the filling.");
     const SPROUT = row("sp", "Brussels sprouts"), GARLIC = row("garlic", "garlic"), OIL = row("oil", "olive oil");
     assert.equal(splitPrepClause("Trim and halve 2½ lb Brussels sprouts; thinly slice 4 garlic cloves. In a large bowl, toss the sprouts and garlic with 3 tablespoons olive oil.", [SPROUT, GARLIC, OIL])?.prep, "Trim and halve 2½ lb Brussels sprouts; thinly slice 4 garlic cloves.");
   });
@@ -131,7 +131,8 @@ describe("THX-3d C rule 2 — the patch splits a step that preps and then works"
     const BEANS = row("beans", "fresh green beans"), OIL = row("oil", "olive oil"), GARLIC = row("garlic", "garlic");
     assert.deepEqual(splitPrepClause("On Thursday: Trim 1 pound green beans and toss in a large bowl with 2 tablespoons olive oil and 2 thinly sliced garlic cloves.", [BEANS, OIL, GARLIC]), {
       prep: "On Thursday: Trim 1 pound green beans.",
-      work: "On Thursday: Toss them in a large bowl with 2 tablespoons olive oil and 2 thinly sliced garlic cloves.",
+      // "On Thursday:" opens the day once, on the first half.
+      work: "Toss the green beans in a large bowl with 2 tablespoons olive oil and 2 thinly sliced garlic cloves.",
     });
   });
   it("a step that is all prep, or all work, is one step (so the patch is idempotent)", () => {

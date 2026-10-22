@@ -6,6 +6,7 @@ import { describe, it } from "node:test";
 import { feastWarmSteps, KEEP_WARM_TEXT, OVEN_OFF_TEXT, type ScheduleResult, type SchedulerDish } from "../../src/lib/cookingScheduler";
 import { splitTwoPhase } from "./thx2Phases";
 import { dishNoun, inTheOvenText, putInEdits } from "./thx2PutIn";
+import { dayNoun, subjectEdits } from "./thx2Subjects";
 import { warmStepEdits } from "./thx2Warm";
 import type { OvenStepRow } from "./thx2Oven";
 
@@ -117,5 +118,24 @@ describe("THX-3d J — the warm steps", () => {
     const w = feastWarmSteps(res, dishes);
     assert.deepEqual(w.dropped.map((x) => `${x.dishId}#${x.stepIndex}`).sort(), ["gravy#1", "stuffing#1"]);
     assert.deepEqual(w.result.steps.map((s) => `${s.dishId}#${s.originalStepIndex}`).filter((k) => k.endsWith("#1")), ["beans#1", "crisp#1"]);
+  });
+});
+
+describe("THX-3d K — every step names its subject on the day", () => {
+  it("the day noun: no cut word, no flavour, the food", () => {
+    assert.deepEqual(["Mashed Potatoes", "Balsamic Roasted Brussels Sprouts", "Baked Mac and Cheese", "Green Beans with Crispy Shallots"].map(dayNoun), ["the potatoes", "the Brussels sprouts", "the mac and cheese", "the green beans"]);
+  });
+  it("\"Transfer to\", \"Remove from heat\", \"Return it\" name the dish; make-ahead days are left as written", () => {
+    const dishes = [{ dishId: "m", title: "Mashed Potatoes", positionIndex: 1, roleLabel: "side" }, { dishId: "h", title: "Herb Stuffing", positionIndex: 2, roleLabel: "side" }];
+    const steps = [
+      row("m", 0, "assemble", 2, "Make ahead (Wednesday): Transfer to a container and refrigerate."),
+      row("m", 1, "cook", 20, "On Thursday: Boil the potatoes."),
+      row("m", 2, "assemble", 2, "Transfer to a warm serving bowl."),
+      row("h", 0, "cook", 10, "On Thursday: Return it, uncovered, to the 425°F oven for 10 minutes, until the Herb Stuffing is hot again."),
+    ];
+    assert.deepEqual(subjectEdits(dishes, steps).updates.map((u) => `${u.dishId}#${u.stepIndex} ${u.text}`), [
+      "m#2 Transfer the potatoes to a warm serving bowl.",
+      "h#0 On Thursday: Return the Herb Stuffing, uncovered, to the 425°F oven for 10 minutes, until hot again.",
+    ]);
   });
 });

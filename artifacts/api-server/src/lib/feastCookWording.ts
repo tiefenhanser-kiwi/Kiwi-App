@@ -256,6 +256,26 @@ const WORK_LEAD = /^(?:(?:in|on) (?:a|the) [a-z -]{0,30}, )?(?:combine|whisk|sti
  * "into"/"in"/"with"/"over" takes "them" ("whisk into the filling" → "Whisk them into
  * the filling."). Both keep the day prefix. Null when the step is one or the other.
  */
+const PARTICIPLE: Record<string, string> = { slice: "sliced", dice: "diced", chop: "chopped", mince: "minced", grate: "grated", cube: "cubed", halve: "halved", quarter: "quartered", shred: "shredded" };
+
+/** What a prep clause leaves on the board: "the sliced shallots", "the potato chunks", "the green beans". */
+function subjectOf(clause: string, ms: readonly Mention[]): string {
+  const verb = /^(?:\w+ly\s+)?(\w+)/.exec(clause.trim())?.[1].toLowerCase() ?? "";
+  // The food as the clause writes it ("6 shallots" → shallots), its amount and cut words gone.
+  const asWritten = (m: Mention) =>
+    clause.slice(m.start, m.end).toLowerCase()
+      .replace(/^(?:the\s+)?[\d½¼¾⅓⅔⅛⅜⅝⅞.\s-]*(?:(?:pounds?|lbs?|oz|ounces?|teaspoons?|tablespoons?|tsp|tbsp|cups?|cloves?|sprigs?|stalks?|heads?|bunch(?:es)?)\s+)?/, "")
+      .replace(/^(?:(?:finely|thinly|roughly|coarsely|chopped|sliced|minced|diced|trimmed|peeled|rinsed|fresh|whole|large|small|medium|ground)\s+)+/, "")
+      .trim();
+  const names = [...new Set(ms.map((m) => asWritten(m) || m.name.toLowerCase().split(/[,(]/)[0].trim().split(/\s+/).filter((w) => !GENERIC_WORD.test(w)).join(" ")))];
+  const list = names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  const participle = PARTICIPLE[verb];
+  if (participle) return `the ${participle} ${list}`;
+  const shape = /\binto\s+(?:[\d½¼¾⅓⅔.]+[-\s]?inch\s+)?(chunks|pieces|cubes|rings|wedges|strips|slices)\b/i.exec(clause)?.[1];
+  if (shape && names.length === 1) return `the ${singular(names[0].split(/\s+/).pop()!)} ${shape.toLowerCase()}`;
+  return `the ${list}`;
+}
+
 export function splitPrepClause(text: string, rows: readonly WordingRow[], titles: readonly string[] = []): { prep: string; work: string } | null {
   const prefix = DAY_PREFIX.exec(text)?.[1] ?? "";
   const body = text.slice(prefix.length);
@@ -267,8 +287,16 @@ export function splitPrepClause(text: string, rows: readonly WordingRow[], title
     if (!WORK_LEAD.test(b)) continue;
     const ms = mentionsOf({ stepIndex: 0, text: a, amountRefs: null }, rows, titles);
     if (ms.length === 0 || !onlyPrepWords(a, ms)) return null;
-    const work = (b.charAt(0).toUpperCase() + b.slice(1)).replace(/^(\w+)\s+(?=(?:in|into|with|over|onto)\b)/i, "$1 them ");
-    return { prep: `${prefix}${a.replace(/[,\s]+$/, "")}.`, work: `${prefix}${work}` };
+    // Round 2 (K) — the work half NAMES what it works, never "them": Cook Mode interleaves
+    // dishes, so the step before it on the screen is another dish's ("Toss them with
+    // ¼ cup flour" followed the turkey's carve). "the sliced shallots", "the potato chunks".
+    const subject = subjectOf(a, ms);
+    const named = /\bthem\b/i.test(b.split(/[;,.]/)[0])
+      ? b.replace(/\bthem\b/i, subject)
+      : b.replace(/^(\w+)\s+(?=(?:in|into|with|over|onto)\b)/i, `$1 ${subject} `);
+    const work = named.charAt(0).toUpperCase() + named.slice(1);
+    // "On Thursday:" once, on the first half; a make-ahead day stays on both (the Hub reads it).
+    return { prep: `${prefix}${a.replace(/[,\s]+$/, "")}.`, work: `${/^\s*On /i.test(prefix) ? "" : prefix}${work}` };
   }
   return null;
 }
