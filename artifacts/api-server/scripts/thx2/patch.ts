@@ -45,6 +45,7 @@ import { thursdayPostPass, thursdayPrePass, type ThursdayEdits } from "./thx2Thu
 import { countsInWords, mergeRefs, missingRows } from "./thx2Rows";
 import { thawStepText } from "../../src/lib/feastAddedDish";
 import { splitPrepClause } from "../../src/lib/feastCookWording";
+import { splitTwoPhase } from "./thx2Phases";
 import { formatOvenReport, heldDishSteps, holdTextUpdates, oneOvenTemperature, ovenReport, retimeDish, splitPreheatSteps, type OvenStepRow } from "./thx2Oven";
 
 const argv = process.argv.slice(2);
@@ -160,6 +161,22 @@ for (const t of feasts) {
       texts.set(s.id, sp.work);
       splitMinutes.set(s.id, Math.max(1, s.estimatedMinutes - prepMinutes));
       plan.creates.push({ dishId: d.id, title: d.title, stepIndex: at, text: sp.prep, phaseType: "prep", estimatedMinutes: prepMinutes, refs: null, componentKey: s.componentKey, pathKey: s.pathKey });
+    }
+    // 15. THX-3d round 2 (H) — a two-phase bake or roast is two timed steps (thx2Phases):
+    // the stored step keeps the first phase and its minutes, the second phase is a new
+    // step right after it, the later steps move down one.
+    for (const s of [...steps].sort((a, b) => b.stepIndex - a.stepIndex)) {
+      const ph = splitTwoPhase(texts.get(s.id)!, splitMinutes.get(s.id) ?? s.estimatedMinutes);
+      if (!ph) continue;
+      const at = s.stepIndex;
+      for (const c of plan.creates) if (c.dishId === d.id && c.stepIndex > at) c.stepIndex += 1;
+      for (const o of [...steps].filter((o) => o.stepIndex > at).sort((a, b) => b.stepIndex - a.stepIndex)) {
+        plan.renumbers.push({ stepId: o.id, title: d.title, from: o.stepIndex, to: o.stepIndex + 1 });
+        o.stepIndex += 1;
+      }
+      texts.set(s.id, ph.first);
+      splitMinutes.set(s.id, ph.firstMinutes);
+      plan.creates.push({ dishId: d.id, title: d.title, stepIndex: at + 1, text: ph.second, phaseType: s.phaseType as Plan["creates"][number]["phaseType"], estimatedMinutes: ph.secondMinutes, refs: null, componentKey: s.componentKey, pathKey: s.pathKey });
     }
     // 8. THX-3c (F) — a step that adds cut food names its amount ("add the 2 diced
     // onions and 6 diced celery stalks"), from the dish's own rows; a food the step
