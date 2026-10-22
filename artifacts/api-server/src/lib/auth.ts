@@ -40,6 +40,15 @@ export interface JwtPayload {
    * rather than as "not yet spent" — see requireUnspent() in tokenRevocation.
    */
   jti?: string;
+  /**
+   * SEC-2 #6 — when the person last proved who they are (a sign-in), in
+   * seconds. Stamped on every SESSION token at mint, and session tokens are
+   * minted only by sign-up, sign-in and the OAuth doors, so it equals `iat`.
+   * A token minted before SEC-2 has none: it keeps working everywhere except
+   * the two routes that demand a recent sign-in from an OAuth-only account
+   * (lib/reauth.ts).
+   */
+  auth_time?: number;
   [k: string]: unknown;
 }
 
@@ -70,6 +79,7 @@ export function signToken(
   const claims: Record<string, unknown> = {
     userId,
     purpose,
+    ...(purpose === "session" ? { auth_time: Math.floor(Date.now() / 1000) } : {}),
     ...(options.extra ?? {}),
   };
   // jsonwebtoken's expiresIn typing is loose; cast at the boundary.

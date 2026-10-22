@@ -70,9 +70,11 @@ import { bumpPlanRevision } from "../lib/planRevision";
 import {
   buildAppLink,
   emailChangeMessage,
+  emailChangedNoticeMessage,
   sendEmail as productionSendEmail,
   type EmailSender,
 } from "../lib/email/sendEmail";
+import { checkRecentAuth } from "../lib/reauth";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { createRequireAuth } from "../middleware/auth";
 import { rateLimit } from "../lib/rateLimit";
@@ -222,8 +224,12 @@ const passwordPatchSchema = z.object({
   newPassword: z.string().min(8).max(100),
 });
 
+// SEC-2 #6 — `currentPassword` is required for an account that has one and
+// ignored for an OAuth-only account (lib/reauth.ts). Optional in the SCHEMA so
+// the reauth check, not a 400, answers its absence with the typed 403.
 const emailRequestChangeSchema = z.object({
   newEmail: z.string().email().max(255),
+  currentPassword: z.string().min(1).max(100).optional(),
 });
 
 const emailVerifyChangeSchema = z.object({
@@ -234,6 +240,8 @@ const emailVerifyChangeSchema = z.object({
 // boolean, the wrong word) is one 400 `confirm_required` and never a delete.
 const deleteAccountSchema = z.object({
   confirm: z.literal("delete"),
+  // SEC-2 #6 — same rule as the email change: see emailRequestChangeSchema.
+  currentPassword: z.string().min(1).max(100).optional(),
 });
 
 // D-WS9-257 rule (d) — bucket objects are counted, not deleted. This is the
@@ -988,6 +996,25 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
       }
       const newEmail = parsed.data.newEmail.toLowerCase().trim();
 
+      // SEC-2 #6 — prove it is the owner NOW. A 30-day session alone could
+      // move the account to a thief's inbox, and a reset from there keeps it.
+      // Answered before anything else, and NOT folded into the always-200
+      // below: this is about the caller's own credential, not about whether
+      // the new address is free.
+      const reauth = await checkRecentAuth({
+        prisma,
+        userId: req.userId!,
+        authTime: req.authTime,
+        currentPassword: parsed.data.currentPassword,
+      });
+      if (!reauth.ok) {
+        logger.warn(
+          { event: "reauth_refused", route: "email_change", userId: req.userId, code: reauth.body.code },
+          "Email change refused: no recent proof of ownership",
+        );
+        return res.status(reauth.status).json(reauth.body);
+      }
+
       try {
         const [currentUser, existing] = await Promise.all([
           prisma.user.findUnique({
@@ -1086,7 +1113,7 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
         }),
         prisma.user.findUnique({
           where: { id: payload.userId },
-          select: { tokensValidFrom: true },
+          select: { tokensValidFrom: true, email: true },
         }),
       ]);
       if (conflict && conflict.id !== payload.userId) {
@@ -1128,6 +1155,8 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
         });
       }
 
+      // SEC-2 #6 — read before the write that replaces it.
+      const oldEmail = actor?.email;
       await prisma.user.update({
         where: { id: payload.userId },
         data: { email: newEmail },
@@ -1137,6 +1166,30 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
       // is PII and a retained sink is the wrong place for it, whichever handler
       // writes it. The userId identifies the row for any audit that needs one.
       logger.info({ event: "email_change_verified", userId: payload.userId }, "Email change verified");
+      // SEC-2 #6 — tell the OLD address. If a stolen session moved the account,
+      // this is how the owner finds out. Never awaited and never fails the
+      // change: the new address is already proven, and a mail outage must not
+      // undo that.
+      if (oldEmail && oldEmail !== newEmail) {
+        void sendEmail(emailChangedNoticeMessage(oldEmail, newEmail))
+          .then((result) =>
+            logger.info(
+              {
+                event: "email_change_old_address_notified",
+                userId: payload.userId,
+                sent: result.sent,
+                ...(result.sent ? {} : { reason: result.reason }),
+              },
+              "Old address notified of the email change",
+            ),
+          )
+          .catch((err: unknown) =>
+            logger.warn(
+              { event: "email_change_old_address_notify_failed", userId: payload.userId, err },
+              "Could not notify the old address of the email change",
+            ),
+          );
+      }
       return res.json({ success: true, email: newEmail });
     } catch (err) {
       logger.error({ err, userId: payload.userId }, "POST /me/email/verify-change failed");
@@ -1393,6 +1446,23 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
     const parsed = deleteAccountSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: "confirm_required" });
+    }
+
+    // SEC-2 #6 — a stolen session must not be able to delete the account.
+    // After the confirm word (a malformed body is still the 400 it was), and
+    // before anything is revoked, cancelled or deleted.
+    const reauth = await checkRecentAuth({
+      prisma,
+      userId,
+      authTime: req.authTime,
+      currentPassword: parsed.data.currentPassword,
+    });
+    if (!reauth.ok) {
+      logger.warn(
+        { event: "reauth_refused", route: "delete_account", userId, code: reauth.body.code },
+        "Account deletion refused: no recent proof of ownership",
+      );
+      return res.status(reauth.status).json(reauth.body);
     }
 
     try {

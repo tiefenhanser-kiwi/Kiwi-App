@@ -14,7 +14,12 @@ import {
 } from "../lib/email/sendEmail";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { countFailedAttempt, perEmailLimit, rateLimit } from "../lib/rateLimit";
-import { isIssuedBeforeEpoch, redeemPurposeToken } from "../lib/tokenRevocation";
+import {
+  bumpTokensValidFrom,
+  isIssuedBeforeEpoch,
+  readTokensValidFrom,
+  redeemPurposeToken,
+} from "../lib/tokenRevocation";
 import {
   claimGuestSessionInTx,
   GuestSessionInvalidError,
@@ -939,10 +944,47 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
   });
 
   // POST /auth/logout
-  // Client-side logout — server just acknowledges.
-  // TODO(future): add jti blocklist for real server-side revocation.
-  router.post("/auth/logout", async (_req, res) => {
-    return res.json({ success: true });
+  //
+  // SEC-2 #6 — LOGOUT ENDS EVERY SESSION. It used to be an acknowledgement and
+  // nothing more: the client forgot its token, and any copy of it (a stolen
+  // one included) went on working for the rest of its 30 days. Now a valid
+  // session token on the request bumps the account's revocation epoch, the
+  // same lever a password change pulls (BUG-234), so every session issued
+  // before this second stops authenticating — on every device. That is the
+  // deliberate trade: per-device logout would need a server-side session
+  // table, and "log out" is the button a person presses when they think
+  // someone else is in.
+  //
+  // No token, a malformed one, or one already revoked: 200 and nothing
+  // happens. Logout stays idempotent and never signs anyone out who was not
+  // presenting a live session — an old, revoked token cannot be replayed here
+  // to keep knocking the owner out.
+  router.post("/auth/logout", async (req, res) => {
+    const header = req.headers.authorization;
+    const token =
+      typeof header === "string" && header.startsWith("Bearer ")
+        ? header.slice("Bearer ".length).trim()
+        : null;
+    const payload = token ? verifyToken(token, "session") : null;
+    if (!payload) return res.json({ success: true });
+
+    try {
+      const epoch = await readTokensValidFrom(prisma, payload.userId);
+      if (epoch !== undefined && !isIssuedBeforeEpoch(payload.iat, epoch)) {
+        await bumpTokensValidFrom(prisma, payload.userId);
+        logger.info(
+          { event: "logout_all_sessions", userId: payload.userId },
+          "Logged out: every session for this account revoked",
+        );
+      }
+      return res.json({ success: true });
+    } catch (err) {
+      logger.error({ err, userId: payload.userId }, "Logout revocation failed");
+      // Honest, and the same retryable shape requireAuth uses: the sessions
+      // were NOT revoked, and the client may try again.
+      res.setHeader("Retry-After", "2");
+      return res.status(503).json({ error: "logout temporarily unavailable", code: "db_unavailable", retryable: true });
+    }
   });
 
   // POST /auth/password-reset/request

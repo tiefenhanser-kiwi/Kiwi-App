@@ -240,6 +240,39 @@ export function passwordResetMessage(to: string, link: string): EmailMessage {
   };
 }
 
+/**
+ * SEC-2 #6 — sent to the OLD address once a change is verified. A stolen
+ * session could move the account to an inbox the thief controls; this is the
+ * owner's one chance to hear about it. The new address is masked: the owner
+ * needs to recognise it, a forwarded copy should not hand it out whole.
+ */
+export function emailChangedNoticeMessage(to: string, newEmail: string): EmailMessage {
+  return {
+    to,
+    subject: "Your Kiwi email address was changed",
+    text: [
+      "The email address on your Kiwi account was just changed to:",
+      maskEmail(newEmail),
+      "",
+      "If you made this change, there's nothing to do.",
+      "If you didn't, reply to this email or write to support@kitchenwizard.ai right away and we'll help you get your account back.",
+    ].join("\n"),
+  };
+}
+
+/** `jane.doe@gmail.com` → `j******e@gmail.com`. Short local parts keep only their first letter. */
+export function maskEmail(email: string): string {
+  const at = email.lastIndexOf("@");
+  if (at <= 0) return "***";
+  const local = email.slice(0, at);
+  const domain = email.slice(at);
+  const masked =
+    local.length <= 2
+      ? `${local[0]}${"*".repeat(local.length - 1)}`
+      : `${local[0]}${"*".repeat(local.length - 2)}${local[local.length - 1]}`;
+  return `${masked}${domain}`;
+}
+
 export function emailChangeMessage(to: string, link: string): EmailMessage {
   return {
     to,

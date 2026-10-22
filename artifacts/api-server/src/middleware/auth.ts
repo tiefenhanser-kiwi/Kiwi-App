@@ -11,6 +11,8 @@ declare global {
   namespace Express {
     interface Request {
       userId?: string;
+      /** SEC-2 #6 — the session token's `auth_time` (seconds), absent on older tokens. */
+      authTime?: number;
     }
   }
 }
@@ -118,6 +120,7 @@ export function createRequireAuth(deps: Partial<RequireAuthDeps> = {}) {
     }
 
     req.userId = payload.userId;
+    if (typeof payload.auth_time === "number") req.authTime = payload.auth_time;
     next();
   };
 }

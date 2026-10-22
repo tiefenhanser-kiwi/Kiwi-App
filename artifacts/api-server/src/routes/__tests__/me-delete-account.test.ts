@@ -27,7 +27,9 @@ import assert from "node:assert/strict";
 import express, { type Express } from "express";
 import type { Server } from "node:http";
 
-import { signToken } from "../../lib/auth";
+import jwt from "jsonwebtoken";
+
+import { hashPassword, signToken } from "../../lib/auth";
 import { __clearRateLimitStoreForTests } from "../../lib/rateLimit";
 import { createMeRouter } from "../me";
 
@@ -40,7 +42,7 @@ interface Row {
 }
 
 interface State {
-  users: { id: string; tokensValidFrom: Date | null }[];
+  users: { id: string; tokensValidFrom: Date | null; passwordHash?: string | null }[];
   meals: Row[];
   dishes: Row[];
   steps: { id: string; ownerType: string; ownerId: string }[];
@@ -577,5 +579,82 @@ describe("DELETE /me cancels Stripe first, best-effort (Stripe S1 Part E)", () =
     } finally {
       await harness.close();
     }
+  });
+});
+
+// ── SEC-2 #6 — a stolen session cannot delete the account ────────────────
+//
+// The current password for an account that has one; a sign-in within the last
+// 10 minutes (`auth_time`) for an OAuth-only account. Every refusal is a 403
+// that deletes NOTHING — checked against the same tables the 204 case clears.
+describe("DELETE /me — SEC-2 #6 recent proof of ownership", () => {
+  beforeEach(() => __clearRateLimitStoreForTests());
+
+  const aged = (ageSeconds: number, withAuthTime: boolean) => {
+    const iat = Math.floor(Date.now() / 1000) - ageSeconds;
+    return jwt.sign(
+      { userId: USER_ID, purpose: "session", iat, ...(withAuthTime ? { auth_time: iat } : {}) },
+      process.env["JWT_SECRET"]!,
+      { expiresIn: "30d" },
+    );
+  };
+
+  async function attempt(opts: { passwordHash?: string; body: Record<string, unknown>; token?: string }) {
+    const state = makeState();
+    if (opts.passwordHash) state.users[0]!.passwordHash = opts.passwordHash;
+    const harness = await spinUp(makeStubPrisma(state));
+    try {
+      const res = await del(harness, opts.body, opts.token ?? signToken(USER_ID));
+      const text = await res.text();
+      return { status: res.status, body: text ? (JSON.parse(text) as { code?: string; method?: string }) : {}, state };
+    } finally {
+      await harness.close();
+    }
+  }
+
+  const untouched = (state: ReturnType<typeof makeState>) => {
+    assert.equal(state.users.length, 2, "nothing was deleted");
+    assert.equal(state.meals.length, 3);
+    assert.equal(state.groceryLists.length, 2);
+  };
+
+  it("password account: no password → 403 reauth_required (password), nothing deleted", async () => {
+    const r = await attempt({ passwordHash: await hashPassword("right-one"), body: { confirm: "delete" } });
+    assert.equal(r.status, 403);
+    assert.equal(r.body.code, "reauth_required");
+    assert.equal(r.body.method, "password");
+    untouched(r.state);
+  });
+
+  it("password account: wrong password → 403 password_incorrect, nothing deleted", async () => {
+    const r = await attempt({ passwordHash: await hashPassword("right-one"), body: { confirm: "delete", currentPassword: "wrong" } });
+    assert.equal(r.status, 403);
+    assert.equal(r.body.code, "password_incorrect");
+    untouched(r.state);
+  });
+
+  it("password account: right password → 204, deleted", async () => {
+    const r = await attempt({ passwordHash: await hashPassword("right-one"), body: { confirm: "delete", currentPassword: "right-one" } });
+    assert.equal(r.status, 204);
+    assert.deepEqual(r.state.users.map((u) => u.id), [OTHER_ID]);
+  });
+
+  it("OAuth-only: a sign-in 11 minutes ago → 403 reauth_required (sign_in), nothing deleted", async () => {
+    const r = await attempt({ body: { confirm: "delete" }, token: aged(11 * 60, true) });
+    assert.equal(r.status, 403);
+    assert.equal(r.body.code, "reauth_required");
+    assert.equal(r.body.method, "sign_in");
+    untouched(r.state);
+  });
+
+  it("OAuth-only: a pre-SEC-2 token with no auth_time → 403, nothing deleted", async () => {
+    const r = await attempt({ body: { confirm: "delete" }, token: aged(30, false) });
+    assert.equal(r.status, 403);
+    untouched(r.state);
+  });
+
+  it("OAuth-only: a sign-in 9 minutes ago → 204", async () => {
+    const r = await attempt({ body: { confirm: "delete" }, token: aged(9 * 60, true) });
+    assert.equal(r.status, 204);
   });
 });
