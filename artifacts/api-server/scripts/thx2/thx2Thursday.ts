@@ -45,7 +45,7 @@ import {
   type SchedulerPhase,
 } from "../../src/lib/cookingScheduler";
 import { onTheDaySteps } from "../../src/lib/mealTiming";
-import { RAISE_MINUTES, RETIME_PER_25F, thursdaySchedule, type OvenDish, type OvenStepRow } from "./thx2Oven";
+import { PUT_IN_WITH_MINUTES, RAISE_MINUTES, RETIME_PER_25F, thursdaySchedule, type OvenDish, type OvenStepRow } from "./thx2Oven";
 
 export interface ThursdayEdits {
   /** A stored or created step's new text, minutes or phase (by dish and current index). */
@@ -259,27 +259,35 @@ export function thursdayPostPass(dishes: readonly OvenDish[], steps: readonly Ov
     // a shorter one goes in later, on its own step (the oven is hot by then).
     const names = runs.filter((r) => r.run >= S - 10).map((r) => r.title);
     const list = names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
-    const raiseText = target !== null && names.length > 0 ? `Raise the oven to ${target}°F and put in the ${list}.` : null;
+    const roastStep = hd.steps[plan.holderLastOven];
+    const birdTemp = lastOvenTempOfText(roastStep.text);
+    const part = /\bbreast\b/i.test(birdDish.title) ? "breast" : "thigh";
+    const noun = /\bbreast\b/i.test(birdDish.title) ? "turkey breast" : (/\b(turkey|chicken|duck|goose|hen)\b/i.exec(birdDish.title)?.[1]?.toLowerCase() ?? "roast");
+    // THX-3d round 3 (T) — at the bird's own temperature there is nothing to raise: the
+    // sides go in with it ("Put the … in the oven with the turkey.").
+    // The bird's own temperature is its FIRST roast's: once a raise is written, the last
+    // oven step is "Keep roasting … at 350°F", the sides' temperature.
+    const firstRoast = hd.steps.find((s) => s.phaseType === "cook" && isOvenStep(s));
+    const ownTemp = firstRoast ? lastOvenTempOfText(firstRoast.text) : birdTemp;
+    const same = target !== null && ownTemp !== null && target === ownTemp;
+    const raiseText = target !== null && names.length > 0 ? (same ? `Put the ${list} in the oven with the ${noun}.` : `Raise the oven to ${target}°F and put in the ${list}.`) : null;
+    const raiseMinutes = same ? PUT_IN_WITH_MINUTES : RAISE_MINUTES;
     const existing = rows.find((r) => RAISE_AND_PUT_IN.test(r.text));
     if (existing) {
       if (raiseText && existing.text !== raiseText) out.updates.push({ dishId: existing.dishId, stepIndex: existing.stepIndex, text: raiseText });
     } else if (raiseText && target !== null) {
       const restIdx = hd.steps.findIndex((s, i) => i > plan.holderLastOven && s.phaseType === "rest");
       const rest = restIdx >= 0 ? hd.steps[restIdx].estimatedMinutes : 25;
-      const roastStep = hd.steps[plan.holderLastOven];
-      const birdTemp = lastOvenTempOfText(roastStep.text);
       const high = S - rest + 5; // the bird's minutes at the sides' temperature, after the raise
       const factor = 1 + (RETIME_PER_25F * ((target - (birdTemp ?? target)) / 25));
-      const low = roastStep.estimatedMinutes - RAISE_MINUTES - Math.round(high * factor);
-      if (roastStep.phaseType === "cook" && birdTemp !== null && target > birdTemp && high > 5 && low > 15) {
-        const part = /\bbreast\b/i.test(birdDish.title) ? "breast" : "thigh";
-        const noun = /\bbreast\b/i.test(birdDish.title) ? "turkey breast" : (/\b(turkey|chicken|duck|goose|hen)\b/i.exec(birdDish.title)?.[1]?.toLowerCase() ?? "roast");
+      const low = roastStep.estimatedMinutes - raiseMinutes - Math.round(high * factor);
+      if (roastStep.phaseType === "cook" && birdTemp !== null && target >= birdTemp && high > 5 && low > 15) {
         out.updates.push({ dishId: birdDish.dishId, stepIndex: roastStep.stepIndex, text: shortenRoastText(roastStep.text ?? "", low), minutes: low });
         for (const later of rows.filter((x) => x.stepIndex > roastStep.stepIndex).sort((a, b) => b.stepIndex - a.stepIndex)) {
           out.renumber.push({ dishId: birdDish.dishId, from: later.stepIndex, to: later.stepIndex + 2 });
         }
         out.creates.push(
-          { dishId: birdDish.dishId, stepIndex: roastStep.stepIndex + 1, text: raiseText, phaseType: "preheat", estimatedMinutes: RAISE_MINUTES },
+          { dishId: birdDish.dishId, stepIndex: roastStep.stepIndex + 1, text: raiseText, phaseType: same ? "prep" : "preheat", estimatedMinutes: raiseMinutes },
           { dishId: birdDish.dishId, stepIndex: roastStep.stepIndex + 2, text: `Keep roasting the ${noun} at ${target}°F for about ${round5(high)} more minutes, until an instant-read thermometer in the thickest part of the ${part} reads 165°F.`, phaseType: "cook", estimatedMinutes: high },
         );
         birdShift = 2;
@@ -290,6 +298,17 @@ export function thursdayPostPass(dishes: readonly OvenDish[], steps: readonly Ov
         }
         out.creates.push({ dishId: birdDish.dishId, stepIndex: roastStep.stepIndex + 1, text: raiseText, phaseType: "preheat", estimatedMinutes: RAISE_MINUTES });
         birdShift = 1;
+      }
+    }
+    // THX-3d round 3 (T) — the bird's rest no longer roasts: "Keep roasting … until
+    // 165°F" says it ("Roast until an instant-read thermometer reads 165°F …; transfer to a
+    // cutting board and rest 20–30 minutes" → "Transfer the turkey to a cutting board …").
+    if (existing || birdShift > 0) {
+      for (const r of thursdayOf(rows).filter((x) => x.phaseType === "rest")) {
+        const m = /^(\s*(?:On [A-Za-z]+day:\s*)?)Roast until [^;]*\b1[56]\d\s*°\s*F[^;]*;\s*(.+)$/i.exec(r.text);
+        if (!m) continue;
+        const next = `${m[1]}${cap(m[2].replace(/^transfer to\b/i, `transfer the ${noun} to`))}`;
+        out.updates.push({ dishId: r.dishId, stepIndex: r.stepIndex, text: next });
       }
     }
     // The raise heats the oven: no side's own preheat to its temperature survives. A pure

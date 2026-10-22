@@ -82,12 +82,23 @@ export function putInEdits(dishes: readonly OvenDish[], steps: readonly OvenStep
     const noun = dishNoun(d.title, oven.text, titles);
     const w = inTheOvenText(oven.text, noun, t);
     if (!w) continue;
+    const prefix = DAY_PREFIX.exec(oven.text)?.[1] ?? "";
     if (named) {
-      out.updates.push({ dishId: d.dishId, stepIndex: oven.stepIndex, text: w.lead ? `${DAY_PREFIX.exec(oven.text)?.[1] ?? ""}${w.lead} ${w.text.replace(DAY_PREFIX, "")}` : w.text });
+      if (!w.lead) {
+        out.updates.push({ dishId: d.dishId, stepIndex: oven.stepIndex, text: w.text });
+        continue;
+      }
+      // THX-3d round 3 (T) — named in the put-in, its work written in front of the bake
+      // (New Twist's "Spread the sweet potatoes …; dot with butter") is its own step,
+      // done before the put-in: [the work] · the bake.
+      for (const r of rows.filter((x) => x.stepIndex >= oven.stepIndex).sort((a, b) => b.stepIndex - a.stepIndex)) {
+        out.renumber.push({ dishId: d.dishId, from: r.stepIndex, to: r.stepIndex + 1 });
+      }
+      out.creates.push({ dishId: d.dishId, stepIndex: oven.stepIndex, text: `${prefix}${w.lead}`, phaseType: "prep", estimatedMinutes: 2 });
+      out.updates.push({ dishId: d.dishId, stepIndex: oven.stepIndex, text: w.text.replace(DAY_PREFIX, "") });
       continue;
     }
     // Not named: [the work before it] · "Put the … in the oven." · the bake.
-    const prefix = DAY_PREFIX.exec(oven.text)?.[1] ?? "";
     const inserted = w.lead ? 2 : 1;
     for (const r of rows.filter((x) => x.stepIndex >= oven.stepIndex).sort((a, b) => b.stepIndex - a.stepIndex)) {
       out.renumber.push({ dishId: d.dishId, from: r.stepIndex, to: r.stepIndex + inserted });

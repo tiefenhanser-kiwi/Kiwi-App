@@ -326,6 +326,8 @@ export function holdTextUpdates(dishes: readonly OvenDish[], steps: readonly Ove
 
 /** The code-written raise step's minutes (THX-3d: "Raise the oven to 350°F and put in …", thx2Thursday). */
 export const RAISE_MINUTES = 5;
+/** THX-3d round 3 (T) — the code-written "Put the … in the oven with the turkey." step's minutes. */
+export const PUT_IN_WITH_MINUTES = 2;
 
 /** "Preheat the oven to 425°F. Season the caps…" — the preheat, then the work it carries. */
 const PREHEAT_WITH_WORK = /^(\s*(?:On [A-Za-z]+day:\s*)?(?:Pre)?heat (?:the )?oven to \d{3}\s*°\s*F\.)\s+(\S.*)$/i;
