@@ -25,6 +25,7 @@ import { inferCategory } from "./ingredientResolve";
 import { assignPhase, isNeverMeasured, isSaltOrPepper } from "./prepCombineEngine";
 import { resolveDishComponents } from "./prepComponents";
 import { mixtureEntryKey, proseNames, resolveMoments } from "./prepMoments";
+import { cutOf } from "./prepClasses";
 import type { PrepCombineDish, PrepCombineInput } from "./prepCombineEngine";
 import type { PrepLoadedDish, PrepLoadedPlan } from "./prepWeekAggregation";
 
@@ -455,7 +456,12 @@ export function buildPrepCombineInput(
               unit: split.unit,
               // THX-3d round 2 (P) — at its own servings the amount prints as written.
               ...(Math.abs(rowMultiplier[row] - 1) < 1e-9 ? { asWritten: true } : {}),
-              preparationNote: prep.preparationNote,
+              // THX-3d round 2 (L) — a feast cavity's vegetable with no cut ("celery, for
+              // cavity") is trimmed in Prep the feast, beside the onion and the lemon that
+              // go in with it: Cook Mode named those as prepped and listed the celery raw.
+              preparationNote: opts.feast && category.toLowerCase() === "produce" && /\bfor (?:the )?cavity\b/i.test(prep.preparationNote ?? "") && !cutOf([prep.preparationNote ?? ""])
+                ? `trimmed, ${prep.preparationNote}`
+                : prep.preparationNote,
               component: comp
                 ? { key: comp.key, noun: comp.noun, bowlName: comp.bowlName, heated: componentHeated(comp.stepIndexes, comp.memberIds) }
                 : null,
@@ -466,7 +472,8 @@ export function buildPrepCombineInput(
               // case where sharing a bowl would make the cook unpack it.
               entryStep: (() => {
                 const k = moments.keyByIngredientId.get(ing.ingredientId);
-                const m = k ? /^s:(\d+)$/.exec(k) : null;
+                // (THX-3d round 2 — a feast key carries its clause: "s:4/c1".)
+                const m = k ? /^s:(\d+)(?:\/c\d+)?$/.exec(k) : null;
                 return m ? Number(m[1]) : null;
               })(),
               momentKey: momentKeyFor({

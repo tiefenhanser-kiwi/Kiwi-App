@@ -79,7 +79,7 @@ export interface WordingRow { ingredientId: string; name: string }
 export interface FeastDishFacts {
   dishId: string;
   /** The mixes and jars Prep the feast fills for this dish (members by id and by food). */
-  mixes: { name: string; ids: Set<string>; keys: Set<string> }[];
+  mixes: { name: string; ids: Set<string>; keys: Set<string>; /** Round 2 (L) — what the mix holds of each food, by food key. */ amounts?: Map<string, { qty: number; unit: string }> }[];
   /** Produce cut ahead for this dish: the food, the container it went into, its cut words. */
   cuts: { id: string; key: string; into: string | null; note: string; kind?: FeastLabelKind | null }[];
 }
@@ -103,9 +103,14 @@ export function feastDishFacts(build: PrepWeekBuild): Map<string, FeastDishFacts
           if (!m.dishId) continue;
           const f = of(m.dishId);
           let mix = f.mixes.find((x) => x.name === st.bowlName);
-          if (!mix) f.mixes.push((mix = { name: st.bowlName!, ids: new Set(), keys: new Set() }));
+          if (!mix) f.mixes.push((mix = { name: st.bowlName!, ids: new Set(), keys: new Set(), amounts: new Map() }));
           if (m.ingredientId) mix.ids.add(m.ingredientId);
           mix.keys.add(ingredientGroupKey(c.ingredientName));
+          if (m.qty !== undefined && m.unit !== undefined) {
+            const k = ingredientGroupKey(c.ingredientName);
+            const have = mix.amounts!.get(k);
+            mix.amounts!.set(k, have && have.unit === m.unit ? { qty: have.qty + m.qty, unit: m.unit } : have ?? { qty: m.qty, unit: m.unit });
+          }
         }
       }
     }
@@ -145,7 +150,7 @@ const SEPARATOR_BEFORE = /(?:,\s+(?:and\s+)?|\s+and\s+)$/;
 const SEPARATOR_AFTER = /^(?:,\s+(?:and\s+)?|\s+and\s+)/;
 const CLAUSE_END = /[;:.]/;
 
-interface Mention { id: string; key: string; name: string; start: number; end: number; ref: boolean; cut: string[] }
+export interface Mention { id: string; key: string; name: string; start: number; end: number; ref: boolean; cut: string[] }
 
 const singular = (w: string) => w.toLowerCase().replace(/(?:(?<=[sxz]|ch|sh|o)es|s)$/, "");
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -158,12 +163,17 @@ export function mentionsOf(step: WordingStep, rows: readonly WordingRow[], title
   const out: Mention[] = [];
   const refs = step.amountRefs ?? [];
   // The longer name first: "packed light brown sugar" claims its words before "granulated sugar" can.
-  const byLength = [...rows].sort((a, b) => b.name.split(/[,(]/)[0].trim().split(/\s+/).length - a.name.split(/[,(]/)[0].trim().split(/\s+/).length);
+  // Round 2 (L) — then the more TELLING words first: "brown sugar" claims "packed brown
+  // sugar" before "granulated sugar" (granulated tells nothing) takes its "sugar".
+  const telling = (r: WordingRow) => r.name.split(/[,(]/)[0].trim().split(/\s+/).filter((w) => !GENERIC_WORD.test(w)).length;
+  const byLength = [...rows].sort((a, b) => b.name.split(/[,(]/)[0].trim().split(/\s+/).length - a.name.split(/[,(]/)[0].trim().split(/\s+/).length || telling(b) - telling(a));
   for (const row of byLength) {
     const named = row.name.toLowerCase().split(/[,(]/)[0].trim().split(/\s+/).filter(Boolean);
     // "pecan halves", "sage leaves": the food is also the word before its form.
     // ("ground cloves" is the food itself.)
     const forms = FORM_WORD.test(named[named.length - 1] ?? "") && named.length >= 2 && !GENERIC_WORD.test(named[named.length - 2]) ? [named, named.slice(0, -1)] : [named];
+    // Round 2 (L) — "cayenne pepper" is written "a pinch of cayenne".
+    if (named.length === 2 && named[1] === "pepper" && /^(?:cayenne|chipotle|aleppo|ancho)$/.test(named[0])) forms.push([named[0]]);
     for (const words of forms) {
     const head = singular(words[words.length - 1] ?? "");
     if (head.length < 3) continue;
@@ -179,6 +189,10 @@ export function mentionsOf(step: WordingStep, rows: readonly WordingRow[], title
       // A form ("leaves", "stick") is this row's only right after its food ("thyme leaves" is not sage).
       if (forms.length > 1 && words === named && !new RegExp(`\\b${escape(words[words.length - 2])}\\s+$`).test(before)) continue;
       end += TRAILING.exec(step.text.slice(end))?.[0].length ?? 0;
+      // Round 2 (L) — a compound is another thing: "the garlic butter" is not the garlic.
+      if (/^\s+(?:butter|oil|salt|powder|paste|mixture|bread)\b/i.test(step.text.slice(end))) continue;
+      // …and where it came from is the food's too: "leaves from 4 sprigs", "zest from 1 lemon".
+      end += /^\s+from\s+(?:the\s+)?(?:[\d½¼¾⅓⅔]+\s+)?(?:\w+\s+){0,2}(?:sprigs?|lemons?|limes?|oranges?|bunch(?:es)?)\b/i.exec(step.text.slice(end))?.[0].length ?? 0;
       // "(optional)" is the food's: it leaves with it when the food joins a mix.
       end += /^\s*\((?:optional|if using)\)/i.exec(step.text.slice(end))?.[0].length ?? 0;
       // The row's own words before its head ("cinnamon" stick, "cremini" mushrooms).
@@ -205,7 +219,7 @@ export function mentionsOf(step: WordingStep, rows: readonly WordingRow[], title
 }
 
 /** Two mentions are in one list: only separators (and list items with no clause end) between them. */
-function listed(text: string, a: Mention, b: Mention): boolean {
+export function listed(text: string, a: Mention, b: Mention): boolean {
   const [x, y] = a.start < b.start ? [a, b] : [b, a];
   const gap = text.slice(x.end, y.start);
   if (CLAUSE_END.test(gap)) return false;
@@ -213,7 +227,7 @@ function listed(text: string, a: Mention, b: Mention): boolean {
 }
 
 /** Measured: a food with an amount, or one in a list beside one. */
-function measured(text: string, ms: readonly Mention[]): Mention[] {
+export function measured(text: string, ms: readonly Mention[]): Mention[] {
   const keep = new Set<Mention>(ms.filter((m) => m.ref));
   let grew = true;
   while (grew) {
@@ -324,6 +338,39 @@ function rebuild(pieces: readonly Piece[], refs: readonly WordingRef[]): { text:
 }
 
 /** One feast dish's steps, reworded (see the header). A step with nothing to change is returned as it was. */
+/** A mention as a food on its own: "3 smashed garlic cloves" → "smashed garlic", "the juice of 1 lime" → "lime juice". */
+function foodWords(span: string): string {
+  let t = span.toLowerCase().replace(/\s*\((?:optional|if using)\)/g, "").trim();
+  const juice = /^(?:the\s+)?(juice|zest)(?:\s+and\s+(juice|zest))?\s+of\s+(?:[\d½¼¾⅓⅔⅛⅜⅝⅞.\s]+)?(?:the\s+)?(.+)$/.exec(t);
+  if (juice) return `${singular(juice[3].split(/\s+/).pop()!)} ${juice[1]}${juice[2] ? ` and ${juice[2]}` : ""}`;
+  t = t.replace(/^(?:the|a|an)\s+/, "")
+    .replace(/^[\d½¼¾⅓⅔⅛⅜⅝⅞.\s-]*(?:(?:pounds?|lbs?|oz|ounces?|teaspoons?|tablespoons?|tsp|tbsp|cups?|cloves?|sprigs?|stalks?|heads?|bunch(?:es)?)\s+)?/, "")
+    .replace(/\s+from\s+.*$/, "")
+    .replace(/\s+(?:cloves?|stalks?|sprigs?)$/, "")
+    .replace(/\bfresh\s+/g, "")
+    .trim();
+  return t;
+}
+
+const CITRUS_SQUEEZE = /\b([Ss])queeze\s+(?:the\s+juice\s+of\s+(?:[\d½¼¾⅓⅔⅛⅜⅝⅞]+\s+)?(?:the\s+)?(lemons?|limes?|oranges?)|(?:[\d½¼¾⅓⅔⅛⅜⅝⅞]+\s+)?(?:the\s+)?(lemons?|limes?|oranges?)(?:\s+juice)?|the\s+(lemon|lime|orange)\s+juice)\b/;
+
+/** Round 2 (L) — a citrus juiced in Prep the feast is poured: "Pour the lemon juice you prepped over the beans". */
+function citrusPoured(step: WordingStep, facts: FeastDishFacts): WordingStep {
+  const m = CITRUS_SQUEEZE.exec(step.text);
+  if (!m) return step;
+  const fruit = singular(m[2] ?? m[3] ?? m[4]);
+  const cut = facts.cuts.find((c) => c.key.includes(fruit) && /juic/.test(c.note) && c.into);
+  if (!cut?.into) return step;
+  // The container's own name only when the fruit is all it holds (Make-Ahead's lemon
+  // shared a tub with the shallots for frying: those are not poured over the beans).
+  const alone = facts.cuts.filter((c) => c.into === cut.into).every((c) => c.key.includes(fruit));
+  const p = alone ? cutPhrase(cut.into, [], cut.kind) : null;
+  const phrase = p ? p.phrase : `the ${fruit} juice you prepped`;
+  const pieces: Piece[] = [{ text: step.text.slice(0, m.index), from: 0 }, { text: `${m[1] === "S" ? "Pour" : "pour"} ${phrase}` }, { text: step.text.slice(m.index + m[0].length), from: m.index + m[0].length }];
+  const r = rebuild(pieces, step.amountRefs ?? []);
+  return { ...step, text: r.text, amountRefs: step.amountRefs ? r.refs : step.amountRefs };
+}
+
 export function rewordFeastSteps(
   steps: readonly WordingStep[],
   rows: readonly WordingRow[],
@@ -336,27 +383,17 @@ export function rewordFeastSteps(
   const cutsOf = (m: Mention) => facts.cuts.filter((c) => c.id === m.id || c.key === m.key);
   /** The prepped cut this mention asks for, when one matches its cut words. */
   const cutFor = (m: Mention) => cutsOf(m).find((c) => m.cut.every((w) => c.note.includes(w))) ?? null;
+  const ordered = [...steps].sort((a, b) => a.stepIndex - b.stepIndex);
   const mentionsBy = new Map(steps.map((s) => [s.stepIndex, mentionsOf(s, rows, titles)]));
-  // Rule 3 — each mix's entry step: the first that states two of its members (one for a one-member mix).
-  const entryOf = new Map<string, number>();
-  for (const mix of facts.mixes) {
-    const n = Math.min(2, Math.max(1, mix.keys.size));
-    const at = [...steps].sort((a, b) => a.stepIndex - b.stepIndex).find((s) => new Set((mentionsBy.get(s.stepIndex) ?? []).filter((m) => m.ref && inMix(mix, m)).map((m) => m.key)).size >= n);
-    if (at) entryOf.set(mix.name, at.stepIndex);
-  }
 
-  return steps.map((step) => {
-    if (CODE_WRITTEN.test(step.text)) return step;
+  // Rule 1 — a step whose whole job was Prep the feast's.
+  const isSkip = (step: WordingStep): boolean => {
     const prefix = DAY_PREFIX.exec(step.text)?.[1] ?? "";
     const body = step.text.slice(prefix.length);
-    if (/^\s*skip if you prepped/i.test(body)) return step;
     const all = mentionsBy.get(step.stepIndex) ?? [];
-    if (all.length === 0) return step;
-    const mixHere = (m: Mention) => facts.mixes.find((x) => inMix(x, m) && entryOf.get(x.name) === step.stepIndex) ?? null;
-
-    // ── Rule 1: the whole job was Prep the feast's ───────────────────────────
-    const prepOnly = onlyPrepWords(step.text, all, prefix.length);
-    const allPrepped = all.every((m) => {
+    if (all.length === 0 || CODE_WRITTEN.test(step.text) || /^\s*skip if you prepped/i.test(body)) return false;
+    if (!onlyPrepWords(step.text, all, prefix.length)) return false;
+    return all.every((m) => {
       if (facts.mixes.some((x) => inMix(x, m))) return true;
       const c = cutFor(m);
       if (!c) return false;
@@ -367,37 +404,91 @@ export function rewordFeastSteps(
       }
       return true;
     });
-    if (prepOnly && allPrepped) {
-      const r = rebuild([{ text: prefix, from: 0 }, { text: "Skip if you prepped. Otherwise, " }, { text: body.slice(0, 1).toLowerCase() }, { text: body.slice(1), from: prefix.length + 1 }], step.amountRefs ?? []);
-      return { ...step, text: r.text, amountRefs: step.amountRefs ? r.refs : step.amountRefs };
+  };
+  const skips = new Set(ordered.filter(isSkip).map((s) => s.stepIndex));
+
+  // Rule 3 — each mix's entry step: the first that states two of its members (one for a
+  // one-member mix). Round 2 (K) — when that step is the measuring itself (a skip step),
+  // the mix is named where it is used next: "Whisk the Cheesecake bars spice mix into
+  // the filling", whether that step states the amounts or not.
+  const entryOf = new Map<string, number>();
+  const usedAfterSkip = new Set<string>();
+  for (const mix of facts.mixes) {
+    const n = Math.min(2, Math.max(1, mix.keys.size));
+    const keysIn = (s: WordingStep, needRef: boolean) => new Set((mentionsBy.get(s.stepIndex) ?? []).filter((m) => (!needRef || m.ref) && inMix(mix, m)).map((m) => m.key)).size;
+    const at = ordered.find((s) => keysIn(s, true) >= n);
+    if (!at) continue;
+    if (!skips.has(at.stepIndex)) { entryOf.set(mix.name, at.stepIndex); continue; }
+    const next = ordered.find((s) => s.stepIndex > at.stepIndex && !skips.has(s.stepIndex) && keysIn(s, false) >= n);
+    if (next) { entryOf.set(mix.name, next.stepIndex); usedAfterSkip.add(mix.name); }
+  }
+
+  return steps.map((original) => {
+    if (CODE_WRITTEN.test(original.text)) return original;
+    const prefix = DAY_PREFIX.exec(original.text)?.[1] ?? "";
+    const body = original.text.slice(prefix.length);
+    if (/^\s*skip if you prepped/i.test(body)) return original;
+    if (skips.has(original.stepIndex)) {
+      const r = rebuild([{ text: prefix, from: 0 }, { text: "Skip if you prepped. Otherwise, " }, { text: body.slice(0, 1).toLowerCase() }, { text: body.slice(1), from: prefix.length + 1 }], original.amountRefs ?? []);
+      return { ...original, text: r.text, amountRefs: original.amountRefs ? r.refs : original.amountRefs };
     }
+    // Round 2 (L) — a prepped citrus is poured, not squeezed: "Squeeze the juice of 1
+    // lemon over the beans" → "Pour the Green beans citrus you prepped over the beans".
+    const step = citrusPoured(original, facts);
+    const all = mentionsOf(step, rows, titles);
+    if (all.length === 0) return step;
+    const mixHere = (m: Mention) => facts.mixes.find((x) => inMix(x, m) && entryOf.get(x.name) === step.stepIndex) ?? null;
 
     // ── Rules 3 and 4 ─────────────────────────────────────────────────────────
-    const ms = measured(step.text, all);
+    // A mix named after its skip step is named by its members as written (no amounts).
+    const looseMix = new Set(all.filter((m) => { const x = mixHere(m); return !!x && usedAfterSkip.has(x.name); }));
+    const ms = [...new Set([...measured(step.text, all), ...looseMix])].sort((a, b) => a.start - b.start);
+    /** mention → its group; a group's phrase. */
     const groupOf = new Map<Mention, string>();
+    const phraseOf = new Map<string, string>();
+    const foodGroup = new Map<Mention, string>(); // per-food candidates: container → mentions
     for (const m of ms) {
       const mix = mixHere(m);
-      if (mix) { groupOf.set(m, `the ${mix.name}`); continue; }
+      if (mix) { groupOf.set(m, `mix:${mix.name}`); phraseOf.set(`mix:${mix.name}`, `the ${mix.name}`); continue; }
       if (facts.mixes.some((x) => inMix(x, m))) continue; // a mix member away from its entry step: as written
       const c = cutFor(m);
+      if (!c?.into) continue;
       // A cut that went into the jar entering here IS that jar (Small's stripped thyme in
       // the sweet potatoes' sauce): one mention, the jar's.
-      if (c?.into && c.kind === "mix" && facts.mixes.some((x) => x.name === c.into && entryOf.get(x.name) === step.stepIndex)) { groupOf.set(m, `the ${c.into}`); continue; }
-      const p = c?.into ? cutPhrase(c.into, titles, c.kind) : null;
-      if (!p) continue;
-      if (p.whole) {
-        // Only when the step names everything that container holds for this dish.
-        const members = new Set(facts.cuts.filter((x) => x.into === c!.into).map((x) => x.key));
-        const named = new Set(ms.filter((o) => cutsOf(o).some((x) => x.into === c!.into)).map((o) => o.key));
-        if ([...members].some((k) => !named.has(k))) continue;
+      if (c.kind === "mix" && facts.mixes.some((x) => x.name === c.into && entryOf.get(x.name) === step.stepIndex)) { groupOf.set(m, `mix:${c.into}`); phraseOf.set(`mix:${c.into}`, `the ${c.into}`); continue; }
+      const p = cutPhrase(c.into, titles, c.kind);
+      if (p && !p.whole) { groupOf.set(m, `tub:${c.into}`); phraseOf.set(`tub:${c.into}`, p.phrase); continue; }
+      if (p && p.whole) {
+        // The whole container: only when one list of the step names everything it holds for this dish.
+        const members = new Set(facts.cuts.filter((x) => x.into === c.into).map((x) => x.key));
+        const named = ms.filter((o) => cutsOf(o).some((x) => x.into === c.into));
+        const oneList = named.every((o, i) => i === 0 || listed(step.text, named[i - 1], o));
+        if (oneList && [...members].every((k) => named.some((o) => o.key === k))) { groupOf.set(m, `whole:${c.into}`); phraseOf.set(`whole:${c.into}`, p.phrase); continue; }
       }
-      groupOf.set(m, p.phrase);
+      // Round 2 (L) — a plate's pile, or part of a container a later step uses too: by
+      // its food, "the smashed garlic, quartered onion and halved lemon you prepped".
+      foodGroup.set(m, c.into);
     }
-    // A group spans one list only: members in another clause leave the whole group as written.
-    // And never as a cut verb's object ("mince the minced shallot you prepped"): that step
-    // is rule 1's, or the patch splits it.
-    for (const phrase of new Set(groupOf.values())) {
-      const members = ms.filter((m) => groupOf.get(m) === phrase);
+    // Per-food groups: one per run of listed mentions of one container.
+    let run = 0;
+    let prev: Mention | null = null;
+    for (const m of ms) {
+      const into = foodGroup.get(m);
+      if (into === undefined) { prev = null; continue; }
+      if (!prev || foodGroup.get(prev) !== into || !listed(step.text, prev, m)) run++;
+      groupOf.set(m, `food:${into}#${run}`);
+      prev = m;
+    }
+    for (const g of new Set(groupOf.values())) {
+      if (!g.startsWith("food:")) continue;
+      const foods = ms.filter((m) => groupOf.get(m) === g).map((m) => foodWords(step.text.slice(m.start, m.end)));
+      const list = foods.length <= 1 ? foods.join("") : `${foods.slice(0, -1).join(", ")} and ${foods[foods.length - 1]}`;
+      phraseOf.set(g, `the ${list} you prepped`);
+    }
+    // A group spans one list only: members in another clause leave the whole group as
+    // written. And never as a cut verb's object ("mince the minced shallot you prepped").
+    for (const g of new Set(groupOf.values())) {
+      const members = ms.filter((m) => groupOf.get(m) === g);
       const oneList = members.every((m, i) => i === 0 || listed(step.text, members[i - 1], m));
       const cutVerb = /\b(?:chop|mince|dice|slice|trim|peel|zest|juice|grate|pick|strip|halve|quarter|rinse|measure|cut|squeeze)(?:\s+and\s+(?:chop|mince|dice|slice|trim|peel|zest|juice|grate|halve))?\s+(?:the\s+)?$/i.test(step.text.slice(Math.max(0, members[0].start - 30), members[0].start));
       if (!oneList || cutVerb) for (const m of members) groupOf.delete(m);
@@ -412,8 +503,11 @@ export function rewordFeastSteps(
     for (const m of ms) {
       const g = groupOf.get(m);
       if (!g) continue;
-      if (firsts.get(g) === m) {
-        if (step.text.slice(m.start, m.end).toLowerCase() !== g.toLowerCase()) edits.push({ start: m.start, end: m.end, text: g });
+      const phrase = phraseOf.get(g)!;
+      // The citrus pour already said this container: its members here go.
+      const said = step.text.toLowerCase().includes(phrase.toLowerCase()) && step.text.slice(m.start, m.end).toLowerCase() !== phrase.toLowerCase();
+      if (firsts.get(g) === m && !said) {
+        if (step.text.slice(m.start, m.end).toLowerCase() !== phrase.toLowerCase()) edits.push({ start: m.start, end: m.end, text: phrase });
         continue;
       }
       const before = SEPARATOR_BEFORE.exec(step.text.slice(0, m.start));
@@ -433,7 +527,9 @@ export function rewordFeastSteps(
     for (const r of removed) {
       // The list starts at its first food ("In a medium bowl, combine" is not an item).
       const clauseFrom = Math.max(prefix.length, ...[...step.text.slice(0, r.start).matchAll(/[;:.]\s*/g)].map((x) => (x.index ?? 0) + x[0].length));
-      const clauseStart = Math.min(r.m.start, ...all.filter((o) => o.start >= clauseFrom).map((o) => o.start), ...(step.amountRefs ?? []).filter((x) => x.charStart >= clauseFrom).map((x) => x.charStart));
+      // (…or an amount of a food the dish does not list: "Stir in 12 oz cheddar, …".)
+      const firstNumber = /[\d½¼¾⅓⅔⅛⅜⅝⅞]/.exec(step.text.slice(clauseFrom));
+      const clauseStart = Math.min(r.m.start, ...all.filter((o) => o.start >= clauseFrom).map((o) => o.start), ...(step.amountRefs ?? []).filter((x) => x.charStart >= clauseFrom).map((x) => x.charStart), firstNumber ? clauseFrom + firstNumber.index : Infinity);
       if (!r.hadAnd) {
         const tail = step.text.slice(r.end);
         const and = /^[^;:.]*?,\s+and\s+/.exec(tail);

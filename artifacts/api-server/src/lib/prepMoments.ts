@@ -213,6 +213,15 @@ export interface MomentOptions {
  * them. Consecutive steps into the SAME vessel stay one run (the cheesecake's
  * sugar, then its spices "whisked into the filling").
  */
+/** THX-3d round 2 (L) — a step that opens by measuring. */
+const MEASURE_STEP = /^\s*(?:(?:Make ahead \([^)]*\)|On [A-Za-z]+day)\s*:\s*)?measure\b/i;
+/** THX-3d round 2 (L) — a step's clauses: "…; …", a new sentence, ", then …". */
+const CLAUSE_BREAK = /;\s+|(?<=[.!?])\s+(?=[A-Z])|,?\s+then\s+/;
+/** The clause of a step that first names this food (0 when none does). */
+function clauseOf(text: string, name: string): number {
+  const i = text.split(CLAUSE_BREAK).findIndex((c) => proseNames(c, name));
+  return i < 0 ? 0 : i;
+}
 export const NEW_VESSEL = /\b(?:in|into)\s+(?:a\s+)?(?:separate|another|second|clean|different)\s+(?:\w+\s+){0,2}(?:bowl|dish|jar|container)\b/i;
 
 /**
@@ -228,6 +237,10 @@ function runsOfSteps(ordered: readonly ComponentStep[], vesselRuns = false): Map
     const heat = s.phaseType === HEAT_PHASE;
     if (!heat && lastWasHeat) run++;
     else if (vesselRuns && !heat && !first && NEW_VESSEL.test(s.text)) run++;
+    // THX-3d round 2 (L) — a step that only MEASURES opens its own run: New Twist's
+    // cheesecake spices are measured on their own, never into the sugar the filling was
+    // beaten with two steps before (the mix held that sugar, and the step added it too).
+    else if (vesselRuns && !heat && !first && MEASURE_STEP.test(s.text)) run++;
     runOfStep.set(s.stepIndex, run);
     lastWasHeat = heat;
     first = false;
@@ -372,12 +385,19 @@ export function resolveMoments(
 
   // ── the key ───────────────────────────────────────────────────────────────
   const keyByIngredientId = new Map<string, string>();
+  // THX-3d round 2 (L) — in the feast, the CLAUSE too: "Pour in the sherry and soy; stir,
+  // then gradually whisk in the broth" is two moments, and a jar of all three held the
+  // broth the step still whisked in. A later sentence ("Add the pepper flakes if using")
+  // is another moment as well.
+  const textOf = new Map(ordered.map((s) => [s.stepIndex, s.text]));
+  const clause = (ing: ComponentIngredient, step: number | undefined) =>
+    opts.vesselRuns && step !== undefined ? `/c${clauseOf(textOf.get(step) ?? "", ing.ingredientName)}` : "";
   for (const ing of ingredients) {
     const entry = entryStep.get(ing.ingredientId);
     if (entry !== undefined) {
       // The exact step, not its run: two cook steps are two moments, which is
       // the whole point of the override ("sauté the onion" then "add the cumin").
-      keyByIngredientId.set(ing.ingredientId, `s:${entry}`);
+      keyByIngredientId.set(ing.ingredientId, `s:${entry}${clause(ing, entry)}`);
       continue;
     }
     const served = serveStep.get(ing.ingredientId);
@@ -387,7 +407,9 @@ export function resolveMoments(
     }
     const ref = firstRefStep.get(ing.ingredientId);
     if (ref !== undefined) {
-      keyByIngredientId.set(ing.ingredientId, `r:${runOfStep.get(ref)}`);
+      // (Only where the step MIXES what it states: a cut step's clauses — "trim the
+      // sprouts; slice the garlic" — are knife work, not two moments.)
+      keyByIngredientId.set(ing.ingredientId, `r:${runOfStep.get(ref)}${MIXES.test(textOf.get(ref) ?? "") ? clause(ing, ref) : ""}`);
       continue;
     }
     // No signal at all. It stands alone, and nothing is invented for it.
@@ -439,7 +461,9 @@ export function mixtureEntryKey(
   // them as another food.
   const uses = (text: string) =>
     proseNames(text, ingredientName) || proseNames(text.replace(/\b(?:zest|juice)\b/gi, " "), ingredientName);
-  const momentAt = (s: ComponentStep) => (entersHeat(s, ordered) ? `s:${s.stepIndex}` : `r:${runOfStep.get(s.stepIndex)}`);
+  // THX-3d round 2 (L) — in the feast, the clause of the step that first names it too.
+  const c = (s: ComponentStep) => (opts.vesselRuns ? `/c${clauseOf(s.text, ingredientName)}` : "");
+  const momentAt = (s: ComponentStep) => (entersHeat(s, ordered) ? `s:${s.stepIndex}${c(s)}` : `r:${runOfStep.get(s.stepIndex)}${c(s)}`);
   const at = ordered.findIndex((s) => s.ingredientIds.includes(ingredientId));
   if (at < 0) {
     // No amount anywhere (the butter chicken's coriander, "1 teaspoon each ground
@@ -448,12 +472,12 @@ export function mixtureEntryKey(
     return named ? momentAt(named) : "i";
   }
   const ref = ordered[at];
-  if (entersHeat(ref, ordered)) return `s:${ref.stepIndex}`;
+  if (entersHeat(ref, ordered)) return `s:${ref.stepIndex}${c(ref)}`;
   // A step that states the amount AND mixes it is where the mixture is made: the
   // wedding soup's meatball binder takes its salt at s0, whatever "adjust the
   // salt" says at the table. A knife or measuring step ("shred the cheddar; set
   // aside") is not a use, so the scan below finds where it goes.
-  if (MIXES.test(ref.text)) return `r:${runOfStep.get(ref.stepIndex)}`;
+  if (MIXES.test(ref.text)) return `r:${runOfStep.get(ref.stepIndex)}${c(ref)}`;
   for (const s of ordered.slice(at + 1)) {
     // A second stated amount is a second PORTION (the tikka's spices: one row for
     // the marinade at s1, one for the sauce at s8, one id). The first portion's
@@ -461,7 +485,7 @@ export function mixtureEntryKey(
     if (s.ingredientIds.includes(ingredientId)) break;
     if (uses(s.text)) return momentAt(s);
   }
-  return `r:${runOfStep.get(ref.stepIndex)}`;
+  return `r:${runOfStep.get(ref.stepIndex)}${c(ref)}`;
 }
 
 /**

@@ -238,7 +238,9 @@ const CUT_WORDS = [
 ];
 
 export function cutOf(notes: readonly string[]): string | null {
-  const blob = notes.join(" ").toLowerCase();
+  // THX-3d round 2 (L) — "zested, then juiced" is zested AND juiced: New Twist's turkey
+  // pours the juice on Thursday, and its prep only zested.
+  const blob = notes.join(" ").toLowerCase().replace(/\bzested,?\s+(?:then\s+)?juiced\b/g, "zested and juiced");
   for (const cut of CUT_WORDS) if (blob.includes(cut)) return cut;
   return null;
 }

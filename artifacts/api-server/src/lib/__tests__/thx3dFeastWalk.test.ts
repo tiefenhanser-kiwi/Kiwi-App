@@ -53,17 +53,76 @@ describe("THX-3d — the five dev feasts, walked", { skip: RUN ? false : "set TH
   }
 
   it("A — Small's apple crisp is two mixes (the filling's bowl and the topping's)", async () => {
-    const crisp = (await dryMixes("thx2-feast-small")).filter((m) => m.name.startsWith("Apple Crisp"));
+    // (Round 2 N — their labels: "Crisp topping mix", "Crisp filling mix".)
+    const crisp = (await dryMixes("thx2-feast-small")).filter((m) => m.name.startsWith("Crisp"));
     assert.equal(crisp.length, 2);
     assert.ok(crisp.some((m) => m.items.includes("old-fashioned rolled oats") && !m.items.includes("cornstarch")));
     assert.ok(crisp.some((m) => m.items.includes("cornstarch") && !m.items.includes("old-fashioned rolled oats")));
   });
 
-  it("A — New Twist's cheesecake sugar and spices are one mix (one vessel)", async () => {
-    const bars = (await dryMixes("thx2-feast-new-twist")).filter((m) => m.name.startsWith("Pumpkin Cheesecake Bars"));
+  // Round 2 (L) — reversed: the filling's sugar was beaten in two steps before the spices
+  // were measured, and the mix that held it went in too ("double sugar"). The spices are
+  // measured on their own, so they are the mix; the sugar is the step's.
+  it("A/L — New Twist's cheesecake: the spices are the mix, the filling's sugar is not in it", async () => {
+    const bars = (await dryMixes("thx2-feast-new-twist")).filter((m) => m.name.startsWith("Cheesecake"));
     assert.equal(bars.length, 1);
-    assert.ok(bars[0].items.some((i) => /sugar/i.test(i)) && bars[0].items.some((i) => /cinnamon/i.test(i)));
+    assert.ok(!bars[0].items.some((i) => /sugar/i.test(i)) && bars[0].items.some((i) => /cinnamon/i.test(i)), bars[0].items.join(", "));
   });
+
+  it("L — New Twist's lime is its own citrus, never the glaze jar that went on the potatoes 35 minutes before", async () => {
+    const steps = await feastSteps("thx2-feast-new-twist");
+    const lime = steps.flatMap((s) => s.components.filter((c) => /\blime\b/i.test(c.ingredientName)).flatMap((c) => c.measures));
+    assert.ok(lime.length > 0, "the lime is prepped");
+    assert.ok(lime.every((m) => !/sauce/i.test(m.destination ?? "")), lime.map((m) => m.destination).join(", "));
+  });
+
+  it("L — Classic's cavity celery is prepped, with the turkey's onion and lemon", async () => {
+    const steps = await feastSteps("thx2-feast-classic");
+    const celery = steps.flatMap((s) => s.components.filter((c) => /\bcelery\b/i.test(c.ingredientName)).flatMap((c) => c.measures)).filter((m) => /turkey/i.test(m.forDish));
+    assert.equal(celery.length, 1, "the turkey's celery is in Prep the feast");
+    assert.match(celery[0].destination ?? "", /^Turkey/);
+  });
+
+  async function feastSteps(key: string) {
+    const { readOnlyPrisma, PREP_WEEK_START, PREP_READ_AT } = await import("../../../scripts/thx2/thx2Prep");
+    const { loadPrepWeekInput } = await import("../prepWeekAggregation");
+    const { buildFeastSession } = await import("../prepWeekBuild");
+    const meal = await mealOf(key);
+    const plan = {
+      id: `thx-3d-s-${key}`, userId: "thx-3d-walk", titleOverride: meal.title, startDate: PREP_WEEK_START, revisionId: 0,
+      items: [{ id: "thx-3d-item", mealId: meal.id, positionIndex: 0, assignedDayOfWeek: "Thursday", assignedDate: new Date("2026-11-26T00:00:00Z"), servingsOverride: null, meal }],
+    };
+    const load = await loadPrepWeekInput({ planId: plan.id, userId: plan.userId, prisma: readOnlyPrisma(prisma, plan), now: PREP_READ_AT });
+    return buildFeastSession(load)!.stepPlan.steps.filter((s) => !s.demoted);
+  }
+
+  // Round 2 (L) — the wording walk (feastWordingWalk): Cook Mode names what Prep the feast
+  // made by its container, and a food is in a mix or in a step, never both for one moment.
+  for (const key of FEASTS) {
+    it(`L — ${key}: no step adds a prepped food loose; no food is in a mix and a step for one moment`, async () => {
+      const { readOnlyPrisma, PREP_WEEK_START, PREP_READ_AT } = await import("../../../scripts/thx2/thx2Prep");
+      const { loadPrepWeekInput } = await import("../prepWeekAggregation");
+      const { buildFeastSession } = await import("../prepWeekBuild");
+      const { feastDishFacts, rewordFeastSteps } = await import("../feastCookWording");
+      const { feastWordingFindings } = await import("../feastWordingWalk");
+      const meal = await mealOf(key);
+      const plan = {
+        id: `thx-3d-L-${key}`, userId: "thx-3d-walk", titleOverride: meal.title, startDate: PREP_WEEK_START, revisionId: 0,
+        items: [{ id: "thx-3d-item", mealId: meal.id, positionIndex: 0, assignedDayOfWeek: "Thursday", assignedDate: new Date("2026-11-26T00:00:00Z"), servingsOverride: null, meal }],
+      };
+      const load = await loadPrepWeekInput({ planId: plan.id, userId: plan.userId, prisma: readOnlyPrisma(prisma, plan), now: PREP_READ_AT });
+      const facts = feastDishFacts(buildFeastSession(load)!);
+      const titles = meal.dishLinks.map((l) => l.dish.title);
+      const found: string[] = [];
+      for (const l of meal.dishLinks) {
+        const steps = await prisma.recipeInstructionStep.findMany({ where: { ownerType: "dish", ownerId: l.dish.id }, orderBy: { stepIndex: "asc" } });
+        const rows = l.dish.dishIngredients.map((i) => ({ ingredientId: i.ingredientId, name: i.ingredient.canonicalName, quantity: i.quantity, unit: i.unit }));
+        const worded = rewordFeastSteps(steps.map((s) => ({ stepIndex: s.stepIndex, text: s.stepTextTranslated, amountRefs: (s.amountRefs as never) ?? null })), rows, facts.get(l.dish.id), titles);
+        for (const f of feastWordingFindings(worded, rows, facts.get(l.dish.id), titles)) found.push(`${f.kind} [${l.dish.title} #${f.stepIndex}] ${f.detail}`);
+      }
+      assert.deepEqual(found, []);
+    });
+  }
 
   async function dryMixes(key: string): Promise<{ name: string; items: string[] }[]> {
     const { readOnlyPrisma, PREP_WEEK_START, PREP_READ_AT } = await import("../../../scripts/thx2/thx2Prep");
@@ -77,7 +136,7 @@ describe("THX-3d — the five dev feasts, walked", { skip: RUN ? false : "set TH
     const load = await loadPrepWeekInput({ planId: plan.id, userId: plan.userId, prisma: readOnlyPrisma(prisma, plan), now: PREP_READ_AT });
     const build = buildFeastSession(load)!;
     return build.stepPlan.steps
-      .filter((s) => !s.demoted && s.phase === "seasonings_dry")
+      .filter((s) => !s.demoted && s.phase === "seasonings_dry" && !s.fixedProse) // (not the "Label N containers" step)
       .map((s) => ({ name: s.bowlName ?? s.stepKey, items: s.components.map((c) => c.ingredientName) }));
   }
 

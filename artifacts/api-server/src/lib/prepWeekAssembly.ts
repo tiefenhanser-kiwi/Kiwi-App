@@ -1431,7 +1431,9 @@ export function buildStepPlan(
     for (const { k, p, kind } of lone) {
       let dest: string;
       if (kind === "juice") {
-        const jar = ownOf(p.dishId, (c) => c.cls === "A" && / sauce jar(?: \d+)?$/.test(c.name))[0];
+        // THX-3d round 2 (L) — in the feast, only a jar the juice goes in WITH: New Twist's
+        // lime is squeezed over the finished potatoes, long after their glaze went on.
+        const jar = ownOf(p.dishId, (c) => c.cls === "A" && / sauce jar(?: \d+)?$/.test(c.name) && (!opts.feast || [...c.members.values()].some((q) => q.mk === p.mk)))[0];
         dest = jar ? jar.name : once(`${p.dishId}|juice`, fitDishName(p.dishName, CITRUS.test(p.entry.ingredientName) ? " citrus jar" : " juice jar"));
       } else if (kind === "garnish") {
         const plate = containers.get(`${p.dishId}|plate|B`)?.name;
