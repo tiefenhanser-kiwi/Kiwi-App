@@ -265,6 +265,7 @@ export async function resolveIdentity(input: ResolveInput): Promise<ResolveOutco
       signupSource: input.guestSessionId ? "test_kitchen" : (input.platform ?? null),
       guestSessionId: input.guestSessionId,
       guestToken: input.guestToken,
+      via: `oauth_${provider}`,
     });
     const identityRow = await tx.userIdentity.create({
       data: {

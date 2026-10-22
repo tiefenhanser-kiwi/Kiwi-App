@@ -207,6 +207,8 @@ function makePrisma(
 
   const client = {
     user: {
+      // SEC-2 #16 — the one-trial-per-inbox lookup: no other account on this inbox.
+      findFirst: async () => null,
       findUnique: async ({ where, include }: { where: { email?: string; id?: string }; include?: { subscription?: boolean } }) => {
         const row =
           where.email !== undefined

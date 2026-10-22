@@ -287,6 +287,14 @@ enum OAuthProvider {
 model User {
   id                       String             @id @default(uuid())
   email                    String             @unique
+  // SEC-2 #16 — ONE FREE TRIAL PER PERSON. The address with the parts that
+  // do not name a different inbox taken off: lower-cased, "+tag" removed, and
+  // for gmail.com / googlemail.com the dots removed and the domain unified
+  // (lib/emailCanonical.ts — the migration's backfill is the same rule in SQL).
+  // NOT unique, on purpose: a second account on the same inbox is still allowed
+  // to exist; it just starts without a trial. Indexed for the signup lookup.
+  // Nullable only so the column could be added under a backfill.
+  emailCanonical           String?
   passwordHash             String?
   firstName                String
   lastName                 String
@@ -409,6 +417,7 @@ model User {
   // three-year proof outlives the account (it holds no email or preferences).
   billingConsents         BillingConsent[]
 
+  @@index([emailCanonical])
   @@map("users")
 }
 
@@ -1741,6 +1750,11 @@ model Subscription {
   storeOriginalTransactionId String?
   storeProductId             String?
   storeManagementUrl         String?
+  // SEC-2 #16 — why this account never had a free trial. "trial_already_used"
+  // when another account already held its canonical email at signup; NULL for
+  // every account that got one. Written once at signup, read by entitlement
+  // (the 402 reason) and GET /me/subscription (the client's message).
+  trialDeniedReason          String?
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
 

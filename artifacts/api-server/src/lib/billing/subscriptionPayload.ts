@@ -38,6 +38,13 @@ export interface SubscriptionPayload {
   source: "stripe" | "apple" | "google" | null;
   managementUrl: string | null;
   storeBillingAvailable: boolean;
+  /**
+   * SEC-2 #16 — "trial_already_used" when this account was created on an
+   * inbox (canonical email) that had already had its free trial; null
+   * otherwise. The client shows "Your free trial was already used with this
+   * email." on this value and nothing else.
+   */
+  trialDeniedReason: string | null;
 }
 
 /**
@@ -88,5 +95,6 @@ export function buildSubscriptionPayload(
     source,
     managementUrl: isStore ? (snapshot?.storeManagementUrl ?? null) : null,
     storeBillingAvailable: config.revenuecatAvailable,
+    trialDeniedReason: snapshot?.trialDeniedReason ?? null,
   };
 }

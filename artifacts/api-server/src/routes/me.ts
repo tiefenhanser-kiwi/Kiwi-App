@@ -75,6 +75,7 @@ import {
   type EmailSender,
 } from "../lib/email/sendEmail";
 import { checkRecentAuth } from "../lib/reauth";
+import { canonicalEmail } from "../lib/emailCanonical";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { createRequireAuth } from "../middleware/auth";
 import { rateLimit } from "../lib/rateLimit";
@@ -1159,7 +1160,9 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
       const oldEmail = actor?.email;
       await prisma.user.update({
         where: { id: payload.userId },
-        data: { email: newEmail },
+        // SEC-2 #16 — the canonical form moves with the address, or the next
+        // signup on this inbox would not see that it already had a trial.
+        data: { email: newEmail, emailCanonical: canonicalEmail(newEmail) },
       });
       // BUG-219 leftover — `fa1859c` took `newEmail` out of the REQUEST log
       // and left it here. Hans ruled the field out of logs outright; an address

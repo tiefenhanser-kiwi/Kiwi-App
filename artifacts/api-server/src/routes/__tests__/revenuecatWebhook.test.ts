@@ -642,6 +642,7 @@ describe("POST /billing/store-sync", () => {
         source: "apple",
         managementUrl: APPLE_MANAGEMENT_URL,
         storeBillingAvailable: true,
+        trialDeniedReason: null,
       });
     } finally {
       await h.close();

@@ -31,6 +31,12 @@ import {
   materializeClaimedDraft as productionMaterializeClaimedDraft,
   releaseClaimForRetry,
 } from "./guestClaim";
+import {
+  canonicalEmail,
+  isTrialDuplicateExempt,
+  readTrialDuplicateExempt,
+  TRIAL_ALREADY_USED,
+} from "./emailCanonical";
 import { logger } from "./logger";
 
 // WS9-2 — the free-trial length. MOVED here from routes/auth.ts with the
@@ -58,6 +64,10 @@ export interface CreateAccountInput {
   /** SEC-2 #12 — the session's own guest bearer token; required to claim it. */
   guestToken?: string | undefined;
   trialEndsAt?: Date;
+  /** For the trial-duplicate log line, so the lanes stay distinguishable. */
+  via?: string;
+  /** SEC-2 #16 — test seam for TRIAL_DUPLICATE_EXEMPT; production reads process.env. */
+  env?: NodeJS.ProcessEnv;
 }
 
 export interface CreatedAccount {
@@ -81,9 +91,24 @@ export async function createAccountInTx(input: CreateAccountInput): Promise<Crea
   const trialEndsAt =
     input.trialEndsAt ?? new Date(Date.now() + TRIAL_LENGTH_DAYS * 24 * 60 * 60 * 1000);
 
+  // ── SEC-2 #16 — one free trial per person ───────────────────────────────
+  //
+  // Read BEFORE the new row exists, or it would find itself. Another account
+  // on the same canonical email means this inbox already had its trial: the
+  // account is created as normal (refusing it would tell a stranger the
+  // address is taken) and starts with no trial — status `none`, which is
+  // "subscribe to continue" once billing is enforced — and the reason is kept
+  // so the client can say why. The team's own addresses are exempt
+  // (TRIAL_DUPLICATE_EXEMPT).
+  const emailCanonical = canonicalEmail(input.email);
+  const trialAlreadyUsed =
+    !isTrialDuplicateExempt(input.email, readTrialDuplicateExempt(input.env)) &&
+    (await tx.user.findFirst({ where: { emailCanonical }, select: { id: true } })) !== null;
+
   const newUser = await tx.user.create({
     data: {
       email: input.email,
+      emailCanonical,
       passwordHash: input.passwordHash,
       firstName: input.firstName,
       lastName: input.lastName,
@@ -103,8 +128,18 @@ export async function createAccountInTx(input: CreateAccountInput): Promise<Crea
   });
 
   const subscription = await tx.subscription.create({
-    data: { userId: newUser.id, planCode: "free", status: "trialing", trialEndsAt },
+    data: trialAlreadyUsed
+      ? { userId: newUser.id, planCode: "free", status: "none", trialEndsAt: null, trialDeniedReason: TRIAL_ALREADY_USED }
+      : { userId: newUser.id, planCode: "free", status: "trialing", trialEndsAt },
   });
+  if (trialAlreadyUsed) {
+    // The id of the NEW account only: never the address, never the account
+    // that already had the trial.
+    logger.info(
+      { event: "trial_denied_duplicate_email", userId: newUser.id, via: input.via ?? null },
+      "New account starts without a free trial — its inbox already had one",
+    );
+  }
 
   let onboardingComplete = newUser.onboardingComplete;
   let claimedDraft: unknown = null;

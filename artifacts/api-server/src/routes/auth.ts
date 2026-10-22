@@ -239,12 +239,17 @@ function toSubscriptionShape(s: {
   planCode: string;
   trialEndsAt: Date | null;
   currentPeriodEnd: Date | null;
+  trialDeniedReason?: string | null;
 }) {
   return {
     status: s.status,
     planCode: s.planCode,
     trialEndsAt: s.trialEndsAt ? s.trialEndsAt.toISOString() : null,
     currentPeriodEnd: s.currentPeriodEnd ? s.currentPeriodEnd.toISOString() : null,
+    // SEC-2 #16 — "trial_already_used" when this inbox already had its free
+    // trial (lib/emailCanonical.ts); null otherwise. Same field as GET
+    // /me/subscription carries.
+    trialDeniedReason: s.trialDeniedReason ?? null,
   };
 }
 
@@ -419,6 +424,7 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
           signupSource: guestSessionId ? "test_kitchen" : (platform ?? null),
           guestSessionId,
           guestToken,
+          via: "signup",
         }),
       );
       const user = { ...created.user, subscription: created.subscription };

@@ -47,7 +47,10 @@ async function main(): Promise<void> {
   // Signup reaches the claim inside its transaction: a new user, then the
   // claim refuses (no guest token) and rolls it back.
   const tx = {
-    user: { create: async () => ({ id: "u-zz", onboardingComplete: false }) },
+    user: {
+      findFirst: async () => null,
+      create: async () => ({ id: "u-zz", onboardingComplete: false }),
+    },
     subscription: { create: async () => ({}) },
   };
   app.use(

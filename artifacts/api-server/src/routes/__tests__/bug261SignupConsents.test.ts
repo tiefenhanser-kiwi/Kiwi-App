@@ -78,6 +78,8 @@ function makePrisma() {
   let createdUserData: Record<string, unknown> | null = null;
   const prisma = {
     user: {
+      // SEC-2 #16 — the one-trial-per-inbox lookup: no other account on this inbox.
+      findFirst: async () => null,
       findUnique: async ({ where }: { where: { id?: string; email?: string } }) => {
         if (where.email !== undefined) return null; // signup: email free
         return row && where.id === row.id ? row : null;

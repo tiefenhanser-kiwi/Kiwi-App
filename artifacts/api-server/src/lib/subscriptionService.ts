@@ -55,6 +55,7 @@
 import type { BillingSource, PrismaClient, SubscriptionStatus } from "@prisma/client";
 
 import { readBillingConfig, type BillingConfig } from "./billing/config";
+import { TRIAL_ALREADY_USED, TRIAL_ALREADY_USED_MESSAGE } from "./emailCanonical";
 import { logger } from "./logger";
 import { prisma as productionPrisma } from "./prisma";
 
@@ -319,6 +320,8 @@ export interface SubscriptionSnapshot {
   source: BillingSource | null;
   /** RevenueCat's `management_url`, store rows only. */
   storeManagementUrl: string | null;
+  /** SEC-2 #16 — why this account never had a trial; null when it had one. */
+  trialDeniedReason: string | null;
 }
 
 type PrismaLike = Pick<PrismaClient, "subscription">;
@@ -346,6 +349,7 @@ export async function readSubscriptionSnapshot(
       stripeSubscriptionId: true,
       source: true,
       storeManagementUrl: true,
+      trialDeniedReason: true,
     },
   });
   return row ?? null;
@@ -439,7 +443,9 @@ export function createSubscriptionService(
         reason:
           status === "canceled"
             ? "Your Kiwi subscription has ended. Resubscribe to plan and cook with Kiwi again."
-            : "Your free trial has ended. Subscribe to keep planning and cooking with Kiwi.",
+            : snapshot.trialDeniedReason === TRIAL_ALREADY_USED
+              ? `${TRIAL_ALREADY_USED_MESSAGE} Subscribe to plan and cook with Kiwi.`
+              : "Your free trial has ended. Subscribe to keep planning and cooking with Kiwi.",
       };
     },
   };

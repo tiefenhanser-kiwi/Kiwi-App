@@ -110,6 +110,8 @@ describe("POST /auth/signup — fresh user is not onboarded (WS7-2-E Bug 2)", ()
 
   const prisma = {
     user: {
+      // SEC-2 #16 — the one-trial-per-inbox lookup: no other account on this inbox.
+      findFirst: async () => null,
       findUnique: async () => null,
       create: async ({ data }: { data: Record<string, unknown> }) => {
         createdUserData = data;

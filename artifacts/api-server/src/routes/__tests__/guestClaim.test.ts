@@ -93,6 +93,8 @@ function makePrisma(guest: Partial<GuestRow> & { id: string }) {
 
   const client = {
     user: {
+      // SEC-2 #16 — the one-trial-per-inbox lookup: no other account on this inbox.
+      findFirst: async () => null,
       findUnique: async ({ where }: { where: { email?: string; id?: string } }) => {
         if (where.email !== undefined) {
           return state.users.find((u) => u.email === where.email) ?? null;
