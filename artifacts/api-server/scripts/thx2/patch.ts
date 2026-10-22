@@ -141,6 +141,10 @@ for (const t of feasts) {
     // the stored step (its id, phase, path) one down, the later steps move down too.
     // (Before 8: the work step it leaves must be named once, in this same run.)
     const cutRows = d.dishIngredients.map((i) => ({ id: i.ingredientId, name: i.ingredient.canonicalName, quantity: i.quantity, unit: i.unit, note: i.preparationNote }));
+    // THX-3d — the text normalisations first, so a step split below is split from them:
+    // "2 celery thirds stalks" (THX-3c's own naming) → "2 celery stalks (cut into thirds)";
+    // (B) "both oranges" cannot scale, "2 oranges" can.
+    for (const s of steps) texts.set(s.id, countsInWords(repairShapeCounts(texts.get(s.id)!), cutRows));
     const splitMinutes = new Map<string, number>();
     const titles = meal.dishLinks.map((l) => l.dish.title);
     for (const s of [...steps].sort((a, b) => b.stepIndex - a.stepIndex)) {
@@ -165,11 +169,7 @@ for (const t of feasts) {
       const own = splitMinutes.has(s.id) ? deriveAmountRefs(texts.get(s.id)!, cutRows.map((r) => ({ ingredientId: r.id, name: r.name, quantity: r.quantity, unit: r.unit }))).amountRefs : s.amountRefs;
       const refIds = new Set(((Array.isArray(own) ? own : []) as { ingredientId?: string }[]).map((r) => r.ingredientId));
       const measured = new Set(cutRows.filter((r) => refIds.has(r.id)).map((r) => r.name));
-      // THX-3d — "2 celery thirds stalks" (THX-3c's own naming) → "2 celery stalks (cut into thirds)".
-      texts.set(s.id, repairShapeCounts(texts.get(s.id)!));
       texts.set(s.id, nameCutAmounts(texts.get(s.id)!, cutRows, measured));
-      // THX-3d (B) — "both oranges" cannot scale; "2 oranges" can.
-      texts.set(s.id, countsInWords(texts.get(s.id)!, cutRows));
     }
     for (const s of steps) {
       const to = texts.get(s.id)!;
