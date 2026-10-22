@@ -55,6 +55,9 @@ const UNIT_WORDS = [
   "grams?", "g", "kgs?", "kilograms?",
   "mls?", "milliliters?", "millilitres?", "ls?", "liters?", "litres?",
   "pinch(?:es)?", "cans?", "sticks?", "slices?", "pieces?", "sprigs?",
+  // THX-3d (B) — packages and sheets are counted foods: "Bake 2 boxes cornbread mix"
+  // and "between the 2 sheets" of puff pastry scale (WEB-4d rounds them whole).
+  "box(?:es)?", "bags?", "packages?", "packets?", "jars?", "sheets?",
   "minutes?", "mins?", "hours?", "hrs?", "seconds?", "secs?",
 ];
 const NUMBER = String.raw`\d+(?:[.,]\d+)?(?:\s*[\/\-–]\s*\d+(?:[.,]\d+)?)?|[½¼¾⅓⅔⅛⅜⅝⅞]`;
@@ -71,7 +74,7 @@ const VULGAR: Record<string, number> = {
   "⅛": 0.125, "⅜": 0.375, "⅝": 0.625, "⅞": 0.875,
 };
 
-interface Span {
+export interface Span {
   start: number;
   end: number;
   text: string;
@@ -99,14 +102,26 @@ function parseNumber(s: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * THX-3d (B) — A MIXED NUMBER IS ONE NUMBER. (c) coalesces "1" + "½ cups" into the
+ * span "1½ cups", but the unit was read after the FIRST number only, so the stored
+ * unit was "½ cups": the client reads a unit carrying a fraction as corrupt and
+ * prints the authored text, which never scales (the cranberry step's "1½ cups" sugar
+ * at 4 servings beside the mix's ⅔ cup). The whole, the glyph and a spaced "1 1/2"
+ * are read off together.
+ */
+const LEADING_AMOUNT = /^\s*(?:\d+\s*[½¼¾⅓⅔⅛⅜⅝⅞]|\d+\s+\d+\s*\/\s*\d+)/;
+
 function extractUnit(matched: string): string {
+  const mixed = matched.match(LEADING_AMOUNT);
+  if (mixed) return matched.slice(mixed[0].length).trim().toLowerCase();
   const m = matched.match(NUMBER_RE);
   if (!m) return "";
   return matched.slice((m.index ?? 0) + m[0].length).trim().toLowerCase();
 }
 
 /** Detect amount spans, then (c) coalesce a bare integer + adjacent fraction. */
-function detectSpans(text: string): Span[] {
+export function detectSpans(text: string): Span[] {
   const raw = [...text.matchAll(QUANTITY_RE)].map((m) => ({
     start: m.index ?? 0,
     end: (m.index ?? 0) + m[0].length,
@@ -134,7 +149,7 @@ function detectSpans(text: string): Span[] {
   });
 }
 
-function normalizeUnit(u: string): string {
+export function normalizeUnit(u: string): string {
   const x = u.toLowerCase().replace(/\.$/, "").trim();
   const map: Record<string, string> = {
     cup: "cup", cups: "cup", tbsp: "tbsp", tbsps: "tbsp", tablespoon: "tbsp", tablespoons: "tbsp",
@@ -144,6 +159,8 @@ function normalizeUnit(u: string): string {
     ml: "ml", mls: "ml", milliliter: "ml", milliliters: "ml", millilitre: "ml", millilitres: "ml",
     l: "l", ls: "l", liter: "l", liters: "l", litre: "l", litres: "l",
     can: "can", cans: "can", stick: "stick", sticks: "stick", slice: "slice", slices: "slice",
+    box: "box", boxes: "box", bag: "bag", bags: "bag", package: "package", packages: "package",
+    packet: "packet", packets: "packet", jar: "jar", jars: "jar", sheet: "sheet", sheets: "sheet",
     piece: "piece", pieces: "piece", sprig: "sprig", sprigs: "sprig", pinch: "pinch", pinches: "pinch",
     whole: "", count: "", unit: "", each: "each", "": "",
   };
@@ -157,6 +174,10 @@ const PREP = new Set([
   "hot", "packed", "heaping", "level", "generous", "about", "approximately", "remaining",
   "additional", "extra", "more", "each", "the", "of", "and", "a", "an", "to", "into",
   "until", "for", "in", "on", "or", "with", "then", "evenly", "lightly", "well", "your",
+  // THX-3d (B) — a participle between the amount and its food: "5 lb peeled, 2-inch
+  // potato chunks" is the potatoes, not an unknown food called "peeled".
+  "peeled", "cubed", "trimmed", "halved", "quartered", "beaten", "grated", "shredded",
+  "crumbled", "toasted", "melted", "divided", "cut", "inch", "rinsed", "picked",
 ]);
 function contentTokens(phrase: string): string[] {
   return phrase
@@ -167,12 +188,14 @@ function contentTokens(phrase: string): string[] {
     .filter((t) => t.length >= 3 && !PREP.has(t) && !PREP.has(t + "s"));
 }
 function nameTokens(name: string): string[] {
-  return name
+  const toks = name
     .toLowerCase()
     .replace(/[^a-z\s]/g, " ")
     .split(/\s+/)
     .map((t) => t.replace(/s$/, ""))
     .filter((t) => t.length >= 3 && !PREP.has(t));
+  // THX-3d (B) — the gravy's "reserve ¼ cup fat" is its turkey drippings.
+  return toks.includes("dripping") ? [...toks, "fat"] : toks;
 }
 
 /**
@@ -181,7 +204,7 @@ function nameTokens(name: string): string[] {
  * "12-minute"), temperatures ("375°F", "preheat to 375"), and structural
  * dims/counts ("9×13", "1/4-inch", "3 wedges").
  */
-function isByDesign(text: string, span: Span): boolean {
+export function isByDesign(text: string, span: Span): boolean {
   const after = text.slice(span.end, span.end + 14);
   const before = text.slice(Math.max(0, span.start - 14), span.start).toLowerCase();
   if (TIME_UNIT_RE.test(span.unit) || /^-\s*(minutes?|mins?|hours?|hrs?|seconds?|secs?)/i.test(after)) {
@@ -199,6 +222,29 @@ function isByDesign(text: string, span: Span): boolean {
     /^\s*(?:°|º|degrees?|deg\b)/i.test(after) ||
     (/^\s*[°º]?\s*[fc]\b/i.test(after) && /\d/.test(span.text)) ||
     (/(preheat|oven|reduce heat to|heat to)/.test(before) && span.num != null && span.num >= 100)
+  ) {
+    return true;
+  }
+  // ── THX-3d (B) — numbers that are not an amount of a food ──────────────────
+  const clause = text.slice(0, span.start).split(/[,;.:]/).pop() ?? "";
+  const later = text.slice(span.end, span.end + 40);
+  if (
+    // a range of time: "12 to 24 hours", "3 to 3½ hours"; "35 more minutes"
+    /^\s*(?:to|-|–)\s*[\d½¼¾⅓⅔⅛⅜⅝⅞]+(?:\s*[½¼¾⅓⅔⅛⅜⅝⅞])?\s*(?:minutes?|mins?|hours?|hrs?|days?|weeks?)\b/i.test(later) ||
+    /^\s*more\s+(?:minutes?|mins?|hours?)\b/i.test(later) ||
+    // a bird's or a package's own size: "a 14-lb bird", "a 14-oz bag", "(8.5 oz each)"
+    /^\s*-\s*(?:lbs?|pounds?|oz|ounces?)\s+(?:bird|bags?|box(?:es)?|cans?|packages?|jars?)\b/i.test(later) ||
+    (/^(?:lbs?|pounds?|oz|ounces?)$/i.test(span.unit) && /^\s*(?:bird|bags?|box(?:es)?|cans?|packages?|jars?)\b/i.test(later)) ||
+    (/\(\s*$/.test(before) && /^\s*each\s*\)/i.test(later)) ||
+    // an equivalent in brackets after the amount: "48 oz (6 cups)"
+    (/[\d½¼¾⅓⅔⅛⅜⅝⅞]\s*[a-z]*\s*\(\s*$/i.test(text.slice(Math.max(0, span.start - 14), span.start))) ||
+    // a pot, pan, bowl or vent: "an 8-quart pot", "2 rimmed sheet pans", "6 steam vents"
+    /^\s*-?\s*(?:quarts?|qt)\b/i.test(later) && /^\s*-/.test(later) ||
+    /^\s*(?:(?:large|small|medium|rimmed|separate|shallow)\s+)*(?:sheet\s+pans?|pans?|pots?|bowls?|skillets?|racks?|(?:steam\s+)?vents?|slits?|batches)\b/i.test(later) ||
+    (/^sheets?$/i.test(span.unit) && /^\s*pans?\b/i.test(later)) ||
+    /^\s*at a time\b/i.test(later) ||
+    // per package: "in two 8×8 pans, each with 1 egg and ⅓ cup whole milk"
+    /\beach(?:\s+\w+)?\s+with\b/i.test(clause)
   ) {
     return true;
   }
@@ -237,14 +283,21 @@ function resolveSpan(text: string, span: Span, ings: MatcherIngredient[]): Match
     top = top.filter((c) => c.ov === maxOv);
     if (top.length === 1) return top[0].iv;
     const conf = top.filter((c) => qtyUnitAgrees(c.iv)); // (a) qty CONFIRMATORY
-    return conf.length === 1 ? conf[0].iv : null;
+    if (conf.length === 1) return conf[0].iv;
+    // THX-3d (B) — A TIE IS STILL THE SAME FOOD. "Toss with 1 tablespoon butter" in a
+    // dish that lists butter twice (6 tbsp for the roux, 2 for the topping) matched both
+    // rows equally and bound neither, so the amount printed unscaled. Every row scales by
+    // the dish's factor: the first one listed is as right as the other for the number.
+    return [...top].sort((a, b) => ings.indexOf(a.iv) - ings.indexOf(b.iv))[0].iv;
   };
 
   // (b) nearest-name-to-the-right — the ingredient whose name token appears
   // EARLIEST (closest to the amount) wins, NOT the one with the most tokens.
   // "1 pound ground beef and ½ yellow onion" → "1 pound" binds to beef
   // (adjacent), not onion (more tokens, but farther).
-  const rightRaw = text.slice(span.end, span.end + 45).split(/[,.;]| then | until | over | for | in /i)[0];
+  // THX-3d (B) — a bracket is read past, not into: "2 boxes (8.5 oz each) cornbread mix"
+  // split at the 8.5 and never reached the food.
+  const rightRaw = text.slice(span.end, span.end + 60).replace(/\([^)]*\)/g, " ").slice(0, 45).split(/[,.;]| then | until | over | for | in /i)[0];
   const rightTokens = contentTokens(rightRaw); // ordered
   const rightCands = toks
     .map((c) => {

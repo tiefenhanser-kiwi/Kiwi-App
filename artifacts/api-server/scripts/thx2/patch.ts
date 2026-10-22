@@ -41,6 +41,7 @@ import { isWholeBirdByCount, isWholeBirdByWeight } from "../../src/lib/prepQuant
 import { nameCutAmounts } from "./thx2Amounts";
 import { AHEAD_TAG, aheadDaysOf, aheadTags, dishSpecFor, keepsDaysFor, loadTargets, validateTargets } from "./thx2Core";
 import { fixKeepClause, hasThursdayStep, retargetMakeAheadDay, thursdayServeStep } from "./thx2Checks";
+import { countsInWords, mergeRefs, missingRows } from "./thx2Rows";
 import { formatOvenReport, heldDishSteps, oneOvenTemperature, ovenReport, raiseOvenStep, retimeDish, splitPreheatSteps, type OvenStepRow } from "./thx2Oven";
 
 const argv = process.argv.slice(2);
@@ -76,6 +77,8 @@ interface Plan {
   renumbers: { stepId: string; title: string; from: number; to: number }[];
   /** THX-3b — an oven step retimed to the feast's one post-bird temperature. */
   minuteUpdates: { stepId: string; title: string; stepIndex: number; from: number; to: number }[];
+  /** THX-3d (B) — a stock or water row a step measures and the dish never listed. */
+  rowCreates: { dishId: string; title: string; ingredientId: string; canonicalName: string; quantity: number; unit: string; preparationNote: string | null; componentKey: string | null; pathKey: string | null; positionIndex: number; stepIndex: number }[];
 }
 
 let totalChanges = 0;
@@ -86,7 +89,7 @@ for (const t of feasts) {
       id: true, title: true, estimatedTimeMinutes: true, activeTimeMinutes: true,
       dishLinks: {
         orderBy: { positionIndex: "asc" },
-        select: { dishId: true, positionIndex: true, roleLabel: true, dish: { select: { id: true, title: true, tags: true, estimatedTimeMinutes: true, dishIngredients: { orderBy: { positionIndex: "asc" }, select: { quantity: true, unit: true, ingredientId: true, preparationNote: true, ingredient: { select: { canonicalName: true } } } } } } },
+        select: { dishId: true, positionIndex: true, roleLabel: true, dish: { select: { id: true, title: true, tags: true, estimatedTimeMinutes: true, dishIngredients: { orderBy: { positionIndex: "asc" }, select: { quantity: true, unit: true, ingredientId: true, preparationNote: true, positionIndex: true, ingredient: { select: { canonicalName: true } } } } } } },
       },
     },
   });
@@ -96,7 +99,7 @@ for (const t of feasts) {
   const planRefs = await prisma.mealPlanItem.count({ where: { mealId: meal.id } });
   console.log(`\n▶ ${t.key} ${meal.id} "${meal.title.slice(0, 70)}" · plan items ${planRefs} · template items ${templateRefs} · user copies ${forks} (not patched)`);
 
-  const plan: Plan = { tagUpdates: [], textUpdates: [], refUpdates: [], creates: [], minuteUpdates: [], renumbers: [] };
+  const plan: Plan = { tagUpdates: [], textUpdates: [], refUpdates: [], creates: [], minuteUpdates: [], renumbers: [], rowCreates: [] };
   const specOf = dishSpecFor(t);
   const stepsByDish = new Map<string, StepRow[]>();
   const storedStep = new Map<string, StepRow>();
@@ -133,24 +136,36 @@ for (const t of feasts) {
       const refIds = new Set(((Array.isArray(s.amountRefs) ? s.amountRefs : []) as { ingredientId?: string }[]).map((r) => r.ingredientId));
       const measured = new Set(cutRows.filter((r) => refIds.has(r.id)).map((r) => r.name));
       texts.set(s.id, nameCutAmounts(texts.get(s.id)!, cutRows, measured));
+      // THX-3d (B) — "both oranges" cannot scale; "2 oranges" can.
+      texts.set(s.id, countsInWords(texts.get(s.id)!, cutRows));
     }
     for (const s of steps) {
       const to = texts.get(s.id)!;
       if (to !== s.stepTextTranslated) plan.textUpdates.push({ stepId: s.id, title: d.title, stepIndex: s.stepIndex, from: s.stepTextTranslated, to });
     }
+    // 12. THX-3d (B) — the stock and water a step measures and the dish never listed.
+    const lastPos = Math.max(-1, ...d.dishIngredients.map((i) => i.positionIndex));
+    const missing = missingRows(cutRows, steps.map((s) => ({ stepIndex: s.stepIndex, text: texts.get(s.id)!, componentKey: s.componentKey, pathKey: s.pathKey, amountRefs: s.amountRefs })));
+    for (const [n, m] of missing.entries()) {
+      const ingredient = await prisma.ingredient.findFirst({ where: { canonicalName: m.canonicalName }, select: { id: true } });
+      if (!ingredient) { console.log(`  rows+ SKIPPED [${d.title}] no Ingredient named "${m.canonicalName}" in this database — the step #${m.stepIndex} amount stays unscaled`); continue; }
+      plan.rowCreates.push({ dishId: d.id, title: d.title, ingredientId: ingredient.id, ...m, positionIndex: lastPos + 1 + n });
+    }
     // 5. amountRefs, from the dish's own rows (mealMaterialize's matcher input)
-    const matcher: MatcherIngredient[] = d.dishIngredients.map((i) => ({ ingredientId: i.ingredientId, name: i.ingredient.canonicalName, quantity: i.quantity, unit: i.unit }));
+    const matcher: MatcherIngredient[] = [
+      ...d.dishIngredients.map((i) => ({ ingredientId: i.ingredientId, name: i.ingredient.canonicalName, quantity: i.quantity, unit: i.unit })),
+      ...plan.rowCreates.filter((r) => r.dishId === d.id).map((r) => ({ ingredientId: r.ingredientId, name: r.canonicalName, quantity: r.quantity, unit: r.unit })),
+    ];
     // ⚠️ ONLY where it must: a step whose text changed, or whose stored refs hold a
     // duration (BUG-450's "2 days"). Every other step keeps the refs it was written
     // with — re-deriving them from today's canonical names lost Vegetarian's
     // "1½ lb Honeycrisp apples" ref in the dry run (the generation-time names differ).
-    const DURATION_AFTER = /^\s*(?:-\s*)?(?:days?|weeks?|nights?|months?)\b(?!-old)/i;
-    const needsRefs = (s: StepRow) =>
-      texts.get(s.id) !== s.stepTextTranslated ||
-      ((Array.isArray(s.amountRefs) ? s.amountRefs : []) as { charEnd: number }[]).some((r) => DURATION_AFTER.test(s.stepTextTranslated.slice(r.charEnd, r.charEnd + 10)));
+    // 🔴 THX-3d (B) — EVERY STEP NOW, merged: today's matcher (a mixed number's unit,
+    // packages, brackets, ties) plus any stored ref it no longer makes on unchanged
+    // text (thx2Rows mergeRefs) — never a corrupt "½ cups" or a "2 days".
     for (const s of steps) {
-      if (!needsRefs(s)) continue;
-      const { amountRefs } = deriveAmountRefs(texts.get(s.id)!, matcher);
+      const text = texts.get(s.id)!;
+      const amountRefs = mergeRefs(text, deriveAmountRefs(text, matcher).amountRefs, text === s.stepTextTranslated ? s.amountRefs : null);
       // jsonb stores object keys in its own order, so compare key-sorted.
       if (canonical(amountRefs) !== canonical(s.amountRefs ?? null)) plan.refUpdates.push({ stepId: s.id, refs: amountRefs, was: s.amountRefs, text: texts.get(s.id)! });
     }
@@ -230,6 +245,7 @@ for (const t of feasts) {
     plan.creates.push({ ...raise.step, phaseType: "preheat", refs: deriveAmountRefs(raise.step.text, matcherOf.get(raise.step.dishId) ?? []).amountRefs });
   }
 
+  for (const r of plan.rowCreates) console.log(`  rows+ [${r.title}] ${r.quantity} ${r.unit} ${r.canonicalName}${r.preparationNote ? ` (${r.preparationNote})` : ""} · ${r.componentKey ?? "—"}/${r.pathKey ?? "—"} — measured at step #${r.stepIndex}`);
   for (const u of plan.tagUpdates) console.log(`  tags  [${u.title}] ${u.from.join(" ") || "—"}  →  ${u.to.join(" ") || "—"}`);
   for (const u of plan.textUpdates) console.log(`  text  [${u.title} #${u.stepIndex}]\n          was: ${u.from}\n          now: ${u.to}`);
   for (const c of plan.creates) console.log(`  step+ [${c.title} #${c.stepIndex}] ${c.phaseType} ${c.estimatedMinutes}m: ${c.text}`);
@@ -278,11 +294,14 @@ for (const t of feasts) {
   const timeChanged = captured.meal && (captured.meal.estimatedTimeMinutes !== meal.estimatedTimeMinutes || captured.meal.activeTimeMinutes !== meal.activeTimeMinutes);
   console.log(`  time  total ${meal.estimatedTimeMinutes} → ${captured.meal?.estimatedTimeMinutes} · hands-on ${meal.activeTimeMinutes} → ${captured.meal?.activeTimeMinutes}`);
 
-  const changes = plan.tagUpdates.length + plan.textUpdates.length + plan.refUpdates.length + plan.creates.length + plan.minuteUpdates.length + plan.renumbers.length + (timeChanged ? 1 : 0);
+  const changes = plan.rowCreates.length + plan.tagUpdates.length + plan.textUpdates.length + plan.refUpdates.length + plan.creates.length + plan.minuteUpdates.length + plan.renumbers.length + (timeChanged ? 1 : 0);
   totalChanges += changes;
   if (!APPLY || changes === 0) continue;
 
   await prisma.$transaction(async (tx) => {
+    for (const r of plan.rowCreates) {
+      await tx.dishIngredient.create({ data: { dishId: r.dishId, ingredientId: r.ingredientId, quantity: r.quantity, unit: r.unit, preparationNote: r.preparationNote, positionIndex: r.positionIndex, componentKey: r.componentKey, pathKey: r.pathKey } });
+    }
     for (const u of plan.tagUpdates) await tx.dish.update({ where: { id: u.dishId }, data: { tags: u.to } });
     for (const u of plan.textUpdates) await tx.recipeInstructionStep.update({ where: { id: u.stepId }, data: { stepTextRaw: u.to, stepTextTranslated: u.to } });
     for (const u of plan.refUpdates) await tx.recipeInstructionStep.update({ where: { id: u.stepId }, data: { amountRefs: u.refs as Prisma.InputJsonValue } });

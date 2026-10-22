@@ -362,6 +362,18 @@ export function buildPrepWeekPlan(load: Load, opts: BuildPrepWeekOptions = {}): 
   return build;
 }
 
+/** THX-3d — each dish's servings multiplier (the adapter's: the plan's servings over the authored anchor). */
+function servingsMultipliers(input: Load["input"]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const m of input.meals) {
+    for (const d of m.dishes) {
+      const base = (d.authoredBaseServings ?? d.baseServings) > 0 ? (d.authoredBaseServings ?? d.baseServings) : 1;
+      out.set(d.dishId, (m.servingsOverride ?? d.baseServings) / base);
+    }
+  }
+  return out;
+}
+
 /**
  * THX-3 — the feast session's date-free facts: each container's closing line
  * (BUG-426 b) and the first day one of its containers is used (D-WS9-316).
@@ -396,7 +408,7 @@ function feastFacts(
   // amounts come from the dishes whole, scaled the same way, not the session's rows.
   const whole = buildPrepCombineInput(input);
   return {
-    closingLines: feastClosingLines(stepPlan.steps, dishes, whole, WEEKDAYS[fi]),
+    closingLines: feastClosingLines(stepPlan.steps, dishes, whole, WEEKDAYS[fi], servingsMultipliers(input)),
     sessionBefore: first ?? WEEKDAYS[fi],
   };
 }

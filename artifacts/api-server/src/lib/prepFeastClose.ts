@@ -20,6 +20,8 @@ import type { PlannedStep } from "./prepWeekAssembly";
 import { formatMeasure } from "./prepWeekAssembly";
 import { proseNames } from "./prepMoments";
 import { ingredientGroupKey } from "./ingredientRelations";
+import { deriveAmountRefs } from "./stepAmountRefs";
+import { convertAmount } from "./feastAmountWalk";
 
 export const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
 
@@ -211,6 +213,8 @@ export function feastClosingLines(
   dishesById: ReadonlyMap<string, FeastLoadDish>,
   combineInput: PrepCombineInput,
   feastDay?: string,
+  /** THX-3d — dishId → its servings multiplier, so a SHARE a step uses prints scaled. */
+  multiplierOf?: ReadonlyMap<string, number>,
 ): Map<string, string> {
   const uses = containerUses(steps, dishesById, combineInput, feastDay);
   const scaled = new Map<string, { ingredientId: string; ingredientName: string; quantity: number; unit: string; category: string; portionStep?: number }[]>();
@@ -251,6 +255,17 @@ export function feastClosingLines(
     // words "black peppercorns" must not bring in the gravy's black pepper.
     const joinsOf = (step: ComponentStep): string[] => {
       const lower = step.text.toLowerCase();
+      // THX-3d (B) — the amount THIS step uses of a row, when it is a share of it: the
+      // Brussels dressing whisks in ½ tbsp of the 1½ tbsp olive oil (the rest tosses the
+      // sprouts), and the closer named the whole row.
+      const factor = multiplierOf?.get(u.dishId);
+      const stepRefs = factor === undefined ? [] : deriveAmountRefs(step.text, rows.map((r) => ({ ingredientId: r.ingredientId, name: r.ingredientName, quantity: r.quantity, unit: r.unit }))).amountRefs;
+      const shareOf = (row: { ingredientId: string; quantity: number; unit: string }): number => {
+        const mine = stepRefs.filter((x) => x.ingredientId === row.ingredientId);
+        if (mine.length !== 1 || factor === undefined) return row.quantity;
+        const q = convertAmount(mine[0].quantity, mine[0].unit, row.unit);
+        return q !== null && q * factor < row.quantity * 0.98 ? q * factor : row.quantity;
+      };
       const named = rows
         .filter((r) => step.ingredientIds.includes(r.ingredientId) || (!isSaltOrPepper(r.ingredientName) && (proseNames(step.text, r.ingredientName) || namesProtein(lower, r))))
         .map((r) => ({ r, at: positionOf(lower, r.ingredientName) }))
@@ -273,7 +288,7 @@ export function feastClosingLines(
         }
         // Equipment is not something that joins (water is: "dissolve it in the gallon of water").
         if (isNeverMeasured(row.ingredientName) && !/\bwater\b/i.test(row.ingredientName)) continue;
-        const amount = formatMeasure(row.quantity, row.unit, row.ingredientName);
+        const amount = formatMeasure(shareOf(row), row.unit, row.ingredientName);
         // Mid-sentence, the catalog's capitals go ("2 Large eggs", "¼ cup Whole milk").
         joins.push(`${amount} ${spokenName(row.ingredientName, amount)}`.trim());
       }
