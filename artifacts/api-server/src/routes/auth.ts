@@ -13,7 +13,7 @@ import {
   type EmailSender,
 } from "../lib/email/sendEmail";
 import { prisma as productionPrisma } from "../lib/prisma";
-import { rateLimit } from "../lib/rateLimit";
+import { countFailedAttempt, perEmailLimit, rateLimit } from "../lib/rateLimit";
 import { isIssuedBeforeEpoch, redeemPurposeToken } from "../lib/tokenRevocation";
 import {
   claimGuestSessionInTx,
@@ -53,6 +53,10 @@ const authLimiter = rateLimit({ capacity: 10, refillPerSec: 10 / 60 }); // 10 bu
 const meLimiter = rateLimit({ capacity: 30, refillPerSec: 30 / 60 });
 // Even tighter for password reset request (prevents email enumeration via rate patterns)
 const resetLimiter = rateLimit({ capacity: 5, refillPerSec: 5 / 300 }); // 5 burst, ~1/60s
+// SEC-2 #1 — per-EMAIL, whatever the IP (lib/rateLimit.ts perEmailLimit). Login
+// spends only on a failed attempt; a reset request spends on every call.
+const loginEmailLimiter = perEmailLimit("failures");
+const resetEmailLimiter = perEmailLimit("all");
 
 
 // Password-reset tokens are short-lived per WS7-2 Block A. Reuses the
@@ -477,7 +481,7 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
   });
 
   // POST /auth/login
-  router.post("/auth/login", authLimiter, async (req, res) => {
+  router.post("/auth/login", authLimiter, loginEmailLimiter, async (req, res) => {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: "invalid request body" });
@@ -498,6 +502,7 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
         include: { subscription: true },
       });
       if (!user || !user.passwordHash) {
+        countFailedAttempt(res);
         return res.status(401).json({ error: "invalid credentials" });
       }
       if (user.accountStatus !== "active") {
@@ -506,6 +511,7 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
 
       const valid = await verifyPassword(password, user.passwordHash);
       if (!valid) {
+        countFailedAttempt(res);
         return res.status(401).json({ error: "invalid credentials" });
       }
 
@@ -944,7 +950,7 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
   // Reset tokens carry purpose='password_reset' and expire after 1h (WS7-2
   // Block A — tighter than the 30d session default).
   // D-WS7-022 (deferred): real email delivery infra lands in WS9A polish.
-  router.post("/auth/password-reset/request", resetLimiter, async (req, res) => {
+  router.post("/auth/password-reset/request", resetLimiter, resetEmailLimiter, async (req, res) => {
     const parsed = resetRequestSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: "invalid request body" });

@@ -49,37 +49,165 @@ export function clientIp(req: Request): string {
   return req.ip || req.socket.remoteAddress || "unknown";
 }
 
-export function rateLimit(opts: Options) {
-  const { capacity, refillPerSec, windowMs = 10 * 60 * 1000, keyFn } = opts;
+/**
+ * SEC-2 #1 — THE ROUTE A REQUEST MATCHED, NOT THE PATH IT TYPED.
+ *
+ * The bucket used to be keyed on `req.path`, the raw string the caller sent.
+ * Express routing is case-insensitive and non-strict about a trailing slash, so
+ * `/auth/LOGIN`, `/auth/Login` and `/auth/login/` all reach the login handler —
+ * and each got a FRESH bucket. SEC-1 measured it: ten 401s, two 429s, then a
+ * 401 for every case variant. Every limiter in the API was walkable that way,
+ * and a route with an `:id` gave each id its own bucket on top.
+ *
+ * `req.route.path` is the pattern Express matched (`/auth/login`,
+ * `/plans/:id/recalc`), identical for every spelling that reaches the handler.
+ * It is set whenever the limiter runs as route middleware, which is every mount
+ * today. The fallback (a limiter mounted with `use`) normalises the raw path the
+ * way Express matches it: lower-cased, repeated slashes collapsed, trailing
+ * slash stripped.
+ */
+export function routeKey(req: Request): string {
+  const routePath = (req.route as { path?: unknown } | undefined)?.path;
+  if (typeof routePath === "string") return `${req.baseUrl}${routePath}`;
+  const raw = `${req.baseUrl}${req.path}`.toLowerCase().replace(/\/{2,}/g, "/");
+  return raw.length > 1 ? raw.replace(/\/+$/, "") : raw;
+}
 
-  return (req: Request, res: Response, next: NextFunction): void => {
-    const id = keyFn ? keyFn(req) : clientIp(req);
-    const key = `${req.method}:${req.path}:${id}`;
-    const now = Date.now();
+export interface BucketVerdict {
+  ok: boolean;
+  /** Seconds until one token is back. Meaningful only when `ok` is false. */
+  retryAfter: number;
+}
 
+/**
+ * The bucket arithmetic on its own, for a caller that must decide WHEN to spend
+ * a token (the per-email login limiter spends one only on a failed attempt).
+ * `check` never spends; `consume` always does.
+ */
+export function createBucket(opts: {
+  capacity: number;
+  refillPerSec: number;
+  windowMs?: number;
+}) {
+  const { capacity, refillPerSec, windowMs = 10 * 60 * 1000 } = opts;
+
+  function current(key: string, now: number): number {
     // Light-touch eviction
     if (STORE.size > 5000) {
       for (const [k, b] of STORE) {
         if (now - b.updatedAt > windowMs) STORE.delete(k);
       }
     }
-
     const existing = STORE.get(key);
-    let tokens = existing?.tokens ?? capacity;
-    if (existing) {
-      const dt = (now - existing.updatedAt) / 1000;
-      tokens = Math.min(capacity, tokens + dt * refillPerSec);
-    }
+    if (!existing) return capacity;
+    const dt = (now - existing.updatedAt) / 1000;
+    return Math.min(capacity, existing.tokens + dt * refillPerSec);
+  }
 
-    if (tokens < 1) {
-      const retryAfter = Math.ceil((1 - tokens) / refillPerSec);
-      res.setHeader("Retry-After", String(retryAfter));
-      res.status(429).json({ error: "Too many requests, slow down." });
+  return {
+    check(key: string): BucketVerdict {
+      const tokens = current(key, Date.now());
+      return tokens < 1
+        ? { ok: false, retryAfter: Math.ceil((1 - tokens) / refillPerSec) }
+        : { ok: true, retryAfter: 0 };
+    },
+    consume(key: string): void {
+      const now = Date.now();
+      STORE.set(key, { tokens: current(key, now) - 1, updatedAt: now });
+    },
+  };
+}
+
+export function tooManyRequests(res: Response, retryAfter: number): void {
+  res.setHeader("Retry-After", String(retryAfter));
+  res.status(429).json({ error: "Too many requests, slow down." });
+}
+
+export function rateLimit(opts: Options) {
+  const { keyFn } = opts;
+  const bucket = createBucket(opts);
+
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const id = keyFn ? keyFn(req) : clientIp(req);
+    const key = `${req.method}:${routeKey(req)}:${id}`;
+
+    const verdict = bucket.check(key);
+    if (!verdict.ok) {
+      tooManyRequests(res, verdict.retryAfter);
       return;
     }
 
-    tokens -= 1;
-    STORE.set(key, { tokens, updatedAt: now });
+    bucket.consume(key);
     next();
   };
+}
+
+/**
+ * SEC-2 #1 — the normalised email a per-account limit is keyed on. Lower-cased
+ * and trimmed, exactly as the auth routes normalise it before the user lookup,
+ * so one account is one bucket however its address is typed. `null` for a body
+ * with no usable email: the route's own 400 answers that, not the limiter.
+ */
+export function emailKey(req: Request): string | null {
+  const raw = (req.body as { email?: unknown } | undefined)?.email;
+  if (typeof raw !== "string") return null;
+  const email = raw.trim().toLowerCase();
+  return email === "" ? null : email;
+}
+
+const EMAIL_PER_MINUTE = { capacity: 10, refillPerSec: 10 / 60 };
+const EMAIL_PER_DAY = {
+  capacity: 30,
+  refillPerSec: 30 / 86_400,
+  // The daily bucket must outlive the eviction sweep's idle window, or a
+  // crowded store would hand an attacker a fresh day after ten quiet minutes.
+  windowMs: 24 * 60 * 60 * 1000,
+};
+
+/**
+ * SEC-2 #1 — per-EMAIL limits, whatever the IP: 10 a minute and 30 a day. The
+ * IP limiter alone is walkable by anyone with more than one address (and on
+ * Cloud Run with TRUST_PROXY_HOPS unset it is one global bucket); this one
+ * bounds the guesses against a single account wherever they come from.
+ *
+ * `"failures"` (login) checks BOTH buckets on the way in but spends a token
+ * only when the handler reports a failed attempt (countFailedAttempt below). A
+ * correct password never counts against its own account, so someone signing in
+ * on three devices — or a QA script — never meets the daily cap; guesses do. A
+ * blocked email is refused BEFORE the password is checked, right and wrong
+ * alike, so the 429 is no oracle.
+ *
+ * `"all"` (password-reset request) spends on every call: each one is an email
+ * sent to a real inbox.
+ */
+export function perEmailLimit(count: "all" | "failures") {
+  const minute = createBucket(EMAIL_PER_MINUTE);
+  const day = createBucket(EMAIL_PER_DAY);
+
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const email = emailKey(req);
+    if (!email) {
+      next();
+      return;
+    }
+    const key = `email:${req.method}:${routeKey(req)}:${email}`;
+    const blocked = [minute.check(`${key}:m`), day.check(`${key}:d`)].find((v) => !v.ok);
+    if (blocked) {
+      tooManyRequests(res, blocked.retryAfter);
+      return;
+    }
+    const spend = () => {
+      minute.consume(`${key}:m`);
+      day.consume(`${key}:d`);
+    };
+    if (count === "all") spend();
+    else res.locals["countFailedAttempt"] = spend;
+    next();
+  };
+}
+
+/** The handler's half of `perEmailLimit("failures")`: call it on a failed attempt. */
+export function countFailedAttempt(res: Response): void {
+  const spend = res.locals["countFailedAttempt"];
+  if (typeof spend === "function") spend();
 }
