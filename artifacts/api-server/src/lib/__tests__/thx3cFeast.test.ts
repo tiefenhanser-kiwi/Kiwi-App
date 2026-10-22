@@ -148,8 +148,8 @@ describe("THX-3c E — the make-ahead dishes' cuts are back in Prep the feast", 
     assert.ok(!live.includes("fresh thyme") && !live.includes("fresh chives"), live.join(", "));
   });
 
-  it("the engine moved: version 14 (12 for E, 13 for the follow-up, 14 for THX-3d)", () => {
-    assert.equal(PREP_ENGINE_VERSION, 14);
+  it("the engine moved: version 15 (12 for E, 13 for the follow-up, 14 for THX-3d, 15 for its round 2)", () => {
+    assert.equal(PREP_ENGINE_VERSION, 15);
   });
 });
 

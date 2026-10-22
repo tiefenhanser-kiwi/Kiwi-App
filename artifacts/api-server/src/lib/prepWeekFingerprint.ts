@@ -130,8 +130,14 @@ const FINGERPRINT_ALGO_VERSION = 1;
  *       a count-written bird with its weight takes the weight rule in a feast;
  *       make-ahead rows read the steps' day phrases. Containers, amounts and lines
  *       move, so the prose must go.
+ *  15 — THX-3d round 2: Prep the feast's containers carry short labels and the session
+ *       opens with "Label N containers" (N); a measure step and a later clause are their
+ *       own moments, a juice joins a jar only for its moment, "zested, then juiced" is
+ *       both, a cavity's vegetable is trimmed (L); an unscaled amount prints as written
+ *       and produce rounds to its half (P). Names, members and amounts move, so the
+ *       prose must go.
  */
-export const PREP_ENGINE_VERSION = 14;
+export const PREP_ENGINE_VERSION = 15;
 
 /**
  * Digest of the loaded plan composition — everything the prep payload is built
