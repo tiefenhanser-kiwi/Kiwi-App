@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import express, { type Express } from "express";
 import type { Server } from "node:http";
 
-import { hashPassword } from "../../lib/auth";
+import bcrypt from "bcryptjs";
 import { __clearRateLimitStoreForTests, rateLimit } from "../../lib/rateLimit";
 import { createAuthRouter } from "../auth";
 
@@ -88,7 +88,10 @@ const post = (baseUrl: string, path: string, body: unknown, rotateIp = false) =>
 describe("SEC-2 #1 — rate-limit keys and per-email limits", () => {
   let h: Awaited<ReturnType<typeof spinUp>>;
   before(async () => {
-    knownHash = await hashPassword(KNOWN_PASSWORD);
+    // Cost 4, not the production 12: this file is about the limiter, and eleven
+    // cost-12 compares under suite load take long enough for the per-minute
+    // bucket to refill a token mid-test.
+    knownHash = await bcrypt.hash(KNOWN_PASSWORD, 4);
     h = await spinUp((app) => {
       app.use(createAuthRouter({ prisma: prisma as never, sendEmail: async () => ({ sent: false, reason: "no_api_key" }) as never }));
       // A parameterised route: every id must share one bucket.
