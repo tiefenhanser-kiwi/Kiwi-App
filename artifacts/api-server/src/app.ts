@@ -1,5 +1,6 @@
 import express, { type Express } from "express";
 import cors from "cors";
+import helmet from "helmet";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import pagesRouter from "./routes/pages";
@@ -16,6 +17,34 @@ import { noStore } from "./middleware/cacheControl";
 import { errorHandler } from "./middleware/errorHandler";
 
 const app: Express = express();
+
+// SEC-2 #9 — response headers. SEC-1 found none of the standard ones and an
+// `X-Powered-By: Express` on every response. This is a JSON API, so the policy
+// is the strictest one a JSON API can carry: a CSP that allows nothing (a
+// JSON body is never a document that loads anything), no framing, no
+// referrer, HSTS, nosniff. The three web fallback pages (routes/pages.ts) are
+// the only HTML this server sends; each replaces the CSP with one that allows
+// exactly its own inline script and style, by hash.
+//
+// CORS is unchanged (`cors()` below): the API is called cross-origin by the
+// web app with a bearer token, not a cookie, and CORP does not apply to a CORS
+// fetch. Webhooks are server-to-server and ignore all of these headers.
+app.disable("x-powered-by");
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      useDefaults: false,
+      directives: {
+        "default-src": ["'none'"],
+        "base-uri": ["'none'"],
+        "form-action": ["'none'"],
+        "frame-ancestors": ["'none'"],
+      },
+    },
+    frameguard: { action: "deny" },
+    referrerPolicy: { policy: "no-referrer" },
+  }),
+);
 
 // BUG-223 — HOW MANY PROXY HOPS DO WE VOUCH FOR? CONFIGURATION, NOT A CONSTANT.
 //
