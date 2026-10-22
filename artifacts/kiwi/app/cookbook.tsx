@@ -1,7 +1,7 @@
 // BOOK-1C1 (D-WS9-312) — the in-app Kiwi Cookbook: its own full screen (a
 // stack route, no tab bar), live by November 16.
 //
-// Top to bottom: the header ("Cookbook" / "N meals that fit your allergies"),
+// Top to bottom: the header ("Cookbook" / "N meals"),
 // the search field, the seasonal band (useSeasonBand), the chip row (Filters + the
 // quick chips), the count and the sort, then the cards (CookbookResults).
 //
@@ -176,11 +176,9 @@ export default function CookbookScreen() {
       <Header
         showBack
         title="Cookbook"
-        subtitle={
-          eligible.data === undefined
-            ? "Meals that fit your allergies"
-            : `${mealCountLabel(eligible.data)} that fit your allergies`
-        }
+        // SEC-3 F (Hans, Oct 21) — the number alone: "that fit your allergies"
+        // read wrong for a member with no allergies.
+        subtitle={eligible.data === undefined ? "Meals" : mealCountLabel(eligible.data)}
       />
       <CookbookResults
         results={results}

@@ -221,9 +221,11 @@ test("QA-1 A — Cookbook (items 1–13) + BOOK-1C2 B1–B7", async ({ page }) =
 
   // ── 3 — header subline N = Recipes card N ─────────────────────────────────
   let baseTotal: number | null = null;
-  await ledger.run("A3", 'Header reads "N meals that fit your allergies", N = the Recipes card', async (shots) => {
+  // SEC-3 F — the subline is "N meals" now (no allergy clause). It is the first
+  // such line on the screen; the count row under the chips is the second.
+  await ledger.run("A3", 'Header reads "N meals", N = the Recipes card', async (shots) => {
     const t = await gotoCookbook(page);
-    const sub = t.find((l) => /that fit your allergies/.test(l)) ?? "";
+    const sub = t.find((l) => /^[\d,]+ meals?$/.test(l.trim())) ?? "";
     const n = parseCount(sub);
     baseTotal = await resultCount(page);
     await shot(page, LABEL, "A3-01-header", shots);
