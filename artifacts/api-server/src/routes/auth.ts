@@ -2,7 +2,7 @@ import { Router, type IRouter, type Response } from "express";
 import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
-import { hashPassword, signToken, verifyPassword, verifyToken } from "../lib/auth";
+import { hashPassword, signToken, verifyPasswordOrDummy, verifyToken } from "../lib/auth";
 import { createRequireAuth } from "../middleware/auth";
 import { logger } from "../lib/logger";
 import { phoneSchema } from "../lib/phoneValidation";
@@ -512,18 +512,18 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
         where: { email: normalizedEmail },
         include: { subscription: true },
       });
-      if (!user || !user.passwordHash) {
+      // SEC-2 #13 — ONE path for every wrong answer, and bcrypt runs on all
+      // of them. An unknown email, an OAuth-only account (no password) and a
+      // wrong password are the same 401 after the same work; only the right
+      // password reaches the "not active" answer, so that 403 no longer tells
+      // a stranger an address belongs to a suspended account.
+      const valid = await verifyPasswordOrDummy(password, user?.passwordHash);
+      if (!user || !valid) {
         countFailedAttempt(res);
         return res.status(401).json({ error: "invalid credentials" });
       }
       if (user.accountStatus !== "active") {
         return res.status(403).json({ error: "account not active" });
-      }
-
-      const valid = await verifyPassword(password, user.passwordHash);
-      if (!valid) {
-        countFailedAttempt(res);
-        return res.status(401).json({ error: "invalid credentials" });
       }
 
       // Update last-login tracking. Non-critical if this fails — don't block login.
@@ -1032,17 +1032,28 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
         // answers `{ success: true }` unconditionally for anti-enumeration
         // (§1.10), and leaking "we did/didn't send" would reintroduce exactly
         // the oracle that design removes.
+        // SEC-2 #13 — NOT AWAITED. The send is a round trip to Resend that
+        // only an existing account pays, so awaiting it made "this address
+        // has an account" a timing oracle on a route whose body says nothing.
+        // The reply now leaves before the mail does, for every address alike;
+        // the outcome is still logged, from the promise.
         const link = buildAppLink("/reset-password", resetToken);
-        const result = await sendEmail(passwordResetMessage(normalizedEmail, link));
-        logger.info(
-          {
-            event: "password_reset_requested",
-            userId: user.id,
-            sent: result.sent,
-            ...(result.sent ? {} : { reason: result.reason }),
-          },
-          "Password reset requested",
-        );
+        const userId = user.id;
+        void sendEmail(passwordResetMessage(normalizedEmail, link))
+          .then((result) =>
+            logger.info(
+              {
+                event: "password_reset_requested",
+                userId,
+                sent: result.sent,
+                ...(result.sent ? {} : { reason: result.reason }),
+              },
+              "Password reset requested",
+            ),
+          )
+          .catch((err: unknown) =>
+            logger.error({ err, userId }, "Password reset email failed"),
+          );
       }
       return res.json({ success: true });
     } catch (err) {

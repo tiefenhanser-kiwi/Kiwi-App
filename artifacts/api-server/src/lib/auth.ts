@@ -70,6 +70,34 @@ export async function verifyPassword(
   return bcrypt.compare(plaintext, hash);
 }
 
+// SEC-2 #13 — a real hash of nothing anyone knows, made once on first use at
+// the CURRENT cost, so a check against it takes as long as a check against a
+// real account's hash.
+let dummyHash: Promise<string> | null = null;
+function getDummyHash(): Promise<string> {
+  dummyHash ??= bcrypt.hash(randomUUID(), BCRYPT_ROUNDS);
+  return dummyHash;
+}
+
+/**
+ * SEC-2 #13 — verify a password whether or not there is a hash to verify it
+ * against. Login used to answer an unknown email (and an OAuth-only account)
+ * without running bcrypt at all — a few milliseconds instead of a hundred,
+ * which told anyone timing the 401 whether the address had an account. With
+ * no hash, this compares against a dummy and returns false: the same work,
+ * the same answer.
+ */
+export async function verifyPasswordOrDummy(
+  plaintext: string,
+  hash: string | null | undefined,
+): Promise<boolean> {
+  if (!hash) {
+    await bcrypt.compare(plaintext, await getDummyHash());
+    return false;
+  }
+  return bcrypt.compare(plaintext, hash);
+}
+
 export function signToken(
   userId: string,
   options: SignTokenOptions = {},
