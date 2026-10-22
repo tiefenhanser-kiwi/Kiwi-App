@@ -14,11 +14,14 @@ import { useRouter } from "expo-router";
 import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { ReauthFields } from "@/components/ReauthFields";
 import { StoreSubscriptionNotice } from "@/components/StoreSubscriptionNotice";
 import { useApp } from "@/contexts/AppContext";
 import { useBilling } from "@/contexts/BillingContext";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { useReauthAction } from "@/hooks/useReauthAction";
 import { deleteAccountNoticeFor } from "@/lib/billing/subscriptionView";
+import { REAUTH_HEADING } from "@/lib/reauth";
 
 // D-WS9-257 — replaces app/deactivate-account.tsx.
 //
@@ -59,6 +62,8 @@ export default function DeleteAccount() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // SEC-3 B — the current password, or a recent sign-in (SEC-2).
+  const reauth = useReauthAction((body) => deleteAccount(body));
 
   const isConfirmed = input.trim().toLowerCase() === CONFIRM_PHRASE;
 
@@ -67,13 +72,17 @@ export default function DeleteAccount() {
   // left in memory for whoever signs in next on this device.
   const handleConfirmDelete = async () => {
     Keyboard.dismiss();
-    if (!isConfirmed || busy) return;
+    if (!isConfirmed || !reauth.ready || busy) return;
 
     setError(null);
     setBusy(true);
     try {
-      await deleteAccount();
-      router.replace("/(auth)/welcome");
+      if (await reauth.run()) {
+        router.replace("/(auth)/welcome");
+        return;
+      }
+      // A re-auth refusal: ReauthFields says why, and what to do.
+      setBusy(false);
     } catch {
       setError("Couldn't delete your account. Please try again.");
       setBusy(false);
@@ -136,12 +145,23 @@ export default function DeleteAccount() {
           </Text>
         </View>
 
+        {/* SEC-3 B — confirm it's the member, not whoever holds the phone. A
+            completed "Sign in again" retries the delete itself. */}
+        <View style={s.frictionCard}>
+          <Text style={s.frictionHeading}>{REAUTH_HEADING}</Text>
+          <ReauthFields
+            reauth={reauth}
+            disabled={busy}
+            onSignedInAgain={() => void handleConfirmDelete()}
+          />
+        </View>
+
         <View style={s.footer}>
           <Button
             label="Delete my account"
             variant="primary"
             loading={busy}
-            disabled={!isConfirmed || busy}
+            disabled={!isConfirmed || !reauth.ready || busy}
             onPress={handleConfirmDelete}
           />
           {error && <Text style={s.errorText}>{error}</Text>}

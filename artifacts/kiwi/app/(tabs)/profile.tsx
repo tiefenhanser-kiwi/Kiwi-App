@@ -11,13 +11,12 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import Constants from "expo-constants";
-import * as Updates from "expo-updates";
 
 import { Button } from "@/components/Button";
 import { Header } from "@/components/Header";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { PasswordField } from "@/components/PasswordField";
+import { ReauthFields } from "@/components/ReauthFields";
 import { SubscriptionCardView } from "@/components/SubscriptionCardView";
 import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -27,17 +26,10 @@ import { ApiError } from "@/lib/api/errors";
 import { subscriptionCardFor } from "@/lib/billing/subscriptionView";
 import { storeReviewUrl, storeWebUrl } from "@/lib/feedback";
 import { PRIVACY_URL, TERMS_URL } from "@/lib/legal";
-import { bundleLine } from "@/lib/appBundle";
-
-// BUG-445 — which bundle is running, read once: none of these change while
-// the app runs (a downloaded update applies on the next launch).
-const BUNDLE_LINE = bundleLine({
-  platform: Platform.OS,
-  version: Constants.expoConfig?.version,
-  runtimeVersion: Updates.runtimeVersion,
-  updateId: Updates.updateId,
-  isEmbeddedLaunch: Updates.isEmbeddedLaunch,
-});
+import { useReauthAction } from "@/hooks/useReauthAction";
+import { REAUTH_HEADING } from "@/lib/reauth";
+// BUG-445 — which bundle is running (SEC-3 E: shared with "Send feedback").
+import { BUNDLE_LINE } from "@/lib/runningBundle";
 
 type EditableField = "name" | "email" | "phone";
 
@@ -101,6 +93,14 @@ export default function ProfileTab() {
   const [pwBusy, setPwBusy] = useState(false);
   const [pwStatus, setPwStatus] = useState<FieldStatus>(null);
 
+  // SEC-3 B — the email change waits here for "Confirm it's you".
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const emailReauth = useReauthAction((body) =>
+    requestEmailChange(pendingEmail ?? "", body),
+  );
+
   const fieldDisplay = (field: EditableField): string => {
     if (field === "name") return displayName;
     if (field === "email") return displayEmail;
@@ -157,21 +157,12 @@ export default function ProfileTab() {
       if (!trimmed || !isValidEmail(trimmed) || trimmed === displayEmail) {
         return;
       }
-      // Request side only — the server emails a verification link and the
-      // address only changes once the user clicks through. The verify-side
-      // landing screen is WS7-2 Block D.
-      try {
-        await requestEmailChange(trimmed);
-        setFieldStatus({
-          kind: "success",
-          text: "Check your email for a verification link to confirm the change.",
-        });
-      } catch {
-        setFieldStatus({
-          kind: "error",
-          text: "Couldn't start the email change. Please try again.",
-        });
-      }
+      // SEC-3 B — not sent yet: the change needs "Confirm it's you" first
+      // (the current password, or a recent sign-in), so the address waits in
+      // the confirm card below until the member sends it.
+      emailReauth.reset();
+      setEmailError(null);
+      setPendingEmail(trimmed);
     } else if (field === "phone") {
       // Clearing the phone to empty would need a null-write the /me/profile
       // contract doesn't expose yet — empty input reverts silently. A
@@ -187,6 +178,35 @@ export default function ProfileTab() {
         });
       }
     }
+  };
+
+  // Request side only — the server emails a verification link and the address
+  // only changes once the user clicks through (app/verify-email.tsx).
+  const handleSendEmailChange = async () => {
+    Keyboard.dismiss();
+    if (pendingEmail === null || !emailReauth.ready || emailBusy) return;
+    setEmailError(null);
+    setEmailBusy(true);
+    try {
+      if (await emailReauth.run()) {
+        setPendingEmail(null);
+        emailReauth.reset();
+        setFieldStatus({
+          kind: "success",
+          text: "Check your email for a verification link to confirm the change.",
+        });
+      }
+    } catch {
+      setEmailError("Couldn't start the email change. Please try again.");
+    } finally {
+      setEmailBusy(false);
+    }
+  };
+
+  const handleCancelEmailChange = () => {
+    setPendingEmail(null);
+    setEmailError(null);
+    emailReauth.reset();
   };
 
   const handleTogglePasswordForm = () => {
@@ -357,6 +377,42 @@ export default function ProfileTab() {
             </Text>
           )}
         </View>
+
+        {/* SEC-3 B — the email change's "Confirm it's you". A completed
+            "Sign in again" sends the change itself. */}
+        {pendingEmail !== null && (
+          <View style={s.card} testID="email-change-confirm">
+            <Text style={s.cardTitle}>{REAUTH_HEADING}</Text>
+            <Text style={s.subscriptionHint}>
+              We'll send a link to {pendingEmail} to confirm the change.
+            </Text>
+            <View style={[s.pwForm, s.emailForm]}>
+              <ReauthFields
+                reauth={emailReauth}
+                disabled={emailBusy}
+                onSignedInAgain={() => void handleSendEmailChange()}
+              />
+              {emailError && (
+                <Text style={[s.statusText, s.statusError]}>{emailError}</Text>
+              )}
+              <Button
+                label="Send verification link"
+                variant="primary"
+                loading={emailBusy}
+                disabled={!emailReauth.ready || emailBusy}
+                onPress={handleSendEmailChange}
+              />
+              <Pressable
+                onPress={handleCancelEmailChange}
+                accessibilityRole="button"
+                hitSlop={6}
+                style={({ pressed }) => [s.emailCancel, pressed && { opacity: 0.6 }]}
+              >
+                <Text style={s.emailCancelText}>Cancel</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
 
         {/* Section B2: Change-password inline form (toggled by the row above) */}
         {pwOpen && (
@@ -857,6 +913,21 @@ const s = StyleSheet.create({
   },
   pwForm: {
     gap: Spacing[3],
+  },
+  // SEC-3 B — the email confirm card's form sits under its hint line.
+  emailForm: {
+    marginTop: Spacing[3],
+  },
+  emailCancel: {
+    alignSelf: "center",
+    paddingVertical: Spacing[1],
+    paddingHorizontal: Spacing[3],
+  },
+  emailCancelText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontWeight: Typography.fontWeight.medium,
+    fontFamily: Typography.face.sans[500],
   },
   pwField: {
     gap: Spacing[1],

@@ -19,6 +19,49 @@ export const IOS_APP_STORE_ID = "6816201328";
 export const FEEDBACK_MAX_CHARS = 4000;
 
 /**
+ * SEC-3 E — the room the device lines take at the end of the message (Hans,
+ * Oct 21: "we should include that in the feedback emails automatically").
+ * routes/feedback.ts's schema is `.strict()`, so a field of its own would 400
+ * every send until the server accepts one; the message is the one place it
+ * reaches the email today. What the member types is capped below this.
+ */
+export const FEEDBACK_DEVICE_MAX_CHARS = 300;
+export const FEEDBACK_MESSAGE_MAX_CHARS = FEEDBACK_MAX_CHARS - FEEDBACK_DEVICE_MAX_CHARS;
+
+export interface DeviceFacts {
+  os: string;
+  /** Platform.Version: the API level on Android, the iOS version string on iOS. */
+  version?: string | number | null;
+  /** Android's release ("14"), from Platform.constants.Release. */
+  release?: string | null;
+  /** The browser's user agent, on the web (it carries the OS and its version). */
+  userAgent?: string | null;
+}
+
+/** The platform and its OS version, e.g. "Android 14 (API 34)", "iOS 17.4". */
+export function osLine(f: DeviceFacts): string {
+  if (f.os === "android") {
+    const api = f.version != null && f.version !== "" ? ` (API ${f.version})` : "";
+    return `Android ${f.release || "unknown"}${api}`;
+  }
+  if (f.os === "ios") return `iOS ${f.version || "unknown"}`;
+  if (f.os === "web") return f.userAgent ? `web · ${f.userAgent}` : "web";
+  return f.os;
+}
+
+/**
+ * The message as sent: the member's text, then Profile's footer line and the
+ * OS line under a rule. The two lines together never pass
+ * FEEDBACK_DEVICE_MAX_CHARS (a long user agent is cut), so a message within
+ * FEEDBACK_MESSAGE_MAX_CHARS always fits the server's limit.
+ */
+export function withDeviceLines(message: string, bundle: string, os: string): string {
+  const lines = `${bundle}\n${os}`;
+  const room = FEEDBACK_DEVICE_MAX_CHARS - "\n\n—\n".length;
+  return `${message}\n\n—\n${lines.length > room ? `${lines.slice(0, room - 1)}…` : lines}`;
+}
+
+/**
  * The store link "Rate Kiwi" opens, or null when the row should not show.
  *   android — the Play app (market://), with an https fallback below
  *   ios     — the App Store's write-a-review sheet, once IOS_APP_STORE_ID is set
@@ -41,7 +84,7 @@ export function storeWebUrl(os: string, iosAppStoreId: string = IOS_APP_STORE_ID
 
 export function canSendFeedback(text: string): boolean {
   const t = text.trim();
-  return t.length > 0 && t.length <= FEEDBACK_MAX_CHARS;
+  return t.length > 0 && t.length <= FEEDBACK_MESSAGE_MAX_CHARS;
 }
 
 export function feedbackPlatform(os: string): "ios" | "android" | "web" | undefined {

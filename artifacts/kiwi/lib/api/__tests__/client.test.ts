@@ -127,6 +127,32 @@ test("WS9 BUG-239: 401 on an auth:false route → UnauthenticatedError, NO casca
   assert.deepEqual(seen, []);
 });
 
+// SEC-3 B — "confirm it's you" refuses ONE action; the session is fine.
+test("SEC-3: a 401 reauth_required → UnauthenticatedError with its body, NO cascade", async () => {
+  nextResponse = () => mockResponse({ error: "Sign in again to confirm", code: "reauth_required" }, 401);
+  const seen: string[] = [];
+  subscribeSessionEvents((e) => seen.push(e));
+  await assert.rejects(
+    () => apiClient("/me", { method: "DELETE", body: { confirm: "delete" } }),
+    (err: unknown) => err instanceof UnauthenticatedError && (err.body as { code?: string }).code === "reauth_required",
+  );
+  await new Promise<void>((r) => queueMicrotask(r));
+  assert.deepEqual(seen, [], "a re-auth refusal must not sign the member out");
+});
+
+test("SEC-3: a 401 password_incorrect is not the cascade either; any other 401 code still is", async () => {
+  const seen: string[] = [];
+  subscribeSessionEvents((e) => seen.push(e));
+  nextResponse = () => mockResponse({ code: "password_incorrect" }, 401);
+  await assert.rejects(() => apiClient("/me/email/request-change", { method: "POST", body: {} }));
+  await new Promise<void>((r) => queueMicrotask(r));
+  assert.deepEqual(seen, []);
+  nextResponse = () => mockResponse({ code: "token_revoked" }, 401);
+  await assert.rejects(() => apiClient("/me"), UnauthenticatedError);
+  await new Promise<void>((r) => queueMicrotask(r));
+  assert.deepEqual(seen, ["expired"]);
+});
+
 test("402 from server → UpgradeRequiredError, NO cascade", async () => {
   nextResponse = () =>
     mockResponse(

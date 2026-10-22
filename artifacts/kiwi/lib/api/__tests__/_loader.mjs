@@ -63,6 +63,8 @@ const PHYSICAL_STUBS = new Map([
   ["react-native-svg", "./stubs/react-native-svg.mjs"],
   // Resub C1 — the native Turnstile gate renders its widget in a WebView.
   ["react-native-webview", "./stubs/react-native-webview.mjs"],
+  // SEC-3 B — ReauthFields renders SocialSignInBlock, which reaches the Apple button.
+  ["expo-apple-authentication", "./stubs/expo-apple-authentication.mjs"],
 ]);
 
 // kiwi/ root, used to resolve the `@/*` tsconfig path alias.

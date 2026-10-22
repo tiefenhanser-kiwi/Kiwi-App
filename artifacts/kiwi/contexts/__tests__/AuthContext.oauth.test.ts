@@ -427,3 +427,95 @@ test("a stale password error is cleared when a social attempt starts", async () 
   });
   assert.equal(captured!.error, null);
 });
+
+// ── SEC-3 B — "Sign in again to confirm" ─────────────────────────────────────
+
+/** Mount signed in as u1 with `old-token`, every header recorded. */
+async function mountSignedIn(oauthAnswer: () => Response) {
+  store.__setForTests(TOKEN_KEY, "old-token");
+  const headers: Array<{ url: string; auth: string | null }> = [];
+  const inner = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((url: string, init?: RequestInit) => {
+    const h = (init?.headers ?? {}) as Record<string, string>;
+    headers.push({ url, auth: h["Authorization"] ?? null });
+    return inner(url, init);
+  }) as unknown as typeof fetch;
+  respond = (call) => {
+    if (call.url.includes("/auth/me")) return mockJson({ user: makeUser() });
+    if (call.url.includes("/auth/oauth/")) return oauthAnswer();
+    return mockJson({}, 200);
+  };
+  await mount();
+  for (let i = 0; i < 50 && !captured?.user; i++) {
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+  }
+  assert.equal(captured!.user?.id, "u1", "signed in as u1");
+  return headers;
+}
+
+test("SEC-3 B: re-auth as the SAME account stores its fresh token, with no claim and no consents", async () => {
+  storeGuestSession({ guestSessionId: "g-should-not-ride", token: "gt", expiresAt: "2099-01-01T00:00:00Z" });
+  await mountSignedIn(() => mockJson(signedIn({ authToken: "fresh-token" }), 200));
+  await act(async () => {
+    await captured!.reauthenticate(GOOGLE);
+  });
+  assert.equal(await store.getItemAsync(TOKEN_KEY), "fresh-token");
+  const call = oauthCalls()[0]!;
+  assert.match(call.url, /\/auth\/oauth\/google$/);
+  assert.equal(call.body.idToken, "google.id.token");
+  assert.equal("guestSessionId" in call.body, false, "a re-auth never claims");
+  assert.equal("marketingConsentEmail" in call.body, false);
+  assert.equal(captured!.user?.id, "u1");
+});
+
+test("🔴 SEC-3 B: re-auth that comes back as ANOTHER account is refused, its token dropped, never stored", async () => {
+  const headers = await mountSignedIn(() =>
+    mockJson(signedIn({ user: makeUser({ id: "u2", email: "other@example.com" }), authToken: "other-token" }), 200),
+  );
+  await assert.rejects(
+    async () => {
+      await act(async () => {
+        await captured!.reauthenticate(APPLE);
+      });
+    },
+    (err: unknown) => (err as Error).name === "ReauthMismatchError",
+  );
+  assert.equal(await store.getItemAsync(TOKEN_KEY), "old-token", "the member's own token is kept");
+  assert.equal(captured!.user?.id, "u1", "the session never swapped");
+  // NOT logged out: since SEC-2 #6 logout revokes every session of the account,
+  // and the other account's other devices did nothing wrong.
+  assert.equal(headers.find((h) => h.url.endsWith("/auth/logout")), undefined);
+  assert.ok(!headers.some((h) => h.auth === "Bearer other-token"), "the other token is never sent anywhere");
+});
+
+// ── SEC-3 D — a sign-up the server gave no trial ────────────────────────────
+
+test("SEC-3 D: trialDenied 'duplicate_email' on an OAuth first sign-in is noted for the paywall", async () => {
+  const { takeTrialDenied } = await import("@/lib/billing/trialDenied");
+  takeTrialDenied();
+  await mount();
+  respond = () => mockJson(signedIn({ isNewUser: true, trialDenied: "duplicate_email" }), 201);
+  await act(async () => {
+    await captured!.oauthSignIn({ ...GOOGLE, mode: "signup" });
+  });
+  assert.equal(takeTrialDenied(), true);
+});
+
+test("SEC-3 D: a password sign-up carries trialDenied too; an ordinary one notes nothing", async () => {
+  const { takeTrialDenied } = await import("@/lib/billing/trialDenied");
+  takeTrialDenied();
+  await mount();
+  respond = () => mockJson({ user: makeUser(), authToken: "at-s", trialDenied: "duplicate_email" }, 201);
+  await act(async () => {
+    await captured!.signup({ email: "ada@example.com", password: "pw-123456", firstName: "Ada", lastName: "L" });
+  });
+  assert.equal(takeTrialDenied(), true);
+
+  respond = () => mockJson({ user: makeUser(), authToken: "at-t" }, 201);
+  await act(async () => {
+    await captured!.signup({ email: "ada2@example.com", password: "pw-123456", firstName: "Ada", lastName: "L" });
+  });
+  assert.equal(takeTrialDenied(), false);
+});

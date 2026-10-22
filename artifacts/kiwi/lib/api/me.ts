@@ -196,11 +196,17 @@ export async function patchPassword(input: {
 
 /**
  * POST /me/email/request-change — mints a verification token server-side.
- * Server takes only `newEmail`; the request is auth-gated, the verify step
- * is JWT-gated. Always 200 (after body validation) to deter enumeration.
+ * The request is auth-gated, the verify step is JWT-gated. Always 200 (after
+ * body validation) to deter enumeration.
+ *
+ * SEC-3 B — `currentPassword` confirms it is the member (SEC-2: required for a
+ * password account; an account without one needs a recent sign-in instead).
+ * Absent, not empty, when nothing was typed (lib/reauth.ts reauthBody). A
+ * server from before SEC-2 strips the key (its schema is not strict).
  */
 export async function requestEmailChange(input: {
   newEmail: string;
+  currentPassword?: string;
 }): Promise<void> {
   await apiClient("/me/email/request-change", {
     method: "POST",
@@ -245,11 +251,14 @@ export async function verifyEmailChange(
  * ⚠️ This does NOT clear the session or the caches. AppContext's deleteAccount
  * does, in that order, because clearing them is a client-state concern and
  * both must happen even though only one of them is about auth.
+ *
+ * SEC-3 B — `currentPassword` rides beside the confirm word, as on
+ * requestEmailChange above.
  */
-export async function deleteMe(): Promise<void> {
+export async function deleteMe(reauth: { currentPassword?: string } = {}): Promise<void> {
   await apiClient("/me", {
     method: "DELETE",
-    body: { confirm: "delete" },
+    body: { confirm: "delete", ...reauth },
     schema: z.void(),
   });
 }

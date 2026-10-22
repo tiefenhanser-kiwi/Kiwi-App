@@ -33,11 +33,17 @@ test("missing facts say so rather than vanish", () => {
   );
 });
 
+// SEC-3 E — the read moved to lib/runningBundle.ts, shared by Profile's footer
+// and "Send feedback", so both say the same line.
 test("Profile renders it, from expo-updates and expo-constants (app/** is outside the glob)", () => {
-  const src = readFileSync(new URL("../../app/(tabs)/profile.tsx", import.meta.url), "utf8");
-  assert.match(src, /import \* as Updates from "expo-updates";/);
-  assert.match(src, /bundleLine\(\{/);
-  assert.match(src, /isEmbeddedLaunch: Updates\.isEmbeddedLaunch/);
-  assert.match(src, /updateId: Updates\.updateId/);
-  assert.match(src, /testID="profile-bundle-line"/);
+  const read = readFileSync(new URL("../runningBundle.ts", import.meta.url), "utf8");
+  assert.match(read, /import \* as Updates from "expo-updates";/);
+  assert.match(read, /bundleLine\(\{/);
+  assert.match(read, /isEmbeddedLaunch: Updates\.isEmbeddedLaunch/);
+  assert.match(read, /updateId: Updates\.updateId/);
+  const profile = readFileSync(new URL("../../app/(tabs)/profile.tsx", import.meta.url), "utf8");
+  assert.match(profile, /import \{ BUNDLE_LINE \} from "@\/lib\/runningBundle";/);
+  assert.match(profile, /testID="profile-bundle-line"/);
+  const feedback = readFileSync(new URL("../../app/feedback.tsx", import.meta.url), "utf8");
+  assert.match(feedback, /withDeviceLines\(message\.trim\(\), BUNDLE_LINE, OS_LINE\)/);
 });

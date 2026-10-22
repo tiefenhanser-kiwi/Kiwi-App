@@ -40,6 +40,7 @@ import { ActivityIndicator, Platform, StyleSheet, Text, View } from "react-nativ
 import { useAuth } from "@/contexts/AuthContext";
 import { readGuestSessionId } from "@/lib/guest/guestToken";
 import { oauthFailure } from "@/lib/oauth/errors";
+import { ReauthMismatchError } from "@/lib/reauth";
 import {
   anyProviderVisible,
   providerButtons,
@@ -84,6 +85,12 @@ export interface SocialSignInBlockProps {
    * request, so the screens cannot do it themselves.
    */
   onSuccess: (res: OAuthAuthResponse, ctx: { claimAttempted: boolean }) => void;
+  /**
+   * SEC-3 B — "Sign in again to confirm" (components/ReauthFields.tsx): the
+   * same buttons drive AuthContext.reauthenticate instead of a sign-in, there
+   * is no claim, and no "or" divider (no email form follows).
+   */
+  reauth?: boolean;
 }
 
 export function SocialSignInBlock({
@@ -91,8 +98,9 @@ export function SocialSignInBlock({
   consents,
   disabled,
   onSuccess,
+  reauth = false,
 }: SocialSignInBlockProps) {
-  const { oauthSignIn } = useAuth();
+  const { oauthSignIn, reauthenticate } = useAuth();
 
   // Hooks first, every one of them, before any decision about what to render.
   const [appleNativeReady, setAppleNativeReady] = React.useState(false);
@@ -151,6 +159,11 @@ export function SocialSignInBlock({
       try {
         const got = await get();
         if (!got) return; // dismissed: say nothing, do nothing
+        if (reauth) {
+          const again = await reauthenticate({ provider, credential: got.credential });
+          onSuccess(again, { claimAttempted: false });
+          return;
+        }
         // Read before the request, not after: oauthSignIn clears the guest
         // store on a successful claim.
         const claimAttempted = readGuestSessionId() !== null;
@@ -167,6 +180,10 @@ export function SocialSignInBlock({
         });
         onSuccess(res, { claimAttempted });
       } catch (err) {
+        if (err instanceof ReauthMismatchError) {
+          setError(err.message);
+          return;
+        }
         const failure = oauthFailure(err, provider);
         // The hide is idempotent, and AuthContext already did it for a refusal
         // that reached the server. This covers the case where it did not.
@@ -176,7 +193,7 @@ export function SocialSignInBlock({
         setBusy(null);
       }
     },
-    [busy, disabled, mode, consents, oauthSignIn, onSuccess],
+    [busy, disabled, mode, consents, oauthSignIn, onSuccess, reauth, reauthenticate],
   );
 
   const onApple = React.useCallback(
@@ -284,7 +301,7 @@ export function SocialSignInBlock({
           {error}
         </Text>
       ) : null}
-      {anyProviderVisible(buttons) ? <OrDivider /> : null}
+      {anyProviderVisible(buttons) && !reauth ? <OrDivider /> : null}
     </View>
   );
 }

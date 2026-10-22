@@ -202,8 +202,9 @@ interface AppState {
   updateUserName: (name: string) => Promise<void>;
   /** PRD §14.9.1 — request an email change. POSTs /me/email/request-change;
    *  the server emails a verification link. The verify-side landing screen
-   *  lands in WS7-2 Block D. Throws on failure. */
-  requestEmailChange: (newEmail: string) => Promise<void>;
+   *  lands in WS7-2 Block D. Throws on failure. SEC-3 B — `reauth` carries
+   *  the current password when one was typed (lib/reauth.ts). */
+  requestEmailChange: (newEmail: string, reauth?: { currentPassword?: string }) => Promise<void>;
   /** PRD §14.9.1 — update user's phone. PATCHes /me/profile. */
   updateUserPhone: (phone: string) => Promise<void>;
   /** PRD §14.9.1 — change password. PATCHes /me/password; the server
@@ -238,8 +239,9 @@ interface AppState {
   completeOnboarding: () => Promise<void>;
   /** PRD §14.9.4 — initiate account deactivation. Real soft-delete +
    *  Stripe cancellation lands in WS7. */
-  /** D-WS9-257 — DELETE /me, then clear the session and every cache. */
-  deleteAccount: () => Promise<void>;
+  /** D-WS9-257 — DELETE /me, then clear the session and every cache.
+   *  SEC-3 B — `reauth` as on requestEmailChange. */
+  deleteAccount: (reauth?: { currentPassword?: string }) => Promise<void>;
   /** WS7-4-B c8 — Use Plan flow (PRD §9.2.5). Copy a Featured / Top-Rated /
    *  Hosting / owner-private Template into a new MealPlanInstance owned by
    *  the current user, with optimizationNotes carried over and useCount
@@ -940,8 +942,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // (D-WS7-022) logs the link until real email infra ships. The verify-side
   // deep-link screen is Block D — no cache write happens here, the email
   // only changes once the user clicks through. Errors propagate to the caller.
-  const requestEmailChange = async (newEmail: string): Promise<void> => {
-    await meAPI.requestEmailChange({ newEmail });
+  // SEC-3 B — `reauth` is lib/reauth.ts's reauthBody: the password, or nothing.
+  const requestEmailChange = async (
+    newEmail: string,
+    reauth: { currentPassword?: string } = {},
+  ): Promise<void> => {
+    await meAPI.requestEmailChange({ newEmail, ...reauth });
   };
 
   // WS7-2 Block C: PATCH /me/password. The server bcrypt-compares
@@ -1032,8 +1038,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // logoutRequest(), which will 401 on the now-dead token; that is harmless —
   // it is a best-effort server-side session drop and its failure is swallowed
   // there, exactly as it is when a token has already expired.)
-  const deleteAccount = async (): Promise<void> => {
-    await meAPI.deleteMe();
+  const deleteAccount = async (reauth: { currentPassword?: string } = {}): Promise<void> => {
+    await meAPI.deleteMe(reauth);
     await logout();
   };
 

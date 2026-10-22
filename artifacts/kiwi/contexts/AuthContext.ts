@@ -33,6 +33,8 @@ import {
 } from "@/lib/oauth/request";
 import type { OAuthProvider } from "@/lib/oauth/providers";
 import { hideProviderForSession } from "@/lib/oauth/unavailable";
+import { noteTrialDenied } from "@/lib/billing/trialDenied";
+import { ReauthMismatchError } from "@/lib/reauth";
 import { todayLocalDate } from "@/lib/dates";
 import { clearGuestSession, readGuestSessionId } from "@/lib/guest/guestToken";
 import type { AuthResponse } from "@/lib/auth";
@@ -104,6 +106,13 @@ interface AuthContextValue {
    *  dismissed sheet it REJECTS without setting `error` — §2.6: a cancel is
    *  not a failure, so the caller simply stops its spinner. */
   oauthSignIn: (input: OAuthSignInInput) => Promise<OAuthAuthResponse>;
+  /** SEC-3 B — "Sign in again to confirm": a fresh sign-in for the SAME
+   *  account, whose token replaces the one in hand. Rejects with
+   *  ReauthMismatchError (lib/reauth.ts) when the provider signed in someone
+   *  else; that token is dropped, never stored. */
+  reauthenticate: (
+    input: Pick<OAuthSignInInput, "provider" | "credential">,
+  ) => Promise<OAuthAuthResponse>;
   logout: () => Promise<void>;
   /** WS9 BUG-239 §1c — end THIS client's session because we already know the
    *  token is dead, rather than waiting for the next request to discover it.
@@ -333,11 +342,15 @@ export function AuthProvider({
           // fact.
           platform: devicePlatform(),
         };
-        return await completeAuth(
+        const res = await completeAuth(
           (claim) => signupRequest({ ...base, ...claim }),
           completionDeps,
           { resendWithoutClaimOn409: true },
         );
+        // SEC-3 D — no trial for an email that already had one: the paywall
+        // says so once the member is signed in (lib/billing/trialDenied.ts).
+        noteTrialDenied(res.trialDenied);
+        return res;
       } catch (err) {
         setError(authErrorPresentation(err, "Signup failed").message);
         throw err;
@@ -371,7 +384,7 @@ export function AuthProvider({
         consents: input.consents,
       };
       try {
-        return await completeAuth<OAuthAuthResponse>(
+        const res = await completeAuth<OAuthAuthResponse>(
           (claim) =>
             provider === "apple"
               ? appleOAuthRequest(
@@ -386,6 +399,9 @@ export function AuthProvider({
           completionDeps,
           { resendWithoutClaimOn409: true },
         );
+        // SEC-3 D — a first sign-in is a sign-up, and can be denied a trial too.
+        noteTrialDenied(res.trialDenied);
+        return res;
       } catch (err) {
         // §2.6 — the 503 hide is SESSION state, so it has to land here
         // whoever ends up catching: a provider that answered oauth_unavailable
@@ -401,6 +417,40 @@ export function AuthProvider({
       }
     },
     [completionDeps],
+  );
+
+  // ── SEC-3 B — "Sign in again to confirm" ─────────────────────────────────
+  //
+  // A Google/Apple-only account confirms DELETE /me or an email change with a
+  // RECENT sign-in (SEC-2), so this is a sign-in: the provider's credential,
+  // the same POST /auth/oauth/* as the sign-in screen, and a fresh token that
+  // replaces the one in hand. Three differences, all deliberate:
+  //   • no claim and no consents — the member is already signed in;
+  //   • 🔴 the answer must be the SAME account. A provider sheet can sign in
+  //     anyone, and adopting a different account's token here would aim the
+  //     retried delete at it. A mismatch is refused and its token dropped,
+  //     never stored. NOT logged out: since SEC-2 #6 POST /auth/logout revokes
+  //     EVERY session of the account it names, and that would sign the other
+  //     account out on all its devices for one wrong tap here;
+  //   • no `error` on failure: the re-auth block owns its own line.
+  const userId = user?.id ?? null;
+  const reauthenticate = React.useCallback(
+    async (input: Pick<OAuthSignInInput, "provider" | "credential">) => {
+      const ctx: OAuthContext = {
+        mode: "signin",
+        platform: devicePlatform(),
+        timezone: deviceTimezone(),
+      };
+      const res =
+        input.provider === "apple"
+          ? await appleOAuthRequest(appleRequestBody(input.credential as AppleCredential, ctx))
+          : await googleOAuthRequest(googleRequestBody(input.credential as { idToken: string }, ctx));
+      if (userId === null || res.user.id !== userId) throw new ReauthMismatchError();
+      await storeToken(res.authToken);
+      adoptSession(res);
+      return res;
+    },
+    [userId, adoptSession],
   );
 
   const logout = React.useCallback(async () => {
@@ -505,6 +555,7 @@ export function AuthProvider({
     login,
     signup,
     oauthSignIn,
+    reauthenticate,
     logout,
     endSession,
     clearError,

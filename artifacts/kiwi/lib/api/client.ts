@@ -40,6 +40,7 @@ import type { z } from "zod";
 import { readToken } from "../auth";
 import { readGuestToken } from "../guest/guestToken";
 import { isGuestAllowedPath } from "../guest/guestRoutes";
+import { REAUTH_CODES } from "../reauth";
 import { apiBase } from "./base";
 import { emitSessionExpired } from "./auth-bridge";
 import { emitUpgradeRequired } from "./upgrade-bridge";
@@ -256,7 +257,14 @@ export async function apiClient<T = unknown>(
       // so the user got told their session expired for a typo.
       // The token gate above already made this distinction; the response path
       // did not.
-      if (wantsAuth && !isGuest) emitSessionExpired();
+      //
+      // SEC-3 B — nor is a re-auth refusal (lib/reauth.ts). SEC-2 answers
+      // those with 403; should one ever come back as a 401, it still means
+      // "confirm it's you" for THAT action — the session is fine, and evicting
+      // the member would end the very flow that asks them to confirm.
+      const code = (rawBody as { code?: unknown } | null | undefined)?.code;
+      const reauthRefusal = typeof code === "string" && REAUTH_CODES.has(code);
+      if (wantsAuth && !isGuest && !reauthRefusal) emitSessionExpired();
       const err = new UnauthenticatedError(details);
       if (envelope) return { success: false, error: err };
       throw err;

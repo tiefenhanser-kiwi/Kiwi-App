@@ -10,11 +10,22 @@ import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens
 import { sendFeedback } from "@/lib/api/me";
 import { ApiError } from "@/lib/api/errors";
 import {
-  FEEDBACK_MAX_CHARS,
+  FEEDBACK_MESSAGE_MAX_CHARS,
   canSendFeedback,
   feedbackErrorText,
   feedbackPlatform,
+  osLine,
+  withDeviceLines,
 } from "@/lib/feedback";
+import { BUNDLE_LINE } from "@/lib/runningBundle";
+
+// SEC-3 E — the OS line, read once (it cannot change while the app runs).
+const OS_LINE = osLine({
+  os: Platform.OS,
+  version: Platform.Version,
+  release: Platform.OS === "android" ? (Platform.constants as { Release?: string }).Release : null,
+  userAgent: Platform.OS === "web" && typeof navigator !== "undefined" ? navigator.userAgent : null,
+});
 
 // LIFE-1 — "Send feedback", opened from Profile. One text box, an optional
 // "where in the app" line (pre-filled from `?from=` when a screen links here
@@ -39,7 +50,9 @@ export default function FeedbackScreen() {
     setError(null);
     try {
       await sendFeedback({
-        message: message.trim(),
+        // SEC-3 E — Profile's footer line and the OS ride along; the member
+        // never types them (lib/feedback.ts says why they are in the message).
+        message: withDeviceLines(message.trim(), BUNDLE_LINE, OS_LINE),
         ...(screen.trim() ? { screen: screen.trim().slice(0, 80) } : {}),
         ...(Constants.expoConfig?.version ? { appVersion: Constants.expoConfig.version } : {}),
         ...(feedbackPlatform(Platform.OS) ? { platform: feedbackPlatform(Platform.OS) } : {}),
@@ -83,7 +96,7 @@ export default function FeedbackScreen() {
               placeholder="Type your feedback"
               placeholderTextColor={Palette.text.placeholder}
               multiline
-              maxLength={FEEDBACK_MAX_CHARS}
+              maxLength={FEEDBACK_MESSAGE_MAX_CHARS}
               textAlignVertical="top"
               accessibilityLabel="Your feedback"
               style={[s.input, s.messageInput]}
