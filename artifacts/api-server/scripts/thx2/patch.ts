@@ -38,7 +38,7 @@ import { assertScriptDatabase } from "../../src/lib/scripts/requireDatabaseHost"
 import { deriveAmountRefs, type MatcherIngredient } from "../../src/lib/stepAmountRefs";
 import { stampMealTiming } from "../../src/lib/mealTiming";
 import { isWholeBirdByCount, isWholeBirdByWeight } from "../../src/lib/prepQuantity";
-import { nameCutAmounts } from "./thx2Amounts";
+import { nameCutAmounts, repairShapeCounts } from "./thx2Amounts";
 import { AHEAD_TAG, aheadDaysOf, aheadTags, dishSpecFor, keepsDaysFor, loadTargets, validateTargets } from "./thx2Core";
 import { fixKeepClause, retargetMakeAheadDay } from "./thx2Checks";
 import { thursdayPostPass, thursdayPrePass, type ThursdayEdits } from "./thx2Thursday";
@@ -165,6 +165,8 @@ for (const t of feasts) {
       const own = splitMinutes.has(s.id) ? deriveAmountRefs(texts.get(s.id)!, cutRows.map((r) => ({ ingredientId: r.id, name: r.name, quantity: r.quantity, unit: r.unit }))).amountRefs : s.amountRefs;
       const refIds = new Set(((Array.isArray(own) ? own : []) as { ingredientId?: string }[]).map((r) => r.ingredientId));
       const measured = new Set(cutRows.filter((r) => refIds.has(r.id)).map((r) => r.name));
+      // THX-3d — "2 celery thirds stalks" (THX-3c's own naming) → "2 celery stalks (cut into thirds)".
+      texts.set(s.id, repairShapeCounts(texts.get(s.id)!));
       texts.set(s.id, nameCutAmounts(texts.get(s.id)!, cutRows, measured));
       // THX-3d (B) — "both oranges" cannot scale; "2 oranges" can.
       texts.set(s.id, countsInWords(texts.get(s.id)!, cutRows));

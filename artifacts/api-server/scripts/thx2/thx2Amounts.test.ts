@@ -2,7 +2,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { nameCutAmounts } from "./thx2Amounts";
+import { nameCutAmounts, repairShapeCounts } from "./thx2Amounts";
 import { FINALIZE_RULES } from "./thx2Core";
 
 // Make-Ahead's Overnight Sage Stuffing and Turkey Gravy rows (dev 7bba38a8).
@@ -87,5 +87,24 @@ describe("THX-3c F — nameCutAmounts", () => {
 
   it("FINALIZE_RULES (h) asks new generations for the same", () => {
     assert.match(FINALIZE_RULES, /\(h\) A step that adds food cut earlier names its amount/);
+  });
+});
+
+describe("THX-3d — a food cut in a shape keeps its count noun before the shape", () => {
+  const BED = [
+    { name: "yellow onion", quantity: 1, unit: "each", note: "quartered" },
+    { name: "celery stalks", quantity: 2, unit: "each", note: "cut into thirds" },
+  ];
+  it("Small's roasting bed: \"2 celery stalks (cut into thirds)\", not \"2 celery thirds stalks\"", () => {
+    assert.equal(
+      nameCutAmounts("Scatter the quartered onion and celery thirds in the bottom of a roasting pan.", BED),
+      "Scatter the quartered onion and 2 celery stalks (cut into thirds) in the bottom of a roasting pan.",
+    );
+  });
+  it("the repair for what THX-3c already wrote, idempotent", () => {
+    const fixed = repairShapeCounts("Scatter the quartered onion and 2 celery thirds stalks in the bottom of a roasting pan.");
+    assert.equal(fixed, "Scatter the quartered onion and 2 celery stalks (cut into thirds) in the bottom of a roasting pan.");
+    assert.equal(repairShapeCounts(fixed), fixed);
+    assert.equal(nameCutAmounts(fixed, BED), fixed);
   });
 });

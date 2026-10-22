@@ -127,6 +127,13 @@ describe("THX-3d C rule 2 — the patch splits a step that preps and then works"
     const SPROUT = row("sp", "Brussels sprouts"), GARLIC = row("garlic", "garlic"), OIL = row("oil", "olive oil");
     assert.equal(splitPrepClause("Trim and halve 2½ lb Brussels sprouts; thinly slice 4 garlic cloves. In a large bowl, toss the sprouts and garlic with 3 tablespoons olive oil.", [SPROUT, GARLIC, OIL])?.prep, "Trim and halve 2½ lb Brussels sprouts; thinly slice 4 garlic cloves.");
   });
+  it("\"and\" before a work verb splits too (Small's green beans on Thursday)", () => {
+    const BEANS = row("beans", "fresh green beans"), OIL = row("oil", "olive oil"), GARLIC = row("garlic", "garlic");
+    assert.deepEqual(splitPrepClause("On Thursday: Trim 1 pound green beans and toss in a large bowl with 2 tablespoons olive oil and 2 thinly sliced garlic cloves.", [BEANS, OIL, GARLIC]), {
+      prep: "On Thursday: Trim 1 pound green beans.",
+      work: "On Thursday: Toss them in a large bowl with 2 tablespoons olive oil and 2 thinly sliced garlic cloves.",
+    });
+  });
   it("a step that is all prep, or all work, is one step (so the patch is idempotent)", () => {
     assert.equal(splitPrepClause("Make ahead (Monday): Zest and juice 2 oranges; set aside.", [ORANGE]), null);
     assert.equal(splitPrepClause("Make ahead (Monday): Zest 2 oranges, then juice them.", [ORANGE]), null);

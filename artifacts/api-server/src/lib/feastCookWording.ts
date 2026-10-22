@@ -256,7 +256,8 @@ export function splitPrepClause(text: string, rows: readonly WordingRow[], title
   const prefix = DAY_PREFIX.exec(text)?.[1] ?? "";
   const body = text.slice(prefix.length);
   if (!CUT_LEAD.test(body)) return null;
-  for (const m of body.matchAll(/[;.]\s+/g)) {
+  // ("Trim 1 pound green beans and toss…": "and" or "then" before a work verb splits too.)
+  for (const m of body.matchAll(/[;.]\s+|,?\s+(?:and|then)\s+/g)) {
     const a = body.slice(0, m.index);
     const b = body.slice(m.index! + m[0].length);
     if (!WORK_LEAD.test(b)) continue;

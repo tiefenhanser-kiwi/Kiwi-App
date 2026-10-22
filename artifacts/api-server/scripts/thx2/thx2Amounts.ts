@@ -34,6 +34,16 @@ const ADDING = /\b(?:add|stir in|toss|combine|fold in|scatter|stuff\b[^.;]*\bwit
 /** A count noun a row's name may end with, kept when the step's phrase leaves it off. */
 const COUNT_NOUN = /\s(stalks?|cloves?|sprigs?|heads?|bulbs?|ribs?)$/i;
 
+const SHAPE_END = /\s(thirds|halves|quarters|pieces|chunks|wedges)$/i;
+
+/**
+ * THX-3d — the repair for what THX-3c's naming already wrote: "2 celery thirds stalks"
+ * → "2 celery stalks (cut into thirds)". Idempotent (the repaired text never matches).
+ */
+export function repairShapeCounts(text: string): string {
+  return text.replace(/\b(\d+) ([a-z]+) (thirds|halves|quarters|pieces|chunks|wedges) (stalks?|cloves?|ribs?|sprigs?)\b/gi, "$1 $2 $4 (cut into $3)");
+}
+
 /** The food phrase that starts at `rest`: its words up to a stop word or punctuation. */
 function phraseAt(rest: string): string {
   const words: string[] = [];
@@ -55,7 +65,12 @@ function amountFor(row: AmountRow, phrase: string): { amount: string; phrase: st
   // A bare count of a row named by its stalks ("6 each celery stalks") keeps the noun.
   let shown = phrase;
   const noun = COUNT_NOUN.exec(row.name)?.[1];
-  if (!unit && noun && !new RegExp(`\\b${singular(noun)}s?\\b`, "i").test(phrase)) shown = `${phrase} ${noun.toLowerCase()}`;
+  if (!unit && noun && !new RegExp(`\\b${singular(noun)}s?\\b`, "i").test(phrase)) {
+    // THX-3d — "celery thirds" is 2 celery STALKS cut in thirds, never "2 celery thirds stalks".
+    const shape = SHAPE_END.exec(phrase);
+    shown = shape ? `${phrase.slice(0, shape.index)} ${noun.toLowerCase()} (cut into ${shape[1].toLowerCase()})` : `${phrase} ${noun.toLowerCase()}`;
+    if (shape) return { amount: num === "1" ? "1" : num, phrase: shown };
+  }
   // "2 diced onion" → "2 diced onions" (a count above one, a singular head).
   if (!unit && Number.parseFloat(num) > 1 && !/s$/i.test(shown)) shown = /(ch|sh|x|o)$/i.test(shown) ? `${shown}es` : `${shown}s`;
   // THX-3c (item 4) — a count of one reads without the number: "the chopped onion".
