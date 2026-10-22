@@ -6,7 +6,8 @@
 //   node --env-file=.env --import tsx scripts/thx2/devTestPlans.ts            # create what is missing
 //   node --env-file=.env --import tsx scripts/thx2/devTestPlans.ts --email someone@example.com
 //
-// One plan per feast, "THX device · Classic / Make-Ahead / Vegetarian", Thanksgiving
+// One plan per feast, "THX device · Classic / Small / Make-Ahead / Vegetarian / New Twist"
+// (THX-3d added Small and New Twist, generated on dev for it), Thanksgiving
 // week (Mon Nov 23 – Sun Nov 29, 2026), the feast on Thursday Nov 26. Idempotent: a
 // plan already there under that name (not archived) is left alone and printed. It
 // REFUSES any database but dev (assertScriptDatabase + the dev host marker).
@@ -31,8 +32,10 @@ if (mode !== "dev" || !host.includes(DEV_HOST_MARKER)) {
 /** The dev feasts, by their catalog key, and the plan name each gets. */
 export const DEV_FEASTS: ReadonlyArray<readonly [key: string, label: string]> = [
   ["thx2-feast-classic", "Classic"],
+  ["thx2-feast-small", "Small"],
   ["thx2-feast-make-ahead", "Make-Ahead"],
   ["thx2-feast-vegetarian", "Vegetarian"],
+  ["thx2-feast-new-twist", "New Twist"],
 ];
 export const planTitleFor = (label: string) => `THX device · ${label}`;
 
