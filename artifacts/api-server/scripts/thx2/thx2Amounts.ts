@@ -38,10 +38,13 @@ const SHAPE_END = /\s(thirds|halves|quarters|pieces|chunks|wedges)$/i;
 
 /**
  * THX-3d — the repair for what THX-3c's naming already wrote: "2 celery thirds stalks"
- * → "2 celery stalks (cut into thirds)". Idempotent (the repaired text never matches).
+ * → "2 celery stalks, cut into thirds,". Round 3 (U): no parentheses — and THX-3d's own
+ * "(cut into thirds)" reads the same way. Idempotent (the repaired text never matches).
  */
 export function repairShapeCounts(text: string): string {
-  return text.replace(/\b(\d+) ([a-z]+) (thirds|halves|quarters|pieces|chunks|wedges) (stalks?|cloves?|ribs?|sprigs?)\b/gi, "$1 $2 $4 (cut into $3)");
+  return text
+    .replace(/\b(\d+) ([a-z]+) (thirds|halves|quarters|pieces|chunks|wedges) (stalks?|cloves?|ribs?|sprigs?)\b/gi, "$1 $2 $4, cut into $3,")
+    .replace(/ \(cut into (thirds|halves|quarters|pieces|chunks|wedges)\)/gi, ", cut into $1,");
 }
 
 /** The food phrase that starts at `rest`: its words up to a stop word or punctuation. */
@@ -68,7 +71,7 @@ function amountFor(row: AmountRow, phrase: string): { amount: string; phrase: st
   if (!unit && noun && !new RegExp(`\\b${singular(noun)}s?\\b`, "i").test(phrase)) {
     // THX-3d — "celery thirds" is 2 celery STALKS cut in thirds, never "2 celery thirds stalks".
     const shape = SHAPE_END.exec(phrase);
-    shown = shape ? `${phrase.slice(0, shape.index)} ${noun.toLowerCase()} (cut into ${shape[1].toLowerCase()})` : `${phrase} ${noun.toLowerCase()}`;
+    shown = shape ? `${phrase.slice(0, shape.index)} ${noun.toLowerCase()}, cut into ${shape[1].toLowerCase()},` : `${phrase} ${noun.toLowerCase()}`;
     if (shape) return { amount: num === "1" ? "1" : num, phrase: shown };
   }
   // "2 diced onion" → "2 diced onions" (a count above one, a singular head).

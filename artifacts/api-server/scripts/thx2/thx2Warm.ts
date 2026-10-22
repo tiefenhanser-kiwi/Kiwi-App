@@ -7,10 +7,13 @@
 // (cookingScheduler feastWarmSteps): a side that ends near serving keeps its pan, and
 // the oven is turned off once, by the side that comes out last. Idempotent.
 
-import { feastRoastDish, isOvenStep, KEEP_WARM_STEP, KEEP_WARM_TEXT, OVEN_OFF_STEP, OVEN_OFF_TEXT, type SchedulerPhase } from "../../src/lib/cookingScheduler";
+import { FEAST_SERVE_STEP, feastRoastDish, isOvenStep, KEEP_WARM_STEP, KEEP_WARM_TEXT, OVEN_OFF_STEP, OVEN_OFF_TEXT, type SchedulerPhase } from "../../src/lib/cookingScheduler";
 import { onTheDaySteps } from "../../src/lib/mealTiming";
 import { thursdaySchedule, type OvenDish, type OvenStepRow } from "./thx2Oven";
 import type { ThursdayEdits } from "./thx2Thursday";
+
+/** A step that plates the dish (round 3, U): the keep-warm comes before it. */
+const PLATING = /\b(?:serving (?:bowl|dish|platter)|platter|gravy boat)\b/i;
 
 export function warmStepEdits(dishes: readonly OvenDish[], steps: readonly OvenStepRow[]): ThursdayEdits {
   const out: ThursdayEdits = { updates: [], deletes: [], creates: [], renumber: [] };
@@ -23,7 +26,17 @@ export function warmStepEdits(dishes: readonly OvenDish[], steps: readonly OvenS
     const day = onTheDaySteps(rows.map((r) => ({ ...r, text: r.stepTextTranslated })));
     const oven = day.filter((r) => r.phaseType !== "preheat" && isOvenStep({ phaseType: r.phaseType as SchedulerPhase, text: r.text })).pop();
     const hot = day.filter((r) => r.phaseType === "cook").pop();
-    const after = oven ?? hot;
+    // THX-3d round 3 (U) — a stovetop side keeps warm once it is finished in its pot (the
+    // mash seasoned, the milk stirred in), before it is plated: not between "mash" and
+    // "season" (Classic), not before the potatoes are drained (Vegetarian).
+    let done = hot;
+    if (!oven && hot) {
+      for (const r of day.filter((x) => x.stepIndex > hot.stepIndex)) {
+        if (PLATING.test(r.text) || FEAST_SERVE_STEP.test(r.text)) break;
+        done = r;
+      }
+    }
+    const after = oven ?? done;
     if (!after) continue;
     for (const r of rows.filter((x) => x.stepIndex > after.stepIndex).sort((a, b) => b.stepIndex - a.stepIndex)) {
       out.renumber.push({ dishId: d.dishId, from: r.stepIndex, to: r.stepIndex + 1 });

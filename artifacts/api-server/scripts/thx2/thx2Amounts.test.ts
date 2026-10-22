@@ -95,16 +95,19 @@ describe("THX-3d — a food cut in a shape keeps its count noun before the shape
     { name: "yellow onion", quantity: 1, unit: "each", note: "quartered" },
     { name: "celery stalks", quantity: 2, unit: "each", note: "cut into thirds" },
   ];
-  it("Small's roasting bed: \"2 celery stalks (cut into thirds)\", not \"2 celery thirds stalks\"", () => {
+  it("Small's roasting bed: \"2 celery stalks, cut into thirds,\" (round 3: no parentheses), not \"2 celery thirds stalks\"", () => {
     assert.equal(
       nameCutAmounts("Scatter the quartered onion and celery thirds in the bottom of a roasting pan.", BED),
-      "Scatter the quartered onion and 2 celery stalks (cut into thirds) in the bottom of a roasting pan.",
+      "Scatter the quartered onion and 2 celery stalks, cut into thirds, in the bottom of a roasting pan.",
     );
   });
   it("the repair for what THX-3c already wrote, idempotent", () => {
     const fixed = repairShapeCounts("Scatter the quartered onion and 2 celery thirds stalks in the bottom of a roasting pan.");
-    assert.equal(fixed, "Scatter the quartered onion and 2 celery stalks (cut into thirds) in the bottom of a roasting pan.");
+    assert.equal(fixed, "Scatter the quartered onion and 2 celery stalks, cut into thirds, in the bottom of a roasting pan.");
     assert.equal(repairShapeCounts(fixed), fixed);
     assert.equal(nameCutAmounts(fixed, BED), fixed);
+  });
+  it("round 3 (U) — round 2's \"(cut into thirds)\" loses its parentheses too", () => {
+    assert.equal(repairShapeCounts("Scatter the quartered onion and 2 celery stalks (cut into thirds) in the bottom of a roasting pan."), "Scatter the quartered onion and 2 celery stalks, cut into thirds, in the bottom of a roasting pan.");
   });
 });

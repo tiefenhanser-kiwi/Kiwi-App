@@ -154,6 +154,24 @@ export function plainHold(cut: string, name: string, note: string | null): strin
   return `${body}; ${plural ? HOLD_OTHER_PLURAL : HOLD_OTHER}.`;
 }
 
+/** True when the hold for this row is a garnish's (a herb, or a row "for garnish"). */
+export const isGarnish = (name: string, note: string | null): boolean => !BROWNS.test(name) && (HERB.test(name) || /\bgarnish\b/i.test(note ?? ""));
+
+/**
+ * THX-3d round 3 (U) — a garnish cut in the morning is named, not measured again, where
+ * it goes on: "garnish with 2 tablespoons thinly sliced fresh chives" → "garnish with
+ * the chives you sliced this morning". The participle is the row's own ("thinly sliced,
+ * for garnish" → sliced). Unchanged when the step does not measure the herb.
+ */
+export function referBack(text: string, name: string, note: string | null): string {
+  const head = name.toLowerCase().split(/[,(]/)[0].trim().split(/\s+/).pop() ?? "";
+  const verb = /\b(sliced|minced|chopped|diced|snipped|torn)\b/i.exec(note ?? "")?.[1]?.toLowerCase();
+  if (!head || !verb) return text;
+  const amount = String.raw`(?:[\d½¼¾⅓⅔⅛⅜⅝⅞]+(?:[\s-]*[\d½¼¾⅓⅔⅛⅜⅝⅞/]+)?\s+(?:cups?|tablespoons?|teaspoons?|tbsp|tsp)\s+)?`;
+  const cut = String.raw`(?:(?:thinly|finely|roughly|coarsely)\s+)?(?:sliced|minced|chopped|diced|snipped|torn)\s+(?:fresh\s+)?`;
+  return text.replace(new RegExp(String.raw`(?<![\w½¼¾⅓⅔⅛⅜⅝⅞])${amount}${cut}${head}\b`, "gi"), `the ${head} you ${verb} this morning`);
+}
+
 /** A citrus juiced in the morning is poured where the recipe squeezed it: "squeeze over the juice of ½ lemon" → "pour over the lemon juice". */
 export function pourJuice(text: string): string {
   return text.replace(/\bsqueeze (over |in |into )?the juice (?:of|from) (?:an? |a half |½ |¼ |\d+(?:\.\d+)? )?(lemon|lime|orange)s?\b/gi, (m, where: string | undefined, fruit: string) =>

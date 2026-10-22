@@ -29,6 +29,8 @@ import {
   plainHold,
   potNoun,
   pourJuice,
+  referBack,
+  isGarnish,
   spreadOnPan,
   TOSS,
   tossHold,
@@ -165,6 +167,13 @@ export function morningSteps(steps: readonly MorningStepIn[], held: readonly Mor
       continue;
     }
     set(cut, plainHold(cut.text, row.name, row.note));
+    // Round 3 (U) — a garnish is named where it goes on: "the chives you sliced this morning".
+    if (isGarnish(row.name, row.note)) {
+      for (const s of out.slice(out.indexOf(cut) + 1)) {
+        const named = referBack(s.text, row.name, row.note);
+        if (named !== s.text) set(s, named);
+      }
+    }
     // The juice waits in its container, so the step that squeezed the fruit pours it.
     if (next && /\bjuiced\b/i.test(row.note ?? "")) {
       const poured = pourJuice(next.text);
