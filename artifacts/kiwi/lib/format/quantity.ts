@@ -203,6 +203,88 @@ const WHOLE_BIRD = new RegExp(
   "i",
 );
 
+// ── 🔴 WEB-4d (R5) — THE DISPLAY TABLE: OUNCES, PRODUCE, PACKAGES, PIECES ───
+//
+// THX-3d pins the same rows on the server (prepQuantity). Checked BEFORE FIX-7's
+// rule 1, in new constants: WHOLE_UNITS / WHOLE_ITEM_NAME / WHOLE_BIRD are
+// literal-pinned against the server's copy (its drift guard), so they are not
+// edited — a sprig or a bay leaf simply never reaches rule 1 now.
+//
+//   - OUNCES: 4 oz and up → whole ounces; under 4 → the nearest ½ oz, never
+//     below ½. Ties up. "9⅝ oz" → 10, "4¾" → 5, "2⅜" → 2½. Fluid ounces too.
+//   - WHOLE PRODUCE by the piece (WHOLE_PRODUCE_HEAD, on a count unit) → the
+//     nearest whole, halves up, never below 1: "¾ yellow onion" → 1, "2⅜
+//     shallots" → 2. This REVERSES FIX-7's "produce that halves cleanly still
+//     halves" for these nine: an authored "½ lemon" now reads "1 lemon" at any
+//     household. Read by the HEAD noun (the last word before a comma or a
+//     parenthesis), so "lime wedges", "potato buns" and "orange bell pepper" are
+//     not produce. Each share rounds on its own (consolidateMealIngredients).
+//   - PACKAGES (can, box, bag, jar, package, packet — the unit, or the name on a
+//     count unit) → whole, ROUNDED UP, never below 1. Up, not nearest: the line
+//     keeps the use ("1 can (15 oz) pumpkin purée, use 6 oz", packageUse), and
+//     1¼ cans cannot be "1 can, use 19 oz". The size in the unit or name is never
+//     scaled.
+//   - PIECES: caps, sheets, crusts, crackers, leaves, sprigs → the nearest
+//     whole, halves up, never below 1 ("7¼ crackers" → 7, "1⅝ caps" → 2). For
+//     sprigs and leaves that replaces rule 1's ceiling (3.2 sprigs → 3, not 4).
+const OUNCE_UNITS = /^(?:oz|ounces?|fl\.?\s*oz|fluid\s+ounces?)$/;
+const WHOLE_PRODUCE_HEAD =
+  /^(?:onions?|carrots?|lemons?|oranges?|limes?|shallots?|jalape[nñ]os?|apples?|potato(?:es)?)$/i;
+const PACKAGE_WORD = /\b(?:cans?|box(?:es)?|bags?|jars?|packages?|packets?)\b/i;
+const WHOLE_PIECE_UNITS = /^(?:sheets?|caps?|crusts?|crackers?|lea(?:f|ves)|sprigs?)$/;
+// Not after a hyphen: "flat-leaf parsley" is not a leaf ("½ packed cup flat-leaf
+// parsley" — a step's following words — read "1 packed cup").
+const WHOLE_PIECE_NAME = /(?<![-‑])\b(?:caps?|sheets?|crusts?|crackers?|lea(?:f|ves)|sprigs?)\b/i;
+
+/** The head noun of a name: its last word before a comma or a parenthesis. */
+function headNoun(name: string): string {
+  const words = name.split(/[,(]/)[0].trim().split(/\s+/);
+  return words[words.length - 1] ?? "";
+}
+
+/** WEB-4d — onion, carrot, lemon … counted by the piece. */
+export function isWholeProduce(unit: string, name: string): boolean {
+  return COUNT_UNITS.has(unit.trim().toLowerCase()) && WHOLE_PRODUCE_HEAD.test(headNoun(name));
+}
+
+/** WEB-4d — a can, box, bag, jar or package: by its unit, or by name on a count. */
+export function isPackage(unit: string, name: string): boolean {
+  const u = unit.trim().toLowerCase();
+  return PACKAGE_WORD.test(u) || (COUNT_UNITS.has(u) && PACKAGE_WORD.test(name));
+}
+
+function isWholePiece(unit: string, name: string): boolean {
+  return WHOLE_PIECE_UNITS.test(unit) || (COUNT_UNITS.has(unit) && WHOLE_PIECE_NAME.test(name));
+}
+
+/** WEB-4d — the rules a share rounds by on its own, before shares are summed. */
+export function roundsPerShare(unit: string, name: string): boolean {
+  const u = unit.trim().toLowerCase();
+  return isWholeProduce(u, name) || isPackage(u, name) || isWholePiece(u, name);
+}
+
+/** A package's own size, from its unit or name: "can (15 oz)", "15-ounce can",
+ *  "cornbread mix (8.5 oz box)". A count size ("package (2-count)") is not one. */
+const PACKAGE_SIZE = /(\d+(?:\.\d+)?)\s*[-‑]?\s*(fl\.?\s*oz|oz|ounces?|lbs?|pounds?|g|grams?|ml)\b/i;
+
+/**
+ * WEB-4d — "use 6 oz": how much of a package the recipe takes, when the package
+ * count was rounded up and the recipe gives the package's size. `scaled` is the
+ * true package count (⅜ of a can); null when nothing was rounded or there is no
+ * size to say it in.
+ */
+export function packageUse(scaled: number, unit: string, name: string): string | null {
+  if (!(scaled > 0) || !isPackage(unit, name)) return null;
+  if (Math.abs(displayedQuantity(scaled, unit, name) - scaled) < 1e-6) return null;
+  const size = PACKAGE_SIZE.exec(`${unit} ${name}`);
+  if (!size) return null;
+  const sizeUnit = size[2];
+  const amount = scaled * Number(size[1]);
+  const shown = displayedQuantity(amount, sizeUnit);
+  const word = /^(oz|fl\.?\s*oz|g|ml)$/i.test(sizeUnit) ? sizeUnit : shown > 1 ? `${sizeUnit.replace(/s$/i, "")}s` : sizeUnit.replace(/s$/i, "");
+  return `use ${formatQuantity(amount, sizeUnit)} ${word}`;
+}
+
 const SPOON_UNITS = /^(teaspoons?|tsp|tablespoons?|tbsp|tbs)$/;
 const CUP_UNITS = /^(cups?|c)$/;
 const POUND_UNITS = /^(lbs?|pounds?)$/;
@@ -355,6 +437,18 @@ export function isBirdPart(name: string): boolean {
   return BIRD_PART.test(name);
 }
 
+/** "(12–14 lb)", "(14 pounds)", "(6 kg)" in a bird's name: the weight in
+ *  pounds, the upper end of a range; null when the name gives none. */
+const NAME_WEIGHT = /(\d+(?:\.\d+)?)(?:\s*(?:-|–|—|to)\s*(\d+(?:\.\d+)?))?\s*[-‑]?\s*(lbs?|pounds?|kg|kilograms?)\b/i;
+
+function birdWeightInName(name: string): number | null {
+  const m = NAME_WEIGHT.exec(name);
+  if (!m) return null;
+  const n = Number(m[2] ?? m[1]);
+  const per = poundsPer(m[3]);
+  return n > 0 && per !== null ? n * per : null;
+}
+
 /**
  * The bird a dish is built around, if any: by weight first, else — in a feast
  * only — by count. A count must be written whole: "½ whole chicken" at its own
@@ -370,7 +464,14 @@ function dishBird(
   const c = ingredients.find(
     (i) => i.quantity >= 1 && Number.isInteger(i.quantity) && isWholeBirdByCount(i.unit ?? "", i.name),
   );
-  return c ? { byWeight: false, ing: c } : null;
+  if (!c) return null;
+  // WEB-4d (R5 / BUG-462's edge) — "1 whole turkey (12–14 lb)", New Twist's
+  // bird: written by count, but its line gives the weight, so it takes the
+  // WEIGHT rule (BIRD_FLOOR_LB, 10 lb for 14 → 10/14 at 4 of 10), not the
+  // count's one-bird-whole-brine. The upper end of a range is the recipe's bird.
+  const lb = birdWeightInName(c.name);
+  if (lb !== null) return { byWeight: true, ing: { name: c.name, quantity: lb * c.quantity, unit: "pound" } };
+  return { byWeight: false, ing: c };
 }
 
 /** The fields of an ingredient the bird rule reads. */
@@ -529,6 +630,11 @@ export function displayedQuantity(qty: number, unit: string, name = ""): number 
   if (qty > 0 && (isWholeSpice(u, name) || isStalk(u, name))) return Math.max(1, Math.round(qty));
   // WEB-4c (BUG-462) — a whole bird by count: the nearest whole, never below 1.
   if (qty > 0 && isWholeBirdByCount(u, name)) return birdsShown(qty);
+  // WEB-4d (R5) — a package rounds up; produce and pieces to the nearest whole.
+  if (qty > 0 && isPackage(u, name)) return Math.max(1, Math.ceil(qty - TIE));
+  if (qty > 0 && (isWholeProduce(u, name) || isWholePiece(u, name))) {
+    return Math.max(1, Math.floor(qty + 0.5 + TIE));
+  }
   // Rule 1 — whole counted items, by unit word or by name on a count unit. The
   // TIE keeps float noise (3.0000000004) from ceiling a whole number up.
   if (
@@ -539,6 +645,10 @@ export function displayedQuantity(qty: number, unit: string, name = ""): number 
   }
   // Rule 3 — pounds in quarter steps, ties up, floor ¼.
   if (POUND_UNITS.test(u)) return Math.max(1 / 4, Math.floor(qty * 4 + 0.5 + TIE) / 4);
+  // WEB-4d (R5) — ounces: whole from 4 oz, the nearest ½ below it, floor ½.
+  if (qty > 0 && OUNCE_UNITS.test(u)) {
+    return qty >= 4 - TIE ? Math.floor(qty + 0.5 + TIE) : Math.max(1 / 2, Math.floor(qty * 2 + 0.5 + TIE) / 2);
+  }
   const whole = Math.floor(qty);
   const frac = qty - whole;
   // WS7-8b — thirds first: ⅓/⅔ are not representable as eighths, so match them

@@ -351,3 +351,114 @@ describe("WEB-4c — Chicken Pho (not a feast) at household 2 and 4", () => {
     assert.equal(dishScaleFactor(PHO.ingredients, 0.5), 0.5);
   });
 });
+
+// ── WEB-4d (R5 / BUG-462's edge) — New Twist's turkey: a count with a weight ──
+//
+// "1 whole turkey (12–14 lb)", written for 10. Counted, but its line says what it
+// weighs, so it takes the WEIGHT rule: 14 lb at 4 of 10 is 5.6 lb, floored at the
+// 10 lb bird → the dish follows 10/14 — the compound butter, the garlic, the
+// oranges and the lemons included. The count rule had kept the whole dish at 10.
+// Inputs: dev's New Twist (81b69820) turkey dish, every ingredient, in stored order.
+const NEW_TWIST = {
+  dishId: "nt-turkey",
+  title: "Citrus-Herb Spatchcock Turkey",
+  ingredients: [
+    ing(1, "each", "whole turkey (12–14 lb)"),
+    ing(3, "tablespoon", "Kosher salt"),
+    ing(1, "tablespoon", "Black pepper"),
+    ing(2, "each", "Orange"),
+    ing(2, "each", "lemon"),
+    ing(8, "cloves", "garlic"),
+    ing(4, "sprigs", "fresh rosemary"),
+    ing(8, "sprigs", "fresh thyme"),
+    ing(0.25, "cup", "fresh sage"),
+    ing(6, "tablespoon", "unsalted butter"),
+    ing(3, "tablespoon", "olive oil"),
+    ing(1, "teaspoon", "smoked paprika"),
+  ],
+};
+const NT = { dishes: [NEW_TWIST], tags: [FEAST_MEAL_TAG] };
+const NT_BUTTER =
+  "In a bowl, mash 6 tablespoons softened butter with 8 cloves garlic, 4 sprigs minced rosemary, ¼ cup minced sage, 8 sprigs stripped thyme, orange zest and lemon zest.";
+const NT_BUTTER_REFS = [
+  span(NT_BUTTER, "6 tablespoons", 6, "tablespoons"),
+  span(NT_BUTTER, "8 cloves", 8, "cloves"),
+  span(NT_BUTTER, "4 sprigs", 4, "sprigs"),
+  span(NT_BUTTER, "¼ cup", 0.25, "cup"),
+  span(NT_BUTTER, "8 sprigs", 8, "sprigs"),
+];
+const NT_ZEST = "Finely zest 2 oranges and 2 lemons; mince the garlic.";
+const NT_ZEST_REFS = [
+  { ingredientId: "i", quantity: 2, unit: "", charStart: 12, charEnd: 13 },
+  { ingredientId: "i", quantity: 2, unit: "", charStart: 26, charEnd: 27 },
+];
+
+describe("WEB-4d — THE PINNED TABLE: New Twist's turkey (1 whole turkey (12–14 lb), for 10) at 4 and 10", () => {
+  const TABLE: [servings: number, lines: string[]][] = [
+    [4, [
+      "1 whole turkey (12–14 lb)",
+      "2⅛ tablespoons Kosher salt",
+      "¾ tablespoon Black pepper",
+      "1 Orange",
+      "1 lemon",
+      "6 cloves garlic",
+      "3 sprigs fresh rosemary",
+      "6 sprigs fresh thyme",
+      "⅛ cup fresh sage",
+      "4¼ tablespoons unsalted butter",
+      "2⅛ tablespoons olive oil",
+      "¾ teaspoon smoked paprika",
+    ]],
+    [10, [
+      "1 whole turkey (12–14 lb)",
+      "3 tablespoons Kosher salt",
+      "1 tablespoon Black pepper",
+      "2 Oranges",
+      "2 lemons",
+      "8 cloves garlic",
+      "4 sprigs fresh rosemary",
+      "8 sprigs fresh thyme",
+      "¼ cup fresh sage",
+      "6 tablespoons unsalted butter",
+      "3 tablespoons olive oil",
+      "1 teaspoon smoked paprika",
+    ]],
+  ];
+  const scale = (n: number) => mealScaleFactors(NT.dishes, n / WRITTEN_FOR, isFeastMeal(NT.tags));
+
+  it("the factor is the bird's weight, floored: 10/14 at 4, 1 at 10 (the count rule said 1 at both)", () => {
+    assert.equal(scale(4).byDish[NEW_TWIST.dishId], 10 / 14);
+    assert.equal(scale(10).byDish[NEW_TWIST.dishId], 1);
+  });
+
+  it("meal detail, every line", () => {
+    for (const [n, want] of TABLE) {
+      const s = scale(n);
+      const got = NEW_TWIST.ingredients.map((i) => formatIngredientLine(i, { multiplier: s.byDish[NEW_TWIST.dishId], birds: s.birds[NEW_TWIST.dishId] }));
+      assert.deepEqual(got, want, `${n} servings`);
+    }
+  });
+
+  it("the Ingredients sheet prints the same lines", () => {
+    for (const [n, want] of TABLE) {
+      const lines = consolidateMealIngredients(NT as never, n / WRITTEN_FOR, n).map((c) => c.line);
+      assert.deepEqual(lines, want, `${n} servings`);
+    }
+  });
+
+  it("the compound butter and the zest steps follow the bird", () => {
+    const at = (text: string, refs: { ingredientId: string; quantity: number; unit: string; charStart: number; charEnd: number }[], n: number) =>
+      stepRefsWith(text, refs, scale(n).byDish[NEW_TWIST.dishId], scale(n).birds[NEW_TWIST.dishId]);
+    assert.deepEqual(at(NT_BUTTER, NT_BUTTER_REFS, 4), ["4¼ tablespoons", "6 cloves", "3 sprigs", "⅛ cup", "6 sprigs"]);
+    assert.deepEqual(at(NT_BUTTER, NT_BUTTER_REFS, 10), ["6 tablespoons", "8 cloves", "4 sprigs", "¼ cup", "8 sprigs"]);
+    assert.deepEqual(at(NT_ZEST, NT_ZEST_REFS, 4), ["1", "1"]);
+    assert.deepEqual(at(NT_ZEST, NT_ZEST_REFS, 10), ["2", "2"]);
+  });
+
+  it("only in a feast — elsewhere a count bird keeps servings, weight or no weight", () => {
+    assert.equal(dishScaleFactor(NEW_TWIST.ingredients, 0.4), 0.4);
+    assert.equal(dishScaleFactor([ing(1, "each", "whole chicken (3–4 lb)")], 0.5), 0.5);
+    // In a feast a chicken by count with its weight floors at 3 lb: 4 lb → 3/4.
+    assert.equal(dishScaleFactor([ing(1, "each", "whole chicken (3–4 lb)")], 0.5, true), 3 / 4);
+  });
+});

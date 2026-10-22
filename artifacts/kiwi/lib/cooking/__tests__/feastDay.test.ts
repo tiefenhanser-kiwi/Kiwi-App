@@ -155,7 +155,8 @@ describe("PREP-2 item 2 — the dish reads at the plan's servings, the way meal 
   it("at 8: serves 8, amounts × 0.8", () => {
     const v = planDishView(feast(8), "cran")!;
     assert.deepEqual([v.servings, v.multiplier], [8, 0.8]);
-    assert.equal(formatIngredientLine(v.dish.ingredients[0], { multiplier: v.multiplier }), "19¼ ounces fresh cranberries");
+    // WEB-4d (R5) — 19.2 oz: whole ounces from 4 oz (was "19¼").
+    assert.equal(formatIngredientLine(v.dish.ingredients[0], { multiplier: v.multiplier }), "19 ounces fresh cranberries");
   });
   it("a meal that no longer holds the dish: null (the screen falls back to the dish alone)", () => {
     assert.equal(planDishView(feast(10), "gone"), null);

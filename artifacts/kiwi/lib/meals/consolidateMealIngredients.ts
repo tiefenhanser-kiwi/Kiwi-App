@@ -36,7 +36,15 @@
 
 import { formatIngredientLine, ingredientAmountNote } from "../format/ingredientLine";
 import { normalizeUnitToken } from "../format/grocery";
-import { birdPartsFactor, dishBirdLine, dishScaleFactor, isFeastMeal, lineMultiplier } from "../format/quantity";
+import {
+  birdPartsFactor,
+  dishBirdLine,
+  dishScaleFactor,
+  displayedQuantity,
+  isFeastMeal,
+  lineMultiplier,
+  roundsPerShare,
+} from "../format/quantity";
 import type { MealDetail } from "../api/meals";
 
 /** One consolidated line: a name, an amount, and where it came from. */
@@ -85,7 +93,8 @@ export function consolidateMealIngredients(
   /** WEB-4 — the servings the multiplier scales to, for the egg note. */
   servings?: number,
 ): ConsolidatedIngredient[] {
-  const byKey = new Map<string, ConsolidatedIngredient & { titles: Set<string> }>();
+  // WEB-4d — `raw` is the true sum behind a per-share-rounded quantity.
+  const byKey = new Map<string, ConsolidatedIngredient & { titles: Set<string>; raw: number }>();
   const order: string[] = [];
 
   // WEB-4c (BUG-462) — a bird's parts are one per bird of the MEAL's bird.
@@ -104,14 +113,19 @@ export function consolidateMealIngredients(
       // FIX-7 rule 4 — a whole bird by weight is not scaled down; the line
       // below gets multiplier 1, so the bird rule has to be applied here.
       const scaled = ing.quantity * lineMultiplier(factor, unit, ing.name, ing.quantity, birds);
+      // WEB-4d (R5) — produce, packages and pieces round SHARE BY SHARE, then
+      // sum: Classic at 4 is three onions (one per dish), not "1⅞ onions".
+      const shown = roundsPerShare(unit, ing.name) ? displayedQuantity(scaled, unit, ing.name) : scaled;
       const hit = byKey.get(key);
       if (hit) {
-        hit.quantity += scaled;
+        hit.quantity += shown;
+        hit.raw += scaled;
         hit.titles.add(dish.title);
       } else {
         byKey.set(key, {
           name: ing.name,
-          quantity: scaled,
+          quantity: shown,
+          raw: scaled,
           unit,
           dishTitles: [],
           line: "",
@@ -136,7 +150,7 @@ export function consolidateMealIngredients(
       // screen's lines pluralise and glyph identically (BUG-321).
       line: formatIngredientLine(
         { name: row.name, quantity: row.quantity, unit: row.unit },
-        { multiplier: 1 },
+        { multiplier: 1, packageScaled: row.raw },
       ),
       note: ingredientAmountNote(
         { name: row.name, quantity: row.quantity, unit: row.unit },

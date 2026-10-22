@@ -62,6 +62,9 @@ test("formatQuantity keeps its existing eighth + whole behavior (no regression)"
   // Approximate rounding survives for non-third arbitrary decimals (1.9 → 1⅞)
   // on a unit FIX-7 leaves alone. A CUP no longer shows ⅞ — it snaps to what a
   // measuring set holds (BUG-437, scaledAmounts.test.ts), so 1.9 cup reads 2.
-  assert.equal(formatQuantity(1.9, "ounce"), "1⅞");
+  // WEB-4d (R5) — an OUNCE is no longer such a unit (under 4 oz: the nearest ½),
+  // so the eighths are pinned on a quart now.
+  assert.equal(formatQuantity(1.9, "quart"), "1⅞");
+  assert.equal(formatQuantity(1.9, "ounce"), "2");
   assert.equal(formatQuantity(1.9, "cup"), "2");
 });
