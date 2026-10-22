@@ -1614,8 +1614,15 @@ function scheduleOnceCore(
     const lastOven = oven?.anchor !== undefined ? oven.plan.holderLastOven : blocks?.bird?.lastOven;
     if (birdId && lastOven !== undefined) {
       const restW = work.find((w) => w.dishId === birdId && w.stepIdx > lastOven && w.step.phaseType === "rest");
-      if (restW) {
-        for (const w of work) if (w.dishId === birdId && w.stepIdx > restW.stepIdx) priorityKey.set(w, restW.idealStart);
+      // 🔴 Not the rest's own key: the lag repair below pulls a side's whole chain to its
+      // first step's key (Small: boil → mash, roast → squeeze the lemon), earlier than the
+      // rest's, and those took the hands while a 20-minute breast rested 30. The rest and
+      // what follows it take the ROAST's key — early, and still in the dish's order (a
+      // dish's order is its keys' order: a lower key than the rest's put New Twist's
+      // carve before its rest). Once the rest is over, the carve goes first.
+      const roastW = work.find((w) => w.dishId === birdId && w.stepIdx === lastOven);
+      if (restW && roastW) {
+        for (const w of work) if (w.dishId === birdId && w.stepIdx >= restW.stepIdx) priorityKey.set(w, Math.min(keyOf(w), keyOf(roastW)));
       }
     }
   }

@@ -80,4 +80,41 @@ describe("THX-3d — the five dev feasts, walked", { skip: RUN ? false : "set TH
       .filter((s) => !s.demoted && s.phase === "seasonings_dry")
       .map((s) => ({ name: s.bowlName ?? s.stepKey, items: s.components.map((c) => c.ingredientName) }));
   }
+
+  // D (R4) — Thursday through the route's own runCookingSequence (a proxy reports the
+  // non-public catalog meal public, as a fork is). Small's carve slipped 10 minutes behind
+  // its 20-minute rest once the green-bean split moved the stove work; this pins all five.
+  for (const key of FEASTS) {
+    it(`D — ${key}: the bird is carved as its rest ends; one serve step, last; dessert after it`, async () => {
+      const { runCookingSequence } = await import("../cookingSequence");
+      const meal = await mealOf(key);
+      const publicMeal = new Proxy(prisma, {
+        get(target, prop, receiver) {
+          if (prop === "meal") return { findUnique: async (a: unknown) => { const m = await (prisma.meal.findUnique as (x: unknown) => Promise<Record<string, unknown> | null>)(a); return m ? { ...m, isPublic: true } : m; } };
+          const v = Reflect.get(target, prop, receiver);
+          return typeof v === "function" ? v.bind(target) : v;
+        },
+      }) as PrismaClient;
+      const r = await runCookingSequence({ mealId: meal.id, userId: "thx-3d-walk", deps: { prisma: publicMeal } });
+      const steps = await prisma.recipeInstructionStep.findMany({ where: { ownerType: "dish", ownerId: { in: meal.dishLinks.map((l) => l.dish.id) } } });
+      const row = (s: { dishId: string; originalStepIndex: number }) => steps.find((x) => x.ownerId === s.dishId && x.stepIndex === s.originalStepIndex)!;
+      const seq = r.sequence.map((s) => ({ ...s, row: row(s) }));
+      const serve = seq.filter((s) => /^Serve the .+ with the /.test(s.row.stepTextTranslated));
+      assert.equal(serve.length, 1, "one serve step");
+      const last = serve[0].startOffsetMinutes;
+      const dessertIds = new Set(meal.dishLinks.filter((l) => /\b(pie|crisp|cheesecake|bars|cake|cobbler|tart)\b/i.test(l.dish.title)).map((l) => l.dish.id));
+      for (const s of seq) {
+        // Dessert may bake beside the bird; it is plated after the serve.
+        if (dessertIds.has(s.dishId)) { if (s.row.phaseType === "assemble") assert.ok(s.startOffsetMinutes >= last, `${s.row.stepTextTranslated.slice(0, 60)} is dessert, after the serve`); }
+        else if (s !== serve[0]) assert.ok(s.startOffsetMinutes <= last, `${s.row.stepTextTranslated.slice(0, 60)} after the serve step`);
+      }
+      const bird = meal.dishLinks.find((l) => /\bturkey\b/i.test(l.dish.title));
+      if (!bird) return; // Vegetarian: no bird
+      const mine = seq.filter((s) => s.dishId === bird.dish.id).sort((a, b) => a.originalStepIndex - b.originalStepIndex);
+      const rest = mine.find((s) => s.row.phaseType === "rest");
+      const carve = mine.find((s) => /^Carve the /i.test(s.row.stepTextTranslated));
+      assert.ok(rest && carve, "a rest and a carve");
+      assert.equal(carve!.startOffsetMinutes, rest!.startOffsetMinutes + rest!.row.estimatedMinutes, `${key}: carved as the rest ends`);
+    });
+  }
 });
