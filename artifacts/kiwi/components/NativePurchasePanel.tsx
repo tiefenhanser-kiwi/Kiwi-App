@@ -60,11 +60,14 @@ export interface NativePurchasePanelProps {
   onRestore: () => void;
   onCheckAgain: () => void;
   onOpenLegal: (url: string) => void;
+  /** SEC-3 D — the lapsed line, when the sheet opened for a reason of its own. */
+  lapsedBody?: string;
 }
 
 export function NativePurchasePanel({
   store,
   sheet,
+  lapsedBody = SHEET_LAPSED_BODY,
   offerStatus,
   offer,
   phase,
@@ -85,7 +88,7 @@ export function NativePurchasePanel({
 
   return (
     <View style={s.wrap} testID="store-panel">
-      {sheet === "lapsed" ? <Text style={s.lapsedBody}>{SHEET_LAPSED_BODY}</Text> : null}
+      {sheet === "lapsed" ? <Text style={s.lapsedBody}>{lapsedBody}</Text> : null}
 
       {/* 3.1.2 — what the subscription includes. */}
       <View style={s.list}>

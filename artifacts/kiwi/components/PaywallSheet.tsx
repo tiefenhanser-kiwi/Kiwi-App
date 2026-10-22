@@ -43,6 +43,8 @@ import {
   SHEET_PRICE_MONTHLY,
   SHEET_SECONDARY,
   SHEET_TRIALING_TITLE,
+  SHEET_TRIAL_USED_BODY,
+  SHEET_TRIAL_USED_TITLE,
 } from "@/lib/billing/copy";
 import { platformStore } from "@/lib/billing/subscriptionView";
 import { sheetHandleShown, webSheet } from "@/lib/webLayout";
@@ -56,6 +58,7 @@ function openLegal(url: string): void {
 export function PaywallSheet() {
   const {
     sheet,
+    sheetReason,
     closeSheet,
     startCheckout,
     checkoutBusy,
@@ -75,7 +78,16 @@ export function PaywallSheet() {
   const visible = sheet !== null;
   const store = platformStore(Platform.OS);
 
-  const title = sheet === "trialing" ? SHEET_TRIALING_TITLE : SHEET_LAPSED_TITLE;
+  // SEC-3 D — a new account the server gave no trial: the lapsed sheet (no
+  // trial, so subscribing is the way in), said as what happened.
+  const trialUsed = sheet === "lapsed" && sheetReason === "trial_used";
+  const title =
+    sheet === "trialing"
+      ? SHEET_TRIALING_TITLE
+      : trialUsed
+        ? SHEET_TRIAL_USED_TITLE
+        : SHEET_LAPSED_TITLE;
+  const lapsedBody = trialUsed ? SHEET_TRIAL_USED_BODY : SHEET_LAPSED_BODY;
 
   return (
     <Modal
@@ -106,6 +118,7 @@ export function PaywallSheet() {
               offer={storeOffer}
               phase={storePhase}
               message={storeMessage}
+              lapsedBody={lapsedBody}
               onBuy={(plan) => void startCheckout(plan)}
               onRestore={() => void restorePurchases()}
               onCheckAgain={() => void checkStoreAgain()}
@@ -114,6 +127,7 @@ export function PaywallSheet() {
           ) : (
             <WebStripeBody
               sheet={sheet}
+              lapsedBody={lapsedBody}
               awaiting={awaiting}
               checkoutBusy={checkoutBusy}
               linkError={linkError}
@@ -141,6 +155,7 @@ export function PaywallSheet() {
 /** The web sheet's body: the Stripe prices, exactly as S2 built them, minus the bonus. */
 function WebStripeBody({
   sheet,
+  lapsedBody,
   awaiting,
   checkoutBusy,
   linkError,
@@ -150,6 +165,7 @@ function WebStripeBody({
   onManage,
 }: {
   sheet: "trialing" | "lapsed" | null;
+  lapsedBody: string;
   awaiting: "idle" | "polling" | "stalled";
   checkoutBusy: boolean;
   linkError: string | null;
@@ -172,7 +188,7 @@ function WebStripeBody({
             </View>
           ) : (
             // The paywall: the data is SAFE, said first.
-            <Text style={s.lapsedBody}>{SHEET_LAPSED_BODY}</Text>
+            <Text style={s.lapsedBody}>{lapsedBody}</Text>
           )}
 
           {/* ── the checkout return window (§2.3) ──────────────────────────

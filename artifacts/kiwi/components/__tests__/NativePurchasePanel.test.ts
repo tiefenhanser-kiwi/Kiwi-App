@@ -13,6 +13,11 @@ import {
   type NativePurchasePanelProps,
 } from "../NativePurchasePanel";
 import type { StoreOfferView, StorePackage } from "../../lib/billing/store";
+import {
+  SHEET_LAPSED_BODY,
+  SHEET_TRIAL_USED_BODY,
+  SHEET_TRIAL_USED_TITLE,
+} from "../../lib/billing/copy";
 import { PRIVACY_URL, TERMS_URL } from "../../lib/legal";
 
 interface Node {
@@ -199,4 +204,22 @@ test("buttons are disabled while a purchase is in the store's hands", async () =
   const { tree } = await render({ phase: "purchasing" });
   const b = byId(tree, "store-buy-monthly");
   assert.equal((b?.props?.accessibilityState as { disabled?: boolean })?.disabled, true);
+});
+
+// ── SEC-3 D — the trial-used sheet's line ─────────────────────────────────
+
+test("SEC-3 D: a lapsed sheet says the line it is given, and the lapsed line by default", async () => {
+  const given = await render({ sheet: "lapsed", lapsedBody: SHEET_TRIAL_USED_BODY });
+  assert.ok(textOf(byId(given.tree, "store-panel")).includes(SHEET_TRIAL_USED_BODY));
+  assert.ok(!textOf(byId(given.tree, "store-panel")).includes(SHEET_LAPSED_BODY));
+  await act(async () => active!.unmount());
+  active = null;
+  const plain = await render({ sheet: "lapsed" });
+  assert.ok(textOf(byId(plain.tree, "store-panel")).includes(SHEET_LAPSED_BODY));
+  // The subscribe option is on it either way.
+  assert.ok(byId(given.tree, "store-buy-monthly"));
+});
+
+test("SEC-3 D: the trial-used title is the prompt's line, verbatim", () => {
+  assert.equal(SHEET_TRIAL_USED_TITLE, "Your free trial was already used with this email.");
 });

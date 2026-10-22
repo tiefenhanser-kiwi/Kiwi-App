@@ -484,3 +484,33 @@ test("BILL-2 — the status-driven opens stay blacked out while enforcement is o
   await settle(2);
   assert.equal(captured!.sheet, null, "an upsell moment opened under the blackout");
 });
+
+// ── SEC-3 D — a new account the server gave no trial ────────────────────────
+
+test("SEC-3 D: a trial-denied sign-up opens the lapsed sheet with its reason, even while enforcement is off", async (t) => {
+  const { noteTrialDenied, takeTrialDenied } = await import("@/lib/billing/trialDenied");
+  takeTrialDenied();
+  // Noted BEFORE the provider has a user — the order a real sign-up lands in.
+  noteTrialDenied("duplicate_email");
+  await mountWebUnenforced(t, "none");
+  await until(() => captured?.sheet === "lapsed", "the trial-used sheet");
+  assert.equal(captured!.sheetReason, "trial_used");
+  await act(async () => captured!.closeSheet());
+  assert.equal(captured!.sheet, null);
+  assert.equal(captured!.sheetReason, null, "the reason belongs to the sheet it opened");
+  // A later, ordinary open says the ordinary thing.
+  await act(async () => captured!.openSubscribeSheet());
+  assert.equal(captured!.sheet, "lapsed");
+  assert.equal(captured!.sheetReason, null);
+});
+
+test("SEC-3 D: a note that lands while signed in opens it too; no note, no sheet", async (t) => {
+  const { noteTrialDenied, takeTrialDenied } = await import("@/lib/billing/trialDenied");
+  takeTrialDenied();
+  await mountWebUnenforced(t, "none");
+  await settle(2);
+  assert.equal(captured!.sheet, null, "nothing noted, nothing opened");
+  await act(async () => noteTrialDenied("duplicate_email"));
+  assert.equal(captured!.sheet, "lapsed");
+  assert.equal(captured!.sheetReason, "trial_used");
+});

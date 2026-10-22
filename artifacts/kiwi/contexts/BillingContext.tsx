@@ -76,6 +76,7 @@ import {
   subscribedInStore,
 } from "@/lib/billing/copy";
 import { dismissBanner, loadDismissedBanners } from "@/lib/billing/dismissals";
+import { subscribeTrialDenied, takeTrialDenied } from "@/lib/billing/trialDenied";
 import {
   loadStoreOffer,
   purchaseStorePackage,
@@ -113,6 +114,12 @@ export interface BillingContextValue {
   dismissCurrentBanner: () => void;
   /** The sheet's state, or null when it is closed. */
   sheet: SheetState | null;
+  /**
+   * SEC-3 D — why a `lapsed` sheet opened, when it is not the ordinary reason:
+   * "trial_used" is a NEW account the server gave no trial (the email already
+   * had one, lib/billing/trialDenied.ts). Null otherwise; cleared on close.
+   */
+  sheetReason: SheetReason | null;
   /**
    * With no state: the status-driven open, behind the `enforced` blackout (a
    * banner, a notice). With a state: exactly that sheet.
@@ -160,6 +167,7 @@ export interface BillingContextValue {
   elsewhere: SubscribedElsewhere | null;
 }
 
+export type SheetReason = "trial_used";
 export type StoreOfferStatus = "idle" | "loading" | "ready" | "unavailable";
 export type StorePhase = "idle" | "purchasing" | "restoring" | "confirming" | "stalled";
 
@@ -170,6 +178,7 @@ export function BillingProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
 
   const [sheet, setSheet] = useState<SheetState | null>(null);
+  const [sheetReason, setSheetReason] = useState<SheetReason | null>(null);
   const [dismissed, setDismissed] = useState<ReadonlySet<BannerKind>>(new Set());
   const [seenMoments, setSeenMoments] = useState<ReadonlySet<UpsellMoment>>(new Set());
   const [launchedAt, setLaunchedAt] = useState<number | null>(null);
@@ -341,17 +350,36 @@ export function BillingProvider({ children }: { children: React.ReactNode }) {
   const openSheet = useCallback((state?: SheetState) => {
     const resolved = state ?? sheetStateFor(subscriptionRef.current);
     if (resolved === null) return;
+    setSheetReason(null);
     setSheet(resolved);
   }, []);
 
   const openSubscribeSheet = useCallback(() => {
     const resolved = subscribeSheetFor(subscriptionRef.current);
     if (resolved === null) return;
+    setSheetReason(null);
     setSheet(resolved);
   }, []);
 
+  // SEC-3 D — a sign-up the server gave no trial (the email already had one).
+  // Taken once a member is signed in: the note lands in AuthContext before this
+  // provider has re-rendered with the new user, so the bridge holds it until
+  // then. NOT behind the `enforced` blackout — like a 402, it is the server
+  // telling this account something true about itself.
+  useEffect(() => {
+    if (userId === null) return;
+    const open = () => {
+      if (!takeTrialDenied()) return;
+      setSheetReason("trial_used");
+      setSheet("lapsed");
+    };
+    open();
+    return subscribeTrialDenied(open);
+  }, [userId]);
+
   const closeSheet = useCallback(() => {
     setSheet(null);
+    setSheetReason(null);
     // A message belongs to the sheet it was shown on. A confirmation in flight
     // keeps running behind a closed sheet and lands in the query either way.
     setStoreMessage(null);
@@ -613,6 +641,7 @@ export function BillingProvider({ children }: { children: React.ReactNode }) {
       banner,
       dismissCurrentBanner,
       sheet,
+      sheetReason,
       openSheet,
       openSubscribeSheet,
       closeSheet,
@@ -638,6 +667,7 @@ export function BillingProvider({ children }: { children: React.ReactNode }) {
       banner,
       dismissCurrentBanner,
       sheet,
+      sheetReason,
       openSheet,
       openSubscribeSheet,
       closeSheet,
@@ -682,6 +712,7 @@ const INERT: BillingContextValue = {
   banner: null,
   dismissCurrentBanner: () => {},
   sheet: null,
+  sheetReason: null,
   openSheet: () => {},
   openSubscribeSheet: () => {},
   closeSheet: () => {},

@@ -25,6 +25,15 @@ import { formatDate } from "@/lib/date";
 /** The upsell, shown to a TRIALING account. */
 export const SHEET_TRIALING_TITLE = "Keep every week this easy";
 
+/**
+ * SEC-3 D (SEC-2 #16) — the paywall a NEW account sees when the server gave it
+ * no trial because the email already had one. The title is the prompt's line;
+ * the body is new copy for Hans (the lapsed body's "Everything you saved is
+ * still here" is not true of an account made a moment ago).
+ */
+export const SHEET_TRIAL_USED_TITLE = "Your free trial was already used with this email.";
+export const SHEET_TRIAL_USED_BODY = "Subscribe to start planning with Kiwi.";
+
 /** The paywall, shown to a `none` / `canceled` account. */
 export const SHEET_LAPSED_TITLE = "Your free trial has ended";
 export const SHEET_LAPSED_BODY =

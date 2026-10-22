@@ -20,7 +20,7 @@
 import { z } from "zod";
 
 import { apiClient } from "@/lib/api/client";
-import { MeUserSchema } from "@/lib/auth";
+import { MeUserSchema, TrialDeniedField } from "@/lib/auth";
 import type { AuthResponse } from "@/lib/auth";
 import type { User } from "@/lib/types";
 
@@ -44,6 +44,8 @@ const OAuthResponseSchema = z.object({
    * cannot know whether this identity had an account until it is told.
    */
   isNewUser: z.boolean().optional(),
+  // SEC-3 D — a first sign-in is a sign-up, so it can be denied a trial too.
+  ...TrialDeniedField,
 });
 
 export interface OAuthAuthResponse extends AuthResponse {
@@ -58,6 +60,7 @@ function toAuthResponse(body: z.infer<typeof OAuthResponseSchema>): OAuthAuthRes
     claimedPlanId: body.claimedPlanId,
     claimRetryable: body.claimRetryable,
     isNewUser: body.isNewUser,
+    trialDenied: body.trialDenied,
   };
 }
 
