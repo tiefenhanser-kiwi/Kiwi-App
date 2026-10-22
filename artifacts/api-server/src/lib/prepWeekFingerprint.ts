@@ -123,8 +123,15 @@ const FINGERPRINT_ALGO_VERSION = 1;
  *       (Chicken Pho at household 2 is a half pot again); a citrus zested and juiced
  *       is one cut ("Zest and juice the orange"); a feast garnish rule 7 drops gets a
  *       cook-day line. Amounts, titles and lines move, so the prose must go.
+ *  14 — THX-3d: a feast dry mix is three or more (never salt and pepper alone), a
+ *       seasoning joins by the step's words, another vessel is another run, a lone
+ *       dry member goes in with its liquids; closers name the step and print their
+ *       share; the R5 display table (ounces, produce heads, packages "use N oz");
+ *       a count-written bird with its weight takes the weight rule in a feast;
+ *       make-ahead rows read the steps' day phrases. Containers, amounts and lines
+ *       move, so the prose must go.
  */
-export const PREP_ENGINE_VERSION = 13;
+export const PREP_ENGINE_VERSION = 14;
 
 /**
  * Digest of the loaded plan composition — everything the prep payload is built
