@@ -3,7 +3,10 @@ import { randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
-const BCRYPT_ROUNDS = 10; // TODO(pre-launch): upgrade to 12
+// SEC-2 — 12, the WS2 lock's "before public launch" number (was 10). New
+// hashes use it; an older hash is re-hashed at it on the next successful
+// sign-in (needsRehash below, routes/auth.ts login).
+export const BCRYPT_ROUNDS = 12;
 const DEFAULT_SESSION_EXPIRY = "30d";
 
 const jwtSecret = process.env.JWT_SECRET;
@@ -68,6 +71,15 @@ export async function verifyPassword(
   hash: string,
 ): Promise<boolean> {
   return bcrypt.compare(plaintext, hash);
+}
+
+/** SEC-2 — true for a hash made at a lower cost than today's. */
+export function needsRehash(hash: string): boolean {
+  try {
+    return bcrypt.getRounds(hash) < BCRYPT_ROUNDS;
+  } catch {
+    return false; // not a bcrypt hash we can read; leave it alone
+  }
 }
 
 // SEC-2 #13 — a real hash of nothing anyone knows, made once on first use at

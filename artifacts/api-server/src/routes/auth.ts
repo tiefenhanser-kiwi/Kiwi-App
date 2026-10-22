@@ -2,7 +2,7 @@ import { Router, type IRouter, type Response } from "express";
 import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
-import { hashPassword, signToken, verifyPasswordOrDummy, verifyToken } from "../lib/auth";
+import { hashPassword, needsRehash, signToken, verifyPasswordOrDummy, verifyToken } from "../lib/auth";
 import { createRequireAuth } from "../middleware/auth";
 import { logger } from "../lib/logger";
 import { phoneSchema } from "../lib/phoneValidation";
@@ -524,6 +524,25 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
       }
       if (user.accountStatus !== "active") {
         return res.status(403).json({ error: "account not active" });
+      }
+
+      // SEC-2 — a hash made at the old cost is re-made at today's, now that
+      // the plaintext is in hand and proven. Not awaited: the person is signed
+      // in either way, and a failure only means the upgrade waits for the next
+      // sign-in. Conditional on the hash being UNCHANGED, so a password change
+      // that lands in between is never overwritten with the old password.
+      if (needsRehash(user.passwordHash!)) {
+        const oldHash = user.passwordHash!;
+        void hashPassword(password)
+          .then((passwordHash) =>
+            prisma.user.updateMany({
+              where: { id: user.id, passwordHash: oldHash },
+              data: { passwordHash },
+            }),
+          )
+          .catch((err: unknown) =>
+            logger.warn({ err, userId: user.id }, "Password re-hash at the current cost failed"),
+          );
       }
 
       // Update last-login tracking. Non-critical if this fails — don't block login.
