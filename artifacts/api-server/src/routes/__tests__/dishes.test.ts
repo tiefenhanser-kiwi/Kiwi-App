@@ -36,7 +36,7 @@ function dishIngredient(
 function dishRow(
   id: string,
   title: string,
-  opts: { isArchived?: boolean; userId?: string | null } = {},
+  opts: { isArchived?: boolean; userId?: string | null; meals?: MealLinkFixture[] } = {},
 ) {
   return {
     id,
@@ -54,6 +54,9 @@ function dishRow(
     fatGPerServing: 12,
     isArchived: opts.isArchived ?? false,
     userId: opts.userId ?? "owner-1",
+    // SEC-2 #11 — the meals this dish sits in, for the readability gate. By
+    // default a published catalog meal, so every pre-SEC-2 case stays readable.
+    meals: opts.meals ?? [{ userId: null, isPublic: true, isArchived: false }],
     dishIngredients: [
       dishIngredient("Basmati rice", "Pantry", 1, "cup", 0),
       dishIngredient("Fresh dill", "Produce", 1, "bunch", 1, true),
@@ -79,6 +82,39 @@ function step(stepIndex: number, text: string) {
 }
 
 type DishRow = ReturnType<typeof dishRow>;
+
+interface MealLinkFixture {
+  userId: string | null;
+  isPublic: boolean;
+  isArchived: boolean;
+  /** Users whose plan instances hold this meal. */
+  onPlansOf?: string[];
+}
+
+// Evaluates the readability where-clause's own SHAPE (lib/mealVisibility.ts
+// isDishReadableByUser), clause by clause, so dropping or loosening a clause
+// changes the answer here too.
+type MealCond = {
+  userId?: string;
+  isPublic?: boolean;
+  isArchived?: boolean;
+  planItems?: { some: { planInstance: { userId: string } } };
+};
+function mealMatches(m: MealLinkFixture, c: MealCond): boolean {
+  if (c.userId !== undefined && m.userId !== c.userId) return false;
+  if (c.isPublic !== undefined && m.isPublic !== c.isPublic) return false;
+  if (c.isArchived !== undefined && m.isArchived !== c.isArchived) return false;
+  if (c.planItems && !(m.onPlansOf ?? []).includes(c.planItems.some.planInstance.userId)) return false;
+  return true;
+}
+function dishMatches(
+  d: DishRow,
+  c: { userId?: string; mealLinks?: { some: { meal: { OR: MealCond[] } } } },
+): boolean {
+  if (c.userId !== undefined && d.userId !== c.userId) return false;
+  if (c.mealLinks && !d.meals.some((m) => c.mealLinks!.some.meal.OR.some((mc) => mealMatches(m, mc)))) return false;
+  return true;
+}
 type StepRow = ReturnType<typeof step>;
 
 function makeStubPrisma(opts: { dishes?: DishRow[]; steps?: StepRow[] }) {
@@ -86,6 +122,10 @@ function makeStubPrisma(opts: { dishes?: DishRow[]; steps?: StepRow[] }) {
   const steps = opts.steps ?? [];
   return {
     dish: {
+      findFirst: async (args: { where: { id: string; OR: Parameters<typeof dishMatches>[1][] } }) => {
+        const d = dishes.find((r) => r.id === args.where.id);
+        return d && args.where.OR.some((c) => dishMatches(d, c)) ? { id: d.id } : null;
+      },
       findUnique: async (args: { where: { id: string } }) => {
         const d = dishes.find((r) => r.id === args.where.id);
         if (!d) return null;
@@ -238,4 +278,32 @@ describe("GET /dishes/:id", () => {
       await harness.close();
     }
   });
+});
+
+// ── SEC-2 #11 — only readable dishes, and never another member's id ──────
+describe("GET /dishes/:id — SEC-2 #11 readability", () => {
+  const cases: Array<[string, Parameters<typeof dishRow>[2], number, string | null | undefined]> = [
+    ["another member's dish in their PRIVATE meal", { userId: "owner-1", meals: [{ userId: "owner-1", isPublic: false, isArchived: false }] }, 404, undefined],
+    ["another member's dish in no meal at all", { userId: "owner-1", meals: [] }, 404, undefined],
+    ["a dish in an ARCHIVED public meal", { userId: null, meals: [{ userId: null, isPublic: true, isArchived: true }] }, 404, undefined],
+    ["a dish in a published catalog meal (owner's id withheld)", { userId: "owner-1" }, 200, null],
+    ["the caller's own dish", { userId: USER_ID, meals: [] }, 200, USER_ID],
+    ["a dish in the caller's own meal", { userId: "owner-1", meals: [{ userId: USER_ID, isPublic: false, isArchived: false }] }, 200, null],
+    ["another member's private meal that is ON the caller's plan", { userId: "owner-1", meals: [{ userId: "owner-1", isPublic: false, isArchived: false, onPlansOf: [USER_ID] }] }, 200, null],
+  ];
+  for (const [label, opts, status, userIdOut] of cases) {
+    it(`${label} → ${status}`, async () => {
+      const harness = await spinUp(makeStubPrisma({ dishes: [dishRow("dish-x", "X", opts)] }));
+      try {
+        const res = await authGet(harness, "/dishes/dish-x");
+        assert.equal(res.status, status);
+        if (status === 200) {
+          const { dish } = (await res.json()) as { dish: { userId: string | null } };
+          assert.equal(dish.userId, userIdOut);
+        }
+      } finally {
+        await harness.close();
+      }
+    });
+  }
 });

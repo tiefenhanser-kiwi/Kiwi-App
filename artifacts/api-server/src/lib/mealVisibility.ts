@@ -90,3 +90,44 @@ export async function isMealReadableByUser(
   });
   return visible !== null;
 }
+
+/**
+ * SEC-2 #11 — the same rule for a dish, which has no `isPublic` of its own. A
+ * dish is readable when it is the caller's, or when it sits in a meal the
+ * caller may read by the three clauses above: a published catalog meal, one of
+ * their own meals, or a meal on one of their plans. GET /dishes/:id used to
+ * read ANY dish by id — another member's private recipe included — and hand
+ * back the owner's user id with it.
+ *
+ * Same `userId: string` hazard as isMealReadableByUser: an empty id refuses.
+ */
+export async function isDishReadableByUser(
+  prisma: PrismaClient | Prisma.TransactionClient,
+  dishId: string,
+  userId: string,
+): Promise<boolean> {
+  if (!userId) return false;
+  const visible = await prisma.dish.findFirst({
+    where: {
+      id: dishId,
+      OR: [
+        { userId },
+        {
+          mealLinks: {
+            some: {
+              meal: {
+                OR: [
+                  { userId },
+                  { isPublic: true, isArchived: false },
+                  { planItems: { some: { planInstance: { userId } } } },
+                ],
+              },
+            },
+          },
+        },
+      ],
+    },
+    select: { id: true },
+  });
+  return visible !== null;
+}

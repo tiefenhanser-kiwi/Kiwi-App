@@ -6,11 +6,12 @@
 // Returns the full dish: meta + per-dish ingredients (via dishIngredients)
 // + dish-owned instruction steps (RecipeInstructionStep, ownerType="dish").
 //
-// Read scope: any non-archived dish is readable. The WS7-3 A2 prompt §1.5
-// specced an owner-OR-public gate, but the Dish schema has no isPublic
-// column — and dishes surface in mobile featured/top-rated catalogs that may
-// be owned by other users — so a broad read is correct for MVP. See WS7-3 A2
-// Phase 3 report §8 (F-A2-2).
+// Read scope (SEC-2 #11): the caller's own dish, or a dish inside a meal the
+// caller may read — lib/mealVisibility.ts isDishReadableByUser, the same three
+// clauses GET /meals/:id applies. Until SEC-2 any non-archived dish was
+// readable by id (WS7-3 A2 §8 F-A2-2 reasoned there was no isPublic to gate
+// on; the meal links are the gate). Anything else is a 404, never a 403: a 403
+// would confirm the id exists.
 
 import { Router, type IRouter } from "express";
 import type { PrismaClient } from "@prisma/client";
@@ -18,6 +19,7 @@ import type { PrismaClient } from "@prisma/client";
 import { logger } from "../lib/logger";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { createRequireAuth } from "../middleware/auth";
+import { isDishReadableByUser } from "../lib/mealVisibility";
 import { toStepShape } from "./meals";
 import { selectDefaultPathSteps } from "../lib/cookingScheduler";
 
@@ -43,7 +45,16 @@ export function createDishesRouter(
       return res.status(400).json({ error: "invalid dish id" });
     }
 
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: "unauthenticated" });
+    }
+
     try {
+      if (!(await isDishReadableByUser(prisma, id, userId))) {
+        return res.status(404).json({ error: "dish not found" });
+      }
+
       const dish = await prisma.dish.findUnique({
         where: { id },
         include: {
@@ -81,7 +92,10 @@ export function createDishesRouter(
           fat: dish.fatGPerServing,
           tags: dish.tags,
           sourceType: dish.sourceType,
-          userId: dish.userId,
+          // SEC-2 #11 — never another member's id. The key stays (shipped
+          // clients' schema requires it, nullable); it carries the caller's
+          // own id when the dish is theirs, and null otherwise.
+          userId: dish.userId === userId ? userId : null,
           ingredients: dish.dishIngredients.map((di) => ({
             name: di.ingredient.displayName,
             quantity: di.quantity,
