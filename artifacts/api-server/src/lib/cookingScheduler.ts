@@ -719,7 +719,61 @@ export function scheduleCookingSequence(
   const input = dishes.map((d) => ({ ...d, steps: selectDefaultPathSteps(d.steps) })).filter((d) => d.steps.length > 0);
   const kept = new Set(mergeFeastPreheats(input).dishes.flatMap((d) => d.steps.map((s) => `${d.dishId}#${s.stepIndex}`)));
   const mergedSteps = input.flatMap((d) => d.steps.filter((s) => !kept.has(`${d.dishId}#${s.stepIndex}`)).map((s) => ({ dishId: d.dishId, stepIndex: s.stepIndex })));
-  return { ...feastServeOrder(result, input), ...(mergedSteps.length > 0 ? { mergedSteps } : {}) };
+  // THX-3d round 2 (J) — the warm steps that are not needed today go with them.
+  const warm = feastWarmSteps(feastServeOrder(result, input), input);
+  const all = [...mergedSteps, ...warm.dropped];
+  return { ...warm.result, ...(all.length > 0 ? { mergedSteps: all } : {}) };
+}
+
+// ── THX-3d round 2 (J) — NOTHING COLD, NOTHING FORGOTTEN IN THE OVEN ─────────────────
+//
+// Hans's lens: nothing sits cold. Every stovetop side carries a code-written "Cover and
+// keep warm over the lowest heat." after its last hot step, and every oven side a "Turn
+// the oven off and leave the sides inside …" after its last oven step (scripts/thx2
+// thx2Warm, never AI). Which ones Cook Mode shows is decided HERE, on the day's own
+// schedule, so a swapped or added dish is judged the same way: a keep-warm only when its
+// side's hot step ends more than WARM_GAP minutes before serving; ONE oven-off, the side
+// whose oven finishes last, and only when that is more than WARM_GAP before serving. The
+// rest are merged away (mergedSteps: the client must not append them).
+export const KEEP_WARM_TEXT = "Cover and keep warm over the lowest heat.";
+export const KEEP_WARM_STEP = /^\s*Cover and keep warm over the lowest heat\.\s*$/i;
+export const OVEN_OFF_TEXT = "Turn the oven off and leave the sides inside, covered loosely with foil, to keep warm.";
+export const OVEN_OFF_STEP = /^\s*Turn the oven off and leave the sides inside\b/i;
+/** Minutes before serving that a side may finish without a warm step. */
+export const WARM_GAP = 15;
+
+export function feastWarmSteps(res: ScheduleResult, dishes: readonly SchedulerDish[]): { result: ScheduleResult; dropped: { dishId: string; stepIndex: number }[] } {
+  const none = { result: res, dropped: [] };
+  const byDish = new Map(dishes.map((d) => [d.dishId, d]));
+  const at = new Map(res.steps.map((e) => [`${e.dishId}#${e.originalStepIndex}`, e.startOffsetMinutes]));
+  const textOf = (dishId: string, stepIndex: number) => byDish.get(dishId)?.steps.find((s) => s.stepIndex === stepIndex)?.text ?? "";
+  const warm = res.steps.filter((e) => KEEP_WARM_STEP.test(textOf(e.dishId, e.originalStepIndex)) || OVEN_OFF_STEP.test(textOf(e.dishId, e.originalStepIndex)));
+  if (warm.length === 0) return none;
+  const serve = res.steps.find((e) => FEAST_SERVE_STEP.test(textOf(e.dishId, e.originalStepIndex)));
+  const serveAt = serve ? serve.startOffsetMinutes : 0;
+  /** The end of the dish's last step before this one that `pick` accepts. */
+  const endBefore = (dishId: string, stepIndex: number, pick: (s: SchedulerStep) => boolean): number | null => {
+    const d = byDish.get(dishId);
+    if (!d) return null;
+    const prev = [...d.steps].filter((s) => s.stepIndex < stepIndex && pick(s) && at.has(`${dishId}#${s.stepIndex}`)).sort((a, b) => b.stepIndex - a.stepIndex)[0];
+    return prev ? at.get(`${dishId}#${prev.stepIndex}`)! + prev.estimatedMinutes : null;
+  };
+  const drop = new Set<string>();
+  for (const e of warm.filter((x) => KEEP_WARM_STEP.test(textOf(x.dishId, x.originalStepIndex)))) {
+    const end = endBefore(e.dishId, e.originalStepIndex, (s) => s.phaseType === "cook");
+    if (end === null || serveAt - end <= WARM_GAP) drop.add(`${e.dishId}#${e.originalStepIndex}`);
+  }
+  const offs = warm
+    .filter((x) => OVEN_OFF_STEP.test(textOf(x.dishId, x.originalStepIndex)))
+    .map((e) => ({ e, end: endBefore(e.dishId, e.originalStepIndex, (s) => isOvenStep(s) && s.phaseType !== "preheat") }));
+  const lastOut = offs.reduce<(typeof offs)[number] | null>((b, o) => (o.end !== null && (b === null || (b.end ?? -Infinity) < o.end) ? o : b), null);
+  for (const o of offs) {
+    if (o === lastOut && o.end !== null && serveAt - o.end > WARM_GAP) continue;
+    drop.add(`${o.e.dishId}#${o.e.originalStepIndex}`);
+  }
+  if (drop.size === 0) return none;
+  const steps = res.steps.filter((e) => !drop.has(`${e.dishId}#${e.originalStepIndex}`)).map((e, i) => ({ ...e, sequenceIndex: i }));
+  return { result: { ...res, steps }, dropped: [...drop].map((k) => ({ dishId: k.split("#")[0], stepIndex: Number(k.split("#")[1]) })) };
 }
 
 // ── THX-3d (R4) — THE SERVE STEP, THEN DESSERT ──────────────────────────────────

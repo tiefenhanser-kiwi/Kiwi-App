@@ -3,8 +3,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { feastWarmSteps, KEEP_WARM_TEXT, OVEN_OFF_TEXT, type ScheduleResult, type SchedulerDish } from "../../src/lib/cookingScheduler";
 import { splitTwoPhase } from "./thx2Phases";
 import { dishNoun, inTheOvenText, putInEdits } from "./thx2PutIn";
+import { warmStepEdits } from "./thx2Warm";
 import type { OvenStepRow } from "./thx2Oven";
 
 const row = (ownerId: string, stepIndex: number, phaseType: string, estimatedMinutes: number, text: string): OvenStepRow => ({
@@ -86,5 +88,34 @@ describe("THX-3d I — the put-in step and what follows it", () => {
       row("b", 4, "assemble", 2, "Squeeze the lemon over the beans."),
     ];
     assert.deepEqual(putInEdits(dishes, after), { updates: [], deletes: [], creates: [], renumber: [] });
+  });
+});
+
+describe("THX-3d J — the warm steps", () => {
+  it("written after a stovetop side's last hot step and an oven side's last oven step; once", () => {
+    const dishes = [{ dishId: "g", title: "Pan Gravy", positionIndex: 1, roleLabel: "side" }, { dishId: "s", title: "Herb Stuffing", positionIndex: 2, roleLabel: "side" }];
+    const steps = [
+      row("g", 0, "cook", 10, "On Thursday: Whisk the stock into the roux and simmer 10 minutes."),
+      row("g", 1, "assemble", 2, "Season and pour into a gravy boat."),
+      row("s", 0, "cook", 30, "On Thursday: Bake the stuffing covered at 375°F for 30 minutes."),
+    ];
+    const e = warmStepEdits(dishes, steps);
+    assert.deepEqual(e.creates.map((c) => `${c.dishId}#${c.stepIndex} ${c.text}`), [`g#1 ${KEEP_WARM_TEXT}`, `s#1 ${OVEN_OFF_TEXT}`]);
+    assert.deepEqual(warmStepEdits(dishes, [...steps, row("g", 1, "assemble", 1, KEEP_WARM_TEXT), row("s", 1, "assemble", 1, OVEN_OFF_TEXT)]).creates, []);
+  });
+  it("Cook Mode keeps a keep-warm only beyond 15 minutes of serving, and one oven-off: the last side out, beyond 15", () => {
+    const d = (dishId: string, steps: [number, string, number, string][]): SchedulerDish => ({ dishId, title: dishId, positionIndex: 0, roleLabel: null, steps: steps.map(([stepIndex, phaseType, estimatedMinutes, text]) => ({ stepIndex, phaseType: phaseType as never, estimatedMinutes, text, isTimingSensitive: false, parallelGroup: null, componentKey: null, pathKey: null })) });
+    const dishes = [
+      d("beans", [[0, "cook", 10, "Sauté the beans."], [1, "assemble", 1, KEEP_WARM_TEXT]]),
+      d("gravy", [[0, "cook", 10, "Simmer the gravy."], [1, "assemble", 1, KEEP_WARM_TEXT]]),
+      d("stuffing", [[0, "cook", 30, "Bake at 350°F for 30 minutes."], [1, "assemble", 1, OVEN_OFF_TEXT]]),
+      d("crisp", [[0, "cook", 30, "Bake at 350°F for 30 minutes."], [1, "assemble", 1, OVEN_OFF_TEXT]]),
+      d("turkey", [[0, "assemble", 2, "Serve the Turkey with the Gravy."]]),
+    ];
+    const at = (dishId: string, i: number, t: number) => ({ dishId, originalStepIndex: i, sequenceIndex: 0, startOffsetMinutes: t });
+    const res = { steps: [at("beans", 0, -60), at("beans", 1, -50), at("gravy", 0, -16), at("gravy", 1, -6), at("stuffing", 0, -70), at("stuffing", 1, -40), at("crisp", 0, -60), at("crisp", 1, -30), at("turkey", 0, -2)], totalEstimatedMinutes: 70, activeEstimatedMinutes: 30, dishDurations: {}, ignoredTags: [] } as ScheduleResult;
+    const w = feastWarmSteps(res, dishes);
+    assert.deepEqual(w.dropped.map((x) => `${x.dishId}#${x.stepIndex}`).sort(), ["gravy#1", "stuffing#1"]);
+    assert.deepEqual(w.result.steps.map((s) => `${s.dishId}#${s.originalStepIndex}`).filter((k) => k.endsWith("#1")), ["beans#1", "crisp#1"]);
   });
 });
