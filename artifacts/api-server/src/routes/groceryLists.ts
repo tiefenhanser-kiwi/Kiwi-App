@@ -982,7 +982,9 @@ export function createGroceryListsRouter(
         });
       }
       logger.error(
-        { event: "grocery_item_lookup_failed", userId, q, err },
+        // SEC-2 #15 — the length, never the text: a search box is where
+        // people type things that are nobody's business.
+        { event: "grocery_item_lookup_failed", userId, qLength: q.length, err },
         "grocery-items/lookup failed",
       );
       return res.status(500).json({ error: "internal server error" });
