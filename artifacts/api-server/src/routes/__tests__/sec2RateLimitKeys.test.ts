@@ -101,12 +101,16 @@ describe("SEC-2 #1 — rate-limit keys and per-email limits", () => {
   beforeEach(() => __clearRateLimitStoreForTests());
 
   it("case and trailing-slash variants of /auth/login share /auth/login's bucket (SEC-1's probe)", async () => {
-    // A fresh email every time, so only the per-IP limiter can answer 429.
+    // Drained with bodies the schema refuses: the per-IP limiter runs before
+    // the handler, so each still spends a token, and a 400 costs no bcrypt.
+    // (Ten real failed logins at cost 12 take seconds under suite load, and
+    // the bucket refills one token every six.) A fresh email every time, so
+    // only the per-IP limiter can answer 429.
     let n = 0;
     const bad = () => ({ email: `nobody-${n++}@example.com`, password: "wrong-password-123" });
     const codes: number[] = [];
-    for (let i = 0; i < 10; i++) codes.push((await post(h.baseUrl, "/auth/login", bad())).status);
-    assert.deepEqual(codes, Array(10).fill(401));
+    for (let i = 0; i < 10; i++) codes.push((await post(h.baseUrl, "/auth/login", {})).status);
+    assert.deepEqual(codes, Array(10).fill(400));
     for (const p of ["/auth/login", "/auth/LOGIN", "/auth/Login", "/auth/login/", "/AUTH/login"]) {
       assert.equal((await post(h.baseUrl, p, bad())).status, 429, `${p} must be refused`);
     }
