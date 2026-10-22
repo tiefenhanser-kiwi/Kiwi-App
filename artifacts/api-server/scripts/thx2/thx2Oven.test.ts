@@ -155,13 +155,13 @@ describe("THX-3c BUG-463 — Vegetarian's code-written steps", () => {
     assert.deepEqual(ovenConflicts(ovenReport(VEG, all)), []);
     assert.deepEqual(heldDishSteps(VEG, all), { creates: [], renumber: [] });
     assert.deepEqual(splitPreheatSteps(VEG, all), []);
-    // THX-3d round 2 (O) — the mac comes out with the stuffing still baking at 375°F:
-    // its foil step says nothing about the oven heating; the stuffing's, before the
-    // Wellington's 425°F, keeps it. A second run changes nothing.
+    // THX-3d round 2 (O) — a foil step says the oven is heating for the next dish only
+    // when it is. Round 3 (S): the 375°F block now ends as the 425°F preheat starts, so
+    // the mac and the stuffing both come out as the oven changes, and both keep it.
     const holds = holdTextUpdates(VEG, all);
-    assert.deepEqual(holds, [{ dishId: "mac", stepIndex: 7, text: "Cover the Baked Mac and Cheese with foil to keep it warm." }]);
-    const fixed = all.map((x) => (x.ownerId === "mac" && x.stepIndex === 7 ? { ...x, stepTextTranslated: holds[0].text } : x));
-    assert.deepEqual(holdTextUpdates(VEG, fixed), []);
+    assert.deepEqual(holds, []);
+    const stillBaking = all.map((x) => (x.ownerId === "mac" && x.stepIndex === 7 ? { ...x, stepTextTranslated: "Cover the Baked Mac and Cheese with foil to keep it warm." } : x));
+    assert.deepEqual(holdTextUpdates(VEG, stillBaking), [{ dishId: "mac", stepIndex: 7, text: "Cover the Baked Mac and Cheese with foil to keep it warm while the oven heats for the next dish." }]);
   });
 });
 
