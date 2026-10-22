@@ -869,8 +869,13 @@ function makeStubPrismaWithStore(
 }
 
 // detailsPlan() has 2 meals; mark chosen slots as store-filled.
-function detailsWithStore(storeBySlot: Record<number, string>): WizardExpandedPlanDetails {
-  const d = detailsPlan();
+function detailsWithStore(
+  storeBySlot: Record<number, string>,
+  // SEC-2 #4 — a draft expand matched to the server's own candidate. Live
+  // slots publish (writeBack) only when this is true.
+  fromServerCandidate = true,
+): WizardExpandedPlanDetails {
+  const d = { ...detailsPlan(), fromServerCandidate };
   for (const [idx, id] of Object.entries(storeBySlot)) {
     d.meals[Number(idx)].sourceStoreMealId = id;
   }
@@ -944,6 +949,31 @@ describe("readAndFinalizeWizardDraft — D-WS9-038 store/live partition", () => 
       assert.ok(slots[1].meal.dishes[0].steps.length > 0);
     }
   });
+
+  // SEC-2 #4 — the same live slot from a draft whose text is NOT the server's
+  // own (a client-authored candidate, or a draft from before the stamp) saves
+  // but never publishes to the shared pool.
+  for (const [label, stamp] of [["fromServerCandidate:false", false], ["no stamp (legacy draft)", undefined]] as const) {
+    it(`SEC-2 #4: a live slot from a draft with ${label} builds with writeBack:false`, async () => {
+      const details = detailsWithStore({ 0: "store-1" });
+      if (stamp === undefined) delete (details as { fromServerCandidate?: boolean }).fromServerCandidate;
+      else details.fromServerCandidate = stamp;
+      const { fn } = makeFinalizeRunAICallStub((mealTitle, dishCount) =>
+        finalizeAISuccess(shardLocalDishSteps(dishCount, mealTitle)),
+      );
+      const result = await readAndFinalizeWizardDraft({
+        prisma: makeStubPrismaWithStore(details, userId, ["store-1"]),
+        userId,
+        draftId,
+        runAICall: fn,
+      });
+      assert.equal(result.status, "success");
+      if (result.status !== "success") return;
+      const live = result.savePlan.slots[1];
+      assert.equal(live.kind, "build");
+      if (live.kind === "build") assert.equal(live.writeBack, false);
+    });
+  }
 
   it("all-store plan → ZERO finalize AI calls, every slot is a fork", async () => {
     const details = detailsWithStore({ 0: "store-1", 1: "store-2" });

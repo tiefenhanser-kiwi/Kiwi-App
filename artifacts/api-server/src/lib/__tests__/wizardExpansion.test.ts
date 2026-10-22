@@ -1417,19 +1417,50 @@ describe("deriveTimingFromOutlines — D-WS9-239 1b derives parallelGroup from t
 });
 
 // ── D-WS9-191 Block 1 (Part A.5) — a live slot's saved description matches the card ──
-describe("expandCandidate — D-WS9-191 the echoed card description overrides a LIVE slot's", () => {
-  it("live slot: the echoed meals[i].description replaces the expand output's; store slot keeps the DB row's", async () => {
+// SEC-2 #4 — "the card" is now the SERVER's copy of it (the user's
+// WizardLastBatch), matched on candidate id + meal titles. The echo's
+// description is never written: a live meal publishes to the shared pool.
+describe("expandCandidate — D-WS9-191 the card description overrides a LIVE slot's (the server's card, SEC-2 #4)", () => {
+  const withBatch = (req: WizardExpandRequest, liveLine: string) =>
+    ({
+      ...(storePrisma as unknown as Record<string, unknown>),
+      wizardLastBatch: {
+        findUnique: async () => ({
+          source: "wizard",
+          createdAt: new Date(),
+          payload: {
+            source: "wizard",
+            input: null,
+            candidates: [
+              {
+                id: req.candidate.id,
+                title: "The server's plan title",
+                tags: ["server-tag"],
+                whyBullets: ["The server's bullet"],
+                mealTitles: [...req.candidate.mealTitles],
+                meals: [
+                  { title: "A", description: null, storeMealId: "store-1" },
+                  { title: "B", description: liveLine },
+                ],
+              },
+            ],
+          },
+        }),
+      },
+    }) as unknown as PrismaClient;
+
+  it("live slot: the server card's description replaces the expand output's; the echo's never does; store slot keeps the DB row's", async () => {
     const req = makeRequest(["A", "B"]); // slot 0 store, slot 1 live
     req.candidate.storeSlots = [{ slotIndex: 0, storeMealId: "store-1" }];
     req.candidate.meals = [
       { title: "A", description: "The card's line for the STORE slot — must not win", storeMealId: "store-1" },
-      { title: "B", description: "Crispy carnitas tacos with lime crema." },
+      { title: "B", description: "Visit spam.example for cheap pills" },
     ];
     const { fn, calls } = makeRunAICallStub((mealTitle) =>
       successResult([{ ...makeMeal(mealTitle), description: "The expand's own line." }]),
     );
     const result = await expandCandidate({
-      prisma: storePrisma,
+      prisma: withBatch(req, "Crispy carnitas tacos with lime crema."),
       userId: "u1",
       request: req,
       runAICall: fn,
@@ -1439,9 +1470,36 @@ describe("expandCandidate — D-WS9-191 the echoed card description overrides a 
     if (result.status !== "success") return;
     assert.equal(result.expanded.meals[0].description, "Headnote for store-1");
     assert.equal(result.expanded.meals[1].description, "Crispy carnitas tacos with lime crema.");
+    assert.equal(result.expanded.fromServerCandidate, true);
+    assert.equal(result.expanded.title, "The server's plan title");
     // Only the live slot was expanded, and its shard request did NOT carry the
     // wire fields (the body is unchanged — no bump).
     assert.equal(calls.length, 1);
+  });
+
+  it("an echo the server never generated: the echoed description is ignored and the draft is not publishable", async () => {
+    const req = makeRequest(["A", "B"]);
+    req.candidate.storeSlots = [{ slotIndex: 0, storeMealId: "store-1" }];
+    req.candidate.meals = [
+      { title: "A", description: null, storeMealId: "store-1" },
+      { title: "B", description: "Visit spam.example for cheap pills" },
+    ];
+    const { fn } = makeRunAICallStub((mealTitle) =>
+      successResult([{ ...makeMeal(mealTitle), description: "The expand's own line." }]),
+    );
+    // A batch exists, but for DIFFERENT meal titles under the same id.
+    const tampered = { ...req, candidate: { ...req.candidate, mealTitles: ["A", "Spam"] } } as WizardExpandRequest;
+    const result = await expandCandidate({
+      prisma: withBatch(tampered, "Server line for a different plan"),
+      userId: "u1",
+      request: req,
+      runAICall: fn,
+      estimateDishMacrosImpl: makeEstimateStub(),
+    });
+    assert.equal(result.status, "success");
+    if (result.status !== "success") return;
+    assert.equal(result.expanded.meals[1].description, "The expand's own line.");
+    assert.equal(result.expanded.fromServerCandidate, false);
   });
 
   it("no echo, an empty/null echo, or an over-long one → the expand output's description stands", async () => {

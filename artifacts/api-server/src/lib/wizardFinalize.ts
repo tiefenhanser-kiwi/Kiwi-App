@@ -149,7 +149,15 @@ export async function readAndFinalizeWizardDraft(
     if (sid && validStore.has(sid)) {
       storeBySlot.set(i, sid);
     } else {
-      buildEntries.push({ slotIndex: i, meal, writeBack: !sid });
+      // SEC-2 #4 — a live slot publishes only when its text is the server's
+      // own (fromServerCandidate, stamped by expandCandidate). A client-
+      // authored candidate, or a draft written before the stamp, saves to the
+      // user's plan and stops there.
+      buildEntries.push({
+        slotIndex: i,
+        meal,
+        writeBack: !sid && details.fromServerCandidate === true,
+      });
     }
   });
 

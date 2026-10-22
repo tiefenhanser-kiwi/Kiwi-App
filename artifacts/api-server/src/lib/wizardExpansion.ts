@@ -30,6 +30,7 @@ import { mealIdsFittingDiets } from "./similar/swapPool";
 import { runAICall as productionRunAICall } from "./ai/runAICall";
 import { isSpendGuardReason } from "./ai/errors";
 import { composeStoreMealDetails, filterBindableStoreMealIds } from "./store/storeMealDetails";
+import { readWizardLastBatch } from "./wizardLastBatch";
 import {
   WizardExpandResultDetailsSchema,
   type WizardExpandMealDetails,
@@ -117,6 +118,56 @@ export type ExpandCandidateResult =
  * Per-dish macro failures are NOT fatal — the dish row is persisted with
  * `macros: null` and the caller may surface a soft caveat.
  */
+/** The parts of a stored (server-generated) candidate expand may use. */
+interface ServerCandidate {
+  title: string;
+  tags: string[];
+  whyBullets: string[];
+  meals?: Array<{ description?: string | null }>;
+  mealDescriptions?: string[];
+}
+
+const isStringArray = (v: unknown): v is string[] =>
+  Array.isArray(v) && v.every((x) => typeof x === "string");
+
+/**
+ * SEC-2 #4 — the candidate this user's last generation actually produced, if
+ * the echo is one of them: same id AND the same meal titles in the same order
+ * (the id alone is the model's, and a client could pair it with any titles).
+ * `null` for anything else — a client-authored candidate, a batch since
+ * replaced, an unreadable row — and `null` is the safe answer: the plan still
+ * expands and saves, its live meals just never publish.
+ */
+async function findServerCandidate(
+  prisma: PrismaClient,
+  userId: string,
+  echoed: { id: string; mealTitles: string[] },
+): Promise<ServerCandidate | null> {
+  const batch = await readWizardLastBatch({ prisma, userId });
+  const stored = batch?.payload?.candidates;
+  if (!Array.isArray(stored)) return null;
+  for (const raw of stored as unknown[]) {
+    const c = raw as Record<string, unknown> | null;
+    if (!c || c["id"] !== echoed.id) continue;
+    const titles = c["mealTitles"];
+    if (!isStringArray(titles) || titles.length !== echoed.mealTitles.length) continue;
+    if (!titles.every((t, i) => t === echoed.mealTitles[i])) continue;
+    if (typeof c["title"] !== "string" || !isStringArray(c["tags"]) || !isStringArray(c["whyBullets"])) {
+      continue;
+    }
+    return c as unknown as ServerCandidate;
+  }
+  return null;
+}
+
+/** The server card's description for slot `i` (wire `meals[]`, else a pre-wire batch's `mealDescriptions`). */
+function serverCardDescription(c: ServerCandidate | null, i: number): string | undefined {
+  if (!c) return undefined;
+  const fromMeals = c.meals?.[i]?.description;
+  const raw = typeof fromMeals === "string" ? fromMeals : c.mealDescriptions?.[i];
+  return typeof raw === "string" ? raw.trim() : undefined;
+}
+
 export async function expandCandidate(
   opts: ExpandCandidateOptions,
 ): Promise<ExpandCandidateResult> {
@@ -186,6 +237,14 @@ export async function expandCandidate(
     allergiesAndAvoidances: resolvedAllergens.allergiesAndAvoidances,
     eatingStyles,
   };
+
+  // SEC-2 #4 — the candidate the SERVER generated, if this echo is one. Its
+  // descriptions, title, tags and bullets are the server's own words; the
+  // echo's are the client's, and a live meal built from a client's words must
+  // never be published to the shared pool (see fromServerCandidate below).
+  const serverCandidate = opts.guestSessionId
+    ? null
+    : await findServerCandidate(opts.prisma, opts.userId, opts.request.candidate);
 
   // SEC-2 #3 — THE CLIENT ECHOES THESE IDS, so they are checked before anything
   // reads them. composeStoreMealDetails loads a meal by id with no owner test,
@@ -564,12 +623,17 @@ export async function expandCandidate(
     const timing = deriveTimingFromOutlines(liveMeal);
     const authored = liveMeal.estimatedTimeMinutes;
     // D-WS9-191 Block 1 (Part A.5) — a LIVE slot's saved description matches
-    // the chooser card: when the client echoed the wire `meals[i]` with a
-    // non-empty description for this slot, it REPLACES the expand output's.
-    // Store slots never reach here (composeStoreMealDetails read the DB row).
-    // Bounded by WizardExpandMealSchema's max(200): the draft payload is
-    // re-validated on every read, so an over-long card line keeps the expand's.
-    const cardDescription = opts.request.candidate.meals?.[i]?.description?.trim();
+    // the chooser card: when the card carried a non-empty description for this
+    // slot, it REPLACES the expand output's. Store slots never reach here
+    // (composeStoreMealDetails read the DB row). Bounded by
+    // WizardExpandMealSchema's max(200): the draft payload is re-validated on
+    // every read, so an over-long card line keeps the expand's.
+    //
+    // SEC-2 #4 — "the card" is the SERVER's copy of it, never the echo. The
+    // echoed `meals[i].description` used to be written here verbatim, and a
+    // live meal is published to the shared pool at save: any text a client
+    // sent became catalog copy every member (and every guest) could be shown.
+    const cardDescription = serverCardDescription(serverCandidate, i);
     const timed: WizardExpandEnrichedMealDetails = {
       ...liveMeal,
       ...(cardDescription && cardDescription.length <= 200
@@ -629,9 +693,13 @@ export async function expandCandidate(
     liveMealsComposed: liveSlots.length,
     expanded: {
       candidateId: opts.request.candidate.id,
-      title: opts.request.candidate.title,
-      tags: opts.request.candidate.tags,
-      whyBullets: opts.request.candidate.whyBullets,
+      // SEC-2 #4 — the server's own when the echo matched one it generated.
+      // An unmatched echo keeps the client's words for the user's OWN plan
+      // only: plan titles, tags and bullets are never published.
+      title: serverCandidate?.title ?? opts.request.candidate.title,
+      tags: serverCandidate?.tags ?? opts.request.candidate.tags,
+      whyBullets: serverCandidate?.whyBullets ?? opts.request.candidate.whyBullets,
+      fromServerCandidate: serverCandidate !== null,
       // Servings unification (BUG-046 / D-WS9-070 Option 1) — stamp the PER-RUN
       // household onto the draft payload so it survives to materialize. This is
       // the ONLY carrier of the per-run value past expand: candidateContext is

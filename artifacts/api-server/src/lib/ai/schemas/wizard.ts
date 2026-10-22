@@ -454,10 +454,49 @@ export const WizardExpandRequestSchema = z.object({
   // read on the card is what the saved meal says (wizardExpansion.ts); store
   // slots read the DB row regardless. `mealDescriptions`, if echoed, passes
   // the base schema and is ignored here.
+  //
+  // SEC-2 #4 — EVERY ECHOED STRING IS CAPPED HERE. The base schema is also the
+  // model's OUTPUT schema, so its caps stay as the model needs them; this is
+  // the client's copy of the same object and gets bounds a real card fits in
+  // with room to spare. No echoed text is written to the pool regardless
+  // (wizardExpansion.ts resolves titles and descriptions from the server's own
+  // batch) — the caps bound what reaches a prompt, a log and a draft.
   candidate: WizardPlanCandidateSchema.extend({
-    meals: z.array(WizardCandidateMealWireSchema).max(7).optional(),
+    id: z.string().min(1).max(100),
+    tags: z.preprocess(
+      (v) => (Array.isArray(v) && v.length > 5 ? v.slice(0, 5) : v),
+      z.array(z.string().max(60)).max(5),
+    ),
+    mealTitles: z.array(z.string().max(200)).min(1).max(7),
+    mealDescriptions: z.array(z.string().max(300)).max(7).optional(),
+    whyBullets: z.array(z.string().max(300)).min(1).max(3),
+    storeSlots: z
+      .array(
+        z.object({
+          slotIndex: z.number().int().nonnegative().max(6),
+          storeMealId: z.string().min(1).max(64),
+        }),
+      )
+      .max(7)
+      .optional(),
+    meals: z
+      .array(
+        WizardCandidateMealWireSchema.extend({
+          title: z.string().min(1).max(200),
+          description: z.string().max(300).nullable(),
+          storeMealId: z.string().min(1).max(64).optional(),
+          imageUrl: z.string().min(1).max(2048).optional(),
+        }),
+      )
+      .max(7)
+      .optional(),
   }),
-  candidateContext: WizardExpandCandidateContextSchema,
+  candidateContext: WizardExpandCandidateContextSchema.extend({
+    allergiesAndAvoidances: z.array(z.string().max(100)).max(50).optional(),
+    eatingStyles: z.array(z.string().max(60)).max(20).optional(),
+    saucePreference: z.string().max(40).optional(),
+    maxCookTimeCoverage: z.string().max(40).optional(),
+  }),
 });
 export type WizardExpandRequest = z.infer<typeof WizardExpandRequestSchema>;
 
@@ -736,6 +775,13 @@ export const WizardExpandedPlanDetailsSchema = z.object({
   // written before this field fall back to stored household at materialize.
   householdSize: z.number().int().min(1).max(30).optional(),
   meals: z.array(WizardExpandEnrichedMealDetailsSchema).min(1).max(7),
+  // SEC-2 #4 — true only when expand matched the echoed candidate to one the
+  // server generated for this user (their WizardLastBatch), so every live
+  // meal's title and description are the server's own words. Finalize
+  // publishes live meals to the shared pool ONLY when this is true: a
+  // client-authored candidate (or a draft written before this field) still
+  // saves to the user's plan, but its text never reaches publishMealToStore.
+  fromServerCandidate: z.boolean().optional(),
 });
 export type WizardExpandedPlanDetails = z.infer<
   typeof WizardExpandedPlanDetailsSchema
