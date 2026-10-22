@@ -93,7 +93,7 @@ describe("THX-3b BUG-457 — new generations get the rule", () => {
 });
 
 // ── THX-3c — the code-written oven steps (patch.ts 9, 10, 11) ────────────────
-import { heldDishSteps, ovenConflicts, raiseOvenStep, splitPreheatSteps } from "./thx2Oven";
+import { heldDishSteps, ovenConflicts, splitPreheatSteps } from "./thx2Oven";
 
 // Dev's Vegetarian (4d543799), Thursday as stored before THX-3c.
 const VEG = [
@@ -136,7 +136,8 @@ describe("THX-3c BUG-463 — Vegetarian's code-written steps", () => {
   });
 
   it("the held dishes get a foil step and a 425°F reheat; then nothing conflicts, and a second run adds nothing", () => {
-    const held = heldDishSteps(VEG, VEG_STEPS);
+    const { creates: held, renumber } = heldDishSteps(VEG, VEG_STEPS);
+    assert.deepEqual(renumber, []); // the stuffing and the mac end on their oven step
     assert.deepEqual(held.map((c) => `${c.dishId}#${c.stepIndex} ${c.phaseType} ${c.estimatedMinutes}`), ["stuffing#7 assemble 1", "stuffing#8 cook 10", "mac#7 assemble 1", "mac#8 cook 10"]);
     assert.match(held[1].text, /^Return it, uncovered, to the 425°F oven for 10 minutes/);
     const sp = splitPreheatSteps(VEG, VEG_STEPS)[0];
@@ -151,40 +152,10 @@ describe("THX-3c BUG-463 — Vegetarian's code-written steps", () => {
       ...held.map((c) => row(c.dishId, c.stepIndex, c.phaseType, c.estimatedMinutes, c.text)),
     ];
     assert.deepEqual(ovenConflicts(ovenReport(VEG, all)), []);
-    assert.deepEqual(heldDishSteps(VEG, all), []);
+    assert.deepEqual(heldDishSteps(VEG, all), { creates: [], renumber: [] });
     assert.deepEqual(splitPreheatSteps(VEG, all), []);
   });
 });
 
-describe("THX-3c item 3 — the oven is raised as the bird comes out", () => {
-  // Classic: the bird at 325°F, the stuffing bakes at 350°F with no preheat of its own.
-  const CLASSIC = [
-    { dishId: "turkey", title: "Herb-Roasted Whole Turkey", positionIndex: 0, roleLabel: "main" },
-    { dishId: "stuffing", title: "Sage and Onion Stuffing", positionIndex: 1, roleLabel: "side" },
-  ];
-  const CLASSIC_STEPS = [
-    row("turkey", 6, "preheat", 15, "On Thursday: Preheat the oven to 325°F."),
-    row("turkey", 9, "cook", 210, "Roast the turkey at 325°F for 3½ hours."),
-    row("turkey", 10, "rest", 40, "Rest the turkey."),
-    row("turkey", 11, "assemble", 10, "Carve the turkey."),
-    row("stuffing", 9, "cook", 55, "Bake the stuffing at 350°F for 55 minutes."),
-  ];
-
-  it("Classic: one step after the roast, the bird's later steps move down", () => {
-    const r = raiseOvenStep(CLASSIC, CLASSIC_STEPS)!;
-    assert.equal(r.step.text, "As the turkey comes out, raise the oven to 350°F for the sides.");
-    assert.deepEqual([r.step.stepIndex, r.step.phaseType], [10, "preheat"]);
-    assert.deepEqual(r.renumber.map((x) => `${x.from}→${x.to}`), ["11→12", "10→11"]);
-  });
-
-  it("idempotent, and not for Make-Ahead (its sides preheat to 350°F themselves)", () => {
-    const r = raiseOvenStep(CLASSIC, CLASSIC_STEPS)!;
-    const after = [
-      ...CLASSIC_STEPS.map((s) => { const m = r.renumber.find((x) => x.dishId === s.ownerId && x.from === s.stepIndex); return m ? { ...s, stepIndex: m.to } : s; }),
-      row("turkey", r.step.stepIndex, "preheat", r.step.estimatedMinutes, r.step.text),
-    ];
-    assert.equal(raiseOvenStep(CLASSIC, after), null);
-    const sameTemp = STEPS.map((s) => ({ ...s, stepTextTranslated: s.stepTextTranslated.replace("375°F", "350°F") }));
-    assert.equal(raiseOvenStep(DISHES, sameTemp), null);
-  });
-});
+// THX-3c item 3 (raiseOvenStep) was replaced by THX-3d D's raise step while the bird
+// roasts (thx2Thursday, its own tests in thx2Thursday.test.ts).

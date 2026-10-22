@@ -32,7 +32,7 @@
 //
 // It does not touch a user's copy of a feast (sourceStoreMealId) — it counts them.
 
-import { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient, type StepPhase } from "@prisma/client";
 
 import { assertScriptDatabase } from "../../src/lib/scripts/requireDatabaseHost";
 import { deriveAmountRefs, type MatcherIngredient } from "../../src/lib/stepAmountRefs";
@@ -40,10 +40,11 @@ import { stampMealTiming } from "../../src/lib/mealTiming";
 import { isWholeBirdByCount, isWholeBirdByWeight } from "../../src/lib/prepQuantity";
 import { nameCutAmounts } from "./thx2Amounts";
 import { AHEAD_TAG, aheadDaysOf, aheadTags, dishSpecFor, keepsDaysFor, loadTargets, validateTargets } from "./thx2Core";
-import { fixKeepClause, hasThursdayStep, retargetMakeAheadDay, thursdayServeStep } from "./thx2Checks";
+import { fixKeepClause, retargetMakeAheadDay } from "./thx2Checks";
+import { thursdayPostPass, thursdayPrePass, type ThursdayEdits } from "./thx2Thursday";
 import { countsInWords, mergeRefs, missingRows } from "./thx2Rows";
 import { thawStepText } from "../../src/lib/feastAddedDish";
-import { formatOvenReport, heldDishSteps, oneOvenTemperature, ovenReport, raiseOvenStep, retimeDish, splitPreheatSteps, type OvenStepRow } from "./thx2Oven";
+import { formatOvenReport, heldDishSteps, oneOvenTemperature, ovenReport, retimeDish, splitPreheatSteps, type OvenStepRow } from "./thx2Oven";
 
 const argv = process.argv.slice(2);
 const APPLY = argv.includes("--apply");
@@ -73,7 +74,11 @@ interface Plan {
   tagUpdates: { dishId: string; title: string; from: string[]; to: string[] }[];
   textUpdates: { stepId: string; title: string; stepIndex: number; from: string; to: string }[];
   refUpdates: { stepId: string; refs: unknown; was: unknown; text: string }[];
-  creates: { dishId: string; title: string; stepIndex: number; text: string; phaseType: "assemble" | "cook" | "preheat" | "prep"; estimatedMinutes: number; refs: unknown }[];
+  creates: { dishId: string; title: string; stepIndex: number; text: string; phaseType: "assemble" | "cook" | "preheat" | "prep" | "hold"; estimatedMinutes: number; refs: unknown }[];
+  /** THX-3d (D) — a step removed (a side's redundant preheat, a serve-only step, THX-3c's old raise). */
+  deletes: { stepId: string; title: string; stepIndex: number; text: string }[];
+  /** THX-3d (D) — a step's phase changed (the sit is a hold). */
+  phaseUpdates: { stepId: string; title: string; stepIndex: number; from: string; to: string }[];
   /** THX-3c — a step moved one down to make room for a code-written one (its id kept). */
   renumbers: { stepId: string; title: string; from: number; to: number }[];
   /** THX-3b — an oven step retimed to the feast's one post-bird temperature. */
@@ -100,7 +105,7 @@ for (const t of feasts) {
   const planRefs = await prisma.mealPlanItem.count({ where: { mealId: meal.id } });
   console.log(`\n▶ ${t.key} ${meal.id} "${meal.title.slice(0, 70)}" · plan items ${planRefs} · template items ${templateRefs} · user copies ${forks} (not patched)`);
 
-  const plan: Plan = { tagUpdates: [], textUpdates: [], refUpdates: [], creates: [], minuteUpdates: [], renumbers: [], rowCreates: [] };
+  const plan: Plan = { tagUpdates: [], textUpdates: [], refUpdates: [], creates: [], minuteUpdates: [], renumbers: [], rowCreates: [], deletes: [], phaseUpdates: [] };
   const specOf = dishSpecFor(t);
   const stepsByDish = new Map<string, StepRow[]>();
   const storedStep = new Map<string, StepRow>();
@@ -170,12 +175,8 @@ for (const t of feasts) {
       // jsonb stores object keys in its own order, so compare key-sorted.
       if (canonical(amountRefs) !== canonical(s.amountRefs ?? null)) plan.refUpdates.push({ stepId: s.id, refs: amountRefs, was: s.amountRefs, text: texts.get(s.id)! });
     }
-    // 4. a Thursday step
-    if (spec?.ahead && !hasThursdayStep(steps.map((s) => texts.get(s.id)!))) {
-      const step = thursdayServeStep(d.title, spec.course);
-      const stepIndex = Math.max(-1, ...steps.map((s) => s.stepIndex)) + 1;
-      plan.creates.push({ dishId: d.id, title: d.title, stepIndex, text: step.text, phaseType: step.phaseType, estimatedMinutes: step.estimatedMinutes, refs: deriveAmountRefs(step.text, matcher).amountRefs });
-    }
+    // 4. (THX-3d D) — no per-dish "On Thursday: Serve the …" step any more: the feast has
+    // ONE serve step after the carve (thx2Thursday post-pass), naming every dish.
     // 13. THX-3d (F) — a thaw tag with no thaw step (Small's breast, thaw-2d): the Hub's
     // thaw row opened the whole dish. A code-written thaw step opens it; the rest move down.
     const thawTag = wantTags.map((x) => /^thaw-(\d+)d$/.exec(x)).find((m) => m);
@@ -202,6 +203,74 @@ for (const t of feasts) {
     ...(stepsByDish.get(l.dishId) ?? []).map((s) => ({ ...s, ownerId: l.dishId })),
     ...plan.creates.filter((c) => c.dishId === l.dishId).map((c) => ({ ownerId: l.dishId, stepIndex: c.stepIndex, stepTextTranslated: c.text, phaseType: c.phaseType, estimatedMinutes: c.estimatedMinutes, isTimingSensitive: false, parallelGroup: null, componentKey: null, pathKey: null })),
   ]);
+  const titleOf = (dishId: string) => meal.dishLinks.find((l) => l.dishId === dishId)?.dish.title ?? "";
+  /**
+   * THX-3d (D) — a thx2Thursday edit batch onto the in-memory rows and the plan:
+   * updates and deletes at the current indexes, then the moves, then the creates.
+   */
+  function applyEdits(e: ThursdayEdits): void {
+    const rowAt = (dishId: string, idx: number) => stepsByDish.get(dishId)?.find((s) => s.stepIndex === idx);
+    const createAt = (dishId: string, idx: number) => plan.creates.find((c) => c.dishId === dishId && c.stepIndex === idx);
+    for (const u of e.updates) {
+      const row = rowAt(u.dishId, u.stepIndex);
+      if (row) {
+        const stored = storedStep.get(row.id)!;
+        if (u.text !== undefined && u.text !== row.stepTextTranslated) {
+          const ex = plan.textUpdates.find((x) => x.stepId === row.id);
+          if (ex) ex.to = u.text;
+          else plan.textUpdates.push({ stepId: row.id, title: titleOf(u.dishId), stepIndex: stored.stepIndex, from: stored.stepTextTranslated, to: u.text });
+          row.stepTextTranslated = u.text;
+          plan.refUpdates = plan.refUpdates.filter((x) => x.stepId !== row.id);
+          const refs = deriveAmountRefs(u.text, matcherOf.get(u.dishId) ?? []).amountRefs;
+          if (canonical(refs) !== canonical(stored.amountRefs ?? null)) plan.refUpdates.push({ stepId: row.id, refs, was: stored.amountRefs, text: u.text });
+        }
+        if (u.minutes !== undefined && u.minutes !== row.estimatedMinutes) {
+          plan.minuteUpdates = plan.minuteUpdates.filter((x) => x.stepId !== row.id);
+          if (u.minutes !== stored.estimatedMinutes) plan.minuteUpdates.push({ stepId: row.id, title: titleOf(u.dishId), stepIndex: stored.stepIndex, from: stored.estimatedMinutes, to: u.minutes });
+          row.estimatedMinutes = u.minutes;
+        }
+        if (u.phaseType !== undefined && u.phaseType !== row.phaseType) {
+          plan.phaseUpdates = plan.phaseUpdates.filter((x) => x.stepId !== row.id);
+          if (u.phaseType !== stored.phaseType) plan.phaseUpdates.push({ stepId: row.id, title: titleOf(u.dishId), stepIndex: stored.stepIndex, from: stored.phaseType, to: u.phaseType });
+          row.phaseType = u.phaseType;
+        }
+        continue;
+      }
+      const c = createAt(u.dishId, u.stepIndex);
+      if (!c) continue;
+      if (u.text !== undefined) { c.text = u.text; c.refs = deriveAmountRefs(u.text, matcherOf.get(u.dishId) ?? []).amountRefs; }
+      if (u.minutes !== undefined) c.estimatedMinutes = u.minutes;
+      if (u.phaseType !== undefined) c.phaseType = u.phaseType as Plan["creates"][number]["phaseType"];
+    }
+    for (const x of e.deletes) {
+      const rows = stepsByDish.get(x.dishId) ?? [];
+      const row = rowAt(x.dishId, x.stepIndex);
+      if (row) {
+        plan.deletes.push({ stepId: row.id, title: titleOf(x.dishId), stepIndex: storedStep.get(row.id)!.stepIndex, text: row.stepTextTranslated });
+        for (const k of ["textUpdates", "refUpdates", "minuteUpdates", "renumbers", "phaseUpdates"] as const) (plan[k] as { stepId: string }[]).splice(0, Infinity, ...(plan[k] as { stepId: string }[]).filter((y) => y.stepId !== row.id));
+        stepsByDish.set(x.dishId, rows.filter((r) => r !== row));
+        continue;
+      }
+      const c = createAt(x.dishId, x.stepIndex);
+      if (c) plan.creates.splice(plan.creates.indexOf(c), 1);
+    }
+    for (const r of e.renumber) {
+      const row = rowAt(r.dishId, r.from);
+      if (row) {
+        plan.renumbers.push({ stepId: row.id, title: titleOf(r.dishId), from: r.from, to: r.to });
+        row.stepIndex = r.to;
+        continue;
+      }
+      const c = createAt(r.dishId, r.from);
+      if (c) c.stepIndex = r.to;
+    }
+    for (const c of e.creates) {
+      plan.creates.push({ ...c, title: titleOf(c.dishId), phaseType: c.phaseType as Plan["creates"][number]["phaseType"], refs: deriveAmountRefs(c.text, matcherOf.get(c.dishId) ?? []).amountRefs });
+    }
+  }
+  // THX-3d (D) — the Thursday pre-pass first: the sit, the rest, a side joining a
+  // hotter bird, the side preheats where the raise heats the oven, the serve steps.
+  applyEdits(thursdayPrePass(ovenDishes, ovenRows()));
   const ovenBefore = ovenReport(ovenDishes, ovenRows());
   const one = oneOvenTemperature(ovenBefore);
   for (const c of one.changes) {
@@ -245,21 +314,12 @@ for (const t of feasts) {
   // 9. THX-3c (BUG-463) — a feast with no bird and two oven temperatures: each dish
   // that bakes first is covered with foil, then reheated uncovered at serving time
   // (thx2Oven heldDishSteps). Code-written, never AI.
-  for (const c of heldDishSteps(ovenDishes, ovenRows())) {
-    plan.creates.push({ ...c, phaseType: c.phaseType as Plan["creates"][number]["phaseType"], refs: deriveAmountRefs(c.text, matcherOf.get(c.dishId) ?? []).amountRefs });
-  }
-  // 10. THX-3c (item 3) — the bird comes out and the sides need another temperature
-  // with no preheat of their own: "As the turkey comes out, raise the oven to 350°F
-  // for the sides.", right after the bird's last oven step (its later steps move down).
-  const raise = raiseOvenStep(ovenDishes, ovenRows());
-  if (raise) {
-    for (const r of raise.renumber) {
-      const row = stepsByDish.get(r.dishId)!.find((x) => x.stepIndex === r.from)!;
-      plan.renumbers.push({ stepId: row.id, title: raise.step.title, from: r.from, to: r.to });
-      row.stepIndex = r.to;
-    }
-    plan.creates.push({ ...raise.step, phaseType: "preheat", refs: deriveAmountRefs(raise.step.text, matcherOf.get(raise.step.dishId) ?? []).amountRefs });
-  }
+  // THX-3d — right after the dish's last oven step, its later steps moved down.
+  const held = heldDishSteps(ovenDishes, ovenRows());
+  applyEdits({ updates: [], deletes: [], renumber: held.renumber, creates: held.creates.map(({ title: _title, ...c }) => c) });
+  // 10. (THX-3d D) — THX-3c's "As the turkey comes out, raise the oven…" is replaced:
+  // the post-pass writes ONE raise step while the bird roasts, and the serve step.
+  applyEdits(thursdayPostPass(ovenDishes, ovenRows()));
 
   for (const r of plan.rowCreates) console.log(`  rows+ [${r.title}] ${r.quantity} ${r.unit} ${r.canonicalName}${r.preparationNote ? ` (${r.preparationNote})` : ""} · ${r.componentKey ?? "—"}/${r.pathKey ?? "—"} — measured at step #${r.stepIndex}`);
   for (const u of plan.tagUpdates) console.log(`  tags  [${u.title}] ${u.from.join(" ") || "—"}  →  ${u.to.join(" ") || "—"}`);
@@ -269,6 +329,8 @@ for (const t of feasts) {
     const spans = (r: unknown) => ((Array.isArray(r) ? r : []) as { charStart: number; charEnd: number }[]).map((x) => `"${u.text.slice(x.charStart, x.charEnd)}"@${x.charStart}`).join(" ");
     console.log(`  refs  [${u.text.slice(0, 50)}…] ${spans(u.was) || "—"}  →  ${spans(u.refs) || "—"}`);
   }
+  for (const u of plan.deletes) console.log(`  del   [${u.title} #${u.stepIndex}] ${u.text}`);
+  for (const u of plan.phaseUpdates) console.log(`  phase [${u.title} #${u.stepIndex}] ${u.from} → ${u.to}`);
   for (const u of plan.renumbers) console.log(`  move  [${u.title}] #${u.from} → #${u.to}`);
   for (const u of plan.minuteUpdates) console.log(`  mins  [${u.title} #${u.stepIndex}] ${u.from} → ${u.to}`);
   // THX-3b (BUG-457) — the post-bird oven, every run: production's dry run proves the
@@ -310,7 +372,7 @@ for (const t of feasts) {
   const timeChanged = captured.meal && (captured.meal.estimatedTimeMinutes !== meal.estimatedTimeMinutes || captured.meal.activeTimeMinutes !== meal.activeTimeMinutes);
   console.log(`  time  total ${meal.estimatedTimeMinutes} → ${captured.meal?.estimatedTimeMinutes} · hands-on ${meal.activeTimeMinutes} → ${captured.meal?.activeTimeMinutes}`);
 
-  const changes = plan.rowCreates.length + plan.tagUpdates.length + plan.textUpdates.length + plan.refUpdates.length + plan.creates.length + plan.minuteUpdates.length + plan.renumbers.length + (timeChanged ? 1 : 0);
+  const changes = plan.deletes.length + plan.phaseUpdates.length + plan.rowCreates.length + plan.tagUpdates.length + plan.textUpdates.length + plan.refUpdates.length + plan.creates.length + plan.minuteUpdates.length + plan.renumbers.length + (timeChanged ? 1 : 0);
   totalChanges += changes;
   if (!APPLY || changes === 0) continue;
 
@@ -322,6 +384,8 @@ for (const t of feasts) {
     for (const u of plan.textUpdates) await tx.recipeInstructionStep.update({ where: { id: u.stepId }, data: { stepTextRaw: u.to, stepTextTranslated: u.to } });
     for (const u of plan.refUpdates) await tx.recipeInstructionStep.update({ where: { id: u.stepId }, data: { amountRefs: u.refs as Prisma.InputJsonValue } });
     for (const u of plan.minuteUpdates) await tx.recipeInstructionStep.update({ where: { id: u.stepId }, data: { estimatedMinutes: u.to } });
+    for (const u of plan.phaseUpdates) await tx.recipeInstructionStep.update({ where: { id: u.stepId }, data: { phaseType: u.to as StepPhase } });
+    for (const u of plan.deletes) await tx.recipeInstructionStep.delete({ where: { id: u.stepId } });
     // Latest first, so two rows never share an index mid-move.
     // THX-3d — a step moved twice (the thaw step, then the raise step) goes straight to
     // its last index: one move per step.

@@ -19,6 +19,7 @@
 // Pure: the dry run prints it and --apply writes it (patch.ts), so production gets it
 // with no AI. New generations get the same rule from FINALIZE_RULES (g).
 import {
+  feastRoastDish,
   holdCoveredText,
   isOvenStep,
   mergeFeastPreheats,
@@ -253,75 +254,51 @@ export interface CodeStep {
  * THX-3c (BUG-463, chat-Claude's ruling) — a feast with no bird to hold its oven and
  * more than one temperature: each dish of an earlier block (it holds well covered)
  * gets two steps after its last oven step — cover it with foil, and return it
- * uncovered to the last block's oven for 10 minutes at serving time. Only for a dish
- * whose last step IS that oven step; idempotent (a dish with its reheat gets nothing).
+ * uncovered to the last block's oven for 10 minutes at serving time. Idempotent (a
+ * dish with its reheat gets nothing).
+ *
+ * THX-3d (R4) — also beside a BIRD hotter than its sides (New Twist: the spatchcock at
+ * 425°F, its stuffing and potatoes at 350°F bake first), and right after the dish's
+ * last OVEN step even when it is not the dish's last step (the stuffing's "Let it rest
+ * 5 minutes", the potatoes' plating): its later steps move down two.
  */
-export function heldDishSteps(dishes: readonly OvenDish[], steps: readonly OvenStepRow[]): CodeStep[] {
+export function heldDishSteps(
+  dishes: readonly OvenDish[],
+  steps: readonly OvenStepRow[],
+): { creates: CodeStep[]; renumber: { dishId: string; from: number; to: number }[] } {
+  const none = { creates: [], renumber: [] };
   const { schedulerDishes } = thursdaySchedule(dishes, steps);
   const merged = mergeFeastPreheats(schedulerDishes).dishes;
-  if (planOven(merged)) return [];
-  const blocks = planOvenBlocks(merged);
-  if (!blocks) return [];
+  if (planOven(merged)) return none;
+  // THX-3d (R4) — a bird hotter than its sides is a block of its own, the last.
+  const blocks = planOvenBlocks(merged, feastRoastDish(merged)?.dishId ?? null);
+  if (!blocks) return none;
   const last = Math.max(...blocks.blockOf.values());
   const lastTemp = merged
     .filter((d) => blocks.blockOf.get(d.dishId) === last)
     .flatMap((d) => d.steps.map((s) => ovenTempOfText(s.text)))
     .find((t): t is number => t !== null);
-  if (lastTemp === undefined) return [];
-  const out: CodeStep[] = [];
+  if (lastTemp === undefined) return none;
+  const out: ReturnType<typeof heldDishSteps> = { creates: [], renumber: [] };
   for (const d of merged) {
     const b = blocks.blockOf.get(d.dishId);
     if (b === undefined || b === last || blocks.reheatOf.has(d.dishId)) continue;
-    const lastIdx = d.steps.length - 1;
-    if (!blocks.ovenSteps.get(d.dishId)?.has(lastIdx)) continue;
-    const top = Math.max(...steps.filter((s) => s.ownerId === d.dishId).map((s) => s.stepIndex));
-    out.push(
-      { dishId: d.dishId, title: d.title, stepIndex: top + 1, text: holdCoveredText(d.title), phaseType: "assemble", estimatedMinutes: 1 },
-      { dishId: d.dishId, title: d.title, stepIndex: top + 2, text: reheatText(d.title, lastTemp), phaseType: "cook", estimatedMinutes: REHEAT_MINUTES },
+    const ov = [...(blocks.ovenSteps.get(d.dishId) ?? [])];
+    if (ov.length === 0) continue;
+    const at = d.steps[Math.max(...ov)].stepIndex;
+    for (const s of steps.filter((x) => x.ownerId === d.dishId && x.stepIndex > at).sort((a, b) => b.stepIndex - a.stepIndex)) {
+      out.renumber.push({ dishId: d.dishId, from: s.stepIndex, to: s.stepIndex + 2 });
+    }
+    out.creates.push(
+      { dishId: d.dishId, title: d.title, stepIndex: at + 1, text: holdCoveredText(d.title), phaseType: "assemble", estimatedMinutes: 1 },
+      { dishId: d.dishId, title: d.title, stepIndex: at + 2, text: reheatText(d.title, lastTemp), phaseType: "cook", estimatedMinutes: REHEAT_MINUTES },
     );
   }
   return out;
 }
 
-/** The code-written raise step's words: "As the turkey comes out, raise the oven to 350°F for the sides." */
-const RAISE_STEP = /\braise the oven to \d{3}\s*°\s*F\b/i;
+/** The code-written raise step's minutes (THX-3d: "Raise the oven to 350°F and put in …", thx2Thursday). */
 export const RAISE_MINUTES = 5;
-
-/**
- * THX-3c (item 3) — when the bird comes out and the next oven dish needs another
- * temperature with no preheat of its own (Classic: 325°F → 350°F), the bird's dish
- * gets a step right after its last oven step: "As the turkey comes out, raise the oven
- * to 350°F for the sides." Returns the step and the bird's later steps' new indexes
- * (each moves down one); null when nothing is needed or it is already there.
- */
-export function raiseOvenStep(
-  dishes: readonly OvenDish[],
-  steps: readonly OvenStepRow[],
-): { step: CodeStep; renumber: { dishId: string; from: number; to: number }[] } | null {
-  const r = ovenReport(dishes, steps);
-  const bird = r.lines.filter((l) => l.holder);
-  if (bird.length === 0) return null;
-  const birdId = bird[0].dishId;
-  const own = steps.filter((s) => s.ownerId === birdId);
-  if (own.some((s) => RAISE_STEP.test(s.stepTextTranslated))) return null;
-  const birdTemp = [...bird].reverse().find((l) => l.temp !== null)?.temp ?? null;
-  const after = r.lines.filter((l) => l.afterBird);
-  const firstAfter = after[0];
-  if (!firstAfter || firstAfter.temp === null || firstAfter.temp === birdTemp) return null;
-  // A side that preheats to it itself (Make-Ahead's "Preheat the oven to 350°F") needs no raise.
-  if (after.some((l) => l.temp === firstAfter.temp && steps.find((s) => s.ownerId === l.dishId && s.stepIndex === l.stepIndex)?.phaseType === "preheat")) return null;
-  const lastOven = Math.max(...bird.map((l) => l.stepIndex));
-  const title = dishes.find((d) => d.dishId === birdId)!.title;
-  const noun = /\b(turkey|chicken|duck|goose|hen)\b/i.exec(title)?.[1]?.toLowerCase() ?? "roast";
-  return {
-    step: {
-      dishId: birdId, title, stepIndex: lastOven + 1, phaseType: "preheat", estimatedMinutes: RAISE_MINUTES,
-      text: `As the ${noun} comes out, raise the oven to ${firstAfter.temp}°F for the sides.`,
-    },
-    renumber: own.filter((s) => s.stepIndex > lastOven).sort((a, b) => b.stepIndex - a.stepIndex).map((s) => ({ dishId: birdId, from: s.stepIndex, to: s.stepIndex + 1 })),
-  };
-}
-
 
 /** "Preheat the oven to 425°F. Season the caps…" — the preheat, then the work it carries. */
 const PREHEAT_WITH_WORK = /^(\s*(?:On [A-Za-z]+day:\s*)?(?:Pre)?heat (?:the )?oven to \d{3}\s*°\s*F\.)\s+(\S.*)$/i;
@@ -340,7 +317,7 @@ export function splitPreheatSteps(
 ): { preheat: { dishId: string; stepIndex: number; text: string }; work: CodeStep; renumber: { dishId: string; from: number; to: number }[] }[] {
   const { schedulerDishes } = thursdaySchedule(dishes, steps);
   if (planOven(schedulerDishes)) return [];
-  const blocks = planOvenBlocks(schedulerDishes);
+  const blocks = planOvenBlocks(schedulerDishes, feastRoastDish(schedulerDishes)?.dishId ?? null);
   if (!blocks) return [];
   const out: ReturnType<typeof splitPreheatSteps> = [];
   for (const d of schedulerDishes) {

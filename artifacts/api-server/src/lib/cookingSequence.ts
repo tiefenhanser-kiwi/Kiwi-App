@@ -61,6 +61,8 @@ export interface CookingSequenceResult {
   // Retained on the wire for backward compatibility; permanently false now that
   // ordering is computed (no Sonnet call on any path).
   usedAI: boolean;
+  /** THX-3d (R4) — a feast's steps merged away (a duplicate preheat): the client must not append them. */
+  mergedSteps?: { dishId: string; originalStepIndex: number }[];
 }
 
 export async function runCookingSequence(
@@ -213,5 +215,6 @@ export async function runCookingSequence(
     totalEstimatedMinutes: result.totalEstimatedMinutes,
     dishCount,
     usedAI: false,
+    ...(result.mergedSteps ? { mergedSteps: result.mergedSteps.map((m) => ({ dishId: m.dishId, originalStepIndex: m.stepIndex })) } : {}),
   };
 }

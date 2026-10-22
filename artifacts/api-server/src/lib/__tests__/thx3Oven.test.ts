@@ -74,9 +74,11 @@ describe("THX-3 B — the oven frees when the bird comes out", () => {
     assert.ok(window(after, "stuffing", 9).start >= out, `${window(after, "stuffing", 9).start} < ${out}`);
   });
 
-  it("the rest follows the roast at once, the carve lands at serve, and nothing hot finishes early", () => {
+  // THX-3d (R4) — the carve no longer waits to land at serve (the bird rested longer):
+  // it follows the rest at once, and what the stove still owes is done after it.
+  it("the rest follows the roast at once, the carve follows the rest, and nothing hot finishes early", () => {
     assert.ok(window(after, "turkey", 10).start - window(after, "turkey", 9).end <= 2);
-    assert.ok(window(after, "turkey", 11).end >= -2, `carve ends ${window(after, "turkey", 11).end}`);
+    assert.equal(window(after, "turkey", 11).start, window(after, "turkey", 10).end, `carve starts ${window(after, "turkey", 11).start}`);
     // The single cook's hands already set the gravy and the stuffing's serve step a
     // few minutes ahead of the carve; the oven rule makes neither earlier.
     for (const [d, i] of [["gravy", 7], ["mash", 4], ["stuffing", 10]] as const) {
@@ -94,8 +96,11 @@ describe("THX-3 B — the oven frees when the bird comes out", () => {
 
   it("it costs the sides' time after the roast, and no more", () => {
     // Out of the oven, the stuffing still needs 55 + 2; the bird's tail is 40 + 10.
-    assert.ok(after.totalEstimatedMinutes > before.totalEstimatedMinutes);
-    assert.equal(after.totalEstimatedMinutes - before.totalEstimatedMinutes, 7, `${before.totalEstimatedMinutes} → ${after.totalEstimatedMinutes}`);
+    // THX-3d (R4) — with the stove work finishing as the carve starts (not around it),
+    // and the carve right after the rest, the feast is 298 minutes beside the plain
+    // schedule's 303 (THX-3 measured +7).
+    assert.ok(after.totalEstimatedMinutes <= before.totalEstimatedMinutes + 7, `${before.totalEstimatedMinutes} → ${after.totalEstimatedMinutes}`);
+    assert.equal(after.totalEstimatedMinutes, 298);
   });
 
   it("a served-cold dish pulled forward into the roast's window still waits for the oven", () => {

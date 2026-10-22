@@ -101,7 +101,9 @@ describe("PREP-1 G (BUG-418) — a feast's clock is Thursday's", () => {
     const dishes = { turkey: TURKEY, gravy: GRAVY, pie: PIE };
     const { tx: t, mealUpdates } = tx(dishes, ["american", "thanksgiving", "thanksgiving-feast"]);
     const timing = await stampMealTiming(t, "feast", Object.keys(dishes));
-    const thursday = deriveMealTiming(sched({ turkey: TURKEY, gravy: [GRAVY[2]], pie: [PIE[3]] }));
+    // THX-3d (R4) — scheduled as the feast it is: the gravy's "whisk the drippings" now
+    // waits for the bird to come out, which a non-feast schedule does not know.
+    const thursday = deriveMealTiming(sched({ turkey: TURKEY, gravy: [GRAVY[2]], pie: [PIE[3]] }), { feastOven: true });
     const everything = deriveMealTiming(sched(dishes));
     assert.equal(timing.totalMinutes, thursday.totalMinutes);
     assert.equal(timing.activeMinutes, thursday.activeMinutes);

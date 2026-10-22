@@ -22,7 +22,10 @@ export const SequencedStepSchema = z.object({
   // consumer supplies the real serve time T, so DST/TZ bugs cannot reach here.
   // Re-anchored from the old cook-start `startsAtMinutes` in BUG-018 B2 (nothing
   // consumed the old field; keeping both would be a second source of truth).
-  startOffsetMinutes: z.number().int().nonpositive(),
+  // THX-3d (R4) — a feast's dessert starts AT or AFTER serve ("slice the pie" comes
+  // after the meal is on the table), so a positive offset is legal; WEB-4d's client
+  // schema already accepts it.
+  startOffsetMinutes: z.number().int(),
   // Short inline rationale shown in Cook Mode; e.g. "While the chicken rests,
   // start the sauce." Optional per step — most steps have none.
   reason: z.string().max(140).optional(),

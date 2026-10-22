@@ -194,6 +194,7 @@ export function createCookingRouter(
           totalEstimatedMinutes: result.totalEstimatedMinutes,
           dishCount: result.dishCount,
           usedAI: result.usedAI,
+          ...(result.mergedSteps ? { mergedSteps: result.mergedSteps } : {}),
         });
       } catch (err) {
         if (err instanceof CookingSequenceNotFoundError) {
