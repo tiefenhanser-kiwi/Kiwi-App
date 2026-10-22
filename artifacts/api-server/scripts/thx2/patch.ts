@@ -49,6 +49,7 @@ import { splitTwoPhase } from "./thx2Phases";
 import { putInEdits } from "./thx2PutIn";
 import { warmStepEdits } from "./thx2Warm";
 import { subjectEdits } from "./thx2Subjects";
+import { alreadyCut, cutSentence, heldCutPlace, heldCutsOf } from "./thx2Held";
 import { formatOvenReport, heldDishSteps, holdTextUpdates, oneOvenTemperature, ovenReport, retimeDish, splitPreheatSteps, type OvenStepRow } from "./thx2Oven";
 
 const argv = process.argv.slice(2);
@@ -111,6 +112,8 @@ for (const t of feasts) {
   console.log(`\n▶ ${t.key} ${meal.id} "${meal.title.slice(0, 70)}" · plan items ${planRefs} · template items ${templateRefs} · user copies ${forks} (not patched)`);
 
   const plan: Plan = { tagUpdates: [], textUpdates: [], refUpdates: [], creates: [], minuteUpdates: [], renumbers: [], rowCreates: [], deletes: [], phaseUpdates: [] };
+  // THX-3d round 2 (M) — Prep the feast's held cuts (read-only build of this meal).
+  const heldCuts = await heldCutsOf(prisma, meal.id);
   const specOf = dishSpecFor(t);
   const stepsByDish = new Map<string, StepRow[]>();
   const storedStep = new Map<string, StepRow>();
@@ -180,6 +183,32 @@ for (const t of feasts) {
       texts.set(s.id, ph.first);
       splitMinutes.set(s.id, ph.firstMinutes);
       plan.creates.push({ dishId: d.id, title: d.title, stepIndex: at + 1, text: ph.second, phaseType: s.phaseType as Plan["creates"][number]["phaseType"], estimatedMinutes: ph.secondMinutes, refs: null, componentKey: s.componentKey, pathKey: s.pathKey });
+    }
+    // 16. THX-3d round 2 (M) — a cut held for cook day is that day's first step for the
+    // dish ("On Thursday: Peel and cut 5 lb russet potatoes into 2-inch chunks; keep them
+    // in cold water."), unless a step that day already cuts the food (thx2Held). On
+    // Thursday the new step takes "On Thursday:" from the step it now leads.
+    for (const h of heldCuts.filter((x) => x.dishId === d.id)) {
+      const row = d.dishIngredients.find((i) => i.ingredient.canonicalName.toLowerCase() === h.ingredientName.toLowerCase());
+      const sentence = row ? cutSentence({ quantity: row.quantity, unit: row.unit, name: row.ingredient.canonicalName, note: row.preparationNote }) : null;
+      if (!sentence) continue;
+      const all = [
+        ...steps.map((s) => ({ stepIndex: s.stepIndex, text: texts.get(s.id)!, id: s.id as string | null })),
+        ...plan.creates.filter((c) => c.dishId === d.id).map((c) => ({ stepIndex: c.stepIndex, text: c.text, id: null as string | null })),
+      ];
+      const place = heldCutPlace(all, row!.ingredient.canonicalName);
+      if (!place || alreadyCut(place.runTexts, row!.ingredient.canonicalName)) continue;
+      for (const c of plan.creates) if (c.dishId === d.id && c.stepIndex >= place.at) c.stepIndex += 1;
+      for (const o of [...steps].filter((o) => o.stepIndex >= place.at).sort((a, b) => b.stepIndex - a.stepIndex)) {
+        plan.renumbers.push({ stepId: o.id, title: d.title, from: o.stepIndex, to: o.stepIndex + 1 });
+        o.stepIndex += 1;
+      }
+      if (/^\s*On /i.test(place.prefix)) {
+        const lead = all.find((x) => x.stepIndex === place.at);
+        if (lead?.id) texts.set(lead.id, texts.get(lead.id)!.slice(place.prefix.length));
+        else { const c = plan.creates.find((x) => x.dishId === d.id && x.stepIndex === place.at + 1); if (c) c.text = c.text.slice(place.prefix.length); }
+      }
+      plan.creates.push({ dishId: d.id, title: d.title, stepIndex: place.at, text: `${place.prefix}${sentence}`, phaseType: "prep", estimatedMinutes: /potato/i.test(sentence) ? 5 : 2, refs: null, componentKey: null, pathKey: null });
     }
     // 8. THX-3c (F) — a step that adds cut food names its amount ("add the 2 diced
     // onions and 6 diced celery stalks"), from the dish's own rows; a food the step

@@ -9,6 +9,7 @@ import { dishNoun, inTheOvenText, putInEdits } from "./thx2PutIn";
 import { dayNoun, subjectEdits } from "./thx2Subjects";
 import { warmStepEdits } from "./thx2Warm";
 import type { OvenStepRow } from "./thx2Oven";
+import { alreadyCut, cutSentence, heldCutPlace } from "./thx2Held";
 
 const row = (ownerId: string, stepIndex: number, phaseType: string, estimatedMinutes: number, text: string): OvenStepRow => ({
   ownerId, stepIndex, phaseType, estimatedMinutes, stepTextTranslated: text, isTimingSensitive: false, parallelGroup: null, componentKey: null, pathKey: null,
@@ -137,5 +138,23 @@ describe("THX-3d K — every step names its subject on the day", () => {
       "m#2 Transfer the potatoes to a warm serving bowl.",
       "h#0 On Thursday: Return the Herb Stuffing, uncovered, to the 425°F oven for 10 minutes, until hot again.",
     ]);
+  });
+});
+
+describe("THX-3d M — a cut held for cook day is a step on that day", () => {
+  it("the row's own words, its browning kept in cold water; a garnish; nothing to cut is nothing", () => {
+    assert.equal(cutSentence({ quantity: 5, unit: "pound", name: "Russet potatoes", note: "peeled and cut into 2-inch chunks" }), "Peel and cut 5 lb russet potatoes into 2-inch chunks; keep them in cold water.");
+    assert.equal(cutSentence({ quantity: 2, unit: "tablespoon", name: "fresh chives", note: "thinly sliced, for garnish" }), "Thinly slice 2 tbsp fresh chives.");
+    assert.equal(cutSentence({ quantity: 3, unit: "pound", name: "baby Yukon gold potatoes", note: null }), null);
+  });
+  it("its place: the first step of the day the dish first names the food (Wednesday for the casserole), unless that day already cuts it", () => {
+    const steps = [
+      { stepIndex: 0, text: "Make ahead (Wednesday): Place 4 lb peeled sweet potato chunks in a large pot and boil." },
+      { stepIndex: 1, text: "Make ahead (Wednesday): Mash the sweet potatoes." },
+      { stepIndex: 2, text: "On Thursday: Bake the casserole." },
+    ];
+    assert.deepEqual(heldCutPlace(steps, "sweet potatoes"), { at: 0, prefix: "Make ahead (Wednesday): ", firstText: steps[0].text, runTexts: [steps[0].text, steps[1].text] });
+    assert.equal(alreadyCut(["Peel and cut 5 lb Yukon Gold potatoes into 2-inch chunks."], "yukon gold potatoes"), true);
+    assert.equal(alreadyCut(["Place the potato chunks in a large pot."], "russet potatoes"), false);
   });
 });
