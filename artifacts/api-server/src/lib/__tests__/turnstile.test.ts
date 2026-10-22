@@ -12,10 +12,14 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import express, { type Express } from "express";
 import type { Server } from "node:http";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   verifyTurnstile,
   logTurnstileConfig,
+  readTurnstileHostnames,
   ENV_TURNSTILE_SECRET_KEY,
   TURNSTILE_VERIFY_URL,
   type TurnstileFetch,
@@ -29,6 +33,32 @@ const CONFIGURED = { [ENV_TURNSTILE_SECRET_KEY]: "0x-secret" };
 function okFetch(success: boolean, hostname = "app.kitchenwizard.ai"): TurnstileFetch {
   return async () => ({ ok: true, json: async () => ({ success, hostname }) });
 }
+
+// SEC-2b — THE NATIVE WIDGET'S HOST. On iOS and Android the widget runs in a
+// WebView whose page is an inline HTML string loaded with
+// `source={{ html, baseUrl: TURNSTILE_NATIVE_BASE_URL }}`
+// (artifacts/kiwi/lib/guest/turnstile.ts). Cloudflare reports the hostname of
+// that baseUrl, so it must be on this server's list. Read from the client's own
+// source, so moving the native page to another host turns this red here instead
+// of turning every native Test Kitchen visit into a 403.
+const CLIENT_TURNSTILE = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../../../kiwi/lib/guest/turnstile.ts",
+);
+function nativeTurnstileHost(): string {
+  const m = /export const TURNSTILE_NATIVE_BASE_URL = "([^"]+)"/.exec(readFileSync(CLIENT_TURNSTILE, "utf8"));
+  assert.ok(m, "TURNSTILE_NATIVE_BASE_URL is still declared in the client");
+  return new URL(m![1]!).hostname;
+}
+
+describe("verifyTurnstile — SEC-2b the native WebView's hostname", () => {
+  it("the native widget's host is a production default, and a native-shaped verify passes", async () => {
+    const host = nativeTurnstileHost();
+    const prod = { ...CONFIGURED, NODE_ENV: "production" };
+    assert.ok(readTurnstileHostnames(prod).includes(host), `${host} is on the production default list`);
+    assert.deepEqual(await verifyTurnstile({ token: "t", env: prod, fetchImpl: okFetch(true, host) }), { ok: true });
+  });
+});
 
 describe("verifyTurnstile — SEC-2 #10 the hostname", () => {
   it("a token solved on a host we do not serve is refused, even though Cloudflare says success", async () => {
