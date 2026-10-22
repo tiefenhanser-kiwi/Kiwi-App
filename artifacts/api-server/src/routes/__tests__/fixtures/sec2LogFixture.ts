@@ -77,11 +77,25 @@ SEC2_HEALTHZ_STATUS ${health.status}
     headers: auth,
     body: JSON.stringify({ url: `http://example.com:8080/${MARKERS.importPath}?t=${MARKERS.importQuery}` }),
   });
+  // Refused: a guest token that is not this session's (SEC-2 #12).
   await fetch(`${base}/auth/signup`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       email: "zz-log@example.com",
+      password: "a-password-1",
+      firstName: "L",
+      lastName: "G",
+      guestSessionId: MARKERS.guestId,
+      guestToken: signToken("gs-zz-someone-else", { purpose: "guest", expiresIn: "1h" }),
+    }),
+  });
+  // Skipped: no guest token at all, an older client (SEC-2b).
+  await fetch(`${base}/auth/signup`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      email: "zz-log-2@example.com",
       password: "a-password-1",
       firstName: "L",
       lastName: "G",

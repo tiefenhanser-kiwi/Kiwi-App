@@ -229,12 +229,26 @@ export async function claimGuestSessionInTx(
   const { tx, guestSessionId, userId, copyPreferences } = opts;
   const now = opts.now ?? new Date();
 
-  // SEC-2 #12 — before the row is read: a caller without the session's own
-  // token learns nothing about it, not even that it exists. Thrown as the
-  // same GuestSessionInvalidError a stale session throws, so every caller
-  // keeps its established answer (signup 409 and no account; sign-in proceeds
-  // without the claim).
-  const credential = opts.guestToken ? verifyToken(opts.guestToken, "guest") : null;
+  // SEC-2b — NO TOKEN AT ALL IS AN OLD CLIENT, NOT AN ATTACK. iOS build 8 and
+  // every phone that has not updated send `guestSessionId` without
+  // `guestToken`; refusing them would leave a Test Kitchen guest unable to
+  // sign up at all. So the claim is SKIPPED: the account (or sign-in) goes
+  // ahead and takes nothing from the session, which stays unclaimed. Nothing
+  // is read first, so the caller still learns nothing about the session.
+  if (!opts.guestToken) {
+    logger.info(
+      { event: "guest_claim_skipped_no_token", userId },
+      "Guest claim skipped — the body named a guest session but carried no guest token (an older client)",
+    );
+    return { draft: null, preferencesCopied: false };
+  }
+
+  // SEC-2 #12 — a token that is PRESENT but is not this session's is refused,
+  // before the row is read: the caller learns nothing about the session, not
+  // even that it exists. Thrown as the same GuestSessionInvalidError a stale
+  // session throws, so every caller keeps its established answer (signup 409
+  // and no account; sign-in proceeds without the claim).
+  const credential = verifyToken(opts.guestToken, "guest");
   if (!credential || credential.userId !== guestSessionId) {
     throw new GuestSessionInvalidError("no guest credential");
   }

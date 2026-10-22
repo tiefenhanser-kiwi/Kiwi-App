@@ -60,6 +60,8 @@ describe("SEC-2 #12 + #15 — log lines carry no address, search text, URL path 
     const l = line("guest_claim_refused");
     assert.ok(l, "the refusal line fired");
     assert.equal(l["guest"], true);
+    // SEC-2b — and the skip an older client takes (no token) names no session either.
+    assert.ok(line("guest_claim_skipped_no_token"), "the skip line fired");
     assert.equal(raw.includes(MARKERS.guestId), false);
   });
 });

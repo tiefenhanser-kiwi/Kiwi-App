@@ -770,6 +770,40 @@ describe("the guest claim works through OAuth too", () => {
 
 // ── the small print ──────────────────────────────────────────────────────
 
+// SEC-2b — the OAuth doors follow the same rule as password signup: a guest
+// session id with NO token (an older client) creates the account and claims
+// nothing; a token that is present but not the session's is still refused.
+describe("SEC-2b — guest claim through OAuth without a token", () => {
+  it("Google · NEW user · id but no token → 201, nothing claimed, the session stays unclaimed", async () => {
+    const prisma = makePrisma({ guest: { id: "g-old" } });
+    const api = await spinUp(prisma);
+    try {
+      const res = await api.post("/auth/oauth/google", { idToken: googleToken(), guestSessionId: "g-old" });
+      assert.equal(res.status, 201);
+      const body = (await res.json()) as any;
+      assert.equal(body.isNewUser, true);
+      assert.equal(body.claimedPlanId, null);
+      assert.equal(prisma._state().guest!.claimedAt, null);
+      assert.equal(prisma._state().preferencesCreates.length, 0);
+    } finally {
+      await api.close();
+    }
+  });
+
+  it("Google · NEW user · another session's token → 409, and no account survives it", async () => {
+    const prisma = makePrisma({ guest: { id: "g-old" } });
+    const api = await spinUp(prisma);
+    try {
+      const res = await api.post("/auth/oauth/google", { idToken: googleToken(), guestSessionId: "g-old", guestToken: guestTok("g-other") });
+      assert.equal(res.status, 409);
+      assert.equal(prisma._state().users.length, 0);
+      assert.equal(prisma._state().guest!.claimedAt, null);
+    } finally {
+      await api.close();
+    }
+  });
+});
+
 describe("consents and account state", () => {
   it("SMS consent without a phone is refused, exactly as on signup", async () => {
     const api = await spinUp(makePrisma());

@@ -22,6 +22,7 @@ import type { Server } from "node:http";
 import type { PrismaClient } from "@prisma/client";
 
 import { signToken } from "../../lib/auth";
+import { logger } from "../../lib/logger";
 import { __clearRateLimitStoreForTests } from "../../lib/rateLimit";
 import {
   claimGuestSessionInTx,
@@ -1279,8 +1280,9 @@ describe("Resubmission G1: a guest draft made from picks is claimed at sign-up",
 // The id is not a secret (it was logged on every guest line and travels in the
 // client's storage and URLs). A claim now needs the session's OWN guest token.
 describe("SEC-2 #12 — claiming needs the session's own guest token", () => {
+  // SEC-2b — a token that is PRESENT and wrong is still refused. (No token at
+  // all is an older client and is skipped, not refused — see below.)
   for (const [label, guestToken] of [
-    ["no token", undefined],
     ["another session's token", "OTHER"],
     ["a SESSION token for the same id", "SESSION"],
     ["garbage", "not-a-jwt"],
@@ -1305,6 +1307,33 @@ describe("SEC-2 #12 — claiming needs the session's own guest token", () => {
       }
     });
   }
+
+  // SEC-2b — iOS build 8 and un-updated Android phones send the id with no
+  // token. A 409 there meant a Test Kitchen guest could not sign up at all.
+  it("signup with the id but NO token (an older client) → 201, claims nothing, logs guest_claim_skipped_no_token", async () => {
+    const prisma = makePrisma({ id: "gs-1", draft: SOME_DRAFT });
+    const h = await spinUp(prisma);
+    const events: unknown[] = [];
+    const origInfo = logger.info.bind(logger);
+    (logger as unknown as { info: (...a: unknown[]) => void }).info = (...a: unknown[]) => {
+      events.push((a[0] as { event?: unknown } | undefined)?.event);
+      return (origInfo as (...x: unknown[]) => void)(...a);
+    };
+    try {
+      const res = await h.post("/auth/signup", { ...SIGNUP, guestSessionId: "gs-1" });
+      assert.equal(res.status, 201, "the account is created");
+      const body = (await res.json()) as { claimedPlanId: string | null; claimRetryable: boolean };
+      assert.equal(body.claimedPlanId, null);
+      assert.equal(body.claimRetryable, false);
+      assert.equal(prisma._state().users.length, 1);
+      assert.equal(prisma._state().guest.claimedAt, null, "🔴 the session was not taken");
+      assert.equal(prisma._state().preferencesCreates.length, 0, "nothing copied from the session");
+      assert.ok(events.includes("guest_claim_skipped_no_token"), "the skip is logged");
+    } finally {
+      (logger as unknown as { info: unknown }).info = origInfo;
+      await h.close();
+    }
+  });
 
   it("login with the id but no token signs in and claims NOTHING", async () => {
     const prisma = makePrisma({ id: "gs-1", draft: SOME_DRAFT });
