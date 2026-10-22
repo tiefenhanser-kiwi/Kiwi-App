@@ -65,12 +65,14 @@ describe("THX-3 prepQuantity — the displayed number", () => {
     [0.1, "lb", "", 0.25],
     // whole counted items round UP — by unit and by name
     [4.8, "clove", "garlic", 5],
-    [3.2, "sprigs", "fresh sage", 4],
+    // THX-3d (R5) — a sprig is a PIECE: the nearest whole now (rule 1 ceiled it to 4)
+    [3.2, "sprigs", "fresh sage", 3],
     [0.8, "", "bay leaves", 1],
     [1.5, "", "corn tortillas", 2],
-    // produce that halves cleanly: nearest ⅛
-    [0.8, "", "lemon", 0.75],
-    [1.6, "", "yellow onion", 1.625],
+    // THX-3d (R5) — produce by the piece is whole now, the nearest, never below 1
+    // (FIX-7 kept "¾ lemon"; Hans, via chat-Claude, October 22: "1 · 1 · 1")
+    [0.8, "", "lemon", 1],
+    [1.6, "", "yellow onion", 2],
     // Hans's egg rule: nearest whole, halves up, never below 1
     [3.2, "", "large eggs", 3],
     [2.5, "", "large eggs", 3],
@@ -105,7 +107,8 @@ describe("THX-3 prepQuantity — the displayed number", () => {
 describe("THX-3 formatMeasure — BUG-444's lines, before → after", () => {
   it("prints what the cook measures", () => {
     assert.equal(formatMeasure(4.8, "clove", "garlic"), "5 cloves");
-    assert.equal(formatMeasure(0.8, "each", "lemon"), "¾");
+    // THX-3d (R5) — a lemon is whole now ("¾" before)
+    assert.equal(formatMeasure(0.8, "each", "lemon"), "1");
     assert.equal(formatMeasure(0.875, "tablespoon", "fresh thyme"), "1 tbsp");
     assert.equal(formatMeasure(1.625, "pound", "fresh green beans"), "1¾ lb");
     assert.equal(formatMeasure(3.2, "each", "large eggs"), "3");

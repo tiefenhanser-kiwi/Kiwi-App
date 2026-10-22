@@ -22,6 +22,7 @@ import { proseNames } from "./prepMoments";
 import { ingredientGroupKey } from "./ingredientRelations";
 import { deriveAmountRefs } from "./stepAmountRefs";
 import { convertAmount } from "./feastAmountWalk";
+import { packageUse } from "./prepQuantity";
 
 export const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
 
@@ -95,6 +96,13 @@ function namesProtein(lowerText: string, row: { ingredientName: string; category
  * and a bare count agrees with its number ("3 egg" → "3 eggs", "¾ carrots" → "¾ carrot").
  */
 function spokenName(name: string, amount: string): string {
+  // THX-3d (R5) — a package named in the food's name is the unit: "1 box cornbread mix",
+  // never "¾ cornbread mix (8.5 oz box)" (the size never scales, so it is not said).
+  const pkg = /^(.+?)\s*\(\s*[\d.]+\s*-?\s*(?:oz|ounces?|lbs?|pounds?|g)\s+(box|bag|can|jar|package|packet)\s*\)$/i.exec(name.trim());
+  if (pkg && /^[\d½¼¾⅓⅔⅛⅜⅝⅞]+$/.test(amount)) {
+    const many = /^\d+$/.test(amount) && Number(amount) > 1;
+    return `${many ? (/x$/i.test(pkg[2]) ? `${pkg[2]}es` : `${pkg[2]}s`) : pkg[2]} ${pkg[1].trim()}`;
+  }
   const words = name.split(/\s+/);
   let out = /^[A-Z][a-z]/.test(name) && !/^[A-Z]/.test(words[1] ?? "") ? `${name[0].toLowerCase()}${name.slice(1)}` : name;
   if (/^[\d½¼¾⅓⅔⅛⅜⅝⅞]+$/.test(amount)) {
@@ -288,9 +296,12 @@ export function feastClosingLines(
         }
         // Equipment is not something that joins (water is: "dissolve it in the gallon of water").
         if (isNeverMeasured(row.ingredientName) && !/\bwater\b/i.test(row.ingredientName)) continue;
-        const amount = formatMeasure(shareOf(row), row.unit, row.ingredientName);
+        const q = shareOf(row);
+        const amount = formatMeasure(q, row.unit, row.ingredientName);
+        // THX-3d (R5) — a package rounded up says how much of it: "(use 6 oz)".
+        const use = packageUse(q, row.unit, row.ingredientName);
         // Mid-sentence, the catalog's capitals go ("2 Large eggs", "¼ cup Whole milk").
-        joins.push(`${amount} ${spokenName(row.ingredientName, amount)}`.trim());
+        joins.push(`${amount} ${spokenName(row.ingredientName, amount)}${use ? ` (${use})` : ""}`.trim());
       }
       return joins;
     };

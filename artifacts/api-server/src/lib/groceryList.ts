@@ -45,7 +45,7 @@ import {
   type RecurringFacets,
 } from "./recurringItems";
 import { logger } from "./logger";
-import { dishRowMultipliers } from "./prepQuantity";
+import { buysWholePerShare, dishRowMultipliers, displayedPrepQuantity } from "./prepQuantity";
 import { FEAST_MEAL_TAG } from "./prepWeekAggregation";
 
 // WS7-7-A Block 1 — a single plan source contributing to a consolidated line.
@@ -574,7 +574,13 @@ export async function consolidatePlanIngredients(
         const unit = eff.unit;
         const prepRaw = eff.preparationNote;
         const key = bucketKeyOf(canonical, unit);
-        const scaledQty = eff.quantity * rowMultiplier[row];
+        // THX-3d (R5) — produce counted by the piece and a package round PER SHARE before
+        // the merge: the feast's onion is ¾ for the turkey, ⅜ for the gravy and ¾ for the
+        // stuffing, cut from three onions, so the list buys 3 (the prep card's 1 · 1 · 1),
+        // not 1⅞ rounded once; ⅜ of a can is 1 can. Everything else — a sprig included,
+        // which the need ladder rounds UP — is still merged raw and rounded once (BUG-025-2).
+        const rawScaled = eff.quantity * rowMultiplier[row];
+        const scaledQty = buysWholePerShare(unit, canonical) ? displayedPrepQuantity(rawScaled, unit, canonical) : rawScaled;
 
         let entry = buckets.get(key);
         if (!entry) {

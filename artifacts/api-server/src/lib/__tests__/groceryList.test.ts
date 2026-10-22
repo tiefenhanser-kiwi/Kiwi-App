@@ -1814,7 +1814,9 @@ describe("consolidatePlanIngredients — B1 no-add/no-drop invariant", () => {
     // need now keeps its half — 5.5 is already on the ⅛ ladder, so it passes
     // through untouched. Nothing else in this test moved: the point of the
     // test is the item SET and grouping, which are unchanged.
-    assert.equal(findItem(out, "lemon")!.quantity, 5.5); // 5.5 stays 5.5
+    // THX-3d (R5) — a lemon is bought whole per share now (the nearest, halves up):
+    // 5.5 → 6. The item set and grouping, the point of this test, are unchanged.
+    assert.equal(findItem(out, "lemon")!.quantity, 6);
     assert.ok(Math.abs(findItem(out, "flour")!.quantity - 1.5) < 1e-9); // 1.43 → 1½
     const salt = findItem(out, "kosher salt")!;
     assert.equal(salt.isUniversalStaple, true); // greyed, not buyable

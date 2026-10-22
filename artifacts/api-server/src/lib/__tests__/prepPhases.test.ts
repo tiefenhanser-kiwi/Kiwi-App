@@ -197,7 +197,9 @@ describe("D-WS9-301 rules 10 and 11 — every portion names its container", () =
     const onion = sp.steps.find((s) => s.components.some((c) => c.ingredientName === "white onion"))!;
     const measures = onion.components[0].measures;
     assert.equal(measures.length, 3);
-    assert.deepEqual(measures.map((m) => m.amount).sort(), ["1", "½", "½"]);
+    // THX-3d (R5) — an onion is whole per share now (the nearest, never below 1):
+    // the two ½ portions read 1 each (WEB-4d made the same move on the client).
+    assert.deepEqual(measures.map((m) => m.amount).sort(), ["1", "1", "1"]);
     assert.deepEqual(
       measures.map((m) => m.forDish).sort(),
       ["Chili Fixings", "Enchiladas", "Mexican Rice"],

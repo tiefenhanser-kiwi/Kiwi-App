@@ -76,3 +76,68 @@ describe("THX-3d B — the walk", () => {
     assert.deepEqual(f, []);
   });
 });
+
+// ── E (R5) — the display table, the same rows as WEB-4d (42907c2e) ───────────
+import { existsSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
+import { OUNCE_UNITS, PACKAGE_WORD, WHOLE_PIECE_NAME, WHOLE_PIECE_UNITS, WHOLE_PRODUCE_HEAD, NAME_WEIGHT, displayedPrepQuantity, dishRowMultipliers } from "../prepQuantity";
+import { formatMeasure } from "../prepWeekAssembly";
+
+const CLIENT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../kiwi/lib/format/quantity.ts");
+
+describe("THX-3d E — the R5 table, pinned with WEB-4d", () => {
+  it("matches the client's own literals (drift guard)", { skip: !existsSync(CLIENT) && "client file not on disk" }, () => {
+    const src = readFileSync(CLIENT, "utf8");
+    const lit = (name: string) => new RegExp(`const ${name}\\s*=\\s*\\n?\\s*/(.+)/([a-z]*);`).exec(src)?.[1];
+    assert.equal(lit("OUNCE_UNITS"), OUNCE_UNITS.source);
+    assert.equal(lit("WHOLE_PRODUCE_HEAD"), WHOLE_PRODUCE_HEAD.source);
+    assert.equal(lit("PACKAGE_WORD"), PACKAGE_WORD.source);
+    assert.equal(lit("WHOLE_PIECE_UNITS"), WHOLE_PIECE_UNITS.source);
+    assert.equal(lit("WHOLE_PIECE_NAME"), WHOLE_PIECE_NAME.source);
+    assert.equal(lit("NAME_WEIGHT"), NAME_WEIGHT.source);
+  });
+
+  const rows: Array<[number, string, string, string]> = [
+    // ounces: whole from 4 oz, the nearest ½ below
+    [9.6, "ounce", "fresh cranberries", "10 oz"],
+    [4.75, "ounce", "sharp cheddar cheese", "5 oz"],
+    [2.375, "ounce", "fontina cheese", "2½ oz"],
+    [0.2, "ounce", "parmesan", "½ oz"],
+    // produce by the piece: the nearest whole, never below 1, per share
+    [0.75, "each", "yellow onion", "1"],
+    [0.375, "each", "yellow onion", "1"],
+    [2.375, "each", "shallot", "2"],
+    [0.375, "each", "lemon", "1"],
+    // packages: whole, up; the size never scales
+    [0.375, "can (15 oz)", "canned pumpkin purée", "1 can (15 oz)"],
+    [0.8, "each", "cornbread mix (8.5 oz box)", "1"],
+    // pieces
+    [1.625, "each", "portobello mushroom caps", "2"],
+    [0.75, "sheet", "all-butter puff pastry", "1 sheet"],
+    [7.25, "each", "graham crackers", "7"],
+  ];
+  for (const [q, unit, name, want] of rows) {
+    it(`${q} ${unit} ${name} → ${want}`, () => assert.equal(formatMeasure(q, unit, name), want));
+  }
+
+  it("a share rounds on its own: ¾ · ⅜ · ¾ onion is 1 · 1 · 1, so 3 are bought", () => {
+    assert.deepEqual([0.75, 0.375, 0.75].map((q) => displayedPrepQuantity(q, "", "yellow onion")), [1, 1, 1]);
+  });
+});
+
+describe("THX-3d G — a bird by count whose line gives its weight takes the weight rule (feast only)", () => {
+  const rows = [
+    { quantity: 1, unit: "each", name: "whole turkey (12–14 lb)" },
+    { quantity: 6, unit: "tablespoon", name: "unsalted butter" },
+    { quantity: 2, unit: "each", name: "orange" },
+  ];
+  it("at 4 of 10 the dish follows the 10 lb floor of a 14 lb bird (10/14), not one whole bird (×1)", () => {
+    const m = dishRowMultipliers(rows, 0.4, { feast: true });
+    assert.ok(m.every((x) => Math.abs(x - 10 / 14) < 1e-9), JSON.stringify(m));
+  });
+  it("outside a feast the count rule stands (the bird is still whole birds; the rest follows servings)", () => {
+    const m = dishRowMultipliers(rows, 0.4, {});
+    assert.deepEqual(m.slice(1), [0.4, 0.4]);
+  });
+});
