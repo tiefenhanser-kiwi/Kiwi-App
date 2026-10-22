@@ -262,6 +262,24 @@ test("getCookingSequence POSTs to the path with NO body and round-trips the enve
   assert.equal(res.sequence[1].reason, undefined); // optional cue absent
 });
 
+// WEB-4d (R4) — THX-3d's merged step ids ride the envelope; absent stays valid
+// (the test above), and a step after serve (positive offset) no longer fails the
+// parse, which would have thrown the whole sequence away.
+test("getCookingSequence round-trips mergedSteps and a step after serve", async () => {
+  nextResponse = () =>
+    mockJson({
+      ...SEQUENCE_RESPONSE,
+      sequence: [
+        ...SEQUENCE_RESPONSE.sequence,
+        { dishId: "dish-c", originalStepIndex: 3, sequenceIndex: 2, startOffsetMinutes: 5 },
+      ],
+      mergedSteps: [{ dishId: "dish-b", originalStepIndex: 4 }],
+    });
+  const res = await getCookingSequence("meal-multi");
+  assert.deepEqual(res.mergedSteps, [{ dishId: "dish-b", originalStepIndex: 4 }]);
+  assert.equal(res.sequence[2].startOffsetMinutes, 5);
+});
+
 test("getCookingSequence encodes the mealId path segment", async () => {
   nextResponse = () => mockJson(SEQUENCE_RESPONSE);
   await getCookingSequence("meal/with space");

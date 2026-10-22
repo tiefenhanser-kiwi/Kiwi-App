@@ -58,6 +58,21 @@ export function remainingMinutesToServe(
 }
 
 /**
+ * WEB-4d (R4) — a sequenced step whose window starts at serve or later: the
+ * feast's dessert after the serve step ("Slice the pie and serve"). Its
+ * remainder is 0, which hid the footer line, so the footer says "After serving"
+ * instead. A 0-minute step at 0 is the serve moment itself, not after it; a step
+ * with no offset (flatten paths, §27's append) is never after serving.
+ */
+export function startsAfterServe(
+  step: { estimatedMinutes: number; startOffsetMinutes?: number | null } | undefined,
+): boolean {
+  const off = step?.startOffsetMinutes;
+  if (off == null) return false;
+  return off > 0 || (off === 0 && (step?.estimatedMinutes ?? 0) > 0);
+}
+
+/**
  * FIX-3 / BUG-344 — the number Cook Mode's footer shows, or null to show none.
  *
  * An unsequenced meal (a single-dish meal, or any flatten path) carries no

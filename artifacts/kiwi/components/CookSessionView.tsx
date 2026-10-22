@@ -46,6 +46,7 @@ import {
   nextLiveIndex,
   type CookStep,
 } from "@/lib/cooking/cookSession";
+import { startsAfterServe } from "@/lib/cooking/stepTiming";
 import { buildAmountRefSegments } from "@/lib/cooking/amountSegments";
 import type { AmountRef } from "@/lib/api/meals";
 import type { BirdLine } from "@/lib/format/quantity";
@@ -485,6 +486,7 @@ export function CookSessionView({
       <CookFooter
         nextLabel={nextLabel}
         remainingMins={remainingMins}
+        afterServing={startsAfterServe(steps[currentIndex])}
         backDisabled={currentIndex <= 0}
         showAdvance={!onLast}
         onPrevStep={onPrevStep}

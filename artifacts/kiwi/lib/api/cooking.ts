@@ -161,7 +161,10 @@ const SequencedStepSchema = z.object({
   // `startsAtMinutes`): 0 = serve, negative = minutes before serve. The mobile
   // flow consumes the linear order + cue, not this offset (it's the wire field
   // for a future serve-by-T notification feature).
-  startOffsetMinutes: z.number().int().nonpositive(),
+  // WEB-4d (R4) — NOT nonpositive here any more: a feast's dessert can start
+  // after serve, and one positive offset failing the parse would throw the whole
+  // sequence away (naive order). The server's own schema is its lane's call.
+  startOffsetMinutes: z.number().int(),
   // Optional inline cue shown in Cook Mode; server-composed, never client-side.
   reason: z.string().max(140).optional(),
 });
@@ -175,6 +178,12 @@ const CookingSequenceResponseSchema = z.object({
   // Retained on the wire for back-compat; permanently false now that ordering
   // is computed (no AI call on any path).
   usedAI: z.boolean(),
+  // WEB-4d / THX-3d (R4) — the source steps the server merged away (a feast's
+  // duplicate preheat). Not in `sequence` on purpose, so §27's append must not
+  // re-add them. Optional: absent → every omitted step is appended as before.
+  mergedSteps: z
+    .array(z.object({ dishId: z.string().min(1), originalStepIndex: z.number().int().min(0) }))
+    .optional(),
 });
 export type CookingSequence = z.infer<typeof CookingSequenceResponseSchema>;
 

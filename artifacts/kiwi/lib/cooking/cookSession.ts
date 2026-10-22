@@ -189,11 +189,14 @@ export function flattenPlanDishSteps(
  * entry that fails to map (unknown dishId/stepIndex, or a duplicate reference)
  * is skipped, and any source step the sequence omits is appended afterward in
  * naive (dish, then stepIndex) order. The output therefore always contains
- * exactly the meal's full step set, sequenced where possible.
+ * exactly the meal's full step set, sequenced where possible — less the steps
+ * the server says it MERGED (`merged`, WEB-4d): a feast's duplicate preheat is
+ * done by the kept one, so appending it after serve was the bug.
  */
 export function sequenceMealSteps(
   meal: MealDetail,
   sequence: SequencedStep[],
+  merged: readonly { dishId: string; originalStepIndex: number }[] = [],
 ): CookStep[] {
   // Lookup + naive fallback order, both keyed by (dishId, stepIndex). Multi-dish
   // by contract, so a dish label is always attached.
@@ -254,8 +257,13 @@ export function sequenceMealSteps(
   // (dishId, stepIndex) and a duplicated sequence reference.
   //
   // Deleting it needs the override applied to BOTH endpoints first.
+  //
+  // WEB-4d (R4) — a step the server merged is left out on purpose (Make-Ahead's
+  // second 350°F preheat, Vegetarian's two). Only an id the server names is
+  // skipped; a sequence that names it anyway still emits it above.
+  const mergedKeys = new Set(merged.map((m) => `${m.dishId}#${m.originalStepIndex}`));
   for (const k of naiveOrder) {
-    if (used.has(k)) continue;
+    if (used.has(k) || mergedKeys.has(k)) continue;
     const hit = byKey.get(k);
     if (hit) out.push(toCookStep(hit.step, k, hit.dishTitle, hit.dishId));
   }

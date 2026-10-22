@@ -42,6 +42,7 @@ export interface CookFooterSecondaryAction {
 export function CookFooter({
   nextLabel = null,
   remainingMins = 0,
+  afterServing,
   statusLine,
   backDisabled,
   showAdvance,
@@ -54,6 +55,9 @@ export function CookFooter({
 }: {
   nextLabel?: string | null;
   remainingMins?: number;
+  /** WEB-4d — the current step starts at serve or later (the feast's dessert):
+   *  "After serving" takes the "~N min left" slot. Omit → as before. */
+  afterServing?: boolean;
   /** One composed line in place of the Next/min-left pair. Omit (Cook Mode)
    *  → the pair renders exactly as before. */
   statusLine?: string;
@@ -123,9 +127,11 @@ export function CookFooter({
       ) : (
         <>
           {nextLabel && <Text style={s.nextPreview}>Next · {nextLabel}</Text>}
-          {remainingMins > 0 && (
+          {afterServing ? (
+            <Text style={s.remaining}>After serving</Text>
+          ) : remainingMins > 0 ? (
             <Text style={s.remaining}>~{remainingMins} min left</Text>
-          )}
+          ) : null}
         </>
       )}
       {secondaryActions && secondaryActions.length > 0 && (

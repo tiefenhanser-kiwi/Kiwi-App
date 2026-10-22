@@ -137,7 +137,7 @@ export default function CookSession() {
       // make-ahead runs are the Hub's rows); any other meal is passed as is.
       const meal = onTheDayMeal(mealQuery.data);
       if (isMultiDish && seqQuery.data) {
-        return sequenceMealSteps(meal, seqQuery.data.sequence);
+        return sequenceMealSteps(meal, seqQuery.data.sequence, seqQuery.data.mergedSteps);
       }
       return flattenMealSteps(meal);
     }

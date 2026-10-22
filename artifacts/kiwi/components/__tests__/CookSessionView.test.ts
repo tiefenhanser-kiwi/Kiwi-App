@@ -320,6 +320,26 @@ test("session: advance CTA is hidden on the last step (no completion screen this
   assert.ok(!texts.includes("Done — next step"), "advance should hide on last step");
 });
 
+// WEB-4d (R4) — the feast ends with the serve step and then the dessert. On a
+// step that starts at serve or later the remainder is 0, which used to leave the
+// footer with no line at all; it says "After serving" instead. The serve step
+// keeps its minutes, and the bar still counts steps, not time.
+test("session: a step that starts at serve or later reads 'After serving' in the footer", () => {
+  const feastEnd: CookStep[] = [
+    { key: "a", text: "Carve the turkey", phaseType: "assemble", estimatedMinutes: 5, isTimingSensitive: false, startOffsetMinutes: -10 },
+    { key: "b", text: "Bring everything to the table and serve", phaseType: "assemble", estimatedMinutes: 5, isTimingSensitive: false, startOffsetMinutes: -5 },
+    { key: "c", text: "Slice the pie and serve", phaseType: "assemble", estimatedMinutes: 5, isTimingSensitive: false, startOffsetMinutes: 0 },
+  ];
+  const serve = flat(renderView({ steps: feastEnd, currentIndex: 1, remainingMins: 5 }).toJSON() as RenderedNode | null);
+  assert.ok(serve.includes("~ 5 min left"), `serve step lost its minutes: ${serve}`);
+  assert.ok(!serve.includes("After serving"), `serve step is not after serving: ${serve}`);
+  const pie = flat(renderView({ steps: feastEnd, currentIndex: 2, remainingMins: 0 }).toJSON() as RenderedNode | null);
+  assert.ok(pie.includes("After serving"), `dessert footer: ${pie}`);
+  assert.ok(!pie.includes("min left"), `dessert footer still counts down: ${pie}`);
+  assert.ok(pie.includes("step 3 of 3"), `the bar's count moved: ${pie}`);
+  assert.ok(pie.includes("Start 5:00 timer"), `the dessert's timer chip went: ${pie}`);
+});
+
 // ── Quantity highlight (full text never stripped) ────────────────────────────
 
 test("session: step text with a quantity renders in full (8a — qualifier never stripped)", () => {

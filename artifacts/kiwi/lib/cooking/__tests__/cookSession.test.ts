@@ -521,6 +521,33 @@ test("sequenceMealSteps: a duplicate reference is emitted once (then naive-appen
   assert.equal(out.length, 3); // dup collapsed, other two appended
 });
 
+// WEB-4d (R4) — the THX-3d dumps: Make-Ahead's step 24 and Vegetarian's 37–38
+// were preheats the server merged, re-added after serve by the append.
+test("sequenceMealSteps: a step the server merged is not appended; other omissions still are", () => {
+  const meal = twoDishMeal();
+  const out = sequenceMealSteps(
+    meal,
+    [seq({ dishId: "dA", originalStepIndex: 5, sequenceIndex: 0 })],
+    [{ dishId: "dA", originalStepIndex: 2 }],
+  );
+  assert.deepEqual(out.map((s) => s.text), ["Sear chicken", "Chop salad"]);
+  // Absent field → today's behaviour, every omitted step appended.
+  assert.equal(
+    sequenceMealSteps(meal, [seq({ dishId: "dA", originalStepIndex: 5, sequenceIndex: 0 })]).length,
+    3,
+  );
+  // A merged id the sequence names anyway is still emitted where it sits.
+  const named = sequenceMealSteps(
+    meal,
+    [
+      seq({ dishId: "dA", originalStepIndex: 2, sequenceIndex: 0 }),
+      seq({ dishId: "dA", originalStepIndex: 5, sequenceIndex: 1 }),
+    ],
+    [{ dishId: "dA", originalStepIndex: 2 }],
+  );
+  assert.deepEqual(named.map((s) => s.text), ["Rest chicken", "Sear chicken", "Chop salad"]);
+});
+
 test("sequenceMealSteps: empty sequence → full naive order, no cues", () => {
   const meal = twoDishMeal();
   const out = sequenceMealSteps(meal, []);

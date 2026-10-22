@@ -18,6 +18,7 @@ import {
   remainingMinutesToServe,
   sequenceMealSteps,
 } from "../cookSession";
+import { startsAfterServe } from "../stepTiming";
 import type { CookStep } from "../cookSession";
 import type { SequencedStep } from "@/lib/api/cooking";
 import type { MealDetail, MealStep } from "@/lib/api/meals";
@@ -177,4 +178,16 @@ test("cookFooterMinutes: §27's appended tail on a sequenced meal keeps its fall
   const out = sequenceMealSteps(carneAsadaMeal(), partial);
   const idx = out.findIndex((s) => s.startOffsetMinutes == null);
   assert.equal(cookFooterMinutes(out, idx), 5);
+});
+
+// WEB-4d (R4) — the footer's "After serving" rule.
+test("startsAfterServe: a window starting at serve or later, never the serve moment or an offset-less step", () => {
+  const at = (startOffsetMinutes: number | null | undefined, estimatedMinutes = 5) => ({ startOffsetMinutes, estimatedMinutes });
+  assert.equal(startsAfterServe(at(-5)), false);
+  assert.equal(startsAfterServe(at(0)), true);
+  assert.equal(startsAfterServe(at(3)), true);
+  assert.equal(startsAfterServe(at(0, 0)), false, "a 0-minute step at 0 is serving itself");
+  assert.equal(startsAfterServe(at(null)), false);
+  assert.equal(startsAfterServe(at(undefined)), false);
+  assert.equal(startsAfterServe(undefined), false);
 });
