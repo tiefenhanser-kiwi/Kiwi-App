@@ -49,12 +49,17 @@ const dish = (dishId: string, title: string, positionIndex: number, steps: Retur
 describe("THX-3d round 3 (U) — served hot, at serving time (serveLate)", () => {
   // Weeknight Tuesday, as dumped: the tortillas were warmed, the pico finished, and the
   // tortillas sat before "…and serve immediately".
+  const ts = (stepIndex: number, estimatedMinutes: number, text: string) => ({ ...st(stepIndex, "cook", estimatedMinutes, text), isTimingSensitive: true });
   const TACOS = dish("tacos", "Green Chile Ground Beef Taco Filling", 0, [
-    st(0, "prep", 5, "Dice the onion."),
-    st(1, "cook", 8, "Brown the beef with the onion."),
-    st(2, "cook", 4, "Pour in the broth and simmer until absorbed."),
-    st(3, "cook", 6, "Warm the 6 corn tortillas one at a time on a dry skillet."),
-    st(4, "assemble", 3, "Spoon the filling into the warm tortillas, top with the cheese, and serve immediately."),
+    st(0, "prep", 5, "Finely dice the white onion and mince the garlic."),
+    st(1, "prep", 2, "Combine the spices in a small bowl."),
+    ts(2, 3, "Heat the oil and cook the onion until soft."),
+    ts(3, 1, "Add the garlic and cook 30 seconds."),
+    ts(4, 7, "Add the ground beef and brown it."),
+    st(5, "cook", 1, "Stir in the spice blend and the green chiles."),
+    st(6, "cook", 4, "Pour in the broth and simmer until absorbed."),
+    ts(7, 6, "Warm the 12 corn tortillas one at a time on a dry skillet."),
+    st(8, "assemble", 3, "Spoon the filling into the warm tortillas, top with the cheese, and serve immediately."),
   ]);
   const PICO = dish("pico", "Fresh Pico de Gallo", 1, [
     st(0, "prep", 8, "Seed and dice the tomatoes, onion and jalapeño."),
@@ -65,8 +70,8 @@ describe("THX-3d round 3 (U) — served hot, at serving time (serveLate)", () =>
   it("the tortillas are warmed and filled as the meal is served, not ten minutes before", () => {
     const r = scheduleCookingSequence([TACOS, PICO]);
     const at = (d: string, i: number) => r.steps.find((e) => e.dishId === d && e.originalStepIndex === i)!.startOffsetMinutes;
-    assert.equal(at("tacos", 4), at("tacos", 3) + 6, "filled as soon as they are warm");
-    assert.ok(at("tacos", 4) + 3 >= -3, `served within 3 minutes of serving (ends T${at("tacos", 4) + 3})`);
+    assert.equal(at("tacos", 8), at("tacos", 7) + 6, "filled as soon as they are warm");
+    assert.ok(at("tacos", 8) + 3 >= -3, `served within 3 minutes of serving (ends T${at("tacos", 8) + 3})`);
   });
 });
 

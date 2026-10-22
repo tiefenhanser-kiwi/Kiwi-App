@@ -718,8 +718,9 @@ export function scheduleCookingSequence(
   const input = dishes.map((d) => ({ ...d, steps: selectDefaultPathSteps(d.steps) })).filter((d) => d.steps.length > 0);
   // THX-3d round 2 (M) — a morning step and what leads to it, in the first free window.
   // THX-3d round 3 (U) — what is served hot, as late as the hands allow.
-  const result = serveLate(heldMorningFirst(core, input, { lead: !opts.feastOven }), input, !!opts.feastOven);
-  if (!opts.feastOven) return result;
+  const morning = heldMorningFirst(core, input, { lead: !opts.feastOven });
+  if (!opts.feastOven) return morning;
+  const result = serveLate(morning, input, true);
   // THX-3d (R4) — the steps merged away, for the client (it must not append them).
   const kept = new Set(mergeFeastPreheats(input).dishes.flatMap((d) => d.steps.map((s) => `${d.dishId}#${s.stepIndex}`)));
   const mergedSteps = input.flatMap((d) => d.steps.filter((s) => !kept.has(`${d.dishId}#${s.stepIndex}`)).map((s) => ({ dishId: d.dishId, stepIndex: s.stepIndex })));
@@ -733,16 +734,17 @@ export function scheduleCookingSequence(
 //
 // Weeknight Tuesday warmed its tortillas, then the pico de gallo was finished, and the
 // tortillas sat ten minutes before "Spoon the filling into the warm tortillas … and serve
-// immediately". New Twist's smashed potatoes were taken out of the oven a minute after
-// "Turn the oven off and leave the sides inside … to keep warm". So, after the schedule:
-//   • a dish whose last step serves it now ("serve immediately", "serve warm", "while
-//     hot") — its run from its last cook step to that step;
-//   • in a feast, a side's steps after its warm step (the keep-warm or the oven-off):
-//     the plating, the garnish —
-// each move as late as the cook's hands allow before the rest of the meal is done, never
+// immediately": a dish whose last step serves it now (SERVE_NOW) ends with its run from
+// its last cook step aligned to serve, the other dishes finishing as it starts — in the
+// core pass (scheduleOnceCore, serveNowFrom), not a feast's.
+//
+// New Twist's smashed potatoes were taken out of the oven a minute after "Turn the oven
+// off and leave the sides inside … to keep warm". So, after a feast's schedule, a side's
+// steps after its warm step (the keep-warm or the oven-off) — the plating, the garnish —
+// move as late as the cook's hands allow before the rest of the meal is done, never
 // before what precedes them in their dish, and serving is never moved: a run that does
-// not fit later stays where it was. Latest-ending first. A meal with nothing to move is
-// returned untouched.
+// not fit later, or would end earlier than it did, stays where it was. Latest-ending
+// first. A meal with nothing to move is returned untouched.
 
 export const SERVE_NOW = /\bserve (?:it |them )?(?:immediately|right away|warm|hot)\b|\bwhile (?:still )?(?:warm|hot)\b/i;
 
@@ -756,11 +758,6 @@ export function serveLate(res: ScheduleResult, dishes: readonly SchedulerDish[],
     const placed = [...d.steps].filter((s) => start.has(key(d.dishId, s.stepIndex))).sort((a, b) => a.stepIndex - b.stepIndex);
     if (placed.length < 2) continue;
     let from = -1;
-    const last = placed[placed.length - 1];
-    if (!feast && SERVE_NOW.test(last.text ?? "")) {
-      const cook = placed.map((s) => s.phaseType).lastIndexOf("cook");
-      if (cook >= 0) from = cook;
-    }
     if (feast && !DESSERT_DISH.test(d.title)) {
       const warm = placed.findIndex((s) => KEEP_WARM_STEP.test(s.text ?? "") || OVEN_OFF_STEP.test(s.text ?? ""));
       if (warm >= 0 && warm < placed.length - 1) from = warm + 1;
@@ -797,7 +794,8 @@ export function serveLate(res: ScheduleResult, dishes: readonly SchedulerDish[],
     const floor = r.before ? start.get(r.before)! + minutes(r.before) : was;
     let t = end - len;
     while (t > was && !fits(t, r.keys)) t--;
-    if (t <= was || t < floor) continue;
+    const lastKey = r.keys[r.keys.length - 1];
+    if (t <= was || t < floor || t + len < start.get(lastKey)! + minutes(lastKey)) continue;
     let at = t;
     for (const k of r.keys) {
       placedAt.set(k, at);
@@ -1724,6 +1722,24 @@ function scheduleOnceCore(
   // was pulled forward, and `coldDishesForward: false` must not reinstate that lie.
   const coldDishIds = new Set(nonEmpty.filter(isServedCold).map((d) => d.dishId));
 
+  // THX-3d round 3 (U) — SERVED NOW, AT SERVING TIME (not a feast). A dish whose last
+  // step serves it now ("…and serve immediately") ends with its run from its last cook
+  // step aligned to serve, and the other dishes finish as that run starts: weeknight
+  // Tuesday's tortillas were warmed, the pico was finished, and they sat ten minutes.
+  const serveNowFrom = new Map<string, number>();
+  if (!oven && !blocks) {
+    for (const d of nonEmpty) {
+      const last = d.steps[d.steps.length - 1];
+      if (!SERVE_NOW.test(last.text ?? "")) continue;
+      // Its run: the last stretch of cook steps (the filling, then the tortillas), so the
+      // lag bound keeps each heat step against the next.
+      let c = d.steps.map((x) => x.phaseType).lastIndexOf("cook");
+      while (c > 0 && d.steps[c - 1].phaseType === "cook") c--;
+      if (c >= 0 && c < d.steps.length - 1) serveNowFrom.set(d.dishId, c);
+    }
+  }
+  const serveNowTail = Math.max(0, ...[...serveNowFrom].map(([id, c]) => nonEmpty.find((d) => d.dishId === id)!.steps.slice(c).reduce((n, x) => n + x.estimatedMinutes, 0)));
+
   // 2. Finish-aligned ideal starts (each dish finishes at `anchor`), except for
   //    a cold dish that `coldBases` has moved into a passive window (ruling 3).
   const work: WorkStep[] = [];
@@ -1735,13 +1751,13 @@ function scheduleOnceCore(
     // the potatoes, the green beans): the cook carves last, the bird rests 20–30 minutes
     // and is not left waiting while the stove work finishes around the carve.
     const notTheBird = dish.dishId !== (oven?.plan.holderDishId ?? blocks?.bird?.dishId);
-    const finishBy = notTheBird ? anchor - carveTail : anchor;
+    const finishBy = notTheBird ? anchor - carveTail - (serveNowFrom.has(dish.dishId) ? 0 : serveNowTail) : anchor;
     const base = (isHolder && oven?.holderBase !== undefined ? oven.holderBase : undefined) ?? oven?.sideBases?.get(dish.dishId) ?? coldBases?.get(dish.dishId) ?? blockBases?.get(dish.dishId) ?? finishBy - alone[dishIdx].duration;
     const reheat = blocks?.blocks?.reheatOf.get(dish.dishId);
     // THX-3d (R4) — the bird's carve is no longer aligned to serve (THX-3 let it rest
     // longer so the carve landed at serve): it follows its 20–30-minute rest, and the
     // serve step (feastServeOrder) comes after everything else.
-    const tailFrom = isHolder ? Infinity : reheat !== undefined ? reheat : Infinity;
+    const tailFrom = isHolder ? Infinity : reheat !== undefined ? reheat : serveNowFrom.get(dish.dishId) ?? Infinity;
     const tailSum = (from: number) => dish.steps.slice(from).reduce((s, x) => s + x.estimatedMinutes, 0);
     // THX-3d (R4) — beside a bird hotter than its sides, a held dish returns to the oven
     // WHILE THE BIRD RESTS ("return uncovered for 10 minutes while the bird rests"): its
