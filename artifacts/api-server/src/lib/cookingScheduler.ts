@@ -927,6 +927,8 @@ interface OvenRun {
    * rest ends, as the raise was timed to), not finish-aligned to serve.
    */
   sideBases?: Map<string, number>;
+  /** THX-3d round 2 (I) — a named side's steps before its first bake end before the raise starts (the pecan topping, the panko). */
+  sidePre?: Map<string, { firstOven: number; lead: number }>;
 }
 
 /** True when a step puts food in (or heats) the oven, by its phase and prose. */
@@ -1129,6 +1131,17 @@ export function mergeFeastPreheats(dishes: readonly SchedulerDish[]): { dishes: 
       if (x.dishId !== kept.dishId) heatedBy.set(x.dishId, { dishId: kept.dishId, stepIndex: kept.stepIndex });
     }
   }
+  // THX-3d round 2 (I) — a dish with no preheat of its own at its temperature waits for
+  // the oven's: New Twist's stuffing went into a cold oven at T−219, the potatoes'
+  // 350°F preheat (the only one) ran at T−209.
+  for (const d of dishes) {
+    if (heatedBy.has(d.dishId)) continue;
+    const own = new Set(d.steps.filter((s) => s.phaseType === "preheat").map((s) => ovenTempOfText(s.text)));
+    const t = d.steps.filter((s) => s.phaseType !== "preheat" && isOvenStep(s) && !isReheatStep(s)).map((s) => ovenTempOfText(s.text)).find((x): x is number => x !== null);
+    if (t === undefined || own.has(t)) continue;
+    const kept = (byTemp.get(t) ?? []).find((x) => x.dishId !== d.dishId && !drop.has(`${x.dishId}#${x.stepIndex}`));
+    if (kept) heatedBy.set(d.dishId, { dishId: kept.dishId, stepIndex: kept.stepIndex });
+  }
   if (drop.size === 0) return { dishes: [...dishes], heatedBy };
   return { dishes: dishes.map((d) => ({ ...d, steps: d.steps.filter((s) => !drop.has(`${d.dishId}#${s.stepIndex}`)) })), heatedBy };
 }
@@ -1229,16 +1242,20 @@ function scheduleWithOven(
   // THX-3d (R4) — the sides the raise step names go in as it finishes.
   const raiseText = holder.steps[plan.freesAt]?.text ?? "";
   const sideBases = new Map<string, number>();
+  const sidePre = new Map<string, { firstOven: number; lead: number }>();
   if (RAISE_AND_PUT_IN.test(raiseText)) {
     for (const d of nonEmpty) {
       const ov = plan.ovenSteps.get(d.dishId);
       if (d.dishId === plan.holderDishId || !ov || ov.size === 0 || !raiseText.includes(d.title)) continue;
       const w = walkDishAlone(d, classifyDish(d, honourTags, []));
       const firstOven = Math.min(...[...ov].filter((i) => d.steps[i].phaseType !== "preheat"));
-      if (Number.isFinite(firstOven)) sideBases.set(d.dishId, freeAt - w.offsets[firstOven]);
+      if (Number.isFinite(firstOven)) {
+        sideBases.set(d.dishId, freeAt - w.offsets[firstOven]);
+        sidePre.set(d.dishId, { firstOven, lead: holder.steps[plan.freesAt].estimatedMinutes });
+      }
     }
   }
-  return scheduleOnceCore(nonEmpty, honourTags, enforceMaxLag, coldBases, { plan, anchor: ovenOut + tail, holderBase, sideBases }, feast);
+  return scheduleOnceCore(nonEmpty, honourTags, enforceMaxLag, coldBases, { plan, anchor: ovenOut + tail, holderBase, sideBases, sidePre }, feast);
 }
 
 function scheduleArm(
@@ -1369,8 +1386,12 @@ function scheduleOnceCore(
     // reheat ends as the rest ends and its later steps follow it, not finish-aligned to serve.
     const heldBack = reheat !== undefined && birdRestEnd !== null ? birdRestEnd - dish.steps[reheat].estimatedMinutes : null;
     const afterReheat = (k: number) => dish.steps.slice(reheat!, k).reduce((s, x) => s + x.estimatedMinutes, 0);
+    // THX-3d round 2 (I) — what a side needs done before it goes in (the pecan topping
+    // scattered, the panko mixed) ends before the raise that puts it in, not during it.
+    const pre = oven?.sidePre?.get(dish.dishId);
     dish.steps.forEach((step, stepIdx) => {
-      const idealStart = heldBack !== null && stepIdx >= reheat! ? heldBack + afterReheat(stepIdx) : stepIdx >= tailFrom ? anchor - tailSum(stepIdx) : base + alone[dishIdx].offsets[stepIdx];
+      const before = pre && stepIdx < pre.firstOven ? pre.lead : 0;
+      const idealStart = heldBack !== null && stepIdx >= reheat! ? heldBack + afterReheat(stepIdx) : stepIdx >= tailFrom ? anchor - tailSum(stepIdx) : base + alone[dishIdx].offsets[stepIdx] - before;
       work.push({
         dishIdx,
         dishId: dish.dishId,

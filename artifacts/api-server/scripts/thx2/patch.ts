@@ -46,6 +46,7 @@ import { countsInWords, mergeRefs, missingRows } from "./thx2Rows";
 import { thawStepText } from "../../src/lib/feastAddedDish";
 import { splitPrepClause } from "../../src/lib/feastCookWording";
 import { splitTwoPhase } from "./thx2Phases";
+import { putInEdits } from "./thx2PutIn";
 import { formatOvenReport, heldDishSteps, holdTextUpdates, oneOvenTemperature, ovenReport, retimeDish, splitPreheatSteps, type OvenStepRow } from "./thx2Oven";
 
 const argv = process.argv.slice(2);
@@ -369,6 +370,9 @@ for (const t of feasts) {
   // 10. (THX-3d D) — THX-3c's "As the turkey comes out, raise the oven…" is replaced:
   // the post-pass writes ONE raise step while the bird roasts, and the serve step.
   applyEdits(thursdayPostPass(ovenDishes, ovenRows()));
+  // THX-3d round 2 (I) — after a put-in step, a side's first bake reads as the phase it is;
+  // a side no put-in step names gets its own "Put the … in the oven." (thx2PutIn).
+  applyEdits(putInEdits(ovenDishes, ovenRows()));
   // THX-3d round 2 (O) — "while the oven heats for the next dish" only when it does.
   applyEdits({ updates: holdTextUpdates(ovenDishes, ovenRows()), deletes: [], renumber: [], creates: [] });
 

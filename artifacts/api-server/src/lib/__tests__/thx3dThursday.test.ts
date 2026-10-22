@@ -90,3 +90,23 @@ describe("THX-3d R4 — merged preheats are named for the client", () => {
     assert.equal(scheduleCookingSequence([a, b]).mergedSteps, undefined);
   });
 });
+
+describe("THX-3d round 2 (I) — what a side needs before it goes in, and an oven heated for it", () => {
+  it("Classic's pecan topping is scattered before the raise that puts the casserole in, never during it", () => {
+    const sweet = dish("sweet", "Sweet Potato Casserole", 3, [
+      st(0, "prep", 3, "On Thursday: Remove the casserole from the fridge and scatter the pecan topping evenly over the surface."),
+      st(1, "cook", 40, "The sweet potato casserole is in at 350°F, uncovered. Bake 35–40 minutes."),
+    ]);
+    const turkey = { ...TURKEY, steps: TURKEY.steps.map((s) => (s.stepIndex === 2 ? { ...s, text: "Raise the oven to 350°F and put in the Sage Stuffing and Sweet Potato Casserole." } : s)) };
+    const r = scheduleCookingSequence([turkey, STUFFING, GRAVY, sweet], { feastOven: true });
+    assert.ok(at(r, "sweet", 0) + 3 <= at(r, "turkey", 2), `topping ${at(r, "sweet", 0)}+3, raise ${at(r, "turkey", 2)}`);
+    assert.equal(at(r, "sweet", 1), at(r, "turkey", 2) + 5, "in as the raise finishes");
+  });
+  it("New Twist: the stuffing has no preheat of its own; it waits for the potatoes' 350°F preheat", () => {
+    const bird = dish("t", "Spatchcock Turkey", 0, [st(0, "preheat", 15, "Preheat the oven to 425°F."), st(1, "cook", 85, "Roast at 425°F for 85 minutes."), st(2, "rest", 25, "Rest 20–30 minutes."), st(3, "assemble", 10, "Carve the turkey.")]);
+    const stuffing = dish("s", "Cornbread and Chorizo Stuffing", 1, [st(0, "cook", 30, "On Thursday: Bake the stuffing (still covered in foil) in a 350°F oven for 30 minutes.")]);
+    const potatoes = dish("p", "Smashed Potatoes", 2, [st(0, "cook", 20, "Boil the potatoes 20 minutes."), st(1, "preheat", 15, "Preheat the oven to 350°F and line two rimmed sheet pans with parchment."), st(2, "cook", 20, "Roast at 350°F for 20 minutes.")]);
+    const r = scheduleCookingSequence([bird, stuffing, potatoes], { feastOven: true });
+    assert.ok(at(r, "s", 0) >= at(r, "p", 1) + 15, `stuffing in at ${at(r, "s", 0)}, the oven hot at ${at(r, "p", 1) + 15}`);
+  });
+});
