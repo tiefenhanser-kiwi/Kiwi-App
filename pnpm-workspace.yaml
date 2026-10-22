@@ -157,3 +157,11 @@ overrides:
   "@expo/ngrok-bin>@expo/ngrok-bin-win32-ia32": "-"
   "@expo/ngrok-bin>@expo/ngrok-bin-win32-x64": "-"
   esbuild: "0.27.3"
+  # SEC-2 — security floors for two transitive deps of the API server, scoped
+  # to the one parent that pulls each in (nothing else in the workspace moves):
+  # path-to-regexp < 8.4.0 has a high-severity ReDoS in route matching
+  # (express 5 → router 2.2.0 → ^8.0.0); undici < 7.29.1 has eight advisories,
+  # two high (cheerio 1.2.0 → ^7.19.0). Remove each once its parent's own
+  # range floor is at or above the fixed version.
+  "router>path-to-regexp": "^8.4.2"
+  "cheerio>undici": "^7.30.1"
