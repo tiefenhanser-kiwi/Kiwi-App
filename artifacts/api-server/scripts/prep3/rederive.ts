@@ -42,7 +42,8 @@ console.log(`prep3/rederive · ${mode} · ${host} · ${APPLY ? "APPLY" : "dry ru
 const prisma = new PrismaClient();
 
 const sameRefs = (a: unknown, b: AmountRef[]) => {
-  const norm = (r: AmountRef) => `${r.ingredientId}|${r.quantity}|${r.unit}|${r.charStart}|${r.charEnd}`;
+  // (A quantity to 9 places: jsonb gives back 1.333333333333333 for 1.3333333333333333.)
+  const norm = (r: AmountRef) => `${r.ingredientId}|${Number(r.quantity).toFixed(9)}|${r.unit}|${r.charStart}|${r.charEnd}`;
   const x = Array.isArray(a) ? (a as AmountRef[]).map(norm).sort() : [];
   return JSON.stringify(x) === JSON.stringify(b.map(norm).sort());
 };
