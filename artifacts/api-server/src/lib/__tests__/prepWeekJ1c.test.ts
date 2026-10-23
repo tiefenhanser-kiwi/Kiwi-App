@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 
 import type { LoadPrepWeekInputResult, PrepLoadedPlan } from "../prepWeekAggregation";
 import { buildPrepWeekPlan, finishPrepWeek, type PrepWeekBuild } from "../prepWeekBuild";
-import { assemblePrepWeekResult, buildStepPlan, composePortionStep, fitDishName, summarizePrepWeek } from "../prepWeekAssembly";
+import { assemblePrepWeekResult, buildStepPlan, composePortionStep, containerNamesOf, fitDishName, summarizePrepWeek } from "../prepWeekAssembly";
 import { combinePrep } from "../prepCombineEngine";
 import { proteinVerbsFor } from "../prepComponents";
 import { closingNote } from "../prepStorage";
@@ -98,7 +98,7 @@ describe("J.1c BUG-355 — Hans's device pass", () => {
 
   it("1 — a shared tub is named ONCE, at the head of its line; 'same tub' never renders", () => {
     const r = wire(buildPrepWeekPlan(load(onionWeek())));
-    const onion = live(r).find((s) => s.instructions.includes("yellow onion"))!;
+    const onion = live(r).find((s) => !s.holdsNoContainer && s.instructions.includes("yellow onion"))!; // (not the label list)
     const lines = onion.instructions.split("\n");
     assert.equal(lines.length, 2, onion.instructions);
     assert.equal(lines[1], "Into one shared finely diced yellow onion tub: 1 for the Texas-Style Beef Chili · 1 for the Tex-Mex Seasoned Ground Beef");
@@ -118,8 +118,9 @@ describe("J.1c BUG-355 — Hans's device pass", () => {
     const b = buildPrepWeekPlan(load(soup()));
     const r = wire(b, (food, total) => (/celery/.test(food) ? `Slice ${total} into ½-inch pieces.` : `Peel ${total} and slice them into ½-inch coins.`));
     const celery = live(r).find((s) => s.instructions.includes("celery"))!;
-    // BUG-359 — the lid keeps every word of its dish ("…Chicken vegetables" before).
-    assert.equal(celery.instructions, "Slice 3 celery stalks into ½-inch pieces for the Slow-Cooker Chicken and Dumplings vegetables container.");
+    // BUG-359 — the lid keeps every word of its dish ("…Chicken vegetables" before);
+    // PREP-3 (R3) — served under the day's label.
+    assert.equal(celery.instructions, "Slice 3 celery stalks into ½-inch pieces for the Monday vegetables container.");
     const carrots = live(r).find((s) => s.instructions.includes("carrot"))!;
     assert.equal(carrots.instructions.split("\n").length, 1, carrots.instructions);
   });
@@ -136,7 +137,9 @@ describe("J.1c BUG-355 — Hans's device pass", () => {
     assert.equal(composePortionStep("Peel and slice the carrots.", buildPrepWeekPlan(load(soup())).stepPlan.steps.find((s) => s.components.some((c) => c.ingredientName === "carrots"))!.components).split("\n").length, 2);
   });
 
-  it("3 — one dish's lone items take its class lids: citrus juice → citrus jar, garnish → toppings plate, a cut → vegetables", () => {
+  // PREP-3 (R3) — on a weeknight the class lids are the meal's ONE plate (a pile each) and
+  // the week's one juice tub per fruit; J.1c's per-dish lids are the feast's.
+  it("3 — one dish's lone items: a juice → the fruit's tub, a garnish and a cut → the meal's plate (PREP-3 R3)", () => {
     const b = buildPrepWeekPlan(load([{
       id: uuid(4), name: "Lemon Chicken Night", day: "Monday", lag: 1, dishes: [
         { id: uuid(41), name: "Roasted Asparagus with Lemon",
@@ -150,12 +153,12 @@ describe("J.1c BUG-355 — Hans's device pass", () => {
           steps: [{ i: 0, phase: "assemble", text: "Fold the jalapeño into the batter.", ids: [uuid(404)] }] },
       ],
     }]));
-    assert.deepEqual(destinations(b, "lemon juice"), ["Roasted Asparagus with Lemon citrus jar"]);
-    assert.deepEqual(destinations(b, "fresh flat-leaf parsley"), ["Garlic Herb Roasted Potatoes toppings plate"]);
-    assert.deepEqual(destinations(b, "jalapeño"), ["Jalapeño Cheddar Cornbread vegetables"]);
-    assert.deepEqual(destinations(b, "asparagus"), ["Roasted Asparagus with Lemon vegetables"]);
+    assert.deepEqual(destinations(b, "lemon juice"), ["Lemon juice — Roasted Asparagus with Lemon"]);
+    assert.deepEqual(destinations(b, "fresh flat-leaf parsley"), ["Lemon Chicken Night plate"]);
+    assert.deepEqual(destinations(b, "jalapeño"), ["Lemon Chicken Night plate"]);
+    assert.deepEqual(destinations(b, "asparagus"), ["Lemon Chicken Night plate"]);
     for (const n of b.stepPlan.steps.flatMap((s) => s.components.flatMap((c) => c.measures.map((m) => m.destination ?? "")))) {
-      assert.ok(!n.includes(" — "), `a contents-named lid for one dish: ${n}`);
+      assert.ok(!n.includes(" — ") || n.startsWith("Lemon juice — "), `a contents-named lid for one dish: ${n}`);
     }
   });
 
@@ -172,11 +175,13 @@ describe("J.1c BUG-355 — Hans's device pass", () => {
         ],
       }],
     }]));
-    assert.deepEqual(destinations(b, "asparagus"), ["Roasted Asparagus with Lemon vegetables"]);
-    assert.deepEqual(destinations(b, "fresh parsley"), ["Roasted Asparagus with Lemon toppings plate"]);
+    // PREP-3 (R3) — both piles on the meal's plate: never a toppings plate for the asparagus.
+    assert.deepEqual(destinations(b, "asparagus"), ["Asparagus Night plate"]);
+    assert.deepEqual(destinations(b, "fresh parsley"), ["Asparagus Night plate"]);
+    assert.ok(!b.stepPlan.steps.some((s) => s.components.some((c) => c.measures.some((m) => /toppings plate/.test(m.destination ?? "")))));
   });
 
-  it("3 — a citrus juiced by its NOTE is the juice too ('lemon', juiced → the citrus jar)", () => {
+  it("3 — a citrus juiced by its NOTE is the juice too ('lemon', juiced → the lemon-juice tub, PREP-3 R3)", () => {
     const b = buildPrepWeekPlan(load([{
       id: uuid(12), name: "Broccolini Night", day: "Monday", lag: 1, dishes: [{
         id: uuid(121), name: "Sautéed Broccolini with Garlic and Chili Flake",
@@ -184,7 +189,7 @@ describe("J.1c BUG-355 — Hans's device pass", () => {
         steps: [{ i: 0, phase: "assemble", text: "Squeeze the lemon over the broccolini.", ids: [uuid(1201)] }],
       }],
     }]));
-    assert.deepEqual(destinations(b, "lemon"), ["Sautéed Broccolini with Garlic and Chili Flake citrus jar"]);
+    assert.deepEqual(destinations(b, "lemon"), ["Lemon juice — Sautéed Broccolini with Garlic and Chili Flake"]);
   });
 
   it("3 — several lone cuts of one dish: ONE prep plate, a pile each, and its line names the piles", () => {
@@ -198,10 +203,11 @@ describe("J.1c BUG-355 — Hans's device pass", () => {
         steps: [{ i: 0, phase: "prep", text: "Chop the romaine, slice the celery and halve the tomatoes.", ids: [uuid(1301), uuid(1302), uuid(1303)] }],
       }],
     }]));
-    for (const n of ["romaine lettuce hearts", "celery stalks", "cherry tomatoes"]) assert.deepEqual(destinations(b, n), ["Chicken Salad prep plate"], n);
+    // PREP-3 (R3) — the plate is the meal's (labelled by its day when served).
+    for (const n of ["romaine lettuce hearts", "celery stalks", "cherry tomatoes"]) assert.deepEqual(destinations(b, n), ["Salad Night plate"], n);
     const r = wire(b);
     const note = live(r).map((s) => s.storageNote ?? "").find((n) => /plate/.test(n)) ?? "";
-    assert.match(note, /^(?:Chicken Salad prep plate: )?Separate piles \(romaine lettuce hearts, celery stalks and cherry tomatoes\) on a small plate/, note);
+    assert.match(note, /^(?:Monday plate: )?Separate piles \(romaine lettuce hearts, celery stalks and cherry tomatoes\) on a small plate/, note);
   });
 
   it("3 — a step closing two lids that keep differently names each of them", () => {
@@ -265,7 +271,7 @@ describe("J.1c BUG-355 — Hans's device pass", () => {
     const dest = (n: string) => sp.steps.find((s) => s.components.some((c) => c.ingredientName === n))?.components[0].measures[0].destination;
     assert.equal(dest("yellow onion"), "Taco Filling vegetables", "fixture: the onion and pepper share the pan's container");
     assert.notEqual(dest("garlic"), dest("yellow onion"), "the later garlic joined the onion");
-    assert.equal(dest("garlic"), "Taco Filling prep plate");
+    assert.equal(dest("garlic"), "Taco Night plate"); // PREP-3 (R3) — a pile on the meal's plate
   });
 
   it("4 — a hyphenated weight is not the verb: '3-pound pork shoulder' is never 'Pound the pork shoulder'", () => {
@@ -316,11 +322,15 @@ describe("J.1c BUG-354 — a long dish name never fails the response", () => {
       }],
     }]));
     const r = wire(b); // asserts the schema: the whole response validates
-    const names = [...new Set(allSteps(r).flatMap((s) => s.containerNames ?? []))];
+    // The ENGINE's names (PREP-3 R3: the wire serves them under their day's labels).
+    const names = [...new Set(b.stepPlan.steps.filter((s) => !s.demoted).flatMap((s) => containerNamesOf(s)))];
+    assert.ok(allSteps(r).every((s) => (s.containerNames ?? []).every((n) => n.length <= 120)));
     assert.ok(names.length > 0);
     const words = new Set(LONG.split(/\s+/));
     for (const n of names) {
       assert.ok(n.length <= 120, `${n.length}: ${n}`);
+      if (/^[A-Z][a-z]+ juice — /.test(n)) continue; // PREP-3 (R3) — the fruit's tub: its head is the food
+
       // the dish part is whole words of the dish (or its short name), never a cut word
       const head = n.split(/ (?:toppings plate|prep plate|plate|citrus jar|juice jar|vegetables|aromatics|spice blend|dry mix|sauce jar|marinade bowl|bowl)$| — /)[0];
       for (const w of head.split(/\s+/)) assert.ok(words.has(w) || words.has(`${w},`), `a cut word "${w}" in ${n}`);

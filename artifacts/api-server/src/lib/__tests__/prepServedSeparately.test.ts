@@ -137,7 +137,8 @@ describe("H5.1 — toppings are never a mix", () => {
     const destinations = new Set(
       live.flatMap((s) => s.components.flatMap((c) => c.measures.map((m) => m.destination))),
     );
-    assert.deepEqual([...destinations], ["Taco Toppings plate"]);
+    // PREP-3 (R3) — on a weeknight that one plate is the meal's.
+    assert.deepEqual([...destinations], ["Taco Night plate"]);
   });
 });
 

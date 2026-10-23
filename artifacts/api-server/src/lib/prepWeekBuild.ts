@@ -34,6 +34,7 @@ import { ingredientGroupKey } from "./ingredientRelations";
 import { combinePrep } from "./prepCombineEngine";
 import { cutOf } from "./prepClasses";
 import { CUT_AT_THE_STEP } from "./heldMorning";
+import { labelWeekResult, weekLabelMap } from "./prepWeekLabels";
 import {
   buildStepPlan,
   componentTotals,
@@ -89,6 +90,11 @@ export interface PrepWeekBuild {
    * it. The feast's own day when no container is used earlier.
    */
   sessionBefore?: string;
+  /**
+   * PREP-3 (R3) — the week only: each container's label from today's days ("Tuesday
+   * plate", "Monday marinade", "Minced garlic"), put on at finish (never cached in prose).
+   */
+  weekLabels?: ReturnType<typeof weekLabelMap>;
 }
 
 export interface BuildPrepWeekOptions {
@@ -298,6 +304,26 @@ export function buildPrepWeekPlan(load: Load, opts: BuildPrepWeekOptions = {}): 
   // D-WS9-298 — what the overlay needs, keyed by stepKey, from the STEP PLAN so it
   // is today's dates whether the prose came from the cache or not.
   const storageContexts = new Map<string, StorageContext>();
+  // PREP-3 — each container's own meals, for its own day in its closing line.
+  const mealsByContainer = new Map<string, Set<string>>();
+  for (const s of stepPlan.steps) {
+    for (const c of s.components) {
+      for (const m of c.measures) {
+        const n = m.destination ?? s.bowlName;
+        if (n && m.mealId) mealsByContainer.set(n, (mealsByContainer.get(n) ?? new Set()).add(m.mealId));
+      }
+    }
+  }
+  const containerDay = (name: string): { dayName?: string; daysUntilCook?: number } => {
+    if (dayOf) return {}; // the feast's portions carry their own days
+    const latest = [...(mealsByContainer.get(name) ?? [])]
+      .map((id) => ({ id, lag: cookDays.lagByMealId.get(id) }))
+      .filter((x): x is { id: string; lag: number } => x.lag !== undefined)
+      .sort((a, b) => b.lag - a.lag)[0];
+    if (!latest) return {};
+    const day = cookDays.dayNameByMealId.get(latest.id);
+    return { daysUntilCook: latest.lag, ...(day ? { dayName: day } : {}) };
+  };
   for (const st of stepPlan.steps) {
     const names = st.components.map((c) => c.ingredientName);
     const notes = st.components.flatMap((c) => [
@@ -327,6 +353,8 @@ export function buildPrepWeekPlan(load: Load, opts: BuildPrepWeekOptions = {}): 
       : null;
     const closes = closesByStepKey.get(st.stepKey)?.filter((c) => !stillFilled || stillFilled.has(c.name)).map((c) => ({
       ...c,
+      // PREP-3 — the container's own day (its own meals'), not the step's latest.
+      ...containerDay(c.name),
       // J.1b — a plate's line names the piles on it TODAY; a held pile is not.
       ...(isPlate(c.name) && heldPiles.has(c.name)
         ? (() => {
@@ -357,7 +385,7 @@ export function buildPrepWeekPlan(load: Load, opts: BuildPrepWeekOptions = {}): 
     storageContexts,
     holds,
     heldLines: heldLinesFor(stepPlan, holds, cookDays, mealNameById, dayOf),
-    ...(opts.feast ? feastFacts(stepPlan, input, combineInput, cookDays, dayOf) : {}),
+    ...(opts.feast ? feastFacts(stepPlan, input, combineInput, cookDays, dayOf) : { weekLabels: weekLabelMap(stepPlan, cookDays.dayNameByMealId) }),
   };
   assignCoversCookSteps(build, load);
   return build;
@@ -872,7 +900,7 @@ export function finishPrepWeek(result: PrepWeekResult, build: PrepWeekBuild): Pr
     const lag = Math.max(...h.heldPortions.map((x) => x.lag));
     return { ...s, storageNote: `This one is ${lag} days out — leave it for cook day.` };
   };
-  return {
+  const finished: PrepWeekResult = {
     ...overlaid,
     phases: overlaid.phases.map((ph) => ({ ...ph, steps: ph.steps.map(reasons) })).map((p) => {
       if (p.phase !== "proteins") return p;
@@ -881,6 +909,8 @@ export function finishPrepWeek(result: PrepWeekResult, build: PrepWeekBuild): Pr
       return merged.length > 0 ? { ...rest, heldForCookDay: merged } : rest;
     }),
   };
+  // PREP-3 (R3) — the week's labels, last: every string of the served week says them.
+  return build.weekLabels ? labelWeekResult(finished, build.weekLabels) : finished;
 }
 
 /**

@@ -1049,6 +1049,12 @@ export function buildStepPlan(
       byDish.set(p.dishId, l);
     }
     for (const [dishId, list] of byDish) {
+      // PREP-3 (R3) — no bag for one counted food on a weeknight ("6 dried red chili
+      // peppers, whole"): they are counted out of their package at the stove.
+      if (!opts.feast && list.length === 1) {
+        notPrep.set(list[0].key, "ready-to-use");
+        continue;
+      }
       const key = `${dishId}|chiles|A`;
       specialSpec.set(key, {
         cls: "A",
@@ -1398,6 +1404,18 @@ export function buildStepPlan(
   // lid saying WHICH is Hans's own ruling.
   /** Lids this block made, which name no food: the dressing line says the food instead. */
   const madeLids = new Set<string>();
+  /** PREP-3 (R3) — a meal's one plate on a weeknight, named by the meal (labelled by day at read time). */
+  const mealPlateNames = new Map<string, string>();
+  const mealPlateOf = (p: Portion): string => {
+    const key = [...p.mealIds][0] ?? p.dishId;
+    let n = mealPlateNames.get(key);
+    if (!n) {
+      n = uniqueName(fitDishName(p.mealName, " plate"));
+      mealPlateNames.set(key, n);
+      madeLids.add(n);
+    }
+    return n;
+  };
   {
     const made = new Map<string, string>();
     const once = (key: string, base: string) => {
@@ -1432,7 +1450,49 @@ export function buildStepPlan(
     }
     const cutsPerDish = new Map<string, number>();
     for (const l of lone) if (l.kind === "cut") cutsPerDish.set(l.p.dishId, (cutsPerDish.get(l.p.dishId) ?? 0) + 1);
-    for (const { k, p, kind } of lone) {
+    // ── PREP-3 (R3) — THE WEEKNIGHT'S LIDS: ONE PLATE PER MEAL, ONE JUICE TUB PER FRUIT ──
+    //
+    // Five dinners for two printed 20 containers: a "Red Lentil Dal citrus jar" holding
+    // ½ tbsp lemon juice, a "Stir-Fried Snap Peas aromatics container" holding one sliced
+    // clove, a toppings plate, a prep plate and an aromatics tub for one dinner. On a
+    // weeknight every lone cut, garnish and topping of a meal's dishes is a pile on the
+    // meal's ONE plate (named by the meal here — the narration is cached on the
+    // composition, so the day's label, "Tuesday plate", is put on at read time:
+    // prepWeekLabels), and every juice that goes into no jar of its dish is in ONE tub
+    // per fruit, shared with every other dish squeezing that fruit. The feast keeps its own.
+    const juiceOnly = (p: Portion, label: string) =>
+      !/\bzest/i.test(`${p.notes.join(" ")} ${label}`) && (/\bjuice\b/i.test(p.entry.ingredientName) || (CITRUS.test(p.entry.ingredientName) && /\bjuic/i.test(p.notes.join(" "))));
+    const fruitJuice = new Map<string, string[]>();
+    const toFruitTub = (k: string, p: Portion) => {
+      const fruit = (CITRUS.exec(p.entry.ingredientName)?.[1] ?? "citrus").replace(/s$/i, "").toLowerCase();
+      fruitJuice.set(fruit, [...(fruitJuice.get(fruit) ?? []), k]);
+    };
+    /** The lone portions the weeknight rule placed (the rest go by the dish's lids below). */
+    const placed = new Set<string>();
+    for (const { k, p, kind } of opts.feast ? [] : lone) {
+      if (kind === "juice") {
+        const jar = ownOf(p.dishId, (c) => c.cls === "A" && / sauce jar(?: \d+)?$/.test(c.name))[0];
+        if (jar) tubLabel.set(k, jar.name);
+        else if (juiceOnly(p, tubLabel.get(k) ?? "")) toFruitTub(k, p);
+        else continue; // a zest and its juice keep the dish's citrus jar
+      } else {
+        tubLabel.set(k, mealPlateOf(p));
+      }
+      placed.add(k);
+    }
+    if (!opts.feast) {
+      for (const [k, label] of tubLabel) {
+        const p = portions.get(k);
+        if (p && sharedTubLabels.has(label) && juiceOnly(p, label)) toFruitTub(k, p);
+      }
+      for (const [fruit, keys] of fruitJuice) {
+        const dishes = [...new Set(keys.map((k) => portions.get(k)!.dishName))];
+        const label = containerLabel(`${upperFirst(fruit)} juice`, dishes, true);
+        sharedTubLabels.add(label);
+        for (const k of keys) tubLabel.set(k, label);
+      }
+    }
+    for (const { k, p, kind } of lone.filter((l) => !placed.has(l.k))) {
       let dest: string;
       if (kind === "juice") {
         // THX-3d round 2 (L) — in the feast, only a jar the juice goes in WITH: New Twist's
@@ -1451,6 +1511,19 @@ export function buildStepPlan(
         dest = once(`${p.dishId}|prep-plate`, fitDishName(p.dishName, " prep plate"));
       }
       tubLabel.set(k, dest);
+    }
+  }
+
+  // PREP-3 (R3) — …and a weeknight meal's plate takes its dishes' other plates (a
+  // toppings plate), each food a pile of its own. What goes into one pan together keeps
+  // its tub (H7: the slow cooker's onion, celery and carrots); a cold mixture's bowl, the
+  // leafy greens and the jars stay their own containers too.
+  if (!opts.feast) {
+    for (const c of containers.values()) {
+      const kind = specialKindByName.get(c.name);
+      if (kind !== "plate") continue;
+      const first = [...c.members.values()][0];
+      if (first) c.name = mealPlateOf(first);
     }
   }
 
@@ -2476,8 +2549,14 @@ export function renderPortionLines(
       // A shared tub's name already says the food, so each portion is its amount;
       // a dish's own container takes the food too when the step has more than one.
       const shared = labelKinds.get(p.dest) === "shared";
+      // PREP-3 (R3) — a count says its food when the tub mixes counts and measures: one tub
+      // per fruit takes "½ lemon" from one dish and "½ tbsp" of juice from another, and
+      // "½ for the Roasted Asparagus" said neither.
+      const counted = (q: P) => !/[a-z]/i.test(q.amount);
+      const mixed = group.some(counted) && !group.every(counted);
       const parts = group.map((q) => {
-        const head = shared || plain ? `${q.amount}${showCut && q.cut && !shared ? ` ${q.cut}` : ""}` : `${q.qty}${showCut && q.cut ? ` ${q.cut}` : ""}`;
+        const amount = shared && mixed && counted(q) ? q.qty : q.amount;
+        const head = shared || plain ? `${amount}${showCut && q.cut && !shared ? ` ${q.cut}` : ""}` : `${q.qty}${showCut && q.cut ? ` ${q.cut}` : ""}`;
         const dish = dishFor(q);
         return dish ? `${head} for the ${dish}` : head;
       });

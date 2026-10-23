@@ -291,8 +291,9 @@ describe("H7 3 (2a) — a lone cut portion gets a `<Dish> — <item>` container"
     const sp = buildStepPlan(combinePrep(input), "P");
     const jal = sp.steps.find((s) => s.components.some((c) => c.ingredientName === "jalapeño"));
     assert.ok(jal && !jal.demoted, "fixture: the jalapeño is prep");
-    // J.1c (BUG-355 item 3) — one dish's lone cut takes the dish's class container, not a lid named after itself.
-    assert.equal(jal!.components[0].measures[0].destination, "Jalapeño Cheddar Cornbread vegetables");
+    // J.1c (BUG-355 item 3) — one dish's lone cut takes a class container, not a lid named
+    // after itself; PREP-3 (R3) — on a weeknight, a pile on its meal's one plate.
+    assert.equal(jal!.components[0].measures[0].destination, "Chili Night plate");
     // The no-work floor (H6.2) still holds: three unpeeled cloves are not a line.
     assert.ok(!sp.steps.some((s) => !s.demoted && s.components.some((c) => c.ingredientName === "garlic")));
   });
@@ -724,9 +725,10 @@ describe("H7.1 2a — a cold raw mixture groups its cut vegetables", () => {
   it("🔴 the dressing combines at prep only when the cook day is within 1 day", () => {
     const soon = notes(overlayAt(pico(), 1).wire);
     const later = notes(overlayAt(pico(), 3).wire);
-    assert.match(soon, /Stir in the lime juice now/);
-    assert.match(later, /Keep the lime juice separate; combine on cook day \(Tuesday\)/);
-    assert.doesNotMatch(later, /Stir in the lime juice now/);
+    // PREP-3 (R3, R9) — the lime is in the week's one lime-juice tub, so the line says the share.
+    assert.match(soon, /Stir in 2 tbsp of the lime juice now/);
+    assert.match(later, /Keep 2 tbsp of the lime juice separate; combine on cook day \(Tuesday\)/);
+    assert.doesNotMatch(later, /Stir in .*lime juice now/);
   });
 });
 

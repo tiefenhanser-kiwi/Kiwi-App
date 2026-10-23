@@ -29,7 +29,7 @@ const FILLING = /\b(cornstarch|tapioca|arrowroot)\b/i;
 const GENERIC = /^(?:fresh|whole|large|small|medium|yellow|white|red|sweet|dried|ground|kosher|granulated|packed|light|dark|unsalted|salted|baby|flat-leaf)$/i;
 
 /** "Sage and Onion Stuffing" → "Stuffing", "Herb-Roasted Whole Turkey" → "Turkey", "Sweet Potato Casserole" → "Potato casserole". */
-function shortOf(title: string, long = false): string {
+export function shortOf(title: string, long = false): string {
   const t = title.toLowerCase();
   if (/\bturkey\b/.test(t)) return "Turkey";
   if (/\bcranberr/.test(t)) return "Cranberry";
@@ -179,7 +179,7 @@ export function feastLabelMap(plan: Pick<StepPlan, "steps">): { map: Map<string,
 }
 
 /** Every string in a value with each old name replaced (longest first); Maps re-keyed. */
-function renamed<T>(value: T, pairs: readonly [string, string][]): T {
+export function renamed<T>(value: T, pairs: readonly [string, string][]): T {
   const fix = (s: string) => pairs.reduce((t, [a, b]) => (t.includes(a) ? t.split(a).join(b) : t), s);
   const walk = (v: unknown): unknown => {
     if (typeof v === "string") return fix(v);

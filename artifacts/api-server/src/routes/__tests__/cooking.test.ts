@@ -1353,20 +1353,22 @@ describe("POST /api/plans/:planId/prep-week — prose cannot move the math", () 
       assert.equal(res.status, 200);
       const body = (await res.json()) as { result: PrepWeekResult };
       const produce = body.result.phases.find((p) => p.phase === "produce")!;
-      // D-WS9-301 rule 10 — the wash step opens the phase; the onion is second.
-      assert.equal(produce.steps.length, 2);
-      assert.equal(produce.steps[0].stepKey, "produce#wash-all");
+      // PREP-3 (R3) — the label list opens the week; then D-WS9-301 rule 10 — the wash
+      // step opens the work; the onion is third.
+      assert.equal(produce.steps.length, 3);
+      assert.equal(produce.steps[0].stepKey, "week-labels");
+      assert.equal(produce.steps[1].stepKey, "produce#wash-all");
       // Attribution is code-owned: BOTH meals, regardless of the narration.
       assert.deepEqual(
-        [...produce.steps[1].contributesToMealIds].sort(),
+        [...produce.steps[2].contributesToMealIds].sort(),
         [MEAL_A, MEAL_B].sort(),
       );
       // Prose is the AI's; numbers/attribution are not.
-      assert.equal(produce.steps[1].title, "TOTALLY WRONG TITLE");
-      assert.equal(produce.steps[1].number, 2);
+      assert.equal(produce.steps[2].title, "TOTALLY WRONG TITLE");
+      assert.equal(produce.steps[2].number, 3);
       // …except the wash step, whose prose the ENGINE owns outright — the model
       // is never asked about it, so it cannot get it wrong.
-      assert.equal(produce.steps[0].title, "Wash and dry all the produce");
+      assert.equal(produce.steps[1].title, "Wash and dry all the produce");
     } finally {
       await harness.close();
     }

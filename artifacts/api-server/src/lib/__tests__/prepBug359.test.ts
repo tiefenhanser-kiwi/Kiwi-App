@@ -91,13 +91,14 @@ const tacos: Meal = {
 };
 
 describe("BUG-359 — the six wording residues", () => {
-  it("1 · taco lettuce and tomatoes go on the toppings plate (D-WS9-301 R2), not into '<dish> vegetables'", () => {
+  // PREP-3 (R3) — a weeknight's lone cuts and toppings are piles on the meal's ONE plate.
+  it("1 · taco lettuce and tomatoes go on a plate (D-WS9-301 R2; PREP-3 R3: the meal's), not into '<dish> vegetables'", () => {
     for (const food of ["iceberg lettuce", "roma tomatoes"]) {
-      assert.deepEqual(destinations([tacos], food), ["Taco Bell–Style Seasoned Ground Beef toppings plate"], food);
+      assert.deepEqual(destinations([tacos], food), ["Cheesy Taco Bell–Style Ground Beef Tacos plate"], food);
     }
   });
 
-  it("1 · …but pizza toppings that go into the oven are not a plate", () => {
+  it("1 · …but pizza toppings that go into the oven are not a toppings plate (PREP-3 R3: a pile on the meal's)", () => {
     const pizza: Meal = {
       id: uuid(2), name: "Pizza Night", day: "Monday", lag: 1,
       dishes: [{
@@ -110,7 +111,7 @@ describe("BUG-359 — the six wording residues", () => {
         ],
       }],
     };
-    assert.ok(!destinations([pizza], "roma tomatoes").some((d) => /plate/.test(d)));
+    assert.deepEqual(destinations([pizza], "roma tomatoes"), ["Pizza Night plate"]);
   });
 
   it("2 · a blend's name keeps every word of its dish", () => {

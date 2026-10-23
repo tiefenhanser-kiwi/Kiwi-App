@@ -108,9 +108,10 @@ describe("THX-3d — the five dev feasts, walked", { skip: RUN ? false : "set TH
     });
     const broccoli = [...morning.values()][0];
     assert.ok(broccoli, "Friday's broccoli is reshaped");
-    assert.match(broccoli[0].text, /^Juice ½ lemon; keep it covered in the fridge/);
-    assert.ok(broccoli[0].isNew);
-    assert.match(broccoli[1].text, /broccoli into bite-sized florets.*; keep them covered in the fridge until it's time to cook\.$/);
+    // PREP-3 (R3) — the lemon is in the week's one lemon-juice tub, which keeps 6 days (J.1,
+    // FoodKeeper): squeezed with the week, not that morning. The florets still wait.
+    assert.ok(!broccoli.some((s) => /^Juice ½ lemon/.test(s.text)), broccoli.map((s) => s.text).join(" | "));
+    assert.match(broccoli[0].text, /broccoli into bite-sized florets.*; keep them covered in the fridge until it's time to cook\.$/);
   });
 
   it("S — the oven blocks as late as they can be: Vegetarian's stuffing and mac wait about 45 minutes, not 75–80, and the Wellington comes out to rest just before serving", async () => {

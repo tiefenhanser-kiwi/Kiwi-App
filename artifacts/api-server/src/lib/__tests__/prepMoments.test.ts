@@ -479,10 +479,11 @@ describe("D-WS9-301 H2.2 — an ABSORBED fresh ingredient still strips a dry nam
       garlic!.components.every((c) => c.measures.every((v) => v.destination !== bowl.bowlName)),
       "fresh garlic went into a dry blend",
     );
-    // J.1c (BUG-355 item 3) — the lid is named by class, never after its own contents.
+    // J.1c (BUG-355 item 3) — the lid is named by class, never after its own contents;
+    // PREP-3 (R3) — on a weeknight, a pile on its meal's one plate.
     assert.equal(
       garlic!.components[0].measures[0].destination,
-      "Texas-Style Beef Chili aromatics",
+      "Chili Night plate",
     );
     assert.equal(bowl.bowlName, BOWL, "an all-dry blend keeps the author's name");
   });
@@ -663,7 +664,8 @@ describe("D-WS9-301 rule 7 — the container count and the bounded drop", () => 
       ],
     }));
     const sp = buildStepPlan(
-      combinePrep({ meals: [{ mealId: "m1", mealName: "Big Week", dishes }] }),
+      // PREP-3 (R3) — a meal per dish: a meal's lone cuts are now piles on its one plate.
+      combinePrep({ meals: dishes.map((d, i) => ({ mealId: `m${i}`, mealName: `Meal ${i}`, dishes: [d] })) }),
       "Test Plan",
     );
     assert.equal(countContainers(sp.steps), 25, "knife work was dropped to reach the target");

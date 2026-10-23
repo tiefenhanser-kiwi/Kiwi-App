@@ -524,6 +524,13 @@ export interface StorageContext {
     combineWith?: readonly string[];
     /** H7.1 2b — the proteins that belong with this marinade. */
     joins?: readonly MarinadeJoinFacts[];
+    /**
+     * PREP-3 — the container's OWN cook day and lag (its own meals'), when they differ
+     * from the step's: the cilantro step also cuts Thursday's dal garnish, and the
+     * Tuesday pico's lime line said "combine on cook day (Thursday)".
+     */
+    dayName?: string;
+    daysUntilCook?: number;
   }[];
   /** H7.1 2b — on a protein step: the marinade it belongs with. */
   marinadeJoin?: MarinadeJoinFacts & { bowl: string };
@@ -615,6 +622,8 @@ function timingLines(
   held: string[],
 ): string[] {
   const out: string[] = [];
+  // PREP-3 — the container's own day first.
+  ctx = { daysUntilCook: c.daysUntilCook ?? ctx.daysUntilCook, dayName: c.dayName ?? ctx.dayName };
   const soon = ctx.daysUntilCook !== undefined && ctx.daysUntilCook <= SOON_DAYS;
   const when = ctx.dayName ? ` (${ctx.dayName})` : "";
   if (c.combineWith && c.combineWith.length > 0) {

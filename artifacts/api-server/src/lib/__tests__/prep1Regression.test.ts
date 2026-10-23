@@ -20,6 +20,8 @@ import { assemblePrepWeekResult, summarizePrepWeek } from "../prepWeekAssembly";
 import { buildCoreWeek, finishPrepWeek } from "../prepWeekBuild";
 import { PREP_ENGINE_VERSION, prepCompositionFingerprint } from "../prepWeekFingerprint";
 import { makeAheadForPlan } from "../makeAheadSchedule";
+import { renamed } from "../prepFeastLabels";
+import { labelWeekResult } from "../prepWeekLabels";
 import { regressionWeek, stubNarration } from "./fixtures/prep1Regression";
 import PRE from "./fixtures/prep1Regression.pre.json" with { type: "json" };
 
@@ -59,7 +61,7 @@ describe("PREP-1 F — a plan with no thanksgiving-feast is unchanged but for Pa
     assert.equal(JSON.stringify(build.stepPlan.narrationInput), JSON.stringify(pre.narrationInput));
   });
 
-  it("the result is byte-identical once the two engine-demoted steps and their minutes are taken out", () => {
+  it("the result is byte-identical once the two engine-demoted steps and their minutes are taken out (and PREP-3 R3's plates and labels put on)", () => {
     // What Part A removed: exactly the engine's demotions, each one never rendered before.
     const gone = steps(pre.result).filter((s) => !steps(result).some((t) => t.stepKey === s.stepKey));
     assert.deepEqual(gone.map((s) => s.stepKey), [AVOCADO, CHERRY_TOMATOES]);
@@ -73,7 +75,7 @@ describe("PREP-1 F — a plan with no thanksgiving-feast is unchanged but for Pa
       "Chicken Stir Fry (Monday, 1 day out) — cut the avocado (it browns once cut) that morning.",
       "Chicken Stir Fry (Monday, 1 day out) — cut the avocado as you cook (it browns once cut).",
     ];
-    const expected: PrepWeekResult = {
+    const partA: PrepWeekResult = {
       ...pre.result,
       totalEstimatedMinutes: 19,
       phases: pre.result.phases.map((p) => ({
@@ -82,6 +84,22 @@ describe("PREP-1 F — a plan with no thanksgiving-feast is unchanged but for Pa
         ...(p.heldForCookDay ? { heldForCookDay: p.heldForCookDay.map((l) => (l === R8_AVOCADO[0] ? R8_AVOCADO[1] : l)) } : {}),
       })),
     };
+    // PREP-3 (R3) — a weeknight's lone cuts are piles on their meal's ONE plate (the stir
+    // fry's lone onion, the rice's green onions), and the plate says how its piles keep…
+    const R3_NAMES: [string, string][] = [
+      ["Chicken Stir Fry vegetables container", "Chicken Stir Fry plate"],
+      ["Chicken Stir Fry vegetables", "Chicken Stir Fry plate"],
+      ["Garlic Rice toppings plate", "Garlic Rice plate"],
+    ];
+    const ONION = "produce#a0000000-0000-4000-8000-000000000002";
+    const plates = renamed(partA, R3_NAMES);
+    const withPiles: PrepWeekResult = {
+      ...plates,
+      phases: plates.phases.map((p) => ({ ...p, steps: p.steps.map((s) => (s.stepKey === ONION ? { ...s, storageNote: "Separate piles (yellow onion) on a small plate, under plastic wrap in the fridge — up to 4 days." } : s)) })),
+    };
+    // …and every container takes its label by day at read time, the list first (its
+    // minute counted in the header).
+    const expected = summarizePrepWeek(labelWeekResult(withPiles, build.weekLabels!));
     assert.equal(JSON.stringify(result), JSON.stringify(expected));
   });
 
