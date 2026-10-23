@@ -126,6 +126,40 @@ describe("PREP-3 (R1, R2, R4) — mixes and tubs named where they are used", () 
     assert.equal(out[0], "Stir the minced garlic (4 cloves) and chopped flat-leaf parsley (2 tablespoons) you prepped into 3 tablespoons melted unsalted butter with 1 teaspoon kosher salt to make the basting butter.");
   });
 
+  it("\"2 tablespoons hoisin sauce\" is the hoisin, not the soy sauce a list item before: General Tso's sauce is named", () => {
+    const t: Row[] = [{ ingredientId: "soy", name: "soy sauce", quantity: 3, unit: "tbsp" }, { ingredientId: "hoi", name: "hoisin sauce", quantity: 2, unit: "tbsp" }, { ingredientId: "rv", name: "rice vinegar", quantity: 2, unit: "tbsp" }, { ingredientId: "br", name: "chicken broth", quantity: 0.25, unit: "cup" }];
+    const out = words("Extra-Crispy General Tso's Chicken", t, { dishId: "t", mixes: [mix("Wednesday sauce", [t[0], t[1], t[2]])], cuts: [] }, [
+      "Whisk together 3 tablespoons soy sauce, 2 tablespoons hoisin sauce, 2 tablespoons rice vinegar, and ¼ cup chicken broth in a small bowl; set aside.",
+    ]);
+    assert.equal(out[0], "Whisk together the Wednesday sauce and ¼ cup chicken broth in a small bowl; set aside.");
+  });
+
+  it("a mix enters where its first member is stated (the breadcrumbs soak), and a member restated after it goes", () => {
+    const mb: Row[] = [{ ingredientId: "bc", name: "plain breadcrumbs", quantity: 0.5, unit: "cup" }, { ingredientId: "milk", name: "whole milk", quantity: 0.25, unit: "cup" }, { ingredientId: "beef", name: "ground beef", quantity: 0.75, unit: "lb" }, { ingredientId: "salt", name: "kosher salt", quantity: 1, unit: "tsp" }, { ingredientId: "or", name: "dried oregano", quantity: 0.5, unit: "tsp" }, { ingredientId: "rpf", name: "red pepper flakes", quantity: 0.25, unit: "tsp" }];
+    const dry = { ...mix("Friday dry mix", [mb[0], mb[4], mb[5]]), amounts: new Map([["plain breadcrumbs", { qty: 0.5, unit: "cup" }], ["dried oregano", { qty: 0.5, unit: "teaspoon" }], ["red pepper flakes", { qty: 0.25, unit: "teaspoon" }]]) };
+    const out = words("Beef and Pork Meatballs in Marinara", mb, { dishId: "mb", mixes: [dry], cuts: [] }, [
+      "Combine ½ cup plain breadcrumbs and ¼ cup whole milk in a large bowl and let soak for 2 minutes.",
+      "Add ¾ pound ground beef, 1 teaspoon kosher salt, ½ teaspoon dried oregano, and ¼ teaspoon red pepper flakes to the soaked breadcrumbs and mix gently.",
+    ]);
+    assert.equal(out[0], "Combine the Friday dry mix and ¼ cup whole milk in a large bowl and let soak for 2 minutes.");
+    assert.equal(out[1], "Add ¾ pound ground beef and 1 teaspoon kosher salt to the soaked breadcrumbs and mix gently.");
+    // …a second portion (another amount) is the step's own: it stays.
+    const twice = words("Beef and Pork Meatballs in Marinara", mb, { dishId: "mb", mixes: [dry], cuts: [] }, [
+      "Combine ½ cup plain breadcrumbs and ¼ cup whole milk in a large bowl and let soak for 2 minutes.",
+      "Add ¾ pound ground beef, ½ teaspoon dried oregano, and ¼ teaspoon red pepper flakes to the soaked breadcrumbs.",
+      "Scatter 2 tablespoons plain breadcrumbs over the top.",
+    ]);
+    assert.equal(twice[2], "Scatter 2 tablespoons plain breadcrumbs over the top.");
+    // …and a step with nothing else is left as written, never "Stir in into the sauce."
+    const alone = words("Beef and Pork Meatballs in Marinara", mb, { dishId: "mb", mixes: [dry], cuts: [] }, [
+      "Combine ½ cup plain breadcrumbs and ¼ cup whole milk in a large bowl and let soak for 2 minutes.",
+      "Add ¾ pound ground beef, ½ teaspoon dried oregano, and ¼ teaspoon red pepper flakes to the soaked breadcrumbs.",
+      "Stir ¼ teaspoon red pepper flakes into the sauce.",
+    ]);
+    assert.equal(alone[1], "Add ¾ pound ground beef to the soaked breadcrumbs.");
+    assert.equal(alone[2], "Stir ¼ teaspoon red pepper flakes into the sauce.");
+  });
+
   it("bite-sized florets are a cut; a measure of what the ticked mix holds goes; a long clause with no row is a clause", () => {
     const b: Row[] = [{ ingredientId: "bro", name: "broccoli florets", quantity: 1, unit: "lb" }, { ingredientId: "soy", name: "soy sauce", quantity: 1, unit: "tbsp" }, { ingredientId: "w", name: "water", quantity: 2, unit: "tbsp" }];
     const out = words("Stir-Fried Broccoli with Garlic", b, { dishId: "b", mixes: [], cuts: [cut("bro", "broccoli florets", "Wednesday vegetables", "cut into bite-sized pieces", "own")] }, [

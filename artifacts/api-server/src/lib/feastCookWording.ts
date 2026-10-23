@@ -261,7 +261,10 @@ export function mentionsOf(step: WordingStep, rows: readonly WordingRow[], title
       let start = m.index!;
       let end = start + m[0].length;
       const before = lower.slice(Math.max(0, start - 40), start);
-      if (telling.some((w) => !new RegExp(`\\b${escape(w)}`).test(before))) continue;
+      // (PREP-3 — in its own list item: "3 tablespoons soy sauce, 2 tablespoons hoisin sauce"
+      // had given the hoisin to the soy sauce.)
+      const item = before.split(/[,;:.]|\band\b/).pop() ?? before;
+      if (telling.some((w) => !new RegExp(`\\b${escape(w)}`).test(item))) continue;
       // A form ("leaves", "stick") is this row's only right after its food ("thyme leaves" is not sage).
       if (forms.length > 1 && words === named && !new RegExp(`\\b${escape(words[words.length - 2])}\\s+$`).test(before)) continue;
       end += TRAILING.exec(step.text.slice(end))?.[0].length ?? 0;
@@ -505,11 +508,38 @@ export function rewordFeastSteps(
   // the filling", whether that step states the amounts or not.
   const entryOf = new Map<string, number>();
   const usedAfterSkip = new Set<string>();
+  // PREP-3 — what the mix holds of a member over what a step states of it: the same for
+  // every member of one portion (the household's scale), whatever the step's unit spelling.
+  const unitKey = (u: string) => {
+    const x = u.toLowerCase().replace(/\.$/, "");
+    return /^(?:tsp|teaspoons?)$/.test(x) ? "tsp" : /^(?:tbsp|tbs|tablespoons?)$/.test(x) ? "tbsp" : /^cups?$/.test(x) ? "cup" : /^(?:oz|ounces?)$/.test(x) ? "oz" : /^(?:lbs?|pounds?)$/.test(x) ? "lb" : x.replace(/s$/, "");
+  };
+  const ratioOf = (mix: FeastDishFacts["mixes"][number], s: WordingStep, m: Mention): number | null => {
+    const r = (s.amountRefs ?? []).find((x) => x.charStart >= m.start && x.charEnd <= m.end);
+    const a = mix.amounts?.get(m.key) ?? [...(mix.amounts ?? new Map<string, { qty: number; unit: string }>())].find(([k]) => bare(k) === bare(m.key))?.[1];
+    return r && a && r.quantity > 0 && unitKey(a.unit) === unitKey(r.unit) ? a.qty / r.quantity : null;
+  };
+  const scaleAt = (mix: FeastDishFacts["mixes"][number], s: WordingStep): number | null => {
+    for (const m of mentionsBy.get(s.stepIndex) ?? []) if (m.ref && inMix(mix, m)) { const q = ratioOf(mix, s, m); if (q !== null) return q; }
+    return null;
+  };
+  const same = (a: number | null, b: number | null) => a !== null && b !== null && Math.abs(a - b) <= 0.02 * Math.max(a, b);
+  const entryScale = new Map<string, number | null>();
   for (const mix of facts.mixes) {
     const n = Math.min(2, Math.max(1, mix.keys.size));
     const keysIn = (s: WordingStep, needRef: boolean) => new Set((mentionsBy.get(s.stepIndex) ?? []).filter((m) => (!needRef || m.ref) && inMix(mix, m)).map((m) => m.key)).size;
     const at = ordered.find((s) => keysIn(s, true) >= n);
     if (!at) continue;
+    // PREP-3 — a week's mix enters where its first member's amount is stated, when that
+    // is the same portion: hh4-mixed Friday soaked "½ cup plain breadcrumbs" at #0, then
+    // added "the Friday dry mix" (which holds them) at #1. Now the mix is soaked at #0.
+    if (opts.weeknight && !skips.has(at.stepIndex)) {
+      const scale = scaleAt(mix, at);
+      const early = ordered.find((s) => s.stepIndex < at.stepIndex && !skips.has(s.stepIndex) && keysIn(s, true) >= 1 &&
+        (mentionsBy.get(s.stepIndex) ?? []).filter((m) => m.ref && inMix(mix, m)).every((m) => same(ratioOf(mix, s, m), scale)));
+      if (early) { entryOf.set(mix.name, early.stepIndex); entryScale.set(mix.name, scale); continue; }
+      entryScale.set(mix.name, scale);
+    }
     if (!skips.has(at.stepIndex)) { entryOf.set(mix.name, at.stepIndex); continue; }
     const next = ordered.find((s) => s.stepIndex > at.stepIndex && !skips.has(s.stepIndex) && keysIn(s, false) >= n);
     if (next) { entryOf.set(mix.name, next.stepIndex); usedAfterSkip.add(mix.name); }
@@ -545,6 +575,10 @@ export function rewordFeastSteps(
     for (const m of ms) {
       const mix = mixHere(m);
       if (mix) { groupOf.set(m, `mix:${mix.name}`); phraseOf.set(`mix:${mix.name}`, `the ${mix.name}`); continue; }
+      // PREP-3 — a week's member restated after its mix entered, the same portion, goes
+      // (the mix brought it: "…, ½ teaspoon dried oregano, and ¼ teaspoon red pepper flakes").
+      const brought = opts.weeknight && m.ref ? facts.mixes.find((x) => inMix(x, m) && (entryOf.get(x.name) ?? Infinity) < step.stepIndex && same(ratioOf(x, step, m), entryScale.get(x.name) ?? null)) : undefined;
+      if (brought) { groupOf.set(m, `drop:${brought.name}`); phraseOf.set(`drop:${brought.name}`, ""); continue; }
       if (facts.mixes.some((x) => inMix(x, m))) continue; // a mix member away from its entry step: as written
       const c = cutFor(m);
       if (!c?.into) continue;
@@ -591,6 +625,8 @@ export function rewordFeastSteps(
       const cutVerb = /\b(?:chop|mince|dice|slice|trim|peel|zest|juice|grate|pick|strip|halve|quarter|rinse|measure|cut|squeeze)(?:\s+and\s+(?:chop|mince|dice|slice|trim|peel|zest|juice|grate|halve))?\s+(?:the\s+)?$/i.test(step.text.slice(Math.max(0, members[0].start - 30), members[0].start));
       if (!oneList || cutVerb) for (const m of members) groupOf.delete(m);
     }
+    // (A step whose foods all came with the mix is left as written: never "Stir in.")
+    if (ms.every((m) => groupOf.get(m)?.startsWith("drop:"))) for (const m of ms) groupOf.delete(m);
     if (groupOf.size === 0) return step;
 
     type Edit = { start: number; end: number; text: string; pieces?: Piece[] };
@@ -604,7 +640,7 @@ export function rewordFeastSteps(
       const phrase = phraseOf.get(g)!;
       // The citrus pour already said this container: its members here go.
       const said = step.text.toLowerCase().includes(phrase.toLowerCase()) && step.text.slice(m.start, m.end).toLowerCase() !== phrase.toLowerCase();
-      if (firsts.get(g) === m && !said) {
+      if (firsts.get(g) === m && !said && !g.startsWith("drop:")) {
         // PREP-3 (R2) — a weeknight's shared tub feeds several days: the step keeps its
         // share, amount and all, "the minced garlic you prepped (4 cloves)", the amount
         // still the step's own (its ref moves with it and scales).
