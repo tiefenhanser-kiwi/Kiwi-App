@@ -33,6 +33,7 @@ import { proseNames } from "./prepMoments";
 import { ingredientGroupKey } from "./ingredientRelations";
 import { combinePrep } from "./prepCombineEngine";
 import { cutOf } from "./prepClasses";
+import { CUT_AT_THE_STEP } from "./heldMorning";
 import {
   buildStepPlan,
   componentTotals,
@@ -698,7 +699,11 @@ function heldLinesFor(
     const marinadeClauses = key === mealId ? (marinade.get(mealId) ?? []) : [];
     // A protein that joins its marinade the night before (or hours before) is handled
     // then, not "that morning" — one instruction per food.
-    const items = (work.get(key) ?? []).filter((i) => !marinadeClauses.some((c) => c.includes(`add the ${i.food} `)));
+    // PREP-3 (R8) — an avocado is never cut in the morning: it is cut at its step, so its
+    // clause says so instead of "that morning" ("cut the ripe Hass avocados as you cook").
+    const all = (work.get(key) ?? []).filter((i) => !marinadeClauses.some((c) => c.includes(`add the ${i.food} `)));
+    const items = all.filter((i) => !CUT_AT_THE_STEP.test(i.food));
+    const atStep = all.filter((i) => CUT_AT_THE_STEP.test(i.food)).map((i) => `${i.action.replace(/\s*\(it browns once cut\)$/, "")} as you cook (${/s$/i.test(i.food) ? "they brown" : "it browns"} once cut)`);
     const plates = [...new Set(items.map((i) => i.dest))];
     const onePlate = items.length > 0 && plates.length === 1 && plates[0] !== undefined ? plates[0] : null;
     const moment = lag === undefined ? "on cook day" : "that morning";
@@ -706,7 +711,7 @@ function heldLinesFor(
       names.length === 0 ? "" : `${listOf(names)} ${moment}${onePlate ? ` and add ${items.length === 1 && !/s$/i.test(items[0].food) ? "it" : "them"} to the ${onePlate}` : ""}`;
     const sentence = (h: string, names: string[], marinades: string[]) =>
       `${h}${[prepClause(names), ...marinades].filter(Boolean).join("; ")}.`;
-    const marinades = marinadeClauses;
+    const marinades = [...atStep, ...marinadeClauses];
     // The protein named briefly in its clause, for the tighter rungs.
     const bareMarinades = marinades.map((c) => c.replace(/^add the (.+?) to the marinade/, (_m, who: string) => `add the ${bareName(who)} to the marinade`));
     // The meal named briefly: its own dish, before " with …".

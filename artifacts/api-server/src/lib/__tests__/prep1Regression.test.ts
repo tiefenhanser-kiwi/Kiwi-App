@@ -36,7 +36,7 @@ const result = summarizePrepWeek(
 const pre = PRE as unknown as { fingerprint: string; narrationInput: unknown; result: PrepWeekResult };
 const steps = (r: PrepWeekResult) => r.phases.flatMap((p) => p.steps);
 
-describe("PREP-1 F — a plan with no thanksgiving-feast is unchanged but for Part A", () => {
+describe("PREP-1 F — a plan with no thanksgiving-feast is unchanged but for Part A (and PREP-3 R8's avocado line)", () => {
   it("no feast: no makeAhead, and no dish query to find out", async () => {
     const reads: unknown[] = [];
     const makeAhead = await makeAheadForPlan(
@@ -68,10 +68,19 @@ describe("PREP-1 F — a plan with no thanksgiving-feast is unchanged but for Pa
     assert.equal(pre.result.totalEstimatedMinutes, 21);
     assert.equal(result.totalEstimatedMinutes, 19);
 
+    // PREP-3 (R8) — an avocado is cut as you cook, never "that morning".
+    const R8_AVOCADO: [string, string] = [
+      "Chicken Stir Fry (Monday, 1 day out) — cut the avocado (it browns once cut) that morning.",
+      "Chicken Stir Fry (Monday, 1 day out) — cut the avocado as you cook (it browns once cut).",
+    ];
     const expected: PrepWeekResult = {
       ...pre.result,
       totalEstimatedMinutes: 19,
-      phases: pre.result.phases.map((p) => ({ ...p, steps: p.steps.filter((s) => s.stepKey !== AVOCADO && s.stepKey !== CHERRY_TOMATOES) })),
+      phases: pre.result.phases.map((p) => ({
+        ...p,
+        steps: p.steps.filter((s) => s.stepKey !== AVOCADO && s.stepKey !== CHERRY_TOMATOES),
+        ...(p.heldForCookDay ? { heldForCookDay: p.heldForCookDay.map((l) => (l === R8_AVOCADO[0] ? R8_AVOCADO[1] : l)) } : {}),
+      })),
     };
     assert.equal(JSON.stringify(result), JSON.stringify(expected));
   });

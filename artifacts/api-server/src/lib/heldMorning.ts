@@ -34,7 +34,15 @@ export { HELD_MORNING_STEP } from "./cookingScheduler";
 /** A run prefix the steps carry ("Make ahead (Wednesday): ", "On Thursday: "). */
 export const RUN_PREFIX = /^\s*(?:Make ahead \([A-Za-z]+(?: night)?\)|On [A-Za-z]+day)\s*:\s*/i;
 
-const BROWNS = /\b(?:potato(?:es)?|apples?|pears?|avocados?)\b/i;
+const BROWNS = /\b(?:potato(?:es)?|apples?|pears?)\b/i;
+/**
+ * PREP-3 (R8) — never a morning cut: an avocado is cut at its own step. Held in cold
+ * water it is waterlogged and still brown by the mash (hh4-mixed Tuesday scooped three
+ * at T−64 for a guacamole mashed at T−20).
+ */
+export const CUT_AT_THE_STEP = /\bavocados?\b/i;
+/** PREP-3 (R8) — a weeknight cut the dish uses within its first minutes is just a step of it. */
+export const MORNING_MIN_LEAD = 10;
 const HERB = /\b(?:parsley|cilantro|chives|basil|mint|dill|scallions?|green onions?|tarragon|chervil)\b/i;
 
 export const splitPrefix = (text: string): { prefix: string; body: string } => {

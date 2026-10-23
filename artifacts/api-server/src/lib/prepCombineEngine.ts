@@ -383,9 +383,20 @@ const FLAVOURED_WATER = /\b(?:rose|orange blossom|orange flower|kewra|coconut|to
 export const EQUIPMENT =
   /\b(?:brining|oven|roasting|zip[- ]?top|freezer|plastic|resealable|ziploc)\s+bags?\b|\bbrining bag\b|\b(?:aluminum\s+)?foil\b|\bparchment(?:\s+paper)?\b|\b(?:kitchen|butcher'?s)\s+twine\b|\bcheesecloth\b|\bpaper towels?\b/i;
 
+/**
+ * PREP-3 (R8) — and the sticks, picks, string, wraps and liners: hh4-mixed's skewers were
+ * measured into the Lemon-Herb chicken's marinade bowl ("8 wooden or metal skewers" in
+ * its dry step, then "already in it"). On dev: "wooden or metal skewers" in 20 dishes,
+ * "wooden skewers", "toothpicks", "toothpicks or kitchen twine", "toothpicks or wooden
+ * skewers". A list of its own: EQUIPMENT is also what never SCALES (prepQuantity, WEB-4c),
+ * and skewers and liners scale with the food they hold.
+ */
+export const NEVER_MEASURED_TOOLS =
+  /\bskewers?\b|\btoothpicks?\b|\bcocktail (?:picks?|sticks?)\b|\bkitchen string\b|\b(?:cupcake|muffin|paper|baking) (?:liners?|cups)\b|\bplastic wrap\b|\bwax(?:ed)? paper\b/i;
+
 /** THX-3 — water in any form, or a piece of equipment: never measured into anything. */
 export function isNeverMeasured(name: string): boolean {
-  return (WATER.test(name) && !FLAVOURED_WATER.test(name)) || EQUIPMENT.test(name);
+  return (WATER.test(name) && !FLAVOURED_WATER.test(name)) || EQUIPMENT.test(name) || NEVER_MEASURED_TOOLS.test(name);
 }
 
 // ── THX-3 — A FEAST MEASURES ITS SALT ───────────────────────────────────────

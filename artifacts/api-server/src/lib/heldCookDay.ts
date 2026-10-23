@@ -23,6 +23,7 @@ import {
   boilHold,
   boilPlace,
   coats,
+  CUT_AT_THE_STEP,
   cutSentence,
   HELD_MORNING_STEP,
   headOf,
@@ -31,6 +32,7 @@ import {
   pourJuice,
   referBack,
   isGarnish,
+  MORNING_MIN_LEAD,
   spreadOnPan,
   TOSS,
   tossHold,
@@ -107,16 +109,34 @@ const CUT_START = /^(?:peel|cut|slice|dice|chop|mince|grate|core|scrub|halve|qua
  * row's words; what comes next decides how it waits. A dish with nothing held, or whose
  * step already holds, comes back as it was.
  */
-export function morningSteps(steps: readonly MorningStepIn[], held: readonly MorningRow[]): MorningStep[] {
+export function morningSteps(
+  steps: readonly MorningStepIn[],
+  held: readonly MorningRow[],
+  /** PREP-3 (R8) — the weeknight's: a cut used before this minute of the dish is not a morning step. */
+  opts: { minLead?: number } = {},
+): MorningStep[] {
   const out: MorningStep[] = [...steps].sort((a, b) => a.stepIndex - b.stepIndex).map((s) => ({ ...s, changed: false, isNew: false }));
   let nextIndex = Math.max(-1, ...steps.map((s) => s.stepIndex)) + 1;
   const make = (text: string, estimatedMinutes: number, phaseType: string): MorningStep => ({ stepIndex: nextIndex++, text, estimatedMinutes, phaseType, changed: true, isNew: true });
   const set = (s: MorningStep, text: string, estimatedMinutes = s.estimatedMinutes, phaseType = s.phaseType) => Object.assign(s, { text, estimatedMinutes, phaseType, changed: true });
   for (const row of held) {
+    // PREP-3 (R8) — an avocado is cut at its own step, never in the morning.
+    if (CUT_AT_THE_STEP.test(row.name)) continue;
     const head = new RegExp(`\\b${headOf(row.name)}`, "i");
     if (!out.some((s) => head.test(s.text))) continue;
     if (out.some((s) => head.test(s.text) && HELD_MORNING_STEP.test(s.text))) continue;
     let cut = out.find((s) => CUT_START.test(s.text) && alreadyCut([s.text.split(/;\s*/)[0]], row.name));
+    // PREP-3 (R8) — used within the dish's first minutes (its own clock, the steps in
+    // order): no morning, no "this morning". A cut the recipe never wrote is its first step.
+    if (opts.minLead !== undefined) {
+      const usedAt = out.findIndex((s) => s !== cut && head.test(s.text) && !(cut && out.indexOf(s) < out.indexOf(cut)));
+      const minute = out.slice(0, Math.max(0, usedAt)).reduce((n, s) => n + s.estimatedMinutes, 0);
+      if (usedAt >= 0 && minute < opts.minLead) {
+        const sentence = cut ? null : cutSentence(row);
+        if (sentence) out.unshift(make(sentence, 2, "prep"));
+        continue;
+      }
+    }
     if (cut && TOSS.test(cut.text)) {
       // Cut and tossed in one step: in its oil, that step is the morning one (the
       // feast's apples are cut and tossed with lemon and sugar the same way).
@@ -212,7 +232,7 @@ export async function weeknightMorningFor(
       .map((c) => own.find((r) => r.ingredientId === c.ingredientId))
       .filter((r): r is (typeof own)[number] => !!r)
       .map((r) => ({ name: r.ingredient.canonicalName, quantity: r.quantity, unit: r.unit, note: r.preparationNote }));
-    const steps = morningSteps(args.dishes.find((d) => d.dishId === dishId)!.steps, held);
+    const steps = morningSteps(args.dishes.find((d) => d.dishId === dishId)!.steps, held, { minLead: MORNING_MIN_LEAD });
     if (!steps.some((s) => s.changed)) continue;
     const matcher = own.map((r) => ({ ingredientId: r.ingredientId, name: r.ingredient.canonicalName, quantity: r.quantity, unit: r.unit }));
     out.set(dishId, steps.map((s) => ({ ...s, amountRefs: s.changed ? deriveAmountRefs(s.text, matcher).amountRefs : [] })));
