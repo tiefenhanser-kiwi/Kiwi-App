@@ -1499,6 +1499,17 @@ export function buildStepPlan(
         // Part J.1c — a lid named by class ("Fresh Pico de Gallo juice jar") says no
         // food, so the dressing line names the food: "Stir in the lime juice now".
         const lid = tubLabel.get(k)!;
+        // PREP-3 (R9) — a SHARED tub is named by its food and this dish's share of it:
+        // "Stir in 1 tbsp of the lemon juice now". Its label's tail is the dishes it
+        // feeds, and the line had said "Stir in the Tzatziki, Garlic Butter Grilled Salmon,
+        // Simple Arugula and Shaved Parmesan Salad now".
+        if (sharedTubLabels.has(lid)) {
+          const share = p.entry.lines.flatMap((l) => l.contributions).filter((c) => c.dishId === p.dishId && c.portion === p.portion);
+          const food = lid.split(" — ")[0].toLowerCase();
+          const q = share.reduce((n, c) => n + c.quantity, 0);
+          partners.push(share.length > 0 && share.every((c) => c.unit === share[0].unit) ? `${formatMeasure(q, share[0].unit, p.entry.ingredientName)} of the ${food}` : food);
+          continue;
+        }
         partners.push(madeLids.has(lid) ? p.entry.ingredientName : lid);
       }
     }

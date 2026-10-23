@@ -53,7 +53,10 @@ import type { ComponentStep, ComponentIngredient } from "./prepComponents";
 /** The heat marker. Everything else continues the current moment. */
 const HEAT_PHASE = "cook";
 /** Phases whose prose may carry Hans's override — where food meets the pan. */
-const ENTRY_PHASES = new Set(["cook", "assemble"]);
+// PREP-3 (R9) — and the pan heated with it: "Heat 2 tablespoons olive oil in a large,
+// wide skillet" is the oil's moment. Read as the cold run, the meatballs' searing oil was
+// measured into the jar with their breadcrumbs and oregano.
+const ENTRY_PHASES = new Set(["cook", "assemble", "preheat"]);
 
 // ── [prepcook] H7 — ONLY A COOKING MOMENT GROUPS ────────────────────────────
 //

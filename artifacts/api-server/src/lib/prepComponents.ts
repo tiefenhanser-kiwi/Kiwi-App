@@ -503,6 +503,11 @@ export function resolveDishComponents(
     if (isCombine) {
       const i = ordered.indexOf(st);
       for (const a of ordered.slice(i + 1, i + 3)) {
+        // PREP-3 (R9) — never into another component's step: the Caesar's croutons
+        // ("toss the bread with 2 tablespoons olive oil", tagged `croutons`) read
+        // "Drizzle the dressing over the romaine" two steps on, and the croutons' bread,
+        // oil and garlic went into the dressing jar.
+        if (st.componentKey && a.componentKey !== st.componentKey) break;
         aheadNoun = proseNoun(a.text);
         if (aheadNoun !== null) break;
       }

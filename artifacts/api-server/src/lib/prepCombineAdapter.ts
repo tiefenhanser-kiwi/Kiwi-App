@@ -37,6 +37,9 @@ const COMPOUND_UNIT_RE = /^\s*(\d+(?:\.\d+)?)\s+(\S.*?)\s*$/;
 const HEAT_VERB =
   /\b(saut[ée]\w*|simmer\w*|bak(?:e|ed|ing)|roast\w*|broil\w*|grill\w*|fry|fried|frying|boil\w*|sear\w*|toast\w*|braise\w*|steam\w*|char\w*)\b/i;
 
+/** PREP-3 (R9) — a step that puts a food ON something: a use, not the food's own prep. */
+const APPLIES_TO_FOOD = /\b(?:brush\w*|spread\w*|rub(?:s|bed|bing)?|coat\w*|dredg\w*|slather\w*|smear\w*|bast\w*|dip(?:s|ped|ping)?)\b/i;
+
 /** THX-3c (E) — the fresh herbs (and green onions) a feast cuts for its garnish. */
 const FEAST_HERB = /\b(chives|parsley|cilantro|dill|basil|mint|tarragon|thyme|sage|rosemary|green onions?|scallions?)\b/i;
 
@@ -376,7 +379,19 @@ export function buildPrepCombineInput(
           if (entry !== null && entry.startsWith("s:")) return entry;
           const run = moments.runByIngredientId.get(ing.ingredientId);
           const shared = run === undefined ? undefined : componentByRun.get(run);
-          if (shared && !(opts.feast && isSaltOrPepper(ing.ingredientName) && !partneredSeasoning(ing.ingredientId))) return `c:${shared.key}@${entryOf(ing.ingredientId, ing.ingredientName)}`;
+          // PREP-3 (R9) — ONE MOMENT PER JAR MEMBER. A run neighbour stays out of the
+          // component when every step that states its amount USES it on something else
+          // ("Pat the pork chops dry and brush both sides with 2 tablespoons Dijon"): the
+          // Dijon shared the cold run with the crumb crust (step 2) and was stirred into
+          // the crumbs. A step that only prepares it ("Zest and juice one lemon", D-WS9-301
+          // rule 1's lemon), one of the component's own steps, or one that states another
+          // of its members keeps the run's word; so does a food no step states.
+          const statedIn = ordered.filter((s) => s.ingredientIds.includes(ing.ingredientId));
+          const sameMoment = !shared || statedIn.length === 0 || statedIn.some((s) =>
+            s.componentKey === shared.key ||
+            shared.memberIds.some((m) => m !== ing.ingredientId && s.ingredientIds.includes(m)) ||
+            !APPLIES_TO_FOOD.test(s.text));
+          if (shared && sameMoment && !(opts.feast && isSaltOrPepper(ing.ingredientName) && !partneredSeasoning(ing.ingredientId))) return `c:${shared.key}@${entryOf(ing.ingredientId, ing.ingredientName)}`;
           return resolvedKey;
         };
         // Ruling 1 — a raw protein named by a mixture's steps joins it on cook
@@ -444,7 +459,14 @@ export function buildPrepCombineInput(
               const kept = phase === "seasonings_dry" || phase === "produce" || isSaltOrPepper(ing.ingredientName);
               if (isNeverMeasured(ing.ingredientName) || !kept) return [];
             }
-            const comp = resolved.byIngredient.get(ing.ingredientId) ?? null;
+            const claimed = resolved.byIngredient.get(ing.ingredientId) ?? null;
+            // PREP-3 (R9) — a listing whose note names ANOTHER of the dish's components
+            // ("1 clove garlic, halved, for rubbing croutons") is that one's, not the
+            // claimant's: the Caesar lists garlic twice and the dressing, which states one
+            // clove, took both — the croutons' rubbing clove sat in the dressing jar.
+            const forWhat = /\bfor (?:rubbing |the |making |tossing )?([a-z-]+)/i.exec(prep.preparationNote ?? "")?.[1]?.toLowerCase().replace(/s$/, "");
+            const otherComponent = !!claimed && !!forWhat && ordered.some((s) => s.componentKey && s.componentKey !== claimed.key && s.componentKey.toLowerCase().replace(/s$/, "") === forWhat);
+            const comp = otherComponent ? null : claimed;
             const cookDayInto = cookDayIntoByIngredientId.get(ing.ingredientId) ?? null;
             return [{
               ingredientId: ing.ingredientId,
@@ -476,7 +498,7 @@ export function buildPrepCombineInput(
                 const m = k ? /^s:(\d+)(?:\/c\d+)?$/.exec(k) : null;
                 return m ? Number(m[1]) : null;
               })(),
-              momentKey: momentKeyFor({
+              momentKey: otherComponent ? `v:for:${forWhat}:${ing.ingredientId}` : momentKeyFor({
                 ingredientId: ing.ingredientId,
                 category,
                 ingredientName: ing.ingredientName,

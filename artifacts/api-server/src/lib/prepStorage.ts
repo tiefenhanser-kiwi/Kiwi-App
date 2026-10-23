@@ -619,7 +619,9 @@ function timingLines(
   const when = ctx.dayName ? ` (${ctx.dayName})` : "";
   if (c.combineWith && c.combineWith.length > 0) {
     const what = c.combineWith.map(foodOf).join(" and ");
-    out.push(soon ? `Stir in the ${what} now — it is eaten within a day.` : `Keep the ${what} separate; combine on cook day${when}.`);
+    // PREP-3 (R9) — a shared tub's share says its amount: "Stir in 1 tbsp of the lemon juice".
+    const the = /^[\d½¼¾⅓⅔⅛⅜⅝⅞]/.test(what) ? "" : "the ";
+    out.push(soon ? `Stir in ${the}${what} now — it is eaten within a day.` : `Keep ${the}${what} separate; combine on cook day${when}.`);
   }
   for (const j of c.joins ?? []) {
     const who = j.protein ?? "protein";
