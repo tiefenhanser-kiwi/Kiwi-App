@@ -886,6 +886,10 @@ export function buildStepPlan(
       stepTextByDishId.get(p.dishId) ?? [],
       { feast: opts.feast },
     );
+    // PREP-3 (R4) — a weeknight marinade's produce with nothing to cut is still
+    // measured into the jar ("1 teaspoon fresh thyme leaves" was left loose beside the
+    // lemon-pepper jar). A cut that waits for cook day still waits.
+    if (!v.prep && v.reason === "no-work" && !opts.feast && p.component?.noun === "marinade") continue;
     if (!v.prep) notPrep.set(k, v.reason);
   }
   // Part J.1 (R2) — the Tetrazzini "sauce jar" held the spaghetti: a dry pasta is

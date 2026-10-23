@@ -394,6 +394,11 @@ export function buildPrepCombineInput(
           if (shared && sameMoment && !(opts.feast && isSaltOrPepper(ing.ingredientName) && !partneredSeasoning(ing.ingredientId))) return `c:${shared.key}@${entryOf(ing.ingredientId, ing.ingredientName)}`;
           return resolvedKey;
         };
+        // PREP-3 (R4) — a component its own steps call a marinade IS one, whatever its
+        // tag: the lemon-pepper chicken's `seasoning` is whisked "into a marinade" the
+        // chicken is then coated in. (Weeknights: a feast's mixtures keep their nouns.)
+        const saysMarinade = (comp: (typeof resolved.components)[number]): boolean =>
+          !opts.feast && (comp.noun === "marinade" || comp.stepIndexes.some((i) => /\bmarinade\b/i.test(stepByIndex.get(i)?.text ?? "")));
         // Ruling 1 — a raw protein named by a mixture's steps joins it on cook
         // day. One protein can only join one bowl; first by component order.
         const cookDayIntoByIngredientId = new Map<string, string>();
@@ -485,7 +490,7 @@ export function buildPrepCombineInput(
                 ? `trimmed, ${prep.preparationNote}`
                 : prep.preparationNote,
               component: comp
-                ? { key: comp.key, noun: comp.noun, bowlName: comp.bowlName, heated: componentHeated(comp.stepIndexes, comp.memberIds) }
+                ? { key: comp.key, noun: saysMarinade(comp) ? "marinade" : comp.noun, bowlName: comp.bowlName, heated: componentHeated(comp.stepIndexes, comp.memberIds) }
                 : null,
               cookDayInto,
               // H6.2 follow-up — THE COOK STEP THAT NAMES THIS PORTION, when one does.

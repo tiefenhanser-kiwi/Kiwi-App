@@ -507,7 +507,12 @@ interface GroupAccumulator {
   sourceYield: SourceYield | null;
   purchaseUnit: string | null;
   contributions: PrepContribution[];
+  /** PREP-3 (R4) — a denied staple measured into its marinade (its own group). */
+  mixStaple?: boolean;
 }
+
+/** PREP-3 (R4) — the group-id suffix of a marinade's staple (its oil, salt, pepper). */
+export const MIX_STAPLE = "|mix";
 
 // Build the summed lines for one ingredient group from its contributions.
 // Contributions bucket by unit-merge-key; each bucket becomes one line.
@@ -622,6 +627,8 @@ function classifyPrepWorthy(
   isBlendComponent: boolean,
   opts: CombineOptions = {},
 ): PrepWorthy {
+  // PREP-3 (R4) — a marinade's own oil, salt and pepper go into its jar.
+  if (group.mixStaple) return "include";
   if (isDenied(group.ingredientName, opts)) return "exclude"; // Tier 1
   // Rule 4 — before the category switch, because it is a statement about the
   // FORM of the food and no category can express it.
@@ -720,7 +727,16 @@ export function combinePrep(
   for (const meal of input.meals) {
     for (const dish of meal.dishes) {
       for (const ing of dish.ingredients) {
-        const groupId = representative.get(keyOf(ing)) ?? ing.ingredientId;
+        // PREP-3 (R4) — A MARINADE'S STAPLES ARE MEASURED. Its oil, salt and pepper go
+        // into the marinade jar with its spices and citrus: Monday's lemon-pepper
+        // chicken kept its pepper, garlic powder and onion powder as a "spice blend",
+        // its lemon in a "citrus jar", and left the 3 tablespoons olive oil, the salt
+        // and the thyme loose — so its step rebuilt the whole marinade. A group of its
+        // own (`<id>|mix`), never denied, so the oil the other dishes heat in their pans
+        // stays off the list. Not the feast's: its salt and pepper have their own rule.
+        const marinadeStaple = !opts.feast && isDenied(ing.ingredientName, opts) && !isNeverMeasured(ing.ingredientName) &&
+          !!ing.component && /\bmarinade\b/i.test(`${ing.component.noun ?? ""} ${ing.component.bowlName}`);
+        const groupId = `${representative.get(keyOf(ing)) ?? ing.ingredientId}${marinadeStaple ? MIX_STAPLE : ""}`;
         let g = groups.get(groupId);
         if (!g) {
           g = {
@@ -730,6 +746,7 @@ export function combinePrep(
             sourceYield: ing.sourceYield ?? null,
             purchaseUnit: ing.purchaseUnit ?? null,
             contributions: [],
+            ...(marinadeStaple ? { mixStaple: true } : {}),
           };
           groups.set(groupId, g);
           order.push(groupId);
