@@ -726,7 +726,7 @@ export function scheduleCookingSequence(
   // THX-3d round 2 (M) — a morning step and what leads to it, in the first free window.
   // THX-3d round 3 (U) — what is served hot, as late as the hands allow.
   const morning = heldMorningFirst(core, input, { lead: !opts.feastOven });
-  if (!opts.feastOven) return morning;
+  if (!opts.feastOven) return serveLate(morning, input, false);
   const result = serveLate(morning, input, true);
   // THX-3d (R4) — the steps merged away, for the client (it must not append them).
   const kept = new Set(mergeFeastPreheats(input).dishes.flatMap((d) => d.steps.map((s) => `${d.dishId}#${s.stepIndex}`)));
@@ -754,8 +754,13 @@ export function scheduleCookingSequence(
 // first. A meal with nothing to move is returned untouched.
 
 export const SERVE_NOW = /\bserve (?:it |them )?(?:immediately|right away|warm|hot)\b|\bwhile (?:still )?(?:warm|hot)\b/i;
-/** PREP-3 (R6) — a closing step that waits on purpose: it chills, rests or keeps warm. */
-const WAITS = /\b(?:refrigerat\w*|chill\w*|cool\w*|rest\w*|let (?:it |them )?(?:stand|sit)|set aside|keep (?:it |them )?warm|until ready to serve|cover and)\b/i;
+/**
+ * PREP-3 (R6) — a closing step that waits on purpose: it chills, rests or keeps warm.
+ * ("the chilled romaine" and "the rest of the dressing" do not wait.)
+ */
+const WAITS = /\b(?:refrigerat\w*|chill(?!ed\b)\w*|cool\w*|rest(?!\s+of\b)\w*|let (?:it |them )?(?:stand|sit)|set aside|keep (?:it |them )?warm|until ready to serve|cover and)\b/i;
+/** PREP-3 (R6) — a cook step whose food is left to cool ("transfer to a plate to cool"): nothing after it is held hot. */
+const COOLS = /\b(?:to cool|let (?:it |them )?cool|cool (?:completely|slightly|for))\b/i;
 
 // ── PREP-3 (R7) — A DISH THAT USES ANOTHER DISH WAITS FOR IT ─────────────────────────
 //
@@ -856,6 +861,19 @@ export function serveLate(res: ScheduleResult, dishes: readonly SchedulerDish[],
     if (feast && !DESSERT_DISH.test(d.title)) {
       const warm = placed.findIndex((s) => KEEP_WARM_STEP.test(s.text ?? "") || OVEN_OFF_STEP.test(s.text ?? ""));
       if (warm >= 0 && warm < placed.length - 1) from = warm + 1;
+    }
+    // PREP-3 (R6) — a weeknight's closing run of assemble steps (the toss, the plate-up),
+    // when nothing before it is held hot: after prep, or after food left to cool (hh4-mixed
+    // Thursday toasted the croutons, "transfer to a plate to cool", and its timing-sensitive
+    // toast had pulled the toss and the plating to T−16, before the salmon's run at T−9).
+    // A run after a hot cook step or a rest is the core pass's (plateLateFrom). Text only.
+    if (!feast && !SERVE_NOW.test(placed[placed.length - 1].text ?? "")) {
+      let c = placed.length;
+      while (c > 0 && placed[c - 1].phaseType === "assemble") c--;
+      const prev = placed[c - 1];
+      const run = placed.slice(c);
+      const cold = prev && (prev.phaseType === "prep" || (prev.phaseType === "cook" && COOLS.test(prev.text ?? "")));
+      if (c > 0 && run.length > 0 && cold && run.every((s) => s.text && !WAITS.test(s.text))) from = c;
     }
     if (from <= 0) continue;
     const keys = placed.slice(from).filter((s) => !FEAST_SERVE_STEP.test(s.text ?? "")).map((s) => key(d.dishId, s.stepIndex));
@@ -1850,7 +1868,8 @@ function scheduleOnceCore(
       if (d.steps.slice(c).some((s) => WAITS.test(s.text ?? ""))) continue;
       // …with the cook stretch before it (as U's run): the salmon bakes until it is plated,
       // and is not plated 12 minutes early because its bake had ended there.
-      while (c > 0 && d.steps[c - 1].phaseType === "cook") c--;
+      // (Not over food left to cool: the croutons are toasted early, the Caesar tossed late.)
+      while (c > 0 && d.steps[c - 1].phaseType === "cook" && !COOLS.test(d.steps[c - 1].text ?? "")) c--;
       plateLateFrom.set(d.dishId, c);
     }
   }
