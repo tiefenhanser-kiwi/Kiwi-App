@@ -39,7 +39,7 @@ import { isOneDish } from "../lib/similar/dishForm";
 import { buildSwapPool, SwapSourceNotFoundError, type SwapPoolCandidate } from "../lib/similar/swapPool";
 import { everydayPoolWhere } from "../lib/store/storeShortlist";
 import { hasUnmatchedAmount, type AmountRef } from "../lib/stepAmountRefs";
-import { feastCookWordingFor } from "../lib/feastCookWording";
+import { feastCookWordingFor, weeknightCookWordingFor } from "../lib/feastCookWording";
 import { weeknightMorningFor } from "../lib/heldCookDay";
 import { FEAST_MEAL_TAG } from "../lib/prepWeekAggregation";
 import {
@@ -1149,6 +1149,26 @@ export function createMealsRouter(
           }
         } catch (err) {
           logger.warn({ err, id, event: "feast_cook_wording_failed" }, "Feast Cook Mode wording failed — stored words served");
+        }
+        // PREP-3 (R1) — A WEEKNIGHT MEAL'S WORDS, FROM WHAT THE COOK TICKED. The mixes and
+        // cuts Prep the Week made are named where the steps use them ("the Monday marinade",
+        // "the minced garlic you prepped (4 cloves)"), a prepped cut leaves a step that does
+        // more — and only for steps the cook ticked, or every one with ?prepped=1 (Cook
+        // Mode's "yes, I prepped", answered without ticks). Read time, nothing stored; a
+        // failure serves the stored words.
+        try {
+          const worded = await weeknightCookWordingFor(prisma, { planId: planIdOfItem, userId: req.userId, mealTags: meal.tags ?? [], prepped: req.query.prepped === "1", dishes: meal.dishes });
+          for (const d of meal.dishes) {
+            for (const st of d.steps) {
+              const w = worded.get(d.dishId)?.get(st.stepIndex);
+              if (!w) continue;
+              st.text = w.text;
+              st.amountRefs = w.amountRefs as AmountRef[] | null;
+              st.unmatchedAmount = hasUnmatchedAmount(w.text, w.amountRefs);
+            }
+          }
+        } catch (err) {
+          logger.warn({ err, id, event: "weeknight_cook_wording_failed" }, "Weeknight Cook Mode wording failed — stored words served");
         }
       }
       // THX-3d round 2 (M) — A WEEKNIGHT'S MORNING CUT. A cut this plan's Prep the Week

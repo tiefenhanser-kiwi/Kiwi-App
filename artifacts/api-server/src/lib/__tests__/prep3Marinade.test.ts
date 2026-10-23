@@ -54,6 +54,11 @@ describe("PREP-3 (R4) — the marinade is one jar", () => {
     assert.ok(!all.some(([n]) => / citrus jar$/.test(n)), "no separate citrus jar");
   });
 
+  it("the step that whisks the marinade is done in prep: Cook Mode collapses it (its oil's ref joins the jar's `|mix` measure)", () => {
+    const covered = b.stepPlan.steps.flatMap((s) => (s.coversCookSteps ?? []).map((c) => `${c.dishId}#${c.stepIndex}`));
+    assert.ok(covered.includes(`${uuid(11)}#1`), covered.join(" "));
+  });
+
   it("the oil another dish heats in its pan stays off the list", () => {
     const oil = b.stepPlan.steps.filter((s) => !s.demoted).flatMap((s) => s.components.filter((c) => /olive oil/.test(c.ingredientName)).flatMap((c) => c.measures.map((m) => m.forDish)));
     assert.deepEqual(oil, ["Grilled Lemon Pepper Chicken Breasts"]);

@@ -31,7 +31,7 @@ import { buildPrepCombineInput } from "./prepCombineAdapter";
 import { containerUses, feastClosingLines, stepDayOf } from "./prepFeastClose";
 import { proseNames } from "./prepMoments";
 import { ingredientGroupKey } from "./ingredientRelations";
-import { combinePrep } from "./prepCombineEngine";
+import { combinePrep, MIX_STAPLE } from "./prepCombineEngine";
 import { cutOf } from "./prepClasses";
 import { CUT_AT_THE_STEP } from "./heldMorning";
 import { labelWeekResult, weekLabelMap } from "./prepWeekLabels";
@@ -935,7 +935,8 @@ function assignCoversCookSteps(build: PrepWeekBuild, load: Pick<Load, "input" | 
     for (const c of h ? h.keptComponents : st.components) {
       for (const m of c.measures) {
         if (!m.mealId || !m.dishId || !m.ingredientId) continue;
-        const k = `${m.mealId}|${m.dishId}|${m.ingredientId}`;
+        // (PREP-3 R4 — a marinade's own oil is measured under `<id>|mix`; the step's ref is the oil's.)
+        const k = `${m.mealId}|${m.dishId}|${m.ingredientId.endsWith(MIX_STAPLE) ? m.ingredientId.slice(0, -MIX_STAPLE.length) : m.ingredientId}`;
         const l = stepsByPortion.get(k) ?? [];
         if (!l.includes(st)) l.push(st);
         stepsByPortion.set(k, l);
