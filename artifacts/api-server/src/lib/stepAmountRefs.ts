@@ -225,6 +225,12 @@ export function isByDesign(text: string, span: Span): boolean {
   ) {
     return true;
   }
+  // PREP-3 (R5) — a per-item size after a count ("four 6 oz … fillets") never scales:
+  // the count does (deriveAmountRefs).
+  if (countWithSize(text).some((c) => span.start >= c.sizeStart && span.start < c.sizeEnd)) return true;
+  // …nor does a lean-to-fat ratio ("1½ pounds 80/20 ground beef", "(85/15)"): it is the
+  // beef's name, and scaled it read "40/10".
+  if (/^\d{2}\s*\/\s*\d{1,2}$/.test(span.text.trim())) return true;
   // ── THX-3d (B) — numbers that are not an amount of a food ──────────────────
   const clause = text.slice(0, span.start).split(/[,;.:]/).pop() ?? "";
   const later = text.slice(span.end, span.end + 40);
@@ -248,7 +254,12 @@ export function isByDesign(text: string, span: Span): boolean {
     (/^sheets?$/i.test(span.unit) && /^\s*pans?\b/i.test(later)) ||
     /^\s*at a time\b/i.test(later) ||
     // per package: "in two 8×8 pans, each with 1 egg and ⅓ cup whole milk"
-    /\beach(?:\s+\w+)?\s+with\b/i.test(clause)
+    // (PREP-3 R5 — but never an amount said as the TOTAL: "Rub each potato with 2
+    // tablespoons olive oil total", "(2 tablespoons total)" — that one scales.)
+    // (…and only in the "each … with" list itself: "Rub each potato with 2 tablespoons olive
+    // oil total and sprinkle evenly with 1 teaspoon kosher salt" — the salt is the dish's.)
+    (/\beach(?:\s+\w+)?\s+with\b/i.test(clause) && !/^\s*(?:[\w-]+\s+){0,3}(?:total|divided)\b/i.test(later) && !/\bthe(?:\s+remaining)?\s*$/i.test(text.slice(Math.max(0, span.start - 24), span.start)) &&
+      !/\b(?:and|then)\s+(?:\w+\s+){0,1}(?:sprinkle|season|drizzle|brush|toss|top|add|rub|scatter|dust)\b/i.test(clause.slice(clause.search(/\beach(?:\s+\w+)?\s+with\b/i))))
   ) {
     return true;
   }
@@ -351,14 +362,20 @@ export function deriveAmountRefs(
   const amountRefs: AmountRef[] = [];
   let unmatchedAmount = false;
 
+  // PREP-3 (R5) — A COUNT WITH ITS SIZE: the count scales, the size holds. "Pat the four
+  // 6 oz skin-on salmon fillets dry" bound the 6 oz to the salmon, so household 2 read
+  // "the four 3 oz fillets" (two 6 oz fillets is right). The size is by design (below);
+  // the count takes the ref, bound to the food the size names.
+  const counted = countWithSize(stepText);
   for (const span of detectSpans(stepText)) {
     if (isByDesign(stepText, span)) continue; // no ref, never flags
-    const ing = resolveSpan(stepText, span, ingredients);
+    const cs = counted.find((c) => c.countStart === span.start);
+    const ing = cs ? resolveSpan(stepText, { ...span, start: cs.sizeStart, end: cs.sizeEnd, unit: cs.sizeUnit }, ingredients) ?? resolveSpan(stepText, span, ingredients) : resolveSpan(stepText, span, ingredients);
     if (ing && span.num != null) {
       amountRefs.push({
         ingredientId: ing.ingredientId,
         quantity: span.num, // authored literal at base servings (D3)
-        unit: span.unit, // span's own unit text ("" when unitless)
+        unit: cs ? "" : span.unit, // span's own unit text ("" when unitless; a count's is "")
         charStart: span.start,
         charEnd: span.end,
       });
@@ -366,8 +383,37 @@ export function deriveAmountRefs(
       unmatchedAmount = true;
     }
   }
+  // A count in words ("four") is no detected span: its ref is added here.
+  for (const c of counted) {
+    if (c.wordCount === null || amountRefs.some((r) => r.charStart === c.countStart)) continue;
+    const size = { start: c.sizeStart, end: c.sizeEnd, text: stepText.slice(c.sizeStart, c.sizeEnd), num: c.sizeNum, unit: c.sizeUnit };
+    const ing = resolveSpan(stepText, size, ingredients);
+    if (ing) amountRefs.push({ ingredientId: ing.ingredientId, quantity: c.wordCount, unit: "", charStart: c.countStart, charEnd: c.countEnd });
+  }
+  amountRefs.sort((a, b) => a.charStart - b.charStart);
 
   return { amountRefs, unmatchedAmount };
+}
+
+const NUMBER_WORDS: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, twelve: 12 };
+/**
+ * PREP-3 (R5) — "four 6 oz … fillets", "2 (6-oz) salmon fillets": a count, a per-item
+ * weight, a piece of protein within four words. (A can's or a jar's size is the package
+ * display's — WEB-4d's "use N oz" — and is left as it was.)
+ */
+const COUNT_WITH_SIZE = new RegExp(
+  String.raw`\b(one|two|three|four|five|six|seven|eight|nine|ten|twelve|\d+)\s+\(?((?:\d+(?:\.\d+)?|[½¼¾⅓⅔])(?:\s*[½¼¾])?)\s*-?\s*(oz|ounces?|lbs?|pounds?|g|grams?)\)?\s+(?:[\w-]+\s+){0,3}?(?:fillets?|chops?|breasts?|thighs?|steaks?|cutlets?|tenderloins?|loins?|patties|sausages?|links?|portions?)\b`,
+  "gi",
+);
+export function countWithSize(text: string): { countStart: number; countEnd: number; wordCount: number | null; sizeStart: number; sizeEnd: number; sizeNum: number | null; sizeUnit: string }[] {
+  return [...text.matchAll(COUNT_WITH_SIZE)].map((m) => {
+    const countStart = m.index!;
+    const countEnd = countStart + m[1].length;
+    const sizeStart = text.indexOf(m[2], countEnd);
+    const sizeEnd = text.indexOf(m[3], sizeStart + m[2].length) + m[3].length;
+    const word = NUMBER_WORDS[m[1].toLowerCase()];
+    return { countStart, countEnd, wordCount: word ?? null, sizeStart, sizeEnd, sizeNum: parseNumber(m[2]), sizeUnit: m[3] };
+  });
 }
 
 /**
