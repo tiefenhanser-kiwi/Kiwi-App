@@ -779,8 +779,14 @@ const COOLS = /\b(?:to cool|let (?:it |them )?cool|cool (?:completely|slightly|f
 const USE_VERB = /\b(?:spoon|ladle|add|top|layer|fill|stuff|place|arrange|pour|drizzle|spread|divide|dip|tuck|nestle|stir in|fold in|scatter|pile|load|build|assemble|transfer)\b/gi;
 /** Before the food: words that make it a neighbour, a time or an oven-mate, not a use. */
 const NOT_A_USE = /\b(?:alongside|beside|next to|with|while|as|until|after|before|like|from|than|onto the same|in the same)\s+(?:the\s+|a\s+|an\s+)?(?:[\w-]+\s+){0,2}$/i;
+/**
+ * …further back, a neighbour or what the food is for ("alongside the chili dogs and creamy
+ * coleslaw", "as the base for the Kung Pao Chicken", "for topping the tacos"). Never
+ * "with": "top with mango salsa and lime crema" is the use.
+ */
+const NOT_A_USE_FAR = /\b(?:alongside|beside|next to|as|for)\s+(?:the\s+|a\s+|an\s+)?(?:[\w-]+\s+){0,4}$/i;
 /** Title words that name no food of the dish's own (seasonings, cooking words, the plate). */
-const TITLE_NOT_FOOD = /^(?:garlic|lemon|lime|herb|herbs|butter|salt|pepper|spice|spices|sauce|style|classic|simple|easy|quick|fresh|homemade|side|plate|platter|bowl|bowls|board|night|dinner|toppings?|fixings|extra|crispy|melted|warm|toasted|steamed|seasoned|roasted|grilled|baked|fried|sauteed|sautéed|charred|creamy|chunky|tangy|smoky|spicy|sweet|cold|hot|mixed|green|white|red|black|brown)$/i;
+const TITLE_NOT_FOOD = /^(?:garlic|lemon|lime|herb|herbs|butter|salt|pepper|spice|spices|sauce|style|classic|simple|easy|quick|fresh|homemade|side|plate|platter|bowl|bowls|board|night|dinner|toppings?|fixings|extra|crispy|melted|warm|toasted|steamed|seasoned|roasted|grilled|baked|fried|sauteed|sautéed|charred|creamy|chunky|tangy|smoky|spicy|sweet|cold|hot|mixed|green|white|red|black|brown|roast)$/i;
 const singularWord = (w: string) => w.toLowerCase().replace(/(?:(?<=[sxz]|ch|sh|o)es|s)$/, "");
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -829,12 +835,14 @@ export function dishUses(dishes: readonly SchedulerDish[]): DishUse[] {
         const text = s.text ?? "";
         for (const clause of text.split(/[.;]/)) {
           for (const v of clause.matchAll(USE_VERB)) {
+            // ("…refrigerate until ready to drizzle over the tacos": not yet.)
+            if (/\bready to\s+$/i.test(clause.slice(0, v.index))) continue;
             const after = clause.slice(v.index! + v[0].length, v.index! + v[0].length + 60);
             for (const f of foods) {
               // (Its drippings, juices or bones are the pan's: the feast's DRIPPINGS rule times those.)
               const m = new RegExp(`\\b${escapeRe(f)}(?:e?s)?\\b(?!\\s+(?:drippings|juices?|fat|bones|carcass|stock|pan)\\b)`, "i").exec(after);
               if (!m) continue;
-              if (NOT_A_USE.test(after.slice(0, m.index))) continue;
+              if (NOT_A_USE.test(after.slice(0, m.index)) || NOT_A_USE_FAR.test(after.slice(0, m.index))) continue;
               if (!out.some((u) => u.dishId === d.dishId && u.stepIdx === stepIdx && u.usesDishId === o.dishId)) {
                 out.push({ dishId: d.dishId, stepIdx, usesDishId: o.dishId, doneIdx: doneIndexOf(o), food: f });
               }

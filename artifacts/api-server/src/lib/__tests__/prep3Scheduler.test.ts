@@ -60,6 +60,25 @@ describe("PREP-3 (R7) — a dish that uses another dish waits for it", () => {
     assert.deepEqual(dishUses([RICE, FRIED, POTATOES, CHICKEN, WHILE, MEATBALLS]), []);
   });
 
+  // The catalog reach (r7reach.ts) — false hits that had made a side wait for its main.
+  it("not a use: \"roast\" the verb, what the food is for, a neighbour further back, an intent", () => {
+    const ROAST = dish("roast", "Red Wine and Herb Slow-Cooker Chuck Roast", 0, [st(0, "cook", 480, "Cook on low for 8 hours.")], ["chuck roast"]);
+    const SPUDS = dish("spuds", "Roasted Yukon Gold Potatoes", 1, [st(0, "cook", 30, "Spread the potatoes in a single layer and roast at 425°F for 30–35 minutes.")], ["yukon gold potatoes"]);
+    const KP = dish("kp", "Kung Pao Chicken", 2, [st(0, "cook", 8, "Stir-fry the chicken.")], ["chicken thighs"]);
+    const POUCH = dish("pouch", "Steamed Jasmine Rice", 3, [st(0, "assemble", 2, "Tear open the pouches, fluff the rice, and divide evenly among 4 bowls as the base for the Kung Pao Chicken.")], ["jasmine rice"]);
+    const TACOS = dish("tacos", "Crispy Fried Shrimp Tacos", 4, [st(0, "cook", 6, "Fry the shrimp.")], ["shrimp"]);
+    const RANCH = dish("ranch", "Jalapeño Ranch", 5, [st(0, "assemble", 1, "Transfer the jalapeño ranch to a squeeze bottle and refrigerate until ready to drizzle over the tacos.")], ["buttermilk"]);
+    const SLAW = dish("slaw", "Creamy Coleslaw", 6, [st(0, "assemble", 3, "Toss the cabbage with the dressing.")], ["cabbage"]);
+    const CHIPS = dish("chips", "Kettle Chips", 7, [st(0, "assemble", 1, "Pour the chips into a serving bowl or divide onto plates alongside the chili dogs and creamy coleslaw.")], ["kettle chips"]);
+    assert.deepEqual(dishUses([ROAST, SPUDS, KP, POUCH, TACOS, RANCH, SLAW, CHIPS]), []);
+  });
+
+  it("…but \"top with mango salsa and lime crema\" is a use", () => {
+    const CREMA = dish("crema", "Lime Crema", 0, [st(0, "assemble", 2, "Whisk the sour cream and lime juice.")], ["sour cream"]);
+    const SHRIMP = dish("shrimp", "Blackened Shrimp", 1, [st(0, "cook", 4, "Sear the shrimp."), st(1, "assemble", 3, "Divide the blackened shrimp among the warm tortillas, top with mango salsa and lime crema.")], ["shrimp"]);
+    assert.deepEqual(dishUses([CREMA, SHRIMP]).map((u) => `${u.dishId}#${u.stepIdx}→${u.usesDishId}`), ["shrimp#1→crema"]);
+  });
+
   it("each uses the other: neither waits", () => {
     const A = dish("a", "Chile-Braised Goat Birria", 0, [st(0, "assemble", 2, "Ladle the consommé into bowls.")], ["goat"]);
     const B = dish("b", "Birria Consommé", 1, [st(0, "assemble", 2, "Spoon the birria into the bowls.")], ["broth"]);
