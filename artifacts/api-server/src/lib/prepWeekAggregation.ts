@@ -199,6 +199,12 @@ export interface PrepCookDays {
    * a hand-built `cookDays` in a test needs no change.
    */
   pastMealIds?: Set<string>;
+  /**
+   * PREP-3 (R6) — false when the prep day is not today (a week that starts Monday, read on
+   * Thursday): lag 0 is then "the prep day", never "today". Absent (a hand-built `cookDays`)
+   * reads as today, as before.
+   */
+  prepDayIsToday?: boolean;
 }
 
 export interface PrepLoadedPlan {
@@ -721,7 +727,18 @@ export async function loadPrepWeekInput(
   const DAY_MS = 86_400_000;
   const todayIso = (now ?? new Date()).toISOString().slice(0, 10);
   const startIso = plan.startDate ? plan.startDate.toISOString().slice(0, 10) : null;
-  const prepDay = startIso === null ? null : startIso > todayIso ? startIso : todayIso;
+  // PREP-3 (R6) — once the cook has ticked a step, the prep happened THEN: the keep-days
+  // count from the earliest completion's date (a Sunday prep for a Monday start had every
+  // keep counted from Monday). With no tick, the start day — or today, once it has passed.
+  let prepDay = startIso === null ? null : startIso > todayIso ? startIso : todayIso;
+  if (prepDay !== null) {
+    try {
+      const first = await prisma.prepStepCompletion?.findFirst?.({ where: { planId: plan.id }, orderBy: { checkedAt: "asc" }, select: { checkedAt: true } });
+      if (first?.checkedAt) prepDay = first.checkedAt.toISOString().slice(0, 10);
+    } catch {
+      // A reader without the table (a test's fake client) keeps the start day.
+    }
+  }
   // ── H6.1 ruling 1 — FOLD THE PLAN'S FOODS ────────────────────────────────
   //
   // Union-find over two sources of truth: the pure name key (which folds every
@@ -792,7 +809,7 @@ export async function loadPrepWeekInput(
       meals,
     },
     planRevisionId: plan.revisionId,
-    cookDays: { prepDay, lagByMealId, dayNameByMealId, pastMealIds },
+    cookDays: { prepDay, lagByMealId, dayNameByMealId, pastMealIds, ...(prepDay !== null ? { prepDayIsToday: prepDay === todayIso } : {}) },
     identity: { foldedIdByIngredientId },
   };
 }

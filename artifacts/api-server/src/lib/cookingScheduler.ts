@@ -754,6 +754,8 @@ export function scheduleCookingSequence(
 // first. A meal with nothing to move is returned untouched.
 
 export const SERVE_NOW = /\bserve (?:it |them )?(?:immediately|right away|warm|hot)\b|\bwhile (?:still )?(?:warm|hot)\b/i;
+/** PREP-3 (R6) — a closing step that waits on purpose: it chills, rests or keeps warm. */
+const WAITS = /\b(?:refrigerat\w*|chill\w*|cool\w*|rest\w*|let (?:it |them )?(?:stand|sit)|set aside|keep (?:it |them )?warm|until ready to serve|cover and)\b/i;
 
 // ── PREP-3 (R7) — A DISH THAT USES ANOTHER DISH WAITS FOR IT ─────────────────────────
 //
@@ -1832,6 +1834,23 @@ function scheduleOnceCore(
     }
   }
   const serveNowTail = Math.max(0, ...[...serveNowFrom].map(([id, c]) => nonEmpty.find((d) => d.dishId === id)!.steps.slice(c).reduce((n, x) => n + x.estimatedMinutes, 0)));
+  // PREP-3 (R6) — EVERY DISH'S LAST HANDS AT SERVING TIME. A dish's closing run of
+  // assemble steps (the toss, the slice-and-serve, the plate-up) ends at serve: hh4-mixed
+  // Thursday dressed the Caesar at T−19 and plated it at T−14, Tuesday sliced the steak at
+  // T−15, Friday tossed the arugula at T−10 though its step said "serve immediately". Not
+  // a run that chills, rests or keeps warm, and not a feast's (its plating has serveLate).
+  const plateLateFrom = new Map<string, number>();
+  if (!oven && !blocks) {
+    for (const d of nonEmpty) {
+      if (serveNowFrom.has(d.dishId)) continue;
+      let c = d.steps.length;
+      while (c > 0 && d.steps[c - 1].phaseType === "assemble") c--;
+      // (Cook Mode's: the stamped meal times pass no text, as for SERVE_NOW.)
+      if (c >= d.steps.length || d.steps.slice(c).some((s) => !s.text)) continue;
+      if (d.steps.slice(c).some((s) => WAITS.test(s.text ?? ""))) continue;
+      plateLateFrom.set(d.dishId, c);
+    }
+  }
 
   // PREP-3 (R7) — a dish another dish's step uses is done as that step would start (the
   // meatballs, before the subs are filled), and the step waits for it in the pass below.
@@ -1874,7 +1893,7 @@ function scheduleOnceCore(
     // THX-3d (R4) — the bird's carve is no longer aligned to serve (THX-3 let it rest
     // longer so the carve landed at serve): it follows its 20–30-minute rest, and the
     // serve step (feastServeOrder) comes after everything else.
-    const tailFrom = isHolder ? Infinity : reheat !== undefined ? reheat : serveNowFrom.get(dish.dishId) ?? Infinity;
+    const tailFrom = isHolder ? Infinity : reheat !== undefined ? reheat : serveNowFrom.get(dish.dishId) ?? plateLateFrom.get(dish.dishId) ?? Infinity;
     const tailSum = (from: number) => dish.steps.slice(from).reduce((s, x) => s + x.estimatedMinutes, 0);
     // THX-3d (R4) — beside a bird hotter than its sides, a held dish returns to the oven
     // WHILE THE BIRD RESTS ("return uncovered for 10 minutes while the bird rests"): its

@@ -613,6 +613,7 @@ function heldLinesFor(
     lagByMealId: ReadonlyMap<string, number>;
     dayNameByMealId: ReadonlyMap<string, string>;
     pastMealIds?: ReadonlySet<string>;
+    prepDayIsToday?: boolean;
   },
   mealNameById: ReadonlyMap<string, string>,
   /** THX-3c (E) — the feast: a line per meal AND DAY, each portion on its own dish's day. */
@@ -714,7 +715,9 @@ function heldLinesFor(
     const mealId = mealOfLine(key);
     const lag = lagOfLine(key);
     const day = lineDay.get(key)?.day ?? cookDays.dayNameByMealId.get(mealId);
-    const ago = lag === 0 ? "today" : `${lag} ${lag === 1 ? "day" : "days"} out`;
+    // PREP-3 (R6) — "today" only when the prep day IS today: a week starting Monday read
+    // on Thursday said "(Monday, today)". Then lag 0 is the prep day itself.
+    const ago = lag === 0 ? (cookDays.prepDayIsToday === false ? "prep day" : "today") : `${lag} ${lag === 1 ? "day" : "days"} out`;
     // BUG-359 — a day already gone is named, never called "today".
     const past = cookDays.pastMealIds?.has(mealId) ?? false;
     const when =

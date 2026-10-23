@@ -761,6 +761,18 @@ describe("loadPrepWeekInput — cook days ride beside the hashed input (D-WS9-29
       assert.equal(r.cookDays.lagByMealId.get(MEAL_A), 3, "Saturday is 3 days after Wednesday");
     });
 
+    it("PREP-3 (R6) — once a step is ticked, the prep happened then: the lag counts from the earliest tick", async () => {
+      const stub = makePrismaStub([hansPlan()]) as unknown as Record<string, unknown>;
+      stub.prepStepCompletion = { findFirst: async () => ({ checkedAt: new Date("2026-09-27T16:00:00.000Z") }) }; // a Sunday prep
+      const r = await loadPrepWeekInput({ planId: PLAN_ID, userId: USER_ID, prisma: stub as unknown as PrismaClient, now: new Date("2026-09-28T18:00:00.000Z") });
+      assert.equal(r.cookDays.prepDay, "2026-09-27");
+      assert.equal(r.cookDays.lagByMealId.get(MEAL_A), 6, "Saturday is 6 days after Sunday");
+      assert.equal(r.cookDays.prepDayIsToday, false, "and Sunday is not today");
+      // …and with no tick, the start day, which is not today either (a week read before it starts).
+      const none = await at("2026-09-28T18:00:00.000Z");
+      assert.equal(none.cookDays.prepDayIsToday, false);
+    });
+
     it("…and on the start day itself, the two anchors agree", async () => {
       const r = await at("2026-09-30T23:59:00.000Z");
       assert.equal(r.cookDays.prepDay, "2026-09-30");
