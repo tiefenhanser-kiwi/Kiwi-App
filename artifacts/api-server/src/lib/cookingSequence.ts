@@ -78,7 +78,8 @@ export async function runCookingSequence(
     include: {
       dishLinks: {
         orderBy: { positionIndex: "asc" },
-        include: { dish: true },
+        // PREP-3 (R7) — the dish's own foods, so "the rice" of a fried rice is its own.
+        include: { dish: { include: { dishIngredients: { select: { ingredient: { select: { canonicalName: true } } } } } } },
       },
     },
   });
@@ -165,6 +166,7 @@ export async function runCookingSequence(
       // D-WS9-297 ruling 3 — carried for the served-cold predicate. Free: the
       // dishLinks include already returns every MealDishLink scalar.
       roleLabel: dl.roleLabel,
+      ingredientNames: (dl.dish.dishIngredients ?? []).map((i) => i.ingredient.canonicalName),
       steps: (stepsByDish.get(dl.dishId) ?? []).map((s) => ({
         stepIndex: s.stepIndex,
         estimatedMinutes: s.estimatedMinutes,

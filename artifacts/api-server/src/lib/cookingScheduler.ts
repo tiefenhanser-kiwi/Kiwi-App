@@ -142,6 +142,13 @@ export interface SchedulerDish {
    * (a real servedTemperature column) would land here.
    */
   roleLabel?: string | null;
+  /**
+   * PREP-3 (R7) — the dish's own ingredient names, read ONLY to tell another dish's
+   * food from this dish's own ("the rice" of a fried rice is its own rice, not the
+   * jasmine rice beside it). Optional: absent, a step names another dish only by a
+   * word that is not this dish's own title's.
+   */
+  ingredientNames?: readonly string[];
 }
 
 /** One scheduled output step — mirrors the wire SequencedStep (serve-anchored). */
@@ -747,6 +754,92 @@ export function scheduleCookingSequence(
 // first. A meal with nothing to move is returned untouched.
 
 export const SERVE_NOW = /\bserve (?:it |them )?(?:immediately|right away|warm|hot)\b|\bwhile (?:still )?(?:warm|hot)\b/i;
+
+// ── PREP-3 (R7) — A DISH THAT USES ANOTHER DISH WAITS FOR IT ─────────────────────────
+//
+// Weeknight Friday spooned the meatballs into the toasted rolls at T−7 and broiled them,
+// while "Beef and Pork Meatballs in Marinara" simmered "until cooked through" to T+0:
+// every dish was aligned to serving on its own, and nothing said the subs needed the
+// meatballs. A step that USES another dish's food — a verb that puts food somewhere
+// ("Spoon 3–4 meatballs … into each roll", "Ladle the chili into each potato") naming
+// the other dish's food by its title's nouns — starts after that dish is done (its last
+// cook step and the rests after it), and that dish finishes as the step would start.
+// Not a use: a food of the step's own dish ("the rice" of a fried rice), its own title's
+// word, or a food named beside something else ("alongside the chicken", "sharing the
+// oven with the meatloaf", "while the meatballs simmer"). Two dishes that each use the
+// other wait for neither.
+
+const USE_VERB = /\b(?:spoon|ladle|add|top|layer|fill|stuff|place|arrange|pour|drizzle|spread|divide|dip|tuck|nestle|stir in|fold in|scatter|pile|load|build|assemble|transfer)\b/gi;
+/** Before the food: words that make it a neighbour, a time or an oven-mate, not a use. */
+const NOT_A_USE = /\b(?:alongside|beside|next to|with|while|as|until|after|before|like|from|than|onto the same|in the same)\s+(?:the\s+|a\s+|an\s+)?(?:[\w-]+\s+){0,2}$/i;
+/** Title words that name no food of the dish's own (seasonings, cooking words, the plate). */
+const TITLE_NOT_FOOD = /^(?:garlic|lemon|lime|herb|herbs|butter|salt|pepper|spice|spices|sauce|style|classic|simple|easy|quick|fresh|homemade|side|plate|platter|bowl|bowls|board|night|dinner|toppings?|fixings|extra|crispy|melted|warm|toasted|steamed|seasoned|roasted|grilled|baked|fried|sauteed|sautéed|charred|creamy|chunky|tangy|smoky|spicy|sweet|cold|hot|mixed|green|white|red|black|brown)$/i;
+const singularWord = (w: string) => w.toLowerCase().replace(/(?:(?<=[sxz]|ch|sh|o)es|s)$/, "");
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** The nouns a dish's title calls its food: each part's last word ("Meatballs", "Marinara"). */
+export function titleFoods(title: string): string[] {
+  return [...new Set(
+    title.split(/\s+(?:with|and|in|on|over|&)\s+|,\s*|:\s*/i)
+      .map((part) => part.trim().split(/\s+/).pop() ?? "")
+      .map((w) => w.replace(/[^A-Za-zÀ-ÿ'-]/g, ""))
+      .filter((w) => w.length >= 4 && !TITLE_NOT_FOOD.test(w))
+      .map(singularWord),
+  )];
+}
+
+export interface DishUse {
+  /** The dish whose step uses the other's food, and that step's position in it. */
+  dishId: string;
+  stepIdx: number;
+  /** The dish it uses, and the position of the step after which that dish is done. */
+  usesDishId: string;
+  doneIdx: number;
+  food: string;
+}
+
+/** The step after which a dish is done: its last cook step and the rests right after it. */
+function doneIndexOf(dish: SchedulerDish): number {
+  const lastCook = dish.steps.map((s) => s.phaseType).lastIndexOf("cook");
+  if (lastCook < 0) return dish.steps.length - 1;
+  let k = lastCook;
+  while (k + 1 < dish.steps.length && dish.steps[k + 1].phaseType === "rest") k++;
+  return k;
+}
+
+export function dishUses(dishes: readonly SchedulerDish[]): DishUse[] {
+  const out: DishUse[] = [];
+  for (const d of dishes) {
+    const own = new Set([
+      ...(d.ingredientNames ?? []).flatMap((n) => n.toLowerCase().split(/[\s,()/-]+/).map(singularWord)),
+      ...d.title.toLowerCase().split(/[\s,()/:-]+/).map(singularWord),
+    ]);
+    for (const o of dishes) {
+      if (o.dishId === d.dishId) continue;
+      const foods = titleFoods(o.title).filter((f) => !own.has(f));
+      if (foods.length === 0) continue;
+      d.steps.forEach((s, stepIdx) => {
+        const text = s.text ?? "";
+        for (const clause of text.split(/[.;]/)) {
+          for (const v of clause.matchAll(USE_VERB)) {
+            const after = clause.slice(v.index! + v[0].length, v.index! + v[0].length + 60);
+            for (const f of foods) {
+              // (Its drippings, juices or bones are the pan's: the feast's DRIPPINGS rule times those.)
+              const m = new RegExp(`\\b${escapeRe(f)}(?:e?s)?\\b(?!\\s+(?:drippings|juices?|fat|bones|carcass|stock|pan)\\b)`, "i").exec(after);
+              if (!m) continue;
+              if (NOT_A_USE.test(after.slice(0, m.index))) continue;
+              if (!out.some((u) => u.dishId === d.dishId && u.stepIdx === stepIdx && u.usesDishId === o.dishId)) {
+                out.push({ dishId: d.dishId, stepIdx, usesDishId: o.dishId, doneIdx: doneIndexOf(o), food: f });
+              }
+            }
+          }
+        }
+      });
+    }
+  }
+  // Each uses the other: neither waits (the birria and its consommé, the tacos dipped in both).
+  return out.filter((u) => !out.some((x) => x.dishId === u.usesDishId && x.usesDishId === u.dishId));
+}
 
 export function serveLate(res: ScheduleResult, dishes: readonly SchedulerDish[], feast: boolean): ScheduleResult {
   const key = (dishId: string, stepIndex: number) => `${dishId}#${stepIndex}`;
@@ -1740,6 +1833,26 @@ function scheduleOnceCore(
   }
   const serveNowTail = Math.max(0, ...[...serveNowFrom].map(([id, c]) => nonEmpty.find((d) => d.dishId === id)!.steps.slice(c).reduce((n, x) => n + x.estimatedMinutes, 0)));
 
+  // PREP-3 (R7) — a dish another dish's step uses is done as that step would start (the
+  // meatballs, before the subs are filled), and the step waits for it in the pass below.
+  // Not a feast's: its dishes are timed by the oven.
+  const uses = !oven && !blocks ? dishUses(nonEmpty) : [];
+  const waitsFor = new Map(uses.map((u) => [`${u.dishId}|${u.stepIdx}`, u]));
+  /** The plain finish-aligned ideal start of a step (what step 2 computes when nothing moves the dish). */
+  const plainStart = (dishIdx: number, stepIdx: number): number => {
+    const d = nonEmpty[dishIdx];
+    const from = serveNowFrom.get(d.dishId);
+    if (from !== undefined && stepIdx >= from) return anchor - d.steps.slice(stepIdx).reduce((n, x) => n + x.estimatedMinutes, 0);
+    const finishBy = anchor - carveTail - (from !== undefined ? 0 : serveNowTail);
+    return finishBy - alone[dishIdx].duration + alone[dishIdx].offsets[stepIdx];
+  };
+  /** dishId → the latest its done step may end. */
+  const doneBy = new Map<string, number>();
+  for (const u of uses) {
+    const di = nonEmpty.findIndex((x) => x.dishId === u.dishId);
+    doneBy.set(u.usesDishId, Math.min(doneBy.get(u.usesDishId) ?? Infinity, plainStart(di, u.stepIdx)));
+  }
+
   // 2. Finish-aligned ideal starts (each dish finishes at `anchor`), except for
   //    a cold dish that `coldBases` has moved into a passive window (ruling 3).
   const work: WorkStep[] = [];
@@ -1752,7 +1865,11 @@ function scheduleOnceCore(
     // and is not left waiting while the stove work finishes around the carve.
     const notTheBird = dish.dishId !== (oven?.plan.holderDishId ?? blocks?.bird?.dishId);
     const finishBy = notTheBird ? anchor - carveTail - (serveNowFrom.has(dish.dishId) ? 0 : serveNowTail) : anchor;
-    const base = (isHolder && oven?.holderBase !== undefined ? oven.holderBase : undefined) ?? oven?.sideBases?.get(dish.dishId) ?? coldBases?.get(dish.dishId) ?? blockBases?.get(dish.dishId) ?? finishBy - alone[dishIdx].duration;
+    const aligned = (isHolder && oven?.holderBase !== undefined ? oven.holderBase : undefined) ?? oven?.sideBases?.get(dish.dishId) ?? coldBases?.get(dish.dishId) ?? blockBases?.get(dish.dishId) ?? finishBy - alone[dishIdx].duration;
+    // PREP-3 (R7) — used by another dish: done (its done step ended) by the time it is used.
+    const by = doneBy.get(dish.dishId);
+    const done = by !== undefined ? uses.find((u) => u.usesDishId === dish.dishId)!.doneIdx : -1;
+    const base = by !== undefined ? Math.min(aligned, by - alone[dishIdx].offsets[done] - dish.steps[done].estimatedMinutes) : aligned;
     const reheat = blocks?.blocks?.reheatOf.get(dish.dishId);
     // THX-3d (R4) — the bird's carve is no longer aligned to serve (THX-3 let it rest
     // longer so the carve landed at serve): it follows its 20–30-minute rest, and the
@@ -1984,6 +2101,9 @@ function scheduleOnceCore(
       if (bird && w.dishId !== bird.dishId && DRIPPINGS.test(w.step.text ?? "")) {
         floor = Math.max(floor, finishOf(bird.dishId, bird.lastOven));
       }
+      // PREP-3 (R7) — a step that uses another dish's food starts once that dish is done.
+      const use = waitsFor.get(`${w.dishId}|${w.stepIdx}`);
+      if (use) floor = Math.max(floor, finishOf(use.usesDishId, use.doneIdx));
       // THX-3c (BUG-463) — one temperature at a time: a block's oven step starts no
       // earlier than every oven step of the blocks before it has finished.
       const bk = blocks?.blocks;
