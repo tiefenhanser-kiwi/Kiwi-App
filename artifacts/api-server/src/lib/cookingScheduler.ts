@@ -1848,6 +1848,9 @@ function scheduleOnceCore(
       // (Cook Mode's: the stamped meal times pass no text, as for SERVE_NOW.)
       if (c >= d.steps.length || d.steps.slice(c).some((s) => !s.text)) continue;
       if (d.steps.slice(c).some((s) => WAITS.test(s.text ?? ""))) continue;
+      // …with the cook stretch before it (as U's run): the salmon bakes until it is plated,
+      // and is not plated 12 minutes early because its bake had ended there.
+      while (c > 0 && d.steps[c - 1].phaseType === "cook") c--;
       plateLateFrom.set(d.dishId, c);
     }
   }

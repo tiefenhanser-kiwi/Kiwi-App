@@ -51,6 +51,17 @@ describe("PREP-3 (R6) — the last hands at serving time", () => {
     assert.ok(endOf(r, [SALMON, CAESAR], "caesar", 4) >= runStart, `plated T${endOf(r, [SALMON, CAESAR], "caesar", 4)}, the salmon's run starts T${runStart}`);
   });
 
+  it("the salmon bakes until it is plated, near serving (hh2 Wednesday had plated it at T−14, its bake over at T−14)", () => {
+    const SALMON_BAKE = dish("salmon", "Baked Salmon Teriyaki", 0, [st(0, "preheat", 10, "Preheat the oven to 425°F."), st(1, "prep", 3, "Pat the salmon dry and place on the sheet."), st(2, "assemble", 2, "Spoon the glaze over the fillets."), st(3, "cook", 15, "Bake the salmon for 15 minutes."), st(4, "assemble", 2, "Transfer the salmon to a platter and garnish with sesame seeds.")]);
+    const RICE = dish("rice", "Egg Fried Rice", 1, [st(0, "prep", 3, "Separate the rice."), st(1, "prep", 4, "Beat the eggs."), st(2, "preheat", 2, "Heat the oil in a wok."), st(3, "cook", 1, "Add the garlic."), st(4, "cook", 3, "Add the rice."), st(5, "cook", 2, "Scramble the eggs."), st(6, "cook", 2, "Add the peas and soy sauce."), st(7, "assemble", 1, "Scatter the scallion greens over the top and serve immediately.")]);
+    const PEAS = dish("peas", "Stir-Fried Snap Peas", 2, [st(0, "prep", 5, "Pull the strings from the snap peas."), st(1, "preheat", 2, "Heat the oil."), st(2, "cook", 3, "Stir-fry the garlic and peas."), st(3, "assemble", 1, "Drizzle with soy sauce and serve right away.")]);
+    const all = [SALMON_BAKE, RICE, PEAS];
+    const r = scheduleCookingSequence(all);
+    const at = (d: string, i: number) => r.steps.find((e) => e.dishId === d && e.originalStepIndex === i)!.startOffsetMinutes;
+    assert.ok(endOf(r, all, "salmon", 4) >= -4, `plated T${endOf(r, all, "salmon", 4)}`);
+    assert.equal(endOf(r, all, "salmon", 3), at("salmon", 4), "out of the oven and onto the platter");
+  });
+
   it("the stamped meal times pass no step text, and are as they were (the plating where the pass put it)", () => {
     const bare = [BRAISE, CAESAR].map((d) => ({ ...d, steps: d.steps.map(({ text: _t, ...s }) => s) }));
     const r = scheduleCookingSequence(bare);
