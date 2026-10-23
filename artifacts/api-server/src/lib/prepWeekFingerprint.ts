@@ -136,8 +136,14 @@ const FINGERPRINT_ALGO_VERSION = 1;
  *       both, a cavity's vegetable is trimmed (L); an unscaled amount prints as written
  *       and produce rounds to its half (P). Names, members and amounts move, so the
  *       prose must go.
+ *  16 — PREP-3: a weeknight meal's lone cuts are piles on its one plate and every
+ *       loose juice is in one tub per fruit (R3); a marinade's oil, salt, pepper and
+ *       fresh herb are measured into its jar (R4); equipment is never measured (R8);
+ *       one moment per jar member — a brushed-on Dijon, the croutons' oil, a pan's
+ *       searing oil leave the jars they were in (R9). Containers, members and names
+ *       move, so the prose must go.
  */
-export const PREP_ENGINE_VERSION = 15;
+export const PREP_ENGINE_VERSION = 16;
 
 /**
  * Digest of the loaded plan composition — everything the prep payload is built
