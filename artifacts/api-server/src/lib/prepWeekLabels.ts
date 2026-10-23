@@ -38,7 +38,7 @@ const ROLE = [
 type Role = (typeof ROLE)[number][1];
 
 /** A dish's short name, said on tape: "Fresh Pico de Gallo" → "pico", "Chunky Guacamole" → "guacamole". */
-function shortDish(title: string): string {
+export function shortDish(title: string): string {
   if (/\bpico de gallo\b/i.test(title)) return "pico";
   return shortOf(title).toLowerCase();
 }

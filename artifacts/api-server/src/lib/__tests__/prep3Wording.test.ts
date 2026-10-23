@@ -69,6 +69,20 @@ describe("PREP-3 (R1, R2, R4) — mixes and tubs named where they are used", () 
     assert.equal(out[1], "Coat the chicken breasts evenly in the Monday marinade and let sit at room temperature for 10 minutes.");
   });
 
+  it("\"the marinade bowl\" is the Monday marinade too", () => {
+    const out = words("Grilled Lemon Pepper Chicken Breasts", lp, facts([0]), [marinade[0], "Add the chicken to the marinade bowl, tossing well to coat."]);
+    assert.equal(out[1], "Add the chicken to the Monday marinade, tossing well to coat.");
+  });
+
+  it("a list's \"and\" stays the list's: \"…olives, and the red onion you prepped\", never \"the and red onion\"", () => {
+    const rows: Row[] = [{ ingredientId: "rom", name: "romaine lettuce", quantity: 4, unit: "cup" }, { ingredientId: "ct", name: "cherry tomatoes", quantity: 1, unit: "cup" }, { ingredientId: "ol", name: "kalamata olives", quantity: 0.33, unit: "cup" }, { ingredientId: "ro", name: "red onion", quantity: 0.25, unit: "each" }];
+    const out = words("Greek Salad", rows, { dishId: "g", mixes: [], cuts: [cut("ct", "cherry tomatoes", "Monday plate", "halved", "plate"), cut("ro", "red onion", "Monday plate", "thinly sliced", "plate")] }, [
+      "Combine the romaine, cherry tomatoes, ⅓ cup Kalamata olives, and red onion in a large salad bowl.",
+    ]);
+    assert.doesNotMatch(out[0], /the and/);
+    assert.match(out[0], /⅓ cup Kalamata olives, and the red onion you prepped in a large salad bowl\./);
+  });
+
   it("Tuesday's spices are named at the step that measured them; the salt and pepper stay", () => {
     const taco: Row[] = [{ ingredientId: "cp", name: "chili powder", quantity: 1.5, unit: "tsp" }, { ingredientId: "cu", name: "ground cumin", quantity: 1, unit: "tsp" }, { ingredientId: "pa", name: "smoked paprika", quantity: 0.5, unit: "tsp" }, { ingredientId: "or", name: "dried oregano", quantity: 0.5, unit: "tsp" }, { ingredientId: "salt", name: "kosher salt", quantity: 0.75, unit: "tsp" }, { ingredientId: "pep", name: "black pepper", quantity: 0.25, unit: "tsp" }];
     const out = words("Green Chile Ground Beef Taco Filling", taco, { dishId: "tf", mixes: [mix("Tuesday spices", taco.slice(0, 4))], cuts: [] }, [
@@ -77,12 +91,52 @@ describe("PREP-3 (R1, R2, R4) — mixes and tubs named where they are used", () 
     assert.equal(out[0], "In a small bowl, combine the Tuesday spices, ¾ teaspoon kosher salt, and ¼ teaspoon black pepper.");
   });
 
-  it("the tzatziki's own bowl, the shared garlic and lemon with their amounts, and no \"the squeezed the cucumber\"", () => {
+  it("the tzatziki's own bowl by its foods (it is named for the dish), the shared garlic and lemon with their amounts, and no \"the squeezed the cucumber\"", () => {
     const tz: Row[] = [{ ingredientId: "yog", name: "full-fat greek yogurt", quantity: 1, unit: "cup" }, { ingredientId: "cuc", name: "english cucumber", quantity: 0.5, unit: "each" }, { ingredientId: "gar", name: "garlic cloves", quantity: 2, unit: "clove" }, { ingredientId: "dill", name: "fresh dill", quantity: 2, unit: "tbsp" }, { ingredientId: "lj", name: "fresh lemon juice", quantity: 1, unit: "tbsp" }, { ingredientId: "oil", name: "extra-virgin olive oil", quantity: 1, unit: "tbsp" }];
     const out = words("Tzatziki", tz, { dishId: "t", mixes: [], cuts: [cut("cuc", "english cucumber", "Monday tzatziki", "grated and squeezed dry", "own"), cut("gar", "garlic cloves", "Minced garlic", "minced", "shared"), cut("dill", "fresh dill", "Monday tzatziki", "finely chopped", "own"), cut("lj", "fresh lemon juice", "Lemon juice", "freshly squeezed juice", "shared")] }, [
       "Stir together 1 cup full-fat Greek yogurt, the squeezed cucumber, 2 minced garlic cloves, 2 tablespoons finely chopped fresh dill, 1 tablespoon lemon juice, 1 tablespoon olive oil, and ¼ teaspoon kosher salt until fully combined.",
     ]);
-    assert.equal(out[0], "Stir together 1 cup full-fat Greek yogurt, the Monday tzatziki you prepped, the minced garlic you prepped (2 cloves), the lemon juice you prepped (1 tablespoon), 1 tablespoon olive oil, and ¼ teaspoon kosher salt until fully combined.");
+    assert.equal(out[0], "Stir together 1 cup full-fat Greek yogurt, the squeezed cucumber you prepped, the minced garlic you prepped (2 cloves), the finely chopped dill you prepped, the lemon juice you prepped (1 tablespoon), 1 tablespoon olive oil, and ¼ teaspoon kosher salt until fully combined.");
+  });
+
+  // hh4-mixed, dump1 (ticked).
+  it("a bowl named for the dish being cooked is said by its foods: never \"Fold in the Tuesday guacamole you prepped\"", () => {
+    const g: Row[] = [{ ingredientId: "ro", name: "red onion", quantity: 0.25, unit: "cup" }, { ingredientId: "ja", name: "jalapeño", quantity: 1, unit: "each" }, { ingredientId: "ci", name: "fresh cilantro", quantity: 3, unit: "tbsp" }, { ingredientId: "salt", name: "kosher salt", quantity: 0.5, unit: "tsp" }];
+    const out = words("Chunky Guacamole", g, { dishId: "g", mixes: [], cuts: [cut("ro", "red onion", "Tuesday guacamole", "finely diced", "own"), cut("ja", "jalapeño", "Tuesday guacamole", "seeded and minced", "own"), cut("ci", "fresh cilantro", "Tuesday guacamole", "finely chopped", "own")] }, [
+      "Fold in the red onion, jalapeño, cilantro, and ½ teaspoon kosher salt; taste and adjust salt or lime as needed.",
+    ]);
+    assert.equal(out[0], "Fold in the red onion, jalapeño and cilantro you prepped and ½ teaspoon kosher salt; taste and adjust salt or lime as needed.");
+  });
+
+  it("\"fresh lemon juice\" is the lemon juice prepped into the Thursday sauce: it goes in once", () => {
+    const c: Row[] = [{ ingredientId: "yolk", name: "egg yolks", quantity: 1, unit: "each" }, { ingredientId: "lj", name: "fresh lemon juice", quantity: 2, unit: "tbsp" }, { ingredientId: "dij", name: "dijon mustard", quantity: 1, unit: "tsp" }, { ingredientId: "wor", name: "worcestershire sauce", quantity: 0.5, unit: "tsp" }];
+    // (The combine groups the two lemon rows under one id: the cut's is the group's.)
+    const out = words("Crisp Caesar Salad", c, { dishId: "c", mixes: [mix("Thursday sauce", c.slice(2))], cuts: [cut("grp", "lemon juice", "Thursday sauce", " freshly squeezed juice", "mix")] }, [
+      "Whisk together the anchovy-garlic paste, 1 egg yolk, 2 tablespoons fresh lemon juice, 1 teaspoon Dijon mustard, and ½ teaspoon Worcestershire sauce in a medium bowl until combined.",
+    ]);
+    assert.doesNotMatch(out[0], /lemon/, out[0]);
+    assert.match(out[0], /the Thursday sauce/);
+  });
+
+  it("the cuts gone, the step that stirs \"both\" names them, a shared tub's amount kept", () => {
+    const s: Row[] = [{ ingredientId: "gar", name: "garlic", quantity: 4, unit: "clove" }, { ingredientId: "par", name: "fresh flat-leaf parsley", quantity: 2, unit: "tbsp" }, { ingredientId: "but", name: "unsalted butter", quantity: 3, unit: "tbsp" }, { ingredientId: "salt", name: "kosher salt", quantity: 1, unit: "tsp" }];
+    const out = words("Garlic Butter Grilled Salmon", s, { dishId: "s", mixes: [], cuts: [cut("gar", "garlic", "Minced garlic", "minced", "shared"), cut("par", "fresh flat-leaf parsley", "Chopped flat-leaf parsley", "finely chopped", "shared")] }, [
+      "Mince 4 garlic cloves and finely chop 2 tablespoons flat-leaf parsley, then stir both into 3 tablespoons melted unsalted butter with 1 teaspoon kosher salt to make the basting butter.",
+    ]);
+    assert.equal(out[0], "Stir the minced garlic (4 cloves) and chopped flat-leaf parsley (2 tablespoons) you prepped into 3 tablespoons melted unsalted butter with 1 teaspoon kosher salt to make the basting butter.");
+  });
+
+  it("bite-sized florets are a cut; a measure of what the ticked mix holds goes; a long clause with no row is a clause", () => {
+    const b: Row[] = [{ ingredientId: "bro", name: "broccoli florets", quantity: 1, unit: "lb" }, { ingredientId: "soy", name: "soy sauce", quantity: 1, unit: "tbsp" }, { ingredientId: "w", name: "water", quantity: 2, unit: "tbsp" }];
+    const out = words("Stir-Fried Broccoli with Garlic", b, { dishId: "b", mixes: [], cuts: [cut("bro", "broccoli florets", "Wednesday vegetables", "cut into bite-sized pieces", "own")] }, [
+      "Cut 1 pound broccoli into bite-sized florets; stir together 1 tablespoon soy sauce and 2 tablespoons water in a small bowl.",
+    ]);
+    assert.equal(out[0], "Stir together 1 tablespoon soy sauce and 2 tablespoons water in a small bowl.");
+    const cr: Row[] = [{ ingredientId: "chi", name: "chipotle peppers in adobo sauce", quantity: 2, unit: "each" }, { ingredientId: "ado", name: "adobo sauce", quantity: 1, unit: "tbsp" }, { ingredientId: "gp", name: "garlic powder", quantity: 0.25, unit: "tsp" }];
+    const out2 = words("Chipotle Crema", cr, { dishId: "cr", mixes: [mix("Tuesday sauce", cr.slice(1))], cuts: [] }, [
+      "Mince 2 chipotle peppers in adobo to a smooth paste and measure 1 tablespoon adobo sauce from the can.",
+    ]);
+    assert.equal(out2[0], "Mince 2 chipotle peppers in adobo to a smooth paste.");
   });
 });
 
