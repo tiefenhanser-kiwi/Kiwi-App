@@ -200,8 +200,11 @@ export const PREMIUM_TRIAL_ENDED = "Your free trial has ended";
 export const MANAGE_OPEN_FAILED =
   "Couldn't open your subscription settings. Please try again in a moment.";
 
-/** A Stripe subscriber in the app: where to manage it, with no link (3.1.1). */
-export const MANAGE_STRIPE_ON_WEB = "Manage your subscription at kitchenwizard.ai";
+/** A Stripe subscriber in the app: where to manage it, with no link (3.1.1).
+ *  D-WS9-319 (Hans, Oct 24) — text only, verbatim; BUG-499 asked for a Portal
+ *  link-out and was ruled down: the Portal sells (monthly ↔ annual). */
+export const MANAGE_STRIPE_ON_WEB =
+  "You subscribed on the web. Manage or cancel at app.kitchenwizard.ai → Profile → Manage.";
 
 /**
  * A store subscriber on the web — and the web's 409 `subscribed_elsewhere`.
