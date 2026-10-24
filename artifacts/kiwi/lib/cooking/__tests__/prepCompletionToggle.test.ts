@@ -31,6 +31,8 @@ test("prepCompletionInvalidationKeys: invalidates plans/meals/home + resume, NOT
   const flat = prepCompletionInvalidationKeys("plan-1").map((k) => k.join("/"));
   assert.ok(flat.includes("plans"), "must invalidate ['plans'] (the isPrepped gate)");
   assert.ok(flat.includes("meals/detail"), "must invalidate ['meals','detail']");
+  // CLIENT-1 item 1 — Cook Mode's sequence, for every meal (a prefix key).
+  assert.ok(flat.includes("cooking/sequence"), "must invalidate ['cooking','sequence']");
   assert.ok(flat.includes("home"), "must invalidate ['home'] (Hub indicator)");
   assert.ok(
     flat.includes("cooking/prep-week-completions/plan-1"),

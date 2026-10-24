@@ -27,6 +27,10 @@ export function prepWeekCompletionsKey(planId: string): string[] {
  *                              (BUG-001 stale-sibling class).
  *   - ["home"]               → the Hub's prep indicator/pills read server prep
  *                              status; the Hub is reachable right after a session.
+ *   - ["cooking","sequence"] → CLIENT-1 item 1: Cook Mode's step order. Every
+ *                              meal's (the write knows the plan, not the meal),
+ *                              staleTime Infinity notwithstanding — the Sequencer
+ *                              is free, so a stale order is never worth keeping.
  *   - prepWeekCompletionsKey → reconcile the optimistic resume state with server.
  * Deliberately EXCLUDES the generate key (see prepWeekCompletionsKey).
  */
@@ -34,6 +38,7 @@ export function prepCompletionInvalidationKeys(planId: string): string[][] {
   return [
     ["plans"],
     ["meals", "detail"],
+    ["cooking", "sequence"],
     ["home"],
     prepWeekCompletionsKey(planId),
   ];
