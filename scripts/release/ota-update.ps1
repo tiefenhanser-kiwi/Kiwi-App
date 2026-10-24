@@ -35,6 +35,8 @@ Run every check, build and verify the bundle, print the publish command, publish
 #   2. native gate: nothing changed since $BinaryCommit in the files that decide what the
 #      installed binary contains. app.json unchanged also means the runtime version is the
 #      binary's. package.json alone is compared as JSON and may differ in "scripts" (REL-0).
+#      pnpm-lock.yaml alone is compared by its artifacts/kiwi importer (+ the workspace
+#      importers that one links) and the overrides that can reach them (REL-0b).
 #   3. EAS: the production channel serves the production branch; the production
 #      environment has every required EXPO_PUBLIC_* name (names only); the code reads no
 #      EXPO_PUBLIC_* name this script does not know.
@@ -83,6 +85,11 @@ $script:NativePaths = @(
 # alone is allowed (REL-0). npm scripts reach neither the binary nor the bundle -- expo
 # export and `eas update --skip-bundler` run none of them, EAS build hooks run at build only.
 $script:PackageJsonPath = 'artifacts/kiwi/package.json'
+# The one native path compared by section, not as bytes (REL-0b): the lockfile changes with
+# every server dependency, but only the app's importer and the overrides that can reach it
+# decide what the app installs.
+$script:LockfilePath = 'pnpm-lock.yaml'
+$script:KiwiImporter = 'artifacts/kiwi'
 # Every EXPO_PUBLIC_* the app code reads (OTA-1 grep, October 13), less the one fallback.
 $script:RequiredNames = @(
   'EXPO_PUBLIC_API_BASE_URL',
@@ -114,7 +121,8 @@ $script:DevHostPatterns = [ordered]@{
 # text: Hermes packs its string table with prefix/suffix overlap, so neighbours change.
 # Measured OTA-1, October 13 (expo 54.0.37, react-native 0.81.5, both platforms built
 # with the EAS production values + the eas.json API URL). The native gate refuses any
-# lockfile change, so library strings cannot drift under it.
+# change to the app's lockfile importer, so library strings can drift only through a
+# transitive resolution -- and a hit off this baseline is refused at step 5 regardless.
 #   http://localhost:8081/ -- react-native Libraries/Core/Devtools/getDevServer.js FALLBACK
 #   http://localhost:3000  -- iOS only: expo-router build/head/url.js getOriginFromConstants,
 #                             the fallback when app.json has no router origin (it has one);
@@ -443,8 +451,182 @@ function Compare-PackageJsonText {
   return $r
 }
 
+# pnpm-lock.yaml's lines, LF or CRLF.
+function Split-LockText {
+  param([Parameter(Mandatory = $true)][string]$Text)
+  return , ([string[]]($Text -split "`r?`n"))
+}
+
+# A mapping key as pnpm writes it: bare, 'single-' or "double-quoted".
+function ConvertFrom-LockKey {
+  param([string]$Key)
+  if ($Key.Length -ge 2 -and (($Key[0] -eq "'" -and $Key[-1] -eq "'") -or ($Key[0] -eq '"' -and $Key[-1] -eq '"'))) { return $Key.Substring(1, $Key.Length - 2) }
+  return $Key
+}
+
+# One importer's block: its "  <importer>:" line under importers:, up to the next line
+# indented by exactly two spaces or the next top-level line (packages:), trailing blank
+# lines dropped. $null when the importer is not there.
+function Get-LockImporterBlock {
+  param([Parameter(Mandatory = $true)][AllowEmptyString()][string[]]$Lines, [Parameter(Mandatory = $true)][string]$Importer)
+  $inImporters = $false
+  $block = $null
+  foreach ($l in $Lines) {
+    if ($l -match '^\S') { if ($null -ne $block) { break }; $inImporters = ($l -ceq 'importers:'); continue }
+    if (-not $inImporters) { continue }
+    if ($l -match '^  \S') {
+      if ($null -ne $block) { break }
+      if ($l -match '^  (\S.*):\s*$' -and (ConvertFrom-LockKey $Matches[1]) -ceq $Importer) { $block = New-Object System.Collections.Generic.List[string]; $block.Add($l) }
+      continue
+    }
+    if ($null -ne $block) { $block.Add($l) }
+  }
+  if ($null -eq $block) { return $null }
+  while ($block.Count -gt 0 -and -not $block[$block.Count - 1].Trim()) { $block.RemoveAt($block.Count - 1) }
+  return , ([string[]]$block)
+}
+
+# An importer block's dependencies: "section/name" -> @{ Section; Name; specifier; version }.
+function Get-LockImporterDeps {
+  param([Parameter(Mandatory = $true)][AllowEmptyString()][string[]]$Block)
+  $d = New-Object 'System.Collections.Generic.Dictionary[string,hashtable]' ([StringComparer]::Ordinal)
+  $section = $null; $cur = $null
+  foreach ($l in $Block) {
+    if ($l -match '^    (\S.*):\s*$') { $section = ConvertFrom-LockKey $Matches[1]; $cur = $null; continue }
+    if ($l -match '^      (\S.*):\s*$') {
+      $cur = @{ Section = $section; Name = (ConvertFrom-LockKey $Matches[1]); specifier = $null; version = $null }
+      $d["$section/$($cur.Name)"] = $cur
+      continue
+    }
+    if ($null -ne $cur -and $l -match '^        (specifier|version): (.*)$') { $cur[$Matches[1]] = $Matches[2].Trim() }
+  }
+  return , $d
+}
+
+# The top-level overrides: block as selector -> value (empty when there is no block). A line
+# it cannot read throws.
+function Get-LockOverrides {
+  param([Parameter(Mandatory = $true)][AllowEmptyString()][string[]]$Lines)
+  $o = New-Object 'System.Collections.Generic.Dictionary[string,string]' ([StringComparer]::Ordinal)
+  $in = $false
+  foreach ($l in $Lines) {
+    if ($l -match '^\S') { if ($in) { break }; $in = ($l -ceq 'overrides:'); continue }
+    if (-not $in -or -not $l.Trim()) { continue }
+    if ($l -notmatch '^  (''[^'']*''|"[^"]*"|[^\s''"][^:]*): (.*)$') { throw "unreadable overrides line: $l" }
+    $o[(ConvertFrom-LockKey $Matches[1])] = $Matches[2].Trim()
+  }
+  return , $o
+}
+
+# The package name in one override selector segment: "foo", "foo@1", "@scope/foo@^2".
+function Get-LockSelectorName {
+  param([string]$Segment)
+  if ($Segment.Length -lt 2) { return $Segment }
+  $at = $Segment.IndexOf('@', 1)
+  if ($at -gt 0) { return $Segment.Substring(0, $at) }
+  return $Segment
+}
+
+# An importer's "link:<path>" target as an importer key ("." for the root).
+function Resolve-LockLink {
+  param([string]$From, [string]$Link)
+  $parts = New-Object System.Collections.Generic.List[string]
+  foreach ($p in (($From + '/' + $Link) -split '/')) {
+    if ($p -eq '' -or $p -eq '.') { continue }
+    if ($p -eq '..') { if ($parts.Count -gt 0) { $parts.RemoveAt($parts.Count - 1) }; continue }
+    $parts.Add($p)
+  }
+  if ($parts.Count -eq 0) { return '.' }
+  return ($parts -join '/')
+}
+
+# A lockfile version without its peer suffix: "0.81.5(react@19.1.0)" -> "0.81.5".
+function Get-LockBareVersion {
+  param([AllowNull()][string]$Version)
+  if ($null -eq $Version) { return '<none>' }
+  $i = $Version.IndexOf('(')
+  if ($i -gt 0) { return $Version.Substring(0, $i) }
+  return $Version
+}
+
+# pnpm-lock.yaml at the binary commit vs HEAD (REL-0b). What counts: the $Importer block, the
+# blocks of the workspace importers it links to (link:, followed transitively), and every
+# override that can reach them -- unscoped, or scoped with a segment naming a package of
+# those importers. Other importers, packages:, snapshots: and the scoped overrides of other
+# trees do not. Returns Error (could not compare -- refuse), Changed (one entry per change
+# that counts), Linked (the linked importers compared) and OtherOverrides (changed selectors
+# that do not count).
+function Compare-LockfileText {
+  param([AllowNull()][string]$Old, [AllowNull()][string]$New, [string]$Importer = $script:KiwiImporter)
+  $r = [pscustomobject]@{ Error = $null; Changed = @(); Linked = @(); OtherOverrides = @() }
+  $lines = @{}
+  foreach ($side in @(@('old', $Old, 'at the binary commit'), @('new', $New, 'at HEAD'))) {
+    if ($null -eq $side[1] -or -not $side[1].Trim()) { $r.Error = "missing or empty $($side[2])"; return $r }
+    $lines[$side[0]] = Split-LockText $side[1]
+    if ($null -eq (Get-LockImporterBlock -Lines $lines[$side[0]] -Importer $Importer)) { $r.Error = "no $Importer importer $($side[2])"; return $r }
+  }
+  $changed = New-Object System.Collections.Generic.List[string]
+  $names = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+  $linked = New-Object System.Collections.Generic.List[string]
+  $seen = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+  $queue = New-Object System.Collections.Generic.Queue[string]
+  [void]$seen.Add($Importer); $queue.Enqueue($Importer)
+  while ($queue.Count -gt 0) {
+    $imp = $queue.Dequeue()
+    $prefix = if ($imp -ceq $Importer) { '' } else { "${imp}: " }
+    $ob = Get-LockImporterBlock -Lines $lines['old'] -Importer $imp
+    $nb = Get-LockImporterBlock -Lines $lines['new'] -Importer $imp
+    if ($null -eq $ob -or $null -eq $nb) { $changed.Add(("{0}linked importer {1}" -f $prefix, $(if ($null -eq $ob) { 'added' } else { 'removed' }))); continue }
+    $od = Get-LockImporterDeps $ob
+    $nd = Get-LockImporterDeps $nb
+    foreach ($d in @($od.Values) + @($nd.Values)) {
+      [void]$names.Add($d.Name)
+      if ($d.version -match '^link:(.+)$') {
+        $t = Resolve-LockLink -From $imp -Link $Matches[1]
+        if ($seen.Add($t)) { $queue.Enqueue($t); $linked.Add($t) }
+      }
+    }
+    if (($ob -join "`n") -ceq ($nb -join "`n")) { continue }
+    $before = $changed.Count
+    $keys = New-Object 'System.Collections.Generic.SortedSet[string]' ([StringComparer]::Ordinal)
+    foreach ($k in $od.Keys) { [void]$keys.Add($k) }
+    foreach ($k in $nd.Keys) { [void]$keys.Add($k) }
+    foreach ($k in $keys) {
+      $a = if ($od.ContainsKey($k)) { $od[$k] } else { $null }
+      $b = if ($nd.ContainsKey($k)) { $nd[$k] } else { $null }
+      if ($null -eq $a) { $changed.Add(("{0}{1} added to {2} ({3})" -f $prefix, $b.Name, $b.Section, (Get-LockBareVersion $b.version))); continue }
+      if ($null -eq $b) { $changed.Add(("{0}{1} removed from {2}" -f $prefix, $a.Name, $a.Section)); continue }
+      if ($a.specifier -cne $b.specifier) { $changed.Add(("{0}{1} specifier {2} -> {3}" -f $prefix, $a.Name, $a.specifier, $b.specifier)) }
+      if ($a.version -cne $b.version) {
+        $va = Get-LockBareVersion $a.version; $vb = Get-LockBareVersion $b.version
+        if ($va -cne $vb) { $changed.Add(("{0}{1} version {2} -> {3}" -f $prefix, $a.Name, $va, $vb)) }
+        else { $changed.Add(("{0}{1} version {2} (peer resolution changed)" -f $prefix, $a.Name, $va)) }
+      }
+    }
+    if ($changed.Count -eq $before) { $changed.Add(("{0}importer lines other than specifier/version changed" -f $prefix)) }
+  }
+  try { $oo = Get-LockOverrides $lines['old']; $no = Get-LockOverrides $lines['new'] } catch { $r.Error = $_.Exception.Message; return $r }
+  $sels = New-Object 'System.Collections.Generic.SortedSet[string]' ([StringComparer]::Ordinal)
+  foreach ($k in $oo.Keys) { [void]$sels.Add($k) }
+  foreach ($k in $no.Keys) { [void]$sels.Add($k) }
+  $other = New-Object System.Collections.Generic.List[string]
+  foreach ($k in $sels) {
+    $a = if ($oo.ContainsKey($k)) { $oo[$k] } else { '<absent>' }
+    $b = if ($no.ContainsKey($k)) { $no[$k] } else { '<absent>' }
+    if ($a -ceq $b) { continue }
+    $segs = @($k -split '>')
+    $reaches = ($segs.Count -eq 1) -or (@($segs | Where-Object { $names.Contains((Get-LockSelectorName $_)) }).Count -gt 0)
+    if ($reaches) { $changed.Add(("override {0}: {1} -> {2}" -f $k, $a, $b)) } else { $other.Add($k) }
+  }
+  $r.Changed = @($changed)
+  $r.Linked = @($linked)
+  $r.OtherOverrides = @($other)
+  return $r
+}
+
 # Step 2's file check: every native path must be byte-identical to $BinaryCommit, except
-# package.json, which may differ in its top-level "scripts" (and in key order / whitespace).
+# package.json, which may differ in its top-level "scripts" (and in key order / whitespace),
+# and pnpm-lock.yaml, which may differ outside the app's importer (Compare-LockfileText).
 # Returns Ok, the lines to print before step 2's summary, and the refusal reason.
 function Test-NativeGate {
   $lines = New-Object System.Collections.Generic.List[string]
@@ -453,6 +635,15 @@ function Test-NativeGate {
   if ($diff.ExitCode -ne 0) { $r.Reason = 'git diff failed'; return $r }
   $refused = New-Object System.Collections.Generic.List[string]
   foreach ($f in $diff.Lines) {
+    if ($f -ceq $script:LockfilePath) {
+      $lk = Compare-LockfileText -Old (Get-GitBlobText -Rev $script:BinaryCommit -Path $f) -New (Get-GitBlobText -Rev 'HEAD' -Path $f)
+      if ($lk.Error) { $r.Reason = "${f}: $($lk.Error) -- cannot tell what changed, refusing"; return $r }
+      if ($lk.Changed.Count -gt 0) { $refused.Add(("{0} ({1} changed: {2})" -f $f, $script:KiwiImporter, ($lk.Changed -join '; '))); continue }
+      $lines.Add(('[2] pnpm-lock.yaml: {0} importer unchanged since {1} (other importers changed) -- allowed' -f $script:KiwiImporter, $script:BinaryCommit))
+      if ($lk.Linked.Count -gt 0) { $lines.Add(('    linked workspace importer(s) unchanged too: {0}' -f ($lk.Linked -join ', '))) }
+      if ($lk.OtherOverrides.Count -gt 0) { $lines.Add(('    scoped override(s) changed outside its tree: {0}' -f ($lk.OtherOverrides -join ', '))) }
+      continue
+    }
     if ($f -cne $script:PackageJsonPath) { $refused.Add($f); continue }
     $cmp = Compare-PackageJsonText -Old (Get-GitBlobText -Rev $script:BinaryCommit -Path $f) -New (Get-GitBlobText -Rev 'HEAD' -Path $f)
     if ($cmp.Error) { $r.Reason = "${f}: $($cmp.Error) -- cannot tell what changed, refusing"; return $r }

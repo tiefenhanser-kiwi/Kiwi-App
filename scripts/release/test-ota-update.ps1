@@ -138,6 +138,96 @@ Assert-True (($c.Changed -join ',') -eq 'expo') 'a nested array change under "ex
 $c = Compare-PackageJsonText -Old $pkgBase -New ($pkgBase.Replace('"main"', '"Main"'))
 Assert-True (($c.Changed -join ',') -eq 'Main,main') 'key case is significant'
 
+Write-Host '== Compare-LockfileText: the pnpm-lock.yaml native gate (REL-0b), on small lock fixtures'
+$lockBase = @'
+lockfileVersion: '9.0'
+
+overrides:
+  esbuild: 0.27.3
+  '@expo/ngrok-bin>@expo/ngrok-bin-darwin-x64': '-'
+
+importers:
+
+  .:
+    devDependencies:
+      typescript:
+        specifier: ~5.9.2
+        version: 5.9.3
+
+  artifacts/api-server:
+    dependencies:
+      express:
+        specifier: ^5
+        version: 5.2.1
+
+  artifacts/kiwi:
+    dependencies:
+      expo-updates:
+        specifier: ~29.0.20
+        version: 29.0.20(expo@54.0.37)
+    devDependencies:
+      '@workspace/api-client-react':
+        specifier: workspace:*
+        version: link:../../lib/api-client-react
+      react-native:
+        specifier: 0.81.5
+        version: 0.81.5(@babel/core@7.29.0)(react@19.1.0)
+
+  lib/api-client-react:
+    dependencies:
+      '@tanstack/react-query':
+        specifier: 'catalog:'
+        version: 5.90.21(react@19.1.0)
+
+packages:
+
+  express@5.2.1:
+    resolution: {integrity: sha512-fake0001}
+
+  react-native@0.81.5:
+    resolution: {integrity: sha512-fake0002}
+'@
+function Compare-LockPair {
+  param([string]$Name, [string]$Old, [string]$New)
+  $c = Compare-LockfileText -Old $Old -New $New
+  Write-Host ("    | {0}: Error={1}; Changed=[{2}]; Linked=[{3}]; OtherOverrides=[{4}]" -f $Name, $c.Error, ($c.Changed -join '; '), ($c.Linked -join ','), ($c.OtherOverrides -join ','))
+  return $c
+}
+$lockBase = $lockBase.Replace("`r`n", "`n")
+$serverOnly = $lockBase.Replace("        specifier: ^5`n        version: 5.2.1", "        specifier: ^5.3.0`n        version: 5.3.0`n      helmet:`n        specifier: 8.3.0`n        version: 8.3.0").Replace("  express@5.2.1:`n    resolution: {integrity: sha512-fake0001}", "  express@5.3.0:`n    resolution: {integrity: sha512-fake0003}`n`n  helmet@8.3.0:`n    resolution: {integrity: sha512-fake0004}")
+Assert-True ($serverOnly -cne $lockBase -and $serverOnly -like '*helmet@8.3.0*') '(fixture) the server-only pair differs'
+$c = Compare-LockPair 'a-server-only' $lockBase $serverOnly
+Assert-True ($null -eq $c.Error -and $c.Changed.Count -eq 0 -and ($c.Linked -join ',') -eq 'lib/api-client-react') 'a. only the api-server importer and packages: differ: allowed (linked lib importer compared too)'
+$scopedOut = $serverOnly.Replace("  esbuild: 0.27.3`n", "  esbuild: 0.27.3`n  router>path-to-regexp: ^8.4.2`n  cheerio>undici: ^7.30.1`n")
+$c = Compare-LockPair 'a2-scoped-outside' $lockBase $scopedOut
+Assert-True ($null -eq $c.Error -and $c.Changed.Count -eq 0 -and ($c.OtherOverrides -join ',') -eq 'cheerio>undici,router>path-to-regexp') 'a2. + scoped overrides whose parent is not the app''s: allowed, listed'
+$c = Compare-LockPair 'b-kiwi-version' $lockBase ($serverOnly.Replace('version: 0.81.5(@babel/core', 'version: 0.81.6(@babel/core'))
+Assert-True ($null -eq $c.Error -and ($c.Changed -join '; ') -eq 'react-native version 0.81.5 -> 0.81.6') 'b. a kiwi importer version differs: refused, naming it'
+$c = Compare-LockPair 'b2-kiwi-peer' $lockBase ($lockBase.Replace('(@babel/core@7.29.0)(react@19.1.0)', '(@babel/core@7.29.8)(react@19.1.0)'))
+Assert-True (($c.Changed -join '; ') -eq 'react-native version 0.81.5 (peer resolution changed)') 'b2. a peer-only resolution change in the kiwi importer: refused'
+$c = Compare-LockPair 'b3-kiwi-added' $lockBase ($lockBase.Replace("    devDependencies:`n      '@workspace", "      expo-camera:`n        specifier: ~17.0.0`n        version: 17.0.8(expo@54.0.37)`n    devDependencies:`n      '@workspace"))
+Assert-True (($c.Changed -join '; ') -eq 'expo-camera added to dependencies (17.0.8)') 'b3. a dependency added to the kiwi importer: refused'
+$c = Compare-LockPair 'c-unscoped-override' $lockBase ($serverOnly.Replace("  esbuild: 0.27.3`n", "  esbuild: 0.27.3`n  metro: 0.83.1`n"))
+Assert-True ($null -eq $c.Error -and ($c.Changed -join '; ') -eq 'override metro: <absent> -> 0.83.1') 'c. an unscoped override added: refused'
+$c = Compare-LockPair 'c2-scoped-kiwi-parent' $lockBase ($lockBase.Replace("  esbuild: 0.27.3`n", "  esbuild: 0.27.3`n  react-native@0.81>semver: ^7.7.0`n"))
+Assert-True (($c.Changed -join '; ') -eq 'override react-native@0.81>semver: <absent> -> ^7.7.0') 'c2. a scoped override under a kiwi package: refused'
+$c = Compare-LockPair 'c3-override-value' $lockBase ($lockBase.Replace("'@expo/ngrok-bin>@expo/ngrok-bin-darwin-x64': '-'", "'@expo/ngrok-bin>@expo/ngrok-bin-darwin-x64': 2.3.42"))
+Assert-True ($c.Changed.Count -eq 0 -and ($c.OtherOverrides -join ',') -eq '@expo/ngrok-bin>@expo/ngrok-bin-darwin-x64') 'c3. a quoted scoped override, value changed, parent not in the app''s importers: allowed, listed'
+$c = Compare-LockPair 'd-linked-importer' $lockBase ($lockBase.Replace('version: 5.90.21(react@19.1.0)', 'version: 5.91.0(react@19.1.0)'))
+Assert-True (($c.Changed -join '; ') -eq 'lib/api-client-react: @tanstack/react-query version 5.90.21 -> 5.91.0') 'd. a workspace importer the app links changes: refused, naming it'
+$c = Compare-LockPair 'e-crlf' $lockBase ($serverOnly.Replace("`n", "`r`n"))
+Assert-True ($null -eq $c.Error -and $c.Changed.Count -eq 0) 'e. CRLF vs LF: same blocks'
+$c = Compare-LockfileText -Old $lockBase -New ($lockBase.Replace('  artifacts/kiwi:', '  artifacts/kiwi2:'))
+Assert-True ($c.Error -eq 'no artifacts/kiwi importer at HEAD') 'f. kiwi importer gone at HEAD: cannot compare, refused'
+$c = Compare-LockfileText -Old $lockBase -New $null
+Assert-True ($c.Error -eq 'missing or empty at HEAD') 'f2. lockfile gone at HEAD: refused'
+$c = Compare-LockfileText -Old $lockBase -New ($lockBase.Replace("  esbuild: 0.27.3`n", "  esbuild: 0.27.3`n    nested: 1`n"))
+Assert-True ($c.Error -like 'unreadable overrides line*') 'f3. an overrides line it cannot read: refused'
+$blk = Get-LockImporterBlock -Lines (Split-LockText $lockBase) -Importer 'artifacts/kiwi'
+Assert-Equal $blk.Count 12 'the kiwi block: its key line to the next two-space line, trailing blank dropped'
+Assert-Equal $blk[-1] '        version: 0.81.5(@babel/core@7.29.0)(react@19.1.0)' 'and it ends on its last dependency line'
+Assert-Equal (Resolve-LockLink -From 'artifacts/kiwi' -Link '../../lib/api-client-react') 'lib/api-client-react' 'link: resolved from the importer'
+
 Write-Host '== Compare-BundleHits: exact literals, counted'
 $al = @{ 'localhost' = @{ 'http://localhost:8081/' = 1 } }
 $t = 'xyzwelcome-scrollHeighttp://localhost:8081/assets/__node_modules/.pnpm/fonts'
