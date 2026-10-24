@@ -689,7 +689,10 @@ export function containerWindowDays(c: { name: string; text: string; ingredientN
 const COMPACT: ReadonlyArray<[RegExp, string]> = [
   [/Airtight in the fridge, with a barely damp paper towel — /g, "Fridge, damp towel, "],
   [/(?:Airtight|Covered|Sealed jar|Small sealed jar) in the fridge — /g, "Fridge, "],
-  [/Separate piles(?: \([^)]*\))? on a small plate, under plastic wrap in the fridge — /g, "Plate, wrapped, fridge, "],
+  // PREP-3 3b — "Monday plate: Plate, wrapped, fridge, up to 2 days." said the plate twice:
+  // "Monday plate: wrapped, in the fridge — up to 2 days."
+  [/: Separate piles(?: \([^)]*\))? on a small plate, under plastic wrap in the fridge — /g, ": wrapped, in the fridge — "],
+  [/Separate piles(?: \([^)]*\))? on a small plate, under plastic wrap in the fridge — /g, "Wrapped, in the fridge — "],
   [/Small airtight container at room temperature — it keeps for weeks\./g, "Room temperature, weeks."],
   [/Airtight at room temperature — it keeps for weeks\./g, "Room temperature, weeks."],
   [/ It will scent the shelf; a sealed jar helps\./g, ""],
