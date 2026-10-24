@@ -275,10 +275,14 @@ export async function getMeal(
   // An options object rather than a second exported function: the URL, the
   // schema and the envelope are identical, and a `getGuestMeal` would be this
   // body copied with one option changed.
-  opts: { principal?: "user" | "guest" } = {},
+  // CLIENT-1 item 2 — `prepped`: Cook Mode's gate was answered "yes, I prepped",
+  // so the server words the steps as if every prep step were ticked (PREP-3 R1).
+  // Plan context only: without a planItemId there is no Prep the Week to word
+  // from, and the server ignores the flag, so it is never sent alone.
+  opts: { principal?: "user" | "guest"; prepped?: boolean } = {},
 ): Promise<MealDetail> {
   const query = planItemId
-    ? `?planItemId=${encodeURIComponent(planItemId)}`
+    ? `?planItemId=${encodeURIComponent(planItemId)}${opts.prepped ? "&prepped=1" : ""}`
     : "";
   const body = await apiClient(`/meals/${encodeURIComponent(id)}${query}`, {
     schema: MealDetailEnvelopeSchema,

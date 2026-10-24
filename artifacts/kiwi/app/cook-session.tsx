@@ -34,6 +34,7 @@ import {
   flattenMealSteps,
   flattenPlanDishSteps,
   nextLiveIndex,
+  preppedMealRead,
   prepRecap,
   prevLiveIndex,
   resolveAmountMultiplier,
@@ -83,8 +84,11 @@ export default function CookSession() {
   // PREP-1 (D-WS9-314) — `session=feast` opens Prep the feast. Anything else is the week.
   const session = params.session === "feast" ? ("feast" as const) : undefined;
 
+  const [prepAnswer, setPrepAnswer] = useState<boolean | null>(null);
+
   // All hooks run every render (rules of hooks); empty ids leave queries disabled.
-  const mealQuery = useMeal(mealId, planItemId || undefined);
+  // CLIENT-1 item 2 — a "yes, I prepped" answer re-reads the meal with ?prepped=1.
+  const mealQuery = useMeal(mealId, planItemId || undefined, { prepped: preppedMealRead(prepAnswer) });
   const dishQuery = useDish(planDish ? "" : dishId);
   const planQuery = usePlan(planId);
 
@@ -116,7 +120,6 @@ export default function CookSession() {
   // done-in-prep) step, so it lands right when the prep payload arrives after
   // the recipe. Any navigation pins it to a real index.
   const [currentIndex, setCurrentIndex] = useState<number | null>(null);
-  const [prepAnswer, setPrepAnswer] = useState<boolean | null>(null);
   const [toastVisible, setToastVisible] = useState(false);
 
   // Toast auto-hide (PRD §7.12 — 2-3s).

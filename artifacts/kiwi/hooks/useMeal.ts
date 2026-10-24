@@ -9,17 +9,30 @@
 // context to the server so the per-instance recipeOverrideJson is applied. It
 // is part of the query key so the plan-scoped (override-applied) read is cached
 // separately from the canonical library read of the same meal.
+//
+// CLIENT-1 item 2: `prepped` (Cook Mode's "yes, I prepped") is a fifth key part,
+// present only when true, so every ["meals","detail"] prefix invalidation still
+// reaches it. Its first read keeps the unprepped meal on screen (placeholder)
+// rather than dropping Cook Mode back to a spinner under the gate's toast.
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { getMeal, type MealDetail } from "@/lib/api/meals";
 
-export function useMeal(id: string, planItemId?: string) {
+export function mealDetailKey(id: string, planItemId?: string, prepped = false) {
+  const key: (string | null)[] = ["meals", "detail", id, planItemId ?? null];
+  if (prepped && planItemId) key.push("prepped");
+  return key;
+}
+
+export function useMeal(id: string, planItemId?: string, opts: { prepped?: boolean } = {}) {
+  const prepped = !!opts.prepped && !!planItemId;
   return useQuery<MealDetail>({
-    queryKey: ["meals", "detail", id, planItemId ?? null],
-    queryFn: () => getMeal(id, planItemId),
+    queryKey: mealDetailKey(id, planItemId, prepped),
+    queryFn: () => getMeal(id, planItemId, prepped ? { prepped } : {}),
     // An empty id (missing route param) never hits the network; the screen
     // renders its not-found state instead.
     enabled: id.length > 0,
+    ...(prepped ? { placeholderData: keepPreviousData } : {}),
   });
 }

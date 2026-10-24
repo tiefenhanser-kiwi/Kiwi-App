@@ -288,6 +288,17 @@ export function resolvePrepGate(
   return isPrepped ? "prepped" : "not_prepped";
 }
 
+/**
+ * CLIENT-1 item 2 — whether the meal read carries `?prepped=1`: only once the
+ * gate's question was answered "yes, I prepped". "No" and unanswered read the
+ * meal as before. (The gate asks only without a resolved plan item, so the
+ * server can word from it only when a planItemId still rides the URL — the
+ * read adds the flag in that case alone; see getMeal.)
+ */
+export function preppedMealRead(prepAnswer: boolean | null): boolean {
+  return prepAnswer === true;
+}
+
 // ── The prepped path (K-R7) ─────────────────────────────────────────────────
 //
 // 🔴 NO COOK STEP IS EVER REMOVED FROM THE FLOW. This replaced a filter that

@@ -32,6 +32,7 @@ import {
 import { ApiError, ApiSchemaError, UnauthenticatedError } from "../errors";
 import { __resetForTests as resetAuthBridge } from "../auth-bridge";
 import { useMeal } from "@/hooks/useMeal";
+import { preppedMealRead } from "@/lib/cooking/cookSession";
 import { useMeals } from "@/hooks/useMeals";
 
 const TOKEN_KEY = "kiwi_authToken";
@@ -355,6 +356,74 @@ test("useMeal surfaces an error state for a missing meal", async () => {
   assert.equal(latest!.isError, true);
   assert.equal(latest!.data, undefined);
   assert.ok(latest!.error instanceof ApiError);
+  renderer.unmount();
+});
+
+// ── CLIENT-1 item 2 — Cook Mode's "yes, I prepped" reaches the server ───────
+
+test("CLIENT-1 2: getMeal adds &prepped=1 to a plan read only", async () => {
+  const urls: string[] = [];
+  (globalThis as { fetch: typeof fetch }).fetch = (async (url: string) => {
+    urls.push(url);
+    return mockJson(SINGLE_DISH_MEAL);
+  }) as unknown as typeof fetch;
+  await getMeal("m1", "pi-1", { prepped: true });
+  await getMeal("m1", "pi-1");
+  await getMeal("m1", "pi-1", { prepped: false });
+  // No plan item: nothing for the server to word from, so no flag at all.
+  await getMeal("m1", undefined, { prepped: true });
+  assert.deepEqual(
+    urls.map((u) => u.slice(u.indexOf("/meals/"))),
+    ["/meals/m1?planItemId=pi-1&prepped=1", "/meals/m1?planItemId=pi-1", "/meals/m1?planItemId=pi-1", "/meals/m1"],
+  );
+});
+
+test("CLIENT-1 2: the gate's answer → the read — 'yes' sends prepped=1, 'no' and unanswered send nothing", () => {
+  assert.equal(preppedMealRead(true), true);
+  assert.equal(preppedMealRead(false), false);
+  assert.equal(preppedMealRead(null), false);
+});
+
+test("CLIENT-1 2: useMeal re-reads with prepped=1 on 'yes', keeping the meal on screen meanwhile", async () => {
+  const urls: string[] = [];
+  let release: (() => void) | null = null;
+  (globalThis as { fetch: typeof fetch }).fetch = (async (url: string) => {
+    urls.push(url);
+    if (url.includes("prepped=1")) await new Promise<void>((r) => (release = r));
+    return mockJson(SINGLE_DISH_MEAL);
+  }) as unknown as typeof fetch;
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  let answer: boolean | null = null;
+  let latest: ReturnType<typeof useMeal> | null = null;
+  function Probe(): null {
+    latest = useMeal("m1", "pi-1", { prepped: preppedMealRead(answer) });
+    return null;
+  }
+  let renderer!: TestRenderer.ReactTestRenderer;
+  const tree = () => React.createElement(QueryClientProvider, { client: qc }, React.createElement(Probe));
+  await act(async () => {
+    renderer = TestRenderer.create(tree());
+  });
+  await settle(qc);
+  assert.equal(urls.length, 1);
+  assert.ok(!urls[0].includes("prepped"), urls[0]);
+
+  answer = true;
+  await act(async () => {
+    renderer.update(tree());
+  });
+  assert.ok(urls[1]?.endsWith("?planItemId=pi-1&prepped=1"), String(urls[1]));
+  // In flight: the unprepped meal stays (no spinner under the gate's toast).
+  assert.equal(latest!.isLoading, false);
+  assert.equal(latest!.data?.id, "meal-single");
+  assert.equal(latest!.isPlaceholderData, true);
+  await act(async () => {
+    release!();
+    for (let i = 0; i < 10; i++) await new Promise<void>((r) => setTimeout(r, 0));
+  });
+  assert.equal(latest!.isPlaceholderData, false);
+  // The prepped read is still under the ["meals","detail"] prefix a tick invalidates.
+  assert.deepEqual(qc.getQueryCache().findAll({ queryKey: ["meals", "detail"] }).length, 2);
   renderer.unmount();
 });
 
