@@ -204,7 +204,7 @@ export const MANAGE_OPEN_FAILED =
  *  D-WS9-319 (Hans, Oct 24) — text only, verbatim; BUG-499 asked for a Portal
  *  link-out and was ruled down: the Portal sells (monthly ↔ annual). */
 export const MANAGE_STRIPE_ON_WEB =
-  "You subscribed on the web. Manage or cancel at app.kitchenwizard.ai → Profile → Manage.";
+  "You subscribed on the web. Manage or cancel at app.kitchenwizard.ai → Profile → Manage subscription.";
 
 /**
  * A store subscriber on the web — and the web's 409 `subscribed_elsewhere`.

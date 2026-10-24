@@ -92,7 +92,7 @@ test("🔴 §3 stripe · native → plain text, NO link; web → the existing Po
   for (const os of ["ios", "android"]) {
     assert.deepEqual(manageActionFor(os, STRIPE_ACTIVE), {
       kind: "stripe_text",
-      text: "You subscribed on the web. Manage or cancel at app.kitchenwizard.ai → Profile → Manage.",
+      text: "You subscribed on the web. Manage or cancel at app.kitchenwizard.ai → Profile → Manage subscription.",
     });
   }
   assert.deepEqual(manageActionFor("web", STRIPE_ACTIVE), {

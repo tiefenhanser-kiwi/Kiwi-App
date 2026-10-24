@@ -134,7 +134,7 @@ test("🔴 §3 apple / google on the web: text, no button", async () => {
 
 test("🔴 §3 stripe on native: plain text, NO link of any kind", async () => {
   const { tree } = await render("ios", sub({ ...ACTIVE, source: "stripe", hasBillingAccount: true }));
-  assert.equal(textOf(byId(tree, "settings-manage-text")), "You subscribed on the web. Manage or cancel at app.kitchenwizard.ai → Profile → Manage.");
+  assert.equal(textOf(byId(tree, "settings-manage-text")), "You subscribed on the web. Manage or cancel at app.kitchenwizard.ai → Profile → Manage subscription.");
   assert.equal(byId(tree, "settings-manage"), null);
   assert.equal(byId(tree, "settings-manage-store"), null);
 });
