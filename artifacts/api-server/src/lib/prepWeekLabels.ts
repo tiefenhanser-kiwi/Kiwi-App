@@ -17,7 +17,7 @@
 // verbatim, and `finishPrepWeek` puts these labels on, from today's days, on every read.
 
 import type { PrepWeekResult, PrepWeekStep } from "./ai/schemas/prepWeek";
-import type { StepPlan } from "./prepWeekAssembly";
+import { destinationPhrase, type StepPlan } from "./prepWeekAssembly";
 import { renamed, shortOf, type FeastLabelKind, type FeastLabels } from "./prepFeastLabels";
 
 export const WEEK_LABEL_STEP_KEY = "week-labels";
@@ -156,8 +156,15 @@ export function weekLabelMap(plan: Pick<StepPlan, "steps">, dayNameByMealId: Rea
  * The served week with its containers labelled, and its "Label N containers" step first.
  * Only the labels of containers still on screen today are listed.
  */
-export function labelWeekResult(result: PrepWeekResult, labels: { map: ReadonlyMap<string, string>; proteins?: ReadonlyMap<string, ReadonlyMap<string, string>> }): PrepWeekResult {
-  const pairs = [...labels.map].filter(([a, b]) => a !== b).sort((x, y) => y[0].length - x[0].length);
+export function labelWeekResult(result: PrepWeekResult, labels: { map: ReadonlyMap<string, string>; proteins?: ReadonlyMap<string, ReadonlyMap<string, string>>; labels?: FeastLabels }): PrepWeekResult {
+  // PREP-3 3b — a shared tub is said by its label wherever a sentence names it: "for the
+  // shared finely chopped fresh flat-leaf parsley tub" → "for the Chopped flat-leaf parsley
+  // tub", "Into one shared lemon-juice tub:" → "Into the Lemon juice tub:".
+  const tubs = [...labels.map].filter(([, l]) => labels.labels?.kinds.get(l) === "shared").flatMap(([name, l]): [string, string][] => {
+    const words = destinationPhrase(name, "shared").first.replace(/^into the /, "");
+    return [[`Into one ${words}`, `Into the ${l} tub`], [`The ${words}`, `The ${l} tub`], [`the ${words}`, `the ${l} tub`]];
+  });
+  const pairs = [...[...labels.map].filter(([a, b]) => a !== b), ...tubs].sort((x, y) => y[0].length - x[0].length);
   const renamedResult = renamed(result, pairs);
   // A protein step's packages, for the meals it is prepped for today.
   const out: PrepWeekResult = {
@@ -197,6 +204,8 @@ export function labelWeekResult(result: PrepWeekResult, labels: { map: ReadonlyM
     holdsNoContainer: true,
   };
   const phases = [...out.phases];
-  phases[at] = { ...phase, steps: [step, ...phase.steps.map((s) => ({ ...s, number: s.number + 1 }))] };
+  // PREP-3 3b — the labels are written first and are never skipped with the phase they
+  // open (Dry ingredients is otherwise skippable): its phase is not skippable.
+  phases[at] = { ...phase, skippable: false, steps: [step, ...phase.steps.map((s) => ({ ...s, number: s.number + 1 }))] };
   return { ...out, phases };
 }
