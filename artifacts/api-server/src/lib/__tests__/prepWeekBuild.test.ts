@@ -326,7 +326,7 @@ describe("Part J.0 B — portion lines are the code's", () => {
     const lines = garlic.instructions.split("\n");
     assert.equal(lines[0], "Do the thing.");
     // Minced garlic keeps 4 days: Monday's portion is prepped, Friday's and Saturday's wait.
-    assert.deepEqual(lines.slice(1), ["3 cloves for Chicken Stir Fry — into the shared minced-garlic-clove tub"]);
+    assert.deepEqual(lines.slice(1), ["3 cloves for Chicken Stir Fry — into the Minced garlic tub"]); // (PREP-3 3b: a shared tub said by its label)
     assert.deepEqual(garlic.contributesToMealIds, [M1]);
     assert.ok(garlic.instructions.length <= 800);
   });

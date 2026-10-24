@@ -101,7 +101,7 @@ describe("J.1c BUG-355 — Hans's device pass", () => {
     const onion = live(r).find((s) => !s.holdsNoContainer && s.instructions.includes("yellow onion"))!; // (not the label list)
     const lines = onion.instructions.split("\n");
     assert.equal(lines.length, 2, onion.instructions);
-    assert.equal(lines[1], "Into one shared finely diced yellow onion tub: 1 for the Texas-Style Beef Chili · 1 for the Tex-Mex Seasoned Ground Beef");
+    assert.equal(lines[1], "Into the Diced yellow onion tub: 1 for the Texas-Style Beef Chili · 1 for the Tex-Mex Seasoned Ground Beef");
     for (const s of allSteps(r)) assert.doesNotMatch(s.instructions, /\bsame (tub|bowl|jar|container|bag|plate)\b/, s.instructions);
   });
 
@@ -229,7 +229,7 @@ describe("J.1c BUG-355 — Hans's device pass", () => {
       { name: "Buttered Egg Noodles aromatics", text: "", ingredientNames: ["fresh flat-leaf parsley"], own: true },
     ]);
     assert.ok(note.length <= 200, `${note.length}: ${note}`);
-    assert.match(note, /^Creamy Beef and Mushroom Stroganoff toppings plate and Buttered Egg Noodles toppings plate: (?:Separate piles on a small plate|Plate, wrapped)/, note);
+    assert.match(note, /^Creamy Beef and Mushroom Stroganoff toppings plate and Buttered Egg Noodles toppings plate: (?:Separate piles on a small plate|wrapped, in the fridge)/, note);
     assert.match(note, /Buttered Egg Noodles aromatics: /, note);
   });
 
