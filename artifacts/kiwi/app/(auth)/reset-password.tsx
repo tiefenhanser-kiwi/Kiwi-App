@@ -6,6 +6,7 @@ import { Feather } from "@expo/vector-icons";
 
 import { Button } from "@/components/Button";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { KiwiMarkBadge } from "@/components/KiwiMarkBadge";
 import { PasswordField } from "@/components/PasswordField";
 import { useToast } from "@/contexts/ToastProvider";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
@@ -108,6 +109,7 @@ export default function ResetPasswordPage() {
     return (
       <View style={[styles.wrap, { paddingTop: insets.top + 8 }]}>
         <View style={styles.centered}>
+          <KiwiMarkBadge />
           <View style={styles.card}>
             <View style={styles.iconWrapAlert}>
               <Feather name="alert-triangle" size={32} color={Colors.terracotta[600]} />
@@ -145,6 +147,9 @@ export default function ResetPasswordPage() {
         ]}
         showsVerticalScrollIndicator={false}
       >
+        {/* CLIENT-1 (BUG-500) — the mark: this is the page the reset email
+            opens, on the web as in the app. */}
+        <KiwiMarkBadge align="start" />
         <Text style={styles.title}>Set a new password</Text>
         <Text style={styles.hint}>
           Choose a new password for your Kiwi account. At least 8 characters.

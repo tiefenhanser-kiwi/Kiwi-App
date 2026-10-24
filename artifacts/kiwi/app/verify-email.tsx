@@ -3,9 +3,10 @@ import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/Button";
-import { Header } from "@/components/Header";
+import { KiwiMarkBadge } from "@/components/KiwiMarkBadge";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { verifyEmailChange } from "@/lib/api/me";
 
@@ -18,6 +19,15 @@ import { verifyEmailChange } from "@/lib/api/me";
 // a logged-out user is then bounced to auth by index.tsx's state machine.
 
 const INVALID_LINK_MSG = "This verification link is invalid or expired.";
+
+// CLIENT-1 (BUG-506) — the landing the change-confirmation link opens, on the
+// web and in the app: the Kiwi mark, one line, one button. No header bar (an
+// emailed link has no stack behind it) and nothing to type: the token is the
+// whole credential. On the web the visitor is signed out (a new tab has no
+// sessionStorage session) and SessionGate leaves this route alone
+// (EMAIL_LINK_GROUPS); "Open Kiwi" then lands on sign-in, which is right.
+const EMAIL_UPDATED_LINE = "Your email is updated";
+const OPEN_KIWI_LABEL = "Open Kiwi";
 
 type VerifyState =
   | { kind: "verifying" }
@@ -59,11 +69,12 @@ export default function VerifyEmail() {
   }, [token, queryClient]);
 
   const goHome = () => router.replace("/(tabs)");
+  const insets = useSafeAreaInsets();
 
   return (
-    <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
-      <Header title="Verify email" />
+    <View style={{ flex: 1, backgroundColor: Colors.neutral[100], paddingTop: insets.top }}>
       <View style={s.body}>
+        <KiwiMarkBadge />
         {state.kind === "verifying" && (
           <View style={s.card}>
             <ActivityIndicator color={Colors.sage[700]} />
@@ -80,12 +91,9 @@ export default function VerifyEmail() {
                 color={Colors.sage[700]}
               />
             </View>
-            <Text style={s.heading}>Email updated</Text>
-            <Text style={s.message}>
-              Your email has been updated to {state.email}.
-            </Text>
+            <Text style={s.heading}>{EMAIL_UPDATED_LINE}</Text>
             <View style={s.actionWrap}>
-              <Button label="Continue" variant="primary" onPress={goHome} />
+              <Button label={OPEN_KIWI_LABEL} variant="primary" onPress={goHome} />
             </View>
           </View>
         )}

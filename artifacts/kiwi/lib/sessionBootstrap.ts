@@ -146,5 +146,14 @@ export function sessionGateShouldEvict(i: SessionGateInputs): boolean {
   // signed-out user belongs; redirecting from there would also throw a user
   // off the sign-in screen the moment a wrong password 401s.
   if (i.group === undefined || i.group === "(auth)") return false;
+  // CLIENT-1 (BUG-506) — an emailed link's landing: its token is the credential
+  // and it needs no session. On the web a link opened from the mail client is a
+  // new tab, and the web session lives in sessionStorage, so the visitor is
+  // ALWAYS signed out there: evicting sent the email-change link to sign-in.
+  if (EMAIL_LINK_GROUPS.includes(i.group)) return false;
   return true;
 }
+
+/** CLIENT-1 — top-level routes an emailed link lands on (reset-password is
+ *  inside "(auth)" already). */
+export const EMAIL_LINK_GROUPS: readonly string[] = ["verify-email"];

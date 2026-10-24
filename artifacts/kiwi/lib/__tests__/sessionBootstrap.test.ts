@@ -132,6 +132,15 @@ test("ok + no user on an authenticated route → evicts (WS9 BUG-239, unchanged)
   }
 });
 
+test("CLIENT-1 (BUG-506): ok + no user on the email-change landing → stays (the token is the credential)", () => {
+  // /verify-email?token=… — a new web tab from the mail client never has the
+  // sessionStorage session, so this is the ordinary case on the web.
+  assert.equal(
+    sessionGateShouldEvict({ bootstrapStatus: "ok", hasUser: false, group: "verify-email" }),
+    false,
+  );
+});
+
 // ── Row 13 "Test Kitchen" · Block 2 Part B — the guest ─────────────────
 //
 // 🔴 THE CASE THAT WOULD HAVE BROKEN THE TEST KITCHEN OUTRIGHT. "/test-kitchen"
