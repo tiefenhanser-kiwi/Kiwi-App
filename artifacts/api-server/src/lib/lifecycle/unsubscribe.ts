@@ -61,13 +61,20 @@ export function verifyUnsubscribeToken(
   return userId;
 }
 
+/**
+ * THX-3d round 3b (A1) — the API's own host. Both URLs are served by the API (the
+ * page by routes/pages.ts, the POST under /api), so when PUBLIC_APP_URL moves to the
+ * web app (https://app.kitchenwizard.ai, where the reset and verify links now go) the
+ * unsubscribe links stay on PUBLIC_API_URL. Unset or blank, PUBLIC_APP_URL as before.
+ */
 function baseUrl(env: NodeJS.ProcessEnv): string {
-  return (env["PUBLIC_APP_URL"] ?? "").trim().replace(/\/+$/, "");
+  const api = (env["PUBLIC_API_URL"] ?? "").trim();
+  return (api || (env["PUBLIC_APP_URL"] ?? "").trim()).replace(/\/+$/, "");
 }
 
 /**
  * The two unsubscribe URLs for one account, or null when either half is
- * missing (no JWT_SECRET, no PUBLIC_APP_URL).
+ * missing (no JWT_SECRET, no PUBLIC_API_URL / PUBLIC_APP_URL).
  *   page — the visible footer link; a browser page that opts out on load
  *   post — the List-Unsubscribe header target, for one-click in Gmail/Yahoo
  */

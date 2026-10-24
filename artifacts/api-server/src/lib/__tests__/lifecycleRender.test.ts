@@ -274,4 +274,15 @@ describe("LIFE-1 — the unsubscribe token", () => {
     assert.match(u.page, /^https:\/\/api\.example\.test\/email\/unsubscribe\?token=/);
     assert.match(u.post, /^https:\/\/api\.example\.test\/api\/email\/unsubscribe\?token=/);
   });
+
+  it("THX-3d 3b (A1) — PUBLIC_API_URL wins: the app URL can move to the web app and the links stay on the API", () => {
+    const moved = { ...env, PUBLIC_APP_URL: "https://app.kitchenwizard.test/", PUBLIC_API_URL: "https://api.kitchenwizard.test//" };
+    const u = unsubscribeUrls(USER, moved)!;
+    assert.match(u.page, /^https:\/\/api\.kitchenwizard\.test\/email\/unsubscribe\?token=/);
+    assert.match(u.post, /^https:\/\/api\.kitchenwizard\.test\/api\/email\/unsubscribe\?token=/);
+    // Unset or blank, PUBLIC_APP_URL as before (trailing slashes stripped).
+    const old = unsubscribeUrls(USER, { ...env, PUBLIC_APP_URL: "https://api.kitchenwizard.test/", PUBLIC_API_URL: "  " })!;
+    assert.match(old.page, /^https:\/\/api\.kitchenwizard\.test\/email\/unsubscribe\?token=/);
+    assert.equal(unsubscribeUrls(USER, { JWT_SECRET: "s", PUBLIC_API_URL: "https://api.x.test" })?.post.startsWith("https://api.x.test/api/email/unsubscribe?token="), true);
+  });
 });
