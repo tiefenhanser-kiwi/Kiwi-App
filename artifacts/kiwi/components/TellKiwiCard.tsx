@@ -44,6 +44,7 @@ import React from "react";
 import {
   AccessibilityInfo,
   Animated,
+  type LayoutChangeEvent,
   Pressable,
   StyleSheet,
   Text,
@@ -228,6 +229,22 @@ export function TellKiwiCard({
   const showPlaceholder = !hasText && placeholder !== "";
   const pillBasis = tellKiwiPillBasis(useWindowDimensions().fontScale, Typography.fontSize.base);
 
+  // CLIENT-1 (BUG-504) — THE PILL HOLDS THE TALLEST PHRASE. Since SEC-3 C the
+  // showing phrase sizes the pill, so a one-line phrase followed by one that
+  // wraps to two made the whole card jump every 2.6 s. All five are laid out,
+  // unpainted, at the phrase's own width and type (the measure layer below),
+  // and the pill's floor is the tallest of them: two lines on a phone at the
+  // default size, three at the largest text, one on the 720-px web column
+  // where none wraps. The system text size and the window width are both in
+  // the measurement, so the floor follows either; focus and typing keep it.
+  const measured = React.useRef<number[]>([]);
+  const [phraseFloor, setPhraseFloor] = React.useState(0);
+  const onMeasure = (i: number) => (e: LayoutChangeEvent) => {
+    measured.current[i] = e.nativeEvent.layout.height;
+    const tallest = Math.max(0, ...measured.current.filter((h) => h > 0));
+    setPhraseFloor((was) => (was === tallest ? was : tallest));
+  };
+
   return (
     <View style={styles.card}>
       {/* 1 — the card's title. */}
@@ -236,7 +253,29 @@ export function TellKiwiCard({
       {/* 2 — row 1: label + input share one row. */}
       <View style={styles.headRow}>
         <Text style={styles.rowLabel}>{TELL_KIWI_LABEL}</Text>
-        <View style={[styles.inputWrap, { flexBasis: pillBasis }]}>
+        <View
+          style={[
+            styles.inputWrap,
+            { flexBasis: pillBasis },
+            phraseFloor > 0 && { minHeight: Math.max(INPUT_HEIGHT, phraseFloor + 2 * PILL_PAD_V) },
+          ]}
+        >
+          {/* CLIENT-1 (BUG-504) — the measure layer: every phrase, never
+              painted (opacity 0), never touched, never read aloud. */}
+          <View
+            pointerEvents="none"
+            style={styles.measure}
+            testID="tell-kiwi-measure"
+            aria-hidden
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          >
+            {TELL_KIWI_PLACEHOLDERS.map((p, i) => (
+              <Text key={p} style={[styles.placeholder, styles.measureLine]} onLayout={onMeasure(i)}>
+                {p}
+              </Text>
+            ))}
+          </View>
           {/* The placeholder is rendered as our OWN overlaid Text rather than
               TextInput's placeholder prop: RN cannot cross-fade a native
               placeholder, and swapping the prop outright makes the strings
@@ -334,6 +373,8 @@ export function TellKiwiCard({
 
 const INPUT_HEIGHT = 44;
 const ARROW_SIZE = 34;
+/** inputWrap's vertical padding, which the phrase floor adds back. */
+const PILL_PAD_V = 10;
 
 const styles = StyleSheet.create({
   card: {
@@ -380,7 +421,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     minWidth: 0,
     minHeight: INPUT_HEIGHT,
-    paddingVertical: 10,
+    paddingVertical: PILL_PAD_V,
     justifyContent: "center",
     backgroundColor: Components.tellKiwi.inputBackground,
     borderRadius: Components.tellKiwi.inputRadius,
@@ -395,6 +436,22 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     fontSize: Typography.fontSize.base,
     color: Components.tellKiwi.inputPlaceholder,
+  },
+  // CLIENT-1 — the measure layer sits at the phrase's own width (the same left
+  // and right as placeholderIdle) and each phrase in it stacks at its top, so
+  // each one's height is its own wrap at that width.
+  measure: {
+    position: "absolute",
+    top: 0,
+    left: 17,
+    right: ARROW_SIZE + 12,
+    opacity: 0,
+  },
+  measureLine: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
   },
   // Nothing to show: out of flow, so the empty string adds no line.
   placeholderIdle: {

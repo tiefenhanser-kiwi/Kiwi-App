@@ -78,6 +78,18 @@ function allText(node: Json | string | null): string[] {
   return Array.isArray(node.children) ? node.children.flatMap(allText) : [];
 }
 /**
+ * CLIENT-1 (BUG-504) — the text a user can SEE: every string except the measure
+ * layer's, which holds all five phrases unpainted (opacity 0, hidden from
+ * assistive tech) so the pill can hold the tallest. A whole-tree read would find
+ * every phrase there and pass or fail for the wrong reason.
+ */
+function painted(node: Json | string | null): string[] {
+  if (node == null) return [];
+  if (typeof node === "string") return [node];
+  if (node.props?.testID === "tell-kiwi-measure") return [];
+  return Array.isArray(node.children) ? node.children.flatMap(painted) : [];
+}
+/**
  * Flatten a style prop. ⚠️ Pressable takes a FUNCTION of ({ pressed }) — the
  * stub passes it through verbatim, so a helper that only handles arrays reads
  * every Pressable as having no style at all (and then cheerfully "proves"
@@ -294,18 +306,18 @@ test("D-WS9-162: the five placeholders are verbatim and in ruled order", () => {
 
 test("reduce-motion renders the FIRST placeholder, statically", () => {
   const { root } = render({ __forceReduceMotion: true });
-  assert.ok(allText(root).includes(TELL_KIWI_PLACEHOLDERS[0]));
+  assert.ok(painted(root).includes(TELL_KIWI_PLACEHOLDERS[0]));
 });
 
 test("reduce-motion starts NO timer — the string never advances", async () => {
   const { root, tree } = render({ __forceReduceMotion: true });
-  assert.ok(allText(root).includes(TELL_KIWI_PLACEHOLDERS[0]));
+  assert.ok(painted(root).includes(TELL_KIWI_PLACEHOLDERS[0]));
   // Real elapsed time well past one interval; under reduce-motion nothing
   // should have been scheduled to change it.
   await act(async () => {
     await new Promise((r) => setTimeout(r, 60));
   });
-  const after = allText(tree.toJSON() as unknown as Json);
+  const after = painted(tree.toJSON() as unknown as Json);
   assert.ok(after.includes(TELL_KIWI_PLACEHOLDERS[0]));
   assert.ok(!after.includes(TELL_KIWI_PLACEHOLDERS[1]));
 });
@@ -336,7 +348,7 @@ test("focus CLEARS the placeholder, and nothing advances while focused", async (
   const input = byType(root, "rn-text-input")[0];
   assert.ok(input, "input found");
   assert.ok(
-    allText(root).includes(TELL_KIWI_PLACEHOLDERS[0]),
+    painted(root).includes(TELL_KIWI_PLACEHOLDERS[0]),
     "unfocused: a suggestion is showing",
   );
 
@@ -362,7 +374,7 @@ test("focus CLEARS the placeholder, and nothing advances while focused", async (
     "focused: nothing advances underneath, either",
   );
   // And no OTHER placeholder leaked into the tree in its place.
-  const after = allText(tree.toJSON() as unknown as Json);
+  const after = painted(tree.toJSON() as unknown as Json);
   for (const p of TELL_KIWI_PLACEHOLDERS) {
     assert.ok(!after.includes(p), `placeholder still painted while focused: ${p}`);
   }
@@ -412,7 +424,7 @@ test("blurring an empty field resumes from the FIRST string, not a half-faded fr
     (input.props.onBlur as () => void)();
   });
   assert.ok(
-    allText(tree.toJSON() as unknown as Json).includes(
+    painted(tree.toJSON() as unknown as Json).includes(
       TELL_KIWI_PLACEHOLDERS[0],
     ),
   );
@@ -617,4 +629,67 @@ test("SEC-3 C: the floor's arithmetic — one row from 320 at normal text, stack
   assert.equal(longestWord, 9, "'something' / 'Saturday…'");
   assert.ok(longestWord * 0.55 <= TELL_KIWI_PILL_MIN_EMS, `longest word ${longestWord} chars`);
   assert.equal(tellKiwiPillBasis(0.85, size), 161, "a smaller-than-default text keeps the default floor");
+});
+
+// ── CLIENT-1 (BUG-504) — the card stops bouncing ────────────────────────────
+// The showing phrase sizes the pill (SEC-3 C), so a one-line phrase followed by
+// a two-line one resized the card every 2.6 s. The pill now holds the tallest
+// of the five, measured unpainted at the phrase's own width and type.
+
+function measureLayer(root: Json): Json {
+  const layer = walk(root).find((n) => n.props?.testID === "tell-kiwi-measure");
+  assert.ok(layer, "the measure layer");
+  return layer!;
+}
+/** Fire each measurer's onLayout with a height, as a layout pass would. */
+function layOut(tree: TestRenderer.ReactTestRenderer, heights: number[]): Json {
+  const lines = walk(measureLayer(tree.toJSON() as unknown as Json)).filter((n) => typeof n.props.onLayout === "function");
+  assert.equal(lines.length, 5);
+  act(() => {
+    lines.forEach((n, i) => (n.props.onLayout as (e: unknown) => void)({ nativeEvent: { layout: { x: 0, y: 0, width: 160, height: heights[i] } } }));
+  });
+  return tree.toJSON() as unknown as Json;
+}
+function pillMinHeight(root: Json): unknown {
+  const input = byType(root, "rn-text-input")[0];
+  const pill = walk(root).find((n) => n.type === "rn-view" && walk(n).includes(input) && flatten(n.props.style).paddingRight !== undefined);
+  return flatten(pill!.props.style).minHeight;
+}
+
+test("BUG-504: the measure layer holds all five phrases, in the phrase's type, never painted or read aloud", () => {
+  const layer = measureLayer(render().root);
+  assert.deepEqual(allText(layer), [...TELL_KIWI_PLACEHOLDERS]);
+  const st = flatten(layer.props.style);
+  assert.equal(st.opacity, 0);
+  assert.equal(st.position, "absolute", "out of flow: it sizes nothing by itself");
+  assert.equal(layer.props.pointerEvents, "none");
+  assert.equal(layer.props.importantForAccessibility, "no-hide-descendants");
+  assert.equal(layer.props.accessibilityElementsHidden, true);
+  assert.equal(layer.props["aria-hidden"], true);
+  const ph = walk(render().root).find((n) => n.type === "rn-animated-text")!;
+  const line = walk(layer).find((n) => typeof n.props.onLayout === "function")!;
+  for (const k of ["fontFamily", "fontSize", "fontStyle"]) {
+    assert.equal(flatten(line.props.style)[k], flatten(ph.props.style)[k], `${k} matches the showing phrase`);
+  }
+  // Same width as the showing phrase: the pill's padding, mirrored.
+  assert.equal(st.left, 17);
+  assert.equal(st.right, 34 + 12);
+});
+
+test("BUG-504: the pill's floor is the TALLEST phrase plus its padding, whichever phrase shows", () => {
+  const { tree } = render({ __forceReduceMotion: false });
+  // One-line phrases at 20, the wrapping one at 40 (two lines).
+  const root = layOut(tree, [20, 40, 20, 20, 20]);
+  assert.equal(pillMinHeight(root), 60, "40 + 2 × 10");
+  // The same floor while focused (no phrase showing) — no jump on focus either.
+  act(() => {
+    (byType(root, "rn-text-input")[0].props.onFocus as () => void)();
+  });
+  assert.equal(pillMinHeight(tree.toJSON() as unknown as Json), 60);
+});
+
+test("BUG-504: at the largest text the floor follows the measurement (three lines), and never drops below 44", () => {
+  const { tree } = render();
+  assert.equal(pillMinHeight(layOut(tree, [60, 60, 40, 40, 40])), 80);
+  assert.equal(pillMinHeight(layOut(tree, [18, 18, 18, 18, 18])), 44, "the 720-px web column: one line each, the old floor");
 });
