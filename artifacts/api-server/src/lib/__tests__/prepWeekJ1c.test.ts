@@ -119,8 +119,8 @@ describe("J.1c BUG-355 — Hans's device pass", () => {
     const r = wire(b, (food, total) => (/celery/.test(food) ? `Slice ${total} into ½-inch pieces.` : `Peel ${total} and slice them into ½-inch coins.`));
     const celery = live(r).find((s) => s.instructions.includes("celery"))!;
     // BUG-359 — the lid keeps every word of its dish ("…Chicken vegetables" before);
-    // PREP-3 (R3) — served under the day's label.
-    assert.equal(celery.instructions, "Slice 3 celery stalks into ½-inch pieces for the Monday vegetables container.");
+    // PREP-3 3c — served under its dish's label.
+    assert.equal(celery.instructions, "Slice 3 celery stalks into ½-inch pieces for the Chicken & dumplings vegetables container.");
     const carrots = live(r).find((s) => s.instructions.includes("carrot"))!;
     assert.equal(carrots.instructions.split("\n").length, 1, carrots.instructions);
   });
@@ -203,11 +203,11 @@ describe("J.1c BUG-355 — Hans's device pass", () => {
         steps: [{ i: 0, phase: "prep", text: "Chop the romaine, slice the celery and halve the tomatoes.", ids: [uuid(1301), uuid(1302), uuid(1303)] }],
       }],
     }]));
-    // PREP-3 (R3) — the plate is the meal's (labelled by its day when served).
+    // PREP-3 (R3) — the plate is the meal's (3c: labelled by its main dish when served).
     for (const n of ["romaine lettuce hearts", "celery stalks", "cherry tomatoes"]) assert.deepEqual(destinations(b, n), ["Salad Night plate"], n);
     const r = wire(b);
     const note = live(r).map((s) => s.storageNote ?? "").find((n) => /plate/.test(n)) ?? "";
-    assert.match(note, /^(?:Monday plate: )?Separate piles \(romaine lettuce hearts, celery stalks and cherry tomatoes\) on a small plate/, note);
+    assert.match(note, /^(?:Chicken plate: )?Separate piles \(romaine lettuce hearts, celery stalks and cherry tomatoes\) on a small plate/, note);
   });
 
   it("3 — a step closing two lids that keep differently names each of them", () => {

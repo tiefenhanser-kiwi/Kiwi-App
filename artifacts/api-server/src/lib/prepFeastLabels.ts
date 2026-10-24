@@ -21,8 +21,8 @@ export interface FeastLabels { /** label → what it is (Cook Mode words it by t
 
 export const FEAST_LABEL_STEP_KEY = "feast-labels";
 
-const HERB = /\b(sage|thyme|rosemary|parsley|chives?|dill|cilantro|basil|oregano|tarragon|mint|bay)\b/i;
-const AROMATIC = /\b(garlic|shallots?|onions?|ginger|lemons?|limes?|oranges?)\b/i;
+export const HERB = /\b(sage|thyme|rosemary|parsley|chives?|dill|cilantro|basil|oregano|tarragon|mint|bay)\b/i;
+export const AROMATIC = /\b(garlic|shallots?|onions?|ginger|lemons?|limes?|oranges?)\b/i;
 const SPICE = /\b(cinnamon|nutmeg|ginger|cloves|allspice|cardamom|paprika|cumin|chili powder|cayenne|coriander|mace|star anise|pepper flakes)\b/i;
 const TOPPING = /\b(oats?|pecans?|walnuts?|almonds?|nuts?|panko|breadcrumbs?|crumbs?)\b/i;
 const FILLING = /\b(cornstarch|tapioca|arrowroot)\b/i;
@@ -44,7 +44,7 @@ export function shortOf(title: string, long = false): string {
 }
 
 /** "yellow onion" → "onion", "celery stalks" → "celery", "fresh green beans" → "green beans". */
-function foodOf(name: string): string {
+export function foodOf(name: string): string {
   const words = name.toLowerCase().replace(/\([^)]*\)/g, " ").split(/[,]/)[0].trim().split(/\s+/).filter((w) => !GENERIC.test(w));
   const out = words.filter((w) => !/^(?:stalks?|cloves?|sprigs?|leaves|heads?)$/.test(w));
   return (out.length ? out : words).join(" ");

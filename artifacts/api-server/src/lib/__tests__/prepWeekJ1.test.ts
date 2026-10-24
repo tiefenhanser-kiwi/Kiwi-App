@@ -100,8 +100,8 @@ describe("J.1 R1 — one Sunday session; a window that does not reach the cook d
     assert.ok(!tomato || tomato.skipSuggested === true, "Saturday's tomato is not cut on Sunday");
     assert.ok(held(r).some((l) => /^Fish Tacos \(Saturday, 6 days out\) — .*dice the roma tomatoes.* that morning\.$/.test(l)), held(r).join(" | "));
     // …and the spice blend still is: it keeps for weeks.
-    // (PREP-3 R3 — served under its label, "Saturday spices".)
-    assert.ok(allSteps(r).some((s) => !s.skipSuggested && (s.containerNames ?? []).includes("Saturday spices")), "the blend is still prepped");
+    // (PREP-3 3c — served under its label, "Tacos spices".)
+    assert.ok(allSteps(r).some((s) => !s.skipSuggested && (s.containerNames ?? []).includes("Tacos spices")), "the blend is still prepped");
     // No step that renders promises a window shorter than its own cook day.
     for (const s of allSteps(r).filter((x) => !x.skipSuggested && x.storageNote)) {
       const n = /up to (\d+) days/.exec(s.storageNote!);
@@ -272,11 +272,18 @@ describe("J.1b — the audit's follow-ups", () => {
     assert.ok(liveKey(1402), "the lettuce (3 days) is on the plate Sunday");
     assert.ok(liveKey(1404), "the onion (4 days) is on the plate Sunday");
     assert.ok(!liveKey(1403), "the tomatoes (2 days) wait");
-    // PREP-3 (R3) — the plate is labelled by its day at read time.
-    assert.deepEqual(held(r), ["Beef Tacos (Tuesday, 3 days out) — dice the roma tomatoes that morning and add them to the Tuesday plate."]);
+    // PREP-3 3c — the plate is labelled by its dish.
+    assert.deepEqual(held(r), ["Beef Tacos (Tuesday, 3 days out) — dice the roma tomatoes that morning and add them to the Tacos plate."]);
     const plateNote = live.map((s) => s.storageNote ?? "").find((n) => /plate/.test(n))!;
     assert.match(plateNote, /Separate piles \((?:iceberg lettuce and white onion|white onion and iceberg lettuce)\) on a small plate/);
     assert.doesNotMatch(plateNote, /tomato/);
+  });
+
+  it("3c — the held line is fitted on the plate's label, not the engine's long name", () => {
+    const name = "Beef Tacos with Shredded Iceberg Lettuce, Diced Roma Tomatoes and White Onion";
+    const r = wire(buildPrepWeekPlan(load([{ ...tacos(3), name }])));
+    // Named "<meal> plate" the line ran past 200 and lost its meal's name to the short head.
+    assert.deepEqual(held(r), [`${name} (Tuesday, 3 days out) — dice the roma tomatoes that morning and add them to the Tacos plate.`]);
   });
 
   it("1 — a mixed bowl holds whole: Saturday's pico waits entire, onion and jalapeño with the tomatoes", () => {
@@ -313,8 +320,8 @@ describe("J.1b — the audit's follow-ups", () => {
       }],
     }])));
     // The jar keeps 5 days and the meal is 7 out, so the jar IS held — and still not listed.
-    // (PREP-3 R3 — served under its label, "Sunday sauce".)
-    assert.ok(allSteps(r).some((x) => x.skipSuggested && (x.containerNames ?? []).includes("Sunday sauce")), "fixture: the sauce jar is held");
+    // (PREP-3 3c — served under its label, "Sesame noodles sauce".)
+    assert.ok(allSteps(r).some((x) => x.skipSuggested && (x.containerNames ?? []).includes("Sesame noodles sauce")), "fixture: the sauce jar is held");
     for (const l of held(r)) assert.doesNotMatch(l, /measure|soy sauce|vinegar|sesame|sausage|package/, l);
   });
 
@@ -398,13 +405,13 @@ describe("J.1 §2 — the smaller defects", () => {
     }])));
     const jal = allSteps(r).find((s) => s.instructions.includes("jalapeño") && !s.skipSuggested)!;
     // J.1c (BUG-355 item 3) — the cornbread's lone jalapeño takes a class lid, not "— diced
-    // jalapeño"; PREP-3 (R3) — its meal's plate, served under the day's label.
-    assert.ok(jal.containerNames?.includes("Monday plate"), "the label is still the container's name");
+    // jalapeño"; PREP-3 3c — its meal's plate, served under its main dish's label.
+    assert.ok(jal.containerNames?.includes("Beef chili plate"), `the label is still the container's name: ${jal.containerNames}`);
     for (const line of jal.instructions.split("\n").slice(1)) {
       assert.equal(line.split(" — ").length, 2, `a raw label inside a sentence: ${line}`);
     }
     // PREP-3 (R3) — a pile on the day's plate says whose it is.
-    assert.match(jal.instructions, /1 jalapeño for Jalapeño Cheddar Cornbread — into the Monday plate/);
+    assert.match(jal.instructions, /1 jalapeño for Jalapeño Cheddar Cornbread — into the Beef chili plate/);
   });
 
   it("J.1b — a long cook-day line fits by naming briefly, never by cutting a word", () => {

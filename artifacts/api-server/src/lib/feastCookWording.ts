@@ -77,7 +77,7 @@ export async function feastCookWordingFor(
 /**
  * PREP-3 (R1) — GET /meals/:id?planItemId= for a weeknight meal: each dish's steps worded
  * from that plan's Prep the Week, from the steps the cook TICKED only. Prep the Week is
- * optional (and premium): a week nobody prepped must never say "the Monday marinade".
+ * optional (and premium): a week nobody prepped must never say "the Skewers marinade".
  * `prepped` (the meal GET's `?prepped=1`, Cook Mode's "yes, I prepped" answered without
  * ticks) takes every step the cook could tick as ticked. Empty for a feast (its words
  * are feastCookWordingFor's) and for a plan with nothing ticked.
@@ -157,7 +157,7 @@ export interface FeastDishFacts {
 /**
  * The per-dish facts of a feast session build (its kept steps; a portion held for cook day is not prepped).
  * PREP-3 (R1) — and of a week's: only the steps the cook ticked (`onlySteps`), each
- * container said by the week's label ("Monday marinade", "Minced garlic").
+ * container said by the week's label ("Skewers marinade", "Minced garlic").
  */
 export function feastDishFacts(build: PrepWeekBuild, opts: { onlySteps?: ReadonlySet<string>; weeknight?: boolean } = {}): Map<string, FeastDishFacts> {
   const out = new Map<string, FeastDishFacts>();
@@ -634,9 +634,9 @@ export function rewordFeastSteps(
         if (opts.weeknight && c.amount && cutsOf(m).filter((x) => x.into === c.into).length === 1) tubAmount.set(m, c.amount);
         continue;
       }
-      // PREP-3 — a week's bowl named for the dish being cooked ("Tuesday guacamole") is
-      // said by its foods: "Fold in the Tuesday guacamole" reads as the dish itself.
-      const namesDish = opts.weeknight && titles.some((t) => c.into!.toLowerCase().endsWith(` ${shortDish(t)}`));
+      // PREP-3 — a week's bowl named for the dish being cooked ("Guacamole") is said by its
+      // foods: "Fold in the Guacamole" reads as the dish itself.
+      const namesDish = opts.weeknight && titles.some((t) => { const into = c.into!.toLowerCase(); return into === shortDish(t) || into.endsWith(` ${shortDish(t)}`); });
       if (p && p.whole && !namesDish) {
         // The whole container: only when one list of the step names everything it holds for this dish.
         const members = new Set(facts.cuts.filter((x) => x.into === c.into).map((x) => x.key));
@@ -792,10 +792,10 @@ export function rewordFeastSteps(
       if (ms.length === 0 || !onlyPrepWords(text, ms)) return false;
       // (A plural is the food's noun, never the verb: "the 4 bacon slices" are not sliced.)
       const verbs = CUT_WORDS.filter((w) => new RegExp(`\\b${w}(?!s\\b)`, "i").test(text));
-      // ("…and measure 1 tablespoon adobo sauce from the can": the Tuesday sauce holds it.)
+      // ("…and measure 1 tablespoon adobo sauce from the can": the Chipotle crema sauce holds it.)
       if (/^measure\b/i.test(text) && ms.every((m) => facts.mixes.some((x) => inMix(x, m)))) return true;
       // PREP-3 3b — "Cut … into 1½-inch chunks" is the prepped cut when it was cut to that
-      // shape (the chicken in Proteins, the red onion on the Monday plate).
+      // shape (the chicken in Proteins, the red onion on the Skewers plate).
       const shape = /^cut\b/i.test(text) ? SHAPE.exec(text)?.[1].toLowerCase() : undefined;
       // (Chunks, pieces, florets and cubes are one shape; strips, slices, rings and wedges each their own.)
       const lumps = /^(?:chunks|pieces|florets|cubes)$/;
@@ -910,14 +910,14 @@ export function rewordFeastSteps(
   };
 
   // ── PREP-3 (R4) — the marinade made whole at prep is named where it is used ───────────
-  // "Coat the chicken breasts evenly in the marinade" → "… in the Monday marinade".
+  // "Coat the chicken breasts evenly in the marinade" → "… in the Lemon pepper marinade".
   const renamedUse = (s: WordingStep): WordingStep => {
     let out = s;
     for (const mix of facts.mixes) {
       if (!/ marinade$/i.test(mix.name)) continue;
       const entry = ordered.find((x) => new Set((mentionsBy.get(x.stepIndex) ?? []).filter((m) => m.ref && inMix(mix, m)).map((m) => m.key)).size >= Math.min(2, mix.keys.size));
       if (!entry || !(skips.has(entry.stepIndex) || facts.covered?.has(entry.stepIndex)) || usedAfterSkip.has(mix.name) || s.stepIndex <= entry.stepIndex) continue;
-      // ("the marinade bowl" is the jar too: "add them to the Monday marinade".)
+      // ("the marinade bowl" is the jar too: "add them to the Skewers marinade".)
       const m = /\bthe marinade(?:\s+(?:bowl|jar|container))?\b/i.exec(out.text);
       if (!m) continue;
       const r = rebuild([{ text: out.text.slice(0, m.index), from: 0 }, { text: `the ${mix.name}` }, { text: out.text.slice(m.index + m[0].length), from: m.index + m[0].length }], out.amountRefs ?? []);

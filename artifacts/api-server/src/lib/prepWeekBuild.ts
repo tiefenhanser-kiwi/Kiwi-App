@@ -34,7 +34,7 @@ import { ingredientGroupKey } from "./ingredientRelations";
 import { combinePrep, MIX_STAPLE } from "./prepCombineEngine";
 import { cutOf } from "./prepClasses";
 import { CUT_AT_THE_STEP } from "./heldMorning";
-import { labelWeekResult, weekLabelMap } from "./prepWeekLabels";
+import { labelWeekResult, mainDishOf, weekLabelMap } from "./prepWeekLabels";
 import {
   buildStepPlan,
   componentTotals,
@@ -380,12 +380,16 @@ export function buildPrepWeekPlan(load: Load, opts: BuildPrepWeekOptions = {}): 
     });
   }
 
+  // PREP-3 3c — a week's labels name each meal's plate by its main dish ("Skewers plate").
+  const weekLabels = opts.feast
+    ? undefined
+    : weekLabelMap(stepPlan, cookDays.dayNameByMealId, new Map(input.meals.map((m) => [m.mealId, mainDishOf(m.dishes)?.dishName ?? m.mealName])), mealNameById);
   const build: PrepWeekBuild = {
     stepPlan,
     storageContexts,
     holds,
-    heldLines: heldLinesFor(stepPlan, holds, cookDays, mealNameById, dayOf),
-    ...(opts.feast ? feastFacts(stepPlan, input, combineInput, cookDays, dayOf) : { weekLabels: weekLabelMap(stepPlan, cookDays.dayNameByMealId) }),
+    heldLines: heldLinesFor(stepPlan, holds, cookDays, mealNameById, dayOf, weekLabels?.map),
+    ...(opts.feast ? feastFacts(stepPlan, input, combineInput, cookDays, dayOf) : { weekLabels }),
   };
   assignCoversCookSteps(build, load);
   return build;
@@ -618,7 +622,10 @@ function heldLinesFor(
   mealNameById: ReadonlyMap<string, string>,
   /** THX-3c (E) — the feast: a line per meal AND DAY, each portion on its own dish's day. */
   dayOf?: PortionDayOf,
+  /** PREP-3 3c — the week's labels (engine name → label): a line says the container's. */
+  labels?: ReadonlyMap<string, string>,
 ): string[] {
+  const labelOf = (n: string) => labels?.get(n) ?? n;
   type Item = { food: string; action: string; dest?: string };
   // A line's key: the meal, or in the feast the meal and the day ("<mealId>|Wednesday").
   const work = new Map<string, Item[]>(); // line → prep items, first action per food
@@ -691,18 +698,27 @@ function heldLinesFor(
     }
   }
   // The marinade's cook-day action, folded into its meal's line.
+  // PREP-3 3c — the week's marinade by its label ("add the chicken to the Skewers marinade"),
+  // unless one meal's action names two marinades: then once, in its own words.
+  const jarsOf = new Map<string, Map<string, Set<string>>>(); // mealId → action → marinades
   for (const [name, extra] of plan.containerExtras ?? new Map()) {
     if (!extra.joins?.length) continue;
     const meals = [...new Set(plan.steps.filter((s) => s.bowlName === name).flatMap((s) => s.contributesToMealIds))];
     for (const mealId of meals) {
       for (const j of extra.joins) {
-        const clause = marinadeCookDayAction(j, cookDays.lagByMealId.get(mealId));
-        if (!clause) continue;
-        const l = marinade.get(mealId) ?? [];
-        if (!l.includes(clause)) l.push(clause);
-        marinade.set(mealId, l);
+        const action = marinadeCookDayAction(j, cookDays.lagByMealId.get(mealId));
+        if (!action) continue;
+        const byAction = jarsOf.get(mealId) ?? new Map<string, Set<string>>();
+        byAction.set(action, (byAction.get(action) ?? new Set()).add(name));
+        jarsOf.set(mealId, byAction);
       }
     }
+  }
+  for (const [mealId, byAction] of jarsOf) {
+    marinade.set(mealId, [...byAction].map(([action, names]) => {
+      const [name] = names;
+      return names.size === 1 && labels?.has(name) ? action.replace(/ to the marinade\b/, ` to the ${labelOf(name)}`) : action;
+    }));
   }
 
   const lines: string[] = [];
@@ -739,12 +755,12 @@ function heldLinesFor(
     const onePlate = items.length > 0 && plates.length === 1 && plates[0] !== undefined ? plates[0] : null;
     const moment = lag === undefined ? "on cook day" : "that morning";
     const prepClause = (names: string[]) =>
-      names.length === 0 ? "" : `${listOf(names)} ${moment}${onePlate ? ` and add ${items.length === 1 && !/s$/i.test(items[0].food) ? "it" : "them"} to the ${onePlate}` : ""}`;
+      names.length === 0 ? "" : `${listOf(names)} ${moment}${onePlate ? ` and add ${items.length === 1 && !/s$/i.test(items[0].food) ? "it" : "them"} to the ${labelOf(onePlate)}` : ""}`;
     const sentence = (h: string, names: string[], marinades: string[]) =>
       `${h}${[prepClause(names), ...marinades].filter(Boolean).join("; ")}.`;
     const marinades = [...atStep, ...marinadeClauses];
     // The protein named briefly in its clause, for the tighter rungs.
-    const bareMarinades = marinades.map((c) => c.replace(/^add the (.+?) to the marinade/, (_m, who: string) => `add the ${bareName(who)} to the marinade`));
+    const bareMarinades = marinades.map((c) => c.replace(/^add the (.+?) to the /, (_m, who: string) => `add the ${bareName(who)} to the `));
     // The meal named briefly: its own dish, before " with …".
     const mealName = who;
     const shortHead = `${mealName.split(/\s+with\s+|,\s*/)[0]}${when} — `;
