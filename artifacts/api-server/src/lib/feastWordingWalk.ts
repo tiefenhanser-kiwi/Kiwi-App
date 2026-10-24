@@ -28,7 +28,9 @@ const STEM: Record<string, RegExp> = { cut: /\bcut\b/, chop: /\bchop/, mince: /\
 
 /** The step with every container it names blanked (so "Stuffing onion & celery" is not an onion). */
 function masked(step: WordingStep, names: readonly string[]): WordingStep {
-  let text = step.text.replace(/\bthe [^,;.]*? you prepped\b/gi, (m) => " ".repeat(m.length));
+  // (PREP-3 3c — and a group of foods, as the reworder writes it: "the squeezed cucumber, finely
+  // minced garlic and chopped dill you prepped". A list with an amount in it is not one.)
+  let text = step.text.replace(/\bthe (?:[^,;.\d]+?, )*[^,;.\d]*? you prepped\b/gi, (m) => " ".repeat(m.length));
   for (const n of [...names].sort((a, b) => b.length - a.length)) if (n) text = text.split(n).join(" ".repeat(n.length));
   return { ...step, text };
 }
