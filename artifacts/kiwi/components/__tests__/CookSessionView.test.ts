@@ -178,6 +178,24 @@ function renderView(o: Overrides = {}) {
   return renderer;
 }
 
+// ── CLIENT-1 (BUG-507) — "Next step in N minutes" under a long step ──────────
+
+test("CLIENT-1 7: a long sequenced step carries 'Next step in N minutes'; a short one and a collapsed one do not", () => {
+  const steps: CookStep[] = [
+    { key: "r#1", text: "Roast the chicken 40 minutes", phaseType: "cook", estimatedMinutes: 40, isTimingSensitive: false, startOffsetMinutes: -45 },
+    { key: "s#0", text: "Toss the salad", phaseType: "assemble", estimatedMinutes: 6, isTimingSensitive: false, startOffsetMinutes: -33 },
+    { key: "p#0", text: "Simmer the stock 30 minutes", phaseType: "cook", estimatedMinutes: 30, isTimingSensitive: false, startOffsetMinutes: -27 },
+    { key: "p#1", text: "Strain it", phaseType: "cook", estimatedMinutes: 2, isTimingSensitive: false, startOffsetMinutes: -27 },
+  ];
+  const texts = flat(renderView({ steps, currentIndex: 0 }).toJSON() as RenderedNode | null);
+  assert.ok(texts.includes("Next step in 12 minutes"), texts);
+  assert.ok(texts.includes("Next step now"), texts);
+  assert.equal(texts.split("Next step").length - 1, 2, "one line per long step, none under the short ones");
+  // The roast done in prep (collapsed): its card is the done-in-prep row, no line.
+  const collapsed = flat(renderView({ steps, currentIndex: 1, doneInPrepKeys: new Set(["r#1"]) }).toJSON() as RenderedNode | null);
+  assert.ok(!collapsed.includes("Next step in 12 minutes"), collapsed);
+});
+
 // ── Gate ────────────────────────────────────────────────────────────────────
 
 test("gate prompt: renders the one-tap question and fires onPrepAnswer", () => {

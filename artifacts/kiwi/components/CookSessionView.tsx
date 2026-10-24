@@ -46,7 +46,7 @@ import {
   nextLiveIndex,
   type CookStep,
 } from "@/lib/cooking/cookSession";
-import { startsAfterServe } from "@/lib/cooking/stepTiming";
+import { nextStepLine, startsAfterServe } from "@/lib/cooking/stepTiming";
 import { buildAmountRefSegments } from "@/lib/cooking/amountSegments";
 import type { AmountRef } from "@/lib/api/meals";
 import type { BirdLine } from "@/lib/format/quantity";
@@ -423,6 +423,7 @@ export function CookSessionView({
 
           const isCurrent = i === currentIndex;
           const isDone = i < currentIndex;
+          const nextLine = nextStepLine(steps, i, doneInPrepKeys);
           return (
             <Pressable
               key={step.key}
@@ -460,6 +461,9 @@ export function CookSessionView({
               {step.estimatedMinutes > 0 && (
                 <Text style={s.stepMeta}>{step.estimatedMinutes} min</Text>
               )}
+              {/* CLIENT-1 (BUG-507) — under a step of 20 minutes or more, when
+                  the next step starts, relative, off the sequence's offsets. */}
+              {nextLine && <Text style={s.nextStepLine}>{nextLine}</Text>}
               <TimerChip
                 step={step}
                 timer={timers[step.key]}
@@ -690,6 +694,14 @@ const s = StyleSheet.create({
     color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     marginTop: Spacing[2],
+  },
+  // The step's own minutes' tier, one step closer: it says when the cook is
+  // needed again, so it sits right under them.
+  nextStepLine: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[500],
+    marginTop: Spacing[1],
   },
 
   // timer chip → components/cooking/TimerChip.tsx (extracted)

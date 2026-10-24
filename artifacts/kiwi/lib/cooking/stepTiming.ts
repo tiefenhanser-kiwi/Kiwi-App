@@ -91,3 +91,36 @@ export function cookFooterMinutes(
   if (!steps.some((s) => s.startOffsetMinutes != null)) return null;
   return remainingMinutesToServe(steps, fromIndex) ?? remainingMinutes(steps, fromIndex);
 }
+
+// ── CLIENT-1 (BUG-507) — "Next step in N minutes" under a long step ─────────
+//
+// A step of 20 minutes or more (a roast, a simmer, a rise) leaves the cook free,
+// and the question is when the next thing needs them. The answer is the next
+// step's start minus this one's, off the same serve-anchored offsets the footer
+// reads (so it is the scheduler's clock, never a sum of step minutes) — whatever
+// dish that next step belongs to. Relative only (Hans, Oct 23): no clock time,
+// no serving-time target.
+//
+// "Next" is the next step the cook will be on: a step Prep the Week already did
+// is drawn collapsed and stepped over by Next, so it is stepped over here too.
+// With no offset on either step (an unsequenced meal, §27's append) there is no
+// answer, and no line.
+
+/** A step this long or longer gets the line. */
+export const NEXT_STEP_LINE_MIN_MINUTES = 20;
+
+export function nextStepLine(
+  steps: readonly { key: string; estimatedMinutes: number; startOffsetMinutes?: number | null }[],
+  index: number,
+  doneInPrepKeys: ReadonlySet<string> = new Set(),
+): string | null {
+  const step = steps[index];
+  if (!step || step.estimatedMinutes < NEXT_STEP_LINE_MIN_MINUTES) return null;
+  if (step.startOffsetMinutes == null) return null;
+  const next = steps.slice(index + 1).find((s) => !doneInPrepKeys.has(s.key));
+  if (!next || next.startOffsetMinutes == null) return null;
+  const raw = next.startOffsetMinutes - step.startOffsetMinutes;
+  if (raw < 1) return "Next step now";
+  const gap = Math.round(raw);
+  return `Next step in ${gap} ${gap === 1 ? "minute" : "minutes"}`;
+}
