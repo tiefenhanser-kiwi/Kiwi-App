@@ -150,6 +150,31 @@ describe("SEC-2 #6 — a verified change notifies the OLD address", () => {
   });
 });
 
+describe("THX-3d 3b (A2) — an older change link cannot undo a newer change", () => {
+  it("two links requested from the same address: the first redeemed moves the account, the second is then stale", async () => {
+    const sent: EmailMessage[] = [];
+    const rows = users();
+    const api = await spinUp(makePrisma(rows), sent);
+    try {
+      // Both requested with the password, from pw@example.com (the route binds fromEmail).
+      for (const newEmail of ["back@example.com", "new@example.com"]) {
+        const r = await api.call("POST", "/me/email/request-change", signToken(PW_USER), { newEmail, currentPassword: RIGHT });
+        assert.equal(r.status, 200);
+      }
+      const links = sent.map((m) => /token=([^\s"&]+)/.exec(m.text)?.[1]).filter((t): t is string => !!t).map(decodeURIComponent);
+      assert.equal(links.length, 2);
+      const second = await api.call("POST", "/me/email/verify-change", null, { token: links[1] });
+      assert.equal(second.status, 200);
+      assert.equal(rows[0]!.email, "new@example.com");
+      const first = await api.call("POST", "/me/email/verify-change", null, { token: links[0] });
+      assert.equal(first.status, 400, "the older link was for pw@example.com, which the account no longer has");
+      assert.equal(rows[0]!.email, "new@example.com");
+    } finally {
+      await api.close();
+    }
+  });
+});
+
 describe("SEC-2 #6 — POST /auth/logout ends every session", () => {
   it("both devices' sessions die; a fresh sign-in afterwards works", async () => {
     const sent: EmailMessage[] = [];

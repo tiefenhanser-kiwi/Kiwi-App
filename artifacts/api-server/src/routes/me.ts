@@ -1039,7 +1039,9 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
           const verifyTokenStr = signToken(currentUser.id, {
             purpose: "email_change",
             expiresIn: EMAIL_CHANGE_EXPIRY,
-            extra: { newEmail },
+            // THX-3d 3b (A2) — bound to the address it moves FROM: once the account's
+            // email has changed again, this link is stale and cannot undo that change.
+            extra: { newEmail, fromEmail: currentUser.email },
           });
           // BUG-219 — same exposure as the password-reset line in auth.ts: the
           // live email-change token and its `kiwi://verify-email?token=…` deep
@@ -1128,6 +1130,18 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
       // change is stale. If someone reset this password because the account was
       // taken, an email-change link the attacker had already requested must not
       // still be able to move the address out from under them.
+      // THX-3d 3b (A2) — a link minted for an address the account no longer has is
+      // stale: an older change link must not undo a newer change (it needs no
+      // password — the token is the auth). A link minted before this field existed
+      // carries none and expires within EMAIL_CHANGE_EXPIRY.
+      if (actor && typeof payload.fromEmail === "string" && payload.fromEmail !== actor.email) {
+        logger.warn({ userId: payload.userId, reason: "stale_from_email" }, "Email change token refused");
+        return res.status(400).json({
+          error: "invalid_token",
+          userFacingMessage: "This link is invalid or has expired.",
+        });
+      }
+
       if (actor && isIssuedBeforeEpoch(payload.iat, actor.tokensValidFrom)) {
         logger.warn(
           { userId: payload.userId, reason: "before_epoch" },
