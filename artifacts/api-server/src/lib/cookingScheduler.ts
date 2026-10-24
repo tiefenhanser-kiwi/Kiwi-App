@@ -1951,6 +1951,15 @@ function scheduleOnceCore(
     });
   });
 
+  // PREP-3 3b — a dish another dish waits for (R7) may have to start before the cook does:
+  // hh4-mixed Friday's meatballs were to start at −7, began at 0, so the subs ran 7 minutes
+  // past the anchor and the arugula, tossed "and serve immediately" at the anchor, waited
+  // 7 minutes. The meal moves later by that much, whole: serving is where everything ends.
+  if (uses.length > 0) {
+    const lead = -Math.min(0, ...work.map((w) => w.idealStart));
+    if (lead > 0) for (const w of work) { w.idealStart += lead; w.actualStart += lead; w.finish += lead; }
+  }
+
   // ── WS9 BUG-337 / D-WS9-297 ruling 1 — THE LATEST BOUND ──────────────────
   //
   // Until this, the pass modelled only `earliest`: a step could begin once its
