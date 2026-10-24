@@ -30,7 +30,7 @@ import {
   Typography,
 } from "@/constants/tokens";
 import type { PrepWeekPhaseKey } from "@/lib/api/cooking";
-import { prepWeekFooterLine } from "@/lib/cooking/prepWeekFooter";
+import { prepShowsSkip, prepWeekFooterLine } from "@/lib/cooking/prepWeekFooter";
 import { prepUsesLargeTextLayout } from "@/lib/cooking/prepWeekLayout";
 import type {
   PrepPhaseVM,
@@ -219,8 +219,10 @@ export function PrepWeekView({
   // BUG-020 (Hans-ruled footer) — three actions live in the footer, never in the
   // phase card. "Skip this Prep" (pure write-free advance) is hidden on the last
   // phase; "Save & Exit" (quiet write-free exit) is always present.
+  // CLIENT-1 item 3 — Skip also hides while the phase holds the unticked "Label
+  // N containers" step (prepShowsSkip says why not `phase.skippable`).
   const footerSecondaryActions = [
-    ...(!onLastPhase ? [{ label: "Skip this Prep", onPress: onSkipPhase }] : []),
+    ...(prepShowsSkip(phase, onLastPhase) ? [{ label: "Skip this Prep", onPress: onSkipPhase }] : []),
     { label: "Save & Exit", onPress: onSaveExit },
   ];
 

@@ -642,6 +642,49 @@ test("skip: 'Skip this Prep' is HIDDEN on the last phase (2 footer actions, not 
   assert.ok(texts.includes("Save & Exit"), `last phase must keep Save & Exit: ${texts}`);
 });
 
+// ── CLIENT-1 item 3 — the label step is never skipped with its phase ─────────
+
+/** The fixture with PREP-3 3b's label step leading phase 0, as labelWeekResult
+ *  serves it (`skippable: false` on that phase). */
+function labelled(stepKey = "week-labels", skippable = false): PrepWeekResult {
+  const r = result();
+  r.phases[0] = {
+    ...r.phases[0],
+    skippable,
+    steps: [
+      {
+        number: 1,
+        stepKey,
+        title: "Label 2 containers",
+        instructions: "Write these on tape, one per container: Monday plate · Lemon juice.",
+        estimatedMinutes: 1,
+        contributesToMealIds: [M1, M2],
+        holdsNoContainer: true,
+      },
+    ],
+  };
+  return r;
+}
+
+test("CLIENT-1 3: the label step renders first, and Skip hides on its phase until it is ticked", () => {
+  const texts = flat(renderView({ phaseIndex: 0, resultOverride: labelled() }).toJSON() as RenderedNode | null);
+  assert.ok(texts.includes("Label 2 containers"), texts);
+  assert.ok(!texts.includes("Skip this Prep"), `Skip must hide while the labels are unwritten: ${texts}`);
+  assert.ok(texts.includes("Save & Exit") && texts.includes("Mark all complete"), texts);
+  const ticked = flat(renderView({ phaseIndex: 0, resultOverride: labelled(), checked: ["week-labels"] }).toJSON() as RenderedNode | null);
+  assert.ok(ticked.includes("Skip this Prep"), `labels written → Skip is back: ${ticked}`);
+});
+
+test("CLIENT-1 3: Prep the feast's label step hides Skip too, though its phase stays skippable", () => {
+  const texts = flat(renderView({ phaseIndex: 0, session: "feast", resultOverride: labelled("feast-labels", true) }).toJSON() as RenderedNode | null);
+  assert.ok(!texts.includes("Skip this Prep"), texts);
+});
+
+test("CLIENT-1 3: BUG-020 stands — a non-skippable phase with no label step (Produce) keeps Skip", () => {
+  const texts = flat(renderView({ phaseIndex: 2, resultOverride: labelled() }).toJSON() as RenderedNode | null);
+  assert.ok(texts.includes("Skip this Prep"), texts);
+});
+
 test("save-exit: 'Save & Exit' fires onSaveExit ONLY — never write/advance/finish/skip channels", () => {
   let saved = 0;
   let advanced = 0;
