@@ -613,6 +613,30 @@ interface DishAlone {
   duration: number; // critical path = max finish (== Σ when untagged)
 }
 
+// ── PREP-3 3b — A SOAK IS A HOLD, LIKE A MARINADE ────────────────────────────────────
+//
+// hh4-mixed Monday: "If using wooden skewers, submerge all 8 in cold water now and let them
+// soak for at least 30 minutes" (2 minutes of hands), and the skewers were threaded 25
+// minutes later. A soak the step does not wait out itself (its minutes are fewer than the
+// soak's) holds the first later step of its dish that names what soaks: it starts once
+// the soak is over. (The noodles soaked "20–25 minutes" in a 25-minute step wait it out.)
+const SOAK = /\bsoak\w*\b[^.;]*?\b(?:for\s+)?(?:at least\s+)?(\d+)(?:\s*(?:–|-|to)\s*\d+)?\s*(?:minutes?|mins?)\b/i;
+const SOAKED = /\b(skewers?|noodles?|beans?|rice|chiles?|chilies|breadcrumbs?|potato(?:es)?|cashews?|lentils?|mushrooms?|raisins?)\b/i;
+/** Array index of the step that waits → the soaking step's index and the soak's minutes. */
+export function soakHolds(dish: Pick<SchedulerDish, "steps">): Map<number, { from: number; minutes: number }> {
+  const out = new Map<number, { from: number; minutes: number }>();
+  dish.steps.forEach((s, k) => {
+    const m = SOAK.exec(s.text ?? "");
+    if (!m || s.phaseType === "rest" || s.phaseType === "hold" || s.estimatedMinutes >= Number(m[1])) return;
+    const thing = SOAKED.exec(s.text ?? "")?.[1];
+    if (!thing) return;
+    const named = new RegExp(`\\b${escapeRe(thing.toLowerCase().replace(/(?:(?<=o)es|s)$/, ""))}`, "i");
+    const next = dish.steps.findIndex((o, j) => j > k && named.test(o.text ?? ""));
+    if (next > k && !out.has(next)) out.set(next, { from: k, minutes: Number(m[1]) });
+  });
+  return out;
+}
+
 /**
  * Walk one dish on its own: each step's earliest start given the dish's prior
  * steps, with the cook's hands modelled inside the dish (attended steps
@@ -626,6 +650,7 @@ function walkDishAlone(dish: SchedulerDish, kinds: StepKind[]): DishAlone {
   const offsets: number[] = [];
   const finishes: number[] = [];
   const attendedIntervals: [number, number][] = [];
+  const soaks = soakHolds(dish);
   let cookBusy = 0;
   for (let k = 0; k < steps.length; k++) {
     const kind = kinds[k];
@@ -636,6 +661,8 @@ function walkDishAlone(dish: SchedulerDish, kinds: StepKind[]): DishAlone {
       start = 0;
       for (let j = 0; j < k; j++) start = Math.max(start, finishes[j]);
     }
+    const soak = soaks.get(k);
+    if (soak) start = Math.max(start, finishes[soak.from] + soak.minutes);
     if (isUnattended(steps[k])) {
       // Kickoff needs a free hand: push past every attended interval it lands in.
       let moved = true;
@@ -1886,6 +1913,7 @@ function scheduleOnceCore(
   // meatballs, before the subs are filled), and the step waits for it in the pass below.
   // Not a feast's: its dishes are timed by the oven.
   const uses = !oven && !blocks ? dishUses(nonEmpty) : [];
+  const soaks = nonEmpty.map(soakHolds);
   const waitsFor = new Map(uses.map((u) => [`${u.dishId}|${u.stepIdx}`, u]));
   /** The plain finish-aligned ideal start of a step (what step 2 computes when nothing moves the dish). */
   const plainStart = (dishIdx: number, stepIdx: number): number => {
@@ -2162,6 +2190,9 @@ function scheduleOnceCore(
       // PREP-3 (R7) — a step that uses another dish's food starts once that dish is done.
       const use = waitsFor.get(`${w.dishId}|${w.stepIdx}`);
       if (use) floor = Math.max(floor, finishOf(use.usesDishId, use.doneIdx));
+      // PREP-3 3b — the skewers are threaded once their soak is over.
+      const soak = soaks[w.dishIdx].get(w.stepIdx);
+      if (soak && mine[soak.from]) floor = Math.max(floor, mine[soak.from]!.finish + soak.minutes);
       // THX-3c (BUG-463) — one temperature at a time: a block's oven step starts no
       // earlier than every oven step of the blocks before it has finished.
       const bk = blocks?.blocks;

@@ -125,3 +125,88 @@ describe("PREP-3 (R6) — the held line's day, from the plan's prep day", () => 
     assert.ok(buildPrepWeekPlan(load([meal])).heldLines.some((l) => /\(Monday, today\)/.test(l)));
   });
 });
+
+describe("PREP-3 3b (B) — dump1-week-hh4-mixed-ticked's R6 misses", () => {
+  const ts = <T extends { isTimingSensitive: boolean }>(s: T) => ({ ...s, isTimingSensitive: true });
+  it("Friday: the subs wait for the meatballs (R7) and the arugula, \"serve immediately\", is tossed within 3 minutes of serving (dump1: T−9)", () => {
+    const MEATBALLS = { ...dish("mb", "Beef and Pork Meatballs in Marinara", 0, [
+      st(0, "prep", 3, "Combine ½ cup plain breadcrumbs and ¼ cup whole milk in a large bowl and let soak for 2 minutes until the breadcrumbs are moistened."),
+      st(1, "prep", 5, "Add ¾ pound ground beef, ½ pound ground pork, 1 large egg and the parsley to the soaked breadcrumbs and mix gently."),
+      st(2, "prep", 5, "Roll the meat mixture into 16 equal balls, about 1½ inches in diameter, and set on a plate."),
+      st(3, "preheat", 2, "Heat 2 tablespoons olive oil in a large, wide skillet or Dutch oven over medium-high heat until shimmering."),
+      ts(st(4, "cook", 8, "Sear the meatballs in a single layer, turning every 1–2 minutes, until browned on all sides.")),
+      ts(st(5, "cook", 1, "Push the meatballs to the side, add the thinly sliced garlic, and sauté 30 seconds until fragrant.")),
+      st(6, "cook", 2, "Pour in the 28-oz can of crushed San Marzano tomatoes; nestle the meatballs into the sauce."),
+      st(7, "cook", 20, "Reduce heat to medium-low, cover, and simmer for 20 minutes, until cooked through and the sauce has thickened."),
+    ]), ingredientNames: ["ground beef", "ground pork", "plain breadcrumbs", "whole milk", "garlic", "crushed san marzano tomatoes"] };
+    const ROLLS = { ...dish("rolls", "Toasted Hoagie Rolls with Melted Provolone", 1, [
+      st(0, "preheat", 5, "Position an oven rack 6 inches from the broiler and preheat the broiler to high."),
+      st(1, "prep", 3, "Split 4 hoagie rolls lengthwise and spread the cut sides lightly with the softened butter."),
+      ts(st(2, "cook", 3, "Arrange the rolls cut-side up on a baking sheet and broil 2–3 minutes until golden — watch closely.")),
+      st(3, "assemble", 3, "Spoon 3–4 meatballs with generous marinara into each toasted roll, then lay 2 slices of provolone over the meatballs in each roll."),
+      ts(st(4, "cook", 3, "Return the loaded rolls to the broiler for 2–3 minutes until the provolone is fully melted and bubbling at the edges.")),
+      st(5, "assemble", 1, "Top each sub with 2 fresh basil leaves (optional) and serve immediately."),
+    ]), ingredientNames: ["hoagie rolls", "unsalted butter", "provolone cheese", "fresh basil leaves"] };
+    const ARUGULA = { ...dish("aru", "Simple Arugula and Shaved Parmesan Salad", 2, [
+      st(0, "prep", 3, "Use a vegetable peeler to shave 1 ounce of Parmesan into thin curls and set aside."),
+      st(1, "prep", 2, "Whisk together 2 tablespoons extra-virgin olive oil, 1 tablespoon lemon juice and the salt in a large bowl."),
+      st(2, "assemble", 2, "Add 4 ounces baby arugula to the bowl, toss to coat evenly with the dressing, then scatter the shaved Parmesan over the top and serve immediately."),
+    ]), ingredientNames: ["baby arugula", "parmesan cheese", "extra-virgin olive oil", "lemon juice"] };
+    const all = [MEATBALLS, ROLLS, ARUGULA];
+    const r = scheduleCookingSequence(all);
+    const startOf = (d: string, i: number) => r.steps.find((e) => e.dishId === d && e.originalStepIndex === i)!.startOffsetMinutes;
+    assert.ok(startOf("rolls", 3) >= endOf(r, all, "mb", 7), "the subs are filled once the meatballs are done");
+    assert.ok(endOf(r, all, "aru", 2) >= -3, `the arugula is tossed by T${endOf(r, all, "aru", 2)}`);
+    assert.ok(endOf(r, all, "rolls", 5) >= -3, `the subs are served by T${endOf(r, all, "rolls", 5)}`);
+  });
+
+  it("Monday: a soak is a hold — the skewers are threaded once their 30 minutes are over (dump1: 25 minutes in)", () => {
+    const SKEWERS = dish("sk", "Lemon-Herb Marinated Chicken Skewers", 0, [
+      st(0, "prep", 2, "If using wooden skewers, submerge all 8 in cold water now and let them soak for at least 30 minutes."),
+      st(1, "prep", 5, "Whisk together the olive oil, lemon juice, lemon zest, garlic and spices in a large bowl."),
+      st(3, "rest", 20, "Add the chicken chunks to the marinade, tossing well to coat; cover and refrigerate for at least 20 minutes (up to 2 hours)."),
+      st(4, "prep", 6, "Thread the chicken and the red onion chunks alternately onto the 8 skewers."),
+      st(5, "preheat", 5, "Preheat a grill or grill pan to medium-high heat (about 425°F) and lightly oil the grates."),
+      ts(st(6, "cook", 10, "Grill the skewers for 4–5 minutes per side, turning once, until cooked through to 165°F.")),
+      st(7, "rest", 3, "Transfer the skewers to a platter and rest for 3 minutes before serving."),
+    ]);
+    const SALAD = dish("gs", "Greek Salad with Warm Pita", 1, [
+      st(0, "prep", 8, "Roughly chop 4 cups romaine lettuce and halve 1 cup cherry tomatoes."),
+      st(1, "prep", 3, "Whisk together the dressing in a small bowl."),
+      st(2, "assemble", 3, "Combine the salad in a large bowl and toss with the dressing."),
+    ]);
+    const all = [SKEWERS, SALAD];
+    const r = scheduleCookingSequence(all);
+    const startOf = (d: string, i: number) => r.steps.find((e) => e.dishId === d && e.originalStepIndex === i)!.startOffsetMinutes;
+    assert.ok(startOf("sk", 4) >= endOf(r, all, "sk", 0) + 30, `threaded T${startOf("sk", 4)}, the soak over at T${endOf(r, all, "sk", 0) + 30}`);
+    // (A soak the step waits out itself holds nothing: the breadcrumbs' 2 minutes are in its 3.)
+  });
+});
+
+describe("PREP-3 3b (B) — the soak's hold, in the walk and in the pass", () => {
+  const ts = <T extends { isTimingSensitive: boolean }>(s: T) => ({ ...s, isTimingSensitive: true });
+  const SKEWERS = dish("sk", "Lemon-Herb Marinated Chicken Skewers", 1, [
+    st(0, "prep", 2, "If using wooden skewers, submerge all 8 in cold water now and let them soak for at least 30 minutes."),
+    st(1, "prep", 5, "Whisk together the olive oil, lemon juice and spices in a large bowl."),
+    st(2, "rest", 20, "Add the chicken chunks to the marinade; cover and refrigerate for at least 20 minutes."),
+    st(3, "prep", 6, "Thread the chicken and the red onion chunks alternately onto the 8 skewers."),
+    st(4, "preheat", 5, "Preheat a grill to medium-high heat."),
+    ts(st(5, "cook", 10, "Grill the skewers for 4–5 minutes per side.")),
+    st(6, "rest", 3, "Rest for 3 minutes before serving."),
+  ]);
+  it("the dish alone is as long as its soak makes it (the walk): 56 minutes, not 51", () => {
+    const r = scheduleCookingSequence([SKEWERS]);
+    assert.equal(r.dishDurations.sk, 56);
+  });
+  it("when the cook's hands push the soak late, the threading still waits for it (the pass)", () => {
+    const BRAISE_LONG = dish("br", "Braised Short Ribs", 0, [
+      st(0, "prep", 14, "Trim and season the short ribs."),
+      ts(st(1, "cook", 11, "Sear the short ribs on all sides.")),
+      st(2, "cook", 45, "Cover and braise in the 325°F oven."),
+    ]);
+    const all = [BRAISE_LONG, SKEWERS];
+    const r = scheduleCookingSequence(all);
+    const startOf = (d: string, i: number) => r.steps.find((e) => e.dishId === d && e.originalStepIndex === i)!.startOffsetMinutes;
+    assert.ok(startOf("sk", 3) >= endOf(r, all, "sk", 0) + 30, `threaded T${startOf("sk", 3)}, the soak over at T${endOf(r, all, "sk", 0) + 30}`);
+  });
+});
