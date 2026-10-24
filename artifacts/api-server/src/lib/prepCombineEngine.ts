@@ -170,6 +170,8 @@ export interface PrepContribution {
   unit: string;
   /** THX-3d round 2 (P) — carried from the input, never interpreted here. */
   asWritten?: boolean;
+  /** PREP-3 3b — the dish's own ingredient name, when the group goes by another (carried, never interpreted here). */
+  rowName?: string;
   preparationNote?: string | null;
   /**
    * D-WS9-296 — the mixture this CONTRIBUTION joins. On the contribution rather
@@ -767,6 +769,7 @@ export function combinePrep(
           quantity: ing.quantity,
           unit: ing.unit,
           ...(ing.asWritten ? { asWritten: true } : {}),
+          ...(ing.ingredientName !== g.ingredientName ? { rowName: ing.ingredientName } : {}),
           ...(ing.preparationNote != null
             ? { preparationNote: ing.preparationNote }
             : {}),

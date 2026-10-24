@@ -585,6 +585,7 @@ function componentsOfUnclaimed(
         qty: c.quantity,
         unit: c.unit,
         ...(c.asWritten ? { asWritten: true } : {}),
+        ...(c.rowName ? { rowName: c.rowName } : {}),
         ...(c.portion ? { portion: c.portion } : {}),
         ...(destinationFor ? { destination: destinationFor(c.dishId, entry.ingredientId, c.portion) } : {}),
           ...((c.preparationNote ?? "").trim()
@@ -620,6 +621,7 @@ function componentsOf(
         qty: c.quantity,
         unit: c.unit,
         ...(c.asWritten ? { asWritten: true } : {}),
+        ...(c.rowName ? { rowName: c.rowName } : {}),
         ...(c.portion ? { portion: c.portion } : {}),
         ...(destinationFor ? { destination: destinationFor(c.dishId, entry.ingredientId, c.portion) } : {}),
           ...((c.preparationNote ?? "").trim()
@@ -667,6 +669,7 @@ function componentsForDish(
         qty: c.quantity,
         unit: c.unit,
         ...(c.asWritten ? { asWritten: true } : {}),
+        ...(c.rowName ? { rowName: c.rowName } : {}),
         ...(c.portion ? { portion: c.portion } : {}),
         ...(destinationFor ? { destination: destinationFor(c.dishId, entry.ingredientId, c.portion) } : {}),
           ...((c.preparationNote ?? "").trim()
@@ -2404,6 +2407,20 @@ export function destinationPhrase(
   return { first: `into the ${dest} container`, noun: "container", namesDish: null };
 }
 
+/**
+ * PREP-3 3b — a dish's line counted by its form, in a group named for the food:
+ * "romaine lettuce hearts" in "Romaine lettuce" → "romaine heart" / "romaine hearts".
+ */
+function countFormOf(rowName: string, groupName: string): { singular: string; plural: string } | null {
+  const row = rowName.toLowerCase().split(/[,(]/)[0].trim().split(/\s+/);
+  const form = row[row.length - 1];
+  if (row.length < 2 || !/^(?:hearts|heads|bulbs|stalks|ears|bunches)$/.test(form)) return null;
+  const head = groupName.toLowerCase().split(/\s+/).pop();
+  if (head === form) return null;
+  const food = row.slice(0, -1).filter((w, i, all) => all.length === 1 || w !== head).join(" ");
+  return { singular: `${food} ${form.replace(/(?<=ch)es$|s$/, "")}`, plural: `${food} ${form}` };
+}
+
 function leadingNumber(amount: string): number | null {
   const m = /^(\d+)?\s*([¼½¾⅓⅔⅛⅜⅝⅞])?/.exec(amount.trim());
   if (!m || (!m[1] && !m[2])) return null;
@@ -2488,25 +2505,32 @@ export function renderPortionLines(
         const t = canonicalizeUnit(m.unit ?? "").token;
         return t === "" || PLACEHOLDER_COUNT_UNITS.has(t);
       })();
-      let qty = m.amount;
+      // PREP-3 3b — "4 cup for the Greek Salad" read "4 cups".
+      const amount = spokenAmount(m.amount);
+      let qty = amount;
       if (named || countOnly) {
         const n = leadingNumber(m.amount);
+        // PREP-3 3b — a count is of the dish's own line: "3 romaine hearts", never "3 Romaine
+        // lettuces" (the Caesar's "romaine lettuce hearts" in the "Romaine lettuce" group).
+        const form = countOnly && n !== null && m.rowName ? countFormOf(m.rowName, c.ingredientName) : null;
         // The catalog name's number is whatever it was filed under ("roma tomatoes",
         // "jalapeño"); the count decides it here.
-        const noun = !countOnly || n === null
+        const noun = form
+          ? (n! > 1 ? form.plural : form.singular)
+          : !countOnly || n === null
           ? c.ingredientName
           : n > 1
             // "celery" is a mass noun on a board ("3 celery", never "3 celeries");
             // the -y plural is left to names the catalog already pluralises.
             ? (/[sy]$/i.test(c.ingredientName) ? c.ingredientName : pluralizeSourceNoun(c.ingredientName))
             : c.ingredientName.replace(/(tomato|potato)es$/i, "$1").replace(/([^se])s$/i, "$1");
-        qty = `${m.amount} ${noun}`;
+        qty = `${amount} ${noun}`;
       }
       // The CUT only ("finely diced"), never the whole note: "freshly squeezed",
       // "leaves picked" and "for garnish" are not a second way to work the food,
       // and printed on every line they pushed shared steps past the cap.
       const cut = cutOf([m.preparationNote ?? c.preparationNote ?? ""]) ?? "";
-      portions.push({ qty, amount: m.amount, cut, dish: m.forDish, dest: m.destination });
+      portions.push({ qty, amount, cut, dish: m.forDish, dest: m.destination });
     }
   }
   if (portions.length === 0) return null;
@@ -2714,7 +2738,7 @@ const CUT_TITLE_VERB: ReadonlyArray<[RegExp, string]> = [
 function narrationComponents(components: readonly PrepNarrationComponent[]): PrepNarrationComponent[] {
   return components.map((c) => ({
     ...c,
-    measures: c.measures.map(({ mealId: _m, dishId: _d, ingredientId: _i, qty: _q, unit: _u, portion: _p, asWritten: _w, ...rest }) => rest),
+    measures: c.measures.map(({ mealId: _m, dishId: _d, ingredientId: _i, qty: _q, unit: _u, portion: _p, asWritten: _w, rowName: _r, ...rest }) => rest),
   }));
 }
 

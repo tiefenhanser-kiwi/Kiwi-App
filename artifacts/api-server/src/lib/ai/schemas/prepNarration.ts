@@ -74,6 +74,8 @@ export interface PrepMeasure {
   portion?: string;
   /** Code-only — THX-3d round 2 (P): the dish's own amount at its own servings, printed as written. */
   asWritten?: boolean;
+  /** Code-only — PREP-3 3b: the dish's own ingredient line, when the group is named otherwise ("romaine lettuce hearts" in "Romaine lettuce"). */
+  rowName?: string;
 }
 
 export interface PrepNarrationComponent {
