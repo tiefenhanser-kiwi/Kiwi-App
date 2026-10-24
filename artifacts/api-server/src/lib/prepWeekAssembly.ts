@@ -466,6 +466,16 @@ export function formatMeasure(quantity: number, rawUnit: string, name = "", opts
   return `${shown} ${pluralizeCountUnit(token, shownQty)}`;
 }
 
+/**
+ * PREP-3 3b — an amount as the cook reads it on a line: "4 cup" → "4 cups". (The narration
+ * input keeps formatMeasure's invariant "cup": its composition is the cache key.)
+ */
+export function spokenAmount(amount: string): string {
+  const m = /^(.+?) cup$/.exec(amount);
+  const n = m ? leadingNumber(m[1]) : null;
+  return m && n !== null && n > 1 ? `${m[1]} cups` : amount;
+}
+
 /** The measure units that stay invariant ("2 cup", "1½ lb" — how a recipe is written). */
 const MEASURE_TOKENS: ReadonlySet<string> = new Set(["tsp", "tbsp", "cup", "oz", "lb"]);
 

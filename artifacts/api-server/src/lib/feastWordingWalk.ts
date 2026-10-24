@@ -13,14 +13,18 @@
 // not prep: exempt. Read-only; thx3dFeastWalk (THX3D_DB=1) runs it on the five feasts.
 
 import { convertAmount } from "./feastAmountWalk";
-import { measured, mentionsOf, type FeastDishFacts, type Mention, type WordingRow, type WordingStep } from "./feastCookWording";
+import { measured, mentionsOf, WORKED_BEFORE, type FeastDishFacts, type Mention, type WordingRow, type WordingStep } from "./feastCookWording";
 import { ingredientGroupKey } from "./ingredientRelations";
 
-export interface WordingFinding { stepIndex: number; kind: "loose" | "double"; detail: string }
+export interface WordingFinding { stepIndex: number; kind: "loose" | "double" | "recut" | "protein" | "bare"; detail: string }
 export interface WalkWordingRow extends WordingRow { quantity: number; unit: string }
 
 const DAY_PREFIX = /^(\s*(?:Make ahead \([A-Za-z]+(?: night)?\)|On [A-Za-z]+day|Thaw \(start [A-Za-z]+\))\s*:\s*)/i;
 const SKIP = /^\s*skip if you prepped\b/i;
+/** A cut verb right before a food: its amount, article and adverbs between. */
+const RECUT = /\b(?:cut|chop|mince|slice|dice)\s+(?:(?:the|a|an|of|finely|thinly|roughly|coarsely)\s+|[\d½¼¾⅓⅔⅛⅜⅝⅞./-]+\s+|(?:pounds?|lbs?|oz|ounces?|cups?|tablespoons?|teaspoons?|cloves?)\s+)*$/i;
+/** The cut a verb asks for, as a prepped note says it ("slice" → "slic", "cut" → "cut"). */
+const STEM: Record<string, RegExp> = { cut: /\bcut\b/, chop: /\bchop/, mince: /\bminc/, slice: /\bslic/, dice: /\bdic/ };
 
 /** The step with every container it names blanked (so "Stuffing onion & celery" is not an onion). */
 function masked(step: WordingStep, names: readonly string[]): WordingStep {
@@ -34,6 +38,16 @@ export function feastWordingFindings(
   rows: readonly WalkWordingRow[],
   facts: FeastDishFacts | undefined,
   titles: readonly string[] = [],
+  /**
+   * PREP-3 3b — a week's three more (Cook Mode words from what the cook ticked):
+   *   recut   — a cut verb (cut, chop, mince, slice, dice) on a food a container holds
+   *             for the dish ("Cut the red onion into 1½-inch chunks", on the Monday plate);
+   *   protein — a protein cut in Proteins named with its cut in a day step ("Cut the
+   *             2 pounds of chicken thighs into 1½-inch chunks");
+   *   bare    — a shared tub's food worked by a step without "you prepped" ("Combine the
+   *             romaine, …" with the romaine in the shared tub).
+   */
+  opts: { weeknight?: boolean } = {},
 ): WordingFinding[] {
   if (!facts) return [];
   const out: WordingFinding[] = [];
@@ -51,6 +65,26 @@ export function feastWordingFindings(
       if (cut) out.push({ stepIndex: s.stepIndex, kind: "loose", detail: `"${said}" — prepped into ${cut.into}` });
       const mix = facts.mixes.find((x) => inMix(x, m) && entryOf.get(x.name) === s.stepIndex);
       if (mix) out.push({ stepIndex: s.stepIndex, kind: "loose", detail: `"${said}" — beside the ${mix.name} that holds it` });
+    }
+  }
+  if (opts.weeknight) {
+    for (const s of live) {
+      const prepped = [...s.text.matchAll(/\bthe [^,;.]*? you prepped\b/gi)].map((x) => [x.index!, x.index! + x[0].length]);
+      for (const m of mentionsOf(s, rows, titles)) {
+        if (prepped.some(([a, b]) => m.start >= a && m.end <= b)) continue;
+        const said = s.text.slice(m.start, m.end);
+        const clause = s.text.slice(0, m.start).split(/[;:.]\s+/).pop() ?? "";
+        const verb = (RECUT.exec(clause)?.[0] ?? (/^cut\b/i.test(clause.trim()) && /^\s+into\b/i.test(s.text.slice(m.end)) ? "cut" : "")).trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+        const same = (c: { id: string; key: string }) => c.id === m.id || c.key === m.key;
+        // (The cut it was prepped to: "slice the steak thinly" after the sear is not the trim.)
+        const asked = (c: { note: string }) => !!verb && (STEM[verb]?.test(c.note) ?? false);
+        const protein = (facts.proteins ?? []).find((c) => same(c) && asked(c));
+        const cut = facts.cuts.find((c) => same(c) && c.into && asked(c));
+        if (protein) out.push({ stepIndex: s.stepIndex, kind: "protein", detail: `"${said}" — cut in Proteins (${protein.note.trim()})` });
+        else if (cut) out.push({ stepIndex: s.stepIndex, kind: "recut", detail: `"${said}" — prepped into ${cut.into}` });
+        const tub = facts.cuts.find((c) => same(c) && c.kind === "shared");
+        if (tub && !verb && WORKED_BEFORE.test(clause)) out.push({ stepIndex: s.stepIndex, kind: "bare", detail: `"${said}" — in the ${tub.into} tub, not said "you prepped"` });
+      }
     }
   }
   // double: what a mix holds plus what the other steps add, over the dish's own line.

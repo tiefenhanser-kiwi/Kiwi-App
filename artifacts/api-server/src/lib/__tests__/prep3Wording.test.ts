@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 
 import { rewordFeastSteps, weeknightCookWordingFor, type FeastDishFacts, type WordingStep } from "../feastCookWording";
 import { deriveAmountRefs } from "../stepAmountRefs";
+import { feastWordingFindings } from "../feastWordingWalk";
 import { ingredientGroupKey } from "../ingredientRelations";
 
 type Row = { ingredientId: string; name: string; quantity: number; unit: string };
@@ -189,5 +190,102 @@ describe("PREP-3 (R1) — the words come from what the cook ticked", () => {
   it("a feast is never worded here (feastCookWordingFor's)", async () => {
     const out = await weeknightCookWordingFor({} as never, { planId: "p", userId: "u", mealTags: ["thanksgiving-feast"], prepped: true, dishes: [{ dishId: "d", title: "Turkey", steps: [] }] });
     assert.equal(out.size, 0);
+  });
+});
+
+describe("PREP-3 3b (A) — a partly covered step never cuts again what prep cut", () => {
+  const sk: Row[] = [{ ingredientId: "thi", name: "boneless skinless chicken thighs", quantity: 2, unit: "lb" }, { ingredientId: "ro", name: "red onion", quantity: 1, unit: "each" }, { ingredientId: "skw", name: "wooden or metal skewers", quantity: 8, unit: "each" }];
+  const skFacts: FeastDishFacts = {
+    dishId: "sk", mixes: [], cuts: [cut("ro", "red onion", "Monday plate", "cut into 1½-inch chunks, for threading", "plate")],
+    proteins: [{ id: "thi", key: ingredientGroupKey("boneless skinless chicken thighs"), into: "Monday chicken", note: "cut into 1½-inch chunks", amount: "2 lb" }],
+  };
+  it("Monday #3: the chicken chunks cut in Proteins go into the marinade", () => {
+    const out = words("Lemon-Herb Marinated Chicken Skewers", sk, skFacts, ["Cut the 2 pounds of chicken thighs into 1½-inch chunks and add them to the marinade bowl, tossing well to coat; cover and refrigerate for at least 20 minutes (up to 2 hours)."]);
+    assert.equal(out[0], "Add the chicken chunks you prepped (2 pounds) to the marinade bowl, tossing well to coat; cover and refrigerate for at least 20 minutes (up to 2 hours).");
+  });
+  it("Monday #7: the red onion chunks on the Monday plate are threaded, never cut", () => {
+    const out = words("Lemon-Herb Marinated Chicken Skewers", sk, skFacts, ["Cut the red onion into 1½-inch chunks and thread the chicken and onion pieces alternately onto the 8 skewers."]);
+    assert.equal(out[0], "Thread the chicken and the red onion chunks you prepped alternately onto the 8 skewers.");
+  });
+  it("a cut to another shape is the step's own: \"cut into strips\" stays", () => {
+    const out = words("Lemon-Herb Marinated Chicken Skewers", sk, skFacts, ["Cut the red onion into thin strips and thread the chicken and onion pieces alternately onto the 8 skewers."]);
+    assert.equal(out[0], "Cut the red onion into thin strips and thread the chicken and onion pieces alternately onto the 8 skewers.");
+  });
+  const cz: Row[] = [{ ingredientId: "gar", name: "garlic", quantity: 1, unit: "clove" }, { ingredientId: "anc", name: "anchovy fillets in oil", quantity: 4, unit: "each" }];
+  const czFacts: FeastDishFacts = { dishId: "cz", mixes: [], cuts: [cut("gar", "garlic", "Thursday plate", "halved, for rubbing croutons minced", "plate"), cut("gar", "garlic", "Minced garlic", "minced to a paste for dressing minced", "shared")] };
+  it("Thursday #3: the minced garlic in the shared tub is mashed with the anchovies", () => {
+    const out = words("Crisp Caesar Salad with Homemade Croutons", cz, czFacts, ["Mince 1 garlic clove to a fine paste, then mash 4 drained anchovy fillets into the paste using the flat of a knife until a smooth paste forms."]);
+    assert.equal(out[0], "Mash the minced garlic you prepped (1 clove) and 4 drained anchovy fillets together using the flat of a knife until a smooth paste forms.");
+  });
+  it("count agreement: a share Cook Mode shows as 1 reads \"(1 clove)\", never \"(1 cloves)\"", () => {
+    const rows: Row[] = [{ ingredientId: "gar", name: "garlic cloves", quantity: 2, unit: "clove" }, { ingredientId: "sc", name: "scallions", quantity: 1, unit: "each" }];
+    const facts: FeastDishFacts = { dishId: "f", mixes: [], cuts: [cut("gar", "garlic cloves", "Minced garlic", "minced", "shared")] };
+    const text = "Add 2 minced garlic cloves and 1 scallion and stir-fry for 30 seconds until fragrant.";
+    const half = rewordFeastSteps([step(0, text, rows)], rows, facts, ["Egg Fried Rice"], { weeknight: true, countOf: (r) => r.quantity * 0.5 })[0].text;
+    assert.equal(half, "Add the minced garlic you prepped (2 clove) and 1 scallion and stir-fry for 30 seconds until fragrant.");
+    const whole = rewordFeastSteps([step(0, text, rows)], rows, facts, ["Egg Fried Rice"], { weeknight: true })[0].text;
+    assert.equal(whole, "Add the minced garlic you prepped (2 cloves) and 1 scallion and stir-fry for 30 seconds until fragrant.");
+  });
+  it("Monday #14: a shared tub's member named without an amount takes the tub's share", () => {
+    const rows: Row[] = [{ ingredientId: "rom", name: "romaine lettuce", quantity: 4, unit: "cup" }, { ingredientId: "ct", name: "cherry tomatoes", quantity: 1, unit: "cup" }, { ingredientId: "kal", name: "kalamata olives", quantity: 0.33, unit: "cup" }];
+    const facts: FeastDishFacts = { dishId: "g", mixes: [], cuts: [{ ...cut("rom", "romaine lettuce", "Chopped romaine lettuce", "roughly chopped", "shared"), amount: "4 cups" }, cut("ct", "cherry tomatoes", "Monday plate", "halved", "plate")] };
+    const out = words("Greek Salad with Warm Pita", rows, facts, ["Combine the romaine, cherry tomatoes, ⅓ cup Kalamata olives in a large salad bowl."]);
+    assert.equal(out[0], "Combine the chopped romaine lettuce you prepped (4 cups), the cherry tomatoes you prepped, ⅓ cup Kalamata olives in a large salad bowl.");
+  });
+});
+
+describe("PREP-3 3b (A5) — the wording walk's three weeknight shapes", () => {
+  it("dump1's misses are found (protein, recut, bare) and 3b's words are clean", () => {
+    const rows = [
+      { ingredientId: "thi", name: "boneless skinless chicken thighs", quantity: 2, unit: "lb" }, { ingredientId: "ro", name: "red onion", quantity: 1, unit: "each" },
+      { ingredientId: "gar", name: "garlic", quantity: 1, unit: "clove" }, { ingredientId: "rom", name: "romaine lettuce", quantity: 4, unit: "cup" }, { ingredientId: "kal", name: "kalamata olives", quantity: 0.33, unit: "cup" },
+    ];
+    const facts: FeastDishFacts = {
+      dishId: "m", mixes: [],
+      cuts: [cut("ro", "red onion", "Monday plate", "cut into 1½-inch chunks, for threading", "plate"), cut("gar", "garlic", "Minced garlic", "minced to a paste for dressing minced", "shared"), { ...cut("rom", "romaine lettuce", "Chopped romaine lettuce", "roughly chopped", "shared"), amount: "4 cups" }],
+      proteins: [{ id: "thi", key: ingredientGroupKey("boneless skinless chicken thighs"), into: "Monday chicken", note: "cut into 1½-inch chunks", amount: "2 lb" }],
+    };
+    const texts = [
+      "Cut the 2 pounds of chicken thighs into 1½-inch chunks and add them to the marinade bowl, tossing well to coat.",
+      "Cut the red onion into 1½-inch chunks and thread the chicken and onion pieces alternately onto the 8 skewers.",
+      "Mince 1 garlic clove to a fine paste, then mash 4 drained anchovy fillets into the paste using the flat of a knife.",
+      "Combine the romaine, ⅓ cup Kalamata olives in a large salad bowl.",
+      "Slice the chicken thinly and serve.",
+    ];
+    const before = texts.map((t, i) => step(i, t, rows));
+    const kinds = (ss: WordingStep[]) => feastWordingFindings(ss, rows, facts, ["Skewers"], { weeknight: true }).filter((f) => f.kind !== "loose" && f.kind !== "double").map((f) => `${f.stepIndex}:${f.kind}`);
+    // (#4 slices the cooked chicken: Proteins cut it into chunks, never sliced it.)
+    assert.deepEqual(kinds(before), ["0:protein", "1:recut", "2:recut", "3:bare"]);
+    assert.deepEqual(kinds(rewordFeastSteps(before, rows, facts, ["Skewers"], { weeknight: true })), []);
+  });
+});
+
+describe("PREP-3 3b (A) — the walk's catalog misses", () => {
+  it("a shared-tub food a step adds is the tub's, measured or not (R2, every member)", () => {
+    const rows: Row[] = [{ ingredientId: "gar", name: "garlic", quantity: 2, unit: "clove" }, { ingredientId: "bu", name: "unsalted butter", quantity: 1, unit: "tbsp" }];
+    const facts: FeastDishFacts = { dishId: "r", mixes: [], cuts: [{ ...cut("gar", "garlic", "Minced garlic", "minced", "shared"), amount: "2 cloves" }] };
+    const out = words("Garlic Herb Rice", rows, facts, ["Melt 1 tablespoon unsalted butter in a medium saucepan over medium heat, add the minced garlic, and sauté 1 minute until fragrant."]);
+    assert.equal(out[0], "Melt 1 tablespoon unsalted butter in a medium saucepan over medium heat, add the minced garlic you prepped (2 cloves), and sauté 1 minute until fragrant.");
+  });
+  it("a verb whose object was the dropped cut takes it: \"and add to the bowl\"", () => {
+    const rows: Row[] = [{ ingredientId: "jal", name: "jalapeño", quantity: 1, unit: "each" }];
+    const out = words("Radish and Cabbage Slaw", rows, { dishId: "s", mixes: [], cuts: [cut("jal", "jalapeño", "Wednesday plate", "thinly sliced, seeded", "plate")] }, ["Thinly slice the jalapeño, removing the seeds for less heat, and add to the bowl (optional)."]);
+    assert.equal(out[0], "Add the sliced jalapeño you prepped to the bowl (optional).");
+  });
+  it("\"the 4 bacon slices\" are not sliced: the bacon cut in Proteins leaves the step", () => {
+    const rows: Row[] = [{ ingredientId: "bac", name: "bacon", quantity: 4, unit: "slice" }, { ingredientId: "pot", name: "russet potatoes", quantity: 1.25, unit: "lb" }];
+    const facts: FeastDishFacts = { dishId: "z", mixes: [], cuts: [], proteins: [{ id: "bac", key: ingredientGroupKey("bacon"), into: "Tuesday bacon", note: "cut into 1/2-inch pieces", amount: "4 slices" }] };
+    const out = words("Zuppa Toscana", rows, facts, ["Cut the 4 bacon slices into ½-inch pieces, and halve then slice the 1¼ lb russet potatoes ¼-inch thick."]);
+    assert.equal(out[0], "Halve then slice the 1¼ lb russet potatoes ¼-inch thick.");
+  });
+  it("\"and set aside\" stays with its own clause: the next clause's cut can still leave", () => {
+    const rows: Row[] = [{ ingredientId: "tk", name: "boneless skinless turkey breast", quantity: 3, unit: "cup" }, { ingredientId: "on", name: "yellow onion", quantity: 1, unit: "each" }];
+    const out = words("Classic Turkey Pot Pie", rows, { dishId: "t", mixes: [], cuts: [cut("on", "yellow onion", "Turkey vegetables", "finely diced", "own")] }, ["Shred 3 cups of rotisserie chicken or turkey breast and set aside; finely dice the yellow onion."]);
+    assert.equal(out[0], "Shred 3 cups of rotisserie chicken or turkey breast and set aside.");
+  });
+  it("\"Thinly slice\" is never the pepperoni slices", () => {
+    const rows: Row[] = [{ ingredientId: "pep", name: "pepperoni slices", quantity: 3, unit: "oz" }, { ingredientId: "mu", name: "cremini mushrooms", quantity: 6, unit: "oz" }, { ingredientId: "moz", name: "low-moisture whole-milk mozzarella", quantity: 10, unit: "oz" }];
+    const out = words("Pepperoni and Mushroom Pizza", rows, { dishId: "p", mixes: [], cuts: [cut("mu", "cremini mushrooms", "Friday vegetables", "thinly sliced", "own")] }, ["Thinly slice the 6 oz cremini mushrooms; shred the 10 oz mozzarella if not pre-shredded."]);
+    assert.equal(out[0], "Shred the 10 oz mozzarella if not pre-shredded.");
   });
 });
