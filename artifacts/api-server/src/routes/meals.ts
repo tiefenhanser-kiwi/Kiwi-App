@@ -39,7 +39,7 @@ import { isOneDish } from "../lib/similar/dishForm";
 import { buildSwapPool, SwapSourceNotFoundError, type SwapPoolCandidate } from "../lib/similar/swapPool";
 import { everydayPoolWhere } from "../lib/store/storeShortlist";
 import { hasUnmatchedAmount, type AmountRef } from "../lib/stepAmountRefs";
-import { feastCookWordingFor, weeknightCookWordingFor } from "../lib/feastCookWording";
+import { feastCookWordingFor, PreppedRefsSchema, weeknightCookWordingFor, type CookWording, type PreppedRef } from "../lib/feastCookWording";
 import { weeknightMorningFor } from "../lib/heldCookDay";
 import { FEAST_MEAL_TAG } from "../lib/prepWeekAggregation";
 import {
@@ -249,6 +249,10 @@ export function toStepShape(s: {
     // `parallelGroup` above uses.
     componentKey: s.componentKey ?? null,
     pathKey: s.pathKey ?? null,
+    // THX-3d round 5 (D-WS9-321) — the prepped containers a step worded from the plan's
+    // prep uses (lib/feastCookWording, PreppedRefsSchema). Never stored: set at read time,
+    // and absent (not on the wire) when the step uses nothing prepped.
+    ...({} as { preppedRefs?: PreppedRef[] }),
   };
 }
 
@@ -1136,8 +1140,9 @@ export function createMealsRouter(
       // you prepped". Read time, no AI, nothing stored — so a dish added to the feast
       // is worded the same way. A failure logs and serves the stored words.
       if (planIdOfItem && req.userId) {
-        try {
-          const worded = await feastCookWordingFor(prisma, { planId: planIdOfItem, userId: req.userId, mealTags: meal.tags ?? [], dishes: meal.dishes });
+        // The words, their refs and (THX-3d round 5, D-WS9-321) the prepped containers
+        // used, validated: a ref the schema refuses is logged and left off, never the words.
+        const applyWording = (worded: Map<string, Map<number, CookWording>>) => {
           for (const d of meal.dishes) {
             for (const st of d.steps) {
               const w = worded.get(d.dishId)?.get(st.stepIndex);
@@ -1145,8 +1150,15 @@ export function createMealsRouter(
               st.text = w.text;
               st.amountRefs = w.amountRefs as AmountRef[] | null;
               st.unmatchedAmount = hasUnmatchedAmount(w.text, w.amountRefs);
+              if (!w.preppedRefs) continue;
+              const refs = PreppedRefsSchema.safeParse(w.preppedRefs);
+              if (refs.success) st.preppedRefs = refs.data;
+              else logger.warn({ id, dishId: d.dishId, stepIndex: st.stepIndex, event: "prepped_refs_invalid" }, "preppedRefs refused by its schema — left off");
             }
           }
+        };
+        try {
+          applyWording(await feastCookWordingFor(prisma, { planId: planIdOfItem, userId: req.userId, mealTags: meal.tags ?? [], dishes: meal.dishes }));
         } catch (err) {
           logger.warn({ err, id, event: "feast_cook_wording_failed" }, "Feast Cook Mode wording failed — stored words served");
         }
@@ -1157,16 +1169,7 @@ export function createMealsRouter(
         // Mode's "yes, I prepped", answered without ticks). Read time, nothing stored; a
         // failure serves the stored words.
         try {
-          const worded = await weeknightCookWordingFor(prisma, { planId: planIdOfItem, userId: req.userId, mealTags: meal.tags ?? [], prepped: req.query.prepped === "1", dishes: meal.dishes });
-          for (const d of meal.dishes) {
-            for (const st of d.steps) {
-              const w = worded.get(d.dishId)?.get(st.stepIndex);
-              if (!w) continue;
-              st.text = w.text;
-              st.amountRefs = w.amountRefs as AmountRef[] | null;
-              st.unmatchedAmount = hasUnmatchedAmount(w.text, w.amountRefs);
-            }
-          }
+          applyWording(await weeknightCookWordingFor(prisma, { planId: planIdOfItem, userId: req.userId, mealTags: meal.tags ?? [], prepped: req.query.prepped === "1", dishes: meal.dishes }));
         } catch (err) {
           logger.warn({ err, id, event: "weeknight_cook_wording_failed" }, "Weeknight Cook Mode wording failed — stored words served");
         }

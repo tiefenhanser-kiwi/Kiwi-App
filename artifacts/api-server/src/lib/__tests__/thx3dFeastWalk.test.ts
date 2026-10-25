@@ -12,6 +12,7 @@ import assert from "node:assert/strict";
 import type { PrismaClient } from "@prisma/client";
 
 import { feastAmountFindings } from "../feastAmountWalk";
+import { CARVED_WAIT_MAX } from "../cookingScheduler";
 
 const RUN = process.env["THX3D_DB"] === "1";
 const DEV_HOST = /ep-broad-haze/;
@@ -298,7 +299,12 @@ describe("THX-3d — the five dev feasts, walked", { skip: RUN ? false : "set TH
       const rest = mine.find((s) => s.row.phaseType === "rest");
       const carve = mine.find((s) => /^Carve the /i.test(s.row.stepTextTranslated));
       assert.ok(rest && carve, "a rest and a carve");
-      assert.equal(carve!.startOffsetMinutes, rest!.startOffsetMinutes + rest!.row.estimatedMinutes, `${key}: carved as the rest ends`);
+      // THX-3d round 4 (BUG-497 item 7) and round 5 (D-WS9-322 (1), the cap is hard): the
+      // bird rests whole until it is carved, never carved before its rest ends, and once
+      // carved waits no more than CARVED_WAIT_MAX for serving (it was "carved as the rest
+      // ends", which round 4's carve-as-late-as-the-hands-allow made stale).
+      assert.ok(carve!.startOffsetMinutes >= rest!.startOffsetMinutes + rest!.row.estimatedMinutes, `${key}: carved after the rest ends`);
+      assert.ok(serve[0].startOffsetMinutes - (carve!.startOffsetMinutes + carve!.row.estimatedMinutes) <= CARVED_WAIT_MAX, `${key}: the carved bird waits ${serve[0].startOffsetMinutes - (carve!.startOffsetMinutes + carve!.row.estimatedMinutes)} for serving`);
     });
   }
 });

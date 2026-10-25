@@ -98,16 +98,16 @@ describe("THX-3d L — a mix is named where it goes in", () => {
       step(5, "Make ahead (Wednesday): Whisk the cinnamon, ginger, and nutmeg into the filling."),
     ], [CIN, GIN, NUT], { dishId: "c", mixes: [mix], cuts: [] }, []);
     assert.equal(out[0].text, "Make ahead (Wednesday): Skip if you prepped. Otherwise, measure 1½ teaspoons cinnamon, ½ teaspoon ginger, and ¼ teaspoon nutmeg.");
-    assert.equal(out[1].text, "Make ahead (Wednesday): Whisk the Cheesecake bars spice mix into the filling.");
+    assert.equal(out[1].text, "Make ahead (Wednesday): Whisk the Cheesecake bars spice mix you prepped into the filling.");
   });
   it("\"a pinch of cayenne\" is the cayenne pepper the spice mix holds; \"packed brown sugar\" is the brown sugar", () => {
     const CAY = row("cay", "cayenne pepper"), PAP = row("pap", "smoked paprika"), GP = row("gp", "garlic powder"), BS = row("bs", "brown sugar"), GS = row("gs", "granulated sugar");
     const spice = { name: "Mac and cheese spice mix", ids: new Set(["cay", "pap", "gp"]), keys: new Set(["cayenne pepper", "smoked paprika", "garlic powder"].map(ingredientGroupKey)) };
     const s = step(3, "Stir in 12 oz cheddar, ½ teaspoon smoked paprika, ½ teaspoon garlic powder, and a pinch of cayenne until smooth.", [["½ teaspoon| smoked", "pap"], ["½ teaspoon| garlic", "gp"]]);
-    assert.equal(rewordFeastSteps([s], [CAY, PAP, GP], { dishId: "m", mixes: [spice], cuts: [] }, [])[0].text, "Stir in 12 oz cheddar and the Mac and cheese spice mix until smooth.");
+    assert.equal(rewordFeastSteps([s], [CAY, PAP, GP], { dishId: "m", mixes: [spice], cuts: [] }, [])[0].text, "Stir in 12 oz cheddar and the Mac and cheese spice mix you prepped until smooth.");
     const sugar = { name: "Cranberry mix", ids: new Set(["gs", "bs"]), keys: new Set(["granulated sugar", "brown sugar"].map(ingredientGroupKey)) };
     const c = step(1, "Combine 1 cup granulated sugar, ¼ cup packed brown sugar, and ¼ cup water.", [["1 cup", "gs"], ["¼ cup| packed", "bs"]]);
-    assert.equal(rewordFeastSteps([c], [GS, BS], { dishId: "c", mixes: [sugar], cuts: [] }, [])[0].text, "Combine the Cranberry mix and ¼ cup water.");
+    assert.equal(rewordFeastSteps([c], [GS, BS], { dishId: "c", mixes: [sugar], cuts: [] }, [])[0].text, "Combine the Cranberry mix you prepped and ¼ cup water.");
   });
 });
 

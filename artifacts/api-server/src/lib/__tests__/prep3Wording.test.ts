@@ -67,12 +67,12 @@ describe("PREP-3 (R1, R2, R4) — mixes and tubs named where they are used", () 
   it("\"Coat the chicken … in the Lemon pepper marinade\"; the step Cook Mode collapses keeps its words", () => {
     const out = words("Grilled Lemon Pepper Chicken Breasts", lp, facts([0]), marinade);
     assert.equal(out[0], marinade[0]);
-    assert.equal(out[1], "Coat the chicken breasts evenly in the Lemon pepper marinade and let sit at room temperature for 10 minutes.");
+    assert.equal(out[1], "Coat the chicken breasts evenly in the Lemon pepper marinade you prepped and let sit at room temperature for 10 minutes.");
   });
 
   it("\"the marinade bowl\" is the Lemon pepper marinade too", () => {
     const out = words("Grilled Lemon Pepper Chicken Breasts", lp, facts([0]), [marinade[0], "Add the chicken to the marinade bowl, tossing well to coat."]);
-    assert.equal(out[1], "Add the chicken to the Lemon pepper marinade, tossing well to coat.");
+    assert.equal(out[1], "Add the chicken to the Lemon pepper marinade you prepped, tossing well to coat.");
   });
 
   it("a list's \"and\" stays the list's: \"…olives, and the red onion you prepped\", never \"the and red onion\"", () => {
@@ -89,7 +89,7 @@ describe("PREP-3 (R1, R2, R4) — mixes and tubs named where they are used", () 
     const out = words("Green Chile Ground Beef Taco Filling", taco, { dishId: "tf", mixes: [mix("Taco spices", taco.slice(0, 4))], cuts: [] }, [
       "In a small bowl, combine 1½ teaspoons chili powder, 1 teaspoon cumin, ½ teaspoon smoked paprika, ½ teaspoon dried oregano, ¾ teaspoon kosher salt, and ¼ teaspoon black pepper.",
     ]);
-    assert.equal(out[0], "In a small bowl, combine the Taco spices, ¾ teaspoon kosher salt, and ¼ teaspoon black pepper.");
+    assert.equal(out[0], "In a small bowl, combine the Taco spices you prepped, ¾ teaspoon kosher salt, and ¼ teaspoon black pepper.");
   });
 
   it("the tzatziki's own bowl by its foods (it is named for the dish), the shared garlic and lemon with their amounts, and no \"the squeezed the cucumber\"", () => {
@@ -132,7 +132,7 @@ describe("PREP-3 (R1, R2, R4) — mixes and tubs named where they are used", () 
     const out = words("Extra-Crispy General Tso's Chicken", t, { dishId: "t", mixes: [mix("Tso's sauce", [t[0], t[1], t[2]])], cuts: [] }, [
       "Whisk together 3 tablespoons soy sauce, 2 tablespoons hoisin sauce, 2 tablespoons rice vinegar, and ¼ cup chicken broth in a small bowl; set aside.",
     ]);
-    assert.equal(out[0], "Whisk together the Tso's sauce and ¼ cup chicken broth in a small bowl; set aside.");
+    assert.equal(out[0], "Whisk together the Tso's sauce you prepped and ¼ cup chicken broth in a small bowl; set aside.");
   });
 
   it("a mix enters where its first member is stated (the breadcrumbs soak), and a member restated after it goes", () => {
@@ -142,7 +142,7 @@ describe("PREP-3 (R1, R2, R4) — mixes and tubs named where they are used", () 
       "Combine ½ cup plain breadcrumbs and ¼ cup whole milk in a large bowl and let soak for 2 minutes.",
       "Add ¾ pound ground beef, 1 teaspoon kosher salt, ½ teaspoon dried oregano, and ¼ teaspoon red pepper flakes to the soaked breadcrumbs and mix gently.",
     ]);
-    assert.equal(out[0], "Combine the Meatballs dry mix and ¼ cup whole milk in a large bowl and let soak for 2 minutes.");
+    assert.equal(out[0], "Combine the Meatballs dry mix you prepped and ¼ cup whole milk in a large bowl and let soak for 2 minutes.");
     assert.equal(out[1], "Add ¾ pound ground beef and 1 teaspoon kosher salt to the soaked breadcrumbs and mix gently.");
     // …a second portion (another amount) is the step's own: it stays.
     const twice = words("Beef and Pork Meatballs in Marinara", mb, { dishId: "mb", mixes: [dry], cuts: [] }, [

@@ -62,7 +62,7 @@ describe("THX-3d C rule 1 — a step whose whole job Prep the feast did", () => 
 describe("THX-3d C rule 3 + 4 — the mix and the container, where the step measures them", () => {
   const out = rewordFeastSteps(CRAN_STEPS, CRAN_ROWS, CRAN_FACTS, TITLES);
   it("the members name the mix, the produce its container, the rest stay with their amounts", () => {
-    assert.equal(out[1].text, "Make ahead (Monday): Combine the Cranberry-Orange Sauce vegetables you prepped, the Cranberry-Orange Sauce dry mix, and ½ cup water in a medium saucepan over medium-high heat.");
+    assert.equal(out[1].text, "Make ahead (Monday): Combine the Cranberry-Orange Sauce vegetables you prepped, the Cranberry-Orange Sauce dry mix you prepped, and ½ cup water in a medium saucepan over medium-high heat.");
     assert.deepEqual(refText(out[1]), ["½ cup"]);
   });
   it("\"until the cranberries burst\" and \"the sugar dissolves\" are not measured: as written", () => {
@@ -73,14 +73,14 @@ describe("THX-3d C rule 3 + 4 — the mix and the container, where the step meas
     const s = step(6, "Make ahead (Wednesday): In a medium bowl, combine 1 cup roughly chopped pecans, ½ cup light brown sugar, and ¼ cup flour; cut in 3 tablespoons cold butter with your fingers until the mixture resembles coarse crumbs; cover and refrigerate.", [["1 cup", "pecan"], ["½ cup", "brown"], ["¼ cup", "flour"], ["3 tablespoons", "butter"]]);
     const facts = { dishId: "sp", mixes: [mix("Sweet Potato Casserole dry mix 2", [BROWN, FLOUR, PECAN])], cuts: [] };
     const [w] = rewordFeastSteps([s], [PECAN, BROWN, FLOUR, BUTTER], facts, TITLES);
-    assert.equal(w.text, "Make ahead (Wednesday): In a medium bowl, combine the Sweet Potato Casserole dry mix 2; cut in 3 tablespoons cold butter with your fingers until the mixture resembles coarse crumbs; cover and refrigerate.");
+    assert.equal(w.text, "Make ahead (Wednesday): In a medium bowl, combine the Sweet Potato Casserole dry mix 2 you prepped; cut in 3 tablespoons cold butter with your fingers until the mixture resembles coarse crumbs; cover and refrigerate.");
     assert.deepEqual(refText(w), ["3 tablespoons"]);
   });
   it("a removed last item with two left: \"A and the mix\", not \"A, the mix\"", () => {
     const OATS = row("oats", "old-fashioned rolled oats"), FLOUR = row("flour", "all-purpose flour"), SALT2 = row("salt", "kosher salt");
     const s = step(1, "Make ahead (Wednesday): In a separate bowl, combine ¾ cup rolled oats, ½ cup all-purpose flour, and ¼ teaspoon kosher salt; work in the butter.", [["¾ cup", "oats"], ["½ cup", "flour"], ["¼ teaspoon", "salt"]]);
     const facts = { dishId: "crisp", mixes: [mix("Apple Crisp dry mix", [FLOUR, SALT2, row("cin", "ground cinnamon")])], cuts: [] };
-    assert.equal(rewordFeastSteps([s], [OATS, FLOUR, SALT2], facts, [])[0].text, "Make ahead (Wednesday): In a separate bowl, combine ¾ cup rolled oats and the Apple Crisp dry mix; work in the butter.");
+    assert.equal(rewordFeastSteps([s], [OATS, FLOUR, SALT2], facts, [])[0].text, "Make ahead (Wednesday): In a separate bowl, combine ¾ cup rolled oats and the Apple Crisp dry mix you prepped; work in the butter.");
   });
   it("a shared tub's food by the tub: \"the minced garlic you prepped\"", () => {
     const GARLIC = row("garlic", "garlic");
@@ -92,7 +92,7 @@ describe("THX-3d C rule 3 + 4 — the mix and the container, where the step meas
     const LEMON = row("lemon", "lemon"), SUGAR2 = row("gs", "granulated sugar"), CIN = row("cin", "ground cinnamon"), NUT = row("nut", "ground nutmeg"), CORN = row("corn", "cornstarch");
     const s = step(0, "Make ahead (Wednesday): Toss the apples in a large bowl with 3 tablespoons granulated sugar, ¾ teaspoon cinnamon, ¼ teaspoon nutmeg, 1 tablespoon cornstarch, and the juice of 1 lemon.", [["3 tablespoons", "gs"], ["¾ teaspoon", "cin"], ["¼ teaspoon", "nut"], ["1 tablespoon", "corn"], ["1| lemon", "lemon"]]);
     const facts = { dishId: "crisp", mixes: [mix("Apple Crisp dry mix 2", [SUGAR2, CIN, NUT, CORN])], cuts: [cut(LEMON, "Juiced lemon — Roasted Green Beans, Apple Crisp", "juiced")] };
-    assert.equal(rewordFeastSteps([s], [LEMON, SUGAR2, CIN, NUT, CORN], facts, [])[0].text, "Make ahead (Wednesday): Toss the apples in a large bowl with the Apple Crisp dry mix 2 and the lemon juice you prepped.");
+    assert.equal(rewordFeastSteps([s], [LEMON, SUGAR2, CIN, NUT, CORN], facts, [])[0].text, "Make ahead (Wednesday): Toss the apples in a large bowl with the Apple Crisp dry mix 2 you prepped and the lemon juice you prepped.");
   });
   it("never a cut verb's object (\"mince the minced shallot you prepped\")", () => {
     const SHALLOT = row("shallot", "shallots"), MUSH = row("mush", "cremini mushrooms");
@@ -161,6 +161,6 @@ describe("THX-3d round 2 (N) — Cook Mode says the container's label", () => {
     const s = step(0, "On Thursday: In a large bowl, whisk together 3 tablespoons maple syrup, 2 tablespoons melted butter, ½ teaspoon kosher salt, ¼ teaspoon black pepper, ¼ teaspoon ground cinnamon, and the stripped thyme leaves (if using).",
       [["3 tablespoons", "sy"], ["2 tablespoons", "bu"], ["½ teaspoon", "sa"], ["¼ teaspoon| black", "pe"], ["¼ teaspoon| ground", "ci"]]);
     const facts = { dishId: "sp", mixes: [mix("Sweet potatoes sauce", [SYRUP, SALT2, PEP, CIN])], cuts: [{ id: "th", key: ingredientGroupKey("fresh thyme"), into: "Sweet potatoes sauce", note: "leaves stripped", kind: "mix" as const }] };
-    assert.equal(rewordFeastSteps([s], [SYRUP, SALT2, PEP, CIN, THYME, BUTTER], facts, [])[0].text, "On Thursday: In a large bowl, whisk together the Sweet potatoes sauce and 2 tablespoons melted butter.");
+    assert.equal(rewordFeastSteps([s], [SYRUP, SALT2, PEP, CIN, THYME, BUTTER], facts, [])[0].text, "On Thursday: In a large bowl, whisk together the Sweet potatoes sauce you prepped and 2 tablespoons melted butter.");
   });
 });
