@@ -44,6 +44,7 @@ import { timeStep, planMinutes, wholeFruitCount, type SourceYieldLike } from "./
 import { displayedPrepQuantity, mixedGlyph, type DisplayOptions } from "./prepQuantity";
 import { labelFeastContainers, type FeastLabels } from "./prepFeastLabels";
 import { proseNames } from "./prepMoments";
+import { joinsAtPrep } from "./prepStorage";
 import {
   PREP_PHASE_ORDER,
   canonicalizeUnit,
@@ -1698,10 +1699,17 @@ export function buildStepPlan(
           judgeProteinWork(knifeVerbs, notes, prose, c.ingredientName),
         );
         if (!worked) planned.demoted = { reason: "heat-or-no-knife-work" };
-        // BUG-359 / D-WS9-299 — patted dry and nothing else, with no marinade to
-        // meet: the pork chops come four to a package and go to the pan as they are.
+        // BUG-359 / D-WS9-299 — patted dry and nothing else: the pork chops come four
+        // to a package and go to the pan as they are.
+        // THX-3d round 4 (BUG-510) — a marinade it meets ON COOK DAY no longer keeps it:
+        // "Pat dry the chicken tenderloins" was offered on Sunday because they join the
+        // Nashville Hot marinade 15 minutes before cooking. The patting is the minute
+        // before the pan; the marinade is the prep, and its cook-day line still says when
+        // the protein goes in. Only a protein that goes INTO its marinade at the session
+        // (overnight, cooked within a day — prepStorage.joinsAtPrep, the overlay's own
+        // predicate) is handled on Sunday, so only that one keeps its step.
         else if (
-          !planned.marinadeJoin &&
+          !(planned.marinadeJoin && joinsAtPrep(planned.marinadeJoin, planned.daysUntilCook) && !(planned.marinadeJoin.seafood && planned.marinadeJoin.acidic)) &&
           !planned.components.some((c) => proteinNeedsKnife(knifeVerbs, notes, prose, c.ingredientName))
         ) {
           planned.demoted = { reason: "heat-or-no-knife-work" };

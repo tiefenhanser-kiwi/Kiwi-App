@@ -764,13 +764,22 @@ const marinated = (protein: string, marinates: boolean | "2h") =>
   ]);
 
 describe("H7.1 2b — marinades", () => {
+  // THX-3d round 4 (BUG-510) — a patted-dry protein that joins its marinade on cook day
+  // has no Sunday step at all; read as no note.
   const proteinNote = (w: ReturnType<typeof overlayAt>["wire"]) =>
-    w.phases.find((p) => p.phase === "proteins")!.steps[0].storageNote ?? "";
+    w.phases.find((p) => p.phase === "proteins")?.steps[0]?.storageNote ?? "";
+  const proteinSteps = (w: ReturnType<typeof overlayAt>["wire"]) => w.phases.find((p) => p.phase === "proteins")?.steps.length ?? 0;
 
   it("🔴 a protein joins its marinade at prep only when the recipe marinates AND it is cooked within a day", () => {
     assert.match(proteinNote(overlayAt(marinated("chicken thighs", true), 1).wire), /^Then into the .*marinade/);
     assert.doesNotMatch(proteinNote(overlayAt(marinated("chicken thighs", true), 2).wire), /Then into/, "two days out");
     assert.doesNotMatch(proteinNote(overlayAt(marinated("chicken thighs", false), 1).wire), /Then into/, "the recipe never marinates");
+  });
+
+  it("THX-3d round 4 (BUG-510) — patted dry, it is a Sunday step only when it goes into the marinade on Sunday", () => {
+    assert.equal(proteinSteps(overlayAt(marinated("chicken thighs", true), 1).wire), 1, "overnight, cooked tomorrow: into the marinade now");
+    assert.equal(proteinSteps(overlayAt(marinated("chicken thighs", true), 2).wire), 0, "two days out: it joins on cook day");
+    assert.equal(proteinSteps(overlayAt(marinated("chicken thighs", "2h"), 1).wire), 0, "a 2-hour marinade joins on cook day");
   });
 
   it("🔴 seafood never sits in acid, even cooked tomorrow", () => {

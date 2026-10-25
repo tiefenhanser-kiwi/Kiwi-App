@@ -8,6 +8,7 @@ import type { LoadPrepWeekInputResult, PrepLoadedPlan } from "../prepWeekAggrega
 import { buildPrepWeekPlan } from "../prepWeekBuild";
 import { bowlNameFor, joinUse } from "../prepComponents";
 import { timeRow } from "../prepStepMinutes";
+import { judgeProducePortion, judgeProteinWork, proteinNeedsKnife } from "../prepClasses";
 
 type Ing = { id: string; name: string; category: string; quantity: number; unit: string; note?: string };
 type St = { i: number; phase: string; text: string; ids?: string[]; key?: string };
@@ -184,5 +185,19 @@ describe("BUG-359 — the six wording residues", () => {
     const trimmed = structuredClone(chops);
     trimmed.dishes[0].steps[0].text = "Trim the excess fat from the 4 bone-in pork chops and pat them dry.";
     assert.equal(buildPrepWeekPlan(load([trimmed])).stepPlan.steps.find((s) => s.phase === "proteins")!.demoted, undefined);
+  });
+
+  // THX-3d round 4 (BUG-510) — the marinade join that no longer keeps the step is pinned
+  // with H7.1 2b's marinade (prepClassesH7.test.ts); these are the two other halves.
+  it("7 · BUG-510: 'skin-on' and 'skin-side down' are not skinning; 'skin the fillets' is", () => {
+    const pat = ["Pat the four 6-oz skin-on salmon fillets dry and place them skin-side down on the prepared sheet pan."];
+    assert.equal(proteinNeedsKnife([], [""], pat, "salmon fillets"), false);
+    assert.equal(proteinNeedsKnife([], [""], ["Skin the salmon fillets and cut them into 2-inch pieces."], "salmon fillets"), true);
+    assert.equal(judgeProteinWork([], ["patted dry"], pat, "salmon fillets"), true, "still 'work' (pat dry) — only not knife work");
+  });
+
+  it("7 · BUG-510: produce patted dry and nothing else is no prep either", () => {
+    assert.deepEqual(judgeProducePortion("fresh basil", "patted dry", false), { prep: false, reason: "no-work" });
+    assert.deepEqual(judgeProducePortion("fresh basil", "leaves torn, patted dry", false), { prep: true });
   });
 });

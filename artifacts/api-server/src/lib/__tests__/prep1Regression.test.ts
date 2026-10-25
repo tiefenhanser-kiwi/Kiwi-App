@@ -112,11 +112,12 @@ describe("PREP-1 F — a plan with no thanksgiving-feast is unchanged but for Pa
   // THX-3c: 11 → 12 (the feast's cuts, whole stalks, equipment as written, dry names), 13.
   // THX-3d: 14 (three-or-more mixes, closers, the R5 table, prefix days); round 2: 15.
   // PREP-3: 16 (the weeknight's plates and juice tubs, the marinade jar, one moment per member).
-  it("the fingerprint moved by the engine version alone (7 → 16): the hashed input is the same", () => {
+  // THX-3d round 4: 17 (BUG-510 — a patted-dry protein is no Sunday step, marinade or not).
+  it("the fingerprint moved by the engine version alone (7 → 17): the hashed input is the same", () => {
     const hash = (engine: number) =>
       createHash("sha256").update(JSON.stringify({ v: 1, engine, input: load.input })).digest("hex");
-    assert.equal(PREP_ENGINE_VERSION, 16);
+    assert.equal(PREP_ENGINE_VERSION, 17);
     assert.equal(hash(7), pre.fingerprint);
-    assert.equal(prepCompositionFingerprint(load.input), hash(16));
+    assert.equal(prepCompositionFingerprint(load.input), hash(17));
   });
 });

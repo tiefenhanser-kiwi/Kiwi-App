@@ -16,7 +16,7 @@ import {
 import { dishOvenRacks, ovenVesselOf, roastedPounds, sheetPanCount, withSheetPanCount } from "../ovenRacks";
 
 const st = (stepIndex: number, phaseType: SchedulerPhase, estimatedMinutes: number, text: string) => ({
-  stepIndex, phaseType, estimatedMinutes, text, isTimingSensitive: false, parallelGroup: null, componentKey: null, pathKey: null,
+  stepIndex, phaseType, estimatedMinutes, text, isTimingSensitive: false, parallelGroup: null as string | null, componentKey: null, pathKey: null,
 });
 const dish = (dishId: string, title: string, positionIndex: number, steps: ReturnType<typeof st>[], ovenRacks?: number): SchedulerDish => ({ dishId, title, positionIndex, roleLabel: null, steps, ...(ovenRacks !== undefined ? { ovenRacks } : {}) });
 
@@ -148,7 +148,7 @@ describe("THX-3d round 4 (A2) — two racks, at planning time and in the pass", 
 
   it("C3 — the oven goes off as the last side's bake ends, while the gravy holds the cook's hands", () => {
     const raise = { ...TURKEY, steps: TURKEY.steps.map((s) => (s.stepIndex === 2 ? { ...s, text: "Raise the oven to 350°F and put in the Sage Stuffing." } : s)) };
-    const stuffing = dish("s", "Sage Stuffing", 1, [...STUFFING.steps, st(2, "assemble", 1, "Turn the oven off and leave the sides inside, covered loosely with foil, to keep warm.")], 0.5);
+    const stuffing = dish("s", "Sage Stuffing", 1, [...(STUFFING.steps as ReturnType<typeof st>[]), st(2, "assemble", 1, "Turn the oven off and leave the sides inside, covered loosely with foil, to keep warm.")], 0.5);
     const watched = (stepIndex: number, phaseType: SchedulerPhase, minutes: number, text: string) => ({ ...st(stepIndex, phaseType, minutes, text), isTimingSensitive: true });
     const gravy = dish("v", "Pan Gravy", 2, [watched(0, "prep", 5, "On Thursday: Pour the drippings from the roasting pan into a fat separator."), watched(1, "cook", 4, "Whisk in the flour."), watched(2, "cook", 25, "Whisk in the stock and simmer, whisking often."), st(3, "assemble", 2, "Pour into a warm gravy boat.")]);
     const mash = dish("m", "Mashed Potatoes", 3, [st(0, "cook", 25, "On Thursday: Boil the potatoes until tender."), watched(1, "assemble", 20, "Rice, then mash with the butter and milk; season."), st(2, "assemble", 2, "Transfer to a warm bowl.")]);

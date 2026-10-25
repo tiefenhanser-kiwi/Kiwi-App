@@ -99,8 +99,12 @@ const KNIFE_WORK =
 // pounding. And a whole bird or a large roast (prepComponents isLargeCut) is never
 // pounded at all, so for one of those the word does not count as work.
 const POUND = String.raw`(?<![\d½¼¾⅓⅔⅛⅜⅝⅞][\s-]?|\b(?:a|one|two|three|four|half a|per|each|every)[\s-])pound(?:ed|ing)?`;
-const PROTEIN_WORK_BODY = String.raw`trim(?:med|ming)?|cub(?:e|ed|ing)|butterfl(?:y|ied)|skin(?:ned)?|skin removed|cut|slic(?:e|ed)|portion(?:ed)?|pat(?:ted)?\b[^.;]{0,40}\bdry|halv(?:e|ed)|tenderiz(?:e|ed)|score[ds]?|deboned?`;
-const PROTEIN_CUT_WORK_BODY = String.raw`trim(?:med|ming)?|cub(?:e|ed|ing)|butterfl(?:y|ied)|skin(?:ned)?|skin removed|cut|slic(?:e|ed)|portion(?:ed)?|halv(?:e|ed)|tenderiz(?:e|ed)|score[ds]?|deboned?`;
+// THX-3d round 4 (BUG-510) — "skin" is the verb (skin the fillets), never the side the
+// fish lies on: "the four 6-oz skin-on salmon fillets … skin-side down" kept "Pat dry the
+// salmon fillets for Baked Salmon Teriyaki" on Sunday as knife work.
+const SKIN = String.raw`skin(?:ned)?(?![\s-]+(?:side|on)\b)`;
+const PROTEIN_WORK_BODY = String.raw`trim(?:med|ming)?|cub(?:e|ed|ing)|butterfl(?:y|ied)|${SKIN}|skin removed|cut|slic(?:e|ed)|portion(?:ed)?|pat(?:ted)?\b[^.;]{0,40}\bdry|halv(?:e|ed)|tenderiz(?:e|ed)|score[ds]?|deboned?`;
+const PROTEIN_CUT_WORK_BODY = String.raw`trim(?:med|ming)?|cub(?:e|ed|ing)|butterfl(?:y|ied)|${SKIN}|skin removed|cut|slic(?:e|ed)|portion(?:ed)?|halv(?:e|ed)|tenderiz(?:e|ed)|score[ds]?|deboned?`;
 
 /** The work a whole protein needs ahead (rule 12's verbs, plus pat dry). */
 const PROTEIN_WORK = new RegExp(String.raw`\b(${POUND}|${PROTEIN_WORK_BODY})\b`, "i");

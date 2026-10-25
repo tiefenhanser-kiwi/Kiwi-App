@@ -142,8 +142,14 @@ const FINGERPRINT_ALGO_VERSION = 1;
  *       one moment per jar member — a brushed-on Dijon, the croutons' oil, a pan's
  *       searing oil leave the jars they were in (R9). Containers, members and names
  *       move, so the prose must go.
+ *  17 — THX-3d round 4 (BUG-510, D-WS9-299): a protein patted dry and nothing else is
+ *       no Prep the Week step even when it meets a marinade on cook day (its join stays
+ *       the marinade's cook-day line), and "skin-on" / "skin-side down" is not skinning.
+ *       Measured on hans+8's 172 dev plans: 39 protein steps leave the week (salmon,
+ *       skin-on thighs and breasts, the Nashville Hot tenderloins), none join it. Steps
+ *       and numbers move, so the prose must go.
  */
-export const PREP_ENGINE_VERSION = 16;
+export const PREP_ENGINE_VERSION = 17;
 
 /**
  * Digest of the loaded plan composition — everything the prep payload is built
