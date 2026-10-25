@@ -56,6 +56,10 @@
 //     ⚠️ railPosition is the plan's index in ITS spec: put the Thanksgiving
 //     plans and the everyday five in ONE spec (Thanksgiving 1–5, everyday
 //     6–10), or the two files' positions collide.
+//
+// CLIENT-2b C (BUG-512) — dumpFeaturedSpec.ts prints the spec that reproduces
+// a database's featured-* templates (read-only); a dry run of this script on
+// its output reports ZERO CHANGES when the dump is faithful.
 
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve as resolvePath } from "node:path";

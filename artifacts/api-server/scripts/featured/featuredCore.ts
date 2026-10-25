@@ -441,3 +441,110 @@ export function sameItems(have: readonly ItemFields[], want: readonly ItemFields
   const b = [...want].map(key).sort();
   return a.length === b.length && a.every((k, i) => k === b[i]);
 }
+
+// ── CLIENT-2b C (BUG-512) — the database back to a spec ──────────────────────
+
+/** A featured-* template as dumpFeaturedSpec.ts reads it. */
+export interface DumpTemplateRow {
+  id: string;
+  title: string;
+  description: string | null;
+  imageUrl: string | null;
+  isFeatured: boolean;
+  isHostingFeatured: boolean;
+  railPosition: number | null;
+  featuredStartDate: Date | null;
+  featuredEndDate: Date | null;
+  anchorDate: Date | null;
+  items: ReadonlyArray<{
+    mealId: string;
+    positionIndex: number;
+    assignedDayOfWeek: string | null;
+    servingsOverride: number | null;
+  }>;
+}
+
+/**
+ * A meal an item names. `thx2Key` is set only when the apply would resolve
+ * that key back to THIS meal (the one batch_generated row carrying it).
+ */
+export interface DumpMealRow {
+  id: string;
+  title: string;
+  imageUrl: string | null;
+  thx2Key: string | null;
+}
+
+/**
+ * The spec that applyFeaturedTemplates.ts would turn back into these rows.
+ *
+ * Order is the rail's: the apply writes railPosition = index + 1 for a
+ * featured plan and null otherwise, so a row on the rail at position r goes
+ * at index r − 1 and the off-rail rows (by id) fill the slots left. A row
+ * whose position cannot be its index (a gap past the end, two rows on one
+ * position), a featured flag without a rail position or the reverse, and a
+ * cover the items do not hold come back as notes: the apply would change
+ * those rows.
+ */
+export function specFromTemplates(
+  templates: readonly DumpTemplateRow[],
+  meals: ReadonlyMap<string, DumpMealRow>,
+): { spec: Spec; notes: string[] } {
+  const notes: string[] = [];
+  const n = templates.length;
+  const slots: (DumpTemplateRow | undefined)[] = new Array(n).fill(undefined);
+  const rest: DumpTemplateRow[] = [];
+  const byRail = [...templates].sort(
+    (a, b) => (a.railPosition ?? Infinity) - (b.railPosition ?? Infinity) || (a.id < b.id ? -1 : 1),
+  );
+  for (const t of byRail) {
+    const r = t.railPosition;
+    if (r !== null && r >= 1 && r <= n && !slots[r - 1]) {
+      slots[r - 1] = t;
+    } else {
+      if (r !== null) notes.push(`${t.id}: railPosition ${r} cannot be its spec index — the apply would move it`);
+      rest.push(t);
+    }
+  }
+  for (let i = 0; i < n; i++) if (!slots[i]) slots[i] = rest.shift();
+
+  const plans: SpecPlan[] = (slots as DumpTemplateRow[]).map((t) => {
+    if (t.isFeatured !== (t.railPosition !== null)) {
+      notes.push(
+        `${t.id}: isFeatured ${t.isFeatured} with railPosition ${t.railPosition} — a spec ties the two; the apply would change one`,
+      );
+    }
+    const items = [...t.items].sort((a, b) => a.positionIndex - b.positionIndex);
+    const days: SpecDay[] = items.map((it) => {
+      const m = meals.get(it.mealId);
+      // A thx2Key day carries no mealId (the apply resolves it; both is refused).
+      const day = (
+        m?.thx2Key
+          ? { day: it.assignedDayOfWeek ?? "", thx2Key: m.thx2Key }
+          : { day: it.assignedDayOfWeek ?? "", mealId: it.mealId }
+      ) as SpecDay;
+      if (it.servingsOverride !== null) day.servingsOverride = it.servingsOverride;
+      if (m) day.name = m.title;
+      else notes.push(`${t.id}: item meal ${it.mealId} is not on this database`);
+      return day;
+    });
+    const cover = items.find((it) => t.imageUrl !== null && meals.get(it.mealId)?.imageUrl === t.imageUrl);
+    if (!cover) notes.push(`${t.id}: no item's meal carries the template's image — the apply would recopy the first day's`);
+
+    const plan: SpecPlan = {
+      slug: t.id.startsWith(FEATURED_ID_PREFIX) ? t.id.slice(FEATURED_ID_PREFIX.length) : t.id,
+      title: t.title,
+      description: t.description ?? "",
+      // The first day is the apply's default cover; only another is named.
+      ...(cover && cover !== items[0] ? { coverMealId: cover.mealId } : {}),
+      ...(t.anchorDate ? { anchorDate: t.anchorDate.toISOString().slice(0, 10) } : {}),
+      ...(t.featuredStartDate ? { featuredFrom: t.featuredStartDate.toISOString() } : {}),
+      ...(t.featuredEndDate ? { featuredUntil: t.featuredEndDate.toISOString() } : {}),
+      featured: t.isFeatured,
+      hosting: t.isHostingFeatured,
+      days,
+    };
+    return plan;
+  });
+  return { spec: { plans }, notes };
+}

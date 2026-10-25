@@ -17,8 +17,11 @@ import {
   fieldChanges,
   resolveThx2Keys,
   sameItems,
+  specFromTemplates,
   validateSpec,
   validateThanksgivingFields,
+  type DumpMealRow,
+  type DumpTemplateRow,
   type MealCheckRow,
   type Spec,
   type SpecPlan,
@@ -339,5 +342,105 @@ describe("checkMeals — the cuisine cap in a dated plan", () => {
     // Wed + Thu + Fri american: 3 in an everyday plan, 1 counted in a dated one.
     assert.equal(checkMeals({ plans: [plan("x", FIVE)] }, rows).length, 1);
     assert.deepEqual(checkMeals({ plans: [thxPlan()] }, rows), []);
+  });
+});
+
+describe("CLIENT-2b C — specFromTemplates (the dump)", () => {
+  // The Oct 26 shape: two hosting-only Thanksgiving plans off the rail, two
+  // everyday plans on it at 3 and 4 (the apply's index + 1).
+  const img = (id: string) => `https://img/${id}.png`;
+  const row = (id: string, prefix: string, over: Partial<DumpTemplateRow> = {}): DumpTemplateRow => ({
+    id: `featured-${id}`,
+    title: `Plan ${id}`,
+    description: "Five real dinners.",
+    imageUrl: img(`${prefix}1`),
+    isFeatured: true,
+    isHostingFeatured: false,
+    railPosition: null,
+    featuredStartDate: null,
+    featuredEndDate: null,
+    anchorDate: null,
+    items: DAYS.map((d, i) => ({ mealId: `${prefix}${i + 1}`, positionIndex: i, assignedDayOfWeek: d, servingsOverride: null })),
+    ...over,
+  });
+  const thx = (id: string, prefix: string) =>
+    row(id, prefix, {
+      isFeatured: false,
+      isHostingFeatured: true,
+      featuredStartDate: new Date("2026-10-26T04:00:00Z"),
+      featuredEndDate: new Date("2026-11-27T09:59:59Z"),
+      anchorDate: new Date("2026-11-26T00:00:00Z"),
+      imageUrl: img(`${prefix}4`),
+      items: DAYS.map((d, i) => ({
+        mealId: `${prefix}${i + 1}`,
+        positionIndex: i,
+        assignedDayOfWeek: d,
+        servingsOverride: d === "Thursday" ? 10 : null,
+      })),
+    });
+  const rows = [
+    row("everyday-b", "b", { railPosition: 4 }),
+    thx("thx-classic", "c"),
+    row("everyday-a", "a", { railPosition: 3 }),
+    thx("thx-small", "s"),
+  ];
+  const meals = new Map<string, DumpMealRow>();
+  for (const pre of ["a", "b", "c", "s"]) {
+    for (let i = 1; i <= 5; i++) {
+      const id = `${pre}${i}`;
+      const key = (pre === "c" || pre === "s") && i === 4 ? `thx2-feast-${pre}` : null;
+      meals.set(id, { id, title: `Meal ${id}`, imageUrl: img(id), thx2Key: key });
+    }
+  }
+
+  it("rail order: on-rail rows at railPosition − 1, off-rail rows (by id) in the slots left; flags as they stand", () => {
+    const { spec, notes } = specFromTemplates(rows, meals);
+    assert.deepEqual(notes, []);
+    assert.deepEqual(spec.plans.map((p) => p.slug), ["thx-classic", "thx-small", "everyday-a", "everyday-b"]);
+    assert.deepEqual(spec.plans.map((p) => [p.featured, p.hosting]), [[false, true], [false, true], [true, false], [true, false]]);
+    const c = spec.plans[0];
+    assert.equal(c.anchorDate, "2026-11-26");
+    assert.equal(c.featuredFrom, "2026-10-26T04:00:00.000Z");
+    assert.equal(c.featuredUntil, "2026-11-27T09:59:59.000Z");
+    // The feast by key, no mealId beside it; its servings carried.
+    assert.deepEqual(c.days[3], { day: "Thursday", thx2Key: "thx2-feast-c", servingsOverride: 10, name: "Meal c4" });
+    assert.deepEqual(c.days[0], { day: "Monday", mealId: "c1", name: "Meal c1" });
+    // The cover is Thursday's meal (named); the everyday cover is day 1 (the default, omitted).
+    assert.equal(c.coverMealId, "c4");
+    assert.equal(spec.plans[2].coverMealId, undefined);
+    assert.equal(spec.plans[2].featuredFrom, undefined);
+  });
+
+  it("round trip: the dumped spec validates and the apply's desired rows equal the rows it came from", () => {
+    const { spec } = specFromTemplates(rows, meals);
+    assert.deepEqual(validateThanksgivingFields(spec), []);
+    const idByKey = new Map([["thx2-feast-c", "c4"], ["thx2-feast-s", "s4"]]);
+    const { spec: resolved, errors } = resolveThx2Keys(spec, idByKey);
+    assert.deepEqual(errors, []);
+    assert.deepEqual(validateSpec(resolved), []);
+    for (const [i, p] of resolved.plans.entries()) {
+      const have = rows.find((r) => r.id === `featured-${p.slug}`)!;
+      const cover = meals.get(p.coverMealId ?? p.days[0].mealId)!.imageUrl;
+      const want = desiredTemplate(p, i, cover);
+      const fields = ["imageUrl", "isFeatured", "isHostingFeatured", "railPosition", "featuredStartDate", "featuredEndDate", "anchorDate", "title", "description"] as const;
+      const pick = (o: object) => Object.fromEntries(fields.map((f) => [f, (o as Record<string, unknown>)[f]]));
+      assert.deepEqual(fieldChanges(pick(have), pick(want)), [], p.slug);
+      assert.ok(sameItems(have.items.map((it) => ({ ...it, isBreakfast: false, isLunch: false, isDinner: true })), desiredItems(p)), p.slug);
+    }
+  });
+
+  it("what a spec cannot carry comes back as a note", () => {
+    const { notes } = specFromTemplates(
+      [
+        row("one", "a", { railPosition: 1 }),
+        row("two", "b", { railPosition: 1 }),
+        row("three", "c", { railPosition: null, isFeatured: true }),
+        row("four", "s", { railPosition: 4, imageUrl: "https://img/elsewhere.png" }),
+      ],
+      meals,
+    );
+    assert.ok(notes.some((n) => /featured-two: railPosition 1 cannot be its spec index/.test(n)), notes.join("\n"));
+    assert.ok(notes.some((n) => /featured-three: isFeatured true with railPosition null/.test(n)), notes.join("\n"));
+    assert.ok(notes.some((n) => /featured-four: no item's meal carries the template's image/.test(n)), notes.join("\n"));
   });
 });
