@@ -2,7 +2,9 @@
 // Cookbook's seasonal band: a gold header ("Thanksgiving" / "Seasonal
 // collection · until Nov 30"), the course chips (Feasts · Turkey · Stuffing ·
 // Potatoes · Sides · Desserts · Leftovers — each shown only when it has a
-// meal), the cards, and a bottom bar pointing at the season's Featured plans.
+// meal), the cards, and a bottom bar pointing at the season's plans under
+// Hosting & Events (CLIENT-2b B: the five Thanksgiving feasts are
+// hosting-featured for the whole band, and only that from Oct 26 to Nov 2).
 //
 // Generic: everything season-specific (tag, label, window, courses, the bar's
 // sentence) comes from GET /cookbook/seasons, which reads the server's config
@@ -43,7 +45,7 @@ export default function CookbookSeasonScreen() {
   const courses = season ? visibleCourses(season.courses) : [];
 
   const goFeatured = () =>
-    router.navigate({ pathname: "/(tabs)/plans", params: { filter: "featured" } });
+    router.navigate({ pathname: "/(tabs)/plans", params: { filter: "hosting_events" } });
 
   const header = (
     <View style={s.chipBlock}>
@@ -105,7 +107,7 @@ export default function CookbookSeasonScreen() {
             accessibilityRole="button"
             style={({ pressed }) => [s.bottomBtn, pressed && { opacity: 0.85 }]}
           >
-            <Text style={s.bottomBtnText}>See Featured plans</Text>
+            <Text style={s.bottomBtnText}>See Hosting & Events plans</Text>
           </Pressable>
         </View>
       ) : null}

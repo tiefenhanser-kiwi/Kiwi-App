@@ -64,7 +64,10 @@ export const SEASONS: readonly SeasonConfig[] = [
     label: "Thanksgiving",
     headline: "Thanksgiving feasts & dishes",
     blurb: "turkeys, sides, pies",
-    featuredNote: "Want the whole week planned? Five Thanksgiving-week plans are under Featured.",
+    // CLIENT-2b B: Hosting & events, not Featured — from Oct 26 to Nov 2 the
+    // five feasts are hosting-featured only, and hosting stays on through
+    // Nov 27, so the sentence is true for the whole band.
+    featuredNote: "Want the whole week planned? Five Thanksgiving-week plans are under Hosting & events.",
     startsOn: "10-26",
     endsOn: "11-30",
     timeZone: "America/New_York",

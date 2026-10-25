@@ -783,7 +783,11 @@ describe("GET /cookbook/seasons", () => {
       assert.equal(s.label, "Thanksgiving");
       assert.equal(s.headline, "Thanksgiving feasts & dishes");
       assert.equal(s.blurb, "turkeys, sides, pies");
-      assert.match(s.featuredNote, /Thanksgiving-week plans are under Featured/);
+      // CLIENT-2b B: the plans are under Hosting & events for the whole band.
+      assert.equal(
+        s.featuredNote,
+        "Want the whole week planned? Five Thanksgiving-week plans are under Hosting & events.",
+      );
       assert.equal(s.startsAt, "2026-10-26T04:00:00.000Z");
       assert.equal(s.endsAt, "2026-12-01T05:00:00.000Z");
       assert.equal(s.endsOn, "2026-11-30");
