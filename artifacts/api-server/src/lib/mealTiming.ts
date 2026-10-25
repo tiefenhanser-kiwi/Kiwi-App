@@ -186,10 +186,9 @@ export async function stampMealTiming(
     return empty;
   }
 
-  // Steps only. The dish TITLE is deliberately not read: SchedulerDish.title
-  // feeds composeCue's prose ("while the roast cooks"), and neither derived
-  // number depends on it. Reading it would add a round-trip and a second table
-  // dependency to buy a string this function discards.
+  // Steps only. The dish TITLE is deliberately not read for an everyday meal:
+  // SchedulerDish.title feeds composeCue's prose ("while the roast cooks"), and
+  // neither derived number depends on it. (A feast's does — see below.)
   const steps = await tx.recipeInstructionStep.findMany({
     where: { ownerType: "dish", ownerId: { in: dishIds } },
     // WS9 D-WS9-239 — parallelGroup + the component tags ride along: the
@@ -212,10 +211,11 @@ export async function stampMealTiming(
   const links = await tx.mealDishLink.findMany({
     where: { mealId, dishId: { in: dishIds } },
     select: {
-      dishId: true, positionIndex: true, meal: { select: { tags: true } },
+      dishId: true, positionIndex: true, roleLabel: true, meal: { select: { tags: true } },
       // THX-3d round 4 (BUG-496) — a feast's oven racks: the vessel its steps name, its
-      // rows' weights, its servings (ovenRacks.ts). Read on the same round trip.
-      dish: { select: { servingsDefault: true, authoredServingsDefault: true, dishIngredients: { select: { quantity: true, unit: true } } } },
+      // rows' weights, its servings (ovenRacks.ts). (BUG-497 item 8) — and what Cook Mode
+      // hands the scheduler: the title, the role, the ingredient names. Same round trip.
+      dish: { select: { title: true, servingsDefault: true, authoredServingsDefault: true, dishIngredients: { select: { quantity: true, unit: true, ingredient: { select: { canonicalName: true } } } } } },
     },
   });
   // PREP-1 G (BUG-418) — a feast's derived times are Thursday's. Every other meal
@@ -257,11 +257,23 @@ export async function stampMealTiming(
     const day = (byDish.get(id) ?? []).map((s) => ({ stepIndex: s.stepIndex, text: s.text ?? "", phaseType: s.phaseType }));
     return feastDishOvenRacks(all, day, dish.dishIngredients, dish)?.racks;
   };
+  // THX-3d round 4 (BUG-497 item 8) — A FEAST'S TITLES ARE READ. The note above holds for
+  // every other meal; a feast's scheduler finds its bird, its raise, its desserts and what
+  // is served hot BY TITLE (feastRoastDish, the raise's names, DESSERT_DISH, SERVE_HOT), so
+  // with the dish id for a title the stamp found no bird and scheduled the blocks path:
+  // production's Classic stamped 282 beside Cook Mode's 278 (dev's: 329 beside 312). It
+  // passes what Cook Mode passes (cookingSequence.ts), and the two clocks agree.
+  const feastDish = (id: string) => {
+    const l = linkOf.get(id);
+    if (!isFeast || !l?.dish) return {};
+    return { title: l.dish.title, roleLabel: l.roleLabel ?? null, ingredientNames: (l.dish.dishIngredients ?? []).map((x) => x.ingredient?.canonicalName).filter((n): n is string => !!n) };
+  };
   const schedulerDishes: SchedulerDish[] = dishIds
     .filter((id) => byDish.has(id))
     .map((id, i) => ({
       dishId: id,
-      title: id, // unused for timing — see above
+      title: id, // unused for timing on every meal but a feast — see above
+      ...feastDish(id),
       positionIndex: positionByDish.get(id) ?? i,
       steps: byDish.get(id)!,
       ...(racksOf(id) !== undefined ? { ovenRacks: racksOf(id) } : {}),

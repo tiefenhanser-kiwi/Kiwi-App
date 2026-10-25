@@ -77,7 +77,10 @@ describe("THX-3d R4 — the carve follows the rest even when the stove work is l
     const mash = dish("mash", "Mashed Potatoes", 4, [watched(0, "cook", 10, "On Thursday: Peel and boil the potatoes."), watched(1, "assemble", 15, "Mash with butter and milk; season.")]);
     const gravy = dish("gravy", "Pan Gravy", 2, [watched(0, "prep", 4, "On Thursday: Pour the drippings from the roasting pan into a fat separator."), watched(1, "cook", 12, "Whisk in the stock and simmer.")]);
     const r = scheduleCookingSequence([TURKEY, STUFFING, gravy, mash], { feastOven: true });
-    assert.equal(at(r, "turkey", 5), at(r, "turkey", 4) + 25, "carved as the rest ends");
+    // THX-3d round 4 (BUG-497 item 7) — carved as the rest ends unless the carved bird would
+    // then wait more than 10 minutes for serving: it rests on, whole, and is carved later.
+    assert.ok(at(r, "turkey", 5) >= at(r, "turkey", 4) + 25, "never before the rest ends");
+    assert.ok(at(r, "turkey", 6) - (at(r, "turkey", 5) + 10) <= 10, `carved ${at(r, "turkey", 5)}, served ${at(r, "turkey", 6)}`);
   });
 });
 

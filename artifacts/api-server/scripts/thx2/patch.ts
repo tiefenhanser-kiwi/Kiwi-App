@@ -50,6 +50,7 @@ import { splitPrepClause } from "../../src/lib/feastCookWording";
 import { splitTwoPhase } from "./thx2Phases";
 import { putInEdits } from "./thx2PutIn";
 import { nextPutInEdits } from "./thx2Next";
+import { leftoverEdits } from "./thx2Leftovers";
 import { warmStepEdits } from "./thx2Warm";
 import { subjectEdits } from "./thx2Subjects";
 import { alreadyCut, cutSentence, heldCutPlace, heldCutsOf, unholdMakeAhead } from "./thx2Held";
@@ -572,6 +573,9 @@ for (const t of feasts) {
   // THX-3d round 4 (BUG-507) — a put-in says what goes in next, within 30 minutes (thx2Next),
   // off the day scheduled again with every put-in written.
   applyEdits({ updates: nextPutInEdits(ovenDishes, ovenRows()), deletes: [], renumber: [], creates: [] });
+  // THX-3d round 4 (BUG-497 items 1, 7) — the drippings a dish no longer takes, the carved
+  // bird that still waits (thx2Leftovers), off the day as written.
+  applyEdits({ updates: leftoverEdits(ovenDishes, ovenRows()), deletes: [], renumber: [], creates: [] });
 
   for (const r of plan.rowCreates) console.log(`  rows+ [${r.title}] ${r.quantity} ${r.unit} ${r.canonicalName}${r.preparationNote ? ` (${r.preparationNote})` : ""} · ${r.componentKey ?? "—"}/${r.pathKey ?? "—"} — measured at step #${r.stepIndex}`);
   for (const u of plan.tagUpdates) console.log(`  tags  [${u.title}] ${u.from.join(" ") || "—"}  →  ${u.to.join(" ") || "—"}`);

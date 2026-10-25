@@ -133,6 +133,62 @@ describe("THX-3d round 4 (A2) — two racks, at planning time and in the pass", 
     assert.ok(sproutsIn >= wellEnd || at(r, "w", 2) >= sproutsIn + 25, "one after the other");
   });
 
+  it("C2 — the turned-off oven is the side's rest: 'Let the stuffing rest 5 minutes' goes with a kept oven-off", () => {
+    const stuffing = dish("s", "Sage Stuffing", 1, [
+      st(0, "cook", 30, "On Thursday: The stuffing is in at 350°F, covered. Bake 30 minutes."),
+      st(1, "cook", 15, "Uncover and bake 15 minutes more."),
+      st(2, "assemble", 1, "Turn the oven off and leave the sides inside, covered loosely with foil, to keep warm."),
+      st(3, "assemble", 5, "Let the stuffing rest 5 minutes."),
+    ], 0.5);
+    const gravy = dish("v", "Pan Gravy", 2, [st(0, "prep", 5, "On Thursday: Pour the drippings from the roasting pan into a fat separator."), { ...st(1, "cook", 30, "Whisk in the stock and simmer, whisking often."), isTimingSensitive: true }]);
+    const r = scheduleCookingSequence([TURKEY, stuffing, gravy], { feastOven: true });
+    assert.ok(r.steps.some((s) => s.dishId === "s" && s.originalStepIndex === 2), "the oven-off is kept");
+    assert.deepEqual(r.mergedSteps?.filter((m) => m.dishId === "s"), [{ dishId: "s", stepIndex: 3 }]);
+  });
+
+  it("C3 — the oven goes off as the last side's bake ends, while the gravy holds the cook's hands", () => {
+    const raise = { ...TURKEY, steps: TURKEY.steps.map((s) => (s.stepIndex === 2 ? { ...s, text: "Raise the oven to 350°F and put in the Sage Stuffing." } : s)) };
+    const stuffing = dish("s", "Sage Stuffing", 1, [...STUFFING.steps, st(2, "assemble", 1, "Turn the oven off and leave the sides inside, covered loosely with foil, to keep warm.")], 0.5);
+    const watched = (stepIndex: number, phaseType: SchedulerPhase, minutes: number, text: string) => ({ ...st(stepIndex, phaseType, minutes, text), isTimingSensitive: true });
+    const gravy = dish("v", "Pan Gravy", 2, [watched(0, "prep", 5, "On Thursday: Pour the drippings from the roasting pan into a fat separator."), watched(1, "cook", 4, "Whisk in the flour."), watched(2, "cook", 25, "Whisk in the stock and simmer, whisking often."), st(3, "assemble", 2, "Pour into a warm gravy boat.")]);
+    const mash = dish("m", "Mashed Potatoes", 3, [st(0, "cook", 25, "On Thursday: Boil the potatoes until tender."), watched(1, "assemble", 20, "Rice, then mash with the butter and milk; season."), st(2, "assemble", 2, "Transfer to a warm bowl.")]);
+    const r = scheduleCookingSequence([raise, stuffing, gravy, mash], { feastOven: true });
+    const off = at(r, "s", 2);
+    assert.equal(off, at(r, "s", 1) + 15, "right after the bake");
+    assert.ok(r.steps.some((s) => s.dishId === "v" && s.startOffsetMinutes < off && off < s.startOffsetMinutes + gravy.steps.find((x) => x.stepIndex === s.originalStepIndex)!.estimatedMinutes), "fixture: the gravy's whisking holds the hands then");
+  });
+
+  it("C5 — the preheat riding the bird's sit heats the oven as the sit ends", () => {
+    const sat = dish("t", "Dry-Brined Roast Turkey", 0, [
+      { ...st(0, "hold", 60, "On Thursday: Remove the turkey from the fridge 1 hour before roasting."), parallelGroup: "sit" },
+      { ...st(1, "preheat", 30, "Preheat the oven to 325°F."), parallelGroup: "sit" },
+      { ...st(2, "prep", 5, "Rub the butter under the skin."), parallelGroup: "sit" },
+      st(3, "cook", 150, "Roast the turkey at 325°F for about 2½ hours."),
+      st(4, "rest", 25, "Rest 20–30 minutes."),
+      st(5, "assemble", 10, "Carve the turkey."),
+    ]);
+    const r = scheduleCookingSequence([sat], { feastOven: true });
+    assert.equal(at(r, "t", 1) + 30, at(r, "t", 0) + 60, "the preheat ends as the sit does");
+    assert.equal(at(r, "t", 3), at(r, "t", 0) + 60, "the roast starts then");
+  });
+
+  it("C7 — the carve lands within 10 minutes of serving; each dish's steps keep their order", () => {
+    const watched = (stepIndex: number, phaseType: SchedulerPhase, minutes: number, text: string) => ({ ...st(stepIndex, phaseType, minutes, text), isTimingSensitive: true });
+    // Small's shape: 30 minutes of hands-on stove work after the bird is out, a 20-minute rest.
+    const gravy = dish("v", "Pan Gravy", 2, [watched(0, "prep", 4, "On Thursday: Pour the drippings from the roasting pan into a fat separator."), watched(1, "cook", 12, "Whisk in the stock and simmer.")]);
+    const mash = dish("m", "Mashed Potatoes", 3, [watched(0, "cook", 10, "On Thursday: Peel and boil the potatoes."), watched(1, "assemble", 15, "Mash with butter and milk; season.")]);
+    const serve = { ...TURKEY, steps: [...TURKEY.steps.map((s) => (s.phaseType === "rest" ? { ...s, estimatedMinutes: 20 } : s)), st(6, "assemble", 2, "Serve the Herb-Roasted Whole Turkey with the Pan Gravy, Sage Stuffing and Mashed Potatoes.")] };
+    const ds = [serve, STUFFING, gravy, mash];
+    const r = scheduleCookingSequence(ds, { feastOven: true });
+    assert.ok(at(r, "t", 5) >= at(r, "t", 4) + 20);
+    assert.ok(at(r, "t", 6) - (at(r, "t", 5) + 10) <= 10, `carved ${at(r, "t", 5)}, served ${at(r, "t", 6)}`);
+    for (const d of ds) for (let i = 1; i < d.steps.length; i++) {
+      const a = r.steps.find((s) => s.dishId === d.dishId && s.originalStepIndex === d.steps[i - 1].stepIndex);
+      const b = r.steps.find((s) => s.dishId === d.dishId && s.originalStepIndex === d.steps[i].stepIndex);
+      if (a && b) assert.ok(b.startOffsetMinutes >= a.startOffsetMinutes + d.steps[i - 1].estimatedMinutes, `${d.dishId} #${i} starts before #${i - 1} ends`);
+    }
+  });
+
   it("without racks (every weeknight) nothing changes", () => {
     const weeknight = [dish("a", "Sheet Pan Chicken", 0, [st(0, "preheat", 15, "Preheat the oven to 425°F."), st(1, "cook", 30, "Roast at 425°F for 30 minutes.")], 1), dish("b", "Roasted Carrots", 1, [st(0, "cook", 25, "Roast at 425°F for 25 minutes.")], 2)];
     const r = scheduleCookingSequence(weeknight);

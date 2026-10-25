@@ -4,6 +4,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
+import { leftoverEdits, withoutReserve, withTent } from "./thx2Leftovers";
 import { nextPutInEdits, withNextClause } from "./thx2Next";
 import { panCountEdits, type OvenDish, type OvenStepRow } from "./thx2Oven";
 import { putInEdits } from "./thx2PutIn";
@@ -106,6 +107,40 @@ describe("THX-3d round 4 (B, BUG-507) — a put-in says what goes in next", () =
     const once = rows.map((r) => (r.ownerId === "p" && r.stepIndex === 0 ? { ...r, stepTextTranslated: nextPutInEdits(dishes, rows)[0].text } : r));
     assert.deepEqual(nextPutInEdits(dishes, once), []);
     assert.equal(withNextClause("Put the sweet potatoes in the oven; the green beans go in 10 minutes from now.", null), "Put the sweet potatoes in the oven.");
+  });
+});
+
+describe("THX-3d round 4 (C, BUG-497) — the drippings, the tent", () => {
+  const gravy: OvenDish = { dishId: "v", title: "Pan Gravy", positionIndex: 1 };
+  const gRows = [row("v", 0, "prep", 5, "On Thursday: Pour the drippings from the roasting pan into a fat separator."), row("v", 1, "cook", 12, "Whisk in the stock and simmer."), row("v", 2, "assemble", 2, "Pour into a warm gravy boat.")];
+  const bird = (rest: string, carve: string) => [
+    row("t", 0, "preheat", 15, "On Thursday: Preheat the oven to 325°F."),
+    row("t", 1, "cook", 180, "Roast the turkey at 325°F for about 3 hours, until the thigh reads 165°F."),
+    row("t", 2, "rest", 25, rest),
+    row("t", 3, "assemble", 10, carve),
+    row("t", 4, "assemble", 2, "Serve the Herb-Roasted Whole Turkey with the Pan Gravy."),
+  ];
+
+  it("1 — the three ways production says it, and nothing else", () => {
+    assert.equal(withoutReserve("Carve the turkey and arrange on a warm platter; reserve all pan drippings for the gravy."), "Carve the turkey and arrange on a warm platter.");
+    assert.equal(withoutReserve("Rest, tented loosely with foil, for 20 minutes before carving — reserve the drippings in the pan for gravy."), "Rest, tented loosely with foil, for 20 minutes before carving.");
+    assert.equal(withoutReserve("Rest 20–30 minutes before carving. Reserve the pan drippings for finishing the gravy."), "Rest 20–30 minutes before carving.");
+    assert.equal(withoutReserve("Carve the turkey."), null);
+  });
+
+  it("1 — gone from a step the gravy has already taken them before; kept where it takes them after", () => {
+    const stale = leftoverEdits([BIRD, gravy], [...bird("Transfer the turkey to a carving board and rest 20–30 minutes.", "Carve the turkey and arrange on a warm platter; reserve all pan drippings for the gravy."), ...gRows]);
+    assert.deepEqual(stale.map((e) => e.text), ["Carve the turkey and arrange on a warm platter."]);
+    const kept = leftoverEdits([BIRD, gravy], [...bird("Transfer the turkey to a carving board and rest 20–30 minutes; reserve the pan drippings for the gravy.", "Carve the turkey."), ...gRows]);
+    assert.deepEqual(kept, []);
+  });
+
+  it("7 — the tent: added while the carved bird waits, taken off when it no longer does", () => {
+    assert.equal(withTent("Carve the turkey.", true), "Carve the turkey. Tent loosely with foil.");
+    assert.equal(withTent("Carve the turkey. Tent loosely with foil.", true), "Carve the turkey. Tent loosely with foil.");
+    assert.equal(withTent("Carve the turkey. Tent loosely with foil.", false), "Carve the turkey.");
+    const off = leftoverEdits([BIRD, gravy], [...bird("Transfer the turkey to a carving board and rest 20–30 minutes; reserve the pan drippings for the gravy.", "Carve the turkey. Tent loosely with foil."), ...gRows]);
+    assert.deepEqual(off.map((e) => e.text), ["Carve the turkey."]);
   });
 });
 

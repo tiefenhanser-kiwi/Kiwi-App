@@ -39,8 +39,9 @@ function tx(dishes: Record<string, Step[]>, tags: string[]) {
     tx: {
       meal: { update: async ({ data }: { data: Record<string, unknown> }) => (mealUpdates.push(data), {}) },
       dish: { update: async () => ({}) },
+      // THX-3d round 4 (BUG-497 item 8) — the link carries the dish's title, as the stamp reads it.
       mealDishLink: {
-        findMany: async () => Object.keys(dishes).map((dishId, positionIndex) => ({ dishId, positionIndex, meal: { tags } })),
+        findMany: async () => Object.keys(dishes).map((dishId, positionIndex) => ({ dishId, positionIndex, roleLabel: null, meal: { tags }, dish: { title: TITLE[dishId] ?? dishId, servingsDefault: 10, authoredServingsDefault: 10, dishIngredients: [] } })),
       },
       recipeInstructionStep: {
         findMany: async () =>
@@ -52,8 +53,15 @@ function tx(dishes: Record<string, Step[]>, tags: string[]) {
   };
 }
 
+/** THX-3d round 4 — each fixture dish's title (production's ids are UUIDs, never "turkey"). */
+const TITLE: Record<string, string> = {
+  turkey: "Herb-Roasted Whole Turkey", gravy: "Pan Gravy", pie: "Pumpkin Pie",
+  "3f1c2e7a-0b6d-4c1e-9a2f-6d8e1b7c5a40": "Herb-Roasted Whole Turkey", "8b2d4f60-1c3e-4a5b-8d7f-2e9c0a6b3d11": "Pan Gravy", "c5e7a9b1-2d4f-4e6a-9c8b-0f1e3d5a7b22": "Pumpkin Pie",
+};
+// THX-3d round 4 (BUG-497 item 8) — scheduled by title, as Cook Mode and now the stamp do
+// (it pinned `title: dishId`, which found the bird only because the fixture's id is "turkey").
 const sched = (dishes: Record<string, Step[]>) =>
-  Object.entries(dishes).map(([dishId, steps], positionIndex) => ({ dishId, title: dishId, positionIndex, steps }));
+  Object.entries(dishes).map(([dishId, steps], positionIndex) => ({ dishId, title: TITLE[dishId] ?? dishId, positionIndex, steps }));
 
 describe("PREP-1 G (BUG-418) — a feast's clock is Thursday's", () => {
   it("the run: from 'Make ahead (' up to 'On Thursday:', unprefixed steps inside it included", () => {
@@ -109,6 +117,18 @@ describe("PREP-1 G (BUG-418) — a feast's clock is Thursday's", () => {
     assert.equal(timing.activeMinutes, thursday.activeMinutes);
     assert.deepEqual(mealUpdates, [{ estimatedTimeMinutes: thursday.totalMinutes, activeTimeMinutes: thursday.activeMinutes }]);
     assert.ok(everything.activeMinutes! > thursday.activeMinutes!, "fixture: the make-ahead work was on the clock before");
+  });
+
+  it("THX-3d round 4 (BUG-497 item 8) — a feast keyed by UUIDs is stamped by its titles: the bird is found, the stamp is Cook Mode's", async () => {
+    const ids = ["3f1c2e7a-0b6d-4c1e-9a2f-6d8e1b7c5a40", "8b2d4f60-1c3e-4a5b-8d7f-2e9c0a6b3d11", "c5e7a9b1-2d4f-4e6a-9c8b-0f1e3d5a7b22"];
+    const dishes = { [ids[0]]: TURKEY, [ids[1]]: GRAVY, [ids[2]]: PIE };
+    const { tx: t } = tx(dishes, ["american", "thanksgiving", "thanksgiving-feast"]);
+    const timing = await stampMealTiming(t, "feast", ids);
+    const day = { [ids[0]]: TURKEY, [ids[1]]: [GRAVY[2]], [ids[2]]: [PIE[3]] };
+    const byTitle = deriveMealTiming(sched(day), { feastOven: true });
+    const byId = deriveMealTiming(Object.entries(day).map(([dishId, steps], positionIndex) => ({ dishId, title: dishId, positionIndex, steps })), { feastOven: true });
+    assert.equal(timing.totalMinutes, byTitle.totalMinutes);
+    assert.notEqual(byId.totalMinutes, byTitle.totalMinutes, "fixture: read by id, the stamp would differ (no bird)");
   });
 
   it("a meal NOT tagged thanksgiving-feast is stamped exactly as before, make-ahead text and all", async () => {

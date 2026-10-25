@@ -767,7 +767,8 @@ export function scheduleCookingSequence(
   // THX-3d round 2 (J) — the warm steps that are not needed today go with them.
   const warm = feastWarmSteps(feastServeOrder(result, input), input);
   const all = [...mergedSteps, ...warm.dropped];
-  return { ...warm.result, ...(all.length > 0 ? { mergedSteps: all } : {}) };
+  // THX-3d round 4 (BUG-497 item 7) — the carve as late as the hands allow.
+  return { ...carveLate(warm.result, input), ...(all.length > 0 ? { mergedSteps: all } : {}) };
 }
 
 // ── THX-3d round 3 (U) — SERVED HOT, AT SERVING TIME ─────────────────────────────────
@@ -1090,6 +1091,73 @@ export const OVEN_OFF_TEXT = "Turn the oven off and leave the sides inside, cove
 export const OVEN_OFF_STEP = /^\s*Turn the oven off and leave the sides inside\b/i;
 /** Minutes before serving that a side may finish without a warm step. */
 export const WARM_GAP = 15;
+/** A side's own rest out of the oven: "Let the stuffing rest 5 minutes." */
+const REST_AFTER_OVEN = /^\s*Let (?:the [^.;]+?|it|them) rest \d+(?:\s*(?:–|-|to)\s*\d+)? minutes\.?\s*$/i;
+
+// ── THX-3d round 4 (BUG-497 item 7) — THE CARVED BIRD WAITS NO MORE THAN 10 MINUTES ──
+//
+// Carved as its rest ended, Small's breast waited 22 minutes on the platter and Classic's
+// turkey 20 while the sides finished. The carve lands later instead — the bird keeps
+// resting, whole and tented, which holds its heat — at the latest moment the cook's hands
+// are free before serving. Where they are never free late enough, it waits as little as
+// they allow (the content says to tent it: thx2Next carveTentEdits).
+export const CARVED_WAIT_MAX = 10;
+
+export function carveLate(res: ScheduleResult, dishes: readonly SchedulerDish[]): ScheduleResult {
+  const bird = feastRoastDish(dishes);
+  if (!bird) return res;
+  const d = dishes.find((x) => x.dishId === bird.dishId)!;
+  const rest = d.steps.findIndex((s, i) => i > bird.lastOven && s.phaseType === "rest");
+  const carve = rest >= 0 ? d.steps.slice(rest + 1).find((s) => !FEAST_SERVE_STEP.test(s.text ?? "")) : undefined;
+  const e = carve && res.steps.find((x) => x.dishId === d.dishId && x.originalStepIndex === carve.stepIndex);
+  if (!carve || !e) return res;
+  const stepOf = new Map(dishes.flatMap((x) => x.steps.map((s) => [`${x.dishId}#${s.stepIndex}`, s] as const)));
+  const serve = res.steps.find((x) => FEAST_SERVE_STEP.test(stepOf.get(`${x.dishId}#${x.originalStepIndex}`)?.text ?? ""));
+  const serveAt = serve ? serve.startOffsetMinutes : 0;
+  if (serveAt - (e.startOffsetMinutes + carve.estimatedMinutes) <= CARVED_WAIT_MAX) return res;
+  const L = carve.estimatedMinutes;
+  const c0 = e.startOffsetMinutes;
+  const c1 = c0 + L;
+  const stepFor = (x: ScheduledStep) => stepOf.get(`${x.dishId}#${x.originalStepIndex}`);
+  // (The lid, the knob and a side's own rest take no hands, as in the pass.)
+  const attended = (x: ScheduledStep) => { const s = stepFor(x); return !!s && !isUnattended(s) && !REST_AFTER_OVEN.test(s.text ?? "") && !KEEP_WARM_STEP.test(s.text ?? "") && !OVEN_OFF_STEP.test(s.text ?? ""); };
+  const fixed = (x: ScheduledStep) => {
+    const s = stepFor(x);
+    if (!s || x.dishId === d.dishId) return true;
+    const title = dishes.find((y) => y.dishId === x.dishId)?.title ?? "";
+    return isOvenStep(s) || isReheatStep(s) || ALREADY_IN.test(s.text ?? "") || PUT_IN_ONE.test(s.text ?? "") || FEAST_SERVE_STEP.test(s.text ?? "") || DESSERT_DISH.test(title);
+  };
+  /** The carve at t, the work that started between its old end and its new end moved earlier by its minutes; null when that breaks a dish's order or moves an oven step. */
+  const tryAt = (t: number): ScheduledStep[] | null => {
+    const shifted = new Set(res.steps.filter((x) => x !== e && x.startOffsetMinutes >= c1 && x.startOffsetMinutes < t + L));
+    if ([...shifted].some((x) => fixed(x) && (attended(x) || x.startOffsetMinutes < t + L))) {
+      // An oven step or a put-in in the way stays put: the moved work must not need its moment.
+      for (const x of [...shifted]) if (fixed(x)) shifted.delete(x);
+      if (res.steps.some((x) => x !== e && fixed(x) && attended(x) && x.startOffsetMinutes < t + L && t < x.startOffsetMinutes + (stepFor(x)?.estimatedMinutes ?? 0))) return null;
+    }
+    const startOf = (x: ScheduledStep) => (x === e ? t : shifted.has(x) ? x.startOffsetMinutes - L : x.startOffsetMinutes);
+    for (const x of shifted) {
+      const s = stepFor(x)!;
+      const own = res.steps.filter((y) => y.dishId === x.dishId && y.originalStepIndex < x.originalStepIndex);
+      if (own.some((y) => startOf(y) + (stepFor(y)?.estimatedMinutes ?? 0) > startOf(x))) return null;
+      if (attended(x) && res.steps.some((y) => y !== x && attended(y) && startOf(y) < startOf(x) + s.estimatedMinutes && startOf(x) < startOf(y) + (stepFor(y)?.estimatedMinutes ?? 0))) return null;
+    }
+    // A step left behind that a moved step of its dish now finishes too early for stays in order (it was already after it).
+    if (res.steps.some((y) => y !== e && attended(y) && !shifted.has(y) && startOf(y) < t + L && t < startOf(y) + (stepFor(y)?.estimatedMinutes ?? 0))) return null;
+    const { reason: _reason, ...plain } = e;
+    return res.steps.map((x) => (x === e ? { ...plain, startOffsetMinutes: t } : shifted.has(x) ? { ...x, startOffsetMinutes: x.startOffsetMinutes - L } : x));
+  };
+  // The earliest slot that brings the wait within CARVED_WAIT_MAX (the least work moved);
+  // failing that, the latest one there is.
+  let best: ScheduledStep[] | null = null;
+  for (let t = Math.max(c0 + 1, serveAt - L - CARVED_WAIT_MAX); t <= serveAt - L && !best; t++) best = tryAt(t);
+  for (let t = serveAt - L - CARVED_WAIT_MAX - 1; t > c0 && !best; t--) best = tryAt(t);
+  if (!best) return res;
+  const steps = best
+    .sort((a, b) => a.startOffsetMinutes - b.startOffsetMinutes || a.sequenceIndex - b.sequenceIndex)
+    .map((x, i) => ({ ...x, sequenceIndex: i }));
+  return { ...res, steps };
+}
 
 export function feastWarmSteps(res: ScheduleResult, dishes: readonly SchedulerDish[]): { result: ScheduleResult; dropped: { dishId: string; stepIndex: number }[] } {
   const none = { result: res, dropped: [] };
@@ -1117,7 +1185,21 @@ export function feastWarmSteps(res: ScheduleResult, dishes: readonly SchedulerDi
     .map((e) => ({ e, end: endBefore(e.dishId, e.originalStepIndex, (s) => isOvenStep(s) && s.phaseType !== "preheat") }));
   const lastOut = offs.reduce<(typeof offs)[number] | null>((b, o) => (o.end !== null && (b === null || (b.end ?? -Infinity) < o.end) ? o : b), null);
   for (const o of offs) {
-    if (o === lastOut && o.end !== null && serveAt - o.end > WARM_GAP) continue;
+    if (o === lastOut && o.end !== null && serveAt - o.end > WARM_GAP) {
+      // THX-3d round 4 (BUG-497 item 2) — a side left in the turned-off oven needs no rest
+      // after it ("Let the stuffing rest 5 minutes" after 25 minutes in it): every side
+      // whose oven work is done by then rests there ("leave the sides inside").
+      const offAt = o.e.startOffsetMinutes;
+      for (const d of dishes) {
+        const lastOvenEnd = endBefore(d.dishId, Infinity, (s) => isOvenStep(s) && s.phaseType !== "preheat");
+        if (lastOvenEnd === null || lastOvenEnd > offAt) continue;
+        for (const s of d.steps) {
+          const sAt = at.get(`${d.dishId}#${s.stepIndex}`);
+          if (sAt !== undefined && sAt >= offAt && REST_AFTER_OVEN.test(s.text ?? "")) drop.add(`${d.dishId}#${s.stepIndex}`);
+        }
+      }
+      continue;
+    }
     drop.add(`${o.e.dishId}#${o.e.originalStepIndex}`);
   }
   if (drop.size === 0) return none;
@@ -1363,7 +1445,7 @@ const NOT_A_ROAST = /\b(gravy|stock|broth|stuffing|dressing|soup|sandwich(?:es)?
 /** THX-3d (R4) — a side this much cooler than the bird cannot bake in its oven as it comes out (thx2Oven MAX_SHIFT_F). */
 export const BIRD_HOTTER_F = 25;
 /** THX-3d (R4) — a step that works from the bird's pan: it waits until the bird is out. */
-const DRIPPINGS = /\b(drippings|roasting pan|pan juices)\b/i;
+export const DRIPPINGS = /\b(drippings|roasting pan|pan juices)\b/i;
 /**
  * THX-3d (R4) — the code-written raise step: "Raise the oven to 350°F and put in …".
  * THX-3d round 3 (T) — or, at the bird's own temperature, "Put the … in the oven with
@@ -2285,13 +2367,21 @@ function scheduleOnceCore(
   // everything), a morning chain (heldMorningFirst puts it in the first free window).
   // Held in the pass, they pushed the carve and the gravy later than anything ever held
   // the cook (Small: the serve step at the carve, the crisp scooped before the gravy).
+  // THX-3d round 4 (BUG-497 item 3) — and the code-written warm steps: a lid and a knob
+  // ("Cover and keep warm over the lowest heat.", "Turn the oven off and leave the sides
+  // inside …") go right after the dish's last hot step. Queued for the cook's hands they
+  // landed 18–23 minutes later (production's Classic: the stuffing out at T−31, the oven
+  // turned off at T−8), and the lag repair could not pull them (their key was already the
+  // hot step's): the gap, not the anchor.
   const relocated = new Set<WorkStep>();
   if (oven || blocks) {
     const chainKeys = new Set(morningChains(nonEmpty).flatMap((c) => c.keys));
     nonEmpty.forEach((d, di) => {
       const lastOven = d.steps.reduce((m, s, i) => (isOvenStep(s) && !isReheatStep(s) ? i : m), -1);
       for (const w of work.filter((o) => o.dishIdx === di)) {
-        if (FEAST_SERVE_STEP.test(w.step.text ?? "") || (DESSERT_DISH.test(d.title) && w.stepIdx > lastOven) || chainKeys.has(`${d.dishId}#${w.step.stepIndex}`)) relocated.add(w);
+        const text = w.step.text ?? "";
+        // (…and a side's own rest out of the oven, written as an `assemble` step: a rest is hands-free.)
+        if (FEAST_SERVE_STEP.test(text) || (DESSERT_DISH.test(d.title) && w.stepIdx > lastOven) || chainKeys.has(`${d.dishId}#${w.step.stepIndex}`) || KEEP_WARM_STEP.test(text) || OVEN_OFF_STEP.test(text) || REST_AFTER_OVEN.test(text)) relocated.add(w);
       }
     });
   }
@@ -2352,6 +2442,11 @@ function scheduleOnceCore(
       let earliest = 0;
       if (w.kind.kind === "rider") {
         earliest = mine[w.kind.windowIdx]?.actualStart ?? 0;
+        // THX-3d round 4 (BUG-497 item 5) — in a feast, a preheat riding a hold (the bird's
+        // sit) heats the oven as the sit ends, not as it starts: Make-Ahead's oven stood hot
+        // and empty 30 minutes of the turkey's hour on the counter.
+        const win = mine[w.kind.windowIdx];
+        if ((oven || blocks) && win && w.step.phaseType === "preheat" && win.step.phaseType === "hold") earliest = Math.max(earliest, win.finish - w.step.estimatedMinutes);
       } else {
         for (let j = 0; j < w.stepIdx; j++) {
           const pj = mine[j];
