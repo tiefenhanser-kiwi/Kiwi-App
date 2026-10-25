@@ -434,5 +434,601 @@
     }
    ]
   }
+ ],
+ "vegetarian@4": [
+  {
+   "dishId": "d0",
+   "title": "Mushroom Wellington",
+   "positionIndex": 0,
+   "roleLabel": "main",
+   "ovenRacks": 1,
+   "ovenVessel": "sheet",
+   "steps": [
+    {
+     "stepIndex": 0,
+     "estimatedMinutes": 12,
+     "phaseType": "prep",
+     "isTimingSensitive": false,
+     "text": "Finely chop the 1½ lb cremini mushrooms, mince the 4 shallots and 6 garlic cloves, and strip 2 tablespoons thyme leaves and chop 1 tablespoon rosemary.",
+     "parallelGroup": null,
+     "componentKey": "duxelles",
+     "pathKey": "scratch"
+    },
+    {
+     "stepIndex": 1,
+     "estimatedMinutes": 18,
+     "phaseType": "cook",
+     "isTimingSensitive": true,
+     "text": "Heat 2 tablespoons olive oil in a 12-inch skillet over medium-high; cook the shallots and garlic 3 minutes, then add the mushrooms, thyme, and rosemary and cook 12–15 minutes, stirring often, until completely dry.",
+     "parallelGroup": null,
+     "componentKey": "duxelles",
+     "pathKey": "scratch"
+    },
+    {
+     "stepIndex": 2,
+     "estimatedMinutes": 5,
+     "phaseType": "cook",
+     "isTimingSensitive": false,
+     "text": "Pour in ¼ cup dry sherry, cook 2 minutes until evaporated, then stir in ½ cup fresh breadcrumbs, ½ cup toasted walnuts, and 2 oz grated vegetarian Parmesan-style cheese; season with ½ teaspoon kosher salt and ¼ teaspoon pepper and let cool.",
+     "parallelGroup": null,
+     "componentKey": "duxelles",
+     "pathKey": "scratch"
+    },
+    {
+     "stepIndex": 3,
+     "estimatedMinutes": 3,
+     "phaseType": "prep",
+     "isTimingSensitive": false,
+     "text": "Open both 7 oz jars of pre-made duxelles and transfer to a bowl; stir in ½ cup toasted walnuts, ½ cup fresh breadcrumbs, and 2 oz grated vegetarian Parmesan-style cheese.",
+     "parallelGroup": null,
+     "componentKey": "duxelles",
+     "pathKey": "bought"
+    },
+    {
+     "stepIndex": 4,
+     "estimatedMinutes": 8,
+     "phaseType": "cook",
+     "isTimingSensitive": true,
+     "text": "Heat 1 tablespoon olive oil in a 12-inch skillet over medium-high; sear the 4 portobello caps gill-side down 3 minutes per side, season with ½ teaspoon salt, then cool on a rack.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 5,
+     "estimatedMinutes": 4,
+     "phaseType": "cook",
+     "isTimingSensitive": false,
+     "text": "Wilt the 4 oz baby spinach in the same skillet over medium heat, 2 minutes; transfer to a colander and press out all liquid, then chop roughly.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 6,
+     "estimatedMinutes": 15,
+     "phaseType": "preheat",
+     "isTimingSensitive": false,
+     "text": "Preheat the oven to 425°F and line a large rimmed sheet pan with parchment.",
+     "parallelGroup": "w6",
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 7,
+     "estimatedMinutes": 3,
+     "phaseType": "assemble",
+     "isTimingSensitive": false,
+     "text": "Lay one puff pastry sheet on a lightly floured surface; brush the center third with 1½ tablespoons Dijon mustard.",
+     "parallelGroup": "w6",
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 8,
+     "estimatedMinutes": 5,
+     "phaseType": "assemble",
+     "isTimingSensitive": false,
+     "text": "Spread half the duxelles mixture over the mustard zone, top with the spinach and then 2 seared portobello caps; repeat for the second pastry sheet with the remaining filling and caps.",
+     "parallelGroup": "w6",
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 9,
+     "estimatedMinutes": 4,
+     "phaseType": "assemble",
+     "isTimingSensitive": false,
+     "text": "Fold and roll each pastry around its filling, seam-side down on the sheet pan; brush all over with beaten egg and score the tops lightly.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 10,
+     "estimatedMinutes": 30,
+     "phaseType": "cook",
+     "isTimingSensitive": false,
+     "text": "Bake on the sheet pan at 425°F for 25–30 minutes until deep golden brown; rest 5 minutes before slicing into portions.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 11,
+     "estimatedMinutes": 3,
+     "phaseType": "assemble",
+     "isTimingSensitive": false,
+     "text": "Slice each Wellington into portions.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 12,
+     "estimatedMinutes": 2,
+     "phaseType": "assemble",
+     "isTimingSensitive": false,
+     "text": "Serve the Mushroom Wellington with the Mushroom Gravy, Herb Stuffing, Mashed Potatoes, Balsamic Roasted Brussels Sprouts, Cranberry-Orange Sauce and Baked Mac and Cheese.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    }
+   ]
+  },
+  {
+   "dishId": "d1",
+   "title": "Mushroom Gravy",
+   "positionIndex": 1,
+   "roleLabel": "sauce",
+   "steps": [
+    {
+     "stepIndex": 0,
+     "estimatedMinutes": 8,
+     "phaseType": "prep",
+     "isTimingSensitive": false,
+     "text": "Thinly slice 1 lb cremini mushrooms, mince 3 shallots and 4 garlic cloves.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 1,
+     "estimatedMinutes": 4,
+     "phaseType": "cook",
+     "isTimingSensitive": true,
+     "text": "Melt 4 tablespoons butter in a 4-quart saucepan over medium-high; add the 3 shallots and 4 cloves minced garlic and cook 3 minutes until softened.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 2,
+     "estimatedMinutes": 10,
+     "phaseType": "cook",
+     "isTimingSensitive": false,
+     "text": "Add the 1 lb sliced mushrooms and cook 8–10 minutes, stirring occasionally, until browned and their liquid has evaporated.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 3,
+     "estimatedMinutes": 2,
+     "phaseType": "cook",
+     "isTimingSensitive": true,
+     "text": "Sprinkle ⅓ cup flour over the mushrooms and stir 1–2 minutes until the raw flour smell is gone.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 4,
+     "estimatedMinutes": 3,
+     "phaseType": "cook",
+     "isTimingSensitive": true,
+     "text": "Pour in ¼ cup dry sherry and cook 1 minute, then gradually whisk in 4 cups vegetable broth until smooth.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 5,
+     "estimatedMinutes": 10,
+     "phaseType": "cook",
+     "isTimingSensitive": false,
+     "text": "Add 1 tablespoon soy sauce, 1 tablespoon thyme leaves, ¾ teaspoon salt, and ¼ teaspoon pepper; simmer over medium-low 10 minutes, stirring occasionally, until thickened to gravy consistency.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 6,
+     "estimatedMinutes": 5,
+     "phaseType": "hold",
+     "isTimingSensitive": false,
+     "text": "Taste and adjust seasoning; keep warm over the lowest heat, stirring occasionally, until ready to serve.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 7,
+     "estimatedMinutes": 1,
+     "phaseType": "assemble",
+     "isTimingSensitive": false,
+     "text": "Cover and keep warm over the lowest heat.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    }
+   ]
+  },
+  {
+   "dishId": "d2",
+   "title": "Herb Stuffing",
+   "positionIndex": 2,
+   "roleLabel": "side",
+   "ovenRacks": 0.5,
+   "ovenVessel": "dish",
+   "steps": [
+    {
+     "stepIndex": 4,
+     "estimatedMinutes": 15,
+     "phaseType": "preheat",
+     "isTimingSensitive": false,
+     "text": "On Thursday: Preheat the oven to 375°F.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 5,
+     "estimatedMinutes": 30,
+     "phaseType": "cook",
+     "isTimingSensitive": false,
+     "text": "Bake the stuffing covered at 375°F for 30 minutes.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 6,
+     "estimatedMinutes": 25,
+     "phaseType": "cook",
+     "isTimingSensitive": false,
+     "text": "Uncover and bake 20–25 minutes more until the top is golden and crisp.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 7,
+     "estimatedMinutes": 1,
+     "phaseType": "assemble",
+     "isTimingSensitive": false,
+     "text": "Cover the Herb Stuffing with foil to keep it warm while the oven heats for the next dish.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 8,
+     "estimatedMinutes": 10,
+     "phaseType": "cook",
+     "isTimingSensitive": false,
+     "text": "Return the Herb Stuffing, uncovered, to the 425°F oven for 10 minutes, until hot again.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 9,
+     "estimatedMinutes": 1,
+     "phaseType": "assemble",
+     "isTimingSensitive": false,
+     "text": "Turn the oven off and leave the sides inside, covered loosely with foil, to keep warm.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    }
+   ]
+  },
+  {
+   "dishId": "d3",
+   "title": "Mashed Potatoes",
+   "positionIndex": 3,
+   "roleLabel": "base",
+   "steps": [
+    {
+     "stepIndex": 0,
+     "estimatedMinutes": 2,
+     "phaseType": "prep",
+     "isTimingSensitive": false,
+     "text": "Thinly slice 2 tbsp fresh chives; keep it covered in a small container in the fridge until serving.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 1,
+     "estimatedMinutes": 8,
+     "phaseType": "prep",
+     "isTimingSensitive": false,
+     "text": "Peel and cut 5 lb russet potatoes into 2-inch chunks; put them in a large pot with the 4 peeled garlic cloves, cover with cold salted water, and leave the pot on the stove, off, until it's time to cook.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 2,
+     "estimatedMinutes": 1,
+     "phaseType": "cook",
+     "isTimingSensitive": false,
+     "text": "Turn the burner on under the pot of potatoes.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 3,
+     "estimatedMinutes": 25,
+     "phaseType": "cook",
+     "isTimingSensitive": false,
+     "text": "Bring the pot to a boil over high heat, then reduce to a vigorous simmer and cook 18–20 minutes until the potatoes are completely tender when pierced.",
+     "parallelGroup": "w1",
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 4,
+     "estimatedMinutes": 5,
+     "phaseType": "cook",
+     "isTimingSensitive": false,
+     "text": "Warm 1 cup whole milk in a small saucepan over low heat until steaming; keep warm.",
+     "parallelGroup": "w1",
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 5,
+     "estimatedMinutes": 3,
+     "phaseType": "cook",
+     "isTimingSensitive": false,
+     "text": "Drain the potatoes and garlic, return to the pot, and let steam dry 2 minutes over low heat.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 6,
+     "estimatedMinutes": 5,
+     "phaseType": "cook",
+     "isTimingSensitive": true,
+     "text": "Mash the potatoes and garlic with 8 tablespoons butter until smooth, then stir in the warm milk, ½ cup sour cream, 1½ teaspoons salt, and ¼ teaspoon white pepper.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 7,
+     "estimatedMinutes": 1,
+     "phaseType": "assemble",
+     "isTimingSensitive": false,
+     "text": "Cover and keep warm over the lowest heat.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 8,
+     "estimatedMinutes": 2,
+     "phaseType": "assemble",
+     "isTimingSensitive": false,
+     "text": "Transfer the potatoes to a serving bowl and garnish with the chives you sliced this morning.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    }
+   ]
+  },
+  {
+   "dishId": "d4",
+   "title": "Balsamic Roasted Brussels Sprouts",
+   "positionIndex": 4,
+   "roleLabel": "side",
+   "ovenRacks": 1,
+   "ovenVessel": "sheet",
+   "steps": [
+    {
+     "stepIndex": 0,
+     "estimatedMinutes": 15,
+     "phaseType": "preheat",
+     "isTimingSensitive": false,
+     "text": "Preheat the oven to 425°F.",
+     "parallelGroup": "w0",
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 1,
+     "estimatedMinutes": 5,
+     "phaseType": "prep",
+     "isTimingSensitive": false,
+     "text": "Trim and halve 3 lb Brussels sprouts.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 2,
+     "estimatedMinutes": 5,
+     "phaseType": "prep",
+     "isTimingSensitive": false,
+     "text": "Whisk together ¼ cup olive oil, 3 tablespoons balsamic vinegar, 1½ tablespoons honey, 4 minced garlic cloves, 1 teaspoon salt, and ½ teaspoon pepper in a large bowl.",
+     "parallelGroup": "w0",
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 3,
+     "estimatedMinutes": 3,
+     "phaseType": "assemble",
+     "isTimingSensitive": false,
+     "text": "Toss the Brussels sprouts in the balsamic mixture and spread cut-side down in a single layer across two large rimmed sheet pans.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 4,
+     "estimatedMinutes": 25,
+     "phaseType": "cook",
+     "isTimingSensitive": false,
+     "text": "Roast at 425°F for 22–25 minutes, rotating the pans halfway through, until the sprouts are deeply caramelized and tender.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 5,
+     "estimatedMinutes": 1,
+     "phaseType": "assemble",
+     "isTimingSensitive": false,
+     "text": "Cover the Balsamic Roasted Brussels Sprouts with foil to keep them warm.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 6,
+     "estimatedMinutes": 10,
+     "phaseType": "cook",
+     "isTimingSensitive": false,
+     "text": "Return the Balsamic Roasted Brussels Sprouts, uncovered, to the 425°F oven for 10 minutes, until hot again.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 7,
+     "estimatedMinutes": 1,
+     "phaseType": "assemble",
+     "isTimingSensitive": false,
+     "text": "Turn the oven off and leave the sides inside, covered loosely with foil, to keep warm.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 8,
+     "estimatedMinutes": 2,
+     "phaseType": "assemble",
+     "isTimingSensitive": false,
+     "text": "Transfer the Brussels sprouts to a serving platter, scatter with ¼ cup dried cranberries, and top with 3 tablespoons toasted pine nuts if using.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    }
+   ]
+  },
+  {
+   "dishId": "d5",
+   "title": "Baked Mac and Cheese",
+   "positionIndex": 6,
+   "roleLabel": "side",
+   "ovenRacks": 0.5,
+   "ovenVessel": "dish",
+   "steps": [
+    {
+     "stepIndex": 5,
+     "estimatedMinutes": 15,
+     "phaseType": "preheat",
+     "isTimingSensitive": false,
+     "text": "On Thursday: Preheat the oven to 375°F.",
+     "parallelGroup": "w5",
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 6,
+     "estimatedMinutes": 4,
+     "phaseType": "assemble",
+     "isTimingSensitive": false,
+     "text": "On Thursday: Toss 1 cup panko breadcrumbs with 2 tablespoons melted butter and the remaining 4 oz sharp cheddar; scatter evenly over the cold mac and cheese.",
+     "parallelGroup": "w5",
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 7,
+     "estimatedMinutes": 50,
+     "phaseType": "cook",
+     "isTimingSensitive": false,
+     "text": "Bake uncovered at 375°F for 45–50 minutes until the crumb topping is deep golden and the edges are bubbling.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 8,
+     "estimatedMinutes": 1,
+     "phaseType": "assemble",
+     "isTimingSensitive": false,
+     "text": "Cover the Baked Mac and Cheese with foil to keep it warm.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 9,
+     "estimatedMinutes": 10,
+     "phaseType": "cook",
+     "isTimingSensitive": false,
+     "text": "Return the Baked Mac and Cheese, uncovered, to the 425°F oven for 10 minutes, until hot again.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 10,
+     "estimatedMinutes": 1,
+     "phaseType": "assemble",
+     "isTimingSensitive": false,
+     "text": "Turn the oven off and leave the sides inside, covered loosely with foil, to keep warm.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 11,
+     "estimatedMinutes": 5,
+     "phaseType": "assemble",
+     "isTimingSensitive": false,
+     "text": "Let the mac and cheese rest 5 minutes.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    }
+   ]
+  },
+  {
+   "dishId": "d6",
+   "title": "Apple Pie",
+   "positionIndex": 7,
+   "roleLabel": "side",
+   "steps": [
+    {
+     "stepIndex": 6,
+     "estimatedMinutes": 2,
+     "phaseType": "assemble",
+     "isTimingSensitive": false,
+     "text": "On Thursday: Slice the Apple Pie and serve.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    }
+   ]
+  }
  ]
 }

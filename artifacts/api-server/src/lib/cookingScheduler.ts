@@ -961,8 +961,11 @@ export function serveLate(res: ScheduleResult, dishes: readonly SchedulerDish[],
     const lastKey = r.keys[r.keys.length - 1];
     if (t <= was || t < floor || t + len < start.get(lastKey)! + minutes(lastKey)) {
       // THX-3d round 5 (BUG-521) — a run that stays keeps its hands (Classic's gravy, left
-      // at T−3, had the potatoes' plating put on top of it).
-      for (const k of r.keys) if (attended(k)) busy.push([start.get(k)!, start.get(k)! + minutes(k)]);
+      // at T−3, had the potatoes' plating put on top of it). Its own rest, the lid and the
+      // knob take none, as in carveLate (Vegetarian's "Let the mac and cheese rest 5
+      // minutes" had pushed the potatoes' and the sprouts' plating six minutes earlier).
+      const noHands = (k: string) => [REST_AFTER_OVEN, KEEP_WARM_STEP, OVEN_OFF_STEP].some((re) => re.test(stepOf.get(k)?.text ?? ""));
+      for (const k of r.keys) if (attended(k) && !noHands(k)) busy.push([start.get(k)!, start.get(k)! + minutes(k)]);
       continue;
     }
     let at = t;

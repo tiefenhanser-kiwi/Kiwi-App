@@ -69,6 +69,18 @@ describe("THX-3d round 5 (BUG-521, D-WS9-322 (1)) — New Twist at 4: twelve min
   });
 });
 
+describe("THX-3d round 5 (BUG-521) — a side's own rest takes no hands", () => {
+  it("Vegetarian at 4: the mac and cheese rests beside the potatoes' and the sprouts' plating (it had pushed both six minutes earlier)", () => {
+    const ds = load("thx3dRound5B.feasts.json")["vegetarian@4"];
+    const ps = placed(scheduleCookingSequence(ds, { feastOven: true }), ds);
+    const serve = serveOf(ps);
+    const bowl = ps.find((p) => /Mashed Potatoes/.test(p.title) && /serving bowl/.test(p.text))!;
+    const platter = ps.find((p) => /Brussels/.test(p.title) && /serving platter/.test(p.text))!;
+    assert.ok(serve.from - bowl.from <= 4 && serve.from - platter.from <= 4, `bowl T${bowl.from}, platter T${platter.from}, serving T${serve.from}`);
+    assert.deepEqual(overlaps(ps), []);
+  });
+});
+
 describe("THX-3d round 5 (BUG-521) — feastWarmSteps plates a kept side at serving", () => {
   const d = (dishId: string, steps: [number, string, number, string][]): SchedulerDish => ({ dishId, title: dishId, positionIndex: 0, roleLabel: null, steps: steps.map(([stepIndex, phaseType, estimatedMinutes, text]) => ({ stepIndex, phaseType: phaseType as never, estimatedMinutes, text, isTimingSensitive: false, parallelGroup: null, componentKey: null, pathKey: null })) });
   const at = (dishId: string, i: number, t: number) => ({ dishId, originalStepIndex: i, sequenceIndex: 0, startOffsetMinutes: t });
