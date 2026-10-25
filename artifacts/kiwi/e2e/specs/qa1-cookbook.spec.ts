@@ -291,7 +291,7 @@ test("QA-1 A — Cookbook (items 1–13) + BOOK-1C2 B1–B7", async ({ page }) =
   });
 
   // ── 6 — the filter sheet ─────────────────────────────────────────────────
-  await ledger.run("A6", "Filter sheet: cuisine + Easy live count, Show, Clear all, allergy line (lock only when set) → Profile, eating styles disabled", async (shots) => {
+  await ledger.run("A6", "Filter sheet: cuisine chips ≥ 5 meals, cuisine + Easy live count, Show, Clear all, allergy line (lock only when set) → Profile, eating styles disabled", async (shots) => {
     await gotoCookbook(page);
     const unfiltered = await resultCount(page);
     await page.getByRole("button", { name: "Filters", exact: true }).click();
@@ -302,6 +302,19 @@ test("QA-1 A — Cookbook (items 1–13) + BOOK-1C2 B1–B7", async ({ page }) =
     };
     await waitForText(page, (j) => /Show [\d,]+ meals?/.test(j), 15_000);
     const n0 = await showN();
+    // CLIENT-2b A (BUG-508) — the Cuisine row is exactly the facet's cuisines
+    // with at least 5 meals (nothing is selected yet), and never "Comfort food".
+    const facet = (await http.get<{ facets: { cuisines: { token: string; count: number }[] } }>("/cookbook/meals?limit=1"))
+      .facets.cuisines;
+    const wantChips = facet.filter((c) => c.count >= 5).length;
+    const sheetChips = await page.evaluate(() => {
+      const heads = Array.from(document.querySelectorAll<HTMLElement>("div")).filter(
+        (d) => (d.innerText || "").trim() === "Cuisine" && d.children.length === 0,
+      );
+      const row = heads[heads.length - 1]?.nextElementSibling as HTMLElement | null;
+      return row ? row.querySelectorAll('[tabindex="0"]').length : -1;
+    });
+    const comfortShown = (await renderedText(page)).some((l) => /^comfort food$/i.test(l));
     // The first cuisine chip in the sheet: the first focusable after the "Cuisine" heading.
     const cuisine = await page.evaluate(() => {
       const heads = Array.from(document.querySelectorAll<HTMLElement>("div")).filter(
@@ -390,11 +403,13 @@ test("QA-1 A — Cookbook (items 1–13) + BOOK-1C2 B1–B7", async ({ page }) =
 
     const ok =
       n0 !== null && n1 !== n0 && n2 !== n1 && applied === n2 && pillsOk.length === 0 &&
+      sheetChips === wantChips && !comfortShown &&
       n3 === unfiltered && controls === 0 && prefsUrl.includes("preferences") && plainWhenNone &&
       !soon.focusable && soon.ariaDisabled === "true" && namedStyles.length === 0 && december;
     return {
       verdict: ok ? "pass" : "fail",
       evidence:
+        `cuisine chips in sheet ${sheetChips} (facet with ≥ 5: ${wantChips}), Comfort food shown ${comfortShown}; ` +
         `Show N: start ${n0} → +${cuisine} ${n1} → +Easy ${n2}; applied list ${applied} (${shown.length} cards rendered, ` +
         `cards missing ${cuisine}/Easy pill: ${pillsOk.length}); Clear all → ${n3} (unfiltered ${unfiltered}); ` +
         `allergy line "${allergy}" (fill ${allergyFill}), switch/checkbox controls in sheet ${controls}, tap → ${prefsUrl}; ` +

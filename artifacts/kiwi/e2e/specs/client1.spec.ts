@@ -11,6 +11,8 @@
 //       and the held lines' day words. ONE real Prep the Week generation (the
 //       narration call, ~$0.10); the 1280 pass reads the server's cache.
 //   7 (BUG-507) — Cook Mode: "Next step in N minutes" under a long step.
+//   D (CLIENT-2b, D-WS9-321) — Cook Mode's "You prepped this" chip; the meal
+//       read is given a preppedRefs entry while the server sends none.
 //   6 (BUG-500 / BUG-506) — signed out, in a fresh context: the reset screen, the
 //       email-change landing, their invalid states, then both success paths.
 //
@@ -299,6 +301,53 @@ test("4 · item 7 (BUG-507) — Cook Mode: 'Next step in N minutes' under a long
   await snap(page, "7-next-step-1280");
   await page.setViewportSize({ width: 375, height: 812 });
   if (patched) await page.unroute((u) => /\/api\/meals\/[^/]+$/.test(u.pathname));
+});
+
+test("4b · CLIENT-2b D (D-WS9-321) — Cook Mode: the 'You prepped this' chip from preppedRefs", async () => {
+  test.setTimeout(3 * 60_000);
+  const url = `/cook-session?mealId=${fixture.mealId}&planId=${fixture.planId}&planItemId=${fixture.planItemId}`;
+  const isMealRead = (u: URL) => /\/api\/meals\/[^/]+$/.test(u.pathname);
+  // Until THX-3d round 5 deploys the server sends no preppedRefs: give the
+  // meal read's first dish step one (a server that already sends them is
+  // left alone and said so).
+  let injected = false;
+  await page.route(isMealRead, async (route) => {
+    const res = await route.fetch();
+    const body = await res.json();
+    const meal = body.meal ?? body;
+    const all = [...(meal.steps ?? []), ...(meal.dishes ?? []).flatMap((d: any) => d.steps ?? [])];
+    if (!all.some((st: any) => Array.isArray(st.preppedRefs) && st.preppedRefs.length > 0)) {
+      const first = meal.dishes?.[0]?.steps?.[0] ?? meal.steps?.[0];
+      if (first) {
+        first.preppedRefs = [{ containerId: "qa-c1", label: "Taco spices" }];
+        injected = true;
+      }
+    }
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+  });
+  const open = async () => {
+    await visit(page, url, (j) => /step \d+ of|Did you prep this already/.test(j), 60_000);
+    if (/Did you prep this already/.test(await inner(page))) await press(page, "No, start from prep");
+    await waitInner(page, (j) => /step \d+ of (\d+)/.test(j), 30_000);
+    await settle(page, { timeoutMs: 10_000 });
+  };
+  await open();
+  const chip = page.locator('[data-testid^="prepped-ref-"]').first();
+  const n = await page.locator('[data-testid^="prepped-ref-"]').count();
+  const text = n ? ((await chip.innerText()) || "").trim() : "";
+  notes.push(`D: ${injected ? "preppedRefs injected into the meal read" : "the server's own preppedRefs"}; chips ${n}; first "${text}"`);
+  expect(n).toBeGreaterThan(0);
+  expect(text).toMatch(/^You prepped this · .+/);
+  await chip.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(400);
+  await snap(page, "D-prepped-chip-375");
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await open();
+  await page.locator('[data-testid^="prepped-ref-"]').first().scrollIntoViewIfNeeded();
+  await page.waitForTimeout(400);
+  await snap(page, "D-prepped-chip-1280");
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.unroute(isMealRead);
 });
 
 test("5 · item 6 (BUG-500 / BUG-506) — the emailed-link landings, signed out", async ({ browser }) => {
