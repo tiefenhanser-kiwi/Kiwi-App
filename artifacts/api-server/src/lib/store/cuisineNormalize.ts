@@ -47,7 +47,10 @@ const RULES: ReadonlyArray<readonly [string, readonly string[]]> = [
   ["barbecue", ["bbq", "american"]],
   ["bbq", ["bbq", "american"]],
   ["grill", ["bbq", "american"]],
-  ["comfort", ["comfort-food", "american"]],
+  // CLIENT-2b A (BUG-508): "comfort" emits american only. The comfort-food
+  // token named a Cookbook chip with ~1 meal behind it; matching is
+  // unchanged, since every comfort label already carried american.
+  ["comfort", ["american"]],
   ["southwest", ["american"]],
   ["american", ["american"]],
 ] as const;

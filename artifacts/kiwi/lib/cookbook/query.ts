@@ -160,7 +160,6 @@ export function toggleQuick(f: CookbookFilters, chip: QuickChip): CookbookFilter
 
 const CUISINE_LABELS: Record<string, string> = {
   bbq: "BBQ",
-  "comfort-food": "Comfort food",
   "latin-american": "Latin American",
   "middle-eastern": "Middle Eastern",
   "soul-food": "Soul food",
@@ -178,18 +177,45 @@ export function cuisineLabel(token: string): string {
 }
 
 /**
- * The cuisine quick chips: the top `n` cuisines by count (the facet arrives
- * sorted by count), plus any cuisine the user has selected that fell outside
- * the top — a selected chip never disappears from the row while it is on.
+ * CLIENT-2b A (BUG-508) — a cuisine chip shows only with at least this many
+ * meals behind it under the current filters (the facet counts each cuisine
+ * under every filter but its own). "Comfort food" offered 1 meal; a chip that
+ * opens onto one or two cards is not a category.
+ */
+export const CUISINE_CHIP_MIN = 5;
+
+type CuisineFacet = ReadonlyArray<{ token: string; count: number }>;
+
+/** The facet's tokens with enough meals, in its order (by count). */
+function shownCuisines(facet: CuisineFacet): string[] {
+  return facet.filter((c) => c.count >= CUISINE_CHIP_MIN).map((c) => c.token);
+}
+
+/** Selected tokens the list left out — a selection can always be undone. */
+function withSelected(tokens: string[], selected: readonly string[]): string[] {
+  return [...tokens, ...selected.filter((t) => !tokens.includes(t))];
+}
+
+/**
+ * The cuisine quick chips: the top `n` cuisines by count among those with
+ * CUISINE_CHIP_MIN meals, plus any cuisine the user has selected that fell
+ * outside them — a selected chip never disappears from the row while it is on.
  */
 export function cuisineQuickChips(
-  facet: ReadonlyArray<{ token: string; count: number }>,
+  facet: CuisineFacet,
   selected: readonly string[],
   n = 4,
 ): QuickChip[] {
-  const top = facet.filter((c) => c.count > 0).slice(0, n).map((c) => c.token);
-  const extra = selected.filter((t) => !top.includes(t));
-  return [...top, ...extra].map((token) => ({ kind: "cuisine", label: cuisineLabel(token), token }));
+  return withSelected(shownCuisines(facet).slice(0, n), selected).map((token) => ({
+    kind: "cuisine",
+    label: cuisineLabel(token),
+    token,
+  }));
+}
+
+/** The filter sheet's Cuisine row: every cuisine with enough meals, plus the selected. */
+export function cuisineSheetTokens(facet: CuisineFacet, selected: readonly string[]): string[] {
+  return withSelected(shownCuisines(facet), selected);
 }
 
 // ── the card ────────────────────────────────────────────────────────────────

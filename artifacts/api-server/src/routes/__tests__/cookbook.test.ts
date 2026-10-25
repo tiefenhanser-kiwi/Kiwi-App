@@ -199,6 +199,12 @@ describe("cookbook — the cuisine vocabulary", () => {
       assert.ok(normalizeCuisineTokens(t).has(t), `${t} does not normalize to itself`);
     }
   });
+
+  it("CLIENT-2b A: comfort-food is retired — not accepted, not emitted; comfort still reads as american", () => {
+    assert.ok(!(CUISINE_TOKENS as readonly string[]).includes("comfort-food"), "comfort-food is still a token");
+    assert.deepEqual([...normalizeCuisineTokens("American Comfort")], ["american"]);
+    assert.deepEqual([...normalizeCuisineTokens("Comfort Food")], ["american"]);
+  });
 });
 
 // ── access ───────────────────────────────────────────────────────────────
@@ -325,8 +331,6 @@ describe("GET /cookbook/meals — a bad value is a 400", () => {
     ["unknown sort", "?sort=newest"],
     ["time cap off the list", "?maxMinutes=20"],
     ["non-numeric time cap", "?maxMinutes=soon"],
-    ["raw cuisine string", "?cuisine=Italian-American"],
-    ["unknown cuisine token", "?cuisine=klingon"],
     ["limit over 50", "?limit=51"],
     ["limit zero", "?limit=0"],
     ["unknown parameter", "?maxMinute=30"],
@@ -365,6 +369,23 @@ describe("GET /cookbook/meals — cuisine, tag and facets", () => {
       assert.deepEqual(ids((await h.get("?cuisine=american")).body), ["it-am"]);
       assert.deepEqual(ids((await h.get("?cuisine=thai,mexican")).body).sort(), ["mex", "thai"]);
       assert.deepEqual(ids((await h.get("?cuisine=thai&cuisine=mexican")).body).sort(), ["mex", "thai"]);
+    });
+  });
+
+  it("CLIENT-2b A: an unknown or retired cuisine token is ignored, not a 400", async () => {
+    await withHarness({ rows: [...rows, row("comfy", { cuisineType: "American Comfort", tags: [] })] }, async (h) => {
+      const all = ids((await h.get("?sort=az")).body).sort();
+      for (const qs of ["?cuisine=comfort-food", "?cuisine=klingon", "?cuisine=Italian-American"]) {
+        const r = await h.get(`${qs}&sort=az`);
+        assert.equal(r.status, 200, qs);
+        assert.deepEqual(ids(r.body).sort(), all, `${qs} filtered`);
+      }
+      // A known token beside it still filters.
+      assert.deepEqual(ids((await h.get("?cuisine=comfort-food,thai")).body), ["thai"]);
+      // The facet never names it: the comfort meal counts under american.
+      const facet = (await h.get("")).body.facets.cuisines as { token: string; count: number }[];
+      assert.ok(!facet.some((c) => c.token === "comfort-food"), "comfort-food in the facet");
+      assert.ok(facet.some((c) => c.token === "american" && c.count === 2), "the comfort meal is not american");
     });
   });
 

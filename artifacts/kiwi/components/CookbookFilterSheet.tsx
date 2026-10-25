@@ -22,6 +22,7 @@ import { useCookbookCount } from "@/hooks/useCookbook";
 import {
   ACTIVE_CAPS,
   cuisineLabel,
+  cuisineSheetTokens,
   DIFFICULTIES,
   EMPTY_FILTERS,
   hasAnyFilter,
@@ -74,12 +75,9 @@ export function CookbookFilterSheet({
   const n = count.data;
   const allergy = allergyLine(allergies);
 
-  // Every cuisine the facet knows, plus a selected one the facet no longer
-  // counts (so a selection can always be undone from here).
-  const cuisineTokens = [
-    ...cuisines.filter((c) => c.count > 0).map((c) => c.token),
-    ...draft.cuisines.filter((t) => !cuisines.some((c) => c.token === t && c.count > 0)),
-  ];
+  // Every cuisine with enough meals behind it (CLIENT-2b A), plus a selected
+  // one that fell under (so a selection can always be undone from here).
+  const cuisineTokens = cuisineSheetTokens(cuisines, draft.cuisines);
 
   return (
     <Modal

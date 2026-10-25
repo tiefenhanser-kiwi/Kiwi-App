@@ -3,7 +3,8 @@
 //
 // Express hands a query string over as strings (or string[] for a repeated
 // key), so every field is parsed from that shape here and a bad value is a 400
-// at the route, never a silently-dropped filter.
+// at the route, never a silently-dropped filter — except an unknown cuisine
+// token, which is dropped (CLIENT-2b A: a retired token from an older client).
 
 import { z } from "zod";
 
@@ -13,6 +14,10 @@ import { z } from "zod";
 // its rule table private; cookbook.test.ts pins that every token below is
 // one normalizeCuisineTokens actually emits for itself, so a renamed token
 // fails a test rather than quietly matching nothing.
+//
+// CLIENT-2b A (BUG-508): "comfort-food" is gone — the catalog has about one
+// comfort-food meal (CLIENT-2 A0: 1 of 1,337 public dinners on dev), so the
+// chip promised a category that was not there.
 export const CUISINE_TOKENS = [
   "african",
   "american",
@@ -22,7 +27,6 @@ export const CUISINE_TOKENS = [
   "cajun",
   "caribbean",
   "chinese",
-  "comfort-food",
   "french",
   "greek",
   "indian",
@@ -95,6 +99,22 @@ const list = (v: unknown): unknown => {
   return cleaned.length > 0 ? cleaned : undefined;
 };
 
+const isCuisineToken = (x: unknown): x is CuisineToken =>
+  typeof x === "string" && (CUISINE_TOKENS as readonly string[]).includes(x);
+
+/**
+ * CLIENT-2b A (BUG-508) — the cuisine list keeps only tokens it knows. A token
+ * the vocabulary has dropped ("comfort-food", which an older client still
+ * sends) is ignored rather than refused: a 400 would blank the old client's
+ * Cookbook. A list left empty is no cuisine filter.
+ */
+const cuisineList = (v: unknown): unknown => {
+  const parts = list(v);
+  if (!Array.isArray(parts)) return parts;
+  const known = parts.filter(isCuisineToken);
+  return known.length > 0 ? [...new Set(known)] : undefined;
+};
+
 export const CookbookQuerySchema = z
   .object({
     // Trimmed; empty means "no query". One character is refused rather than
@@ -108,7 +128,7 @@ export const CookbookQuerySchema = z
       },
       z.string().min(COOKBOOK_MIN_QUERY_LENGTH).max(100).optional(),
     ),
-    cuisine: z.preprocess(list, z.array(z.enum(CUISINE_TOKENS)).max(CUISINE_TOKENS.length).optional()),
+    cuisine: z.preprocess(cuisineList, z.array(z.enum(CUISINE_TOKENS)).max(CUISINE_TOKENS.length).optional()),
     maxMinutes: z.preprocess(
       int,
       z.union([z.literal(30), z.literal(45), z.literal(60)]).optional(),

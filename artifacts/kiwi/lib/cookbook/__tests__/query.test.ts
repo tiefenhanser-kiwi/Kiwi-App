@@ -11,6 +11,8 @@ import {
   cardPills,
   cuisineLabel,
   cuisineQuickChips,
+  cuisineSheetTokens,
+  CUISINE_CHIP_MIN,
   difficultyLabel,
   effectiveQuery,
   EMPTY_FILTERS,
@@ -143,6 +145,29 @@ describe("the quick chips — the same state the sheet edits", () => {
     const thai = cuisineQuickChips(facet, [], 4)[3];
     assert.equal(isQuickOn(f({ cuisines: ["thai"] }), thai), true);
     assert.deepEqual(toggleQuick(f({ cuisines: ["thai"] }), thai).cuisines, []);
+  });
+
+  test("CLIENT-2b A: a cuisine chip needs 5 meals — quick row and sheet — unless it is selected", () => {
+    assert.equal(CUISINE_CHIP_MIN, 5);
+    const facet = [
+      { token: "american", count: 707 },
+      { token: "mexican", count: 247 },
+      { token: "caribbean", count: 5 },
+      { token: "brazilian", count: 4 },
+      { token: "african", count: 1 },
+    ];
+    const quick = (sel: string[], n?: number) =>
+      cuisineQuickChips(facet, sel, n).map((c) => (c.kind === "cuisine" ? c.token : c.kind));
+    // Top 4 among those with 5: only three qualify.
+    assert.deepEqual(quick([]), ["american", "mexican", "caribbean"]);
+    assert.deepEqual(cuisineSheetTokens(facet, []), ["american", "mexican", "caribbean"]);
+    // Selected and under 5 (its count dropped under the other filters): kept.
+    assert.deepEqual(quick(["african"]), ["american", "mexican", "caribbean", "african"]);
+    assert.deepEqual(cuisineSheetTokens(facet, ["brazilian"]), ["american", "mexican", "caribbean", "brazilian"]);
+    // Selected and gone from the facet entirely: kept.
+    assert.deepEqual(cuisineSheetTokens(facet, ["korean"]).slice(-1), ["korean"]);
+    // Not doubled when selected and shown.
+    assert.deepEqual(cuisineSheetTokens(facet, ["mexican"]), ["american", "mexican", "caribbean"]);
   });
 
   test("cuisine labels", () => {
