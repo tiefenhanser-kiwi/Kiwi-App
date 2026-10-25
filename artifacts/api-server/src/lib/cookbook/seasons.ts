@@ -44,7 +44,9 @@ export interface SeasonConfig {
 }
 
 /**
- * The seasons. Thanksgiving: Nov 2 through the end of Nov 30, New York time.
+ * The seasons. Thanksgiving: Oct 26 through the end of Nov 30, New York time
+ * (CLIENT-2 E3, BUG-512: the band opens the week the five feasts go under
+ * Hosting & events; it was Nov 2).
  *
  * ⚠️ COURSE TAGS ARE WHAT THX-2G WRITES (scripts/thx2/thx2Core.ts COURSE_TAGS),
  * and only an ALTERNATE carries one; a feast, a Friday leftovers meal and the
@@ -63,7 +65,7 @@ export const SEASONS: readonly SeasonConfig[] = [
     headline: "Thanksgiving feasts & dishes",
     blurb: "turkeys, sides, pies",
     featuredNote: "Want the whole week planned? Five Thanksgiving-week plans are under Featured.",
-    startsOn: "11-02",
+    startsOn: "10-26",
     endsOn: "11-30",
     timeZone: "America/New_York",
     courses: [

@@ -690,20 +690,20 @@ describe("GET /cookbook/meals — maxActiveMinutes, highProtein, maxCalories", (
 
 // ── BOOK-1C1: the seasons ────────────────────────────────────────────────
 
-describe("seasons — the window (America/New_York, Nov 2 through Nov 30)", () => {
+describe("seasons — the window (America/New_York, Oct 26 through Nov 30)", () => {
   const thanksgiving = SEASONS.find((s) => s.tag === "thanksgiving")!;
 
-  it("opens at New York midnight on Nov 2 and closes at New York midnight after Nov 30", () => {
+  it("opens at New York midnight on Oct 26 and closes at New York midnight after Nov 30", () => {
     const w = seasonWindow(thanksgiving, new Date("2026-11-15T12:00:00Z"));
-    // EST (UTC-5) on both ends: DST ended Nov 1, 2026.
-    assert.equal(w.startsAt.toISOString(), "2026-11-02T05:00:00.000Z");
+    // EDT (UTC-4) at the start, EST (UTC-5) at the end: DST ends Nov 1, 2026.
+    assert.equal(w.startsAt.toISOString(), "2026-10-26T04:00:00.000Z");
     assert.equal(w.endsAt.toISOString(), "2026-12-01T05:00:00.000Z");
     assert.equal(w.endsOn, "2026-11-30");
   });
 
   it("is active from the first instant to the last, and not a millisecond outside", () => {
-    assert.equal(isSeasonActive(thanksgiving, new Date("2026-11-02T04:59:59.999Z")), false);
-    assert.equal(isSeasonActive(thanksgiving, new Date("2026-11-02T05:00:00.000Z")), true);
+    assert.equal(isSeasonActive(thanksgiving, new Date("2026-10-26T03:59:59.999Z")), false);
+    assert.equal(isSeasonActive(thanksgiving, new Date("2026-10-26T04:00:00.000Z")), true);
     assert.equal(isSeasonActive(thanksgiving, new Date("2026-12-01T04:59:59.999Z")), true);
     assert.equal(isSeasonActive(thanksgiving, new Date("2026-12-01T05:00:00.000Z")), false);
     assert.equal(isSeasonActive(thanksgiving, new Date("2026-10-14T12:00:00Z")), false);
@@ -711,7 +711,7 @@ describe("seasons — the window (America/New_York, Nov 2 through Nov 30)", () =
 
   it("recurs: next year resolves against next year (EDT until Nov 7, 2027)", () => {
     const w = seasonWindow(thanksgiving, new Date("2027-11-20T12:00:00Z"));
-    assert.equal(w.startsAt.toISOString(), "2027-11-02T04:00:00.000Z");
+    assert.equal(w.startsAt.toISOString(), "2027-10-26T04:00:00.000Z");
     assert.equal(w.endsAt.toISOString(), "2027-12-01T05:00:00.000Z");
   });
 
@@ -763,7 +763,7 @@ describe("GET /cookbook/seasons", () => {
       assert.equal(s.headline, "Thanksgiving feasts & dishes");
       assert.equal(s.blurb, "turkeys, sides, pies");
       assert.match(s.featuredNote, /Thanksgiving-week plans are under Featured/);
-      assert.equal(s.startsAt, "2026-11-02T05:00:00.000Z");
+      assert.equal(s.startsAt, "2026-10-26T04:00:00.000Z");
       assert.equal(s.endsAt, "2026-12-01T05:00:00.000Z");
       assert.equal(s.endsOn, "2026-11-30");
       // The dairy pie is filtered out; the private pilot row never counts.

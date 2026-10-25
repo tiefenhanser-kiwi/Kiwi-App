@@ -295,6 +295,44 @@ describe("desired rows carry the Thanksgiving fields", () => {
   });
 });
 
+describe("CLIENT-2 E1 — the featured and hosting flags", () => {
+  it("defaults: featured on the chip and the rail, not hosting (the everyday rows unchanged)", () => {
+    const t = desiredTemplate(plan("family-favorites", FIVE), 2, null);
+    assert.equal(t.isFeatured, true);
+    assert.equal(t.isHostingFeatured, false);
+    assert.equal(t.railPosition, 3);
+    assert.deepEqual(validateSpec({ plans: [plan("family-favorites", FIVE)] }), []);
+  });
+
+  it("hosting: true, featured: false → Hosting & events only, off the Home rail", () => {
+    const t = desiredTemplate(thxPlan({ hosting: true, featured: false }), 0, null);
+    assert.equal(t.isHostingFeatured, true);
+    assert.equal(t.isFeatured, false);
+    assert.equal(t.railPosition, null, "the rail's membership is railPosition, so off the chip is off the rail");
+    assert.equal(t.featuredStartDate?.toISOString(), "2026-11-02T05:00:00.000Z");
+  });
+
+  it("hosting and featured together keep the rail position", () => {
+    const t = desiredTemplate(thxPlan({ hosting: true, featured: true }), 4, null);
+    assert.deepEqual([t.isFeatured, t.isHostingFeatured, t.railPosition], [true, true, 5]);
+  });
+
+  it("validateSpec refuses hosting without both ends of the window, and a non-boolean flag", () => {
+    const errs = validateSpec({
+      plans: [
+        plan("a", ["a1", "a2", "a3", "a4", "a5"], { hosting: true }),
+        plan("b", ["b1", "b2", "b3", "b4", "b5"], { hosting: true, featuredUntil: THX_UNTIL }),
+        plan("c", ["c1", "c2", "c3", "c4", "c5"], { featured: "no" as unknown as boolean }),
+        thxPlan({ slug: "d", hosting: true, featured: false }),
+      ],
+    });
+    assert.equal(errs.length, 3, errs.join("\n"));
+    assert.match(errs[0], /"a": a hosting plan needs its window/);
+    assert.match(errs[1], /"b": a hosting plan needs its window/);
+    assert.match(errs[2], /"c": featured must be true or false/);
+  });
+});
+
 describe("checkMeals — the cuisine cap in a dated plan", () => {
   it("exempts Thursday and Friday in a dated plan only", () => {
     const rows = FIVE.map((id, i) => meal(id, { cuisineType: i >= 2 ? "american" : `c${i}` }));

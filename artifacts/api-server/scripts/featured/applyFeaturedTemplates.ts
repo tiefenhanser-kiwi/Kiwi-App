@@ -48,6 +48,10 @@
 //   - per day: `servingsOverride` (→ MealPlanTemplateItem.servingsOverride) and
 //     `thx2Key` in place of `mealId` (resolved like scripts/thx2/: the
 //     batch_generated meal whose dishFamilyKey is the key);
+//   - per plan (CLIENT-2 E1, BUG-512): `featured` (default true → isFeatured
+//     and a railPosition; false → neither, off the Featured chip AND the Home
+//     rail) and `hosting` (default false → isHostingFeatured, the Hosting &
+//     events chip; true needs featuredFrom and featuredUntil);
 //   - `--spec <path>` reads another spec file (default featured-plans.json).
 //     ⚠️ railPosition is the plan's index in ITS spec: put the Thanksgiving
 //     plans and the everyday five in ONE spec (Thanksgiving 1–5, everyday

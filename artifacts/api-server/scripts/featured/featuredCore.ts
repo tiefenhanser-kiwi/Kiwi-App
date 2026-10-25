@@ -83,6 +83,16 @@ export interface SpecPlan {
    */
   featuredFrom?: string;
   featuredUntil?: string;
+  /**
+   * CLIENT-2 E1 (BUG-512) — where the plan shows. `featured` (default true) is
+   * the Featured chip AND the Home rail: false writes isFeatured false and
+   * railPosition null, because the rail's membership is railPosition, not the
+   * flag (planQueries.ts resolveRailPlans). `hosting` (default false) is the
+   * Hosting & events chip (isHostingFeatured); it shares the window above and
+   * needs both ends of it.
+   */
+  featured?: boolean;
+  hosting?: boolean;
   days: SpecDay[];
 }
 
@@ -228,6 +238,15 @@ export function validateSpec(spec: Spec): string[] {
       out.push(`${label}: title is ${title.length} characters (max ${TITLE_MAX})`);
     }
     if (!(p?.description ?? "").trim()) out.push(`${label}: description is empty`);
+    for (const flag of ["featured", "hosting"] as const) {
+      if (p?.[flag] !== undefined && typeof p[flag] !== "boolean") {
+        out.push(`${label}: ${flag} must be true or false (got ${JSON.stringify(p[flag])})`);
+      }
+    }
+    // A Hosting & events plan with an open window would stay on the chip forever.
+    if (p?.hosting === true && (p.featuredFrom === undefined || p.featuredUntil === undefined)) {
+      out.push(`${label}: a hosting plan needs its window (featuredFrom and featuredUntil)`);
+    }
 
     const days = Array.isArray(p?.days) ? p.days : [];
     if (days.length !== WEEKDAYS.length) {
@@ -347,6 +366,7 @@ export interface ItemFields {
  * no template path reads `displayTitle`, so it is written null.
  */
 export function desiredTemplate(p: SpecPlan, index: number, coverImageUrl: string | null): TemplateFields {
+  const featured = p.featured ?? true;
   return {
     userId: OWNER.id,
     title: p.title.trim(),
@@ -358,13 +378,14 @@ export function desiredTemplate(p: SpecPlan, index: number, coverImageUrl: strin
     imageUrl: coverImageUrl,
     isArchived: false,
     isPublic: true,
-    isFeatured: true,
-    isHostingFeatured: false,
+    isFeatured: featured,
+    isHostingFeatured: p.hosting ?? false,
     featuredRank: null,
     hostingFeaturedRank: null,
     featuredStartDate: p.featuredFrom ? new Date(p.featuredFrom) : null,
     featuredEndDate: p.featuredUntil ? new Date(p.featuredUntil) : null,
-    railPosition: index + 1,
+    // Off the Featured chip is off the Home rail too (see SpecPlan.featured).
+    railPosition: featured ? index + 1 : null,
     occasionType: null,
     anchorDate: p.anchorDate ? parseYmd(p.anchorDate) : null,
   };
