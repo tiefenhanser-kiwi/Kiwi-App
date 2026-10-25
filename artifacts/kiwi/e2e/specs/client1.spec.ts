@@ -212,7 +212,7 @@ test("2 · item 4 (BUG-504) — the Tell Kiwi card keeps one height through the 
   await page.setViewportSize({ width: 375, height: 812 });
 });
 
-test("3 · item 3 — Prep the Week: the label step first, Skip hidden until it is ticked, the held lines", async () => {
+test("3 · item 3 → CLIENT-2 B1/B2 — Prep the Week: the label step first with its reassurance line, Skip shown before and after it is ticked, the held lines", async () => {
   test.setTimeout(6 * 60_000);
   const ok = await visit(page, `/cook-session?mode=prep-week&planId=${fixture.planId}`, (j) => /Label \d+ containers|couldn.t|distracted/i.test(j), 4 * 60_000);
   const first = await inner(page);
@@ -223,7 +223,9 @@ test("3 · item 3 — Prep the Week: the label step first, Skip hidden until it 
   // The label step is the phase's step 1 (the first step card's title).
   const order = /\b1\s+Label \d+ containers/.test(first) || first.indexOf("Label") < first.indexOf("Mark all complete");
   notes.push(`3: label step first: ${order}`);
-  expect(first).not.toMatch(/Skip this Prep/);
+  // CLIENT-2 B1 (BUG-509) — Skip at any time; B2 — the reassurance line above the label step.
+  expect(first).toMatch(/Skip this Prep/);
+  expect(first).toContain("Don't worry, some of these containers combine at the end of the prep session.");
 
   await page.getByLabel("Mark step done").first().click();
   const back = await waitInner(page, (j) => /Skip this Prep/.test(j), 15_000);

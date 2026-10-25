@@ -291,7 +291,7 @@ test("QA-1 A — Cookbook (items 1–13) + BOOK-1C2 B1–B7", async ({ page }) =
   });
 
   // ── 6 — the filter sheet ─────────────────────────────────────────────────
-  await ledger.run("A6", "Filter sheet: cuisine + Easy live count, Show, Clear all, locked allergy line → Profile, eating styles disabled", async (shots) => {
+  await ledger.run("A6", "Filter sheet: cuisine + Easy live count, Show, Clear all, allergy line (lock only when set) → Profile, eating styles disabled", async (shots) => {
     await gotoCookbook(page);
     const unfiltered = await resultCount(page);
     await page.getByRole("button", { name: "Filters", exact: true }).click();
@@ -359,7 +359,14 @@ test("QA-1 A — Cookbook (items 1–13) + BOOK-1C2 B1–B7", async ({ page }) =
 
     // The allergy line: no editable control, and it opens the preferences.
     const sheetText = await renderedText(page);
-    const allergy = sheetText.find((l) => /^Your allergies/.test(l)) ?? "(no allergy line)";
+    // CLIENT-2 A2 — "Allergies always on: …" / "Allergies: none set, so nothing is hidden. …" (a lock only when set).
+    const allergy = sheetText.find((l) => /^(?:Your a|A)llergies/.test(l)) ?? "(no allergy line)";
+    const allergyFill = await page.evaluate(() => {
+      const el = document.querySelector<HTMLElement>('[data-testid="cookbook-allergy-line"]');
+      return el ? getComputedStyle(el).backgroundColor : null;
+    });
+    const noneSet = /none set/.test(allergy);
+    const plainWhenNone = !noneSet || allergyFill === "rgba(0, 0, 0, 0)" || allergyFill === "transparent";
     const controls = await page.evaluate(() =>
       document.querySelectorAll('[role="switch"], [role="checkbox"], input[type="checkbox"]').length,
     );
@@ -375,7 +382,7 @@ test("QA-1 A — Cookbook (items 1–13) + BOOK-1C2 B1–B7", async ({ page }) =
     const namedStyles = ["Vegetarian", "Vegan", "Pescatarian"].filter((l) => sheetText.some((t) => t === l));
     const december = soon.text === "Eating styles: coming in December";
     await shot(page, LABEL, "A6-04-allergy-eating-styles", shots);
-    await page.getByText(/^Your allergies/).click();
+    await page.getByTestId("cookbook-allergy-line").click();
     await page.waitForURL(/\/preferences/, { timeout: 15_000 }).catch(() => undefined);
     const prefsUrl = new URL(page.url()).pathname;
     await settle(page, { timeoutMs: 20_000 });
@@ -383,14 +390,14 @@ test("QA-1 A — Cookbook (items 1–13) + BOOK-1C2 B1–B7", async ({ page }) =
 
     const ok =
       n0 !== null && n1 !== n0 && n2 !== n1 && applied === n2 && pillsOk.length === 0 &&
-      n3 === unfiltered && controls === 0 && prefsUrl.includes("preferences") &&
+      n3 === unfiltered && controls === 0 && prefsUrl.includes("preferences") && plainWhenNone &&
       !soon.focusable && soon.ariaDisabled === "true" && namedStyles.length === 0 && december;
     return {
       verdict: ok ? "pass" : "fail",
       evidence:
         `Show N: start ${n0} → +${cuisine} ${n1} → +Easy ${n2}; applied list ${applied} (${shown.length} cards rendered, ` +
         `cards missing ${cuisine}/Easy pill: ${pillsOk.length}); Clear all → ${n3} (unfiltered ${unfiltered}); ` +
-        `allergy line "${allergy}", switch/checkbox controls in sheet ${controls}, tap → ${prefsUrl}; ` +
+        `allergy line "${allergy}" (fill ${allergyFill}), switch/checkbox controls in sheet ${controls}, tap → ${prefsUrl}; ` +
         `eating styles line ${JSON.stringify(soon)}, named styles shown ${JSON.stringify(namedStyles)}`,
     };
   });
