@@ -16,6 +16,9 @@
 // Run it AFTER patch.ts --apply: a copy holds the content it was copied from. A copy
 // made before a patch keeps the old content — --recreate ARCHIVES that plan (its
 // ticks go with it; nothing is deleted) and makes a fresh copy under the same name.
+//
+// THX-3d 3b (C) — `--targets prod-copy`: the same five plans, "THX prod-copy · …", from
+// the copies of production's feasts (importFeastCopies.ts, dishFamilyKey `prodcopy:<key>`).
 
 import { PrismaClient } from "@prisma/client";
 
@@ -26,6 +29,8 @@ const argv = process.argv.slice(2);
 const emailIdx = argv.indexOf("--email");
 const EMAIL = emailIdx >= 0 ? argv[emailIdx + 1] : "hans.tiefenthaler+8@gmail.com";
 const RECREATE = argv.includes("--recreate");
+const targetsIdx = argv.indexOf("--targets");
+const PROD_COPY = targetsIdx >= 0 && argv[targetsIdx + 1] === "prod-copy";
 
 const { host, mode } = assertScriptDatabase("thx2/devTestPlans");
 if (mode !== "dev" || !host.includes(DEV_HOST_MARKER)) {
@@ -41,7 +46,7 @@ export const DEV_FEASTS: ReadonlyArray<readonly [key: string, label: string]> = 
   ["thx2-feast-vegetarian", "Vegetarian"],
   ["thx2-feast-new-twist", "New Twist"],
 ];
-export const planTitleFor = (label: string) => `THX device · ${label}`;
+export const planTitleFor = (label: string) => `THX ${PROD_COPY ? "prod-copy" : "device"} · ${label}`;
 
 const WEEK_START = new Date("2026-11-23T00:00:00Z"); // Monday
 const WEEK_END = new Date("2026-11-29T00:00:00Z"); // Sunday
@@ -69,7 +74,7 @@ for (const [key, label] of DEV_FEASTS) {
     continue;
   }
   const source = await prisma.meal.findFirst({
-    where: { sourceType: "batch_generated", dishFamilyKey: key, isArchived: false },
+    where: { sourceType: "batch_generated", dishFamilyKey: PROD_COPY ? `prodcopy:${key}` : key, isArchived: false },
     select: { id: true, title: true },
   });
   if (!source) {
