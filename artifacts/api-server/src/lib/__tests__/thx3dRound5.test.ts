@@ -127,8 +127,8 @@ const carveWait = (r: ReturnType<typeof scheduleCookingSequence>, ds: SchedulerD
 };
 
 describe("THX-3d round 5 (D-WS9-322) — the five feasts' own shapes", () => {
-  // (226 since BUG-521: two platings no longer share the cook's hands; 223 in 5A.)
-  it("New Twist at 10: the sweet potatoes bake before the spatchcock goes in; 226 minutes (more with the bird in at its own time or with them after it)", () => {
+  // (Two platings no longer share the cook's hands since BUG-521, and a side's own rest takes none.)
+  it("New Twist at 10: the sweet potatoes bake before the spatchcock goes in; 223 minutes (237 with the bird in at its own time, more with them after it)", () => {
     const ds = FEASTS["new-twist"];
     const r = scheduleCookingSequence(ds, { feastOven: true });
     const v = idOf(ds, /Sweet Potatoes/);
@@ -138,7 +138,7 @@ describe("THX-3d round 5 (D-WS9-322) — the five feasts' own shapes", () => {
     assert.ok(at(r, v, roast.stepIndex)! + roast.estimatedMinutes <= at(r, bird.dishId, birdIn.stepIndex)!, "out before the bird goes in");
     assert.ok(maxRacks(r, ds) <= OVEN_RACKS, `racks ${maxRacks(r, ds)}`);
     assert.ok(carveWait(r, ds) <= 10, `carve waits ${carveWait(r, ds)}`);
-    assert.ok(r.totalEstimatedMinutes <= 226, `total ${r.totalEstimatedMinutes}`);
+    assert.ok(r.totalEstimatedMinutes <= 223, `total ${r.totalEstimatedMinutes}`);
   });
 
   it("New Twist at 4: single pans fit the rest window; the carve still waits no more than 10 (the gravy's seasoning goes after it)", () => {

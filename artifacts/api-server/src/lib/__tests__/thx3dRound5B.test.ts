@@ -79,6 +79,14 @@ describe("THX-3d round 5 (BUG-521) — a side's own rest takes no hands", () => 
     assert.ok(serve.from - bowl.from <= 4 && serve.from - platter.from <= 4, `bowl T${bowl.from}, platter T${platter.from}, serving T${serve.from}`);
     assert.deepEqual(overlaps(ps), []);
   });
+  it("Vegetarian at 10: the mac's rest, moved late, still takes no hands (the potatoes went into the bowl at T−17)", () => {
+    const ds = load("thx3dRound5.feasts.json")["vegetarian"];
+    const ps = placed(scheduleCookingSequence(ds, { feastOven: true }), ds);
+    const serve = serveOf(ps);
+    const bowl = ps.find((p) => /Mashed Potatoes/.test(p.title) && /serving bowl/.test(p.text))!;
+    assert.ok(serve.from - bowl.from <= 4, `bowl T${bowl.from}, serving T${serve.from}`);
+    assert.deepEqual(overlaps(ps), []);
+  });
 });
 
 describe("THX-3d round 5 (BUG-521) — feastWarmSteps plates a kept side at serving", () => {

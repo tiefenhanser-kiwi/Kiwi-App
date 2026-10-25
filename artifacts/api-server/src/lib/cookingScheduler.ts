@@ -933,13 +933,18 @@ export function serveLate(res: ScheduleResult, dishes: readonly SchedulerDish[],
   if (runs.length === 0) return res;
   const minutes = (k: string) => stepOf.get(k)?.estimatedMinutes ?? 0;
   const attended = (k: string) => { const s = stepOf.get(k); return !!s && !isUnattended(s); };
+  // THX-3d round 5 (BUG-521) — in a feast, a side's own rest, the lid and the knob take no
+  // hands, as in carveLate: Vegetarian's "Let the mac and cheese rest 5 minutes" had pushed
+  // the potatoes' and the sprouts' plating earlier — to T−17 at 10 servings, past the 15
+  // minutes a keep-warm covers. (A weeknight's closing run never holds such a step.)
+  const noHands = (k: string) => feast && [REST_AFTER_OVEN, KEEP_WARM_STEP, OVEN_OFF_STEP].some((re) => re.test(stepOf.get(k)?.text ?? ""));
   const moving = new Set(runs.flatMap((r) => r.keys));
   // Serving: the end of everything that is not a serve step or a dessert after it.
   const others = res.steps.filter((e) => !FEAST_SERVE_STEP.test(stepOf.get(key(e.dishId, e.originalStepIndex))?.text ?? ""));
   const end = Math.max(...others.filter((e) => !moving.has(key(e.dishId, e.originalStepIndex))).map((e) => start.get(key(e.dishId, e.originalStepIndex))! + minutes(key(e.dishId, e.originalStepIndex))), ...runs.map((r) => start.get(r.keys[r.keys.length - 1])! + minutes(r.keys[r.keys.length - 1])));
   const busy: [number, number][] = res.steps
     .map((e) => key(e.dishId, e.originalStepIndex))
-    .filter((k) => !moving.has(k) && attended(k))
+    .filter((k) => !moving.has(k) && attended(k) && !noHands(k))
     .map((k) => [start.get(k)!, start.get(k)! + minutes(k)]);
   const fits = (t: number, keys: readonly string[]) => {
     let at = t;
@@ -961,17 +966,14 @@ export function serveLate(res: ScheduleResult, dishes: readonly SchedulerDish[],
     const lastKey = r.keys[r.keys.length - 1];
     if (t <= was || t < floor || t + len < start.get(lastKey)! + minutes(lastKey)) {
       // THX-3d round 5 (BUG-521) — a run that stays keeps its hands (Classic's gravy, left
-      // at T−3, had the potatoes' plating put on top of it). Its own rest, the lid and the
-      // knob take none, as in carveLate (Vegetarian's "Let the mac and cheese rest 5
-      // minutes" had pushed the potatoes' and the sprouts' plating six minutes earlier).
-      const noHands = (k: string) => [REST_AFTER_OVEN, KEEP_WARM_STEP, OVEN_OFF_STEP].some((re) => re.test(stepOf.get(k)?.text ?? ""));
+      // at T−3, had the potatoes' plating put on top of it); its rest, lid and knob none.
       for (const k of r.keys) if (attended(k) && !noHands(k)) busy.push([start.get(k)!, start.get(k)! + minutes(k)]);
       continue;
     }
     let at = t;
     for (const k of r.keys) {
       placedAt.set(k, at);
-      if (attended(k)) busy.push([at, at + minutes(k)]);
+      if (attended(k) && !noHands(k)) busy.push([at, at + minutes(k)]);
       at += minutes(k);
     }
   }
