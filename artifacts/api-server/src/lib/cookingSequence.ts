@@ -67,6 +67,9 @@ export interface CookingSequenceResult {
   mergedSteps?: { dishId: string; originalStepIndex: number }[];
 }
 
+/** THX-3d round 5 — a feast dish's racks and vessel, as the scheduler reads them. */
+const ovenFields = (r: { racks: number; vessel: "sheet" | "dish" | "half" | "unknown" } | null) => ({ ovenRacks: r?.racks ?? null, ovenVessel: r?.vessel ?? null });
+
 export async function runCookingSequence(
   params: RunCookingSequenceParams,
 ): Promise<CookingSequenceResult> {
@@ -171,14 +174,12 @@ export async function runCookingSequence(
       ingredientNames: (dl.dish.dishIngredients ?? []).map((i) => i.ingredient.canonicalName),
       // THX-3d round 4 (BUG-496) — a feast dish's racks in the oven, at this copy's servings.
       ...(isFeast
-        ? {
-            ovenRacks: feastDishOvenRacks(
+        ? ovenFields(feastDishOvenRacks(
               steps.filter((s) => s.ownerId === dl.dishId).map((s) => ({ stepIndex: s.stepIndex, text: s.stepTextTranslated })),
               (stepsByDish.get(dl.dishId) ?? []).map((s) => ({ stepIndex: s.stepIndex, text: s.stepTextTranslated, phaseType: s.phaseType })),
               dl.dish.dishIngredients ?? [],
               dl.dish,
-            )?.racks ?? null,
-          }
+            ))
         : {}),
       steps: (stepsByDish.get(dl.dishId) ?? []).map((s) => ({
         stepIndex: s.stepIndex,

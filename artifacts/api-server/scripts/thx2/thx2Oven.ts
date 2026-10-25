@@ -78,6 +78,7 @@ export function thursdaySchedule(dishes: readonly OvenDish[], steps: readonly Ov
         positionIndex: d.positionIndex,
         roleLabel: d.roleLabel ?? null,
         ...(d.ovenRacks !== undefined && d.ovenRacks !== null ? { ovenRacks: d.ovenRacks } : {}),
+        ...(d.ovenVessel ? { ovenVessel: d.ovenVessel } : {}),
         steps: onTheDaySteps(own.map((s) => ({ ...s, text: s.stepTextTranslated }))).map((s) => ({
           stepIndex: s.stepIndex,
           estimatedMinutes: s.estimatedMinutes <= 0 ? 1 : s.estimatedMinutes,
@@ -344,9 +345,15 @@ export function heldDishSteps(
     .find((t): t is number => t !== null);
   if (lastTemp === undefined) return none;
   const out: ReturnType<typeof heldDishSteps> = { creates: [], renumber: [] };
+  // THX-3d round 5 (D-WS9-322) — the main dish finishes last among the oven dishes: in its
+  // block, what does not fit beside it at the meal's own servings bakes before it, held
+  // (Vegetarian at 10: two pans of sprouts beside the Wellington's pan).
+  const inLast = merged.filter((d) => blocks.blockOf.get(d.dishId) === last);
+  const main = inLast.find((d) => /\bmain\b/i.test(d.roleLabel ?? ""));
+  const crowded = !!main && inLast.reduce((n, d) => n + dishRacks(d, false), 0) > OVEN_RACKS + 1e-9;
   for (const d of merged) {
     const b = blocks.blockOf.get(d.dishId);
-    if (b === undefined || b === last || blocks.reheatOf.has(d.dishId)) continue;
+    if (b === undefined || (b === last && (!crowded || d === main)) || blocks.reheatOf.has(d.dishId)) continue;
     const ov = [...(blocks.ovenSteps.get(d.dishId) ?? [])];
     if (ov.length === 0) continue;
     const at = d.steps[Math.max(...ov)].stepIndex;

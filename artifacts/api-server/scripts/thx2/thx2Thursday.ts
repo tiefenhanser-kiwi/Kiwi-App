@@ -309,14 +309,31 @@ export function thursdayPostPass(dishes: readonly OvenDish[], steps: readonly Ov
     // comes out (New Twist: the stuffing still in, two sheet pans of potatoes), the raise's
     // sides are done by then — in earlier, covered as the bird comes out, and reheated at
     // serving time (the held dish's path, THX-3c).
+    // THX-3d round 5 (D-WS9-322) — the rest window keeps the sides best straight from the
+    // oven, as many as its two racks hold at once (the shorter first, so the window stays
+    // short). One that does not fit bakes BEFORE the bird goes in, at the bird's own
+    // temperature, is held, and returns for 10 minutes as the bird rests (New Twist at its
+    // own 10 servings: two pans of smashed potatoes keep the window, two of sweet potatoes
+    // bake first). The scheduler drops the hold where a smaller household's pans fit.
+    const tempOfSide = (r: (typeof runs)[number]) => sides.find((x) => x.d === r.d)?.day.filter(oven).map((x) => ovenTempOfText(x.text)).find((t): t is number => t !== null) ?? null;
+    const birdFirstTemp = rows.filter((r) => r.phaseType === "cook" && oven(r)).map((r) => lastOvenTempOfText(r.text)).find((t): t is number => t !== null) ?? null;
+    const before: typeof runs = [];
+    {
+      let restRacks = 0;
+      for (const r of moved.filter((x) => !x.holdsWell).sort((a, b) => a.run - b.run || a.d.positionIndex - b.d.positionIndex)) {
+        if (restRacks + r.racks <= OVEN_RACKS + 1e-9) restRacks += r.racks;
+        else if (birdFirstTemp !== null && tempOfSide(r) === birdFirstTemp) before.push(r);
+      }
+    }
+    const inRest = moved.filter((r) => !before.includes(r));
     const stillIn = inAtRaise.reduce((n, x) => n + x.racks, 0);
-    const doneAtOut = moved.some((r) => r.racks <= OVEN_RACKS + 1e-9 && r.racks + stillIn > OVEN_RACKS + 1e-9);
+    const doneAtOut = inRest.some((r) => r.racks <= OVEN_RACKS + 1e-9 && r.racks + stillIn > OVEN_RACKS + 1e-9);
     // Which of them go in as the bird comes out (the rest go in when there is room, on
     // their own step): the raise's sides in from the raise, the longest waiting side first.
     const highFor = doneAtOut ? S : S - restMinutes + 5;
     const inUse = inAtRaise.map((r) => ({ from: -highFor, to: -highFor + r.run, racks: r.racks }));
-    const at = placeInRacks([...moved].sort((a, b) => b.run - a.run).map((r) => ({ id: r.d.dishId, racks: r.racks, minutes: r.run, earliest: 0 })), inUse);
-    const waiting = moved.filter((r) => at.get(r.d.dishId) === 0).sort((a, b) => a.d.positionIndex - b.d.positionIndex).map((r) => r.title);
+    const at = placeInRacks([...inRest].sort((a, b) => b.run - a.run).map((r) => ({ id: r.d.dishId, racks: r.racks, minutes: r.run, earliest: 0 })), inUse);
+    const waiting = inRest.filter((r) => at.get(r.d.dishId) === 0).sort((a, b) => a.d.positionIndex - b.d.positionIndex).map((r) => r.title);
     const names = inAtRaise.map((r) => r.title);
     const list = names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
     const roastStep = hd.steps[plan.holderLastOven];
@@ -414,8 +431,9 @@ export function thursdayPostPass(dishes: readonly OvenDish[], steps: readonly Ov
     // THX-3d round 4 (BUG-496) — the raise's sides done as the bird comes out are covered
     // then, and go back into the hot oven for the last minutes (the held dish's two steps,
     // right after its last oven step; its later steps move down two). Idempotent.
-    if (doneAtOut && target !== null && (existing || birdShift > 0)) {
-      for (const r of inAtRaise) {
+    // THX-3d round 5 — and so are the sides that bake before the bird.
+    if (target !== null && (existing || birdShift > 0)) {
+      for (const r of [...(doneAtOut ? inAtRaise : []), ...before]) {
         const own = byDish.get(r.d.dishId)!;
         if (own.some((x) => HOLD_COVERED_STEP.test(x.text.trim()) || isReheatStep({ text: x.text }))) continue;
         const last = thursdayOf(own).filter((x) => x.phaseType !== "preheat" && isOvenStep({ phaseType: x.phaseType as SchedulerPhase, text: x.text })).pop();

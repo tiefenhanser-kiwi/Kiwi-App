@@ -250,12 +250,12 @@ export async function stampMealTiming(
   const positionByDish = new Map(links.map((l) => [l.dishId, l.positionIndex]));
   const linkOf = new Map(links.map((l) => [l.dishId, l]));
   /** THX-3d round 4 (BUG-496) — a feast dish's racks in the oven; nothing on any other meal. */
-  const racksOf = (id: string): number | undefined => {
+  const racksOf = (id: string) => {
     const dish = linkOf.get(id)?.dish;
     if (!isFeast || !dish) return undefined;
     const all = steps.filter((s) => s.ownerId === id).map((s) => ({ stepIndex: s.stepIndex, text: s.stepTextTranslated }));
     const day = (byDish.get(id) ?? []).map((s) => ({ stepIndex: s.stepIndex, text: s.text ?? "", phaseType: s.phaseType }));
-    return feastDishOvenRacks(all, day, dish.dishIngredients, dish)?.racks;
+    return feastDishOvenRacks(all, day, dish.dishIngredients, dish) ?? undefined;
   };
   // THX-3d round 4 (BUG-497 item 8) — A FEAST'S TITLES ARE READ. The note above holds for
   // every other meal; a feast's scheduler finds its bird, its raise, its desserts and what
@@ -276,7 +276,7 @@ export async function stampMealTiming(
       ...feastDish(id),
       positionIndex: positionByDish.get(id) ?? i,
       steps: byDish.get(id)!,
-      ...(racksOf(id) !== undefined ? { ovenRacks: racksOf(id) } : {}),
+      ...(racksOf(id) !== undefined ? { ovenRacks: racksOf(id)!.racks, ovenVessel: racksOf(id)!.vessel } : {}),
     }));
 
   const timing = deriveMealTiming(schedulerDishes, isFeast ? { feastOven: true } : {});
