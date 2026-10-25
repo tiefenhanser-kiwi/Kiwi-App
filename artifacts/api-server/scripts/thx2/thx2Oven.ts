@@ -19,7 +19,10 @@
 // Pure: the dry run prints it and --apply writes it (patch.ts), so production gets it
 // with no AI. New generations get the same rule from FINALIZE_RULES (g).
 import {
+  dishRacks,
   feastRoastDish,
+  OVEN_RACKS,
+  ovenStays,
   holdCoveredText,
   HOLD_COVERED_STEP,
   isReheatStep,
@@ -35,6 +38,7 @@ import {
   type SchedulerPhase,
 } from "../../src/lib/cookingScheduler";
 import { onTheDaySteps } from "../../src/lib/mealTiming";
+import { withSheetPanCount, type OvenVessel } from "../../src/lib/ovenRacks";
 
 export const RETIME_PER_25F = 0.1;
 export const MAX_SHIFT_F = 25;
@@ -56,6 +60,10 @@ export interface OvenDish {
   title: string;
   positionIndex: number;
   roleLabel?: string | null;
+  /** THX-3d round 4 (BUG-496) — its racks in the oven (ovenRacks.ts), at the meal's own servings. */
+  ovenRacks?: number | null;
+  /** …and the vessel they are in: a sheet pan (roasted, best from the oven) or a dish (holds well, covered). */
+  ovenVessel?: OvenVessel | null;
 }
 
 /** Thursday's Cook Mode for a feast from rows in memory — cookingSequence's own reading. */
@@ -69,6 +77,7 @@ export function thursdaySchedule(dishes: readonly OvenDish[], steps: readonly Ov
         title: d.title,
         positionIndex: d.positionIndex,
         roleLabel: d.roleLabel ?? null,
+        ...(d.ovenRacks !== undefined && d.ovenRacks !== null ? { ovenRacks: d.ovenRacks } : {}),
         steps: onTheDaySteps(own.map((s) => ({ ...s, text: s.stepTextTranslated }))).map((s) => ({
           stepIndex: s.stepIndex,
           estimatedMinutes: s.estimatedMinutes <= 0 ? 1 : s.estimatedMinutes,
@@ -114,7 +123,56 @@ export interface OvenReport {
   lines: OvenLine[];
   /** The bird: its rest's end and the carve's start (the hold between them). */
   bird: { restEnd: number; carveStart: number } | null;
+  /** THX-3d round 4 (BUG-496) — every stay in the oven and the racks in use over the day. */
+  racks: RackLedger;
 }
+
+export interface RackLedger {
+  stays: { title: string; from: number; to: number; racks: number }[];
+  /** The most racks in use at any minute. */
+  max: number;
+  /** The stretches above OVEN_RACKS, and their minutes summed. */
+  over: { from: number; to: number; racks: number; titles: string[] }[];
+  overMinutes: number;
+}
+
+/** THX-3d round 4 (A4) — the racks in use, minute by minute, off a feast's own schedule. */
+export function rackLedger(schedulerDishes: readonly SchedulerDish[], result: { steps: { dishId: string; originalStepIndex: number; startOffsetMinutes: number }[] }): RackLedger {
+  const at = new Map(result.steps.map((s) => [`${s.dishId}|${s.originalStepIndex}`, s.startOffsetMinutes]));
+  const merged = mergeFeastPreheats(schedulerDishes).dishes;
+  const bird = feastRoastDish(merged);
+  const stays: RackLedger["stays"] = [];
+  for (const d of merged) {
+    const isBird = bird?.dishId === d.dishId;
+    for (const s of ovenStays(d, isBird ? bird : null)) {
+      const placed = d.steps.slice(s.from, s.to + 1).filter((x) => at.has(`${d.dishId}|${x.stepIndex}`));
+      if (placed.length === 0) continue;
+      const from = Math.min(...placed.map((x) => at.get(`${d.dishId}|${x.stepIndex}`)!));
+      const to = Math.max(...placed.map((x) => at.get(`${d.dishId}|${x.stepIndex}`)! + x.estimatedMinutes));
+      stays.push({ title: d.title, from, to, racks: dishRacks(d, isBird) });
+    }
+  }
+  stays.sort((a, b) => a.from - b.from || a.to - b.to);
+  const over: RackLedger["over"] = [];
+  let max = 0;
+  if (stays.length > 0) {
+    const lo = Math.min(...stays.map((s) => s.from));
+    const hi = Math.max(...stays.map((s) => s.to));
+    for (let t = lo; t < hi; t++) {
+      const inn = stays.filter((s) => s.from <= t && t < s.to);
+      const r = inn.reduce((n, s) => n + s.racks, 0);
+      max = Math.max(max, r);
+      if (r <= OVEN_RACKS + 1e-9) continue;
+      const titles = inn.map((s) => s.title);
+      const last = over[over.length - 1];
+      if (last && last.to === t && last.racks === r && last.titles.join("|") === titles.join("|")) last.to = t + 1;
+      else over.push({ from: t, to: t + 1, racks: r, titles });
+    }
+  }
+  return { stays, max, over, overMinutes: over.reduce((n, o) => n + o.to - o.from, 0) };
+}
+
+const half = (r: number) => (r === 0.5 ? "½" : Number.isInteger(r) ? String(r) : `${Math.floor(r)}½`);
 
 export function ovenReport(dishes: readonly OvenDish[], steps: readonly OvenStepRow[]): OvenReport {
   const { schedulerDishes, result } = thursdaySchedule(dishes, steps);
@@ -148,7 +206,7 @@ export function ovenReport(dishes: readonly OvenDish[], steps: readonly OvenStep
   }
   lines.sort((a, b) => a.start - b.start || a.end - b.end);
   const holderTitle = plan ? schedulerDishes.find((d) => d.dishId === plan.holderDishId)!.title : null;
-  return { holderTitle, ovenOut, total: result.totalEstimatedMinutes, lines, bird };
+  return { holderTitle, ovenOut, total: result.totalEstimatedMinutes, lines, bird, racks: rackLedger(schedulerDishes, result) };
 }
 
 /** One printed line per oven step: "  T-92→-77  350°F  Mashed Potato Casserole #3 (after the bird)". */
@@ -159,6 +217,10 @@ export function formatOvenReport(r: OvenReport): string[] {
   }
   if (r.bird) out.push(`    the bird rests until T${r.bird.restEnd}; carving starts T${r.bird.carveStart} — a ${r.bird.carveStart - r.bird.restEnd} min hold`);
   for (const c of ovenConflicts(r)) out.push(`    CONFLICT ${c}`);
+  // THX-3d round 4 (A4) — the racks: each stay, the most in use, every minute over two.
+  for (const s of r.racks.stays) out.push(`    rack  T${String(s.from).padStart(5)}→${String(s.to).padStart(4)}  ${half(s.racks).padStart(2)}  ${s.title.slice(0, 40)}`);
+  out.push(`    racks: at most ${half(r.racks.max)} of ${OVEN_RACKS} · ${r.racks.overMinutes} minute(s) over capacity`);
+  for (const o of r.racks.over) out.push(`    OVER CAPACITY T${o.from}→${o.to} ${half(o.racks)} racks: ${o.titles.join(" + ")}`);
   return out;
 }
 
@@ -320,6 +382,25 @@ export function holdTextUpdates(dishes: readonly OvenDish[], steps: readonly Ove
     const changes = !stillBaking && !!next && next.temp !== null && next.temp !== last.temp;
     const want = holdCoveredText(m[1], changes);
     if (want !== s.stepTextTranslated.trim()) out.push({ dishId: s.ownerId, stepIndex: s.stepIndex, text: want });
+  }
+  return out;
+}
+
+/**
+ * THX-3d round 4 (A1) — a side's sheet pans, as its day's steps count them, corrected to
+ * what its pounds need at the meal's own servings ("Line two rimmed sheet pans" for 1¼ lb
+ * → "Line a rimmed sheet pan"; 5 lb on "two" → "three"). Not the bird's pan. Idempotent.
+ */
+export function panCountEdits(dishes: readonly OvenDish[], steps: readonly OvenStepRow[]): { dishId: string; stepIndex: number; text: string }[] {
+  const bird = feastRoastDish(thursdaySchedule(dishes, steps).schedulerDishes);
+  const out: { dishId: string; stepIndex: number; text: string }[] = [];
+  for (const d of dishes) {
+    if (d.dishId === bird?.dishId || d.ovenVessel !== "sheet" || !d.ovenRacks) continue;
+    const own = steps.filter((s) => s.ownerId === d.dishId).sort((a, b) => a.stepIndex - b.stepIndex);
+    for (const s of onTheDaySteps(own.map((x) => ({ ...x, text: x.stepTextTranslated })))) {
+      const next = withSheetPanCount(s.text, d.ovenRacks);
+      if (next !== null) out.push({ dishId: d.dishId, stepIndex: s.stepIndex, text: next });
+    }
   }
   return out;
 }

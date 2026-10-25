@@ -24,6 +24,7 @@ import type { SequencedStep } from "./ai/schemas/sequencer";
 import { logger } from "./logger";
 import { weeknightMorningFor } from "./heldCookDay";
 import { onTheDaySteps } from "./mealTiming";
+import { feastDishOvenRacks } from "./ovenRacks";
 import { FEAST_MEAL_TAG } from "./prepWeekAggregation";
 
 // Route handler maps NotFoundError → 404; meal-exists-but-empty maps to
@@ -79,7 +80,8 @@ export async function runCookingSequence(
       dishLinks: {
         orderBy: { positionIndex: "asc" },
         // PREP-3 (R7) — the dish's own foods, so "the rice" of a fried rice is its own.
-        include: { dish: { include: { dishIngredients: { select: { ingredient: { select: { canonicalName: true } } } } } } },
+        // THX-3d round 4 (BUG-496) — and their weights, for a feast's oven racks.
+        include: { dish: { include: { dishIngredients: { select: { quantity: true, unit: true, ingredient: { select: { canonicalName: true } } } } } } },
       },
     },
   });
@@ -167,6 +169,17 @@ export async function runCookingSequence(
       // dishLinks include already returns every MealDishLink scalar.
       roleLabel: dl.roleLabel,
       ingredientNames: (dl.dish.dishIngredients ?? []).map((i) => i.ingredient.canonicalName),
+      // THX-3d round 4 (BUG-496) — a feast dish's racks in the oven, at this copy's servings.
+      ...(isFeast
+        ? {
+            ovenRacks: feastDishOvenRacks(
+              steps.filter((s) => s.ownerId === dl.dishId).map((s) => ({ stepIndex: s.stepIndex, text: s.stepTextTranslated })),
+              (stepsByDish.get(dl.dishId) ?? []).map((s) => ({ stepIndex: s.stepIndex, text: s.stepTextTranslated, phaseType: s.phaseType })),
+              dl.dish.dishIngredients ?? [],
+              dl.dish,
+            )?.racks ?? null,
+          }
+        : {}),
       steps: (stepsByDish.get(dl.dishId) ?? []).map((s) => ({
         stepIndex: s.stepIndex,
         estimatedMinutes: s.estimatedMinutes,

@@ -14,7 +14,8 @@
 // itself in. The temperature stays in the text (the scheduler reads it). Idempotent: a
 // step that already says "is in at"/"are in at" is left alone.
 
-import { isOvenStep, isReheatStep, HOLD_COVERED_STEP, RAISE_AND_PUT_IN, ovenTempOfText, feastRoastDish, type SchedulerPhase } from "../../src/lib/cookingScheduler";
+import { isOvenStep, isReheatStep, HOLD_COVERED_STEP, RAISE_AND_PUT_IN, ovenTempOfText, feastRoastDish, raiseHead, raiseWaits, type SchedulerPhase } from "../../src/lib/cookingScheduler";
+import { birdNounOf } from "./thx2Thursday";
 import { onTheDaySteps } from "../../src/lib/mealTiming";
 import { thursdaySchedule, type OvenDish, type OvenStepRow } from "./thx2Oven";
 import type { ThursdayEdits } from "./thx2Thursday";
@@ -22,7 +23,13 @@ import type { ThursdayEdits } from "./thx2Thursday";
 const DAY_PREFIX = /^(\s*On [A-Za-z]+day:\s*)/;
 const PREHEAT = /\b(?:pre)?heat (?:the )?oven to \d{3}\s*°\s*F/i;
 export const IN_THE_OVEN = /\b(?:is|are) in at \d{3}\s*°\s*F\b/i;
-const PUT_IN_STEP = /^\s*(?:On [A-Za-z]+day:\s*)?Put the .+ in the oven\.$/i;
+// THX-3d round 4 — "… in the oven now that the turkey is out." (A3) and "…; the green beans
+// go in 15 minutes from now." (B) are the same step.
+export const PUT_IN_STEP = /^\s*(?:On [A-Za-z]+day:\s*)?Put the .+? in the oven(?: now that the [\w ]+? is out)?(?:;[^.]*)?\.$/i;
+/** THX-3d round 4 (A3) — the put-in step's words: "Put the sweet potatoes in the oven now that the turkey breast is out." */
+export function putInText(prefix: string, noun: string, birdNoun: string | null): string {
+  return `${prefix}Put ${noun} in the oven${birdNoun ? ` now that the ${birdNoun} is out` : ""}.`;
+}
 
 /** The dish as a cook says it: the step's own object ("the stuffing"), else its title's food ("the sweet potatoes"). */
 export function dishNoun(title: string, text: string, titles: readonly string[]): string {
@@ -66,15 +73,41 @@ export function putInEdits(dishes: readonly OvenDish[], steps: readonly OvenStep
   const raise = steps.find((s) => RAISE_AND_PUT_IN.test(s.stepTextTranslated));
   const raiseTemp = raise ? ovenTempOfText(raise.stepTextTranslated) : null;
   const preheatTemps = new Set(steps.filter((s) => s.phaseType === "preheat" || PREHEAT.test(s.stepTextTranslated)).map((s) => ovenTempOfText(s.stepTextTranslated)).filter((t): t is number => t !== null));
+  const birdTitle = bird ? dishes.find((d) => d.dishId === bird.dishId)?.title ?? null : null;
   for (const d of dishes) {
     if (bird && d.dishId === bird.dishId) continue;
     const rows = rowsOf(d.dishId);
     const day = onTheDaySteps(rows.map((r) => ({ ...r, text: r.stepTextTranslated })));
     const oven = day.find((r) => r.phaseType !== "preheat" && isOvenStep({ phaseType: r.phaseType as SchedulerPhase, text: r.text }) && !isReheatStep({ text: r.text }) && !HOLD_COVERED_STEP.test(r.text.trim()) && !PUT_IN_STEP.test(r.text));
-    if (!oven || IN_THE_OVEN.test(oven.text)) continue;
+    if (!oven) continue;
+    // THX-3d round 4 — named in the raise's put-in list, not in its "; the … goes in when …".
+    const named = !!raise && raiseHead(raise.stepTextTranslated).includes(d.title);
+    const waits = !!raise && raiseWaits(raise.stepTextTranslated).includes(d.title);
+    const after = waits && birdTitle ? birdNounOf(birdTitle) : null;
+    if (IN_THE_OVEN.test(oven.text)) {
+      // THX-3d round 4 (A3) — a side the raise no longer puts in (it waits for room) gets
+      // its own put-in step before its bake; one it has says whether the bird is out.
+      if (named) continue;
+      const noun = dishNoun(d.title, oven.text, titles);
+      const own = day.filter((r) => r.stepIndex < oven.stepIndex && PUT_IN_STEP.test(r.text)).pop();
+      if (own) {
+        const prefix = DAY_PREFIX.exec(own.text)?.[1] ?? "";
+        const tail = /(;[^.]*)\.$/.exec(own.text.replace(/ now that the [\w ]+? is out(?=[;.])/, ""))?.[1] ?? "";
+        const want = putInText(prefix, noun, after).replace(/\.$/, `${tail}.`);
+        if (want !== own.text) out.updates.push({ dishId: d.dishId, stepIndex: own.stepIndex, text: want });
+        continue;
+      }
+      if (!raise && !bird) continue;
+      const prefix = DAY_PREFIX.exec(oven.text)?.[1] ?? "";
+      for (const r of rows.filter((x) => x.stepIndex >= oven.stepIndex).sort((a, b) => b.stepIndex - a.stepIndex)) {
+        out.renumber.push({ dishId: d.dishId, from: r.stepIndex, to: r.stepIndex + 1 });
+      }
+      out.creates.push({ dishId: d.dishId, stepIndex: oven.stepIndex, text: putInText(prefix, noun, after), phaseType: "prep", estimatedMinutes: 1 });
+      if (prefix) out.updates.push({ dishId: d.dishId, stepIndex: oven.stepIndex, text: oven.text.replace(DAY_PREFIX, "") });
+      continue;
+    }
     // Its own preheat before it: it puts itself in.
     if (day.some((r) => r.stepIndex < oven.stepIndex && PREHEAT.test(r.text))) continue;
-    const named = !!raise && raise.stepTextTranslated.includes(d.title);
     const t = ovenTempOfText(oven.text) ?? (named ? raiseTemp : null) ?? day.map((r) => ovenTempOfText(r.text)).find((x): x is number => x !== null) ?? null;
     if (t === null) continue;
     // Heated for it by another dish: the raise that names it, the bird's oven, or another preheat at its temperature.
@@ -105,7 +138,7 @@ export function putInEdits(dishes: readonly OvenDish[], steps: readonly OvenStep
     }
     let at = oven.stepIndex;
     if (w.lead) out.creates.push({ dishId: d.dishId, stepIndex: at++, text: `${prefix}${w.lead}`, phaseType: "prep", estimatedMinutes: 2 });
-    out.creates.push({ dishId: d.dishId, stepIndex: at, text: `${w.lead ? "" : prefix}Put ${noun} in the oven.`, phaseType: "prep", estimatedMinutes: 1 });
+    out.creates.push({ dishId: d.dishId, stepIndex: at, text: putInText(w.lead ? "" : prefix, noun, after), phaseType: "prep", estimatedMinutes: 1 });
     out.updates.push({ dishId: d.dishId, stepIndex: oven.stepIndex, text: w.text.replace(DAY_PREFIX, "") });
   }
   return out;

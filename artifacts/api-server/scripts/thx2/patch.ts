@@ -37,7 +37,8 @@ import { Prisma, PrismaClient, type StepPhase } from "@prisma/client";
 
 import { assertScriptDatabase } from "../../src/lib/scripts/requireDatabaseHost";
 import { deriveAmountRefs, type MatcherIngredient } from "../../src/lib/stepAmountRefs";
-import { stampMealTiming } from "../../src/lib/mealTiming";
+import { onTheDaySteps, stampMealTiming } from "../../src/lib/mealTiming";
+import { feastDishOvenRacks, type DishOvenRacks } from "../../src/lib/ovenRacks";
 import { isWholeBirdByCount, isWholeBirdByWeight } from "../../src/lib/prepQuantity";
 import { nameCutAmounts, repairShapeCounts } from "./thx2Amounts";
 import { AHEAD_TAG, aheadDaysOf, aheadTags, dishSpecFor, keepsDaysFor, loadTargets, validateTargets } from "./thx2Core";
@@ -54,7 +55,7 @@ import { alreadyCut, cutSentence, heldCutPlace, heldCutsOf, unholdMakeAhead } fr
 import { sharedOvenEdit } from "./thx2Shared";
 import { sitRiderGroups } from "./thx2Sit";
 import { boilHold, boilPlace, coats, HELD_MORNING_STEP, headOf, isGarnish, plainHold, potNoun, referBack, splitPrefix, spreadOnPan, TOSS, tossHold } from "../../src/lib/heldMorning";
-import { formatOvenReport, heldDishSteps, holdTextUpdates, oneOvenTemperature, ovenReport, retimeDish, splitPreheatSteps, type OvenStepRow } from "./thx2Oven";
+import { formatOvenReport, heldDishSteps, holdTextUpdates, oneOvenTemperature, ovenReport, panCountEdits, retimeDish, splitPreheatSteps, type OvenStepRow } from "./thx2Oven";
 
 const argv = process.argv.slice(2);
 const APPLY = argv.includes("--apply");
@@ -116,7 +117,7 @@ for (const t of feasts) {
       id: true, title: true, estimatedTimeMinutes: true, activeTimeMinutes: true,
       dishLinks: {
         orderBy: { positionIndex: "asc" },
-        select: { dishId: true, positionIndex: true, roleLabel: true, dish: { select: { id: true, title: true, tags: true, estimatedTimeMinutes: true, dishIngredients: { orderBy: { positionIndex: "asc" }, select: { quantity: true, unit: true, ingredientId: true, preparationNote: true, positionIndex: true, ingredient: { select: { canonicalName: true } } } } } } },
+        select: { dishId: true, positionIndex: true, roleLabel: true, dish: { select: { id: true, title: true, tags: true, estimatedTimeMinutes: true, servingsDefault: true, authoredServingsDefault: true, dishIngredients: { orderBy: { positionIndex: "asc" }, select: { quantity: true, unit: true, ingredientId: true, preparationNote: true, positionIndex: true, ingredient: { select: { canonicalName: true } } } } } } },
       },
     },
   });
@@ -133,6 +134,8 @@ for (const t of feasts) {
   const stepsByDish = new Map<string, StepRow[]>();
   const storedStep = new Map<string, StepRow>();
   const matcherOf = new Map<string, MatcherIngredient[]>();
+  /** THX-3d round 4 (BUG-496) — each dish's racks in the oven, at the meal's own servings (ovenRacks.ts). */
+  const racksOf = new Map<string, DishOvenRacks | null>();
   for (const link of meal.dishLinks) {
     const d = link.dish;
     const spec = specOf(d.title, link.positionIndex);
@@ -141,6 +144,12 @@ for (const t of feasts) {
       orderBy: { stepIndex: "asc" },
       select: { id: true, stepIndex: true, stepTextTranslated: true, amountRefs: true, phaseType: true, estimatedMinutes: true, isTimingSensitive: true, parallelGroup: true, componentKey: true, pathKey: true },
     })) as StepRow[];
+    racksOf.set(d.id, feastDishOvenRacks(
+      steps.map((s) => ({ stepIndex: s.stepIndex, text: s.stepTextTranslated })),
+      onTheDaySteps(steps.map((s) => ({ ...s, text: s.stepTextTranslated }))).map((s) => ({ stepIndex: s.stepIndex, text: s.text, phaseType: s.phaseType })),
+      d.dishIngredients,
+      d,
+    ));
     // 1. tags
     const wantTags = [...d.tags.filter((x) => !AHEAD_TAG.test(x)), ...(spec ? aheadTags(spec) : [])];
     if (JSON.stringify(wantTags) !== JSON.stringify(d.tags)) plan.tagUpdates.push({ dishId: d.id, title: d.title, from: d.tags, to: wantTags });
@@ -411,7 +420,7 @@ for (const t of feasts) {
   }
 
   // 7. THX-3b (BUG-457) — one oven temperature after the bird.
-  const ovenDishes = meal.dishLinks.map((l) => ({ dishId: l.dishId, title: l.dish.title, positionIndex: l.positionIndex, roleLabel: l.roleLabel }));
+  const ovenDishes = meal.dishLinks.map((l) => ({ dishId: l.dishId, title: l.dish.title, positionIndex: l.positionIndex, roleLabel: l.roleLabel, ovenRacks: racksOf.get(l.dishId)?.racks ?? null, ovenVessel: racksOf.get(l.dishId)?.vessel ?? null }));
   const ovenRows = (): OvenStepRow[] => meal.dishLinks.flatMap((l) => [
     ...(stepsByDish.get(l.dishId) ?? []).map((s) => ({ ...s, ownerId: l.dishId })),
     ...plan.creates.filter((c) => c.dishId === l.dishId).map((c) => ({ ownerId: l.dishId, stepIndex: c.stepIndex, stepTextTranslated: c.text, phaseType: c.phaseType, estimatedMinutes: c.estimatedMinutes, isTimingSensitive: false, parallelGroup: c.parallelGroup ?? null, componentKey: c.componentKey ?? null, pathKey: c.pathKey ?? null })),
@@ -484,6 +493,8 @@ for (const t of feasts) {
   // THX-3d (D) — the Thursday pre-pass first: the sit, the rest, a side joining a
   // hotter bird, the side preheats where the raise heats the oven, the serve steps.
   applyEdits(thursdayPrePass(ovenDishes, ovenRows()));
+  // THX-3d round 4 (BUG-496, A1) — a side's sheet pans as its pounds need them (thx2Oven).
+  applyEdits({ updates: panCountEdits(ovenDishes, ovenRows()), deletes: [], renumber: [], creates: [] });
   // THX-3d round 3 (U) — the preheat and the bird's prep ride its sit (thx2Sit): the roast
   // begins as the sit ends.
   for (const g of sitRiderGroups(ovenDishes, ovenRows())) {
@@ -602,7 +613,7 @@ for (const t of feasts) {
   const captured: { meal?: { estimatedTimeMinutes: number | null; activeTimeMinutes: number | null } } = {};
   const memoryTx = {
     recipeInstructionStep: { findMany: async () => [...patchedSteps].sort((a, b) => (a.ownerId < b.ownerId ? -1 : a.ownerId > b.ownerId ? 1 : a.stepIndex - b.stepIndex)) },
-    mealDishLink: { findMany: async () => meal.dishLinks.map((l) => ({ dishId: l.dishId, positionIndex: l.positionIndex, meal: { tags: ["thanksgiving-feast"] } })) },
+    mealDishLink: { findMany: async () => meal.dishLinks.map((l) => ({ dishId: l.dishId, positionIndex: l.positionIndex, roleLabel: l.roleLabel, meal: { tags: ["thanksgiving-feast"] }, dish: l.dish })) },
     meal: { update: async (a: { data: { estimatedTimeMinutes: number | null; activeTimeMinutes: number | null } }) => { captured.meal = a.data; return a; } },
     dish: { update: async (a: unknown) => a },
   } as unknown as Prisma.TransactionClient;

@@ -31,17 +31,25 @@
 
 import {
   BIRD_HOTTER_F,
+  BIRD_RACKS,
   DESSERT_DISH,
   FEAST_SERVE_STEP,
+  HOLD_COVERED_STEP,
+  OVEN_RACKS,
   RAISE_AND_PUT_IN,
+  REHEAT_MINUTES,
+  dishRacks,
   feastRoastDish,
   feastServeText,
+  holdCoveredText,
   isOvenStep,
   isReheatStep,
   lastOvenTempOfText,
   mergeFeastPreheats,
   ovenTempOfText,
+  placeInRacks,
   planOven,
+  reheatText,
   type SchedulerPhase,
 } from "../../src/lib/cookingScheduler";
 import { onTheDaySteps } from "../../src/lib/mealTiming";
@@ -71,6 +79,12 @@ const SERVE_CLAUSE = /(?:\s*[;,]\s*(?:and\s+)?(?:then\s+)?|\s+and\s+(?:then\s+)?
 const SIT_AT_ROOM = /\b(?:let (?:it|the (?:turkey|bird|breast)) )?sit at room temperature for\s+(an?|one|\d+)\s+(hours?|minutes?)\b/i;
 const BEFORE_ROASTING = /\b(an?|one|\d+)\s+(hours?|minutes?)\s+before roasting\b/i;
 
+/** The bird as the steps say it: "turkey breast", "turkey", "chicken" (else "roast"). */
+export function birdNounOf(title: string): string {
+  return /\bbreast\b/i.test(title) ? "turkey breast" : (/\b(turkey|chicken|duck|goose|hen)\b/i.exec(title)?.[1]?.toLowerCase() ?? "roast");
+}
+/** A title said in the plural ("Chipotle-Maple Sweet Potatoes" go in; "Sweet Potato Casserole" goes). */
+export const pluralTitle = (title: string) => { const head = title.trim().split(/\s+/).pop() ?? ""; return /s$/i.test(head) && !/(?:ss|us|is)$/i.test(head); };
 const minutesOf = (n: string, unit: string) => (/^(?:an?|one)$/i.test(n) ? 1 : Number(n)) * (/^hour/i.test(unit) ? 60 : 1);
 const cap = (s: string) => s.replace(/^\s*([a-z])/, (_m, c: string) => c.toUpperCase());
 const sentence = (s: string) => (/[.!?]\s*$/.test(s) ? s.trim() : `${s.trim()}.`);
@@ -272,17 +286,43 @@ export function thursdayPostPass(dishes: readonly OvenDish[], steps: readonly Ov
       const ov = day.map((r, i) => (r.phaseType !== "preheat" && oven(r) ? i : -1)).filter((i) => i >= 0);
       return ov.length === 0 ? 0 : day.slice(Math.min(...ov), Math.max(...ov) + 1).reduce((s, x) => s + x.minutes, 0);
     };
-    const runs = sides.map((x) => ({ title: x.d.title, run: run(x.day) }));
-    const S = Math.max(0, ...runs.map((r) => r.run));
+    const runs = sides.map((x) => ({ d: x.d, title: x.d.title, run: run(x.day), racks: dishRacks(x.d, false), holdsWell: x.d.ovenVessel === "dish" || x.d.ovenVessel === "half" }));
+    const S0 = Math.max(0, ...runs.map((r) => r.run));
+    const restRow = hd.steps.find((s, i) => i > plan.holderLastOven && s.phaseType === "rest");
+    const restMinutes = restRow?.estimatedMinutes ?? 25;
     // Into the oven at the raise: the sides that would finish within 10 minutes of the
     // longest ("the three dishes, or two of the three, or whatever the timing dictates");
     // a shorter one goes in later, on its own step (the oven is hot by then).
-    const names = runs.filter((r) => r.run >= S - 10).map((r) => r.title);
+    // THX-3d round 4 (BUG-496) — and only what fits the rack beside the bird. What does not
+    // waits for the bird to come out: first a side whose run fits the rest, then one best
+    // straight from the oven (a sheet pan) before one that holds well, then the shorter.
+    let inAtRaise = runs.filter((r) => r.run >= S0 - 10);
+    const moved: typeof runs = [];
+    const fitsRest = (r: (typeof runs)[number]) => r.run <= restMinutes;
+    for (const r of [...inAtRaise].sort((a, b) => Number(fitsRest(b)) - Number(fitsRest(a)) || Number(a.holdsWell) - Number(b.holdsWell) || a.run - b.run || b.d.positionIndex - a.d.positionIndex)) {
+      if (inAtRaise.reduce((n, x) => n + x.racks, 0) <= OVEN_RACKS - BIRD_RACKS + 1e-9) break;
+      inAtRaise = inAtRaise.filter((x) => x !== r);
+      moved.push(r);
+    }
+    const S = Math.max(0, ...inAtRaise.map((r) => r.run));
+    // …and when the sides that wait would not fit beside the raise's sides as the bird
+    // comes out (New Twist: the stuffing still in, two sheet pans of potatoes), the raise's
+    // sides are done by then — in earlier, covered as the bird comes out, and reheated at
+    // serving time (the held dish's path, THX-3c).
+    const stillIn = inAtRaise.reduce((n, x) => n + x.racks, 0);
+    const doneAtOut = moved.some((r) => r.racks <= OVEN_RACKS + 1e-9 && r.racks + stillIn > OVEN_RACKS + 1e-9);
+    // Which of them go in as the bird comes out (the rest go in when there is room, on
+    // their own step): the raise's sides in from the raise, the longest waiting side first.
+    const highFor = doneAtOut ? S : S - restMinutes + 5;
+    const inUse = inAtRaise.map((r) => ({ from: -highFor, to: -highFor + r.run, racks: r.racks }));
+    const at = placeInRacks([...moved].sort((a, b) => b.run - a.run).map((r) => ({ id: r.d.dishId, racks: r.racks, minutes: r.run, earliest: 0 })), inUse);
+    const waiting = moved.filter((r) => at.get(r.d.dishId) === 0).sort((a, b) => a.d.positionIndex - b.d.positionIndex).map((r) => r.title);
+    const names = inAtRaise.map((r) => r.title);
     const list = names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
     const roastStep = hd.steps[plan.holderLastOven];
     const birdTemp = lastOvenTempOfText(roastStep.text);
     const part = /\bbreast\b/i.test(birdDish.title) ? "breast" : "thigh";
-    const noun = /\bbreast\b/i.test(birdDish.title) ? "turkey breast" : (/\b(turkey|chicken|duck|goose|hen)\b/i.exec(birdDish.title)?.[1]?.toLowerCase() ?? "roast");
+    const noun = birdNounOf(birdDish.title);
     // THX-3d round 3 (T) — at the bird's own temperature there is nothing to raise: the
     // sides go in with it ("Put the … in the oven with the turkey.").
     // The bird's own temperature is the one the oven is at as the sides go in: once a raise
@@ -294,15 +334,28 @@ export function thursdayPostPass(dishes: readonly OvenDish[], steps: readonly Ov
     const preRaise = raiseRow ? rows.filter((r) => r.stepIndex < raiseRow.stepIndex && r.phaseType === "cook" && oven(r)).pop() : undefined;
     const ownTemp = preRaise ? lastOvenTempOfText(preRaise.text) : birdTemp;
     const same = target !== null && ownTemp !== null && target === ownTemp;
-    const raiseText = target !== null && names.length > 0 ? (same ? `Put the ${list} in the oven with the ${noun}.` : `Raise the oven to ${target}°F and put in the ${list}.`) : null;
+    // THX-3d round 4 (A3) — "…; the Sweet Potato Casserole goes in when the turkey comes out."
+    const wait = waiting.length === 0 ? "" : `; the ${waiting.length === 1 ? waiting[0] : `${waiting.slice(0, -1).join(", ")} and ${waiting[waiting.length - 1]}`} ${waiting.length === 1 && !pluralTitle(waiting[0]) ? "goes" : "go"} in when the ${noun} comes out`;
+    const raiseText = target !== null && names.length > 0 ? (same ? `Put the ${list} in the oven with the ${noun}${wait}.` : `Raise the oven to ${target}°F and put in the ${list}${wait}.`) : null;
     const raiseMinutes = same ? PUT_IN_WITH_MINUTES : RAISE_MINUTES;
     const existing = rows.find((r) => RAISE_AND_PUT_IN.test(r.text));
     if (existing) {
       if (raiseText && existing.text !== raiseText) out.updates.push({ dishId: existing.dishId, stepIndex: existing.stepIndex, text: raiseText });
+      // THX-3d round 4 — the raise's sides done as the bird comes out (or no longer): the
+      // bird's minutes after the raise move, and its roast before it with them.
+      const keep = rows.find((r) => r.stepIndex > existing.stepIndex && /^\s*Keep roasting the\b/i.test(r.text));
+      const low = preRaise;
+      if (raiseText && target !== null && keep && low && keep.minutes !== highFor) {
+        const factor = 1 + (RETIME_PER_25F * ((target - (ownTemp ?? target)) / 25));
+        const whole = low.minutes + Math.round(keep.minutes * factor);
+        const lowNext = whole - Math.round(highFor * factor);
+        if (highFor > 5 && lowNext > 15) {
+          out.updates.push({ dishId: low.dishId, stepIndex: low.stepIndex, text: shortenRoastText(low.text, lowNext), minutes: lowNext });
+          out.updates.push({ dishId: keep.dishId, stepIndex: keep.stepIndex, text: keep.text.replace(/\bfor about \d+ more minutes\b/i, `for about ${round5(highFor)} more minutes`), minutes: highFor });
+        }
+      }
     } else if (raiseText && target !== null) {
-      const restIdx = hd.steps.findIndex((s, i) => i > plan.holderLastOven && s.phaseType === "rest");
-      const rest = restIdx >= 0 ? hd.steps[restIdx].estimatedMinutes : 25;
-      const high = S - rest + 5; // the bird's minutes at the sides' temperature, after the raise
+      const high = highFor; // the bird's minutes at the sides' temperature, after the raise
       const factor = 1 + (RETIME_PER_25F * ((target - (birdTemp ?? target)) / 25));
       const low = roastStep.estimatedMinutes - raiseMinutes - Math.round(high * factor);
       if (roastStep.phaseType === "cook" && birdTemp !== null && target >= birdTemp && high > 5 && low > 15) {
@@ -356,6 +409,24 @@ export function thursdayPostPass(dishes: readonly OvenDish[], steps: readonly Ov
           if (clause && Number(clause[2]) === target) text = `${clause[1]}${cap(text.slice(clause[0].length))}`;
           if (text !== r.text) out.updates.push({ dishId: d.dishId, stepIndex: r.stepIndex, text });
         }
+      }
+    }
+    // THX-3d round 4 (BUG-496) — the raise's sides done as the bird comes out are covered
+    // then, and go back into the hot oven for the last minutes (the held dish's two steps,
+    // right after its last oven step; its later steps move down two). Idempotent.
+    if (doneAtOut && target !== null && (existing || birdShift > 0)) {
+      for (const r of inAtRaise) {
+        const own = byDish.get(r.d.dishId)!;
+        if (own.some((x) => HOLD_COVERED_STEP.test(x.text.trim()) || isReheatStep({ text: x.text }))) continue;
+        const last = thursdayOf(own).filter((x) => x.phaseType !== "preheat" && isOvenStep({ phaseType: x.phaseType as SchedulerPhase, text: x.text })).pop();
+        if (!last) continue;
+        for (const later of own.filter((x) => x.stepIndex > last.stepIndex).sort((a, b) => b.stepIndex - a.stepIndex)) {
+          out.renumber.push({ dishId: r.d.dishId, from: later.stepIndex, to: later.stepIndex + 2 });
+        }
+        out.creates.push(
+          { dishId: r.d.dishId, stepIndex: last.stepIndex + 1, text: holdCoveredText(r.title, false), phaseType: "assemble", estimatedMinutes: 1 },
+          { dishId: r.d.dishId, stepIndex: last.stepIndex + 2, text: reheatText(r.title, target), phaseType: "cook", estimatedMinutes: REHEAT_MINUTES },
+        );
       }
     }
   }
