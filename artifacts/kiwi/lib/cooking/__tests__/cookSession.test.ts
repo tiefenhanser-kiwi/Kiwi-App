@@ -26,7 +26,7 @@ import {
   type CookStep,
 } from "../cookSession";
 import type { PrepWeekResult, SequencedStep } from "@/lib/api/cooking";
-import type { MealDetail, MealStep } from "@/lib/api/meals";
+import { MealStepSchema, type MealDetail, type MealStep } from "@/lib/api/meals";
 import type { DishDetail } from "@/lib/api/dishes";
 
 // ── WS7-8b BUG-006 — resolveAmountMultiplier ─────────────────────────────────
@@ -806,4 +806,29 @@ test("K-R7: Cook Mode loads the prep payload only once a prep session has happen
   assert.equal(shouldLoadPrepForCook(true, 3), true);
   assert.equal(shouldLoadPrepForCook(true, 0), false, "no completion → a live AI call for nothing");
   assert.equal(shouldLoadPrepForCook(false, 3), false, "no plan context");
+});
+
+// ── CLIENT-2b D (D-WS9-321) — preppedRefs on the wire and through the flow ──
+
+test("CLIENT-2b D: MealStepSchema keeps preppedRefs; absent and null both parse as no refs", () => {
+  const wire = { ...step(), preppedRefs: [{ containerId: "c-1", label: "Taco spices" }] };
+  assert.deepEqual(MealStepSchema.parse(wire).preppedRefs, [{ containerId: "c-1", label: "Taco spices" }]);
+  assert.equal(MealStepSchema.parse(step()).preppedRefs, undefined);
+  assert.equal(MealStepSchema.parse({ ...step(), preppedRefs: null }).preppedRefs, null);
+  // A ref without its label is not a ref.
+  assert.equal(MealStepSchema.safeParse({ ...step(), preppedRefs: [{ containerId: "c-1" }] }).success, false);
+});
+
+test("CLIENT-2b D: every Cook Mode path carries preppedRefs; none, null or [] leaves the field off", () => {
+  const refs = [{ containerId: "c-1", label: "Taco spices" }];
+  const meal = twoDishMeal();
+  meal.dishes[0].steps[0] = step({ stepIndex: 5, text: "Sear chicken", preppedRefs: refs });
+  meal.dishes[1].steps[0] = { ...meal.dishes[1].steps[0], preppedRefs: [] };
+  const flat = flattenMealSteps(meal);
+  assert.deepEqual(flat.find((s) => s.text === "Sear chicken")!.preppedRefs, refs);
+  assert.ok(flat.filter((s) => s.text !== "Sear chicken").every((s) => !("preppedRefs" in s)));
+  const sequenced = sequenceMealSteps(meal, [seq({ dishId: "dA", originalStepIndex: 5, sequenceIndex: 0 })]);
+  assert.deepEqual(sequenced.find((s) => s.text === "Sear chicken")!.preppedRefs, refs);
+  assert.deepEqual(flattenMealSteps(mealDetail({ steps: [step({ preppedRefs: refs })] }))[0].preppedRefs, refs);
+  assert.ok(!("preppedRefs" in flattenMealSteps(mealDetail({ steps: [step({ preppedRefs: null })] }))[0]));
 });

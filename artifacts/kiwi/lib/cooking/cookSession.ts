@@ -12,7 +12,7 @@
 
 import type { PrepCompletionRow, PrepWeekResult, SequencedStep } from "@/lib/api/cooking";
 import type { DishDetail } from "@/lib/api/dishes";
-import type { AmountRef, MealDetail, MealStep } from "@/lib/api/meals";
+import type { AmountRef, MealDetail, MealStep, PreppedRef } from "@/lib/api/meals";
 import { makeAheadRunSteps, type MakeAheadRun } from "./feastDay";
 
 // WS7-8b Block 4 (Block 1) — four shared primitives were lifted out of this
@@ -105,6 +105,12 @@ export interface CookStep {
    * `remainingMinutes` is still the only answer available.
    */
   startOffsetMinutes?: number | null;
+  /**
+   * CLIENT-2b D (D-WS9-321) — the prepped containers this step uses (the
+   * server's `preppedRefs`). Set only when there is at least one; Cook Mode
+   * draws one "You prepped this" chip per ref.
+   */
+  preppedRefs?: PreppedRef[];
 }
 
 function toCookStep(
@@ -122,6 +128,7 @@ function toCookStep(
     isTimingSensitive: s.isTimingSensitive,
     dishTitle,
     amountRefs: s.amountRefs ?? null,
+    ...(s.preppedRefs && s.preppedRefs.length > 0 ? { preppedRefs: s.preppedRefs } : {}),
   };
 }
 

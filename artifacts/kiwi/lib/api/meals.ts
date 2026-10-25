@@ -114,6 +114,9 @@ export const AmountRefSchema = z.object({
   charEnd: z.number(),
 });
 
+export const PreppedRefSchema = z.object({ containerId: z.string(), label: z.string() });
+export type PreppedRef = z.infer<typeof PreppedRefSchema>;
+
 export const MealStepSchema = z.object({
   stepIndex: z.number(),
   text: z.string(),
@@ -154,6 +157,12 @@ export const MealStepSchema = z.object({
   // the TOGGLE that reads them is row 3c, not this block.
   componentKey: z.string().nullish(),
   pathKey: z.string().nullish(),
+  // CLIENT-2b D (D-WS9-321) — the Prep the Week containers this step uses,
+  // named by the server (THX-3d round 5, routes/meals.ts) on a prepped read.
+  // Structured because the prose cannot carry it: a weeknight mix is worded by
+  // name ("the Taco spices") with no "you prepped" (CLIENT-2 B0). Absent until
+  // that server deploys; null is read as absent.
+  preppedRefs: z.array(PreppedRefSchema).nullish(),
 });
 
 export const MealDetailIngredientSchema = z.object({

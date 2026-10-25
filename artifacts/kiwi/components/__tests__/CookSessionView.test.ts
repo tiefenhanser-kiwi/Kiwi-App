@@ -789,3 +789,58 @@ test("timer chip: timing-sensitive step renders the chip with the warm alert tre
   );
   renderer.unmount();
 });
+
+// ── CLIENT-2b D (D-WS9-321) — the "You prepped this" chip, from preppedRefs ──
+
+function byTestId(node: RenderedNode | string | null, id: string): RenderedNode | null {
+  if (node == null || typeof node === "string") return null;
+  if ((node.props as { testID?: unknown } | undefined)?.testID === id) return node;
+  for (const c of node.children ?? []) {
+    const hit = byTestId(c, id);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+const REFS = [
+  { containerId: "c-1", label: "Taco spices" },
+  { containerId: "c-2", label: "Diced onion" },
+];
+
+test("CLIENT-2b D: a step with preppedRefs shows one chip per ref — container glyph, label, sage on sage", () => {
+  const steps: CookStep[] = [{ ...STEPS[0], preppedRefs: REFS }, STEPS[1], STEPS[2]];
+  const tree = renderView({ steps }).toJSON() as RenderedNode | null;
+  const c0 = byTestId(tree, "prepped-ref-0-0");
+  const c1 = byTestId(tree, "prepped-ref-0-1");
+  assert.ok(c0 && c1, "a chip is missing");
+  assert.equal(flat(c0), "You prepped this · Taco spices");
+  assert.equal(flat(c1), "You prepped this · Diced onion");
+  assert.deepEqual(featherNames(c0), ["box"]);
+  const box = StyleSheet.flatten((c0!.props as { style?: unknown }).style as never) as Record<string, unknown>;
+  assert.equal(box.backgroundColor, Colors.sage[50]);
+  assert.equal(box.borderColor, Colors.sage[400]);
+  const label = (c0!.children ?? []).find((n) => typeof n !== "string" && n.type === "rn-text") as RenderedNode;
+  const text = StyleSheet.flatten((label.props as { style?: unknown }).style as never) as Record<string, unknown>;
+  assert.equal(text.color, Colors.sage[700]);
+  // Only the step that names them.
+  assert.equal(byTestId(tree, "prepped-ref-1-0"), null);
+});
+
+test("CLIENT-2b D: no preppedRefs (absent or empty) → no chip", () => {
+  for (const steps of [STEPS, [{ ...STEPS[0], preppedRefs: [] }, STEPS[1], STEPS[2]]] as CookStep[][]) {
+    const tree = renderView({ steps }).toJSON() as RenderedNode | null;
+    assert.ok(!flat(tree).includes("You prepped this"), flat(tree));
+    assert.ok(!featherNames(tree).includes("box"));
+  }
+});
+
+test("CLIENT-2b D: a collapsed done-in-prep row shows no chip, closed or opened", () => {
+  const steps: CookStep[] = PREP_FLOW.map((s, i) => (i === 0 ? { ...s, preppedRefs: REFS } : s));
+  const renderer = renderView({ steps, doneInPrepKeys: DONE_IN_PREP, currentIndex: 2 });
+  assert.ok(!flat(renderer.toJSON() as RenderedNode | null).includes("You prepped this"));
+  const row = findByA11yLabel(renderer.toJSON() as RenderedNode | null, "Done in prep. Show this step");
+  act(() => (row!.props!.onPress as () => void)());
+  assert.ok(findByA11yLabel(renderer.toJSON() as RenderedNode | null, "Done in prep. Hide this step"), "did not open");
+  assert.ok(!flat(renderer.toJSON() as RenderedNode | null).includes("You prepped this"));
+  renderer.unmount();
+});

@@ -464,6 +464,16 @@ export function CookSessionView({
               {/* CLIENT-1 (BUG-507) — under a step of 20 minutes or more, when
                   the next step starts, relative, off the sequence's offsets. */}
               {nextLine && <Text style={s.nextStepLine}>{nextLine}</Text>}
+              {/* CLIENT-2b D (D-WS9-321) — one chip per prepped container the
+                  step uses, from the server's preppedRefs (never from the
+                  prose). Under the minutes' tier; a collapsed "done in prep"
+                  row above never reaches here. */}
+              {step.preppedRefs?.map((ref, j) => (
+                <View key={`${ref.containerId}#${j}`} testID={`prepped-ref-${i}-${j}`} style={s.preppedChip}>
+                  <Feather name="box" size={PREPPED_ICON} color={Colors.sage[700]} />
+                  <Text style={s.preppedChipText}>You prepped this · {ref.label}</Text>
+                </View>
+              ))}
               <TimerChip
                 step={step}
                 timer={timers[step.key]}
@@ -510,6 +520,7 @@ export function CookSessionView({
 // beside rather than to a shared scale, so an icon reads as part of its word.
 const PILL_ICON = 12; // fontSize.xs, the strip pill's label
 const DONE_ICON = 12; // fontSize.xs, the step card's "done"
+const PREPPED_ICON = 14; // fontSize.sm, the chip's text
 
 const s = StyleSheet.create({
   bg: { flex: 1, backgroundColor: Colors.neutral[100] },
@@ -704,6 +715,27 @@ const s = StyleSheet.create({
     fontFamily: Typography.face.sans[700],
     fontWeight: Typography.fontWeight.bold,
     marginTop: Spacing[1],
+  },
+
+  // CLIENT-2b D — "You prepped this · <label>": sage on sage, a pill that
+  // sizes to its words.
+  preppedChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: Spacing[1],
+    marginTop: Spacing[2],
+    paddingHorizontal: Spacing[2],
+    paddingVertical: Spacing[1],
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Colors.sage[400],
+    backgroundColor: Colors.sage[50],
+  },
+  preppedChipText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[700],
+    fontFamily: Typography.face.sans[500],
   },
 
   // timer chip → components/cooking/TimerChip.tsx (extracted)
