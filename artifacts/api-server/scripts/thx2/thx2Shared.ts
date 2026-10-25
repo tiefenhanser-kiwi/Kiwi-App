@@ -15,6 +15,19 @@
 //
 // Pure text on the THX-3c sentences; a sentence already rewritten matches nothing, so
 // a second run changes nothing.
+//
+// THX-3d 3b — PRODUCTION'S SENTENCES TOO. Production's feasts are another generation than
+// dev's, so the rules read both: New Twist's stuffing "Preheat the oven to 350°F; bake the
+// stuffing covered 45 minutes, then uncover and bake 15–20 more minutes", its potatoes'
+// "Preheat the oven to 425°F and brush two large rimmed sheet pans…" and "Roast the
+// potatoes at 425°F for 25–30 minutes", its sweet potatoes' plain "roast at 425°F for
+// 30–35 minutes" (both retimed by the baker's rule, the ≤25°F move oneOvenTemperature
+// makes: 30–35 minutes, 35–40 minutes — Hans's number for the sweet potatoes). A
+// preheat keeps its "On Thursday:" (the post-pass moves it on when the preheat goes).
+//
+// And SMALL, Hans's hand decision on dev made a rule: after the breast its two 425°F
+// sides roast at 350°F (oneOvenTemperature refuses a 75°F move as "more than a time
+// change"), at his times — the sweet potatoes 30–35 minutes, the green beans 18–20.
 
 import { retimeForTemp } from "./thx2Oven";
 
@@ -58,31 +71,73 @@ export const SHARED_OVEN: Readonly<Record<string, SharedOven>> = {
         // Covered 30 minutes, then uncovered 10–12 until golden.
         title: /\bstuffing\b/i,
         edit: (text) => {
-          if (!/\b350\s*°\s*F oven for 30 minutes, then uncover and bake 15–20 minutes more\b/.test(text)) return null;
-          const next = text.replace(/\b350(\s*°\s*F oven for 30 minutes, then uncover and bake )15–20( minutes more)/, "400$110–12$2");
+          if (/\b350\s*°\s*F oven for 30 minutes, then uncover and bake 15–20 minutes more\b/.test(text)) {
+            const next = text.replace(/\b350(\s*°\s*F oven for 30 minutes, then uncover and bake )15–20( minutes more)/, "400$110–12$2");
+            return { text: next, minutes: 42 };
+          }
+          // Production: "Preheat the oven to 350°F; bake the stuffing covered 45 minutes,
+          // then uncover and bake 15–20 more minutes until …".
+          const prod = /\bcovered (?:for )?\d+ minutes, then uncover and bake \d+\s*(?:–|-)\s*\d+ more minutes\b/i;
+          if (!/\b350\s*°\s*F\b/.test(text) || !prod.test(text)) return null;
+          // (The bake names its temperature: the preheat clause goes where the bird heats the
+          // oven, and "The stuffing is in at 400°F, covered." is read off this clause.)
+          const next = text.replace(/\b350(\s*°\s*F)/g, "400$1").replace(prod, "covered at 400°F for 30 minutes, then uncover and bake 10–12 more minutes");
           return { text: next, minutes: 42 };
         },
       },
       {
         // 20 minutes, then the Parmesan 5 more; the preheat goes (the bird's oven is hot).
         title: /\bsmashed potatoes\b/i,
-        edit: (text) => {
-          const pre = /^\s*Preheat the oven to 350\s*°\s*F(?:\s*\([^)]*\))? and (line .+)$/i.exec(text);
-          if (pre) return { text: `${pre[1].charAt(0).toUpperCase()}${pre[1].slice(1)}`, minutes: 2, phaseType: "prep" };
-          if (!/\bRoast at 350\s*°\s*F for 20 minutes\b/i.test(text)) return null;
-          const next = text.replace(/\b350(\s*°\s*F for 20 minutes)/, "400$1").replace(/\broast 5–8 minutes more\b/i, "roast 5 minutes more");
-          return { text: next, minutes: 25 };
+        edit: (text, minutes) => {
+          const pre = /^(\s*(?:On [A-Za-z]+day:\s*)?)Preheat the oven to (?:350|425)\s*°\s*F(?:\s*\([^)]*\))? and ((?:line|brush) .+)$/i.exec(text);
+          if (pre) return { text: `${pre[1]}${pre[2].charAt(0).toUpperCase()}${pre[2].slice(1)}`, minutes: 2, phaseType: "prep" };
+          if (/\bRoast at 350\s*°\s*F for 20 minutes\b/i.test(text)) {
+            const next = text.replace(/\b350(\s*°\s*F for 20 minutes)/, "400$1").replace(/\broast 5–8 minutes more\b/i, "roast 5 minutes more");
+            return { text: next, minutes: 25 };
+          }
+          // Production: "Roast the potatoes at 425°F for 25–30 minutes …" — the baker's rule.
+          if (!/\bat 425\s*°\s*F for \d+/i.test(text)) return null;
+          const r = retimeForTemp(text, 425, 400);
+          return { text: r.text, minutes: Math.max(1, minutes + r.extraMinutes) };
         },
       },
       {
         // The hotter option, read at 400°F: 35–40 minutes.
         title: /\bsweet potatoes\b/i,
-        edit: (text) => {
-          if (/^\s*(?:On [A-Za-z]+day:\s*)?Preheat the oven to 425\s*°\s*F\b/i.test(text)) return { text: "Preheat the oven to 400°F." };
+        edit: (text, minutes) => {
+          if (/^\s*(?:On [A-Za-z]+day:\s*)?Preheat the oven to 425\s*°\s*F\b/i.test(text)) return { text: text.replace(/\b425(\s*°\s*F)/, "400$1") };
           const opt = /\bat 350\s*°\s*F for 45–50 minutes \(or 425\s*°\s*F for 30–35 minutes\)/i;
-          if (!opt.test(text)) return null;
-          const next = text.replace(opt, "at 400°F for 35–40 minutes");
-          return { text: next, minutes: upper("35–40 minutes")! };
+          if (opt.test(text)) return { text: text.replace(opt, "at 400°F for 35–40 minutes"), minutes: upper("35–40 minutes")! };
+          // Production: "…; roast at 425°F for 30–35 minutes, flipping once halfway…".
+          if (!/\bat 425\s*°\s*F for \d+/i.test(text)) return null;
+          const r = retimeForTemp(text, 425, 400);
+          return { text: r.text, minutes: Math.max(1, minutes + r.extraMinutes) };
+        },
+      },
+    ],
+  },
+  "thx2-feast-small": {
+    temp: 350,
+    dishes: [
+      {
+        // The green beans: 350°F for 18–20 minutes; their 425°F preheat reads 350°F, so
+        // the post-pass drops it where the raise heats the oven.
+        title: /\bgreen beans\b/i,
+        edit: (text) => {
+          if (/^\s*(?:On [A-Za-z]+day:\s*)?Preheat the oven to 425\s*°\s*F\.?\s*$/i.test(text)) return { text: text.replace(/\b425(\s*°\s*F)/, "350$1") };
+          const at = /\bat 425\s*°\s*F for \d+\s*(?:–|-)\s*\d+ minutes\b/i;
+          if (!at.test(text)) return null;
+          return { text: text.replace(at, "at 350°F for 18–20 minutes"), minutes: upper("18–20 minutes")! };
+        },
+      },
+      {
+        // The sweet potatoes: 350°F for 30–35 minutes.
+        title: /\bsweet potatoes\b/i,
+        edit: (text) => {
+          if (/^\s*(?:On [A-Za-z]+day:\s*)?Preheat the oven to 425\s*°\s*F\.?\s*$/i.test(text)) return { text: text.replace(/\b425(\s*°\s*F)/, "350$1") };
+          const at = /\bat 425\s*°\s*F for \d+\s*(?:–|-)\s*\d+ minutes\b/i;
+          if (!at.test(text)) return null;
+          return { text: text.replace(at, "at 350°F for 30–35 minutes"), minutes: upper("30–35 minutes")! };
         },
       },
     ],

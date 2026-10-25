@@ -10,6 +10,7 @@
 
 import type { PrismaClient } from "@prisma/client";
 
+import { HOLD_BOILED, HOLD_BROWNS, HOLD_OTHER, HOLD_OTHER_PLURAL, HOLD_TOSSED } from "../../src/lib/cookingScheduler";
 import { loadPrepWeekInput } from "../../src/lib/prepWeekAggregation";
 import { buildFeastSession } from "../../src/lib/prepWeekBuild";
 import { readOnlyPrisma } from "./thx2Prep";
@@ -54,6 +55,23 @@ export async function heldCutsOf(prisma: PrismaClient, mealId: string): Promise<
 // The cut's words and the already-cut test are the server's (the weeknight read path
 // words a plan's held cuts the same way).
 export { alreadyCut, cutSentence } from "../../src/lib/heldMorning";
+
+const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * THX-3d 3b — a make-ahead day's cut without its hold line (Hans, Oct 23: the cut and the
+ * pot are that day's work, back to back). "…; put them in a large pot, cover with cold
+ * water, and leave the pot on the stove, off, until it's time to cook." → "…; put them in
+ * a large pot and cover with cold water."; "…; keep them in cold water until it's time to
+ * cook." and the others → the cut alone. Unchanged when the step holds nothing.
+ */
+export function unholdMakeAhead(text: string): string {
+  const boiled = new RegExp(`, ([^,;]+), ${escape(HOLD_BOILED)}\\.`);
+  if (boiled.test(text)) return text.replace(boiled, " and $1.");
+  let out = text.replace(`, ${HOLD_BOILED}`, "");
+  for (const hold of [HOLD_BROWNS, HOLD_TOSSED, HOLD_OTHER, HOLD_OTHER_PLURAL]) out = out.replace(new RegExp(`;\\s*${escape(hold)}\\.`), ".");
+  return out;
+}
 
 const RUN_PREFIX = /^\s*(Make ahead \(([A-Za-z]+(?: night)?)\)|On ([A-Za-z]+day))\s*:\s*/i;
 

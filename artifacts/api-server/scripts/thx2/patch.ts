@@ -6,6 +6,7 @@
 //   node --env-file=.env --import tsx scripts/thx2/patch.ts            # dry run: every change, the times before → after
 //   node --env-file=.env --import tsx scripts/thx2/patch.ts --apply    # write it
 //   node --env-file=.env --import tsx scripts/thx2/patch.ts --only thx2-feast-classic
+//   node --env-file=.env --import tsx scripts/thx2/patch.ts --targets prod-copy   # dev: production's copies (importFeastCopies.ts)
 //
 // Database: assertScriptDatabase — dev, or production only when KIWI_PRODUCTION_HOST
 // names the DATABASE_URL host exactly (R3-0). Idempotent: a second run reports
@@ -49,7 +50,7 @@ import { splitTwoPhase } from "./thx2Phases";
 import { putInEdits } from "./thx2PutIn";
 import { warmStepEdits } from "./thx2Warm";
 import { subjectEdits } from "./thx2Subjects";
-import { alreadyCut, cutSentence, heldCutPlace, heldCutsOf } from "./thx2Held";
+import { alreadyCut, cutSentence, heldCutPlace, heldCutsOf, unholdMakeAhead } from "./thx2Held";
 import { sharedOvenEdit } from "./thx2Shared";
 import { sitRiderGroups } from "./thx2Sit";
 import { boilHold, boilPlace, coats, HELD_MORNING_STEP, headOf, isGarnish, plainHold, potNoun, referBack, splitPrefix, spreadOnPan, TOSS, tossHold } from "../../src/lib/heldMorning";
@@ -59,9 +60,16 @@ const argv = process.argv.slice(2);
 const APPLY = argv.includes("--apply");
 const onlyIdx = argv.indexOf("--only");
 const ONLY = onlyIdx >= 0 ? (argv[onlyIdx + 1] ?? "").split(",").map((s) => s.trim()).filter(Boolean) : null;
+// THX-3d 3b (C1) — `--targets prod-copy`: the copies of production's feasts that
+// importFeastCopies.ts put on dev (dishFamilyKey `prodcopy:<key>`), not the feasts themselves.
+const targetsIdx = argv.indexOf("--targets");
+const TARGETS = targetsIdx >= 0 ? argv[targetsIdx + 1] : "feasts";
+if (TARGETS !== "feasts" && TARGETS !== "prod-copy") { console.error(`--targets: feasts | prod-copy (got ${TARGETS})`); process.exit(2); }
+const familyKeyOf = (key: string) => (TARGETS === "prod-copy" ? `prodcopy:${key}` : key);
 
 const { host, mode } = assertScriptDatabase("thx2/patch");
-console.log(`database: ${host} (${mode}) · ${APPLY ? "APPLY" : "DRY RUN — nothing is written"}`);
+if (TARGETS === "prod-copy" && mode !== "dev") { console.error("--targets prod-copy is dev only"); process.exit(2); }
+console.log(`database: ${host} (${mode}) · ${APPLY ? "APPLY" : "DRY RUN — nothing is written"}${TARGETS === "prod-copy" ? " · production's copies" : ""}`);
 
 const file = loadTargets();
 const errs = validateTargets(file);
@@ -70,6 +78,8 @@ const feasts = file.targets.filter((t) => t.kind === "feast" && (!ONLY || ONLY.i
 
 const DAY = { mon: "Monday", tue: "Tuesday", wed: "Wednesday" } as const;
 const MAKE_AHEAD_DAY = /^\s*Make ahead \(([A-Za-z]+)\):/i;
+/** THX-3d 3b — a thaw step the model wrote under a make-ahead day. */
+const MODEL_THAW = /^\s*Make ahead \([A-Za-z]+(?: night)?\):\s*If the (?:turkey|bird)(?: breast)? is frozen\b/i;
 
 const prisma = new PrismaClient();
 
@@ -101,7 +111,7 @@ interface Plan {
 let totalChanges = 0;
 for (const t of feasts) {
   const meal = await prisma.meal.findFirst({
-    where: { sourceType: "batch_generated", dishFamilyKey: t.key, isArchived: false },
+    where: { sourceType: "batch_generated", dishFamilyKey: familyKeyOf(t.key), isArchived: false },
     select: {
       id: true, title: true, estimatedTimeMinutes: true, activeTimeMinutes: true,
       dishLinks: {
@@ -239,6 +249,20 @@ for (const t of feasts) {
       if (!place) continue;
       const inRun = (e: Entry) => place.runTexts.includes(e.text) || e.stepIndex === place.at;
       let run = entries().filter(inRun);
+      // THX-3d 3b (Hans, Oct 23) — a make-ahead day's own cut needs no hold line: the cut
+      // and the pot are that day's work, back to back (production's Make-Ahead potatoes:
+      // "leave the pot on the stove, off, until it's time to cook" and the very next step
+      // turned the burner on). No hold is written there, and one written before (dev's
+      // Classic sweet potatoes) comes out: "…; put them in a large pot, cover with cold
+      // water, and leave the pot on the stove, off, …" → "…; put them in a large pot and
+      // cover with cold water."
+      if (/^\s*Make ahead\b/i.test(place.prefix)) {
+        for (const e of run) {
+          const plain = unholdMakeAhead(e.text);
+          if (plain !== e.text) e.set(plain);
+        }
+        continue;
+      }
       // Already in the morning: a step of this food carries a hold.
       if (run.some((e) => head.test(e.text) && HELD_MORNING_STEP.test(e.text))) continue;
       let cut = run.find((e) => alreadyCut([splitPrefix(e.text).body.split(/;\s*/)[0]], name) && /^(?:peel|cut|slice|dice|chop|mince|grate|core|scrub|halve|quarter|trim|cube|thinly|finely|roughly|coarsely)\b/i.test(splitPrefix(e.text).body));
@@ -267,8 +291,10 @@ for (const t of feasts) {
           next.set(`${nextBody!.prefix}${boil.later}`, boilPlace(nextBody!.body)!.rest ? Math.max(1, next.minutes - fill) : 1, "cook");
         } else {
           // Nothing to cut (whole baby potatoes): the pot itself is the morning step.
+          // (THX-3d 3b — "On Thursday:" once, on the morning step.)
           next.set(`${nextBody!.prefix}${boil.held}`, fill, "prep");
-          addStep(next.stepIndex + 1, `${nextBody!.prefix}${boil.later}`, boilPlace(nextBody!.body)!.rest ? Math.max(1, next.minutes - fill) : 1, "cook");
+          const laterPrefix = /^\s*On /i.test(nextBody!.prefix) ? "" : nextBody!.prefix;
+          addStep(next.stepIndex + 1, `${laterPrefix}${boil.later}`, boilPlace(nextBody!.body)!.rest ? Math.max(1, next.minutes - fill) : 1, "cook");
         }
         continue;
       }
@@ -311,6 +337,22 @@ for (const t of feasts) {
       const measured = new Set(cutRows.filter((r) => refIds.has(r.id)).map((r) => r.name));
       texts.set(s.id, nameCutAmounts(texts.get(s.id)!, cutRows, measured));
     }
+    // 13a. THX-3d 3b — the model's own thaw step (production's Small: "Make ahead
+    // (Tuesday): If the turkey breast is frozen, move it to the fridge today — …") IS the
+    // thaw step: it takes the code's words in place (13 then writes none), and the day it
+    // is thawed by is the dish's first other make-ahead day (it said "by Tuesday").
+    const thawTag = wantTags.map((x) => /^thaw-(\d+)d$/.exec(x)).find((m) => m);
+    const thawText = (exclude: string | null) => {
+      const n = Number(thawTag![1]);
+      const WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      const word = /\bbreast\b/i.test(d.title) ? "turkey breast" : "turkey";
+      const firstAhead = steps.filter((s) => s.id !== exclude).map((s) => MAKE_AHEAD_DAY.exec(texts.get(s.id)!)?.[1]).find((x): x is string => !!x) ?? "Thursday";
+      return thawStepText(word, WEEK[(4 - n + 7) % 7], firstAhead);
+    };
+    if (thawTag && !steps.some((s) => /^\s*Thaw \(/i.test(texts.get(s.id)!))) {
+      const own = steps.find((s) => MODEL_THAW.test(texts.get(s.id)!));
+      if (own) texts.set(own.id, thawText(own.id));
+    }
     for (const s of steps) {
       const to = texts.get(s.id)!;
       if (to !== s.stepTextTranslated) plan.textUpdates.push({ stepId: s.id, title: d.title, stepIndex: s.stepIndex, from: s.stepTextTranslated, to });
@@ -346,18 +388,13 @@ for (const t of feasts) {
     // ONE serve step after the carve (thx2Thursday post-pass), naming every dish.
     // 13. THX-3d (F) — a thaw tag with no thaw step (Small's breast, thaw-2d): the Hub's
     // thaw row opened the whole dish. A code-written thaw step opens it; the rest move down.
-    const thawTag = wantTags.map((x) => /^thaw-(\d+)d$/.exec(x)).find((m) => m);
     if (thawTag && !steps.some((s) => /^\s*Thaw \(/i.test(texts.get(s.id)!))) {
-      const n = Number(thawTag[1]);
-      const WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-      const word = /\bbreast\b/i.test(d.title) ? "turkey breast" : "turkey";
-      const firstAhead = steps.map((s) => MAKE_AHEAD_DAY.exec(texts.get(s.id)!)?.[1]).find((x): x is string => !!x) ?? "Thursday";
       for (const s of [...steps].sort((a, b) => b.stepIndex - a.stepIndex)) {
         plan.renumbers.push({ stepId: s.id, title: d.title, from: s.stepIndex, to: s.stepIndex + 1 });
         s.stepIndex += 1;
       }
       for (const c of plan.creates) if (c.dishId === d.id) c.stepIndex += 1;
-      const text = thawStepText(word, WEEK[(4 - n + 7) % 7], firstAhead);
+      const text = thawText(null);
       plan.creates.push({ dishId: d.id, title: d.title, stepIndex: 0, text, phaseType: "prep", estimatedMinutes: 2, refs: deriveAmountRefs(text, matcher).amountRefs });
     }
     stepsByDish.set(d.id, steps.map((s) => ({ ...s, stepTextTranslated: texts.get(s.id)!, estimatedMinutes: splitMinutes.get(s.id) ?? s.estimatedMinutes, phaseType: phaseOf.get(s.id) ?? s.phaseType })));

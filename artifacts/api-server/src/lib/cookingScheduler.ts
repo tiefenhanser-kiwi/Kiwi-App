@@ -1290,7 +1290,10 @@ function scheduleCookingSequenceCore(
 //     (the gravy, the potatoes), except the bird, whose start is pinned (its roast
 //     ends where it did) and whose tail after the rest — the carve — is aligned to
 //     serve. The bird rests longer; nothing waits on a cold platter.
-const OVEN_WORDS = /\b(?:oven|bake[sd]?)\b|\bbaking\b(?!\s+(?:dish|sheet|pan|powder|soda))|\broast(?:s|ed|ing)?\b(?!\s*pan)(?!ing\s+pan)/i;
+// (THX-3d 3b — "the roasted turkey" is a noun phrase, not the oven: production's
+// Make-Ahead gravy, "Stir in any pan drippings from the roasted turkey", held the oven
+// after the bird and was given "Turn the oven off and leave the sides inside".)
+const OVEN_WORDS = /\b(?:oven|bake[sd]?)\b|\bbaking\b(?!\s+(?:dish|sheet|pan|powder|soda))|\broast(?:s|ing)?\b(?!\s*pan)(?!ing\s+pan)|(?<!\b(?:the|any|from)\s)\broasted\b(?!\s*pan)/i;
 
 export interface OvenPlan {
   holderDishId: string;

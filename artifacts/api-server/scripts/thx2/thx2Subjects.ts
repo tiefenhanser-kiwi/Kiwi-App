@@ -43,7 +43,9 @@ export function subjectEdits(dishes: readonly OvenDish[], steps: readonly OvenSt
         const named = body
           .replace(/^(\w+)\s+(?:them|it)\b/i, `$1 ${noun}`)
           .replace(/^(\w+)\s+the mixture\b/i, `$1 ${noun}`)
-          .replace(/^(Transfer|Pour|Spoon|Scrape|Return|Remove)\s+(?=(?:to|into|onto|from)\b)/i, `$1 ${noun} `);
+          .replace(/^(Transfer|Pour|Spoon|Scrape|Return|Remove)\s+(?=(?:to|into|onto|from)\b)/i, `$1 ${noun} `)
+          // THX-3d 3b — "Let rest 5 minutes" (production's mac and cheese, its serve clause gone).
+          .replace(/^Let\s+(?=(?:rest|cool|stand|sit)\b)/i, `Let ${noun} `);
         text = `${prefix}${named}`;
       }
       if (text !== r.text) out.updates.push({ dishId: d.dishId, stepIndex: r.stepIndex, text });

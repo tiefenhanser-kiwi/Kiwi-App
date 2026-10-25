@@ -99,8 +99,10 @@ export function potNoun(name: string): string {
  * with cold water by 2 inches and add 1 tablespoon kosher salt." — the recipe's pot,
  * its water, what it adds, and what follows ("bring to a boil over high heat").
  */
+// THX-3d 3b — ", and add a generous pinch of kosher salt" is the pot's too (production's
+// Small: the salt rode the burner step, "Turn the burner on … and add a … pinch of salt").
 const PLACE_IN_POT =
-  /^(?:Place|Put) (.+?) in (an? (?:large |medium |big |heavy )?(?:pot|saucepan|stockpot|Dutch oven)\b[^,;]*?)(?:,|;| and) (cover (?:them |it )?with cold (?:salted )?water[^,;.]*?)(?:(?:,| and|;) (add [^,;.]+?))?(?:,? and (.+?))?\.\s*$/i;
+  /^(?:Place|Put) (.+?) in (an? (?:large |medium |big |heavy )?(?:pot|saucepan|stockpot|Dutch oven)\b[^,;]*?)(?:,|;| and) (cover (?:them |it )?with cold (?:salted )?water[^,;.]*?)(?:(?:,\s+and|,| and|;) (add [^,;.]+?))?(?:,? and (.+?))?\.\s*$/i;
 
 export function boilPlace(placeBody: string): { food: string; vessel: string; cover: string; add: string | null; rest: string | null } | null {
   const m = PLACE_IN_POT.exec(placeBody.trim());
@@ -133,8 +135,14 @@ const OILS = /\b(?:oil|butter)\b/i;
  */
 export function tossHold(tossBody: string, name: string): { toss: string; spread: string | null; pan: string | null } | null {
   const body = tossBody.trim().replace(/\.\s*$/, "");
-  const [first, ...more] = body.split(/;\s*/);
-  if (!TOSS.test(first)) return null;
+  const clauses = body.split(/;\s*/);
+  // THX-3d 3b — the toss may close a clause the dressing opens: "Whisk together 3
+  // tablespoons maple syrup, 2 tablespoons melted butter…; pour over the sweet potatoes
+  // and toss to coat" (production's Small and New Twist). Up to it is the toss.
+  const at = clauses.findIndex((c) => TOSS.test(c) && !/^spread\b/i.test(c));
+  if (at < 0) return null;
+  const first = clauses.slice(0, at + 1).join("; ");
+  const more = clauses.slice(at + 1);
   const onPan = /\b(?:on|onto) (an? (?:large |big )?(?:rimmed )?(?:sheet pan|baking sheet|roasting pan))\b/i.exec(first);
   const toss = onPan ? first.replace(onPan[0], "in a large bowl") : first;
   const spreadClause = more.find((c) => /^spread\b/i.test(c));

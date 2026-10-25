@@ -163,8 +163,11 @@ export function prepCompositionFingerprint(input: PrepLoadedPlan): string {
  * PREP-1 G — the feast session's version, in its own gate. Bump it when the feast
  * session's build changes for the same feast (it shares PREP_ENGINE_VERSION too).
  *   1 — built from the feast meals alone (feastOnlyLoad), not the whole plan scoped.
+ *   2 — THX-3d 3b: a tub of a citrus both zested and juiced is "Orange zest and juice"
+ *       (production's New Twist read "And juiced orange zest"). Labels move, so the
+ *       feast sessions' prose must go; the weeknight weeks build no feast labels.
  */
-export const FEAST_SESSION_VERSION = 1;
+export const FEAST_SESSION_VERSION = 2;
 
 /**
  * PREP-1 G — "Prep the feast"'s cache gate: the FEAST'S OWN inputs (its meals —

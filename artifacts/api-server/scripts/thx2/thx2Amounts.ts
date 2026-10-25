@@ -40,11 +40,22 @@ const SHAPE_END = /\s(thirds|halves|quarters|pieces|chunks|wedges)$/i;
  * THX-3d — the repair for what THX-3c's naming already wrote: "2 celery thirds stalks"
  * → "2 celery stalks, cut into thirds,". Round 3 (U): no parentheses — and THX-3d's own
  * "(cut into thirds)" reads the same way. Idempotent (the repaired text never matches).
+ * THX-3d 3b — the closing comma only where the list goes on without one: production's
+ * "1 carrot (cut into pieces), 4 smashed garlic cloves" became "…cut into pieces,, 4…".
  */
 export function repairShapeCounts(text: string): string {
+  const close = (rest: string) => (/^\s*[,;.)]/.test(rest) || rest.trim() === "" ? "" : ",");
   return text
-    .replace(/\b(\d+) ([a-z]+) (thirds|halves|quarters|pieces|chunks|wedges) (stalks?|cloves?|ribs?|sprigs?)\b/gi, "$1 $2 $4, cut into $3,")
-    .replace(/ \(cut into (thirds|halves|quarters|pieces|chunks|wedges)\)/gi, ", cut into $1,");
+    // THX-3d 3b — production's "3 stalks celery", "6 stalks diced celery", "2 stalks
+    // celery pieces": celery's stalks after it, as the rest of the catalog writes it (Cook
+    // Mode's prep naming read "2 stalks the celery you prepped"). Garlic keeps THX-3c's
+    // "4 cloves minced garlic".
+    .replace(/\b(\d+) (stalks?|ribs?) ((?:diced|minced|chopped|sliced) )?celery\b(?: (thirds|halves|quarters|pieces|chunks|wedges)\b)?/gi, (m, n: string, count: string, cut: string | undefined, shape: string | undefined, at: number, all: string) =>
+      `${n} ${cut ?? ""}celery ${count}${shape ? `, cut into ${shape}${close(all.slice(at + m.length))}` : ""}`)
+    .replace(/\b(\d+) ([a-z]+) (thirds|halves|quarters|pieces|chunks|wedges) (stalks?|cloves?|ribs?|sprigs?)\b/gi, (_m, n: string, food: string, shape: string, count: string, at: number, all: string) =>
+      `${n} ${food} ${count}, cut into ${shape}${close(all.slice(at + _m.length))}`)
+    .replace(/ \(cut into (thirds|halves|quarters|pieces|chunks|wedges)\)/gi, (_m, shape: string, at: number, all: string) =>
+      `, cut into ${shape}${close(all.slice(at + _m.length))}`);
 }
 
 /** The food phrase that starts at `rest`: its words up to a stop word or punctuation. */
@@ -129,7 +140,10 @@ export function nameCutAmounts(text: string, rows: readonly AmountRow[], measure
       if (!r || used.has(r)) break;
       used.add(r);
       const a = amountFor(r, next);
-      rewritten += `${joint[0]}${words(a.amount, adj?.[1] ?? cutOf([r.note ?? ""]) ?? undefined, a.phrase)}`;
+      // (A food the step names by its shape, "onion quarters", takes no cut word: never
+      // "quartered onion quarters".)
+      const noted = SHAPE_END.test(` ${a.phrase}`) ? undefined : cutOf([r.note ?? ""]) ?? undefined;
+      rewritten += `${joint[0]}${words(a.amount, adj?.[1] ?? noted, a.phrase)}`;
       end += joint[0].length + (adj ? adj[0].length : 0) + next.length;
     }
     // Without a cut word in front, only a LIST OF CUT FOODS being added counts: "until

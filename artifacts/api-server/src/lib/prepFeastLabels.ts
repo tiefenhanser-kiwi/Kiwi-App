@@ -116,7 +116,9 @@ export function feastLabelMap(plan: Pick<StepPlan, "steps">): { map: Map<string,
     const shared = / — /.test(f.name) && ![...titles].some((t) => f.name.startsWith(`${t} — `));
     if (shared) {
       let food = f.name.split(" — ")[0].replace(/\([^)]*\)/g, "").replace(/\bfresh\s+/gi, "").replace(/\b(?:finely|thinly|roughly|coarsely)\s+/gi, "").replace(/\s+/g, " ").trim();
-      food = food.replace(/^juiced (.+)$/i, "$1 juice").replace(/^zested (.+)$/i, "$1 zest");
+      // (THX-3d 3b — "zested and juiced orange", production's New Twist tub shared by the
+      // turkey and the relish, read "And juiced orange zest".)
+      food = food.replace(/^zested,?\s+(?:and|then)\s+juiced (.+)$/i, "$1 zest and juice").replace(/^juiced (.+)$/i, "$1 juice").replace(/^zested (.+)$/i, "$1 zest");
       map.set(f.name, food.charAt(0).toUpperCase() + food.slice(1).toLowerCase());
       kinds.set(map.get(f.name)!, "shared");
       continue;

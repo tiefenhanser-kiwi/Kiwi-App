@@ -65,7 +65,9 @@ const BIRD_PAREN = /\s*\((?:after|while|once|before)[^)]*\b(?:turkey|bird)\b[^)]
 const OLD_RAISE = /^\s*As the \w+ comes out, raise the oven to \d{3}\s*°\s*F for the sides\.\s*$/i;
 const SERVE_ONLY = /^(?:serve\b|spoon .{0,80}\binto a serving (?:bowl|dish)\b|transfer .{0,80}\bto a serving (?:bowl|dish|platter)\b.{0,10}\band serve\b|scoop and serve\b)/i;
 const COOK_VERB = /\b(bake|roast|boil|simmer|heat|reheat|mash|season|whisk|garnish|scatter|squeeze|drizzle|toss|stir|fold|sprinkle|slice|carve|dot|pour|cook|melt|broil)\b/i;
-const SERVE_CLAUSE = /(?:\s*[;,]\s*(?:then\s+)?|\s+and\s+(?:then\s+)?|\s+then\s+)(?:scoop and\s+)?serve\b[^.;]*/gi;
+// THX-3d 3b — ", and serve with lemon wedges;" goes whole (production's Small green beans
+// kept the comma: "over the top,; scatter").
+const SERVE_CLAUSE = /(?:\s*[;,]\s*(?:and\s+)?(?:then\s+)?|\s+and\s+(?:then\s+)?|\s+then\s+)(?:scoop and\s+)?serve\b[^.;]*/gi;
 const SIT_AT_ROOM = /\b(?:let (?:it|the (?:turkey|bird|breast)) )?sit at room temperature for\s+(an?|one|\d+)\s+(hours?|minutes?)\b/i;
 const BEFORE_ROASTING = /\b(an?|one|\d+)\s+(hours?|minutes?)\s+before roasting\b/i;
 
@@ -114,15 +116,23 @@ export function thursdayPrePass(dishes: readonly OvenDish[], steps: readonly Ove
       if (r.phaseType === "rest") {
         const text = r.text
           .replace(/\b(\d{2})\s*(?:–|-|to)\s*(\d{2})\s*minutes\b/i, (all, a: string) => (Number(a) >= 30 ? "20–30 minutes" : all))
-          .replace(/\brest (\d{2}) minutes\b/i, (all, a: string) => (Number(a) > 25 ? "rest 20–30 minutes" : all));
+          .replace(/\brest (\d{2}) minutes\b/i, (all, a: string) => (Number(a) > 25 ? "rest 20–30 minutes" : all))
+          // THX-3d 3b — production's New Twist: "…, for 30 minutes before carving".
+          .replace(/\bfor (\d{2}) minutes before carving\b/i, (all, a: string) => (!breast && Number(a) > 25 ? "for 20–30 minutes before carving" : all));
         const minutes = breast ? Math.min(r.minutes, 20) : Math.min(r.minutes, 25);
         if (text !== r.text || minutes !== r.minutes) out.updates.push({ dishId: r.dishId, stepIndex: r.stepIndex, text, minutes });
         continue;
       }
       const sit = SIT_AT_ROOM.exec(r.text) ?? BEFORE_ROASTING.exec(r.text);
-      if (!sit || split || r.phaseType === "hold" || r.phaseType === "preheat") continue;
+      if (!sit || split || r.phaseType === "hold") continue;
       const minutes = minutesOf(sit[1], sit[2]);
-      const clauses = r.text.split(/\s*;\s*/);
+      // THX-3d 3b — a preheat that also says the sit is split only when its minutes do not
+      // already hold the sit (production's Make-Ahead: "Remove the turkey from the fridge
+      // 1 hour before roasting. Preheat the oven to 325°F.", 30 minutes); dev's 60-minute
+      // "…before roasting to take the chill off; preheat the oven to 325°F" stays one step.
+      if (r.phaseType === "preheat" && r.minutes >= minutes) continue;
+      // Clauses by ";" — and by sentence, where the recipe wrote two.
+      const clauses = r.text.split(/\s*;\s*|(?<=\.)\s+(?=[A-Z])/).map((c) => c.replace(/\.\s*$/, ""));
       const at = clauses.findIndex((c) => SIT_AT_ROOM.test(c) || BEFORE_ROASTING.test(c));
       if (clauses.length === 1) {
         out.updates.push({ dishId: r.dishId, stepIndex: r.stepIndex, phaseType: "hold", minutes });
@@ -132,8 +142,10 @@ export function thursdayPrePass(dishes: readonly OvenDish[], steps: readonly Ove
       const sitText = clauses[at].replace(DAY_PREFIX, "").replace(/^let it\b/i, "let the turkey");
       const work = clauses.filter((_, i) => i !== at).map((c) => c.replace(DAY_PREFIX, "")).join("; ");
       // The clause order is the recipe's: the sit first (New Twist), or the work first (Classic).
+      // (The work after a sit keeps a preheat's phase: the oven heats while the bird sits.)
+      const workPhase: SchedulerPhase = r.phaseType === "preheat" ? "preheat" : "prep";
       const [first, second] = at === 0
-        ? [{ text: `${prefix}${sentence(cap(sitText))}`, phaseType: "hold" as const, minutes }, { text: sentence(cap(work)), phaseType: "prep" as const, minutes: Math.max(2, r.minutes) }]
+        ? [{ text: `${prefix}${sentence(cap(sitText))}`, phaseType: "hold" as const, minutes }, { text: sentence(cap(work)), phaseType: workPhase, minutes: Math.max(2, r.minutes) }]
         : [{ text: `${prefix}${sentence(cap(work))}`, phaseType: r.phaseType as SchedulerPhase, minutes: r.minutes }, { text: sentence(cap(sitText)), phaseType: "hold" as const, minutes }];
       // Edits name CURRENT indexes; the patch applies updates and deletes, then the
       // renumbers, then the creates at their final index. One sit per bird.
@@ -215,13 +227,21 @@ export function shortenRoastText(text: string, minutes: number): string {
   const head = text.slice(0, cut);
   // Minutes the head already states (Small's "425°F for 20 minutes to brown the skin").
   const stated = [...head.matchAll(/\bfor (\d+)\s*minutes\b/gi)].reduce((s, m) => s + Number(m[1]), 0);
-  const tail = text.slice(cut)
+  // THX-3d 3b — only the roast's own clause loses its time; a later clause keeps its
+  // words and numbers (production's Classic: "…165°F; baste with pan drippings every
+  // 45 minutes" became "…; baste with pan drippings every for about 2¾ hours"), and the
+  // new time follows the roast, not the sentence.
+  const rest = text.slice(cut);
+  const semi = rest.indexOf(";");
+  const own = (semi >= 0 ? rest.slice(0, semi) : rest)
     .replace(/,?\s*until [^.;]*?\b1[56]\d\s*°\s*F[^.;]*/i, "")
     .replace(/,?\s*(?:for\s+)?(?:about\s+)?\d+(?:\s*[½¼¾])?(?:\s*(?:–|-|to)\s*\d+(?:\s*[½¼¾])?)?\s*(?:hours?|minutes?)(?:\s+more)?(?:\s*\([^)]*\))?(?:\s+for an? [^.;]*?\bbird)?/gi, "")
     .replace(/\s+([.;])/g, "$1")
-    .replace(/^\s*\./, "");
+    .replace(/^\s*\./, "")
+    .replace(/[.\s]+$/, "");
+  const later = semi >= 0 ? rest.slice(semi).replace(/[.\s]+$/, "") : "";
   // "…reduce the oven to 325°F and continue roasting for about 30 minutes."
-  return sentence(`${head}${tail.replace(/[.\s]+$/, "")} for ${aboutDuration(Math.max(5, minutes - stated))}`);
+  return sentence(`${head}${own} for ${aboutDuration(Math.max(5, minutes - stated))}${later}`);
 }
 
 /** The post-pass edits: the raise step and the roast split, and the one serve step. */
@@ -265,10 +285,14 @@ export function thursdayPostPass(dishes: readonly OvenDish[], steps: readonly Ov
     const noun = /\bbreast\b/i.test(birdDish.title) ? "turkey breast" : (/\b(turkey|chicken|duck|goose|hen)\b/i.exec(birdDish.title)?.[1]?.toLowerCase() ?? "roast");
     // THX-3d round 3 (T) — at the bird's own temperature there is nothing to raise: the
     // sides go in with it ("Put the … in the oven with the turkey.").
-    // The bird's own temperature is its FIRST roast's: once a raise is written, the last
-    // oven step is "Keep roasting … at 350°F", the sides' temperature.
-    const firstRoast = hd.steps.find((s) => s.phaseType === "cook" && isOvenStep(s));
-    const ownTemp = firstRoast ? lastOvenTempOfText(firstRoast.text) : birdTemp;
+    // The bird's own temperature is the one the oven is at as the sides go in: once a raise
+    // is written, the last oven step is "Keep roasting … at 350°F", the sides' temperature,
+    // so it is the roast step before that raise. THX-3d 3b — not the bird's FIRST roast:
+    // production's Small browns the breast at 425°F, then roasts at 325°F, and the sides
+    // went in "with the turkey breast" at 425°F.
+    const raiseRow = rows.find((r) => RAISE_AND_PUT_IN.test(r.text));
+    const preRaise = raiseRow ? rows.filter((r) => r.stepIndex < raiseRow.stepIndex && r.phaseType === "cook" && oven(r)).pop() : undefined;
+    const ownTemp = preRaise ? lastOvenTempOfText(preRaise.text) : birdTemp;
     const same = target !== null && ownTemp !== null && target === ownTemp;
     const raiseText = target !== null && names.length > 0 ? (same ? `Put the ${list} in the oven with the ${noun}.` : `Raise the oven to ${target}°F and put in the ${list}.`) : null;
     const raiseMinutes = same ? PUT_IN_WITH_MINUTES : RAISE_MINUTES;
@@ -305,10 +329,12 @@ export function thursdayPostPass(dishes: readonly OvenDish[], steps: readonly Ov
     // cutting board and rest 20–30 minutes" → "Transfer the turkey to a cutting board …").
     if (existing || birdShift > 0) {
       for (const r of thursdayOf(rows).filter((x) => x.phaseType === "rest")) {
-        const m = /^(\s*(?:On [A-Za-z]+day:\s*)?)Roast until [^;]*\b1[56]\d\s*°\s*F[^;]*;\s*(.+)$/i.exec(r.text);
-        if (!m) continue;
-        const next = `${m[1]}${cap(m[2].replace(/^transfer to\b/i, `transfer the ${noun} to`))}`;
-        out.updates.push({ dishId: r.dishId, stepIndex: r.stepIndex, text: next });
+        // THX-3d 3b — production's New Twist rests "… — the carry-over heat will bring the
+        // thigh to 165°F": the roast takes it to 165°F now, so the clause goes.
+        const carry = r.text.replace(/\s*[—–-]+\s*the carry-?over heat will bring [^.;]*?\b1[56]\d\s*°\s*F/i, "");
+        const m = /^(\s*(?:On [A-Za-z]+day:\s*)?)Roast until [^;]*\b1[56]\d\s*°\s*F[^;]*;\s*(.+)$/i.exec(carry);
+        const next = m ? `${m[1]}${cap(m[2].replace(/^transfer to\b/i, `transfer the ${noun} to`))}` : carry;
+        if (next !== r.text) out.updates.push({ dishId: r.dishId, stepIndex: r.stepIndex, text: next });
       }
     }
     // The raise heats the oven: no side's own preheat to its temperature survives. A pure

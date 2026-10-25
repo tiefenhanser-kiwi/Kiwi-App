@@ -223,7 +223,7 @@ const DAY_PREFIX = /^(\s*(?:Make ahead \([A-Za-z]+(?: night)?\)|On [A-Za-z]+day|
 /** The code-written raise and serve steps name dishes, not foods: never reworded. */
 const CODE_WRITTEN = /^\s*(?:Raise the oven to \d{3}\s*°\s*F and put in|Put the .+ in the oven with the |Serve the .+ with the )/i;
 /** The words a step whose whole job is prep may use besides its foods. */
-const PREP_WORD = /^(?:and|the|then|of|from|a|an|into|in|to|small|large|medium|bowl|set|aside|finely|thinly|roughly|coarsely|lightly|leaves?|stems?|zest|juice|peel|core|slice|sliced|dice|diced|mince|minced|chop|chopped|cut|trim|trimmed|halve|halved|quarter|quartered|grate|grated|pick|picked|strip|stripped|rinse|rinsed|over|measure|mix|whisk|combine|stir|together|discarding|any|soft|shriveled|bad|ones|seeds?|leave|leaving|some|for|more|heat|inch|chunks|pieces|rings|separate|separated|separately|apart|keep|keeping|whites|greens|reserve|reserving|both|each|all|your|it|them|out|on|board|sprigs?|cloves?|stalks?|tablespoons?|teaspoons?|tbsp|tsp|cups?|oz|ounces?|lbs?|pounds?|pinch|seed|seeded|thick|wedges|cubes|slices|bite|sized|florets|strips|half|moons|rounds|can|jar|fine|paste|thin|against|grain|removing|less|or)$/i;
+const PREP_WORD = /^(?:and|the|then|of|from|a|an|into|in|to|small|large|medium|bowl|set|aside|finely|thinly|roughly|coarsely|lightly|leaves?|stems?|zest|juice|peel|core|slice|sliced|dice|diced|mince|minced|chop|chopped|cut|trim|trimmed|halve|halved|quarter|quartered|grate|grated|pick|picked|strip|stripped|smash|smashed|rinse|rinsed|over|measure|mix|whisk|combine|stir|together|discarding|any|soft|shriveled|bad|ones|seeds?|leave|leaving|some|for|more|heat|inch|chunks|pieces|rings|separate|separated|separately|apart|keep|keeping|whites|greens|reserve|reserving|both|each|all|your|it|them|out|on|board|sprigs?|cloves?|stalks?|tablespoons?|teaspoons?|tbsp|tsp|cups?|oz|ounces?|lbs?|pounds?|pinch|seed|seeded|thick|wedges|cubes|slices|bite|sized|florets|strips|half|moons|rounds|can|jar|fine|paste|thin|against|grain|removing|less|or)$/i;
 /** Only foods and prep words in the text once the mentions are cut out. */
 const onlyPrepWords = (text: string, ms: readonly Mention[], from = 0) =>
   ms.reduceRight((t, m) => t.slice(0, m.start) + " " + t.slice(m.end), text).slice(from)
@@ -378,7 +378,9 @@ const CLAUSE_SEP = /;\s+|\.\s+(?=[A-Z])|(?:,\s+(?:and\s+|then\s+)?|\s+(?:and|the
 export const WORKED_BEFORE = /\b(?:add|combine|stir|toss|fold|whisk|mix|sprinkle|scatter|top|rub|coat|brush|season|drizzle|pour|spoon|spread)\b(?:\s+(?:in|together|with))?\s+(?:[^;:.]*?(?:,\s+(?:and\s+)?|\s+and\s+))?(?:(?:the|a|an)\s+)?$/i;
 /** PREP-3 3b — the shape a "cut … into" clause leaves: "into 1½-inch chunks", "into bite-sized florets". */
 const SHAPE = /\binto\s+(?:[\d½¼¾⅓⅔.]+[-\s]?inch\s+|bite-sized\s+|thin\s+|small\s+|large\s+)?(chunks|pieces|cubes|strips|slices|wedges|rings|florets)\b/i;
-const WORK_LEAD = /^(?:(?:in|on) (?:a|the) [a-z -]{0,30}, )?(?:combine|whisk|stir|add|toss|mix|pour|fold|place|transfer|melt|heat|bring|cook|roast|spread|arrange|season|scatter|sprinkle|layer)\b/i;
+// (THX-3d 3b — "rub": production's Make-Ahead "Smash 6 garlic cloves and quarter 1 yellow
+// onion. Rub 6 tablespoons softened butter under the breast skin…")
+const WORK_LEAD = /^(?:(?:in|on) (?:a|the) [a-z -]{0,30}, )?(?:combine|whisk|stir|add|toss|mix|pour|fold|place|transfer|melt|heat|bring|cook|roast|spread|arrange|season|scatter|sprinkle|layer|rub)\b/i;
 
 /**
  * Rule 2 (content — patch.ts writes it, never read time): a step that opens with prep
@@ -402,10 +404,19 @@ function subjectOf(clause: string, ms: readonly Mention[]): string {
       .trim();
   const names = [...new Set(ms.map((m) => asWritten(m) || m.name.toLowerCase().split(/[,(]/)[0].trim().split(/\s+/).filter((w) => !GENERIC_WORD.test(w)).join(" ")))];
   const list = names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  // THX-3d 3b — "Strip the leaves from 2 thyme sprigs" leaves the leaves, not the sprigs
+  // (production's Classic gravy: "Stir the thyme sprigs in").
+  if (verb === "strip" && /^strip\s+(?:the\s+)?leaves\s+(?:from|off)\b/i.test(clause.trim()) && names.length === 1) {
+    return `the ${names[0].replace(/\s+(?:sprigs?|stems?|bunch(?:es)?)$/, "")} leaves`;
+  }
   const participle = PARTICIPLE[verb];
   if (participle) return `the ${participle} ${list}`;
   const shape = /\binto\s+(?:[\d½¼¾⅓⅔.]+[-\s]?inch\s+)?(chunks|pieces|cubes|rings|wedges|strips|slices)\b/i.exec(clause)?.[1];
-  if (shape && names.length === 1) return `the ${singular(names[0].split(/\s+/).pop()!)} ${shape.toLowerCase()}`;
+  // THX-3d 3b — the whole food, singular: "the sweet potato chunks", never "the potato chunks".
+  if (shape && names.length === 1) {
+    const words = names[0].split(/\s+/);
+    return `the ${[...words.slice(0, -1), singular(words[words.length - 1])].join(" ")} ${shape.toLowerCase()}`;
+  }
   return `the ${list}`;
 }
 
@@ -418,12 +429,21 @@ export function splitPrepClause(text: string, rows: readonly WordingRow[], title
     const a = body.slice(0, m.index);
     const b = body.slice(m.index! + m[0].length);
     if (!WORK_LEAD.test(b)) continue;
+    // THX-3d 3b — no split where the work half is only a bowl ("…into 1-inch cubes; place
+    // in a large bowl": the next step's toss is the work, and M's hold joins it), or is
+    // the apples' toss with lemon (M: the cut step IS that toss, never "kept in water").
+    if (/^place\s+(?:them\s+|it\s+)?in\s+(?:a|the)\s+(?:[a-z-]+\s+){0,2}bowl\s*\.?\s*$/i.test(b.trim())) return null;
+    if (/^toss\b/i.test(b) && /\blemon\b/i.test(b.split(/[;.]\s/)[0])) return null;
     const ms = mentionsOf({ stepIndex: 0, text: a, amountRefs: null }, rows, titles);
     if (ms.length === 0 || !onlyPrepWords(a, ms)) return null;
     // Round 2 (K) — the work half NAMES what it works, never "them": Cook Mode interleaves
     // dishes, so the step before it on the screen is another dish's ("Toss them with
     // ¼ cup flour" followed the turkey's carve). "the sliced shallots", "the potato chunks".
-    const subject = subjectOf(a, ms);
+    // THX-3d 3b — "them" is what the LAST sentence cut: "Trim 2½ lb green beans. Thinly
+    // slice 4 shallots into rings and toss them with flour" tosses the shallots alone.
+    const lastSentence = Math.max(-1, ...[...a.matchAll(/[;.]\s+/g)].map((x) => x.index! + x[0].length));
+    const theirs = /\bthem\b/i.test(b.split(/[;,.]/)[0]) && lastSentence > 0 ? ms.filter((m) => m.start >= lastSentence) : [];
+    const subject = subjectOf(theirs.length > 0 ? a.slice(lastSentence) : a, theirs.length > 0 ? theirs.map((m) => ({ ...m, start: m.start - lastSentence, end: m.end - lastSentence })) : ms);
     const named = /\bthem\b/i.test(b.split(/[;,.]/)[0])
       ? b.replace(/\bthem\b/i, subject)
       : b.replace(/^(\w+)\s+(?=(?:in|into|with|over|onto)\b)/i, `$1 ${subject} `);
@@ -467,17 +487,31 @@ function foodWords(span: string): string {
 const CITRUS_SQUEEZE = /\b([Ss])queeze\s+(?:the\s+juice\s+of\s+(?:[\d½¼¾⅓⅔⅛⅜⅝⅞]+\s+)?(?:the\s+)?(lemons?|limes?|oranges?)|(?:[\d½¼¾⅓⅔⅛⅜⅝⅞]+\s+)?(?:the\s+)?(lemons?|limes?|oranges?)(?:\s+juice)?|the\s+(lemon|lime|orange)\s+juice)\b/;
 
 /** Round 2 (L) — a citrus juiced in Prep the feast is poured: "Pour the lemon juice you prepped over the beans". */
+/** THX-3d 3b — two fruits squeezed together: "squeeze the juice of 2 oranges and 2 lemons over the bird". */
+const CITRUS_SQUEEZE_TWO = /\b([Ss])queeze\s+the\s+juice\s+of\s+(?:[\d½¼¾⅓⅔⅛⅜⅝⅞]+\s+)?(lemons?|limes?|oranges?)\s+and\s+(?:[\d½¼¾⅓⅔⅛⅜⅝⅞]+\s+)?(lemons?|limes?|oranges?)\b/;
+
 function citrusPoured(step: WordingStep, facts: FeastDishFacts): WordingStep {
+  const juiced = (fruit: string) => facts.cuts.find((c) => c.key.includes(fruit) && /juic/.test(c.note) && c.into);
+  // THX-3d 3b — both juiced in Prep the feast: "pour the orange and lemon juice you
+  // prepped" (production's New Twist read "pour the and juiced orange zest you prepped
+  // and the lemons you prepped over the bird").
+  const two = CITRUS_SQUEEZE_TWO.exec(step.text);
+  if (two && juiced(singular(two[2])) && juiced(singular(two[3]))) {
+    const pieces: Piece[] = [{ text: step.text.slice(0, two.index), from: 0 }, { text: `${two[1] === "S" ? "Pour" : "pour"} the ${singular(two[2])} and ${singular(two[3])} juice you prepped` }, { text: step.text.slice(two.index + two[0].length), from: two.index + two[0].length }];
+    const r = rebuild(pieces, step.amountRefs ?? []);
+    return { ...step, text: r.text, amountRefs: step.amountRefs ? r.refs : step.amountRefs };
+  }
   const m = CITRUS_SQUEEZE.exec(step.text);
   if (!m) return step;
   const fruit = singular(m[2] ?? m[3] ?? m[4]);
-  const cut = facts.cuts.find((c) => c.key.includes(fruit) && /juic/.test(c.note) && c.into);
+  const cut = juiced(fruit);
   if (!cut?.into) return step;
   // The container's own name only when the fruit is all it holds (Make-Ahead's lemon
   // shared a tub with the shallots for frying: those are not poured over the beans).
   const alone = facts.cuts.filter((c) => c.into === cut.into).every((c) => c.key.includes(fruit));
   const p = alone ? cutPhrase(cut.into, [], cut.kind) : null;
-  const phrase = p ? p.phrase : `the ${fruit} juice you prepped`;
+  // (A tub of zest and juice pours its juice: the zest went in at its own step.)
+  const phrase = p && !/\bzest\b/i.test(p.phrase) ? p.phrase : `the ${fruit} juice you prepped`;
   const pieces: Piece[] = [{ text: step.text.slice(0, m.index), from: 0 }, { text: `${m[1] === "S" ? "Pour" : "pour"} ${phrase}` }, { text: step.text.slice(m.index + m[0].length), from: m.index + m[0].length }];
   const r = rebuild(pieces, step.amountRefs ?? []);
   return { ...step, text: r.text, amountRefs: step.amountRefs ? r.refs : step.amountRefs };
@@ -669,8 +703,11 @@ export function rewordFeastSteps(
     for (const g of new Set(groupOf.values())) {
       const members = ms.filter((m) => groupOf.get(m) === g);
       const oneList = members.every((m, i) => i === 0 || listed(step.text, members[i - 1], m));
-      const cutVerb = /\b(?:chop|mince|dice|slice|trim|peel|zest|juice|grate|pick|strip|halve|quarter|rinse|measure|cut|squeeze)(?:\s+and\s+(?:chop|mince|dice|slice|trim|peel|zest|juice|grate|halve))?\s+(?:the\s+)?$/i.test(step.text.slice(Math.max(0, members[0].start - 30), members[0].start));
-      if (!oneList || cutVerb) for (const m of members) groupOf.delete(m);
+      const cutVerb = /\b(?:chop|mince|dice|slice|trim|peel|zest|juice|grate|pick|strip|halve|quarter|rinse|measure|cut|squeeze|smash)(?:\s+and\s+(?:chop|mince|dice|slice|trim|peel|zest|juice|grate|halve))?\s+(?:the\s+)?$/i.test(step.text.slice(Math.max(0, members[0].start - 30), members[0].start));
+      // THX-3d 3b — nor once the dish has cooked it: "the blanched green beans" are this
+      // dish's own by then, not the prep's ("Add the blanched the green beans you prepped").
+      const cooked = /\bthe\s+(?!(?:minced|chopped|diced|sliced|trimmed|peeled|grated|halved|quartered|smashed|julienned|shredded|cubed|zested|juiced|stripped|picked|rinsed|seeded|cored)\s)[a-z]+ed\s+$/i.test(step.text.slice(Math.max(0, members[0].start - 30), members[0].start));
+      if (!oneList || cutVerb || cooked) for (const m of members) groupOf.delete(m);
     }
     // (A step whose foods all came with the mix is left as written: never "Stir in.")
     if (ms.every((m) => groupOf.get(m)?.startsWith("drop:"))) for (const m of ms) groupOf.delete(m);
@@ -681,13 +718,20 @@ export function rewordFeastSteps(
     const firsts = new Map<string, Mention>();
     for (const m of ms) if (groupOf.has(m) && !firsts.has(groupOf.get(m)!)) firsts.set(groupOf.get(m)!, m);
     const removed: { m: Mention; start: number; end: number; hadAnd: boolean }[] = [];
-    for (const m of ms) {
-      const g = groupOf.get(m);
+    // THX-3d 3b — a food named by its shape goes whole: "onion quarters" is the quartered
+    // onion ("the quartered yellow onion you prepped quarters" on production's Make-Ahead).
+    const shapeAfter = (m: Mention) => /^\s+(?:quarters|halves|wedges|pieces|chunks|thirds)\b/.exec(step.text.slice(m.end))?.[0].length ?? 0;
+    // …and a food written ", cut into pieces," mid-list keeps the list's comma: "the carrots
+    // you prepped, the smashed garlic you prepped" (it read "…you prepped the smashed…").
+    const listComma = (m: Mention) => (/,$/.test(step.text.slice(m.start, m.end)) && /^\s*(?:[\d½¼¾⅓⅔⅛⅜⅝⅞]|and\b|the\b)/.test(step.text.slice(m.end)) ? 1 : 0);
+    for (const m0 of ms) {
+      const g = groupOf.get(m0);
       if (!g) continue;
+      const m = { ...m0, end: m0.end + shapeAfter(m0) - listComma(m0) };
       const phrase = phraseOf.get(g)!;
       // The citrus pour already said this container: its members here go.
       const said = step.text.toLowerCase().includes(phrase.toLowerCase()) && step.text.slice(m.start, m.end).toLowerCase() !== phrase.toLowerCase();
-      if (firsts.get(g) === m && !said && !g.startsWith("drop:")) {
+      if (firsts.get(g) === m0 && !said && !g.startsWith("drop:")) {
         // PREP-3 (R2) — a weeknight's shared tub feeds several days: the step keeps its
         // share, amount and all, "the minced garlic you prepped (4 cloves)", the amount
         // still the step's own (its ref moves with it and scales).
@@ -696,14 +740,14 @@ export function rewordFeastSteps(
           const amount = step.text.slice(keep.charStart, keep.charEnd);
           const noun = /[a-z]/i.test(amount) ? undefined : /\b(cloves?|stalks?|sprigs?|heads?)\b/i.exec(step.text.slice(keep.charEnd, m.end))?.[1];
           edits.push({ start: m.start, end: m.end, text: phrase, pieces: [{ text: `${phrase} (` }, { text: amount, from: keep.charStart }, { text: `${noun ? ` ${agree(noun, keep)}` : ""})` }] });
-        } else if (tubAmount.has(m)) edits.push({ start: m.start, end: m.end, text: `${phrase} (${tubAmount.get(m)})` });
+        } else if (tubAmount.has(m0)) edits.push({ start: m.start, end: m.end, text: `${phrase} (${tubAmount.get(m0)})` });
         else if (step.text.slice(m.start, m.end).toLowerCase() !== phrase.toLowerCase()) edits.push({ start: m.start, end: m.end, text: phrase });
         continue;
       }
       const before = SEPARATOR_BEFORE.exec(step.text.slice(0, m.start));
       if (before) {
         edits.push({ start: m.start - before[0].length, end: m.end, text: "" });
-        removed.push({ m, start: m.start - before[0].length, end: m.end, hadAnd: /\band\b/.test(before[0]) });
+        removed.push({ m: m0, start: m.start - before[0].length, end: m.end, hadAnd: /\band\b/.test(before[0]) });
       } else {
         const after = SEPARATOR_AFTER.exec(step.text.slice(m.end));
         edits.push({ start: m.start, end: m.end + (after?.[0].length ?? 0), text: "" });
