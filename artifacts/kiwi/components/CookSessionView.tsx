@@ -696,11 +696,13 @@ const s = StyleSheet.create({
     marginTop: Spacing[2],
   },
   // The step's own minutes' tier, one step closer: it says when the cook is
-  // needed again, so it sits right under them.
+  // needed again, so it sits right under them. CLIENT-2 B3 (BUG-509): bold,
+  // deep sage, so it reads at a glance ("Next step now" too).
   nextStepLine: {
     fontSize: Typography.fontSize.sm,
-    color: Colors.neutral[700],
-    fontFamily: Typography.face.sans[500],
+    color: Colors.sage[700],
+    fontFamily: Typography.face.sans[700],
+    fontWeight: Typography.fontWeight.bold,
     marginTop: Spacing[1],
   },
 

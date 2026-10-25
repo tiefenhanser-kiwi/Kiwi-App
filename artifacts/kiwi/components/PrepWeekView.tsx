@@ -30,7 +30,12 @@ import {
   Typography,
 } from "@/constants/tokens";
 import type { PrepWeekPhaseKey } from "@/lib/api/cooking";
-import { prepShowsSkip, prepWeekFooterLine } from "@/lib/cooking/prepWeekFooter";
+import {
+  LABEL_STEP_KEYS,
+  LABEL_STEP_REASSURANCE,
+  prepShowsSkip,
+  prepWeekFooterLine,
+} from "@/lib/cooking/prepWeekFooter";
 import { prepUsesLargeTextLayout } from "@/lib/cooking/prepWeekLayout";
 import type {
   PrepPhaseVM,
@@ -160,6 +165,12 @@ function StepCard({
         )}
       </View>
 
+      {/* CLIENT-2 B2 — the label step opens with Hans's reassurance, in the
+          step's body type; the server's instructions follow unchanged. */}
+      {LABEL_STEP_KEYS.includes(step.stepKey) && (
+        <Text style={[s.stepInstructions, s.labelReassurance]}>{LABEL_STEP_REASSURANCE}</Text>
+      )}
+
       {/* Quantities bold + terracotta via the shared guaranteed-reconstruct
           highlighter — qualifier text is never stripped. */}
       <HighlightedText text={step.instructions} style={s.stepInstructions} />
@@ -219,10 +230,10 @@ export function PrepWeekView({
   // BUG-020 (Hans-ruled footer) — three actions live in the footer, never in the
   // phase card. "Skip this Prep" (pure write-free advance) is hidden on the last
   // phase; "Save & Exit" (quiet write-free exit) is always present.
-  // CLIENT-1 item 3 — Skip also hides while the phase holds the unticked "Label
-  // N containers" step (prepShowsSkip says why not `phase.skippable`).
+  // CLIENT-2 B1 — Skip shows at any time before the last phase, the label step's
+  // phase included (prepShowsSkip says why not `phase.skippable`).
   const footerSecondaryActions = [
-    ...(prepShowsSkip(phase, onLastPhase) ? [{ label: "Skip this Prep", onPress: onSkipPhase }] : []),
+    ...(prepShowsSkip(onLastPhase) ? [{ label: "Skip this Prep", onPress: onSkipPhase }] : []),
     { label: "Save & Exit", onPress: onSaveExit },
   ];
 
@@ -560,6 +571,7 @@ const s = StyleSheet.create({
     fontFamily: Typography.face.sans[400],
     lineHeight: 26,
   },
+  labelReassurance: { marginBottom: Spacing[2] },
 
   // checkbox (display-only this block)
   checkbox: {

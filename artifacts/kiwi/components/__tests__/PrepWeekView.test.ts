@@ -22,7 +22,7 @@ import {
 import type { PrepWeekResult } from "@/lib/api/cooking";
 import { prepUsesLargeTextLayout } from "@/lib/cooking/prepWeekLayout";
 import { prepWeekFixture } from "./fixtures/prep2PrepWeek";
-import { Colors } from "@/constants/tokens";
+import { Colors, Typography } from "@/constants/tokens";
 
 interface RenderedNode {
   type?: string;
@@ -642,7 +642,8 @@ test("skip: 'Skip this Prep' is HIDDEN on the last phase (2 footer actions, not 
   assert.ok(texts.includes("Save & Exit"), `last phase must keep Save & Exit: ${texts}`);
 });
 
-// ── CLIENT-1 item 3 — the label step is never skipped with its phase ─────────
+// ── CLIENT-2 B1 — Skip at any time, the label step's phase included ─────────
+// (CLIENT-1 item 3 hid Skip until the labels were ticked; BUG-509 reverses it.)
 
 /** The fixture with PREP-3 3b's label step leading phase 0, as labelWeekResult
  *  serves it (`skippable: false` on that phase). */
@@ -666,18 +667,47 @@ function labelled(stepKey = "week-labels", skippable = false): PrepWeekResult {
   return r;
 }
 
-test("CLIENT-1 3: the label step renders first, and Skip hides on its phase until it is ticked", () => {
+test("CLIENT-2 B1: Skip shows with the label step unticked, and still once it is ticked", () => {
   const texts = flat(renderView({ phaseIndex: 0, resultOverride: labelled() }).toJSON() as RenderedNode | null);
   assert.ok(texts.includes("Label 2 containers"), texts);
-  assert.ok(!texts.includes("Skip this Prep"), `Skip must hide while the labels are unwritten: ${texts}`);
+  assert.ok(texts.includes("Skip this Prep"), `Skip must show while the labels are unwritten: ${texts}`);
   assert.ok(texts.includes("Save & Exit") && texts.includes("Mark all complete"), texts);
   const ticked = flat(renderView({ phaseIndex: 0, resultOverride: labelled(), checked: ["week-labels"] }).toJSON() as RenderedNode | null);
-  assert.ok(ticked.includes("Skip this Prep"), `labels written → Skip is back: ${ticked}`);
+  assert.ok(ticked.includes("Skip this Prep"), `labels written → Skip still shows: ${ticked}`);
 });
 
-test("CLIENT-1 3: Prep the feast's label step hides Skip too, though its phase stays skippable", () => {
+test("CLIENT-2 B1: Prep the feast's unticked label step shows Skip too", () => {
   const texts = flat(renderView({ phaseIndex: 0, session: "feast", resultOverride: labelled("feast-labels", true) }).toJSON() as RenderedNode | null);
-  assert.ok(!texts.includes("Skip this Prep"), texts);
+  assert.ok(texts.includes("Skip this Prep"), texts);
+});
+
+test("CLIENT-2 B2: the label step opens with the reassurance line, above its instructions, in body type", () => {
+  const renderer = renderView({ phaseIndex: 0, resultOverride: labelled() });
+  const texts = flat(renderer.toJSON() as RenderedNode | null);
+  const line =
+    "Don't worry, some of these containers combine at the end of the prep session. We'll take you step by step through the fastest and easiest way to prep your week.";
+  const at = texts.indexOf(line);
+  assert.ok(at >= 0, `reassurance missing: ${texts}`);
+  assert.ok(at < texts.indexOf("Write these on tape"), `reassurance must come before the instructions: ${texts}`);
+  const find = (n: RenderedNode | string | null): RenderedNode | null => {
+    if (n == null || typeof n === "string") return null;
+    if (n.children?.length === 1 && n.children[0] === line) return n;
+    for (const c of n.children ?? []) {
+      const hit = find(c);
+      if (hit) return hit;
+    }
+    return null;
+  };
+  const node = find(renderer.toJSON() as RenderedNode | null);
+  assert.ok(node, "reassurance node missing");
+  const style = StyleSheet.flatten(node.props!.style as never) as { fontStyle?: string; fontSize?: number; fontFamily?: string };
+  assert.notEqual(style.fontStyle, "italic");
+  // The step's body type (s.stepInstructions): lg, DM Sans regular.
+  assert.equal(style.fontSize, Typography.fontSize.lg);
+  assert.equal(style.fontFamily, Typography.face.sans[400]);
+  // A step that is not a label step carries no such line.
+  const produce = flat(renderView({ phaseIndex: 2, resultOverride: labelled() }).toJSON() as RenderedNode | null);
+  assert.ok(!produce.includes("Don't worry"), produce);
 });
 
 test("CLIENT-1 3: BUG-020 stands — a non-skippable phase with no label step (Produce) keeps Skip", () => {

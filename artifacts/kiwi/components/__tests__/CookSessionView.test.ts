@@ -8,8 +8,10 @@ import { mock, test } from "node:test";
 
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
+import { StyleSheet } from "react-native";
 
 import { CookSessionView } from "../CookSessionView";
+import { Colors, Typography } from "@/constants/tokens";
 import type { CookStep } from "@/lib/cooking/cookSession";
 
 interface RenderedNode {
@@ -194,6 +196,30 @@ test("CLIENT-1 7: a long sequenced step carries 'Next step in N minutes'; a shor
   // The roast done in prep (collapsed): its card is the done-in-prep row, no line.
   const collapsed = flat(renderView({ steps, currentIndex: 1, doneInPrepKeys: new Set(["r#1"]) }).toJSON() as RenderedNode | null);
   assert.ok(!collapsed.includes("Next step in 12 minutes"), collapsed);
+});
+
+test("CLIENT-2 B3: 'Next step in N minutes' and 'Next step now' are bold deep sage, size unchanged", () => {
+  const steps: CookStep[] = [
+    { key: "r#1", text: "Roast the chicken 40 minutes", phaseType: "cook", estimatedMinutes: 40, isTimingSensitive: false, startOffsetMinutes: -45 },
+    { key: "s#0", text: "Toss the salad", phaseType: "assemble", estimatedMinutes: 6, isTimingSensitive: false, startOffsetMinutes: -33 },
+    { key: "p#0", text: "Simmer the stock 30 minutes", phaseType: "cook", estimatedMinutes: 30, isTimingSensitive: false, startOffsetMinutes: -27 },
+    { key: "p#1", text: "Strain it", phaseType: "cook", estimatedMinutes: 2, isTimingSensitive: false, startOffsetMinutes: -27 },
+  ];
+  const tree = renderView({ steps, currentIndex: 0 }).toJSON() as RenderedNode | null;
+  const lines: RenderedNode[] = [];
+  const walk = (n: RenderedNode | string | null | undefined) => {
+    if (n == null || typeof n === "string") return;
+    if (n.children?.length === 1 && typeof n.children[0] === "string" && n.children[0].startsWith("Next step")) lines.push(n);
+    for (const c of n.children ?? []) walk(c);
+  };
+  walk(tree);
+  assert.deepEqual(lines.map((l) => l.children![0]), ["Next step in 12 minutes", "Next step now"]);
+  for (const l of lines) {
+    const st = StyleSheet.flatten(l.props!.style as never) as { color?: string; fontFamily?: string; fontSize?: number };
+    assert.equal(st.color, Colors.sage[700]);
+    assert.equal(st.fontFamily, Typography.face.sans[700]);
+    assert.equal(st.fontSize, Typography.fontSize.sm);
+  }
 });
 
 // ── Gate ────────────────────────────────────────────────────────────────────

@@ -24,28 +24,23 @@ export function prepWeekFooterLine(
   return minutes > 0 ? `${lead} · This step: ~${minutes} min` : lead;
 }
 
-// CLIENT-1 item 3 — "Skip this Prep" and the label step.
+// CLIENT-2 B1 (BUG-509) — "Skip this Prep" at any time.
 //
-// PREP-3 3b puts "Label N containers" first, on the first phase with steps,
-// and the labels are never to be skipped with the phase they open. The server
-// says so with `skippable: false` on that phase, but the flag cannot be read
-// alone: PRD 13.4.1 has always sent `skippable: false` on Produce and Proteins,
-// and BUG-020 (Hans-ruled footer) shows Skip on every phase but the last
-// regardless of it. Honouring the flag would take Skip off Produce again. And
-// Prep the feast's label step keeps its phase's own flag (prepFeastLabels.ts
-// splices the step in before the phases are built). So the rule keys on the
-// step itself: Skip hides while the phase holds a label step not yet ticked.
-// Once the labels are written, skipping the rest of the phase skips nothing of
-// them, and Skip comes back.
+// CLIENT-1 item 3 hid Skip while the phase held an unticked "Label N
+// containers" step; Hans ruled Skip must be there at any time (the gate
+// blocked previewing the session). So Skip shows on every phase but the last
+// (BUG-020), whatever the phase's `skippable` flag says: PRD 13.4.1 sends
+// `false` on Produce and Proteins, PREP-3 3b on the label step's phase, and
+// the footer reads neither.
 
 /** The server's label step keys (prepWeekLabels.ts WEEK_LABEL_STEP_KEY,
  *  prepFeastLabels.ts FEAST_LABEL_STEP_KEY). */
 export const LABEL_STEP_KEYS: readonly string[] = ["week-labels", "feast-labels"];
 
-export function prepShowsSkip(
-  phase: { steps: readonly { stepKey: string; done: boolean }[] } | undefined,
-  onLastPhase: boolean,
-): boolean {
-  if (onLastPhase) return false;
-  return !(phase?.steps.some((s) => LABEL_STEP_KEYS.includes(s.stepKey) && !s.done) ?? false);
+export function prepShowsSkip(onLastPhase: boolean): boolean {
+  return !onLastPhase;
 }
+
+/** CLIENT-2 B2 (BUG-509) — Hans's line above the label step's instructions. */
+export const LABEL_STEP_REASSURANCE =
+  "Don't worry, some of these containers combine at the end of the prep session. We'll take you step by step through the fastest and easiest way to prep your week.";
