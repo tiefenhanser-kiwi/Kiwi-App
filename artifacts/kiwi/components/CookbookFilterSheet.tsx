@@ -2,7 +2,7 @@
 //
 // Rows: Cuisine (multi) · Total time (Any/≤30/≤45/≤60) · Hands-on time
 // (Any/≤15/≤20/≤30) · Difficulty (Easy/Medium/Hard, multi) · Nutrition per
-// serving (High protein 40 g+ · Under 600 kcal) · the LOCKED allergy line ·
+// serving (High protein 40 g+ · Under 600 kcal) · the allergy line (a lock when set, CLIENT-2 A2) ·
 // one disabled line, "Eating styles: coming in December" (BOOK-1C2) · Clear all + "Show N meals".
 //
 // The sheet edits a DRAFT of the screen's filters; nothing applies until
@@ -72,6 +72,7 @@ export function CookbookFilterSheet({
 
   const count = useCookbookCount({ q, filters: draft, tag }, visible);
   const n = count.data;
+  const allergy = allergyLine(allergies);
 
   // Every cuisine the facet knows, plus a selected one the facet no longer
   // counts (so a selection can always be undone from here).
@@ -168,14 +169,16 @@ export function CookbookFilterSheet({
             />
           </View>
 
-          {/* The locked line: not a control. "Profile" opens the preferences. */}
+          {/* The allergy line: not a control. "Profile" opens the preferences.
+              CLIENT-2 A2 — a lock only when it hides something (or may). */}
           <Pressable
             onPress={onOpenProfile}
             accessibilityRole="link"
-            style={({ pressed }) => [s.locked, pressed && { opacity: 0.8 }]}
+            testID="cookbook-allergy-line"
+            style={({ pressed }) => [allergy.locked ? s.locked : s.allergyPlain, pressed && { opacity: 0.8 }]}
           >
-            <Feather name="lock" size={14} color={Colors.neutral[700]} />
-            <Text style={s.lockedText}>{allergyLine(allergies)}</Text>
+            {allergy.locked && <Feather name="lock" size={14} color={Colors.neutral[700]} />}
+            <Text style={allergy.locked ? s.lockedText : s.allergyPlainText}>{allergy.text}</Text>
           </Pressable>
 
           {/* BOOK-1C2 — one disabled line, no named styles. Not a control:
@@ -285,6 +288,14 @@ const s = StyleSheet.create({
     flex: 1,
     fontSize: Typography.fontSize.sm,
     color: Colors.neutral[800],
+    fontFamily: Typography.face.sans[400],
+    lineHeight: 18,
+  },
+  // No allergies set: secondary text on the sheet, no fill (the soon line's tier).
+  allergyPlain: { marginTop: Spacing[5], paddingVertical: Spacing[2] },
+  allergyPlainText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
     lineHeight: 18,
   },

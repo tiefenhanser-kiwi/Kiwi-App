@@ -43,13 +43,20 @@ describe("askKiwiAction", () => {
 });
 
 describe("the filter sheet copy", () => {
-  test("the locked allergy line", () => {
-    assert.equal(
-      allergyLine(["Dairy-free", " Peanuts "]),
-      "Your allergies: always on: Dairy-free, Peanuts. Change them in Profile.",
-    );
-    assert.equal(allergyLine([]), "Your allergies: none set. Add them in Profile.");
-    assert.equal(allergyLine(null), "Your allergies are always on. Change them in Profile.");
+  test("CLIENT-2 A2: the allergy line — locked when some are set or still loading, plain when none are set", () => {
+    assert.deepEqual(allergyLine(["Dairy-free", " Peanuts "]), {
+      text: "Allergies always on: Dairy-free, Peanuts. Change them in Profile.",
+      locked: true,
+    });
+    assert.deepEqual(allergyLine([]), {
+      text: "Allergies: none set, so nothing is hidden. Add them in Profile.",
+      locked: false,
+    });
+    assert.deepEqual(allergyLine(["  "]), allergyLine([]));
+    assert.deepEqual(allergyLine(null), {
+      text: "Your allergies are always on. Change them in Profile.",
+      locked: true,
+    });
   });
 
   test("BOOK-1C2: eating styles are one line that names no style", () => {
