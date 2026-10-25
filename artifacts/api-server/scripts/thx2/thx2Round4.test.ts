@@ -4,6 +4,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
+import { nextPutInEdits, withNextClause } from "./thx2Next";
 import { panCountEdits, type OvenDish, type OvenStepRow } from "./thx2Oven";
 import { putInEdits } from "./thx2PutIn";
 import { thursdayPostPass } from "./thx2Thursday";
@@ -73,6 +74,38 @@ describe("THX-3d round 4 (A3) — the raise names only what fits beside the bird
       "Return the Cornbread Stuffing, uncovered, to the 350°F oven for 10 minutes, until hot again.",
     ]);
     assert.match(e.creates.find((c) => /^Raise the oven/.test(c.text))!.text, /; the Smashed Potatoes go in when the turkey comes out\.$/);
+  });
+});
+
+describe("THX-3d round 4 (B, BUG-507) — a put-in says what goes in next", () => {
+  const sides = (sweetMinutes: number) => {
+    const p: OvenDish = { dishId: "p", title: "Maple-Roasted Sweet Potatoes", positionIndex: 1, ovenRacks: 1, ovenVessel: "sheet" };
+    const g: OvenDish = { dishId: "g", title: "Roasted Green Beans", positionIndex: 2, ovenRacks: 1, ovenVessel: "sheet" };
+    const rows = [
+      ...birdRows(null).map((r) => (r.phaseType === "rest" ? { ...r, estimatedMinutes: 35 } : r)),
+      row("p", 0, "prep", 1, "On Thursday: Put the sweet potatoes in the oven."),
+      row("p", 1, "cook", sweetMinutes, `The sweet potatoes are in at 325°F. Roast ${sweetMinutes} minutes.`),
+      row("g", 0, "prep", 1, "On Thursday: Put the green beans in the oven."),
+      row("g", 1, "cook", 25, "The green beans are in at 325°F. Roast 25 minutes."),
+    ];
+    return { dishes: [BIRD, p, g], rows };
+  };
+
+  it("two put-ins 10 minutes apart: the first says the second's", () => {
+    const { dishes, rows } = sides(35);
+    assert.deepEqual(nextPutInEdits(dishes, rows), [{ dishId: "p", stepIndex: 0, text: "On Thursday: Put the sweet potatoes in the oven; the green beans go in 10 minutes from now." }]);
+  });
+
+  it("40 minutes apart: nothing (Cook Mode's 'Next step in' covers it)", () => {
+    const { dishes, rows } = sides(75);
+    assert.deepEqual(nextPutInEdits(dishes, rows), []);
+  });
+
+  it("the clause already there: no change on a second run", () => {
+    const { dishes, rows } = sides(35);
+    const once = rows.map((r) => (r.ownerId === "p" && r.stepIndex === 0 ? { ...r, stepTextTranslated: nextPutInEdits(dishes, rows)[0].text } : r));
+    assert.deepEqual(nextPutInEdits(dishes, once), []);
+    assert.equal(withNextClause("Put the sweet potatoes in the oven; the green beans go in 10 minutes from now.", null), "Put the sweet potatoes in the oven.");
   });
 });
 
