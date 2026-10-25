@@ -1,0 +1,438 @@
+{
+ "classic": [
+  {
+   "dishId": "d0",
+   "title": "Herb-Roasted Whole Turkey",
+   "positionIndex": 0,
+   "roleLabel": "main",
+   "ovenRacks": 0.5,
+   "ovenVessel": "unknown",
+   "steps": [
+    {
+     "stepIndex": 5,
+     "estimatedMinutes": 5,
+     "phaseType": "prep",
+     "isTimingSensitive": false,
+     "text": "On Thursday: Remove the turkey from the brine, discard the brine, and pat the turkey thoroughly dry with paper towels.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 6,
+     "estimatedMinutes": 30,
+     "phaseType": "hold",
+     "isTimingSensitive": false,
+     "text": "Let the turkey sit at room temperature for 30 minutes.",
+     "parallelGroup": "sit",
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 7,
+     "estimatedMinutes": 20,
+     "phaseType": "preheat",
+     "isTimingSensitive": false,
+     "text": "Preheat the oven to 325°F.",
+     "parallelGroup": "sit",
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 8,
+     "estimatedMinutes": 6,
+     "phaseType": "prep",
+     "isTimingSensitive": false,
+     "text": "Mash 6 tablespoons softened butter with 3 minced garlic cloves and 1 teaspoon black pepper; loosen the skin over the breast and thighs and push 4 sage sprigs and 2 rosemary sprigs under the skin.",
+     "parallelGroup": "sit",
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 9,
+     "estimatedMinutes": 4,
+     "phaseType": "prep",
+     "isTimingSensitive": false,
+     "text": "Rub the herb butter all over the outside of the bird; drizzle 2 tablespoons olive oil over the skin; stuff the cavity with 3 halved garlic cloves, 1 halved lemon, 1 quartered onion, and 4 thyme sprigs.",
+     "parallelGroup": "sit",
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 10,
+     "estimatedMinutes": 3,
+     "phaseType": "prep",
+     "isTimingSensitive": false,
+     "text": "Scatter 3 celery stalks and 2 carrots (cut into large pieces) in the bottom of a large roasting pan; set the turkey breast-side up on a roasting rack over the vegetables and pour 2 cups chicken broth into the pan.",
+     "parallelGroup": "sit",
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 11,
+     "estimatedMinutes": 162,
+     "phaseType": "cook",
+     "isTimingSensitive": false,
+     "text": "Roast the turkey at 325°F for about 2¾ hours; baste with pan drippings every 45 minutes.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 12,
+     "estimatedMinutes": 5,
+     "phaseType": "preheat",
+     "isTimingSensitive": false,
+     "text": "Raise the oven to 350°F and put in the Sage and Onion Stuffing and Green Bean Casserole.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 13,
+     "estimatedMinutes": 25,
+     "phaseType": "cook",
+     "isTimingSensitive": false,
+     "text": "Keep roasting the turkey at 350°F for about 25 more minutes, until an instant-read thermometer in the thickest part of the thigh reads 165°F.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 14,
+     "estimatedMinutes": 25,
+     "phaseType": "rest",
+     "isTimingSensitive": false,
+     "text": "Transfer the turkey to a carving board, tent loosely with foil, and rest 20–30 minutes before carving; reserve the pan drippings for the gravy.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 15,
+     "estimatedMinutes": 10,
+     "phaseType": "assemble",
+     "isTimingSensitive": false,
+     "text": "Carve the turkey and arrange on a large platter.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 16,
+     "estimatedMinutes": 2,
+     "phaseType": "assemble",
+     "isTimingSensitive": false,
+     "text": "Serve the Herb-Roasted Whole Turkey with the Pan Gravy, Sage and Onion Stuffing, Mashed Potatoes, Cranberry-Orange Sauce, Green Bean Casserole and Sweet Potato Casserole.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    }
+   ]
+  },
+  {
+   "dishId": "d1",
+   "title": "Pan Gravy",
+   "positionIndex": 1,
+   "roleLabel": "sauce",
+   "steps": [
+    {
+     "stepIndex": 3,
+     "estimatedMinutes": 5,
+     "phaseType": "prep",
+     "isTimingSensitive": false,
+     "text": "On Thursday: pour the turkey drippings from the roasting pan into a fat separator or large measuring cup; skim off and reserve ½ cup fat (supplement with 4 tablespoons butter if needed), leaving the dark juices behind.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 4,
+     "estimatedMinutes": 4,
+     "phaseType": "cook",
+     "isTimingSensitive": true,
+     "text": "Set the roasting pan over two burners on medium-high; add the reserved fat and whisk in ½ cup all-purpose flour, scraping up all the browned bits, and cook 2 minutes until the roux smells nutty.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 5,
+     "estimatedMinutes": 12,
+     "phaseType": "cook",
+     "isTimingSensitive": true,
+     "text": "Gradually whisk in the stock and the reserved pan juices; bring to a boil, then reduce to a steady simmer and cook 8–10 minutes, whisking often, until the gravy is thick enough to coat a spoon.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 6,
+     "estimatedMinutes": 1,
+     "phaseType": "assemble",
+     "isTimingSensitive": false,
+     "text": "Cover and keep warm over the lowest heat.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 7,
+     "estimatedMinutes": 2,
+     "phaseType": "prep",
+     "isTimingSensitive": false,
+     "text": "Strip the leaves from 2 thyme sprigs.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 8,
+     "estimatedMinutes": 1,
+     "phaseType": "assemble",
+     "isTimingSensitive": false,
+     "text": "Stir the thyme leaves in; season with 1 teaspoon kosher salt and ½ teaspoon black pepper, then pour the gravy into a warm gravy boat.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    }
+   ]
+  },
+  {
+   "dishId": "d2",
+   "title": "Sage and Onion Stuffing",
+   "positionIndex": 2,
+   "roleLabel": "side",
+   "ovenRacks": 0.5,
+   "ovenVessel": "dish",
+   "steps": [
+    {
+     "stepIndex": 9,
+     "estimatedMinutes": 30,
+     "phaseType": "cook",
+     "isTimingSensitive": false,
+     "text": "On Thursday: The stuffing is in at 350°F, covered. Bake 30 minutes.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 10,
+     "estimatedMinutes": 15,
+     "phaseType": "cook",
+     "isTimingSensitive": false,
+     "text": "Uncover and bake 15 minutes more until the top is golden and crisp.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 11,
+     "estimatedMinutes": 1,
+     "phaseType": "assemble",
+     "isTimingSensitive": false,
+     "text": "Turn the oven off and leave the sides inside, covered loosely with foil, to keep warm.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 12,
+     "estimatedMinutes": 5,
+     "phaseType": "assemble",
+     "isTimingSensitive": false,
+     "text": "Let the stuffing rest 5 minutes.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    }
+   ]
+  },
+  {
+   "dishId": "d3",
+   "title": "Mashed Potatoes",
+   "positionIndex": 3,
+   "roleLabel": "base",
+   "steps": [
+    {
+     "stepIndex": 0,
+     "estimatedMinutes": 8,
+     "phaseType": "prep",
+     "isTimingSensitive": false,
+     "text": "On Thursday: peel 5 pounds russet potatoes and cut into 2-inch chunks; put them in a large pot (at least 8-quart), cover with cold salted water by 2 inches, and leave the pot on the stove, off, until it's time to cook.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 1,
+     "estimatedMinutes": 7,
+     "phaseType": "cook",
+     "isTimingSensitive": false,
+     "text": "Turn the burner on under the pot of potatoes and bring to a boil over high heat.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 2,
+     "estimatedMinutes": 20,
+     "phaseType": "cook",
+     "isTimingSensitive": false,
+     "text": "Boil the potatoes over medium-high heat for 18–20 minutes until completely tender when pierced with a fork; drain well and return to the pot.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 3,
+     "estimatedMinutes": 5,
+     "phaseType": "assemble",
+     "isTimingSensitive": true,
+     "text": "Warm 1 cup whole milk and ½ cup heavy cream together in a small saucepan or microwave until steaming; mash the drained potatoes with 10 tablespoons butter until smooth.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 4,
+     "estimatedMinutes": 3,
+     "phaseType": "assemble",
+     "isTimingSensitive": true,
+     "text": "Stir in the warm milk-cream mixture gradually until the potatoes reach your preferred consistency; season with 2 teaspoons kosher salt and ¼ teaspoon white pepper.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 5,
+     "estimatedMinutes": 1,
+     "phaseType": "assemble",
+     "isTimingSensitive": false,
+     "text": "Cover and keep warm over the lowest heat.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 6,
+     "estimatedMinutes": 2,
+     "phaseType": "assemble",
+     "isTimingSensitive": false,
+     "text": "Transfer the potatoes to a warm serving bowl and garnish with 2 tablespoons thinly sliced fresh chives, if using.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    }
+   ]
+  },
+  {
+   "dishId": "d4",
+   "title": "Green Bean Casserole",
+   "positionIndex": 5,
+   "roleLabel": "side",
+   "ovenRacks": 0.5,
+   "ovenVessel": "dish",
+   "steps": [
+    {
+     "stepIndex": 7,
+     "estimatedMinutes": 25,
+     "phaseType": "cook",
+     "isTimingSensitive": false,
+     "text": "On Thursday: The green bean casserole is in at 350°F, covered. Bake 25 minutes.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 8,
+     "estimatedMinutes": 10,
+     "phaseType": "cook",
+     "isTimingSensitive": false,
+     "text": "Uncover, scatter 6 ounces fried onions evenly over the top, and bake uncovered 10 minutes more until the onions are golden and crisp.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 9,
+     "estimatedMinutes": 1,
+     "phaseType": "assemble",
+     "isTimingSensitive": false,
+     "text": "Turn the oven off and leave the sides inside, covered loosely with foil, to keep warm.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    }
+   ]
+  },
+  {
+   "dishId": "d5",
+   "title": "Sweet Potato Casserole",
+   "positionIndex": 6,
+   "roleLabel": "side",
+   "ovenRacks": 0.5,
+   "ovenVessel": "dish",
+   "steps": [
+    {
+     "stepIndex": 6,
+     "estimatedMinutes": 1,
+     "phaseType": "prep",
+     "isTimingSensitive": false,
+     "text": "On Thursday: Put the sweet potato casserole in the oven.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 7,
+     "estimatedMinutes": 20,
+     "phaseType": "cook",
+     "isTimingSensitive": false,
+     "text": "The sweet potato casserole is in at 350°F, covered. Bake 20 minutes.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 8,
+     "estimatedMinutes": 10,
+     "phaseType": "cook",
+     "isTimingSensitive": false,
+     "text": "Uncover and bake 10 minutes more until the streusel is golden and the filling is hot — if using marshmallows, broil 1–2 minutes at the very end until toasted.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    },
+    {
+     "stepIndex": 9,
+     "estimatedMinutes": 1,
+     "phaseType": "assemble",
+     "isTimingSensitive": false,
+     "text": "Turn the oven off and leave the sides inside, covered loosely with foil, to keep warm.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    }
+   ]
+  },
+  {
+   "dishId": "d6",
+   "title": "Pumpkin Pie",
+   "positionIndex": 7,
+   "roleLabel": "side",
+   "steps": [
+    {
+     "stepIndex": 6,
+     "estimatedMinutes": 4,
+     "phaseType": "assemble",
+     "isTimingSensitive": false,
+     "text": "On Thursday: whip 1 cup heavy cream to soft peaks and serve alongside the chilled pie, if using.",
+     "parallelGroup": null,
+     "componentKey": null,
+     "pathKey": null
+    }
+   ]
+  }
+ ]
+}

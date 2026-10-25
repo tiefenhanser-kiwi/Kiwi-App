@@ -123,7 +123,7 @@ const VEG_STEPS = [
 describe("THX-3c BUG-463 — Vegetarian's code-written steps", () => {
   it("a CONFLICT line for two oven steps overlapping at two temperatures (BUG-463 as it was), none at one", () => {
     const line = (dishId: string, temp: number, start: number, end: number) => ({ dishId, title: dishId, stepIndex: 1, temp, start, end, holder: false, afterBird: false });
-    const r = { holderTitle: null, ovenOut: null, total: 164, bird: null, lines: [line("wellington", 425, -40, -10), line("mac", 375, -40, -5), line("sprouts", 425, -38, -13)] };
+    const r = { holderTitle: null, ovenOut: null, total: 164, bird: null, racks: { stays: [], max: 0, over: [], overMinutes: 0 }, lines: [line("wellington", 425, -40, -10), line("mac", 375, -40, -5), line("sprouts", 425, -38, -13)] };
     assert.deepEqual(ovenConflicts(r), ["T-40→-10 425°F wellington #1 overlaps T-40→-5 375°F mac #1", "T-40→-5 375°F mac #1 overlaps T-38→-13 425°F sprouts #1"]);
     assert.deepEqual(ovenConflicts({ ...r, lines: [r.lines[0], r.lines[2]] }), []);
   });

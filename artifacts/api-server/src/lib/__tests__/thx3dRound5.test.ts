@@ -118,7 +118,7 @@ describe("THX-3d round 5 (D-WS9-322 (3)) — the main dish finishes last among t
 // as thursdaySchedule hands them to the scheduler — at their own servings, and New Twist at 4.
 const FEASTS = JSON.parse(readFileSync(new URL("./fixtures/thx3dRound5.feasts.json", import.meta.url), "utf8")) as Record<string, SchedulerDish[]>;
 const idOf = (ds: SchedulerDish[], title: RegExp) => ds.find((d) => title.test(d.title))!.dishId;
-const first = (ds: SchedulerDish[], dishId: string, pick: (s: SchedulerDish["steps"][number]) => boolean) => ds.find((d) => d.dishId === dishId)!.steps.find(pick)!;
+const first = (ds: SchedulerDish[], dishId: string, pick: (s: SchedulerDish["steps"][number] & { text: string }) => boolean) => ds.find((d) => d.dishId === dishId)!.steps.find((s) => pick({ ...s, text: s.text ?? "" }))!;
 const carveWait = (r: ReturnType<typeof scheduleCookingSequence>, ds: SchedulerDish[]) => {
   const bird = feastRoastDish(ds)!;
   const carve = first(ds, bird.dishId, (s) => /^Carve\b/.test(s.text));
@@ -127,7 +127,8 @@ const carveWait = (r: ReturnType<typeof scheduleCookingSequence>, ds: SchedulerD
 };
 
 describe("THX-3d round 5 (D-WS9-322) — the five feasts' own shapes", () => {
-  it("New Twist at 10: the sweet potatoes bake before the spatchcock goes in; 223 minutes (237 with the bird in at its own time, 229 with them after it)", () => {
+  // (226 since BUG-521: two platings no longer share the cook's hands; 223 in 5A.)
+  it("New Twist at 10: the sweet potatoes bake before the spatchcock goes in; 226 minutes (more with the bird in at its own time or with them after it)", () => {
     const ds = FEASTS["new-twist"];
     const r = scheduleCookingSequence(ds, { feastOven: true });
     const v = idOf(ds, /Sweet Potatoes/);
@@ -137,7 +138,7 @@ describe("THX-3d round 5 (D-WS9-322) — the five feasts' own shapes", () => {
     assert.ok(at(r, v, roast.stepIndex)! + roast.estimatedMinutes <= at(r, bird.dishId, birdIn.stepIndex)!, "out before the bird goes in");
     assert.ok(maxRacks(r, ds) <= OVEN_RACKS, `racks ${maxRacks(r, ds)}`);
     assert.ok(carveWait(r, ds) <= 10, `carve waits ${carveWait(r, ds)}`);
-    assert.ok(r.totalEstimatedMinutes <= 223, `total ${r.totalEstimatedMinutes}`);
+    assert.ok(r.totalEstimatedMinutes <= 226, `total ${r.totalEstimatedMinutes}`);
   });
 
   it("New Twist at 4: single pans fit the rest window; the carve still waits no more than 10 (the gravy's seasoning goes after it)", () => {

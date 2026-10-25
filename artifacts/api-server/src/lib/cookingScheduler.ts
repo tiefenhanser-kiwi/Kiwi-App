@@ -769,11 +769,15 @@ export function scheduleCookingSequence(
   // THX-3d (R4) — the steps merged away, for the client (it must not append them).
   const kept = new Set(mergeFeastPreheats(input).dishes.flatMap((d) => d.steps.map((s) => `${d.dishId}#${s.stepIndex}`)));
   const mergedSteps = input.flatMap((d) => d.steps.filter((s) => !kept.has(`${d.dishId}#${s.stepIndex}`)).map((s) => ({ dishId: d.dishId, stepIndex: s.stepIndex })));
-  // THX-3d round 2 (J) — the warm steps that are not needed today go with them.
-  const warm = feastWarmSteps(feastServeOrder(result, input), input);
-  const all = [...mergedSteps, ...(core.mergedSteps ?? []), ...warm.dropped].filter((m, i, a) => a.findIndex((x) => x.dishId === m.dishId && x.stepIndex === m.stepIndex) === i);
   // THX-3d round 4 (BUG-497 item 7) — the carve as late as the hands allow.
-  return { ...carveLate(warm.result, input), ...(all.length > 0 ? { mergedSteps: all } : {}) };
+  // THX-3d round 5 (BUG-521) — then a side kept warm is plated at serving (the carve again
+  // when that moved it), and the warm steps are decided on the day as it finally stands.
+  const carved = carveLate(feastServeOrder(result, input), input);
+  const plated = feastPlatedAtServing(carved, input);
+  // THX-3d round 2 (J) — the warm steps that are not needed today go with them.
+  const warm = feastWarmSteps(plated === carved ? carved : carveLate(plated, input), input);
+  const all = [...mergedSteps, ...(core.mergedSteps ?? []), ...warm.dropped].filter((m, i, a) => a.findIndex((x) => x.dishId === m.dishId && x.stepIndex === m.stepIndex) === i);
+  return { ...warm.result, ...(all.length > 0 ? { mergedSteps: all } : {}) };
 }
 
 // ── THX-3d round 3 (U) — SERVED HOT, AT SERVING TIME ─────────────────────────────────
@@ -955,7 +959,12 @@ export function serveLate(res: ScheduleResult, dishes: readonly SchedulerDish[],
     let t = end - len;
     while (t > was && !fits(t, r.keys)) t--;
     const lastKey = r.keys[r.keys.length - 1];
-    if (t <= was || t < floor || t + len < start.get(lastKey)! + minutes(lastKey)) continue;
+    if (t <= was || t < floor || t + len < start.get(lastKey)! + minutes(lastKey)) {
+      // THX-3d round 5 (BUG-521) — a run that stays keeps its hands (Classic's gravy, left
+      // at T−3, had the potatoes' plating put on top of it).
+      for (const k of r.keys) if (attended(k)) busy.push([start.get(k)!, start.get(k)! + minutes(k)]);
+      continue;
+    }
     let at = t;
     for (const k of r.keys) {
       placedAt.set(k, at);
@@ -1096,6 +1105,8 @@ export const OVEN_OFF_TEXT = "Turn the oven off and leave the sides inside, cove
 export const OVEN_OFF_STEP = /^\s*Turn the oven off and leave the sides inside\b/i;
 /** Minutes before serving that a side may finish without a warm step. */
 export const WARM_GAP = 15;
+/** A step that plates the dish (round 3, U): the keep-warm comes before it (thx2Warm), and round 5 serves it late. */
+export const PLATING_STEP = /\b(?:serving (?:bowl|dish|platter)|platter|gravy boat)\b/i;
 /** A side's own rest out of the oven: "Let the stuffing rest 5 minutes." */
 const REST_AFTER_OVEN = /^\s*Let (?:the [^.;]+?|it|them) rest \d+(?:\s*(?:–|-|to)\s*\d+)? minutes\.?\s*$/i;
 
@@ -1161,46 +1172,105 @@ export function carveLate(res: ScheduleResult, dishes: readonly SchedulerDish[])
    */
   const dur = (x: ScheduledStep) => stepFor(x)?.estimatedMinutes ?? 0;
   const overlaps = (a0: number, a1: number, b0: number, b1: number) => a0 < b1 && b0 < a1;
-  const tryPlace = (t: number): ScheduledStep[] | null => {
+  const tryPlace = (t: number, extra = 0): ScheduledStep[] | null => {
     const pos = new Map(res.steps.map((x) => [x, x.startOffsetMinutes] as const));
     pos.set(e, t);
+    // (Serving `extra` minutes later: the serve step and what follows it move with it.)
+    const later = (y: ScheduledStep) => extra > 0 && y.startOffsetMinutes >= serveAt;
     const blockers = res.steps
-      .filter((x) => x !== e && attended(x) && overlaps(t, t + L, x.startOffsetMinutes, x.startOffsetMinutes + dur(x)))
+      .filter((x) => x !== e && attended(x) && !later(x) && overlaps(t, t + L, x.startOffsetMinutes, x.startOffsetMinutes + dur(x)))
       .sort((a, b) => a.startOffsetMinutes - b.startOffsetMinutes);
     if (blockers.some(fixed)) return null;
-    const handsFree = (x: ScheduledStep, at: number) => res.steps.every((y) => y === x || !attended(y) || !overlaps(at, at + dur(x), pos.get(y)!, pos.get(y)! + dur(y)));
+    const handsFree = (x: ScheduledStep, at: number) => res.steps.every((y) => y === x || later(y) || !attended(y) || !overlaps(at, at + dur(x), pos.get(y)!, pos.get(y)! + dur(y)));
     for (const x of blockers) {
       const own = res.steps.filter((y) => y.dishId === x.dishId && y !== x);
       const predEnd = Math.max(-Infinity, ...own.filter((y) => y.originalStepIndex < x.originalStepIndex).map((y) => pos.get(y)! + dur(y)));
-      const succStart = Math.min(Infinity, ...own.filter((y) => y.originalStepIndex > x.originalStepIndex).map((y) => pos.get(y)!));
+      const succStart = Math.min(Infinity, ...own.filter((y) => y.originalStepIndex > x.originalStepIndex && !later(y)).map((y) => pos.get(y)!));
       let placed: number | null = null;
       for (let at = t - dur(x); at >= predEnd && at > c0 - 60 && placed === null; at--) if (handsFree(x, at)) placed = at;
-      for (let at = t + L; placed === null && at + dur(x) <= serveAt && at + dur(x) <= succStart; at++) if (handsFree(x, at)) placed = at;
+      for (let at = t + L; placed === null && at + dur(x) <= serveAt + extra && at + dur(x) <= succStart; at++) if (handsFree(x, at)) placed = at;
       if (placed === null) return null;
       pos.set(x, placed);
     }
     const { reason: _reason, ...plain } = e;
-    return res.steps.map((x) => (x === e ? { ...plain, startOffsetMinutes: t } : pos.get(x) !== x.startOffsetMinutes ? { ...x, startOffsetMinutes: pos.get(x)! } : x));
+    // Offsets stay serve-anchored: what moved later keeps its own, the rest move earlier.
+    const at = (x: ScheduledStep) => (later(x) ? x.startOffsetMinutes : pos.get(x)! - extra);
+    return res.steps.map((x) => (x === e ? { ...plain, startOffsetMinutes: t - extra } : at(x) !== x.startOffsetMinutes ? { ...x, startOffsetMinutes: at(x) } : x));
   };
   // The earliest slot that brings the wait within CARVED_WAIT_MAX (the least work moved);
-  // failing that, the latest one there is.
+  // THX-3d round 5 (BUG-521, D-WS9-322 (1)) — failing that, serving moves later by the
+  // fewest minutes that let the steps in the carve's way go after it (New Twist at 4
+  // servings: 12 minutes of plating after a carve that may end no more than 10 before
+  // serving, once two platings no longer share the cook's hands); failing that too, the
+  // latest slot there is.
   let best: ScheduledStep[] | null = null;
+  let grown = 0;
   for (let t = Math.max(c0 + 1, serveAt - L - CARVED_WAIT_MAX); t <= serveAt - L && !best; t++) best = tryAt(t) ?? tryPlace(t);
+  for (let extra = 1; extra <= CARVED_WAIT_MAX && !best; extra++) {
+    for (let t = Math.max(c0 + 1, serveAt + extra - L - CARVED_WAIT_MAX); t <= serveAt + extra - L && !best; t++) {
+      best = tryPlace(t, extra);
+      if (best) grown = extra;
+    }
+  }
   for (let t = serveAt - L - CARVED_WAIT_MAX - 1; t > c0 && !best; t--) best = tryAt(t) ?? tryPlace(t);
   if (!best) return res;
   const steps = best
     .sort((a, b) => a.startOffsetMinutes - b.startOffsetMinutes || a.sequenceIndex - b.sequenceIndex)
     .map((x, i) => ({ ...x, sequenceIndex: i }));
-  return { ...res, steps };
+  return { ...res, steps, totalEstimatedMinutes: res.totalEstimatedMinutes + grown };
 }
 
 export function feastWarmSteps(res: ScheduleResult, dishes: readonly SchedulerDish[]): { result: ScheduleResult; dropped: { dishId: string; stepIndex: number }[] } {
   const none = { result: res, dropped: [] };
+  const w = warmDecisions(res, dishes);
+  if (!w) return none;
+  const plated = keptWarmAtItsEnd(platedAtServing(res, dishes, w.kept, w.serve), dishes, w.kept);
+  if (w.drop.size === 0 && plated === res) return none;
+  const steps = plated.steps.filter((e) => !w.drop.has(`${e.dishId}#${e.originalStepIndex}`)).map((e, i) => ({ ...e, sequenceIndex: i }));
+  return { result: { ...plated, steps }, dropped: [...w.drop].map((k) => ({ dishId: k.split("#")[0], stepIndex: Number(k.split("#")[1]) })) };
+}
+
+/**
+ * THX-3d round 5 (BUG-521) — a kept keep-warm is the lid and the knob as its pot comes
+ * off the boil: it starts as its dish's step before it ends (it takes no hands; carveLate
+ * moves that step and not it — Classic's gravy simmered to T−19 and was covered at T−6).
+ */
+function keptWarmAtItsEnd(res: ScheduleResult, dishes: readonly SchedulerDish[], kept: readonly ScheduledStep[]): ScheduleResult {
+  const k = (dishId: string, stepIndex: number) => `${dishId}#${stepIndex}`;
+  const stepOf = new Map(dishes.flatMap((d) => d.steps.map((s) => [k(d.dishId, s.stepIndex), s] as const)));
+  const keys = new Set(kept.filter((e) => KEEP_WARM_STEP.test(stepOf.get(k(e.dishId, e.originalStepIndex))?.text ?? "")).map((e) => k(e.dishId, e.originalStepIndex)));
+  let changed = false;
+  const steps = res.steps.map((e) => {
+    if (!keys.has(k(e.dishId, e.originalStepIndex))) return e;
+    const prev = res.steps.filter((x) => x.dishId === e.dishId && x.originalStepIndex < e.originalStepIndex).sort((a, b) => b.originalStepIndex - a.originalStepIndex)[0];
+    const end = prev ? prev.startOffsetMinutes + (stepOf.get(k(prev.dishId, prev.originalStepIndex))?.estimatedMinutes ?? 0) : null;
+    if (end === null || end >= e.startOffsetMinutes) return e;
+    changed = true;
+    const { reason: _reason, ...plain } = e;
+    return { ...plain, startOffsetMinutes: end };
+  });
+  if (!changed) return res;
+  return { ...res, steps: steps.sort((a, b) => a.startOffsetMinutes - b.startOffsetMinutes || a.sequenceIndex - b.sequenceIndex).map((e, i) => ({ ...e, sequenceIndex: i })) };
+}
+
+/**
+ * THX-3d round 5 (BUG-521) — the day plated at serving, its warm steps not yet dropped:
+ * scheduleCookingSequence carves again after it (the plating may move the carve) and
+ * decides the warm steps on the day as it finally stands (the carve had moved Classic's
+ * gravy five minutes earlier after its keep-warm was dropped).
+ */
+export function feastPlatedAtServing(res: ScheduleResult, dishes: readonly SchedulerDish[]): ScheduleResult {
+  const w = warmDecisions(res, dishes);
+  return w ? platedAtServing(res, dishes, w.kept, w.serve) : res;
+}
+
+/** The warm steps the day drops (keys) and those it keeps, with the serve step; null when it has none. */
+function warmDecisions(res: ScheduleResult, dishes: readonly SchedulerDish[]): { drop: Set<string>; kept: ScheduledStep[]; serve: ScheduledStep | null } | null {
   const byDish = new Map(dishes.map((d) => [d.dishId, d]));
   const at = new Map(res.steps.map((e) => [`${e.dishId}#${e.originalStepIndex}`, e.startOffsetMinutes]));
   const textOf = (dishId: string, stepIndex: number) => byDish.get(dishId)?.steps.find((s) => s.stepIndex === stepIndex)?.text ?? "";
   const warm = res.steps.filter((e) => KEEP_WARM_STEP.test(textOf(e.dishId, e.originalStepIndex)) || OVEN_OFF_STEP.test(textOf(e.dishId, e.originalStepIndex)));
-  if (warm.length === 0) return none;
+  if (warm.length === 0) return null;
   const serve = res.steps.find((e) => FEAST_SERVE_STEP.test(textOf(e.dishId, e.originalStepIndex)));
   const serveAt = serve ? serve.startOffsetMinutes : 0;
   /** The end of the dish's last step before this one that `pick` accepts. */
@@ -1237,9 +1307,67 @@ export function feastWarmSteps(res: ScheduleResult, dishes: readonly SchedulerDi
     }
     drop.add(`${o.e.dishId}#${o.e.originalStepIndex}`);
   }
-  if (drop.size === 0) return none;
-  const steps = res.steps.filter((e) => !drop.has(`${e.dishId}#${e.originalStepIndex}`)).map((e, i) => ({ ...e, sequenceIndex: i }));
-  return { result: { ...res, steps }, dropped: [...drop].map((k) => ({ dishId: k.split("#")[0], stepIndex: Number(k.split("#")[1]) })) };
+  return { drop, kept: warm.filter((e) => !drop.has(`${e.dishId}#${e.originalStepIndex}`)), serve: serve ?? null };
+}
+
+/**
+ * THX-3d round 5 (BUG-521) — a side kept warm is plated at serving, not as it is kept warm.
+ * Classic's mashed potatoes were covered over the lowest heat at T−31 and went into the
+ * serving bowl at T−30, to sit there 28 minutes: serveLate found no free hands later (the
+ * gravy's simmer, the carve and the gravy's finish fill T−28 to serving). A kept warm
+ * step's plating (its first later step that puts the dish in its serving vessel, and the
+ * dish's steps after it) that starts more than WARM_GAP before serving goes to the latest
+ * moment the hands are free within WARM_GAP of serving; failing that, right before the
+ * serve step, which moves later by its minutes (the desserts after it with it). Only the
+ * plating: a dev copy written before round 3's keep-warm rule kept warm BEFORE the drain,
+ * and the drain and mash are not moved to serving with it. A day with nothing plated early
+ * is returned untouched.
+ */
+function platedAtServing(res: ScheduleResult, dishes: readonly SchedulerDish[], kept: readonly ScheduledStep[], serve: ScheduledStep | null): ScheduleResult {
+  if (!serve || kept.length === 0) return res;
+  const k = (dishId: string, stepIndex: number) => `${dishId}#${stepIndex}`;
+  const stepOf = new Map(dishes.flatMap((d) => d.steps.map((s) => [k(d.dishId, s.stepIndex), s] as const)));
+  const dur = (e: ScheduledStep) => stepOf.get(k(e.dishId, e.originalStepIndex))?.estimatedMinutes ?? 0;
+  const attended = (e: ScheduledStep) => { const s = stepOf.get(k(e.dishId, e.originalStepIndex)); return !!s && !isUnattended(s); };
+  const pos = new Map(res.steps.map((e) => [e, e.startOffsetMinutes] as const));
+  let total = res.totalEstimatedMinutes;
+  let changed = false;
+  for (const w of [...kept].sort((a, b) => a.startOffsetMinutes - b.startOffsetMinutes)) {
+    const after = res.steps
+      .filter((e) => e.dishId === w.dishId && e.originalStepIndex > w.originalStepIndex && e !== serve)
+      .sort((a, b) => a.originalStepIndex - b.originalStepIndex);
+    const plates = after.findIndex((e) => PLATING_STEP.test(stepOf.get(k(e.dishId, e.originalStepIndex))?.text ?? ""));
+    const run = plates < 0 ? [] : after.slice(plates);
+    const serveAt = pos.get(serve)!;
+    if (run.length === 0 || serveAt - pos.get(run[0])! <= WARM_GAP) continue;
+    const len = run.reduce((n, e) => n + dur(e), 0);
+    const others = res.steps.filter((e) => !run.includes(e) && attended(e));
+    const handsFree = (t: number) => {
+      let at = t;
+      for (const e of run) {
+        if (attended(e) && others.some((o) => at < pos.get(o)! + dur(o) && pos.get(o)! < at + dur(e))) return false;
+        at += dur(e);
+      }
+      return true;
+    };
+    let t: number | null = null;
+    for (let at = serveAt - len; at >= serveAt - WARM_GAP && t === null; at--) if (handsFree(at)) t = at;
+    if (t === null) {
+      // Before the serve step: everything that starts before it moves earlier by the run's
+      // minutes (the day grows by them; serve stays the end).
+      for (const e of res.steps) if (!run.includes(e) && pos.get(e)! < serveAt) pos.set(e, pos.get(e)! - len);
+      total += len;
+      t = serveAt - len;
+    }
+    for (const e of run) { pos.set(e, t); t += dur(e); }
+    changed = true;
+  }
+  if (!changed) return res;
+  const steps = res.steps
+    .map((e) => (pos.get(e) === e.startOffsetMinutes ? e : (({ reason: _reason, ...plain }) => ({ ...plain, startOffsetMinutes: pos.get(e)! }))(e)))
+    .sort((a, b) => a.startOffsetMinutes - b.startOffsetMinutes || a.sequenceIndex - b.sequenceIndex)
+    .map((e, i) => ({ ...e, sequenceIndex: i }));
+  return { ...res, steps, totalEstimatedMinutes: total };
 }
 
 // ── THX-3d (R4) — THE SERVE STEP, THEN DESSERT ──────────────────────────────────

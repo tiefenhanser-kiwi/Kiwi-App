@@ -4,8 +4,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
+import { KEEP_WARM_TEXT } from "../../src/lib/cookingScheduler";
 import { heldDishSteps, type OvenDish, type OvenStepRow } from "./thx2Oven";
 import { thursdayPostPass } from "./thx2Thursday";
+import { warmStepEdits } from "./thx2Warm";
 
 const row = (ownerId: string, stepIndex: number, phaseType: string, estimatedMinutes: number, text: string): OvenStepRow => ({
   ownerId, stepIndex, stepTextTranslated: text, phaseType, estimatedMinutes, isTimingSensitive: false, parallelGroup: null, componentKey: null, pathKey: null,
@@ -72,5 +74,28 @@ describe("THX-3d round 5 (D-WS9-322 (3)) — the main dish's crowded block", () 
   it("one pan: the sprouts share the oven, nothing is written", () => {
     const { dishes, steps } = rows(1);
     assert.ok(!heldDishSteps(dishes, steps).creates.some((c) => c.dishId === "b"));
+  });
+});
+
+describe("THX-3d round 5 (BUG-521) — the keep-warm comes before the knife work", () => {
+  const GRAVY: OvenDish = { dishId: "g", title: "Pan Gravy", positionIndex: 1, roleLabel: "side" };
+  const simmer = row("g", 0, "cook", 12, "Whisk in the stock; simmer 8–10 minutes, whisking often.");
+  const thyme = row("g", 1, "prep", 2, "Strip the leaves from 2 thyme sprigs.");
+  const season = row("g", 2, "assemble", 1, "Stir the thyme leaves in; season, then pour the gravy into a warm gravy boat.");
+
+  it("a gravy without one: covered after the simmer, before the thyme is stripped", () => {
+    const e = warmStepEdits([GRAVY], [simmer, thyme, season]);
+    assert.deepEqual(e.creates.map((c) => [c.stepIndex, c.text]), [[1, KEEP_WARM_TEXT]]);
+    assert.deepEqual(e.renumber.map((r) => [r.from, r.to]), [[2, 3], [1, 2]]);
+  });
+  it("Classic's, written after the thyme: it moves up (deleted, the thyme down one, written after the simmer)", () => {
+    const e = warmStepEdits([GRAVY], [simmer, thyme, row("g", 2, "assemble", 1, KEEP_WARM_TEXT), row("g", 3, "assemble", 1, season.stepTextTranslated)]);
+    assert.deepEqual(e.deletes, [{ dishId: "g", stepIndex: 2 }]);
+    assert.deepEqual(e.renumber.map((r) => [r.from, r.to]), [[1, 2]]);
+    assert.deepEqual(e.creates.map((c) => [c.stepIndex, c.text]), [[1, KEEP_WARM_TEXT]]);
+  });
+  it("once moved, nothing more (idempotent)", () => {
+    const e = warmStepEdits([GRAVY], [simmer, row("g", 1, "assemble", 1, KEEP_WARM_TEXT), row("g", 2, "prep", 2, thyme.stepTextTranslated), row("g", 3, "assemble", 1, season.stepTextTranslated)]);
+    assert.deepEqual([e.deletes, e.renumber, e.creates], [[], [], []]);
   });
 });
