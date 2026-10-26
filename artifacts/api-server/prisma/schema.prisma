@@ -1403,6 +1403,11 @@ model MealPlanItem {
   // for this plan; absent = fall back to the user/dish default. NULLABLE +
   // reversible. Nothing reads it yet (migration only).
   componentSelections Json?
+  // THX-4 (D-WS9-324) — the turkey's weight the cook chose, in pounds (½-lb
+  // steps; whole bird 8–20, spatchcock 8–16). The bird's dish follows it in
+  // place of the servings rule, and the roast and thaw follow it too. null =
+  // the default bird (the recipe's weight, following the servings).
+  birdWeightLb        Decimal?  @db.Decimal(4, 1)
   isBreakfast         Boolean   @default(false)
   isLunch             Boolean   @default(false)
   isDinner            Boolean   @default(true)
