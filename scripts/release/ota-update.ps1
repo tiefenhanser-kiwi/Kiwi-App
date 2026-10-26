@@ -6,8 +6,13 @@ OTA-1 -- a guarded EAS Update publish to the production channel, one platform at
 android or ios. Never both: D-WS9-279 sends an update to a platform only after that
 platform's binary is released, so each platform is its own publish.
 
+.PARAMETER Runtime
+1.1.0 or 1.2.0: which store binary the update is for. Each runtime has its own binary
+commit (the native gate diffs against it) and its own branch (1.1.0 ships from release/1.1,
+1.2.0 from next). The tree's app.json version must be this runtime.
+
 .PARAMETER ConfirmReleased
-I confirm this platform's 1.1 binary is released in its store (D-WS9-279).
+I confirm this platform's binary for -Runtime is released in its store (D-WS9-279).
 
 .PARAMETER Message
 The update message EAS shows on the dashboard.
@@ -17,8 +22,13 @@ Run every check, build and verify the bundle, print the publish command, publish
 #>
 # OTA-1. Hans runs it; nothing else in the repo calls it.
 #
-#   .\scripts\release\ota-update.ps1 -Platform android -ConfirmReleased -Message "..." -DryRun
-#   .\scripts\release\ota-update.ps1 -Platform android -ConfirmReleased -Message "..."
+#   .\scripts\release\ota-update.ps1 -Runtime 1.2.0 -Platform android -ConfirmReleased -Message "..." -DryRun
+#   .\scripts\release\ota-update.ps1 -Runtime 1.2.0 -Platform android -ConfirmReleased -Message "..."
+#
+# Two binaries (1.2-NATIVE G): 1.1.0 (216b2a0) and 1.2.0. A 1.1.0 update is built from the
+# release/1.1 branch, run from a worktree of it -- never from next, whose 1.2 JS imports
+# native modules the 1.1 binary lacks (expo-store-review throws at import there). Fixes that
+# 1.1 phones need are cherry-picked to release/1.1.
 #
 # Why a script: `eas update` reads NO build profile's env. EXPO_PUBLIC_API_BASE_URL lives in
 # eas.json build.production.env, so a plain `eas update` bundles whatever the shell or
@@ -28,13 +38,13 @@ Run every check, build and verify the bundle, print the publish command, publish
 # installed app at the wrong server until the next update.
 #
 # Steps, each refusing with one line:
-#   0. -ConfirmReleased is passed (D-WS9-279).
-#   1. git: branch next, HEAD = origin/next (only pushed code ships), artifacts\kiwi and
-#      scripts\release clean. eas's own clean-tree check is OFF in this project (no
-#      cli.requireCommit in eas.json) -- this is the only one.
-#   2. native gate: nothing changed since $BinaryCommit in the files that decide what the
-#      installed binary contains. app.json unchanged also means the runtime version is the
-#      binary's. package.json alone is compared as JSON and may differ in "scripts" (REL-0).
+#   0. -ConfirmReleased is passed (D-WS9-279); -Runtime's binary commit is recorded.
+#   1. git: the runtime's branch, HEAD = origin/<that branch> (only pushed code ships),
+#      artifacts\kiwi and scripts\release clean. eas's own clean-tree check is OFF in this
+#      project (no cli.requireCommit in eas.json) -- this is the only one.
+#   2. native gate: nothing changed since the runtime's binary commit in the files that
+#      decide what the installed binary contains, and app.json's version is -Runtime.
+#      package.json alone is compared as JSON and may differ in "scripts" (REL-0).
 #      pnpm-lock.yaml alone is compared by its artifacts/kiwi importer (+ the workspace
 #      importers that one links) and the overrides that can reach them (REL-0b).
 #   3. EAS: the production channel serves the production branch; the production
@@ -59,8 +69,9 @@ Run every check, build and verify the bundle, print the publish command, publish
 
 [CmdletBinding()]
 param(
+  [Parameter(Mandatory = $true)][ValidateSet('1.1.0', '1.2.0')][string]$Runtime,
   [Parameter(Mandatory = $true)][ValidateSet('android', 'ios')][string]$Platform,
-  [Parameter(HelpMessage = "I confirm this platform's 1.1 binary is released in its store (D-WS9-279)")][switch]$ConfirmReleased,
+  [Parameter(HelpMessage = "I confirm this platform's binary for -Runtime is released in its store (D-WS9-279)")][switch]$ConfirmReleased,
   [Parameter(Mandatory = $true)][string]$Message,
   [switch]$DryRun
 )
@@ -68,9 +79,17 @@ param(
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_release-lib.ps1')
 
-# The commit BOTH store binaries were built from (Android 1.1.0 vc5, iOS 1.1.0 b8).
-# UPDATE THIS AT EACH STORE BUILD -- the native gate diffs against it.
-$script:BinaryCommit = '216b2a0'
+# The store binaries, by runtime version (app.json "version"; runtimeVersion policy appVersion).
+#   Commit: what BOTH platforms' binaries of that runtime were built from -- the native gate
+#           diffs against it. RECORD IT AT EACH STORE BUILD; $null refuses at step 0.
+#   Branch: where that runtime's updates are built from.
+# -Runtime's ValidateSet lists the same keys.
+$script:Binaries = [ordered]@{
+  '1.1.0' = @{ Commit = '216b2a0'; Branch = 'release/1.1'; Builds = 'Android vc5, iOS build 8' }
+  '1.2.0' = @{ Commit = $null; Branch = 'next'; Builds = 'not built yet' }
+}
+$script:BinaryCommit = $script:Binaries[$Runtime].Commit
+$script:RuntimeBranch = $script:Binaries[$Runtime].Branch
 
 $script:KiwiDir = Join-Path $script:RepoRoot 'artifacts\kiwi'
 $script:NativePaths = @(
@@ -79,6 +98,10 @@ $script:NativePaths = @(
   'artifacts/kiwi/app.config.*',
   'artifacts/kiwi/ios',
   'artifacts/kiwi/android',
+  # 1.2-NATIVE: local config plugins and the Firebase file only reach the binary at prebuild.
+  'artifacts/kiwi/plugins',
+  'artifacts/kiwi/google-services.json',
+  'artifacts/kiwi/GoogleService-Info.plist',
   'pnpm-lock.yaml'
 )
 # The one native path compared as JSON, not as bytes: a change to its top-level "scripts"
@@ -128,13 +151,26 @@ $script:DevHostPatterns = [ordered]@{
 #                             the fallback when app.json has no router origin (it has one);
 #                             pulled in by ExpoHead.ios.js. It prefixes base.ts's dev
 #                             fallback, so 'localhost:3000/api' is refused outright below.
-$script:BundleAllowList = @{
-  'android' = @{ 'localhost' = @{ 'http://localhost:8081/' = 1 } }
-  'ios'     = @{
-    'localhost' = @{ 'http://localhost:8081/' = 1; 'http://localhost:3000' = 1 }
-    ':3000'     = @{ 'http://localhost:3000' = 1 }
+#
+# Per runtime: each runtime's bundles are built from its own lockfile. 1.2.0 starts as a
+# copy of 1.1.0 and is re-measured once the 1.2 native modules are in (1.2-NATIVE B).
+$script:BundleAllowListByRuntime = @{
+  '1.1.0' = @{
+    'android' = @{ 'localhost' = @{ 'http://localhost:8081/' = 1 } }
+    'ios'     = @{
+      'localhost' = @{ 'http://localhost:8081/' = 1; 'http://localhost:3000' = 1 }
+      ':3000'     = @{ 'http://localhost:3000' = 1 }
+    }
+  }
+  '1.2.0' = @{
+    'android' = @{ 'localhost' = @{ 'http://localhost:8081/' = 1 } }
+    'ios'     = @{
+      'localhost' = @{ 'http://localhost:8081/' = 1; 'http://localhost:3000' = 1 }
+      ':3000'     = @{ 'http://localhost:3000' = 1 }
+    }
   }
 }
+$script:BundleAllowList = $script:BundleAllowListByRuntime[$Runtime]
 # lib/api/base.ts's dev fallback: never allowed, whatever the baseline says.
 $script:DevFallback = 'localhost:3000/api'
 
@@ -351,6 +387,30 @@ function Test-OtaBundle {
   if ($extra.Count -gt 0) { $lines.Add('dev-host strings outside the baseline'); return $r }
   $r.Ok = $true
   return $r
+}
+
+# Step 0's runtime check: the refusal reason, or $null when -Runtime can be updated.
+function Test-RuntimeBinary {
+  param([Parameter(Mandatory = $true)][string]$Runtime)
+  if (-not $script:Binaries.Contains($Runtime)) { return "runtime $Runtime is not one of this script's binaries ($(@($script:Binaries.Keys) -join ', '))" }
+  if (-not $script:Binaries[$Runtime].Commit) { return "runtime $Runtime has no binary commit recorded -- set `$script:Binaries['$Runtime'].Commit to the commit its store builds came from" }
+  return $null
+}
+
+# Step 1's branch check: the refusal reason, or $null when the tree is on -Runtime's branch.
+function Test-RuntimeBranch {
+  param([Parameter(Mandatory = $true)][string]$Runtime, [AllowEmptyString()][string]$Branch)
+  $want = $script:Binaries[$Runtime].Branch
+  if ($Branch -ceq $want) { return $null }
+  $where = if ($want -ceq 'release/1.1') { ' (run it from your release/1.1 worktree)' } else { '' }
+  return "branch is '$Branch'; runtime $Runtime updates ship from $want$where"
+}
+
+# Step 2's runtime check: app.json's version (the runtime, policy appVersion) is -Runtime.
+function Test-TreeRuntime {
+  param([Parameter(Mandatory = $true)][string]$Runtime, [Parameter(Mandatory = $true)][string]$TreeRuntime)
+  if ($TreeRuntime -ceq $Runtime) { return $null }
+  return "app.json version is $TreeRuntime, not -Runtime $Runtime -- this tree builds runtime $TreeRuntime updates"
 }
 
 function Get-PublishArguments {
@@ -666,32 +726,38 @@ function Stop-Refused {
   exit 1
 }
 
-Write-Host ("ota-update - platform {0}{1}" -f $Platform, $(if ($DryRun) { ' (DRY RUN)' } else { '' }))
+Write-Host ("ota-update - runtime {0}, platform {1}{2}" -f $Runtime, $Platform, $(if ($DryRun) { ' (DRY RUN)' } else { '' }))
 
 # 0 --------------------------------------------------------------------------------------
-if (-not $ConfirmReleased) { Stop-Refused '0' "-ConfirmReleased not passed: confirm the $Platform 1.1 binary is released in its store (D-WS9-279)" }
+if (-not $ConfirmReleased) { Stop-Refused '0' "-ConfirmReleased not passed: confirm the $Platform $Runtime binary is released in its store (D-WS9-279)" }
 if (-not $Message.Trim() -or $Message -match '["\r\n]') { Stop-Refused '0' '-Message is empty or holds a double quote / newline' }
-Write-Host "[0] -ConfirmReleased: $Platform binary released (operator's word)"
+$why = Test-RuntimeBinary -Runtime $Runtime
+if ($why) { Stop-Refused '0' $why }
+Write-Host "[0] -ConfirmReleased: $Platform $Runtime binary released (operator's word); built from $script:BinaryCommit ($($script:Binaries[$Runtime].Builds))"
 
 # 1 --------------------------------------------------------------------------------------
 $branch = Invoke-GitText @('rev-parse', '--abbrev-ref', 'HEAD')
-if ($branch.ExitCode -ne 0 -or $branch.Lines[0] -ne 'next') { Stop-Refused '1' "branch is '$($branch.Lines -join '')', not next" }
+if ($branch.ExitCode -ne 0) { Stop-Refused '1' 'git rev-parse failed' }
+$why = Test-RuntimeBranch -Runtime $Runtime -Branch ($branch.Lines -join '')
+if ($why) { Stop-Refused '1' $why }
 $head = (Invoke-GitText @('rev-parse', 'HEAD')).Lines[0]
-$remote = Invoke-GitText @('rev-parse', '--verify', '--quiet', 'refs/remotes/origin/next')
-if ($remote.ExitCode -ne 0) { Stop-Refused '1' 'no origin/next ref' }
-if ($head -ne $remote.Lines[0]) { Stop-Refused '1' ("HEAD {0} is not origin/next {1} -- push (or pull) first; only pushed code ships" -f $head.Substring(0, 7), $remote.Lines[0].Substring(0, 7)) }
+$remote = Invoke-GitText @('rev-parse', '--verify', '--quiet', "refs/remotes/origin/$script:RuntimeBranch")
+if ($remote.ExitCode -ne 0) { Stop-Refused '1' "no origin/$script:RuntimeBranch ref" }
+if ($head -ne $remote.Lines[0]) { Stop-Refused '1' ("HEAD {0} is not origin/{1} {2} -- push (or pull) first; only pushed code ships" -f $head.Substring(0, 7), $script:RuntimeBranch, $remote.Lines[0].Substring(0, 7)) }
 $dirty = Invoke-GitText @('status', '--porcelain', '--', 'artifacts/kiwi', 'scripts/release')
 if ($dirty.ExitCode -ne 0) { Stop-Refused '1' 'git status failed' }
 if ($dirty.Lines.Count -gt 0) { Stop-Refused '1' ("{0} uncommitted path(s) under artifacts/kiwi or scripts/release, first: {1}" -f $dirty.Lines.Count, $dirty.Lines[0].Trim()) }
-Write-Host ("[1] git: next at {0} = origin/next; artifacts/kiwi and scripts/release clean" -f $head.Substring(0, 7))
+Write-Host ("[1] git: {0} at {1} = origin/{0}; artifacts/kiwi and scripts/release clean" -f $script:RuntimeBranch, $head.Substring(0, 7))
 
 # 2 --------------------------------------------------------------------------------------
+$runtime = Get-ExpectedRuntimeVersion
+$why = Test-TreeRuntime -Runtime $Runtime -TreeRuntime $runtime
+if ($why) { Stop-Refused '2' $why }
 $anc = Invoke-GitText @('merge-base', '--is-ancestor', $script:BinaryCommit, 'HEAD')
 if ($anc.ExitCode -ne 0) { Stop-Refused '2' "binary commit $script:BinaryCommit is not an ancestor of HEAD" }
 $gate = Test-NativeGate
 if (-not $gate.Ok) { Stop-Refused '2' $gate.Reason }
 $gate.Lines | ForEach-Object { Write-Host $_ }
-$runtime = Get-ExpectedRuntimeVersion
 Write-Host ("[2] native gate: no native change since {0} in {1}; runtime version {2} (appVersion)" -f $script:BinaryCommit, ($script:NativePaths -join ' '), $runtime)
 
 # 3 --------------------------------------------------------------------------------------

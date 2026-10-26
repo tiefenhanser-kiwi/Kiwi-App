@@ -13,7 +13,7 @@
 param([switch]$Keep)
 
 $ErrorActionPreference = 'Stop'
-. (Join-Path $PSScriptRoot 'ota-update.ps1') -Platform android -Message 'test'
+. (Join-Path $PSScriptRoot 'ota-update.ps1') -Runtime 1.1.0 -Platform android -Message 'test'
 . (Join-Path $PSScriptRoot '_fake-gcloud.ps1')
 
 $scratch = Join-Path ([IO.Path]::GetTempPath()) 'kiwi-ota-1-tests'
@@ -50,11 +50,34 @@ function New-FixtureDist {
 }
 
 Write-Host '== constants'
-Assert-Equal $script:BinaryCommit '216b2a0' 'binary commit'
+Assert-Equal $script:BinaryCommit '216b2a0' 'binary commit (dot-sourced as -Runtime 1.1.0)'
+Assert-Equal $script:RuntimeBranch 'release/1.1' 'runtime 1.1.0 ships from release/1.1'
 $r = Invoke-GitText @('cat-file', '-t', $script:BinaryCommit)
 Assert-Equal $r.Lines[0] 'commit' 'the binary commit exists in this clone'
-Assert-Equal (Get-ExpectedRuntimeVersion) '1.1.0' 'runtime version from app.json (appVersion policy)'
+Assert-True ($script:Binaries.Contains((Get-ExpectedRuntimeVersion))) 'app.json version (appVersion policy) is one of the binaries'
 Assert-True ($api -match '^https://kiwi-api-[^/]+\.run\.app/api$') 'production API URL read from eas.json'
+
+Write-Host '== -Runtime: two binaries (1.2-NATIVE G)'
+$rp = (Get-Command $otaUpdate).Parameters['Runtime']
+$vs = @($rp.Attributes | Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] })[0].ValidValues
+Assert-Equal ($vs -join ',') (@($script:Binaries.Keys) -join ',') '-Runtime ValidateSet = the Binaries keys'
+Assert-True (@($rp.Attributes | Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] -and $_.Mandatory }).Count -eq 1) '-Runtime is mandatory'
+Assert-Equal $script:Binaries['1.2.0'].Branch 'next' 'runtime 1.2.0 ships from next'
+Assert-Equal $script:BundleAllowListByRuntime.Count $script:Binaries.Count 'a bundle baseline per runtime'
+Assert-True ($null -eq (Test-RuntimeBinary -Runtime '1.1.0')) '1.1.0 has its binary commit'
+$saved12 = $script:Binaries['1.2.0'].Commit
+$script:Binaries['1.2.0'].Commit = $null
+Assert-True ((Test-RuntimeBinary -Runtime '1.2.0') -like 'runtime 1.2.0 has no binary commit recorded*') 'a runtime with no recorded commit is refused'
+$script:Binaries['1.2.0'].Commit = $saved12
+Assert-True ((Test-RuntimeBinary -Runtime '1.0.0') -like 'runtime 1.0.0 is not one of*') 'an unknown runtime is refused'
+Assert-True ($null -eq (Test-RuntimeBranch -Runtime '1.1.0' -Branch 'release/1.1')) '1.1.0 on release/1.1: ok'
+Assert-True ($null -eq (Test-RuntimeBranch -Runtime '1.2.0' -Branch 'next')) '1.2.0 on next: ok'
+$why = Test-RuntimeBranch -Runtime '1.1.0' -Branch 'next'
+Assert-Equal $why "branch is 'next'; runtime 1.1.0 updates ship from release/1.1 (run it from your release/1.1 worktree)" '1.1.0 from next: refused, naming the worktree'
+Assert-True ((Test-RuntimeBranch -Runtime '1.2.0' -Branch 'release/1.1') -like "branch is 'release/1.1'; runtime 1.2.0 updates ship from next") '1.2.0 from release/1.1: refused'
+Assert-True ($null -ne (Test-RuntimeBranch -Runtime '1.1.0' -Branch 'Release/1.1')) 'branch names compared case-sensitively'
+Assert-True ($null -eq (Test-TreeRuntime -Runtime '1.2.0' -TreeRuntime '1.2.0')) 'tree runtime = -Runtime: ok'
+Assert-Equal (Test-TreeRuntime -Runtime '1.1.0' -TreeRuntime '1.2.0') 'app.json version is 1.2.0, not -Runtime 1.1.0 -- this tree builds runtime 1.2.0 updates' 'a 1.2.0 tree asked for 1.1.0: refused'
 
 Write-Host '== the code reads exactly the EXPO_PUBLIC_* names the script knows'
 $reads = Get-CodePublicEnvReads
@@ -315,15 +338,29 @@ foreach ($k in 'Api', 'Domain', 'NoDot') {
 }
 
 Write-Host '== the script refuses before any git or eas call'
-$x = Invoke-ReleaseScript -Script $otaUpdate -Arguments @('-Platform', 'android', '-Message', 'm', '-DryRun')
+$x = Invoke-ReleaseScript -Script $otaUpdate -Arguments @('-Runtime', '1.1.0', '-Platform', 'android', '-Message', 'm', '-DryRun')
 $x.Lines | ForEach-Object { Write-Host "    | $_" }
 Assert-Equal $x.ExitCode 1 'no -ConfirmReleased: exit 1'
-Assert-True ($x.Text -like '*REFUSED at step 0: -ConfirmReleased not passed*D-WS9-279*') 'step 0 names D-WS9-279'
+Assert-True ($x.Text -like '*REFUSED at step 0: -ConfirmReleased not passed*android 1.1.0 binary*D-WS9-279*') 'step 0 names the runtime and D-WS9-279'
 Assert-True (-not ($x.Text -like '*`[1`]*')) 'nothing after step 0 ran'
-$x = Invoke-ReleaseScript -Script $otaUpdate -Arguments @('-Platform', 'all', '-ConfirmReleased', '-Message', 'm', '-DryRun')
+$x = Invoke-ReleaseScript -Script $otaUpdate -Arguments @('-Runtime', '1.1.0', '-Platform', 'all', '-ConfirmReleased', '-Message', 'm', '-DryRun')
 Assert-True ($x.ExitCode -ne 0 -and $x.Text -like '*ValidateSet*') '-Platform all is not accepted'
-$x = Invoke-ReleaseScript -Script $otaUpdate -Arguments @('-Platform', 'android', '-ConfirmReleased', '-Message', ' ', '-DryRun')
+$x = Invoke-ReleaseScript -Script $otaUpdate -Arguments @('-Runtime', '1.0.0', '-Platform', 'android', '-ConfirmReleased', '-Message', 'm', '-DryRun')
+Assert-True ($x.ExitCode -ne 0 -and $x.Text -like '*ValidateSet*') '-Runtime 1.0.0 is not accepted'
+$x = Invoke-ReleaseScript -Script $otaUpdate -Arguments @('-Runtime', '1.1.0', '-Platform', 'android', '-ConfirmReleased', '-Message', ' ', '-DryRun')
 Assert-True ($x.ExitCode -eq 1 -and $x.Text -like '*REFUSED at step 0: -Message is empty*') 'blank -Message refused'
+if (-not $script:Binaries['1.2.0'].Commit) {
+  $x = Invoke-ReleaseScript -Script $otaUpdate -Arguments @('-Runtime', '1.2.0', '-Platform', 'ios', '-ConfirmReleased', '-Message', 'm', '-DryRun')
+  $x.Lines | ForEach-Object { Write-Host "    | $_" }
+  Assert-True ($x.ExitCode -eq 1 -and $x.Text -like '*REFUSED at step 0: runtime 1.2.0 has no binary commit recorded*') '-Runtime 1.2.0 before its build is recorded: refused at step 0'
+  Assert-True (-not ($x.Text -like '*`[1`]*')) 'and no git or eas call ran'
+}
+$x = Invoke-ReleaseScript -Script $otaUpdate -Arguments @('-Runtime', '1.1.0', '-Platform', 'android', '-ConfirmReleased', '-Message', 'm', '-DryRun')
+$x.Lines | ForEach-Object { Write-Host "    | $_" }
+$onBranch = (Invoke-GitText @('rev-parse', '--abbrev-ref', 'HEAD')).Lines -join ''
+if ($onBranch -cne 'release/1.1') {
+  Assert-True ($x.ExitCode -eq 1 -and $x.Text -like "*REFUSED at step 1: branch is '$onBranch'; runtime 1.1.0 updates ship from release/1.1*") '-Runtime 1.1.0 off release/1.1: refused at step 1, before any eas call'
+}
 
 if (-not $Keep) { Remove-Item -LiteralPath $scratch -Recurse -Force }
 Write-Host ''
