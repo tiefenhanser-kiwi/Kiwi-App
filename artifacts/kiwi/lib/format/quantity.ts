@@ -503,6 +503,8 @@ export interface ScalableIngredient {
   name: string;
   quantity: number;
   unit?: string | null;
+  /** THX-4 — read only to find a turkey's weight ("12–14 lb, neck … reserved"). */
+  preparationNote?: string | null;
 }
 
 /**
@@ -538,6 +540,9 @@ export function dishScaleFactor(
 export interface BirdLine {
   parts: number;
   birds: number;
+  /** THX-4 — the cook chose this dish's turkey's weight (chosenBird): its line has
+   *  no floor under it, and a turkey written by count is one bird. */
+  chosen?: boolean;
 }
 
 /** No bird by count: parts and equipment as written. */
@@ -586,6 +591,8 @@ export function lineMultiplier(
 ): number {
   if (isEquipment(name)) return birds.birds;
   if (isBirdPart(name)) return birds.parts;
+  // THX-4 — a chosen weight: the bird's own factor with no floor; ONE bird by count.
+  if (birds.chosen) return quantity && quantity > 0 && isWholeBirdByCount(unit, name) ? 1 / quantity : dishFactor;
   return wholeItemMultiplier(dishFactor, unit, name, quantity);
 }
 
@@ -595,11 +602,14 @@ export function lineMultiplier(
  * a one-dish meal's steps are that dish's; otherwise servings. `birds` and
  * `mealOwnedBirds` are the same for the parts and the equipment (BirdLine).
  * `feast` is isFeastMeal(meal.tags): only there does a dish follow a bird by count.
+ * `birdLb` (THX-4) is the turkey weight the cook chose (meal.birdWeightLb); null or
+ * absent, nothing changes.
  */
 export function mealScaleFactors(
   dishes: readonly { dishId: string; ingredients: readonly ScalableIngredient[] }[],
   multiplier: number,
   feast = false,
+  birdLb?: number | null,
 ): {
   byDish: Readonly<Record<string, number>>;
   mealOwned: number;
@@ -608,8 +618,15 @@ export function mealScaleFactors(
 } {
   const byDish: Record<string, number> = {};
   const birds: Record<string, BirdLine> = {};
-  const parts = birdPartsFactor(dishes, multiplier, feast);
+  const chosen = chosenBird(dishes, birdLb);
+  // A chosen weight is one bird: its parts are that bird's, in every dish.
+  const parts = chosen ? chosen.birds.parts : birdPartsFactor(dishes, multiplier, feast);
   for (const d of dishes) {
+    if (chosen && d.dishId === chosen.dishId) {
+      byDish[d.dishId] = chosen.factor;
+      birds[d.dishId] = chosen.birds;
+      continue;
+    }
     byDish[d.dishId] = dishScaleFactor(d.ingredients, multiplier, feast);
     birds[d.dishId] = dishBirdLine(d.ingredients, multiplier, feast, parts);
   }
@@ -620,6 +637,92 @@ export function mealScaleFactors(
     birds,
     mealOwnedBirds: only !== undefined ? birds[only] : { parts, birds: 1 },
   };
+}
+
+// ── THX-4 (D-WS9-324) — THE TURKEY'S WEIGHT, CHOSEN BY THE COOK ─────────────
+//
+// A plan item may carry the weight of the turkey the cook has (meal.birdWeightLb,
+// ½-lb steps). Then that one bird replaces the servings rule in its dish, as the
+// server's prepQuantity dishRowMultipliers(`birdLb`) does for grocery and Prep:
+//   - the bird's line shows the chosen weight, with NO floor under it (the cook
+//     chose it: 8 lb is 8 lb, where the servings rule floors a turkey at 10);
+//   - a turkey written by count stays ONE bird ("1 whole turkey"), at any servings;
+//   - every other line of its dish follows chosen ÷ the recipe's weight;
+//   - its parts are the one bird's; equipment prints as written.
+// Turkeys only (v1), found as the server finds them (weighedTurkeyOf): by weight
+// ("14 pound whole turkey"), or by count with a weight in its name or its note (the
+// upper end of "12–14 lb"). A breast is not a whole bird. With no weight chosen,
+// nothing here runs.
+
+const TURKEY = /\bturkeys?\b/i;
+
+/** The turkey a cook can weigh in one dish's rows (server prepQuantity weighedTurkeyOf). */
+export function weighedTurkeyOf(
+  ingredients: readonly ScalableIngredient[],
+): { index: number; recipeLb: number; byCount: boolean } | null {
+  for (const [index, r] of ingredients.entries()) {
+    const unit = r.unit ?? "";
+    if (!(r.quantity > 0) || !TURKEY.test(r.name)) continue;
+    if (isWholeBirdByWeight(unit, r.name)) {
+      const per = poundsPer(unit);
+      if (per !== null) return { index, recipeLb: r.quantity * per, byCount: false };
+    }
+    if (isWholeBirdByCount(unit, r.name)) {
+      const each = birdWeightInName(r.name) ?? (r.preparationNote ? birdWeightInName(r.preparationNote) : null);
+      if (each !== null) return { index, recipeLb: each * r.quantity, byCount: true };
+    }
+  }
+  return null;
+}
+
+/**
+ * The meal's chosen bird: the first dish (in meal order, the server's mealBirdOf)
+ * holding a turkey the cook may weigh, its factor (chosen ÷ the recipe's weight) and
+ * its BirdLine. Null when no weight is chosen or there is no such turkey.
+ */
+export function chosenBird(
+  dishes: readonly { dishId: string; ingredients: readonly ScalableIngredient[] }[],
+  birdLb: number | null | undefined,
+): { dishId: string; factor: number; birds: BirdLine } | null {
+  if (birdLb === null || birdLb === undefined || !(birdLb > 0)) return null;
+  for (const d of dishes) {
+    const t = weighedTurkeyOf(d.ingredients);
+    if (!t) continue;
+    const written = d.ingredients[t.index].quantity;
+    return {
+      dishId: d.dishId,
+      factor: birdLb / t.recipeLb,
+      birds: { parts: t.byCount ? 1 / written : 1, birds: 1, chosen: true },
+    };
+  }
+  return null;
+}
+
+/**
+ * The weight the meal's turkey has with none chosen, at this servings multiplier, to
+ * the ¼ lb: the server's birdShownLb (birdWeight defaultShownLb), for a servings
+ * count the server has not been told yet (the stepper's unsaved servings, a Reset).
+ * By count, it is the birds shown × each bird's pounds. Null with no weighable turkey.
+ */
+export function defaultBirdLb(
+  dishes: readonly { ingredients: readonly ScalableIngredient[] }[],
+  multiplier: number,
+  feast = false,
+): number | null {
+  for (const d of dishes) {
+    const t = weighedTurkeyOf(d.ingredients);
+    if (!t) continue;
+    const row = d.ingredients[t.index];
+    const factor = dishScaleFactor(d.ingredients, multiplier, feast);
+    // The bird row's multiplier, as prepQuantity dishRowMultipliers gives it.
+    const m = !t.byCount
+      ? wholeItemMultiplier(factor, row.unit ?? "", row.name, row.quantity)
+      : feast
+        ? factor
+        : birdsShown(row.quantity * multiplier) / row.quantity;
+    return Math.round(t.recipeLb * m * 4) / 4;
+  }
+  return null;
 }
 
 /**
