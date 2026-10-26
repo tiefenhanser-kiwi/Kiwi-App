@@ -53,7 +53,8 @@
         "foregroundImage": "./assets/images/adaptive-icon-foreground-1024.png",
         "backgroundColor": "#3a5235"
       },
-      "package": "com.kitchenwizard.kiwi"
+      "package": "com.kitchenwizard.kiwi",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "favicon": "./assets/images/favicon-64.png"
