@@ -33,6 +33,7 @@ import { BillingProvider } from "@/contexts/BillingContext";
 import { PaywallSheet } from "@/components/PaywallSheet";
 import { GuestProvider, useGuestStoreReady, useIsGuestSafe } from "@/contexts/GuestContext";
 import { ToastProvider } from "@/contexts/ToastProvider";
+import { UPDATE_LINE_ENABLED, UpdateReadyLine } from "@/components/UpdateReadyLine";
 import { Palette } from "@/constants/tokens";
 import { sessionGateShouldEvict } from "@/lib/sessionBootstrap";
 import { installWebWheelScroll, webScreenLayout } from "@/lib/webLayout";
@@ -265,6 +266,10 @@ export default function RootLayout() {
                             nothing while `sheet` is null, which is every state but
                             the three entry points. */}
                         <PaywallSheet />
+                        {/* BUG-525 — "Kiwi updated — tap to restart", on a
+                            return to the foreground. Not on web, not in a dev
+                            build, never in Cook Mode or Prep the Week. */}
+                        {UPDATE_LINE_ENABLED && <UpdateReadyLine />}
                         {/* WEB-1 Part A — the web host for lib/dialog.ts
                             (react-native-web's Alert is an empty stub). LAST,
                             so a dialog overlays the navigator and the paywall.
