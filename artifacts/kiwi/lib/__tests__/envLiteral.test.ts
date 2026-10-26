@@ -72,6 +72,8 @@ test("the EXPO_PUBLIC_ names the app reads — the EAS environment list", () => 
     "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID",
     "EXPO_PUBLIC_REVENUECAT_ANDROID_KEY",
     "EXPO_PUBLIC_REVENUECAT_IOS_KEY",
+    // 1.2-NATIVE B — optional: empty keeps crash reporting off.
+    "EXPO_PUBLIC_SENTRY_DSN",
     "EXPO_PUBLIC_TURNSTILE_SITE_KEY",
   ]);
 });
