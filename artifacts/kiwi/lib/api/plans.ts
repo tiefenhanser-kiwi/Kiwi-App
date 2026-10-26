@@ -109,6 +109,9 @@ export const PlanDetailItemSchema = z.object({
   // labels. A string here, narrowed by lib/cooking/hubModel.ts, so a value this
   // client does not know reads as absent instead of failing the plan read.
   prepState: z.string().optional(),
+  // THX-4 (D-WS9-324) — the turkey weight the cook chose. GET /plans/:id sends it
+  // only when set; the item PATCH echoes it always (null = the default bird).
+  birdWeightLb: z.number().nullish(),
   meal: MealDetailSchema.nullable(),
 });
 export type PlanDetailItem = z.infer<typeof PlanDetailItemSchema>;
@@ -514,6 +517,8 @@ export interface PatchPlanItemBody {
   slot?: "breakfast" | "lunch" | "dinner";
   assignedDayOfWeek?: string | null;
   servingsOverride?: number | null;
+  /** THX-4 — the turkey's weight (½-lb steps in the meal's range); null = the default bird. */
+  birdWeightLb?: number | null;
   ingredientOverrides?: unknown;
   recipeOverrideJson?: unknown;
   notes?: string | null;

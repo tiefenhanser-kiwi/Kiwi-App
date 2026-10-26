@@ -11,6 +11,7 @@ import type { PlanDetail, PlanDetailItem } from "@/lib/api/plans";
 import type { MealDetail } from "@/lib/api/meals";
 import { buildDayStrip } from "@/lib/domain";
 import { formatMealTime } from "@/lib/mealTimeLine";
+import { birdWeightLabel } from "@/lib/meals/birdWeight";
 import type { ReviewPlan, ReviewPlanMealRow } from "@/lib/types";
 
 import { toDayOfWeek } from "./dayOfWeek";
@@ -85,7 +86,11 @@ function itemToRow(
     // WS9 BUG-153 — one-line sub-text for the plan-review row.
     description: meal.description ?? undefined,
     cuisine: meal.cuisine.length > 0 ? meal.cuisine : undefined,
-    metaLine: formatMealDetailMetaLine(meal, effectiveServings),
+    // THX-4 (D-WS9-324) — a feast's turkey weight, when the cook chose one. The
+    // meta line only: the stepper is the meal screen's.
+    metaLine:
+      formatMealDetailMetaLine(meal, effectiveServings) +
+      (item.birdWeightLb != null ? ` · Turkey ${birdWeightLabel(item.birdWeightLb)}` : ""),
     caloriesPerServing: meal.calories,
     proteinGPerServing: meal.protein,
     carbsGPerServing: meal.carbs,

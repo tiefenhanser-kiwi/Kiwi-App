@@ -17,10 +17,18 @@ import { useQuery } from "@tanstack/react-query";
 
 import { getCookingSequence, type CookingSequence } from "@/lib/api/cooking";
 
-export function useCookingSequence(mealId: string, enabled: boolean) {
+// THX-4 (D-WS9-324) — from a plan, the plan item rides the request (its turkey
+// weight sets the roast) and the key, so one meal in two plans, or in a plan and
+// the library, never shares an ordering. A weight Save marks
+// ["cooking","sequence",mealId] stale (AppContext savePlanItemAmounts).
+export function cookingSequenceQueryKey(mealId: string, planItemId?: string) {
+  return planItemId ? ["cooking", "sequence", mealId, planItemId] : ["cooking", "sequence", mealId];
+}
+
+export function useCookingSequence(mealId: string, enabled: boolean, planItemId?: string) {
   return useQuery<CookingSequence>({
-    queryKey: ["cooking", "sequence", mealId],
-    queryFn: () => getCookingSequence(mealId),
+    queryKey: cookingSequenceQueryKey(mealId, planItemId),
+    queryFn: () => getCookingSequence(mealId, planItemId),
     enabled: enabled && mealId.length > 0,
     staleTime: Infinity,
   });

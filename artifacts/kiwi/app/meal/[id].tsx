@@ -68,6 +68,13 @@ import {
 import { dialog } from "@/lib/dialog";
 import { goBack } from "@/lib/navigation";
 import { IngredientAmountNote } from "@/components/IngredientAmountNote";
+import { BirdWeightStepper } from "@/components/BirdWeightStepper";
+import {
+  birdStepperOf,
+  birdWeightDirty,
+  shownBirdLb,
+  stepBirdWeight,
+} from "@/lib/meals/birdWeight";
 
 // BUG-453 — the household range (lib/meals/servingsSaveGate.ts), not 12.
 const SERVINGS_MIN = MEAL_SERVINGS_MIN;
@@ -209,7 +216,7 @@ function MealDetailContent({
   openIngredients?: boolean;
 }) {
   const router = useRouter();
-  const { setServingsForPlanItem, updateMeal, addMealToPlan, removeMealFromPlan } =
+  const { savePlanItemAmounts, updateMeal, addMealToPlan, removeMealFromPlan } =
     useApp();
   const { user: authUser } = useAuth();
   // Row 9 (1.1) Stripe S2 Part E -- above every early return, per the block rule.
@@ -255,6 +262,15 @@ function MealDetailContent({
     setDisplayServings(meal.effectiveServings);
   }, [meal.effectiveServings]);
 
+  // THX-4 (D-WS9-324) — the turkey's weight: the servings stepper's posture. The
+  // stepper changes the displayed weight (null = the default bird) and every amount
+  // follows it at once; the one Save below persists it; a refetch re-seeds it.
+  const bird = birdStepperOf(meal);
+  const [displayBirdLb, setDisplayBirdLb] = useState<number | null>(meal.birdWeightLb ?? null);
+  useEffect(() => {
+    setDisplayBirdLb(meal.birdWeightLb ?? null);
+  }, [meal.birdWeightLb]);
+
   // D-WS9-058 — the deep link. "tapping it opens meal detail ANCHORED to the
   // ingredients area with the modal expanded — the user lands where the
   // information lives." Runs once: the flag is a route param, so re-firing it
@@ -297,8 +313,12 @@ function MealDetailContent({
   // WEB-4b (BUG-454) — each dish scales by its own factor: servings, or its
   // whole bird's (the brine follows the bird). A step takes its dish's; the
   // meal-owned steps (which composeMealDetail also copies onto every dish) take
-  // `mealOwned`.
-  const scale = mealScaleFactors(meal.dishes, servingsMultiplier, isFeastMeal(meal.tags));
+  // `mealOwned`. THX-4 — a chosen turkey weight replaces the servings in its dish.
+  const birdLb = bird ? displayBirdLb : null;
+  const scale = mealScaleFactors(meal.dishes, servingsMultiplier, isFeastMeal(meal.tags), birdLb);
+  const birdShown = bird
+    ? shownBirdLb({ stepper: bird, displayLb: displayBirdLb, meal, displayServings, servingsMultiplier })
+    : null;
   const stepFactor = new Map<MealStep, number>();
   // WEB-4c (BUG-462) — and its dish's parts and equipment factors.
   const stepBirds = new Map<MealStep, BirdLine>();
@@ -389,11 +409,14 @@ function MealDetailContent({
   // The plan instance is dirty when the displayed servings diverges from the
   // server-resolved (saved) effectiveServings. Save is offered only in a plan
   // context — the library/canonical Save is Sub-block 3.
-  const showSaveServings = shouldShowSaveServings(
+  const servingsDirty = shouldShowSaveServings(
     canPersistServings,
     displayServings,
     meal.effectiveServings,
   );
+  // THX-4 — the weight shares the Save (one PATCH carries whatever changed).
+  const birdDirty = canPersistServings && birdWeightDirty(displayBirdLb, bird);
+  const showSaveServings = servingsDirty || birdDirty;
   const [savingServings, setSavingServings] = useState(false);
 
   // WS7-8 BUG-003 B2.2 — explicit Save. Persists the displayed value as the
@@ -402,22 +425,27 @@ function MealDetailContent({
   // in-flight promise is tracked so onCookNow can await an explicit Save (NOT a
   // per-tap write) before navigating. On success the row is no longer dirty, so
   // the Save button disappears.
+  //
+  // THX-4 (D-WS9-324) — the turkey's weight rides the same PATCH when it changed
+  // (null = back to the default bird). The PATCH response carries no bird fields:
+  // savePlanItemAmounts invalidates the meal read, and the refetch re-seeds the
+  // stepper; it also marks the plan's Prep the Week and Cook Mode's sequence stale.
   const onSaveServings = () => {
     if (!canPersistServings || savingServings) return;
     const prev = meal.effectiveServings;
-    const next = displayServings;
+    const prevBird = meal.birdWeightLb ?? null;
+    const amounts: { servingsOverride?: number; birdWeightLb?: number | null } = {};
+    if (servingsDirty) amounts.servingsOverride = displayServings;
+    if (birdDirty) amounts.birdWeightLb = displayBirdLb;
     setSavingServings(true);
-    pendingServingsWrite.current = setServingsForPlanItem(
-      planId!,
-      planItemId!,
-      next,
-    )
+    pendingServingsWrite.current = savePlanItemAmounts(planId!, planItemId!, amounts)
       .catch(() => {
         // Roll the display back to the last saved value so the dirty signal
         // (and the Save button) reflect reality after a failed write.
         setDisplayServings(prev);
+        setDisplayBirdLb(prevBird);
         dialog.alert(
-          "Couldn't update servings",
+          birdDirty ? "Couldn't save changes" : "Couldn't update servings",
           "We couldn't save that change. Please try again.",
         );
       })
@@ -752,6 +780,18 @@ function MealDetailContent({
             <Text style={s.servingsLabel}>servings</Text>
           </View>
 
+          {/* THX-4 (D-WS9-324) — the turkey's weight, only when the read carries
+              the bird (a feast or a turkey alternate, in its plan). Reset is
+              offered while a weight is set. */}
+          {bird && birdShown !== null && (
+            <BirdWeightStepper
+              value={birdShown}
+              range={bird.range}
+              onStep={(dir) => setDisplayBirdLb(stepBirdWeight(birdShown, dir, bird.range))}
+              onReset={displayBirdLb !== null ? () => setDisplayBirdLb(null) : undefined}
+            />
+          )}
+
           {/* WS7-8 BUG-003 B2.2 (PRD §10.6.1) — explicit Save gate. Appears
               ONLY in a plan context with an unsaved stepper change; tapping it
               persists the displayed servings as the plan item's override.
@@ -828,7 +868,7 @@ function MealDetailContent({
         visible={ingredientsOpen}
         title={resolveDisplayTitle(meal)}
         servings={displayServings}
-        items={consolidateMealIngredients(meal, servingsMultiplier, displayServings)}
+        items={consolidateMealIngredients(meal, servingsMultiplier, displayServings, birdLb)}
         showProvenance={meal.dishes.length > 1}
         onClose={() => setIngredientsOpen(false)}
       />

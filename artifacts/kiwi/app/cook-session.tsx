@@ -107,7 +107,9 @@ export default function CookSession() {
     !!mealQuery.data &&
     mealQuery.data.steps.length === 0 &&
     mealQuery.data.dishes.length > 1;
-  const seqQuery = useCookingSequence(mealId, isMultiDish);
+  // THX-4 (D-WS9-324) — from a plan, the plan item rides the request: its turkey
+  // weight sets the roast and Cook Mode's clock.
+  const seqQuery = useCookingSequence(mealId, isMultiDish, planItemId || undefined);
 
   // Graceful degradation (§13.5.5): a Sequencer failure is non-fatal — the meal
   // still cooks in naive order. Log it, never error the screen.
@@ -171,7 +173,7 @@ export default function CookSession() {
   // WEB-4b (BUG-454) — a whole-bird dish's steps scale by the bird's factor
   // (the brine follows the bird); every other dish by the multiplier above.
   const amountScale = useMemo(
-    () => (mealId && mealQuery.data ? mealScaleFactors(mealQuery.data.dishes, amountMultiplier, isFeastMeal(mealQuery.data.tags)) : null),
+    () => (mealId && mealQuery.data ? mealScaleFactors(mealQuery.data.dishes, amountMultiplier, isFeastMeal(mealQuery.data.tags), mealQuery.data.birdWeightLb) : null),
     [mealId, mealQuery.data, amountMultiplier],
   );
 
