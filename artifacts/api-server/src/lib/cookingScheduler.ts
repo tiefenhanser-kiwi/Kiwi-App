@@ -758,6 +758,82 @@ export function scheduleCookingSequence(
   dishes: SchedulerDish[],
   opts: ScheduleOptions = {},
 ): ScheduleResult {
+  // THX-4 (BUG-529) — a feast's take-outs are set aside for the whole day's passes (none
+  // takes hands it might not need) and the one the day keeps comes back at serving.
+  if (opts.feastOven && dishes.some((d) => d.steps.some((s) => TAKE_OUT_STEP.test(s.text ?? "")))) {
+    return withTakeOut(scheduleTheDay(dishes.map((d) => ({ ...d, steps: d.steps.filter((s) => !TAKE_OUT_STEP.test(s.text ?? "")) })), opts), dishes);
+  }
+  return scheduleTheDay(dishes, opts);
+}
+
+/**
+ * THX-4 (BUG-529) — ONE TAKE-OUT, WHEN A SIDE IS LEFT IN THE OVEN. A side is left in when
+ * no step of its own follows its last oven step on the day (a rest, a plating, a slice):
+ * Classic's casseroles behind the oven-off, and — the oven still on — New Twist's,
+ * Small's and Vegetarian's stuffings. The take-out comes from the dish whose oven-off the
+ * day keeps, else from the left-in side whose oven ends last; it starts once every
+ * left-in side's oven has ended and before its own dish's next step, at the latest moment
+ * the hands are free within WARM_GAP of serving (else the latest free one; else right
+ * before the serve step, the day growing by its minute). Every other take-out is merged
+ * away (the client must not append it); with nothing left in, all of them are.
+ */
+function withTakeOut(res: ScheduleResult, dishes: readonly SchedulerDish[]): ScheduleResult {
+  const k = (dishId: string, stepIndex: number) => `${dishId}#${stepIndex}`;
+  const stepOf = new Map(dishes.flatMap((d) => d.steps.map((s) => [k(d.dishId, s.stepIndex), s] as const)));
+  const textOf = (e: { dishId: string; originalStepIndex: number }) => stepOf.get(k(e.dishId, e.originalStepIndex))?.text ?? "";
+  const dur = (e: { dishId: string; originalStepIndex: number }) => stepOf.get(k(e.dishId, e.originalStepIndex))?.estimatedMinutes ?? 0;
+  const merged = new Map((res.mergedSteps ?? []).map((m) => [k(m.dishId, m.stepIndex), m] as const));
+  const takeOuts = dishes.flatMap((d) => d.steps.filter((s) => TAKE_OUT_STEP.test(s.text ?? "")).map((s) => ({ d, s })));
+  const serve = res.steps.find((e) => FEAST_SERVE_STEP.test(textOf(e)));
+  const bird = feastRoastDish(dishes);
+  // Each oven side's last oven step on the day, and whether a step of its own takes it out.
+  const sides = dishes.flatMap((d) => {
+    if (d.dishId === bird?.dishId || DESSERT_DISH.test(d.title)) return [];
+    const placed = res.steps.filter((e) => e.dishId === d.dishId).sort((a, b) => a.originalStepIndex - b.originalStepIndex);
+    const oven = placed.filter((e) => { const s = stepOf.get(k(e.dishId, e.originalStepIndex)); return !!s && isOvenStep(s) && s.phaseType !== "preheat"; }).pop();
+    if (!oven) return [];
+    const out = placed.some((e) => e.originalStepIndex > oven.originalStepIndex && e !== serve && !OVEN_OFF_STEP.test(textOf(e)) && !KEEP_WARM_STEP.test(textOf(e)));
+    return [{ d, ovenEnd: oven.startOffsetMinutes + dur(oven), leftIn: !out }];
+  });
+  const left = sides.filter((x) => x.leftIn);
+  const off = res.steps.find((e) => OVEN_OFF_STEP.test(textOf(e)));
+  const nextAfter = (d: SchedulerDish, i: number) => d.steps.filter((s) => s.stepIndex > i).sort((a, b) => a.stepIndex - b.stepIndex)[0];
+  const hostOff = off ? takeOuts.find(({ d, s }) => d.dishId === off.dishId && nextAfter(d, off.originalStepIndex) === s) : undefined;
+  const hostLeft = [...left].sort((a, b) => b.ovenEnd - a.ovenEnd).map((x) => takeOuts.find(({ d }) => d.dishId === x.d.dishId)).find((t) => t);
+  const keep = serve && left.length > 0 ? hostOff ?? hostLeft : undefined;
+  for (const { d, s } of takeOuts) if (s !== keep?.s) merged.set(k(d.dishId, s.stepIndex), { dishId: d.dishId, stepIndex: s.stepIndex });
+  let out: ScheduleResult = res;
+  if (keep && serve) {
+    const own = res.steps.filter((e) => e.dishId === keep.d.dishId);
+    const prev = own.filter((e) => e.originalStepIndex < keep.s.stepIndex).sort((a, b) => b.originalStepIndex - a.originalStepIndex)[0];
+    const next = own.filter((e) => e.originalStepIndex > keep.s.stepIndex && e !== serve).sort((a, b) => a.originalStepIndex - b.originalStepIndex)[0];
+    const L = keep.s.estimatedMinutes;
+    const lo = Math.max(prev ? prev.startOffsetMinutes + dur(prev) : -Infinity, ...left.map((x) => x.ovenEnd));
+    const hi = Math.min(next ? next.startOffsetMinutes : Infinity, serve.startOffsetMinutes) - L;
+    // (The lid, the knob and a side's own rest take no hands.)
+    const busy = res.steps.filter((e) => { const s = stepOf.get(k(e.dishId, e.originalStepIndex)); return !!s && !isUnattended(s) && ![REST_AFTER_OVEN, KEEP_WARM_STEP, OVEN_OFF_STEP].some((re) => re.test(s.text ?? "")); });
+    const free = (t: number) => !busy.some((e) => t < e.startOffsetMinutes + dur(e) && e.startOffsetMinutes < t + L);
+    let t: number | null = null;
+    for (let at = hi; at >= Math.max(lo, serve.startOffsetMinutes - WARM_GAP) && t === null; at--) if (free(at)) t = at;
+    // No free minute that late: as late as it can be, beside the platings — a moment, as
+    // the lid and the knob are (an earlier free minute plates the side cold, BUG-521; a
+    // later serve breaks the carve's cap, D-WS9-322).
+    t ??= hi >= lo ? hi : lo;
+    const entry: ScheduledStep = { dishId: keep.d.dishId, originalStepIndex: keep.s.stepIndex, sequenceIndex: 0, startOffsetMinutes: t };
+    const steps = [...res.steps, entry]
+      .sort((a, b) => a.startOffsetMinutes - b.startOffsetMinutes || (a === entry ? 1 : 0) - (b === entry ? 1 : 0) || a.sequenceIndex - b.sequenceIndex)
+      .map((e, i) => ({ ...e, sequenceIndex: i }));
+    // Its minute is the cook's (an assemble step).
+    out = feastCuesAsServed({ ...res, steps, activeEstimatedMinutes: res.activeEstimatedMinutes + L }, dishes);
+  }
+  const all = [...merged.values()];
+  return { ...out, ...(all.length > 0 ? { mergedSteps: all } : {}) };
+}
+
+function scheduleTheDay(
+  dishes: SchedulerDish[],
+  opts: ScheduleOptions = {},
+): ScheduleResult {
   const core = scheduleCookingSequenceCore(dishes, opts);
   if (core.steps.length === 0) return core;
   const input = dishes.map((d) => ({ ...d, steps: selectDefaultPathSteps(d.steps) })).filter((d) => d.steps.length > 0);
@@ -777,7 +853,39 @@ export function scheduleCookingSequence(
   // THX-3d round 2 (J) — the warm steps that are not needed today go with them.
   const warm = feastWarmSteps(plated === carved ? carved : carveLate(plated, input), input);
   const all = [...mergedSteps, ...(core.mergedSteps ?? []), ...warm.dropped].filter((m, i, a) => a.findIndex((x) => x.dishId === m.dishId && x.stepIndex === m.stepIndex) === i);
-  return { ...warm.result, ...(all.length > 0 ? { mergedSteps: all } : {}) };
+  return { ...feastCuesAsServed(warm.result, input), ...(all.length > 0 ? { mergedSteps: all } : {}) };
+}
+
+/**
+ * THX-4 (BUG-529, part 3) — A CUE SAYS WHAT IS HAPPENING WHEN THE STEP IS DONE. The core
+ * pass words each cue from its own timeline ("With the Sweet Potato Casserole cooking,
+ * start on …"); the feast's later passes move steps (serve late, the carve, the
+ * plating) and a moved step's cue goes with it, but a step that stays keeps a cue whose
+ * window has moved away. Classic's serve step at T−2 read "With the Sweet Potato
+ * Casserole cooking": the casserole's bake had ended at T−19, its oven off since. So, on
+ * the day as it finally stands, a cue is kept only when the dish it names has a
+ * hands-free step running as the step starts (started before it in the order the cook
+ * reads); otherwise it goes. Silence over a wrong claim (BUG-337).
+ */
+export function feastCuesAsServed(res: ScheduleResult, dishes: readonly SchedulerDish[]): ScheduleResult {
+  const k = (dishId: string, stepIndex: number) => `${dishId}#${stepIndex}`;
+  const stepOf = new Map(dishes.flatMap((d) => d.steps.map((s) => [k(d.dishId, s.stepIndex), s] as const)));
+  const titled = [...dishes].sort((a, b) => b.title.length - a.title.length);
+  let changed = false;
+  const steps = res.steps.map((e) => {
+    if (!e.reason) return e;
+    const named = titled.find((d) => d.dishId !== e.dishId && e.reason!.startsWith(`With the ${d.title} `));
+    const running = named && res.steps.some((o) => {
+      if (o.dishId !== named.dishId || o.sequenceIndex >= e.sequenceIndex) return false;
+      const s = stepOf.get(k(o.dishId, o.originalStepIndex));
+      return !!s && isUnattended(s) && o.startOffsetMinutes <= e.startOffsetMinutes && e.startOffsetMinutes < o.startOffsetMinutes + s.estimatedMinutes;
+    });
+    if (running) return e;
+    changed = true;
+    const { reason: _reason, ...plain } = e;
+    return plain;
+  });
+  return changed ? { ...res, steps } : res;
 }
 
 // ── THX-3d round 3 (U) — SERVED HOT, AT SERVING TIME ─────────────────────────────────
@@ -1108,6 +1216,16 @@ export const KEEP_WARM_TEXT = "Cover and keep warm over the lowest heat.";
 export const KEEP_WARM_STEP = /^\s*Cover and keep warm over the lowest heat\.\s*$/i;
 export const OVEN_OFF_TEXT = "Turn the oven off and leave the sides inside, covered loosely with foil, to keep warm.";
 export const OVEN_OFF_STEP = /^\s*Turn the oven off and leave the sides inside\b/i;
+/**
+ * THX-4 (BUG-529) — WHAT GOES INTO THE TURNED-OFF OVEN COMES OUT. Classic's green bean
+ * and sweet potato casseroles went into the off oven at T−19 "to keep warm", and no step
+ * took them out: the serve step named them, and the cook had to guess. Every oven-off is
+ * followed by this code-written step (scripts/thx2 thx2Warm). It is the oven-off's
+ * plating — served at serving, as BUG-521 serves a keep-warm's — and it goes with its
+ * oven-off when the day drops that one ("the sides": every side left inside).
+ */
+export const TAKE_OUT_TEXT = "Take the sides out of the oven.";
+export const TAKE_OUT_STEP = /^\s*Take the sides out of the oven\b/i;
 /** Minutes before serving that a side may finish without a warm step. */
 export const WARM_GAP = 15;
 /** A step that plates the dish (round 3, U): the keep-warm comes before it (thx2Warm), and round 5 serves it late. */
@@ -1341,7 +1459,8 @@ function platedAtServing(res: ScheduleResult, dishes: readonly SchedulerDish[], 
     const after = res.steps
       .filter((e) => e.dishId === w.dishId && e.originalStepIndex > w.originalStepIndex && e !== serve)
       .sort((a, b) => a.originalStepIndex - b.originalStepIndex);
-    const plates = after.findIndex((e) => PLATING_STEP.test(stepOf.get(k(e.dishId, e.originalStepIndex))?.text ?? ""));
+    // THX-4 (BUG-529) — an oven-off's take-out is its plating.
+    const plates = after.findIndex((e) => { const t = stepOf.get(k(e.dishId, e.originalStepIndex))?.text ?? ""; return PLATING_STEP.test(t) || TAKE_OUT_STEP.test(t); });
     const run = plates < 0 ? [] : after.slice(plates);
     const serveAt = pos.get(serve)!;
     if (run.length === 0 || serveAt - pos.get(run[0])! <= WARM_GAP) continue;

@@ -6,8 +6,10 @@
 // its last oven step. Cook Mode shows only the ones the day's schedule needs
 // (cookingScheduler feastWarmSteps): a side that ends near serving keeps its pan, and
 // the oven is turned off once, by the side that comes out last. Idempotent.
+// THX-4 (BUG-529) — and every oven-off is followed by "Take the sides out of the oven."
+// (TAKE_OUT_TEXT), which Cook Mode serves at serving with the oven-off it follows.
 
-import { FEAST_SERVE_STEP, feastRoastDish, isOvenStep, KEEP_WARM_STEP, KEEP_WARM_TEXT, OVEN_OFF_STEP, OVEN_OFF_TEXT, PLATING_STEP as PLATING, type SchedulerPhase } from "../../src/lib/cookingScheduler";
+import { FEAST_SERVE_STEP, feastRoastDish, isOvenStep, KEEP_WARM_STEP, KEEP_WARM_TEXT, OVEN_OFF_STEP, OVEN_OFF_TEXT, PLATING_STEP as PLATING, TAKE_OUT_STEP, TAKE_OUT_TEXT, type SchedulerPhase } from "../../src/lib/cookingScheduler";
 import { onTheDaySteps } from "../../src/lib/mealTiming";
 import { thursdaySchedule, type OvenDish, type OvenStepRow } from "./thx2Oven";
 import type { ThursdayEdits } from "./thx2Thursday";
@@ -19,7 +21,19 @@ export function warmStepEdits(dishes: readonly OvenDish[], steps: readonly OvenS
     if (bird && d.dishId === bird.dishId) continue;
     if (/\bmain\b/i.test(d.roleLabel ?? "")) continue;
     const rows = steps.filter((s) => s.ownerId === d.dishId).sort((a, b) => a.stepIndex - b.stepIndex);
-    if (rows.some((r) => OVEN_OFF_STEP.test(r.stepTextTranslated))) continue;
+    // THX-4 (BUG-529) — an oven-off is followed by the sides' take-out (cookingScheduler
+    // TAKE_OUT_STEP): written after one that has none (release #5's feasts), the steps
+    // after it moving down one.
+    const off = rows.find((r) => OVEN_OFF_STEP.test(r.stepTextTranslated));
+    if (off) {
+      const next = rows.find((r) => r.stepIndex > off.stepIndex);
+      if (next && TAKE_OUT_STEP.test(next.stepTextTranslated)) continue;
+      for (const r of rows.filter((x) => x.stepIndex > off.stepIndex).sort((a, b) => b.stepIndex - a.stepIndex)) {
+        out.renumber.push({ dishId: d.dishId, from: r.stepIndex, to: r.stepIndex + 1 });
+      }
+      out.creates.push({ dishId: d.dishId, stepIndex: off.stepIndex + 1, text: TAKE_OUT_TEXT, phaseType: "assemble", estimatedMinutes: 1 });
+      continue;
+    }
     const kept = rows.find((r) => KEEP_WARM_STEP.test(r.stepTextTranslated));
     const day = onTheDaySteps(rows.filter((r) => r !== kept).map((r) => ({ ...r, text: r.stepTextTranslated })));
     const oven = day.filter((r) => r.phaseType !== "preheat" && isOvenStep({ phaseType: r.phaseType as SchedulerPhase, text: r.text })).pop();
@@ -49,10 +63,13 @@ export function warmStepEdits(dishes: readonly OvenDish[], steps: readonly OvenS
       out.creates.push({ dishId: d.dishId, stepIndex: after.stepIndex + 1, text: KEEP_WARM_TEXT, phaseType: "assemble", estimatedMinutes: 1 });
       continue;
     }
+    // THX-4 (BUG-529) — an oven-off brings its take-out with it.
+    const by = oven ? 2 : 1;
     for (const r of rows.filter((x) => x.stepIndex > after.stepIndex).sort((a, b) => b.stepIndex - a.stepIndex)) {
-      out.renumber.push({ dishId: d.dishId, from: r.stepIndex, to: r.stepIndex + 1 });
+      out.renumber.push({ dishId: d.dishId, from: r.stepIndex, to: r.stepIndex + by });
     }
     out.creates.push({ dishId: d.dishId, stepIndex: after.stepIndex + 1, text: oven ? OVEN_OFF_TEXT : KEEP_WARM_TEXT, phaseType: "assemble", estimatedMinutes: 1 });
+    if (oven) out.creates.push({ dishId: d.dishId, stepIndex: after.stepIndex + 2, text: TAKE_OUT_TEXT, phaseType: "assemble", estimatedMinutes: 1 });
   }
   return out;
 }

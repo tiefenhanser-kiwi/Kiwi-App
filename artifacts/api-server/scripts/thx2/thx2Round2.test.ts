@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { feastWarmSteps, KEEP_WARM_TEXT, OVEN_OFF_TEXT, type ScheduleResult, type SchedulerDish } from "../../src/lib/cookingScheduler";
+import { feastWarmSteps, KEEP_WARM_TEXT, OVEN_OFF_TEXT, TAKE_OUT_TEXT, type ScheduleResult, type SchedulerDish } from "../../src/lib/cookingScheduler";
 import { splitTwoPhase } from "./thx2Phases";
 import { dishNoun, inTheOvenText, putInEdits } from "./thx2PutIn";
 import { dayNoun, subjectEdits } from "./thx2Subjects";
@@ -102,8 +102,9 @@ describe("THX-3d J — the warm steps", () => {
       row("s", 0, "cook", 30, "On Thursday: Bake the stuffing covered at 375°F for 30 minutes."),
     ];
     const e = warmStepEdits(dishes, steps);
-    assert.deepEqual(e.creates.map((c) => `${c.dishId}#${c.stepIndex} ${c.text}`), [`g#1 ${KEEP_WARM_TEXT}`, `s#1 ${OVEN_OFF_TEXT}`]);
-    assert.deepEqual(warmStepEdits(dishes, [...steps, row("g", 1, "assemble", 1, KEEP_WARM_TEXT), row("s", 1, "assemble", 1, OVEN_OFF_TEXT)]).creates, []);
+    // THX-4 (BUG-529) — an oven-off brings the sides' take-out with it.
+    assert.deepEqual(e.creates.map((c) => `${c.dishId}#${c.stepIndex} ${c.text}`), [`g#1 ${KEEP_WARM_TEXT}`, `s#1 ${OVEN_OFF_TEXT}`, `s#2 ${TAKE_OUT_TEXT}`]);
+    assert.deepEqual(warmStepEdits(dishes, [...steps, row("g", 1, "assemble", 1, KEEP_WARM_TEXT), row("s", 1, "assemble", 1, OVEN_OFF_TEXT), row("s", 2, "assemble", 1, TAKE_OUT_TEXT)]).creates, []);
   });
   it("round 3 (U) — a stovetop side keeps warm once it is finished in its pot, before it is plated (Classic's mash: after the seasoning, not between mash and season)", () => {
     const dishes = [{ dishId: "m", title: "Mashed Potatoes", positionIndex: 1, roleLabel: "side" }];
