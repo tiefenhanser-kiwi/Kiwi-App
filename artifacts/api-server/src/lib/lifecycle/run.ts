@@ -1,7 +1,7 @@
-// LIFE-1 — THE SENDER: one scheduler tick, and the welcome at signup.
+// LIFE-1 + LIFE-2 — THE SENDER: one scheduler tick, and the welcome at signup.
 //
 //   runLifecycleTick  — POST /api/internal/lifecycle/emails (hourly, OIDC).
-//                       Finds the accounts that could have something due,
+//                       Reads every account's facts in one batched read,
 //                       sends at most one email to each, returns a summary.
 //   sendWelcomeEmail  — fire-and-forget from the signup doors (routes/auth.ts),
 //                       beside sendSignupAlert. The tick is its backstop: a
@@ -13,16 +13,26 @@
 // code path that caches it. Off → the tick answers { enabled: false } and the
 // welcome returns before touching the database.
 //
-// AT MOST ONCE. Each send CLAIMS its (user, kind) row first — the unique key
-// makes a second claim fail, so two overlapping ticks, or a tick racing the
-// signup's welcome, cannot both send. Resend refusing the send deletes the
-// claim (the next tick retries inside the window); the process dying between
-// claim and send leaves the claim (never sent beats sent twice).
+// ONE READ PER TICK (LIFE-2). Every active, opted-in account and its facts —
+// plans, grocery lists, the three activity kinds the schedule reads, prep
+// check-offs, the Playlist count, the send log — come from ONE findMany with
+// nested selects (Prisma batches each relation as one IN query). There is no
+// per-account query anywhere in the tick; LIFE-1's Day 1 plan check, which was
+// one, is now read from the same rows. Every account is read, not a pre-filtered
+// slice: LIFE-2's kinds anchor on events anywhere in an account's history, and a
+// pre-filter that missed one would silently never send it.
+//
+// AT MOST ONCE. Each send CLAIMS its (user, kind, refId) row first — the unique
+// key makes a second claim fail, so two overlapping ticks, or a tick racing the
+// signup's welcome, cannot both send. refId is "" for every kind but next_week,
+// whose refId is the plan's id (one per plan). Resend refusing the send deletes
+// the claim (the next tick retries inside the window); the process dying
+// between claim and send leaves the claim (never sent beats sent twice).
 //
 // NEVER LOGGED: an email address, a name, a body, a token. A send is
-// `lifecycle_email_sent { userId, kind }`.
+// `lifecycle_email_sent { userId, kind, refId? }`.
 
-import type { PrismaClient, SubscriptionStatus, BillingSource } from "@prisma/client";
+import type { PrismaClient, SubscriptionStatus, BillingSource, ActivityEventType } from "@prisma/client";
 
 import { readBillingConfig } from "../billing/config";
 import {
@@ -35,12 +45,13 @@ import { prisma as productionPrisma } from "../prisma";
 import { FOOTER, REPLY_TO } from "./copy";
 import { renderLifecycleEmail } from "./render";
 import {
-  ENDED_WINDOW_H,
-  ENDING_LEAD_H,
-  SIGNUP_OFFSETS_H,
-  SIGNUP_WINDOW_H,
+  currentPlan,
   dueKinds,
   formatEndDate,
+  formatPlanEndDay,
+  refIdFor,
+  sendKey,
+  type DatedPlan,
   type LifecycleFacts,
   type LifecycleKind,
 } from "./schedule";
@@ -54,8 +65,6 @@ export const ENV_LIFECYCLE_EMAIL_FROM = "LIFECYCLE_EMAIL_FROM";
 export const SEND_SPACING_MS = 600;
 /** One tick's ceiling. Far above a launch week's volume; it bounds a bad query, not real traffic. */
 export const MAX_SENDS_PER_TICK = 100;
-
-const HOUR = 60 * 60 * 1000;
 
 export function lifecycleEmailEnabled(env: NodeJS.ProcessEnv): boolean {
   return (env[ENV_LIFECYCLE_EMAIL_ENABLED] ?? "").trim().toLowerCase() === "true";
@@ -73,7 +82,7 @@ export function isUndeliverable(email: string): boolean {
   );
 }
 
-type PrismaLike = Pick<PrismaClient, "user" | "lifecycleEmailSend" | "mealPlanInstance">;
+type PrismaLike = Pick<PrismaClient, "user" | "lifecycleEmailSend">;
 
 export interface LifecycleDeps {
   prisma?: PrismaLike;
@@ -83,17 +92,59 @@ export interface LifecycleDeps {
   sleep?: (ms: number) => Promise<void>;
 }
 
-const USER_SELECT = {
+/** The activity kinds the schedule reads a FIRST time from. */
+const FIRST_OF: ActivityEventType[] = ["cook_finished", "plan_prep_started"];
+
+export const USER_SELECT = {
   id: true,
   email: true,
   firstName: true,
   timezone: true,
   createdAt: true,
   firstPlanCreatedAt: true,
+  lastActiveAt: true,
   lifecycleEmailOptOutAt: true,
   subscription: { select: { status: true, source: true, trialEndsAt: true } },
-  lifecycleEmailSends: { select: { kind: true } },
+  lifecycleEmailSends: { select: { kind: true, refId: true, claimedAt: true } },
+  // Committed plans only — the same filter LIFE-1's Day 1 check counted with.
+  planInstances: {
+    where: { isWizardDraft: false, status: { not: "draft" as const } },
+    select: {
+      id: true,
+      createdAt: true,
+      committedAt: true,
+      startDate: true,
+      endDate: true,
+      compostedAt: true,
+      isArchived: true,
+      prepStepCompletions: { select: { checkedAt: true }, orderBy: { checkedAt: "asc" as const }, take: 1 },
+    },
+  },
+  groceryLists: { select: { createdAt: true }, orderBy: { createdAt: "asc" as const }, take: 2 },
+  activities: {
+    where: { eventType: { in: FIRST_OF } },
+    select: { eventType: true, createdAt: true },
+    orderBy: { createdAt: "asc" as const },
+  },
+  _count: {
+    select: {
+      playlistMeals: true,
+      groceryLists: { where: { instacartLinkedAt: { not: null } } },
+      activities: { where: { eventType: "order_groceries" as const } },
+    },
+  },
 } as const;
+
+export interface CandidatePlan {
+  id: string;
+  createdAt: Date;
+  committedAt: Date | null;
+  startDate: Date | null;
+  endDate: Date | null;
+  compostedAt: Date | null;
+  isArchived: boolean;
+  prepStepCompletions: { checkedAt: Date }[];
+}
 
 export interface CandidateUser {
   id: string;
@@ -102,45 +153,78 @@ export interface CandidateUser {
   timezone: string | null;
   createdAt: Date;
   firstPlanCreatedAt: Date | null;
+  lastActiveAt: Date | null;
   lifecycleEmailOptOutAt: Date | null;
   subscription: {
     status: SubscriptionStatus;
     source: BillingSource | null;
     trialEndsAt: Date | null;
   } | null;
-  lifecycleEmailSends: { kind: string }[];
+  lifecycleEmailSends: { kind: string; refId: string; claimedAt: Date }[];
+  planInstances: CandidatePlan[];
+  groceryLists: { createdAt: Date }[];
+  activities: { eventType: ActivityEventType; createdAt: Date }[];
+  _count: { playlistMeals: number; groceryLists: number; activities: number };
 }
 
-/** The schedule's facts from one account row. `hasPlan` is the stamp only; see confirmNoPlan. */
+const ymd = (d: Date) => d.toISOString().slice(0, 10);
+const earliest = (ds: (Date | null | undefined)[]): Date | null =>
+  ds.reduce<Date | null>((min, d) => (d && (!min || d.getTime() < min.getTime()) ? d : min), null);
+
+/** The schedule's facts from one account row. Pure. */
 export function factsFor(u: CandidateUser, billingEnforced: boolean): LifecycleFacts {
   const sub = u.subscription;
   const paying =
     sub !== null && (sub.status === "active" || sub.status === "past_due" || sub.source !== null);
   const freeTimeEndsAt =
     sub !== null && sub.status === "trialing" && sub.source === null ? sub.trialEndsAt : null;
+
+  // A plan's commit time is committedAt; rows from before that column use createdAt.
+  const commits = u.planInstances
+    .map((p) => p.committedAt ?? p.createdAt)
+    .sort((a, b) => a.getTime() - b.getTime());
+  const datedPlans: DatedPlan[] = u.planInstances
+    .filter((p) => p.startDate && p.endDate && !p.compostedAt && !p.isArchived)
+    .map((p) => ({ id: p.id, firstDay: ymd(p.startDate!), lastDay: ymd(p.endDate!) }));
+  const firstOf = (t: ActivityEventType) => u.activities.find((a) => a.eventType === t)?.createdAt ?? null;
+
   return {
     createdAt: u.createdAt,
     timezone: u.timezone,
     optedOut: u.lifecycleEmailOptOutAt !== null,
-    hasPlan: u.firstPlanCreatedAt !== null,
+    // LIFE-1's Day 1 rule, robust to an account older than the stamp: any committed plan counts.
+    hasPlan: u.firstPlanCreatedAt !== null || u.planInstances.length > 0,
     freeTimeEndsAt,
     paying,
     billingEnforced,
-    sent: new Set(u.lifecycleEmailSends.map((s) => s.kind)),
+    sent: new Set(u.lifecycleEmailSends.map((s) => sendKey(s.kind, s.refId))),
+    capClaims: u.lifecycleEmailSends.filter((s) => s.kind !== "welcome").map((s) => s.claimedAt),
+    firstPlanAt: earliest([u.firstPlanCreatedAt, commits[0]]),
+    secondPlanAt: commits[1] ?? null,
+    datedPlans,
+    firstListAt: u.groceryLists[0]?.createdAt ?? null,
+    secondListAt: u.groceryLists[1]?.createdAt ?? null,
+    sentToInstacart: u._count.groceryLists > 0 || u._count.activities > 0,
+    firstPrepAt: earliest([
+      firstOf("plan_prep_started"),
+      ...u.planInstances.map((p) => p.prepStepCompletions[0]?.checkedAt),
+    ]),
+    firstCookFinishedAt: firstOf("cook_finished"),
+    hasPlaylist: u._count.playlistMeals > 0,
+    lastActiveAt: u.lastActiveAt,
   };
 }
 
 /**
- * Day 1's skip rule, made robust. `firstPlanCreatedAt` is stamped at every
- * plan-commit seam (lib/firstPlan.ts), but an account older than that stamp
- * could hold a plan without it, so a missing stamp is checked against the
- * plans themselves: any committed (non-draft, non-wizard-draft) plan counts.
+ * The tick's one read: every account that may be emailed, with its facts.
+ * Read-only — the LIFE-2 dry-run projection calls it against dev.
  */
-async function hasCommittedPlan(prisma: PrismaLike, userId: string): Promise<boolean> {
-  const n = await prisma.mealPlanInstance.count({
-    where: { userId, isWizardDraft: false, status: { not: "draft" } },
-  });
-  return n > 0;
+export async function loadCandidates(prisma: PrismaLike): Promise<CandidateUser[]> {
+  return (await prisma.user.findMany({
+    where: { accountStatus: "active", lifecycleEmailOptOutAt: null },
+    select: USER_SELECT,
+    orderBy: { createdAt: "asc" },
+  })) as unknown as CandidateUser[];
 }
 
 export type SendOutcome =
@@ -153,6 +237,7 @@ export type SendOutcome =
         | "undeliverable"
         | "no_unsubscribe_link"
         | "no_end_date"
+        | "no_plan"
         | Exclude<SendResult, { sent: true }>["reason"];
     };
 
@@ -164,6 +249,7 @@ async function sendOne(
   u: CandidateUser,
   facts: LifecycleFacts,
   kind: LifecycleKind,
+  now: Date,
   prisma: PrismaLike,
   send: EmailSender,
   env: NodeJS.ProcessEnv,
@@ -180,18 +266,26 @@ async function sendOne(
     if (!facts.freeTimeEndsAt) return { sent: false, kind, reason: "no_end_date" };
     endDate = formatEndDate(facts.freeTimeEndsAt, u.timezone);
   }
+  let planEndDay: string | null = null;
+  const refId = refIdFor(kind, facts, now);
+  if (kind === "next_week") {
+    const plan = currentPlan(facts, now);
+    if (!plan) return { sent: false, kind, reason: "no_plan" };
+    planEndDay = formatPlanEndDay(plan.lastDay);
+  }
 
   const rendered = renderLifecycleEmail({
     kind,
     firstName: u.firstName,
     endDate,
+    planEndDay,
     unsubscribeUrl: unsub?.page ?? null,
   });
 
   let claimId: string;
   try {
     const claim = await prisma.lifecycleEmailSend.create({
-      data: { userId: u.id, kind },
+      data: { userId: u.id, kind, refId },
       select: { id: true },
     });
     claimId = claim.id;
@@ -199,6 +293,7 @@ async function sendOne(
     if (isUniqueViolation(err)) return { sent: false, kind, reason: "already_claimed" };
     throw err;
   }
+  const logRef = refId ? { refId } : {};
 
   const from = (env[ENV_LIFECYCLE_EMAIL_FROM] ?? "").trim();
   const result = await send({
@@ -225,6 +320,7 @@ async function sendOne(
         event: "lifecycle_email_failed",
         userId: u.id,
         kind,
+        ...logRef,
         reason: result.reason,
         ...(result.reason === "send_failed" && result.status ? { status: result.status } : {}),
       },
@@ -237,22 +333,8 @@ async function sendOne(
     where: { id: claimId },
     data: { sentAt: new Date(), providerMessageId: result.id || null },
   });
-  logger.info({ event: "lifecycle_email_sent", userId: u.id, kind }, "Lifecycle email sent");
+  logger.info({ event: "lifecycle_email_sent", userId: u.id, kind, ...logRef }, "Lifecycle email sent");
   return { sent: true, kind };
-}
-
-/** The first due kind for this account, with Day 1's plan check confirmed against the plans. */
-async function nextDue(
-  u: CandidateUser,
-  facts: LifecycleFacts,
-  now: Date,
-  prisma: PrismaLike,
-): Promise<LifecycleKind | null> {
-  let due = dueKinds(facts, now);
-  if (due[0] === "day1" && (await hasCommittedPlan(prisma, u.id))) {
-    due = dueKinds({ ...facts, hasPlan: true }, now);
-  }
-  return due[0] ?? null;
 }
 
 export interface TickSummary {
@@ -278,45 +360,19 @@ export async function runLifecycleTick(deps: LifecycleDeps = {}): Promise<TickSu
   const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const billingEnforced = readBillingConfig(env).enforced;
 
-  const t = now.getTime();
-  const signupFloor = new Date(t - (SIGNUP_OFFSETS_H.day5 + SIGNUP_WINDOW_H) * HOUR);
-  const candidates = (await prisma.user.findMany({
-    where: {
-      accountStatus: "active",
-      lifecycleEmailOptOutAt: null,
-      OR: [
-        { createdAt: { gte: signupFloor } },
-        ...(billingEnforced
-          ? [
-              {
-                subscription: {
-                  status: "trialing" as const,
-                  source: null,
-                  trialEndsAt: {
-                    gte: new Date(t - ENDED_WINDOW_H * HOUR),
-                    lte: new Date(t + ENDING_LEAD_H * HOUR),
-                  },
-                },
-              },
-            ]
-          : []),
-      ],
-    },
-    select: USER_SELECT,
-    orderBy: { createdAt: "asc" },
-  })) as CandidateUser[];
+  const candidates = await loadCandidates(prisma);
   summary.candidates = candidates.length;
 
   let attempted = 0;
   for (const u of candidates) {
     if (attempted >= MAX_SENDS_PER_TICK) break;
     const facts = factsFor(u, billingEnforced);
-    const kind = await nextDue(u, facts, now, prisma);
+    const kind = dueKinds(facts, now)[0];
     if (!kind) continue;
 
     if (attempted > 0) await sleep(SEND_SPACING_MS);
     attempted++;
-    const out = await sendOne(u, facts, kind, prisma, send, env);
+    const out = await sendOne(u, facts, kind, now, prisma, send, env);
     if (out.sent) {
       summary.sent++;
       summary.byKind[kind] = (summary.byKind[kind] ?? 0) + 1;
@@ -349,11 +405,11 @@ export async function sendWelcomeEmail(userId: string, deps: LifecycleDeps = {})
     const u = (await prisma.user.findUnique({
       where: { id: userId },
       select: USER_SELECT,
-    })) as CandidateUser | null;
+    })) as unknown as CandidateUser | null;
     if (!u) throw new Error("user not found after commit");
     const facts = factsFor(u, readBillingConfig(env).enforced);
     if (!dueKinds(facts, now).includes("welcome")) return;
-    await sendOne(u, facts, "welcome", prisma, send, env);
+    await sendOne(u, facts, "welcome", now, prisma, send, env);
   } catch (err) {
     logger.warn(
       {

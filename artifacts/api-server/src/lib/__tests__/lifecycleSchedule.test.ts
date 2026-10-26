@@ -33,6 +33,17 @@ function facts(over: Partial<LifecycleFacts> = {}): LifecycleFacts {
     paying: false,
     billingEnforced: true,
     sent: new Set(),
+    capClaims: [],
+    firstPlanAt: null,
+    secondPlanAt: null,
+    datedPlans: [],
+    firstListAt: null,
+    secondListAt: null,
+    sentToInstacart: false,
+    firstPrepAt: null,
+    firstCookFinishedAt: null,
+    hasPlaylist: false,
+    lastActiveAt: null,
     ...over,
   };
 }

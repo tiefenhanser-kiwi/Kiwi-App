@@ -34,17 +34,18 @@ function render(kind: (typeof LIFECYCLE_KINDS)[number], firstName: string | null
     kind,
     firstName,
     endDate: "Monday, November 2",
+    planEndDay: "Friday",
     unsubscribeUrl: kind === "welcome" ? null : UNSUB,
   });
 }
 
-describe("LIFE-1 render — all six", () => {
+describe("LIFE-1 + LIFE-2 render — all fourteen", () => {
   for (const kind of LIFECYCLE_KINDS) {
     it(`${kind}: subject, HTML and text, with no {placeholder} left`, () => {
       const r = render(kind);
       assert.ok(r.subject.length > 0);
       for (const part of [r.subject, r.html, r.text]) {
-        assert.doesNotMatch(part, /\{(firstName|endDate)\}/);
+        assert.doesNotMatch(part, /\{\w+\}/, "no {placeholder} survives");
         assert.doesNotMatch(part, /\*\*/, "bold markers are converted, never shown");
       }
       assert.match(r.html, /^<!doctype html>/);
@@ -66,7 +67,7 @@ describe("LIFE-1 render — all six", () => {
     });
   }
 
-  it("🔴 the welcome carries NO unsubscribe link; the other five each carry one, in both parts", () => {
+  it("🔴 the welcome carries NO unsubscribe link; the other thirteen each carry one, in both parts", () => {
     const w = render("welcome");
     assert.ok(!w.html.includes(FOOTER.unsubscribeLabel));
     assert.ok(!w.text.includes(FOOTER.unsubscribeLabel));
@@ -81,6 +82,12 @@ describe("LIFE-1 render — all six", () => {
     const r = render("trial_ending");
     assert.equal(r.subject, "Your free Kiwi access ends Monday, November 2.");
     assert.match(r.html, /ends on Monday, November 2\./);
+  });
+
+  it("LIFE-2 — {planEndDay} lands in next_week's body", () => {
+    const r = render("next_week");
+    assert.equal(r.subject, "Next week's plan");
+    assert.match(r.text, /^Your plan runs out on Friday\. Two minutes now saves the Sunday scramble/m);
   });
 
   it("no first name → 'Hi there,'", () => {

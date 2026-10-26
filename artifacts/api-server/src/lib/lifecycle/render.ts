@@ -1,4 +1,4 @@
-// LIFE-1 — ONE TEMPLATE FOR ALL SIX LIFECYCLE EMAILS: an HTML part and a
+// LIFE-1 — ONE TEMPLATE FOR ALL FOURTEEN LIFECYCLE EMAILS: an HTML part and a
 // plain-text part, built from copy.ts. This file carries layout, never words.
 //
 // EMAIL-SAFE BY CONSTRUCTION, because mail clients are not browsers:
@@ -27,6 +27,8 @@ export interface RenderInput {
   firstName: string | null;
   /** Already formatted ("Monday, November 2"). Required by the two free-time emails. */
   endDate?: string | null;
+  /** LIFE-2 — the weekday the plan runs out ("Friday"). Required by next_week. */
+  planEndDay?: string | null;
   /** The visible unsubscribe link. Null on the welcome email (it has none). */
   unsubscribeUrl: string | null;
 }
@@ -51,6 +53,7 @@ function varsFor(input: RenderInput): Record<string, string> {
   return {
     firstName: name || "there",
     endDate: input.endDate ?? "",
+    planEndDay: input.planEndDay ?? "",
   };
 }
 

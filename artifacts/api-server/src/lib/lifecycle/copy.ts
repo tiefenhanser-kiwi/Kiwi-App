@@ -1,4 +1,4 @@
-// LIFE-1 — EVERY WORD OF THE SIX LIFECYCLE EMAILS, AND NOTHING ELSE.
+// LIFE-1 + LIFE-2 — EVERY WORD OF THE FOURTEEN LIFECYCLE EMAILS, AND NOTHING ELSE.
 //
 // ✏️ THIS IS THE FILE TO EDIT. Changing a subject, a paragraph, a button label
 // or a footer line is an edit here and nowhere else; render.ts and the
@@ -10,6 +10,8 @@
 //   • {firstName} becomes the account's first name ("there" when it has none).
 //     {endDate} becomes the free-time end date, e.g. "Monday, November 2".
 //     {endDate} only means something in the two free-time emails.
+//     {planEndDay} becomes the weekday the plan runs out, e.g. "Friday"; it
+//     only means something in next_week.
 //   • **like this** makes words bold. That is the only markup.
 //   • `greeting` is the first line, set larger in Kiwi's serif.
 //   • `button.url` is where the one button goes.
@@ -85,7 +87,7 @@ export const LIFECYCLE_COPY = {
     after: [],
   },
 
-  /** 3. 72 hours after signup. */
+  /** 3. 72 hours after signup, only while no grocery list exists (LIFE-2). */
   day3: {
     subject: "One list. Everything you need.",
     greeting: "Hi {firstName},",
@@ -96,7 +98,7 @@ export const LIFECYCLE_COPY = {
     after: [],
   },
 
-  /** 4. 120 hours after signup. */
+  /** 4. 120 hours after signup, only while no prep session has started (LIFE-2). */
   day5: {
     subject: "Prep once, cook faster all week.",
     greeting: "Hi {firstName},",
@@ -131,5 +133,96 @@ export const LIFECYCLE_COPY = {
     after: [
       "Thanks for trying Kiwi. If something didn't work for you, reply and tell me. I read every one.",
     ],
+  },
+
+  // ── LIFE-2 — the eight event-driven emails ("Kiwi Lifecycle Emails", Oct 25). ──
+
+  /** 7. 24 hours after the first plan, only while no grocery list exists. */
+  list_nudge: {
+    subject: "Your list is one tap away",
+    greeting: "Hi {firstName},",
+    body: [
+      "You've got a plan — nice. The next part is the one Kiwi is best at: open the plan and tap Grocery list. Kiwi pulls every ingredient from every meal, combines them, and sorts them by aisle. Take it to the store or send it to Instacart.",
+    ],
+    button: { label: "Open my grocery list", url: APP_URL },
+    after: [],
+  },
+
+  /** 8. A day after the first grocery list, only while no prep or cook session has started. */
+  prep_nudge: {
+    subject: "Shopped? Here's how the week goes",
+    greeting: "Hi {firstName},",
+    body: [
+      "With the groceries in, you've got two ways to make the week easier. Prep the Week groups all the chopping, marinades and sauces into one session — an hour on Sunday, and every weeknight is mostly cooking, not prepping. Or skip the prep and open any meal in Cook Mode: Kiwi orders the steps so the dishes finish together.",
+    ],
+    button: { label: "Try Prep the Week", url: APP_URL },
+    after: [],
+  },
+
+  /** 9. The morning after the first finished cook. Once. */
+  first_cook: {
+    subject: "How did it go?",
+    greeting: "Hi {firstName},",
+    body: [
+      "You cooked your first Kiwi meal last night. How was it — the timing, the steps, the food? Reply to this email and tell me; it comes straight to me and it's how Kiwi gets better.",
+    ],
+    button: { label: "Open Kiwi", url: APP_URL },
+    after: [],
+  },
+
+  /** 10. Two days before the current plan's last day, while no later plan exists. Once per plan. */
+  next_week: {
+    subject: "Next week's plan",
+    greeting: "Hi {firstName},",
+    body: [
+      "Your plan runs out on {planEndDay}. Two minutes now saves the Sunday scramble: get plans from your preferences, Tell Kiwi what you're in the mood for, or pull from your Playlist.",
+    ],
+    button: { label: "Plan next week", url: APP_URL },
+    after: [],
+  },
+
+  /** 11. When the second plan is created, only while no Playlist exists. (Hans, Oct 25 — final.) */
+  playlist_nudge: {
+    subject: "Build your Playlist",
+    greeting: "Hi {firstName},",
+    body: [
+      "Two plans in — you've probably found a few meals you'd make again. Save them to your Playlist and Kiwi can build a week from your favorites in one tap, any time.",
+      "Want your own favorites and go-to's? Kiwi makes it easy to import any recipe, or just describe the meals you love and Kiwi will add them for you.",
+    ],
+    button: { label: "Start my Playlist", url: APP_URL },
+    after: [],
+  },
+
+  /** 12. When the second grocery list is created, only if no list has ever gone to Instacart. */
+  instacart_nudge: {
+    subject: "Skip the store this week",
+    greeting: "Hi {firstName},",
+    body: [
+      "Your grocery list can go straight to Instacart: one tap, every item in the cart, delivered or ready for pickup. Same list, no aisles.",
+    ],
+    button: { label: "Send my list to Instacart", url: APP_URL },
+    after: [],
+  },
+
+  /** 13. After 7 days with no activity, during the free time. */
+  still_here: {
+    subject: "Still here?",
+    greeting: "Hi {firstName},",
+    body: [
+      "It's been a week since you were in Kiwi. If something got in the way — a meal that missed, a step that confused you, a list that was wrong — reply and tell me. If you just got busy, here's the two-minute version:",
+    ],
+    button: { label: "Plan my week", url: APP_URL },
+    after: [],
+  },
+
+  /** 14. Ten days after the free time ended. Never to a paying subscriber. Once. */
+  come_back: {
+    subject: "Your plans are still here",
+    greeting: "Hi {firstName},",
+    body: [
+      "Your free time ended a little while ago and your plans, lists and recipes are exactly where you left them. If Kiwi earned a spot in your week, it's $9.99 a month or $99.99 a year, cancel any time. If it didn't, I'd like to know why — just reply.",
+    ],
+    button: { label: "Subscribe to Kiwi", url: APP_URL },
+    after: [],
   },
 } satisfies Record<string, EmailCopy>;

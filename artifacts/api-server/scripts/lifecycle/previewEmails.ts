@@ -1,27 +1,31 @@
-// LIFE-1 — render all six lifecycle emails to files, for reading before
-// anything is switched on. Sends nothing, reads no database, needs no .env.
+// LIFE-1 + LIFE-2 — render all fourteen lifecycle emails to files, for reading
+// before anything is switched on. Sends nothing, reads no database, needs no .env.
 //
 //   cd artifacts/api-server
-//   node --import tsx scripts/lifecycle/previewEmails.ts
+//   node --import tsx scripts/lifecycle/previewEmails.ts [--out <dir>]
 //
-// Writes scripts/_scratch/life-1/preview/ (gitignored):
-//   index.html               — all six side by side at 375 px and 600 px
-//   1-welcome.html … 6-trial_ended.html, and a .txt beside each (the plain part)
+// Writes scripts/_scratch/life-1/preview/ (gitignored) unless --out names another:
+//   index.html                — all fourteen side by side at 375 px and 600 px
+//   1-welcome.html … 14-come_back.html, and a .txt beside each (the plain part)
 //
 // The sample member is "Sam"; the free-time date is the November 2 cohort's
-// (D-WS9-310). The unsubscribe link is signed with a dummy key, so it is the
-// right shape but opts nobody out.
+// (D-WS9-310); next_week's plan runs out on a Friday. The unsubscribe link is
+// signed with a dummy key, so it is the right shape but opts nobody out.
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { renderLifecycleEmail } from "../../src/lib/lifecycle/render";
-import { LIFECYCLE_KINDS, formatEndDate } from "../../src/lib/lifecycle/schedule";
+import { LIFECYCLE_KINDS, formatEndDate, formatPlanEndDay } from "../../src/lib/lifecycle/schedule";
 import { unsubscribeUrls } from "../../src/lib/lifecycle/unsubscribe";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const OUT = path.join(here, "..", "_scratch", "life-1", "preview");
+const outArg = process.argv.indexOf("--out");
+const OUT =
+  outArg > 0 && process.argv[outArg + 1]
+    ? path.resolve(process.argv[outArg + 1]!)
+    : path.join(here, "..", "_scratch", "life-1", "preview");
 mkdirSync(OUT, { recursive: true });
 
 const SAMPLE_USER_ID = "00000000-0000-4000-8000-000000000000";
@@ -30,6 +34,7 @@ const unsub = unsubscribeUrls(SAMPLE_USER_ID, {
   PUBLIC_APP_URL: "https://api.kitchenwizard.ai",
 })!;
 const endDate = formatEndDate(new Date("2026-11-03T04:59:59Z"), "America/New_York");
+const planEndDay = formatPlanEndDay("2026-10-30");
 
 const files: Array<{ file: string; kind: string; subject: string }> = [];
 LIFECYCLE_KINDS.forEach((kind, i) => {
@@ -37,6 +42,7 @@ LIFECYCLE_KINDS.forEach((kind, i) => {
     kind,
     firstName: "Sam",
     endDate,
+    planEndDay,
     unsubscribeUrl: kind === "welcome" ? null : unsub.page,
   });
   const base = `${i + 1}-${kind}`;

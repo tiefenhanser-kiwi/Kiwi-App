@@ -61,7 +61,7 @@ lives for the deployed instance. "env" = a plain Cloud Run env var
 | `TURNSTILE_SECRET_KEY` | no (recommended before launch) | Secret Manager | **Row 13 · D-WS9-262 — Cloudflare Turnstile**, mounted on `POST /api/guest/session` **and nowhere else**. Unset → the route accepts every caller and boot logs one `turnstile_disabled` warning. Set → **fail closed**: a missing token, a rejected token, a verify timeout (10 s) or a transport error all answer 403 `bot_check_failed`. Not mounted on signup — the native app cannot solve a web widget and any exemption a client can claim an attacker can claim (that stays BUG-222's product half). |
 | `GUEST_SWEEP_OIDC_EMAIL` | for the guest sweep | env | The Cloud Scheduler job's service-account email (comma-separated allowlist). Unset → `POST /api/internal/guest/sweep` answers 404 to everyone. Same OIDC shape as the image drain. |
 | `GUEST_SWEEP_OIDC_AUDIENCE` | for the guest sweep | env | The `aud` the job's OIDC token carries — the sweep URL, `https://<service-url>/api/internal/guest/sweep`. Unset → same 404. |
-| `LIFECYCLE_EMAIL_ENABLED` | no (**the lifecycle-email switch**) | env | **LIFE-1.** Exactly `true` (any case) → the welcome at signup and the hourly Day 1/3/5 + free-time emails are sent. Anything else → **off**: nothing is sent and the tick answers `{ enabled: false }`. Boot logs `lifecycle email: on|off`, plus an **error** when on with the footer address still a placeholder (`copy.ts` `FOOTER.mailingAddress`) or no `JWT_SECRET`. See **Lifecycle emails**. |
+| `LIFECYCLE_EMAIL_ENABLED` | no (**the lifecycle-email switch**) | env | **LIFE-1.** Exactly `true` (any case) → the welcome at signup and the hourly Day 1/3/5 + free-time emails (and LIFE-2's eight) are sent. Anything else → **off**: nothing is sent and the tick answers `{ enabled: false }`. Boot logs `lifecycle email: on|off`, plus an **error** when on with the footer address still a placeholder (`copy.ts` `FOOTER.mailingAddress`) or no `JWT_SECRET`. See **Lifecycle emails**. |
 | `LIFECYCLE_EMAIL_FROM` | no | env | **LIFE-1.** From for the lifecycle emails only (Resend-verified). Unset → `EMAIL_FROM`. Reply-To is always `support@kitchenwizard.ai` (`copy.ts`). |
 | `LIFECYCLE_EMAIL_OIDC_EMAIL` | for the lifecycle tick | env | **LIFE-1.** The Cloud Scheduler job's service-account email. Unset → `POST /api/internal/lifecycle/emails` answers 404 to everyone. Same OIDC shape as the guest sweep. |
 | `LIFECYCLE_EMAIL_OIDC_AUDIENCE` | for the lifecycle tick | env | **LIFE-1.** The `aud` the job's OIDC token carries — `https://<service-url>/api/internal/lifecycle/emails`. Unset → same 404. |
@@ -457,6 +457,31 @@ then `lifecycle_tick` in the service log (`enabled`, `candidates`, `sent`,
 `bad_signature_or_claims` means the audience differs by a character;
 `lifecycle_email_not_configured` means an OIDC variable is unset. Each send logs
 `lifecycle_email_sent { userId, kind }` — never an address.
+
+### LIFE-2 — eight event-driven emails on the same tick
+
+`list_nudge`, `prep_nudge`, `first_cook`, `next_week`, `playlist_nudge`,
+`instacart_nudge`, `still_here` and `come_back` ride the same flag and job;
+nothing new to switch on. The schedule (anchor, window, skip rule, priority) is
+the table at the top of `src/lib/lifecycle/schedule.ts`. Day 3 is now skipped
+once a grocery list exists and Day 5 once a prep session has started. At most
+**two emails per account per rolling 7 days**, the welcome excepted; the
+free-time pair counts toward that cap but is never held by it. `next_week` goes
+once per PLAN, so the send log's key is (user, kind, `refId`): the plan's id for
+`next_week`, `''` for every other kind (`lifecycle_email_sent` carries `refId`).
+
+**⚠️ ORDER: apply `20261026180000_life2_lifecycle_events` BEFORE the revision
+that carries LIFE-2 serves traffic.** The tick reads
+`lifecycle_email_sends.refId` and the `cook_finished` enum value; without them
+every tick is a P2022 / 22P02 and sends nothing. The migration is additive for
+the live LIFE-1 revision: its claims land as `refId = ''`, which is its old key.
+
+`candidates` in `lifecycle_tick` is now every active, opted-in account (one
+batched read: plans, lists, activities, prep check-offs, Playlist count), not a
+recent slice. `still_here` reads `users.lastActiveAt`, which `requireAuth` now
+writes at most once an hour per user per instance; `first_cook` reads
+`cook_finished`, which only `POST /me/activity/cook-finished` writes, and which
+no shipped client calls yet.
 
 ## Redeploy
 
