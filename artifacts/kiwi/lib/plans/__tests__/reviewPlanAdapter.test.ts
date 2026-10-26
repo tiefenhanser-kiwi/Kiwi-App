@@ -285,6 +285,28 @@ test("planDetailToReviewPlan: meta line uses servingsOverride when the plan item
   assert.equal(result.scheduledMeals[0].servingsOverride, 8);
 });
 
+// THX-4 (D-WS9-324) — a feast's chosen turkey weight shows in the meta line only;
+// GET /plans/:id sends birdWeightLb only when one is set.
+test("planDetailToReviewPlan: a chosen turkey weight joins the meta line; none, no change", () => {
+  const meta = (birdWeightLb?: number | null) =>
+    planDetailToReviewPlan(
+      makeDetail({
+        items: [
+          makeItem({
+            assignedDayOfWeek: "Thursday",
+            servingsOverride: 4,
+            ...(birdWeightLb !== undefined ? { birdWeightLb } : {}),
+            meal: makeMeal({ difficulty: "hard", minutes: 45, servings: 10 }),
+          }),
+        ],
+      }),
+    ).scheduledMeals[0].metaLine;
+  assert.equal(meta(14), "Hard · 45 min · serves 4 · Turkey 14 lb");
+  assert.equal(meta(16.5), "Hard · 45 min · serves 4 · Turkey 16½ lb");
+  assert.equal(meta(undefined), "Hard · 45 min · serves 4");
+  assert.equal(meta(null), "Hard · 45 min · serves 4");
+});
+
 test("planDetailToReviewPlan: meta line falls back to meal.servings when servingsOverride is null (D-WS7-141 Fix 2)", () => {
   const result = planDetailToReviewPlan(
     makeDetail({

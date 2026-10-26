@@ -202,9 +202,14 @@ export type CookingSequence = z.infer<typeof CookingSequenceResponseSchema>;
  */
 export async function getCookingSequence(
   mealId: string,
+  /** THX-4 (D-WS9-324) — the plan item Cook Mode opened the meal from: its turkey
+   *  weight sets the roast. Sent as `{ planItemId }` only when given; a server before
+   *  THX-4 ignores the body. */
+  planItemId?: string,
 ): Promise<CookingSequence> {
   return apiClient(`/meals/${encodeURIComponent(mealId)}/cooking-sequence`, {
     method: "POST",
+    ...(planItemId ? { body: { planItemId } } : {}),
     schema: CookingSequenceResponseSchema,
   });
 }

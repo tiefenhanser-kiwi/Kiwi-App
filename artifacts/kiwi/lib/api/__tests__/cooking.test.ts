@@ -18,6 +18,7 @@ import {
 } from "../cooking";
 import { ApiError, ApiSchemaError, UnauthenticatedError } from "../errors";
 import { prepWeekQueryKey } from "@/hooks/usePrepWeek";
+import { cookingSequenceQueryKey } from "@/hooks/useCookingSequence";
 import { __resetForTests as resetAuthBridge } from "../auth-bridge";
 
 const TOKEN_KEY = "kiwi_authToken";
@@ -278,6 +279,25 @@ test("getCookingSequence round-trips mergedSteps and a step after serve", async 
   const res = await getCookingSequence("meal-multi");
   assert.deepEqual(res.mergedSteps, [{ dishId: "dish-b", originalStepIndex: 4 }]);
   assert.equal(res.sequence[2].startOffsetMinutes, 5);
+});
+
+// THX-4 (D-WS9-324) — from a plan, the plan item rides the body: its turkey
+// weight sets the roast. Without one the call is the bodiless POST above.
+test("getCookingSequence sends { planItemId } when Cook Mode opened the meal from a plan", async () => {
+  nextResponse = () => mockJson(SEQUENCE_RESPONSE);
+  await getCookingSequence("meal-multi", "item-9");
+  assert.equal(lastMethod, "POST");
+  assert.deepEqual(JSON.parse(lastBody ?? "null"), { planItemId: "item-9" });
+  nextResponse = () => mockJson(SEQUENCE_RESPONSE);
+  await getCookingSequence("meal-multi", undefined);
+  assert.equal(lastBody, null);
+});
+
+test("cookingSequenceQueryKey — a plan item keys its own ordering; the library key is unchanged", () => {
+  assert.deepEqual(cookingSequenceQueryKey("m-1"), ["cooking", "sequence", "m-1"]);
+  assert.deepEqual(cookingSequenceQueryKey("m-1", "item-1"), ["cooking", "sequence", "m-1", "item-1"]);
+  // The weight Save's prefix ["cooking","sequence",mealId] covers both.
+  assert.deepEqual(cookingSequenceQueryKey("m-1", "item-1").slice(0, 3), cookingSequenceQueryKey("m-1"));
 });
 
 test("getCookingSequence encodes the mealId path segment", async () => {

@@ -1322,6 +1322,83 @@ test("setServingsForPlanItem invalidates the meals-detail cache so the meal scre
   );
 });
 
+// ── THX-4 (D-WS9-324) — savePlanItemAmounts: the turkey's weight ──────────
+
+/** Capture the item PATCH body; answer with the mutation envelope for meal m-1. */
+function capturePatch(): { body: () => Record<string, unknown> | null } {
+  let body: Record<string, unknown> | null = null;
+  const prevFetch = globalThis.fetch;
+  (globalThis as { fetch: typeof fetch }).fetch = ((url: string, init?: RequestInit) => {
+    if ((init?.method ?? "GET").toUpperCase() === "PATCH" && String(url).endsWith("/plans/plan-1/items/item-1")) {
+      body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : null;
+      return Promise.resolve(mockJson({ ...itemMutationResponse("plan-1", "item-1", "m-1"), item: { ...itemMutationResponse("plan-1", "item-1", "m-1").item, birdWeightLb: 16 } }));
+    }
+    return prevFetch(url, init);
+  }) as unknown as typeof fetch;
+  return { body: () => body };
+}
+
+test("THX-4 — savePlanItemAmounts sends the weight alone, or with the servings, in ONE PATCH", async () => {
+  await mountAuthed();
+  const a = capturePatch();
+  await act(async () => {
+    await app!.savePlanItemAmounts("plan-1", "item-1", { birdWeightLb: 16 });
+  });
+  assert.deepEqual(a.body(), { birdWeightLb: 16 });
+
+  const b = capturePatch();
+  await act(async () => {
+    await app!.savePlanItemAmounts("plan-1", "item-1", { servingsOverride: 6, birdWeightLb: null });
+  });
+  // null is the Reset: back to the default bird.
+  assert.deepEqual(b.body(), { servingsOverride: 6, birdWeightLb: null });
+});
+
+test("THX-4 — a weight Save re-reads the meal, the plan and the groceries, and marks Prep and the sequence stale", async () => {
+  const qc = await mountAuthed();
+  const keys: Record<string, readonly unknown[]> = {
+    meal: ["meals", "detail", "m-1", "item-1"],
+    plan: ["plans", "plan-1"],
+    groceries: ["groceries", "list", "all"],
+    prepWeek: ["cooking", "prep-week", "plan-1"],
+    prepSubset: ["cooking", "prep-week", "plan-1", "subset", "m-1,m-2"],
+    prepFeast: ["cooking", "prep-week", "plan-1", "session", "feast"],
+    sequence: ["cooking", "sequence", "m-1", "item-1"],
+    otherPlanPrep: ["cooking", "prep-week", "plan-2"],
+    otherMealSequence: ["cooking", "sequence", "m-9", "item-9"],
+  };
+  for (const k of Object.values(keys)) qc.setQueryData(k, { primed: true });
+  capturePatch();
+
+  await act(async () => {
+    await app!.savePlanItemAmounts("plan-1", "item-1", { birdWeightLb: 16 });
+  });
+
+  const stale = (k: readonly unknown[]) => qc.getQueryState(k)?.isInvalidated === true;
+  // The PATCH response has no bird fields: the meal read is re-run for them.
+  assert.equal(stale(keys.meal), true, "meal read");
+  assert.equal(stale(keys.plan), true, "plan (Hub thaw row, Plan Review meta line)");
+  assert.equal(stale(keys.groceries), true, "grocery list");
+  assert.equal(stale(keys.prepWeek), true, "Prep the Week");
+  assert.equal(stale(keys.prepSubset), true, "Prep Selected Meals");
+  assert.equal(stale(keys.prepFeast), true, "Prep the feast");
+  assert.equal(stale(keys.sequence), true, "Cook Mode's sequence");
+  assert.equal(stale(keys.otherPlanPrep), false, "another plan's Prep is untouched");
+  assert.equal(stale(keys.otherMealSequence), false, "another meal's sequence is untouched");
+});
+
+test("THX-4 — a servings-only Save leaves Prep the Week and the sequence alone (as before)", async () => {
+  const qc = await mountAuthed();
+  qc.setQueryData(["cooking", "prep-week", "plan-1"], { primed: true });
+  qc.setQueryData(["cooking", "sequence", "m-1", "item-1"], { primed: true });
+  capturePatch();
+  await act(async () => {
+    await app!.setServingsForPlanItem("plan-1", "item-1", 8);
+  });
+  assert.equal(qc.getQueryState(["cooking", "prep-week", "plan-1"])?.isInvalidated, false);
+  assert.equal(qc.getQueryState(["cooking", "sequence", "m-1", "item-1"])?.isInvalidated, false);
+});
+
 test("promoteRecipeOverrideToMeal POSTs to /promote-override and invalidates caches", async () => {
   const qc = await mountAuthed();
   qc.setQueryData(["plans", "plan-1"], { id: "plan-1" });

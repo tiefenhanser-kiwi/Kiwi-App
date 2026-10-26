@@ -149,6 +149,15 @@ interface AppState {
     planItemId: string,
     servings: number | null,
   ) => Promise<void>;
+  /** THX-4 (D-WS9-324) — the meal screen's one Save: the servings and/or the
+   *  turkey's weight in ONE PATCH (a key left out is untouched; null clears).
+   *  A weight also marks the plan's Prep the Week and the meal's Cook Mode
+   *  sequence stale. */
+  savePlanItemAmounts: (
+    planId: string,
+    planItemId: string,
+    amounts: { servingsOverride?: number | null; birdWeightLb?: number | null },
+  ) => Promise<void>;
   /** PRD §2.5 + §8.4.3 — promote a plan-item's recipeOverrideJson into the underlying Meal record. Clears the override after promotion. */
   promoteRecipeOverrideToMeal: (
     planId: string,
@@ -739,15 +748,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // WS7-7-A B5 — per-instance servings. Bumps the plan revision server-side
   // (D-WS7-134), so the next grocery-list GET reconciles the new quantities.
-  const setServingsForPlanItem = useCallback(
+  const savePlanItemAmounts = useCallback(
     async (
       planId: string,
       planItemId: string,
-      servings: number | null,
+      amounts: { servingsOverride?: number | null; birdWeightLb?: number | null },
     ): Promise<void> => {
-      const response = await patchPlanItem(planId, planItemId, {
-        servingsOverride: servings,
-      });
+      const response = await patchPlanItem(planId, planItemId, amounts);
       handleMutationResult(planId, response.macrosStale);
       // BUG-001 — mirrors changeRecipeForPlanItem's meals-detail invalidation
       // for the same unmount-staleness reason: Meal Detail caches the resolved
@@ -755,9 +762,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // back-out + re-entry re-seeds displayServings from the STALE cached
       // effectiveServings, so the servings change appears lost. We have
       // planItemId but not mealId, so prefix-invalidate ["meals","detail"].
+      // THX-4 — the PATCH response does not carry the bird fields either, so the
+      // meal screen's stepper re-reads them from this refetch.
       queryClient.invalidateQueries({ queryKey: ["meals", "detail"] });
+      if (amounts.birdWeightLb !== undefined) {
+        // THX-4 (D-WS9-324) — the weight moves the brine (Prep the Week, Prep the
+        // feast: the prefix covers the subsets and the feast session) and the roast
+        // (Cook Mode's sequence). Marked stale, NOT refetched here: each Prep
+        // refetch is a live generation (usePrepWeek's warning), so it runs when
+        // that screen next opens, never behind this one. The grocery list is
+        // handleMutationResult's ["groceries"].
+        void queryClient.invalidateQueries({ queryKey: ["cooking", "prep-week", planId], refetchType: "none" });
+        void queryClient.invalidateQueries({ queryKey: ["cooking", "sequence", response.item.mealId], refetchType: "none" });
+      }
     },
     [handleMutationResult, queryClient],
+  );
+
+  // WS7-7-A B5 — servings alone (the one caller before THX-4's weight).
+  const setServingsForPlanItem = useCallback(
+    (planId: string, planItemId: string, servings: number | null): Promise<void> =>
+      savePlanItemAmounts(planId, planItemId, { servingsOverride: servings }),
+    [savePlanItemAmounts],
   );
 
   // WS7-4-E c2 — Q3:A — plan-level mutators also consume macrosStale for
@@ -1338,6 +1364,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     changeMealForPlanItem,
     changeRecipeForPlanItem,
     setServingsForPlanItem,
+    savePlanItemAmounts,
     promoteRecipeOverrideToMeal,
     updatePlanName,
     updatePlanDateRange,
