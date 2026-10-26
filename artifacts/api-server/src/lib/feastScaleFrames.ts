@@ -41,7 +41,9 @@ export function dishScalesOf(load: Pick<LoadPrepWeekInputResult, "input">): Map<
     for (const dish of meal.dishes) {
       const authored = (dish.authoredBaseServings ?? dish.baseServings) || 1;
       const servings = meal.servingsOverride ?? dish.baseServings;
-      const mult = dishRowMultipliers(dish.ingredients.map((i) => ({ quantity: i.quantity, unit: i.unit, name: i.ingredientName })), servings / authored, { feast: !!meal.feast });
+      // THX-4 (D-WS9-324) — the turkey's dish follows the weight the cook chose.
+      const birdLb = meal.bird?.dishId === dish.dishId ? { birdLb: meal.bird.lb } : {};
+      const mult = dishRowMultipliers(dish.ingredients.map((i) => ({ quantity: i.quantity, unit: i.unit, name: i.ingredientName, note: i.preparationNote })), servings / authored, { feast: !!meal.feast, ...birdLb });
       const scale: DishScale = { servings, authoredServings: authored, ones: new Set(), counts: new Map(), rows: new Map() };
       dish.ingredients.forEach((ing, row) => {
         if (!scale.rows.has(ing.ingredientId)) scale.rows.set(ing.ingredientId, { mult: mult[row], name: ing.ingredientName, unit: ing.unit });

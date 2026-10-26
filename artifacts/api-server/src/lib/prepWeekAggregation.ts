@@ -19,6 +19,7 @@ import { resolvePrepCategory } from "./prepCategoryOverride";
 import { selectDefaultPathSteps } from "./cookingScheduler";
 import type { ComponentStep } from "./prepComponents";
 import { prefixDaysOf } from "./feastPrefixes";
+import { mealBirdOf } from "./birdWeight";
 import { admitSubsumesEdge, ingredientGroupKey } from "./ingredientRelations";
 import { normalizeIngredientName } from "./groceryNormalization";
 
@@ -146,10 +147,41 @@ export interface PrepLoadedMeal {
    * input is the shape it always was.
    */
   feast?: true;
+  /**
+   * THX-4 (D-WS9-324) — the turkey weight the cook chose on this plan item, and the
+   * dish it is the bird of (birdWeight mealBirdOf). The dish's rows follow it
+   * (dishRowMultipliers `birdLb`). ON the hashed input on purpose — a new weight is a
+   * cache miss. Present only when a weight is set, so every other input is unchanged.
+   */
+  bird?: { dishId: string; lb: number };
 }
 
 /** PREP-1 (D-WS9-314) — the meal tag THX-2G-E writes on the five feasts. */
 export const FEAST_MEAL_TAG = "thanksgiving-feast";
+
+/**
+ * THX-4 (D-WS9-324) — `{ bird }` for a plan item with a chosen turkey weight, else `{}`.
+ * The dish is the meal's bird (mealBirdOf, over its live rows); a weight on a meal with
+ * no weighable turkey is ignored.
+ */
+export function chosenBirdOf(
+  birdWeightLb: { toNumber(): number } | number | null | undefined,
+  meal: {
+    tags: readonly string[] | null;
+    dishLinks: readonly { dish: { id: string; title: string; dishIngredients: readonly { quantity: number; unit: string; preparationNote: string | null; ingredient: { displayName: string } }[] } }[];
+  },
+): { bird?: { dishId: string; lb: number } } {
+  if (birdWeightLb === null || birdWeightLb === undefined) return {};
+  const bird = mealBirdOf({
+    tags: meal.tags ?? [],
+    dishes: meal.dishLinks.map((l) => ({
+      dishId: l.dish.id,
+      title: l.dish.title,
+      rows: l.dish.dishIngredients.map((di) => ({ quantity: di.quantity, unit: di.unit, name: di.ingredient.displayName, note: di.preparationNote })),
+    })),
+  });
+  return bird ? { bird: { dishId: bird.dishId, lb: Number(birdWeightLb) } } : {};
+}
 
 /** THX-3 — a feast dish's make-ahead days, in tag order: `ahead-<day>` and `brine-<day>`. */
 export function makeAheadDaysOf(tags: readonly string[]): string[] {
@@ -439,6 +471,7 @@ export async function loadPrepWeekInput(
       dishes,
       // By tag only (the THX-2G-E contract) — no title or dish heuristics.
       ...((meal.tags ?? []).includes(FEAST_MEAL_TAG) ? { feast: true as const } : {}),
+      ...chosenBirdOf(item.birdWeightLb, meal),
     });
   }
 

@@ -41,6 +41,7 @@ import { everydayPoolWhere } from "../lib/store/storeShortlist";
 import { hasUnmatchedAmount, type AmountRef } from "../lib/stepAmountRefs";
 import { feastCookWordingFor, PreppedRefsSchema, weeknightCookWordingFor, type CookWording, type PreppedRef } from "../lib/feastCookWording";
 import { weeknightMorningFor } from "../lib/heldCookDay";
+import { applyBirdWeightToRead } from "../lib/birdWeightRead";
 import { FEAST_MEAL_TAG } from "../lib/prepWeekAggregation";
 import {
   subscriptionService as productionSubscriptionService,
@@ -1105,6 +1106,9 @@ export function createMealsRouter(
       let servingsOverride: number | null = null;
       // THX-3d (C) — the item's plan, for a feast meal's Cook Mode words (below).
       let planIdOfItem: string | null = null;
+      // THX-4 (D-WS9-324) — the turkey weight the cook chose there, and the feast's day.
+      let birdWeightLb: number | null = null;
+      let assignedDayOfWeek: string | null = null;
       // 🔴 `req.userId` — NOT the non-null assertion alone. Since this handler
       // accepts a guest (Row 13 · Block 1), `req.userId` can be undefined, and
       // Prisma reads an undefined value in a `where` as "no such filter" — the
@@ -1118,11 +1122,13 @@ export function createMealsRouter(
             mealId: id,
             planInstance: { userId: req.userId },
           },
-          select: { recipeOverrideJson: true, servingsOverride: true, mealPlanInstanceId: true },
+          select: { recipeOverrideJson: true, servingsOverride: true, mealPlanInstanceId: true, birdWeightLb: true, assignedDayOfWeek: true },
         });
         recipeOverrideJson = item?.recipeOverrideJson ?? undefined;
         servingsOverride = item?.servingsOverride ?? null;
         planIdOfItem = item?.mealPlanInstanceId ?? null;
+        birdWeightLb = item?.birdWeightLb == null ? null : Number(item.birdWeightLb);
+        assignedDayOfWeek = item?.assignedDayOfWeek ?? null;
       }
 
       const meal = await composeMealDetail(
@@ -1139,6 +1145,8 @@ export function createMealsRouter(
       // Otherwise, …", "the Cranberry-Orange Sauce dry mix", "the Pan Gravy vegetables
       // you prepped". Read time, no AI, nothing stored — so a dish added to the feast
       // is worded the same way. A failure logs and serves the stored words.
+      // THX-4 — the dishes' step texts as stored, before any read-time wording.
+      const storedTexts = new Map(meal.dishes.map((d) => [d.dishId, d.steps.map((s) => s.text)]));
       if (planIdOfItem && req.userId) {
         // The words, their refs and (THX-3d round 5, D-WS9-321) the prepped containers
         // used, validated: a ref the schema refuses is logged and left off, never the words.
@@ -1208,6 +1216,18 @@ export function createMealsRouter(
           }
         } catch (err) {
           logger.warn({ err, id, event: "weeknight_morning_failed" }, "Weeknight morning steps failed — stored steps served");
+        }
+      }
+      // THX-4 (D-WS9-324) — THE TURKEY'S WEIGHT. A meal with a turkey the cook may weigh,
+      // read in its plan, carries the stepper's facts (kind, range, chosen, shown), and a
+      // chosen weight says the bird's thaw and roast for it (lib/birdWeightRead). Read
+      // time, nothing stored. A failure logs and serves the meal without them.
+      if (planIdOfItem && req.userId) {
+        try {
+          const bird = await applyBirdWeightToRead(prisma, meal, { birdWeightLb, servingsOverride, assignedDayOfWeek }, storedTexts);
+          if (bird) Object.assign(meal, bird);
+        } catch (err) {
+          logger.warn({ err, id, event: "bird_weight_read_failed" }, "Bird weight read failed — meal served without it");
         }
       }
       return res.json({ meal });

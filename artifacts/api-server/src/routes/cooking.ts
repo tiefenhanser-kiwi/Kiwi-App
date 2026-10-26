@@ -183,11 +183,19 @@ export function createCookingRouter(
         return res.status(400).json({ error: "missing meal id" });
       }
 
+      // THX-4 (D-WS9-324) — optional: the plan item Cook Mode opened the meal from (its
+      // turkey weight sets the roast). Anything else in the body is ignored, as before.
+      const planItemIdRaw = (req.body as { planItemId?: unknown } | undefined)?.planItemId;
+      if (planItemIdRaw !== undefined && (typeof planItemIdRaw !== "string" || planItemIdRaw.length === 0 || planItemIdRaw.length > 100)) {
+        return res.status(400).json({ error: "invalid planItemId" });
+      }
+
       try {
         const result = await runCookingSequence({
           mealId,
           userId,
           deps: { prisma },
+          ...(planItemIdRaw !== undefined ? { planItemId: planItemIdRaw } : {}),
         });
         return res.json({
           sequence: result.sequence,

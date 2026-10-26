@@ -89,6 +89,8 @@ import {
 } from "../lib/prepCompletion";
 import { loadPrepStepSet as productionLoadPrepStepSet } from "../lib/prepStepSet";
 import { makeAheadForPlan } from "../lib/makeAheadSchedule";
+import { birdWeightProblem, mealBirdFor } from "../lib/birdWeight";
+import { stampMealTiming } from "../lib/mealTiming";
 import {
   composeMealDetail,
   composeMealDetailsBatch,
@@ -613,6 +615,8 @@ export function createPlansRouter(
           id: item.id,
           mealId: item.mealId,
           assignedDayOfWeek: item.assignedDayOfWeek,
+          // THX-4 (D-WS9-324) — a weighed bird's thaw row follows its weight.
+          birdWeightLb: item.birdWeightLb === null ? null : Number(item.birdWeightLb),
           meal: mealDetails[i],
         })),
       });
@@ -627,6 +631,9 @@ export function createPlansRouter(
             ? item.assignedDate.toISOString()
             : null,
           servingsOverride: item.servingsOverride,
+          // THX-4 (D-WS9-324) — the turkey weight the cook chose (Plan Review's meta
+          // line). Only when set, so every other item is the shape it was.
+          ...(item.birdWeightLb !== null ? { birdWeightLb: Number(item.birdWeightLb) } : {}),
           isBreakfast: item.isBreakfast,
           isLunch: item.isLunch,
           isDinner: item.isDinner,
@@ -1991,6 +1998,8 @@ export function createPlansRouter(
                 // customizations — all carried.
                 assignedDayOfWeek: it.assignedDayOfWeek,
                 servingsOverride: it.servingsOverride,
+                // THX-4 (D-WS9-324) — the turkey the cook weighed, carried like servings.
+                birdWeightLb: it.birdWeightLb,
                 ingredientOverrides:
                   (it.ingredientOverrides as Prisma.InputJsonValue | null) ??
                   Prisma.DbNull,
@@ -2396,6 +2405,10 @@ export function createPlansRouter(
       assignedDayOfWeek: PlanItemDay,
       slot: z.enum(["breakfast", "lunch", "dinner"]).optional(),
       servingsOverride: z.number().int().positive().nullable().optional(),
+      // THX-4 (D-WS9-324) — the turkey's weight in lb, or null (back to the default
+      // bird). The range is the bird's (birdWeight BIRD_WEIGHT_RANGE_LB), checked below
+      // against the item's meal: a 400 names it.
+      birdWeightLb: z.number().nullable().optional(),
       ingredientOverrides: z.unknown().optional(),
       recipeOverrideJson: RecipeOverrideSchema.nullable().optional(),
       notes: z.string().nullable().optional(),
@@ -2474,6 +2487,7 @@ export function createPlansRouter(
               assignedDayOfWeek: true,
               assignedDate: true,
               servingsOverride: true,
+              birdWeightLb: true,
               ingredientOverrides: true,
               recipeOverrideJson: true,
               isBreakfast: true,
@@ -2547,6 +2561,7 @@ export function createPlansRouter(
                 assignedDayOfWeek: true,
                 assignedDate: true,
                 servingsOverride: true,
+                birdWeightLb: true,
                 ingredientOverrides: true,
                 recipeOverrideJson: true,
                 isBreakfast: true,
@@ -2631,6 +2646,23 @@ export function createPlansRouter(
             };
           }
 
+          // THX-4 (D-WS9-324) — the turkey's weight. A number is checked against the
+          // meal's bird (a feast's, or a turkey alternate's): whole 8–20 lb, spatchcock
+          // 8–16 lb, ½-lb steps. null is always allowed (the default bird).
+          let birdFromTo: { from: number | null; to: number | null } | null = null;
+          if (body.birdWeightLb !== undefined) {
+            const from = current.birdWeightLb === null ? null : Number(current.birdWeightLb);
+            if (body.birdWeightLb !== null) {
+              const problem = birdWeightProblem(body.birdWeightLb, await mealBirdFor(tx, current.mealId));
+              if (problem) return { kind: "bad_bird_weight" as const, problem };
+            }
+            if (body.birdWeightLb !== from) {
+              changedFields.add("birdWeightLb");
+              data.birdWeightLb = body.birdWeightLb;
+              birdFromTo = { from, to: body.birdWeightLb };
+            }
+          }
+
           if (body.ingredientOverrides !== undefined) {
             // Q-P1-1: z.unknown() pass-through; no shape diff (treat any
             // present value as a change). Caller pings PATCH again if they
@@ -2681,6 +2713,7 @@ export function createPlansRouter(
               assignedDayOfWeek: true,
               assignedDate: true,
               servingsOverride: true,
+              birdWeightLb: true,
               ingredientOverrides: true,
               recipeOverrideJson: true,
               isBreakfast: true,
@@ -2751,6 +2784,31 @@ export function createPlansRouter(
               },
             });
           }
+          if (changedFields.has("birdWeightLb") && birdFromTo) {
+            await emitActivity({
+              tx,
+              userId,
+              eventType: "plan_meal_edited",
+              entityType: "MealPlanItem",
+              entityId: itemId,
+              metadata: { field: "birdWeightLb", from: birdFromTo.from, to: birdFromTo.to },
+            });
+            // The card's total is the meal's stamp (mealTiming): the user's own copy is
+            // re-stamped at the new weight, so it agrees with Cook Mode. A meal the user
+            // does not own (a pool meal) keeps its stamp; Cook Mode still follows.
+            const owned = await tx.meal.findUnique({
+              where: { id: current.mealId },
+              select: { userId: true, dishLinks: { select: { dishId: true } } },
+            });
+            if (owned?.userId === userId && owned.dishLinks.length > 0) {
+              await stampMealTiming(
+                tx,
+                current.mealId,
+                owned.dishLinks.map((l) => l.dishId),
+                birdFromTo.to === null ? {} : { birdWeightLb: birdFromTo.to },
+              );
+            }
+          }
           if (changedFields.has("ingredientOverrides")) {
             // Q-P0-6: value omitted (JSON may be large).
             await emitActivity({
@@ -2801,6 +2859,9 @@ export function createPlansRouter(
         if (result.kind === "not_found_meal") {
           return res.status(404).json({ error: "meal not found" });
         }
+        if (result.kind === "bad_bird_weight") {
+          return res.status(400).json({ error: "invalid birdWeightLb", message: result.problem });
+        }
 
         // Noop or success — compose item for response (Q-P1-5 rich envelope).
         const composedMeal = await composeMealDetail(
@@ -2821,6 +2882,8 @@ export function createPlansRouter(
             ? result.item.assignedDate.toISOString()
             : null,
           servingsOverride: result.item.servingsOverride,
+          // THX-4 (D-WS9-324) — the turkey's weight, or null (the default bird).
+          birdWeightLb: result.item.birdWeightLb === null ? null : Number(result.item.birdWeightLb),
           isBreakfast: result.item.isBreakfast,
           isLunch: result.item.isLunch,
           isDinner: result.item.isDinner,

@@ -297,12 +297,43 @@ export function wholeBirdCount(quantity: number, multiplier: number): number {
   return Math.max(1, Math.floor(quantity * multiplier + 0.5 + TIE));
 }
 
+// ── THX-4 (D-WS9-324) — THE TURKEY'S WEIGHT, SET BY THE COOK ─────────────────
+//
+// A plan item may carry the weight the cook chose (MealPlanItem.birdWeightLb). Then
+// that one bird is bought and roasted, in place of the servings rule: the bird's row
+// shows the chosen weight (or ONE bird, written by count), every other row of its dish
+// follows chosen ÷ the recipe's weight (no floor — the cook chose it), a neck or
+// giblets is the one bird's, and equipment prints as written. Turkeys only (v1): by
+// weight ("14 pound whole turkey"), or by count with a weight in its name or its note
+// ("1 whole turkey (12–14 lb)", the Buttermilk-Brined turkey's "12–14 lb" note) — the
+// upper end, as the name rule reads it. A breast is not a whole bird (WHOLE_BIRD).
+
+const TURKEY = /\bturkeys?\b/i;
+
+/** The turkey a cook can weigh, in a dish's rows: its row, the recipe's weight, how it is written. */
+export interface WeighedTurkey { row: number; recipeLb: number; byCount: boolean }
+
+export function weighedTurkeyOf(rows: readonly { quantity: number; unit: string; name: string; note?: string | null }[]): WeighedTurkey | null {
+  for (const [row, r] of rows.entries()) {
+    if (!(r.quantity > 0) || !TURKEY.test(r.name)) continue;
+    if (isWholeBirdByWeight(r.unit, r.name)) {
+      const per = poundsPer(r.unit);
+      if (per !== null) return { row, recipeLb: r.quantity * per, byCount: false };
+    }
+    if (isWholeBirdByCount(r.unit, r.name)) {
+      const each = birdWeightInName(r.name) ?? (r.note ? birdWeightInName(r.note) : null);
+      if (each !== null) return { row, recipeLb: each * r.quantity, byCount: true };
+    }
+  }
+  return null;
+}
+
 /**
  * The multiplier each row of ONE dish scales by, in row order, given the dish's
  * servings multiplier. Rows are the dish's raw (unscaled) ingredient rows.
  */
 export function dishRowMultipliers(
-  rows: readonly { quantity: number; unit: string; name: string }[],
+  rows: readonly { quantity: number; unit: string; name: string; note?: string | null }[],
   multiplier: number,
   /**
    * THX-3c (item 2, chat-Claude's ruling) — the dish is a `thanksgiving-feast` meal's.
@@ -310,9 +341,27 @@ export function dishRowMultipliers(
    * printed its whole 4-serving pot (noodles, sprouts) for its "1 whole chicken".
    * Elsewhere the bird still shows whole birds and everything else follows servings.
    * The weight rule (the floor and its factor) is the same everywhere.
+   *
+   * THX-4 (D-WS9-324) — `birdLb`: the weight the cook chose for this dish's turkey
+   * (weighedTurkeyOf). Absent, nothing below changes.
    */
-  opts: { feast?: boolean } = {},
+  opts: { feast?: boolean; birdLb?: number } = {},
 ): number[] {
+  if (opts.birdLb !== undefined) {
+    const t = weighedTurkeyOf(rows);
+    if (t) {
+      const factor = opts.birdLb / t.recipeLb;
+      const birds = rows[t.row].quantity;
+      return rows.map((r, i) => {
+        // The bird: the chosen weight, or one bird written by count.
+        if (i === t.row) return t.byCount ? 1 / birds : factor;
+        if (isEquipmentItem(r.name)) return asWritten(r.quantity);
+        // A part is the one bird's.
+        if (BIRD_PART.test(r.name)) return t.byCount ? 1 / birds : 1;
+        return factor;
+      });
+    }
+  }
   // THX-3d (G) — "1 whole turkey (12–14 lb)", New Twist's bird: written by count, but
   // its line gives the weight, so it takes the WEIGHT rule (the floor: 10 lb for 14, a
   // factor of 10/14 at 4 of 10) and its butter, garlic and citrus scale with it. In a

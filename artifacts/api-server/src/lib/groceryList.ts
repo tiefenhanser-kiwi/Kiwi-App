@@ -46,7 +46,7 @@ import {
 } from "./recurringItems";
 import { logger } from "./logger";
 import { buysWholePerShare, dishRowMultipliers, displayedPrepQuantity, isWholeProduce } from "./prepQuantity";
-import { FEAST_MEAL_TAG } from "./prepWeekAggregation";
+import { chosenBirdOf, FEAST_MEAL_TAG } from "./prepWeekAggregation";
 
 // WS7-7-A Block 1 — a single plan source contributing to a consolidated line.
 // Tracked as (mealId, dishId) PAIRS (not two independent arrays) so per-row
@@ -513,6 +513,8 @@ export async function consolidatePlanIngredients(
     // recipeOverrideJson (PRD §8.4.3) replaces the meal's recipe for THIS plan
     // instance only ("just this time"). Matched to dishes by position index.
     const overrideDishes = parseRecipeOverrideDishes(item.recipeOverrideJson);
+    // THX-4 (D-WS9-324) — the item's chosen turkey weight and its bird's dish, or nothing.
+    const { bird } = chosenBirdOf(item.birdWeightLb, item.meal);
     let dishIndex = -1;
     for (const link of item.meal.dishLinks) {
       dishIndex += 1;
@@ -548,17 +550,24 @@ export async function consolidatePlanIngredients(
             preparationNote: di.preparationNote ?? null,
           }));
 
+      // THX-4 (D-WS9-324) — the turkey weight the cook chose, on its bird's dish only.
+      const birdLb = bird?.dishId === dish.id ? bird.lb : undefined;
       // Q1 change-signature for this source dish — base set, servings-independent.
-      const ingredientSignature = signatureOfEffective(effective);
+      // THX-4 — a chosen weight is part of it (on its dish, and only when set), or
+      // reconcile would carry the old bird's rows untouched.
+      const ingredientSignature =
+        birdLb === undefined
+          ? signatureOfEffective(effective)
+          : createHash("sha1").update(`${signatureOfEffective(effective)}\nbird|${birdLb}`).digest("hex");
       // THX-3b (BUG-454) — a whole-bird dish buys the bird the recipe shows (WEB-4's
       // floor: a 10 lb turkey at 4 of 10, not 5.6 lb) and the rest of the dish
       // follows that bird; a neck or giblets is the one the bird comes with. The same
       // rule as Prep the Week and the meal screen (prepQuantity dishRowMultipliers).
       const rowMultiplier = dishRowMultipliers(
-        effective.map((e) => ({ quantity: e.quantity, unit: e.unit, name: e.ingredient?.canonicalName ?? "" })),
+        effective.map((e) => ({ quantity: e.quantity, unit: e.unit, name: e.ingredient?.canonicalName ?? "", note: e.preparationNote })),
         multiplier,
         // THX-3c (item 2) — a dish follows a bird by count only in a feast.
-        { feast: (item.meal.tags ?? []).includes(FEAST_MEAL_TAG) },
+        { feast: (item.meal.tags ?? []).includes(FEAST_MEAL_TAG), ...(birdLb !== undefined ? { birdLb } : {}) },
       );
 
       for (const [row, eff] of effective.entries()) {

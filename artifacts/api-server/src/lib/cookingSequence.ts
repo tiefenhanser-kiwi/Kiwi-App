@@ -26,6 +26,7 @@ import { weeknightMorningFor } from "./heldCookDay";
 import { onTheDaySteps } from "./mealTiming";
 import { feastDishOvenRacks } from "./ovenRacks";
 import { FEAST_MEAL_TAG } from "./prepWeekAggregation";
+import { BIRD_MEAL_TAGS, mealBirdOf, withBirdRoast } from "./birdWeight";
 
 // Route handler maps NotFoundError → 404; meal-exists-but-empty maps to
 // 400 with the locked copy.
@@ -54,6 +55,12 @@ export interface RunCookingSequenceParams {
   mealId: string;
   userId: string;
   deps: RunCookingSequenceDeps;
+  /**
+   * THX-4 (D-WS9-324) — the plan item Cook Mode opened the meal from, so the turkey
+   * weight the cook chose there sets the roast. Absent: the one plan item that holds the
+   * meal, if exactly one does (the weeknight morning's rule, below).
+   */
+  planItemId?: string;
 }
 
 export interface CookingSequenceResult {
@@ -84,7 +91,8 @@ export async function runCookingSequence(
         orderBy: { positionIndex: "asc" },
         // PREP-3 (R7) — the dish's own foods, so "the rice" of a fried rice is its own.
         // THX-3d round 4 (BUG-496) — and their weights, for a feast's oven racks.
-        include: { dish: { include: { dishIngredients: { select: { quantity: true, unit: true, ingredient: { select: { canonicalName: true } } } } } } },
+        // THX-4 (D-WS9-324) — and their notes, where a turkey written by count gives its weight.
+        include: { dish: { include: { dishIngredients: { select: { quantity: true, unit: true, preparationNote: true, ingredient: { select: { canonicalName: true } } } } } } },
       },
     },
   });
@@ -263,7 +271,31 @@ export async function runCookingSequence(
       logger.warn({ event: "cooking_sequence_morning_failed", mealId, err }, "Weeknight morning steps failed — stored steps sequenced");
     }
   }
-  const scheduled = scheduleCookingSequence(schedulerDishes, isFeast ? { feastOven: true } : {});
+  // THX-4 (D-WS9-324) — THE BIRD THE COOK WEIGHED. A turkey weight chosen on the plan
+  // item sets the main roast's minutes (birdWeight withBirdRoast): the bird comes out
+  // at the same minute before serving and the day starts earlier or later. A meal with
+  // no bird, or no weight chosen, is scheduled exactly as before.
+  let dishesToSchedule = schedulerDishes;
+  const bird = isOwner && (meal.tags ?? []).some((t) => BIRD_MEAL_TAGS.includes(t))
+    ? mealBirdOf({
+        tags: meal.tags ?? [],
+        dishes: meal.dishLinks.map((dl) => ({
+          dishId: dl.dishId,
+          title: dl.dish.title,
+          rows: (dl.dish.dishIngredients ?? []).map((i) => ({ quantity: i.quantity, unit: i.unit, name: i.ingredient.canonicalName, note: i.preparationNote })),
+        })),
+      })
+    : null;
+  if (bird) {
+    const items = await prisma.mealPlanItem.findMany({
+      where: { mealId, planInstance: { userId, isArchived: false }, ...(params.planItemId ? { id: params.planItemId } : {}) },
+      select: { birdWeightLb: true },
+      take: 2,
+    });
+    const lb = items.length === 1 ? items[0].birdWeightLb : null;
+    if (lb !== null) dishesToSchedule = withBirdRoast(schedulerDishes, bird, Number(lb));
+  }
+  const scheduled = scheduleCookingSequence(dishesToSchedule, isFeast ? { feastOven: true } : {});
   const result = realIndex.size === 0 ? scheduled : {
     ...scheduled,
     steps: scheduled.steps.map((e) => {

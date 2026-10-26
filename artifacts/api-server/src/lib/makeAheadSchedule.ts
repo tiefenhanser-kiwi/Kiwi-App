@@ -22,6 +22,7 @@ import type { PrismaClient } from "@prisma/client";
 
 import { FEAST_MEAL_TAG } from "./prepWeekAggregation";
 import { prefixDaysOf } from "./feastPrefixes";
+import { mealBirdOf, thawLeadDays } from "./birdWeight";
 
 export interface MakeAheadDishInput {
   dishId: string;
@@ -41,6 +42,12 @@ export interface MakeAheadInput {
     /** The plan item's weekday. Null (unscheduled) reads as Thursday — it is Thanksgiving. */
     assignedDayOfWeek: string | null;
     dishes: readonly MakeAheadDishInput[];
+    /**
+     * THX-4 (D-WS9-324) — the turkey weight the cook chose and the bird's dish: its thaw
+     * row is ⌈lb ÷ 4⌉ fridge days before the bird is first handled (birdWeight). Absent:
+     * the dish's `thaw-<n>d` tag, as before.
+     */
+    bird?: { dishId: string; lb: number };
   };
 }
 
@@ -137,10 +144,37 @@ const tagDay = (tags: readonly string[], re: RegExp): number | undefined => {
   return undefined;
 };
 
+/** The feast's weekday (0 = Sunday) from the plan item's day name; unscheduled reads as Thursday. */
+export function feastDowOf(assignedDayOfWeek: string | null): number {
+  const named = assignedDayOfWeek ? DAY_NAMES.findIndex((d) => d.toLowerCase() === assignedDayOfWeek.trim().toLowerCase()) : -1;
+  return named >= 0 ? named : THURSDAY;
+}
+
+/**
+ * THX-4 (D-WS9-324) — A WEIGHED BIRD'S THAW: ⌈lb ÷ 4⌉ fridge days (birdWeight
+ * thawLeadDays), ending the day the bird is first handled — its brine (the
+ * `brine-<day>` tag, else a "Make ahead (<Day> night):" step), else the feast day.
+ * The Hub's thaw row and the thaw step's words both read this.
+ */
+export function weighedThaw(args: { tags: readonly string[]; stepTexts: readonly string[]; feastDow: number; lb: number }): {
+  daysBefore: number;
+  startDay: string;
+  readyBy: string;
+} {
+  const before = (dow: number) => (args.feastDow - dow + 7) % 7 || 7;
+  const night = prefixDaysOf(args.stepTexts).night;
+  const handled = tagDay(args.tags, /^brine-([a-z]{3})$/) ?? (night.length > 0 ? SHORT[night[0]] : undefined);
+  const daysBefore = thawLeadDays(args.lb, handled === undefined ? 0 : before(handled));
+  return {
+    daysBefore,
+    startDay: DAY_NAMES[(((args.feastDow - daysBefore) % 7) + 7) % 7],
+    readyBy: handled === undefined ? DAY_NAMES[args.feastDow] : `${DAY_NAMES[handled]} night`,
+  };
+}
+
 export function buildMakeAheadSchedule(input: MakeAheadInput): MakeAheadSchedule {
   const { feast } = input;
-  const named = feast.assignedDayOfWeek ? DAY_NAMES.findIndex((d) => d.toLowerCase() === feast.assignedDayOfWeek!.trim().toLowerCase()) : -1;
-  const feastDow = named >= 0 ? named : THURSDAY;
+  const feastDow = feastDowOf(feast.assignedDayOfWeek);
   // The loader's rule: the single occurrence of that weekday in the seven days from startDate.
   const feastMs = input.startDate
     ? input.startDate.getTime() + ((feastDow - input.startDate.getUTCDay() + 7) % 7) * DAY_MS
@@ -156,7 +190,11 @@ export function buildMakeAheadSchedule(input: MakeAheadInput): MakeAheadSchedule
   const rows: (MakeAheadRow & { pos: number })[] = [];
   feast.dishes.forEach((d, pos) => {
     const base = { mealId: feast.mealId, dishId: d.dishId, dishName: d.dishName, pos };
-    const thaw = tagNumber(d.tags, /^thaw-(\d+)d$/);
+    const named = prefixDaysOf(d.stepTexts);
+    const brine = tagDay(d.tags, /^brine-([a-z]{3})$/);
+    // THX-4 — a weighed bird thaws by its weight (weighedThaw).
+    const weighed = feast.bird?.dishId === d.dishId ? weighedThaw({ tags: d.tags, stepTexts: d.stepTexts, feastDow, lb: feast.bird.lb }).daysBefore : undefined;
+    const thaw = weighed ?? tagNumber(d.tags, /^thaw-(\d+)d$/);
     if (thaw !== undefined && thaw > 0) rows.push({ kind: "thaw", ...at(thaw), ...base, thawDays: thaw });
     // THX-3 (BUG-425) — EVERY `ahead-<day>` tag is a row. Make-Ahead's stuffing dries
     // its bread on Tuesday and is assembled on Wednesday; with one row (the first tag)
@@ -176,7 +214,6 @@ export function buildMakeAheadSchedule(input: MakeAheadInput): MakeAheadSchedule
         ...(last && d.tags.includes("assemble") ? { assemble: true as const } : {}),
       });
     });
-    const brine = tagDay(d.tags, /^brine-([a-z]{3})$/);
     if (brine !== undefined) {
       const hours = brineHoursOf(d.stepTexts);
       rows.push({ kind: "brine", ...at(before(brine)), ...base, ...(hours ? { brineHours: hours } : {}) });
@@ -184,7 +221,6 @@ export function buildMakeAheadSchedule(input: MakeAheadInput): MakeAheadSchedule
     // THX-3d (F, R6) — AND THE DAYS ITS STEPS NAME, where no tag already gives that
     // row (feastPrefixes): Small's untagged make-ahead steps, and a dish added to the
     // feast. A step-named day carries no keep-days (that is the tag's table).
-    const named = prefixDaysOf(d.stepTexts);
     if (thaw === undefined && named.thaw !== null) {
       const days = before(SHORT[named.thaw]);
       rows.push({ kind: "thaw", ...at(days), ...base, thawDays: days });
@@ -215,9 +251,16 @@ export interface MakeAheadPlanItem {
   id: string;
   mealId: string;
   assignedDayOfWeek: string | null;
+  /** THX-4 (D-WS9-324) — the turkey weight the cook chose; null/absent = the tags. */
+  birdWeightLb?: number | null;
   meal: {
     tags: readonly string[];
-    dishes: readonly { dishId: string; title: string; steps: readonly { text: string }[] }[];
+    dishes: readonly {
+      dishId: string;
+      title: string;
+      steps: readonly { text: string }[];
+      ingredients?: readonly { name: string; quantity: number; unit: string; preparationNote: string | null }[];
+    }[];
   } | null;
 }
 
@@ -238,12 +281,23 @@ export async function makeAheadForPlan(
     ? []
     : await prisma.dish.findMany({ where: { id: { in: dishIds } }, select: { id: true, tags: true } });
   const tagsById = new Map(rows.map((r) => [r.id, r.tags]));
+  const bird = item.birdWeightLb === null || item.birdWeightLb === undefined
+    ? null
+    : mealBirdOf({
+        tags: item.meal.tags,
+        dishes: item.meal.dishes.map((d) => ({
+          dishId: d.dishId,
+          title: d.title,
+          rows: (d.ingredients ?? []).map((i) => ({ quantity: i.quantity, unit: i.unit, name: i.name, note: i.preparationNote })),
+        })),
+      });
   return buildMakeAheadSchedule({
     startDate: plan.startDate,
     feast: {
       mealId: item.mealId,
       planItemId: item.id,
       assignedDayOfWeek: item.assignedDayOfWeek,
+      ...(bird ? { bird: { dishId: bird.dishId, lb: item.birdWeightLb! } } : {}),
       dishes: item.meal.dishes.map((d) => ({
         dishId: d.dishId,
         dishName: d.title,

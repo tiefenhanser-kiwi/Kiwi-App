@@ -419,10 +419,11 @@ export function buildPrepCombineInput(
         // THX-3b (BUG-454) — a whole-bird dish scales by its bird, and the bird's own
         // parts never scale (prepQuantity `dishRowMultipliers`, the client's rule).
         const rowMultiplier = dishRowMultipliers(
-          dish.ingredients.map((i) => ({ ...splitCompoundUnit(i.quantity, i.unit), name: i.ingredientName })),
+          dish.ingredients.map((i) => ({ ...splitCompoundUnit(i.quantity, i.unit), name: i.ingredientName, note: i.preparationNote })),
           multiplier,
           // THX-3c (item 2) — a dish follows a bird by count only in a feast.
-          { feast: !!meal.feast },
+          // THX-4 (D-WS9-324) — the turkey's dish follows the weight the cook chose.
+          { feast: !!meal.feast, ...(meal.bird?.dishId === dish.dishId ? { birdLb: meal.bird.lb } : {}) },
         );
         return {
           dishId: dish.dishId,

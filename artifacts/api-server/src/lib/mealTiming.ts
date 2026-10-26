@@ -40,6 +40,7 @@ import {
 import { logger } from "./logger";
 import { feastDishOvenRacks } from "./ovenRacks";
 import { FEAST_MEAL_TAG } from "./prepWeekAggregation";
+import { mealBirdOf, withBirdRoast } from "./birdWeight";
 
 export interface MealTiming {
   /** Wall-clock start-to-plate, D-WS9-122's definition. Null when underivable. */
@@ -178,6 +179,12 @@ export async function stampMealTiming(
   tx: Prisma.TransactionClient,
   mealId: string,
   dishIds: string[],
+  /**
+   * THX-4 (D-WS9-324) — the turkey weight the cook chose on the plan item holding this
+   * copy (PATCH /plans/:id/items/:itemId re-stamps with it): the main roast follows it,
+   * as in Cook Mode. Absent, the stamp is what it always was.
+   */
+  opts: { birdWeightLb?: number } = {},
 ): Promise<MealTiming> {
   const empty: MealTiming = { totalMinutes: null, activeMinutes: null, dishTotals: new Map(), ignoredTags: [] };
   if (dishIds.length === 0) {
@@ -215,12 +222,23 @@ export async function stampMealTiming(
       // THX-3d round 4 (BUG-496) — a feast's oven racks: the vessel its steps name, its
       // rows' weights, its servings (ovenRacks.ts). (BUG-497 item 8) — and what Cook Mode
       // hands the scheduler: the title, the role, the ingredient names. Same round trip.
-      dish: { select: { title: true, servingsDefault: true, authoredServingsDefault: true, dishIngredients: { select: { quantity: true, unit: true, ingredient: { select: { canonicalName: true } } } } } },
+      dish: { select: { title: true, servingsDefault: true, authoredServingsDefault: true, dishIngredients: { select: { quantity: true, unit: true, preparationNote: true, ingredient: { select: { canonicalName: true } } } } } },
     },
   });
   // PREP-1 G (BUG-418) — a feast's derived times are Thursday's. Every other meal
   // passes its steps through exactly as before.
   const isFeast = links.some((l) => l.meal?.tags?.includes(FEAST_MEAL_TAG));
+  // THX-4 — the bird the cook weighed, when a weight is given (its roast reads the prose).
+  const bird = opts.birdWeightLb === undefined
+    ? null
+    : mealBirdOf({
+        tags: links[0]?.meal?.tags ?? [],
+        dishes: [...links].sort((a, b) => a.positionIndex - b.positionIndex).map((l) => ({
+          dishId: l.dishId,
+          title: l.dish?.title ?? "",
+          rows: (l.dish?.dishIngredients ?? []).map((x) => ({ quantity: x.quantity, unit: x.unit, name: x.ingredient?.canonicalName ?? "", note: x.preparationNote })),
+        })),
+      });
   const key = (s: { ownerId: string; stepIndex: number }) => `${s.ownerId}|${s.stepIndex}`;
   const onTheDay = isFeast
     ? new Set(
@@ -243,7 +261,7 @@ export async function stampMealTiming(
       pathKey: s.pathKey,
       // THX-3 (BUG-449) — a feast's oven is read off the prose, so the feast's steps
       // carry it. Every other meal passes none, exactly as before (a cue moves no number).
-      ...(isFeast ? { text: s.stepTextTranslated } : {}),
+      ...(isFeast || bird ? { text: s.stepTextTranslated } : {}),
     });
     byDish.set(s.ownerId, list);
   }
@@ -279,7 +297,7 @@ export async function stampMealTiming(
       ...(racksOf(id) !== undefined ? { ovenRacks: racksOf(id)!.racks, ovenVessel: racksOf(id)!.vessel } : {}),
     }));
 
-  const timing = deriveMealTiming(schedulerDishes, isFeast ? { feastOven: true } : {});
+  const timing = deriveMealTiming(bird ? withBirdRoast(schedulerDishes, bird, opts.birdWeightLb!) : schedulerDishes, isFeast ? { feastOven: true } : {});
   if (timing.totalMinutes === null) {
     logger.warn(
       { event: "meal_timing_not_derived", mealId, dishCount: dishIds.length, stepCount: steps.length, reason: "no_steps" },
