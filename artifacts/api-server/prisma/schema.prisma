@@ -199,6 +199,11 @@ enum ActivityEventType {
   // D-WS9-191 Block 1 — "Not for me" on a plan-options card. Logged only
   // (title, mealTitles, storeMealIds, source in metadata); nothing reads it yet.
   plan_candidate_dismissed
+  // LIFE-2 — Cook Mode left after its last step (POST /me/activity/cook-finished;
+  // entityType "meal", entityId = Meal.id, metadata.planItemId when sent). The
+  // first one anchors the "How did it go?" email. Distinct from cook_meal, which
+  // nothing emits and which the wizard's recent-history readers would pick up.
+  cook_finished
 }
 
 enum SpiceTolerance {
@@ -2108,10 +2113,16 @@ model LifecycleEmailSend {
   userId            String
   user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   kind              String
+  // LIFE-2 — what a per-occurrence kind is about: the plan's id for next_week
+  // (one per plan), "" for every other kind (one per account). NOT NULL with a
+  // '' default rather than nullable, because Postgres treats NULLs as distinct
+  // in a unique index: a NULL refId would let (user, "welcome") be claimed
+  // twice. A LIFE-1 revision that never writes it still gets once-per-kind.
+  refId             String    @default("")
   claimedAt         DateTime  @default(now())
   sentAt            DateTime?
   providerMessageId String?
 
-  @@unique([userId, kind])
+  @@unique([userId, kind, refId])
   @@map("lifecycle_email_sends")
 }
