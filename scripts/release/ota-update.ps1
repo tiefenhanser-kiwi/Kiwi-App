@@ -60,7 +60,10 @@ Run every check, build and verify the bundle, print the publish command, publish
 #      apart from the measured library baseline below. Prints size + sha256 of the bundle
 #      and one sha256 over the whole folder.
 #   6. -DryRun stops here and prints the publish command.
-#   7. `eas update --skip-bundler --input-dir <that folder>` -- the verified folder is the
+#   7. Sentry (1.2-NATIVE B): with SENTRY_AUTH_TOKEN (+ SENTRY_ORG, SENTRY_PROJECT) in the
+#      shell and a DSN in the bundle, the source maps upload from a COPY of the folder (the
+#      uploader rewrites .map files); no token = skipped, a failed upload only warns. Then
+#      `eas update --skip-bundler --input-dir <that folder>` -- the verified folder is the
 #      published one (its hash is re-checked first). Prints the group id and runtime version.
 #
 # Values are never printed: names, the eas.json API host, sizes and hashes only.
@@ -124,8 +127,13 @@ $script:RequiredNames = @(
   'EXPO_PUBLIC_REVENUECAT_IOS_KEY',
   'EXPO_PUBLIC_REVENUECAT_ANDROID_KEY'
 )
-# lib/api/base.ts reads it only when EXPO_PUBLIC_API_BASE_URL is empty; never required.
-$script:OptionalNames = @('EXPO_PUBLIC_DOMAIN')
+# lib/api/base.ts reads EXPO_PUBLIC_DOMAIN only when EXPO_PUBLIC_API_BASE_URL is empty; never
+# required. EXPO_PUBLIC_SENTRY_DSN (1.2-NATIVE B): empty means crash reporting is off in the
+# bundle, which is allowed -- the code shipped before the Sentry account existed.
+$script:OptionalNames = @('EXPO_PUBLIC_DOMAIN', 'EXPO_PUBLIC_SENTRY_DSN')
+$script:SentryDsnName = 'EXPO_PUBLIC_SENTRY_DSN'
+# Read from the shell, never from EAS (a secret-visibility variable cannot be pulled).
+$script:SentryShellNames = @('SENTRY_AUTH_TOKEN', 'SENTRY_ORG', 'SENTRY_PROJECT')
 
 # Dev hosts: never in an EAS value, never in the bundle beyond the baseline.
 $script:DevHostPatterns = [ordered]@{
@@ -152,8 +160,12 @@ $script:DevHostPatterns = [ordered]@{
 #                             pulled in by ExpoHead.ios.js. It prefixes base.ts's dev
 #                             fallback, so 'localhost:3000/api' is refused outright below.
 #
-# Per runtime: each runtime's bundles are built from its own lockfile. 1.2.0 starts as a
-# copy of 1.1.0 and is re-measured once the 1.2 native modules are in (1.2-NATIVE B).
+# Per runtime: each runtime's bundles are built from its own lockfile.
+# 1.2.0 measured 1.2-NATIVE B, October 26 (both platforms, expo export with the eas.json
+# API URL): the 1.1.0 hits, plus
+#   http://localhost:8969/stream -- @sentry/core's Spotlight sidecar default
+#                                   (integrations/spotlight.js DEFAULT_SIDECAR_URL); the
+#                                   integration is never added, the string ships anyway.
 $script:BundleAllowListByRuntime = @{
   '1.1.0' = @{
     'android' = @{ 'localhost' = @{ 'http://localhost:8081/' = 1 } }
@@ -163,9 +175,9 @@ $script:BundleAllowListByRuntime = @{
     }
   }
   '1.2.0' = @{
-    'android' = @{ 'localhost' = @{ 'http://localhost:8081/' = 1 } }
+    'android' = @{ 'localhost' = @{ 'http://localhost:8081/' = 1; 'http://localhost:8969/stream' = 1 } }
     'ios'     = @{
-      'localhost' = @{ 'http://localhost:8081/' = 1; 'http://localhost:3000' = 1 }
+      'localhost' = @{ 'http://localhost:8081/' = 1; 'http://localhost:3000' = 1; 'http://localhost:8969/stream' = 1 }
       ':3000'     = @{ 'http://localhost:3000' = 1 }
     }
   }
@@ -411,6 +423,45 @@ function Test-TreeRuntime {
   param([Parameter(Mandatory = $true)][string]$Runtime, [Parameter(Mandatory = $true)][string]$TreeRuntime)
   if ($TreeRuntime -ceq $Runtime) { return $null }
   return "app.json version is $TreeRuntime, not -Runtime $Runtime -- this tree builds runtime $TreeRuntime updates"
+}
+
+# 1.2-NATIVE B -- whether this publish uploads its source maps to Sentry. $Shell maps the
+# SentryShellNames to their shell values; $DsnInBundle is whether the bundle has a DSN.
+# Returns Upload, Reason (one line to print) and Refuse (a token without org/project).
+function Get-SentryUploadPlan {
+  param([Parameter(Mandatory = $true)][hashtable]$Shell, [bool]$DsnInBundle = $true)
+  $r = [pscustomobject]@{ Upload = $false; Reason = $null; Refuse = $null }
+  if (-not ([string]$Shell['SENTRY_AUTH_TOKEN']).Trim()) { $r.Reason = 'skipped: no SENTRY_AUTH_TOKEN in the shell'; return $r }
+  $missing = @('SENTRY_ORG', 'SENTRY_PROJECT' | Where-Object { -not ([string]$Shell[$_]).Trim() })
+  if ($missing.Count -gt 0) { $r.Refuse = ("SENTRY_AUTH_TOKEN is set but {0} is not -- set both, or unset the token to skip the upload" -f ($missing -join ' and ')); return $r }
+  if (-not $DsnInBundle) { $r.Reason = "skipped: $script:SentryDsnName is empty, so crash reporting is off in this bundle"; return $r }
+  $r.Upload = $true
+  $r.Reason = ("source maps upload to Sentry project {0}/{1}" -f $Shell['SENTRY_ORG'], $Shell['SENTRY_PROJECT'])
+  return $r
+}
+
+function Get-SentryShell {
+  $h = @{}
+  foreach ($n in $script:SentryShellNames) { $h[$n] = [Environment]::GetEnvironmentVariable($n, 'Process') }
+  return $h
+}
+
+# Uploads from a COPY of the verified folder: sentry-expo-upload-sourcemaps rewrites every
+# .map it uploads (it adds debug_id), and the published folder must stay the verified one.
+# Returns the exit code; the copy is deleted.
+function Invoke-SentryUpload {
+  param([Parameter(Mandatory = $true)][string]$Dist, [Parameter(Mandatory = $true)][string]$CopyDir)
+  if (Test-Path -LiteralPath $CopyDir) { Remove-Item -LiteralPath $CopyDir -Recurse -Force }
+  Copy-Item -LiteralPath $Dist -Destination $CopyDir -Recurse
+  Push-Location $script:KiwiDir
+  try {
+    $ErrorActionPreference = 'Continue'
+    & pnpm exec sentry-expo-upload-sourcemaps $CopyDir | Out-Host
+    return $LASTEXITCODE
+  } finally {
+    Pop-Location
+    if (Test-Path -LiteralPath $CopyDir) { Remove-Item -LiteralPath $CopyDir -Recurse -Force }
+  }
 }
 
 function Get-PublishArguments {
@@ -784,6 +835,9 @@ $list = $null
 foreach ($n in $script:RequiredNames) { Write-Host ("    {0}: {1}" -f $n, $(if ($names -contains $n) { 'present' } else { 'MISSING' })) }
 $missing = @($script:RequiredNames | Where-Object { $names -notcontains $_ })
 if ($missing.Count -gt 0) { Stop-Refused '3' ("EAS production environment lacks {0} -- the bundle would fall back to a non-production value" -f ($missing -join ', ')) }
+Write-Host ("    {0}: {1} (optional: empty = crash reporting off)" -f $script:SentryDsnName, $(if ($names -contains $script:SentryDsnName) { 'present' } else { 'absent' }))
+$sentryPlan = Get-SentryUploadPlan -Shell (Get-SentryShell)
+if ($sentryPlan.Refuse) { Stop-Refused '3' $sentryPlan.Refuse }
 
 # 4 --------------------------------------------------------------------------------------
 $apiBaseUrl = Get-ProductionApiBaseUrl
@@ -807,6 +861,7 @@ if ($problems.Count -gt 0) { Stop-Refused '4' ($problems -join '; ') }
 Write-Host ("    EXPO_PUBLIC_API_BASE_URL equals eas.json build.production.env (host {0})" -f ([uri]$apiBaseUrl).Host)
 Write-Host "    expo export -> $dist (EXPO_NO_DOTENV=1, --clear, shell EXPO_PUBLIC_* dropped)"
 $code = Invoke-OtaExport -Values $values -OutDir $dist -Platform $Platform
+$sentryPlan = Get-SentryUploadPlan -Shell (Get-SentryShell) -DsnInBundle ($values.Contains($script:SentryDsnName) -and ([string]$values[$script:SentryDsnName]).Trim().Length -gt 0)
 $values = $null
 if ($code -ne 0) { Stop-Refused '4' "expo export exited $code" }
 
@@ -822,11 +877,20 @@ if ($DryRun) {
   Write-Host '[6] DRY RUN - nothing published. A real run rebuilds into a new folder, re-verifies, then runs (from artifacts\kiwi):'
   Write-Host "    $(Format-Command $publish)"
   Write-Host "    (this run's verified folder: $dist)"
+  Write-Host "    sentry: $($sentryPlan.Reason) (a dry run uploads nothing)"
   exit 0
 }
 
 # 7 --------------------------------------------------------------------------------------
 if ((Get-DirHash $dist) -ne $check.DirSha) { Stop-Refused '7' 'the export folder changed after it was verified' }
+Write-Host "[7] sentry: $($sentryPlan.Reason)"
+if ($sentryPlan.Upload) {
+  # Before the publish, so the first crash on the new update already has its map. A failed
+  # upload costs readable stacks, not the fix: warn and publish.
+  $up = Invoke-SentryUpload -Dist $dist -CopyDir (Join-Path $work 'sentry-copy')
+  if ($up -ne 0) { Write-Host "    !! source map upload exited $up -- publishing anyway; upload the maps by hand from a re-export" -ForegroundColor Yellow }
+  if ((Get-DirHash $dist) -ne $check.DirSha) { Stop-Refused '7' 'the export folder changed during the source map upload' }
+}
 Write-Host "[7] publishing: $(Format-Command $publish)"
 $res = Invoke-Eas -Capture $publish
 $json = $res.Lines -join "`n"

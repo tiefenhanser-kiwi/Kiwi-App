@@ -288,6 +288,13 @@ $d = New-FixtureDist -Name 'both' -Bundle ('aaa' + $api) -Platforms @('android',
 $c = Test-OtaBundle -Dist $d -Platform android -ApiBaseUrl $api -AllowList $script:BundleAllowList['android']
 Assert-True (-not $c.Ok -and $c.Lines[-1] -like 'export holds platform(s)*expected only android') 'a two-platform export refused'
 
+$sp = 'aaa' + $api + 'bbbhttp://localhost:8081/cccZoomInRighttp://localhost:8969/streambiguous'
+$d = New-FixtureDist -Name 'spotlight' -Bundle $sp
+$c = Test-OtaBundle -Dist $d -Platform android -ApiBaseUrl $api -AllowList $script:BundleAllowListByRuntime['1.2.0']['android']
+Assert-True $c.Ok "1.2.0: Sentry's Spotlight default is on its baseline"
+$c = Test-OtaBundle -Dist $d -Platform android -ApiBaseUrl $api -AllowList $script:BundleAllowListByRuntime['1.1.0']['android']
+Assert-True (-not $c.Ok) '1.1.0: the same string is not (that runtime ships no Sentry)'
+
 Write-Host '== Get-DirHash moves with any file'
 $d = New-FixtureDist -Name 'hash' -Bundle ('aaa' + $api)
 $h1 = Get-DirHash $d
@@ -336,6 +343,40 @@ foreach ($k in 'Api', 'Domain', 'NoDot') {
   $n = @{ Api = 'EXPO_PUBLIC_API_BASE_URL'; Domain = 'EXPO_PUBLIC_DOMAIN'; NoDot = 'EXPO_NO_DOTENV' }[$k]
   [Environment]::SetEnvironmentVariable($n, $before[$k], 'Process')
 }
+
+Write-Host '== Sentry source maps (1.2-NATIVE B)'
+$p = Get-SentryUploadPlan -Shell @{ SENTRY_AUTH_TOKEN = ''; SENTRY_ORG = 'fake-org'; SENTRY_PROJECT = 'fake-proj' }
+Assert-True (-not $p.Upload -and -not $p.Refuse -and $p.Reason -eq 'skipped: no SENTRY_AUTH_TOKEN in the shell') 'no token: skipped, not refused'
+$p = Get-SentryUploadPlan -Shell @{ SENTRY_AUTH_TOKEN = 'fake-token-0001'; SENTRY_ORG = ''; SENTRY_PROJECT = $null }
+Assert-True (-not $p.Upload -and $p.Refuse -like 'SENTRY_AUTH_TOKEN is set but SENTRY_ORG and SENTRY_PROJECT is not*') 'a token without org/project: refused'
+Assert-True (-not ($p.Refuse -like '*fake-token*')) 'the refusal never prints the token'
+$p = Get-SentryUploadPlan -Shell @{ SENTRY_AUTH_TOKEN = 'fake-token-0001'; SENTRY_ORG = 'fake-org'; SENTRY_PROJECT = 'fake-proj' } -DsnInBundle $false
+Assert-True (-not $p.Upload -and $p.Reason -like 'skipped: EXPO_PUBLIC_SENTRY_DSN is empty*') 'no DSN in the bundle: skipped'
+$p = Get-SentryUploadPlan -Shell @{ SENTRY_AUTH_TOKEN = 'fake-token-0001'; SENTRY_ORG = 'fake-org'; SENTRY_PROJECT = 'fake-proj' }
+Assert-True ($p.Upload -and $p.Reason -eq 'source maps upload to Sentry project fake-org/fake-proj') 'token + org + project + DSN: uploads'
+Assert-True ($script:OptionalNames -contains 'EXPO_PUBLIC_SENTRY_DSN' -and $script:RequiredNames -notcontains 'EXPO_PUBLIC_SENTRY_DSN') 'the DSN is optional, never required'
+
+$d = New-FixtureDist -Name 'sentry' -Bundle ('aaa' + $api)
+Write-Text (Join-Path $d '_expo/static/js/android/entry-fake.hbc.map') '{"version":3,"debugId":"fake-debug-0001"}'
+$h0 = Get-DirHash $d
+$copy = Join-Path $scratch 'sentry\copy'
+$script:FakePnpm = $null
+function global:pnpm {
+  $map = Join-Path $args[2] '_expo/static/js/android/entry-fake.hbc.map'
+  $script:FakePnpm = [pscustomobject]@{ Args = @($args); Cwd = (Get-Location).Path; SawMap = (Test-Path -LiteralPath $map) }
+  # The real uploader rewrites each .map it uploads.
+  [IO.File]::WriteAllText($map, '{"version":3,"debugId":"fake-debug-0001","debug_id":"fake-debug-0001"}')
+  $global:LASTEXITCODE = 0
+}
+$code = Invoke-SentryUpload -Dist $d -CopyDir $copy
+$f = $script:FakePnpm
+Remove-Item Function:\pnpm
+Assert-Equal $code 0 'exit code passed back'
+Assert-Equal ($f.Args -join ' ') "exec sentry-expo-upload-sourcemaps $copy" 'the upload argv names the copy'
+Assert-Equal $f.Cwd $script:KiwiDir 'run from artifacts\kiwi'
+Assert-True $f.SawMap 'the copy holds the source map'
+Assert-Equal (Get-DirHash $d) $h0 'the verified folder is untouched by the rewrite'
+Assert-True (-not (Test-Path -LiteralPath $copy)) 'the copy is deleted after'
 
 Write-Host '== the script refuses before any git or eas call'
 $x = Invoke-ReleaseScript -Script $otaUpdate -Arguments @('-Runtime', '1.1.0', '-Platform', 'android', '-Message', 'm', '-DryRun')

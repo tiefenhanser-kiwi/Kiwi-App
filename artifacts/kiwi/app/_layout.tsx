@@ -36,7 +36,12 @@ import { ToastProvider } from "@/contexts/ToastProvider";
 import { UPDATE_LINE_ENABLED, UpdateReadyLine } from "@/components/UpdateReadyLine";
 import { Palette } from "@/constants/tokens";
 import { sessionGateShouldEvict } from "@/lib/sessionBootstrap";
+import { initCrashReporting, reportBoundaryError, setCrashUser } from "@/lib/sentry";
 import { installWebWheelScroll, webScreenLayout } from "@/lib/webLayout";
+
+// 1.2-NATIVE B — Sentry, before the first render. Does nothing unless
+// EXPO_PUBLIC_SENTRY_DSN is set and the binary carries it; never on web.
+initCrashReporting();
 
 // WEB-4 — on the web every stack screen sits in the column (lib/webLayout.ts);
 // (tabs) is passed through, its Tabs' sceneStyle carrying the column so the
@@ -122,6 +127,16 @@ function SessionGate() {
     router.replace("/(auth)/sign-in");
   }, [user, bootstrapStatus, segments, router, isGuest]);
 
+  return null;
+}
+
+/** 1.2-NATIVE B — the signed-in user, as a hashed id, on crash reports. */
+function CrashReportingUser() {
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
+  useEffect(() => {
+    void setCrashUser(userId);
+  }, [userId]);
   return null;
 }
 
@@ -243,9 +258,10 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <ErrorBoundary>
+      <ErrorBoundary onError={reportBoundaryError}>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
+            <CrashReportingUser />
             <GuestProvider>
               <AppProvider>
                 {/* Row 9 (1.1) · Stripe S2 Part D — inside AuthProvider (it only
