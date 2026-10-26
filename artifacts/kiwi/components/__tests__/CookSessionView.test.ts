@@ -147,6 +147,7 @@ interface Overrides {
   amountMultiplier?: number;
   dishAmountMultipliers?: Record<string, number>;
   dishBirds?: Record<string, { parts: number; birds: number }>;
+  onLeaveAfterLastStep?: () => void;
 }
 
 function renderView(o: Overrides = {}) {
@@ -174,6 +175,7 @@ function renderView(o: Overrides = {}) {
         onPrepAnswer: (o.onPrepAnswer as (p: boolean) => void) ?? NOOP,
         toastVisible: o.toastVisible ?? false,
         onExit: o.onExit ?? NOOP,
+        onLeaveAfterLastStep: o.onLeaveAfterLastStep,
       }),
     );
   });
@@ -843,4 +845,45 @@ test("CLIENT-2b D: a collapsed done-in-prep row shows no chip, closed or opened"
   assert.ok(findByA11yLabel(renderer.toJSON() as RenderedNode | null, "Done in prep. Hide this step"), "did not open");
   assert.ok(!flat(renderer.toJSON() as RenderedNode | null).includes("You prepped this"));
   renderer.unmount();
+});
+
+// ── 1.2-NATIVE C — a "finish" for the store review prompt ─────────────────────
+
+test("1.2-NATIVE C: leaving on the last live step is a finish, reported once", () => {
+  const calls: string[] = [];
+  const r = renderView({ currentIndex: 2, onLeaveAfterLastStep: () => calls.push("left") });
+  assert.deepEqual(calls, [], "not while the cook is still there");
+  act(() => r.unmount());
+  assert.deepEqual(calls, ["left"]);
+});
+
+test("1.2-NATIVE C: leaving earlier, or from the prep gate, is not", () => {
+  const calls: string[] = [];
+  // Render and unmount in separate act()s: inside one, the mount's effects (and
+  // so the unmount cleanup) never run, and the test would pass for nothing.
+  const mid = renderView({ currentIndex: 1, onLeaveAfterLastStep: () => calls.push("mid") });
+  act(() => mid.unmount());
+  const gate = renderView({ currentIndex: 2, gatePromptVisible: true, onLeaveAfterLastStep: () => calls.push("gate") });
+  act(() => gate.unmount());
+  assert.deepEqual(calls, []);
+});
+
+test("1.2-NATIVE C: the step the cook is on when leaving decides; done-in-prep tail steps do not count as left", () => {
+  const calls: string[] = [];
+  const onLeaveAfterLastStep = () => calls.push("left");
+  const r = renderView({ currentIndex: 0, onLeaveAfterLastStep });
+  const props = (i: number) =>
+    React.createElement(CookSessionView, {
+      title: "Test Meal", steps: STEPS, amountMultiplier: 1, currentIndex: i, prepped: false, showSkipBar: false,
+      recapItems: [], remainingMins: 18, onAdvance: NOOP, onPrevStep: NOOP, onSelectStep: NOOP, onSkipToCooking: NOOP,
+      gatePromptVisible: false, onPrepAnswer: NOOP, toastVisible: false, onExit: NOOP, onLeaveAfterLastStep,
+    });
+  act(() => r.update(props(2)));
+  act(() => r.update(props(1)));
+  act(() => r.unmount());
+  assert.deepEqual(calls, [], "reached the end, stepped back, left: not a finish");
+  // The last step done in prep: the last LIVE step is index 1.
+  const tail = renderView({ currentIndex: 1, doneInPrepKeys: new Set(["2"]), onLeaveAfterLastStep });
+  act(() => tail.unmount());
+  assert.deepEqual(calls, ["left"]);
 });

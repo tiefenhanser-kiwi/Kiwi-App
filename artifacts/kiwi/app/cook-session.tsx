@@ -45,6 +45,8 @@ import {
   type CookStep,
 } from "@/lib/cooking/cookSession";
 import { decodeRun, onTheDayMeal } from "@/lib/cooking/feastDay";
+import { useAuth } from "@/contexts/AuthContext";
+import { noteCookFinished } from "@/lib/storeReview";
 import { isFeastMeal, mealScaleFactors } from "@/lib/format/quantity";
 import { Colors, Spacing, Typography } from "@/constants/tokens";
 
@@ -64,6 +66,8 @@ export default function CookSession() {
   }>();
   const mealId = typeof params.mealId === "string" ? params.mealId : "";
   const dishId = typeof params.dishId === "string" ? params.dishId : "";
+  // 1.2-NATIVE C — the store review prompt never asks in the first 3 days.
+  const signupAt = useAuth().user?.createdAt ?? null;
   // PREP-2 item 2 — BOTH ids: one dish of a meal in plan context (a Thanksgiving
   // make-ahead row → its dish → Cook Now). The steps come from the composed meal,
   // scaled like the meal path; `run` narrows them to the row's own day.
@@ -359,6 +363,8 @@ export default function CookSession() {
       onPrepAnswer={onPrepAnswer}
       toastVisible={toastVisible}
       onExit={() => router.back()}
+      // 1.2-NATIVE C — a finish; the 2nd or later may ask for a store review.
+      onLeaveAfterLastStep={() => void noteCookFinished(signupAt)}
     />
   );
 }

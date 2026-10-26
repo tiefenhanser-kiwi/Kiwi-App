@@ -8,7 +8,7 @@
 // anchor. An onLayout offset map drives an auto-scroll back to the anchor when
 // currentIndex changes (guarded; a no-op under the test renderer).
 
-import React, { useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import {
   Platform,
   Pressable,
@@ -122,6 +122,9 @@ interface Props {
   onPrepAnswer: (prepped: boolean) => void;
   toastVisible: boolean;
   onExit: () => void;
+  /** 1.2-NATIVE C — called once, when the view unmounts while the cook is on
+   *  the last live step (the store review prompt counts it as a finish). */
+  onLeaveAfterLastStep?: () => void;
 }
 
 function capitalize(s: string): string {
@@ -194,6 +197,7 @@ export function CookSessionView({
   onPrepAnswer,
   toastVisible,
   onExit,
+  onLeaveAfterLastStep,
 }: Props) {
   const scrollRef = useRef<ScrollView | null>(null);
   const offsets = useRef<Record<number, number>>({});
@@ -207,6 +211,27 @@ export function CookSessionView({
   // the shared useStepTimers hook (WS7-8b Block 4 extraction); the strip and the
   // chips both read from this one source of truth. ───────────────────────────
   const { timers, nowMs, startTimer, clearTimer, extendTimer } = useStepTimers();
+
+  // 1.2-NATIVE C — "the cook finished": they leave Cook Mode (Header back,
+  // Android back, the iOS swipe — all unmount this view) while on its last live
+  // step. Read at unmount, so both values are kept in refs, written in effects
+  // (reactCompiler).
+  const atLastLive =
+    !gatePromptVisible && steps.length > 0 && currentIndex >= lastLiveIndex(steps, doneInPrepKeys);
+  const atLastLiveRef = useRef(atLastLive);
+  const onLeaveRef = useRef(onLeaveAfterLastStep);
+  useEffect(() => {
+    atLastLiveRef.current = atLastLive;
+  }, [atLastLive]);
+  useEffect(() => {
+    onLeaveRef.current = onLeaveAfterLastStep;
+  }, [onLeaveAfterLastStep]);
+  useEffect(
+    () => () => {
+      if (atLastLiveRef.current) onLeaveRef.current?.();
+    },
+    [],
+  );
 
   // K-R7 — which done-in-prep rows the cook has tapped open. Local and
   // view-only: opening one reads it, it does not make it the current step.
