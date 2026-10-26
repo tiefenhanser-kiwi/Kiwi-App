@@ -158,9 +158,11 @@ function DishDetailContent({ dish, plan }: { dish: DishDetail; plan?: PlanDishCo
   const steps = plan ? plan.view.dish.steps : dish.steps;
   // WEB-4b (BUG-454) — a whole-bird dish scales by its bird's factor, not by
   // servings (the brine follows the bird).
-  const multiplier = plan ? dishScaleFactor(ingredients, plan.view.multiplier, plan.view.feast) : 1;
+  // THX-4 — or by the turkey weight the cook chose, when this is the turkey's dish.
+  const chosen = plan?.view.chosenBird;
+  const multiplier = chosen ? chosen.factor : plan ? dishScaleFactor(ingredients, plan.view.multiplier, plan.view.feast) : 1;
   // WEB-4c (BUG-462) — its parts and equipment: one per bird shown.
-  const birds = plan ? dishBirdLine(ingredients, plan.view.multiplier, plan.view.feast) : ONE_BIRD;
+  const birds = chosen ? chosen.birds : plan ? dishBirdLine(ingredients, plan.view.multiplier, plan.view.feast) : ONE_BIRD;
   const runLine =
     plan?.run && makeAheadRunSteps(plan.view.dish.steps, plan.run) ? runCookLine(plan.run) : null;
 

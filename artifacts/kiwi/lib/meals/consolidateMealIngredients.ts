@@ -37,12 +37,10 @@
 import { formatIngredientLine, ingredientAmountNote } from "../format/ingredientLine";
 import { normalizeUnitToken } from "../format/grocery";
 import {
-  birdPartsFactor,
-  dishBirdLine,
-  dishScaleFactor,
   displayedQuantity,
   isFeastMeal,
   lineMultiplier,
+  mealScaleFactors,
   roundsPerShare,
 } from "../format/quantity";
 import type { MealDetail } from "../api/meals";
@@ -92,6 +90,8 @@ export function consolidateMealIngredients(
   multiplier = 1,
   /** WEB-4 — the servings the multiplier scales to, for the egg note. */
   servings?: number,
+  /** THX-4 — the turkey weight the cook chose (meal.birdWeightLb); null, the servings rule. */
+  birdLb?: number | null,
 ): ConsolidatedIngredient[] {
   // WEB-4d — `raw` is the true sum behind a per-share-rounded quantity; `scaled`
   // whether any share was scaled at all; `prep` the first share's prep note.
@@ -104,11 +104,12 @@ export function consolidateMealIngredients(
   // WEB-4c (BUG-462) — a bird's parts are one per bird of the MEAL's bird.
   // WEB-4c — and in a feast only, a dish follows its bird written by count.
   const feast = isFeastMeal(meal.tags);
-  const parts = birdPartsFactor(meal.dishes, multiplier, feast);
+  // THX-4 — a chosen turkey weight is mealScaleFactors' rule, one rule for both screens.
+  const scale = mealScaleFactors(meal.dishes, multiplier, feast, birdLb);
   for (const dish of meal.dishes) {
     // WEB-4b (BUG-454) — a whole-bird dish scales by its bird's factor.
-    const factor = dishScaleFactor(dish.ingredients, multiplier, feast);
-    const birds = dishBirdLine(dish.ingredients, multiplier, feast, parts);
+    const factor = scale.byDish[dish.dishId];
+    const birds = scale.birds[dish.dishId];
     for (const ing of dish.ingredients) {
       const unit = (ing.unit ?? "").trim();
       // ⛔ The unit token is the second half of the key. Two units that

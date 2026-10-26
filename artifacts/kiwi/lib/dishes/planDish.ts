@@ -9,7 +9,7 @@
 
 import type { MealDetail } from "@/lib/api/meals";
 import { resolveAmountMultiplier } from "@/lib/cooking/cookSession";
-import { isFeastMeal } from "@/lib/format/quantity";
+import { chosenBird, isFeastMeal, type BirdLine } from "@/lib/format/quantity";
 
 type MealDish = MealDetail["dishes"][number];
 
@@ -21,16 +21,22 @@ export interface PlanDishView {
   multiplier: number;
   /** WEB-4c — the meal is a feast: its dishes follow a bird written by count. */
   feast: boolean;
+  /** THX-4 — the dish holds the meal's turkey and the cook chose its weight: every
+   *  line follows `factor` (chosen ÷ the recipe's) and `birds` (one bird), not the
+   *  servings. Absent otherwise. */
+  chosenBird?: { factor: number; birds: BirdLine };
 }
 
 /** Null when the meal does not hold the dish (a swapped-out dish, a stale link). */
 export function planDishView(meal: MealDetail, dishId: string): PlanDishView | null {
   const dish = meal.dishes.find((d) => d.dishId === dishId);
   if (!dish) return null;
+  const bird = chosenBird(meal.dishes, meal.birdWeightLb);
   return {
     dish,
     servings: meal.effectiveServings,
     multiplier: resolveAmountMultiplier(meal.effectiveServings, meal.authoredServingsDefault),
     feast: isFeastMeal(meal.tags),
+    ...(bird && bird.dishId === dishId ? { chosenBird: { factor: bird.factor, birds: bird.birds } } : {}),
   };
 }

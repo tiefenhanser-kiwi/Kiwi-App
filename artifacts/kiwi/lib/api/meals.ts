@@ -250,6 +250,17 @@ export const MealDetailSchema = MealListItemSchema.extend({
   // `servings`, which the Meal Detail ingredient scaler uses as its
   // denominator. Without a plan item, the server returns it === `servings`.
   effectiveServings: z.number(),
+  // THX-4 (D-WS9-324) — the turkey the cook may weigh. Sent only on a read with a
+  // planItemId of a meal holding one (a feast, or a turkey alternate), all four
+  // together; absent everywhere else, and from a server before THX-4. birdWeightLb
+  // null = the default bird; birdShownLb is the weight the bird's line shows now.
+  // lib/meals/birdWeight.ts reads them (birdStepperOf).
+  birdKind: z.string().optional(),
+  birdWeightLb: z.number().nullable().optional(),
+  birdWeightRange: z
+    .object({ min: z.number(), max: z.number(), step: z.number(), default: z.number() })
+    .optional(),
+  birdShownLb: z.number().optional(),
 });
 
 const MealDetailEnvelopeSchema = z.object({ meal: MealDetailSchema });

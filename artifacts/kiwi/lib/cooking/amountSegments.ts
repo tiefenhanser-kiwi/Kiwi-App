@@ -373,12 +373,14 @@ export function buildAmountRefSegments(
       // skewers at any size (the words up to the first preposition: "8 flour
       // tortillas in foil" is not equipment). WEB-4c (BUG-462) — a bird's own
       // size is per bird: in a dish of two birds by count, "a frozen 14-lb
-      // turkey" is still 14 lb (the dish factor ÷ the birds).
+      // turkey" is still 14 lb (the dish factor ÷ the birds). THX-4 — a weight the
+      // cook chose has no floor under it ("a 14-lb turkey" at 8 lb is 8 lb).
+      const birdFactor = hyphenBird ? multiplier / birds.birds : multiplier;
       const amount = isEquipment(name)
         ? r.quantity * birds.birds
         : isBirdPart(name)
           ? r.quantity * birds.parts
-          : r.quantity * wholeItemMultiplier(hyphenBird ? multiplier / birds.birds : multiplier, birdUnit, birdName, r.quantity);
+          : r.quantity * (birds.chosen ? birdFactor : wholeItemMultiplier(birdFactor, birdUnit, birdName, r.quantity));
       // WEB-4d — an unscaled amount prints as written; a cut word right after the
       // noun ("1 lemon, halved") keeps produce whole, like one before it.
       const ctx = { scaled: Math.abs(amount - r.quantity) > 1e-9, note: cutAfter(text, r.charEnd) };
