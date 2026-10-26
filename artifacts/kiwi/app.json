@@ -2,14 +2,15 @@
   "expo": {
     "name": "Kiwi",
     "slug": "kiwi",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon-1024.png",
     "scheme": "kiwi",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "updates": {
-      "url": "https://u.expo.dev/76d74056-14ab-4840-b0ba-1caec7f51b59"
+      "url": "https://u.expo.dev/76d74056-14ab-4840-b0ba-1caec7f51b59",
+      "fallbackToCacheTimeout": 5000
     },
     "runtimeVersion": {
       "policy": "appVersion"
@@ -79,7 +80,9 @@
         {
           "iosUrlScheme": "com.googleusercontent.apps.166146829159-vnkrpvlnpg7i69tgrcfp4jbbv115vfql"
         }
-      ]
+      ],
+      "@sentry/react-native",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,

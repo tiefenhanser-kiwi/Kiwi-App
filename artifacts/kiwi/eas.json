@@ -7,7 +7,10 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "channel": "development"
+      "channel": "development",
+      "env": {
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+      }
     },
     "preview": {
       "distribution": "internal",
@@ -16,14 +19,16 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://kiwi-api-166146829159.us-east4.run.app/api"
+        "EXPO_PUBLIC_API_BASE_URL": "https://kiwi-api-166146829159.us-east4.run.app/api",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
     "production": {
       "autoIncrement": true,
       "channel": "production",
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://kiwi-api-166146829159.us-east4.run.app/api"
+        "EXPO_PUBLIC_API_BASE_URL": "https://kiwi-api-166146829159.us-east4.run.app/api",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     }
   },
