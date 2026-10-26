@@ -198,6 +198,15 @@ const favoriteCreateSchema = z.object({
   mealId: z.string().min(1).max(100),
 });
 
+// LIFE-2 — POST /me/activity/cook-finished. Ids as strings, like the
+// cooking-sequence route: catalog meal ids are not all UUIDs.
+const cookFinishedSchema = z.object({
+  mealId: z.string().min(1).max(100),
+  planItemId: z.string().min(1).max(100).optional(),
+});
+/** A second cook-finished for the same meal and plan item inside this is the same cook. */
+export const COOK_FINISHED_DEDUPE_MS = 60 * 1000;
+
 // PATCH /me/preferences accept list. Explicit (no .passthrough()) so server-
 // only columns (difficultyDefault, weeklyPacingDefault, breakfastDefaults,
 // lunchDefaults, macroPref, notificationsEnabled, lastUsedRetailerId) cannot
@@ -2771,6 +2780,83 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
     } catch (err) {
       logger.error({ err, userId: req.userId }, "GET /me/dishes failed");
       return res.status(500).json({ error: "failed to list dishes" });
+    }
+  });
+
+  // ── POST /me/activity/cook-finished ─────────────────────────────────
+  // LIFE-2 — Cook Mode was left after its last step. One `cook_finished`
+  // activity (entityType "meal", entityId = the meal, metadata.planItemId when
+  // sent); the first one anchors the "How did it go?" email. The client sends
+  // it from 1.2-NATIVE's onLeaveAfterLastStep, in a later update; until then
+  // nothing calls this.
+  //
+  //   · the meal must be one Cook Mode would open for this user — their own or
+  //     a public one (cookingSequence.ts's gate) — else 404, which never says
+  //     whether someone else's meal exists;
+  //   · planItemId, when sent, must be an item of one of the user's plans and
+  //     carry this meal — else 404;
+  //   · idempotent within COOK_FINISHED_DEDUPE_MS: the same user, meal and plan
+  //     item again inside a minute is 200 { recorded: false } and writes
+  //     nothing (a retried request, or the screen's leave firing twice).
+  //     Two requests racing inside the same few milliseconds can both write;
+  //     the schedule reads only the FIRST row, so a duplicate changes nothing.
+  router.post("/me/activity/cook-finished", requireAuth, async (req, res) => {
+    const parsed = cookFinishedSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "invalid body" });
+    }
+    const userId = req.userId!;
+    const { mealId, planItemId } = parsed.data;
+
+    try {
+      const meal = await prisma.meal.findUnique({
+        where: { id: mealId },
+        select: { id: true, isPublic: true, userId: true },
+      });
+      if (!meal || (meal.userId !== userId && meal.isPublic !== true)) {
+        return res.status(404).json({ error: "meal not found" });
+      }
+      if (planItemId !== undefined) {
+        const item = await prisma.mealPlanItem.findUnique({
+          where: { id: planItemId },
+          select: { mealId: true, planInstance: { select: { userId: true } } },
+        });
+        if (!item || item.planInstance.userId !== userId || item.mealId !== mealId) {
+          return res.status(404).json({ error: "plan item not found" });
+        }
+      }
+
+      const now = nowFn();
+      const recent = await prisma.userActivity.findMany({
+        where: {
+          userId,
+          eventType: "cook_finished",
+          entityId: mealId,
+          createdAt: { gte: new Date(now.getTime() - COOK_FINISHED_DEDUPE_MS) },
+        },
+        select: { metadata: true },
+      });
+      const samePlanItem = (m: unknown) =>
+        ((m as { planItemId?: unknown } | null)?.planItemId ?? null) === (planItemId ?? null);
+      if (recent.some((r) => samePlanItem(r.metadata))) {
+        return res.status(200).json({ recorded: false });
+      }
+
+      await prisma.userActivity.create({
+        data: {
+          userId,
+          eventType: "cook_finished",
+          entityType: "meal",
+          entityId: mealId,
+          platform: "api",
+          createdAt: now,
+          ...(planItemId !== undefined ? { metadata: { planItemId } } : {}),
+        },
+      });
+      return res.status(201).json({ recorded: true });
+    } catch (err) {
+      logger.error({ err, userId, mealId }, "POST /me/activity/cook-finished failed");
+      return res.status(500).json({ error: "failed to record cook" });
     }
   });
 

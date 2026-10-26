@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import type { PrismaClient } from "@prisma/client";
 
 import { verifyToken } from "../lib/auth";
+import { createLastActiveToucher, type LastActiveToucher } from "../lib/lastActive";
 import { logger } from "../lib/logger";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { isIssuedBeforeEpoch, readTokensValidFrom } from "../lib/tokenRevocation";
@@ -19,6 +20,24 @@ declare global {
 
 export interface RequireAuthDeps {
   prisma: PrismaClient;
+  /** LIFE-2 — the lastActiveAt writer. Default: one per Prisma client (see touchersByClient). */
+  lastActive: LastActiveToucher;
+}
+
+/**
+ * LIFE-2 — ONE throttle per Prisma client, not per guard. Every router builds
+ * its own requireAuth from the same production client; a toucher per guard
+ * would let one person browsing five routers write lastActiveAt five times an
+ * hour. Keyed weakly so a test's stub client takes its throttle with it.
+ */
+const touchersByClient = new WeakMap<object, LastActiveToucher>();
+function toucherFor(prisma: PrismaClient): LastActiveToucher {
+  let t = touchersByClient.get(prisma);
+  if (!t) {
+    t = createLastActiveToucher(prisma);
+    touchersByClient.set(prisma, t);
+  }
+  return t;
 }
 
 /**
@@ -46,6 +65,7 @@ export interface RequireAuthDeps {
  */
 export function createRequireAuth(deps: Partial<RequireAuthDeps> = {}) {
   const prisma = deps.prisma ?? productionPrisma;
+  const lastActive = deps.lastActive ?? toucherFor(prisma);
 
   return async function requireAuth(
     req: Request,
@@ -121,6 +141,8 @@ export function createRequireAuth(deps: Partial<RequireAuthDeps> = {}) {
 
     req.userId = payload.userId;
     if (typeof payload.auth_time === "number") req.authTime = payload.auth_time;
+    // LIFE-2 — fire-and-forget, at most hourly per user; never awaited, never throws.
+    lastActive.touch(payload.userId);
     next();
   };
 }
