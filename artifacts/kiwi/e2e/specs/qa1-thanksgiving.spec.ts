@@ -15,7 +15,8 @@
 // Writes: item 15 sets the feast's servings to 8 and back to 10; item 17 ticks
 // one feast step and swaps Classic's Monday meal (the fixture's --revert deletes
 // the plans, so neither outlives the run); item 20 ticks one Vegetarian week
-// step.
+// step. Item 23 (THX-4) sets Classic's turkey ½ lb up and Resets it to null, at
+// 375 and at 1280; its Cook Mode open makes one sequence POST per width.
 // ─────────────────────────────────────────────────────────────────────────────
 import { expect, test, type Page, type Response } from "@playwright/test";
 
@@ -520,6 +521,85 @@ test("QA-1 B — Thanksgiving prep (items 14–22)", async ({ page }) => {
         `[${feastOnions.map((s) => s.stepKey).join(", ")}], ticked ${feastOnionTicked.length}, on screen ${feastScreen}`,
     };
   });
+
+  // ── 23 — THX-4 (D-WS9-324): the turkey's weight, at 375 and 1280 ─────────
+  // Written, not yet run. Steps the Classic feast's turkey one ½ lb up through the
+  // stepper, saves (PATCH birdWeightLb), checks the re-read and Plan Review's meta
+  // line, opens Cook Mode (the sequence POST carries planItemId), then Resets and
+  // saves null — so nothing outlives the run. Each width checks the page does not
+  // scroll sideways and the stepper sits inside the window.
+  for (const width of [375, 1280]) {
+    await ledger.run(`B23-${width}`, `Turkey stepper at ${width}: + ½ lb, Save, re-read, Plan Review meta, Cook Mode planItemId; Reset → null`, async (shots) => {
+      await page.setViewportSize({ width, height: width === 375 ? 812 : 900 });
+      const mealRead = async () =>
+        (await http.get<any>(`/meals/${feastMealId}?planItemId=${encodeURIComponent(feastItem.id)}`)).meal;
+      const before = await mealRead();
+      if (before.birdKind === undefined) throw new Error("the feast read carries no bird fields (server before THX-4?)");
+      const open = async () => {
+        await page.goto(`${WEB_ORIGIN}/meal/${feastMealId}?planId=${classic.id}&planItemId=${feastItem.id}`);
+        await waitForText(page, (j) => j.includes("Roast time and thaw day follow the weight."), 60_000);
+        await settle(page, { timeoutMs: 20_000, minLines: 5 });
+      };
+      const value = async () => (await page.locator('[data-testid="bird-weight-value"]').innerText()).trim();
+      const layout = () =>
+        page.evaluate(() => {
+          const box = document.querySelector('[data-testid="bird-weight"]')?.getBoundingClientRect();
+          return {
+            sideScroll: document.documentElement.scrollWidth > window.innerWidth,
+            inside: !!box && box.left >= 0 && box.right <= window.innerWidth,
+          };
+        });
+      const save = async () => {
+        const patch = page.waitForResponse((r) => r.request().method() === "PATCH" && r.url().includes(`/items/${feastItem.id}`), { timeout: 20_000 });
+        await tapButton(page, "Save changes");
+        const r = await patch;
+        await page.waitForTimeout(800);
+        return { status: r.status(), body: r.request().postDataJSON() as Record<string, unknown> };
+      };
+
+      await open();
+      const shownAtOpen = await value();
+      const want = `${before.birdWeightLb ?? before.birdShownLb}`.replace(/\.5$/, "½").replace(/\.25$/, "¼").replace(/\.75$/, "¾");
+      const geo = await layout();
+      await shot(page, LABEL, `B23-${width}-01-open`, shots);
+      await page.locator('[data-testid="bird-weight-plus"]').click();
+      const stepped = await value();
+      const up = await save();
+      const after = await mealRead();
+      await open();
+      const reopened = await value();
+      await shot(page, LABEL, `B23-${width}-02-saved`, shots);
+      const reviewText = await (async () => {
+        await page.goto(`${WEB_ORIGIN}/plan/${classic.id}`);
+        await waitForText(page, (j) => j.includes("serves"), 60_000);
+        return (await renderedText(page)).join("\n");
+      })();
+      const metaOk = reviewText.includes(`Turkey ${reopened}`);
+      await shot(page, LABEL, `B23-${width}-03-plan-review`, shots);
+      await open();
+      const seq = page.waitForRequest((r) => r.method() === "POST" && r.url().includes(`/meals/${feastMealId}/cooking-sequence`), { timeout: 30_000 });
+      await tapButton(page, "Cook Now");
+      const seqBody = (await seq).postDataJSON() as Record<string, unknown> | null;
+      await shot(page, LABEL, `B23-${width}-04-cook`, shots);
+      await open();
+      await page.locator('[data-testid="bird-weight-reset"]').click();
+      const reset = await save();
+      const restored = await mealRead();
+      const ok =
+        shownAtOpen === `${want} lb` && !geo.sideScroll && geo.inside && up.status === 200 &&
+        up.body.birdWeightLb === after.birdWeightLb && after.birdWeightLb !== null && reopened === stepped &&
+        metaOk && seqBody?.planItemId === feastItem.id && reset.status === 200 && reset.body.birdWeightLb === null &&
+        restored.birdWeightLb === null;
+      return {
+        verdict: ok ? "pass" : "fail",
+        evidence:
+          `${width}px: opened "${shownAtOpen}" (API ${before.birdWeightLb ?? `null, shown ${before.birdShownLb}`}); side scroll ${geo.sideScroll}, stepper inside ${geo.inside}; ` +
+          `+ → "${stepped}", PATCH ${up.status} ${JSON.stringify(up.body)}, re-read ${after.birdWeightLb}, reopened "${reopened}"; ` +
+          `Plan Review meta "Turkey ${reopened}" ${metaOk}; sequence body ${JSON.stringify(seqBody)}; ` +
+          `Reset PATCH ${reset.status} ${JSON.stringify(reset.body)} → ${restored.birdWeightLb}`,
+      };
+    });
+  }
 
   // ── 21 — an ordinary plan ───────────────────────────────────────────────
   await ledger.run("B21", "An ordinary plan: no make-ahead card; Prep the Week unchanged (no feast line)", async (shots) => {
