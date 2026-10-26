@@ -7,6 +7,7 @@
 //   node --env-file=.env --import tsx scripts/thx2/patch.ts --apply    # write it
 //   node --env-file=.env --import tsx scripts/thx2/patch.ts --only thx2-feast-classic
 //   node --env-file=.env --import tsx scripts/thx2/patch.ts --targets prod-copy   # dev: production's copies (importFeastCopies.ts)
+//   node --env-file=.env --import tsx scripts/thx2/patch.ts --out dry.txt         # the printed lines to a UTF-8 file too
 //
 // Database: assertScriptDatabase — dev, or production only when KIWI_PRODUCTION_HOST
 // names the DATABASE_URL host exactly (R3-0). Idempotent: a second run reports
@@ -32,6 +33,9 @@
 //      is written (BUG-462).
 //
 // It does not touch a user's copy of a feast (sourceStoreMealId) — it counts them.
+
+import { writeFileSync } from "node:fs";
+import { format } from "node:util";
 
 import { Prisma, PrismaClient, type StepPhase } from "@prisma/client";
 
@@ -60,6 +64,17 @@ import { boilHold, boilPlace, coats, HELD_MORNING_STEP, headOf, isGarnish, plain
 import { formatOvenReport, heldDishSteps, holdTextUpdates, oneOvenTemperature, ovenReport, panCountEdits, retimeDish, splitPreheatSteps, type OvenStepRow } from "./thx2Oven";
 
 const argv = process.argv.slice(2);
+// THX-4 — `--out <file>`: every line this run prints is written to <file> as UTF-8 too.
+// PowerShell's `>` writes UTF-16, and release #5's dry run diffed as "Binary files differ".
+const outIdx = argv.indexOf("--out");
+if (outIdx >= 0) {
+  const OUT = argv[outIdx + 1];
+  if (!OUT || OUT.startsWith("--")) { console.error("--out: a file path"); process.exit(2); }
+  const printed: string[] = [];
+  const log = console.log.bind(console);
+  console.log = (...a: unknown[]) => { printed.push(format(...a)); log(...a); };
+  process.on("exit", () => writeFileSync(OUT, printed.join("\n") + "\n", "utf8"));
+}
 const APPLY = argv.includes("--apply");
 const onlyIdx = argv.indexOf("--only");
 const ONLY = onlyIdx >= 0 ? (argv[onlyIdx + 1] ?? "").split(",").map((s) => s.trim()).filter(Boolean) : null;
