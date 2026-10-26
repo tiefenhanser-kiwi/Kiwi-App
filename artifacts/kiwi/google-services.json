@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "244275760165",
+    "project_id": "kiwi-fb422",
+    "storage_bucket": "kiwi-fb422.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:244275760165:android:efce9a88241817224b83cc",
+        "android_client_info": {
+          "package_name": "com.kitchenwizard.kiwi"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCe_3DopcTIwMlQIYa2nkBwrtMvs5xY_vc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
