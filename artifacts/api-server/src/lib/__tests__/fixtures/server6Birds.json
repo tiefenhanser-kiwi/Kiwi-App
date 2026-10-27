@@ -1,0 +1,1022 @@
+{
+  "Buttermilk-Brined Roast Turkey": {
+    "mealId": "9442ea16-4d10-45b1-962b-b7adfefb7afa",
+    "tags": [
+      "course-turkey"
+    ],
+    "dish": {
+      "title": "Buttermilk-Brined Roast Turkey",
+      "rows": [
+        {
+          "quantity": 1,
+          "unit": "each",
+          "name": "whole turkey",
+          "note": "12–14 lb, neck and giblets removed and reserved"
+        },
+        {
+          "quantity": 2,
+          "unit": "quart",
+          "name": "buttermilk",
+          "note": "full-fat"
+        },
+        {
+          "quantity": 2,
+          "unit": "quart",
+          "name": "water",
+          "note": "cold"
+        },
+        {
+          "quantity": 0.5,
+          "unit": "cup",
+          "name": "kosher salt",
+          "note": "Diamond Crystal; use ¼ cup if Morton"
+        },
+        {
+          "quantity": 2,
+          "unit": "tablespoon",
+          "name": "black pepper",
+          "note": "coarsely cracked"
+        },
+        {
+          "quantity": 8,
+          "unit": "clove",
+          "name": "garlic",
+          "note": "smashed"
+        },
+        {
+          "quantity": 4,
+          "unit": "sprig",
+          "name": "fresh rosemary",
+          "note": null
+        },
+        {
+          "quantity": 8,
+          "unit": "sprig",
+          "name": "fresh thyme",
+          "note": null
+        },
+        {
+          "quantity": 6,
+          "unit": "sprig",
+          "name": "fresh sage",
+          "note": null
+        },
+        {
+          "quantity": 3,
+          "unit": "each",
+          "name": "bay leaves",
+          "note": null
+        },
+        {
+          "quantity": 1,
+          "unit": "each",
+          "name": "large brining bag",
+          "note": "unscented, food-safe; or a turkey-size oven bag"
+        },
+        {
+          "quantity": 6,
+          "unit": "tablespoon",
+          "name": "unsalted butter",
+          "note": "softened"
+        },
+        {
+          "quantity": 2,
+          "unit": "tablespoon",
+          "name": "olive oil",
+          "note": null
+        },
+        {
+          "quantity": 1,
+          "unit": "each",
+          "name": "yellow onion",
+          "note": "quartered, for the cavity"
+        },
+        {
+          "quantity": 1,
+          "unit": "each",
+          "name": "lemon",
+          "note": "halved, for the cavity"
+        },
+        {
+          "quantity": 2,
+          "unit": "stalk",
+          "name": "celery",
+          "note": "cut into 3-inch pieces, for the roasting rack"
+        },
+        {
+          "quantity": 2,
+          "unit": "each",
+          "name": "carrots",
+          "note": "cut into 3-inch pieces, for the roasting rack"
+        },
+        {
+          "quantity": 2,
+          "unit": "cup",
+          "name": "low-sodium chicken broth",
+          "note": "for the roasting pan"
+        }
+      ]
+    },
+    "daySteps": [
+      {
+        "stepIndex": 0,
+        "estimatedMinutes": 3,
+        "phaseType": "prep",
+        "text": "In a large pot, whisk together 2 quarts cold water, ½ cup kosher salt, and 2 tablespoons cracked black pepper until the salt dissolves."
+      },
+      {
+        "stepIndex": 1,
+        "estimatedMinutes": 3,
+        "phaseType": "prep",
+        "text": "Stir in 2 quarts full-fat buttermilk, 8 smashed garlic cloves, 4 rosemary sprigs, 8 thyme sprigs, 6 sage sprigs, and 3 bay leaves."
+      },
+      {
+        "stepIndex": 2,
+        "estimatedMinutes": 3,
+        "phaseType": "prep",
+        "text": "In a large pot, prepare 1 package turkey brine mix with 2 quarts cold water and 2 quarts full-fat buttermilk according to package directions."
+      },
+      {
+        "stepIndex": 3,
+        "estimatedMinutes": 3,
+        "phaseType": "prep",
+        "text": "Pat the turkey dry with paper towels — do not rinse. Place it in the large brining bag set inside a roasting pan or a cooler."
+      },
+      {
+        "stepIndex": 4,
+        "estimatedMinutes": 4,
+        "phaseType": "prep",
+        "text": "Pour the brine over the turkey, seal the bag tightly, and refrigerate — brine 12 to 24 hours, turning the bag halfway through. A frozen 14-lb turkey thaws 3–4 days in the fridge, so plan accordingly."
+      },
+      {
+        "stepIndex": 5,
+        "estimatedMinutes": 5,
+        "phaseType": "prep",
+        "text": "Remove the turkey from the brine 1 hour before roasting; discard the brine. Pat the turkey thoroughly dry inside and out with paper towels."
+      },
+      {
+        "stepIndex": 6,
+        "estimatedMinutes": 20,
+        "phaseType": "preheat",
+        "text": "Preheat the oven to 325°F with a rack in the lowest position."
+      },
+      {
+        "stepIndex": 7,
+        "estimatedMinutes": 4,
+        "phaseType": "prep",
+        "text": "Mix 6 tablespoons softened unsalted butter with 2 tablespoons olive oil. Rub the mixture all over the turkey skin and under the breast skin."
+      },
+      {
+        "stepIndex": 8,
+        "estimatedMinutes": 3,
+        "phaseType": "prep",
+        "text": "Scatter 2 celery stalks and 2 carrots (cut into 3-inch pieces) in the bottom of a large roasting pan. Pour in 2 cups low-sodium chicken broth."
+      },
+      {
+        "stepIndex": 9,
+        "estimatedMinutes": 3,
+        "phaseType": "assemble",
+        "text": "Stuff the cavity loosely with the quartered yellow onion and halved lemon. Set the turkey breast-side up on a rack over the vegetables in the roasting pan."
+      },
+      {
+        "stepIndex": 10,
+        "estimatedMinutes": 210,
+        "phaseType": "cook",
+        "text": "Roast at 325°F until the thickest part of the thigh reads 165°F on an instant-read thermometer, about 3 to 3½ hours (13–15 minutes per pound) for a 12–14 lb bird."
+      },
+      {
+        "stepIndex": 11,
+        "estimatedMinutes": 40,
+        "phaseType": "rest",
+        "text": "Transfer the turkey to a cutting board and tent loosely with foil. Rest 30–45 minutes before carving — this keeps the juices in."
+      },
+      {
+        "stepIndex": 12,
+        "estimatedMinutes": 10,
+        "phaseType": "assemble",
+        "text": "Carve the turkey and arrange on a large platter. Reserve the pan drippings and roasted vegetables for gravy."
+      }
+    ]
+  },
+  "Classic Thanksgiving Dinner with Herb-Roasted Turkey and All the Trimmings": {
+    "mealId": "b8bdb2a8-6ae5-45f4-b730-c7d367085331",
+    "tags": [
+      "thanksgiving-feast"
+    ],
+    "dish": {
+      "title": "Herb-Roasted Whole Turkey",
+      "rows": [
+        {
+          "quantity": 14,
+          "unit": "pound",
+          "name": "whole turkey",
+          "note": "fresh or fully thawed; neck and giblets reserved for gravy"
+        },
+        {
+          "quantity": 0.5,
+          "unit": "cup",
+          "name": "kosher salt",
+          "note": "for brine"
+        },
+        {
+          "quantity": 1,
+          "unit": "gallon",
+          "name": "cold water",
+          "note": "for brine"
+        },
+        {
+          "quantity": 0.25,
+          "unit": "cup",
+          "name": "light brown sugar",
+          "note": "for brine"
+        },
+        {
+          "quantity": 1,
+          "unit": "tablespoon",
+          "name": "black peppercorns",
+          "note": "for brine"
+        },
+        {
+          "quantity": 6,
+          "unit": "sprig",
+          "name": "fresh thyme",
+          "note": "3 for brine, 3 for herb butter"
+        },
+        {
+          "quantity": 4,
+          "unit": "sprig",
+          "name": "fresh rosemary",
+          "note": "2 for brine, 2 for herb butter"
+        },
+        {
+          "quantity": 3,
+          "unit": "each",
+          "name": "bay leaves",
+          "note": "for brine"
+        },
+        {
+          "quantity": 6,
+          "unit": "clove",
+          "name": "garlic",
+          "note": "3 smashed for brine, 3 minced for herb butter"
+        },
+        {
+          "quantity": 6,
+          "unit": "tablespoon",
+          "name": "unsalted butter",
+          "note": "softened, for herb butter"
+        },
+        {
+          "quantity": 4,
+          "unit": "sprig",
+          "name": "fresh sage",
+          "note": "leaves chopped for herb butter"
+        },
+        {
+          "quantity": 1,
+          "unit": "each",
+          "name": "lemon",
+          "note": "zested for herb butter, halved for cavity"
+        },
+        {
+          "quantity": 1,
+          "unit": "teaspoon",
+          "name": "black pepper",
+          "note": "for herb butter"
+        },
+        {
+          "quantity": 1,
+          "unit": "each",
+          "name": "yellow onion",
+          "note": "quartered, for cavity"
+        },
+        {
+          "quantity": 2,
+          "unit": "stalk",
+          "name": "celery",
+          "note": "for cavity"
+        },
+        {
+          "quantity": 2,
+          "unit": "tablespoon",
+          "name": "olive oil",
+          "note": "for skin"
+        },
+        {
+          "quantity": 1,
+          "unit": "each",
+          "name": "large brining bag",
+          "note": "food-safe, unscented; set in roasting pan or cooler"
+        }
+      ]
+    },
+    "daySteps": [
+      {
+        "stepIndex": 5,
+        "estimatedMinutes": 5,
+        "phaseType": "prep",
+        "text": "On Thursday: Remove the turkey from the brine, discard the brine, and pat the bird very dry inside and out with paper towels."
+      },
+      {
+        "stepIndex": 6,
+        "estimatedMinutes": 60,
+        "phaseType": "hold",
+        "text": "Let the turkey sit at room temperature for 1 hour."
+      },
+      {
+        "stepIndex": 7,
+        "estimatedMinutes": 15,
+        "phaseType": "preheat",
+        "text": "Preheat the oven to 325°F."
+      },
+      {
+        "stepIndex": 8,
+        "estimatedMinutes": 5,
+        "phaseType": "prep",
+        "text": "Loosen the skin over the breast and thighs and rub all of the herb butter directly onto the meat; rub 2 tablespoons olive oil over the skin."
+      },
+      {
+        "stepIndex": 9,
+        "estimatedMinutes": 4,
+        "phaseType": "prep",
+        "text": "Stuff the cavity with the quartered onion, 2 celery stalks, the halved lemon, and any remaining herb sprigs; tie the legs together with kitchen twine and tuck the wings."
+      },
+      {
+        "stepIndex": 10,
+        "estimatedMinutes": 166,
+        "phaseType": "cook",
+        "text": "Place the turkey breast side up on a rack in a large roasting pan and roast at 325°F for about 2¾ hours."
+      },
+      {
+        "stepIndex": 11,
+        "estimatedMinutes": 5,
+        "phaseType": "preheat",
+        "text": "Raise the oven to 350°F and put in the Sage and Onion Stuffing, Green Bean Casserole and Sweet Potato Casserole."
+      },
+      {
+        "stepIndex": 12,
+        "estimatedMinutes": 35,
+        "phaseType": "cook",
+        "text": "Keep roasting the turkey at 350°F for about 35 more minutes, until an instant-read thermometer in the thickest part of the thigh reads 165°F."
+      },
+      {
+        "stepIndex": 14,
+        "estimatedMinutes": 25,
+        "phaseType": "rest",
+        "text": "Transfer the turkey to a cutting board and let it rest, loosely tented with foil, for 20–30 minutes before carving; reserve the drippings in the roasting pan for the gravy."
+      },
+      {
+        "stepIndex": 15,
+        "estimatedMinutes": 10,
+        "phaseType": "assemble",
+        "text": "Carve the turkey and arrange on a large platter."
+      },
+      {
+        "stepIndex": 16,
+        "estimatedMinutes": 2,
+        "phaseType": "assemble",
+        "text": "Serve the Herb-Roasted Whole Turkey with the Pan Gravy, Sage and Onion Stuffing, Mashed Potatoes, Cranberry-Orange Sauce, Green Bean Casserole and Sweet Potato Casserole."
+      }
+    ]
+  },
+  "Make-Ahead Thanksgiving Dinner with Roast Turkey, Stuffing, Mashed Potato Casserole, and All the Trimmings": {
+    "mealId": "7bba38a8-83b0-45b4-8f3a-4b419987902c",
+    "tags": [
+      "thanksgiving-feast"
+    ],
+    "dish": {
+      "title": "Dry-Brined Roast Turkey",
+      "rows": [
+        {
+          "quantity": 14,
+          "unit": "pound",
+          "name": "whole turkey",
+          "note": "thawed; neck and giblets removed and reserved"
+        },
+        {
+          "quantity": 0.25,
+          "unit": "cup",
+          "name": "kosher salt",
+          "note": "for dry brine"
+        },
+        {
+          "quantity": 1,
+          "unit": "tablespoon",
+          "name": "black pepper",
+          "note": "freshly ground"
+        },
+        {
+          "quantity": 1,
+          "unit": "teaspoon",
+          "name": "baking powder",
+          "note": "mixed into dry brine for crispier skin"
+        },
+        {
+          "quantity": 8,
+          "unit": "sprig",
+          "name": "fresh thyme",
+          "note": null
+        },
+        {
+          "quantity": 4,
+          "unit": "sprig",
+          "name": "fresh rosemary",
+          "note": null
+        },
+        {
+          "quantity": 6,
+          "unit": "sprig",
+          "name": "fresh sage",
+          "note": null
+        },
+        {
+          "quantity": 6,
+          "unit": "clove",
+          "name": "garlic",
+          "note": "smashed"
+        },
+        {
+          "quantity": 4,
+          "unit": "tablespoon",
+          "name": "unsalted butter",
+          "note": "softened"
+        },
+        {
+          "quantity": 1,
+          "unit": "each",
+          "name": "lemon",
+          "note": "halved"
+        },
+        {
+          "quantity": 1,
+          "unit": "each",
+          "name": "yellow onion",
+          "note": "quartered"
+        },
+        {
+          "quantity": 2,
+          "unit": "tablespoon",
+          "name": "olive oil",
+          "note": null
+        }
+      ]
+    },
+    "daySteps": [
+      {
+        "stepIndex": 4,
+        "estimatedMinutes": 60,
+        "phaseType": "preheat",
+        "text": "On Thursday: Remove the turkey from the fridge 1 hour before roasting to take the chill off; preheat the oven to 325°F."
+      },
+      {
+        "stepIndex": 5,
+        "estimatedMinutes": 5,
+        "phaseType": "prep",
+        "text": "Mash 4 tablespoons softened butter with the 6 smashed garlic cloves and stuff the cavity with the lemon halves, quartered onion, 8 thyme sprigs, 4 rosemary sprigs, and 6 sage sprigs."
+      },
+      {
+        "stepIndex": 6,
+        "estimatedMinutes": 4,
+        "phaseType": "prep",
+        "text": "Rub the outside of the turkey all over with 2 tablespoons olive oil and the garlic butter; tie the legs together with kitchen twine and tuck the wings under."
+      },
+      {
+        "stepIndex": 7,
+        "estimatedMinutes": 146,
+        "phaseType": "cook",
+        "text": "Place the turkey breast-side up on a rack in the roasting pan and roast at 325°F for about 2½ hours."
+      },
+      {
+        "stepIndex": 8,
+        "estimatedMinutes": 5,
+        "phaseType": "preheat",
+        "text": "Raise the oven to 350°F and put in the Overnight Sage Stuffing and Mashed Potato Casserole."
+      },
+      {
+        "stepIndex": 9,
+        "estimatedMinutes": 40,
+        "phaseType": "cook",
+        "text": "Keep roasting the turkey at 350°F for about 40 more minutes, until an instant-read thermometer in the thickest part of the thigh reads 165°F."
+      },
+      {
+        "stepIndex": 10,
+        "estimatedMinutes": 25,
+        "phaseType": "rest",
+        "text": "Transfer the turkey to a cutting board, tent loosely with foil, and let it rest 20–30 minutes before carving; pour the pan drippings into a fat separator to use in the gravy."
+      },
+      {
+        "stepIndex": 11,
+        "estimatedMinutes": 10,
+        "phaseType": "assemble",
+        "text": "Carve the turkey and arrange on a warm platter to serve."
+      },
+      {
+        "stepIndex": 12,
+        "estimatedMinutes": 2,
+        "phaseType": "assemble",
+        "text": "Serve the Dry-Brined Roast Turkey with the Make-Ahead Turkey Gravy, Overnight Sage Stuffing, Mashed Potato Casserole, Cranberry-Orange Sauce and Green Beans with Crispy Shallots."
+      }
+    ]
+  },
+  "A New Twist Thanksgiving Dinner": {
+    "mealId": "81b69820-b459-4bd0-96eb-106b55ed2a77",
+    "tags": [
+      "thanksgiving-feast"
+    ],
+    "dish": {
+      "title": "Citrus-Herb Spatchcock Turkey",
+      "rows": [
+        {
+          "quantity": 1,
+          "unit": "each",
+          "name": "whole turkey (12–14 lb)",
+          "note": "neck and giblets reserved for gravy; backbone removed (spatchcocked)"
+        },
+        {
+          "quantity": 3,
+          "unit": "tablespoon",
+          "name": "kosher salt",
+          "note": "for dry brine"
+        },
+        {
+          "quantity": 1,
+          "unit": "tablespoon",
+          "name": "black pepper",
+          "note": "freshly ground"
+        },
+        {
+          "quantity": 2,
+          "unit": "each",
+          "name": "orange",
+          "note": "zested, then juiced"
+        },
+        {
+          "quantity": 2,
+          "unit": "each",
+          "name": "lemon",
+          "note": "zested, then juiced"
+        },
+        {
+          "quantity": 8,
+          "unit": "cloves",
+          "name": "garlic",
+          "note": "minced"
+        },
+        {
+          "quantity": 4,
+          "unit": "sprigs",
+          "name": "fresh rosemary",
+          "note": "leaves stripped and minced"
+        },
+        {
+          "quantity": 8,
+          "unit": "sprigs",
+          "name": "fresh thyme",
+          "note": "leaves stripped"
+        },
+        {
+          "quantity": 0.25,
+          "unit": "cup",
+          "name": "fresh sage",
+          "note": "leaves minced"
+        },
+        {
+          "quantity": 6,
+          "unit": "tablespoon",
+          "name": "unsalted butter",
+          "note": "softened"
+        },
+        {
+          "quantity": 3,
+          "unit": "tablespoon",
+          "name": "olive oil",
+          "note": null
+        },
+        {
+          "quantity": 1,
+          "unit": "teaspoon",
+          "name": "smoked paprika",
+          "note": null
+        }
+      ]
+    },
+    "daySteps": [
+      {
+        "stepIndex": 6,
+        "estimatedMinutes": 15,
+        "phaseType": "preheat",
+        "text": "On Thursday: Preheat the oven to 400°F with a rack in the lower-middle position."
+      },
+      {
+        "stepIndex": 7,
+        "estimatedMinutes": 45,
+        "phaseType": "hold",
+        "text": "Pull the turkey from the fridge 45 minutes before roasting."
+      },
+      {
+        "stepIndex": 8,
+        "estimatedMinutes": 6,
+        "phaseType": "prep",
+        "text": "Slide the compound butter under the breast skin and spread 3 tablespoons olive oil over the outside."
+      },
+      {
+        "stepIndex": 9,
+        "estimatedMinutes": 71,
+        "phaseType": "cook",
+        "text": "Pour the orange and lemon juice into a large rimmed sheet pan; lay the spatchcocked turkey skin-side up on the pan and roast at 400°F for about 1¼ hours."
+      },
+      {
+        "stepIndex": 10,
+        "estimatedMinutes": 2,
+        "phaseType": "prep",
+        "text": "Put the Cornbread and Chorizo Stuffing and Chipotle-Maple Sweet Potatoes in the oven with the turkey."
+      },
+      {
+        "stepIndex": 11,
+        "estimatedMinutes": 22,
+        "phaseType": "cook",
+        "text": "Keep roasting the turkey at 400°F for about 20 more minutes, until an instant-read thermometer in the thickest part of the thigh reads 165°F."
+      },
+      {
+        "stepIndex": 12,
+        "estimatedMinutes": 25,
+        "phaseType": "rest",
+        "text": "Transfer the turkey to a cutting board and rest 20–30 minutes before carving."
+      },
+      {
+        "stepIndex": 13,
+        "estimatedMinutes": 10,
+        "phaseType": "assemble",
+        "text": "Carve the turkey and arrange on a warm platter; pour any resting juices over the top and reserve the pan drippings for the gravy."
+      },
+      {
+        "stepIndex": 14,
+        "estimatedMinutes": 2,
+        "phaseType": "assemble",
+        "text": "Serve the Citrus-Herb Spatchcock Turkey with the Pan Gravy, Cornbread and Chorizo Stuffing, Garlic-Parmesan Smashed Potatoes, Chipotle-Maple Sweet Potatoes, Cranberry-Jalapeño Relish and Brown-Butter Green Beans."
+      }
+    ]
+  },
+  "Classic Thanksgiving Dinner with All the Trimmings": {
+    "mealId": "afb99193-0861-45ae-8aee-5fa8dc9d4794",
+    "tags": [
+      "thanksgiving-feast"
+    ],
+    "dish": {
+      "title": "Herb-Roasted Whole Turkey",
+      "rows": [
+        {
+          "quantity": 14,
+          "unit": "pound",
+          "name": "whole turkey",
+          "note": "thawed (move from freezer to fridge Friday if frozen); neck and giblets reserved for gravy"
+        },
+        {
+          "quantity": 0.5,
+          "unit": "cup",
+          "name": "kosher salt",
+          "note": "for wet brine"
+        },
+        {
+          "quantity": 1,
+          "unit": "gallon",
+          "name": "cold water",
+          "note": "for wet brine"
+        },
+        {
+          "quantity": 0.25,
+          "unit": "cup",
+          "name": "brown sugar",
+          "note": "for wet brine"
+        },
+        {
+          "quantity": 1,
+          "unit": "tablespoon",
+          "name": "black peppercorns",
+          "note": "for wet brine"
+        },
+        {
+          "quantity": 4,
+          "unit": "each",
+          "name": "bay leaves",
+          "note": "for wet brine"
+        },
+        {
+          "quantity": 6,
+          "unit": "sprig",
+          "name": "fresh thyme",
+          "note": "2 for brine, 4 for roasting"
+        },
+        {
+          "quantity": 4,
+          "unit": "sprig",
+          "name": "fresh rosemary",
+          "note": "2 for brine, 2 tucked under skin"
+        },
+        {
+          "quantity": 6,
+          "unit": "sprig",
+          "name": "fresh sage",
+          "note": "2 for brine, 4 tucked under skin"
+        },
+        {
+          "quantity": 1,
+          "unit": "each",
+          "name": "large brining bag",
+          "note": "unscented, food-safe; set in roasting pan in fridge"
+        },
+        {
+          "quantity": 6,
+          "unit": "tablespoon",
+          "name": "unsalted butter",
+          "note": "softened, for herb butter rub"
+        },
+        {
+          "quantity": 6,
+          "unit": "clove",
+          "name": "garlic",
+          "note": "3 minced into herb butter, 3 halved for cavity"
+        },
+        {
+          "quantity": 1,
+          "unit": "each",
+          "name": "lemon",
+          "note": "halved, for cavity"
+        },
+        {
+          "quantity": 1,
+          "unit": "each",
+          "name": "yellow onion",
+          "note": "quartered, for cavity"
+        },
+        {
+          "quantity": 3,
+          "unit": "stalk",
+          "name": "celery",
+          "note": "cut into large pieces, for roasting pan"
+        },
+        {
+          "quantity": 2,
+          "unit": "each",
+          "name": "carrots",
+          "note": "cut into large pieces, for roasting pan"
+        },
+        {
+          "quantity": 2,
+          "unit": "tablespoon",
+          "name": "olive oil",
+          "note": "for skin"
+        },
+        {
+          "quantity": 1,
+          "unit": "teaspoon",
+          "name": "black pepper",
+          "note": "freshly ground, for herb butter"
+        },
+        {
+          "quantity": 2,
+          "unit": "cup",
+          "name": "chicken broth",
+          "note": "poured into roasting pan"
+        }
+      ]
+    },
+    "daySteps": [
+      {
+        "stepIndex": 5,
+        "estimatedMinutes": 5,
+        "phaseType": "prep",
+        "text": "On Thursday: Remove the turkey from the brine, discard the brine, and pat the turkey thoroughly dry with paper towels."
+      },
+      {
+        "stepIndex": 6,
+        "estimatedMinutes": 30,
+        "phaseType": "hold",
+        "text": "Let the turkey sit at room temperature for 30 minutes."
+      },
+      {
+        "stepIndex": 7,
+        "estimatedMinutes": 20,
+        "phaseType": "preheat",
+        "text": "Preheat the oven to 325°F."
+      },
+      {
+        "stepIndex": 8,
+        "estimatedMinutes": 6,
+        "phaseType": "prep",
+        "text": "Mash 6 tablespoons softened butter with 3 minced garlic cloves and 1 teaspoon black pepper; loosen the skin over the breast and thighs and push 4 sage sprigs and 2 rosemary sprigs under the skin."
+      },
+      {
+        "stepIndex": 9,
+        "estimatedMinutes": 4,
+        "phaseType": "prep",
+        "text": "Rub the herb butter all over the outside of the bird; drizzle 2 tablespoons olive oil over the skin; stuff the cavity with 3 halved garlic cloves, 1 halved lemon, 1 quartered onion, and 4 thyme sprigs."
+      },
+      {
+        "stepIndex": 10,
+        "estimatedMinutes": 3,
+        "phaseType": "prep",
+        "text": "Scatter 3 celery stalks and 2 carrots (cut into large pieces) in the bottom of a large roasting pan; set the turkey breast-side up on a roasting rack over the vegetables and pour 2 cups chicken broth into the pan."
+      },
+      {
+        "stepIndex": 11,
+        "estimatedMinutes": 162,
+        "phaseType": "cook",
+        "text": "Roast the turkey at 325°F for about 2¾ hours; baste with pan drippings every 45 minutes."
+      },
+      {
+        "stepIndex": 12,
+        "estimatedMinutes": 5,
+        "phaseType": "preheat",
+        "text": "Raise the oven to 350°F and put in the Sage and Onion Stuffing and Green Bean Casserole."
+      },
+      {
+        "stepIndex": 13,
+        "estimatedMinutes": 25,
+        "phaseType": "cook",
+        "text": "Keep roasting the turkey at 350°F for about 25 more minutes, until an instant-read thermometer in the thickest part of the thigh reads 165°F."
+      },
+      {
+        "stepIndex": 14,
+        "estimatedMinutes": 25,
+        "phaseType": "rest",
+        "text": "Transfer the turkey to a carving board, tent loosely with foil, and rest 20–30 minutes before carving; reserve the pan drippings for the gravy."
+      },
+      {
+        "stepIndex": 15,
+        "estimatedMinutes": 10,
+        "phaseType": "assemble",
+        "text": "Carve the turkey and arrange on a large platter."
+      },
+      {
+        "stepIndex": 16,
+        "estimatedMinutes": 2,
+        "phaseType": "assemble",
+        "text": "Serve the Herb-Roasted Whole Turkey with the Pan Gravy, Sage and Onion Stuffing, Mashed Potatoes, Cranberry-Orange Sauce, Green Bean Casserole and Sweet Potato Casserole."
+      }
+    ]
+  },
+  "Make-Ahead Thanksgiving Dinner with Roast Turkey, Stuffing, and All the Trimmings": {
+    "mealId": "b597cdc6-690e-4ed3-87be-df508654919f",
+    "tags": [
+      "thanksgiving-feast"
+    ],
+    "dish": {
+      "title": "Dry-Brined Roast Turkey",
+      "rows": [
+        {
+          "quantity": 14,
+          "unit": "pound",
+          "name": "whole turkey",
+          "note": "thawed; neck and giblets reserved for gravy"
+        },
+        {
+          "quantity": 3,
+          "unit": "tablespoon",
+          "name": "kosher salt",
+          "note": "for dry brine, about 1 tsp per 5 lb"
+        },
+        {
+          "quantity": 1,
+          "unit": "teaspoon",
+          "name": "black pepper",
+          "note": "freshly ground"
+        },
+        {
+          "quantity": 1,
+          "unit": "teaspoon",
+          "name": "baking powder",
+          "note": "mixed into dry brine to crisp skin"
+        },
+        {
+          "quantity": 6,
+          "unit": "tablespoon",
+          "name": "unsalted butter",
+          "note": "softened"
+        },
+        {
+          "quantity": 6,
+          "unit": "sprig",
+          "name": "fresh thyme",
+          "note": null
+        },
+        {
+          "quantity": 3,
+          "unit": "sprig",
+          "name": "fresh rosemary",
+          "note": null
+        },
+        {
+          "quantity": 6,
+          "unit": "leaf",
+          "name": "fresh sage",
+          "note": null
+        },
+        {
+          "quantity": 6,
+          "unit": "clove",
+          "name": "garlic",
+          "note": "smashed"
+        },
+        {
+          "quantity": 1,
+          "unit": "each",
+          "name": "yellow onion",
+          "note": "quartered, for cavity and roasting pan"
+        },
+        {
+          "quantity": 3,
+          "unit": "stalk",
+          "name": "celery",
+          "note": "cut into large pieces, for roasting pan"
+        },
+        {
+          "quantity": 2,
+          "unit": "each",
+          "name": "carrots",
+          "note": "cut into large pieces, for roasting pan"
+        },
+        {
+          "quantity": 2,
+          "unit": "cup",
+          "name": "low-sodium chicken or turkey broth",
+          "note": "for roasting pan"
+        },
+        {
+          "quantity": 2,
+          "unit": "tablespoon",
+          "name": "neutral oil",
+          "note": "for skin before roasting"
+        }
+      ]
+    },
+    "daySteps": [
+      {
+        "stepIndex": 3,
+        "estimatedMinutes": 60,
+        "phaseType": "hold",
+        "text": "On Thursday: Remove the turkey from the fridge 1 hour before roasting."
+      },
+      {
+        "stepIndex": 4,
+        "estimatedMinutes": 30,
+        "phaseType": "preheat",
+        "text": "Preheat the oven to 325°F."
+      },
+      {
+        "stepIndex": 5,
+        "estimatedMinutes": 4,
+        "phaseType": "prep",
+        "text": "Smash 6 cloves garlic and quarter 1 yellow onion."
+      },
+      {
+        "stepIndex": 6,
+        "estimatedMinutes": 4,
+        "phaseType": "prep",
+        "text": "Rub 6 tablespoons softened butter under the breast skin and over the outside. Stuff the cavity with the 6 cloves garlic, onion quarters, 6 thyme sprigs, 3 rosemary sprigs, and 6 sage leaves."
+      },
+      {
+        "stepIndex": 7,
+        "estimatedMinutes": 5,
+        "phaseType": "prep",
+        "text": "Scatter 3 celery stalks and 2 carrots (cut into large pieces) and remaining onion pieces in a large roasting pan. Pour in 2 cups broth. Brush the turkey skin with 2 tablespoons neutral oil and set the bird on a roasting rack over the vegetables."
+      },
+      {
+        "stepIndex": 8,
+        "estimatedMinutes": 131,
+        "phaseType": "cook",
+        "text": "Roast the turkey at 325°F for about 2¼ hours."
+      },
+      {
+        "stepIndex": 9,
+        "estimatedMinutes": 5,
+        "phaseType": "preheat",
+        "text": "Raise the oven to 350°F and put in the Overnight Sage Stuffing and Mashed Potato Casserole."
+      },
+      {
+        "stepIndex": 10,
+        "estimatedMinutes": 40,
+        "phaseType": "cook",
+        "text": "Keep roasting the turkey at 350°F for about 40 more minutes, until an instant-read thermometer in the thickest part of the thigh reads 165°F."
+      },
+      {
+        "stepIndex": 11,
+        "estimatedMinutes": 25,
+        "phaseType": "rest",
+        "text": "Transfer the turkey to a carving board, tent loosely with foil, and rest 20–30 minutes before carving. Reserve the pan drippings for finishing the gravy."
+      },
+      {
+        "stepIndex": 12,
+        "estimatedMinutes": 10,
+        "phaseType": "assemble",
+        "text": "Carve the turkey and arrange on a large platter to serve."
+      },
+      {
+        "stepIndex": 13,
+        "estimatedMinutes": 2,
+        "phaseType": "assemble",
+        "text": "Serve the Dry-Brined Roast Turkey with the Make-Ahead Turkey Gravy, Overnight Sage Stuffing, Mashed Potato Casserole, Cranberry-Orange Sauce and Green Beans with Crispy Shallots."
+      }
+    ]
+  }
+}

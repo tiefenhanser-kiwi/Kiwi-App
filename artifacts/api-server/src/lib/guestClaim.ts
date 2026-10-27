@@ -57,6 +57,7 @@ import { markFirstPlanCreated } from "./firstPlan";
 import { verifyToken } from "./auth";
 import { logger } from "./logger";
 import { prepareTemplateCopy, writeTemplateCopy } from "./planFromTemplate";
+import { stampFeastForkTimings } from "./mealFork";
 import { addUtcDays, activeWindowFromToday, todayFor } from "./planDayAssignment";
 import { resolveThisWeekWinnerId } from "./planDates";
 import { emitActivity } from "./userActivity";
@@ -567,7 +568,7 @@ export async function adoptTemplateForUser(
   try {
     const prepared = await prepareTemplateCopy(prisma, templateId, userId, { today });
     if (prepared.kind === "not_found") return null;
-    return await prisma.$transaction(async (tx) => {
+    const planId = await prisma.$transaction(async (tx) => {
       const copied = await writeTemplateCopy(tx, prepared, markFirstPlanCreated);
       // THX-2S (D-WS9-311) — an anchored template inside its window came back
       // already dated (the Thanksgiving week). Keep those dates; it is this
@@ -595,6 +596,9 @@ export async function adoptTemplateForUser(
       });
       return copied.instance.id;
     });
+    // SERVER-6 BUG-536 — after the commit, as copyTemplateForUser does.
+    await stampFeastForkTimings(prisma as unknown as Prisma.TransactionClient, prepared.forks);
+    return planId;
   } catch (err) {
     logger.error(
       { event: "guest_claim_template_failed", userId, templateId, err },

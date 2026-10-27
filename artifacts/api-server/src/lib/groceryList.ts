@@ -45,7 +45,8 @@ import {
   type RecurringFacets,
 } from "./recurringItems";
 import { logger } from "./logger";
-import { buysWholePerShare, dishRowMultipliers, displayedPrepQuantity, isWholeProduce } from "./prepQuantity";
+import { buysWholePerShare, dishRowMultipliers, displayedPrepQuantity, isWholeProduce, weighedTurkeyOf } from "./prepQuantity";
+import { birdLineAtWeight } from "./birdWeight";
 import { chosenBirdOf, FEAST_MEAL_TAG } from "./prepWeekAggregation";
 
 // WS7-7-A Block 1 — a single plan source contributing to a consolidated line.
@@ -563,13 +564,15 @@ export async function consolidatePlanIngredients(
       // floor: a 10 lb turkey at 4 of 10, not 5.6 lb) and the rest of the dish
       // follows that bird; a neck or giblets is the one the bird comes with. The same
       // rule as Prep the Week and the meal screen (prepQuantity dishRowMultipliers).
+      const birdRows = effective.map((e) => ({ quantity: e.quantity, unit: e.unit, name: e.ingredient?.canonicalName ?? "", note: e.preparationNote }));
       const rowMultiplier = dishRowMultipliers(
-        effective.map((e) => ({ quantity: e.quantity, unit: e.unit, name: e.ingredient?.canonicalName ?? "", note: e.preparationNote })),
+        birdRows,
         multiplier,
         // THX-3c (item 2) — a dish follows a bird by count only in a feast.
         { feast: (item.meal.tags ?? []).includes(FEAST_MEAL_TAG), ...(birdLb !== undefined ? { birdLb } : {}) },
       );
 
+      const countBirdRow = birdLb === undefined ? -1 : ((t) => (t?.byCount ? t.row : -1))(weighedTurkeyOf(birdRows));
       for (const [row, eff] of effective.entries()) {
         const ing = eff.ingredient;
         const canonical = ing?.canonicalName ?? eff.canonicalFallback;
@@ -579,9 +582,13 @@ export async function consolidatePlanIngredients(
         // no staple flag, no AI-subset entry, no order line. A recipe's water is
         // an instruction, not a purchase.
         if (isNeverOrdered(normalizeIngredientName(canonical))) continue;
-        const display = ing?.displayName ?? canonical;
+        // SERVER-6 BUG-537 — a turkey written by count, with a weight chosen, says that
+        // weight in its line and its note (the AI's form inference reads the note).
+        const countBird = birdLb !== undefined && countBirdRow === row;
+        const birdLine = countBird ? birdLineAtWeight({ name: ing?.displayName ?? canonical, note: eff.preparationNote }, birdLb) : null;
+        const display = birdLine?.name ?? ing?.displayName ?? canonical;
         const unit = eff.unit;
-        const prepRaw = eff.preparationNote;
+        const prepRaw = birdLine ? birdLine.note : eff.preparationNote;
         const key = bucketKeyOf(canonical, unit);
         // THX-3d (R5) — produce counted by the piece and a package round PER SHARE before
         // the merge: the feast's onion is ¾ for the turkey, ⅜ for the gravy and ¾ for the

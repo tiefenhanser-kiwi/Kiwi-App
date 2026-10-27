@@ -21,7 +21,7 @@
 
 import type { Prisma } from "@prisma/client";
 
-import { dishRowMultipliers, weighedTurkeyOf } from "./prepQuantity";
+import { dishRowMultipliers, NAME_WEIGHT, weighedTurkeyOf } from "./prepQuantity";
 import { isOvenStep, type SchedulerPhase } from "./cookingScheduler";
 
 export type BirdKind = "whole" | "spatchcock";
@@ -224,6 +224,28 @@ export function aboutDuration(minutes: number): string {
 export function birdThawStepText(args: { birdWord: string; lb: number; startDay: string; readyBy: string }): string {
   const days = thawFridgeDays(args.lb);
   return `Thaw (start ${args.startDay}): If the ${args.birdWord} is frozen, move it to the fridge on ${args.startDay} — a ${poundsWords(args.lb)}-lb bird takes about ${days} ${days === 1 ? "day" : "days"} to thaw fully, so it is ready by ${args.readyBy}.`;
+}
+
+/**
+ * SERVER-6 BUG-537 — A TURKEY WRITTEN BY COUNT SAYS THE WEIGHT THE COOK CHOSE. Its
+ * weight is in its name ("1 whole turkey (12–14 lb)", New Twist's) or its note (the
+ * Buttermilk alternate's "12–14 lb, neck and giblets removed"); with a weight chosen,
+ * that text says the chosen one ("16 lb"). A by-weight bird's quantity already says it.
+ *
+ * DISPLAY ONLY, and applied after the row multipliers: weighedTurkeyOf reads the
+ * recipe's weight out of this same text, so the rows must still be scaled from the
+ * original. `name` gains " (16 lb)" when neither its name nor its note carried a
+ * weight to rewrite, so the line itself always says it.
+ */
+export function birdLineAtWeight(row: { name: string; note: string | null }, chosenLb: number): { name: string; note: string | null } {
+  const said = `${poundsWords(chosenLb)} lb`;
+  const rewrite = (s: string) => {
+    const m = NAME_WEIGHT.exec(s);
+    return m ? s.slice(0, m.index) + said + s.slice(m.index + m[0].length) : null;
+  };
+  const name = rewrite(row.name);
+  const note = row.note ? rewrite(row.note) : null;
+  return { name: name ?? `${row.name} (${said})`, note: note ?? row.note };
 }
 
 const NUM = String.raw`(?:\d+(?:\.\d+)?[¼½¾]?|[¼½¾]|an?|one|two|three|four|five)`;

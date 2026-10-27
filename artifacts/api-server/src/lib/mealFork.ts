@@ -23,6 +23,30 @@ import { Prisma } from "@prisma/client";
 import type { MealImageStatus, SourceType } from "@prisma/client";
 
 import { stampAllergens } from "./allergens";
+import { logger } from "./logger";
+import { stampMealTiming } from "./mealTiming";
+import { FEAST_MEAL_TAG } from "./prepWeekAggregation";
+
+// SERVER-6 BUG-536 — A FEAST COPY IS TIMED AT ITS OWN SERVINGS.
+//
+// The copy takes the source's `estimatedTimeMinutes` (mealCloneData), which was
+// stamped at the SOURCE's servings. For an everyday meal that is the copy's time
+// too: no derived minute reads the servings. A feast's does: its oven racks follow
+// each dish's servingsDefault (ovenRacks.ts), so New Twist's copies at household 4
+// carried the 10-serving card total (223) while Cook Mode and a fresh stamp said
+// 180. A feast copy whose dishes' servings moved is stamped again after its rows are
+// written, so the card agrees with Cook Mode. Every other copy writes exactly what it
+// wrote before.
+function feastCopyNeedsStamp(
+  source: { tags: string[] | null; dishLinks: readonly { dish: { servingsDefault: number } }[] },
+  servingsDefaultOverride: number | undefined,
+): boolean {
+  return (
+    servingsDefaultOverride !== undefined &&
+    (source.tags ?? []).includes(FEAST_MEAL_TAG) &&
+    source.dishLinks.some((l) => l.dish.servingsDefault !== servingsDefaultOverride)
+  );
+}
 
 type Tx = Prisma.TransactionClient;
 
@@ -316,6 +340,7 @@ async function cloneMealInto(
   //    with its ingredients (ingredientId refs preserved) and dish-owned steps.
   //    THX-2S — the per-dish copy is cloneDishForUser (below), shared with the
   //    meal-edit "add a catalog dish" path (lib/mealDishFromCatalog.ts).
+  const newDishIds: string[] = [];
   for (const link of source.dishLinks) {
     const d = link.dish;
     const newDishId = await cloneDishForUser(tx, d, {
@@ -334,6 +359,7 @@ async function cloneMealInto(
         roleLabel: link.roleLabel,
       },
     });
+    newDishIds.push(newDishId);
   }
 
   // 3. Meal-owned steps (ownerType "meal" — legacy/seed single-dish meals such
@@ -353,6 +379,11 @@ async function cloneMealInto(
   //    inherit, so derive the copy's own stamp from the graph just written.
   if (source.allergensStampedAt == null) {
     await stampAllergens(tx, newMeal.id);
+  }
+
+  // 5. SERVER-6 BUG-536 — a feast copy at other servings is timed at its own.
+  if (userId !== null && feastCopyNeedsStamp(source, target.servingsDefaultOverride)) {
+    await stampMealTiming(tx, newMeal.id, newDishIds);
   }
 
   return { mealId: newMeal.id };
@@ -589,6 +620,8 @@ export interface PreparedForks {
   steps: Prisma.RecipeInstructionStepCreateManyInput[];
   /** Copies whose source was never stamped (BUG-407) — stamped after the write. */
   toStamp: string[];
+  /** SERVER-6 BUG-536 — feast copies at other servings, timed after the write. */
+  toTime: { mealId: string; dishIds: string[] }[];
 }
 
 /**
@@ -610,6 +643,7 @@ export async function prepareMealForks(
     ingredients: [],
     steps: [],
     toStamp: [],
+    toTime: [],
   };
   const ids = [...new Set(sourceMealIds)];
   if (ids.length === 0) return out;
@@ -663,9 +697,11 @@ export async function prepareMealForks(
     const mealId = randomUUID();
     out.mealIdBySource.set(sourceMealId, mealId);
     out.meals.push({ id: mealId, ...mealCloneData(source, target) });
+    const copyDishIds: string[] = [];
     for (const link of source.dishLinks) {
       const d = link.dish;
       const dishId = randomUUID();
+      copyDishIds.push(dishId);
       out.dishes.push({
         id: dishId,
         ...dishCloneData(d, {
@@ -685,6 +721,7 @@ export async function prepareMealForks(
     }
     out.steps.push(...stepCloneRows(stepsOf.get(`meal:${sourceMealId}`) ?? [], "meal", mealId, 1));
     if (source.allergensStampedAt == null) out.toStamp.push(mealId);
+    if (feastCopyNeedsStamp(source, householdSize)) out.toTime.push({ mealId, dishIds: copyDishIds });
   }
   return out;
 }
@@ -702,5 +739,22 @@ export async function writeMealForks(tx: Tx, p: PreparedForks): Promise<void> {
   if (p.steps.length > 0) await tx.recipeInstructionStep.createMany({ data: p.steps });
   for (const mealId of p.toStamp) {
     await stampAllergens(tx, mealId);
+  }
+}
+
+/**
+ * SERVER-6 BUG-536 — the batch fork's feast copies at other servings, timed at
+ * their own. AFTER the caller's transaction commits, on the plain client: FIX-6's
+ * transaction holds writes only (a stamp reads the steps and links and runs the
+ * scheduler). Best-effort: a copy whose stamp fails keeps the source's, which is
+ * what it carried before this, and the plan is unaffected.
+ */
+export async function stampFeastForkTimings(db: Tx, p: Pick<PreparedForks, "toTime">): Promise<void> {
+  for (const { mealId, dishIds } of p.toTime) {
+    try {
+      await stampMealTiming(db, mealId, dishIds);
+    } catch (err) {
+      logger.warn({ event: "feast_fork_timing_failed", mealId, err }, "Feast copy kept its source's time stamp");
+    }
   }
 }

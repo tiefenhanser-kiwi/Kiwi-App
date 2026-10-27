@@ -3,6 +3,7 @@
 // for a whole bird), the thaw follows it (⌈lb ÷ 4⌉ days before the brine), and nothing
 // moves when no weight is chosen. The pinned table is the one the client lane pins
 // (artifacts/kiwi birdRule.test.ts) for the stepper.
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
@@ -16,6 +17,7 @@ import {
   birdRoastEdit,
   birdRoastMinutes,
   birdThawStepText,
+  birdLineAtWeight,
   birdWeightProblem,
   editStep,
   mealBirdOf,
@@ -238,5 +240,66 @@ describe("THX-4 — the thaw follows the weight (call 5)", () => {
       birdThawStepText({ birdWord: "turkey", lb: 16.5, startDay: "Friday", readyBy: "Wednesday night" }),
       "Thaw (start Friday): If the turkey is frozen, move it to the fridge on Friday — a 16½-lb bird takes about 5 days to thaw fully, so it is ready by Wednesday night.",
     );
+  });
+});
+
+// SERVER-6 C — D-WS9-326 ruled: the step floor stays (a weight on a bracket edge belongs
+// to the lower bracket, as FSIS lists "12 to 14 pounds"). What the ruling asks to hold:
+// across the stepper's whole range, the roast never gets SHORTER for a heavier bird.
+// server6Birds.json is every weighable Thanksgiving meal on dev (one per title): the
+// bird's dish rows and its on-the-day steps, as stampMealTiming reads them.
+describe("SERVER-6 — the roast never decreases with weight (D-WS9-326)", () => {
+  type Fixture = Record<string, { tags: string[]; dish: { title: string; rows: { quantity: number; unit: string; name: string; note: string | null }[] }; daySteps: { stepIndex: number; estimatedMinutes: number; phaseType: string; text: string }[] }>;
+  const birds = JSON.parse(readFileSync(new URL("./fixtures/server6Birds.json", import.meta.url), "utf8")) as Fixture;
+
+  it("pins six meals: two Classics, two Make-Aheads, New Twist and the Buttermilk alternate", () => {
+    assert.equal(Object.keys(birds).length, 6);
+  });
+
+  for (const [title, f] of Object.entries(birds)) {
+    it(`${title}: 8 lb to the range's top in ½-lb steps, the roast and the main roast never fall`, () => {
+      const bird = mealBirdOf({ tags: f.tags, dishes: [{ dishId: "d", title: f.dish.title, rows: f.dish.rows }] });
+      assert.ok(bird, "a weighable turkey");
+      let last = -Infinity;
+      let lastMain = -Infinity;
+      for (let lb = bird.range.min; lb <= bird.range.max + 1e-9; lb += bird.range.step) {
+        const edit = birdRoastEdit(f.daySteps, bird, lb);
+        assert.ok(edit, "the bird has an oven cook step");
+        assert.ok(edit.cookMinutes >= last, `${lb} lb roasts ${edit.cookMinutes}, under ${last}`);
+        assert.ok(edit.minutes >= lastMain, `${lb} lb main roast ${edit.minutes}, under ${lastMain}`);
+        last = edit.cookMinutes;
+        lastMain = edit.minutes;
+      }
+    });
+  }
+});
+
+// SERVER-6 BUG-537 — the server half: the text a count bird is written with says the
+// chosen weight (the meal screen's line is the client's; see the report's hand-off).
+describe("SERVER-6 — BUG-537 a turkey by count says the chosen weight", () => {
+  it("rewrites the weight in the name or the note; adds it to the name when only the note had it", () => {
+    assert.deepEqual(birdLineAtWeight({ name: "whole turkey", note: "12–14 lb, neck and giblets removed" }, 16), { name: "whole turkey (16 lb)", note: "16 lb, neck and giblets removed" });
+    assert.deepEqual(birdLineAtWeight({ name: "whole turkey (12–14 lb)", note: null }, 9.5), { name: "whole turkey (9½ lb)", note: null });
+    assert.deepEqual(birdLineAtWeight({ name: "whole turkey (12 to 14 pounds)", note: "giblets removed" }, 14), { name: "whole turkey (14 lb)", note: "giblets removed" });
+  });
+
+  it("Prep the feast's note says it too (adapter); the dish still follows chosen ÷ the note's 14 lb", () => {
+    const ing = (id: string, name: string, quantity: number, unit: string, preparationNote: string | null = null) => ({
+      ingredientId: id, ingredientName: name, category: "Protein", quantity, unit, preparationNote, sourceYield: null,
+    });
+    const loaded = (bird: { dishId: string; lb: number } | undefined) => ({
+      meals: [{
+        mealId: "m", mealName: "Buttermilk", servingsOverride: null, feast: false, ...(bird ? { bird } : {}),
+        dishes: [
+          { dishId: "turkey", dishName: "Buttermilk-Brined Roast Turkey", dishRole: "main", baseServings: 10, authoredBaseServings: 10, stepTexts: [], componentSteps: [],
+            ingredients: [ing("t", "whole turkey", 1, "each", "12–14 lb, neck and giblets removed and reserved"), ing("b", "buttermilk", 2, "quart")] },
+        ],
+      }],
+    }) as unknown as PrepLoadedPlan;
+    const row = (p: PrepLoadedPlan, id: string) => buildPrepCombineInput(p).meals[0].dishes[0].ingredients.find((i) => i.ingredientId === id)!;
+    assert.equal(row(loaded({ dishId: "turkey", lb: 16 }), "t").preparationNote, "16 lb, neck and giblets removed and reserved");
+    assert.equal(row(loaded({ dishId: "turkey", lb: 16 }), "t").quantity, 1);
+    assert.ok(Math.abs(row(loaded({ dishId: "turkey", lb: 16 }), "b").quantity - 2 * (16 / 14)) < 1e-12);
+    assert.equal(row(loaded(undefined), "t").preparationNote, "12–14 lb, neck and giblets removed and reserved");
   });
 });

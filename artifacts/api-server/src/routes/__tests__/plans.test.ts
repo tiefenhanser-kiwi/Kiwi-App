@@ -5866,6 +5866,32 @@ async function postPlanItem(
 }
 
 describe("POST /plans/:id/items (WS7-4-D c1)", () => {
+  // SERVER-6 BUG-538 — servings 1–30, a 400 that names the range; 1 and 30 land.
+  it("BUG-538: servingsOverride outside 1–30 is a 400 naming the range; 1 and 30 are accepted", async () => {
+    const recorder: D1ItemRecorder = { itemCreates: [], instanceUpdates: [], activityWrites: [] };
+    const harness = await mutationSpinUp(
+      makeD1Stub({
+        recorder,
+        plans: [{ id: "p-1", userId: A2_USER, revisionId: 2 }],
+        meals: [{ id: "m-1", userId: A2_USER, isPublic: false, isArchived: false, title: "M1" }],
+      }),
+    );
+    try {
+      for (const servingsOverride of [0, -2, 31, 500]) {
+        const res = await postPlanItem(harness, "p-1", { mealId: "m-1", servingsOverride });
+        assert.equal(res.status, 400, `servings ${servingsOverride}`);
+        assert.deepEqual(await res.json(), { error: "invalid servingsOverride", message: "servingsOverride must be 1–30" });
+      }
+      assert.equal(recorder.itemCreates.length, 0);
+      for (const servingsOverride of [1, 30]) {
+        const res = await postPlanItem(harness, "p-1", { mealId: "m-1", servingsOverride });
+        assert.equal(res.status, 201, `servings ${servingsOverride}`);
+      }
+    } finally {
+      await harness.close();
+    }
+  });
+
   it("happy: adds a meal with default slot=dinner, bumps revision, emits plan_meal_added", async () => {
     const recorder: D1ItemRecorder = {
       itemCreates: [],
@@ -6949,6 +6975,34 @@ describe("PATCH /plans/:id/items/:itemId (WS7-4-D c3)", () => {
       }
       assert.equal(recorder.itemUpdates.length, 0);
       assert.equal(recorder.activityWrites.length, 0);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  // SERVER-6 BUG-538 — the server bound the client's stepper always had.
+  it("BUG-538: servingsOverride outside 1–30 is a 400 naming the range, and writes nothing; 30 lands", async () => {
+    const recorder: D3Recorder = {
+      itemUpdates: [], itemCreates: [], itemDeletes: [],
+      instanceUpdates: [], activityWrites: [],
+    };
+    const harness = await mutationSpinUp(
+      makeD3Stub({
+        recorder,
+        plans: D3_DEFAULT_PLANS,
+        meals: D3_DEFAULT_MEALS,
+        items: [d3ItemFix({ id: "it-1", mealPlanInstanceId: "p-1", mealId: "m-old" })],
+      }),
+    );
+    try {
+      for (const servingsOverride of [0, -1, 31, 1000]) {
+        const res = await patchPlanItemReq(harness, "p-1", "it-1", { servingsOverride });
+        assert.equal(res.status, 400, `servings ${servingsOverride}`);
+        assert.deepEqual(await res.json(), { error: "invalid servingsOverride", message: "servingsOverride must be 1–30" });
+      }
+      assert.equal(recorder.itemUpdates.length, 0);
+      const ok = await patchPlanItemReq(harness, "p-1", "it-1", { servingsOverride: 30 });
+      assert.equal(ok.status, 200);
     } finally {
       await harness.close();
     }

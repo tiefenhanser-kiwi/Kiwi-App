@@ -2057,12 +2057,28 @@ export function createPlansRouter(
   // unscheduled. It was any string, so a "monday" or a "Mon" was stored and
   // then matched no day anywhere.
   const PlanItemDay = z.enum(DAY_NAMES).nullable().optional();
+  // SERVER-6 BUG-538 — an item's servings are 1–30, the bound the client's stepper
+  // clamps to and the one householdSize already has (from-meals, PATCH
+  // /me/preferences). It was any positive integer. Out of range is a 400 that names
+  // it, in the shape the bird weight's refusal uses (servingsOverrideRefusal).
+  const SERVINGS_OVERRIDE_PROBLEM = "servingsOverride must be 1–30";
+  const ServingsOverride = z
+    .number()
+    .int()
+    .min(1, SERVINGS_OVERRIDE_PROBLEM)
+    .max(30, SERVINGS_OVERRIDE_PROBLEM)
+    .nullable()
+    .optional();
+  const servingsOverrideRefusal = (error: z.ZodError) =>
+    error.issues.some((i) => i.path[0] === "servingsOverride")
+      ? { error: "invalid servingsOverride", message: SERVINGS_OVERRIDE_PROBLEM }
+      : null;
   const PostPlanItemBody = z
     .object({
       mealId: z.string().min(1).max(100),
       slot: z.enum(["breakfast", "lunch", "dinner"]).optional(),
       assignedDayOfWeek: PlanItemDay,
-      servingsOverride: z.number().int().positive().nullable().optional(),
+      servingsOverride: ServingsOverride,
     })
     .strict();
 
@@ -2088,7 +2104,7 @@ export function createPlansRouter(
       if (!parsed.success) {
         return res
           .status(400)
-          .json({ error: "invalid body", details: parsed.error.flatten() });
+          .json(servingsOverrideRefusal(parsed.error) ?? { error: "invalid body", details: parsed.error.flatten() });
       }
       const body = parsed.data;
       const slot = body.slot ?? "dinner";
@@ -2404,7 +2420,7 @@ export function createPlansRouter(
       // BOOK-1S — the same day vocabulary as POST (PlanItemDay, above).
       assignedDayOfWeek: PlanItemDay,
       slot: z.enum(["breakfast", "lunch", "dinner"]).optional(),
-      servingsOverride: z.number().int().positive().nullable().optional(),
+      servingsOverride: ServingsOverride,
       // THX-4 (D-WS9-324) — the turkey's weight in lb, or null (back to the default
       // bird). The range is the bird's (birdWeight BIRD_WEIGHT_RANGE_LB), checked below
       // against the item's meal: a 400 names it.
@@ -2452,7 +2468,7 @@ export function createPlansRouter(
       if (!parsed.success) {
         return res
           .status(400)
-          .json({ error: "invalid body", details: parsed.error.flatten() });
+          .json(servingsOverrideRefusal(parsed.error) ?? { error: "invalid body", details: parsed.error.flatten() });
       }
       const body = parsed.data;
 

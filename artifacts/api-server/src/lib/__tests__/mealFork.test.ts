@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 
 import { Prisma } from "@prisma/client";
 
-import { forkMealForUser, inheritedImageStatus, publishMealToStore } from "../mealFork";
+import { forkMealForUser, inheritedImageStatus, prepareMealForks, publishMealToStore, stampFeastForkTimings } from "../mealFork";
 
 // A minimal source-meal graph: 2 dishes, one with 2 ingredients + dish-owned
 // steps, plus meal-owned steps (the curated/seed shape).
@@ -148,6 +148,8 @@ function makeTxStub(
     ingredientCreateMany: [] as Record<string, unknown>[][],
     stepCreateMany: [] as Record<string, unknown>[][],
     stepFindManyWhere: [] as { ownerType: string; ownerId: string }[],
+    // SERVER-6 BUG-536 — stampMealTiming's link read: a feast copy at other servings is timed.
+    timingReads: [] as Record<string, unknown>[],
   };
   // Dish-owned steps for src-dish-0; meal-owned steps for src-meal.
   // D-WS9-066 — the dish carries a BASE step (boil, untagged) plus a two-path
@@ -196,6 +198,10 @@ function makeTxStub(
       create: async (args: { data: Record<string, unknown> }) => {
         rec.linkCreates.push(args.data);
         return { id: "link" };
+      },
+      findMany: async (args: { where: Record<string, unknown> }) => {
+        rec.timingReads.push(args.where);
+        return [];
       },
     },
     dishIngredient: {
@@ -555,6 +561,33 @@ describe("forkMealForUser", () => {
     assert.deepEqual(rec.dishCreates[1].tags, []);
   });
 
+  // SERVER-6 BUG-536 — a feast copy whose servings moved is timed at its own servings
+  // (its oven racks follow them); the same servings, or any other meal, keeps the
+  // source's stamp and reads nothing more.
+  it("BUG-536: a feast copy at another household is stamped again; same servings or a non-feast is not", async () => {
+    const feast = () => {
+      const source = makeSource();
+      (source as { tags: string[] }).tags = ["thanksgiving-feast"];
+      return source;
+    };
+    const atTwo = makeTxStub(feast(), 2);
+    await forkMealForUser(atTwo.tx as never, "src-meal", "user-1");
+    assert.equal(atTwo.rec.timingReads.length, 1);
+    assert.deepEqual(atTwo.rec.timingReads[0], { mealId: "new-meal", dishId: { in: ["new-dish-1", "new-dish-2"] } });
+
+    const atFour = makeTxStub(feast(), 4);
+    await forkMealForUser(atFour.tx as never, "src-meal", "user-1");
+    assert.equal(atFour.rec.timingReads.length, 0, "the source's servings: its stamp is the copy's");
+
+    const noPrefs = makeTxStub(feast(), null);
+    await forkMealForUser(noPrefs.tx as never, "src-meal", "user-1");
+    assert.equal(noPrefs.rec.timingReads.length, 0, "no household: the copy keeps the source's servings");
+
+    const pasta = makeTxStub(makeSource(), 2);
+    await forkMealForUser(pasta.tx as never, "src-meal", "user-1");
+    assert.equal(pasta.rec.timingReads.length, 0, "an everyday meal's time does not read servings");
+  });
+
   it("never mutates the source meal (other plans keep their binding)", async () => {
     const source = makeSource();
     const before = JSON.stringify(source);
@@ -696,5 +729,34 @@ describe("BUG-332 — what a fork inherits, and what it does not", () => {
     await forkMealForUser(tx as never, "src-meal", "user-1");
     assert.equal(rec.mealCreates[0].imageStatus, "pending");
     assert.equal(rec.mealCreates[0].sourceStoreMealId, "src-meal");
+  });
+});
+
+// SERVER-6 BUG-536 — the batch fork (template copy, sign-up adopt) marks a feast copy
+// at other servings for a stamp after the commit; the stamp is best-effort.
+describe("BUG-536 — the batch fork times a feast copy at its own servings", () => {
+  const db = (source: ReturnType<typeof makeSource>, householdSize: number | null) => ({
+    userPreferences: { findUnique: async () => (householdSize === null ? null : { householdSize }) },
+    meal: { findMany: async () => [source] },
+    recipeInstructionStep: { findMany: async () => [] },
+  });
+  const feast = () => {
+    const source = makeSource();
+    (source as { tags: string[] }).tags = ["thanksgiving-feast"];
+    return source;
+  };
+
+  it("a feast at another household is marked with its copy's dish ids; same servings and everyday meals are not", async () => {
+    const at2 = await prepareMealForks(db(feast(), 2) as never, ["src-meal"], "user-1");
+    assert.equal(at2.toTime.length, 1);
+    assert.equal(at2.toTime[0].mealId, at2.mealIdBySource.get("src-meal"));
+    assert.deepEqual(at2.toTime[0].dishIds, at2.dishes.map((d) => d.id));
+    assert.equal((await prepareMealForks(db(feast(), 4) as never, ["src-meal"], "user-1")).toTime.length, 0);
+    assert.equal((await prepareMealForks(db(makeSource(), 2) as never, ["src-meal"], "user-1")).toTime.length, 0);
+  });
+
+  it("a stamp that throws leaves the copy as written and does not throw", async () => {
+    const broken = { recipeInstructionStep: { findMany: async () => { throw new Error("db down"); } } };
+    await stampFeastForkTimings(broken as never, { toTime: [{ mealId: "m", dishIds: ["d"] }] });
   });
 });

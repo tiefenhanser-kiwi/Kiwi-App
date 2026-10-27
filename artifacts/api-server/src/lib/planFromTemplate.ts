@@ -19,7 +19,7 @@
 
 import { Prisma, type PrismaClient } from "@prisma/client";
 
-import { prepareMealForks, writeMealForks, type PreparedForks } from "./mealFork";
+import { prepareMealForks, stampFeastForkTimings, writeMealForks, type PreparedForks } from "./mealFork";
 import { todayFor } from "./planDayAssignment";
 import { anchoredDatingFor, type AnchoredDating } from "./templateAnchor";
 import { emitActivity } from "./userActivity";
@@ -215,5 +215,9 @@ export async function copyTemplateForUser(
 ): Promise<CopyTemplateResult> {
   const prepared = await prepareTemplateCopy(prisma, templateId, userId, opts);
   if (prepared.kind === "not_found") return prepared;
-  return prisma.$transaction((tx) => writeTemplateCopy(tx, prepared, markFirstPlanCreated));
+  const result = await prisma.$transaction((tx) => writeTemplateCopy(tx, prepared, markFirstPlanCreated));
+  // SERVER-6 BUG-536 — a feast copy at the household's servings, timed at its own,
+  // after the commit (FIX-6's transaction stays write-only).
+  await stampFeastForkTimings(prisma as unknown as Tx, prepared.forks);
+  return result;
 }

@@ -20,7 +20,8 @@
 // inferCategory is a defensive pocket fallback only, for the theoretical
 // empty-category row.
 
-import { dishRowMultipliers } from "./prepQuantity";
+import { dishRowMultipliers, weighedTurkeyOf } from "./prepQuantity";
+import { birdLineAtWeight } from "./birdWeight";
 import { inferCategory } from "./ingredientResolve";
 import { assignPhase, isNeverMeasured, isSaltOrPepper } from "./prepCombineEngine";
 import { resolveDishComponents } from "./prepComponents";
@@ -418,13 +419,17 @@ export function buildPrepCombineInput(
         const multiplier = effective / base;
         // THX-3b (BUG-454) — a whole-bird dish scales by its bird, and the bird's own
         // parts never scale (prepQuantity `dishRowMultipliers`, the client's rule).
+        const birdRows = dish.ingredients.map((i) => ({ ...splitCompoundUnit(i.quantity, i.unit), name: i.ingredientName, note: i.preparationNote }));
+        const chosenLb = meal.bird?.dishId === dish.dishId ? meal.bird.lb : undefined;
         const rowMultiplier = dishRowMultipliers(
-          dish.ingredients.map((i) => ({ ...splitCompoundUnit(i.quantity, i.unit), name: i.ingredientName, note: i.preparationNote })),
+          birdRows,
           multiplier,
           // THX-3c (item 2) — a dish follows a bird by count only in a feast.
           // THX-4 (D-WS9-324) — the turkey's dish follows the weight the cook chose.
-          { feast: !!meal.feast, ...(meal.bird?.dishId === dish.dishId ? { birdLb: meal.bird.lb } : {}) },
+          { feast: !!meal.feast, ...(chosenLb !== undefined ? { birdLb: chosenLb } : {}) },
         );
+        // SERVER-6 BUG-537 — a turkey written by count says the chosen weight in its note.
+        const countBirdRow = chosenLb === undefined ? -1 : ((t) => (t?.byCount ? t.row : -1))(weighedTurkeyOf(birdRows));
         return {
           dishId: dish.dishId,
           dishName: dish.dishName,
@@ -489,7 +494,9 @@ export function buildPrepCombineInput(
               // go in with it: Cook Mode named those as prepped and listed the celery raw.
               preparationNote: opts.feast && category.toLowerCase() === "produce" && /\bfor (?:the )?cavity\b/i.test(prep.preparationNote ?? "") && !cutOf([prep.preparationNote ?? ""])
                 ? `trimmed, ${prep.preparationNote}`
-                : prep.preparationNote,
+                : row === countBirdRow && chosenLb !== undefined
+                  ? birdLineAtWeight({ name: ing.ingredientName, note: prep.preparationNote }, chosenLb).note
+                  : prep.preparationNote,
               component: comp
                 ? { key: comp.key, noun: saysMarinade(comp) ? "marinade" : comp.noun, bowlName: comp.bowlName, heated: componentHeated(comp.stepIndexes, comp.memberIds) }
                 : null,

@@ -47,6 +47,9 @@ interface ItemStub {
   // WS7-7-A Block 5 — per-instance RecipeOverride (PRD §8.4.3). dishes[] by
   // position index; ingredients[] replace the dish's canonical ingredients.
   recipeOverrideJson?: unknown;
+  // SERVER-6 BUG-537 — opt-in: a chosen turkey weight and the meal's tags.
+  birdWeightLb?: number | null;
+  tags?: string[];
   dishes: DishStub[];
 }
 
@@ -77,9 +80,11 @@ function buildPlanRow(plan: PlanStub) {
       lastCooked: null,
       timesCooked: 0,
       notes: null,
+      ...(it.birdWeightLb !== undefined ? { birdWeightLb: it.birdWeightLb } : {}),
       meal: {
         id: `meal-${it.id}`,
         title: `Meal ${it.id}`,
+        ...(it.tags ? { tags: it.tags } : {}),
         dishLinks: it.dishes.map((d, di) => ({
           id: `link-${it.id}-${d.id}`,
           mealId: `meal-${it.id}`,
@@ -2409,5 +2414,46 @@ describe("consolidatePlanIngredients — THX-3b one bird rule", () => {
     assert.equal(findItem(out, "kosher salt")!.quantity, 0.375);
     assert.equal(findItem(out, "turkey neck")!.quantity, 1);
     assert.equal(findItem(out, "all-purpose flour")!.quantity, 0.25);
+  });
+});
+
+// SERVER-6 BUG-537 — a turkey written by count, with a weight chosen, says that weight
+// on the list: in its line (the display name) and in its note (the AI form inference's
+// context). The bird's quantity stays one bird, its dish follows chosen / the note's 14 lb.
+describe("consolidatePlanIngredients — BUG-537 the chosen weight on a count bird", () => {
+  const buttermilk = (birdWeightLb: number | null) =>
+    makePrisma({
+      items: [
+        {
+          id: "i1",
+          tags: ["course-turkey"],
+          birdWeightLb,
+          dishes: [
+            {
+              id: "turkey", title: "Buttermilk-Brined Roast Turkey", servingsDefault: 10,
+              ingredients: [
+                { name: "whole turkey", quantity: 1, unit: "each", category: "Protein", preparationNote: "12–14 lb, neck and giblets removed and reserved" },
+                { name: "buttermilk", quantity: 2, unit: "quart", category: "Dairy" },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+  it("16 lb: the line reads 'whole turkey (16 lb)', the note '16 lb, neck and giblets…', one bird", async () => {
+    const out = await consolidatePlanIngredients({ prisma: buttermilk(16), planId: TEST_PLAN, userId: TEST_USER });
+    const bird = findItem(out, "whole turkey")!;
+    assert.equal(bird.displayName, "whole turkey (16 lb)");
+    assert.equal(bird.preparationNote, "16 lb, neck and giblets removed and reserved");
+    assert.equal(bird.quantity, 1);
+    assert.ok(Math.abs(findItem(out, "buttermilk")!.quantity - 2 * (16 / 14)) < 0.26);
+  });
+
+  it("no weight chosen: the line and the note are as written", async () => {
+    const out = await consolidatePlanIngredients({ prisma: buttermilk(null), planId: TEST_PLAN, userId: TEST_USER });
+    const bird = findItem(out, "whole turkey")!;
+    assert.equal(bird.displayName, "whole turkey");
+    assert.equal(bird.preparationNote, "12–14 lb, neck and giblets removed and reserved");
   });
 });
