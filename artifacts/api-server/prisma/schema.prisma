@@ -355,6 +355,20 @@ model User {
   // a deploy, exactly as GuestEvent.event is. Nullable, no backfill: ADDITIVE,
   // so a live client that does not know the column is unaffected (D-WS9-254).
   signupSource             String?
+  // SERVER-6 A (ATTR) — the link that brought this account, beside the door
+  // above. Written once, at create, from the signup body's optional
+  // `attribution` object (lib/signupAttribution.ts): { ref, utmSource,
+  // utmMedium, utmCampaign, landingPath }, each a string ≤ 120 characters,
+  // every other key dropped, null when the body carried nothing usable.
+  // No route updates it. Nullable, no backfill: ADDITIVE (D-WS9-254).
+  signupAttribution        Json?
+  // SERVER-6 A (ATTR) — "How did you hear about Kiwi?", the person's own
+  // answer. One of SIGNUP_HOW_HEARD (friend · instagram · tiktok · reddit ·
+  // google · app_store · creator · other), plus an optional ≤ 80-character
+  // detail. Set ONCE through PATCH /me/profile: a later set is ignored, so the
+  // first answer is the one a report counts. Nullable, no backfill: ADDITIVE.
+  howHeard                 String?
+  howHeardDetail           String?
   // Row 13 · Block 1b / D-WS9-263 — the personalize nudge on the first Home
   // after a Test Kitchen sign-up. The claim copied the guest's wizard answers
   // and set onboardingComplete, so these users never see the onboarding form
