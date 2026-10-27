@@ -339,3 +339,25 @@ describe("Part J.0 B — portion lines are the code's", () => {
     assert.equal(isTickable(chicken, build), true);
   });
 });
+
+// SERVER-6 BUG-534 — the served week says the mix's bowl. The narrator copies
+// openingClause verbatim (prep.narrate_steps), so this narration does too; finishPrepWeek
+// labels it and then says the bowl. Nothing else in the step moves.
+describe("SERVER-6 BUG-534 — finishPrepWeek says a mix's bowl", () => {
+  it("the stir fry's spice blend opens with 'Get a small bowl for the <label>. Into the bowl:'", () => {
+    const build = buildPrepWeekPlan(fixture());
+    const narration = {
+      steps: build.stepPlan.narrationInput.steps.map((s) => ({
+        stepId: s.stepId,
+        title: "Do the thing",
+        instructions: s.openingClause ? `${s.openingClause}\n1 tsp ground cumin` : "Do the thing.",
+      })),
+    };
+    const served = finishPrepWeek(assemblePrepWeekResult(build.stepPlan, narration), build);
+    const mixLabels = [...(build.weekLabels?.labels.kinds ?? new Map())].filter(([, k]) => k === "mix").map(([l]) => l);
+    assert.ok(mixLabels.length > 0, "the fixture has a mix");
+    const mix = served.phases.flatMap((p) => p.steps).find((s) => s.instructions.includes("Get a small bowl for the "));
+    assert.ok(mix, "a step says the bowl");
+    assert.equal(mix.instructions, `Get a small bowl for the ${mixLabels[0]}. Into the bowl:\n1 tsp ground cumin`);
+  });
+});

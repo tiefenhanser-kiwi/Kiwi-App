@@ -34,7 +34,7 @@ import { ingredientGroupKey } from "./ingredientRelations";
 import { combinePrep, MIX_STAPLE } from "./prepCombineEngine";
 import { cutOf } from "./prepClasses";
 import { CUT_AT_THE_STEP } from "./heldMorning";
-import { labelWeekResult, mainDishOf, weekLabelMap } from "./prepWeekLabels";
+import { labelWeekResult, mainDishOf, mixBowlWording, weekLabelMap } from "./prepWeekLabels";
 import {
   buildStepPlan,
   componentTotals,
@@ -929,7 +929,10 @@ export function finishPrepWeek(result: PrepWeekResult, build: PrepWeekBuild): Pr
     }),
   };
   // PREP-3 (R3) — the week's labels, last: every string of the served week says them.
-  return build.weekLabels ? labelWeekResult(finished, build.weekLabels) : finished;
+  // SERVER-6 BUG-534 — then a mix is said with its bowl ("Get a small bowl for the …").
+  return build.weekLabels
+    ? mixBowlWording(labelWeekResult(finished, build.weekLabels), build.weekLabels.labels.kinds)
+    : finished;
 }
 
 /**

@@ -341,3 +341,79 @@ export function labelWeekResult(result: PrepWeekResult, labels: { map: ReadonlyM
   phases[at] = { ...phase, skippable: false, steps: [step, ...phase.steps.map((s) => ({ ...s, number: s.number + 1 }))] };
   return { ...out, phases };
 }
+
+// ── SERVER-6 BUG-534 (server half) — A MIX IS MADE IN A NAMED BOWL ─────────────
+//
+// The engine names a mix by its jar or bowl ("… sauce jar", "… marinade bowl", "… spice
+// blend") and the label says it short ("Tso's sauce", "Skewers marinade", "Taco spices"),
+// so the served week read "Into the Skewers marinade:" with no vessel at all, and a
+// produce line "— into the Skewers marinade". A mix is now made in a named bowl. The
+// FIRST place the week names a mix, in the order the screen shows the steps, gets the
+// bowl; every later one adds to it:
+//
+//   first:  "Into the {label}:"                 → "Get a small bowl for the {label}. Into the bowl:"
+//           "— into the {label}"                → "— into a small bowl for the {label}"
+//   later:  "Into the {label}:"                 → "Into the {label} bowl:"
+//           "{label} (… already in it): add"    → "Into the {label} bowl (… already in it), add:"
+//           "into the {label}" / "… container"  → "into the {label} bowl"
+//
+// Usually the first is the mix's own dry step; a mix whose first ingredient is squeezed
+// citrus (the Caesar's lemon juice) gets its bowl on that produce line.
+//
+// Mix labels only (kind "mix"): a chopped vegetable's container and a shared tub keep
+// their words. WORDING ONLY, applied at read time after the labels, so no cached
+// narration changes and no engine version moves; the narrator copies openingClause
+// verbatim, which is what these patterns read. The week only (the feast has no
+// weekLabels). A field the longer words would push past the wire's cap is left as it was.
+
+const INSTRUCTIONS_MAX = 800;
+const STORAGE_NOTE_MAX = 200;
+
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** The week's mix steps said with their bowl (see above). */
+export function mixBowlWording(result: PrepWeekResult, kinds: ReadonlyMap<string, string>): PrepWeekResult {
+  // ONE alternation per rule, longest label first, so each place in the text is
+  // matched once and by its whole label: "Poke marinade 2" is never read as
+  // "Poke marinade" followed by " 2".
+  const mixes = [...kinds].filter(([, k]) => k === "mix").map(([l]) => l).sort((a, b) => b.length - a.length);
+  if (mixes.length === 0) return result;
+  const alt = mixes.map(escapeRegExp).join("|");
+  // The three shapes in one pass, left to right, so "first" is the text's own order.
+  const shapes = new RegExp(
+    `(^|\\n)Into the (${alt}):` +
+      `|(^|\\n)(${alt}) \\(([^()\\n]*) already in it\\): add\\b:?` +
+      `|\\binto the (${alt})(?: container)?(?![\\w'’-]| bowl| \\d)`,
+    "g",
+  );
+  const introduced = new Set<string>();
+  const say = (text: string, seen: Set<string>) =>
+    text.replace(shapes, (_m, lead1?: string, l1?: string, lead2?: string, l2?: string, held?: string, l3?: string) => {
+      const label = (l1 ?? l2 ?? l3)!;
+      const first = !seen.has(label);
+      seen.add(label);
+      if (l1 !== undefined) return first ? `${lead1}Get a small bowl for the ${label}. Into the bowl:` : `${lead1}Into the ${label} bowl:`;
+      if (l2 !== undefined) return `${lead2}Into the ${label} bowl (${held} already in it), add:`;
+      return first ? `into a small bowl for the ${label}` : `into the ${label} bowl`;
+    });
+  // A field that would overflow keeps its words, and what it named is not "introduced";
+  // nor is what a step held for cook day names (the cook is told to skip it).
+  const capped = (text: string, max: number, counts: boolean) => {
+    const seen = new Set(introduced);
+    const next = say(text, seen);
+    if (next.length > max) return text;
+    if (counts) for (const l of seen) introduced.add(l);
+    return next;
+  };
+  return {
+    ...result,
+    phases: result.phases.map((ph) => ({
+      ...ph,
+      steps: ph.steps.map((s): PrepWeekStep => {
+        const counts = !s.skipSuggested;
+        const instructions = capped(s.instructions, INSTRUCTIONS_MAX, counts);
+        return { ...s, instructions, ...(s.storageNote ? { storageNote: capped(s.storageNote, STORAGE_NOTE_MAX, counts) } : {}) };
+      }),
+    })),
+  };
+}
