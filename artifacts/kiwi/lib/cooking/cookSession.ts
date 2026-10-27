@@ -460,6 +460,22 @@ export function firstLiveIndex(
   return i === -1 ? 0 : i;
 }
 
+/**
+ * CLIENT-3 B (BUG-526) — where "Skip to cooking" scrolls: the first live step,
+ * below the recap and the muted "Done in prep" rows, by the y its card laid out
+ * at (undefined until it has). The button used to set the anchor to the first
+ * live step and nothing else, which is where an unmoved anchor already sits, so
+ * a tap did nothing visible.
+ */
+export function skipToCookingY(
+  steps: readonly CookStep[],
+  doneInPrep: ReadonlySet<string>,
+  offsets: Readonly<Record<number, number>>,
+): number | undefined {
+  if (steps.length === 0) return undefined;
+  return offsets[firstLiveIndex(steps, doneInPrep)];
+}
+
 /** Last step not done in prep (the last step when every step is). */
 export function lastLiveIndex(
   steps: readonly CookStep[],

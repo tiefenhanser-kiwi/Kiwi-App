@@ -44,6 +44,7 @@ import {
 import {
   lastLiveIndex,
   nextLiveIndex,
+  skipToCookingY,
   type CookStep,
 } from "@/lib/cooking/cookSession";
 import { nextStepLine, startsAfterServe } from "@/lib/cooking/stepTiming";
@@ -363,11 +364,18 @@ export function CookSessionView({
             ) : (
               <Text style={s.recapItem}>Everything from your prep session.</Text>
             )}
+            {/* CLIENT-3 B (BUG-526) — past the recap and the muted "Done in
+                prep" rows to the first step left to cook: the anchor goes
+                there and the list scrolls to it. */}
             <View style={s.skipBtnWrap}>
               <Button
                 label="Skip to cooking"
                 variant="secondary"
-                onPress={onSkipToCooking}
+                onPress={() => {
+                  onSkipToCooking();
+                  const y = skipToCookingY(steps, doneInPrepKeys, offsets.current);
+                  if (y !== undefined) scrollRef.current?.scrollTo({ y, animated: true });
+                }}
               />
             </View>
           </View>
