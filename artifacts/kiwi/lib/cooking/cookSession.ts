@@ -306,6 +306,35 @@ export function preppedMealRead(prepAnswer: boolean | null): boolean {
   return prepAnswer === true;
 }
 
+/**
+ * CLIENT-3 F (BUG-527) — the plan item the meal read carries.
+ *
+ * The gate asks only when no plan item rode the launch: Cook Now from the
+ * Recipes tab, the Playlist or the Cookbook, where the meal is the same row the
+ * week's plan holds (a plan binds the user's own copy). "Yes, I prepped" then
+ * read the meal with no planItemId, and useMeal drops `prepped` without one, so
+ * the server had no plan to word the steps from: no "the Taco spices", and no
+ * "You prepped this" chip, though the week's Prep had made them. (From a plan
+ * the item rides the URL and the steps are worded from the ticks: measured on
+ * dev, client-3/f0.)
+ *
+ * So after a "yes" with no plan item, the read takes this meal's item in this
+ * week's plan, when there is one (the first, in plan order). Before the answer,
+ * on a "no", and whenever the launch carried an item, nothing changes.
+ */
+export function preppedReadPlanItemId(args: {
+  /** The launch's own planItemId ("" when none rode the URL). */
+  planItemId: string;
+  prepAnswer: boolean | null;
+  mealId: string;
+  /** This week's plan items, in plan order; undefined until read. */
+  thisWeekItems: readonly { id: string; mealId: string }[] | undefined;
+}): string | undefined {
+  if (args.planItemId.length > 0) return args.planItemId;
+  if (args.prepAnswer !== true) return undefined;
+  return args.thisWeekItems?.find((i) => i.mealId === args.mealId)?.id;
+}
+
 // ── The prepped path (K-R7) ─────────────────────────────────────────────────
 //
 // 🔴 NO COOK STEP IS EVER REMOVED FROM THE FLOW. This replaced a filter that

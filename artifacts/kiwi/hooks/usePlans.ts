@@ -14,9 +14,15 @@ import {
   type PlanListResponse,
 } from "@/lib/api/plans";
 
-export function usePlans(filter?: readonly PlanFilterKey[]) {
+// CLIENT-3 F — `enabled` (default true) lets Cook Mode read this week's plan only
+// once it needs it.
+export function usePlans(
+  filter?: readonly PlanFilterKey[],
+  opts: { enabled?: boolean } = {},
+) {
   return useQuery<PlanListResponse>({
     queryKey: ["plans", "list", filter ?? null],
     queryFn: () => getPlans(filter),
+    enabled: opts.enabled ?? true,
   });
 }

@@ -1,6 +1,7 @@
 // WS7-8b Block 3 — Cook Mode engine tests.
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import {
@@ -15,6 +16,7 @@ import {
   lastLiveIndex,
   nextLiveIndex,
   prepRecap,
+  preppedReadPlanItemId,
   prevLiveIndex,
   remainingMinutes,
   resolveAmountMultiplier,
@@ -801,6 +803,37 @@ test("K-R7 navigation: the anchor starts on, and steps over to, live steps only"
   // Nothing done in prep → plain positions.
   assert.equal(firstLiveIndex(steps, new Set()), 0);
   assert.equal(lastLiveIndex(steps, new Set()), 3);
+});
+
+// CLIENT-3 F (BUG-527) — "yes, I prepped" with no plan item on the launch reads
+// the meal through this week's plan, so the server words its prepped steps.
+test("CLIENT-3 F: a 'yes' with no plan item reads through this meal's item in this week's plan", () => {
+  const week = [
+    { id: "pi-a", mealId: "m-other" },
+    { id: "pi-b", mealId: "m1" },
+    { id: "pi-c", mealId: "m1" },
+  ];
+  const base = { planItemId: "", mealId: "m1", thisWeekItems: week };
+  assert.equal(preppedReadPlanItemId({ ...base, prepAnswer: true }), "pi-b", "the first, in plan order");
+  // Before the answer, and on a "no": the read is unchanged (no plan item).
+  assert.equal(preppedReadPlanItemId({ ...base, prepAnswer: null }), undefined);
+  assert.equal(preppedReadPlanItemId({ ...base, prepAnswer: false }), undefined);
+  // Not in this week's plan, or the plan not read yet: unchanged.
+  assert.equal(preppedReadPlanItemId({ ...base, mealId: "m9", prepAnswer: true }), undefined);
+  assert.equal(preppedReadPlanItemId({ ...base, thisWeekItems: undefined, prepAnswer: true }), undefined);
+  // A launch that carried its plan item keeps it, whatever the answer.
+  assert.equal(preppedReadPlanItemId({ ...base, planItemId: "pi-x", prepAnswer: true }), "pi-x");
+  assert.equal(preppedReadPlanItemId({ ...base, planItemId: "pi-x", prepAnswer: null }), "pi-x");
+});
+
+test("CLIENT-3 F: Cook Mode reads this week's plan only after a 'yes' on a launch with no plan item", () => {
+  const route = readFileSync(new URL("../../../app/cook-session.tsx", import.meta.url), "utf8");
+  assert.match(
+    route,
+    /const findThisWeekItem =\s*planItemId\.length === 0 && mealId\.length > 0 && !planDish && prepAnswer === true;/,
+  );
+  assert.match(route, /usePlans\(\["my_plans"\], \{ enabled: findThisWeekItem \}\)/);
+  assert.match(route, /const mealQuery = useMeal\(mealId, readPlanItemId, \{ prepped: preppedMealRead\(prepAnswer\) \}\);/);
 });
 
 // CLIENT-3 B (BUG-526) — "Skip to cooking" scrolls past the recap and the muted

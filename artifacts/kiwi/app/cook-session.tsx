@@ -24,6 +24,7 @@ import { useCookingSequence } from "@/hooks/useCookingSequence";
 import { useDish } from "@/hooks/useDish";
 import { useMeal } from "@/hooks/useMeal";
 import { usePlan } from "@/hooks/usePlan";
+import { usePlans } from "@/hooks/usePlans";
 import { usePrepWeek } from "@/hooks/usePrepWeek";
 import { usePrepWeekCompletions } from "@/hooks/usePrepWeekCompletions";
 import {
@@ -35,6 +36,7 @@ import {
   flattenPlanDishSteps,
   nextLiveIndex,
   preppedMealRead,
+  preppedReadPlanItemId,
   prepRecap,
   prevLiveIndex,
   resolveAmountMultiplier,
@@ -97,7 +99,22 @@ export default function CookSession() {
 
   // All hooks run every render (rules of hooks); empty ids leave queries disabled.
   // CLIENT-1 item 2 — a "yes, I prepped" answer re-reads the meal with ?prepped=1.
-  const mealQuery = useMeal(mealId, planItemId || undefined, { prepped: preppedMealRead(prepAnswer) });
+  // CLIENT-3 F (BUG-527) — with no plan item on the launch, that read goes
+  // through this meal's item in this week's plan (preppedReadPlanItemId): the
+  // server words prepped steps only from a plan. (Cook Mode is member-only:
+  // SessionGate evicts a signed-out visitor and no guest route opens it.)
+  const findThisWeekItem =
+    planItemId.length === 0 && mealId.length > 0 && !planDish && prepAnswer === true;
+  const thisWeekId =
+    usePlans(["my_plans"], { enabled: findThisWeekItem }).data?.activeThisWeek?.id ?? "";
+  const thisWeekQuery = usePlan(findThisWeekItem ? thisWeekId : "");
+  const readPlanItemId = preppedReadPlanItemId({
+    planItemId,
+    prepAnswer,
+    mealId,
+    thisWeekItems: findThisWeekItem ? thisWeekQuery.data?.items : undefined,
+  });
+  const mealQuery = useMeal(mealId, readPlanItemId, { prepped: preppedMealRead(prepAnswer) });
   const dishQuery = useDish(planDish ? "" : dishId);
   const planQuery = usePlan(planId);
 
