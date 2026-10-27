@@ -30,7 +30,9 @@ import {
 // Row 9 (1.1) · OAuth Block 2 Part E — one routing function for all four
 // callers (§2.5). This is claimDestination's decision with the route names
 // attached; the screen no longer holds its own copy of the ternary.
-import { authLanding } from "@/lib/authCompletion";
+// CLIENT-3 D (ATTR) — a NEW account goes through "How did you hear about
+// Kiwi?" first (lib/howHeard.ts), then on to authLanding as before.
+import { landingAfterAuth } from "@/lib/howHeard";
 import type { OAuthAuthResponse } from "@/lib/oauth/api";
 import type { OAuthConsentFields } from "@/lib/oauth/request";
 import { readGuestSessionId } from "@/lib/guest/guestToken";
@@ -113,7 +115,7 @@ export default function SignUpPage() {
         }
       }
       // §2.5 — identical to the password path below, and the same function.
-      router.replace(authLanding(res));
+      router.replace(landingAfterAuth(res, res.isNewUser === true));
     },
     [guestCtx, router],
   );
@@ -202,7 +204,8 @@ export default function SignUpPage() {
           dialog.alert("Account created", CLAIM_LOST_LINE);
         }
       }
-      router.replace(authLanding(res));
+      // A password sign-up always creates the account.
+      router.replace(landingAfterAuth(res, true));
     } catch (err) {
       // BUG-296 — same copy decision as context.error (which this screen
       // also renders), plus the Retry-After hold on a 429.

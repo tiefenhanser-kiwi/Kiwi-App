@@ -36,6 +36,7 @@ import { hideProviderForSession } from "@/lib/oauth/unavailable";
 import { noteTrialDenied } from "@/lib/billing/trialDenied";
 import { ReauthMismatchError } from "@/lib/reauth";
 import { todayLocalDate } from "@/lib/dates";
+import { readAttribution } from "@/lib/attribution";
 import { clearGuestSession, readGuestSessionId, readGuestToken } from "@/lib/guest/guestToken";
 import type { AuthResponse } from "@/lib/auth";
 import type { User } from "@/lib/types";
@@ -342,6 +343,8 @@ export function AuthProvider({
           // overrides it with "test_kitchen" because that is the more specific
           // fact.
           platform: devicePlatform(),
+          // CLIENT-3 D (ATTR) — the web landing link, when this tab kept one.
+          attribution: readAttribution(),
         };
         const res = await completeAuth(
           (claim) => signupRequest({ ...base, ...claim }),
@@ -383,6 +386,8 @@ export function AuthProvider({
         firstName: input.firstName,
         lastName: input.lastName,
         consents: input.consents,
+        // CLIENT-3 D (ATTR) — as on the password sign-up.
+        attribution: readAttribution(),
       };
       try {
         const res = await completeAuth<OAuthAuthResponse>(

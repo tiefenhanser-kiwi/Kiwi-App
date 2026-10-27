@@ -33,6 +33,7 @@ import { BillingProvider } from "@/contexts/BillingContext";
 import { PaywallSheet } from "@/components/PaywallSheet";
 import { GuestProvider, useGuestStoreReady, useIsGuestSafe } from "@/contexts/GuestContext";
 import { ToastProvider } from "@/contexts/ToastProvider";
+import { captureAttribution } from "@/lib/attribution";
 import { UPDATE_LINE_ENABLED, UpdateReadyLine } from "@/components/UpdateReadyLine";
 import { Palette } from "@/constants/tokens";
 import { sessionGateShouldEvict } from "@/lib/sessionBootstrap";
@@ -44,6 +45,10 @@ import { installWebWheelScroll, webScreenLayout } from "@/lib/webLayout";
 const SCREEN_LAYOUT = webScreenLayout(Palette.background.app);
 
 SplashScreen.preventAutoHideAsync();
+
+// CLIENT-3 D (ATTR) — web only: keep the landing link (ref, utm_*, path) for
+// this tab's sign-up, before the first redirect drops the query string.
+captureAttribution();
 
 // React Query defaults — see lib/api/README.md for the per-query staleTime
 // tiers (auth = Infinity, catalog = 5 min, personal = 60 s, hot = 0). The
@@ -151,6 +156,8 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="onboarding-prefs" options={{ presentation: "modal" }} />
       <Stack.Screen name="onboarding-step-3" />
+      {/* CLIENT-3 D (ATTR) — a new account's one optional question. */}
+      <Stack.Screen name="how-heard" options={{ gestureEnabled: false }} />
       <Stack.Screen name="wizard" options={{ presentation: "modal" }} />
       <Stack.Screen name="tellkiwi" options={{ presentation: "modal" }} />
       {/* D-WS9-191 — the chooser is /plan-options (Block 2); wizard-results

@@ -33,6 +33,8 @@
 // are facts about the device, not claims about the person, and the server
 // applies them on CREATE only.
 
+import type { SignupAttribution } from "@/lib/attribution";
+
 import type { AppPlatform } from "./providers";
 
 export type OAuthMode = "signup" | "signin";
@@ -64,6 +66,9 @@ export interface OAuthContext {
   /** Ignored unless `mode === "signup"`. */
   consents?: OAuthConsentFields;
   claim?: OAuthClaimFields;
+  /** CLIENT-3 D (ATTR) — the web landing link. Both modes, like platform: a
+   *  first sign-in is a sign-up, and the server keeps it on create only. */
+  attribution?: SignupAttribution;
 }
 
 export interface OAuthSharedBody {
@@ -77,6 +82,7 @@ export interface OAuthSharedBody {
   guestSessionId?: string;
   guestToken?: string;
   localDate?: string;
+  attribution?: SignupAttribution;
 }
 
 export interface AppleOAuthBody extends OAuthSharedBody {
@@ -134,6 +140,10 @@ export function oauthSharedBody(ctx: OAuthContext): OAuthSharedBody {
     if (ctx.claim.guestToken) body.guestToken = ctx.claim.guestToken;
     const localDate = clean(ctx.claim.localDate);
     if (localDate) body.localDate = localDate;
+  }
+
+  if (ctx.attribution && Object.keys(ctx.attribution).length > 0) {
+    body.attribution = ctx.attribution;
   }
 
   return body;
