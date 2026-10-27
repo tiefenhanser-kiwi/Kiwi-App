@@ -72,3 +72,21 @@ describe("instacartSearchName — R5", () => {
     assert.equal(instacartSearchName("(optional)", null), "(optional)");
   });
 });
+
+// SERVER-6 BUG-535 — the container noun after a bare measure was left as the first
+// search word ("pack bone-in skin-on chicken thighs"). 32 live dev rows, all this shape.
+describe("instacartSearchName — BUG-535 the stray pack noun", () => {
+  it("drops a container noun (and an 'of') right after the measure", () => {
+    assert.equal(instacartSearchName("3 lb pack bone-in skin-on chicken thighs", null), "bone-in skin-on chicken thighs");
+    assert.equal(instacartSearchName("2 lb bag russet potato", null), "russet potato");
+    assert.equal(instacartSearchName("2 lb bag of carrots", null), "carrots");
+    assert.equal(instacartSearchName("1 pint container cherry tomato", null), "cherry tomato");
+    assert.equal(instacartSearchName("1 lb pack (4 sticks) unsalted butter", null), "unsalted butter");
+  });
+
+  it("keeps the noun when nothing would be left (as before), and leaves a name with no measure alone", () => {
+    assert.equal(instacartSearchName("1 lb pack", null), "pack");
+    assert.equal(instacartSearchName("pack of gum", null), "pack of gum");
+    assert.equal(instacartSearchName("box grater", null), "box grater");
+  });
+});

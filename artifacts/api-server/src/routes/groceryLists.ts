@@ -44,6 +44,9 @@ import {
   INSTACART_EXPIRES_IN_DAYS,
 } from "../lib/retailers/instacartPayload";
 import { createInstacartEnabledReader } from "../lib/retailers/instacartFlag";
+import { createShopYourStoreEnabledReader } from "../lib/retailers/shopYourStoreFlag";
+import { storeSearchTerm } from "../lib/retailers/storeSearchTerm";
+import { SHOP_YOUR_STORE_DISCLOSURE, SHOP_YOUR_STORE_STORES } from "../lib/retailers/stores";
 import { emitActivity } from "../lib/userActivity";
 import {
   bucketKeyOf,
@@ -280,6 +283,8 @@ export function createGroceryListsRouter(
     createShoppingListLink: productionCreateShoppingListLink,
   };
   const getInstacartEnabled = createInstacartEnabledReader(prisma);
+  // SERVER-6 B (D-WS9-325) — Shop Your Store's flag, the same fail-closed reader.
+  const getShopYourStoreEnabled = createShopYourStoreEnabledReader(prisma);
 
   router.post(
     "/plans/:id/generate-grocery-list",
@@ -855,6 +860,10 @@ export function createGroceryListsRouter(
         return {
           ...rest,
           mealNames: names,
+          // SERVER-6 B (D-WS9-325) — the words a store's search box gets for this
+          // line (lib/retailers/storeSearchTerm.ts). Every row, whatever the flag:
+          // it is pure, and one implementation means no client keeps a copy.
+          searchTerm: storeSearchTerm(i.displayName, i.userResolvedTo),
           // Additive on the wire; the 1.0 client's Zod schema strips it.
           ...(facets ? { recurringFacets: facets } : {}),
         };
@@ -883,6 +892,10 @@ export function createGroceryListsRouter(
       // second request. The list's own instacartLink* columns arrive through
       // the spread above with no serialiser change.
       const instacartEnabled = await getInstacartEnabled();
+      // SERVER-6 B (D-WS9-325) — Shop Your Store: the stores and their search
+      // templates come from the server (a store that moves its search page is a
+      // server fix). Off means no stores at all, so nothing can render.
+      const shopYourStoreEnabled = await getShopYourStoreEnabled();
       // THX-2S (D-WS9-311) — one note for the leftover lines generation
       // skipped ("Uses Thursday's leftovers: …"). Omitted when there are none,
       // so every other list's body is byte-identical.
@@ -903,7 +916,22 @@ export function createGroceryListsRouter(
         // S2 Part C — omitted entirely on the normal path, so a client that has
         // never heard of it sees the byte-identical body it saw before.
         ...(reconcileSkipped !== undefined ? { reconcileSkipped } : {}),
-        retailers: { instacart: { enabled: instacartEnabled } },
+        retailers: {
+          instacart: { enabled: instacartEnabled },
+          shopYourStore: {
+            enabled: shopYourStoreEnabled,
+            stores: shopYourStoreEnabled
+              ? SHOP_YOUR_STORE_STORES.map((st) => ({
+                  key: st.key,
+                  name: st.name,
+                  searchUrl: st.searchUrl,
+                  appUrl: st.appUrl,
+                  searchUrlStatus: st.searchUrlStatus,
+                }))
+              : [],
+            disclosure: SHOP_YOUR_STORE_DISCLOSURE,
+          },
+        },
       });
     } catch (err) {
       logger.error(

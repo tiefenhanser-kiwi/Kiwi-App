@@ -206,6 +206,15 @@ const SETTINGS: SettingSeed[] = [
     description:
       "Instacart link-out on/off. true: the grocery-list Instacart CTA is live and POST /grocery-lists/:id/instacart-link mints shopping-list pages. false: the route answers 403 and the app shows 'coming soon'.",
   },
+  // SERVER-6 B (D-WS9-325) — Shop Your Store v0, the per-line store search
+  // handoff. Same contract as the Instacart flag: fails closed, 60 s cache.
+  {
+    key: "retailer.shop_your_store_enabled",
+    value: false,
+    defaultValue: false,
+    description:
+      "Shop Your Store on/off. true: GET /grocery-lists/:id carries retailers.shopYourStore with the store registry (lib/retailers/stores.ts) and the app may open a line's search at the chosen store. false: enabled false and no stores, and the app shows nothing.",
+  },
 ];
 
 export async function seedSystemSettings(prisma: PrismaClient): Promise<void> {

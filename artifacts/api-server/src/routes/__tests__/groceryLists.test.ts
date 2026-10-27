@@ -5631,12 +5631,72 @@ describe("GET /api/grocery-lists/:id — retailers.instacart.enabled (Row 8 Bloc
           reconciled: boolean;
           retailers: { instacart: { enabled: boolean } };
         };
-        assert.deepEqual(body.retailers, { instacart: { enabled: expected } });
+        assert.deepEqual(body.retailers.instacart, { enabled: expected });
       } finally {
         await harness.close();
       }
     });
   }
+});
+
+// SERVER-6 B (D-WS9-325) — Shop Your Store on the detail read: a fail-closed flag,
+// the registry's stores (templates from the server) only when it is on, the
+// disclosure, and every row's searchTerm whatever the flag.
+describe("GET /api/grocery-lists/:id — retailers.shopYourStore + searchTerm (SERVER-6 B)", () => {
+  type Body = {
+    list: { items: Array<{ id: string; displayName: string; searchTerm: string }> };
+    retailers: {
+      instacart: { enabled: boolean };
+      shopYourStore: { enabled: boolean; stores: Array<{ key: string; name: string; searchUrl: string; appUrl: string | null; searchUrlStatus: string }>; disclosure: string };
+    };
+  };
+  const read = async (flag: boolean | string | null): Promise<Body> => {
+    const harness = await spinUp();
+    seedR8(harness.state);
+    if (flag !== null) harness.state.settings.set("retailer.shop_your_store_enabled", flag);
+    try {
+      const res = await fetch(`${harness.baseUrl}/grocery-lists/${R8_LIST}`, {
+        headers: { Authorization: `Bearer ${signToken(R8_USER)}` },
+      });
+      assert.equal(res.status, 200);
+      return (await res.json()) as Body;
+    } finally {
+      await harness.close();
+    }
+  };
+
+  it("off (no row, false, or a bad value): enabled false, no stores, the disclosure", async () => {
+    for (const flag of [null, false, "nope"]) {
+      const body = await read(flag);
+      assert.deepEqual(body.retailers.shopYourStore, {
+        enabled: false,
+        stores: [],
+        disclosure: "Kiwi may earn a commission from some store links.",
+      }, `flag ${JSON.stringify(flag)}`);
+      assert.deepEqual(body.retailers.instacart, { enabled: true }, "Instacart's flag is its own");
+    }
+  });
+
+  it("on: the eleven stores in registry order, with their templates and how sure Phase 0 was", async () => {
+    const { stores } = (await read(true)).retailers.shopYourStore;
+    assert.deepEqual(stores.map((s) => s.key), [
+      "kroger", "aldi", "whole_foods", "walmart", "target", "costco", "publix", "heb", "wegmans", "safeway", "stop_and_shop",
+    ]);
+    const wegmans = stores.find((s) => s.key === "wegmans")!;
+    assert.deepEqual(wegmans, { key: "wegmans", name: "Wegmans", searchUrl: "https://www.wegmans.com/shop/search?query={q}", appUrl: null, searchUrlStatus: "documented" });
+    assert.equal(stores.find((s) => s.key === "stop_and_shop")!.searchUrlStatus, "unknown");
+    assert.equal(stores.filter((s) => s.searchUrlStatus === "unverified").length, 9);
+    assert.ok(stores.every((s) => s.searchUrl.startsWith("https://") && s.searchUrl.includes("{q}")));
+  });
+
+  it("every row carries its searchTerm, flag on or off", async () => {
+    for (const flag of [false, true]) {
+      const { items } = (await read(flag)).list;
+      assert.ok(items.length > 0);
+      for (const it of items) assert.equal(typeof it.searchTerm, "string", `${it.id} on flag ${flag}`);
+      assert.equal(items.find((i) => i.id === "r8-beans")!.searchTerm, "canned black beans");
+    }
+  });
 });
 
 // ── Row 9 (1.1) · Stripe S1 Part C — ENFORCEMENT, THE TWO SHAPES ─────────

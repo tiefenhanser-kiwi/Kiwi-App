@@ -23,6 +23,7 @@
 import { Router, type IRouter } from "express";
 import { type Prisma, type PrismaClient } from "@prisma/client";
 import { HOW_HEARD_DETAIL_MAX, SIGNUP_HOW_HEARD } from "../lib/signupAttribution";
+import { isRegistryStoreKey, SHOP_YOUR_STORE_STORES } from "../lib/retailers/stores";
 import { z } from "zod";
 
 import { hashPassword, signToken, verifyPassword, verifyToken } from "../lib/auth";
@@ -1392,8 +1393,23 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
         eatingStyles: true,
         pickyAvoidances: true,
         dietaryNotes: true,
+        defaultRetailer: true,
       },
     });
+    // SERVER-6 B (D-WS9-325) — the user's store is a Shop Your Store registry key
+    // (lib/retailers/stores.ts), or null. The value ALREADY STORED also passes: the
+    // phone echoes defaultRetailer on every save (preferencesForm), so a row written
+    // before the registry would otherwise 400 every preferences save (BUG-137).
+    if (
+      typeof updates.defaultRetailer === "string" &&
+      !isRegistryStoreKey(updates.defaultRetailer) &&
+      updates.defaultRetailer !== (existing?.defaultRetailer ?? null)
+    ) {
+      return res.status(400).json({
+        error: "invalid defaultRetailer",
+        message: `defaultRetailer must be one of ${SHOP_YOUR_STORE_STORES.map((st) => st.key).join(", ")}, or null`,
+      });
+    }
     const storedDietary: StoredDietary = existing ?? {
       allergiesAndAvoidances: [],
       otherAllergies: [],

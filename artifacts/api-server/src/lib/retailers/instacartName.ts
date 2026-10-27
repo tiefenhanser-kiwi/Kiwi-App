@@ -117,10 +117,27 @@ function stripPackPrefix(s: string): string {
   }
   const bare = PACK_PREFIX_BARE.exec(s);
   if (bare && UNIT_WORDS.has(singular(bare[1]))) {
-    const rest = s.slice(bare[0].length);
+    const rest = stripPackNoun(s.slice(bare[0].length));
     return rest.trim().length > 0 ? rest : s;
   }
   return s;
+}
+
+/** The container nouns a measure can be followed by ("3 lb PACK …", "2 lb BAG OF …"). */
+const PACK_NOUNS = new Set(["pack", "package", "packet", "bag", "box", "container", "carton", "tray", "tub"]);
+const LEADING_PACK_NOUN = /^([A-Za-z]+)\s+(?:of\s+)?/;
+
+/**
+ * SERVER-6 BUG-535 — "3 lb pack bone-in skin-on chicken thighs": the bare prefix
+ * takes "3 lb " and "pack" was left as the first search word (10 live dev rows).
+ * A container noun right after the measure goes too, with an "of" after it, as
+ * long as words remain.
+ */
+function stripPackNoun(s: string): string {
+  const m = LEADING_PACK_NOUN.exec(s);
+  if (!m || !PACK_NOUNS.has(singular(m[1]))) return s;
+  const rest = s.slice(m[0].length);
+  return rest.trim().length > 0 ? rest : s;
 }
 
 function stripParentheticals(s: string): string {

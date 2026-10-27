@@ -264,7 +264,8 @@ describe("PATCH /me/preferences", () => {
         healthGoals: ["high_protein"],
         recurringGroceryItems: ["eggs", "milk"],
         planLengthDefault: 5,
-        defaultRetailer: "instacart",
+        // SERVER-6 B — a Shop Your Store registry key (lib/retailers/stores.ts).
+        defaultRetailer: "kroger",
         dietaryNotes: "lower sodium please",
       };
       const res = await fetch(`${harness.baseUrl}/me/preferences`, {
@@ -816,5 +817,49 @@ describe("PATCH /me/preferences — retires the personalize nudge (D-WS9-263)", 
     } finally {
       await harness.close();
     }
+  });
+});
+
+// SERVER-6 B (D-WS9-325) — defaultRetailer is a Shop Your Store registry key or
+// null. The value already stored also passes: the phone echoes it on every save,
+// and a row written before the registry must not 400 every save (BUG-137).
+describe("PATCH /me/preferences — defaultRetailer against the store registry (SERVER-6 B)", () => {
+  const save = async (seed: PrefsRow | null, defaultRetailer: unknown) => {
+    const prisma = makeStubPrisma(seed);
+    const harness = await spinUp(prisma);
+    try {
+      const res = await fetch(`${harness.baseUrl}/me/preferences`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${signToken(USER_ID)}` },
+        body: JSON.stringify({ householdSize: 3, defaultRetailer }),
+      });
+      return { status: res.status, body: (await res.json()) as Record<string, any> };
+    } finally {
+      await harness.close();
+    }
+  };
+
+  it("a registry key, or null, saves", async () => {
+    for (const key of ["kroger", "whole_foods", "stop_and_shop", null]) {
+      const r = await save(defaultsFor(USER_ID), key);
+      assert.equal(r.status, 200, String(key));
+      assert.equal(r.body.preferences.defaultRetailer, key);
+    }
+  });
+
+  it("anything else is a 400 that names the keys, and nothing is saved", async () => {
+    for (const bad of ["Kroger", "instacart", "amazon_fresh", ""]) {
+      const r = await save(defaultsFor(USER_ID), bad);
+      assert.equal(r.status, 400, JSON.stringify(bad));
+      assert.equal(r.body.error, "invalid defaultRetailer");
+      assert.match(r.body.message, /^defaultRetailer must be one of kroger, aldi, .*stop_and_shop, or null$/);
+    }
+  });
+
+  it("the stored legacy value echoed back saves; changing to another non-key does not", async () => {
+    const legacy = { ...defaultsFor(USER_ID), defaultRetailer: "Kroger" };
+    assert.equal((await save(legacy, "Kroger")).status, 200, "the echo of what is stored");
+    assert.equal((await save(legacy, "Walmart")).status, 400);
+    assert.equal((await save(legacy, "walmart")).status, 200, "moving onto a key is fine");
   });
 });
