@@ -41,6 +41,65 @@ export function prepShowsSkip(onLastPhase: boolean): boolean {
   return !onLastPhase;
 }
 
-/** CLIENT-2 B2 (BUG-509) — Hans's line above the label step's instructions. */
-export const LABEL_STEP_REASSURANCE =
-  "Don't worry, some of these containers combine at the end of the prep session. We'll take you step by step through the fastest and easiest way to prep your week.";
+// CLIENT-3 E (BUG-534, client half) — the label step is the prep-area card:
+//
+//   Set up your prep area
+//   As you chop and measure in this session, you'll fill {n} containers. Set
+//   them out however works for you (tape and a pen work well for labels):
+//   <one line per container>
+//
+// It replaces the server's "Label N containers" title, its "Write these on
+// tape, one per container: A · B." instructions, and CLIENT-2 B2's "Don't worry,
+// some of these containers combine…" line above them. The server still writes
+// the step (prepWeekLabels.ts / prepFeastLabels.ts); the card reads its count
+// and its list from it, so no server change is needed for this half.
+
+export const PREP_AREA_TITLE = "Set up your prep area";
+
+export function prepAreaBody(n: number): string {
+  return `As you chop and measure in this session, you'll fill ${n} ${n === 1 ? "container" : "containers"}. Set them out however works for you (tape and a pen work well for labels):`;
+}
+
+const LABEL_LIST_LEAD = "one per container:";
+
+/** The containers the server's instructions list, in order; null when the
+ *  instructions are not in the form the server writes. */
+export function prepAreaLabels(instructions: string): string[] | null {
+  const at = instructions.indexOf(LABEL_LIST_LEAD);
+  if (at < 0) return null;
+  const list = instructions
+    .slice(at + LABEL_LIST_LEAD.length)
+    .trim()
+    .replace(/\.$/, "")
+    .split(" · ")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  return list.length > 0 ? list : null;
+}
+
+/**
+ * {n} — the session's own count: the N of the server's "Label N containers"
+ * (the week's list is cut at 800 characters, the count is not), else the
+ * list's length; null when neither is there.
+ */
+export function prepAreaCount(title: string, labels: readonly string[] | null): number | null {
+  const m = /^Label (\d+) containers?$/.exec(title.trim());
+  if (m) return Number(m[1]);
+  return labels ? labels.length : null;
+}
+
+export interface PrepAreaCard {
+  title: string;
+  body: string;
+  /** One line per container; null → show the server's instructions as sent. */
+  labels: string[] | null;
+}
+
+/** The card for a label step; null when the step does not carry a count. */
+export function prepAreaCard(step: { stepKey: string; title: string; instructions: string }): PrepAreaCard | null {
+  if (!LABEL_STEP_KEYS.includes(step.stepKey)) return null;
+  const labels = prepAreaLabels(step.instructions);
+  const n = prepAreaCount(step.title, labels);
+  if (n === null) return null;
+  return { title: PREP_AREA_TITLE, body: prepAreaBody(n), labels };
+}

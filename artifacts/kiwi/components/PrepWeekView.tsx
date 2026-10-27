@@ -31,8 +31,7 @@ import {
 } from "@/constants/tokens";
 import type { PrepWeekPhaseKey } from "@/lib/api/cooking";
 import {
-  LABEL_STEP_KEYS,
-  LABEL_STEP_REASSURANCE,
+  prepAreaCard,
   prepShowsSkip,
   prepWeekFooterLine,
 } from "@/lib/cooking/prepWeekFooter";
@@ -145,11 +144,13 @@ function StepCard({
   showDestinations: boolean;
   onToggleStep?: (stepKey: string) => void;
 }) {
+  // CLIENT-3 E (BUG-534) — the label step reads as the prep-area card.
+  const prepArea = prepAreaCard(step);
   return (
     <View style={[s.stepCard, step.skipSuggested && s.stepCardMuted]}>
       <View style={s.stepHeader}>
         <Text style={s.stepNumber}>{step.number}</Text>
-        <Text style={s.stepTitle}>{step.title}</Text>
+        <Text style={s.stepTitle}>{prepArea ? prepArea.title : step.title}</Text>
         <StepCheckbox
           done={step.done}
           onToggle={onToggleStep ? () => onToggleStep(step.stepKey) : undefined}
@@ -165,15 +166,30 @@ function StepCard({
         )}
       </View>
 
-      {/* CLIENT-2 B2 — the label step opens with Hans's reassurance, in the
-          step's body type; the server's instructions follow unchanged. */}
-      {LABEL_STEP_KEYS.includes(step.stepKey) && (
-        <Text style={[s.stepInstructions, s.labelReassurance]}>{LABEL_STEP_REASSURANCE}</Text>
+      {/* CLIENT-3 E (BUG-534) — the prep-area card: Hans's body line in the
+          step's body type, then one line per container (the server's list).
+          It replaces CLIENT-2 B2's reassurance and the "write these on tape"
+          instructions; a list it cannot read is shown as the server sent it. */}
+      {prepArea ? (
+        <>
+          <Text style={[s.stepInstructions, s.labelReassurance]}>{prepArea.body}</Text>
+          {prepArea.labels ? (
+            <View style={s.prepAreaList}>
+              {prepArea.labels.map((label, i) => (
+                <Text key={`${label}#${i}`} style={s.stepInstructions}>
+                  {label}
+                </Text>
+              ))}
+            </View>
+          ) : (
+            <Text style={s.stepInstructions}>{step.instructions}</Text>
+          )}
+        </>
+      ) : (
+        /* Quantities bold + terracotta via the shared guaranteed-reconstruct
+           highlighter — qualifier text is never stripped. */
+        <HighlightedText text={step.instructions} style={s.stepInstructions} />
       )}
-
-      {/* Quantities bold + terracotta via the shared guaranteed-reconstruct
-          highlighter — qualifier text is never stripped. */}
-      <HighlightedText text={step.instructions} style={s.stepInstructions} />
 
       {/* "combines N meals" pill — only when the step feeds more than one meal. */}
       {step.combinesCount > 1 && (
@@ -572,6 +588,9 @@ const s = StyleSheet.create({
     lineHeight: 26,
   },
   labelReassurance: { marginBottom: Spacing[2] },
+  // CLIENT-3 E — one container per line, the list's own spacing (no bullet
+  // character: it would be read aloud, the Sept 29 review's rule).
+  prepAreaList: { gap: Spacing[1] },
 
   // checkbox (display-only this block)
   checkbox: {

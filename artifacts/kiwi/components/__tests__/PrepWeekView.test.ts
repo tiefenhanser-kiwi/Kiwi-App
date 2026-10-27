@@ -669,7 +669,8 @@ function labelled(stepKey = "week-labels", skippable = false): PrepWeekResult {
 
 test("CLIENT-2 B1: Skip shows with the label step unticked, and still once it is ticked", () => {
   const texts = flat(renderView({ phaseIndex: 0, resultOverride: labelled() }).toJSON() as RenderedNode | null);
-  assert.ok(texts.includes("Label 2 containers"), texts);
+  // CLIENT-3 E — the label step is titled as the prep-area card now.
+  assert.ok(texts.includes("Set up your prep area"), texts);
   assert.ok(texts.includes("Skip this Prep"), `Skip must show while the labels are unwritten: ${texts}`);
   assert.ok(texts.includes("Save & Exit") && texts.includes("Mark all complete"), texts);
   const ticked = flat(renderView({ phaseIndex: 0, resultOverride: labelled(), checked: ["week-labels"] }).toJSON() as RenderedNode | null);
@@ -681,33 +682,44 @@ test("CLIENT-2 B1: Prep the feast's unticked label step shows Skip too", () => {
   assert.ok(texts.includes("Skip this Prep"), texts);
 });
 
-test("CLIENT-2 B2: the label step opens with the reassurance line, above its instructions, in body type", () => {
+// CLIENT-3 E (BUG-534) — the label step is the prep-area card: Hans's title and
+// body line ({n} = the session's count), then one line per container. CLIENT-2
+// B2's "Don't worry…" line, "Label N containers" and "write these on tape" are gone.
+test("CLIENT-3 E: the label step reads as 'Set up your prep area', the body, then the containers", () => {
   const renderer = renderView({ phaseIndex: 0, resultOverride: labelled() });
   const texts = flat(renderer.toJSON() as RenderedNode | null);
-  const line =
-    "Don't worry, some of these containers combine at the end of the prep session. We'll take you step by step through the fastest and easiest way to prep your week.";
-  const at = texts.indexOf(line);
-  assert.ok(at >= 0, `reassurance missing: ${texts}`);
-  assert.ok(at < texts.indexOf("Write these on tape"), `reassurance must come before the instructions: ${texts}`);
-  const find = (n: RenderedNode | string | null): RenderedNode | null => {
+  const body =
+    "As you chop and measure in this session, you'll fill 2 containers. Set them out however works for you (tape and a pen work well for labels):";
+  assert.ok(texts.includes("Set up your prep area"), texts);
+  const at = texts.indexOf(body);
+  assert.ok(at >= 0, `body missing: ${texts}`);
+  assert.ok(at < texts.indexOf("Monday plate") && texts.indexOf("Monday plate") < texts.indexOf("Lemon juice"), texts);
+  for (const gone of ["Label 2 containers", "Don't worry", "Write these on tape", "write these on tape", "Monday plate · Lemon juice"]) {
+    assert.ok(!texts.includes(gone), `"${gone}" still renders: ${texts}`);
+  }
+  const find = (n: RenderedNode | string | null, line: string): RenderedNode | null => {
     if (n == null || typeof n === "string") return null;
     if (n.children?.length === 1 && n.children[0] === line) return n;
     for (const c of n.children ?? []) {
-      const hit = find(c);
+      const hit = find(c, line);
       if (hit) return hit;
     }
     return null;
   };
-  const node = find(renderer.toJSON() as RenderedNode | null);
-  assert.ok(node, "reassurance node missing");
-  const style = StyleSheet.flatten(node.props!.style as never) as { fontStyle?: string; fontSize?: number; fontFamily?: string };
-  assert.notEqual(style.fontStyle, "italic");
-  // The step's body type (s.stepInstructions): lg, DM Sans regular.
-  assert.equal(style.fontSize, Typography.fontSize.lg);
-  assert.equal(style.fontFamily, Typography.face.sans[400]);
-  // A step that is not a label step carries no such line.
+  // Each container is its own line, in the step's body type (lg, DM Sans regular).
+  for (const line of [body, "Monday plate", "Lemon juice"]) {
+    const node = find(renderer.toJSON() as RenderedNode | null, line);
+    assert.ok(node, `"${line}" is not its own text node`);
+    const style = StyleSheet.flatten(node.props!.style as never) as { fontStyle?: string; fontSize?: number; fontFamily?: string };
+    assert.notEqual(style.fontStyle, "italic");
+    assert.equal(style.fontSize, Typography.fontSize.lg);
+    assert.equal(style.fontFamily, Typography.face.sans[400]);
+  }
+  // Prep the feast's label step is the same card; a step that is not one is untouched.
+  const feast = flat(renderView({ phaseIndex: 0, session: "feast", resultOverride: labelled("feast-labels", true) }).toJSON() as RenderedNode | null);
+  assert.ok(feast.includes("Set up your prep area") && feast.includes(body), feast);
   const produce = flat(renderView({ phaseIndex: 2, resultOverride: labelled() }).toJSON() as RenderedNode | null);
-  assert.ok(!produce.includes("Don't worry"), produce);
+  assert.ok(!produce.includes("Set up your prep area"), produce);
 });
 
 test("CLIENT-1 3: BUG-020 stands — a non-skippable phase with no label step (Produce) keeps Skip", () => {
