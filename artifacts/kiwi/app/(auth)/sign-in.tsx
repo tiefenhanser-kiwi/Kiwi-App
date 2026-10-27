@@ -23,7 +23,7 @@ import { useSubmitCooldown } from "@/hooks/useSubmitCooldown";
 import { authErrorPresentation } from "@/lib/authErrorCopy";
 import { CLAIM_BUSY_LABEL, CLAIM_LOST_LINE, CLAIM_RETRY_LINE } from "@/lib/guest/claim";
 import { readGuestSessionId } from "@/lib/guest/guestToken";
-import { authLanding } from "@/lib/authCompletion";
+import { landingAfterAuth } from "@/lib/howHeard";
 import type { OAuthAuthResponse } from "@/lib/oauth/api";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { dialog } from "@/lib/dialog";
@@ -74,7 +74,8 @@ export default function SignInPage() {
           dialog.alert("Account created", CLAIM_LOST_LINE);
         }
       }
-      router.replace(authLanding(res));
+      // CLIENT-3 D — an OAuth tap here can create the account (isNewUser).
+      router.replace(landingAfterAuth(res, res.isNewUser === true));
     },
     [guestCtx, router],
   );

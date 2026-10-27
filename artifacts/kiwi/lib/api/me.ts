@@ -171,6 +171,10 @@ export async function patchProfile(input: {
   marketingConsentSms?: boolean;
   onboardingComplete?: boolean;
   firstRunChoiceMade?: boolean;
+  /** CLIENT-3 D (ATTR) — "How did you hear about Kiwi?" (lib/howHeard.ts).
+   *  SERVER-6 adds both; the route is .strict(), so a server before that 400s. */
+  howHeard?: string;
+  howHeardDetail?: string;
 }): Promise<{ user: ProfileUser }> {
   const body = await apiClient("/me/profile", {
     method: "PATCH",

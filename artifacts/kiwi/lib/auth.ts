@@ -6,6 +6,7 @@ import { apiClient } from "@/lib/api/client";
 import { UnauthenticatedError } from "@/lib/api/errors";
 import { shouldRetryTransient, transientRetryDelayMs } from "@/lib/api/transientRetry";
 import type { MealFilterKey } from "@/lib/api/meals";
+import type { SignupAttribution } from "@/lib/attribution";
 
 import type { User } from "./types";
 
@@ -193,6 +194,8 @@ export interface SignupInput {
    *  their calendar, not tomorrow UTC — the same reason the draft-activate
    *  endpoint takes one. */
   localDate?: string;
+  /** CLIENT-3 D (ATTR) — the web landing link (lib/attribution.ts). */
+  attribution?: SignupAttribution;
 }
 
 export interface LoginInput {
