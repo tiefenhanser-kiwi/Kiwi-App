@@ -22,6 +22,7 @@ import type {
   SaveMealInput,
   UpdateMealInput,
 } from "./api/meals";
+import type { DishDetail } from "./api/dishes";
 import type { DraftDish } from "./builder/parsedDishToDraft";
 import type {
   DraftMeal,
@@ -280,6 +281,61 @@ export function pickSavedDishToBuilderDish(
       }),
     ),
   });
+}
+
+/**
+ * CLIENT-3 A (BUG-528) — a saved dish picked in the Add-a-dish sheet, from its
+ * full read (GET /dishes/:id). The sheet's rows come from GET /me/dishes, whose
+ * list shape carries no ingredients or steps (savedDishFromListItem), so the
+ * row alone hydrated an EMPTY dish that serializeNewDishesForSave then dropped
+ * on every save path: the add did nothing.
+ *
+ * `targetServings` is what the meal's dishes are written for (an existing
+ * meal's authoredServingsDefault, the create form's servings): the dish's
+ * amounts are scaled from its own servings to it, the rule the server's
+ * from-catalog copy applies (lib/mealDishFromCatalog.ts), so the new dish
+ * scales like its neighbours. Step prose is copied as written.
+ */
+export function dishDetailToBuilderDish(
+  dish: DishDetail,
+  allocUid: UidAllocator,
+  targetServings?: number,
+): BuilderDish {
+  const factor =
+    targetServings !== undefined && targetServings > 0 && dish.servings > 0
+      ? targetServings / dish.servings
+      : 1;
+  return newDish(allocUid, {
+    name: dish.title,
+    ingredients:
+      dish.ingredients.length > 0
+        ? dish.ingredients.map((ing) =>
+            newIngredient(allocUid, {
+              quantity: String(scaledQuantity(ing.quantity, factor)),
+              unit: ing.unit,
+              name: ing.name,
+            }),
+          )
+        : [newIngredient(allocUid)],
+    steps: dish.steps.map((st) =>
+      newStep(allocUid, {
+        text: st.text,
+        estimatedMinutes:
+          st.estimatedMinutes && st.estimatedMinutes > 0
+            ? String(st.estimatedMinutes)
+            : "",
+        isTimingSensitive: st.isTimingSensitive,
+        phaseType: narrowPhaseType(st.phaseType),
+      }),
+    ),
+  });
+}
+
+// Two decimals, never rounded down to nothing.
+function scaledQuantity(quantity: number, factor: number): number {
+  if (factor === 1) return quantity;
+  const scaled = Math.round(quantity * factor * 100) / 100;
+  return scaled > 0 ? scaled : 0.01;
 }
 
 /**
@@ -611,9 +667,9 @@ export function buildRecipeOverride(input: SaveMealInput): RecipeOverride {
 //
 // Both compare / pair dishes by POSITION (same rule as the override and the
 // server's applyRecipeOverrideToDishes). A dish added in the editor has no
-// canonical counterpart and is NOT written (it is an ingredient-level change
-// that belongs to the override); a canonical dish the editor removed keeps
-// its own steps.
+// canonical counterpart: CLIENT-3 A (BUG-528) appends it to the recipe write,
+// because the override cannot hold it (see dishAddsPresent); a canonical dish
+// the editor removed keeps its own steps.
 
 interface ComparableStep {
   text: string;
@@ -693,7 +749,8 @@ const SAVE_MEAL_DIFFICULTIES = ["easy", "medium", "fancy"] as const;
  * override-applied, so using it would leak an earlier one-time ingredient
  * substitution into the recipe. Everything but the steps is the canonical
  * meal's; estimatedTimeMinutes is deliberately absent so the server re-stamps
- * it from the persisted steps (D-WS9-235).
+ * it from the persisted steps (D-WS9-235). CLIENT-3 A — a dish the editor
+ * added follows the canonical ones, as edited.
  */
 export function buildStepEditMealInput(
   canonical: MealDetail,
@@ -709,7 +766,7 @@ export function buildStepEditMealInput(
     description: canonical.description,
     cuisineType: canonical.cuisine || null,
     ...(difficulty !== undefined ? { difficulty } : {}),
-    dishes: canonical.dishes.map((d, i) => {
+    dishes: [...canonical.dishes.map((d, i): SaveMealDish => {
       const edited = input.dishes[i];
       const editedSteps =
         edited !== undefined ? comparableInputSteps(edited) : null;
@@ -741,5 +798,46 @@ export function buildStepEditMealInput(
         ),
       };
     }),
+      // CLIENT-3 A (BUG-528) — the dishes the editor added go last, as edited.
+      ...input.dishes
+        .slice(canonical.dishes.length)
+        .filter((d): d is Extract<SaveMealDish, { kind: "new" }> => d.kind === "new")
+        .map((d, j): SaveMealDish => ({
+          ...d,
+          role: "side",
+          positionIndex: canonical.dishes.length + j,
+        })),
+    ],
   };
+}
+
+/**
+ * CLIENT-3 A (BUG-528) — did the editor add a dish to the loaded meal? The
+ * per-plan override cannot carry one: it pairs dishes by position with the
+ * meal's own (applyRecipeOverrideToDishes), so an entry past the last dish is
+ * dropped on read. An added dish therefore goes to the recipe with the step
+ * edits (buildStepEditMealInput). A plan item's meal is the user's own copy
+ * (fork-on-acquire, D-WS7-139), so that write is the PATCH "Apply always" sends.
+ */
+export function dishAddsPresent(
+  loaded: MealDetail,
+  input: SaveMealInput,
+): boolean {
+  return input.dishes.length > loaded.dishes.length;
+}
+
+/** The "Just this time" notice for what goes to the recipe anyway, or null. */
+export function recipeEditsLine(
+  edits: { stepEdits: boolean; dishAdds: boolean },
+  verb: "are" | "were",
+): string | null {
+  const what =
+    edits.stepEdits && edits.dishAdds
+      ? "Step changes and added dishes"
+      : edits.stepEdits
+        ? "Step changes"
+        : edits.dishAdds
+          ? "Added dishes"
+          : null;
+  return what ? `${what} ${verb} saved to the recipe.` : null;
 }

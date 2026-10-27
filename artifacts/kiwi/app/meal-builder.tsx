@@ -74,6 +74,7 @@ import {
   buildRecipeOverride,
   buildStepEditMealInput,
   buildUpdateMealInput,
+  dishAddsPresent,
   draftDishToBuilderDish,
   hydrateBuilderDishesFromDraft,
   hydrateBuilderDishesFromMeal,
@@ -81,7 +82,7 @@ import {
   newDish as makeNewDish,
   newIngredient as makeNewIngredient,
   newStep as makeNewStep,
-  pickSavedDishToBuilderDish,
+  recipeEditsLine,
   stepEditsPresent,
   validateManualSave,
   type BuilderDish,
@@ -90,6 +91,8 @@ import {
   type Difficulty,
 } from "@/lib/meal-builder-state";
 import { useDish } from "@/hooks/useDish";
+import { getDish } from "@/lib/api/dishes";
+import { pickSavedDish } from "@/lib/builder/pickSavedDish";
 import type { DraftMeal, SavedDish } from "@/lib/types";
 import { dialog } from "@/lib/dialog";
 import { MEAL_SERVINGS_MAX, MEAL_SERVINGS_MIN } from "@/lib/meals/servingsSaveGate";
@@ -708,9 +711,12 @@ export default function MealBuilderScreen() {
   // and an earlier one-time ingredient substitution must not reach the
   // recipe) with the edited steps. The override is written first so the
   // plan-local guarantee lands even if the recipe PATCH fails.
+  //
+  // CLIENT-3 A (BUG-528) — a dish the editor added goes the same way: the
+  // override pairs dishes by position and cannot hold one more.
   const runSaveJustThisTime = async (
     input: SaveMealInput,
-    stepEdits: boolean,
+    edits: { stepEdits: boolean; dishAdds: boolean },
   ) => {
     if (!planId || !planItemId) return;
     if (savingRef.current) return;
@@ -718,17 +724,18 @@ export default function MealBuilderScreen() {
     setSaving(true);
     try {
       await changeRecipeForPlanItem(planId, planItemId, buildRecipeOverride(input));
-      if (stepEdits && mealId) {
+      if ((edits.stepEdits || edits.dishAdds) && mealId) {
         const canonical = await getMeal(mealId);
         await updateMeal(mealId, {
           ...buildUpdateMealInput(buildStepEditMealInput(canonical, input)),
           bumpPlanId: planId,
         });
       }
+      const recipeLine = recipeEditsLine(edits, "were");
       dialog.alert(
         "Saved for this plan",
-        stepEdits
-          ? `${input.title} was updated here. Step changes were saved to the recipe.`
+        recipeLine
+          ? `${input.title} was updated here. ${recipeLine}`
           : `${input.title} was updated here.`,
         [{ text: "OK", onPress: () => router.back() }],
       );
@@ -871,11 +878,16 @@ export default function MealBuilderScreen() {
       // BUG-252 — the mode is chosen only here, at save time (a native Alert
       // has no per-button sub-copy), so the one-line notice that step changes
       // reach the recipe on either choice goes in the Alert's message.
-      const stepEdits = sourceMeal ? stepEditsPresent(sourceMeal, input) : false;
+      // CLIENT-3 A (BUG-528) — and so do added dishes.
+      const edits = {
+        stepEdits: sourceMeal ? stepEditsPresent(sourceMeal, input) : false,
+        dishAdds: sourceMeal ? dishAddsPresent(sourceMeal, input) : false,
+      };
+      const recipeLine = recipeEditsLine(edits, "are");
       dialog.alert(
         "Save changes",
-        stepEdits
-          ? "How do you want to apply your edits?\n\nStep changes are saved to the recipe."
+        recipeLine
+          ? `How do you want to apply your edits?\n\n${recipeLine}`
           : "How do you want to apply your edits?",
         [
           {
@@ -886,7 +898,7 @@ export default function MealBuilderScreen() {
             // those go to the recipe too (see runSaveJustThisTime).
             text: "Just this time",
             onPress: () => {
-              void runSaveJustThisTime(input, stepEdits);
+              void runSaveJustThisTime(input, edits);
             },
           },
           {
@@ -1400,15 +1412,26 @@ export default function MealBuilderScreen() {
       <DishChooserSheet
         visible={dishChooserVisible}
         onClose={() => setDishChooserVisible(false)}
+        // CLIENT-3 A (BUG-528) — a list row has no ingredients or steps: the
+        // dish is read in full (GET /dishes/:id, the dish screen's cache key)
+        // and scaled to what this meal's dishes are written for, then appended.
+        // A failed read says so and appends nothing.
         onPickSavedDish={(dish) => {
-          setDishes((prev) => [
-            ...prev,
-            pickSavedDishToBuilderDish(dish, allocUid),
-          ]);
+          void pickSavedDish(dish, {
+            fetchDish: (id) =>
+              queryClient.fetchQuery({
+                queryKey: ["dishes", "detail", id],
+                queryFn: () => getDish(id),
+              }),
+            allocUid,
+            targetServings: sourceMeal?.authoredServingsDefault ?? servingsDefault,
+            onAdd: (built) => setDishes((prev) => [...prev, built]),
+            onError: (title, message) => dialog.alert(title, message),
+          });
         }}
         // WS7-6 Block 1H — append a blank editable dish to the meal
         // under construction. Mirrors the saved-pick append shape but
-        // with newDish() (empty) instead of pickSavedDishToBuilderDish
+        // with newDish() (empty) instead of a picked dish
         // (hydrated). Kept as a clean named callback so the sheet
         // stays unaware of meal-builder state — WS9 extraction-friendly.
         // WS7-6 C-fix Block 4 — flag the new dish for auto-focus so the user
