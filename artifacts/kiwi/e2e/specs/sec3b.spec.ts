@@ -29,7 +29,7 @@ import { randomBytes } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 
 import { API_BASE, RUN_DIR, WEB_ORIGIN, assertDevDatabase, ensureRunDir } from "../src/env";
-import { Http, escapeRe, todayYmd } from "./qa1-shared";
+import { Http, escapeRe, skipHowHeard, todayYmd } from "./qa1-shared";
 
 test.skip(process.env.KIWI_E2E_SEC3B !== "1", "SEC-3b is opt-in — set KIWI_E2E_SEC3B=1");
 test.describe.configure({ mode: "serial" });
@@ -141,6 +141,7 @@ async function signUp(email: string): Promise<void> {
   await page.getByPlaceholder("Email").fill(email);
   await page.getByPlaceholder("Password").fill(password);
   await press("Create account");
+  await skipHowHeard(page); // CLIENT-3 D — a new account's question
 }
 
 test.beforeAll(async ({ browser }) => {

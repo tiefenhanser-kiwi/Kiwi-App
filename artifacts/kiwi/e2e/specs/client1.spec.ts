@@ -7,7 +7,8 @@
 //     pnpm exec playwright test -c e2e/playwright.config.ts client1
 //
 //   4 (BUG-504) — Home's Tell Kiwi card holds one height while the phrase rotates.
-//   3 — Prep the Week: "Label N containers" first, Skip hidden until it is ticked,
+//   3 — Prep the Week: the label step first (CLIENT-3 E: "Set up your prep
+//       area"), Skip shown at any time (CLIENT-2 B1),
 //       and the held lines' day words. ONE real Prep the Week generation (the
 //       narration call, ~$0.10); the 1280 pass reads the server's cache.
 //   7 (BUG-507) — Cook Mode: "Next step in N minutes" under a long step.
@@ -32,7 +33,7 @@ import { randomBytes } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 
 import { API_BASE, API_SERVER_ROOT, RUN_DIR, WEB_ORIGIN, assertDevDatabase, ensureRunDir } from "../src/env";
-import { Http, escapeRe, settle, todayYmd } from "./qa1-shared";
+import { Http, escapeRe, settle, skipHowHeard, todayYmd } from "./qa1-shared";
 
 // web4-sweep's corpus: the first is a two-dish meal (so Cook Mode sequences it).
 const MEAL_IDS = ["3424eefa-423c-4be1-a987-8a55c8811576", "80ecaf30-f1de-4e37-8cf2-a5f9e5a0de8d"];
@@ -143,6 +144,7 @@ test("1 · sign-up → onboarding, then a plan from two catalog meals", async ()
   await page.getByPlaceholder("Email").fill(email);
   await page.getByPlaceholder("Password").fill(password);
   await press(page, "Create account");
+  await skipHowHeard(page); // CLIENT-3 D — a new account's question
   expect(await waitPath(page, /onboarding/, 60_000), "reached onboarding").toBe(true);
   http = new Http(await page.evaluate(() => sessionStorage.getItem("kiwi_authToken") ?? ""));
   await settle(page, { timeoutMs: 30_000 });
@@ -214,20 +216,24 @@ test("2 · item 4 (BUG-504) — the Tell Kiwi card keeps one height through the 
   await page.setViewportSize({ width: 375, height: 812 });
 });
 
-test("3 · item 3 → CLIENT-2 B1/B2 — Prep the Week: the label step first with its reassurance line, Skip shown before and after it is ticked, the held lines", async () => {
+test("3 · item 3 → CLIENT-2 B1 / CLIENT-3 E — Prep the Week: the prep-area card first, Skip shown before and after it is ticked, the held lines", async () => {
   test.setTimeout(6 * 60_000);
-  const ok = await visit(page, `/cook-session?mode=prep-week&planId=${fixture.planId}`, (j) => /Label \d+ containers|couldn.t|distracted/i.test(j), 4 * 60_000);
+  const ok = await visit(page, `/cook-session?mode=prep-week&planId=${fixture.planId}`, (j) => /Set up your prep area|couldn.t|distracted/i.test(j), 4 * 60_000);
   const first = await inner(page);
-  const label = /Label (\d+) containers/.exec(first);
+  // CLIENT-3 E (BUG-534) — the label step reads as the prep-area card.
+  const label = /you'll fill (\d+) containers?/.exec(first);
   notes.push(`3: generated=${ok}; label step ${label ? `"${label[0]}"` : "MISSING"}; Skip shown: ${/Skip this Prep/.test(first)}`);
   await snap(page, "3-prep-label-375");
-  expect(label, "the server's label step").not.toBeNull();
+  expect(label, "the prep-area card").not.toBeNull();
   // The label step is the phase's step 1 (the first step card's title).
-  const order = /\b1\s+Label \d+ containers/.test(first) || first.indexOf("Label") < first.indexOf("Mark all complete");
+  const order = /\b1\s+Set up your prep area/.test(first) || first.indexOf("Set up your prep area") < first.indexOf("Mark all complete");
   notes.push(`3: label step first: ${order}`);
-  // CLIENT-2 B1 (BUG-509) — Skip at any time; B2 — the reassurance line above the label step.
+  // CLIENT-2 B1 (BUG-509) — Skip at any time. CLIENT-3 E — the card's body replaces
+  // CLIENT-2 B2's reassurance and the "write these on tape" instructions.
   expect(first).toMatch(/Skip this Prep/);
-  expect(first).toContain("Don't worry, some of these containers combine at the end of the prep session.");
+  expect(first).toContain("Set them out however works for you (tape and a pen work well for labels):");
+  expect(first).not.toContain("Don't worry, some of these containers combine");
+  expect(first).not.toMatch(/Label \d+ containers|write these on tape/i);
 
   await page.getByLabel("Mark step done").first().click();
   const back = await waitInner(page, (j) => /Skip this Prep/.test(j), 15_000);

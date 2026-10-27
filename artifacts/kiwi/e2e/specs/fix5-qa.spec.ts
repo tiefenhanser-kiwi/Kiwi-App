@@ -22,7 +22,7 @@ import { randomBytes } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 
 import { WEB_ORIGIN, assertDevDatabase, ensureRunDir } from "../src/env";
-import { Http, Ledger, escapeRe, settle, shot, todayYmd, waitForText } from "./qa1-shared";
+import { Http, Ledger, escapeRe, settle, shot, skipHowHeard, todayYmd, waitForText } from "./qa1-shared";
 
 const PHASE = process.env.KIWI_E2E_FIX5_PHASE === "before" ? "before" : "after";
 const LABEL = `fix5-qa-${PHASE}`;
@@ -155,6 +155,7 @@ test("0 · sign-up → onboarding → first Home", async () => {
     await page.getByPlaceholder("Email").fill(email);
     await page.getByPlaceholder("Password").fill(password);
     await press("Create account");
+    await skipHowHeard(page); // CLIENT-3 D — a new account's question
     const ok = await waitPath(/onboarding/, 60_000);
     const token = await page.evaluate(() => sessionStorage.getItem("kiwi_authToken") ?? "");
     http = new Http(token);

@@ -24,7 +24,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { WEB_ORIGIN, ensureRunDir } from "../src/env";
 import { ledgerBetween, summarise } from "../src/spend";
 import { preflight, teardown, type Preflight } from "../src/stack";
-import { Http, Ledger, escapeRe, settle, shot, waitForText } from "./qa1-shared";
+import { Http, Ledger, escapeRe, settle, shot, skipHowHeard, waitForText } from "./qa1-shared";
 
 const LABEL = "fix2-qa";
 const ledger = new Ledger(LABEL);
@@ -122,6 +122,7 @@ test("1 · sign-up → onboarding", async () => {
     await page.getByPlaceholder("Email").fill(email);
     await page.getByPlaceholder("Password").fill(password);
     await press("Create account");
+    await skipHowHeard(page); // CLIENT-3 D — a new account's question
     const ok = await waitPath(/onboarding/, 60_000);
     const token = await page.evaluate(() => sessionStorage.getItem("kiwi_authToken") ?? "");
     http = new Http(token);
