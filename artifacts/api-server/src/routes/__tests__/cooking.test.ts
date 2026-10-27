@@ -288,11 +288,15 @@ function makeCacheStub() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const planHolder = new Map<string, any>(); // mealPlanInstance config by planId
   let completions: { planId: string; stepKey: string; checkedAt: Date }[] = [];
+  // SERVER-6 BUG-547 — the activities the check-off writes (plan_prep_started).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const activities: any[] = [];
   let writeCount = 0;
   let llmLogWrites = 0;
   let pruneCalls = 0;
   return {
     rows,
+    activities,
     completionRows: () => completions,
     completionKeys: (planId: string) =>
       completions.filter((c) => c.planId === planId).map((c) => c.stepKey).sort(),
@@ -331,6 +335,16 @@ function makeCacheStub() {
           const row = { id: `row-${rows.size + 1}`, ...create, ...where };
           rows.set(where.planId, row);
           return row;
+        },
+      },
+      userActivity: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        findFirst: async ({ where }: { where: any }) =>
+          activities.find((a) => Object.entries(where).every(([k, v]) => a[k] === v)) ?? null,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        create: async ({ data }: { data: any }) => {
+          activities.push(data);
+          return { id: `act-${activities.length}` };
         },
       },
       prepStepCompletion: {
@@ -1489,6 +1503,73 @@ describe("prep-week completions — auth + ownership + validation (B3)", () => {
     }
   });
 
+});
+
+// SERVER-6 BUG-547 — no client sends the prepStatus PATCH, so the first check-off is
+// where a plan's prep starts: one plan_prep_started per plan, whatever follows.
+describe("prep-week completions — the first check-off emits plan_prep_started (BUG-547)", () => {
+  it("once per plan: a second step, a re-check and an uncheck-and-check write nothing more", async () => {
+    const cache = completionHarness();
+    const harness = await spinCompletion(cache);
+    try {
+      const auth = { Authorization: `Bearer ${signToken(COMPLETION_OWNER)}`, "Content-Type": "application/json" };
+      const call = (method: string, stepKey: string) =>
+        fetch(completionUrl(harness.baseUrl), { method, headers: auth, body: JSON.stringify({ stepKey }) });
+      assert.equal((await call("PUT", ONION_STEP_KEY)).status, 200);
+      assert.equal(cache.activities.length, 1);
+      assert.deepEqual(cache.activities[0], {
+        userId: COMPLETION_OWNER,
+        eventType: "plan_prep_started",
+        entityType: "MealPlanInstance",
+        entityId: PLAN_ID,
+        platform: "api",
+        metadata: { source: "check_off", stepKey: ONION_STEP_KEY },
+      });
+      await call("PUT", "another-step");
+      await call("PUT", ONION_STEP_KEY);
+      await call("DELETE", ONION_STEP_KEY);
+      await call("PUT", ONION_STEP_KEY);
+      assert.equal(cache.activities.length, 1);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("a plan the PATCH already marked started gets no second row; nothing is written for a stranger's plan", async () => {
+    const cache = completionHarness();
+    cache.activities.push({ userId: COMPLETION_OWNER, eventType: "plan_prep_started", entityType: "MealPlanInstance", entityId: PLAN_ID, metadata: { from: "not_prepped", to: "partial" } });
+    const harness = await spinCompletion(cache);
+    try {
+      const put = (userId: string) =>
+        fetch(completionUrl(harness.baseUrl), {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${signToken(userId)}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ stepKey: ONION_STEP_KEY }),
+        });
+      assert.equal((await put(COMPLETION_OWNER)).status, 200);
+      assert.equal((await put("not-the-owner")).status, 404);
+      assert.equal(cache.activities.length, 1);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("an activity failure never fails the check-off", async () => {
+    const cache = completionHarness();
+    cache.prisma.userActivity.findFirst = async () => { throw new Error("db down"); };
+    const harness = await spinCompletion(cache);
+    try {
+      const res = await fetch(completionUrl(harness.baseUrl), {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${signToken(COMPLETION_OWNER)}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ stepKey: ONION_STEP_KEY }),
+      });
+      assert.equal(res.status, 200);
+      assert.deepEqual(cache.completionKeys(PLAN_ID), [ONION_STEP_KEY]);
+    } finally {
+      await harness.close();
+    }
+  });
 });
 
 describe("prep-week completions — check / read / uncheck round-trip (B3)", () => {

@@ -59,6 +59,7 @@ import {
 } from "../lib/prepCompletion";
 import { loadPrepStepSet } from "../lib/prepStepSet";
 import { logger } from "../lib/logger";
+import { emitPlanPrepStartedOnce } from "../lib/userActivity";
 import { prisma as productionPrisma } from "../lib/prisma";
 import { rateLimit } from "../lib/rateLimit";
 import {
@@ -879,6 +880,8 @@ export function createCookingRouter(
         create: { planId, stepKey },
         update: {}, // idempotent — keep the original checkedAt on re-check.
       });
+      // SERVER-6 BUG-547 — the plan's first check-off is "prep started" (once per plan).
+      await emitPlanPrepStartedOnce(prisma, { userId, planId, stepKey });
 
       return res.json({ stepKey, checked: true });
     },
