@@ -93,6 +93,12 @@ const GUEST_CLAIM_FIELDS = {
   localDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 } as const;
 
+// SERVER-6 A (ATTR) — the link that brought the visitor (ref, utm_*, landing
+// path), on every account-creating body. z.unknown(), never a shape: a sign-up
+// must not fail over a tracking tag, so lib/signupAttribution.ts sanitizes it
+// (five keys, strings ≤ 120, the rest dropped) and only a create writes it.
+const ATTRIBUTION_FIELD = { attribution: z.unknown().optional() } as const;
+
 const signupSchema = z.object({
   email: z.string().email().max(255),
   password: z.string().min(8).max(100),
@@ -118,6 +124,7 @@ const signupSchema = z.object({
   // write a fact nobody asserted into a column marketing will segment on.
   // A `guestSessionId` on the body OVERRIDES this — see the resolution below.
   platform: z.enum(["web", "ios", "android"]).optional(),
+  ...ATTRIBUTION_FIELD,
   // Row 13 "Test Kitchen" · Block 1 (D-WS9-259) — THE CLAIM. Both optional,
   // MUTUALLY EXCLUSIVE, and both are the same sentence in different words:
   // "keep what I just made."
@@ -161,6 +168,8 @@ const OAUTH_SHARED_FIELDS = {
   marketingConsentEmail: z.boolean().optional(),
   marketingConsentSms: z.boolean().optional(),
   platform: z.enum(["web", "ios", "android"]).optional(),
+  // SERVER-6 A — like the consents: kept on a create, ignored for an existing user.
+  ...ATTRIBUTION_FIELD,
   ...GUEST_CLAIM_FIELDS,
 } as const;
 
@@ -213,6 +222,10 @@ function toUserShape(u: {
   // not optional: a caller whose `select` forgets a column then fails to
   // typecheck instead of quietly serialising undefined into the wire shape.
   signupSource: string | null;
+  // SERVER-6 A — "How did you hear about Kiwi?", set once (PATCH /me/profile);
+  // null until answered, so a client can tell whether to ask.
+  howHeard: string | null;
+  howHeardDetail: string | null;
   personalizeNudgeDismissedAt: Date | null;
   createdAt: Date;
 }) {
@@ -236,6 +249,8 @@ function toUserShape(u: {
     firstRunChoiceMade: u.firstRunChoiceMade,
     // D-WS9-264 — read-only after signup; no route updates it.
     signupSource: u.signupSource,
+    howHeard: u.howHeard,
+    howHeardDetail: u.howHeardDetail,
     // D-WS9-263 — ISO or null, like its siblings firstPlanCreatedAt /
     // playlistCtaTappedAt. `IS NULL` is the gate; the value says when.
     personalizeNudgeDismissedAt:
@@ -372,6 +387,7 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
       marketingConsentEmail,
       marketingConsentSms,
       platform,
+      attribution,
       guestSessionId,
       guestToken,
       templatePlanId,
@@ -432,6 +448,7 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
           // otherwise record "web" and lose the funnel this column exists to
           // name. Null when neither is present.
           signupSource: guestSessionId ? "test_kitchen" : (platform ?? null),
+          attribution,
           guestSessionId,
           guestToken,
           via: "signup",
@@ -679,6 +696,7 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
       marketingConsentEmail?: boolean | undefined;
       marketingConsentSms?: boolean | undefined;
       platform?: "web" | "ios" | "android" | undefined;
+      attribution?: unknown;
       guestSessionId?: string | undefined;
       guestToken?: string | undefined;
       templatePlanId?: string | undefined;
@@ -730,6 +748,7 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
         marketingConsentEmail: body.marketingConsentEmail,
         marketingConsentSms: body.marketingConsentSms,
         platform: body.platform,
+        attribution: body.attribution,
         guestSessionId,
         guestToken: body.guestToken,
         linkFacts,

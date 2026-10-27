@@ -22,6 +22,7 @@
 
 import { Router, type IRouter } from "express";
 import { type Prisma, type PrismaClient } from "@prisma/client";
+import { HOW_HEARD_DETAIL_MAX, SIGNUP_HOW_HEARD } from "../lib/signupAttribution";
 import { z } from "zod";
 
 import { hashPassword, signToken, verifyPassword, verifyToken } from "../lib/auth";
@@ -226,6 +227,17 @@ const profilePatchSchema = z
     marketingConsentSms: z.boolean().optional(),
     onboardingComplete: z.boolean().optional(),
     firstRunChoiceMade: z.boolean().optional(),
+    // SERVER-6 A (ATTR) — "How did you hear about Kiwi?". Set ONCE: a later
+    // set is ignored (200, the stored answer unchanged), so the first answer is
+    // the one a report counts. The detail rides only with howHeard; blank is null.
+    howHeard: z.enum(SIGNUP_HOW_HEARD).optional(),
+    howHeardDetail: z
+      .string()
+      .trim()
+      .max(HOW_HEARD_DETAIL_MAX)
+      .transform((v) => (v === "" ? null : v))
+      .nullable()
+      .optional(),
   })
   .strict();
 
@@ -834,6 +846,9 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ error: "no fields to update" });
     }
+    if (updates.howHeardDetail !== undefined && updates.howHeard === undefined) {
+      return res.status(400).json({ error: "howHeardDetail requires howHeard" });
+    }
 
     try {
       // BUG-267 — the SMS-consent invariant, judged against the ROW AFTER
@@ -869,38 +884,53 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
         }
       }
 
-      const updated = await prisma.user.update({
-        where: { id: req.userId },
-        data: updates,
-        select: {
-          id: true,
-          email: true,
-          firstName: true,
-          lastName: true,
-          phone: true,
-          zipCode: true,
-          timezone: true,
-          accountStatus: true,
-          subscriptionStatus: true,
-          defaultHouseholdSize: true,
-          lastPlanDiscoveryFilters: true,
-          lastPlansFilters: true,
-          lastMealsFilters: true,
-          marketingConsentEmail: true,
-          marketingConsentSms: true,
-          onboardingComplete: true,
-          firstRunChoiceMade: true,
-          // Row 13 · Block 1b B2 — this route is the SECOND user-shape builder
-          // (it hand-rolls the projection rather than calling auth.ts's
-          // toUserShape), so both new columns have to be added here too or the
-          // shape drifts: a client that re-reads its user from a profile PATCH
-          // would silently lose signupSource and the nudge stamp that
-          // /auth/me and signup do send.
-          signupSource: true,
-          personalizeNudgeDismissedAt: true,
-          createdAt: true,
-        },
-      });
+      // SERVER-6 A — the answer is write-if-null, in its own statement, so a
+      // second answer (another device, a replayed request) changes nothing and
+      // the rest of the body still lands.
+      const { howHeard, howHeardDetail, ...profile } = updates;
+      if (howHeard !== undefined) {
+        await prisma.user.updateMany({
+          where: { id: req.userId, howHeard: null },
+          data: { howHeard, howHeardDetail: howHeardDetail ?? null },
+        });
+      }
+      const select = {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        zipCode: true,
+        timezone: true,
+        accountStatus: true,
+        subscriptionStatus: true,
+        defaultHouseholdSize: true,
+        lastPlanDiscoveryFilters: true,
+        lastPlansFilters: true,
+        lastMealsFilters: true,
+        marketingConsentEmail: true,
+        marketingConsentSms: true,
+        onboardingComplete: true,
+        firstRunChoiceMade: true,
+        // Row 13 · Block 1b B2 — this route is the SECOND user-shape builder
+        // (it hand-rolls the projection rather than calling auth.ts's
+        // toUserShape), so both new columns have to be added here too or the
+        // shape drifts: a client that re-reads its user from a profile PATCH
+        // would silently lose signupSource and the nudge stamp that
+        // /auth/me and signup do send.
+        signupSource: true,
+        howHeard: true,
+        howHeardDetail: true,
+        personalizeNudgeDismissedAt: true,
+        createdAt: true,
+      } satisfies Prisma.UserSelect;
+      const updated =
+        Object.keys(profile).length > 0
+          ? await prisma.user.update({ where: { id: req.userId }, data: profile, select })
+          : await prisma.user.findUnique({ where: { id: req.userId }, select });
+      if (!updated) {
+        return res.status(404).json({ error: "user not found" });
+      }
       return res.json({
         user: {
           ...updated,

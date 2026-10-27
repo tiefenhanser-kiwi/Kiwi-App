@@ -38,6 +38,7 @@ import {
   TRIAL_ALREADY_USED,
 } from "./emailCanonical";
 import { logger } from "./logger";
+import { sanitizeAttribution } from "./signupAttribution";
 
 // WS9-2 — the free-trial length. MOVED here from routes/auth.ts with the
 // account creation it stamps; the route re-exports it so nothing that imported
@@ -60,6 +61,8 @@ export interface CreateAccountInput {
   marketingConsentSms?: boolean | undefined;
   /** D-WS9-264. Resolved by the caller; a guest claim overrides the client's `platform`. */
   signupSource: string | null;
+  /** SERVER-6 A — the body's raw `attribution`; sanitized here and written once. */
+  attribution?: unknown;
   guestSessionId?: string | undefined;
   /** SEC-2 #12 — the session's own guest bearer token; required to claim it. */
   guestToken?: string | undefined;
@@ -101,6 +104,7 @@ export async function createAccountInTx(input: CreateAccountInput): Promise<Crea
   // so the client can say why. The team's own addresses are exempt
   // (TRIAL_DUPLICATE_EXEMPT).
   const emailCanonical = canonicalEmail(input.email);
+  const attribution = sanitizeAttribution(input.attribution);
   const trialAlreadyUsed =
     !isTrialDuplicateExempt(input.email, readTrialDuplicateExempt(input.env)) &&
     (await tx.user.findFirst({ where: { emailCanonical }, select: { id: true } })) !== null;
@@ -124,6 +128,9 @@ export async function createAccountInTx(input: CreateAccountInput): Promise<Crea
         ? { marketingConsentSms: input.marketingConsentSms }
         : {}),
       signupSource: input.signupSource,
+      // SERVER-6 A (ATTR) — write-once: this create is its only writer. Absent
+      // when the body carried nothing usable, so the column stays NULL.
+      ...(attribution ? { signupAttribution: attribution } : {}),
     },
   });
 

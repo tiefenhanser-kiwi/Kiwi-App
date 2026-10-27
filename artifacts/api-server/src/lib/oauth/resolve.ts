@@ -68,6 +68,8 @@ export interface ResolveInput {
   marketingConsentEmail?: boolean | undefined;
   marketingConsentSms?: boolean | undefined;
   platform?: string | undefined;
+  /** SERVER-6 A — the signup body's attribution; written on create only. */
+  attribution?: unknown;
   guestSessionId?: string | undefined;
   /** SEC-2 #12 — the guest bearer token that proves the claim. */
   guestToken?: string | undefined;
@@ -263,6 +265,7 @@ export async function resolveIdentity(input: ResolveInput): Promise<ResolveOutco
       // D-WS9-264 — identical rule to password signup: a guest claim is the
       // more specific fact and beats the client's `platform`.
       signupSource: input.guestSessionId ? "test_kitchen" : (input.platform ?? null),
+      attribution: input.attribution,
       guestSessionId: input.guestSessionId,
       guestToken: input.guestToken,
       via: `oauth_${provider}`,

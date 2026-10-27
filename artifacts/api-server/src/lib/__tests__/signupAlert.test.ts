@@ -461,6 +461,7 @@ describe("signup alert (SRV-2 · D-WS9-308)", () => {
       [
         "Signed up: Mon, Oct 12, 2026, 10:05 AM EDT",
         "Source: test_kitchen",
+        "Came from: (no link)",
         "Method: google",
         "Plan: Weeknight Mediterranean",
         "Real accounts: 42",
@@ -469,6 +470,21 @@ describe("signup alert (SRV-2 · D-WS9-308)", () => {
     // Not a Test Kitchen signup → no Plan line at all.
     const web = signupAlertMessage({ ...base, signupSource: "web", planTitle: undefined, firstName: "A", lastName: "B" });
     assert.ok(!web.text.includes("Plan:"));
+  });
+
+  // SERVER-6 A (ATTR) — the link that brought them, as stored on the account.
+  it("6c. 'Came from' says the ref, the utm tags and the landing path; a missing tag is a dash", () => {
+    const base = { firstName: "Sam", lastName: "R", signupSource: "web", createdAt: new Date("2026-10-27T14:05:00Z"), method: "password" as const, realAccounts: 43 };
+    const line = (signupAttribution: unknown) =>
+      signupAlertMessage({ ...base, signupAttribution }).text.split("\n").find((l) => l.startsWith("Came from: "));
+    assert.equal(
+      line({ ref: "maya", utmSource: "instagram", utmMedium: "social", utmCampaign: "fall-launch", landingPath: "/welcome" }),
+      "Came from: ref maya · utm instagram / social / fall-launch · landed on /welcome",
+    );
+    assert.equal(line({ utmSource: "tiktok" }), "Came from: utm tiktok / - / -");
+    assert.equal(line({ landingPath: "/thanksgiving" }), "Came from: landed on /thanksgiving");
+    assert.equal(line(null), "Came from: (no link)");
+    assert.equal(line(undefined), "Came from: (no link)");
   });
 
   it("6b. a test_kitchen signup reads its plan's title; an unbuilt plan says so", async () => {

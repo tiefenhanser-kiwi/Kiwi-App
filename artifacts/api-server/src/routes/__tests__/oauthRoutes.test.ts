@@ -804,6 +804,54 @@ describe("SEC-2b — guest claim through OAuth without a token", () => {
   });
 });
 
+// SERVER-6 A (ATTR) — the landing link rides the OAuth body like the consents:
+// sanitized and written on CREATE (a Test Kitchen claim included), never on a sign-in.
+describe("SERVER-6 — attribution on an OAuth sign-up", () => {
+  it("Google · NEW user: the sanitized attribution is written; a later sign-in with another changes nothing", async () => {
+    const prisma = makePrisma();
+    const api = await spinUp(prisma);
+    try {
+      const res = await api.post("/auth/oauth/google", {
+        idToken: googleToken(),
+        attribution: { ref: " maya ", utmSource: "instagram", utmCampaign: "x".repeat(200), gclid: "dropped", utmMedium: 7 },
+      });
+      assert.equal(res.status, 201);
+      assert.deepEqual(prisma._state().users[0].signupAttribution, { ref: "maya", utmSource: "instagram", utmCampaign: "x".repeat(120) });
+      const again = await api.post("/auth/oauth/google", { idToken: googleToken(), attribution: { ref: "someone-else" } });
+      assert.equal(again.status, 200);
+      assert.deepEqual(prisma._state().users[0].signupAttribution, { ref: "maya", utmSource: "instagram", utmCampaign: "x".repeat(120) });
+    } finally {
+      await api.close();
+    }
+  });
+
+  it("Apple · NEW user through a Test Kitchen claim keeps the link; nothing usable writes no column", async () => {
+    const prisma = makePrisma({ guest: { id: "g-attr" } });
+    const api = await spinUp(prisma);
+    try {
+      const res = await api.post("/auth/oauth/apple", {
+        identityToken: appleToken(), rawNonce: RAW_NONCE,
+        guestSessionId: "g-attr", guestToken: guestTok("g-attr"),
+        attribution: { landingPath: "/test-kitchen", utmSource: "tiktok" },
+      });
+      assert.equal(res.status, 201);
+      const user = prisma._state().users[0];
+      assert.equal(user.signupSource, "test_kitchen");
+      assert.deepEqual(user.signupAttribution, { utmSource: "tiktok", landingPath: "/test-kitchen" });
+    } finally {
+      await api.close();
+    }
+    const bare = makePrisma();
+    const api2 = await spinUp(bare);
+    try {
+      await api2.post("/auth/oauth/google", { idToken: googleToken(), attribution: { ref: "   ", other: "x" } });
+      assert.equal("signupAttribution" in bare._state().users[0], false, "absent from the create: the column stays NULL");
+    } finally {
+      await api2.close();
+    }
+  });
+});
+
 describe("consents and account state", () => {
   it("SMS consent without a phone is refused, exactly as on signup", async () => {
     const api = await spinUp(makePrisma());

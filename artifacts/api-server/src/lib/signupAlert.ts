@@ -33,6 +33,7 @@ import {
 } from "./email/sendEmail";
 import { logger } from "./logger";
 import { storedPlanTitle } from "./planTitle";
+import { cameFromLine } from "./signupAttribution";
 import { prisma as productionPrisma } from "./prisma";
 
 export type SignupMethod = "password" | "google" | "apple";
@@ -94,6 +95,8 @@ export interface SignupAlertFacts {
   firstName: string | null;
   lastName: string | null;
   signupSource: string | null;
+  /** SERVER-6 A (ATTR) — User.signupAttribution as stored; null = no link. */
+  signupAttribution?: unknown;
   createdAt: Date;
   method: SignupMethod;
   /** `undefined` = not a Test Kitchen signup (no line); `null` = one whose plan was not built. */
@@ -108,6 +111,8 @@ export function signupAlertMessage(f: SignupAlertFacts): Omit<EmailMessage, "to"
     // Some ICU builds put a narrow no-break space before AM/PM; plain text wants a space.
     `Signed up: ${NEW_YORK.format(f.createdAt).replace(/[  ]/g, " ")}`,
     `Source: ${source}`,
+    // SERVER-6 A — the link that brought them (ref · utm · landing), when there was one.
+    `Came from: ${cameFromLine(f.signupAttribution) ?? "(no link)"}`,
     `Method: ${f.method}`,
   ];
   if (f.planTitle !== undefined) {
@@ -137,7 +142,7 @@ export async function sendSignupAlert(
 
     const user = await prisma.user.findUnique({
       where: { id: input.userId },
-      select: { firstName: true, lastName: true, signupSource: true, createdAt: true },
+      select: { firstName: true, lastName: true, signupSource: true, signupAttribution: true, createdAt: true },
     });
     if (!user) throw new Error("user not found after commit");
 
