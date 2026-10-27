@@ -11,10 +11,10 @@
 // (no sign-in, no fixture), because a verdict scored against a blank page is
 // worse than none.
 // ─────────────────────────────────────────────────────────────────────────────
-import { writeFileSync } from "node:fs";
+import { appendFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import type { Page } from "@playwright/test";
+import { test, type Page } from "@playwright/test";
 
 import { API_BASE, RUN_DIR, ensureRunDir } from "../src/env";
 import { readCreds, redact } from "../src/creds";
@@ -266,6 +266,29 @@ export async function scrollAllToBottom(page: Page): Promise<void> {
  * returning account), once the page has left the sign-up form.
  */
 export async function skipHowHeard(page: Page, timeoutMs = 45_000): Promise<boolean> {
+  // QA-6 — one line per sign-up in out/<run>/how-heard.jsonl, so a run can say
+  // whether the question showed every time (the return value is dropped by callers).
+  const shown = await skipHowHeardOnce(page, timeoutMs);
+  try {
+    ensureRunDir();
+    let title = "";
+    try {
+      title = test.info().titlePath.join(" > ");
+    } catch {
+      /* outside a test */
+    }
+    appendFileSync(
+      join(RUN_DIR, "how-heard.jsonl"),
+      JSON.stringify({ at: new Date().toISOString(), test: title, shown, landedOn: new URL(page.url()).pathname }) + "\n",
+      "utf8",
+    );
+  } catch {
+    /* the ledger never fails a spec */
+  }
+  return shown;
+}
+
+async function skipHowHeardOnce(page: Page, timeoutMs: number): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const path = new URL(page.url()).pathname;

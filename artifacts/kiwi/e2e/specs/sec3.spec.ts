@@ -199,10 +199,19 @@ test("A1 · signed-out screens load their providers without a CSP error", async 
 
 test("D · a trial-denied sign-up opens the paywall that says so", async () => {
   test.setTimeout(5 * 60_000);
+  // QA-6 — since SEC-3b the client reads user.subscription.trialDeniedReason on the sign-up
+  // answer (AuthContext noteTrialDenied) and the sheet's words from GET /me/subscription
+  // (sheetCopyFor); the old top-level `trialDenied` opens nothing. Both are stubbed.
   await page.route("**/api/auth/signup", async (route) => {
     const res = await route.fetch();
     const body = await res.json();
-    await route.fulfill({ response: res, json: { ...body, trialDenied: "duplicate_email" } });
+    const user = { ...body.user, subscription: { ...(body.user?.subscription ?? {}), trialDeniedReason: "trial_already_used" } };
+    await route.fulfill({ response: res, json: { ...body, user } });
+  });
+  await page.route("**/api/me/subscription", async (route) => {
+    const res = await route.fetch();
+    const body = await res.json();
+    await route.fulfill({ response: res, json: { ...body, trialDeniedReason: "trial_already_used" } });
   });
   await visit("sign-up-form", "/sign-up", (j) => /Create account/i.test(j), 45_000);
   await page.getByPlaceholder("First name").fill("Sec");
@@ -210,18 +219,20 @@ test("D · a trial-denied sign-up opens the paywall that says so", async () => {
   await page.getByPlaceholder("Email").fill(email);
   await page.getByPlaceholder("Password").fill(password);
   await press("Create account");
+  // QA-6 — the trial-used sheet now opens OVER "How did you hear about Kiwi?" (its backdrop
+  // takes the clicks), so it is read and dismissed first, then the question is skipped.
+  where = "trial-used-sheet";
+  const said = await waitInner((j) => j.includes("Your free trial was already used with this email."), 60_000);
+  await page.waitForTimeout(800);
+  screens["trial-used-sheet"] = { said, path: new URL(page.url()).pathname, overQuestion: (await page.evaluate(() => document.body.innerText || "")).includes("How did you hear about Kiwi?") };
+  await snap("D-trial-used-sheet");
+  expect(said, "the trial-used paywall").toBe(true);
+  await press("Not now");
+  await page.waitForTimeout(600);
   await skipHowHeard(page); // CLIENT-3 D — a new account's question
   expect(await waitPath(/onboarding/, 60_000), "reached onboarding").toBe(true);
   await page.unrouteAll({ behavior: "ignoreErrors" });
   http = new Http(await page.evaluate(() => sessionStorage.getItem("kiwi_authToken") ?? ""));
-  where = "trial-used-sheet";
-  const said = await waitInner((j) => j.includes("Your free trial was already used with this email."), 20_000);
-  await page.waitForTimeout(800);
-  await snap("D-trial-used-sheet");
-  screens["trial-used-sheet"] = { said };
-  expect(said, "the trial-used paywall").toBe(true);
-  await press("Not now");
-  await page.waitForTimeout(600);
 
   await settle(page, { timeoutMs: 30_000 });
   for (const c of ["Italian", "Mexican"]) await press(c);

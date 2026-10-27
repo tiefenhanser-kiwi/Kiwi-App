@@ -65,11 +65,16 @@ async function press(p: Page, name: string | RegExp): Promise<void> {
 }
 
 const inner = (p: Page) => p.evaluate(() => document.body.innerText || "");
+// QA-6 — the builder shows a dish's name and ingredients as input VALUES, which innerText omits.
+const innerAndFields = (p: Page) =>
+  p.evaluate(() =>
+    [document.body.innerText || "", ...Array.from(document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea")).map((e) => e.value)].join("\n"),
+  );
 
-async function waitInner(p: Page, pred: (joined: string) => boolean, timeoutMs: number): Promise<boolean> {
+async function waitInner(p: Page, pred: (joined: string) => boolean, timeoutMs: number, read: (p: Page) => Promise<string> = inner): Promise<boolean> {
   const end = Date.now() + timeoutMs;
   while (Date.now() < end) {
-    if (pred(await inner(p))) return true;
+    if (pred(await read(p))) return true;
     await p.waitForTimeout(300);
   }
   return false;
@@ -215,7 +220,8 @@ test("2 · A (BUG-528) — Edit meal → + Add Dish → a saved dish → Just th
     if (w === 1280) {
       // The 1280 pass only photographs the builder with the dish already on the meal.
       await press(page, "Edit");
-      await waitInner(page, (j) => j.includes(fixture.dishTitle), 30_000);
+      const onMeal = await waitInner(page, (j) => j.includes(fixture.dishTitle), 30_000, innerAndFields);
+      notes.push(`A @1280: the added dish is in the builder: ${onMeal}`);
       await snap(page, `A-builder-after-${w}`);
       break;
     }
@@ -226,7 +232,7 @@ test("2 · A (BUG-528) — Edit meal → + Add Dish → a saved dish → Just th
     await snap(page, `A-chooser-${w}`);
     await press(page, new RegExp(escapeRe(fixture.dishTitle)));
     // The full read (GET /dishes/:id) fills the dish before it shows.
-    const filled = await waitInner(page, (j) => j.includes("Long-grain rice"), 20_000);
+    const filled = await waitInner(page, (j) => /long-grain rice/i.test(j), 20_000, innerAndFields);
     notes.push(`A: picked dish filled from its read: ${filled}`);
     expect(filled).toBe(true);
     await press(page, "Save meal");
@@ -265,7 +271,11 @@ test("3 · E (BUG-534) — Prep the Week opens with the prep-area card", async (
 test("4 · B + F + C — Cook Now with no plan item: 'Yes, I prepped' reads through this week's plan, Skip to cooking scrolls, the finish is sent", async () => {
   test.setTimeout(4 * 60_000);
   const before = requests.length;
-  await visit(page, `/cook-session?mealId=${fixture.mealId}`, (j) => /Did you prep this already\?/.test(j), 45_000);
+  // QA-6 — reached in-app (the meal screen's Cook Now, no plan item), as a cook does: a page.goto
+  // straight into /cook-session makes Back a cross-document navigation, which never unmounts the view.
+  await visit(page, `/meal/${fixture.mealId}`, (j) => /Cook Now/.test(j), 45_000);
+  await press(page, "Cook Now");
+  await waitInner(page, (j) => /Did you prep this already\?/.test(j), 45_000);
   await press(page, "Yes, I prepped");
   await waitInner(page, (j) => /Skip to cooking/.test(j), 30_000);
   await page.waitForTimeout(3000); // the plans list, the plan, then the re-read
@@ -290,12 +300,15 @@ test("4 · B + F + C — Cook Now with no plan item: 'Yes, I prepped' reads thro
 
   // C — step to the last live step, then leave: the finish is posted.
   for (let i = 0; i < 40; i++) {
-    const next = page.getByRole("button", { name: /^\s*(Next|Next step)\b/i });
+    // QA-6 — CookFooter's advance button reads "Done — next step" (and is gone on the last live step).
+    const next = page.getByRole("button", { name: /^\s*(Done\s*—\s*next step|Next|Next step)\b/i });
     if ((await next.count()) === 0) break;
     await next.first().click();
     await page.waitForTimeout(150);
   }
-  await page.goBack();
+  notes.push(`C: left on ${/— step \d+ of \d+ —/.exec(await inner(page))?.[0] ?? "(no step label)"}`);
+  await snap(page, "C-last-step-375");
+  await page.getByRole("button", { name: "Go back" }).first().click();
   await page.waitForTimeout(1500);
   const finished = seen("POST", /\/me\/activity\/cook-finished$/);
   notes.push(`C: cook-finished ${finished.map((f) => `${f.body} → ${f.status}`).join(" ; ") || "NOT SENT"}`);

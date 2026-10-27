@@ -343,7 +343,8 @@ test("4b · CLIENT-2b D (D-WS9-321) — Cook Mode: the 'You prepped this' chip f
   const text = n ? ((await chip.innerText()) || "").trim() : "";
   notes.push(`D: ${injected ? "preppedRefs injected into the meal read" : "the server's own preppedRefs"}; chips ${n}; first "${text}"`);
   expect(n).toBeGreaterThan(0);
-  expect(text).toMatch(/^You prepped this · .+/);
+  // QA-6 — the chip's text run starts with its icon glyph and a line break, so no ^ anchor.
+  expect(text).toMatch(/(^|\n)You prepped this · .+/);
   await chip.scrollIntoViewIfNeeded();
   await page.waitForTimeout(400);
   await snap(page, "D-prepped-chip-375");
