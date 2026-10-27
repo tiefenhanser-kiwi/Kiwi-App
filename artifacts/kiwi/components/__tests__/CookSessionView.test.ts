@@ -418,6 +418,27 @@ test("recap: prepped path renders the prep steps under the day heading, above th
   assert.ok(!texts.includes("get your:"), `old recap heading still renders: ${texts}`);
 });
 
+// CLIENT-3 B (BUG-526) — the button used to call a setter that left the anchor
+// where it already was. It still moves the anchor (the route's handler) and now
+// also scrolls; the scroll target is skipToCookingY (lib/cooking), since the
+// test ScrollView takes no ref. A tap must reach the handler and not throw.
+test("CLIENT-3 B: Skip to cooking reaches the route's handler from the recap", () => {
+  let skipped = 0;
+  const r = renderView({
+    prepped: true,
+    showSkipBar: true,
+    recapItems: ["Onions"],
+    doneInPrepKeys: new Set(["0"]),
+    onSkipToCooking: () => void skipped++,
+  });
+  const button = r.root.findAll((n) => n.props.label === "Skip to cooking")[0];
+  assert.ok(button, "the recap carries the button");
+  act(() => {
+    (button.props.onPress as () => void)();
+  });
+  assert.equal(skipped, 1);
+});
+
 test("recap: the heading falls back to 'Already prepped' when no day is known", () => {
   const texts = flat(
     renderView({ prepped: true, recapItems: ["Onions"] }).toJSON() as RenderedNode | null,

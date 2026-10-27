@@ -22,6 +22,7 @@ import {
   resolvePrepGate,
   sequenceMealSteps,
   shouldLoadPrepForCook,
+  skipToCookingY,
   timerRemainingMs,
   type CookStep,
 } from "../cookSession";
@@ -800,6 +801,20 @@ test("K-R7 navigation: the anchor starts on, and steps over to, live steps only"
   // Nothing done in prep → plain positions.
   assert.equal(firstLiveIndex(steps, new Set()), 0);
   assert.equal(lastLiveIndex(steps, new Set()), 3);
+});
+
+// CLIENT-3 B (BUG-526) — "Skip to cooking" scrolls past the recap and the muted
+// "Done in prep" rows to the first step left to cook.
+test("CLIENT-3 B: Skip to cooking targets the first live step's laid-out y", () => {
+  const steps = flattenMealSteps(preppedMeal());
+  const done = new Set([steps[0].key, steps[1].key]);
+  const offsets = { 0: 180, 1: 240, 2: 300, 3: 520 };
+  assert.equal(skipToCookingY(steps, done, offsets), 300);
+  // Nothing done in prep → the first step, below the recap.
+  assert.equal(skipToCookingY(steps, new Set(), offsets), 180);
+  // Not laid out yet → nothing to scroll to (the anchor still moves).
+  assert.equal(skipToCookingY(steps, done, {}), undefined);
+  assert.equal(skipToCookingY([], done, offsets), undefined);
 });
 
 test("K-R7: Cook Mode loads the prep payload only once a prep session has happened", () => {
