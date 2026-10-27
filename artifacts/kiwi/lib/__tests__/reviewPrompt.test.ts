@@ -66,6 +66,7 @@ test("the live half: expo-store-review only after the native check; Cook Mode pa
   assert.match(live, /review\.isAvailableAsync\(\)/);
   assert.ok(live.indexOf("markReviewAsked(state, now)") < live.indexOf("review.requestReview()"), "stamped before asking");
   const route = readFileSync(new URL("../../app/cook-session.tsx", import.meta.url), "utf8");
-  assert.match(route, /onLeaveAfterLastStep=\{\(\) => void noteCookFinished\(signupAt\)\}/);
+  // CLIENT-3 C — the same finish also reports to the server (lib/cookFinished.ts).
+  assert.match(route, /onLeaveAfterLastStep=\{\(\) => \{\s*void noteCookFinished\(signupAt\);\s*reportCookFinished\(/);
   assert.match(route, /const signupAt = useAuth\(\)\.user\?\.createdAt \?\? null;/);
 });

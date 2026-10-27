@@ -284,6 +284,23 @@ export async function sendFeedback(input: {
   });
 }
 
+/**
+ * CLIENT-3 C (LIFE-2 #9) — POST /me/activity/cook-finished: the cook left Cook
+ * Mode on its last live step. 201 { recorded: true }, or 200 { recorded: false }
+ * for the same meal and plan item again within a minute. 404 on a meal that is
+ * neither the member's nor public, and on a server before LIFE-2 (no route).
+ */
+export async function postCookFinished(input: {
+  mealId: string;
+  planItemId?: string;
+}): Promise<void> {
+  await apiClient("/me/activity/cook-finished", {
+    method: "POST",
+    body: input,
+    schema: z.object({ recorded: z.boolean() }),
+  });
+}
+
 // ── Favorites ──────────────────────────────────────────────────────────────
 
 /**
