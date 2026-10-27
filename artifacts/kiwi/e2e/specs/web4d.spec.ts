@@ -23,7 +23,7 @@ import { randomBytes } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 
 import { RUN_DIR, WEB_ORIGIN, assertDevDatabase, ensureRunDir } from "../src/env";
-import { Http, escapeRe, settle, todayYmd } from "./qa1-shared";
+import { Http, escapeRe, settle, skipHowHeard, todayYmd } from "./qa1-shared";
 
 // web4-sweep's corpus: the first is a two-dish meal (so Cook Mode sequences it).
 const MEAL_IDS = ["3424eefa-423c-4be1-a987-8a55c8811576", "80ecaf30-f1de-4e37-8cf2-a5f9e5a0de8d"];
@@ -136,6 +136,7 @@ test("1 · sign-up → onboarding, then a plan from two catalog meals", async ()
   await page.getByPlaceholder("Email").fill(email);
   await page.getByPlaceholder("Password").fill(password);
   await press("Create account");
+  await skipHowHeard(page); // CLIENT-3 D — a new account's question
   expect(await waitPath(/onboarding/, 60_000), "reached onboarding").toBe(true);
   http = new Http(await page.evaluate(() => sessionStorage.getItem("kiwi_authToken") ?? ""));
   await settle(page, { timeoutMs: 30_000 });

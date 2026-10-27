@@ -27,7 +27,7 @@ import { WEB_ORIGIN, ensureRunDir } from "../src/env";
 import { signInThroughUi } from "../src/screen";
 import { ledgerBetween, summarise } from "../src/spend";
 import { preflight, teardown, type Preflight } from "../src/stack";
-import { Http, Ledger, escapeRe, settle, shot, todayYmd, waitForText } from "./qa1-shared";
+import { Http, Ledger, escapeRe, settle, shot, skipHowHeard, todayYmd, waitForText } from "./qa1-shared";
 
 const LABEL = "fix3-qa";
 const ledger = new Ledger(LABEL);
@@ -198,6 +198,7 @@ test("0 · sign-up → onboarding → first Home (BUG-118: new user keeps today'
     await page.getByPlaceholder("Email").fill(email);
     await page.getByPlaceholder("Password").fill(password);
     await press("Create account");
+    await skipHowHeard(page); // CLIENT-3 D — a new account's question
     const ok = await waitPath(/onboarding/, 60_000);
     const token = await page.evaluate(() => sessionStorage.getItem("kiwi_authToken") ?? "");
     http = new Http(token);

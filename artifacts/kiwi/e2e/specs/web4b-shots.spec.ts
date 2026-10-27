@@ -20,7 +20,7 @@ import { randomBytes } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 
 import { RUN_DIR, WEB_ORIGIN, assertDevDatabase, ensureRunDir } from "../src/env";
-import { Http, escapeRe, settle, todayYmd } from "./qa1-shared";
+import { Http, escapeRe, settle, skipHowHeard, todayYmd } from "./qa1-shared";
 
 const WIDTHS = [
   { w: 1280, h: 800 },
@@ -173,6 +173,7 @@ test("1 · sign-up → onboarding, then the fixture plan", async () => {
   await page.getByPlaceholder("Email").fill(email);
   await page.getByPlaceholder("Password").fill(password);
   await press("Create account");
+  await skipHowHeard(page); // CLIENT-3 D — a new account's question
   expect(await waitPath(/onboarding/, 60_000), "reached onboarding").toBe(true);
   http = new Http(await page.evaluate(() => sessionStorage.getItem("kiwi_authToken") ?? ""));
   await settle(page, { timeoutMs: 30_000 });

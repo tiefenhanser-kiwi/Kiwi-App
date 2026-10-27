@@ -257,3 +257,30 @@ export async function scrollAllToBottom(page: Page): Promise<void> {
     }
   });
 }
+
+/**
+ * CLIENT-3 D (ATTR) — a NEW account meets "How did you hear about Kiwi?"
+ * before onboarding (or Home after a claim). Every spec that signs up through
+ * the form walks past it with Skip, right after "Create account". Returns
+ * whether the question showed; a no-op when it does not (an older bundle, a
+ * returning account), once the page has left the sign-up form.
+ */
+export async function skipHowHeard(page: Page, timeoutMs = 45_000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const path = new URL(page.url()).pathname;
+    const text = await page.evaluate(() => document.body.innerText || "");
+    if (/how-heard/.test(path) && text.includes("How did you hear about Kiwi?")) {
+      const skip = page.getByRole("button", { name: /^\s*Skip\s*$/ });
+      if ((await skip.count()) > 0) await skip.first().click();
+      else await clickText(page, "Skip");
+      while (Date.now() < deadline && /how-heard/.test(new URL(page.url()).pathname)) {
+        await page.waitForTimeout(250);
+      }
+      return true;
+    }
+    if (!/sign-up|how-heard/.test(path)) return false;
+    await page.waitForTimeout(300);
+  }
+  return false;
+}
