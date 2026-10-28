@@ -13,13 +13,14 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 
 import { CookSessionView } from "@/components/CookSessionView";
 import { resolveDisplayTitle } from "@/components/DisplayTitle";
 import { Header } from "@/components/Header";
 import { PrepWeekScreen } from "@/components/PrepWeekScreen";
 import { Screen } from "@/components/Screen";
+import { useCookSessionRouter } from "@/hooks/useCookSessionRouter";
 import { useCookingSequence } from "@/hooks/useCookingSequence";
 import { useDish } from "@/hooks/useDish";
 import { useMeal } from "@/hooks/useMeal";
@@ -53,7 +54,9 @@ import { Colors, Spacing, Typography } from "@/constants/tokens";
 const TOAST_MS = 2500;
 
 export default function CookSession() {
-  const router = useRouter();
+  // CLIENT-5 B (BUG-564) — every router.back() below is goBack's: on a direct
+  // load or a reload (no history) it lands on the launching screen, never stuck.
+  const router = useCookSessionRouter();
   const params = useLocalSearchParams<{
     mealId?: string;
     dishId?: string;
