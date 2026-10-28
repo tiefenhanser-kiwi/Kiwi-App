@@ -37,6 +37,7 @@
 import { formatIngredientLine, ingredientAmountNote } from "../format/ingredientLine";
 import { normalizeUnitToken } from "../format/grocery";
 import {
+  chosenBirdName,
   displayedQuantity,
   isFeastMeal,
   lineMultiplier,
@@ -106,11 +107,14 @@ export function consolidateMealIngredients(
   const feast = isFeastMeal(meal.tags);
   // THX-4 — a chosen turkey weight is mealScaleFactors' rule, one rule for both screens.
   const scale = mealScaleFactors(meal.dishes, multiplier, feast, birdLb);
+  // CLIENT-4 B (BUG-537) — and its turkey by count says that weight, as the screen's does.
+  const birdName = chosenBirdName(meal.dishes, birdLb);
   for (const dish of meal.dishes) {
     // WEB-4b (BUG-454) — a whole-bird dish scales by its bird's factor.
     const factor = scale.byDish[dish.dishId];
     const birds = scale.birds[dish.dishId];
-    for (const ing of dish.ingredients) {
+    for (const [i, row] of dish.ingredients.entries()) {
+      const ing = birdName && birdName.dishId === dish.dishId && birdName.index === i ? { ...row, name: birdName.name } : row;
       const unit = (ing.unit ?? "").trim();
       // ⛔ The unit token is the second half of the key. Two units that
       // normalise differently NEVER merge, so cup + head is two lines.

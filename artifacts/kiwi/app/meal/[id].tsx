@@ -51,7 +51,7 @@ import { formatMealTime } from "@/lib/mealTimeLine";
 // keeps the two screens from drifting apart again.
 import { formatIngredientLine, ingredientAmountNote } from "@/lib/format/ingredientLine";
 import { consolidateMealIngredients } from "@/lib/meals/consolidateMealIngredients";
-import { isFeastMeal, mealScaleFactors, type BirdLine } from "@/lib/format/quantity";
+import { chosenBirdName, isFeastMeal, mealScaleFactors, type BirdLine } from "@/lib/format/quantity";
 import { visibleMealTags } from "@/lib/meals/systemTags";
 import {
   flatMealSteps,
@@ -316,6 +316,8 @@ function MealDetailContent({
   // `mealOwned`. THX-4 — a chosen turkey weight replaces the servings in its dish.
   const birdLb = bird ? displayBirdLb : null;
   const scale = mealScaleFactors(meal.dishes, servingsMultiplier, isFeastMeal(meal.tags), birdLb);
+  // CLIENT-4 B (BUG-537) — a turkey by count says the chosen weight: "1 whole turkey (16 lb)".
+  const birdName = chosenBirdName(meal.dishes, birdLb);
   const birdShown = bird
     ? shownBirdLb({ stepper: bird, displayLb: displayBirdLb, meal, displayServings, servingsMultiplier })
     : null;
@@ -831,7 +833,10 @@ function MealDetailContent({
               {dish.ingredients.map((ing, i) => (
                 <React.Fragment key={i}>
                   <Text style={s.ingredientLine}>
-                    {formatIngredientLine(ing, { multiplier: scale.byDish[dish.dishId], birds: scale.birds[dish.dishId] })}
+                    {formatIngredientLine(
+                      birdName && birdName.dishId === dish.dishId && birdName.index === i ? { ...ing, name: birdName.name } : ing,
+                      { multiplier: scale.byDish[dish.dishId], birds: scale.birds[dish.dishId] },
+                    )}
                   </Text>
                   {/* WEB-4 — an egg rounded to a whole shows its true amount. */}
                   <IngredientAmountNote
