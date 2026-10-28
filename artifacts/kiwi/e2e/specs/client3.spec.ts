@@ -236,7 +236,8 @@ test("2 · A (BUG-528) — Edit meal → + Add Dish → a saved dish → Just th
     notes.push(`A: picked dish filled from its read: ${filled}`);
     expect(filled).toBe(true);
     await press(page, "Save meal");
-    await waitInner(page, (j) => /Added dishes are saved to the recipe\./.test(j), 15_000);
+    // CLIENT-4 A — Hans's add-dish note replaced "Added dishes are saved to the recipe."
+    await waitInner(page, (j) => /Added dishes are saved to the recipe, so they'll be there every time you cook it\./.test(j), 15_000);
     await snap(page, `A-save-prompt-${w}`);
     await press(page, "Just this time");
     await waitInner(page, (j) => /Saved for this plan/.test(j), 30_000);

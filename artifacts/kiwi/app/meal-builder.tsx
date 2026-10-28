@@ -82,6 +82,8 @@ import {
   newDish as makeNewDish,
   newIngredient as makeNewIngredient,
   newStep as makeNewStep,
+  applyAlwaysSavedMessage,
+  justThisTimeSavedMessage,
   recipeEditsLine,
   stepEditsPresent,
   validateManualSave,
@@ -731,14 +733,10 @@ export default function MealBuilderScreen() {
           bumpPlanId: planId,
         });
       }
-      const recipeLine = recipeEditsLine(edits, "were");
-      dialog.alert(
-        "Saved for this plan",
-        recipeLine
-          ? `${input.title} was updated here. ${recipeLine}`
-          : `${input.title} was updated here.`,
-        [{ text: "OK", onPress: () => router.back() }],
-      );
+      // CLIENT-4 A — an added dish has Hans's own confirmation.
+      dialog.alert("Saved for this plan", justThisTimeSavedMessage(input.title, edits), [
+        { text: "OK", onPress: () => router.back() },
+      ]);
     } catch (err) {
       const msg =
         err instanceof Error && err.message
@@ -766,11 +764,15 @@ export default function MealBuilderScreen() {
   // template PATCH fails; a failure of either surfaces the shared error Alert
   // rather than half-applying silently. Library-context edits pass neither
   // bumpPlanId nor overridePlanItemId → template-only, unchanged.
+  //
+  // CLIENT-4 A — `dishAdds` (the plan prompt's "Apply always" only): the
+  // confirmation says the added dish is in the recipe.
   const runUpdateMeal = async (
     id: string,
     input: SaveMealInput,
     bumpPlanId?: string,
     overridePlanItemId?: string,
+    dishAdds = false,
   ) => {
     if (savingRef.current) return;
     savingRef.current = true;
@@ -790,7 +792,7 @@ export default function MealBuilderScreen() {
       // Block 2c Part A — a "Review ›" edit from the bulk intake's sheet
       // flips that row to Reviewed ✓ on save.
       if (reviewReturn === "playlist") markImportReviewed(id);
-      dialog.alert("Saved", `${input.title} was updated.`, [
+      dialog.alert("Saved", applyAlwaysSavedMessage(input.title, dishAdds), [
         { text: "OK", onPress: () => router.back() },
       ]);
     } catch (err) {
@@ -878,12 +880,14 @@ export default function MealBuilderScreen() {
       // BUG-252 — the mode is chosen only here, at save time (a native Alert
       // has no per-button sub-copy), so the one-line notice that step changes
       // reach the recipe on either choice goes in the Alert's message.
-      // CLIENT-3 A (BUG-528) — and so do added dishes.
+      // CLIENT-3 A (BUG-528) — and so do added dishes. CLIENT-4 A — Hans
+      // placed that note under the choices; a native Alert has no text below
+      // its buttons, so it stays in the message, where this line always was.
       const edits = {
         stepEdits: sourceMeal ? stepEditsPresent(sourceMeal, input) : false,
         dishAdds: sourceMeal ? dishAddsPresent(sourceMeal, input) : false,
       };
-      const recipeLine = recipeEditsLine(edits, "are");
+      const recipeLine = recipeEditsLine(edits);
       dialog.alert(
         "Save changes",
         recipeLine
@@ -909,7 +913,7 @@ export default function MealBuilderScreen() {
               // WS7-7-A B5 follow-on (D-WS7-141 Fix 1b) — also write the
               // per-instance override (planItemId) so this plan keeps the edit
               // from the same on-screen dishes.
-              void runUpdateMeal(mealId, input, planId, planItemId);
+              void runUpdateMeal(mealId, input, planId, planItemId, edits.dishAdds);
             },
           },
           { text: "Cancel", style: "cancel" },

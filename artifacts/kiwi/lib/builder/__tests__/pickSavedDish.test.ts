@@ -10,6 +10,7 @@
 // override and the recipe PATCH body the screen sends.
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import {
@@ -19,6 +20,7 @@ import {
   type PickSavedDishDeps,
 } from "../pickSavedDish";
 import {
+  applyAlwaysSavedMessage,
   buildManualSaveMealInput,
   buildRecipeOverride,
   buildStepEditMealInput,
@@ -26,6 +28,7 @@ import {
   dishAddsPresent,
   dishDetailToBuilderDish,
   hydrateBuilderDishesFromMeal,
+  justThisTimeSavedMessage,
   pickSavedDishToBuilderDish,
   recipeEditsLine,
   serializeNewDishesForSave,
@@ -297,12 +300,44 @@ test("A: no dish added → no recipe write for it (an untouched plan edit stays 
   assert.equal(buildStepEditMealInput(loaded, input).dishes.length, 1);
 });
 
-test("A: the save prompt and the confirmation say what goes to the recipe", () => {
-  assert.equal(recipeEditsLine({ stepEdits: false, dishAdds: false }, "are"), null);
-  assert.equal(recipeEditsLine({ stepEdits: true, dishAdds: false }, "are"), "Step changes are saved to the recipe.");
-  assert.equal(recipeEditsLine({ stepEdits: false, dishAdds: true }, "are"), "Added dishes are saved to the recipe.");
+// CLIENT-4 A — Hans's add-dish copy (Oct 27), as literals.
+const PROMPT_NOTE =
+  "Added dishes are saved to the recipe, so they'll be there every time you cook it. Adding a dish to one meal only is in a future release.";
+const JUST_THIS_TIME =
+  "Your other changes are just for this meal. The new dish is saved to the recipe. Adding a dish to one meal only is in a future release.";
+
+test("CLIENT-4 A: the save prompt's note is Hans's, only when the edit adds a dish", () => {
+  assert.equal(recipeEditsLine({ stepEdits: false, dishAdds: false }), null);
+  assert.equal(recipeEditsLine({ stepEdits: true, dishAdds: false }), "Step changes are saved to the recipe.");
+  assert.equal(recipeEditsLine({ stepEdits: false, dishAdds: true }), PROMPT_NOTE);
+  assert.equal(recipeEditsLine({ stepEdits: true, dishAdds: true }), `Step changes are saved to the recipe. ${PROMPT_NOTE}`);
+});
+
+test("CLIENT-4 A: Just this time with an added dish says the dish is in the recipe", () => {
+  assert.equal(justThisTimeSavedMessage("Tacos", { stepEdits: false, dishAdds: true }), JUST_THIS_TIME);
   assert.equal(
-    recipeEditsLine({ stepEdits: true, dishAdds: true }, "were"),
-    "Step changes and added dishes were saved to the recipe.",
+    justThisTimeSavedMessage("Tacos", { stepEdits: true, dishAdds: true }),
+    `Step changes were saved to the recipe. ${JUST_THIS_TIME}`,
   );
+  // No dish added: the message is as before.
+  assert.equal(justThisTimeSavedMessage("Tacos", { stepEdits: false, dishAdds: false }), "Tacos was updated here.");
+  assert.equal(
+    justThisTimeSavedMessage("Tacos", { stepEdits: true, dishAdds: false }),
+    "Tacos was updated here. Step changes were saved to the recipe.",
+  );
+});
+
+test("CLIENT-4 A: Apply always with an added dish confirms it is in the recipe", () => {
+  assert.equal(applyAlwaysSavedMessage("Tacos", true), "Added to the recipe. It'll be there next time too.");
+  assert.equal(applyAlwaysSavedMessage("Tacos", false), "Tacos was updated.");
+});
+
+test("CLIENT-4 A: the builder screen says them (prompt, Just this time, Apply always from the plan only)", () => {
+  const screen = readFileSync(new URL("../../../app/meal-builder.tsx", import.meta.url), "utf8");
+  assert.match(screen, /const recipeLine = recipeEditsLine\(edits\);/);
+  assert.match(screen, /dialog\.alert\("Saved for this plan", justThisTimeSavedMessage\(input\.title, edits\)/);
+  assert.match(screen, /dialog\.alert\("Saved", applyAlwaysSavedMessage\(input\.title, dishAdds\)/);
+  assert.match(screen, /void runUpdateMeal\(mealId, input, planId, planItemId, edits\.dishAdds\);/);
+  // The library edit (no prompt) passes no dishAdds: its confirmation is unchanged.
+  assert.match(screen, /void runUpdateMeal\(mealId, input\);/);
 });
