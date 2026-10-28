@@ -46,9 +46,9 @@ test("CLIENT-3 E: n is the session's count, not the list's (the week's list is c
 });
 
 test("CLIENT-3 E: one container reads singular; a title without a count falls back to the list", () => {
-  const one = prepAreaCard({ stepKey: "feast-labels", title: "Label 1 container", instructions: "Write these on tape, one per container: Gravy base." });
+  const one = prepAreaCard({ stepKey: "feast#feast-labels", title: "Label 1 container", instructions: "Write these on tape, one per container: Gravy base." });
   assert.ok(one?.body.includes("fill 1 container."), one?.body);
-  const noCount = prepAreaCard({ stepKey: "feast-labels", title: "Labels", instructions: "Write these on tape, one per container: X · Y." });
+  const noCount = prepAreaCard({ stepKey: "feast#feast-labels", title: "Labels", instructions: "Write these on tape, one per container: X · Y." });
   assert.ok(noCount?.body.includes("fill 2 containers"), noCount?.body);
 });
 
@@ -71,4 +71,16 @@ test("CLIENT-3 E: instructions in another form keep the server's text; no count 
   assert.equal(odd?.title, "Set up your prep area");
   assert.equal(prepAreaCard({ stepKey: "week-labels", title: "Labels", instructions: "Grab two jars." }), null);
   assert.equal(prepAreaCard({ stepKey: "produce#onions", title: "Label 2 containers", instructions: "x: A · B" }), null);
+});
+
+// CLIENT-5 A (BUG-571) — the feast session's steps are served `feast#…`
+// (prepWeekBuild.ts withFeastKeys): the card is the served key's, and the bare
+// key the client looked for (which never arrives) is not a label step.
+test("CLIENT-5 A: the feast's label step is matched by its served key", () => {
+  const feast = { title: "Label 13 containers", instructions: "Write these on tape, one per container: A · B.", labelCount: 13 };
+  assert.ok(prepAreaCard({ ...feast, stepKey: "feast#feast-labels" })?.body.includes("fill 13 containers"));
+  assert.equal(prepAreaCard({ ...feast, stepKey: "feast-labels" }), null);
+  // The week's is served bare, as before.
+  assert.ok(prepAreaCard({ ...feast, stepKey: "week-labels" })?.body.includes("fill 13 containers"));
+  assert.equal(prepAreaCard({ ...feast, stepKey: "feast#week-labels" }), null);
 });

@@ -678,7 +678,7 @@ test("CLIENT-2 B1: Skip shows with the label step unticked, and still once it is
 });
 
 test("CLIENT-2 B1: Prep the feast's unticked label step shows Skip too", () => {
-  const texts = flat(renderView({ phaseIndex: 0, session: "feast", resultOverride: labelled("feast-labels", true) }).toJSON() as RenderedNode | null);
+  const texts = flat(renderView({ phaseIndex: 0, session: "feast", resultOverride: labelled("feast#feast-labels", true) }).toJSON() as RenderedNode | null);
   assert.ok(texts.includes("Skip this Prep"), texts);
 });
 
@@ -716,7 +716,7 @@ test("CLIENT-3 E: the label step reads as 'Set up your prep area', the body, the
     assert.equal(style.fontFamily, Typography.face.sans[400]);
   }
   // Prep the feast's label step is the same card; a step that is not one is untouched.
-  const feast = flat(renderView({ phaseIndex: 0, session: "feast", resultOverride: labelled("feast-labels", true) }).toJSON() as RenderedNode | null);
+  const feast = flat(renderView({ phaseIndex: 0, session: "feast", resultOverride: labelled("feast#feast-labels", true) }).toJSON() as RenderedNode | null);
   assert.ok(feast.includes("Set up your prep area") && feast.includes(body), feast);
   const produce = flat(renderView({ phaseIndex: 2, resultOverride: labelled() }).toJSON() as RenderedNode | null);
   assert.ok(!produce.includes("Set up your prep area"), produce);
