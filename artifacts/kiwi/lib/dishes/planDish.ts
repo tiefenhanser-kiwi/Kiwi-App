@@ -9,7 +9,7 @@
 
 import type { MealDetail } from "@/lib/api/meals";
 import { resolveAmountMultiplier } from "@/lib/cooking/cookSession";
-import { chosenBird, isFeastMeal, type BirdLine } from "@/lib/format/quantity";
+import { chosenBird, chosenBirdName, isFeastMeal, type BirdLine } from "@/lib/format/quantity";
 
 type MealDish = MealDetail["dishes"][number];
 
@@ -24,7 +24,15 @@ export interface PlanDishView {
   /** THX-4 — the dish holds the meal's turkey and the cook chose its weight: every
    *  line follows `factor` (chosen ÷ the recipe's) and `birds` (one bird), not the
    *  servings. Absent otherwise. */
-  chosenBird?: { factor: number; birds: BirdLine };
+  chosenBird?: {
+    factor: number;
+    birds: BirdLine;
+    /** CLIENT-5 C (D-WS9-339) — a turkey by count: its row (index into dish.ingredients)
+     *  and the name it shows at the chosen weight, "whole turkey (16 lb)", as meal detail
+     *  shows it (CLIENT-4 B chosenBirdName). DISPLAY ONLY: `factor` is read from the
+     *  recipe's own name. Absent for a turkey by weight (its amount says the weight). */
+    birdName?: { index: number; name: string };
+  };
 }
 
 /** Null when the meal does not hold the dish (a swapped-out dish, a stale link). */
@@ -32,11 +40,13 @@ export function planDishView(meal: MealDetail, dishId: string): PlanDishView | n
   const dish = meal.dishes.find((d) => d.dishId === dishId);
   if (!dish) return null;
   const bird = chosenBird(meal.dishes, meal.birdWeightLb);
+  const named = chosenBirdName(meal.dishes, meal.birdWeightLb);
+  const birdName = named && named.dishId === dishId ? { birdName: { index: named.index, name: named.name } } : {};
   return {
     dish,
     servings: meal.effectiveServings,
     multiplier: resolveAmountMultiplier(meal.effectiveServings, meal.authoredServingsDefault),
     feast: isFeastMeal(meal.tags),
-    ...(bird && bird.dishId === dishId ? { chosenBird: { factor: bird.factor, birds: bird.birds } } : {}),
+    ...(bird && bird.dishId === dishId ? { chosenBird: { factor: bird.factor, birds: bird.birds, ...birdName } } : {}),
   };
 }
