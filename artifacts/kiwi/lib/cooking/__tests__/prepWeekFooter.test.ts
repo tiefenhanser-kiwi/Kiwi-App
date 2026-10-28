@@ -52,6 +52,19 @@ test("CLIENT-3 E: one container reads singular; a title without a count falls ba
   assert.ok(noCount?.body.includes("fill 2 containers"), noCount?.body);
 });
 
+test("CLIENT-4 E: SERVER-7's labelCount is the count; absent, the title's N, then the list", () => {
+  const step = { stepKey: "week-labels", title: "Label 3 containers", instructions: "Write these on tape, one per container: A · B · C." };
+  assert.ok(prepAreaCard({ ...step, labelCount: 3 })?.body.includes("fill 3 containers"));
+  // Where the two differ, the number wins (the title is kept for older clients).
+  assert.ok(prepAreaCard({ ...step, labelCount: 12 })?.body.includes("fill 12 containers"));
+  assert.ok(prepAreaCard({ ...step, title: "Labels", labelCount: 1 })?.body.includes("fill 1 container."));
+  // Fallbacks: no number → the title; no number and no title count → the list.
+  assert.ok(prepAreaCard(step)?.body.includes("fill 3 containers"));
+  assert.ok(prepAreaCard({ ...step, title: "Labels" })?.body.includes("fill 3 containers"));
+  // A number on a step that is not the label step changes nothing.
+  assert.equal(prepAreaCard({ ...step, stepKey: "produce#onions", labelCount: 3 }), null);
+});
+
 test("CLIENT-3 E: instructions in another form keep the server's text; no count at all keeps the server's step", () => {
   const odd = prepAreaCard({ stepKey: "week-labels", title: "Label 2 containers", instructions: "Grab two jars." });
   assert.equal(odd?.labels, null);

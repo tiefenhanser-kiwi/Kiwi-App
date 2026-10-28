@@ -78,11 +78,17 @@ export function prepAreaLabels(instructions: string): string[] | null {
 }
 
 /**
- * {n} — the session's own count: the N of the server's "Label N containers"
- * (the week's list is cut at 800 characters, the count is not), else the
- * list's length; null when neither is there.
+ * {n} — the session's own count: the step's labelCount (CLIENT-4 E, SERVER-7
+ * D's number), else the N of the server's "Label N containers" (the week's list
+ * is cut at 800 characters, the count is not), else the list's length; null
+ * when none is there.
  */
-export function prepAreaCount(title: string, labels: readonly string[] | null): number | null {
+export function prepAreaCount(
+  title: string,
+  labels: readonly string[] | null,
+  labelCount?: number,
+): number | null {
+  if (labelCount !== undefined && Number.isInteger(labelCount) && labelCount > 0) return labelCount;
   const m = /^Label (\d+) containers?$/.exec(title.trim());
   if (m) return Number(m[1]);
   return labels ? labels.length : null;
@@ -96,10 +102,15 @@ export interface PrepAreaCard {
 }
 
 /** The card for a label step; null when the step does not carry a count. */
-export function prepAreaCard(step: { stepKey: string; title: string; instructions: string }): PrepAreaCard | null {
+export function prepAreaCard(step: {
+  stepKey: string;
+  title: string;
+  instructions: string;
+  labelCount?: number;
+}): PrepAreaCard | null {
   if (!LABEL_STEP_KEYS.includes(step.stepKey)) return null;
   const labels = prepAreaLabels(step.instructions);
-  const n = prepAreaCount(step.title, labels);
+  const n = prepAreaCount(step.title, labels, step.labelCount);
   if (n === null) return null;
   return { title: PREP_AREA_TITLE, body: prepAreaBody(n), labels };
 }

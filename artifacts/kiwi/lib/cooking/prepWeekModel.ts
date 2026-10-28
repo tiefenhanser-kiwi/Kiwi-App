@@ -66,6 +66,8 @@ export interface PrepStepVM {
   skipSuggested: boolean;
   /** Completion state — true when its stepKey is in the checked set. */
   done: boolean;
+  /** CLIENT-4 E — the label step's count (SERVER-7), when the server sends it. */
+  labelCount?: number;
 }
 
 /** One phase (always 4, fixed server order), with a done rollup. */
@@ -209,6 +211,7 @@ export function buildPrepWeekModel(
         storageNote: step.storageNote && remapCitations(step.storageNote),
         skipSuggested: step.skipSuggested ?? false,
         done: checked.has(step.stepKey),
+        ...(step.labelCount !== undefined ? { labelCount: step.labelCount } : {}),
       };
     });
 

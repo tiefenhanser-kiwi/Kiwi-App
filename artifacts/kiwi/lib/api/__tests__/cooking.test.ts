@@ -683,3 +683,27 @@ test("prepWeekQueryKey: the feast session is its own cache entry", () => {
   assert.notDeepEqual(feast, prepWeekQueryKey("plan-1"));
   assert.notDeepEqual(feast, prepWeekQueryKey("plan-1", [M1]));
 });
+
+// CLIENT-4 E — SERVER-7 D's labelCount on the label step comes out the other side
+// (Zod drops an unknown key silently, so the parse alone proves nothing).
+test("getPrepWeek keeps the label step's labelCount; a step without one parses as before", async () => {
+  const result = structuredClone(PREP_RESULT) as typeof PREP_RESULT;
+  const steps = result.phases[0].steps as Array<Record<string, unknown>>;
+  steps.unshift({
+    number: 1,
+    stepKey: "week-labels",
+    title: "Label 2 containers",
+    labelCount: 2,
+    instructions: "Write these on tape, one per container: Monday plate · Lemon juice.",
+    estimatedMinutes: 1,
+    contributesToMealIds: [M1],
+    holdsNoContainer: true,
+  });
+  nextResponse = () => mockJson({ ...HIT_ENVELOPE, result });
+  const out = await getPrepWeek("plan-1");
+  assert.equal(out.kind, "ok");
+  if (out.kind !== "ok") return;
+  const all = out.envelope.result.phases.flatMap((p) => p.steps);
+  assert.equal(all.find((s) => s.stepKey === "week-labels")?.labelCount, 2);
+  assert.ok(all.filter((s) => s.stepKey !== "week-labels").every((s) => s.labelCount === undefined));
+});

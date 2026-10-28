@@ -722,6 +722,24 @@ test("CLIENT-3 E: the label step reads as 'Set up your prep area', the body, the
   assert.ok(!produce.includes("Set up your prep area"), produce);
 });
 
+// CLIENT-4 E — the card's {n} is SERVER-7's labelCount when the step carries it,
+// the title's N when it does not (a server before SERVER-7, a stale feast title).
+test("CLIENT-4 E: the card reads the step's labelCount; without one, the title", () => {
+  const withCount = (labelCount: number, title = "Label 2 containers"): PrepWeekResult => {
+    const r = labelled();
+    r.phases[0].steps[0] = { ...r.phases[0].steps[0], title, labelCount };
+    return r;
+  };
+  const fill = (r: PrepWeekResult) => {
+    const texts = flat(renderView({ phaseIndex: 0, resultOverride: r }).toJSON() as RenderedNode | null);
+    return /you'll fill (\d+) containers?\./.exec(texts)?.[1];
+  };
+  // A number the title does not say proves which one is read.
+  assert.equal(fill(withCount(5)), "5");
+  assert.equal(fill(withCount(3, "Labels")), "3");
+  assert.equal(fill(labelled()), "2", "no labelCount: the title's N, as before");
+});
+
 test("CLIENT-1 3: BUG-020 stands — a non-skippable phase with no label step (Produce) keeps Skip", () => {
   const texts = flat(renderView({ phaseIndex: 2, resultOverride: labelled() }).toJSON() as RenderedNode | null);
   assert.ok(texts.includes("Skip this Prep"), texts);
