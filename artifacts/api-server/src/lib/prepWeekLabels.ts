@@ -358,6 +358,8 @@ export function labelWeekResult(result: PrepWeekResult, labels: { map: ReadonlyM
 //   later:  "Into the {label}:"                 → "Into the {label} bowl:"
 //           "{label} (… already in it): add"    → "Into the {label} bowl (… already in it), add:"
 //           "into the {label}" / "… container"  → "into the {label} bowl"
+//   SERVER-7 E (BUG-554), a sentence ending "… for the {label}.":
+//           first " — into a small bowl for the {label}.", later " — into the {label} bowl."
 //
 // Usually the first is the mix's own dry step; a mix whose first ingredient is squeezed
 // citrus (the Caesar's lemon juice) gets its bowl on that produce line.
@@ -382,20 +384,27 @@ export function mixBowlWording(result: PrepWeekResult, kinds: ReadonlyMap<string
   if (mixes.length === 0) return result;
   const alt = mixes.map(escapeRegExp).join("|");
   // The three shapes in one pass, left to right, so "first" is the text's own order.
+  // SERVER-7 E (BUG-554) — a fourth: a produce sentence the narrator ended "… for the
+  // {label}." ("Juice oranges to get 3 tbsp fresh orange juice for the Tacos marinade.")
+  // is said as the produce lines are: " — into a small bowl for the {label}" first, then
+  // " — into the {label} bowl". Only at a sentence's end, and never after a vessel's word
+  // ("Get a small container ready for the Meat spices" is the narrator's own opening).
   const shapes = new RegExp(
     `(^|\\n)Into the (${alt}):` +
       `|(^|\\n)(${alt}) \\(([^()\\n]*) already in it\\): add\\b:?` +
-      `|\\binto the (${alt})(?: container)?(?![\\w'’-]| bowl| \\d)`,
+      `|\\binto the (${alt})(?: container)?(?![\\w'’-]| bowl| \\d)` +
+      `|(?<!\\b(?:bowl|container|ready|jar|bag|tub|tray|plate)) for the (${alt})(?=\\.?(?:\\n|$))`,
     "g",
   );
   const introduced = new Set<string>();
   const say = (text: string, seen: Set<string>) =>
-    text.replace(shapes, (_m, lead1?: string, l1?: string, lead2?: string, l2?: string, held?: string, l3?: string) => {
-      const label = (l1 ?? l2 ?? l3)!;
+    text.replace(shapes, (_m, lead1?: string, l1?: string, lead2?: string, l2?: string, held?: string, l3?: string, l4?: string) => {
+      const label = (l1 ?? l2 ?? l3 ?? l4)!;
       const first = !seen.has(label);
       seen.add(label);
       if (l1 !== undefined) return first ? `${lead1}Get a small bowl for the ${label}. Into the bowl:` : `${lead1}Into the ${label} bowl:`;
       if (l2 !== undefined) return `${lead2}Into the ${label} bowl (${held} already in it), add:`;
+      if (l4 !== undefined) return first ? ` — into a small bowl for the ${label}` : ` — into the ${label} bowl`;
       return first ? `into a small bowl for the ${label}` : `into the ${label} bowl`;
     });
   // A field that would overflow keeps its words, and what it named is not "introduced";

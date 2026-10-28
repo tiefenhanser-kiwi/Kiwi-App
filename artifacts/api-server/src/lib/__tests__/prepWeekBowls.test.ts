@@ -78,6 +78,42 @@ describe("mixBowlWording — BUG-534", () => {
     assert.equal(texts(mixBowlWording(week([step("l", long)]), KINDS))[0], long);
   });
 
+  // SERVER-7 E (BUG-554) — the shapes are dev's stored narrations.
+  it("a produce sentence ending 'for the {label}' gets the bowl: first a small one, later the label's", () => {
+    const kinds = new Map([["Tacos marinade", "mix"], ["Caesar sauce", "mix"], ["Poke marinade 2", "mix"], ["Poke marinade", "mix"], ["Meat spices", "mix"]]);
+    const out = mixBowlWording(
+      week(
+        [step("dry", "Into the Tacos marinade:\n1 tsp ground cumin")],
+        [
+          step("orange", "Juice oranges to get 3 tbsp fresh orange juice for the Tacos marinade."),
+          step("lemon", "Juice enough lemon to make 2 tbsp of fresh lemon juice for the Caesar sauce."),
+          step("lemon2", "Squeeze 1 tbsp lemon juice for the Caesar sauce"),
+          step("onion", "Thinly slice 4 green onions, keeping the whites and greens separate for the Poke marinade 2."),
+        ],
+      ),
+      kinds,
+    );
+    assert.deepEqual(texts(out), [
+      "Get a small bowl for the Tacos marinade. Into the bowl:\n1 tsp ground cumin",
+      "Juice oranges to get 3 tbsp fresh orange juice — into the Tacos marinade bowl.",
+      "Juice enough lemon to make 2 tbsp of fresh lemon juice — into a small bowl for the Caesar sauce.",
+      "Squeeze 1 tbsp lemon juice — into the Caesar sauce bowl",
+      "Thinly slice 4 green onions, keeping the whites and greens separate — into a small bowl for the Poke marinade 2.",
+    ]);
+  });
+
+  it("'for the {label}' mid-sentence, or after a vessel's word, keeps its words", () => {
+    const kinds = new Map([["Meat spices", "mix"], ["Tacos marinade", "mix"]]);
+    const keep = [
+      "Get a small container for the Meat spices and measure its spices into it:",
+      "Get a small container ready for the Meat spices. Measure and combine:",
+      "Get a small container or pinch bowl for the Meat spices.",
+      "Juice 1 orange for the Tacos marinade and the salsa, then set it aside.",
+      "Juice 1 orange for the Tacos marinades.",
+    ];
+    assert.deepEqual(texts(mixBowlWording(week(keep.map((t, i) => step(`k${i}`, t))), kinds)), keep);
+  });
+
   it("no mix labels: the week is returned as it was", () => {
     const w = week([step("a", "Into the Lemon juice tub: 1 tbsp")]);
     assert.equal(mixBowlWording(w, new Map([["Lemon juice", "shared"]])), w);
