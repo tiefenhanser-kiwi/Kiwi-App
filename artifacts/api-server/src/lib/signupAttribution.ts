@@ -13,6 +13,8 @@
 //   • Each value is a string, trimmed, control characters removed, cut to 120
 //     characters. A non-string, or a string that is empty after that, is dropped.
 //   • Nothing usable at all → null, so the column says "no link" rather than {}.
+//     A landing path of bare "/" with nothing beside it is nothing usable
+//     (D-WS9-336); beside a ref or a utm tag it is kept.
 //   • WRITE-ONCE: only createAccountInTx writes it. An existing account signing
 //     in with an attribution body changes nothing.
 //
@@ -40,8 +42,14 @@ export function sanitizeAttribution(raw: unknown): SignupAttribution | null {
     const clean = v.replace(CONTROL, "").trim().slice(0, ATTRIBUTION_VALUE_MAX).trim();
     if (clean.length > 0) out[key] = clean;
   }
+  // SERVER-7 C (D-WS9-336) — a bare "/" is where every visitor lands, so alone it is
+  // not attribution. A ref, a utm tag or any other path (a shared deep link) is.
+  if (Object.keys(out).length === 1 && out.landingPath !== undefined && BARE_LANDING.test(out.landingPath)) return null;
   return Object.keys(out).length > 0 ? out : null;
 }
+
+// "/", "//", "/?x=1", "/#top": the root with nothing a link put there.
+const BARE_LANDING = /^\/*(?:[?#].*)?$/;
 
 /** "How did you hear about Kiwi?" — the fixed list PATCH /me/profile accepts. */
 export const SIGNUP_HOW_HEARD = [

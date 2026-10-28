@@ -21,6 +21,15 @@ describe("sanitizeAttribution", () => {
     }
   });
 
+  it("SERVER-7 C (D-WS9-336): a bare / alone is no link; with a ref or utm, or any other path, it is", () => {
+    for (const p of ["/", " / ", "//", "/?x=1", "/#top"]) assert.equal(sanitizeAttribution({ landingPath: p }), null, p);
+    assert.deepEqual(sanitizeAttribution({ landingPath: "/welcome" }), { landingPath: "/welcome" });
+    assert.deepEqual(sanitizeAttribution({ landingPath: "/plan/abc" }), { landingPath: "/plan/abc" });
+    assert.deepEqual(sanitizeAttribution({ ref: "maya", landingPath: "/" }), { ref: "maya", landingPath: "/" });
+    assert.deepEqual(sanitizeAttribution({ utmSource: "ig", landingPath: "/" }), { utmSource: "ig", landingPath: "/" });
+    assert.equal(cameFromLine({ landingPath: "/" }), null);
+  });
+
   it("the howHeard list is the eight answers, in the client's order", () => {
     assert.deepEqual([...SIGNUP_HOW_HEARD], ["friend", "instagram", "tiktok", "reddit", "google", "app_store", "creator", "other"]);
   });

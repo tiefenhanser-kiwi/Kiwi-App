@@ -168,7 +168,8 @@ describe("SERVER-6 A — attribution on POST /auth/signup, howHeard on PATCH /me
   });
 
   it("a body without one, or with nothing usable, writes no attribution; a bad shape is not a 400", async () => {
-    for (const attribution of [undefined, null, "ref=maya", ["maya"], { ref: 5 }, { other: "x" }, { ref: "   " }]) {
+    // SERVER-7 C (D-WS9-336) — a bare "/" alone is no link either.
+    for (const attribution of [undefined, null, "ref=maya", ["maya"], { ref: 5 }, { other: "x" }, { ref: "   " }, { landingPath: "/" }]) {
       const res = await signup(attribution === undefined ? {} : { attribution });
       assert.equal(res.status, 201, `attribution ${JSON.stringify(attribution)}`);
       assert.equal("signupAttribution" in prisma._created()!, false);
