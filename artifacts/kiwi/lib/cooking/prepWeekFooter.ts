@@ -33,9 +33,12 @@ export function prepWeekFooterLine(
 // `false` on Produce and Proteins, PREP-3 3b on the label step's phase, and
 // the footer reads neither.
 
-/** The server's label step keys (prepWeekLabels.ts WEEK_LABEL_STEP_KEY,
- *  prepFeastLabels.ts FEAST_LABEL_STEP_KEY). */
-export const LABEL_STEP_KEYS: readonly string[] = ["week-labels", "feast-labels"];
+/** The server's label step keys AS SERVED (prepWeekLabels.ts WEEK_LABEL_STEP_KEY,
+ *  prepFeastLabels.ts FEAST_LABEL_STEP_KEY). CLIENT-5 A (BUG-571): every step of
+ *  the feast session goes out with FEAST_KEY_PREFIX (prepWeekBuild.ts
+ *  withFeastKeys), so the feast's is `feast#feast-labels`; the bare key never
+ *  reaches the client. */
+export const LABEL_STEP_KEYS: readonly string[] = ["week-labels", "feast#feast-labels"];
 
 export function prepShowsSkip(onLastPhase: boolean): boolean {
   return !onLastPhase;
