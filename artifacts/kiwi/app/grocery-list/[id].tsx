@@ -3,8 +3,10 @@ import {
   ActivityIndicator,
   BackHandler,
   Keyboard,
+  Platform,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -18,6 +20,7 @@ import { Button } from "@/components/Button";
 import { ClarifySheetView } from "@/components/ClarifySheetView";
 import { Header } from "@/components/Header";
 import { BillingNotice } from "@/components/BillingNotice";
+import { GroceryShareSheet } from "@/components/GroceryShareSheet";
 import { InstacartOrderPanel } from "@/components/InstacartOrderPanel";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { focusAddItemInput } from "@/lib/groceryAddAnchor";
@@ -46,6 +49,7 @@ import {
   type PurchaseEditorFields,
 } from "@/lib/format/grocery";
 import { recurringDetail } from "@/lib/format/recurringLine";
+import { groceryShareText, groceryShareTitle, sendGroceryList } from "@/lib/groceryShare";
 import { parseQuantity } from "@/lib/quantity";
 import { groceryStaleNotice } from "@/lib/billing/subscriptionView";
 import { useBilling } from "@/contexts/BillingContext";
@@ -388,6 +392,8 @@ export default function GroceryListDetail() {
   const [clarifyIndex, setClarifyIndex] = useState(0);
   const [clarifyOtherText, setClarifyOtherText] = useState("");
   const [clarifyOtherOpen, setClarifyOtherOpen] = useState(false);
+  // CLIENT-5 D (BUG-570) — the web's "Send list" sheet: the text while open.
+  const [shareText, setShareText] = useState<string | null>(null);
 
   if (loadStatus === "loading") {
     return (
@@ -995,6 +1001,25 @@ export default function GroceryListDetail() {
     ? `${list.planName} · This Week`
     : list.planName;
 
+  // CLIENT-5 D (BUG-570) — "Send list": the unchecked rows as plain text, to
+  // whatever the phone offers (Share.share), navigator.share on the web, or the
+  // copy / email sheet where the browser has no share.
+  const shareTitle = groceryShareTitle(list.planName);
+  const onSendList = async () => {
+    const text = groceryShareText(list);
+    const nav = (globalThis as { navigator?: { share?: (d: { title?: string; text: string }) => Promise<void> } }).navigator;
+    try {
+      const outcome = await sendGroceryList(text, shareTitle, {
+        os: Platform.OS,
+        nativeShare: (content) => Share.share(content),
+        webShare: typeof nav?.share === "function" ? (d) => nav.share!(d) : undefined,
+      });
+      if (outcome === "sheet") setShareText(text);
+    } catch (e) {
+      console.warn("[grocery] send list failed", e);
+    }
+  };
+
   // WS9 3e Part 2.1 — per-item progress (checked / total). "Checkable" excludes
   // DEFAULT staples (isUniversalStaple && !stapleOptedIn): those render a dashed
   // opt-in affordance, never a strike, so they aren't part of the shopping
@@ -1013,7 +1038,24 @@ export default function GroceryListDetail() {
       {/* WS9 3e Part 2.3 — the header "Order →" affordance was the same dead
           Order Online Alert stub as the footer; removed (re-surfaces with
           roadmap row 8 under the R3 "Order Online" label, D-WS9-099). */}
-      <Header showBack title="Grocery List" subtitle={subtitle} />
+      <Header
+        showBack
+        title="Grocery List"
+        subtitle={subtitle}
+        rightContent={
+          <Pressable
+            onPress={() => void onSendList()}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Send list"
+            testID="grocery-send-list"
+            style={({ pressed }) => [s.sendList, pressed && { opacity: 0.6 }]}
+          >
+            <Feather name="share" size={16} color={Colors.sage[700]} />
+            <Text style={s.sendListText}>Send list</Text>
+          </Pressable>
+        }
+      />
       {/* WS9 3e follow-up — progress meter TOP-ANCHORED as a fixed band between
           the Header and the scrolling list, so it stays visible while shopping a
           long list (the actual store posture). Chose top over a floating footer
@@ -1397,6 +1439,9 @@ export default function GroceryListDetail() {
         onLeaveAsIs={leaveAsIsCurrent}
         onClose={closeClarify}
       />
+
+      {/* CLIENT-5 D (BUG-570) — the web without navigator.share. */}
+      <GroceryShareSheet text={shareText} subject={shareTitle} onClose={() => setShareText(null)} />
     </View>
   );
 }
@@ -1793,6 +1838,20 @@ function Tag({
 
 const s = StyleSheet.create({
 
+  // CLIENT-5 D — the Header's "Send list" (label + glyph: a bare share glyph
+  // would not say what it sends).
+  sendList: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing[1],
+    minHeight: 40,
+  },
+  sendListText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.sage[700],
+    fontWeight: Typography.fontWeight.medium,
+    fontFamily: Typography.face.sans[500],
+  },
   scrollContent: {
     paddingHorizontal: Spacing[4],
     paddingTop: Spacing[4],
