@@ -414,10 +414,15 @@ test("web 409 subscribed_elsewhere: says where it is managed, with the store's l
 // ── BILL-2: the web Subscribe button before enforcement ─────────────────────
 
 /** The web provider over a `GET /me/subscription` with `enforced: false`. */
+/** The last web mount's tree, rebuilt so a re-render reads a moved route. */
+let webTree: () => React.ReactElement = () => React.createElement(Probe);
+
 async function mountWebUnenforced(
   t: { after(fn: () => void): void },
   status: string,
   extra: Record<string, unknown> = {},
+  /** CLIENT-4 C — also mount the one PaywallSheet, beside the probe. */
+  sheet: React.ComponentType | null = null,
 ): Promise<void> {
   rn.Platform.OS = "web";
   const session = new Map<string, string>([["kiwi_authToken", "member-jwt"]]);
@@ -445,18 +450,18 @@ async function mountWebUnenforced(
   }) as unknown as typeof fetch;
 
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  await act(async () => {
-    renderer = TestRenderer.create(
+  webTree = () =>
+    React.createElement(
+      QueryClientProvider,
+      { client: qc },
       React.createElement(
-        QueryClientProvider,
-        { client: qc },
-        React.createElement(
-          AuthProvider,
-          null,
-          React.createElement(BillingProvider, null, React.createElement(Probe)),
-        ),
+        AuthProvider,
+        null,
+        React.createElement(BillingProvider, null, React.createElement(Probe), sheet ? React.createElement(sheet) : null),
       ),
     );
+  await act(async () => {
+    renderer = TestRenderer.create(webTree());
   });
   await until(() => captured?.subscription?.status === status, `the ${status} subscription`);
   assert.equal(captured!.subscription?.enforced, false);
@@ -522,4 +527,42 @@ test("SEC-3b: an ordinary lapsed account's sheet keeps the ordinary words", asyn
   await mountWebUnenforced(t, "none", { trialDeniedReason: null });
   await act(async () => captured!.openSubscribeSheet());
   assert.equal(sheetCopyFor(captured!.sheet, captured!.subscription).title, "Your free trial has ended");
+});
+
+// ── CLIENT-4 C (BUG-561) — "How did you hear about Kiwi?" comes first ────────
+
+test("CLIENT-4 C: the trial-used sheet waits while the question is on screen, then opens as before", async (t) => {
+  const { noteTrialDenied, takeTrialDenied } = await import("@/lib/billing/trialDenied");
+  const { PaywallSheet } = await import("@/components/PaywallSheet");
+  const router = (await import("expo-router")) as unknown as { __setPathnameForTests(p: string): void };
+  t.after(() => router.__setPathnameForTests("/"));
+  const shown = () => renderer!.root.findAll((n) => n.props.testID === "paywall-backdrop").length > 0;
+  takeTrialDenied();
+  // A new account: the sign-up lands on the question, and the note is already in.
+  router.__setPathnameForTests("/how-heard");
+  noteTrialDenied("trial_already_used");
+  await mountWebUnenforced(t, "none", TRIAL_USED, PaywallSheet);
+  await until(() => captured?.sheet === "lapsed", "the trial-used sheet's state");
+  await settle(2);
+  assert.equal(shown(), false, "the paywall opened over How did you hear");
+  // Answered or skipped: the route is replaced, and the same sheet opens.
+  router.__setPathnameForTests("/onboarding-prefs");
+  await act(async () => renderer!.update(webTree()));
+  assert.equal(shown(), true, "the held sheet did not open after the question");
+  assert.equal(captured!.sheet, "lapsed");
+});
+
+test("CLIENT-4 C: any paywall sheet waits there (a 402, a tap), and nowhere else", async (t) => {
+  const { PaywallSheet } = await import("@/components/PaywallSheet");
+  const router = (await import("expo-router")) as unknown as { __setPathnameForTests(p: string): void };
+  t.after(() => router.__setPathnameForTests("/"));
+  const shown = () => renderer!.root.findAll((n) => n.props.testID === "paywall-backdrop").length > 0;
+  router.__setPathnameForTests("/how-heard");
+  await mountWebUnenforced(t, "none", { trialDeniedReason: null }, PaywallSheet);
+  await act(async () => captured!.openSubscribeSheet());
+  assert.equal(captured!.sheet, "lapsed");
+  assert.equal(shown(), false);
+  router.__setPathnameForTests("/(tabs)");
+  await act(async () => renderer!.update(webTree()));
+  assert.equal(shown(), true);
 });

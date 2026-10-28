@@ -26,6 +26,7 @@
 import React from "react";
 import { Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { usePathname } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/Button";
@@ -42,6 +43,7 @@ import {
   SHEET_SECONDARY,
 } from "@/lib/billing/copy";
 import { platformStore, sheetCopyFor } from "@/lib/billing/subscriptionView";
+import { holdsPaywallSheet } from "@/lib/howHeard";
 import { sheetHandleShown, webSheet } from "@/lib/webLayout";
 
 function openLegal(url: string): void {
@@ -70,7 +72,10 @@ export function PaywallSheet() {
     elsewhere,
   } = useBilling();
   const insets = useSafeAreaInsets();
-  const visible = sheet !== null;
+  // CLIENT-4 C (BUG-561) — never over "How did you hear about Kiwi?": the sheet
+  // waits, its state kept, until the answer or Skip leaves that route.
+  const held = holdsPaywallSheet(usePathname());
+  const visible = sheet !== null && !held;
   const store = platformStore(Platform.OS);
 
   // SEC-3b (SEC-2 #16) — the words follow the subscription: an account whose

@@ -39,8 +39,15 @@ export function useLocalSearchParams() {
   return {};
 }
 
+// CLIENT-4 C — settable, for a component that reads the route it is over.
+let __pathname = "/";
+
+export function __setPathnameForTests(pathname) {
+  __pathname = pathname;
+}
+
 export function usePathname() {
-  return "/";
+  return __pathname;
 }
 
 export function useSegments() {

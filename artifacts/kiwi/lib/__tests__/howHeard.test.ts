@@ -90,3 +90,16 @@ test("D: every sign-in landing goes through landingAfterAuth; a password sign-up
   assert.match(screen, /await markHowHeardAsked\(userId\);/);
   assert.match(screen, /sendHowHeard\(howHeardBody\(value, detail\)\);\s*router\.replace\(next\);/);
 });
+
+// CLIENT-4 C (BUG-561) — the paywall sheet waits while the question is on screen.
+test("CLIENT-4 C: only the question's own route holds the paywall sheet", async () => {
+  const { HOW_HEARD_PATH, holdsPaywallSheet } = await import("../howHeard");
+  // The route a new account is sent to is the one that holds it.
+  assert.equal((landingAfterAuth({ onboardingRequired: true }, true) as { pathname: string }).pathname, HOW_HEARD_PATH);
+  assert.equal(holdsPaywallSheet("/how-heard"), true);
+  for (const p of ["/", "/onboarding-prefs", "/(tabs)", "/sign-up", "/how-heard-else", null, undefined]) {
+    assert.equal(holdsPaywallSheet(p), false, String(p));
+  }
+  const sheet = readFileSync(new URL("../../components/PaywallSheet.tsx", import.meta.url), "utf8");
+  assert.match(sheet, /const held = holdsPaywallSheet\(usePathname\(\)\);\s*const visible = sheet !== null && !held;/);
+});

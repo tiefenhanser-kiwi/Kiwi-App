@@ -75,6 +75,19 @@ export function howHeardNext(param: unknown): AuthLandingRoute | "/" {
     : "/";
 }
 
+// CLIENT-4 C (BUG-561) — the question comes first. The "free trial was already
+// used" sheet opened over it on a new account's first sign-in. The one paywall
+// sheet (components/PaywallSheet.tsx) is the only sheet that can open there: a
+// trial denied at sign-up, a 402, an upsell moment (the Home nudge and the guest
+// door sheets belong to screens the question comes before). While the question's
+// route is on screen, that sheet waits: BillingContext keeps its state, and it
+// opens as before once an answer or Skip has replaced the route.
+export const HOW_HEARD_PATH = "/how-heard";
+
+export function holdsPaywallSheet(pathname: string | null | undefined): boolean {
+  return pathname === HOW_HEARD_PATH;
+}
+
 const markerKey = (userId: string) => `howHeardAsked:${userId}`;
 
 export async function wasHowHeardAsked(userId: string): Promise<boolean> {
