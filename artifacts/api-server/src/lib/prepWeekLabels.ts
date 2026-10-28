@@ -330,6 +330,8 @@ export function labelWeekResult(result: PrepWeekResult, labels: { map: ReadonlyM
     number: 1,
     stepKey: WEEK_LABEL_STEP_KEY,
     title: `Label ${shown.length} containers`,
+    // SERVER-7 D — the title's N as a number (the list below can be cut at 800, the count is not).
+    labelCount: shown.length,
     instructions: `Write these on tape, one per container: ${shown.join(" · ")}.`.slice(0, 800),
     estimatedMinutes: Math.max(1, Math.ceil(shown.length / 5)),
     contributesToMealIds: meals,

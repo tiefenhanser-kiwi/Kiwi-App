@@ -140,6 +140,14 @@ export const PrepWeekStepSchema = z.object({
    */
   containerNames: z.array(z.string().min(1).max(120)).max(12).optional(),
   /**
+   * SERVER-7 D (BUG-534 follow-up) — CODE-OWNED, on the "Label N containers" step only
+   * (`week-labels`, `feast-labels`): N as a number, so a client need not read it out of
+   * the title. The title keeps its words for older clients. Not the result's
+   * `containerCount` (the header's tally): this is the labels the step lists. Absent on
+   * a cached feast step whose title no longer says today's count.
+   */
+  labelCount: z.number().int().min(1).optional(),
+  /**
    * H6.1-C — CODE-OWNED. This step is not the last to touch its container, so it
    * carries no storage line: the bowl is opened again in a later phase and the
    * line belongs to the step that closes it. A fridge sentence on a bowl the cook

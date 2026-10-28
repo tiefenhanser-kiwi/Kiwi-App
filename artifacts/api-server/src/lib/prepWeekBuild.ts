@@ -35,6 +35,7 @@ import { combinePrep, MIX_STAPLE } from "./prepCombineEngine";
 import { cutOf } from "./prepClasses";
 import { CUT_AT_THE_STEP } from "./heldMorning";
 import { labelWeekResult, mainDishOf, mixBowlWording, weekLabelMap } from "./prepWeekLabels";
+import { FEAST_LABEL_STEP_KEY } from "./prepFeastLabels";
 import {
   buildStepPlan,
   componentTotals,
@@ -905,6 +906,12 @@ export function finishPrepWeek(result: PrepWeekResult, build: PrepWeekBuild): Pr
       if (close && !out.skipSuggested && !out.instructions.includes(close)) {
         const next = `${out.instructions}\n${close}`;
         if (next.length <= 800) out = { ...out, instructions: next };
+      }
+      // SERVER-7 D — the feast's label step is narrated (fixedProse) and cached, so its
+      // count is put on here, and only when the served title says today's count.
+      const labelled = build.stepPlan.feastLabels?.ordered.length;
+      if (w.stepKey === FEAST_LABEL_STEP_KEY && labelled && out.title === `Label ${labelled} containers`) {
+        out = { ...out, labelCount: labelled };
       }
       return out;
     });
