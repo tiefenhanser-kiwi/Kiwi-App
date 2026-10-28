@@ -32,7 +32,8 @@
 import { createHash } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
-import { buildCoreWeek, buildFeastSession, tickableStepRefs, type PrepWeekBuild } from "./prepWeekBuild";
+import { buildCoreWeek, buildFeastSession, isTickable, tickableStepRefs, type PrepWeekBuild } from "./prepWeekBuild";
+import { cachedStepsOf, resolveTicks } from "./prepTickCarry";
 import { ingredientGroupKey } from "./ingredientRelations";
 import { FEAST_MEAL_TAG, loadPrepWeekInput } from "./prepWeekAggregation";
 import { dishScalesOf, scaleFrames } from "./feastScaleFrames";
@@ -82,6 +83,15 @@ export async function feastCookWordingFor(
 }
 
 /**
+ * SERVER-7 B — the steps of today's build a weeknight's ticks count as done: resolved
+ * against the cached week the cook ticked (prepTickCarry), carrying only a step the cook
+ * can tick today.
+ */
+export function weeknightDoneSteps(build: PrepWeekBuild, ticks: Iterable<string>, structureJson: unknown, fold: (id: string) => string): Set<string> {
+  return resolveTicks(ticks, build.stepPlan.steps, { cached: cachedStepsOf(structureJson), fold, carryable: (s) => isTickable(s, build) }).done;
+}
+
+/**
  * PREP-3 (R1) — GET /meals/:id?planItemId= for a weeknight meal: each dish's steps worded
  * from that plan's Prep the Week, from the steps the cook TICKED only. Prep the Week is
  * optional (and premium): a week nobody prepped must never say "the Skewers marinade".
@@ -101,7 +111,14 @@ export async function weeknightCookWordingFor(
   if (ticked && ticked.size === 0) return out;
   const load = await loadPrepWeekInput({ planId: args.planId, userId: args.userId, prisma, ...(args.now ? { now: args.now } : {}) });
   const build = buildCoreWeek(load);
-  const done = ticked ?? new Set(tickableStepRefs(build).map((r) => r.stepKey));
+  // 🔴 SERVER-7 B (BUG-556/557) — the ticks are keys of the structure the cook TICKED: the
+  // plan's cached Prep the Week, which an engine change re-keys. They are resolved against
+  // it (prepTickCarry): a step today counts when its key was ticked, or when every
+  // portion of it that screen showed was ticked there.
+  const cache = ticked ? await prisma.prepWeekStructure.findUnique({ where: { planId: args.planId }, select: { structureJson: true } }) : null;
+  const done = ticked
+    ? weeknightDoneSteps(build, ticked, cache?.structureJson, (id) => load.identity?.foldedIdByIngredientId.get(id) ?? id)
+    : new Set(tickableStepRefs(build).map((r) => r.stepKey));
   const facts = feastDishFacts(build, { onlySteps: done, weeknight: true });
   // PREP-3 3b — the amount the cook sees (Cook Mode scales each ref by its row): "(1 clove)".
   const scales = dishScalesOf(load);
@@ -184,6 +201,15 @@ export function feastDishFacts(build: PrepWeekBuild, opts: { onlySteps?: Readonl
   };
   const label = (n: string) => build.weekLabels?.map.get(n) ?? n;
   const kindOf = (n: string): FeastLabelKind | null => build.stepPlan.feastLabels?.kinds.get(n) ?? build.weekLabels?.labels.kinds.get(label(n)) ?? null;
+  // SERVER-7 B (QA-6) — ONE ID PER CONTAINER, whatever was ticked. A mix's id is its
+  // container step's; a cut that went into that mix said the engine's destination name, so
+  // with the mix's own steps unticked "Skewers marinade" came with another id. The cut
+  // takes the mix's id, read from every step of the build, never only the ticked ones.
+  const mixIdOf = new Map<string, string>();
+  for (const st of build.stepPlan.steps) {
+    if (st.demoted || !st.bowlName || (st.phase !== "seasonings_dry" && st.phase !== "sauces_marinades") || mixIdOf.has(st.bowlName)) continue;
+    mixIdOf.set(st.bowlName, st.containerId ?? st.bowlName);
+  }
   for (const st of build.stepPlan.steps) {
     if (st.demoted) continue;
     if (opts.onlySteps && !opts.onlySteps.has(st.stepKey)) continue;
@@ -218,7 +244,7 @@ export function feastDishFacts(build: PrepWeekBuild, opts: { onlySteps?: Readonl
           // Round 2 (N) — the container's label and what it is (prepFeastLabels).
           // PREP-3 (R1) — a juice row's name says its cut ("fresh lemon juice", freshly squeezed).
           const juice = /\bjuice\b/i.test(c.ingredientName) ? " juice" : "";
-          of(m.dishId).cuts.push({ id: m.ingredientId ?? "", key: ingredientGroupKey(c.ingredientName), into: m.destination ? label(m.destination) : null, note: `${m.preparationNote ?? ""} ${c.preparationNote ?? ""}${juice}`.toLowerCase(), kind: m.destination ? kindOf(m.destination) : null, ...(opts.weeknight ? { amount: spokenAmount(m.amount) } : {}), ...(m.destination ? { containerId: m.destination } : {}) });
+          of(m.dishId).cuts.push({ id: m.ingredientId ?? "", key: ingredientGroupKey(c.ingredientName), into: m.destination ? label(m.destination) : null, note: `${m.preparationNote ?? ""} ${c.preparationNote ?? ""}${juice}`.toLowerCase(), kind: m.destination ? kindOf(m.destination) : null, ...(opts.weeknight ? { amount: spokenAmount(m.amount) } : {}), ...(m.destination ? { containerId: mixIdOf.get(m.destination) ?? m.destination } : {}) });
         }
       }
     }

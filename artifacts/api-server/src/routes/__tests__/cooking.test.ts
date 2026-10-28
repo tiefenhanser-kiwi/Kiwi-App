@@ -382,6 +382,12 @@ function makeCacheStub() {
             completions = completions.filter(
               (c) => c.planId !== planId || keep.has(c.stepKey),
             );
+          } else if (stepKey && typeof stepKey === "object" && Array.isArray(stepKey.in)) {
+            // SERVER-7 B — the old keys a regenerate carried to their new keys.
+            const gone = new Set<string>(stepKey.in);
+            completions = completions.filter(
+              (c) => c.planId !== planId || !gone.has(c.stepKey),
+            );
           } else {
             // Exact uncheck (or no-op on a missing key).
             completions = completions.filter(
@@ -389,6 +395,16 @@ function makeCacheStub() {
             );
           }
           return { count: before - completions.length };
+        },
+        // SERVER-7 B — the new keys a regenerate carries ticks to.
+        createMany: async ({ data }: { data: { planId: string; stepKey: string }[] }) => {
+          let count = 0;
+          for (const d of data) {
+            if (completions.some((c) => c.planId === d.planId && c.stepKey === d.stepKey)) continue;
+            completions.push({ ...d, checkedAt: new Date() });
+            count++;
+          }
+          return { count };
         },
       },
       mealPlanInstance: {
@@ -519,6 +535,8 @@ function makeLoaderStub(opts: {
   /** Filled in by the stub: every `mealIds` value the route passed, in order.
    *  `undefined` entries are full-week calls. */
   calls?: (string[] | undefined)[];
+  /** SERVER-7 B — the food-identity fold (an older group id → today's food). */
+  fold?: Record<string, string>;
 }) {
   return (async (params: { planId: string; mealIds?: string[] }) => {
     opts.calls?.push(params.mealIds);
@@ -558,7 +576,7 @@ function makeLoaderStub(opts: {
       // H6.1 ruling 1 — the real loader returns the plan's food-identity fold, and
       // the route hands it to combinePrep. Empty here: the stub's ingredients are
       // one row each, so nothing folds, and the shape is what matters.
-      identity: { foldedIdByIngredientId: new Map<string, string>() },
+      identity: { foldedIdByIngredientId: new Map<string, string>(Object.entries(opts.fold ?? {})) },
     };
   }) as never;
 }
@@ -1820,11 +1838,13 @@ describe("prep-week completions — demoted-step exclusion (D-WS7-184)", () => {
   });
 });
 
-describe("prep-week completions — orphan-prune on regenerate (B3)", () => {
-  it("regenerate prunes orphan keys but keeps still-valid ones", async () => {
+// 🔴 SERVER-7 B (BUG-556/557) — WS7-8a B3's orphan-prune is gone: a regenerate carries
+// the ticks of the old screen to the new keys and keeps a tick that carries nothing.
+describe("prep-week completions — ticks on regenerate (B3, SERVER-7 B)", () => {
+  it("regenerate keeps still-valid keys AND a tick that carries nothing (no prune)", async () => {
     const cache = makeCacheStub();
     // Seed two completions BEFORE regenerate: the onion key the fresh assembly
-    // will re-emit (survives) + an orphan whose step was dropped (pruned).
+    // will re-emit (survives) + an orphan whose step was dropped (now kept).
     cache.seedCompletion(PLAN_ID, ONION_STEP_KEY);
     cache.seedCompletion(PLAN_ID, "produce#orphan-removed-ingredient");
     // Stale cache row so the POST takes the regenerate path (revision moved).
@@ -1853,8 +1873,44 @@ describe("prep-week completions — orphan-prune on regenerate (B3)", () => {
       assert.equal(res.status, 200);
       const body = (await res.json()) as { cacheHit: boolean };
       assert.equal(body.cacheHit, false); // regenerated
-      // Prune ran once; orphan gone, valid onion key kept.
-      assert.equal(cache.pruneCalls(), 1);
+      // No prune: the valid onion key and the inert orphan are both kept.
+      assert.equal(cache.pruneCalls(), 0);
+      assert.deepEqual(cache.completionKeys(PLAN_ID), [ONION_STEP_KEY, "produce#orphan-removed-ingredient"]);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("a tick of the cached screen's OLD key is carried to the step's new key, and the old row goes", async () => {
+    const OLD = "produce#0ddd0ddd-0ddd-4ddd-8ddd-0ddd0ddd0ddd";
+    const cache = makeCacheStub();
+    cache.seedCompletion(PLAN_ID, OLD);
+    // The stale screen the cook ticked: the onion under an older engine's group id.
+    const stale = happyPrepWeekResult();
+    for (const p of stale.phases) for (const s of p.steps) if (s.stepKey === "produce#ing-onion") s.stepKey = OLD;
+    cache.rows.set(PLAN_ID, {
+      id: "row-stale",
+      planId: PLAN_ID,
+      structureJson: stale,
+      lastGeneratedFromPlanRevisionId: 1,
+      lastGeneratedAt: new Date("2026-05-01T12:00:00Z"),
+      promptVersion: 1,
+    });
+    const harness = await spinUp({
+      // The older group id is the same food today (the plan's fold).
+      loadPrepWeekInput: makeLoaderStub({ planRevisionId: 2, mealIds: [MEAL_ID_X], fold: { "0ddd0ddd-0ddd-4ddd-8ddd-0ddd0ddd0ddd": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee" } }),
+      runAICall: makeAICallStub({}),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prisma: cache.prisma as any,
+      subscriptionService: { can: async () => ({ allowed: true }) },
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/${PLAN_ID}/prep-week`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${signToken("u-carry")}` },
+      });
+      assert.equal(res.status, 200);
+      assert.equal(((await res.json()) as { cacheHit: boolean }).cacheHit, false);
       assert.deepEqual(cache.completionKeys(PLAN_ID), [ONION_STEP_KEY]);
     } finally {
       await harness.close();
@@ -2223,7 +2279,8 @@ describe("POST /api/plans/:planId/prep-week — full week is unchanged (WS9)", (
       assert.equal(body.subset, false);
       assert.equal(body.cacheHit, false);
       assert.equal(cache.writeCount(), 1);
-      assert.equal(cache.pruneCalls(), 1);
+      // SERVER-7 B — a regenerate carries ticks; it no longer prunes.
+      assert.equal(cache.pruneCalls(), 0);
     } finally {
       await harness.close();
     }

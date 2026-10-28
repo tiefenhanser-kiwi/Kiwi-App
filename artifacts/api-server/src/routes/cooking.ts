@@ -53,11 +53,11 @@ import {
 } from "../lib/prepWeekBuild";
 import { PrepNarrationResultSchema } from "../lib/ai/schemas/prepNarration";
 import {
-  stepKeysOfResult,
   derivePrepCompletion,
   effectivePrepStatus,
 } from "../lib/prepCompletion";
 import { loadPrepStepSet } from "../lib/prepStepSet";
+import { cachedStepsOf, resolveTicks } from "../lib/prepTickCarry";
 import { logger } from "../lib/logger";
 import { emitPlanPrepStartedOnce } from "../lib/userActivity";
 import { prisma as productionPrisma } from "../lib/prisma";
@@ -705,23 +705,36 @@ export function createCookingRouter(
             },
           });
 
-          // WS7-8a B3 — orphan-prune. structureJson is regenerated wholesale, so
-          // any PrepStepCompletion row whose stepKey is no longer in the fresh
-          // step set is stale (its step was dropped / re-keyed by the edit that
-          // bumped the revision). Prune to the new set — do NOT merge-forward
-          // blindly. Still-valid keys (same ingredient → same key) survive.
-          // 🔴 PREP-1 (D-WS9-314) — AND THE FEAST SESSION'S KEYS. They are never in
-          // the week's result, so without them every regeneration of the week
-          // would wipe the ticks made in Prep the feast. Computed from the engine,
-          // so they are kept whether or not the feast was ever narrated.
-          const feastBuild = buildFeastSession({ input, cookDays, identity });
-          const keepKeys = [
-            ...stepKeysOfResult(result),
-            ...(feastBuild ? wireStepKeys(feastBuild, FEAST_KEY_PREFIX) : []),
-          ];
-          await prisma.prepStepCompletion.deleteMany({
-            where: { planId, stepKey: { notIn: keepKeys } },
+          // 🔴 SERVER-7 B (BUG-556/557) — THE TICKS ARE CARRIED, NEVER PRUNED. This
+          // used to delete every PrepStepCompletion whose key the fresh step set lacked
+          // (WS7-8a B3's orphan-prune). But an engine change re-keys steps the cook
+          // ticked on the OLD screen (the cache read above, `cached`), so the prune
+          // deleted real work: QA-6 found 171 of 172 such ticks on dev. Each old tick
+          // is now resolved against that screen (prepTickCarry): a step of the new
+          // build whose every portion the old screen showed was ticked there gets its
+          // new key ticked, and the old key that carried it is removed. A tick that
+          // carries nothing (its meal left the plan, or its work is no longer a prep
+          // step) is KEPT and reported, never silently deleted; an inert key matches
+          // nothing on screen. The feast session's ticks (`feast#…`) are the feast's
+          // own regeneration to judge, and are left alone here.
+          const oldTicks = (await prisma.prepStepCompletion.findMany({ where: { planId }, select: { stepKey: true } }))
+            .map((r) => r.stepKey)
+            .filter((k) => !k.startsWith(FEAST_KEY_PREFIX));
+          const carry = resolveTicks(oldTicks, stepPlan.steps, {
+            cached: cachedStepsOf(cached ? splitStructure(cached.structureJson).week : null),
+            fold: (id) => identity?.foldedIdByIngredientId.get(id) ?? id,
           });
+          if (carry.carried.size > 0) {
+            await prisma.prepStepCompletion.createMany({ data: [...carry.carried.keys()].map((stepKey) => ({ planId, stepKey })), skipDuplicates: true });
+            const moved = [...new Set([...carry.carried.values()].flat())];
+            await prisma.prepStepCompletion.deleteMany({ where: { planId, stepKey: { in: moved } } });
+          }
+          if (carry.carried.size > 0 || carry.unmapped.length > 0) {
+            logger.info(
+              { event: "prep_week_ticks_carried", userId, planId, carried: carry.carried.size, unmapped: carry.unmapped.length, unmappedKeys: carry.unmapped.slice(0, 20) },
+              "Prep the Week regenerated: old ticks carried to the new keys; ticks that carry nothing are kept",
+            );
+          }
         } catch (err) {
           // Cache-write failures must not bubble up — the AI result is
           // already in memory and the caller can still use it. Next call
