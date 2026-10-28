@@ -1,0 +1,23 @@
+{
+  "$comment": "QA-NIGHT-1 — known bugs, matched to findings so the morning summary lists them apart from NEW ones. Seeded 2026-10-28 from the bug log's open items that a reconciler can hit (mirror stamp 2026-10-20 02:20Z, so entries after BUG-453 come from QA-6/QA-7's own records). A finding is known when its signature matches `signature` (a regex) and, when given, its detail matches `detail`. Add a row when a night's NEW finding is minted; delete it when the bug is fixed.",
+  "known": [
+    { "id": "BUG-409", "signature": "^R2:optional-bought", "note": "the grocery list ignores DishIngredient.isOptional: optional ingredients are bought" },
+    { "id": "BUG-437", "signature": "^R4:prep-exceeds-recipe", "detail": "⅜|⅝|½ egg", "note": "amounts scaled 4→2 print unmeasurable values" },
+    { "id": "BUG-443", "signature": "^R8:ingredient-unused", "detail": "can|package", "note": "step amounts that are package sizes scale with servings" },
+    { "id": "BUG-449", "signature": "^R8:oven-two-temperatures", "detail": "[Ss]tuffing", "note": "Thursday's feast puts the stuffing in the oven after the turkey" },
+    { "id": "BUG-463", "signature": "^R8:oven-two-temperatures", "note": "THX-3c: oven steps overlap at two temperatures (thx2Oven ovenConflicts)" },
+    { "id": "BUG-418", "signature": "^R8:card-time-off", "detail": "Thanksgiving|Friendsgiving|Turkey", "note": "a feast's derived times count its make-ahead work on Thursday's clock" },
+    { "id": "BUG-391", "signature": "^R6:label-count-mismatch", "note": "an ingredient in two rows at two moments gets ONE container key" },
+    { "id": "BUG-393", "signature": "^R6:label-count-mismatch", "note": "one step with two moments shares a container" },
+    { "id": "BUG-567", "signature": "^R9:(a-week-early|outside-keep-window)", "note": "QA-7: before() = (feast − day + 7) % 7 || 7 puts a tag on the feast's weekday a week early" },
+    { "id": "BUG-414", "signature": "^R1:(missing|shortfall):turkey", "detail": "[Ll]eftover", "note": "editing the leftovers meal drops fromLeftovers, so the list buys turkey again" },
+    { "id": "BUG-453", "signature": "^R1:shortfall:turkey-weight", "note": "a whole turkey never scales below its recipe weight (14 lb)" },
+    { "id": "BUG-341", "signature": "^R8:card-time-off", "note": "Cook Mode minutes and the meal card minutes disagree (QA harness Part A, Sep 30)" },
+    { "id": "BUG-582", "signature": "^R5:(other-meal-cook-mode-changed|subset-request-changed-other-meal)", "note": "QA-NIGHT-1: Prep selected meals / one meal serves its steps under the week's keys, so ticking them marks the week step done and other meals' Cook Mode says \"you prepped\"" },
+    { "id": "BUG-583", "signature": "^R7:(prepped-read-not-worded|cook-still-says-chop)", "detail": "Yes, I prepped", "note": "QA-NIGHT-1: after \"Yes, I prepped\" (Recipes tab) covered knife-work steps show in full: the Done-in-prep fold reads completions only" },
+    { "id": "BUG-584", "signature": "^R7:collapsed-over-unticked-food", "note": "QA-NIGHT-1: a cook step that dices the onion AND minces the garlic is covered only by the garlic step; ticking garlic alone folds the onion into Done in prep" },
+    { "id": "BUG-585", "signature": "^R7:unticked-muted", "detail": "whisk together", "note": "QA-NIGHT-1: prep merges a recipe's marinade and its stir-fry sauce into one bowl; Cook Mode puts the bowl in the marinade and still whisks the sauce's ingredients in the next step" },
+    { "id": "BUG-586", "signature": "^R7:cook-still-says-chop", "detail": "after (full|partial) prep", "note": "QA-NIGHT-1: after Prep the Week, a cook step whose knife work was prepped still says it in full (no chip, no Done-in-prep fold): its prep step carries no coversCookSteps for it" },
+    { "id": "BUG-587", "signature": "^R1:shortfall:", "detail": "the list has \\d+ each", "note": "QA-NIGHT-1: a whole-produce need is rounded DOWN on the list (3.2 shallots → 3)" }
+  ]
+}

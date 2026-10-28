@@ -10,7 +10,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --experimental-strip-types --no-warnings --import ./lib/api/__tests__/_setup.mjs --test lib/api/__tests__/*.test.ts contexts/__tests__/*.test.ts components/__tests__/*.test.ts components/preference-pickers/__tests__/*.test.ts hooks/__tests__/*.test.ts lib/home/__tests__/*.test.ts lib/plans/__tests__/*.test.ts lib/meals/__tests__/*.test.ts lib/dishes/__tests__/*.test.ts lib/wizard/__tests__/*.test.ts lib/guest/__tests__/*.test.ts lib/oauth/__tests__/*.test.ts lib/builder/__tests__/*.test.ts lib/cooking/__tests__/*.test.ts lib/billing/__tests__/*.test.ts lib/cookbook/__tests__/*.test.ts lib/__tests__/*.test.ts",
     "e2e": "playwright test -c e2e/playwright.config.ts",
-    "typecheck:e2e": "tsc -p e2e/tsconfig.json --noEmit"
+    "typecheck:e2e": "tsc -p e2e/tsconfig.json --noEmit",
+    "qa:night": "pnpm --filter @workspace/api-server exec node --import tsx scripts/qa-night/run.ts"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

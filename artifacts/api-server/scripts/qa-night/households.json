@@ -1,0 +1,118 @@
+{
+  "$comment": "QA-NIGHT-1 households. Fixed seed: same households, same choices, every night. `estimateUsd` is the worst-case AI spend the cap rule reserves before a household starts (run.ts raises it to the largest per-household spend seen so far tonight). Feast meals are the dev branch's private prod-copies (no public Thanksgiving template on dev): the run forks one for the new account through forkMealForUser, QA-7's fixture, and does everything else through the API.",
+  "seed": "qa-night-1",
+  "households": [
+    {
+      "id": "1",
+      "label": "2 adults · template 5",
+      "size": 2,
+      "howHeard": "friend",
+      "prefs": { "eatingStyles": [], "allergiesAndAvoidances": [] },
+      "plan": { "kind": "template", "template": "Family Favorites" },
+      "edits": [],
+      "prep": ["full"],
+      "estimateUsd": 1.2
+    },
+    {
+      "id": "2",
+      "label": "4 (2 kids) · no spicy, picky · AI 5",
+      "size": 4,
+      "kids": 2,
+      "picky": 2,
+      "howHeard": null,
+      "prefs": { "spiceTolerance": "mild", "pickyAvoidances": ["Spicy food"], "eatingStyles": [], "allergiesAndAvoidances": [] },
+      "plan": { "kind": "ai", "days": 5 },
+      "edits": [],
+      "prep": ["partial"],
+      "estimateUsd": 2.5
+    },
+    {
+      "id": "3",
+      "label": "4 · vegetarian · template, one swap",
+      "size": 4,
+      "howHeard": "instagram",
+      "prefs": { "eatingStyles": ["Vegetarian"], "allergiesAndAvoidances": [] },
+      "plan": { "kind": "template", "template": "Healthy Reset" },
+      "edits": ["swap"],
+      "prep": ["subset"],
+      "estimateUsd": 1.6
+    },
+    {
+      "id": "4",
+      "label": "3 · nut allergy · AI 4",
+      "size": 3,
+      "howHeard": "google",
+      "prefs": { "eatingStyles": [], "allergiesAndAvoidances": ["Tree-nut-free", "Peanut-free"] },
+      "plan": { "kind": "ai", "days": 4 },
+      "edits": [],
+      "prep": ["one-meal", "recipes-yes"],
+      "estimateUsd": 2.5
+    },
+    {
+      "id": "5",
+      "label": "6 · dairy-free · template, servings 10",
+      "size": 6,
+      "howHeard": "reddit",
+      "prefs": { "eatingStyles": [], "allergiesAndAvoidances": ["Dairy-free"] },
+      "plan": { "kind": "template", "template": "Cozy Weeknights" },
+      "edits": ["servings"],
+      "prep": ["full"],
+      "estimateUsd": 1.6
+    },
+    {
+      "id": "6",
+      "label": "2 · Thanksgiving Classic · Thu Nov 26 · 16 lb",
+      "size": 2,
+      "howHeard": "other",
+      "prefs": { "eatingStyles": [], "allergiesAndAvoidances": [] },
+      "plan": { "kind": "feast", "source": "afb99193-0861-45ae-8aee-5fa8dc9d4794", "name": "Thanksgiving Classic", "day": "Thursday", "birdWeightLb": 16 },
+      "edits": ["bird-weight"],
+      "prep": ["feast"],
+      "estimateUsd": 2.0
+    },
+    {
+      "id": "7",
+      "label": "8 · Friendsgiving: Make-Ahead · Sat Nov 28 · no weight",
+      "size": 8,
+      "howHeard": null,
+      "prefs": { "eatingStyles": [], "allergiesAndAvoidances": [] },
+      "plan": { "kind": "feast", "source": "b597cdc6-690e-4ed3-87be-df508654919f", "name": "Friendsgiving: Make-Ahead", "day": "Saturday", "birdWeightLb": null },
+      "edits": [],
+      "prep": ["feast"],
+      "estimateUsd": 2.0
+    },
+    {
+      "id": "8",
+      "label": "4 · template + a saved dish through Edit meal",
+      "size": 4,
+      "howHeard": "tiktok",
+      "prefs": { "eatingStyles": [], "allergiesAndAvoidances": [] },
+      "plan": { "kind": "template", "template": "Sheet Pan Easy" },
+      "edits": ["add-dish"],
+      "prep": [],
+      "estimateUsd": 1.2
+    },
+    {
+      "id": "9",
+      "label": "guest · Test Kitchen, then claim",
+      "size": 2,
+      "howHeard": null,
+      "prefs": { "eatingStyles": [], "allergiesAndAvoidances": [] },
+      "plan": { "kind": "guest", "days": 3 },
+      "edits": [],
+      "prep": [],
+      "estimateUsd": 0.8
+    },
+    {
+      "id": "10",
+      "label": "4 · AI 7 · every prep path",
+      "size": 4,
+      "howHeard": "creator",
+      "prefs": { "eatingStyles": [], "allergiesAndAvoidances": [] },
+      "plan": { "kind": "ai", "days": 7 },
+      "edits": [],
+      "prep": ["one-meal", "subset", "recipes-yes", "partial", "full"],
+      "estimateUsd": 4.5
+    }
+  ]
+}
