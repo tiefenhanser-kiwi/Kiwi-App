@@ -219,8 +219,10 @@ test("D · a trial-denied sign-up opens the paywall that says so", async () => {
   await page.getByPlaceholder("Email").fill(email);
   await page.getByPlaceholder("Password").fill(password);
   await press("Create account");
-  // QA-6 — the trial-used sheet now opens OVER "How did you hear about Kiwi?" (its backdrop
-  // takes the clicks), so it is read and dismissed first, then the question is skipped.
+  // CLIENT-4 C (BUG-561) — "How did you hear about Kiwi?" comes first; the trial-used
+  // sheet waits behind it and opens once the question is skipped.
+  await skipHowHeard(page); // CLIENT-3 D — a new account's question
+  expect(await waitPath(/onboarding/, 60_000), "reached onboarding").toBe(true);
   where = "trial-used-sheet";
   const said = await waitInner((j) => j.includes("Your free trial was already used with this email."), 60_000);
   await page.waitForTimeout(800);
@@ -229,8 +231,6 @@ test("D · a trial-denied sign-up opens the paywall that says so", async () => {
   expect(said, "the trial-used paywall").toBe(true);
   await press("Not now");
   await page.waitForTimeout(600);
-  await skipHowHeard(page); // CLIENT-3 D — a new account's question
-  expect(await waitPath(/onboarding/, 60_000), "reached onboarding").toBe(true);
   await page.unrouteAll({ behavior: "ignoreErrors" });
   http = new Http(await page.evaluate(() => sessionStorage.getItem("kiwi_authToken") ?? ""));
 
