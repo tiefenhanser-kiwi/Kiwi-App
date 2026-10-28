@@ -528,3 +528,13 @@ test("FIX-3: a 'produce step N' citation follows its step's new number", () => {
   } as PrepWeekResult);
   assert.equal(omittedCite.phases[2].steps[0].instructions, "the zest from produce step 1");
 });
+
+// CLIENT-4 E — the label step's labelCount (SERVER-7 D) reaches the card's VM;
+// a step without one gains no key.
+test("CLIENT-4 E: labelCount passes through to the step VM, only where it is sent", () => {
+  const r = result();
+  r.phases[1].steps[0] = { ...r.phases[1].steps[0], labelCount: 4 };
+  const vm = buildPrepWeekModel(r);
+  assert.equal(vm.phases[1].steps[0].labelCount, 4);
+  assert.ok(!("labelCount" in vm.phases[3].steps[0]));
+});

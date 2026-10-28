@@ -275,6 +275,12 @@ const PrepWeekStepSchema = z.object({
    */
   containerNames: z.array(z.string().min(1).max(120)).max(12).optional(),
   /**
+   * CLIENT-4 E — SERVER-7 D: on the label step only ("Label N containers"), N as
+   * a number. Absent from a server before it, and on a cached feast label step
+   * whose title no longer says today's count; the card then reads the title.
+   */
+  labelCount: z.number().int().min(1).optional(),
+  /**
    * H6.1-C — CODE-OWNED. This step is not the last to touch its container, so it
    * carries no storage line: the bowl is opened again in a later phase and the
    * line belongs to the step that closes it. A fridge sentence on a bowl the cook
