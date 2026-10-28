@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 import { formatIngredientLine } from "../format/ingredientLine";
-import { chosenBird, chosenBirdName, defaultBirdLb, mealScaleFactors, weighedTurkeyOf } from "../format/quantity";
+import { chosenBird, chosenBirdName, defaultBirdLb, dishBirdLine, dishScaleFactor, mealScaleFactors, weighedTurkeyOf } from "../format/quantity";
 import { buildAmountRefSegments } from "../cooking/amountSegments";
 import { consolidateMealIngredients } from "../meals/consolidateMealIngredients";
 import { planDishView } from "../dishes/planDish";
@@ -276,6 +276,70 @@ describe("CLIENT-4 B — a turkey by count says the chosen weight on the meal sc
     const screen = readFileSync(new URL("../../app/meal/[id].tsx", import.meta.url), "utf8");
     assert.match(screen, /const birdName = chosenBirdName\(meal\.dishes, birdLb\);/);
     assert.match(screen, /birdName && birdName\.dishId === dish\.dishId && birdName\.index === i \? \{ \.\.\.ing, name: birdName\.name \} : ing/);
+  });
+});
+
+// CLIENT-5 C (D-WS9-339) — the dish screen (a Hub row's dish, planDishView) says the
+// chosen weight the way CLIENT-4 B's meal screen does. Display only: the factors are
+// read from the recipe's own text, so every other line is byte for byte as before.
+describe("CLIENT-5 C — a turkey by count says the chosen weight on the dish screen", () => {
+  const feast = (dishes: (typeof TURKEY)[], birdWeightLb: number | null, effectiveServings = 4) =>
+    ({ tags: ["thanksgiving-feast"], effectiveServings, authoredServingsDefault: WRITTEN_FOR, birdWeightLb, dishes }) as unknown as MealDetail;
+
+  /** The dish screen's lines in plan context (app/dish/[id].tsx), `renamed` false = before CLIENT-5 C. */
+  function dishLines(meal: MealDetail, dishId: string, renamed = true): string[] {
+    const view = planDishView(meal, dishId)!;
+    const ingredients = view.dish.ingredients;
+    const chosen = view.chosenBird;
+    const multiplier = chosen ? chosen.factor : dishScaleFactor(ingredients, view.multiplier, view.feast);
+    const birds = chosen ? chosen.birds : dishBirdLine(ingredients, view.multiplier, view.feast);
+    const birdName = renamed ? chosen?.birdName : undefined;
+    return ingredients.map((ing, i) =>
+      formatIngredientLine(birdName?.index === i ? { ...ing, name: birdName.name } : ing, { multiplier, birds }),
+    );
+  }
+
+  it("the Buttermilk alternate and New Twist at 12, 16 and the authored 14 lb", () => {
+    for (const servings of [4, 10, 20]) {
+      for (const lb of [12, 14, 16]) {
+        assert.equal(dishLines(feast([BUTTERMILK], lb, servings), "buttermilk")[0], `1 whole turkey (${lb} lb)`);
+        assert.equal(dishLines(feast([NEW_TWIST], lb, servings), "nt")[0], `1 whole turkey (${lb} lb)`);
+      }
+    }
+    assert.equal(dishLines(feast([NEW_TWIST], 16.5), "nt")[0], "1 whole turkey (16½ lb)");
+  });
+
+  it("the same line meal detail shows (screenLines above), and every other line is unchanged", () => {
+    for (const lb of [12, 14, 16]) {
+      for (const dish of [BUTTERMILK, NEW_TWIST]) {
+        const shown = dishLines(feast([GRAVY, dish], lb), dish.dishId);
+        const before = dishLines(feast([GRAVY, dish], lb), dish.dishId, false);
+        assert.deepEqual(shown.slice(1), before.slice(1));
+        assert.equal(shown[0], `1 whole turkey (${lb} lb)`);
+      }
+    }
+    // The THX-4 pinned rows at a chosen 16 lb, the bird's name aside: chosen ÷ the recipe's 14.
+    assert.equal(planDishView(feast([NEW_TWIST], 16), "nt")!.chosenBird!.factor, 16 / 14);
+  });
+
+  it("no weight chosen, a turkey by weight, a dish without the bird: as before", () => {
+    for (const dish of [BUTTERMILK, NEW_TWIST, TURKEY]) {
+      for (const servings of [4, 10, 20]) {
+        assert.deepEqual(dishLines(feast([dish], null, servings), dish.dishId), dishLines(feast([dish], null, servings), dish.dishId, false));
+      }
+    }
+    assert.equal(dishLines(feast([NEW_TWIST], null), "nt")[0], "1 whole turkey (12–14 lb)");
+    assert.equal(dishLines(feast([BUTTERMILK], null), "buttermilk")[0], "1 whole turkey");
+    assert.equal(planDishView(feast([TURKEY], 16), "turkey")!.chosenBird!.birdName, undefined);
+    assert.equal(dishLines(feast([TURKEY], 16), "turkey")[0], "16 pounds whole turkey");
+    assert.deepEqual(dishLines(feast([GRAVY, BUTTERMILK], 16), "gravy"), dishLines(feast([GRAVY, BUTTERMILK], 16), "gravy", false));
+    assert.deepEqual(planDishView(feast([GRAVY, BUTTERMILK], 16), "buttermilk")!.chosenBird!.birdName, { index: 0, name: "whole turkey (16 lb)" });
+  });
+
+  it("the dish screen renders through it", () => {
+    const screen = readFileSync(new URL("../../app/dish/[id].tsx", import.meta.url), "utf8");
+    assert.match(screen, /const birdName = chosen\?\.birdName;/);
+    assert.match(screen, /formatIngredientLine\(birdName\?\.index === i \? \{ \.\.\.ing, name: birdName\.name \} : ing, \{ multiplier, birds \}\)/);
   });
 });
 

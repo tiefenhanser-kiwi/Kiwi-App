@@ -163,6 +163,8 @@ function DishDetailContent({ dish, plan }: { dish: DishDetail; plan?: PlanDishCo
   const multiplier = chosen ? chosen.factor : plan ? dishScaleFactor(ingredients, plan.view.multiplier, plan.view.feast) : 1;
   // WEB-4c (BUG-462) — its parts and equipment: one per bird shown.
   const birds = chosen ? chosen.birds : plan ? dishBirdLine(ingredients, plan.view.multiplier, plan.view.feast) : ONE_BIRD;
+  // CLIENT-5 C (D-WS9-339) — and its turkey by count says that weight, as meal detail's does.
+  const birdName = chosen?.birdName;
   const runLine =
     plan?.run && makeAheadRunSteps(plan.view.dish.steps, plan.run) ? runCookLine(plan.run) : null;
 
@@ -262,7 +264,9 @@ function DishDetailContent({ dish, plan }: { dish: DishDetail; plan?: PlanDishCo
                   true of two screens out of three, and a count-unit suppression
                   landing on the meal and guest screens would have left "1 each"
                   here. Now there is one formatter and three callers. */}
-              {plan ? formatIngredientLine(ing, { multiplier, birds }) : formatIngredientLine(ing)}
+              {plan
+                ? formatIngredientLine(birdName?.index === i ? { ...ing, name: birdName.name } : ing, { multiplier, birds })
+                : formatIngredientLine(ing)}
             </Text>
             {/* WEB-4 — an egg rounded to a whole shows its true amount. */}
             {plan && (
