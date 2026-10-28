@@ -826,18 +826,36 @@ export function dishAddsPresent(
   return input.dishes.length > loaded.dishes.length;
 }
 
-/** The "Just this time" notice for what goes to the recipe anyway, or null. */
-export function recipeEditsLine(
-  edits: { stepEdits: boolean; dishAdds: boolean },
-  verb: "are" | "were",
-): string | null {
-  const what =
-    edits.stepEdits && edits.dishAdds
-      ? "Step changes and added dishes"
-      : edits.stepEdits
-        ? "Step changes"
-        : edits.dishAdds
-          ? "Added dishes"
-          : null;
-  return what ? `${what} ${verb} saved to the recipe.` : null;
+// CLIENT-4 A — Hans's add-dish copy (Oct 27), verbatim. An added dish always
+// goes to the recipe (see dishAddsPresent), whichever choice the cook makes.
+/** The save prompt's note, when the edit adds a dish. */
+export const ADD_DISH_PROMPT_NOTE =
+  "Added dishes are saved to the recipe, so they'll be there every time you cook it. Adding a dish to one meal only is in a future release.";
+/** The confirmation after "Apply always" with an added dish. */
+export const ADD_DISH_SAVED = "Added to the recipe. It'll be there next time too.";
+/** The confirmation after "Just this time" with an added dish. */
+export const ADD_DISH_JUST_THIS_TIME =
+  "Your other changes are just for this meal. The new dish is saved to the recipe. Adding a dish to one meal only is in a future release.";
+
+type RecipeEdits = { stepEdits: boolean; dishAdds: boolean };
+
+/** The save prompt's notice for what goes to the recipe on either choice, or null. */
+export function recipeEditsLine(edits: RecipeEdits): string | null {
+  const lines = [
+    edits.stepEdits ? "Step changes are saved to the recipe." : null,
+    edits.dishAdds ? ADD_DISH_PROMPT_NOTE : null,
+  ].filter((l): l is string => l !== null);
+  return lines.length > 0 ? lines.join(" ") : null;
+}
+
+/** The "Saved for this plan" message after "Just this time". */
+export function justThisTimeSavedMessage(title: string, edits: RecipeEdits): string {
+  const steps = edits.stepEdits ? "Step changes were saved to the recipe." : null;
+  if (edits.dishAdds) return steps ? `${steps} ${ADD_DISH_JUST_THIS_TIME}` : ADD_DISH_JUST_THIS_TIME;
+  return steps ? `${title} was updated here. ${steps}` : `${title} was updated here.`;
+}
+
+/** The "Saved" message after "Apply always" from a plan. */
+export function applyAlwaysSavedMessage(title: string, dishAdds: boolean): string {
+  return dishAdds ? ADD_DISH_SAVED : `${title} was updated.`;
 }
