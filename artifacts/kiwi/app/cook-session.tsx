@@ -49,7 +49,7 @@ import {
 import { decodeRun, onTheDayMeal } from "@/lib/cooking/feastDay";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsGuestSafe } from "@/contexts/GuestContext";
-import { reportCookFinished } from "@/lib/cookFinished";
+import { advanceFinishes, makeCookFinish, onLastLiveStep } from "@/lib/cookFinished";
 import { noteCookFinished } from "@/lib/storeReview";
 import { isFeastMeal, mealScaleFactors } from "@/lib/format/quantity";
 import { Colors, Spacing, Typography } from "@/constants/tokens";
@@ -75,6 +75,10 @@ export default function CookSession() {
   // CLIENT-3 C (LIFE-2 #9) — a finish is also sent to the server, members only.
   const signedIn = useAuth().isAuthenticated;
   const isGuest = useIsGuestSafe();
+  // CLIENT-4 D (BUG-560) — this session's one cook-finished POST, from whichever
+  // signal comes first: the advance onto the last step, the Header's back from
+  // it, or the leave hook.
+  const [finishCook] = useState(() => makeCookFinish());
   // PREP-2 item 2 — BOTH ids: one dish of a meal in plan context (a Thanksgiving
   // make-ahead row → its dish → Cook Now). The steps come from the composed meal,
   // scaled like the meal path; `run` narrows them to the row's own day.
@@ -346,8 +350,13 @@ export default function CookSession() {
       : Math.min(Math.max(0, currentIndex ?? startIndex), activeSteps.length - 1);
 
   // Advance / back step over done-in-prep rows; they open by a tap instead.
-  const advance = () =>
-    setCurrentIndex(nextLiveIndex(activeSteps, doneInPrepKeys, safeIndex));
+  // CLIENT-4 D (BUG-560) — advancing onto the last live step is the finish.
+  const finishInput = { signedIn, isGuest, mealId, dishId, planItemId };
+  const advance = () => {
+    const to = nextLiveIndex(activeSteps, doneInPrepKeys, safeIndex);
+    setCurrentIndex(to);
+    if (advanceFinishes(activeSteps, doneInPrepKeys, safeIndex, to)) finishCook(finishInput);
+  };
   const prev = () =>
     setCurrentIndex(prevLiveIndex(activeSteps, doneInPrepKeys, safeIndex));
   const selectStep = (i: number) => {
@@ -386,12 +395,20 @@ export default function CookSession() {
       gatePromptVisible={needsGatePrompt}
       onPrepAnswer={onPrepAnswer}
       toastVisible={toastVisible}
-      onExit={() => router.back()}
+      // CLIENT-4 D (BUG-560) — on the web, a direct load's back leaves the page
+      // without unmounting, so the leave hook below never hears it: send first.
+      onExit={() => {
+        if (onLastLiveStep(activeSteps, doneInPrepKeys, safeIndex, needsGatePrompt)) finishCook(finishInput);
+        router.back();
+      }}
       // 1.2-NATIVE C — a finish; the 2nd or later may ask for a store review.
       // CLIENT-3 C (LIFE-2 #9) — and POST /me/activity/cook-finished, unawaited.
+      // CLIENT-4 D — still needed: a session that opens on its last live step
+      // (or jumps there) and leaves by the system back or a swipe; the guard
+      // keeps it to one POST.
       onLeaveAfterLastStep={() => {
         void noteCookFinished(signupAt);
-        reportCookFinished({ signedIn, isGuest, mealId, dishId, planItemId });
+        finishCook(finishInput);
       }}
     />
   );

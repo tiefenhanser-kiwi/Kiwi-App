@@ -7,7 +7,15 @@ import { afterEach, test } from "node:test";
 
 import * as SecureStore from "expo-secure-store";
 
-import { cookFinishedBody, reportCookFinished, type CookFinishedInput } from "../cookFinished";
+import {
+  advanceFinishes,
+  cookFinishedBody,
+  makeCookFinish,
+  onLastLiveStep,
+  reportCookFinished,
+  type CookFinishedInput,
+} from "../cookFinished";
+import type { CookStep } from "../cooking/cookSession";
 import { postCookFinished } from "../api/me";
 import { __resetForTests as resetAuthBridge } from "../api/auth-bridge";
 
@@ -66,7 +74,73 @@ test("C: the wire: POST /me/activity/cook-finished with the body, { recorded } p
 
 test("C: Cook Mode sends it from onLeaveAfterLastStep, beside the review prompt, from the route's own params", () => {
   const route = readFileSync(new URL("../../app/cook-session.tsx", import.meta.url), "utf8");
-  assert.match(route, /reportCookFinished\(\{ signedIn, isGuest, mealId, dishId, planItemId \}\);/);
+  // CLIENT-4 D — through the session's once-guard.
+  assert.match(route, /const finishInput = \{ signedIn, isGuest, mealId, dishId, planItemId \};/);
+  assert.match(route, /onLeaveAfterLastStep=\{\(\) => \{\s*void noteCookFinished\(signupAt\);\s*finishCook\(finishInput\);/);
   assert.match(route, /const signedIn = useAuth\(\)\.isAuthenticated;/);
   assert.match(route, /const isGuest = useIsGuestSafe\(\);/);
+});
+
+// ── CLIENT-4 D (BUG-560) — however Cook Mode was entered ─────────────────────
+
+const step = (key: string): CookStep => ({ key, text: key, phaseType: "cook", estimatedMinutes: 5, isTimingSensitive: false });
+const STEPS = [step("a"), step("b"), step("c")];
+const NONE: ReadonlySet<string> = new Set();
+
+test("D: advancing onto the last live step is the finish; any other move is not", () => {
+  assert.equal(advanceFinishes(STEPS, NONE, 1, 2), true);
+  assert.equal(advanceFinishes(STEPS, NONE, 0, 1), false);
+  // On the last step, advance stays put: not a second finish.
+  assert.equal(advanceFinishes(STEPS, NONE, 2, 2), false);
+  // A done-in-prep tail: the last LIVE step is the finish.
+  assert.equal(advanceFinishes(STEPS, new Set(["c"]), 0, 1), true);
+  assert.equal(advanceFinishes([], NONE, 0, 0), false);
+});
+
+test("D: on the last live step (for the Header back), never behind the prep gate", () => {
+  assert.equal(onLastLiveStep(STEPS, NONE, 2, false), true);
+  assert.equal(onLastLiveStep(STEPS, NONE, 1, false), false);
+  assert.equal(onLastLiveStep(STEPS, new Set(["c"]), 1, false), true);
+  assert.equal(onLastLiveStep(STEPS, NONE, 2, true), false);
+  assert.equal(onLastLiveStep([], NONE, 0, false), false);
+});
+
+test("D: once per session, members only, fire-and-forget", async () => {
+  const sent: unknown[] = [];
+  const finish = makeCookFinish(async (body) => {
+    sent.push(body);
+    throw new Error("404");
+  });
+  // A guest's or a dish run's signal does not use up the session's send.
+  finish({ ...BASE, isGuest: true });
+  finish({ ...BASE, signedIn: false });
+  finish({ ...BASE, dishId: "d1" });
+  assert.equal(sent.length, 0);
+  assert.equal(finish({ ...BASE, planItemId: "pi1" }), undefined, "nothing for the screen to await");
+  // The advance, then the Header back, then the unmount: one POST.
+  finish({ ...BASE, planItemId: "pi1" });
+  finish({ ...BASE, planItemId: "pi1" });
+  assert.deepEqual(sent, [{ mealId: "m1", planItemId: "pi1" }]);
+  await new Promise((r) => setTimeout(r, 0)); // the rejected POST is dropped
+  // A new session (a remount, a reload) sends again.
+  const next = makeCookFinish(async (body) => void sent.push(body));
+  next(BASE);
+  assert.equal(sent.length, 2);
+});
+
+test("D: the route sends on the advance and on the Header back, and keeps the review prompt on leave only", () => {
+  const route = readFileSync(new URL("../../app/cook-session.tsx", import.meta.url), "utf8");
+  assert.match(route, /const \[finishCook\] = useState\(\(\) => makeCookFinish\(\)\);/);
+  assert.match(
+    route,
+    /const to = nextLiveIndex\(activeSteps, doneInPrepKeys, safeIndex\);\s*setCurrentIndex\(to\);\s*if \(advanceFinishes\(activeSteps, doneInPrepKeys, safeIndex, to\)\) finishCook\(finishInput\);/,
+  );
+  // A tap on the current step is that advance.
+  assert.match(route, /if \(i === safeIndex\) advance\(\);/);
+  assert.match(
+    route,
+    /onExit=\{\(\) => \{\s*if \(onLastLiveStep\(activeSteps, doneInPrepKeys, safeIndex, needsGatePrompt\)\) finishCook\(finishInput\);\s*router\.back\(\);/,
+  );
+  assert.equal(route.match(/noteCookFinished\(/g)?.length, 1, "the review prompt counts the leave only");
+  assert.doesNotMatch(route, /reportCookFinished\(/, "every send goes through the once-guard");
 });
