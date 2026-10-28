@@ -282,7 +282,9 @@ describe("PREP-1 Part D — Prep the feast", () => {
     const h = await spin({ loadPrepWeekInput: loaderStub(() => feastWeek()), prisma: mem.prisma as never, runAICall: narrationStub([]) });
     try {
       assert.equal((await post(h.url)).status, 200);
-      assert.deepEqual(mem.keys(), [`feast#produce#${CELERY}`, `feast#produce#${ONION}`, `produce#${ONION}`].sort());
+      // SERVER-7 B — the week's regeneration no longer prunes: a tick that carries nothing
+      // ("gone from the plan") is kept and reported.
+      assert.deepEqual(mem.keys(), [`feast#produce#${CELERY}`, `feast#produce#${ONION}`, `produce#${ONION}`, "produce#gone-from-the-plan"].sort());
     } finally {
       await h.close();
     }
