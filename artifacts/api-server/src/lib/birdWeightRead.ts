@@ -7,6 +7,9 @@
 // row's own arithmetic), and the main roast's minutes and its "about 2¾ hours"
 // (birdWeight). Read time only; the stored recipe keeps its authored words. Every
 // amountRef moves with its text, as feastScaleFrames does.
+//
+// SERVER-7 A (D-WS9-337) — the thaw is the weight rule's with no weight chosen too, at
+// the recipe's weight, and the bird row's note says its day.
 
 import type { PrismaClient } from "@prisma/client";
 
@@ -47,7 +50,7 @@ interface ReadDish {
   title: string;
   servings: number;
   authoredServingsDefault: number;
-  ingredients: readonly { name: string; quantity: number; unit: string; preparationNote: string | null }[];
+  ingredients: { name: string; quantity: number; unit: string; preparationNote: string | null }[];
   steps: ReadStep[];
 }
 
@@ -80,7 +83,6 @@ export async function applyBirdWeightToRead(
     birdWeightRange: bird.range,
     birdShownLb: chosen ?? quarter(defaultShownLb(bird, rowsOf(dish), (item.servingsOverride ?? dish.servings) / authored, feast)),
   };
-  if (chosen === null) return fields;
 
   const say = (st: ReadStep, edits: Parameters<typeof editStep>[2]) => {
     if (edits.length === 0) return;
@@ -91,20 +93,36 @@ export async function applyBirdWeightToRead(
   };
 
   // The main roast: its minutes (TimerChip reads estimatedMinutes) and its duration words.
-  const day = feast ? onTheDaySteps(dish.steps) : dish.steps;
-  const roast = birdRoastEdit(day, bird, chosen);
-  if (roast) {
-    const st = dish.steps.find((s) => s.stepIndex === roast.stepIndex)!;
-    st.estimatedMinutes = roast.minutes;
-    say(st, roastStepEdits(st.text, roast.minutes, chosen));
+  // A chosen weight only: with none, the roast is the recipe's.
+  if (chosen !== null) {
+    const day = feast ? onTheDaySteps(dish.steps) : dish.steps;
+    const roast = birdRoastEdit(day, bird, chosen);
+    if (roast) {
+      const st = dish.steps.find((s) => s.stepIndex === roast.stepIndex)!;
+      st.estimatedMinutes = roast.minutes;
+      say(st, roastStepEdits(st.text, roast.minutes, chosen));
+    }
   }
 
-  // The thaw step, code-written for the weight's days.
+  // 🔴 SERVER-7 A (BUG-559, D-WS9-337) — THE THAW, WEIGHT OR NO WEIGHT. The authored
+  // "6 days, Friday" for a 14-lb bird left it thawed about 2½ days before the roast, and
+  // USDA keeps a thawed bird 1–2 days. With no weight chosen the thaw is the weight
+  // rule's at the recipe's own weight, so the authored weight and no weight say the same
+  // thaw. The thaw step is code-written, and the bird row's note says that start day
+  // ("move from freezer to fridge Saturday"). Thaw lines only: a null-weight read is
+  // otherwise what it was.
+  const lb = chosen ?? bird.recipeLb;
   const thaw = dish.steps.find((s) => THAW_STEP.test(s.text));
-  if (thaw) {
+  const noted = dish.ingredients.filter((r, i) => i === bird.row && r.preparationNote !== null && NOTE_THAW_DAY.test(r.preparationNote));
+  if (thaw || noted.length > 0) {
     const row = await prisma.dish.findUnique({ where: { id: dish.dishId }, select: { tags: true } });
-    const plan = weighedThaw({ tags: row?.tags ?? [], stepTexts: storedTexts.get(dish.dishId) ?? dish.steps.map((s) => s.text), feastDow: feastDowOf(item.assignedDayOfWeek), lb: chosen });
-    say(thaw, [{ start: 0, end: thaw.text.length, text: birdThawStepText({ birdWord: "turkey", lb: chosen, startDay: plan.startDay, readyBy: plan.readyBy }) }]);
+    const plan = weighedThaw({ tags: row?.tags ?? [], stepTexts: storedTexts.get(dish.dishId) ?? dish.steps.map((s) => s.text), feastDow: feastDowOf(item.assignedDayOfWeek), lb });
+    if (thaw) say(thaw, [{ start: 0, end: thaw.text.length, text: birdThawStepText({ birdWord: "turkey", lb, startDay: plan.startDay, readyBy: plan.readyBy }) }]);
+    for (const r of noted) r.preparationNote = r.preparationNote!.replace(NOTE_THAW_DAY, (_m, lead: string) => `${lead}${plan.startDay}`);
   }
   return fields;
 }
+
+// The thaw day a bird row's note names: Classic's "thawed (move from freezer to fridge
+// Friday if frozen); …".
+const NOTE_THAW_DAY = /(\bfreezer to (?:the )?fridge (?:on )?)(?:Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)\b/i;

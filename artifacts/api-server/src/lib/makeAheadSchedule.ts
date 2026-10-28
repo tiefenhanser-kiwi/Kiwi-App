@@ -251,7 +251,7 @@ export interface MakeAheadPlanItem {
   id: string;
   mealId: string;
   assignedDayOfWeek: string | null;
-  /** THX-4 (D-WS9-324) — the turkey weight the cook chose; null/absent = the tags. */
+  /** THX-4 (D-WS9-324) — the turkey weight the cook chose; null/absent = the recipe's weight (SERVER-7 A). */
   birdWeightLb?: number | null;
   meal: {
     tags: readonly string[];
@@ -281,23 +281,24 @@ export async function makeAheadForPlan(
     ? []
     : await prisma.dish.findMany({ where: { id: { in: dishIds } }, select: { id: true, tags: true } });
   const tagsById = new Map(rows.map((r) => [r.id, r.tags]));
-  const bird = item.birdWeightLb === null || item.birdWeightLb === undefined
-    ? null
-    : mealBirdOf({
-        tags: item.meal.tags,
-        dishes: item.meal.dishes.map((d) => ({
-          dishId: d.dishId,
-          title: d.title,
-          rows: (d.ingredients ?? []).map((i) => ({ quantity: i.quantity, unit: i.unit, name: i.name, note: i.preparationNote })),
-        })),
-      });
+  // SERVER-7 A (BUG-559, D-WS9-337) — the bird thaws by the weight rule whether or not a
+  // weight is chosen: with none, at the recipe's own weight (the `thaw-<n>d` tag's "6
+  // days" left a 14-lb bird thawed 2½ days before the roast; USDA keeps it 1–2).
+  const bird = mealBirdOf({
+    tags: item.meal.tags,
+    dishes: item.meal.dishes.map((d) => ({
+      dishId: d.dishId,
+      title: d.title,
+      rows: (d.ingredients ?? []).map((i) => ({ quantity: i.quantity, unit: i.unit, name: i.name, note: i.preparationNote })),
+    })),
+  });
   return buildMakeAheadSchedule({
     startDate: plan.startDate,
     feast: {
       mealId: item.mealId,
       planItemId: item.id,
       assignedDayOfWeek: item.assignedDayOfWeek,
-      ...(bird ? { bird: { dishId: bird.dishId, lb: item.birdWeightLb! } } : {}),
+      ...(bird ? { bird: { dishId: bird.dishId, lb: item.birdWeightLb ?? bird.recipeLb } } : {}),
       dishes: item.meal.dishes.map((d) => ({
         dishId: d.dishId,
         dishName: d.title,
