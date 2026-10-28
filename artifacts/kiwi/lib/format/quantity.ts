@@ -699,6 +699,38 @@ export function chosenBird(
 }
 
 /**
+ * CLIENT-4 B (BUG-537, the meal screen's half) — a turkey written by count says the
+ * weight the cook chose, as the server's birdLineAtWeight words it: the weight in its
+ * name is rewritten ("whole turkey (12–14 lb)" → "whole turkey (16 lb)"), else
+ * " (16 lb)" is added (the Buttermilk alternate's weight is in its note, which the
+ * meal screen does not show). DISPLAY ONLY, applied after the factors:
+ * weighedTurkeyOf reads the recipe's weight out of this same text.
+ */
+export function birdNameAtWeight(name: string, chosenLb: number): string {
+  const said = `${formatNeedGlyph(chosenLb)} lb`;
+  const m = NAME_WEIGHT.exec(name);
+  return m ? name.slice(0, m.index) + said + name.slice(m.index + m[0].length) : `${name} (${said})`;
+}
+
+/**
+ * The by-count turkey row chosenBird scales, and the name its line shows at the
+ * chosen weight. Null with no weight chosen, no weighable turkey, or a turkey by
+ * weight (its amount already says the weight).
+ */
+export function chosenBirdName(
+  dishes: readonly { dishId: string; ingredients: readonly ScalableIngredient[] }[],
+  birdLb: number | null | undefined,
+): { dishId: string; index: number; name: string } | null {
+  if (birdLb === null || birdLb === undefined || !(birdLb > 0)) return null;
+  for (const d of dishes) {
+    const t = weighedTurkeyOf(d.ingredients);
+    if (!t) continue;
+    return t.byCount ? { dishId: d.dishId, index: t.index, name: birdNameAtWeight(d.ingredients[t.index].name, birdLb) } : null;
+  }
+  return null;
+}
+
+/**
  * The weight the meal's turkey has with none chosen, at this servings multiplier, to
  * the ¼ lb: the server's birdShownLb (birdWeight defaultShownLb), for a servings
  * count the server has not been told yet (the stepper's unsaved servings, a Reset).

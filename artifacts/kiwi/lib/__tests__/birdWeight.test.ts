@@ -8,9 +8,10 @@
 // expected value is a LITERAL written from the rule, not read back from the code.
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import { formatIngredientLine } from "../format/ingredientLine";
-import { chosenBird, defaultBirdLb, mealScaleFactors, weighedTurkeyOf } from "../format/quantity";
+import { chosenBird, chosenBirdName, defaultBirdLb, mealScaleFactors, weighedTurkeyOf } from "../format/quantity";
 import { buildAmountRefSegments } from "../cooking/amountSegments";
 import { consolidateMealIngredients } from "../meals/consolidateMealIngredients";
 import { planDishView } from "../dishes/planDish";
@@ -200,6 +201,81 @@ describe("THX-4 — which turkey, and the rest of the meal", () => {
     assert.deepEqual(planDishView(meal, "turkey")!.chosenBird, { factor: 16 / 14, birds: { parts: 1, birds: 1, chosen: true } });
     assert.equal(planDishView(meal, "gravy")!.chosenBird, undefined);
     assert.equal(planDishView({ ...meal, birdWeightLb: null }, "turkey")!.chosenBird, undefined);
+  });
+});
+
+// CLIENT-4 B (BUG-537, the meal screen's half) — a turkey written by count says the
+// chosen weight. The server's birdLineAtWeight words the grocery line the same way
+// ("whole turkey (16 lb)"); its pins are api-server thx4BirdWeight.test.ts.
+describe("CLIENT-4 B — a turkey by count says the chosen weight on the meal screen", () => {
+  /** The meal screen's lines (app/meal/[id].tsx): the factors, then the bird's name. */
+  function screenLines(dish: typeof TURKEY, servings: number, lb: number | null, dishes = [dish]): string[] {
+    const scale = mealScaleFactors(dishes, servings / WRITTEN_FOR, true, lb);
+    const bird = chosenBirdName(dishes, lb);
+    return dish.ingredients.map((row, i) =>
+      formatIngredientLine(bird && bird.dishId === dish.dishId && bird.index === i ? { ...row, name: bird.name } : row, {
+        multiplier: scale.byDish[dish.dishId],
+        birds: scale.birds[dish.dishId],
+      }),
+    );
+  }
+
+  it("the Buttermilk alternate (weight in the note) at 12, 16 and its authored 14 lb", () => {
+    for (const servings of [4, 10, 20]) {
+      assert.equal(screenLines(BUTTERMILK, servings, 12)[0], "1 whole turkey (12 lb)");
+      assert.equal(screenLines(BUTTERMILK, servings, 16)[0], "1 whole turkey (16 lb)");
+      assert.equal(screenLines(BUTTERMILK, servings, 14)[0], "1 whole turkey (14 lb)");
+    }
+    // The THX-4 pinned rows at the authored weight, the bird's name aside.
+    assert.deepEqual(screenLines(BUTTERMILK, 4, 14).slice(1), ["2 quarts buttermilk", "½ cup Kosher salt", "1 large brining bag", "1 turkey neck"]);
+  });
+
+  it("New Twist (weight in the name): the name's weight is the chosen one, not a second one", () => {
+    assert.equal(screenLines(NEW_TWIST, 4, 12)[0], "1 whole turkey (12 lb)");
+    assert.equal(screenLines(NEW_TWIST, 4, 16)[0], "1 whole turkey (16 lb)");
+    assert.equal(screenLines(NEW_TWIST, 4, 14)[0], "1 whole turkey (14 lb)");
+    assert.equal(screenLines(NEW_TWIST, 4, 16.5)[0], "1 whole turkey (16½ lb)");
+  });
+
+  it("the other rows still scale by chosen ÷ the RECIPE's weight (read from the original text)", () => {
+    for (const lb of [12, 14, 16]) {
+      assert.equal(mealScaleFactors([BUTTERMILK], 0.4, true, lb).byDish.buttermilk, lb / 14);
+      assert.equal(mealScaleFactors([NEW_TWIST], 0.4, true, lb).byDish.nt, lb / 14);
+      // Only the bird's line moves; every other line is the THX-4 line, byte for byte.
+      assert.deepEqual(screenLines(BUTTERMILK, 4, lb).slice(1), lines(BUTTERMILK, 4, lb).slice(1));
+      assert.deepEqual(screenLines(NEW_TWIST, 4, lb).slice(1), lines(NEW_TWIST, 4, lb).slice(1));
+    }
+    // Had the renamed text been read, 16 lb would have scaled by 16 ÷ 16.
+    assert.notEqual(screenLines(NEW_TWIST, 4, 16)[1], screenLines(NEW_TWIST, 4, 14)[1]);
+  });
+
+  it("no weight chosen: every line reads exactly as today", () => {
+    for (const dish of [BUTTERMILK, NEW_TWIST, TURKEY]) {
+      for (const servings of [4, 10, 20]) assert.deepEqual(screenLines(dish, servings, null), lines(dish, servings, null));
+    }
+    assert.equal(screenLines(BUTTERMILK, 4, null)[0], "1 whole turkey");
+    assert.equal(screenLines(NEW_TWIST, 4, null)[0], "1 whole turkey (12–14 lb)");
+    assert.equal(chosenBirdName([BUTTERMILK], null), null);
+  });
+
+  it("a turkey by weight already says it; a gravy dish has no bird line to rename", () => {
+    assert.equal(chosenBirdName([TURKEY], 16), null);
+    assert.equal(screenLines(TURKEY, 4, 16)[0], "16 pounds whole turkey");
+    assert.deepEqual(chosenBirdName([GRAVY, BUTTERMILK], 16), { dishId: "buttermilk", index: 0, name: "whole turkey (16 lb)" });
+  });
+
+  it("the Ingredients sheet says the same weight", () => {
+    const meal = { tags: ["thanksgiving-feast"], dishes: [{ ...BUTTERMILK, title: "Turkey" }] } as unknown as MealDetail;
+    const turkey = (lb: number | null) => consolidateMealIngredients(meal, 0.4, 4, lb).find((c) => /whole turkey/.test(c.name))!.line;
+    assert.equal(turkey(null), "1 whole turkey");
+    assert.equal(turkey(12), "1 whole turkey (12 lb)");
+    assert.equal(turkey(16), "1 whole turkey (16 lb)");
+  });
+
+  it("the meal screen renders through it", () => {
+    const screen = readFileSync(new URL("../../app/meal/[id].tsx", import.meta.url), "utf8");
+    assert.match(screen, /const birdName = chosenBirdName\(meal\.dishes, birdLb\);/);
+    assert.match(screen, /birdName && birdName\.dishId === dish\.dishId && birdName\.index === i \? \{ \.\.\.ing, name: birdName\.name \} : ing/);
   });
 });
 
