@@ -34,6 +34,7 @@ import { revokeAppleIdentitiesForUser as productionRevokeAppleIdentities } from 
 import { readBillingConfig, type BillingConfig } from "../lib/billing/config";
 import { cancelStripeForUser as productionCancelStripeForUser } from "../lib/billing/cancelOnDelete";
 import { billingModeFor, buildSubscriptionPayload } from "../lib/billing/subscriptionPayload";
+import { isCommonPassword, passwordTooCommonBody } from "../lib/commonPasswords";
 import { syncStoreSubscription } from "../lib/billing/storeSync";
 import type { FetchLike } from "../lib/billing/revenuecat";
 import {
@@ -966,7 +967,7 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
       try {
         const user = await prisma.user.findUnique({
           where: { id: req.userId },
-          select: { id: true, passwordHash: true },
+          select: { id: true, email: true, passwordHash: true },
         });
         if (!user || !user.passwordHash) {
           return res.status(401).json({ error: "user not found" });
@@ -978,6 +979,12 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
             error: "invalid_current_password",
             userFacingMessage: "Current password is incorrect",
           });
+        }
+
+        // SERVER-9 B (BUG-603) — the new password, once the caller has proven
+        // they hold the current one.
+        if (isCommonPassword(newPassword, user.email)) {
+          return res.status(400).json(passwordTooCommonBody());
         }
 
         const newHash = await hashPassword(newPassword);

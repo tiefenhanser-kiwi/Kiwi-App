@@ -9,9 +9,12 @@
 //
 // A missing token renders the invalid state WITHOUT a request. A 400 from the
 // endpoint (bad, expired, or already-spent token — BUG-233's single-use
-// ledger) renders the same invalid state.
+// ledger) renders the same invalid state. SERVER-9 B: except password_too_common
+// (lib/commonPasswords.ts), which is checked before the link is spent, so the
+// form shows the server's message and stays usable.
 
 import { APP_SCHEME, pageShell } from "./layout";
+import { PASSWORD_TOO_COMMON } from "../lib/commonPasswords";
 
 export const RESET_PASSWORD_PATH = "/reset-password";
 export const RESET_CONFIRM_ENDPOINT = "/api/auth/password-reset/confirm";
@@ -77,7 +80,17 @@ const BODY = `
       body: JSON.stringify({ token: token, newPassword: pw })
     }).then(function (res) {
       if (res.ok) { show(doneState); return; }
-      if (res.status === 400) { show(invalidState); return; }
+      if (res.status === 400) {
+        // SERVER-9 B — a too-common password leaves the link unspent: say why, keep the form.
+        return res.json().then(function (b) {
+          if (b && b.error === "${PASSWORD_TOO_COMMON}") {
+            error.textContent = b.userFacingMessage;
+            error.hidden = false; submit.disabled = false;
+            return;
+          }
+          show(invalidState);
+        }, function () { show(invalidState); });
+      }
       error.textContent = "Something went wrong (" + res.status + "). Please try again.";
       error.hidden = false; submit.disabled = false;
     }).catch(function () {

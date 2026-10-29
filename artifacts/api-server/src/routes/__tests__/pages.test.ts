@@ -119,6 +119,15 @@ describe("D-WS9-231 — web fallback pages at the host root", () => {
     );
   });
 
+  // SERVER-9 B (BUG-603) — a too-common password is a 400 that leaves the link
+  // unspent: the page shows the server's words and keeps the form, not the
+  // "link is invalid" state every other 400 gets.
+  it("GET /reset-password shows password_too_common's message on the form instead of the invalid state", async () => {
+    const html = await (await fetch(`${harness.origin}/reset-password`)).text();
+    assert.ok(html.includes(`b.error === "password_too_common"`), "no password_too_common branch");
+    assert.ok(html.includes("error.textContent = b.userFacingMessage;"), "the server's message is not shown");
+  });
+
   it("GET /verify-email carries NO kiwi:// link — the page spends the token on load, so the link could only lead from a success to a failure", async () => {
     const html = await (await fetch(`${harness.origin}/verify-email`)).text();
     assert.ok(!html.includes("kiwi:"), "a kiwi:// link is on the verify-email page");

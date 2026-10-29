@@ -41,6 +41,7 @@ import { sendSignupAlert, type SignupAlertInput } from "../lib/signupAlert";
 import { sendWelcomeEmail } from "../lib/lifecycle/run";
 import { readOAuthConfig, type OAuthConfig } from "../lib/oauth/config";
 import { readBillingConfig, type BillingConfig } from "../lib/billing/config";
+import { isCommonPassword, passwordTooCommonBody } from "../lib/commonPasswords";
 import {
   billingModeFor,
   trialDeniedField,
@@ -421,6 +422,12 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
       return res.status(400).json({
         error: "guestSessionId and templatePlanId are mutually exclusive",
       });
+    }
+
+    // SERVER-9 B (BUG-603) — before any read, so a refused password reveals
+    // nothing about whether the address is registered.
+    if (isCommonPassword(password, normalizedEmail)) {
+      return res.status(400).json(passwordTooCommonBody());
     }
 
     try {
@@ -1160,6 +1167,13 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
           "Password reset token refused",
         );
         return res.status(400).json({ error: "invalid or expired reset token" });
+      }
+
+      // SERVER-9 B (BUG-603) — after the link is known good (so this answer
+      // never vouches for a bad link) and BEFORE it is spent, so the person can
+      // choose another password with the same link.
+      if (isCommonPassword(newPassword, user.email)) {
+        return res.status(400).json(passwordTooCommonBody());
       }
 
       // BUG-233 — spend the token BEFORE changing anything. This is the write
