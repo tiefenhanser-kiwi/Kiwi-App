@@ -152,6 +152,22 @@ test("getPrepWeekCompletions GETs the completions path and round-trips the full 
   assert.equal(res.prepStatusIsManual, true);
 });
 
+test("CLIENT-7 D: getPrepWeekCompletions keeps a session row's scope (SERVER-9 C), and a week row has none", async () => {
+  const scope = { stepKey: "produce#garlic", mealIds: ["meal-1"] };
+  nextResponse = () =>
+    mockJson({
+      ...COMPLETIONS_RESPONSE,
+      completions: [
+        { stepKey: "~1.k3~produce#garlic", checkedAt: "2026-11-01T15:00:00.000Z", scope },
+        COMPLETIONS_RESPONSE.completions[0],
+      ],
+    });
+  const res = await getPrepWeekCompletions("plan-1");
+  assert.deepEqual(res.completions[0].scope, scope);
+  assert.equal(res.completions[0].stepKey, "~1.k3~produce#garlic");
+  assert.equal("scope" in res.completions[1], false);
+});
+
 test("getPrepWeekCompletions parses an empty resume state (no rows, all-false perMeal)", async () => {
   nextResponse = () =>
     mockJson({

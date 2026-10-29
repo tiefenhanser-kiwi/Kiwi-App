@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import {
+  completionsForMeal,
   doneInPrepStepKeys,
   firstLiveIndex,
   prepChips,
@@ -1090,4 +1091,73 @@ test("CLIENT-6 C: the route folds a 'yes' from the free structure read, and the 
   // The launch-plan reads are unchanged: completions and the (possibly paid) payload by planId.
   assert.match(src, /usePrepWeekCompletions\(planId, wantPlan\)/);
   assert.match(src, /usePrepWeek\(\s*planId,\s*shouldLoadPrepForCook\(wantPlan/);
+});
+
+// ── CLIENT-7 D (BUG-582) — a session's tick folds only the meals it held ──────
+//
+// SERVER-9 C: a one-meal or subset session's step is served as
+// `~<mask>.<check>~<engine key>`, and GET .../completions says on that row which
+// engine key it ticked and for which meals. Cook Mode folds against the WEEK's
+// payload (engine keys), so the scoped key matched nothing and a meal prepped in
+// a session never folded; read as the engine key for every meal, it would fold
+// the other meals that share the step.
+
+const OTHER = "22222222-2222-4222-8222-222222222222";
+function otherMeal(): MealDetail {
+  const m = keemaMeal();
+  return { ...m, mealId: OTHER, dishes: [{ ...m.dishes[0], dishId: "dO" }] };
+}
+/** The keema week with its garlic step shared by a second meal (its step 3). */
+function sharedGarlicPrep(): PrepWeekResult {
+  const prep = keemaPrep();
+  const garlic = prep.phases[1].steps[1];
+  prep.phases[1].steps[1] = { ...garlic, coversCookSteps: [...(garlic.coversCookSteps ?? []), { mealId: OTHER, dishId: "dO", stepIndex: 3 }] };
+  return prep;
+}
+const AT = new Date(2026, 10, 1, 12).toISOString(); // a Sunday, local noon
+const oneMealGarlic = { stepKey: "~1.k3~produce#garlic", checkedAt: AT, scope: { stepKey: "produce#garlic", mealIds: [MEAL] } };
+
+test("CLIENT-7 D: a one-meal session's tick folds that meal's Cook Mode step and no other meal's", () => {
+  const prep = sharedGarlicPrep();
+  const keema = flattenMealSteps(keemaMeal());
+  const other = flattenMealSteps(otherMeal());
+
+  const forKeema = new Set(completionsForMeal([oneMealGarlic], MEAL).map((r) => r.stepKey));
+  const keemaDone = doneInPrepStepKeys(keema, prep, MEAL, forKeema, keemaMeal().dishes);
+  assert.deepEqual(idxOf(keema, keemaDone), [3], "the session's meal folds its garlic step");
+  assert.deepEqual(prepChips(keema, prep, MEAL, forKeema, keemaDone).get(keema[0].key)?.map((c) => c.label), ["Minced garlic"]);
+
+  const forOther = new Set(completionsForMeal([oneMealGarlic], OTHER).map((r) => r.stepKey));
+  assert.equal(forOther.size, 0);
+  const otherDone = doneInPrepStepKeys(other, prep, OTHER, forOther, otherMeal().dishes);
+  assert.equal(otherDone.size, 0, "the other meal's garlic step is not folded");
+  assert.equal(prepChips(other, prep, OTHER, forOther, otherDone).size, 0, "nor chipped");
+
+  // Before D: the raw scoped key matches no engine key, so the session's own meal never folded.
+  const raw = new Set([oneMealGarlic.stepKey]);
+  assert.equal(doneInPrepStepKeys(keema, prep, MEAL, raw, keemaMeal().dishes).size, 0);
+});
+
+test("CLIENT-7 D: a tick with no scope counts for every meal, as before; a scoped key that no longer decodes counts for none", () => {
+  const week = { stepKey: "produce#garlic", checkedAt: AT };
+  assert.deepEqual(completionsForMeal([week], MEAL), [week]);
+  assert.deepEqual(completionsForMeal([week], OTHER), [week]);
+  // The server sends no scope for a key its plan no longer decodes: the raw key, which folds nothing.
+  const stale = { stepKey: "~3.zz~produce#garlic", checkedAt: AT };
+  assert.deepEqual(completionsForMeal([stale], MEAL), [stale]);
+  // A two-meal session counts for both, under the engine key, with its own checkedAt (the recap's day).
+  const two = { ...oneMealGarlic, stepKey: "~3.q1~produce#garlic", scope: { stepKey: "produce#garlic", mealIds: [MEAL, OTHER] } };
+  assert.deepEqual(completionsForMeal([two], OTHER).map((r) => [r.stepKey, r.checkedAt]), [["produce#garlic", AT]]);
+  // The recap reads the same rows: a session for another meal names no day here.
+  const recapPrep = { totalEstimatedMinutes: 5, phases: [{ phase: "produce", title: "Produce", skippable: false, steps: [{ ...sharedGarlicPrep().phases[1].steps[1], contributesToMealIds: [MEAL, OTHER] }] }] } as PrepWeekResult;
+  assert.equal(prepRecap(recapPrep, OTHER, completionsForMeal([oneMealGarlic], OTHER), new Date(AT)).heading, "Already prepped");
+  assert.equal(prepRecap(recapPrep, MEAL, completionsForMeal([oneMealGarlic], MEAL), new Date(AT)).heading, "Prepped on Sunday");
+});
+
+test("CLIENT-7 D: Cook Mode's fold, chips and recap read the meal's rows", () => {
+  const src = readFileSync(new URL("../../../app/cook-session.tsx", import.meta.url), "utf8");
+  assert.match(src, /completionsForMeal\(completionRows \?\? \[\], mealId\)/);
+  assert.match(src, /answered\?\.checked \?\? new Set\(mealRows\.map\(\(c\) => c\.stepKey\)\)/);
+  assert.match(src, /prepRecap\(prepResult, mealId, mealRows, new Date\(\)\)/);
+  assert.doesNotMatch(src, /completionRows\?\.map\(\(c\) => c\.stepKey\)/, "no fold reads the raw rows");
 });
