@@ -7,6 +7,8 @@ import { test } from "node:test";
 import {
   doneInPrepStepKeys,
   firstLiveIndex,
+  prepChips,
+  withPrepChips,
   flattenDishSteps,
   flattenMealSteps,
   formatClock,
@@ -575,6 +577,11 @@ const OTHER_MEAL = "22222222-2222-4222-8222-222222222222";
 //   dA#6 "Mince 3 cloves garlic and …"   prep  ← covered by Garlic AND Ginger
 //   dA#7 "Chop the cilantro"             prep  ← covered by NOTHING (tag only)
 //   dA#9 "Sear the chicken"              cook
+/** CLIENT-6 B — a dish ingredient row, by name. */
+function ing(name: string): MealDetail["dishes"][number]["ingredients"][number] {
+  return { name, quantity: 1, unit: "each", preparationNote: null, category: "Produce", isOptional: false };
+}
+
 function preppedMeal(): MealDetail {
   return mealDetail({
     steps: [],
@@ -587,7 +594,7 @@ function preppedMeal(): MealDetail {
         minutes: 30,
         difficulty: "easy",
         servings: 2,
-        ingredients: [],
+        ingredients: ["onion", "garlic cloves", "fresh ginger", "fresh cilantro", "chicken thighs"].map(ing),
         steps: [
           step({ stepIndex: 4, text: "Dice 1 onion", phaseType: "prep" }),
           step({ stepIndex: 6, text: "Mince 3 cloves garlic and grate the ginger", phaseType: "prep" }),
@@ -688,6 +695,7 @@ test("K-R7: a cook step collapses only when EVERY prep step covering it is compl
     preppedResult(),
     MEAL,
     new Set(["produce#onion", "produce#garlic"]),
+    preppedMeal().dishes,
   );
   assert.deepEqual(keysByText(steps, partial), ["Dice 1 onion"]);
 
@@ -696,13 +704,14 @@ test("K-R7: a cook step collapses only when EVERY prep step covering it is compl
     preppedResult(),
     MEAL,
     new Set(["produce#onion", "produce#garlic", "produce#ginger"]),
+    preppedMeal().dishes,
   );
   assert.deepEqual(keysByText(steps, all), [
     "Dice 1 onion",
     "Mince 3 cloves garlic and grate the ginger",
   ]);
 
-  assert.equal(doneInPrepStepKeys(steps, preppedResult(), MEAL, new Set()).size, 0);
+  assert.equal(doneInPrepStepKeys(steps, preppedResult(), MEAL, new Set(), preppedMeal().dishes).size, 0);
 });
 
 test("K-R7: the prep TAG alone never collapses a step; nor do other meals' covers", () => {
@@ -713,7 +722,7 @@ test("K-R7: the prep TAG alone never collapses a step; nor do other meals' cover
     "produce#ginger",
     "produce#leeks",
   ]);
-  const done = doneInPrepStepKeys(steps, preppedResult(), MEAL, everything);
+  const done = doneInPrepStepKeys(steps, preppedResult(), MEAL, everything, preppedMeal().dishes);
   const texts = keysByText(steps, done);
   // "Chop the cilantro" is tagged prep but no prep step covers it.
   assert.ok(!texts.includes("Chop the cilantro"), `uncovered prep step collapsed: ${texts}`);
@@ -721,8 +730,8 @@ test("K-R7: the prep TAG alone never collapses a step; nor do other meals' cover
   assert.ok(!texts.includes("Sear the chicken"), `another meal's cover leaked: ${texts}`);
 
   // No payload, or no meal (a dishId launch): nothing collapses.
-  assert.equal(doneInPrepStepKeys(steps, undefined, MEAL, everything).size, 0);
-  assert.equal(doneInPrepStepKeys(steps, preppedResult(), "", everything).size, 0);
+  assert.equal(doneInPrepStepKeys(steps, undefined, MEAL, everything, preppedMeal().dishes).size, 0);
+  assert.equal(doneInPrepStepKeys(steps, preppedResult(), "", everything, preppedMeal().dishes).size, 0);
 });
 
 test("K-R7: no step is dropped — the tag-based filter and its recap are gone", async () => {
@@ -737,6 +746,7 @@ test("K-R7: no step is dropped — the tag-based filter and its recap are gone",
     preppedResult(),
     MEAL,
     new Set(["produce#onion", "produce#garlic", "produce#ginger"]),
+    preppedMeal().dishes,
   );
   assert.equal(steps.length, 4);
   assert.ok([...done].every((k) => steps.some((s) => s.key === k)));
@@ -879,4 +889,156 @@ test("CLIENT-2b D: every Cook Mode path carries preppedRefs; none, null or [] le
   assert.deepEqual(sequenced.find((s) => s.text === "Sear chicken")!.preppedRefs, refs);
   assert.deepEqual(flattenMealSteps(mealDetail({ steps: [step({ preppedRefs: refs })] }))[0].preppedRefs, refs);
   assert.ok(!("preppedRefs" in flattenMealSteps(mealDetail({ steps: [step({ preppedRefs: null })] }))[0]));
+});
+
+// ── CLIENT-6 B (BUG-584 / D-WS9-350 phase 1) — fold only what was really prepped ──
+//
+// The cook steps and prep steps are QA-NIGHT-1's (dev, 2026-10-28/29), verbatim.
+
+const KEEMA_ING = ["ground beef (85% lean)", "yellow onion", "garlic cloves", "fresh ginger", "vegetable oil", "ground cumin", "ground coriander", "garam masala", "ground turmeric", "Kashmiri chili powder", "Kosher salt", "fresh cilantro"].map(ing);
+function keemaMeal(): MealDetail {
+  return mealDetail({
+    steps: [],
+    dishes: [
+      {
+        dishId: "dK",
+        title: "Beef Keema Curry",
+        roleLabel: "main",
+        positionIndex: 0,
+        minutes: 40,
+        difficulty: "easy",
+        servings: 4,
+        ingredients: KEEMA_ING,
+        steps: [
+          // BUG-584's own step: linked to the garlic prep step only.
+          step({ stepIndex: 0, text: "Finely dice the yellow onion and mince the 2 garlic cloves.", phaseType: "prep" }),
+          step({ stepIndex: 1, text: "Finely dice the yellow onion, mince the 4 garlic cloves, and peel and grate 1 tablespoon fresh ginger.", phaseType: "prep" }),
+          step({ stepIndex: 2, text: "Measure out 1½ teaspoons ground cumin, 1½ teaspoons ground coriander, 1½ teaspoons garam masala, ½ teaspoon ground turmeric, and ¾ teaspoon Kashmiri chili powder.", phaseType: "prep" }),
+          step({ stepIndex: 3, text: "Mince the 4 garlic cloves.", phaseType: "prep" }),
+          step({ stepIndex: 4, text: "Heat 2 tablespoons vegetable oil and brown the beef with the minced garlic.", phaseType: "cook" }),
+          step({ stepIndex: 5, text: "Prep everything for the curry.", phaseType: "prep" }),
+        ],
+      },
+    ],
+  });
+}
+const covers = (...idx: number[]) => idx.map((stepIndex) => ({ mealId: MEAL, dishId: "dK", stepIndex }));
+function keemaPrep(extra: { onionCovers?: number[]; garlicInstructions?: string } = {}): PrepWeekResult {
+  return {
+    totalEstimatedMinutes: 30,
+    phases: [
+      {
+        phase: "seasonings_dry",
+        title: "Dry ingredients",
+        skippable: true,
+        steps: [
+          prepStep("cnt#seas#dK|r:0|", "Measure the Curry spices", {
+            instructions: "Get a small bowl for the Curry spices. Into the bowl:\n3¾ tsp ground cumin\n3¾ tsp ground coriander\n3¾ tsp garam masala\n1¼ tsp ground turmeric\n2 tsp Kashmiri chili powder",
+            containerNames: ["Curry spices"],
+            coversCookSteps: covers(2),
+          }),
+        ],
+      },
+      {
+        phase: "produce",
+        title: "Produce",
+        skippable: false,
+        steps: [
+          prepStep("produce#onion", "Dice all yellow onions", {
+            instructions: "Dice 3 yellow onions.\nInto the Curry plate: 1 onion for the Beef Keema Curry",
+            containerNames: ["Curry plate"],
+            coversCookSteps: covers(...(extra.onionCovers ?? [])),
+          }),
+          prepStep("produce#garlic", "Mince all garlic", {
+            instructions: extra.garlicInstructions ?? "Mince 31 cloves of garlic.\nInto the Minced garlic tub: 5 cloves for the Creamy Beef and Mushroom Stroganoff · 10 cloves for the Beef Keema Curry with Peas",
+            containerNames: ["Minced garlic"],
+            coversCookSteps: covers(0, 1, 3, 4, 5),
+          }),
+          prepStep("produce#ginger", "Grate the ginger", {
+            instructions: "Peel and grate 2½ tbsp fresh ginger for the Curry plate.",
+            containerNames: ["Curry plate"],
+            coversCookSteps: covers(1),
+          }),
+        ],
+      },
+      { phase: "sauces_marinades", title: "Sauces and marinades", skippable: true, steps: [] },
+      { phase: "proteins", title: "Proteins", skippable: false, steps: [] },
+    ],
+  };
+}
+const ALL_KEEMA = new Set(["cnt#seas#dK|r:0|", "produce#onion", "produce#garlic", "produce#ginger"]);
+const idxOf = (steps: CookStep[], keys: ReadonlySet<string>) => steps.filter((s) => keys.has(s.key)).map((s) => s.stepIndex);
+
+test("CLIENT-6 B (BUG-584): garlic ticked, onion not — the onion-and-garlic step shows in full, with the garlic's chip", () => {
+  const steps = flattenMealSteps(keemaMeal());
+  const ticked = new Set(["produce#garlic"]);
+  const done = doneInPrepStepKeys(steps, keemaPrep(), MEAL, ticked, keemaMeal().dishes);
+  // Before: step 0's only covering step (garlic) was ticked, so it folded and the onion was never diced.
+  assert.ok(!idxOf(steps, done).includes(0), "the onion folded away");
+  // The garlic-only step folds; it names nothing the garlic step did not do.
+  assert.deepEqual(idxOf(steps, done), [3]);
+  const chips = prepChips(steps, keemaPrep(), MEAL, ticked, done);
+  assert.deepEqual(chips.get(steps[0].key), [{ containerId: "produce#garlic", label: "Minced garlic" }]);
+  assert.equal(chips.get(steps[3].key), undefined, "a folded step needs no chip");
+  const shown = withPrepChips(steps, chips);
+  assert.equal(shown[0].text, steps[0].text, "the words are the recipe's, in full");
+  assert.deepEqual(shown[0].preppedRefs?.map((r) => r.label), ["Minced garlic"]);
+});
+
+test("CLIENT-6 B: after full prep a step folds only when its covering steps did every food it names", () => {
+  const steps = flattenMealSteps(keemaMeal());
+  const done = doneInPrepStepKeys(steps, keemaPrep(), MEAL, ALL_KEEMA, keemaMeal().dishes);
+  // 0/1: the onion's own step does not cover them, so nothing proves it was diced for them.
+  // 2: every spice is a line of the Curry spices step. 3: garlic. 4: oil and beef are cook work.
+  // 5: names no ingredient — the client cannot tell.
+  assert.deepEqual(idxOf(steps, done), [2, 3]);
+  // When the onion's step does cover them, they fold.
+  const linked = doneInPrepStepKeys(steps, keemaPrep({ onionCovers: [0, 1] }), MEAL, ALL_KEEMA, keemaMeal().dishes);
+  assert.deepEqual(idxOf(steps, linked), [0, 1, 2, 3]);
+  // ...and still not while that onion step is unticked (the old strictness holds).
+  const noOnion = new Set([...ALL_KEEMA].filter((k) => k !== "produce#onion"));
+  assert.deepEqual(idxOf(steps, doneInPrepStepKeys(steps, keemaPrep({ onionCovers: [0, 1] }), MEAL, noOnion, keemaMeal().dishes)), [2, 3]);
+});
+
+test("CLIENT-6 B: where a prep step's food GOES is not what it cut", () => {
+  const steps = flattenMealSteps(keemaMeal());
+  // "…for the Creamy Beef and Mushroom Stroganoff" names beef; the garlic step did not brown it.
+  const done = doneInPrepStepKeys(steps, keemaPrep(), MEAL, ALL_KEEMA, keemaMeal().dishes);
+  assert.ok(!idxOf(steps, done).includes(4));
+  // A garlic step whose line says "yellow onion" only as a destination does not cover the onion.
+  const sneaky = keemaPrep({ garlicInstructions: "Mince 31 cloves of garlic for the yellow onion and garlic base." });
+  assert.ok(!idxOf(steps, doneInPrepStepKeys(steps, sneaky, MEAL, ALL_KEEMA, keemaMeal().dishes)).includes(0));
+});
+
+test("CLIENT-6 B: green onions are not a yellow onion; a bare 'onion' ingredient is any onion", () => {
+  const meal = keemaMeal();
+  const steps = flattenMealSteps(meal).filter((s) => s.stepIndex === 0);
+  const green = keemaPrep({ onionCovers: [0] });
+  green.phases[1].steps[0] = { ...green.phases[1].steps[0], title: "Slice the green onions", instructions: "Slice 4 green onions." };
+  assert.equal(doneInPrepStepKeys(steps, green, MEAL, ALL_KEEMA, meal.dishes).size, 0);
+  const bare = [{ ...meal.dishes[0], ingredients: [ing("onion"), ing("garlic cloves")] }];
+  assert.equal(doneInPrepStepKeys(steps, green, MEAL, ALL_KEEMA, bare).size, 1);
+});
+
+test("CLIENT-6 B: when the client cannot tell, nothing folds", () => {
+  const steps = flattenMealSteps(keemaMeal());
+  // No dishes to read names from.
+  assert.equal(doneInPrepStepKeys(steps, keemaPrep(), MEAL, ALL_KEEMA).size, 0);
+  // A dish whose ingredient list does not name what the step says.
+  const nameless = [{ ...keemaMeal().dishes[0], ingredients: [] }];
+  assert.equal(doneInPrepStepKeys(steps, keemaPrep(), MEAL, ALL_KEEMA, nameless).size, 0);
+});
+
+test("CLIENT-6 B chips: unticked covering steps get none, the server's own chip is not repeated, several containers read the title", () => {
+  const steps = flattenMealSteps(keemaMeal());
+  const prep = keemaPrep();
+  // Ginger's step fills two containers here: its chip reads its title.
+  prep.phases[1].steps[2] = { ...prep.phases[1].steps[2], containerNames: ["Curry plate", "Stir-fry plate"] };
+  const withServerChip = steps.map((s) => (s.stepIndex === 1 ? { ...s, preppedRefs: [{ containerId: "c-garlic", label: "Minced garlic" }] } : s));
+  const chips = prepChips(withServerChip, prep, MEAL, new Set(["produce#garlic", "produce#ginger"]), new Set());
+  assert.deepEqual(chips.get(steps[1].key), [{ containerId: "produce#ginger", label: "Grate the ginger" }]);
+  // Step 2's covering step (the spices) is not ticked: no chip.
+  assert.equal(chips.get(steps[2].key), undefined);
+  // Another meal's read: none.
+  assert.equal(prepChips(steps, prep, "other-meal", ALL_KEEMA, new Set()).size, 0);
 });

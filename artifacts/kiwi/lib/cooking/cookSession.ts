@@ -10,10 +10,11 @@
 // completions). The Meal/Dish recipe shapes are RENDER-ONLY — nothing here
 // reads or writes a prep flag on a Meal/Dish. Nothing here writes at all.
 
-import type { PrepCompletionRow, PrepWeekResult, SequencedStep } from "@/lib/api/cooking";
+import type { PrepCompletionRow, PrepWeekResult, PrepWeekStep, SequencedStep } from "@/lib/api/cooking";
 import type { DishDetail } from "@/lib/api/dishes";
 import type { AmountRef, MealDetail, MealStep, PreppedRef } from "@/lib/api/meals";
 import { makeAheadRunSteps, type MakeAheadRun } from "./feastDay";
+import { namedFoods, prepCovers, prepWorkWords } from "./prepFoods";
 
 // WS7-8b Block 4 (Block 1) — four shared primitives were lifted out of this
 // module into dedicated, screen-agnostic homes so the Week Prep screen can
@@ -345,7 +346,8 @@ export function preppedReadPlanItemId(args: {
 // work a step is, not that Prep the Week did it, so a step whose salt or oil was
 // never prepped vanished with the part the cook still had to do. Now:
 //   • a cook step is "done in prep" — collapsed, its text one tap away — only
-//     when every prep step whose `coversCookSteps` names it is complete;
+//     when every prep step whose `coversCookSteps` names it is complete, and
+//     (CLIENT-6 B) those steps did every food it names;
 //   • the recap lists the plan's PREP steps for this meal, not cook steps.
 // The footer's minutes are untouched by either: the Sequencer's serve-anchored
 // offsets are plan-agnostic and still count a collapsed step's time, and a
@@ -355,40 +357,103 @@ function coverKey(dishId: string, stepIndex: number): string {
   return `${dishId}#${stepIndex}`;
 }
 
+/** The dish ingredients the fold reads names from (MealDetail's dishes fit). */
+export type FoldDishes = readonly { dishId: string; ingredients: readonly { name: string }[] }[];
+
+/** Each covered cook step's covering prep steps, for `mealId`. */
+function coveringSteps(prep: PrepWeekResult, mealId: string): Map<string, PrepWeekStep[]> {
+  const out = new Map<string, PrepWeekStep[]>();
+  for (const phase of prep.phases) {
+    for (const step of phase.steps) {
+      for (const c of step.coversCookSteps ?? []) {
+        if (c.mealId !== mealId) continue;
+        const k = coverKey(c.dishId, c.stepIndex);
+        const list = out.get(k) ?? [];
+        list.push(step);
+        out.set(k, list);
+      }
+    }
+  }
+  return out;
+}
+
 /**
- * The CookStep keys Prep the Week has fully done for `mealId`: every prep step
- * listing the cook step in `coversCookSteps` has its stepKey in `checked` (the
- * completions the app already reads). Strict on purpose, like the server's
- * derivation: one unticked covering step and the cook step renders normally,
- * because it is the cook step that then tells the cook what still needs
- * cutting. A cook step no prep step covers never collapses.
+ * The CookStep keys Prep the Week has fully done for `mealId`. Strict on purpose,
+ * like the server's derivation: one unticked covering step and the cook step
+ * renders normally, because it is the cook step that then tells the cook what
+ * still needs cutting. A cook step no prep step covers never collapses.
+ *
+ * 🔴 CLIENT-6 B (BUG-584 / D-WS9-350 phase 1) — AND EVERY FOOD IT WORKS ON. A
+ * prep step's `coversCookSteps` says it did SOME of a cook step's work: "Finely
+ * dice the yellow onion and mince the 2 garlic cloves" listed only the garlic
+ * step, so ticking garlic folded the onion away. A step now folds only when
+ * every one of its dish's ingredients its words name is said by the ticked
+ * covering steps' own words (prepFoods.ts). When the client cannot tell (no
+ * dishes passed, or the words name no ingredient), the step shows in full; the
+ * parts that were prepped get their chip (prepChips). Safe over tidy.
  */
 export function doneInPrepStepKeys(
   steps: readonly CookStep[],
   prep: PrepWeekResult | undefined,
   mealId: string,
   checked: ReadonlySet<string>,
+  dishes?: FoldDishes,
 ): Set<string> {
   const out = new Set<string>();
-  if (!prep || mealId.length === 0) return out;
-  const coveringStepKeys = new Map<string, string[]>();
-  for (const phase of prep.phases) {
-    for (const step of phase.steps) {
-      for (const c of step.coversCookSteps ?? []) {
-        if (c.mealId !== mealId) continue;
-        const k = coverKey(c.dishId, c.stepIndex);
-        const list = coveringStepKeys.get(k) ?? [];
-        list.push(step.stepKey);
-        coveringStepKeys.set(k, list);
-      }
-    }
-  }
+  if (!prep || mealId.length === 0 || !dishes) return out;
+  const covering = coveringSteps(prep, mealId);
+  const names = new Map(dishes.map((d) => [d.dishId, d.ingredients.map((i) => i.name)]));
   for (const st of steps) {
     if (st.dishId === undefined || st.stepIndex === undefined) continue;
-    const by = coveringStepKeys.get(coverKey(st.dishId, st.stepIndex));
-    if (by && by.length > 0 && by.every((k) => checked.has(k))) out.add(st.key);
+    const by = covering.get(coverKey(st.dishId, st.stepIndex));
+    if (!by || by.length === 0 || !by.every((p) => checked.has(p.stepKey))) continue;
+    const foods = namedFoods(st.text, names.get(st.dishId) ?? []);
+    const said = by.flatMap((p) => prepWorkWords(p));
+    if (foods.length > 0 && foods.every((f) => prepCovers(said, f))) out.add(st.key);
   }
   return out;
+}
+
+/**
+ * CLIENT-6 B — the chips a step shown in full gets for what WAS prepped: one per
+ * ticked prep step covering it that the server's own `preppedRefs` do not already
+ * name. Its label is the step's one container ("Minced garlic"), or its title when
+ * it fills several or none ("Grate the ginger"). Folded steps get none (the fold
+ * says it); a step with no ticked covering step gets none.
+ */
+export function prepChips(
+  steps: readonly CookStep[],
+  prep: PrepWeekResult | undefined,
+  mealId: string,
+  checked: ReadonlySet<string>,
+  done: ReadonlySet<string>,
+): Map<string, PreppedRef[]> {
+  const out = new Map<string, PreppedRef[]>();
+  if (!prep || mealId.length === 0) return out;
+  const covering = coveringSteps(prep, mealId);
+  for (const st of steps) {
+    if (st.dishId === undefined || st.stepIndex === undefined || done.has(st.key)) continue;
+    const own = st.preppedRefs ?? [];
+    const refs: PreppedRef[] = [];
+    for (const p of covering.get(coverKey(st.dishId, st.stepIndex)) ?? []) {
+      if (!checked.has(p.stepKey)) continue;
+      const names = p.containerNames ?? [];
+      const ref = { containerId: p.containerId ?? p.stepKey, label: names.length === 1 ? names[0] : p.title };
+      const dup = [...own, ...refs].some((r) => r.containerId === ref.containerId || r.label.toLowerCase() === ref.label.toLowerCase());
+      if (!dup) refs.push(ref);
+    }
+    if (refs.length > 0) out.set(st.key, refs);
+  }
+  return out;
+}
+
+/** The steps with prepChips' chips after the server's own. */
+export function withPrepChips(steps: readonly CookStep[], chips: ReadonlyMap<string, PreppedRef[]>): CookStep[] {
+  if (chips.size === 0) return steps as CookStep[];
+  return steps.map((s) => {
+    const add = chips.get(s.key);
+    return add ? { ...s, preppedRefs: [...(s.preppedRefs ?? []), ...add] } : s;
+  });
 }
 
 export interface PrepRecap {

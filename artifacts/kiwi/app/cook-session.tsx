@@ -38,6 +38,7 @@ import {
   flattenMealSteps,
   flattenPlanDishSteps,
   nextLiveIndex,
+  prepChips,
   preppedMealRead,
   preppedReadPlanItemId,
   prepRecap,
@@ -47,6 +48,7 @@ import {
   resolvePrepGate,
   sequenceMealSteps,
   shouldLoadPrepForCook,
+  withPrepChips,
   type CookStep,
 } from "@/lib/cooking/cookSession";
 import { decodeRun, onTheDayMeal } from "@/lib/cooking/feastDay";
@@ -225,9 +227,12 @@ export default function CookSession() {
   // CLIENT-6 A (D-WS9-351) — a feast off a Thursday reads "On feast day:"
   // (display only; the keys, and which steps are the day's, are allSteps').
   const feastDayName = feastDayNameOf(planQuery.data, mealId);
-  const activeSteps = useMemo(
-    () => allSteps.map((s) => feastDayStep(s, feastDayName)),
-    [allSteps, feastDayName],
+  // CLIENT-6 B (BUG-584) — a step folds only when its ticked covering steps did
+  // every food it names (the dish's ingredients); shown steps get a chip for
+  // what was prepped.
+  const checkedKeys = useMemo(
+    () => new Set(completionRows?.map((c) => c.stepKey) ?? []),
+    [completionRows],
   );
   const doneInPrepKeys = useMemo(
     () =>
@@ -235,9 +240,18 @@ export default function CookSession() {
         allSteps,
         prepResult,
         mealId,
-        new Set(completionRows?.map((c) => c.stepKey) ?? []),
+        checkedKeys,
+        mealQuery.data?.dishes,
       ),
-    [allSteps, prepResult, mealId, completionRows],
+    [allSteps, prepResult, mealId, checkedKeys, mealQuery.data],
+  );
+  const activeSteps = useMemo(
+    () =>
+      withPrepChips(
+        allSteps.map((s) => feastDayStep(s, feastDayName)),
+        prepChips(allSteps, prepResult, mealId, checkedKeys, doneInPrepKeys),
+      ),
+    [allSteps, feastDayName, prepResult, mealId, checkedKeys, doneInPrepKeys],
   );
   const recap = useMemo(
     () => prepRecap(prepResult, mealId, completionRows ?? [], new Date()),
