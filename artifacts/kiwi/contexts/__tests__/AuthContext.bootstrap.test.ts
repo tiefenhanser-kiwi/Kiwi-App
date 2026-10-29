@@ -395,7 +395,7 @@ async function signupRejectedWith(body: unknown): Promise<unknown> {
 }
 
 test("signup: a 400 password_too_common rejects, and sets no form error", async () => {
-  const err = await signupRejectedWith({ error: "That password is too common.", code: "password_too_common" });
+  const err = await signupRejectedWith({ error: "password_too_common", userFacingMessage: "That password is too common. Try a longer phrase only you would use." });
   assert.ok(err instanceof Error, "the screen gets the error to branch on");
   assert.equal(captured!.error, null);
   assert.equal(captured!.token, null);
