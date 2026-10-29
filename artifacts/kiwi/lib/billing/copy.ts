@@ -232,6 +232,17 @@ export function deleteAccountStoreNotice(source: "apple" | "google"): string {
 export const SETTINGS_ACTIVE_NO_DATE = "Kiwi subscription · active";
 export const SETTINGS_TRIAL_NO_DATE = "Free trial";
 
+// ── CLIENT-7 A (D-WS9-356) — free during launch ─────────────────────────
+//
+// Profile's Subscription card for an account that is not paying, while the
+// server says `billing.mode: "free_launch"`. A paying account keeps its own line
+// and its manage action: "nothing to cancel" would not be true for it.
+
+export const FREE_LAUNCH_TITLE = "Kiwi is free during launch.";
+export const FREE_LAUNCH_BODY = "Every feature is included. No card, nothing to cancel.";
+/** The card's Restore Purchases while the store is confirming a restore. */
+export const RESTORE_BUSY = "Restoring…";
+
 // ── the web return pages (§2.3) ─────────────────────────────────────────
 
 export const RETURN_TITLE = "You're all set";

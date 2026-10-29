@@ -436,3 +436,50 @@ test("signup(options) with an empty phone sends no phone and never sends SMS con
   assert.equal("marketingConsentSms" in body, false);
   assert.equal(body.marketingConsentEmail, false);
 });
+
+// CLIENT-7 A (D-WS9-356) — every user shape carries the billing mode, and the
+// first sign-in stores it for Welcome and Sign-up (lib/billing/mode.ts).
+test("signup: user.billing's mode is stored for the screens before sign-in; /auth/me's too; none stores nothing", async () => {
+  const AsyncStorage = (await import("@react-native-async-storage/async-storage")).default;
+  const { BILLING_MODE_DEVICE_KEY, loadRememberedBillingMode } = await import("@/lib/billing/mode");
+  const key = "kiwi:" + BILLING_MODE_DEVICE_KEY;
+  await AsyncStorage.removeItem(key);
+  try {
+    signupBodies = [];
+    fetchImpl = (url) => (url.endsWith("/auth/signup") ? signupResponse({ billing: { mode: "enforced" } }) : mockJson({}, 200));
+    const qc = await mount();
+    await settle(qc);
+    assert.equal(await loadRememberedBillingMode(), null, "nothing before the answer");
+    await act(async () => {
+      await captured!.signup({ email: "n@example.com", password: "a long phrase only i use", firstName: "N", lastName: "U" });
+    });
+    await settle(qc);
+    assert.equal(await loadRememberedBillingMode(), "enforced");
+    activeRenderer!.unmount();
+    activeRenderer = null;
+
+    // A cold start: /auth/me says free_launch.
+    fetchImpl = () => mockJson({ user: makeUser({ billing: { mode: "free_launch" } }) }, 200);
+    const qc2 = await mount({ initialToken: "tok" });
+    await settle(qc2);
+    assert.equal(captured!.user?.id, "u1");
+    assert.equal(await loadRememberedBillingMode(), "free_launch");
+    activeRenderer!.unmount();
+    activeRenderer = null;
+
+    // An older server: no field, nothing changes.
+    fetchImpl = () => mockJson({ user: makeUser() }, 200);
+    const qc3 = await mount({ initialToken: "tok" });
+    await settle(qc3);
+    assert.equal(await loadRememberedBillingMode(), "free_launch");
+    // A malformed field never fails sign-in.
+    activeRenderer!.unmount();
+    activeRenderer = null;
+    fetchImpl = () => mockJson({ user: makeUser({ billing: "free" as unknown as undefined }) }, 200);
+    const qc4 = await mount({ initialToken: "tok" });
+    await settle(qc4);
+    assert.equal(captured!.user?.id, "u1");
+  } finally {
+    await AsyncStorage.removeItem(key);
+  }
+});

@@ -18,6 +18,7 @@ import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollV
 import { SocialSignInBlock } from "@/components/oauth/SocialSignInBlock";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGuestOptional } from "@/contexts/GuestContext";
+import { useRememberedFreeLaunch } from "@/hooks/useRememberedFreeLaunch";
 import { useSubmitCooldown } from "@/hooks/useSubmitCooldown";
 import { authErrorPresentation, passwordTooCommonMessage } from "@/lib/authErrorCopy";
 import { PASSWORD_HELPER, PASSWORD_PLACEHOLDER, PHONE_PLACEHOLDER } from "@/lib/authFieldCopy";
@@ -40,6 +41,9 @@ import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens
 import { dialog } from "@/lib/dialog";
 import { goBack } from "@/lib/navigation";
 
+/** CLIENT-7 A (D-WS9-356) — under Create account during launch. */
+export const SIGN_UP_FREE_LINE = "Free · no card needed";
+
 export default function SignUpPage() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -48,6 +52,7 @@ export default function SignUpPage() {
   // Row 13 Block 2 Part E — useGuestOptional, not useGuest: this screen renders in
   // the member app too (from Welcome), where no guest session exists.
   const guestCtx = useGuestOptional();
+  const free = useRememberedFreeLaunch();
 
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
@@ -357,7 +362,14 @@ export default function SignUpPage() {
         )}
         {/* D-WS9-258 — the "14-day free trial · no credit card needed"
             line is removed: the first binary has no billing, so it may not
-            promise a trial that ends in a purchase. Stripe lane re-adds it. */}
+            promise a trial that ends in a purchase. Stripe lane re-adds it.
+            CLIENT-7 A (D-WS9-356) — during launch the line is SIGN_UP_FREE_LINE;
+            a device whose last server said "enforced" shows nothing, as before. */}
+        {free && (
+          <Text style={styles.freeLine} testID="sign-up-free-line">
+            {SIGN_UP_FREE_LINE}
+          </Text>
+        )}
       </KeyboardAwareScrollViewCompat>
     </View>
   );
@@ -457,4 +469,10 @@ const styles = StyleSheet.create({
     fontFamily: Typography.face.sans[400],
   },
   buttonLoading: { alignItems: "center", padding: Spacing[3] },
+  freeLine: {
+    textAlign: "center",
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+    fontFamily: Typography.face.sans[500],
+  },
 });

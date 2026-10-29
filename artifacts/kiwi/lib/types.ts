@@ -84,6 +84,8 @@ export interface User {
   firstRunChoiceMade: boolean;
   subscription: Subscription | null;
   createdAt: string;
+  /** SERVER-9 A (D-WS9-356) — the billing mode; absent from an older server. */
+  billing?: unknown;
 }
 
 /**

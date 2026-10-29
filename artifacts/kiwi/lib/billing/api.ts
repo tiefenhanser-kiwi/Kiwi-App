@@ -68,6 +68,11 @@ export const SubscriptionPayloadSchema = z.object({
   // SEC-3b (SEC-2 #16) — why this account never had a trial; a string, so a
   // reason this build has no words for parses (and is said as the plain lapse).
   trialDeniedReason: z.string().nullable().optional(),
+  // SERVER-9 A (D-WS9-356) — { mode: "free_launch" | "enforced" }, read only
+  // through isFreeLaunch / billingModeOf. Unknown on purpose: a malformed field
+  // reads as no mode rather than failing the whole read, and an older server
+  // sends none, so this build behaves as it always has.
+  billing: z.unknown().optional(),
 });
 
 export async function fetchSubscription(): Promise<SubscriptionPayload> {

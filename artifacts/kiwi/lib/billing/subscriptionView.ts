@@ -24,6 +24,17 @@
 // The Settings row is the single exception the ruling carves out, because a row
 // that says "Free trial · ends Oct 11" promises nothing and answers the one
 // question a user in a trial actually has.
+//
+// ── FREE DURING LAUNCH (CLIENT-7 A, D-WS9-356) ───────────────────────────
+//
+// 🔴 `billing.mode === "free_launch"` HIDES EVERY TRIAL, PRICE AND UPGRADE
+// SURFACE, WHATEVER `enforced` SAYS — the exceptions above included: the
+// Settings row's trial line, the web Subscribe button, the native Kiwi Premium
+// row, a tap's sheet. `isFreeLaunch` is checked in each, beside the blackout.
+// What stays: the 402 (`ignoreEnforcement`: the server refusing is the server's
+// call, in any mode), a paying account's own line and manage action, and
+// restoring a store purchase (the card's Restore Purchases). No `billing` field
+// (an older server): every function below answers exactly as before.
 
 import {
   BANNER_LAPSED,
@@ -31,6 +42,8 @@ import {
   BANNER_PAST_DUE,
   BANNER_PAST_DUE_CTA,
   BANNER_TRIAL_CTA,
+  FREE_LAUNCH_BODY,
+  FREE_LAUNCH_TITLE,
   MANAGE_STRIPE_ON_WEB,
   NOTICE_FIND_SIMILAR,
   NOTICE_GROCERY_STALE,
@@ -57,6 +70,7 @@ import {
   settingsTrialing,
   subscribedInStore,
 } from "./copy";
+import { billingModeOf } from "./mode";
 
 // ── the wire shape ───────────────────────────────────────────────────────
 
@@ -125,6 +139,20 @@ export interface SubscriptionPayload {
    * older server degrades to the inference rather than failing its schema.
    */
   hasBillingAccount?: boolean;
+  /**
+   * SERVER-9 A (D-WS9-356) — `{ mode: "free_launch" | "enforced" }`, read only
+   * through isFreeLaunch (lib/billing/mode.ts billingModeOf): anything else,
+   * a mode this build has no words for included, is not free_launch. Absent from
+   * an older server, which this build reads exactly as before.
+   */
+  billing?: unknown;
+}
+
+// ── free during launch (CLIENT-7 A) ──────────────────────────────────────
+
+/** True only when the server said `billing.mode: "free_launch"`. See the head. */
+export function isFreeLaunch(sub: Pick<SubscriptionPayload, "billing"> | null | undefined): boolean {
+  return billingModeOf(sub?.billing) === "free_launch";
 }
 
 // ── the trial clock ──────────────────────────────────────────────────────
@@ -196,6 +224,7 @@ export function bannerFor(input: BannerInput): BannerView | null {
   if (sub === null) return null;
   // 🔴 THE BLACKOUT. Deliberate break (1) in the S2 report removes this line.
   if (!sub.enforced) return null;
+  if (isFreeLaunch(sub)) return null;
 
   if (sub.status === "past_due") {
     // Not dismissible, so `dismissed` is not consulted at all.
@@ -271,6 +300,8 @@ export function sheetStateFor(
     return opts.ignoreEnforcement === true ? "lapsed" : null;
   }
   if (!sub.enforced && opts.ignoreEnforcement !== true) return null;
+  // CLIENT-7 A — a status read opens nothing during launch; a 402 still does.
+  if (isFreeLaunch(sub) && opts.ignoreEnforcement !== true) return null;
 
   if (sub.status === "trialing") return "trialing";
   if (sub.status === "none" || sub.status === "canceled") return "lapsed";
@@ -320,6 +351,8 @@ export function sheetCopyFor(sheet: SheetState | null, sub: SubscriptionPayload 
 
 export function subscribeSheetFor(sub: SubscriptionPayload | null): SheetState | null {
   if (sub === null) return null;
+  // CLIENT-7 A — no Subscribe button is drawn during launch; a stale tap opens nothing.
+  if (isFreeLaunch(sub)) return null;
   if (sub.status === "trialing") return "trialing";
   if (sub.status === "none" || sub.status === "canceled") return "lapsed";
   return null;
@@ -409,7 +442,7 @@ export function settingsRowFor(
     statusLine: settingsStatusLine(sub),
     // Both buttons need Stripe: a button whose only outcome is a 503 is worse
     // than no button, and `billingAvailable` is exactly the field that says so.
-    subscribe: sub.billingAvailable && isUnsubscribed(sub.status),
+    subscribe: sub.billingAvailable && isUnsubscribed(sub.status) && !isFreeLaunch(sub),
     manage: sub.billingAvailable && canManageBilling(sub),
     subscribeLabel: SETTINGS_SUBSCRIBE,
     manageLabel: SETTINGS_MANAGE,
@@ -490,6 +523,7 @@ const ENTITLED_STATUSES: ReadonlySet<SubscriptionStatus> = new Set<SubscriptionS
 export function macrosNoticeFor(sub: SubscriptionPayload | null): string | null {
   if (sub === null) return null;
   if (!sub.enforced) return null;
+  if (isFreeLaunch(sub)) return null;
   return ENTITLED_STATUSES.has(sub.status) ? null : NOTICE_MACROS;
 }
 
@@ -590,6 +624,9 @@ export function premiumRowFor(
 ): PremiumRowView | null {
   if (platform === "web" || sub === null) return null;
   if (isPayingStatus(sub.status)) return null;
+  // CLIENT-7 A — 3.1.1 asks that a subscription can be bought, and the 402's
+  // sheet still sells one; during launch nobody is told about a trial or a price.
+  if (isFreeLaunch(sub)) return null;
   if (sub.status === "trialing") {
     const daysLeft = trialDaysLeft(sub, now);
     return {
@@ -603,38 +640,74 @@ export function premiumRowFor(
 /** Profile's Subscription card, whole. Null hides it. */
 export interface SubscriptionCardView {
   statusLine: string;
+  /** CLIENT-7 A — free_launch's line under the status (FREE_LAUNCH_BODY); else null. */
+  freeLaunchBody: string | null;
   premium: PremiumRowView | null;
   manage: ManageAction | null;
   /** Web only, unchanged: the Stripe Subscribe button that opens the sheet. */
   subscribe: boolean;
   subscribeLabel: string;
+  /**
+   * CLIENT-7 A — Restore Purchases, on the free card on iOS / Android when the
+   * store can take a restore. It lived only in the sheet, which free_launch no
+   * longer opens, and restoring a purchase stays (A.4).
+   */
+  restore: boolean;
+}
+
+/**
+ * CLIENT-7 A — an account someone is paying for: a paying status, or a store
+ * subscription still in its introductory period. Its card keeps its own line and
+ * its manage action during launch.
+ */
+export function paysForKiwi(sub: SubscriptionPayload): boolean {
+  return isPayingStatus(sub.status) || (subscriptionSource(sub) !== null && sub.status === "trialing");
 }
 
 export function subscriptionCardFor(
   platform: string,
   sub: SubscriptionPayload | null,
   now: Date,
+  opts: {
+    /** storeBillingReady for this build and payload (CLIENT-7 A: the free card's Restore Purchases). */
+    storeReady?: boolean;
+  } = {},
 ): SubscriptionCardView | null {
   if (sub === null) return null;
+  if (isFreeLaunch(sub) && !paysForKiwi(sub)) {
+    return {
+      statusLine: FREE_LAUNCH_TITLE,
+      freeLaunchBody: FREE_LAUNCH_BODY,
+      premium: null,
+      manage: null,
+      subscribe: false,
+      subscribeLabel: SETTINGS_SUBSCRIBE,
+      restore: platform !== "web" && opts.storeReady === true,
+    };
+  }
   const manage = manageActionFor(platform, sub);
   if (platform === "web") {
     const row = settingsRowFor(sub);
     if (row === null && manage === null) return null;
     return {
       statusLine: settingsStatusLine(sub),
+      freeLaunchBody: null,
       premium: null,
       manage,
       subscribe: row?.subscribe ?? false,
       subscribeLabel: SETTINGS_SUBSCRIBE,
+      restore: false,
     };
   }
   // Native: always shown — the Kiwi Premium row must be reachable in the trial.
   return {
     statusLine: settingsStatusLine(sub),
+    freeLaunchBody: null,
     premium: premiumRowFor(platform, sub, now),
     manage,
     subscribe: false,
     subscribeLabel: SETTINGS_SUBSCRIBE,
+    restore: false,
   };
 }
 

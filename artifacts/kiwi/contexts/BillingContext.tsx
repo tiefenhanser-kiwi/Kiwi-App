@@ -76,6 +76,7 @@ import {
   subscribedInStore,
 } from "@/lib/billing/copy";
 import { dismissBanner, loadDismissedBanners } from "@/lib/billing/dismissals";
+import { billingModeOf, rememberBillingMode } from "@/lib/billing/mode";
 import { subscribeTrialDenied, takeTrialDenied } from "@/lib/billing/trialDenied";
 import {
   loadStoreOffer,
@@ -88,6 +89,7 @@ import {
 import { confirmStorePurchase } from "@/lib/billing/storeConfirm";
 import {
   bannerFor,
+  isFreeLaunch,
   isPayingStatus,
   manageActionFor,
   sheetStateFor,
@@ -233,6 +235,13 @@ export function BillingProvider({ children }: { children: React.ReactNode }) {
     void queryClient.invalidateQueries({ queryKey: SUBSCRIPTION_QUERY_KEY });
   }, [enabled, queryClient]);
 
+  // CLIENT-7 A — the mode Welcome and Sign-up read before the next sign-in
+  // (lib/billing/mode.ts). An answer with no `billing` stores nothing.
+  const billingMode = billingModeOf(subscription?.billing);
+  useEffect(() => {
+    if (billingMode !== null) void rememberBillingMode({ mode: billingMode });
+  }, [billingMode]);
+
   // ── the banner ─────────────────────────────────────────────────────────
   const banner = useMemo(
     () => bannerFor({ sub: subscription, now: new Date(), dismissed }),
@@ -361,7 +370,9 @@ export function BillingProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (userId === null || !subscriptionLoaded) return;
     const open = () => {
-      if (takeTrialDenied()) setSheet("lapsed");
+      // CLIENT-7 A — no "trial already used" moment during launch (SERVER-9 A
+      // does not send the reason then either); the note is still taken.
+      if (takeTrialDenied() && !isFreeLaunch(subscriptionRef.current)) setSheet("lapsed");
     };
     open();
     return subscribeTrialDenied(open);

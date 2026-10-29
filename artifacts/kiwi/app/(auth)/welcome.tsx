@@ -15,6 +15,7 @@ import { Feather } from "@expo/vector-icons";
 import { Button } from "@/components/Button";
 import { TurnstilePrewarm } from "@/components/TurnstilePrewarm";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
+import { useRememberedFreeLaunch } from "@/hooks/useRememberedFreeLaunch";
 import { webFullBleed } from "@/lib/webLayout";
 import { PRIVACY_URL, TERMS_URL } from "@/lib/legal";
 import { welcomeUsesLargeTextLayout } from "@/lib/welcomeLayout";
@@ -35,7 +36,12 @@ type FeatherName = React.ComponentProps<typeof Feather>["name"];
 // ── Resub C1 — the three actions ─────────────────────────────────────────
 // ⚠️ WELCOME_EXPLORE_LABEL is quoted VERBATIM in the App Review note (Apple
 // 5.1.1(v): the app must be usable without an account). Do not reword it.
-export const WELCOME_PRIMARY_LABEL = "Start your 14-day free trial";
+// CLIENT-7 A (D-WS9-356) — free during launch: the primary button names no
+// trial. WELCOME_TRIAL_LABEL is the label for a device whose last server said
+// `billing.mode: "enforced"` (lib/billing/mode.ts); a fresh install, and every
+// device that last heard "free_launch", reads WELCOME_PRIMARY_LABEL.
+export const WELCOME_PRIMARY_LABEL = "Get started — it's free";
+export const WELCOME_TRIAL_LABEL = "Start your 14-day free trial";
 export const WELCOME_EXPLORE_LABEL = "Explore without an account";
 export const WELCOME_SIGN_IN_LABEL = "I already have an account";
 
@@ -93,6 +99,7 @@ export default function Welcome() {
   // Resub C3 (BUG-347) — at the largest text sizes, or in a window narrowed by
   // Android's Display size, nothing is pinned: see lib/welcomeLayout.ts.
   const large = welcomeUsesLargeTextLayout({ fontScale, width });
+  const free = useRememberedFreeLaunch();
 
   // The same three actions and legal line in either shape. Pinned, their growth
   // is capped so they fit above the safe area (C1); inline, the screen scrolls,
@@ -107,7 +114,7 @@ export default function Welcome() {
       testID="welcome-footer"
     >
       <Button
-        label={WELCOME_PRIMARY_LABEL}
+        label={free ? WELCOME_PRIMARY_LABEL : WELCOME_TRIAL_LABEL}
         variant="primary"
         onPress={() => router.push("/(auth)/sign-up")}
         maxFontSizeMultiplier={large ? undefined : FOOTER_BUTTON_MAX_SCALE}

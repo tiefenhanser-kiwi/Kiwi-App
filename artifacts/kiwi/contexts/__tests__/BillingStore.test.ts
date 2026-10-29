@@ -566,3 +566,54 @@ test("CLIENT-4 C: any paywall sheet waits there (a 402, a tap), and nowhere else
   await act(async () => renderer!.update(webTree()));
   assert.equal(shown(), true);
 });
+
+// ── CLIENT-7 A (D-WS9-356) — free during launch ─────────────────────────────
+
+const FREE_LAUNCH = { billing: { mode: "free_launch" } };
+
+test("🔴 CLIENT-7 A: in free_launch a tap, a status open, an upsell and a trial-denied note open nothing", async (t) => {
+  const { noteTrialDenied, takeTrialDenied } = await import("@/lib/billing/trialDenied");
+  takeTrialDenied();
+  noteTrialDenied("trial_already_used");
+  await mountWebUnenforced(t, "trialing", FREE_LAUNCH);
+  await settle(2);
+  assert.equal(captured!.sheet, null, "the trial-denied note opened a sheet");
+  assert.equal(takeTrialDenied(), false, "the note was taken, not left for later");
+  await act(async () => captured!.openSubscribeSheet());
+  assert.equal(captured!.sheet, null, "Subscribe");
+  await act(async () => captured!.openSheet());
+  assert.equal(captured!.sheet, null, "a no-argument openSheet()");
+  await act(async () => captured!.fireUpsellMoment(allUpsellMoments()[0]!));
+  await settle(2);
+  assert.equal(captured!.sheet, null, "an upsell moment");
+  assert.equal(captured!.banner, null);
+});
+
+test("🔴 CLIENT-7 A: in free_launch a 402 subscription_required still opens the paywall", async (t) => {
+  const { emitUpgradeRequired } = await import("@/lib/api/upgrade-bridge");
+  await mountWebUnenforced(t, "none", FREE_LAUNCH);
+  await act(async () => {
+    emitUpgradeRequired({ path: "/plans/p1/generate-grocery-list", body: { error: "subscription_required", code: "subscription_required" } });
+    await settle(2);
+  });
+  assert.equal(captured!.sheet, "lapsed");
+});
+
+test("CLIENT-7 A: GET /me/subscription's mode is stored for Welcome and Sign-up; no field stores nothing", async (t) => {
+  const AsyncStorage = (await import("@react-native-async-storage/async-storage")).default;
+  const { BILLING_MODE_DEVICE_KEY, loadRememberedBillingMode } = await import("@/lib/billing/mode");
+  await AsyncStorage.removeItem("kiwi:" + BILLING_MODE_DEVICE_KEY);
+  t.after(() => AsyncStorage.removeItem("kiwi:" + BILLING_MODE_DEVICE_KEY));
+  await mountWebUnenforced(t, "trialing", { billing: { mode: "enforced" } });
+  await settle(3);
+  assert.equal(await loadRememberedBillingMode(), "enforced");
+});
+
+test("CLIENT-7 A: a payload with no billing field stores nothing", async (t) => {
+  const AsyncStorage = (await import("@react-native-async-storage/async-storage")).default;
+  const { BILLING_MODE_DEVICE_KEY, loadRememberedBillingMode } = await import("@/lib/billing/mode");
+  await AsyncStorage.removeItem("kiwi:" + BILLING_MODE_DEVICE_KEY);
+  await mountWebUnenforced(t, "trialing");
+  await settle(3);
+  assert.equal(await loadRememberedBillingMode(), null);
+});
