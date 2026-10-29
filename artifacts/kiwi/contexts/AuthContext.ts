@@ -33,6 +33,7 @@ import {
 } from "@/lib/oauth/request";
 import type { OAuthProvider } from "@/lib/oauth/providers";
 import { hideProviderForSession } from "@/lib/oauth/unavailable";
+import { billingModeOf, rememberBillingMode } from "@/lib/billing/mode";
 import { noteTrialDenied } from "@/lib/billing/trialDenied";
 import { ReauthMismatchError } from "@/lib/reauth";
 import { todayLocalDate } from "@/lib/dates";
@@ -174,6 +175,14 @@ export function AuthProvider({
 
   const meQuery = useAuthMe(token, { deadlineMs: bootstrapDeadlineMs });
   const user = meQuery.data ?? null;
+
+  // CLIENT-7 A (D-WS9-356) — every user shape carries the billing mode (sign-up,
+  // login, OAuth, /auth/me, PATCH /me/profile all land in this query), so the
+  // first sign-in stores it for Welcome and Sign-up (lib/billing/mode.ts).
+  const billingMode = billingModeOf(user?.billing);
+  React.useEffect(() => {
+    if (billingMode !== null) void rememberBillingMode({ mode: billingMode });
+  }, [billingMode]);
   // D-WS9-241 B — see lib/sessionBootstrap.ts for the derivation and why a
   // react-query error with a token still in hand is "failed", not "signed
   // out". `data !== undefined` (rather than `user !== null`) is deliberate:

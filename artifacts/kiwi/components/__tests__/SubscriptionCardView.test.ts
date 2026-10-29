@@ -152,3 +152,72 @@ test("§3 null source on the web: as today — the Subscribe button, no row", as
   assert.ok(byId(tree, "settings-subscribe"));
   assert.equal(byId(tree, "settings-premium"), null);
 });
+
+// ── CLIENT-7 A (D-WS9-356) — free during launch ─────────────────────────────
+
+async function renderFree(
+  platform: string,
+  s: SubscriptionPayload,
+  extra: { restorePhase?: "idle" | "busy" | "stalled"; restoreMessage?: string | null } = {},
+): Promise<{ tree: Node; calls: string[] }> {
+  const card = subscriptionCardFor(platform, s, NOW, { storeReady: true });
+  assert.ok(card);
+  const calls: string[] = [];
+  let r!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    r = TestRenderer.create(
+      React.createElement(SubscriptionCardView, {
+        card: card!,
+        onOpenPremium: () => calls.push("premium"),
+        onSubscribe: () => calls.push("subscribe"),
+        onManage: () => calls.push("manage"),
+        linkError: null,
+        onRestore: () => calls.push("restore"),
+        onCheckAgain: () => calls.push("check-again"),
+        ...extra,
+      }),
+    );
+  });
+  active = r;
+  return { tree: r.toJSON() as unknown as Node, calls };
+}
+
+const FREE_SUB = { billing: { mode: "free_launch" } };
+
+test("🔴 CLIENT-7 A: the free card says Kiwi is free and nothing else — no trial, price, Subscribe or Premium row", async () => {
+  for (const platform of ["ios", "android", "web"]) {
+    for (const status of ["trialing", "none", "canceled"] as const) {
+      const { tree } = await renderFree(platform, sub({ status, ...FREE_SUB }));
+      assert.equal(textOf(byId(tree, "settings-subscription-status")), "Kiwi is free during launch.");
+      assert.equal(textOf(byId(tree, "settings-free-launch-body")), "Every feature is included. No card, nothing to cancel.");
+      assert.equal(byId(tree, "settings-premium"), null);
+      assert.equal(byId(tree, "settings-subscribe"), null);
+      assert.equal(byId(tree, "settings-manage"), null);
+      const all = textOf(tree);
+      assert.equal(all.match(/trial|14|\$|subscribe|upgrade/i)?.[0] ?? null, null, `${platform} ${status}: ${all}`);
+      assert.equal(byId(tree, "settings-restore") !== null, platform !== "web", `${platform}: Restore Purchases`);
+      await act(async () => active!.unmount());
+      active = null;
+    }
+  }
+});
+
+test("CLIENT-7 A: Restore Purchases restores; busy is disabled; a stalled restore offers Check again; the store's message shows", async () => {
+  let { tree, calls } = await renderFree("ios", sub(FREE_SUB));
+  const restore = byId(tree, "settings-restore");
+  assert.equal(restore?.props?.accessibilityLabel, "Restore Purchases");
+  await act(async () => (restore!.props!.onPress as () => void)());
+  assert.deepEqual(calls, ["restore"]);
+  await act(async () => active!.unmount());
+  ({ tree } = await renderFree("ios", sub(FREE_SUB), { restorePhase: "busy" }));
+  assert.equal(byId(tree, "settings-restore")?.props?.accessibilityLabel, "Restoring…");
+  assert.equal(byId(tree, "settings-restore")?.props?.accessibilityState?.disabled, true);
+  await act(async () => active!.unmount());
+  ({ tree, calls } = await renderFree("ios", sub(FREE_SUB), { restorePhase: "stalled" }));
+  await act(async () => (byId(tree, "settings-restore-check-again")!.props!.onPress as () => void)());
+  assert.deepEqual(calls, ["check-again"]);
+  assert.match(textOf(byId(tree, "settings-restore-message")), /hasn't confirmed it yet/);
+  await act(async () => active!.unmount());
+  ({ tree } = await renderFree("android", sub(FREE_SUB), { restoreMessage: "There's no Kiwi Premium purchase to restore on this account." }));
+  assert.equal(textOf(byId(tree, "settings-restore-message")), "There's no Kiwi Premium purchase to restore on this account.");
+});

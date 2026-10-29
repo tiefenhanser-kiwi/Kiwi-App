@@ -29,7 +29,7 @@
 
 import { loadJSON, saveJSON } from "@/lib/storage";
 
-import type { SubscriptionPayload } from "./subscriptionView";
+import { isFreeLaunch, type SubscriptionPayload } from "./subscriptionView";
 
 /**
  * The moments, with the event each one rides. The `where` note is the answer to
@@ -86,8 +86,9 @@ export interface UpsellMomentInput {
 export function shouldFireUpsellMoment(input: UpsellMomentInput): boolean {
   const { moment, sub, seen } = input;
   if (sub === null) return false;
-  // 🔴 Gate 1 — the blackout.
+  // 🔴 Gate 1 — the blackout, and (CLIENT-7 A) free during launch.
   if (!sub.enforced) return false;
+  if (isFreeLaunch(sub)) return false;
   // Gate 2 — the upsell is a trial-only sheet.
   if (sub.status !== "trialing") return false;
   // Gate 3 — once per device, ever.

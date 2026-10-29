@@ -32,11 +32,15 @@ import TestRenderer, { act } from "react-test-renderer";
 import * as ReactNative from "react-native";
 import * as ExpoRouter from "expo-router";
 
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 import Welcome, {
   WELCOME_EXPLORE_LABEL,
   WELCOME_PRIMARY_LABEL,
   WELCOME_SIGN_IN_LABEL,
+  WELCOME_TRIAL_LABEL,
 } from "../../app/(auth)/welcome";
+import { BILLING_MODE_DEVICE_KEY } from "../../lib/billing/mode";
 
 interface Node {
   type?: string;
@@ -152,19 +156,39 @@ function flat(style: unknown): Record<string, unknown> {
   return Object.assign({}, ...parts.flat(Infinity).filter(Boolean));
 }
 
-test("the footer holds the three actions, in order, and the primary is the trial", async () => {
+test("the footer holds the three actions, in order, and the primary is free (CLIENT-7 A: a fresh install)", async () => {
   const tree = await mountWelcome();
   const footer = byTestId(tree, "welcome-footer");
   assert.ok(footer, "a pinned footer exists");
   assert.deepEqual(buttonLabels(footer), [
-    "Start your 14-day free trial",
+    "Get started — it's free",
     "Explore without an account",
     "I already have an account",
   ]);
-  assert.equal(WELCOME_PRIMARY_LABEL, "Start your 14-day free trial");
+  assert.equal(WELCOME_PRIMARY_LABEL, "Get started — it's free");
+  assert.equal(textOf(tree).match(/trial|14|\$|subscribe/i)?.[0] ?? null, null, "no trial or price word on a fresh install");
   assert.equal(WELCOME_EXPLORE_LABEL, "Explore without an account");
   assert.equal(WELCOME_SIGN_IN_LABEL, "I already have an account");
-  assert.ok(!textOf(tree).includes("Get started"), "the old primary label is gone");
+});
+
+test("CLIENT-7 A: a device whose last server said enforced reads the trial label; free_launch reads free", async () => {
+  try {
+    await AsyncStorage.setItem("kiwi:" + BILLING_MODE_DEVICE_KEY, JSON.stringify("enforced"));
+    let footer = byTestId(await mountWelcome(), "welcome-footer");
+    await act(async () => {});
+    footer = byTestId(activeRenderer!.toJSON() as unknown as Node, "welcome-footer");
+    assert.equal(buttonLabels(footer)[0], WELCOME_TRIAL_LABEL);
+    assert.equal(WELCOME_TRIAL_LABEL, "Start your 14-day free trial");
+    await act(async () => activeRenderer!.unmount());
+    activeRenderer = null;
+    await AsyncStorage.setItem("kiwi:" + BILLING_MODE_DEVICE_KEY, JSON.stringify("free_launch"));
+    await mountWelcome();
+    await act(async () => {});
+    footer = byTestId(activeRenderer!.toJSON() as unknown as Node, "welcome-footer");
+    assert.equal(buttonLabels(footer)[0], WELCOME_PRIMARY_LABEL);
+  } finally {
+    await AsyncStorage.removeItem("kiwi:" + BILLING_MODE_DEVICE_KEY);
+  }
 });
 
 test("the actions are NOT inside the scroll area — they cannot scroll off", async () => {
@@ -267,7 +291,7 @@ test("BUG-347: at fontScale 2.0 in a 320 × 570 window the actions are INSIDE th
     const inScroll = byTestId(scroll, "welcome-footer");
     assert.ok(inScroll, "the actions block is a descendant of the ScrollView");
     assert.deepEqual(buttonLabels(inScroll), [
-      "Start your 14-day free trial",
+      WELCOME_PRIMARY_LABEL,
       "Explore without an account",
       "I already have an account",
     ]);

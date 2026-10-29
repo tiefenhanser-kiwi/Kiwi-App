@@ -115,6 +115,10 @@ export const MeUserSchema = z
     firstRunChoiceMade: z.boolean(),
     subscription: SubscriptionSchema.nullable(),
     createdAt: z.string(),
+    // SERVER-9 A (D-WS9-356) — "free_launch" | "enforced", stored for Welcome
+    // and Sign-up (lib/billing/mode.ts billingModeOf). Unknown on purpose: a
+    // malformed field reads as no mode, and sign-in never fails on it.
+    billing: z.unknown().optional(),
   })
   .passthrough();
 

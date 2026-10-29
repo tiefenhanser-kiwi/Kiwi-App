@@ -24,7 +24,8 @@ import { useBilling } from "@/contexts/BillingContext";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { ApiError } from "@/lib/api/errors";
 import { passwordTooCommonMessage } from "@/lib/authErrorCopy";
-import { subscriptionCardFor } from "@/lib/billing/subscriptionView";
+import { storeKey } from "@/lib/billing/store";
+import { storeBillingReady, subscriptionCardFor } from "@/lib/billing/subscriptionView";
 import { storeReviewUrl, storeWebUrl } from "@/lib/feedback";
 import { PRIVACY_URL, TERMS_URL } from "@/lib/legal";
 import { useReauthAction } from "@/hooks/useReauthAction";
@@ -652,9 +653,25 @@ function EditableRow({
  * a React tree; components/SubscriptionCardView.tsx draws it.
  */
 function SubscriptionCard() {
-  const { subscription, openSheet, openSubscribeSheet, openPortal, openManagement, linkError } =
-    useBilling();
-  const card = subscriptionCardFor(Platform.OS, subscription, new Date());
+  const {
+    subscription,
+    openSheet,
+    openSubscribeSheet,
+    openPortal,
+    openManagement,
+    linkError,
+    restorePurchases,
+    checkStoreAgain,
+    storePhase,
+    storeMessage,
+  } = useBilling();
+  // CLIENT-7 A — the free card's Restore Purchases needs a store that can take it.
+  const storeReady = storeBillingReady({
+    platform: Platform.OS,
+    keyPresent: storeKey() !== null,
+    sub: subscription,
+  });
+  const card = subscriptionCardFor(Platform.OS, subscription, new Date(), { storeReady });
   if (card === null) return null;
 
   return (
@@ -674,6 +691,16 @@ function SubscriptionCard() {
         else if (action.kind === "stripe_portal") void openPortal();
       }}
       linkError={linkError}
+      onRestore={() => void restorePurchases()}
+      restorePhase={
+        storePhase === "stalled"
+          ? "stalled"
+          : storePhase === "restoring" || storePhase === "confirming"
+            ? "busy"
+            : "idle"
+      }
+      restoreMessage={storeMessage}
+      onCheckAgain={() => void checkStoreAgain()}
     />
   );
 }
