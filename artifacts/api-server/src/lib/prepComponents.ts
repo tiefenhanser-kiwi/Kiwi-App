@@ -414,7 +414,7 @@ export function resolveDishComponents(
   mealName: string | null,
   steps: ComponentStep[],
   ingredients: ComponentIngredient[],
-): { components: ResolvedComponent[]; byIngredient: Map<string, ResolvedComponent> } {
+): { components: ResolvedComponent[]; byIngredient: Map<string, ResolvedComponent>; split: ReadonlySet<string> } {
   // H5.1 — a dish that IS the toppings forms no component. Checked first,
   // before any signal runs, because the cheapest way to get this wrong is to
   // build the bucket and then try to unpick it.
@@ -425,7 +425,7 @@ export function resolveDishComponents(
   // of its own. Without this arm the salsa and the guacamole would lose their
   // bowls the moment a recipe called them toppings.
   if (isServedSeparately(dishTitle)) {
-    return { components: [], byIngredient: new Map() };
+    return { components: [], byIngredient: new Map(), split: new Set() };
   }
   const ordered = [...steps].sort((a, b) => a.stepIndex - b.stepIndex);
   const byId = new Map(ingredients.map((i) => [i.ingredientId, i]));
@@ -615,6 +615,24 @@ export function resolveDishComponents(
   // dropped with it: the Sesame Cucumber Salad's lone cucumber is not a
   // "dressing jar". A bucket whose only content is a cook-day protein also goes
   // — there is no bowl to put anything in.
+  //
+  // ── SERVER-10 F (BUG-585) — AN INGREDIENT SPLIT BETWEEN TWO MIXES JOINS NEITHER ─
+  //
+  // A "divided" row (soy sauce 4 tbsp: 2 in the velvet at step 0, 2 in the sauce
+  // at step 1) is a member of both buckets, and byIngredient below keeps the LAST,
+  // with the row's WHOLE quantity. Classic Savory Beef and Broccoli shipped one
+  // "Beef & broccoli sauce" jar holding the velvet's soy, Shaoxing and cornstarch
+  // as well as the sauce's; Cook Mode then said the jar at step 0 (the first step
+  // stating two of its members) and step 1 still measured the oyster sauce, dark
+  // soy and sesame oil: the bowl's parts used twice. A bowl is used once, where its
+  // members go in; an ingredient that goes in at two components' steps is measured
+  // where the recipe says, in each, and the buckets are judged on what is left.
+  // `split` goes back to the caller: the adapter's run proxy would otherwise put
+  // the row back in the jar of the step that states it (prepCombineAdapter).
+  const memberOf = new Map<string, number>();
+  for (const [, b] of buckets) if (b.members.size >= 2) for (const id of b.members) memberOf.set(id, (memberOf.get(id) ?? 0) + 1);
+  const split = new Set([...memberOf].filter(([, n]) => n >= 2).map(([id]) => id));
+  for (const [, b] of buckets) for (const id of split) b.members.delete(id);
   const kept = [...buckets.entries()].filter(([, b]) => b.members.size >= 2);
 
   const out: ResolvedComponent[] = [];
@@ -657,7 +675,7 @@ export function resolveDishComponents(
     out.push(comp);
     for (const id of b.members) byIngredient.set(id, comp);
   }
-  return { components: out, byIngredient };
+  return { components: out, byIngredient, split };
 }
 
 // ── D-WS9-299 — IS THIS STEP WORTH DOING AHEAD? ─────────────────────────────

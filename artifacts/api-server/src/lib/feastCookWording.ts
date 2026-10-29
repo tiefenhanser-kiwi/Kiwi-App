@@ -340,7 +340,13 @@ export function mentionsOf(step: WordingStep, rows: readonly WordingRow[], title
     // The words that tell this row from another of the same head ("brown" of brown sugar).
     // (Only asked when another row shares the head: "old-fashioned" rolled oats is written "rolled oats".)
     const shared = rows.some((o) => o !== row && singular(o.name.toLowerCase().split(/[,(]/)[0].trim().split(/\s+/).pop() ?? "") === head);
-    const telling = shared ? words.slice(0, -1).filter((w) => !GENERIC_WORD.test(w)).map(singular) : [];
+    // SERVER-10 F (BUG-585) — when another row differs from this one ONLY by such a word
+    // ("soy sauce" beside "dark soy sauce"), that word does tell them apart: Beef and
+    // Broccoli's "2 tablespoons soy sauce" was claimed by the dark soy row (the longer
+    // name, matched first), so the sauce jar holding the dark soy entered at the velvet.
+    const plain = (ws: string[]) => ws.filter((w) => !GENERIC_WORD.test(w)).map(singular).join(" ");
+    const twin = shared && rows.some((o) => o !== row && plain(o.name.toLowerCase().split(/[,(]/)[0].trim().split(/\s+/)) === plain(named) && o.name.toLowerCase() !== row.name.toLowerCase());
+    const telling = shared ? words.slice(0, -1).filter((w) => twin || !GENERIC_WORD.test(w)).map(singular) : [];
     for (const m of lower.matchAll(new RegExp(`\\b${escape(head)}(?:e?s)?\\b`, "gi"))) {
       let start = m.index!;
       let end = start + m[0].length;
@@ -716,8 +722,13 @@ export function rewordFeastSteps(
     // added "the Friday dry mix" (which holds them) at #1. Now the mix is soaked at #0.
     if (opts.weeknight && !skips.has(at.stepIndex)) {
       const scale = scaleAt(mix, at);
+      // SERVER-10 F (BUG-585) — and on a member that is THIS mix's alone: Classic Kung Pao
+      // lists soy sauce twice, a portion in the marinade (s0) and one in the sauce (s1), so
+      // both jars hold soy; the sauce jar entered at the marinade on the marinade's soy.
+      const own = (m: Mention) => !facts.mixes.some((x) => x !== mix && inMix(x, m));
       const early = ordered.find((s) => s.stepIndex < at.stepIndex && !skips.has(s.stepIndex) && keysIn(s, true) >= 1 &&
-        (mentionsBy.get(s.stepIndex) ?? []).filter((m) => m.ref && inMix(mix, m)).every((m) => same(ratioOf(mix, s, m), scale)));
+        (mentionsBy.get(s.stepIndex) ?? []).filter((m) => m.ref && inMix(mix, m)).every((m) => same(ratioOf(mix, s, m), scale)) &&
+        (mentionsBy.get(s.stepIndex) ?? []).some((m) => m.ref && inMix(mix, m) && own(m)));
       if (early) { entryOf.set(mix.name, early.stepIndex); entryScale.set(mix.name, scale); continue; }
       entryScale.set(mix.name, scale);
     }

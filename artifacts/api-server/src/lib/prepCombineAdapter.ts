@@ -38,8 +38,10 @@ const COMPOUND_UNIT_RE = /^\s*(\d+(?:\.\d+)?)\s+(\S.*?)\s*$/;
 const HEAT_VERB =
   /\b(saut[ée]\w*|simmer\w*|bak(?:e|ed|ing)|roast\w*|broil\w*|grill\w*|fry|fried|frying|boil\w*|sear\w*|toast\w*|braise\w*|steam\w*|char\w*)\b/i;
 
-/** PREP-3 (R9) — a step that puts a food ON something: a use, not the food's own prep. */
-const APPLIES_TO_FOOD = /\b(?:brush\w*|spread\w*|rub(?:s|bed|bing)?|coat\w*|dredg\w*|slather\w*|smear\w*|bast\w*|dip(?:s|ped|ping)?)\b/i;
+/** PREP-3 (R9) — a step that puts a food ON something: a use, not the food's own prep.
+ *  SERVER-10 F (BUG-585) — and seasons it: Cashew Shrimp's "season the shrimp with ½ tsp
+ *  salt and ¼ tsp white pepper" (s0) rode the sauce jar whisked at s2. */
+const APPLIES_TO_FOOD = /\b(?:brush\w*|spread\w*|rub(?:s|bed|bing)?|coat\w*|dredg\w*|slather\w*|smear\w*|bast\w*|dip(?:s|ped|ping)?|season(?:s|ed|ing)?)\b/i;
 
 /** THX-3c (E) — the fresh herbs (and green onions) a feast cuts for its garnish. */
 const FEAST_HERB = /\b(chives|parsley|cilantro|dill|basil|mint|tarragon|thyme|sage|rosemary|green onions?|scallions?)\b/i;
@@ -355,6 +357,12 @@ export function buildPrepCombineInput(
           }
           const own = resolved.byIngredient.get(ing.ingredientId);
           if (own) return `c:${own.key}@${entryOf(ing.ingredientId, ing.ingredientName)}`;
+          // SERVER-10 F (BUG-585) — a row split between two mixes (prepComponents
+          // `split`: Beef and Broccoli's soy sauce, 2 tbsp in the velvet and 2 in the
+          // sauce) is in no jar: the run proxy below would put its WHOLE amount back in
+          // the jar of the step that states it. It is measured where the recipe says,
+          // in each. `v:` groups with nothing.
+          if (resolved.split.has(ing.ingredientId)) return `v:split:${ing.ingredientId}`;
           if (assignPhase(ing.category, ing.ingredientName) === "proteins") {
             return moments.keyByIngredientId.get(ing.ingredientId) ?? null;
           }
