@@ -377,6 +377,35 @@ test("signup(options) puts phone + both consents on the wire, one request, then 
   assert.equal(captured!.user?.id, "u-new");
 });
 
+// CLIENT-7 B (BUG-603) — the screen says a common password under the field;
+// the context's form-level error stays empty. Any other 400 sets it as before.
+async function signupRejectedWith(body: unknown): Promise<unknown> {
+  fetchImpl = (url) => (url.endsWith("/auth/signup") ? mockJson(body, 400) : mockJson({}, 200));
+  const qc = await mount();
+  await settle(qc);
+  let thrown: unknown = null;
+  await act(async () => {
+    try {
+      await captured!.signup({ email: "n@example.com", password: "password123", firstName: "New", lastName: "User" });
+    } catch (err) {
+      thrown = err;
+    }
+  });
+  return thrown;
+}
+
+test("signup: a 400 password_too_common rejects, and sets no form error", async () => {
+  const err = await signupRejectedWith({ error: "That password is too common.", code: "password_too_common" });
+  assert.ok(err instanceof Error, "the screen gets the error to branch on");
+  assert.equal(captured!.error, null);
+  assert.equal(captured!.token, null);
+});
+
+test("signup: another 400 still sets the form error (an older server's every 400)", async () => {
+  await signupRejectedWith({ error: "email already registered" });
+  assert.equal(captured!.error, "email already registered");
+});
+
 test("signup(options) with an empty phone sends no phone and never sends SMS consent", async () => {
   signupBodies = [];
   fetchImpl = (url, init) => {

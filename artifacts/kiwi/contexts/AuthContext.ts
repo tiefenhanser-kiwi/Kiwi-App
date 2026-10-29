@@ -19,7 +19,7 @@ import {
   deriveBootstrapStatus,
   type BootstrapStatus,
 } from "@/lib/sessionBootstrap";
-import { authErrorPresentation } from "@/lib/authErrorCopy";
+import { authErrorPresentation, passwordTooCommonMessage } from "@/lib/authErrorCopy";
 import { completeAuth, type AuthCompletionDeps } from "@/lib/authCompletion";
 import { appleOAuthRequest, googleOAuthRequest, type OAuthAuthResponse } from "@/lib/oauth/api";
 import { isProviderUnavailable } from "@/lib/oauth/errors";
@@ -356,7 +356,11 @@ export function AuthProvider({
         noteTrialDenied(res.user.subscription?.trialDeniedReason);
         return res;
       } catch (err) {
-        setError(authErrorPresentation(err, "Signup failed").message);
+        // CLIENT-7 B (BUG-603) — a common password is said under the password
+        // field by the screen, not as the form's error.
+        if (passwordTooCommonMessage(err) === null) {
+          setError(authErrorPresentation(err, "Signup failed").message);
+        }
         throw err;
       }
     },

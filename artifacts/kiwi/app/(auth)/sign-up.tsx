@@ -19,7 +19,7 @@ import { SocialSignInBlock } from "@/components/oauth/SocialSignInBlock";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGuestOptional } from "@/contexts/GuestContext";
 import { useSubmitCooldown } from "@/hooks/useSubmitCooldown";
-import { authErrorPresentation } from "@/lib/authErrorCopy";
+import { authErrorPresentation, passwordTooCommonMessage } from "@/lib/authErrorCopy";
 import { PASSWORD_HELPER, PASSWORD_PLACEHOLDER, PHONE_PLACEHOLDER } from "@/lib/authFieldCopy";
 import { isValidPhone } from "@/lib/phone";
 import {
@@ -51,6 +51,8 @@ export default function SignUpPage() {
 
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
+  // CLIENT-7 B (BUG-603) — the server's common-password line, under the field.
+  const [passwordError, setPasswordError] = React.useState<string | null>(null);
   const [firstName, setFirstName] = React.useState("");
   const [lastName, setLastName] = React.useState("");
   const [phone, setPhone] = React.useState("");
@@ -156,6 +158,7 @@ export default function SignUpPage() {
       return;
     }
     clearError();
+    setPasswordError(null);
     setSubmitting(true);
     // Row 13 Block 2 Part E — read BEFORE the call: AuthContext clears the guest
     // store on a successful claim, so afterwards there is nothing left to tell us
@@ -207,6 +210,11 @@ export default function SignUpPage() {
       // A password sign-up always creates the account.
       router.replace(landingAfterAuth(res, true));
     } catch (err) {
+      const tooCommon = passwordTooCommonMessage(err);
+      if (tooCommon !== null) {
+        setPasswordError(tooCommon);
+        return;
+      }
       // BUG-296 — same copy decision as context.error (which this screen
       // also renders), plus the Retry-After hold on a 429.
       const { message, retryAfterSec } = authErrorPresentation(
@@ -294,7 +302,10 @@ export default function SignUpPage() {
         <PasswordField
           ref={passwordRef}
           value={password}
-          onChangeText={setPassword}
+          onChangeText={(v) => {
+            setPassword(v);
+            setPasswordError(null);
+          }}
           placeholder={PASSWORD_PLACEHOLDER}
           placeholderTextColor={Palette.text.placeholder}
           autoComplete="new-password"
@@ -305,6 +316,7 @@ export default function SignUpPage() {
           editable={!submitting}
           accessibilityHint={PASSWORD_HELPER}
         />
+        {passwordError && <Text style={styles.errorText}>{passwordError}</Text>}
         {/* BUG-365 — the rule lives under the field, where it can wrap. */}
         <Text style={styles.helper}>{PASSWORD_HELPER}</Text>
         <TextInput

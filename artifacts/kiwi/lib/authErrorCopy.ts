@@ -42,6 +42,36 @@ export interface AuthErrorPresentation {
   retryAfterSec: number | null;
 }
 
+// ── CLIENT-7 B (BUG-603) — a password on the server's common list ──────────
+//
+// SERVER-9 refuses a common password on sign-up, reset and change with
+// 400 { error: <copy>, code: "password_too_common" }. It is a fact about the
+// password field, so the three screens say it under that field rather than as a
+// generic failure; on the reset screen any other 400 means a dead link, and this
+// one must not. An older server never sends the code, so nothing changes there.
+
+/** SERVER-9's 400 `code` for a common password. */
+export const PASSWORD_TOO_COMMON = "password_too_common";
+
+/** Said when the 400 carries the code but no words of its own. */
+export const PASSWORD_TOO_COMMON_COPY =
+  "That password is too common. Choose one that's harder to guess.";
+
+/**
+ * The line to show under the password field, or null when `err` is not the
+ * common-password 400. The server's own words win; a body whose `error` is the
+ * code itself falls back to its `message`, then to PASSWORD_TOO_COMMON_COPY.
+ */
+export function passwordTooCommonMessage(err: unknown): string | null {
+  if (!(err instanceof ApiError) || err.status !== 400) return null;
+  const body = err.body as { code?: unknown; message?: unknown } | null | undefined;
+  if (!body || typeof body !== "object" || body.code !== PASSWORD_TOO_COMMON) return null;
+  const said = [err.userFacingMessage, body.message].find(
+    (m): m is string => typeof m === "string" && m.trim().length > 0 && m.trim() !== PASSWORD_TOO_COMMON,
+  );
+  return said?.trim() ?? PASSWORD_TOO_COMMON_COPY;
+}
+
 export function authErrorPresentation(
   err: unknown,
   fallback: string,
