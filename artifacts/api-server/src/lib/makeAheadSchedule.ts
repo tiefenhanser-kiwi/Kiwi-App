@@ -23,6 +23,9 @@ import type { PrismaClient } from "@prisma/client";
 import { FEAST_MEAL_TAG } from "./prepWeekAggregation";
 import { prefixDaysOf } from "./feastPrefixes";
 import { mealBirdOf, thawLeadDays } from "./birdWeight";
+import { authoredLeadDays, DAY_NAMES, feastDowOf } from "./feastWeek";
+
+export { feastDowOf };
 
 export interface MakeAheadDishInput {
   dishId: string;
@@ -92,9 +95,7 @@ export interface MakeAheadSchedule {
   rows: MakeAheadRow[];
 }
 
-const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const SHORT: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
-const THURSDAY = 4;
 const DAY_MS = 86_400_000;
 const KIND_ORDER: Record<MakeAheadKind, number> = { thaw: 0, make: 1, brine: 2 };
 
@@ -144,31 +145,30 @@ const tagDay = (tags: readonly string[], re: RegExp): number | undefined => {
   return undefined;
 };
 
-/** The feast's weekday (0 = Sunday) from the plan item's day name; unscheduled reads as Thursday. */
-export function feastDowOf(assignedDayOfWeek: string | null): number {
-  const named = assignedDayOfWeek ? DAY_NAMES.findIndex((d) => d.toLowerCase() === assignedDayOfWeek.trim().toLowerCase()) : -1;
-  return named >= 0 ? named : THURSDAY;
-}
-
 /**
  * THX-4 (D-WS9-324) — A WEIGHED BIRD'S THAW: ⌈lb ÷ 4⌉ fridge days (birdWeight
  * thawLeadDays), ending the day the bird is first handled — its brine (the
  * `brine-<day>` tag, else a "Make ahead (<Day> night):" step), else the feast day.
  * The Hub's thaw row and the thaw step's words both read this.
+ *
+ * SERVER-8 A (BUG-567) — the handling day is the recipe's, a Thursday plan's weekday:
+ * its lead is that plan's (feastWeek authoredLeadDays), and it is said as the weekday
+ * that lead lands on before this feast ("Friday night" before a Saturday).
  */
 export function weighedThaw(args: { tags: readonly string[]; stepTexts: readonly string[]; feastDow: number; lb: number }): {
   daysBefore: number;
   startDay: string;
   readyBy: string;
 } {
-  const before = (dow: number) => (args.feastDow - dow + 7) % 7 || 7;
   const night = prefixDaysOf(args.stepTexts).night;
   const handled = tagDay(args.tags, /^brine-([a-z]{3})$/) ?? (night.length > 0 ? SHORT[night[0]] : undefined);
-  const daysBefore = thawLeadDays(args.lb, handled === undefined ? 0 : before(handled));
+  const lead = handled === undefined ? 0 : authoredLeadDays(handled);
+  const daysBefore = thawLeadDays(args.lb, lead);
+  const dayAt = (n: number) => DAY_NAMES[(((args.feastDow - n) % 7) + 7) % 7];
   return {
     daysBefore,
-    startDay: DAY_NAMES[(((args.feastDow - daysBefore) % 7) + 7) % 7],
-    readyBy: handled === undefined ? DAY_NAMES[args.feastDow] : `${DAY_NAMES[handled]} night`,
+    startDay: dayAt(daysBefore),
+    readyBy: handled === undefined ? DAY_NAMES[args.feastDow] : `${dayAt(lead)} night`,
   };
 }
 
@@ -184,8 +184,12 @@ export function buildMakeAheadSchedule(input: MakeAheadInput): MakeAheadSchedule
     date: feastMs === null ? null : new Date(feastMs - daysBefore * DAY_MS).toISOString().slice(0, 10),
     daysBefore,
   });
-  // A make-ahead day the week before the feast; the feast's own weekday is a week out.
-  const before = (dow: number) => (feastDow - dow + 7) % 7 || 7;
+  // 🔴 SERVER-8 A (BUG-567) — A DAY THE RECIPE NAMES IS ITS LEAD IN THE AUTHORED
+  // THURSDAY PLAN (feastWeek): Wednesday is the day before whatever day the feast is.
+  // Measured from the feast's own weekday, a Wednesday feast made its casseroles a week
+  // early and dried the stuffing's bread after assembling it, and a Saturday feast made
+  // the 1-day casseroles 3 days out. `at` says the weekday the lead lands on.
+  const before = authoredLeadDays;
 
   const rows: (MakeAheadRow & { pos: number })[] = [];
   feast.dishes.forEach((d, pos) => {

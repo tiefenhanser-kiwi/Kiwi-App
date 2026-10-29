@@ -90,9 +90,12 @@ describe("SERVER-7 A — the meal read's thaw with no weight chosen", () => {
     assert.match(thawText(m), /^Thaw \(start Saturday\): .* a 14-lb bird takes about 4 days to thaw fully, so it is ready by Wednesday night\.$/);
   });
 
-  it("counted back from the brine, not the feast: a Friday feast still thaws from Saturday; unscheduled is Thursday", async () => {
+  // SERVER-8 A (BUG-567) — the brine is the recipe's "Wednesday night", the night before
+  // the feast whatever its day: a Friday feast brines Thursday night (it read Wednesday,
+  // two nights out) and thaws 4 days before that.
+  it("counted back from the brine, not the feast: a Friday feast brines Thursday night and thaws from Sunday; unscheduled is Thursday", async () => {
     const { m } = await read("classic", null, "Friday");
-    assert.match(thawText(m), /^Thaw \(start Saturday\).*ready by Wednesday night\.$/);
+    assert.match(thawText(m), /^Thaw \(start Sunday\).*ready by Thursday night\.$/);
     const unscheduled = await read("classic", null, null);
     assert.equal(thawText(unscheduled.m), thawText((await read("classic", null)).m));
   });

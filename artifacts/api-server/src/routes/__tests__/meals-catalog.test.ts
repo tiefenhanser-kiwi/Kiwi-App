@@ -188,6 +188,9 @@ interface PlanItemFixture {
   // WS7-8b (D-WS7-169 keystone) — per-instance servings override. Omitted →
   // null (effectiveServings falls back to the meal's servingsDefault).
   servingsOverride?: number | null;
+  // SERVER-8 A — the item's plan and day (a feast read in its week).
+  mealPlanInstanceId?: string;
+  assignedDayOfWeek?: string | null;
 }
 
 function makeStubPrisma(opts: {
@@ -332,6 +335,8 @@ function makeStubPrisma(opts: {
           ? {
               recipeOverrideJson: item.recipeOverrideJson,
               servingsOverride: item.servingsOverride ?? null,
+              mealPlanInstanceId: item.mealPlanInstanceId ?? null,
+              assignedDayOfWeek: item.assignedDayOfWeek ?? null,
             }
           : null;
       },
@@ -821,6 +826,41 @@ describe("GET /meals/:id", () => {
     } finally {
       await harness.close();
     }
+  });
+
+  // SERVER-8 A (BUG-567, D-WS9-351) — a feast read in its plan says its own week's days;
+  // "On Thursday:" (the feast-day token) stays; a read with no plan item is the stored words.
+  describe("SERVER-8 A — a feast read in a Saturday plan item", () => {
+    const FEAST = {
+      ...detailMeal("r-feast", "Thanksgiving Dinner", [
+        { positionIndex: 0, roleLabel: "main", dish: dish("d-gravy", "Pan Gravy", [dishIngredient("Turkey neck", "Meat", 1, "each", 0)]) },
+      ]),
+      tags: ["american", "thanksgiving", "thanksgiving-feast"],
+    };
+    const STEPS = [
+      step("dish", "d-gravy", 0, "Make ahead (Tuesday): simmer the neck; refrigerate until Thursday."),
+      step("dish", "d-gravy", 1, "On Thursday: whisk in the drippings."),
+    ];
+    const texts = async (path: string) => {
+      const harness = await spinUp(makeStubPrisma({ detailMeals: [FEAST], steps: STEPS, planItems: [{ id: "item-sat", mealId: "r-feast", userId: USER_ID, recipeOverrideJson: null, mealPlanInstanceId: "plan-1", assignedDayOfWeek: "Saturday" }] }));
+      try {
+        const res = await authGet(harness, path);
+        assert.equal(res.status, 200);
+        const { meal } = (await res.json()) as { meal: { dishes: { steps: { text: string }[] }[] } };
+        return meal.dishes[0].steps.map((x) => x.text);
+      } finally {
+        await harness.close();
+      }
+    };
+    it("in its plan: Tuesday is Thursday (two days out), the feast is 'feast day', the token stays", async () => {
+      assert.deepEqual(await texts("/meals/r-feast?planItemId=item-sat"), [
+        "Make ahead (Thursday): simmer the neck; refrigerate until feast day.",
+        "On Thursday: whisk in the drippings.",
+      ]);
+    });
+    it("without the plan item: the stored words", async () => {
+      assert.deepEqual(await texts("/meals/r-feast"), STEPS.map((x) => x.stepTextTranslated));
+    });
   });
 
   it("without ?planItemId effectiveServings === servings (canonical/deep-link read)", async () => {

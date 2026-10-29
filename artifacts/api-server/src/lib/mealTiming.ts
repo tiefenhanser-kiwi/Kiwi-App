@@ -41,6 +41,7 @@ import { logger } from "./logger";
 import { feastDishOvenRacks } from "./ovenRacks";
 import { FEAST_MEAL_TAG } from "./prepWeekAggregation";
 import { mealBirdOf, withBirdRoast } from "./birdWeight";
+import { FEAST_DAY_PREFIX } from "./feastWeek";
 
 export interface MealTiming {
   /** Wall-clock start-to-plate, D-WS9-122's definition. Null when underivable. */
@@ -147,7 +148,9 @@ export function deriveMealTiming(
 // way. The same reading drives the feast's Cook Mode (cookingSequence.ts) and its
 // client mirror (artifacts/kiwi lib/cooking/feastDay.ts).
 const MAKE_AHEAD_RUN_START = /^\s*(?:make ahead|thaw) \(/i;
-const ON_THURSDAY = /^\s*on thursday:/i;
+// SERVER-8 (D-WS9-351) — "On Thursday:", and the "On feast day:" that replaces it in a
+// later release; the shared vectors (artifacts/kiwi lib/cooking/__tests__/feastDayVectors.mts) pin both.
+const ON_THURSDAY = FEAST_DAY_PREFIX;
 
 /** A dish's steps, in step order, less its make-ahead runs: what happens on the day. */
 export function onTheDaySteps<T extends { text: string }>(steps: readonly T[]): T[] {

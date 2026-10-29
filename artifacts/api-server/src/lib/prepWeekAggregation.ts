@@ -19,6 +19,7 @@ import { resolvePrepCategory } from "./prepCategoryOverride";
 import { selectDefaultPathSteps } from "./cookingScheduler";
 import type { ComponentStep } from "./prepComponents";
 import { prefixDaysOf } from "./feastPrefixes";
+import { feastDowOf, feastShift, feastWeekTag, feastWeekText } from "./feastWeek";
 import { mealBirdOf } from "./birdWeight";
 import { admitSubsumesEdge, ingredientGroupKey } from "./ingredientRelations";
 import { normalizeIngredientName } from "./groceryNormalization";
@@ -422,10 +423,17 @@ export async function loadPrepWeekInput(
     }
 
     const isFeastMeal = (meal.tags ?? []).includes(FEAST_MEAL_TAG);
+    // 🔴 SERVER-8 A (BUG-567) — A FEAST ENTERS PREP IN ITS OWN WEEK. Its tags, step texts
+    // and row notes name a Thursday plan's weekdays; for a feast on another day they are
+    // said for that day here (lib/feastWeek), so the session's days, each portion's lag
+    // and the narrator's input all read the feast's real week. Identity for a Thursday
+    // feast (and every other meal), so those inputs hash as before.
+    const feastDow = isFeastMeal ? feastDowOf(dayNameByMealId.get(meal.id) ?? null) : 4;
+    const inWeek = (text: string) => feastWeekText(text, feastDow, "weekday");
     const dishes: PrepLoadedDish[] = meal.dishLinks
       .map((link) => {
         const dish = link.dish;
-        const makeAheadDays = isFeastMeal ? makeAheadDaysOf(dish.tags ?? []) : [];
+        const makeAheadDays = isFeastMeal ? makeAheadDaysOf((dish.tags ?? []).map((t) => feastWeekTag(t, feastDow))) : [];
         const ingredients: PrepLoadedIngredient[] = dish.dishIngredients.map(
           (di) => ({
             ingredientId: di.ingredient.id,
@@ -439,7 +447,7 @@ export async function loadPrepWeekInput(
             ),
             quantity: di.quantity,
             unit: di.unit,
-            preparationNote: di.preparationNote ?? null,
+            preparationNote: di.preparationNote == null ? null : inWeek(di.preparationNote),
             // Filled after the loop — the relation read needs every ingredient
             // id the plan touches, which is not known until the loop is done.
             sourceYield: null,
@@ -689,14 +697,17 @@ export async function loadPrepWeekInput(
     for (const meal of meals) {
       const mealOwned = mealStepsByOwner.get(meal.mealId) ?? [];
       const mealOwnedComponents = mealComponentStepsByOwner.get(meal.mealId) ?? [];
+      // SERVER-8 A — a feast's steps in its own week (see the meal loop above).
+      const feastDow = meal.feast ? feastDowOf(dayNameByMealId.get(meal.mealId) ?? null) : 4;
+      const inWeek = (text: string) => (feastShift(feastDow) === 0 ? text : feastWeekText(text, feastDow, "weekday"));
       for (const dish of meal.dishes) {
         const dishOwned = dishStepsByOwner.get(dish.dishId) ?? [];
-        dish.stepTexts = [...dishOwned, ...mealOwned];
+        dish.stepTexts = [...dishOwned, ...mealOwned].map(inWeek);
         const listedTwice = dish.ingredients.some((i, n) => dish.ingredients.findIndex((o) => o.ingredientId === i.ingredientId) !== n);
         dish.componentSteps = [
           ...(dishComponentStepsByOwner.get(dish.dishId) ?? []),
           ...mealOwnedComponents,
-        ].map(({ refs, ...s }) => (listedTwice ? { ...s, refs } : s));
+        ].map(({ refs, ...s }) => (listedTwice ? { ...s, refs } : s)).map((s) => (feastShift(feastDow) === 0 ? s : { ...s, text: inWeek(s.text) }));
         // THX-3d (F, R6) — a feast dish's days are the ones its steps name too
         // (feastPrefixes): Small's untagged make-ahead steps, a dish added to the feast.
         if (meal.feast) {

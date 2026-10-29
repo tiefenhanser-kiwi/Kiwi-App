@@ -42,6 +42,7 @@ import { hasUnmatchedAmount, type AmountRef } from "../lib/stepAmountRefs";
 import { feastCookWordingFor, PreppedRefsSchema, weeknightCookWordingFor, type CookWording, type PreppedRef } from "../lib/feastCookWording";
 import { weeknightMorningFor } from "../lib/heldCookDay";
 import { applyBirdWeightToRead } from "../lib/birdWeightRead";
+import { applyFeastWeekToRead } from "../lib/feastWeek";
 import { FEAST_MEAL_TAG } from "../lib/prepWeekAggregation";
 import {
   subscriptionService as productionSubscriptionService,
@@ -1147,6 +1148,10 @@ export function createMealsRouter(
       // is worded the same way. A failure logs and serves the stored words.
       // THX-4 — the dishes' step texts as stored, before any read-time wording.
       const storedTexts = new Map(meal.dishes.map((d) => [d.dishId, d.steps.map((s) => s.text)]));
+      // SERVER-8 A (BUG-567) — a feast read in its plan says the weekdays of its own week
+      // (lib/feastWeek; "On Thursday:" stays, D-WS9-351). First, so the wording below and
+      // the bird's thaw lines, which are said for that week already, land on it as they are.
+      if (planIdOfItem && req.userId && (meal.tags ?? []).includes(FEAST_MEAL_TAG)) applyFeastWeekToRead(meal, assignedDayOfWeek);
       if (planIdOfItem && req.userId) {
         // The words, their refs and (THX-3d round 5, D-WS9-321) the prepped containers
         // used, validated: a ref the schema refuses is logged and left off, never the words.
