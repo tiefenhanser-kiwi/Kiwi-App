@@ -26,6 +26,7 @@ import {
   EMPTY_PLAN_COPY,
 } from "../lib/prepWeekAggregation";
 import { runAICall as productionRunAICall } from "../lib/ai/runAICall";
+import { createSingleFlight } from "../lib/singleFlight";
 import { withAIFailureStatus } from "../lib/ai/errors";
 import { resolvePromptDescriptorFromDb as productionResolvePromptDescriptor } from "../lib/ai/promptRegistry";
 import { feastSessionFingerprint, prepCompositionFingerprint } from "../lib/prepWeekFingerprint";
@@ -262,6 +263,15 @@ export function createCookingRouter(
     | { ok: false; status?: number; aiReason?: string; body: Record<string, unknown> };
   const sendFailure = (res: Response, n: Extract<Narrated, { ok: false }>) =>
     n.aiReason ? withAIFailureStatus(res, n.aiReason).json(n.body) : res.status(n.status ?? 502).json(n.body);
+  // 🔴 SERVER-8 D (BUG-572) — ONE NARRATION PER PLAN AND SESSION AT A TIME. Cook Mode
+  // POSTs here on every load, so two loads a few seconds apart both missed a stale cache
+  // and both paid for a narration. A miss now narrates through this single-flight, keyed
+  // by the plan, the session, the composition fingerprint and the prompt version: a
+  // second request for the same thing while the first is narrating waits for the first
+  // one's result and serves it, and only the first writes the cache and carries the
+  // ticks. A request whose plan changed in between (another fingerprint) narrates its
+  // own. A subset is never cached, and is not shared. Process-local (lib/singleFlight).
+  const narrations = createSingleFlight<Narrated>();
   const narrateStepPlan = async (
     stepPlan: ReturnType<typeof buildCoreWeek>["stepPlan"],
     input: { meals: { mealId: string }[] },
@@ -493,8 +503,10 @@ export function createCookingRouter(
         if (build.stepPlan.steps.length === 0) {
           return res.status(400).json({ error: EMPTY_PLAN_COPY });
         }
-        const narrated = await narrateStepPlan(build.stepPlan, input, { userId, planId });
+        const flight = await narrations.run(`feast|${planId}|${fingerprint}|${activeVersion ?? "?"}`, () => narrateStepPlan(build.stepPlan, input, { userId, planId }));
+        const narrated = flight.value;
         if (!narrated.ok) return sendFailure(res, narrated);
+        if (flight.shared) logger.info({ event: "prep_week_narration_shared", userId, planId, session: "feast" }, "Prep the feast: served the narration already in flight");
         const generatedAt = new Date().toISOString();
         const feastSession: FeastSessionBlob = {
           fingerprint,
@@ -502,7 +514,7 @@ export function createCookingRouter(
           generatedAt,
           result: narrated.result,
         };
-        try {
+        if (!flight.shared) try {
           // A row the week wrote keeps the week; a row the feast creates has a
           // NULL fingerprint, which the week's read gate treats as a miss.
           await prisma.prepWeekStructure.upsert({
@@ -657,8 +669,12 @@ export function createCookingRouter(
 
       // 4b–7. Narrate, assemble, check the wire and the attribution — shared
       // with the feast session (narrateStepPlan above).
-      const narrated = await narrateStepPlan(stepPlan, input, { userId, planId });
+      const flight = isSubset
+        ? { value: await narrateStepPlan(stepPlan, input, { userId, planId }), shared: false }
+        : await narrations.run(`week|${planId}|${compositionFingerprint}|${activePromptVersion ?? "?"}`, () => narrateStepPlan(stepPlan, input, { userId, planId }));
+      const narrated = flight.value;
       if (!narrated.ok) return sendFailure(res, narrated);
+      if (flight.shared) logger.info({ event: "prep_week_narration_shared", userId, planId, session: "week" }, "Prep the Week: served the narration already in flight");
       const { result } = narrated;
 
       // 8. Cache write. UPSERT keyed by planId — covers create (cache
@@ -680,7 +696,8 @@ export function createCookingRouter(
       // gated by its own fingerprint on read). Regenerating the week keeps it.
       const storedFeast = cached ? splitStructure(cached.structureJson).feast : null;
       const structureJson = { ...result, ...(storedFeast ? { feastSession: storedFeast } : {}) } as unknown as object;
-      if (!isSubset) {
+      // SERVER-8 D — a shared narration's cache and ticks are the first request's to write.
+      if (!isSubset && !flight.shared) {
         try {
           // `promptVersion` here is the version that ACTUALLY narrated this
           // prose (aiResult.metadata), which is what the read gate above

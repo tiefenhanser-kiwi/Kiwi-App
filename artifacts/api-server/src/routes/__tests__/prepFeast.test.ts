@@ -396,3 +396,80 @@ describe("PREP-1 G — the feast session's cache is the feast's alone", () => {
     assert.deepEqual(withRibs.stepPlan.steps.map((s) => s.stepKey), without.stepPlan.steps.map((s) => s.stepKey));
   });
 });
+
+// SERVER-8 D (BUG-572) — ONE NARRATION PER PLAN AND SESSION AT A TIME. Two Cook Mode loads
+// 5 s apart both missed a stale cache and both paid. The narrator below is held open until
+// both requests have loaded the plan, so the second is in flight while the first narrates.
+describe("SERVER-8 D — concurrent misses share one narration", () => {
+  const held = (calls: { stepIds: string[] }[], loads: () => number, fail = false) =>
+    (async (k: string, vars: { prepNarrationInput: { steps: { stepId: string }[] } }) => {
+      const r = await (narrationStub(calls) as unknown as (k: string, v: unknown) => Promise<unknown>)(k, vars);
+      while (loads() < 2) await new Promise((res) => setTimeout(res, 5));
+      await new Promise((res) => setTimeout(res, 50));
+      return fail ? { success: false, reason: "timeout", userFacingMessage: "The narrator timed out.", metadata: {} } : r;
+    }) as never;
+  const setup = (fail = false) => {
+    let loads = 0;
+    const calls: { stepIds: string[] }[] = [];
+    const mem = memoryPrisma();
+    let writes = 0;
+    const upsert = mem.prisma.prepWeekStructure.upsert;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mem.prisma.prepWeekStructure.upsert = (async (a: any) => { writes += 1; return upsert(a); }) as never;
+    const loader = loaderStub(() => { loads += 1; return feastWeek(); });
+    return { calls, mem, writes: () => writes, deps: { loadPrepWeekInput: loader, prisma: mem.prisma as never, runAICall: held(calls, () => loads, fail) } };
+  };
+
+  for (const session of ["week", "feast"] as const) {
+    it(`${session}: two concurrent requests make one narration call and one cache write; both get the result`, async () => {
+      const s = setup();
+      const h = await spin(s.deps);
+      try {
+        const body = session === "feast" ? { session: "feast" } : undefined;
+        const [a, b] = await Promise.all([post(h.url, body), post(h.url, body)]);
+        assert.equal(a.status, 200);
+        assert.equal(b.status, 200);
+        assert.equal(s.calls.length, 1, "two narrations for one plan");
+        assert.equal(s.writes(), 1);
+        assert.deepEqual(namesOf(b.body.result), namesOf(a.body.result));
+        assert.equal(a.body.cacheHit, false);
+        assert.equal(b.body.cacheHit, false);
+        // The next open is the cache, as before.
+        const c = await post(h.url, body);
+        assert.equal(c.body.cacheHit, true);
+        assert.equal(s.calls.length, 1);
+      } finally {
+        await h.close();
+      }
+    });
+  }
+
+  it("a failed narration is shared too, nothing is cached, and the next request narrates afresh", async () => {
+    const s = setup(true);
+    const h = await spin(s.deps);
+    try {
+      const [a, b] = await Promise.all([post(h.url), post(h.url)]);
+      assert.notEqual(a.status, 200);
+      assert.equal(b.status, a.status);
+      assert.equal(s.calls.length, 1);
+      assert.equal(s.writes(), 0);
+      await post(h.url).catch(() => null);
+      assert.equal(s.calls.length, 2, "the failed flight's key was not cleared");
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("the week and the feast are separate flights: one call each", async () => {
+    const s = setup();
+    const h = await spin(s.deps);
+    try {
+      const [w, f] = await Promise.all([post(h.url), post(h.url, { session: "feast" })]);
+      assert.equal(w.status, 200);
+      assert.equal(f.status, 200);
+      assert.equal(s.calls.length, 2);
+    } finally {
+      await h.close();
+    }
+  });
+});
