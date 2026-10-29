@@ -104,6 +104,30 @@ export const FEAST_DAY_VECTORS: readonly FeastDayVector[] = [
     ],
     onTheDay: [2],
   },
+  {
+    // CLIENT-7 C (SERVER-8's ask) — as a Sunday feast is served in release #6: SERVER-8 A
+    // shifts "Make ahead (Monday):" three days on to Thursday and keeps the token literal.
+    name: "a Sunday feast's Thursday make day beside the literal On Thursday: token",
+    steps: [
+      "Make ahead (Thursday): cook, stirring occasionally; cover and refrigerate until feast day.",
+      "Cook 12 minutes.",
+      "On Thursday: Remove the turkey from the brine, discard the brine, and pat the turkey thoroughly dry.",
+    ],
+    onTheDay: [2],
+  },
+  {
+    // CLIENT-7 C (SERVER-8's ask) — only a step OPENING "Thaw (…):" starts a run. A thaw
+    // later in a step is an ordinary step: on the feast day here, so it ends nothing.
+    name: "a thaw that is not the step's opening clause",
+    steps: [
+      "Make ahead (Monday): Zest 2 oranges.",
+      "On Thursday: Remove the turkey from the fridge 1 hour before roasting.",
+      "If the turkey is still icy inside, thaw (in cold water, breast down): 30 minutes more.",
+      "Pat it dry. Thaw (start Friday): a 14-lb bird takes about 4 days to thaw fully before Wednesday's brine.",
+      "Roast at 325°F for about 3 hours.",
+    ],
+    onTheDay: [1, 2, 3, 4],
+  },
   { name: "no prefixes at all (the Wellington)", steps: ["Chop the mushrooms.", "Bake 30 minutes."], onTheDay: [0, 1] },
   {
     name: "case and leading space, like Thursday's",
