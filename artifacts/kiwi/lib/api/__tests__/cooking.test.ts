@@ -13,6 +13,7 @@ import {
   checkPrepStep,
   uncheckPrepStep,
   getPrepWeekCompletions,
+  getPrepWeekStructure,
   getCookingSequence,
   getPrepWeek,
 } from "../cooking";
@@ -706,4 +707,24 @@ test("getPrepWeek keeps the label step's labelCount; a step without one parses a
   const all = out.envelope.result.phases.flatMap((p) => p.steps);
   assert.equal(all.find((s) => s.stepKey === "week-labels")?.labelCount, 2);
   assert.ok(all.filter((s) => s.stepKey !== "week-labels").every((s) => s.labelCount === undefined));
+});
+
+// ── CLIENT-6 C — getPrepWeekStructure (GET, free) ─────────────────────────────
+
+test("getPrepWeekStructure GETs the free structure path and keeps what the fold joins on", async () => {
+  // cooking.ts GET /plans/:planId/prep-week/structure, verbatim shape.
+  nextResponse = () =>
+    mockJson({
+      planId: "plan-1",
+      steps: [
+        { stepKey: "produce#garlic", title: "Mince the garlic", phase: "produce", containerNames: ["Minced garlic"], contributesToMealIds: ["m1"], coversCookSteps: [{ mealId: "m1", dishId: "d1", stepIndex: 2 }], skipSuggested: false },
+        { stepKey: "produce#herbs", title: "Chop the herbs", phase: "produce", containerNames: [], contributesToMealIds: ["m1"], coversCookSteps: [], skipSuggested: true },
+      ],
+      heldForCookDay: [],
+    });
+  const res = await getPrepWeekStructure("plan-1");
+  assert.equal(lastMethod, "GET");
+  assert.ok(lastUrl?.endsWith("/plans/plan-1/prep-week/structure"), `unexpected url: ${lastUrl}`);
+  assert.deepEqual(res.steps[0].coversCookSteps, [{ mealId: "m1", dishId: "d1", stepIndex: 2 }]);
+  assert.equal(res.steps[1].skipSuggested, true);
 });

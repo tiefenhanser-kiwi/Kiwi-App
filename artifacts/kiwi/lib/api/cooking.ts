@@ -142,6 +142,35 @@ export async function getPrepWeekCompletions(
 // write (the server caps it at 80 chars).
 export { StepKeySchema };
 
+// ── CLIENT-6 C — GET /plans/:planId/prep-week/structure (Part J.1b) ──────────
+// The plan's prep step set with its `coversCookSteps`, FREE: the engine alone, no
+// narration, no cache read or write (cooking.ts). Titles are the engine's ("Mince
+// the garlic"), not the narrator's, and there are no instructions. Cook Mode reads
+// it after "Yes, I prepped", where POST …/prep-week could cost a live narration.
+// Loose on purpose (this side only joins on it).
+const PrepWeekStructureSchema = z.object({
+  planId: z.string(),
+  steps: z.array(
+    z.object({
+      stepKey: z.string(),
+      title: z.string(),
+      phase: z.string(),
+      containerNames: z.array(z.string()).optional(),
+      contributesToMealIds: z.array(z.string()),
+      coversCookSteps: z.array(z.object({ mealId: z.string(), dishId: z.string(), stepIndex: z.number().int() })).optional(),
+      skipSuggested: z.boolean().optional(),
+    }),
+  ),
+  heldForCookDay: z.array(z.string()).optional(),
+});
+export type PrepWeekStructure = z.infer<typeof PrepWeekStructureSchema>;
+
+export async function getPrepWeekStructure(planId: string): Promise<PrepWeekStructure> {
+  return apiClient(`/plans/${encodeURIComponent(planId)}/prep-week/structure`, {
+    schema: PrepWeekStructureSchema,
+  });
+}
+
 // ── Cooking Sequencer (POST /meals/:mealId/cooking-sequence) ────────────────
 // WS7-8b Block 3 (Build Block 2B); BUG-018 B2 — the server ordering is now
 // computed DETERMINISTICALLY (no AI). Verbatim Zod mirror of the server wire —

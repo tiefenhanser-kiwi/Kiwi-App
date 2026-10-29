@@ -28,6 +28,7 @@ import { usePlan } from "@/hooks/usePlan";
 import { usePlans } from "@/hooks/usePlans";
 import { usePrepWeek } from "@/hooks/usePrepWeek";
 import { usePrepWeekCompletions } from "@/hooks/usePrepWeekCompletions";
+import { usePrepWeekStructure } from "@/hooks/usePrepWeekStructure";
 import {
   cookFooterMinutes,
   doneInPrepStepKeys,
@@ -39,6 +40,8 @@ import {
   flattenPlanDishSteps,
   nextLiveIndex,
   prepChips,
+  preppedAnswerFold,
+  preppedAnswerPlanId,
   preppedMealRead,
   preppedReadPlanItemId,
   prepRecap,
@@ -243,28 +246,38 @@ export default function CookSession() {
   // CLIENT-6 B (BUG-584) — a step folds only when its ticked covering steps did
   // every food it names (the dish's ingredients); shown steps get a chip for
   // what was prepped.
+  // CLIENT-6 C (BUG-583) — after "Yes, I prepped" from the Recipes tab, the fold
+  // takes the plan the chips came from (this week's) on the server's prepped=1
+  // basis: its free structure, every step done. No such plan: nothing folds.
+  const answerPlanId = preppedAnswerPlanId({ planId, planItemId, prepAnswer, thisWeekPlanId: thisWeekId, readPlanItemId });
+  const structureData = usePrepWeekStructure(answerPlanId).data;
+  const answered = useMemo(
+    () => (answerPlanId.length > 0 && structureData ? preppedAnswerFold(structureData) : null),
+    [answerPlanId, structureData],
+  );
+  const foldPrep = answered ? answered.prep : prepResult;
   const checkedKeys = useMemo(
-    () => new Set(completionRows?.map((c) => c.stepKey) ?? []),
-    [completionRows],
+    () => answered?.checked ?? new Set(completionRows?.map((c) => c.stepKey) ?? []),
+    [answered, completionRows],
   );
   const doneInPrepKeys = useMemo(
     () =>
       doneInPrepStepKeys(
         allSteps,
-        prepResult,
+        foldPrep,
         mealId,
         checkedKeys,
         mealQuery.data?.dishes,
       ),
-    [allSteps, prepResult, mealId, checkedKeys, mealQuery.data],
+    [allSteps, foldPrep, mealId, checkedKeys, mealQuery.data],
   );
   const activeSteps = useMemo(
     () =>
       withPrepChips(
         allSteps.map((s) => feastDayStep(s, feastDayName)),
-        prepChips(allSteps, prepResult, mealId, checkedKeys, doneInPrepKeys),
+        prepChips(allSteps, foldPrep, mealId, checkedKeys, doneInPrepKeys),
       ),
-    [allSteps, feastDayName, prepResult, mealId, checkedKeys, doneInPrepKeys],
+    [allSteps, feastDayName, foldPrep, mealId, checkedKeys, doneInPrepKeys],
   );
   const recap = useMemo(
     () => prepRecap(prepResult, mealId, completionRows ?? [], new Date()),

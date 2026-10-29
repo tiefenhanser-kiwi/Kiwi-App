@@ -8,6 +8,8 @@ import {
   doneInPrepStepKeys,
   firstLiveIndex,
   prepChips,
+  preppedAnswerFold,
+  preppedAnswerPlanId,
   withPrepChips,
   flattenDishSteps,
   flattenMealSteps,
@@ -1041,4 +1043,51 @@ test("CLIENT-6 B chips: unticked covering steps get none, the server's own chip 
   assert.equal(chips.get(steps[2].key), undefined);
   // Another meal's read: none.
   assert.equal(prepChips(steps, prep, "other-meal", ALL_KEEMA, new Set()).size, 0);
+});
+
+// ── CLIENT-6 C (BUG-583) — the fold after "Yes, I prepped" ──────────────────
+
+test("CLIENT-6 C: a 'yes' folds by the plan the chips came from; no plan item, nothing", () => {
+  const base = { planId: "", planItemId: "", prepAnswer: null, thisWeekPlanId: "", readPlanItemId: undefined };
+  // Recipes tab, "yes", this week's item found: this week's plan (the read went through it).
+  assert.equal(preppedAnswerPlanId({ ...base, prepAnswer: true, thisWeekPlanId: "pW", readPlanItemId: "iW" }), "pW");
+  // "yes" but the meal is not in this week's plan (no item to read through): nothing folds.
+  assert.equal(preppedAnswerPlanId({ ...base, prepAnswer: true, thisWeekPlanId: "pW", readPlanItemId: undefined }), "");
+  // Not yet answered, or "no": nothing.
+  assert.equal(preppedAnswerPlanId({ ...base, prepAnswer: null, thisWeekPlanId: "pW", readPlanItemId: "iW" }), "");
+  assert.equal(preppedAnswerPlanId({ ...base, prepAnswer: false, thisWeekPlanId: "pW", readPlanItemId: "iW" }), "");
+  // From a plan the launch's own ticks fold, as before: not this path.
+  assert.equal(preppedAnswerPlanId({ ...base, planId: "p1", planItemId: "i1", prepAnswer: true, thisWeekPlanId: "pW", readPlanItemId: "i1" }), "");
+});
+
+test("CLIENT-6 C: after 'yes', every prep step of that plan counts as done (the server's prepped=1 basis), under B's rule", () => {
+  const steps = flattenMealSteps(keemaMeal());
+  // GET …/prep-week/structure: engine titles, no instructions; one step the narrator demoted.
+  const structure = {
+    steps: [
+      { stepKey: "cnt#seas#dK|r:0|", title: "Measure the Curry spices", containerNames: ["Curry spices"], coversCookSteps: covers(2) },
+      { stepKey: "produce#garlic", title: "Mince the garlic", containerNames: ["Minced garlic"], coversCookSteps: covers(0, 1, 3, 4, 5) },
+      { stepKey: "produce#ginger", title: "Grate the ginger", containerNames: ["Curry plate"], coversCookSteps: covers(1) },
+      { stepKey: "produce#cilantro", title: "Chop the cilantro", skipSuggested: true },
+    ],
+  };
+  const { prep, checked } = preppedAnswerFold(structure);
+  assert.deepEqual([...checked], ["cnt#seas#dK|r:0|", "produce#garlic", "produce#ginger"]);
+  const done = doneInPrepStepKeys(steps, prep, MEAL, checked, keemaMeal().dishes);
+  // Before C nothing folded on this path (no plan on the launch). Now the garlic-only
+  // step folds; the onion steps still show in full; the spice step shows too: the
+  // structure's title names no spice (titles alone, no instructions).
+  assert.deepEqual(idxOf(steps, done), [3]);
+  const chips = prepChips(steps, prep, MEAL, checked, done);
+  assert.deepEqual(chips.get(steps[0].key)?.map((c) => c.label), ["Minced garlic"]);
+  assert.deepEqual(chips.get(steps[2].key)?.map((c) => c.label), ["Curry spices"]);
+});
+
+test("CLIENT-6 C: the route folds a 'yes' from the free structure read, and the launch's plan from its ticks as before", () => {
+  const src = readFileSync(new URL("../../../app/cook-session.tsx", import.meta.url), "utf8");
+  assert.match(src, /usePrepWeekStructure\(answerPlanId\)/);
+  assert.match(src, /const foldPrep = answered \? answered\.prep : prepResult;/);
+  // The launch-plan reads are unchanged: completions and the (possibly paid) payload by planId.
+  assert.match(src, /usePrepWeekCompletions\(planId, wantPlan\)/);
+  assert.match(src, /usePrepWeek\(\s*planId,\s*shouldLoadPrepForCook\(wantPlan/);
 });
