@@ -333,6 +333,13 @@ export interface LoadPrepWeekInputResult {
   /** D-WS9-298 — deliberately NOT part of `input`; see PrepCookDays. */
   cookDays: PrepCookDays;
   identity: PrepFoodIdentity;
+  /**
+   * SERVER-9 C (BUG-582) — every meal on the plan's items, dishless ones included, in
+   * item order: the bit order of a subset session's scoped tick keys (lib/prepScope).
+   * `input.meals` drops a meal with no dishes; this does not, so it is the same list
+   * GET …/prep-week/completions reads straight from the items.
+   */
+  planMealIds?: string[];
 }
 
 export async function loadPrepWeekInput(
@@ -855,5 +862,6 @@ export async function loadPrepWeekInput(
     planRevisionId: plan.revisionId,
     cookDays: { prepDay, lagByMealId, dayNameByMealId, pastMealIds, ...(prepDay !== null ? { prepDayIsToday: prepDay === todayIso } : {}) },
     identity: { foldedIdByIngredientId },
+    planMealIds: plan.items.map((i) => i.mealId),
   };
 }

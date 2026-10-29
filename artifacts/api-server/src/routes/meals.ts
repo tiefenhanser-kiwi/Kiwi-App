@@ -1182,7 +1182,7 @@ export function createMealsRouter(
         // Mode's "yes, I prepped", answered without ticks). Read time, nothing stored; a
         // failure serves the stored words.
         try {
-          applyWording(await weeknightCookWordingFor(prisma, { planId: planIdOfItem, userId: req.userId, mealTags: meal.tags ?? [], prepped: req.query.prepped === "1", dishes: meal.dishes }));
+          applyWording(await weeknightCookWordingFor(prisma, { planId: planIdOfItem, userId: req.userId, mealId: id, mealTags: meal.tags ?? [], prepped: req.query.prepped === "1", dishes: meal.dishes }));
         } catch (err) {
           logger.warn({ err, id, event: "weeknight_cook_wording_failed" }, "Weeknight Cook Mode wording failed — stored words served");
         }

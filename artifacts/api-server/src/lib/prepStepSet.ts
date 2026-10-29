@@ -32,13 +32,18 @@ import {
   type PrepStepRef as BuildStepRef,
 } from "./prepWeekBuild";
 import { cachedStepsOf, resolveTicks } from "./prepTickCarry";
+import { planMealsOf, scopedGroups, splitTicks } from "./prepScope";
 
 /**
  * Minimal per-step shape the derivation needs (matches derivePrepCompletion).
  * SERVER-8 C (BUG-568) — `carried`: the step's key was not ticked, but the ticks of the
  * screen the cook ticked carry it (SERVER-7's rule, prepTickCarry), so it counts as done.
  */
-export type PrepStepRef = BuildStepRef & { carried?: true };
+export type PrepStepRef = BuildStepRef & {
+  carried?: true;
+  /** SERVER-9 C (BUG-582) — the meals a subset or one-meal session ticked this step for (lib/prepScope). */
+  doneFor?: string[];
+};
 
 export interface LoadPrepStepSetParams {
   planId: string;
@@ -178,14 +183,31 @@ async function withCarriedTicks(
   params: LoadPrepStepSetParams,
 ): Promise<PrepStepRef[]> {
   if (!params.ticks) return refs;
-  const ticked = new Set([...params.ticks].filter((k) => !k.startsWith(FEAST_KEY_PREFIX)));
+  // SERVER-9 C (BUG-582) — a subset or one-meal session's ticks count for its meals only:
+  // a live key it ticked is done for those meals (doneFor). (A re-keyed one is carried
+  // inside its session when the week regenerates: routes/cooking.ts.)
+  const { unscoped, scoped } = splitTicks(
+    [...params.ticks].filter((k) => !k.startsWith(FEAST_KEY_PREFIX)),
+    planMealsOf(loaded),
+  );
+  const ticked = new Set(unscoped);
   const live = new Set(week.stepPlan.steps.map((s) => s.stepKey));
-  if (![...ticked].some((k) => !live.has(k))) return refs;
+  const doneFor = new Map<string, Set<string>>();
+  for (const g of scopedGroups(scoped)) {
+    for (const b of g.bases) {
+      if (!live.has(b)) continue;
+      const set = doneFor.get(b) ?? new Set<string>();
+      for (const id of g.mealIds) set.add(id);
+      doneFor.set(b, set);
+    }
+  }
+  const scopedRefs = doneFor.size === 0 ? refs : refs.map((r) => (doneFor.has(r.stepKey) ? { ...r, doneFor: [...doneFor.get(r.stepKey)!] } : r));
+  if (![...ticked].some((k) => !live.has(k))) return scopedRefs;
   const cache = await params.prisma.prepWeekStructure.findUnique({ where: { planId: params.planId }, select: { structureJson: true } });
   const { done } = resolveTicks(ticked, week.stepPlan.steps, {
     cached: cachedStepsOf(cache?.structureJson),
     fold: (id) => loaded.identity?.foldedIdByIngredientId.get(id) ?? id,
     carryable: (s) => isTickable(s, week),
   });
-  return refs.map((r) => (done.has(r.stepKey) && !ticked.has(r.stepKey) ? { ...r, carried: true as const } : r));
+  return scopedRefs.map((r) => (done.has(r.stepKey) && !ticked.has(r.stepKey) ? { ...r, carried: true as const } : r));
 }

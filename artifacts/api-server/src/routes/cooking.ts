@@ -59,6 +59,7 @@ import {
 } from "../lib/prepCompletion";
 import { loadPrepStepSet } from "../lib/prepStepSet";
 import { cachedStepsOf, resolveTicks } from "../lib/prepTickCarry";
+import { parseScopedKey, planMealsOf, scopedGroups, scopedKey, splitTicks, withSessionKeys } from "../lib/prepScope";
 import { logger } from "../lib/logger";
 import { emitPlanPrepStartedOnce } from "../lib/userActivity";
 import { prisma as productionPrisma } from "../lib/prisma";
@@ -734,16 +735,40 @@ export function createCookingRouter(
           // step) is KEPT and reported, never silently deleted; an inert key matches
           // nothing on screen. The feast session's ticks (`feast#…`) are the feast's
           // own regeneration to judge, and are left alone here.
-          const oldTicks = (await prisma.prepStepCompletion.findMany({ where: { planId }, select: { stepKey: true } }))
-            .map((r) => r.stepKey)
-            .filter((k) => !k.startsWith(FEAST_KEY_PREFIX));
-          const carry = resolveTicks(oldTicks, stepPlan.steps, {
-            cached: cachedStepsOf(cached ? splitStructure(cached.structureJson).week : null),
-            fold: (id) => identity?.foldedIdByIngredientId.get(id) ?? id,
-          });
+          const planMeals = planMealsOf(loadResult);
+          const { unscoped: oldTicks, scoped: oldScoped } = splitTicks(
+            (await prisma.prepStepCompletion.findMany({ where: { planId }, select: { stepKey: true } }))
+              .map((r) => r.stepKey)
+              .filter((k) => !k.startsWith(FEAST_KEY_PREFIX)),
+            planMeals,
+          );
+          const cachedWeek = cachedStepsOf(cached ? splitStructure(cached.structureJson).week : null);
+          const fold = (id: string) => identity?.foldedIdByIngredientId.get(id) ?? id;
+          const carry = resolveTicks(oldTicks, stepPlan.steps, { cached: cachedWeek, fold });
           if (carry.carried.size > 0) {
             await prisma.prepStepCompletion.createMany({ data: [...carry.carried.keys()].map((stepKey) => ({ planId, stepKey })), skipDuplicates: true });
             const moved = [...new Set([...carry.carried.values()].flat())];
+            await prisma.prepStepCompletion.deleteMany({ where: { planId, stepKey: { in: moved } } });
+          }
+          // SERVER-9 C (BUG-582) — a subset session's ticks carry INSIDE that session: its
+          // own build (the plan scoped to its meals, A3) against its meals' share of the old
+          // screen, and keep its prefix. Resolved against the whole week they would never
+          // carry (the other meals' portions were never ticked there).
+          for (const g of scopedGroups(oldScoped)) {
+            const session = buildCoreWeek({ input, cookDays, identity }, [...g.mealIds]);
+            const share = new Map(
+              [...cachedWeek]
+                .map(([k, v]) => [k, { contributesToMealIds: v.contributesToMealIds.filter((id) => g.mealIds.has(id)) }] as const)
+                .filter(([, v]) => v.contributesToMealIds.length > 0),
+            );
+            const c = resolveTicks(g.bases, session.stepPlan.steps, { cached: share, fold });
+            const data = [...c.carried.keys()].flatMap((k) => {
+              const stepKey = scopedKey(g.prefix, k);
+              return stepKey ? [{ planId, stepKey }] : [];
+            });
+            if (data.length === 0) continue;
+            await prisma.prepStepCompletion.createMany({ data, skipDuplicates: true });
+            const moved = [...new Set([...c.carried.values()].flat())].map((k) => `${g.prefix}${k}`);
             await prisma.prepStepCompletion.deleteMany({ where: { planId, stepKey: { in: moved } } });
           }
           if (carry.carried.size > 0 || carry.unmapped.length > 0) {
@@ -763,6 +788,23 @@ export function createCookingRouter(
         }
       }
 
+      // D-WS9-298 — the same overlay, from the same helper, so the two paths
+      // cannot drift into showing different storage text for one plan.
+      let served = summarizePrepWeek(finishPrepWeek(result, build));
+      // 🔴 SERVER-9 C (BUG-582) — A SUBSET'S TICKS ARE THE SESSION'S. Its steps go out
+      // under keys that name the session's meals (lib/prepScope), so a tick here counts
+      // for those meals only; a step the week (or a wider session) already ticked keeps
+      // that key. A subset holding every weeknight meal is the week: keys unchanged.
+      if (isSubset && coreScope) {
+        const planMeals = planMealsOf(loadResult);
+        const ticks = (await prisma.prepStepCompletion.findMany({ where: { planId }, select: { stepKey: true } })).map((r) => r.stepKey);
+        const scoped = withSessionKeys(served, { planMeals, scope: coreScope, eligible: coreScopeMealIds(input) ?? planMeals, ticks });
+        served = scoped.result;
+        if (scoped.unfit.length > 0) {
+          logger.warn({ event: "prep_subset_keys_unscoped", userId, planId, keys: scoped.unfit }, "Prep selected meals: a scoped key would pass 80 characters — served with the week's key");
+        }
+      }
+
       return res.json({
         cacheHit: false,
         // WS9 — `subset: true` marks a result that is NOT the canonical week and
@@ -771,9 +813,7 @@ export function createCookingRouter(
         // `envelope.subset` is a straight boolean, never an absence to reason
         // about.
         subset: isSubset,
-        // D-WS9-298 — the same overlay, from the same helper, so the two paths
-        // cannot drift into showing different storage text for one plan.
-        result: summarizePrepWeek(finishPrepWeek(result, build)),
+        result: served,
         planRevisionId,
         generatedAt: new Date().toISOString(),
         promptVersion,
@@ -860,11 +900,19 @@ export function createCookingRouter(
         checkedKeys,
       );
 
+      // SERVER-9 C (BUG-582) — a subset or one-meal session's tick says which step and
+      // which meals it is for (lib/prepScope), so the app can fold only those meals.
+      // Additive: the shipped app's row schema drops a key it does not know.
+      const planMeals = plan.items.map((i) => i.mealId);
       return res.json({
-        completions: rows.map((r) => ({
-          stepKey: r.stepKey,
-          checkedAt: r.checkedAt.toISOString(),
-        })),
+        completions: rows.map((r) => {
+          const scoped = parseScopedKey(r.stepKey, planMeals);
+          return {
+            stepKey: r.stepKey,
+            checkedAt: r.checkedAt.toISOString(),
+            ...(scoped?.mealIds ? { scope: { stepKey: scoped.base, mealIds: [...scoped.mealIds] } } : {}),
+          };
+        }),
         perMeal,
         derivedPrepStatus,
         prepStatusIsManual: plan.prepStatusIsManual,

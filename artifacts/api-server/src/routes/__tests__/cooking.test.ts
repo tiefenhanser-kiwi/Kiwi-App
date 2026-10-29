@@ -25,6 +25,7 @@ import type { PrepLoadedPlan } from "../../lib/prepWeekAggregation";
 import type { PrepWeekResult } from "../../lib/ai/schemas/prepWeek";
 import { prepCompositionFingerprint } from "../../lib/prepWeekFingerprint";
 import { PROTEINS_PHASE_NOTE } from "../../lib/prepStorage";
+import { parseScopedKey, scopePrefix } from "../../lib/prepScope";
 import { createCookingRouter } from "../cooking";
 import { withSessionUser } from "./fixtures/sessionUserStub";
 
@@ -1916,6 +1917,45 @@ describe("prep-week completions — ticks on regenerate (B3, SERVER-7 B)", () =>
       await harness.close();
     }
   });
+
+  it("SERVER-9 C — a one-meal session's tick of an OLD key is carried inside that session: the new key, the same meal", async () => {
+    const OLD = "produce#0ddd0ddd-0ddd-4ddd-8ddd-0ddd0ddd0ddd";
+    const planMeals = [MEAL_ID_X, MEAL_ID_Y];
+    const prefix = scopePrefix(planMeals, [MEAL_ID_X], planMeals)!;
+    const cache = makeCacheStub();
+    cache.seedCompletion(PLAN_ID, `${prefix}${OLD}`);
+    const stale = happyPrepWeekResult();
+    for (const p of stale.phases) for (const s of p.steps) if (s.stepKey === "produce#ing-onion") s.stepKey = OLD;
+    cache.rows.set(PLAN_ID, {
+      id: "row-stale",
+      planId: PLAN_ID,
+      structureJson: stale,
+      lastGeneratedFromPlanRevisionId: 1,
+      lastGeneratedAt: new Date("2026-05-01T12:00:00Z"),
+      promptVersion: 1,
+    });
+    const harness = await spinUp({
+      loadPrepWeekInput: (async (p: { planId: string; mealIds?: string[] }) => ({
+        ...(await (makeLoaderStub as unknown as (o: unknown) => (p: unknown) => Promise<object>)({ planRevisionId: 2, mealIds: planMeals, fold: { "0ddd0ddd-0ddd-4ddd-8ddd-0ddd0ddd0ddd": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee" } })(p as never)),
+        planMealIds: planMeals,
+      })) as never,
+      runAICall: makeAICallStub({}),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prisma: cache.prisma as any,
+      subscriptionService: { can: async () => ({ allowed: true }) },
+    });
+    try {
+      const res = await fetch(`${harness.baseUrl}/plans/${PLAN_ID}/prep-week`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${signToken("u-carry-scoped")}` },
+      });
+      assert.equal(res.status, 200);
+      // Carried to today's onion key under the same session prefix: still X's alone.
+      assert.deepEqual(cache.completionKeys(PLAN_ID), [`${prefix}${ONION_STEP_KEY}`]);
+    } finally {
+      await harness.close();
+    }
+  });
 });
 
 // ── WS9 — Prep Selected Meals (POST body `mealIds`) ─────────────────────────
@@ -2361,6 +2401,89 @@ describe("POST /api/plans/:planId/prep-week — full week is unchanged (WS9)", (
         mealIds: [MEAL_ID_X],
       });
       assert.equal(res.status, 402);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
+// ── SERVER-9 C (BUG-582) — A SUBSET SESSION'S TICKS ARE THE SESSION'S ───────
+
+describe("POST /api/plans/:planId/prep-week — SERVER-9 C: a subset's keys and ticks name its meals", () => {
+  const setup = async (seed: string[] = []) => {
+    const cache = makeCacheStub();
+    cache.setPlan(PLAN_ID, { userId: "u-scope", mealIds: [MEAL_ID_X, MEAL_ID_Y] });
+    for (const k of seed) cache.seedCompletion(PLAN_ID, k);
+    const harness = await spinUp({
+      // The real loader returns every item's meal as planMealIds (this stub predates it).
+      loadPrepWeekInput: (async (p: { planId: string; mealIds?: string[] }) => ({
+        ...(await (makeLoaderStub as unknown as (o: unknown) => (p: unknown) => Promise<object>)({ planRevisionId: 4, mealIds: [MEAL_ID_X, MEAL_ID_Y] })(p as never)),
+        planMealIds: [MEAL_ID_X, MEAL_ID_Y],
+      })) as never,
+      runAICall: makeAICallStub({}),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prisma: cache.prisma as any,
+      subscriptionService: { can: async () => ({ allowed: true }) },
+    });
+    return { cache, harness, token: signToken("u-scope") };
+  };
+  const keysOf = (r: PrepWeekResult) => r.phases.flatMap((p) => p.steps.map((s) => s.stepKey));
+
+  it("a one-meal session serves every key scoped to that meal, within the apps' 80 characters", async () => {
+    const { harness, token } = await setup();
+    try {
+      const body = (await (await subsetPost(harness.baseUrl, token, { mealIds: [MEAL_ID_X] })).json()) as { result: PrepWeekResult };
+      const keys = keysOf(body.result);
+      assert.ok(keys.length > 0);
+      for (const k of keys) {
+        assert.ok(k.length <= 80, k);
+        assert.deepEqual([...parseScopedKey(k, [MEAL_ID_X, MEAL_ID_Y])!.mealIds!], [MEAL_ID_X], k);
+      }
+      assert.ok(keys.some((k) => parseScopedKey(k, [MEAL_ID_X, MEAL_ID_Y])!.base === ONION_STEP_KEY));
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("a tick there reads back with its scope, and the rollup counts it for that meal only", async () => {
+    const { harness, token } = await setup();
+    try {
+      const body = (await (await subsetPost(harness.baseUrl, token, { mealIds: [MEAL_ID_X] })).json()) as { result: PrepWeekResult };
+      const onion = keysOf(body.result).find((k) => k.endsWith(ONION_STEP_KEY))!;
+      const auth = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+      const put = await fetch(`${harness.baseUrl}/plans/${PLAN_ID}/prep-week/completions`, { method: "PUT", headers: auth, body: JSON.stringify({ stepKey: onion }) });
+      assert.equal(put.status, 200);
+      const read = (await (await fetch(`${harness.baseUrl}/plans/${PLAN_ID}/prep-week/completions`, { headers: auth })).json()) as {
+        completions: { stepKey: string; scope?: { stepKey: string; mealIds: string[] } }[];
+        perMeal: Record<string, boolean>;
+        derivedPrepStatus: string;
+      };
+      assert.deepEqual(read.completions.map((c) => c.scope), [{ stepKey: ONION_STEP_KEY, mealIds: [MEAL_ID_X] }]);
+      // The shared onion step was minced for X only: X is prepped, Y is not (before: both).
+      assert.equal(read.perMeal[MEAL_ID_X], true);
+      assert.equal(read.perMeal[MEAL_ID_Y], false);
+      assert.equal(read.derivedPrepStatus, "partial");
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("a step the week already ticked is served under the week's key (the session shows it ticked)", async () => {
+    const { harness, token } = await setup([ONION_STEP_KEY]);
+    try {
+      const body = (await (await subsetPost(harness.baseUrl, token, { mealIds: [MEAL_ID_Y] })).json()) as { result: PrepWeekResult };
+      assert.ok(keysOf(body.result).includes(ONION_STEP_KEY));
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it("selecting every meal is the week: the week's keys", async () => {
+    const { harness, token } = await setup();
+    try {
+      const body = (await (await subsetPost(harness.baseUrl, token, { mealIds: [MEAL_ID_X, MEAL_ID_Y] })).json()) as { result: PrepWeekResult };
+      assert.ok(keysOf(body.result).includes(ONION_STEP_KEY));
+      for (const k of keysOf(body.result)) assert.equal(parseScopedKey(k, [MEAL_ID_X, MEAL_ID_Y]), null, k);
     } finally {
       await harness.close();
     }

@@ -19,6 +19,8 @@ interface MinimalStep {
   contributesToMealIds: string[];
   /** SERVER-8 C (BUG-568) — done by a carried tick (prepStepSet), not its own key. */
   carried?: boolean;
+  /** SERVER-9 C (BUG-582) — done for these meals only, by a subset or one-meal session's tick. */
+  doneFor?: readonly string[];
 }
 
 // The set of stepKeys in a freshly assembled in-memory result — the orphan-prune
@@ -70,7 +72,8 @@ export function derivePrepCompletion(
   const keysByMeal = new Map<string, string[]>();
   for (const id of allMealIds) keysByMeal.set(id, []);
   const carriedKeys = new Set<string>();
-  const isChecked = (k: string) => checkedStepKeys.has(k) || carriedKeys.has(k);
+  // SERVER-9 C — stepKey → the meals a session's scoped tick made it done for.
+  const doneFor = new Map<string, ReadonlySet<string>>();
   for (const step of steps) {
     for (const mealId of step.contributesToMealIds) {
       // Only meals in the universe count; a step pointing at a since-removed
@@ -79,7 +82,10 @@ export function derivePrepCompletion(
       if (list) list.push(step.stepKey);
       if (step.carried) carriedKeys.add(step.stepKey);
     }
+    if (step.doneFor?.length) doneFor.set(step.stepKey, new Set(step.doneFor));
   }
+  const checkedFor = (mealId: string) => (k: string) =>
+    checkedStepKeys.has(k) || carriedKeys.has(k) || (doneFor.get(k)?.has(mealId) ?? false);
 
   // PREP-2 item 6 — THE ROLLUP COUNTS ONLY MEALS THAT HAVE SOMETHING TO PREP.
   // A zero-prep meal is still vacuously prepped PER MEAL (Cook Mode's gate reads
@@ -95,6 +101,7 @@ export function derivePrepCompletion(
   let preppedWithSteps = 0;
   for (const mealId of allMealIds) {
     const keys = keysByMeal.get(mealId)!;
+    const isChecked = checkedFor(mealId);
     // Vacuous true when keys.length === 0.
     const prepped = keys.every(isChecked);
     perMeal[mealId] = prepped;

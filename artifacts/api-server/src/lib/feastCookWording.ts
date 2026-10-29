@@ -42,6 +42,7 @@ import { shortDish } from "./prepWeekLabels";
 import { spokenAmount } from "./prepWeekAssembly";
 import { displayedPrepQuantity } from "./prepQuantity";
 import { logger } from "./logger";
+import { planMealsOf, splitTicks, ticksForMeal } from "./prepScope";
 
 /** A reworded step's words, refs and (round 5, D-WS9-321) the prepped containers it uses. */
 export interface CookWording { text: string; amountRefs: WordingRef[] | null; preppedRefs?: PreppedRef[] }
@@ -101,15 +102,33 @@ export function weeknightDoneSteps(build: PrepWeekBuild, ticks: Iterable<string>
  */
 export async function weeknightCookWordingFor(
   prisma: PrismaClient,
-  args: { planId: string; userId: string; mealTags: readonly string[]; prepped?: boolean; dishes: readonly { dishId: string; title: string; steps: readonly { stepIndex: number; text: string; amountRefs?: unknown }[] }[]; now?: Date },
+  args: {
+    planId: string;
+    userId: string;
+    /** SERVER-9 C (BUG-582) — the meal being read: a subset session's tick counts only for its meals. Absent, only the week's ticks count. */
+    mealId?: string;
+    mealTags: readonly string[];
+    prepped?: boolean;
+    dishes: readonly { dishId: string; title: string; steps: readonly { stepIndex: number; text: string; amountRefs?: unknown }[] }[];
+    now?: Date;
+  },
+  /** SERVER-9 C — the loader, injectable so a test can hand in a two-meal week. */
+  deps: { loadPrepWeekInput?: typeof loadPrepWeekInput } = {},
 ): Promise<Map<string, Map<number, CookWording>>> {
   const out = new Map<string, Map<number, CookWording>>();
   if (args.mealTags.includes(FEAST_MEAL_TAG) || args.dishes.length === 0) return out;
-  const ticked = args.prepped
+  const stored = args.prepped
     ? null
-    : new Set((await prisma.prepStepCompletion.findMany({ where: { planId: args.planId }, select: { stepKey: true } })).map((r) => r.stepKey));
+    : (await prisma.prepStepCompletion.findMany({ where: { planId: args.planId }, select: { stepKey: true } })).map((r) => r.stepKey);
+  if (stored && stored.length === 0) return out;
+  const load = await (deps.loadPrepWeekInput ?? loadPrepWeekInput)({ planId: args.planId, userId: args.userId, prisma, ...(args.now ? { now: args.now } : {}) });
+  // 🔴 SERVER-9 C (BUG-582) — the ticks FOR THIS MEAL: the week's, and a subset or
+  // one-meal session's only when that session held this meal (lib/prepScope).
+  const planMeals = planMealsOf(load);
+  const ticked = stored
+    ? new Set(args.mealId ? ticksForMeal(stored, args.mealId, planMeals) : splitTicks(stored, planMeals).unscoped)
+    : null;
   if (ticked && ticked.size === 0) return out;
-  const load = await loadPrepWeekInput({ planId: args.planId, userId: args.userId, prisma, ...(args.now ? { now: args.now } : {}) });
   const build = buildCoreWeek(load);
   // 🔴 SERVER-7 B (BUG-556/557) — the ticks are keys of the structure the cook TICKED: the
   // plan's cached Prep the Week, which an engine change re-keys. They are resolved against
