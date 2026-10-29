@@ -338,6 +338,51 @@ export function preppedReadPlanItemId(args: {
   return args.thisWeekItems?.find((i) => i.mealId === args.mealId)?.id;
 }
 
+/**
+ * CLIENT-6 C (BUG-583) — the plan a "Yes, I prepped" folds by.
+ *
+ * After "yes" with no plan item on the launch (Cook Now from the Recipes tab), the
+ * meal is read through this week's item with ?prepped=1, and the server words its
+ * steps and chips as if EVERY prep step of that plan were done
+ * (weeknightCookWordingFor: `prepped` replaces the ticks). The fold read only the
+ * launch's plan, which there is none of, so knife work the chips said was prepped
+ * still showed in full. The fold now takes the same plan, on the same basis
+ * (preppedAnswerFold), under doneInPrepStepKeys' rule.
+ *
+ * "" — nothing folds, every step in full — before the answer, on a "no", when the
+ * meal is not in this week's plan (no item to read through), and whenever the
+ * launch carried its own plan item (that path folds by its real ticks, unchanged).
+ */
+export function preppedAnswerPlanId(args: {
+  planId: string;
+  planItemId: string;
+  prepAnswer: boolean | null;
+  /** This week's plan, as found for the "yes" read ("" when not looked up). */
+  thisWeekPlanId: string;
+  /** The plan item the meal was read through (preppedReadPlanItemId). */
+  readPlanItemId: string | undefined;
+}): string {
+  if (args.planId.length > 0 && args.planItemId.length > 0) return "";
+  if (args.prepAnswer !== true || !args.readPlanItemId) return "";
+  return args.thisWeekPlanId;
+}
+
+/**
+ * CLIENT-6 C — the fold's input after a "yes": the plan's prep step set from the
+ * FREE structure read (no narration), every step the narrator did not demote
+ * counted as done, as the server's prepped=1 wording counts it. The structure has
+ * engine titles and no instructions, so a fold here rests on the titles alone
+ * (a spice-blend step names no spice, and its cook step shows in full).
+ */
+export function preppedAnswerFold(structure: {
+  steps: readonly { stepKey: string; title: string; containerNames?: string[]; coversCookSteps?: { mealId: string; dishId: string; stepIndex: number }[]; skipSuggested?: boolean }[];
+}): { prep: FoldPrep; checked: Set<string> } {
+  return {
+    prep: { phases: [{ steps: structure.steps }] },
+    checked: new Set(structure.steps.filter((s) => !s.skipSuggested).map((s) => s.stepKey)),
+  };
+}
+
 // ── The prepped path (K-R7) ─────────────────────────────────────────────────
 //
 // 🔴 NO COOK STEP IS EVER REMOVED FROM THE FLOW. This replaced a filter that
@@ -360,9 +405,15 @@ function coverKey(dishId: string, stepIndex: number): string {
 /** The dish ingredients the fold reads names from (MealDetail's dishes fit). */
 export type FoldDishes = readonly { dishId: string; ingredients: readonly { name: string }[] }[];
 
+/** What the fold reads of a prep step: Prep the Week's payload, or (CLIENT-6 C) the free structure. */
+export type FoldPrepStep = Pick<PrepWeekStep, "stepKey" | "title" | "coversCookSteps" | "containerNames" | "containerId"> & {
+  instructions?: string;
+};
+export type FoldPrep = { phases: readonly { steps: readonly FoldPrepStep[] }[] };
+
 /** Each covered cook step's covering prep steps, for `mealId`. */
-function coveringSteps(prep: PrepWeekResult, mealId: string): Map<string, PrepWeekStep[]> {
-  const out = new Map<string, PrepWeekStep[]>();
+function coveringSteps(prep: FoldPrep, mealId: string): Map<string, FoldPrepStep[]> {
+  const out = new Map<string, FoldPrepStep[]>();
   for (const phase of prep.phases) {
     for (const step of phase.steps) {
       for (const c of step.coversCookSteps ?? []) {
@@ -394,7 +445,7 @@ function coveringSteps(prep: PrepWeekResult, mealId: string): Map<string, PrepWe
  */
 export function doneInPrepStepKeys(
   steps: readonly CookStep[],
-  prep: PrepWeekResult | undefined,
+  prep: FoldPrep | undefined,
   mealId: string,
   checked: ReadonlySet<string>,
   dishes?: FoldDishes,
@@ -423,7 +474,7 @@ export function doneInPrepStepKeys(
  */
 export function prepChips(
   steps: readonly CookStep[],
-  prep: PrepWeekResult | undefined,
+  prep: FoldPrep | undefined,
   mealId: string,
   checked: ReadonlySet<string>,
   done: ReadonlySet<string>,
