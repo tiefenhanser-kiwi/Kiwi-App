@@ -10,17 +10,29 @@ export interface KnownBug {
   signature: string;
   detail?: string;
   note: string;
+  /** "fixed": a finding that still matches is a regression (QA-NIGHT-2 D). Absent: open. */
+  status?: "open" | "fixed";
+  fixedIn?: string;
+}
+
+function matchEntry(f: Finding, known: KnownBug[]): KnownBug | undefined {
+  // R3 re-runs R1/R2 after an edit as "R3:<edit>:<their signature>": a known R1/R2 bug is known there too.
+  const sigs = [f.signature, f.signature.replace(/^R3:[a-z-]+:(?=R[12]:)/, "")];
+  return known.find((k) => sigs.some((s) => new RegExp(k.signature).test(s)) && (!k.detail || new RegExp(k.detail).test(f.detail)));
 }
 
 export function matchKnown(f: Finding, known: KnownBug[]): string | undefined {
-  // R3 re-runs R1/R2 after an edit as "R3:<edit>:<their signature>": a known R1/R2 bug is known there too.
-  const sigs = [f.signature, f.signature.replace(/^R3:[a-z-]+:(?=R[12]:)/, "")];
-  for (const k of known) {
-    if (!sigs.some((s) => new RegExp(k.signature).test(s))) continue;
-    if (k.detail && !new RegExp(k.detail).test(f.detail)) continue;
-    return k.id;
+  return matchEntry(f, known)?.id;
+}
+
+/** Marks the finding known, or REGRESSED when its bug is marked fixed: then it is high, whatever its rule said. */
+export function applyKnown(f: Finding, known: KnownBug[]): void {
+  const k = matchEntry(f, known);
+  f.known = k?.id;
+  if (k?.status === "fixed") {
+    f.regressed = true;
+    f.severity = "high";
   }
-  return undefined;
 }
 
 export interface Group {
@@ -28,6 +40,7 @@ export interface Group {
   severity: Severity;
   rule: RuleId;
   known?: string;
+  regressed?: boolean;
   count: number;
   households: string[];
   example: Finding;
@@ -41,7 +54,7 @@ export function groupFindings(findings: Finding[]): Group[] {
     const key = `${f.signature}|${f.known ?? ""}`;
     const g = by.get(key);
     if (!g) {
-      by.set(key, { signature: f.signature, severity: f.severity, rule: f.rule, known: f.known, count: 1, households: [f.household], example: f });
+      by.set(key, { signature: f.signature, severity: f.severity, rule: f.rule, known: f.known, ...(f.regressed ? { regressed: true } : {}), count: 1, households: [f.household], example: f });
     } else {
       g.count++;
       if (!g.households.includes(f.household)) g.households.push(f.household);
@@ -68,6 +81,8 @@ export interface RunFacts {
   accountsLeft: string[];
   bootProof: string;
   ui: string;
+  /** "on (--cook-sim)", "on (KIWI_QA_COOK_SIM=1)" or "off" (QA-NIGHT-2 B). */
+  cookSim: string;
 }
 
 export function ruleTable(results: RuleResult[]): { rule: RuleId; checked: number; failed: number; high: number }[] {
@@ -90,14 +105,16 @@ const n = (x: Record<string, number | string | null> | undefined) =>
 export function renderSummary(results: RuleResult[], facts: RunFacts): string {
   const all = results.flatMap((r) => r.findings);
   const groups = groupFindings(all);
+  const regressed = groups.filter((g) => g.regressed);
   const fresh = groups.filter((g) => !g.known);
-  const known = groups.filter((g) => g.known);
+  const known = groups.filter((g) => g.known && !g.regressed);
   const L: string[] = [];
   L.push(`# Kiwi night run · ${facts.date} · ${facts.runTag}`);
   L.push("");
   L.push(`Households ${facts.households.map((h) => `${h.id} ${h.status}`).join(" · ")}${facts.skipped.length ? ` · skipped ${facts.skipped.map((s) => `${s.id} (${s.reason})`).join(", ")}` : ""}`);
   L.push(`AI spend **$${facts.spendUsd.toFixed(2)}** of $${facts.budgetUsd.toFixed(2)} · run time ${facts.wallMin.toFixed(1)} min · accounts created ${facts.accountsCreated}, deleted ${facts.accountsDeleted}${facts.accountsLeft.length ? `, **LEFT ${facts.accountsLeft.length}**` : ""}`);
   L.push(`Email off: ${facts.bootProof} · UI pass: ${facts.ui}`);
+  L.push(`cook-sim: ${facts.cookSim}`);
   L.push("");
   L.push("| rule | checked | failed | high |");
   L.push("|---|---:|---:|---:|");
@@ -105,6 +122,14 @@ export function renderSummary(results: RuleResult[], facts: RunFacts): string {
     L.push(`| ${r.rule} ${RULE_TITLES[r.rule]} | ${r.checked} | ${r.failed === 0 ? (r.checked === 0 ? "— (nothing checked)" : "0 ✓") : r.failed} | ${r.high || ""} |`);
   }
   L.push("");
+  if (regressed.length > 0) {
+    // A bug known.json marks fixed is back: high, and it moves the exit code.
+    L.push(`## Regressed (${regressed.length})`);
+    for (const g of regressed) {
+      L.push(`- **regressed** **${g.known}** · **high** \`${g.signature}\` ×${g.count} (h${g.households.join(", h")}) — ${g.example.detail.slice(0, 260)}${n(g.example.numbers)}`);
+    }
+    L.push("");
+  }
   L.push(`## New (${fresh.length} signature${fresh.length === 1 ? "" : "s"}, ${fresh.reduce((x, g) => x + g.count, 0)} finding${fresh.reduce((x, g) => x + g.count, 0) === 1 ? "" : "s"})`);
   if (fresh.length === 0) L.push("none");
   for (const g of fresh) {
@@ -127,7 +152,14 @@ export function renderSummary(results: RuleResult[], facts: RunFacts): string {
   return `${L.join("\n")}\n`;
 }
 
-/** Exit non-zero when a NEW high-severity finding exists. */
+/** Exit non-zero when a NEW high-severity finding exists (a regression of a fixed bug is one). */
 export function newHigh(results: RuleResult[]): Finding[] {
-  return results.flatMap((r) => r.findings).filter((f) => f.severity === "high" && !f.known);
+  return results.flatMap((r) => r.findings).filter((f) => f.severity === "high" && (!f.known || f.regressed));
+}
+
+/** QA-NIGHT-2 E — the run's last line: why it exits 1, so a finding does not read as a crash. */
+export function resultLine(fresh: Finding[]): string {
+  if (fresh.length === 0) return "RESULT: clean";
+  const back = fresh.filter((f) => f.regressed).length;
+  return `RESULT: ${fresh.length} new high finding(s)${back ? ` (${back} regressed)` : ""} — see summary.md`;
 }

@@ -7,8 +7,9 @@
 //   • text: the screen renders each step's amountRefs through
 //     buildAmountRefSegments at the meal's scale (mealScaleFactors over
 //     resolveAmountMultiplier(effectiveServings, authoredServingsDefault));
-//   • prepped: doneInPrepStepKeys over the plan's prep-week result and its
-//     completions (the fold), and the server's preppedRefs (the chips).
+//   • prepped: doneInPrepStepKeys over the plan's prep-week result, its
+//     completions and the meal's dishes (the fold), and the server's
+//     preppedRefs plus prepChips' (the chips).
 //
 // The kiwi files are imported by relative path; every import they make at
 // runtime is relative too (the "@/…" ones are type-only and erased).
@@ -23,7 +24,7 @@ import type { CookView, SampleCategory, ShownStep } from "./types";
 // The kiwi package is CommonJS to tsx, and ESM's static detection does not see
 // all of its named exports: read each module through its namespace.
 const cjs = <T>(ns: T): T => (ns as { default?: T }).default ?? ns;
-const { doneInPrepStepKeys, flattenMealSteps, prepRecap, resolveAmountMultiplier, sequenceMealSteps } = cjs(cookSessionNs);
+const { doneInPrepStepKeys, flattenMealSteps, prepChips, prepRecap, resolveAmountMultiplier, sequenceMealSteps, withPrepChips } = cjs(cookSessionNs);
 const { onTheDayMeal } = cjs(feastDayNs);
 const { buildAmountRefSegments } = cjs(amountNs);
 const { isFeastMeal, mealScaleFactors, ONE_BIRD } = cjs(quantityNs);
@@ -59,11 +60,16 @@ export function buildCookView(args: {
   const multi = isMultiDish(meal);
   const feast = isFeastMeal(meal.tags);
   const onDay = onTheDayMeal(meal);
-  const steps = multi && sequence ? sequenceMealSteps(onDay, sequence.sequence as any, sequence.mergedSteps ?? []) : flattenMealSteps(onDay);
+  const allSteps = multi && sequence ? sequenceMealSteps(onDay, sequence.sequence as any, sequence.mergedSteps ?? []) : flattenMealSteps(onDay);
 
   const multiplier = resolveAmountMultiplier(meal.effectiveServings, meal.authoredServingsDefault);
   const scale = mealScaleFactors(meal.dishes, multiplier, feast, meal.birdWeightLb);
-  const folded = prep ? doneInPrepStepKeys(steps, prep.result, meal.id, new Set(prep.checked)) : new Set<string>();
+  // QA-NIGHT-2 — the screen passes the meal's dishes (CLIENT-6 B: a step folds only when its ticked
+  // covering steps did every food it names; without them nothing folds), and a step it shows in
+  // full gets a chip per ticked covering step (prepChips), after the server's own.
+  const checked = new Set(prep?.checked ?? []);
+  const folded = prep ? doneInPrepStepKeys(allSteps, prep.result, meal.id, checked, meal.dishes) : new Set<string>();
+  const steps = prep ? withPrepChips(allSteps, prepChips(allSteps, prep.result, meal.id, checked, folded)) : allSteps;
   const recap = prep ? prepRecap(prep.result, meal.id, prep.completions, new Date()).items : [];
 
   // parallelGroup is on the wire step but not on CookStep: read it back by key.

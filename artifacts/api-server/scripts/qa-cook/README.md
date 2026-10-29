@@ -122,7 +122,7 @@ shows:
 
 ## In the night run (item E)
 
-`pnpm run qa:night --cook-sim` (or `KIWI_QA_COOK_SIM=1`), from `artifacts/kiwi`:
+`pnpm run qa:night --cook-sim` (or `-- --cook-sim`, or `KIWI_QA_COOK_SIM=1`), from `artifacts/kiwi`. The run's header says `cook-sim: on` or `off`:
 - **Simulator:** runs on every household's Cook Mode sessions twice, once
   unprepped and once after its prep paths. This is free.
 - **AI cooks:** run on 5 meals that rotate by date (all three cooks each). They

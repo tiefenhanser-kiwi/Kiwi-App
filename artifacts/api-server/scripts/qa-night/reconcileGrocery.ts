@@ -78,7 +78,7 @@ export function reconcileR1(household: string, ev: GroceryEvidence): RuleResult 
     e.needs.push(n);
     byRow.set(key, e);
   }
-  // Amounts: Σ need of every recipe line for a food ≤ Σ the list's rows for it (5 % rounding slack).
+  // Amounts: Σ need of every recipe line for a food ≤ Σ the list's rows for it (5 % rounding slack on a measure, none on a count).
   for (const { row, rows: rs, needs: ns } of byRow.values()) {
     if (ns.some((n) => n.birdDish)) {
       // The bird's dish scales by the bird weight (prepQuantity dishRowMultipliers):
@@ -103,7 +103,9 @@ export function reconcileR1(household: string, ev: GroceryEvidence): RuleResult 
       have += c.a;
     }
     if (!ok) { notComparable++; continue; }
-    if (have < total * 0.95 - 1e-6) {
+    // QA-NIGHT-2 C: a count has no rounding slack below the need (3 shallots where 3.2 are needed is short).
+    const slack = unit === "ml" || unit === "g" ? 0.95 : 1;
+    if (have < total * slack - 1e-6) {
       findings.push({
         rule: "R1", signature: `R1:shortfall:${normName(ns[0].name)}`, severity: "high", household,
         meal: [...new Set(ns.map((n) => n.meal.title))].join(" + "),

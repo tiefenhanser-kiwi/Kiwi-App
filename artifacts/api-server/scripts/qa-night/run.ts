@@ -4,7 +4,8 @@
 //   env: KIWI_QA_BUDGET_USD (default 15) · KIWI_QA_HOUSEHOLDS=1,6,10 (default all)
 //        KIWI_QA_UI=0 to skip the browser pass · KIWI_QA_OUT=<dir> (default
 //        artifacts/kiwi/e2e/out/night-<date>)
-//        --cook-sim (or KIWI_QA_COOK_SIM=1): the kitchen simulator on every
+//        --cook-sim (or -- --cook-sim, or KIWI_QA_COOK_SIM=1; any other argument
+//        stops the run, and the header prints "cook-sim: on|off"): the kitchen simulator on every
 //        household's Cook Mode sessions and the AI home cooks on 5 rotating meals
 //        (scripts/qa-cook; cookSim.ts) — its own section in summary.md
 //        KIWI_QA_PORT=<n> with KIWI_QA_UI=0: the child on another port (API only)
@@ -14,7 +15,8 @@
 // households, each through the real API, reconciled (R1–R11), its spend read
 // from LLMCallLog and its account deleted and proven gone; the browser pass
 // (web export --clear, the :9410 proxy, the qa-night spec); the morning summary.
-// Exit 1 when a NEW high-severity finding exists (or the run could not start).
+// Exit 1 when a NEW high-severity finding exists (a regressed fixed bug is one), 2
+// when the run could not start; the last line says which ("RESULT: …").
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -28,10 +30,10 @@ import { Household, type HouseholdSpec } from "./journeys";
 import { reconcileR1, reconcileR2 } from "./reconcileGrocery";
 import { reconcileR10, reconcileR11 } from "./reconcilePrepCook";
 import { QA_PORT, readDotEnv, startServer, stopServer, type OwnedServer } from "./server";
-import { type CookSimNight, cookSimWanted, emptyNight, householdViews, nightHits, renderNight, runNightCooks, simulateAll } from "./cookSim";
+import { COOK_SIM_FLAG, type CookSimNight, emptyNight, parseRunArgs, householdViews, nightHits, renderNight, runNightCooks, simulateAll } from "./cookSim";
 import type { CookView } from "../qa-cook/types";
 import { addTally, EMPTY_TALLY, mayStart, tallySpend, type SpendTally } from "./spend";
-import { type KnownBug, matchKnown, newHigh, renderSummary, type RunFacts } from "./summary";
+import { applyKnown, type KnownBug, newHigh, renderSummary, resultLine, type RunFacts } from "./summary";
 import type { CallRecord, Finding, RuleResult } from "./types";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -47,6 +49,11 @@ export function assertDevDatabase(env: NodeJS.ProcessEnv): void {
 
 async function main(): Promise<number> {
   const t0 = Date.now();
+  // QA-NIGHT-2 B: the arguments first, so an unknown one stops the run before anything starts.
+  const args = parseRunArgs(process.argv.slice(2), process.env);
+  console.log(`[qa-night] argv: ${JSON.stringify(process.argv.slice(2))}`);
+  if (args.unknown.length) throw new Error(`unknown argument(s) ${args.unknown.map((a) => JSON.stringify(a)).join(", ")}: the run takes ${COOK_SIM_FLAG} only (env: KIWI_QA_*)`);
+  console.log(`[qa-night] cook-sim: ${args.cookSimSource}`);
   const dotEnv = readDotEnv(API_ROOT);
   assertDevDatabase({ ...process.env, DATABASE_URL: dotEnv.DATABASE_URL });
   process.env.DATABASE_URL = dotEnv.DATABASE_URL;
@@ -63,7 +70,7 @@ async function main(): Promise<number> {
   const known = (JSON.parse(readFileSync(join(HERE, "known.json"), "utf8")) as { known: KnownBug[] }).known;
   const withUi = process.env.KIWI_QA_UI !== "0";
   // QA-COOK-1 (E) — the cook simulation, and KIWI_QA_PORT for a second night run beside one on :3100 (API only: the UI pass's proxy is wired to :3100).
-  const night: CookSimNight | null = cookSimWanted(process.argv, process.env) ? emptyNight() : null;
+  const night: CookSimNight | null = args.cookSim ? emptyNight() : null;
   const port = Number(process.env.KIWI_QA_PORT ?? QA_PORT);
   const api = `http://localhost:${port}/api`;
   if (port !== QA_PORT && withUi) throw new Error(`KIWI_QA_PORT=${port} needs KIWI_QA_UI=0: the browser pass is wired to :${QA_PORT}`);
@@ -77,7 +84,7 @@ async function main(): Promise<number> {
   const results: RuleResult[] = [];
   const facts: RunFacts = {
     date, runTag, households: [], skipped: [], spendUsd: 0, budgetUsd: budget, spendByPrompt: {},
-    wallMin: 0, accountsCreated: 0, accountsDeleted: 0, accountsLeft: [], bootProof, ui: withUi ? "pending" : "off (KIWI_QA_UI=0)",
+    wallMin: 0, accountsCreated: 0, accountsDeleted: 0, accountsLeft: [], bootProof, ui: withUi ? "pending" : "off (KIWI_QA_UI=0)", cookSim: args.cookSimSource,
   };
   let spend: SpendTally = { ...EMPTY_TALLY, byPrompt: {} };
   let worstSeen = 0;
@@ -169,7 +176,7 @@ async function main(): Promise<number> {
     await stopServer(server);
   }
 
-  for (const r of results) for (const f of r.findings) f.known = matchKnown(f, known);
+  for (const r of results) for (const f of r.findings) applyKnown(f, known);
   facts.spendUsd = spend.usd;
   facts.spendByPrompt = spend.byPrompt;
   facts.wallMin = (Date.now() - t0) / 60000;
@@ -181,7 +188,9 @@ async function main(): Promise<number> {
   writeFileSync(join(outDir, "calls.json"), JSON.stringify(calls, null, 1));
   console.log(`\n${summary}`);
   console.log(`[qa-night] wrote ${join(outDir, "summary.md")}`);
+  // QA-NIGHT-2 E: the last line says why the exit code is what it is (1 = new high findings, not a crash).
   const fresh = newHigh(results);
+  console.log(resultLine(fresh));
   return fresh.length > 0 ? 1 : 0;
 }
 
@@ -286,6 +295,7 @@ main().then(
   (code) => process.exit(code),
   (err) => {
     console.error(`[qa-night] ABORTED: ${String((err as Error).stack ?? err)}`);
+    console.log(`RESULT: aborted (exit 2) — ${String((err as Error).message ?? err).split("\n")[0]}`);
     process.exit(2);
   },
 );

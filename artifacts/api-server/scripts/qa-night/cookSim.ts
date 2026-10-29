@@ -24,8 +24,37 @@ import type { Household } from "./journeys";
 
 export const COOK_SIM_FLAG = "--cook-sim";
 
-export function cookSimWanted(argv: string[], env: NodeJS.ProcessEnv): boolean {
-  return argv.includes(COOK_SIM_FLAG) || env.KIWI_QA_COOK_SIM === "1";
+export interface RunArgs {
+  cookSim: boolean;
+  /** Where the answer came from, for the run header: "on (--cook-sim)", "off". */
+  cookSimSource: string;
+  /** Arguments the run does not know: the run refuses to start with any. */
+  unknown: string[];
+}
+
+/**
+ * QA-NIGHT-2 B — the run's arguments (process.argv.slice(2)). pnpm passes both
+ * `pnpm run qa:night --cook-sim` and `pnpm run qa:night -- --cook-sim` through
+ * to run.ts, the second with a literal "--" (measured in Git Bash, PowerShell
+ * and cmd), so a "--" is skipped. Anything else unknown stops the run: the
+ * 2026-10-29 night ran with no cook simulation and nothing said so, and a typo
+ * or a flag pasted from chat with an em dash ("—cook-sim") must fail loudly, not
+ * run a night without it. `npm run qa:night --cook-sim` eats the flag into
+ * npm_config_cook_sim, which is read too.
+ */
+export function parseRunArgs(argv: string[], env: NodeJS.ProcessEnv): RunArgs {
+  let flag: boolean | null = null;
+  const unknown: string[] = [];
+  for (const a of argv) {
+    if (a === "--") continue;
+    const m = /^--cook-sim(?:=(1|true|on|0|false|off))?$/i.exec(a);
+    if (m) flag = !m[1] || /^(1|true|on)$/i.test(m[1]);
+    else unknown.push(a);
+  }
+  if (flag !== null) return { cookSim: flag, cookSimSource: flag ? `on (${COOK_SIM_FLAG})` : `off (${COOK_SIM_FLAG}=off)`, unknown };
+  if (env.KIWI_QA_COOK_SIM === "1") return { cookSim: true, cookSimSource: "on (KIWI_QA_COOK_SIM=1)", unknown };
+  if (/^(1|true)$/i.test(env.npm_config_cook_sim ?? "")) return { cookSim: true, cookSimSource: "on (npm_config_cook_sim)", unknown };
+  return { cookSim: false, cookSimSource: "off", unknown };
 }
 
 export interface CookSimNight {

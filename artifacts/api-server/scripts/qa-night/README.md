@@ -10,7 +10,13 @@ reconcile. **Dev only.**
 pnpm run qa:night                                  # all ten households + the browser pass
 KIWI_QA_HOUSEHOLDS=1,6,10 pnpm run qa:night        # some of them
 KIWI_QA_BUDGET_USD=8 KIWI_QA_UI=0 pnpm run qa:night
+pnpm run qa:night --cook-sim                       # + the cook simulation (or: -- --cook-sim)
 ```
+
+The header prints `argv: [...]` and `cook-sim: on (--cook-sim)` or `cook-sim: off`.
+`--cook-sim` is the only argument the run takes (settings are `KIWI_QA_*` env):
+anything else, a typo or `—cook-sim` pasted with an em dash, stops the run with
+exit 2 instead of running a night without it.
 
 Output goes to `artifacts/kiwi/e2e/out/night-<date>/` (gitignored):
 
@@ -23,8 +29,19 @@ Output goes to `artifacts/kiwi/e2e/out/night-<date>/` (gitignored):
 | `server.log` | The api-server child's own log. |
 | `ui.log`, `ui-result.json` | The browser pass. |
 
-The exit code is 1 when a **new** high-severity finding exists, and 2 when the
-run could not start.
+### The exit code
+
+The last line of the run says what the exit code means:
+
+| last line | exit | means |
+|---|---:|---|
+| `RESULT: clean` | 0 | No new high-severity finding. Known bugs and medium/low findings may still be listed. |
+| `RESULT: n new high finding(s) — see summary.md` | 1 | The run **finished**. `n` findings are high and new, or a regression of a bug `known.json` marks fixed (`(k regressed)`). This is the intended signal, not a crash. |
+| `RESULT: aborted (exit 2) — <reason>` | 2 | The run could not start or stopped early: a fence failed, an unknown argument, the server did not boot. |
+
+pnpm prints its own `ELIFECYCLE Command failed with exit code 1` after a
+`RESULT: n new high finding(s)` line. That is pnpm reporting the exit code,
+not a second failure.
 
 ## The fences
 
@@ -84,22 +101,29 @@ They are tested on hand-made fixtures:
 | R1 | Every recipe line, scaled by the server's rule, is on the list in at least the summed need. | Amounts are compared only when units convert. The bird's dish is checked for presence only; the bird itself against the chosen weight. |
 | R2 | Every row traces to a plan meal. Staples, recurring rows and user-added rows are labeled. | An optional line that is bought anyway is its own (low) finding. |
 | R3 | R1 and R2 hold again after each edit. The removed meal's rows are gone, and the edited meal's rows moved. | — |
-| R4 | Prep amounts (read from the narrated prose) stay within the scaled recipes and within the list. Keys are unique. Covers point at the step's own meals. | A prep step has no structured amounts, so a step's total line or its destination lines are read. |
+| R4 | Prep amounts (read from the narrated prose) stay within the scaled recipes and within the list. Keys are unique. Covers point at the step's own meals. A count (cloves, each) may round **up** to the next whole one, line by line, and run one whole unit past that (6 cloves minced where 4.5 are needed is fine, 7 is not). | A prep step has no structured amounts, so a step's total line or its destination lines are read. |
 | R5 | A subset or one-meal session touches only its meals. Other meals' Cook Mode is read before the request, after it, and after the ticks. | — |
 | R6 | `labelCount` = the card's N = the distinct containers filled. Every chip names a container the session made. | — |
-| R7 | A ticked step no longer tells the cook to do it (chip, dropped clause, or the client's "Done in prep" fold). Partial prep mutes nothing unticked. "Yes, I prepped" words the covered steps. | Most week steps carry no `coversCookSteps`; the chip and the dropped clause are read-time. |
+| R7 | A ticked step no longer tells the cook to do it (chip, dropped clause, or the client's "Done in prep" fold). Partial prep mutes nothing unticked. "Yes, I prepped" words, folds or chips the covered steps. The fold and the client's chips are **the app's own functions** (`appFold.ts` → `kiwi/lib/cooking/cookSession.ts`): `doneInPrepStepKeys` and `prepChips` on the plan's ticks, or after "Yes, I prepped" on this week's `/prep-week/structure` (`preppedAnswerPlanId`, `preppedAnswerFold`). | Most week steps carry no `coversCookSteps`; the chip and the dropped clause are read-time. |
 | R8 | Every ingredient is named in a step. A dish's non-prep steps keep their order. No oven runs at two temperatures at once. The card is within 10% of the sequence. | — |
 | R9 | Every make-ahead row is before the feast and on its date and weekday, inside its keep window. The thaw is ⌈lb ÷ 4⌉ days before the brine (or the feast). Prep the feast is the day before. | — |
 | R10 | One `plan_prep_started` per ticked plan; one `cook_finished` per finish. | — |
 | R11 | No 5xx, no unexpected 4xx, nothing slower than 20 s, no console errors in the browser pass. | — |
 
 Findings carry a stable signature (rule, kind, food or step kind, never an id).
-`known.json` maps signatures to open bug ids. The summary lists those apart
-from the new ones.
+`known.json` maps signatures to bug ids. The summary lists those apart
+from the new ones. When a bug is fixed, its entry gets `"status": "fixed"`
+(and `"fixedIn"`) instead of being deleted. A finding that still matches it is
+**regressed**: it is listed first under `## Regressed` in bold, as high, and it
+counts toward exit 1.
+
+R1 gives a measure 5 % slack below the need, and a count none: 3 shallots where
+3.2 are needed is short.
 
 ## The cook simulation (`--cook-sim`, QA-COOK-1)
 
-`pnpm run qa:night --cook-sim` (or `KIWI_QA_COOK_SIM=1`) adds `cookSim.ts`:
+`pnpm run qa:night --cook-sim`, `pnpm run qa:night -- --cook-sim` (or
+`KIWI_QA_COOK_SIM=1`) adds `cookSim.ts`:
 - **The simulator** runs on every household's Cook Mode sessions: right after
   "Cook Mode unprepped", and again after the household's prep paths. It reads
   through the household's own account and is free.

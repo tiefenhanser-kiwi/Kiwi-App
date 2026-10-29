@@ -14,6 +14,7 @@ import { randomBytes } from "node:crypto";
 
 import type { PrismaClient } from "@prisma/client";
 
+import { answerFold, type FoldInput, type FoldStep, preppedAnswerPlanId, preppedReadPlanItemId } from "./appFold";
 import { Client, JourneyError } from "./http";
 import {
   cookKey,
@@ -241,10 +242,10 @@ export class Household {
     return { meals, reads, plan };
   }
 
-  /** One meal's Cook Mode read (the steps the screen shows). */
-  async cookRead(meal: PlanMeal, prepped = false): Promise<Record<string, RecipeStep>> {
-    const q = `?planItemId=${meal.planItemId}${prepped ? "&prepped=1" : ""}`;
-    return stepsOf((await this.api.must<any>("GET", `/meals/${meal.mealId}${q}`)).meal);
+  /** One meal's Cook Mode read (the steps the screen shows); `through` overrides the plan item ("" = none). */
+  async cookRead(meal: PlanMeal, prepped = false, through: string = meal.planItemId): Promise<Record<string, RecipeStep>> {
+    const q = [through ? `planItemId=${through}` : "", prepped ? "prepped=1" : ""].filter(Boolean).join("&");
+    return stepsOf((await this.api.must<any>("GET", `/meals/${meal.mealId}${q ? `?${q}` : ""}`)).meal);
   }
 
   // ── 3. grocery ────────────────────────────────────────────────────────────
@@ -437,17 +438,17 @@ export class Household {
   }
 
   /** R7 at one checkpoint: every non-feast meal's prepped read against its baseline. */
-  async checkPrepToCook(label: string, opts: { prepped?: boolean; only?: PlanMeal[] } = {}): Promise<void> {
+  async checkPrepToCook(label: string, opts: { prepped?: boolean; only?: PlanMeal[]; through?: string; fold?: FoldInput | null } = {}): Promise<void> {
     const week = await this.weekSession();
     const refs: CookRef[] = [];
     const meals: PrepToCookMeal[] = [];
     for (const m of opts.only ?? this.meals.filter((x) => !x.isFeast)) {
-      const after = await this.cookRead(m, opts.prepped);
+      const after = await this.cookRead(m, opts.prepped, opts.through ?? m.planItemId);
       for (const [k, s] of Object.entries(after)) for (const r of s.preppedRefs ?? []) refs.push({ mealTitle: m.title, dishId: k.split("#")[0], stepIndex: s.stepIndex, ...r });
       meals.push({ meal: m, baseline: this.baseline.get(m.mealId) ?? {}, after });
     }
     const ticked = opts.prepped ? new Set(week.steps.map((s) => s.stepKey)) : new Set(this.ticked);
-    this.push(reconcileR7(this.spec.id, { label, meals, prepSteps: week.steps, ticked, prepped: !!opts.prepped }));
+    this.push(reconcileR7(this.spec.id, { label, meals, prepSteps: week.steps, ticked, prepped: !!opts.prepped, ...(opts.fold !== undefined ? { fold: opts.fold } : {}) }));
     this.push(reconcileR6(this.spec.id, week, refs));
     (this.out.evidence.prepToCook ??= [] as unknown[]) as unknown[];
     (this.out.evidence.prepToCook as unknown[]).push({
@@ -501,13 +502,22 @@ export class Household {
     await this.tick(keys, false);
   }
 
-  /** Recipes tab → Cook Mode → "Yes, I prepped" (cook-session.tsx:113-124): the active plan's item, prepped=1. */
+  /**
+   * Recipes tab → Cook Mode → "Yes, I prepped" (cook-session.tsx:112-131, 252-258), with the app's own
+   * functions: the meal is read through its item in this week's plan (preppedReadPlanItemId) with
+   * prepped=1, and the fold is that plan's free structure, every undemoted step done (QA-NIGHT-2 A).
+   */
   async recipesYes(): Promise<void> {
-    const plans = await this.api.must<any>("GET", "/plans");
-    const active = plans.activeThisWeek?.id ?? (plans.plans as any[]).find((p) => p.isActiveThisWeek)?.id;
-    if (active !== this.planId) this.out.evidence.recipesYesActive = { active, plan: this.planId };
+    const plans = await this.api.must<any>("GET", "/plans?filter=my_plans");
+    const thisWeekId: string = plans.activeThisWeek?.id ?? "";
+    if (thisWeekId !== this.planId) this.out.evidence.recipesYesActive = { active: thisWeekId, plan: this.planId };
     const meal = this.meals.filter((m) => !m.isFeast).slice(-1)[0];
-    await this.checkPrepToCook(`Recipes · Yes, I prepped (${meal.title})`, { prepped: true, only: [meal] });
+    const thisWeekItems = thisWeekId ? ((await this.api.must<any>("GET", `/plans/${thisWeekId}`)).plan.items as { id: string; mealId: string }[]) : undefined;
+    const through = preppedReadPlanItemId({ planItemId: "", prepAnswer: true, mealId: meal.mealId, thisWeekItems }) ?? "";
+    const answerPlanId = preppedAnswerPlanId({ planId: "", planItemId: "", prepAnswer: true, thisWeekPlanId: thisWeekId, readPlanItemId: through || undefined });
+    const fold = answerPlanId ? answerFold((await this.api.must<any>("GET", `/plans/${answerPlanId}/prep-week/structure`)) as { steps: FoldStep[] }) : null;
+    this.out.evidence.recipesYesFold = { thisWeekId, through, answerPlanId, structureSteps: fold?.steps.length ?? 0, done: fold?.checked.size ?? 0 };
+    await this.checkPrepToCook(`Recipes · Yes, I prepped (${meal.title})`, { prepped: true, only: [meal], through, fold });
   }
 
   // ── 7. the feast (R9, R4, R6, R8) ─────────────────────────────────────────

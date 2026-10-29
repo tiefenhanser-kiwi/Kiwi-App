@@ -4,11 +4,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { answerFold, appFold, planFold } from "./appFold";
 import { proofProblems, type BootProof } from "./server";
 import { mayStart } from "./spend";
-import { matchKnown } from "./summary";
+import { parseRunArgs } from "./cookSim";
+import { applyKnown, type KnownBug, matchKnown, newHigh, renderSummary, resultLine } from "./summary";
 import { reconcileR1, reconcileR2, reconcileR3, type GroceryEvidence } from "./reconcileGrocery";
 import {
+  allowance,
   cookKey,
   proseAmounts,
   reconcileR4,
@@ -22,7 +25,7 @@ import {
   stepAmounts,
   type FeastEvidence,
 } from "./reconcilePrepCook";
-import type { CallRecord, GroceryRow, PlanMeal, PrepSession, RecipeStep } from "./types";
+import type { CallRecord, Finding, GroceryRow, PlanMeal, PrepSession, RecipeStep } from "./types";
 import { normName, sameFood } from "./units";
 
 // ── fixtures ────────────────────────────────────────────────────────────────
@@ -189,6 +192,32 @@ test("R4 lets a whole count round up (half a lemon is one lemon) but not run pas
   assert.deepEqual(reconcileR4("t", over, [m]).findings.map((f) => f.signature), ["R4:prep-exceeds-recipe:lemon"]);
 });
 
+test("R4 lets a count round up to the next whole one and one past it, no further (QA-NIGHT-2 C)", () => {
+  const m = tacos();
+  m.dishes[0].ingredients.push({ name: "garlic cloves", quantity: 4.5, unit: "each", isOptional: false });
+  const mince = (n: number) => week([{ stepKey: "produce#garlic", phase: "produce", title: "Mince all garlic", instructions: `Mince ${n} garlic cloves.`, contributesToMealIds: ["meal-tacos"] }]);
+  assert.deepEqual(reconcileR4("t", mince(5), [m]).findings, []);
+  assert.deepEqual(reconcileR4("t", mince(6), [m]).findings, []);
+  assert.deepEqual(reconcileR4("t", mince(7), [m]).findings.map((f) => f.signature), ["R4:prep-exceeds-recipe:garlic"]);
+  // Against the list: 14 cloves where it buys 13.625 is rounding; 16 (feast prep, BUG-606) is over.
+  const rows = [row({ displayName: "garlic", quantity: 13.625, unit: "clove", mealNames: ["Chicken Tacos"] })];
+  const big = tacos();
+  big.dishes[0].ingredients.push({ name: "garlic cloves", quantity: 13.625, unit: "each", isOptional: false });
+  assert.deepEqual(reconcileR4("t", mince(14), [big], rows).findings, []);
+  assert.deepEqual(reconcileR4("t", mince(16), [big], rows).findings.map((f) => f.signature), ["R4:prep-exceeds-recipe:garlic", "R4:prep-exceeds-list:garlic"]);
+  assert.equal(allowance(4.5, "each"), 6 + 1e-6);
+  assert.equal(allowance(4.5, "each", [2.25, 2.25]), 7 + 1e-6);
+});
+
+test("R1 reports a count shortfall with no rounding slack (3 shallots where 3.1 are needed: inside the old 5 %)", () => {
+  const m = tacos();
+  m.dishes[0].ingredients.push({ name: "shallots", quantity: 3.1, unit: "each", isOptional: false });
+  const short = [...goodList(), row({ displayName: "shallots", quantity: 3, unit: "each", mealNames: ["Chicken Tacos"] })];
+  assert.deepEqual(reconcileR1("t", grocery(short, [m, soup()])).findings.map((f) => f.signature), ["R1:shortfall:shallot"]);
+  const whole = [...goodList(), row({ displayName: "shallots", quantity: 4, unit: "each", mealNames: ["Chicken Tacos"] })];
+  assert.deepEqual(reconcileR1("t", grocery(whole, [m, soup()])).findings, []);
+});
+
 test("R4 reports a duplicate step key and a cover of a meal the step is not for", () => {
   const w = goodWeek();
   w.steps.push({ ...w.steps[2] });
@@ -202,6 +231,9 @@ test("proseAmounts reads the number, unit and food, and refuses a different food
   assert.deepEqual(proseAmounts("Mince 6 cloves garlic and 2 cups diced yellow onion", "yellow onion"), [{ qty: 2, unit: "cups" }]);
   assert.deepEqual(proseAmounts("Slice 1½ lb chicken thighs", "chicken thighs"), [{ qty: 1.5, unit: "lb" }]);
   assert.deepEqual(proseAmounts("Mix 2 cups of the onion dip", "yellow onion"), []);
+  // QA-NIGHT-2 (h4): a step number is no amount.
+  assert.deepEqual(proseAmounts("Into the bowl (the lemon zest from produce step 2 and garlic already in it), add: 2¼ tbsp honey", "garlic cloves"), []);
+  assert.deepEqual(proseAmounts("Mince 15 cloves of garlic.", "garlic cloves"), [{ qty: 15, unit: "cloves" }]);
 });
 
 test("stepAmounts counts a step's total OR its destination lines, never both, and never the later prose", () => {
@@ -295,16 +327,49 @@ test("R7 reports a reworded step with no ticked prep behind it", () => {
   assert.deepEqual(r.findings.map((f) => f.signature), ["R7:unticked-muted"]);
 });
 
-test("R7 reports a fold into \"Done in prep\" over a food whose own prep step is not ticked", () => {
+test("R7 takes the app's fold (CLIENT-6 B): a step whose onion nothing ticked diced shows in full, with the chicken's chip", () => {
   // Only the chicken step covers cook step 0; the onion step (same cook step, no covers) is not ticked.
   const steps = steps7().map((x) => (x.stepKey === "produce#onion" ? { ...x, coversCookSteps: [] } : x));
-  const r = reconcileR7("t", { ...ev7(base, ["proteins#chicken"]), prepSteps: steps });
+  const ev = { ...ev7(base, ["proteins#chicken"]), prepSteps: steps };
+  assert.deepEqual(appFold(tacos(), base, planFold(steps, ev.ticked)).done, new Set());
+  assert.deepEqual([...appFold(tacos(), base, planFold(steps, ev.ticked)).chips.values()], [[{ containerId: "c-chicken", label: "Chicken" }]]);
+  assert.deepEqual(reconcileR7("t", ev).findings, []);
+});
+
+test("R7 still reports a fold the app makes over an unticked food (one the dish's ingredients do not name)", () => {
+  const steps = steps7().map((x) => (x.stepKey === "produce#onion" ? { ...x, coversCookSteps: [] } : x));
+  const m = tacos();
+  m.dishes[0].ingredients = m.dishes[0].ingredients.filter((i) => i.name !== "yellow onion");
+  const r = reconcileR7("t", { ...ev7(base, ["proteins#chicken"]), meals: [{ meal: m, baseline: base, after: base }], prepSteps: steps });
   assert.deepEqual(r.findings.map((f) => f.signature), ["R7:collapsed-over-unticked-food"]);
 });
 
-test("R7 reports a \"Yes, I prepped\" read that words a covered step in full (no fold on that path)", () => {
+test("R7 reports a \"Yes, I prepped\" read no plan folds (the meal is not in this week's plan) that words a covered step in full", () => {
   const r = reconcileR7("t", ev7(base, ["produce#onion", "proteins#chicken"], true));
   assert.deepEqual(r.findings.map((f) => f.signature), ["R7:prepped-read-not-worded"]);
+});
+
+test("R7 passes a \"Yes, I prepped\" read the app folds by this week's structure (CLIENT-6 C: titles only, every step done)", () => {
+  const structure = { steps: steps7().map(({ instructions: _i, ...s }) => s) };
+  const r = reconcileR7("t", { ...ev7(base, ["produce#onion", "proteins#chicken"], true), fold: answerFold(structure) });
+  assert.deepEqual(r.findings, []);
+});
+
+test("appFold: BUG-584's own step folds only when the onion's step is ticked too; BUG-583's garlic-only step folds after a yes", () => {
+  const m = tacos();
+  m.dishes[0].ingredients.push({ name: "garlic cloves", quantity: 2, unit: "each", isOptional: false });
+  const read = { [cookKey("d-tacos", 0)]: { stepIndex: 0, text: "Finely dice the yellow onion and mince the 2 garlic cloves.", estimatedMinutes: 5, phaseType: "prep" },
+    [cookKey("d-tacos", 1)]: { stepIndex: 1, text: "Mince 2 garlic cloves.", estimatedMinutes: 2, phaseType: "prep" } };
+  const covers = [{ mealId: "meal-tacos", dishId: "d-tacos", stepIndex: 0 }, { mealId: "meal-tacos", dishId: "d-tacos", stepIndex: 1 }];
+  const garlic = { stepKey: "produce#garlic", title: "Mince the garlic", instructions: "Mince 2 garlic cloves.", containerNames: ["Minced garlic"], containerId: "c-garlic", coversCookSteps: covers };
+  const onion = { stepKey: "produce#onion", title: "Dice the yellow onion", instructions: "Finely dice 1 yellow onion.", containerNames: ["Onions"], containerId: "c-onion", coversCookSteps: [covers[0]] };
+  const garlicOnly = appFold(m, read, { steps: [garlic, onion], checked: new Set(["produce#garlic"]) });
+  assert.deepEqual([...garlicOnly.done], [cookKey("d-tacos", 1)]);
+  const both = appFold(m, read, { steps: [garlic, onion], checked: new Set(["produce#garlic", "produce#onion"]) });
+  assert.deepEqual([...both.done].sort(), [cookKey("d-tacos", 0), cookKey("d-tacos", 1)]);
+  const yes = appFold(m, read, answerFold({ steps: [{ stepKey: garlic.stepKey, title: garlic.title, coversCookSteps: [covers[1]] }] }));
+  assert.deepEqual([...yes.done], [cookKey("d-tacos", 1)]);
+  assert.deepEqual(appFold(m, read, null).done, new Set());
 });
 
 // ── R8 ──────────────────────────────────────────────────────────────────────
@@ -452,4 +517,33 @@ test("known bugs match by signature and, when given, detail", () => {
   const known = [{ id: "BUG-567", signature: "^R9:(a-week-early|outside-keep-window)", note: "" }, { id: "BUG-449", signature: "^R8:oven", detail: "[Ss]tuffing", note: "" }];
   assert.equal(matchKnown({ rule: "R9", signature: "R9:a-week-early:make", severity: "medium", household: "6", detail: "" }, known), "BUG-567");
   assert.equal(matchKnown({ rule: "R8", signature: "R8:oven-two-temperatures", severity: "medium", household: "6", detail: "Rolls at 400°F" }, known), undefined);
+});
+
+test("a finding that matches a FIXED bug is regressed: high, in its own bold section, and it moves the exit code", () => {
+  const known: KnownBug[] = [{ id: "BUG-584", signature: "^R7:collapsed-over-unticked-food", note: "", status: "fixed", fixedIn: "94007ef5" }, { id: "BUG-409", signature: "^R2:optional-bought", note: "" }];
+  const back: Finding = { rule: "R7", signature: "R7:collapsed-over-unticked-food", severity: "medium", household: "2", detail: "after partial prep: …" };
+  const open: Finding = { rule: "R2", signature: "R2:optional-bought:chive", severity: "low", household: "6", detail: "" };
+  applyKnown(back, known);
+  applyKnown(open, known);
+  assert.deepEqual([back.known, back.regressed, back.severity], ["BUG-584", true, "high"]);
+  assert.deepEqual([open.known, open.regressed], ["BUG-409", undefined]);
+  const results = [{ rule: "R7" as const, checked: 1, findings: [back] }, { rule: "R2" as const, checked: 1, findings: [open] }];
+  assert.equal(newHigh(results).length, 1);
+  const md = renderSummary(results, { date: "d", runTag: "t", households: [], skipped: [], spendUsd: 0, budgetUsd: 1, spendByPrompt: {}, wallMin: 0, accountsCreated: 0, accountsDeleted: 0, accountsLeft: [], bootProof: "", ui: "off", cookSim: "off" });
+  assert.match(md, /## Regressed \(1\)\n- \*\*regressed\*\* \*\*BUG-584\*\* · \*\*high\*\* `R7:collapsed-over-unticked-food`/);
+  assert.match(md, /cook-sim: off/);
+  assert.doesNotMatch(md.split("## Known")[1], /BUG-584/);
+  assert.equal(resultLine(newHigh(results)), "RESULT: 1 new high finding(s) (1 regressed) — see summary.md");
+  assert.equal(resultLine([]), "RESULT: clean");
+});
+
+test("the run's arguments: --cook-sim with or without pnpm's \"--\", the env switch, and anything else refused", () => {
+  assert.deepEqual(parseRunArgs(["--cook-sim"], {}), { cookSim: true, cookSimSource: "on (--cook-sim)", unknown: [] });
+  assert.deepEqual(parseRunArgs(["--", "--cook-sim"], {}), { cookSim: true, cookSimSource: "on (--cook-sim)", unknown: [] });
+  assert.deepEqual(parseRunArgs([], {}), { cookSim: false, cookSimSource: "off", unknown: [] });
+  assert.equal(parseRunArgs([], { KIWI_QA_COOK_SIM: "1" }).cookSimSource, "on (KIWI_QA_COOK_SIM=1)");
+  assert.equal(parseRunArgs([], { npm_config_cook_sim: "true" }).cookSim, true);
+  assert.equal(parseRunArgs(["--cook-sim=off"], { KIWI_QA_COOK_SIM: "1" }).cookSim, false);
+  assert.deepEqual(parseRunArgs(["—cook-sim"], {}).unknown, ["—cook-sim"]);
+  assert.deepEqual(parseRunArgs(["--cooksim"], {}).unknown, ["--cooksim"]);
 });

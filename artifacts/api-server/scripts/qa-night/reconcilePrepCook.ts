@@ -9,6 +9,7 @@
 //   • prepped Cook Mode wording is read-time (GET /meals/:id?planItemId), and a
 //     cook step's link to prep is the week build's `coversCookSteps`.
 import { ovenTempOf } from "../thx2/thx2Oven";
+import { appFold, type FoldInput, planFold } from "./appFold";
 
 import { dishFactor, type Finding, type GroceryRow, type PlanMeal, type PrepSession, type PrepStep, type RecipeStep, type RuleResult, type Severity } from "./types";
 import { comparable, foodKey, foodWords, headNoun, normName, parseQty, sameFood } from "./units";
@@ -50,6 +51,10 @@ export function proseAmounts(text: string, food: string): { qty: number; unit: s
   for (const m of text.matchAll(re)) {
     const qty = parseQty(m[1]);
     if (qty === null) continue;
+    // QA-NIGHT-2: "the lemon zest from produce step 2 and garlic already in it" states no garlic:
+    // a number that names a step, or one joined to the food by "and"/"or", is not its amount.
+    if (/\bsteps?\s*$/i.test(text.slice(0, (m.index ?? 0) + m[0].indexOf(m[1])))) continue;
+    if (/\b(and|or|then|with)\b/i.test(m[3] ?? "")) continue;
     // The words between the unit and the food must be the food's own words or
     // descriptors — "2 cups of the onion mix" names the mix, not 2 cups of onion.
     const between = foodWords(m[3] ?? "");
@@ -140,7 +145,7 @@ export function reconcileR4(household: string, session: PrepSession, meals: Plan
     const statedBase = total ? sumIn(stated, need[0]) : null;
     if (!food.bird && total && statedBase !== null) {
       checked++;
-      if (statedBase.value > allowance(total.value, total.unit, servedMeals.size)) {
+      if (statedBase.value > allowance(total.value, total.unit, linesIn(need, need[0]))) {
         const twice = stated.length > 1 && Math.abs(statedBase.value - 2 * total.value) / total.value < 0.15;
         findings.push(finding("R4", twice ? "prepped-twice" : "prep-exceeds-recipe", key, twice ? "high" : "medium", household,
           `${session.kind} prep states ${round(statedBase.value)} ${total.unit} of ${food.name} across ${stated.length} step(s) (${stated.map((x) => `"${x.step}"`).join(", ")}); the recipes need ${round(total.value)} ${total.unit}`,
@@ -158,7 +163,7 @@ export function reconcileR4(household: string, session: PrepSession, meals: Plan
       const listed = sumIn(listRows.map((r) => ({ qty: r.quantity, unit: r.unit })), have);
       if (asked && listed) {
         checked++;
-        if (asked.value > allowance(listed.value, asked.unit, servedMeals.size)) {
+        if (asked.value > allowance(listed.value, asked.unit, linesIn(listRows.map((r) => ({ qty: r.quantity, unit: r.unit })), have))) {
           findings.push(finding("R4", "prep-exceeds-list", key, "high", household,
             `${session.kind} prep asks for ${round(asked.value)} ${asked.unit} of ${food.name} (${stated.map((x) => `${x.qty} ${x.unit} in "${x.step}"`).join(", ")}); the grocery list buys ${listRows.map((r) => `${r.quantity} ${r.unit}`).join(" + ")} of "${row.displayName}"`,
             { numbers: { prepAmount: round(asked.value), listAmount: round(listed.value), unit: asked.unit, listQty: row.quantity, listUnit: row.unit } }));
@@ -198,16 +203,21 @@ function sumIn(xs: { qty: number; unit: string }[], like: { qty: number; unit: s
 const toBaseOf = (x: { qty: number; unit: string }) => sumIn([x], x);
 
 /**
- * How far a stated amount may run over the need before it is a finding: a whole
- * count rounds up (½ lemon is "1 lemon"), and a measure rounds to the next
- * measurable amount (⅛ tsp ≈ 0.6 ml; ⅓ cup over 0.3 cup).
+ * How far a stated amount may run over the need before it is a finding: a
+ * measure rounds to the next measurable amount (⅛ tsp ≈ 0.6 ml; ⅓ cup over 0.3
+ * cup). QA-NIGHT-2 C: a whole count rounds UP to the next whole one, line by line
+ * (each recipe line or list row: ¾ clove is minced as a clove), and may run ONE
+ * whole unit past that (6 cloves minced where 4.5 are needed); further over is a
+ * finding. A shortfall is never rounding (R1).
  */
-function allowance(need: number, unit: string, shares = 1): number {
+export function allowance(need: number, unit: string, lines: number[] = [need]): number {
   if (unit === "ml") return need * 1.25 + 1.25;
   if (unit === "g") return need * 1.15 + 15;
-  // A count: each meal's share rounds up on its own (¾ clove is minced as a clove).
-  return Math.ceil(need + Math.max(0, shares - 1) - 1e-9) * 1.1 + 1e-6;
+  return lines.reduce((n, x) => n + Math.ceil(x - 1e-9), 0) + 1 + 1e-6;
 }
+
+/** Each amount in the unit of `like` (the lines `allowance` rounds one by one). */
+const linesIn = (xs: { qty: number; unit: string }[], like: { qty: number; unit: string }) => xs.map((x) => comparable(x, like)?.a ?? 0);
 
 // ── R5 — the subset is the subset ───────────────────────────────────────────
 //
@@ -320,16 +330,19 @@ export function reconcileR6(household: string, session: PrepSession, cookRefs: C
 //     puts `preppedRefs` on it (lib/feastCookWording weeknightCookWordingFor);
 //   • a DROPPED CLAUSE — the server rewords the step without a chip ("Dice the 2
 //     roma tomatoes, roughly chop …" → "Roughly chop …");
-//   • a COLLAPSE — the client folds a cook step into "Done in prep" when every
-//     week step whose coversCookSteps names it is ticked (cookSession.ts
-//     doneInPrepStepKeys). A prepped=1 read gets no collapse (it has no ticks).
+//   • a COLLAPSE — the client folds a cook step into "Done in prep", and gives a
+//     step it shows in full a chip per ticked covering step (cookSession.ts
+//     doneInPrepStepKeys / prepChips). QA-NIGHT-2 A: both come from the APP'S
+//     OWN functions (appFold.ts), on the plan's ticks or, after "Yes, I
+//     prepped", on this week's structure (preppedAnswerFold), never a model.
 // The invariants, in the brief's words:
 //   • a ticked step: no cook step of its meals still tells the cook to do it
 //     ("Cook Mode that still says chop after the cook ticked it");
 //   • partial prep mutes only what was ticked: no chip from an unticked step, no
 //     rewording nothing ticked explains, no collapse over a food whose own prep
-//     step is unticked;
-//   • a "Yes, I prepped" read words the covered steps itself (no collapse there).
+//     step is unticked (read here from the step's words, apart from the app's
+//     own food rule: a fold the app makes over an unticked food is still found);
+//   • a "Yes, I prepped" read words, folds or chips every covered step.
 
 export interface PrepToCookMeal {
   meal: PlanMeal;
@@ -347,8 +360,13 @@ export interface PrepToCookEvidence {
   prepSteps: PrepStep[];
   /** Ticked step keys; for a prepped=1 read, every key. */
   ticked: Set<string>;
-  /** A "Yes, I prepped" read: wording only, no collapse. */
+  /** A "Yes, I prepped" read (prepped=1). */
   prepped: boolean;
+  /**
+   * What the app's fold reads (appFold.ts). Left out: a plan read folds by the
+   * week's steps and the ticks, a prepped read by nothing. null: nothing folds.
+   */
+  fold?: FoldInput | null;
 }
 
 export const cookKey = (dishId: string, stepIndex: number) => `${dishId}#${stepIndex}`;
@@ -406,8 +424,10 @@ export function reconcileR7(household: string, ev: PrepToCookEvidence): RuleResu
   /** "mealId|dishId#idx" of cook steps the client folds into "Done in prep". */
   const collapsed = new Set<string>();
   const inScope = new Set(ev.meals.map((m) => m.meal.mealId));
+  const fold = ev.fold !== undefined ? ev.fold : ev.prepped ? null : planFold(live, ev.ticked);
 
   for (const { meal, baseline, after } of ev.meals) {
+    const app = appFold(meal, after, fold);
     const covering = new Map<string, string[]>();
     for (const s of live) for (const c of s.coversCookSteps ?? []) if (c.mealId === meal.mealId) {
       const k = cookKey(c.dishId, c.stepIndex);
@@ -421,10 +441,14 @@ export function reconcileR7(household: string, ev: PrepToCookEvidence): RuleResu
         findings.push(finding("R7", "cook-step-missing", "", "high", household, `${ev.label}: ${meal.title} lost cook step ${k} after prep (it read "${base.text.slice(0, 120)}")`, { meal: meal.title, step: k }));
         continue;
       }
-      const chips = now.preppedRefs ?? [];
+      const serverChips = now.preppedRefs ?? [];
+      // The app's own chips for a step it shows in full (prepChips): each names a ticked covering step.
+      const added = app.chips.get(k) ?? [];
+      const chips = [...serverChips, ...added];
       const keys = covering.get(k) ?? [];
       let linkedTicked = keys.some((x) => ev.ticked.has(x));
-      for (const ref of chips) {
+      if (added.length > 0) for (const x of keys) if (ev.ticked.has(x)) reach(x, meal.mealId);
+      for (const ref of serverChips) {
         const from = producers(ref);
         for (const s of from) if (ev.ticked.has(s.stepKey)) reach(s.stepKey, meal.mealId);
         if (from.some((s) => ev.ticked.has(s.stepKey))) linkedTicked = true;
@@ -434,26 +458,31 @@ export function reconcileR7(household: string, ev: PrepToCookEvidence): RuleResu
             { meal: meal.title, step: k }));
         }
       }
-      if (keys.length > 0 && keys.every((x) => ev.ticked.has(x))) {
+      if (app.done.has(k)) {
         for (const x of keys) reach(x, meal.mealId);
-        if (ev.prepped) {
-          if (now.text === base.text && chips.length === 0) {
-            findings.push(finding("R7", "prepped-read-not-worded", "", "high", household,
-              `${ev.label}: ${meal.title} step ${k} is covered by prep (${keys.join(", ")}), but after "Yes, I prepped" Cook Mode still reads "${base.text.slice(0, 110)}"`,
-              { meal: meal.title, step: k }));
-          }
-        } else {
-          collapsed.add(`${meal.mealId}|${k}`);
-          // The fold hides the whole step: every food it tells the cook to prep must have been prepped.
-          const missed = mine.filter((s) => !ev.ticked.has(s.stepKey) && !keys.includes(s.stepKey)).filter((s) => {
-            const f = prepFood(s.title);
-            return !!f && tellsToPrep(base.text, f);
-          });
-          if (missed.length > 0) {
-            findings.push(finding("R7", "collapsed-over-unticked-food", "", "high", household,
-              `${ev.label}: ${meal.title} step ${k} folds into "Done in prep" (its covering steps ${keys.join(", ")} are ticked), but it also says "${base.text.slice(0, 100)}" and ${missed.map((s) => `"${s.title}"`).join(", ")} is not ticked`,
-              { meal: meal.title, step: k }));
-          }
+        collapsed.add(`${meal.mealId}|${k}`);
+        // The fold hides the whole step: every food it tells the cook to prep must have been prepped.
+        const missed = mine.filter((s) => !ev.ticked.has(s.stepKey) && !keys.includes(s.stepKey)).filter((s) => {
+          const f = prepFood(s.title);
+          return !!f && tellsToPrep(base.text, f);
+        });
+        if (missed.length > 0) {
+          findings.push(finding("R7", "collapsed-over-unticked-food", "", "high", household,
+            `${ev.label}: ${meal.title} step ${k} folds into "Done in prep" (its covering steps ${keys.join(", ")} are ticked), but it also says "${base.text.slice(0, 100)}" and ${missed.map((s) => `"${s.title}"`).join(", ")} is not ticked`,
+            { meal: meal.title, step: k }));
+        }
+        continue;
+      }
+      if (keys.length > 0 && keys.every((x) => ev.ticked.has(x))) {
+        // Shown in full though every covering step is ticked (the app's food rule kept it):
+        // a chip or the server's rewording says what was prepped; with neither it still says it all.
+        const worded = chips.length > 0 || now.text !== base.text;
+        // Not worded on a plan read: "cook-still-says-chop" below reports it; on a prepped read, this does.
+        if (worded || ev.prepped) for (const x of keys) reach(x, meal.mealId);
+        if (ev.prepped && !worded) {
+          findings.push(finding("R7", "prepped-read-not-worded", "", "high", household,
+            `${ev.label}: ${meal.title} step ${k} is covered by prep (${keys.join(", ")}), but after "Yes, I prepped" Cook Mode still reads "${base.text.slice(0, 110)}" — no chip, not folded into "Done in prep"`,
+            { meal: meal.title, step: k }));
         }
         continue;
       }

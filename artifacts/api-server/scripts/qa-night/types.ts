@@ -24,6 +24,8 @@ export interface Finding {
   numbers?: Record<string, number | string | null>;
   /** Filled by known.ts when a known.json entry matches. */
   known?: string;
+  /** QA-NIGHT-2 D: the entry it matches is marked fixed — the bug is back (always high). */
+  regressed?: boolean;
 }
 
 export interface RuleResult {
