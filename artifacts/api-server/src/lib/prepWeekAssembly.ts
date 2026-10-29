@@ -2468,7 +2468,13 @@ function totalOf(components: readonly PrepNarrationComponent[], named: boolean):
       const { token } = canonicalizeUnit(m.unit);
       // THX-3 (BUG-444) — the total is the sum of what each portion line SHOWS, so
       // "Mince 12 cloves" sits over 5 + 4 + 3, never over 4.8 + 3.2 + 2.4 rounded once.
-      const shown = SCALE_UNITS.has(token) ? m.qty : displayedPrepQuantity(m.qty, PLACEHOLDER_COUNT_UNITS.has(token) ? "" : token, c.ingredientName, { asWritten: m.asWritten, note: m.preparationNote });
+      //
+      // SERVER-10 D (BUG-614) — for a COUNT only. A measure (tsp, tbsp, cup, oz, lb)
+      // is summed as the recipes state it and rounded once, by formatMeasure below.
+      // Summing the shown lines rounded a measure twice and it climbed: h4's cilantro,
+      // 3 tbsp + 3 tbsp + 1½ tbsp (½ cup), each 3 tbsp shown as the tie-up "¼ cup",
+      // opened "Chop ⅔ cup". A clove is used whole; a spoon is not.
+      const shown = SCALE_UNITS.has(token) || MEASURE_TOKENS.has(token) ? m.qty : displayedPrepQuantity(m.qty, PLACEHOLDER_COUNT_UNITS.has(token) ? "" : token, c.ingredientName, { asWritten: m.asWritten, note: m.preparationNote });
       const first = [...byToken.keys()][0];
       const conv = first !== undefined && first !== token ? convertWithinDimension(shown, token, first) : null;
       const key = conv !== null && first !== undefined ? first : token;
