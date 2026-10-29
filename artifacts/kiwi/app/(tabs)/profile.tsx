@@ -23,6 +23,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useBilling } from "@/contexts/BillingContext";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { ApiError } from "@/lib/api/errors";
+import { passwordTooCommonMessage } from "@/lib/authErrorCopy";
 import { subscriptionCardFor } from "@/lib/billing/subscriptionView";
 import { storeReviewUrl, storeWebUrl } from "@/lib/feedback";
 import { PRIVACY_URL, TERMS_URL } from "@/lib/legal";
@@ -92,6 +93,8 @@ export default function ProfileTab() {
   const [confirmPw, setConfirmPw] = useState("");
   const [pwBusy, setPwBusy] = useState(false);
   const [pwStatus, setPwStatus] = useState<FieldStatus>(null);
+  // CLIENT-7 B (BUG-603) — the server's common-password line, under New password.
+  const [newPwError, setNewPwError] = useState<string | null>(null);
 
   // SEC-3 B — the email change waits here for "Confirm it's you".
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
@@ -217,6 +220,7 @@ export default function ProfileTab() {
   const handleSubmitPassword = async () => {
     Keyboard.dismiss();
     setPwStatus(null);
+    setNewPwError(null);
     if (!currentPw || !newPw || !confirmPw) {
       setPwStatus({ kind: "error", text: "Please fill in all three fields." });
       return;
@@ -263,6 +267,11 @@ export default function ProfileTab() {
       );
       return;
     } catch (err) {
+      const tooCommon = passwordTooCommonMessage(err);
+      if (tooCommon !== null) {
+        setNewPwError(tooCommon);
+        return;
+      }
       // The server returns a userFacingMessage on a wrong-current-password
       // 400 ("Current password is incorrect") — surface it when present.
       const text =
@@ -430,10 +439,14 @@ export default function ProfileTab() {
               <PasswordRow
                 label="New password"
                 value={newPw}
-                onChangeText={setNewPw}
+                onChangeText={(v) => {
+                  setNewPw(v);
+                  setNewPwError(null);
+                }}
                 placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
                 autoComplete="new-password"
                 textContentType="newPassword"
+                error={newPwError}
               />
               <PasswordRow
                 label="Confirm new password"
@@ -759,6 +772,7 @@ function PasswordRow({
   placeholder,
   autoComplete,
   textContentType,
+  error,
 }: {
   label: string;
   value: string;
@@ -766,6 +780,8 @@ function PasswordRow({
   placeholder: string;
   autoComplete: "password" | "new-password";
   textContentType: "password" | "newPassword";
+  /** CLIENT-7 B — a line about this field, under it. */
+  error?: string | null;
 }) {
   return (
     <View style={s.pwField}>
@@ -781,6 +797,7 @@ function PasswordRow({
         textContentType={textContentType}
         style={s.pwInput}
       />
+      {error ? <Text style={[s.pwFieldError, s.statusError]}>{error}</Text> : null}
     </View>
   );
 }
@@ -936,6 +953,10 @@ const s = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
     color: Colors.neutral[700],
     fontFamily: Typography.face.sans[400],
+  },
+  pwFieldError: {
+    fontSize: Typography.fontSize.sm,
+    fontFamily: Typography.face.sans[500],
   },
   pwInput: {
     borderWidth: 1,

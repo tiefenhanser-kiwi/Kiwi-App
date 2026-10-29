@@ -12,6 +12,7 @@ import { useToast } from "@/contexts/ToastProvider";
 import { Colors, Palette, Radius, Spacing, Typography } from "@/constants/tokens";
 import { ApiError, ApiNetworkError } from "@/lib/api/errors";
 import { confirmPasswordReset } from "@/lib/api/passwordReset";
+import { passwordTooCommonMessage } from "@/lib/authErrorCopy";
 
 // WS9A BUG-235 / D-WS9-241 (C) — the password-reset CONFIRM screen. Reached
 // ONLY by the deep link kiwi://reset-password?token=… that the reset web page
@@ -51,6 +52,8 @@ export default function ResetPasswordPage() {
   const [confirm, setConfirm] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  // CLIENT-7 B (BUG-603) — the server's common-password line, under the field.
+  const [passwordError, setPasswordError] = React.useState<string | null>(null);
   // Missing / empty token → invalid immediately, with NO request.
   const [stage, setStage] = React.useState<Stage>(token ? "form" : "invalid");
   // Synchronous double-submit latch: state alone is not enough for two taps
@@ -77,6 +80,7 @@ export default function ResetPasswordPage() {
       return;
     }
     setError(null);
+    setPasswordError(null);
     inFlightRef.current = true;
     setSubmitting(true);
     try {
@@ -86,7 +90,12 @@ export default function ResetPasswordPage() {
       showToast({ message: SUCCESS_TOAST });
       router.replace("/(auth)/sign-in");
     } catch (err) {
-      if (err instanceof ApiError && err.status === 400) {
+      const tooCommon = passwordTooCommonMessage(err);
+      if (tooCommon !== null) {
+        // CLIENT-7 B (BUG-603) — the link is still good: say it under the new
+        // password and keep the form.
+        setPasswordError(tooCommon);
+      } else if (err instanceof ApiError && err.status === 400) {
         // Bad, expired, or already-spent — the server answers the same 400
         // for all three on purpose (BUG-233). A schema 400 can't reach here:
         // the bounds above are the server's.
@@ -156,13 +165,17 @@ export default function ResetPasswordPage() {
         </Text>
         <PasswordField
           value={password}
-          onChangeText={setPassword}
+          onChangeText={(v) => {
+            setPassword(v);
+            setPasswordError(null);
+          }}
           placeholder="New password"
           placeholderTextColor={Palette.text.placeholder}
           autoComplete="new-password"
           style={styles.input}
           editable={!submitting}
         />
+        {passwordError && <Text style={styles.errorText}>{passwordError}</Text>}
         <PasswordField
           value={confirm}
           onChangeText={setConfirm}
