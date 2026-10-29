@@ -209,6 +209,23 @@ export function formatNeedText(
     : fallback;
 }
 
+/** "(16 lb)", "(12–14 lb)", "(~2 lb)", "(6 kg)": a weight stated in a row's name. */
+const NAME_STATES_WEIGHT =
+  /\(\s*(?:about\s+|~\s*)?\d+(?:[.,]\d+)?(?:\s*(?:–|-|to)\s*\d+(?:[.,]\d+)?)?\s*(?:lbs?|pounds?|oz|ounces?|kg|g|grams?)\s*\)/i;
+
+/**
+ * CLIENT-6 D (BUG-590) — the need parenthetical a row shows beside its name, or ""
+ * when the name already carries the quantity. A turkey by count with a weight
+ * chosen is named "whole turkey (16 lb)" (SERVER-6 birdLineAtWeight), and its line
+ * read "1 whole turkey (16 lb) (1 each)": the count leads the line and the weight
+ * is in the name, so "(1 each)" says nothing. Only a need counted "each" against a
+ * name stating a weight; every other row keeps its parenthetical ("1 Lemon (1 each)").
+ */
+export function needBesideName(name: string, needText: string, needUnit: string | undefined): string {
+  if ((needUnit ?? "").trim().toLowerCase() === "each" && NAME_STATES_WEIGHT.test(name)) return "";
+  return needText;
+}
+
 // WS9 BUG-125 — the ORDER line must cover the need.
 //
 // A row is read as "{order quantity} {noun} ({need})". Before this block the

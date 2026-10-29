@@ -14,6 +14,7 @@ import {
   sendGroceryList,
 } from "@/lib/groceryShare";
 import type { GroceryListItem } from "@/lib/types";
+import { composePackName, formatNeedText, needBesideName } from "@/lib/format/grocery";
 
 const row = (over: Partial<GroceryListItem> & Pick<GroceryListItem, "name" | "sectionKey">): GroceryListItem => ({
   id: over.name,
@@ -132,4 +133,42 @@ test("CLIENT-5 D: the copy never calls it \"one list\"", () => {
   const sources = ["../groceryShare.ts", "../../components/GroceryShareSheet.tsx"].map((p) => readFileSync(new URL(p, import.meta.url), "utf8"));
   for (const src of sources) assert.ok(!/one list/i.test(src));
   assert.match(sources[1], /complete and sorted by aisle/);
+});
+
+// ── CLIENT-6 D (BUG-590) — no "(1 each)" beside a name that states its weight ──
+
+test("CLIENT-6 D: the turkey by count reads '1 whole turkey (16 lb)', with no '(1 each)'", () => {
+  const name = "whole turkey (16 lb)";
+  const pack = composePackName(name, null, null, "1", "each");
+  const need = needBesideName(name, formatNeedText("1", "each", "1"), "each");
+  assert.equal(need, "");
+  assert.equal(need ? `${pack} (${need})` : pack, "1 whole turkey (16 lb)");
+  // New Twist's name rewritten to the chosen weight, a range, a half pound, kilograms.
+  for (const n of ["whole turkey (12–14 lb)", "whole turkey (16.5 lb)", "whole turkey (6 kg)", "whole rotisserie chicken (~2 lb)"]) {
+    assert.equal(needBesideName(n, "1 each", "each"), "", n);
+  }
+});
+
+test("CLIENT-6 D: every other row keeps its parenthetical", () => {
+  // A count row with no weight in its name (pinned since BUG-144).
+  assert.equal(needBesideName("Lemon", "1 each", "each"), "1 each");
+  // A weight in the name but a measured need: the need is information.
+  assert.equal(needBesideName("whole turkey (16 lb)", "16 pound", "pound"), "16 pound");
+  // A count in parentheses is not a weight.
+  assert.equal(needBesideName("butter (4 sticks)", "1 each", "each"), "1 each");
+  // A weight outside parentheses is not the stated pack.
+  assert.equal(needBesideName("16 lb turkey", "1 each", "each"), "1 each");
+  // No unit, no change.
+  assert.equal(needBesideName("whole turkey (16 lb)", "1", undefined), "1");
+});
+
+test("CLIENT-6 D: the shared text words the turkey as the screen does", () => {
+  const TURKEY = row({ name: "whole turkey (16 lb)", sectionKey: "meat_seafood", quantityAmount: "1", quantityUnit: "each", quantity: "1" });
+  assert.equal(groceryShareLine(TURKEY), "1 whole turkey (16 lb)");
+  assert.equal(groceryShareLine(LEMON), "3 lemons (3 each)");
+});
+
+test("CLIENT-6 D: the grocery screen's row reads the need through needBesideName", () => {
+  const src = readFileSync(new URL("../../app/grocery-list/[id].tsx", import.meta.url), "utf8");
+  assert.match(src, /const needText = needBesideName\(\s*item\.userResolvedTo \?\? item\.name,/);
 });
