@@ -30,6 +30,7 @@ import { usePrepWeek } from "@/hooks/usePrepWeek";
 import { usePrepWeekCompletions } from "@/hooks/usePrepWeekCompletions";
 import { usePrepWeekStructure } from "@/hooks/usePrepWeekStructure";
 import {
+  completionsForMeal,
   cookFooterMinutes,
   doneInPrepStepKeys,
   feastDayNameOf,
@@ -256,9 +257,14 @@ export default function CookSession() {
     [answerPlanId, structureData],
   );
   const foldPrep = answered ? answered.prep : prepResult;
+  // CLIENT-7 D (BUG-582) — a session's tick counts only for the meals it held.
+  const mealRows = useMemo(
+    () => completionsForMeal(completionRows ?? [], mealId),
+    [completionRows, mealId],
+  );
   const checkedKeys = useMemo(
-    () => answered?.checked ?? new Set(completionRows?.map((c) => c.stepKey) ?? []),
-    [answered, completionRows],
+    () => answered?.checked ?? new Set(mealRows.map((c) => c.stepKey)),
+    [answered, mealRows],
   );
   const doneInPrepKeys = useMemo(
     () =>
@@ -280,8 +286,8 @@ export default function CookSession() {
     [allSteps, feastDayName, foldPrep, mealId, checkedKeys, doneInPrepKeys],
   );
   const recap = useMemo(
-    () => prepRecap(prepResult, mealId, completionRows ?? [], new Date()),
-    [prepResult, mealId, completionRows],
+    () => prepRecap(prepResult, mealId, mealRows, new Date()),
+    [prepResult, mealId, mealRows],
   );
 
   const title = planDish

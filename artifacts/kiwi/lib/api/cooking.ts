@@ -55,9 +55,16 @@ export type CompletionMutationResponse = z.infer<
 >;
 
 // One persisted checked row in the GET (resume) response. cooking.ts:482-485.
+// CLIENT-7 D (BUG-582) — SERVER-9 C serves a subset / one-meal session's steps
+// as `~<mask>.<check>~<engine key>` and says, on such a row, which engine key it
+// ticked and for which meals (api-server lib/prepScope.ts). Absent on a week
+// tick, a feast tick, a key that no longer decodes, and from an older server.
 const PrepCompletionRowSchema = z.object({
   stepKey: z.string(),
   checkedAt: z.string(), // ISO-8601 (r.checkedAt.toISOString()).
+  scope: z
+    .object({ stepKey: z.string(), mealIds: z.array(z.string()) })
+    .optional(),
 });
 export type PrepCompletionRow = z.infer<typeof PrepCompletionRowSchema>;
 

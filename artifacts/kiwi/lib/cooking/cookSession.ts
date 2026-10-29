@@ -580,6 +580,28 @@ function startOfLocalDay(d: Date): number {
 }
 
 /**
+ * CLIENT-7 D (BUG-582) — the completion rows that count for ONE meal, under the
+ * week's keys: what Cook Mode's fold, chips and recap read.
+ *
+ * Since SERVER-9 C a tick made in a subset or one-meal session is stored under
+ * that session's scoped key, and its row carries `scope` (the engine key and the
+ * session's meals). Such a row counts, as its engine key, only for a meal in its
+ * scope; for any other meal it does not count at all. A row with no scope (Prep
+ * the Week, the feast, an older server) counts for every meal, as before.
+ */
+export function completionsForMeal(
+  rows: readonly PrepCompletionRow[],
+  mealId: string,
+): PrepCompletionRow[] {
+  const out: PrepCompletionRow[] = [];
+  for (const row of rows) {
+    if (!row.scope) out.push(row);
+    else if (row.scope.mealIds.includes(mealId)) out.push({ ...row, stepKey: row.scope.stepKey });
+  }
+  return out;
+}
+
+/**
  * Cook Mode fetches the plan's prep-week payload only when a prep session has
  * evidently happened (at least one completion row). That payload is a cache hit
  * for a plan that was prepped — but for one that never was, the same POST is a
