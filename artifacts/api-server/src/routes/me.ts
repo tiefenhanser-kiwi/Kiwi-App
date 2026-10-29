@@ -33,7 +33,7 @@ import { readOAuthConfig, type OAuthConfig } from "../lib/oauth/config";
 import { revokeAppleIdentitiesForUser as productionRevokeAppleIdentities } from "../lib/oauth/revokeOnDelete";
 import { readBillingConfig, type BillingConfig } from "../lib/billing/config";
 import { cancelStripeForUser as productionCancelStripeForUser } from "../lib/billing/cancelOnDelete";
-import { buildSubscriptionPayload } from "../lib/billing/subscriptionPayload";
+import { billingModeFor, buildSubscriptionPayload } from "../lib/billing/subscriptionPayload";
 import { syncStoreSubscription } from "../lib/billing/storeSync";
 import type { FetchLike } from "../lib/billing/revenuecat";
 import {
@@ -938,6 +938,8 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
           personalizeNudgeDismissedAt:
             updated.personalizeNudgeDismissedAt?.toISOString() ?? null,
           createdAt: updated.createdAt.toISOString(),
+          // SERVER-9 A (D-WS9-356) — the same billing mode auth.ts toUserShape sends.
+          billing: billingModeFor(billingConfig),
         },
       });
     } catch (err) {

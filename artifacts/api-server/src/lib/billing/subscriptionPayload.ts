@@ -38,13 +38,44 @@ export interface SubscriptionPayload {
   source: "stripe" | "apple" | "google" | null;
   managementUrl: string | null;
   storeBillingAvailable: boolean;
+  /** SERVER-9 A (D-WS9-356) — see billingModeFor. */
+  billing: BillingModeShape;
   /**
    * SEC-2 #16 — "trial_already_used" when this account was created on an
    * inbox (canonical email) that had already had its free trial; null
    * otherwise. The client shows "Your free trial was already used with this
    * email." on this value and nothing else.
+   *
+   * SERVER-9 A — NOT SENT in free_launch: nobody's free time ends, so there is
+   * no "trial already used" moment to tell anyone about. The shipped client
+   * reads it as optional (kiwi lib/billing/api.ts, lib/auth.ts).
    */
-  trialDeniedReason: string | null;
+  trialDeniedReason?: string | null;
+}
+
+/**
+ * SERVER-9 A (D-WS9-356, Hans, Oct 28) — Kiwi is free during launch.
+ * "free_launch" exactly when BILLING_ENFORCED is off, "enforced" when it is on.
+ * Sent on GET /me/subscription, POST /billing/store-sync and both user-shape
+ * builders (routes/auth.ts toUserShape, PATCH /me/profile), so the client can
+ * word the app as free without a second request. Purchases are untouched:
+ * Stripe and RevenueCat stay connected in either mode.
+ */
+export type BillingMode = "free_launch" | "enforced";
+export interface BillingModeShape {
+  mode: BillingMode;
+}
+
+export function billingModeFor(config: Pick<BillingConfig, "enforced">): BillingModeShape {
+  return { mode: config.enforced ? "enforced" : "free_launch" };
+}
+
+/** SERVER-9 A — the trialDeniedReason field, or nothing in free_launch. */
+export function trialDeniedField(
+  billing: BillingModeShape,
+  reason: string | null | undefined,
+): { trialDeniedReason?: string | null } {
+  return billing.mode === "enforced" ? { trialDeniedReason: reason ?? null } : {};
 }
 
 /**
@@ -81,6 +112,7 @@ export function buildSubscriptionPayload(
   const status = snapshot === null ? "none" : effectiveStatus(snapshot, now);
   const source = snapshot?.source ?? null;
   const isStore = source === "apple" || source === "google";
+  const billing = billingModeFor(config);
   return {
     status,
     planCode: snapshot?.planCode ?? "free",
@@ -95,6 +127,7 @@ export function buildSubscriptionPayload(
     source,
     managementUrl: isStore ? (snapshot?.storeManagementUrl ?? null) : null,
     storeBillingAvailable: config.revenuecatAvailable,
-    trialDeniedReason: snapshot?.trialDeniedReason ?? null,
+    billing,
+    ...trialDeniedField(billing, snapshot?.trialDeniedReason),
   };
 }

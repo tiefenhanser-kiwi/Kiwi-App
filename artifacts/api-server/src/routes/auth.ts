@@ -40,6 +40,12 @@ import { createAccountInTx, finishClaimAfterCommit } from "../lib/authAccount";
 import { sendSignupAlert, type SignupAlertInput } from "../lib/signupAlert";
 import { sendWelcomeEmail } from "../lib/lifecycle/run";
 import { readOAuthConfig, type OAuthConfig } from "../lib/oauth/config";
+import { readBillingConfig, type BillingConfig } from "../lib/billing/config";
+import {
+  billingModeFor,
+  trialDeniedField,
+  type BillingModeShape,
+} from "../lib/billing/subscriptionPayload";
 import {
   exchangeAppleAuthorizationCode as productionExchangeAppleCode,
   productionAppleFetch,
@@ -228,7 +234,7 @@ function toUserShape(u: {
   howHeardDetail: string | null;
   personalizeNudgeDismissedAt: Date | null;
   createdAt: Date;
-}) {
+}, billing: BillingModeShape) {
   return {
     id: u.id,
     email: u.email,
@@ -256,6 +262,9 @@ function toUserShape(u: {
     personalizeNudgeDismissedAt:
       u.personalizeNudgeDismissedAt?.toISOString() ?? null,
     createdAt: u.createdAt.toISOString(),
+    // SERVER-9 A (D-WS9-356) — "free_launch" | "enforced"; the same field
+    // GET /me/subscription carries (lib/billing/subscriptionPayload.ts).
+    billing,
   };
 }
 
@@ -265,7 +274,7 @@ function toSubscriptionShape(s: {
   trialEndsAt: Date | null;
   currentPeriodEnd: Date | null;
   trialDeniedReason?: string | null;
-}) {
+}, billing: BillingModeShape) {
   return {
     status: s.status,
     planCode: s.planCode,
@@ -273,8 +282,8 @@ function toSubscriptionShape(s: {
     currentPeriodEnd: s.currentPeriodEnd ? s.currentPeriodEnd.toISOString() : null,
     // SEC-2 #16 — "trial_already_used" when this inbox already had its free
     // trial (lib/emailCanonical.ts); null otherwise. Same field as GET
-    // /me/subscription carries.
-    trialDeniedReason: s.trialDeniedReason ?? null,
+    // /me/subscription carries. SERVER-9 A: not sent in free_launch.
+    ...trialDeniedField(billing, s.trialDeniedReason),
   };
 }
 
@@ -338,6 +347,8 @@ export interface AuthRouterDeps {
    * router's prisma and `sendEmail`, as signupAlert's does.
    */
   welcomeEmail: (userId: string) => Promise<void>;
+  /** SERVER-9 A — read once per router; only its `enforced` is read here (the user shape's billing mode). */
+  billingConfig: BillingConfig;
 }
 
 export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
@@ -349,6 +360,8 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
   // would make the boot line (logOAuthConfig, app.ts) a different answer from
   // the one the routes actually use.
   const oauthConfig = deps.oauthConfig ?? readOAuthConfig();
+  // SERVER-9 A — same once-per-router read, for the user shape's billing mode.
+  const billing = billingModeFor(deps.billingConfig ?? readBillingConfig());
   const verifyApple =
     deps.verifyApple ??
     ((opts) =>
@@ -485,8 +498,8 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
       );
       return res.status(201).json({
         user: {
-          ...toUserShape(user),
-          subscription: toSubscriptionShape(user.subscription),
+          ...toUserShape(user, billing),
+          subscription: toSubscriptionShape(user.subscription, billing),
         },
         authToken: token,
         // R1 / D-WS9-263 — DERIVED, never a literal. This was hard-coded `true`
@@ -654,9 +667,9 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
       );
       return res.json({
         user: {
-          ...toUserShape(user),
+          ...toUserShape(user, billing),
           subscription: user.subscription
-            ? toSubscriptionShape(user.subscription)
+            ? toSubscriptionShape(user.subscription, billing)
             : null,
         },
         authToken: token,
@@ -866,8 +879,8 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
 
     return res.status(outcome.isNewUser ? 201 : 200).json({
       user: {
-        ...toUserShape(user),
-        subscription: user.subscription ? toSubscriptionShape(user.subscription) : null,
+        ...toUserShape(user, billing),
+        subscription: user.subscription ? toSubscriptionShape(user.subscription, billing) : null,
       },
       authToken: signToken(user.id),
       // DERIVED, never a literal — an OAuth sign-up that claimed a Test Kitchen
@@ -1215,9 +1228,9 @@ export function createAuthRouter(deps: Partial<AuthRouterDeps> = {}): IRouter {
       }
       return res.json({
         user: {
-          ...toUserShape(user),
+          ...toUserShape(user, billing),
           subscription: user.subscription
-            ? toSubscriptionShape(user.subscription)
+            ? toSubscriptionShape(user.subscription, billing)
             : null,
         },
       });

@@ -9,6 +9,7 @@ import type { Server } from "node:http";
 
 import { hashPassword } from "../../lib/auth";
 import { signToken } from "../../lib/auth";
+import { readBillingConfig } from "../../lib/billing/config";
 import { createMeRouter } from "../me";
 import { withSessionUser } from "./fixtures/sessionUserStub";
 
@@ -450,4 +451,34 @@ describe("PATCH /me/password", () => {
       await harness.close();
     }
   });
+});
+
+describe("PATCH /me/profile — billing mode (SERVER-9 A, D-WS9-356)", () => {
+  for (const [env, mode] of [[{}, "free_launch"], [{ BILLING_ENFORCED: "true" }, "enforced"]] as const) {
+    it(`the second user-shape builder sends billing.mode ${mode}`, async () => {
+      const app: Express = express();
+      app.use(express.json());
+      app.use(
+        createMeRouter({
+          prisma: withSessionUser(makeStubPrisma(baseUser({ id: USER_ID }))) as never,
+          billingConfig: readBillingConfig(env),
+        }),
+      );
+      const server: Server = await new Promise((r) => {
+        const s = app.listen(0, "127.0.0.1", () => r(s));
+      });
+      try {
+        const res = await fetch(`http://127.0.0.1:${(server.address() as { port: number }).port}/me/profile`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${signToken(USER_ID)}` },
+          body: JSON.stringify({ firstName: "Kiwi" }),
+        });
+        assert.equal(res.status, 200);
+        const body = (await res.json()) as { user: { billing: unknown } };
+        assert.deepEqual(body.user.billing, { mode });
+      } finally {
+        await new Promise<void>((r) => server.close(() => r()));
+      }
+    });
+  }
 });

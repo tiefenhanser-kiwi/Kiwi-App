@@ -149,6 +149,7 @@ interface Body {
   source: string | null;
   managementUrl: string | null;
   storeBillingAvailable: boolean;
+  [k: string]: unknown;
 }
 
 async function get(h: Harness): Promise<{ status: number; body: Body }> {
@@ -533,6 +534,31 @@ describe("GET /me/subscription — store rows (Resubmission B1)", () => {
     );
     try {
       assert.equal((await get(h)).body.status, "active");
+    } finally {
+      await h.close();
+    }
+  });
+});
+
+describe("GET /me/subscription — billing mode (SERVER-9 A, D-WS9-356)", () => {
+  it("BILLING_ENFORCED off: billing.mode free_launch and no trialDeniedReason key; purchases still available", async () => {
+    const h = await spinUp({ status: "trialing", trialEndsAt: new Date(NOW.getTime() + 3 * DAY) }, CONFIGURED);
+    try {
+      const { body } = await get(h);
+      assert.deepEqual(body["billing"], { mode: "free_launch" });
+      assert.equal("trialDeniedReason" in body, false);
+      assert.equal(body.billingAvailable, true, "Stripe stays connected");
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("BILLING_ENFORCED on: billing.mode enforced and trialDeniedReason sent as before", async () => {
+    const h = await spinUp({ status: "trialing", trialEndsAt: new Date(NOW.getTime() + 3 * DAY) }, { ...CONFIGURED, BILLING_ENFORCED: "true" });
+    try {
+      const { body } = await get(h);
+      assert.deepEqual(body["billing"], { mode: "enforced" });
+      assert.equal(body["trialDeniedReason"], null);
     } finally {
       await h.close();
     }

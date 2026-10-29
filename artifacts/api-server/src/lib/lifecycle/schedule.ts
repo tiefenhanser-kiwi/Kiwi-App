@@ -18,7 +18,8 @@
 //   playlist_nudge   second plan created                   + 48 h                      a Playlist exists
 //   instacart_nudge  second grocery list created           + 48 h                      ever sent a list to Instacart
 //   still_here       last active + 7 days, during the      + 48 h                      any activity since (the anchor
-//                    free time                                                         moves); not in the free time
+//                    free time                                                         moves); not in the free time;
+//                                                                                      billing not enforced (SERVER-9)
 //   come_back        free time end + 10 days               + 7 days                    paying; billing not enforced
 //
 // Every kind also needs: not sent before (the send log — once per account per
@@ -115,6 +116,15 @@ export const WEEKLY_CAP = 2;
 export const CAP_WINDOW_H = 7 * 24;
 /** Kinds the cap never holds back. The welcome is also not counted; the free-time pair is. */
 export const CAP_NEVER_HOLDS: readonly LifecycleKind[] = ["welcome", "trial_ending", "trial_ended"];
+
+/**
+ * SERVER-9 A (D-WS9-356) — the kinds about free time ending: an end date, a
+ * price, subscribing, or (still_here) "during the free time". While
+ * BILLING_ENFORCED is off Kiwi is free during launch and nobody's free time
+ * ends, so none of them is ever due (skipped, below). The other ten kinds' copy
+ * names no trial, price or end date (copy.ts; serverNine.test.ts greps it).
+ */
+export const FREE_TIME_KINDS: readonly LifecycleKind[] = ["trial_ending", "trial_ended", "still_here", "come_back"];
 
 /** The free-time pair leads; still_here and come_back trail; everything else is ordered by anchor. */
 const FIRST: readonly LifecycleKind[] = ["trial_ended", "trial_ending"];
@@ -339,6 +349,7 @@ export function windowFor(
 }
 
 function skipped(kind: LifecycleKind, f: LifecycleFacts, now: Date): boolean {
+  if (FREE_TIME_KINDS.includes(kind) && !f.billingEnforced) return true;
   switch (kind) {
     case "day1":
       return f.hasPlan;
@@ -352,7 +363,7 @@ function skipped(kind: LifecycleKind, f: LifecycleFacts, now: Date): boolean {
     case "trial_ending":
     case "trial_ended":
     case "come_back":
-      return f.paying || !f.billingEnforced;
+      return f.paying;
     case "next_week": {
       const plan = currentPlan(f, now);
       return !plan || f.datedPlans.some((p) => p.lastDay > plan.lastDay);

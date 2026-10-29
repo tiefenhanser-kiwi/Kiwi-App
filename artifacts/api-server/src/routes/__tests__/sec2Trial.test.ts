@@ -19,6 +19,7 @@ import type { Server } from "node:http";
 
 import { signToken } from "../../lib/auth";
 import { createAccountInTx } from "../../lib/authAccount";
+import { readBillingConfig } from "../../lib/billing/config";
 import { canonicalEmail, isTrialDuplicateExempt, readTrialDuplicateExempt } from "../../lib/emailCanonical";
 import { __clearRateLimitStoreForTests } from "../../lib/rateLimit";
 import { createSubscriptionService } from "../../lib/subscriptionService";
@@ -124,7 +125,8 @@ describe("SEC-2 #16 — a second account on the same inbox starts without a tria
     t = makeTables();
     const app: Express = express();
     app.use(express.json());
-    app.use(createAuthRouter({ prisma: t.prisma as never, signupAlert: async () => {}, welcomeEmail: async () => {} }));
+    // SERVER-9 A — trialDeniedReason is only sent while billing is enforced.
+    app.use(createAuthRouter({ prisma: t.prisma as never, signupAlert: async () => {}, welcomeEmail: async () => {}, billingConfig: readBillingConfig({ BILLING_ENFORCED: "true" }) }));
     app.use(createMeRouter({ prisma: t.prisma as never, sendEmail: (async () => ({ sent: true, id: "x" })) as never }));
     server = await new Promise((r) => {
       const s = app.listen(0, "127.0.0.1", () => r(s));
@@ -227,5 +229,47 @@ describe("SEC-2 #16 — the 402 says why", () => {
     const verdict = await svc.can("u-x", "kitchen_wizard_set_preferences");
     assert.equal(verdict.allowed, false);
     assert.match(String((verdict as { reason?: string }).reason), /Your free trial was already used with this email\./);
+  });
+});
+
+describe("SERVER-9 A (D-WS9-356) — free during launch: the user shape says so and no trial-used moment exists", () => {
+  it("signup and /auth/me carry user.billing; in free_launch the subscription has no trialDeniedReason key", async () => {
+    for (const [env, mode] of [[{}, "free_launch"], [{ BILLING_ENFORCED: "true" }, "enforced"]] as const) {
+      const tt = makeTables();
+      const app: Express = express();
+      app.use(express.json());
+      app.use(createAuthRouter({ prisma: tt.prisma as never, signupAlert: async () => {}, welcomeEmail: async () => {}, billingConfig: readBillingConfig(env) }));
+      const srv: Server = await new Promise((r) => {
+        const s = app.listen(0, "127.0.0.1", () => r(s));
+      });
+      const url = `http://127.0.0.1:${(srv.address() as { port: number }).port}`;
+      try {
+        delete process.env["TRIAL_DUPLICATE_EXEMPT"];
+        const bodies: Array<{ user: Record<string, unknown> & { subscription: Record<string, unknown> } }> = [];
+        for (const email of ["launch.person@gmail.com", "launch.person+2@gmail.com"]) {
+          __clearRateLimitStoreForTests();
+          const res = await fetch(`${url}/auth/signup`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ email, password: "a-password-1", firstName: "T", lastName: "R" }),
+          });
+          assert.equal(res.status, 201);
+          bodies.push((await res.json()) as never);
+        }
+        const me = (await (await fetch(`${url}/auth/me`, { headers: { Authorization: `Bearer ${signToken(tt.users[1]!.id)}` } })).json()) as {
+          user: Record<string, unknown> & { subscription: Record<string, unknown> };
+        };
+        for (const b of [...bodies, me]) {
+          assert.deepEqual(b.user["billing"], { mode }, mode);
+          assert.equal("trialDeniedReason" in b.user.subscription, mode === "enforced", `${mode}: trialDeniedReason sent?`);
+        }
+        // The account itself is the same either way: the duplicate inbox still starts with no trial.
+        assert.equal(bodies[1]!.user.subscription["status"], "none");
+        if (mode === "enforced") assert.equal(bodies[1]!.user.subscription["trialDeniedReason"], "trial_already_used");
+      } finally {
+        await new Promise<void>((r) => srv.close(() => r()));
+        __clearRateLimitStoreForTests();
+      }
+    }
   });
 });
