@@ -4,6 +4,10 @@
 //   env: KIWI_QA_BUDGET_USD (default 15) · KIWI_QA_HOUSEHOLDS=1,6,10 (default all)
 //        KIWI_QA_UI=0 to skip the browser pass · KIWI_QA_OUT=<dir> (default
 //        artifacts/kiwi/e2e/out/night-<date>)
+//        --cook-sim (or KIWI_QA_COOK_SIM=1): the kitchen simulator on every
+//        household's Cook Mode sessions and the AI home cooks on 5 rotating meals
+//        (scripts/qa-cook; cookSim.ts) — its own section in summary.md
+//        KIWI_QA_PORT=<n> with KIWI_QA_UI=0: the child on another port (API only)
 //
 // In order: the dev-database fence; its own api-server on :3100 with every mail
 // switch off, proven from the child's own boot output (server.ts); the
@@ -23,7 +27,9 @@ import { Client } from "./http";
 import { Household, type HouseholdSpec } from "./journeys";
 import { reconcileR1, reconcileR2 } from "./reconcileGrocery";
 import { reconcileR10, reconcileR11 } from "./reconcilePrepCook";
-import { QA_API, QA_PORT, readDotEnv, startServer, stopServer, type OwnedServer } from "./server";
+import { QA_PORT, readDotEnv, startServer, stopServer, type OwnedServer } from "./server";
+import { type CookSimNight, cookSimWanted, emptyNight, householdViews, nightHits, renderNight, runNightCooks, simulateAll } from "./cookSim";
+import type { CookView } from "../qa-cook/types";
 import { addTally, EMPTY_TALLY, mayStart, tallySpend, type SpendTally } from "./spend";
 import { type KnownBug, matchKnown, newHigh, renderSummary, type RunFacts } from "./summary";
 import type { CallRecord, Finding, RuleResult } from "./types";
@@ -56,10 +62,15 @@ async function main(): Promise<number> {
   const specs = all.filter((h) => !wanted || wanted.has(h.id));
   const known = (JSON.parse(readFileSync(join(HERE, "known.json"), "utf8")) as { known: KnownBug[] }).known;
   const withUi = process.env.KIWI_QA_UI !== "0";
+  // QA-COOK-1 (E) — the cook simulation, and KIWI_QA_PORT for a second night run beside one on :3100 (API only: the UI pass's proxy is wired to :3100).
+  const night: CookSimNight | null = cookSimWanted(process.argv, process.env) ? emptyNight() : null;
+  const port = Number(process.env.KIWI_QA_PORT ?? QA_PORT);
+  const api = `http://localhost:${port}/api`;
+  if (port !== QA_PORT && withUi) throw new Error(`KIWI_QA_PORT=${port} needs KIWI_QA_UI=0: the browser pass is wired to :${QA_PORT}`);
 
-  const server: OwnedServer = await startServer(API_ROOT, outDir);
-  const bootProof = `RESEND_API_KEY ${server.proof.RESEND_API_KEY}, SIGNUP_ALERT_TO ${server.proof.SIGNUP_ALERT_TO}, LIFECYCLE_EMAIL_ENABLED ${server.proof.LIFECYCLE_EMAIL_ENABLED} (child pid ${server.proof.pid}, :${QA_PORT}; server line "lifecycle email: off")`;
-  console.log(`[qa-night] api-server child on :${QA_PORT} — ${bootProof}`);
+  const server: OwnedServer = await startServer(API_ROOT, outDir, port);
+  const bootProof = `RESEND_API_KEY ${server.proof.RESEND_API_KEY}, SIGNUP_ALERT_TO ${server.proof.SIGNUP_ALERT_TO}, LIFECYCLE_EMAIL_ENABLED ${server.proof.LIFECYCLE_EMAIL_ENABLED} (child pid ${server.proof.pid}, :${port}; server line "lifecycle email: off")`;
+  console.log(`[qa-night] api-server child on :${port} — ${bootProof}`);
 
   const prisma = new PrismaClient();
   const calls: CallRecord[] = [];
@@ -71,6 +82,7 @@ async function main(): Promise<number> {
   let spend: SpendTally = { ...EMPTY_TALLY, byPrompt: {} };
   let worstSeen = 0;
   const outcomes: unknown[] = [];
+  let cookMeals: CookView[] = [];
 
   try {
     for (const spec of specs) {
@@ -82,9 +94,9 @@ async function main(): Promise<number> {
       }
       console.log(`[qa-night] h${spec.id} ${spec.label} …`);
       const started = new Date(Date.now() - 2000);
-      const h = new Household(spec, runTag, new Client(QA_API, spec.id, calls), prisma);
+      const h = new Household(spec, runTag, new Client(api, spec.id, calls), prisma);
       const ht0 = Date.now();
-      await runHousehold(h);
+      await runHousehold(h, night);
       // R10 and the spend are read BEFORE the delete: DELETE /me nulls LLMCallLog.userId.
       if (h.out.userId) {
         const plans = Object.keys(h.out.ticksPut).length ? Object.keys(h.out.ticksPut) : h.out.planId ? [h.out.planId] : [];
@@ -112,6 +124,19 @@ async function main(): Promise<number> {
       outcomes.push({ ...h.out, spend: mine });
       writeFileSync(join(outDir, `household-${spec.id}.json`), JSON.stringify({ ...h.out, spend: mine }, null, 2));
       console.log(`[qa-night] h${spec.id} done — $${mine.usd.toFixed(3)}, ${(h.out.wallMs / 60000).toFixed(1)} min, ${h.out.results.reduce((n, r) => n + r.findings.length, 0)} finding(s)`);
+    }
+
+    // ── the AI home cooks (QA-COOK-1 E): tonight's 5 meals, inside the budget ─
+    if (night) {
+      const cookReserve = 0.5;
+      if (!mayStart(spend.usd, cookReserve, budget)) {
+        cookMeals = [];
+        console.log(`[qa-night] cook sim: AI cooks skipped — budget ($${spend.usd.toFixed(2)} + $${cookReserve} > $${budget})`);
+      } else {
+        cookMeals = await runNightCooks(night, { apiKey: dotEnv.ANTHROPIC_API_KEY, date, model: process.env.KIWI_COOKSIM_MODEL ?? "claude-haiku-5-5", budgetLeftUsd: Math.min(cookReserve, budget - spend.usd), seed: 1028 });
+        spend = addTally(spend, { calls: night.runs.reduce((n, r) => n + r.calls, 0), usd: night.usd, failures: night.runs.filter((r) => r.error).length, byPrompt: { "qa-cook.persona (direct)": { calls: night.runs.reduce((n, r) => n + r.calls, 0), usd: night.usd } } });
+      }
+      console.log(`[qa-night] cook sim: ${night.views.length} sessions simulated, AI cooks on ${cookMeals.length} meals ($${night.usd.toFixed(3)})`);
     }
 
     // ── the browser pass ────────────────────────────────────────────────────
@@ -148,9 +173,11 @@ async function main(): Promise<number> {
   facts.spendUsd = spend.usd;
   facts.spendByPrompt = spend.byPrompt;
   facts.wallMin = (Date.now() - t0) / 60000;
-  const summary = renderSummary(results, facts);
+  // The cook simulation has its own section; its findings never move the exit code.
+  const summary = renderSummary(results, facts) + (night ? `\n${renderNight(night, cookMeals)}` : "");
   writeFileSync(join(outDir, "summary.md"), summary);
-  writeFileSync(join(outDir, "findings.json"), JSON.stringify({ facts, findings: results.flatMap((r) => r.findings), checked: results.map((r) => ({ rule: r.rule, checked: r.checked, findings: r.findings.length })) }, null, 2));
+  writeFileSync(join(outDir, "findings.json"), JSON.stringify({ facts, findings: results.flatMap((r) => r.findings), checked: results.map((r) => ({ rule: r.rule, checked: r.checked, findings: r.findings.length })), ...(night ? { cookSim: { views: night.views.length, usd: night.usd, meals: cookMeals.map((v) => v.title), hits: nightHits(night) } } : {}) }, null, 2));
+  if (night) writeFileSync(join(outDir, "cook-sim.json"), JSON.stringify({ views: night.views, runs: night.runs }, null, 1));
   writeFileSync(join(outDir, "calls.json"), JSON.stringify(calls, null, 1));
   console.log(`\n${summary}`);
   console.log(`[qa-night] wrote ${join(outDir, "summary.md")}`);
@@ -158,7 +185,7 @@ async function main(): Promise<number> {
   return fresh.length > 0 ? 1 : 0;
 }
 
-async function runHousehold(h: Household): Promise<void> {
+async function runHousehold(h: Household, night: CookSimNight | null): Promise<void> {
   const s = h.spec;
   if (!(await h.path("sign up + onboarding", () => h.signUp()))) return;
   if (!(await h.path("plan", () => h.makePlan()))) return;
@@ -179,6 +206,7 @@ async function runHousehold(h: Household): Promise<void> {
     });
   }
   await h.path("Cook Mode unprepped", () => h.cookUnprepped());
+  if (night) await h.path("cook sim: unprepped", async () => simulateAll(night, await householdViews(h, "unprepped")));
   for (const p of s.prep) {
     if (p === "full") await h.path("Prep the Week full", () => h.prepFull());
     if (p === "partial") await h.path("Prep the Week partial", () => h.prepPartial());
@@ -187,6 +215,7 @@ async function runHousehold(h: Household): Promise<void> {
     if (p === "recipes-yes") await h.path("Recipes · Yes, I prepped", () => h.recipesYes());
     if (p === "feast") await h.path("the feast", () => h.feast());
   }
+  if (night && s.prep.length) await h.path("cook sim: after prep", async () => simulateAll(night, await householdViews(h, "after prep")));
   await h.path("finish a cook", () => h.finish());
 }
 

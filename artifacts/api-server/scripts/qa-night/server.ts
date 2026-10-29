@@ -61,9 +61,9 @@ export const EMAIL_OFF = {
 const OFF = new Set(["empty", "unset"]);
 
 /** Every value off, or the reason it is not. */
-export function proofProblems(p: BootProof): string[] {
+export function proofProblems(p: BootProof, port: number = QA_PORT): string[] {
   const out: string[] = [];
-  if (p.port !== String(QA_PORT)) out.push(`port ${p.port} (want ${QA_PORT})`);
+  if (p.port !== String(port)) out.push(`port ${p.port} (want ${port})`);
   if (!OFF.has(p.RESEND_API_KEY)) out.push(`RESEND_API_KEY ${p.RESEND_API_KEY}`);
   if (!OFF.has(p.SIGNUP_ALERT_TO)) out.push(`SIGNUP_ALERT_TO ${p.SIGNUP_ALERT_TO}`);
   if (p.LIFECYCLE_EMAIL_ENABLED !== "false") out.push(`LIFECYCLE_EMAIL_ENABLED ${p.LIFECYCLE_EMAIL_ENABLED}`);
@@ -71,24 +71,30 @@ export function proofProblems(p: BootProof): string[] {
   return out;
 }
 
-async function healthy(): Promise<boolean> {
+async function healthyOn(port: number): Promise<boolean> {
   try {
-    const r = await fetch(`${QA_API}/healthz`);
+    const r = await fetch(`http://localhost:${port}/api/healthz`);
     return r.ok;
   } catch {
     return false;
   }
 }
 
-export async function startServer(apiRoot: string, outDir: string): Promise<OwnedServer> {
+/**
+ * QA-COOK-1 — `port` is the night run's :3100 unless a caller names another: the
+ * standalone cook pass (scripts/qa-cook) runs its own child on :3110 so it never
+ * shares a server with a night run in progress. Same fence, same proofs.
+ */
+export async function startServer(apiRoot: string, outDir: string, port: number = QA_PORT): Promise<OwnedServer> {
+  const healthy = () => healthyOn(port);
   if (await healthy()) {
-    throw new Error(`:${QA_PORT} already answers — refusing to share a server the run does not own`);
+    throw new Error(`:${port} already answers — refusing to share a server the run does not own`);
   }
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
     ...readDotEnv(apiRoot),
     ...EMAIL_OFF,
-    PORT: String(QA_PORT),
+    PORT: String(port),
     LOG_LEVEL: process.env.KIWI_QA_LOG_LEVEL ?? "info",
   };
   const logPath = join(outDir, "server.log");
@@ -129,9 +135,9 @@ export async function startServer(apiRoot: string, outDir: string): Promise<Owne
     if (proof && lifecycleOffLine && (await healthy())) break;
     await new Promise((r) => setTimeout(r, 500));
   }
-  const problems = proof ? proofProblems(proof) : ["no qa_night_boot_env line from the child"];
+  const problems = proof ? proofProblems(proof, port) : ["no qa_night_boot_env line from the child"];
   if (!lifecycleOffLine) problems.push('the server never logged "lifecycle email: off"');
-  if (!(await healthy())) problems.push(`:${QA_PORT} never answered /api/healthz`);
+  if (!(await healthy())) problems.push(`:${port} never answered /api/healthz`);
   if (problems.length > 0) {
     child.kill();
     throw new Error(`boot proof refused (${logPath}): ${problems.join("; ")}`);

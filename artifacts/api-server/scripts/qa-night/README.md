@@ -96,3 +96,18 @@ They are tested on hand-made fixtures:
 Findings carry a stable signature (rule, kind, food or step kind, never an id).
 `known.json` maps signatures to open bug ids. The summary lists those apart
 from the new ones.
+
+## The cook simulation (`--cook-sim`, QA-COOK-1)
+
+`pnpm run qa:night --cook-sim` (or `KIWI_QA_COOK_SIM=1`) adds `cookSim.ts`:
+- **The simulator** runs on every household's Cook Mode sessions: right after
+  "Cook Mode unprepped", and again after the household's prep paths. It reads
+  through the household's own account and is free.
+- **The AI home cooks** take 5 meals a night, rotating by date, with all three
+  cooks on each meal. Their spend counts against `KIWI_QA_BUDGET_USD`.
+- **The results** get their own section of `summary.md`, plus `cook-sim.json`.
+  They never change the exit code.
+
+See `scripts/qa-cook/README.md`. `KIWI_QA_PORT=<n> KIWI_QA_UI=0` starts the
+child on another port, for a second run beside one on :3100. That mode is API
+only.
