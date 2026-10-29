@@ -44,6 +44,7 @@ import { GROCERY_SECTIONS } from "@/lib/domain";
 import {
   composePackName,
   formatNeedText,
+  needBesideName,
   purchaseEditorPatch,
   purchaseEditorSeed,
   type PurchaseEditorFields,
@@ -1548,7 +1549,13 @@ function GroceryRow({
       display: item.purchaseDisplayOverride,
     },
   );
-  const needText = displayQty ? String(displayQty) : "";
+  // CLIENT-6 D (BUG-590) — "1 whole turkey (16 lb)", not "… (16 lb) (1 each)". The
+  // pencil under the ✕ still opens the editor when the parenthetical is gone.
+  const needText = needBesideName(
+    item.userResolvedTo ?? item.name,
+    displayQty ? String(displayQty) : "",
+    item.quantityUnit,
+  );
 
   // ── D-WS9-284 / D-WS9-188 — R3, the recurring line ────────────────────────
   //

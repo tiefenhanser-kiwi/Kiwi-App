@@ -24,7 +24,7 @@
 // single-list phrasing is not used; groceryShare.test.ts checks).
 
 import { GROCERY_SECTIONS } from "@/lib/domain";
-import { composePackName, formatNeedText } from "@/lib/format/grocery";
+import { composePackName, formatNeedText, needBesideName } from "@/lib/format/grocery";
 import { recurringDetail } from "@/lib/format/recurringLine";
 import type { GroceryList, GroceryListItem } from "@/lib/types";
 
@@ -47,7 +47,12 @@ export function groceryShareLine(item: GroceryListItem): string {
     item.isUniversalStaple,
     { quantity: item.purchaseQuantityOverride, display: item.purchaseDisplayOverride },
   );
-  const need = formatNeedText(item.quantityAmount, item.quantityUnit, item.quantity);
+  // CLIENT-6 D (BUG-590) — no "(1 each)" beside a name that states its weight.
+  const need = needBesideName(
+    item.userResolvedTo ?? item.name,
+    formatNeedText(item.quantityAmount, item.quantityUnit, item.quantity),
+    item.quantityUnit,
+  );
   const recurring = recurringDetail(item.recurringFacets);
   if (recurring) return `${packName} — ${recurring.detail}`;
   return need ? `${packName} (${need})` : packName;
