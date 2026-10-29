@@ -45,7 +45,7 @@ import {
   type RecurringFacets,
 } from "./recurringItems";
 import { logger } from "./logger";
-import { buysWholePerShare, dishRowMultipliers, displayedPrepQuantity, isWholeProduce, weighedTurkeyOf } from "./prepQuantity";
+import { buysWholePerShare, dishRowMultipliers, isWholeProduce, listShareQuantity, weighedTurkeyOf } from "./prepQuantity";
 import { birdLineAtWeight } from "./birdWeight";
 import { chosenBirdOf, FEAST_MEAL_TAG } from "./prepWeekAggregation";
 
@@ -604,7 +604,9 @@ export async function consolidatePlanIngredients(
         // not 1⅞ rounded once; ⅜ of a can is 1 can. Everything else — a sprig included,
         // which the need ladder rounds UP — is still merged raw and rounded once (BUG-025-2).
         const rawScaled = eff.quantity * rowMultiplier[row];
-        const scaledQty = buysWholePerShare(unit, canonical) ? displayedPrepQuantity(rawScaled, unit, canonical, { note: prepRaw }) : rawScaled;
+        // SERVER-10 B (BUG-587, BUG-606) — rounded UP, never to the nearest: the list
+        // must not buy less than a share (listShareQuantity). A garlic clove is now one.
+        const scaledQty = buysWholePerShare(unit, canonical) ? listShareQuantity(rawScaled, unit, canonical, { note: prepRaw }) : rawScaled;
 
         let entry = buckets.get(key);
         if (!entry) {

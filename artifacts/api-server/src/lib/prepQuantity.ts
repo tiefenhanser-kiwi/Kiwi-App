@@ -162,10 +162,43 @@ export function roundsPerShare(unit: string, name: string): boolean {
   return isWholeProduce(u, name) || isPackage(u, name) || isWholePiece(u, name);
 }
 
-/** THX-3d (R5) — what the grocery list buys whole per share: produce by the piece, a package. */
+/** THX-3d (R5) — what the grocery list buys whole per share: produce by the piece, a package.
+ *  SERVER-10 B (BUG-606) — and a garlic clove, which prep counts whole per share. */
 export function buysWholePerShare(unit: string, name: string): boolean {
   const u = unit.trim().toLowerCase();
-  return isWholeProduce(u, name) || isPackage(u, name);
+  return isWholeProduce(u, name) || isPackage(u, name) || isClove(u, name);
+}
+
+/** A garlic clove: the unit says clove, or a count of a name that does ("6 each garlic cloves"). */
+function isClove(unit: string, name: string): boolean {
+  return /^cloves?$/.test(unit) || (COUNT_UNITS.has(unit) && /\bcloves?\b/i.test(name));
+}
+
+/**
+ * SERVER-10 B (BUG-587, BUG-606) — what the GROCERY LIST buys of one share, before
+ * the shares are summed. Never less than the share.
+ *
+ * THX-3d (R5) rounded a share by the prep card's DISPLAY rule, which rounds to the
+ * nearest: h7's Make-Ahead feast needed 3.2 shallots and the list bought 3, because
+ * the share showed as 3. The card may show the nearest; the list may not buy less
+ * than the recipe. So, on the list:
+ *   - produce by the piece rounds UP to the next ½ (½ + ½ is still one onion, cut
+ *     from one), or to a whole when the cut keeps it whole ("halved", "whole");
+ *   - a package and a garlic clove round UP to a whole (a clove is minced whole,
+ *     and prep counts it per share: h7's prep asked for 16 cloves where the list,
+ *     summing 13⅝ raw, bought fewer).
+ * The summed row is then whole (consolidatePlanIngredients, and D-WS9-360 in
+ * needQuantity.ts). Prep and Cook Mode keep displayedPrepQuantity.
+ */
+export function listShareQuantity(qty: number, unit: string, name: string, opts: { note?: string | null } = {}): number {
+  if (!(qty > 0)) return qty;
+  const u = unit.trim().toLowerCase();
+  if (isPackage(u, name) || isClove(u, name)) return Math.max(1, Math.ceil(qty - TIE));
+  if (isWholeProduce(u, name)) {
+    if (u === "whole" || CUT_WHOLE.test(`${name} ${opts.note ?? ""}`)) return Math.max(1, Math.ceil(qty - TIE));
+    return Math.max(1 / 2, Math.ceil(qty * 2 - TIE) / 2);
+  }
+  return qty;
 }
 
 function isWholePiece(unit: string, name: string): boolean {

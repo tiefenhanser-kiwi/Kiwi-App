@@ -8,7 +8,31 @@
 // (⅛ ladder) and is NEVER rounded toward a purchasable amount. B1 made this
 // number honest; B2 must not re-round it toward a pack size.
 
+import { PACK_FORGIVENESS_UNIT, canonicalUnitToken, packsForNeed } from "./ingredientConversions";
+
 const QTY_EPSILON = 1e-9;
+
+// ── 🔴 D-WS9-360 (RULED, 2026-10-29) — A COUNTED ROW NEVER SHOWS A FRACTION ───
+//
+// "A list row for anything sold by the count or the bunch never shows a
+// fraction. 0.5 cucumber → 1 cucumber, 0.125 bunch cilantro → 1 bunch. Prep and
+// Cook Mode amounts stay recipe-exact." This overrules Root B below FOR THESE
+// UNITS ONLY: the night run of Oct 29 found 27 of 135 counted rows fractional
+// after generation ("0.5 each english cucumber", "13.625 clove garlic", "2.875
+// sprig fresh rosemary"). A measured need (cups, ounces, pounds) keeps the ⅛
+// ladder.
+//
+// A counted need rounds UP to whole items. A bunch keeps the pack forgiveness
+// (packsForNeed, PACK_FORGIVENESS_FRACTION): 1⅛ bunches of an herb is one bunch,
+// exactly what the order line buys, so the need never says more than the pack.
+// The unit is read as the bucket carries it; "" is a bare count ("2 limes").
+const COUNTED_UNIT =
+  /^(?:|each|ea|whole|pieces?|pcs?|count|ct|items?|large|medium|small|cloves?|heads?|bunch(?:es)?|stalks?|ribs?|sprigs?|lea(?:f|ves)|sticks?|ears?|bulbs?|slices?|cans?|jars?|packages?|packets?|pkgs?|bags?|box(?:es)?|bottles?|loa(?:f|ves)|fillets?|breasts?|thighs?|links?|sheets?|strips?|wedges?|pouch(?:es)?|containers?|cartons?|tubs?|blocks?)$/;
+
+/** D-WS9-360 — is this a unit something is sold by the count or the bunch in? */
+export function isCountedNeedUnit(unit: string): boolean {
+  return COUNTED_UNIT.test(unit.trim().toLowerCase().replace(/\.$/, ""));
+}
 
 // Sensible kitchen fractions, ascending, with the 0 and 1 ladder ends. Eighths
 // give fine-grained "need" granularity; ⅓ and ⅔ stay so a value just below them
@@ -34,11 +58,16 @@ const FRACTION_LADDER = [
  * decision-support and stays fine-grained for EVERY unit, which is why the
  * measured/discrete split is gone rather than merely relaxed.
  *
- * The unit is retained in the signature — every caller passes it, and a future
- * per-unit granularity rule would want it — but it no longer selects a branch.
+ * D-WS9-360 (ruled 2026-10-29) is that per-unit rule: a unit sold by the count
+ * or the bunch (isCountedNeedUnit) is whole again; every other unit keeps this
+ * ladder.
  */
-export function roundNeedQuantity(quantity: number, _unit: string): number {
+export function roundNeedQuantity(quantity: number, unit: string): number {
   if (!(quantity > 0)) return quantity;
+  // D-WS9-360 — see the note at the top. Whole items; a bunch with its forgiveness.
+  if (isCountedNeedUnit(unit)) {
+    return packsForNeed(quantity, canonicalUnitToken(unit) === PACK_FORGIVENESS_UNIT);
+  }
 
   const whole = Math.floor(quantity + QTY_EPSILON);
   const frac = quantity - whole;

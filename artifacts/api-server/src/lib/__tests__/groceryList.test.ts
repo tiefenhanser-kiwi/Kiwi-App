@@ -1517,29 +1517,23 @@ describe("consolidatePlanIngredients — BUG-025-2 quantity round-up", () => {
     return out[0].quantity;
   };
 
-  // Root B: was "discrete count ceils to a whole unit (0.75 → 1, 5.5 → 6,
-  // 3.75 → 4)". A count need now keeps its fraction; the ORDER line does the
-  // ceiling. Half a lemon must read as half a lemon, or adding the other half
-  // looks like nothing happened.
-  it("a discrete count keeps its fraction on the ⅛ ladder (0.75, 5.5, 3.75)", async () => {
-    assert.equal(await qtyOf(0.75, "each"), 0.75);
-    assert.equal(await qtyOf(5.5, "each"), 5.5);
-    assert.equal(await qtyOf(3.75, "clove"), 3.75);
+  // D-WS9-360 (ruled 2026-10-29) overrules Root B for counted units: a list row
+  // for anything sold by the count or the bunch never shows a fraction. Root B
+  // had these keep their fraction (0.75, 5.5, 3.75) on the ⅛ ladder.
+  it("D-WS9-360 — a discrete count is whole (0.75 → 1, 5.5 → 6, 3.75 → 4)", async () => {
+    assert.equal(await qtyOf(0.75, "each"), 1);
+    assert.equal(await qtyOf(5.5, "each"), 6);
+    assert.equal(await qtyOf(3.75, "clove"), 4);
   });
 
-  // Root B: was "discrete ceil applies to the multiply→decimal path (3 cloves
-  // × 1.25 = 3.75 → 4)". The multiply→decimal path is unchanged; only what
-  // happens to the decimal afterwards is.
-  it("the multiply→decimal path keeps its fraction (3 cloves × 1.25 = 3.75)", async () => {
+  it("D-WS9-360 — the multiply→decimal path ends whole (3 cloves × 1.25 = 3.75 → 4)", async () => {
     // servingsOverride 5 over a default of 4 → multiplier 1.25 → 3 × 1.25 = 3.75.
-    assert.equal(await qtyOf(3, "clove", 4, 5), 3.75);
+    assert.equal(await qtyOf(3, "clove", 4, 5), 4);
   });
 
-  // Root B: was "unknown / empty units are treated as discrete and ceil to
-  // whole". They now take the same ladder as every other unit.
-  it("unknown / empty units take the ⅛ ladder like everything else", async () => {
-    assert.equal(await qtyOf(2.1, "sprig"), 2.125); // 0.1 → ⅛
-    assert.equal(await qtyOf(1.2, ""), 1.25); // 0.2 → ¼
+  it("D-WS9-360 — a sprig and a bare count are counted too", async () => {
+    assert.equal(await qtyOf(2.1, "sprig"), 3);
+    assert.equal(await qtyOf(1.2, ""), 2);
   });
 
   it("measured need quantities round UP on the ⅛ ladder — fine-grained, NOT toward a purchase size", async () => {
@@ -2521,5 +2515,48 @@ describe("SERVER-10 C (BUG-607) — an optional line is not pooled", () => {
     assert.equal(findItem(out, "parmesan rind"), undefined);
     const parent = findItem(out, "parmesan")!;
     assert.deepEqual(parent.sources.map((s) => s.mealId).sort(), ["meal-bean-soup", "meal-minestrone"]);
+  });
+});
+
+// SERVER-10 B (BUG-587, BUG-606): the list never buys less than a share, and a
+// counted row is whole. h7's Make-Ahead feast needed 3.2 shallots and the list
+// bought 3; its garlic read "13.625 clove" while prep asked for 16.
+describe("SERVER-10 B — counted produce rounds UP to whole items", () => {
+  const plan = (rows: { name: string; quantity: number; unit: string; note?: string }[][]): PlanStub => ({
+    items: rows.map((ings, i) => ({
+      id: `m${i}`,
+      dishes: [{
+        id: `d${i}`, title: `Dish ${i}`, servingsDefault: 4,
+        ingredients: ings.map((x) => ({ name: x.name, quantity: x.quantity, unit: x.unit, category: "Produce", preparationNote: x.note ?? null })),
+      }],
+    })),
+  });
+  const qty = async (p: PlanStub, canonical: string) =>
+    findItem(await consolidatePlanIngredients({ prisma: makePrisma(p), planId: TEST_PLAN, userId: TEST_USER }), canonical)!.quantity;
+
+  it("BUG-587: 3.2 shallots buys 4, not 3", async () => {
+    assert.equal(await qty(plan([[{ name: "shallot", quantity: 3.2, unit: "each" }]]), "shallot"), 4);
+  });
+
+  it("each share rounds UP to its ½ before the sum: 1.6 + 1.6 shallots is 2 + 2 = 4 (nearest-½ gave 1½ + 1½ = 3)", async () => {
+    assert.equal(await qty(plan([[{ name: "shallot", quantity: 1.6, unit: "each" }], [{ name: "shallot", quantity: 1.6, unit: "each" }]]), "shallot"), 4);
+  });
+
+  it("two ⅜ onions are cut from one onion: ½ + ½ = 1", async () => {
+    assert.equal(await qty(plan([[{ name: "yellow onion", quantity: 0.375, unit: "each" }], [{ name: "yellow onion", quantity: 0.375, unit: "each" }]]), "yellow onion"), 1);
+  });
+
+  it("BUG-606: garlic cloves are whole per share, as prep counts them: 1.5 + 1.5 + 0.25 cloves is 2 + 2 + 1 = 5", async () => {
+    const p = plan([
+      [{ name: "garlic", quantity: 1.5, unit: "clove" }],
+      [{ name: "garlic", quantity: 1.5, unit: "cloves" }],
+      [{ name: "garlic", quantity: 0.25, unit: "clove" }],
+    ]);
+    const out = await consolidatePlanIngredients({ prisma: makePrisma(p), planId: TEST_PLAN, userId: TEST_USER });
+    assert.equal(out.filter((i) => i.canonicalName === "garlic").reduce((a, b) => a + b.quantity, 0), 5);
+  });
+
+  it("a measured herb is untouched: 0.3 cup parsley stays on the ladder (⅓)", async () => {
+    assert.equal(await qty(plan([[{ name: "fresh parsley", quantity: 0.3, unit: "cup" }]]), "fresh parsley"), 1 / 3);
   });
 });
