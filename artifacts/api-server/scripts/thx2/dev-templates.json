@@ -1,0 +1,200 @@
+{
+  "$comment": "SERVER-10 G (D-WS9-349). The five Thanksgiving templates production carried on 2026-10-26 (its dumpFeaturedSpec: slugs, titles, descriptions, anchor, hosting window, days, the feast at 10), for DEV. Days resolve on dev by mealId (the same catalog meal as production) or by dishFamilyKey: Thursday is the copy of the production feast (prodcopy:thx2-feast-*, importFeastCopies.ts, the meal the night run used to fork), Friday the dev leftovers meal (thx2-friday-*), the Classic Wednesday the dev pizza night. Read by seedDevTemplates.ts.",
+  "plans": [
+    {
+      "slug": "thanksgiving-classic",
+      "title": "The Classic Thanksgiving",
+      "description": "Two easy weeknights and pizza night, the feast for 10 on Thursday (herb-roasted turkey, pan gravy, stuffing, mashed potatoes, two casseroles, pumpkin pie), then leftover sandwiches Friday.",
+      "coverDay": "Thursday",
+      "anchorDate": "2026-11-26",
+      "hosting": true,
+      "featuredFrom": "2026-10-26T04:00:00Z",
+      "featuredUntil": "2026-11-27T09:59:59Z",
+      "featured": false,
+      "days": [
+        {
+          "day": "Monday",
+          "mealId": "4f79fc2b-e6cc-4034-91bc-d9c9d3f15a46",
+          "name": "Teriyaki Salmon Bowls with Rice and Edamame"
+        },
+        {
+          "day": "Tuesday",
+          "mealId": "3a0214d5-5d46-449a-b671-7c2e3cd3bf7c",
+          "name": "Chicken Caesar Wraps with Kettle Chips"
+        },
+        {
+          "day": "Wednesday",
+          "dishFamilyKey": "thx2-wednesday-pizza-night",
+          "name": "Frozen Cheese Pizza with Quick Chopped Salad"
+        },
+        {
+          "day": "Thursday",
+          "dishFamilyKey": "prodcopy:thx2-feast-classic",
+          "servingsOverride": 10,
+          "name": "Classic Thanksgiving Dinner with All the Trimmings"
+        },
+        {
+          "day": "Friday",
+          "dishFamilyKey": "thx2-friday-classic",
+          "name": "Leftover Turkey, Cranberry and Stuffing Sandwiches"
+        }
+      ]
+    },
+    {
+      "slug": "thanksgiving-small",
+      "title": "A Small Thanksgiving",
+      "description": "Three easy weeknights, then a feast for 4 on Thursday (a roast turkey breast, gravy, stuffing, potatoes, green beans, apple crisp) and turkey and wild rice soup Friday.",
+      "coverDay": "Thursday",
+      "anchorDate": "2026-11-26",
+      "hosting": true,
+      "featuredFrom": "2026-10-26T04:00:00Z",
+      "featuredUntil": "2026-11-27T09:59:59Z",
+      "featured": false,
+      "days": [
+        {
+          "day": "Monday",
+          "mealId": "c70a4986-c0d9-4678-9609-7d89691e6c1e",
+          "name": "Shrimp Scampi over Angel Hair Pasta"
+        },
+        {
+          "day": "Tuesday",
+          "mealId": "68be520e-546c-447d-8c4d-4e0f4ce36d26",
+          "name": "Korean Beef Bowls with Rice and Quick Pickles"
+        },
+        {
+          "day": "Wednesday",
+          "mealId": "5e5759ea-fbf4-435c-84f1-6ede34c676e6",
+          "name": "BLT with Kettle Chips and Dill Pickle"
+        },
+        {
+          "day": "Thursday",
+          "dishFamilyKey": "prodcopy:thx2-feast-small",
+          "servingsOverride": 4,
+          "name": "Small Thanksgiving Dinner for Four"
+        },
+        {
+          "day": "Friday",
+          "dishFamilyKey": "thx2-friday-small",
+          "name": "Turkey and Wild Rice Soup"
+        }
+      ]
+    },
+    {
+      "slug": "thanksgiving-make-ahead",
+      "title": "The Make-Ahead Thanksgiving",
+      "description": "Gravy and cranberry sauce Monday, the brine and the pie Tuesday, casseroles assembled Wednesday, so Thursday's feast for 10 is mostly reheating. Quick dinners on the nights you prep; pot pie Friday.",
+      "coverDay": "Thursday",
+      "anchorDate": "2026-11-26",
+      "hosting": true,
+      "featuredFrom": "2026-10-26T04:00:00Z",
+      "featuredUntil": "2026-11-27T09:59:59Z",
+      "featured": false,
+      "days": [
+        {
+          "day": "Monday",
+          "mealId": "5629466a-242c-43fa-aa38-8c659d0e61f1",
+          "name": "Chicken Bacon Ranch Wraps with Chips and Pickle"
+        },
+        {
+          "day": "Tuesday",
+          "mealId": "fef8c272-2f73-4a30-9419-bd2ce281cc8c",
+          "name": "Spicy Garlic Shrimp Fried Rice"
+        },
+        {
+          "day": "Wednesday",
+          "mealId": "c6031924-a312-48e6-a292-d6ce415181b0",
+          "name": "Pulled Pork Sandwiches with Slaw and Pickles"
+        },
+        {
+          "day": "Thursday",
+          "dishFamilyKey": "prodcopy:thx2-feast-make-ahead",
+          "servingsOverride": 10,
+          "name": "Make-Ahead Thanksgiving Dinner"
+        },
+        {
+          "day": "Friday",
+          "dishFamilyKey": "thx2-friday-make-ahead",
+          "name": "Leftover Turkey Pot Pie"
+        }
+      ]
+    },
+    {
+      "slug": "thanksgiving-vegetarian",
+      "title": "A Vegetarian Friendsgiving",
+      "description": "Three easy meatless weeknights, a feast for 10 on Thursday built around a mushroom Wellington (mushroom gravy, stuffing, mac and cheese, apple pie), and mushroom wild rice soup Friday.",
+      "coverDay": "Thursday",
+      "anchorDate": "2026-11-26",
+      "hosting": true,
+      "featuredFrom": "2026-10-26T04:00:00Z",
+      "featuredUntil": "2026-11-27T09:59:59Z",
+      "featured": false,
+      "days": [
+        {
+          "day": "Monday",
+          "mealId": "5f5a8081-9632-4d5a-ace4-98b2fed5678d",
+          "name": "Pesto Pasta with Cherry Tomatoes and Mozzarella"
+        },
+        {
+          "day": "Tuesday",
+          "mealId": "851a2682-7d99-48dd-888c-e2fde3e96625",
+          "name": "Margherita Naan Pizza"
+        },
+        {
+          "day": "Wednesday",
+          "mealId": "1990c712-5be2-44a8-b671-93a67f3fbfa3",
+          "name": "Grilled Cheese Sandwiches with Tomato Soup"
+        },
+        {
+          "day": "Thursday",
+          "dishFamilyKey": "prodcopy:thx2-feast-vegetarian",
+          "servingsOverride": 10,
+          "name": "Vegetarian Friendsgiving Dinner"
+        },
+        {
+          "day": "Friday",
+          "dishFamilyKey": "thx2-friday-vegetarian",
+          "name": "Mushroom and Wild Rice Soup"
+        }
+      ]
+    },
+    {
+      "slug": "thanksgiving-new-twist",
+      "title": "Thanksgiving, With a Twist",
+      "description": "Three easy weeknights, then a feast for 10 with a citrus-herb spatchcock turkey that roasts in about 90 minutes, chorizo cornbread stuffing and chipotle-maple sweet potatoes; turkey enchiladas Friday.",
+      "coverDay": "Thursday",
+      "anchorDate": "2026-11-26",
+      "hosting": true,
+      "featuredFrom": "2026-10-26T04:00:00Z",
+      "featuredUntil": "2026-11-27T09:59:59Z",
+      "featured": false,
+      "days": [
+        {
+          "day": "Monday",
+          "mealId": "8ea8d5c5-f143-4d01-927c-99aca1b0b302",
+          "name": "Korean Chicken Lettuce Wraps with Rice"
+        },
+        {
+          "day": "Tuesday",
+          "mealId": "f9ccbd54-21fb-4e14-9dc6-c8fabd2e1ce8",
+          "name": "Kung Pao Chicken with Jasmine Rice"
+        },
+        {
+          "day": "Wednesday",
+          "mealId": "cd98969a-ea1b-4c3b-ad79-8d0518b7013a",
+          "name": "BBQ Chicken Sandwiches with Slaw and Chips"
+        },
+        {
+          "day": "Thursday",
+          "dishFamilyKey": "prodcopy:thx2-feast-new-twist",
+          "servingsOverride": 10,
+          "name": "A New Twist Thanksgiving Dinner"
+        },
+        {
+          "day": "Friday",
+          "dishFamilyKey": "thx2-friday-new-twist",
+          "name": "Leftover Turkey Enchiladas"
+        }
+      ]
+    }
+  ]
+}

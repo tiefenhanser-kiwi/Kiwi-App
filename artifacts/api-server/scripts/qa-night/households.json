@@ -1,5 +1,5 @@
 {
-  "$comment": "QA-NIGHT-1 households. Fixed seed: same households, same choices, every night. `estimateUsd` is the worst-case AI spend the cap rule reserves before a household starts (run.ts raises it to the largest per-household spend seen so far tonight). Feast meals are the dev branch's private prod-copies (no public Thanksgiving template on dev): the run forks one for the new account through forkMealForUser, QA-7's fixture, and does everything else through the API.",
+  "$comment": "QA-NIGHT-1 households. Fixed seed: same households, same choices, every night. `estimateUsd` is the worst-case AI spend the cap rule reserves before a household starts (run.ts raises it to the largest per-household spend seen so far tonight). SERVER-10 G (D-WS9-349): the feast households (h6, h7) take a Thanksgiving template through the template route, as a user does (GET /plans?filter=featured, POST /plans/use-template), now that scripts/thx2/seedDevTemplates.ts puts production's five on dev; the plan is anchored to Thanksgiving week (Mon Nov 23 to Fri Nov 27), the feast on Thursday at the template's 10 servings. They used to fork a private prod-copy of the feast meal (forkMealForUser).",
   "seed": "qa-night-1",
   "households": [
     {
@@ -61,22 +61,22 @@
     },
     {
       "id": "6",
-      "label": "2 · Thanksgiving Classic · Thu Nov 26 · 16 lb",
+      "label": "2 · The Classic Thanksgiving (template) · Thu Nov 26 · 16 lb",
       "size": 2,
       "howHeard": "other",
       "prefs": { "eatingStyles": [], "allergiesAndAvoidances": [] },
-      "plan": { "kind": "feast", "source": "afb99193-0861-45ae-8aee-5fa8dc9d4794", "name": "Thanksgiving Classic", "day": "Thursday", "birdWeightLb": 16 },
+      "plan": { "kind": "template", "template": "The Classic Thanksgiving" },
       "edits": ["bird-weight"],
       "prep": ["feast"],
       "estimateUsd": 2.0
     },
     {
       "id": "7",
-      "label": "8 · Friendsgiving: Make-Ahead · Sat Nov 28 · no weight",
+      "label": "8 · The Make-Ahead Thanksgiving (template) · Thu Nov 26 · no weight",
       "size": 8,
       "howHeard": null,
       "prefs": { "eatingStyles": [], "allergiesAndAvoidances": [] },
-      "plan": { "kind": "feast", "source": "b597cdc6-690e-4ed3-87be-df508654919f", "name": "Friendsgiving: Make-Ahead", "day": "Saturday", "birdWeightLb": null },
+      "plan": { "kind": "template", "template": "The Make-Ahead Thanksgiving" },
       "edits": [],
       "prep": ["feast"],
       "estimateUsd": 2.0
