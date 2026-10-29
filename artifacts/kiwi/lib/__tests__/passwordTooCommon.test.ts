@@ -22,28 +22,28 @@ function apiError(status: number, body: unknown): ApiError {
   return new ApiError(userFacingMessage ?? `Request failed (${status})`, { status, body, userFacingMessage });
 }
 
-const SERVER_LINE = "That password is too easy to guess. Try a longer one.";
+// SERVER-9's body, verbatim (api-server lib/commonPasswords.ts passwordTooCommonBody).
+const SERVER_LINE = "That password is too common. Try a longer phrase only you would use.";
+const SERVER_BODY = { error: PASSWORD_TOO_COMMON, userFacingMessage: SERVER_LINE };
 
-test("the server's own words, from { error, code }", () => {
-  assert.equal(passwordTooCommonMessage(apiError(400, { error: SERVER_LINE, code: PASSWORD_TOO_COMMON })), SERVER_LINE);
+test("the server's own words, from { error: password_too_common, userFacingMessage }", () => {
+  assert.equal(passwordTooCommonMessage(apiError(400, SERVER_BODY)), SERVER_LINE);
+  const other = "Pick something only you would think of.";
+  assert.equal(passwordTooCommonMessage(apiError(400, { ...SERVER_BODY, userFacingMessage: other })), other);
 });
 
-test("a body whose error is the code itself: its message, then the client's line", () => {
-  assert.equal(
-    passwordTooCommonMessage(apiError(400, { error: PASSWORD_TOO_COMMON, code: PASSWORD_TOO_COMMON, message: SERVER_LINE })),
-    SERVER_LINE,
-  );
-  assert.equal(passwordTooCommonMessage(apiError(400, { error: PASSWORD_TOO_COMMON, code: PASSWORD_TOO_COMMON })), PASSWORD_TOO_COMMON_COPY);
-  assert.equal(passwordTooCommonMessage(apiError(400, { code: PASSWORD_TOO_COMMON })), PASSWORD_TOO_COMMON_COPY);
-  assert.equal(passwordTooCommonMessage(apiError(400, { error: "   ", code: PASSWORD_TOO_COMMON })), PASSWORD_TOO_COMMON_COPY);
+test("the error with no words of its own: the client's line", () => {
+  assert.equal(passwordTooCommonMessage(apiError(400, { error: PASSWORD_TOO_COMMON })), PASSWORD_TOO_COMMON_COPY);
+  assert.equal(passwordTooCommonMessage(apiError(400, { error: PASSWORD_TOO_COMMON, userFacingMessage: "  " })), PASSWORD_TOO_COMMON_COPY);
 });
 
 test("anything else is not it: an older server's 400s, another status, no ApiError", () => {
   assert.equal(passwordTooCommonMessage(apiError(400, { error: "invalid request body" })), null);
   assert.equal(passwordTooCommonMessage(apiError(400, { error: "email already registered" })), null);
   assert.equal(passwordTooCommonMessage(apiError(400, { error: "invalid or expired reset token" })), null);
-  assert.equal(passwordTooCommonMessage(apiError(400, { error: "Current password is incorrect" })), null);
-  assert.equal(passwordTooCommonMessage(apiError(422, { error: SERVER_LINE, code: PASSWORD_TOO_COMMON })), null);
+  assert.equal(passwordTooCommonMessage(apiError(400, { error: "invalid_current_password" })), null);
+  assert.equal(passwordTooCommonMessage(apiError(400, { userFacingMessage: SERVER_LINE })), null);
+  assert.equal(passwordTooCommonMessage(apiError(422, SERVER_BODY)), null);
   assert.equal(passwordTooCommonMessage(apiError(400, null)), null);
   assert.equal(passwordTooCommonMessage(new ApiNetworkError("offline")), null);
   assert.equal(passwordTooCommonMessage(new Error(SERVER_LINE)), null);
@@ -51,8 +51,7 @@ test("anything else is not it: an older server's 400s, another status, no ApiErr
 });
 
 test("BUG-296's presentation is unchanged for the same error (the screens branch before it)", () => {
-  const err = apiError(400, { error: SERVER_LINE, code: PASSWORD_TOO_COMMON });
-  assert.deepEqual(authErrorPresentation(err, "Signup failed"), { message: SERVER_LINE, retryAfterSec: null });
+  assert.deepEqual(authErrorPresentation(apiError(400, SERVER_BODY), "Signup failed"), { message: SERVER_LINE, retryAfterSec: null });
 });
 
 const here = dirname(fileURLToPath(import.meta.url));
