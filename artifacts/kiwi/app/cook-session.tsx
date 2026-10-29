@@ -31,6 +31,8 @@ import { usePrepWeekCompletions } from "@/hooks/usePrepWeekCompletions";
 import {
   cookFooterMinutes,
   doneInPrepStepKeys,
+  feastDayNameOf,
+  feastDayStep,
   firstLiveIndex,
   flattenDishSteps,
   flattenMealSteps,
@@ -220,7 +222,13 @@ export default function CookSession() {
     prepQuery.data?.kind === "ok" ? prepQuery.data.envelope.result : undefined;
 
   // Every step, always (no filter). Which of them Prep the Week already did:
-  const activeSteps = allSteps;
+  // CLIENT-6 A (D-WS9-351) — a feast off a Thursday reads "On feast day:"
+  // (display only; the keys, and which steps are the day's, are allSteps').
+  const feastDayName = feastDayNameOf(planQuery.data, mealId);
+  const activeSteps = useMemo(
+    () => allSteps.map((s) => feastDayStep(s, feastDayName)),
+    [allSteps, feastDayName],
+  );
   const doneInPrepKeys = useMemo(
     () =>
       doneInPrepStepKeys(

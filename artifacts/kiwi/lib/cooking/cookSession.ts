@@ -27,6 +27,8 @@ export {
   type ActiveTimer,
 } from "./timer";
 export { cookFooterMinutes, remainingMinutes, remainingMinutesToServe } from "./stepTiming";
+// CLIENT-6 A — Cook Mode words a feast's steps for the plan's feast day.
+export { feastDayNameOf, feastDayStep } from "./feastDay";
 
 /**
  * WS7-8b BUG-006 — the multiplier Cook Mode renders amountRefs through, so the

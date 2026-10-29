@@ -8,46 +8,13 @@ import { describe, it } from "node:test";
 
 import type { MealDetail, MealStep } from "@/lib/api/meals";
 import { flattenMealSteps, flattenPlanDishSteps, sequenceMealSteps } from "@/lib/cooking/cookSession";
-import { decodeRun, encodeRun, makeAheadRunSteps, onTheDayMeal, onTheDaySteps, runCookLine } from "@/lib/cooking/feastDay";
+import { decodeRun, encodeRun, feastDayNameOf, feastDayStep, makeAheadRunSteps, onTheDayMeal, onTheDaySteps, runCookLine } from "@/lib/cooking/feastDay";
 import { planDishView } from "@/lib/dishes/planDish";
+import { CLASSIC_TURKEY, FEAST_DAY_VECTORS, OVERNIGHT_STUFFING, UNPREFIXED_RUN } from "@/lib/cooking/__tests__/feastDayVectors.mts";
 import { formatIngredientLine } from "@/lib/format/ingredientLine";
 
-export const CLASSIC_TURKEY = [
-  "Thaw (start Friday): If the turkey is frozen, transfer it to the fridge on Friday.",
-  "Make ahead (Wednesday night): Dissolve ½ cup kosher salt and ¼ cup light brown sugar in 1 gallon cold water.",
-  "Make ahead (Wednesday night): Add 1 tablespoon black peppercorns, 3 thyme sprigs, 2 rosemary sprigs.",
-  "Make ahead (Wednesday night): Pat the turkey dry with paper towels and submerge the bird in the brine.",
-  "Make ahead (Wednesday night): Mash 6 tablespoons softened butter with 3 minced garlic cloves.",
-  "On Thursday: Remove the turkey from the brine, discard the brine, and pat the bird very dry.",
-  "Preheat the oven to 325°F.",
-  "Loosen the skin over the breast and thighs and rub all of the herb butter directly onto the meat.",
-  "Stuff the cavity with the quartered onion; tie the legs together with kitchen twine.",
-  "Place the turkey breast side up on a rack and roast at 325°F for 3 to 3½ hours.",
-  "Transfer the turkey to a cutting board and let it rest.",
-  "Carve the turkey and arrange on a large platter.",
-];
-// Make-Ahead's stuffing (tagged ahead-wed): the bread dries out on Tuesday.
-export const OVERNIGHT_STUFFING = [
-  "Make ahead (Tuesday): Cut 1½ lb rustic white bread into ¾-inch cubes and leave uncovered.",
-  "Make ahead (Wednesday): Melt 8 tablespoons butter in a 12-inch skillet over medium heat.",
-  "Make ahead (Wednesday): Stir in the minced garlic, ¼ cup chopped sage.",
-  "Make ahead (Wednesday): Toss the dried bread cubes with the cooked vegetable mixture.",
-  "Make ahead (Wednesday): Whisk 3 beaten eggs into 3 cups low-sodium stock.",
-  "Make ahead (Wednesday): Butter a 9×13-inch baking dish, cover tightly with foil, and refrigerate overnight.",
-  "On Thursday: Preheat the oven to 375°F.",
-  "Bake the stuffing, still covered in foil, for 30 minutes; uncover and bake 20–25 minutes more.",
-  "Serve the stuffing directly from the baking dish.",
-];
-// A run whose simmer is unprefixed (the model prefixes only a run's first step).
-export const UNPREFIXED_RUN = [
-  "Make ahead (Monday): Combine the cranberries, sugar and orange juice in a saucepan.",
-  "Bring to a boil, then simmer 12–15 minutes until the cranberries burst.",
-  "Cool, then refrigerate up to 7 days.",
-  "On Thursday: Spoon into a serving bowl.",
-];
-
-const t = (texts: string[]) => texts.map((text) => ({ text }));
-const idx = (texts: string[], out: { text: string }[] | null) => out?.map((s) => texts.indexOf(s.text)) ?? null;
+const t = (texts: readonly string[]) => texts.map((text) => ({ text }));
+const idx = (texts: readonly string[], out: { text: string }[] | null) => out?.map((s) => texts.indexOf(s.text)) ?? null;
 
 describe("PREP-2 — a make-ahead row's run", () => {
   it("the Classic turkey: the thaw is one step, Wednesday night is the brine and the butter", () => {
@@ -198,5 +165,84 @@ describe("PREP-2 item 3 — the feast day's steps", () => {
     assert.equal(onTheDayMeal(ordinary), ordinary);
     assert.deepEqual(flattenMealSteps(onTheDayMeal(ordinary)), flattenMealSteps(ordinary));
     assert.equal(flattenMealSteps(ordinary).length, 16);
+  });
+});
+
+// ── CLIENT-6 A (D-WS9-351) — "On feast day:", read alike and shown off a Thursday ──
+
+describe("CLIENT-6 A — the shared vectors: both prefixes are the feast day", () => {
+  for (const v of FEAST_DAY_VECTORS) {
+    it(v.name, () => {
+      assert.deepEqual(idx(v.steps, onTheDaySteps(t(v.steps))), [...v.onTheDay]);
+    });
+  }
+  it("an 'On feast day:' turkey keeps its brine run: the brine is still Wednesday night's", () => {
+    const said = FEAST_DAY_VECTORS.find((v) => v.name === "Classic turkey, On feast day:")!.steps;
+    assert.deepEqual(idx(said, makeAheadRunSteps(t(said), { kind: "brine", dayName: "Wednesday" })), [1, 2, 3, 4]);
+  });
+});
+
+describe("CLIENT-6 A — the feast's Cook Mode on a Thursday and a Saturday feast", () => {
+  const classic = CLASSIC_TURKEY;
+  const makeAhead = FEAST_DAY_VECTORS.find((v) => v.name === "Make-Ahead turkey, On Thursday:")!.steps;
+  // Cook Mode's own path: onTheDayMeal → flattenMealSteps → feastDayStep per step.
+  const cook = (texts: readonly string[], day: string | null) =>
+    flattenMealSteps(
+      onTheDayMeal({
+        ...feast(10),
+        dishes: [{ ...feast(10).dishes[0], steps: texts.map((text, i) => step(text, i)) }],
+      } as MealDetail),
+    ).map((s) => feastDayStep(s, day).text);
+  const has = (texts: string[], re: RegExp) => texts.some((x) => re.test(x));
+
+  for (const [name, texts] of [["Classic", classic], ["Make-Ahead", makeAhead]] as const) {
+    for (const stored of ["On Thursday:", "On feast day:"]) {
+      const storedTexts = stored === "On Thursday:" ? texts : texts.map((x) => x.replace(/^On Thursday:/, stored));
+      for (const day of ["Thursday", "Saturday"]) {
+        it(`${name}, stored "${stored}", a ${day} feast: brine out, roast, rest and carve in; the prefix says ${day === "Thursday" && stored === "On Thursday:" ? "Thursday" : "feast day"}`, () => {
+          const shown = cook(storedTexts, day);
+          assert.ok(has(shown, /^On (Thursday|feast day): Remove the turkey from the (brine|fridge)/), shown.join("\n"));
+          assert.ok(has(shown, /\broast at 325°F/), "roast");
+          assert.ok(has(shown, /\brest\b/), "rest");
+          assert.ok(has(shown, /^Carve the turkey/), "carve");
+          assert.ok(!has(shown, /^(Make ahead|Thaw) \(/), "no run step");
+          const head = shown.find((x) => /^On /.test(x))!;
+          assert.equal(head.startsWith("On feast day:"), !(day === "Thursday" && stored === "On Thursday:"));
+        });
+      }
+    }
+  }
+
+  it("a Thursday feast reads byte-identical, and so does an unknown day (no plan)", () => {
+    const s = { text: "On Thursday: Preheat the oven to 375°F.", amountRefs: null };
+    assert.equal(feastDayStep(s, "Thursday"), s);
+    assert.equal(feastDayStep(s, "thursday"), s);
+    assert.equal(feastDayStep(s, null), s);
+    assert.equal(feastDayStep(s, undefined), s);
+    assert.deepEqual(cook(classic, "Thursday"), cook(classic, null));
+  });
+
+  it("only a LEADING prefix is said again; other steps are the same object", () => {
+    const mid = { text: "Pull it out Thursday morning. On Thursday: roast." };
+    assert.equal(feastDayStep(mid, "Saturday"), mid);
+    assert.equal(feastDayStep({ text: "  on THURSDAY: Spoon." }, "Saturday").text, "  On feast day: Spoon.");
+  });
+
+  it("the amount refs after the prefix move by one character, so the amount still lands on its words", () => {
+    const text = "On Thursday: Rub 2 tablespoons olive oil over the skin.";
+    const at = text.indexOf("2 tablespoons");
+    const s = { text, amountRefs: [{ ingredientId: "oil", quantity: 2, unit: "tablespoon", charStart: at, charEnd: at + 13 }] };
+    const out = feastDayStep(s, "Saturday");
+    const r = out.amountRefs![0];
+    assert.equal(out.text.slice(r.charStart, r.charEnd), "2 tablespoons");
+    assert.equal(s.amountRefs[0].charStart, at, "the input is not mutated");
+  });
+
+  it("the day comes from the plan's make-ahead payload, for its feast meal only", () => {
+    const plan = { makeAhead: { feastMealId: "feast", feastDayName: "Saturday" } };
+    assert.equal(feastDayNameOf(plan, "feast"), "Saturday");
+    assert.equal(feastDayNameOf(plan, "other"), null);
+    assert.equal(feastDayNameOf({}, "feast"), null);
+    assert.equal(feastDayNameOf(undefined, "feast"), null);
   });
 });

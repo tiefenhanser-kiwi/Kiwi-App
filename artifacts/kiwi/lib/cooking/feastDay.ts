@@ -9,7 +9,15 @@
 // ⚠️ THE SAME READING AS THE SERVER'S `onTheDaySteps` (api-server
 // src/lib/mealTiming.ts), which the derived times and the Cooking Sequencer use.
 // The client cannot import it; the shared literal vectors in
-// __tests__/feastDay.test.ts and mealTimingBug418.test.ts keep the two together.
+// __tests__/feastDayVectors.ts (read by feastDay.test.ts and the server's
+// mealTimingBug418.test.ts) keep the two together.
+//
+// CLIENT-6 A (D-WS9-351) — expand, then contract. A feast need not be on a
+// Thursday, so the server will one day write "On feast day:". Every installed
+// client must read that as the feast day BEFORE it does: a client that knew only
+// "On Thursday:" would read the turkey's roast as the end of Wednesday night's
+// brine and drop it from Cook Mode. Both are read alike here, and the words shown
+// follow the plan's own feast day (feastDayStep).
 
 /** A make-ahead row, as the Hub and the dish route name it. */
 export interface MakeAheadRun {
@@ -25,15 +33,59 @@ type StepDay =
 
 const MAKE_AHEAD = /^\s*make ahead \(\s*([a-z]+)(\s+night)?\s*\)\s*:/i;
 const THAW = /^\s*thaw \([^)]*\)\s*:/i;
-const ON_THURSDAY = /^\s*on thursday:/i;
+/** "On Thursday:" or "On feast day:" — the same spacing, any case. */
+const ON_FEAST_DAY = /^\s*on (?:thursday|feast day):/i;
 
 /** A step's own prefix, or null when it carries none (it continues the run before it). */
 function prefixOf(text: string): StepDay | null {
   const m = MAKE_AHEAD.exec(text);
   if (m) return { kind: "make", day: m[1].toLowerCase(), night: !!m[2] };
   if (THAW.test(text)) return { kind: "thaw" };
-  if (ON_THURSDAY.test(text)) return { kind: "feast" };
+  if (ON_FEAST_DAY.test(text)) return { kind: "feast" };
   return null;
+}
+
+/** A leading "On Thursday:" and the space before it. */
+const SAID_ON_THURSDAY = /^(\s*)on thursday:/i;
+const ON_FEAST_DAY_WORDS = "On feast day:";
+
+/**
+ * CLIENT-6 A (D-WS9-351) — the words a feast step shows. When the plan's feast is
+ * not on a Thursday, a leading "On Thursday:" reads "On feast day:"; a Thursday
+ * feast, an unknown day (null) and every other step are returned as the same
+ * object. DISPLAY ONLY: the day a step belongs to is read off the stored words,
+ * which say either.
+ *
+ * The new words are one character longer, so every amount ref after them moves
+ * with the text (a ref is a range of characters the screen draws as an amount).
+ */
+export function feastDayStep<S extends { text: string; amountRefs?: readonly { charStart: number; charEnd: number }[] | null }>(
+  step: S,
+  feastDayName: string | null | undefined,
+): S {
+  if (!feastDayName || feastDayName.toLowerCase() === "thursday") return step;
+  const m = SAID_ON_THURSDAY.exec(step.text);
+  if (!m) return step;
+  const end = m[0].length;
+  const by = m[1].length + ON_FEAST_DAY_WORDS.length - end;
+  const text = m[1] + ON_FEAST_DAY_WORDS + step.text.slice(end);
+  if (!step.amountRefs) return { ...step, text };
+  const amountRefs = step.amountRefs.map((r) =>
+    r.charStart >= end ? { ...r, charStart: r.charStart + by, charEnd: r.charEnd + by } : r,
+  );
+  return { ...step, text, amountRefs };
+}
+
+/**
+ * The feast's weekday when `mealId` is the plan's feast (its make-ahead payload
+ * names it), else null: the words then stay as stored.
+ */
+export function feastDayNameOf(
+  plan: { makeAhead?: { feastMealId: string; feastDayName: string } | null } | null | undefined,
+  mealId: string,
+): string | null {
+  const m = plan?.makeAhead;
+  return m && mealId.length > 0 && m.feastMealId === mealId ? m.feastDayName : null;
 }
 
 /** Each step's day, in step order. */

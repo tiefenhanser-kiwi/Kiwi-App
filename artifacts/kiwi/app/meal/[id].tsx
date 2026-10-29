@@ -38,7 +38,8 @@ import { useMeal } from "@/hooks/useMeal";
 import { ApiError } from "@/lib/api/errors";
 import type { MealDetail, MealStep } from "@/lib/api/meals";
 import { buildAmountRefSegments } from "@/lib/cooking/amountSegments";
-import { buildCookSessionParams } from "@/lib/cooking/cookSession";
+import { buildCookSessionParams, feastDayNameOf, feastDayStep } from "@/lib/cooking/cookSession";
+import { usePlan } from "@/hooks/usePlan";
 import { BillingNotice } from "@/components/BillingNotice";
 import { useBilling } from "@/contexts/BillingContext";
 import { macrosNoticeFor } from "@/lib/billing/subscriptionView";
@@ -221,6 +222,9 @@ function MealDetailContent({
   const { user: authUser } = useAuth();
   // Row 9 (1.1) Stripe S2 Part E -- above every early return, per the block rule.
   const { subscription } = useBilling();
+  // CLIENT-6 A (D-WS9-351) — a feast's plan names its day (read only for a feast).
+  const feastPlan = usePlan(planId && isFeastMeal(meal.tags) ? planId : "").data;
+  const feastDayName = feastDayNameOf(feastPlan, meal.id);
 
   // Plan-instance context — true only when the screen was opened from a plan
   // item (both ids present); false in the Library (My Recipes). Gates the
@@ -333,6 +337,10 @@ function MealDetailContent({
     }
   }
 
+  // CLIENT-6 A (D-WS9-351) — a feast off a Thursday reads "On feast day:". The
+  // words only: the maps above key on the step as read.
+  const said = (step: MealStep) => feastDayStep(step, feastDayName);
+
   // Renders one numbered step row. `displayNumber` is the 1-based position
   // within its list (flat, or restarting per dish in the grouped layout).
   const renderStepRow = (step: MealStep, displayNumber: number, key: number) => (
@@ -360,8 +368,8 @@ function MealDetailContent({
         {step.amountRefs && step.amountRefs.length > 0 ? (
           <Text style={s.stepText}>
             {buildAmountRefSegments(
-              step.text,
-              step.amountRefs,
+              said(step).text,
+              said(step).amountRefs ?? step.amountRefs,
               stepFactor.get(step) ?? scale.mealOwned,
               stepBirds.get(step) ?? scale.mealOwnedBirds,
             ).map(
@@ -376,7 +384,7 @@ function MealDetailContent({
             )}
           </Text>
         ) : (
-          <Text style={s.stepText}>{step.text}</Text>
+          <Text style={s.stepText}>{said(step).text}</Text>
         )}
         {/* Subtle, non-blocking clarify-any-time signal — only when a wired
             step has a real ingredient amount that resolved to no ingredient.

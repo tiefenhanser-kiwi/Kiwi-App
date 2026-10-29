@@ -17,7 +17,9 @@ import { Colors, ImageTreatment, Radius, Spacing, Typography } from "@/constants
 import { useDish } from "@/hooks/useDish";
 import { useMeal } from "@/hooks/useMeal";
 import { buildAmountRefSegments } from "@/lib/cooking/amountSegments";
-import { decodeRun, makeAheadRunSteps, runCookLine, type MakeAheadRun } from "@/lib/cooking/feastDay";
+import { decodeRun, feastDayNameOf, feastDayStep, makeAheadRunSteps, runCookLine, type MakeAheadRun } from "@/lib/cooking/feastDay";
+import { usePlan } from "@/hooks/usePlan";
+import { isFeastMeal } from "@/lib/format/quantity";
 import { planDishView, type PlanDishView } from "@/lib/dishes/planDish";
 import { ApiError } from "@/lib/api/errors";
 import type { DishDetail } from "@/lib/api/dishes";
@@ -64,6 +66,8 @@ export default function DishDetailScreen() {
   const dishQuery = useDish(dishId);
   // Disabled (empty id) on every launch without plan context.
   const mealQuery = useMeal(mealId, planItemId || undefined);
+  // CLIENT-6 A (D-WS9-351) — a feast's plan names its day (read only for a feast).
+  const feastPlan = usePlan(planId && mealQuery.data && isFeastMeal(mealQuery.data.tags) ? planId : "").data;
 
   if (dishQuery.isLoading || (mealId.length > 0 && mealQuery.isLoading)) {
     return (
@@ -117,6 +121,7 @@ export default function DishDetailScreen() {
     ? {
         view,
         run: decodeRun(typeof params.run === "string" ? params.run : undefined),
+        feastDayName: feastDayNameOf(feastPlan, mealId),
         cookParams: {
           mealId,
           dishId: dish.id,
@@ -132,6 +137,8 @@ export default function DishDetailScreen() {
 interface PlanDishContext {
   view: PlanDishView;
   run: MakeAheadRun | null;
+  /** CLIENT-6 A — the feast's weekday when this meal is the plan's feast, else null. */
+  feastDayName: string | null;
   /** Cook Mode for this dish of the meal, in plan context, narrowed to `run`. */
   cookParams: Record<string, string>;
 }
@@ -155,7 +162,8 @@ function DishDetailContent({ dish, plan }: { dish: DishDetail; plan?: PlanDishCo
   };
   // PREP-2 — what this screen lists: the plan's copy of the dish, or the dish.
   const ingredients = plan ? plan.view.dish.ingredients : dish.ingredients;
-  const steps = plan ? plan.view.dish.steps : dish.steps;
+  // CLIENT-6 A — off a Thursday, the feast's "On Thursday:" reads "On feast day:".
+  const steps = plan ? plan.view.dish.steps.map((st) => feastDayStep(st, plan.feastDayName)) : dish.steps;
   // WEB-4b (BUG-454) — a whole-bird dish scales by its bird's factor, not by
   // servings (the brine follows the bird).
   // THX-4 — or by the turkey weight the cook chose, when this is the turkey's dish.
