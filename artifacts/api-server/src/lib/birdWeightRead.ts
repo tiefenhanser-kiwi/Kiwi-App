@@ -5,7 +5,7 @@
 // weight the line shows now — and, when a weight is chosen, the bird's steps said for
 // it: the thaw step code-written for its days (makeAheadSchedule weighedThaw, the Hub's
 // row's own arithmetic), and the main roast's minutes and its "about 2¾ hours"
-// (birdWeight). Read time only; the stored recipe keeps its authored words. Every
+// (birdWeight). SERVER-8 B (D-WS9-341): with none chosen, all of it at the recipe's weight. Read time only; the stored recipe keeps its authored words. Every
 // amountRef moves with its text, as feastScaleFrames does.
 //
 // SERVER-7 A (D-WS9-337) — the thaw is the weight rule's with no weight chosen too, at
@@ -16,6 +16,7 @@ import type { PrismaClient } from "@prisma/client";
 import {
   birdRoastEdit,
   birdThawStepText,
+  birdWeightWordEdits,
   defaultShownLb,
   editStep,
   mealBirdOf,
@@ -93,16 +94,21 @@ export async function applyBirdWeightToRead(
   };
 
   // The main roast: its minutes (TimerChip reads estimatedMinutes) and its duration words.
-  // A chosen weight only: with none, the roast is the recipe's.
-  if (chosen !== null) {
-    const day = feast ? onTheDaySteps(dish.steps) : dish.steps;
-    const roast = birdRoastEdit(day, bird, chosen);
-    if (roast) {
-      const st = dish.steps.find((s) => s.stepIndex === roast.stepIndex)!;
-      st.estimatedMinutes = roast.minutes;
-      say(st, roastStepEdits(st.text, roast.minutes, chosen));
-    }
+  // 🔴 SERVER-8 B (D-WS9-341) — NO WEIGHT IS THE RECIPE'S WEIGHT. With none chosen the
+  // roast is said at the recipe's own weight, FSIS's floor and all, so a plan with no
+  // weight reads exactly as one set to the recipe's weight (Make-Ahead's main roast was
+  // 131 minutes with none and 140 at its own 14 lb). And the bird's other weight words
+  // follow the same weight ("Pat the 14-lb turkey dry", "A frozen 14-lb turkey thaws 3–4
+  // days"), as the thaw step does.
+  const lb = chosen ?? bird.recipeLb;
+  const day = feast ? onTheDaySteps(dish.steps) : dish.steps;
+  const roast = birdRoastEdit(day, bird, lb);
+  if (roast) {
+    const st = dish.steps.find((s) => s.stepIndex === roast.stepIndex)!;
+    st.estimatedMinutes = roast.minutes;
+    say(st, roastStepEdits(st.text, roast.minutes, lb));
   }
+  for (const st of dish.steps) if (!THAW_STEP.test(st.text)) say(st, birdWeightWordEdits(st.text, lb));
 
   // 🔴 SERVER-7 A (BUG-559, D-WS9-337) — THE THAW, WEIGHT OR NO WEIGHT. The authored
   // "6 days, Friday" for a 14-lb bird left it thawed about 2½ days before the roast, and
@@ -111,7 +117,6 @@ export async function applyBirdWeightToRead(
   // thaw. The thaw step is code-written, and the bird row's note says that start day
   // ("move from freezer to fridge Saturday"). Thaw lines only: a null-weight read is
   // otherwise what it was.
-  const lb = chosen ?? bird.recipeLb;
   const thaw = dish.steps.find((s) => THAW_STEP.test(s.text));
   const noted = dish.ingredients.filter((r, i) => i === bird.row && r.preparationNote !== null && NOTE_THAW_DAY.test(r.preparationNote));
   if (thaw || noted.length > 0) {

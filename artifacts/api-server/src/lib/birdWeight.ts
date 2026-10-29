@@ -280,6 +280,31 @@ export function editStep<R extends WordRef>(text: string, refs: readonly R[] | n
   return { text: out, amountRefs: moved };
 }
 
+/** "A frozen 14-lb turkey thaws 3–4 days" (the Buttermilk alternate's brine step). */
+const FROZEN_THAWS = /\b(\d+(?:\.\d+)?)-lb (turkey|bird) thaws (?:about )?\d+(?:\s*(?:–|-|to)\s*\d+)? days?\b/i;
+/** "Pat the 14-lb turkey dry" (Make-Ahead's dry brine). */
+const N_LB_BIRD = /\b(\d+(?:\.\d+)?)-lb (turkey|bird)\b/gi;
+
+/**
+ * SERVER-8 B (D-WS9-341) — the bird's other weight words, said for this weight: "a
+ * frozen 16-lb turkey thaws about 4 days" (⌈lb ÷ 4⌉, the thaw step's rule) and "the
+ * 16-lb turkey". An edit that would write what is there already is left out, so its
+ * amountRefs stay.
+ */
+export function birdWeightWordEdits(text: string, lb: number): Edit[] {
+  const edits: Edit[] = [];
+  const f = FROZEN_THAWS.exec(text);
+  if (f) {
+    const days = thawFridgeDays(lb);
+    edits.push({ start: f.index, end: f.index + f[0].length, text: `${poundsWords(lb)}-lb ${f[2]} thaws about ${days} ${days === 1 ? "day" : "days"}` });
+  }
+  for (const m of text.matchAll(N_LB_BIRD)) {
+    if (f && m.index! >= f.index && m.index! < f.index + f[0].length) continue;
+    edits.push({ start: m.index!, end: m.index! + m[0].length, text: `${poundsWords(lb)}-lb ${m[2]}` });
+  }
+  return edits.filter((e) => text.slice(e.start, e.end) !== e.text);
+}
+
 /** The main roast step's duration said for its new minutes; a stated bird weight said as the chosen one. */
 export function roastStepEdits(text: string, minutes: number, chosenLb: number): Edit[] {
   const edits: Edit[] = [];

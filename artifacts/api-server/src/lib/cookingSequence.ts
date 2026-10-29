@@ -274,7 +274,10 @@ export async function runCookingSequence(
   // THX-4 (D-WS9-324) — THE BIRD THE COOK WEIGHED. A turkey weight chosen on the plan
   // item sets the main roast's minutes (birdWeight withBirdRoast): the bird comes out
   // at the same minute before serving and the day starts earlier or later. A meal with
-  // no bird, or no weight chosen, is scheduled exactly as before.
+  // no bird is scheduled exactly as before.
+  // SERVER-8 B (D-WS9-341) — and in a plan with no weight chosen, the roast is the
+  // recipe's own weight's (FSIS's floor and all), as the meal read says it. Outside a
+  // plan item (or with two), the recipe's stored minutes, as before.
   let dishesToSchedule = schedulerDishes;
   const bird = isOwner && (meal.tags ?? []).some((t) => BIRD_MEAL_TAGS.includes(t))
     ? mealBirdOf({
@@ -292,8 +295,7 @@ export async function runCookingSequence(
       select: { birdWeightLb: true },
       take: 2,
     });
-    const lb = items.length === 1 ? items[0].birdWeightLb : null;
-    if (lb !== null) dishesToSchedule = withBirdRoast(schedulerDishes, bird, Number(lb));
+    if (items.length === 1) dishesToSchedule = withBirdRoast(schedulerDishes, bird, items[0].birdWeightLb === null ? bird.recipeLb : Number(items[0].birdWeightLb));
   }
   const scheduled = scheduleCookingSequence(dishesToSchedule, isFeast ? { feastOven: true } : {});
   const result = realIndex.size === 0 ? scheduled : {
