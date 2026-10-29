@@ -29,6 +29,8 @@ interface IngStub {
   purchaseQuantity?: number | null;
   purchaseDisplay?: string | null;
   preparationNote?: string | null;
+  // SERVER-10 C — DishIngredient.isOptional (default false).
+  isOptional?: boolean;
 }
 
 interface DishStub {
@@ -104,7 +106,7 @@ function buildPlanRow(plan: PlanStub) {
                 quantity: ing.quantity,
                 unit: ing.unit,
                 preparationNote: ing.preparationNote ?? null,
-                isOptional: false,
+                isOptional: ing.isOptional ?? false,
                 positionIndex: ii,
                 ingredient: hasIngredient
                   ? {
@@ -2455,5 +2457,69 @@ describe("consolidatePlanIngredients — BUG-537 the chosen weight on a count bi
     const bird = findItem(out, "whole turkey")!;
     assert.equal(bird.displayName, "whole turkey");
     assert.equal(bird.preparationNote, "12–14 lb, neck and giblets removed and reserved");
+  });
+});
+
+// SERVER-10 C (BUG-607): the component pool leaves an optional line as the recipe
+// wrote it. h3's minestrone: an optional parmesan rind beside 2 oz of grated
+// parmesan; the pool appended "1 wedge parmesan" for the rind alone.
+describe("SERVER-10 C (BUG-607) — an optional line is not pooled", () => {
+  const relationRows = [
+    {
+      label: "component" as const, fromCanonicalName: "parmesan", toCanonicalName: "parmesan rind",
+      yieldQuantity: 1, yieldUnit: "each", coHarvestable: true, confidence: "high" as const,
+      reviewedByHuman: true, fromDefaultUnit: "cup", fromPurchaseUnit: "wedge",
+    },
+  ];
+  const plan = (rindOptional: boolean, secondRind?: boolean): PlanStub => ({
+    items: [
+      {
+        id: "minestrone",
+        dishes: [{
+          id: "soup", title: "Minestrone", servingsDefault: 4,
+          ingredients: [
+            { name: "Parmesan rind", canonicalNameOverride: "parmesan rind", quantity: 1, unit: "each", category: "Dairy", isOptional: rindOptional, purchaseUnit: "each", purchaseQuantity: 1, purchaseDisplay: "1 wedge or block (8 oz)" },
+            { name: "finely grated Parmesan cheese", quantity: 2, unit: "ounce", category: "Dairy" },
+          ],
+        }],
+      },
+      ...(secondRind === undefined ? [] : [{
+        id: "bean-soup",
+        dishes: [{
+          id: "beans", title: "Bean soup", servingsDefault: 4,
+          ingredients: [{ name: "Parmesan rind", canonicalNameOverride: "parmesan rind", quantity: 1, unit: "each", category: "Dairy", isOptional: secondRind }],
+        }],
+      }]),
+    ],
+  });
+  const run = async (p: PlanStub) => {
+    const { buildRelationIndex } = await import("../ingredientRelations");
+    return consolidatePlanIngredients({
+      prisma: makePrisma(p), planId: TEST_PLAN, userId: TEST_USER,
+      relations: buildRelationIndex(relationRows), relationRows,
+    });
+  };
+
+  it("an optional rind stays 'Parmesan rind', for the minestrone — no parmesan wedge is appended", async () => {
+    const out = await run(plan(true));
+    assert.equal(findItem(out, "parmesan"), undefined, "no appended parent");
+    const rind = findItem(out, "parmesan rind")!;
+    assert.equal(rind.displayName, "Parmesan rind");
+    assert.equal(rind.quantity, 1);
+    assert.equal(rind.optionalOnly, true);
+    assert.deepEqual(rind.sources.map((s) => s.mealId), ["meal-minestrone"]);
+  });
+
+  it("a required rind still pools onto the parent it comes with", async () => {
+    const out = await run(plan(false));
+    assert.equal(findItem(out, "parmesan rind"), undefined);
+    assert.ok(findItem(out, "parmesan"), "the parent row the part needs");
+  });
+
+  it("one required line makes the bucket required (optional + required rind pools)", async () => {
+    const out = await run(plan(true, false));
+    assert.equal(findItem(out, "parmesan rind"), undefined);
+    const parent = findItem(out, "parmesan")!;
+    assert.deepEqual(parent.sources.map((s) => s.mealId).sort(), ["meal-bean-soup", "meal-minestrone"]);
   });
 });

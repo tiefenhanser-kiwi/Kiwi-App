@@ -136,6 +136,10 @@ export interface ConsolidatedItem {
   // migration), so the detail read re-derives it with the same pure function.
   skipGapFill?: boolean;
   recurringFacets?: RecurringFacets;
+  // SERVER-10 C (BUG-607) — every recipe line in this bucket is optional. Read by
+  // the component pool only (ingredientRelations poolComponentNeeds), which leaves
+  // such a row as the recipe wrote it. Not persisted, not sent to the model.
+  optionalOnly?: boolean;
 }
 
 export interface ConsolidateOptions {
@@ -294,6 +298,8 @@ interface EffectiveDishIngredient {
   unit: string;
   quantity: number;
   preparationNote: string | null;
+  // SERVER-10 C — DishIngredient.isOptional; an override line is never optional.
+  isOptional: boolean;
 }
 
 interface RecipeOverrideDishLite {
@@ -398,6 +404,7 @@ async function resolveOverrideIngredients(
       unit: ovr.unit ?? "",
       quantity: ovr.quantity,
       preparationNote: null,
+      isOptional: false,
     });
   }
   return out;
@@ -549,6 +556,7 @@ export async function consolidatePlanIngredients(
             unit: di.unit ?? "",
             quantity: di.quantity,
             preparationNote: di.preparationNote ?? null,
+            isOptional: di.isOptional,
           }));
 
       // THX-4 (D-WS9-324) — the turkey weight the cook chose, on its bird's dish only.
@@ -634,10 +642,13 @@ export async function consolidatePlanIngredients(
                 ? dish.title.slice(0, MAX_SOURCE_DISH_TITLE_LEN)
                 : dish.title
               : null,
+            optionalOnly: eff.isOptional,
           };
           buckets.set(key, entry);
           order.push(key);
         } else {
+          // SERVER-10 C — one required line makes the bucket required.
+          entry.optionalOnly = entry.optionalOnly === true && eff.isOptional;
           // Extend the source-dish-title list with distinct dishes
           // contributing to this bucket so the AI sees multiple cooking
           // contexts.
