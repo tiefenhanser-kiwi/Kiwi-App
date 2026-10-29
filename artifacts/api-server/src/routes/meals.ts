@@ -40,6 +40,7 @@ import { buildSwapPool, SwapSourceNotFoundError, type SwapPoolCandidate } from "
 import { everydayPoolWhere } from "../lib/store/storeShortlist";
 import { hasUnmatchedAmount, type AmountRef } from "../lib/stepAmountRefs";
 import { feastCookWordingFor, PreppedRefsSchema, weeknightCookWordingFor, type CookWording, type PreppedRef } from "../lib/feastCookWording";
+import { scaledNounsFor } from "../lib/scaledNouns";
 import { weeknightMorningFor } from "../lib/heldCookDay";
 import { applyBirdWeightToRead } from "../lib/birdWeightRead";
 import { applyFeastWeekToRead } from "../lib/feastWeek";
@@ -1185,6 +1186,35 @@ export function createMealsRouter(
           applyWording(await weeknightCookWordingFor(prisma, { planId: planIdOfItem, userId: req.userId, mealId: id, mealTags: meal.tags ?? [], prepped: req.query.prepped === "1", dishes: meal.dishes }));
         } catch (err) {
           logger.warn({ err, id, event: "weeknight_cook_wording_failed" }, "Weeknight Cook Mode wording failed — stored words served");
+        }
+        // SERVER-10 E (BUG-597) — a weeknight meal's unit-less amounts say their noun for
+        // the plan's number ("Cut 1 lime", not "1 limes"); a feast's are said by its wording
+        // above. After the wording, so a reworded step's refs are the ones agreed. Not for a
+        // recipe override (lib/scaledNouns). A failure serves the words as they are.
+        if (!(meal.tags ?? []).includes(FEAST_MEAL_TAG) && recipeOverrideJson == null) {
+          try {
+            const agreed = await scaledNounsFor(
+              prisma,
+              meal.dishes.map((d) => ({
+                dishId: d.dishId,
+                servings: d.servings,
+                authoredServingsDefault: d.authoredServingsDefault,
+                steps: d.steps.map((s) => ({ stepIndex: s.stepIndex, text: s.text, amountRefs: s.amountRefs })),
+              })),
+              servingsOverride,
+            );
+            for (const d of meal.dishes) {
+              for (const st of d.steps) {
+                const w = agreed.get(d.dishId)?.get(st.stepIndex);
+                if (!w) continue;
+                st.text = w.text;
+                st.amountRefs = w.amountRefs as AmountRef[] | null;
+                st.unmatchedAmount = hasUnmatchedAmount(w.text, w.amountRefs);
+              }
+            }
+          } catch (err) {
+            logger.warn({ err, id, event: "scaled_nouns_failed" }, "Scaled-noun agreement failed — words served as they are");
+          }
         }
       }
       // THX-3d round 2 (M) — A WEEKNIGHT'S MORNING CUT. A cut this plan's Prep the Week

@@ -62,11 +62,12 @@ export function dishScalesOf(load: Pick<LoadPrepWeekInputResult, "input">): Map<
   return out;
 }
 
-type Edit = { start: number; end: number; text: string };
+export type Edit = { start: number; end: number; text: string };
 
 /** "leaves" → "leaf", "potatoes" → "potato", "cherries" → "cherry", "jalapeños" → "jalapeño". */
 export function singularOf(w: string): string {
-  if (/leaves$/i.test(w)) return w.replace(/ves$/i, "f");
+  if (/(?:lea|loa|hal|shea)ves$/i.test(w)) return w.replace(/ves$/i, "f");
+  if (/knives$/i.test(w)) return w.replace(/ves$/i, "fe");
   if (/(?:tomato|potato)es$/i.test(w)) return w.replace(/es$/i, "");
   if (/[^aeiou]ies$/i.test(w)) return w.replace(/ies$/i, "y");
   if (/(?:ch|sh|x|ss)es$/i.test(w)) return w.replace(/es$/i, "");
@@ -121,21 +122,84 @@ export function scaleFrames(step: WordingStep, scale: DishScale | undefined): Wo
   }
   // "2 oranges" that the plan shows as 1 says "1 orange": the client changes the number,
   // the noun after it is said here ("1 bay leaf", "1 beaten egg", "1 celery stalk").
+  edits.push(...refNounEdits(step, scale.rows, edits));
+  return applyEdits(step, edits);
+}
+
+/** A row's multiplier, name and unit, by ingredient id: what a ref's shown number is. */
+export type RefRows = ReadonlyMap<string, { mult: number; name: string; unit: string }>;
+
+/** "lime" → "limes", "leaf" → "leaves", "tomato" → "tomatoes", "cherry" → "cherries". */
+export function pluralOf(w: string): string {
+  if (/^(?:anise|zucchini|broccoli|shrimp|fish|salmon|cod|tuna|lettuce|celery)$/i.test(w)) return w;
+  if (/(?:lea|loa|hal|shea)f$/i.test(w)) return w.replace(/f$/i, "ves");
+  if (/mango$/i.test(w)) return `${w}es`;
+  if (/kni(?:fe)$/i.test(w)) return w.replace(/fe$/i, "ves");
+  if (/(?:tomato|potato)$/i.test(w)) return `${w}es`;
+  if (/[^aeiou]y$/i.test(w)) return w.replace(/y$/i, "ies");
+  if (/(?:s|x|z|ch|sh)$/i.test(w)) return `${w}es`;
+  return `${w}s`;
+}
+
+const NOUN_STOP = /^(?:and|or|with|into|in|to|for|from|of|on|over|until|at|then|each|the|a|an)$/i;
+/** The words that count a food whatever its name says ("1 garlic clove", "1 celery stalk"). */
+const COUNT_NOUN = /^(?:clove|stalk|rib|sprig|leaf|head|slice|piece|strip|wedge|stick|packet|pouch|ball|half|heart|fillet|breast|thigh|yolk|white|ear|bulb)$/i;
+
+/**
+ * SERVER-10 E (BUG-597) — the noun after a unit-less amount, said for the number the
+ * plan shows. The server serves the authored text and its amountRefs; the client puts
+ * the plan's number in the ref's place and cannot re-word the prose after it, so at a
+ * scaled serving it read "1 limes", "1 eggs", "1 porterhouse steaks" (QA-COOK-1).
+ * Both directions:
+ *   - authored more than one, shown one or less: the plural head goes singular
+ *     ("2 limes" at ×0.5 → "… lime"); THX-3d round 2 (O) had this, for feasts;
+ *   - authored one or less, shown more than one: the head goes plural
+ *     ("1 lime" at ×2 → "… limes").
+ * The head is the last noun-like word within five after the number, before a joining
+ * word ("Cut 2 limes into wedges", "2 large egg yolks, beaten"). Going PLURAL, the head
+ * must also name the ref's own food or be a count noun ("1 lime, juiced", "1 garlic
+ * clove"): a sweep of the 21,140 public dish steps at ×2 showed what a bare
+ * last-word rule writes otherwise ("1 lengthwises", "1 yellows"). A ref that carries
+ * its unit ("2 cups") is the client's to agree, as it already does. `taken` are edits
+ * a caller already made: a noun inside one is left alone.
+ */
+export function refNounEdits(step: WordingStep, rows: RefRows, taken: readonly Edit[] = []): Edit[] {
+  const text = step.text;
+  const out: Edit[] = [];
   for (const r of step.amountRefs ?? []) {
-    const row = scale.rows.get(r.ingredientId);
-    if (!row || r.quantity === 1 || /[a-z]/i.test(text.slice(r.charStart, r.charEnd))) continue;
-    if (displayedPrepQuantity(r.quantity * row.mult, r.unit || row.unit, row.name) !== 1) continue;
+    const row = rows.get(r.ingredientId);
+    if (!row || /[a-z]/i.test(text.slice(r.charStart, r.charEnd))) continue;
+    const shown = displayedPrepQuantity(r.quantity * row.mult, r.unit || row.unit, row.name);
+    const toOne = r.quantity > 1 && shown <= 1;
+    const toMany = r.quantity <= 1 && shown > 1;
+    if (!toOne && !toMany) continue;
     const after = /^((?:\s+[A-Za-zÀ-ÿ'-]+){1,5})/.exec(text.slice(r.charEnd))?.[1] ?? "";
     const words = [...after.matchAll(/[A-Za-zÀ-ÿ'-]+/g)];
+    // The food's own head noun ("red bell pepper" → pepper), never a modifier of it.
+    const named = new Set(row.name.toLowerCase().split(/[,(]/)[0].split(/[^a-zà-ÿ'-]+/).filter(Boolean).slice(-1).map(singularOf));
     let head: RegExpMatchArray | undefined;
     for (const w of words) {
-      if (/^(?:and|or|with|into|in|to|for|from|of|on|over)$/i.test(w[0])) break;
-      if (/s$/i.test(w[0]) && !/(?:ss|us)$/i.test(w[0])) head = w;
+      if (NOUN_STOP.test(w[0])) break;
+      const plural = /s$/i.test(w[0]) && !/(?:ss|us)$/i.test(w[0]);
+      const own = named.has(w[0].toLowerCase()) || COUNT_NOUN.test(w[0]);
+      if (toOne ? plural : !plural && own) head = w;
     }
-    if (!head || edits.some((e) => e.start <= r.charEnd + head!.index! && r.charEnd + head!.index! < e.end)) continue;
+    if (!head) continue;
     const at = r.charEnd + head.index!;
-    edits.push({ start: at, end: at + head[0].length, text: singularOf(head[0]) });
+    if ([...taken, ...out].some((e) => e.start <= at && at < e.end)) continue;
+    out.push({ start: at, end: at + head[0].length, text: toOne ? singularOf(head[0]) : pluralOf(head[0]) });
   }
+  return out;
+}
+
+/** SERVER-10 E — a step with its unit-less amounts' nouns agreed (refNounEdits). */
+export function agreeScaledNouns(step: WordingStep, rows: RefRows): WordingStep {
+  return applyEdits(step, refNounEdits(step, rows));
+}
+
+/** The step with `edits` applied; every ref outside an edit moves with its text. */
+function applyEdits(step: WordingStep, edits: Edit[]): WordingStep {
+  const text = step.text;
   if (edits.length === 0) return step;
   edits.sort((a, b) => a.start - b.start);
   let out = "";
