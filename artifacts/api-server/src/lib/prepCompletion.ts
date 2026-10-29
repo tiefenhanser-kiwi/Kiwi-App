@@ -17,6 +17,8 @@ import type { PrepWeekResult } from "./ai/schemas/prepWeek";
 interface MinimalStep {
   stepKey: string;
   contributesToMealIds: string[];
+  /** SERVER-8 C (BUG-568) — done by a carried tick (prepStepSet), not its own key. */
+  carried?: boolean;
 }
 
 // The set of stepKeys in a freshly assembled in-memory result — the orphan-prune
@@ -67,12 +69,15 @@ export function derivePrepCompletion(
   // Build mealId → its contributing stepKeys.
   const keysByMeal = new Map<string, string[]>();
   for (const id of allMealIds) keysByMeal.set(id, []);
+  const carriedKeys = new Set<string>();
+  const isChecked = (k: string) => checkedStepKeys.has(k) || carriedKeys.has(k);
   for (const step of steps) {
     for (const mealId of step.contributesToMealIds) {
       // Only meals in the universe count; a step pointing at a since-removed
       // meal is ignored (it isn't in keysByMeal).
       const list = keysByMeal.get(mealId);
       if (list) list.push(step.stepKey);
+      if (step.carried) carriedKeys.add(step.stepKey);
     }
   }
 
@@ -91,9 +96,9 @@ export function derivePrepCompletion(
   for (const mealId of allMealIds) {
     const keys = keysByMeal.get(mealId)!;
     // Vacuous true when keys.length === 0.
-    const prepped = keys.every((k) => checkedStepKeys.has(k));
+    const prepped = keys.every(isChecked);
     perMeal[mealId] = prepped;
-    const ticked = keys.filter((k) => checkedStepKeys.has(k)).length;
+    const ticked = keys.filter(isChecked).length;
     perMealState[mealId] = keys.length === 0 ? "nothing" : ticked === keys.length ? "fully" : ticked === 0 ? "not" : "partly";
     if (keys.length === 0) continue;
     withSteps += 1;

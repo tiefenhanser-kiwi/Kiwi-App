@@ -27,12 +27,18 @@ import {
   buildCoreWeek,
   buildFeastSession,
   FEAST_KEY_PREFIX,
+  isTickable,
   tickableStepRefs,
-  type PrepStepRef,
+  type PrepStepRef as BuildStepRef,
 } from "./prepWeekBuild";
+import { cachedStepsOf, resolveTicks } from "./prepTickCarry";
 
-// Minimal per-step shape the derivation needs (matches derivePrepCompletion).
-export type { PrepStepRef };
+/**
+ * Minimal per-step shape the derivation needs (matches derivePrepCompletion).
+ * SERVER-8 C (BUG-568) — `carried`: the step's key was not ticked, but the ticks of the
+ * screen the cook ticked carry it (SERVER-7's rule, prepTickCarry), so it counts as done.
+ */
+export type PrepStepRef = BuildStepRef & { carried?: true };
 
 export interface LoadPrepStepSetParams {
   planId: string;
@@ -40,6 +46,11 @@ export interface LoadPrepStepSetParams {
   prisma: PrismaClient;
   // Injectable for tests / to reuse a router's already-wired loader.
   loadPrepWeekInput?: typeof productionLoadPrepWeekInput;
+  /**
+   * SERVER-8 C (BUG-568) — the plan's ticked stepKeys. Given, a week step a tick of
+   * the cached screen carries is returned `carried` (see PrepStepRef).
+   */
+  ticks?: Iterable<string>;
 }
 
 // WS7-8b Block 2 (D-WS7-184) — Mechanism 2 flag overlay. The AI-free recompute
@@ -128,7 +139,8 @@ export async function loadPrepStepSet(
     // `thanksgiving-feast` meal as nothing to prep. The feast's own steps come
     // from its session, under their own keys, so its Hub pill is driven by
     // "Prep the feast" and a weeknight onion tick never counts for the stuffing.
-    const core = tickableStepRefs(buildCoreWeek(loaded));
+    const week = buildCoreWeek(loaded);
+    const core = await withCarriedTicks(tickableStepRefs(week), week, loaded, params);
     const feast = buildFeastSession(loaded);
     if (!feast) return core;
     return [
@@ -147,4 +159,33 @@ export async function loadPrepStepSet(
     }
     throw err;
   }
+}
+
+/**
+ * 🔴 SERVER-8 C (BUG-568) — THE ROLLUP COUNTS THE TICKS THE WAY COOK MODE DOES. A tick is a
+ * key of the plan's CACHED Prep the Week, and an engine change re-keys steps; this
+ * rollup compared the ticks with today's build, so a stale-cache plan read "not
+ * prepped" after every step on its screen was ticked, until its Prep the Week next
+ * regenerated (SERVER-7 left it). Now a week step is done when its key was ticked, or
+ * when the ticks of the cached screen carry it (prepTickCarry resolveTicks, carrying
+ * only a step tickable today: Cook Mode's weeknightDoneSteps). The cache is read only
+ * when a tick names no step today. Feast ticks are the feast session's keys, as before.
+ */
+async function withCarriedTicks(
+  refs: PrepStepRef[],
+  week: ReturnType<typeof buildCoreWeek>,
+  loaded: Awaited<ReturnType<typeof productionLoadPrepWeekInput>>,
+  params: LoadPrepStepSetParams,
+): Promise<PrepStepRef[]> {
+  if (!params.ticks) return refs;
+  const ticked = new Set([...params.ticks].filter((k) => !k.startsWith(FEAST_KEY_PREFIX)));
+  const live = new Set(week.stepPlan.steps.map((s) => s.stepKey));
+  if (![...ticked].some((k) => !live.has(k))) return refs;
+  const cache = await params.prisma.prepWeekStructure.findUnique({ where: { planId: params.planId }, select: { structureJson: true } });
+  const { done } = resolveTicks(ticked, week.stepPlan.steps, {
+    cached: cachedStepsOf(cache?.structureJson),
+    fold: (id) => loaded.identity?.foldedIdByIngredientId.get(id) ?? id,
+    carryable: (s) => isTickable(s, week),
+  });
+  return refs.map((r) => (done.has(r.stepKey) && !ticked.has(r.stepKey) ? { ...r, carried: true as const } : r));
 }

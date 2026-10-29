@@ -2635,3 +2635,30 @@ describe("GET /api/plans/:planId/prep-week/structure (J.1b)", () => {
     }
   });
 });
+
+// SERVER-8 C (BUG-568) — GET completions counts ticks as Cook Mode does: an older engine's
+// key for the dish's cut (produce#dish#<dish>, a screen since re-keyed) carries today's
+// onion step, so the meal reads prepped without a regenerate.
+describe("SERVER-8 C — completions: a stale screen's tick carries today's step", () => {
+  it("an old dish-scoped produce key ticked: perMeal true, the rollup prepped", async () => {
+    const cache = completionHarness();
+    const harness = await spinCompletion(cache);
+    try {
+      const token = signToken(COMPLETION_OWNER);
+      const put = await fetch(completionUrl(harness.baseUrl), {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ stepKey: "produce#dish#dddddddd-dddd-4ddd-8ddd-000000000000" }),
+      });
+      assert.equal(put.status, 200);
+      const read = (await (await fetch(completionUrl(harness.baseUrl), { headers: { Authorization: `Bearer ${token}` } })).json()) as {
+        perMeal: Record<string, boolean>;
+        derivedPrepStatus: string;
+      };
+      assert.equal(read.perMeal[MEAL_ID_X], true);
+      assert.equal(read.derivedPrepStatus, "prepped");
+    } finally {
+      await harness.close();
+    }
+  });
+});

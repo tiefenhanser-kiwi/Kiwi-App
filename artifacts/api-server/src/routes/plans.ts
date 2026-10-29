@@ -546,6 +546,8 @@ export function createPlansRouter(
         planId: instance.id,
         userId,
         prisma,
+        // SERVER-8 C (BUG-568) — a stale cache's ticks carried, as Cook Mode counts them.
+        ticks: completionRows.map((r) => r.stepKey),
       });
       const { perMeal, perMealState, derivedPrepStatus } = derivePrepCompletion(
         allMealIds,

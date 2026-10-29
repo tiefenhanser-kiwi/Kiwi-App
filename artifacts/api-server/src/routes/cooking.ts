@@ -833,6 +833,8 @@ export function createCookingRouter(
         userId,
         prisma,
         loadPrepWeekInput,
+        // SERVER-8 C (BUG-568) — a stale cache's ticks carried, as Cook Mode counts them.
+        ticks: rows.map((r) => r.stepKey),
       });
       const checkedKeys = new Set(rows.map((r) => r.stepKey));
       const { perMeal, derivedPrepStatus } = derivePrepCompletion(

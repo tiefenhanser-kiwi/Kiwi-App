@@ -1549,6 +1549,41 @@ describe("GET /plans/:id — composite Plan Review", () => {
       }
     });
 
+    // SERVER-8 C (BUG-568) — the step set gets the plan's ticks, and a step their cached
+    // screen carries (prepStepSet `carried`) counts as checked, as Cook Mode counts it.
+    it("SERVER-8 C — the ticks reach the step set; a carried step counts as checked", async () => {
+      let seen: string[] | undefined;
+      const harness = await a2SpinUp(
+        makeA2Stub({
+          instances: [
+            instanceFix({
+              id: "p-carry",
+              name: "Carry Plan",
+              completions: ["produce#onion", "sauces_marinades#beef"],
+              items: [
+                { id: "it-x", mealId: "meal-x", positionIndex: 0, assignedDayOfWeek: null },
+                { id: "it-y", mealId: "meal-y", positionIndex: 1, assignedDayOfWeek: null },
+              ],
+            }),
+          ],
+          meals: [mealFix("meal-x", "Tacos", 500), mealFix("meal-y", "Fajitas", 450)],
+        }),
+        (async (params: { ticks?: Iterable<string> }) => {
+          seen = params.ticks ? [...params.ticks] : undefined;
+          return [STEP_ONION, { ...STEP_BEEF, carried: true }];
+        }) as never,
+      );
+      try {
+        const body = await getPlan(harness, "p-carry");
+        assert.deepEqual(seen?.sort(), ["produce#onion", "sauces_marinades#beef"]);
+        assert.equal(body.plan.items.find((i) => i.mealId === "meal-x")!.isPrepped, true);
+        assert.equal(body.plan.items.find((i) => i.mealId === "meal-x")!.prepState, "fully");
+        assert.equal(body.plan.prepStatus, "prepped");
+      } finally {
+        await harness.close();
+      }
+    });
+
     it("all contributing steps checked → every item prepped, rollup prepped", async () => {
       const harness = await a2SpinUp(
         makeA2Stub({
