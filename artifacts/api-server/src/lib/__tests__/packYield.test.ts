@@ -364,9 +364,83 @@ describe("[grocery] B1 — a part never buys its own line", () => {
       idx,
     );
     assert.equal(res.items.length, 1, "three rows become one");
-    assert.equal(res.items[0].quantity, 4 / 3, "the NEED is untouched — the parts ride free");
+    // SERVER-10 A (BUG-605): the stems ride free; the leaves are what a cup of
+    // cilantro IS (2 cups a bunch either way), so they add to the need.
+    assert.equal(res.items[0].quantity, 4 / 3 + 0.5, "the leaves add; the stems ride free");
     assert.equal(res.items[0].packFloor, 1);
     assert.equal(packLine(res.items[0]), "1 bunch", "one bunch, not three");
+  });
+
+  describe("SERVER-10 A (BUG-605) — a part that IS the parent's measure adds to its need", () => {
+    const basilIndex = buildRelationIndex([
+      rel({ fromCanonicalName: "fresh basil", toCanonicalName: "fresh basil leaves", yieldQuantity: 2, yieldUnit: "cup", fromDefaultUnit: "bunch" }),
+    ]);
+    const src = (mealId: string) => [{ mealId, dishId: `dish-${mealId}`, servings: 4, ingredientSignature: "s" }];
+    const basil = (quantity: number, mealId: string) =>
+      row({
+        canonicalName: "fresh basil", quantity, unit: "cup", sources: src(mealId),
+        purchaseUnit: "bunch", purchaseQuantity: 1, purchaseDisplay: "1 bunch", packYieldUnit: "cup", packYieldPerPack: 2,
+      });
+    const leaves = (quantity: number, mealId: string, unit = "cup") =>
+      row({ canonicalName: "fresh basil leaves", quantity, unit, sources: src(mealId), purchaseUnit: "bunch", purchaseQuantity: 1, purchaseDisplay: "1 bunch" });
+
+    it("h3: ½ cup basil (ratatouille) + ¼ cup basil leaves (salmon salad) = ¾ cup, for both meals", () => {
+      const res = poolComponentNeeds([basil(0.5, "ratatouille"), leaves(0.25, "salmon")], basilIndex);
+      assert.equal(res.items.length, 1);
+      assert.equal(res.items[0].quantity, 0.75, "the sum, not the ratatouille's half cup");
+      assert.deepEqual(res.items[0].sources.map((s) => s.mealId), ["ratatouille", "salmon"]);
+      assert.equal(res.items[0].packFloor, null, "no part rode free, so no floor");
+      assert.equal(res.folds[0].addedToNeed, 0.25);
+      assert.equal(res.folds[0].ridesFree, false);
+      assert.equal(packLine(res.items[0]), "1 bunch");
+    });
+
+    it("past one bunch's yield the sum buys two (2 cups + ½ cup leaves)", () => {
+      const res = poolComponentNeeds([basil(2, "a"), leaves(0.5, "b")], basilIndex);
+      assert.equal(res.items[0].quantity, 2.5);
+      assert.equal(packLine(res.items[0]), "2 bunches", "before, ½ cup of leaves rode free on 2 cups: one bunch for 2½ cups");
+    });
+
+    it("leaves in tablespoons are stated in the row's cups", () => {
+      const res = poolComponentNeeds([basil(0.5, "a"), leaves(4, "b", "tablespoon")], basilIndex);
+      assert.equal(res.items[0].quantity, 0.75);
+    });
+
+    it("leaves that cannot reach the row's unit DECLINE: both rows stay, nothing is lost", () => {
+      const res = poolComponentNeeds([basil(0.5, "a"), leaves(16, "b", "each")], basilIndex);
+      assert.equal(res.items.length, 2);
+      assert.equal(res.items.find((i) => i.canonicalName === "fresh basil")!.quantity, 0.5);
+      assert.match(res.declines[0].reason, /what a measure of "fresh basil" means/);
+    });
+
+    it("a different part still rides free (a yield unlike the row's own: stems 0.75 cup a bunch)", () => {
+      const idx = buildRelationIndex([
+        rel({ fromCanonicalName: "fresh cilantro", toCanonicalName: "fresh cilantro stems", yieldQuantity: 0.75, yieldUnit: "cup", fromDefaultUnit: "bunch" }),
+      ]);
+      const res = poolComponentNeeds(
+        [cilantro(1, "cup"), row({ canonicalName: "fresh cilantro stems", quantity: 0.25, unit: "cup", purchaseUnit: "bunch", sources: src("b") })],
+        idx,
+      );
+      assert.equal(res.items[0].quantity, 1, "the need is untouched");
+      assert.equal(res.items[0].packFloor, 1);
+      assert.deepEqual(res.items[0].sources.map((s) => s.mealId), ["b"], "but the stems' meal is still named");
+    });
+
+    it("a topped-up and an appended parent name every absorbed part's meal", () => {
+      const lemonIndex = buildRelationIndex([
+        rel({ fromCanonicalName: "lemon", toCanonicalName: "lemon juice", yieldQuantity: 3, yieldUnit: "tbsp", coHarvestable: true }),
+        rel({ fromCanonicalName: "lemon", toCanonicalName: "lemon zest", yieldQuantity: 1, yieldUnit: "tbsp", coHarvestable: true }),
+      ]);
+      const lemon = (n: number, u: string, name: string, mealId: string) =>
+        row({ canonicalName: name, quantity: n, unit: u, sources: src(mealId), purchaseUnit: "each", purchaseQuantity: 1, purchaseDisplay: "1 lemon" });
+      const topped = poolComponentNeeds([lemon(2, "each", "lemon", "a"), lemon(3, "tbsp", "lemon juice", "b")], lemonIndex);
+      assert.deepEqual(topped.items[0].sources.map((s) => s.mealId), ["a", "b"]);
+      const juice = lemon(3, "tbsp", "lemon juice", "c");
+      const appended = poolComponentNeeds([juice, lemon(1, "tbsp", "lemon zest", "d")], lemonIndex);
+      const parent = appended.items.find((i) => i.canonicalName === "lemon")!;
+      assert.deepEqual(parent.sources.map((s) => s.mealId), ["c", "d"]);
+      assert.deepEqual(juice.sources.map((s) => s.mealId), ["c"], "the child's own array is not changed under it");
+    });
   });
 
   it("an EXCLUSIVE slot against an off-basis parent DECLINES, and says so", () => {
