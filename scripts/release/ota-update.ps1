@@ -89,7 +89,7 @@ $ErrorActionPreference = 'Stop'
 # -Runtime's ValidateSet lists the same keys.
 $script:Binaries = [ordered]@{
   '1.1.0' = @{ Commit = '216b2a0'; Branch = 'release/1.1'; Builds = 'Android vc5, iOS build 8' }
-  '1.2.0' = @{ Commit = $null; Branch = 'next'; Builds = 'not built yet' }
+  '1.2.0' = @{ Commit = '0a0403e'; Branch = 'next'; Builds = 'Android vc6, iOS build 12' }
 }
 $script:BinaryCommit = $script:Binaries[$Runtime].Commit
 $script:RuntimeBranch = $script:Binaries[$Runtime].Branch
