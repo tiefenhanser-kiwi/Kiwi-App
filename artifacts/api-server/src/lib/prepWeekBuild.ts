@@ -31,6 +31,7 @@ import { buildPrepCombineInput } from "./prepCombineAdapter";
 import { containerUses, feastClosingLines, stepDayOf } from "./prepFeastClose";
 import { proseNames } from "./prepMoments";
 import { ingredientGroupKey } from "./ingredientRelations";
+import { foodOf, namedFoods } from "./prepFoods";
 import { combinePrep, MIX_STAPLE } from "./prepCombineEngine";
 import { cutOf } from "./prepClasses";
 import { CUT_AT_THE_STEP } from "./heldMorning";
@@ -96,6 +97,8 @@ export interface PrepWeekBuild {
    * plate", "Monday marinade", "Minced garlic"), put on at finish (never cached in prose).
    */
   weekLabels?: ReturnType<typeof weekLabelMap>;
+  /** The feast session's build ("Prep the feast"), not a week's. */
+  feast?: true;
 }
 
 export interface BuildPrepWeekOptions {
@@ -390,9 +393,9 @@ export function buildPrepWeekPlan(load: Load, opts: BuildPrepWeekOptions = {}): 
     storageContexts,
     holds,
     heldLines: heldLinesFor(stepPlan, holds, cookDays, mealNameById, dayOf, weekLabels?.map),
-    ...(opts.feast ? feastFacts(stepPlan, input, combineInput, cookDays, dayOf) : { weekLabels }),
+    ...(opts.feast ? { ...feastFacts(stepPlan, input, combineInput, cookDays, dayOf), feast: true as const } : { weekLabels }),
   };
-  assignCoversCookSteps(build, load);
+  assignCoversCookSteps(build, load, opts.feast ? { feast: true } : {});
   return build;
 }
 
@@ -871,10 +874,19 @@ export function dropHeldCuts(opening: string, before: PrepNarrationComponent[], 
  */
 export function finishPrepWeek(result: PrepWeekResult, build: PrepWeekBuild): PrepWeekResult {
   const byKey = new Map(build.stepPlan.steps.map((s) => [s.stepKey, s]));
+  // SERVER-12 A — a week's links are today's, like its holds: a cached step carries the
+  // links of the build that narrated it, so a link rule (BUG-626) or a hold that moved
+  // since never reached a warm cache. (The feast session's stay as narrated: frozen.)
+  const linked = (w: PrepWeekStep, planned: PlannedStep): PrepWeekStep => {
+    if (build.feast) return w;
+    const { coversCookSteps: _was, ...rest } = w;
+    return planned.coversCookSteps?.length ? { ...rest, coversCookSteps: planned.coversCookSteps } : rest;
+  };
   const steps = (phase: PrepWeekResult["phases"][number]) =>
-    phase.steps.map((w): PrepWeekStep => {
-      const planned = byKey.get(w.stepKey);
-      if (!planned) return w;
+    phase.steps.map((cached): PrepWeekStep => {
+      const planned = byKey.get(cached.stepKey);
+      if (!planned) return cached;
+      const w = linked(cached, planned);
       const h = build.holds.get(w.stepKey);
       if (h?.all) {
         const names = [...new Set(planned.components.map((c) => c.ingredientName))];
@@ -954,8 +966,21 @@ export function finishPrepWeek(result: PrepWeekResult, build: PrepWeekBuild): Pr
  *
  * The amountRef ids are the dish's own; the step plan's are the plan's folded food
  * identity, so the join goes through `identity` exactly as combinePrep did.
+ *
+ * 🔴 SERVER-12 A (BUG-626) — AND THE FOODS ITS WORDS NAME. A food the text names
+ * without an amount has no amountRef: "Finely dice the yellow onion and set aside"
+ * linked to nothing, and "Finely dice the yellow onion and mince the remaining 2
+ * garlic cloves" only to the garlic, so ticking the onion folded nothing and drew
+ * no chip (INV-626). A step is also covered when every food its words name (the
+ * app's own matching, prepFoods.ts namedFoods) and every food its amountRefs name
+ * is in a tickable prep step; then each of those prep steps lists it. Still all or
+ * nothing: one named food nobody prepped and the words link nothing (the refs keep
+ * their own rule). The app folds a covered step only when every covering step is
+ * ticked and their words say each food, so the rule that every named food is prepped
+ * first holds on both sides. Not in the feast: its Cook Mode is worded from its own
+ * session ("Skip if you prepped"), and Thanksgiving's structure is frozen.
  */
-function assignCoversCookSteps(build: PrepWeekBuild, load: Pick<Load, "input" | "identity">): void {
+function assignCoversCookSteps(build: PrepWeekBuild, load: Pick<Load, "input" | "identity">, opts: { feast?: boolean } = {}): void {
   const folded = (id: string) => load.identity?.foldedIdByIngredientId.get(id) ?? id;
   const stepsByPortion = new Map<string, PlannedStep[]>();
   for (const st of build.stepPlan.steps) {
@@ -976,11 +1001,20 @@ function assignCoversCookSteps(build: PrepWeekBuild, load: Pick<Load, "input" | 
   for (const meal of load.input.meals) {
     if (!inPlan.has(meal.mealId)) continue;
     for (const dish of meal.dishes) {
+      const stepsOf = (id: string) => stepsByPortion.get(`${meal.mealId}|${dish.dishId}|${folded(id)}`) ?? [];
       for (const cs of dish.componentSteps) {
-        if (cs.phaseType !== "prep" || cs.ingredientIds.length === 0) continue;
-        const covering = cs.ingredientIds.map((id) => stepsByPortion.get(`${meal.mealId}|${dish.dishId}|${folded(id)}`));
-        if (covering.some((l) => !l || l.length === 0)) continue;
-        for (const st of new Set(covering.flat() as PlannedStep[])) {
+        if (cs.phaseType !== "prep") continue;
+        const covering = cs.ingredientIds.map(stepsOf);
+        const byRefs = covering.length > 0 && covering.every((l) => l.length > 0);
+        // A named food is covered when one of the dish's rows of it is ("garlic" and
+        // "garlic cloves" are one food to the app).
+        const named = opts.feast ? [] : namedFoods(cs.text, dish.ingredients.map((i) => i.ingredientName)).map((f) =>
+          dish.ingredients
+            .filter((i) => { const o = foodOf(i.ingredientName); return !!o && o.head === f.head && o.before === f.before; })
+            .flatMap((i) => stepsOf(i.ingredientId)));
+        const byWords = named.length > 0 && named.every((l) => l.length > 0) && covering.every((l) => l.length > 0);
+        if (!byRefs && !byWords) continue;
+        for (const st of new Set([...covering.flat(), ...(byWords ? named.flat() : [])])) {
           const list = (st.coversCookSteps ??= []);
           if (!list.some((x) => x.mealId === meal.mealId && x.dishId === dish.dishId && x.stepIndex === cs.stepIndex)) {
             list.push({ mealId: meal.mealId, dishId: dish.dishId, stepIndex: cs.stepIndex });

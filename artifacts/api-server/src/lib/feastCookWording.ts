@@ -151,10 +151,13 @@ export async function weeknightCookWordingFor(
     }
   }
   for (const [k, keys] of coveringBy) {
-    if (!keys.every((x) => done.has(x))) continue;
     const [dishId, index] = k.split("|");
     const f = facts.get(dishId) ?? { dishId, mixes: [], cuts: [] };
-    facts.set(dishId, { ...f, covered: new Set([...(f.covered ?? []), Number(index)]) });
+    // SERVER-12 A — a step a ticked prep step links: the app draws its chip (prepChips).
+    if (keys.some((x) => done.has(x))) facts.set(dishId, { ...f, linked: new Set([...(f.linked ?? []), Number(index)]) });
+    if (!keys.every((x) => done.has(x))) continue;
+    const g = facts.get(dishId)!;
+    facts.set(dishId, { ...g, covered: new Set([...(g.covered ?? []), Number(index)]) });
   }
   const rows = await prisma.dishIngredient.findMany({
     where: { dishId: { in: args.dishes.map((d) => d.dishId) } },
@@ -167,7 +170,8 @@ export async function weeknightCookWordingFor(
     const countOf = (r: WordingRef) => r.quantity * (scale?.rows.get(r.ingredientId)?.mult ?? (scale ? scale.servings / scale.authoredServings : 1));
     const after = rewordFeastSteps(before, rows.filter((r) => r.dishId === d.dishId).map((r) => ({ ingredientId: r.ingredientId, name: r.ingredient.canonicalName })), facts.get(d.dishId), titles, { weeknight: true, countOf });
     after.forEach((a, i) => {
-      if (a.text === before[i].text) return;
+      // (SERVER-12 A — a step whose words stay can still carry its chip.)
+      if (a.text === before[i].text && !a.preppedRefs?.length) return;
       if (!out.has(d.dishId)) out.set(d.dishId, new Map());
       out.get(d.dishId)!.set(a.stepIndex, { text: a.text, amountRefs: a.amountRefs, ...(a.preppedRefs?.length ? { preppedRefs: a.preppedRefs } : {}) });
     });
@@ -204,6 +208,11 @@ export interface FeastDishFacts {
    * prep step covering it ticked). Their words are left as they are.
    */
   covered?: ReadonlySet<number>;
+  /**
+   * SERVER-12 A — a week's: the dish's steps a ticked prep step links (coversCookSteps),
+   * folded or not. Cook Mode draws their chips from the link (cookSession prepChips).
+   */
+  linked?: ReadonlySet<number>;
 }
 
 /**
@@ -1121,5 +1130,22 @@ export function rewordFeastSteps(
     }
     return out;
   };
-  return keptWhole(worded.map((s) => renamedUse(dropPrepped(s))));
+
+  // ── SERVER-12 A — THE CHIP FOLLOWS THE FOOD, NOT THE WORDING ─────────────────────────
+  // "You prepped this · Diced yellow onion" came only with a rewording: "add the diced onion"
+  // (a shared tub the step works) had it, "sauté the sliced onion" (a plate's pile, said as
+  // written) did not, though the cook had sliced it on Sunday. Each cut the cook ticked is
+  // now chipped where the dish first uses it: the first step naming the food that way which
+  // no ticked prep step links (a linked step's chip is the app's, from the link itself).
+  const firstUse = new Map<number, (PreppedRef | null)[]>();
+  /** The cut a step asks of a mention: its cut words, and a cut verb just before it ("Dice the onion"). */
+  const asked = (s: WordingStep, m: Mention) => [...m.cut, ...s.text.slice(0, m.start).trim().split(/\s+/).slice(-3).map((w) => w.toLowerCase()).filter((w) => CUT_WORDS.includes(w))];
+  for (const c of facts.cuts) {
+    if (!c.into) continue;
+    const at = ordered.find((s) => !facts.covered?.has(s.stepIndex) && !facts.linked?.has(s.stepIndex) && !CODE_WRITTEN.test(s.text) &&
+      (mentionsBy.get(s.stepIndex) ?? []).some((m) => cutsOf(m).includes(c) && asked(s, m).every((w) => c.note.includes(w))));
+    if (at) firstUse.set(at.stepIndex, [...(firstUse.get(at.stepIndex) ?? []), refOf(c.into, c.containerId)]);
+  }
+  const chipped = (s: WordingStep) => (firstUse.has(s.stepIndex) ? withRefs(s, firstUse.get(s.stepIndex)!) : s);
+  return keptWhole(worded.map((s) => renamedUse(dropPrepped(s)))).map(chipped);
 }
