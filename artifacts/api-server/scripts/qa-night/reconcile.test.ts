@@ -293,6 +293,26 @@ test("R4 counts one food by the server's identity: fresh parsley and flat-leaf p
   assert.deepEqual(reconcileR4("t", chop("2¼"), bare).findings.map((f) => f.signature), ["R4:prep-exceeds-recipe:flat-leaf parsley"]);
 });
 
+test("R8 reads a count's noun as Cook Mode shows it, scaled by the app (QA-8, BUG-597)", () => {
+  const limes = (text: string, servingsOverride: number | null): PlanMeal => ({
+    planItemId: "item-l", mealId: "meal-l", title: "Fish Tacos", aliases: ["Fish Tacos"], servingsOverride, birdWeightLb: null, isFeast: false,
+    dishes: [{
+      dishId: "d-l", title: "Fish Tacos", servings: 2, defaultServings: 2,
+      ingredients: [{ name: "lime", quantity: 1, unit: "", isOptional: false }, { name: "olive oil", quantity: 2, unit: "tablespoon", isOptional: false }],
+      steps: [{ stepIndex: 0, text, estimatedMinutes: 2, phaseType: "prep", amountRefs: [{ ingredientId: "i-lime", quantity: 1, unit: "", charStart: 4, charEnd: 5 }] }],
+    }],
+  });
+  const sigs = (m: PlanMeal) => reconcileR8("t", { meal: m, sequence: null, sequenceTotalMinutes: null, cardTotalMinutes: null }).findings.map((f) => f.signature).filter((s) => s.startsWith("R8:scaled"));
+  // The server agrees the noun for the plan's number (SERVER-10 E): "1 limes" in the text shows "2 limes".
+  assert.deepEqual(sigs(limes("Cut 1 limes, juiced.", 4)), []);
+  assert.deepEqual(sigs(limes("Cut 1 lime, juiced.", null)), []);
+  assert.deepEqual(sigs(limes("Cut 1 lime, juiced.", 4)), ["R8:scaled-noun-disagrees:lime"]);
+  assert.deepEqual(sigs(limes("Cut 1 limes, juiced.", null)), ["R8:scaled-noun-disagrees:lime"]);
+  // The proof run's false hits: the number counts the part after the food ("3 garlic cloves", "4 celery stalks").
+  const parts = limes("Cut 1 lime wedges.", 4);
+  assert.deepEqual(sigs(parts), []);
+});
+
 // ── R12 ─────────────────────────────────────────────────────────────────────
 
 const pepperSteak = (): PlanMeal => ({

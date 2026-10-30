@@ -8,12 +8,16 @@
 //     else is counted "not comparable", never guessed.
 //   • prepped Cook Mode wording is read-time (GET /meals/:id?planItemId), and a
 //     cook step's link to prep is the week build's `coversCookSteps`.
+import * as amountNs from "../../../kiwi/lib/cooking/amountSegments";
 import { ingredientGroupKey } from "../../src/lib/ingredientRelations";
 import { ovenTempOf } from "../thx2/thx2Oven";
 import { appFold, type FoldInput, planFold } from "./appFold";
 
 import { dishFactor, type Finding, type GroceryRow, type PlanMeal, type PrepSession, type PrepStep, type RecipeIngredient, type RecipeStep, type RuleResult, type Severity } from "./types";
-import { comparable, foodKey, foodWords, FORMS, headNoun, normName, parseQty, sameFood } from "./units";
+import { comparable, familyOf, foodKey, foodWords, FORMS, headNoun, normName, parseQty, sameFood } from "./units";
+
+// The kiwi package is CommonJS to tsx: read it through its namespace (appFold.ts does the same).
+const { buildAmountRefSegments } = ((amountNs as { default?: typeof amountNs }).default ?? amountNs);
 
 const LABEL_KEYS = new Set(["week-labels", "feast#feast-labels"]);
 const isLabelStep = (s: PrepStep) => LABEL_KEYS.has(s.stepKey) || /^Label \d+ containers?\b/.test(s.title);
@@ -642,6 +646,35 @@ export function reconcileR8(household: string, ev: CookModeEvidence): RuleResult
       if (!re.test(dishText) && !re.test(allText) && !anyWord) {
         findings.push(finding("R8", "ingredient-unused", normName(ing.name), "low", household,
           `${m.title} · ${d.title}: "${ing.name}" is in the ingredients but no Cook Mode step names it`, { meal: m.title }));
+      }
+    }
+  }
+  // e. QA-8 (BUG-597): a count's noun agrees with the number Cook Mode SHOWS. The screen
+  // swaps each amount for the scaled one (the app's buildAmountRefSegments), so "Cut 1 lime"
+  // at ×2 must read "2 limes", and "1 limes" is the bug back.
+  for (const d of m.isFeast ? [] : m.dishes) {
+    const f = factorOf(m, d);
+    const heads = new Set(d.ingredients.map((i) => headNoun(i.name)).filter((h): h is string => !!h));
+    for (const s of d.steps) {
+      const refs = (s.amountRefs ?? []).filter((r) => r.charStart !== undefined && r.charEnd !== undefined);
+      if (refs.length === 0) continue;
+      const segs = buildAmountRefSegments(s.text, refs as never, f) as { text: string; isRef: boolean }[];
+      for (const [i, seg] of segs.entries()) {
+        // A unit-less count renders as the bare number ("2"); one with a unit ("2 tablespoons") does not parse.
+        const shown = seg.isRef ? parseQty(seg.text.trim()) : null;
+        const [, word = "", next = ""] = /^\s+([A-Za-z]+)(?:\s+([A-Za-z]+))?/.exec(segs[i + 1]?.text ?? "") ?? [];
+        if (shown === null || !word) continue;
+        // "3 garlic cloves", "8 bread slices": the number counts the part after the food, which carries the plural.
+        if (next && (FORMS.has(normName(next)) || familyOf(next) === "count")) continue;
+        // Only the food's own noun: "1 lime", not "1 small" or "2 more".
+        const head = normName(word);
+        if (!heads.has(head)) continue;
+        checked++;
+        const plural = word.toLowerCase() !== head && /e?s$/i.test(word);
+        if ((shown === 1 && plural) || (shown >= 2 && !plural)) {
+          findings.push(finding("R8", "scaled-noun-disagrees", head, "low", household,
+            `${m.title} · ${d.title}: Cook Mode shows "${seg.text.trim()} ${word}" (step ${s.stepIndex}: "${s.text.slice(0, 90)}")`, { meal: m.title, step: `${short(d.dishId)}#${s.stepIndex}` }));
+        }
       }
     }
   }

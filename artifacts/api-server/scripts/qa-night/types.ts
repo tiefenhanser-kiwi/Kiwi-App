@@ -91,7 +91,7 @@ export interface RecipeStep {
   /** D-WS9-239 intra-dish overlap token: steps that share one may run in either order. */
   parallelGroup?: string | null;
   /** The step's amount spans (the AUTHORED literal; the app scales it at render). R12 reads them. */
-  amountRefs?: { ingredientId: string; quantity: number; unit: string }[];
+  amountRefs?: { ingredientId: string; quantity: number; unit: string; charStart?: number; charEnd?: number }[];
 }
 
 export interface RecipeDish {

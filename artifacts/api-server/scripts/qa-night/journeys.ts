@@ -636,7 +636,7 @@ export function toPlanMeal(item: any, m: any, isFeast: boolean): PlanMeal {
       defaultServings: d.servings,
       isBirdDish: feast && (d.ingredients as any[]).some((i) => BIRD.test(i.name) && !NOT_BIRD.test(i.name)),
       ingredients: (d.ingredients as any[]).map((i) => ({ name: i.name, quantity: Number(i.quantity), unit: i.unit ?? "", isOptional: !!i.isOptional })),
-      steps: (d.steps as any[]).map((s) => ({ stepIndex: s.stepIndex, text: s.text, estimatedMinutes: s.estimatedMinutes, phaseType: s.phaseType, parallelGroup: s.parallelGroup ?? null, ...(s.preppedRefs ? { preppedRefs: s.preppedRefs } : {}) })),
+      steps: (d.steps as any[]).map((s) => ({ stepIndex: s.stepIndex, text: s.text, estimatedMinutes: s.estimatedMinutes, phaseType: s.phaseType, parallelGroup: s.parallelGroup ?? null, ...(s.preppedRefs ? { preppedRefs: s.preppedRefs } : {}), ...(s.amountRefs ? { amountRefs: s.amountRefs } : {}) })),
     })),
   };
 }
