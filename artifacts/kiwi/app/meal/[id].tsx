@@ -328,11 +328,16 @@ function MealDetailContent({
   const stepFactor = new Map<MealStep, number>();
   // WEB-4c (BUG-462) — and its dish's parts and equipment factors.
   const stepBirds = new Map<MealStep, BirdLine>();
+  // CLIENT-8 B (BUG-618) — the foods a scaled count's noun may name: its dish's
+  // (meal-owned steps: every dish's).
+  const stepFoods = new Map<MealStep, string[]>();
+  const mealFoods = meal.dishes.flatMap((d) => d.ingredients.map((i) => i.name));
   if (meal.steps.length === 0) {
     for (const dish of meal.dishes) {
       for (const st of dish.steps) {
         stepFactor.set(st, scale.byDish[dish.dishId]);
         stepBirds.set(st, scale.birds[dish.dishId]);
+        stepFoods.set(st, dish.ingredients.map((i) => i.name));
       }
     }
   }
@@ -372,6 +377,7 @@ function MealDetailContent({
               said(step).amountRefs ?? step.amountRefs,
               stepFactor.get(step) ?? scale.mealOwned,
               stepBirds.get(step) ?? scale.mealOwnedBirds,
+              stepFoods.get(step) ?? mealFoods,
             ).map(
               (seg, i) =>
                 seg.isRef ? (

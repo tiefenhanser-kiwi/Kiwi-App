@@ -213,6 +213,11 @@ export default function CookSession() {
     () => (mealId && mealQuery.data ? mealScaleFactors(mealQuery.data.dishes, amountMultiplier, isFeastMeal(mealQuery.data.tags), mealQuery.data.birdWeightLb) : null),
     [mealId, mealQuery.data, amountMultiplier],
   );
+  // CLIENT-8 B (BUG-618) — each dish's foods, for a scaled count's noun.
+  const dishFoods = useMemo(
+    () => Object.fromEntries((mealQuery.data?.dishes ?? []).map((d) => [d.dishId, d.ingredients.map((i) => i.name)])),
+    [mealQuery.data],
+  );
 
   // ── Prep gate (read-only) ──────────────────────────────────────────────────
   const wantPlan = planId.length > 0 && planItemId.length > 0;
@@ -423,6 +428,7 @@ export default function CookSession() {
       dishAmountMultipliers={amountScale?.byDish}
       dishBirds={amountScale?.birds}
       mealOwnedBirds={amountScale?.mealOwnedBirds}
+      dishFoods={dishFoods}
       currentIndex={safeIndex}
       prepped={prepped}
       showSkipBar={showSkipBar}

@@ -266,7 +266,8 @@ describe("WEB-4 — eggs, yolks and whites round to the nearest whole, halves up
     assert.equal(row.line, "1 Large egg");
     assert.equal(row.note, "recipe calls for ¾ at 1 serving");
     const segs = buildAmountRefSegments("Whisk 3 large eggs.", [{ ingredientId: "i", quantity: 3, unit: "", charStart: 6, charEnd: 7 }], 0.25);
-    assert.deepEqual(segs.map((x) => x.text), ["Whisk ", "1", " large eggs."]);
+    // CLIENT-8 B (BUG-618) — and the noun after it is said for the 1.
+    assert.deepEqual(segs.map((x) => x.text), ["Whisk ", "1", " large egg."]);
   });
 });
 

@@ -104,6 +104,9 @@ interface Props {
    *  with no dishId, or a dish not listed, uses `mealOwnedBirds` (else 1 each). */
   dishBirds?: Readonly<Record<string, BirdLine>>;
   mealOwnedBirds?: BirdLine;
+  /** CLIENT-8 B (BUG-618) — each dish's ingredient names, by dishId: the foods a
+   *  scaled count's noun may name. A step with no dishId takes every dish's. */
+  dishFoods?: Readonly<Record<string, readonly string[]>>;
   currentIndex: number;
   /** Prepped path → render the mise-en-place recap card above the steps. */
   prepped: boolean;
@@ -147,18 +150,20 @@ function StepText({
   amountRefs,
   amountMultiplier,
   birds,
+  foods,
   style,
 }: {
   text: string;
   amountRefs?: AmountRef[] | null;
   amountMultiplier: number;
   birds?: BirdLine;
+  foods?: readonly string[];
   style: object;
 }) {
   if (amountRefs && amountRefs.length > 0) {
     return (
       <Text style={style}>
-        {buildAmountRefSegments(text, amountRefs, amountMultiplier, birds).map((seg, i) =>
+        {buildAmountRefSegments(text, amountRefs, amountMultiplier, birds, foods).map((seg, i) =>
           seg.isRef ? (
             <Text key={i} style={s.quantity}>
               {seg.text}
@@ -184,6 +189,7 @@ export function CookSessionView({
   dishAmountMultipliers,
   dishBirds,
   mealOwnedBirds,
+  dishFoods,
   currentIndex,
   prepped,
   showSkipBar,
@@ -206,6 +212,8 @@ export function CookSessionView({
     (step.dishId !== undefined ? dishAmountMultipliers?.[step.dishId] : undefined) ?? amountMultiplier;
   const stepBirds = (step: CookStep): BirdLine | undefined =>
     (step.dishId !== undefined ? dishBirds?.[step.dishId] : undefined) ?? mealOwnedBirds;
+  const stepFoods = (step: CookStep): readonly string[] =>
+    (step.dishId !== undefined ? dishFoods?.[step.dishId] : undefined) ?? Object.values(dishFoods ?? {}).flat();
 
   // ── Per-step timers (keyed by stable step.key, NOT index — survives the
   // prep-gate re-filter). State + the 1s tick + the completion haptic live in
@@ -443,6 +451,7 @@ export function CookSessionView({
                     amountRefs={step.amountRefs}
                     amountMultiplier={stepMultiplier(step)}
                     birds={stepBirds(step)}
+                    foods={stepFoods(step)}
                     style={s.stepText}
                   />
                 ) : (
@@ -489,6 +498,7 @@ export function CookSessionView({
                 amountRefs={step.amountRefs}
                 amountMultiplier={stepMultiplier(step)}
                 birds={stepBirds(step)}
+                foods={stepFoods(step)}
                 style={isCurrent ? s.stepTextCurrent : s.stepText}
               />
               {step.estimatedMinutes > 0 && (

@@ -22,6 +22,7 @@ import {
   wholeItemMultiplier,
   type BirdLine,
 } from "../format/quantity";
+import { foodHeads, refNounEdit, type NounEdit } from "./scaledNouns";
 
 // ── WS9 BUG-326 — A RANGE IS NOT ITS MIDPOINT ──────────────────────────────
 //
@@ -293,6 +294,10 @@ export interface AmountSegment {
  * Defensive: ignores refs with out-of-range or overlapping spans so a bad
  * payload can never drop or reorder characters of the surrounding prose. When
  * no usable ref remains, returns a single plain segment === the original text.
+ *
+ * CLIENT-8 B (BUG-618) — the noun after a unit-less amount is said for the number
+ * shown ("1 lime", "2 limes"), by the server's rule (scaledNouns.ts); `foods` are
+ * the step's dish's ingredient names, which the plural direction needs.
  */
 export function buildAmountRefSegments(
   text: string,
@@ -300,6 +305,7 @@ export function buildAmountRefSegments(
   multiplier: number,
   /** WEB-4c (BUG-462, BUG-464) — the step's dish's bird line: parts, equipment, bird sizes. */
   birds: BirdLine = ONE_BIRD,
+  foods: readonly string[] = [],
 ): AmountSegment[] {
   if (!amountRefs || amountRefs.length === 0) {
     return [{ text, isRef: false }];
@@ -322,6 +328,20 @@ export function buildAmountRefSegments(
 
   const out: AmountSegment[] = [];
   let cursor = 0;
+  // BUG-618 — noun edits found at a ref, applied to the prose after it.
+  const heads = foodHeads(foods);
+  const nounEdits: NounEdit[] = [];
+  const prose = (from: number, to?: number): string => {
+    const end = to ?? text.length;
+    let s = "";
+    let at = from;
+    for (const e of nounEdits) {
+      if (e.start < at || e.end > end) continue;
+      s += text.slice(at, e.start) + e.text;
+      at = e.end;
+    }
+    return s + text.slice(at, end);
+  };
   const items: ({ clause: { start: number; end: number; text: string } } | { ref: AmountRef })[] = [
     ...clauses.map((clause) => ({ clause })),
     ...refs.map((ref) => ({ ref })),
@@ -330,14 +350,14 @@ export function buildAmountRefSegments(
     if ("clause" in item) {
       const c = item.clause;
       if (c.start < cursor) continue;
-      if (c.start > cursor) out.push({ text: text.slice(cursor, c.start), isRef: false });
+      if (c.start > cursor) out.push({ text: prose(cursor, c.start), isRef: false });
       out.push({ text: c.text, isRef: true });
       cursor = c.end;
       continue;
     }
     const r = item.ref;
     if (r.charStart < cursor) continue; // skip overlap — never mangle prose
-    if (r.charStart > cursor) out.push({ text: text.slice(cursor, r.charStart), isRef: false });
+    if (r.charStart > cursor) out.push({ text: prose(cursor, r.charStart), isRef: false });
     const authored = text.slice(r.charStart, r.charEnd);
     // WEB-4d — the sizes this lane added are held only when something scales:
     // at multiplier 1 the ref renders as it always has, so an unscaled step is
@@ -391,10 +411,17 @@ export function buildAmountRefSegments(
       const unit = r.unit
         ? unitWordFor(r.unit, displayedQuantity(amount, r.unit, name, ctx))
         : "";
+      // CLIENT-8 B (BUG-618) — a unit-less amount's noun, for the number shown
+      // ("1 limes" → "1 lime"). A size ("3-pound chicken") and a worded amount
+      // ("a lime") have none to agree.
+      if (!r.unit && !hyphenBird && !/[a-z]/i.test(authored)) {
+        const edit = refNounEdit(text, r.charEnd, r.quantity, displayedQuantity(amount, r.unit, name, ctx), heads);
+        if (edit) nounEdits.push(edit);
+      }
       out.push({ text: unit ? `${scaled} ${unit}` : scaled, isRef: true });
     }
     cursor = r.charEnd;
   }
-  if (cursor < text.length) out.push({ text: text.slice(cursor), isRef: false });
+  if (cursor < text.length) out.push({ text: prose(cursor), isRef: false });
   return out.length > 0 ? out : [{ text, isRef: false }];
 }
