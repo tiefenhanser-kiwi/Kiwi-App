@@ -218,7 +218,7 @@ export default function CookSession() {
   const wantPlan = planId.length > 0 && planItemId.length > 0;
   const planItem = planQuery.data?.items.find((i) => i.id === planItemId);
   const hasPlanContext = wantPlan && planItem != null;
-  const gate = resolvePrepGate(hasPlanContext, planItem?.isPrepped ?? false);
+  const gate = resolvePrepGate(hasPlanContext, planItem?.isPrepped ?? false, planItem?.prepState);
 
   const needsGatePrompt = gate === "unknown" && prepAnswer === null;
   const prepped =

@@ -242,6 +242,28 @@ test("resolvePrepGate: no plan context → unknown; plan context → prepped/not
   assert.equal(resolvePrepGate(true, false), "not_prepped");
 });
 
+test("BUG-627 resolvePrepGate: a meal with nothing to prep is never 'prepped', though the server calls it isPrepped", () => {
+  // Cheese Pizza: 0 prep steps → isPrepped true (vacuous), prepState "nothing".
+  assert.equal(resolvePrepGate(true, true, "nothing"), "nothing");
+  assert.equal(resolvePrepGate(true, false, "nothing"), "nothing");
+  // The other three states keep isPrepped's answer; an older server sends none.
+  assert.equal(resolvePrepGate(true, true, "fully"), "prepped");
+  assert.equal(resolvePrepGate(true, false, "partly"), "not_prepped");
+  assert.equal(resolvePrepGate(true, false, "not"), "not_prepped");
+  assert.equal(resolvePrepGate(true, true, undefined), "prepped");
+  // No plan item: still the question, whatever the state says.
+  assert.equal(resolvePrepGate(false, true, "nothing"), "unknown");
+});
+
+test("BUG-627: Cook Mode passes the plan item's prepState, so 'nothing' shows no recap, no skip bar and no question", () => {
+  const src = readFileSync(new URL("../../../app/cook-session.tsx", import.meta.url), "utf8");
+  assert.match(src, /resolvePrepGate\(hasPlanContext, planItem\?\.isPrepped \?\? false, planItem\?\.prepState\)/);
+  // The recap and the skip bar are on only for "prepped" (or a "yes" with no plan item).
+  assert.match(src, /const prepped =\s*gate === "prepped" \|\| \(gate === "unknown" && prepAnswer === true\);/);
+  assert.match(src, /const showSkipBar = gate === "prepped";/);
+  assert.match(src, /const needsGatePrompt = gate === "unknown" && prepAnswer === null;/);
+});
+
 // ── resolveCookRender (polish #1 — gate shows while step data loads) ──────────
 
 const baseRender = {

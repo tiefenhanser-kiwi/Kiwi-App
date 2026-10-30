@@ -282,19 +282,27 @@ export function sequenceMealSteps(
 
 // ── Prep gate ───────────────────────────────────────────────────────────────
 
-export type PrepGateState = "prepped" | "not_prepped" | "unknown";
+export type PrepGateState = "prepped" | "not_prepped" | "nothing" | "unknown";
 
 /**
  * The three-state gate (PRD §7.12). `hasPlanContext` means a plan item was
  * resolved (planId + planItemId present AND the item found via usePlan); only
  * then is `isPrepped` authoritative. No plan context → "unknown" → the screen
  * asks the user once. Read-only: this never writes a mark.
+ *
+ * BUG-627 — a meal with no prep steps is `isPrepped` on the server (vacuously:
+ * every one of its zero steps is done), so Cheese Pizza read "Already prepped"
+ * with the skip bar. The item's `prepState: "nothing"` (the field the Hub pill
+ * reads since BUG-424) wins: no prep summary, no skip bar, no question. An
+ * older server sends no prepState, and the gate is as it was.
  */
 export function resolvePrepGate(
   hasPlanContext: boolean,
   isPrepped: boolean,
+  prepState?: string,
 ): PrepGateState {
   if (!hasPlanContext) return "unknown";
+  if (prepState === "nothing") return "nothing";
   return isPrepped ? "prepped" : "not_prepped";
 }
 
