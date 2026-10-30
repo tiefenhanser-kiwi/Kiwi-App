@@ -338,10 +338,12 @@ describe("BUG-337 ruling 2 — the connective says what the dish is actually doi
     // 69 of 193 were "While the Warm Corn Tortillas stays warm". The fix is a
     // participial absolute, which has no agreement to get wrong — note that the
     // ruling's own "While the X is ..." would NOT have fixed this one.
+    // SEQ-1 (BUG-593): tortillas held ten minutes in a towel are the defect now — the
+    // bread is warmed last — so the plural title here is a side that roasts alongside.
     const dishes = [
-      dish("tort", "Warm Corn Tortillas", 0, [
-        step(0, 8, "cook", { ts: true, text: "Warm the tortillas one at a time in a dry skillet." }),
-        step(1, 10, "hold", { text: "Stack the warmed tortillas and wrap them in a clean kitchen towel to keep warm." }),
+      dish("beans", "Roasted Green Beans", 0, [
+        step(0, 18, "cook", { text: "Roast the green beans at 425°F for 18 minutes until blistered." }),
+        step(1, 1, "assemble", { text: "Season the beans with flaky salt." }),
       ]),
       dish("steak", "Carne Asada", 1, [step(0, 4, "prep"), step(1, 6, "cook", { ts: true, text: "Grill the steak." }), step(2, 3, "assemble", { text: "Slice the steak." })]),
     ];
@@ -349,7 +351,7 @@ describe("BUG-337 ruling 2 — the connective says what the dish is actually doi
     assert.ok(cues.length > 0, "expected at least one cue");
     for (const c of cues) {
       assert.ok(!/ (stays|rests|cooks|heats up|comes together) /.test(c), `third-person-singular verb survived: "${c}"`);
-      assert.ok(!/Tortillas is /.test(c), `the copula reintroduced agreement: "${c}"`);
+      assert.ok(!/Beans is /.test(c), `the copula reintroduced agreement: "${c}"`);
     }
   });
 

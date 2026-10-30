@@ -2,7 +2,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { isUnattended, markHandsOn, needsTheCook, panLive, scheduleCookingSequence, type SchedulerDish, type SchedulerPhase } from "../cookingScheduler";
+import { BREAD_HOLD_MAX, breadRunFrom, isUnattended, markHandsOn, needsTheCook, panLive, scheduleCookingSequence, type SchedulerDish, type SchedulerPhase } from "../cookingScheduler";
 
 const st = (stepIndex: number, phaseType: SchedulerPhase, estimatedMinutes: number, text: string, isTimingSensitive = false, parallelGroup: string | null = null) => ({ stepIndex, phaseType, estimatedMinutes, text, isTimingSensitive, parallelGroup, componentKey: null, pathKey: null });
 const dish = (dishId: string, title: string, positionIndex: number, steps: ReturnType<typeof st>[]): SchedulerDish => ({ dishId, title, positionIndex, roleLabel: null, steps, ingredientNames: [] });
@@ -45,8 +45,8 @@ function alongside(r: R, ds: SchedulerDish[], d: string, i: number): string[] {
 describe("SEQ-1 rule 1 (BUG-592) — hands-on means hands-on", () => {
   it("reads the words that hold the cook at the stove", () => {
     const on = (phaseType: SchedulerPhase, estimatedMinutes: number, text: string) => needsTheCook({ phaseType, estimatedMinutes, text });
-    assert.equal(on("cook", 6, TORTILLAS.steps[0].text), true, "one at a time, per side");
-    assert.equal(on("preheat", 2, CHICKEN.steps[3].text), true, "oil to shimmering");
+    assert.equal(on("cook", 6, TORTILLAS.steps[0].text!), true, "one at a time, per side");
+    assert.equal(on("preheat", 2, CHICKEN.steps[3].text!), true, "oil to shimmering");
     assert.equal(on("cook", 3, "Warm 12 corn tortillas directly over a gas flame or in a dry skillet until pliable."), true, "tortillas in a pan");
     assert.equal(on("cook", 4, "Cook the eggs, stirring constantly, until just set."), true);
     assert.equal(on("cook", 2, "Flip the pancakes and cook 1 minute more."), true);
@@ -197,5 +197,50 @@ describe("SEQ-1 rule 2 (BUG-594) — no knife work inside pan work you can't lea
     assert.equal(o[o.indexOf("bir#8") + 1], "bir#9", "the pot is sealed right after the rice is layered on the chicken");
     assert.ok(entry(r, "raita", 0).startOffsetMinutes >= entry(r, "bir", 9).startOffsetMinutes, "the cucumber is diced while the biryani steams");
     assert.deepEqual(handsBetweenPanSteps(r, LUCKNOWI), []);
+  });
+});
+
+describe("SEQ-1 rule 3 (BUG-593) — bread is a serve-time dish", () => {
+  it("breadRunFrom: a dish whose last heat step warms a bread, from its pan run or preheat", () => {
+    const run = (steps: SchedulerDish["steps"]) => breadRunFrom(markHandsOn([{ dishId: "x", title: "x", positionIndex: 0, steps }])[0]);
+    assert.equal(run(TORTILLAS.steps), 0, "the fajita tortillas: the whole dish");
+    assert.equal(run([
+      st(0, "prep", 3, "Brush both sides of each of the 2 pita rounds lightly with olive oil."),
+      st(1, "preheat", 2, "Heat a large dry skillet or grill pan over medium-high heat."),
+      st(2, "cook", 4, "Toast the pitas one or two at a time for 1–2 minutes per side until lightly charred and warmed through.", true),
+      st(3, "assemble", 2, "Stack the toasted pitas and cut each into quarters, then serve alongside the salad."),
+    ]), 1, "the pita, from its skillet's preheat");
+    assert.equal(run([
+      st(0, "prep", 3, "Shred the 3 oz Oaxacan cheese and set aside."),
+      st(1, "preheat", 2, "Heat a large griddle or skillet over medium-high and brush lightly with the 1 tablespoon neutral oil."),
+      st(2, "cook", 1, "Dip each corn tortilla into the reserved birria fat from the consommé to coat both sides, then lay it on the hot griddle.", true),
+      st(3, "assemble", 2, "Scatter a generous pinch of shredded Oaxacan cheese over one half of each tortilla, then pile on a spoonful of shredded beef."),
+      st(4, "cook", 6, "Fold the tortilla in half and cook 2–3 minutes per side, pressing gently, until the outside is crispy and the cheese is melted.", true),
+    ]), 1, "Birria's dipped tortillas: the whole griddle run");
+    assert.equal(run([st(0, "cook", 45, "Reduce heat to low, cover, and simmer for 45 minutes until the pork is very tender; while it simmers, prepare the pickled slaw and warm the tortillas.")]), null, "a stew: the tortillas are work alongside");
+    assert.equal(run([st(0, "prep", 7, "Dice the cucumber."), st(1, "cook", 2, "Toast ¼ teaspoon ground cumin in a dry skillet over medium heat for 60 seconds until fragrant, then remove from heat.", true)]), null, "toast is a verb");
+    assert.equal(run([
+      st(0, "cook", 5, "Warm the 6 corn tortillas in a dry skillet over medium heat for 20–30 seconds per side."),
+      st(1, "assemble", 6, "Spoon the filling down the center of each tortilla and roll tightly."),
+      st(2, "cook", 25, "Bake uncovered at 375°F for 22–25 minutes until the cheese is melted."),
+    ]), null, "enchiladas: the tortillas are baked after");
+    assert.equal(run([{ ...st(0, "cook", 6, "Warm the flour tortillas one at a time."), text: undefined }]), null, "no words (the timing stamp): never");
+  });
+
+  it("the fajita: vegetables and chicken cook, tortillas warm at the end, wrap, serve", () => {
+    const r = scheduleCookingSequence(FAJITAS);
+    const o = order(r);
+    assert.deepEqual(o.slice(-3), ["tor#0", "tor#1", "ch#8"], "warm, wrap, then the chicken's serve");
+    assert.ok(o.indexOf("ch#7") < o.indexOf("tor#0"), "the chicken is done before the tortillas go on");
+    const warmEnd = entry(r, "tor", 0).startOffsetMinutes + 6;
+    assert.ok(-warmEnd <= BREAD_HOLD_MAX, `the tortillas finish ${-warmEnd} min before serving`);
+    assert.equal(entry(r, "tor", 1).startOffsetMinutes, warmEnd, "and are wrapped as they come off");
+  });
+
+  it("Al Pastor: the corn tortillas are warmed last and set out as the meal is served", () => {
+    const r = scheduleCookingSequence(AL_PASTOR);
+    const warmEnd = entry(r, "corn", 1).startOffsetMinutes + 5;
+    assert.ok(-warmEnd <= BREAD_HOLD_MAX, `the tortillas finish ${-warmEnd} min before serving`);
+    assert.equal(order(r).at(-1), "corn#2");
   });
 });

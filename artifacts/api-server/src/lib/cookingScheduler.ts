@@ -831,7 +831,142 @@ export function scheduleCookingSequence(
     return withTakeOut(scheduleTheDay(dishes.map((d) => ({ ...d, steps: d.steps.filter((s) => !TAKE_OUT_STEP.test(s.text ?? "")) })), opts), dishes);
   }
   // SEQ-1 — the cook's reading of the words, on an everyday meal (the feasts are frozen).
-  return scheduleTheDay(opts.feastOven ? dishes : markHandsOn(dishes), opts);
+  if (opts.feastOven) return scheduleTheDay(dishes, opts);
+  return breadAtServing(markHandsOn(dishes), (d) => scheduleTheDay(d, opts));
+}
+
+// ── SEQ-1 (BUG-593) — BREAD IS A SERVE-TIME DISH ────────────────────────────────
+//
+// QA-COOK-1, the fajitas: the tortillas were warmed first, at T−28, and wrapped in a
+// towel; the chicken was seared after them and the cook served cold tortillas. A
+// dish whose last heat step warms, toasts or bakes a bread (tortillas, pita, naan,
+// garlic bread, buns) ends with its BREAD RUN — that step, the pan run or preheat it
+// starts with, and what follows it (the wrap, the stack-and-cut, the set-out) — and
+// the run is the meal's last heat: it ends no more than BREAD_HOLD_MAX minutes before
+// serving. So the meal is scheduled without it first, and the run goes as late as the
+// cook's hands allow, ending as the rest of the meal does or after it. What serves the
+// meal follows it: a step of another dish that uses the bread (the tacos filled), and
+// the other dishes' closing plating ("scatter the cilantro … and serve immediately")
+// while it fits in BREAD_HOLD_MAX. Not a feast's; the timing stamp passes no words,
+// so it never has a bread run.
+export const BREAD_HOLD_MAX = 3;
+const BREAD_FOOD = /\b(?:tortillas?|pitas?|naan|flatbreads?|bread(?!\s+(?:crumbs?|cubes?|pieces))|(?<!(?:spring|egg|cinnamon|sushi) )rolls?|buns?|crostini|tostadas?|arepas?|chapatis?|rotis?|baguettes?|focaccia|biscuits?)\b/i;
+/** The part of a step that describes other work done alongside it. */
+const ALONGSIDE = /[,;.]?\s*\b(?:while|meanwhile)\b[\s\S]*$/i;
+
+/** SEQ-1 (BUG-593) — where a dish's bread run starts (array index), or null when its last heat step warms no bread. */
+export function breadRunFrom(dish: Pick<SchedulerDish, "steps">): number | null {
+  const steps = dish.steps;
+  const last = steps.map((s) => s.phaseType).lastIndexOf("cook");
+  // (Its own work: "simmer 45 minutes; while it simmers, … warm the tortillas" is a stew;
+  // and served warm: croutons "transferred to a plate to cool" are not.)
+  const text = steps[last]?.text ?? "";
+  if (last < 0 || !BREAD_FOOD.test(text.replace(ALONGSIDE, "")) || COOLS.test(text)) return null;
+  // Back through the run on its pan (BUG-594: Birria's tortillas are dipped, laid on
+  // the griddle, filled and folded), then the preheat that starts it.
+  const live: boolean[] = [];
+  steps.forEach((s, k) => { live[k] = panLive(s) || (k > 0 && live[k - 1] && !isUnattended(s) && !OFF_THE_HEAT.test(s.text ?? "")); });
+  let from = last;
+  while (from > 0 && live[from - 1]) from--;
+  if (from > 0 && steps[from - 1].phaseType === "preheat") from--;
+  return from;
+}
+
+function breadAtServing(dishes: SchedulerDish[], schedule: (d: SchedulerDish[]) => ScheduleResult): ScheduleResult {
+  const input = dishes.map((d) => ({ ...d, steps: selectDefaultPathSteps(d.steps) })).filter((d) => d.steps.length > 0);
+  const whole = schedule(dishes);
+  // Only a bread the meal as scheduled finishes early (the garlic bread already bakes in
+  // the soup's last minutes, and stays there).
+  const key = (dishId: string, stepIndex: number) => `${dishId}#${stepIndex}`;
+  const breadFrom = new Map<string, number>();
+  for (const d of input) {
+    const from = breadRunFrom(d);
+    if (from === null) continue;
+    const heat = d.steps[d.steps.map((s) => s.phaseType).lastIndexOf("cook")];
+    const e = whole.steps.find((x) => x.dishId === d.dishId && x.originalStepIndex === heat.stepIndex);
+    if (e && -(e.startOffsetMinutes + heat.estimatedMinutes) > BREAD_HOLD_MAX) breadFrom.set(d.dishId, from);
+  }
+  if (breadFrom.size === 0) return whole;
+  const byId = new Map(input.map((d) => [d.dishId, d]));
+  const run = input.flatMap((d) => (breadFrom.has(d.dishId) ? d.steps.slice(breadFrom.get(d.dishId)).map((s) => ({ d, s })) : []));
+  const post = (() => {
+    let n = 0;
+    for (const d of input) {
+      const from = breadFrom.get(d.dishId);
+      if (from === undefined) continue;
+      const last = d.steps.map((s) => s.phaseType).lastIndexOf("cook");
+      n = Math.max(n, d.steps.slice(last + 1).reduce((m, s) => m + s.estimatedMinutes, 0));
+    }
+    return n;
+  })();
+  // What serves the meal, after the bread: each other dish's steps from one that uses the bread…
+  const after = new Map<string, number>();
+  for (const u of dishUses(input)) {
+    if (!breadFrom.has(u.usesDishId) || breadFrom.has(u.dishId)) continue;
+    after.set(u.dishId, Math.min(after.get(u.dishId) ?? Infinity, u.stepIdx));
+  }
+  // …and its closing plating, a hot dish's "serve immediately" first, while it fits.
+  let budget = BREAD_HOLD_MAX - post - [...after].reduce((n, [id, k]) => n + byId.get(id)!.steps.slice(k).reduce((m, s) => m + s.estimatedMinutes, 0), 0);
+  const plating = input
+    .filter((d) => !breadFrom.has(d.dishId) && !after.has(d.dishId))
+    .flatMap((d) => {
+      let c = d.steps.length;
+      while (c > 0 && d.steps[c - 1].phaseType === "assemble" && !WAITS.test(d.steps[c - 1].text ?? "")) c--;
+      return c < d.steps.length && c > 0 ? [{ d, c, minutes: d.steps.slice(c).reduce((m, s) => m + s.estimatedMinutes, 0), now: SERVE_NOW.test(d.steps[d.steps.length - 1].text ?? "") }] : [];
+    })
+    .sort((a, b) => Number(b.now) - Number(a.now) || a.minutes - b.minutes);
+  for (const p of plating) {
+    if (p.minutes > budget) continue;
+    after.set(p.d.dishId, p.c);
+    budget -= p.minutes;
+  }
+  const closing = input.flatMap((d) => (after.has(d.dishId) && !breadFrom.has(d.dishId) ? d.steps.slice(after.get(d.dishId)).map((s) => ({ d, s })) : []));
+  const rest = input
+    .map((d) => ({ ...d, steps: d.steps.slice(0, breadFrom.get(d.dishId) ?? after.get(d.dishId) ?? d.steps.length) }))
+    .filter((d) => d.steps.length > 0);
+
+  // The meal without them, then the bread run as late as the hands allow, then what serves it.
+  const first = rest.length > 0 ? schedule(rest) : { steps: [], totalEstimatedMinutes: 0, activeEstimatedMinutes: 0, dishDurations: {}, ignoredTags: [] };
+  const T = first.totalEstimatedMinutes;
+  const stepOf = new Map(input.flatMap((d) => d.steps.map((s) => [key(d.dishId, s.stepIndex), s] as const)));
+  const abs = new Map(first.steps.map((e) => [key(e.dishId, e.originalStepIndex), e.startOffsetMinutes + T]));
+  const busy: [number, number][] = first.steps
+    .map((e) => stepOf.get(key(e.dishId, e.originalStepIndex)))
+    .flatMap((s, i) => (s && !isUnattended(s) ? [[first.steps[i].startOffsetMinutes + T, first.steps[i].startOffsetMinutes + T + s.estimatedMinutes] as [number, number]] : []));
+  const len = run.reduce((n, x) => n + x.s.estimatedMinutes, 0);
+  const ready = Math.max(0, ...run.map(({ d }) => Math.max(0, ...d.steps.filter((s) => abs.has(key(d.dishId, s.stepIndex))).map((s) => abs.get(key(d.dishId, s.stepIndex))! + s.estimatedMinutes))));
+  const fits = (t: number) => {
+    let at = t;
+    for (const { s } of run) {
+      const clash = isUnattended(s) ? busy.some(([b0, b1]) => b0 <= at && at < b1) : busy.some(([b0, b1]) => at < b1 && b0 < at + s.estimatedMinutes);
+      if (clash) return false;
+      at += s.estimatedMinutes;
+    }
+    return true;
+  };
+  let t = Math.max(T - len, ready);
+  while (!fits(t)) t++;
+  const placed: { e: ScheduledStep; at: number }[] = [];
+  let at = t;
+  for (const x of [...run, ...closing]) {
+    if (x === closing[0]) at = Math.max(at, T);
+    placed.push({ e: { dishId: x.d.dishId, originalStepIndex: x.s.stepIndex, sequenceIndex: 0, startOffsetMinutes: 0 }, at });
+    at += x.s.estimatedMinutes;
+  }
+  const end = Math.max(T, at);
+  const steps = [
+    ...first.steps.map((e) => ({ e: { ...e }, at: e.startOffsetMinutes + T, late: false })),
+    ...placed.map((p) => ({ ...p, late: true })),
+  ]
+    .sort((a, b) => a.at - b.at || Number(a.late) - Number(b.late) || a.e.sequenceIndex - b.e.sequenceIndex)
+    .map((x, i) => ({ ...x.e, sequenceIndex: i, startOffsetMinutes: x.at - end }));
+  return {
+    steps,
+    totalEstimatedMinutes: end,
+    activeEstimatedMinutes: first.activeEstimatedMinutes + [...run, ...closing].reduce((n, x) => n + (isUnattended(x.s) ? 0 : x.s.estimatedMinutes), 0),
+    dishDurations: whole.dishDurations,
+    ignoredTags: whole.ignoredTags,
+  };
 }
 
 /**
