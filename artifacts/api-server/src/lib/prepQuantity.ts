@@ -112,6 +112,8 @@ export interface DisplayOptions {
   asWritten?: boolean;
   /** The row's preparation note: "quartered" and "halved" keep produce whole. */
   note?: string | null;
+  /** SERVER-12 C — a total of amounts at their own servings: a cup stays a cup (spoonedCup). */
+  keepCup?: boolean;
 }
 
 /** The head noun of a name: its last word before a comma, a parenthesis, or
@@ -485,6 +487,39 @@ export function displayedPrepQuantity(qty: number, unit: string, name = "", opts
   }
   const eighths = Math.round(qty * 8) / 8;
   return eighths === 0 && qty > 0 ? 1 / 8 : eighths;
+}
+
+/**
+ * SERVER-12 C (BUG-623) — A SMALL SCALED CUP AMOUNT IS SAID IN SPOONS. Classic Crispy
+ * Sesame Chicken at 3 of 4 needs 3 tbsp flour (¼ cup × ¾ = 3⁄16 cup), and the cup ladder
+ * snapped the tie UP to "¼ cup", a third more than the recipe. Spoons measure what a cup
+ * ladder cannot, so a scaled cup amount below ¼ cup (4 tbsp) is said in tablespoons, and
+ * below 1 tbsp in teaspoons; the cup ladder starts at ¼ cup. An amount at its own servings
+ * (`asWritten`) is printed as the recipe wrote it ("⅛ cup" stays).
+ *
+ * ⚠️ SERVER-ONLY, LIKE THE EGG RULE: the client's formatter (lib/format/quantity.ts) still
+ * snaps 3⁄16 cup to ¼ in Cook Mode; that half is the client lane's.
+ *
+ * 🔴 NOT IN THE FEAST (yet): Thanksgiving is frozen, and the rule moves 15 of 30 feast
+ * reads ("¼ cup" → "3¼ tbsp" at Classic ×4). The feast session builds and finishes
+ * inside `withCupLadder`, the ladder as it was, until Hans rules.
+ */
+let cupLadderOnly = 0;
+/** Run a synchronous `build` with the cup ladder as it was (no spoons under ¼ cup): the feast session. */
+export function withCupLadder<T>(build: () => T): T {
+  cupLadderOnly++;
+  try {
+    return build();
+  } finally {
+    cupLadderOnly--;
+  }
+}
+export function spoonedCup(qty: number, unit: string, opts: DisplayOptions = {}): { qty: number; unit: string } | null {
+  if (cupLadderOnly > 0 || opts.asWritten || opts.keepCup || !(qty > 0) || !CUP_TOKENS.test(unit.trim().toLowerCase()) || qty >= 1 / 4 - TIE) return null;
+  const tbsp = qty * 16;
+  // (Just under ¼ cup that the spoons would say as 4 tbsp is ¼ cup.)
+  if (displayedPrepQuantity(tbsp, "tbsp") >= 4 - TIE) return null;
+  return tbsp >= 1 - TIE ? { qty: tbsp, unit: "tbsp" } : { qty: tbsp * 3, unit: "tsp" };
 }
 
 const GLYPHS: ReadonlyArray<[number, string]> = [

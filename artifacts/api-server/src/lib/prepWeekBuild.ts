@@ -32,6 +32,7 @@ import { containerUses, feastClosingLines, stepDayOf } from "./prepFeastClose";
 import { proseNames } from "./prepMoments";
 import { ingredientGroupKey } from "./ingredientRelations";
 import { foodOf, namedFoods } from "./prepFoods";
+import { withCupLadder } from "./prepQuantity";
 import { combinePrep, MIX_STAPLE } from "./prepCombineEngine";
 import { cutOf } from "./prepClasses";
 import { CUT_AT_THE_STEP } from "./heldMorning";
@@ -254,6 +255,11 @@ export function wireStepKeys(build: PrepWeekBuild, prefix = ""): string[] {
 }
 
 export function buildPrepWeekPlan(load: Load, opts: BuildPrepWeekOptions = {}): PrepWeekBuild {
+  // SERVER-12 C — the feast's amounts keep the cup ladder as it was (Thanksgiving is frozen).
+  return opts.feast ? withCupLadder(() => buildPlan(load, opts)) : buildPlan(load, opts);
+}
+
+function buildPlan(load: Load, opts: BuildPrepWeekOptions): PrepWeekBuild {
   const { input, identity } = load;
   // An older caller (or a hand-built test loader) carries no cook days: that is
   // "no day known", the same as a plan with no startDate.
@@ -873,6 +879,11 @@ export function dropHeldCuts(opening: string, before: PrepNarrationComponent[], 
  * what is served.
  */
 export function finishPrepWeek(result: PrepWeekResult, build: PrepWeekBuild): PrepWeekResult {
+  // SERVER-12 C — a held feast portion is re-totalled here: the cup ladder as it was.
+  return build.feast ? withCupLadder(() => finish(result, build)) : finish(result, build);
+}
+
+function finish(result: PrepWeekResult, build: PrepWeekBuild): PrepWeekResult {
   const byKey = new Map(build.stepPlan.steps.map((s) => [s.stepKey, s]));
   // SERVER-12 A — a week's links are today's, like its holds: a cached step carries the
   // links of the build that narrated it, so a link rule (BUG-626) or a hold that moved

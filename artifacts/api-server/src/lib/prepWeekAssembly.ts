@@ -41,7 +41,7 @@ import {
   type PrepClass,
 } from "./prepClasses";
 import { timeStep, planMinutes, wholeFruitCount, type SourceYieldLike } from "./prepStepMinutes";
-import { displayedPrepQuantity, mixedGlyph, type DisplayOptions } from "./prepQuantity";
+import { displayedPrepQuantity, mixedGlyph, spoonedCup, type DisplayOptions } from "./prepQuantity";
 import { labelFeastContainers, type FeastLabels } from "./prepFeastLabels";
 import { proseNames } from "./prepMoments";
 import { joinsAtPrep } from "./prepStorage";
@@ -455,6 +455,9 @@ const PLACEHOLDER_COUNT_UNITS: ReadonlySet<string> = new Set(["each", "ea", ""])
 export function formatMeasure(quantity: number, rawUnit: string, name = "", opts: DisplayOptions = {}): string {
   const { token } = canonicalizeUnit(rawUnit);
   if (SCALE_UNITS.has(token)) return `${Math.max(1, Math.round(quantity))} ${token}`;
+  // SERVER-12 C (BUG-623) — a scaled amount under ¼ cup is said in spoons ("3 tbsp", not "¼ cup").
+  const spooned = spoonedCup(quantity, token, opts);
+  if (spooned) return formatMeasure(spooned.qty, spooned.unit, name, opts);
   // THX-3 (BUG-444) — FIX-7's number, read on the RAW unit as well as the token:
   // "large" canonicalizes to the placeholder, and the egg rule needs the name.
   const shownQty = displayedPrepQuantity(quantity, PLACEHOLDER_COUNT_UNITS.has(token) ? "" : token, name, opts);
@@ -2465,7 +2468,7 @@ function countNoun(amount: string, name: string): string {
 function totalOf(components: readonly PrepNarrationComponent[], named: boolean): string {
   const parts: string[] = [];
   for (const c of components) {
-    const byToken = new Map<string, { q: number; unit: string }>();
+    const byToken = new Map<string, { q: number; unit: string; asWritten?: boolean }>();
     for (const m of c.measures) {
       if (m.qty === undefined || m.unit === undefined) continue;
       const { token } = canonicalizeUnit(m.unit);
@@ -2481,12 +2484,14 @@ function totalOf(components: readonly PrepNarrationComponent[], named: boolean):
       const first = [...byToken.keys()][0];
       const conv = first !== undefined && first !== token ? convertWithinDimension(shown, token, first) : null;
       const key = conv !== null && first !== undefined ? first : token;
-      const have = byToken.get(key) ?? { q: 0, unit: m.unit };
+      const have = byToken.get(key) ?? { q: 0, unit: m.unit, asWritten: true };
       have.q += conv !== null ? conv : shown;
+      // SERVER-12 C — a total of amounts all at their own servings is said as they are written.
+      have.asWritten = have.asWritten && m.asWritten === true;
       byToken.set(key, have);
     }
-    for (const { q, unit } of byToken.values()) {
-      const amount = formatMeasure(q, unit, c.ingredientName);
+    for (const { q, unit, asWritten } of byToken.values()) {
+      const amount = formatMeasure(q, unit, c.ingredientName, asWritten ? { keepCup: true } : {});
       const countOnly = canonicalizeUnit(unit).token === "" || PLACEHOLDER_COUNT_UNITS.has(canonicalizeUnit(unit).token);
       parts.push(named || countOnly ? `${amount} ${countOnly ? countNoun(amount, c.ingredientName) : c.ingredientName}` : amount);
     }
