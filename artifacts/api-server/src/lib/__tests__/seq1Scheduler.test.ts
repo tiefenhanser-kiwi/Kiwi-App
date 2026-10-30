@@ -2,7 +2,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { BREAD_HOLD_MAX, breadRunFrom, isUnattended, markHandsOn, needsTheCook, panLive, scheduleCookingSequence, type SchedulerDish, type SchedulerPhase } from "../cookingScheduler";
+import { BREAD_HOLD_MAX, breadRunFrom, HOT_HOLD_MAX, isUnattended, keepWarmCue, markHandsOn, needsTheCook, panLive, scheduleCookingSequence, type SchedulerDish, type SchedulerPhase } from "../cookingScheduler";
 
 const st = (stepIndex: number, phaseType: SchedulerPhase, estimatedMinutes: number, text: string, isTimingSensitive = false, parallelGroup: string | null = null) => ({ stepIndex, phaseType, estimatedMinutes, text, isTimingSensitive, parallelGroup, componentKey: null, pathKey: null });
 const dish = (dishId: string, title: string, positionIndex: number, steps: ReturnType<typeof st>[]): SchedulerDish => ({ dishId, title, positionIndex, roleLabel: null, steps, ingredientNames: [] });
@@ -250,5 +250,60 @@ describe("SEQ-1 rule 3 (BUG-593) — bread is a serve-time dish", () => {
     const warmEnd = entry(r, "corn", 1).startOffsetMinutes + 5;
     assert.ok(-warmEnd <= BREAD_HOLD_MAX, `the tortillas finish ${-warmEnd} min before serving`);
     assert.equal(order(r).at(-1), "corn#2");
+  });
+});
+
+describe("SEQ-1 rule 4 (BUG-595) — hot dishes don't wait uncovered", () => {
+  it("keepWarmCue: a lid on the lowest heat in the pan, foil off it", () => {
+    assert.equal(keepWarmCue("Gochujang Beef", false), "Keep the Gochujang Beef covered over the lowest heat until serving.");
+    assert.equal(keepWarmCue("Al Pastor Pork Strips", true), "Tent the Al Pastor Pork Strips with foil until serving.");
+    assert.equal(keepWarmCue("x".repeat(140), true), undefined, "never past the wire's 140");
+  });
+
+  it("a hot dish that must wait more than HOT_HOLD_MAX: the next step the cook reads says to keep it warm", () => {
+    const r = scheduleCookingSequence(AL_PASTOR);
+    const o = [...r.steps].sort((a, b) => a.sequenceIndex - b.sequenceIndex);
+    const rest = entry(r, "pork", 5);
+    const wait = -(rest.startOffsetMinutes + 2);
+    assert.ok(wait > HOT_HOLD_MAX, `the pork rests out at T−${wait} (the pineapple and the tortillas take the hands after it)`);
+    const next = o.find((e) => e.dishId !== "pork" && e.startOffsetMinutes >= rest.startOffsetMinutes + 2)!;
+    assert.equal(next.reason, "Tent the Al Pastor Pork Strips with foil until serving.", "on the first step after its rest");
+  });
+
+  it("a hot dish that can finish at serving time is moved there: the sirloin's asparagus comes out as it is plated (was T−13)", () => {
+    const STEAK = dish("steak", "Grilled Sirloin Steak", 0, [
+      st(0, "prep", 4, "Pat the four 6-oz sirloin steaks dry with paper towels, then rub all over with 2 tablespoons olive oil, 1½ teaspoons kosher salt, 1 teaspoon freshly ground black pepper, and ½ teaspoon garlic powder."),
+      st(1, "rest", 20, "Let the seasoned steaks rest at room temperature for 20 minutes while you prepare the other dishes.", false, "w1"),
+      st(2, "preheat", 5, "Preheat a gas or charcoal grill (or a heavy grill pan) to high heat — you want it very hot before the steaks go on.", false, "w1"),
+      st(3, "cook", 8, "Grill the steaks over high heat for 3–4 minutes per side for medium-rare (130°F internal), turning once and not pressing down on the meat.", true),
+      st(4, "cook", 1, "In the final minute of cooking, add 2 tablespoons unsalted butter and 4 fresh thyme sprigs to the grill pan (or a cast-iron skillet beside the grill) and baste the steaks repeatedly with the melted herb butter.", true),
+      st(5, "rest", 5, "Transfer the steaks to a cutting board and rest, loosely tented with foil, for 5 minutes before slicing or serving."),
+    ]);
+    const MASH = dish("mash", "Garlic Mashed Potatoes", 1, [
+      st(0, "prep", 8, "Peel and cut 2½ pounds russet potatoes into 1-inch chunks, then place them in a large pot with the 6 peeled garlic cloves and cover with cold salted water."),
+      st(1, "cook", 22, "Bring the pot to a boil over high heat, then reduce to a vigorous simmer and cook for 18–20 minutes until the potatoes are completely tender when pierced with a fork.", false, "w1"),
+      st(2, "cook", 4, "While the potatoes boil, warm ¾ cup whole milk in a small saucepan over low heat until steaming, then set aside.", false, "w1"),
+      st(3, "cook", 2, "Drain the potatoes and garlic well, return them to the hot pot, and let steam off for 2 minutes to dry out slightly."),
+      st(4, "cook", 4, "Mash the potatoes and garlic with a potato masher or ricer until smooth, then fold in 4 tablespoons unsalted butter, the warmed ¾ cup milk, and ¼ cup sour cream until creamy."),
+      st(5, "assemble", 2, "Season with 1 teaspoon kosher salt and ½ teaspoon freshly ground black pepper, taste and adjust, then garnish with 2 tablespoons thinly sliced fresh chives (optional) before serving."),
+    ]);
+    const ASPARAGUS = dish("asp", "Roasted Asparagus", 2, [
+      st(0, "preheat", 10, "Preheat the oven to 425°F.", false, "w0"),
+      st(1, "prep", 4, "Snap the woody ends off 1½ pounds asparagus, spread the spears in a single layer on a large rimmed baking sheet, drizzle with 2 tablespoons olive oil, and toss to coat.", false, "w0"),
+      st(2, "cook", 14, "Season the asparagus with ½ teaspoon kosher salt and ¼ teaspoon black pepper, then roast at 425°F for 12–15 minutes until tender and the tips are lightly charred."),
+      st(3, "assemble", 2, "Transfer the roasted asparagus to a platter, squeeze the lemon halves over the top, and finish with 1 oz finely grated parmesan cheese (optional) before serving."),
+    ]);
+    const meal = [STEAK, MASH, ASPARAGUS];
+    const r = scheduleCookingSequence(meal);
+    const roastEnd = entry(r, "asp", 2).startOffsetMinutes + 14;
+    assert.ok(-roastEnd <= HOT_HOLD_MAX, `out of the oven at T${roastEnd}`);
+    assert.equal(roastEnd, entry(r, "asp", 3).startOffsetMinutes, "and onto the platter");
+  });
+
+  it("a feast and the timing stamp are left alone", () => {
+    const feast = scheduleCookingSequence(AL_PASTOR, { feastOven: true });
+    assert.ok(!feast.steps.some((e) => /until serving\.$/.test(e.reason ?? "")));
+    const stamp = scheduleCookingSequence(noText(AL_PASTOR) as SchedulerDish[]);
+    assert.ok(!stamp.steps.some((e) => /until serving\.$/.test(e.reason ?? "")));
   });
 });

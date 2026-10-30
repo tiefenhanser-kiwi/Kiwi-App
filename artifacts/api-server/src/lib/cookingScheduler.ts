@@ -832,7 +832,205 @@ export function scheduleCookingSequence(
   }
   // SEQ-1 — the cook's reading of the words, on an everyday meal (the feasts are frozen).
   if (opts.feastOven) return scheduleTheDay(dishes, opts);
-  return breadAtServing(markHandsOn(dishes), (d) => scheduleTheDay(d, opts));
+  const marked = markHandsOn(dishes);
+  return hotAtServing(breadAtServing(marked, (d) => scheduleTheDay(d, opts)), marked);
+}
+
+// ── SEQ-1 (BUG-595) — HOT DISHES DON'T WAIT UNCOVERED ───────────────────────────
+//
+// QA-COOK-1, 25 of 30 meals: a hot dish comes off the heat and sits while the rest of
+// the meal is cooked — Al Pastor's pork rested at T−16 and was served at T 0, the
+// Fajita Bowl's chicken at T−32. The core pass aligns every dish to finish together,
+// but the cook's hands push the others later and leave the first one early. So, on
+// the meal as finally scheduled, a hot dish that finishes more than HOT_HOLD_MAX
+// minutes before serving has its last heat run moved as late as the hands allow:
+// its last heat step with the pan run or preheat it starts with, and everything after
+// it in the dish (the rest, the slice, the plating), one block, ending at serving. Its
+// dish's earlier steps still come first, a cook step before it still bounds it
+// (LAG_AFTER_HEAT_OTHER), and a dish that uses its food still gets it first. The
+// longest wait goes first. Where no slot is late enough, the next step the cook reads
+// says to keep it warm (`keepWarmCue`): Cook Mode shows the meal's own steps, so the
+// Sequencer cannot add one. Not a dish served cold, left to cool, or already kept warm
+// by its own words. Not a feast's (its warm steps are written into it).
+export const HOT_HOLD_MAX = 10;
+/** A cold food that does not wait well once it is out: it browns or wilts. */
+const BROWNS_OR_WILTS = /\b(?:avocados?|guacamole|lettuce|greens|arugula|romaine|whipped)\b/i;
+/** A dish's own words that keep it warm after its heat. */
+const KEPT_WARM = /\b(?:keep\w* (?:it |them |everything |the [\w -]+ )?warm|stay\w* warm|lowest heat|warm oven|tent\w*|cover(?:ed)? (?:loosely )?with foil|(?:let|leave) (?:it |them |the [\w ]+ )?(?:stand|sit|steam|rest),? covered|covered,? off the heat|wrap\w* (?:them |it |the [\w ]+ )?in (?:a )?(?:clean )?(?:kitchen )?(?:towel|foil))\b/i;
+
+/** SEQ-1 (BUG-595) — the cue that keeps a hot dish warm: a lid on the lowest heat in its pan, foil off it. */
+export function keepWarmCue(title: string, offThePan: boolean): string | undefined {
+  const cue = offThePan ? `Tent the ${title} with foil until serving.` : `Keep the ${title} covered over the lowest heat until serving.`;
+  return cue.length <= 140 ? cue : undefined;
+}
+
+function hotAtServing(res: ScheduleResult, dishes: readonly SchedulerDish[]): ScheduleResult {
+  if (res.steps.length === 0) return res;
+  const input = dishes.map((d) => ({ ...d, steps: selectDefaultPathSteps(d.steps) })).filter((d) => d.steps.length > 0);
+  const key = (dishId: string, stepIndex: number) => `${dishId}#${stepIndex}`;
+  const stepOf = new Map(input.flatMap((d) => d.steps.map((s) => [key(d.dishId, s.stepIndex), s] as const)));
+  const dishOf = new Map(input.flatMap((d) => d.steps.map((s) => [key(d.dishId, s.stepIndex), d] as const)));
+  const end = res.totalEstimatedMinutes;
+  const all = res.steps.map((e) => key(e.dishId, e.originalStepIndex));
+  const pos = new Map(res.steps.map((e) => [key(e.dishId, e.originalStepIndex), e.startOffsetMinutes + end]));
+  const dur = (k: string) => stepOf.get(k)?.estimatedMinutes ?? 0;
+  const attended = (k: string) => { const s = stepOf.get(k); return !!s && !isUnattended(s); };
+  const placedOf = (d: SchedulerDish) => d.steps.filter((s) => pos.has(key(d.dishId, s.stepIndex)));
+  const uses = dishUses(input);
+  /** A step's earliest start by what it waits for: its dish's steps before it, and a dish it uses. */
+  const floorOf = (k: string, at: ReadonlyMap<string, number>): number => {
+    const d = dishOf.get(k)!;
+    const p = placedOf(d);
+    const i = p.findIndex((s) => key(d.dishId, s.stepIndex) === k);
+    let f = -Infinity;
+    // A rider of a hands-free window (D-WS9-239) waits for the window to start, not to end.
+    const token = p[i].parallelGroup?.trim() || null;
+    const w = token ? p.findIndex((s) => (s.parallelGroup?.trim() || null) === token) : -1;
+    const rides = w >= 0 && w < i && isUnattended(p[w]) && p.slice(w, i).every((s) => (s.parallelGroup?.trim() || null) === token);
+    for (const [j, s] of p.slice(0, i).entries()) {
+      const start = at.get(key(d.dishId, s.stepIndex))!;
+      f = Math.max(f, rides && j >= w ? start : start + s.estimatedMinutes);
+    }
+    for (const u of uses.filter((x) => x.dishId === d.dishId && d.steps[x.stepIdx] && key(d.dishId, d.steps[x.stepIdx].stepIndex) === k)) {
+      const o = input.find((x) => x.dishId === u.usesDishId)!;
+      const done = key(o.dishId, o.steps[u.doneIdx].stepIndex);
+      if (at.has(done)) f = Math.max(f, at.get(done)! + dur(done));
+    }
+    return f;
+  };
+  type Hot = { d: SchedulerDish; keys: string[]; finish: number; offThePan: boolean };
+  const hot: Hot[] = [];
+  for (const d of input) {
+    if (isServedCold(d)) continue;
+    const placed = placedOf(d);
+    const L = placed.map((s) => s.phaseType).lastIndexOf("cook");
+    if (L < 0 || !placed[L].text || COOLS.test(placed[L].text ?? "")) continue;
+    if (placed.slice(L).some((s) => KEPT_WARM.test(s.text ?? "") || /\b(?:refrigerat|chill)/i.test(s.text ?? ""))) continue;
+    // Finished: the last heat step and the rests right after it.
+    let f = L;
+    while (f + 1 < placed.length && placed[f + 1].phaseType === "rest") f++;
+    const finish = pos.get(key(d.dishId, placed[f].stepIndex))! + placed[f].estimatedMinutes;
+    if (end - finish <= HOT_HOLD_MAX) continue;
+    // The run: back through the pan run (BUG-594), and through the heat steps right
+    // before it (the latest bound ties them: the fajitas' oil, peppers, chicken and toss
+    // are one session at the pan), never a long hands-free one (the slow cooker holds).
+    const live: boolean[] = [];
+    placed.forEach((s, k) => { live[k] = panLive(s) || (k > 0 && live[k - 1] && !isUnattended(s) && !OFF_THE_HEAT.test(s.text ?? "")); });
+    let from = L;
+    while (from > 0) {
+      const b = placed[from - 1];
+      const gap = pos.get(key(d.dishId, placed[from].stepIndex))! - (pos.get(key(d.dishId, b.stepIndex))! + b.estimatedMinutes);
+      const heat = (b.phaseType === "cook" || (b.phaseType === "preheat" && !isOvenStep(b))) && !(isUnattended(b) && b.estimatedMinutes > HOT_HOLD_MAX);
+      if (!live[from - 1] && !(heat && gap <= LAG_AFTER_HEAT_OTHER)) break;
+      from--;
+    }
+    hot.push({ d, keys: placed.slice(from, f + 1).map((s) => key(d.dishId, s.stepIndex)), finish, offThePan: placed.slice(L).some((s) => OFF_THE_HEAT.test(s.text ?? "")) || isOvenStep(placed[L]) });
+  }
+  if (hot.length === 0) return res;
+  const fixed = new Set(input.flatMap((d) => {
+    const from = breadRunFrom(d);
+    return from === null ? [] : d.steps.slice(from).map((s) => key(d.dishId, s.stepIndex));
+  }));
+  const dayStart = Math.min(...pos.values());
+  /**
+   * What may make room: a dish's work before its first heat step, and a cold dish's (a
+   * hot dish's heat and what follows it is another dish's serving time — moving one hot
+   * dish late must not leave the next one early).
+   */
+  const canWait = new Set(input.flatMap((d) => {
+    const firstHeat = d.steps.findIndex((s) => s.phaseType === "cook" || s.phaseType === "preheat");
+    return d.steps.slice(0, firstHeat < 0 ? d.steps.length : firstHeat).map((s) => key(d.dishId, s.stepIndex));
+  }));
+  /** A dish with no heat: its closing assemble steps that set out what browns or wilts (the guacamole, the dressed greens). */
+  const setOut = new Set(input.filter((d) => !d.steps.some((s) => s.phaseType === "cook")).flatMap((d) => {
+    let c = d.steps.length;
+    while (c > 0 && d.steps[c - 1].phaseType === "assemble") c--;
+    return d.steps.slice(c).filter((s) => BROWNS_OR_WILTS.test(s.text ?? "")).map((s) => key(d.dishId, s.stepIndex));
+  }));
+  const cues = new Map<string, string>();
+  let changed = false;
+  for (const h of [...hot].sort((a, b) => a.finish - b.finish)) {
+    const block = new Set(h.keys);
+    const len = h.keys.reduce((n, k) => n + dur(k), 0);
+    const was = pos.get(h.keys[0])!;
+    const p = placedOf(h.d);
+    const last = p.findIndex((s) => key(h.d.dishId, s.stepIndex) === h.keys[h.keys.length - 1]);
+    const first = p.findIndex((s) => key(h.d.dishId, s.stepIndex) === h.keys[0]);
+    const after = p[last + 1] ? key(h.d.dishId, p[last + 1].stepIndex) : null;
+    const before = p[first - 1];
+    let latest = Math.min(end, after ? pos.get(after)! : end) - len;
+    if (before?.phaseType === "cook") latest = Math.min(latest, pos.get(key(h.d.dishId, before.stepIndex))! + before.estimatedMinutes + LAG_AFTER_HEAT_OTHER);
+    // A dish that uses this one's food gets it first.
+    for (const u of uses.filter((x) => x.usesDishId === h.d.dishId)) {
+      const ud = input.find((x) => x.dishId === u.dishId)!;
+      const uk = key(ud.dishId, ud.steps[u.stepIdx].stepIndex);
+      if (pos.has(uk)) latest = Math.min(latest, pos.get(uk)! - len);
+    }
+    /**
+     * The block at t, and the work it displaces placed again, in order, at the earliest
+     * moment its dish and the hands allow (carveLate's trade, as a small list pass): never
+     * later than it was, never before the day starts. A bread run (BUG-593) and a set-out
+     * that browns or wilts do not move. Null when that cannot be done.
+     */
+    const tryAt = (t: number): Map<string, number> | null => {
+      const next = new Map(pos);
+      let a = t;
+      for (const k of h.keys) { next.set(k, a); a += dur(k); }
+      const region = all.filter((k) => !block.has(k) && pos.get(k)! >= was && pos.get(k)! < t + len).sort((x, y) => pos.get(x)! - pos.get(y)!);
+      const regionSet = new Set(region);
+      const busy: [number, number][] = [
+        ...all.filter((k) => !regionSet.has(k) && attended(k)).map((k) => [next.get(k)!, next.get(k)! + dur(k)] as [number, number]),
+      ];
+      for (const k of region) {
+        const stays = fixed.has(k) || setOut.has(k) || !canWait.has(k);
+        let s = stays ? pos.get(k)! : Math.max(floorOf(k, next), dayStart);
+        for (let guard = 0, moved = true; moved && guard <= busy.length; guard++) {
+          moved = false;
+          for (const [b0, b1] of busy) {
+            if (attended(k) ? s < b1 && b0 < s + dur(k) : b0 <= s && s < b1) { s = b1; moved = true; }
+          }
+        }
+        if (s > pos.get(k)! || (stays && s !== pos.get(k))) return null;
+        next.set(k, s);
+        if (attended(k)) busy.push([s, s + dur(k)]);
+      }
+      for (const k of [...region, ...h.keys]) if (floorOf(k, next) > next.get(k)!) return null;
+      const hands = all.filter((k) => attended(k) && !block.has(k)).map((k) => [next.get(k)!, next.get(k)! + dur(k)] as const);
+      for (const k of h.keys) {
+        const s = next.get(k)!;
+        if (attended(k) ? hands.some(([b0, b1]) => s < b1 && b0 < s + dur(k)) : hands.some(([b0, b1]) => b0 <= s && s < b1)) return null;
+      }
+      return next;
+    };
+    let best: Map<string, number> | null = null;
+    // (Only a move that brings it within HOT_HOLD_MAX: half a move reorders the meal for nothing.)
+    for (let t = latest; t > was && end - (h.finish + t - was) <= HOT_HOLD_MAX && !best; t--) best = tryAt(t);
+    if (best) {
+      for (const [k, v] of best) pos.set(k, v);
+      changed = true;
+    }
+    // Still waiting too long: the next step the cook reads after it says to keep it warm.
+    const lastKey = h.keys[h.keys.length - 1];
+    const doneAt = pos.get(lastKey)! + dur(lastKey);
+    if (end - doneAt > HOT_HOLD_MAX) {
+      const next = all.filter((k) => !block.has(k) && pos.get(k)! >= doneAt).sort((a, b) => pos.get(a)! - pos.get(b)!)[0];
+      const cue = keepWarmCue(h.d.title, h.offThePan);
+      if (next && cue) cues.set(next, cue);
+    }
+  }
+  if (!changed && cues.size === 0) return res;
+  const steps = res.steps
+    .map((e) => {
+      const k = key(e.dishId, e.originalStepIndex);
+      const now = pos.get(k)! - end;
+      const cue = cues.get(k);
+      if (now === e.startOffsetMinutes && !cue) return e;
+      const { reason: _reason, ...plain } = e;
+      return { ...plain, ...(cue ? { reason: cue } : {}), startOffsetMinutes: now };
+    })
+    .sort((a, b) => a.startOffsetMinutes - b.startOffsetMinutes || a.sequenceIndex - b.sequenceIndex)
+    .map((e, i) => ({ ...e, sequenceIndex: i }));
+  return { ...res, steps };
 }
 
 // ── SEQ-1 (BUG-593) — BREAD IS A SERVE-TIME DISH ────────────────────────────────

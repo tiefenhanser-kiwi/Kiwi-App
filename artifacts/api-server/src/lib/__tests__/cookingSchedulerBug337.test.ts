@@ -428,12 +428,14 @@ describe("BUG-337 ruling 3 — a served-cold dish is pulled forward, not finish-
   });
 
   it("cold prep moves INTO a long marinade window that was previously idle", () => {
+    // (The grill carries no words: SEQ-1's BUG-595 pass reads a hot dish's last heat
+    // step, finishes the steak at serving, and fills the window itself. This is ruling 3.)
     const dishes = [
       dish("steak", "Carne Asada", 0, [
         step(0, 5, "prep"),
         step(1, 30, "rest", { text: "Refrigerate the steak in the marinade for 30 minutes." }),
         step(2, 5, "preheat"),
-        step(3, 8, "cook", { ts: true, text: "Grill the steak." }),
+        step(3, 8, "cook", { ts: true }),
         step(4, 5, "rest", { text: "Rest the steak." }),
         step(5, 3, "assemble"),
       ]),
