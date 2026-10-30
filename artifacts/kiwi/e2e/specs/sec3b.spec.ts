@@ -14,10 +14,12 @@
 //
 //   1  — A signs up from the guest plan: the body carries guestSessionId AND
 //        guestToken; the plan is claimed. B is the old client (guestToken
-//        stripped in the browser): 409 guest_session_invalid, the resend
-//        without the claim, no plan.
-//   2  — C signs up as A's "+1" alias: the server gives no trial
-//        (trialDeniedReason "trial_already_used") and the paywall says so.
+//        stripped in the browser): since SEC-2b, 201 with nothing claimed and
+//        no plan (QA-8; it was 409 guest_session_invalid, then the resend).
+//   2  — C signs up as A's "+1" alias. By GET /me/subscription billing.mode
+//        (QA-8 B): "enforced" — the server gives no trial (trialDeniedReason
+//        "trial_already_used") and the paywall says so; "free_launch" — no
+//        trialDeniedReason key and no trial, price or upgrade line on screen.
 //
 // 🔴 THREE NEW ACCOUNTS EVERY RUN (`sec3b-<base36>…@example.com`), all deleted
 // at the end through DELETE /me with their passwords. AI spend: none.
@@ -133,7 +135,7 @@ function watchSignups(): { body: Record<string, unknown>; status: number; answer
   return seen;
 }
 
-async function signUp(email: string): Promise<void> {
+async function signUp(email: string, afterCreate?: () => Promise<void>): Promise<void> {
   await page.goto(`${WEB_ORIGIN}/sign-up`, { waitUntil: "domcontentloaded" });
   await page.getByPlaceholder("First name").waitFor({ timeout: 30_000 });
   await page.getByPlaceholder("First name").fill("Sec");
@@ -141,6 +143,7 @@ async function signUp(email: string): Promise<void> {
   await page.getByPlaceholder("Email").fill(email);
   await page.getByPlaceholder("Password").fill(password);
   await press("Create account");
+  if (afterCreate) await afterCreate();
   await skipHowHeard(page); // CLIENT-3 D — a new account's question
 }
 
@@ -185,7 +188,11 @@ test("1a · A signs up from a guest plan: guestToken rides, the plan is claimed"
   expect((plans.body.plans ?? []).some((p: any) => p.id === seen[0].answer.claimedPlanId)).toBe(true);
 });
 
-test("1b · B, the OLD client (no guestToken): 409, the resend without the claim, no plan", async () => {
+// QA-8 (BUG-620): since SEC-2b (2e39e650) a guestSessionId with NO guestToken is an older
+// client, not an attack: the server skips the claim and creates the account (201, nothing
+// claimed; claimGuestSessionInTx guest_claim_skipped_no_token). A PRESENT wrong token is still
+// 409. This test expected SEC-2's first answer (409, then the resend) and has not passed since.
+test("1b · B, the OLD client (no guestToken): 201, nothing claimed, the session stays unclaimed (SEC-2b)", async () => {
   test.setTimeout(4 * 60_000);
   const g = await guestWithPlan();
   await page.evaluate(() => sessionStorage.clear());
@@ -196,31 +203,64 @@ test("1b · B, the OLD client (no guestToken): 409, the resend without the claim
     await route.continue({ postData: JSON.stringify(b) }).catch(() => {});
   });
   const seen = watchSignups();
-  await signUp(accounts.B);
+  let notice = "";
+  await signUp(accounts.B, async () => {
+    // No plan came with the account: the app says so in a dialog over the question.
+    if (await waitInner((j) => j.includes("Account created"), 30_000)) {
+      notice = (await page.evaluate(() => document.body.innerText || "")).split("\n").filter((l) => /Account created|Test Kitchen/.test(l)).join(" / ");
+      await snap("1b-no-claim-notice");
+      await press("OK");
+    }
+  });
   await waitInner((j) => /onboarding|Set your preferences|Create a meal plan|cuisines/i.test(j), 45_000);
   await page.unrouteAll({ behavior: "ignoreErrors" });
   tokens.B = (await page.evaluate(() => sessionStorage.getItem("kiwi_authToken"))) ?? "";
-  out.B = { signups: seen };
-  expect(seen.map((s) => s.status)).toEqual([409, 201]);
-  expect(seen[0].answer.code).toBe("guest_session_invalid");
-  expect("guestSessionId" in seen[1].body).toBe(false);
-  expect(seen[1].answer.claimedPlanId ?? null).toBeNull();
+  const plans = await new Http(tokens.B).req<any>("GET", `/plans?filter=my_plans&localDate=${todayYmd()}`);
+  out.B = { signups: seen, notice, plans: (plans.body.plans ?? []).length };
+  expect(seen.map((s) => s.status)).toEqual([201]);
+  expect(seen[0].body.guestSessionId).toBe(g.guestSessionId);
+  expect("guestToken" in seen[0].body).toBe(false);
+  expect(seen[0].answer.claimedPlanId ?? null).toBeNull();
+  expect((plans.body.plans ?? []).length, "no plan came with the account").toBe(0);
 });
 
-test("2 · C signs up as A's +1 alias: no trial, and the paywall says so in the server's words", async () => {
+// QA-8 B (BUG-617): which billing the server runs decides what C sees. SERVER-9 A sends
+// billing: { mode } on GET /me/subscription; "free_launch" (enforcement off, dev today) gives
+// no trial at all, so there is nothing to deny: no trialDeniedReason key, and no trial, price
+// or upgrade surface on any screen. "enforced" keeps the trial-used paywall.
+const NO_TRIAL_SURFACE = /\btrial\b|14[- ]day|\$9\.99|\$99\.99|\bsubscribe\b|\bupgrade\b/i;
+
+test("2 · C signs up as A's +1 alias: free_launch shows no trial or price; enforced, the paywall says the trial is used", async () => {
   test.setTimeout(4 * 60_000);
   await page.evaluate(() => sessionStorage.clear());
   const seen = watchSignups();
   await signUp(accounts.C);
+  for (let i = 0; i < 60 && !tokens.C; i++) {
+    tokens.C = (await page.evaluate(() => sessionStorage.getItem("kiwi_authToken"))) ?? "";
+    if (!tokens.C) await page.waitForTimeout(500);
+  }
+  const sub = await json("GET", "/me/subscription", undefined, tokens.C);
+  const mode = sub.body.billing?.mode ?? "enforced"; // no billing field: an older server, today's behaviour
+  if (mode === "free_launch") {
+    // Let the screen after sign-up settle (onboarding), then read every word on it.
+    await waitInner((j) => /preferences|cuisines|household|How many|Create a meal plan|this week/i.test(j), 30_000);
+    await page.waitForTimeout(1500);
+    await snap("2-free-launch-after-signup");
+    const text = await page.evaluate(() => document.body.innerText || "");
+    const hits = text.split("\n").filter((l) => NO_TRIAL_SURFACE.test(l));
+    out.C = { mode, signups: seen, subscription: { status: sub.body.status, billing: sub.body.billing, hasTrialDeniedReason: "trialDeniedReason" in sub.body }, surfaceHits: hits };
+    expect("trialDeniedReason" in sub.body, "free_launch omits trialDeniedReason").toBe(false);
+    expect(seen[0].answer.trialDeniedReason ?? null).toBeNull();
+    expect(hits, "a trial, price or upgrade line on the screen after sign-up").toEqual([]);
+    return;
+  }
   const said = await waitInner(
     (j) => j.includes("Your free trial was already used with this email.") && j.includes("Subscribe to plan and cook with Kiwi."),
     30_000,
   );
   await page.waitForTimeout(800);
   await snap("2-trial-used-sheet");
-  tokens.C = (await page.evaluate(() => sessionStorage.getItem("kiwi_authToken"))) ?? "";
-  const sub = await json("GET", "/me/subscription", undefined, tokens.C);
-  out.C = { signups: seen, subscription: { status: sub.body.status, trialDeniedReason: sub.body.trialDeniedReason }, said };
+  out.C = { mode, signups: seen, subscription: { status: sub.body.status, trialDeniedReason: sub.body.trialDeniedReason }, said };
   expect(seen[0].answer.trialDeniedReason).toBe("trial_already_used");
   expect(sub.body.trialDeniedReason).toBe("trial_already_used");
   expect(said).toBe(true);

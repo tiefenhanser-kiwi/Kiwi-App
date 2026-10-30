@@ -7,7 +7,9 @@
 //
 //   C (BUG-561) — a sign-up the server gave no trial (for real: the "+1" alias of an
 //       inbox that had one, as sec3b does): "How did you hear about Kiwi?" shows
-//       with no paywall over it; Skip, then the trial-used sheet opens.
+//       with no paywall over it; Skip, then the trial-used sheet opens. QA-8 B: that
+//       is billing.mode "enforced"; in "free_launch" no trial is denied, and neither
+//       screen shows a sheet or a trial, price or upgrade line.
 //   A — Edit meal → + Add Dish → Save: Hans's note in the prompt; "Just this
 //       time" and "Apply always" each confirm in his words.
 //   B (BUG-537) — the account's own copies of the two turkeys written by count
@@ -213,21 +215,44 @@ test("1 · C (BUG-561) — How did you hear comes first; the trial-used sheet op
   const onQuestion = await inner(page);
   const backdrops = await page.locator('[data-testid="paywall-backdrop"]').count();
   await snap(page, "C-question-first-375");
-  notes.push(`C: the +1 sign-up's answer: trialDeniedReason ${answer}`);
-  check(
-    "C-question-first",
-    answer === "trial_already_used" && subscribed && onQuestion.includes("How did you hear about Kiwi?") && !onQuestion.includes(TRIAL_USED_TITLE) && backdrops === 0,
-    `subscription loaded on the question: ${subscribed}; question shown: ${onQuestion.includes("How did you hear about Kiwi?")}; trial-used text on screen: ${onQuestion.includes(TRIAL_USED_TITLE)}; paywall backdrops: ${backdrops}`,
-  );
-
-  await press(page, "Skip");
-  expect(await waitPath(page, /onboarding/, 30_000), "on to onboarding").toBe(true);
-  const opened = await waitInner(page, (j) => j.includes(TRIAL_USED_TITLE), 30_000);
-  await page.waitForTimeout(800);
-  await snap(page, "C-sheet-after-375");
-  check("C-sheet-after", opened, `the trial-used sheet on ${new URL(page.url()).pathname} after Skip: ${opened}`);
-  await press(page, "Not now");
-  await page.waitForTimeout(600);
+  // QA-8 B (BUG-617): the server's billing mode decides what the +1 account gets. In
+  // "free_launch" (enforcement off, dev today) there is no trial to deny: no
+  // trialDeniedReason, no sheet, no trial, price or upgrade line. "enforced" is BUG-561's check.
+  const token = await page.evaluate(() => sessionStorage.getItem("kiwi_authToken") ?? "");
+  const sub = await new Http(token).req<any>("GET", "/me/subscription");
+  const mode: string = sub.body?.billing?.mode ?? "enforced"; // no billing field: an older server, today's behaviour
+  notes.push(`C: billing.mode ${mode}; the +1 sign-up's answer: trialDeniedReason ${answer}`);
+  if (mode === "free_launch") {
+    const NO_TRIAL_SURFACE = /\btrial\b|14[- ]day|\$9\.99|\$99\.99|\bsubscribe\b|\bupgrade\b/i;
+    const hitsOn = (t: string) => t.split("\n").filter((l) => NO_TRIAL_SURFACE.test(l));
+    check(
+      "C-question-first",
+      answer === null && !("trialDeniedReason" in (sub.body ?? {})) && subscribed && onQuestion.includes("How did you hear about Kiwi?") && hitsOn(onQuestion).length === 0 && backdrops === 0,
+      `free_launch · trialDeniedReason on the sign-up: ${answer}; on /me/subscription: ${"trialDeniedReason" in (sub.body ?? {})}; subscription loaded: ${subscribed}; question shown: ${onQuestion.includes("How did you hear about Kiwi?")}; trial/price lines: ${JSON.stringify(hitsOn(onQuestion))}; paywall backdrops: ${backdrops}`,
+    );
+    await press(page, "Skip");
+    expect(await waitPath(page, /onboarding/, 30_000), "on to onboarding").toBe(true);
+    // The sheet would open within seconds of the route; give it longer than that.
+    const opened = await waitInner(page, (j) => j.includes(TRIAL_USED_TITLE) || hitsOn(j).length > 0, 8_000);
+    const after = await inner(page);
+    const afterBackdrops = await page.locator('[data-testid="paywall-backdrop"]').count();
+    await snap(page, "C-no-sheet-after-375");
+    check("C-sheet-after", !opened && afterBackdrops === 0, `free_launch · on ${new URL(page.url()).pathname} after Skip: trial/price lines ${JSON.stringify(hitsOn(after))}; paywall backdrops ${afterBackdrops}`);
+  } else {
+    check(
+      "C-question-first",
+      answer === "trial_already_used" && subscribed && onQuestion.includes("How did you hear about Kiwi?") && !onQuestion.includes(TRIAL_USED_TITLE) && backdrops === 0,
+      `subscription loaded on the question: ${subscribed}; question shown: ${onQuestion.includes("How did you hear about Kiwi?")}; trial-used text on screen: ${onQuestion.includes(TRIAL_USED_TITLE)}; paywall backdrops: ${backdrops}`,
+    );
+    await press(page, "Skip");
+    expect(await waitPath(page, /onboarding/, 30_000), "on to onboarding").toBe(true);
+    const opened = await waitInner(page, (j) => j.includes(TRIAL_USED_TITLE), 30_000);
+    await page.waitForTimeout(800);
+    await snap(page, "C-sheet-after-375");
+    check("C-sheet-after", opened, `the trial-used sheet on ${new URL(page.url()).pathname} after Skip: ${opened}`);
+    await press(page, "Not now");
+    await page.waitForTimeout(600);
+  }
   expect(verdicts["C-question-first"] && verdicts["C-sheet-after"]).toBe(true);
 
   http = new Http(await page.evaluate(() => sessionStorage.getItem("kiwi_authToken") ?? ""));
