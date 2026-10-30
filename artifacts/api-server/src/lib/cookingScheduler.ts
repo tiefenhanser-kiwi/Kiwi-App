@@ -127,6 +127,12 @@ export interface SchedulerStep {
    * no number anywhere. Never parsed for quantities, order or duration.
    */
   text?: string | null;
+  /**
+   * SEQ-1 (BUG-592) — the step's words need the cook at the stove for all of it
+   * (`needsTheCook`), whatever its two flags say. Set by `markHandsOn` at an everyday
+   * meal's input; absent everywhere else, where the flags decide as before.
+   */
+  handsOn?: boolean;
 }
 
 /** One input dish: its identity/title/order plus its steps in stepIndex order. */
@@ -283,23 +289,64 @@ export interface ScheduleResult {
  * WS9 D-WS9-239 (1b) — EXPORTED so parallelGroupDerive.ts (the firstDependent
  * → parallelGroup derivation) applies THIS predicate to a generator's output
  * rather than carrying a second copy. Widened to the two fields it reads.
+ *
+ * SEQ-1 (BUG-592) — and `handsOn`, the step's words read at an everyday meal's
+ * input (`markHandsOn`). Absent, the two flags decide exactly as before.
  */
 export function isUnattended(
-  step: Pick<SchedulerStep, "phaseType" | "isTimingSensitive">,
+  step: Pick<SchedulerStep, "phaseType" | "isTimingSensitive" | "handsOn">,
 ): boolean {
   switch (step.phaseType) {
     case "preheat":
+      return !step.handsOn; // an oven heats itself; oil heating to shimmering is watched (SEQ-1)
     case "rest":
     case "hold":
       return true; // hands-free by definition
     case "cook":
-      return !step.isTimingSensitive; // unattended braise/boil/grill; watched sear is attended
+      return !step.isTimingSensitive && !step.handsOn; // unattended braise/boil/grill; watched sear is attended
     case "prep":
     case "assemble":
       return false; // hands-on by definition
     default:
       return false;
   }
+}
+
+// ── SEQ-1 (BUG-592) — HANDS-ON MEANS HANDS-ON ───────────────────────────────────
+//
+// QA-COOK-1: "Heat a dry skillet …, then warm the flour tortillas one at a time for
+// 20–30 seconds per side" is `cook` and not timing-sensitive, so the flags called it
+// hands-free and the Sequencer put the lime-cutting beside it; "Heat the oil … until
+// shimmering" is `preheat`, hands-free by definition. A cook reads the words. These
+// need the cook at the stove for the whole step: one at a time, per side, a sear, oil
+// to shimmering, stirring or whisking constantly, a flip, a toss, a tortilla or a
+// bread warmed in a pan or over a flame. Not an oven step (a flip halfway through a
+// bake is a moment of a long wait), not a step longer than HANDS_ON_MAX_MINUTES, and
+// not one that goes on to wait by itself — a simmer, a boil, a soak (the sear is its
+// first minutes; the rest is the wait the BUG-018 ruling keeps hands-free). "The
+// seared chicken" is the food, not the work.
+//
+// Read once, at an everyday meal's input (`markHandsOn`), into `handsOn` — not inside
+// isUnattended: the feasts are frozen and keep the two flags, and the timing stamp
+// passes no text, so its numbers read the flags as before.
+const HANDS_ON_WORDS = /\b(?:one at a time|a few at a time|per side|sear(?:s|ing)?|until (?:it )?shimmer(?:s|ing)|(?:stir|whisk)(?:ring|ing)? constantly|flip(?:s|ping)?|toss(?:es|ing)?)\b/i;
+const BREAD_IN_A_PAN = /\b(?:warm|heat|toast|char)\w*\b[^.;]*\b(?:tortillas?|pitas?|naan|flatbreads?|breads?|rolls?|buns?|arepas?|chapatis?|rotis?)\b[^.;]*\b(?:skillet|griddle|pan|comal|flame|burner)\b|\b(?:skillet|griddle|pan|comal|flame|burner)\b[^.;]*\b(?:warm|heat|toast|char)\w*\b[^.;]*\b(?:tortillas?|pitas?|naan|flatbreads?|breads?)\b/i;
+/** A step that goes on to wait by itself after its hands-on start. */
+const THEN_WAITS = /\b(?:simmer\w*|braise\w*|cover(?:ed)? and (?:cook|simmer)|bring\b[^.;]*\bto a (?:rolling )?boil|reduce (?:the )?heat to low|soak\w*|slow cooker|pressure cook\w*|lid closed|close the lid)\b/i;
+/** SEQ-1 (BUG-592) — the longest step whose hands-on words hold the cook for all of it. */
+export const HANDS_ON_MAX_MINUTES = 15;
+
+/** SEQ-1 (BUG-592) — the step's words need the cook at the stove for all of it. */
+export function needsTheCook(step: Pick<SchedulerStep, "phaseType" | "estimatedMinutes" | "text">): boolean {
+  const text = step.text ?? "";
+  if (!text || (step.phaseType !== "cook" && step.phaseType !== "preheat") || isOvenStep({ phaseType: step.phaseType, text })) return false;
+  if (step.estimatedMinutes > HANDS_ON_MAX_MINUTES || THEN_WAITS.test(text)) return false;
+  return HANDS_ON_WORDS.test(text) || BREAD_IN_A_PAN.test(text);
+}
+
+/** SEQ-1 (BUG-592) — each step's `handsOn`, from its words. An everyday meal's input only. */
+export function markHandsOn(dishes: readonly SchedulerDish[]): SchedulerDish[] {
+  return dishes.map((d) => ({ ...d, steps: d.steps.map((s) => (needsTheCook(s) ? { ...s, handsOn: true } : s)) }));
 }
 
 // WS9 BUG-270 — the one pathKey value whose steps are NOT part of the default
@@ -763,7 +810,8 @@ export function scheduleCookingSequence(
   if (opts.feastOven && dishes.some((d) => d.steps.some((s) => TAKE_OUT_STEP.test(s.text ?? "")))) {
     return withTakeOut(scheduleTheDay(dishes.map((d) => ({ ...d, steps: d.steps.filter((s) => !TAKE_OUT_STEP.test(s.text ?? "")) })), opts), dishes);
   }
-  return scheduleTheDay(dishes, opts);
+  // SEQ-1 — the cook's reading of the words, on an everyday meal (the feasts are frozen).
+  return scheduleTheDay(opts.feastOven ? dishes : markHandsOn(dishes), opts);
 }
 
 /**
