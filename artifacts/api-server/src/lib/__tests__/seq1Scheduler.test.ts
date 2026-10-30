@@ -2,7 +2,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { isUnattended, markHandsOn, needsTheCook, scheduleCookingSequence, type SchedulerDish, type SchedulerPhase } from "../cookingScheduler";
+import { isUnattended, markHandsOn, needsTheCook, panLive, scheduleCookingSequence, type SchedulerDish, type SchedulerPhase } from "../cookingScheduler";
 
 const st = (stepIndex: number, phaseType: SchedulerPhase, estimatedMinutes: number, text: string, isTimingSensitive = false, parallelGroup: string | null = null) => ({ stepIndex, phaseType, estimatedMinutes, text, isTimingSensitive, parallelGroup, componentKey: null, pathKey: null });
 const dish = (dishId: string, title: string, positionIndex: number, steps: ReturnType<typeof st>[]): SchedulerDish => ({ dishId, title, positionIndex, roleLabel: null, steps, ingredientNames: [] });
@@ -86,5 +86,116 @@ describe("SEQ-1 rule 1 (BUG-592) — hands-on means hands-on", () => {
     assert.equal(cook.activeEstimatedMinutes, flagsOnly + 6 + 2, "Cook Mode counts the tortillas and the shimmering oil");
     const feast = scheduleCookingSequence(FAJITAS, { feastOven: true });
     assert.equal(feast.activeEstimatedMinutes, flagsOnly, "a feast is frozen");
+  });
+});
+
+// Al Pastor (a88f5064): the oil heats while the pork marinates (a parallel group).
+const PORK = dish("pork", "Al Pastor Pork Strips", 0, [
+  st(0, "prep", 5, "Slice the pork tenderloin into thin strips and pat dry with paper towels."),
+  st(1, "prep", 4, "In a bowl, whisk together the 2 minced chipotle peppers, 2 tablespoons adobo sauce, 1½ teaspoons ancho chili powder, 1 teaspoon cumin, 1 teaspoon smoked paprika, 3 minced garlic cloves, ¼ cup fresh orange juice, 1 tablespoon white vinegar, and 1 teaspoon kosher salt."),
+  st(2, "rest", 10, "Add the pork strips to the marinade and toss to coat evenly; let sit for at least 10 minutes while you prepare the other components.", false, "w2"),
+  st(3, "preheat", 2, "Heat 1 tablespoon neutral oil in a large cast-iron or heavy skillet over medium-high until shimmering.", false, "w2"),
+  st(4, "cook", 8, "Add the marinated pork strips in a single layer — work in two batches if needed — and cook for 3–4 minutes per side, turning once, until caramelized and cooked through to 145 °F.", true),
+  st(5, "rest", 2, "Transfer the cooked pork to a cutting board and let it rest for 2 minutes, then roughly chop into bite-sized pieces."),
+]);
+const PINEAPPLE = dish("pine", "Charred Pineapple", 1, [
+  st(0, "prep", 2, "Toss 1½ cups fresh pineapple chunks with ½ teaspoon neutral oil."),
+  st(1, "preheat", 2, "Heat a dry cast-iron skillet or grill pan over high heat until very hot, about 2 minutes."),
+  st(2, "cook", 5, "Add the pineapple chunks in a single layer and cook undisturbed for 2–3 minutes per side until deeply charred grill marks form.", true),
+  st(3, "hold", 1, "Remove from heat and set aside until ready to serve."),
+]);
+const SLAW = dish("slaw", "Cilantro-Lime Slaw", 2, [
+  st(0, "prep", 6, "Thinly shred 3 cups green cabbage, roughly chop ½ cup fresh cilantro, and thinly slice 1 jalapeño."),
+  st(1, "prep", 2, "In a large bowl, whisk together 3 tablespoons freshly squeezed lime juice, 1 teaspoon honey, ½ teaspoon kosher salt, and 1 tablespoon neutral oil."),
+  st(2, "assemble", 2, "Add the cabbage, cilantro, and jalapeño to the bowl and toss until evenly coated; taste and adjust salt if needed."),
+]);
+const CORN = dish("corn", "Warm Corn Tortillas with Cotija", 3, [
+  st(0, "prep", 3, "Cut 2 limes into wedges (optional) and crumble 3 ounces cotija cheese; set both aside."),
+  st(1, "cook", 5, "Warm 12 corn tortillas directly over a gas flame or in a dry skillet over medium heat, about 30 seconds per side, until pliable and lightly charred; wrap in a clean towel to keep warm.", true),
+  st(2, "assemble", 1, "Set out the warm tortillas, crumbled cotija, and lime wedges (if using) for building tacos at the table."),
+]);
+const AL_PASTOR = [PORK, PINEAPPLE, SLAW, CORN];
+
+// Lucknowi Chicken Biryani (df2ded1e; its bought spice-blend alternate left out).
+const BIRYANI = dish("bir", "Lucknowi Chicken Biryani", 0, [
+  st(0, "prep", 2, "Steep ¼ teaspoon saffron threads in 3 tablespoons warm whole milk and set aside to bloom for at least 15 minutes."),
+  st(1, "prep", 32, "Rinse 2 cups basmati rice under cold water until the water runs clear, then soak in cold water for 30 minutes and drain."),
+  st(2, "prep", 25, "In a large bowl, combine the chicken pieces with ½ cup yogurt, 2 tablespoons ginger-garlic paste, 1½ teaspoons ground coriander, 1 teaspoon ground cumin, 1 teaspoon Kashmiri red chili powder, 1 teaspoon garam masala, and 1½ teaspoons kosher salt; toss to coat evenly and marinate for at least 20 minutes."),
+  st(4, "cook", 22, "Heat 4 tablespoons neutral oil in a large heavy-bottomed pot or Dutch oven over medium-high and fry the 2 thinly sliced onions, stirring frequently, for 18–22 minutes until deep golden brown and crispy; remove with a slotted spoon and drain on paper towels.", true),
+  st(5, "cook", 8, "Bring a large pot of water to a boil with ½ teaspoon kosher salt, 3 of the green cardamom pods, 2 cloves, 4 peppercorns, 1 bay leaf, and the cinnamon stick; add the drained rice and parboil for exactly 5–6 minutes until 70% cooked (grains should still have a firm white core), then drain immediately.", true),
+  st(6, "cook", 2, "In the same heavy pot used for the onions, melt 3 tablespoons ghee over medium-high; add the remaining 3 cardamom pods, 2 cloves, 4 peppercorns, 1 bay leaf, 1 star anise, and 2 mace blades and sizzle for 1 minute until fragrant.", true),
+  st(7, "cook", 5, "Add the marinated chicken to the pot in a single layer and cook over high heat for 5 minutes, turning once, until the marinade thickens and the chicken is lightly seared on both sides.", true),
+  st(8, "assemble", 4, "Scatter half the fried onions, ¼ cup mint leaves, and ¼ cup cilantro leaves over the chicken, then layer all the parboiled rice evenly on top; drizzle the saffron milk, 1 tablespoon rose water, and 1 tablespoon kewra water (optional) over the rice, and scatter the remaining fried onions on top."),
+  st(9, "cook", 25, "Cover the pot tightly with foil and then the lid to seal in steam; cook on the lowest heat setting for 25 minutes (dum cooking), then remove from heat and let rest, still sealed, for 10 minutes."),
+  st(10, "rest", 10, "Rest the sealed pot off heat for 10 minutes to allow the steam to finish cooking the rice."),
+  st(11, "assemble", 3, "Uncover and gently fold the biryani from the edges inward two or three times to mix the layers without breaking the rice grains, then serve immediately."),
+]);
+const RAITA = dish("raita", "Cucumber and Tomato Raita", 1, [
+  st(0, "prep", 7, "Halve the English cucumber lengthwise, scrape out the seeds with a spoon, and finely dice the flesh; finely dice the Roma tomato and finely mince 2 tablespoons red onion."),
+  st(1, "cook", 2, "Toast ¼ teaspoon ground cumin in a dry skillet over medium heat for 60 seconds until fragrant, then remove from heat.", true),
+  st(2, "assemble", 2, "Whisk 1½ cups whole milk yogurt with ½ teaspoon kosher salt and ⅛ teaspoon black pepper until smooth."),
+  st(3, "assemble", 2, "Fold in the diced cucumber, diced tomato, minced red onion, 2 tablespoons chopped fresh mint, and the toasted cumin; taste and adjust salt if needed."),
+  st(4, "rest", 15, "Cover and refrigerate the raita for at least 15 minutes before serving alongside the biryani."),
+]);
+const LUCKNOWI = [BIRYANI, RAITA];
+
+/** The order the cook reads, as "dishId#stepIndex". */
+const order = (r: R) => [...r.steps].sort((a, b) => a.sequenceIndex - b.sequenceIndex).map((e) => `${e.dishId}#${e.originalStepIndex}`);
+/** Each step on a live pan (panLive, or hands-on work left in it), and the hands-on steps of other dishes read before its dish's next step. */
+function handsBetweenPanSteps(r: R, ds: SchedulerDish[]): string[] {
+  const marked = markHandsOn(ds);
+  const seq = [...r.steps].sort((a, b) => a.sequenceIndex - b.sequenceIndex);
+  const out: string[] = [];
+  for (const d of marked) {
+    let live = false;
+    d.steps.forEach((s, k) => {
+      const next = d.steps[k + 1];
+      live = panLive(s) || (live && !isUnattended(s) && !/\b(?:transfer|drain|set aside|remove from heat|serve)\w*/i.test(s.text ?? ""));
+      if (!live || !next) return;
+      const i = seq.findIndex((e) => e.dishId === d.dishId && e.originalStepIndex === s.stepIndex);
+      const j = seq.findIndex((e) => e.dishId === d.dishId && e.originalStepIndex === next.stepIndex);
+      for (const e of seq.slice(i + 1, j)) if (!isUnattended(stepOf(marked, e.dishId, e.originalStepIndex))) out.push(`${d.dishId}#${s.stepIndex} … ${e.dishId}#${e.originalStepIndex} … ${d.dishId}#${next.stepIndex}`);
+    });
+  }
+  return out;
+}
+
+describe("SEQ-1 rule 2 (BUG-594) — no knife work inside pan work you can't leave", () => {
+  it("panLive: a hands-on stove step that leaves the food on the heat", () => {
+    const [ch, tor] = markHandsOn([CHICKEN, TORTILLAS]);
+    assert.equal(panLive(ch.steps[3]), true, "the oil, shimmering");
+    assert.equal(panLive(ch.steps[4]), false, "the peppers go to a plate");
+    assert.equal(panLive(ch.steps[5]), true, "the chicken sears on");
+    assert.equal(panLive(ch.steps[6]), false, "removed from the heat");
+    assert.equal(panLive(tor.steps[0]), true, "the tortillas, one at a time");
+    assert.equal(panLive({ phaseType: "cook", isTimingSensitive: true, text: "Roast the broccoli 20 minutes, turning once." }), false, "an oven step");
+    assert.equal(panLive({ phaseType: "cook", isTimingSensitive: false, text: "Simmer the sauce 20 minutes." }), false, "hands-free");
+    assert.equal(panLive({ phaseType: "cook", isTimingSensitive: true }), false, "no words (the timing stamp): never");
+  });
+
+  it("the fajita: the chicken's sear is followed by its peppers; the toppings come before or after", () => {
+    const r = scheduleCookingSequence(FAJITAS);
+    const o = order(r);
+    assert.equal(o[o.indexOf("ch#6") + 1], "ch#7");
+    assert.equal(entry(r, "ch", 7).startOffsetMinutes, entry(r, "ch", 6).startOffsetMinutes + 7);
+    assert.deepEqual(handsBetweenPanSteps(r, FAJITAS), []);
+  });
+
+  it("Al Pastor: the oil goes on as the marinade ends and the pork follows it; the slaw is cut before or after (was between)", () => {
+    const r = scheduleCookingSequence(AL_PASTOR);
+    const o = order(r);
+    assert.equal(o[o.indexOf("pork#3") + 1], "pork#4");
+    assert.equal(entry(r, "pork", 4).startOffsetMinutes, entry(r, "pork", 3).startOffsetMinutes + 2, "the pork goes in as the oil shimmers");
+    assert.ok(entry(r, "pork", 4).startOffsetMinutes >= entry(r, "pork", 2).startOffsetMinutes + 10, "after the marinade");
+    assert.deepEqual(handsBetweenPanSteps(r, AL_PASTOR), []);
+  });
+
+  it("Biryani: the dum follows the layering, and the raita is made during it (151 → 138 in QA-COOK-1's sessions)", () => {
+    const r = scheduleCookingSequence(LUCKNOWI);
+    const o = order(r);
+    assert.equal(o[o.indexOf("bir#7") + 1], "bir#8");
+    assert.equal(o[o.indexOf("bir#8") + 1], "bir#9", "the pot is sealed right after the rice is layered on the chicken");
+    assert.ok(entry(r, "raita", 0).startOffsetMinutes >= entry(r, "bir", 9).startOffsetMinutes, "the cucumber is diced while the biryani steams");
+    assert.deepEqual(handsBetweenPanSteps(r, LUCKNOWI), []);
   });
 });

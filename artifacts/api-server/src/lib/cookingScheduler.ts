@@ -344,6 +344,26 @@ export function needsTheCook(step: Pick<SchedulerStep, "phaseType" | "estimatedM
   return HANDS_ON_WORDS.test(text) || BREAD_IN_A_PAN.test(text);
 }
 
+// ── SEQ-1 (BUG-594) — NO KNIFE WORK INSIDE PAN WORK YOU CAN'T LEAVE ─────────────
+//
+// QA-COOK-1, 27 of 30 meals: the oil is shimmering, and the next step is to shred a
+// cabbage. A hands-on stove step (isUnattended false: timing-sensitive, or `handsOn`)
+// that leaves the food on the heat is PAN-LIVE: its dish's next step uses that pan, so
+// it starts the moment the pan-live step ends (a latest bound of 0, the lag repair's
+// own mechanism) and is the next step the cook reads. The cook's hands are held across
+// the two, so board work lands before the pan goes on or after the pan work, never
+// between. A step that takes the food off the heat (transfer, drain, set aside, to a
+// plate) frees the pan. An oven step is never pan-live. Cook Mode's text only (the
+// timing stamp passes none), and not a feast's.
+const OFF_THE_HEAT = /\b(?:transfer\w*|remove\w* (?:it |them |the [\w ]+ )?(?:from|off) (?:the )?(?:heat|pan|skillet|wok|pot|griddle|grill)|off the heat|turn (?:off the heat|the heat off)|drain\w*|set (?:it |them |the [\w ]+ )?aside|(?:to|onto) a (?:plate|bowl|platter|cutting board|rack|serving dish)|serve\w*)\b/i;
+
+/** SEQ-1 (BUG-594) — a hands-on stove step that leaves the food on the heat. */
+export function panLive(step: Pick<SchedulerStep, "phaseType" | "isTimingSensitive" | "handsOn" | "text">): boolean {
+  const text = step.text ?? "";
+  if (!text || (step.phaseType !== "cook" && step.phaseType !== "preheat") || isUnattended(step)) return false;
+  return !isOvenStep({ phaseType: step.phaseType, text }) && !OFF_THE_HEAT.test(text);
+}
+
 /** SEQ-1 (BUG-592) — each step's `handsOn`, from its words. An everyday meal's input only. */
 export function markHandsOn(dishes: readonly SchedulerDish[]): SchedulerDish[] {
   return dishes.map((d) => ({ ...d, steps: d.steps.map((s) => (needsTheCook(s) ? { ...s, handsOn: true } : s)) }));
@@ -2737,9 +2757,46 @@ function scheduleOnceCore(
       ? undefined
       : work.find((o) => o.dishIdx === w.dishIdx && o.stepIdx === w.stepIdx - 1);
 
+  // SEQ-1 (BUG-594) — the steps that leave a pan live (panLive, or hands-on work done in
+  // the live pan that leaves the food on: Biryani's layering over the seared chicken),
+  // and each one's dish successor, which starts as it ends. Not a feast's. It is a
+  // latest bound of 0, so `enforceMaxLag: false` (the bounds priced, BUG-337's §BREAK)
+  // sets it aside with the others.
+  // (By the dish's own order, a parallel group's riders included: the enchiladas'
+  // tortillas, warmed while the sauce simmers, are rolled next.)
+  const live = new Set<WorkStep>();
+  const nextOnPan = new Map<WorkStep, WorkStep>();
+  const onPanAfter = new Map<WorkStep, WorkStep>();
+  if (!oven && !blocks && enforceMaxLag) {
+    let prev: WorkStep | undefined;
+    for (const w of [...work].sort((a, b) => a.dishIdx - b.dishIdx || a.stepIdx - b.stepIdx)) {
+      if (prev?.dishIdx !== w.dishIdx) prev = undefined;
+      if (prev && live.has(prev)) {
+        nextOnPan.set(prev, w);
+        onPanAfter.set(w, prev);
+      }
+      if (panLive(w.step) || (prev && live.has(prev) && !w.unattended && !OFF_THE_HEAT.test(w.step.text ?? ""))) live.add(w);
+      prev = w;
+    }
+  }
+  /** SEQ-1 (BUG-594) — this step starts as its dish's pan-live step ends. */
+  const glued = (w: WorkStep): boolean => onPanAfter.has(w);
+  /** SEQ-1 (BUG-594) — the first step of a run on a live pan. */
+  const panHead = (w: WorkStep): boolean => nextOnPan.has(w) && !glued(w);
+  /** SEQ-1 (BUG-594) — the cook's minutes from this step to the end of its run on the pan (an unattended last step: its kickoff minute). */
+  const panRunMinutes = (w: WorkStep): number => {
+    let n = w.step.estimatedMinutes;
+    for (let x = nextOnPan.get(w); x; x = nextOnPan.get(x)) {
+      if (x.unattended) return n + 1;
+      n += x.step.estimatedMinutes;
+    }
+    return n;
+  };
+
   /** The bound in minutes, or null when this step has no heat predecessor. */
   const maxLagOf = (w: WorkStep): number | null => {
     const prev = dishPredecessor(w);
+    if (prev && glued(w)) return 0; // (a rider has no key to repair: the pass places it with its pan)
     if (!prev || prev.step.phaseType !== "cook") return null;
     return w.step.phaseType === "rest" ? LAG_AFTER_HEAT_REST : LAG_AFTER_HEAT_OTHER;
   };
@@ -2866,6 +2923,8 @@ function scheduleOnceCore(
       (a, b) =>
         keyOf(a) - keyOf(b) ||
         a.idealStart - b.idealStart ||
+        // SEQ-1 (BUG-594) — what runs on its own is started before the pan goes on.
+        Number(panHead(a)) - Number(panHead(b)) ||
         a.dishIdx - b.dishIdx ||
         a.step.stepIndex - b.step.stepIndex,
     );
@@ -2894,7 +2953,14 @@ function scheduleOnceCore(
         inDishOrder.push(next);
       }
     }
-    for (const w of inDishOrder) {
+    // SEQ-1 (BUG-594) — a pan's run is placed together: each step on a live pan right after the one before it.
+    const placing = nextOnPan.size === 0 ? inDishOrder : inDishOrder.flatMap((w) => {
+      if (glued(w)) return [];
+      const run = [w];
+      for (let x = nextOnPan.get(w); x; x = nextOnPan.get(x)) run.push(x);
+      return run;
+    });
+    for (const w of placing) {
       // A step can't begin before its own dish allows it — a rider at its
       // window's kickoff, anything else once every prior step of the dish has
       // finished — nor before its finish-aligned ideal start, nor before the cook
@@ -2959,6 +3025,23 @@ function scheduleOnceCore(
       // PREP-3 3b — the skewers are threaded once their soak is over.
       const soak = soaks[w.dishIdx].get(w.stepIdx);
       if (soak && mine[soak.from]) floor = Math.max(floor, mine[soak.from]!.finish + soak.minutes);
+      // SEQ-1 (BUG-594) — a pan's run goes on late enough that each of its steps can follow
+      // the one before it: Al Pastor's oil heats while the pork marinates, and the pork
+      // goes in when the marinade is done, so the oil goes on two minutes before that.
+      if (panHead(w)) {
+        let offset = w.step.estimatedMinutes;
+        for (let x = nextOnPan.get(w); x; x = nextOnPan.get(x)) {
+          let own = x.idealStart;
+          if (x.kind.kind === "rider") own = Math.max(own, mine[x.kind.windowIdx]?.actualStart ?? 0);
+          else for (let j = 0; j < w.stepIdx; j++) own = Math.max(own, mine[j]?.finish ?? 0);
+          const xUse = waitsFor.get(`${x.dishId}|${x.stepIdx}`);
+          if (xUse) own = Math.max(own, finishOf(xUse.usesDishId, xUse.doneIdx));
+          const xSoak = soaks[x.dishIdx].get(x.stepIdx);
+          if (xSoak && xSoak.from < w.stepIdx && mine[xSoak.from]) own = Math.max(own, mine[xSoak.from]!.finish + xSoak.minutes);
+          floor = Math.max(floor, own - offset);
+          offset += x.step.estimatedMinutes;
+        }
+      }
       // THX-3c (BUG-463) — one temperature at a time: a block's oven step starts no
       // earlier than every oven step of the blocks before it has finished.
       const bk = blocks?.blocks;
@@ -2983,7 +3066,9 @@ function scheduleOnceCore(
       }
       // THX-3d round 3 (T) — a bake already in the oven ("Keep roasting the turkey…", "The
       // stuffing is in at 400°F…") goes on by itself: it needs no free moment of the cook's.
-      const placeAt = (t: number) => ((w.unattended && ALREADY_IN.test(w.step.text ?? "")) || relocated.has(w) ? t : findSlot(busy, t, w.step.estimatedMinutes, !w.unattended));
+      // SEQ-1 (BUG-594) — the first step on a live pan needs the hands free for the pan's whole run.
+      const handsFor = panHead(w) ? panRunMinutes(w) : w.step.estimatedMinutes;
+      const placeAt = (t: number) => ((w.unattended && ALREADY_IN.test(w.step.text ?? "")) || relocated.has(w) ? t : findSlot(busy, t, handsFor, !w.unattended));
       let start = placeAt(floor);
       // THX-3d round 4 (BUG-496) — a stay goes in when its pans fit.
       const stay = stayFirst.get(w);
@@ -3240,6 +3325,10 @@ function scheduleOnceCore(
   const ordered = [...kept].sort(
     (a, b) =>
       a.actualStart - b.actualStart ||
+      // SEQ-1 (BUG-594) — the pan's next step is the next one the cook reads, and a
+      // kickoff at the moment the pan goes on is read before it.
+      Number(glued(b)) - Number(glued(a)) ||
+      Number(panHead(a)) - Number(panHead(b)) ||
       a.dishIdx - b.dishIdx ||
       a.step.stepIndex - b.step.stepIndex,
   );
