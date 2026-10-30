@@ -14,7 +14,7 @@ import { randomBytes } from "node:crypto";
 
 import type { PrismaClient } from "@prisma/client";
 
-import { answerFold, type FoldInput, type FoldStep, preppedAnswerPlanId, preppedReadPlanItemId } from "./appFold";
+import { answerFold, appFold, type FoldInput, type FoldStep, planFold, preppedAnswerPlanId, preppedReadPlanItemId } from "./appFold";
 import { Client, JourneyError } from "./http";
 import {
   cookKey,
@@ -27,7 +27,9 @@ import {
   reconcileR7,
   reconcileR8,
   reconcileR9,
+  reconcileR12,
   type SequencedStep,
+  splitDishesOf,
 } from "./reconcilePrepCook";
 import { type GroceryEvidence, reconcileR1, reconcileR2, reconcileR3 } from "./reconcileGrocery";
 import type { GroceryRow, PlanMeal, PrepSession, PrepStep, RecipeStep, RuleResult } from "./types";
@@ -481,6 +483,12 @@ export class Household {
     const ticked = opts.prepped ? new Set(week.steps.map((s) => s.stepKey)) : new Set(this.ticked);
     this.push(reconcileR7(this.spec.id, { label, meals, prepSteps: week.steps, ticked, prepped: !!opts.prepped, ...(opts.fold !== undefined ? { fold: opts.fold } : {}) }));
     this.push(reconcileR6(this.spec.id, week, refs));
+    // R12 (QA-8 A3, D-WS9-362): a row split between a ticked bowl and a later step adds up. The
+    // steps the app folds are not shown, so they measure nothing (the fold R7 reads).
+    const live = week.steps.filter((s) => !s.skipSuggested && !/^Label \d+ containers?\b/.test(s.title));
+    const fold = opts.fold !== undefined ? opts.fold : opts.prepped ? null : planFold(live, ticked);
+    const bowls = live.filter((s) => ticked.has(s.stepKey));
+    this.push(reconcileR12(this.spec.id, label, meals.flatMap((x) => splitDishesOf(x.meal, x.after, bowls, appFold(x.meal, x.after, fold).done, x.baseline))));
     (this.out.evidence.prepToCook ??= [] as unknown[]) as unknown[];
     (this.out.evidence.prepToCook as unknown[]).push({
       label, ticked: [...ticked],

@@ -13,7 +13,7 @@ import { ovenTempOf } from "../thx2/thx2Oven";
 import { appFold, type FoldInput, planFold } from "./appFold";
 
 import { dishFactor, type Finding, type GroceryRow, type PlanMeal, type PrepSession, type PrepStep, type RecipeIngredient, type RecipeStep, type RuleResult, type Severity } from "./types";
-import { comparable, foodKey, foodWords, headNoun, normName, parseQty, sameFood } from "./units";
+import { comparable, foodKey, foodWords, FORMS, headNoun, normName, parseQty, sameFood } from "./units";
 
 const LABEL_KEYS = new Set(["week-labels", "feast#feast-labels"]);
 const isLabelStep = (s: PrepStep) => LABEL_KEYS.has(s.stepKey) || /^Label \d+ containers?\b/.test(s.title);
@@ -67,7 +67,10 @@ function proseMatches(text: string, food: string): { qty: number; unit: string; 
     const own = foodWords(food);
     if (between.some((w) => !own.includes(w))) continue;
     const at = (m.index ?? 0) + m[0].indexOf(m[1]);
-    out.push({ qty, unit: (m[2] ?? "").toLowerCase(), at, words: normName(`${m[3] ?? ""} ${m[4]}`).split(" ").filter(Boolean) });
+    // The plant part after the head is said too: "1 tsp lemon zest" names the zest, not the juice.
+    const part = /^\s+([A-Za-z-]+)/.exec(text.slice((m.index ?? 0) + m[0].length))?.[1] ?? "";
+    const tail = FORMS.has(normName(part)) ? ` ${part}` : "";
+    out.push({ qty, unit: (m[2] ?? "").toLowerCase(), at, words: normName(`${m[3] ?? ""} ${m[4]}${tail}`).split(" ").filter(Boolean) });
   }
   return out;
 }
@@ -106,7 +109,8 @@ function nameScore(words: string[], name: string): number | null {
   let n = 0;
   for (const w of words) {
     if (own.has(w)) n++;
-    else if (!PREP_ONLY.has(w)) return null;
+    // A plant part the name does not say still names the plant (the list buys lemons for "lemon juice").
+    else if (!PREP_ONLY.has(w) && !FORMS.has(w)) return null;
   }
   return n;
 }
@@ -857,4 +861,160 @@ export function reconcileR11(household: string, calls: CallRecord[], consoleErro
 /** /plans/1e41fc0c-…/items/… → /plans/:id/items/:id */
 export function normPath(p: string): string {
   return p.replace(/\?.*$/, "").replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, ":id");
+}
+
+// ── R12 — a split adds up (D-WS9-362) ───────────────────────────────────────
+//
+// A recipe may put part of a row in a bowl and the rest in at a later step
+// (Pepper Steak: half the soy and sesame oil in the velvet, half at the stove).
+// The ruling: that split is right when the bowl's share plus what Cook Mode still
+// measures at the other steps is the recipe's amount, and the later step names
+// the remaining share, not the whole. R12 looks only at a food a prepped bowl
+// holds AND a Cook Mode step it shows still measures (that is the split); a food
+// in the bowl alone, or measured where the bowl goes in, is not one.
+
+export interface SplitBowl {
+  /** The container the cook fills ("Steak sauce"). */
+  name: string;
+  /** Cook steps (stepIndex) where the bowl goes in: they say "the <name> you prepped" or carry its chip. */
+  entry: number[];
+  /** food (foodIdOf) → what the bowl holds of it, as prep states it. */
+  shares: Map<string, { qty: number; unit: string }[]>;
+}
+
+export interface SplitDish {
+  meal: string;
+  dish: string;
+  /** food → the dish's rows for it at the meal's scale (what the recipe needs). */
+  rows: Map<string, { name: string; qty: number; unit: string }[]>;
+  bowls: SplitBowl[];
+  /** What Cook Mode measures, step by step, at the meal's scale (the amountRefs the app renders). */
+  said: { stepIndex: number; food: string; qty: number; unit: string }[];
+  /**
+   * The same, unprepped (the authored steps). A split is a row the authored steps divide:
+   * when they state more than the recipe ("add 2 bay leaves" … "remove the 2 bay leaves"),
+   * the later measure is a restatement, not a share, and R12 does not judge it.
+   */
+  authored?: { stepIndex: number; food: string; qty: number; unit: string }[];
+  /** Steps the app does not show (folded into "Done in prep"). */
+  hidden: Set<number>;
+}
+
+export function reconcileR12(household: string, label: string, dishes: SplitDish[]): RuleResult {
+  const findings: Finding[] = [];
+  let checked = 0;
+  for (const d of dishes) {
+    for (const bowl of d.bowls) {
+      if (bowl.entry.length === 0) continue; // a bowl Cook Mode never names is not this rule's
+      for (const [food, share] of bowl.shares) {
+        const rows = d.rows.get(food);
+        if (!rows?.length) continue;
+        const later = d.said.filter((s) => s.food === food && !bowl.entry.includes(s.stepIndex) && !d.hidden.has(s.stepIndex));
+        if (later.length === 0) continue;
+        const like = rows[0];
+        const total = sumIn(rows, like);
+        const inBowl = sumIn(share, like);
+        const stove = sumIn(later, like);
+        if (!total || !inBowl || !stove) continue; // not comparable, never guessed
+        const close = (a: number, b: number) => Math.abs(a - b) <= splitSlack(b, total.unit);
+        if (d.authored) {
+          const written = sumIn(d.authored.filter((s) => s.food === food), like);
+          if (!written || !close(written.value, total.value)) continue; // the steps restate it: not a split
+        }
+        checked++;
+        if (close(inBowl.value + stove.value, total.value)) continue;
+        const name = subjectOf(like.name);
+        const kind = close(inBowl.value, total.value) ? "whole-in-bowl-and-again" : close(stove.value, total.value) ? "later-step-says-whole" : "shares-do-not-add";
+        findings.push(finding("R12", kind, name, "high", household,
+          `${label}: ${d.meal} · ${d.dish}: the ${bowl.name} holds ${round(inBowl.value)} ${total.unit} of ${like.name} (it goes in at step ${bowl.entry.join(", ")}), and step ${later.map((s) => s.stepIndex).join(", ")} still measures ${round(stove.value)} ${total.unit}: ${round(inBowl.value + stove.value)} ${total.unit} where the recipe has ${round(total.value)} ${total.unit}`,
+          { meal: d.meal, step: `${d.dish}#${later[0].stepIndex}`, numbers: { bowl: round(inBowl.value), later: round(stove.value), recipe: round(total.value), unit: total.unit } }));
+      }
+    }
+  }
+  return { rule: "R12", checked, findings };
+}
+
+/** A share is measured: ⅛ tsp (0.6 ml) or 10 % either way is rounding; a count, half of one. */
+function splitSlack(need: number, unit: string): number {
+  if (unit === "ml") return Math.max(need * 0.1, 0.65);
+  if (unit === "g") return Math.max(need * 0.1, 2);
+  return 0.5;
+}
+
+/**
+ * What each bowl holds, read off the narrated prep steps (the wire carries no
+ * structured amounts): a header that names the bowl and ends in a colon ("Get a
+ * small bowl for the Steak sauce. Into the bowl:", "Into the Steak sauce bowl
+ * (soy sauce already in it), add:") and the amount lines under it, the inline
+ * "Into the Cod sauce bowl: 2 tbsp lemon juice · 1 tsp lemon zest", and a
+ * destination line "2 cloves — into the Meatloaf sauce bowl".
+ */
+export function bowlShares(steps: PrepStep[], names: Map<string, string[]>): Map<string, Map<string, { qty: number; unit: string }[]>> {
+  const out = new Map<string, Map<string, { qty: number; unit: string }[]>>();
+  const add = (bowl: string, line: string) => {
+    const got = attributeLine(line, names);
+    if (got.size === 0) return;
+    const b = out.get(bowl) ?? new Map<string, { qty: number; unit: string }[]>();
+    for (const [food, xs] of got) b.set(food, [...(b.get(food) ?? []), ...xs]);
+    out.set(bowl, b);
+  };
+  const isAmount = (l: string) => /^[\d¼½¾⅓⅔⅛⅜⅝⅞]/.test(l);
+  for (const s of steps) {
+    const lines = s.instructions.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    let open: string | null = null;
+    for (const l of lines) {
+      const dest = /—\s*into (?:the |a small bowl for the )(.+?)(?: bowl)?\s*$/i.exec(l);
+      if (isAmount(l) && dest) {
+        add(dest[1], l.slice(0, dest.index));
+        continue;
+      }
+      if (open && isAmount(l)) {
+        add(open, l);
+        continue;
+      }
+      open = null;
+      const inline = /^Into the (.+?) bowl:\s*(.+)$/i.exec(l);
+      if (inline) {
+        for (const part of inline[2].split(/\s+·\s+/)) add(inline[1], part);
+        continue;
+      }
+      const header = /(?:bowl for the (.+?)\.\s*Into the bowl|Into the (.+?)(?: bowl)?(?:\s*\([^)]*\))?(?:,\s*add)?)\s*:\s*$/i.exec(l);
+      if (header) open = (header[1] ?? header[2]).trim();
+    }
+  }
+  return out;
+}
+
+/**
+ * R12's evidence for one meal from the wire: the ticked prep steps' bowls, and
+ * Cook Mode's read after them (`after`, amountRefs at the meal's scale; `hidden`
+ * = the "dishId#idx" keys the app folds), against the unprepped read
+ * (`baseline`). A one-dish meal's own steps ("meal#idx") are that dish's.
+ */
+export function splitDishesOf(meal: PlanMeal, after: Record<string, RecipeStep>, ticked: PrepStep[], hidden: Set<string>, baseline?: Record<string, RecipeStep>): SplitDish[] {
+  const names = new Map<string, string[]>();
+  for (const d of meal.dishes) for (const ing of d.ingredients) {
+    const k = foodIdOf(ing);
+    if (!names.get(k)?.includes(ing.name)) names.set(k, [...(names.get(k) ?? []), ing.name]);
+  }
+  const shares = bowlShares(ticked.filter((s) => s.contributesToMealIds.includes(meal.mealId)), names);
+  return meal.dishes.map((d) => {
+    const f = factorOf(meal, d);
+    const rows = new Map<string, { name: string; qty: number; unit: string }[]>();
+    for (const ing of d.ingredients) rows.set(foodIdOf(ing), [...(rows.get(foodIdOf(ing)) ?? []), { name: ing.name, qty: ing.quantity * f, unit: ing.unit }]);
+    const foodOf = new Map(d.ingredients.filter((i) => i.ingredientId).map((i) => [i.ingredientId!, foodIdOf(i)]));
+    const mine = (read: Record<string, RecipeStep>) => Object.entries(read).filter(([k]) => k.split("#")[0] === d.dishId || (meal.dishes.length === 1 && k.split("#")[0] === "meal"));
+    const measures = (read: Record<string, RecipeStep>) => mine(read).flatMap(([, s]) => (s.amountRefs ?? []).map((r) => ({ stepIndex: s.stepIndex, food: foodOf.get(r.ingredientId) ?? `id:${r.ingredientId}`, qty: r.quantity * f, unit: r.unit })));
+    const steps = mine(after);
+    const said = measures(after);
+    const entryOf = (name: string) => steps
+      .filter(([, s]) => s.text.toLowerCase().includes(`the ${name.toLowerCase()} you prepped`) || (s.preppedRefs ?? []).some((p) => p.label.toLowerCase() === name.toLowerCase()))
+      .map(([, s]) => s.stepIndex);
+    return {
+      meal: meal.title, dish: d.title, rows, said,
+      ...(baseline ? { authored: measures(baseline) } : {}),
+      bowls: [...shares].map(([name, m]) => ({ name, shares: m, entry: entryOf(name) })),
+      hidden: new Set(steps.filter(([k]) => hidden.has(k)).map(([, s]) => s.stepIndex)),
+    };
+  });
 }

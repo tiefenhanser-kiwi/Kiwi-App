@@ -120,7 +120,7 @@ const DESCRIPTORS = new Set([
  * relation folds buy the whole food). Stripped only from the END, and only when
  * a food word remains.
  */
-const FORMS = new Set(["leave", "leaf", "clove", "sprig", "stalk", "rib", "head", "bulb", "juice", "zest", "wedge", "floret", "stem", "kernel", "segment", "yolk", "white"]);
+export const FORMS = new Set(["leave", "leaf", "clove", "sprig", "stalk", "rib", "head", "bulb", "juice", "zest", "wedge", "floret", "stem", "kernel", "segment", "yolk", "white"]);
 
 /** One name per food where the catalog uses two: the list buys "parmesan" for "Parmigiano-Reggiano". */
 const SYNONYMS: Record<string, string> = { parmigiano: "parmesan", "parmigiano-reggiano": "parmesan", reggiano: "parmesan" };

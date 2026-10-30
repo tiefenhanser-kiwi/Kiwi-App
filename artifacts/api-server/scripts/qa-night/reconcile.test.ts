@@ -22,9 +22,14 @@ import {
   reconcileR9,
   reconcileR10,
   reconcileR11,
+  reconcileR12,
+  bowlShares,
+  splitDishesOf,
   stepAmounts,
   type FeastEvidence,
 } from "./reconcilePrepCook";
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
 import type { CallRecord, Finding, GroceryRow, PlanMeal, PrepSession, RecipeStep } from "./types";
 import { normName, sameFood } from "./units";
 
@@ -286,6 +291,85 @@ test("R4 counts one food by the server's identity: fresh parsley and flat-leaf p
   // Without the identity (two names, two foods) the one step is charged to flat-leaf alone: the night's BUG-608.
   const bare = meals.map((m) => ({ ...m, dishes: m.dishes.map((d) => ({ ...d, ingredients: d.ingredients.map(({ foodId: _, ...i }) => i) })) }));
   assert.deepEqual(reconcileR4("t", chop("2¼"), bare).findings.map((f) => f.signature), ["R4:prep-exceeds-recipe:flat-leaf parsley"]);
+});
+
+// ── R12 ─────────────────────────────────────────────────────────────────────
+
+const pepperSteak = (): PlanMeal => ({
+  planItemId: "item-steak", mealId: "meal-steak", title: "Pepper Steak", aliases: ["Pepper Steak"],
+  servingsOverride: null, birdWeightLb: null, isFeast: false,
+  dishes: [{
+    dishId: "d-steak", title: "Pepper Steak", servings: 4, defaultServings: 4,
+    ingredients: [
+      { name: "soy sauce", quantity: 4, unit: "tablespoon", isOptional: false, foodId: "f-soy", ingredientId: "i-soy" },
+      { name: "toasted sesame oil", quantity: 1, unit: "tablespoon", isOptional: false, foodId: "f-sesame", ingredientId: "i-sesame" },
+      { name: "flank steak", quantity: 1, unit: "lb", isOptional: false, foodId: "f-steak", ingredientId: "i-steak" },
+    ],
+    steps: [],
+  }],
+});
+const bowlStep = (lines: string[]): PrepSession["steps"][number] => ({ stepKey: "sauces_marinades#steak", phase: "sauces_marinades", title: "Measure the Steak sauce", contributesToMealIds: ["meal-steak"],
+  instructions: ["Get a small bowl for the Steak sauce. Into the bowl:", ...lines, "Stir to combine."].join("\n") });
+const steakRead = (soy: number, sesame: number): Record<string, RecipeStep> => ({
+  [cookKey("d-steak", 0)]: { stepIndex: 0, text: "Toss the sliced steak with the Steak sauce you prepped.", estimatedMinutes: 15, phaseType: "prep" },
+  [cookKey("d-steak", 8)]: { stepIndex: 8, text: `Stir in ${soy} tablespoons soy sauce and ${sesame} tablespoon sesame oil.`, estimatedMinutes: 2, phaseType: "cook",
+    amountRefs: [{ ingredientId: "i-soy", quantity: soy, unit: "tablespoon" }, { ingredientId: "i-sesame", quantity: sesame, unit: "tablespoon" }] },
+});
+const r12 = (bowl: string[], read: Record<string, RecipeStep>, hidden = new Set<string>()) =>
+  reconcileR12("t", "after full prep", splitDishesOf(pepperSteak(), read, [bowlStep(bowl)], hidden));
+
+test("R12 passes a split whose bowl and later step add up to the recipe (D-WS9-362)", () => {
+  const r = r12(["2 tbsp soy sauce", "½ tbsp toasted sesame oil"], steakRead(2, 0.5));
+  assert.deepEqual(r.findings, []);
+  assert.equal(r.checked, 2);
+});
+
+test("R12 reports a bowl that holds the whole row while a later step measures it again, and a later step that says the whole", () => {
+  const whole = r12(["4 tbsp soy sauce", "1 tbsp toasted sesame oil"], steakRead(2, 0.5));
+  assert.deepEqual(whole.findings.map((f) => f.signature), ["R12:whole-in-bowl-and-again:soy sauce", "R12:whole-in-bowl-and-again:sesame oil"]);
+  assert.equal(whole.findings[0].numbers!.bowl, round2(4 * 14.7868));
+  const again = r12(["2 tbsp soy sauce", "½ tbsp toasted sesame oil"], steakRead(4, 0.5));
+  assert.deepEqual(again.findings.map((f) => f.signature), ["R12:later-step-says-whole:soy sauce"]);
+  const off = r12(["1 tbsp soy sauce", "½ tbsp toasted sesame oil"], steakRead(2, 0.5));
+  assert.deepEqual(off.findings.map((f) => f.signature), ["R12:shares-do-not-add:soy sauce"]);
+});
+
+test("R12 checks nothing that is not a split: the whole row in the bowl and no later measure, or a later step the app folds", () => {
+  const read = steakRead(2, 0.5);
+  delete read[cookKey("d-steak", 8)].amountRefs;
+  assert.equal(r12(["4 tbsp soy sauce", "1 tbsp toasted sesame oil"], read).checked, 0);
+  assert.equal(r12(["4 tbsp soy sauce", "1 tbsp toasted sesame oil"], steakRead(2, 0.5), new Set([cookKey("d-steak", 8)])).checked, 0);
+  // A bowl Cook Mode never names is not a split either.
+  const unnamed = steakRead(2, 0.5);
+  unnamed[cookKey("d-steak", 0)].text = "Toss the sliced steak with the soy sauce and sesame oil.";
+  assert.equal(r12(["4 tbsp soy sauce", "1 tbsp toasted sesame oil"], unnamed).checked, 0);
+  // Authored steps that state the row twice ("remove the 2 bay leaves") restate it: no share to add up.
+  const restated = steakRead(4, 1);
+  restated[cookKey("d-steak", 0)].amountRefs = [{ ingredientId: "i-soy", quantity: 4, unit: "tablespoon" }, { ingredientId: "i-sesame", quantity: 1, unit: "tablespoon" }];
+  const baseline = steakRead(4, 1);
+  baseline[cookKey("d-steak", 0)].amountRefs = restated[cookKey("d-steak", 0)].amountRefs;
+  const ev = splitDishesOf(pepperSteak(), steakRead(4, 1), [bowlStep(["4 tbsp soy sauce", "1 tbsp toasted sesame oil"])], new Set(), baseline);
+  assert.equal(reconcileR12("t", "x", ev).checked, 0);
+  // The same bowl over a recipe that does split the row is judged.
+  const split = steakRead(2, 0.5);
+  split[cookKey("d-steak", 0)].amountRefs = [{ ingredientId: "i-soy", quantity: 2, unit: "tablespoon" }, { ingredientId: "i-sesame", quantity: 0.5, unit: "tablespoon" }];
+  const ev2 = splitDishesOf(pepperSteak(), steakRead(2, 0.5), [bowlStep(["4 tbsp soy sauce", "1 tbsp toasted sesame oil"])], new Set(), split);
+  assert.equal(reconcileR12("t", "x", ev2).findings.length, 2);
+});
+
+test("bowlShares reads a bowl's header lines, the inline form and a destination line", () => {
+  const names = new Map([["f-lemon", ["fresh lemon juice"]], ["f-zest", ["lemon zest"]], ["f-garlic", ["garlic"]], ["f-worc", ["Worcestershire sauce"]]]);
+  const steps: PrepSession["steps"] = [
+    { stepKey: "a", phase: "produce", title: "Zest and juice the lemons", contributesToMealIds: [], instructions: "Zest the lemons first, then juice them for 4 tbsp lemon juice.\nInto the Cod sauce bowl: 2 tbsp fresh lemon juice · 1 tsp lemon zest\nInto the Lemon juice tub: 1 tbsp for the Lemon-Herb Rice" },
+    { stepKey: "b", phase: "produce", title: "Mince all garlic", contributesToMealIds: [], instructions: "Mince 3 cloves of garlic.\n2 cloves garlic — into the Meatloaf sauce bowl\n1 clove for Buttered Green Beans — into the Minced garlic tub" },
+    { stepKey: "c", phase: "sauces_marinades", title: "Finish the Meatloaf sauce", contributesToMealIds: [], instructions: "Into the Meatloaf sauce bowl (plain breadcrumbs and garlic already in it), add:\n1 tbsp Worcestershire sauce\nWhisk to combine." },
+  ];
+  const b = bowlShares(steps, names);
+  assert.deepEqual(b.get("Cod sauce")?.get("f-lemon"), [{ qty: 2, unit: "tbsp" }]);
+  assert.deepEqual(b.get("Cod sauce")?.get("f-zest"), [{ qty: 1, unit: "tsp" }]);
+  assert.deepEqual(b.get("Meatloaf sauce")?.get("f-garlic"), [{ qty: 2, unit: "cloves" }]);
+  assert.deepEqual(b.get("Meatloaf sauce")?.get("f-worc"), [{ qty: 1, unit: "tbsp" }]);
+  assert.equal(b.get("Minced garlic"), undefined); // no amount names garlic on that line
 });
 
 // ── R5 ──────────────────────────────────────────────────────────────────────
