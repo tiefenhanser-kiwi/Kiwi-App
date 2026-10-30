@@ -162,7 +162,7 @@ describe("POST /auth/signup — fresh user is not onboarded (WS7-2-E Bug 2)", ()
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         email: "fresh@example.com",
-        password: "password123",
+        password: "maple-otter-lantern",
         firstName: "Fresh",
         lastName: "Signup",
       }),

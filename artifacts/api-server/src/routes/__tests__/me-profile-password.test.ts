@@ -369,7 +369,8 @@ describe("PATCH /me/password", () => {
         },
         body: JSON.stringify({
           currentPassword: "oldpass-12345",
-          newPassword: "newpass-67890",
+          // SERVER-11: "newpass-67890" is now too common (its core "newpass" is listed).
+          newPassword: "maple-otter-67890",
         }),
       });
       assert.equal(res.status, 200);

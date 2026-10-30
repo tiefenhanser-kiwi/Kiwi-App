@@ -270,7 +270,7 @@ function post(h: Harness, path: string, body: Record<string, unknown>) {
 
 const SIGNUP = {
   email: "newcook@gmail.com",
-  password: "password123",
+  password: "maple-otter-lantern",
   firstName: "Nova",
   lastName: "Cook",
   platform: "web",

@@ -116,7 +116,7 @@ function makePrisma() {
 
 const SIGNUP_BASE = {
   email: "c@example.com",
-  password: "password123",
+  password: "maple-otter-lantern",
   firstName: "Con",
   lastName: "Sent",
 };

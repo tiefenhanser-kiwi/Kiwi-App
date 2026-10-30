@@ -110,7 +110,7 @@ async function spinUp(build: (app: Express) => void): Promise<Harness> {
   });
 }
 
-const SIGNUP = { email: "a@example.com", password: "password123", firstName: "Att", lastName: "Ribution" };
+const SIGNUP = { email: "a@example.com", password: "maple-otter-lantern", firstName: "Att", lastName: "Ribution" };
 
 describe("SERVER-6 A — attribution on POST /auth/signup, howHeard on PATCH /me/profile", () => {
   let harness: Harness;
