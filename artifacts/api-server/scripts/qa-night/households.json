@@ -1,5 +1,5 @@
 {
-  "$comment": "QA-NIGHT-1 households. Fixed seed: same households, same choices, every night. `estimateUsd` is the worst-case AI spend the cap rule reserves before a household starts (run.ts raises it to the largest per-household spend seen so far tonight). SERVER-10 G (D-WS9-349): the feast households (h6, h7) take a Thanksgiving template through the template route, as a user does (GET /plans?filter=featured, POST /plans/use-template), now that scripts/thx2/seedDevTemplates.ts puts production's five on dev; the plan is anchored to Thanksgiving week (Mon Nov 23 to Fri Nov 27), the feast on Thursday at the template's 10 servings. They used to fork a private prod-copy of the feast meal (forkMealForUser).",
+  "$comment": "QA-NIGHT-1 households. Fixed seed: same households, same choices, every night. `estimateUsd` is the worst-case AI spend the cap rule reserves before a household starts (run.ts raises it to the largest per-household spend seen so far tonight). SERVER-10 G (D-WS9-349): the feast households (h6, h7) take a Thanksgiving template through the template route, as a user does (GET /plans?filter=featured, POST /plans/use-template), now that scripts/thx2/seedDevTemplates.ts puts production's five on dev; the plan is anchored to Thanksgiving week (Mon Nov 23 to Fri Nov 27), the feast on Thursday at the template's 10 servings. They used to fork a private prod-copy of the feast meal (forkMealForUser). QA-8 A5: h6 then cooks the feast for its household (the item's servingsOverride 2, the servings stepper's route), and h7 moves its feast to SATURDAY again (SERVER-8 A, BUG-567) through the date editor (PATCH /plans/:id to Mon Nov 23 to Sun Nov 29) and the day pill (PATCH …/items/:id assignedDayOfWeek), at the template's 10 servings (journeys.ts feastSettings).",
   "seed": "qa-night-1",
   "households": [
     {
@@ -61,22 +61,22 @@
     },
     {
       "id": "6",
-      "label": "2 · The Classic Thanksgiving (template) · Thu Nov 26 · 16 lb",
+      "label": "2 · The Classic Thanksgiving (template) · Thu Nov 26 · 16 lb · cooked for 2",
       "size": 2,
       "howHeard": "other",
       "prefs": { "eatingStyles": [], "allergiesAndAvoidances": [] },
-      "plan": { "kind": "template", "template": "The Classic Thanksgiving" },
+      "plan": { "kind": "template", "template": "The Classic Thanksgiving", "servings": "household" },
       "edits": ["bird-weight"],
       "prep": ["feast"],
       "estimateUsd": 2.0
     },
     {
       "id": "7",
-      "label": "8 · The Make-Ahead Thanksgiving (template) · Thu Nov 26 · no weight",
+      "label": "8 · The Make-Ahead Thanksgiving (template) · Sat Nov 28 · no weight",
       "size": 8,
       "howHeard": null,
       "prefs": { "eatingStyles": [], "allergiesAndAvoidances": [] },
-      "plan": { "kind": "template", "template": "The Make-Ahead Thanksgiving" },
+      "plan": { "kind": "template", "template": "The Make-Ahead Thanksgiving", "feastDay": "Saturday" },
       "edits": [],
       "prep": ["feast"],
       "estimateUsd": 2.0

@@ -48,7 +48,12 @@ export interface HouseholdSpec {
     pickyAvoidances?: string[];
   };
   plan:
-    | { kind: "template"; template: string }
+    /**
+     * QA-8 A5: a feast template may move its feast to another day (`feastDay`, the date editor
+     * then the day pill) and cook it for the household (`servings: "household"`, the item's
+     * servingsOverride) instead of the template's 10.
+     */
+    | { kind: "template"; template: string; feastDay?: string; servings?: "household" }
     | { kind: "ai"; days: number }
     | { kind: "guest"; days: number }
     | { kind: "feast"; source: string; name: string; day: string; birdWeightLb: number | null };
@@ -197,6 +202,7 @@ export class Household {
       this.out.planId = used.instance.id;
       // "Use this week" (previewUseFlow.ts → AppContext PATCH).
       await this.api.must("PATCH", `/plans/${this.planId}`, { isActiveThisWeek: true, localDate: localDate() });
+      if (p.feastDay || p.servings) await this.feastSettings(p);
       return;
     }
     if (p.kind === "ai") {
@@ -227,6 +233,45 @@ export class Household {
     const plan = await this.api.must<any>("GET", `/plans/${this.planId}`);
     const item = plan.plan.items[0];
     await this.api.must("PATCH", `/plans/${this.planId}/items/${item.id}`, { assignedDayOfWeek: p.day });
+  }
+
+  /**
+   * QA-8 A5 — a template feast's day and servings, through the routes the app uses:
+   * the date editor (PATCH /plans/:id startDate/endDate, PlanDateRangeEditor) to take
+   * the week to the new day, then the day pill (PATCH …/items/:id assignedDayOfWeek,
+   * applyDayAssignmentToDetail); the servings stepper (PATCH …/items/:id
+   * servingsOverride). Each is proven by reading the plan back.
+   */
+  private async feastSettings(p: { feastDay?: string; servings?: "household" }): Promise<void> {
+    const read = async () => (await this.api.must<any>("GET", `/plans/${this.planId}`)).plan;
+    let plan = await read();
+    const feastItem = () => (plan.items as any[]).find((i) => i.mealId === plan.makeAhead?.feastMealId);
+    if (!feastItem()) throw new JourneyError("the template plan has no feast (no makeAhead.feastMealId)");
+    const ev: Record<string, unknown> = { before: { startDate: plan.startDate, endDate: plan.endDate, feastDay: plan.makeAhead?.feastDayName, feastDate: plan.makeAhead?.feastDate } };
+    if (p.feastDay) {
+      const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      const start = String(plan.startDate).slice(0, 10);
+      const ahead = (days.indexOf(p.feastDay) - new Date(`${start}T00:00:00Z`).getUTCDay() + 7) % 7;
+      const end = new Date(Date.parse(`${start}T00:00:00Z`) + 6 * 86_400_000).toISOString().slice(0, 10);
+      // The week the editor offers: seven days from the plan's start, so the new day is in it.
+      if (ahead > (Date.parse(`${String(plan.endDate).slice(0, 10)}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86_400_000) {
+        await this.api.must("PATCH", `/plans/${this.planId}`, { startDate: start, endDate: end, localDate: localDate() });
+        plan = await read();
+      }
+      await this.api.must("PATCH", `/plans/${this.planId}/items/${feastItem().id}`, { assignedDayOfWeek: p.feastDay });
+      plan = await read();
+      if (plan.makeAhead?.feastDayName !== p.feastDay) throw new JourneyError(`the feast is on ${plan.makeAhead?.feastDayName} after moving it to ${p.feastDay}`);
+    }
+    if (p.servings === "household") {
+      const r = await this.api.req<any>("PATCH", `/plans/${this.planId}/items/${feastItem().id}`, { servingsOverride: this.spec.size }, { expect: [400, 409, 422] });
+      plan = await read();
+      ev.servings = r.status === 200
+        ? { status: 200, servingsOverride: feastItem().servingsOverride ?? null, asked: this.spec.size }
+        : { status: r.status, body: JSON.stringify(r.body).slice(0, 200), note: "the route refuses a feast's servings" };
+      if (r.status === 200 && feastItem().servingsOverride !== this.spec.size) throw new JourneyError(`servingsOverride ${feastItem().servingsOverride} after asking for ${this.spec.size}`);
+    }
+    ev.after = { startDate: plan.startDate, endDate: plan.endDate, feastDay: plan.makeAhead?.feastDayName, feastDate: plan.makeAhead?.feastDate };
+    this.out.evidence.feastSettings = ev;
   }
 
   /** GET /plans/:id, then every item's meal as Cook Mode reads it (with its planItemId). */

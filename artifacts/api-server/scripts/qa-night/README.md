@@ -83,11 +83,14 @@ There are ten of them, fixed. Between them, every path runs every night:
 - a finished cook;
 - account deletion.
 
-> **Feast meals on dev are a fixture.** Dev has no public Thanksgiving
-> template or meal: the THX meals are private prod-copies. So households 6 and
-> 7 fork the meal for the new account with `forkMealForUser` (QA-7's fixture).
-> Everything after the fork goes through the routes: `from-meals`, the date
-> edit to Nov 23–29, the feast's day and the weight.
+> **The feast households take a Thanksgiving template** (SERVER-10 G seeds
+> production's five on dev): `GET /plans?filter=featured`, `use-template`,
+> "Use this week", which keeps the anchored Thanksgiving week (Mon Nov 23 –
+> Fri Nov 27, the feast on Thursday at the template's 10 servings). QA-8 A5:
+> household 6 then cooks the feast for its 2 (the item's `servingsOverride`),
+> and household 7 moves its feast to Saturday Nov 28 through the date editor
+> (Nov 23–29) and the day pill (`assignedDayOfWeek`), each read back from the
+> plan (`journeys.ts` `feastSettings`).
 
 ## The reconcilers
 
