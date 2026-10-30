@@ -35,6 +35,7 @@
 // H7 — a VALUE import from prepMoments, which itself imports only types from
 // here, so there is no runtime cycle.
 import { isHeatMoment } from "./prepMoments";
+import { convertWithinDimension } from "./ingredientConversions";
 
 /** One step of a dish, as this module needs it. */
 export interface ComponentStep {
@@ -57,8 +58,63 @@ export interface ComponentStep {
    * lists one ingredient twice (the casserole's filling sugar and topping sugar) can
    * tell which row a step measures. Set only on such a dish's steps (prepWeek
    * Aggregation), so every other plan's hashed input is byte-unchanged.
+   *
+   * SERVER-12 B (BUG-619) — and on a weeknight dish with a DIVIDED row (`dividedIds`),
+   * where a divided row's quantities are in the row's own unit.
    */
   refs?: { ingredientId: string; quantity: number }[];
+}
+
+/**
+ * SERVER-12 B (BUG-619, D-WS9-362) — the rows a dish's steps DIVIDE: an ingredient listed
+ * once whose amountRefs fall on two or more steps and add up to the row (Pepper Steak's
+ * 1 tbsp sesame oil: ½ in the velvet at s0, ½ at the stove at s8). Each share is a portion
+ * of its own, entering at its own step (prepCombineAdapter portionView). A row the steps
+ * state MORE of than the recipe ("add 2 bay leaves" … "remove the 2 bay leaves") is a
+ * restatement, not a split, and stays whole; so does a row stated once. The quantities
+ * are the row's unit.
+ */
+export function dividedIds(
+  ingredients: readonly { ingredientId: string; quantity: number }[],
+  steps: readonly { stepIndex: number; refs?: readonly { ingredientId: string; quantity: number }[] }[],
+): Set<string> {
+  const out = new Set<string>();
+  for (const ing of ingredients) {
+    if (!(ing.quantity > 0) || ingredients.filter((o) => o.ingredientId === ing.ingredientId).length !== 1) continue;
+    const at = steps.filter((s) => (s.refs ?? []).some((r) => r.ingredientId === ing.ingredientId));
+    if (at.length < 2) continue;
+    const sum = at.reduce((n, s) => n + (s.refs ?? []).filter((r) => r.ingredientId === ing.ingredientId).reduce((m, r) => m + r.quantity, 0), 0);
+    if (Math.abs(sum - ing.quantity) <= ing.quantity * 0.02 + 1e-9) out.add(ing.ingredientId);
+  }
+  return out;
+}
+
+/**
+ * The refs a loaded dish keeps on its steps (prepWeekAggregation). None for most dishes,
+ * so their hashed input is byte-unchanged; every ref as stated for a dish that lists a row
+ * twice (THX-3b); and, SERVER-12 B, for a weeknight dish with a divided row, that row's
+ * refs in the row's own unit ("2 tablespoons" of a ¼-cup row is ⅛). A ref that does not
+ * convert divides nothing. The unit is read here and never kept.
+ */
+export function keptStepRefs<S extends { stepIndex: number; refs?: { ingredientId: string; quantity: number; unit?: string }[] }>(
+  ingredients: readonly { ingredientId: string; quantity: number; unit: string }[],
+  steps: readonly S[],
+  opts: { feast?: boolean } = {},
+): (Omit<S, "refs"> & { refs?: { ingredientId: string; quantity: number }[] })[] {
+  const listedTwice = ingredients.some((i, n) => ingredients.findIndex((o) => o.ingredientId === i.ingredientId) !== n);
+  const rowUnit = new Map(ingredients.map((i) => [i.ingredientId, i.unit]));
+  const bare = (u: string) => u.trim().toLowerCase().replace(/s$/, "");
+  const inRowUnit = (r: { ingredientId: string; quantity: number; unit?: string }): number => {
+    const to = rowUnit.get(r.ingredientId) ?? "";
+    return bare(r.unit ?? "") === bare(to) ? r.quantity : (convertWithinDimension(r.quantity, r.unit ?? "", to) ?? Number.NaN);
+  };
+  const converted = steps.map((s) => ({ stepIndex: s.stepIndex, refs: (s.refs ?? []).map((r) => ({ ingredientId: r.ingredientId, quantity: inRowUnit(r) })) }));
+  const divided = opts.feast ? new Set<string>() : dividedIds(ingredients, converted);
+  return steps.map(({ refs, ...s }, k) =>
+    listedTwice || divided.size > 0
+      ? { ...s, refs: (refs ?? []).map((r, j) => (divided.has(r.ingredientId) ? converted[k].refs[j] : { ingredientId: r.ingredientId, quantity: r.quantity })) }
+      : s,
+  );
 }
 
 /** One dish ingredient, as this module needs it. */
@@ -397,6 +453,8 @@ interface Bucket {
   /** The step indexes that assemble this component — ruling 5's identity. */
   stepIndexes: number[];
   noun: string | null;
+  /** SERVER-12 B — the nouns its own steps say (a look-ahead's is the next step's). */
+  ownNouns: string[];
   members: Set<string>;
   cookDay: Set<string>;
   /** Ruling 7 — a base that joins on cook day, so the bowl becomes "mix-ins". */
@@ -414,6 +472,11 @@ export function resolveDishComponents(
   mealName: string | null,
   steps: ComponentStep[],
   ingredients: ComponentIngredient[],
+  /**
+   * SERVER-12 B — a weeknight portion view's rows: view id → the row it is a share of
+   * (prepCombineAdapter portionView). Absent, nothing below changes.
+   */
+  opts: { shareOf?: ReadonlyMap<string, string> } = {},
 ): { components: ResolvedComponent[]; byIngredient: Map<string, ResolvedComponent>; split: ReadonlySet<string> } {
   // H5.1 — a dish that IS the toppings forms no component. Checked first,
   // before any signal runs, because the cheapest way to get this wrong is to
@@ -466,6 +529,8 @@ export function resolveDishComponents(
     return nounIn(out);
   };
 
+  /** SERVER-12 B — a group's key → the key its latest split goes by. */
+  const latest = new Map<string, string>();
   /** Attach a noun to a bucket, keeping the more specific one (ruling 5). */
   const label = (b: Bucket, noun: string | null) => {
     if (noun === null) return;
@@ -488,6 +553,7 @@ export function resolveDishComponents(
     let noun: string | null = nounIn(keyText);
     // Signal 2 — the step's own prose, its foods' names excluded (BUG-358).
     noun ??= proseNoun(st.text);
+    const ownNoun = noun;
 
     const isCombine = COMBINE_VERB.test(st.text);
     // ── THE LOOK-AHEAD RUNS EVEN WHEN THE STEP DID NAME SOMETHING ────────────
@@ -528,9 +594,29 @@ export function resolveDishComponents(
 
     // Ruling 5 — the step GROUP is the key. A combine step and the step that
     // names its product are one group, so both fold into the same bucket.
-    const key = noun ?? `step#${st.stepIndex}`;
-    const b = buckets.get(key) ?? { stepIndexes: [], noun: null, members: new Set(), cookDay: new Set(), lostBase: false };
+    //
+    // 🔴 SERVER-12 B (BUG-619) — UNLESS THE STEP MEASURES AGAIN A ROW THE GROUP HOLDS. A
+    // row the steps divide is evidence the group is two: Nashville Hot's dredge (s3,
+    // "1 teaspoon garlic powder") read the glaze's noun ahead and shared its bucket with
+    // the glaze (s4, "½ teaspoon garlic powder"), so one jar held the whole row and
+    // Cook Mode measured the glaze's share again. A step that states a share of a row
+    // already in the group starts a group of its own, and the earlier one keeps only
+    // the nouns its own steps say (BUG-619, D-WS9-362: each share in its own step).
+    const base = noun ?? `step#${st.stepIndex}`;
+    let key = latest.get(base) ?? base;
+    const was = buckets.get(key);
+    const shareOf = opts.shareOf;
+    if (was && shareOf && st.ingredientIds.some((id) => {
+      const row = shareOf.get(id);
+      return row !== undefined && [...was.members, ...was.cookDay].some((m) => m !== id && shareOf.get(m) === row);
+    })) {
+      key = `${base}#s${st.stepIndex}`;
+      latest.set(base, key);
+      was.noun = was.ownNouns.reduce<string | null>((best, n) => (best === null || specificity(n) < specificity(best) ? n : best), null);
+    }
+    const b = buckets.get(key) ?? { stepIndexes: [], noun: null, ownNouns: [], members: new Set(), cookDay: new Set(), lostBase: false };
     b.stepIndexes.push(st.stepIndex);
+    if (ownNoun !== null) b.ownNouns.push(ownNoun);
     label(b, noun);
     for (const id of st.ingredientIds) {
       // Ruling 1 — a raw protein has a destination, not a seat.

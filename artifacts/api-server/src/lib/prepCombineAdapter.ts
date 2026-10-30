@@ -24,7 +24,7 @@ import { dishRowMultipliers, weighedTurkeyOf } from "./prepQuantity";
 import { birdLineAtWeight } from "./birdWeight";
 import { inferCategory } from "./ingredientResolve";
 import { assignPhase, isNeverMeasured, isSaltOrPepper } from "./prepCombineEngine";
-import { resolveDishComponents } from "./prepComponents";
+import { dividedIds, resolveDishComponents } from "./prepComponents";
 import { mixtureEntryKey, proseNames, resolveMoments } from "./prepMoments";
 import { cutOf } from "./prepClasses";
 import type { PrepCombineDish, PrepCombineInput } from "./prepCombineEngine";
@@ -163,7 +163,7 @@ export function buildPrepCombineInput(
   return {
     meals: loaded.meals.map((meal) => {
       // One dish → its engine rows (THX-3b: called again over a dish's portion view).
-      const mapDish = (dish: PrepLoadedDish, listingStep?: ReadonlyMap<string, number>): PrepCombineDish => {
+      const mapDish = (dish: PrepLoadedDish, listingStep?: ReadonlyMap<string, number>, shareOf?: ReadonlyMap<string, string>): PrepCombineDish => {
         // ── WS9 D-WS9-296 — resolve this dish's mixtures ────────────────────
         //
         // Done HERE and not in the engine because it needs the dish's STEPS,
@@ -193,6 +193,8 @@ export function buildPrepCombineInput(
               i.preparationNote,
             phase: assignPhase(i.category, i.ingredientName, i.purchaseUnit),
           })),
+          // SERVER-12 B — a weeknight view's shares, so a step that measures a row again is another group.
+          shareOf ? { shareOf } : {},
         );
         // ── Part J.1 (R2) — IS A COMPONENT COOKED? ITS OWN STEPS SAY ─────────
         //
@@ -378,6 +380,12 @@ export function buildPrepCombineInput(
           // reach it. The lemon has no cook step naming it, so it is still `r:0`,
           // and the marinade's tag takes it, which is rule 1.
           const resolvedKey = moments.keyByIngredientId.get(ing.ingredientId) ?? null;
+          // SERVER-12 B — a share (see below) whose words a LATER cook step names is still
+          // measured at its own step: the acorn squash brushed with maple at s1 is not the
+          // maple stirred into the filling at s8.
+          const share = opts.feast ? undefined : listingStep?.get(ing.ingredientId);
+          const namedAt = resolvedKey === null ? null : /^s:(\d+)/.exec(resolvedKey);
+          if (share !== undefined && namedAt && Number(namedAt[1]) !== share) return `v:share:${ing.ingredientId}`;
           if (resolvedKey !== null && !resolvedKey.startsWith("r:")) return resolvedKey;
           // BUG-358 — a run is not a moment when the ingredient's own first use says
           // otherwise. The biryani's whole spices (fried at s5), its ground spices
@@ -400,6 +408,12 @@ export function buildPrepCombineInput(
             s.componentKey === shared.key ||
             shared.memberIds.some((m) => m !== ing.ingredientId && s.ingredientIds.includes(m)) ||
             !APPLIES_TO_FOOD.test(s.text));
+          // SERVER-12 B (BUG-619) — A SHARE IS MEASURED AT ITS OWN STEP. A row the steps
+          // divide (or a dish lists twice) is a portion per step, and the run is no reason
+          // for one to join a jar its step does not make: Beef and Broccoli's velvet
+          // cornstarch (s0) rode the run into the sauce jar (s1), so the jar held the whole
+          // row and s0 measured its share again. Weeknights only (the feast is frozen).
+          if (shared && share !== undefined && !shared.stepIndexes.includes(share)) return `v:share:${ing.ingredientId}`;
           if (shared && sameMoment && !(opts.feast && isSaltOrPepper(ing.ingredientName) && !partneredSeasoning(ing.ingredientId))) return `c:${shared.key}@${entryOf(ing.ingredientId, ing.ingredientName)}`;
           return resolvedKey;
         };
@@ -550,11 +564,12 @@ export function buildPrepCombineInput(
       mealName: meal.mealName,
       dishes: meal.dishes.map((loadedDish) => {
         const plain = mapDish(loadedDish);
-        const view = portionView(loadedDish);
+        const view = portionView(loadedDish, opts.feast ? { feast: true } : {});
         if (!view) return plain;
         const split = mapDish(
           view.dish,
           new Map([...view.rowOf].filter(([, r]) => r.step !== null).map(([id, r]) => [id, r.step!])),
+          opts.feast ? undefined : new Map([...view.rowOf].map(([id, r]) => [id, r.real])),
         );
         const keysOf = new Map<string, Set<string>>();
         for (const r of split.ingredients) {
@@ -585,18 +600,59 @@ export function buildPrepCombineInput(
  * step's ingredientIds name the row whose amountRef it carries (by quantity, then in
  * order). Null for a dish that lists every ingredient once.
  */
-export function portionView(dish: PrepLoadedDish): {
+export function portionView(dish: PrepLoadedDish, opts: { feast?: boolean } = {}): {
   dish: PrepLoadedDish;
-  /** The ids that are listed twice. */
+  /** The ids that are listed twice (SERVER-12 B — or divided by the steps). */
   listedTwice: Set<string>;
   /** view id → the real id, the row's portion ("1", "2"…) and the step it is measured at. */
   rowOf: Map<string, { real: string; portion: string; step: number | null }>;
 } | null {
+  const ordered = [...(dish.componentSteps ?? [])].sort((a, b) => a.stepIndex - b.stepIndex);
+  // ── SERVER-12 B (BUG-619, D-WS9-362) — A ROW THE STEPS DIVIDE IS A PORTION PER STEP ──
+  //
+  // Pepper Steak's 1 tbsp sesame oil goes ½ into the velvet (s0) and ½ in at the stove
+  // (s8). Keyed on the one row, the velvet's jar held the whole tablespoon and s8 measured
+  // its ½ again: 1½ tbsp in a 1 tbsp recipe (QA-8 R12, 24 of 57 meals). Seen as two rows
+  // here — each share with the step that states it — the jar holds its ½ and the stove's
+  // ½ is measured where the recipe says. Shares that enter at one moment go back together
+  // (the caller keeps the plain mapping), so a row two steps of ONE mix divide is unchanged.
+  // (Not in the feast: Thanksgiving's containers are frozen, and a feast dish listing a row twice keeps its refs.)
+  const divided = opts.feast ? new Set<string>() : dividedIds(dish.ingredients, ordered);
+  if (divided.size > 0) {
+    const rowOf = new Map<string, { real: string; portion: string; step: number | null }>();
+    /** step index → (real id → this step's view id). */
+    const viewAt = new Map<number, Map<string, string>>();
+    const ingredients = dish.ingredients.flatMap((i) => {
+      if (!divided.has(i.ingredientId)) return [i];
+      const shares = ordered
+        .map((s) => ({ step: s.stepIndex, q: (s.refs ?? []).filter((r) => r.ingredientId === i.ingredientId).reduce((n, r) => n + r.quantity, 0) }))
+        .filter((x) => x.q > 0);
+      return shares.map((x, k) => {
+        const id = k === 0 ? i.ingredientId : `${i.ingredientId}#${k + 1}`;
+        rowOf.set(id, { real: i.ingredientId, portion: String(k + 1), step: x.step });
+        viewAt.set(x.step, (viewAt.get(x.step) ?? new Map()).set(i.ingredientId, id));
+        return { ...i, ingredientId: id, quantity: x.q };
+      });
+    });
+    const base: PrepLoadedDish = {
+      ...dish,
+      ingredients,
+      componentSteps: ordered.map((s) => ({
+        ...s,
+        ingredientIds: [...new Set(s.ingredientIds.map((id) => viewAt.get(s.stepIndex)?.get(id) ?? id))],
+        // (a divided row's refs are spent: the rows listed twice are viewed over this view)
+        ...(s.refs ? { refs: s.refs.filter((r) => !divided.has(r.ingredientId)) } : {}),
+      })),
+    };
+    const twiceToo = portionView(base);
+    if (!twiceToo) return { dish: base, listedTwice: divided, rowOf };
+    for (const [id, r] of twiceToo.rowOf) rowOf.set(id, r);
+    return { dish: twiceToo.dish, listedTwice: new Set([...divided, ...twiceToo.listedTwice]), rowOf };
+  }
   const rowsById = new Map<string, number[]>();
   dish.ingredients.forEach((i, n) => rowsById.set(i.ingredientId, [...(rowsById.get(i.ingredientId) ?? []), n]));
   const twice = [...rowsById].filter(([, rows]) => rows.length > 1);
   if (twice.length === 0) return null;
-  const ordered = [...(dish.componentSteps ?? [])].sort((a, b) => a.stepIndex - b.stepIndex);
   const viewId = dish.ingredients.map((i) => i.ingredientId);
   const stepOfRow = new Map<number, number>();
   const rowOf = new Map<string, { real: string; portion: string; step: number | null }>();

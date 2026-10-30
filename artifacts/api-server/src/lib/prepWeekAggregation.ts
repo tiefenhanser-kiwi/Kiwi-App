@@ -17,7 +17,7 @@ import type { DishRole, PrismaClient } from "@prisma/client";
 
 import { resolvePrepCategory } from "./prepCategoryOverride";
 import { selectDefaultPathSteps } from "./cookingScheduler";
-import type { ComponentStep } from "./prepComponents";
+import { keptStepRefs, type ComponentStep } from "./prepComponents";
 import { prefixDaysOf } from "./feastPrefixes";
 import { feastDowOf, feastShift, feastWeekTag, feastWeekText } from "./feastWeek";
 import { mealBirdOf } from "./birdWeight";
@@ -676,10 +676,11 @@ export async function loadPrepWeekInput(
           ]
         : [],
       // THX-3b (BUG-456) — kept only for a dish that lists an ingredient twice (below).
+      // (SERVER-12 B — with its unit, read below and never kept.)
       refs: Array.isArray(r.amountRefs)
-        ? (r.amountRefs as { ingredientId?: unknown; quantity?: unknown }[])
+        ? (r.amountRefs as { ingredientId?: unknown; quantity?: unknown; unit?: unknown }[])
             .filter((x) => typeof x?.ingredientId === "string" && typeof x?.quantity === "number")
-            .map((x) => ({ ingredientId: x.ingredientId as string, quantity: x.quantity as number }))
+            .map((x) => ({ ingredientId: x.ingredientId as string, quantity: x.quantity as number, unit: typeof x.unit === "string" ? x.unit : "" }))
         : [],
     });
 
@@ -710,11 +711,14 @@ export async function loadPrepWeekInput(
       for (const dish of meal.dishes) {
         const dishOwned = dishStepsByOwner.get(dish.dishId) ?? [];
         dish.stepTexts = [...dishOwned, ...mealOwned].map(inWeek);
-        const listedTwice = dish.ingredients.some((i, n) => dish.ingredients.findIndex((o) => o.ingredientId === i.ingredientId) !== n);
-        dish.componentSteps = [
-          ...(dishComponentStepsByOwner.get(dish.dishId) ?? []),
-          ...mealOwnedComponents,
-        ].map(({ refs, ...s }) => (listedTwice ? { ...s, refs } : s)).map((s) => (feastShift(feastDow) === 0 ? s : { ...s, text: inWeek(s.text) }));
+        // THX-3b — a dish that lists a row twice keeps its refs; SERVER-12 B (BUG-619) — so
+        // does a weeknight dish whose steps divide a row (not a feast's: Thanksgiving's
+        // containers are frozen). Every other dish is byte-unchanged.
+        dish.componentSteps = keptStepRefs(
+          dish.ingredients,
+          [...(dishComponentStepsByOwner.get(dish.dishId) ?? []), ...mealOwnedComponents],
+          meal.feast ? { feast: true } : {},
+        ).map((s) => (feastShift(feastDow) === 0 ? s : { ...s, text: inWeek(s.text) }));
         // THX-3d (F, R6) — a feast dish's days are the ones its steps name too
         // (feastPrefixes): Small's untagged make-ahead steps, a dish added to the feast.
         if (meal.feast) {

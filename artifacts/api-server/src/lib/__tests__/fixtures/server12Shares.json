@@ -1,0 +1,765 @@
+{
+ "source": "loadPrepWeekInput output (SERVER-12): catalog 8282d2dc Garlic-Ginger Shrimp Stir-Fry, ab77e45d Wild Rice and Cranberry Stuffed Acorn Squash (first dish each)",
+ "shrimp": {
+  "dishId": "d536bf27-502e-4707-9741-5fe2ca13e50a",
+  "dishName": "Garlic-Ginger Shrimp Stir-Fry with Snap Peas and Bell Pepper",
+  "dishRole": "main",
+  "baseServings": 4,
+  "authoredBaseServings": 4,
+  "ingredients": [
+   {
+    "ingredientId": "8b668cef-7190-4d40-b76c-0e89bde52000",
+    "ingredientName": "large shrimp, peeled and deveined",
+    "category": "Protein",
+    "quantity": 1.5,
+    "unit": "pound",
+    "preparationNote": "patted dry",
+    "sourceYield": null,
+    "purchaseUnit": "lb"
+   },
+   {
+    "ingredientId": "732102e1-f100-4747-8f8d-aa4bc83bf06b",
+    "ingredientName": "snap peas",
+    "category": "Produce",
+    "quantity": 8,
+    "unit": "ounce",
+    "preparationNote": "strings removed",
+    "sourceYield": null,
+    "purchaseUnit": "lb"
+   },
+   {
+    "ingredientId": "ef8cc2b5-6b0a-4e35-aead-b5171bb3df0a",
+    "ingredientName": "red bell pepper",
+    "category": "Produce",
+    "quantity": 2,
+    "unit": "each",
+    "preparationNote": "thinly sliced",
+    "sourceYield": null,
+    "purchaseUnit": "each"
+   },
+   {
+    "ingredientId": "e6753984-d315-4484-bf78-783c61f197ab",
+    "ingredientName": "garlic",
+    "category": "Produce",
+    "quantity": 5,
+    "unit": "clove",
+    "preparationNote": "minced",
+    "sourceYield": {
+     "fromName": "garlic head",
+     "quantity": 10,
+     "unit": "clove"
+    },
+    "purchaseUnit": "head"
+   },
+   {
+    "ingredientId": "a5d76b1b-27ae-439f-92d7-9a93d531928f",
+    "ingredientName": "fresh ginger",
+    "category": "Produce",
+    "quantity": 1.5,
+    "unit": "tablespoon",
+    "preparationNote": "peeled and finely grated",
+    "sourceYield": null,
+    "purchaseUnit": "each"
+   },
+   {
+    "ingredientId": "3097daa0-ba99-49a2-9346-e1ea97f86de8",
+    "ingredientName": "soy sauce",
+    "category": "Pantry",
+    "quantity": 3,
+    "unit": "tablespoon",
+    "preparationNote": null,
+    "sourceYield": null,
+    "purchaseUnit": "bottle"
+   },
+   {
+    "ingredientId": "01ad36bb-96da-478d-9704-c2d66b301887",
+    "ingredientName": "oyster sauce",
+    "category": "Pantry",
+    "quantity": 2,
+    "unit": "tablespoon",
+    "preparationNote": null,
+    "sourceYield": null,
+    "purchaseUnit": "bottle"
+   },
+   {
+    "ingredientId": "cf10cad5-b507-4f1c-940b-7b6db52cd069",
+    "ingredientName": "rice vinegar",
+    "category": "Pantry",
+    "quantity": 1,
+    "unit": "tablespoon",
+    "preparationNote": null,
+    "sourceYield": null,
+    "purchaseUnit": "bottle"
+   },
+   {
+    "ingredientId": "e85481ea-01c9-4b7a-991d-8975286dcf9b",
+    "ingredientName": "sesame oil",
+    "category": "Pantry",
+    "quantity": 1,
+    "unit": "tablespoon",
+    "preparationNote": null,
+    "sourceYield": null,
+    "purchaseUnit": "bottle"
+   },
+   {
+    "ingredientId": "5449ba18-9db9-465e-9f35-10a867ce3bdd",
+    "ingredientName": "cornstarch",
+    "category": "Pantry",
+    "quantity": 1.5,
+    "unit": "tablespoon",
+    "preparationNote": null,
+    "sourceYield": null,
+    "purchaseUnit": "box"
+   },
+   {
+    "ingredientId": "0d363fb7-d089-4b8d-ae8c-680e68c72417",
+    "ingredientName": "chicken stock",
+    "category": "Canned",
+    "quantity": 0.25,
+    "unit": "cup",
+    "preparationNote": null,
+    "sourceYield": null,
+    "purchaseUnit": "can"
+   },
+   {
+    "ingredientId": "8d5a7f98-a16a-46a5-a6c7-f4babc5857bb",
+    "ingredientName": "crushed red pepper flakes",
+    "category": "Pantry",
+    "quantity": 0.5,
+    "unit": "teaspoon",
+    "preparationNote": null,
+    "sourceYield": null,
+    "purchaseUnit": "container"
+   },
+   {
+    "ingredientId": "602378e3-ba36-4fce-9b40-d7388e05857b",
+    "ingredientName": "vegetable oil",
+    "category": "Pantry",
+    "quantity": 2,
+    "unit": "tablespoon",
+    "preparationNote": "such as vegetable or avocado oil",
+    "sourceYield": null,
+    "purchaseUnit": "bottle"
+   },
+   {
+    "ingredientId": "16cb2019-31e3-44d8-9b18-2956387e7dab",
+    "ingredientName": "scallions",
+    "category": "Produce",
+    "quantity": 3,
+    "unit": "each",
+    "preparationNote": "thinly sliced, for garnish",
+    "sourceYield": null,
+    "purchaseUnit": "bunch"
+   },
+   {
+    "ingredientId": "c0ca48bb-8a09-428f-98a7-b26b23bae281",
+    "ingredientName": "toasted sesame seeds",
+    "category": "Pantry",
+    "quantity": 1,
+    "unit": "teaspoon",
+    "preparationNote": "for garnish",
+    "sourceYield": null,
+    "purchaseUnit": "oz"
+   }
+  ],
+  "stepTexts": [
+   "Pat the 1½ pounds of shrimp dry with paper towels, then toss with ½ tablespoon of the cornstarch and set aside.",
+   "Mince the 5 garlic cloves and finely grate 1½ tablespoons of fresh ginger; remove strings from the 8 ounces of snap peas and thinly slice the 2 red bell peppers.",
+   "Whisk together 3 tablespoons soy sauce, 2 tablespoons oyster sauce, 1 tablespoon rice vinegar, 1 tablespoon sesame oil, 1 tablespoon cornstarch, ¼ cup chicken stock, and ½ teaspoon crushed red pepper flakes into a smooth sauce.",
+   "Heat 1 tablespoon neutral oil in a large wok or skillet over high heat until shimmering, then add the shrimp in a single layer and sear 1½ minutes per side until just pink; transfer to a plate.",
+   "Add the remaining 1 tablespoon neutral oil to the wok over high heat, then stir-fry the bell pepper and snap peas for 3 minutes until just tender-crisp.",
+   "Push the vegetables to the side, add the garlic and ginger to the center of the wok, and stir-fry for 30 seconds until fragrant.",
+   "Pour the sauce into the wok and stir everything together; cook 1–2 minutes until the sauce thickens and coats the vegetables.",
+   "Return the shrimp to the wok and toss to coat; cook 30 seconds just to heat through.",
+   "Transfer to a serving platter and garnish with the sliced scallions and toasted sesame seeds (optional)."
+  ],
+  "componentSteps": [
+   {
+    "stepIndex": 0,
+    "text": "Pat the 1½ pounds of shrimp dry with paper towels, then toss with ½ tablespoon of the cornstarch and set aside.",
+    "componentKey": null,
+    "phaseType": "prep",
+    "ingredientIds": [
+     "8b668cef-7190-4d40-b76c-0e89bde52000",
+     "5449ba18-9db9-465e-9f35-10a867ce3bdd"
+    ],
+    "refs": [
+     {
+      "ingredientId": "8b668cef-7190-4d40-b76c-0e89bde52000",
+      "quantity": 1.5
+     },
+     {
+      "ingredientId": "5449ba18-9db9-465e-9f35-10a867ce3bdd",
+      "quantity": 0.5
+     }
+    ]
+   },
+   {
+    "stepIndex": 1,
+    "text": "Mince the 5 garlic cloves and finely grate 1½ tablespoons of fresh ginger; remove strings from the 8 ounces of snap peas and thinly slice the 2 red bell peppers.",
+    "componentKey": null,
+    "phaseType": "prep",
+    "ingredientIds": [
+     "e6753984-d315-4484-bf78-783c61f197ab",
+     "a5d76b1b-27ae-439f-92d7-9a93d531928f",
+     "732102e1-f100-4747-8f8d-aa4bc83bf06b",
+     "ef8cc2b5-6b0a-4e35-aead-b5171bb3df0a"
+    ],
+    "refs": [
+     {
+      "ingredientId": "e6753984-d315-4484-bf78-783c61f197ab",
+      "quantity": 5
+     },
+     {
+      "ingredientId": "a5d76b1b-27ae-439f-92d7-9a93d531928f",
+      "quantity": 1.5
+     },
+     {
+      "ingredientId": "732102e1-f100-4747-8f8d-aa4bc83bf06b",
+      "quantity": 8
+     },
+     {
+      "ingredientId": "ef8cc2b5-6b0a-4e35-aead-b5171bb3df0a",
+      "quantity": 2
+     }
+    ]
+   },
+   {
+    "stepIndex": 2,
+    "text": "Whisk together 3 tablespoons soy sauce, 2 tablespoons oyster sauce, 1 tablespoon rice vinegar, 1 tablespoon sesame oil, 1 tablespoon cornstarch, ¼ cup chicken stock, and ½ teaspoon crushed red pepper flakes into a smooth sauce.",
+    "componentKey": "sauce",
+    "phaseType": "prep",
+    "ingredientIds": [
+     "3097daa0-ba99-49a2-9346-e1ea97f86de8",
+     "01ad36bb-96da-478d-9704-c2d66b301887",
+     "cf10cad5-b507-4f1c-940b-7b6db52cd069",
+     "e85481ea-01c9-4b7a-991d-8975286dcf9b",
+     "5449ba18-9db9-465e-9f35-10a867ce3bdd",
+     "0d363fb7-d089-4b8d-ae8c-680e68c72417",
+     "8d5a7f98-a16a-46a5-a6c7-f4babc5857bb"
+    ],
+    "refs": [
+     {
+      "ingredientId": "3097daa0-ba99-49a2-9346-e1ea97f86de8",
+      "quantity": 3
+     },
+     {
+      "ingredientId": "01ad36bb-96da-478d-9704-c2d66b301887",
+      "quantity": 2
+     },
+     {
+      "ingredientId": "cf10cad5-b507-4f1c-940b-7b6db52cd069",
+      "quantity": 1
+     },
+     {
+      "ingredientId": "e85481ea-01c9-4b7a-991d-8975286dcf9b",
+      "quantity": 1
+     },
+     {
+      "ingredientId": "5449ba18-9db9-465e-9f35-10a867ce3bdd",
+      "quantity": 1
+     },
+     {
+      "ingredientId": "0d363fb7-d089-4b8d-ae8c-680e68c72417",
+      "quantity": 0.25
+     },
+     {
+      "ingredientId": "8d5a7f98-a16a-46a5-a6c7-f4babc5857bb",
+      "quantity": 0.5
+     }
+    ]
+   },
+   {
+    "stepIndex": 4,
+    "text": "Heat 1 tablespoon neutral oil in a large wok or skillet over high heat until shimmering, then add the shrimp in a single layer and sear 1½ minutes per side until just pink; transfer to a plate.",
+    "componentKey": null,
+    "phaseType": "cook",
+    "ingredientIds": [
+     "602378e3-ba36-4fce-9b40-d7388e05857b"
+    ],
+    "refs": [
+     {
+      "ingredientId": "602378e3-ba36-4fce-9b40-d7388e05857b",
+      "quantity": 1
+     }
+    ]
+   },
+   {
+    "stepIndex": 5,
+    "text": "Add the remaining 1 tablespoon neutral oil to the wok over high heat, then stir-fry the bell pepper and snap peas for 3 minutes until just tender-crisp.",
+    "componentKey": null,
+    "phaseType": "cook",
+    "ingredientIds": [
+     "602378e3-ba36-4fce-9b40-d7388e05857b"
+    ],
+    "refs": [
+     {
+      "ingredientId": "602378e3-ba36-4fce-9b40-d7388e05857b",
+      "quantity": 1
+     }
+    ]
+   },
+   {
+    "stepIndex": 6,
+    "text": "Push the vegetables to the side, add the garlic and ginger to the center of the wok, and stir-fry for 30 seconds until fragrant.",
+    "componentKey": null,
+    "phaseType": "cook",
+    "ingredientIds": [],
+    "refs": []
+   },
+   {
+    "stepIndex": 7,
+    "text": "Pour the sauce into the wok and stir everything together; cook 1–2 minutes until the sauce thickens and coats the vegetables.",
+    "componentKey": null,
+    "phaseType": "cook",
+    "ingredientIds": [],
+    "refs": []
+   },
+   {
+    "stepIndex": 8,
+    "text": "Return the shrimp to the wok and toss to coat; cook 30 seconds just to heat through.",
+    "componentKey": null,
+    "phaseType": "cook",
+    "ingredientIds": [],
+    "refs": []
+   },
+   {
+    "stepIndex": 9,
+    "text": "Transfer to a serving platter and garnish with the sliced scallions and toasted sesame seeds (optional).",
+    "componentKey": null,
+    "phaseType": "assemble",
+    "ingredientIds": [],
+    "refs": []
+   }
+  ]
+ },
+ "squash": {
+  "dishId": "050710d1-a360-4db7-9de6-0f6d0b79733d",
+  "dishName": "Wild Rice and Cranberry Stuffed Acorn Squash",
+  "dishRole": "main",
+  "baseServings": 4,
+  "authoredBaseServings": 4,
+  "ingredients": [
+   {
+    "ingredientId": "36ee4a23-4cda-4c34-ac6e-e34d4629c98d",
+    "ingredientName": "acorn squash",
+    "category": "Produce",
+    "quantity": 2,
+    "unit": "each",
+    "preparationNote": "halved lengthwise, seeds scooped out",
+    "sourceYield": null,
+    "purchaseUnit": null
+   },
+   {
+    "ingredientId": "f37ae360-99ba-4eae-8c95-47e585e8c1f6",
+    "ingredientName": "olive oil",
+    "category": "Pantry",
+    "quantity": 3,
+    "unit": "tablespoon",
+    "preparationNote": null,
+    "sourceYield": {
+     "fromName": "canned tuna in olive oil",
+     "quantity": 2,
+     "unit": "tbsp"
+    },
+    "purchaseUnit": "bottle"
+   },
+   {
+    "ingredientId": "94ce9fb2-e942-4f8f-917e-76c8008bd11d",
+    "ingredientName": "Kosher salt",
+    "category": "Pantry",
+    "quantity": 1.5,
+    "unit": "teaspoon",
+    "preparationNote": null,
+    "sourceYield": null,
+    "purchaseUnit": "container"
+   },
+   {
+    "ingredientId": "5239a6f5-25a5-4b8a-a83a-1cddcb4b86af",
+    "ingredientName": "Black pepper",
+    "category": "Pantry",
+    "quantity": 0.5,
+    "unit": "teaspoon",
+    "preparationNote": null,
+    "sourceYield": null,
+    "purchaseUnit": "container"
+   },
+   {
+    "ingredientId": "1afbffe9-8dc5-40ca-9af7-af3eacf25c4c",
+    "ingredientName": "wild rice blend",
+    "category": "Pantry",
+    "quantity": 1,
+    "unit": "cup",
+    "preparationNote": "rinsed",
+    "sourceYield": null,
+    "purchaseUnit": null
+   },
+   {
+    "ingredientId": "897a193f-4b26-4666-8004-a3c58518dfbd",
+    "ingredientName": "low-sodium vegetable broth",
+    "category": "Canned",
+    "quantity": 2,
+    "unit": "cup",
+    "preparationNote": null,
+    "sourceYield": null,
+    "purchaseUnit": "carton"
+   },
+   {
+    "ingredientId": "0950e8ee-4506-49b9-a1c1-fee0a256c30d",
+    "ingredientName": "water",
+    "category": "Pantry",
+    "quantity": 0.5,
+    "unit": "cup",
+    "preparationNote": null,
+    "sourceYield": null,
+    "purchaseUnit": "bottle"
+   },
+   {
+    "ingredientId": "edeffc3b-ec52-463c-80e0-c996aedce9e5",
+    "ingredientName": "unsalted butter",
+    "category": "Dairy",
+    "quantity": 2,
+    "unit": "tablespoon",
+    "preparationNote": null,
+    "sourceYield": null,
+    "purchaseUnit": "lb"
+   },
+   {
+    "ingredientId": "34744d96-c0b0-4e57-a118-06b41523a02c",
+    "ingredientName": "yellow onion",
+    "category": "Produce",
+    "quantity": 1,
+    "unit": "each",
+    "preparationNote": "finely diced",
+    "sourceYield": null,
+    "purchaseUnit": "each"
+   },
+   {
+    "ingredientId": "f925bf0a-cbda-4969-8104-c7f23dae72b5",
+    "ingredientName": "celery",
+    "category": "Produce",
+    "quantity": 2,
+    "unit": "stalk",
+    "preparationNote": "finely diced",
+    "sourceYield": null,
+    "purchaseUnit": "bunch"
+   },
+   {
+    "ingredientId": "e6753984-d315-4484-bf78-783c61f197ab",
+    "ingredientName": "garlic",
+    "category": "Produce",
+    "quantity": 3,
+    "unit": "clove",
+    "preparationNote": "minced",
+    "sourceYield": {
+     "fromName": "garlic head",
+     "quantity": 10,
+     "unit": "clove"
+    },
+    "purchaseUnit": "head"
+   },
+   {
+    "ingredientId": "a0246358-e2ef-411f-a891-18d35126dabc",
+    "ingredientName": "dried cranberries",
+    "category": "Pantry",
+    "quantity": 0.5,
+    "unit": "cup",
+    "preparationNote": null,
+    "sourceYield": null,
+    "purchaseUnit": "bag"
+   },
+   {
+    "ingredientId": "f0a8e3c9-c310-4b69-a375-68323298fad6",
+    "ingredientName": "pecan halves",
+    "category": "Pantry",
+    "quantity": 0.5,
+    "unit": "cup",
+    "preparationNote": "roughly chopped and toasted",
+    "sourceYield": null,
+    "purchaseUnit": null
+   },
+   {
+    "ingredientId": "74a78111-b917-44bf-9ab5-aa2b1191124b",
+    "ingredientName": "fresh thyme leaves",
+    "category": "Produce",
+    "quantity": 1,
+    "unit": "teaspoon",
+    "preparationNote": null,
+    "sourceYield": {
+     "fromName": "fresh thyme",
+     "quantity": 3,
+     "unit": "tbsp"
+    },
+    "purchaseUnit": "bunch"
+   },
+   {
+    "ingredientId": "bc22508b-b24b-4722-9450-39d23ad06cd5",
+    "ingredientName": "fresh sage",
+    "category": "Produce",
+    "quantity": 1,
+    "unit": "tablespoon",
+    "preparationNote": "finely chopped",
+    "sourceYield": null,
+    "purchaseUnit": "bunch"
+   },
+   {
+    "ingredientId": "f1c509bb-0198-40b9-815b-7c06d10a63f2",
+    "ingredientName": "apple cider vinegar",
+    "category": "Pantry",
+    "quantity": 1,
+    "unit": "tablespoon",
+    "preparationNote": null,
+    "sourceYield": null,
+    "purchaseUnit": "bottle"
+   },
+   {
+    "ingredientId": "8c7fac5e-2390-4183-a26c-4cee436d41fa",
+    "ingredientName": "maple syrup",
+    "category": "Pantry",
+    "quantity": 2,
+    "unit": "tablespoon",
+    "preparationNote": "divided: 1 tbsp for squash, 1 tbsp for filling",
+    "sourceYield": null,
+    "purchaseUnit": null
+   },
+   {
+    "ingredientId": "381520dc-6edc-42e0-88d8-a1bf19df0b85",
+    "ingredientName": "crumbled goat cheese",
+    "category": "Dairy",
+    "quantity": 3,
+    "unit": "ounce",
+    "preparationNote": "for topping",
+    "sourceYield": null,
+    "purchaseUnit": "container"
+   },
+   {
+    "ingredientId": "357a73e6-2b6b-4a49-96ac-b0c09286f4a5",
+    "ingredientName": "fresh flat-leaf parsley",
+    "category": "Produce",
+    "quantity": 2,
+    "unit": "tablespoon",
+    "preparationNote": "chopped, for garnish",
+    "sourceYield": null,
+    "purchaseUnit": "bunch"
+   }
+  ],
+  "stepTexts": [
+   "Preheat the oven to 400°F.",
+   "Halve the 2 acorn squash lengthwise and scoop out the seeds; brush the cut sides with 2 tablespoons olive oil, season with 1 teaspoon kosher salt and ¼ teaspoon black pepper, then drizzle 1 tablespoon maple syrup evenly over the cut sides.",
+   "Rinse 1 cup wild rice blend under cold water.",
+   "Finely dice 1 yellow onion and 2 celery stalks, and mince 3 garlic cloves.",
+   "Place the squash halves cut-side down on a parchment-lined baking sheet and roast at 400°F for 35–40 minutes until the flesh is tender when pierced with a fork.",
+   "While the squash roasts, combine the rinsed wild rice blend with 2 cups vegetable broth and ½ cup water in a medium saucepan; bring to a boil, then reduce heat to low, cover, and simmer for 40–45 minutes until the grains are tender and the liquid is absorbed.",
+   "Melt 2 tablespoons unsalted butter in a large skillet over medium heat; add the onion and celery and sauté, stirring frequently, for 5–6 minutes until softened, then add the garlic and cook 1 minute more.",
+   "Remove the skillet from heat and stir in the cooked wild rice, ½ cup dried cranberries, ½ cup roughly chopped toasted pecans, 1 teaspoon fresh thyme leaves, 1 tablespoon finely chopped fresh sage, 1 tablespoon apple cider vinegar, 1 tablespoon maple syrup, ½ teaspoon kosher salt, and ¼ teaspoon black pepper; stir until evenly combined.",
+   "Flip the roasted squash halves cut-side up, mound the filling generously into each cavity, and return to the oven for 8–10 minutes until the filling is heated through and the squash edges are lightly caramelized.",
+   "Transfer the stuffed squash halves to a platter, scatter 3 ounces crumbled goat cheese over the filling, and garnish with 2 tablespoons chopped fresh flat-leaf parsley; serve immediately."
+  ],
+  "componentSteps": [
+   {
+    "stepIndex": 0,
+    "text": "Preheat the oven to 400°F.",
+    "componentKey": null,
+    "phaseType": "preheat",
+    "ingredientIds": [],
+    "refs": []
+   },
+   {
+    "stepIndex": 1,
+    "text": "Halve the 2 acorn squash lengthwise and scoop out the seeds; brush the cut sides with 2 tablespoons olive oil, season with 1 teaspoon kosher salt and ¼ teaspoon black pepper, then drizzle 1 tablespoon maple syrup evenly over the cut sides.",
+    "componentKey": null,
+    "phaseType": "prep",
+    "ingredientIds": [
+     "36ee4a23-4cda-4c34-ac6e-e34d4629c98d",
+     "f37ae360-99ba-4eae-8c95-47e585e8c1f6",
+     "94ce9fb2-e942-4f8f-917e-76c8008bd11d",
+     "5239a6f5-25a5-4b8a-a83a-1cddcb4b86af",
+     "8c7fac5e-2390-4183-a26c-4cee436d41fa"
+    ],
+    "refs": [
+     {
+      "ingredientId": "36ee4a23-4cda-4c34-ac6e-e34d4629c98d",
+      "quantity": 2
+     },
+     {
+      "ingredientId": "f37ae360-99ba-4eae-8c95-47e585e8c1f6",
+      "quantity": 2
+     },
+     {
+      "ingredientId": "94ce9fb2-e942-4f8f-917e-76c8008bd11d",
+      "quantity": 1
+     },
+     {
+      "ingredientId": "5239a6f5-25a5-4b8a-a83a-1cddcb4b86af",
+      "quantity": 0.25
+     },
+     {
+      "ingredientId": "8c7fac5e-2390-4183-a26c-4cee436d41fa",
+      "quantity": 1
+     }
+    ]
+   },
+   {
+    "stepIndex": 2,
+    "text": "Rinse 1 cup wild rice blend under cold water.",
+    "componentKey": "rice",
+    "phaseType": "prep",
+    "ingredientIds": [
+     "1afbffe9-8dc5-40ca-9af7-af3eacf25c4c"
+    ],
+    "refs": [
+     {
+      "ingredientId": "1afbffe9-8dc5-40ca-9af7-af3eacf25c4c",
+      "quantity": 1
+     }
+    ]
+   },
+   {
+    "stepIndex": 3,
+    "text": "Finely dice 1 yellow onion and 2 celery stalks, and mince 3 garlic cloves.",
+    "componentKey": null,
+    "phaseType": "prep",
+    "ingredientIds": [
+     "34744d96-c0b0-4e57-a118-06b41523a02c",
+     "f925bf0a-cbda-4969-8104-c7f23dae72b5",
+     "e6753984-d315-4484-bf78-783c61f197ab"
+    ],
+    "refs": [
+     {
+      "ingredientId": "34744d96-c0b0-4e57-a118-06b41523a02c",
+      "quantity": 1
+     },
+     {
+      "ingredientId": "f925bf0a-cbda-4969-8104-c7f23dae72b5",
+      "quantity": 2
+     },
+     {
+      "ingredientId": "e6753984-d315-4484-bf78-783c61f197ab",
+      "quantity": 3
+     }
+    ]
+   },
+   {
+    "stepIndex": 4,
+    "text": "Place the squash halves cut-side down on a parchment-lined baking sheet and roast at 400°F for 35–40 minutes until the flesh is tender when pierced with a fork.",
+    "componentKey": null,
+    "phaseType": "cook",
+    "ingredientIds": [],
+    "refs": []
+   },
+   {
+    "stepIndex": 5,
+    "text": "While the squash roasts, combine the rinsed wild rice blend with 2 cups vegetable broth and ½ cup water in a medium saucepan; bring to a boil, then reduce heat to low, cover, and simmer for 40–45 minutes until the grains are tender and the liquid is absorbed.",
+    "componentKey": "rice",
+    "phaseType": "cook",
+    "ingredientIds": [
+     "897a193f-4b26-4666-8004-a3c58518dfbd",
+     "0950e8ee-4506-49b9-a1c1-fee0a256c30d"
+    ],
+    "refs": [
+     {
+      "ingredientId": "897a193f-4b26-4666-8004-a3c58518dfbd",
+      "quantity": 2
+     },
+     {
+      "ingredientId": "0950e8ee-4506-49b9-a1c1-fee0a256c30d",
+      "quantity": 0.5
+     }
+    ]
+   },
+   {
+    "stepIndex": 7,
+    "text": "Melt 2 tablespoons unsalted butter in a large skillet over medium heat; add the onion and celery and sauté, stirring frequently, for 5–6 minutes until softened, then add the garlic and cook 1 minute more.",
+    "componentKey": null,
+    "phaseType": "cook",
+    "ingredientIds": [
+     "edeffc3b-ec52-463c-80e0-c996aedce9e5"
+    ],
+    "refs": [
+     {
+      "ingredientId": "edeffc3b-ec52-463c-80e0-c996aedce9e5",
+      "quantity": 2
+     }
+    ]
+   },
+   {
+    "stepIndex": 8,
+    "text": "Remove the skillet from heat and stir in the cooked wild rice, ½ cup dried cranberries, ½ cup roughly chopped toasted pecans, 1 teaspoon fresh thyme leaves, 1 tablespoon finely chopped fresh sage, 1 tablespoon apple cider vinegar, 1 tablespoon maple syrup, ½ teaspoon kosher salt, and ¼ teaspoon black pepper; stir until evenly combined.",
+    "componentKey": null,
+    "phaseType": "assemble",
+    "ingredientIds": [
+     "a0246358-e2ef-411f-a891-18d35126dabc",
+     "f0a8e3c9-c310-4b69-a375-68323298fad6",
+     "74a78111-b917-44bf-9ab5-aa2b1191124b",
+     "bc22508b-b24b-4722-9450-39d23ad06cd5",
+     "f1c509bb-0198-40b9-815b-7c06d10a63f2",
+     "8c7fac5e-2390-4183-a26c-4cee436d41fa",
+     "94ce9fb2-e942-4f8f-917e-76c8008bd11d",
+     "5239a6f5-25a5-4b8a-a83a-1cddcb4b86af"
+    ],
+    "refs": [
+     {
+      "ingredientId": "a0246358-e2ef-411f-a891-18d35126dabc",
+      "quantity": 0.5
+     },
+     {
+      "ingredientId": "f0a8e3c9-c310-4b69-a375-68323298fad6",
+      "quantity": 0.5
+     },
+     {
+      "ingredientId": "74a78111-b917-44bf-9ab5-aa2b1191124b",
+      "quantity": 1
+     },
+     {
+      "ingredientId": "bc22508b-b24b-4722-9450-39d23ad06cd5",
+      "quantity": 1
+     },
+     {
+      "ingredientId": "f1c509bb-0198-40b9-815b-7c06d10a63f2",
+      "quantity": 1
+     },
+     {
+      "ingredientId": "8c7fac5e-2390-4183-a26c-4cee436d41fa",
+      "quantity": 1
+     },
+     {
+      "ingredientId": "94ce9fb2-e942-4f8f-917e-76c8008bd11d",
+      "quantity": 0.5
+     },
+     {
+      "ingredientId": "5239a6f5-25a5-4b8a-a83a-1cddcb4b86af",
+      "quantity": 0.25
+     }
+    ]
+   },
+   {
+    "stepIndex": 9,
+    "text": "Flip the roasted squash halves cut-side up, mound the filling generously into each cavity, and return to the oven for 8–10 minutes until the filling is heated through and the squash edges are lightly caramelized.",
+    "componentKey": null,
+    "phaseType": "cook",
+    "ingredientIds": [],
+    "refs": []
+   },
+   {
+    "stepIndex": 10,
+    "text": "Transfer the stuffed squash halves to a platter, scatter 3 ounces crumbled goat cheese over the filling, and garnish with 2 tablespoons chopped fresh flat-leaf parsley; serve immediately.",
+    "componentKey": null,
+    "phaseType": "assemble",
+    "ingredientIds": [
+     "381520dc-6edc-42e0-88d8-a1bf19df0b85",
+     "357a73e6-2b6b-4a49-96ac-b0c09286f4a5"
+    ],
+    "refs": [
+     {
+      "ingredientId": "381520dc-6edc-42e0-88d8-a1bf19df0b85",
+      "quantity": 3
+     },
+     {
+      "ingredientId": "357a73e6-2b6b-4a49-96ac-b0c09286f4a5",
+      "quantity": 2
+     }
+    ]
+   }
+  ]
+ }
+}

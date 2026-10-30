@@ -588,6 +588,7 @@ function componentsOfUnclaimed(
         ...(c.asWritten ? { asWritten: true } : {}),
         ...(c.rowName ? { rowName: c.rowName } : {}),
         ...(c.portion ? { portion: c.portion } : {}),
+        ...(c.portionStep != null ? { portionStep: c.portionStep } : {}),
         ...(destinationFor ? { destination: destinationFor(c.dishId, entry.ingredientId, c.portion) } : {}),
           ...((c.preparationNote ?? "").trim()
           ? { preparationNote: (c.preparationNote ?? "").trim() }
@@ -624,6 +625,7 @@ function componentsOf(
         ...(c.asWritten ? { asWritten: true } : {}),
         ...(c.rowName ? { rowName: c.rowName } : {}),
         ...(c.portion ? { portion: c.portion } : {}),
+        ...(c.portionStep != null ? { portionStep: c.portionStep } : {}),
         ...(destinationFor ? { destination: destinationFor(c.dishId, entry.ingredientId, c.portion) } : {}),
           ...((c.preparationNote ?? "").trim()
           ? { preparationNote: (c.preparationNote ?? "").trim() }
@@ -672,6 +674,7 @@ function componentsForDish(
         ...(c.asWritten ? { asWritten: true } : {}),
         ...(c.rowName ? { rowName: c.rowName } : {}),
         ...(c.portion ? { portion: c.portion } : {}),
+        ...(c.portionStep != null ? { portionStep: c.portionStep } : {}),
         ...(destinationFor ? { destination: destinationFor(c.dishId, entry.ingredientId, c.portion) } : {}),
           ...((c.preparationNote ?? "").trim()
           ? { preparationNote: (c.preparationNote ?? "").trim() }
@@ -2752,7 +2755,7 @@ const CUT_TITLE_VERB: ReadonlyArray<[RegExp, string]> = [
 function narrationComponents(components: readonly PrepNarrationComponent[]): PrepNarrationComponent[] {
   return components.map((c) => ({
     ...c,
-    measures: c.measures.map(({ mealId: _m, dishId: _d, ingredientId: _i, qty: _q, unit: _u, portion: _p, asWritten: _w, rowName: _r, ...rest }) => rest),
+    measures: c.measures.map(({ mealId: _m, dishId: _d, ingredientId: _i, qty: _q, unit: _u, portion: _p, portionStep: _ps, asWritten: _w, rowName: _r, ...rest }) => rest),
   }));
 }
 

@@ -1,0 +1,408 @@
+{
+ "source": "catalog 5d4e49a1 dish bd6df25a, loadPrepWeekInput output (SERVER-12)",
+ "dish": {
+  "dishId": "bd6df25a-81ee-4c1c-9bf6-cd700fae6bf6",
+  "dishName": "Pepper Steak with Bell Peppers in Brown Sauce",
+  "dishRole": "main",
+  "baseServings": 4,
+  "authoredBaseServings": 4,
+  "ingredients": [
+   {
+    "ingredientId": "c34bcc09-fff1-4fa9-a2ac-38131ff6a583",
+    "ingredientName": "flank steak",
+    "category": "Protein",
+    "quantity": 1.5,
+    "unit": "pound",
+    "preparationNote": "sliced against the grain into 1/4-inch strips",
+    "sourceYield": null,
+    "purchaseUnit": "lb"
+   },
+   {
+    "ingredientId": "3097daa0-ba99-49a2-9346-e1ea97f86de8",
+    "ingredientName": "soy sauce",
+    "category": "Pantry",
+    "quantity": 4,
+    "unit": "tablespoon",
+    "preparationNote": "divided",
+    "sourceYield": null,
+    "purchaseUnit": "bottle"
+   },
+   {
+    "ingredientId": "5449ba18-9db9-465e-9f35-10a867ce3bdd",
+    "ingredientName": "cornstarch",
+    "category": "Pantry",
+    "quantity": 3,
+    "unit": "tablespoon",
+    "preparationNote": "divided",
+    "sourceYield": null,
+    "purchaseUnit": "box"
+   },
+   {
+    "ingredientId": "5ee1b95d-b048-40d7-88ad-883d73b0798f",
+    "ingredientName": "baking soda",
+    "category": "Pantry",
+    "quantity": 0.25,
+    "unit": "teaspoon",
+    "preparationNote": null,
+    "sourceYield": null,
+    "purchaseUnit": "box"
+   },
+   {
+    "ingredientId": "e85481ea-01c9-4b7a-991d-8975286dcf9b",
+    "ingredientName": "sesame oil",
+    "category": "Pantry",
+    "quantity": 1,
+    "unit": "tablespoon",
+    "preparationNote": "divided",
+    "sourceYield": null,
+    "purchaseUnit": "bottle"
+   },
+   {
+    "ingredientId": "602378e3-ba36-4fce-9b40-d7388e05857b",
+    "ingredientName": "vegetable oil",
+    "category": "Pantry",
+    "quantity": 3,
+    "unit": "tablespoon",
+    "preparationNote": "such as vegetable or canola, divided",
+    "sourceYield": null,
+    "purchaseUnit": "bottle"
+   },
+   {
+    "ingredientId": "79a002c7-c1bd-4e5f-b1b1-40254c592065",
+    "ingredientName": "green bell pepper",
+    "category": "Produce",
+    "quantity": 2,
+    "unit": "each",
+    "preparationNote": "cored, seeded, cut into 1-inch pieces",
+    "sourceYield": null,
+    "purchaseUnit": "each"
+   },
+   {
+    "ingredientId": "ef8cc2b5-6b0a-4e35-aead-b5171bb3df0a",
+    "ingredientName": "red bell pepper",
+    "category": "Produce",
+    "quantity": 1,
+    "unit": "each",
+    "preparationNote": "cored, seeded, cut into 1-inch pieces",
+    "sourceYield": null,
+    "purchaseUnit": "each"
+   },
+   {
+    "ingredientId": "34744d96-c0b0-4e57-a118-06b41523a02c",
+    "ingredientName": "yellow onion",
+    "category": "Produce",
+    "quantity": 1,
+    "unit": "each",
+    "preparationNote": "halved and sliced into half-moons",
+    "sourceYield": null,
+    "purchaseUnit": "each"
+   },
+   {
+    "ingredientId": "e6753984-d315-4484-bf78-783c61f197ab",
+    "ingredientName": "garlic",
+    "category": "Produce",
+    "quantity": 4,
+    "unit": "clove",
+    "preparationNote": "minced",
+    "sourceYield": {
+     "fromName": "garlic head",
+     "quantity": 10,
+     "unit": "clove"
+    },
+    "purchaseUnit": "head"
+   },
+   {
+    "ingredientId": "a5d76b1b-27ae-439f-92d7-9a93d531928f",
+    "ingredientName": "fresh ginger",
+    "category": "Produce",
+    "quantity": 1,
+    "unit": "teaspoon",
+    "preparationNote": "peeled and finely grated",
+    "sourceYield": null,
+    "purchaseUnit": "each"
+   },
+   {
+    "ingredientId": "465709f9-c999-4a56-a826-d352cbaab93b",
+    "ingredientName": "beef broth",
+    "category": "Canned",
+    "quantity": 0.75,
+    "unit": "cup",
+    "preparationNote": null,
+    "sourceYield": null,
+    "purchaseUnit": "can"
+   },
+   {
+    "ingredientId": "01ad36bb-96da-478d-9704-c2d66b301887",
+    "ingredientName": "oyster sauce",
+    "category": "Pantry",
+    "quantity": 2,
+    "unit": "tablespoon",
+    "preparationNote": null,
+    "sourceYield": null,
+    "purchaseUnit": "bottle"
+   },
+   {
+    "ingredientId": "a821a9a7-9598-4577-bf96-ec5dd1012f9c",
+    "ingredientName": "hoisin sauce",
+    "category": "Pantry",
+    "quantity": 1,
+    "unit": "tablespoon",
+    "preparationNote": null,
+    "sourceYield": null,
+    "purchaseUnit": "bottle"
+   },
+   {
+    "ingredientId": "0156c2f8-6ac2-4667-b149-f661f96766c5",
+    "ingredientName": "Shaoxing rice wine",
+    "category": "Pantry",
+    "quantity": 1,
+    "unit": "tablespoon",
+    "preparationNote": null,
+    "sourceYield": null,
+    "purchaseUnit": "bottle"
+   },
+   {
+    "ingredientId": "780a59f3-f65f-45d6-be55-bc488946ba55",
+    "ingredientName": "dark soy sauce",
+    "category": "Pantry",
+    "quantity": 1,
+    "unit": "tablespoon",
+    "preparationNote": null,
+    "sourceYield": null,
+    "purchaseUnit": "bottle"
+   },
+   {
+    "ingredientId": "97cfece8-f2a4-4c18-86e6-c8402ea90420",
+    "ingredientName": "sugar",
+    "category": "Pantry",
+    "quantity": 1,
+    "unit": "teaspoon",
+    "preparationNote": null,
+    "sourceYield": null,
+    "purchaseUnit": "bag"
+   },
+   {
+    "ingredientId": "5239a6f5-25a5-4b8a-a83a-1cddcb4b86af",
+    "ingredientName": "Black pepper",
+    "category": "Pantry",
+    "quantity": 0.75,
+    "unit": "teaspoon",
+    "preparationNote": "coarsely ground",
+    "sourceYield": null,
+    "purchaseUnit": "container"
+   },
+   {
+    "ingredientId": "0950e8ee-4506-49b9-a1c1-fee0a256c30d",
+    "ingredientName": "water",
+    "category": "Pantry",
+    "quantity": 2,
+    "unit": "tablespoon",
+    "preparationNote": "for cornstarch slurry",
+    "sourceYield": null,
+    "purchaseUnit": "bottle"
+   }
+  ],
+  "stepTexts": [
+   "Slice the 1½ lb flank steak against the grain into ¼-inch strips, then toss with ¼ teaspoon baking soda, 2 tablespoons soy sauce, 1 tablespoon cornstarch, and ½ tablespoon sesame oil; let sit 15 minutes to velvet.",
+   "Core, seed, and cut the 2 green bell peppers and 1 red bell pepper into 1-inch pieces; halve and slice the yellow onion into half-moons; mince the 4 garlic cloves; peel and finely grate 1 teaspoon fresh ginger.",
+   "Whisk together ¾ cup beef broth, 2 tablespoons oyster sauce, 1 tablespoon hoisin sauce, 1 tablespoon Shaoxing rice wine, 1 tablespoon dark soy sauce, 1 teaspoon sugar, and ¾ teaspoon coarsely ground black pepper in a small bowl; in a separate small bowl, dissolve 2 tablespoons cornstarch in 2 tablespoons water to make a slurry.",
+   "Heat 2 tablespoons neutral oil in a wok or large skillet over high heat until shimmering, then add the marinated beef in a single layer and sear undisturbed for 1 minute; stir-fry for 1 more minute until just browned but not fully cooked through, then transfer to a plate.",
+   "Add the remaining 1 tablespoon neutral oil to the wok over high heat, add the onion and stir-fry for 2 minutes until slightly softened, then add the bell peppers and stir-fry for 2 more minutes until crisp-tender.",
+   "Push the vegetables to the edges of the wok, add the garlic and ginger to the center, and stir-fry for 30 seconds until fragrant.",
+   "Pour the brown sauce mixture into the wok and bring to a boil, stirring to combine with the vegetables, then stir in the cornstarch slurry and cook for 1 minute until the sauce is glossy and thickened.",
+   "Return the seared beef and any resting juices to the wok, toss everything together over high heat for 1 minute until the beef is cooked through and fully coated in the sauce, then drizzle with the remaining ½ tablespoon sesame oil.",
+   "Transfer to a serving platter and serve immediately over steamed jasmine rice."
+  ],
+  "componentSteps": [
+   {
+    "stepIndex": 0,
+    "text": "Slice the 1½ lb flank steak against the grain into ¼-inch strips, then toss with ¼ teaspoon baking soda, 2 tablespoons soy sauce, 1 tablespoon cornstarch, and ½ tablespoon sesame oil; let sit 15 minutes to velvet.",
+    "componentKey": "beef",
+    "phaseType": "prep",
+    "ingredientIds": [
+     "c34bcc09-fff1-4fa9-a2ac-38131ff6a583",
+     "5ee1b95d-b048-40d7-88ad-883d73b0798f",
+     "3097daa0-ba99-49a2-9346-e1ea97f86de8",
+     "5449ba18-9db9-465e-9f35-10a867ce3bdd",
+     "e85481ea-01c9-4b7a-991d-8975286dcf9b"
+    ],
+    "refs": [
+     {
+      "ingredientId": "c34bcc09-fff1-4fa9-a2ac-38131ff6a583",
+      "quantity": 1.5
+     },
+     {
+      "ingredientId": "5ee1b95d-b048-40d7-88ad-883d73b0798f",
+      "quantity": 0.25
+     },
+     {
+      "ingredientId": "3097daa0-ba99-49a2-9346-e1ea97f86de8",
+      "quantity": 2
+     },
+     {
+      "ingredientId": "5449ba18-9db9-465e-9f35-10a867ce3bdd",
+      "quantity": 1
+     },
+     {
+      "ingredientId": "e85481ea-01c9-4b7a-991d-8975286dcf9b",
+      "quantity": 0.5
+     }
+    ]
+   },
+   {
+    "stepIndex": 2,
+    "text": "Core, seed, and cut the 2 green bell peppers and 1 red bell pepper into 1-inch pieces; halve and slice the yellow onion into half-moons; mince the 4 garlic cloves; peel and finely grate 1 teaspoon fresh ginger.",
+    "componentKey": null,
+    "phaseType": "prep",
+    "ingredientIds": [
+     "79a002c7-c1bd-4e5f-b1b1-40254c592065",
+     "ef8cc2b5-6b0a-4e35-aead-b5171bb3df0a",
+     "e6753984-d315-4484-bf78-783c61f197ab",
+     "a5d76b1b-27ae-439f-92d7-9a93d531928f"
+    ],
+    "refs": [
+     {
+      "ingredientId": "79a002c7-c1bd-4e5f-b1b1-40254c592065",
+      "quantity": 2
+     },
+     {
+      "ingredientId": "ef8cc2b5-6b0a-4e35-aead-b5171bb3df0a",
+      "quantity": 1
+     },
+     {
+      "ingredientId": "e6753984-d315-4484-bf78-783c61f197ab",
+      "quantity": 4
+     },
+     {
+      "ingredientId": "a5d76b1b-27ae-439f-92d7-9a93d531928f",
+      "quantity": 1
+     }
+    ]
+   },
+   {
+    "stepIndex": 3,
+    "text": "Whisk together ¾ cup beef broth, 2 tablespoons oyster sauce, 1 tablespoon hoisin sauce, 1 tablespoon Shaoxing rice wine, 1 tablespoon dark soy sauce, 1 teaspoon sugar, and ¾ teaspoon coarsely ground black pepper in a small bowl; in a separate small bowl, dissolve 2 tablespoons cornstarch in 2 tablespoons water to make a slurry.",
+    "componentKey": null,
+    "phaseType": "prep",
+    "ingredientIds": [
+     "465709f9-c999-4a56-a826-d352cbaab93b",
+     "01ad36bb-96da-478d-9704-c2d66b301887",
+     "a821a9a7-9598-4577-bf96-ec5dd1012f9c",
+     "0156c2f8-6ac2-4667-b149-f661f96766c5",
+     "780a59f3-f65f-45d6-be55-bc488946ba55",
+     "97cfece8-f2a4-4c18-86e6-c8402ea90420",
+     "5239a6f5-25a5-4b8a-a83a-1cddcb4b86af",
+     "5449ba18-9db9-465e-9f35-10a867ce3bdd",
+     "0950e8ee-4506-49b9-a1c1-fee0a256c30d"
+    ],
+    "refs": [
+     {
+      "ingredientId": "465709f9-c999-4a56-a826-d352cbaab93b",
+      "quantity": 0.75
+     },
+     {
+      "ingredientId": "01ad36bb-96da-478d-9704-c2d66b301887",
+      "quantity": 2
+     },
+     {
+      "ingredientId": "a821a9a7-9598-4577-bf96-ec5dd1012f9c",
+      "quantity": 1
+     },
+     {
+      "ingredientId": "0156c2f8-6ac2-4667-b149-f661f96766c5",
+      "quantity": 1
+     },
+     {
+      "ingredientId": "780a59f3-f65f-45d6-be55-bc488946ba55",
+      "quantity": 1
+     },
+     {
+      "ingredientId": "97cfece8-f2a4-4c18-86e6-c8402ea90420",
+      "quantity": 1
+     },
+     {
+      "ingredientId": "5239a6f5-25a5-4b8a-a83a-1cddcb4b86af",
+      "quantity": 0.75
+     },
+     {
+      "ingredientId": "5449ba18-9db9-465e-9f35-10a867ce3bdd",
+      "quantity": 2
+     },
+     {
+      "ingredientId": "0950e8ee-4506-49b9-a1c1-fee0a256c30d",
+      "quantity": 2
+     }
+    ]
+   },
+   {
+    "stepIndex": 4,
+    "text": "Heat 2 tablespoons neutral oil in a wok or large skillet over high heat until shimmering, then add the marinated beef in a single layer and sear undisturbed for 1 minute; stir-fry for 1 more minute until just browned but not fully cooked through, then transfer to a plate.",
+    "componentKey": null,
+    "phaseType": "cook",
+    "ingredientIds": [
+     "602378e3-ba36-4fce-9b40-d7388e05857b"
+    ],
+    "refs": [
+     {
+      "ingredientId": "602378e3-ba36-4fce-9b40-d7388e05857b",
+      "quantity": 2
+     }
+    ]
+   },
+   {
+    "stepIndex": 5,
+    "text": "Add the remaining 1 tablespoon neutral oil to the wok over high heat, add the onion and stir-fry for 2 minutes until slightly softened, then add the bell peppers and stir-fry for 2 more minutes until crisp-tender.",
+    "componentKey": null,
+    "phaseType": "cook",
+    "ingredientIds": [
+     "602378e3-ba36-4fce-9b40-d7388e05857b"
+    ],
+    "refs": [
+     {
+      "ingredientId": "602378e3-ba36-4fce-9b40-d7388e05857b",
+      "quantity": 1
+     }
+    ]
+   },
+   {
+    "stepIndex": 6,
+    "text": "Push the vegetables to the edges of the wok, add the garlic and ginger to the center, and stir-fry for 30 seconds until fragrant.",
+    "componentKey": null,
+    "phaseType": "cook",
+    "ingredientIds": [],
+    "refs": []
+   },
+   {
+    "stepIndex": 7,
+    "text": "Pour the brown sauce mixture into the wok and bring to a boil, stirring to combine with the vegetables, then stir in the cornstarch slurry and cook for 1 minute until the sauce is glossy and thickened.",
+    "componentKey": null,
+    "phaseType": "cook",
+    "ingredientIds": [],
+    "refs": []
+   },
+   {
+    "stepIndex": 8,
+    "text": "Return the seared beef and any resting juices to the wok, toss everything together over high heat for 1 minute until the beef is cooked through and fully coated in the sauce, then drizzle with the remaining ½ tablespoon sesame oil.",
+    "componentKey": null,
+    "phaseType": "cook",
+    "ingredientIds": [
+     "e85481ea-01c9-4b7a-991d-8975286dcf9b"
+    ],
+    "refs": [
+     {
+      "ingredientId": "e85481ea-01c9-4b7a-991d-8975286dcf9b",
+      "quantity": 0.5
+     }
+    ]
+   },
+   {
+    "stepIndex": 9,
+    "text": "Transfer to a serving platter and serve immediately over steamed jasmine rice.",
+    "componentKey": null,
+    "phaseType": "assemble",
+    "ingredientIds": [],
+    "refs": []
+   }
+  ]
+ }
+}

@@ -72,6 +72,8 @@ export interface PrepMeasure {
   unit?: string;
   /** Code-only — THX-3b (BUG-456): which listing, for an ingredient its dish lists twice. */
   portion?: string;
+  /** Code-only — SERVER-12 B: the step a portion's share is stated at (Cook Mode's wording reads it). */
+  portionStep?: number;
   /** Code-only — THX-3d round 2 (P): the dish's own amount at its own servings, printed as written. */
   asWritten?: boolean;
   /** Code-only — PREP-3 3b: the dish's own ingredient line, when the group is named otherwise ("romaine lettuce hearts" in "Romaine lettuce"). */

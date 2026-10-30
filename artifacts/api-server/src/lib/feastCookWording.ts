@@ -195,7 +195,11 @@ export interface WordingRow { ingredientId: string; name: string }
 export interface FeastDishFacts {
   dishId: string;
   /** The mixes and jars Prep the feast fills for this dish (members by id and by food). */
-  mixes: { name: string; ids: Set<string>; keys: Set<string>; /** Round 2 (L) — what the mix holds of each food, by food key. */ amounts?: Map<string, { qty: number; unit: string }>; /** Round 5 — Prep's container id. */ containerId?: string }[];
+  mixes: {
+    name: string; ids: Set<string>; keys: Set<string>; /** Round 2 (L) — what the mix holds of each food, by food key. */ amounts?: Map<string, { qty: number; unit: string }>; /** Round 5 — Prep's container id. */ containerId?: string;
+    /** SERVER-12 B — a week's: ingredient id → the steps whose share of it this mix holds (a row the steps divide, or one listed twice). */
+    shareSteps?: Map<string, Set<number>>;
+  }[];
   /** Produce cut ahead for this dish: the food, the container it went into, its cut words. */
   cuts: { id: string; key: string; into: string | null; note: string; kind?: FeastLabelKind | null; /** PREP-3 3b — a week's: what the container holds of it for this dish ("4 cups"). */ amount?: string; /** Round 5 — Prep's name for the container (its id). */ containerId?: string }[];
   /**
@@ -257,6 +261,10 @@ export function feastDishFacts(build: PrepWeekBuild, opts: { onlySteps?: Readonl
           if (!mix) f.mixes.push((mix = { name, ids: new Set(), keys: new Set(), amounts: new Map(), containerId: st.containerId ?? st.bowlName }));
           if (m.ingredientId) mix.ids.add(m.ingredientId);
           mix.keys.add(ingredientGroupKey(c.ingredientName));
+          if (opts.weeknight && m.ingredientId && m.portionStep !== undefined) {
+            const steps = (mix.shareSteps ??= new Map()).get(m.ingredientId) ?? new Set<number>();
+            mix.shareSteps.set(m.ingredientId, steps.add(m.portionStep));
+          }
           if (m.qty !== undefined && m.unit !== undefined) {
             const k = ingredientGroupKey(c.ingredientName);
             const have = mix.amounts!.get(k);
@@ -670,7 +678,12 @@ export function rewordFeastSteps(
   // PREP-3 — "fresh lemon juice" is the lemon juice prepped (the combine groups the two
   // under one id, so the cut's id is the group's, never this row's).
   const bare = (k: string) => k.replace(/\bfresh(?:ly squeezed)?\s+/g, "");
-  const inMix = (mix: FeastDishFacts["mixes"][number], m: Mention) => mix.ids.has(m.id) || mix.keys.has(m.key) || [...mix.keys].some((k) => bare(k) === bare(m.key));
+  // SERVER-12 B — and at a step (`at`), a share is the mix's only where it is stated: Lo Mein's velvet
+  // holds the s0 share of the sesame oil and the sauce jar the s1 share, so s0's "1 teaspoon sesame oil"
+  // is the velvet's, never the sauce jar's (which had entered at s0 on it).
+  const inMix = (mix: FeastDishFacts["mixes"][number], m: Mention, at?: number) =>
+    (mix.ids.has(m.id) || mix.keys.has(m.key) || [...mix.keys].some((k) => bare(k) === bare(m.key))) &&
+    (at === undefined || !mix.shareSteps?.has(m.id) || mix.shareSteps.get(m.id)!.has(at));
   const cutsOf = (m: Mention) => facts.cuts.filter((c) => c.id === m.id || c.key === m.key || bare(c.key) === bare(m.key));
   /** The prepped cut this mention asks for, when one matches its cut words. */
   const cutFor = (m: Mention) => cutsOf(m).find((c) => m.cut.every((w) => c.note.includes(w))) ?? null;
@@ -685,7 +698,7 @@ export function rewordFeastSteps(
     if (all.length === 0 || CODE_WRITTEN.test(step.text) || /^\s*skip if you prepped/i.test(body)) return false;
     if (!onlyPrepWords(step.text, all, prefix.length)) return false;
     return all.every((m) => {
-      if (facts.mixes.some((x) => inMix(x, m))) return true;
+      if (facts.mixes.some((x) => inMix(x, m, step.stepIndex))) return true;
       const c = cutFor(m);
       if (!c) return false;
       // A citrus the step zests AND juices must have been prepped both ways.
@@ -716,14 +729,14 @@ export function rewordFeastSteps(
     return r && a && r.quantity > 0 && unitKey(a.unit) === unitKey(r.unit) ? a.qty / r.quantity : null;
   };
   const scaleAt = (mix: FeastDishFacts["mixes"][number], s: WordingStep): number | null => {
-    for (const m of mentionsBy.get(s.stepIndex) ?? []) if (m.ref && inMix(mix, m)) { const q = ratioOf(mix, s, m); if (q !== null) return q; }
+    for (const m of mentionsBy.get(s.stepIndex) ?? []) if (m.ref && inMix(mix, m, s.stepIndex)) { const q = ratioOf(mix, s, m); if (q !== null) return q; }
     return null;
   };
   const same = (a: number | null, b: number | null) => a !== null && b !== null && Math.abs(a - b) <= 0.02 * Math.max(a, b);
   const entryScale = new Map<string, number | null>();
   for (const mix of facts.mixes) {
     const n = Math.min(2, Math.max(1, mix.keys.size));
-    const keysIn = (s: WordingStep, needRef: boolean) => new Set((mentionsBy.get(s.stepIndex) ?? []).filter((m) => (!needRef || m.ref) && inMix(mix, m)).map((m) => m.key)).size;
+    const keysIn = (s: WordingStep, needRef: boolean) => new Set((mentionsBy.get(s.stepIndex) ?? []).filter((m) => (!needRef || m.ref) && inMix(mix, m, s.stepIndex)).map((m) => m.key)).size;
     const at = ordered.find((s) => keysIn(s, true) >= n);
     if (!at) continue;
     // PREP-3 — a week's mix enters where its first member's amount is stated, when that
@@ -734,10 +747,10 @@ export function rewordFeastSteps(
       // SERVER-10 F (BUG-585) — and on a member that is THIS mix's alone: Classic Kung Pao
       // lists soy sauce twice, a portion in the marinade (s0) and one in the sauce (s1), so
       // both jars hold soy; the sauce jar entered at the marinade on the marinade's soy.
-      const own = (m: Mention) => !facts.mixes.some((x) => x !== mix && inMix(x, m));
+      const own = (m: Mention, at: number) => !facts.mixes.some((x) => x !== mix && inMix(x, m, at));
       const early = ordered.find((s) => s.stepIndex < at.stepIndex && !skips.has(s.stepIndex) && keysIn(s, true) >= 1 &&
-        (mentionsBy.get(s.stepIndex) ?? []).filter((m) => m.ref && inMix(mix, m)).every((m) => same(ratioOf(mix, s, m), scale)) &&
-        (mentionsBy.get(s.stepIndex) ?? []).some((m) => m.ref && inMix(mix, m) && own(m)));
+        (mentionsBy.get(s.stepIndex) ?? []).filter((m) => m.ref && inMix(mix, m, s.stepIndex)).every((m) => same(ratioOf(mix, s, m), scale)) &&
+        (mentionsBy.get(s.stepIndex) ?? []).some((m) => m.ref && inMix(mix, m, s.stepIndex) && own(m, s.stepIndex)));
       if (early) { entryOf.set(mix.name, early.stepIndex); entryScale.set(mix.name, scale); continue; }
       entryScale.set(mix.name, scale);
     }
@@ -758,7 +771,7 @@ export function rewordFeastSteps(
       const r = rebuild([{ text: prefix, from: 0 }, { text: "Skip if you prepped. Otherwise, " }, { text: body.slice(0, 1).toLowerCase() }, { text: body.slice(1), from: prefix.length + 1 }], original.amountRefs ?? []);
       // Round 5 (D-WS9-321) — what Prep the feast made of it.
       const made = (mentionsBy.get(original.stepIndex) ?? []).map((m) => {
-        const mix = facts.mixes.find((x) => inMix(x, m));
+        const mix = facts.mixes.find((x) => inMix(x, m, original.stepIndex));
         if (mix) return refOf(mix.name, mix.containerId);
         const c = cutFor(m);
         return c ? refOf(c.into, c.containerId) : null;
@@ -773,7 +786,7 @@ export function rewordFeastSteps(
     // "already said", and shipped "pour  you prepped over the top").
     const all = mentionsOf(step, rows, titles).filter((m) => !poured || m.end <= poured[0] || m.start >= poured[1]);
     if (all.length === 0) return step;
-    const mixHere = (m: Mention) => facts.mixes.find((x) => inMix(x, m) && entryOf.get(x.name) === step.stepIndex) ?? null;
+    const mixHere = (m: Mention) => facts.mixes.find((x) => inMix(x, m, step.stepIndex) && entryOf.get(x.name) === step.stepIndex) ?? null;
 
     // ── Rules 3 and 4 ─────────────────────────────────────────────────────────
     // A mix named after its skip step is named by its members as written (no amounts).
@@ -796,9 +809,9 @@ export function rewordFeastSteps(
       if (mix) { groupOf.set(m, `mix:${mix.name}`); phraseOf.set(`mix:${mix.name}`, `the ${mix.name} you prepped`); refOfGroup.set(`mix:${mix.name}`, refOf(mix.name, mix.containerId)); continue; }
       // PREP-3 — a week's member restated after its mix entered, the same portion, goes
       // (the mix brought it: "…, ½ teaspoon dried oregano, and ¼ teaspoon red pepper flakes").
-      const brought = opts.weeknight && m.ref ? facts.mixes.find((x) => inMix(x, m) && (entryOf.get(x.name) ?? Infinity) < step.stepIndex && same(ratioOf(x, step, m), entryScale.get(x.name) ?? null)) : undefined;
+      const brought = opts.weeknight && m.ref ? facts.mixes.find((x) => inMix(x, m, step.stepIndex) && (entryOf.get(x.name) ?? Infinity) < step.stepIndex && same(ratioOf(x, step, m), entryScale.get(x.name) ?? null)) : undefined;
       if (brought) { groupOf.set(m, `drop:${brought.name}`); phraseOf.set(`drop:${brought.name}`, ""); continue; }
-      if (facts.mixes.some((x) => inMix(x, m))) continue; // a mix member away from its entry step: as written
+      if (facts.mixes.some((x) => inMix(x, m, step.stepIndex))) continue; // a mix member away from its entry step: as written
       const c = cutFor(m);
       if (!c?.into) continue;
       // A cut that went into the jar entering here IS that jar (Small's stripped thyme in
@@ -991,7 +1004,7 @@ export function rewordFeastSteps(
       // (A plural is the food's noun, never the verb: "the 4 bacon slices" are not sliced.)
       const verbs = CUT_WORDS.filter((w) => new RegExp(`\\b${w}(?!s\\b)`, "i").test(text));
       // ("…and measure 1 tablespoon adobo sauce from the can": the Chipotle crema sauce holds it.)
-      if (/^measure\b/i.test(text) && ms.every((m) => facts.mixes.some((x) => inMix(x, m)))) return true;
+      if (/^measure\b/i.test(text) && ms.every((m) => facts.mixes.some((x) => inMix(x, m, s.stepIndex)))) return true;
       // PREP-3 3b — "Cut … into 1½-inch chunks" is the prepped cut when it was cut to that
       // shape (the chicken in Proteins, the red onion on the Skewers plate).
       const shape = /^cut\b/i.test(text) ? SHAPE.exec(text)?.[1].toLowerCase() : undefined;
@@ -1119,7 +1132,7 @@ export function rewordFeastSteps(
     let out = s;
     for (const mix of facts.mixes) {
       if (!/ marinade$/i.test(mix.name)) continue;
-      const entry = ordered.find((x) => new Set((mentionsBy.get(x.stepIndex) ?? []).filter((m) => m.ref && inMix(mix, m)).map((m) => m.key)).size >= Math.min(2, mix.keys.size));
+      const entry = ordered.find((x) => new Set((mentionsBy.get(x.stepIndex) ?? []).filter((m) => m.ref && inMix(mix, m, x.stepIndex)).map((m) => m.key)).size >= Math.min(2, mix.keys.size));
       if (!entry || !(skips.has(entry.stepIndex) || facts.covered?.has(entry.stepIndex)) || usedAfterSkip.has(mix.name) || s.stepIndex <= entry.stepIndex) continue;
       // ("the marinade bowl" is the jar too: "add them to the Skewers marinade".)
       const m = /\bthe marinade(?:\s+(?:bowl|jar|container))?\b/i.exec(out.text);
