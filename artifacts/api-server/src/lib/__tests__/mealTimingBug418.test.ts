@@ -83,6 +83,16 @@ describe("PREP-1 G (BUG-418) — a feast's clock is Thursday's", () => {
     });
   }
 
+  // SEQ-1 (BUG-612) — CLIENT-7's five steps (scripts/_scratch/client-7/diverge.ts): a run
+  // starts at a day prefix only, "Make ahead (Monday):" or "Thaw (start Friday):", as the
+  // client's feastDay.ts reads it. "Thaw (about 10 minutes) the peas" and "Make ahead (up to
+  // 3 days) the gravy:" are ordinary steps on the day. (To join the shared vectors in
+  // feastDayVectors.mts, CLIENT-8's lane, once it is free.)
+  it("BUG-612: only a day prefix starts a run", () => {
+    const steps = ["Make ahead (Monday): Zest 2 oranges.", "On Thursday: Remove the turkey.", "Thaw (about 10 minutes) the frozen peas in warm water.", "Make ahead (up to 3 days) the gravy: whisk the roux.", "Serve."];
+    assert.deepEqual(onTheDaySteps(steps.map((text, i) => ({ text, i }))).map((s) => s.i), [1, 2, 3, 4]);
+  });
+
   it("a feast is stamped with Thursday's steps only", async () => {
     const dishes = { turkey: TURKEY, gravy: GRAVY, pie: PIE };
     const { tx: t, mealUpdates } = tx(dishes, ["american", "thanksgiving", "thanksgiving-feast"]);

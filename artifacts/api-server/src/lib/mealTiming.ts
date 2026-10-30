@@ -147,7 +147,7 @@ export function deriveMealTiming(
 // week-before step, cooked from the Hub's thaw row), so it starts a run the same
 // way. The same reading drives the feast's Cook Mode (cookingSequence.ts) and its
 // client mirror (artifacts/kiwi lib/cooking/feastDay.ts).
-const MAKE_AHEAD_RUN_START = /^\s*(?:make ahead|thaw) \(/i;
+const MAKE_AHEAD_RUN_START = /^\s*(?:make ahead \(\s*[a-z]+(?:\s+night)?\s*\)|thaw \([^)]*\))\s*:/i;
 // SERVER-8 (D-WS9-351) — "On Thursday:", and the "On feast day:" that replaces it in a
 // later release; the shared vectors (artifacts/kiwi lib/cooking/__tests__/feastDayVectors.mts) pin both.
 const ON_THURSDAY = FEAST_DAY_PREFIX;
