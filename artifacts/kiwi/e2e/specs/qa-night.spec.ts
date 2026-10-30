@@ -125,7 +125,12 @@ test("night UI · sign-up, plan, grocery, Cook Mode unprepped, Prep the Week, Co
   // ── 1 · sign up, how-heard, onboarding ────────────────────────────────────
   await page.goto(`${WEB_ORIGIN}/`, { waitUntil: "domcontentloaded" });
   await settle(page, { timeoutMs: 90_000, minLines: 3 });
-  await press("Start your 14-day free trial");
+  // QA-8 (BUG-622): Welcome's primary says "Get started — it's free" in free_launch (CLIENT-7 A,
+  // dev and production since Oct 28) and "Start your 14-day free trial" when billing is enforced.
+  const welcome = await inner();
+  check("welcome-primary", /Get started — it's free|Start your 14-day free trial/.test(welcome),
+    /Get started — it's free/.test(welcome) ? "free_launch: \"Get started — it's free\"" : /Start your 14-day free trial/.test(welcome) ? "enforced: \"Start your 14-day free trial\"" : "neither label");
+  await press(/^\s*(Get started — it's free|Start your 14-day free trial)\s*$/);
   await page.getByPlaceholder("First name").waitFor({ timeout: 30_000 });
   await page.getByPlaceholder("First name").fill("Qa");
   await page.getByPlaceholder("Last name").fill("NightUi");

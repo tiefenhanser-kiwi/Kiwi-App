@@ -311,6 +311,14 @@ test("R8 reads a count's noun as Cook Mode shows it, scaled by the app (QA-8, BU
   // The proof run's false hits: the number counts the part after the food ("3 garlic cloves", "4 celery stalks").
   const parts = limes("Cut 1 lime wedges.", 4);
   assert.deepEqual(sigs(parts), []);
+  // The full night's false regression: "Trim the 4 zucchini" at ×¾ shows "3 zucchini", which is right.
+  const zucchini = limes("Cut 1 lime.", 4);
+  zucchini.dishes[0].ingredients[0].name = "zucchini";
+  zucchini.dishes[0].steps[0].text = "Cut 1 zucchini.";
+  assert.deepEqual(sigs(zucchini), []);
+  // "1 zucchinis" would still be found (a plural after 1).
+  zucchini.dishes[0].steps[0].text = "Cut 1 zucchinis.";
+  assert.deepEqual(sigs({ ...zucchini, servingsOverride: null }), ["R8:scaled-noun-disagrees:zucchini"]);
 });
 
 // ── R12 ─────────────────────────────────────────────────────────────────────

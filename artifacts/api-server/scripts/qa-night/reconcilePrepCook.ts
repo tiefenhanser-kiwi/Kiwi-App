@@ -19,6 +19,9 @@ import { comparable, familyOf, foodKey, foodWords, FORMS, headNoun, normName, pa
 // The kiwi package is CommonJS to tsx: read it through its namespace (appFold.ts does the same).
 const { buildAmountRefSegments } = ((amountNs as { default?: typeof amountNs }).default ?? amountNs);
 
+/** R8 e: nouns whose plural is the singular, or that a cook counts without a plural. */
+const SAME_PLURAL = new Set(["fish", "salmon", "shrimp", "cod", "tuna", "trout", "halibut", "tilapia", "squid", "celery", "spinach", "garlic", "bread", "rice", "lettuce", "asparagus", "kale", "edamame", "bok", "corn", "tofu", "venison", "bison"]);
+
 const LABEL_KEYS = new Set(["week-labels", "feast#feast-labels"]);
 const isLabelStep = (s: PrepStep) => LABEL_KEYS.has(s.stepKey) || /^Label \d+ containers?\b/.test(s.title);
 const short = (id: string) => id.slice(0, 8);
@@ -671,7 +674,9 @@ export function reconcileR8(household: string, ev: CookModeEvidence): RuleResult
         if (!heads.has(head)) continue;
         checked++;
         const plural = word.toLowerCase() !== head && /e?s$/i.test(word);
-        if ((shown === 1 && plural) || (shown >= 2 && !plural)) {
+        // "4 zucchini", "2 salmon": a noun that is its own plural says nothing about the number.
+        const invariant = /i$/i.test(word) || SAME_PLURAL.has(word.toLowerCase());
+        if ((shown === 1 && plural) || (shown >= 2 && !plural && !invariant)) {
           findings.push(finding("R8", "scaled-noun-disagrees", head, "low", household,
             `${m.title} · ${d.title}: Cook Mode shows "${seg.text.trim()} ${word}" (step ${s.stepIndex}: "${s.text.slice(0, 90)}")`, { meal: m.title, step: `${short(d.dishId)}#${s.stepIndex}` }));
         }

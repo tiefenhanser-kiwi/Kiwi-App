@@ -537,7 +537,7 @@ export class Household {
     (this.out.evidence.prepToCook ??= [] as unknown[]) as unknown[];
     (this.out.evidence.prepToCook as unknown[]).push({
       label, ticked: [...ticked],
-      meals: meals.map((x) => ({ meal: x.meal.title, steps: Object.entries(x.after).map(([k, st]) => ({ k, changed: st.text !== x.baseline[k]?.text, chips: (st.preppedRefs ?? []).map((r) => r.label), text: st.text.slice(0, 160), before: x.baseline[k]?.text.slice(0, 160) })) })),
+      meals: meals.map((x) => ({ meal: x.meal.title, steps: Object.entries(x.after).map(([k, st]) => ({ k, changed: st.text !== x.baseline[k]?.text, chips: (st.preppedRefs ?? []).map((r) => r.label), text: st.text.slice(0, 600), before: x.baseline[k]?.text.slice(0, 600) })) })),
     });
   }
 
