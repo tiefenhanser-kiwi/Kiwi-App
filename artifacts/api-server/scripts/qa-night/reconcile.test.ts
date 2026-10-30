@@ -311,6 +311,10 @@ test("R8 reads a count's noun as Cook Mode shows it, scaled by the app (QA-8, BU
   // The proof run's false hits: the number counts the part after the food ("3 garlic cloves", "4 celery stalks").
   const parts = limes("Cut 1 lime wedges.", 4);
   assert.deepEqual(sigs(parts), []);
+  // The second night's: "3 beef patties" counts the patties (not one of FORMS or a count unit).
+  assert.deepEqual(sigs(limes("Cut 1 lime halves.", 4)), []);
+  // A food that ends its phrase is still judged.
+  assert.deepEqual(sigs(limes("Cut 1 lime into wedges.", 4)), ["R8:scaled-noun-disagrees:lime"]);
   // The full night's false regression: "Trim the 4 zucchini" at ×¾ shows "3 zucchini", which is right.
   const zucchini = limes("Cut 1 lime.", 4);
   zucchini.dishes[0].ingredients[0].name = "zucchini";

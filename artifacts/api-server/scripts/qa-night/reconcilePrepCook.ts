@@ -14,13 +14,16 @@ import { ovenTempOf } from "../thx2/thx2Oven";
 import { appFold, type FoldInput, planFold } from "./appFold";
 
 import { dishFactor, type Finding, type GroceryRow, type PlanMeal, type PrepSession, type PrepStep, type RecipeIngredient, type RecipeStep, type RuleResult, type Severity } from "./types";
-import { comparable, familyOf, foodKey, foodWords, FORMS, headNoun, normName, parseQty, sameFood } from "./units";
+import { comparable, foodKey, foodWords, FORMS, headNoun, normName, parseQty, sameFood } from "./units";
 
 // The kiwi package is CommonJS to tsx: read it through its namespace (appFold.ts does the same).
 const { buildAmountRefSegments } = ((amountNs as { default?: typeof amountNs }).default ?? amountNs);
 
 /** R8 e: nouns whose plural is the singular, or that a cook counts without a plural. */
 const SAME_PLURAL = new Set(["fish", "salmon", "shrimp", "cod", "tuna", "trout", "halibut", "tilapia", "squid", "celery", "spinach", "garlic", "bread", "rice", "lettuce", "asparagus", "kale", "edamame", "bok", "corn", "tofu", "venison", "bison"]);
+
+/** R8 e: words after a food that end its noun phrase ("2 limes into wedges", "1 egg and the milk"). */
+const PHRASE_ENDS = new Set(["and", "or", "into", "in", "with", "for", "of", "on", "to", "until", "then", "from", "at", "per", "the", "a", "an", "each", "if", "as", "over", "under", "so", "but", "while", "before", "after"]);
 
 const LABEL_KEYS = new Set(["week-labels", "feast#feast-labels"]);
 const isLabelStep = (s: PrepStep) => LABEL_KEYS.has(s.stepKey) || /^Label \d+ containers?\b/.test(s.title);
@@ -667,8 +670,9 @@ export function reconcileR8(household: string, ev: CookModeEvidence): RuleResult
         const shown = seg.isRef ? parseQty(seg.text.trim()) : null;
         const [, word = "", next = ""] = /^\s+([A-Za-z]+)(?:\s+([A-Za-z]+))?/.exec(segs[i + 1]?.text ?? "") ?? [];
         if (shown === null || !word) continue;
-        // "3 garlic cloves", "8 bread slices": the number counts the part after the food, which carries the plural.
-        if (next && (FORMS.has(normName(next)) || familyOf(next) === "count")) continue;
+        // "3 garlic cloves", "8 bread slices", "3 beef patties": when another word follows the food, the
+        // number counts that word, which carries the plural. Only a food that ends its phrase is judged.
+        if (next && !PHRASE_ENDS.has(next.toLowerCase())) continue;
         // Only the food's own noun: "1 lime", not "1 small" or "2 more".
         const head = normName(word);
         if (!heads.has(head)) continue;
