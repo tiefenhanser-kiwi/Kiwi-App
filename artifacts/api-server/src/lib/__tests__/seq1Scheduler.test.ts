@@ -217,6 +217,14 @@ describe("SEQ-1 rule 3 (BUG-593) — bread is a serve-time dish", () => {
       st(3, "assemble", 2, "Scatter a generous pinch of shredded Oaxacan cheese over one half of each tortilla, then pile on a spoonful of shredded beef."),
       st(4, "cook", 6, "Fold the tortilla in half and cook 2–3 minutes per side, pressing gently, until the outside is crispy and the cheese is melted.", true),
     ]), 1, "Birria's dipped tortillas: the whole griddle run");
+    assert.equal(run([
+      st(0, "prep", 5, "In a large bowl, combine 1½ pounds ground turkey with 1 teaspoon Worcestershire sauce and form 4 patties."),
+      st(1, "cook", 7, "Heat 1 tablespoon olive oil and 1 tablespoon unsalted butter in a large skillet over medium heat and cook the sliced mushrooms until golden.", true),
+      st(2, "cook", 10, "Push the mushrooms to one side of the skillet (or remove to a plate), increase heat to medium-high, and cook the patties 4–5 minutes per side.", true),
+      st(3, "cook", 1, "In the last minute of cooking, lay 1 slice of Swiss cheese on each patty, cover the pan with a lid until melted.", true),
+      st(4, "cook", 2, "Lightly toast the 4 brioche buns cut-side down in the residual heat of the pan for 1–2 minutes.", true),
+      st(5, "assemble", 3, "Spread garlic aioli on both cut sides of each bun, add lettuce, tomato, the patty and the mushrooms."),
+    ]), 1, "the turkey burgers: the buns close the session at the pan (mushrooms, patties, cheese)");
     assert.equal(run([st(0, "cook", 45, "Reduce heat to low, cover, and simmer for 45 minutes until the pork is very tender; while it simmers, prepare the pickled slaw and warm the tortillas.")]), null, "a stew: the tortillas are work alongside");
     assert.equal(run([st(0, "prep", 7, "Dice the cucumber."), st(1, "cook", 2, "Toast ¼ teaspoon ground cumin in a dry skillet over medium heat for 60 seconds until fragrant, then remove from heat.", true)]), null, "toast is a verb");
     assert.equal(run([

@@ -850,6 +850,10 @@ export function scheduleCookingSequence(
 // while it fits in BREAD_HOLD_MAX. Not a feast's; the timing stamp passes no words,
 // so it never has a bread run.
 export const BREAD_HOLD_MAX = 3;
+/** Minutes the bread going last may add to the meal. */
+export const BREAD_LATE_SLACK = 5;
+/** A hands-free heat step longer than this (a braise, the slow cooker) is not part of the bread's session. */
+const BREAD_SESSION_MAX = 10;
 const BREAD_FOOD = /\b(?:tortillas?|pitas?|naan|flatbreads?|bread(?!\s+(?:crumbs?|cubes?|pieces))|(?<!(?:spring|egg|cinnamon|sushi) )rolls?|buns?|crostini|tostadas?|arepas?|chapatis?|rotis?|baguettes?|focaccia|biscuits?)\b/i;
 /** The part of a step that describes other work done alongside it. */
 const ALONGSIDE = /[,;.]?\s*\b(?:while|meanwhile)\b[\s\S]*$/i;
@@ -863,11 +867,19 @@ export function breadRunFrom(dish: Pick<SchedulerDish, "steps">): number | null 
   const text = steps[last]?.text ?? "";
   if (last < 0 || !BREAD_FOOD.test(text.replace(ALONGSIDE, "")) || COOLS.test(text)) return null;
   // Back through the run on its pan (BUG-594: Birria's tortillas are dipped, laid on
-  // the griddle, filled and folded), then the preheat that starts it.
+  // the griddle, filled and folded) and the heat steps right before it — the cooking
+  // the bread closes: the turkey burgers' mushrooms, patties and cheese before the buns
+  // toast in the same pan (moved without them, the patties were cooked an hour early) —
+  // never a long hands-free one; then the preheat that starts it.
   const live: boolean[] = [];
   steps.forEach((s, k) => { live[k] = panLive(s) || (k > 0 && live[k - 1] && !isUnattended(s) && !OFF_THE_HEAT.test(s.text ?? "")); });
   let from = last;
-  while (from > 0 && live[from - 1]) from--;
+  for (;;) {
+    const b = steps[from - 1];
+    const heat = !!b && (b.phaseType === "cook" || (b.phaseType === "preheat" && !isOvenStep(b))) && !(isUnattended(b) && b.estimatedMinutes > BREAD_SESSION_MAX);
+    if (!b || !(live[from - 1] || heat)) break;
+    from--;
+  }
   if (from > 0 && steps[from - 1].phaseType === "preheat") from--;
   return from;
 }
@@ -954,6 +966,10 @@ function breadAtServing(dishes: SchedulerDish[], schedule: (d: SchedulerDish[]) 
     at += x.s.estimatedMinutes;
   }
   const end = Math.max(T, at);
+  // Not at any price: when the bread can only go last by lengthening the meal more than
+  // BREAD_LATE_SLACK (the turkey burgers' buns close a 20-minute session at the pan that
+  // could not overlap the fries: +30), the meal stays as scheduled.
+  if (end > whole.totalEstimatedMinutes + BREAD_LATE_SLACK) return whole;
   const steps = [
     ...first.steps.map((e) => ({ e: { ...e }, at: e.startOffsetMinutes + T, late: false })),
     ...placed.map((p) => ({ ...p, late: true })),
