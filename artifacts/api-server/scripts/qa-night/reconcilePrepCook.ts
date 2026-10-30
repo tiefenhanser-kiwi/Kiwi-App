@@ -8,10 +8,11 @@
 //     else is counted "not comparable", never guessed.
 //   • prepped Cook Mode wording is read-time (GET /meals/:id?planItemId), and a
 //     cook step's link to prep is the week build's `coversCookSteps`.
+import { ingredientGroupKey } from "../../src/lib/ingredientRelations";
 import { ovenTempOf } from "../thx2/thx2Oven";
 import { appFold, type FoldInput, planFold } from "./appFold";
 
-import { dishFactor, type Finding, type GroceryRow, type PlanMeal, type PrepSession, type PrepStep, type RecipeStep, type RuleResult, type Severity } from "./types";
+import { dishFactor, type Finding, type GroceryRow, type PlanMeal, type PrepSession, type PrepStep, type RecipeIngredient, type RecipeStep, type RuleResult, type Severity } from "./types";
 import { comparable, foodKey, foodWords, headNoun, normName, parseQty, sameFood } from "./units";
 
 const LABEL_KEYS = new Set(["week-labels", "feast#feast-labels"]);
@@ -43,9 +44,14 @@ const UNIT = String.raw`(cups?|tablespoons?|tbsp|teaspoons?|tsp|pounds?|lbs?|lb|
  * most three words before a word that names the food.
  */
 export function proseAmounts(text: string, food: string): { qty: number; unit: string }[] {
+  return proseMatches(text, food).map(({ qty, unit }) => ({ qty, unit }));
+}
+
+/** proseAmounts with where each number stands and the words it names ("1 tsp hot sauce" → ["hot", "sauce"]). */
+function proseMatches(text: string, food: string): { qty: number; unit: string; at: number; words: string[] }[] {
   const head = headNoun(food);
   if (!head) return [];
-  const out: { qty: number; unit: string }[] = [];
+  const out: { qty: number; unit: string; at: number; words: string[] }[] = [];
   // The head must END the food phrase: "2 cups of the onion dip" names the dip.
   const re = new RegExp(String.raw`(?:^|[^\d/.])${NUM}\s*${UNIT}\b((?:\s+[A-Za-z-]+){0,3}?)\s+(${head}e?s?)\b(?!\s+(?:dip|mix|sauce|powder|soup|salt|paste|oil|broth|stock|seasoning|dressing|butter)\b)`, "gi");
   for (const m of text.matchAll(re)) {
@@ -60,7 +66,80 @@ export function proseAmounts(text: string, food: string): { qty: number; unit: s
     const between = foodWords(m[3] ?? "");
     const own = foodWords(food);
     if (between.some((w) => !own.includes(w))) continue;
-    out.push({ qty, unit: (m[2] ?? "").toLowerCase() });
+    const at = (m.index ?? 0) + m[0].indexOf(m[1]);
+    out.push({ qty, unit: (m[2] ?? "").toLowerCase(), at, words: normName(`${m[3] ?? ""} ${m[4]}`).split(" ").filter(Boolean) });
+  }
+  return out;
+}
+
+// ── QA-8 A1/A2 — one food is the SERVER's food ──────────────────────────────
+//
+// BUG-609: "1 tsp hot sauce" was read as Worcestershire sauce (both end in
+// "sauce", and foodWords drops "hot" as a descriptor), so one step's amount was
+// charged twice. BUG-608 (VOID): "fresh parsley" and "fresh flat-leaf parsley"
+// were two foods to the checker and one to the server, so the one step's total was
+// charged to each. A food is now what Prep the Week groups by (RecipeIngredient
+// foodId: the loader's folded id), and each number a step states goes to the ONE
+// food whose name it says, word for word.
+
+/** The server's identity of a recipe row; a fixture without one takes the pure half (ingredientGroupKey). */
+export const foodIdOf = (ing: RecipeIngredient): string => ing.foodId ?? `name:${ingredientGroupKey(ing.name)}`;
+
+/** Words that say how a food is cut or how much, never which food. */
+const PREP_ONLY = new Set([
+  "fresh", "freshly", "chopped", "minced", "diced", "sliced", "finely", "roughly", "coarsely", "thinly", "grated", "shredded",
+  "packed", "peeled", "crushed", "cubed", "halved", "quartered", "trimmed", "torn", "softened", "melted", "cold", "warm",
+  "room", "temperature", "large", "medium", "small", "whole", "of", "the", "a", "an", "into", "cut", "inch", "more",
+  "extra", "virgin", "extra-virgin", "loosely", "lightly", "firmly",
+]);
+
+/** A food's name in a signature: its food words, unless they leave a bare generic head ("hot sauce" stays "hot sauce", not "sauce"). */
+const BARE_HEADS = new Set(["sauce", "oil", "pepper", "cheese", "powder", "juice", "vinegar", "broth", "stock", "seasoning", "spice", "mix", "paste"]);
+const subjectOf = (name: string): string => {
+  const k = foodKey(name);
+  return BARE_HEADS.has(k) ? normName(name) : k;
+};
+
+/** How many words of a stated phrase name `name`; null when the phrase says a food word `name` does not. */
+function nameScore(words: string[], name: string): number | null {
+  const own = new Set(normName(name).split(" "));
+  let n = 0;
+  for (const w of words) {
+    if (own.has(w)) n++;
+    else if (!PREP_ONLY.has(w)) return null;
+  }
+  return n;
+}
+
+/** One line's amounts per food: each number goes to the food that names it best; a tie between two foods counts for neither. */
+function attributeLine(line: string, names: Map<string, string[]>): Map<string, { qty: number; unit: string }[]> {
+  const best = new Map<number, { key: string; score: number; qty: number; unit: string; tie: boolean }>();
+  for (const [key, list] of names) {
+    for (const name of list) {
+      for (const m of proseMatches(line, name)) {
+        const score = nameScore(m.words, name);
+        if (score === null) continue;
+        const cur = best.get(m.at);
+        if (!cur || score > cur.score) best.set(m.at, { key, score, qty: m.qty, unit: m.unit, tie: false });
+        else if (score === cur.score && cur.key !== key) cur.tie = true;
+      }
+    }
+  }
+  const out = new Map<string, { qty: number; unit: string }[]>();
+  for (const b of best.values()) if (!b.tie) out.set(b.key, [...(out.get(b.key) ?? []), { qty: b.qty, unit: b.unit }]);
+  return out;
+}
+
+/** The amounts a narrated step states, per food (`names`: food → every name its rows go by). See R4 d. */
+export function stepAmountsByFood(s: PrepStep, names: Map<string, string[]>): Map<string, { qty: number; unit: string }[]> {
+  const lines = s.instructions.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const head = attributeLine(lines[0] ?? "", names);
+  const list = lines.slice(1).filter((l) => /^[\d¼½¾⅓⅔⅛⅜⅝⅞]/.test(l)).map((l) => attributeLine(l, names));
+  const title = lines.length ? null : attributeLine(s.title, names);
+  const out = new Map<string, { qty: number; unit: string }[]>();
+  for (const key of names.keys()) {
+    const got = head.get(key) ?? (list.some((x) => x.has(key)) ? list.flatMap((x) => x.get(key) ?? []) : title?.get(key));
+    if (got?.length) out.set(key, got);
   }
   return out;
 }
@@ -111,23 +190,30 @@ export function reconcileR4(household: string, session: PrepSession, meals: Plan
   // destination ("Work through 3 carrots …" / "1 carrot … — into …" / "2 carrots …"):
   // the first line counts when it states an amount, else the list lines; prose
   // about later (" On Wednesday night, dissolve it in the 7 sprigs …") never does.
-  const foods = new Map<string, { name: string; mealIds: Set<string>; bird: boolean }>();
+  // QA-8 A1/A2: one food per server identity (foodIdOf), named by every name its rows go by.
+  const foods = new Map<string, { name: string; names: string[]; mealIds: Set<string>; bird: boolean }>();
   for (const m of meals) {
     for (const d of m.dishes) {
       for (const ing of d.ingredients) {
-        const key = foodKey(ing.name);
-        if (!key) continue;
-        const e = foods.get(key) ?? { name: ing.name, mealIds: new Set<string>(), bird: false };
+        if (!foodKey(ing.name)) continue;
+        const key = foodIdOf(ing);
+        const e = foods.get(key) ?? { name: ing.name, names: [], mealIds: new Set<string>(), bird: false };
+        if (!e.names.includes(ing.name)) e.names.push(ing.name);
         e.mealIds.add(m.mealId);
         if (d.isBirdDish) e.bird = true;
         foods.set(key, e);
       }
     }
   }
-  for (const [key, food] of foods) {
-    const steps = session.steps.filter((s) => !isLabelStep(s) && !s.skipSuggested && s.contributesToMealIds.some((id) => food.mealIds.has(id)));
+  const names = new Map([...foods].map(([k, f]) => [k, f.names]));
+  const live = session.steps.filter((s) => !isLabelStep(s) && !s.skipSuggested);
+  const said = new Map(live.map((s) => [s.stepKey, stepAmountsByFood(s, names)]));
+  for (const [id, food] of foods) {
+    // The signature names the food, never an id: its plainest name, the same every night.
+    const key = food.names.map(subjectOf).sort((a, b) => a.length - b.length || a.localeCompare(b))[0];
+    const steps = live.filter((s) => s.contributesToMealIds.some((x) => food.mealIds.has(x)));
     const stated: { qty: number; unit: string; step: string }[] = [];
-    for (const s of steps) for (const a of stepAmounts(s, food.name)) stated.push({ ...a, step: s.title });
+    for (const s of steps) for (const a of said.get(s.stepKey)?.get(id) ?? []) stated.push({ ...a, step: s.title });
     if (stated.length === 0) continue;
 
     // (1) the recipes. The bird's dish scales by the bird weight (prepQuantity
@@ -138,7 +224,7 @@ export function reconcileR4(household: string, session: PrepSession, meals: Plan
       if (!servedMeals.has(m.mealId)) continue;
       for (const d of m.dishes) {
         const f = factorOf(m, d);
-        for (const ing of d.ingredients) if (foodKey(ing.name) === key) need.push({ qty: ing.quantity * f, unit: ing.unit });
+        for (const ing of d.ingredients) if (foodKey(ing.name) && foodIdOf(ing) === id) need.push({ qty: ing.quantity * f, unit: ing.unit });
       }
     }
     const total = sumIn(need, need[0]);
@@ -155,7 +241,7 @@ export function reconcileR4(household: string, session: PrepSession, meals: Plan
 
     // (2) the list.
     // Every row the list has for the food (a list can carry three "Kosher salt" rows).
-    const listRows = (rows ?? []).filter((r) => [r.displayName, r.canonicalName].some((n) => !!n && sameFood(n, food.name)));
+    const listRows = (rows ?? []).filter((r) => [r.displayName, r.canonicalName].some((n) => !!n && food.names.some((x) => sameFood(n, x))));
     const row = listRows[0];
     if (row) {
       const have = { qty: row.quantity, unit: row.unit };
@@ -176,14 +262,9 @@ export function reconcileR4(household: string, session: PrepSession, meals: Plan
 
 const round = (n: number) => Math.round(n * 100) / 100;
 
-/** The amounts a narrated step states for one food (see R4 d). */
+/** The amounts a narrated step states for one food alone (see R4 d and stepAmountsByFood). */
 export function stepAmounts(s: PrepStep, food: string): { qty: number; unit: string }[] {
-  const lines = s.instructions.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  const head = proseAmounts(lines[0] ?? "", food);
-  if (head.length) return head;
-  const list = lines.slice(1).filter((l) => /^[\d¼½¾⅓⅔⅛⅜⅝⅞]/.test(l)).flatMap((l) => proseAmounts(l, food));
-  if (list.length) return list;
-  return lines.length ? [] : proseAmounts(s.title, food);
+  return stepAmountsByFood(s, new Map([["food", [food]]])).get("food") ?? [];
 }
 
 /** Σ amounts in the unit `like` converts to; null when one does not convert. */

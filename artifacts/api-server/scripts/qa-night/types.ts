@@ -4,7 +4,7 @@
 // The journeys capture; the reconcilers judge. So every reconciler can be fed a
 // hand-made fixture (reconcile.test.ts) and broken on purpose (§27.4).
 
-export type RuleId = "R1" | "R2" | "R3" | "R4" | "R5" | "R6" | "R7" | "R8" | "R9" | "R10" | "R11";
+export type RuleId = "R1" | "R2" | "R3" | "R4" | "R5" | "R6" | "R7" | "R8" | "R9" | "R10" | "R11" | "R12";
 
 export type Severity = "high" | "medium" | "low";
 
@@ -47,6 +47,7 @@ export const RULE_TITLES: Record<RuleId, string> = {
   R9: "the feast's dates",
   R10: "lifecycle facts",
   R11: "health",
+  R12: "a split adds up",
 };
 
 /** One HTTP call, as the night run's client saw it. */
@@ -70,6 +71,15 @@ export interface RecipeIngredient {
   quantity: number;
   unit: string;
   isOptional: boolean;
+  /**
+   * QA-8 A1 (BUG-609, BUG-608): the server's own food identity — the prep loader's
+   * folded ingredient id (loadPrepWeekInput identity.foldedIdByIngredientId), the id
+   * Prep the Week groups one food's steps by. Absent (a fixture): the pure half of
+   * that identity, ingredientGroupKey(name).
+   */
+  foodId?: string;
+  /** The row's own ingredient id (from the same loader): what a step's amountRefs name. */
+  ingredientId?: string;
 }
 
 export interface RecipeStep {
@@ -80,6 +90,8 @@ export interface RecipeStep {
   preppedRefs?: { containerId: string; label: string }[];
   /** D-WS9-239 intra-dish overlap token: steps that share one may run in either order. */
   parallelGroup?: string | null;
+  /** The step's amount spans (the AUTHORED literal; the app scales it at render). R12 reads them. */
+  amountRefs?: { ingredientId: string; quantity: number; unit: string }[];
 }
 
 export interface RecipeDish {

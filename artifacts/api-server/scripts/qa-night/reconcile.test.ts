@@ -246,6 +246,48 @@ test("stepAmounts counts a step's total OR its destination lines, never both, an
   assert.deepEqual(stepAmounts(mix, "fresh thyme"), []);
 });
 
+const burgers = (): PlanMeal => ({
+  planItemId: "item-burgers", mealId: "meal-burgers", title: "Burgers", aliases: ["Burgers"],
+  servingsOverride: null, birdWeightLb: null, isFeast: false,
+  dishes: [{
+    dishId: "d-burgers", title: "Burgers", servings: 4, defaultServings: 4,
+    ingredients: [
+      { name: "Worcestershire sauce", quantity: 1, unit: "tsp", isOptional: false, foodId: "f-worc" },
+      { name: "hot sauce", quantity: 1, unit: "tsp", isOptional: false, foodId: "f-hot" },
+      { name: "ketchup", quantity: 2, unit: "tbsp", isOptional: false, foodId: "f-ketchup" },
+    ],
+    steps: [{ stepIndex: 0, text: "Mix the sauce.", estimatedMinutes: 2, phaseType: "prep" }],
+  }],
+});
+
+test("R4 gives each stated amount to the one food it names: \"1 tsp hot sauce\" is not Worcestershire (QA-8 A1, BUG-609)", () => {
+  const sauce = week([{ stepKey: "sauces_marinades#burgers", phase: "sauces_marinades", title: "Measure the Burgers sauce", contributesToMealIds: ["meal-burgers"],
+    instructions: "Get a small bowl for the Burgers sauce. Into the bowl:\n1 tsp Worcestershire sauce\n1 tsp hot sauce\n2 tbsp ketchup\nStir to combine." }]);
+  assert.deepEqual(reconcileR4("t", sauce, [burgers()]).findings, []);
+  // With no hot sauce on the plan, its line still names no Worcestershire.
+  const m = burgers();
+  m.dishes[0].ingredients = m.dishes[0].ingredients.filter((i) => i.name !== "hot sauce");
+  assert.deepEqual(reconcileR4("t", sauce, [m]).findings, []);
+  // Worcestershire stated twice is still prepped twice.
+  const twice = week([...sauce.steps, { ...sauce.steps[0], stepKey: "sauces_marinades#again", title: "Measure it again" }]);
+  assert.deepEqual(reconcileR4("t", twice, [burgers()]).findings.map((f) => f.signature).sort(), ["R4:prepped-twice:hot sauce", "R4:prepped-twice:ketchup", "R4:prepped-twice:worcestershire sauce"]);
+});
+
+test("R4 counts one food by the server's identity: fresh parsley and flat-leaf parsley in one step (QA-8 A2, BUG-608 void)", () => {
+  const meal = (id: string, name: string, qty: number): PlanMeal => ({
+    planItemId: `item-${id}`, mealId: `meal-${id}`, title: id, aliases: [id], servingsOverride: null, birdWeightLb: null, isFeast: false,
+    dishes: [{ dishId: `d-${id}`, title: id, servings: 3, defaultServings: 3, ingredients: [{ name, quantity: qty, unit: "tbsp", isOptional: false, foodId: "f-parsley" }], steps: [] }],
+  });
+  const meals = [meal("salmon", "fresh flat-leaf parsley", 1.5), meal("butter-chicken", "fresh parsley", 0.75)];
+  const chop = (total: string) => week([{ stepKey: "produce#parsley", phase: "produce", title: "Chop all flat-leaf parsley", contributesToMealIds: ["meal-salmon", "meal-butter-chicken"],
+    instructions: `Work through ${total} tbsp fresh flat-leaf parsley: roughly chopped and finely chopped.\n1½ tbsp chopped — into the Salmon plate\n¾ tbsp finely chopped — into the Butter chicken plate` }]);
+  assert.deepEqual(reconcileR4("t", chop("2¼"), meals).findings, []);
+  assert.deepEqual(reconcileR4("t", chop("4"), meals).findings.map((f) => f.signature), ["R4:prep-exceeds-recipe:parsley"]);
+  // Without the identity (two names, two foods) the one step is charged to flat-leaf alone: the night's BUG-608.
+  const bare = meals.map((m) => ({ ...m, dishes: m.dishes.map((d) => ({ ...d, ingredients: d.ingredients.map(({ foodId: _, ...i }) => i) })) }));
+  assert.deepEqual(reconcileR4("t", chop("2¼"), bare).findings.map((f) => f.signature), ["R4:prep-exceeds-recipe:flat-leaf parsley"]);
+});
+
 // ── R5 ──────────────────────────────────────────────────────────────────────
 
 const soupRead = (text: string, chips?: string[]): Record<string, RecipeStep> => ({

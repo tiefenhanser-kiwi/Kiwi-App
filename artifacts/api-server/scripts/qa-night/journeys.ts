@@ -239,7 +239,38 @@ export class Household {
       if (typeof m.minutes === "number") this.cards.set(it.mealId, m.minutes);
       reads.set(it.mealId, stepsOf(m));
     }
+    await this.withFoodIdentity(meals);
     return { meals, reads, plan };
+  }
+
+  /**
+   * QA-8 A1/A2: every recipe row gets the server's food identity, read from the
+   * server's own prep loader (loadPrepWeekInput: the rows Prep the Week groups, and
+   * identity.foldedIdByIngredientId), matched to the meal read by dish and name (the
+   * loader's ingredientName is the wire's name, Ingredient.displayName). No AI.
+   */
+  private async withFoodIdentity(meals: PlanMeal[]): Promise<void> {
+    const { loadPrepWeekInput } = await import("../../src/lib/prepWeekAggregation");
+    let load: Awaited<ReturnType<typeof loadPrepWeekInput>>;
+    try {
+      load = await loadPrepWeekInput({ planId: this.planId, userId: this.out.userId!, prisma: this.prisma as never });
+    } catch (e) {
+      this.out.evidence.foodIdentity = `not loaded: ${String((e as Error).message ?? e).slice(0, 200)}`;
+      return;
+    }
+    const fold = load.identity.foldedIdByIngredientId;
+    const byRow = new Map<string, string>();
+    for (const m of load.input.meals) for (const d of m.dishes) for (const i of d.ingredients) byRow.set(`${d.dishId}|${i.ingredientName}`, i.ingredientId);
+    for (const m of meals) {
+      for (const d of m.dishes) {
+        for (const ing of d.ingredients) {
+          const id = byRow.get(`${d.dishId}|${ing.name}`);
+          if (!id) continue;
+          ing.ingredientId = id;
+          ing.foodId = fold.get(id) ?? id;
+        }
+      }
+    }
   }
 
   /** One meal's Cook Mode read (the steps the screen shows); `through` overrides the plan item ("" = none). */
@@ -606,7 +637,7 @@ export function stepsOf(m: any): Record<string, RecipeStep> {
   const out: Record<string, RecipeStep> = {};
   for (const d of m.dishes as any[]) {
     for (const s of d.steps as any[]) {
-      out[cookKey(d.dishId, s.stepIndex)] = { stepIndex: s.stepIndex, text: s.text, estimatedMinutes: s.estimatedMinutes, phaseType: s.phaseType, parallelGroup: s.parallelGroup ?? null, ...(s.preppedRefs ? { preppedRefs: s.preppedRefs } : {}) };
+      out[cookKey(d.dishId, s.stepIndex)] = { stepIndex: s.stepIndex, text: s.text, estimatedMinutes: s.estimatedMinutes, phaseType: s.phaseType, parallelGroup: s.parallelGroup ?? null, ...(s.preppedRefs ? { preppedRefs: s.preppedRefs } : {}), ...(s.amountRefs ? { amountRefs: s.amountRefs } : {}) };
     }
   }
   for (const s of (m.steps ?? []) as any[]) {
