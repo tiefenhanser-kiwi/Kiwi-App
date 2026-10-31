@@ -45,6 +45,7 @@ interface Owned {
   listId: string;
   groceryItemId: string;
   draftId: string;
+  stapleId: string;
 }
 
 describe("SEC-2 — ownership: A cannot read or write B's things", { skip: RUN ? false : "set SEC2_IDOR_DB=1 to run against the dev database" }, () => {
@@ -76,6 +77,8 @@ describe("SEC-2 — ownership: A cannot read or write B's things", { skip: RUN ?
     const gItem = await prisma.groceryListItem.create({ data: { groceryListId: list.id, displayName: `IDOR ${who} item` } });
     await prisma.favorite.create({ data: { userId: user.id, mealId: meal.id } });
     await prisma.playlistMeal.create({ data: { userId: user.id, mealId: meal.id } });
+    // SERVER-13 A — a staple (the user row's cascade removes it).
+    const staple = await prisma.pantryStaple.create({ data: { userId: user.id, ingredientName: `idor ${who} staple ${stamp}` } });
     const draft = await prisma.mealPlanInstance.create({
       data: { userId: user.id, isWizardDraft: true, wizardDraftPayload: { candidateId: "c", title: "t" } },
     });
@@ -90,12 +93,13 @@ describe("SEC-2 — ownership: A cannot read or write B's things", { skip: RUN ?
       listId: list.id,
       groceryItemId: gItem.id,
       draftId: draft.id,
+      stapleId: staple.id,
     };
   }
 
   /** Every row of B's that A's requests could touch, as plain data. */
   async function snapshotB(): Promise<unknown> {
-    const [user, meal, dish, template, plans, items, lists, gItems, favs, playlist, links, completions, structures] = await Promise.all([
+    const [user, meal, dish, template, plans, items, lists, gItems, favs, playlist, links, completions, structures, staples] = await Promise.all([
       prisma.user.findUnique({ where: { id: B.userId } }),
       prisma.meal.findUnique({ where: { id: B.mealId } }),
       prisma.dish.findUnique({ where: { id: B.dishId } }),
@@ -109,8 +113,9 @@ describe("SEC-2 — ownership: A cannot read or write B's things", { skip: RUN ?
       prisma.mealDishLink.findMany({ where: { meal: { userId: B.userId } } }),
       prisma.prepStepCompletion.findMany({ where: { planId: B.planId } }).catch(() => "n/a"),
       prisma.prepWeekStructure.findMany({ where: { planId: B.planId } }).catch(() => "n/a"),
+      prisma.pantryStaple.findMany({ where: { userId: B.userId }, orderBy: { id: "asc" } }),
     ]);
-    return JSON.parse(JSON.stringify({ user, meal, dish, template, plans, items, lists, gItems, favs, playlist, links, completions, structures }));
+    return JSON.parse(JSON.stringify({ user, meal, dish, template, plans, items, lists, gItems, favs, playlist, links, completions, structures, staples }));
   }
 
   before(async () => {
@@ -214,6 +219,9 @@ describe("SEC-2 — ownership: A cannot read or write B's things", { skip: RUN ?
     { route: "DELETE /me/favorites/:mealId (scoped no-op)", method: "DELETE", path: `/me/favorites/${B.mealId}`, allow: [403, 404, 200, 204] },
     { route: "POST /me/playlist (B's private meal)", method: "POST", path: `/me/playlist`, body: { mealId: B.mealId } },
     { route: "DELETE /me/playlist/:mealId (scoped no-op)", method: "DELETE", path: `/me/playlist/${B.mealId}`, allow: [403, 404, 200, 204] },
+    // staples (SERVER-13 A)
+    { route: "POST /me/staples (B's grocery item)", method: "POST", path: `/me/staples`, body: { groceryItemId: B.groceryItemId } },
+    { route: "DELETE /me/staples/:id (B's)", method: "DELETE", path: `/me/staples/${B.stapleId}` },
     // wizard drafts
     { route: "GET /wizard/drafts/:id", method: "GET", path: `/wizard/drafts/${B.draftId}` },
     { route: "POST /wizard/drafts/:id/dismiss (scoped no-op, {dismissed:false})", method: "POST", path: `/wizard/drafts/${B.draftId}/dismiss`, body: {}, allow: [403, 404, 200] },

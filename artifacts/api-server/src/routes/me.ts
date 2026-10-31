@@ -69,6 +69,14 @@ import {
 import { estimateDishMacros as productionEstimateDishMacros } from "../lib/dishMacros";
 import { resolveIngredients } from "../lib/ingredientResolve";
 import { markPersonalizeNudgeDismissed } from "../lib/personalizeNudge";
+import {
+  createStapleFromItem,
+  deleteStaple,
+  listStaples,
+  StapleExistsError,
+  StapleItemNotFoundError,
+  StapleNotCatalogError,
+} from "../lib/pantryStaples";
 import { bumpPlanRevision } from "../lib/planRevision";
 import {
   buildAppLink,
@@ -199,6 +207,11 @@ const uiStateSchema = z.object({
 
 const favoriteCreateSchema = z.object({
   mealId: z.string().min(1).max(100),
+});
+
+// SERVER-13 A (BUG-472) — POST /me/staples.
+const stapleCreateSchema = z.object({
+  groceryItemId: z.string().min(1).max(100),
 });
 
 // LIFE-2 — POST /me/activity/cook-finished. Ids as strings, like the
@@ -1794,6 +1807,64 @@ export function createMeRouter(deps: Partial<MeRouterDeps> = {}): IRouter {
     } catch (err) {
       logger.error({ err, userId: req.userId }, "GET /me/favorites failed");
       return res.status(500).json({ error: "failed to fetch favorites" });
+    }
+  });
+
+  // ── Staples (SERVER-13 A, BUG-472) ───────────────────────────────────
+  // "Mark as staple" on a grocery-list row: the row's catalog ingredient joins
+  // the user's PantryStaple set, which list generation already honours; the
+  // user's open lists' rows of it take the same mark (lib/pantryStaples.ts).
+
+  // POST /me/staples { groceryItemId } → 201 { id, ingredientId, name, createdAt }.
+  // 404 not the user's row · 422 a row with no catalog ingredient · 409 already a staple.
+  router.post("/me/staples", requireAuth, async (req, res) => {
+    const parsed = stapleCreateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "invalid body" });
+    }
+    const userId = req.userId!;
+    const { groceryItemId } = parsed.data;
+    try {
+      const { staple } = await createStapleFromItem(prisma, userId, groceryItemId);
+      return res.status(201).json(staple);
+    } catch (err) {
+      if (err instanceof StapleItemNotFoundError) {
+        return res.status(404).json({ error: "grocery item not found" });
+      }
+      if (err instanceof StapleNotCatalogError) {
+        return res.status(422).json({ error: "This item can't be a staple.", reason: "no_catalog_ingredient" });
+      }
+      if (err instanceof StapleExistsError) {
+        return res.status(409).json({ error: "already a staple", reason: "staple_exists", staple: err.staple });
+      }
+      logger.error({ err, userId, groceryItemId }, "POST /me/staples failed");
+      return res.status(500).json({ error: "failed to add staple" });
+    }
+  });
+
+  // GET /me/staples → { items: [{ id, ingredientId, name, createdAt }] }, newest first.
+  router.get("/me/staples", requireAuth, async (req, res) => {
+    try {
+      return res.json({ items: await listStaples(prisma, req.userId!) });
+    } catch (err) {
+      logger.error({ err, userId: req.userId }, "GET /me/staples failed");
+      return res.status(500).json({ error: "failed to fetch staples" });
+    }
+  });
+
+  // DELETE /me/staples/:id → 204; 404 when the user has no such staple.
+  router.delete("/me/staples/:id", requireAuth, async (req, res) => {
+    const id = req.params.id;
+    if (typeof id !== "string" || id.length === 0 || id.length > 100) {
+      return res.status(400).json({ error: "staple id required" });
+    }
+    try {
+      const { deleted } = await deleteStaple(prisma, req.userId!, id);
+      if (!deleted) return res.status(404).json({ error: "staple not found" });
+      return res.status(204).end();
+    } catch (err) {
+      logger.error({ err, userId: req.userId, id }, "DELETE /me/staples failed");
+      return res.status(500).json({ error: "failed to remove staple" });
     }
   });
 
