@@ -75,12 +75,23 @@ export type PlanSummary = z.infer<typeof PlanSummarySchema>;
 
 // GET /plans response — the cursor-paginated discovery union plus the user's
 // current This-Week plan.
-const PlanListResponseSchema = z.object({
-  plans: z.array(PlanListItemSchema),
-  activeThisWeek: PlanSummarySchema.nullable(),
-  nextCursor: z.string().nullable(),
-});
-export type PlanListResponse = z.infer<typeof PlanListResponseSchema>;
+//
+// CLIENT-9 E (BUG-467) — SERVER-13 B names the page `items` and sends the same
+// array as `plans` too, for the apps already out; a server before it sends only
+// `plans`. getPlans reads `items`, else `plans`, and hands every caller `plans`.
+const PlanListWireSchema = z
+  .object({
+    plans: z.array(PlanListItemSchema).optional(),
+    items: z.array(PlanListItemSchema).optional(),
+    activeThisWeek: PlanSummarySchema.nullable(),
+    nextCursor: z.string().nullable(),
+  })
+  .refine((b) => b.items !== undefined || b.plans !== undefined, { message: "no plans page" });
+export interface PlanListResponse {
+  plans: PlanListItem[];
+  activeThisWeek: PlanSummary | null;
+  nextCursor: string | null;
+}
 
 // One item of a Plan Review payload — a plan slot plus its fully-composed
 // Meal. `meal` is null when the meal row is missing/archived server-side.
@@ -300,19 +311,26 @@ export async function getPlans(
   // WS7-7-A B6 — `cursor` is the opaque `nextCursor` from a prior page (the
   // server paginates GET /plans via paginateById). Additive: existing callers
   // that omit it get page 1, unchanged.
-  opts: { cursor?: string } = {},
+  // CLIENT-9 E (BUG-467) — `q` is searched server side (SERVER-13 B), over every
+  // plan rather than the first page; `limit` is the page size (the server's
+  // default is 20, its cap 100). Each is sent only when given.
+  opts: { cursor?: string; q?: string; limit?: number } = {},
 ): Promise<PlanListResponse> {
   const params = new URLSearchParams();
   if (filter && filter.length > 0) params.set("filter", filter.join(","));
+  if (opts.limit !== undefined) params.set("limit", String(opts.limit));
   if (opts.cursor) params.set("cursor", opts.cursor);
+  const q = opts.q?.trim();
+  if (q) params.set("q", q);
   // D-WS9-191 Block 2 Part C (BUG-282's client half for this reader) — the
   // device's local calendar date, like GET /home sends since 2b: the server
   // ([WS9-arc-PS-E]) resolves "this week" in the client's day when sent.
   params.set("localDate", todayLocalDate());
   const qs = params.toString();
-  return apiClient(`/plans${qs ? `?${qs}` : ""}`, {
-    schema: PlanListResponseSchema,
+  const body = await apiClient(`/plans${qs ? `?${qs}` : ""}`, {
+    schema: PlanListWireSchema,
   });
+  return { plans: body.items ?? body.plans ?? [], activeThisWeek: body.activeThisWeek, nextCursor: body.nextCursor };
 }
 
 /**

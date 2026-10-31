@@ -1,5 +1,5 @@
 import React from "react";
-import { ScrollView, StyleSheet, View, ViewStyle } from "react-native";
+import { ScrollView, StyleSheet, View, ViewStyle, type ScrollViewProps } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Colors, Spacing } from "@/constants/tokens";
@@ -10,6 +10,10 @@ interface Props {
   padded?: boolean;
   contentStyle?: ViewStyle;
   bottomInset?: number;
+  /** CLIENT-9 E — the Plans tab loads its next page near the end (scroll only). */
+  onScroll?: ScrollViewProps["onScroll"];
+  onContentSizeChange?: ScrollViewProps["onContentSizeChange"];
+  onLayout?: ScrollViewProps["onLayout"];
 }
 
 export function Screen({
@@ -18,6 +22,9 @@ export function Screen({
   padded = true,
   contentStyle,
   bottomInset = 24,
+  onScroll,
+  onContentSizeChange,
+  onLayout,
 }: Props) {
   const insets = useSafeAreaInsets();
   const padStyle: ViewStyle = padded
@@ -34,6 +41,10 @@ export function Screen({
           contentStyle,
         ]}
         showsVerticalScrollIndicator={false}
+        onScroll={onScroll}
+        scrollEventThrottle={onScroll ? 100 : undefined}
+        onContentSizeChange={onContentSizeChange}
+        onLayout={onLayout}
       >
         {children}
       </ScrollView>

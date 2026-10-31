@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
 
 import { useApp } from "@/contexts/AppContext";
 import { useToast } from "@/contexts/ToastProvider";
@@ -25,11 +25,24 @@ import type { PlanListResponse } from "@/lib/api/plans";
 // threw "Cannot read property 'filter' of undefined" and — because it fired
 // BEFORE showToast — aborted the toast and the deferred DELETE entirely, so
 // nothing was archived and the plan reappeared on the next refetch.
+//
+// CLIENT-9 E (BUG-467) — and the Plans tab's PAGED cache (["plans","pages",…],
+// hooks/usePlanPages.ts): an infinite query's `{ pages, pageParams }`, each page a
+// PlanListResponse. Every page drops the row.
+export type PlanListCache = PlanListResponse | InfiniteData<PlanListResponse, string | undefined>;
+
 export function dropComposedPlanFromListCache(
-  old: PlanListResponse | undefined,
+  old: PlanListCache | undefined,
   planId: string,
-): PlanListResponse | undefined {
-  if (!old || !Array.isArray(old.plans)) return old;
+): PlanListCache | undefined {
+  if (old && "pages" in old && Array.isArray(old.pages)) {
+    return { ...old, pages: old.pages.map((p) => dropFromPage(p, planId)) };
+  }
+  if (!old || !("plans" in old) || !Array.isArray(old.plans)) return old;
+  return dropFromPage(old, planId);
+}
+
+function dropFromPage(old: PlanListResponse, planId: string): PlanListResponse {
   return {
     ...old,
     plans: old.plans.filter((p) => p.id !== planId),
@@ -53,7 +66,7 @@ export function useCompostWithUndo() {
       // Optimistically drop the row from every plans-LIST cache (and clear the
       // This-Week callout if it was the active plan); the detail cache matched
       // by the ["plans"] prefix is left untouched — see the updater's comment.
-      queryClient.setQueriesData<PlanListResponse>(
+      queryClient.setQueriesData<PlanListCache>(
         { queryKey: ["plans"] },
         (old) => dropComposedPlanFromListCache(old, planId),
       );

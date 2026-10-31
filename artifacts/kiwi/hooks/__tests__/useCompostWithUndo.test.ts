@@ -70,3 +70,15 @@ test("REGRESSION: detail-shaped cache (items, no plans) passes through untouched
 test("undefined cache passes through as undefined", () => {
   assert.equal(dropComposedPlanFromListCache(undefined, "p-drop"), undefined);
 });
+
+// CLIENT-9 E (BUG-467) — the Plans tab's PAGED cache (["plans","pages",…]): an
+// infinite query's { pages, pageParams }. The row leaves every page.
+test("paged cache: the composted plan leaves every page; the page params are kept", () => {
+  const paged = {
+    pages: [listResponse(), { ...listResponse(), plans: [{ id: "p-other" }, { id: "p-drop" }] } as unknown as PlanListResponse],
+    pageParams: [undefined, "c-1"],
+  };
+  const out = dropComposedPlanFromListCache(paged, "p-drop") as typeof paged;
+  assert.deepEqual(out.pages.map((p) => p.plans.map((x) => x.id)), [["p-keep"], ["p-other"]]);
+  assert.deepEqual(out.pageParams, [undefined, "c-1"]);
+});

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Pressable,
   StyleSheet,
@@ -20,11 +20,13 @@ import { useApp } from "@/contexts/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastProvider";
 import { useCompostWithUndo } from "@/hooks/useCompostWithUndo";
+import { usePlanPages } from "@/hooks/usePlanPages";
 import { usePlans } from "@/hooks/usePlans";
 import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import { useTemplatePreview } from "@/hooks/useTemplatePreview";
 import { asPlanDiscoveryFilters, type PlanFilterKey, type PlanListItem } from "@/lib/api/plans";
 import { plansFilterDefault } from "@/lib/plans/filterDefault";
+import { flattenPlanPages, nearListEnd, planSearchParam } from "@/lib/plans/planPages";
 import {
   PLAN_DISABLED_SORT_KEYS,
   PLAN_HIDDEN_SORT_KEYS,
@@ -131,21 +133,27 @@ export default function PlansTab() {
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("alpha");
 
-  // 250ms debounce on search input.
+  // 250ms debounce on search input. CLIENT-9 E — sent as `?q=` (server side).
   useEffect(() => {
-    const t = setTimeout(
-      () => setDebouncedQuery(query.trim().toLowerCase()),
-      250,
-    );
+    const t = setTimeout(() => setDebouncedQuery(planSearchParam(query)), 250);
     return () => clearTimeout(t);
   }, [query]);
 
-  const plansQuery = usePlans(filters);
+  // CLIENT-9 E (BUG-467) — every plan, page after page (lib/plans/planPages.ts).
+  const plansQuery = usePlanPages(filters, debouncedQuery);
   // WS7-6 (E) Block 2 §6 — focus-driven backstop for returning to the tab.
   useRefetchOnFocus(plansQuery);
   // activeThisWeek is server-resolved on every GET /plans response (PRD
-  // §9.2.1) — the pinned This Week callout reads it off the list query.
-  const activeThisWeek = plansQuery.data?.activeThisWeek ?? null;
+  // §9.2.1) — the pinned This Week callout reads it off the first page.
+  const activeThisWeek = plansQuery.data?.pages[0]?.activeThisWeek ?? null;
+
+  // The next page is asked for as the list nears its end, or at once when the
+  // loaded rows do not fill the window (no scroll would ever fire).
+  const metrics = useRef({ contentHeight: 0, viewportHeight: 0, offsetY: 0 });
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = plansQuery;
+  const maybeLoadMore = () => {
+    if (hasNextPage && !isFetchingNextPage && nearListEnd(metrics.current)) void fetchNextPage();
+  };
 
   const toggleFilter = (key: PlanFilterKey) => {
     const next: PlanFilterKey[] = [key];
@@ -167,19 +175,14 @@ export default function PlansTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterParam]);
 
-  // The server already filtered by the selected chip; search + sort run
-  // client-side over the result (Ruling C — D-WS7-048 moves these to
-  // server params in WS9).
+  // The server filtered by the selected chip and, since CLIENT-9 E, by the
+  // search (`?q=`, over every plan, not the first page). Sort still runs
+  // client-side over the pages loaded so far (D-WS7-048; A–Z across pages
+  // needs a server sort, D-WS9-381).
   const visibleRows = useMemo(() => {
     // Compost's optimistic removal happens in the plans cache (useCompostWithUndo),
     // so plansQuery.data already excludes a composting row — no local filter here.
-    let out = [...(plansQuery.data?.plans ?? [])];
-    if (debouncedQuery) {
-      out = out.filter((r) => {
-        const hay = `${r.name} ${r.tags.join(" ")}`.toLowerCase();
-        return hay.includes(debouncedQuery);
-      });
-    }
+    const out = flattenPlanPages(plansQuery.data?.pages);
     // Only the A–Z sort has a backing field on PlanListItem; the cook-stat
     // sort keys need server metadata that GET /plans does not carry yet
     // (D-WS7-048). They fall through as a no-op until WS9.
@@ -191,12 +194,26 @@ export default function PlansTab() {
       );
     }
     return out;
-  }, [plansQuery.data, debouncedQuery, sortKey]);
+  }, [plansQuery.data, sortKey]);
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.neutral[100] }}>
       <Header title="Plans" />
-      <Screen>
+      <Screen
+        onScroll={(e) => {
+          const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
+          metrics.current = { offsetY: contentOffset.y, viewportHeight: layoutMeasurement.height, contentHeight: contentSize.height };
+          maybeLoadMore();
+        }}
+        onContentSizeChange={(_w, h) => {
+          metrics.current = { ...metrics.current, contentHeight: h };
+          maybeLoadMore();
+        }}
+        onLayout={(e) => {
+          metrics.current = { ...metrics.current, viewportHeight: e.nativeEvent.layout.height };
+          maybeLoadMore();
+        }}
+      >
         {activeThisWeek && (
           <View style={s.thisWeekCard}>
             <View style={s.thisWeekBadge}>
@@ -258,6 +275,8 @@ export default function PlansTab() {
             <Text style={s.loadingText}>
               Couldn’t load plans right now. Try again in a moment.
             </Text>
+          ) : visibleRows.length === 0 && debouncedQuery ? (
+            <Text style={s.loadingText}>No plans match “{debouncedQuery}”.</Text>
           ) : visibleRows.length === 0 ? (
             <View style={s.empty}>
               <Text style={s.emptyText}>
@@ -296,6 +315,20 @@ export default function PlansTab() {
               />
             ))
           )}
+          {/* CLIENT-9 E — the next page loads on its own near the end; this is
+              the same request for a screen reader or a window it never fills. */}
+          {isFetchingNextPage ? (
+            <Text style={s.loadingText}>Loading more plans…</Text>
+          ) : hasNextPage && visibleRows.length > 0 ? (
+            <Pressable
+              onPress={() => void fetchNextPage()}
+              accessibilityRole="button"
+              hitSlop={8}
+              style={({ pressed }) => [s.moreBtn, pressed && { opacity: 0.7 }]}
+            >
+              <Text style={s.btnSecondaryText}>Show more plans</Text>
+            </Pressable>
+          ) : null}
         </View>
       </Screen>
       <PlanPreviewModal
@@ -414,6 +447,16 @@ const s = StyleSheet.create({
     color: Colors.neutral[0],
     fontWeight: Typography.fontWeight.semibold,
     fontFamily: Typography.face.sans[600],
+  },
+  moreBtn: {
+    alignSelf: "center",
+    marginTop: Spacing[2],
+    backgroundColor: Palette.background.card,
+    paddingHorizontal: Spacing[3],
+    paddingVertical: 10,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.neutral[300],
   },
   btnSecondary: {
     backgroundColor: Palette.background.card,
