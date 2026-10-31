@@ -170,8 +170,11 @@ app.use(cors());
 // route sees an object; without the route's own `express.raw` it sees undefined.
 // The route checks `Buffer.isBuffer(req.body)` and names THIS LINE in the error
 // if the check fails, because that is the fix.
+// IMPORT-2 — import-url joins for import-image's reason: it can carry a page
+// from the in-app browser (the route mounts a 4 MiB parser after auth).
 const ROUTE_SCOPED_JSON_PATHS = new Set<string>([
   "/api/recipes/import-image",
+  "/api/recipes/import-url",
   `/api${STRIPE_WEBHOOK_PATH}`,
 ]);
 const defaultJsonParser = express.json();

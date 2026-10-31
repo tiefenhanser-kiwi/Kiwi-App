@@ -52,8 +52,16 @@ interface ScaleRequestBody {
   ingredients?: ScaleIngredient[];
 }
 
+// IMPORT-2 (D-WS9-384) — `html` is the page the cook is looking at in Kiwi's
+// in-app browser, for a site that refuses the server's own fetch or sits behind
+// the cook's sign-in. When it is present the server fetches NOTHING: the same
+// parser (JSON-LD, else the page's text) reads the page the cook sent. The cap
+// is in characters; the client trims to it before sending.
+export const MAX_PAGE_HTML_CHARS = 1_000_000;
+
 const ImportUrlRequestSchema = z.object({
   url: z.string().min(1).max(2_000),
+  html: z.string().min(1).max(MAX_PAGE_HTML_CHARS).optional(),
 });
 
 const MAX_RAW_TEXT_CHARS = 32_000;
@@ -99,6 +107,10 @@ export function createRecipesRouter(
   // ~34.3 MiB of base64 plus JSON wrapper. Per-image and total decoded-byte
   // caps below enforce the real product limit (5 MiB / 25 MiB) after parsing.
   const imageBodyParser = express.json({ limit: "35mb" });
+  // IMPORT-2 — import-url carries a page now, past the 100 KB default (app.ts
+  // skips that parser for this path). 1M characters, escaped and UTF-8: 4 MiB.
+  // Mounted after requireAuth and the limiter, by BUG-220's rule.
+  const pageBodyParser = express.json({ limit: "4mb" });
 
   router.post("/recipes/scale", requireAuth, limiter, async (req, res) => {
     const body = (req.body ?? {}) as ScaleRequestBody;
@@ -193,6 +205,7 @@ export function createRecipesRouter(
     "/recipes/import-url",
     requireAuth,
     importLimiter,
+    pageBodyParser,
     async (req, res) => {
       const parsed = ImportUrlRequestSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -203,8 +216,19 @@ export function createRecipesRouter(
           suggestedAction: "try_image_import",
         });
       }
-      const { url } = parsed.data;
+      const { url, html: pageHtml } = parsed.data;
       const userId = req.userId ?? null;
+
+      // IMPORT-2 — a page arrives with the address it was read at, which
+      // becomes the recipe's sourceUrl; nothing is fetched from it.
+      if (pageHtml !== undefined && !isWebUrl(url)) {
+        return res.status(400).json({
+          success: false,
+          reason: "url_parse_failed",
+          userFacingMessage: "That doesn't look like a valid URL.",
+          suggestedAction: "try_image_import",
+        });
+      }
 
       // Row 9 (1.1) · Stripe S1 Part C — BEFORE THE FETCH, not merely before the
       // model call. Every import path here reaches `reformatRecipeForKiwi`
@@ -224,8 +248,7 @@ export function createRecipesRouter(
 
       let html: string;
       try {
-        const fetched = await fetchRecipePage(url);
-        html = fetched.html;
+        html = pageHtml ?? (await fetchRecipePage(url)).html;
       } catch (err) {
         const code =
           err instanceof RecipeImportError ? err.code : "fetch_failed";
@@ -310,7 +333,11 @@ export function createRecipesRouter(
               eventType: "recipe_imported_url",
               entityId: null,
               platform: "api",
-              metadata: { source, sourceUrl: url },
+              metadata: {
+                source,
+                sourceUrl: url,
+                ...(pageHtml !== undefined ? { via: "in_app_browser" } : {}),
+              },
             },
           })
           .catch((err) => {
@@ -578,6 +605,15 @@ function hostOf(url: string): string {
     return new URL(url).host || "invalid";
   } catch {
     return "invalid";
+  }
+}
+
+function isWebUrl(url: string): boolean {
+  try {
+    const { protocol } = new URL(url);
+    return protocol === "https:" || protocol === "http:";
+  } catch {
+    return false;
   }
 }
 
