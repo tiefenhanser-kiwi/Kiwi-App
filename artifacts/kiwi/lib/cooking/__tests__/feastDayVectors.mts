@@ -73,6 +73,15 @@ export const UNPREFIXED_RUN: readonly string[] = [
   "On Thursday: Spoon into a serving bowl.",
 ];
 
+/** CLIENT-7's five steps (BUG-612): two openings that look like a prefix and are not one. */
+export const BUG_612_STEPS: readonly string[] = [
+  "Make ahead (Monday): Zest 2 oranges.",
+  "On Thursday: Remove the turkey.",
+  "Thaw (about 10 minutes) the frozen peas in warm water.",
+  "Make ahead (up to 3 days) the gravy: whisk the roux.",
+  "Serve.",
+];
+
 /** The same steps with every leading "On Thursday:" written "On feast day:". */
 export function saidOnFeastDay(steps: readonly string[]): string[] {
   return steps.map((s) => s.replace(/^On Thursday:/, "On feast day:"));
@@ -128,6 +137,16 @@ export const FEAST_DAY_VECTORS: readonly FeastDayVector[] = [
     ],
     onTheDay: [1, 2, 3, 4],
   },
+  {
+    // CLIENT-9 C (BUG-612) — CLIENT-7's five steps (api-server scripts/_scratch/client-7/
+    // diverge.ts): a run starts at a day prefix only. "Thaw (about 10 minutes) the peas" and
+    // "Make ahead (up to 3 days) the gravy:" are ordinary steps on the day. The server read
+    // them as runs until SEQ-1 (0effaca5).
+    name: "BUG-612: a parenthesis that is not a day starts no run",
+    steps: BUG_612_STEPS,
+    onTheDay: [1, 2, 3, 4],
+  },
+  { name: "BUG-612, On feast day:", steps: saidOnFeastDay(BUG_612_STEPS), onTheDay: [1, 2, 3, 4] },
   { name: "no prefixes at all (the Wellington)", steps: ["Chop the mushrooms.", "Bake 30 minutes."], onTheDay: [0, 1] },
   {
     name: "case and leading space, like Thursday's",
