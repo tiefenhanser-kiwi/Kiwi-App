@@ -286,6 +286,9 @@ function transportFailure(err: unknown): {
 
 export interface ImportRecipeFromUrlOptions {
   url: string;
+  /** IMPORT-2 — the page the cook is looking at in the in-app browser
+   *  (lib/import/inAppBrowser.ts). The server reads it instead of fetching. */
+  html?: string;
 }
 
 export type ImportRecipeFromUrlResult =
@@ -311,7 +314,7 @@ export async function importRecipeFromUrl(
 ): Promise<ImportRecipeFromUrlResult> {
   const res = await apiClient("/recipes/import-url", {
     method: "POST",
-    body: { url: opts.url },
+    body: opts.html !== undefined ? { url: opts.url, html: opts.html } : { url: opts.url },
     schema: ImportEnvelopeSchema,
     errorMode: "envelope",
   });

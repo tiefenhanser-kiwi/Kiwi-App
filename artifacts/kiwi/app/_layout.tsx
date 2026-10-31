@@ -185,6 +185,8 @@ function RootLayoutNav() {
       <Stack.Screen name="dish/[id]" />
       <Stack.Screen name="dish-builder" />
       <Stack.Screen name="import-url" />
+      {/* IMPORT-2 (D-WS9-384) — open a recipe site in-app and import the page. */}
+      <Stack.Screen name="import-browser" />
       <Stack.Screen name="import-image" />
       <Stack.Screen name="import-text" />
       <Stack.Screen name="ask-kiwi" />

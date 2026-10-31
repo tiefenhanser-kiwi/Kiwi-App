@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   BackHandler,
   Keyboard,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -64,6 +65,7 @@ import {
   toDishSortKey,
 } from "@/lib/dishes/sortMapping";
 import { getMeal, type SaveMealInput } from "@/lib/api/meals";
+import { showsSiteImport } from "@/lib/import/inAppBrowser";
 import { useMeal } from "@/hooks/useMeal";
 import { CUISINES_TIER_1, CUISINES_TIER_2 } from "@/lib/domain";
 import { formatMacroLine } from "@/lib/format/macros";
@@ -1230,6 +1232,21 @@ export default function MealBuilderScreen() {
                 router.push({ pathname: "/import-url", params: flowParams });
               }}
             />
+            {/* IMPORT-2 (D-WS9-384) — for a site that refuses the link import or
+                needs the cook's sign-in. App only: the web build cannot embed
+                another site. */}
+            {showsSiteImport(Platform.OS) && (
+              <ModeCard
+                icon="globe"
+                title="Open the site and import"
+                subtitle="Sign in if you need to, then import the page"
+                selected={false}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  router.push({ pathname: "/import-browser", params: flowParams });
+                }}
+              />
+            )}
             <ModeCard
               icon="image"
               title="Import from photo"

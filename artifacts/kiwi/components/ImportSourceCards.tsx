@@ -1,5 +1,5 @@
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
@@ -8,6 +8,7 @@ import {
   importEntryParams,
   type ImportEntryContext,
 } from "@/lib/builder/importEntryParams";
+import { showsSiteImport } from "@/lib/import/inAppBrowser";
 
 // WS9 3f-3 (D-WS9-005 + the Thread-A dedup) — ONE shared import-entry chooser,
 // replacing the drifted copies that lived inline in AddMealsSheet (append) and
@@ -28,6 +29,7 @@ import {
 
 type ImportSourcePath =
   | "/import-url"
+  | "/import-browser"
   | "/import-image"
   | "/import-text"
   | "/meal-builder"
@@ -97,6 +99,16 @@ export function ImportSourceCards({
           subtitle="Paste a recipe link"
           onPress={() => navigateAfterClose("/import-url")}
         />
+        {/* IMPORT-2 (D-WS9-384) — the same card as the builder's mode picker
+            (WS7-6 G3-fix parity). App only. */}
+        {showsSiteImport(Platform.OS) && (
+          <NewSourceCard
+            icon="globe"
+            title="Open the site and import"
+            subtitle="Sign in if you need to, then import the page"
+            onPress={() => navigateAfterClose("/import-browser")}
+          />
+        )}
         <NewSourceCard
           icon="image"
           title="Import from photo"
