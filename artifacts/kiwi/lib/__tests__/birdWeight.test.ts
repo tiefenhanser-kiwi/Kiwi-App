@@ -198,7 +198,8 @@ describe("THX-4 — which turkey, and the rest of the meal", () => {
       birdWeightLb: 16,
       dishes: [TURKEY, GRAVY],
     } as unknown as MealDetail;
-    assert.deepEqual(planDishView(meal, "turkey")!.chosenBird, { factor: 16 / 14, birds: { parts: 1, birds: 1, chosen: true } });
+    // CLIENT-9 A — and a feast's BirdLine says so (its amounts keep the cup ladder).
+    assert.deepEqual(planDishView(meal, "turkey")!.chosenBird, { factor: 16 / 14, birds: { parts: 1, birds: 1, chosen: true, feast: true } });
     assert.equal(planDishView(meal, "gravy")!.chosenBird, undefined);
     assert.equal(planDishView({ ...meal, birdWeightLb: null }, "turkey")!.chosenBird, undefined);
   });

@@ -23,7 +23,7 @@
 //
 // Pure and in lib/ because app/** is outside the test glob (D-WS9-164).
 
-import { displayedQuantity, formatQuantity, isEggCount, lineMultiplier, packageUse, type BirdLine } from "./quantity";
+import { displayedQuantity, formatQuantity, isEggCount, lineMultiplier, packageUse, spokenMeasure, type BirdLine } from "./quantity";
 import { countedIngredientName, unitWordFor } from "./grocery";
 
 /** The fields of a meal-detail ingredient this formatter reads. Structurally
@@ -206,15 +206,19 @@ export function formatIngredientLine(
   // WEB-4d — an unscaled line prints as written; the prep note carries the cut
   // word ("quartered") and "per package directions".
   const isScaled = opts.scaled ?? Math.abs(lineFactor - 1) > 1e-9;
-  const ctx = { scaled: isScaled, note: ing.preparationNote ?? "" };
-  const shown = displayedQuantity(scaled, unit, ing.name, ctx);
+  // CLIENT-9 A (D-WS9-371) — a feast keeps the cup ladder.
+  const ctx = { scaled: isScaled, note: ing.preparationNote ?? "", cupLadder: birds?.feast };
+  // CLIENT-9 A (BUG-632) — a scaled amount under ¼ cup is said in spoons, as its
+  // step and the prep text say it ("3 tbsp all-purpose flour").
+  const said = spokenMeasure(scaled, unit, ctx) ?? { qty: scaled, unit };
+  const shown = displayedQuantity(said.qty, said.unit, ing.name, ctx);
   const hasUnitWord = unit.length > 0 && !isSuppressedCountUnit(unit);
   const sizeWord = SIZE_UNITS.has(unit.toLowerCase());
-  const parts: string[] = [formatQuantity(scaled, unit, ing.name, ctx)];
+  const parts: string[] = [formatQuantity(said.qty, said.unit, ing.name, ctx)];
   // FIX-7 — unitWordFor: plural above 1 as before, and singular at 1 or below
   // for the few lines whose unit is stored plural ("cloves", "cups"). A size
   // word is printed as stored: it has no plural.
-  if (hasUnitWord) parts.push(sizeWord ? unit : unitWordFor(unit, shown));
+  if (hasUnitWord) parts.push(sizeWord ? unit : unitWordFor(said.unit, shown));
   // The number counts the NAME only when no unit word stands between them, or
   // when that word is a size ("2 large eggs").
   parts.push(hasUnitWord && !sizeWord ? ing.name : countedIngredientName(ing.name, shown));

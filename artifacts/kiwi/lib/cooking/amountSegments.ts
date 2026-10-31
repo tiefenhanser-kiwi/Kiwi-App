@@ -19,6 +19,7 @@ import {
   isEquipment,
   ONE_BIRD,
   packageUse,
+  spokenMeasure,
   wholeItemMultiplier,
   type BirdLine,
 } from "../format/quantity";
@@ -403,13 +404,18 @@ export function buildAmountRefSegments(
           : r.quantity * (birds.chosen ? birdFactor : wholeItemMultiplier(birdFactor, birdUnit, birdName, r.quantity));
       // WEB-4d — an unscaled amount prints as written; a cut word right after the
       // noun ("1 lemon, halved") keeps produce whole, like one before it.
-      const ctx = { scaled: Math.abs(amount - r.quantity) > 1e-9, note: cutAfter(text, r.charEnd) };
-      const scaled = hyphenBird ? formatQuantity(amount, hyphenBird[1], "", ctx) : formatQuantity(amount, r.unit, name, ctx);
+      // CLIENT-9 A (D-WS9-371) — a feast keeps the cup ladder.
+      const ctx = { scaled: Math.abs(amount - r.quantity) > 1e-9, note: cutAfter(text, r.charEnd), cupLadder: birds.feast };
+      // CLIENT-9 A (BUG-632) — a scaled amount under ¼ cup is said in spoons, as
+      // the prep text says it ("3 tbsp", not "¼ cup").
+      const spoken = r.unit && !hyphenBird ? spokenMeasure(amount, r.unit, ctx) : null;
+      const said = spoken ?? { qty: amount, unit: r.unit };
+      const scaled = hyphenBird ? formatQuantity(amount, hyphenBird[1], "", ctx) : formatQuantity(said.qty, said.unit, name, ctx);
       // BUG-321 — the unit is a WORD here, same as on an ingredient line, and
       // pluralized on the DISPLAYED amount so "1 cups" cannot happen. FIX-7 —
       // and singularized there too: the ref's unit is authored ("pounds").
       const unit = r.unit
-        ? unitWordFor(r.unit, displayedQuantity(amount, r.unit, name, ctx))
+        ? unitWordFor(said.unit, displayedQuantity(said.qty, said.unit, name, ctx))
         : "";
       // CLIENT-8 B (BUG-618) — a unit-less amount's noun, for the number shown
       // ("1 limes" → "1 lime"). A size ("3-pound chicken") and a worded amount

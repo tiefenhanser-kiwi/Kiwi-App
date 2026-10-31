@@ -173,6 +173,8 @@ export function consolidateMealIngredients(
           multiplier: 1,
           scaled: row.perShare ? false : row.scaled,
           packageScaled: row.perShare && row.scaled ? row.raw : undefined,
+          // CLIENT-9 A (D-WS9-371) — a feast's summed line keeps the cup ladder.
+          birds: feast ? { parts: 1, birds: 1, feast: true } : undefined,
         },
       ),
       note: ingredientAmountNote(

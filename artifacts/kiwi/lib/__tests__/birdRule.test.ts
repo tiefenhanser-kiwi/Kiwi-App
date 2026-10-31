@@ -57,14 +57,16 @@ const GRAVY = {
     ing(6, "cup", "cold water"),
   ],
 };
-const CLASSIC = { dishes: [TURKEY, GRAVY] };
+// CLIENT-9 A — Classic is a feast, and a feast keeps the cup ladder (D-WS9-371):
+// read untagged, the gravy's 0.2 cup flour at 4 would say "3¼ tbsp".
+const CLASSIC = { dishes: [TURKEY, GRAVY], tags: [FEAST_MEAL_TAG] };
 const WRITTEN_FOR = 10;
 
 /** One line on meal detail at `servings`: the screen's own path. */
 function mealDetailLine(servings: number, dish: typeof TURKEY, name: string): string {
-  const scale = mealScaleFactors(CLASSIC.dishes, servings / WRITTEN_FOR);
+  const scale = mealScaleFactors(CLASSIC.dishes, servings / WRITTEN_FOR, isFeastMeal(CLASSIC.tags));
   const i = dish.ingredients.find((x) => x.name === name)!;
-  return formatIngredientLine(i, { multiplier: scale.byDish[dish.dishId] });
+  return formatIngredientLine(i, { multiplier: scale.byDish[dish.dishId], birds: scale.birds[dish.dishId] });
 }
 
 // The brine step as stored: "½ cup" salt, "¼ cup" sugar, a unitless "1" gallon.
@@ -117,7 +119,12 @@ describe("BUG-454 — THE PINNED TABLE: Classic's turkey (14 lb, for 10) at 1 ·
   });
 
   it("the brine step (meal detail and Cook Mode take the dish's factor) agrees with the lines", () => {
-    const at = (n: number) => stepRefs(BRINE, BRINE_REFS, mealScaleFactors(CLASSIC.dishes, n / WRITTEN_FOR).byDish[TURKEY.dishId]);
+    const at = (n: number) => {
+      const scale = mealScaleFactors(CLASSIC.dishes, n / WRITTEN_FOR, isFeastMeal(CLASSIC.tags));
+      return buildAmountRefSegments(BRINE, BRINE_REFS, scale.byDish[TURKEY.dishId], scale.birds[TURKEY.dishId])
+        .filter((x) => x.isRef)
+        .map((x) => x.text);
+    };
     assert.deepEqual(at(1), ["⅓ cup", "⅛ cup", "¾"]);
     assert.deepEqual(at(4), ["⅓ cup", "⅛ cup", "¾"]);
     assert.deepEqual(at(8), ["⅓ cup", "¼ cup", "¾"]);

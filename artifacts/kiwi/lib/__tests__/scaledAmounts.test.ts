@@ -95,10 +95,12 @@ describe("BUG-437 rule 2 — spoons snap to ⅛ ¼ ½ ¾, cups to ⅛ ¼ ⅓ ½ 
 
   it("cups", () => {
     table([
-      ["olive oil", 0.25, "cup", 0.5, "⅛ cup olive oil"],
+      // CLIENT-9 A (BUG-632) — under ¼ cup a scaled amount is said in spoons now
+      // (was "⅛ cup" for both): ⅛ cup is 2 tbsp, ⅙ cup is 2⅔ tbsp.
+      ["olive oil", 0.25, "cup", 0.5, "2 tbsp olive oil"],
       ["heavy cream", 0.75, "cup", 0.5, "⅓ cup heavy cream"],
       ["water", 1.75, "cup", 0.5, "1 cup water"], // ⅞ is a tie between ¾ and 1 → up
-      ["whole milk", 1 / 3, "cup", 0.5, "⅛ cup whole milk"], // ⅙ is nearer ⅛ than ¼
+      ["whole milk", 1 / 3, "cup", 0.5, "2⅔ tbsp whole milk"],
       ["sour cream", 1.25, "cup", 0.5, "⅔ cup sour cream"],
     ]);
   });

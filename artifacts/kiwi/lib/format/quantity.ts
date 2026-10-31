@@ -251,6 +251,8 @@ const PACKAGE_DIRECTIONS =
 export interface RoundingContext {
   scaled?: boolean;
   note?: string;
+  /** CLIENT-9 A (D-WS9-371) — a feast: no spoons under ¼ cup (spokenMeasure). */
+  cupLadder?: boolean;
 }
 const PACKAGE_WORD = /\b(?:cans?|box(?:es)?|bags?|jars?|packages?|packets?)\b/i;
 const WHOLE_PIECE_UNITS = /^(?:sheets?|caps?|crusts?|crackers?|lea(?:f|ves)|sprigs?)$/;
@@ -322,6 +324,36 @@ const TIE = 1e-9;
 function singularUnit(u: string): string {
   if (u === "leaves") return "leaf";
   return u.endsWith("s") ? u.slice(0, -1) : u;
+}
+
+/**
+ * 🔴 CLIENT-9 A (BUG-632) — A SMALL SCALED CUP AMOUNT IS SAID IN SPOONS. Classic
+ * Crispy Sesame Chicken at 3 of 4 needs 3 tbsp flour (¼ cup × ¾ = 3⁄16 cup), and
+ * the cup ladder snapped the tie (⅛ vs ¼) UP to "¼ cup", a third more than the
+ * recipe. SERVER-12 C (f6d5102a) made the prep text say "3 tbsp"; this is the same
+ * rule for Cook Mode and Meal Detail, token for token the server's spoonedCup
+ * (api-server lib/prepQuantity.ts):
+ *   - a SCALED cup amount below ¼ cup is said in tablespoons, below 1 tbsp in
+ *     teaspoons; the cup ladder starts at ¼ cup;
+ *   - one the spoons would say as 4 tbsp stays ¼ cup;
+ *   - an amount at its own servings (`scaled: false`) prints as written ("⅛ cup");
+ *   - a FEAST keeps the ladder as it was (`cupLadder`), as the server's
+ *     withCupLadder does, until Hans rules (D-WS9-371).
+ * CUP_STEPS is unchanged: the server's drift guard pins it. Null when the amount
+ * stays as it is; else the amount and unit to print in its place.
+ */
+export function spokenMeasure(
+  qty: number,
+  unit: string,
+  ctx: RoundingContext = {},
+): { qty: number; unit: string } | null {
+  if (ctx.cupLadder || ctx.scaled === false || !(qty > 0) || !CUP_UNITS.test(unit.trim().toLowerCase()) || qty >= 1 / 4 - TIE) {
+    return null;
+  }
+  const tbsp = qty * 16;
+  // (Just under ¼ cup that the spoons would say as 4 tbsp is ¼ cup.)
+  if (displayedQuantity(tbsp, "tbsp") >= 4 - TIE) return null;
+  return tbsp >= 1 - TIE ? { qty: tbsp, unit: "tbsp" } : { qty: tbsp * 3, unit: "tsp" };
 }
 
 /** Nearest step for the fractional part, ties up, whole part kept. */
@@ -543,6 +575,10 @@ export interface BirdLine {
   /** THX-4 — the cook chose this dish's turkey's weight (chosenBird): its line has
    *  no floor under it, and a turkey written by count is one bird. */
   chosen?: boolean;
+  /** CLIENT-9 A — the meal is a feast (isFeastMeal): its amounts keep the cup
+   *  ladder, no spoons under ¼ cup (spokenMeasure, D-WS9-371). Set only when true.
+   *  It rides here because every screen that scales a line already passes its BirdLine. */
+  feast?: true;
 }
 
 /** No bird by count: parts and equipment as written. */
@@ -574,7 +610,7 @@ export function dishBirdLine(
   feast = false,
   parts = birdPartsFactor([{ ingredients }], multiplier, feast),
 ): BirdLine {
-  return { parts, birds: countBirdFactor(ingredients, multiplier, feast) };
+  return { parts, birds: countBirdFactor(ingredients, multiplier, feast), ...(feast ? { feast: true as const } : {}) };
 }
 
 /**
@@ -618,7 +654,7 @@ export function mealScaleFactors(
 } {
   const byDish: Record<string, number> = {};
   const birds: Record<string, BirdLine> = {};
-  const chosen = chosenBird(dishes, birdLb);
+  const chosen = chosenBird(dishes, birdLb, feast);
   // A chosen weight is one bird: its parts are that bird's, in every dish.
   const parts = chosen ? chosen.birds.parts : birdPartsFactor(dishes, multiplier, feast);
   for (const d of dishes) {
@@ -635,7 +671,7 @@ export function mealScaleFactors(
     byDish,
     mealOwned: only !== undefined ? byDish[only] : multiplier,
     birds,
-    mealOwnedBirds: only !== undefined ? birds[only] : { parts, birds: 1 },
+    mealOwnedBirds: only !== undefined ? birds[only] : { parts, birds: 1, ...(feast ? { feast: true as const } : {}) },
   };
 }
 
@@ -683,6 +719,8 @@ export function weighedTurkeyOf(
 export function chosenBird(
   dishes: readonly { dishId: string; ingredients: readonly ScalableIngredient[] }[],
   birdLb: number | null | undefined,
+  /** CLIENT-9 A — the meal is a feast: the BirdLine says so (BirdLine.feast). */
+  feast = false,
 ): { dishId: string; factor: number; birds: BirdLine } | null {
   if (birdLb === null || birdLb === undefined || !(birdLb > 0)) return null;
   for (const d of dishes) {
@@ -692,7 +730,7 @@ export function chosenBird(
     return {
       dishId: d.dishId,
       factor: birdLb / t.recipeLb,
-      birds: { parts: t.byCount ? 1 / written : 1, birds: 1, chosen: true },
+      birds: { parts: t.byCount ? 1 / written : 1, birds: 1, chosen: true, ...(feast ? { feast: true as const } : {}) },
     };
   }
   return null;

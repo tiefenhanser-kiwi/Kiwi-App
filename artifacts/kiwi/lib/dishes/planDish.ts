@@ -39,7 +39,7 @@ export interface PlanDishView {
 export function planDishView(meal: MealDetail, dishId: string): PlanDishView | null {
   const dish = meal.dishes.find((d) => d.dishId === dishId);
   if (!dish) return null;
-  const bird = chosenBird(meal.dishes, meal.birdWeightLb);
+  const bird = chosenBird(meal.dishes, meal.birdWeightLb, isFeastMeal(meal.tags));
   const named = chosenBirdName(meal.dishes, meal.birdWeightLb);
   const birdName = named && named.dishId === dishId ? { birdName: { index: named.index, name: named.name } } : {};
   return {
