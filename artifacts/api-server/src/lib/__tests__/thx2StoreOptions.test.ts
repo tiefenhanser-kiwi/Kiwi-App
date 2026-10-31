@@ -34,7 +34,9 @@ import {
   STABLE_FINALIZE_PREFIX,
   STABLE_GENERATE_PREFIX,
   dishRangeSentence,
+  finalizePrefixFor,
   generatePrefixFor,
+  timeBudgetSection,
 } from "../storeFillPrompts";
 
 // Measured on `next` at 504b666, before any THX-2G edit; RE-PINNED by SAFE-1
@@ -378,5 +380,64 @@ describe("THX-2G — materializeMeal: dish tags and the non-public target", () =
     assert.equal(meal.sourceType, "batch_generated");
     assert.deepEqual(meal.tags, ["american", "easy", "thanksgiving"]);
     for (const d of dishes) assert.deepEqual(d.tags, ["thanksgiving", "course-sides"]);
+  });
+});
+
+// ── CAT-QUICK-1 (D-WS9-375) — the time budget + the acceptance hook ─────────
+
+describe("CAT-QUICK-1 — the time budget is appended to both prefixes, and only when given", () => {
+  const B = { totalMinutes: 30, maxSteps: 11 };
+  it("absent → the default prefixes themselves", () => {
+    assert.equal(generatePrefixFor({ timeBudget: undefined }), STABLE_GENERATE_PREFIX);
+    assert.equal(finalizePrefixFor(), STABLE_FINALIZE_PREFIX);
+    assert.equal(finalizePrefixFor({ timeBudget: undefined }), STABLE_FINALIZE_PREFIX);
+  });
+  it("given → the default bytes plus the section, stable across calls", () => {
+    assert.equal(generatePrefixFor({ timeBudget: B }), STABLE_GENERATE_PREFIX + timeBudgetSection("generate", B));
+    assert.equal(finalizePrefixFor({ timeBudget: B }), STABLE_FINALIZE_PREFIX + timeBudgetSection("finalize", B));
+    assert.equal(generatePrefixFor({ timeBudget: B }), generatePrefixFor({ timeBudget: { ...B } }));
+    for (const call of ["generate", "finalize"] as const) {
+      const s = timeBudgetSection(call, B);
+      assert.match(s, /30 minutes or less/);
+      assert.match(s, /at most 11 steps/);
+    }
+    assert.match(timeBudgetSection("finalize", B), /overrides "4–10 steps per dish"/);
+  });
+  it("composes with maxDishes: the dish-range variant, then the section", () => {
+    assert.equal(generatePrefixFor({ maxDishes: 2, timeBudget: B }), generatePrefixFor({ maxDishes: 2 }) + timeBudgetSection("generate", B));
+  });
+  it("refuses a budget outside its range", () => {
+    for (const bad of [{ totalMinutes: 5, maxSteps: 11 }, { totalMinutes: 30, maxSteps: 2 }, { totalMinutes: 30.5, maxSteps: 11 }]) {
+      assert.throws(() => timeBudgetSection("generate", bad));
+    }
+  });
+});
+
+describe("CAT-QUICK-1 — runStoreFill with a time budget and an acceptance hook", () => {
+  const B = { totalMinutes: 30, maxSteps: 11 };
+  it("sends the budget variants on both calls", async () => {
+    const meal = makeMeal();
+    const log: Recorded[] = [];
+    await runStoreFill({ prisma: fakePrisma(), runAICall: recordingRunAICall([ok(meal)], [ok(finalizeFor(meal))], log) }, { apply: false, limit: 1, dishes: [DISH], profiles: [PROFILE], timeBudget: B });
+    const [gen, fin] = log;
+    assert.equal(gen.opts.cachedSystemPrefix, generatePrefixFor({ timeBudget: B }));
+    assert.equal(fin.opts.cachedSystemPrefix, finalizePrefixFor({ timeBudget: B }));
+    assert.equal(gen.vars.generateInput, generateInput(DISH.dish, PROFILE), "the user body is unchanged");
+  });
+  it("a refusal skips the meal at stage accept and records nothing; null keeps it", async () => {
+    const seen: string[] = [];
+    const run = (verdict: string | null) => {
+      const meal = makeMeal();
+      return runStoreFill(
+        { prisma: fakePrisma(), runAICall: recordingRunAICall([ok(meal)], [ok(finalizeFor(meal))], []) },
+        { apply: false, limit: 1, dishes: [DISH], profiles: [PROFILE], acceptMeal: (c) => { seen.push(`${c.key}:${c.stepsPerDish.length}`); return verdict; } },
+      );
+    };
+    const refused = await run("over_budget:34");
+    assert.equal(refused.records.length, 0);
+    assert.deepEqual(refused.skips.map((s) => [s.stage, s.reason]), [["accept", "over_budget:34"]]);
+    const kept = await run(null);
+    assert.equal(kept.records.length, 1);
+    assert.deepEqual(seen, ["seared-chicken:2", "seared-chicken:2"]);
   });
 });

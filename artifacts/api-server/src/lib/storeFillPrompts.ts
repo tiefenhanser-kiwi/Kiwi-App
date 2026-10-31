@@ -374,6 +374,8 @@ export const DEFAULT_DISH_RANGE_SENTENCE = "- `dishes` — 1 to 3 dishes.";
 export interface GeneratePrefixOptions {
   /** Upper dish count for the meal; absent → the default prefix, unchanged. */
   maxDishes?: number;
+  /** CAT-QUICK-1 (D-WS9-375) — the time budget section; absent → no section. */
+  timeBudget?: TimeBudget;
 }
 
 /** The sentence that replaces DEFAULT_DISH_RANGE_SENTENCE under `maxDishes`. */
@@ -382,7 +384,8 @@ export function dishRangeSentence(maxDishes: number): string {
 }
 
 export function generatePrefixFor(opts: GeneratePrefixOptions = {}): string {
-  if (opts.maxDishes === undefined) return STABLE_GENERATE_PREFIX;
+  const budget = opts.timeBudget === undefined ? "" : timeBudgetSection("generate", opts.timeBudget);
+  if (opts.maxDishes === undefined) return STABLE_GENERATE_PREFIX + budget;
   if (!Number.isInteger(opts.maxDishes) || opts.maxDishes < 1 || opts.maxDishes > 12) {
     throw new Error(`generatePrefixFor: maxDishes must be an integer 1–12 (got ${opts.maxDishes})`);
   }
@@ -393,6 +396,63 @@ export function generatePrefixFor(opts: GeneratePrefixOptions = {}): string {
   return (
     STABLE_GENERATE_PREFIX.slice(0, at) +
     dishRangeSentence(opts.maxDishes) +
-    STABLE_GENERATE_PREFIX.slice(at + DEFAULT_DISH_RANGE_SENTENCE.length)
+    STABLE_GENERATE_PREFIX.slice(at + DEFAULT_DISH_RANGE_SENTENCE.length) +
+    budget
   );
+}
+
+// ── CAT-QUICK-1 (D-WS9-375) — a script-only time budget ─────────────────────
+// The quick-meals shelf: a meal that targets a time carries "≤M min wall-clock at
+// 4 servings, at most N steps" in BOTH prefixes — generate decides how much work
+// the dinner is (dishes, forms of the protein, what is cooked from scratch), and
+// finalize writes the steps and their minutes, so the step cap must reach it.
+// The section is APPENDED, so the default prefixes are untouched (sha256 pinned)
+// and a run that passes the same budget on every call caches its variant.
+// The store product a concept already uses rides the shortcut line (Shortcut
+// mode: a plain ingredient, no alternative); the budget section adds no new
+// store products of its own, and the dish's swappable components are unchanged.
+
+/** The version label a run records beside its output (the prefix is compiled, not seeded). */
+export const TIME_BUDGET_PROMPT_VERSION = "time-budget v1 (D-WS9-375)";
+
+export interface TimeBudget {
+  /** Wall-clock total from the fridge to the plate, as Kiwi derives it. */
+  totalMinutes: number;
+  /** Steps across every dish of the meal, base + scratch (bought steps excluded). */
+  maxSteps: number;
+}
+
+export function timeBudgetSection(call: "generate" | "finalize", b: TimeBudget): string {
+  if (!Number.isInteger(b.totalMinutes) || b.totalMinutes < 10 || b.totalMinutes > 120) {
+    throw new Error(`timeBudgetSection: totalMinutes must be an integer 10–120 (got ${b.totalMinutes})`);
+  }
+  if (!Number.isInteger(b.maxSteps) || b.maxSteps < 3 || b.maxSteps > 30) {
+    throw new Error(`timeBudgetSection: maxSteps must be an integer 3–30 (got ${b.maxSteps})`);
+  }
+  const head = `
+
+# Time budget — this dinner is for Kiwi's ${b.totalMinutes}-minute shelf
+
+Kiwi times every meal itself, from its steps: one cook, 4 servings, the from-scratch path (base steps plus every component's scratch steps), overlapping only where a step is genuinely unattended. This dinner must come out at ${b.totalMinutes} minutes or less on that clock, from opening the fridge to plating, with at most ${b.maxSteps} steps across all its dishes (bought-path steps do not count). The budget is met by choosing less work, never by quoting less time: every step keeps its honest minutes, and a dinner that does not fit is a failure even if each step's minutes look right.
+`;
+  if (call === "generate") {
+    return head + `
+Plan a dinner that fits:
+- KEEP THE DISH. The name is still binding; the budget changes how much work surrounds the dish, not what the dish is.
+- QUICK FORMS OF THE PROTEIN. Thin cutlets, boneless thighs cut small, shrimp, fish fillets, ground meat, thinly sliced steak, eggs, tofu, canned beans — never a whole roast, bone-in pieces, dried beans, or a marinade longer than the cooking it waits for.
+- AT MOST TWO DISHES, AND HANDS-ON TIME IS THE LIMIT. One cook cannot work two pans at once, so the supporting dish is no-cook or nearly so (a dressed green salad, sliced cucumbers, warmed bread) or cooks unattended while the main is worked (rice simmering, pasta boiling, a sheet pan roasting). A dish complete in itself needs no side. Never two dishes that both need a cook at the stove.
+- STORE PRODUCTS. A product named on the shortcut line is the recipe's own ingredient (# Shortcut mode). Do not add other store products to save time: everything else is cooked from scratch, and optional \`substitutions\` follow # Store-bought substitutions as always — but the timed path is the from-scratch one, so the from-scratch dinner itself must fit.
+`;
+  }
+  return head + `
+Write steps that fit:
+- AT MOST ${b.maxSteps} STEPS IN TOTAL across the meal's dishes, counting base and scratch steps. This total overrides "4–10 steps per dish": combine actions done at one station into one step ("Dice the onion and mince the garlic"), and give a simple side one or two steps.
+- START THE UNATTENDED WORK FIRST. Put the water on, preheat the oven or start the rice before the board work, and give each such step an honest \`firstDependent\`, so the chopping happens inside its window.
+- HONEST MINUTES. Never shorten a step's \`estimatedMinutes\` to fit the budget, and never mark an attended step unattended to buy overlap.
+`;
+}
+
+/** The finalize prefix: STABLE_FINALIZE_PREFIX itself with no budget, else it plus the section. */
+export function finalizePrefixFor(opts: { timeBudget?: TimeBudget } = {}): string {
+  return opts.timeBudget === undefined ? STABLE_FINALIZE_PREFIX : STABLE_FINALIZE_PREFIX + timeBudgetSection("finalize", opts.timeBudget);
 }

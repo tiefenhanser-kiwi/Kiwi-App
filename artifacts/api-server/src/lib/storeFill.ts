@@ -40,8 +40,9 @@ import { deriveParallelGroups, type DeriveIssue } from "./parallelGroupDerive";
 import { resolveIngredients } from "./ingredientResolve";
 import { TARGET_DISHES, type TargetDish } from "./storeFillDishes";
 import {
-  STABLE_FINALIZE_PREFIX,
+  finalizePrefixFor,
   generatePrefixFor,
+  type TimeBudget,
 } from "./storeFillPrompts";
 
 // ── the store-pool target (R1) ───────────────────────────────────────────────
@@ -688,6 +689,12 @@ export interface StoreFillOptions {
    *  (the Thanksgiving script caps make-ahead minutes and completes `replaces`).
    *  Absent → nothing runs. */
   postFinalize?: (meal: WizardExpandEnrichedMealDetails, finalize: WizardFinalizeStepsResult, targetDish: string) => void;
+  // ── CAT-QUICK-1 (D-WS9-375) — script-only, each absent is today's behaviour.
+  /** The time budget section on BOTH prefixes (generatePrefixFor / finalizePrefixFor). */
+  timeBudget?: TimeBudget;
+  /** Called on each merged meal and its payload BEFORE the write: a string is the reason it is
+   *  skipped (stage "accept", nothing written, key not reserved); null keeps it. */
+  acceptMeal?: (capture: StoreFillMealCapture, payload: MaterializeMealPayload) => string | null;
 }
 
 /** THX-2G — the materialize target for a run: STORE_FILL_TARGET unless `isPublic: false`. */
@@ -799,7 +806,9 @@ export async function runStoreFill(
   const nowMs = opts.nowMs ?? (() => Date.now());
   const startMs = nowMs();
   // THX-2G — each resolves to today's value when its option is absent.
-  const generatePrefix = generatePrefixFor({ maxDishes: opts.maxDishes });
+  const generatePrefix = generatePrefixFor({ maxDishes: opts.maxDishes, timeBudget: opts.timeBudget });
+  // CAT-QUICK-1 — STABLE_FINALIZE_PREFIX itself unless a time budget is given.
+  const finalizePrefix = finalizePrefixFor({ timeBudget: opts.timeBudget });
   const maxTokensOpt = opts.maxOutputTokens !== undefined ? { maxTokens: opts.maxOutputTokens } : {};
   const materializeTarget = storeFillTarget(opts.isPublic);
   const gate = opts.completeness === "single_dish" ? singleDishComplete : mealComplete;
@@ -910,7 +919,7 @@ export async function runStoreFill(
       "store.finalize_steps",
       { finalizeInput: finalizeInput(meal, opts.finalizeBrief) },
       WizardFinalizeStepsResultSchema,
-      { prisma, mode: "tool", cachedSystemPrefix: STABLE_FINALIZE_PREFIX, ...maxTokensOpt },
+      { prisma, mode: "tool", cachedSystemPrefix: finalizePrefix, ...maxTokensOpt },
     );
     accumulate(tokens, fin.metadata);
     if (!fin.success) {
@@ -935,6 +944,14 @@ export async function runStoreFill(
     // 4. Allergens + payload (stamped with the target-dish key + component registry).
     const allergens = deriveAllergens(meal);
     const payload = buildMaterializePayload(meal, merged.stepsPerDish, allergens, target.key, merged.registryPerDish, extras);
+
+    // 4b. CAT-QUICK-1 — the caller's acceptance (the quick shelf's derived time), before
+    //     the key is reserved, so a refused target can be generated again in a later run.
+    const refusal = opts.acceptMeal?.({ targetDish: target.dish, key: target.key, profileKey: profile.key, meal, stepsPerDish: merged.stepsPerDish }, payload) ?? null;
+    if (refusal !== null) {
+      skips.push({ targetDish: target.dish, profileKey: profile.key, stage: "accept", reason: refusal, title: meal.title });
+      consecutiveFailures = 0; progress(); continue;
+    }
 
     // 5. Persist (two-pass, one $transaction PER MEAL so an interrupted run
     //    keeps completed work and resumes safely). Reserve the key first.
