@@ -402,6 +402,8 @@ describe("CAT-QUICK-1 — the time budget is appended to both prefixes, and only
       assert.match(s, /at most 11 steps/);
     }
     assert.match(timeBudgetSection("finalize", B), /overrides "4–10 steps per dish"/);
+    assert.match(timeBudgetSection("finalize", B), /Every cut an ingredient note asks for is done in a step; fold the cuts into one prep step\./);
+    assert.doesNotMatch(timeBudgetSection("generate", B), /EVERY CUT IS A STEP/);
   });
   it("composes with maxDishes: the dish-range variant, then the section", () => {
     assert.equal(generatePrefixFor({ maxDishes: 2, timeBudget: B }), generatePrefixFor({ maxDishes: 2 }) + timeBudgetSection("generate", B));

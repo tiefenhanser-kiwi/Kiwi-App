@@ -54,7 +54,7 @@ async function main() {
     const payload = { ...r.payload, tags: [...new Set([...(r.payload.tags ?? []), ...(t.tags ?? [])])] };
     if (!apply) { console.log(`  #${r.n} would write "${payload.title}" · predicted ${r.predicted.total} · tags ${payload.tags.join(",")}`); continue; }
     const map = await resolveIngredients(prisma, collectMealMentions(payload));
-    const { mealId } = await prisma.$transaction((tx) => materializeMeal(tx, "", payload, map, STORE_FILL_TARGET));
+    const { mealId } = await prisma.$transaction((tx) => materializeMeal(tx, "", payload, map, STORE_FILL_TARGET), { timeout: 60_000 });
     const m = await prisma.meal.findUniqueOrThrow({ where: { id: mealId }, select: { estimatedTimeMinutes: true, activeTimeMinutes: true } });
     if (m.estimatedTimeMinutes !== r.predicted.total || m.estimatedTimeMinutes > BUDGET.totalMinutes) {
       await deleteMeal(prisma, mealId);

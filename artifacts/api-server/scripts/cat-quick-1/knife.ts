@@ -8,28 +8,56 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { assertScriptDatabase } from "../../src/lib/scripts/requireDatabaseHost";
-import { OUT, type GenRecord } from "./generate";
+import type { GenRecord } from "./generate";
 
-const CUT_NOTE = /\b(dic|minc|slic|chop|grat|shred|julienn|zest|peel|trim|halv|quarter|cub|crush|torn|tear)\w*/i;
-const KNIFE_STEP = /\b(dice|mince|slice|chop|grate|shred|julienne|zest|peel|trim|halve|quarter|cube|cut|tear|crush|smash|core|seed|juice|squeeze)\w*/i;
+const OUT = "scripts/output/cat-quick-1"; // generate.ts imports this module: no value import back
+
+const CUT_NOTE = /\b(chopped|minced|diced|sliced|grated|shredded|julienned|zested|zest|peeled|trimmed|halved|quartered|cubed|crushed|torn|cut|pitted|cored|seeded)\b/i;
+// Seconds of work at the table, not knife time: a garnish torn, grated or shaved over the plate.
+const FINISHING = (note: string) => /\b(torn|grated|shaved|wedges)\b/i.test(note) && /\b(serv|garnish|finish|topping)/i.test(note);
+// The form the cook buys, not a cut: shrimp sold "peeled and deveined".
+const BOUGHT_FORM = (name: string, note: string) => /\b(shrimp|prawns?)\b/i.test(name) && /\bpeeled and deveined\b/i.test(note);
+// The cut as an instruction, not a description: a clause that opens with a knife verb ("Slice the
+// onions", "…, then mince the garlic", "zest and juice the lemon") — "add the thinly sliced onions"
+// describes a cut, it does not do one. Clauses split on sentences and commas only, so a verb pair
+// ("dice the onion and mince the garlic") stays one clause.
+const KNIFE_CLAUSE = /^(?:(?:and|then)\s+)*(?:finely |thinly |roughly |coarsely |lightly )?(dice|mince|slice|chop|grate|shred|julienne|zest|peel|trim|halve|quarter|cube|cut|tear|crush|smash|core|seed|pit|butterfly|pound)\b/i;
+const CLAUSE_SPLIT = /[.;:!]\s*|,\s*/;
 // Bought pre-cut, or nothing to cut: not knife work.
 const PRECUT = /\b(canned|jarred|bagged|pre-?\w+|frozen|shredded (?:cheese|mozzarella|cheddar)|store-bought|deli|ground)\b/i;
+// Words in an ingredient name that do not name the food.
+const GENERIC = new Set(["fresh", "large", "small", "medium", "each", "whole", "cloves", "clove", "leaves", "leaf", "boneless", "skinless", "extra", "virgin", "unsalted", "salted", "dried", "sweet", "yellow", "white", "green", "red", "flat", "italian", "english", "baby", "ripe", "firm", "hearts", "fillets", "loaf"]);
 
 export interface Ing { name: string; note: string | null }
 export interface KDish { ingredients: Ing[]; steps: string[] }
 
-/** The cut ingredients of a dish that no step cuts (head word = the name's last word ≥3 letters). */
+/** The cut ingredients of a dish that no step cuts: a step that opens a clause with a knife verb and names the food. */
 export function uncutIngredients(d: KDish): string[] {
   const out: string[] = [];
   for (const i of d.ingredients) {
-    if (!i.note || !CUT_NOTE.test(i.note) || PRECUT.test(`${i.name} ${i.note}`)) continue;
-    const words = i.name.toLowerCase().replace(/[^a-z ]/g, " ").split(/\s+/).filter((w) => w.length >= 3);
-    const head = (words[words.length - 1] ?? "").replace(/(es|s)$/, "");
-    if (!head) continue;
-    const cut = d.steps.some((s) => KNIFE_STEP.test(s) && s.toLowerCase().includes(head));
+    if (!i.note || !CUT_NOTE.test(i.note) || FINISHING(i.note) || BOUGHT_FORM(i.name, i.note) || PRECUT.test(`${i.name} ${i.note}`)) continue;
+    const words = i.name.toLowerCase().replace(/[^a-z ]/g, " ").split(/\s+/).filter((w) => w.length >= 3 && !GENERIC.has(w)).map((w) => w.replace(/(es|s)$/, ""));
+    if (!words.length) continue;
+    // A knife clause cuts what it names; "halve them" cuts what the sentence named before it.
+    const cut = d.steps.some((s) => s.split(/(?<=[.;!])\s+/).some((sentence) => {
+      const clauses = sentence.split(CLAUSE_SPLIT);
+      return clauses.some((c, k) => {
+        if (!KNIFE_CLAUSE.test(c.trim())) return false;
+        const scope = /\b(them|it)\b/i.test(c) ? clauses.slice(0, k + 1).join(" ") : c;
+        return words.some((w) => scope.toLowerCase().includes(w));
+      });
+    }));
     if (!cut) out.push(`${i.name} (${i.note})`);
   }
   return out;
+}
+
+/** A generated payload's uncut ingredients, default path only. */
+export function uncutInPayload(p: { dishes: Array<{ kind: string; ingredients?: { name: string; preparationNote?: string | null }[]; steps?: { text: string; pathKey?: string | null }[] }> }): string[] {
+  return p.dishes.flatMap((d) => d.kind !== "new" ? [] : uncutIngredients({
+    ingredients: (d.ingredients ?? []).map((i) => ({ name: i.name, note: i.preparationNote ?? null })),
+    steps: (d.steps ?? []).filter((s) => s.pathKey !== "bought").map((s) => s.text),
+  }));
 }
 
 async function main() {

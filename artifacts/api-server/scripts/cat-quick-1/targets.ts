@@ -5,9 +5,9 @@
 // IP rule): Kiwi writes its own recipe from the name through the store prompts. `shortcut` is
 // ONLY a product the concept itself names (rotisserie chicken, instant ramen, frozen dumplings…);
 // it rides the shortcut line (Shortcut mode: a plain ingredient, no from-scratch alternative).
-// `tags` are the concept's pantry / fridge-rescue tags (D, for NOW-1). `replacesKm30` is the
-// km30 meal this concept already exists as at >35 minutes (Hans's rule: build; if the new one
-// stamps ≤30, archive the old one in the same commit).
+// `tags`: the concept's pantry and fridge-rescue tags, both written as the one visible tag
+// "pantry" (Hans), for NOW-1. `replacesKm30` is the km30 meal this concept already exists as at
+// >35 minutes (Hans's rule: build; if the new one stamps ≤30, archive the old one in the same commit).
 
 export interface QuickTarget {
   n: number;
@@ -15,7 +15,7 @@ export interface QuickTarget {
   cuisine: string;
   protein: string;
   shortcut?: string;
-  tags?: ("pantry" | "fridge-rescue")[];
+  tags?: "pantry"[];
   replacesKm30?: string;
 }
 
@@ -51,7 +51,7 @@ export const TARGETS: QuickTarget[] = [
   { n: 39, title: "Moo Shu Pork Wraps", cuisine: "Chinese-American", protein: "pork", shortcut: "bagged coleslaw mix; flour tortillas" },
   { n: 42, title: "Chili-Lime Air Fryer Salmon", cuisine: "Mexican-American", protein: "salmon" },
   { n: 43, title: "Hot Honey Salmon Bites Bowl", cuisine: "American", protein: "salmon", shortcut: "bottled hot honey" },
-  { n: 44, title: "Leftover Salmon Rice Bowl with Kewpie Mayo and Seaweed", cuisine: "Japanese-American", protein: "salmon", shortcut: "leftover cooked salmon; cooked rice (leftover or a microwavable pouch); roasted seaweed snacks", tags: ["fridge-rescue"] },
+  { n: 44, title: "Leftover Salmon Rice Bowl with Kewpie Mayo and Seaweed", cuisine: "Japanese-American", protein: "salmon", shortcut: "leftover cooked salmon; cooked rice (leftover or a microwavable pouch); roasted seaweed snacks", tags: ["pantry"] },
   { n: 45, title: "Salmon Piccata", cuisine: "Italian-American", protein: "salmon" },
   { n: 48, title: "White Fish Taco Foil Packets with Lime Cabbage Slaw", cuisine: "Mexican-American", protein: "fish" },
   { n: 50, title: "One-Pan Chimichurri Shrimp", cuisine: "Argentinian", protein: "shrimp" },
@@ -99,8 +99,8 @@ export const TARGETS: QuickTarget[] = [
   { n: 99, title: "Sheet-Pan Green Chile Chicken Nachos", cuisine: "Tex-Mex", protein: "chicken", shortcut: "rotisserie chicken; tortilla chips" },
   { n: 101, title: "Marry Me Beans with Crusty Bread", cuisine: "Italian-American", protein: "legume", tags: ["pantry"] },
   { n: 102, title: "Linguine with Tuna, Capers and Lemon", cuisine: "Italian", protein: "fish", tags: ["pantry"] },
-  { n: 103, title: "Kimchi and Spam Fried Rice", cuisine: "Korean", protein: "pork", shortcut: "day-old cooked rice", tags: ["pantry", "fridge-rescue"] },
-  { n: 105, title: "Clean-Out-the-Fridge Chicken and Vegetable Quesadillas", cuisine: "Tex-Mex", protein: "chicken", shortcut: "leftover cooked chicken; jarred salsa", tags: ["fridge-rescue"] },
+  { n: 103, title: "Kimchi and Spam Fried Rice", cuisine: "Korean", protein: "pork", shortcut: "day-old cooked rice", tags: ["pantry"] },
+  { n: 105, title: "Clean-Out-the-Fridge Chicken and Vegetable Quesadillas", cuisine: "Tex-Mex", protein: "chicken", shortcut: "leftover cooked chicken; jarred salsa", tags: ["pantry"] },
   { n: 107, title: "Pasta e Ceci", cuisine: "Italian", protein: "legume", tags: ["pantry"] },
   { n: 108, title: "Spinach, Black Bean and Chipotle Quesadillas", cuisine: "Tex-Mex", protein: "legume", tags: ["pantry"] },
   { n: 109, title: "White Bean and Tuna Salad with Arugula", cuisine: "Italian", protein: "fish", tags: ["pantry"] },

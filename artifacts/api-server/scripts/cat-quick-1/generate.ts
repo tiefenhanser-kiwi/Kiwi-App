@@ -26,16 +26,19 @@ import { assertScriptDatabase } from "../../src/lib/scripts/requireDatabaseHost"
 import { computeCacheAwareCostUsd, emptyTokenTotals, runStoreFill, type TokenTotals } from "../../src/lib/storeFill";
 import type { TargetDish } from "../../src/lib/storeFillDishes";
 import { TIME_BUDGET_PROMPT_VERSION, type TimeBudget } from "../../src/lib/storeFillPrompts";
+import { uncutInPayload } from "./knife";
 import { keyFor, TARGETS, type QuickTarget } from "./targets";
 
 export const OUT = "scripts/output/cat-quick-1";
 export const BUDGET: TimeBudget = { totalMinutes: 30, maxSteps: 11 };
 const SPEND_FILE = join(OUT, "spend.json");
 
-/** The stamp the write will produce: the payload's steps through deriveMealTiming (dish order = position). */
+/** The stamp the write will produce: the payload's steps through deriveMealTiming (dish order = position).
+ *  The title is the dish id, as stampMealTiming passes it on an everyday meal: the scheduler's
+ *  title rules (a salad served cold) would move the number (#107: 24 with titles, 27 stamped). */
 export function predictTiming(p: MaterializeMealPayload): { total: number | null; active: number | null; steps: number; dishes: number } {
   const dishes: SchedulerDish[] = p.dishes.flatMap((d, i) => d.kind !== "new" ? [] : [{
-    dishId: `d${i}`, title: d.title, positionIndex: d.positionIndex,
+    dishId: `d${i}`, title: `d${i}`, positionIndex: d.positionIndex,
     steps: d.steps.map((s, k) => ({ stepIndex: k, estimatedMinutes: Math.max(1, s.estimatedMinutes ?? 1), phaseType: (s.phaseType ?? "cook") as SchedulerPhase, isTimingSensitive: s.isTimingSensitive ?? false, parallelGroup: s.parallelGroup ?? null, componentKey: s.componentKey ?? null, pathKey: s.pathKey ?? null })),
   }]);
   const t = deriveMealTiming(dishes);
@@ -47,6 +50,8 @@ export interface GenRecord {
   n: number; key: string; title: string; target: string; payload: MaterializeMealPayload;
   predicted: { total: number | null; active: number | null; steps: number; dishes: number };
   hidden?: string[];
+  /** Cuts an ingredient note asks for that no step does (knife.ts). */
+  uncut?: string[];
   rework?: string;
 }
 
@@ -64,8 +69,8 @@ export function hiddenWork(p: MaterializeMealPayload, t: QuickTarget): string[] 
   return out;
 }
 
-/** Accepted: stamps within the budget and hides no cooked ingredient. */
-export const accepted = (r: GenRecord) => r.predicted.total !== null && r.predicted.total <= BUDGET.totalMinutes && (r.hidden ?? []).length === 0;
+/** Accepted: stamps within the budget, hides no cooked ingredient, leaves no cut to a note. */
+export const accepted = (r: GenRecord) => r.predicted.total !== null && r.predicted.total <= BUDGET.totalMinutes && (r.hidden ?? []).length === 0 && (r.uncut ?? []).length === 0;
 
 function toTargetDish(t: QuickTarget, i: number): TargetDish {
   return { rank: i + 1, dish: t.title, key: keyFor(t), category: t.cuisine, parentDish: t.title, band: "midtail", siblingCount: 1, shortcut: t.shortcut };
@@ -119,14 +124,17 @@ async function main() {
     const hid = p?.hidden?.length
       ? `listed ${p.hidden.join(", ")} already cooked, with no step that cooks it — time the clock never saw. Every component is cooked in this recipe's own steps unless the shortcut line names it: cook it in a step, or leave it out.`
       : "";
-    const brief = p ? `This dinner was generated once already and ${[over, hid].filter(Boolean).join(" It also ")}` : undefined;
+    const unc = p?.uncut?.length
+      ? `left cuts to the ingredient notes with no step that does them (${p.uncut.join("; ")}): every cut an ingredient note asks for is done in a step, folded into one prep step, and its minutes count.`
+      : "";
+    const brief = p ? `This dinner was generated once already and ${[over, hid, unc].filter(Boolean).join(" It also ")}` : undefined;
     const r = await runStoreFill(
       { prisma, runAICall: guarded },
       {
         apply: false, limit: 1, dishes: [toTargetDish(t, i)], profiles: [{ key: "quick-4-easy", servings: 4, difficulty: "easy" }],
         maxCostUsd: Math.max(0.01, cap - spent.spentUsd), maxCalls: 6, rate, timeBudget: BUDGET, brief, finalizeBrief: undefined,
         acceptMeal: (c, payload) => {
-          records.push({ n: t.n, key: c.key, title: payload.title, target: t.title, payload, predicted: predictTiming(payload), hidden: hiddenWork(payload, t), ...(brief ? { rework: brief } : {}) });
+          records.push({ n: t.n, key: c.key, title: payload.title, target: t.title, payload, predicted: predictTiming(payload), hidden: hiddenWork(payload, t), uncut: uncutInPayload(payload), ...(brief ? { rework: brief } : {}) });
           return null;
         },
         log: () => {},
@@ -136,7 +144,7 @@ async function main() {
     for (const c of r.completenessRejections) skips.push(`#${t.n} completeness retry ${c.attempt}: ${c.reason}`);
     for (const s of r.skips.filter((x) => x.stage === "dedup")) skips.push(`#${t.n} already in the catalog (${t.title})`);
     const rec = records.find((x) => x.n === t.n);
-    console.log(`#${String(t.n).padStart(3)} ${rec ? `${String(rec.predicted.total).padStart(3)} min (${rec.predicted.active} hands-on) · ${rec.predicted.steps} steps · ${rec.predicted.dishes} dishes · ${rec.title}${rec.hidden?.length ? ` · HIDDEN WORK: ${rec.hidden.join(", ")}` : ""}` : "— no meal"} · $${(spent.spentUsd + computeCacheAwareCostUsd(thisRun, rate)).toFixed(3)}`);
+    console.log(`#${String(t.n).padStart(3)} ${rec ? `${String(rec.predicted.total).padStart(3)} min (${rec.predicted.active} hands-on) · ${rec.predicted.steps} steps · ${rec.predicted.dishes} dishes · ${rec.title}${rec.hidden?.length ? ` · HIDDEN WORK: ${rec.hidden.join(", ")}` : ""}${rec.uncut?.length ? ` · UNCUT: ${rec.uncut.join("; ")}` : ""}` : "— no meal"} · $${(spent.spentUsd + computeCacheAwareCostUsd(thisRun, rate)).toFixed(3)}`);
     writeFileSync(join(OUT, label, "gen.json"), JSON.stringify(records, null, 1));
   }
   await prisma.$disconnect();

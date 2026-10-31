@@ -413,7 +413,9 @@ export function generatePrefixFor(opts: GeneratePrefixOptions = {}): string {
 // store products of its own, and the dish's swappable components are unchanged.
 
 /** The version label a run records beside its output (the prefix is compiled, not seeded). */
-export const TIME_BUDGET_PROMPT_VERSION = "time-budget v1 (D-WS9-375)";
+// v2 (CAT-QUICK-1 batch 1): the step cap pushed cuts into ingredient notes ("halved into cutlets",
+// "thinly sliced") with no step that does them, so the finalize section names it.
+export const TIME_BUDGET_PROMPT_VERSION = "time-budget v2 (D-WS9-375)";
 
 export interface TimeBudget {
   /** Wall-clock total from the fridge to the plate, as Kiwi derives it. */
@@ -447,6 +449,7 @@ Plan a dinner that fits:
   return head + `
 Write steps that fit:
 - AT MOST ${b.maxSteps} STEPS IN TOTAL across the meal's dishes, counting base and scratch steps. This total overrides "4–10 steps per dish": combine actions done at one station into one step ("Dice the onion and mince the garlic"), and give a simple side one or two steps.
+- EVERY CUT IS A STEP. Every cut an ingredient note asks for is done in a step; fold the cuts into one prep step.
 - START THE UNATTENDED WORK FIRST. Put the water on, preheat the oven or start the rice before the board work, and give each such step an honest \`firstDependent\`, so the chopping happens inside its window.
 - HONEST MINUTES. Never shorten a step's \`estimatedMinutes\` to fit the budget, and never mark an attended step unattended to buy overlap.
 `;
