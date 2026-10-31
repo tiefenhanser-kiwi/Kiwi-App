@@ -525,7 +525,7 @@ function passiveStateOf(step: SchedulerStep, text: string, coldDish: boolean): P
 // words: a cook step is in the oven, simmering, steaming, in the slow cooker or (other
 // heat) cooking — its heat first; a hands-free step is chilling, marinating, pickling,
 // soaking, steaming, resting or sitting. Nothing recognisable: no cue (BUG-337's
-// silence). A feast's cues are frozen (passiveStateOf, unchanged).
+// silence). SERVER-13 D (BUG-628): a feast's cues read the same way (composeCue).
 export type CookState = PassiveState | "simmering" | "in the oven" | "steaming" | "in the slow cooker" | "in the microwave" | "pickling" | "soaking" | "sitting";
 const SIMMERING = /\b(?:simmer\w*|boil\w*|braise\w*|poach\w*|on the lowest heat|reduce (?:the )?heat to (?:low|medium-low))\b/i;
 const STEAMING = /\bsteam\w*\b/i;
@@ -3763,7 +3763,7 @@ function scheduleOnceCore(
       sequenceIndex: seqIdx,
       startOffsetMinutes: w.actualStart - serveAnchor,
     };
-    const cue = composeCue(w, ordered, seqIdx, coldDishIds, !oven && !blocks);
+    const cue = composeCue(w, ordered, seqIdx, coldDishIds);
     if (cue) entry.reason = cue;
     return entry;
   });
@@ -3807,8 +3807,6 @@ function composeCue(
   ordered: WorkStep[],
   seqIdx: number,
   coldDishIds: ReadonlySet<string>,
-  /** SEQ-1 (BUG-596) — an everyday meal's cue says what the dish is really doing (cookStateOf); a feast's is frozen. */
-  everyday = false,
 ): string | undefined {
   if (seqIdx === 0) return undefined;
   const prev = ordered[seqIdx - 1];
@@ -3831,9 +3829,11 @@ function composeCue(
   );
   if (!window) return undefined;
 
-  const state = everyday
-    ? cookStateOf(window.step, window.step.text ?? "", coldDishIds.has(window.dishId), window.dishTitle)
-    : passiveStateOf(window.step, window.step.text ?? "", coldDishIds.has(window.dishId));
+  // SEQ-1 (BUG-596) — the cue says what the dish is really doing (cookStateOf).
+  // SERVER-13 D (BUG-628) — a feast's too: its cues were frozen on passiveStateOf,
+  // whose `brin\w*` read "Bring to a boil" as brining ("With the Mashed Potatoes
+  // marinating"). Only the words: a feast's steps, order and times are its own.
+  const state = cookStateOf(window.step, window.step.text ?? "", coldDishIds.has(window.dishId), window.dishTitle);
   // Nothing honest to say about what that dish is doing → no cue. Silence is a
   // correct answer here; a confident wrong one is what BUG-337 is about.
   if (state === null) return undefined;
