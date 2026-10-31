@@ -302,6 +302,103 @@ export function instanceToSummary(row: InstanceRow): PlanSummary {
   };
 }
 
+// ── SERVER-13 B (BUG-467) — EVERY PLAN, AND A SEARCH ─────────────────────────
+//
+// GET /plans read each filter `take: 100` (PLAN_FETCH_CAP) and paged the merged
+// union in memory, so a user's plan past row 100 could never be reached (Hans's
+// account has 157), and the Plans tab's search filtered only the client's first
+// page. The user's own plans now page IN THE DATABASE on (createdAt, id), newest
+// first, with no cap; `?q=` is searched server side over the plan's title, its
+// template's title (D-WS7-048) and its meals' titles, case-insensitive. The
+// public template facets (featured, top_rated, hosting_events) are catalog pools
+// bounded by their own windows; they follow the user's plans, as they always did,
+// and page in memory by id.
+
+/** The longest `?q=` read; a longer one is cut, not refused. */
+export const PLAN_SEARCH_MAX = 100;
+
+/** `?q=` → the search words, or null for no search (absent, blank). */
+export function planSearchTerm(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const q = raw.replace(/\s+/g, " ").trim().slice(0, PLAN_SEARCH_MAX).trim();
+  return q.length > 0 ? q : null;
+}
+
+/**
+ * The words as a LIKE literal. Prisma's `contains` does not escape PostgreSQL's
+ * wildcards: on dev, `?q=%` and `?q=_` matched every one of Hans's plans.
+ */
+export function likeLiteral(q: string): string {
+  return q.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
+const contains = (q: string) => ({ contains: likeLiteral(q), mode: "insensitive" as const });
+
+/** A plan matches when its title, its template's title or any meal's title holds `q`. */
+export function instanceSearchWhere(q: string): Prisma.MealPlanInstanceWhereInput {
+  return {
+    OR: [
+      { titleOverride: contains(q) },
+      { template: { title: contains(q) } },
+      { items: { some: { meal: { title: contains(q) } } } },
+    ],
+  };
+}
+
+/** A template matches when its title or any of its meals' titles holds `q`. */
+export function templateSearchWhere(q: string): Prisma.MealPlanTemplateWhereInput {
+  return { OR: [{ title: contains(q) }, { items: { some: { meal: { title: contains(q) } } } }] };
+}
+
+/**
+ * The page cursor, opaque to the client (base64url JSON). `m` is a position in the
+ * user's own plans, (createdAt, id) of the last row shown; `t` is a position in the
+ * template facets that follow them, the id of the last row shown ("" = their start).
+ */
+export type PlanPageCursor = { p: "m"; c: string; i: string } | { p: "t"; i: string };
+
+export function encodePlanCursor(c: PlanPageCursor): string {
+  return Buffer.from(JSON.stringify(c), "utf8").toString("base64url");
+}
+
+/** null for anything that is not a cursor this module wrote (a legacy id cursor included). */
+export function decodePlanCursor(raw: string): PlanPageCursor | null {
+  try {
+    const v = JSON.parse(Buffer.from(raw, "base64url").toString("utf8")) as Partial<{ p: string; c: string; i: string }>;
+    if (v.p === "m" && typeof v.c === "string" && !Number.isNaN(Date.parse(v.c)) && typeof v.i === "string" && v.i.length > 0) return { p: "m", c: v.c, i: v.i };
+    if (v.p === "t" && typeof v.i === "string") return { p: "t", i: v.i };
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** The where that keeps the user's own plans (my_plans), searched when `q` is set. */
+export function myPlansWhere(userId: string, q: string | null): Prisma.MealPlanInstanceWhereInput {
+  return { userId, isArchived: false, isWizardDraft: false, ...(q ? instanceSearchWhere(q) : {}) };
+}
+
+/**
+ * One page of the user's own plans, newest first, after `after` (exclusive). Reads
+ * `take` rows; the caller asks for one more than it shows to know whether more follow.
+ */
+export async function resolveMyPlansPage(
+  prisma: PrismaClient,
+  args: { userId: string; q: string | null; after: { createdAt: Date; id: string } | null; take: number; winnerId: string | null },
+): Promise<{ items: PlanListItem[]; keys: { createdAt: Date; id: string }[] }> {
+  const { after } = args;
+  const base = myPlansWhere(args.userId, args.q);
+  const rows = await prisma.mealPlanInstance.findMany({
+    where: after
+      ? { AND: [base, { OR: [{ createdAt: { lt: after.createdAt } }, { createdAt: after.createdAt, id: { lt: after.id } }] }] }
+      : base,
+    include: INSTANCE_TEMPLATE_INCLUDE,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: args.take,
+  });
+  return { items: rows.map((r) => instanceToListItem(r, args.winnerId)), keys: rows.map((r) => ({ createdAt: r.createdAt, id: r.id })) };
+}
+
 // Resolve a single filter key into PlanListItems. `limit` caps the row count
 // (the /home discovery cards pass 5; /plans passes its page size).
 //
@@ -317,6 +414,8 @@ export async function resolvePlansForFilter(
   now: Date,
   limit: number,
   winnerId: string | null,
+  // SERVER-13 B — `?q=`, searched in the database (null: no search).
+  q: string | null = null,
 ): Promise<PlanListItem[]> {
   if (filter === "my_plans") {
     // WS7-4-C c7: exclude soft-deleted (composted) plans. MealPlanInstance
@@ -339,7 +438,7 @@ export async function resolvePlansForFilter(
     // INSTANCE_TEMPLATE_INCLUDE becomes a COMPILE error instead of an
     // undefined at runtime (the BUG-068/076 defect class).
     const rows = await prisma.mealPlanInstance.findMany({
-      where: { userId, isArchived: false, isWizardDraft: false },
+      where: myPlansWhere(userId, q),
       include: INSTANCE_TEMPLATE_INCLUDE,
       orderBy: { createdAt: "desc" },
       take: limit,
@@ -348,13 +447,15 @@ export async function resolvePlansForFilter(
   }
 
   if (filter === "featured" || filter === "hosting_events") {
-    const where: Prisma.MealPlanTemplateWhereInput = {
+    const facet: Prisma.MealPlanTemplateWhereInput = {
       isPublic: true,
       isArchived: false,
       ...(filter === "featured"
         ? featuredWhere(now)
         : hostingFeaturedWhere(now)),
     };
+    // SERVER-13 B — nested, never spread: the facet's window is an `AND` of its own.
+    const where: Prisma.MealPlanTemplateWhereInput = q ? { AND: [facet, templateSearchWhere(q)] } : facet;
     // WS9-2 2c Commit 1 — NO `as TemplateRow[]` assertion (see my_plans above).
     // TEMPLATE_SELECT is the single source of the projection; an inline select
     // that omitted `imageUrl` here would now fail to typecheck against
@@ -381,7 +482,7 @@ export async function resolvePlansForFilter(
   const settings = await getTopRatedSettings(prisma);
   // WS9-2 2c Commit 1 — NO `as TemplateRow[]` assertion (see above).
   const rows = await prisma.mealPlanTemplate.findMany({
-    where: { isPublic: true, isArchived: false },
+    where: { isPublic: true, isArchived: false, ...(q ? templateSearchWhere(q) : {}) },
     select: TEMPLATE_SELECT,
     orderBy: [
       { topRatedScore: { sort: "desc", nulls: "last" } },

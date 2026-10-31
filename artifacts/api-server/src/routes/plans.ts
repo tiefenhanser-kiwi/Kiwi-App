@@ -57,17 +57,22 @@ import { computeDietaryStale } from "../lib/planStaleness";
 import {
   clampLimit,
   mergeById,
-  paginateById,
   parseFilterParam,
 } from "../lib/listQuery";
 import {
+  decodePlanCursor,
+  encodePlanCursor,
   instanceToSummary,
   INSTANCE_TEMPLATE_INCLUDE,
+  myPlansWhere,
   PLAN_FILTER_KEYS,
+  planSearchTerm,
+  resolveMyPlansPage,
   resolvePlansForFilter,
   toYmd,
   type InstanceRow,
   type PlanListItem,
+  type PlanPageCursor,
 } from "../lib/planQueries";
 import { LocalDateSchema } from "../lib/ai/schemas/wizard";
 import {
@@ -127,10 +132,12 @@ export interface PlansRouterDeps {
   now?: () => Date;
 }
 
-// Per-filter fetch cap for GET /plans. Each filter is resolved up to this
-// many rows; the merged union is then cursor-paginated down to the page
-// `limit`. 100 (the max page size) keeps page 2+ reachable across the union.
-const PLAN_FETCH_CAP = 100;
+// SERVER-13 B (BUG-467) — PLAN_FETCH_CAP (100 per filter, the union paged in
+// memory) is gone: the user's own plans page in the database at the page limit.
+// This cap is the public template facets' alone (featured, hosting_events,
+// top_rated), catalog pools bounded by their own windows — 100 per facet, never
+// the user's plans.
+const TEMPLATE_FACET_CAP = 100;
 
 // BUG-386 — how long after an add an identical add counts as its retry.
 const PLAN_ITEM_RETRY_WINDOW_MS = 60_000;
@@ -415,6 +422,8 @@ export function createPlansRouter(
       typeof req.query.cursor === "string" && req.query.cursor.length > 0
         ? req.query.cursor
         : undefined;
+    // SERVER-13 B — `?q=`, searched server side (lib/planQueries.ts).
+    const q = planSearchTerm(req.query.q);
     // Post-pass Part E (BUG-282) — the this-week winner reads in the client's
     // calendar day when `?localDate=` is sent (same seam as GET /home), else
     // the server's UTC day. The mobile list does not send it yet.
@@ -434,21 +443,60 @@ export function createPlansRouter(
       // "this week").
       const winnerId = await resolveThisWeekWinnerId(prisma, userId, now);
 
-      const blocks: PlanListItem[][] = [];
-      for (const key of parsed.keys) {
-        blocks.push(
-          await resolvePlansForFilter(
-            prisma,
-            key,
-            userId,
-            now,
-            PLAN_FETCH_CAP,
-            winnerId,
-          ),
-        );
+      // SERVER-13 B (BUG-467) — the user's own plans page in the database on
+      // (createdAt, id), newest first, with no cap; the template facets follow
+      // them, paged in memory (lib/planQueries.ts). A cursor this route wrote
+      // before (a bare row id, paginateById's) is read as the same position.
+      const mine = parsed.keys.includes("my_plans");
+      const facets = parsed.keys.filter((k) => k !== "my_plans");
+      let facetPool: PlanListItem[] | null = null;
+      const facetRows = async () => {
+        if (facetPool) return facetPool;
+        const blocks: PlanListItem[][] = [];
+        for (const key of facets) {
+          blocks.push(await resolvePlansForFilter(prisma, key, userId, now, TEMPLATE_FACET_CAP, winnerId, q));
+        }
+        return (facetPool = mergeById(blocks));
+      };
+
+      let at: PlanPageCursor | null = mine ? null : { p: "t", i: "" };
+      let unknownCursor = false;
+      if (cursor) {
+        at = decodePlanCursor(cursor);
+        if (!at) {
+          const own = mine
+            ? await prisma.mealPlanInstance.findFirst({ where: { ...myPlansWhere(userId, q), id: cursor }, select: { id: true, createdAt: true } })
+            : null;
+          if (own) at = { p: "m", c: own.createdAt.toISOString(), i: own.id };
+          else if ((await facetRows()).some((r) => r.id === cursor)) at = { p: "t", i: cursor };
+          else unknownCursor = true;
+        }
       }
-      const merged = mergeById(blocks);
-      const { page, nextCursor } = paginateById(merged, cursor, limit);
+
+      const page: PlanListItem[] = [];
+      let nextCursor: string | null = null;
+      if (!unknownCursor && at?.p !== "t" && mine) {
+        const after = at?.p === "m" ? { createdAt: new Date(at.c), id: at.i } : null;
+        const { items, keys } = await resolveMyPlansPage(prisma, { userId, q, after, take: limit + 1, winnerId });
+        page.push(...items.slice(0, limit));
+        if (items.length > limit) {
+          const last = keys[limit - 1];
+          nextCursor = encodePlanCursor({ p: "m", c: last.createdAt.toISOString(), i: last.id });
+        } else {
+          at = { p: "t", i: "" };
+        }
+      }
+      if (!unknownCursor && nextCursor === null && at?.p === "t" && facets.length > 0) {
+        const pool = await facetRows();
+        const from = at.i === "" ? 0 : pool.findIndex((r) => r.id === at!.i) + 1;
+        const start = from > 0 || at.i === "" ? from : pool.length;
+        const room = limit - page.length;
+        const slice = pool.slice(start, start + room);
+        page.push(...slice);
+        if (start + room < pool.length) {
+          nextCursor = encodePlanCursor({ p: "t", i: slice.length > 0 ? slice[slice.length - 1].id : at.i });
+        }
+      }
 
       // activeThisWeek — the pinned This-Week callout the Plans tab consumes
       // (PRD §9.2.1). WS7-6 (E) Block 1 REWORK: "active" is the resolver
@@ -466,7 +514,9 @@ export function createPlansRouter(
         ? instanceToSummary(activeRow as unknown as InstanceRow)
         : null;
 
-      return res.json({ plans: page, activeThisWeek, nextCursor });
+      // SERVER-13 B — `items` is CLIENT-9's name for the page; `plans` (the same
+      // array) is what today's apps read. Drop `plans` once they are gone.
+      return res.json({ plans: page, items: page, activeThisWeek, nextCursor });
     } catch (err) {
       logger.error({ err, userId }, "GET /plans failed");
       return res.status(500).json({ error: "failed to list plans" });
