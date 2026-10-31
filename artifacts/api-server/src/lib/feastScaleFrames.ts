@@ -68,7 +68,9 @@ export type Edit = { start: number; end: number; text: string };
 export function singularOf(w: string): string {
   if (/(?:lea|loa|hal|shea)ves$/i.test(w)) return w.replace(/ves$/i, "f");
   if (/knives$/i.test(w)) return w.replace(/ves$/i, "fe");
-  if (/(?:tomato|potato)es$/i.test(w)) return w.replace(/es$/i, "");
+  // SERVER-13 F (BUG-634) — "mangoes" was "mangoe", "chilies" was "chily".
+  if (/(?:tomato|potato|mango)es$/i.test(w)) return w.replace(/es$/i, "");
+  if (/chill?ies$/i.test(w)) return w.replace(/es$/i, "");
   if (/[^aeiou]ies$/i.test(w)) return w.replace(/ies$/i, "y");
   if (/(?:ch|sh|x|ss)es$/i.test(w)) return w.replace(/es$/i, "");
   return w.replace(/s$/i, "");
@@ -129,9 +131,16 @@ export function scaleFrames(step: WordingStep, scale: DishScale | undefined): Wo
 /** A row's multiplier, name and unit, by ingredient id: what a ref's shown number is. */
 export type RefRows = ReadonlyMap<string, { mult: number; name: string; unit: string }>;
 
+/** Foods measured, never counted: said the same for one and for many. */
+const MASS_NOUN = /^(?:dough|powder|flour|sugar|rice|salt|butter|milk|cream|water|oil|paste|broth|stock|juice|zest)$/i;
+
 /** "lime" → "limes", "leaf" → "leaves", "tomato" → "tomatoes", "cherry" → "cherries". */
 export function pluralOf(w: string): string {
   if (/^(?:anise|zucchini|broccoli|shrimp|fish|salmon|cod|tuna|lettuce|celery)$/i.test(w)) return w;
+  // SERVER-13 F (BUG-634) — a mass noun has no plural ("1 refrigerated pie dough" is not
+  // "2 … doughs", "1 onion powder" not "powders"); chili is the catalog's "chilies".
+  if (MASS_NOUN.test(w)) return w;
+  if (/chill?i$/i.test(w)) return `${w.slice(0, -1)}ies`;
   if (/(?:lea|loa|hal|shea)f$/i.test(w)) return w.replace(/f$/i, "ves");
   if (/mango$/i.test(w)) return `${w}es`;
   if (/kni(?:fe)$/i.test(w)) return w.replace(/fe$/i, "ves");
@@ -143,7 +152,16 @@ export function pluralOf(w: string): string {
 
 const NOUN_STOP = /^(?:and|or|with|into|in|to|for|from|of|on|over|until|at|then|each|the|a|an)$/i;
 /** The words that count a food whatever its name says ("1 garlic clove", "1 celery stalk"). */
-const COUNT_NOUN = /^(?:clove|stalk|rib|sprig|leaf|head|slice|piece|strip|wedge|stick|packet|pouch|ball|half|heart|fillet|breast|thigh|yolk|white|ear|bulb)$/i;
+// SERVER-13 F — "round" ("1 refrigerated pie dough round", "2 tomato rounds"): without it
+// the head was the food's own "dough", and ×2 wrote "doughs round".
+const COUNT_NOUN = /^(?:clove|stalk|rib|sprig|leaf|head|slice|piece|strip|wedge|stick|packet|pouch|ball|half|heart|fillet|breast|thigh|yolk|white|ear|bulb|round)$/i;
+/**
+ * SERVER-13 F (BUG-634) — a range ("Place 1–2 fish strips"): the ref is "1–2" and its
+ * number is the middle (1.5), so at ×0.5 it read as one and wrote "1–2 fish strip". A
+ * range keeps its plural; it can still go plural ("½–1 lime" at ×2).
+ */
+const RANGE_REF = /\d\s*(?:[–—-]|to|or)\s*[\d½¼¾⅓⅔⅛]/i;
+const RANGE_BEFORE = /\d\s*(?:[–—-]|to|or)\s*$/i;
 
 /**
  * SERVER-10 E (BUG-597) — the noun after a unit-less amount, said for the number the
@@ -170,7 +188,8 @@ export function refNounEdits(step: WordingStep, rows: RefRows, taken: readonly E
     const row = rows.get(r.ingredientId);
     if (!row || /[a-z]/i.test(text.slice(r.charStart, r.charEnd))) continue;
     const shown = displayedPrepQuantity(r.quantity * row.mult, r.unit || row.unit, row.name);
-    const toOne = r.quantity > 1 && shown <= 1;
+    const range = RANGE_REF.test(text.slice(r.charStart, r.charEnd)) || RANGE_BEFORE.test(text.slice(0, r.charStart));
+    const toOne = r.quantity > 1 && shown <= 1 && !range;
     const toMany = r.quantity <= 1 && shown > 1;
     if (!toOne && !toMany) continue;
     const after = /^((?:\s+[A-Za-zÀ-ÿ'-]+){1,5})/.exec(text.slice(r.charEnd))?.[1] ?? "";
@@ -187,7 +206,9 @@ export function refNounEdits(step: WordingStep, rows: RefRows, taken: readonly E
     if (!head) continue;
     const at = r.charEnd + head.index!;
     if ([...taken, ...out].some((e) => e.start <= at && at < e.end)) continue;
-    out.push({ start: at, end: at + head[0].length, text: toOne ? singularOf(head[0]) : pluralOf(head[0]) });
+    const said = toOne ? singularOf(head[0]) : pluralOf(head[0]);
+    if (said === head[0]) continue; // a mass noun: nothing to say differently
+    out.push({ start: at, end: at + head[0].length, text: said });
   }
   return out;
 }
