@@ -64,6 +64,8 @@ import {
 } from "@/constants/tokens";
 import type { GroceryList, GroceryListItem } from "@/lib/types";
 import { dialog } from "@/lib/dialog";
+import { addStaple } from "@/lib/api/staples";
+import { canMarkStaple, MARK_STAPLE_LABEL, STAPLES_COPY, withStapleMarked } from "@/lib/staples";
 import { goBack } from "@/lib/navigation";
 
 const SECTION_LABELS: Record<GroceryListItem["sectionKey"], string> =
@@ -453,6 +455,33 @@ export default function GroceryListDetail() {
         "Couldn't update item",
         "Something went wrong. Please try again.",
       );
+    });
+  };
+
+  // CLIENT-9 D (BUG-472) — "I always have this" (a long press on the row): the
+  // row's ingredient joins the user's staples (POST /me/staples). Every row of it
+  // dims at once, as the server marks them, and so leaves the Instacart cart;
+  // revert + surface on failure. Profile → Staples undoes it.
+  const handleMarkStaple = (item: GroceryListItem) => {
+    if (!canMarkStaple(item) || editingItemIdRef.current) return;
+    dialog.alert(item.userResolvedTo ?? item.name, STAPLES_COPY, [
+      { text: "Cancel", style: "cancel" },
+      { text: MARK_STAPLE_LABEL, onPress: () => markStaple(item) },
+    ]);
+  };
+
+  const markStaple = (item: GroceryListItem) => {
+    const before = new Map(
+      (list?.items ?? []).map((it) => [it.id, { isUniversalStaple: it.isUniversalStaple, stapleOptedIn: it.stapleOptedIn }]),
+    );
+    setList((prev) => (prev ? { ...prev, items: withStapleMarked(prev.items, item) } : prev));
+    if (isDemo) return;
+    addStaple(item.id).catch((err) => {
+      console.warn("[grocery-list] mark staple failed", err);
+      setList((prev) =>
+        prev ? { ...prev, items: prev.items.map((it) => ({ ...it, ...(before.get(it.id) ?? {}) })) } : prev,
+      );
+      dialog.alert("Couldn't update item", "Something went wrong. Please try again.");
     });
   };
 
@@ -1329,6 +1358,7 @@ export default function GroceryListDetail() {
                       onCommitEdit={commitQuantityEdit}
                       onTap={() => handleItemTap(item)}
                       onRemove={() => handleRemove(item)}
+                      onMarkStaple={canMarkStaple(item) ? () => handleMarkStaple(item) : undefined}
                     />
                   ))}
                 </View>
@@ -1461,6 +1491,7 @@ function GroceryRow({
   onCommitEdit,
   onTap,
   onRemove,
+  onMarkStaple,
 }: {
   item: GroceryListItem;
   stapleOptedIn: boolean;
@@ -1475,6 +1506,8 @@ function GroceryRow({
   onCommitEdit: () => void;
   onTap: () => void;
   onRemove: () => void;
+  /** CLIENT-9 D — "I always have this"; absent when the row cannot be a staple. */
+  onMarkStaple?: () => void;
 }) {
   const isDefaultStaple = item.isUniversalStaple && !stapleOptedIn;
   const isActiveStaple = item.isUniversalStaple && stapleOptedIn;
@@ -1594,6 +1627,7 @@ function GroceryRow({
           it as checked would contradict the glyph. */}
       <Pressable
         onPress={onTap}
+        onLongPress={onMarkStaple}
         hitSlop={11}
         accessibilityRole="checkbox"
         accessibilityState={{ checked: showCheck }}
@@ -1632,8 +1666,15 @@ function GroceryRow({
             body and was cut off under the ✕ ("…Japanese short-grain white ric").
             Capped, the Text wraps inside it. No line cap: like the provenance
             line below, the whole name wraps at any text size. */}
+        {/* CLIENT-9 D (BUG-472) — press and hold the name: "I always have this".
+            A screen reader gets the same as a named action on the row. */}
         <Pressable
           onPress={onTap}
+          onLongPress={onMarkStaple}
+          accessibilityActions={onMarkStaple ? [{ name: "markStaple", label: MARK_STAPLE_LABEL }] : undefined}
+          onAccessibilityAction={(e) => {
+            if (e.nativeEvent.actionName === "markStaple") onMarkStaple?.();
+          }}
           hitSlop={6}
           style={({ pressed }) => [s.nameTap, pressed && { opacity: 0.7 }]}
         >

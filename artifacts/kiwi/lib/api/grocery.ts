@@ -132,6 +132,10 @@ const GroceryListItemWireSchema = z
     isAmbiguous: z.boolean(),
     isUniversalStaple: z.boolean(),
     isUserPantryStaple: z.boolean(),
+    // CLIENT-9 D (BUG-472) — the catalog ingredient, which a staple is keyed by.
+    // The Prisma row has always carried it (.passthrough()); nullish, because a
+    // typed-in item has none and a mutation response may leave it out.
+    ingredientId: z.string().nullish(),
     isRecurringItem: z.boolean(),
     // WS7-7-A Block 3 — per-list staple opt-in ("buying this week", §12.7),
     // now a real server column. Drives GroceryRow's active/dimmed staple
@@ -253,6 +257,7 @@ function normalizeListItem(wire: GroceryListItemWire): GroceryListItem {
     // separate `isUserPantryStaple` field today — fold both into the
     // universal-staple flag for UI dimming purposes (PRD §12.7).
     isUniversalStaple: wire.isUniversalStaple || wire.isUserPantryStaple,
+    ...(wire.ingredientId !== undefined ? { ingredientId: wire.ingredientId } : {}),
     stapleOptedIn: wire.stapleOptedIn,
     isRecurringItem: wire.isRecurringItem,
     isAmbiguous: wire.isAmbiguous,

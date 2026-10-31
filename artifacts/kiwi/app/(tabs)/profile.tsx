@@ -487,6 +487,13 @@ export default function ProfileTab() {
           onPress={handlePreferences}
         />
 
+        {/* CLIENT-9 D (BUG-472) — the things the cook always has (app/staples.tsx). */}
+        <NavCard
+          title="Staples"
+          subtitle="Things you always have, kept off your list"
+          onPress={() => router.push("/staples")}
+        />
+
         {/* Section C2: Subscription (§2.8). Row 9 (1.1) · Stripe S2 Part E —
             THE ONE SURFACE THAT SURVIVES THE `enforced` BLACKOUT, because a line
             reading "Free trial · ends Oct 11" promises nothing and answers the one

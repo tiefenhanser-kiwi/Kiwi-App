@@ -791,6 +791,10 @@ export interface GroceryListItem {
     | "extras";
   /** PRD §12.7 — pantry staple (default unselected, badge shown) */
   isUniversalStaple: boolean;
+  /** CLIENT-9 D (BUG-472) — the row's catalog ingredient; null for an item the
+   *  cook typed in, absent on demo stubs and optimistic rows. "I always have this"
+   *  needs one (lib/staples.ts canMarkStaple). */
+  ingredientId?: string | null;
   /** PRD §12.7 — per-list staple opt-in ("buying this week"). WS7-7-A
    *  Block 3: now a real server field (`stapleOptedIn`) driving the
    *  active/dimmed staple render. Optional so demo-stub fixtures and
