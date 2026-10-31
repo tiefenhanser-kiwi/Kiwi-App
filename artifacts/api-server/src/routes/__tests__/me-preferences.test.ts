@@ -852,7 +852,7 @@ describe("PATCH /me/preferences — defaultRetailer against the store registry (
       const r = await save(defaultsFor(USER_ID), bad);
       assert.equal(r.status, 400, JSON.stringify(bad));
       assert.equal(r.body.error, "invalid defaultRetailer");
-      assert.match(r.body.message, /^defaultRetailer must be one of kroger, aldi, .*stop_and_shop, or null$/);
+      assert.match(r.body.message, /^defaultRetailer must be one of whole_foods, aldi, .*hy_vee, or null$/);
     }
   });
 

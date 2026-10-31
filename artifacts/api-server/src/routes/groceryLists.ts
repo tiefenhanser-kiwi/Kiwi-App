@@ -46,7 +46,7 @@ import {
 import { createInstacartEnabledReader } from "../lib/retailers/instacartFlag";
 import { createShopYourStoreEnabledReader } from "../lib/retailers/shopYourStoreFlag";
 import { storeSearchTerm } from "../lib/retailers/storeSearchTerm";
-import { SHOP_YOUR_STORE_DISCLOSURE, SHOP_YOUR_STORE_STORES } from "../lib/retailers/stores";
+import { SHOP_YOUR_STORE_DISCLOSURE, SHOP_YOUR_STORE_STORES, STORES_VERSION } from "../lib/retailers/stores";
 import { emitActivity } from "../lib/userActivity";
 import {
   bucketKeyOf,
@@ -930,6 +930,8 @@ export function createGroceryListsRouter(
                 }))
               : [],
             disclosure: SHOP_YOUR_STORE_DISCLOSURE,
+            // SHOP-1 — GET /stores' version, so the client knows when its cached list moved.
+            storesVersion: STORES_VERSION,
           },
         },
       });

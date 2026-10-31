@@ -12,6 +12,7 @@ import express, { type Express } from "express";
 import type { Server } from "node:http";
 
 import { signToken } from "../../lib/auth";
+import { SHOP_YOUR_STORE_STORES, STORES_VERSION } from "../../lib/retailers/stores";
 import { GroceryListAIError } from "../../lib/groceryListAI";
 import type { ConsolidatedItem, GrocerySource } from "../../lib/groceryList";
 import { createGroceryListsRouter } from "../groceryLists";
@@ -5647,7 +5648,7 @@ describe("GET /api/grocery-lists/:id — retailers.shopYourStore + searchTerm (S
     list: { items: Array<{ id: string; displayName: string; searchTerm: string }> };
     retailers: {
       instacart: { enabled: boolean };
-      shopYourStore: { enabled: boolean; stores: Array<{ key: string; name: string; searchUrl: string; appUrl: string | null; searchUrlStatus: string }>; disclosure: string };
+      shopYourStore: { enabled: boolean; stores: Array<{ key: string; name: string; searchUrl: string | null; appUrl: string | null; searchUrlStatus: string }>; disclosure: string; storesVersion: string };
     };
   };
   const read = async (flag: boolean | string | null): Promise<Body> => {
@@ -5672,21 +5673,21 @@ describe("GET /api/grocery-lists/:id — retailers.shopYourStore + searchTerm (S
         enabled: false,
         stores: [],
         disclosure: "Kiwi may earn a commission from some store links.",
+        storesVersion: STORES_VERSION,
       }, `flag ${JSON.stringify(flag)}`);
       assert.deepEqual(body.retailers.instacart, { enabled: true }, "Instacart's flag is its own");
     }
   });
 
-  it("on: the eleven stores in registry order, with their templates and how sure Phase 0 was", async () => {
-    const { stores } = (await read(true)).retailers.shopYourStore;
-    assert.deepEqual(stores.map((s) => s.key), [
-      "kroger", "aldi", "whole_foods", "walmart", "target", "costco", "publix", "heb", "wegmans", "safeway", "stop_and_shop",
-    ]);
+  // SHOP-1 grew the registry (lib/retailers/stores.ts); this read still lists all of it, in registry order.
+  it("on: every registry store in registry order, with its search template and how sure SHOP-1 was", async () => {
+    const { stores, storesVersion } = (await read(true)).retailers.shopYourStore;
+    assert.equal(storesVersion, STORES_VERSION);
+    assert.deepEqual(stores.map((s) => s.key), SHOP_YOUR_STORE_STORES.map((s) => s.key));
     const wegmans = stores.find((s) => s.key === "wegmans")!;
     assert.deepEqual(wegmans, { key: "wegmans", name: "Wegmans", searchUrl: "https://www.wegmans.com/shop/search?query={q}", appUrl: null, searchUrlStatus: "documented" });
-    assert.equal(stores.find((s) => s.key === "stop_and_shop")!.searchUrlStatus, "unknown");
-    assert.equal(stores.filter((s) => s.searchUrlStatus === "unverified").length, 9);
-    assert.ok(stores.every((s) => s.searchUrl.startsWith("https://") && s.searchUrl.includes("{q}")));
+    assert.deepEqual(stores.find((s) => s.key === "stop_and_shop"), { key: "stop_and_shop", name: "Stop & Shop", searchUrl: "https://stopandshop.com/product-search/{q}", appUrl: null, searchUrlStatus: "checked" });
+    assert.ok(stores.every((s) => s.searchUrl === null || (s.searchUrl.startsWith("https://") && s.searchUrl.includes("{q}"))));
   });
 
   it("every row carries its searchTerm, flag on or off", async () => {
