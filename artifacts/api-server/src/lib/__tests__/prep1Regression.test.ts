@@ -18,7 +18,7 @@ import type { LoadPrepWeekInputResult } from "../prepWeekAggregation";
 import { PrepWeekResultSchema, type PrepWeekResult } from "../ai/schemas/prepWeek";
 import { assemblePrepWeekResult, summarizePrepWeek } from "../prepWeekAssembly";
 import { buildCoreWeek, finishPrepWeek } from "../prepWeekBuild";
-import { PREP_ENGINE_VERSION, prepCompositionFingerprint } from "../prepWeekFingerprint";
+import { PREP_ENGINE_VERSION, prepCompositionFingerprint, WEEK_SESSION_VERSION } from "../prepWeekFingerprint";
 import { makeAheadForPlan } from "../makeAheadSchedule";
 import { renamed } from "../prepFeastLabels";
 import { labelWeekResult } from "../prepWeekLabels";
@@ -113,11 +113,13 @@ describe("PREP-1 F — a plan with no thanksgiving-feast is unchanged but for Pa
   // THX-3d: 14 (three-or-more mixes, closers, the R5 table, prefix days); round 2: 15.
   // PREP-3: 16 (the weeknight's plates and juice tubs, the marinade jar, one moment per member).
   // THX-3d round 4: 17 (BUG-510 — a patted-dry protein is no Sunday step, marinade or not).
-  it("the fingerprint moved by the engine version alone (7 → 17): the hashed input is the same", () => {
-    const hash = (engine: number) =>
-      createHash("sha256").update(JSON.stringify({ v: 1, engine, input: load.input })).digest("hex");
+  // SERVER-13 C (D-WS9-372): the week's own version joins its gate (week: 1).
+  it("the fingerprint moved by the engine version (7 → 17) and the week's version (1) alone: the hashed input is the same", () => {
+    const hash = (engine: number, week?: number) =>
+      createHash("sha256").update(JSON.stringify({ v: 1, engine, ...(week === undefined ? {} : { week }), input: load.input })).digest("hex");
     assert.equal(PREP_ENGINE_VERSION, 17);
+    assert.equal(WEEK_SESSION_VERSION, 1);
     assert.equal(hash(7), pre.fingerprint);
-    assert.equal(prepCompositionFingerprint(load.input), hash(17));
+    assert.equal(prepCompositionFingerprint(load.input), hash(17, 1));
   });
 });

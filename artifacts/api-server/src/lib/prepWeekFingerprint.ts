@@ -152,6 +152,20 @@ const FINGERPRINT_ALGO_VERSION = 1;
 export const PREP_ENGINE_VERSION = 17;
 
 /**
+ * SERVER-13 C (D-WS9-372) — THE WEEKNIGHT SESSION'S VERSION, IN THE WEEK'S GATE ONLY.
+ * PREP_ENGINE_VERSION is in both gates (above and feastSessionFingerprint), so bumping
+ * it to refresh the weeknights re-narrates every "Prep the feast" session too. Bump
+ * this instead when only Prep the Week's narration input changes for the same
+ * composition; the feast's cache is left alone.
+ *   1 — SERVER-12 B (BUG-619) and C (BUG-623): a divided row is a portion per step
+ *       (346 of the 1,337 weeknight catalog meals hold such a dish, and their plans'
+ *       fingerprints had already moved) and a scaled amount under ¼ cup is said in
+ *       spoons (no fingerprint moved). One bump so both refresh on the same next open:
+ *       every warm weeknight cache re-narrates once (one prep.narrate_steps call).
+ */
+export const WEEK_SESSION_VERSION = 1;
+
+/**
  * Digest of the loaded plan composition — everything the prep payload is built
  * from, and nothing else.
  *
@@ -161,7 +175,7 @@ export const PREP_ENGINE_VERSION = 17;
  */
 export function prepCompositionFingerprint(input: PrepLoadedPlan): string {
   return createHash("sha256")
-    .update(JSON.stringify({ v: FINGERPRINT_ALGO_VERSION, engine: PREP_ENGINE_VERSION, input }))
+    .update(JSON.stringify({ v: FINGERPRINT_ALGO_VERSION, engine: PREP_ENGINE_VERSION, week: WEEK_SESSION_VERSION, input }))
     .digest("hex");
 }
 
