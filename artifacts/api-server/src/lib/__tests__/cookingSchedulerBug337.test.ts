@@ -324,7 +324,8 @@ describe("BUG-337 ruling 2 — the connective says what the dish is actually doi
     const titleToId = new Map(busy.map((d) => [d.title, d.dishId]));
     for (const e of rb.steps) {
       if (!e.reason) continue;
-      const m = /^With the (.+?) (cooking|heating up|resting|marinating|chilling|staying warm), /.exec(e.reason);
+      // (SEQ-1 BUG-596: an everyday meal's cue names the state — simmering, in the oven, … — cookStateOf.)
+      const m = /^With the (.+?) (cooking|heating up|resting|marinating|chilling|staying warm|simmering|in the oven|steaming|in the slow cooker|in the microwave|pickling|soaking|sitting), /.exec(e.reason);
       assert.ok(m, `cue not in the expected shape: "${e.reason}"`);
       const windowId = titleToId.get(m![1]);
       assert.ok(

@@ -2,7 +2,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { BREAD_HOLD_MAX, breadRunFrom, HOT_HOLD_MAX, isUnattended, keepWarmCue, markHandsOn, needsTheCook, panLive, scheduleCookingSequence, type SchedulerDish, type SchedulerPhase } from "../cookingScheduler";
+import { BREAD_HOLD_MAX, breadRunFrom, cookStateOf, everydayCuesAsServed, HOT_HOLD_MAX, isUnattended, keepWarmCue, markHandsOn, needsTheCook, panLive, scheduleCookingSequence, type SchedulerDish, type SchedulerPhase } from "../cookingScheduler";
 
 const st = (stepIndex: number, phaseType: SchedulerPhase, estimatedMinutes: number, text: string, isTimingSensitive = false, parallelGroup: string | null = null) => ({ stepIndex, phaseType, estimatedMinutes, text, isTimingSensitive, parallelGroup, componentKey: null, pathKey: null });
 const dish = (dishId: string, title: string, positionIndex: number, steps: ReturnType<typeof st>[]): SchedulerDish => ({ dishId, title, positionIndex, roleLabel: null, steps, ingredientNames: [] });
@@ -305,5 +305,52 @@ describe("SEQ-1 rule 4 (BUG-595) — hot dishes don't wait uncovered", () => {
     assert.ok(!feast.steps.some((e) => /until serving\.$/.test(e.reason ?? "")));
     const stamp = scheduleCookingSequence(noText(AL_PASTOR) as SchedulerDish[]);
     assert.ok(!stamp.steps.some((e) => /until serving\.$/.test(e.reason ?? "")));
+  });
+});
+
+describe("SEQ-1 rule 6 (BUG-596) — cues tell the truth", () => {
+  const state = (phaseType: SchedulerPhase, text: string, title = "") => cookStateOf({ stepIndex: 0, phaseType, estimatedMinutes: 10, isTimingSensitive: false, text }, text, false, title);
+
+  it("cookStateOf: what the dish is doing, from its own words", () => {
+    assert.equal(state("cook", "Pour in 1⅛ cups water and ½ teaspoon kosher salt, bring to a boil, then reduce heat to low, cover, and cook 15 minutes."), "simmering", "\"bring\" is not brine (the rice was marinating)");
+    assert.equal(state("cook", "Turn the burner on under the pot of potatoes and bring to a boil over high heat."), "simmering");
+    assert.equal(state("rest", "Add the pork strips to the marinade and toss to coat evenly; let sit for at least 10 minutes."), "marinating", "a marinade is marinating (it was resting)");
+    assert.equal(state("cook", "Cover the pot tightly with foil and the lid; cook on the lowest heat for 25 minutes (dum cooking), then remove from heat and let rest, still sealed, for 10 minutes."), "simmering", "a cook step's heat first (it was resting)");
+    assert.equal(state("cook", "Roast the potatoes at 425°F for 30 minutes."), "in the oven");
+    assert.equal(state("cook", "Place the seasoned chicken thighs in the slow cooker and cook on low for 6 hours."), "in the slow cooker");
+    assert.equal(state("cook", "Microwave both rice pouches until steaming hot."), "in the microwave");
+    assert.equal(state("rest", "Pour the hot brine over the sliced onions and let cool to room temperature.", "Quick-Pickled Red Onions"), "pickling");
+    assert.equal(state("rest", "Let the pico de gallo sit at room temperature for at least 10 minutes."), "sitting", "a raw dish is not resting");
+    assert.equal(state("rest", "Transfer the chicken to a cutting board and rest for 5 minutes."), "resting");
+    assert.equal(state("rest", "Remove from heat and let the rice steam, covered, for 10 minutes."), "steaming");
+    assert.equal(state("rest", "Cover and refrigerate the raita for at least 15 minutes."), "chilling");
+    assert.equal(state("rest", "Pat the chicken dry and rub the seasoning all over."), null, "nothing recognisable: no cue");
+  });
+
+  it("the rice is simmering in Cook Mode's cue, not marinating", () => {
+    const RICE = dish("rice", "Cilantro-Lime Rice", 0, [
+      st(0, "prep", 3, "Rinse ¾ cup long-grain white rice until the water runs clear."),
+      st(1, "cook", 18, "Pour in 1⅛ cups water and ½ teaspoon kosher salt, bring to a boil, then reduce heat to low, cover, and cook 15 minutes."),
+    ]);
+    const PICO = dish("pico", "Fresh Pico de Gallo", 1, [
+      st(0, "prep", 10, "Seed and finely dice 2 roma tomatoes; finely dice ½ white onion and mince ½ jalapeño."),
+      st(1, "assemble", 2, "Combine the tomatoes, onion and jalapeño with 1 tablespoon lime juice."),
+    ]);
+    const cues = scheduleCookingSequence([RICE, PICO]).steps.map((e) => e.reason).filter(Boolean);
+    assert.ok(cues.includes("With the Cilantro-Lime Rice simmering, start on the Fresh Pico de Gallo."), JSON.stringify(cues));
+    assert.ok(!cues.some((c) => /marinating/.test(c!)));
+  });
+
+  it("a cue is kept only while the dish it names is doing it as the step starts", () => {
+    const dishes = [dish("a", "Rice", 0, [st(0, "cook", 10, "Simmer the rice covered.")]), dish("b", "Salad", 1, [st(0, "prep", 3, "Chop the lettuce.")])];
+    const res = { totalEstimatedMinutes: 20, activeEstimatedMinutes: 3, dishDurations: {}, ignoredTags: [], steps: [
+      { dishId: "a", originalStepIndex: 0, sequenceIndex: 0, startOffsetMinutes: -20 },
+      { dishId: "b", originalStepIndex: 0, sequenceIndex: 1, startOffsetMinutes: -5, reason: "With the Rice simmering, start on the Salad." },
+    ] };
+    assert.equal(everydayCuesAsServed(res, dishes).steps[1].reason, undefined, "the rice was done at T−10");
+    const during = { ...res, steps: [res.steps[0], { ...res.steps[1], startOffsetMinutes: -15 }] };
+    assert.equal(everydayCuesAsServed(during, dishes).steps[1].reason, "With the Rice simmering, start on the Salad.");
+    const warm = { ...res, steps: [res.steps[0], { ...res.steps[1], reason: "Tent the Rice with foil until serving." }] };
+    assert.equal(everydayCuesAsServed(warm, dishes).steps[1].reason, "Tent the Rice with foil until serving.", "the keep-warm cue is kept");
   });
 });

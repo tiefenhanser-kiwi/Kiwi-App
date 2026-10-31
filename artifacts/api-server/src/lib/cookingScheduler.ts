@@ -514,6 +514,80 @@ function passiveStateOf(step: SchedulerStep, text: string, coldDish: boolean): P
   return state;
 }
 
+// ── SEQ-1 (BUG-596) — CUES TELL THE TRUTH ───────────────────────────────────────
+//
+// QA-COOK-1, 318 of 320 cue hits from the Sequencer: "With the Cilantro-Lime Rice
+// marinating" — the rice was simmering. STATE_FROM_PROSE's `brin\w*` meant brine and
+// matched "BRINg to a boil", so every pot brought to a boil was marinating; "the
+// marinade" is not `marinat\w*`, so a marinade fell through to "resting"; and a dum
+// that "cooks 25 minutes, then rests" was resting while it cooked. An everyday meal's
+// cue now names what the dish is doing at that moment, from the window step's own
+// words: a cook step is in the oven, simmering, steaming, in the slow cooker or (other
+// heat) cooking — its heat first; a hands-free step is chilling, marinating, pickling,
+// soaking, steaming, resting or sitting. Nothing recognisable: no cue (BUG-337's
+// silence). A feast's cues are frozen (passiveStateOf, unchanged).
+export type CookState = PassiveState | "simmering" | "in the oven" | "steaming" | "in the slow cooker" | "in the microwave" | "pickling" | "soaking" | "sitting";
+const SIMMERING = /\b(?:simmer\w*|boil\w*|braise\w*|poach\w*|on the lowest heat|reduce (?:the )?heat to (?:low|medium-low))\b/i;
+const STEAMING = /\bsteam\w*\b/i;
+const SLOW_COOKER = /\b(?:slow cooker|crock-?pot)\b/i;
+const MICROWAVE = /\bmicrowav\w*\b/i;
+const MARINATING = /\b(?:marinat\w*|marinade|brine[ds]?|brining)\b/i;
+const PICKLING = /\bpickl\w*\b/i;
+const SOAKING = /\bsoak\w*\b/i;
+const RESTING = /\b(?:rest|resting|rests)\b/i;
+const SITTING = /\b(?:let (?:it |them |the [\w -]+ )?(?:sit|stand)|sits? at room temperature)\b/i;
+const CHILLING = /\b(?:refrigerat\w*|chill\w*|in the fridge|ice bath)\b/i;
+const WARMING = /\b(?:keep\w*\s+warm|stay\w*\s+warm|hold\w*\s+warm|tent\w*|wrap\w*\s+in\s+(?:a\s+)?(?:clean\s+)?(?:kitchen\s+)?(?:towel|foil))\b/i;
+
+export function cookStateOf(step: SchedulerStep, text: string, coldDish: boolean, dishTitle = ""): CookState | null {
+  if (!text) return passiveStateOf(step, text, coldDish);
+  if (step.phaseType === "preheat") return "heating up";
+  if (step.phaseType === "cook") {
+    if (SLOW_COOKER.test(text)) return "in the slow cooker";
+    if (MICROWAVE.test(text)) return "in the microwave";
+    if (isOvenStep({ phaseType: step.phaseType, text })) return "in the oven";
+    if (SIMMERING.test(text)) return "simmering";
+    if (STEAMING.test(text)) return "steaming";
+    return HEAT_PROSE.test(text) ? "cooking" : null;
+  }
+  if (CHILLING.test(text)) return "chilling";
+  if (PICKLING.test(`${dishTitle} ${text}`)) return "pickling";
+  if (MARINATING.test(text)) return "marinating";
+  if (SOAKING.test(text)) return "soaking";
+  if (STEAMING.test(text)) return "steaming";
+  if (RESTING.test(text)) return "resting";
+  if (SITTING.test(text)) return "sitting";
+  if (WARMING.test(text)) return coldDish ? "chilling" : "staying warm";
+  return null;
+}
+
+/**
+ * SEQ-1 (BUG-596) — an everyday meal's cue is kept only while it is true as the step
+ * starts: the dish it names has a hands-free step running then, begun earlier in the
+ * order the cook reads (BUG-593 and BUG-595 move steps after the cues are written).
+ * The keep-warm cue says nothing of the kind and is kept.
+ */
+export function everydayCuesAsServed(res: ScheduleResult, dishes: readonly SchedulerDish[]): ScheduleResult {
+  const k = (dishId: string, stepIndex: number) => `${dishId}#${stepIndex}`;
+  const stepOf = new Map(dishes.flatMap((d) => d.steps.map((s) => [k(d.dishId, s.stepIndex), s] as const)));
+  const titled = [...dishes].sort((a, b) => b.title.length - a.title.length);
+  let changed = false;
+  const steps = res.steps.map((e) => {
+    if (!e.reason?.startsWith("With the ")) return e;
+    const named = titled.find((d) => d.dishId !== e.dishId && e.reason!.startsWith(`With the ${d.title} `));
+    const running = named && res.steps.some((o) => {
+      if (o.dishId !== named.dishId || o.sequenceIndex >= e.sequenceIndex) return false;
+      const s = stepOf.get(k(o.dishId, o.originalStepIndex));
+      return !!s && isUnattended(s) && o.startOffsetMinutes <= e.startOffsetMinutes && e.startOffsetMinutes < o.startOffsetMinutes + s.estimatedMinutes;
+    });
+    if (running) return e;
+    changed = true;
+    const { reason: _reason, ...plain } = e;
+    return plain;
+  });
+  return changed ? { ...res, steps } : res;
+}
+
 // ── WS9 BUG-337 / D-WS9-297 ruling 3 — WHICH DISHES ARE SERVED COLD ─────────
 //
 // A cold dish is not finish-aligned: it is pulled forward into the earliest
@@ -833,7 +907,7 @@ export function scheduleCookingSequence(
   // SEQ-1 — the cook's reading of the words, on an everyday meal (the feasts are frozen).
   if (opts.feastOven) return scheduleTheDay(dishes, opts);
   const marked = markHandsOn(dishes);
-  return hotAtServing(breadAtServing(marked, (d) => scheduleTheDay(d, opts)), marked);
+  return everydayCuesAsServed(hotAtServing(breadAtServing(marked, (d) => scheduleTheDay(d, opts)), marked), marked);
 }
 
 // ── SEQ-1 (BUG-595) — HOT DISHES DON'T WAIT UNCOVERED ───────────────────────────
@@ -3689,7 +3763,7 @@ function scheduleOnceCore(
       sequenceIndex: seqIdx,
       startOffsetMinutes: w.actualStart - serveAnchor,
     };
-    const cue = composeCue(w, ordered, seqIdx, coldDishIds);
+    const cue = composeCue(w, ordered, seqIdx, coldDishIds, !oven && !blocks);
     if (cue) entry.reason = cue;
     return entry;
   });
@@ -3733,6 +3807,8 @@ function composeCue(
   ordered: WorkStep[],
   seqIdx: number,
   coldDishIds: ReadonlySet<string>,
+  /** SEQ-1 (BUG-596) — an everyday meal's cue says what the dish is really doing (cookStateOf); a feast's is frozen. */
+  everyday = false,
 ): string | undefined {
   if (seqIdx === 0) return undefined;
   const prev = ordered[seqIdx - 1];
@@ -3755,11 +3831,9 @@ function composeCue(
   );
   if (!window) return undefined;
 
-  const state = passiveStateOf(
-    window.step,
-    window.step.text ?? "",
-    coldDishIds.has(window.dishId),
-  );
+  const state = everyday
+    ? cookStateOf(window.step, window.step.text ?? "", coldDishIds.has(window.dishId), window.dishTitle)
+    : passiveStateOf(window.step, window.step.text ?? "", coldDishIds.has(window.dishId));
   // Nothing honest to say about what that dish is doing → no cue. Silence is a
   // correct answer here; a confident wrong one is what BUG-337 is about.
   if (state === null) return undefined;
