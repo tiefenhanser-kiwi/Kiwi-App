@@ -421,7 +421,7 @@ export function buildAmountRefSegments(
       // ("1 limes" → "1 lime"). A size ("3-pound chicken") and a worded amount
       // ("a lime") have none to agree.
       if (!r.unit && !hyphenBird && !/[a-z]/i.test(authored)) {
-        const edit = refNounEdit(text, r.charEnd, r.quantity, displayedQuantity(amount, r.unit, name, ctx), heads);
+        const edit = refNounEdit(text, r.charStart, r.charEnd, r.quantity, displayedQuantity(amount, r.unit, name, ctx), heads);
         if (edit) nounEdits.push(edit);
       }
       out.push({ text: unit ? `${scaled} ${unit}` : scaled, isRef: true });

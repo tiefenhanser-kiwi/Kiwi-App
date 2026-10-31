@@ -18,15 +18,33 @@
 //     ×2) is the head, and stays; going singular, a server-agreed step has no
 //     plural head left.
 
+//
+// CLIENT-9 B (BUG-634) — SERVER-13 F's fix (3c24834c), ported: a range keeps its
+// plural, mango and chili(l)ies singularise, a mass noun has no plural, "round" is
+// a count noun. Both sides read api-server src/lib/__tests__/shared/scaledNounVectors.mts.
+
 const NOUN_STOP = /^(?:and|or|with|into|in|to|for|from|of|on|over|until|at|then|each|the|a|an)$/i;
 /** The words that count a food whatever its name says ("1 garlic clove", "1 celery stalk"). */
-const COUNT_NOUN = /^(?:clove|stalk|rib|sprig|leaf|head|slice|piece|strip|wedge|stick|packet|pouch|ball|half|heart|fillet|breast|thigh|yolk|white|ear|bulb)$/i;
+// CLIENT-9 B — "round" ("1 refrigerated pie dough round"): without it the head was
+// the food's own "dough", and ×2 wrote "doughs round".
+const COUNT_NOUN = /^(?:clove|stalk|rib|sprig|leaf|head|slice|piece|strip|wedge|stick|packet|pouch|ball|half|heart|fillet|breast|thigh|yolk|white|ear|bulb|round)$/i;
+/** Foods measured, never counted: said the same for one and for many. */
+const MASS_NOUN = /^(?:dough|powder|flour|sugar|rice|salt|butter|milk|cream|water|oil|paste|broth|stock|juice|zest)$/i;
+/**
+ * A range ("Place 1–2 fish strips"): the ref is "1–2" and its number the middle (1.5),
+ * so at ×0.5 it read as one and wrote "1–2 fish strip". A range keeps its plural; it
+ * can still go plural ("½–1 lime" at ×2). The ref itself, or a ref after "N–", "N to", "N or".
+ */
+const RANGE_REF = /\d\s*(?:[–—-]|to|or)\s*[\d½¼¾⅓⅔⅛]/i;
+const RANGE_BEFORE = /\d\s*(?:[–—-]|to|or)\s*$/i;
 
 /** "leaves" → "leaf", "potatoes" → "potato", "cherries" → "cherry", "jalapeños" → "jalapeño". */
 export function singularOf(w: string): string {
   if (/(?:lea|loa|hal|shea)ves$/i.test(w)) return w.replace(/ves$/i, "f");
   if (/knives$/i.test(w)) return w.replace(/ves$/i, "fe");
-  if (/(?:tomato|potato)es$/i.test(w)) return w.replace(/es$/i, "");
+  // CLIENT-9 B (BUG-634) — "mangoes" was "mangoe", "chilies" was "chily".
+  if (/(?:tomato|potato|mango)es$/i.test(w)) return w.replace(/es$/i, "");
+  if (/chill?ies$/i.test(w)) return w.replace(/es$/i, "");
   if (/[^aeiou]ies$/i.test(w)) return w.replace(/ies$/i, "y");
   if (/(?:ch|sh|x|ss)es$/i.test(w)) return w.replace(/es$/i, "");
   return w.replace(/s$/i, "");
@@ -35,6 +53,10 @@ export function singularOf(w: string): string {
 /** "lime" → "limes", "leaf" → "leaves", "tomato" → "tomatoes", "cherry" → "cherries". */
 export function pluralOf(w: string): string {
   if (/^(?:anise|zucchini|broccoli|shrimp|fish|salmon|cod|tuna|lettuce|celery)$/i.test(w)) return w;
+  // CLIENT-9 B (BUG-634) — a mass noun has no plural ("1 onion powder" is not
+  // "powders"); chili is the catalog's "chilies".
+  if (MASS_NOUN.test(w)) return w;
+  if (/chill?i$/i.test(w)) return `${w.slice(0, -1)}ies`;
   if (/(?:lea|loa|hal|shea)f$/i.test(w)) return w.replace(/f$/i, "ves");
   if (/mango$/i.test(w)) return `${w}es`;
   if (/kni(?:fe)$/i.test(w)) return w.replace(/fe$/i, "ves");
@@ -69,15 +91,18 @@ const isPlural = (w: string) => /s$/i.test(w) && !/(?:ss|us)$/i.test(w);
  * noun-like word within five after the number, before a joining word. Going
  * plural it must name a food of the dish or be a count noun (the server's sweep:
  * a bare last-word rule wrote "lengthwises", "yellows"). Null when nothing moves.
+ * CLIENT-9 B — `start` is the ref's charStart: a range never goes singular.
  */
 export function refNounEdit(
   text: string,
+  start: number,
   end: number,
   authored: number,
   shown: number,
   heads: ReadonlySet<string>,
 ): NounEdit | null {
-  const toOne = authored > 1 && shown <= 1;
+  const range = RANGE_REF.test(text.slice(start, end)) || RANGE_BEFORE.test(text.slice(0, start));
+  const toOne = authored > 1 && shown <= 1 && !range;
   const toMany = authored <= 1 && shown > 1;
   if (!toOne && !toMany) return null;
   const after = /^((?:\s+[A-Za-zÀ-ÿ'-]+){1,5})/.exec(text.slice(end))?.[1] ?? "";
@@ -94,5 +119,7 @@ export function refNounEdit(
   if (!head) return null;
   if (toMany && isPlural(head[0])) return null; // already said for many
   const at = end + head.index!;
-  return { start: at, end: at + head[0].length, text: toOne ? singularOf(head[0]) : pluralOf(head[0]) };
+  const said = toOne ? singularOf(head[0]) : pluralOf(head[0]);
+  if (said === head[0]) return null; // a mass noun: nothing to say differently
+  return { start: at, end: at + head[0].length, text: said };
 }

@@ -11,9 +11,12 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 import { buildAmountRefSegments } from "../amountSegments";
-import { pluralOf, singularOf } from "../scaledNouns";
+import { foodHeads, pluralOf, refNounEdit, singularOf } from "../scaledNouns";
 import type { AmountRef } from "../../api/meals";
 import { ONE_BIRD } from "../../format/quantity";
+// CLIENT-9 B (BUG-634) — SERVER-13 F's vectors, the same list the server's
+// server13ScaledNouns.test.ts reads (data only; by its real .mts name: Node runs it as is).
+import { PLURAL, SINGULAR, STEP_VECTORS } from "../../../../api-server/src/lib/__tests__/shared/scaledNounVectors.mts";
 
 /** Refs on the given digits (in order of appearance), unit-less. */
 function refs(text: string, ...digits: [digit: string, quantity: number][]): AmountRef[] {
@@ -105,5 +108,29 @@ describe("BUG-618 — every screen that scales a step passes its dish's foods", 
     assert.match(src("components/CookSessionView.tsx"), /buildAmountRefSegments\(text, amountRefs, amountMultiplier, birds, foods\)/);
     assert.equal(src("components/CookSessionView.tsx").match(/foods=\{stepFoods\(step\)\}/g)?.length, 2);
     assert.match(src("app/cook-session.tsx"), /dishFoods=\{dishFoods\}/);
+  });
+});
+
+describe("CLIENT-9 B (BUG-634) — the shared scaled-noun vectors, on the client's rule", () => {
+  for (const [plural, one] of SINGULAR) {
+    it(`singularOf("${plural}") is "${one}"`, () => assert.equal(singularOf(plural), one));
+  }
+  for (const [one, plural] of PLURAL) {
+    it(`pluralOf("${one}") is "${plural}"`, () => assert.equal(pluralOf(one), plural));
+  }
+  for (const v of STEP_VECTORS) {
+    it(v.name, () => {
+      const start = v.text.indexOf(v.ref);
+      assert.ok(start >= 0, `"${v.ref}" is in the text`);
+      const e = refNounEdit(v.text, start, start + v.ref.length, v.authored, v.shown, foodHeads([v.food]));
+      const got = e ? v.text.slice(0, e.start) + e.text + v.text.slice(e.end) : v.text;
+      assert.equal(got, v.want);
+    });
+  }
+
+  it("on the stepper's path: one mango at 2 of 4, chilies and a mass noun at 8", () => {
+    assert.equal(said("Peel and dice the 2 ripe mangoes into cubes.", 0.5, ["mango"], ["2", 2]), "Peel and dice the 1 ripe mango into cubes.");
+    assert.equal(said("Slice 1 red chili thinly.", 2, ["red chili"], ["1", 1]), "Slice 2 red chilies thinly.");
+    assert.equal(said("Stir in 1 onion powder.", 2, ["onion powder"], ["1", 1]), "Stir in 2 onion powder.");
   });
 });
